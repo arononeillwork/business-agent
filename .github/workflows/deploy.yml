@@ -56,10 +56,22 @@ jobs:
       - name: Build
         if: steps.gate.outputs.ready == 'true'
         run: npm run build
+      - name: Check the Cloudflare token works
+        if: steps.gate.outputs.ready == 'true'
+        run: |
+          user=$(curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" https://api.cloudflare.com/client/v4/user/tokens/verify)
+          if echo "$user" | grep -q '"status":"active"'; then echo "User API token is active"; exit 0; fi
+          if [ -n "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            acct=$(curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/tokens/verify")
+            if echo "$acct" | grep -q '"status":"active"'; then echo "Account API token is active"; exit 0; fi
+          fi
+          echo "::error::Cloudflare rejected CLOUDFLARE_API_TOKEN. Create a new token (My Profile → API Tokens → Create Token → 'Edit Cloudflare Workers') and paste the token value shown once after creating it, not the token ID or the Global API Key."
+          exit 1
       - name: Deploy the Worker
         id: deploy
         if: steps.gate.outputs.ready == 'true'
         run: |
+          set -o pipefail
           npx wrangler deploy 2>&1 | tee deploy.log
           url=$(grep -oE 'https://[a-zA-Z0-9.-]+\.workers\.dev' deploy.log | head -1)
           echo "url=$url" >> "$GITHUB_OUTPUT"
