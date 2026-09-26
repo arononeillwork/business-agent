@@ -33,14 +33,10 @@ export function LoginPage() {
                 <Typography variant="body2" color="text.secondary">Team sign-in</Typography>
               </Box>
             </Stack>
-            {api.mode === 'live' && (
-              <>
-                <Button variant="outlined" size="large" startIcon={<GoogleIcon />} onClick={() => run(() => api.signInWithGoogle())}>
-                  Continue with Google
-                </Button>
-                <Divider sx={{ color: 'text.secondary', fontSize: 13 }}>or with email</Divider>
-              </>
-            )}
+            <Button variant="outlined" size="large" startIcon={<GoogleIcon />} onClick={() => run(() => api.signInWithGoogle())}>
+              Continue with Google
+            </Button>
+            <Divider sx={{ color: 'text.secondary', fontSize: 13 }}>or with email</Divider>
             {api.mode === 'demo' && (
               <Alert severity="info">Demo: use aron@example.com (admin) or maria@example.com (employee), any password.</Alert>
             )}

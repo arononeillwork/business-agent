@@ -389,3 +389,9 @@ test('café music: admin approves a Spotify playlist, staff play it', async ({ p
   await music.getByRole('button', { name: 'Pause' }).click()
   await expect(music).toContainText('Not playing')
 })
+
+test('sign-in screen offers Google; in the demo it explains it works on the real site', async ({ page }) => {
+  await page.goto('/?demo')
+  await page.getByRole('button', { name: 'Continue with Google' }).click()
+  await toast(page, 'Google sign-in works on the live app')
+})
