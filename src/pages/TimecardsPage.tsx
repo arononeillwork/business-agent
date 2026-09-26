@@ -34,7 +34,7 @@ export function TimecardsPage() {
   const [editing, setEditing] = useState<TimeEntry | null>(null)
   const [adding, setAdding] = useState(false)
 
-  const data = useAsync(async () => {
+  const data = useAsync('timecards', async () => {
     const [entries, corrections, shifts] = await Promise.all([
       api.timeEntries(zonedIso(monday, '00:00'), zonedIso(addDays(monday, 7), '00:00')),
       api.corrections(),
@@ -213,7 +213,7 @@ function EditDialog({ entry, onClose, onSaved }: { entry: TimeEntry; onClose: ()
   const [clockIn, setClockIn] = useState(toInput(entry.clock_in))
   const [clockOut, setClockOut] = useState(toInput(entry.clock_out))
   const [reason, setReason] = useState('')
-  const history = useAsync(() => api.entryChanges(entry.id), [entry.id])
+  const history = useAsync('timecard-history', () => api.entryChanges(entry.id), [entry.id])
 
   const save = () => run(async () => {
     const ci = clockIn !== toInput(entry.clock_in) ? fromInput(clockIn) : null

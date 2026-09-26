@@ -1,4 +1,6 @@
 import { CssBaseline, ThemeProvider } from '@mui/material'
+import { QueryClientProvider } from '@tanstack/react-query'
+import { queryClient } from './app/query'
 import { BrowserRouter, HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AppProvider, useApp } from './app/AppContext'
 import { NotifyProvider } from './app/Notify'
@@ -42,6 +44,7 @@ const Router = import.meta.env.VITE_DEMO_ONLY === '1' ? HashRouter : BrowserRout
 
 export function App() {
   return (
+    <QueryClientProvider client={queryClient}>
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <NotifyProvider>
@@ -52,5 +55,6 @@ export function App() {
         </AppProvider>
       </NotifyProvider>
     </ThemeProvider>
+    </QueryClientProvider>
   )
 }

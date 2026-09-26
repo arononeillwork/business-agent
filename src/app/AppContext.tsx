@@ -1,3 +1,4 @@
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Api } from '../data/api'
 import { currentRates } from '../data/api'
@@ -56,41 +57,47 @@ async function resolveApi(): Promise<Api> {
   return createDemoApi()
 }
 
+type Shared = Omit<AppData, 'api' | 'refresh' | 'rates' | 'isAdmin' | 'canSeePay' | 'loading'>
+const EMPTY: Shared = { me: null, business: null, settings: null, profiles: [], positions: [], breakTypes: [], payRates: [] }
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [api, setApi] = useState<Api | null>(null)
-  const [state, setState] = useState<Omit<AppData, 'api' | 'refresh' | 'rates' | 'isAdmin' | 'canSeePay'>>({
-    me: null, business: null, settings: null, profiles: [], positions: [], breakTypes: [], payRates: [], loading: true,
-  })
+  const client = useQueryClient()
 
   useEffect(() => { resolveApi().then(setApi) }, [])
 
-  const refresh = useCallback(async () => {
-    if (!api) return
-    const me = await api.me().catch(() => null)
-    if (!me || me.role === 'kiosk') {
-      setState(s => ({ ...s, me, loading: false }))
-      return
-    }
-    const [business, settings, profiles, positions, breakTypes, payRates] = await Promise.all([
-      api.business(), api.settings(), api.profiles(), api.positions(), api.breakTypes(), api.payRates(),
-    ])
-    setState({ me, business, settings, profiles, positions, breakTypes, payRates, loading: false })
-  }, [api])
+  // Who is signed in plus the team's reference data, cached and refreshed with everything else.
+  const shared = useQuery({
+    queryKey: ['app-shared', api?.mode],
+    enabled: !!api,
+    queryFn: async (): Promise<Shared> => {
+      const me = await api!.me().catch(() => null)
+      if (!me || me.role === 'kiosk') return { ...EMPTY, me }
+      const [business, settings, profiles, positions, breakTypes, payRates] = await Promise.all([
+        api!.business(), api!.settings(), api!.profiles(), api!.positions(), api!.breakTypes(), api!.payRates(),
+      ])
+      return { me, business, settings, profiles, positions, breakTypes, payRates }
+    },
+  })
 
+  // Signing in or out changes what everyone may see: drop the whole cache.
   useEffect(() => {
     if (!api) return
-    refresh()
-    return api.onAuthChange(() => { refresh() })
-  }, [api, refresh])
+    return api.onAuthChange(() => { client.resetQueries() })
+  }, [api, client])
+
+  const refresh = useCallback(async () => { await client.invalidateQueries() }, [client])
+  const state = shared.data ?? EMPTY
 
   const value = useMemo<AppData | null>(() => api && ({
     ...state,
     api,
     refresh,
+    loading: shared.isPending,
     rates: currentRates(state.payRates),
     isAdmin: state.me?.role === 'admin',
     canSeePay: state.me?.role === 'admin' && !!state.me?.can_see_pay,
-  }), [api, state, refresh])
+  }), [api, state, refresh, shared.isPending])
 
   if (!value) return null
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>

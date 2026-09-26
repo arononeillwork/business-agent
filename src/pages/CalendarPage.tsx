@@ -32,7 +32,7 @@ export function CalendarPage() {
 
   const gridStart = weekStart(month)
   const gridEnd = addDays(weekStart(addDays(addMonths(month, 1), -1)), 6)
-  const data = useAsync(() => api.events(gridStart, gridEnd), [month])
+  const data = useAsync('calendar', () => api.events(gridStart, gridEnd), [month])
   const events = (data.data ?? []).filter(e => !hidden.has(e.category))
   const on = (date: string) => events.filter(e => date >= e.starts_on && date <= (e.ends_on ?? e.starts_on))
 

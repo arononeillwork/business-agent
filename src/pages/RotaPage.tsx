@@ -39,7 +39,7 @@ export function RotaPage() {
   const [draft, setDraft] = useState<Draft | null>(null)
   const days = weekDates(monday)
 
-  const data = useAsync(async () => {
+  const data = useAsync('rota', async () => {
     // Include the day before so 12h-rest checks see Sunday night shifts.
     const [shifts, events] = await Promise.all([
       api.shifts(zonedIso(addDays(monday, -1), '00:00'), zonedIso(addDays(monday, 7), '00:00')),

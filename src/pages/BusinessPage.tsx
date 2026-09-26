@@ -46,7 +46,7 @@ function InfoRow({ icon, label, children }: { icon: ReactNode; label: string; ch
 
 export function BusinessPage() {
   const { api, business: b, settings: s, isAdmin } = useApp()
-  const notes = useAsync(() => (isAdmin ? api.adminNotes() : Promise.resolve(null)), [isAdmin])
+  const notes = useAsync('admin-notes', () => (isAdmin ? api.adminNotes() : Promise.resolve(null)), [isAdmin])
   const [editing, setEditing] = useState<'details' | 'hours' | 'rules' | 'notes' | null>(null)
   if (!b || !s) return null
   const status = openStatus(b)

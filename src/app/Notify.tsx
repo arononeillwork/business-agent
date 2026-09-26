@@ -1,23 +1,29 @@
 import { Alert, Portal, Snackbar } from '@mui/material'
+import { useQueryClient } from '@tanstack/react-query'
 import { createContext, useCallback, useContext, useState, type ReactNode } from 'react'
 
 type Kind = 'success' | 'error' | 'info' | 'warning'
 const Ctx = createContext<(msg: string, kind?: Kind) => void>(() => {})
 export const useNotify = () => useContext(Ctx)
 
-/** Wraps an action: shows the error message from our SQL functions, or a success note. */
+/**
+ * Wraps a write: shows the error message from our SQL functions, or a success note, and on
+ * success refreshes every cached read so all screens show the new state.
+ */
 export function useAction() {
   const notify = useNotify()
+  const client = useQueryClient()
   return useCallback(async (fn: () => Promise<unknown>, success?: string) => {
     try {
       await fn()
       if (success) notify(success, 'success')
+      void client.invalidateQueries()
       return true
     } catch (e) {
       notify(e instanceof Error ? e.message : String(e), 'error')
       return false
     }
-  }, [notify])
+  }, [notify, client])
 }
 
 export function NotifyProvider({ children }: { children: ReactNode }) {

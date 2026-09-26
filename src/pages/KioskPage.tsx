@@ -18,7 +18,7 @@ const ACTION_LABEL: Record<Action, string> = { in: 'Clock in', out: 'Clock out',
 export function KioskPage() {
   const { api, me, breakTypes } = useApp()
   useTick(15000)
-  const roster = useAsync(() => api.kioskRoster(), [])
+  const roster = useAsync('kiosk-roster', () => api.kioskRoster(), [], { refetchInterval: 30_000 })
   const [person, setPerson] = useState<KioskPerson | null>(null)
   const [action, setAction] = useState<{ action: Action; breakTypeId?: number } | null>(null)
   const [pin, setPin] = useState('')

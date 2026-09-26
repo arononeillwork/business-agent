@@ -16,8 +16,8 @@ function ClockCard({ onChange }: { onChange: () => void }) {
   const { api, positions, breakTypes, settings } = useApp()
   const run = useAction()
   useTick(1000)
-  const state = useAsync(() => api.clockState(), [])
-  const todayShifts = useAsync(async () => {
+  const state = useAsync('clock', () => api.clockState(), [])
+  const todayShifts = useAsync('my-shifts-today', async () => {
     const me = await api.currentUserId()
     const d = today()
     return (await api.shifts(zonedIso(d, '00:00'), zonedIso(addDays(d, 1), '00:00'))).filter(s => s.profile_id === me)
@@ -141,7 +141,7 @@ const Row = ({ label, value, strong }: { label: string; value: string; strong?: 
 export function TodayPage() {
   const { api, me, profiles, positions, isAdmin } = useApp()
   const d = today()
-  const data = useAsync(async () => {
+  const data = useAsync('today', async () => {
     const [shifts, events, corrections] = await Promise.all([
       api.shifts(zonedIso(d, '00:00'), zonedIso(addDays(d, 8), '00:00')),
       api.events(d, addDays(d, 21)),
