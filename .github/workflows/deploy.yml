@@ -93,3 +93,11 @@ jobs:
           E2E_BASE_URL: ${{ steps.deploy.outputs.url }}
           # Only require the methods that are configured so far; the monitor checks all three.
           EXPECT_PROVIDERS: email
+
+  # The whole app, every role, against the version just deployed.
+  live:
+    needs: deploy
+    uses: ./.github/workflows/live-e2e.yml
+    with:
+      url: https://business-agent.arononeillwork.workers.dev
+    secrets: inherit

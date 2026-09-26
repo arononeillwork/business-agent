@@ -2,8 +2,7 @@ name: Live end-to-end tests
 # Drives the deployed app in a real browser against the real Supabase project: every page for
 # admin, employee and partner, sign-in buttons, clocking, time off, finances, the AI connector.
 # Test accounts use @business-agent.test and are deleted afterwards (with their data).
-# Runs after each successful deploy (called from deploy.yml), by hand, or when this file or the
-# live tests change.
+# Runs after each successful deploy (called from deploy.yml), or by hand.
 on:
   workflow_call:
     inputs:
@@ -15,9 +14,6 @@ on:
       url:
         description: App address
         default: https://business-agent.arononeillwork.workers.dev
-  push:
-    branches: [main, claude/easy-beans-architecture-plan-dknqka]
-    paths: [.github/workflows/live-e2e.yml, e2e/live-journeys.spec.ts, e2e/live.spec.ts, e2e/live/**]
 
 concurrency:
   group: live-e2e

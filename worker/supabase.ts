@@ -31,7 +31,9 @@ export type Via = 'app' | 'api' | 'ai'
 export function userClient(env: Env, accessToken: string, via: Via): SupabaseClient {
   return createClient(env.SUPABASE_URL, env.SUPABASE_PUBLISHABLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
-    global: { headers: { authorization: `Bearer ${accessToken}`, 'x-app-via': via } },
+    // Capital A: supabase-js adds its own 'Authorization' for auth calls, and a second, lower-case
+    // copy would be merged into "Bearer x, Bearer x", which Supabase rejects as an expired session.
+    global: { headers: { Authorization: `Bearer ${accessToken}`, 'x-app-via': via } },
   })
 }
 
