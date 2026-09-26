@@ -32,6 +32,8 @@ export interface Api {
   updatePassword(password: string): Promise<void>
 
   // reads
+  /** A problem signing in from an email or sign-in link, to show on the sign-in screen. */
+  authError?(): string | null
   me(): Promise<Profile | null>
   business(): Promise<Business>
   adminNotes(): Promise<string | null>

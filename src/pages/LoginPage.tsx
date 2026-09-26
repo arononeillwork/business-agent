@@ -63,6 +63,7 @@ export function LoginPage() {
               <Typography variant="h4" component="h1">Sign in</Typography>
               <Typography sx={{ color: 'text.secondary', mt: 0.5 }}>Welcome back. Use the email your invite was sent to.</Typography>
             </Box>
+            {api.authError?.() && <Alert severity="error">{api.authError()}</Alert>}
             {api.mode === 'demo' && (
               <Alert severity="info">Demo: use aron@example.com (admin), maria@example.com (employee) or laura@gestoria.example (partner), any password.</Alert>
             )}

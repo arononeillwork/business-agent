@@ -3,9 +3,9 @@ name: Uptime monitor
 # email, Google and Microsoft sign-in are all switched on. A failure emails the repo owner
 # (GitHub's default for failed scheduled workflows).
 # Set in repo Settings → Secrets and variables → Actions:
-#   variable PRODUCTION_URL (e.g. https://team.easybeans.coffee)
+#   variable PRODUCTION_URL (default: the workers.dev address)
 #   optional secrets SMOKE_EMAIL / SMOKE_PASSWORD for a low-privilege test account
-#   optional variable EXPECT_PROVIDERS (default "email,google,microsoft")
+#   optional variable EXPECT_PROVIDERS (default "email" until Google and Microsoft are on)
 on:
   schedule:
     - cron: '*/15 * * * *'
@@ -13,7 +13,6 @@ on:
 
 jobs:
   smoke:
-    if: vars.PRODUCTION_URL != ''
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -28,7 +27,8 @@ jobs:
         run: npx playwright test e2e/smoke.spec.ts --project desktop
         env:
           CI: true
-          E2E_BASE_URL: ${{ vars.PRODUCTION_URL }}
-          EXPECT_PROVIDERS: ${{ vars.EXPECT_PROVIDERS }}
+          E2E_BASE_URL: ${{ vars.PRODUCTION_URL || 'https://business-agent.arononeillwork.workers.dev' }}
+          # Raise to email,google,microsoft once both are switched on.
+          EXPECT_PROVIDERS: ${{ vars.EXPECT_PROVIDERS || 'email' }}
           SMOKE_EMAIL: ${{ secrets.SMOKE_EMAIL }}
           SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD }}

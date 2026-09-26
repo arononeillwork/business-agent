@@ -1,0 +1,31 @@
+name: Send an invite
+# Emails a sign-in invite from Supabase. Used to create the owner account (the first account
+# becomes the admin); after that, invite people from the app's Team or Partners page.
+on:
+  workflow_dispatch:
+    inputs:
+      email:
+        description: Email to invite
+        required: true
+      name:
+        description: Full name
+        required: false
+      site:
+        description: App address
+        default: https://business-agent.arononeillwork.workers.dev
+
+jobs:
+  invite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/ops/invite.mjs "$EMAIL" "$NAME" "$SITE"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          EMAIL: ${{ inputs.email }}
+          NAME: ${{ inputs.name }}
+          SITE: ${{ inputs.site }}

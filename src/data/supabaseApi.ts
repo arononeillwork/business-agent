@@ -13,11 +13,44 @@ function checkAuth(res: { error: { message: string } | null }) {
   if (res.error) throw new Error(res.error.message)
 }
 
+/** Sign in from a link: ?code= (Google/Microsoft, PKCE) or #access_token (email invite/reset). */
+export async function sessionFromUrl(sb: SupabaseClient) {
+  const query = new URLSearchParams(location.search)
+  const hash = new URLSearchParams(location.hash.replace(/^#/, ''))
+  const tidy = (keys: string[]) => {
+    keys.forEach(k => query.delete(k))
+    const rest = query.toString()
+    history.replaceState(history.state, '', `${location.pathname}${rest ? `?${rest}` : ''}`)
+  }
+  const failed = hash.get('error_description') ?? query.get('error_description')
+  if (failed) {
+    tidy(['error', 'error_code', 'error_description'])
+    throw new Error(/expired|invalid/i.test(failed) ? 'That sign-in link has expired or was already used. Ask for a new one.' : failed)
+  }
+  const code = query.get('code')
+  if (code) {
+    tidy(['code'])
+    const { error } = await sb.auth.exchangeCodeForSession(code)
+    if (error) throw new Error(error.message)
+    return
+  }
+  const access_token = hash.get('access_token'), refresh_token = hash.get('refresh_token')
+  if (access_token && refresh_token) {
+    tidy([])
+    const { error } = await sb.auth.setSession({ access_token, refresh_token })
+    if (error) throw new Error(error.message)
+  }
+}
+
 export function createSupabaseApi(url: string, key: string): Api {
   const sb: SupabaseClient = createClient(url, key, {
-    // PKCE: the Google sign-in redirect returns a one-time code, never tokens in the URL.
-    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: 'pkce' },
+    // PKCE for Google/Microsoft sign-in (a one-time ?code= comes back). Links in Supabase emails
+    // (invites, password resets sent by an admin) carry #access_token instead, which the PKCE
+    // client refuses, so the URL is handled here for both.
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, flowType: 'pkce' },
   })
+  let urlError: string | null = null
+  const fromUrl = sessionFromUrl(sb).catch(e => { urlError = e instanceof Error ? e.message : String(e) })
 
   /** Sign in through Supabase with an outside account. Supabase handles the whole OAuth flow. */
   const oauth = async (provider: 'google' | 'azure', label: string, queryParams: Record<string, string>, scopes?: string) => {
@@ -29,7 +62,7 @@ export function createSupabaseApi(url: string, key: string): Api {
     }
   }
 
-  const uid = async () => (await sb.auth.getSession()).data.session?.user.id ?? null
+  const uid = async () => { await fromUrl; return (await sb.auth.getSession()).data.session?.user.id ?? null }
 
   /** Call the Worker's admin endpoints with the signed-in person's token. */
   const worker = async <T,>(path: string, init: RequestInit = {}): Promise<T> => {
@@ -45,6 +78,7 @@ export function createSupabaseApi(url: string, key: string): Api {
     mode: 'live',
 
     currentUserId: uid,
+    authError: () => urlError,
     onAuthChange(cb) {
       const { data } = sb.auth.onAuthStateChange(() => cb())
       return () => data.subscription.unsubscribe()

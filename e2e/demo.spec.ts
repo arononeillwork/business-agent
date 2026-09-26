@@ -265,11 +265,14 @@ test('missing timecards are filled from the rota and marked for review', async (
   await toast(page, 'Shift saved')
 
   await page.getByRole('link', { name: 'Timecards' }).first().click()
-  await expect(page.getByText('From rota')).toHaveCount(0)
+  // Wait for the week to load, then check no card is tagged yet ("Fill from rota" is the button).
+  await expect(page.getByRole('button', { name: 'Fill from rota' })).toBeVisible()
+  await expect(page.getByText('Labour cost')).toBeVisible()
+  await expect(page.getByText('From rota', { exact: true })).toHaveCount(0)
   await page.getByRole('button', { name: 'Fill from rota' }).click()
   await toast(page, 'Missing timecards filled from the rota')
   const mark = page.locator('.MuiCard-root', { hasText: 'Mark Murray' })
-  await expect(mark.getByText('From rota')).toBeVisible()
+  await expect(mark.getByText('From rota', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Fill from rota' }).click()
   await toast(page, 'Nothing to fill')
 })
