@@ -20,7 +20,7 @@ export function TeamPage() {
 
   return (
     <>
-      <PageHeader title="Team" subtitle={isAdmin ? 'Roles, pay rates and kiosk PINs' : 'Your colleagues'}
+      <PageHeader eyebrow="People" title="Team" subtitle={isAdmin ? 'Roles, pay rates and kiosk PINs' : 'Your colleagues'}
         actions={isAdmin && <Button variant="contained" startIcon={<PersonAddIcon />} onClick={() => setInviting(true)}>Invite</Button>} />
       <Grid container spacing={2}>
         {profiles.filter(p => p.role !== 'kiosk').map(p => (

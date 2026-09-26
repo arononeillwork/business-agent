@@ -36,6 +36,7 @@ export interface Settings {
   min_rest_hours: number
   approval_weekday: number
   employer_cost_multiplier: number
+  auto_timecards_from_rota: boolean
 }
 
 export interface Profile {
@@ -177,4 +178,5 @@ export const FLAG_LABELS: Record<string, string> = {
   auto_clock_out: 'Auto clock-out',
   edited: 'Edited',
   early_override: 'Early (override)',
+  from_rota: 'From rota',
 }

@@ -9,7 +9,8 @@ import { useMemo, useState } from 'react'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
-import { ErrorBox, PageHeader, PersonAvatar, WeekNav } from '../components/common'
+import { ErrorBox, PageHeader, PersonAvatar, Stat, StatRow, WeekNav } from '../components/common'
+import { tokens } from '../theme'
 import type { ShiftInput } from '../data/api'
 import { dayCoverage, holidayOn, shiftPaidMinutes, shiftWarnings, weeklyCheck, type ShiftContext } from '../../shared/rules'
 import {
@@ -114,13 +115,14 @@ export function RotaPage() {
       <Box onClick={e => { e.stopPropagation(); if (isAdmin) openDraft(s.profile_id, localDate(s.starts_at), s)
         else if (!s.profile_id) run(async () => { await api.takeOpenShift(s.id); await data.reload() }, 'Shift is yours') }}
         sx={{
-          borderLeft: 4, borderColor: pos?.colour ?? 'grey.500', bgcolor: `${pos?.colour ?? '#9e9e9e'}14`,
-          borderRadius: 1, px: 0.75, py: 0.5, mb: 0.5, cursor: clickable ? 'pointer' : 'default',
-          outline: s.profile_id === me?.id ? '2px solid' : 'none', outlineColor: 'secondary.main',
-          '&:hover': clickable ? { bgcolor: `${pos?.colour ?? '#9e9e9e'}29` } : {},
+          borderLeft: 3, borderColor: pos?.colour ?? 'grey.500', bgcolor: `${pos?.colour ?? '#9e9e9e'}12`,
+          borderRadius: 2, px: 1, py: 0.75, mb: 0.75, cursor: clickable ? 'pointer' : 'default',
+          outline: s.profile_id === me?.id ? '2px solid' : 'none', outlineColor: 'secondary.main', outlineOffset: -1,
+          transition: 'background .15s',
+          '&:hover': clickable ? { bgcolor: `${pos?.colour ?? '#9e9e9e'}24` } : {},
         }}>
         <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
-          <Typography variant="body2" sx={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+          <Typography variant="body2" sx={{ fontWeight: 800, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em', whiteSpace: 'nowrap', fontSize: '0.84rem' }}>
             {localTime(s.starts_at)}–{localTime(s.ends_at)}
           </Typography>
           {warnings.length > 0 && (
@@ -143,17 +145,17 @@ export function RotaPage() {
     ...people.map(p => ({ id: p.id, name: p.full_name, colour: p.colour })),
   ]
 
-  const cellSx = { borderRight: 1, borderBottom: 1, borderColor: 'divider', p: 0.75, minHeight: 64 }
-  const grid = { display: 'grid', gridTemplateColumns: '180px repeat(7, minmax(120px, 1fr))', minWidth: 1020 }
+  const cellSx = { borderRight: 1, borderBottom: 1, borderColor: 'divider', p: 1, minHeight: 80 }
+  const grid = { display: 'grid', gridTemplateColumns: '200px repeat(7, minmax(128px, 1fr))', minWidth: 1100 }
 
   const d = draft ? draftShift(draft) : null
   const draftWarnings = d ? shiftWarnings({ ...d, id: d.id ?? 'new', status: 'published' } as Shift, ctx) : []
 
   return (
     <>
-      <PageHeader title="Rota"
-        subtitle={canSeePay ? `${formatDuration(mins(visible.filter(s => s.profile_id)))} scheduled · ${formatMoney(cost(visible))} labour${mult !== 1 ? ` (×${mult} employer cost)` : ''}`
-          : `${formatDuration(mins(visible.filter(s => s.profile_id === me?.id)))} scheduled for you this week`}
+      <PageHeader eyebrow="Schedule" title="Rota"
+        subtitle={isAdmin ? 'Tap an empty cell to add a shift. Warnings follow Spanish working-time rules.'
+          : 'Your shifts are outlined in green. Open shifts can be picked up.'}
         actions={<>
           <WeekNav monday={monday} onChange={setMonday} />
           <TextField select size="small" label="Position" value={positionFilter} sx={{ width: 140 }}
@@ -168,18 +170,40 @@ export function RotaPage() {
         </>} />
       <ErrorBox error={data.error} />
 
+      <StatRow>
+        {canSeePay ? <>
+          <Stat label="Scheduled" value={formatDuration(mins(visible.filter(s => s.profile_id)))} note="paid hours, whole team" />
+          <Stat label="Labour cost" value={formatMoney(cost(visible))} note={mult !== 1 ? `incl. ×${mult} employer cost` : 'gross pay'} />
+        </> : (
+          <Stat label="Your hours" value={formatDuration(mins(visible.filter(s => s.profile_id === me?.id)))} note="scheduled this week" />
+        )}
+        <Stat label="Open shifts" value={visible.filter(s => !s.profile_id).length}
+          tone={visible.some(s => !s.profile_id) ? 'warning' : 'good'} note={visible.some(s => !s.profile_id) ? 'need someone' : 'all covered'} />
+        {isAdmin && (() => {
+          const flagged = weekShifts.filter(s => shiftWarnings(s, ctx).some(w => w.code !== 'holiday')).length
+          const gapDays = days.filter(dt => dayCoverage(dt, weekShifts, openingHours, business?.peak_hours ?? undefined).some(c => c.level === 'none')).length
+          return <>
+            <Stat label="Shift warnings" value={flagged} tone={flagged ? 'danger' : 'good'} note={flagged ? 'hover the ⚠ for details' : 'none'} />
+            <Stat label="Coverage gaps" value={gapDays} tone={gapDays ? 'warning' : 'good'} note={gapDays ? 'days open with nobody on' : 'fully covered'} />
+          </>
+        })()}
+      </StatRow>
+
       <Card sx={{ overflowX: 'auto' }}>
         <Box sx={grid}>
           {/* header */}
-          <Box sx={{ ...cellSx, minHeight: 0, bgcolor: 'grey.50' }} />
+          <Box sx={{ ...cellSx, minHeight: 0, bgcolor: tokens.surfaceAlt }} />
           {days.map(date => {
             const dayShifts = visible.filter(s => localDate(s.starts_at) === date)
             const holiday = holidayOn(date, events)
             const coverage = dayCoverage(date, weekShifts, openingHours, business?.peak_hours ?? undefined)
             const open = openingHours[['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'][days.indexOf(date)] as 'mon']
             return (
-              <Box key={date} sx={{ ...cellSx, minHeight: 0, bgcolor: date === today() ? '#f1f8e9' : 'grey.50' }}>
-                <Typography variant="body2" sx={{ fontWeight: 700 }}>{formatLocal(`${date}T12:00:00Z`, 'EEE d')}</Typography>
+              <Box key={date} sx={{ ...cellSx, minHeight: 0, bgcolor: date === today() ? tokens.matchaSoft : tokens.surfaceAlt }}>
+                <Stack direction="row" spacing={0.75} sx={{ alignItems: 'baseline' }}>
+                  <Typography sx={{ fontWeight: 800, fontSize: '1.25rem', lineHeight: 1.2 }}>{formatLocal(`${date}T12:00:00Z`, 'd')}</Typography>
+                  <Typography variant="overline" sx={{ color: 'text.secondary' }}>{formatLocal(`${date}T12:00:00Z`, 'EEE')}</Typography>
+                </Stack>
                 <Typography variant="caption" color="text.secondary" component="div">
                   {open ? `${open.open}–${open.close}` : 'Closed'}
                   {' · '}{formatDuration(mins(dayShifts.filter(s => s.profile_id)))}
@@ -193,7 +217,7 @@ export function RotaPage() {
                     <Stack direction="row" sx={{ mt: 0.5, height: 6, borderRadius: 3, overflow: 'hidden' }}>
                       {coverage.map(c => {
                         const len = (Number(c.to.slice(0, 2)) * 60 + Number(c.to.slice(3))) - (Number(c.from.slice(0, 2)) * 60 + Number(c.from.slice(3)))
-                        return <Box key={c.from} sx={{ flex: len, bgcolor: c.level === 'none' ? 'error.main' : c.level === 'thin' ? 'warning.main' : 'success.light' }} />
+                        return <Box key={c.from} sx={{ flex: len, bgcolor: c.level === 'none' ? 'error.main' : c.level === 'thin' ? 'warning.main' : tokens.matcha }} />
                       })}
                     </Stack>
                   </Tooltip>

@@ -11,8 +11,8 @@
   "observability": { "enabled": true },
   // OAuth grants/tokens for the AI connector (encrypted by workers-oauth-provider).
   "kv_namespaces": [{ "binding": "OAUTH_KV", "id": "0305794e6d204a83b4c49c5ec36a85cd" }],
-  // Every 5 minutes: auto clock-out, expire old correction requests.
-  "triggers": { "crons": ["*/5 * * * *"] },
+  // Every 5 minutes: auto clock-out. Nightly: fill missing timecards from the rota.
+  "triggers": { "crons": ["*/5 * * * *", "15 1 * * *"] },
   "vars": {
     "BUSINESS_ID": "easy-beans",
     // Public by design (row-level security protects the data). Service key is a secret:

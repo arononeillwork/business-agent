@@ -62,7 +62,7 @@ export function CalendarPage() {
 
   return (
     <>
-      <PageHeader title="Calendar" subtitle="Holidays, nearby towns, ferias, football and business events"
+      <PageHeader eyebrow="What's on" title="Calendar" subtitle="Holidays, nearby towns, ferias, football and business events. Tap a category to hide it."
         actions={<>
           <Stack direction="row" sx={{ alignItems: 'center' }}>
             <IconButton aria-label="Previous month" onClick={() => setMonth(addMonths(month, -1))}><ChevronLeft /></IconButton>

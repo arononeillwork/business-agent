@@ -56,6 +56,8 @@ export interface Api {
   requestCorrection(entryId: string, clockIn: string | null, clockOut: string | null, note: string): Promise<void>
   decideCorrection(id: string, approve: boolean, note?: string): Promise<void>
   approveWeek(monday: string): Promise<number>
+  /** Create timecards from the rota for past shifts nobody clocked in for. */
+  fillFromRota(monday: string): Promise<number>
 
   // rota
   saveShift(shift: ShiftInput): Promise<void>

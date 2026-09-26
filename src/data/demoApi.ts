@@ -47,7 +47,7 @@ export function createDemoApi(): Api {
     early_clock_in_minutes: 10, unscheduled_clock_in: 'flag', auto_clock_out_minutes: 60,
     forgot_clock_out_grace_minutes: 30, phone_clock_in: 'anywhere', min_break_minutes: 15,
     break_after_hours: 6, max_daily_hours: 9, max_weekly_hours: 40, min_rest_hours: 12,
-    approval_weekday: 1, employer_cost_multiplier: 1.3,
+    approval_weekday: 1, employer_cost_multiplier: 1.3, auto_timecards_from_rota: true,
   }
 
   const P = { aron: 'p-aron', mark: 'p-mark', julio: 'p-julio', maria: 'p-maria', cleaner: 'p-cleaner' }
@@ -363,6 +363,28 @@ export function createDemoApi(): Api {
       if (week.some(e => !e.clock_out)) throw new Error('Someone is still clocked in for that week')
       let n = 0
       for (const e of week) if (!e.approved_at) { e.approved_at = nowIso(); n++ }
+      return n
+    },
+
+    async fillFromRota(monday) {
+      requireAdmin()
+      const todayStart = zonedIso(today(), '00:00')
+      let n = 0
+      for (const s of shifts) {
+        if (!s.profile_id || localDate(s.starts_at) < monday || localDate(s.starts_at) > addDays(monday, 6)) continue
+        if (s.starts_at >= todayStart) continue
+        const has = entries.some(e => e.profile_id === s.profile_id && e.clock_in < s.ends_at && (e.clock_out ?? nowIso()) > s.starts_at)
+        if (has) continue
+        const e: RawEntry = { id: uid(), profile_id: s.profile_id, position_id: s.position_id, shift_id: s.id,
+          clock_in: s.starts_at, clock_out: s.ends_at, source: 'rota', clock_out_source: 'rota', flags: ['from_rota'],
+          note: null, approved_at: null }
+        entries.push(e)
+        e.flags = computeFlags(e)
+        changes.push({ id: changes.length + 1, time_entry_id: e.id, changed_by: currentUser, changed_at: nowIso(), via: 'app',
+          reason: 'Filled from the rota: no clock-in was recorded for this shift', old_values: null,
+          new_values: { clock_in: s.starts_at, clock_out: s.ends_at } })
+        n++
+      }
       return n
     },
 

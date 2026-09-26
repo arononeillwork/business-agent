@@ -237,3 +237,31 @@ do $$ begin
   assert (select active from public.profiles where email = 'stranger@test'), 'employee could not deactivate someone else';
   assert (select active from public.profiles where email = 'julio@test'), 'employee could not deactivate themselves';
 end $$;
+
+-- 12. Timecards fill in from the rota when nobody clocked in -----------------------
+reset role;
+insert into public.shifts (profile_id, position_id, starts_at, ends_at, break_minutes)
+select id, 1, date_trunc('day', now() - interval '2 days') + interval '8 hours',
+       date_trunc('day', now() - interval '2 days') + interval '15 hours', 30
+  from public.profiles where email = 'julio@test';
+select pg_temp.act_as('julio@test');
+select pg_temp.expect_error($q$select public.fill_timecards_from_rota(current_date - 7)$q$, 'Only an admin');
+select pg_temp.act_as('maria@test'); -- admin since test 9
+select pg_temp.expect_error($q$select public._fill_timecards_for_day(current_date - 2)$q$, 'permission denied');
+do $$
+declare n int;
+begin
+  n := public.fill_timecards_from_rota(((now() at time zone 'Europe/Madrid')::date - 2)
+        - extract(isodow from ((now() at time zone 'Europe/Madrid')::date - 2))::int + 1);
+  assert n >= 1, 'filled at least the missing shift';
+  assert exists (select 1 from public.time_entries where source = 'rota' and 'from_rota' = any(flags)
+                 and profile_id = (select id from public.profiles where email = 'julio@test')), 'rota timecard exists';
+  -- running it again creates nothing new
+  assert public.fill_timecards_from_rota(((now() at time zone 'Europe/Madrid')::date - 2)
+        - extract(isodow from ((now() at time zone 'Europe/Madrid')::date - 2))::int + 1) = 0, 'idempotent';
+end $$;
+reset role;
+do $$ begin
+  assert (select break_minutes from public.time_entry_totals where source = 'rota' limit 1) = 30, 'scheduled break carried over';
+  assert exists (select 1 from public.time_entry_changes where reason like 'Filled from the rota%'), 'logged';
+end $$;

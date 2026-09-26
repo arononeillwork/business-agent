@@ -66,13 +66,15 @@ test.describe('employee permissions', () => {
     await open(page)
     await signInAs(page, 'maria@example.com')
 
-    const nav = page.getByRole('navigation').or(page.locator('.MuiDrawer-root'))
-    await expect(nav.getByText('Business')).toHaveCount(0)
-    await page.goto('/business')
-    await expect(page.getByRole('heading', { name: 'Hola, Maria' })).toBeVisible()
+    // Business info is readable by everyone, but only admins can edit it or see admin notes.
+    await page.getByRole('link', { name: 'Business' }).first().click()
+    await expect(page.getByRole('heading', { name: 'Easy Beans Coffee' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Edit' })).toHaveCount(0)
+    await expect(page.getByText('Admin-only notes')).toHaveCount(0)
 
     await page.getByRole('link', { name: 'Rota' }).first().click()
-    await expect(page.getByText(/scheduled for you this week/)).toBeVisible()
+    await expect(page.getByText('Your hours')).toBeVisible()
+    await expect(page.getByText('Labour cost')).toHaveCount(0)
     await expect(page.getByText('€')).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Add shift' })).toHaveCount(0)
 
@@ -110,7 +112,7 @@ test.describe('employee permissions', () => {
 test.describe('admin', () => {
   test('rota warns about a long shift without a break and saves it', async ({ page }) => {
     await open(page, '/rota')
-    await expect(page.getByText(/scheduled · .*€ labour/)).toBeVisible()
+    await expect(page.getByText('Labour cost')).toBeVisible()
     await expect(page.getByText('08:00–15:00')).toHaveCount(0)
 
     await page.getByRole('button', { name: 'Add shift' }).click()
@@ -166,10 +168,13 @@ test.describe('admin', () => {
   test('sees and edits admin-only business notes', async ({ page }) => {
     await open(page, '/business')
     await expect(page.getByText('Admin-only notes')).toBeVisible()
-    await expect(page.getByLabel('Address')).toHaveValue(/C\. Pizarro, 8/)
-    await page.getByRole('textbox', { name: 'Phone', exact: true }).fill('+34 600 000 000')
-    await page.getByRole('button', { name: 'Save details' }).click()
-    await toast(page, 'Business details saved')
+    await expect(page.getByText('C. Pizarro, 8', { exact: false }).first()).toBeVisible()
+    await page.getByRole('button', { name: 'Edit' }).first().click()
+    const dialog = page.getByRole('dialog', { name: 'Business details' })
+    await dialog.getByRole('textbox', { name: 'Phone', exact: true }).fill('+34 600 000 000')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await toast(page, /^Saved$/)
+    await expect(page.getByText('+34 600 000 000')).toBeVisible()
   })
 })
 
@@ -201,8 +206,45 @@ test.describe('sign-in', () => {
 test('@phone layout: bottom navigation and a full-width clock-in button', async ({ page }) => {
   await open(page)
   await expect(page.getByRole('link', { name: 'Rota' })).toBeVisible()
-  await expect(page.getByRole('link', { name: 'Me', exact: true })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Business' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'My account' })).toBeVisible()
   const button = page.getByRole('button', { name: 'Clock in' })
   const box = await button.boundingBox()
   expect(box!.width).toBeGreaterThan(250)
+})
+
+test('sidebar starts with Business and rows can be reordered by keyboard, remembered after reload', async ({ page }) => {
+  await open(page)
+  const rows = page.getByRole('navigation', { name: 'Main' }).getByRole('link')
+  await expect(rows.first()).toHaveText(/Business/)
+  await rows.nth(1).focus() // Today
+  await page.keyboard.press('Space')
+  await page.keyboard.press('ArrowUp')
+  await page.keyboard.press('Space')
+  await expect(rows.first()).toHaveText(/Today/)
+  await page.reload()
+  await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link').first()).toHaveText(/Today/)
+  await page.getByRole('button', { name: 'Reset menu order' }).click()
+  await expect(rows.first()).toHaveText(/Business/)
+})
+
+test('missing timecards are filled from the rota and marked for review', async ({ page }) => {
+  await open(page, '/rota')
+  // Mark is on the rota on Monday but never clocked in.
+  await page.getByRole('button', { name: 'Add shift' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Add shift' })
+  await dialog.getByLabel('Team member').click()
+  await page.getByRole('option', { name: 'Mark Murray' }).click()
+  await dialog.getByLabel('Date').fill('2026-09-28')
+  await dialog.getByRole('button', { name: 'Save' }).click()
+  await toast(page, 'Shift saved')
+
+  await page.getByRole('link', { name: 'Timecards' }).first().click()
+  await expect(page.getByText('From rota')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Fill from rota' }).click()
+  await toast(page, 'Missing timecards filled from the rota')
+  const mark = page.locator('.MuiCard-root', { hasText: 'Mark Murray' })
+  await expect(mark.getByText('From rota')).toBeVisible()
+  await page.getByRole('button', { name: 'Fill from rota' }).click()
+  await toast(page, 'Nothing to fill')
 })

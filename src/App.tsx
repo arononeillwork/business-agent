@@ -16,7 +16,7 @@ import { AccountPage } from './pages/AccountPage'
 import { KioskPage } from './pages/KioskPage'
 
 function Routed() {
-  const { me, loading, isAdmin } = useApp()
+  const { me, loading } = useApp()
   if (loading) return <Loading />
   if (!me) return <LoginPage />
   if (me.role === 'kiosk') return <KioskPage />
@@ -29,7 +29,7 @@ function Routed() {
         <Route path="timecards" element={<TimecardsPage />} />
         <Route path="calendar" element={<CalendarPage />} />
         <Route path="team" element={<TeamPage />} />
-        <Route path="business" element={isAdmin ? <BusinessPage /> : <Navigate to="/" />} />
+        <Route path="business" element={<BusinessPage />} />
         <Route path="account" element={<AccountPage />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Route>

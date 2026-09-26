@@ -347,6 +347,17 @@ export const TOOLS: ToolDef[] = [
     },
   }),
   tool({
+    name: 'fill_timecards_from_rota',
+    title: 'Fill timecards from rota',
+    description: 'Admins: for a week (week_start = Monday), create timecards from the rota for past shifts nobody clocked in for. They are marked "from rota" for review.',
+    admin: true,
+    input: z.object({ week_start: date }),
+    async run({ sb }, { week_start }) {
+      const n = check(await sb.rpc('fill_timecards_from_rota', { p_week_start: weekStart(week_start) }))
+      return { ok: true, created: n }
+    },
+  }),
+  tool({
     name: 'clock',
     title: 'Clock in/out',
     description: 'Clock yourself in or out, or start/end a break. Uses the server time.',

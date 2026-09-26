@@ -136,6 +136,10 @@ export function createSupabaseApi(url: string, key: string): Api {
       return check(await sb.rpc('approve_week', { p_week_start: monday })) as number
     },
 
+    async fillFromRota(monday) {
+      return check(await sb.rpc('fill_timecards_from_rota', { p_week_start: monday })) as number
+    },
+
     async saveShift(shift) {
       const { id, ...rest } = shift
       if (id) check(await sb.from('shifts').update(rest).eq('id', id))

@@ -10,7 +10,7 @@ import { useState } from 'react'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
-import { ErrorBox, Flags, Loading, PageHeader, PersonAvatar, WeekNav } from '../components/common'
+import { ErrorBox, Flags, Loading, PageHeader, PersonAvatar, SectionTitle, Stat, StatRow, WeekNav } from '../components/common'
 import { addDays, formatDuration, formatLocal, formatMoney, localDate, localTime, today, weekStart, zonedIso } from '../../shared/time'
 import type { CorrectionRequest, TimeEntry } from '../../shared/types'
 
@@ -68,9 +68,9 @@ export function TimecardsPage() {
 
   return (
     <>
-      <PageHeader title="Timecards"
-        subtitle={isAdmin ? 'Clock-ins are stamped by the server and can be corrected, never deleted. Every change is logged.'
-          : 'Your hours. Spot a mistake? Request a correction.'}
+      <PageHeader eyebrow="Registro de jornada" title="Timecards"
+        subtitle={isAdmin ? 'Times come from the server. Cards can be corrected with a reason, never deleted.'
+          : 'Your hours this week. Spot a mistake? Tap the pencil to request a correction.'}
         actions={<>
           <WeekNav monday={monday} onChange={setMonday} />
           {isAdmin && (
@@ -81,6 +81,10 @@ export function TimecardsPage() {
           )}
           <Button startIcon={<DownloadIcon />} variant="outlined" onClick={exportCsv} disabled={!entries.length}>CSV</Button>
           {isAdmin && <Button variant="outlined" onClick={() => setAdding(true)}>Add timecard</Button>}
+          {isAdmin && <Button variant="outlined" onClick={() => run(async () => {
+            const n = await api.fillFromRota(monday); await data.reload()
+            if (!n) throw new Error('Nothing to fill: everyone on the rota has a timecard')
+          }, 'Missing timecards filled from the rota')}>Fill from rota</Button>}
           {isAdmin && (
             <Button variant="contained" disabled={allApproved || !entries.length} startIcon={allApproved ? <LockIcon /> : undefined}
               onClick={() => run(async () => { const n = await api.approveWeek(monday); await data.reload(); return n },
@@ -91,10 +95,27 @@ export function TimecardsPage() {
         </>} />
       <ErrorBox error={data.error} />
 
+      {data.data && (() => {
+        const paid = entries.reduce((m, e) => m + e.paid_minutes, 0)
+        const holidayMin = entries.filter(e => e.on_holiday).reduce((m, e) => m + e.paid_minutes, 0)
+        const flagged = entries.filter(e => e.flags.some(f => f !== 'edited')).length
+        const gross = entries.reduce((m, e) => m + e.paid_minutes / 60 * (rates.get(e.profile_id) ?? 0), 0)
+        return (
+          <StatRow>
+            <Stat label="Paid hours" value={formatDuration(paid)} note={`${entries.length} timecard${entries.length === 1 ? '' : 's'}`} />
+            {canSeePay && <Stat label="Labour cost" value={formatMoney(gross * mult)} note={mult !== 1 ? `incl. ×${mult} employer cost` : 'gross pay'} />}
+            <Stat label="On holidays" value={formatDuration(holidayMin)} note="paid extra or time off" />
+            <Stat label="Needs a look" value={flagged} tone={flagged ? 'warning' : 'good'} note={flagged ? 'missed breaks, auto clock-outs…' : 'all clean'} />
+            <Stat label="Week status" value={allApproved ? 'Approved' : 'Open'} tone={allApproved ? 'good' : undefined}
+              note={allApproved ? 'locked for the gestor' : pending.length ? `${pending.length} request${pending.length > 1 ? 's' : ''} pending` : 'ready to approve'} />
+          </StatRow>
+        )
+      })()}
+
       {pending.length > 0 && (
         <Card sx={{ mb: 2, borderColor: 'warning.main' }}>
           <CardContent>
-            <Typography variant="h6" gutterBottom>{isAdmin ? 'Correction requests' : 'My pending requests'}</Typography>
+            <SectionTitle>{isAdmin ? 'Correction requests' : 'My pending requests'}</SectionTitle>
             <List dense disablePadding>
               {pending.map(c => <CorrectionRow key={c.id} c={c} name={name(c.profile_id)} onDone={data.reload} />)}
             </List>

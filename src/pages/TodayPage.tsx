@@ -1,5 +1,5 @@
 import {
-  Alert, Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle,
+  Alert, Box, Button, Card, CardContent, Dialog, DialogActions, DialogContent, DialogTitle,
   Grid, List, ListItem, ListItemAvatar, ListItemText, Menu, MenuItem, Stack, TextField, Typography,
 } from '@mui/material'
 import { useState } from 'react'
@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAsync, useTick } from '../app/hooks'
 import { useAction } from '../app/Notify'
-import { ErrorBox, Flags, Loading, PageHeader, PersonAvatar } from '../components/common'
+import { ErrorBox, Flags, Loading, PageHeader, PersonAvatar, SectionTitle, Tag } from '../components/common'
 import { holidayOn } from '../../shared/rules'
 import { addDays, formatDuration, formatLocal, localDate, localTime, minutesBetween, today, zonedIso } from '../../shared/time'
 import { CATEGORY_META, type TimeEntry } from '../../shared/types'
@@ -160,21 +160,21 @@ export function TodayPage() {
 
   return (
     <>
-      <PageHeader title={`Hola, ${me?.full_name.split(' ')[0]}`}
-        subtitle={formatLocal(new Date(), "EEEE d MMMM")}
-        actions={holiday && <Chip color="error" label={`Holiday: ${holiday.title}`} />} />
+      <PageHeader eyebrow={formatLocal(new Date(), 'EEEE d MMMM')} title={`Hola, ${me?.full_name.split(' ')[0]}`}
+        subtitle="Your clock, today's team and what's coming up."
+        actions={holiday && <Tag fg="#8a241a" bg="#fbecea">Holiday · {holiday.title}</Tag>} />
       <ErrorBox error={data.error} />
       {isAdmin && pending > 0 && (
         <Alert severity="warning" sx={{ mb: 2 }} action={<Button component={Link} to="/timecards" color="inherit">Review</Button>}>
           {pending} timecard correction request{pending > 1 ? 's' : ''} waiting for approval
         </Alert>
       )}
-      <Grid container spacing={2}>
+      <Grid container spacing={2.5}>
         <Grid size={{ xs: 12, md: 5 }}>
           <ClockCard onChange={data.reload} />
           <Card sx={{ mt: 2 }}>
             <CardContent>
-              <Typography variant="h6" gutterBottom>My next shifts</Typography>
+              <SectionTitle>My next shifts</SectionTitle>
               {mine.length === 0 && <Typography color="text.secondary">No shifts in the next week.</Typography>}
               <List dense disablePadding>
                 {mine.slice(0, 6).map(s => (
@@ -190,7 +190,7 @@ export function TodayPage() {
         <Grid size={{ xs: 12, md: 7 }}>
           <Card>
             <CardContent>
-              <Typography variant="h6" gutterBottom>Who's on today</Typography>
+              <SectionTitle>Who's on today</SectionTitle>
               {!data.data && <Loading />}
               {data.data && todays.length === 0 && <Typography color="text.secondary">Nobody is scheduled today.</Typography>}
               <List dense disablePadding>
@@ -214,7 +214,7 @@ export function TodayPage() {
           </Card>
           <Card sx={{ mt: 2 }}>
             <CardContent>
-              <Typography variant="h6" gutterBottom>Coming up</Typography>
+              <SectionTitle>Coming up</SectionTitle>
               {(data.data?.events ?? []).length === 0 && <Typography color="text.secondary">Nothing in the next 3 weeks.</Typography>}
               <List dense disablePadding>
                 {(data.data?.events ?? []).slice(0, 8).map(e => (

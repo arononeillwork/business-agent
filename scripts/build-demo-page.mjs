@@ -12,9 +12,10 @@ const code = readFileSync(`dist-demo/assets/${js[0]}`, 'utf8')
   .replace(/[\u0080-\uffff]/g, c => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`)
 
 const page = `<title>Easy Beans Team</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap">
 <style>
   :root { color-scheme: light; }
-  html, body { background: #faf7f2; color: #1f1a17; }
+  html, body { background: #f5f3f0; color: #1c1410; }
   body { margin: 0; }
 </style>
 <div id="root"></div>
