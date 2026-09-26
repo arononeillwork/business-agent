@@ -12,6 +12,7 @@ jobs:
     steps:
       - shell: bash
         run: |
+          set +e +o pipefail
           B=https://www.thesportsdb.com/api/v1/json/3
           j() { curl -s -m 25 -A 'EasyBeans/1.0 (cafe app)' "$1"; sleep 2.2; }
           echo "=== fixturedownload slugs"
