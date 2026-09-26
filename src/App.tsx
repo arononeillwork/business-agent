@@ -1,5 +1,5 @@
 import { CssBaseline, ThemeProvider } from '@mui/material'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AppProvider, useApp } from './app/AppContext'
 import { NotifyProvider } from './app/Notify'
 import { AppShell } from './app/AppShell'
@@ -37,15 +37,18 @@ function Routed() {
   )
 }
 
+// The demo-only build is served from a single page URL, so it routes with the hash.
+const Router = import.meta.env.VITE_DEMO_ONLY === '1' ? HashRouter : BrowserRouter
+
 export function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <NotifyProvider>
         <AppProvider>
-          <BrowserRouter>
+          <Router>
             <Routed />
-          </BrowserRouter>
+          </Router>
         </AppProvider>
       </NotifyProvider>
     </ThemeProvider>

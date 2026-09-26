@@ -29,12 +29,23 @@ export const useApp = () => {
   return v
 }
 
-/** Demo mode: ?demo in the URL (remembered for the tab), or no Supabase configured. */
+/** Remember demo mode for the tab; storage can be unavailable (private mode, embeds). */
+function demoFlag(set?: boolean) {
+  try {
+    if (set === true) sessionStorage.setItem('demo', '1')
+    if (set === false) sessionStorage.removeItem('demo')
+    return sessionStorage.getItem('demo') === '1'
+  } catch {
+    return set === true
+  }
+}
+
+/** Demo mode: ?demo in the URL, a demo-only build, or no Supabase configured. */
 async function resolveApi(): Promise<Api> {
+  if (import.meta.env.VITE_DEMO_ONLY === '1') return createDemoApi()
   const params = new URLSearchParams(location.search)
-  if (params.has('demo')) sessionStorage.setItem('demo', '1')
-  if (params.has('live')) sessionStorage.removeItem('demo')
-  if (sessionStorage.getItem('demo')) return createDemoApi()
+  const demo = demoFlag(params.has('demo') ? true : params.has('live') ? false : undefined)
+  if (demo || params.has('demo')) return createDemoApi()
   try {
     const res = await fetch('/api/config')
     const cfg = await res.json() as { supabaseUrl?: string; supabaseKey?: string }

@@ -1,4 +1,4 @@
-import { Alert, Snackbar } from '@mui/material'
+import { Alert, Portal, Snackbar } from '@mui/material'
 import { createContext, useCallback, useContext, useState, type ReactNode } from 'react'
 
 type Kind = 'success' | 'error' | 'info' | 'warning'
@@ -26,10 +26,15 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
   return (
     <Ctx.Provider value={notify}>
       {children}
-      <Snackbar key={msg?.key} open={!!msg} autoHideDuration={5000} onClose={() => setMsg(null)}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }} sx={{ mb: { xs: 8, md: 0 } }}>
-        {msg ? <Alert severity={msg.kind} variant="filled" onClose={() => setMsg(null)}>{msg.text}</Alert> : undefined}
-      </Snackbar>
+      {/* A fresh portal per message, so it isn't hidden from screen readers by an open dialog. */}
+      {msg && (
+        <Portal key={msg.key}>
+          <Snackbar open autoHideDuration={5000} onClose={() => setMsg(null)}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }} sx={{ mb: { xs: 8, md: 0 } }}>
+            <Alert severity={msg.kind} variant="filled" onClose={() => setMsg(null)}>{msg.text}</Alert>
+          </Snackbar>
+        </Portal>
+      )}
     </Ctx.Provider>
   )
 }

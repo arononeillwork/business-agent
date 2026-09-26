@@ -36,10 +36,23 @@ SUPABASE_SERVICE_ROLE_KEY=...
 ## Tests
 
 ```bash
-npm test                         # rules + AI connector (vitest)
+npm test                  # unit: Spain rules + AI connector tools (vitest)
 npm run typecheck
-PGHOST=... PGUSER=postgres scripts/test-db.sh   # migrations + SQL acceptance tests on any Postgres
+npm run test:e2e          # browser: 13 demo-mode journeys (Playwright, fixed clock)
+npm run test:db           # SQL: migrations + phase-1 acceptance checks on any Postgres
+                          #   (set PGHOST/PGPORT/PGUSER)
+SUPABASE_SERVICE_ROLE_KEY=... npm run test:e2e:live
+                          # browser + API against real Supabase: sign-in, clock in/out,
+                          # pay privacy, kiosk PIN, and the Claude connector OAuth flow.
+                          # Add E2E_BASE_URL=https://<worker-url> to test a deployed copy.
 ```
+
+The live suite creates `@business-agent.test` accounts and deletes them and their data at the
+end. Run it against the dev project, not production. First-time Playwright setup:
+`npx playwright install chromium`.
+
+A single-file clickable demo (sample data, no backend) builds with
+`node scripts/build-demo-page.mjs` → `dist-demo/easy-beans-demo.html`.
 
 ## Deploy (Cloudflare)
 

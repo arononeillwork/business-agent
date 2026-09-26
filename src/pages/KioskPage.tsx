@@ -10,6 +10,7 @@ import type { KioskResult } from '../data/api'
 import { businessConfig } from '../../shared/business.config'
 import { formatDuration, formatLocal, localTime, minutesBetween } from '../../shared/time'
 import type { KioskPerson } from '../../shared/types'
+import { Logo } from '../components/Logo'
 
 type Action = KioskResult['action']
 const ACTION_LABEL: Record<Action, string> = { in: 'Clock in', out: 'Clock out', break_start: 'Start break', break_end: 'End break' }
@@ -50,7 +51,7 @@ export function KioskPage() {
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'primary.main', color: '#fff', p: { xs: 2, md: 4 } }}>
       <Stack direction="row" sx={{ alignItems: 'center', mb: 3 }}>
-        <img src="/icon.svg" width={44} height={44} alt="" />
+        <Logo size={44} />
         <Box sx={{ ml: 1.5, flex: 1 }}>
           <Typography variant="h5">{businessConfig.name}</Typography>
           <Typography sx={{ opacity: 0.8, textTransform: 'capitalize' }}>{formatLocal(new Date(), 'EEEE d MMMM')}</Typography>

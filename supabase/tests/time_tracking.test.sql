@@ -11,12 +11,19 @@ begin
 end $$;
 
 create function pg_temp.expect_error(p_sql text, p_like text) returns void language plpgsql as $$
+declare
+  v_err text;
 begin
-  execute p_sql;
-  raise exception 'Expected error like "%" but statement succeeded: %', p_like, p_sql;
-exception when others then
-  if sqlerrm not ilike '%' || p_like || '%' then
-    raise exception 'Expected error like "%", got "%"', p_like, sqlerrm;
+  begin
+    execute p_sql;
+  exception when others then
+    v_err := sqlerrm;
+  end;
+  if v_err is null then
+    raise exception 'Expected error like "%" but statement succeeded: %', p_like, p_sql;
+  end if;
+  if v_err not ilike '%' || p_like || '%' then
+    raise exception 'Expected error like "%", got "%"', p_like, v_err;
   end if;
 end $$;
 
@@ -210,4 +217,23 @@ do $$ begin
   assert (select count(*) from public.audit_log where table_name = 'profiles' and action = 'update') >= 2,
     'profile changes audited';
   assert not exists (select 1 from public.audit_log where new_values ? 'pin_hash'), 'no PIN hash in log';
+end $$;
+
+-- 11. Server-side (service key, no signed-in user) can activate an uninvited account ----
+reset role;
+select set_config('request.jwt.claim.sub', '', false);
+update public.profiles set active = true where email = 'stranger@test';
+do $$ begin
+  assert (select active from public.profiles where email = 'stranger@test'), 'service role can activate';
+end $$;
+-- ...but a signed-in employee still cannot: someone else's row is invisible to update,
+-- and their own role/status is guarded.
+select pg_temp.act_as('julio@test');
+update public.profiles set active = false where email = 'stranger@test';
+select pg_temp.expect_error(
+  $q$update public.profiles set active = false where email = 'julio@test'$q$, 'Only an admin');
+reset role;
+do $$ begin
+  assert (select active from public.profiles where email = 'stranger@test'), 'employee could not deactivate someone else';
+  assert (select active from public.profiles where email = 'julio@test'), 'employee could not deactivate themselves';
 end $$;

@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useApp } from '../app/AppContext'
 import { useAction, useNotify } from '../app/Notify'
 import { businessConfig } from '../../shared/business.config'
+import { Logo } from '../components/Logo'
 
 export function LoginPage() {
   const { api } = useApp()
@@ -25,7 +26,7 @@ export function LoginPage() {
         <CardContent component="form" onSubmit={submit}>
           <Stack spacing={2}>
             <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
-              <img src="/icon.svg" width={40} height={40} alt="" />
+              <Logo size={40} />
               <Box>
                 <Typography variant="h6">{businessConfig.name}</Typography>
                 <Typography variant="body2" color="text.secondary">Team sign-in</Typography>

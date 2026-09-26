@@ -10,3 +10,6 @@ supabase/.branches/
 *.log
 .DS_Store
 worker-configuration.d.ts
+test-results/
+playwright-report/
+dist-demo/

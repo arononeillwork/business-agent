@@ -106,7 +106,7 @@ Built and tested in this repo:
 | Web app | Today, Rota (week grid, costs, coverage bar, Spanish-law warnings, open shifts, copy last week), Timecards (approve, corrections, CSV), Calendar (categories, to-confirm), Team (invite, roles, pay, PINs), Business (details, rules), Account, Kiosk |
 | AI connector | MCP at `/mcp` with OAuth sign-in (Supabase account), 26 tools, employees get only their tools; REST at `/api/v1/tools` |
 | Security | Invite-only accounts (self sign-ups are inactive), pay visible only with "see pay", PINs hashed, no direct writes to timecards |
-| Tests | SQL acceptance tests for the phase-1 checklist, rules and MCP unit tests |
+| Tests | SQL acceptance tests (phase-1 checklist), unit tests (rules, MCP), 13 browser tests in demo mode, 11 live browser/API tests (real Supabase + connector OAuth; run once `*.supabase.co` is reachable) |
 
 Not done yet / next:
 

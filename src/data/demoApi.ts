@@ -161,9 +161,20 @@ export function createDemoApi(): Api {
       category: 'business', town: null, competition: null, source: 'admin', confirmed: true, visibility: 'all' },
   )
 
-  let currentUser: string | null = P.aron
+  // Who is signed in survives a page reload within the tab (the demo data itself does not).
+  const remember = (id: string | null) => {
+    try { sessionStorage.setItem('demo-user', id ?? '') } catch { /* storage unavailable */ }
+  }
+  let currentUser: string | null = (() => {
+    try {
+      const saved = sessionStorage.getItem('demo-user')
+      return saved === null ? P.aron : saved || null
+    } catch {
+      return P.aron
+    }
+  })()
   const listeners = new Set<() => void>()
-  const notify = () => listeners.forEach(l => l())
+  const notify = () => { remember(currentUser); listeners.forEach(l => l()) }
 
   const me = () => profiles.find(p => p.id === currentUser)
   const isAdmin = () => me()?.role === 'admin'

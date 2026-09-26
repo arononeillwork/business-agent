@@ -14,6 +14,7 @@ import KioskIcon from '@mui/icons-material/TabletMacOutlined'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { useApp } from './AppContext'
 import { businessConfig } from '../../shared/business.config'
+import { Logo } from '../components/Logo'
 
 const NAV = [
   { to: '/', label: 'Today', icon: <TodayIcon /> },
@@ -58,7 +59,7 @@ export function AppShell() {
       {desktop && (
         <Drawer variant="permanent" sx={{ width: DRAWER, '& .MuiDrawer-paper': { width: DRAWER, boxSizing: 'border-box' } }}>
           <Toolbar sx={{ gap: 1 }}>
-            <img src="/icon.svg" width={28} height={28} alt="" />
+            <Logo size={28} />
             <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{businessConfig.shortName}</Typography>
           </Toolbar>
           <Divider />
@@ -87,7 +88,7 @@ export function AppShell() {
         {!desktop && (
           <AppBar position="sticky" elevation={0}>
             <Toolbar variant="dense" sx={{ gap: 1 }}>
-              <img src="/icon.svg" width={24} height={24} alt="" />
+              <Logo size={24} />
               <Typography sx={{ fontWeight: 700, flex: 1 }}>{businessConfig.shortName}</Typography>
               {isAdmin && <Button color="inherit" size="small" component={Link} to="/team">Team</Button>}
               {isAdmin && <Button color="inherit" size="small" component={Link} to="/business">Business</Button>}
