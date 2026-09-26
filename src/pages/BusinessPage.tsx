@@ -14,6 +14,7 @@ import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { PageHeader, SectionTitle, Tag } from '../components/common'
+import { ConnectionsCard, InstagramCard } from '../components/Connections'
 import { DAY_KEYS, type Business, type DayKey, type Settings } from '../../shared/types'
 import { dayKey, formatLocal, hmToMinutes, localTime, today } from '../../shared/time'
 import { tokens } from '../theme'
@@ -149,6 +150,7 @@ export function BusinessPage() {
                   : <>Missing clock-ins are <b>not</b> filled in automatically; the manager adds them by hand.</>}</li>
                 <li>Clocking in from your phone is <b>{s.phone_clock_in === 'off' ? 'off: use the café tablet' : s.phone_clock_in === 'near_cafe' ? 'allowed near the café' : 'allowed'}</b>.</li>
                 <li>Shifts over <b>{s.break_after_hours} hours</b> need a break of at least <b>{s.min_break_minutes} minutes</b>.</li>
+                <li>Holiday allowance: <b>{s.vacation_days_per_year} calendar days a year</b>. Request it under Time off.</li>
                 <li>Limits: <b>{s.max_daily_hours}h a day</b>, <b>{s.max_weekly_hours}h a week</b>, and <b>{s.min_rest_hours}h rest</b> between shifts.</li>
               </Box>
               <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1 }}>
@@ -193,6 +195,12 @@ export function BusinessPage() {
             )}
           </Stack>
         </Grid>
+        {isAdmin && (
+          <>
+            <Grid size={{ xs: 12, lg: 7 }}><ConnectionsCard /></Grid>
+            <Grid size={{ xs: 12, lg: 5 }}><InstagramCard /></Grid>
+          </>
+        )}
       </Grid>
       <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mt: 3 }}>
         Last updated {formatLocal(b.updated_at, 'd MMM yyyy, HH:mm')}
@@ -317,6 +325,7 @@ function RulesDialog({ onClose }: { onClose: () => void }) {
         <Grid size={6}>{num('max_weekly_hours', 'Max per week', 'h')}</Grid>
         <Grid size={6}>{num('min_rest_hours', 'Rest between shifts', 'h')}</Grid>
         <Grid size={6}>{num('employer_cost_multiplier', 'Employer cost', '×')}</Grid>
+        <Grid size={6}>{num('vacation_days_per_year', 'Holiday per year', 'days')}</Grid>
       </Grid>
     </EditDialog>
   )

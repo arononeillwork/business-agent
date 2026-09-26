@@ -10,6 +10,7 @@ import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { ErrorBox, PageHeader } from '../components/common'
+import { ShareDialog } from '../components/ShareDialog'
 import type { EventInput } from '../data/api'
 import { addDays, formatLocal, localTime, today, weekStart, zonedIso } from '../../shared/time'
 import { CATEGORY_META, type CalendarEvent, type EventCategory } from '../../shared/types'
@@ -29,6 +30,7 @@ export function CalendarPage() {
   const [month, setMonth] = useState(monthStart(today()))
   const [hidden, setHidden] = useState<Set<EventCategory>>(new Set())
   const [editing, setEditing] = useState<EventInput | null>(null)
+  const [sharing, setSharing] = useState<CalendarEvent | null>(null)
 
   const gridStart = weekStart(month)
   const gridEnd = addDays(weekStart(addDays(addMonths(month, 1), -1)), 6)
@@ -158,12 +160,16 @@ export function CalendarPage() {
           {editing?.id && <Button color="error" sx={{ mr: 'auto' }} onClick={() => run(async () => {
             await api.deleteEvent(editing.id!); setEditing(null); await data.reload()
           }, 'Event removed')}>Delete</Button>}
+          {editing?.id && <Button onClick={() => {
+            setSharing((data.data ?? []).find(e => e.id === editing.id) ?? null); setEditing(null)
+          }}>Share</Button>}
           <Button onClick={() => setEditing(null)}>Cancel</Button>
           <Button variant="contained" disabled={!editing?.title.trim()} onClick={() => editing && run(async () => {
             await api.saveEvent(editing); setEditing(null); await data.reload()
           }, 'Event saved')}>Save</Button>
         </DialogActions>
       </Dialog>
+      {sharing && <ShareDialog event={sharing} onClose={() => setSharing(null)} />}
     </>
   )
 }

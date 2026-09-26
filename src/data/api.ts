@@ -1,4 +1,5 @@
 import type {
+  InstagramProfile, IntegrationsState, OpeningHours, TimeOff, TimeOffKind,
   BreakType, Business, CalendarEvent, CorrectionRequest, KioskPerson, OpenBreak, PayRate,
   Position, Profile, Settings, Shift, TimeEntry, TimeEntryChange,
 } from '../../shared/types'
@@ -76,6 +77,29 @@ export interface Api {
   setPin(pin: string, profileId?: string): Promise<void>
   setPayRate(profileId: string, hourlyRate: number): Promise<void>
   invite(email: string, fullName: string, role: 'admin' | 'employee' | 'kiosk'): Promise<void>
+
+  // time off
+  timeOff(fromDate: string, toDate: string): Promise<TimeOff[]>
+  vacationDaysUsed(profileId: string, year: number): Promise<number>
+  requestTimeOff(startsOn: string, endsOn: string, kind: TimeOffKind, note: string): Promise<void>
+  cancelTimeOff(id: string): Promise<void>
+  decideTimeOff(id: string, approve: boolean, note?: string, releaseShifts?: boolean): Promise<number>
+
+  // sign-in with Google (Supabase OAuth)
+  signInWithGoogle(): Promise<void>
+
+  // connections: Google Business Profile, WhatsApp, Instagram (admins)
+  integrations(): Promise<IntegrationsState>
+  connectGoogle(): Promise<void>
+  chooseGoogleListing(location: string | null, closedOnHolidays?: boolean): Promise<void>
+  syncGoogleNow(): Promise<void>
+  googleHours(): Promise<OpeningHours>
+  disconnect(provider: string): Promise<void>
+  whatsappTest(to: string): Promise<void>
+  instagramProfile(): Promise<InstagramProfile>
+  uploadPhoto(file: File): Promise<string>
+  share(caption: string, imageUrl: string | null, targets: ('instagram' | 'google')[], eventId?: string): Promise<number>
+  sendRota(monday: string): Promise<number>
 
   // kiosk
   kioskRoster(): Promise<KioskPerson[]>

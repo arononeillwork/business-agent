@@ -404,6 +404,55 @@ export const TOOLS: ToolDef[] = [
     },
   }),
 
+  // ---------------- Time off ----------------
+  tool({
+    name: 'list_time_off',
+    title: 'Time off',
+    description: 'Holiday and time-off requests between two dates (default: next 90 days). Employees see their own plus approved time off of others; admins see all, including pending.',
+    input: z.object({ from: date.optional(), to: date.optional(), status: z.enum(['pending', 'approved', 'declined', 'cancelled']).optional() }),
+    readOnly: true,
+    async run({ sb }, a) {
+      const start = a.from ?? today()
+      let q = sb.from('time_off').select('*').lte('starts_on', a.to ?? addDays(start, 90)).gte('ends_on', start).order('starts_on')
+      if (a.status) q = q.eq('status', a.status)
+      const [rows, people] = await Promise.all([q.then(rowsAs<Record<string, any>[]>()), team(sb)])
+      return rows.map(r => ({ request_id: r.id, person: people.find(p => p.id === r.profile_id)?.full_name, from: r.starts_on,
+        to: r.ends_on, kind: r.kind, status: r.status, note: r.note, decision_note: r.decision_note }))
+    },
+  }),
+  tool({
+    name: 'request_time_off',
+    title: 'Request time off',
+    description: 'Ask for holiday or a day off for yourself. Kinds: vacation, personal, sick, other. An admin approves it.',
+    input: z.object({ from: date, to: date, kind: z.enum(['vacation', 'personal', 'sick', 'other']).default('vacation'), note: z.string().optional() }),
+    async run({ sb }, a) {
+      check(await sb.rpc('request_time_off', { p_starts_on: a.from, p_ends_on: a.to, p_kind: a.kind, p_note: a.note ?? null }))
+      return { ok: true, message: 'Request sent to the admins' }
+    },
+  }),
+  tool({
+    name: 'decide_time_off',
+    title: 'Approve/decline time off',
+    description: "Admins: approve or decline a time-off request. With release_shifts (default true), that person's shifts in the period become open shifts.",
+    admin: true,
+    input: z.object({ request_id: z.string().uuid(), approve: z.boolean(), note: z.string().optional(), release_shifts: z.boolean().default(true) }),
+    async run({ sb }, a) {
+      const n = check(await sb.rpc('decide_time_off', { p_id: a.request_id, p_approve: a.approve, p_note: a.note ?? null, p_release_shifts: a.release_shifts }))
+      return { ok: true, shifts_released: n }
+    },
+  }),
+  tool({
+    name: 'send_rota_on_whatsapp',
+    title: 'Send rota on WhatsApp',
+    description: 'Admins: send each person their shifts for a week on WhatsApp (only staff who opted in). Ask the user to confirm first.',
+    admin: true,
+    input: z.object({ week_start: date, confirm: z.literal(true) }),
+    async run({ sb }, { week_start }) {
+      const n = check(await sb.rpc('send_rota', { p_week_start: weekStart(week_start) }))
+      return { ok: true, people_messaged: n }
+    },
+  }),
+
   // ---------------- Calendar ----------------
   tool({
     name: 'list_calendar_events',

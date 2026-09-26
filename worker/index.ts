@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { OAuthProvider } from '@cloudflare/workers-oauth-provider'
 import { bearer, serviceClient, userClient, type Env } from './supabase'
 import { rest } from './rest'
+import { drainOutbox, integrations } from './integrations'
 import { authorizeGet, authorizePost, mcpApiHandler, tokenExchangeCallback, type OAuthEnv } from './mcp'
 
 const NIGHTLY = '15 1 * * *' // 03:15 Madrid in summer, 02:15 in winter
@@ -38,6 +39,9 @@ app.post('/api/admin/invite', async c => {
   return c.json({ ok: true })
 })
 
+// Google / WhatsApp / Instagram connections, webhooks and post photos.
+app.route('/', integrations)
+
 // REST API for scripts, n8n, Zapier (same tools and rules as the AI connector).
 app.route('/api/v1', rest)
 
@@ -64,12 +68,22 @@ const provider = (env: Env, origin: string) => new OAuthProvider<Env>({
 
 export default {
   fetch: (request, env, ctx) => provider(env, new URL(request.url).origin).fetch(request, env, ctx),
-  // Every 5 minutes: close forgotten timecards. Nightly: fill yesterday's missing timecards from the rota.
+  // Every minute: close forgotten timecards, queue shift alerts, deliver the outbox.
+  // Nightly: fill yesterday's missing timecards from the rota.
   async scheduled(event, env, ctx) {
     if (!env.SUPABASE_SERVICE_ROLE_KEY) return
-    const job = event.cron === NIGHTLY ? 'auto_fill_timecards' : 'auto_close_entries'
-    ctx.waitUntil(Promise.resolve(serviceClient(env).rpc(job)).then(({ error }) => {
+    const db = serviceClient(env)
+    const log = (job: string) => ({ error }: { error: { message: string } | null }) => {
       if (error) console.error(`${job} failed`, error.message)
-    }))
+    }
+    if (event.cron === NIGHTLY) {
+      ctx.waitUntil(Promise.resolve(db.rpc('auto_fill_timecards')).then(log('auto_fill_timecards')))
+      return
+    }
+    ctx.waitUntil((async () => {
+      await Promise.resolve(db.rpc('auto_close_entries')).then(log('auto_close_entries'))
+      await Promise.resolve(db.rpc('queue_shift_alerts')).then(log('queue_shift_alerts'))
+      await drainOutbox(env).catch(e => console.error('outbox failed', e))
+    })())
   },
 } satisfies ExportedHandler<Env>

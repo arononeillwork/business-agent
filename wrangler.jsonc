@@ -6,18 +6,28 @@
   "compatibility_flags": ["nodejs_compat"],
   "assets": {
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*", "/mcp", "/mcp/*", "/authorize", "/token", "/register", "/.well-known/*"]
+    "run_worker_first": ["/api/*", "/media/*", "/mcp", "/mcp/*", "/authorize", "/token", "/register", "/.well-known/*"]
   },
   "observability": { "enabled": true },
   // OAuth grants/tokens for the AI connector (encrypted by workers-oauth-provider).
   "kv_namespaces": [{ "binding": "OAUTH_KV", "id": "0305794e6d204a83b4c49c5ec36a85cd" }],
-  // Every 5 minutes: auto clock-out. Nightly: fill missing timecards from the rota.
-  "triggers": { "crons": ["*/5 * * * *", "15 1 * * *"] },
+  // Every minute: auto clock-out, shift alerts, deliver the outbox. Nightly: fill timecards from the rota.
+  "triggers": { "crons": ["* * * * *", "15 1 * * *"] },
+  // Photos for Instagram / Google posts (served publicly at /media/*). Enable R2 in the
+  // Cloudflare dashboard, create the bucket "business-agent-media", then uncomment:
+  // "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "business-agent-media" }],
   "vars": {
     "BUSINESS_ID": "easy-beans",
     // Public by design (row-level security protects the data). Service key is a secret:
     //   npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
     "SUPABASE_URL": "https://lhakrmmoxaareykglmtx.supabase.co",
-    "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_FN8O4JMcZa7hmiSlZSo1uQ_vBM1S05e"
+    "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_FN8O4JMcZa7hmiSlZSo1uQ_vBM1S05e",
+    // Meta (WhatsApp + Instagram). Fill in the ids once the Meta app is set up; tokens are secrets:
+    //   npx wrangler secret put META_ACCESS_TOKEN / META_APP_SECRET / WHATSAPP_VERIFY_TOKEN
+    "META_GRAPH_VERSION": "v23.0",
+    "WHATSAPP_PHONE_NUMBER_ID": "",
+    "WHATSAPP_TEMPLATE_LANG": "es",
+    "INSTAGRAM_USER_ID": ""
+    // Google secrets: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET. Shared: INTEGRATION_KEY (random, 32+ chars).
   }
 }

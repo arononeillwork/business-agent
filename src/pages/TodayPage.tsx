@@ -142,12 +142,13 @@ export function TodayPage() {
   const { api, me, profiles, positions, isAdmin } = useApp()
   const d = today()
   const data = useAsync('today', async () => {
-    const [shifts, events, corrections] = await Promise.all([
+    const [shifts, events, corrections, timeOff] = await Promise.all([
       api.shifts(zonedIso(d, '00:00'), zonedIso(addDays(d, 8), '00:00')),
       api.events(d, addDays(d, 21)),
       isAdmin ? api.corrections() : Promise.resolve([]),
+      isAdmin ? api.timeOff(d, addDays(d, 365)) : Promise.resolve([]),
     ])
-    return { shifts, events, corrections }
+    return { shifts, events, corrections, timeOff }
   }, [d])
 
   const todays = (data.data?.shifts ?? []).filter(s => localDate(s.starts_at) === d)
@@ -164,6 +165,11 @@ export function TodayPage() {
         subtitle="Your clock, today's team and what's coming up."
         actions={holiday && <Tag fg="#8a241a" bg="#fbecea">Holiday · {holiday.title}</Tag>} />
       <ErrorBox error={data.error} />
+      {isAdmin && (data.data?.timeOff ?? []).some(t => t.status === 'pending') && (
+        <Alert severity="info" sx={{ mb: 2 }} action={<Button component={Link} to="/time-off" color="inherit">Review</Button>}>
+          Time off requests waiting for approval
+        </Alert>
+      )}
       {isAdmin && pending > 0 && (
         <Alert severity="warning" sx={{ mb: 2 }} action={<Button component={Link} to="/timecards" color="inherit">Review</Button>}>
           {pending} timecard correction request{pending > 1 ? 's' : ''} waiting for approval

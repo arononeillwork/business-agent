@@ -16,6 +16,7 @@ import { TeamPage } from './pages/TeamPage'
 import { BusinessPage } from './pages/BusinessPage'
 import { AccountPage } from './pages/AccountPage'
 import { KioskPage } from './pages/KioskPage'
+import { TimeOffPage } from './pages/TimeOffPage'
 
 function Routed() {
   const { me, loading } = useApp()
@@ -30,6 +31,7 @@ function Routed() {
         <Route path="rota" element={<RotaPage />} />
         <Route path="timecards" element={<TimecardsPage />} />
         <Route path="calendar" element={<CalendarPage />} />
+        <Route path="time-off" element={<TimeOffPage />} />
         <Route path="team" element={<TeamPage />} />
         <Route path="business" element={<BusinessPage />} />
         <Route path="account" element={<AccountPage />} />

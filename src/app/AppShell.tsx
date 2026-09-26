@@ -11,6 +11,7 @@ import BusinessIcon from '@mui/icons-material/StorefrontOutlined'
 import AccountIcon from '@mui/icons-material/AccountCircleOutlined'
 import KioskIcon from '@mui/icons-material/TabletMacOutlined'
 import DragIcon from '@mui/icons-material/DragIndicator'
+import TimeOffIcon from '@mui/icons-material/BeachAccessOutlined'
 import LogoutIcon from '@mui/icons-material/LogoutOutlined'
 import {
   DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent,
@@ -34,6 +35,7 @@ const NAV: NavItem[] = [
   { key: 'business', to: '/business', label: 'Business', icon: <BusinessIcon /> },
   { key: 'today', to: '/', label: 'Today', icon: <TodayIcon /> },
   { key: 'rota', to: '/rota', label: 'Rota', icon: <RotaIcon /> },
+  { key: 'timeoff', to: '/time-off', label: 'Time off', icon: <TimeOffIcon /> },
   { key: 'timecards', to: '/timecards', label: 'Timecards', short: 'Hours', icon: <TimecardIcon /> },
   { key: 'calendar', to: '/calendar', label: 'Calendar', icon: <CalendarIcon /> },
   { key: 'team', to: '/team', label: 'Team', icon: <TeamIcon /> },

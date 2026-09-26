@@ -119,3 +119,16 @@ Not done yet / next:
   API keys for n8n, kiosk device account setup screen.
 - Performance: code-split the app bundle (930 kB).
 - Supabase migration history on the dev project was applied through the connector, so its version numbers differ from the files here; run `supabase migration repair` before using `supabase db push` against it.
+
+## Update (26 Sep 2026, later)
+
+- UI refresh: new design system, draggable sidebar (Business first), readable Business overview.
+- Reliability: TanStack Query in the app; a Postgres **outbox** + minute cron delivers all outside
+  messages with retries (1/5/15/60/240 min) and shows failures on the Business page.
+- Timecards fill from the rota nightly when nobody clocked in (flagged "From rota").
+- Time off: staff request holidays/days off, 30-day allowance, admins approve; approved time off
+  releases shifts to open shifts and blocks scheduling.
+- Connections (see docs/INTEGRATIONS.md): Google sign-in; Google Business Profile hours, holiday
+  closures, phone and posts kept in sync; WhatsApp alerts (Meta Cloud API) for shift reminders,
+  missed clock-ins, rota, time off; Instagram profile, stats and posting. All built and tested
+  with mocks; each needs its account keys to go live.

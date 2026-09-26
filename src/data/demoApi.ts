@@ -3,6 +3,7 @@
 // of truth: the database functions are.
 import type { Api, ShiftInput } from './api'
 import type {
+  IntegrationsState, TimeOff,
   BreakType, Business, CalendarEvent, CorrectionRequest, PayRate, Position, Profile, Settings,
   Shift, TimeEntry, TimeEntryChange,
 } from '../../shared/types'
@@ -42,20 +43,31 @@ export function createDemoApi(): Api {
     notes: 'Weekday closing time to confirm: 18:00 (plan) vs 15:00 (Square rota).',
     updated_at: nowIso(),
   }
+  const integ: IntegrationsState = {
+    configured: { google_business: true, whatsapp: true, instagram: true },
+    queue: [],
+    integrations: [
+      { provider: 'google_business', status: 'connected', account_label: 'Easy Beans Coffee',
+        external: { locations: [{ name: 'locations/1', title: 'Easy Beans Coffee' }], location: 'locations/1', closed_on_holidays: false },
+        connected_at: nowIso(), last_sync_at: nowIso(), last_error: null },
+      { provider: 'whatsapp', status: 'connected', account_label: '+34 695 415 335', external: {}, connected_at: nowIso(), last_sync_at: null, last_error: null },
+      { provider: 'instagram', status: 'connected', account_label: '@easy.beans.coffee', external: {}, connected_at: nowIso(), last_sync_at: nowIso(), last_error: null },
+    ],
+  }
   let adminNotes: string | null = 'Demo: alarm code holder, wifi for the kiosk, landlord and gestor contacts.'
   const settings: Settings = {
     early_clock_in_minutes: 10, unscheduled_clock_in: 'flag', auto_clock_out_minutes: 60,
     forgot_clock_out_grace_minutes: 30, phone_clock_in: 'anywhere', min_break_minutes: 15,
     break_after_hours: 6, max_daily_hours: 9, max_weekly_hours: 40, min_rest_hours: 12,
-    approval_weekday: 1, employer_cost_multiplier: 1.3, auto_timecards_from_rota: true,
+    approval_weekday: 1, employer_cost_multiplier: 1.3, auto_timecards_from_rota: true, vacation_days_per_year: 30,
   }
 
   const P = { aron: 'p-aron', mark: 'p-mark', julio: 'p-julio', maria: 'p-maria', cleaner: 'p-cleaner' }
   const profiles: (Profile & { pin?: string })[] = [
     { id: P.aron, full_name: "Aron O'Neill", email: 'aron@example.com', role: 'admin', can_see_pay: true, colour: '#6a1b9a', active: true, phone: null, birth_date: null, pin: '1111' },
     { id: P.mark, full_name: 'Mark Murray', email: 'mark@example.com', role: 'admin', can_see_pay: true, colour: '#4527a0', active: true, phone: null, birth_date: null, pin: '2222' },
-    { id: P.julio, full_name: 'Julio', email: 'julio@example.com', role: 'employee', can_see_pay: false, colour: '#6d4c41', active: true, phone: null, birth_date: null, pin: '1234' },
-    { id: P.maria, full_name: 'Maria', email: 'maria@example.com', role: 'employee', can_see_pay: false, colour: '#ad1457', active: true, phone: null, birth_date: null, pin: '4321' },
+    { id: P.julio, full_name: 'Julio', email: 'julio@example.com', role: 'employee', can_see_pay: false, colour: '#6d4c41', active: true, whatsapp_opt_in: true, phone: '+34 600 111 222', birth_date: null, pin: '1234' },
+    { id: P.maria, full_name: 'Maria', email: 'maria@example.com', role: 'employee', can_see_pay: false, colour: '#ad1457', active: true, whatsapp_opt_in: true, phone: '+34 600 333 444', birth_date: null, pin: '4321' },
     { id: P.cleaner, full_name: 'Cleaner', email: null, role: 'employee', can_see_pay: false, colour: '#0277bd', active: true, phone: null, birth_date: null },
   ]
   const positions: Position[] = [
@@ -120,6 +132,12 @@ export function createDemoApi(): Api {
   const lastMonday = addDays(weekStart(today()), -7)
   for (const e of entries) if (localDate(e.clock_in) < weekStart(today()) && localDate(e.clock_in) >= lastMonday) e.approved_at = nowIso()
 
+  const timeOff: TimeOff[] = [
+    { id: uid(), profile_id: P.maria, starts_on: addDays(weekStart(today()), 9), ends_on: addDays(weekStart(today()), 11), kind: 'vacation',
+      note: 'Family wedding in Sevilla', status: 'pending', created_at: nowIso(), decision_note: null },
+    { id: uid(), profile_id: P.julio, starts_on: addDays(today(), 30), ends_on: addDays(today(), 36), kind: 'vacation',
+      note: null, status: 'approved', created_at: nowIso(), decision_note: 'Enjoy!' },
+  ]
   const corrections: CorrectionRequest[] = []
   const firstMaria = entries.find(e => e.profile_id === P.maria && !e.approved_at)
   if (firstMaria?.clock_out) {
@@ -391,6 +409,9 @@ export function createDemoApi(): Api {
     async saveShift(input: ShiftInput) {
       requireAdmin()
       if (input.ends_at <= input.starts_at) throw new Error('Shift must end after it starts')
+      const off = input.profile_id && timeOff.find(t => t.profile_id === input.profile_id && t.status === 'approved' &&
+        localDate(input.starts_at) >= t.starts_on && localDate(input.starts_at) <= t.ends_on)
+      if (off) throw new Error(`${profiles.find(p => p.id === input.profile_id)?.full_name} has approved time off that day`)
       if (input.id) {
         const s = shifts.find(x => x.id === input.id)
         if (s) Object.assign(s, input)
@@ -452,6 +473,115 @@ export function createDemoApi(): Api {
       requireAdmin()
       profiles.push({ id: uid(), full_name: fullName, email, role, can_see_pay: false, colour: '#8d6e63',
         active: true, phone: null, birth_date: null })
+    },
+
+    async timeOff(fromDate, toDate) {
+      return clone(timeOff.filter(t => t.starts_on <= toDate && t.ends_on >= fromDate &&
+        (isAdmin() || t.profile_id === currentUser || t.status === 'approved')))
+        .sort((a, b) => a.starts_on.localeCompare(b.starts_on))
+    },
+    async vacationDaysUsed(profileId, year) {
+      const y0 = `${year}-01-01`, y1 = `${year}-12-31`
+      return timeOff.filter(t => t.profile_id === profileId && t.kind === 'vacation' && ['approved', 'pending'].includes(t.status)
+        && t.starts_on <= y1 && t.ends_on >= y0)
+        .reduce((n, t) => n + (Date.parse(t.ends_on < y1 ? t.ends_on : y1) - Date.parse(t.starts_on > y0 ? t.starts_on : y0)) / 86400000 + 1, 0)
+    },
+    async requestTimeOff(startsOn, endsOn, kind, note) {
+      if (endsOn < startsOn) throw new Error('The last day must be on or after the first day')
+      if (kind !== 'sick' && startsOn < today()) throw new Error('Holiday requests must be for today or later')
+      if (timeOff.some(t => t.profile_id === currentUser && ['pending', 'approved'].includes(t.status) && t.starts_on <= endsOn && t.ends_on >= startsOn)) {
+        throw new Error('You already have time off requested for some of those days')
+      }
+      const days = (Date.parse(endsOn) - Date.parse(startsOn)) / 86400000 + 1
+      if (kind === 'vacation' && (await api.vacationDaysUsed(currentUser!, Number(startsOn.slice(0, 4)))) + days > settings.vacation_days_per_year) {
+        throw new Error(`That is more than your ${settings.vacation_days_per_year} holiday days for the year`)
+      }
+      timeOff.push({ id: uid(), profile_id: currentUser!, starts_on: startsOn, ends_on: endsOn, kind, note: note || null,
+        status: 'pending', created_at: nowIso(), decision_note: null })
+    },
+    async cancelTimeOff(id) {
+      const t = timeOff.find(x => x.id === id && (x.profile_id === currentUser || isAdmin()))
+      if (!t) throw new Error('Request not found')
+      if (!['pending', 'approved'].includes(t.status)) throw new Error(`This request is already ${t.status}`)
+      t.status = 'cancelled'
+    },
+    async decideTimeOff(id, approve, note, releaseShifts = true) {
+      requireAdmin()
+      const t = timeOff.find(x => x.id === id)
+      if (!t || t.status !== 'pending') throw new Error('This request is no longer pending')
+      t.status = approve ? 'approved' : 'declined'
+      t.decision_note = note ?? null
+      let n = 0
+      if (approve && releaseShifts) {
+        const name = profiles.find(p => p.id === t.profile_id)?.full_name
+        for (const s of shifts) {
+          if (s.profile_id === t.profile_id && localDate(s.starts_at) >= t.starts_on && localDate(s.starts_at) <= t.ends_on) {
+            s.profile_id = null
+            s.note = `${s.note ? `${s.note} · ` : ''}Released: ${name} off`
+            n++
+          }
+        }
+      }
+      return n
+    },
+
+    async signInWithGoogle() {
+      throw new Error('Google sign-in works on the live app. In the demo, use an example email.')
+    },
+
+    async integrations() {
+      requireAdmin()
+      return structuredClone(integ)
+    },
+    async connectGoogle() {
+      requireAdmin()
+      const g = integ.integrations.find(i => i.provider === 'google_business')!
+      Object.assign(g, { status: 'connected', account_label: 'Easy Beans Coffee', connected_at: nowIso(), last_sync_at: nowIso(),
+        external: { locations: [{ name: 'locations/1', title: 'Easy Beans Coffee', address: business.address ?? '' }], location: 'locations/1' } })
+    },
+    async chooseGoogleListing(_loc, closedOnHolidays) {
+      requireAdmin()
+      const g = integ.integrations.find(i => i.provider === 'google_business')!
+      if (closedOnHolidays !== undefined) g.external.closed_on_holidays = closedOnHolidays
+    },
+    async syncGoogleNow() {
+      requireAdmin()
+      integ.integrations.find(i => i.provider === 'google_business')!.last_sync_at = nowIso()
+    },
+    async googleHours() {
+      return { ...business.opening_hours, sun: { open: '10:00', close: '15:00' } }
+    },
+    async disconnect(provider) {
+      requireAdmin()
+      Object.assign(integ.integrations.find(i => i.provider === provider)!, { status: 'disconnected', account_label: null, external: {} })
+    },
+    async whatsappTest(to) {
+      requireAdmin()
+      if (!/\d{9,}/.test(to.replace(/\D/g, ''))) throw new Error('Enter a full number with country code, e.g. +34 600 000 000')
+    },
+    async instagramProfile() {
+      return {
+        username: 'easy.beans.coffee', name: 'Easy Beans Coffee', followers_count: 1284, media_count: 57,
+        biography: 'Specialty coffee & matcha · San Pedro de Alcántara',
+        recent: ['Iced oat latte season', 'Matcha, but make it ceremonial', 'Fresh from By Eric this morning',
+          'Sunday slow bar', 'Our new Ethiopian filter', 'Feria week hours'].map((caption, i) => ({
+          id: String(i), caption, permalink: 'https://instagram.com/easy.beans.coffee',
+          timestamp: new Date(Date.now() - i * 2 * 86400000).toISOString(), like_count: 180 - i * 17, comments_count: 12 - i,
+        })),
+      }
+    },
+    async uploadPhoto(file) {
+      return URL.createObjectURL(file)
+    },
+    async share(caption, imageUrl, targets) {
+      requireAdmin()
+      if (!caption.trim()) throw new Error('Write a caption first')
+      if (targets.includes('instagram') && !imageUrl) throw new Error('Instagram posts need a photo')
+      return targets.length
+    },
+    async sendRota() {
+      requireAdmin()
+      return profiles.filter(p => p.whatsapp_opt_in && p.phone).length
     },
 
     async kioskRoster() {

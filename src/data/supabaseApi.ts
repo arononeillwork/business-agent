@@ -1,8 +1,8 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { Api } from './api'
-import type { Business, Settings, TimeEntry } from '../../shared/types'
+import type { Business, Settings, TimeEntry, TimeOff } from '../../shared/types'
 
-const PROFILE_COLUMNS = 'id, full_name, email, role, can_see_pay, colour, active, phone, birth_date'
+const PROFILE_COLUMNS = 'id, full_name, email, role, can_see_pay, colour, active, phone, birth_date, whatsapp_opt_in'
 
 /** Throw the Postgres error message (our SQL functions raise human-readable ones). */
 function check<T>(res: { data: T; error: { message: string } | null }): NonNullable<T> {
@@ -19,6 +19,16 @@ export function createSupabaseApi(url: string, key: string): Api {
   })
 
   const uid = async () => (await sb.auth.getSession()).data.session?.user.id ?? null
+
+  /** Call the Worker's admin endpoints with the signed-in person's token. */
+  const worker = async <T,>(path: string, init: RequestInit = {}): Promise<T> => {
+    const token = (await sb.auth.getSession()).data.session?.access_token
+    const res = await fetch(path, { ...init, headers: { authorization: `Bearer ${token}`,
+      ...(init.body && typeof init.body === 'string' ? { 'content-type': 'application/json' } : {}), ...init.headers } })
+    const json = await res.json().catch(() => ({})) as T & { error?: string }
+    if (!res.ok) throw new Error(json.error ?? `Request failed (${res.status})`)
+    return json
+  }
 
   const api: Api = {
     mode: 'live',
@@ -190,6 +200,51 @@ export function createSupabaseApi(url: string, key: string): Api {
         body: JSON.stringify({ email, full_name: fullName, role }),
       })
       if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? 'Invite failed')
+    },
+
+    async timeOff(fromDate, toDate) {
+      return check(await sb.from('time_off').select('*').lte('starts_on', toDate).gte('ends_on', fromDate)
+        .order('starts_on')) as TimeOff[]
+    },
+    async vacationDaysUsed(profileId, year) {
+      return check(await sb.rpc('vacation_days_used', { p_profile_id: profileId, p_year: year })) as number
+    },
+    async requestTimeOff(startsOn, endsOn, kind, note) {
+      check(await sb.rpc('request_time_off', { p_starts_on: startsOn, p_ends_on: endsOn, p_kind: kind, p_note: note || null }))
+    },
+    async cancelTimeOff(id) { check(await sb.rpc('cancel_time_off', { p_id: id })) },
+    async decideTimeOff(id, approve, note, releaseShifts = true) {
+      return check(await sb.rpc('decide_time_off', { p_id: id, p_approve: approve, p_note: note ?? null, p_release_shifts: releaseShifts })) as number
+    },
+
+    async signInWithGoogle() {
+      checkAuth(await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin } }))
+    },
+
+    integrations: () => worker('/api/integrations'),
+    async connectGoogle() {
+      const { url } = await worker<{ url: string }>('/api/integrations/google/start', { method: 'POST' })
+      location.assign(url)
+    },
+    async chooseGoogleListing(loc, closedOnHolidays) {
+      await worker('/api/integrations/google/location', { method: 'POST',
+        body: JSON.stringify({ location: loc ?? undefined, closed_on_holidays: closedOnHolidays }) })
+    },
+    async syncGoogleNow() { await worker('/api/integrations/google/sync', { method: 'POST' }) },
+    async googleHours() { return (await worker<{ opening_hours: never }>('/api/integrations/google/hours')).opening_hours },
+    async disconnect(provider) { await worker(`/api/integrations/${provider}/disconnect`, { method: 'POST' }) },
+    async whatsappTest(to) { await worker('/api/integrations/whatsapp/test', { method: 'POST', body: JSON.stringify({ to }) }) },
+    instagramProfile: () => worker('/api/integrations/instagram/profile'),
+    async uploadPhoto(file) {
+      return (await worker<{ url: string }>('/api/integrations/media', { method: 'POST', body: file,
+        headers: { 'content-type': file.type } })).url
+    },
+    async share(caption, imageUrl, targets, eventId) {
+      return check(await sb.rpc('queue_share', { p_caption: caption, p_image_url: imageUrl, p_targets: targets,
+        p_event_id: eventId ?? null })) as number
+    },
+    async sendRota(monday) {
+      return check(await sb.rpc('send_rota', { p_week_start: monday })) as number
     },
 
     async kioskRoster() {

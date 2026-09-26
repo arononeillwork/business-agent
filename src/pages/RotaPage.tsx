@@ -41,11 +41,12 @@ export function RotaPage() {
 
   const data = useAsync('rota', async () => {
     // Include the day before so 12h-rest checks see Sunday night shifts.
-    const [shifts, events] = await Promise.all([
+    const [shifts, events, timeOff] = await Promise.all([
       api.shifts(zonedIso(addDays(monday, -1), '00:00'), zonedIso(addDays(monday, 7), '00:00')),
       api.events(monday, addDays(monday, 6)),
+      api.timeOff(monday, addDays(monday, 6)),
     ])
-    return { shifts, events }
+    return { shifts, events, timeOff }
   }, [monday])
 
   const allShifts = data.data?.shifts ?? []
@@ -166,6 +167,10 @@ export function RotaPage() {
           {isAdmin && <Button startIcon={<CopyIcon />} variant="outlined" onClick={() => run(async () => {
             const n = await copyLastWeek(); await data.reload(); if (!n) throw new Error('Nothing new to copy from last week')
           }, 'Copied last week')}>Copy last week</Button>}
+          {isAdmin && <Button variant="outlined" onClick={() => run(async () => {
+            const n = await api.sendRota(monday)
+            if (!n) throw new Error('Nobody to send to: staff turn on WhatsApp under My account')
+          }, 'Rota sent on WhatsApp')}>Send on WhatsApp</Button>}
           {isAdmin && <Button startIcon={<AddIcon />} variant="contained" onClick={() => openDraft(null, days[0])}>Add shift</Button>}
         </>} />
       <ErrorBox error={data.error} />
@@ -251,6 +256,12 @@ export function RotaPage() {
                 <Box key={`${row.id}-${date}`} sx={{ ...cellSx, cursor: isAdmin ? 'pointer' : 'default',
                   bgcolor: date === today() ? '#fbfdf7' : undefined, '&:hover': isAdmin ? { bgcolor: 'grey.50' } : {} }}
                   onClick={() => isAdmin && openDraft(row.id, date)}>
+                  {row.id && (data.data?.timeOff ?? []).some(t => t.profile_id === row.id && t.status === 'approved' && date >= t.starts_on && date <= t.ends_on) && (
+                    <Box sx={{ px: 1, py: 0.75, mb: 0.75, borderRadius: 2, fontSize: '0.78rem', fontWeight: 700, color: '#1f4d70',
+                      background: 'repeating-linear-gradient(135deg, #eef4f9, #eef4f9 6px, #e2edf5 6px, #e2edf5 12px)' }}>
+                      Time off
+                    </Box>
+                  )}
                   {rowShifts.filter(s => localDate(s.starts_at) === date).map(s => <ShiftBlock key={s.id} s={s} />)}
                 </Box>
               )),

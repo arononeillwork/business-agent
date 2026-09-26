@@ -37,6 +37,7 @@ export interface Settings {
   approval_weekday: number
   employer_cost_multiplier: number
   auto_timecards_from_rota: boolean
+  vacation_days_per_year: number
 }
 
 export interface Profile {
@@ -49,6 +50,7 @@ export interface Profile {
   active: boolean
   phone: string | null
   birth_date: string | null
+  whatsapp_opt_in?: boolean
 }
 
 export interface Position {
@@ -158,6 +160,52 @@ export interface KioskPerson {
   status: 'in' | 'out' | 'break'
   since: string | null
   has_pin: boolean
+}
+
+export type TimeOffKind = 'vacation' | 'personal' | 'sick' | 'other'
+
+export interface TimeOff {
+  id: string
+  profile_id: string
+  starts_on: string
+  ends_on: string
+  kind: TimeOffKind
+  note: string | null
+  status: 'pending' | 'approved' | 'declined' | 'cancelled'
+  created_at: string
+  decision_note: string | null
+}
+
+export const TIME_OFF_LABELS: Record<TimeOffKind, string> = {
+  vacation: 'Holiday', personal: 'Personal day', sick: 'Sick', other: 'Other',
+}
+
+export type IntegrationProvider = 'google_business' | 'whatsapp' | 'instagram'
+
+export interface Integration {
+  provider: IntegrationProvider
+  status: 'connected' | 'needs_setup' | 'error' | 'disconnected'
+  account_label: string | null
+  external: { locations?: { name: string; title: string; address?: string }[]; location?: string; closed_on_holidays?: boolean }
+  connected_at: string | null
+  last_sync_at: string | null
+  last_error: string | null
+}
+
+export interface IntegrationsState {
+  integrations: Integration[]
+  configured: Record<IntegrationProvider, boolean>
+  queue: { kind: string; status: string }[]
+}
+
+export interface InstagramProfile {
+  username: string
+  name?: string
+  followers_count: number
+  media_count: number
+  profile_picture_url?: string
+  biography?: string
+  recent: { id: string; caption?: string; media_url?: string; thumbnail_url?: string; permalink: string; timestamp: string; like_count?: number; comments_count?: number }[]
 }
 
 export const CATEGORY_META: Record<EventCategory, { label: string; colour: string }> = {
