@@ -13,19 +13,25 @@ jobs:
       - shell: bash
         run: |
           B=https://www.thesportsdb.com/api/v1/json/3
-          j() { curl -s -m 25 "$1"; sleep 2.2; }
-          echo "=== leagues matching"
-          j "$B/all_leagues.php" | jq -r '.leagues[] | select(.strSport=="Soccer" or .strSport=="Fighting") | "\(.idLeague)\t\(.strSport)\t\(.strLeague)"' \
-            | grep -Ei 'la liga|segunda|copa del rey|premier league|championship|fa cup|eredivisie|bundesliga|serie a|ligue 1|primeira|scottish prem|champions league|europa|conference|nations league|world cup|euro|friendl|qualif|ufc|boxing|mma' | head -60
-          for id in 4335 4328 4480 4396 4490 4443 4445; do
-            echo "=== league $id next"
-            j "$B/eventsnextleague.php?id=$id" | jq -c '[.events[]? | {idEvent, strEvent, strTimestamp, intRound, strSeason, strStatus}]'
+          j() { curl -s -m 25 -A 'EasyBeans/1.0 (cafe app)' "$1"; sleep 2.2; }
+          echo "=== lookupleague"
+          for id in 4396 4400 4483 4482 4481 5071 4344 4429 4502 4562 4570 4499 4866 4724 4721 4501 4503; do
+            j "$B/lookupleague.php?id=$id" | jq -c '[.leagues[]? | {idLeague, strLeague, strSport, strCountry, strCurrentSeason}]'
           done
-          echo "=== round counts (La Liga 2026-2027 rounds 7..10)"
-          for r in 7 8 9 10; do j "$B/eventsround.php?id=4335&r=$r&s=2026-2027" | jq -c "{r: $r, n: (.events|length), first: .events[0].strEvent, ts: .events[0].strTimestamp}"; done
-          echo "=== season counts"
-          for x in "4335 2026-2027" "4328 2026-2027" "4443 2026" "4445 2026" "4480 2026-2027"; do set -- $x
-            j "$B/eventsseason.php?id=$1&s=$2" | jq -c "{id: \"$1\", s: \"$2\", n: (.events|length), last: .events[-1].strTimestamp}"; done
-          echo "=== day listing"
-          j "$B/eventsday.php?d=$(date -u -d '+7 days' +%F)&s=Soccer" | jq -c '{n: (.events|length), sample: [.events[0:3][]? | {strEvent, strLeague, idLeague}]}'
-          j "$B/eventsday.php?d=$(date -u -d '+7 days' +%F)&s=Fighting" | jq -c '{n: (.events|length), sample: [.events[0:3][]? | {strEvent, strLeague}]}'
+          echo "=== search"
+          j "$B/search_all_leagues.php?s=Soccer&c=Spain" | jq -c '[.countries[]? | {idLeague, strLeague}]'
+          j "$B/search_all_leagues.php?s=Soccer&c=England" | jq -c '[.countries[]? | {idLeague, strLeague}] | .[0:12]'
+          j "$B/search_all_leagues.php?s=Soccer&c=World" | jq -c '[.countries[]? | {idLeague, strLeague}] | .[0:30]'
+          echo "=== fights next"
+          for id in 4443 4445; do j "$B/eventsnextleague.php?id=$id" | jq -c '[.events[]? | {idEvent, strEvent, strTimestamp, strVenue}]'; done
+          echo "=== fixturedownload"
+          for f in epl-2026 la-liga-2026 bundesliga-2026 serie-a-2026 ligue-1-2026 eredivisie-2026 champions-league-2026 fifa-world-cup-2026; do
+            curl -s -m 25 "https://fixturedownload.com/feed/json/$f" | jq -c "{f: \"$f\", n: length, first: .[0], last: .[-1].DateUtc}" 2>&1 | head -c 700; echo
+          done
+          echo "=== openfootball"
+          for p in 2026-27/en.1.json 2026-27/es.1.json 2025-26/es.1.json; do
+            curl -s -m 25 "https://raw.githubusercontent.com/openfootball/football.json/master/$p" | jq -c "{p: \"$p\", n: (.matches|length), first: .matches[0]}" 2>&1 | head -c 500; echo
+          done
+          echo "=== wikipedia UFC scheduled"
+          curl -s -m 25 -A 'EasyBeans/1.0 (cafe app)' "https://en.wikipedia.org/w/api.php?action=parse&page=List_of_UFC_events&prop=sections&format=json" | jq -c '[.parse.sections[] | {index, line}]' | head -c 1500; echo
+          curl -s -m 25 -A 'EasyBeans/1.0 (cafe app)' "https://en.wikipedia.org/w/api.php?action=parse&page=List_of_UFC_events&section=1&prop=wikitext&format=json" | jq -r '.parse.wikitext["*"]' | head -60
