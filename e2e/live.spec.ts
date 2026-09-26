@@ -102,7 +102,10 @@ test.describe('sign-in and time tracking', () => {
     await card.getByRole('button', { name: 'Edit' }).first().click()
     const dialog = page.getByRole('dialog', { name: 'Edit timecard' })
     const clockIn = await dialog.getByLabel('Clock in').inputValue()
-    const earlier = `${clockIn.slice(0, 11)}${String(Math.max(0, Number(clockIn.slice(11, 13)) - 1)).padStart(2, '0')}${clockIn.slice(13)}`
+    // One hour earlier, correctly across midnight (the old hour-minus-one stayed put at 00:xx).
+    const d = new Date(`${clockIn}:00Z`)
+    d.setUTCHours(d.getUTCHours() - 1)
+    const earlier = d.toISOString().slice(0, 16)
     await dialog.getByLabel('Clock in').fill(earlier)
     await dialog.getByRole('button', { name: 'Save' }).click()
     await toast(page, 'A reason is required')
