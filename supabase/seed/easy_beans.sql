@@ -72,3 +72,17 @@ insert into public.sports_follows (kind, provider, provider_id, name, alerts) va
   ('competition', 'football-data', 'WC',  'FIFA World Cup', 'all'),
   ('competition', 'football-data', 'EC',  'UEFA European Championship', 'all')
 on conflict (provider, provider_id) do nothing;
+
+-- Monthly expenses, from the Accounts sheet ("Monthly Costs" tab, 26 Sep 2026).
+insert into public.expenses (name, amount, sort, source, category)
+select v.name, v.amount, v.sort, 'sheet', v.category
+  from (values
+    ('Rent', 1530.00, 1, 'Premises'), ('Staff wages', 4300.00, 2, 'People'), ('Electricity', 200.00, 3, 'Utilities'),
+    ('Insurance', 100.00, 4, 'Premises'), ('Council tax', 50.00, 5, 'Premises'), ('Broadband', 20.00, 6, 'Utilities'),
+    ('Accountant', 100.00, 7, 'Services'), ('Water', 50.00, 8, 'Utilities'), ('Cleaning supplies', 20.00, 9, 'Supplies'),
+    ('Cleaning', 50.00, 10, 'Services'), ('Loan', 641.53, 11, 'Finance'), ('Automo costs', 80.00, 12, 'Services'),
+    ('Wastage', 50.00, 13, 'Stock'), ('Freebies', 30.00, 14, 'Stock'), ('Non-retail supplies', 500.00, 15, 'Supplies'),
+    ('Printing / labels', 50.00, 16, 'Marketing'), ('Advertising / social media', 50.00, 17, 'Marketing'),
+    ('Security system', 43.56, 18, 'Premises')
+  ) as v(name, amount, sort, category)
+ where not exists (select 1 from public.expenses where source = 'sheet');

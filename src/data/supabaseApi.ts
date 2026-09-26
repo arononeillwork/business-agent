@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { Api } from './api'
-import type { Business, Settings, TimeEntry, TimeOff } from '../../shared/types'
+import type { Business, Expense, OutboxItem, Settings, TimeEntry, TimeOff } from '../../shared/types'
 
 const PROFILE_COLUMNS = 'id, full_name, email, role, can_see_pay, colour, active, phone, birth_date, whatsapp_opt_in'
 
@@ -18,6 +18,16 @@ export function createSupabaseApi(url: string, key: string): Api {
     // PKCE: the Google sign-in redirect returns a one-time code, never tokens in the URL.
     auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: 'pkce' },
   })
+
+  /** Sign in through Supabase with an outside account. Supabase handles the whole OAuth flow. */
+  const oauth = async (provider: 'google' | 'azure', label: string, queryParams: Record<string, string>, scopes?: string) => {
+    const { error } = await sb.auth.signInWithOAuth({ provider, options: { redirectTo: location.origin, queryParams, scopes } })
+    if (error) {
+      throw new Error(/provider is not enabled|unsupported provider/i.test(error.message)
+        ? `${label} sign-in is not switched on yet. Use your email and password for now.`
+        : error.message)
+    }
+  }
 
   const uid = async () => (await sb.auth.getSession()).data.session?.user.id ?? null
 
@@ -218,16 +228,22 @@ export function createSupabaseApi(url: string, key: string): Api {
       return check(await sb.rpc('decide_time_off', { p_id: id, p_approve: approve, p_note: note ?? null, p_release_shifts: releaseShifts })) as number
     },
 
-    async signInWithGoogle() {
-      const { error } = await sb.auth.signInWithOAuth({
-        provider: 'google',
-        options: { redirectTo: location.origin, queryParams: { prompt: 'select_account' } },
-      })
-      if (error) {
-        throw new Error(/provider is not enabled|unsupported provider/i.test(error.message)
-          ? 'Google sign-in is not switched on yet. Use your email and password for now.'
-          : error.message)
-      }
+    signInWithGoogle: () => oauth('google', 'Google', { prompt: 'select_account' }),
+    // Supabase calls Microsoft (Outlook / Microsoft 365 / Entra ID) "azure".
+    signInWithMicrosoft: () => oauth('azure', 'Microsoft', { prompt: 'select_account' }, 'openid email profile'),
+
+    async expenses() {
+      return check(await sb.from('expenses').select('*').order('sort').order('name')) as Expense[]
+    },
+    async saveExpense(e) {
+      const row = { name: e.name.trim(), amount: e.amount, category: e.category ?? null, notes: e.notes ?? null,
+        active: e.active ?? true, ...(e.sort !== undefined ? { sort: e.sort } : {}) }
+      if (e.id) check(await sb.from('expenses').update(row).eq('id', e.id))
+      else check(await sb.from('expenses').insert({ ...row, source: 'app' }))
+    },
+    async deleteExpense(id) { check(await sb.from('expenses').delete().eq('id', id)) },
+    async sentAlerts(limit = 50) {
+      return check(await sb.from('outbox').select('*').order('created_at', { ascending: false }).limit(limit)) as OutboxItem[]
     },
 
     integrations: () => worker('/api/integrations'),

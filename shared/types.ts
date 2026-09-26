@@ -38,6 +38,35 @@ export interface Settings {
   employer_cost_multiplier: number
   auto_timecards_from_rota: boolean
   vacation_days_per_year: number
+  alert_shift_reminders: boolean
+  alert_missed_clock_in: boolean
+  alert_rota: boolean
+  alert_time_off: boolean
+}
+
+export interface Expense {
+  id: string
+  name: string
+  amount: number
+  category: string | null
+  notes: string | null
+  active: boolean
+  sort: number
+  source: 'sheet' | 'app' | 'ai'
+  updated_at: string
+}
+
+/** A message or update the app has sent (or is sending) to an outside service. */
+export interface OutboxItem {
+  id: number
+  kind: 'whatsapp' | 'google_sync' | 'google_post' | 'instagram_post'
+  payload: { template?: string; to?: string; profile_id?: string; caption?: string }
+  status: 'pending' | 'sending' | 'sent' | 'failed' | 'dead'
+  attempts: number
+  last_error: string | null
+  delivery: string | null
+  created_at: string
+  sent_at: string | null
 }
 
 export interface Profile {

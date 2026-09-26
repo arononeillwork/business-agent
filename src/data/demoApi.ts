@@ -3,7 +3,7 @@
 // of truth: the database functions are.
 import type { Api, ShiftInput } from './api'
 import type {
-  IntegrationsState, TimeOff,
+  Expense, IntegrationsState, OutboxItem, TimeOff,
   BreakType, Business, CalendarEvent, CorrectionRequest, PayRate, Position, Profile, Settings,
   Shift, TimeEntry, TimeEntryChange,
 } from '../../shared/types'
@@ -63,12 +63,30 @@ export function createDemoApi(): Api {
     { id: 'pl3', name: 'Aron’s gym mix', tracks: 40, url: 'https://open.spotify.com', owner: 'Aron' },
   ]
   const music: { playing: boolean; track?: string; artist?: string; device?: string } = { playing: false }
+  const expenses: Expense[] = ([
+    ['Rent', 1530, 'Premises'], ['Staff wages', 4300, 'People'], ['Electricity', 200, 'Utilities'], ['Insurance', 100, 'Premises'],
+    ['Council tax', 50, 'Premises'], ['Broadband', 20, 'Utilities'], ['Accountant', 100, 'Services'], ['Water', 50, 'Utilities'],
+    ['Cleaning supplies', 20, 'Supplies'], ['Cleaning', 50, 'Services'], ['Loan', 641.53, 'Finance'], ['Automo costs', 80, 'Services'],
+    ['Wastage', 50, 'Stock'], ['Freebies', 30, 'Stock'], ['Non-retail supplies', 500, 'Supplies'], ['Printing / labels', 50, 'Marketing'],
+    ['Advertising / social media', 50, 'Marketing'], ['Security system', 43.56, 'Premises'],
+  ] as const).map(([name, amount, category], i) => ({ id: uid(), name, amount, category, notes: null, active: true, sort: i + 1,
+    source: 'sheet' as const, updated_at: nowIso() }))
+  const sent: OutboxItem[] = [
+    { id: 3, kind: 'whatsapp', payload: { template: 'shift_reminder', to: '34600111222', profile_id: 'p-julio' }, status: 'sent',
+      attempts: 1, last_error: null, delivery: 'read', created_at: new Date(Date.now() - 3600000).toISOString(), sent_at: new Date(Date.now() - 3590000).toISOString() },
+    { id: 2, kind: 'google_sync', payload: {}, status: 'sent', attempts: 1, last_error: null, delivery: null,
+      created_at: new Date(Date.now() - 86400000).toISOString(), sent_at: new Date(Date.now() - 86390000).toISOString() },
+    { id: 1, kind: 'whatsapp', payload: { template: 'missed_clock_in', to: '34600333444', profile_id: 'p-maria' }, status: 'failed',
+      attempts: 2, last_error: 'Recipient phone number not on WhatsApp', delivery: null,
+      created_at: new Date(Date.now() - 2 * 86400000).toISOString(), sent_at: null },
+  ]
   let adminNotes: string | null = 'Demo: alarm code holder, wifi for the kiosk, landlord and gestor contacts.'
   const settings: Settings = {
     early_clock_in_minutes: 10, unscheduled_clock_in: 'flag', auto_clock_out_minutes: 60,
     forgot_clock_out_grace_minutes: 30, phone_clock_in: 'anywhere', min_break_minutes: 15,
     break_after_hours: 6, max_daily_hours: 9, max_weekly_hours: 40, min_rest_hours: 12,
     approval_weekday: 1, employer_cost_multiplier: 1.3, auto_timecards_from_rota: true, vacation_days_per_year: 30,
+    alert_shift_reminders: true, alert_missed_clock_in: true, alert_rota: true, alert_time_off: true,
   }
 
   const P = { aron: 'p-aron', mark: 'p-mark', julio: 'p-julio', maria: 'p-maria', cleaner: 'p-cleaner' }
@@ -536,6 +554,32 @@ export function createDemoApi(): Api {
     async signInWithGoogle() {
       throw new Error('Google sign-in works on the live app. In the demo, use an example email.')
     },
+    async signInWithMicrosoft() {
+      throw new Error('Microsoft sign-in works on the live app. In the demo, use an example email.')
+    },
+
+    async expenses() {
+      if (!(me()?.role === 'admin' && me()?.can_see_pay)) return []
+      return clone(expenses).sort((a, b) => a.sort - b.sort)
+    },
+    async saveExpense(e) {
+      if (!(me()?.role === 'admin' && me()?.can_see_pay)) throw new Error('Only admins with pay access can change finances')
+      if (!e.name.trim()) throw new Error('Give the expense a name')
+      if (!(e.amount >= 0)) throw new Error('Enter an amount of 0 or more')
+      const existing = e.id && expenses.find(x => x.id === e.id)
+      if (existing) Object.assign(existing, { ...e, updated_at: nowIso() })
+      else expenses.push({ id: uid(), category: null, notes: null, active: true, sort: expenses.length + 1, source: 'app',
+        updated_at: nowIso(), ...e, name: e.name.trim() })
+    },
+    async deleteExpense(id) {
+      if (!(me()?.role === 'admin' && me()?.can_see_pay)) throw new Error('Only admins with pay access can change finances')
+      const i = expenses.findIndex(x => x.id === id)
+      if (i >= 0) expenses.splice(i, 1)
+    },
+    async sentAlerts() {
+      requireAdmin()
+      return clone(sent)
+    },
 
     async integrations() {
       requireAdmin()
@@ -604,7 +648,7 @@ export function createDemoApi(): Api {
       return { playlist: s.external.playlist ?? null, ...music, onApprovedPlaylist: music.playing }
     },
     async musicPlay() {
-      if (!integ.integrations.find(i => i.provider === 'spotify')!.external.playlist) throw new Error('No playlist approved yet. An admin picks one on the Business page.')
+      if (!integ.integrations.find(i => i.provider === 'spotify')!.external.playlist) throw new Error('No playlist approved yet. An admin picks one on the Connections page.')
       Object.assign(music, { playing: true, track: 'Sunday Morning', artist: 'Maroon 5', device: 'Café speaker' })
     },
     async musicPause() { music.playing = false },

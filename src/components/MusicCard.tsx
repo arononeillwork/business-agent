@@ -21,7 +21,7 @@ export function MusicCard() {
         <SectionTitle action={m?.playlist && <Link href={m.playlist.url} target="_blank" rel="noreferrer" variant="body2">Open in Spotify</Link>}>
           Café music
         </SectionTitle>
-        {m && !m.playlist && <Typography sx={{ color: 'text.secondary' }}>No playlist approved yet. An admin picks one on the Business page.</Typography>}
+        {m && !m.playlist && <Typography sx={{ color: 'text.secondary' }}>No playlist approved yet. An admin picks one on the Connections page.</Typography>}
         {m?.playlist && (
           <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
             <Box sx={{ width: 56, height: 56, borderRadius: 2, overflow: 'hidden', flexShrink: 0, bgcolor: '#1db954', display: 'grid', placeItems: 'center' }}>

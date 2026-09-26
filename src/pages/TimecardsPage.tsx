@@ -10,6 +10,7 @@ import { useState } from 'react'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
+import { ClockRulesCard } from '../components/ClockRules'
 import { ErrorBox, Flags, Loading, PageHeader, PersonAvatar, SectionTitle, Stat, StatRow, WeekNav } from '../components/common'
 import { addDays, formatDuration, formatLocal, formatMoney, localDate, localTime, today, weekStart, zonedIso } from '../../shared/time'
 import type { CorrectionRequest, TimeEntry } from '../../shared/types'
@@ -94,6 +95,7 @@ export function TimecardsPage() {
           )}
         </>} />
       <ErrorBox error={data.error} />
+      <ClockRulesCard />
 
       {data.data && (() => {
         const paid = entries.reduce((m, e) => m + e.paid_minutes, 0)

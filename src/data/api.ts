@@ -1,5 +1,5 @@
 import type {
-  InstagramProfile, IntegrationsState, MusicNow, OpeningHours, SpotifyPlaylist, TimeOff, TimeOffKind,
+  Expense, InstagramProfile, IntegrationsState, MusicNow, OutboxItem, OpeningHours, SpotifyPlaylist, TimeOff, TimeOffKind,
   BreakType, Business, CalendarEvent, CorrectionRequest, KioskPerson, OpenBreak, PayRate,
   Position, Profile, Settings, Shift, TimeEntry, TimeEntryChange,
 } from '../../shared/types'
@@ -85,8 +85,17 @@ export interface Api {
   cancelTimeOff(id: string): Promise<void>
   decideTimeOff(id: string, approve: boolean, note?: string, releaseShifts?: boolean): Promise<number>
 
-  // sign-in with Google (Supabase OAuth)
+  // sign-in with Google / Microsoft (Supabase OAuth)
   signInWithGoogle(): Promise<void>
+  signInWithMicrosoft(): Promise<void>
+
+  // finances (admins with pay access)
+  expenses(): Promise<Expense[]>
+  saveExpense(expense: Partial<Expense> & { name: string; amount: number }): Promise<void>
+  deleteExpense(id: string): Promise<void>
+
+  // alerts log (admins)
+  sentAlerts(limit?: number): Promise<OutboxItem[]>
 
   // connections: Google Business Profile, WhatsApp, Instagram (admins)
   integrations(): Promise<IntegrationsState>

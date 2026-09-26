@@ -1,0 +1,34 @@
+name: Uptime monitor
+# Every 15 minutes: checks the live app is up, the sign-in page loads, Supabase answers and
+# email, Google and Microsoft sign-in are all switched on. A failure emails the repo owner
+# (GitHub's default for failed scheduled workflows).
+# Set in repo Settings → Secrets and variables → Actions:
+#   variable PRODUCTION_URL (e.g. https://team.easybeans.coffee)
+#   optional secrets SMOKE_EMAIL / SMOKE_PASSWORD for a low-privilege test account
+#   optional variable EXPECT_PROVIDERS (default "email,google,microsoft")
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    if: vars.PRODUCTION_URL != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Smoke test production
+        run: npx playwright test e2e/smoke.spec.ts --project desktop
+        env:
+          CI: true
+          E2E_BASE_URL: ${{ vars.PRODUCTION_URL }}
+          EXPECT_PROVIDERS: ${{ vars.EXPECT_PROVIDERS }}
+          SMOKE_EMAIL: ${{ secrets.SMOKE_EMAIL }}
+          SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD }}

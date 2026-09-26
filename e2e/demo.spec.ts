@@ -11,15 +11,15 @@ async function open(page: Page, path = '/', email = 'aron@example.com') {
   await page.goto(`${path}${path.includes('?') ? '&' : '?'}demo`)
   await page.getByLabel('Email').fill(email)
   await page.getByRole('button', { name: 'Sign in' }).click()
-  await expect(page.getByText('Team sign-in')).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toHaveCount(0)
 }
 
 test('the app opens at the sign-in screen and shows nothing before login', async ({ page }) => {
   await page.goto('/?demo')
-  await expect(page.getByText('Team sign-in')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
   await expect(page.getByRole('navigation')).toHaveCount(0)
   await page.goto('/rota')
-  await expect(page.getByText('Team sign-in')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
   await expect(page.getByText('Labour cost')).toHaveCount(0)
   await page.getByLabel('Email').fill('maria@example.com')
   await page.getByRole('button', { name: 'Sign in' }).click()
@@ -27,12 +27,12 @@ test('the app opens at the sign-in screen and shows nothing before login', async
   await page.reload()
   await expect(page.getByRole('heading', { name: 'Rota' })).toBeVisible() // stays signed in
   await page.getByRole('button', { name: 'Sign out' }).first().click()
-  await expect(page.getByText('Team sign-in')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
 })
 
 async function signInAs(page: Page, email: string) {
   await page.getByRole('button', { name: 'Sign out' }).first().click()
-  await expect(page.getByText('Team sign-in')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
   await page.getByLabel('Email').fill(email)
   await page.getByRole('button', { name: 'Sign in' }).click()
 }
@@ -160,7 +160,7 @@ test.describe('admin', () => {
 
   test('edits a timecard only with a reason, and the change is logged', async ({ page }) => {
     await open(page, '/timecards')
-    await page.getByRole('button', { name: 'Edit' }).first().click()
+    await page.getByRole('button', { name: 'Edit', exact: true }).first().click()
     const dialog = page.getByRole('dialog', { name: 'Edit timecard' })
     await dialog.getByLabel('Clock out').fill('2026-09-28T15:10')
     await dialog.getByRole('button', { name: 'Save' }).click()
@@ -168,7 +168,7 @@ test.describe('admin', () => {
     await dialog.getByLabel('Reason (required)').fill('Forgot to clock out')
     await dialog.getByRole('button', { name: 'Save' }).click()
     await toast(page, 'Timecard updated')
-    await page.getByRole('button', { name: 'Edit' }).first().click()
+    await page.getByRole('button', { name: 'Edit', exact: true }).first().click()
     await expect(page.getByRole('dialog').getByText(/via app: Forgot to clock out/)).toBeVisible()
   })
 
@@ -189,7 +189,7 @@ test.describe('admin', () => {
     await open(page, '/business')
     await expect(page.getByText('Admin-only notes')).toBeVisible()
     await expect(page.getByText('C. Pizarro, 8', { exact: false }).first()).toBeVisible()
-    await page.getByRole('button', { name: 'Edit' }).first().click()
+    await page.getByRole('button', { name: 'Edit', exact: true }).first().click()
     const dialog = page.getByRole('dialog', { name: 'Business details' })
     await dialog.getByRole('textbox', { name: 'Phone', exact: true }).fill('+34 600 000 000')
     await dialog.getByRole('button', { name: 'Save' }).click()
@@ -321,7 +321,7 @@ test.describe('time off', () => {
 
 test.describe('connections', () => {
   test('admin sees Google, WhatsApp and Instagram, and compares opening hours with Google', async ({ page }) => {
-    await open(page, '/business')
+    await open(page, '/connections')
     const card = page.locator('.MuiCard-root', { hasText: 'Connections' })
     await expect(card).toContainText('Google Maps & Search')
     await expect(card).toContainText('WhatsApp')
@@ -342,8 +342,11 @@ test.describe('connections', () => {
   test('employees do not see connections', async ({ page }) => {
     await open(page)
     await signInAs(page, 'maria@example.com')
-    await page.getByRole('link', { name: 'Business' }).first().click()
-    await expect(page.getByText('Connections')).toHaveCount(0)
+    await expect(page.getByRole('link', { name: 'Connections' })).toHaveCount(0)
+    await expect(page.getByRole('link', { name: 'Alerts' })).toHaveCount(0)
+    await expect(page.getByRole('link', { name: 'Finances' })).toHaveCount(0)
+    await page.goto('/connections')
+    await expect(page.getByText('Google Maps & Search')).toHaveCount(0)
   })
 
   test('share an event to Instagram and Google', async ({ page }) => {
@@ -371,7 +374,7 @@ test.describe('connections', () => {
 })
 
 test('café music: admin approves a Spotify playlist, staff play it', async ({ page }) => {
-  await open(page, '/business')
+  await open(page, '/connections')
   const card = page.locator('.MuiCard-root', { hasText: 'Connections' })
   await expect(card).toContainText('Spotify')
   await expect(card).toContainText('SGAE/AGEDI')
@@ -390,8 +393,66 @@ test('café music: admin approves a Spotify playlist, staff play it', async ({ p
   await expect(music).toContainText('Not playing')
 })
 
-test('sign-in screen offers Google; in the demo it explains it works on the real site', async ({ page }) => {
+test('sign-in: email and password first, then Google and Microsoft underneath', async ({ page }) => {
   await page.goto('/?demo')
-  await page.getByRole('button', { name: 'Continue with Google' }).click()
+  const password = await page.getByLabel('Password').boundingBox()
+  const google = page.getByRole('button', { name: 'Google' })
+  const microsoft = page.getByRole('button', { name: 'Microsoft' })
+  await expect(page.getByText('or continue with')).toBeVisible()
+  expect((await google.boundingBox())!.y).toBeGreaterThan(password!.y)
+  await google.click()
   await toast(page, 'Google sign-in works on the live app')
+  await microsoft.click()
+  await toast(page, 'Microsoft sign-in works on the live app')
+})
+
+test.describe('finances', () => {
+  test('admin with pay access sees the monthly expenses from the accounts sheet and edits one', async ({ page }) => {
+    await open(page, '/finances')
+    await expect(page.getByRole('heading', { name: 'Finances' })).toBeVisible()
+    await expect(page.getByText('18 items')).toBeVisible()
+    await expect(page.getByText('Rent', { exact: true })).toBeVisible()
+    await expect(page.getByText(/7[.,]?865[.,]09/).first()).toBeVisible()
+    await page.getByRole('button', { name: 'Edit Broadband' }).click()
+    const dialog = page.getByRole('dialog')
+    await dialog.getByLabel('Per month').fill('30')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await toast(page, 'Expense saved')
+    await expect(page.getByText(/7[.,]?875[.,]09/).first()).toBeVisible()
+  })
+
+  test('employees cannot see finances', async ({ page }) => {
+    await open(page)
+    await signInAs(page, 'maria@example.com')
+    await expect(page.getByRole('link', { name: 'Finances' })).toHaveCount(0)
+    await page.goto('/finances')
+    await expect(page.getByText('Rent', { exact: true })).toHaveCount(0)
+  })
+})
+
+test('alerts: admin switches an alert off and sees what was sent', async ({ page }) => {
+  await open(page, '/alerts')
+  await expect(page.getByRole('heading', { name: 'Alerts' })).toBeVisible()
+  const reminders = page.getByRole('switch', { name: 'Shift reminders' }).or(page.getByLabel('Shift reminders'))
+  await expect(reminders).toBeChecked()
+  await reminders.click()
+  await toast(page, 'Shift reminders off')
+  await expect(reminders).not.toBeChecked()
+  await expect(page.getByText('Recently sent')).toBeVisible()
+})
+
+test('clock-in rules live on the Timecards page', async ({ page }) => {
+  await open(page, '/timecards')
+  const rules = page.locator('.MuiCard-root', { hasText: 'Clock-in rules' })
+  await expect(rules).toContainText('Clock in up to 10 min early')
+  await rules.getByRole('button', { name: 'Show' }).click()
+  await expect(rules.getByText(/before your shift/)).toBeVisible()
+  await rules.getByRole('button', { name: 'Edit rules' }).click()
+  await expect(page.getByRole('dialog')).toBeVisible()
+})
+
+test('business page is just the business: no suppliers', async ({ page }) => {
+  await open(page, '/business')
+  await expect(page.getByRole('heading', { name: 'Easy Beans Coffee' })).toBeVisible()
+  await expect(page.getByText(/Suppliers/i)).toHaveCount(0)
 })

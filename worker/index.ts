@@ -16,7 +16,20 @@ app.get('/api/config', c => c.json({
   supabaseKey: c.env.SUPABASE_PUBLISHABLE_KEY,
 }))
 
-app.get('/api/health', c => c.json({ ok: true }))
+// ?deep=1 also checks that Supabase answers and which sign-in methods it has switched on
+// (the uptime monitor calls this, so a broken login is caught, not just a dead page).
+app.get('/api/health', async c => {
+  if (!c.req.query('deep')) return c.json({ ok: true })
+  try {
+    const res = await fetch(`${c.env.SUPABASE_URL}/auth/v1/settings`, { headers: { apikey: c.env.SUPABASE_PUBLISHABLE_KEY } })
+    if (!res.ok) return c.json({ ok: false, supabase: `auth answered ${res.status}` }, 503)
+    const s = await res.json() as { external?: Record<string, boolean> }
+    const signIn = { email: !!s.external?.email, google: !!s.external?.google, microsoft: !!s.external?.azure }
+    return c.json({ ok: true, supabase: 'up', sign_in: signIn })
+  } catch (e) {
+    return c.json({ ok: false, supabase: String(e) }, 503)
+  }
+})
 
 // Admin invites a team member. Needs the service key, so it runs here, not in the browser.
 app.post('/api/admin/invite', async c => {

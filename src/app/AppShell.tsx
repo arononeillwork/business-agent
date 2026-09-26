@@ -12,6 +12,9 @@ import AccountIcon from '@mui/icons-material/AccountCircleOutlined'
 import KioskIcon from '@mui/icons-material/TabletMacOutlined'
 import DragIcon from '@mui/icons-material/DragIndicator'
 import TimeOffIcon from '@mui/icons-material/BeachAccessOutlined'
+import FinanceIcon from '@mui/icons-material/EuroOutlined'
+import AlertsIcon from '@mui/icons-material/NotificationsNoneOutlined'
+import ConnectIcon from '@mui/icons-material/HubOutlined'
 import LogoutIcon from '@mui/icons-material/LogoutOutlined'
 import {
   DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent,
@@ -29,7 +32,7 @@ import { Logo } from '../components/Logo'
 import { PersonAvatar } from '../components/common'
 import { fonts, tokens } from '../theme'
 
-interface NavItem { key: string; to: string; label: string; short?: string; icon: ReactNode }
+interface NavItem { key: string; to: string; label: string; short?: string; icon: ReactNode; who?: 'admin' | 'pay' }
 
 const NAV: NavItem[] = [
   { key: 'business', to: '/business', label: 'Business', icon: <BusinessIcon /> },
@@ -39,6 +42,9 @@ const NAV: NavItem[] = [
   { key: 'timecards', to: '/timecards', label: 'Timecards', short: 'Hours', icon: <TimecardIcon /> },
   { key: 'calendar', to: '/calendar', label: 'Calendar', icon: <CalendarIcon /> },
   { key: 'team', to: '/team', label: 'Team', icon: <TeamIcon /> },
+  { key: 'finances', to: '/finances', label: 'Finances', icon: <FinanceIcon />, who: 'pay' },
+  { key: 'alerts', to: '/alerts', label: 'Alerts', icon: <AlertsIcon />, who: 'admin' },
+  { key: 'connections', to: '/connections', label: 'Connections', icon: <ConnectIcon />, who: 'admin' },
   { key: 'account', to: '/account', label: 'My account', short: 'Me', icon: <AccountIcon /> },
 ]
 export const DEFAULT_ORDER = NAV.map(n => n.key)
@@ -110,12 +116,15 @@ function SortableNavRow({ item, selected }: { item: NavItem; selected: boolean }
 }
 
 export function AppShell() {
-  const { isAdmin, me, api } = useApp()
+  const { isAdmin, canSeePay, me, api } = useApp()
   const theme = useTheme()
   const desktop = useMediaQuery(theme.breakpoints.up('md'))
   const { pathname } = useLocation()
   const [order, setOrder] = useNavOrder(me?.id)
-  const items = useMemo(() => order.map(k => NAV.find(n => n.key === k)!).filter(Boolean), [order])
+  const allowed = (n: NavItem) => !n.who || (n.who === 'admin' ? isAdmin : canSeePay)
+  const items = useMemo(() => order.map(k => NAV.find(n => n.key === k)!).filter(n => n && allowed(n)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [order, isAdmin, canSeePay])
   const current = NAV.find(n => n.to !== '/' && pathname.startsWith(n.to))?.key ?? (pathname === '/' ? 'today' : false)
 
   const sensors = useSensors(
@@ -143,10 +152,11 @@ export function AppShell() {
               <Typography variant="caption" sx={{ color: tokens.roseDeep, fontWeight: 600 }}>Coffee · Team app</Typography>
             </Box>
           </Stack>
+          <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', mx: -1.5, px: 1.5, display: 'flex', flexDirection: 'column' }}>
           <Typography variant="overline" sx={{ color: 'text.disabled', px: 1.5, mt: 1 }}>Menu</Typography>
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd} modifiers={[restrictToVerticalAxis]}
             accessibility={{ screenReaderInstructions: { draggable: 'To reorder, press Space, use the arrow keys, then press Space again.' } }}>
-            <SortableContext items={order} strategy={verticalListSortingStrategy}>
+            <SortableContext items={items.map(n => n.key)} strategy={verticalListSortingStrategy}>
               <List disablePadding aria-label="Sections (drag to reorder)">
                 {items.map(n => <SortableNavRow key={n.key} item={n} selected={current === n.key} />)}
               </List>
@@ -165,7 +175,8 @@ export function AppShell() {
               Reset menu order
             </Button>
           )}
-          <Stack direction="row" spacing={1.25} sx={{ mt: 'auto', mb: 2, p: 1.25, alignItems: 'center', borderRadius: 3, bgcolor: 'background.paper', border: 1, borderColor: 'divider' }}>
+          </Box>
+          <Stack direction="row" spacing={1.25} sx={{ mt: 1.5, mb: 2, flexShrink: 0, p: 1.25, alignItems: 'center', borderRadius: 3, bgcolor: 'background.paper', border: 1, borderColor: 'divider' }}>
             {me && <PersonAvatar name={me.full_name} colour={me.colour} size={36} />}
             <Box sx={{ minWidth: 0, flex: 1 }}>
               <Typography sx={{ fontWeight: 700, fontSize: '0.9rem' }} noWrap>{me?.full_name}</Typography>

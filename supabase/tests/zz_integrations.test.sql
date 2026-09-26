@@ -164,3 +164,37 @@ do $$ begin
   assert public.approved_playlist() is null, 'nothing when disconnected';
 end $$;
 reset role;
+
+-- 9. Finances: only admins with pay access; alerts can be switched off ------------------
+reset role;
+insert into public.expenses (name, amount, source) values ('Rent', 1530, 'sheet'), ('Loan', 641.53, 'sheet');
+select pg_temp.act_as('julio@test');
+do $$ begin
+  assert (select count(*) from public.expenses) = 0, 'employees cannot see expenses';
+end $$;
+select pg_temp.expect_error($q$insert into public.expenses (name, amount) values ('x', 1)$q$, 'row-level security');
+select pg_temp.act_as('maria@test'); -- admin, but without pay access
+reset role; update public.profiles set can_see_pay = false where email = 'maria@test';
+select pg_temp.act_as('maria@test');
+do $$ begin
+  assert (select count(*) from public.expenses) = 0, 'admins without pay access cannot see expenses';
+end $$;
+reset role; update public.profiles set can_see_pay = true where email = 'maria@test';
+select pg_temp.act_as('maria@test');
+do $$ begin
+  assert (select sum(amount) from public.expenses) = 2171.53, 'admin with pay access sees them';
+end $$;
+update public.expenses set amount = 1600 where name = 'Rent';
+select pg_temp.expect_error($q$insert into public.expenses (name, amount) values ('Bad', -5)$q$, 'check');
+reset role;
+do $$ begin
+  assert exists (select 1 from public.audit_log where table_name = 'expenses' and action = 'update'), 'expense changes audited';
+end $$;
+update public.settings set alert_shift_reminders = false;
+do $$ begin
+  assert public._enqueue_whatsapp((select id from public.profiles where email = 'julio@test'), 'shift_reminder', array['x'], 'off-test') is null,
+    'switched-off alerts are not queued';
+  assert public._enqueue_whatsapp((select id from public.profiles where email = 'julio@test'), 'rota_published', array['x'], 'on-test') is not null,
+    'other alerts still go out';
+end $$;
+update public.settings set alert_shift_reminders = true;

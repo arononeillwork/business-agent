@@ -18,9 +18,12 @@ import { AccountPage } from './pages/AccountPage'
 import { KioskPage } from './pages/KioskPage'
 import { TimeOffPage } from './pages/TimeOffPage'
 import { NotActive } from './pages/StatusPages'
+import { FinancesPage } from './pages/FinancesPage'
+import { AlertsPage } from './pages/AlertsPage'
+import { ConnectionsPage } from './pages/ConnectionsPage'
 
 function Routed() {
-  const { me, loading } = useApp()
+  const { me, loading, isAdmin } = useApp()
   if (loading) return <Loading />
   if (!me) return <LoginPage />
   if (!me.active) return <NotActive />
@@ -37,6 +40,9 @@ function Routed() {
         <Route path="team" element={<TeamPage />} />
         <Route path="business" element={<BusinessPage />} />
         <Route path="account" element={<AccountPage />} />
+        <Route path="finances" element={<FinancesPage />} />
+        <Route path="alerts" element={isAdmin ? <AlertsPage /> : <Navigate to="/" />} />
+        <Route path="connections" element={isAdmin ? <ConnectionsPage /> : <Navigate to="/" />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Route>
     </Routes>

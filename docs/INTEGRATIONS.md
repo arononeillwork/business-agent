@@ -14,11 +14,11 @@ Common secret, set once:
 How delivery works: every message, post and Google update is written to the `outbox` table in
 the same database transaction as the change that caused it. A Worker cron delivers it every
 minute and retries failures after 1, 5, 15, 60 and 240 minutes before marking it failed. The
-Business page shows anything waiting or failed.
+Alerts page shows everything sent, waiting or failed.
 
 ---
 
-## 1. Sign in with Google (staff login)
+## 1. Sign in with Google or Microsoft / Outlook (staff login)
 
 The app always opens on the sign-in screen; nothing is shown until someone signs in. The
 "Continue with Google" button is already in place (PKCE flow via Supabase). To switch it on:
@@ -42,6 +42,33 @@ Who gets in: only invited people. An invited email that signs in with Google lan
 the app (Supabase links the Google identity to the invited account). Anyone else who signs in
 with Google sees "Your account isn't active yet" and nothing else.
 
+### Microsoft (Outlook, Hotmail, Microsoft 365)
+
+Supabase calls this provider **Azure**. The "Microsoft" button under the sign-in form uses it.
+
+1. **Azure portal** (<https://portal.azure.com>) → *Microsoft Entra ID → App registrations → New registration*.
+   - Name: "Easy Beans Team".
+   - Supported account types: **Accounts in any organizational directory and personal Microsoft
+     accounts** (so both @outlook.com / @hotmail.com and work Microsoft 365 accounts work).
+   - Redirect URI: *Web* → `https://lhakrmmoxaareykglmtx.supabase.co/auth/v1/callback`
+2. Copy the **Application (client) ID**. Then *Certificates & secrets → New client secret* and copy
+   the secret **Value** (not the ID). Note its expiry date; the monitor goes red when it lapses.
+3. *API permissions*: keep `User.Read`, add `openid`, `email`, `profile` (Microsoft Graph, delegated).
+   *Token configuration → Add optional claim → ID → email*.
+4. **Supabase** → *Authentication → Sign In / Providers → Azure* → enable, paste the client ID and
+   secret. Leave *Azure Tenant URL* empty (it defaults to `common`, which allows personal and work
+   accounts) → Save.
+5. Same rule as Google: only invited emails get in. The invite must go to the same address the
+   person signs in to Microsoft with.
+
+### Checking it stays up
+
+`/api/health?deep=1` reports whether Supabase answers and which sign-in methods are switched on.
+`.github/workflows/monitor.yml` runs `e2e/smoke.spec.ts` against the live site every 15 minutes and
+fails (GitHub emails you) if the site, Supabase, or email/Google/Microsoft sign-in is down. Set the
+repo variable `PRODUCTION_URL` to switch it on; add secrets `SMOKE_EMAIL`/`SMOKE_PASSWORD` for a
+low-privilege test account to also test a real sign-in.
+
 ## 2. Google Maps opening hours, closures and posts (Google Business Profile)
 
 1. Same Google Cloud project → enable **My Business Business Information API**,
@@ -51,7 +78,7 @@ with Google sees "Your account isn't active yet" and nothing else.
 3. Credentials → the same (or a new) Web OAuth client → add redirect URI
    `https://<worker-url>/api/integrations/google/callback`.
 4. Worker secrets: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.
-5. In the app: Business → Connections → **Connect Google**, sign in with the Google account that
+5. In the app: Connections → **Connect Google**, sign in with the Google account that
    owns the Easy Beans listing. Use **Compare with Google** once to decide which hours are right.
 
 After that, changing opening hours in the app, adding a business closure ("Closed …") or, if
@@ -80,7 +107,7 @@ ticked, public holidays updates Google automatically within a minute.
 | `time_off_requested` | {{1}} ha pedido tiempo libre: {{2}} ({{3}}). Revísalo en la app. |
 | `time_off_decided` | Hola {{1}}, tu solicitud para {{2}} ha sido {{3}}. |
 
-8. In the app: Business → Connections → WhatsApp → **Send test** to your own number.
+8. In the app: Connections → WhatsApp → **Send test** to your own number.
 
 Staff turn messages on under **My account** (their consent, as GDPR requires). Replying `STOP`
 or `BAJA` turns them off.
@@ -94,7 +121,7 @@ or `BAJA` turns them off.
 4. Photos for posts are stored in Cloudflare R2: enable R2 in the Cloudflare dashboard, create the
    bucket `business-agent-media`, and uncomment the `r2_buckets` line in `wrangler.jsonc`.
 
-The Business page then shows followers and recent posts, and calendar events get a **Share**
+The Connections page then shows followers and recent posts, and calendar events get a **Share**
 button that posts to Instagram and the Google listing together.
 
 Not possible through Meta's API: editing the Instagram bio. Keep the bio link pointing at a page
@@ -109,7 +136,7 @@ covers both. The connection below works with any Spotify account; the licence is
 1. <https://developer.spotify.com/dashboard> → Create app → Web API.
    Redirect URI: `https://<worker-url>/api/integrations/spotify/callback`.
 2. Worker secrets: `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`.
-3. In the app: Business → Connections → **Connect Spotify** (one click, sign in with the café's
+3. In the app: Connections → **Connect Spotify** (one click, sign in with the café's
    Spotify account) → choose the **approved playlist**.
 4. Keep Spotify open on the café speaker or tablet. Staff then see **Café music** on Today and can
    play or pause the approved playlist; it flags when something else is playing.

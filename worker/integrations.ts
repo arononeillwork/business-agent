@@ -167,7 +167,7 @@ integrations.post('/api/integrations/google/start', async c => {
 
 integrations.get('/api/integrations/google/callback', async c => {
   const origin = new URL(c.req.url).origin
-  const back = (q: string) => c.redirect(`${origin}/business?${q}`)
+  const back = (q: string) => c.redirect(`${origin}/connections?${q}`)
   try {
     const cfg = googleConfig(c.env, origin)
     if (!cfg) throw new Error('Google is not set up')
@@ -234,7 +234,7 @@ integrations.post('/api/integrations/spotify/start', async c => {
 
 integrations.get('/api/integrations/spotify/callback', async c => {
   const origin = new URL(c.req.url).origin
-  const back = (q: string) => c.redirect(`${origin}/business?${q}`)
+  const back = (q: string) => c.redirect(`${origin}/connections?${q}`)
   try {
     const cfg = spotifyConfig(c.env, origin)
     if (!cfg) throw new Error('Spotify is not set up')
@@ -283,7 +283,7 @@ integrations.get('/api/music/now', async c => {
 
 integrations.post('/api/music/play', async c => {
   const s = await spotifySession(c.env, serviceClient(c.env), new URL(c.req.url).origin)
-  if (!s.playlist) return c.json({ error: 'No playlist approved yet. An admin picks one on the Business page.' }, 400)
+  if (!s.playlist) return c.json({ error: 'No playlist approved yet. An admin picks one on the Connections page.' }, 400)
   await spotify.playPlaylist(s.token, s.playlist.id)
   return c.json({ ok: true })
 })
@@ -310,7 +310,7 @@ integrations.post('/api/integrations/whatsapp/test', async c => {
   }
 })
 
-// Instagram: profile and recent posts for the Business page.
+// Instagram: profile and recent posts for the Connections page.
 integrations.get('/api/integrations/instagram/profile', async c => {
   const cfg = igConfig(c.env)
   if (!cfg) return c.json({ error: 'Instagram is not set up yet. Add META_ACCESS_TOKEN and INSTAGRAM_USER_ID.' }, 400)

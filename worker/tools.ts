@@ -112,7 +112,7 @@ export const TOOLS: ToolDef[] = [
   tool({
     name: 'get_business_details',
     title: 'Business details',
-    description: 'Address, phone, email, Instagram, opening hours, team channel, suppliers, towns followed and notes.',
+    description: 'Address, phone, email, Instagram, opening hours, team channel, towns followed and notes.',
     input: z.object({}),
     readOnly: true,
     async run({ sb, me }) {
@@ -125,7 +125,7 @@ export const TOOLS: ToolDef[] = [
   tool({
     name: 'update_business_details',
     title: 'Update business details',
-    description: 'Admins: change contact details, team channel (whatsapp, slack, sms), towns followed, notes or opening hours. Only pass fields that change.',
+    description: 'Admins: change contact details, team channel (whatsapp, slack, sms), towns followed, notes or opening hours. Only pass fields that change. Opening hours changes are pushed to Google Maps automatically within about a minute once Google is connected.',
     admin: true,
     input: z.object({
       address: z.string().optional(),
@@ -587,6 +587,95 @@ export const TOOLS: ToolDef[] = [
     async run({ sb }, patch) {
       check(await sb.from('settings').update(patch).eq('id', 1))
       return { ok: true, updated: Object.keys(patch) }
+    },
+  }),
+
+  // ---------------- Alerts ----------------
+  tool({
+    name: 'get_alerts',
+    title: 'Alerts',
+    description: 'Admins: which WhatsApp alerts are switched on (shift reminders, missed clock-in, rota published, time off) and the most recent messages sent.',
+    admin: true,
+    readOnly: true,
+    input: z.object({ limit: z.number().int().min(1).max(100).default(20) }),
+    async run({ sb }, { limit }) {
+      const [s, sent] = await Promise.all([
+        sb.from('settings').select('alert_shift_reminders, alert_missed_clock_in, alert_rota, alert_time_off').eq('id', 1).single().then(rowsAs<Record<string, boolean>>()),
+        sb.from('outbox').select('kind, payload, status, attempts, last_error, created_at, sent_at').eq('kind', 'whatsapp')
+          .order('created_at', { ascending: false }).limit(limit).then(rowsAs<Record<string, any>[]>()),
+      ])
+      return { switched_on: s, recent: sent.map(o => ({ template: o.payload?.template, status: o.status, attempts: o.attempts,
+        error: o.last_error, queued: o.created_at, sent: o.sent_at })) }
+    },
+  }),
+  tool({
+    name: 'update_alerts',
+    title: 'Switch alerts on/off',
+    description: 'Admins: switch each kind of WhatsApp alert on or off. Only pass what changes.',
+    admin: true,
+    input: z.object({
+      shift_reminders: z.boolean().optional(), missed_clock_in: z.boolean().optional(),
+      rota_published: z.boolean().optional(), time_off: z.boolean().optional(),
+    }),
+    async run({ sb }, a) {
+      const patch = Object.fromEntries(Object.entries({
+        alert_shift_reminders: a.shift_reminders, alert_missed_clock_in: a.missed_clock_in,
+        alert_rota: a.rota_published, alert_time_off: a.time_off,
+      }).filter(([, v]) => v !== undefined))
+      check(await sb.from('settings').update(patch).eq('id', 1))
+      return { ok: true, updated: Object.keys(patch) }
+    },
+  }),
+
+  // ---------------- Finances ----------------
+  tool({
+    name: 'list_expenses',
+    title: 'Monthly expenses',
+    description: 'Admins with pay access: the café’s recurring monthly costs (rent, wages, utilities, loan…) and the monthly total in euros.',
+    admin: true,
+    readOnly: true,
+    input: z.object({}),
+    async run({ sb, me }) {
+      if (!me.can_see_pay) throw new Error('You need pay access to see finances')
+      const rows = check(await sb.from('expenses').select('id, name, amount, category, notes, active').order('sort').order('name')) as Record<string, any>[]
+      const active = rows.filter(r => r.active)
+      return { expenses: rows.map(r => ({ expense_id: r.id, name: r.name, monthly_eur: +r.amount, category: r.category,
+        notes: r.notes, active: r.active })), monthly_total_eur: +active.reduce((m, r) => m + +r.amount, 0).toFixed(2) }
+    },
+  }),
+  tool({
+    name: 'save_expense',
+    title: 'Add/change expense',
+    description: 'Admins with pay access: add a monthly expense, or change one (pass expense_id). Amounts are euros per month.',
+    admin: true,
+    input: z.object({
+      expense_id: z.string().uuid().optional(), name: z.string().min(1).optional(), monthly_eur: z.number().min(0).optional(),
+      category: z.string().optional(), notes: z.string().optional(), active: z.boolean().optional(),
+    }),
+    async run({ sb, me }, { expense_id, monthly_eur, ...rest }) {
+      if (!me.can_see_pay) throw new Error('You need pay access to change finances')
+      const patch: Record<string, unknown> = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined))
+      if (monthly_eur !== undefined) patch.amount = monthly_eur
+      if (expense_id) {
+        check(await sb.from('expenses').update(patch).eq('id', expense_id))
+        return { ok: true, expense_id }
+      }
+      if (!patch.name || patch.amount === undefined) throw new Error('A new expense needs a name and monthly_eur')
+      const row = check(await sb.from('expenses').insert({ ...patch, source: 'ai' }).select('id').single())
+      return { ok: true, expense_id: row.id }
+    },
+  }),
+  tool({
+    name: 'delete_expense',
+    title: 'Remove expense',
+    description: 'Admins with pay access: remove a monthly expense. Ask the user to confirm first, then call with confirm: true.',
+    admin: true,
+    destructive: true,
+    input: z.object({ expense_id: z.string().uuid(), confirm: z.literal(true) }),
+    async run({ sb, me }, { expense_id }) {
+      if (!me.can_see_pay) throw new Error('You need pay access to change finances')
+      check(await sb.from('expenses').delete().eq('id', expense_id))
+      return { ok: true }
     },
   }),
 ]
