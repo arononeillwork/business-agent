@@ -263,27 +263,19 @@ export function createSupabaseApi(url: string, key: string): Api {
         effective_from: new Date().toISOString().slice(0, 10),
       }))
     },
-    async invite(email, fullName, role) {
-      const token = (await sb.auth.getSession()).data.session?.access_token
-      const res = await fetch('/api/admin/invite', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-        body: JSON.stringify({ email, full_name: fullName, role }),
-      })
-      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? 'Invite failed')
+    async invite(email, fullName, role, password) {
+      await worker('/api/admin/invite', { method: 'POST', body: JSON.stringify({ email, full_name: fullName, role, password }) })
+    },
+    async setTemporaryPassword(userId, password) {
+      await worker('/api/admin/set-password', { method: 'POST', body: JSON.stringify({ user_id: userId, password }) })
     },
 
     async partners() {
       return check(await sb.from('profiles').select(PROFILE_COLUMNS).eq('role', 'partner').order('full_name')) as Profile[]
     },
-    async invitePartner(email, fullName, company, access) {
-      const token = (await sb.auth.getSession()).data.session?.access_token
-      const res = await fetch('/api/admin/invite', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-        body: JSON.stringify({ email, full_name: fullName, role: 'partner', partner_company: company, partner_access: access }),
-      })
-      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? 'Invite failed')
+    async invitePartner(email, fullName, company, access, password) {
+      await worker('/api/admin/invite', { method: 'POST', body: JSON.stringify({
+        email, full_name: fullName, role: 'partner', partner_company: company, partner_access: access, password }) })
     },
     async setPartnerAccess(id, company, access) {
       check(await sb.rpc('set_partner_access', { p_id: id, p_company: company, p_access: access }))

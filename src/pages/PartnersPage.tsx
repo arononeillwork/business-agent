@@ -10,6 +10,7 @@ import { useAction } from '../app/Notify'
 import { Empty, ErrorBox, PageHeader, PersonAvatar, SectionTitle, Tag } from '../components/common'
 import { PARTNER_AREAS, type PartnerArea, type Profile } from '../../shared/types'
 import { tokens } from '../theme'
+import { PasswordToShare, SignInSetupFields, useSignInSetup } from '../components/TempPassword'
 
 /**
  * Admins: outside businesses (gestoría, supplier, franchise partner) with a read-only login.
@@ -76,17 +77,21 @@ function PartnerDialog({ partner, onClose, onSaved }: { partner: Profile | null;
   const [company, setCompany] = useState(partner?.partner_company ?? '')
   const [access, setAccess] = useState<PartnerArea[]>(partner?.partner_access ?? [])
   const toggle = (a: PartnerArea) => setAccess(x => x.includes(a) ? x.filter(y => y !== a) : [...x, a])
+  const [setup, setSetup] = useSignInSetup()
+  const [done, setDone] = useState<string | null>(null)
+  const byPassword = !partner && setup.how === 'password'
 
   const save = async () => {
     const ok = await run(async () => {
       if (partner) await api.setPartnerAccess(partner.id, company, access)
       else {
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim())) throw new Error('Enter a full email address, like name@example.com')
-        await api.invitePartner(email.trim(), name.trim(), company, access)
+        await api.invitePartner(email.trim(), name.trim(), company, access, byPassword ? setup.password : undefined)
       }
       await onSaved()
-    }, partner ? 'Access updated' : 'Invite sent')
-    if (ok) onClose()
+    }, partner ? 'Access updated' : byPassword ? 'Account created' : 'Invite sent')
+    if (ok && byPassword) setDone(setup.password)
+    else if (ok) onClose()
   }
 
   return (
@@ -111,14 +116,17 @@ function PartnerDialog({ partner, onClose, onSaved }: { partner: Profile | null;
               ))}
             </FormGroup>
           </div>
+          {!partner && (done ? <PasswordToShare email={email.trim()} password={done} /> : <SignInSetupFields value={setup} onChange={setSetup} />)}
           {(access.includes('payroll') || access.includes('finances')) && (
             <Alert severity="info">Payroll and finances include pay rates and costs. Only share them with your gestoría or accountant.</Alert>
           )}
         </Stack>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button variant="contained" onClick={save}>{partner ? 'Save' : 'Send invite'}</Button>
+        {done ? <Button variant="contained" onClick={onClose}>Done</Button> : <>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button variant="contained" onClick={save}>{partner ? 'Save' : byPassword ? 'Create account' : 'Send invite'}</Button>
+        </>}
       </DialogActions>
     </Dialog>
   )

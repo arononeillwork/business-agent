@@ -26,7 +26,7 @@ test.afterAll(async () => {
 
 async function signInUi(page: Page, who: UserKey) {
   await page.goto('/?live')
-  await page.getByLabel('Email').fill(USERS[who].email)
+  await page.getByRole('textbox', { name: 'Email' }).fill(USERS[who].email)
   await page.getByLabel('Password').fill(PASSWORD)
   await page.getByRole('button', { name: 'Sign in' }).click()
 }
@@ -37,7 +37,7 @@ const toast = (page: Page, text: string | RegExp) =>
 test.describe('sign-in and time tracking', () => {
   test('wrong password is rejected', async ({ page }) => {
     await page.goto('/?live')
-    await page.getByLabel('Email').fill(USERS.employee.email)
+    await page.getByRole('textbox', { name: 'Email' }).fill(USERS.employee.email)
     await page.getByLabel('Password').fill('not-the-password')
     await page.getByRole('button', { name: 'Sign in' }).click()
     await toast(page, /Invalid login credentials/i)

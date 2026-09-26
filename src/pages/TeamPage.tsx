@@ -8,12 +8,14 @@ import { useApp } from '../app/AppContext'
 import { useAction } from '../app/Notify'
 import { PageHeader, PersonAvatar } from '../components/common'
 import type { Profile } from '../../shared/types'
+import { PasswordToShare, SignInSetupFields, generatePassword, useSignInSetup } from '../components/TempPassword'
 
 export function TeamPage() {
   const { api, profiles, isAdmin, canSeePay, rates, me, refresh } = useApp()
   const run = useAction()
   const [inviting, setInviting] = useState(false)
   const [pinFor, setPinFor] = useState<Profile | null>(null)
+  const [passwordFor, setPasswordFor] = useState<Profile | null>(null)
 
   const update = (p: Profile, patch: Partial<Profile>, msg = 'Saved') =>
     run(async () => { await api.updateProfile(p.id, patch); await refresh() }, msg)
@@ -63,6 +65,7 @@ export function TeamPage() {
                       <FormControlLabel disabled={p.id === me?.id} label="Active"
                         control={<Switch checked={p.active} onChange={e => update(p, { active: e.target.checked }, e.target.checked ? 'Access restored' : `${p.full_name} can no longer sign in`)} />} />
                       <Button size="small" onClick={() => setPinFor(p)}>Set kiosk PIN</Button>
+                      {p.role !== 'admin' && p.email && <Button size="small" onClick={() => setPasswordFor(p)}>Temporary password</Button>}
                     </Stack>
                   </Stack>
                 )}
@@ -78,6 +81,7 @@ export function TeamPage() {
       )}
       {inviting && <InviteDialog onClose={() => setInviting(false)} />}
       {pinFor && <PinDialog person={pinFor} onClose={() => setPinFor(null)} />}
+      {passwordFor && <TempPasswordDialog person={passwordFor} onClose={() => setPasswordFor(null)} />}
     </>
   )
 }
@@ -90,6 +94,8 @@ function InviteDialog({ onClose }: { onClose: () => void }) {
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
   const [role, setRole] = useState<'admin' | 'employee' | 'kiosk'>('employee')
+  const [setup, setSetup] = useSignInSetup()
+  const [done, setDone] = useState<string | null>(null)
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="xs">
       <DialogTitle>Invite to the team</DialogTitle>
@@ -102,15 +108,52 @@ function InviteDialog({ onClose }: { onClose: () => void }) {
             <MenuItem value="admin">Admin</MenuItem>
             <MenuItem value="kiosk">Kiosk (café tablet)</MenuItem>
           </TextField>
-          <Typography variant="body2" color="text.secondary">They'll get an email to set a password, then can add the app to their home screen.</Typography>
+          {done ? <PasswordToShare email={email.trim()} password={done} /> : <SignInSetupFields value={setup} onChange={setSetup} />}
         </Stack>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button variant="contained" disabled={!email.trim() || !name.trim()} onClick={() => run(async () => {
-          if (!EMAIL.test(email.trim())) throw new Error('Enter a full email address, like name@example.com')
-          await api.invite(email.trim(), name.trim(), role); await refresh(); onClose()
-        }, `Invite sent to ${email.trim()}`)}>Send invite</Button>
+        {done ? <Button variant="contained" onClick={onClose}>Done</Button> : <>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button variant="contained" disabled={!email.trim() || !name.trim()} onClick={() => run(async () => {
+            if (!EMAIL.test(email.trim())) throw new Error('Enter a full email address, like name@example.com')
+            if (setup.how === 'password') {
+              await api.invite(email.trim(), name.trim(), role, setup.password); await refresh(); setDone(setup.password)
+            } else {
+              await api.invite(email.trim(), name.trim(), role); await refresh(); onClose()
+            }
+          }, setup.how === 'password' ? `Account created for ${name.trim()}` : `Invite sent to ${email.trim()}`)}>
+            {setup.how === 'password' ? 'Create account' : 'Send invite'}
+          </Button>
+        </>}
+      </DialogActions>
+    </Dialog>
+  )
+}
+
+/** Give someone who can't get in a new temporary password (not for admins). */
+function TempPasswordDialog({ person, onClose }: { person: Profile; onClose: () => void }) {
+  const { api } = useApp()
+  const run = useAction()
+  const [password, setPassword] = useState(generatePassword)
+  const [done, setDone] = useState(false)
+  return (
+    <Dialog open onClose={onClose} fullWidth maxWidth="xs">
+      <DialogTitle>Temporary password for {person.full_name}</DialogTitle>
+      <DialogContent>
+        <Stack spacing={2} sx={{ pt: 1 }}>
+          {done ? <PasswordToShare email={person.email ?? ''} password={password} /> : <>
+            <Typography variant="body2" color="text.secondary">Their old password stops working. Give them this one; they can change it on My account.</Typography>
+            <TextField label="Temporary password" value={password} onChange={e => setPassword(e.target.value)} />
+          </>}
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        {done ? <Button variant="contained" onClick={onClose}>Done</Button> : <>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button variant="contained" onClick={async () => {
+            if (await run(() => api.setTemporaryPassword(person.id, password), 'Password set')) setDone(true)
+          }}>Set password</Button>
+        </>}
       </DialogActions>
     </Dialog>
   )

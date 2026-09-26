@@ -81,7 +81,7 @@ test.afterAll(async () => {
 async function signInUi(page: Page, email: string) {
   await page.goto('/?live')
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible(NET)
-  await page.getByLabel('Email').fill(email)
+  await page.getByRole('textbox', { name: 'Email' }).fill(email)
   await page.getByLabel('Password').fill(PASSWORD)
   await page.getByRole('button', { name: 'Sign in', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Sign in' })).toHaveCount(0, NET)
@@ -327,12 +327,37 @@ test.describe('admin', () => {
     await page.getByRole('button', { name: 'Invite partner' }).click()
     const dialog = page.getByRole('dialog', { name: 'Invite a partner' })
     await dialog.getByLabel('Contact name').fill('Nobody Test')
-    await dialog.getByLabel('Email').fill(`e2e-invite-${tag}@business-agent.test`)
-    await dialog.getByRole('button', { name: 'Send invite' }).click()
+    await dialog.getByRole('textbox', { name: 'Email' }).fill(`e2e-invite-${tag}@business-agent.test`)
+    await dialog.getByRole('button', { name: 'Create account' }).click()
     await toast(page, /company/i)
     await expect(dialog).toBeVisible()
     await dialog.getByRole('button', { name: 'Cancel' }).click()
     await expect(dialog).toHaveCount(0)
+  })
+
+  test('creates a staff account with a temporary password, and that person can sign in with it', async ({ page, browser }) => {
+    const email = `e2e-temp-${tag}@business-agent.test`
+    await signIn(page, 'admin')
+    await nav(page).getByRole('link', { name: 'Team', exact: true }).click()
+    await page.getByRole('button', { name: 'Invite' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Invite to the team' })
+    await dialog.getByLabel('Full name').fill('Temp Test')
+    await dialog.getByRole('textbox', { name: 'Email' }).fill(email)
+    const password = await dialog.getByRole('textbox', { name: 'Temporary password' }).inputValue()
+    await dialog.getByRole('button', { name: 'Create account' }).click()
+    await toast(page, 'Account created')
+    await dialog.getByRole('button', { name: 'Done' }).click()
+
+    // The new person signs in on their own device, with no email involved.
+    const theirs = await browser.newPage()
+    await theirs.goto('/?live')
+    await theirs.getByRole('textbox', { name: 'Email' }).fill(email)
+    await theirs.getByLabel('Password').fill(password)
+    await theirs.getByRole('button', { name: 'Sign in', exact: true }).click()
+    await expect(theirs.getByRole('heading', { name: /Hola, Temp/ })).toBeVisible(NET)
+    await theirs.close()
+    const { data } = await service(cfg).from('profiles').select('role, active').eq('email', email).single()
+    expect(data).toEqual({ role: 'employee', active: true })
   })
 })
 

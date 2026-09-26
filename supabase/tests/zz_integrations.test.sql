@@ -284,3 +284,18 @@ do $$ begin
   assert (select active from public.profiles where email = 'maria@test'), 'still active';
 end $$;
 reset role;
+
+-- 12. Accounts an admin creates with a temporary password ---------------------------------
+reset role;
+insert into auth.users (email, raw_user_meta_data, raw_app_meta_data) values
+  ('made-emp@test', '{"full_name": "Made Employee"}', '{"created_by_admin": true, "role": "kiosk"}'),
+  ('made-partner@test', '{"full_name": "Made Partner"}',
+   '{"created_by_admin": true, "role": "partner", "partner_company": "Acme", "partner_access": ["rota", "bogus"]}'),
+  ('selfmade@test', '{"full_name": "Self", "role": "admin", "created_by_admin": true}', '{}');
+do $$ begin
+  assert (select role = 'kiosk' and active from public.profiles where email = 'made-emp@test'), 'admin-made account active with its role';
+  assert (select role = 'partner' and active and partner_company = 'Acme' and partner_access = array['rota']
+            from public.profiles where email = 'made-partner@test'), 'admin-made partner keeps company and valid areas';
+  assert (select role = 'employee' and not active from public.profiles where email = 'selfmade@test'),
+    'user metadata alone (self sign-up) never grants a role or access';
+end $$;

@@ -22,7 +22,7 @@ test('the sign-in screen loads with email, Google and Microsoft', async ({ page 
   page.on('pageerror', e => errors.push(e.message))
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
-  await expect(page.getByLabel('Email')).toBeVisible()
+  await expect(page.getByRole('textbox', { name: 'Email' })).toBeVisible()
   await expect(page.getByLabel('Password')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Google' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Microsoft' })).toBeVisible()
@@ -60,7 +60,7 @@ test('the AI connector publishes its OAuth metadata', async ({ request }) => {
 test('a real account can sign in', async ({ page }) => {
   test.skip(!process.env.SMOKE_EMAIL || !process.env.SMOKE_PASSWORD, 'Set SMOKE_EMAIL and SMOKE_PASSWORD')
   await page.goto('/')
-  await page.getByLabel('Email').fill(process.env.SMOKE_EMAIL!)
+  await page.getByRole('textbox', { name: 'Email' }).fill(process.env.SMOKE_EMAIL!)
   await page.getByLabel('Password').fill(process.env.SMOKE_PASSWORD!)
   await page.getByRole('button', { name: 'Sign in', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Sign out' }).first()).toBeVisible({ timeout: 15_000 })

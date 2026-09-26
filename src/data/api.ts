@@ -83,11 +83,14 @@ export interface Api {
   updateProfile(id: string, patch: Partial<Profile>): Promise<void>
   setPin(pin: string, profileId?: string): Promise<void>
   setPayRate(profileId: string, hourlyRate: number): Promise<void>
-  invite(email: string, fullName: string, role: 'admin' | 'employee' | 'kiosk'): Promise<void>
+  /** Email an invite, or (with a temporary password) create the account straight away. */
+  invite(email: string, fullName: string, role: 'admin' | 'employee' | 'kiosk', password?: string): Promise<void>
+  /** Admins: give someone (not an admin) a new temporary password to sign in with. */
+  setTemporaryPassword(userId: string, password: string): Promise<void>
 
   // partners: outside businesses with read-only access to chosen areas (admins manage them)
   partners(): Promise<Profile[]>
-  invitePartner(email: string, fullName: string, company: string, access: PartnerArea[]): Promise<void>
+  invitePartner(email: string, fullName: string, company: string, access: PartnerArea[], password?: string): Promise<void>
   setPartnerAccess(id: string, company: string, access: PartnerArea[]): Promise<void>
 
   // time off

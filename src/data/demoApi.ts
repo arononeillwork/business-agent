@@ -524,8 +524,16 @@ export function createDemoApi(): Api {
       requireAdmin()
       payRates.push({ profile_id: profileId, effective_from: today(), hourly_rate: rate })
     },
-    async invite(email, fullName, role) {
+    async setTemporaryPassword(userId, password) {
       requireAdmin()
+      if (password.length < 8) throw new Error('The temporary password needs at least 8 characters')
+      const p = profiles.find(x => x.id === userId)
+      if (!p) throw new Error('No such person')
+      if (p.role === 'admin') throw new Error('Admins change their own password on My account')
+    },
+    async invite(email, fullName, role, password) {
+      requireAdmin()
+      if (password !== undefined && password.length < 8) throw new Error('The temporary password needs at least 8 characters')
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) throw new Error('Enter a full email address, like name@example.com')
       profiles.push({ id: uid(), full_name: fullName, email, role, can_see_pay: false, colour: '#8d6e63',
         active: true, phone: null, birth_date: null })
@@ -534,8 +542,9 @@ export function createDemoApi(): Api {
       requireAdmin()
       return profiles.filter(p => p.role === 'partner').map(visibleProfile)
     },
-    async invitePartner(email, fullName, company, access) {
+    async invitePartner(email, fullName, company, access, password) {
       requireAdmin()
+      if (password !== undefined && password.length < 8) throw new Error('The temporary password needs at least 8 characters')
       const addr = email.trim().toLowerCase()
       if (!fullName.trim() || !addr) throw new Error('Name and email are required')
       if (!company.trim()) throw new Error('Add the partner’s company name')

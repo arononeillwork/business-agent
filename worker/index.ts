@@ -38,7 +38,7 @@ app.post('/api/admin/invite', async c => {
   const { data: isAdmin, error } = await userClient(c.env, token, 'app').rpc('is_admin')
   if (error || !isAdmin) return c.json({ error: 'Only an admin can invite people' }, 403)
 
-  const body = await c.req.json<{ email?: string; full_name?: string; role?: string; partner_company?: string; partner_access?: string[] }>()
+  const body = await c.req.json<{ email?: string; full_name?: string; role?: string; partner_company?: string; partner_access?: string[]; password?: string }>()
   const email = body.email?.trim().toLowerCase()
   const role = ['admin', 'employee', 'kiosk', 'partner'].includes(body.role ?? '') ? body.role : 'employee'
   if (!email || !body.full_name?.trim()) return c.json({ error: 'Name and email are required' }, 400)
@@ -50,12 +50,47 @@ app.post('/api/admin/invite', async c => {
   } : {}
   if (role === 'partner' && !partner.partner_company) return c.json({ error: 'Add the partner’s company name' }, 400)
 
+  // With a temporary password: create the account now, no email needed (Supabase's built-in email
+  // only reaches the project's own members). app_metadata is service-only, so the role is trusted.
+  if (body.password !== undefined) {
+    if (body.password.length < 8) return c.json({ error: 'The temporary password needs at least 8 characters' }, 400)
+    const { error: createError } = await serviceClient(c.env).auth.admin.createUser({
+      email, password: body.password, email_confirm: true,
+      user_metadata: { full_name: body.full_name.trim() },
+      app_metadata: { created_by_admin: true, role, ...partner },
+    })
+    if (createError) {
+      return c.json({ error: /already|exists|registered/i.test(createError.message)
+        ? 'Someone with that email already has an account' : createError.message }, 400)
+    }
+    return c.json({ ok: true, created: true })
+  }
+
   const origin = new URL(c.req.url).origin
   const { error: inviteError } = await serviceClient(c.env).auth.admin.inviteUserByEmail(email, {
     data: { full_name: body.full_name.trim(), role, ...partner },
     redirectTo: `${origin}/account`,
   })
   if (inviteError) return c.json({ error: inviteError.message }, 400)
+  return c.json({ ok: true })
+})
+
+// Admin sets a new temporary password for someone who can't get in (not for other admins).
+app.post('/api/admin/set-password', async c => {
+  const token = bearer(c.req.header('authorization'))
+  if (!token) return c.json({ error: 'Not signed in' }, 401)
+  const sb = userClient(c.env, token, 'app')
+  const { data: isAdmin, error } = await sb.rpc('is_admin')
+  if (error || !isAdmin) return c.json({ error: 'Only an admin can do that' }, 403)
+  const body = await c.req.json<{ user_id?: string; password?: string }>()
+  if (!body.user_id || !body.password || body.password.length < 8) {
+    return c.json({ error: 'The temporary password needs at least 8 characters' }, 400)
+  }
+  const { data: target } = await sb.from('profiles').select('id, role').eq('id', body.user_id).maybeSingle()
+  if (!target) return c.json({ error: 'No such person' }, 404)
+  if (target.role === 'admin') return c.json({ error: 'Admins change their own password on My account' }, 403)
+  const { error: updError } = await serviceClient(c.env).auth.admin.updateUserById(body.user_id, { password: body.password })
+  if (updError) return c.json({ error: updError.message }, 400)
   return c.json({ ok: true })
 })
 
