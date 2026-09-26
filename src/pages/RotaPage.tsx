@@ -32,7 +32,7 @@ interface Draft {
 }
 
 export function RotaPage() {
-  const { api, profiles, positions, business, isAdmin, canSeePay, rates, me, settings } = useApp()
+  const { api, profiles, positions, business, isAdmin, isPartner, canSeePay, rates, me, settings } = useApp()
   const run = useAction()
   const [monday, setMonday] = useState(weekStart(today()))
   const [positionFilter, setPositionFilter] = useState<number | 'all'>('all')
@@ -111,10 +111,10 @@ export function RotaPage() {
   const ShiftBlock = ({ s }: { s: Shift }) => {
     const warnings = shiftWarnings(s, ctx)
     const pos = position(s.position_id)
-    const clickable = isAdmin || (!s.profile_id)
+    const clickable = isAdmin || (!s.profile_id && !isPartner)
     return (
       <Box onClick={e => { e.stopPropagation(); if (isAdmin) openDraft(s.profile_id, localDate(s.starts_at), s)
-        else if (!s.profile_id) run(async () => { await api.takeOpenShift(s.id); await data.reload() }, 'Shift is yours') }}
+        else if (!s.profile_id && !isPartner) run(async () => { await api.takeOpenShift(s.id); await data.reload() }, 'Shift is yours') }}
         sx={{
           borderLeft: 3, borderColor: pos?.colour ?? '#C6C2BB', bgcolor: `${pos?.colour ?? '#C6C2BB'}12`,
           borderRadius: 2, px: 1, py: 0.75, mb: 0.75, cursor: clickable ? 'pointer' : 'default',
@@ -135,7 +135,7 @@ export function RotaPage() {
         <Typography variant="caption" color="text.secondary" component="div" sx={{ lineHeight: 1.3 }}>
           {pos?.name}{s.break_minutes ? ` · ${s.break_minutes}m break` : ''}
         </Typography>
-        {!s.profile_id && !isAdmin && <Typography variant="caption" color="primary" sx={{ fontWeight: 600 }}>Tap to take</Typography>}
+        {!s.profile_id && !isAdmin && !isPartner && <Typography variant="caption" color="primary" sx={{ fontWeight: 600 }}>Tap to take</Typography>}
         {s.note && <Typography variant="caption" component="div" sx={{ fontStyle: 'italic' }}>{s.note}</Typography>}
       </Box>
     )
@@ -176,9 +176,9 @@ export function RotaPage() {
       <ErrorBox error={data.error} />
 
       <StatRow>
-        {canSeePay ? <>
+        {canSeePay || isPartner ? <>
           <Stat label="Scheduled" value={formatDuration(mins(visible.filter(s => s.profile_id)))} note="paid hours, whole team" />
-          <Stat label="Labour cost" value={formatMoney(cost(visible))} note={mult !== 1 ? `incl. ×${mult} employer cost` : 'gross pay'} />
+          {canSeePay && <Stat label="Labour cost" value={formatMoney(cost(visible))} note={mult !== 1 ? `incl. ×${mult} employer cost` : 'gross pay'} />}
         </> : (
           <Stat label="Your hours" value={formatDuration(mins(visible.filter(s => s.profile_id === me?.id)))} note="scheduled this week" />
         )}

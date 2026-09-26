@@ -1,7 +1,7 @@
 import type {
   Expense, InstagramProfile, IntegrationsState, MusicNow, OutboxItem, OpeningHours, SpotifyPlaylist, TimeOff, TimeOffKind,
   BreakType, Business, CalendarEvent, CorrectionRequest, KioskPerson, OpenBreak, PayRate,
-  Position, Profile, Settings, Shift, TimeEntry, TimeEntryChange,
+  PartnerArea, Position, Profile, Settings, Shift, TimeEntry, TimeEntryChange,
 } from '../../shared/types'
 
 export type ShiftInput = Omit<Shift, 'id' | 'status'> & { id?: string; status?: Shift['status'] }
@@ -77,6 +77,11 @@ export interface Api {
   setPin(pin: string, profileId?: string): Promise<void>
   setPayRate(profileId: string, hourlyRate: number): Promise<void>
   invite(email: string, fullName: string, role: 'admin' | 'employee' | 'kiosk'): Promise<void>
+
+  // partners: outside businesses with read-only access to chosen areas (admins manage them)
+  partners(): Promise<Profile[]>
+  invitePartner(email: string, fullName: string, company: string, access: PartnerArea[]): Promise<void>
+  setPartnerAccess(id: string, company: string, access: PartnerArea[]): Promise<void>
 
   // time off
   timeOff(fromDate: string, toDate: string): Promise<TimeOff[]>

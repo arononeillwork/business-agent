@@ -5,7 +5,7 @@ import { z } from 'zod'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { shiftPaidMinutes, shiftWarnings } from '../shared/rules'
 import { addDays, localDate, localTime, today, weekStart, zonedIso, formatLocal } from '../shared/time'
-import type { Business, CalendarEvent, PayRate, Position, Profile, Settings, Shift } from '../shared/types'
+import type { Business, CalendarEvent, PartnerArea, PayRate, Position, Profile, Settings, Shift } from '../shared/types'
 
 export interface ToolContext {
   sb: SupabaseClient
@@ -18,6 +18,8 @@ export interface ToolDef<S extends z.ZodType = z.ZodType> {
   description: string
   input: S
   admin?: boolean
+  /** Partners (outside businesses) may use it: with any of these areas, or 'any' partner. Never for writes. */
+  partner?: PartnerArea[] | 'any'
   readOnly?: boolean
   destructive?: boolean
   run: (ctx: ToolContext, args: z.infer<S>) => Promise<unknown>
@@ -37,10 +39,17 @@ function check<T>(res: { data: T; error: { message: string } | null }): NonNulla
 /** For `.then(rowsAs<T>())`: check the response and type the rows. */
 const rowsAs = <T,>() => (res: { data: unknown; error: { message: string } | null }) => check(res) as T
 
-const PROFILE_COLUMNS = 'id, full_name, email, role, can_see_pay, colour, active, phone, birth_date'
+const PROFILE_COLUMNS = 'id, full_name, email, role, can_see_pay, colour, active, phone, birth_date, partner_company, partner_access'
+
+const partnerCan = (me: Profile, area: PartnerArea) => me.role === 'partner' && !!me.partner_access?.includes(area)
+/** Pay rates and labour cost: admins with pay access, or payroll partners (read-only). */
+const seesPay = (me: Profile) => (me.role === 'admin' && me.can_see_pay) || partnerCan(me, 'payroll')
 
 async function team(sb: SupabaseClient): Promise<Profile[]> {
-  return check(await sb.from('profiles').select(PROFILE_COLUMNS).neq('role', 'kiosk'))
+  const people = check(await sb.from('profiles').select(PROFILE_COLUMNS).not('role', 'in', '(kiosk,partner)')) as Profile[]
+  if (people.length) return people
+  // Partners only see their own profile row; with rota or payroll access they get names.
+  return check(await sb.rpc('partner_team')) as Profile[]
 }
 async function positions(sb: SupabaseClient): Promise<Position[]> {
   return check(await sb.from('positions').select('*'))
@@ -98,12 +107,15 @@ export const TOOLS: ToolDef[] = [
   tool({
     name: 'whoami',
     title: 'Who am I',
-    description: 'The signed-in person, their role (admin or employee) and the business name. Call this first.',
+    description: 'The signed-in person, their role (admin, employee, or partner = an outside business with read-only access to some areas) and the business name. Call this first.',
+    partner: 'any',
     input: z.object({}),
     readOnly: true,
     async run({ sb, me }) {
       const b = check(await sb.from('business').select('name, timezone').eq('id', 1).single())
       return { name: me.full_name, email: me.email, role: me.role, can_see_pay: me.can_see_pay, business: b.name,
+        ...(me.role === 'partner' ? { partner_company: me.partner_company, partner_can_see: ['business details', ...(me.partner_access ?? [])],
+          partner_note: 'Read-only: you can look but not change anything.' } : {}),
         timezone: b.timezone, today: today(), note: 'Dates are YYYY-MM-DD, times are 24-hour local (Europe/Madrid).' }
     },
   }),
@@ -113,6 +125,7 @@ export const TOOLS: ToolDef[] = [
     name: 'get_business_details',
     title: 'Business details',
     description: 'Address, phone, email, Instagram, opening hours, team channel, towns followed and notes.',
+    partner: 'any',
     input: z.object({}),
     readOnly: true,
     async run({ sb, me }) {
@@ -156,6 +169,7 @@ export const TOOLS: ToolDef[] = [
     name: 'list_team',
     title: 'Team',
     description: 'Team members with roles. Hourly pay rates are included only for admins with pay access.',
+    partner: ['rota', 'payroll'],
     input: z.object({}),
     readOnly: true,
     async run({ sb, me }) {
@@ -164,7 +178,7 @@ export const TOOLS: ToolDef[] = [
       const latest = new Map<string, number>()
       for (const r of rates.sort((a, b) => a.effective_from.localeCompare(b.effective_from))) latest.set(r.profile_id, Number(r.hourly_rate))
       return people.map(p => ({ name: p.full_name, role: p.role, active: p.active, email: p.email,
-        ...(me.can_see_pay && me.role === 'admin' ? { hourly_rate_eur: latest.get(p.id) ?? null } : {}) }))
+        ...(seesPay(me) ? { hourly_rate_eur: latest.get(p.id) ?? null } : {}) }))
     },
   }),
 
@@ -173,6 +187,7 @@ export const TOOLS: ToolDef[] = [
     name: 'get_schedule',
     title: 'Rota',
     description: 'Shifts between two dates (default: this week), with open shifts and Spanish working-time warnings (breaks, 12h rest, opening hours, holidays).',
+    partner: ['rota', 'payroll'],
     input: z.object({ from: date.optional(), to: date.optional() }),
     readOnly: true,
     async run({ sb }, { from, to }) {
@@ -184,6 +199,7 @@ export const TOOLS: ToolDef[] = [
     name: 'whos_working',
     title: "Who's working",
     description: "Who is scheduled on a day (default today), who is clocked in right now, and any open shifts.",
+    partner: ['rota', 'payroll'],
     input: z.object({ date: date.optional() }),
     readOnly: true,
     async run({ sb, me }, { date: d }) {
@@ -265,6 +281,7 @@ export const TOOLS: ToolDef[] = [
     name: 'list_timecards',
     title: 'Timecards',
     description: 'Clock-in/out records with paid hours, breaks and flags (missed break, over 9h, auto clock-out). Employees see only their own.',
+    partner: ['payroll'],
     input: z.object({ from: date.optional(), to: date.optional(), person: z.string().optional() }),
     readOnly: true,
     async run({ sb }, { from, to, person }) {
@@ -375,9 +392,10 @@ export const TOOLS: ToolDef[] = [
     description: 'Admins with pay access: scheduled vs worked hours and cost per person for a week.',
     admin: true,
     readOnly: true,
+    partner: ['payroll'],
     input: z.object({ week_start: date.optional() }),
     async run({ sb, me }, { week_start }) {
-      if (!me.can_see_pay) throw new Error('You need pay access for labour costs')
+      if (!seesPay(me)) throw new Error('You need pay access for labour costs')
       const monday = weekStart(week_start ?? today())
       const from = zonedIso(monday, '00:00')
       const to = zonedIso(addDays(monday, 7), '00:00')
@@ -409,6 +427,7 @@ export const TOOLS: ToolDef[] = [
     name: 'list_time_off',
     title: 'Time off',
     description: 'Holiday and time-off requests between two dates (default: next 90 days). Employees see their own plus approved time off of others; admins see all, including pending.',
+    partner: ['rota', 'payroll'],
     input: z.object({ from: date.optional(), to: date.optional(), status: z.enum(['pending', 'approved', 'declined', 'cancelled']).optional() }),
     readOnly: true,
     async run({ sb }, a) {
@@ -458,6 +477,7 @@ export const TOOLS: ToolDef[] = [
     name: 'list_calendar_events',
     title: 'Calendar',
     description: 'Holidays (national, regional, local, nearby towns), local events/ferias, football, business events and staff items between two dates.',
+    partner: ['calendar'],
     input: z.object({ from: date.optional(), to: date.optional(), category: category.optional() }),
     readOnly: true,
     async run({ sb }, { from, to, category: cat }) {
@@ -561,6 +581,7 @@ export const TOOLS: ToolDef[] = [
     name: 'get_settings',
     title: 'Clock-in rules',
     description: 'Clock-in enforcement and working-time limits (break rule, max hours, rest, approval day, employer cost multiplier).',
+    partner: 'any',
     input: z.object({}),
     readOnly: true,
     async run({ sb }) {
@@ -627,6 +648,41 @@ export const TOOLS: ToolDef[] = [
     },
   }),
 
+  // ---------------- Partners ----------------
+  tool({
+    name: 'list_partners',
+    title: 'Partners',
+    description: 'Admins: outside businesses with a read-only login (e.g. the gestoría), and which areas each can see.',
+    admin: true,
+    readOnly: true,
+    input: z.object({}),
+    async run({ sb }) {
+      const rows = check(await sb.from('profiles').select(PROFILE_COLUMNS).eq('role', 'partner').order('full_name')) as Profile[]
+      return rows.map(p => ({ partner_id: p.id, company: p.partner_company, name: p.full_name, email: p.email,
+        can_see: ['business details', ...(p.partner_access ?? [])], active: p.active }))
+    },
+  }),
+  tool({
+    name: 'update_partner',
+    title: 'Change partner access',
+    description: 'Admins: change what a partner can see (areas: rota, payroll, finances, calendar; business details always), their company name, or remove/restore their access. New partners are invited from the Partners page.',
+    admin: true,
+    input: z.object({
+      partner_id: z.string().uuid(), company: z.string().optional(),
+      areas: z.array(z.enum(['rota', 'payroll', 'finances', 'calendar'])).optional(), active: z.boolean().optional(),
+    }),
+    async run({ sb }, a) {
+      const cur = check(await sb.from('profiles').select(PROFILE_COLUMNS).eq('id', a.partner_id).eq('role', 'partner').maybeSingle()) as Profile | null
+      if (!cur) throw new Error('No partner with that id')
+      if (a.company !== undefined || a.areas) {
+        check(await sb.rpc('set_partner_access', { p_id: a.partner_id, p_company: a.company ?? cur.partner_company ?? '',
+          p_access: a.areas ?? cur.partner_access ?? [] }))
+      }
+      if (a.active !== undefined) check(await sb.from('profiles').update({ active: a.active }).eq('id', a.partner_id))
+      return { ok: true }
+    },
+  }),
+
   // ---------------- Finances ----------------
   tool({
     name: 'list_expenses',
@@ -634,9 +690,10 @@ export const TOOLS: ToolDef[] = [
     description: 'Admins with pay access: the café’s recurring monthly costs (rent, wages, utilities, loan…) and the monthly total in euros.',
     admin: true,
     readOnly: true,
+    partner: ['finances'],
     input: z.object({}),
     async run({ sb, me }) {
-      if (!me.can_see_pay) throw new Error('You need pay access to see finances')
+      if (!(me.role === 'admin' && me.can_see_pay) && !partnerCan(me, 'finances')) throw new Error('You need pay access to see finances')
       const rows = check(await sb.from('expenses').select('id, name, amount, category, notes, active').order('sort').order('name')) as Record<string, any>[]
       const active = rows.filter(r => r.active)
       return { expenses: rows.map(r => ({ expense_id: r.id, name: r.name, monthly_eur: +r.amount, category: r.category,
@@ -680,19 +737,24 @@ export const TOOLS: ToolDef[] = [
   }),
 ]
 
-/** Tools available to this person (employees don't see admin tools). */
-export const toolsFor = (me: Profile) => TOOLS.filter(t => !t.admin || me.role === 'admin')
+/** Tools available to this person: employees don't see admin tools; partners only get read-only tools for their areas. */
+export const toolsFor = (me: Profile) => me.role === 'partner'
+  ? TOOLS.filter(t => t.readOnly && (t.partner === 'any' || (t.partner ?? []).some(a => partnerCan(me, a))))
+  : TOOLS.filter(t => !t.admin || me.role === 'admin')
 
 export async function loadMe(sb: SupabaseClient, accessToken: string): Promise<Profile> {
   const { data: user } = await sb.auth.getUser(accessToken)
   if (!user.user) throw new Error('Session expired. Sign in again.')
   const me = check(await sb.from('profiles').select(PROFILE_COLUMNS).eq('id', user.user.id).single()) as Profile
   if (!me.active || me.role === 'kiosk') throw new Error('This account cannot use the API')
+  if (me.role === 'partner' && !me.partner_access) me.partner_access = []
   return me
 }
 
 export async function runTool(t: ToolDef, ctx: ToolContext, raw: unknown) {
-  if (t.admin && ctx.me.role !== 'admin') throw new Error('Only admins can do that')
+  if (ctx.me.role === 'partner') {
+    if (!toolsFor(ctx.me).includes(t)) throw new Error('Partner access is read-only and limited to the areas Easy Beans gave you')
+  } else if (t.admin && ctx.me.role !== 'admin') throw new Error('Only admins can do that')
   const parsed = t.input.safeParse(raw ?? {})
   if (!parsed.success) throw new Error(parsed.error.issues.map(i => `${i.path.join('.') || 'input'}: ${i.message}`).join('; '))
   return t.run(ctx, parsed.data)

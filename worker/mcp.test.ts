@@ -40,6 +40,31 @@ describe('AI connector tools', () => {
     expect(toolsFor(person('admin')).length).toBe(TOOLS.length)
   })
 
+  it('gives partners only read-only tools for the areas they were given', () => {
+    const gestoria: Profile = { ...person('partner'), partner_company: 'Gestoría', partner_access: ['payroll', 'finances'] }
+    const names = toolsFor(gestoria).map(t => t.name)
+    expect(names).toEqual(expect.arrayContaining(['whoami', 'get_business_details', 'list_timecards', 'labour_summary', 'list_expenses']))
+    expect(names).not.toContain('list_calendar_events')
+    expect(names).not.toContain('clock')
+    expect(names).not.toContain('request_time_off')
+    expect(names).not.toContain('save_expense')
+    expect(toolsFor(gestoria).every(t => t.readOnly)).toBe(true)
+
+    const supplier: Profile = { ...person('partner'), partner_access: ['calendar'] }
+    expect(toolsFor(supplier).map(t => t.name)).toEqual(expect.arrayContaining(['list_calendar_events']))
+    expect(toolsFor(supplier).map(t => t.name)).not.toContain('list_timecards')
+    expect(toolsFor({ ...person('partner'), partner_access: [] }).map(t => t.name).sort())
+      .toEqual(['get_business_details', 'get_settings', 'whoami'])
+  })
+
+  it('refuses tools outside a partner’s areas even if called directly', async () => {
+    const supplier: Profile = { ...person('partner'), partner_access: ['calendar'] }
+    const call = (name: string, args: unknown = {}) => runTool(TOOLS.find(x => x.name === name)!, { sb: fakeSb([]), me: supplier }, args)
+    await expect(call('list_expenses')).rejects.toThrow('read-only')
+    await expect(call('add_calendar_event', { title: 'Hack', category: 'event', starts_on: '2026-10-01' })).rejects.toThrow('read-only')
+    await expect(call('clock', {})).rejects.toThrow('read-only')
+  })
+
   it('refuses admin tools for employees even if called directly', async () => {
     const t = TOOLS.find(x => x.name === 'delete_shift')!
     await expect(runTool(t, { sb: fakeSb(null), me: person('employee') }, {})).rejects.toThrow('Only admins')

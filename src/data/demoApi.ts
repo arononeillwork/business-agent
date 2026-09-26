@@ -3,7 +3,7 @@
 // of truth: the database functions are.
 import type { Api, ShiftInput } from './api'
 import type {
-  Expense, IntegrationsState, OutboxItem, TimeOff,
+  Expense, IntegrationsState, OutboxItem, PartnerArea, TimeOff,
   BreakType, Business, CalendarEvent, CorrectionRequest, PayRate, Position, Profile, Settings,
   Shift, TimeEntry, TimeEntryChange,
 } from '../../shared/types'
@@ -96,6 +96,9 @@ export function createDemoApi(): Api {
     { id: P.julio, full_name: 'Julio', email: 'julio@example.com', role: 'employee', can_see_pay: false, colour: '#4A6536', active: true, whatsapp_opt_in: true, phone: '+34 600 111 222', birth_date: null, pin: '1234' },
     { id: P.maria, full_name: 'Maria', email: 'maria@example.com', role: 'employee', can_see_pay: false, colour: '#B3404F', active: true, whatsapp_opt_in: true, phone: '+34 600 333 444', birth_date: null, pin: '4321' },
     { id: P.cleaner, full_name: 'Cleaner', email: null, role: 'employee', can_see_pay: false, colour: '#6B645E', active: true, phone: null, birth_date: null },
+    // An outside business: the gestoría that does payroll and the accounts (read-only).
+    { id: 'p-laura', full_name: 'Laura Ruiz', email: 'laura@gestoria.example', role: 'partner', can_see_pay: false, colour: '#6B645E',
+      active: true, phone: null, birth_date: null, partner_company: 'Gestoría Marbella', partner_access: ['payroll', 'finances'] },
   ]
   const positions: Position[] = [
     { id: 1, name: 'Barista', colour: '#F79BA4', sort: 1, active: true },
@@ -222,6 +225,10 @@ export function createDemoApi(): Api {
 
   const me = () => profiles.find(p => p.id === currentUser)
   const isAdmin = () => me()?.role === 'admin'
+  const isPartner = () => me()?.role === 'partner'
+  /** Mirrors partner_can() in SQL: an active partner who was given that area. */
+  const partnerCan = (area: PartnerArea) => !!(isPartner() && me()?.active && me()?.partner_access?.includes(area))
+  const staffOnly = (p: Profile) => p.role === 'admin' || p.role === 'employee'
   const requireAdmin = () => { if (!isAdmin()) throw new Error('Only an admin can do that') }
 
   function computeFlags(e: RawEntry): string[] {
@@ -254,6 +261,8 @@ export function createDemoApi(): Api {
   const openEntry = (pid: string) => entries.find(e => e.profile_id === pid && !e.clock_out)
 
   function doClockIn(pid: string, source: string, positionId?: number | null) {
+    const who = profiles.find(p => p.id === pid)
+    if (!who || !staffOnly(who)) throw new Error('Only team members can clock in')
     if (openEntry(pid)) throw new Error('Already clocked in')
     const now = Date.now()
     const shift = shifts
@@ -318,7 +327,7 @@ export function createDemoApi(): Api {
     onAuthChange(cb) { listeners.add(cb); return () => listeners.delete(cb) },
     async signIn(email) {
       const p = profiles.find(x => x.email === email.trim().toLowerCase())
-      if (!p) throw new Error('Demo: sign in as aron@example.com (admin) or maria@example.com (employee)')
+      if (!p) throw new Error('Demo: sign in as aron@example.com (admin), maria@example.com (employee) or laura@gestoria.example (partner)')
       currentUser = p.id
       notify()
     },
@@ -330,20 +339,26 @@ export function createDemoApi(): Api {
     async business() { return clone(business) },
     async adminNotes() { requireAdmin(); return adminNotes },
     async settings() { return clone(settings) },
-    async profiles() { return profiles.map(visibleProfile) },
+    async profiles() {
+      if (!isPartner()) return profiles.filter(p => p.role !== 'partner').map(visibleProfile)
+      if (!partnerCan('rota') && !partnerCan('payroll')) return []
+      return profiles.filter(staffOnly).map(p => ({ id: p.id, full_name: p.full_name, colour: p.colour, role: p.role,
+        active: p.active, email: null, can_see_pay: false, phone: null, birth_date: null }))
+    },
     async positions() { return clone(positions) },
     async breakTypes() { return clone(breakTypes) },
     async payRates() {
       const m = me()
-      return payRates.filter(r => (m?.role === 'admin' && m.can_see_pay) || r.profile_id === currentUser)
+      return payRates.filter(r => (m?.role === 'admin' && m.can_see_pay) || partnerCan('payroll') || r.profile_id === currentUser)
     },
     async shifts(fromIso, toIso) {
-      return clone(shifts.filter(s => s.starts_at >= fromIso && s.starts_at < toIso))
+      if (isPartner() && !partnerCan('rota') && !partnerCan('payroll')) return []
+      return clone(shifts.filter(s => s.starts_at >= fromIso && s.starts_at < toIso && (!isPartner() || s.status === 'published')))
         .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
     },
     async timeEntries(fromIso, toIso) {
       return entries.filter(e => e.clock_in >= fromIso && e.clock_in < toIso &&
-        (isAdmin() || e.profile_id === currentUser)).map(totals)
+        (isAdmin() || partnerCan('payroll') || e.profile_id === currentUser)).map(totals)
         .sort((a, b) => a.clock_in.localeCompare(b.clock_in))
     },
     async clockState() {
@@ -354,7 +369,7 @@ export function createDemoApi(): Api {
     },
     async events(fromDate, toDate) {
       return clone(events.filter(e => e.starts_on <= toDate && (e.ends_on ?? e.starts_on) >= fromDate &&
-        (e.visibility === 'all' || isAdmin()))).sort((a, b) => a.starts_on.localeCompare(b.starts_on))
+        (e.visibility === 'all' || isAdmin()) && (!isPartner() || partnerCan('calendar')))).sort((a, b) => a.starts_on.localeCompare(b.starts_on))
     },
     async corrections() {
       return clone(corrections.filter(c => isAdmin() || c.profile_id === currentUser))
@@ -451,6 +466,7 @@ export function createDemoApi(): Api {
       if (i >= 0) shifts.splice(i, 1)
     },
     async takeOpenShift(id) {
+      if (isPartner()) throw new Error('Not allowed')
       const s = shifts.find(x => x.id === id && !x.profile_id)
       if (!s) throw new Error('That shift is no longer open')
       if (shifts.some(x => x.profile_id === currentUser && x.starts_at < s.ends_at && x.ends_at > s.starts_at)) {
@@ -500,10 +516,29 @@ export function createDemoApi(): Api {
       profiles.push({ id: uid(), full_name: fullName, email, role, can_see_pay: false, colour: '#8d6e63',
         active: true, phone: null, birth_date: null })
     },
+    async partners() {
+      requireAdmin()
+      return profiles.filter(p => p.role === 'partner').map(visibleProfile)
+    },
+    async invitePartner(email, fullName, company, access) {
+      requireAdmin()
+      const addr = email.trim().toLowerCase()
+      if (!fullName.trim() || !addr) throw new Error('Name and email are required')
+      if (!company.trim()) throw new Error('Add the partner’s company name')
+      if (profiles.some(p => p.email === addr)) throw new Error('Someone with that email already has an account')
+      profiles.push({ id: uid(), full_name: fullName.trim(), email: addr, role: 'partner', can_see_pay: false, colour: '#6B645E',
+        active: true, phone: null, birth_date: null, partner_company: company.trim(), partner_access: [...access] })
+    },
+    async setPartnerAccess(id, company, access) {
+      requireAdmin()
+      const p = profiles.find(x => x.id === id && x.role === 'partner')
+      if (!p) throw new Error('That person is not a partner')
+      Object.assign(p, { partner_company: company.trim() || null, partner_access: [...access] })
+    },
 
     async timeOff(fromDate, toDate) {
       return clone(timeOff.filter(t => t.starts_on <= toDate && t.ends_on >= fromDate &&
-        (isAdmin() || t.profile_id === currentUser || t.status === 'approved')))
+        (isAdmin() || t.profile_id === currentUser || (t.status === 'approved' && (!isPartner() || partnerCan('rota') || partnerCan('payroll'))))))
         .sort((a, b) => a.starts_on.localeCompare(b.starts_on))
     },
     async vacationDaysUsed(profileId, year) {
@@ -513,6 +548,7 @@ export function createDemoApi(): Api {
         .reduce((n, t) => n + (Date.parse(t.ends_on < y1 ? t.ends_on : y1) - Date.parse(t.starts_on > y0 ? t.starts_on : y0)) / 86400000 + 1, 0)
     },
     async requestTimeOff(startsOn, endsOn, kind, note) {
+      if (isPartner()) throw new Error('Not allowed')
       if (endsOn < startsOn) throw new Error('The last day must be on or after the first day')
       if (kind !== 'sick' && startsOn < today()) throw new Error('Holiday requests must be for today or later')
       if (timeOff.some(t => t.profile_id === currentUser && ['pending', 'approved'].includes(t.status) && t.starts_on <= endsOn && t.ends_on >= startsOn)) {
@@ -559,7 +595,7 @@ export function createDemoApi(): Api {
     },
 
     async expenses() {
-      if (!(me()?.role === 'admin' && me()?.can_see_pay)) return []
+      if (!(me()?.role === 'admin' && me()?.can_see_pay) && !partnerCan('finances')) return []
       return clone(expenses).sort((a, b) => a.sort - b.sort)
     },
     async saveExpense(e) {
@@ -658,7 +694,7 @@ export function createDemoApi(): Api {
     },
 
     async kioskRoster() {
-      return profiles.filter(p => p.active && p.role !== 'kiosk').map(p => {
+      return profiles.filter(p => p.active && staffOnly(p)).map(p => {
         const e = openEntry(p.id)
         const b = e && breaks.find(x => x.time_entry_id === e.id && !x.ended_at)
         return { id: p.id, full_name: p.full_name, colour: p.colour, status: b ? 'break' : e ? 'in' : 'out',

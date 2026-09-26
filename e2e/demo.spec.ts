@@ -456,3 +456,70 @@ test('business page is just the business: no suppliers', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Easy Beans Coffee' })).toBeVisible()
   await expect(page.getByText(/Suppliers/i)).toHaveCount(0)
 })
+
+test.describe('partners (outside businesses)', () => {
+  test('the gestoría sees payroll and finances read-only, and nothing else', async ({ page }) => {
+    await open(page, '/', 'laura@gestoria.example')
+    await expect(page).toHaveURL(/\/business/)
+    const nav = page.getByRole('navigation', { name: 'Main' })
+    for (const name of ['Business', 'Rota', 'Timecards', 'Finances', 'My account']) await expect(nav.getByRole('link', { name })).toBeVisible()
+    for (const name of ['Today', 'Team', 'Time off', 'Calendar', 'Alerts', 'Connections', 'Partners']) {
+      await expect(nav.getByRole('link', { name })).toHaveCount(0)
+    }
+    await expect(page.getByText('Gestoría Marbella').first()).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Edit' })).toHaveCount(0)
+
+    await nav.getByRole('link', { name: 'Finances' }).click()
+    await expect(page.getByText(/7[.,]?865[.,]09/).first()).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Add expense' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /^Edit / })).toHaveCount(0)
+
+    await nav.getByRole('link', { name: 'Timecards' }).click()
+    await expect(page.getByText('read-only. Download the CSV for payroll')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Approve week' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Edit', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Request correction' })).toHaveCount(0)
+    await expect(page.getByText('Labour cost')).toBeVisible()
+
+    await nav.getByRole('link', { name: 'Rota' }).click()
+    await expect(page.getByText('Tap to take')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Add shift' })).toHaveCount(0)
+
+    await page.goto('/team')
+    await expect(page).toHaveURL(/\/business/)
+    await page.goto('/calendar')
+    await expect(page).toHaveURL(/\/business/)
+  })
+
+  test('admin invites a partner, chooses what they see, then removes access', async ({ page }) => {
+    await open(page, '/partners')
+    await expect(page.getByRole('heading', { name: 'Partners' })).toBeVisible()
+    await expect(page.locator('.MuiCard-root', { hasText: 'Gestoría Marbella' })).toContainText('Payroll')
+    await page.getByRole('button', { name: 'Invite partner' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Invite a partner' })
+    await dialog.getByLabel('Company').fill('Café Supplies SL')
+    await dialog.getByLabel('Contact name').fill('Pedro')
+    await dialog.getByLabel('Email').fill('pedro@supplies.example')
+    await dialog.getByLabel(/Calendar/).check()
+    await dialog.getByRole('button', { name: 'Send invite' }).click()
+    await toast(page, 'Invite sent')
+    const card = page.locator('.MuiCard-root', { hasText: 'Café Supplies SL' })
+    await expect(card).toContainText('Calendar')
+    await expect(card).not.toContainText('Payroll')
+
+    await signInAs(page, 'pedro@supplies.example')
+    const nav = page.getByRole('navigation', { name: 'Main' })
+    await expect(nav.getByRole('link', { name: 'Calendar' })).toBeVisible()
+    await expect(nav.getByRole('link', { name: 'Timecards' })).toHaveCount(0)
+    await expect(nav.getByRole('link', { name: 'Finances' })).toHaveCount(0)
+    await nav.getByRole('link', { name: 'Calendar' }).click()
+    await expect(page.getByRole('button', { name: 'Add event' })).toHaveCount(0)
+
+    await signInAs(page, 'aron@example.com')
+    await page.getByRole('link', { name: 'Partners' }).first().click()
+    await page.locator('.MuiCard-root', { hasText: 'Café Supplies SL' }).getByRole('button', { name: 'Remove access' }).click()
+    await toast(page, 'Access removed')
+    await signInAs(page, 'pedro@supplies.example')
+    await expect(page.getByText(/isn.t active/i)).toBeVisible()
+  })
+})

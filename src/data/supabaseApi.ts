@@ -1,8 +1,8 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { Api } from './api'
-import type { Business, Expense, OutboxItem, Settings, TimeEntry, TimeOff } from '../../shared/types'
+import type { Business, Expense, OutboxItem, Profile, Settings, TimeEntry, TimeOff } from '../../shared/types'
 
-const PROFILE_COLUMNS = 'id, full_name, email, role, can_see_pay, colour, active, phone, birth_date, whatsapp_opt_in'
+const PROFILE_COLUMNS = 'id, full_name, email, role, can_see_pay, colour, active, phone, birth_date, whatsapp_opt_in, partner_company, partner_access'
 
 /** Throw the Postgres error message (our SQL functions raise human-readable ones). */
 function check<T>(res: { data: T; error: { message: string } | null }): NonNullable<T> {
@@ -78,7 +78,11 @@ export function createSupabaseApi(url: string, key: string): Api {
       return check(await sb.from('settings').select('*').eq('id', 1).single()) as Settings
     },
     async profiles() {
-      return check(await sb.from('profiles').select(PROFILE_COLUMNS).neq('role', 'kiosk').order('full_name'))
+      const team = check(await sb.from('profiles').select(PROFILE_COLUMNS).not('role', 'in', '(kiosk,partner)').order('full_name')) as Profile[]
+      if (team.length) return team
+      // Partners only see their own profile row; with rota or payroll access they get names from partner_team().
+      const names = check(await sb.rpc('partner_team')) as Pick<Profile, 'id' | 'full_name' | 'colour' | 'role' | 'active'>[]
+      return names.map(p => ({ ...p, email: null, can_see_pay: false, phone: null, birth_date: null }))
     },
     async positions() {
       return check(await sb.from('positions').select('*').order('sort'))
@@ -211,6 +215,22 @@ export function createSupabaseApi(url: string, key: string): Api {
         body: JSON.stringify({ email, full_name: fullName, role }),
       })
       if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? 'Invite failed')
+    },
+
+    async partners() {
+      return check(await sb.from('profiles').select(PROFILE_COLUMNS).eq('role', 'partner').order('full_name')) as Profile[]
+    },
+    async invitePartner(email, fullName, company, access) {
+      const token = (await sb.auth.getSession()).data.session?.access_token
+      const res = await fetch('/api/admin/invite', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+        body: JSON.stringify({ email, full_name: fullName, role: 'partner', partner_company: company, partner_access: access }),
+      })
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? 'Invite failed')
+    },
+    async setPartnerAccess(id, company, access) {
+      check(await sb.rpc('set_partner_access', { p_id: id, p_company: company, p_access: access }))
     },
 
     async timeOff(fromDate, toDate) {

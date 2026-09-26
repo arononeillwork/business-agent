@@ -198,3 +198,80 @@ do $$ begin
     'other alerts still go out';
 end $$;
 update public.settings set alert_shift_reminders = true;
+
+-- 10. Partners: read-only, only the areas an admin gave them ----------------------------
+reset role;
+insert into public.calendar_events (title, category, starts_on, visibility) values
+  ('Partner-visible holiday', 'national', '2026-12-08', 'all'), ('Admin-only note', 'business', '2026-12-09', 'admins');
+insert into auth.users (email, raw_user_meta_data, invited_at) values
+  ('gestoria@test', '{"full_name": "Laura", "role": "partner", "partner_company": "Gestoría Marbella",
+                     "partner_access": ["payroll", "finances", "superpowers"]}', now()),
+  ('supplier@test', '{"full_name": "Pedro", "role": "partner", "partner_company": "Café Supplies SL",
+                      "partner_access": ["calendar"]}', now()),
+  ('sneaky@test', '{"full_name": "Sneaky", "role": "partner", "partner_access": ["finances"]}', null);
+do $$ begin
+  assert (select role from public.profiles where email = 'gestoria@test') = 'partner', 'invited partner gets the partner role';
+  assert (select partner_access from public.profiles where email = 'gestoria@test') = array['payroll', 'finances'],
+    'unknown areas are dropped';
+  assert (select partner_company from public.profiles where email = 'gestoria@test') = 'Gestoría Marbella', 'company stored';
+  assert (select role = 'employee' and not active and partner_access = '{}' from public.profiles where email = 'sneaky@test'),
+    'self sign-ups cannot make themselves partners';
+end $$;
+
+-- Payroll + finances partner (the gestoría)
+select pg_temp.act_as('gestoria@test');
+do $$ begin
+  assert public.is_partner() and not public.is_staff() and not public.is_admin() and not public.can_see_pay(), 'partner is not staff';
+  assert (select count(*) from public.expenses) > 0, 'finances partner sees expenses';
+  assert (select count(*) from public.time_entries) > 0, 'payroll partner sees timecards';
+  assert (select count(*) from public.pay_rates) > 0, 'payroll partner sees pay rates';
+  assert (select count(*) from public.calendar_events) = 0, 'no calendar without calendar access';
+  assert (select count(*) from public.profiles) = 1, 'partner sees only their own profile row';
+  assert (select count(*) from public.partner_team()) > 0, 'payroll partner sees team names';
+  assert (select count(*) from public.business) = 1, 'every partner sees the business details';
+  assert (select count(*) from public.business_admin_notes) = 0, 'but never admin notes';
+  assert (select count(*) from public.outbox) = 0 and (select count(*) from public.audit_log) = 0, 'no outbox or audit log';
+  assert (select count(*) from public.shifts where status <> 'published') = 0, 'no draft shifts';
+end $$;
+select pg_temp.expect_error($q$insert into public.expenses (name, amount) values ('Hack', 1)$q$, 'row-level security');
+do $$ declare n int; begin
+  update public.expenses set amount = 0; get diagnostics n = row_count;
+  assert n = 0, 'partner cannot change expenses';
+  update public.business set phone = '1' where id = 1; get diagnostics n = row_count;
+  assert n = 0, 'partner cannot change the business';
+end $$;
+select pg_temp.expect_error($q$delete from public.time_entries$q$, 'permission denied');
+select pg_temp.expect_error($q$select public.set_partner_access(auth.uid(), 'x', array['rota'])$q$, 'Only an admin');
+select pg_temp.expect_error($q$update public.profiles set partner_access = array['rota'] where id = auth.uid()$q$, 'permission denied');
+select pg_temp.expect_error($q$update public.profiles set role = 'admin' where id = auth.uid()$q$, 'admin');
+select pg_temp.expect_error($q$select public.clock_in()$q$, '');
+
+-- Calendar-only partner (a supplier)
+select pg_temp.act_as('supplier@test');
+do $$ begin
+  assert (select count(*) from public.calendar_events where title = 'Partner-visible holiday') = 1, 'calendar partner sees public events';
+  assert (select count(*) from public.calendar_events where visibility = 'admins') = 0, 'but not admin-only ones';
+  assert (select count(*) from public.expenses) = 0, 'no finances without finance access';
+  assert (select count(*) from public.time_entries) = 0 and (select count(*) from public.pay_rates) = 0, 'no payroll';
+  assert (select count(*) from public.shifts) = 0, 'no rota without rota access';
+  assert (select count(*) from public.partner_team()) = 0, 'no team list without rota or payroll';
+end $$;
+
+-- Admin changes access; a deactivated partner sees nothing
+select pg_temp.act_as('maria@test');
+select public.set_partner_access((select id from public.profiles where email = 'supplier@test'), 'Café Supplies SL', array['rota']);
+select pg_temp.expect_error($q$select public.set_partner_access((select id from public.profiles where email = 'julio@test'), 'x', array['rota'])$q$, 'not a partner');
+select pg_temp.expect_error($q$select public.set_partner_access((select id from public.profiles where email = 'supplier@test'), 'x', array['everything'])$q$, 'check');
+select pg_temp.act_as('supplier@test');
+do $$ begin
+  assert (select count(*) from public.calendar_events) = 0, 'calendar access removed';
+  assert (select count(*) from public.shifts) > 0, 'rota access granted';
+  assert (select count(*) from public.time_entries) = 0, 'rota access is not payroll access';
+end $$;
+select pg_temp.act_as('maria@test');
+update public.profiles set active = false where email = 'gestoria@test';
+select pg_temp.act_as('gestoria@test');
+do $$ begin
+  assert (select count(*) from public.expenses) = 0 and (select count(*) from public.business) = 0, 'deactivated partner sees nothing';
+end $$;
+reset role;

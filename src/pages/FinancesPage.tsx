@@ -12,13 +12,14 @@ import { Empty, ErrorBox, PageHeader, SectionTitle, Stat, StatRow, Tag } from '.
 import { formatMoney } from '../../shared/time'
 import type { Expense } from '../../shared/types'
 
-/** Monthly running costs. Admins with pay access only (enforced in the database too). */
+/** Monthly running costs. Admins with pay access edit; finance partners read (enforced in the database too). */
 export function FinancesPage() {
-  const { api, canSeePay } = useApp()
+  const { api, canSeeFinances, isPartner } = useApp()
+  const canEdit = canSeeFinances && !isPartner
   const data = useAsync('expenses', () => api.expenses(), [])
   const [editing, setEditing] = useState<Partial<Expense> | null>(null)
 
-  if (!canSeePay) {
+  if (!canSeeFinances) {
     return <>
       <PageHeader eyebrow="Money" title="Finances" />
       <Alert severity="info">Finances are only visible to admins with pay access.</Alert>
@@ -33,8 +34,9 @@ export function FinancesPage() {
   return (
     <>
       <PageHeader eyebrow="Money" title="Finances"
-        subtitle="What it costs to keep Easy Beans open each month. Imported from the Accounts sheet; edit here from now on."
-        actions={<Button variant="contained" startIcon={<AddIcon />} onClick={() => setEditing({ name: '', amount: 0 })}>Add expense</Button>} />
+        subtitle={canEdit ? 'What it costs to keep Easy Beans open each month. Imported from the Accounts sheet; edit here from now on.'
+          : 'What it costs to keep Easy Beans open each month. Read-only.'}
+        actions={canEdit && <Button variant="contained" startIcon={<AddIcon />} onClick={() => setEditing({ name: '', amount: 0 })}>Add expense</Button>} />
       <ErrorBox error={data.error} />
 
       <StatRow>
@@ -71,7 +73,7 @@ export function FinancesPage() {
                         </Stack>
                       </TableCell>
                       <TableCell align="right">
-                        <Tooltip title="Edit"><IconButton size="small" aria-label={`Edit ${e.name}`} onClick={() => setEditing(e)}><EditIcon fontSize="small" /></IconButton></Tooltip>
+                        {canEdit && <Tooltip title="Edit"><IconButton size="small" aria-label={`Edit ${e.name}`} onClick={() => setEditing(e)}><EditIcon fontSize="small" /></IconButton></Tooltip>}
                       </TableCell>
                     </TableRow>
                   ))}

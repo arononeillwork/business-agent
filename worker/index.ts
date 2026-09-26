@@ -38,14 +38,20 @@ app.post('/api/admin/invite', async c => {
   const { data: isAdmin, error } = await userClient(c.env, token, 'app').rpc('is_admin')
   if (error || !isAdmin) return c.json({ error: 'Only an admin can invite people' }, 403)
 
-  const body = await c.req.json<{ email?: string; full_name?: string; role?: string }>()
+  const body = await c.req.json<{ email?: string; full_name?: string; role?: string; partner_company?: string; partner_access?: string[] }>()
   const email = body.email?.trim().toLowerCase()
-  const role = ['admin', 'employee', 'kiosk'].includes(body.role ?? '') ? body.role : 'employee'
+  const role = ['admin', 'employee', 'kiosk', 'partner'].includes(body.role ?? '') ? body.role : 'employee'
   if (!email || !body.full_name?.trim()) return c.json({ error: 'Name and email are required' }, 400)
+  // Partners: company and read-only areas (the database drops anything unknown too).
+  const partner = role === 'partner' ? {
+    partner_company: body.partner_company?.trim() || null,
+    partner_access: (body.partner_access ?? []).filter(a => ['calendar', 'rota', 'payroll', 'finances'].includes(a)),
+  } : {}
+  if (role === 'partner' && !partner.partner_company) return c.json({ error: 'Add the partner’s company name' }, 400)
 
   const origin = new URL(c.req.url).origin
   const { error: inviteError } = await serviceClient(c.env).auth.admin.inviteUserByEmail(email, {
-    data: { full_name: body.full_name.trim(), role },
+    data: { full_name: body.full_name.trim(), role, ...partner },
     redirectTo: `${origin}/account`,
   })
   if (inviteError) return c.json({ error: inviteError.message }, 400)

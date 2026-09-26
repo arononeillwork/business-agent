@@ -6,7 +6,9 @@ built-in **AI connector** so owners can run it by talking to Claude.
 
 - Web app: installable on phones (Add to Home Screen) and the café tablet (kiosk with PINs)
 - AI: MCP connector at `/mcp` with sign-in, plus a REST API at `/api/v1` for n8n/Zapier
-- Hosting: one Cloudflare Worker. Data and login: Supabase (EU)
+- Hosting: one Cloudflare Worker. Data and login: Supabase (EU): email/password, Google, Microsoft
+- Partners: outside businesses (gestoría, suppliers) get a read-only login to the areas an admin
+  picks (rota, payroll, finances, calendar). Enforced by database row security and in the AI tools.
 
 See [docs/PLAN.md](docs/PLAN.md) for decisions, architecture and phases.
 
@@ -38,7 +40,7 @@ SUPABASE_SERVICE_ROLE_KEY=...
 ```bash
 npm test                  # unit: Spain rules + AI connector tools (vitest)
 npm run typecheck
-npm run test:e2e          # browser: 13 demo-mode journeys (Playwright, fixed clock)
+npm run test:e2e          # browser: 31 demo-mode journeys (Playwright, fixed clock)
 npm run test:db           # SQL: migrations + phase-1 acceptance checks on any Postgres
                           #   (set PGHOST/PGPORT/PGUSER)
 SUPABASE_SERVICE_ROLE_KEY=... npm run test:e2e:live
@@ -50,6 +52,11 @@ SUPABASE_SERVICE_ROLE_KEY=... npm run test:e2e:live
 The live suite creates `@business-agent.test` accounts and deletes them and their data at the
 end. Run it against the dev project, not production. First-time Playwright setup:
 `npx playwright install chromium`.
+
+Uptime: `.github/workflows/ci.yml` runs all of the above on every push;
+`.github/workflows/monitor.yml` smoke-tests the live site every 15 minutes (`e2e/smoke.spec.ts`:
+site up, Supabase reachable, email/Google/Microsoft sign-in switched on). Set the repo variable
+`PRODUCTION_URL` to turn it on.
 
 A single-file clickable demo (sample data, no backend) builds with
 `node scripts/build-demo-page.mjs` → `dist-demo/easy-beans-demo.html`.

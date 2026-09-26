@@ -16,6 +16,7 @@ import FinanceIcon from '@mui/icons-material/EuroOutlined'
 import AlertsIcon from '@mui/icons-material/NotificationsNoneOutlined'
 import ConnectIcon from '@mui/icons-material/HubOutlined'
 import LogoutIcon from '@mui/icons-material/LogoutOutlined'
+import PartnersIcon from '@mui/icons-material/HandshakeOutlined'
 import {
   DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent,
 } from '@dnd-kit/core'
@@ -28,24 +29,27 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { useApp } from './AppContext'
 import { businessConfig } from '../../shared/business.config'
+import type { PartnerArea } from '../../shared/types'
 import { Logo } from '../components/Logo'
 import { PersonAvatar } from '../components/common'
 import { fonts, tokens } from '../theme'
 
-interface NavItem { key: string; to: string; label: string; short?: string; icon: ReactNode; who?: 'admin' | 'pay' }
+// `partner`: which partner areas show the item ('any' = every partner). Items without it are staff-only.
+interface NavItem { key: string; to: string; label: string; short?: string; icon: ReactNode; who?: 'admin' | 'pay'; partner?: PartnerArea[] | 'any' }
 
 const NAV: NavItem[] = [
-  { key: 'business', to: '/business', label: 'Business', icon: <BusinessIcon /> },
+  { key: 'business', to: '/business', label: 'Business', icon: <BusinessIcon />, partner: 'any' },
   { key: 'today', to: '/', label: 'Today', icon: <TodayIcon /> },
-  { key: 'rota', to: '/rota', label: 'Rota', icon: <RotaIcon /> },
+  { key: 'rota', to: '/rota', label: 'Rota', icon: <RotaIcon />, partner: ['rota', 'payroll'] },
   { key: 'timeoff', to: '/time-off', label: 'Time off', icon: <TimeOffIcon /> },
-  { key: 'timecards', to: '/timecards', label: 'Timecards', short: 'Hours', icon: <TimecardIcon /> },
-  { key: 'calendar', to: '/calendar', label: 'Calendar', icon: <CalendarIcon /> },
+  { key: 'timecards', to: '/timecards', label: 'Timecards', short: 'Hours', icon: <TimecardIcon />, partner: ['payroll'] },
+  { key: 'calendar', to: '/calendar', label: 'Calendar', icon: <CalendarIcon />, partner: ['calendar'] },
   { key: 'team', to: '/team', label: 'Team', icon: <TeamIcon /> },
-  { key: 'finances', to: '/finances', label: 'Finances', icon: <FinanceIcon />, who: 'pay' },
+  { key: 'finances', to: '/finances', label: 'Finances', icon: <FinanceIcon />, who: 'pay', partner: ['finances'] },
+  { key: 'partners', to: '/partners', label: 'Partners', icon: <PartnersIcon />, who: 'admin' },
   { key: 'alerts', to: '/alerts', label: 'Alerts', icon: <AlertsIcon />, who: 'admin' },
   { key: 'connections', to: '/connections', label: 'Connections', icon: <ConnectIcon />, who: 'admin' },
-  { key: 'account', to: '/account', label: 'My account', short: 'Me', icon: <AccountIcon /> },
+  { key: 'account', to: '/account', label: 'My account', short: 'Me', icon: <AccountIcon />, partner: 'any' },
 ]
 export const DEFAULT_ORDER = NAV.map(n => n.key)
 const DRAWER = 256
@@ -73,18 +77,27 @@ function useNavOrder(userId: string | undefined) {
   return [order, save] as const
 }
 
+// Sample accounts for switching views in the demo (partners can't see the team list, so it's fixed here).
+const DEMO_ACCOUNTS = [
+  { email: 'aron@example.com', label: "Aron O'Neill (admin)" },
+  { email: 'mark@example.com', label: 'Mark Murray (admin)' },
+  { email: 'maria@example.com', label: 'Maria (employee)' },
+  { email: 'julio@example.com', label: 'Julio (employee)' },
+  { email: 'laura@gestoria.example', label: 'Laura, Gestoría Marbella (partner)' },
+]
+
 function DemoBanner() {
-  const { api, me, profiles } = useApp()
+  const { api, me } = useApp()
   if (api.mode !== 'demo') return null
+  const accounts = me?.email && !DEMO_ACCOUNTS.some(a => a.email === me.email)
+    ? [...DEMO_ACCOUNTS, { email: me.email, label: `${me.full_name} (${me.role})` }] : DEMO_ACCOUNTS
   return (
     <Alert severity="info" icon={false}
       sx={{ borderRadius: 0, py: 0.25, px: { xs: 2, md: 4 }, borderBottom: 1, borderColor: 'divider', '& .MuiAlert-message': { py: 1 } }}
       action={
         <Select size="small" variant="standard" disableUnderline value={me?.email ?? ''} aria-label="View as"
           sx={{ fontSize: 14, fontWeight: 700 }} onChange={e => api.signIn(String(e.target.value), '')}>
-          {profiles.filter(p => p.email).map(p => (
-            <MenuItem key={p.id} value={p.email!}>View as {p.full_name} ({p.role})</MenuItem>
-          ))}
+          {accounts.map(a => <MenuItem key={a.email} value={a.email}>View as {a.label}</MenuItem>)}
         </Select>
       }>
       <b>Demo</b> · sample data, nothing is saved
@@ -116,15 +129,17 @@ function SortableNavRow({ item, selected }: { item: NavItem; selected: boolean }
 }
 
 export function AppShell() {
-  const { isAdmin, canSeePay, me, api } = useApp()
+  const { isAdmin, isPartner, partnerCan, canSeePay, me, api } = useApp()
   const theme = useTheme()
   const desktop = useMediaQuery(theme.breakpoints.up('md'))
   const { pathname } = useLocation()
   const [order, setOrder] = useNavOrder(me?.id)
-  const allowed = (n: NavItem) => !n.who || (n.who === 'admin' ? isAdmin : canSeePay)
+  const allowed = (n: NavItem) => isPartner
+    ? n.partner === 'any' || (!!n.partner && n.partner.some(partnerCan))
+    : !n.who || (n.who === 'admin' ? isAdmin : canSeePay)
   const items = useMemo(() => order.map(k => NAV.find(n => n.key === k)!).filter(n => n && allowed(n)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [order, isAdmin, canSeePay])
+    [order, isAdmin, isPartner, canSeePay, me?.partner_access?.join()])
   const current = NAV.find(n => n.to !== '/' && pathname.startsWith(n.to))?.key ?? (pathname === '/' ? 'today' : false)
 
   const sensors = useSensors(
@@ -180,7 +195,7 @@ export function AppShell() {
             {me && <PersonAvatar name={me.full_name} colour={me.colour} size={36} />}
             <Box sx={{ minWidth: 0, flex: 1 }}>
               <Typography sx={{ fontWeight: 700, fontSize: '0.9rem' }} noWrap>{me?.full_name}</Typography>
-              <Typography variant="caption" sx={{ color: 'text.secondary' }}>{me?.role === 'admin' ? 'Admin' : 'Employee'}</Typography>
+              <Typography variant="caption" sx={{ color: 'text.secondary' }}>{me?.role === 'admin' ? 'Admin' : me?.role === 'partner' ? me.partner_company ?? 'Partner' : 'Employee'}</Typography>
             </Box>
             <Tooltip title="Sign out">
               <IconButton size="small" aria-label="Sign out" onClick={() => api.signOut()}><LogoutIcon fontSize="small" /></IconButton>

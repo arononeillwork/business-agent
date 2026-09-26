@@ -6,7 +6,7 @@ import { PageHeader, SectionTitle } from '../components/common'
 import { PinDialog } from './TeamPage'
 
 export function AccountPage() {
-  const { api, me, refresh } = useApp()
+  const { api, me, refresh, isPartner } = useApp()
   const run = useAction()
   const [name, setName] = useState(me?.full_name ?? '')
   const [phone, setPhone] = useState(me?.phone ?? '')
@@ -25,10 +25,16 @@ export function AccountPage() {
               <SectionTitle>Details</SectionTitle>
               <Stack spacing={2}>
                 <TextField label="Name" value={name} onChange={e => setName(e.target.value)} />
-                <TextField label="Mobile (for WhatsApp / SMS alerts)" value={phone} onChange={e => setPhone(e.target.value)} />
-                <FormControlLabel control={<Switch checked={optIn} onChange={e => setOptIn(e.target.checked)} />}
-                  label="Send me shift reminders and rota updates on WhatsApp" />
-                {optIn && !phone && <Alert severity="info">Add your mobile number above to get WhatsApp messages.</Alert>}
+                {isPartner ? (
+                  <Typography variant="body2" color="text.secondary">
+                    {me.partner_company}: read-only partner access. Ask Easy Beans to change what you can see.
+                  </Typography>
+                ) : <>
+                  <TextField label="Mobile (for WhatsApp / SMS alerts)" value={phone} onChange={e => setPhone(e.target.value)} />
+                  <FormControlLabel control={<Switch checked={optIn} onChange={e => setOptIn(e.target.checked)} />}
+                    label="Send me shift reminders and rota updates on WhatsApp" />
+                  {optIn && !phone && <Alert severity="info">Add your mobile number above to get WhatsApp messages.</Alert>}
+                </>}
                 <Button variant="contained" onClick={() => run(async () => {
                   await api.updateProfile(me.id, { full_name: name, phone: phone || null, whatsapp_opt_in: optIn }); await refresh()
                 }, 'Saved')}>Save</Button>
@@ -37,14 +43,16 @@ export function AccountPage() {
           </Card>
         </Grid>
         <Grid size={{ xs: 12, md: 6 }}>
+          {!isPartner && (
+            <Card sx={{ mb: 2 }}>
+              <CardContent>
+                <SectionTitle>Café tablet PIN</SectionTitle>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>Your 4-digit PIN for clocking in at the counter.</Typography>
+                <Button variant="outlined" onClick={() => setPin(true)}>Set my PIN</Button>
+              </CardContent>
+            </Card>
+          )}
           <Card>
-            <CardContent>
-              <SectionTitle>Café tablet PIN</SectionTitle>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>Your 4-digit PIN for clocking in at the counter.</Typography>
-              <Button variant="outlined" onClick={() => setPin(true)}>Set my PIN</Button>
-            </CardContent>
-          </Card>
-          <Card sx={{ mt: 2 }}>
             <CardContent>
               <SectionTitle>Password</SectionTitle>
               <Stack direction="row" spacing={1}>
@@ -59,8 +67,8 @@ export function AccountPage() {
             <CardContent>
               <SectionTitle>Your data</SectionTitle>
               <Typography variant="body2" color="text.secondary">
-                We record your clock-in and clock-out times and breaks, as Spanish law requires (registro de jornada, kept 4 years).
-                Times come from our server, not your phone. Your location is never tracked. Data is stored in the EU.
+                {isPartner ? 'Your access is read-only. Use what you see only for the work agreed with Easy Beans. Data is stored in the EU.' : <>We record your clock-in and clock-out times and breaks, as Spanish law requires (registro de jornada, kept 4 years).
+                Times come from our server, not your phone. Your location is never tracked. Data is stored in the EU.</>}
               </Typography>
             </CardContent>
           </Card>

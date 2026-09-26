@@ -28,7 +28,7 @@ function download(filename: string, rows: (string | number)[][]) {
 }
 
 export function TimecardsPage() {
-  const { api, profiles, positions, isAdmin, canSeePay, rates, me, settings } = useApp()
+  const { api, profiles, positions, isAdmin, isPartner, canSeePay, rates, me, settings } = useApp()
   const run = useAction()
   const [monday, setMonday] = useState(weekStart(today()))
   const [person, setPerson] = useState<string>('all')
@@ -71,10 +71,11 @@ export function TimecardsPage() {
     <>
       <PageHeader eyebrow="Registro de jornada" title="Timecards"
         subtitle={isAdmin ? 'Times come from the server. Cards can be corrected with a reason, never deleted.'
+          : isPartner ? 'The team’s hours, read-only. Download the CSV for payroll.'
           : 'Your hours this week. Spot a mistake? Tap the pencil to request a correction.'}
         actions={<>
           <WeekNav monday={monday} onChange={setMonday} />
-          {isAdmin && (
+          {(isAdmin || isPartner) && (
             <TextField select size="small" label="Person" value={person} onChange={e => setPerson(e.target.value)} sx={{ width: 150 }}>
               <MenuItem value="all">Everyone</MenuItem>
               {profiles.filter(p => p.role !== 'kiosk').map(p => <MenuItem key={p.id} value={p.id}>{p.full_name}</MenuItem>)}

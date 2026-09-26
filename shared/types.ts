@@ -1,4 +1,13 @@
-export type Role = 'admin' | 'employee' | 'kiosk'
+export type Role = 'admin' | 'employee' | 'kiosk' | 'partner'
+
+/** What an outside business (partner) can be given read-only access to. */
+export type PartnerArea = 'calendar' | 'rota' | 'payroll' | 'finances'
+export const PARTNER_AREAS: { key: PartnerArea; label: string; detail: string }[] = [
+  { key: 'rota', label: 'Rota', detail: 'Published shifts and approved time off' },
+  { key: 'payroll', label: 'Payroll', detail: 'Timecards, hours and pay rates' },
+  { key: 'finances', label: 'Finances', detail: 'Monthly expenses' },
+  { key: 'calendar', label: 'Calendar', detail: 'Holidays and events' },
+]
 
 export type DayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'
 export const DAY_KEYS: DayKey[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
@@ -80,6 +89,9 @@ export interface Profile {
   phone: string | null
   birth_date: string | null
   whatsapp_opt_in?: boolean
+  /** Partners only: their company and the areas they can see. */
+  partner_company?: string | null
+  partner_access?: PartnerArea[]
 }
 
 export interface Position {

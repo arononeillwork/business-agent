@@ -64,7 +64,7 @@ export function LoginPage() {
               <Typography sx={{ color: 'text.secondary', mt: 0.5 }}>Welcome back. Use the email your invite was sent to.</Typography>
             </Box>
             {api.mode === 'demo' && (
-              <Alert severity="info">Demo: use aron@example.com (admin) or maria@example.com (employee), any password.</Alert>
+              <Alert severity="info">Demo: use aron@example.com (admin), maria@example.com (employee) or laura@gestoria.example (partner), any password.</Alert>
             )}
             <TextField label="Email" type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} required />
             <Box>

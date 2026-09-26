@@ -4,7 +4,7 @@ import type { Api } from '../data/api'
 import { currentRates } from '../data/api'
 import { createDemoApi } from '../data/demoApi'
 import { createSupabaseApi } from '../data/supabaseApi'
-import type { BreakType, Business, PayRate, Position, Profile, Settings } from '../../shared/types'
+import type { BreakType, Business, PartnerArea, PayRate, Position, Profile, Settings } from '../../shared/types'
 import { StartError } from '../pages/StatusPages'
 
 export interface AppData {
@@ -18,7 +18,13 @@ export interface AppData {
   payRates: PayRate[]
   rates: Map<string, number>
   isAdmin: boolean
+  /** An outside business with read-only access to some areas. */
+  isPartner: boolean
+  partnerCan: (area: PartnerArea) => boolean
+  /** Pay rates and labour costs: admins with pay access, or payroll partners (read-only). */
   canSeePay: boolean
+  /** Monthly expenses: admins with pay access, or finance partners (read-only). */
+  canSeeFinances: boolean
   loading: boolean
   refresh: () => Promise<void>
 }
@@ -61,7 +67,7 @@ async function resolveApi(): Promise<Api> {
   return createSupabaseApi(cfg.supabaseUrl, cfg.supabaseKey)
 }
 
-type Shared = Omit<AppData, 'api' | 'refresh' | 'rates' | 'isAdmin' | 'canSeePay' | 'loading'>
+type Shared = Omit<AppData, 'api' | 'refresh' | 'rates' | 'isAdmin' | 'isPartner' | 'partnerCan' | 'canSeePay' | 'canSeeFinances' | 'loading'>
 const EMPTY: Shared = { me: null, business: null, settings: null, profiles: [], positions: [], breakTypes: [], payRates: [] }
 
 export function AppProvider({ children }: { children: ReactNode }) {
@@ -96,15 +102,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(async () => { await client.invalidateQueries() }, [client])
   const state = shared.data ?? EMPTY
 
-  const value = useMemo<AppData | null>(() => api && ({
-    ...state,
-    api,
-    refresh,
-    loading: shared.isPending,
-    rates: currentRates(state.payRates),
-    isAdmin: state.me?.role === 'admin',
-    canSeePay: state.me?.role === 'admin' && !!state.me?.can_see_pay,
-  }), [api, state, refresh, shared.isPending])
+  const value = useMemo<AppData | null>(() => {
+    if (!api) return null
+    const me = state.me
+    const isPartner = me?.role === 'partner'
+    const partnerCan = (area: PartnerArea) => !!(isPartner && me?.partner_access?.includes(area))
+    const adminPay = me?.role === 'admin' && !!me?.can_see_pay
+    return {
+      ...state,
+      api,
+      refresh,
+      loading: shared.isPending,
+      rates: currentRates(state.payRates),
+      isAdmin: me?.role === 'admin',
+      isPartner,
+      partnerCan,
+      canSeePay: adminPay || partnerCan('payroll'),
+      canSeeFinances: adminPay || partnerCan('finances'),
+    }
+  }, [api, state, refresh, shared.isPending])
 
   if (startError) return <StartError message={startError} />
   if (!value) return null
