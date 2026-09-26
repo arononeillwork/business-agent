@@ -13,10 +13,10 @@ import { TIME_OFF_LABELS, type TimeOff, type TimeOffKind } from '../../shared/ty
 import { tokens } from '../theme'
 
 const STATUS_TAG: Record<TimeOff['status'], { fg: string; bg: string; label: string }> = {
-  pending: { fg: '#7a4f10', bg: '#fbf3e6', label: 'Waiting for approval' },
-  approved: { fg: '#2f5a2b', bg: tokens.matchaSoft, label: 'Approved' },
-  declined: { fg: '#8a241a', bg: '#fbecea', label: 'Declined' },
-  cancelled: { fg: tokens.inkSoft, bg: '#f0ece8', label: 'Cancelled' },
+  pending: { fg: '#7E3F4B', bg: '#F3DED3', label: 'Waiting for approval' },
+  approved: { fg: '#4A6536', bg: tokens.matchaSoft, label: 'Approved' },
+  declined: { fg: '#8E2B3A', bg: '#F9DDE0', label: 'Declined' },
+  cancelled: { fg: tokens.inkSoft, bg: '#EFECE8', label: 'Cancelled' },
 }
 
 const days = (t: Pick<TimeOff, 'starts_on' | 'ends_on'>) => (Date.parse(t.ends_on) - Date.parse(t.starts_on)) / 86400000 + 1

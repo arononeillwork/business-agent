@@ -25,10 +25,10 @@ const META: Record<IntegrationProvider, { name: string; icon: ReactNode; does: s
 }
 
 function status(i: Integration | undefined, configured: boolean) {
-  if (!configured) return { text: 'Needs setup', fg: '#7a4f10', bg: '#fbf3e6' }
-  if (!i || i.status === 'disconnected') return { text: 'Not connected', fg: tokens.inkSoft, bg: '#f0ece8' }
-  if (i.status === 'error') return { text: 'Problem', fg: '#8a241a', bg: '#fbecea' }
-  return { text: 'Connected', fg: '#2f5a2b', bg: tokens.matchaSoft }
+  if (!configured) return { text: 'Needs setup', fg: '#7E3F4B', bg: '#F3DED3' }
+  if (!i || i.status === 'disconnected') return { text: 'Not connected', fg: tokens.inkSoft, bg: '#EFECE8' }
+  if (i.status === 'error') return { text: 'Problem', fg: '#8E2B3A', bg: '#F9DDE0' }
+  return { text: 'Connected', fg: '#4A6536', bg: tokens.matchaSoft }
 }
 
 const SETUP_HELP: Record<IntegrationProvider, string> = {
@@ -140,7 +140,7 @@ export function ConnectionsCard() {
                 const fmt = (h?: { open: string; close: string } | null) => (h ? `${h.open}–${h.close}` : 'Closed')
                 const differs = fmt(a) !== fmt(b)
                 return (
-                  <TableRow key={d} sx={{ bgcolor: differs ? '#fbf3e6' : undefined }}>
+                  <TableRow key={d} sx={{ bgcolor: differs ? '#F3DED3' : undefined }}>
                     <TableCell sx={{ textTransform: 'capitalize', fontWeight: 700 }}>{d}</TableCell>
                     <TableCell>{fmt(a)}</TableCell>
                     <TableCell sx={{ fontWeight: differs ? 800 : 400 }}>{fmt(b)}</TableCell>

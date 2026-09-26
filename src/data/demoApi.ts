@@ -73,17 +73,17 @@ export function createDemoApi(): Api {
 
   const P = { aron: 'p-aron', mark: 'p-mark', julio: 'p-julio', maria: 'p-maria', cleaner: 'p-cleaner' }
   const profiles: (Profile & { pin?: string })[] = [
-    { id: P.aron, full_name: "Aron O'Neill", email: 'aron@example.com', role: 'admin', can_see_pay: true, colour: '#6a1b9a', active: true, phone: null, birth_date: null, pin: '1111' },
-    { id: P.mark, full_name: 'Mark Murray', email: 'mark@example.com', role: 'admin', can_see_pay: true, colour: '#4527a0', active: true, phone: null, birth_date: null, pin: '2222' },
-    { id: P.julio, full_name: 'Julio', email: 'julio@example.com', role: 'employee', can_see_pay: false, colour: '#6d4c41', active: true, whatsapp_opt_in: true, phone: '+34 600 111 222', birth_date: null, pin: '1234' },
-    { id: P.maria, full_name: 'Maria', email: 'maria@example.com', role: 'employee', can_see_pay: false, colour: '#ad1457', active: true, whatsapp_opt_in: true, phone: '+34 600 333 444', birth_date: null, pin: '4321' },
-    { id: P.cleaner, full_name: 'Cleaner', email: null, role: 'employee', can_see_pay: false, colour: '#0277bd', active: true, phone: null, birth_date: null },
+    { id: P.aron, full_name: "Aron O'Neill", email: 'aron@example.com', role: 'admin', can_see_pay: true, colour: '#A85A68', active: true, phone: null, birth_date: null, pin: '1111' },
+    { id: P.mark, full_name: 'Mark Murray', email: 'mark@example.com', role: 'admin', can_see_pay: true, colour: '#5B4A86', active: true, phone: null, birth_date: null, pin: '2222' },
+    { id: P.julio, full_name: 'Julio', email: 'julio@example.com', role: 'employee', can_see_pay: false, colour: '#4A6536', active: true, whatsapp_opt_in: true, phone: '+34 600 111 222', birth_date: null, pin: '1234' },
+    { id: P.maria, full_name: 'Maria', email: 'maria@example.com', role: 'employee', can_see_pay: false, colour: '#B3404F', active: true, whatsapp_opt_in: true, phone: '+34 600 333 444', birth_date: null, pin: '4321' },
+    { id: P.cleaner, full_name: 'Cleaner', email: null, role: 'employee', can_see_pay: false, colour: '#6B645E', active: true, phone: null, birth_date: null },
   ]
   const positions: Position[] = [
-    { id: 1, name: 'Barista', colour: '#6d4c41', sort: 1, active: true },
-    { id: 2, name: 'Kitchen', colour: '#558b2f', sort: 2, active: true },
-    { id: 3, name: 'Cleaner', colour: '#0277bd', sort: 3, active: true },
-    { id: 4, name: 'Propietario', colour: '#6a1b9a', sort: 4, active: true },
+    { id: 1, name: 'Barista', colour: '#F79BA4', sort: 1, active: true },
+    { id: 2, name: 'Kitchen', colour: '#6B8E4E', sort: 2, active: true },
+    { id: 3, name: 'Cleaner', colour: '#C6C2BB', sort: 3, active: true },
+    { id: 4, name: 'Propietario', colour: '#B7A3D8', sort: 4, active: true },
   ]
   const breakTypes: BreakType[] = [
     { id: 1, name: 'Rest 15 min (paid)', minutes: 15, paid: true },

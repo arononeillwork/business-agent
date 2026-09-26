@@ -49,12 +49,12 @@ export function KioskPage() {
         { action: 'out' as Action, label: 'Clock out' }]
 
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: 'primary.main', color: '#fff', p: { xs: 2, md: 4 } }}>
+    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', color: 'text.primary', p: { xs: 2, md: 4 } }}>
       <Stack direction="row" sx={{ alignItems: 'center', mb: 3 }}>
-        <Logo size={44} />
+        <Logo size={80} />
         <Box sx={{ ml: 1.5, flex: 1 }}>
           <Typography variant="h5">{businessConfig.name}</Typography>
-          <Typography sx={{ opacity: 0.8, textTransform: 'capitalize' }}>{formatLocal(new Date(), 'EEEE d MMMM')}</Typography>
+          <Typography sx={{ color: 'text.secondary', textTransform: 'capitalize' }}>{formatLocal(new Date(), 'EEEE d MMMM')}</Typography>
         </Box>
         <Typography variant="h3" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{formatLocal(new Date(), 'HH:mm')}</Typography>
       </Stack>
@@ -64,16 +64,18 @@ export function KioskPage() {
         </Alert>
       )}
       {roster.error && <Alert severity="error">{roster.error}</Alert>}
-      <Typography variant="h6" sx={{ mb: 2, opacity: 0.9 }}>Tap your name</Typography>
+      <Typography variant="h6" sx={{ mb: 2 }}>Tap your name</Typography>
       <Grid container spacing={2}>
         {(roster.data ?? []).map(p => (
           <Grid key={p.id} size={{ xs: 6, sm: 4, md: 3 }}>
             <ButtonBase onClick={() => { setPerson(p); setAction(choices(p).length === 1 ? choices(p)[0] : null) }}
-              sx={{ width: '100%', bgcolor: '#ffffff14', borderRadius: 3, p: 2, display: 'flex', flexDirection: 'column',
-                gap: 1, border: 2, borderColor: p.status === 'in' ? 'success.light' : p.status === 'break' ? 'warning.light' : 'transparent' }}>
+              sx={{ width: '100%', bgcolor: 'background.paper', borderRadius: 5, p: 2.5, display: 'flex', flexDirection: 'column',
+                gap: 1, border: 2, boxShadow: '0 8px 24px -16px rgba(43,37,34,0.18)',
+                borderColor: p.status === 'in' ? 'success.main' : p.status === 'break' ? 'primary.main' : 'divider',
+                '&:hover': { borderColor: 'primary.dark' } }}>
               <PersonAvatar name={p.full_name} colour={p.colour} size={64} />
               <Typography variant="h6">{p.full_name.split(' ')[0]}</Typography>
-              <Typography variant="body2" sx={{ opacity: 0.8 }}>
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                 {p.status === 'in' && p.since ? `In since ${localTime(p.since)}` : p.status === 'break' && p.since
                   ? `On break · ${formatDuration(minutesBetween(p.since, new Date().toISOString()))}` : 'Not in'}
               </Typography>

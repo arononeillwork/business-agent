@@ -34,8 +34,8 @@ export function MusicCard() {
                 {m.playing ? `${m.track ?? ''}${m.artist ? ` · ${m.artist}` : ''}` : 'Not playing'}
               </Typography>
               <Stack direction="row" spacing={0.75} sx={{ mt: 0.5 }}>
-                {m.playing && <Tag fg="#2f5a2b" bg={tokens.matchaSoft}>{m.device ? `On ${m.device}` : 'Playing'}</Tag>}
-                {m.playing && !m.onApprovedPlaylist && <Tag fg="#7a4f10" bg="#fbf3e6">Not the approved playlist</Tag>}
+                {m.playing && <Tag fg="#4A6536" bg={tokens.matchaSoft}>{m.device ? `On ${m.device}` : 'Playing'}</Tag>}
+                {m.playing && !m.onApprovedPlaylist && <Tag fg="#7E3F4B" bg="#F3DED3">Not the approved playlist</Tag>}
               </Stack>
             </Box>
             {m.playing

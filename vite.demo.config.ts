@@ -10,6 +10,7 @@ export default defineConfig({
     outDir: 'dist-demo',
     emptyOutDir: true,
     cssCodeSplit: false,
+    assetsInlineLimit: 1_000_000, // logo and icon inside the single file
     modulePreload: false,
     rollupOptions: { output: { inlineDynamicImports: true } },
   },

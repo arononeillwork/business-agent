@@ -4,7 +4,7 @@ import ChevronRight from '@mui/icons-material/ChevronRight'
 import type { ReactNode } from 'react'
 import { FLAG_LABELS } from '../../shared/types'
 import { addDays, formatLocal, today, weekStart } from '../../shared/time'
-import { tokens } from '../theme'
+import { fonts, tokens } from '../theme'
 
 export function PageHeader({ eyebrow, title, subtitle, actions }: {
   eyebrow?: string; title: string; subtitle?: ReactNode; actions?: ReactNode
@@ -13,7 +13,7 @@ export function PageHeader({ eyebrow, title, subtitle, actions }: {
     <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}
       sx={{ mb: 3, alignItems: { md: 'flex-end' }, justifyContent: 'space-between' }}>
       <Box sx={{ minWidth: 0 }}>
-        {eyebrow && <Typography variant="overline" sx={{ color: tokens.matcha }}>{eyebrow}</Typography>}
+        {eyebrow && <Typography variant="overline" sx={{ color: tokens.roseDeep }}>{eyebrow}</Typography>}
         <Typography variant="h4" component="h1">{title}</Typography>
         {subtitle && <Typography sx={{ color: 'text.secondary', mt: 0.5, maxWidth: 640 }}>{subtitle}</Typography>}
       </Box>
@@ -28,11 +28,11 @@ export function PageHeader({ eyebrow, title, subtitle, actions }: {
 export function Stat({ label, value, note, tone }: {
   label: string; value: ReactNode; note?: ReactNode; tone?: 'danger' | 'warning' | 'good'
 }) {
-  const colour = tone === 'danger' ? tokens.danger : tone === 'warning' ? tokens.warning : tone === 'good' ? tokens.matcha : tokens.ink
+  const colour = tone === 'danger' ? tokens.danger : tone === 'warning' ? tokens.roseDeep : tone === 'good' ? tokens.matchaDeep : tokens.ink
   return (
-    <Box sx={{ flex: '1 1 150px', minWidth: 0, p: 2, borderRadius: 3, bgcolor: 'background.paper', border: 1, borderColor: 'divider' }}>
+    <Box sx={{ flex: '1 1 150px', minWidth: 0, p: 2.25, borderRadius: 4, bgcolor: 'background.paper', border: 1, borderColor: 'divider', boxShadow: '0 8px 24px -16px rgba(43,37,34,0.12)' }}>
       <Typography variant="overline" sx={{ color: 'text.secondary', display: 'block' }}>{label}</Typography>
-      <Typography sx={{ fontSize: '1.45rem', fontWeight: 800, color: colour, fontVariantNumeric: 'tabular-nums', lineHeight: 1.25 }}>
+      <Typography sx={{ fontFamily: fonts.display, fontSize: '1.6rem', fontWeight: 600, letterSpacing: '-0.02em', color: colour, fontVariantNumeric: 'tabular-nums', lineHeight: 1.25 }}>
         {value}
       </Typography>
       {note && <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.25 }}>{note}</Typography>}
@@ -72,7 +72,7 @@ export function Empty({ children }: { children: ReactNode }) {
 export function PersonAvatar({ name, colour, size = 32 }: { name: string; colour: string; size?: number }) {
   const initials = name.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase()
   return (
-    <Avatar sx={{ bgcolor: colour, width: size, height: size, fontSize: size * 0.38, fontWeight: 800 }}>{initials}</Avatar>
+    <Avatar sx={{ bgcolor: colour, color: '#fff', width: size, height: size, fontSize: size * 0.38, fontWeight: 600, fontFamily: fonts.display }}>{initials}</Avatar>
   )
 }
 
@@ -93,16 +93,16 @@ export function WeekNav({ monday, onChange }: { monday: string; onChange: (monda
 }
 
 const FLAG_TONE: Record<string, { fg: string; bg: string }> = {
-  missed_break: { fg: '#8a241a', bg: '#fbecea' },
-  over_daily_limit: { fg: '#8a241a', bg: '#fbecea' },
-  auto_clock_out: { fg: '#7a4f10', bg: '#fbf3e6' },
-  unscheduled: { fg: '#7a4f10', bg: '#fbf3e6' },
-  edited: { fg: tokens.inkSoft, bg: '#f0ece8' },
-  early_override: { fg: '#1f4d70', bg: '#eef4f9' },
+  missed_break: { fg: '#8E2B3A', bg: '#F9DDE0' },
+  over_daily_limit: { fg: '#8E2B3A', bg: '#F9DDE0' },
+  auto_clock_out: { fg: '#7E3F4B', bg: '#F3DED3' },
+  unscheduled: { fg: '#7E3F4B', bg: '#F3DED3' },
+  edited: { fg: tokens.inkSoft, bg: '#EFECE8' },
+  early_override: { fg: '#5B4A86', bg: '#EFE9F7' },
 }
 
 /** Soft status tag. */
-export function Tag({ children, fg = tokens.inkSoft, bg = '#f0ece8' }: { children: ReactNode; fg?: string; bg?: string }) {
+export function Tag({ children, fg = tokens.inkSoft, bg = '#EFECE8' }: { children: ReactNode; fg?: string; bg?: string }) {
   return (
     <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', px: 1, py: 0.25, borderRadius: 1.5,
       fontSize: '0.72rem', fontWeight: 700, color: fg, bgcolor: bg, whiteSpace: 'nowrap', lineHeight: 1.6 }}>

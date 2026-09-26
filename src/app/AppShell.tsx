@@ -27,7 +27,7 @@ import { useApp } from './AppContext'
 import { businessConfig } from '../../shared/business.config'
 import { Logo } from '../components/Logo'
 import { PersonAvatar } from '../components/common'
-import { tokens } from '../theme'
+import { fonts, tokens } from '../theme'
 
 interface NavItem { key: string; to: string; label: string; short?: string; icon: ReactNode }
 
@@ -135,12 +135,12 @@ export function AppShell() {
     <Box sx={{ display: 'flex', minHeight: '100vh' }}>
       {desktop && (
         <Box component="nav" aria-label="Main" sx={{ width: DRAWER, flexShrink: 0, position: 'sticky', top: 0, height: '100vh',
-          display: 'flex', flexDirection: 'column', bgcolor: tokens.surfaceAlt, borderRight: 1, borderColor: 'divider', px: 1.5 }}>
+          display: 'flex', flexDirection: 'column', bgcolor: tokens.sidebar, borderRight: 1, borderColor: 'divider', px: 1.5 }}>
           <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', px: 1, py: 2.5 }}>
-            <Logo size={34} />
+            <Logo size={40} />
             <Box sx={{ minWidth: 0 }}>
-              <Typography sx={{ fontWeight: 800, lineHeight: 1.2 }} noWrap>{businessConfig.name}</Typography>
-              <Typography variant="caption" sx={{ color: 'text.secondary' }}>Team app</Typography>
+              <Typography sx={{ fontFamily: fonts.display, fontWeight: 600, letterSpacing: '-0.02em', lineHeight: 1.2 }} noWrap>{businessConfig.shortName}</Typography>
+              <Typography variant="caption" sx={{ color: tokens.roseDeep, fontWeight: 600 }}>Coffee · Team app</Typography>
             </Box>
           </Stack>
           <Typography variant="overline" sx={{ color: 'text.disabled', px: 1.5, mt: 1 }}>Menu</Typography>

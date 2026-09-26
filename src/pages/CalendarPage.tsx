@@ -91,13 +91,13 @@ export function CalendarPage() {
         <Card>
           <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
             {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => (
-              <Box key={d} sx={{ p: 1, fontWeight: 600, fontSize: 13, borderBottom: 1, borderColor: 'divider', bgcolor: 'grey.50' }}>{d}</Box>
+              <Box key={d} sx={{ p: 1, fontWeight: 600, fontSize: 13, borderBottom: 1, borderColor: 'divider', bgcolor: '#F5F3F0' }}>{d}</Box>
             ))}
             {days.map(d => (
               <Box key={d} onClick={() => isAdmin && setEditing({ starts_on: d, ends_on: null, starts_at: null, title: '',
                 category: 'business', town: null, confirmed: true, visibility: 'all' })}
                 sx={{ minHeight: 96, p: 0.5, borderRight: 1, borderBottom: 1, borderColor: 'divider',
-                  bgcolor: d === today() ? '#f1f8e9' : d.slice(0, 7) !== month.slice(0, 7) ? 'grey.50' : undefined,
+                  bgcolor: d === today() ? '#FDEEEF' : d.slice(0, 7) !== month.slice(0, 7) ? '#F5F3F0' : undefined,
                   cursor: isAdmin ? 'pointer' : 'default' }}>
                 <Typography variant="caption" sx={{ fontWeight: d === today() ? 700 : 400,
                   color: d.slice(0, 7) !== month.slice(0, 7) ? 'text.disabled' : 'text.primary' }}>{Number(d.slice(8))}</Typography>

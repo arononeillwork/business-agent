@@ -1,30 +1,64 @@
 import { alpha, createTheme } from '@mui/material/styles'
 
-// Design tokens: espresso ink, matcha accent, warm-neutral surfaces.
-export const tokens = {
-  ink: '#1c1410',
-  inkSoft: '#5f5650',
-  inkFaint: '#8d847d',
-  espresso: '#3b2a21',
-  matcha: '#4f7d4a',
-  matchaSoft: '#e9f1e6',
-  bg: '#f5f3f0',
-  surface: '#ffffff',
-  surfaceAlt: '#faf8f6',
-  line: '#e8e3dd',
-  lineStrong: '#d9d2ca',
-  danger: '#c0392b',
-  warning: '#b7791f',
-  info: '#2f6f9f',
+// Easy Beans brand (Brand guidelines, Edition 01, April 2026, p.13–14).
+// Five colours: Rose Pink leads, Grey Limewash holds everything together, Rose Wash, Ube Lilac and
+// Matcha Green come in one at a time. Cream and white are the bases. Poppins for display,
+// Figtree for text.
+export const brand = {
+  rosePink: '#F79BA4',     // primary: headlines accents, buttons, the logo circle
+  roseDeep: '#A85A68',     // the deep step of Rose Pink, for pink text on light grounds
+  limewash: '#C6C2BB',     // secondary: surfaces and panels, used generously
+  roseWash: '#F3DED3',     // soft panels, quiet backgrounds behind copy
+  ubeLilac: '#B7A3D8',     // ube drinks, seasonal moments
+  matcha: '#6B8E4E',       // wellbeing, sourcing, "all good" cues
+  cream: '#FBF8F4',        // preferred base
+  white: '#FFFFFF',
 }
 
-const font = '"Manrope", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif'
+// Neutrals and tints derived from the brand colours (tints of the five, plus a warm ink for text).
+export const tokens = {
+  ink: '#2B2522',            // body text: warm near-black, biased toward Limewash
+  inkSoft: '#6B645E',
+  inkFaint: '#9A948D',
+  bg: brand.cream,
+  surface: brand.white,
+  surfaceAlt: '#F5F3F0',     // Limewash at ~15%
+  sidebar: '#EFECE8',        // Limewash at ~30%
+  line: '#E6E2DD',           // Limewash at ~40%
+  lineStrong: brand.limewash,
+  rose: brand.rosePink,
+  roseHover: '#F28893',
+  roseDeep: brand.roseDeep,
+  roseSoft: '#FDEEEF',       // Rose Pink at ~15%
+  roseWash: brand.roseWash,
+  ube: brand.ubeLilac,
+  ubeSoft: '#EFE9F7',
+  ubeDeep: '#5B4A86',
+  matcha: brand.matcha,
+  matchaSoft: '#E8EEE2',
+  matchaDeep: '#4A6536',
+  // Semantic states (kept inside the palette's family).
+  danger: '#B3404F',
+  dangerSoft: '#F9DDE0',
+  warning: '#9A6A12',
+  warningSoft: brand.roseWash,
+  info: '#5B4A86',
+  // Kept for existing callers.
+  espresso: '#2B2522',
+}
+
+export const fonts = {
+  display: '"Poppins", "Montserrat", system-ui, sans-serif',
+  text: '"Figtree", "Helvetica Neue", Helvetica, Arial, sans-serif',
+}
+
+const display = { fontFamily: fonts.display, fontWeight: 600, letterSpacing: '-0.02em' }
 
 export const theme = createTheme({
   palette: {
-    primary: { main: tokens.espresso, contrastText: '#fff' },
+    primary: { main: tokens.rose, dark: tokens.roseDeep, light: tokens.roseSoft, contrastText: tokens.ink },
     secondary: { main: tokens.matcha, contrastText: '#fff' },
-    success: { main: tokens.matcha },
+    success: { main: tokens.matcha, contrastText: '#fff' },
     error: { main: tokens.danger },
     warning: { main: tokens.warning },
     info: { main: tokens.info },
@@ -34,92 +68,105 @@ export const theme = createTheme({
   },
   shape: { borderRadius: 12 },
   typography: {
-    fontFamily: font,
-    fontSize: 14.5,
-    h4: { fontWeight: 800, letterSpacing: '-0.02em', fontSize: '1.9rem', lineHeight: 1.2 },
-    h5: { fontWeight: 800, letterSpacing: '-0.015em', fontSize: '1.55rem', lineHeight: 1.25 },
-    h6: { fontWeight: 700, letterSpacing: '-0.01em', fontSize: '1.08rem', lineHeight: 1.35 },
-    subtitle1: { fontWeight: 700 },
-    subtitle2: { fontWeight: 700, fontSize: '0.9rem' },
+    fontFamily: fonts.text,
+    fontSize: 15,
+    h1: display, h2: display, h3: display,
+    h4: { ...display, fontSize: '2rem', lineHeight: 1.15, letterSpacing: '-0.03em' },
+    h5: { ...display, fontSize: '1.5rem', lineHeight: 1.25 },
+    h6: { ...display, fontWeight: 500, fontSize: '1.1rem', lineHeight: 1.35, letterSpacing: '-0.01em' },
+    subtitle1: { fontWeight: 600 },
+    subtitle2: { fontWeight: 600, fontSize: '0.9rem' },
     body1: { lineHeight: 1.6 },
     body2: { lineHeight: 1.55 },
-    overline: { fontWeight: 700, letterSpacing: '0.08em', fontSize: '0.7rem', lineHeight: 1.6 },
-    caption: { lineHeight: 1.45 },
-    button: { textTransform: 'none', fontWeight: 700, letterSpacing: 0 },
+    overline: { fontFamily: fonts.text, fontWeight: 600, letterSpacing: '0.12em', fontSize: '0.69rem', lineHeight: 1.6 },
+    caption: { fontSize: '0.8rem', lineHeight: 1.45 },
+    button: { fontFamily: fonts.text, textTransform: 'none', fontWeight: 600, letterSpacing: 0 },
   },
   components: {
     MuiCssBaseline: {
       styleOverrides: {
-        body: { backgroundColor: tokens.bg, WebkitFontSmoothing: 'antialiased', fontFeatureSettings: '"tnum" 0' },
-        '::selection': { background: alpha(tokens.matcha, 0.25) },
+        body: { backgroundColor: tokens.bg, WebkitFontSmoothing: 'antialiased' },
+        '::selection': { background: alpha(tokens.rose, 0.35) },
+        ':focus-visible': { outline: `2px solid ${tokens.roseDeep}`, outlineOffset: 2 },
       },
     },
     MuiButton: {
       defaultProps: { disableElevation: true },
       styleOverrides: {
-        root: { borderRadius: 10, paddingInline: 16 },
-        sizeLarge: { paddingBlock: 12, fontSize: '1rem', borderRadius: 12 },
+        root: { borderRadius: 999, paddingInline: 18, minHeight: 38 },
+        sizeLarge: { minHeight: 48, fontSize: '1rem', paddingInline: 24 },
+        sizeSmall: { minHeight: 32, paddingInline: 14 },
         outlined: { borderColor: tokens.lineStrong, color: tokens.ink, background: tokens.surface,
-          '&:hover': { borderColor: tokens.inkFaint, background: tokens.surfaceAlt } },
+          '&:hover': { borderColor: tokens.roseDeep, background: tokens.roseSoft } },
+        text: { color: tokens.roseDeep },
       },
+      variants: [
+        { props: { variant: 'contained', color: 'primary' },
+          style: { backgroundColor: tokens.rose, color: tokens.ink, '&:hover': { backgroundColor: tokens.roseHover } } },
+      ],
     },
-    MuiIconButton: { styleOverrides: { root: { borderRadius: 10 } } },
+    MuiIconButton: { styleOverrides: { root: { borderRadius: 12 } } },
     MuiCard: {
       defaultProps: { elevation: 0 },
       styleOverrides: {
-        root: { border: `1px solid ${tokens.line}`, borderRadius: 16, backgroundImage: 'none',
-          boxShadow: '0 1px 2px rgba(28,20,16,0.04)' },
+        root: { border: `1px solid ${tokens.line}`, borderRadius: 20, backgroundImage: 'none',
+          boxShadow: '0 1px 2px rgba(43,37,34,0.03), 0 8px 24px -12px rgba(43,37,34,0.08)' },
       },
     },
-    MuiCardContent: { styleOverrides: { root: { padding: 20, '&:last-child': { paddingBottom: 20 } } } },
+    MuiCardContent: { styleOverrides: { root: { padding: 22, '&:last-child': { paddingBottom: 22 } } } },
     MuiPaper: { styleOverrides: { root: { backgroundImage: 'none' } } },
     MuiTextField: { defaultProps: { size: 'small', fullWidth: true } },
     MuiOutlinedInput: {
       styleOverrides: {
-        root: { borderRadius: 10, background: tokens.surface,
-          '& .MuiOutlinedInput-notchedOutline': { borderColor: tokens.lineStrong } },
+        root: { borderRadius: 12, background: tokens.surface,
+          '& .MuiOutlinedInput-notchedOutline': { borderColor: tokens.lineStrong },
+          '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: tokens.inkFaint },
+          '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: tokens.roseDeep } },
       },
     },
-    MuiChip: {
+    MuiInputLabel: { styleOverrides: { root: { '&.Mui-focused': { color: tokens.roseDeep } } } },
+    MuiCheckbox: { styleOverrides: { root: { '&.Mui-checked': { color: tokens.roseDeep } } } },
+    MuiSwitch: {
       styleOverrides: {
-        root: { borderRadius: 8, fontWeight: 700, fontSize: '0.75rem' },
-        sizeSmall: { height: 22 },
+        switchBase: { '&.Mui-checked': { color: tokens.roseDeep, '& + .MuiSwitch-track': { backgroundColor: tokens.rose, opacity: 1 } } },
       },
     },
+    MuiChip: { styleOverrides: { root: { borderRadius: 999, fontWeight: 600, fontSize: '0.75rem' }, sizeSmall: { height: 22 } } },
     MuiAlert: {
-      styleOverrides: {
-        root: { borderRadius: 12, alignItems: 'center' },
-      },
+      styleOverrides: { root: { borderRadius: 14, alignItems: 'center' } },
       variants: [
-        { props: { variant: 'standard', severity: 'info' }, style: { background: '#eef4f9', color: '#1f4d70' } },
-        { props: { variant: 'standard', severity: 'warning' }, style: { background: '#fbf3e6', color: '#7a4f10' } },
-        { props: { variant: 'standard', severity: 'success' }, style: { background: tokens.matchaSoft, color: '#2f5a2b' } },
-        { props: { variant: 'standard', severity: 'error' }, style: { background: '#fbecea', color: '#8a241a' } },
+        { props: { variant: 'standard', severity: 'info' }, style: { background: tokens.ubeSoft, color: tokens.ubeDeep } },
+        { props: { variant: 'standard', severity: 'warning' }, style: { background: tokens.roseWash, color: '#7E3F4B' } },
+        { props: { variant: 'standard', severity: 'success' }, style: { background: tokens.matchaSoft, color: tokens.matchaDeep } },
+        { props: { variant: 'standard', severity: 'error' }, style: { background: tokens.dangerSoft, color: '#8E2B3A' } },
+        { props: { variant: 'filled', severity: 'success' }, style: { background: tokens.ink, color: '#fff' } },
+        { props: { variant: 'filled', severity: 'info' }, style: { background: tokens.ink, color: '#fff' } },
       ],
     },
     MuiTableCell: {
       styleOverrides: {
         root: { borderColor: tokens.line, paddingBlock: 12 },
-        head: { fontSize: '0.7rem', fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase',
-          color: tokens.inkFaint, background: tokens.surfaceAlt },
+        head: { fontSize: '0.69rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase',
+          color: tokens.inkSoft, background: tokens.surfaceAlt },
       },
     },
-    MuiDialog: { styleOverrides: { paper: { borderRadius: 20, border: `1px solid ${tokens.line}` } } },
-    MuiDialogTitle: { styleOverrides: { root: { fontWeight: 800, fontSize: '1.2rem', paddingTop: 22 } } },
-    MuiTooltip: { styleOverrides: { tooltip: { background: tokens.ink, fontSize: '0.78rem', borderRadius: 8, padding: '8px 10px' } } },
+    MuiDialog: { styleOverrides: { paper: { borderRadius: 24, border: `1px solid ${tokens.line}` } } },
+    MuiDialogTitle: { styleOverrides: { root: { ...display, fontSize: '1.25rem', paddingTop: 24 } } },
+    MuiTooltip: { styleOverrides: { tooltip: { background: tokens.ink, fontSize: '0.8rem', borderRadius: 10, padding: '8px 10px' } } },
     MuiListItemButton: {
       styleOverrides: {
-        root: { borderRadius: 10,
-          '&.Mui-selected': { background: tokens.matchaSoft, color: '#2f5a2b',
-            '& .MuiListItemIcon-root': { color: tokens.matcha } },
-          '&.Mui-selected:hover': { background: '#dfeada' } },
+        root: { borderRadius: 12,
+          '&:hover': { background: alpha(tokens.rose, 0.12) },
+          '&.Mui-selected': { background: tokens.surface, color: tokens.ink, boxShadow: `inset 3px 0 0 ${tokens.rose}, 0 1px 2px rgba(43,37,34,0.06)`,
+            '& .MuiListItemIcon-root': { color: tokens.roseDeep } },
+          '&.Mui-selected:hover': { background: tokens.surface } },
       },
     },
-    MuiBottomNavigation: { styleOverrides: { root: { height: 64, borderTop: `1px solid ${tokens.line}` } } },
+    MuiBottomNavigation: { styleOverrides: { root: { height: 66, borderTop: `1px solid ${tokens.line}`, background: tokens.surface } } },
     MuiBottomNavigationAction: {
-      styleOverrides: { root: { color: tokens.inkFaint, '&.Mui-selected': { color: tokens.espresso } },
-        label: { fontWeight: 700, fontSize: '0.7rem', '&.Mui-selected': { fontSize: '0.7rem' } } },
+      styleOverrides: { root: { color: tokens.inkFaint, '&.Mui-selected': { color: tokens.roseDeep } },
+        label: { fontWeight: 600, fontSize: '0.7rem', '&.Mui-selected': { fontSize: '0.7rem' } } },
     },
-    MuiSnackbarContent: { styleOverrides: { root: { borderRadius: 12 } } },
+    MuiLink: { styleOverrides: { root: { color: tokens.roseDeep } } },
   },
 })

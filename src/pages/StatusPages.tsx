@@ -8,7 +8,7 @@ function Panel({ title, children, action }: { title: string; children: React.Rea
       <Card sx={{ width: '100%', maxWidth: 420 }}>
         <CardContent>
           <Stack spacing={2}>
-            <Logo size={40} />
+            <Logo size={88} />
             <Typography variant="h6">{title}</Typography>
             <Typography sx={{ color: 'text.secondary' }}>{children}</Typography>
             {action}

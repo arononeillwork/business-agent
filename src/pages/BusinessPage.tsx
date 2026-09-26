@@ -60,7 +60,7 @@ export function BusinessPage() {
     <>
       <PageHeader eyebrow="Business" title={b.name}
         subtitle={[b.business_type, b.address].filter(Boolean).join(' · ')}
-        actions={<Tag fg={status.open ? '#2f5a2b' : tokens.inkSoft} bg={status.open ? tokens.matchaSoft : '#f0ece8'}>● {status.text}</Tag>} />
+        actions={<Tag fg={status.open ? '#4A6536' : tokens.inkSoft} bg={status.open ? tokens.matchaSoft : '#EFECE8'}>● {status.text}</Tag>} />
 
       <Grid container spacing={2.5}>
         <Grid size={{ xs: 12, md: 6, lg: 4 }}>
@@ -90,7 +90,7 @@ export function BusinessPage() {
                   const isToday = d === todayKey
                   return (
                     <Stack key={d} direction="row" sx={{ justifyContent: 'space-between', py: 0.9, px: 1.25, mx: -1.25, borderRadius: 2,
-                      bgcolor: isToday ? tokens.matchaSoft : 'transparent' }}>
+                      bgcolor: isToday ? tokens.roseSoft : 'transparent' }}>
                       <Typography component="dt" sx={{ fontWeight: isToday ? 800 : 500 }}>{DAY_LABELS[d]}{isToday ? ' · today' : ''}</Typography>
                       <Typography component="dd" sx={{ m: 0, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: h ? 'text.primary' : 'text.secondary' }}>
                         {h ? `${h.open} – ${h.close}` : 'Closed'}
@@ -167,8 +167,8 @@ export function BusinessPage() {
                 <SectionTitle action={edit('notes')}>Notes</SectionTitle>
                 <Typography sx={{ whiteSpace: 'pre-wrap', color: b.notes ? 'text.primary' : 'text.secondary' }}>{b.notes || 'No notes.'}</Typography>
                 {isAdmin && (
-                  <Box sx={{ mt: 2, p: 1.5, borderRadius: 2.5, bgcolor: '#fbf3e6' }}>
-                    <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', color: '#7a4f10', mb: 0.5 }}>
+                  <Box sx={{ mt: 2, p: 1.5, borderRadius: 2.5, bgcolor: '#F3DED3' }}>
+                    <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', color: '#7E3F4B', mb: 0.5 }}>
                       <LockIcon sx={{ fontSize: 16 }} />
                       <Typography variant="subtitle2">Admin-only notes</Typography>
                     </Stack>

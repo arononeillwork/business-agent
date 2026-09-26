@@ -1,10 +1,15 @@
-/** Brand mark, inline so it works in every build (including the single-file demo). */
+import logoUrl from '../assets/logo.png'
+import iconUrl from '../assets/icon.png'
+
+/**
+ * The Easy Beans mark, from the approved files (Drive › Font & logo). Per the brand guidelines:
+ * the full lockup (rose pink circle) from 80px up; below that, the cup icon on its own.
+ * Never recoloured, stretched or redrawn.
+ */
 export function Logo({ size = 28 }: { size?: number }) {
+  const full = size >= 80
   return (
-    <svg width={size} height={size} viewBox="0 0 512 512" aria-hidden="true" focusable="false">
-      <rect width="512" height="512" rx="96" fill="#3e2723" />
-      <ellipse cx="256" cy="256" rx="120" ry="170" transform="rotate(35 256 256)" fill="#a5d6a7" />
-      <path d="M200 140c70 60 70 170 112 232" stroke="#3e2723" strokeWidth="22" fill="none" strokeLinecap="round" />
-    </svg>
+    <img src={full ? logoUrl : iconUrl} width={size} height={size} alt={full ? 'Easy Beans Coffee' : ''}
+      style={{ display: 'block', borderRadius: full ? '50%' : 8, flexShrink: 0 }} />
   )
 }

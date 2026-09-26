@@ -27,10 +27,10 @@ insert into public.business_admin_notes (id, notes) values (1, null) on conflict
 insert into public.settings (id) values (1) on conflict (id) do nothing;
 
 insert into public.positions (name, colour, sort) values
-  ('Barista', '#6d4c41', 1),
-  ('Kitchen', '#558b2f', 2),
-  ('Cleaner', '#0277bd', 3),
-  ('Propietario', '#6a1b9a', 4)
+  ('Barista', '#F79BA4', 1),
+  ('Kitchen', '#6B8E4E', 2),
+  ('Cleaner', '#C6C2BB', 3),
+  ('Propietario', '#B7A3D8', 4)
 on conflict (name) do nothing;
 
 insert into public.break_types (name, minutes, paid)

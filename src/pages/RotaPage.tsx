@@ -116,11 +116,11 @@ export function RotaPage() {
       <Box onClick={e => { e.stopPropagation(); if (isAdmin) openDraft(s.profile_id, localDate(s.starts_at), s)
         else if (!s.profile_id) run(async () => { await api.takeOpenShift(s.id); await data.reload() }, 'Shift is yours') }}
         sx={{
-          borderLeft: 3, borderColor: pos?.colour ?? 'grey.500', bgcolor: `${pos?.colour ?? '#9e9e9e'}12`,
+          borderLeft: 3, borderColor: pos?.colour ?? '#C6C2BB', bgcolor: `${pos?.colour ?? '#C6C2BB'}12`,
           borderRadius: 2, px: 1, py: 0.75, mb: 0.75, cursor: clickable ? 'pointer' : 'default',
           outline: s.profile_id === me?.id ? '2px solid' : 'none', outlineColor: 'secondary.main', outlineOffset: -1,
           transition: 'background .15s',
-          '&:hover': clickable ? { bgcolor: `${pos?.colour ?? '#9e9e9e'}24` } : {},
+          '&:hover': clickable ? { bgcolor: `${pos?.colour ?? '#C6C2BB'}24` } : {},
         }}>
         <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
           <Typography variant="body2" sx={{ fontWeight: 800, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em', whiteSpace: 'nowrap', fontSize: '0.84rem' }}>
@@ -142,7 +142,7 @@ export function RotaPage() {
   }
 
   const rows: { id: string | null; name: string; colour: string }[] = [
-    { id: null, name: 'Open shifts', colour: '#bdbdbd' },
+    { id: null, name: 'Open shifts', colour: '#C6C2BB' },
     ...people.map(p => ({ id: p.id, name: p.full_name, colour: p.colour })),
   ]
 
@@ -204,7 +204,7 @@ export function RotaPage() {
             const coverage = dayCoverage(date, weekShifts, openingHours, business?.peak_hours ?? undefined)
             const open = openingHours[['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'][days.indexOf(date)] as 'mon']
             return (
-              <Box key={date} sx={{ ...cellSx, minHeight: 0, bgcolor: date === today() ? tokens.matchaSoft : tokens.surfaceAlt }}>
+              <Box key={date} sx={{ ...cellSx, minHeight: 0, bgcolor: date === today() ? tokens.roseSoft : tokens.surfaceAlt }}>
                 <Stack direction="row" spacing={0.75} sx={{ alignItems: 'baseline' }}>
                   <Typography sx={{ fontWeight: 800, fontSize: '1.25rem', lineHeight: 1.2 }}>{formatLocal(`${date}T12:00:00Z`, 'd')}</Typography>
                   <Typography variant="overline" sx={{ color: 'text.secondary' }}>{formatLocal(`${date}T12:00:00Z`, 'EEE')}</Typography>
@@ -237,7 +237,7 @@ export function RotaPage() {
             const week = row.id ? weeklyCheck(weekShifts.filter(s => s.profile_id === row.id), ctx.limits) : null
             if (!row.id && rowShifts.length === 0 && !isAdmin) return null
             return [
-              <Box key={`${row.id}-name`} sx={{ ...cellSx, bgcolor: row.id ? 'background.paper' : 'grey.50' }}>
+              <Box key={`${row.id}-name`} sx={{ ...cellSx, bgcolor: row.id ? 'background.paper' : '#F5F3F0' }}>
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                   <PersonAvatar name={row.name} colour={row.colour} size={28} />
                   <Box sx={{ minWidth: 0 }}>
@@ -254,11 +254,11 @@ export function RotaPage() {
               </Box>,
               ...days.map(date => (
                 <Box key={`${row.id}-${date}`} sx={{ ...cellSx, cursor: isAdmin ? 'pointer' : 'default',
-                  bgcolor: date === today() ? '#fbfdf7' : undefined, '&:hover': isAdmin ? { bgcolor: 'grey.50' } : {} }}
+                  bgcolor: date === today() ? '#FEF7F7' : undefined, '&:hover': isAdmin ? { bgcolor: '#F5F3F0' } : {} }}
                   onClick={() => isAdmin && openDraft(row.id, date)}>
                   {row.id && (data.data?.timeOff ?? []).some(t => t.profile_id === row.id && t.status === 'approved' && date >= t.starts_on && date <= t.ends_on) && (
-                    <Box sx={{ px: 1, py: 0.75, mb: 0.75, borderRadius: 2, fontSize: '0.78rem', fontWeight: 700, color: '#1f4d70',
-                      background: 'repeating-linear-gradient(135deg, #eef4f9, #eef4f9 6px, #e2edf5 6px, #e2edf5 12px)' }}>
+                    <Box sx={{ px: 1, py: 0.75, mb: 0.75, borderRadius: 2, fontSize: '0.78rem', fontWeight: 700, color: '#5B4A86',
+                      background: 'repeating-linear-gradient(135deg, #EFE9F7, #EFE9F7 6px, #E6DDF3 6px, #E6DDF3 12px)' }}>
                       Time off
                     </Box>
                   )}

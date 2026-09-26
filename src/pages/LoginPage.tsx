@@ -4,6 +4,7 @@ import { useApp } from '../app/AppContext'
 import { useAction, useNotify } from '../app/Notify'
 import { businessConfig } from '../../shared/business.config'
 import { Logo } from '../components/Logo'
+import { tokens } from '../theme'
 import GoogleIcon from '@mui/icons-material/Google'
 
 export function LoginPage() {
@@ -22,15 +23,16 @@ export function LoginPage() {
   }
 
   return (
-    <Box sx={{ minHeight: '100vh', display: 'grid', placeItems: 'center', p: 2 }}>
-      <Card sx={{ width: '100%', maxWidth: 380 }}>
-        <CardContent component="form" onSubmit={submit}>
+    <Box sx={{ minHeight: '100vh', display: 'grid', placeItems: 'center', p: 2,
+      background: `radial-gradient(1200px 600px at 50% -10%, ${tokens.roseWash} 0%, ${tokens.bg} 60%)` }}>
+      <Card sx={{ width: '100%', maxWidth: 400 }}>
+        <CardContent component="form" onSubmit={submit} sx={{ p: { xs: 3, sm: 4 } }}>
           <Stack spacing={2}>
-            <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
-              <Logo size={40} />
+            <Stack spacing={1.5} sx={{ alignItems: 'center', textAlign: 'center', mb: 1 }}>
+              <Logo size={112} />
               <Box>
-                <Typography variant="h6">{businessConfig.name}</Typography>
-                <Typography variant="body2" color="text.secondary">Team sign-in</Typography>
+                <Typography variant="h5" component="h1">Team sign-in</Typography>
+                <Typography variant="body2" color="text.secondary">{businessConfig.name} · rota, hours and time off</Typography>
               </Box>
             </Stack>
             <Button variant="outlined" size="large" startIcon={<GoogleIcon />} onClick={() => run(() => api.signInWithGoogle())}>

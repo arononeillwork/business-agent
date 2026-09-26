@@ -10,10 +10,11 @@ export const businessConfig = {
   locale: 'es-ES',
   currency: 'EUR',
   weekStartsOn: 1 as const, // Monday
+  // Brand guidelines, Edition 01 (April 2026): see src/theme.ts for the full palette.
   brand: {
-    primary: '#3e2723',
-    secondary: '#a5d6a7',
-    background: '#faf7f2',
+    primary: '#F79BA4',     // Rose Pink
+    secondary: '#C6C2BB',   // Grey Limewash
+    background: '#FBF8F4',  // cream
   },
   // Spain: Estatuto de los Trabajadores defaults. Convenio may be stricter; admins can edit
   // the live values in Settings, these are fallbacks.

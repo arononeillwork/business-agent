@@ -42,7 +42,7 @@ function ClockCard({ onChange }: { onChange: () => void }) {
   const now = new Date().toISOString()
 
   return (
-    <Card sx={{ bgcolor: entry ? (openBreak ? '#fff8e1' : '#e8f5e9') : 'background.paper' }}>
+    <Card sx={{ bgcolor: entry ? (openBreak ? '#F3DED3' : '#E8EEE2') : 'background.paper' }}>
       <CardContent>
         <Stack spacing={2}>
           <Box>
@@ -164,7 +164,7 @@ export function TodayPage() {
     <>
       <PageHeader eyebrow={formatLocal(new Date(), 'EEEE d MMMM')} title={`Hola, ${me?.full_name.split(' ')[0]}`}
         subtitle="Your clock, today's team and what's coming up."
-        actions={holiday && <Tag fg="#8a241a" bg="#fbecea">Holiday · {holiday.title}</Tag>} />
+        actions={holiday && <Tag fg="#8E2B3A" bg="#F9DDE0">Holiday · {holiday.title}</Tag>} />
       <ErrorBox error={data.error} />
       {isAdmin && (data.data?.timeOff ?? []).some(t => t.status === 'pending') && (
         <Alert severity="info" sx={{ mb: 2 }} action={<Button component={Link} to="/time-off" color="inherit">Review</Button>}>
@@ -206,7 +206,7 @@ export function TodayPage() {
                   const p = person(s.profile_id)
                   return (
                     <ListItem key={s.id} disableGutters>
-                      <ListItemAvatar>{p ? <PersonAvatar name={p.full_name} colour={p.colour} /> : <PersonAvatar name="?" colour="#bdbdbd" />}</ListItemAvatar>
+                      <ListItemAvatar>{p ? <PersonAvatar name={p.full_name} colour={p.colour} /> : <PersonAvatar name="?" colour="#C6C2BB" />}</ListItemAvatar>
                       <ListItemText primary={p?.full_name ?? 'Open shift'}
                         secondary={`${localTime(s.starts_at)}–${localTime(s.ends_at)} · ${position(s.position_id)?.name ?? ''}`} />
                     </ListItem>
