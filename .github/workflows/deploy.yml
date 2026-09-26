@@ -24,8 +24,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
       GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
@@ -37,6 +35,8 @@ jobs:
     steps:
       - name: Check the Cloudflare token is set
         id: gate
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
             echo "::warning::Add the CLOUDFLARE_API_TOKEN repo secret to deploy."
@@ -58,6 +58,10 @@ jobs:
         run: npm run build
       - name: Check the Cloudflare token works
         if: steps.gate.outputs.ready == 'true'
+        # Exports the cleaned CLOUDFLARE_API_TOKEN (and account ID) for the steps after it.
+        env:
+          CF_TOKEN_SECRET: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT_SECRET: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: node scripts/ops/cloudflare-token.mjs
       - name: Deploy the Worker
         id: deploy

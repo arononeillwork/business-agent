@@ -5,7 +5,7 @@
 // Prints a diagnosis on failure, never the token itself.
 import { appendFileSync } from 'node:fs'
 
-const raw = process.env.CLOUDFLARE_API_TOKEN ?? ''
+const raw = process.env.CF_TOKEN_SECRET ?? ''
 const token = raw.trim().replace(/^Bearer\s+/i, '')
 const out = (k, v) => appendFileSync(process.env.GITHUB_ENV, `${k}=${v}\n`)
 const cf = async path => {
@@ -14,19 +14,18 @@ const cf = async path => {
 }
 const errs = r => (r.errors ?? []).map(e => `${e.code}: ${e.message}`).join('; ')
 
-if (token !== raw) {
-  console.log('Token had surrounding spaces, line breaks or a "Bearer " prefix; trimmed it.')
-  console.log(`::add-mask::${token}`)
-  out('CLOUDFLARE_API_TOKEN', token)
-}
+if (token !== raw) console.log('Token had surrounding spaces, line breaks or a "Bearer " prefix; trimmed it.')
+console.log(`::add-mask::${token}`)
+out('CLOUDFLARE_API_TOKEN', token)
 
 const user = await cf('/user/tokens/verify')
 if (user.success && user.result?.status === 'active') {
   console.log('Cloudflare user API token is active.')
+  if (process.env.CF_ACCOUNT_SECRET?.trim()) out('CLOUDFLARE_ACCOUNT_ID', process.env.CF_ACCOUNT_SECRET.trim())
   process.exit(0)
 }
 
-let accountId = process.env.CLOUDFLARE_ACCOUNT_ID?.trim()
+let accountId = process.env.CF_ACCOUNT_SECRET?.trim()
 if (!accountId) {
   const accounts = await cf('/accounts')
   if (accounts.success && accounts.result?.length) {
