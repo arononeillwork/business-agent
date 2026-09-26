@@ -51,3 +51,8 @@ const after = Object.keys(patch).length ? await api('PATCH', patch) : current
 console.log(`Supabase Auth: site ${after.site_url}`)
 console.log(`Redirects allowed: ${after.uri_allow_list}`)
 console.log(`Sign-in methods on: email=${!!after.external_email_enabled} google=${!!after.external_google_enabled} microsoft=${!!after.external_azure_enabled}`)
+// Read back: the sign-in email must carry the code, or "Email me a sign-in code" can't work.
+const check = await api('GET')
+const hasCode = String(check.mailer_templates_magic_link_content ?? '').includes('{{ .Token }}')
+console.log(`Sign-in email shows the 6-digit code: ${hasCode}`)
+if (!hasCode) { console.log('::error::Supabase did not keep the sign-in email template (it may need custom SMTP)'); process.exit(1) }
