@@ -63,12 +63,19 @@ A single-file clickable demo (sample data, no backend) builds with
 
 ## Deploy (Cloudflare)
 
-1. Cloudflare dashboard → Workers & Pages → Create → **Import a repository** → `business-agent`.
-   Build command `npm run build`, deploy command `npx wrangler deploy`.
-2. Add the secret `SUPABASE_SERVICE_ROLE_KEY` (Worker → Settings → Variables and secrets).
-3. In Supabase → Authentication → URL configuration, set the Site URL to the Worker URL and
-   add `<worker-url>/**` to redirect URLs. Turn off public sign-ups (the app is invite-only anyway).
-4. Sign up first as the owner (the first account becomes admin), then invite the team from the Team page.
+Automatic: `.github/workflows/deploy.yml` runs every test, then deploys on each push to `main`
+(or the working branch). It sets the Worker's secrets (service key from Supabase, a generated
+`INTEGRATION_KEY`, and any integration secrets you add), points Supabase sign-in at the live
+URL, and smoke-tests the live site. It needs two repo secrets (Settings → Secrets and variables →
+Actions): `CLOUDFLARE_API_TOKEN` (template "Edit Cloudflare Workers") and `SUPABASE_ACCESS_TOKEN`
+(Supabase → Account → Access tokens). Optional: `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` also
+switch on Google sign-in.
+
+Microsoft sign-in: run the **Set up Microsoft sign-in** workflow (or change
+`ops/setup-microsoft.txt`). It prints a code to enter at microsoft.com/devicelogin, creates the
+Entra app and switches the provider on in Supabase.
+
+The first account to sign up becomes the admin; invite everyone else from the Team page.
 
 ## Connect Claude
 

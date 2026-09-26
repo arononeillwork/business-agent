@@ -1,0 +1,67 @@
+name: Set up Microsoft sign-in
+# One-off: creates the "Easy Beans Team" app in Microsoft Entra ID (personal Outlook/Hotmail and
+# work accounts) and switches on Microsoft sign-in in Supabase with it. The client secret goes
+# straight from Microsoft to Supabase; it is masked and never printed.
+# Sign-in uses a device code: the log prints a code, the owner enters it at
+# https://microsoft.com/devicelogin within 15 minutes. Needs the SUPABASE_ACCESS_TOKEN secret.
+# Runs when triggered by hand, or when ops/setup-microsoft.txt changes.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, claude/easy-beans-architecture-plan-dknqka]
+    paths: [ops/setup-microsoft.txt]
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      REDIRECT: https://lhakrmmoxaareykglmtx.supabase.co/auth/v1/callback
+      APP_NAME: Easy Beans Team
+    steps:
+      - uses: actions/checkout@v4
+      - name: Needs the Supabase token
+        run: |
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then echo "::error::Add the SUPABASE_ACCESS_TOKEN repo secret first"; exit 1; fi
+      - name: Sign in to Microsoft (enter the code shown below at microsoft.com/devicelogin)
+        run: az login --use-device-code --allow-no-subscriptions --output none
+      - name: Create or update the app registration
+        id: app
+        run: |
+          set -euo pipefail
+          app=$(az ad app list --display-name "$APP_NAME" --query "[0].appId" -o tsv)
+          if [ -z "$app" ]; then
+            # Personal accounts need v2 tokens, which must be set before the audience can include them.
+            app=$(az ad app create --display-name "$APP_NAME" --sign-in-audience AzureADMultipleOrgs \
+              --web-redirect-uris "$REDIRECT" --query appId -o tsv)
+            az ad app update --id "$app" --set api.requestedAccessTokenVersion=2
+            az ad app update --id "$app" --sign-in-audience AzureADandPersonalMicrosoftAccount
+            echo "Created app $app"
+          else
+            az ad app update --id "$app" --web-redirect-uris "$REDIRECT"
+            echo "Reusing app $app"
+          fi
+          # Microsoft Graph delegated: openid, email, profile, User.Read
+          cat > perms.json <<'JSON'
+          [{"resourceAppId":"00000003-0000-0000-c000-000000000000","resourceAccess":[
+            {"id":"37f7f235-527c-4136-accd-4a02d197296e","type":"Scope"},
+            {"id":"64a6cdd6-aab1-4aaf-94b8-3cc8405e90d0","type":"Scope"},
+            {"id":"14dad69e-099b-42c9-810b-d002981feec1","type":"Scope"},
+            {"id":"e1fe6dd8-ba31-4d61-89e7-88639da4683d","type":"Scope"}]}]
+          JSON
+          az ad app update --id "$app" --required-resource-accesses @perms.json
+          cat > claims.json <<'JSON'
+          {"idToken":[{"name":"email","essential":false}],"accessToken":[],"saml2Token":[]}
+          JSON
+          az ad app update --id "$app" --optional-claims @claims.json
+          secret=$(az ad app credential reset --id "$app" --display-name "supabase-$(date +%Y%m%d)" --years 2 --append --query password -o tsv)
+          echo "::add-mask::$secret"
+          echo "client_id=$app" >> "$GITHUB_OUTPUT"
+          echo "AZURE_CLIENT_SECRET=$secret" >> "$GITHUB_ENV"
+          echo "Microsoft app (client) ID: $app" >> "$GITHUB_STEP_SUMMARY"
+          echo "Client secret expires in 2 years ($(date -d '+2 years' +%Y-%m-%d))." >> "$GITHUB_STEP_SUMMARY"
+      - name: Switch on Microsoft sign-in in Supabase
+        run: node scripts/ops/supabase-auth.mjs | tee -a "$GITHUB_STEP_SUMMARY"
+        env:
+          AZURE_CLIENT_ID: ${{ steps.app.outputs.client_id }}

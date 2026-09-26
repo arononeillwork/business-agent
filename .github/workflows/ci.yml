@@ -3,7 +3,10 @@ name: CI
 # browser tests against the demo. A red run means don't deploy.
 on:
   push:
+    # These branches run the same checks inside deploy.yml before deploying.
+    branches-ignore: [main, claude/easy-beans-architecture-plan-dknqka]
   pull_request:
+  workflow_call:
 
 jobs:
   checks:
