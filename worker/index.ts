@@ -54,14 +54,25 @@ app.post('/api/admin/invite', async c => {
   // only reaches the project's own members). app_metadata is service-only, so the role is trusted.
   if (body.password !== undefined) {
     if (body.password.length < 8) return c.json({ error: 'The temporary password needs at least 8 characters' }, 400)
-    const { error: createError } = await serviceClient(c.env).auth.admin.createUser({
+    const svc = serviceClient(c.env)
+    const { data: created, error: createError } = await svc.auth.admin.createUser({
       email, password: body.password, email_confirm: true,
       user_metadata: { full_name: body.full_name.trim() },
       app_metadata: { created_by_admin: true, role, ...partner },
     })
-    if (createError) {
-      return c.json({ error: /already|exists|registered/i.test(createError.message)
-        ? 'Someone with that email already has an account' : createError.message }, 400)
+    if (createError || !created.user) {
+      return c.json({ error: /already|exists|registered/i.test(createError?.message ?? '')
+        ? 'Someone with that email already has an account' : createError?.message ?? 'Could not create the account' }, 400)
+    }
+    // Set the role and switch the account on explicitly: Supabase may store app_metadata after
+    // the new-user trigger has already run, which left these accounts inactive.
+    const { error: profileError } = await svc.from('profiles').update({
+      full_name: body.full_name.trim(), role, active: true,
+      ...(role === 'partner' ? partner : {}),
+    }).eq('id', created.user.id)
+    if (profileError) {
+      await svc.auth.admin.deleteUser(created.user.id)
+      return c.json({ error: `Could not set up the account: ${profileError.message}` }, 500)
     }
     return c.json({ ok: true, created: true })
   }

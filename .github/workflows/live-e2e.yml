@@ -43,10 +43,10 @@ jobs:
         run: node scripts/ops/service-key.mjs
       # One file at a time: both set up and remove the same test accounts.
       - name: Every page, every role
-        run: npx playwright test e2e/live-journeys.spec.ts --project desktop --workers 1
+        run: npx playwright test e2e/live-journeys.spec.ts --project desktop --workers 1 --output test-results/journeys
       - name: Sign-in, clocking, pay privacy, kiosk, AI connector
         if: success() || failure()
-        run: npx playwright test e2e/live.spec.ts --project desktop --workers 1
+        run: npx playwright test e2e/live.spec.ts --project desktop --workers 1 --output test-results/core
       # Also when a retry passed: the first attempt's trace explains flaky tests.
       - uses: actions/upload-artifact@v4
         if: always()
