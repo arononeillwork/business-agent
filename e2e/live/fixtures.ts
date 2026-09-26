@@ -57,7 +57,55 @@ export async function cleanUp(admin: SupabaseClient) {
   must(await admin.from('calendar_events').delete().in('created_by', ids))
   must(await admin.from('pay_rates').delete().in('profile_id', ids))
   must(await admin.from('kiosk_attempts').delete().in('profile_id', ids))
+  // Rows the journey tests (live-journeys.spec.ts) may leave behind. Columns that point at a
+  // test account without "on delete" would otherwise block deleting the account.
+  must(await admin.from('time_off').delete().in('profile_id', ids))
+  must(await admin.from('expenses').delete().like('name', `${TEST_ROW_PREFIX}%`))
+  must(await admin.from('expenses').update({ updated_by: null }).in('updated_by', ids))
+  for (const table of ['business', 'business_admin_notes', 'settings']) {
+    must(await admin.from(table).update({ updated_by: null }).in('updated_by', ids))
+  }
+  await purgeTestAlerts(admin, ids)
   for (const id of ids) must(await admin.auth.admin.deleteUser(id))
+}
+
+/** Names of rows the tests create (expenses, events) start with this, so clean-up can find them. */
+export const TEST_ROW_PREFIX = 'E2E test '
+
+/** An outside business with a read-only login (payroll + finances), for the partner journey. */
+export const PARTNER = {
+  email: `e2e-partner@${DOMAIN}`, name: 'Paula Test', company: 'E2E Gestoría Test', access: ['payroll', 'finances'],
+} as const
+
+/** Create the partner account (after setUp). cleanUp removes it with the other test accounts. */
+export async function addPartner(cfg: LiveConfig) {
+  const admin = service(cfg)
+  const { data, error } = await admin.auth.admin.createUser({
+    email: PARTNER.email, password: PASSWORD, email_confirm: true, user_metadata: { full_name: PARTNER.name },
+  })
+  if (error) throw error
+  const { error: e2 } = await admin.from('profiles').update({
+    role: 'partner', can_see_pay: false, active: true, partner_company: PARTNER.company, partner_access: [...PARTNER.access],
+  }).eq('id', data.user.id)
+  if (e2) throw e2
+  return data.user.id
+}
+
+/**
+ * Drop WhatsApp alerts about test accounts that haven't gone out yet (e.g. "Eva Test requested
+ * time off" queued for the real admins), so the tests never message real people.
+ */
+export async function purgeTestAlerts(admin: SupabaseClient, ids: string[] = []) {
+  const names = [...Object.values(USERS).map(u => u.name), PARTNER.name]
+  const must = (r: { error: { message: string } | null }) => { if (r.error) throw new Error(r.error.message) }
+  for (const name of names) {
+    must(await admin.from('outbox').delete().eq('kind', 'whatsapp').in('status', ['pending', 'failed'])
+      .contains('payload', { params: [name] }))
+  }
+  for (const id of ids) {
+    must(await admin.from('outbox').delete().eq('kind', 'whatsapp').in('status', ['pending', 'failed'])
+      .contains('payload', { profile_id: id }))
+  }
 }
 
 /** Fresh test accounts with known roles, a pay rate for "other", and a kiosk PIN for "employee". */
