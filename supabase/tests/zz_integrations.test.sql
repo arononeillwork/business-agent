@@ -299,3 +299,29 @@ do $$ begin
   assert (select role = 'employee' and not active from public.profiles where email = 'selfmade@test'),
     'user metadata alone (self sign-up) never grants a role or access';
 end $$;
+
+-- 13. Sports: staff read, admins choose what to follow, nobody else writes -------------------
+reset role;
+insert into public.sports_events (id, competition, sport, starts_at, title, big)
+  values ('t:1', 'es-laliga', 'football', now() + interval '1 day', 'Barcelona vs Real Madrid', true);
+select pg_temp.act_as('julio@test');
+do $$ begin
+  assert (select count(*) from public.sports_competitions) >= 20, 'staff see the catalogue';
+  assert (select count(*) from public.sports_events) = 1, 'staff see fixtures';
+end $$;
+update public.sports_competitions set followed = false where code = 'es-laliga';
+select pg_temp.expect_error($q$insert into public.sports_events (id, competition, sport, starts_at, title) values ('t:2', 'ufc', 'ufc', now(), 'x')$q$, 'permission denied');
+select pg_temp.act_as('supplier@test');
+do $$ begin
+  assert (select count(*) from public.sports_events) = 0, 'partners do not see sports';
+end $$;
+select pg_temp.act_as('maria@test');
+do $$ begin
+  assert (select followed from public.sports_competitions where code = 'es-laliga'), 'an employee cannot unfollow';
+end $$;
+update public.sports_competitions set followed = false where code = 'es-laliga';
+select pg_temp.expect_error($q$update public.sports_competitions set source_id = 'x' where code = 'es-laliga'$q$, 'permission denied');
+do $$ begin
+  assert not (select followed from public.sports_competitions where code = 'es-laliga'), 'an admin can unfollow';
+end $$;
+reset role;

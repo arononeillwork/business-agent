@@ -9,6 +9,10 @@ built-in **AI connector** so owners can run it by talking to Claude.
 - Hosting: one Cloudflare Worker. Data and login: Supabase (EU): email/password, Google, Microsoft
 - Partners: outside businesses (gestoría, suppliers) get a read-only login to the areas an admin
   picks (rota, payroll, finances, calendar). Enforced by database row security and in the AI tools.
+- Sports: the next 3 weeks of football (Spanish, English, Scottish, Dutch and other leagues, cups,
+  European nights, national teams), UFC and boxing, with "big nights" flagged. The Worker refreshes
+  each followed competition every 6 hours from free sources (fixturedownload.com, TheSportsDB,
+  Wikipedia's UFC schedule); no keys needed. Admins pick competitions on the Sports page.
 
 See [docs/PLAN.md](docs/PLAN.md) for decisions, architecture and phases.
 

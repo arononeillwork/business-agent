@@ -537,41 +537,44 @@ export const TOOLS: ToolDef[] = [
     },
   }),
 
-  // ---------------- Football ----------------
+  // ---------------- Sports ----------------
   tool({
-    name: 'list_followed_football',
-    title: 'Football followed',
-    description: 'Competitions and teams whose fixtures appear on the calendar, and their alert level.',
+    name: 'list_sports_fixtures',
+    title: 'Sports fixtures',
+    description: 'Upcoming football (leagues, cups, national teams), UFC and boxing from the competitions the café follows, in UTC. big = likely a busy night (put it on the TV, plan staff).',
+    input: z.object({
+      from: z.string().describe('Start date YYYY-MM-DD'), to: z.string().describe('End date YYYY-MM-DD (inclusive)'),
+      sport: z.enum(['football', 'ufc', 'boxing']).optional(), big_only: z.boolean().default(false),
+    }),
+    readOnly: true,
+    async run({ sb }, a) {
+      let q = sb.from('sports_events').select('starts_at, title, competition, sport, round, venue, city, status, big, sports_competitions!inner(name, followed)')
+        .eq('sports_competitions.followed', true).gte('starts_at', `${a.from}T00:00:00Z`).lt('starts_at', `${addDays(a.to, 1)}T00:00:00Z`)
+        .order('starts_at').limit(300)
+      if (a.sport) q = q.eq('sport', a.sport)
+      if (a.big_only) q = q.eq('big', true)
+      return check(await q)
+    },
+  }),
+  tool({
+    name: 'list_sports_competitions',
+    title: 'Sports competitions',
+    description: 'Every competition the Sports page can show, whether the café follows it, and when it was last refreshed.',
     input: z.object({}),
     readOnly: true,
     async run({ sb }) {
-      return check(await sb.from('sports_follows').select('kind, provider_id, name, alerts').order('name'))
+      return check(await sb.from('sports_competitions').select('code, name, sport, region, kind, followed, refreshed_at, last_error').order('sort'))
     },
   }),
   tool({
-    name: 'follow_football',
-    title: 'Follow football',
-    description: 'Admins: follow a competition (football-data.org code, e.g. PD La Liga, PL Premier League, ELC Championship, DED Eredivisie, CL Champions League, WC World Cup, EC Euros) or a team, with alerts all, big_matches or none.',
+    name: 'follow_sports_competition',
+    title: 'Follow a competition',
+    description: 'Admins: follow or stop following a competition on the Sports page (use a code from list_sports_competitions).',
     admin: true,
-    input: z.object({
-      kind: z.enum(['competition', 'team']), code: z.string().describe('Provider code or team id'), name: z.string(),
-      alerts: z.enum(['all', 'big_matches', 'none']).default('big_matches'),
-    }),
+    input: z.object({ code: z.string(), followed: z.boolean() }),
     async run({ sb }, a) {
-      check(await sb.from('sports_follows').upsert({ kind: a.kind, provider: 'football-data', provider_id: a.code,
-        name: a.name, alerts: a.alerts }, { onConflict: 'provider,provider_id' }))
-      return { ok: true }
-    },
-  }),
-  tool({
-    name: 'unfollow_football',
-    title: 'Unfollow football',
-    description: 'Admins: stop following a competition or team (by code).',
-    admin: true,
-    destructive: true,
-    input: z.object({ code: z.string() }),
-    async run({ sb }, { code }) {
-      check(await sb.from('sports_follows').delete().eq('provider_id', code))
+      const rows = check(await sb.from('sports_competitions').update({ followed: a.followed }).eq('code', a.code).select('code'))
+      if (!rows?.length) throw new Error(`No competition with code ${a.code}`)
       return { ok: true }
     },
   }),

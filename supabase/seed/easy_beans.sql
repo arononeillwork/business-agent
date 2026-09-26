@@ -62,16 +62,7 @@ values
   ('2026-10-07', 'Fiesta local', 'area', 'Benahavís', 'import', 'benahavis-2026-10-07', false)
 on conflict (source, external_id) where external_id is not null do nothing;
 
--- Football: whole competitions (fixtures synced from football-data.org by the Worker cron).
-insert into public.sports_follows (kind, provider, provider_id, name, alerts) values
-  ('competition', 'football-data', 'PD',  'La Liga', 'big_matches'),
-  ('competition', 'football-data', 'PL',  'Premier League', 'big_matches'),
-  ('competition', 'football-data', 'ELC', 'EFL Championship', 'none'),
-  ('competition', 'football-data', 'DED', 'Eredivisie', 'big_matches'),
-  ('competition', 'football-data', 'CL',  'UEFA Champions League', 'big_matches'),
-  ('competition', 'football-data', 'WC',  'FIFA World Cup', 'all'),
-  ('competition', 'football-data', 'EC',  'UEFA European Championship', 'all')
-on conflict (provider, provider_id) do nothing;
+-- Sports competitions are seeded by migration 20260926000018_sports.sql.
 
 -- Monthly expenses, from the Accounts sheet ("Monthly Costs" tab, 26 Sep 2026).
 insert into public.expenses (name, amount, sort, source, category)

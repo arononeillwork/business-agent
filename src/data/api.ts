@@ -3,6 +3,7 @@ import type {
   BreakType, Business, CalendarEvent, CorrectionRequest, KioskPerson, OpenBreak, PayRate,
   PartnerArea, Position, Profile, Settings, Shift, TimeEntry, TimeEntryChange,
 } from '../../shared/types'
+import type { SportsCompetition, SportsEvent } from '../../shared/sports'
 
 export type ShiftInput = Omit<Shift, 'id' | 'status'> & { id?: string; status?: Shift['status'] }
 export type EventInput = Omit<CalendarEvent, 'id' | 'source' | 'competition'> & { id?: string; competition?: string | null }
@@ -111,6 +112,12 @@ export interface Api {
 
   // alerts log (admins)
   sentAlerts(limit?: number): Promise<OutboxItem[]>
+
+  // sports fixtures (staff read; admins choose competitions and can refresh now)
+  sportsCompetitions(): Promise<SportsCompetition[]>
+  sportsEvents(fromIso: string, toIso: string): Promise<SportsEvent[]>
+  setSportsFollowed(code: string, followed: boolean): Promise<void>
+  refreshSports(): Promise<number>
 
   // connections: Google Business Profile, WhatsApp, Instagram (admins)
   integrations(): Promise<IntegrationsState>

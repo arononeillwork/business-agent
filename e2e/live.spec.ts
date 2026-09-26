@@ -262,3 +262,18 @@ test.describe('AI connector (MCP over OAuth)', () => {
     expect(admin.status()).toBe(404) // admin tools don't exist for employees
   })
 })
+
+test.describe('sports', () => {
+  test('admin refreshes fixtures from the free sources and sees La Liga', async ({ page }) => {
+    await signInUi(page, 'admin')
+    await page.goto('/sports')
+    await expect(page.getByRole('heading', { name: 'Sports' })).toBeVisible()
+    await page.getByRole('button', { name: 'Refresh now' }).click()
+    await toast(page, 'Fixtures updated')
+    await expect(page.getByText(/Couldn't update .*La Liga/)).toHaveCount(0)
+    // La Liga (fixturedownload) plays every week from mid-August to May.
+    const month = new Date().getUTCMonth() + 1
+    if (month === 6 || month === 7) return
+    await expect(page.getByRole('article').filter({ hasText: 'La Liga' }).first()).toBeVisible({ timeout: 15_000 })
+  })
+})

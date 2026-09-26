@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { Api } from './api'
 import type { Business, Expense, OutboxItem, Profile, Settings, TimeEntry, TimeOff } from '../../shared/types'
+import type { SportsCompetition, SportsEvent } from '../../shared/sports'
 
 const PROFILE_COLUMNS = 'id, full_name, email, role, can_see_pay, colour, active, phone, birth_date, whatsapp_opt_in, partner_company, partner_access'
 
@@ -312,6 +313,21 @@ export function createSupabaseApi(url: string, key: string): Api {
     async deleteExpense(id) { check(await sb.from('expenses').delete().eq('id', id)) },
     async sentAlerts(limit = 50) {
       return check(await sb.from('outbox').select('*').order('created_at', { ascending: false }).limit(limit)) as OutboxItem[]
+    },
+
+    async sportsCompetitions() {
+      return check(await sb.from('sports_competitions').select('code, source, source_id, name, sport, region, kind, season_style, followed, sort, refreshed_at, last_error')
+        .order('sort')) as SportsCompetition[]
+    },
+    async sportsEvents(fromIso, toIso) {
+      return check(await sb.from('sports_events').select('*').gte('starts_at', fromIso).lt('starts_at', toIso)
+        .order('starts_at').limit(1000)) as SportsEvent[]
+    },
+    async setSportsFollowed(code, followed) {
+      check(await sb.from('sports_competitions').update({ followed }).eq('code', code))
+    },
+    async refreshSports() {
+      return (await worker<{ events: number }>('/api/admin/sports/refresh', { method: 'POST' })).events
     },
 
     integrations: () => worker('/api/integrations'),

@@ -20,6 +20,7 @@ import { TimeOffPage } from './pages/TimeOffPage'
 import { NotActive } from './pages/StatusPages'
 import { FinancesPage } from './pages/FinancesPage'
 import { AlertsPage } from './pages/AlertsPage'
+import { SportsPage } from './pages/SportsPage'
 import { ConnectionsPage } from './pages/ConnectionsPage'
 import { PartnersPage } from './pages/PartnersPage'
 
@@ -55,6 +56,7 @@ function Routed() {
         <Route path="timecards" element={<TimecardsPage />} />
         <Route path="calendar" element={<CalendarPage />} />
         <Route path="time-off" element={<TimeOffPage />} />
+        <Route path="sports" element={<SportsPage />} />
         <Route path="team" element={<TeamPage />} />
         <Route path="business" element={<BusinessPage />} />
         <Route path="account" element={<AccountPage />} />

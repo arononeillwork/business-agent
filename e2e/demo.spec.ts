@@ -638,3 +638,48 @@ test('a message never covers a dialog\'s buttons', async ({ page }) => {
   await dialog.getByRole('button', { name: 'Cancel' }).click({ timeout: 2000 })
   await expect(dialog).toHaveCount(0)
 })
+
+test.describe('sports', () => {
+  test('staff see the next three weeks by day, with big nights, filters and times to be confirmed', async ({ page }) => {
+    await open(page, '/sports', 'maria@example.com')
+    await expect(page.getByRole('heading', { name: 'Sports' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Competitions' })).toHaveCount(0) // admins choose
+    const today = page.getByRole('region', { name: /^Today/ })
+    await expect(today.getByText('Real Betis')).toBeVisible()
+    const clasico = page.getByRole('article', { name: /Barcelona vs Real Madrid/ })
+    await expect(clasico.getByText('Big night')).toBeVisible()
+    await expect(clasico.getByText('Matchday 10')).toBeVisible()
+    await expect(page.getByRole('article', { name: /Time to be confirmed UFC 322/ }).getByText('TBC')).toBeVisible()
+
+    await page.getByRole('button', { name: 'UFC', exact: true }).click()
+    await expect(page.getByText('UFC 322: Makhachev vs Topuria')).toBeVisible()
+    await expect(page.getByText('Barcelona')).toHaveCount(0)
+    await page.getByRole('button', { name: 'National teams' }).click()
+    await expect(page.getByText('Spain', { exact: true })).toBeVisible()
+    await expect(page.getByText('UFC 322: Makhachev vs Topuria')).toHaveCount(0)
+    await page.getByRole('button', { name: 'Big nights' }).click()
+    await expect(page.getByText('Villarreal')).toHaveCount(0)
+    await expect(page.getByRole('article', { name: /Atlético Madrid vs Real Madrid/ })).toBeVisible()
+  })
+
+  test('admin stops following a competition and refreshes', async ({ page }) => {
+    await open(page, '/sports')
+    await expect(page.getByRole('article', { name: /Barcelona vs Real Madrid/ })).toBeVisible()
+    await page.getByRole('button', { name: 'Competitions' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Competitions to follow' })
+    await dialog.getByRole('checkbox', { name: 'La Liga', exact: true }).uncheck()
+    await toast(page, 'Stopped following La Liga')
+    await dialog.getByRole('button', { name: 'Done' }).click()
+    await expect(page.getByRole('article', { name: /Barcelona vs Real Madrid/ })).toHaveCount(0)
+    await expect(page.getByRole('article', { name: /Liverpool vs Manchester United/ })).toBeVisible()
+    await page.getByRole('button', { name: 'Refresh now' }).click()
+    await toast(page, 'Fixtures updated')
+    await expect(page.getByText(/Updated just now/)).toBeVisible()
+  })
+
+  test('partners do not get the sports page', async ({ page }) => {
+    await open(page, '/sports', 'laura@gestoria.example')
+    await expect(page.getByRole('link', { name: 'Sports' })).toHaveCount(0)
+    await expect(page.getByRole('heading', { name: 'Sports' })).toHaveCount(0)
+  })
+})

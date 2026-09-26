@@ -7,6 +7,7 @@ import type {
   BreakType, Business, CalendarEvent, CorrectionRequest, PayRate, Position, Profile, Settings,
   Shift, TimeEntry, TimeEntryChange,
 } from '../../shared/types'
+import { demoSports } from './demoSports'
 import { addDays, localDate, minutesBetween, today, weekDates, weekStart, zonedIso } from '../../shared/time'
 
 interface RawEntry {
@@ -319,6 +320,7 @@ export function createDemoApi(): Api {
   }
 
   const clone = <T,>(x: T): T => structuredClone(x)
+  const sports = demoSports(today())
   const visibleProfile = ({ pin: _pin, ...p }: Profile & { pin?: string }) => p
 
   const api: Api = {
@@ -638,6 +640,22 @@ export function createDemoApi(): Api {
     async sentAlerts() {
       requireAdmin()
       return clone(sent)
+    },
+
+    async sportsCompetitions() { return clone(sports.competitions) },
+    async sportsEvents(fromIso, toIso) {
+      return clone(sports.events.filter(e => e.starts_at >= fromIso && e.starts_at < toIso)
+        .sort((a, b) => a.starts_at.localeCompare(b.starts_at)))
+    },
+    async setSportsFollowed(code, followed) {
+      requireAdmin()
+      const c = sports.competitions.find(x => x.code === code)
+      if (c) c.followed = followed
+    },
+    async refreshSports() {
+      requireAdmin()
+      for (const c of sports.competitions) c.refreshed_at = nowIso()
+      return sports.events.length
     },
 
     async integrations() {

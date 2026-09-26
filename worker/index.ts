@@ -3,6 +3,7 @@ import { OAuthProvider } from '@cloudflare/workers-oauth-provider'
 import { bearer, serviceClient, userClient, type Env } from './supabase'
 import { rest } from './rest'
 import { drainOutbox, integrations } from './integrations'
+import { refreshAllSports, refreshStaleSports } from './sports'
 import { authorizeGet, authorizePost, mcpApiHandler, tokenExchangeCallback, type OAuthEnv } from './mcp'
 
 const NIGHTLY = '15 1 * * *' // 03:15 Madrid in summer, 02:15 in winter
@@ -105,6 +106,15 @@ app.post('/api/admin/set-password', async c => {
   return c.json({ ok: true })
 })
 
+// Admin "Refresh now" on the Sports page (the cron keeps fixtures fresh by itself).
+app.post('/api/admin/sports/refresh', async c => {
+  const token = bearer(c.req.header('authorization'))
+  if (!token) return c.json({ error: 'Not signed in' }, 401)
+  const { data: isAdmin, error } = await userClient(c.env, token, 'app').rpc('is_admin')
+  if (error || !isAdmin) return c.json({ error: 'Only an admin can do that' }, 403)
+  return c.json({ ok: true, events: await refreshAllSports(serviceClient(c.env)) })
+})
+
 // Google / WhatsApp / Instagram connections, webhooks and post photos.
 app.route('/', integrations)
 
@@ -134,7 +144,7 @@ const provider = (env: Env, origin: string) => new OAuthProvider<Env>({
 
 export default {
   fetch: (request, env, ctx) => provider(env, new URL(request.url).origin).fetch(request, env, ctx),
-  // Every minute: close forgotten timecards, queue shift alerts, deliver the outbox.
+  // Every minute: close forgotten timecards, queue shift alerts, deliver the outbox, refresh sports.
   // Nightly: fill yesterday's missing timecards from the rota.
   async scheduled(event, env, ctx) {
     if (!env.SUPABASE_SERVICE_ROLE_KEY) return
@@ -150,6 +160,7 @@ export default {
       await Promise.resolve(db.rpc('auto_close_entries')).then(log('auto_close_entries'))
       await Promise.resolve(db.rpc('queue_shift_alerts')).then(log('queue_shift_alerts'))
       await drainOutbox(env).catch(e => console.error('outbox failed', e))
+      await refreshStaleSports(db).catch(e => console.error('sports failed', e))
     })())
   },
 } satisfies ExportedHandler<Env>
