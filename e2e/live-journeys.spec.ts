@@ -277,14 +277,15 @@ test.describe('admin', () => {
     await dialog.getByRole('button', { name: 'Save' }).click()
     await toast(page, 'Expense saved')
     await expect(page.getByText(name)).toBeVisible(NET)
-    await expect(total).not.toHaveText(before, NET)
+    const totalText = async () => (await total.innerText()).trim()
+    await expect.poll(totalText, NET).not.toBe(before)
 
     await page.getByRole('button', { name: `Edit ${name}` }).click()
     const edit = page.getByRole('dialog', { name: 'Edit expense' })
     await edit.getByRole('button', { name: 'Remove' }).click()
     await toast(page, 'Expense removed')
     await expect(page.getByText(name)).toHaveCount(0, NET)
-    await expect(total).toHaveText(before, NET)
+    await expect.poll(totalText, NET).toBe(before)
     await expectNoErrorShown(page, 'Finances')
   })
 

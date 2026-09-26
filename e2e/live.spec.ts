@@ -159,7 +159,8 @@ async function connect(request: APIRequestContext, who: UserKey) {
   const login = await request.post('/authorize', {
     form: { state, email: USERS[who].email, password: PASSWORD }, maxRedirects: 0,
   })
-  expect(login.status()).toBe(302)
+  const refused = login.status() === 302 ? '' : (await login.text()).match(/class="err">([^<]*)</)?.[1] ?? (await login.text()).slice(0, 300)
+  expect(login.status(), `connector sign-in refused: ${refused}`).toBe(302)
   const location = new URL(login.headers().location)
   expect(location.origin + location.pathname).toBe(redirect)
   const code = location.searchParams.get('code')!
