@@ -37,8 +37,9 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
       {msg && (
         <Portal key={msg.key}>
           <Snackbar open autoHideDuration={5000} onClose={() => setMsg(null)}
-            // Phones: at the top, under the header, so it never covers buttons or the bottom bar.
-            anchorOrigin={{ vertical: phone ? 'top' : 'bottom', horizontal: 'center' }} sx={{ mt: phone ? 7 : 0 }}>
+            // At the top (under the phone header): at the bottom it covered dialog buttons (Cancel,
+            // Save) on laptops and the sign-in buttons and bottom bar on phones.
+            anchorOrigin={{ vertical: 'top', horizontal: 'center' }} sx={{ mt: phone ? 7 : 1 }}>
             <Alert severity={msg.kind} variant="filled" onClose={() => setMsg(null)}>{msg.text}</Alert>
           </Snackbar>
         </Portal>

@@ -625,3 +625,16 @@ test('admin creates a staff account with a temporary password, and can reset it'
   // Admins change their own passwords; there is no reset button on admin cards.
   await expect(page.locator('.MuiCard-root', { hasText: '(you)' }).getByRole('button', { name: 'Temporary password' })).toHaveCount(0)
 })
+
+test('a message never covers a dialog\'s buttons', async ({ page }) => {
+  await open(page, '/partners')
+  await page.getByRole('button', { name: 'Invite partner' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Invite a partner' })
+  await dialog.getByLabel('Contact name').fill('Nobody')
+  await dialog.getByRole('textbox', { name: 'Email' }).fill('nobody@example.com')
+  await dialog.getByRole('button', { name: 'Create account' }).click()
+  await toast(page, /company/i)
+  // Clickable straight away, while the message is still showing.
+  await dialog.getByRole('button', { name: 'Cancel' }).click({ timeout: 2000 })
+  await expect(dialog).toHaveCount(0)
+})
