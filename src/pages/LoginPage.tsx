@@ -1,6 +1,6 @@
 import { Alert, Box, Button, Divider, Link, Stack, TextField, Typography } from '@mui/material'
 import GoogleIcon from '@mui/icons-material/Google'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useApp } from '../app/AppContext'
 import { useAction, useNotify } from '../app/Notify'
 import { businessConfig } from '../../shared/business.config'
@@ -28,6 +28,9 @@ export function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
+  const [methods, setMethods] = useState<{ google: boolean; microsoft: boolean } | null>(null)
+  useEffect(() => { api.signInMethods().then(setMethods, () => {}) }, [api])
+  const off = [methods && !methods.google && 'Google', methods && !methods.microsoft && 'Microsoft'].filter(Boolean) as string[]
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -80,15 +83,18 @@ export function LoginPage() {
 
             <Divider sx={{ color: 'text.secondary', fontSize: 13, pt: 1 }}>or continue with</Divider>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25}>
-              <Button fullWidth variant="outlined" size="large" startIcon={<GoogleIcon />} onClick={() => run(() => api.signInWithGoogle())}>
+              <Button fullWidth variant="outlined" size="large" startIcon={<GoogleIcon />} disabled={methods?.google === false}
+                onClick={() => run(() => api.signInWithGoogle())}>
                 Google
               </Button>
-              <Button fullWidth variant="outlined" size="large" startIcon={<MicrosoftIcon />} onClick={() => run(() => api.signInWithMicrosoft())}>
+              <Button fullWidth variant="outlined" size="large" startIcon={<MicrosoftIcon />} disabled={methods?.microsoft === false}
+                onClick={() => run(() => api.signInWithMicrosoft())}>
                 Microsoft
               </Button>
             </Stack>
             <Typography variant="caption" sx={{ color: 'text.secondary', textAlign: 'center' }}>
-              Outlook, Hotmail and Microsoft 365 accounts use Microsoft. Only invited team members can get in.
+              {off.length ? `${off.join(' and ')} sign-in ${off.length > 1 ? 'are' : 'is'} being set up. Use your email and password for now.`
+                : 'Outlook, Hotmail and Microsoft 365 accounts use Microsoft. Only invited team members can get in.'}
             </Typography>
           </Stack>
         </Box>

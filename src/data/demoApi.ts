@@ -332,6 +332,7 @@ export function createDemoApi(): Api {
       notify()
     },
     async signOut() { currentUser = null; notify() },
+    async signInMethods() { return { google: true, microsoft: true } },
     async sendPasswordReset() {},
     async updatePassword() {},
 

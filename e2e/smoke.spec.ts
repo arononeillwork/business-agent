@@ -29,6 +29,28 @@ test('the sign-in screen loads with email, Google and Microsoft', async ({ page 
   expect(errors).toEqual([])
 })
 
+// Clicking an outside sign-in button must reach that provider's sign-in page, or, if the method
+// isn't switched on in Supabase, the button is disabled with a note. Never a raw error page.
+for (const [label, key, hosts] of [
+  ['Google', 'google', /(^|\.)accounts\.google\.com$/],
+  ['Microsoft', 'microsoft', /(^|\.)(login\.microsoftonline\.com|login\.live\.com)$/],
+] as const) {
+  test(`the ${label} button reaches ${label} sign-in (or says it isn't set up)`, async ({ page, request }) => {
+    const on = (await (await request.get('/api/health?deep=1')).json()).sign_in?.[key]
+    await page.goto('/')
+    const button = page.getByRole('button', { name: label, exact: true })
+    if (!on) {
+      await expect(button).toBeDisabled()
+      await expect(page.getByText(new RegExp(`${label}.*being set up`))).toBeVisible()
+      return
+    }
+    await button.click()
+    await page.waitForURL(url => hosts.test(new URL(url).hostname), { timeout: 15_000 })
+    const res = await page.reload().catch(() => null)
+    expect(res?.status() ?? 200, `${label} sign-in page answered with an error`).toBeLessThan(400)
+  })
+}
+
 test('the AI connector publishes its OAuth metadata', async ({ request }) => {
   const res = await request.get('/.well-known/oauth-authorization-server')
   expect(res.status()).toBe(200)

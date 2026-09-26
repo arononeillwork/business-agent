@@ -34,6 +34,8 @@ export interface Api {
   // reads
   /** A problem signing in from an email or sign-in link, to show on the sign-in screen. */
   authError?(): string | null
+  /** Which outside sign-in methods are switched on (so a button never leads to an error page). */
+  signInMethods(): Promise<{ google: boolean; microsoft: boolean }>
   me(): Promise<Profile | null>
   business(): Promise<Business>
   adminNotes(): Promise<string | null>

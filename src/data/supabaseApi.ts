@@ -52,8 +52,19 @@ export function createSupabaseApi(url: string, key: string): Api {
   let urlError: string | null = null
   const fromUrl = sessionFromUrl(sb).catch(e => { urlError = e instanceof Error ? e.message : String(e) })
 
+  // Supabase answers a sign-in redirect for a provider that is off with a bare 400 page, so ask first.
+  let methods: Promise<{ google: boolean; microsoft: boolean }> | null = null
+  const signInMethods = () => methods ??= fetch(`${url}/auth/v1/settings`, { headers: { apikey: key } })
+    .then(r => r.ok ? r.json() : Promise.reject(new Error(`settings ${r.status}`)))
+    .then((s: { external?: Record<string, boolean> }) => ({ google: !!s.external?.google, microsoft: !!s.external?.azure }))
+    .catch(() => { methods = null; return { google: true, microsoft: true } }) // unknown: let Supabase decide
+
   /** Sign in through Supabase with an outside account. Supabase handles the whole OAuth flow. */
   const oauth = async (provider: 'google' | 'azure', label: string, queryParams: Record<string, string>, scopes?: string) => {
+    const on = await signInMethods()
+    if (!(provider === 'google' ? on.google : on.microsoft)) {
+      throw new Error(`${label} sign-in is not switched on yet. Use your email and password for now.`)
+    }
     const { error } = await sb.auth.signInWithOAuth({ provider, options: { redirectTo: location.origin, queryParams, scopes } })
     if (error) {
       throw new Error(/provider is not enabled|unsupported provider/i.test(error.message)
@@ -79,6 +90,7 @@ export function createSupabaseApi(url: string, key: string): Api {
 
     currentUserId: uid,
     authError: () => urlError,
+    signInMethods,
     onAuthChange(cb) {
       const { data } = sb.auth.onAuthStateChange(() => cb())
       return () => data.subscription.unsubscribe()
