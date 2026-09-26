@@ -18,6 +18,16 @@ const res = await fetch(`https://${REF}.supabase.co/auth/v1/invite?redirect_to=$
   body: JSON.stringify({ email, data: { full_name: name || email.split('@')[0] } }),
 })
 const body = await res.json().catch(() => ({}))
+const already = !res.ok && /already.*(registered|exists)|email_exists/i.test(JSON.stringify(body))
+if (already) {
+  // Existing account: send a sign-in link instead (lands on /account to set a password).
+  const rec = await fetch(`https://${REF}.supabase.co/auth/v1/recover?redirect_to=${encodeURIComponent(`${site.replace(/\/$/, '')}/account`)}`, {
+    method: 'POST', headers: { apikey: key, 'content-type': 'application/json' }, body: JSON.stringify({ email }),
+  })
+  if (!rec.ok) { console.log(`::error::Could not send a sign-in link (${rec.status}): ${await rec.text()}`); process.exit(1) }
+  console.log(`${email} already has an account; sent a sign-in link that opens ${site}/account to set a password.`)
+  process.exit(0)
+}
 if (!res.ok) {
   const msg = body.msg ?? body.message ?? body.error_description ?? JSON.stringify(body)
   console.log(`::error::Invite failed (${res.status}): ${msg}`)
