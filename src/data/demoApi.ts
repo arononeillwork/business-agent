@@ -333,6 +333,13 @@ export function createDemoApi(): Api {
     },
     async signOut() { currentUser = null; notify() },
     async signInMethods() { return { google: true, microsoft: true } },
+    async sendSignInCode(email) {
+      if (!profiles.some(p => p.email === email.trim().toLowerCase())) throw new Error('No invited account uses this email. Ask an admin to invite you.')
+    },
+    async verifySignInCode(email, code) {
+      if (code.replace(/\D/g, '') !== '123456') throw new Error('That code is wrong or has expired. Send a new one.')
+      await api.signIn(email, '')
+    },
     async sendPasswordReset() { throw new Error('Password reset emails are sent on the live app. In the demo, any password works.') },
     async updatePassword() {},
 

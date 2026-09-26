@@ -29,6 +29,9 @@ export interface Api {
   signIn(email: string, password: string): Promise<void>
   signOut(): Promise<void>
   sendPasswordReset(email: string): Promise<void>
+  /** Email a 6-digit sign-in code (invited accounts only), then sign in with it. No link to click. */
+  sendSignInCode(email: string): Promise<void>
+  verifySignInCode(email: string, code: string): Promise<void>
   updatePassword(password: string): Promise<void>
 
   // reads

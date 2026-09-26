@@ -28,6 +28,12 @@ export function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
+  const [codeSent, setCodeSent] = useState(false)
+  const [code, setCode] = useState('')
+  const sendCode = async () => {
+    if (!email.trim()) return notify('Enter your email first', 'warning')
+    if (await run(() => api.sendSignInCode(email), `Code sent to ${email.trim()}. Check your inbox (and spam).`)) setCodeSent(true)
+  }
   const [methods, setMethods] = useState<{ google: boolean; microsoft: boolean } | null>(null)
   useEffect(() => { api.signInMethods().then(setMethods, () => {}) }, [api])
   const off = [methods && !methods.google && 'Google', methods && !methods.microsoft && 'Microsoft'].filter(Boolean) as string[]
@@ -71,15 +77,30 @@ export function LoginPage() {
               <Alert severity="info">Demo: use aron@example.com (admin), maria@example.com (employee) or laura@gestoria.example (partner), any password.</Alert>
             )}
             <TextField label="Email" type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} required />
-            <Box>
-              <TextField label="Password" type="password" autoComplete="current-password" value={password}
-                onChange={e => setPassword(e.target.value)} required={api.mode === 'live'} />
-              <Link component="button" type="button" variant="body2" sx={{ mt: 1 }} onClick={async () => {
-                if (!email) return notify('Enter your email first', 'warning')
-                await run(() => api.sendPasswordReset(email), 'Check your email for a reset link')
-              }}>Forgot password?</Link>
-            </Box>
-            <Button type="submit" variant="contained" size="large" disabled={busy}>Sign in</Button>
+            {codeSent ? <>
+              <TextField label="6-digit code" value={code} onChange={e => setCode(e.target.value)} autoFocus
+                slotProps={{ htmlInput: { inputMode: 'numeric', autoComplete: 'one-time-code', maxLength: 8 } }}
+                helperText={api.mode === 'demo' ? 'Demo: the code is 123456' : `We emailed a code to ${email.trim()}. It works once, for an hour.`} />
+              <Button variant="contained" size="large" disabled={busy || code.replace(/\D/g, '').length < 6}
+                onClick={() => run(() => api.verifySignInCode(email, code))}>Sign in with code</Button>
+              <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
+                <Link component="button" type="button" variant="body2" onClick={sendCode}>Send a new code</Link>
+                <Link component="button" type="button" variant="body2" onClick={() => { setCodeSent(false); setCode('') }}>Use my password</Link>
+              </Stack>
+            </> : <>
+              <Box>
+                <TextField label="Password" type="password" autoComplete="current-password" value={password}
+                  onChange={e => setPassword(e.target.value)} required={api.mode === 'live'} />
+                <Stack direction="row" sx={{ justifyContent: 'space-between', mt: 1 }}>
+                  <Link component="button" type="button" variant="body2" onClick={sendCode}>Email me a sign-in code</Link>
+                  <Link component="button" type="button" variant="body2" onClick={async () => {
+                    if (!email) return notify('Enter your email first', 'warning')
+                    await run(() => api.sendPasswordReset(email), 'Check your email for a reset link')
+                  }}>Forgot password?</Link>
+                </Stack>
+              </Box>
+              <Button type="submit" variant="contained" size="large" disabled={busy}>Sign in</Button>
+            </>}
 
             <Divider sx={{ color: 'text.secondary', fontSize: 13, pt: 1 }}>or continue with</Divider>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25}>

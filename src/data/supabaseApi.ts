@@ -101,6 +101,16 @@ export function createSupabaseApi(url: string, key: string): Api {
     async signOut() {
       await sb.auth.signOut()
     },
+    async sendSignInCode(email) {
+      const { error } = await sb.auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: false } })
+      if (error) throw new Error(/signups? not allowed|not found|user/i.test(error.message)
+        ? 'No invited account uses this email. Ask an admin to invite you.'
+        : /rate|seconds|too many/i.test(error.message) ? 'A code was sent a moment ago. Wait a minute, then try again.' : error.message)
+    },
+    async verifySignInCode(email, code) {
+      const { error } = await sb.auth.verifyOtp({ email: email.trim(), token: code.replace(/\D/g, ''), type: 'email' })
+      if (error) throw new Error(/expired|invalid/i.test(error.message) ? 'That code is wrong or has expired. Send a new one.' : error.message)
+    },
     async sendPasswordReset(email) {
       checkAuth(await sb.auth.resetPasswordForEmail(email, { redirectTo: `${location.origin}/account` }))
     },
