@@ -1,6 +1,8 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "business-agent",
+  // Cloudflare account (not a secret; lets account-owned API tokens deploy).
+  "account_id": "c7451083f0bc060b947b1b188291cb4b",
   "main": "worker/index.ts",
   "compatibility_date": "2026-09-01",
   "compatibility_flags": ["nodejs_compat"],
