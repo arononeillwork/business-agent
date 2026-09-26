@@ -86,3 +86,20 @@ button that posts to Instagram and the Google listing together.
 
 Not possible through Meta's API: editing the Instagram bio. Keep the bio link pointing at a page
 that shows current hours (Google Maps listing), which the app keeps up to date.
+
+## 5. Spotify (approved café playlist)
+
+Licensing first: Spotify's standard plans are for personal use, and background music in a
+Spanish café also needs SGAE/AGEDI licences. Spotify's business service, Soundtrack Your Brand,
+covers both. The connection below works with any Spotify account; the licence is your call.
+
+1. <https://developer.spotify.com/dashboard> → Create app → Web API.
+   Redirect URI: `https://<worker-url>/api/integrations/spotify/callback`.
+2. Worker secrets: `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`.
+3. In the app: Business → Connections → **Connect Spotify** (one click, sign in with the café's
+   Spotify account) → choose the **approved playlist**.
+4. Keep Spotify open on the café speaker or tablet. Staff then see **Café music** on Today and can
+   play or pause the approved playlist; it flags when something else is playing.
+
+Play/pause from the app needs Spotify Premium. New Spotify apps start in development mode, which
+is fine for one café account (add the café's Spotify email under the app's User Management).

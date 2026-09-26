@@ -180,13 +180,24 @@ export const TIME_OFF_LABELS: Record<TimeOffKind, string> = {
   vacation: 'Holiday', personal: 'Personal day', sick: 'Sick', other: 'Other',
 }
 
-export type IntegrationProvider = 'google_business' | 'whatsapp' | 'instagram'
+export type IntegrationProvider = 'google_business' | 'whatsapp' | 'instagram' | 'spotify'
+
+export interface SpotifyPlaylist { id: string; name: string; image?: string; tracks: number; url: string; owner?: string }
+
+export interface MusicNow {
+  playlist: SpotifyPlaylist | null
+  playing: boolean
+  track?: string
+  artist?: string
+  device?: string
+  onApprovedPlaylist: boolean
+}
 
 export interface Integration {
   provider: IntegrationProvider
   status: 'connected' | 'needs_setup' | 'error' | 'disconnected'
   account_label: string | null
-  external: { locations?: { name: string; title: string; address?: string }[]; location?: string; closed_on_holidays?: boolean }
+  external: { locations?: { name: string; title: string; address?: string }[]; location?: string; closed_on_holidays?: boolean; playlist?: SpotifyPlaylist }
   connected_at: string | null
   last_sync_at: string | null
   last_error: string | null

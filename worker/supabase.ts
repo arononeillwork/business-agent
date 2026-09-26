@@ -18,6 +18,8 @@ export interface Env {
   WHATSAPP_VERIFY_TOKEN?: string
   WHATSAPP_TEMPLATE_LANG?: string     // var, e.g. es
   INSTAGRAM_USER_ID?: string          // var
+  SPOTIFY_CLIENT_ID?: string
+  SPOTIFY_CLIENT_SECRET?: string
 }
 
 export type Via = 'app' | 'api' | 'ai'

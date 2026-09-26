@@ -243,6 +243,17 @@ export function createSupabaseApi(url: string, key: string): Api {
       return check(await sb.rpc('queue_share', { p_caption: caption, p_image_url: imageUrl, p_targets: targets,
         p_event_id: eventId ?? null })) as number
     },
+    async connectSpotify() {
+      const { url } = await worker<{ url: string }>('/api/integrations/spotify/start', { method: 'POST' })
+      location.assign(url)
+    },
+    spotifyPlaylists: () => worker('/api/integrations/spotify/playlists'),
+    async chooseSpotifyPlaylist(playlist) {
+      await worker('/api/integrations/spotify/playlist', { method: 'POST', body: JSON.stringify({ playlist }) })
+    },
+    musicNow: () => worker('/api/music/now'),
+    async musicPlay() { await worker('/api/music/play', { method: 'POST' }) },
+    async musicPause() { await worker('/api/music/pause', { method: 'POST' }) },
     async sendRota(monday) {
       return check(await sb.rpc('send_rota', { p_week_start: monday })) as number
     },

@@ -8,6 +8,7 @@ import { useApp } from '../app/AppContext'
 import { useAsync, useTick } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { ErrorBox, Flags, Loading, PageHeader, PersonAvatar, SectionTitle, Tag } from '../components/common'
+import { MusicCard } from '../components/MusicCard'
 import { holidayOn } from '../../shared/rules'
 import { addDays, formatDuration, formatLocal, localDate, localTime, minutesBetween, today, zonedIso } from '../../shared/time'
 import { CATEGORY_META, type TimeEntry } from '../../shared/types'
@@ -178,6 +179,7 @@ export function TodayPage() {
       <Grid container spacing={2.5}>
         <Grid size={{ xs: 12, md: 5 }}>
           <ClockCard onChange={data.reload} />
+          <Box sx={{ mt: 2 }}><MusicCard /></Box>
           <Card sx={{ mt: 2 }}>
             <CardContent>
               <SectionTitle>My next shifts</SectionTitle>

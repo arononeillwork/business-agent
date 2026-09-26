@@ -6,6 +6,7 @@ import GoogleIcon from '@mui/icons-material/Google'
 import WhatsAppIcon from '@mui/icons-material/WhatsApp'
 import InstagramIcon from '@mui/icons-material/Instagram'
 import FavoriteIcon from '@mui/icons-material/FavoriteBorder'
+import MusicIcon from '@mui/icons-material/MusicNote'
 import { useEffect, useState, type ReactNode } from 'react'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
@@ -20,6 +21,7 @@ const META: Record<IntegrationProvider, { name: string; icon: ReactNode; does: s
   google_business: { name: 'Google Maps & Search', icon: <GoogleIcon />, does: 'Opening hours, closures and phone stay in sync on your Google listing. Post events.' },
   whatsapp: { name: 'WhatsApp', icon: <WhatsAppIcon sx={{ color: '#1f9e55' }} />, does: 'Shift reminders, missed clock-ins and the weekly rota go to staff who opted in.' },
   instagram: { name: 'Instagram', icon: <InstagramIcon sx={{ color: '#c13584' }} />, does: 'Followers and recent posts here; publish events and specials.' },
+  spotify: { name: 'Spotify', icon: <MusicIcon sx={{ color: '#1db954' }} />, does: 'Pick the approved café playlist. Staff can play or pause it on the café speaker from the app.' },
 }
 
 function status(i: Integration | undefined, configured: boolean) {
@@ -32,6 +34,7 @@ function status(i: Integration | undefined, configured: boolean) {
 const SETUP_HELP: Record<IntegrationProvider, string> = {
   google_business: 'Add GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and INTEGRATION_KEY to the Worker (see docs/INTEGRATIONS.md), then connect with the Google account that owns the listing.',
   whatsapp: 'Create a Meta app with WhatsApp, verify the business, add the number, then set META_ACCESS_TOKEN, META_APP_SECRET, WHATSAPP_VERIFY_TOKEN and WHATSAPP_PHONE_NUMBER_ID (see docs/INTEGRATIONS.md).',
+  spotify: 'Create a free app at developer.spotify.com, add the redirect URL, then set SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET (see docs/INTEGRATIONS.md).',
   instagram: 'Switch Instagram to a professional account linked to the Facebook Page, then set INSTAGRAM_USER_ID and give the Meta token Instagram access (see docs/INTEGRATIONS.md).',
 }
 
@@ -46,7 +49,7 @@ export function ConnectionsCard() {
   // Coming back from Google's consent screen.
   useEffect(() => {
     const q = new URLSearchParams(location.search)
-    if (q.get('connected') === 'google') notify('Google connected', 'success')
+    if (q.get('connected')) notify(`${q.get('connected') === 'spotify' ? 'Spotify' : 'Google'} connected`, 'success')
     if (q.get('connect_error')) notify(q.get('connect_error')!, 'error')
     if (q.has('connected') || q.has('connect_error')) history.replaceState(null, '', location.pathname)
   }, [notify])
@@ -121,6 +124,7 @@ export function ConnectionsCard() {
             Staff choose to receive messages under My account. Replying STOP turns them off.
           </Typography>
         </>)}
+        {row('spotify', <SpotifyActions connected={get('spotify')?.status === 'connected'} onChange={data.reload} />)}
         {row('instagram', <Typography variant="body2" sx={{ color: 'text.secondary' }}>Profile and posts are shown below.</Typography>)}
         {!data.data && data.error && <Alert severity="error">{data.error}</Alert>}
       </CardContent>
@@ -157,6 +161,30 @@ export function ConnectionsCard() {
       </Dialog>
     </Card>
   )
+}
+
+function SpotifyActions({ connected, onChange }: { connected: boolean; onChange: () => void }) {
+  const { api } = useApp()
+  const run = useAction()
+  const lists = useAsync('spotify-playlists', () => (connected ? api.spotifyPlaylists() : Promise.resolve(null)), [connected])
+  if (!connected) {
+    return <Button size="small" variant="contained" startIcon={<MusicIcon />} sx={{ bgcolor: '#1db954', '&:hover': { bgcolor: '#17a34a' } }}
+      onClick={() => run(() => api.connectSpotify())}>Connect Spotify</Button>
+  }
+  return <>
+    <TextField select size="small" label="Approved playlist" value={lists.data?.approved?.id ?? ''} sx={{ minWidth: 260, width: 'auto' }}
+      onChange={e => {
+        const p = lists.data?.playlists.find(x => x.id === e.target.value)
+        if (p) run(async () => { await api.chooseSpotifyPlaylist(p); await lists.reload(); onChange() }, `“${p.name}” is now the café playlist`)
+      }}>
+      {(lists.data?.playlists ?? []).map(p => <MenuItem key={p.id} value={p.id}>{p.name} · {p.tracks} songs</MenuItem>)}
+    </TextField>
+    <Button size="small" color="error" onClick={() => run(async () => { await api.disconnect('spotify'); onChange() }, 'Spotify disconnected')}>Disconnect</Button>
+    <Alert severity="warning" sx={{ flexBasis: '100%' }}>
+      Spotify’s standard plans are for personal use only. Playing music in the café also needs SGAE/AGEDI licences.
+      Spotify’s business option (Soundtrack Your Brand) covers both.
+    </Alert>
+  </>
 }
 
 export function InstagramCard() {

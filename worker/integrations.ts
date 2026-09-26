@@ -7,10 +7,11 @@ import { seal, signState, unseal, verifyState } from './crypto'
 import * as google from './providers/google'
 import * as whatsapp from './providers/whatsapp'
 import * as instagram from './providers/instagram'
+import * as spotify from './providers/spotify'
 import type { Business, CalendarEvent } from '../shared/types'
 import { today } from '../shared/time'
 
-type Provider = 'google_business' | 'whatsapp' | 'instagram'
+type Provider = 'google_business' | 'whatsapp' | 'instagram' | 'spotify'
 
 const graphVersion = (env: Env) => env.META_GRAPH_VERSION ?? 'v23.0'
 
@@ -28,6 +29,29 @@ const googleConfig = (env: Env, origin: string): google.GoogleOAuthConfig | null
   env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET && env.INTEGRATION_KEY
     ? { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET, redirectUri: `${origin}/api/integrations/google/callback` }
     : null
+
+const spotifyConfig = (env: Env, origin: string): spotify.SpotifyOAuthConfig | null =>
+  env.SPOTIFY_CLIENT_ID && env.SPOTIFY_CLIENT_SECRET && env.INTEGRATION_KEY
+    ? { clientId: env.SPOTIFY_CLIENT_ID, clientSecret: env.SPOTIFY_CLIENT_SECRET, redirectUri: `${origin}/api/integrations/spotify/callback` }
+    : null
+
+/** A fresh Spotify access token for the café's account, plus the approved playlist. */
+async function spotifySession(env: Env, db: SupabaseClient, origin: string) {
+  const cfg = spotifyConfig(env, origin)
+  if (!cfg) throw new Error('Spotify is not set up')
+  const [{ data: row }, { data: secret }] = await Promise.all([
+    db.from('integrations').select('external').eq('provider', 'spotify').single(),
+    db.from('integration_secrets').select('ciphertext').eq('provider', 'spotify').maybeSingle(),
+  ])
+  if (!secret) throw new Error('Spotify is not connected')
+  const { refresh_token } = await unseal<{ refresh_token: string }>(env.INTEGRATION_KEY!, secret.ciphertext)
+  const t = await spotify.refreshAccess(cfg, refresh_token)
+  if (t.refresh_token && t.refresh_token !== refresh_token) {
+    await db.from('integration_secrets').update({ ciphertext: await seal(env.INTEGRATION_KEY!, { refresh_token: t.refresh_token }) }).eq('provider', 'spotify')
+  }
+  const ext = (row?.external ?? {}) as { playlist?: spotify.Playlist }
+  return { token: t.access_token!, playlist: ext.playlist, external: ext }
+}
 
 async function setIntegration(db: SupabaseClient, provider: Provider, patch: Record<string, unknown>) {
   const { error } = await db.from('integrations').update({ ...patch, updated_at: new Date().toISOString() }).eq('provider', provider)
@@ -109,7 +133,7 @@ export const integrations = new Hono<{ Bindings: Env; Variables: { userId: strin
 
 /** Admin-only routes: check the caller's Supabase token and role. */
 integrations.use('/api/integrations/*', async (c, next) => {
-  if (c.req.path === '/api/integrations/google/callback') return next()
+  if (c.req.path.endsWith('/callback')) return next()
   const token = bearer(c.req.header('authorization'))
   if (!token) return c.json({ error: 'Not signed in' }, 401)
   const sb = userClient(c.env, token, 'app')
@@ -126,6 +150,7 @@ integrations.get('/api/integrations', async c => {
     google_business: !!googleConfig(c.env, ''),
     whatsapp: !!waConfig(c.env) && !!c.env.META_APP_SECRET && !!c.env.WHATSAPP_VERIFY_TOKEN,
     instagram: !!igConfig(c.env),
+    spotify: !!spotifyConfig(c.env, ''),
   }
   const { data: queue } = await db.from('outbox').select('kind, status').in('status', ['pending', 'failed', 'dead'])
   return c.json({ integrations: data, configured: setup, queue })
@@ -197,6 +222,75 @@ integrations.post('/api/integrations/:provider/disconnect', async c => {
   const db = serviceClient(c.env)
   await db.from('integration_secrets').delete().eq('provider', provider)
   await setIntegration(db, provider, { status: 'disconnected', external: {}, account_label: null, last_error: null })
+  return c.json({ ok: true })
+})
+
+// Spotify: one-click connect, then pick the approved playlist.
+integrations.post('/api/integrations/spotify/start', async c => {
+  const cfg = spotifyConfig(c.env, new URL(c.req.url).origin)
+  if (!cfg) return c.json({ error: 'Spotify is not set up yet. Add SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET.' }, 400)
+  return c.json({ url: spotify.authUrl(cfg, await signState(c.env.INTEGRATION_KEY!, { uid: c.get('userId') })) })
+})
+
+integrations.get('/api/integrations/spotify/callback', async c => {
+  const origin = new URL(c.req.url).origin
+  const back = (q: string) => c.redirect(`${origin}/business?${q}`)
+  try {
+    const cfg = spotifyConfig(c.env, origin)
+    if (!cfg) throw new Error('Spotify is not set up')
+    if (c.req.query('error')) throw new Error(c.req.query('error') === 'access_denied' ? 'Spotify connection was cancelled' : c.req.query('error'))
+    const { uid } = await verifyState<{ uid: string }>(c.env.INTEGRATION_KEY!, c.req.query('state') ?? '')
+    const t = await spotify.exchangeCode(cfg, c.req.query('code') ?? '')
+    const who = await spotify.me(t.access_token!)
+    const db = serviceClient(c.env)
+    await db.from('integration_secrets').upsert({ provider: 'spotify', ciphertext: await seal(c.env.INTEGRATION_KEY!, { refresh_token: t.refresh_token }) })
+    await setIntegration(db, 'spotify', { status: 'connected', connected_by: uid, connected_at: new Date().toISOString(), last_error: null,
+      account_label: `${who.display_name ?? who.id}${who.product === 'premium' ? '' : ' (not Premium: playback control won’t work)'}`, external: {} })
+    return back('connected=spotify')
+  } catch (e) {
+    return back(`connect_error=${encodeURIComponent(e instanceof Error ? e.message : String(e))}`)
+  }
+})
+
+integrations.get('/api/integrations/spotify/playlists', async c => {
+  const s = await spotifySession(c.env, serviceClient(c.env), new URL(c.req.url).origin)
+  return c.json({ playlists: await spotify.playlists(s.token), approved: s.playlist ?? null })
+})
+
+integrations.post('/api/integrations/spotify/playlist', async c => {
+  const { playlist } = await c.req.json<{ playlist: spotify.Playlist }>()
+  const db = serviceClient(c.env)
+  const s = await spotifySession(c.env, db, new URL(c.req.url).origin)
+  const mine = (await spotify.playlists(s.token)).find(p => p.id === playlist?.id)
+  if (!mine) return c.json({ error: 'That playlist is not in the connected Spotify account' }, 400)
+  await setIntegration(db, 'spotify', { external: { ...s.external, playlist: mine } })
+  return c.json({ ok: true })
+})
+
+// Café music for staff (and the café tablet): only ever plays the approved playlist.
+integrations.use('/api/music/*', async (c, next) => {
+  const token = bearer(c.req.header('authorization'))
+  if (!token) return c.json({ error: 'Not signed in' }, 401)
+  const { data: role } = await userClient(c.env, token, 'app').rpc('my_role')
+  if (!role) return c.json({ error: 'Not allowed' }, 403)
+  await next()
+})
+
+integrations.get('/api/music/now', async c => {
+  const s = await spotifySession(c.env, serviceClient(c.env), new URL(c.req.url).origin)
+  return c.json({ playlist: s.playlist ?? null, ...(await spotify.nowPlaying(s.token, s.playlist?.id)) })
+})
+
+integrations.post('/api/music/play', async c => {
+  const s = await spotifySession(c.env, serviceClient(c.env), new URL(c.req.url).origin)
+  if (!s.playlist) return c.json({ error: 'No playlist approved yet. An admin picks one on the Business page.' }, 400)
+  await spotify.playPlaylist(s.token, s.playlist.id)
+  return c.json({ ok: true })
+})
+
+integrations.post('/api/music/pause', async c => {
+  const s = await spotifySession(c.env, serviceClient(c.env), new URL(c.req.url).origin)
+  await spotify.pause(s.token)
   return c.json({ ok: true })
 })
 

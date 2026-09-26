@@ -44,16 +44,25 @@ export function createDemoApi(): Api {
     updated_at: nowIso(),
   }
   const integ: IntegrationsState = {
-    configured: { google_business: true, whatsapp: true, instagram: true },
+    configured: { google_business: true, whatsapp: true, instagram: true, spotify: true },
     queue: [],
     integrations: [
       { provider: 'google_business', status: 'connected', account_label: 'Easy Beans Coffee',
         external: { locations: [{ name: 'locations/1', title: 'Easy Beans Coffee' }], location: 'locations/1', closed_on_holidays: false },
         connected_at: nowIso(), last_sync_at: nowIso(), last_error: null },
       { provider: 'whatsapp', status: 'connected', account_label: '+34 695 415 335', external: {}, connected_at: nowIso(), last_sync_at: null, last_error: null },
+      { provider: 'spotify', status: 'connected', account_label: 'Easy Beans (Premium)',
+        external: { playlist: { id: 'pl1', name: 'Easy Beans · Mornings', tracks: 84, url: 'https://open.spotify.com', owner: 'Easy Beans' } },
+        connected_at: nowIso(), last_sync_at: null, last_error: null },
       { provider: 'instagram', status: 'connected', account_label: '@easy.beans.coffee', external: {}, connected_at: nowIso(), last_sync_at: nowIso(), last_error: null },
     ],
   }
+  const demoPlaylists = [
+    { id: 'pl1', name: 'Easy Beans · Mornings', tracks: 84, url: 'https://open.spotify.com', owner: 'Easy Beans' },
+    { id: 'pl2', name: 'Easy Beans · Afternoon chill', tracks: 112, url: 'https://open.spotify.com', owner: 'Easy Beans' },
+    { id: 'pl3', name: 'Aron’s gym mix', tracks: 40, url: 'https://open.spotify.com', owner: 'Aron' },
+  ]
+  const music: { playing: boolean; track?: string; artist?: string; device?: string } = { playing: false }
   let adminNotes: string | null = 'Demo: alarm code holder, wifi for the kiosk, landlord and gestor contacts.'
   const settings: Settings = {
     early_clock_in_minutes: 10, unscheduled_clock_in: 'flag', auto_clock_out_minutes: 60,
@@ -579,6 +588,27 @@ export function createDemoApi(): Api {
       if (targets.includes('instagram') && !imageUrl) throw new Error('Instagram posts need a photo')
       return targets.length
     },
+    async connectSpotify() {
+      requireAdmin()
+      Object.assign(integ.integrations.find(i => i.provider === 'spotify')!, { status: 'connected', account_label: 'Easy Beans (Premium)', connected_at: nowIso() })
+    },
+    async spotifyPlaylists() {
+      return { playlists: demoPlaylists, approved: integ.integrations.find(i => i.provider === 'spotify')!.external.playlist ?? null }
+    },
+    async chooseSpotifyPlaylist(playlist) {
+      requireAdmin()
+      integ.integrations.find(i => i.provider === 'spotify')!.external.playlist = playlist
+    },
+    async musicNow() {
+      const s = integ.integrations.find(i => i.provider === 'spotify')!
+      if (s.status !== 'connected') throw new Error('Spotify is not connected')
+      return { playlist: s.external.playlist ?? null, ...music, onApprovedPlaylist: music.playing }
+    },
+    async musicPlay() {
+      if (!integ.integrations.find(i => i.provider === 'spotify')!.external.playlist) throw new Error('No playlist approved yet. An admin picks one on the Business page.')
+      Object.assign(music, { playing: true, track: 'Sunday Morning', artist: 'Maroon 5', device: 'Café speaker' })
+    },
+    async musicPause() { music.playing = false },
     async sendRota() {
       requireAdmin()
       return profiles.filter(p => p.whatsapp_opt_in && p.phone).length

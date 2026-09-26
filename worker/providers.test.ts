@@ -103,3 +103,27 @@ describe('crypto', () => {
     await expect(verifyState('key', await signState('key', { uid: 'u1' }, -1))).rejects.toThrow('expired')
   })
 })
+
+describe('Spotify', () => {
+  it('builds a one-click consent link with the playback scopes', async () => {
+    const { authUrl } = await import('./providers/spotify')
+    const url = new URL(authUrl({ clientId: 'cid', clientSecret: 's', redirectUri: 'https://x/cb' }, 'st'))
+    expect(url.origin).toBe('https://accounts.spotify.com')
+    expect(url.searchParams.get('scope')).toContain('user-modify-playback-state')
+    expect(url.searchParams.get('state')).toBe('st')
+  })
+  it('plays the approved playlist and explains common playback errors', async () => {
+    const { playPlaylist, nowPlaying } = await import('./providers/spotify')
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: { status: 404, message: 'x', reason: 'NO_ACTIVE_DEVICE' } }), { status: 404 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ is_playing: true, item: { name: 'Song', artists: [{ name: 'A' }] },
+        device: { name: 'Café speaker' }, context: { uri: 'spotify:playlist:abc' } })))
+    vi.stubGlobal('fetch', fetchMock)
+    await playPlaylist('t', 'abc')
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1].body))).toEqual({ context_uri: 'spotify:playlist:abc' })
+    await expect(playPlaylist('t', 'abc')).rejects.toThrow('No Spotify speaker is on')
+    expect(await nowPlaying('t', 'abc')).toEqual({ playing: true, track: 'Song', artist: 'A', device: 'Café speaker', onApprovedPlaylist: true })
+  })
+})

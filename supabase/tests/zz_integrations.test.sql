@@ -147,3 +147,20 @@ do $$ begin
   assert (select status from public.time_off limit 1) = 'cancelled', 'cancelled by the employee before it starts';
 end $$;
 reset role;
+
+-- 8. Spotify approved playlist is visible to staff only while connected ---------------
+reset role;
+update public.integrations set status = 'connected',
+  external = '{"playlist": {"id": "37i9dQ", "name": "Easy Beans mornings"}}' where provider = 'spotify';
+select pg_temp.act_as('julio@test');
+do $$ begin
+  assert public.approved_playlist() ->> 'name' = 'Easy Beans mornings', 'staff see the approved playlist';
+  assert (select count(*) from public.integrations) = 0, 'but not the integration record';
+end $$;
+reset role;
+update public.integrations set status = 'disconnected' where provider = 'spotify';
+select pg_temp.act_as('julio@test');
+do $$ begin
+  assert public.approved_playlist() is null, 'nothing when disconnected';
+end $$;
+reset role;

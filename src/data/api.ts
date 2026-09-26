@@ -1,5 +1,5 @@
 import type {
-  InstagramProfile, IntegrationsState, OpeningHours, TimeOff, TimeOffKind,
+  InstagramProfile, IntegrationsState, MusicNow, OpeningHours, SpotifyPlaylist, TimeOff, TimeOffKind,
   BreakType, Business, CalendarEvent, CorrectionRequest, KioskPerson, OpenBreak, PayRate,
   Position, Profile, Settings, Shift, TimeEntry, TimeEntryChange,
 } from '../../shared/types'
@@ -100,6 +100,14 @@ export interface Api {
   uploadPhoto(file: File): Promise<string>
   share(caption: string, imageUrl: string | null, targets: ('instagram' | 'google')[], eventId?: string): Promise<number>
   sendRota(monday: string): Promise<number>
+  connectSpotify(): Promise<void>
+  spotifyPlaylists(): Promise<{ playlists: SpotifyPlaylist[]; approved: SpotifyPlaylist | null }>
+  chooseSpotifyPlaylist(playlist: SpotifyPlaylist): Promise<void>
+
+  // café music (staff): only the approved playlist
+  musicNow(): Promise<MusicNow>
+  musicPlay(): Promise<void>
+  musicPause(): Promise<void>
 
   // kiosk
   kioskRoster(): Promise<KioskPerson[]>
