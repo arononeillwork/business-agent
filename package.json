@@ -5,16 +5,18 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "wrangler types && tsc -b && vite build",
     "preview": "vite preview",
     "deploy": "npm run build && wrangler deploy",
-    "typecheck": "tsc -b",
+    "typecheck": "wrangler types && tsc -b",
     "test": "vitest run",
     "cf-typegen": "wrangler types"
   },
   "dependencies": {
+    "@cloudflare/workers-oauth-provider": "^1.1.0",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
+    "@modelcontextprotocol/server": "^2.1.0",
     "@mui/icons-material": "^9.4.0",
     "@mui/material": "^9.4.0",
     "@supabase/supabase-js": "^2.117.2",

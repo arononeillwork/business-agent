@@ -1,0 +1,56 @@
+import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
+import { addDays as addDaysFns, parseISO } from 'date-fns'
+import { businessConfig } from './business.config'
+import type { DayKey } from './types'
+import { DAY_KEYS } from './types'
+
+export const TZ = businessConfig.timezone
+
+/** yyyy-MM-dd of an instant, in business time. */
+export const localDate = (iso: string | Date) => formatInTimeZone(iso, TZ, 'yyyy-MM-dd')
+
+/** HH:mm of an instant, in business time (24-hour, as used in Spain). */
+export const localTime = (iso: string | Date) => formatInTimeZone(iso, TZ, 'HH:mm')
+
+export const formatLocal = (iso: string | Date, pattern: string) => formatInTimeZone(iso, TZ, pattern)
+
+/** Instant (ISO, UTC) for a business-local date and HH:mm. */
+export const zonedIso = (date: string, time: string) =>
+  fromZonedTime(`${date}T${time}:00`, TZ).toISOString()
+
+export const addDays = (date: string, days: number) =>
+  formatInTimeZone(addDaysFns(parseISO(`${date}T12:00:00Z`), days), 'UTC', 'yyyy-MM-dd')
+
+/** Monday of the week containing `date` (yyyy-MM-dd). */
+export const weekStart = (date: string) => {
+  const dow = new Date(`${date}T12:00:00Z`).getUTCDay() // 0 = Sunday
+  return addDays(date, -((dow + 6) % 7))
+}
+
+export const today = () => localDate(new Date())
+
+export const dayKey = (date: string): DayKey =>
+  DAY_KEYS[(new Date(`${date}T12:00:00Z`).getUTCDay() + 6) % 7]
+
+export const weekDates = (monday: string) => Array.from({ length: 7 }, (_, i) => addDays(monday, i))
+
+export const minutesBetween = (a: string, b: string) =>
+  Math.round((new Date(b).getTime() - new Date(a).getTime()) / 60000)
+
+/** HH:mm → minutes since midnight. */
+export const hmToMinutes = (hm: string) => {
+  const [h, m] = hm.split(':').map(Number)
+  return h * 60 + m
+}
+
+export const formatDuration = (minutes: number) => {
+  const sign = minutes < 0 ? '-' : ''
+  const m = Math.abs(Math.round(minutes))
+  const h = Math.floor(m / 60)
+  const r = m % 60
+  if (h === 0) return `${sign}${r}m`
+  return r === 0 ? `${sign}${h}h` : `${sign}${h}h ${String(r).padStart(2, '0')}m`
+}
+
+const eur = new Intl.NumberFormat(businessConfig.locale, { style: 'currency', currency: businessConfig.currency })
+export const formatMoney = (n: number) => eur.format(n)

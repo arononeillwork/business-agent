@@ -9,3 +9,4 @@ supabase/.temp/
 supabase/.branches/
 *.log
 .DS_Store
+worker-configuration.d.ts

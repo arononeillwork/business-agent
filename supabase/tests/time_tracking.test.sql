@@ -30,11 +30,13 @@ insert into public.settings default values;
 insert into public.positions (name) values ('Barista');
 insert into public.break_types (name, minutes, paid) values ('Rest', 15, true);
 
-insert into auth.users (email, raw_user_meta_data) values
-  ('aron@test', '{"full_name":"Aron"}'),
-  ('maria@test', '{"full_name":"Maria"}'),
-  ('julio@test', '{"full_name":"Julio"}'),
-  ('tablet@test', '{"full_name":"Café tablet","role":"kiosk"}');
+insert into auth.users (email, raw_user_meta_data) values ('aron@test', '{"full_name":"Aron"}');
+insert into auth.users (email, raw_user_meta_data, invited_at) values
+  ('maria@test', '{"full_name":"Maria"}', now()),
+  ('julio@test', '{"full_name":"Julio"}', now()),
+  ('tablet@test', '{"full_name":"Café tablet","role":"kiosk"}', now());
+-- A stranger who signs up without an invite, claiming to be an admin.
+insert into auth.users (email, raw_user_meta_data) values ('stranger@test', '{"role":"admin"}');
 
 -- 1. First sign-up is an admin with pay access; later ones are employees ------
 do $$ begin
@@ -42,7 +44,18 @@ do $$ begin
   assert (select can_see_pay from public.profiles where email = 'aron@test'), 'first admin sees pay';
   assert (select role from public.profiles where email = 'maria@test') = 'employee', 'second user is employee';
   assert (select role from public.profiles where email = 'tablet@test') = 'kiosk', 'kiosk account';
+  assert (select role = 'employee' and not active from public.profiles where email = 'stranger@test'),
+    'uninvited sign-up is an inactive employee';
 end $$;
+
+select pg_temp.act_as('stranger@test');
+do $$ begin
+  assert (select count(*) from public.shifts) = 0, 'stranger sees no rota';
+  assert (select count(*) from public.profiles where id <> auth.uid()) = 0, 'stranger sees no team';
+  assert (select count(*) from public.business) = 0, 'stranger sees no business details';
+end $$;
+select pg_temp.expect_error('select public.clock_in()', 'cannot clock in');
+reset role;
 
 insert into public.pay_rates (profile_id, hourly_rate)
 select id, 9.50 from public.profiles where email in ('maria@test', 'julio@test');
@@ -153,7 +166,7 @@ update public.shifts set starts_at = now() - interval '5 minutes'
  where profile_id = (select id from public.profiles where email = 'maria@test');
 select pg_temp.act_as('tablet@test');
 do $$ begin
-  assert (select count(*) from public.kiosk_roster()) = 3, 'kiosk sees 3 staff';
+  assert (select count(*) from public.kiosk_roster()) = 3, 'kiosk sees 3 active staff';
   assert (select count(*) from public.profiles where id <> auth.uid()) = 0, 'kiosk sees only its own profile';
   assert (select count(*) from public.shifts) = 0, 'kiosk cannot read the rota';
 end $$;

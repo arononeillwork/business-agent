@@ -94,3 +94,27 @@ Follow **whole competitions**, not just favourite teams — examples: La Liga, U
   many fixtures. Default alert: admins only, and only for "big" fixtures (Spain / England /
   Netherlands national team, clásicos, title-deciders) unless a competition's rule says
   otherwise — to avoid alert spam.
+
+## Status (26 Sep 2026)
+
+Built and tested in this repo:
+
+| Area | State |
+|---|---|
+| Database (Supabase `BusinessAgent`, eu-west-1) | Schema, row-level security, SQL rules, audit log applied; Easy Beans seed loaded (business, positions, break types, 20 holidays for 2026, 7 football competitions) |
+| Time tracking | Clock in/out + breaks (phone, kiosk PIN, API, AI), 10-min early window, unscheduled flag, auto clock-out cron, missed-break / over-9h flags, corrections with 30-day expiry, weekly approval, full change log |
+| Web app | Today, Rota (week grid, costs, coverage bar, Spanish-law warnings, open shifts, copy last week), Timecards (approve, corrections, CSV), Calendar (categories, to-confirm), Team (invite, roles, pay, PINs), Business (details, rules), Account, Kiosk |
+| AI connector | MCP at `/mcp` with OAuth sign-in (Supabase account), 26 tools, employees get only their tools; REST at `/api/v1/tools` |
+| Security | Invite-only accounts (self sign-ups are inactive), pay visible only with "see pay", PINs hashed, no direct writes to timecards |
+| Tests | SQL acceptance tests for the phase-1 checklist, rules and MCP unit tests |
+
+Not done yet / next:
+
+- Deploy: needs the GitHub push fixed (Claude GitHub App on this repo) and the repo connected in
+  Cloudflare Workers Builds; then set `SUPABASE_SERVICE_ROLE_KEY` and Supabase auth URLs.
+- Region: the dev project is Ireland (eu-west-1). For production, a new Frankfurt project or keep
+  this one (both EU).
+- Phase 1 remaining: gestor Excel + monthly registro PDF, under-18 checks, yearly overtime counter.
+- Phase 2: football fixture sync (football-data.org key), alerts (WhatsApp/Slack/SMS), personal
+  API keys for n8n, kiosk device account setup screen.
+- Performance: code-split the app bundle (930 kB).
