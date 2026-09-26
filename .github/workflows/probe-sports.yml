@@ -1,0 +1,33 @@
+name: Probe sports sources
+# Fetches sample responses from the sports data sources so parsers can be built and tested
+# against real data (this container can't reach them). Runs when this file changes.
+on:
+  push:
+    branches: [claude/easy-beans-architecture-plan-dknqka]
+    paths: [.github/workflows/probe-sports.yml]
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          from=$(date -u +%Y%m%d); to=$(date -u -d '+21 days' +%Y%m%d)
+          probe() { echo "=== $1"; curl -s -m 20 -w '\nHTTP %{http_code}\n' "$2" | head -c ${3:-2500}; echo; }
+          for lg in esp.1 eng.1 ned.1 uefa.champions uefa.nations fifa.friendly fifa.worldq.uefa; do
+            curl -s -m 20 "https://site.api.espn.com/apis/site/v2/sports/soccer/$lg/scoreboard?dates=$from-$to&limit=200" \
+              | jq -c "{league: .leagues[0].name, n: (.events|length), first: (.events[0] | {id, date, name, status: .status.type.name,
+                  venue: .competitions[0].venue.fullName, tv: [.competitions[0].broadcasts[]?.names[]?],
+                  teams: [.competitions[0].competitors[] | {homeAway, name: .team.displayName, abbr: .team.abbreviation, logo: .team.logo, country: .team.location}]})}" \
+              | sed "s/^/$lg: /"
+          done
+          echo "=== ufc"
+          curl -s -m 20 "https://site.api.espn.com/apis/site/v2/sports/mma/ufc/scoreboard?dates=$from-$(date -u -d '+60 days' +%Y%m%d)&limit=50" \
+            | jq -c '{n: (.events|length), events: [.events[]? | {id, date, name, shortName, status: .status.type.name,
+                venue: .competitions[0].venue.fullName, bouts: (.competitions|length),
+                main: (.competitions[-1].competitors | map(.athlete.displayName))}] | .[0:3]}'
+          echo "=== ufc calendar"
+          curl -s -m 20 "https://site.api.espn.com/apis/site/v2/sports/mma/ufc/scoreboard" | jq -c '.leagues[0].calendar[0:6]'
+          probe "sportsdb boxing next" "https://www.thesportsdb.com/api/v1/json/3/eventsnextleague.php?id=4445" 3000
+          probe "sportsdb boxing season" "https://www.thesportsdb.com/api/v1/json/3/eventsseason.php?id=4445&s=$(date -u +%Y)" 1500
+          probe "sportsdb ufc next" "https://www.thesportsdb.com/api/v1/json/3/eventsnextleague.php?id=4443" 1500
+          probe "espn boxing" "https://site.api.espn.com/apis/site/v2/sports/boxing/scoreboard" 600
