@@ -54,6 +54,8 @@ export async function signState(secret: string, data: Record<string, unknown>, t
 export async function verifyState<T>(secret: string, token: string): Promise<T> {
   const [body, sig] = token.split('.')
   if (!body || !sig) throw new Error('Invalid state')
+  // Only the canonical encoding counts (the last base64url character has spare bits).
+  if (b64url(unb64url(sig)) !== sig) throw new Error('Invalid state')
   const ok = await crypto.subtle.verify('HMAC', await hmacKey(secret), unb64url(sig), enc.encode(body))
   if (!ok) throw new Error('Invalid state')
   const data = JSON.parse(dec.decode(unb64url(body))) as T & { exp: number }

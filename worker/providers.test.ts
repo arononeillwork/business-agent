@@ -99,7 +99,16 @@ describe('crypto', () => {
   it('signs OAuth state and rejects tampering or expiry', async () => {
     const s = await signState('key', { uid: 'u1' })
     expect(await verifyState<{ uid: string }>('key', s)).toMatchObject({ uid: 'u1' })
-    await expect(verifyState('key', s.replace(/.$/, c => (c === 'A' ? 'B' : 'A')))).rejects.toThrow()
+    const [body, sig] = s.split('.')
+    const flip = (str: string, i: number) => str.slice(0, i) + (str[i] === 'A' ? 'B' : 'A') + str.slice(i + 1)
+    // Every character of the signature and the payload matters, including the last one's spare bits.
+    for (let i = 0; i < sig.length; i++) await expect(verifyState('key', `${body}.${flip(sig, i)}`)).rejects.toThrow()
+    await expect(verifyState('key', `${flip(body, 3)}.${sig}`)).rejects.toThrow()
+    // Same bytes, different spelling: flip a spare (ignored) bit of the last character.
+    const abc = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
+    const spare = sig.slice(0, -1) + abc[abc.indexOf(sig.at(-1)!) ^ 1]
+    await expect(verifyState('key', `${body}.${spare}`)).rejects.toThrow()
+    await expect(verifyState('other-key', s)).rejects.toThrow()
     await expect(verifyState('key', await signState('key', { uid: 'u1' }, -1))).rejects.toThrow('expired')
   })
 })
