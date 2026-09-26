@@ -298,10 +298,10 @@ test.describe('admin', () => {
     const was = await reminders.isChecked()
     try {
       await reminders.click()
-      await toast(page, `Shift reminders ${was ? 'off' : 'on'}`)
+      await toast(page, `Shift reminders: switched ${was ? 'off' : 'on'}`)
       await expect(reminders).toBeChecked({ checked: !was, ...NET })
       await reminders.click()
-      await toast(page, `Shift reminders ${was ? 'on' : 'off'}`)
+      await toast(page, `Shift reminders: switched ${was ? 'on' : 'off'}`)
       await expect(reminders).toBeChecked({ checked: was, ...NET })
     } finally {
       await service(cfg).from('settings').update({ alert_shift_reminders: shiftReminders }).eq('id', 1)

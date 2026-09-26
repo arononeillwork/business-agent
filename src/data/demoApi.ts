@@ -333,7 +333,7 @@ export function createDemoApi(): Api {
     },
     async signOut() { currentUser = null; notify() },
     async signInMethods() { return { google: true, microsoft: true } },
-    async sendPasswordReset() {},
+    async sendPasswordReset() { throw new Error('Password reset emails are sent on the live app. In the demo, any password works.') },
     async updatePassword() {},
 
     async me() { const p = me(); return p ? visibleProfile(p) : null },
@@ -487,11 +487,16 @@ export function createDemoApi(): Api {
       if (i >= 0) events.splice(i, 1)
     },
 
-    async updateBusiness(patch) { requireAdmin(); Object.assign(business, patch, { updated_at: nowIso() }) },
+    async updateBusiness(patch) {
+      requireAdmin()
+      if ('name' in patch && !patch.name?.trim()) throw new Error('The business needs a name')
+      Object.assign(business, patch, { updated_at: nowIso() })
+    },
     async updateAdminNotes(notes) { requireAdmin(); adminNotes = notes },
     async updateSettings(patch) { requireAdmin(); Object.assign(settings, patch) },
     async updateProfile(id, patch) {
       if (id !== currentUser) requireAdmin()
+      if (id === currentUser && patch.active === false) throw new Error("You can't switch off your own account. Ask another admin.")
       if (!isAdmin() && ('role' in patch || 'can_see_pay' in patch || 'active' in patch)) {
         throw new Error('Only an admin can change role, pay access or status')
       }
@@ -514,6 +519,7 @@ export function createDemoApi(): Api {
     },
     async invite(email, fullName, role) {
       requireAdmin()
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) throw new Error('Enter a full email address, like name@example.com')
       profiles.push({ id: uid(), full_name: fullName, email, role, can_see_pay: false, colour: '#8d6e63',
         active: true, phone: null, birth_date: null })
     },

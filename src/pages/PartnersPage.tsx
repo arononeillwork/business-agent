@@ -80,7 +80,10 @@ function PartnerDialog({ partner, onClose, onSaved }: { partner: Profile | null;
   const save = async () => {
     const ok = await run(async () => {
       if (partner) await api.setPartnerAccess(partner.id, company, access)
-      else await api.invitePartner(email, name, company, access)
+      else {
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim())) throw new Error('Enter a full email address, like name@example.com')
+        await api.invitePartner(email.trim(), name.trim(), company, access)
+      }
       await onSaved()
     }, partner ? 'Access updated' : 'Invite sent')
     if (ok) onClose()

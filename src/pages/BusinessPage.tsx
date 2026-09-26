@@ -29,7 +29,7 @@ function openStatus(b: Business) {
   if (!h) return { open: false, text: 'Closed today' }
   const now = hmToMinutes(localTime(new Date()))
   if (now < hmToMinutes(h.open)) return { open: false, text: `Opens at ${h.open}` }
-  if (now >= hmToMinutes(h.close)) return { open: false, text: `Closed · opened ${h.open}–${h.close}` }
+  if (now >= hmToMinutes(h.close)) return { open: false, text: `Closed now · today ${h.open}–${h.close}` }
   return { open: true, text: `Open now · closes at ${h.close}` }
 }
 
@@ -174,6 +174,7 @@ function DetailsDialog({ onClose }: { onClose: () => void }) {
   return (
     <EditDialog title="Business details" onClose={onClose} onSave={async () => {
       const { updated_at: _u, ...patch } = b
+      if (!patch.name?.trim()) throw new Error('The business needs a name')
       await api.updateBusiness(patch); await refresh()
     }}>
       {field('name', 'Name')}

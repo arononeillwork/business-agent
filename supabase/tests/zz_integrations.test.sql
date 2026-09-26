@@ -275,3 +275,12 @@ do $$ begin
   assert (select count(*) from public.expenses) = 0 and (select count(*) from public.business) = 0, 'deactivated partner sees nothing';
 end $$;
 reset role;
+
+-- 11. No self-lockout; the business keeps a name -------------------------------------------
+select pg_temp.act_as('maria@test');
+select pg_temp.expect_error($q$update public.profiles set active = false where id = auth.uid()$q$, 'your own account');
+select pg_temp.expect_error($q$update public.business set name = '  ' where id = 1$q$, 'business_name_not_blank');
+do $$ begin
+  assert (select active from public.profiles where email = 'maria@test'), 'still active';
+end $$;
+reset role;

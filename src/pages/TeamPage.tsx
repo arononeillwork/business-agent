@@ -38,7 +38,9 @@ export function TeamPage() {
                 {isAdmin && (
                   <Stack spacing={1.5}>
                     <Stack direction="row" spacing={1}>
-                      <TextField select label="Role" value={p.role} onChange={e => update(p, { role: e.target.value as Profile['role'] }, 'Role updated')}>
+                      <TextField select label="Role" value={p.role} disabled={p.id === me?.id}
+                        helperText={p.id === me?.id ? 'Another admin can change this' : undefined}
+                        onChange={e => update(p, { role: e.target.value as Profile['role'] }, 'Role updated')}>
                         <MenuItem value="admin">Admin</MenuItem>
                         <MenuItem value="employee">Employee</MenuItem>
                       </TextField>
@@ -57,7 +59,9 @@ export function TeamPage() {
                       {p.role === 'admin' && canSeePay && (
                         <FormControlLabel control={<Switch checked={p.can_see_pay} onChange={e => update(p, { can_see_pay: e.target.checked })} />} label="Sees pay" />
                       )}
-                      <FormControlLabel control={<Switch checked={p.active} onChange={e => update(p, { active: e.target.checked })} />} label="Active" />
+                      {/* Switching yourself off would lock you out immediately. */}
+                      <FormControlLabel disabled={p.id === me?.id} label="Active"
+                        control={<Switch checked={p.active} onChange={e => update(p, { active: e.target.checked }, e.target.checked ? 'Access restored' : `${p.full_name} can no longer sign in`)} />} />
                       <Button size="small" onClick={() => setPinFor(p)}>Set kiosk PIN</Button>
                     </Stack>
                   </Stack>
@@ -77,6 +81,8 @@ export function TeamPage() {
     </>
   )
 }
+
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 
 function InviteDialog({ onClose }: { onClose: () => void }) {
   const { api, refresh } = useApp()
@@ -101,9 +107,10 @@ function InviteDialog({ onClose }: { onClose: () => void }) {
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
-        <Button variant="contained" disabled={!email || !name} onClick={() => run(async () => {
-          await api.invite(email, name, role); await refresh(); onClose()
-        }, `Invite sent to ${email}`)}>Send invite</Button>
+        <Button variant="contained" disabled={!email.trim() || !name.trim()} onClick={() => run(async () => {
+          if (!EMAIL.test(email.trim())) throw new Error('Enter a full email address, like name@example.com')
+          await api.invite(email.trim(), name.trim(), role); await refresh(); onClose()
+        }, `Invite sent to ${email.trim()}`)}>Send invite</Button>
       </DialogActions>
     </Dialog>
   )

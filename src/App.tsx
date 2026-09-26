@@ -47,7 +47,8 @@ function Routed() {
   }
   return (
     <Routes>
-      <Route path="/kiosk" element={<KioskPage />} />
+      {/* Staff use the tablet itself (kiosk account); admins can open it to set it up. */}
+      <Route path="/kiosk" element={isAdmin ? <KioskPage /> : <Navigate to="/" />} />
       <Route element={<AppShell />}>
         <Route index element={<TodayPage />} />
         <Route path="rota" element={<RotaPage />} />

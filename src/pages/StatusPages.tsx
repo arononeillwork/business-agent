@@ -23,10 +23,10 @@ function Panel({ title, children, action }: { title: string; children: React.Rea
 export function NotActive() {
   const { api, me } = useApp()
   return (
-    <Panel title="Your account isn't active yet"
+    <Panel title="Your account isn't active"
       action={<Button variant="outlined" onClick={() => api.signOut()}>Sign out</Button>}>
-      You're signed in as {me?.email}, but this account hasn't been invited to the team. Ask the owner to
-      send an invite to this email, then sign in again.
+      You're signed in as {me?.email}, but this account isn't active: either it hasn't been invited yet or
+      an admin has switched it off. Ask an admin at Easy Beans to invite this email or turn it back on.
     </Panel>
   )
 }

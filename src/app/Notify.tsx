@@ -1,4 +1,4 @@
-import { Alert, Portal, Snackbar } from '@mui/material'
+import { Alert, Portal, Snackbar, useMediaQuery, useTheme } from '@mui/material'
 import { useQueryClient } from '@tanstack/react-query'
 import { createContext, useCallback, useContext, useState, type ReactNode } from 'react'
 
@@ -29,6 +29,7 @@ export function useAction() {
 export function NotifyProvider({ children }: { children: ReactNode }) {
   const [msg, setMsg] = useState<{ text: string; kind: Kind; key: number } | null>(null)
   const notify = useCallback((text: string, kind: Kind = 'info') => setMsg({ text, kind, key: Date.now() }), [])
+  const phone = useMediaQuery(useTheme().breakpoints.down('md'))
   return (
     <Ctx.Provider value={notify}>
       {children}
@@ -36,7 +37,8 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
       {msg && (
         <Portal key={msg.key}>
           <Snackbar open autoHideDuration={5000} onClose={() => setMsg(null)}
-            anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }} sx={{ mb: { xs: 8, md: 0 } }}>
+            // Phones: at the top, under the header, so it never covers buttons or the bottom bar.
+            anchorOrigin={{ vertical: phone ? 'top' : 'bottom', horizontal: 'center' }} sx={{ mt: phone ? 7 : 0 }}>
             <Alert severity={msg.kind} variant="filled" onClose={() => setMsg(null)}>{msg.text}</Alert>
           </Snackbar>
         </Portal>

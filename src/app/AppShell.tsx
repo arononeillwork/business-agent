@@ -1,5 +1,5 @@
 import {
-  Alert, AppBar, BottomNavigation, BottomNavigationAction, Box, Button, IconButton, List, ListItemButton,
+  Alert, AppBar, BottomNavigation, BottomNavigationAction, Box, Button, Drawer, IconButton, List, ListItemButton,
   ListItemIcon, ListItemText, MenuItem, Paper, Select, Stack, Toolbar, Tooltip, Typography, useMediaQuery, useTheme,
 } from '@mui/material'
 import TodayIcon from '@mui/icons-material/WbSunnyOutlined'
@@ -17,6 +17,7 @@ import AlertsIcon from '@mui/icons-material/NotificationsNoneOutlined'
 import ConnectIcon from '@mui/icons-material/HubOutlined'
 import LogoutIcon from '@mui/icons-material/LogoutOutlined'
 import PartnersIcon from '@mui/icons-material/HandshakeOutlined'
+import MoreIcon from '@mui/icons-material/MoreHoriz'
 import {
   DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent,
 } from '@dnd-kit/core'
@@ -102,6 +103,57 @@ function DemoBanner() {
       }>
       <b>Demo</b> · sample data, nothing is saved
     </Alert>
+  )
+}
+
+/**
+ * Phone: up to five tabs; when there are more pages, four tabs plus "More" (a sheet with the
+ * rest, the café tablet and sign out), so every page is reachable. "My account" lives in the top bar.
+ */
+function PhoneNav({ items, current }: { items: NavItem[]; current: string | false }) {
+  const { isAdmin, api } = useApp()
+  const [more, setMore] = useState(false)
+  const tabs = items.filter(n => n.key !== 'account')
+  const extra = isAdmin ? 1 : 0 // café tablet
+  const overflow = tabs.length + extra > 5
+  const shown = overflow ? tabs.slice(0, 4) : tabs
+  const rest = overflow ? tabs.slice(4) : []
+  const inRest = rest.some(n => n.key === current)
+  return (
+    <Paper component="nav" aria-label="Main" elevation={0}
+      sx={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 10, pb: 'env(safe-area-inset-bottom)' }}>
+      <BottomNavigation showLabels value={inRest ? 'more' : current}>
+        {shown.map(n => (
+          <BottomNavigationAction key={n.key} value={n.key} label={n.short ?? n.label}
+            icon={n.icon} component={Link} to={n.to} sx={{ minWidth: 0 }} />
+        ))}
+        {overflow && (
+          <BottomNavigationAction value="more" label="More" icon={<MoreIcon />} sx={{ minWidth: 0 }}
+            onClick={() => setMore(true)} aria-haspopup="dialog" />
+        )}
+      </BottomNavigation>
+      <Drawer anchor="bottom" open={more} onClose={() => setMore(false)}
+        slotProps={{ paper: { sx: { borderTopLeftRadius: 20, borderTopRightRadius: 20, pb: 'env(safe-area-inset-bottom)' } } }}>
+        <List aria-label="More pages" sx={{ py: 1.5 }} onClick={() => setMore(false)}>
+          {rest.map(n => (
+            <ListItemButton key={n.key} component={Link} to={n.to} selected={current === n.key} sx={{ mx: 1 }}>
+              <ListItemIcon sx={{ minWidth: 40 }}>{n.icon}</ListItemIcon>
+              <ListItemText primary={n.label} />
+            </ListItemButton>
+          ))}
+          {isAdmin && (
+            <ListItemButton component={Link} to="/kiosk" sx={{ mx: 1 }}>
+              <ListItemIcon sx={{ minWidth: 40 }}><KioskIcon /></ListItemIcon>
+              <ListItemText primary="Café tablet" />
+            </ListItemButton>
+          )}
+          <ListItemButton onClick={() => api.signOut()} sx={{ mx: 1 }}>
+            <ListItemIcon sx={{ minWidth: 40 }}><LogoutIcon /></ListItemIcon>
+            <ListItemText primary="Sign out" />
+          </ListItemButton>
+        </List>
+      </Drawer>
+    </Paper>
   )
 }
 
@@ -219,17 +271,7 @@ export function AppShell() {
           <Outlet />
         </Box>
       </Box>
-      {!desktop && (
-        <Paper component="nav" aria-label="Main" elevation={0}
-          sx={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 10, pb: 'env(safe-area-inset-bottom)' }}>
-          <BottomNavigation showLabels value={current}>
-            {items.slice(0, 5).map(n => (
-              <BottomNavigationAction key={n.key} value={n.key} label={n.short ?? n.label}
-                icon={n.icon} component={Link} to={n.to} sx={{ minWidth: 0 }} />
-            ))}
-          </BottomNavigation>
-        </Paper>
-      )}
+      {!desktop && <PhoneNav items={items} current={current} />}
     </Box>
   )
 }

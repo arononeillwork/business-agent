@@ -72,7 +72,7 @@ export function AlertsPage() {
                     </Box>
                     <Switch checked={!!settings[k.key]} slotProps={{ input: { 'aria-label': k.title } }}
                       onChange={e => run(async () => { await api.updateSettings({ [k.key]: e.target.checked }); await refresh() },
-                        `${k.title} ${e.target.checked ? 'on' : 'off'}`)} />
+                        `${k.title}: switched ${e.target.checked ? 'on' : 'off'}`)} />
                   </Stack>
                 ))}
               </Stack>

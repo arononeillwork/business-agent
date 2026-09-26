@@ -156,7 +156,7 @@ export function RotaPage() {
     <>
       <PageHeader eyebrow="Schedule" title="Rota"
         subtitle={isAdmin ? 'Tap an empty cell to add a shift. Warnings follow Spanish working-time rules.'
-          : 'Your shifts are outlined in green. Open shifts can be picked up.'}
+          : isPartner ? 'The published rota, read-only.' : 'Your shifts are outlined in green. Open shifts can be picked up.'}
         actions={<>
           <WeekNav monday={monday} onChange={setMonday} />
           <TextField select size="small" label="Position" value={positionFilter} sx={{ width: 140 }}

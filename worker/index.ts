@@ -42,6 +42,7 @@ app.post('/api/admin/invite', async c => {
   const email = body.email?.trim().toLowerCase()
   const role = ['admin', 'employee', 'kiosk', 'partner'].includes(body.role ?? '') ? body.role : 'employee'
   if (!email || !body.full_name?.trim()) return c.json({ error: 'Name and email are required' }, 400)
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return c.json({ error: 'Enter a full email address, like name@example.com' }, 400)
   // Partners: company and read-only areas (the database drops anything unknown too).
   const partner = role === 'partner' ? {
     partner_company: body.partner_company?.trim() || null,

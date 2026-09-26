@@ -231,6 +231,58 @@ test('@phone layout: bottom navigation and a full-width clock-in button', async 
   const button = page.getByRole('button', { name: 'Clock in' })
   const box = await button.boundingBox()
   expect(box!.width).toBeGreaterThan(250)
+  // Every admin page is reachable on a phone: the rest sit under "More".
+  await page.getByRole('button', { name: 'More' }).click()
+  const sheet = page.getByRole('list', { name: 'More pages' })
+  for (const name of ['Calendar', 'Finances', 'Partners', 'Alerts', 'Connections', 'Café tablet']) {
+    await expect(sheet.getByRole('link', { name })).toBeVisible()
+  }
+  await sheet.getByRole('link', { name: 'Finances' }).click()
+  await expect(page.getByRole('heading', { name: 'Finances' })).toBeVisible()
+})
+
+test('@phone a message never covers the sign-in buttons', async ({ page }) => {
+  await page.goto('/?demo')
+  const google = (await page.getByRole('button', { name: 'Google' }).boundingBox())!
+  await page.getByRole('button', { name: 'Google' }).click()
+  const alert = (await page.getByRole('alert').filter({ hasText: 'Google sign-in' }).boundingBox())!
+  expect(alert.y + alert.height, 'message sits above the sign-in buttons').toBeLessThan(google.y)
+})
+
+test.describe('guard rails', () => {
+  test('an admin cannot switch themselves off or demote themselves', async ({ page }) => {
+    await open(page, '/team')
+    const mine = page.locator('.MuiCard-root', { hasText: '(you)' })
+    await expect(mine.getByRole('switch', { name: 'Active' }).or(mine.getByLabel('Active'))).toBeDisabled()
+    await expect(mine.getByText('Another admin can change this')).toBeVisible()
+  })
+
+  test('the business keeps a name, and invites need a real email', async ({ page }) => {
+    await open(page, '/business')
+    await page.getByRole('button', { name: 'Edit' }).first().click()
+    const dialog = page.getByRole('dialog', { name: 'Business details' })
+    await dialog.getByRole('textbox', { name: 'Name', exact: true }).fill('')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await toast(page, 'The business needs a name')
+    await dialog.getByRole('button', { name: 'Cancel' }).click()
+    await expect(page.getByRole('heading', { name: 'Easy Beans Coffee' })).toBeVisible()
+
+    await page.getByRole('link', { name: 'Team' }).first().click()
+    await page.getByRole('button', { name: 'Invite' }).click()
+    const invite = page.getByRole('dialog', { name: 'Invite to the team' })
+    await invite.getByLabel('Full name').fill('Test')
+    await invite.getByLabel('Email').fill('notanemail')
+    await invite.getByRole('button', { name: 'Send invite' }).click()
+    await toast(page, 'Enter a full email address')
+  })
+
+  test('staff can\'t open the café tablet screen from their own login', async ({ page }) => {
+    await open(page)
+    await signInAs(page, 'maria@example.com')
+    await page.goto('/kiosk')
+    await expect(page).not.toHaveURL(/kiosk/)
+    await expect(page.getByRole('heading', { name: /Hola, Maria/ })).toBeVisible()
+  })
 })
 
 test('sidebar starts with Business and rows can be reordered by keyboard, remembered after reload', async ({ page }) => {
@@ -439,7 +491,7 @@ test('alerts: admin switches an alert off and sees what was sent', async ({ page
   const reminders = page.getByRole('switch', { name: 'Shift reminders' }).or(page.getByLabel('Shift reminders'))
   await expect(reminders).toBeChecked()
   await reminders.click()
-  await toast(page, 'Shift reminders off')
+  await toast(page, 'Shift reminders: switched off')
   await expect(reminders).not.toBeChecked()
   await expect(page.getByText('Recently sent')).toBeVisible()
 })
@@ -523,6 +575,6 @@ test.describe('partners (outside businesses)', () => {
     await page.locator('.MuiCard-root', { hasText: 'Café Supplies SL' }).getByRole('button', { name: 'Remove access' }).click()
     await toast(page, 'Access removed')
     await signInAs(page, 'pedro@supplies.example')
-    await expect(page.getByText(/isn.t active/i)).toBeVisible()
+    await expect(page.getByText(/isn.t active/i).first()).toBeVisible()
   })
 })
