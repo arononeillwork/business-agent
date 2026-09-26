@@ -20,14 +20,27 @@ Business page shows anything waiting or failed.
 
 ## 1. Sign in with Google (staff login)
 
-1. Google Cloud Console → create a project "Easy Beans" → APIs & Services → OAuth consent screen
-   (External, app name, support email) → Credentials → Create OAuth client ID → Web application.
-2. Authorised redirect URI: `https://lhakrmmoxaareykglmtx.supabase.co/auth/v1/callback`.
-3. Supabase → Authentication → Sign In / Providers → Google → paste client ID and secret → enable.
-4. Supabase → Authentication → URL configuration → add the site URL (the Worker URL).
+The app always opens on the sign-in screen; nothing is shown until someone signs in. The
+"Continue with Google" button is already in place (PKCE flow via Supabase). To switch it on:
 
-Staff still need an invite: a Google account whose email was invited signs straight in; anyone
-else lands on an inactive account that sees nothing.
+1. **Google Cloud Console** → create or pick a project → *APIs & Services → OAuth consent screen*:
+   External, app name "Easy Beans Team", support email, authorised domain = your site's domain.
+   Scopes: `openid`, `email`, `profile` only.
+2. *Credentials → Create credentials → OAuth client ID → Web application*.
+   - Authorised JavaScript origins: your site URL (e.g. `https://business-agent.<you>.workers.dev`)
+     and `http://localhost:5173` for development.
+   - Authorised redirect URI: `https://lhakrmmoxaareykglmtx.supabase.co/auth/v1/callback`
+3. **Supabase** → *Authentication → Sign In / Providers → Google* → enable, paste the client ID
+   and client secret → Save.
+4. **Supabase** → *Authentication → URL Configuration*:
+   - Site URL: your site URL.
+   - Redirect URLs: `https://<your-site>/**` and `http://localhost:5173/**`.
+5. Optional but recommended: *Authentication → Sign In / Providers → turn off "Allow new users to sign up"*
+   for email. Invites still work.
+
+Who gets in: only invited people. An invited email that signs in with Google lands straight in
+the app (Supabase links the Google identity to the invited account). Anyone else who signs in
+with Google sees "Your account isn't active yet" and nothing else.
 
 ## 2. Google Maps opening hours, closures and posts (Google Business Profile)
 

@@ -1,4 +1,4 @@
-import { Alert, Box, Button, Card, CardContent, Link, Stack, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, Card, CardContent, Divider, Link, Stack, TextField, Typography } from '@mui/material'
 import { useState } from 'react'
 import { useApp } from '../app/AppContext'
 import { useAction, useNotify } from '../app/Notify'
@@ -33,6 +33,14 @@ export function LoginPage() {
                 <Typography variant="body2" color="text.secondary">Team sign-in</Typography>
               </Box>
             </Stack>
+            {api.mode === 'live' && (
+              <>
+                <Button variant="outlined" size="large" startIcon={<GoogleIcon />} onClick={() => run(() => api.signInWithGoogle())}>
+                  Continue with Google
+                </Button>
+                <Divider sx={{ color: 'text.secondary', fontSize: 13 }}>or with email</Divider>
+              </>
+            )}
             {api.mode === 'demo' && (
               <Alert severity="info">Demo: use aron@example.com (admin) or maria@example.com (employee), any password.</Alert>
             )}
@@ -41,17 +49,11 @@ export function LoginPage() {
             <TextField label="Password" type="password" autoComplete="current-password" value={password}
               onChange={e => setPassword(e.target.value)} required={api.mode === 'live'} />
             <Button type="submit" variant="contained" size="large" disabled={busy}>Sign in</Button>
-            {api.mode === 'live' && (
-              <Button variant="outlined" size="large" startIcon={<GoogleIcon />} onClick={() => run(() => api.signInWithGoogle())}>
-                Continue with Google
-              </Button>
-            )}
             <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
               <Link component="button" type="button" variant="body2" onClick={async () => {
                 if (!email) return notify('Enter your email first', 'warning')
                 await run(() => api.sendPasswordReset(email), 'Check your email for a reset link')
               }}>Forgot password?</Link>
-              {api.mode === 'live' && <Link href="/?demo" variant="body2">Try the demo</Link>}
             </Stack>
           </Stack>
         </CardContent>

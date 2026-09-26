@@ -5,10 +5,30 @@ import { expect, test, type Page } from '@playwright/test'
 
 const WED_0900 = new Date('2026-09-30T07:00:00Z') // 09:00 Europe/Madrid (CEST)
 
-async function open(page: Page, path = '/') {
+/** Open the demo and sign in (everyone starts at the sign-in screen), as the admin by default. */
+async function open(page: Page, path = '/', email = 'aron@example.com') {
   await page.clock.install({ time: WED_0900 })
   await page.goto(`${path}${path.includes('?') ? '&' : '?'}demo`)
+  await page.getByLabel('Email').fill(email)
+  await page.getByRole('button', { name: 'Sign in' }).click()
+  await expect(page.getByText('Team sign-in')).toHaveCount(0)
 }
+
+test('the app opens at the sign-in screen and shows nothing before login', async ({ page }) => {
+  await page.goto('/?demo')
+  await expect(page.getByText('Team sign-in')).toBeVisible()
+  await expect(page.getByRole('navigation')).toHaveCount(0)
+  await page.goto('/rota')
+  await expect(page.getByText('Team sign-in')).toBeVisible()
+  await expect(page.getByText('Labour cost')).toHaveCount(0)
+  await page.getByLabel('Email').fill('maria@example.com')
+  await page.getByRole('button', { name: 'Sign in' }).click()
+  await expect(page.getByRole('heading', { name: 'Rota' })).toBeVisible()
+  await page.reload()
+  await expect(page.getByRole('heading', { name: 'Rota' })).toBeVisible() // stays signed in
+  await page.getByRole('button', { name: 'Sign out' }).first().click()
+  await expect(page.getByText('Team sign-in')).toBeVisible()
+})
 
 async function signInAs(page: Page, email: string) {
   await page.getByRole('button', { name: 'Sign out' }).first().click()

@@ -194,10 +194,9 @@ export function createDemoApi(): Api {
   }
   let currentUser: string | null = (() => {
     try {
-      const saved = sessionStorage.getItem('demo-user')
-      return saved === null ? P.aron : saved || null
+      return sessionStorage.getItem('demo-user') || null
     } catch {
-      return P.aron
+      return null
     }
   })()
   const listeners = new Set<() => void>()

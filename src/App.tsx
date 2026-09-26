@@ -17,11 +17,13 @@ import { BusinessPage } from './pages/BusinessPage'
 import { AccountPage } from './pages/AccountPage'
 import { KioskPage } from './pages/KioskPage'
 import { TimeOffPage } from './pages/TimeOffPage'
+import { NotActive } from './pages/StatusPages'
 
 function Routed() {
   const { me, loading } = useApp()
   if (loading) return <Loading />
   if (!me) return <LoginPage />
+  if (!me.active) return <NotActive />
   if (me.role === 'kiosk') return <KioskPage />
   return (
     <Routes>

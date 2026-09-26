@@ -15,7 +15,8 @@ function checkAuth(res: { error: { message: string } | null }) {
 
 export function createSupabaseApi(url: string, key: string): Api {
   const sb: SupabaseClient = createClient(url, key, {
-    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+    // PKCE: the Google sign-in redirect returns a one-time code, never tokens in the URL.
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: 'pkce' },
   })
 
   const uid = async () => (await sb.auth.getSession()).data.session?.user.id ?? null
@@ -218,7 +219,15 @@ export function createSupabaseApi(url: string, key: string): Api {
     },
 
     async signInWithGoogle() {
-      checkAuth(await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin } }))
+      const { error } = await sb.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: location.origin, queryParams: { prompt: 'select_account' } },
+      })
+      if (error) {
+        throw new Error(/provider is not enabled|unsupported provider/i.test(error.message)
+          ? 'Google sign-in is not switched on yet. Use your email and password for now.'
+          : error.message)
+      }
     },
 
     integrations: () => worker('/api/integrations'),

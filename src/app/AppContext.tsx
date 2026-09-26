@@ -5,6 +5,7 @@ import { currentRates } from '../data/api'
 import { createDemoApi } from '../data/demoApi'
 import { createSupabaseApi } from '../data/supabaseApi'
 import type { BreakType, Business, PayRate, Position, Profile, Settings } from '../../shared/types'
+import { StartError } from '../pages/StatusPages'
 
 export interface AppData {
   api: Api
@@ -41,20 +42,23 @@ function demoFlag(set?: boolean) {
   }
 }
 
-/** Demo mode: ?demo in the URL, a demo-only build, or no Supabase configured. */
+/** Sample data is only ever offered in the demo build and in local development (?demo). */
+const DEMO_ALLOWED = import.meta.env.VITE_DEMO_ONLY === '1' || import.meta.env.DEV
+
+/**
+ * The real app always talks to Supabase and requires sign-in. It never falls back to sample
+ * data: if the server can't be reached, the person sees an error and can retry.
+ */
 async function resolveApi(): Promise<Api> {
   if (import.meta.env.VITE_DEMO_ONLY === '1') return createDemoApi()
-  const params = new URLSearchParams(location.search)
-  const demo = demoFlag(params.has('demo') ? true : params.has('live') ? false : undefined)
-  if (demo || params.has('demo')) return createDemoApi()
-  try {
-    const res = await fetch('/api/config')
-    const cfg = await res.json() as { supabaseUrl?: string; supabaseKey?: string }
-    if (cfg.supabaseUrl && cfg.supabaseKey) return createSupabaseApi(cfg.supabaseUrl, cfg.supabaseKey)
-  } catch {
-    // fall through to demo
+  if (DEMO_ALLOWED) {
+    const params = new URLSearchParams(location.search)
+    if (demoFlag(params.has('demo') ? true : params.has('live') ? false : undefined)) return createDemoApi()
   }
-  return createDemoApi()
+  const res = await fetch('/api/config')
+  const cfg = await res.json().catch(() => ({})) as { supabaseUrl?: string; supabaseKey?: string }
+  if (!res.ok || !cfg.supabaseUrl || !cfg.supabaseKey) throw new Error('The app is not configured')
+  return createSupabaseApi(cfg.supabaseUrl, cfg.supabaseKey)
 }
 
 type Shared = Omit<AppData, 'api' | 'refresh' | 'rates' | 'isAdmin' | 'canSeePay' | 'loading'>
@@ -62,9 +66,12 @@ const EMPTY: Shared = { me: null, business: null, settings: null, profiles: [], 
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [api, setApi] = useState<Api | null>(null)
+  const [startError, setStartError] = useState<string | null>(null)
   const client = useQueryClient()
 
-  useEffect(() => { resolveApi().then(setApi) }, [])
+  useEffect(() => {
+    resolveApi().then(setApi).catch(e => setStartError(e instanceof Error ? e.message : String(e)))
+  }, [])
 
   // Who is signed in plus the team's reference data, cached and refreshed with everything else.
   const shared = useQuery({
@@ -99,6 +106,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     canSeePay: state.me?.role === 'admin' && !!state.me?.can_see_pay,
   }), [api, state, refresh, shared.isPending])
 
+  if (startError) return <StartError message={startError} />
   if (!value) return null
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }
