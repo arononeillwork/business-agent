@@ -9,6 +9,9 @@ on:
       url:
         type: string
         required: true
+  # Daily as well (scheduled runs only start once this is on the default branch).
+  schedule:
+    - cron: '17 5 * * *'
   workflow_dispatch:
     inputs:
       url:
@@ -44,9 +47,11 @@ jobs:
       - name: Sign-in, clocking, pay privacy, kiosk, AI connector
         if: success() || failure()
         run: npx playwright test e2e/live.spec.ts --project desktop --workers 1
+      # Also when a retry passed: the first attempt's trace explains flaky tests.
       - uses: actions/upload-artifact@v4
-        if: failure()
+        if: always()
         with:
           name: live-traces
+          if-no-files-found: ignore
           path: test-results/
           retention-days: 7

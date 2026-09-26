@@ -395,10 +395,12 @@ test.describe('employee', () => {
       // The request queues a WhatsApp for the real admins; take it back out before it's sent.
       await purgeTestAlerts(service(cfg), Object.values(ids))
     }
-    await expect(page.getByText('Waiting for approval').first()).toBeVisible(NET)
-
-    const { data } = await service(cfg).from('time_off').select('status, starts_on, ends_on').eq('profile_id', ids[USERS.employee.email])
-    expect(data).toContainEqual({ status: 'pending', starts_on: from, ends_on: to })
+    // Saved in the database first, then shown: tells "not saved" apart from "page didn't refresh".
+    await expect.poll(async () => (await service(cfg).from('time_off').select('status, starts_on, ends_on')
+      .eq('profile_id', ids[USERS.employee.email])).data, { ...NET, message: 'time-off request saved' })
+      .toContainEqual({ status: 'pending', starts_on: from, ends_on: to })
+    await expect(page.getByText('Waiting for approval').first(),
+      'the saved request appears in "My requests" without reloading').toBeVisible(NET)
     await expectNoErrorShown(page, 'Time off')
   })
 })
