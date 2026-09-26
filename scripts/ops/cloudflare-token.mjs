@@ -3,7 +3,7 @@
 //  - user tokens (My Profile → API Tokens) and account-owned tokens (Manage Account → API Tokens),
 //    finding the account ID for the latter
 // Prints a diagnosis on failure, never the token itself.
-import { appendFileSync } from 'node:fs'
+import { appendFileSync, readFileSync } from 'node:fs'
 
 const raw = process.env.CF_TOKEN_SECRET ?? ''
 const token = raw.trim().replace(/^Bearer\s+/i, '')
@@ -21,11 +21,13 @@ out('CLOUDFLARE_API_TOKEN', token)
 const user = await cf('/user/tokens/verify')
 if (user.success && user.result?.status === 'active') {
   console.log('Cloudflare user API token is active.')
-  if (process.env.CF_ACCOUNT_SECRET?.trim()) out('CLOUDFLARE_ACCOUNT_ID', process.env.CF_ACCOUNT_SECRET.trim())
+  const configured = process.env.CF_ACCOUNT_SECRET?.trim()
+  if (configured) out('CLOUDFLARE_ACCOUNT_ID', configured)
   process.exit(0)
 }
 
-let accountId = process.env.CF_ACCOUNT_SECRET?.trim()
+// Account ID (not a secret): repo secret, else "account_id" in wrangler.jsonc.
+let accountId = process.env.CF_ACCOUNT_SECRET?.trim() || readFileSync('wrangler.jsonc', 'utf8').match(/"account_id":\s*"([0-9a-f]{32})"/)?.[1]
 if (!accountId) {
   const accounts = await cf('/accounts')
   if (accounts.success && accounts.result?.length) {
@@ -42,6 +44,8 @@ if (accountId) {
   }
 }
 
+if (accountId) console.log(`Also tried it as an account token for account ${accountId}: not accepted either.`)
+else console.log('No account ID known, so it could not be checked as an account-owned token (add "account_id" to wrangler.jsonc).')
 const hint = /^[0-9a-f]{37}$/.test(token) ? 'It looks like the Global API Key, which does not work as a token.'
   : token.length < 30 ? 'It is too short to be an API token (maybe the token ID or name was copied).'
   : 'The token may have been deleted, expired, or copied incompletely.'
