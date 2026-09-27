@@ -22,7 +22,7 @@ export const brand = {
  */
 const light = {
   ink: '#2B2522', inkSoft: '#5F5852', inkFaint: '#8E877F',
-  bg: brand.cream, surface: brand.white, surfaceAlt: '#F8F4F1', line: '#EFE9E4', lineStrong: '#DDD5CE',
+  bg: '#F8F4EF', surface: brand.white, surfaceAlt: '#F8F4F1', line: '#EDE6E0', lineStrong: '#DDD5CE',
   rose: brand.rosePink, roseHover: '#F28893', roseDeep: brand.roseDeep, roseSoft: '#FDEEEF', roseWash: '#FFF1EA',
   ube: brand.ubeLilac, ubeSoft: '#F4F0FB', ubeDeep: '#5B4A86',
   matcha: brand.matcha, matchaSoft: '#EEF4E8', matchaDeep: '#4A6536',
@@ -34,8 +34,12 @@ const light = {
   navBg: '#FFFFFF', navText: '#4E4742', navFaint: '#9A928B', navHover: '#F8F1EE', navBright: '#2B2522', navPanel: '#F8F4F1', navLine: '#EFE9E4',
   // Card finish: flat in light mode; a faint sheen and top edge in dark mode so panels read as layers.
   sheen: 'none', edge: 'transparent',
-  // The page backdrop behind everything (soft brand washes).
-  backdrop: `radial-gradient(1200px 420px at 70% -120px, rgba(247,155,164,0.16), transparent 70%)`,
+  // The page backdrop behind everything: soft washes of Rose Pink and Ube Lilac over the cream.
+  backdrop: [
+    'radial-gradient(1000px 440px at 80% -160px, rgba(247,155,164,0.22), transparent 70%)',
+    'radial-gradient(800px 380px at 5% -120px, rgba(183,163,216,0.14), transparent 70%)',
+    'linear-gradient(180deg, rgba(255,255,255,0.55), rgba(255,255,255,0) 360px)',
+  ].join(', '),
 }
 type Palette = typeof light
 // Dark: deep plum-black rather than flat brown-black, with the brand pink and ube lilac glowing
@@ -114,6 +118,18 @@ export const theme = createTheme({
       styleOverrides: {
         ':root': { ...varsOf(light) },
         '[data-eb-theme="dark"]': { ...varsOf(dark), colorScheme: 'dark' },
+        // A person's chosen background colour (Appearance): a soft tint of it, and its glow up top.
+        '[data-eb-bg="tint"]': {
+          '--eb-bg': 'color-mix(in srgb, var(--eb-bg-tint) 13%, #FFFDFB)',
+          '--eb-backdrop': [
+            'radial-gradient(1000px 440px at 80% -160px, color-mix(in srgb, var(--eb-bg-tint) 34%, transparent), transparent 70%)',
+            'linear-gradient(180deg, rgba(255,255,255,0.5), rgba(255,255,255,0) 360px)',
+          ].join(', '),
+        },
+        '[data-eb-theme="dark"][data-eb-bg="tint"]': {
+          '--eb-bg': 'color-mix(in srgb, var(--eb-bg-tint) 9%, #100D14)',
+          '--eb-backdrop': 'radial-gradient(1000px 460px at 80% -160px, color-mix(in srgb, var(--eb-bg-tint) 22%, transparent), transparent 70%)',
+        },
         '[data-eb-contrast="high"]': varsOf(contrastLight),
         '[data-eb-theme="dark"][data-eb-contrast="high"]': varsOf(contrastDark),
         '[data-eb-font="readable"]': { '--eb-font-text': '"Atkinson Hyperlegible", "Figtree", Arial, sans-serif' },
@@ -122,7 +138,7 @@ export const theme = createTheme({
         '@media (prefers-reduced-motion: reduce)': { '*, *::before, *::after': { animationDuration: '0.001ms !important', transitionDuration: '0.001ms !important' } },
         body: { backgroundColor: tokens.bg, WebkitFontSmoothing: 'antialiased',
           // A soft wash of the brand pink at the top of every page instead of flat beige.
-          backgroundImage: tokens.backdrop, backgroundRepeat: 'no-repeat' },
+          backgroundImage: tokens.backdrop, backgroundRepeat: 'no-repeat', transition: 'background-color .3s ease' },
         '::selection': { background: 'rgba(247,155,164,0.35)' },
         ':focus-visible': { outline: `2px solid ${tokens.roseDeep}`, outlineOffset: 2 },
       },

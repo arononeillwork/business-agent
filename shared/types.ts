@@ -112,6 +112,8 @@ export interface Preferences {
   motion?: 'system' | 'reduce'
   /** Decimal mark for money and numbers: 1.234,50 € (comma) or €1,234.50 (point). */
   numberFormat?: 'comma' | 'point'
+  /** Page background tint: a brand colour (#RRGGBB). Unset = the house cream. */
+  background?: string
 }
 
 export interface Position {

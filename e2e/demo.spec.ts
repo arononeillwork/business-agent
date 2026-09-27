@@ -1007,3 +1007,17 @@ test('each person stars teams and sees them in Favourites', async ({ page }) => 
   await expect(page.getByRole('region', { name: 'Favourites' })).toContainText('Real Betis')
   await expect(page.getByRole('region', { name: 'Favourites' })).not.toContainText('Arsenal')
 })
+
+test('each person can tint the background with a brand colour', async ({ page }) => {
+  await open(page, '/appearance', 'maria@example.com')
+  const root = page.locator('html')
+  const background = page.getByRole('radiogroup', { name: 'Background' })
+  await expect(background.getByRole('radio', { name: 'Cream (default)' })).toHaveAttribute('aria-checked', 'true')
+  await background.getByRole('radio', { name: 'Ube Lilac' }).click()
+  await toast(page, 'Background: Ube Lilac')
+  await expect(root).toHaveAttribute('data-eb-bg', 'tint')
+  const tinted = await page.evaluate(() => getComputedStyle(document.body).backgroundColor)
+  await background.getByRole('radio', { name: 'Cream (default)' }).click()
+  await expect(root).not.toHaveAttribute('data-eb-bg', 'tint')
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).not.toBe(tinted)
+})

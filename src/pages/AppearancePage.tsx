@@ -5,6 +5,7 @@ import AutoIcon from '@mui/icons-material/BrightnessAutoOutlined'
 import CheckIcon from '@mui/icons-material/CheckCircle'
 import { useState, type ReactNode } from 'react'
 import { useApp } from '../app/AppContext'
+import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { PageHeader, SectionTitle } from '../components/common'
 import { TEXT_SIZES, applyPreferences } from '../app/Appearance'
@@ -18,6 +19,9 @@ export function AppearancePage() {
   const run = useAction()
   // The page keeps its own copy so quick changes in a row never overwrite each other.
   const [prefs, setPrefs] = useState<Preferences>(me?.preferences ?? {})
+  const brand = useAsync('brand', () => api.brand(), [])
+  // Brand colours to tint the background with (not the plain white/cream bases).
+  const backgrounds = (brand.data?.colours ?? []).filter(c => /^#[0-9a-f]{6}$/i.test(c.hex) && !['#ffffff', '#fbf8f4'].includes(c.hex.toLowerCase()))
   if (!me) return null
   const save = (patch: Preferences, note?: string) => {
     const next = { ...prefs, ...patch }
@@ -42,6 +46,23 @@ export function AppearancePage() {
               <Choice selected={prefs.theme === 'dark'} onClick={() => save({ theme: 'dark' }, 'Theme: dark')}
                 icon={<DarkIcon />} label="Dark" preview={<Preview dark />} />
             </Box>
+          </CardContent>
+        </Card>
+
+        <Card component="section" aria-label="Background">
+          <CardContent>
+            <SectionTitle>Background</SectionTitle>
+            <Box role="radiogroup" aria-label="Background" sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' } }}>
+              <Choice selected={!prefs.background} onClick={() => save({ background: undefined }, 'Background: cream')}
+                label="Cream (default)" preview={<BackdropSample />} />
+              {backgrounds.map(c => (
+                <Choice key={c.hex} selected={prefs.background?.toLowerCase() === c.hex.toLowerCase()}
+                  onClick={() => save({ background: c.hex }, `Background: ${c.name}`)} label={c.name} preview={<BackdropSample tint={c.hex} />} />
+              ))}
+            </Box>
+            <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1.5 }}>
+              A soft wash of a brand colour behind every page, in light and dark mode. The colours come from the Brand page.
+            </Typography>
           </CardContent>
         </Card>
 
@@ -127,6 +148,18 @@ function Preview({ dark, split }: { dark?: boolean; split?: boolean }) {
 
 function NumberSample({ text }: { text: string }) {
   return <Typography aria-hidden sx={{ fontFamily: fonts.display, fontWeight: 500, fontSize: '1.4rem', fontVariantNumeric: 'tabular-nums' }}>{text}</Typography>
+}
+
+/** A little page: the background tint (light and dark) with a white card on it. */
+function BackdropSample({ tint }: { tint?: string }) {
+  const pane = (dark: boolean) => (
+    <Box sx={{ flex: 1, height: 64, p: 1, display: 'flex', alignItems: 'flex-end',
+      background: tint ? `color-mix(in srgb, ${tint} ${dark ? 9 : 13}%, ${dark ? '#100D14' : '#FFFDFB'})` : dark ? '#110E15' : '#F8F4EF',
+      backgroundImage: `radial-gradient(90px 50px at 85% 0%, ${tint ? `color-mix(in srgb, ${tint} ${dark ? 30 : 45}%, transparent)` : dark ? 'rgba(247,155,164,0.25)' : 'rgba(247,155,164,0.3)'}, transparent 80%)` }}>
+      <Box sx={{ height: 22, flex: 1, borderRadius: '6px', bgcolor: dark ? '#1A1620' : '#fff', border: `1px solid ${dark ? '#2E2836' : '#EDE6E0'}` }} />
+    </Box>
+  )
+  return <Box sx={{ display: 'flex', width: '100%' }}>{pane(false)}{pane(true)}</Box>
 }
 
 function Toggle({ checked, onChange, label, detail }: { checked: boolean; onChange: (on: boolean) => void; label: string; detail: string }) {

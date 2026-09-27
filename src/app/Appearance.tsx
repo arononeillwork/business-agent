@@ -27,6 +27,10 @@ export function applyPreferences(p: Preferences) {
   set('data-eb-contrast', p.contrast === 'high' ? 'high' : null)
   set('data-eb-font', p.font === 'readable' ? 'readable' : null)
   set('data-eb-motion', p.motion === 'reduce' ? 'reduce' : null)
+  // Background tint: a soft wash of the chosen brand colour (light and dark mode mix it differently).
+  const tint = p.background && /^#[0-9a-f]{6}$/i.test(p.background) ? p.background : null
+  set('data-eb-bg', tint ? 'tint' : null)
+  if (tint) root.style.setProperty('--eb-bg-tint', tint); else root.style.removeProperty('--eb-bg-tint')
   setNumberFormat(p.numberFormat)
   if (p.font === 'readable' && !document.getElementById('eb-readable-font')) {
     const link = Object.assign(document.createElement('link'), { id: 'eb-readable-font', rel: 'stylesheet',
