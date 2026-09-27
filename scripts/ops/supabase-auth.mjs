@@ -51,6 +51,9 @@ const after = Object.keys(patch).length ? await api('PATCH', patch) : current
 console.log(`Supabase Auth: site ${after.site_url}`)
 console.log(`Redirects allowed: ${after.uri_allow_list}`)
 console.log(`Sign-in methods on: email=${!!after.external_email_enabled} google=${!!after.external_google_enabled} microsoft=${!!after.external_azure_enabled}`)
+if (!after.external_google_enabled) {
+  console.log('::warning::Google sign-in is OFF: add the GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET repo secrets, then run Deploy again (docs/sign-in-setup.md)')
+}
 // Read back: the sign-in email must carry the code, or "Email me a sign-in code" can't work.
 const check = await api('GET')
 const hasCode = String(check.mailer_templates_magic_link_content ?? '').includes('{{ .Token }}')

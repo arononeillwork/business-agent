@@ -29,25 +29,42 @@ test('the sign-in screen loads with email, Google and Microsoft', async ({ page 
   expect(errors).toEqual([])
 })
 
-// Clicking an outside sign-in button must reach that provider's sign-in page, or, if the method
-// isn't switched on in Supabase, the button is disabled with a note. Never a raw error page.
-for (const [label, key, hosts] of [
-  ['Google', 'google', /(^|\.)accounts\.google\.com$/],
-  ['Microsoft', 'microsoft', /(^|\.)(login\.microsoftonline\.com|login\.live\.com)$/],
+// Clicking an outside sign-in button must reach that provider's real sign-in page (not its error
+// page), sending people back to our Supabase project. If the method isn't switched on, the button
+// is disabled with a note, and the run is flagged loudly. When the keys are in the repo secrets but
+// Supabase still has the method off, that's a failure.
+const SUPABASE_CALLBACK = 'https://lhakrmmoxaareykglmtx.supabase.co/auth/v1/callback'
+for (const [label, key, hosts, secret, problems] of [
+  ['Google', 'google', /(^|\.)accounts\.google\.com$/, 'GOOGLE_CLIENT_ID',
+    /redirect_uri_mismatch|invalid_client|OAuth client was not found|Access blocked|Error 400|Error 401|deleted_client|disabled_client/i],
+  ['Microsoft', 'microsoft', /(^|\.)(login\.microsoftonline\.com|login\.live\.com)$/, 'AZURE_CLIENT_ID',
+    /AADSTS\d+|unauthorized_client|invalid_request/i],
 ] as const) {
   test(`the ${label} button reaches ${label} sign-in (or says it isn't set up)`, async ({ page, request }) => {
     const on = (await (await request.get('/api/health?deep=1')).json()).sign_in?.[key]
     await page.goto('/')
     const button = page.getByRole('button', { name: label, exact: true })
     if (!on) {
+      expect(process.env[secret], `${secret} is in the repo secrets, but ${label} sign-in is still off in Supabase`).toBeFalsy()
+      const note = `${label} sign-in is OFF on the live site: add the ${secret} and its secret to the repo secrets (docs/sign-in-setup.md).`
+      console.log(`::warning::${note}`)
+      test.info().annotations.push({ type: 'warning', description: note })
       await expect(button).toBeDisabled()
       await expect(page.getByText(new RegExp(`${label}.*being set up`))).toBeVisible()
       return
     }
     await button.click()
     await page.waitForURL(url => hosts.test(new URL(url).hostname), { timeout: 15_000 })
+    // The provider must be told to send people back to our Supabase project…
+    // (Google nests the address a few times over, so decode until it stops changing.)
+    let target = page.url()
+    for (let i = 0; i < 4; i++) { const next = decodeURIComponent(target); if (next === target) break; target = next }
+    expect(target, `${label} isn't sending people back to Supabase`).toContain(SUPABASE_CALLBACK)
+    // …and must show its sign-in form, not an error about our app's setup.
+    await expect(page.locator('body')).not.toContainText(problems, { timeout: 5_000 })
     const res = await page.reload().catch(() => null)
     expect(res?.status() ?? 200, `${label} sign-in page answered with an error`).toBeLessThan(400)
+    await expect(page.locator('body')).not.toContainText(problems)
   })
 }
 
