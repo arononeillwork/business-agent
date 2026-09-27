@@ -8,7 +8,7 @@ import {
   type FixtureDownloadMatch, type SportsCompetition, type SportsDbEvent, type SportsEvent, isBigEvent, seasonFor,
 } from '../shared/sports'
 import { addDays, today } from '../shared/time'
-import { COUNTRY_FLAGS, TEAM_ALIASES, findCrest, flagUrl, type TsdbTeam } from '../shared/crests'
+import { COUNTRY_FLAGS, findCrest, flagUrl, searchNamesFor, type TsdbTeam } from '../shared/crests'
 
 const TSDB = 'https://www.thesportsdb.com/api/v1/json/3'
 const STALE_HOURS = 6
@@ -196,7 +196,7 @@ export async function refreshAllSports(db: SupabaseClient) {
 
 /** Leagues whose whole team list (one call each) covers most club names in the followed fixtures. */
 const CREST_LEAGUES = ['English Premier League', 'Spanish La Liga', 'Dutch Eredivisie', 'English League Championship', 'Spanish La Liga 2']
-const CREST_RETRY_DAYS = 30
+const CREST_RETRY_DAYS = 7
 
 /**
  * Finds crests for teams in upcoming fixtures that don't have one: flags for countries, then
@@ -238,11 +238,20 @@ export async function syncCrests(db: SupabaseClient, maxSearches = 40): Promise<
   let searched = 0
   for (const name of [...needed]) {
     if (searched >= maxSearches) break
-    searched++
-    try {
-      const { teams } = await tsdb<{ teams: TsdbTeam[] | null }>(`searchteams.php?t=${encodeURIComponent(TEAM_ALIASES[name] ?? name)}`)
-      save(name, findCrest(name, teams ?? []) ?? (teams ?? []).find(t => t.strSport === 'Soccer' && t.strBadge)?.strBadge ?? null, 'thesportsdb')
-    } catch { /* try again next run */ }
+    let badge: string | null = null
+    let answered = false
+    // Try each spelling until one finds the club (most find it first time).
+    for (const q of searchNamesFor(name)) {
+      if (searched >= maxSearches) break
+      searched++
+      try {
+        const { teams } = await tsdb<{ teams: TsdbTeam[] | null }>(`searchteams.php?t=${encodeURIComponent(q)}`)
+        answered = true
+        badge = findCrest(name, teams ?? []) ?? (teams ?? []).find(t => t.strSport === 'Soccer' && t.strBadge)?.strBadge ?? null
+        if (badge) break
+      } catch { /* try the next spelling, or again next run */ }
+    }
+    if (answered) save(name, badge, 'thesportsdb')
   }
   if (found.length) {
     const { error: e } = await db.from('sports_teams').upsert(found, { onConflict: 'name' })

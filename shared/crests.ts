@@ -34,6 +34,21 @@ export const TEAM_ALIASES: Record<string, string> = {
   'Levante UD': 'Levante', 'Sevilla FC': 'Sevilla', 'Valencia CF': 'Valencia', 'Villarreal CF': 'Villarreal', 'FC Barcelona': 'Barcelona',
 }
 
+/** Extra spellings to search for when the usual name finds nothing (TheSportsDB's own names). */
+export const TEAM_SEARCH_NAMES: Record<string, string[]> = {
+  "Nott'm Forest": ['Nottingham Forest', 'Nottingham'],
+  Lille: ['Lille', 'Lille OSC', 'LOSC Lille'],
+  'Bodø/Glimt': ['Bodo/Glimt', 'Bodo Glimt', 'Bodø/Glimt'],
+  'H. Beer-Sheva': ["Hapoel Be'er Sheva", 'Hapoel Beer Sheva', 'Hapoel Beersheba'],
+  'Ararat-Armenia': ['Ararat-Armenia', 'FC Ararat-Armenia', 'Ararat Armenia'],
+}
+
+/** Names to try, best first: the alias, extra spellings, then the name as written; each also with underscores. */
+export function searchNamesFor(name: string): string[] {
+  const names = [TEAM_ALIASES[name], ...(TEAM_SEARCH_NAMES[name] ?? []), name].filter((n): n is string => !!n)
+  return [...new Set(names.flatMap(n => (n.includes(' ') ? [n, n.replace(/ /g, '_')] : [n])))]
+}
+
 // Words clubs add or drop freely ("FC", "CF", "de"…), ignored when comparing names.
 const FILLER = new Set(['fc', 'cf', 'ud', 'ca', 'cd', 'rcd', 'rc', 'sc', 'afc', 'sd', 'ac', 'as', 'ss', 'sv', 'fk', 'sk', 'bk', 'club', 'de', 'the', 'and', 'cp'])
 
@@ -55,7 +70,7 @@ export function teamKeys(t: TsdbTeam): string[] {
 
 /** The crest for a fixture's team name from a list of teams, or null. Tries the name, then its alias. */
 export function findCrest(name: string, teams: TsdbTeam[]): string | null {
-  const wanted = [teamKey(name), TEAM_ALIASES[name] ? teamKey(TEAM_ALIASES[name]) : ''].filter(Boolean)
+  const wanted = [teamKey(name), ...[TEAM_ALIASES[name], ...(TEAM_SEARCH_NAMES[name] ?? [])].filter(Boolean).map(n => teamKey(n!))].filter(Boolean)
   for (const t of teams) {
     if (!t.strBadge || (t.strSport && t.strSport !== 'Soccer')) continue
     const keys = teamKeys(t)

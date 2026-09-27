@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { COUNTRY_FLAGS, findCrest, flagUrl, teamKey } from './crests'
+import { COUNTRY_FLAGS, findCrest, flagUrl, searchNamesFor, teamKey } from './crests'
 
 const teams = [
   { strTeam: 'Manchester United', strTeamShort: 'MUN', strTeamAlternate: 'Man United, Man Utd', strBadge: 'mu.png', strSport: 'Soccer' },
@@ -25,6 +25,11 @@ describe('team crests', () => {
   it('never takes a crest from another sport, and says so when nothing matches', () => {
     expect(findCrest('Real Madrid', teams)).toBeNull()
     expect(findCrest('Fulham', teams)).toBeNull()
+  })
+
+  it('tries other spellings for clubs the usual name misses', () => {
+    expect(searchNamesFor("Nott'm Forest")).toEqual(['Nottingham Forest', 'Nottingham_Forest', 'Nottingham', "Nott'm Forest", "Nott'm_Forest"])
+    expect(findCrest('Bodø/Glimt', [{ strTeam: 'Bodo/Glimt', strBadge: 'bg.png', strSport: 'Soccer' }])).toBe('bg.png')
   })
 
   it('gives national teams their flag', () => {
