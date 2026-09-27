@@ -92,6 +92,16 @@ export interface Profile {
   /** Partners only: their company and the areas they can see. */
   partner_company?: string | null
   partner_access?: PartnerArea[]
+  /** Appearance and accessibility, chosen by the person (My account → Appearance). */
+  preferences?: Preferences
+}
+
+export interface Preferences {
+  theme?: 'system' | 'light' | 'dark'
+  textSize?: 'small' | 'default' | 'large' | 'larger'
+  contrast?: 'normal' | 'high'
+  font?: 'default' | 'readable'
+  motion?: 'system' | 'reduce'
 }
 
 export interface Position {
@@ -286,4 +296,22 @@ export const FLAG_LABELS: Record<string, string> = {
   edited: 'Edited',
   early_override: 'Early (override)',
   from_rota: 'From rota',
+}
+
+/** In-app notification (the bell). */
+export interface AppNotification { id: number; title: string; body: string | null; link: string | null; created_at: string; read_at: string | null }
+
+/** A bell switched on for a calendar event or sports fixture: admins are reminded before it. */
+export interface EventAlert { kind: 'calendar' | 'sports'; ref_id: string; remind_at: string; sent_at: string | null }
+
+/** Brand guidelines (Café → Brand): logo, colours and fonts, set by admins. */
+export interface BrandColour { name: string; hex: string; role: 'primary' | 'secondary' | 'accent' | 'base'; use?: string }
+export interface Brand {
+  logo: string | null
+  logo_mark: string | null
+  colours: BrandColour[]
+  heading_font: string
+  body_font: string
+  notes: string | null
+  updated_at: string
 }

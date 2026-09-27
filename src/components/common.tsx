@@ -34,7 +34,7 @@ export function Stat({ label, value, note, tone }: {
       boxShadow: '0 12px 28px -20px rgba(120,72,60,0.25)', position: 'relative', overflow: 'hidden',
       '&::before': { content: '""', position: 'absolute', inset: '0 auto 0 0', width: 3, bgcolor: tone === 'danger' ? tokens.danger : tone === 'warning' ? tokens.rose : tone === 'good' ? tokens.matcha : 'transparent' } }}>
       <Typography variant="overline" sx={{ color: 'text.secondary', display: 'block' }}>{label}</Typography>
-      <Typography sx={{ fontFamily: fonts.display, fontSize: '1.6rem', fontWeight: 600, letterSpacing: '-0.02em', color: colour, fontVariantNumeric: 'tabular-nums', lineHeight: 1.25 }}>
+      <Typography sx={{ fontFamily: fonts.display, fontSize: '1.6rem', fontWeight: 500, letterSpacing: '-0.02em', color: colour, fontVariantNumeric: 'tabular-nums', lineHeight: 1.25 }}>
         {value}
       </Typography>
       {note && <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.25 }}>{note}</Typography>}
@@ -84,7 +84,7 @@ export function WeekNav({ monday, onChange }: { monday: string; onChange: (monda
   return (
     <Stack direction="row" sx={{ alignItems: 'center', border: 1, borderColor: 'divider', borderRadius: 2.5, bgcolor: 'background.paper', pl: 0.5 }}>
       <IconButton size="small" aria-label="Previous week" onClick={() => onChange(addDays(monday, -7))}><ChevronLeft /></IconButton>
-      <Typography sx={{ minWidth: 132, textAlign: 'center', fontWeight: 700, fontSize: '0.9rem', fontVariantNumeric: 'tabular-nums' }}>
+      <Typography sx={{ minWidth: 132, textAlign: 'center', fontWeight: 600, fontSize: '0.9rem', fontVariantNumeric: 'tabular-nums' }}>
         {formatLocal(`${monday}T12:00:00Z`, 'd MMM')} – {formatLocal(`${sunday}T12:00:00Z`, 'd MMM')}
       </Typography>
       <IconButton size="small" aria-label="Next week" onClick={() => onChange(addDays(monday, 7))}><ChevronRight /></IconButton>
@@ -95,19 +95,19 @@ export function WeekNav({ monday, onChange }: { monday: string; onChange: (monda
 }
 
 const FLAG_TONE: Record<string, { fg: string; bg: string }> = {
-  missed_break: { fg: '#8E2B3A', bg: '#F9DDE0' },
-  over_daily_limit: { fg: '#8E2B3A', bg: '#F9DDE0' },
-  auto_clock_out: { fg: '#7E3F4B', bg: '#F3DED3' },
-  unscheduled: { fg: '#7E3F4B', bg: '#F3DED3' },
-  edited: { fg: tokens.inkSoft, bg: '#EFECE8' },
-  early_override: { fg: '#5B4A86', bg: '#EFE9F7' },
+  missed_break: { fg: tokens.badFg, bg: tokens.badBg },
+  over_daily_limit: { fg: tokens.badFg, bg: tokens.badBg },
+  auto_clock_out: { fg: tokens.warnFg, bg: tokens.warnBg },
+  unscheduled: { fg: tokens.warnFg, bg: tokens.warnBg },
+  edited: { fg: tokens.neutralFg, bg: tokens.neutralBg },
+  early_override: { fg: tokens.infoFg, bg: tokens.infoBg },
 }
 
 /** Soft status tag. */
-export function Tag({ children, fg = tokens.inkSoft, bg = '#EFECE8' }: { children: ReactNode; fg?: string; bg?: string }) {
+export function Tag({ children, fg = tokens.neutralFg, bg = tokens.neutralBg }: { children: ReactNode; fg?: string; bg?: string }) {
   return (
     <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', px: 1, py: 0.25, borderRadius: 1.5,
-      fontSize: '0.72rem', fontWeight: 700, color: fg, bgcolor: bg, whiteSpace: 'nowrap', lineHeight: 1.6 }}>
+      fontSize: '0.72rem', fontWeight: 600, color: fg, bgcolor: bg, whiteSpace: 'nowrap', lineHeight: 1.6 }}>
       {children}
     </Box>
   )

@@ -8,7 +8,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 
 const REF = process.env.SUPABASE_PROJECT_REF ?? 'lhakrmmoxaareykglmtx'
 const PASSTHROUGH = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'META_ACCESS_TOKEN', 'META_APP_SECRET',
-  'WHATSAPP_VERIFY_TOKEN', 'WHATSAPP_PHONE_NUMBER_ID', 'INSTAGRAM_USER_ID', 'SPOTIFY_CLIENT_ID', 'SPOTIFY_CLIENT_SECRET']
+  'WHATSAPP_VERIFY_TOKEN', 'WHATSAPP_PHONE_NUMBER_ID', 'INSTAGRAM_USER_ID', 'SPOTIFY_CLIENT_ID', 'SPOTIFY_CLIENT_SECRET', 'GOOGLE_FONTS_API_KEY']
 const existing = new Set(JSON.parse(readFileSync(process.argv[2], 'utf8') || '[]').map(s => s.name))
 const out = {}
 

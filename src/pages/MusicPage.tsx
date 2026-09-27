@@ -99,9 +99,9 @@ function ConnectGate({ configured }: { configured: Record<MusicProvider, boolean
       <Box aria-hidden sx={{ position: 'absolute', right: -40, bottom: -60, opacity: 0.07, '& svg': { fontSize: 280 } }}><MusicIcon /></Box>
       <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1 }}>
         <LockIcon sx={{ fontSize: 18, color: tokens.rose }} />
-        <Typography variant="overline" sx={{ color: tokens.rose, fontWeight: 700, letterSpacing: '0.12em' }}>Connect to use Music</Typography>
+        <Typography variant="overline" sx={{ color: tokens.rose, fontWeight: 600, letterSpacing: '0.12em' }}>Connect to use Music</Typography>
       </Stack>
-      <Typography sx={{ fontFamily: fonts.display, fontWeight: 700, fontSize: { xs: '1.4rem', md: '1.9rem' }, lineHeight: 1.2, maxWidth: 560 }}>
+      <Typography sx={{ fontFamily: fonts.display, fontWeight: 500, fontSize: { xs: '1.4rem', md: '1.9rem' }, lineHeight: 1.2, maxWidth: 560 }}>
         Bring your own music. Connect Spotify or YouTube Music to unlock this page.
       </Typography>
       <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, mt: 3, position: 'relative' }}>
@@ -111,7 +111,7 @@ function ConnectGate({ configured }: { configured: Record<MusicProvider, boolean
             <Box key={p} sx={{ bgcolor: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 3, p: 2.5, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
               <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
                 <Box sx={{ width: 40, height: 40, flexShrink: 0 }}>{b.logo}</Box>
-                <Typography sx={{ fontFamily: fonts.display, fontWeight: 700, fontSize: '1.15rem' }}>{b.name}</Typography>
+                <Typography sx={{ fontFamily: fonts.display, fontWeight: 500, fontSize: '1.15rem' }}>{b.name}</Typography>
               </Stack>
               <Typography sx={{ opacity: 0.78, flex: 1 }}>{b.blurb}</Typography>
               <Button variant="contained" disabled={!configured[p]} onClick={() => run(() => api.connectMyMusic(p))}
@@ -150,7 +150,7 @@ function Library({ provider }: { provider: MusicProvider }) {
                 <Card key={p.id} role="listitem" sx={{ ...(on ? { borderColor: BRAND[provider].colour, boxShadow: `0 0 0 2px ${BRAND[provider].colour}` } : {}) }}>
                   <CardActionArea onClick={() => setPicked(p)} aria-pressed={on} aria-label={p.name} sx={{ p: 1.25 }}>
                     <Cover playlist={p} />
-                    <Typography sx={{ fontWeight: 700, mt: 1 }} noWrap>{p.name}</Typography>
+                    <Typography sx={{ fontWeight: 600, mt: 1 }} noWrap>{p.name}</Typography>
                     <Typography variant="body2" sx={{ color: 'text.secondary' }} noWrap>{p.tracks} {p.tracks === 1 ? 'song' : 'songs'}</Typography>
                   </CardActionArea>
                 </Card>
@@ -193,7 +193,7 @@ function Player({ playlist }: { playlist: MusicPlaylist }) {
         <Cover playlist={playlist} size={56} />
         <Box sx={{ minWidth: 0, flex: 1 }}>
           <Typography variant="overline" sx={{ color: 'text.secondary', lineHeight: 1.4 }}>{b.name}</Typography>
-          <Typography sx={{ fontFamily: fonts.display, fontWeight: 700, fontSize: '1.1rem' }} noWrap>{playlist.name}</Typography>
+          <Typography sx={{ fontFamily: fonts.display, fontWeight: 500, fontSize: '1.1rem' }} noWrap>{playlist.name}</Typography>
         </Box>
         <Button size="small" endIcon={<OpenIcon fontSize="small" />} href={playlist.url} target="_blank" rel="noreferrer">Open</Button>
       </Stack>

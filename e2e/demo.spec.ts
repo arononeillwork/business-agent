@@ -226,7 +226,7 @@ test.describe('sign-in', () => {
 test('@phone layout: bottom navigation and a full-width clock-in button', async ({ page }) => {
   await open(page)
   await expect(page.getByRole('link', { name: 'Rota' })).toBeVisible()
-  await expect(page.getByRole('link', { name: 'Business' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Hours' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'My account' })).toBeVisible()
   const button = page.getByRole('button', { name: 'Clock in' })
   const box = await button.boundingBox()
@@ -234,7 +234,7 @@ test('@phone layout: bottom navigation and a full-width clock-in button', async 
   // Every admin page is reachable on a phone: the rest sit under "More".
   await page.getByRole('button', { name: 'More' }).click()
   const sheet = page.getByRole('list', { name: 'More pages' })
-  for (const name of ['Calendar', 'Finances', 'Partners', 'Alerts', 'Connections', 'Café tablet']) {
+  for (const name of ['Business', 'Opening hours', 'Brand', 'Calendar', 'Finances', 'Partners', 'Alerts', 'Connections', 'Café tablet', 'Appearance']) {
     await expect(sheet.getByRole('link', { name })).toBeVisible()
   }
   await sheet.getByRole('link', { name: 'Finances' }).click()
@@ -285,24 +285,19 @@ test.describe('guard rails', () => {
   })
 })
 
-test('sidebar starts with Business and rows can be reordered by keyboard, remembered after reload', async ({ page }) => {
-  await open(page)
-  const rows = page.getByRole('navigation', { name: 'Main' }).getByRole('link')
-  await expect(rows.first()).toHaveText(/Business/)
-  // dnd-kit announces each step to screen readers; wait for each before the next key.
-  const said = (text: RegExp) => expect(page.getByText(text)).toBeAttached()
-  await rows.nth(1).focus() // Today
-  await page.keyboard.press('Space')
-  await said(/Picked up draggable item today|item today was moved over droppable area today/i)
-  await page.keyboard.press('ArrowUp')
-  await said(/moved over droppable area business/)
-  await page.keyboard.press('Space')
-  await said(/was dropped over droppable area business/)
-  await expect(rows.first()).toHaveText(/Today/)
+test('sidebar is grouped into sections that fold away, and the logo goes to Today', async ({ page }) => {
+  await open(page, '/business')
+  const nav = page.getByRole('navigation', { name: 'Main' })
+  for (const section of ['Team', 'Café', 'Settings', 'You']) await expect(nav.getByRole('button', { name: section })).toBeVisible()
+  await expect(nav.getByRole('link', { name: 'Opening hours' })).toBeVisible()
+  await nav.getByRole('button', { name: 'Settings' }).click()
+  await expect(nav.getByRole('link', { name: 'Connections' })).toBeHidden()
   await page.reload()
-  await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link').first()).toHaveText(/Today/)
-  await page.getByRole('button', { name: 'Reset menu order' }).click()
-  await expect(rows.first()).toHaveText(/Business/)
+  await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Connections' })).toBeHidden() // remembered
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Settings' }).click()
+  await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Connections' })).toBeVisible()
+  await page.getByRole('link', { name: 'Home: Today' }).click()
+  await expect(page.getByRole('heading', { name: 'Hola, Aron' })).toBeVisible()
 })
 
 test('missing timecards are filled from the rota and marked for review', async ({ page }) => {
@@ -782,5 +777,85 @@ test.describe('monthly hours record (registro de jornada)', () => {
     await page.getByRole('option', { name: 'Maria' }).click()
     await expect(page.getByRole('article')).toHaveCount(1)
     await expect(page.getByRole('button', { name: 'Print / save PDF' })).toBeEnabled()
+  })
+})
+
+test.describe('appearance and accessibility', () => {
+  test('each person picks their theme and text size; it applies everywhere and is kept', async ({ page }) => {
+    await open(page, '/appearance', 'maria@example.com')
+    const root = page.locator('html')
+    await page.getByRole('radio', { name: 'Dark' }).click()
+    await expect(root).toHaveAttribute('data-eb-theme', 'dark')
+    await page.getByRole('radio', { name: 'Extra large' }).click()
+    await expect(root).toHaveAttribute('style', /font-size: 125%/)
+    await page.getByLabel(/Higher contrast/).check()
+    await expect(root).toHaveAttribute('data-eb-contrast', 'high')
+    await page.getByRole('link', { name: 'Rota' }).first().click()
+    await expect(root).toHaveAttribute('data-eb-theme', 'dark')
+    // Someone else signing in on the same device gets their own settings.
+    await signInAs(page, 'aron@example.com')
+    await expect(page.getByRole('heading', { name: 'Rota' })).toBeVisible()
+    await expect(root).not.toHaveAttribute('data-eb-contrast', 'high')
+    await expect(root).toHaveAttribute('style', /font-size: 100%/)
+  })
+})
+
+test.describe('opening hours', () => {
+  test('admin changes a day and adds a closure; staff see them read-only', async ({ page }) => {
+    await open(page, '/opening-hours')
+    const week = page.getByRole('region', { name: 'Weekly hours' })
+    await week.getByLabel('Open on Sunday').uncheck()
+    await page.getByRole('button', { name: 'Save hours' }).click()
+    await toast(page, 'Opening hours saved')
+    await page.getByRole('button', { name: 'Add a closure' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Add a closure' })
+    await dialog.getByLabel('Closed from').fill('2026-10-20')
+    await dialog.getByLabel('Reason (optional)').fill('Deep clean')
+    await dialog.getByRole('button', { name: 'Add closure' }).click()
+    await toast(page, 'Closure added')
+    await expect(page.getByRole('region', { name: 'Holidays and closures' }).getByText('Closed: Deep clean')).toBeVisible()
+    await signInAs(page, 'maria@example.com')
+    await page.getByRole('link', { name: 'Opening hours' }).first().click()
+    await expect(page.getByRole('region', { name: 'Weekly hours' }).getByText('Closed').last()).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Save hours' })).toHaveCount(0)
+  })
+})
+
+test.describe('brand', () => {
+  test('admin edits a colour and picks a font by searching; staff can only look', async ({ page }) => {
+    await open(page, '/brand')
+    await page.getByRole('button', { name: 'Edit Rose Pink' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Edit Rose Pink' })
+    await dialog.getByLabel('Hex code').fill('#F08A96')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await toast(page, 'Colour saved')
+    await expect(page.getByText('#F08A96')).toBeVisible()
+    await page.getByRole('region', { name: 'Fonts' }).getByRole('button', { name: 'Change' }).first().click()
+    const picker = page.getByRole('dialog', { name: 'Heading font' })
+    await picker.getByLabel('Search fonts').fill('playfair')
+    await picker.getByRole('option', { name: /Playfair Display/ }).click()
+    await toast(page, 'Heading font: Playfair Display')
+    await expect(page.getByText('Headings · Playfair Display')).toBeVisible()
+    await signInAs(page, 'maria@example.com')
+    await page.getByRole('link', { name: 'Brand' }).first().click()
+    await expect(page.getByText('#F08A96')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Edit Rose Pink' })).toHaveCount(0)
+  })
+})
+
+test.describe('event alerts', () => {
+  test('admin rings the bell on an event and the reminder arrives in notifications', async ({ page }) => {
+    await open(page, '/sports')
+    await page.getByRole('button', { name: 'Alert me about Barcelona vs Real Madrid' }).click()
+    await toast(page, 'Alert on: admins will be reminded')
+    await expect(page.getByRole('button', { name: 'Alert on for Barcelona vs Real Madrid' })).toHaveAttribute('aria-pressed', 'true')
+    await page.getByRole('button', { name: /Notifications, 1 new/ }).first().click()
+    await expect(page.getByRole('region', { name: 'Notifications' }).getByText('Barcelona vs Real Madrid')).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('button', { name: /Notifications, 1 new/ })).toHaveCount(0)
+    // Staff see the bell is on but can't change it.
+    await signInAs(page, 'maria@example.com')
+    await page.getByRole('link', { name: 'Sports' }).first().click()
+    await expect(page.getByRole('button', { name: 'Alert on for Barcelona vs Real Madrid' })).toBeDisabled()
   })
 })

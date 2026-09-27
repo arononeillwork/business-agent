@@ -3,12 +3,13 @@
 // of truth: the database functions are.
 import type { Api, ShiftInput } from './api'
 import type {
-  MusicAccount, MusicPlaylist, MusicProvider, MyNowPlaying,
+  AppNotification, Brand, EventAlert, MusicAccount, MusicPlaylist, MusicProvider, MyNowPlaying,
   Expense, IntegrationsState, OutboxItem, PartnerArea, TimeOff,
   BreakType, Business, CalendarEvent, CorrectionRequest, PayRate, Position, Profile, Settings,
   Shift, TimeEntry, TimeEntryChange,
 } from '../../shared/types'
 import { demoSports } from './demoSports'
+import { POPULAR_FONTS } from '../../shared/fonts'
 import { addDays, localDate, minutesBetween, today, weekDates, weekStart, zonedIso } from '../../shared/time'
 
 interface RawEntry {
@@ -69,6 +70,20 @@ export function createDemoApi(): Api {
   const myAccounts = new Map<string, MusicAccount[]>()
   const myPlayer: MyNowPlaying = { playing: false }
   const feeds = new Map<string, Partial<Record<'me' | 'business', string>>>()
+  const alerts: EventAlert[] = []
+  const brand: Brand = {
+    logo: null, logo_mark: null, heading_font: 'Poppins', body_font: 'Figtree', updated_at: nowIso(),
+    notes: 'Rose Pink leads; one accent at a time. Never recolour, stretch or redraw the logo.',
+    colours: [
+      { name: 'Rose Pink', hex: '#F79BA4', role: 'primary', use: 'Buttons, highlights, the logo circle' },
+      { name: 'Grey Limewash', hex: '#C6C2BB', role: 'secondary', use: 'Surfaces and panels, used generously' },
+      { name: 'Rose Wash', hex: '#F3DED3', role: 'accent', use: 'Soft panels behind copy' },
+      { name: 'Ube Lilac', hex: '#B7A3D8', role: 'accent', use: 'Ube drinks, seasonal moments' },
+      { name: 'Matcha Green', hex: '#6B8E4E', role: 'accent', use: 'Wellbeing, sourcing, all-good cues' },
+      { name: 'Cream', hex: '#FBF8F4', role: 'base', use: 'Preferred background' },
+    ],
+  }
+  const notes: (AppNotification & { profile_id: string })[] = []
   const samplePlaylists: Record<MusicProvider, MusicPlaylist[]> = {
     spotify: [
       { provider: 'spotify', id: 'demo-sp-1', name: 'Morning coffee', tracks: 64, url: 'https://open.spotify.com', owner: 'You' },
@@ -521,6 +536,7 @@ export function createDemoApi(): Api {
     async updateSettings(patch) { requireAdmin(); Object.assign(settings, patch) },
     async updateProfile(id, patch) {
       if (id !== currentUser) requireAdmin()
+      if (id !== currentUser && 'preferences' in patch) throw new Error('Only the person themselves can change their appearance settings')
       if (id === currentUser && patch.active === false) throw new Error("You can't switch off your own account. Ask another admin.")
       if (!isAdmin() && ('role' in patch || 'can_see_pay' in patch || 'active' in patch)) {
         throw new Error('Only an admin can change role, pay access or status')
@@ -734,6 +750,33 @@ export function createDemoApi(): Api {
     async chooseSpotifyPlaylist(playlist) {
       requireAdmin()
       integ.integrations.find(i => i.provider === 'spotify')!.external.playlist = playlist
+    },
+    async brand() { return clone(brand) },
+    async saveBrand(patch) {
+      requireAdmin()
+      Object.assign(brand, patch, { updated_at: nowIso() })
+    },
+    async fontList() { return { source: 'built-in', fonts: POPULAR_FONTS } },
+    async notifications() {
+      return clone(notes.filter(n => n.profile_id === currentUser).map(({ profile_id: _p, ...n }) => n).reverse())
+    },
+    async markNotificationsRead() {
+      for (const n of notes) if (n.profile_id === currentUser && !n.read_at) n.read_at = nowIso()
+    },
+    async eventAlerts() { return clone(alerts) },
+    async setEventAlert(kind, refId, on) {
+      requireAdmin()
+      const i = alerts.findIndex(a => a.kind === kind && a.ref_id === refId)
+      if (i >= 0) alerts.splice(i, 1)
+      if (!on) return false
+      const title = kind === 'sports' ? sports.events.find(e => e.id === refId)?.title : events.find(e => e.id === refId)?.title
+      if (!title) throw new Error('That event no longer exists')
+      alerts.push({ kind, ref_id: refId, remind_at: nowIso(), sent_at: null })
+      // The demo delivers the reminder straight away so you can see it arrive.
+      for (const p of profiles.filter(x => x.role === 'admin' && x.active)) {
+        notes.push({ id: notes.length + 1, profile_id: p.id, title, body: 'Reminder switched on. Admins get this the day before (or 3 hours before a match).', link: kind === 'sports' ? '/sports' : '/calendar', created_at: nowIso(), read_at: null })
+      }
+      return true
     },
     async calendarFeeds() {
       const f = feeds.get(currentUser!) ?? {}

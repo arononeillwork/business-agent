@@ -13,6 +13,8 @@ import { ErrorBox, PageHeader } from '../components/common'
 import { ShareDialog } from '../components/ShareDialog'
 import type { EventInput } from '../data/api'
 import { addDays, formatLocal, localTime, today, weekStart, zonedIso } from '../../shared/time'
+import { tokens } from '../theme'
+import { EventAlertButton } from '../components/NotificationBell'
 import { CATEGORY_META, type CalendarEvent, type EventCategory } from '../../shared/types'
 
 const monthStart = (d: string) => `${d.slice(0, 7)}-01`
@@ -91,13 +93,13 @@ export function CalendarPage() {
         <Card>
           <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
             {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => (
-              <Box key={d} sx={{ p: 1, fontWeight: 600, fontSize: 13, borderBottom: 1, borderColor: 'divider', bgcolor: '#F5F3F0' }}>{d}</Box>
+              <Box key={d} sx={{ p: 1, fontWeight: 600, fontSize: 13, borderBottom: 1, borderColor: 'divider', bgcolor: tokens.surfaceAlt }}>{d}</Box>
             ))}
             {days.map(d => (
               <Box key={d} onClick={() => isAdmin && setEditing({ starts_on: d, ends_on: null, starts_at: null, title: '',
                 category: 'business', town: null, confirmed: true, visibility: 'all' })}
                 sx={{ minHeight: 96, p: 0.5, borderRight: 1, borderBottom: 1, borderColor: 'divider',
-                  bgcolor: d === today() ? '#FDEEEF' : d.slice(0, 7) !== month.slice(0, 7) ? '#F5F3F0' : undefined,
+                  bgcolor: d === today() ? tokens.today : d.slice(0, 7) !== month.slice(0, 7) ? tokens.surfaceAlt : undefined,
                   cursor: isAdmin ? 'pointer' : 'default' }}>
                 <Typography variant="caption" sx={{ fontWeight: d === today() ? 700 : 400,
                   color: d.slice(0, 7) !== month.slice(0, 7) ? 'text.disabled' : 'text.primary' }}>{Number(d.slice(8))}</Typography>
@@ -114,12 +116,13 @@ export function CalendarPage() {
               {on(d).map(e => (
                 <Stack key={e.id} direction="row" spacing={1} sx={{ alignItems: 'center', mt: 0.5 }} onClick={() => openEvent(e)}>
                   <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: CATEGORY_META[e.category].colour, flexShrink: 0 }} />
-                  <Typography variant="body2">
+                  <Typography variant="body2" sx={{ flex: 1 }}>
                     {e.starts_at ? `${localTime(e.starts_at)} · ` : ''}{e.title}
                     <Typography component="span" variant="caption" color="text.secondary">
                       {' '}· {e.competition ?? CATEGORY_META[e.category].label}{e.town ? `, ${e.town}` : ''}{e.confirmed ? '' : ' · to confirm'}
                     </Typography>
                   </Typography>
+                  {d >= today() && <EventAlertButton kind="calendar" refId={e.id} title={e.title} />}
                 </Stack>
               ))}
             </Card>
@@ -153,6 +156,12 @@ export function CalendarPage() {
                 onChange={e => setEditing({ ...editing, visibility: e.target.checked ? 'admins' : 'all' })} />} label="Admins only" />
               <FormControlLabel control={<Switch checked={!editing.confirmed}
                 onChange={e => setEditing({ ...editing, confirmed: !e.target.checked })} />} label="Date to confirm" />
+              {editing.id && (
+                <Stack direction="row" spacing={1} sx={{ alignItems: 'center', p: 1, borderRadius: '12px', bgcolor: tokens.surfaceAlt }}>
+                  <EventAlertButton kind="calendar" refId={editing.id} title={editing.title} />
+                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>Remind the admins the day before (3 hours before if it has a time).</Typography>
+                </Stack>
+              )}
             </Stack>
           </DialogContent>
         )}

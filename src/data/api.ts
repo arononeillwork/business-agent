@@ -1,7 +1,7 @@
 import type {
   Expense, InstagramProfile, IntegrationsState, MusicNow, OutboxItem, OpeningHours, SpotifyPlaylist, TimeOff, TimeOffKind,
   BreakType, Business, CalendarEvent, CorrectionRequest, KioskPerson, OpenBreak, PayRate,
-  MusicPlaylist, MusicProvider, MyMusic, MyNowPlaying, PartnerArea, Position, Profile, Settings, Shift, TimeEntry, TimeEntryChange,
+  AppNotification, Brand, EventAlert, MusicPlaylist, MusicProvider, MyMusic, MyNowPlaying, PartnerArea, Position, Profile, Settings, Shift, TimeEntry, TimeEntryChange,
 } from '../../shared/types'
 import type { SportsCompetition, SportsEvent } from '../../shared/sports'
 
@@ -134,6 +134,17 @@ export interface Api {
   connectSpotify(): Promise<void>
   spotifyPlaylists(): Promise<{ playlists: SpotifyPlaylist[]; approved: SpotifyPlaylist | null }>
   chooseSpotifyPlaylist(playlist: SpotifyPlaylist): Promise<void>
+
+  // Brand guidelines (everyone reads; admins change) and the Google Fonts list for the picker
+  brand(): Promise<Brand>
+  saveBrand(patch: Partial<Omit<Brand, 'updated_at'>>): Promise<void>
+  fontList(): Promise<{ source: string; fonts: { family: string; category: string }[] }>
+
+  // Notifications (the bell) and event alerts (admins get reminded before an event)
+  notifications(): Promise<AppNotification[]>
+  markNotificationsRead(): Promise<void>
+  eventAlerts(): Promise<EventAlert[]>
+  setEventAlert(kind: EventAlert['kind'], refId: string, on: boolean): Promise<boolean>
 
   // Calendar feeds: my shifts (everyone), the whole team (admins). Returns subscribe links.
   calendarFeeds(): Promise<Partial<Record<'me' | 'business', string>>>

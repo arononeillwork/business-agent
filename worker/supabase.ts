@@ -8,6 +8,7 @@ export interface Env {
   ASSETS: Fetcher
   MEDIA?: R2Bucket
   // Integrations (secrets unless noted). Anything missing shows as "needs setup" in the app.
+  GOOGLE_FONTS_API_KEY?: string       // optional: official Google Fonts list (brand page)
   INTEGRATION_KEY?: string            // encrypts stored tokens, signs OAuth state
   GOOGLE_CLIENT_ID?: string
   GOOGLE_CLIENT_SECRET?: string

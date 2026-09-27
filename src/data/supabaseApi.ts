@@ -1,9 +1,9 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { Api } from './api'
-import type { Business, Expense, MusicPlaylist, OutboxItem, Profile, Settings, TimeEntry, TimeOff } from '../../shared/types'
+import type { AppNotification, Brand, Business, EventAlert, Expense, MusicPlaylist, OutboxItem, Profile, Settings, TimeEntry, TimeOff } from '../../shared/types'
 import type { SportsCompetition, SportsEvent } from '../../shared/sports'
 
-const PROFILE_COLUMNS = 'id, full_name, email, role, can_see_pay, colour, active, phone, birth_date, whatsapp_opt_in, partner_company, partner_access'
+const PROFILE_COLUMNS = 'id, full_name, email, role, can_see_pay, colour, active, phone, birth_date, whatsapp_opt_in, partner_company, partner_access, preferences'
 
 /** Throw the Postgres error message (our SQL functions raise human-readable ones). */
 function check<T>(res: { data: T; error: { message: string } | null }): NonNullable<T> {
@@ -359,6 +359,29 @@ export function createSupabaseApi(url: string, key: string): Api {
     spotifyPlaylists: () => worker('/api/integrations/spotify/playlists'),
     async chooseSpotifyPlaylist(playlist) {
       await worker('/api/integrations/spotify/playlist', { method: 'POST', body: JSON.stringify({ playlist }) })
+    },
+    async brand() {
+      return check(await sb.from('brand').select('logo, logo_mark, colours, heading_font, body_font, notes, updated_at').eq('id', 1).single()) as Brand
+    },
+    async saveBrand(patch) {
+      check(await sb.from('brand').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', 1))
+    },
+    async fontList() {
+      const res = await fetch('/api/fonts')
+      if (!res.ok) throw new Error('Could not load the font list')
+      return res.json()
+    },
+    async notifications() {
+      return check(await sb.from('notifications').select('*').order('created_at', { ascending: false }).limit(30)) as AppNotification[]
+    },
+    async markNotificationsRead() {
+      check(await sb.from('notifications').update({ read_at: new Date().toISOString() }).is('read_at', null))
+    },
+    async eventAlerts() {
+      return check(await sb.from('event_alerts').select('kind, ref_id, remind_at, sent_at').gte('starts_at', new Date(Date.now() - 86_400_000).toISOString())) as EventAlert[]
+    },
+    async setEventAlert(kind, refId, on) {
+      return check(await sb.rpc('set_event_alert', { p_kind: kind, p_ref_id: refId, p_on: on })) as boolean
     },
     calendarFeeds: () => worker('/api/me/calendar-feed'),
     async makeCalendarFeed(scope) { return (await worker<{ url: string }>(`/api/me/calendar-feed/${scope}`, { method: 'POST' })).url },

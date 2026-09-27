@@ -24,8 +24,8 @@ const STATUS: Record<OutboxItem['status'], { label: string; fg: string; bg: stri
   pending: { label: 'Waiting', fg: tokens.ubeDeep, bg: tokens.ubeSoft },
   sending: { label: 'Sending', fg: tokens.ubeDeep, bg: tokens.ubeSoft },
   sent: { label: 'Sent', fg: tokens.matchaDeep, bg: tokens.matchaSoft },
-  failed: { label: 'Retrying', fg: '#7E3F4B', bg: tokens.roseWash },
-  dead: { label: 'Failed', fg: '#8E2B3A', bg: tokens.dangerSoft },
+  failed: { label: 'Retrying', fg: tokens.warnFg, bg: tokens.warnBg },
+  dead: { label: 'Failed', fg: tokens.badFg, bg: tokens.badBg },
 }
 
 export function AlertsPage() {

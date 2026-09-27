@@ -25,10 +25,10 @@ const META: Record<IntegrationProvider, { name: string; icon: ReactNode; does: s
 }
 
 function status(i: Integration | undefined, configured: boolean) {
-  if (!configured) return { text: 'Needs setup', fg: '#7E3F4B', bg: '#F3DED3' }
-  if (!i || i.status === 'disconnected') return { text: 'Not connected', fg: tokens.inkSoft, bg: '#EFECE8' }
-  if (i.status === 'error') return { text: 'Problem', fg: '#8E2B3A', bg: '#F9DDE0' }
-  return { text: 'Connected', fg: '#4A6536', bg: tokens.matchaSoft }
+  if (!configured) return { text: 'Needs setup', fg: tokens.warnFg, bg: tokens.warnBg }
+  if (!i || i.status === 'disconnected') return { text: 'Not connected', fg: tokens.neutralFg, bg: tokens.neutralBg }
+  if (i.status === 'error') return { text: 'Problem', fg: tokens.badFg, bg: tokens.badBg }
+  return { text: 'Connected', fg: tokens.goodFg, bg: tokens.goodBg }
 }
 
 const SETUP_HELP: Record<IntegrationProvider, string> = {
@@ -70,7 +70,7 @@ export function ConnectionsCard() {
           </Box>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap', rowGap: 0.5 }}>
-              <Typography sx={{ fontWeight: 800 }}>{META[p].name}</Typography>
+              <Typography sx={{ fontWeight: 600 }}>{META[p].name}</Typography>
               <Tag fg={st.fg} bg={st.bg}>{st.text}</Tag>
               {i?.account_label && i.status !== 'disconnected' && <Typography variant="body2" sx={{ color: 'text.secondary' }}>{i.account_label}</Typography>}
             </Stack>
@@ -140,8 +140,8 @@ export function ConnectionsCard() {
                 const fmt = (h?: { open: string; close: string } | null) => (h ? `${h.open}–${h.close}` : 'Closed')
                 const differs = fmt(a) !== fmt(b)
                 return (
-                  <TableRow key={d} sx={{ bgcolor: differs ? '#F3DED3' : undefined }}>
-                    <TableCell sx={{ textTransform: 'capitalize', fontWeight: 700 }}>{d}</TableCell>
+                  <TableRow key={d} sx={{ bgcolor: differs ? tokens.warnBg : undefined }}>
+                    <TableCell sx={{ textTransform: 'capitalize', fontWeight: 600 }}>{d}</TableCell>
                     <TableCell>{fmt(a)}</TableCell>
                     <TableCell sx={{ fontWeight: differs ? 800 : 400 }}>{fmt(b)}</TableCell>
                   </TableRow>
@@ -200,12 +200,12 @@ export function InstagramCard() {
         {p && <>
           <Stack direction="row" spacing={3} sx={{ mb: 2, flexWrap: 'wrap', rowGap: 1 }}>
             <Box>
-              <Typography sx={{ fontWeight: 800 }}>@{p.username}</Typography>
+              <Typography sx={{ fontWeight: 600 }}>@{p.username}</Typography>
               {p.biography && <Typography variant="body2" sx={{ color: 'text.secondary', maxWidth: 360 }}>{p.biography}</Typography>}
             </Box>
-            <Box><Typography sx={{ fontWeight: 800, fontSize: '1.3rem', fontVariantNumeric: 'tabular-nums' }}>{p.followers_count.toLocaleString('es-ES')}</Typography>
+            <Box><Typography sx={{ fontWeight: 600, fontSize: '1.3rem', fontVariantNumeric: 'tabular-nums' }}>{p.followers_count.toLocaleString('es-ES')}</Typography>
               <Typography variant="caption" sx={{ color: 'text.secondary' }}>followers</Typography></Box>
-            <Box><Typography sx={{ fontWeight: 800, fontSize: '1.3rem' }}>{p.media_count}</Typography>
+            <Box><Typography sx={{ fontWeight: 600, fontSize: '1.3rem' }}>{p.media_count}</Typography>
               <Typography variant="caption" sx={{ color: 'text.secondary' }}>posts</Typography></Box>
           </Stack>
           <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 1 }}>
@@ -217,7 +217,7 @@ export function InstagramCard() {
                   ? <Box component="img" src={m.thumbnail_url ?? m.media_url} alt={m.caption ?? 'Instagram post'} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   : <Typography variant="caption" sx={{ p: 1, display: 'block', fontWeight: 600 }}>{m.caption}</Typography>}
                 <Stack direction="row" spacing={0.5} sx={{ position: 'absolute', left: 6, bottom: 6, alignItems: 'center', bgcolor: 'rgba(255,255,255,0.9)', px: 0.75, borderRadius: 1 }}>
-                  <FavoriteIcon sx={{ fontSize: 13 }} /><Typography variant="caption" sx={{ fontWeight: 700 }}>{m.like_count ?? 0}</Typography>
+                  <FavoriteIcon sx={{ fontSize: 13 }} /><Typography variant="caption" sx={{ fontWeight: 600 }}>{m.like_count ?? 0}</Typography>
                 </Stack>
               </Box>
             ))}

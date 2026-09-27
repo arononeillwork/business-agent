@@ -65,3 +65,12 @@ test('a real account can sign in', async ({ page }) => {
   await page.getByRole('button', { name: 'Sign in', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Sign out' }).first()).toBeVisible({ timeout: 15_000 })
 })
+
+test('the brand page can list Google Fonts', async ({ request }) => {
+  const res = await request.get('/api/fonts')
+  expect(res.status()).toBe(200)
+  const body = await res.json() as { source: string; fonts: { family: string }[] }
+  expect(body.fonts.length).toBeGreaterThan(40)
+  expect(body.fonts.some(f => f.family === 'Poppins')).toBe(true)
+  console.log(`Font list: ${body.fonts.length} families from ${body.source}`)
+})

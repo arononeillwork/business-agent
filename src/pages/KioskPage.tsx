@@ -56,7 +56,7 @@ export function KioskPage() {
           <Typography variant="h5">{businessConfig.name}</Typography>
           <Typography sx={{ color: 'text.secondary', textTransform: 'capitalize' }}>{formatLocal(new Date(), 'EEEE d MMMM')}</Typography>
         </Box>
-        <Typography variant="h3" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{formatLocal(new Date(), 'HH:mm')}</Typography>
+        <Typography variant="h3" sx={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{formatLocal(new Date(), 'HH:mm')}</Typography>
       </Stack>
       {me?.role === 'admin' && (
         <Alert severity="info" sx={{ mb: 2 }} action={<Button component={Link} to="/" color="inherit">Exit</Button>}>

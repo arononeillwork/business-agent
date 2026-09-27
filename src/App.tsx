@@ -7,6 +7,7 @@ import { NotifyProvider } from './app/Notify'
 import { AppShell } from './app/AppShell'
 import { Loading } from './components/common'
 import { theme } from './theme'
+import { AppearanceSync } from './app/Appearance'
 import { LoginPage } from './pages/LoginPage'
 import { NotActive } from './pages/StatusPages'
 import { lazy, Suspense, type ComponentType } from 'react'
@@ -30,6 +31,9 @@ const MusicPage = page(() => import('./pages/MusicPage'), 'MusicPage')
 const ConnectionsPage = page(() => import('./pages/ConnectionsPage'), 'ConnectionsPage')
 const PartnersPage = page(() => import('./pages/PartnersPage'), 'PartnersPage')
 const RegistroPage = page(() => import('./pages/RegistroPage'), 'RegistroPage')
+const OpeningHoursPage = page(() => import('./pages/OpeningHoursPage'), 'OpeningHoursPage')
+const AppearancePage = page(() => import('./pages/AppearancePage'), 'AppearancePage')
+const BrandPage = page(() => import('./pages/BrandPage'), 'BrandPage')
 
 function Routed() {
   const { me, loading, isAdmin, isPartner, partnerCan } = useApp()
@@ -45,6 +49,9 @@ function Routed() {
         <Route element={<AppShell />}>
           <Route path="business" element={<BusinessPage />} />
           <Route path="account" element={<AccountPage />} />
+          <Route path="appearance" element={<AppearancePage />} />
+          <Route path="opening-hours" element={<OpeningHoursPage />} />
+          <Route path="brand" element={<BrandPage />} />
           {(partnerCan('rota') || partnerCan('payroll')) && <Route path="rota" element={<RotaPage />} />}
           {partnerCan('payroll') && <Route path="timecards" element={<TimecardsPage />} />}
           {partnerCan('calendar') && <Route path="calendar" element={<CalendarPage />} />}
@@ -70,6 +77,9 @@ function Routed() {
         <Route path="music" element={<MusicPage />} />
         <Route path="team" element={<TeamPage />} />
         <Route path="business" element={<BusinessPage />} />
+        <Route path="opening-hours" element={<OpeningHoursPage />} />
+        <Route path="brand" element={<BrandPage />} />
+        <Route path="appearance" element={<AppearancePage />} />
         <Route path="account" element={<AccountPage />} />
         <Route path="finances" element={<FinancesPage />} />
         <Route path="alerts" element={isAdmin ? <AlertsPage /> : <Navigate to="/" />} />
@@ -87,10 +97,11 @@ const Router = import.meta.env.VITE_DEMO_ONLY === '1' ? HashRouter : BrowserRout
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
-    <ThemeProvider theme={theme}>
+    <ThemeProvider theme={theme} defaultMode="system" disableTransitionOnChange>
       <CssBaseline />
       <NotifyProvider>
         <AppProvider>
+          <AppearanceSync />
           <Router>
             <Suspense fallback={<Loading />}><Routed /></Suspense>
           </Router>

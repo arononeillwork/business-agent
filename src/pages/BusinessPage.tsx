@@ -1,6 +1,6 @@
 import {
-  Box, Button, Card, CardContent, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle,
-  FormControlLabel, Grid, Link, MenuItem, Stack, TextField, Typography,
+  Box, Button, Card, CardContent, Dialog, DialogActions, DialogContent, DialogTitle,
+  Grid, Link, MenuItem, Stack, TextField, Typography,
 } from '@mui/material'
 import EditIcon from '@mui/icons-material/EditOutlined'
 import PlaceIcon from '@mui/icons-material/PlaceOutlined'
@@ -11,6 +11,7 @@ import ChatIcon from '@mui/icons-material/ChatBubbleOutlineOutlined'
 import LockIcon from '@mui/icons-material/LockOutlined'
 import MapIcon from '@mui/icons-material/MapOutlined'
 import { useEffect, useState, type ReactNode } from 'react'
+import { Link as RouterLink } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
@@ -48,7 +49,7 @@ function InfoRow({ icon, label, children }: { icon: ReactNode; label: string; ch
 export function BusinessPage() {
   const { api, business: b, isAdmin } = useApp()
   const notes = useAsync('admin-notes', () => (isAdmin ? api.adminNotes() : Promise.resolve(null)), [isAdmin])
-  const [editing, setEditing] = useState<'details' | 'hours' | 'notes' | null>(null)
+  const [editing, setEditing] = useState<'details' | 'notes' | null>(null)
   if (!b) return null
   const status = openStatus(b)
   const todayKey = dayKey(today())
@@ -60,7 +61,7 @@ export function BusinessPage() {
     <>
       <PageHeader eyebrow="Business" title={b.name}
         subtitle={[b.business_type, b.address].filter(Boolean).join(' · ')}
-        actions={<Tag fg={status.open ? '#4A6536' : tokens.inkSoft} bg={status.open ? tokens.matchaSoft : '#EFECE8'}>● {status.text}</Tag>} />
+        actions={<Tag fg={status.open ? tokens.goodFg : tokens.neutralFg} bg={status.open ? tokens.goodBg : tokens.neutralBg}>● {status.text}</Tag>} />
 
       <Grid container spacing={2.5}>
         <Grid size={{ xs: 12, md: 6, lg: 4 }}>
@@ -88,7 +89,7 @@ export function BusinessPage() {
         <Grid size={{ xs: 12, md: 6, lg: 4 }}>
           <Card sx={{ height: '100%' }}>
             <CardContent>
-              <SectionTitle action={edit('hours')}>Opening hours</SectionTitle>
+              <SectionTitle action={<Button size="small" component={RouterLink} to="/opening-hours">{isAdmin ? 'Change' : 'Details'}</Button>}>Opening hours</SectionTitle>
               <Box component="dl" sx={{ m: 0 }}>
                 {DAY_KEYS.map(d => {
                   const h = b.opening_hours[d]
@@ -97,7 +98,7 @@ export function BusinessPage() {
                     <Stack key={d} direction="row" sx={{ justifyContent: 'space-between', py: 0.9, px: 1.25, mx: -1.25, borderRadius: 2,
                       bgcolor: isToday ? tokens.roseSoft : 'transparent' }}>
                       <Typography component="dt" sx={{ fontWeight: isToday ? 800 : 500 }}>{DAY_LABELS[d]}{isToday ? ' · today' : ''}</Typography>
-                      <Typography component="dd" sx={{ m: 0, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: h ? 'text.primary' : 'text.secondary' }}>
+                      <Typography component="dd" sx={{ m: 0, fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: h ? 'text.primary' : 'text.secondary' }}>
                         {h ? `${h.open} – ${h.close}` : 'Closed'}
                       </Typography>
                     </Stack>
@@ -120,8 +121,8 @@ export function BusinessPage() {
                 <SectionTitle action={edit('notes')}>Notes</SectionTitle>
                 <Typography sx={{ whiteSpace: 'pre-wrap', color: b.notes ? 'text.primary' : 'text.secondary' }}>{b.notes || 'No notes.'}</Typography>
                 {isAdmin && (
-                  <Box sx={{ mt: 2, p: 1.5, borderRadius: 2.5, bgcolor: '#F3DED3' }}>
-                    <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', color: '#7E3F4B', mb: 0.5 }}>
+                  <Box sx={{ mt: 2, p: 1.5, borderRadius: 2.5, bgcolor: tokens.warnBg }}>
+                    <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', color: tokens.warnFg, mb: 0.5 }}>
                       <LockIcon sx={{ fontSize: 16 }} />
                       <Typography variant="subtitle2">Admin-only notes</Typography>
                     </Stack>
@@ -138,7 +139,6 @@ export function BusinessPage() {
       </Typography>
 
       {editing === 'details' && <DetailsDialog onClose={() => setEditing(null)} />}
-      {editing === 'hours' && <HoursDialog onClose={() => setEditing(null)} />}
       {editing === 'notes' && <NotesDialog adminNotes={notes.data ?? ''} onClose={() => { setEditing(null); notes.reload() }} />}
     </>
   )
@@ -195,32 +195,6 @@ function DetailsDialog({ onClose }: { onClose: () => void }) {
   )
 }
 
-function HoursDialog({ onClose }: { onClose: () => void }) {
-  const { api, refresh } = useApp()
-  const [b, setB] = useBusinessDraft()
-  return (
-    <EditDialog title="Opening hours" onClose={onClose} onSave={async () => {
-      await api.updateBusiness({ opening_hours: b.opening_hours }); await refresh()
-    }}>
-      {DAY_KEYS.map(d => {
-        const h = b.opening_hours[d]
-        return (
-          <Stack key={d} direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-            <FormControlLabel sx={{ width: 150, flexShrink: 0 }} label={DAY_LABELS[d]} control={
-              <Checkbox checked={!!h} onChange={e => setB({ ...b, opening_hours: { ...b.opening_hours,
-                [d]: e.target.checked ? { open: '09:00', close: '17:00' } : null } })} />} />
-            {h ? <>
-              <TextField type="time" label="Opens" value={h.open} slotProps={{ inputLabel: { shrink: true } }}
-                onChange={e => setB({ ...b, opening_hours: { ...b.opening_hours, [d]: { ...h, open: e.target.value } } })} />
-              <TextField type="time" label="Closes" value={h.close} slotProps={{ inputLabel: { shrink: true } }}
-                onChange={e => setB({ ...b, opening_hours: { ...b.opening_hours, [d]: { ...h, close: e.target.value } } })} />
-            </> : <Typography sx={{ color: 'text.secondary' }}>Closed</Typography>}
-          </Stack>
-        )
-      })}
-    </EditDialog>
-  )
-}
 
 function NotesDialog({ adminNotes, onClose }: { adminNotes: string; onClose: () => void }) {
   const { api, refresh } = useApp()

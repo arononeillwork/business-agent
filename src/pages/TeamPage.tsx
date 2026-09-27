@@ -32,7 +32,7 @@ export function TeamPage() {
                 <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: isAdmin ? 2 : 0 }}>
                   <PersonAvatar name={p.full_name} colour={p.colour} size={44} />
                   <Stack sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography sx={{ fontWeight: 700 }} noWrap>{p.full_name}{p.id === me?.id ? ' (you)' : ''}</Typography>
+                    <Typography sx={{ fontWeight: 600 }} noWrap>{p.full_name}{p.id === me?.id ? ' (you)' : ''}</Typography>
                     <Typography variant="body2" color="text.secondary" noWrap>{p.email ?? 'No email'}</Typography>
                   </Stack>
                   <Chip size="small" label={p.role === 'admin' ? 'Admin' : 'Employee'} color={p.role === 'admin' ? 'primary' : 'default'} />

@@ -13,10 +13,10 @@ import { TIME_OFF_LABELS, type TimeOff, type TimeOffKind } from '../../shared/ty
 import { tokens } from '../theme'
 
 const STATUS_TAG: Record<TimeOff['status'], { fg: string; bg: string; label: string }> = {
-  pending: { fg: '#7E3F4B', bg: '#F3DED3', label: 'Waiting for approval' },
-  approved: { fg: '#4A6536', bg: tokens.matchaSoft, label: 'Approved' },
-  declined: { fg: '#8E2B3A', bg: '#F9DDE0', label: 'Declined' },
-  cancelled: { fg: tokens.inkSoft, bg: '#EFECE8', label: 'Cancelled' },
+  pending: { fg: tokens.warnFg, bg: tokens.warnBg, label: 'Waiting for approval' },
+  approved: { fg: tokens.goodFg, bg: tokens.goodBg, label: 'Approved' },
+  declined: { fg: tokens.badFg, bg: tokens.badBg, label: 'Declined' },
+  cancelled: { fg: tokens.neutralFg, bg: tokens.neutralBg, label: 'Cancelled' },
 }
 
 const days = (t: Pick<TimeOff, 'starts_on' | 'ends_on'>) => (Date.parse(t.ends_on) - Date.parse(t.starts_on)) / 86400000 + 1
@@ -78,7 +78,7 @@ export function TimeOffPage() {
                       <Stack key={t.id} direction="row" spacing={1.5} sx={{ alignItems: 'center', p: 1.5, borderRadius: 3, border: 1, borderColor: 'divider' }}>
                         {p && <PersonAvatar name={p.full_name} colour={p.colour} size={36} />}
                         <Box sx={{ flex: 1, minWidth: 0 }}>
-                          <Typography sx={{ fontWeight: 800 }}>{p?.full_name} · {TIME_OFF_LABELS[t.kind]}</Typography>
+                          <Typography sx={{ fontWeight: 600 }}>{p?.full_name} · {TIME_OFF_LABELS[t.kind]}</Typography>
                           <Typography variant="body2">{range(t)} · {days(t)} day{days(t) > 1 ? 's' : ''}</Typography>
                           {t.note && <Typography variant="body2" sx={{ color: 'text.secondary' }}>“{t.note}”</Typography>}
                         </Box>
@@ -101,7 +101,7 @@ export function TimeOffPage() {
                 {mine.map(t => (
                   <Stack key={t.id} direction="row" spacing={1.5} sx={{ alignItems: 'center', py: 1.25, borderBottom: 1, borderColor: 'divider', '&:last-of-type': { borderBottom: 0 } }}>
                     <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Typography sx={{ fontWeight: 700 }}>{range(t)}</Typography>
+                      <Typography sx={{ fontWeight: 600 }}>{range(t)}</Typography>
                       <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                         {TIME_OFF_LABELS[t.kind]} · {days(t)} day{days(t) > 1 ? 's' : ''}{t.decision_note ? ` · “${t.decision_note}”` : ''}
                       </Typography>
@@ -128,7 +128,7 @@ export function TimeOffPage() {
                   return (
                     <Stack key={t.id} direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
                       {p && <PersonAvatar name={p.full_name} colour={p.colour} size={30} />}
-                      <Typography sx={{ fontWeight: 700, minWidth: 120 }}>{p?.full_name}</Typography>
+                      <Typography sx={{ fontWeight: 600, minWidth: 120 }}>{p?.full_name}</Typography>
                       <Typography variant="body2" sx={{ color: 'text.secondary' }}>{range(t)} · {TIME_OFF_LABELS[t.kind]}</Typography>
                     </Stack>
                   )

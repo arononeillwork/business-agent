@@ -53,7 +53,7 @@ export function LoginPage() {
         <Typography variant="overline" sx={{ color: tokens.roseDeep }}>Specialty coffee · matcha · ube · chai · açaí</Typography>
         <Box>
           <Logo size={168} />
-          <Typography sx={{ fontFamily: fonts.display, fontWeight: 600, fontSize: '2.6rem', lineHeight: 1.1, letterSpacing: '-0.03em', mt: 4, maxWidth: 460 }}>
+          <Typography sx={{ fontFamily: fonts.display, fontWeight: 500, fontSize: '2.6rem', lineHeight: 1.1, letterSpacing: '-0.03em', mt: 4, maxWidth: 460 }}>
             Same drink, same way, every time.
           </Typography>
           <Typography sx={{ color: 'text.secondary', mt: 2, maxWidth: 420 }}>

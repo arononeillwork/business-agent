@@ -2,10 +2,11 @@ import { Hono } from 'hono'
 import { OAuthProvider } from '@cloudflare/workers-oauth-provider'
 import { bearer, serviceClient, userClient, type Env } from './supabase'
 import { rest } from './rest'
-import { drainOutbox, integrations } from './integrations'
+import { drainOutbox, integrations, syncGoogle } from './integrations'
 import { refreshAllSports, refreshStaleSports } from './sports'
 import { music } from './music'
 import { calendarFeeds } from './calendarFeed'
+import { fonts } from './fonts'
 import { authorizeGet, authorizePost, mcpApiHandler, tokenExchangeCallback, type OAuthEnv } from './mcp'
 
 const NIGHTLY = '15 1 * * *' // 03:15 Madrid in summer, 02:15 in winter
@@ -120,6 +121,9 @@ app.post('/api/admin/sports/refresh', async c => {
 // Music page: each person's own Spotify / YouTube Music.
 app.route('/', music)
 
+// Google Fonts list for the brand page's font picker.
+app.route('/', fonts)
+
 // Calendar feeds: my shifts (everyone) and the team calendar (admins), for Google/Apple/Outlook.
 app.route('/', calendarFeeds)
 
@@ -152,7 +156,8 @@ const provider = (env: Env, origin: string) => new OAuthProvider<Env>({
 
 export default {
   fetch: (request, env, ctx) => provider(env, new URL(request.url).origin).fetch(request, env, ctx),
-  // Every minute: close forgotten timecards, queue shift alerts, deliver the outbox, refresh sports.
+  // Every minute: close forgotten timecards, queue shift alerts, remind admins about events,
+  // deliver the outbox, refresh sports.
   // Nightly: fill yesterday's missing timecards from the rota.
   async scheduled(event, env, ctx) {
     if (!env.SUPABASE_SERVICE_ROLE_KEY) return
@@ -161,12 +166,19 @@ export default {
       if (error) console.error(`${job} failed`, error.message)
     }
     if (event.cron === NIGHTLY) {
-      ctx.waitUntil(Promise.resolve(db.rpc('auto_fill_timecards')).then(log('auto_fill_timecards')))
+      ctx.waitUntil((async () => {
+        await Promise.resolve(db.rpc('auto_fill_timecards')).then(log('auto_fill_timecards'))
+        // Re-send hours, closures and phone to Google Maps every night, so the listing stays right
+        // even if someone edits it on Google or a change was missed (changes also sync within a minute).
+        const { data: g } = await db.from('integrations').select('status').eq('provider', 'google_business').maybeSingle()
+        if (g?.status === 'connected') await syncGoogle(env, db).catch(e => console.error('nightly google sync failed', e))
+      })())
       return
     }
     ctx.waitUntil((async () => {
       await Promise.resolve(db.rpc('auto_close_entries')).then(log('auto_close_entries'))
       await Promise.resolve(db.rpc('queue_shift_alerts')).then(log('queue_shift_alerts'))
+      await Promise.resolve(db.rpc('deliver_event_alerts')).then(log('deliver_event_alerts'))
       await drainOutbox(env).catch(e => console.error('outbox failed', e))
       await refreshStaleSports(db).catch(e => console.error('sports failed', e))
     })())

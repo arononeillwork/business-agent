@@ -336,3 +336,38 @@ select pg_temp.act_as('maria@test');
 select pg_temp.expect_error($q$select * from public.music_accounts$q$, 'permission denied');
 select pg_temp.expect_error($q$delete from public.music_accounts$q$, 'permission denied');
 reset role;
+
+-- 15. Preferences, event alerts, notifications, brand ----------------------------------------
+select pg_temp.act_as('julio@test');
+update public.profiles set preferences = '{"theme": "dark", "textSize": "large"}' where id = auth.uid();
+do $$ begin
+  assert (select preferences ->> 'theme' from public.profiles where email = 'julio@test') = 'dark', 'anyone saves their own look';
+end $$;
+select pg_temp.expect_error($q$select public.set_event_alert('sports', 't:1', true)$q$, 'Only an admin');
+update public.brand set heading_font = 'Comic Neue' where id = 1;  -- silently refused by row security
+do $$ begin
+  assert (select heading_font from public.brand) = 'Poppins', 'staff read the brand but cannot change it';
+end $$;
+select pg_temp.act_as('maria@test');
+select pg_temp.expect_error($q$update public.profiles set preferences = '{"theme": "light"}' where email = 'julio@test'$q$, 'Only the person themselves');
+do $$ begin
+  assert (select preferences ->> 'theme' from public.profiles where email = 'julio@test') = 'dark', 'nobody changes someone else''s look';
+  assert public.set_event_alert('sports', 't:1', true), 'admin switches an alert on';
+end $$;
+update public.brand set heading_font = 'Fraunces' where id = 1;
+reset role;
+update public.event_alerts set remind_at = now() - interval '1 minute';
+do $$ begin
+  assert public.deliver_event_alerts() = 1, 'due alert delivered once';
+  assert public.deliver_event_alerts() = 0, 'and not again';
+  assert exists (select 1 from public.notifications n join public.profiles p on p.id = n.profile_id
+                 where p.email = 'maria@test' and n.title = 'Barcelona vs Real Madrid'), 'admins get a notification';
+  assert not exists (select 1 from public.notifications n join public.profiles p on p.id = n.profile_id where p.email = 'julio@test'),
+    'employees do not';
+  assert (select heading_font from public.brand) = 'Fraunces', 'admins change the brand';
+end $$;
+select pg_temp.act_as('julio@test');
+do $$ begin
+  assert (select count(*) from public.notifications) = 0, 'people only see their own notifications';
+end $$;
+reset role;

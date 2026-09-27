@@ -80,8 +80,8 @@ export function FinancesPage() {
                 </TableBody>
                 <TableFooter>
                   <TableRow>
-                    <TableCell sx={{ fontWeight: 700, color: 'text.primary', fontSize: '0.95rem' }}>Total</TableCell><TableCell />
-                    <TableCell align="right" sx={{ fontWeight: 700, color: 'text.primary', fontSize: '0.95rem', fontVariantNumeric: 'tabular-nums' }}>{formatMoney(total)}</TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: 'text.primary', fontSize: '0.95rem' }}>Total</TableCell><TableCell />
+                    <TableCell align="right" sx={{ fontWeight: 600, color: 'text.primary', fontSize: '0.95rem', fontVariantNumeric: 'tabular-nums' }}>{formatMoney(total)}</TableCell>
                     <TableCell /><TableCell />
                   </TableRow>
                 </TableFooter>

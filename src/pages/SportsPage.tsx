@@ -17,6 +17,7 @@ import { Empty, ErrorBox, PageHeader, Stat, StatRow, Tag } from '../components/c
 import { addDays, formatLocal, localDate, localTime, today, zonedIso } from '../../shared/time'
 import type { Sport, SportsCompetition, SportsEvent } from '../../shared/sports'
 import { fonts, tokens } from '../theme'
+import { EventAlertButton } from '../components/NotificationBell'
 
 const DAYS = 21
 
@@ -120,7 +121,7 @@ export function SportsPage() {
       <Stack spacing={3}>
         {byDay.map(([day, list]) => (
           <Box key={day} component="section" aria-label={dayLabel(day)}>
-            <Typography sx={{ fontFamily: fonts.display, fontWeight: 600, fontSize: '1.05rem', mb: 1.25, position: 'sticky', top: { xs: 56, md: 0 },
+            <Typography sx={{ fontFamily: fonts.display, fontWeight: 500, fontSize: '1.05rem', mb: 1.25, position: 'sticky', top: { xs: 56, md: 0 },
               bgcolor: 'background.default', py: 0.75, zIndex: 1 }}>
               {dayLabel(day)} <Typography component="span" sx={{ color: 'text.secondary', fontWeight: 400, fontSize: '0.9rem' }}>· {list.length}</Typography>
             </Typography>
@@ -145,7 +146,7 @@ function dayLabel(day: string) {
 // Team initials in a colour picked from the name, so the same team always looks the same.
 const CREST = [
   [tokens.roseSoft, tokens.roseDeep], [tokens.ubeSoft, tokens.ubeDeep], [tokens.matchaSoft, tokens.matchaDeep],
-  ['#E6EEF6', '#2F5B84'], ['#F6EDE0', '#8A5A1C'], [tokens.surfaceAlt, tokens.inkSoft],
+  [tokens.infoBg, tokens.infoFg], [tokens.warnBg, tokens.warnFg], [tokens.neutralBg, tokens.neutralFg],
 ]
 const initials = (name: string) => {
   const words = name.replace(/\b(FC|CF|SC|AC|CD|UD|RC|SL|AFC|Club|de|del)\b/g, '').trim().split(/\s+/).filter(Boolean)
@@ -157,7 +158,7 @@ function Crest({ src, name }: { src: string | null; name: string | null }) {
   const [bg, fg] = CREST[[...n].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 7) % CREST.length]
   return (
     <Avatar src={src ?? undefined} alt="" variant="rounded" slotProps={{ img: { loading: 'lazy' } }}
-      sx={{ width: 34, height: 34, bgcolor: src ? tokens.surfaceAlt : bg, color: fg, fontSize: 12, fontWeight: 800, letterSpacing: '0.02em', '& img': { objectFit: 'contain' } }}>
+      sx={{ width: 34, height: 34, bgcolor: src ? tokens.surfaceAlt : bg, color: fg, fontSize: 12, fontWeight: 600, letterSpacing: '0.02em', '& img': { objectFit: 'contain' } }}>
       {initials(n)}
     </Avatar>
   )
@@ -171,14 +172,14 @@ function NextBigNight({ e, c }: { e: SportsEvent; c: SportsCompetition }) {
     <Card component="section" aria-label="Next big night" sx={{ mb: 3, p: { xs: 2.25, md: 3 }, position: 'relative', overflow: 'hidden', border: 'none',
       background: `linear-gradient(120deg, ${tokens.espresso} 0%, #4A3B36 100%)`, color: '#fff' }}>
       <Box aria-hidden sx={{ position: 'absolute', right: -30, top: -30, opacity: 0.08, '& svg': { fontSize: 220 } }}>{s.icon}</Box>
-      <Typography variant="overline" sx={{ color: tokens.rose, fontWeight: 700, letterSpacing: '0.12em' }}>Next big night</Typography>
+      <Typography variant="overline" sx={{ color: tokens.rose, fontWeight: 600, letterSpacing: '0.12em' }}>Next big night</Typography>
       <Stack direction={{ xs: 'column', md: 'row' }} sx={{ gap: { xs: 1.5, md: 3 }, alignItems: { md: 'center' }, mt: 0.5 }}>
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography sx={{ fontFamily: fonts.display, fontWeight: 700, fontSize: { xs: '1.35rem', md: '1.75rem' }, lineHeight: 1.2 }}>{e.title}</Typography>
+          <Typography sx={{ fontFamily: fonts.display, fontWeight: 500, fontSize: { xs: '1.35rem', md: '1.75rem' }, lineHeight: 1.2 }}>{e.title}</Typography>
           <Typography sx={{ opacity: 0.75, mt: 0.5 }}>{c.name}{e.venue ? ` · ${e.venue}` : ''}{e.city ? `, ${e.city}` : ''}</Typography>
         </Box>
         <Box sx={{ textAlign: { md: 'right' }, flexShrink: 0 }}>
-          <Typography sx={{ fontFamily: fonts.display, fontWeight: 700, fontSize: '1.2rem' }}>{dayLabel(day).split(' · ')[0]}</Typography>
+          <Typography sx={{ fontFamily: fonts.display, fontWeight: 500, fontSize: '1.2rem' }}>{dayLabel(day).split(' · ')[0]}</Typography>
           <Typography sx={{ opacity: 0.75 }}>{e.time_tbc ? 'Time to be confirmed' : `${localTime(e.starts_at)} Madrid time`}</Typography>
         </Box>
       </Stack>
@@ -194,7 +195,7 @@ function EventCard({ e, c }: { e: SportsEvent; c: SportsCompetition }) {
       aria-label={`${e.time_tbc ? 'Time to be confirmed' : localTime(e.starts_at)} ${e.title}`}>
       <Box sx={{ width: 76, flexShrink: 0, display: 'grid', placeItems: 'center', bgcolor: e.big ? tokens.roseSoft : tokens.surfaceAlt, px: 1 }}>
         <Box sx={{ textAlign: 'center' }}>
-          <Typography sx={{ fontFamily: fonts.display, fontWeight: 700, fontSize: e.time_tbc ? '1rem' : '1.2rem', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
+          <Typography sx={{ fontFamily: fonts.display, fontWeight: 500, fontSize: e.time_tbc ? '1rem' : '1.2rem', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
             {e.time_tbc ? 'TBC' : localTime(e.starts_at)}
           </Typography>
           {e.time_tbc && e.status === 'scheduled' && (
@@ -203,7 +204,7 @@ function EventCard({ e, c }: { e: SportsEvent; c: SportsCompetition }) {
             </Typography>
           )}
           {e.status !== 'scheduled' && (
-            <Typography variant="caption" sx={{ fontWeight: 700, color: e.status === 'live' ? tokens.danger : 'text.secondary' }}>
+            <Typography variant="caption" sx={{ fontWeight: 600, color: e.status === 'live' ? tokens.danger : 'text.secondary' }}>
               {e.status === 'live' ? 'LIVE' : e.status === 'postponed' ? 'Postponed' : 'Full time'}
             </Typography>
           )}
@@ -213,7 +214,7 @@ function EventCard({ e, c }: { e: SportsEvent; c: SportsCompetition }) {
         <Stack direction="row" sx={{ gap: 0.75, alignItems: 'center', mb: 1, flexWrap: 'wrap' }}>
           <Tag fg={s.fg} bg={s.bg}><Box component="span" sx={{ display: 'inline-flex', mr: 0.5, '& svg': { fontSize: 14 } }}>{s.icon}</Box>{c.name}</Tag>
           {e.round && e.sport === 'football' && Number(e.round) < 60 && <Tag>Matchday {e.round}</Tag>}
-          {e.big && <Tag fg="#7E3F4B" bg={tokens.roseWash}>Big night</Tag>}
+          {e.big && <Tag fg={tokens.warnFg} bg={tokens.warnBg}>Big night</Tag>}
         </Stack>
         {teams ? (
           <Stack spacing={0.75}>
@@ -236,11 +237,14 @@ function EventCard({ e, c }: { e: SportsEvent; c: SportsCompetition }) {
           </Typography>
         )}
       </Box>
-      {e.big && (
-        <Tooltip title="Likely busy: put it on the TV and plan staff">
-          <Box sx={{ display: 'grid', placeItems: 'center', px: 1.5, color: tokens.roseDeep }}><TvIcon /></Box>
-        </Tooltip>
-      )}
+      <Stack sx={{ alignItems: 'center', justifyContent: 'center', px: 1, gap: 0.5 }}>
+        {e.big && (
+          <Tooltip title="Likely busy: put it on the TV and plan staff">
+            <Box sx={{ display: 'grid', placeItems: 'center', color: tokens.roseDeep }}><TvIcon /></Box>
+          </Tooltip>
+        )}
+        {e.status === 'scheduled' && <EventAlertButton kind="sports" refId={e.id} title={e.title} />}
+      </Stack>
     </Card>
   )
 }
@@ -249,6 +253,12 @@ function CompetitionsDialog({ competitions, onClose }: { competitions: SportsCom
   const { api } = useApp()
   const run = useAction()
   const regions = [...new Set(competitions.map(c => c.region))]
+  // Ticks change straight away; the saved list catches up in the background.
+  const [on, setOn] = useState(() => new Set(competitions.filter(c => c.followed).map(c => c.code)))
+  const toggle = (c: SportsCompetition, follow: boolean) => {
+    setOn(prev => { const next = new Set(prev); if (follow) next.add(c.code); else next.delete(c.code); return next })
+    run(() => api.setSportsFollowed(c.code, follow), follow ? `Following ${c.name}` : `Stopped following ${c.name}`)
+  }
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="sm">
       <DialogTitle>Competitions to follow</DialogTitle>
@@ -262,8 +272,7 @@ function CompetitionsDialog({ competitions, onClose }: { competitions: SportsCom
               <Typography variant="overline" sx={{ color: 'text.secondary' }}>{r}</Typography>
               {competitions.filter(c => c.region === r).map(c => (
                 <FormControlLabel key={c.code} sx={{ display: 'flex' }} label={c.name}
-                  control={<Checkbox checked={c.followed} onChange={e => run(() => api.setSportsFollowed(c.code, e.target.checked),
-                    e.target.checked ? `Following ${c.name}` : `Stopped following ${c.name}`)} />} />
+                  control={<Checkbox checked={on.has(c.code)} onChange={e => toggle(c, e.target.checked)} />} />
               ))}
             </Box>
           ))}
