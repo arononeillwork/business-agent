@@ -24,7 +24,8 @@ export function AppearancePage() {
   const backgrounds = (brand.data?.colours ?? []).filter(c => /^#[0-9a-f]{6}$/i.test(c.hex) && !['#ffffff', '#fbf8f4'].includes(c.hex.toLowerCase()))
   if (!me) return null
   const save = (patch: Preferences, note?: string) => {
-    const next = { ...prefs, ...patch }
+    // The menu order is changed from the sidebar, so always take the latest saved one.
+    const next = { ...prefs, ...patch, navOrder: me.preferences?.navOrder }
     setPrefs(next)
     applyPreferences(next) // feel it straight away
     run(async () => { await api.updateProfile(me.id, { preferences: next }); await refresh() }, note ?? 'Saved')

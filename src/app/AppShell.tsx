@@ -23,8 +23,12 @@ import MoreIcon from '@mui/icons-material/MoreHoriz'
 import SportsIcon from '@mui/icons-material/SportsSoccerOutlined'
 import MusicIcon from '@mui/icons-material/LibraryMusicOutlined'
 import ExpandIcon from '@mui/icons-material/ExpandMore'
+import DragIcon from '@mui/icons-material/DragIndicator'
+import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent, type Modifier } from '@dnd-kit/core'
+import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import ChevronIcon from '@mui/icons-material/ChevronLeftRounded'
-import { Suspense, useState, type ReactNode } from 'react'
+import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { useApp } from './AppContext'
 import { FEATURES } from './features'
@@ -33,7 +37,7 @@ import { BrandLogo } from '../components/Logo'
 import { Loading, PersonAvatar } from '../components/common'
 import { NotificationBell } from '../components/NotificationBell'
 import { SearchButton, ThemeToggle } from './QuickActions'
-import { tokens } from '../theme'
+import { fonts, tokens } from '../theme'
 
 // `partner`: which partner areas show the item ('any' = every partner). Items without it are staff-only.
 interface NavItem { key: string; to: string; label: string; short?: string; icon: ReactNode; who?: 'admin' | 'pay'; partner?: PartnerArea[] | 'any' }
@@ -199,23 +203,69 @@ function PhoneNav({ sections, current }: { sections: NavSection[]; current: stri
   )
 }
 
-function SidebarSection({ section, current, folded, onToggle, mini }: { section: NavSection; current: string | false; folded: boolean; onToggle: () => void; mini: boolean }) {
-  const list = (
+/** One menu row. With `sortable`, a drag handle sits at the right end (drag it, or focus it and use the arrow keys). */
+function NavRow({ n, current, sortable }: { n: NavItem; current: string | false; sortable: boolean }) {
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: n.key, disabled: !sortable })
+  return (
+    <Box ref={setNodeRef} sx={{ position: 'relative', mb: 0.25, transform: CSS.Transform.toString(transform), transition,
+      zIndex: isDragging ? 2 : 'auto', opacity: isDragging ? 0.92 : 1,
+      '&:hover .nav-drag, & .nav-drag:focus-visible': { opacity: 1 } }}>
+      <ListItemButton component={Link} to={n.to} selected={current === n.key}
+        sx={{ py: 0.6, pl: 1.25, pr: sortable ? 4 : 1.25, ...(isDragging ? { boxShadow: `0 10px 24px -10px ${tokens.shadow}`, bgcolor: tokens.surface } : {}) }}>
+        <ListItemIcon sx={{ minWidth: 34, '& svg': { fontSize: 20 } }}>{n.icon}</ListItemIcon>
+        <ListItemText primary={n.label} slotProps={{ primary: { sx: { fontWeight: current === n.key ? 600 : 400, fontSize: '0.9rem' } } }} />
+      </ListItemButton>
+      {sortable && (
+        <Box ref={setActivatorNodeRef} className="nav-drag" component="button" type="button" aria-label={`Reorder ${n.label}`}
+          {...attributes} {...listeners} aria-roledescription="drag handle"
+          sx={{ all: 'unset', position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', display: 'grid', placeItems: 'center',
+            width: 24, height: 24, borderRadius: '6px', cursor: isDragging ? 'grabbing' : 'grab', opacity: isDragging ? 1 : 0, transition: 'opacity .15s',
+            color: current === n.key ? '#2B2522' : SIDEBAR.faint, touchAction: 'none',
+            '&:hover': { color: current === n.key ? '#2B2522' : SIDEBAR.bright, background: current === n.key ? 'rgba(43,37,34,0.08)' : SIDEBAR.hover },
+            '&:focus-visible': { outline: `2px solid ${tokens.rose}` } }}>
+          <DragIcon sx={{ fontSize: 18 }} />
+        </Box>
+      )}
+    </Box>
+  )
+}
+
+function SidebarSection({ section, current, folded, onToggle, mini, onReorder }: {
+  section: NavSection; current: string | false; folded: boolean; onToggle: () => void; mini: boolean; onReorder: (keys: string[]) => void
+}) {
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+  const keys = section.items.map(n => n.key)
+  const listRef = useRef<HTMLUListElement>(null)
+  const modifiers = useMemo(() => [restrictTo(listRef)], [])
+  const sortable = !mini && section.items.length > 1
+  // Each section is its own drag area, so pages only move within their section.
+  const onDragEnd = ({ active, over }: DragEndEvent) => {
+    if (!over || active.id === over.id) return
+    onReorder(arrayMove(keys, keys.indexOf(String(active.id)), keys.indexOf(String(over.id))))
+  }
+  const list = mini ? (
     <List disablePadding>
-      {section.items.map(n => mini ? (
+      {section.items.map(n => (
         <Tooltip key={n.key} title={n.label} placement="right">
           <ListItemButton component={Link} to={n.to} selected={current === n.key} aria-label={n.label}
             sx={{ justifyContent: 'center', py: 0.9, mb: 0.25 }}>
             <ListItemIcon sx={{ minWidth: 0, '& svg': { fontSize: 22 } }}>{n.icon}</ListItemIcon>
           </ListItemButton>
         </Tooltip>
-      ) : (
-        <ListItemButton key={n.key} component={Link} to={n.to} selected={current === n.key} sx={{ py: 0.6, pl: 1.25, mb: 0.25 }}>
-          <ListItemIcon sx={{ minWidth: 34, '& svg': { fontSize: 20 } }}>{n.icon}</ListItemIcon>
-          <ListItemText primary={n.label} slotProps={{ primary: { sx: { fontWeight: current === n.key ? 600 : 400, fontSize: '0.9rem' } } }} />
-        </ListItemButton>
       ))}
     </List>
+  ) : (
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd} modifiers={modifiers}
+      accessibility={{ screenReaderInstructions: { draggable: 'Press space to pick up this page, use the arrow keys to move it within its section, and space again to drop it.' } }}>
+      <SortableContext items={keys} strategy={verticalListSortingStrategy}>
+        <List disablePadding ref={listRef}>
+          {section.items.map(n => <NavRow key={n.key} n={n} current={current} sortable={sortable} />)}
+        </List>
+      </SortableContext>
+    </DndContext>
   )
   if (!section.label) return <Box sx={{ mb: 1 }}>{list}</Box>
   // Icons only: a thin rule between sections instead of the headings.
@@ -235,8 +285,29 @@ function SidebarSection({ section, current, folded, onToggle, mini }: { section:
   )
 }
 
+/** Keeps a page dragged with the mouse or finger inside its own section's list (up and down only). */
+const restrictTo = (list: { current: HTMLElement | null }): Modifier => ({ transform, draggingNodeRect }) => {
+  const t = { ...transform, x: 0 }
+  const bounds = list.current?.getBoundingClientRect()
+  if (!draggingNodeRect || !bounds) return t
+  const minY = bounds.top - draggingNodeRect.top
+  const maxY = bounds.bottom - draggingNodeRect.bottom
+  return { ...t, y: Math.min(Math.max(t.y, minY), maxY) }
+}
+
+/** The person's own order of pages within each section (saved to their account). */
+function orderSections(sections: NavSection[], order: Record<string, string[]> | undefined): NavSection[] {
+  if (!order) return sections
+  return sections.map(s => {
+    const o = order[s.key]
+    if (!o?.length) return s
+    const rank = (k: string) => { const i = o.indexOf(k); return i < 0 ? o.length + s.items.findIndex(n => n.key === k) : i }
+    return { ...s, items: [...s.items].sort((a, b) => rank(a.key) - rank(b.key)) }
+  })
+}
+
 export function AppShell() {
-  const { isAdmin, isPartner, partnerCan, canSeePay, me, api } = useApp()
+  const { isAdmin, isPartner, partnerCan, canSeePay, me, api, refresh, business } = useApp()
   const theme = useTheme()
   const desktop = useMediaQuery(theme.breakpoints.up('md'))
   const { pathname } = useLocation()
@@ -245,7 +316,15 @@ export function AppShell() {
   const allowed = (n: NavItem) => isPartner
     ? n.partner === 'any' || (!!n.partner && n.partner.some(partnerCan))
     : !n.who || (n.who === 'admin' ? isAdmin : canSeePay)
-  const sections = SECTIONS.map(s => ({ ...s, items: s.items.filter(allowed) })).filter(s => s.items.length)
+  // Page order within sections: the person's own, kept locally while it saves.
+  const [navOrder, setNavOrder] = useState<Record<string, string[]> | undefined>(me?.preferences?.navOrder)
+  useEffect(() => setNavOrder(me?.preferences?.navOrder), [me?.preferences?.navOrder])
+  const reorder = (section: string, keys: string[]) => {
+    const next = { ...navOrder, [section]: keys }
+    setNavOrder(next)
+    if (me) api.updateProfile(me.id, { preferences: { ...me.preferences, navOrder: next } }).then(refresh).catch(() => { /* kept on screen; saves next time */ })
+  }
+  const sections = orderSections(SECTIONS.map(s => ({ ...s, items: s.items.filter(allowed) })).filter(s => s.items.length), navOrder)
   const all = SECTIONS.flatMap(s => s.items)
   const current = all.find(n => n.to !== '/' && pathname.startsWith(n.to))?.key ?? (pathname === '/' ? 'today' : false)
   const home = isPartner ? '/business' : '/'
@@ -260,7 +339,13 @@ export function AppShell() {
           <Stack direction={mini ? 'column' : 'row'} spacing={1} sx={{ alignItems: 'center', pt: 2.25, pb: 1.75 }}>
             <ButtonBase component={Link} to={home} aria-label={isPartner ? 'Home' : 'Home: Today'}
               sx={{ flex: mini ? 'none' : 1, minWidth: 0, justifyContent: mini ? 'center' : 'flex-start', px: mini ? 0.5 : 1, py: 0.5, borderRadius: '12px', '&:hover': { background: SIDEBAR.hover } }}>
-              <BrandLogo height={mini ? 44 : 60} />
+              <BrandLogo height={mini ? 44 : 48} />
+              {!mini && business?.name && (
+                <Typography component="span" sx={{ ml: 1.25, fontFamily: fonts.display, fontWeight: 500, fontSize: '1.02rem', lineHeight: 1.15,
+                  color: SIDEBAR.bright, textAlign: 'left', minWidth: 0, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                  {business.name}
+                </Typography>
+              )}
             </ButtonBase>
             {!isPartner && <NotificationBell tone="nav" />}
           </Stack>
@@ -271,7 +356,7 @@ export function AppShell() {
             {sections.map(s => (
               <SidebarSection key={s.key} section={s} current={current} mini={mini}
                 folded={!mini && folded.includes(s.key) && !s.items.some(n => n.key === current)}
-                onToggle={() => toggleFolded(s.key)} />
+                onToggle={() => toggleFolded(s.key)} onReorder={keys => reorder(s.key, keys)} />
             ))}
           </Box>
           {/* Fold the menu to icons: a round arrow on the edge, halfway down. */}
@@ -302,6 +387,7 @@ export function AppShell() {
             <Toolbar sx={{ gap: 1, minHeight: 56 }}>
               <ButtonBase component={Link} to={home} aria-label={isPartner ? 'Home' : 'Home: Today'} sx={{ gap: 1.25, flex: 1, justifyContent: 'flex-start', borderRadius: '10px', py: 0.5 }}>
                 <BrandLogo height={36} />
+                {business?.name && <Typography component="span" noWrap sx={{ fontFamily: fonts.display, fontWeight: 500, fontSize: '1rem', color: tokens.ink }}>{business.name}</Typography>}
               </ButtonBase>
               <SearchButton pages={searchPages} />
               <ThemeToggle />

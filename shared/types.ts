@@ -114,6 +114,8 @@ export interface Preferences {
   numberFormat?: 'comma' | 'point'
   /** Page background tint: a brand colour (#RRGGBB). Unset = the house cream. */
   background?: string
+  /** Their own order of pages within each menu section: section key → page keys. */
+  navOrder?: Record<string, string[]>
 }
 
 export interface Position {

@@ -302,7 +302,7 @@ test.describe('guard rails', () => {
 test('sidebar is grouped into sections that fold away, and the logo goes to Today', async ({ page }) => {
   await open(page, '/business')
   const nav = page.getByRole('navigation', { name: 'Main' })
-  for (const section of ['Business', "What's on", 'Team', 'Settings', 'You']) await expect(nav.getByRole('button', { name: section })).toBeVisible()
+  for (const section of ['Business', "What's on", 'Team', 'Settings', 'You']) await expect(nav.getByRole('button', { name: section, exact: true })).toBeVisible()
   await expect(nav.getByRole('link', { name: 'Opening hours' })).toBeVisible()
   await nav.getByRole('button', { name: 'Settings' }).click()
   await expect(nav.getByRole('link', { name: 'Connections' })).toBeHidden()
@@ -1020,4 +1020,37 @@ test('each person can tint the background with a brand colour', async ({ page })
   await background.getByRole('radio', { name: 'Cream (default)' }).click()
   await expect(root).not.toHaveAttribute('data-eb-bg', 'tint')
   expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).not.toBe(tinted)
+})
+
+test('pages can be dragged into a new order, but only within their own section', async ({ page }) => {
+  await open(page, '/')
+  const nav = page.getByRole('navigation', { name: 'Main' })
+  // The café's name sits next to the logo.
+  await expect(nav.getByRole('link', { name: 'Home: Today' })).toContainText('Easy Beans Coffee')
+  const team = nav.locator('section', { has: page.getByRole('button', { name: 'Team', exact: true }) })
+  const names = () => team.getByRole('link').allTextContents()
+  expect(await names()).toEqual(['Rota', 'Time off', 'Timecards', 'Team'])
+  // Keyboard: pick up Team, move it up twice, drop it.
+  const handle = team.getByRole('button', { name: 'Reorder Team' })
+  await handle.focus()
+  await page.keyboard.press('Space')
+  for (let i = 0; i < 2; i++) { await page.keyboard.press('ArrowUp'); await page.waitForTimeout(250) }
+  await page.keyboard.press('Space')
+  await expect.poll(names).toEqual(['Rota', 'Team', 'Time off', 'Timecards'])
+  // Mouse: dragging Rota far down stops at the end of its own section.
+  const rota = team.getByRole('button', { name: 'Reorder Rota' })
+  const box = (await rota.boundingBox())!
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(box.x + box.width / 2, box.y + 60, { steps: 5 })
+  await page.mouse.move(box.x + box.width / 2, box.y + 600, { steps: 10 })
+  await page.mouse.up()
+  await expect.poll(names).toEqual(['Team', 'Time off', 'Timecards', 'Rota'])
+  expect(await nav.locator('section', { has: page.getByRole('button', { name: 'Settings', exact: true }) }).getByRole('link').allTextContents())
+    .toEqual(['Connections', 'Alerts'])
+  // Saved to Aron's account: someone else gets the usual order, and Aron his own when he's back.
+  await signInAs(page, 'mark@example.com')
+  await expect.poll(names).toEqual(['Rota', 'Time off', 'Timecards', 'Team'])
+  await signInAs(page, 'aron@example.com')
+  await expect.poll(names).toEqual(['Team', 'Time off', 'Timecards', 'Rota'])
 })
