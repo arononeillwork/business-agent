@@ -9,7 +9,7 @@ import { formatLocal } from '../../shared/time'
 import { tokens } from '../theme'
 
 /** The bell: reminders for events you asked to be alerted about, and other news for you. */
-export function NotificationBell({ tone }: { tone?: 'dark' }) {
+export function NotificationBell({ tone }: { tone?: 'nav' }) {
   const { api } = useApp()
   const run = useAction()
   const navigate = useNavigate()
@@ -24,7 +24,7 @@ export function NotificationBell({ tone }: { tone?: 'dark' }) {
     <>
       <Tooltip title="Notifications">
         <IconButton aria-label={unread ? `Notifications, ${unread} new` : 'Notifications'} onClick={e => setAnchor(e.currentTarget)}
-          sx={tone === 'dark' ? { color: 'rgba(255,246,240,0.78)', '&:hover': { color: '#FFF6F0', background: 'rgba(255,246,240,0.07)' } } : undefined}>
+          sx={tone === 'nav' ? { color: tokens.navText, '&:hover': { color: tokens.navBright, background: tokens.navHover } } : undefined}>
           <Badge badgeContent={unread} color="primary" max={9} sx={{ '& .MuiBadge-badge': { fontWeight: 600, color: '#2B2522' } }}>
             <BellIcon />
           </Badge>

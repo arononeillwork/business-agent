@@ -30,6 +30,8 @@ const light = {
   goodFg: '#4A6536', goodBg: '#EEF4E8', warnFg: '#8A4336', warnBg: '#FFF1EA',
   badFg: '#8E2B3A', badBg: '#F9DDE0', neutralFg: '#5F5852', neutralBg: '#F2EDE9', infoFg: '#5B4A86', infoBg: '#F4F0FB',
   today: '#FEF6F6', hover: '#FAF4F1', glow: 'rgba(247,155,164,0.16)', shadow: 'rgba(120,72,60,0.18)',
+  // The sidebar: white and calm in light mode, espresso in dark mode.
+  navBg: '#FFFFFF', navText: '#4E4742', navFaint: '#9A928B', navHover: '#F8F1EE', navBright: '#2B2522', navPanel: '#F8F4F1', navLine: '#EFE9E4',
 }
 type Palette = typeof light
 const dark: Palette = {
@@ -42,6 +44,8 @@ const dark: Palette = {
   goodFg: '#B3CF9C', goodBg: '#26301F', warnFg: '#F2B8A4', warnBg: '#3A2A24',
   badFg: '#F5A3AD', badBg: '#3E2226', neutralFg: '#C4BBB3', neutralBg: '#302A27', infoFg: '#CBBDEB', infoBg: '#2D2740',
   today: '#2E2224', hover: '#2A2522', glow: 'rgba(247,155,164,0.10)', shadow: 'rgba(0,0,0,0.5)',
+  navBg: '#1F1916', navText: 'rgba(255,246,240,0.78)', navFaint: 'rgba(255,246,240,0.42)', navHover: 'rgba(255,246,240,0.07)',
+  navBright: '#FFF6F0', navPanel: 'rgba(255,246,240,0.06)', navLine: 'rgba(255,246,240,0.08)',
 }
 // High contrast: darker secondary text and firmer lines (applied on top of light or dark).
 const contrastLight: Partial<Palette> = { inkSoft: '#3F3935', inkFaint: '#5F5852', line: '#CFC6BE', lineStrong: '#8E877F' }

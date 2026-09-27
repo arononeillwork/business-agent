@@ -26,12 +26,11 @@ import ExpandIcon from '@mui/icons-material/ExpandMore'
 import { Suspense, useState, type ReactNode } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { useApp } from './AppContext'
-import { businessConfig } from '../../shared/business.config'
 import type { PartnerArea } from '../../shared/types'
-import { Logo } from '../components/Logo'
+import { BrandLogo } from '../components/Logo'
 import { Loading, PersonAvatar } from '../components/common'
 import { NotificationBell } from '../components/NotificationBell'
-import { fonts, tokens } from '../theme'
+import { tokens } from '../theme'
 
 // `partner`: which partner areas show the item ('any' = every partner). Items without it are staff-only.
 interface NavItem { key: string; to: string; label: string; short?: string; icon: ReactNode; who?: 'admin' | 'pay'; partner?: PartnerArea[] | 'any' }
@@ -72,11 +71,11 @@ const DRAWER = 252
 
 // The desktop sidebar: deep espresso with cream text and the brand's Rose Pink for the current page.
 const SIDEBAR = {
-  bg: 'linear-gradient(180deg, #2B2320 0%, #1F1916 100%)',
-  text: 'rgba(255, 246, 240, 0.78)',
-  faint: 'rgba(255, 246, 240, 0.42)',
-  hover: 'rgba(255, 246, 240, 0.07)',
-  bright: '#FFF6F0',
+  bg: tokens.navBg,
+  text: tokens.navText,
+  faint: tokens.navFaint,
+  hover: tokens.navHover,
+  bright: tokens.navBright,
 }
 const sidebarItems = {
   '& .MuiListItemButton-root': { color: SIDEBAR.text, borderRadius: '10px', transition: 'background .15s, color .15s',
@@ -226,17 +225,13 @@ export function AppShell() {
     <Box sx={{ display: 'flex', minHeight: '100vh' }}>
       {desktop && (
         <Box component="nav" aria-label="Main" sx={{ width: DRAWER, flexShrink: 0, position: 'sticky', top: 0, height: '100vh',
-          display: 'flex', flexDirection: 'column', background: SIDEBAR.bg, color: SIDEBAR.text, px: 1.5, ...sidebarItems }}>
+          display: 'flex', flexDirection: 'column', background: SIDEBAR.bg, color: SIDEBAR.text, borderRight: `1px solid ${tokens.navLine}`, px: 1.5, ...sidebarItems }}>
           <Stack direction="row" spacing={1} sx={{ alignItems: 'center', pt: 2.25, pb: 1.75 }}>
             <ButtonBase component={Link} to={home} aria-label={isPartner ? 'Home' : 'Home: Today'}
-              sx={{ flex: 1, minWidth: 0, justifyContent: 'flex-start', gap: 1.25, px: 1, py: 0.5, borderRadius: '12px', '&:hover': { background: SIDEBAR.hover } }}>
-              <Logo size={36} />
-              <Box sx={{ minWidth: 0, textAlign: 'left' }}>
-                <Typography sx={{ fontFamily: fonts.display, fontWeight: 500, letterSpacing: '-0.01em', lineHeight: 1.2, color: SIDEBAR.bright }} noWrap>{businessConfig.shortName}</Typography>
-                <Typography variant="caption" sx={{ color: tokens.rose, fontWeight: 500 }}>Coffee · Team app</Typography>
-              </Box>
+              sx={{ flex: 1, minWidth: 0, justifyContent: 'flex-start', px: 1, py: 0.5, borderRadius: '12px', '&:hover': { background: SIDEBAR.hover } }}>
+              <BrandLogo height={52} />
             </ButtonBase>
-            {!isPartner && <NotificationBell tone="dark" />}
+            {!isPartner && <NotificationBell tone="nav" />}
           </Stack>
           {/* Scrolls only on short screens, without a visible scrollbar. */}
           <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', mx: -1.5, px: 1.5, pb: 2,
@@ -247,7 +242,7 @@ export function AppShell() {
                 onToggle={() => toggleFolded(s.key)} />
             ))}
           </Box>
-          <Stack direction="row" spacing={1.25} sx={{ mt: 1, mb: 2, flexShrink: 0, p: 1.25, alignItems: 'center', borderRadius: '14px', bgcolor: 'rgba(255,246,240,0.06)' }}>
+          <Stack direction="row" spacing={1.25} sx={{ mt: 1, mb: 2, flexShrink: 0, p: 1.25, alignItems: 'center', borderRadius: '14px', bgcolor: tokens.navPanel }}>
             {me && <PersonAvatar name={me.full_name} colour={me.colour} size={34} />}
             <Box sx={{ minWidth: 0, flex: 1 }}>
               <Typography sx={{ fontWeight: 500, fontSize: '0.88rem', color: SIDEBAR.bright }} noWrap>{me?.full_name}</Typography>
@@ -264,8 +259,7 @@ export function AppShell() {
           <AppBar position="sticky" elevation={0} color="inherit" sx={{ bgcolor: tokens.surface, backdropFilter: 'blur(8px)', borderBottom: 1, borderColor: 'divider' }}>
             <Toolbar sx={{ gap: 1, minHeight: 56 }}>
               <ButtonBase component={Link} to={home} aria-label={isPartner ? 'Home' : 'Home: Today'} sx={{ gap: 1.25, flex: 1, justifyContent: 'flex-start', borderRadius: '10px', py: 0.5 }}>
-                <Logo size={28} />
-                <Typography sx={{ fontFamily: fonts.display, fontWeight: 500 }} noWrap>{businessConfig.shortName}</Typography>
+                <BrandLogo height={36} />
               </ButtonBase>
               {!isPartner && <NotificationBell />}
               <IconButton component={Link} to="/account" aria-label="My account"><AccountIcon /></IconButton>

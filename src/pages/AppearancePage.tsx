@@ -98,7 +98,7 @@ function Choice({ selected, onClick, icon, label, preview }: { selected: boolean
 function Preview({ dark, split }: { dark?: boolean; split?: boolean }) {
   const pane = (d: boolean) => (
     <Box sx={{ flex: 1, height: 64, bgcolor: d ? '#1A1614' : '#FBF8F4', display: 'flex', gap: 0.5, p: 0.75 }}>
-      <Box sx={{ width: 14, borderRadius: '4px', bgcolor: '#2B2320' }} />
+      <Box sx={{ width: 14, borderRadius: '4px', bgcolor: d ? '#2B2320' : '#FFFFFF', border: d ? 'none' : '1px solid #EFE9E4' }} />
       <Box sx={{ flex: 1, display: 'grid', gap: 0.5, alignContent: 'start' }}>
         <Box sx={{ height: 6, width: '60%', borderRadius: 2, bgcolor: d ? '#F3EEE9' : '#2B2522' }} />
         <Box sx={{ height: 18, borderRadius: '4px', bgcolor: d ? '#24201D' : '#fff', border: `1px solid ${d ? '#38312D' : '#EFE9E4'}` }} />
