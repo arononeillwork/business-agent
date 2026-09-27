@@ -1085,3 +1085,11 @@ test('signed out: the Business Agent landing page; a new registration waits to b
   await expect(page.getByRole('heading', { name: /Hola, Sofía/ })).toBeVisible()
   await expect(page.getByRole('navigation', { name: 'Main' })).toContainText('Easy Beans Coffee')
 })
+
+test('guest link: opens already signed in as a Guest admin, no sign-in page', async ({ page }) => {
+  await page.goto('/?demo&guest')
+  await expect(page.getByRole('heading', { name: /Hola, Guest/ })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toHaveCount(0)
+  await page.getByRole('link', { name: 'Team', exact: true }).first().click()
+  await expect(page.getByRole('row', { name: /Guest \(you\)/ })).toBeVisible()
+})

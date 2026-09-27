@@ -248,11 +248,18 @@ export function createDemoApi(): Api {
   const remember = (id: string | null) => {
     try { sessionStorage.setItem('demo-user', id ?? '') } catch { /* storage unavailable */ }
   }
+  // Guest mode (the guest build, or ?guest in the address): opens already signed in as a Guest
+  // admin, so someone can look around everything without signing in.
+  const guestMode = import.meta.env.VITE_DEMO_GUEST === '1' || (() => { try { return new URLSearchParams(location.search).has('guest') } catch { return false } })()
+  if (guestMode && !profiles.some(p => p.id === 'p-guest')) {
+    profiles.push({ id: 'p-guest', full_name: 'Guest', email: 'guest@example.com', role: 'admin', can_see_pay: true, colour: '#5B4A86',
+      active: true, phone: null, birth_date: null } as never)
+  }
   let currentUser: string | null = (() => {
     try {
-      return sessionStorage.getItem('demo-user') || null
+      return sessionStorage.getItem('demo-user') || (guestMode ? 'p-guest' : null)
     } catch {
-      return null
+      return guestMode ? 'p-guest' : null
     }
   })()
   const listeners = new Set<() => void>()
