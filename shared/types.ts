@@ -24,6 +24,8 @@ export interface Business {
   timezone: string
   /** ISO 4217 code, e.g. EUR. Money everywhere is shown in it. */
   currency: string
+  /** Spanish CIF (company) or NIF/NIE (self-employed), upper case, no spaces. */
+  tax_id: string | null
   opening_hours: OpeningHours
   peak_hours: { start: string; end: string } | null
   team_channel: 'whatsapp' | 'slack' | 'sms' | null
@@ -80,6 +82,8 @@ export interface OutboxItem {
   sent_at: string | null
 }
 
+export type ContactMethod = 'sms' | 'email' | 'whatsapp' | 'call' | 'slack' | 'telegram'
+
 export interface Profile {
   id: string
   full_name: string
@@ -89,6 +93,8 @@ export interface Profile {
   colour: string
   active: boolean
   phone: string | null
+  /** How they like to be contacted. Only sms, email and whatsapp can be chosen for now. */
+  contact_method?: ContactMethod | null
   birth_date: string | null
   whatsapp_opt_in?: boolean
   /** Partners only: their company and the areas they can see. */

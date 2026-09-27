@@ -3,7 +3,7 @@ import type {
   BreakType, Business, CalendarEvent, CorrectionRequest, KioskPerson, OpenBreak, PayRate,
   AppNotification, Brand, EventAlert, MusicPlaylist, MusicProvider, MyMusic, MyNowPlaying, PartnerArea, Position, Profile, Settings, Shift, TimeEntry, TimeEntryChange,
 } from '../../shared/types'
-import type { SportsCompetition, SportsEvent } from '../../shared/sports'
+import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
 
 export type ShiftInput = Omit<Shift, 'id' | 'status'> & { id?: string; status?: Shift['status'] }
 export type EventInput = Omit<CalendarEvent, 'id' | 'source' | 'competition'> & { id?: string; competition?: string | null }
@@ -117,6 +117,9 @@ export interface Api {
   sportsCompetitions(): Promise<SportsCompetition[]>
   sportsEvents(fromIso: string, toIso: string): Promise<SportsEvent[]>
   setSportsFollowed(code: string, followed: boolean): Promise<void>
+  /** The signed-in person's favourite teams and competitions. */
+  sportsFavourites(): Promise<SportsFavourite[]>
+  setSportsFavourite(fav: SportsFavourite, on: boolean): Promise<void>
   refreshSports(): Promise<number>
 
   // connections: Google Business Profile, WhatsApp, Instagram (admins)

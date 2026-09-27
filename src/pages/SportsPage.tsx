@@ -1,6 +1,6 @@
 import {
   Alert, Avatar, Box, Button, Card, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogTitle,
-  FormControlLabel, Stack, Tooltip, Typography,
+  FormControlLabel, IconButton, Stack, Tooltip, Typography,
 } from '@mui/material'
 import RefreshIcon from '@mui/icons-material/Refresh'
 import TuneIcon from '@mui/icons-material/TuneOutlined'
@@ -9,21 +9,23 @@ import FightIcon from '@mui/icons-material/SportsMmaOutlined'
 import BoxingIcon from '@mui/icons-material/SportsKabaddiOutlined'
 import TvIcon from '@mui/icons-material/LiveTvOutlined'
 import PlaceIcon from '@mui/icons-material/PlaceOutlined'
+import StarIcon from '@mui/icons-material/StarRounded'
+import StarOutlineIcon from '@mui/icons-material/StarOutlineRounded'
 import { useMemo, useState, type ReactNode } from 'react'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { Empty, ErrorBox, PageHeader, Stat, StatRow, Tag } from '../components/common'
 import { addDays, formatLocal, localDate, localTime, today, zonedIso } from '../../shared/time'
-import type { Sport, SportsCompetition, SportsEvent } from '../../shared/sports'
+import type { Sport, SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
 import { fonts, tokens } from '../theme'
 import { EventAlertButton } from '../components/NotificationBell'
 
 const DAYS = 21
 
-type Filter = 'all' | Sport | 'big' | 'national'
+type Filter = 'all' | Sport | 'big' | 'national' | 'fav'
 const FILTERS: { key: Filter; label: string }[] = [
-  { key: 'all', label: 'All' }, { key: 'big', label: 'Big nights' }, { key: 'football', label: 'Football' },
+  { key: 'all', label: 'All' }, { key: 'fav', label: '★ Favourites' }, { key: 'big', label: 'Big nights' }, { key: 'football', label: 'Football' },
   { key: 'national', label: 'National teams' }, { key: 'ufc', label: 'UFC' }, { key: 'boxing', label: 'Boxing' },
 ]
 
@@ -54,12 +56,24 @@ export function SportsPage() {
     return { competitions, events }
   }, [from], { refetchInterval: 10 * 60_000 })
 
+  const favs = useAsync('sports-favourites', () => api.sportsFavourites(), [])
+  const fav = useMemo(() => {
+    const list = favs.data ?? []
+    const teams = new Set(list.filter(f => f.kind === 'team').map(f => f.ref))
+    const competitions = new Set(list.filter(f => f.kind === 'competition').map(f => f.ref))
+    return { list, teams, competitions,
+      has: (e: SportsEvent) => competitions.has(e.competition) || (!!e.home && teams.has(e.home)) || (!!e.away && teams.has(e.away)) }
+  }, [favs.data])
+  const toggleFav = (f: SportsFavourite, on: boolean, name: string) =>
+    run(async () => { await api.setSportsFavourite(f, on); await favs.reload() }, on ? `${name} added to favourites` : `${name} removed from favourites`)
+
   const comps = useMemo(() => new Map((data.data?.competitions ?? []).map(c => [c.code, c])), [data.data])
   const followed = (data.data?.competitions ?? []).filter(c => c.followed)
   const events = (data.data?.events ?? []).filter(e => {
     const c = comps.get(e.competition)
     if (!c?.followed) return false
     if (filter === 'all') return true
+    if (filter === 'fav') return fav.has(e)
     if (filter === 'big') return e.big
     if (filter === 'national') return c.kind === 'national'
     return e.sport === filter
@@ -104,6 +118,9 @@ export function SportsPage() {
         <Stat label="Following" value={followed.length} note="competitions" />
       </StatRow>
 
+      <Favourites favs={fav.list} upcoming={all.filter(fav.has)} comps={comps} events={data.data?.events ?? []}
+        onRemove={(f, name) => toggleFav(f, false, name)} onShowAll={() => setFilter('fav')} />
+
       <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', mb: 2.5 }} role="group" aria-label="Show">
         {FILTERS.map(f => (
           <Chip key={f.key} label={f.label} clickable onClick={() => setFilter(f.key)}
@@ -113,7 +130,9 @@ export function SportsPage() {
       </Stack>
 
       {data.data && byDay.length === 0 && (
-        <Empty>{followed.length === 0 ? 'No competitions followed yet.' : 'Nothing scheduled in the next three weeks for this filter.'}
+        <Empty>{followed.length === 0 ? 'No competitions followed yet.'
+          : filter === 'fav' ? 'None of your favourites play in the next three weeks. Tap ☆ next to a team to add it.'
+          : 'Nothing scheduled in the next three weeks for this filter.'}
           {isAdmin && followed.length === 0 && <Box sx={{ mt: 1 }}><Button onClick={() => setManaging(true)}>Choose competitions</Button></Box>}
         </Empty>
       )}
@@ -121,12 +140,12 @@ export function SportsPage() {
       <Stack spacing={3}>
         {byDay.map(([day, list]) => (
           <Box key={day} component="section" aria-label={dayLabel(day)}>
-            <Typography sx={{ fontFamily: fonts.display, fontWeight: 500, fontSize: '1.05rem', mb: 1.25, position: 'sticky', top: { xs: 56, md: 0 },
+            <Typography sx={{ fontFamily: fonts.display, fontWeight: 500, fontSize: '1.05rem', mb: 1.25, position: 'sticky', top: { xs: 56, md: 60 },
               bgcolor: 'background.default', py: 0.75, zIndex: 1 }}>
               {dayLabel(day)} <Typography component="span" sx={{ color: 'text.secondary', fontWeight: 400, fontSize: '0.9rem' }}>· {list.length}</Typography>
             </Typography>
             <Box sx={{ display: 'grid', gap: 1.25, gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' } }}>
-              {list.map(e => <EventCard key={e.id} e={e} c={comps.get(e.competition)!} />)}
+              {list.map(e => <EventCard key={e.id} e={e} c={comps.get(e.competition)!} fav={fav} onFav={toggleFav} />)}
             </Box>
           </Box>
         ))}
@@ -164,6 +183,60 @@ function Crest({ src, name }: { src: string | null; name: string | null }) {
   )
 }
 
+/** Your favourite teams and competitions, and when they're next on. */
+function Favourites({ favs, upcoming, comps, events, onRemove, onShowAll }: {
+  favs: SportsFavourite[]; upcoming: SportsEvent[]; comps: Map<string, SportsCompetition>; events: SportsEvent[]
+  onRemove: (f: SportsFavourite, name: string) => void; onShowAll: () => void
+}) {
+  const badge = (team: string) => events.find(e => e.home === team)?.home_badge ?? events.find(e => e.away === team)?.away_badge ?? null
+  return (
+    <Card component="section" aria-label="Favourites" sx={{ mb: 3 }}>
+      <Box sx={{ p: { xs: 2, md: 2.5 } }}>
+        <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+            <StarIcon sx={{ color: tokens.warning, fontSize: 20 }} />
+            <Typography variant="h6" component="h2">Favourites</Typography>
+          </Stack>
+          {upcoming.length > 3 && <Button size="small" onClick={onShowAll}>All {upcoming.length}</Button>}
+        </Stack>
+        {favs.length === 0 ? (
+          <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+            Tap the ☆ next to any team or competition below to keep it here, with its next games. Only you see your favourites.
+          </Typography>
+        ) : <>
+          <Stack direction="row" sx={{ gap: 0.75, flexWrap: 'wrap', mb: upcoming.length ? 2 : 0 }}>
+            {favs.map(f => {
+              const name = f.kind === 'competition' ? comps.get(f.ref)?.name ?? f.ref : f.ref
+              const img = f.kind === 'team' ? badge(f.ref) : null
+              return (
+                <Chip key={`${f.kind}:${f.ref}`} label={name} onDelete={() => onRemove(f, name)}
+                  avatar={img ? <Avatar src={img} alt="" sx={{ bgcolor: 'transparent', '& img': { objectFit: 'contain' } }} /> : undefined}
+                  slotProps={{ deleteIcon: { 'aria-label': `Remove ${name} from favourites` } } as never}
+                  sx={{ bgcolor: tokens.surfaceAlt, border: `1px solid ${tokens.line}` }} />
+              )
+            })}
+          </Stack>
+          {upcoming.length === 0 ? (
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>Nothing on for your favourites in the next three weeks.</Typography>
+          ) : (
+            <Box sx={{ display: 'grid', gap: 1, gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' } }}>
+              {upcoming.slice(0, 3).map(e => (
+                <Box key={e.id} sx={{ p: 1.5, borderRadius: '14px', bgcolor: tokens.surfaceAlt, border: `1px solid ${tokens.line}`, minWidth: 0 }}>
+                  <Typography variant="caption" sx={{ color: tokens.roseDeep, fontWeight: 600 }}>
+                    {dayLabel(localDate(e.starts_at)).split(' · ')[0]} · {e.time_tbc ? 'TBC' : localTime(e.starts_at)}
+                  </Typography>
+                  <Typography sx={{ fontWeight: 600 }} noWrap>{e.title}</Typography>
+                  <Typography variant="caption" sx={{ color: 'text.secondary' }} noWrap>{comps.get(e.competition)?.name}</Typography>
+                </Box>
+              ))}
+            </Box>
+          )}
+        </>}
+      </Box>
+    </Card>
+  )
+}
+
 /** The next big night, large, so the team sees it at a glance. */
 function NextBigNight({ e, c }: { e: SportsEvent; c: SportsCompetition }) {
   const s = SPORT[e.sport]
@@ -187,8 +260,25 @@ function NextBigNight({ e, c }: { e: SportsEvent; c: SportsCompetition }) {
   )
 }
 
-function EventCard({ e, c }: { e: SportsEvent; c: SportsCompetition }) {
+interface FavState { teams: Set<string>; competitions: Set<string>; has: (e: SportsEvent) => boolean }
+type OnFav = (f: SportsFavourite, on: boolean, name: string) => void
+
+/** The little star: add or remove a team or competition from your favourites. */
+function Star({ on, name, onClick, size = 18 }: { on: boolean; name: string; onClick: () => void; size?: number }) {
+  const label = on ? `Remove ${name} from favourites` : `Add ${name} to favourites`
+  return (
+    <Tooltip title={on ? 'In your favourites' : 'Add to favourites'}>
+      <IconButton size="small" aria-label={label} aria-pressed={on} onClick={onClick}
+        sx={{ p: 0.4, color: on ? tokens.warning : tokens.inkFaint, opacity: on ? 1 : 0.7, '&:hover': { color: tokens.warning, opacity: 1, bgcolor: 'transparent' } }}>
+        {on ? <StarIcon sx={{ fontSize: size }} /> : <StarOutlineIcon sx={{ fontSize: size }} />}
+      </IconButton>
+    </Tooltip>
+  )
+}
+
+function EventCard({ e, c, fav, onFav }: { e: SportsEvent; c: SportsCompetition; fav: FavState; onFav: OnFav }) {
   const s = SPORT[e.sport]
+  const compFav = fav.competitions.has(c.code)
   const teams = e.home && e.away
   return (
     <Card component="article" sx={{ display: 'flex', alignItems: 'stretch', overflow: 'hidden', ...(e.big ? { borderColor: tokens.rose, boxShadow: `inset 4px 0 0 ${tokens.rose}` } : {}) }}
@@ -213,6 +303,7 @@ function EventCard({ e, c }: { e: SportsEvent; c: SportsCompetition }) {
       <Box sx={{ p: 1.75, minWidth: 0, flex: 1 }}>
         <Stack direction="row" sx={{ gap: 0.75, alignItems: 'center', mb: 1, flexWrap: 'wrap' }}>
           <Tag fg={s.fg} bg={s.bg}><Box component="span" sx={{ display: 'inline-flex', mr: 0.5, '& svg': { fontSize: 14 } }}>{s.icon}</Box>{c.name}</Tag>
+          <Star on={compFav} name={c.name} size={16} onClick={() => onFav({ kind: 'competition', ref: c.code }, !compFav, c.name)} />
           {e.round && e.sport === 'football' && Number(e.round) < 60 && <Tag>Matchday {e.round}</Tag>}
           {e.big && <Tag fg={tokens.warnFg} bg={tokens.warnBg}>Big night</Tag>}
         </Stack>
@@ -222,6 +313,7 @@ function EventCard({ e, c }: { e: SportsEvent; c: SportsCompetition }) {
               <Stack key={name} direction="row" spacing={1.25} sx={{ alignItems: 'center', minWidth: 0 }}>
                 <Crest src={badge} name={name} />
                 <Typography sx={{ fontWeight: 600 }} noWrap>{name}</Typography>
+                {name && <Star on={fav.teams.has(name)} name={name} onClick={() => onFav({ kind: 'team', ref: name }, !fav.teams.has(name), name)} />}
               </Stack>
             ))}
           </Stack>

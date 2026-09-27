@@ -7,6 +7,8 @@ import { useAction } from '../app/Notify'
 import { PageHeader, SectionTitle } from '../components/common'
 import { PinDialog } from './TeamPage'
 import { MyConnections } from '../components/MyConnections'
+import { ContactMethodField } from '../components/ContactMethod'
+import type { ContactMethod } from '../../shared/types'
 
 export function AccountPage() {
   const { api, me, refresh, isPartner } = useApp()
@@ -14,6 +16,7 @@ export function AccountPage() {
   const [name, setName] = useState(me?.full_name ?? '')
   const [phone, setPhone] = useState(me?.phone ?? '')
   const [optIn, setOptIn] = useState(!!me?.whatsapp_opt_in)
+  const [method, setMethod] = useState<ContactMethod | null>(me?.contact_method ?? null)
   const [password, setPassword] = useState('')
   const [pin, setPin] = useState(false)
   if (!me) return null
@@ -34,12 +37,14 @@ export function AccountPage() {
                   </Typography>
                 ) : <>
                   <TextField label="Mobile (for WhatsApp / SMS alerts)" value={phone} onChange={e => setPhone(e.target.value)} />
+                  <ContactMethodField value={method} onChange={setMethod} />
+                  {(method === 'sms' || method === 'whatsapp') && !phone && <Alert severity="info">Add your mobile number so the café can reach you that way.</Alert>}
                   <FormControlLabel control={<Switch checked={optIn} onChange={e => setOptIn(e.target.checked)} />}
                     label="Send me shift reminders and rota updates on WhatsApp" />
                   {optIn && !phone && <Alert severity="info">Add your mobile number above to get WhatsApp messages.</Alert>}
                 </>}
                 <Button variant="contained" onClick={() => run(async () => {
-                  await api.updateProfile(me.id, { full_name: name, phone: phone || null, whatsapp_opt_in: optIn }); await refresh()
+                  await api.updateProfile(me.id, { full_name: name, phone: phone || null, whatsapp_opt_in: optIn, ...(isPartner ? {} : { contact_method: method }) }); await refresh()
                 }, 'Saved')}>Save</Button>
               </Stack>
             </CardContent>

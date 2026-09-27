@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { Api } from './api'
 import type { AppNotification, Brand, Business, EventAlert, Expense, MusicPlaylist, OutboxItem, Profile, Settings, TimeEntry, TimeOff } from '../../shared/types'
-import type { SportsCompetition, SportsEvent } from '../../shared/sports'
+import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
 
 const PROFILE_COLUMNS = 'id, full_name, email, role, can_see_pay, colour, active, phone, birth_date, whatsapp_opt_in, partner_company, partner_access, preferences'
 
@@ -325,6 +325,13 @@ export function createSupabaseApi(url: string, key: string): Api {
     },
     async setSportsFollowed(code, followed) {
       check(await sb.from('sports_competitions').update({ followed }).eq('code', code))
+    },
+    async sportsFavourites() {
+      return check(await sb.from('sports_favourites').select('kind, ref').order('created_at')) as SportsFavourite[]
+    },
+    async setSportsFavourite(fav, on) {
+      if (on) check(await sb.from('sports_favourites').upsert(fav, { onConflict: 'profile_id,kind,ref', ignoreDuplicates: true }))
+      else check(await sb.from('sports_favourites').delete().eq('kind', fav.kind).eq('ref', fav.ref))
     },
     async refreshSports() {
       return (await worker<{ events: number }>('/api/admin/sports/refresh', { method: 'POST' })).events

@@ -188,7 +188,7 @@ function Player({ playlist }: { playlist: MusicPlaylist }) {
     ? `https://open.spotify.com/embed/playlist/${encodeURIComponent(playlist.id)}?theme=0`
     : `https://www.youtube-nocookie.com/embed/videoseries?list=${encodeURIComponent(playlist.id)}`
   return (
-    <Card component="section" aria-label="Player" sx={{ position: { lg: 'sticky' }, top: { lg: 16 }, overflow: 'hidden' }}>
+    <Card component="section" aria-label="Player" sx={{ position: { lg: 'sticky' }, top: { lg: 76 }, overflow: 'hidden' }}>
       <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', p: 2, bgcolor: b.soft }}>
         <Cover playlist={playlist} size={56} />
         <Box sx={{ minWidth: 0, flex: 1 }}>

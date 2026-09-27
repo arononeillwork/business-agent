@@ -7,6 +7,9 @@ export type Sport = 'football' | 'ufc' | 'boxing'
 
 export type SportsSource = 'fixturedownload' | 'thesportsdb' | 'wikipedia'
 
+/** One of a person's favourites: a team (by name, as fixtures write it) or a competition (by code). */
+export interface SportsFavourite { kind: 'team' | 'competition'; ref: string }
+
 export interface SportsCompetition {
   code: string
   source: SportsSource

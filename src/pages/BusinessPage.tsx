@@ -8,21 +8,19 @@ import PhoneIcon from '@mui/icons-material/PhoneOutlined'
 import MailIcon from '@mui/icons-material/MailOutlined'
 import InstagramIcon from '@mui/icons-material/Instagram'
 import ChatIcon from '@mui/icons-material/ChatBubbleOutlineOutlined'
-import LockIcon from '@mui/icons-material/LockOutlined'
+import StoreIcon from '@mui/icons-material/StorefrontOutlined'
+import BadgeIcon from '@mui/icons-material/BadgeOutlined'
+import CurrencyIcon from '@mui/icons-material/PaymentsOutlined'
 import MapIcon from '@mui/icons-material/MapOutlined'
 import { useEffect, useState, type ReactNode } from 'react'
-import { Link as RouterLink } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
-import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { PageHeader, SectionTitle, Tag } from '../components/common'
-import { DAY_KEYS, type Business, type DayKey } from '../../shared/types'
+import type { Business } from '../../shared/types'
+import { checkTaxId } from '../../shared/taxId'
 import { dayKey, formatLocal, hmToMinutes, localTime, today } from '../../shared/time'
 import { tokens } from '../theme'
 
-const DAY_LABELS: Record<DayKey, string> = {
-  mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday', sun: 'Sunday',
-}
 const CHANNEL: Record<string, string> = { whatsapp: 'WhatsApp', slack: 'Slack', sms: 'Text message' }
 
 function openStatus(b: Business) {
@@ -47,14 +45,12 @@ function InfoRow({ icon, label, children }: { icon: ReactNode; label: string; ch
 }
 
 export function BusinessPage() {
-  const { api, business: b, isAdmin } = useApp()
-  const notes = useAsync('admin-notes', () => (isAdmin ? api.adminNotes() : Promise.resolve(null)), [isAdmin])
-  const [editing, setEditing] = useState<'details' | 'notes' | null>(null)
+  const { business: b, isAdmin } = useApp()
+  const [editing, setEditing] = useState(false)
   if (!b) return null
   const status = openStatus(b)
-  const todayKey = dayKey(today())
-  const edit = (what: typeof editing) => isAdmin && (
-    <Button size="small" startIcon={<EditIcon fontSize="small" />} onClick={() => setEditing(what)}>Edit</Button>
+  const edit = () => isAdmin && (
+    <Button size="small" startIcon={<EditIcon fontSize="small" />} onClick={() => setEditing(true)}>Edit</Button>
   )
 
   return (
@@ -64,10 +60,10 @@ export function BusinessPage() {
         actions={<Tag fg={status.open ? tokens.goodFg : tokens.neutralFg} bg={status.open ? tokens.goodBg : tokens.neutralBg}>● {status.text}</Tag>} />
 
       <Grid container spacing={2.5}>
-        <Grid size={{ xs: 12, md: 6, lg: 4 }}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Card sx={{ height: '100%' }}>
             <CardContent>
-              <SectionTitle action={edit('details')}>Contact</SectionTitle>
+              <SectionTitle action={edit()}>Contact</SectionTitle>
               <InfoRow icon={<PlaceIcon fontSize="small" />} label="Address">
                 {b.address ? <Link href={`https://maps.google.com/?q=${encodeURIComponent(b.address)}`} target="_blank" rel="noreferrer" underline="hover" color="inherit">{b.address}</Link> : '—'}
               </InfoRow>
@@ -76,6 +72,19 @@ export function BusinessPage() {
               <InfoRow icon={<InstagramIcon fontSize="small" />} label="Instagram">
                 {b.instagram ? <Link href={`https://instagram.com/${b.instagram.replace('@', '')}`} target="_blank" rel="noreferrer" underline="hover" color="inherit">{b.instagram}</Link> : '—'}
               </InfoRow>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid size={{ xs: 12, md: 6 }}>
+          <Card sx={{ height: '100%' }}>
+            <CardContent>
+              <SectionTitle action={edit()}>Company</SectionTitle>
+              <InfoRow icon={<StoreIcon fontSize="small" />} label="Type of business">{b.business_type || '—'}</InfoRow>
+              <InfoRow icon={<BadgeIcon fontSize="small" />} label="CIF / NIF">
+                <Box component="span" sx={{ fontVariantNumeric: 'tabular-nums', letterSpacing: '0.04em' }}>{b.tax_id || (isAdmin ? 'Not added yet' : '—')}</Box>
+              </InfoRow>
+              <InfoRow icon={<CurrencyIcon fontSize="small" />} label="Currency">{b.currency ?? 'EUR'}</InfoRow>
               <InfoRow icon={<ChatIcon fontSize="small" />} label="Team alerts go to">{b.team_channel ? CHANNEL[b.team_channel] : 'Not set yet'}</InfoRow>
               {b.towns_followed.length > 0 && (
                 <InfoRow icon={<MapIcon fontSize="small" />} label="Nearby towns on the calendar">
@@ -85,61 +94,12 @@ export function BusinessPage() {
             </CardContent>
           </Card>
         </Grid>
-
-        <Grid size={{ xs: 12, md: 6, lg: 4 }}>
-          <Card sx={{ height: '100%' }}>
-            <CardContent>
-              <SectionTitle action={<Button size="small" component={RouterLink} to="/opening-hours">{isAdmin ? 'Change' : 'Details'}</Button>}>Opening hours</SectionTitle>
-              <Box component="dl" sx={{ m: 0 }}>
-                {DAY_KEYS.map(d => {
-                  const h = b.opening_hours[d]
-                  const isToday = d === todayKey
-                  return (
-                    <Stack key={d} direction="row" sx={{ justifyContent: 'space-between', py: 0.9, px: 1.25, mx: -1.25, borderRadius: 2,
-                      bgcolor: isToday ? tokens.roseSoft : 'transparent' }}>
-                      <Typography component="dt" sx={{ fontWeight: isToday ? 800 : 500 }}>{DAY_LABELS[d]}{isToday ? ' · today' : ''}</Typography>
-                      <Typography component="dd" sx={{ m: 0, fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: h ? 'text.primary' : 'text.secondary' }}>
-                        {h ? `${h.open} – ${h.close}` : 'Closed'}
-                      </Typography>
-                    </Stack>
-                  )
-                })}
-              </Box>
-              {b.peak_hours && (
-                <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1.5 }}>
-                  Busiest {b.peak_hours.start}–{b.peak_hours.end}. The rota flags when only one person is on then.
-                </Typography>
-              )}
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid size={{ xs: 12, md: 12, lg: 4 }}>
-          <Stack spacing={2.5}>
-            <Card>
-              <CardContent>
-                <SectionTitle action={edit('notes')}>Notes</SectionTitle>
-                <Typography sx={{ whiteSpace: 'pre-wrap', color: b.notes ? 'text.primary' : 'text.secondary' }}>{b.notes || 'No notes.'}</Typography>
-                {isAdmin && (
-                  <Box sx={{ mt: 2, p: 1.5, borderRadius: 2.5, bgcolor: tokens.warnBg }}>
-                    <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', color: tokens.warnFg, mb: 0.5 }}>
-                      <LockIcon sx={{ fontSize: 16 }} />
-                      <Typography variant="subtitle2">Admin-only notes</Typography>
-                    </Stack>
-                    <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{notes.data || 'Nothing yet.'}</Typography>
-                  </Box>
-                )}
-              </CardContent>
-            </Card>
-          </Stack>
-        </Grid>
       </Grid>
       <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mt: 3 }}>
         Last updated {formatLocal(b.updated_at, 'd MMM yyyy, HH:mm')}
       </Typography>
 
-      {editing === 'details' && <DetailsDialog onClose={() => setEditing(null)} />}
-      {editing === 'notes' && <NotesDialog adminNotes={notes.data ?? ''} onClose={() => { setEditing(null); notes.reload() }} />}
+      {editing && <DetailsDialog onClose={() => setEditing(false)} />}
     </>
   )
 }
@@ -175,6 +135,8 @@ const CURRENCIES: [string, string][] = [
 function DetailsDialog({ onClose }: { onClose: () => void }) {
   const { api, refresh } = useApp()
   const [b, setB] = useBusinessDraft()
+  const tax = b.tax_id?.trim() ? checkTaxId(b.tax_id) : null
+  const taxHint = !tax ? 'Company CIF, or NIF/NIE if self-employed' : tax.ok ? `Valid ${tax.kind}` : tax.error
   const field = (key: keyof Business, label: string) => (
     <TextField label={label} value={(b[key] as string) ?? ''} onChange={e => setB({ ...b, [key]: e.target.value })} />
   )
@@ -182,10 +144,20 @@ function DetailsDialog({ onClose }: { onClose: () => void }) {
     <EditDialog title="Business details" onClose={onClose} onSave={async () => {
       const { updated_at: _u, ...patch } = b
       if (!patch.name?.trim()) throw new Error('The business needs a name')
+      if (patch.tax_id?.trim()) {
+        const t = checkTaxId(patch.tax_id)
+        if (!t.ok) throw new Error(t.error)
+        patch.tax_id = t.value
+      } else patch.tax_id = null
       await api.updateBusiness(patch); await refresh()
     }}>
       {field('name', 'Name')}
-      {field('business_type', 'Type')}
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+        {field('business_type', 'Type')}
+        <TextField label="CIF / NIF" value={b.tax_id ?? ''} placeholder="B12345674" helperText={taxHint}
+          error={!!b.tax_id?.trim() && !tax?.ok} onChange={e => setB({ ...b, tax_id: e.target.value })}
+          slotProps={{ htmlInput: { maxLength: 20, style: { textTransform: 'uppercase' } } }} />
+      </Stack>
       {field('address', 'Address')}
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>{field('phone', 'Phone')}{field('email', 'Email')}</Stack>
       {field('instagram', 'Instagram')}
@@ -202,22 +174,6 @@ function DetailsDialog({ onClose }: { onClose: () => void }) {
       </TextField>
       <TextField label="Nearby towns to follow" helperText="Comma separated" value={b.towns_followed.join(', ')}
         onChange={e => setB({ ...b, towns_followed: e.target.value.split(',').map(t => t.trim()).filter(Boolean) })} />
-    </EditDialog>
-  )
-}
-
-
-function NotesDialog({ adminNotes, onClose }: { adminNotes: string; onClose: () => void }) {
-  const { api, refresh } = useApp()
-  const [b, setB] = useBusinessDraft()
-  const [secret, setSecret] = useState(adminNotes)
-  return (
-    <EditDialog title="Notes" onClose={onClose} onSave={async () => {
-      await api.updateBusiness({ notes: b.notes }); await api.updateAdminNotes(secret); await refresh()
-    }}>
-      <TextField label="Notes for the whole team" multiline minRows={3} value={b.notes ?? ''} onChange={e => setB({ ...b, notes: e.target.value })} />
-      <TextField label="Admin-only notes" helperText="Alarm code holder, kiosk wifi, landlord, gestor… Employees can't see this."
-        multiline minRows={3} value={secret} onChange={e => setSecret(e.target.value)} />
     </EditDialog>
   )
 }

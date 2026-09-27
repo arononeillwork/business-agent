@@ -1,18 +1,20 @@
 import {
   Box, Button, Card, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Drawer, FormControlLabel, IconButton,
-  InputAdornment, MenuItem, Stack, Switch, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
+  InputAdornment, MenuItem, Stack, Switch, Table, TableBody, TableCell, TableHead, TableRow, TextField, Tooltip, Typography,
 } from '@mui/material'
+import { useSearchParams } from 'react-router-dom'
 import PersonAddIcon from '@mui/icons-material/PersonAddAlt'
 import RefreshIcon from '@mui/icons-material/Refresh'
 import SearchIcon from '@mui/icons-material/Search'
 import CloseIcon from '@mui/icons-material/Close'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useApp } from '../app/AppContext'
 import { useAction } from '../app/Notify'
 import { PageHeader, PersonAvatar } from '../components/common'
 import type { Profile } from '../../shared/types'
 import { currencySymbol, formatMoney } from '../../shared/time'
 import { FEATURES } from '../app/features'
+import { ContactMethodField, contactMethod } from '../components/ContactMethod'
 import { tokens } from '../theme'
 import { PasswordToShare, SignInSetupFields, generatePassword, useSignInSetup } from '../components/TempPassword'
 
@@ -25,9 +27,15 @@ const FILTERS: { key: Filter; label: string }[] = [
 export function TeamPage() {
   const { profiles, isAdmin, canSeePay, rates, me, refresh } = useApp()
   const [inviting, setInviting] = useState(false)
-  const [open, setOpen] = useState<string | null>(null)
-  const [q, setQ] = useState('')
+  const [params] = useSearchParams()
+  const [open, setOpen] = useState<string | null>(isAdmin ? params.get('person') : null)
+  const [q, setQ] = useState(params.get('q') ?? '')
   const [filter, setFilter] = useState<Filter>('all')
+  // Search (top bar) can link here while the page is already open.
+  useEffect(() => {
+    if (params.get('q') !== null) setQ(params.get('q')!)
+    if (isAdmin && params.get('person')) setOpen(params.get('person'))
+  }, [params, isAdmin])
   const people = profiles.filter(p => p.role !== 'kiosk' && p.role !== 'partner')
   const term = q.trim().toLowerCase()
   const shown = people
@@ -65,7 +73,7 @@ export function TeamPage() {
                 <TableCell>Name</TableCell>
                 <TableCell>Role</TableCell>
                 {isAdmin && <TableCell>Status</TableCell>}
-                {isAdmin && <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Phone</TableCell>}
+                {isAdmin && <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Contact</TableCell>}
                 {canSeePay && <TableCell align="right">Hourly rate</TableCell>}
               </TableRow>
             </TableHead>
@@ -94,7 +102,16 @@ export function TeamPage() {
                       </Stack>
                     </TableCell>
                   )}
-                  {isAdmin && <TableCell sx={{ ...cell, display: { xs: 'none', md: 'table-cell' }, color: 'text.secondary' }}>{p.phone ?? '—'}</TableCell>}
+                  {isAdmin && <TableCell sx={{ ...cell, display: { xs: 'none', md: 'table-cell' }, color: 'text.secondary' }}>
+                    <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                      <span>{p.phone ?? '—'}</span>
+                      {contactMethod(p.contact_method) && (
+                        <Tooltip title={`Prefers ${contactMethod(p.contact_method)!.label.toLowerCase()}`}>
+                          <Box component="span" aria-label={`Prefers ${contactMethod(p.contact_method)!.label}`} sx={{ display: 'inline-flex', color: tokens.roseDeep }}>{contactMethod(p.contact_method)!.icon}</Box>
+                        </Tooltip>
+                      )}
+                    </Stack>
+                  </TableCell>}
                   {canSeePay && <TableCell sx={{ ...cell, fontVariantNumeric: 'tabular-nums' }} align="right">{rates.has(p.id) ? `${formatMoney(rates.get(p.id)!)}/h` : '—'}</TableCell>}
                 </TableRow>
               ))}
@@ -174,8 +191,10 @@ function PersonPanel({ person: p, onClose }: { person: Profile; onClose: () => v
         </Box>
         <Box>
           <Typography variant="overline" sx={{ color: 'text.secondary' }}>Contact</Typography>
-          <Typography sx={{ mt: 0.5 }}>{p.phone ?? 'No phone number'}</Typography>
-          <Typography variant="body2" sx={{ color: 'text.secondary' }}>WhatsApp messages {p.whatsapp_opt_in ? 'on' : 'off'} (they choose this on My account)</Typography>
+          <Typography sx={{ mt: 0.5, mb: 1.5 }}>{p.phone ?? 'No phone number'}{p.email ? ` · ${p.email}` : ''}</Typography>
+          <ContactMethodField value={p.contact_method ?? null} label="Prefers to be contacted by"
+            onChange={v => run(async () => { await api.updateProfile(p.id, { contact_method: v }); await refresh() }, 'Contact preference saved')} />
+          <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1 }}>WhatsApp messages {p.whatsapp_opt_in ? 'on' : 'off'} (they choose this on My account)</Typography>
         </Box>
       </Stack>
       {pinFor && <PinDialog person={pinFor} onClose={() => setPinFor(null)} />}

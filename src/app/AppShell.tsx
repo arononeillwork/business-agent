@@ -23,8 +23,7 @@ import MoreIcon from '@mui/icons-material/MoreHoriz'
 import SportsIcon from '@mui/icons-material/SportsSoccerOutlined'
 import MusicIcon from '@mui/icons-material/LibraryMusicOutlined'
 import ExpandIcon from '@mui/icons-material/ExpandMore'
-import CollapseMenuIcon from '@mui/icons-material/KeyboardDoubleArrowLeft'
-import ExpandMenuIcon from '@mui/icons-material/KeyboardDoubleArrowRight'
+import ChevronIcon from '@mui/icons-material/ChevronLeftRounded'
 import { Suspense, useState, type ReactNode } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { useApp } from './AppContext'
@@ -33,6 +32,7 @@ import type { PartnerArea } from '../../shared/types'
 import { BrandLogo } from '../components/Logo'
 import { Loading, PersonAvatar } from '../components/common'
 import { NotificationBell } from '../components/NotificationBell'
+import { SearchButton, ThemeToggle } from './QuickActions'
 import { tokens } from '../theme'
 
 // `partner`: which partner areas show the item ('any' = every partner). Items without it are staff-only.
@@ -249,12 +249,13 @@ export function AppShell() {
   const all = SECTIONS.flatMap(s => s.items)
   const current = all.find(n => n.to !== '/' && pathname.startsWith(n.to))?.key ?? (pathname === '/' ? 'today' : false)
   const home = isPartner ? '/business' : '/'
+  const searchPages = sections.flatMap(s => s.items.map(n => ({ key: n.key, to: n.to, label: n.label, icon: n.icon, section: s.label })))
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh' }}>
       {desktop && (
         <Box component="nav" aria-label="Main" sx={{ width: mini ? MINI : DRAWER, flexShrink: 0, position: 'sticky', top: 0, height: '100vh',
-          transition: 'width .2s ease', overflowX: 'hidden',
+          transition: 'width .2s ease', zIndex: 6,
           display: 'flex', flexDirection: 'column', background: SIDEBAR.bg, color: SIDEBAR.text, borderRight: `1px solid ${tokens.navLine}`, px: mini ? 1 : 1.5, ...sidebarItems }}>
           <Stack direction={mini ? 'column' : 'row'} spacing={1} sx={{ alignItems: 'center', pt: 2.25, pb: 1.75 }}>
             <ButtonBase component={Link} to={home} aria-label={isPartner ? 'Home' : 'Home: Today'}
@@ -273,12 +274,15 @@ export function AppShell() {
                 onToggle={() => toggleFolded(s.key)} />
             ))}
           </Box>
+          {/* Fold the menu to icons: a round arrow on the edge, halfway down. */}
           <Tooltip title={mini ? 'Show labels' : 'Icons only'} placement="right">
-            <ButtonBase onClick={toggleMini} aria-label={mini ? 'Expand menu' : 'Collapse menu to icons'} aria-expanded={!mini}
-              sx={{ flexShrink: 0, alignSelf: mini ? 'center' : 'flex-start', gap: 1, px: 1.25, py: 0.75, mt: 0.5, borderRadius: '10px', color: SIDEBAR.faint,
-                fontSize: '0.82rem', '&:hover': { color: SIDEBAR.bright, background: SIDEBAR.hover }, '&.Mui-focusVisible': { outline: `2px solid ${tokens.rose}` } }}>
-              {mini ? <ExpandMenuIcon fontSize="small" /> : <><CollapseMenuIcon fontSize="small" />Collapse</>}
-            </ButtonBase>
+            <IconButton onClick={toggleMini} aria-label={mini ? 'Expand menu' : 'Collapse menu to icons'} aria-expanded={!mini}
+              sx={{ position: 'absolute', top: '50%', right: 0, transform: 'translate(50%, -50%)', width: 28, height: 28, borderRadius: '50%',
+                bgcolor: tokens.surface, color: tokens.inkSoft, border: `1px solid ${tokens.lineStrong}`,
+                boxShadow: `0 6px 16px -6px ${tokens.shadow}`, transition: 'background .15s, color .15s, border-color .15s, box-shadow .15s',
+                '&:hover': { bgcolor: tokens.rose, color: '#2B2522', borderColor: tokens.rose, boxShadow: `0 6px 18px -6px rgba(247,155,164,0.8)` } }}>
+              <ChevronIcon sx={{ fontSize: 18, transition: 'transform .25s ease', transform: mini ? 'rotate(180deg)' : 'none' }} />
+            </IconButton>
           </Tooltip>
           <Stack direction={mini ? 'column' : 'row'} spacing={mini ? 0.5 : 1.25} sx={{ mt: 1, mb: 2, flexShrink: 0, p: mini ? 0.75 : 1.25, alignItems: 'center', borderRadius: '14px', bgcolor: tokens.navPanel }}>
             {me && <Tooltip title={mini ? me.full_name : ''} placement="right"><span><PersonAvatar name={me.full_name} colour={me.colour} size={34} /></span></Tooltip>}
@@ -299,13 +303,22 @@ export function AppShell() {
               <ButtonBase component={Link} to={home} aria-label={isPartner ? 'Home' : 'Home: Today'} sx={{ gap: 1.25, flex: 1, justifyContent: 'flex-start', borderRadius: '10px', py: 0.5 }}>
                 <BrandLogo height={36} />
               </ButtonBase>
+              <SearchButton pages={searchPages} />
+              <ThemeToggle />
               {!isPartner && <NotificationBell />}
               <IconButton component={Link} to="/account" aria-label="My account"><AccountIcon /></IconButton>
             </Toolbar>
           </AppBar>
         )}
+        {desktop && (
+          <Box sx={{ position: 'sticky', top: 0, zIndex: 5, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 1,
+            px: 4, height: 60, backdropFilter: 'blur(12px)', background: `color-mix(in srgb, ${tokens.bg} 78%, transparent)` }}>
+            <SearchButton pages={searchPages} />
+            <ThemeToggle />
+          </Box>
+        )}
         <DemoBanner />
-        <Box component="main" sx={{ px: { xs: 2, md: 4 }, py: { xs: 2.5, md: 4 }, maxWidth: 1360, mx: 'auto' }}>
+        <Box component="main" sx={{ px: { xs: 2, md: 4 }, pt: { xs: 2.5, md: 1.5 }, pb: { xs: 2.5, md: 4 }, maxWidth: 1360, mx: 'auto' }}>
           <Suspense fallback={<Loading />}><Outlet /></Suspense>
         </Box>
       </Box>

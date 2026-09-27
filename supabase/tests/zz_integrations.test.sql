@@ -396,3 +396,36 @@ do $$ begin
 end $$;
 select pg_temp.expect_error($q$insert into public.sports_teams (name, badge, source) values ('X', 'y', 'flag')$q$, 'permission denied');
 reset role;
+
+-- 17. Tax number and preferred contact: tidy values only; people set their own, admins anyone's --
+select pg_temp.act_as('maria@test');
+update public.business set tax_id = 'B12345678' where id = 1;
+select pg_temp.expect_error($q$update public.business set tax_id = 'b-123 456' where id = 1$q$, 'violates check constraint');
+update public.profiles set contact_method = 'sms' where email = 'julio@test';
+select pg_temp.act_as('julio@test');
+update public.profiles set contact_method = 'whatsapp' where email = 'julio@test';
+select pg_temp.expect_error($q$update public.profiles set contact_method = 'pigeon' where email = 'julio@test'$q$, 'violates check constraint');
+update public.profiles set contact_method = 'email' where email = 'maria@test';  -- someone else's: silently refused
+reset role;
+do $$ begin
+  assert (select tax_id from public.business) = 'B12345678', 'admins save the tax number';
+  assert (select contact_method from public.profiles where email = 'julio@test') = 'whatsapp', 'people choose their own contact method';
+  assert (select contact_method from public.profiles where email = 'maria@test') is null, 'but not someone else''s';
+end $$;
+
+-- 18. Sports favourites: each person's own, invisible to others; partners have none -------------
+select pg_temp.act_as('julio@test');
+insert into public.sports_favourites (kind, ref) values ('team', 'Real Madrid'), ('competition', 'ufc');
+select pg_temp.expect_error($q$insert into public.sports_favourites (kind, ref) values ('player', 'x')$q$, 'violates check constraint');
+select pg_temp.act_as('aron@test');
+insert into public.sports_favourites (kind, ref) values ('team', 'Barcelona');
+do $$ begin
+  assert (select count(*) from public.sports_favourites) = 1, 'people only see their own favourites';
+end $$;
+delete from public.sports_favourites where ref = 'Real Madrid';  -- someone else's: nothing happens
+select pg_temp.act_as('supplier@test');
+select pg_temp.expect_error($q$insert into public.sports_favourites (kind, ref) values ('team', 'x')$q$, 'row-level security');
+reset role;
+do $$ begin
+  assert (select count(*) from public.sports_favourites) = 3, 'favourites kept';
+end $$;
