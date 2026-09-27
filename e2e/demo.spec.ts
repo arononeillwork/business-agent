@@ -2,6 +2,7 @@
 // The browser clock is fixed to Wednesday 30 Sep 2026, 09:00 in Madrid so the sample rota and
 // the clock-in rules give the same results whenever the tests run.
 import { expect, test, type Page } from '@playwright/test'
+import { FEATURES } from '../src/app/features'
 
 const WED_0900 = new Date('2026-09-30T07:00:00Z') // 09:00 Europe/Madrid (CEST)
 
@@ -200,6 +201,7 @@ test.describe('admin', () => {
 
 test.describe('café tablet (kiosk)', () => {
   test('rejects a wrong PIN and clocks in with the right one', async ({ page }) => {
+    test.skip(!FEATURES.kiosk, 'The café tablet is switched off for now')
     await open(page, '/kiosk')
     await page.getByRole('button', { name: /Julio/ }).click()
     const pad = page.getByRole('dialog')
@@ -234,7 +236,7 @@ test('@phone layout: bottom navigation and a full-width clock-in button', async 
   // Every admin page is reachable on a phone: the rest sit under "More".
   await page.getByRole('button', { name: 'More' }).click()
   const sheet = page.getByRole('list', { name: 'More pages' })
-  for (const name of ['Business', 'Opening hours', 'Brand', 'Calendar', 'Finances', 'Partners', 'Alerts', 'Connections', 'Café tablet', 'Appearance']) {
+  for (const name of ['Opening hours', 'Brand', 'Finances', 'Sports', 'Team', 'Alerts', 'Connections', 'Appearance']) {
     await expect(sheet.getByRole('link', { name })).toBeVisible()
   }
   await sheet.getByRole('link', { name: 'Finances' }).click()
@@ -289,7 +291,7 @@ test.describe('guard rails', () => {
 test('sidebar is grouped into sections that fold away, and the logo goes to Today', async ({ page }) => {
   await open(page, '/business')
   const nav = page.getByRole('navigation', { name: 'Main' })
-  for (const section of ['Team', 'Café', 'Settings', 'You']) await expect(nav.getByRole('button', { name: section })).toBeVisible()
+  for (const section of ['Business', "What's on", 'Team', 'Settings', 'You']) await expect(nav.getByRole('button', { name: section })).toBeVisible()
   await expect(nav.getByRole('link', { name: 'Opening hours' })).toBeVisible()
   await nav.getByRole('button', { name: 'Settings' }).click()
   await expect(nav.getByRole('link', { name: 'Connections' })).toBeHidden()
@@ -543,6 +545,7 @@ test.describe('partners (outside businesses)', () => {
   })
 
   test('admin invites a partner, chooses what they see, then removes access', async ({ page }) => {
+    test.skip(!FEATURES.partners, 'The Partners page is switched off for now')
     await open(page, '/partners')
     await expect(page.getByRole('heading', { name: 'Partners' })).toBeVisible()
     await expect(page.locator('.MuiCard-root', { hasText: 'Gestoría Marbella' })).toContainText('Payroll')
@@ -627,13 +630,12 @@ test('admin creates a staff account with a temporary password, and can reset it'
 })
 
 test('a message never covers a dialog\'s buttons', async ({ page }) => {
-  await open(page, '/partners')
-  await page.getByRole('button', { name: 'Invite partner' }).click()
-  const dialog = page.getByRole('dialog', { name: 'Invite a partner' })
-  await dialog.getByLabel('Contact name').fill('Nobody')
-  await dialog.getByRole('textbox', { name: 'Email' }).fill('nobody@example.com')
-  await dialog.getByRole('button', { name: 'Create account' }).click()
-  await toast(page, /company/i)
+  await open(page, '/business')
+  await page.getByRole('button', { name: 'Edit' }).first().click()
+  const dialog = page.getByRole('dialog', { name: 'Business details' })
+  await dialog.getByRole('textbox', { name: 'Name', exact: true }).fill('')
+  await dialog.getByRole('button', { name: 'Save' }).click()
+  await toast(page, 'The business needs a name')
   // Clickable straight away, while the message is still showing.
   await dialog.getByRole('button', { name: 'Cancel' }).click({ timeout: 2000 })
   await expect(dialog).toHaveCount(0)
@@ -877,4 +879,50 @@ test.describe('event alerts', () => {
     await page.getByRole('link', { name: 'Sports' }).first().click()
     await expect(page.getByRole('button', { name: 'Alert on for Barcelona vs Real Madrid' })).toBeDisabled()
   })
+})
+
+test.describe('menu', () => {
+  test('business first, then what\'s on, then the team; partners and the café tablet are switched off', async ({ page }) => {
+    await open(page, '/')
+    const nav = page.getByRole('navigation', { name: 'Main' })
+    const headings = await nav.locator('section > button').allTextContents()
+    expect(headings.map(h => h.trim())).toEqual(['Business', "What's on", 'Team', 'Settings', 'You'])
+    await expect(nav.getByRole('link', { name: 'Partners' })).toHaveCount(0)
+    await expect(nav.getByRole('link', { name: 'Café tablet' })).toHaveCount(0)
+    for (const path of ['/partners', '/kiosk']) {
+      await page.goto(`${path}?demo`)
+      await expect(page.getByRole('heading', { name: /Hola/ })).toBeVisible()
+    }
+  })
+
+  test('the sidebar folds down to icons and remembers it', async ({ page }) => {
+    await open(page, '/')
+    const nav = page.getByRole('navigation', { name: 'Main' })
+    await nav.getByRole('button', { name: 'Collapse menu to icons' }).click()
+    expect((await nav.boundingBox())!.width).toBeLessThan(100)
+    await expect(nav.getByText('Opening hours')).toHaveCount(0)
+    // Still every page, by icon (with its name for screen readers and on hover).
+    await nav.getByRole('link', { name: 'Rota' }).click()
+    await expect(page.getByRole('heading', { name: 'Rota' })).toBeVisible()
+    await page.reload()
+    await expect(nav.getByRole('button', { name: 'Expand menu' })).toBeVisible()
+    await nav.getByRole('button', { name: 'Expand menu' }).click()
+    expect((await nav.boundingBox())!.width).toBeGreaterThan(200)
+    await expect(nav.getByText('Opening hours')).toBeVisible()
+  })
+})
+
+test('admins pick the café\'s currency; euro until they do', async ({ page }) => {
+  await open(page, '/team')
+  const maria = page.getByRole('row', { name: /Maria/ })
+  await expect(maria).toContainText('8,80 €/h')
+  await page.getByRole('link', { name: 'Business', exact: true }).first().click()
+  await page.getByRole('button', { name: 'Edit' }).first().click()
+  const dialog = page.getByRole('dialog', { name: 'Business details' })
+  await dialog.getByLabel('Currency').click()
+  await page.getByRole('option', { name: /GBP/ }).click()
+  await dialog.getByRole('button', { name: 'Save' }).click()
+  await expect(dialog).toHaveCount(0)
+  await page.getByRole('link', { name: 'Team', exact: true }).first().click()
+  await expect(maria).toContainText('8,80 £/h')
 })

@@ -11,7 +11,8 @@ import { useApp } from '../app/AppContext'
 import { useAction } from '../app/Notify'
 import { PageHeader, PersonAvatar } from '../components/common'
 import type { Profile } from '../../shared/types'
-import { formatMoney } from '../../shared/time'
+import { currencySymbol, formatMoney } from '../../shared/time'
+import { FEATURES } from '../app/features'
 import { tokens } from '../theme'
 import { PasswordToShare, SignInSetupFields, generatePassword, useSignInSetup } from '../components/TempPassword'
 
@@ -104,7 +105,7 @@ export function TeamPage() {
           </Table>
         </Box>
       </Card>
-      {isAdmin && (
+      {isAdmin && FEATURES.kiosk && (
         <Typography variant="body2" sx={{ color: 'text.secondary', mt: 2 }}>
           For the café tablet, invite a separate account with the <b>Kiosk</b> role and sign in with it on the tablet; it only shows the clock-in screen.
         </Typography>
@@ -157,7 +158,7 @@ function PersonPanel({ person: p, onClose }: { person: Profile; onClose: () => v
           <Box>
             <Typography variant="overline" sx={{ color: 'text.secondary' }}>Pay</Typography>
             <TextField label="Hourly rate" type="number" defaultValue={rates.get(p.id) ?? ''} sx={{ mt: 0.5 }}
-              slotProps={{ input: { endAdornment: <InputAdornment position="end">€/h</InputAdornment> }, htmlInput: { step: 0.05, min: 0 } }}
+              slotProps={{ input: { endAdornment: <InputAdornment position="end">{currencySymbol()}/h</InputAdornment> }, htmlInput: { step: 0.05, min: 0 } }}
               onBlur={e => {
                 const v = Number(e.target.value)
                 if (e.target.value !== '' && v !== rates.get(p.id)) run(async () => { await api.setPayRate(p.id, v); await refresh() }, 'Pay rate saved')
@@ -167,7 +168,7 @@ function PersonPanel({ person: p, onClose }: { person: Profile; onClose: () => v
         <Box>
           <Typography variant="overline" sx={{ color: 'text.secondary' }}>Sign-in</Typography>
           <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', mt: 0.5 }}>
-            <Button variant="outlined" onClick={() => setPinFor(p)}>Set kiosk PIN</Button>
+            {FEATURES.kiosk && <Button variant="outlined" onClick={() => setPinFor(p)}>Set kiosk PIN</Button>}
             {p.role !== 'admin' && p.email && <Button variant="outlined" onClick={() => setPasswordFor(p)}>Temporary password</Button>}
           </Stack>
         </Box>
@@ -203,7 +204,7 @@ function InviteDialog({ onClose }: { onClose: () => void }) {
           <TextField select label="Role" value={role} onChange={e => setRole(e.target.value as typeof role)}>
             <MenuItem value="employee">Employee</MenuItem>
             <MenuItem value="admin">Admin</MenuItem>
-            <MenuItem value="kiosk">Kiosk (café tablet)</MenuItem>
+            {FEATURES.kiosk && <MenuItem value="kiosk">Kiosk (café tablet)</MenuItem>}
           </TextField>
           {done ? <PasswordToShare email={email.trim()} password={done} /> : <SignInSetupFields value={setup} onChange={setSetup} />}
         </Stack>

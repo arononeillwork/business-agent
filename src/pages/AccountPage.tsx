@@ -1,4 +1,5 @@
 import { Alert, Button, Card, CardContent, FormControlLabel, Grid, Stack, Switch, TextField, Typography } from '@mui/material'
+import { FEATURES } from '../app/features'
 import { useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
@@ -45,7 +46,7 @@ export function AccountPage() {
           </Card>
         </Grid>
         <Grid size={{ xs: 12, md: 6 }}>
-          {!isPartner && (
+          {!isPartner && FEATURES.kiosk && (
             <Card sx={{ mb: 2 }}>
               <CardContent>
                 <SectionTitle>Café tablet PIN</SectionTitle>

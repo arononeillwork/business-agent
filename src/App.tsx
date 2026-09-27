@@ -5,6 +5,7 @@ import { BrowserRouter, HashRouter, Navigate, Route, Routes } from 'react-router
 import { AppProvider, useApp } from './app/AppContext'
 import { NotifyProvider } from './app/Notify'
 import { AppShell } from './app/AppShell'
+import { FEATURES } from './app/features'
 import { Loading } from './components/common'
 import { theme } from './theme'
 import { AppearanceSync } from './app/Appearance'
@@ -64,7 +65,7 @@ function Routed() {
   return (
     <Routes>
       {/* Staff use the tablet itself (kiosk account); admins can open it to set it up. */}
-      <Route path="/kiosk" element={isAdmin ? <KioskPage /> : <Navigate to="/" />} />
+      <Route path="/kiosk" element={isAdmin && FEATURES.kiosk ? <KioskPage /> : <Navigate to="/" />} />
       {/* Printable monthly hours record (no menu around it). */}
       <Route path="/registro" element={<RegistroPage />} />
       <Route element={<AppShell />}>
@@ -84,7 +85,7 @@ function Routed() {
         <Route path="finances" element={<FinancesPage />} />
         <Route path="alerts" element={isAdmin ? <AlertsPage /> : <Navigate to="/" />} />
         <Route path="connections" element={isAdmin ? <ConnectionsPage /> : <Navigate to="/" />} />
-        <Route path="partners" element={isAdmin ? <PartnersPage /> : <Navigate to="/" />} />
+        <Route path="partners" element={isAdmin && FEATURES.partners ? <PartnersPage /> : <Navigate to="/" />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Route>
     </Routes>

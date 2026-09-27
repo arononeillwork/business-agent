@@ -8,6 +8,7 @@ import {
   type FixtureDownloadMatch, type SportsCompetition, type SportsDbEvent, type SportsEvent, isBigEvent, seasonFor,
 } from '../shared/sports'
 import { addDays, today } from '../shared/time'
+import { COUNTRY_FLAGS, TEAM_ALIASES, findCrest, flagUrl, type TsdbTeam } from '../shared/crests'
 
 const TSDB = 'https://www.thesportsdb.com/api/v1/json/3'
 const STALE_HOURS = 6
@@ -191,4 +192,61 @@ export async function refreshAllSports(db: SupabaseClient) {
   await refreshStaleSports(db, 4, ['fixturedownload', 'wikipedia'])
   const { count } = await db.from('sports_events').select('id', { count: 'exact', head: true }).gte('starts_at', new Date().toISOString())
   return count ?? 0
+}
+
+/** Leagues whose whole team list (one call each) covers most club names in the followed fixtures. */
+const CREST_LEAGUES = ['English Premier League', 'Spanish La Liga', 'Dutch Eredivisie', 'English League Championship', 'Spanish La Liga 2']
+const CREST_RETRY_DAYS = 30
+
+/**
+ * Finds crests for teams in upcoming fixtures that don't have one: flags for countries, then
+ * TheSportsDB league team lists, then a name search for the rest (at most `maxSearches` a run,
+ * so the free key isn't hammered; the rest wait for the next run). Misses are retried monthly.
+ */
+export async function syncCrests(db: SupabaseClient, maxSearches = 40): Promise<{ found: number; missing: number; searched: number }> {
+  const since = new Date(Date.now() - 86_400_000).toISOString()
+  const { data: rows, error } = await db.from('sports_events').select('home, away, home_badge, away_badge').gte('starts_at', since)
+  if (error) throw new Error(error.message)
+  const needed = new Set<string>()
+  for (const r of rows ?? []) {
+    if (r.home && !r.home_badge) needed.add(r.home as string)
+    if (r.away && !r.away_badge) needed.add(r.away as string)
+  }
+  const { data: known } = await db.from('sports_teams').select('name, badge, checked_at')
+  const retryBefore = Date.now() - CREST_RETRY_DAYS * 86_400_000
+  for (const k of known ?? []) {
+    if (k.badge || Date.parse(k.checked_at as string) > retryBefore) needed.delete(k.name as string)
+  }
+  const found: { name: string; badge: string | null; source: string; checked_at: string }[] = []
+  const now = new Date().toISOString()
+  const save = (name: string, badge: string | null, source: string) => { found.push({ name, badge, source, checked_at: now }); needed.delete(name) }
+
+  for (const name of [...needed]) if (COUNTRY_FLAGS[name]) save(name, flagUrl(COUNTRY_FLAGS[name]), 'flag')
+
+  if (needed.size) {
+    for (const league of CREST_LEAGUES) {
+      try {
+        const { teams } = await tsdb<{ teams: TsdbTeam[] | null }>(`search_all_teams.php?l=${encodeURIComponent(league)}`)
+        for (const name of [...needed]) {
+          const badge = findCrest(name, teams ?? [])
+          if (badge) save(name, badge, 'thesportsdb')
+        }
+      } catch { /* one league list failing just leaves more for the name search */ }
+      if (!needed.size) break
+    }
+  }
+  let searched = 0
+  for (const name of [...needed]) {
+    if (searched >= maxSearches) break
+    searched++
+    try {
+      const { teams } = await tsdb<{ teams: TsdbTeam[] | null }>(`searchteams.php?t=${encodeURIComponent(TEAM_ALIASES[name] ?? name)}`)
+      save(name, findCrest(name, teams ?? []) ?? (teams ?? []).find(t => t.strSport === 'Soccer' && t.strBadge)?.strBadge ?? null, 'thesportsdb')
+    } catch { /* try again next run */ }
+  }
+  if (found.length) {
+    const { error: e } = await db.from('sports_teams').upsert(found, { onConflict: 'name' })
+    if (e) throw new Error(e.message)
+  }
+  return { found: found.filter(f => f.badge).length, missing: needed.size + found.filter(f => !f.badge).length, searched }
 }

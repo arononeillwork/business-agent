@@ -22,6 +22,8 @@ export interface Business {
   email: string | null
   instagram: string | null
   timezone: string
+  /** ISO 4217 code, e.g. EUR. Money everywhere is shown in it. */
+  currency: string
   opening_hours: OpeningHours
   peak_hours: { start: string; end: string } | null
   team_channel: 'whatsapp' | 'slack' | 'sms' | null

@@ -14,7 +14,7 @@ import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { ClockRulesCard } from '../components/ClockRules'
 import { ErrorBox, Flags, Loading, PageHeader, PersonAvatar, SectionTitle, Stat, StatRow, WeekNav } from '../components/common'
-import { addDays, formatDuration, formatLocal, formatMoney, localDate, localTime, today, weekStart, zonedIso } from '../../shared/time'
+import { addDays, currencySymbol, formatDuration, formatLocal, formatMoney, localDate, localTime, today, weekStart, zonedIso } from '../../shared/time'
 import type { CorrectionRequest, TimeEntry } from '../../shared/types'
 
 /** yyyy-MM-ddTHH:mm in business time, for datetime-local inputs. */
@@ -57,7 +57,7 @@ export function TimecardsPage() {
 
   const exportCsv = () => {
     const rows: (string | number)[][] = [['Employee', 'Date', 'Position', 'Clock in', 'Clock out', 'Break (min)',
-      'Paid hours', 'Holiday', 'Flags', 'Approved', ...(canSeePay ? ['Rate €/h', 'Gross €'] : [])]]
+      'Paid hours', 'Holiday', 'Flags', 'Approved', ...(canSeePay ? [`Rate ${currencySymbol()}/h`, `Gross ${currencySymbol()}`] : [])]]
     for (const e of entries) {
       const hours = e.paid_minutes / 60
       rows.push([name(e.profile_id), e.work_date, positions.find(p => p.id === e.position_id)?.name ?? '',

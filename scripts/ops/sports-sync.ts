@@ -3,7 +3,7 @@
 // Worker can't always reach it; GitHub's runners can. Same parser and storage as the Worker.
 // Env: SUPABASE_SERVICE_ROLE_KEY (from service-key.mjs). Run: npx tsx scripts/ops/sports-sync.ts
 import { createClient } from '@supabase/supabase-js'
-import { configureTheSportsDb, refreshCompetition } from '../../worker/sports'
+import { configureTheSportsDb, refreshCompetition, syncCrests } from '../../worker/sports'
 import type { SportsCompetition } from '../../shared/sports'
 
 const url = process.env.SUPABASE_URL ?? 'https://lhakrmmoxaareykglmtx.supabase.co'
@@ -25,3 +25,11 @@ for (const c of (data ?? []) as SportsCompetition[]) {
   }
 }
 console.log(`Sports sync done: ${(data ?? []).length - failed} of ${(data ?? []).length} competitions updated.`)
+
+// Crests for teams whose fixtures came without one (national flags, then TheSportsDB).
+try {
+  const crests = await syncCrests(db)
+  console.log(`Team crests: ${crests.found} found, ${crests.missing} still missing (${crests.searched} name searches).`)
+} catch (e) {
+  console.log(`Team crests: failed (${e instanceof Error ? e.message : String(e)})`)
+}

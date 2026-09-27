@@ -10,6 +10,7 @@
 // Anything it changes on the real business (phone, an alert switch) is put back straight away,
 // and every row it creates is removed afterwards.
 import { expect, test as base, type Page } from '@playwright/test'
+import { FEATURES } from '../src/app/features'
 import {
   PARTNER, PASSWORD, TEST_ROW_PREFIX, USERS, addPartner, cleanUp, liveConfig, purgeTestAlerts, service, setUp,
   type LiveConfig, type UserKey,
@@ -167,7 +168,7 @@ test.describe('admin', () => {
     const pages: { link: string; path: string; check: (p: Page) => Promise<void> }[] = [
       { link: 'Business', path: '/business', check: p => expect(p.getByRole('heading', { level: 1, name: business.name })).toBeVisible(NET) },
       { link: 'Today', path: '/', check: p => expect(p.getByRole('heading', { name: 'Hola, Ana' })).toBeVisible(NET) },
-      ...['Rota', 'Time off', 'Timecards', 'Team', 'Opening hours', 'Brand', 'Calendar', 'Sports', 'Music', 'Finances', 'Partners', 'Alerts', 'Connections', 'My account', 'Appearance'].map(name => ({
+      ...['Rota', 'Time off', 'Timecards', 'Team', 'Opening hours', 'Brand', 'Calendar', 'Sports', 'Music', 'Finances', 'Alerts', 'Connections', 'My account', 'Appearance'].map(name => ({
         link: name,
         path: { 'Time off': '/time-off', 'My account': '/account', 'Opening hours': '/opening-hours' }[name] ?? `/${name.toLowerCase()}`,
         check: (p: Page) => expect(p.getByRole('heading', { level: 1, name: { Connections: 'Business connections' }[name] ?? name, exact: true })).toBeVisible(NET),
@@ -181,7 +182,7 @@ test.describe('admin', () => {
         await expectNoErrorShown(page, link)
       })
     }
-    await test.step('Café tablet', async () => {
+    if (FEATURES.kiosk) await test.step('Café tablet', async () => {
       await nav(page).getByRole('link', { name: 'Café tablet' }).click()
       await expect(page).toHaveURL(/\/kiosk$/, NET)
       await expect(page.getByText('Tap your name')).toBeVisible(NET)
@@ -311,7 +312,23 @@ test.describe('admin', () => {
     await expectNoErrorShown(page, 'Alerts')
   })
 
+  test('partners (and the café tablet, when off) have no menu item, and their pages send admins home', async ({ page }) => {
+    test.skip(FEATURES.partners, 'Partners are switched on')
+    await signIn(page, 'admin')
+    await expect(page.getByRole('heading', { name: 'Hola, Ana' })).toBeVisible(NET)
+    await expect(nav(page).getByRole('link', { name: 'Partners', exact: true })).toHaveCount(0)
+    await page.goto('/partners')
+    await expect(page).toHaveURL(url => new URL(url).pathname === '/', NET)
+    if (!FEATURES.kiosk) {
+      await expect(page.getByRole('heading', { name: 'Hola, Ana' })).toBeVisible(NET)
+      await expect(nav(page).getByRole('link', { name: 'Café tablet', exact: true })).toHaveCount(0)
+      await page.goto('/kiosk')
+      await expect(page).toHaveURL(url => new URL(url).pathname === '/', NET)
+    }
+  })
+
   test('partners page lists the partner, and an invite without a company is refused', async ({ page }) => {
+    test.skip(!FEATURES.partners, 'The Partners page is switched off for now')
     await signIn(page, 'admin')
     await nav(page).getByRole('link', { name: 'Partners', exact: true }).click()
     await expect(page.getByRole('heading', { name: 'Partners', exact: true })).toBeVisible(NET)

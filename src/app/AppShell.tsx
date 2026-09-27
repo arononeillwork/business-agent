@@ -14,7 +14,7 @@ import AccountIcon from '@mui/icons-material/AccountCircleOutlined'
 import AppearanceIcon from '@mui/icons-material/PaletteOutlined'
 import KioskIcon from '@mui/icons-material/TabletMacOutlined'
 import TimeOffIcon from '@mui/icons-material/BeachAccessOutlined'
-import FinanceIcon from '@mui/icons-material/EuroOutlined'
+import FinanceIcon from '@mui/icons-material/PaymentsOutlined'
 import AlertsIcon from '@mui/icons-material/CampaignOutlined'
 import ConnectIcon from '@mui/icons-material/HubOutlined'
 import LogoutIcon from '@mui/icons-material/LogoutOutlined'
@@ -23,9 +23,12 @@ import MoreIcon from '@mui/icons-material/MoreHoriz'
 import SportsIcon from '@mui/icons-material/SportsSoccerOutlined'
 import MusicIcon from '@mui/icons-material/LibraryMusicOutlined'
 import ExpandIcon from '@mui/icons-material/ExpandMore'
+import CollapseMenuIcon from '@mui/icons-material/KeyboardDoubleArrowLeft'
+import ExpandMenuIcon from '@mui/icons-material/KeyboardDoubleArrowRight'
 import { Suspense, useState, type ReactNode } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { useApp } from './AppContext'
+import { FEATURES } from './features'
 import type { PartnerArea } from '../../shared/types'
 import { BrandLogo } from '../components/Logo'
 import { Loading, PersonAvatar } from '../components/common'
@@ -41,26 +44,28 @@ export const SECTIONS: NavSection[] = [
   { key: 'home', label: null, items: [
     { key: 'today', to: '/', label: 'Today', icon: <TodayIcon /> },
   ] },
+  { key: 'business', label: 'Business', items: [
+    { key: 'business', to: '/business', label: 'Business', icon: <BusinessIcon />, partner: 'any' },
+    { key: 'hours', to: '/opening-hours', label: 'Opening hours', icon: <HoursIcon />, partner: 'any' },
+    { key: 'brand', to: '/brand', label: 'Brand', icon: <BrandIcon />, partner: 'any' },
+    { key: 'finances', to: '/finances', label: 'Finances', icon: <FinanceIcon />, who: 'pay', partner: ['finances'] },
+  ] },
+  { key: 'whatson', label: "What's on", items: [
+    { key: 'calendar', to: '/calendar', label: 'Calendar', icon: <CalendarIcon />, partner: ['calendar'] },
+    { key: 'sports', to: '/sports', label: 'Sports', icon: <SportsIcon /> },
+    { key: 'music', to: '/music', label: 'Music', icon: <MusicIcon /> },
+  ] },
   { key: 'team', label: 'Team', items: [
     { key: 'rota', to: '/rota', label: 'Rota', icon: <RotaIcon />, partner: ['rota', 'payroll'] },
     { key: 'timeoff', to: '/time-off', label: 'Time off', icon: <TimeOffIcon /> },
     { key: 'timecards', to: '/timecards', label: 'Timecards', short: 'Hours', icon: <TimecardIcon />, partner: ['payroll'] },
     { key: 'team', to: '/team', label: 'Team', icon: <TeamIcon /> },
   ] },
-  { key: 'cafe', label: 'Café', items: [
-    { key: 'business', to: '/business', label: 'Business', icon: <BusinessIcon />, partner: 'any' },
-    { key: 'hours', to: '/opening-hours', label: 'Opening hours', icon: <HoursIcon />, partner: 'any' },
-    { key: 'brand', to: '/brand', label: 'Brand', icon: <BrandIcon />, partner: 'any' },
-    { key: 'calendar', to: '/calendar', label: 'Calendar', icon: <CalendarIcon />, partner: ['calendar'] },
-    { key: 'sports', to: '/sports', label: 'Sports', icon: <SportsIcon /> },
-    { key: 'music', to: '/music', label: 'Music', icon: <MusicIcon /> },
-    { key: 'finances', to: '/finances', label: 'Finances', icon: <FinanceIcon />, who: 'pay', partner: ['finances'] },
-  ] },
   { key: 'admin', label: 'Settings', items: [
     { key: 'connections', to: '/connections', label: 'Connections', icon: <ConnectIcon />, who: 'admin' },
     { key: 'alerts', to: '/alerts', label: 'Alerts', icon: <AlertsIcon />, who: 'admin' },
-    { key: 'partners', to: '/partners', label: 'Partners', icon: <PartnersIcon />, who: 'admin' },
-    { key: 'kiosk', to: '/kiosk', label: 'Café tablet', icon: <KioskIcon />, who: 'admin' },
+    ...(FEATURES.partners ? [{ key: 'partners', to: '/partners', label: 'Partners', icon: <PartnersIcon />, who: 'admin' as const }] : []),
+    ...(FEATURES.kiosk ? [{ key: 'kiosk', to: '/kiosk', label: 'Café tablet', icon: <KioskIcon />, who: 'admin' as const }] : []),
   ] },
   { key: 'me', label: 'You', items: [
     { key: 'account', to: '/account', label: 'My account', short: 'Me', icon: <AccountIcon />, partner: 'any' },
@@ -68,6 +73,9 @@ export const SECTIONS: NavSection[] = [
   ] },
 ]
 const DRAWER = 252
+const MINI = 76
+// Phone tabs: the everyday pages first; everything else sits under "More".
+const PHONE_TABS = ['today', 'rota', 'timeoff', 'timecards', 'business', 'calendar']
 
 // The desktop sidebar: deep espresso with cream text and the brand's Rose Pink for the current page.
 const SIDEBAR = {
@@ -98,13 +106,23 @@ function useFolded() {
   return [folded, toggle] as const
 }
 
+/** Icons-only sidebar, remembered on this device. */
+function useMini() {
+  const [mini, setMini] = useState(() => { try { return localStorage.getItem('nav-mini') === '1' } catch { return false } })
+  const toggle = () => {
+    setMini(!mini)
+    try { localStorage.setItem('nav-mini', mini ? '0' : '1') } catch { /* storage unavailable */ }
+  }
+  return [mini, toggle] as const
+}
+
 // Sample accounts for switching views in the demo (partners can't see the team list, so it's fixed here).
 const DEMO_ACCOUNTS = [
   { email: 'aron@example.com', label: "Aron O'Neill (admin)" },
   { email: 'mark@example.com', label: 'Mark Murray (admin)' },
   { email: 'maria@example.com', label: 'Maria (employee)' },
   { email: 'julio@example.com', label: 'Julio (employee)' },
-  { email: 'laura@gestoria.example', label: 'Laura, Gestoría Marbella (partner)' },
+  ...(FEATURES.partners ? [{ email: 'laura@gestoria.example', label: 'Laura, Gestoría Marbella (partner)' }] : []),
 ]
 
 function DemoBanner() {
@@ -134,7 +152,8 @@ function PhoneNav({ sections, current }: { sections: NavSection[]; current: stri
   const { api } = useApp()
   const [more, setMore] = useState(false)
   const flat = sections.flatMap(s => s.items).filter(n => n.key !== 'account')
-  const tabbable = flat.filter(n => n.key !== 'kiosk')
+  const rank = (n: NavItem) => { const i = PHONE_TABS.indexOf(n.key); return i < 0 ? PHONE_TABS.length : i }
+  const tabbable = flat.filter(n => n.key !== 'kiosk').sort((a, b) => rank(a) - rank(b))
   const overflow = flat.length > 5
   const shown = overflow ? tabbable.slice(0, 4) : tabbable
   const shownKeys = shown.map(n => n.key)
@@ -180,10 +199,17 @@ function PhoneNav({ sections, current }: { sections: NavSection[]; current: stri
   )
 }
 
-function SidebarSection({ section, current, folded, onToggle }: { section: NavSection; current: string | false; folded: boolean; onToggle: () => void }) {
+function SidebarSection({ section, current, folded, onToggle, mini }: { section: NavSection; current: string | false; folded: boolean; onToggle: () => void; mini: boolean }) {
   const list = (
     <List disablePadding>
-      {section.items.map(n => (
+      {section.items.map(n => mini ? (
+        <Tooltip key={n.key} title={n.label} placement="right">
+          <ListItemButton component={Link} to={n.to} selected={current === n.key} aria-label={n.label}
+            sx={{ justifyContent: 'center', py: 0.9, mb: 0.25 }}>
+            <ListItemIcon sx={{ minWidth: 0, '& svg': { fontSize: 22 } }}>{n.icon}</ListItemIcon>
+          </ListItemButton>
+        </Tooltip>
+      ) : (
         <ListItemButton key={n.key} component={Link} to={n.to} selected={current === n.key} sx={{ py: 0.6, pl: 1.25, mb: 0.25 }}>
           <ListItemIcon sx={{ minWidth: 34, '& svg': { fontSize: 20 } }}>{n.icon}</ListItemIcon>
           <ListItemText primary={n.label} slotProps={{ primary: { sx: { fontWeight: current === n.key ? 600 : 400, fontSize: '0.9rem' } } }} />
@@ -192,6 +218,8 @@ function SidebarSection({ section, current, folded, onToggle }: { section: NavSe
     </List>
   )
   if (!section.label) return <Box sx={{ mb: 1 }}>{list}</Box>
+  // Icons only: a thin rule between sections instead of the headings.
+  if (mini) return <Box component="section" aria-label={section.label} sx={{ mb: 0.75, pt: 0.75, borderTop: `1px solid ${tokens.navLine}` }}>{list}</Box>
   const id = `nav-${section.key}`
   return (
     <Box component="section" aria-labelledby={`${id}-h`} sx={{ mb: 0.75 }}>
@@ -213,6 +241,7 @@ export function AppShell() {
   const desktop = useMediaQuery(theme.breakpoints.up('md'))
   const { pathname } = useLocation()
   const [folded, toggleFolded] = useFolded()
+  const [mini, toggleMini] = useMini()
   const allowed = (n: NavItem) => isPartner
     ? n.partner === 'any' || (!!n.partner && n.partner.some(partnerCan))
     : !n.who || (n.who === 'admin' ? isAdmin : canSeePay)
@@ -224,30 +253,39 @@ export function AppShell() {
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh' }}>
       {desktop && (
-        <Box component="nav" aria-label="Main" sx={{ width: DRAWER, flexShrink: 0, position: 'sticky', top: 0, height: '100vh',
-          display: 'flex', flexDirection: 'column', background: SIDEBAR.bg, color: SIDEBAR.text, borderRight: `1px solid ${tokens.navLine}`, px: 1.5, ...sidebarItems }}>
-          <Stack direction="row" spacing={1} sx={{ alignItems: 'center', pt: 2.25, pb: 1.75 }}>
+        <Box component="nav" aria-label="Main" sx={{ width: mini ? MINI : DRAWER, flexShrink: 0, position: 'sticky', top: 0, height: '100vh',
+          transition: 'width .2s ease', overflowX: 'hidden',
+          display: 'flex', flexDirection: 'column', background: SIDEBAR.bg, color: SIDEBAR.text, borderRight: `1px solid ${tokens.navLine}`, px: mini ? 1 : 1.5, ...sidebarItems }}>
+          <Stack direction={mini ? 'column' : 'row'} spacing={1} sx={{ alignItems: 'center', pt: 2.25, pb: 1.75 }}>
             <ButtonBase component={Link} to={home} aria-label={isPartner ? 'Home' : 'Home: Today'}
-              sx={{ flex: 1, minWidth: 0, justifyContent: 'flex-start', px: 1, py: 0.5, borderRadius: '12px', '&:hover': { background: SIDEBAR.hover } }}>
-              <BrandLogo height={52} />
+              sx={{ flex: mini ? 'none' : 1, minWidth: 0, justifyContent: mini ? 'center' : 'flex-start', px: mini ? 0.5 : 1, py: 0.5, borderRadius: '12px', '&:hover': { background: SIDEBAR.hover } }}>
+              <BrandLogo height={mini ? 44 : 60} />
             </ButtonBase>
             {!isPartner && <NotificationBell tone="nav" />}
           </Stack>
           {/* Scrolls only on short screens, without a visible scrollbar. */}
-          <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', mx: -1.5, px: 1.5, pb: 2,
+          <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', mx: mini ? -1 : -1.5, px: mini ? 1 : 1.5, pb: 2,
             scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' },
             maskImage: 'linear-gradient(to bottom, #000 calc(100% - 28px), transparent)' }}>
             {sections.map(s => (
-              <SidebarSection key={s.key} section={s} current={current} folded={folded.includes(s.key) && !s.items.some(n => n.key === current)}
+              <SidebarSection key={s.key} section={s} current={current} mini={mini}
+                folded={!mini && folded.includes(s.key) && !s.items.some(n => n.key === current)}
                 onToggle={() => toggleFolded(s.key)} />
             ))}
           </Box>
-          <Stack direction="row" spacing={1.25} sx={{ mt: 1, mb: 2, flexShrink: 0, p: 1.25, alignItems: 'center', borderRadius: '14px', bgcolor: tokens.navPanel }}>
-            {me && <PersonAvatar name={me.full_name} colour={me.colour} size={34} />}
-            <Box sx={{ minWidth: 0, flex: 1 }}>
+          <Tooltip title={mini ? 'Show labels' : 'Icons only'} placement="right">
+            <ButtonBase onClick={toggleMini} aria-label={mini ? 'Expand menu' : 'Collapse menu to icons'} aria-expanded={!mini}
+              sx={{ flexShrink: 0, alignSelf: mini ? 'center' : 'flex-start', gap: 1, px: 1.25, py: 0.75, mt: 0.5, borderRadius: '10px', color: SIDEBAR.faint,
+                fontSize: '0.82rem', '&:hover': { color: SIDEBAR.bright, background: SIDEBAR.hover }, '&.Mui-focusVisible': { outline: `2px solid ${tokens.rose}` } }}>
+              {mini ? <ExpandMenuIcon fontSize="small" /> : <><CollapseMenuIcon fontSize="small" />Collapse</>}
+            </ButtonBase>
+          </Tooltip>
+          <Stack direction={mini ? 'column' : 'row'} spacing={mini ? 0.5 : 1.25} sx={{ mt: 1, mb: 2, flexShrink: 0, p: mini ? 0.75 : 1.25, alignItems: 'center', borderRadius: '14px', bgcolor: tokens.navPanel }}>
+            {me && <Tooltip title={mini ? me.full_name : ''} placement="right"><span><PersonAvatar name={me.full_name} colour={me.colour} size={34} /></span></Tooltip>}
+            {!mini && <Box sx={{ minWidth: 0, flex: 1 }}>
               <Typography sx={{ fontWeight: 500, fontSize: '0.88rem', color: SIDEBAR.bright }} noWrap>{me?.full_name}</Typography>
               <Typography variant="caption" sx={{ color: SIDEBAR.faint }}>{me?.role === 'admin' ? 'Admin' : me?.role === 'partner' ? me.partner_company ?? 'Partner' : 'Employee'}</Typography>
-            </Box>
+            </Box>}
             <Tooltip title="Sign out">
               <IconButton size="small" aria-label="Sign out" onClick={() => api.signOut()} sx={{ color: SIDEBAR.text, '&:hover': { color: SIDEBAR.bright, background: SIDEBAR.hover } }}><LogoutIcon fontSize="small" /></IconButton>
             </Tooltip>

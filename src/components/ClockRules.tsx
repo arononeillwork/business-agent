@@ -2,6 +2,7 @@ import {
   Alert, Box, Button, Card, CardContent, Checkbox, Collapse, Dialog, DialogActions, DialogContent, DialogTitle,
   FormControlLabel, Grid, InputAdornment, MenuItem, Stack, TextField, Typography,
 } from '@mui/material'
+import { FEATURES } from '../app/features'
 import EditIcon from '@mui/icons-material/EditOutlined'
 import ExpandIcon from '@mui/icons-material/ExpandMore'
 import { useState, type ReactNode } from 'react'
@@ -88,7 +89,7 @@ function RulesDialog({ onClose }: { onClose: () => void }) {
         onChange={e => setS({ ...s, phone_clock_in: e.target.value as Settings['phone_clock_in'] })}>
         <MenuItem value="anywhere">Allowed</MenuItem>
         <MenuItem value="near_cafe">Only near the café (coming later)</MenuItem>
-        <MenuItem value="off">Off: tablet only</MenuItem>
+        {(FEATURES.kiosk || s.phone_clock_in === 'off') && <MenuItem value="off">Off: tablet only</MenuItem>}
       </TextField>
       <FormControlLabel control={<Checkbox checked={s.auto_timecards_from_rota}
         onChange={e => setS({ ...s, auto_timecards_from_rota: e.target.checked })} />}

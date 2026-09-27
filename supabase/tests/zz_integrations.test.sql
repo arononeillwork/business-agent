@@ -371,3 +371,28 @@ do $$ begin
   assert (select count(*) from public.notifications) = 0, 'people only see their own notifications';
 end $$;
 reset role;
+
+-- 16. Team crests: found once, stamped onto fixtures (old and new); only the server writes them --
+insert into public.sports_events (id, competition, sport, starts_at, title, home, away)
+  values ('t:3', 'en-premier', 'football', now() + interval '2 days', 'Man Utd vs Spurs', 'Man Utd', 'Spurs');
+insert into public.sports_teams (name, badge, source) values ('Man Utd', 'https://example.test/mu.png', 'thesportsdb');
+do $$ begin
+  assert (select home_badge from public.sports_events where id = 't:3') = 'https://example.test/mu.png', 'a found crest reaches saved fixtures';
+  assert (select away_badge from public.sports_events where id = 't:3') is null, 'teams without a crest stay empty';
+end $$;
+insert into public.sports_teams (name, badge, source) values ('Spurs', 'https://example.test/spurs.png', 'thesportsdb');
+-- A source that has no crests re-saves the fixture with empty ones: the crests stay.
+update public.sports_events set home_badge = null, away_badge = null where id = 't:3';
+insert into public.sports_events (id, competition, sport, starts_at, title, home, away)
+  values ('t:4', 'en-premier', 'football', now() + interval '9 days', 'Spurs vs Man Utd', 'Spurs', 'Man Utd');
+do $$ begin
+  assert (select home_badge = 'https://example.test/mu.png' and away_badge = 'https://example.test/spurs.png'
+            from public.sports_events where id = 't:3'), 'crests survive a re-save without them';
+  assert (select home_badge = 'https://example.test/spurs.png' from public.sports_events where id = 't:4'), 'new fixtures get crests';
+end $$;
+select pg_temp.act_as('maria@test');
+do $$ begin
+  assert (select count(*) from public.sports_teams) = 2, 'staff can read crests';
+end $$;
+select pg_temp.expect_error($q$insert into public.sports_teams (name, badge, source) values ('X', 'y', 'flag')$q$, 'permission denied');
+reset role;

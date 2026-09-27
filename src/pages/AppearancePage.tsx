@@ -8,6 +8,7 @@ import { useApp } from '../app/AppContext'
 import { useAction } from '../app/Notify'
 import { PageHeader, SectionTitle } from '../components/common'
 import { TEXT_SIZES, applyPreferences } from '../app/Appearance'
+import { formatMoneyAs } from '../../shared/time'
 import type { Preferences } from '../../shared/types'
 import { fonts, tokens } from '../theme'
 
@@ -65,9 +66,9 @@ export function AppearancePage() {
             <SectionTitle>Numbers</SectionTitle>
             <Box role="radiogroup" aria-label="Decimal mark" sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' } }}>
               <Choice selected={(prefs.numberFormat ?? 'comma') === 'comma'} onClick={() => save({ numberFormat: 'comma' }, 'Numbers: decimal comma')}
-                label="Decimal comma" preview={<NumberSample text="1.234,50 €" />} />
+                label="Decimal comma" preview={<NumberSample text={formatMoneyAs(1234.5, 'comma')} />} />
               <Choice selected={prefs.numberFormat === 'point'} onClick={() => save({ numberFormat: 'point' }, 'Numbers: decimal point')}
-                label="Decimal point" preview={<NumberSample text="€1,234.50" />} />
+                label="Decimal point" preview={<NumberSample text={formatMoneyAs(1234.5, 'point')} />} />
             </Box>
             <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1.5 }}>
               How pay, costs and totals are shown to you. Payroll exports for the gestoría always use the Spanish comma.

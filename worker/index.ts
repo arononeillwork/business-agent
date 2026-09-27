@@ -3,7 +3,7 @@ import { OAuthProvider } from '@cloudflare/workers-oauth-provider'
 import { bearer, serviceClient, userClient, type Env } from './supabase'
 import { rest } from './rest'
 import { drainOutbox, integrations, syncGoogle } from './integrations'
-import { refreshAllSports, refreshStaleSports } from './sports'
+import { refreshAllSports, refreshStaleSports, syncCrests } from './sports'
 import { music } from './music'
 import { calendarFeeds } from './calendarFeed'
 import { fonts } from './fonts'
@@ -172,6 +172,8 @@ export default {
         // even if someone edits it on Google or a change was missed (changes also sync within a minute).
         const { data: g } = await db.from('integrations').select('status').eq('provider', 'google_business').maybeSingle()
         if (g?.status === 'connected') await syncGoogle(env, db).catch(e => console.error('nightly google sync failed', e))
+        // Crests for new teams (flags straight away; a few club look-ups, the GitHub sync does the rest).
+        await syncCrests(db, 8).catch(e => console.error('crests failed', e))
       })())
       return
     }

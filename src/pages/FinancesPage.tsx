@@ -9,7 +9,7 @@ import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { Empty, ErrorBox, PageHeader, SectionTitle, Stat, StatRow, Tag } from '../components/common'
-import { formatMoney } from '../../shared/time'
+import { currencySymbol, formatMoney } from '../../shared/time'
 import type { Expense } from '../../shared/types'
 
 /** Monthly running costs. Admins with pay access edit; finance partners read (enforced in the database too). */
@@ -107,7 +107,7 @@ function ExpenseDialog({ expense, onClose }: { expense: Partial<Expense>; onClos
         <Stack spacing={2} sx={{ pt: 1 }}>
           <TextField label="Name" value={e.name ?? ''} onChange={x => setE({ ...e, name: x.target.value })} autoFocus />
           <TextField label="Per month" type="number" value={e.amount ?? 0} onChange={x => setE({ ...e, amount: Number(x.target.value) })}
-            slotProps={{ input: { startAdornment: <InputAdornment position="start">€</InputAdornment> }, htmlInput: { step: 0.01, min: 0 } }} />
+            slotProps={{ input: { startAdornment: <InputAdornment position="start">{currencySymbol()}</InputAdornment> }, htmlInput: { step: 0.01, min: 0 } }} />
           <TextField label="Category (optional)" value={e.category ?? ''} onChange={x => setE({ ...e, category: x.target.value || null })} />
           <TextField label="Notes (optional)" value={e.notes ?? ''} onChange={x => setE({ ...e, notes: x.target.value || null })} />
         </Stack>

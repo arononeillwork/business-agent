@@ -31,6 +31,7 @@ export function createDemoApi(): Api {
     email: 'easybeanscafe@gmail.com',
     instagram: '@easy.beans.coffee',
     timezone: 'Europe/Madrid',
+    currency: 'EUR',
     opening_hours: {
       mon: { open: '08:00', close: '18:00' }, tue: { open: '08:00', close: '18:00' },
       wed: { open: '08:00', close: '18:00' }, thu: { open: '08:00', close: '18:00' },

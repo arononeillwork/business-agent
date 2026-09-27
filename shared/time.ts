@@ -55,7 +55,8 @@ export const formatDuration = (minutes: number) => {
 /** How each person likes decimals shown: "843,44 €" (comma, the Spanish way) or "€843.44" (point). */
 export type NumberFormat = 'comma' | 'point'
 const LOCALES: Record<NumberFormat, string> = { comma: businessConfig.locale, point: 'en-IE' }
-const money = (f: NumberFormat) => new Intl.NumberFormat(LOCALES[f], { style: 'currency', currency: businessConfig.currency, useGrouping: 'always' })
+let currency: string = businessConfig.currency
+const money = (f: NumberFormat) => new Intl.NumberFormat(LOCALES[f], { style: 'currency', currency, currencyDisplay: 'narrowSymbol', useGrouping: 'always' })
 let eur = money('comma')
 let decimal = new Intl.NumberFormat(LOCALES.comma, { maximumFractionDigits: 2, useGrouping: 'always' })
 let current: NumberFormat = 'comma'
@@ -66,6 +67,18 @@ export function setNumberFormat(f: NumberFormat = 'comma') {
   eur = money(f)
   decimal = new Intl.NumberFormat(LOCALES[f], { maximumFractionDigits: 2, useGrouping: 'always' })
 }
+/** The business's currency (ISO code). Unknown codes fall back to the euro. */
+export function setCurrency(code: string = businessConfig.currency) {
+  if (code === currency) return
+  try { new Intl.NumberFormat('en', { style: 'currency', currency: code }) } catch { code = businessConfig.currency }
+  currency = code
+  eur = money(current)
+}
+/** The symbol for the current currency, e.g. "€" or "£". */
+export const currencySymbol = () => new Intl.NumberFormat(LOCALES[current], { style: 'currency', currency, currencyDisplay: 'narrowSymbol' })
+  .formatToParts(0).find(p => p.type === 'currency')?.value ?? currency
 export const formatMoney = (n: number) => eur.format(n)
+/** An amount in a given decimal style (for showing the choices side by side). */
+export const formatMoneyAs = (n: number, f: NumberFormat) => money(f).format(n)
 /** A plain number with up to two decimals and thousands grouping, in the person's chosen style. */
 export const formatNumber = (n: number) => decimal.format(n)

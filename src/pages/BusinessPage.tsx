@@ -165,6 +165,13 @@ function EditDialog({ title, onClose, onSave, children }: { title: string; onClo
   )
 }
 
+const CURRENCIES: [string, string][] = [
+  ['EUR', 'Euro'], ['GBP', 'Pound sterling'], ['USD', 'US dollar'], ['CHF', 'Swiss franc'], ['SEK', 'Swedish krona'],
+  ['NOK', 'Norwegian krone'], ['DKK', 'Danish krone'], ['PLN', 'Polish złoty'], ['CZK', 'Czech koruna'], ['HUF', 'Hungarian forint'],
+  ['RON', 'Romanian leu'], ['TRY', 'Turkish lira'], ['MAD', 'Moroccan dirham'], ['AED', 'UAE dirham'], ['CAD', 'Canadian dollar'],
+  ['AUD', 'Australian dollar'], ['NZD', 'New Zealand dollar'], ['JPY', 'Japanese yen'], ['MXN', 'Mexican peso'], ['BRL', 'Brazilian real'],
+]
+
 function DetailsDialog({ onClose }: { onClose: () => void }) {
   const { api, refresh } = useApp()
   const [b, setB] = useBusinessDraft()
@@ -182,6 +189,10 @@ function DetailsDialog({ onClose }: { onClose: () => void }) {
       {field('address', 'Address')}
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>{field('phone', 'Phone')}{field('email', 'Email')}</Stack>
       {field('instagram', 'Instagram')}
+      <TextField select label="Currency" value={b.currency ?? 'EUR'} helperText="Pay, costs and totals are shown in this. It doesn't convert amounts."
+        onChange={e => setB({ ...b, currency: e.target.value })}>
+        {CURRENCIES.map(([code, name]) => <MenuItem key={code} value={code}>{code} · {name}</MenuItem>)}
+      </TextField>
       <TextField select label="Team alerts go to" value={b.team_channel ?? ''}
         onChange={e => setB({ ...b, team_channel: (e.target.value || null) as Business['team_channel'] })}>
         <MenuItem value="">Not set</MenuItem>
