@@ -24,19 +24,29 @@ async function getJson<T>(url: string): Promise<T> {
 }
 
 let lastTsdb = 0
+let tsdbGap = TSDB_GAP_MS
+let tsdbRetries = 1
+let tsdbBackoff = 5000
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
+
+/** The GitHub sync has time to spare, so it calls TheSportsDB slowly and waits out refusals. */
+export function configureTheSportsDb(o: { gapMs?: number; retries?: number; backoffMs?: number }) {
+  tsdbGap = o.gapMs ?? tsdbGap
+  tsdbRetries = o.retries ?? tsdbRetries
+  tsdbBackoff = o.backoffMs ?? tsdbBackoff
+}
 
 /** A TheSportsDB call, spaced from the last one, retried once after a pause if rate-limited. */
 async function tsdb<T>(path: string): Promise<T> {
   for (let attempt = 0; ; attempt++) {
-    const wait = lastTsdb + TSDB_GAP_MS - Date.now()
+    const wait = lastTsdb + tsdbGap - Date.now()
     if (wait > 0) await sleep(wait)
     lastTsdb = Date.now()
     try {
       return await getJson<T>(`${TSDB}/${path}`)
     } catch (e) {
-      if (attempt > 0 || !/answered 429/.test(String(e))) throw e
-      await sleep(5000)
+      if (attempt >= tsdbRetries || !/answered 429/.test(String(e))) throw e
+      await sleep(tsdbBackoff * (attempt + 1))
     }
   }
 }
