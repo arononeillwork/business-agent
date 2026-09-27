@@ -1,6 +1,7 @@
 // Keeps sports_events fresh: each followed competition is refreshed every 6 hours from its free
-// source, a couple per cron minute (TheSportsDB's free key allows ~30 calls a minute and a
-// Worker only gets 50 outside calls per run). Past events are dropped two days after.
+// source, a couple per cron minute. TheSportsDB's free key is shared and answers 429 when called
+// quickly, so its calls are spaced out and only one of its competitions is done per run.
+// Past events are dropped two days after.
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   fixtureDownloadFeed, fromFixtureDownload, fromSportsDb, parseWikiDate, wikiText,
@@ -11,7 +12,8 @@ import { addDays, today } from '../shared/time'
 const TSDB = 'https://www.thesportsdb.com/api/v1/json/3'
 const STALE_HOURS = 6
 const ROUNDS_AHEAD = 4
-const FIGHT_DAYS = 10
+const FIGHT_DAYS = 8
+const TSDB_GAP_MS = 2100
 const UA = { 'user-agent': 'EasyBeansCafe/1.0 (team app; fixtures for the cafe TV)' }
 
 async function getJson<T>(url: string): Promise<T> {
@@ -19,6 +21,24 @@ async function getJson<T>(url: string): Promise<T> {
   if (!res.ok) throw new Error(`${new URL(url).hostname} answered ${res.status}`)
   const text = await res.text()
   try { return JSON.parse(text) as T } catch { throw new Error(`${new URL(url).hostname} sent something that isn't JSON`) }
+}
+
+let lastTsdb = 0
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
+
+/** A TheSportsDB call, spaced from the last one, retried once after a pause if rate-limited. */
+async function tsdb<T>(path: string): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    const wait = lastTsdb + TSDB_GAP_MS - Date.now()
+    if (wait > 0) await sleep(wait)
+    lastTsdb = Date.now()
+    try {
+      return await getJson<T>(`${TSDB}/${path}`)
+    } catch (e) {
+      if (attempt > 0 || !/answered 429/.test(String(e))) throw e
+      await sleep(5000)
+    }
+  }
 }
 
 /** Upcoming events for one competition. `complete` = the source gave the whole season. */
@@ -33,21 +53,21 @@ export async function fetchCompetition(c: SportsCompetition, day = today()): Pro
     return { events: await wikipediaUfc(c), complete: true }
   }
   // TheSportsDB free tier: the next event, then (for leagues and cups) a few rounds from it.
-  const next = (await getJson<{ events: SportsDbEvent[] | null }>(`${TSDB}/eventsnextleague.php?id=${c.source_id}`)).events ?? []
+  const next = (await tsdb<{ events: SportsDbEvent[] | null }>(`eventsnextleague.php?id=${c.source_id}`)).events ?? []
   const raw = new Map(next.map(e => [e.idEvent, e]))
   const first = next[0]
   const round = Number(first?.intRound)
   if (c.sport === 'football' && first && round > 0 && round < 100) {
     const season = first.strSeason || seasonFor(c.season_style, day)
     for (let r = round; r < round + ROUNDS_AHEAD; r++) {
-      const res = await getJson<{ events: SportsDbEvent[] | null }>(`${TSDB}/eventsround.php?id=${c.source_id}&r=${r}&s=${season}`)
+      const res = await tsdb<{ events: SportsDbEvent[] | null }>(`eventsround.php?id=${c.source_id}&r=${r}&s=${season}`)
       for (const e of res.events ?? []) raw.set(e.idEvent, e)
     }
   }
-  // Fights: the day listing (league filter) for the next ten days.
+  // Fights: the day listing (league filter) for the next eight days.
   if (c.sport !== 'football') {
     for (let d = 0; d < FIGHT_DAYS; d++) {
-      const res = await getJson<{ events: SportsDbEvent[] | null }>(`${TSDB}/eventsday.php?d=${addDays(day, d)}&l=${c.source_id}`)
+      const res = await tsdb<{ events: SportsDbEvent[] | null }>(`eventsday.php?d=${addDays(day, d)}&l=${c.source_id}`)
       for (const e of res.events ?? []) raw.set(e.idEvent, e)
     }
   }
@@ -132,13 +152,17 @@ export async function refreshCompetition(db: SupabaseClient, c: SportsCompetitio
 export async function refreshStaleSports(db: SupabaseClient, max = 2) {
   const cutoff = new Date(Date.now() - STALE_HOURS * 3_600_000).toISOString()
   const { data, error } = await db.from('sports_competitions').select('*').eq('followed', true)
-    .or(`refreshed_at.is.null,refreshed_at.lt.${cutoff}`).order('refreshed_at', { ascending: true, nullsFirst: true }).order('sort').limit(max)
+    .or(`refreshed_at.is.null,refreshed_at.lt.${cutoff}`).order('refreshed_at', { ascending: true, nullsFirst: true }).order('sort').limit(max + 4)
   if (error) throw new Error(error.message)
+  // At most one TheSportsDB competition per run; the rest wait for the next minute.
+  const due = ((data ?? []) as SportsCompetition[])
+    .filter((c, i, all) => c.source !== 'thesportsdb' || all.findIndex(x => x.source === 'thesportsdb') === i)
+    .slice(0, max)
   let n = 0
-  for (const c of (data ?? []) as SportsCompetition[]) {
+  for (const c of due) {
     n += await refreshCompetition(db, c).catch(e => { console.error(`sports ${c.code} failed`, e); return 0 })
   }
-  if (data?.length) await db.from('sports_events').delete().lt('starts_at', new Date(Date.now() - 2 * 86_400_000).toISOString())
+  if (due.length) await db.from('sports_events').delete().lt('starts_at', new Date(Date.now() - 2 * 86_400_000).toISOString())
   return n
 }
 
