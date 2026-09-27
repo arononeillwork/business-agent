@@ -1,0 +1,28 @@
+name: Sports sync
+# Refreshes boxing, friendlies, cups and La Liga 2 (TheSportsDB) from GitHub's servers, which
+# TheSportsDB's free key accepts more reliably than Cloudflare's shared ones. The Worker still
+# refreshes everything else itself. Runs after each deploy and every 6 hours (schedules only run
+# from the default branch).
+on:
+  schedule:
+    - cron: '23 */6 * * *'
+  workflow_call:
+  workflow_dispatch:
+concurrency: sports-sync
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Get the service key
+        run: node scripts/ops/service-key.mjs
+      - name: Refresh TheSportsDB competitions
+        run: npx tsx scripts/ops/sports-sync.ts | tee -a "$GITHUB_STEP_SUMMARY"

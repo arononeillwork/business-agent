@@ -141,18 +141,24 @@ export async function refreshCompetition(db: SupabaseClient, c: SportsCompetitio
     return keep.length
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e)
-    // Back off: try again in an hour, not every minute.
-    const retry = new Date(Date.now() - (STALE_HOURS - 1) * 3_600_000).toISOString()
+    // Back off: try again in an hour (three when the source says we're calling too often).
+    const wait = /answered 429/.test(message) ? 3 : 1
+    const retry = new Date(Date.now() - (STALE_HOURS - wait) * 3_600_000).toISOString()
     await db.from('sports_competitions').update({ refreshed_at: retry, last_error: message.slice(0, 300) }).eq('code', c.code)
     throw e
   }
 }
 
-/** Cron: refresh the stalest followed competitions (up to `max`) and clear out old events. */
-export async function refreshStaleSports(db: SupabaseClient, max = 2) {
+/**
+ * Cron: refresh the stalest followed competitions (up to `max`) and clear out old events.
+ * `sources` limits which sources to use (the admin button only does the quick ones).
+ */
+export async function refreshStaleSports(db: SupabaseClient, max = 2, sources?: SportsCompetition['source'][]) {
   const cutoff = new Date(Date.now() - STALE_HOURS * 3_600_000).toISOString()
-  const { data, error } = await db.from('sports_competitions').select('*').eq('followed', true)
-    .or(`refreshed_at.is.null,refreshed_at.lt.${cutoff}`).order('refreshed_at', { ascending: true, nullsFirst: true }).order('sort').limit(max + 4)
+  let q = db.from('sports_competitions').select('*').eq('followed', true)
+    .or(`refreshed_at.is.null,refreshed_at.lt.${cutoff}`).order('refreshed_at', { ascending: true, nullsFirst: true }).order('sort').limit(max + 6)
+  if (sources) q = q.in('source', sources)
+  const { data, error } = await q
   if (error) throw new Error(error.message)
   // At most one TheSportsDB competition per run; the rest wait for the next minute.
   const due = ((data ?? []) as SportsCompetition[])
@@ -166,10 +172,13 @@ export async function refreshStaleSports(db: SupabaseClient, max = 2) {
   return n
 }
 
-/** Admin "Refresh now": mark every followed competition stale, refresh a few straight away; the cron does the rest. */
+/**
+ * Admin "Refresh now": mark every followed competition due, update the quick whole-season sources
+ * straight away (a second or two), and leave TheSportsDB ones to the background refresh.
+ */
 export async function refreshAllSports(db: SupabaseClient) {
   await db.from('sports_competitions').update({ refreshed_at: null }).eq('followed', true)
-  await refreshStaleSports(db, 4)
+  await refreshStaleSports(db, 4, ['fixturedownload', 'wikipedia'])
   const { count } = await db.from('sports_events').select('id', { count: 'exact', head: true }).gte('starts_at', new Date().toISOString())
   return count ?? 0
 }

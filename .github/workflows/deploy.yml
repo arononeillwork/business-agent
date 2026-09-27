@@ -99,6 +99,12 @@ jobs:
           # Only require the methods that are configured so far; the monitor checks all three.
           EXPECT_PROVIDERS: email
 
+  # Boxing, friendlies and cups (TheSportsDB) from GitHub's servers; see sports-sync.yml.
+  sports:
+    needs: deploy
+    uses: ./.github/workflows/sports-sync.yml
+    secrets: inherit
+
   # The whole app, every role, against the version just deployed.
   live:
     needs: deploy

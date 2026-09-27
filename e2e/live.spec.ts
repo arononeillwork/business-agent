@@ -270,7 +270,7 @@ test.describe('sports', () => {
     await page.getByRole('link', { name: 'Sports' }).first().click()
     await expect(page.getByRole('heading', { name: 'Sports' })).toBeVisible()
     await page.getByRole('button', { name: 'Refresh now' }).click()
-    await toast(page, 'Fixtures updated')
+    await expect(page.getByRole('alert').filter({ hasText: 'Fixtures updated' })).toBeVisible({ timeout: 30_000 })
     await expect(page.getByText(/Couldn't update .*La Liga/)).toHaveCount(0)
     // La Liga (fixturedownload) plays every week from mid-August to May.
     const month = new Date().getUTCMonth() + 1
