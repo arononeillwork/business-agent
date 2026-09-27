@@ -28,7 +28,7 @@ console.log(`Sports sync done: ${(data ?? []).length - failed} of ${(data ?? [])
 
 // Crests for teams whose fixtures came without one (national flags, then TheSportsDB).
 try {
-  const crests = await syncCrests(db)
+  const crests = await syncCrests(db, 120) // GitHub has time: about 6 s a search, well inside the job limit
   console.log(`Team crests: ${crests.found} found, ${crests.missing} still missing (${crests.searched} name searches).`)
 } catch (e) {
   console.log(`Team crests: failed (${e instanceof Error ? e.message : String(e)})`)
