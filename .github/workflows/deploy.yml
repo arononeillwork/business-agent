@@ -30,6 +30,8 @@ jobs:
       META_ACCESS_TOKEN: ${{ secrets.META_ACCESS_TOKEN }}
       META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
       WHATSAPP_VERIFY_TOKEN: ${{ secrets.WHATSAPP_VERIFY_TOKEN }}
+      WHATSAPP_PHONE_NUMBER_ID: ${{ secrets.WHATSAPP_PHONE_NUMBER_ID }}
+      INSTAGRAM_USER_ID: ${{ secrets.INSTAGRAM_USER_ID }}
       SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
       SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
     steps:
@@ -53,9 +55,6 @@ jobs:
           cache: npm
       - if: steps.gate.outputs.ready == 'true'
         run: npm ci
-      - name: Build
-        if: steps.gate.outputs.ready == 'true'
-        run: npm run build
       - name: Check the Cloudflare token works
         if: steps.gate.outputs.ready == 'true'
         # Exports the cleaned CLOUDFLARE_API_TOKEN (and account ID) for the steps after it.
@@ -63,6 +62,12 @@ jobs:
           CF_TOKEN_SECRET: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CF_ACCOUNT_SECRET: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: node scripts/ops/cloudflare-token.mjs
+      - name: Photo storage (R2)
+        if: steps.gate.outputs.ready == 'true'
+        run: node scripts/ops/r2.mjs
+      - name: Build
+        if: steps.gate.outputs.ready == 'true'
+        run: npm run build
       - name: Deploy the Worker
         id: deploy
         if: steps.gate.outputs.ready == 'true'

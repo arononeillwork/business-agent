@@ -24,12 +24,11 @@
     //   npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
     "SUPABASE_URL": "https://lhakrmmoxaareykglmtx.supabase.co",
     "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_FN8O4JMcZa7hmiSlZSo1uQ_vBM1S05e",
-    // Meta (WhatsApp + Instagram). Fill in the ids once the Meta app is set up; tokens are secrets:
-    //   npx wrangler secret put META_ACCESS_TOKEN / META_APP_SECRET / WHATSAPP_VERIFY_TOKEN
+    // Meta (WhatsApp + Instagram). The ids and tokens are GitHub repo secrets that the deploy
+    // copies to the Worker (scripts/ops/worker-secrets.mjs): META_ACCESS_TOKEN, META_APP_SECRET,
+    // WHATSAPP_VERIFY_TOKEN, WHATSAPP_PHONE_NUMBER_ID, INSTAGRAM_USER_ID. Same for Google and
+    // Spotify. INTEGRATION_KEY and the Supabase service key are made by the deploy itself.
     "META_GRAPH_VERSION": "v23.0",
-    "WHATSAPP_PHONE_NUMBER_ID": "",
-    "WHATSAPP_TEMPLATE_LANG": "es",
-    "INSTAGRAM_USER_ID": ""
-    // Google secrets: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET. Shared: INTEGRATION_KEY (random, 32+ chars).
+    "WHATSAPP_TEMPLATE_LANG": "es"
   }
 }

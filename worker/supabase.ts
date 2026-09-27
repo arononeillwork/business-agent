@@ -14,10 +14,10 @@ export interface Env {
   META_ACCESS_TOKEN?: string          // Meta system-user token (WhatsApp + Instagram)
   META_APP_SECRET?: string            // verifies WhatsApp webhooks
   META_GRAPH_VERSION?: string         // var, e.g. v23.0
-  WHATSAPP_PHONE_NUMBER_ID?: string   // var
+  WHATSAPP_PHONE_NUMBER_ID?: string   // secret (GitHub → deploy)
   WHATSAPP_VERIFY_TOKEN?: string
   WHATSAPP_TEMPLATE_LANG?: string     // var, e.g. es
-  INSTAGRAM_USER_ID?: string          // var
+  INSTAGRAM_USER_ID?: string          // secret (GitHub → deploy)
   SPOTIFY_CLIENT_ID?: string
   SPOTIFY_CLIENT_SECRET?: string
 }
