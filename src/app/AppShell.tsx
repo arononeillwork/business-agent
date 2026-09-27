@@ -19,6 +19,7 @@ import LogoutIcon from '@mui/icons-material/LogoutOutlined'
 import PartnersIcon from '@mui/icons-material/HandshakeOutlined'
 import MoreIcon from '@mui/icons-material/MoreHoriz'
 import SportsIcon from '@mui/icons-material/SportsSoccerOutlined'
+import MusicIcon from '@mui/icons-material/LibraryMusicOutlined'
 import {
   DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent,
 } from '@dnd-kit/core'
@@ -47,6 +48,7 @@ const NAV: NavItem[] = [
   { key: 'timecards', to: '/timecards', label: 'Timecards', short: 'Hours', icon: <TimecardIcon />, partner: ['payroll'] },
   { key: 'calendar', to: '/calendar', label: 'Calendar', icon: <CalendarIcon />, partner: ['calendar'] },
   { key: 'sports', to: '/sports', label: 'Sports', icon: <SportsIcon /> },
+  { key: 'music', to: '/music', label: 'Music', icon: <MusicIcon /> },
   { key: 'team', to: '/team', label: 'Team', icon: <TeamIcon /> },
   { key: 'finances', to: '/finances', label: 'Finances', icon: <FinanceIcon />, who: 'pay', partner: ['finances'] },
   { key: 'partners', to: '/partners', label: 'Partners', icon: <PartnersIcon />, who: 'admin' },

@@ -225,6 +225,13 @@ export type IntegrationProvider = 'google_business' | 'whatsapp' | 'instagram' |
 
 export interface SpotifyPlaylist { id: string; name: string; image?: string; tracks: number; url: string; owner?: string }
 
+// Personal music (Music page): each person connects their own account.
+export type MusicProvider = 'spotify' | 'youtube'
+export interface MusicAccount { provider: MusicProvider; account_label: string | null; connected_at: string }
+export interface MyMusic { configured: Record<MusicProvider, boolean>; accounts: MusicAccount[] }
+export interface MusicPlaylist { id: string; name: string; image?: string; tracks: number; url: string; owner?: string; provider: MusicProvider }
+export interface MyNowPlaying { playing: boolean; track?: string; artist?: string; device?: string; image?: string }
+
 export interface MusicNow {
   playlist: SpotifyPlaylist | null
   playing: boolean

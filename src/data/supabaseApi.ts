@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { Api } from './api'
-import type { Business, Expense, OutboxItem, Profile, Settings, TimeEntry, TimeOff } from '../../shared/types'
+import type { Business, Expense, MusicPlaylist, OutboxItem, Profile, Settings, TimeEntry, TimeOff } from '../../shared/types'
 import type { SportsCompetition, SportsEvent } from '../../shared/sports'
 
 const PROFILE_COLUMNS = 'id, full_name, email, role, can_see_pay, colour, active, phone, birth_date, whatsapp_opt_in, partner_company, partner_access'
@@ -360,6 +360,18 @@ export function createSupabaseApi(url: string, key: string): Api {
     async chooseSpotifyPlaylist(playlist) {
       await worker('/api/integrations/spotify/playlist', { method: 'POST', body: JSON.stringify({ playlist }) })
     },
+    myMusic: () => worker('/api/me/music'),
+    async connectMyMusic(provider) {
+      const { url } = await worker<{ url: string }>(`/api/me/music/${provider}/start`, { method: 'POST' })
+      location.assign(url)
+    },
+    async disconnectMyMusic(provider) { await worker(`/api/me/music/${provider}/disconnect`, { method: 'POST' }) },
+    async myPlaylists(provider) { return (await worker<{ playlists: MusicPlaylist[] }>(`/api/me/music/${provider}/playlists`)).playlists },
+    myNowPlaying: () => worker('/api/me/music/spotify/now'),
+    async playMySpotify(playlistId) {
+      await worker('/api/me/music/spotify/play', { method: 'POST', body: JSON.stringify({ playlist_id: playlistId }) })
+    },
+    async pauseMySpotify() { await worker('/api/me/music/spotify/pause', { method: 'POST' }) },
     musicNow: () => worker('/api/music/now'),
     async musicPlay() { await worker('/api/music/play', { method: 'POST' }) },
     async musicPause() { await worker('/api/music/pause', { method: 'POST' }) },

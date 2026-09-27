@@ -3,6 +3,7 @@
 // of truth: the database functions are.
 import type { Api, ShiftInput } from './api'
 import type {
+  MusicAccount, MusicPlaylist, MusicProvider, MyNowPlaying,
   Expense, IntegrationsState, OutboxItem, PartnerArea, TimeOff,
   BreakType, Business, CalendarEvent, CorrectionRequest, PayRate, Position, Profile, Settings,
   Shift, TimeEntry, TimeEntryChange,
@@ -64,6 +65,20 @@ export function createDemoApi(): Api {
     { id: 'pl3', name: 'Aron’s gym mix', tracks: 40, url: 'https://open.spotify.com', owner: 'Aron' },
   ]
   const music: { playing: boolean; track?: string; artist?: string; device?: string } = { playing: false }
+  // Music page: each person's own accounts (connecting is simulated in the demo).
+  const myAccounts = new Map<string, MusicAccount[]>()
+  const myPlayer: MyNowPlaying = { playing: false }
+  const samplePlaylists: Record<MusicProvider, MusicPlaylist[]> = {
+    spotify: [
+      { provider: 'spotify', id: 'demo-sp-1', name: 'Morning coffee', tracks: 64, url: 'https://open.spotify.com', owner: 'You' },
+      { provider: 'spotify', id: 'demo-sp-2', name: 'Lo-fi for closing up', tracks: 120, url: 'https://open.spotify.com', owner: 'You' },
+      { provider: 'spotify', id: 'demo-sp-3', name: 'Gym mix', tracks: 38, url: 'https://open.spotify.com', owner: 'You' },
+    ],
+    youtube: [
+      { provider: 'youtube', id: 'demo-yt-1', name: 'Liked music', tracks: 212, url: 'https://music.youtube.com', owner: 'You' },
+      { provider: 'youtube', id: 'demo-yt-2', name: 'Spanish summer', tracks: 45, url: 'https://music.youtube.com', owner: 'You' },
+    ],
+  }
   const expenses: Expense[] = ([
     ['Rent', 1530, 'Premises'], ['Staff wages', 4300, 'People'], ['Electricity', 200, 'Utilities'], ['Insurance', 100, 'Premises'],
     ['Council tax', 50, 'Premises'], ['Broadband', 20, 'Utilities'], ['Accountant', 100, 'Services'], ['Water', 50, 'Utilities'],
@@ -719,6 +734,30 @@ export function createDemoApi(): Api {
       requireAdmin()
       integ.integrations.find(i => i.provider === 'spotify')!.external.playlist = playlist
     },
+    async myMusic() {
+      if (!['admin', 'employee'].includes(me()?.role ?? '')) throw new Error('Music is for the team')
+      return { configured: { spotify: true, youtube: true }, accounts: clone(myAccounts.get(currentUser!) ?? []) }
+    },
+    async connectMyMusic(provider) {
+      const list = (myAccounts.get(currentUser!) ?? []).filter(a => a.provider !== provider)
+      myAccounts.set(currentUser!, [...list, { provider, account_label: me()?.full_name ?? null, connected_at: nowIso() }])
+    },
+    async disconnectMyMusic(provider) {
+      myAccounts.set(currentUser!, (myAccounts.get(currentUser!) ?? []).filter(a => a.provider !== provider))
+      if (provider === 'spotify') myPlayer.playing = false
+    },
+    async myPlaylists(provider) {
+      if (!(myAccounts.get(currentUser!) ?? []).some(a => a.provider === provider)) throw new Error(`Connect ${provider === 'spotify' ? 'Spotify' : 'YouTube Music'} first`)
+      return clone(samplePlaylists[provider])
+    },
+    async myNowPlaying() { return clone(myPlayer) },
+    async playMySpotify(playlistId) {
+      const p = samplePlaylists.spotify.find(x => x.id === playlistId)
+      if (!p) throw new Error('Pick a playlist')
+      Object.assign(myPlayer, { playing: true, track: 'Coffee', artist: 'beabadoobee', device: 'iPhone' })
+    },
+    async pauseMySpotify() { myPlayer.playing = false },
+
     async musicNow() {
       const s = integ.integrations.find(i => i.provider === 'spotify')!
       if (s.status !== 'connected') throw new Error('Spotify is not connected')

@@ -683,3 +683,46 @@ test.describe('sports', () => {
     await expect(page.getByRole('heading', { name: 'Sports' })).toHaveCount(0)
   })
 })
+
+test.describe('music', () => {
+  test('music is locked until you connect Spotify or YouTube Music, then shows your playlists', async ({ page }) => {
+    await open(page, '/music', 'maria@example.com')
+    const gate = page.getByRole('region', { name: 'Connect a music account' })
+    await expect(gate.getByText('Connect to use Music')).toBeVisible()
+    await expect(page.getByRole('list', { name: 'Your playlists' })).toHaveCount(0)
+
+    await gate.getByRole('button', { name: 'Connect Spotify' }).click()
+    const lists = page.getByRole('list', { name: 'Your playlists' })
+    await expect(lists.getByRole('button', { name: 'Morning coffee' })).toHaveAttribute('aria-pressed', 'true')
+    await lists.getByRole('button', { name: 'Gym mix' }).click()
+    await expect(page.getByRole('region', { name: 'Player' }).getByText('Gym mix')).toBeVisible()
+    await page.getByRole('button', { name: 'Play on my devices' }).click()
+    await toast(page, 'Playing Gym mix')
+    await expect(page.getByText('On iPhone')).toBeVisible()
+
+    // A second service gets its own tab.
+    await page.getByRole('button', { name: 'Connect YouTube Music' }).click()
+    await page.getByRole('tab', { name: 'YouTube Music' }).click()
+    await expect(lists.getByRole('button', { name: 'Spanish summer' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Play on my devices' })).toHaveCount(0)
+  })
+
+  test('each person connects their own account, and can disconnect it', async ({ page }) => {
+    await open(page, '/music', 'maria@example.com')
+    await page.getByRole('button', { name: 'Connect Spotify' }).click()
+    await expect(page.getByRole('list', { name: 'Your playlists' })).toBeVisible()
+    await signInAs(page, 'aron@example.com')
+    await page.getByRole('link', { name: 'Music' }).first().click()
+    await expect(page.getByText('Connect to use Music')).toBeVisible() // Maria's account is hers
+    await signInAs(page, 'maria@example.com')
+    await page.getByRole('link', { name: 'Music' }).first().click()
+    await page.locator('.MuiChip-deleteIcon').first().click()
+    await toast(page, 'Spotify disconnected')
+    await expect(page.getByText('Connect to use Music')).toBeVisible()
+  })
+
+  test('partners do not get music', async ({ page }) => {
+    await open(page, '/music', 'laura@gestoria.example')
+    await expect(page.getByRole('link', { name: 'Music' })).toHaveCount(0)
+  })
+})

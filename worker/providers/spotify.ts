@@ -74,6 +74,15 @@ export async function playPlaylist(accessToken: string, playlistId: string) {
   await api(accessToken, '/me/player/shuffle?state=true', { method: 'PUT' }).catch(() => null)
 }
 
+/** A person's own player (Music page): what's on, and play any of their playlists. */
+export async function myPlayer(accessToken: string) {
+  const s = await api<{ is_playing: boolean; item?: { name: string; artists?: { name: string }[]; album?: { images?: { url: string }[] } }; device?: { name: string } }>(
+    accessToken, '/me/player')
+  if (!s) return { playing: false }
+  return { playing: s.is_playing, track: s.item?.name, artist: s.item?.artists?.map(a => a.name).join(', '),
+    device: s.device?.name, image: s.item?.album?.images?.at(-1)?.url }
+}
+
 export async function pause(accessToken: string) {
   await api(accessToken, '/me/player/pause', { method: 'PUT' })
 }

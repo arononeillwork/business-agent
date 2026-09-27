@@ -1,7 +1,7 @@
 import type {
   Expense, InstagramProfile, IntegrationsState, MusicNow, OutboxItem, OpeningHours, SpotifyPlaylist, TimeOff, TimeOffKind,
   BreakType, Business, CalendarEvent, CorrectionRequest, KioskPerson, OpenBreak, PayRate,
-  PartnerArea, Position, Profile, Settings, Shift, TimeEntry, TimeEntryChange,
+  MusicPlaylist, MusicProvider, MyMusic, MyNowPlaying, PartnerArea, Position, Profile, Settings, Shift, TimeEntry, TimeEntryChange,
 } from '../../shared/types'
 import type { SportsCompetition, SportsEvent } from '../../shared/sports'
 
@@ -134,6 +134,15 @@ export interface Api {
   connectSpotify(): Promise<void>
   spotifyPlaylists(): Promise<{ playlists: SpotifyPlaylist[]; approved: SpotifyPlaylist | null }>
   chooseSpotifyPlaylist(playlist: SpotifyPlaylist): Promise<void>
+
+  // Music page: each person's own Spotify / YouTube Music (must connect to use it)
+  myMusic(): Promise<MyMusic>
+  connectMyMusic(provider: MusicProvider): Promise<void>
+  disconnectMyMusic(provider: MusicProvider): Promise<void>
+  myPlaylists(provider: MusicProvider): Promise<MusicPlaylist[]>
+  myNowPlaying(): Promise<MyNowPlaying>
+  playMySpotify(playlistId: string): Promise<void>
+  pauseMySpotify(): Promise<void>
 
   // café music (staff): only the approved playlist
   musicNow(): Promise<MusicNow>

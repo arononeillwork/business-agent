@@ -21,6 +21,7 @@ import { NotActive } from './pages/StatusPages'
 import { FinancesPage } from './pages/FinancesPage'
 import { AlertsPage } from './pages/AlertsPage'
 import { SportsPage } from './pages/SportsPage'
+import { MusicPage } from './pages/MusicPage'
 import { ConnectionsPage } from './pages/ConnectionsPage'
 import { PartnersPage } from './pages/PartnersPage'
 
@@ -57,6 +58,7 @@ function Routed() {
         <Route path="calendar" element={<CalendarPage />} />
         <Route path="time-off" element={<TimeOffPage />} />
         <Route path="sports" element={<SportsPage />} />
+        <Route path="music" element={<MusicPage />} />
         <Route path="team" element={<TeamPage />} />
         <Route path="business" element={<BusinessPage />} />
         <Route path="account" element={<AccountPage />} />

@@ -143,3 +143,21 @@ covers both. The connection below works with any Spotify account; the licence is
 
 Play/pause from the app needs Spotify Premium. New Spotify apps start in development mode, which
 is fine for one café account (add the café's Spotify email under the app's User Management).
+
+## 6. Music page (each person's own Spotify or YouTube Music)
+
+The Music page is locked until the person connects their own account. It reuses the apps above,
+with the same redirect URIs, so there is little extra to set up:
+
+- **Spotify**: the Spotify app from section 5. While it is in development mode Spotify only lets
+  in people listed under the app's **User Management** (up to 25): add each team member's
+  Spotify email there, or apply for extended quota. "Play on my devices" needs Premium; the
+  player in the page works for everyone.
+- **YouTube Music**: the Google OAuth client from sections 1-2. In the same Google Cloud
+  project enable **YouTube Data API v3**, and under the OAuth consent screen add the scope
+  `youtube.readonly` (and, while the app is in Testing, add team members as test users).
+  Playlists play in the page with YouTube's embedded player; private playlists can't be
+  embedded, so the page offers **Open** in YouTube Music for those.
+
+Tokens are encrypted with `INTEGRATION_KEY` and stored per person (`music_accounts`), readable
+only by the Worker. People can disconnect at any time from the Music page.

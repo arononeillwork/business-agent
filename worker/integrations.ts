@@ -1,6 +1,6 @@
 // Connections to Google Business Profile, WhatsApp and Instagram, and the outbox worker that
 // delivers everything queued in the database (with retries; see migration 7).
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { bearer, serviceClient, userClient, type Env } from './supabase'
 import { seal, signState, unseal, verifyState } from './crypto'
@@ -8,6 +8,7 @@ import * as google from './providers/google'
 import * as whatsapp from './providers/whatsapp'
 import * as instagram from './providers/instagram'
 import * as spotify from './providers/spotify'
+import { finishMusicConnect, type MusicState } from './music'
 import type { Business, CalendarEvent } from '../shared/types'
 import { today } from '../shared/time'
 
@@ -126,6 +127,24 @@ export async function drainOutbox(env: Env) {
   }
 }
 
+/**
+ * The Google and Spotify callbacks also finish personal Music connections (state kind 'music'),
+ * so those use the redirect URLs already registered with each provider. Returns null otherwise.
+ */
+async function musicCallback(c: Context<{ Bindings: Env; Variables: { userId: string } }>, provider: 'spotify' | 'youtube') {
+  const origin = new URL(c.req.url).origin
+  let state: MusicState | { kind?: undefined }
+  try { state = await verifyState<MusicState>(c.env.INTEGRATION_KEY!, c.req.query('state') ?? '') } catch { return null }
+  if (state.kind !== 'music' || state.provider !== provider) return null
+  try {
+    if (c.req.query('error')) throw new Error(c.req.query('error') === 'access_denied' ? 'Connection was cancelled' : c.req.query('error'))
+    await finishMusicConnect(c.env, state, c.req.query('code') ?? '', origin)
+    return c.redirect(`${origin}/music?connected=${provider}`)
+  } catch (e) {
+    return c.redirect(`${origin}/music?connect_error=${encodeURIComponent(e instanceof Error ? e.message : String(e))}`)
+  }
+}
+
 // ---------------------------------------------------------------------------------------------
 // Routes
 // ---------------------------------------------------------------------------------------------
@@ -166,6 +185,8 @@ integrations.post('/api/integrations/google/start', async c => {
 })
 
 integrations.get('/api/integrations/google/callback', async c => {
+  const personal = await musicCallback(c, 'youtube')
+  if (personal) return personal
   const origin = new URL(c.req.url).origin
   const back = (q: string) => c.redirect(`${origin}/connections?${q}`)
   try {
@@ -233,6 +254,8 @@ integrations.post('/api/integrations/spotify/start', async c => {
 })
 
 integrations.get('/api/integrations/spotify/callback', async c => {
+  const personal = await musicCallback(c, 'spotify')
+  if (personal) return personal
   const origin = new URL(c.req.url).origin
   const back = (q: string) => c.redirect(`${origin}/connections?${q}`)
   try {

@@ -62,10 +62,10 @@ export function toSpecialHours(events: CalendarEvent[], fromDate: string, closed
 
 export interface GoogleOAuthConfig { clientId: string; clientSecret: string; redirectUri: string }
 
-export function authUrl(cfg: GoogleOAuthConfig, state: string) {
+export function authUrl(cfg: GoogleOAuthConfig, state: string, scopes = GOOGLE_SCOPES) {
   const p = new URLSearchParams({
-    client_id: cfg.clientId, redirect_uri: cfg.redirectUri, response_type: 'code', scope: GOOGLE_SCOPES.join(' '),
-    access_type: 'offline', prompt: 'consent', include_granted_scopes: 'true', state,
+    client_id: cfg.clientId, redirect_uri: cfg.redirectUri, response_type: 'code', scope: scopes.join(' '),
+    access_type: 'offline', prompt: 'consent', include_granted_scopes: scopes === GOOGLE_SCOPES ? 'true' : 'false', state,
   })
   return `https://accounts.google.com/o/oauth2/v2/auth?${p}`
 }

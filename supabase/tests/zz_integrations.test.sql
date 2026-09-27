@@ -325,3 +325,14 @@ do $$ begin
   assert not (select followed from public.sports_competitions where code = 'es-laliga'), 'an admin can unfollow';
 end $$;
 reset role;
+
+-- 14. Personal music accounts: only the Worker (service key) reads or writes them ----------
+reset role;
+insert into public.music_accounts (profile_id, provider, account_label, ciphertext)
+  values ((select id from public.profiles where email = 'julio@test'), 'spotify', 'Julio', 'sealed');
+select pg_temp.act_as('julio@test');
+select pg_temp.expect_error($q$select * from public.music_accounts$q$, 'permission denied');
+select pg_temp.act_as('maria@test');
+select pg_temp.expect_error($q$select * from public.music_accounts$q$, 'permission denied');
+select pg_temp.expect_error($q$delete from public.music_accounts$q$, 'permission denied');
+reset role;

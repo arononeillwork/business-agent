@@ -4,6 +4,7 @@ import { bearer, serviceClient, userClient, type Env } from './supabase'
 import { rest } from './rest'
 import { drainOutbox, integrations } from './integrations'
 import { refreshAllSports, refreshStaleSports } from './sports'
+import { music } from './music'
 import { authorizeGet, authorizePost, mcpApiHandler, tokenExchangeCallback, type OAuthEnv } from './mcp'
 
 const NIGHTLY = '15 1 * * *' // 03:15 Madrid in summer, 02:15 in winter
@@ -114,6 +115,9 @@ app.post('/api/admin/sports/refresh', async c => {
   if (error || !isAdmin) return c.json({ error: 'Only an admin can do that' }, 403)
   return c.json({ ok: true, events: await refreshAllSports(serviceClient(c.env)) })
 })
+
+// Music page: each person's own Spotify / YouTube Music.
+app.route('/', music)
 
 // Google / WhatsApp / Instagram connections, webhooks and post photos.
 app.route('/', integrations)
