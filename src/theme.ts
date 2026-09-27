@@ -22,10 +22,10 @@ export const tokens = {
   inkFaint: '#9A948D',
   bg: brand.cream,
   surface: brand.white,
-  surfaceAlt: '#F5F3F0',     // Limewash at ~15%
+  surfaceAlt: '#F8F4F1',     // warm off-white for quiet panels
   sidebar: '#EFECE8',        // Limewash at ~30%
-  line: '#E6E2DD',           // Limewash at ~40%
-  lineStrong: brand.limewash,
+  line: '#EFE9E4',           // hairlines: warm, barely there
+  lineStrong: '#DDD5CE',     // input borders
   rose: brand.rosePink,
   roseHover: '#F28893',
   roseDeep: brand.roseDeep,
@@ -41,7 +41,7 @@ export const tokens = {
   danger: '#B3404F',
   dangerSoft: '#F9DDE0',
   warning: '#9A6A12',
-  warningSoft: brand.roseWash,
+  warningSoft: '#FFF1EA',
   info: '#5B4A86',
   // Kept for existing callers.
   espresso: '#2B2522',
@@ -71,7 +71,7 @@ export const theme = createTheme({
     fontFamily: fonts.text,
     fontSize: 15,
     h1: display, h2: display, h3: display,
-    h4: { ...display, fontSize: '2rem', lineHeight: 1.15, letterSpacing: '-0.03em' },
+    h4: { ...display, fontWeight: 700, fontSize: '2.25rem', lineHeight: 1.12, letterSpacing: '-0.035em' },
     h5: { ...display, fontSize: '1.5rem', lineHeight: 1.25 },
     h6: { ...display, fontWeight: 500, fontSize: '1.1rem', lineHeight: 1.35, letterSpacing: '-0.01em' },
     subtitle1: { fontWeight: 600 },
@@ -85,7 +85,9 @@ export const theme = createTheme({
   components: {
     MuiCssBaseline: {
       styleOverrides: {
-        body: { backgroundColor: tokens.bg, WebkitFontSmoothing: 'antialiased' },
+        body: { backgroundColor: tokens.bg, WebkitFontSmoothing: 'antialiased',
+          // A soft wash of the brand pink at the top of every page instead of flat beige.
+          backgroundImage: 'radial-gradient(1200px 420px at 70% -120px, rgba(247,155,164,0.16), transparent 70%)', backgroundRepeat: 'no-repeat' },
         '::selection': { background: alpha(tokens.rose, 0.35) },
         ':focus-visible': { outline: `2px solid ${tokens.roseDeep}`, outlineOffset: 2 },
       },
@@ -110,7 +112,7 @@ export const theme = createTheme({
       defaultProps: { elevation: 0 },
       styleOverrides: {
         root: { border: `1px solid ${tokens.line}`, borderRadius: 20, backgroundImage: 'none',
-          boxShadow: '0 1px 2px rgba(43,37,34,0.03), 0 8px 24px -12px rgba(43,37,34,0.08)' },
+          boxShadow: '0 1px 2px rgba(120,72,60,0.04), 0 12px 32px -18px rgba(120,72,60,0.18)' },
       },
     },
     MuiCardContent: { styleOverrides: { root: { padding: 22, '&:last-child': { paddingBottom: 22 } } } },
@@ -135,9 +137,9 @@ export const theme = createTheme({
     MuiAlert: {
       styleOverrides: { root: { borderRadius: 14, alignItems: 'center' } },
       variants: [
-        { props: { variant: 'standard', severity: 'info' }, style: { background: tokens.ubeSoft, color: tokens.ubeDeep } },
-        { props: { variant: 'standard', severity: 'warning' }, style: { background: tokens.roseWash, color: '#7E3F4B' } },
-        { props: { variant: 'standard', severity: 'success' }, style: { background: tokens.matchaSoft, color: tokens.matchaDeep } },
+        { props: { variant: 'standard', severity: 'info' }, style: { background: '#F4F0FB', color: tokens.ubeDeep, border: '1px solid #E4DBF3' } },
+        { props: { variant: 'standard', severity: 'warning' }, style: { background: '#FFF1EA', color: '#8A4336', border: '1px solid #FBDCCF' } },
+        { props: { variant: 'standard', severity: 'success' }, style: { background: '#EEF4E8', color: tokens.matchaDeep, border: '1px solid #DCE8D1' } },
         { props: { variant: 'standard', severity: 'error' }, style: { background: tokens.dangerSoft, color: '#8E2B3A' } },
         { props: { variant: 'filled', severity: 'success' }, style: { background: tokens.ink, color: '#fff' } },
         { props: { variant: 'filled', severity: 'info' }, style: { background: tokens.ink, color: '#fff' } },

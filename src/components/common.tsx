@@ -30,7 +30,9 @@ export function Stat({ label, value, note, tone }: {
 }) {
   const colour = tone === 'danger' ? tokens.danger : tone === 'warning' ? tokens.roseDeep : tone === 'good' ? tokens.matchaDeep : tokens.ink
   return (
-    <Box sx={{ flex: '1 1 150px', minWidth: 0, p: 2.25, borderRadius: 4, bgcolor: 'background.paper', border: 1, borderColor: 'divider', boxShadow: '0 8px 24px -16px rgba(43,37,34,0.12)' }}>
+    <Box sx={{ flex: '1 1 150px', minWidth: 0, p: 2.25, borderRadius: '18px', bgcolor: 'background.paper', border: 1, borderColor: 'divider',
+      boxShadow: '0 12px 28px -20px rgba(120,72,60,0.25)', position: 'relative', overflow: 'hidden',
+      '&::before': { content: '""', position: 'absolute', inset: '0 auto 0 0', width: 3, bgcolor: tone === 'danger' ? tokens.danger : tone === 'warning' ? tokens.rose : tone === 'good' ? tokens.matcha : 'transparent' } }}>
       <Typography variant="overline" sx={{ color: 'text.secondary', display: 'block' }}>{label}</Typography>
       <Typography sx={{ fontFamily: fonts.display, fontSize: '1.6rem', fontWeight: 600, letterSpacing: '-0.02em', color: colour, fontVariantNumeric: 'tabular-nums', lineHeight: 1.25 }}>
         {value}

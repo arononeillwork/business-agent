@@ -57,7 +57,24 @@ const NAV: NavItem[] = [
   { key: 'account', to: '/account', label: 'My account', short: 'Me', icon: <AccountIcon />, partner: 'any' },
 ]
 export const DEFAULT_ORDER = NAV.map(n => n.key)
-const DRAWER = 256
+const DRAWER = 248
+
+// The desktop sidebar: deep espresso with cream text and the brand's Rose Pink for the current page.
+const SIDEBAR = {
+  bg: 'linear-gradient(180deg, #2B2320 0%, #1F1916 100%)',
+  text: 'rgba(255, 246, 240, 0.74)',
+  faint: 'rgba(255, 246, 240, 0.38)',
+  hover: 'rgba(255, 246, 240, 0.07)',
+  raised: '#3A302C',
+}
+const sidebarItems = {
+  '& .MuiListItemButton-root': { color: SIDEBAR.text, borderRadius: '10px', transition: 'background .15s, color .15s',
+    '& .MuiListItemIcon-root': { color: 'inherit' },
+    '&:hover': { background: SIDEBAR.hover, color: '#FFF6F0' },
+    '&.Mui-selected, &.Mui-selected:hover': { background: tokens.rose, color: tokens.ink, boxShadow: '0 6px 18px -8px rgba(247,155,164,0.7)',
+      '& .MuiListItemIcon-root': { color: tokens.ink } },
+    '&.Mui-focusVisible': { outline: `2px solid ${tokens.rose}`, outlineOffset: 1 } },
+}
 
 /** The person's own sidebar order, kept on this device. Unknown or missing keys fall back to the default. */
 function useNavOrder(userId: string | undefined) {
@@ -170,14 +187,14 @@ function SortableNavRow({ item, selected }: { item: NavItem; selected: boolean }
         '&:hover .drag-handle, &:focus-within .drag-handle': { opacity: 1 } }}>
       <ListItemButton component={Link} to={item.to} selected={selected}
         aria-roledescription="sortable" aria-describedby={a11y['aria-describedby']}
-        sx={{ py: 1, pl: 1.5, pr: 1, mb: 0.25,
-          boxShadow: isDragging ? '0 8px 24px rgba(28,20,16,0.16)' : 'none',
-          bgcolor: isDragging ? 'background.paper' : undefined, cursor: isDragging ? 'grabbing' : 'pointer' }}>
-        <ListItemIcon sx={{ minWidth: 36, color: 'text.secondary' }}>{item.icon}</ListItemIcon>
-        <ListItemText primary={item.label} slotProps={{ primary: { sx: { fontWeight: selected ? 800 : 600, fontSize: '0.95rem' } } }} />
+        sx={{ py: 0.7, pl: 1.25, pr: 0.75, mb: 0.25,
+          boxShadow: isDragging ? '0 10px 28px rgba(0,0,0,0.35)' : 'none',
+          bgcolor: isDragging ? SIDEBAR.raised : undefined, cursor: isDragging ? 'grabbing' : 'pointer' }}>
+        <ListItemIcon sx={{ minWidth: 34, '& svg': { fontSize: 20 } }}>{item.icon}</ListItemIcon>
+        <ListItemText primary={item.label} slotProps={{ primary: { sx: { fontWeight: selected ? 700 : 500, fontSize: '0.9rem' } } }} />
         <Tooltip title="Drag to reorder (or focus and press Space)" placement="right">
           <DragIcon className="drag-handle" fontSize="small" aria-hidden
-            sx={{ opacity: { xs: 1, md: 0 }, color: tokens.inkFaint, cursor: 'grab', transition: 'opacity .15s' }} />
+            sx={{ opacity: { xs: 1, md: 0 }, color: 'inherit', cursor: 'grab', transition: 'opacity .15s' }} />
         </Tooltip>
       </ListItemButton>
     </Box>
@@ -215,16 +232,18 @@ export function AppShell() {
     <Box sx={{ display: 'flex', minHeight: '100vh' }}>
       {desktop && (
         <Box component="nav" aria-label="Main" sx={{ width: DRAWER, flexShrink: 0, position: 'sticky', top: 0, height: '100vh',
-          display: 'flex', flexDirection: 'column', bgcolor: tokens.sidebar, borderRight: 1, borderColor: 'divider', px: 1.5 }}>
-          <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', px: 1, py: 2.5 }}>
-            <Logo size={40} />
+          display: 'flex', flexDirection: 'column', background: SIDEBAR.bg, color: SIDEBAR.text, px: 1.5, ...sidebarItems }}>
+          <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', px: 1, pt: 2.5, pb: 2 }}>
+            <Logo size={38} />
             <Box sx={{ minWidth: 0 }}>
-              <Typography sx={{ fontFamily: fonts.display, fontWeight: 600, letterSpacing: '-0.02em', lineHeight: 1.2 }} noWrap>{businessConfig.shortName}</Typography>
-              <Typography variant="caption" sx={{ color: tokens.roseDeep, fontWeight: 600 }}>Coffee · Team app</Typography>
+              <Typography sx={{ fontFamily: fonts.display, fontWeight: 600, letterSpacing: '-0.02em', lineHeight: 1.2, color: '#FFF6F0' }} noWrap>{businessConfig.shortName}</Typography>
+              <Typography variant="caption" sx={{ color: tokens.rose, fontWeight: 600 }}>Coffee · Team app</Typography>
             </Box>
           </Stack>
-          <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', mx: -1.5, px: 1.5, display: 'flex', flexDirection: 'column' }}>
-          <Typography variant="overline" sx={{ color: 'text.disabled', px: 1.5, mt: 1 }}>Menu</Typography>
+          {/* Scrolls only on short screens, without a visible scrollbar. */}
+          <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', mx: -1.5, px: 1.5, display: 'flex', flexDirection: 'column',
+            scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' }, pb: 2,
+            maskImage: 'linear-gradient(to bottom, #000 calc(100% - 28px), transparent)' }}>
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd} modifiers={[restrictToVerticalAxis]}
             accessibility={{ screenReaderInstructions: { draggable: 'To reorder, press Space, use the arrow keys, then press Space again.' } }}>
             <SortableContext items={items.map(n => n.key)} strategy={verticalListSortingStrategy}>
@@ -234,27 +253,27 @@ export function AppShell() {
             </SortableContext>
           </DndContext>
           {isAdmin && (
-            <List disablePadding sx={{ mt: 1 }}>
-              <ListItemButton component={Link} to="/kiosk" sx={{ py: 1, pl: 1.5 }}>
-                <ListItemIcon sx={{ minWidth: 36, color: 'text.secondary' }}><KioskIcon /></ListItemIcon>
-                <ListItemText primary="Café tablet" slotProps={{ primary: { sx: { fontWeight: 600, fontSize: '0.95rem' } } }} />
+            <List disablePadding sx={{ mt: 1, pt: 1, borderTop: '1px solid rgba(255,246,240,0.08)' }}>
+              <ListItemButton component={Link} to="/kiosk" sx={{ py: 0.7, pl: 1.25 }}>
+                <ListItemIcon sx={{ minWidth: 34, '& svg': { fontSize: 20 } }}><KioskIcon /></ListItemIcon>
+                <ListItemText primary="Café tablet" slotProps={{ primary: { sx: { fontWeight: 500, fontSize: '0.9rem' } } }} />
               </ListItemButton>
             </List>
           )}
           {order.join() !== DEFAULT_ORDER.join() && (
-            <Button size="small" onClick={() => setOrder(DEFAULT_ORDER)} sx={{ alignSelf: 'flex-start', ml: 1, mt: 1, color: 'text.secondary' }}>
+            <Button size="small" onClick={() => setOrder(DEFAULT_ORDER)} sx={{ alignSelf: 'flex-start', ml: 0.5, mt: 1, color: SIDEBAR.faint, '&:hover': { color: '#FFF6F0', background: SIDEBAR.hover } }}>
               Reset menu order
             </Button>
           )}
           </Box>
-          <Stack direction="row" spacing={1.25} sx={{ mt: 1.5, mb: 2, flexShrink: 0, p: 1.25, alignItems: 'center', borderRadius: 3, bgcolor: 'background.paper', border: 1, borderColor: 'divider' }}>
-            {me && <PersonAvatar name={me.full_name} colour={me.colour} size={36} />}
+          <Stack direction="row" spacing={1.25} sx={{ mt: 1.5, mb: 2, flexShrink: 0, p: 1.25, alignItems: 'center', borderRadius: '14px', bgcolor: 'rgba(255,246,240,0.06)' }}>
+            {me && <PersonAvatar name={me.full_name} colour={me.colour} size={34} />}
             <Box sx={{ minWidth: 0, flex: 1 }}>
-              <Typography sx={{ fontWeight: 700, fontSize: '0.9rem' }} noWrap>{me?.full_name}</Typography>
-              <Typography variant="caption" sx={{ color: 'text.secondary' }}>{me?.role === 'admin' ? 'Admin' : me?.role === 'partner' ? me.partner_company ?? 'Partner' : 'Employee'}</Typography>
+              <Typography sx={{ fontWeight: 600, fontSize: '0.88rem', color: '#FFF6F0' }} noWrap>{me?.full_name}</Typography>
+              <Typography variant="caption" sx={{ color: SIDEBAR.faint }}>{me?.role === 'admin' ? 'Admin' : me?.role === 'partner' ? me.partner_company ?? 'Partner' : 'Employee'}</Typography>
             </Box>
             <Tooltip title="Sign out">
-              <IconButton size="small" aria-label="Sign out" onClick={() => api.signOut()}><LogoutIcon fontSize="small" /></IconButton>
+              <IconButton size="small" aria-label="Sign out" onClick={() => api.signOut()} sx={{ color: SIDEBAR.text, '&:hover': { color: '#FFF6F0', background: SIDEBAR.hover } }}><LogoutIcon fontSize="small" /></IconButton>
             </Tooltip>
           </Stack>
         </Box>
