@@ -39,7 +39,9 @@ export interface Api {
   /** A problem signing in from an email or sign-in link, to show on the sign-in screen. */
   authError?(): string | null
   /** Which outside sign-in methods are switched on (so a button never leads to an error page). */
-  signInMethods(): Promise<{ google: boolean; microsoft: boolean }>
+  signInMethods(): Promise<{ google: boolean; microsoft: boolean; signup?: boolean }>
+  /** Register a new account. `confirmEmail`: they must click the link in their email before signing in. */
+  signUp(fullName: string, email: string, password: string): Promise<{ confirmEmail: boolean }>
   me(): Promise<Profile | null>
   business(): Promise<Business>
   adminNotes(): Promise<string | null>

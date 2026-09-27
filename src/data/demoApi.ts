@@ -369,7 +369,20 @@ export function createDemoApi(): Api {
       notify()
     },
     async signOut() { currentUser = null; notify() },
-    async signInMethods() { return { google: true, microsoft: true } },
+    async signInMethods() { return { google: true, microsoft: true, signup: true } },
+    async signUp(fullName, email, password) {
+      const e = email.trim().toLowerCase()
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e)) throw new Error('Enter a full email address')
+      if (password.length < 8) throw new Error('Use at least 8 characters for your password')
+      if (profiles.some(p => p.email === e)) throw new Error('That email already has an account. Sign in instead.')
+      // Like the real app: a self-registered account waits until an admin adds it to the business.
+      const id = `p-${Math.random().toString(36).slice(2, 10)}`
+      profiles.push({ id, full_name: fullName.trim() || e.split('@')[0], email: e, role: 'employee', can_see_pay: false, colour: '#8E877F',
+        active: false, phone: null, birth_date: null } as never)
+      currentUser = id
+      notify()
+      return { confirmEmail: false }
+    },
     async sendSignInCode(email) {
       if (!profiles.some(p => p.email === email.trim().toLowerCase())) throw new Error('No invited account uses this email. Ask an admin to invite you.')
     },

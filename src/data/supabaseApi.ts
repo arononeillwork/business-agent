@@ -54,11 +54,11 @@ export function createSupabaseApi(url: string, key: string): Api {
   const fromUrl = sessionFromUrl(sb).catch(e => { urlError = e instanceof Error ? e.message : String(e) })
 
   // Supabase answers a sign-in redirect for a provider that is off with a bare 400 page, so ask first.
-  let methods: Promise<{ google: boolean; microsoft: boolean }> | null = null
+  let methods: Promise<{ google: boolean; microsoft: boolean; signup: boolean }> | null = null
   const signInMethods = () => methods ??= fetch(`${url}/auth/v1/settings`, { headers: { apikey: key } })
     .then(r => r.ok ? r.json() : Promise.reject(new Error(`settings ${r.status}`)))
-    .then((s: { external?: Record<string, boolean> }) => ({ google: !!s.external?.google, microsoft: !!s.external?.azure }))
-    .catch(() => { methods = null; return { google: true, microsoft: true } }) // unknown: let Supabase decide
+    .then((s: { external?: Record<string, boolean>; disable_signup?: boolean }) => ({ google: !!s.external?.google, microsoft: !!s.external?.azure, signup: !s.disable_signup }))
+    .catch(() => { methods = null; return { google: true, microsoft: true, signup: true } }) // unknown: let Supabase decide
 
   /** Sign in through Supabase with an outside account. Supabase handles the whole OAuth flow. */
   const oauth = async (provider: 'google' | 'azure', label: string, queryParams: Record<string, string>, scopes?: string) => {
@@ -95,6 +95,11 @@ export function createSupabaseApi(url: string, key: string): Api {
     onAuthChange(cb) {
       const { data } = sb.auth.onAuthStateChange(() => cb())
       return () => data.subscription.unsubscribe()
+    },
+    async signUp(fullName, email, password) {
+      const { data, error } = await sb.auth.signUp({ email: email.trim(), password, options: { data: { full_name: fullName.trim() }, emailRedirectTo: location.origin } })
+      if (error) throw new Error(/already registered/i.test(error.message) ? 'That email already has an account. Sign in instead.' : error.message)
+      return { confirmEmail: !data.session }
     },
     async signIn(email, password) {
       checkAuth(await sb.auth.signInWithPassword({ email, password }))
