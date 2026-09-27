@@ -135,6 +135,11 @@ export interface Api {
   spotifyPlaylists(): Promise<{ playlists: SpotifyPlaylist[]; approved: SpotifyPlaylist | null }>
   chooseSpotifyPlaylist(playlist: SpotifyPlaylist): Promise<void>
 
+  // Calendar feeds: my shifts (everyone), the whole team (admins). Returns subscribe links.
+  calendarFeeds(): Promise<Partial<Record<'me' | 'business', string>>>
+  makeCalendarFeed(scope: 'me' | 'business'): Promise<string>
+  stopCalendarFeed(scope: 'me' | 'business'): Promise<void>
+
   // Music page: each person's own Spotify / YouTube Music (must connect to use it)
   myMusic(): Promise<MyMusic>
   connectMyMusic(provider: MusicProvider): Promise<void>

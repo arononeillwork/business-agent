@@ -8,22 +8,28 @@ import { AppShell } from './app/AppShell'
 import { Loading } from './components/common'
 import { theme } from './theme'
 import { LoginPage } from './pages/LoginPage'
-import { TodayPage } from './pages/TodayPage'
-import { RotaPage } from './pages/RotaPage'
-import { TimecardsPage } from './pages/TimecardsPage'
-import { CalendarPage } from './pages/CalendarPage'
-import { TeamPage } from './pages/TeamPage'
-import { BusinessPage } from './pages/BusinessPage'
-import { AccountPage } from './pages/AccountPage'
-import { KioskPage } from './pages/KioskPage'
-import { TimeOffPage } from './pages/TimeOffPage'
 import { NotActive } from './pages/StatusPages'
-import { FinancesPage } from './pages/FinancesPage'
-import { AlertsPage } from './pages/AlertsPage'
-import { SportsPage } from './pages/SportsPage'
-import { MusicPage } from './pages/MusicPage'
-import { ConnectionsPage } from './pages/ConnectionsPage'
-import { PartnersPage } from './pages/PartnersPage'
+import { lazy, Suspense, type ComponentType } from 'react'
+
+// Pages load when first opened, so the first screen is quick on phones.
+const page = <K extends string>(load: () => Promise<Record<K, ComponentType>>, name: K) =>
+  lazy(() => load().then(m => ({ default: m[name] })))
+const TodayPage = page(() => import('./pages/TodayPage'), 'TodayPage')
+const RotaPage = page(() => import('./pages/RotaPage'), 'RotaPage')
+const TimecardsPage = page(() => import('./pages/TimecardsPage'), 'TimecardsPage')
+const CalendarPage = page(() => import('./pages/CalendarPage'), 'CalendarPage')
+const TeamPage = page(() => import('./pages/TeamPage'), 'TeamPage')
+const BusinessPage = page(() => import('./pages/BusinessPage'), 'BusinessPage')
+const AccountPage = page(() => import('./pages/AccountPage'), 'AccountPage')
+const KioskPage = page(() => import('./pages/KioskPage'), 'KioskPage')
+const TimeOffPage = page(() => import('./pages/TimeOffPage'), 'TimeOffPage')
+const FinancesPage = page(() => import('./pages/FinancesPage'), 'FinancesPage')
+const AlertsPage = page(() => import('./pages/AlertsPage'), 'AlertsPage')
+const SportsPage = page(() => import('./pages/SportsPage'), 'SportsPage')
+const MusicPage = page(() => import('./pages/MusicPage'), 'MusicPage')
+const ConnectionsPage = page(() => import('./pages/ConnectionsPage'), 'ConnectionsPage')
+const PartnersPage = page(() => import('./pages/PartnersPage'), 'PartnersPage')
+const RegistroPage = page(() => import('./pages/RegistroPage'), 'RegistroPage')
 
 function Routed() {
   const { me, loading, isAdmin, isPartner, partnerCan } = useApp()
@@ -35,6 +41,7 @@ function Routed() {
     // Outside businesses: read-only, only the areas an admin gave them (the database enforces it too).
     return (
       <Routes>
+        {partnerCan('payroll') && <Route path="/registro" element={<RegistroPage />} />}
         <Route element={<AppShell />}>
           <Route path="business" element={<BusinessPage />} />
           <Route path="account" element={<AccountPage />} />
@@ -51,6 +58,8 @@ function Routed() {
     <Routes>
       {/* Staff use the tablet itself (kiosk account); admins can open it to set it up. */}
       <Route path="/kiosk" element={isAdmin ? <KioskPage /> : <Navigate to="/" />} />
+      {/* Printable monthly hours record (no menu around it). */}
+      <Route path="/registro" element={<RegistroPage />} />
       <Route element={<AppShell />}>
         <Route index element={<TodayPage />} />
         <Route path="rota" element={<RotaPage />} />
@@ -83,7 +92,7 @@ export function App() {
       <NotifyProvider>
         <AppProvider>
           <Router>
-            <Routed />
+            <Suspense fallback={<Loading />}><Routed /></Suspense>
           </Router>
         </AppProvider>
       </NotifyProvider>

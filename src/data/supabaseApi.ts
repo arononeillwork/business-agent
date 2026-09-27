@@ -360,6 +360,9 @@ export function createSupabaseApi(url: string, key: string): Api {
     async chooseSpotifyPlaylist(playlist) {
       await worker('/api/integrations/spotify/playlist', { method: 'POST', body: JSON.stringify({ playlist }) })
     },
+    calendarFeeds: () => worker('/api/me/calendar-feed'),
+    async makeCalendarFeed(scope) { return (await worker<{ url: string }>(`/api/me/calendar-feed/${scope}`, { method: 'POST' })).url },
+    async stopCalendarFeed(scope) { await worker(`/api/me/calendar-feed/${scope}`, { method: 'DELETE' }) },
     myMusic: () => worker('/api/me/music'),
     async connectMyMusic(provider) {
       const { url } = await worker<{ url: string }>(`/api/me/music/${provider}/start`, { method: 'POST' })

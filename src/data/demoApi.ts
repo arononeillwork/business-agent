@@ -68,6 +68,7 @@ export function createDemoApi(): Api {
   // Music page: each person's own accounts (connecting is simulated in the demo).
   const myAccounts = new Map<string, MusicAccount[]>()
   const myPlayer: MyNowPlaying = { playing: false }
+  const feeds = new Map<string, Partial<Record<'me' | 'business', string>>>()
   const samplePlaylists: Record<MusicProvider, MusicPlaylist[]> = {
     spotify: [
       { provider: 'spotify', id: 'demo-sp-1', name: 'Morning coffee', tracks: 64, url: 'https://open.spotify.com', owner: 'You' },
@@ -733,6 +734,21 @@ export function createDemoApi(): Api {
     async chooseSpotifyPlaylist(playlist) {
       requireAdmin()
       integ.integrations.find(i => i.provider === 'spotify')!.external.playlist = playlist
+    },
+    async calendarFeeds() {
+      const f = feeds.get(currentUser!) ?? {}
+      return isAdmin() ? { ...f } : { me: f.me }
+    },
+    async makeCalendarFeed(scope) {
+      if (scope === 'business') requireAdmin()
+      const url = `https://easybeans.example/cal/${crypto.randomUUID().replace(/-/g, '')}${crypto.randomUUID().replace(/-/g, '')}.ics`
+      feeds.set(currentUser!, { ...feeds.get(currentUser!), [scope]: url })
+      return url
+    },
+    async stopCalendarFeed(scope) {
+      const f = { ...feeds.get(currentUser!) }
+      delete f[scope]
+      feeds.set(currentUser!, f)
     },
     async myMusic() {
       if (!['admin', 'employee'].includes(me()?.role ?? '')) throw new Error('Music is for the team')

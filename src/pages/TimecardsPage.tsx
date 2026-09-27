@@ -7,6 +7,8 @@ import LockIcon from '@mui/icons-material/LockOutlined'
 import EditIcon from '@mui/icons-material/EditOutlined'
 import DownloadIcon from '@mui/icons-material/FileDownloadOutlined'
 import { useState } from 'react'
+import { Link as RouterLink } from 'react-router-dom'
+import PrintIcon from '@mui/icons-material/PrintOutlined'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
@@ -82,6 +84,9 @@ export function TimecardsPage() {
             </TextField>
           )}
           <Button startIcon={<DownloadIcon />} variant="outlined" onClick={exportCsv} disabled={!entries.length}>CSV</Button>
+          <Button startIcon={<PrintIcon />} variant="outlined" component={RouterLink} to={`/registro?month=${monday.slice(0, 7)}${person !== 'all' ? `&person=${person}` : ''}`}>
+            Monthly record
+          </Button>
           {isAdmin && <Button variant="outlined" onClick={() => setAdding(true)}>Add timecard</Button>}
           {isAdmin && <Button variant="outlined" onClick={() => run(async () => {
             const n = await api.fillFromRota(monday); await data.reload()

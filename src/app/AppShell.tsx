@@ -28,13 +28,13 @@ import {
 } from '@dnd-kit/sortable'
 import { restrictToVerticalAxis } from '../components/dnd'
 import { CSS } from '@dnd-kit/utilities'
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Suspense, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { useApp } from './AppContext'
 import { businessConfig } from '../../shared/business.config'
 import type { PartnerArea } from '../../shared/types'
 import { Logo } from '../components/Logo'
-import { PersonAvatar } from '../components/common'
+import { Loading, PersonAvatar } from '../components/common'
 import { fonts, tokens } from '../theme'
 
 // `partner`: which partner areas show the item ('any' = every partner). Items without it are staff-only.
@@ -272,7 +272,7 @@ export function AppShell() {
         )}
         <DemoBanner />
         <Box component="main" sx={{ px: { xs: 2, md: 4 }, py: { xs: 2.5, md: 4 }, maxWidth: 1360, mx: 'auto' }}>
-          <Outlet />
+          <Suspense fallback={<Loading />}><Outlet /></Suspense>
         </Box>
       </Box>
       {!desktop && <PhoneNav items={items} current={current} />}

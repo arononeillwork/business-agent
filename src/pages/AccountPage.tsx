@@ -1,9 +1,11 @@
 import { Alert, Button, Card, CardContent, FormControlLabel, Grid, Stack, Switch, TextField, Typography } from '@mui/material'
 import { useState } from 'react'
+import { Link as RouterLink } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAction } from '../app/Notify'
 import { PageHeader, SectionTitle } from '../components/common'
 import { PinDialog } from './TeamPage'
+import { MyConnections } from '../components/MyConnections'
 
 export function AccountPage() {
   const { api, me, refresh, isPartner } = useApp()
@@ -70,10 +72,12 @@ export function AccountPage() {
                 {isPartner ? 'Your access is read-only. Use what you see only for the work agreed with Easy Beans. Data is stored in the EU.' : <>We record your clock-in and clock-out times and breaks, as Spanish law requires (registro de jornada, kept 4 years).
                 Times come from our server, not your phone. Your location is never tracked. Data is stored in the EU.</>}
               </Typography>
+              {!isPartner && <Button component={RouterLink} to="/registro" variant="outlined" size="small" sx={{ mt: 1.5 }}>My monthly hours record</Button>}
             </CardContent>
           </Card>
         </Grid>
       </Grid>
+      {!isPartner && <MyConnections />}
       {pin && <PinDialog onClose={() => setPin(false)} />}
     </>
   )

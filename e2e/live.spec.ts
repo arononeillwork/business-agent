@@ -278,3 +278,23 @@ test.describe('sports', () => {
     await expect(page.getByRole('article').filter({ hasText: 'La Liga' }).first()).toBeVisible({ timeout: 15_000 })
   })
 })
+
+test.describe('personal calendar feed', () => {
+  test('an employee gets a private calendar link; it serves iCalendar and stops when switched off', async ({ request }) => {
+    const { session } = await signedIn(cfg, 'employee')
+    const auth = { authorization: `Bearer ${session.access_token}` }
+    const made = await request.post('/api/me/calendar-feed/me', { headers: auth })
+    expect(made.status(), await made.text()).toBe(200)
+    const { url } = await made.json() as { url: string }
+    expect(url).toMatch(/\/cal\/[A-Za-z0-9_-]{40,}\.ics$/)
+    const feed = await request.get(new URL(url).pathname)
+    expect(feed.status()).toBe(200)
+    expect(feed.headers()['content-type']).toContain('text/calendar')
+    expect(await feed.text()).toMatch(/^BEGIN:VCALENDAR\r\n[\s\S]*END:VCALENDAR\r\n$/)
+    // Employees can't make the whole-team feed; unknown links are 404.
+    expect((await request.post('/api/me/calendar-feed/business', { headers: auth })).status()).toBe(403)
+    expect((await request.get('/cal/not-a-real-link-not-a-real-link-xx.ics')).status()).toBe(404)
+    await request.delete('/api/me/calendar-feed/me', { headers: auth })
+    expect((await request.get(new URL(url).pathname)).status()).toBe(404)
+  })
+})

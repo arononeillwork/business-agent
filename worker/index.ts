@@ -5,6 +5,7 @@ import { rest } from './rest'
 import { drainOutbox, integrations } from './integrations'
 import { refreshAllSports, refreshStaleSports } from './sports'
 import { music } from './music'
+import { calendarFeeds } from './calendarFeed'
 import { authorizeGet, authorizePost, mcpApiHandler, tokenExchangeCallback, type OAuthEnv } from './mcp'
 
 const NIGHTLY = '15 1 * * *' // 03:15 Madrid in summer, 02:15 in winter
@@ -118,6 +119,9 @@ app.post('/api/admin/sports/refresh', async c => {
 
 // Music page: each person's own Spotify / YouTube Music.
 app.route('/', music)
+
+// Calendar feeds: my shifts (everyone) and the team calendar (admins), for Google/Apple/Outlook.
+app.route('/', calendarFeeds)
 
 // Google / WhatsApp / Instagram connections, webhooks and post photos.
 app.route('/', integrations)

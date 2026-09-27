@@ -167,10 +167,10 @@ test.describe('admin', () => {
     const pages: { link: string; path: string; check: (p: Page) => Promise<void> }[] = [
       { link: 'Business', path: '/business', check: p => expect(p.getByRole('heading', { level: 1, name: business.name })).toBeVisible(NET) },
       { link: 'Today', path: '/', check: p => expect(p.getByRole('heading', { name: 'Hola, Ana' })).toBeVisible(NET) },
-      ...['Rota', 'Time off', 'Timecards', 'Calendar', 'Team', 'Finances', 'Partners', 'Alerts', 'Connections', 'My account'].map(name => ({
+      ...['Rota', 'Time off', 'Timecards', 'Calendar', 'Sports', 'Music', 'Team', 'Finances', 'Partners', 'Alerts', 'Connections', 'My account'].map(name => ({
         link: name,
         path: { 'Time off': '/time-off', 'My account': '/account' }[name] ?? `/${name.toLowerCase()}`,
-        check: (p: Page) => expect(p.getByRole('heading', { level: 1, name, exact: true })).toBeVisible(NET),
+        check: (p: Page) => expect(p.getByRole('heading', { level: 1, name: { Connections: 'Business connections' }[name] ?? name, exact: true })).toBeVisible(NET),
       })),
     ]
     for (const { link, path, check } of pages) {

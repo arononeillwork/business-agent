@@ -726,3 +726,61 @@ test.describe('music', () => {
     await expect(page.getByRole('link', { name: 'Music' })).toHaveCount(0)
   })
 })
+
+test.describe('business-wide vs personal', () => {
+  test('everyone has their own connections on My account: calendar link, music, Claude', async ({ page }) => {
+    await open(page, '/account', 'maria@example.com')
+    const mine = page.getByRole('region', { name: 'My shifts in my calendar' })
+    await mine.getByRole('button', { name: 'Add my shifts to my calendar' }).click()
+    await toast(page, 'Calendar link ready')
+    const link = await mine.getByLabel('Calendar link').textContent()
+    expect(link).toMatch(/\/cal\/[a-z0-9]{40,}\.ics$/)
+    await expect(mine.getByRole('link', { name: 'Add to Google Calendar' })).toHaveAttribute('href', /calendar\.google\.com.*cid=webcal/)
+    await expect(mine.getByRole('link', { name: 'Apple / Outlook' })).toHaveAttribute('href', /^webcal:/)
+    await mine.getByRole('button', { name: 'Make a new link' }).click()
+    await expect(mine.getByLabel('Calendar link')).not.toHaveText(link!)
+    await expect(page.getByRole('region', { name: 'My music' }).getByText('Not connected')).toBeVisible()
+    await expect(page.getByRole('region', { name: 'AI connector' })).toContainText('/mcp')
+    // Employees never see the team calendar or the business's own accounts.
+    await expect(page.getByRole('region', { name: 'Team calendar' })).toHaveCount(0)
+    await expect(page.getByRole('link', { name: 'Connections' })).toHaveCount(0)
+  })
+
+  test('admins manage the business connections and the team calendar separately', async ({ page }) => {
+    await open(page, '/connections')
+    await expect(page.getByRole('heading', { level: 1, name: 'Business connections' })).toBeVisible()
+    const team = page.getByRole('region', { name: 'Team calendar' })
+    await team.getByRole('button', { name: 'Make the team calendar link' }).click()
+    await expect(team.getByLabel('Calendar link')).toContainText('.ics')
+    await team.getByRole('button', { name: 'Switch off' }).click()
+    await toast(page, 'Calendar link switched off')
+    await expect(team.getByRole('button', { name: 'Make the team calendar link' })).toBeVisible()
+    await page.getByRole('link', { name: 'My account' }).last().click()
+    await expect(page.getByRole('region', { name: 'My shifts in my calendar' })).toBeVisible()
+  })
+})
+
+test.describe('monthly hours record (registro de jornada)', () => {
+  test('an employee prints only their own month', async ({ page }) => {
+    await open(page, '/account', 'maria@example.com')
+    await page.getByRole('link', { name: 'My monthly hours record' }).click()
+    await page.getByLabel('Month').fill('2026-09')
+    const sheet = page.getByRole('article', { name: 'Hours record: Maria' })
+    await expect(sheet.getByText('Registro diario de jornada')).toBeVisible()
+    await expect(sheet.getByText(/Total \(\d+ days worked\)/)).toBeVisible()
+    await expect(sheet.getByText('Firma del trabajador/a / Worker signature')).toBeVisible()
+    await expect(page.getByRole('article')).toHaveCount(1)
+    await expect(page.getByLabel('Person')).toHaveCount(0)
+  })
+
+  test('an admin prints everyone, one page each, from Timecards', async ({ page }) => {
+    await open(page, '/timecards')
+    await page.getByRole('link', { name: 'Monthly record' }).click()
+    await expect(page).toHaveURL(/\/registro\?month=2026-09/)
+    await expect.poll(() => page.getByRole('article').count()).toBeGreaterThan(1)
+    await page.getByLabel('Person').click()
+    await page.getByRole('option', { name: 'Maria' }).click()
+    await expect(page.getByRole('article')).toHaveCount(1)
+    await expect(page.getByRole('button', { name: 'Print / save PDF' })).toBeEnabled()
+  })
+})

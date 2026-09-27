@@ -8,7 +8,7 @@
   "compatibility_flags": ["nodejs_compat"],
   "assets": {
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*", "/media/*", "/mcp", "/mcp/*", "/authorize", "/token", "/register", "/.well-known/*"]
+    "run_worker_first": ["/api/*", "/media/*", "/cal/*", "/mcp", "/mcp/*", "/authorize", "/token", "/register", "/.well-known/*"]
   },
   "observability": { "enabled": true },
   // OAuth grants/tokens for the AI connector (encrypted by workers-oauth-provider).
