@@ -266,7 +266,8 @@ test.describe('AI connector (MCP over OAuth)', () => {
 test.describe('sports', () => {
   test('admin refreshes fixtures from the free sources and sees La Liga', async ({ page }) => {
     await signInUi(page, 'admin')
-    await page.goto('/sports')
+    // Click through (a page load straight after "Sign in" can beat the session being saved).
+    await page.getByRole('link', { name: 'Sports' }).first().click()
     await expect(page.getByRole('heading', { name: 'Sports' })).toBeVisible()
     await page.getByRole('button', { name: 'Refresh now' }).click()
     await toast(page, 'Fixtures updated')
