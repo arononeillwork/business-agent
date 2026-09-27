@@ -14,7 +14,7 @@ import { useAction, useNotify } from '../app/Notify'
 import { SectionTitle, Tag } from './common'
 import { ShareDialog } from './ShareDialog'
 import { DAY_KEYS, type Integration, type IntegrationProvider, type OpeningHours } from '../../shared/types'
-import { formatLocal } from '../../shared/time'
+import { formatLocal, formatNumber } from '../../shared/time'
 import { tokens } from '../theme'
 
 const META: Record<IntegrationProvider, { name: string; icon: ReactNode; does: string }> = {
@@ -203,7 +203,7 @@ export function InstagramCard() {
               <Typography sx={{ fontWeight: 600 }}>@{p.username}</Typography>
               {p.biography && <Typography variant="body2" sx={{ color: 'text.secondary', maxWidth: 360 }}>{p.biography}</Typography>}
             </Box>
-            <Box><Typography sx={{ fontWeight: 600, fontSize: '1.3rem', fontVariantNumeric: 'tabular-nums' }}>{p.followers_count.toLocaleString('es-ES')}</Typography>
+            <Box><Typography sx={{ fontWeight: 600, fontSize: '1.3rem', fontVariantNumeric: 'tabular-nums' }}>{formatNumber(p.followers_count)}</Typography>
               <Typography variant="caption" sx={{ color: 'text.secondary' }}>followers</Typography></Box>
             <Box><Typography sx={{ fontWeight: 600, fontSize: '1.3rem' }}>{p.media_count}</Typography>
               <Typography variant="caption" sx={{ color: 'text.secondary' }}>posts</Typography></Box>

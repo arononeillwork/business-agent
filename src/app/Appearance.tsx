@@ -1,6 +1,7 @@
 import { useColorScheme } from '@mui/material/styles'
 import { useEffect } from 'react'
 import type { Preferences } from '../../shared/types'
+import { setNumberFormat } from '../../shared/time'
 import { useApp } from './AppContext'
 
 // Each person's appearance and accessibility choices (saved on their profile, so they follow them
@@ -26,6 +27,7 @@ export function applyPreferences(p: Preferences) {
   set('data-eb-contrast', p.contrast === 'high' ? 'high' : null)
   set('data-eb-font', p.font === 'readable' ? 'readable' : null)
   set('data-eb-motion', p.motion === 'reduce' ? 'reduce' : null)
+  setNumberFormat(p.numberFormat)
   if (p.font === 'readable' && !document.getElementById('eb-readable-font')) {
     const link = Object.assign(document.createElement('link'), { id: 'eb-readable-font', rel: 'stylesheet',
       href: 'https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap' })

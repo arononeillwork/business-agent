@@ -60,6 +60,21 @@ export function AppearancePage() {
           </CardContent>
         </Card>
 
+        <Card component="section" aria-label="Numbers">
+          <CardContent>
+            <SectionTitle>Numbers</SectionTitle>
+            <Box role="radiogroup" aria-label="Decimal mark" sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' } }}>
+              <Choice selected={(prefs.numberFormat ?? 'comma') === 'comma'} onClick={() => save({ numberFormat: 'comma' }, 'Numbers: decimal comma')}
+                label="Decimal comma" preview={<NumberSample text="1.234,50 €" />} />
+              <Choice selected={prefs.numberFormat === 'point'} onClick={() => save({ numberFormat: 'point' }, 'Numbers: decimal point')}
+                label="Decimal point" preview={<NumberSample text="€1,234.50" />} />
+            </Box>
+            <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1.5 }}>
+              How pay, costs and totals are shown to you. Payroll exports for the gestoría always use the Spanish comma.
+            </Typography>
+          </CardContent>
+        </Card>
+
         <Card component="section" aria-label="Accessibility">
           <CardContent>
             <SectionTitle>Accessibility</SectionTitle>
@@ -107,6 +122,10 @@ function Preview({ dark, split }: { dark?: boolean; split?: boolean }) {
     </Box>
   )
   return <Box sx={{ display: 'flex', width: '100%' }}>{split ? <>{pane(false)}{pane(true)}</> : pane(!!dark)}</Box>
+}
+
+function NumberSample({ text }: { text: string }) {
+  return <Typography aria-hidden sx={{ fontFamily: fonts.display, fontWeight: 500, fontSize: '1.4rem', fontVariantNumeric: 'tabular-nums' }}>{text}</Typography>
 }
 
 function Toggle({ checked, onChange, label, detail }: { checked: boolean; onChange: (on: boolean) => void; label: string; detail: string }) {

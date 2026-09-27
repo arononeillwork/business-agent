@@ -52,5 +52,20 @@ export const formatDuration = (minutes: number) => {
   return r === 0 ? `${sign}${h}h` : `${sign}${h}h ${String(r).padStart(2, '0')}m`
 }
 
-const eur = new Intl.NumberFormat(businessConfig.locale, { style: 'currency', currency: businessConfig.currency })
+/** How each person likes decimals shown: "843,44 €" (comma, the Spanish way) or "€843.44" (point). */
+export type NumberFormat = 'comma' | 'point'
+const LOCALES: Record<NumberFormat, string> = { comma: businessConfig.locale, point: 'en-IE' }
+const money = (f: NumberFormat) => new Intl.NumberFormat(LOCALES[f], { style: 'currency', currency: businessConfig.currency, useGrouping: 'always' })
+let eur = money('comma')
+let decimal = new Intl.NumberFormat(LOCALES.comma, { maximumFractionDigits: 2, useGrouping: 'always' })
+let current: NumberFormat = 'comma'
+/** Switch the decimal mark for everything formatted from here on (set from the signed-in person's preferences). */
+export function setNumberFormat(f: NumberFormat = 'comma') {
+  if (f === current) return
+  current = f
+  eur = money(f)
+  decimal = new Intl.NumberFormat(LOCALES[f], { maximumFractionDigits: 2, useGrouping: 'always' })
+}
 export const formatMoney = (n: number) => eur.format(n)
+/** A plain number with up to two decimals and thousands grouping, in the person's chosen style. */
+export const formatNumber = (n: number) => decimal.format(n)

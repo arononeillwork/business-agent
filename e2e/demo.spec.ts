@@ -252,7 +252,8 @@ test('@phone a message never covers the sign-in buttons', async ({ page }) => {
 test.describe('guard rails', () => {
   test('an admin cannot switch themselves off or demote themselves', async ({ page }) => {
     await open(page, '/team')
-    const mine = page.locator('.MuiCard-root', { hasText: '(you)' })
+    await page.getByRole('row', { name: /\(you\)/ }).click()
+    const mine = page.getByRole('dialog', { name: "Aron O'Neill (you)" })
     await expect(mine.getByRole('switch', { name: 'Active' }).or(mine.getByLabel('Active'))).toBeDisabled()
     await expect(mine.getByText('Another admin can change this')).toBeVisible()
   })
@@ -611,14 +612,18 @@ test('admin creates a staff account with a temporary password, and can reset it'
   await expect(dialog.getByText('Account ready')).toBeVisible()
   await dialog.getByRole('button', { name: 'Done' }).click()
 
-  const card = page.locator('.MuiCard-root', { hasText: 'Lucía' })
-  await card.getByRole('button', { name: 'Temporary password' }).click()
+  await page.getByRole('row', { name: /Lucía/ }).click()
+  await page.getByRole('dialog', { name: 'Lucía' }).getByRole('button', { name: 'Temporary password' }).click()
   const reset = page.getByRole('dialog', { name: 'Temporary password for Lucía' })
   await reset.getByRole('button', { name: 'Set password' }).click()
   await toast(page, 'Password set')
   await expect(reset.getByText('Account ready')).toBeVisible()
-  // Admins change their own passwords; there is no reset button on admin cards.
-  await expect(page.locator('.MuiCard-root', { hasText: '(you)' }).getByRole('button', { name: 'Temporary password' })).toHaveCount(0)
+  await reset.getByRole('button', { name: 'Done' }).click()
+  await page.getByRole('dialog', { name: 'Lucía' }).getByRole('button', { name: 'Close' }).click()
+  // Admins change their own passwords; there is no reset button in an admin's panel.
+  await page.getByRole('row', { name: /\(you\)/ }).click()
+  await expect(page.getByRole('dialog', { name: "Aron O'Neill (you)" })).toBeVisible()
+  await expect(page.getByRole('dialog', { name: "Aron O'Neill (you)" }).getByRole('button', { name: 'Temporary password' })).toHaveCount(0)
 })
 
 test('a message never covers a dialog\'s buttons', async ({ page }) => {
@@ -797,6 +802,20 @@ test.describe('appearance and accessibility', () => {
     await expect(page.getByRole('heading', { name: 'Rota' })).toBeVisible()
     await expect(root).not.toHaveAttribute('data-eb-contrast', 'high')
     await expect(root).toHaveAttribute('style', /font-size: 100%/)
+  })
+  test('each person picks a decimal comma or point, and amounts follow it', async ({ page }) => {
+    await open(page, '/team')
+    const maria = page.getByRole('row', { name: /Maria/ })
+    await expect(maria).toContainText('8,80 €/h')
+    await page.getByRole('link', { name: 'Appearance' }).first().click()
+    await page.getByRole('radio', { name: 'Decimal point' }).click()
+    await toast(page, 'Numbers: decimal point')
+    await page.getByRole('link', { name: 'Team' }).first().click()
+    await expect(maria).toContainText('€8.80/h')
+    // Another person on this device still sees their own choice (the comma).
+    await signInAs(page, 'mark@example.com')
+    await page.getByRole('link', { name: 'Team' }).first().click()
+    await expect(maria).toContainText('8,80 €/h')
   })
 })
 

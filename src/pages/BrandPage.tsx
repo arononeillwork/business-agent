@@ -15,6 +15,7 @@ import { useAction, useNotify } from '../app/Notify'
 import { ErrorBox, PageHeader, SectionTitle } from '../components/common'
 import type { BrandColour } from '../../shared/types'
 import logoUrl from '../assets/logo.png'
+import { formatNumber } from '../../shared/time'
 import { tokens } from '../theme'
 
 const ROLES: Record<BrandColour['role'], string> = { primary: 'Primary', secondary: 'Secondary', accent: 'Accent', base: 'Background' }
@@ -275,7 +276,7 @@ function FontPicker({ current, title, onClose, onPick }: { current: string; titl
           <ErrorBox error={list.error} />
           {list.data && (
             <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-              {matches.length.toLocaleString()} fonts{matches.length > shown.length ? `, showing the first ${shown.length}; keep typing to narrow it down` : ''}
+              {formatNumber(matches.length)} fonts{matches.length > shown.length ? `, showing the first ${shown.length}; keep typing to narrow it down` : ''}
               {list.data.source === 'built-in' ? ' (popular fonts; the full Google list is loading on the live site)' : ''}
             </Typography>
           )}

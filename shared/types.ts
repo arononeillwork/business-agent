@@ -102,6 +102,8 @@ export interface Preferences {
   contrast?: 'normal' | 'high'
   font?: 'default' | 'readable'
   motion?: 'system' | 'reduce'
+  /** Decimal mark for money and numbers: 1.234,50 € (comma) or €1,234.50 (point). */
+  numberFormat?: 'comma' | 'point'
 }
 
 export interface Position {

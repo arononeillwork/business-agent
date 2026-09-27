@@ -5,6 +5,7 @@ import { currentRates } from '../data/api'
 import { createDemoApi } from '../data/demoApi'
 import { createSupabaseApi } from '../data/supabaseApi'
 import type { BreakType, Business, PartnerArea, PayRate, Position, Profile, Settings } from '../../shared/types'
+import { setNumberFormat } from '../../shared/time'
 import { StartError } from '../pages/StatusPages'
 
 export interface AppData {
@@ -105,6 +106,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AppData | null>(() => {
     if (!api) return null
     const me = state.me
+    // Set before any page renders, so every amount on screen uses this person's decimal mark.
+    setNumberFormat(me?.preferences?.numberFormat)
     const isPartner = me?.role === 'partner'
     const partnerCan = (area: PartnerArea) => !!(isPartner && me?.partner_access?.includes(area))
     const adminPay = me?.role === 'admin' && !!me?.can_see_pay
