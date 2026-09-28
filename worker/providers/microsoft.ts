@@ -23,8 +23,12 @@ async function tokenRequest(cfg: MicrosoftOAuthConfig, body: Record<string, stri
     method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ client_id: cfg.clientId, client_secret: cfg.clientSecret, redirect_uri: cfg.redirectUri, ...body }),
   })
-  const json = await res.json() as { access_token?: string; refresh_token?: string; error_description?: string; error?: string }
-  if (!res.ok || !json.access_token) throw new Error((json.error_description ?? json.error ?? 'Microsoft sign-in failed').split('\r\n')[0])
+  // `scope`: what was actually granted (a work account's admin can block some permissions).
+  const json = await res.json() as { access_token?: string; refresh_token?: string; scope?: string; error_description?: string; error?: string }
+  if (!res.ok || !json.access_token) {
+    const said = (json.error_description ?? 'Microsoft sign-in failed').split('\r\n')[0]
+    throw new Error(json.error === 'invalid_grant' ? `invalid_grant: ${said}` : said)
+  }
   return json
 }
 
@@ -48,6 +52,21 @@ export async function sendMail(token: string, m: { to: string; subject: string; 
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ message: { subject: m.subject, body: { contentType: 'Text', content: m.text }, toRecipients: [{ emailAddress: { address: m.to } }] }, saveToSentItems: true }),
   })
+}
+
+/** The app's "Business Agent" folder in OneDrive (created if missing); returns its id. */
+export async function ensureFolder(token: string) {
+  const res = await fetch(`${GRAPH}/me/drive/root:/Business%20Agent`, { headers: { authorization: `Bearer ${token}` } })
+  if (res.ok) return ((await res.json()) as { id: string }).id
+  if (res.status !== 404) {
+    const err = await res.json().catch(() => ({})) as { error?: { message?: string; code?: string } }
+    throw new Error(`Microsoft: ${err.error?.message ?? err.error?.code ?? res.status}`)
+  }
+  const made = await graph<{ id: string }>(token, '/me/drive/root/children', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name: 'Business Agent', folder: {}, '@microsoft.graph.conflictBehavior': 'replace' }),
+  })
+  return made.id
 }
 
 /** Save a small file (under 4 MB) into "Business Agent/<folder>" in OneDrive; returns its web link. */

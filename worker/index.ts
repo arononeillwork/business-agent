@@ -3,6 +3,7 @@ import { OAuthProvider } from '@cloudflare/workers-oauth-provider'
 import { bearer, serviceClient, userClient, type Env } from './supabase'
 import { rest } from './rest'
 import { drainOutbox, integrations, syncGoogle } from './integrations'
+import { checkAll } from './connections'
 import { refreshAllSports, refreshStaleSports, syncCrests } from './sports'
 import { music } from './music'
 import { calendarFeeds } from './calendarFeed'
@@ -42,7 +43,7 @@ app.post('/api/admin/invite', async c => {
   const { data: isAdmin, error } = await userClient(c.env, token, 'app').rpc('is_admin')
   if (error || !isAdmin) return c.json({ error: 'Only an admin can invite people' }, 403)
 
-  const body = await c.req.json<{ email?: string; full_name?: string; role?: string; partner_company?: string; partner_access?: string[]; password?: string }>()
+  const body = await c.req.json<{ email?: string; full_name?: string; role?: string; partner_company?: string; partner_access?: string[]; password?: string; phone?: string | null; contact_method?: string | null }>()
   const email = body.email?.trim().toLowerCase()
   const role = ['admin', 'employee', 'kiosk', 'partner'].includes(body.role ?? '') ? body.role : 'employee'
   if (!email || !body.full_name?.trim()) return c.json({ error: 'Name and email are required' }, 400)
@@ -53,6 +54,11 @@ app.post('/api/admin/invite', async c => {
     partner_access: (body.partner_access ?? []).filter(a => ['calendar', 'rota', 'payroll', 'finances'].includes(a)),
   } : {}
   if (role === 'partner' && !partner.partner_company) return c.json({ error: 'Add the partner’s company name' }, 400)
+  // How they want to hear about shifts (they can change it later on My account).
+  const contact = {
+    ...(body.phone?.trim() ? { phone: body.phone.trim() } : {}),
+    ...(body.contact_method && ['whatsapp', 'sms', 'email'].includes(body.contact_method) ? { contact_method: body.contact_method } : {}),
+  }
 
   // With a temporary password: create the account now, no email needed (Supabase's built-in email
   // only reaches the project's own members). app_metadata is service-only, so the role is trusted.
@@ -72,7 +78,7 @@ app.post('/api/admin/invite', async c => {
     // the new-user trigger has already run, which left these accounts inactive.
     const { error: profileError } = await svc.from('profiles').update({
       full_name: body.full_name.trim(), role, active: true,
-      ...(role === 'partner' ? partner : {}),
+      ...(role === 'partner' ? partner : contact),
     }).eq('id', created.user.id)
     if (profileError) {
       await svc.auth.admin.deleteUser(created.user.id)
@@ -82,11 +88,13 @@ app.post('/api/admin/invite', async c => {
   }
 
   const origin = new URL(c.req.url).origin
-  const { error: inviteError } = await serviceClient(c.env).auth.admin.inviteUserByEmail(email, {
+  const svc = serviceClient(c.env)
+  const { data: invited, error: inviteError } = await svc.auth.admin.inviteUserByEmail(email, {
     data: { full_name: body.full_name.trim(), role, ...partner },
     redirectTo: `${origin}/account`,
   })
   if (inviteError) return c.json({ error: inviteError.message }, 400)
+  if (invited.user && role !== 'partner' && Object.keys(contact).length) await svc.from('profiles').update(contact).eq('id', invited.user.id)
   return c.json({ ok: true })
 })
 
@@ -158,7 +166,7 @@ export default {
   fetch: (request, env, ctx) => provider(env, new URL(request.url).origin).fetch(request, env, ctx),
   // Every minute: close forgotten timecards, queue shift alerts, remind admins about events,
   // deliver the outbox, refresh sports.
-  // Nightly: fill yesterday's missing timecards from the rota.
+  // Nightly: fill yesterday's missing timecards from the rota, check every connection still works.
   async scheduled(event, env, ctx) {
     if (!env.SUPABASE_SERVICE_ROLE_KEY) return
     const db = serviceClient(env)
@@ -168,6 +176,8 @@ export default {
     if (event.cron === NIGHTLY) {
       ctx.waitUntil((async () => {
         await Promise.resolve(db.rpc('auto_fill_timecards')).then(log('auto_fill_timecards'))
+        // Prove every connection still works; admins get a notification when one stops working.
+        await checkAll(env, db).catch(e => console.error('connection checks failed', e))
         // Re-send hours, closures and phone to Google Maps every night, so the listing stays right
         // even if someone edits it on Google or a change was missed (changes also sync within a minute).
         const { data: g } = await db.from('integrations').select('status').eq('provider', 'google_business').maybeSingle()

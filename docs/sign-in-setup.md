@@ -20,8 +20,12 @@ Google does not let apps create sign-in keys automatically, so this part is manu
    and email, so Google doesn't need to review it.
 4. **Data access / Scopes**: add `openid`, `.../auth/userinfo.email`, `.../auth/userinfo.profile`.
    Also add the ones for the Google connections: `business.manage` (Google Maps listing),
-   `gmail.send` (Gmail: send team alerts) and `drive.file` (Google Drive: only files the app makes).
-   Also enable the **Gmail API** and **Google Drive API** under APIs & Services → Library.
+   `gmail.send` (Gmail: send team alerts), `drive.file` (Google Drive: only files the app makes)
+   and `youtube.readonly` (YouTube Music: read playlists).
+   Also enable the **Gmail API**, **Google Drive API** and **YouTube Data API v3** under
+   APIs & Services → Library. (If one is off, connecting that app says exactly which to switch on.)
+   Google Maps also needs Google to switch on Business Profile access for the project once:
+   request it with Google's "Business Profile API access" form (usually approved in a few days).
 5. **Clients → Create client → Web application**, name **Business Agent web**:
    - Authorised JavaScript origins: `https://business-agent.arononeillwork.workers.dev`
    - Authorised redirect URIs (both):
@@ -38,8 +42,10 @@ Google does not let apps create sign-in keys automatically, so this part is manu
    Google sign-in" passes (it fails if Google shows an error such as `redirect_uri_mismatch`).
    Then open the site → **Google** → pick your account.
 
-The same Google keys power sign-in, Google Maps, Gmail and Google Drive: one set of keys, and
-each business just presses **Connect** on its Connections page.
+The same Google keys power sign-in, Google Maps, Gmail, Google Drive and YouTube Music: one set of
+keys, and each business just presses **Connect** on its Connections page. An app only shows as
+connected once it has really worked (Gmail sends itself a confirmation, Drive gets its folder…),
+and every connection is checked again each night.
 
 ## Microsoft (automatic, 2 minutes)
 

@@ -34,6 +34,16 @@ export async function sendTemplate(cfg: WhatsAppConfig, to: string, template: st
   return json.messages[0].id
 }
 
+/** Is the café's WhatsApp number still reachable with this token? Returns its display number. */
+export async function phoneNumber(cfg: WhatsAppConfig) {
+  const res = await fetch(`https://graph.facebook.com/${cfg.graphVersion}/${cfg.phoneNumberId}?fields=display_phone_number,verified_name`, {
+    headers: { authorization: `Bearer ${cfg.token}` },
+  })
+  const json = await res.json() as { display_phone_number?: string; verified_name?: string; error?: { message: string } }
+  if (!res.ok) throw new Error(json.error?.message ?? `WhatsApp error ${res.status}`)
+  return json.display_phone_number ?? json.verified_name ?? cfg.phoneNumberId
+}
+
 /** Meta signs webhook bodies with the app secret: X-Hub-Signature-256: sha256=<hex>. */
 export async function verifySignature(appSecret: string, rawBody: string, header: string | null | undefined) {
   if (!header?.startsWith('sha256=')) return false

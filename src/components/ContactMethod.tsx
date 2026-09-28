@@ -10,9 +10,9 @@ import type { ContactMethod } from '../../shared/types'
 import { tokens } from '../theme'
 
 /** Ways to reach someone. `soon`: shown so people know it's coming, but can't be picked yet. */
-export const CONTACT_METHODS: { value: ContactMethod; label: string; icon: ReactNode; soon?: boolean }[] = [
+export const CONTACT_METHODS: { value: ContactMethod; label: string; icon: ReactNode; soon?: boolean; note?: string }[] = [
   { value: 'whatsapp', label: 'WhatsApp', icon: <WhatsAppIcon fontSize="small" /> },
-  { value: 'sms', label: 'Text message', icon: <SmsIcon fontSize="small" /> },
+  { value: 'sms', label: 'Text message', icon: <SmsIcon fontSize="small" />, note: 'Texts start once the café connects them; WhatsApp until then' },
   { value: 'email', label: 'Email', icon: <MailIcon fontSize="small" /> },
   { value: 'call', label: 'Phone call', icon: <CallIcon fontSize="small" />, soon: true },
   { value: 'slack', label: 'Slack', icon: <SlackIcon fontSize="small" />, soon: true },
@@ -21,10 +21,12 @@ export const CONTACT_METHODS: { value: ContactMethod; label: string; icon: React
 export const contactMethod = (v?: ContactMethod | null) => CONTACT_METHODS.find(m => m.value === v)
 
 /** "Preferred contact" picker; coming-soon options are listed but disabled. */
-export function ContactMethodField({ value, onChange, label = 'Preferred contact' }: { value: ContactMethod | null; onChange: (v: ContactMethod | null) => void; label?: string }) {
+export function ContactMethodField({ value, onChange, label = 'Preferred contact', helperText = 'How the café should reach you about shifts and changes' }: {
+  value: ContactMethod | null; onChange: (v: ContactMethod | null) => void; label?: string; helperText?: string
+}) {
   return (
     <TextField select label={label} value={value ?? ''} onChange={e => onChange((e.target.value || null) as ContactMethod | null)}
-      helperText="How the café should reach you about shifts and changes"
+      helperText={helperText}
       slotProps={{ select: { renderValue: v => {
         const m = contactMethod(v as ContactMethod)
         return m ? <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, '& svg': { color: tokens.inkSoft } }}>{m.icon}{m.label}</Box> : 'No preference'
@@ -33,7 +35,7 @@ export function ContactMethodField({ value, onChange, label = 'Preferred contact
       {CONTACT_METHODS.map(m => (
         <MenuItem key={m.value} value={m.value} disabled={m.soon}>
           <ListItemIcon sx={{ minWidth: 32 }}>{m.icon}</ListItemIcon>
-          <ListItemText primary={m.label} />
+          <ListItemText primary={m.label} secondary={m.note} />
           {m.soon && <Chip size="small" label="Coming soon" sx={{ ml: 1.5, bgcolor: tokens.ubeSoft, color: tokens.ubeDeep }} />}
         </MenuItem>
       ))}

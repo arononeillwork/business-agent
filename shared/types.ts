@@ -247,9 +247,11 @@ export const TIME_OFF_LABELS: Record<TimeOffKind, string> = {
   vacation: 'Holiday', personal: 'Personal day', sick: 'Sick', other: 'Other',
 }
 
-export type IntegrationProvider = 'google_business' | 'whatsapp' | 'instagram' | 'spotify' | ConnectorProvider
-/** Email and file connections (one sign-in with Google or Microsoft each). */
-export type ConnectorProvider = 'gmail' | 'outlook' | 'google_drive' | 'onedrive'
+export type IntegrationProvider = 'google_business' | 'whatsapp' | 'instagram' | 'spotify' | ConnectorProvider | CalendarApp
+/** Connections made with one sign-in with Google or Microsoft (email, files, café YouTube Music). */
+export type ConnectorProvider = 'gmail' | 'outlook' | 'google_drive' | 'onedrive' | 'youtube_music'
+/** Calendar apps that subscribe to the team calendar link. */
+export type CalendarApp = 'google_calendar' | 'outlook_calendar'
 
 export interface SpotifyPlaylist { id: string; name: string; image?: string; tracks: number; url: string; owner?: string }
 
@@ -261,6 +263,9 @@ export interface MusicPlaylist { id: string; name: string; image?: string; track
 export interface MyNowPlaying { playing: boolean; track?: string; artist?: string; device?: string; image?: string }
 
 export interface MusicNow {
+  /** Which app the café uses. Spotify can be played/paused from the app; YouTube Music is opened on the café device. */
+  provider?: 'spotify' | 'youtube'
+  controls?: boolean
   playlist: SpotifyPlaylist | null
   playing: boolean
   track?: string
@@ -271,12 +276,15 @@ export interface MusicNow {
 
 export interface Integration {
   provider: IntegrationProvider
-  status: 'connected' | 'needs_setup' | 'error' | 'disconnected'
+  /** 'connected' only once the Worker has proven it works; 'pending' = chosen, waiting to be proven. */
+  status: 'connected' | 'pending' | 'needs_setup' | 'error' | 'disconnected'
   account_label: string | null
   external: { locations?: { name: string; title: string; address?: string }[]; location?: string; closed_on_holidays?: boolean; playlist?: SpotifyPlaylist }
   connected_at: string | null
   last_sync_at: string | null
   last_error: string | null
+  /** When the Worker last proved it still works (on connect, nightly, or "Check now"). */
+  last_checked_at?: string | null
 }
 
 export interface IntegrationsState {

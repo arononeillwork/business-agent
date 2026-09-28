@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { Api } from './api'
-import type { AppNotification, Brand, Business, EventAlert, Expense, MusicPlaylist, OutboxItem, Profile, Settings, TimeEntry, TimeOff } from '../../shared/types'
+import type { AppNotification, Brand, Business, EventAlert, Expense, Integration, MusicPlaylist, OutboxItem, Profile, Settings, TimeEntry, TimeOff } from '../../shared/types'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
 
 const PROFILE_COLUMNS = 'id, full_name, email, role, can_see_pay, colour, active, phone, birth_date, whatsapp_opt_in, partner_company, partner_access, preferences'
@@ -269,8 +269,8 @@ export function createSupabaseApi(url: string, key: string): Api {
         effective_from: new Date().toISOString().slice(0, 10),
       }))
     },
-    async invite(email, fullName, role, password) {
-      await worker('/api/admin/invite', { method: 'POST', body: JSON.stringify({ email, full_name: fullName, role, password }) })
+    async invite(email, fullName, role, password, contact) {
+      await worker('/api/admin/invite', { method: 'POST', body: JSON.stringify({ email, full_name: fullName, role, password, ...contact }) })
     },
     async setTemporaryPassword(userId, password) {
       await worker('/api/admin/set-password', { method: 'POST', body: JSON.stringify({ user_id: userId, password }) })
@@ -343,8 +343,12 @@ export function createSupabaseApi(url: string, key: string): Api {
     },
 
     integrations: () => worker('/api/integrations'),
-    async connectGoogle() {
-      const { url } = await worker<{ url: string }>('/api/integrations/google/start', { method: 'POST' })
+    async connectGoogle(back) {
+      const { url } = await worker<{ url: string }>('/api/integrations/google/start', { method: 'POST', body: JSON.stringify({ back }) })
+      location.assign(url)
+    },
+    async connectInstagram(back) {
+      const { url } = await worker<{ url: string }>('/api/integrations/instagram/start', { method: 'POST', body: JSON.stringify({ back }) })
       location.assign(url)
     },
     async chooseGoogleListing(loc, closedOnHolidays) {
@@ -358,6 +362,9 @@ export function createSupabaseApi(url: string, key: string): Api {
       const { url } = await worker<{ url: string }>(`/api/integrations/connect/${provider}/start`, { method: 'POST', body: JSON.stringify({ back }) })
       location.assign(url)
     },
+    checkConnection: provider => worker(`/api/integrations/${provider}/check`, { method: 'POST' }),
+    async checkConnections() { return (await worker<{ integrations: Integration[] }>('/api/integrations/check', { method: 'POST' })).integrations },
+    chooseCalendar: app => worker(`/api/integrations/calendar/${app}/choose`, { method: 'POST' }),
     async sendTestEmail(to) { await worker('/api/integrations/email/test', { method: 'POST', body: JSON.stringify({ to }) }) },
     saveFile: f => worker('/api/integrations/files/save', { method: 'POST', body: JSON.stringify(f) }),
     async whatsappTest(to) { await worker('/api/integrations/whatsapp/test', { method: 'POST', body: JSON.stringify({ to }) }) },
@@ -374,9 +381,9 @@ export function createSupabaseApi(url: string, key: string): Api {
       const { url } = await worker<{ url: string }>('/api/integrations/spotify/start', { method: 'POST' })
       location.assign(url)
     },
-    spotifyPlaylists: () => worker('/api/integrations/spotify/playlists'),
-    async chooseSpotifyPlaylist(playlist) {
-      await worker('/api/integrations/spotify/playlist', { method: 'POST', body: JSON.stringify({ playlist }) })
+    cafePlaylists: () => worker('/api/integrations/music/playlists'),
+    async chooseCafePlaylist(playlist) {
+      await worker('/api/integrations/music/playlist', { method: 'POST', body: JSON.stringify({ playlist }) })
     },
     async brand() {
       return check(await sb.from('brand').select('logo, logo_mark, colours, heading_font, body_font, notes, updated_at').eq('id', 1).single()) as Brand

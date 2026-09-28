@@ -5,6 +5,8 @@ import { Hono, type MiddlewareHandler } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { bearer, serviceClient, userClient, type Env } from './supabase'
 import { seal, unseal } from './crypto'
+import { calendarFetched } from './connections'
+import { calendarAppFromAgent } from '../shared/connections'
 import { buildIcs, type IcsEvent } from '../shared/ics'
 import { addDays, today } from '../shared/time'
 import { businessConfig } from '../shared/business.config'
@@ -20,6 +22,24 @@ const newToken = () => {
 }
 
 const feedUrl = (origin: string, token: string) => `${origin}/cal/${token}.ics`
+
+/** Make (or reset) someone's feed link. Resetting stops the old link working straight away. */
+async function makeFeed(env: Env, db: SupabaseClient, profileId: string, scope: FeedScope, origin: string) {
+  const token = newToken()
+  const { error } = await db.from('calendar_feeds').upsert({
+    profile_id: profileId, scope, token_hash: await sha256(token),
+    ciphertext: await seal(env.INTEGRATION_KEY!, { token }), created_at: new Date().toISOString(), last_read_at: null, last_read_by: null,
+  })
+  if (error) throw new Error(error.message)
+  return feedUrl(origin, token)
+}
+
+/** Someone's feed link, made the first time it's needed (Connections page: "Add to Google Calendar"). */
+export async function ensureFeed(env: Env, db: SupabaseClient, profileId: string, scope: FeedScope, origin: string) {
+  const { data } = await db.from('calendar_feeds').select('ciphertext').eq('profile_id', profileId).eq('scope', scope).maybeSingle()
+  if (data) return feedUrl(origin, (await unseal<{ token: string }>(env.INTEGRATION_KEY!, data.ciphertext)).token)
+  return makeFeed(env, db, profileId, scope, origin)
+}
 
 /** The events for one feed (past 2 weeks to 10 weeks ahead). */
 export async function feedEvents(db: SupabaseClient, scope: FeedScope, profileId: string): Promise<IcsEvent[]> {
@@ -115,13 +135,7 @@ calendarFeeds.post('/api/me/calendar-feed/:scope', async c => {
   if (!scope) return c.json({ error: 'Unknown feed' }, 404)
   if (scope === 'business' && c.get('role') !== 'admin') return c.json({ error: 'Only an admin can share the whole business calendar' }, 403)
   if (!c.env.INTEGRATION_KEY) return c.json({ error: 'Calendar links are being set up' }, 503)
-  const token = newToken()
-  const { error } = await serviceClient(c.env).from('calendar_feeds').upsert({
-    profile_id: c.get('userId'), scope, token_hash: await sha256(token),
-    ciphertext: await seal(c.env.INTEGRATION_KEY, { token }), created_at: new Date().toISOString(), last_read_at: null,
-  })
-  if (error) return c.json({ error: error.message }, 500)
-  return c.json({ url: feedUrl(new URL(c.req.url).origin, token) })
+  return c.json({ url: await makeFeed(c.env, serviceClient(c.env), c.get('userId'), scope, new URL(c.req.url).origin) })
 })
 
 calendarFeeds.delete('/api/me/calendar-feed/:scope', async c => {
@@ -142,8 +156,15 @@ calendarFeeds.get('/cal/:file', async c => {
   if (!person?.active || !['admin', 'employee'].includes(person.role as string)) return c.text('Not found', 404)
   if (feed.scope === 'business' && person.role !== 'admin') return c.text('Not found', 404)
   const events = await feedEvents(db, feed.scope as FeedScope, feed.profile_id as string)
-  c.executionCtx.waitUntil(Promise.resolve(db.from('calendar_feeds').update({ last_read_at: new Date().toISOString() })
-    .eq('profile_id', feed.profile_id).eq('scope', feed.scope)))
+  // Which app fetched it: Google Calendar or Outlook fetching the team calendar proves (and keeps
+  // proving) the business's calendar connection. A person's browser or phone changes nothing.
+  const agent = c.req.header('user-agent') ?? null
+  const app = feed.scope === 'business' ? calendarAppFromAgent(agent) : null
+  c.executionCtx.waitUntil((async () => {
+    await db.from('calendar_feeds').update({ last_read_at: new Date().toISOString(), last_read_by: agent?.slice(0, 200) ?? null })
+      .eq('profile_id', feed.profile_id).eq('scope', feed.scope)
+    if (app) await calendarFetched(db, app)
+  })().catch(e => console.error('calendar feed bookkeeping failed', e)))
   const name = feed.scope === 'me' ? `${businessConfig.name} · my shifts` : `${businessConfig.name} · team calendar`
   return new Response(buildIcs(name, events), {
     headers: { 'content-type': 'text/calendar; charset=utf-8', 'cache-control': 'private, max-age=900',

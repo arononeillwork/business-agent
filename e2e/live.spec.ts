@@ -298,3 +298,31 @@ test.describe('personal calendar feed', () => {
     expect((await request.get(new URL(url).pathname)).status()).toBe(404)
   })
 })
+
+test.describe('business connections', () => {
+  test('every app the business connected still works (checked now, like the nightly check)', async ({ request }) => {
+    const { session } = await signedIn(cfg, 'admin')
+    const auth = { authorization: `Bearer ${session.access_token}` }
+    const list = await request.get('/api/integrations', { headers: auth })
+    expect(list.status(), await list.text()).toBe(200)
+    const state = await list.json() as { integrations: { provider: string; status: string }[]; configured: Record<string, boolean> }
+    // The database knows every app the app offers (migration 28 is live), one per group.
+    for (const p of ['gmail', 'outlook', 'google_drive', 'onedrive', 'google_calendar', 'outlook_calendar', 'spotify', 'youtube_music', 'whatsapp', 'google_business', 'instagram']) {
+      expect(state.integrations.map(i => i.provider), p).toContain(p)
+      expect(typeof state.configured[p], p).toBe('boolean')
+    }
+    const check = await request.post('/api/integrations/check', { headers: auth })
+    expect(check.status(), await check.text()).toBe(200)
+    const rows = (await check.json() as { integrations: { provider: string; status: string; last_error: string | null }[] }).integrations
+    const broken = rows.filter(r => r.status === 'error').map(r => `${r.provider}: ${r.last_error}`)
+    expect(broken, 'Connections that stopped working (fix on the Connections page)').toEqual([])
+  })
+
+  test('only admins can check or change connections', async ({ request }) => {
+    const { session } = await signedIn(cfg, 'employee')
+    const auth = { authorization: `Bearer ${session.access_token}` }
+    expect((await request.post('/api/integrations/check', { headers: auth })).status()).toBe(403)
+    expect((await request.post('/api/integrations/connect/gmail/start', { headers: auth, data: {} })).status()).toBe(403)
+    expect((await request.post('/api/integrations/check')).status()).toBe(401)
+  })
+})

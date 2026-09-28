@@ -4,13 +4,14 @@
 import type { Api, ShiftInput } from './api'
 import type {
   AppNotification, Brand, EventAlert, MusicAccount, MusicPlaylist, MusicProvider, MyNowPlaying,
-  Expense, IntegrationsState, OutboxItem, PartnerArea, TimeOff,
+  Expense, Integration, IntegrationProvider, IntegrationsState, OutboxItem, PartnerArea, TimeOff,
   BreakType, Business, CalendarEvent, CorrectionRequest, PayRate, Position, Profile, Settings,
   Shift, TimeEntry, TimeEntryChange,
 } from '../../shared/types'
 import { demoSports } from './demoSports'
 import type { SportsFavourite } from '../../shared/sports'
 import { POPULAR_FONTS } from '../../shared/fonts'
+import { addToCalendarUrl, groupOf } from '../../shared/connections'
 import { addDays, localDate, minutesBetween, today, weekDates, weekStart, zonedIso } from '../../shared/time'
 
 interface RawEntry {
@@ -50,27 +51,45 @@ export function createDemoApi(): Api {
     updated_at: nowIso(),
   }
   const integ: IntegrationsState = {
-    configured: { google_business: true, whatsapp: true, instagram: true, spotify: true, gmail: true, outlook: true, google_drive: true, onedrive: true },
+    configured: { google_business: true, whatsapp: true, instagram: true, spotify: true, gmail: true, outlook: true, google_drive: true, onedrive: true,
+      youtube_music: true, google_calendar: true, outlook_calendar: true },
     queue: [],
     integrations: [
       { provider: 'google_business', status: 'connected', account_label: 'Easy Beans Coffee',
         external: { locations: [{ name: 'locations/1', title: 'Easy Beans Coffee' }], location: 'locations/1', closed_on_holidays: false },
-        connected_at: nowIso(), last_sync_at: nowIso(), last_error: null },
-      { provider: 'whatsapp', status: 'connected', account_label: '+34 695 415 335', external: {}, connected_at: nowIso(), last_sync_at: null, last_error: null },
+        connected_at: nowIso(), last_sync_at: nowIso(), last_error: null, last_checked_at: nowIso() },
+      { provider: 'whatsapp', status: 'connected', account_label: '+34 695 415 335', external: {}, connected_at: nowIso(), last_sync_at: null, last_error: null, last_checked_at: nowIso() },
       { provider: 'spotify', status: 'connected', account_label: 'Easy Beans (Premium)',
         external: { playlist: { id: 'pl1', name: 'Easy Beans · Mornings', tracks: 84, url: 'https://open.spotify.com', owner: 'Easy Beans' } },
-        connected_at: nowIso(), last_sync_at: null, last_error: null },
-      { provider: 'instagram', status: 'connected', account_label: '@easy.beans.coffee', external: {}, connected_at: nowIso(), last_sync_at: nowIso(), last_error: null },
-      ...(['gmail', 'outlook', 'google_drive', 'onedrive'] as const).map(provider => ({
-        provider, status: 'disconnected' as const, account_label: null, external: {}, connected_at: null, last_sync_at: null, last_error: null })),
+        connected_at: nowIso(), last_sync_at: null, last_error: null, last_checked_at: nowIso() },
+      { provider: 'instagram', status: 'connected', account_label: '@easy.beans.coffee', external: {}, connected_at: nowIso(), last_sync_at: nowIso(), last_error: null, last_checked_at: nowIso() },
+      ...(['gmail', 'outlook', 'google_drive', 'onedrive', 'youtube_music', 'google_calendar', 'outlook_calendar'] as const).map(provider => ({
+        provider, status: 'disconnected' as const, account_label: null, external: {}, connected_at: null, last_sync_at: null, last_error: null, last_checked_at: null })),
     ],
   }
+  /** Demo of the Worker's rules: an app that becomes connected (or chosen) disconnects the others in its group. */
+  const setConnection = (provider: IntegrationProvider, patch: Partial<Integration>) => {
+    const row = integ.integrations.find(i => i.provider === provider)!
+    Object.assign(row, patch)
+    const g = groupOf(provider)
+    if (g && (patch.status === 'connected' || patch.status === 'pending')) {
+      for (const o of integ.integrations) {
+        if (o !== row && groupOf(o.provider) === g && o.status !== 'disconnected') Object.assign(o, { status: 'disconnected', account_label: null, external: {}, last_error: null })
+      }
+    }
+    return row
+  }
+  const youtubePlaylists = [
+    { id: 'yt1', name: 'Easy Beans · Café mix', tracks: 56, url: 'https://music.youtube.com/playlist?list=yt1', owner: 'Easy Beans' },
+    { id: 'yt2', name: 'Sunday slow bar', tracks: 31, url: 'https://music.youtube.com/playlist?list=yt2', owner: 'Easy Beans' },
+  ]
   const demoPlaylists = [
     { id: 'pl1', name: 'Easy Beans · Mornings', tracks: 84, url: 'https://open.spotify.com', owner: 'Easy Beans' },
     { id: 'pl2', name: 'Easy Beans · Afternoon chill', tracks: 112, url: 'https://open.spotify.com', owner: 'Easy Beans' },
     { id: 'pl3', name: 'Aron’s gym mix', tracks: 40, url: 'https://open.spotify.com', owner: 'Aron' },
   ]
   const music: { playing: boolean; track?: string; artist?: string; device?: string } = { playing: false }
+  const cafeMusic = () => integ.integrations.find(i => (i.provider === 'spotify' || i.provider === 'youtube_music') && i.status === 'connected')
   // Music page: each person's own accounts (connecting is simulated in the demo).
   const myAccounts = new Map<string, MusicAccount[]>()
   const myPlayer: MyNowPlaying = { playing: false }
@@ -589,12 +608,12 @@ export function createDemoApi(): Api {
       if (!p) throw new Error('No such person')
       if (p.role === 'admin') throw new Error('Admins change their own password on My account')
     },
-    async invite(email, fullName, role, password) {
+    async invite(email, fullName, role, password, contact) {
       requireAdmin()
       if (password !== undefined && password.length < 8) throw new Error('The temporary password needs at least 8 characters')
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) throw new Error('Enter a full email address, like name@example.com')
       profiles.push({ id: uid(), full_name: fullName, email, role, can_see_pay: false, colour: '#8d6e63',
-        active: true, phone: null, birth_date: null })
+        active: true, phone: contact?.phone ?? null, birth_date: null, contact_method: contact?.contact_method ?? null })
     },
     async partners() {
       requireAdmin()
@@ -730,8 +749,12 @@ export function createDemoApi(): Api {
     async connectGoogle() {
       requireAdmin()
       const g = integ.integrations.find(i => i.provider === 'google_business')!
-      Object.assign(g, { status: 'connected', account_label: 'Easy Beans Coffee', connected_at: nowIso(), last_sync_at: nowIso(),
+      Object.assign(g, { status: 'connected', account_label: 'Easy Beans Coffee', connected_at: nowIso(), last_sync_at: nowIso(), last_checked_at: nowIso(), last_error: null,
         external: { locations: [{ name: 'locations/1', title: 'Easy Beans Coffee', address: business.address ?? '' }], location: 'locations/1' } })
+    },
+    async connectInstagram() {
+      requireAdmin()
+      setConnection('instagram', { status: 'connected', account_label: '@easy.beans.coffee', connected_at: nowIso(), last_checked_at: nowIso(), last_sync_at: nowIso(), last_error: null, external: {} })
     },
     async chooseGoogleListing(_loc, closedOnHolidays) {
       requireAdmin()
@@ -747,13 +770,35 @@ export function createDemoApi(): Api {
     },
     async disconnect(provider) {
       requireAdmin()
-      Object.assign(integ.integrations.find(i => i.provider === provider)!, { status: 'disconnected', account_label: null, external: {} })
+      Object.assign(integ.integrations.find(i => i.provider === provider)!, { status: 'disconnected', account_label: null, external: {}, last_error: null, last_checked_at: null })
     },
     async connectService(provider) {
       requireAdmin()
-      // Demo: pretend the café signed in with its Google / Microsoft account.
-      const account = provider === 'gmail' || provider === 'google_drive' ? 'easybeanscafe@gmail.com' : 'easybeans@outlook.com'
-      Object.assign(integ.integrations.find(i => i.provider === provider)!, { status: 'connected', account_label: account, connected_at: nowIso(), last_error: null })
+      // Demo: pretend the café signed in with its Google / Microsoft account and the proof passed.
+      const account = provider === 'youtube_music' ? 'Easy Beans' : provider === 'gmail' || provider === 'google_drive' ? 'easybeanscafe@gmail.com' : 'easybeans@outlook.com'
+      setConnection(provider, { status: 'connected', account_label: account, connected_at: nowIso(), last_checked_at: nowIso(), last_error: null, external: {} })
+    },
+    async checkConnection(provider) {
+      requireAdmin()
+      const row = integ.integrations.find(i => i.provider === provider)
+      if (!row) return null
+      // Demo: a chosen calendar counts as fetched by the calendar app as soon as you check.
+      if (row.status === 'pending') setConnection(provider, { status: 'connected', connected_at: nowIso(), last_sync_at: nowIso() })
+      if (row.status === 'connected' || row.status === 'error') Object.assign(row, { status: 'connected', last_error: null })
+      if (row.status !== 'disconnected') row.last_checked_at = nowIso()
+      return structuredClone(row)
+    },
+    async checkConnections() {
+      requireAdmin()
+      const out: Integration[] = []
+      for (const i of integ.integrations) if (['connected', 'error', 'pending'].includes(i.status)) out.push((await this.checkConnection(i.provider))!)
+      return out
+    },
+    async chooseCalendar(app) {
+      requireAdmin()
+      const feed = feeds.get(currentUser!)?.business ?? await this.makeCalendarFeed('business')
+      if (integ.integrations.find(i => i.provider === app)!.status !== 'connected') setConnection(app, { status: 'pending', connected_at: null, last_error: null, account_label: null })
+      return { url: addToCalendarUrl(app, feed), feed }
     },
     async sendTestEmail(to) {
       requireAdmin()
@@ -770,8 +815,10 @@ export function createDemoApi(): Api {
     async whatsappTest(to) {
       requireAdmin()
       if (!/\d{9,}/.test(to.replace(/\D/g, ''))) throw new Error('Enter a full number with country code, e.g. +34 600 000 000')
+      setConnection('whatsapp', { status: 'connected', account_label: '+34 695 415 335', last_checked_at: nowIso(), last_error: null })
     },
     async instagramProfile() {
+      if (integ.integrations.find(i => i.provider === 'instagram')!.status !== 'connected') throw new Error('Instagram is not connected')
       return {
         username: 'easy.beans.coffee', name: 'Easy Beans Coffee', followers_count: 1284, media_count: 57,
         biography: 'Specialty coffee & matcha · San Pedro de Alcántara',
@@ -793,14 +840,18 @@ export function createDemoApi(): Api {
     },
     async connectSpotify() {
       requireAdmin()
-      Object.assign(integ.integrations.find(i => i.provider === 'spotify')!, { status: 'connected', account_label: 'Easy Beans (Premium)', connected_at: nowIso() })
+      setConnection('spotify', { status: 'connected', account_label: 'Easy Beans (Premium)', connected_at: nowIso(), last_checked_at: nowIso(), last_error: null, external: {} })
     },
-    async spotifyPlaylists() {
-      return { playlists: demoPlaylists, approved: integ.integrations.find(i => i.provider === 'spotify')!.external.playlist ?? null }
+    async cafePlaylists() {
+      const p = cafeMusic()
+      if (!p) throw new Error('Connect Spotify or YouTube Music first')
+      return { provider: p.provider as 'spotify' | 'youtube_music', playlists: clone(p.provider === 'spotify' ? demoPlaylists : youtubePlaylists), approved: p.external.playlist ?? null }
     },
-    async chooseSpotifyPlaylist(playlist) {
+    async chooseCafePlaylist(playlist) {
       requireAdmin()
-      integ.integrations.find(i => i.provider === 'spotify')!.external.playlist = playlist
+      const p = cafeMusic()
+      if (!p) throw new Error('Connect Spotify or YouTube Music first')
+      p.external.playlist = playlist
     },
     async brand() { return clone(brand) },
     async saveBrand(patch) {
@@ -869,12 +920,15 @@ export function createDemoApi(): Api {
     async pauseMySpotify() { myPlayer.playing = false },
 
     async musicNow() {
-      const s = integ.integrations.find(i => i.provider === 'spotify')!
-      if (s.status !== 'connected') throw new Error('Spotify is not connected')
-      return { playlist: s.external.playlist ?? null, ...music, onApprovedPlaylist: music.playing }
+      const s = cafeMusic()
+      if (!s) throw new Error('No café music connected yet. An admin connects Spotify or YouTube Music on the Connections page.')
+      if (s.provider === 'youtube_music') return { provider: 'youtube', controls: false, playlist: s.external.playlist ?? null, playing: false, onApprovedPlaylist: false }
+      return { provider: 'spotify', controls: true, playlist: s.external.playlist ?? null, ...music, onApprovedPlaylist: music.playing }
     },
     async musicPlay() {
-      if (!integ.integrations.find(i => i.provider === 'spotify')!.external.playlist) throw new Error('No playlist approved yet. An admin picks one on the Connections page.')
+      const s = cafeMusic()
+      if (s?.provider === 'youtube_music') throw new Error('YouTube Music plays on the café device: open the playlist there.')
+      if (!s?.external.playlist) throw new Error('No playlist approved yet. An admin picks one on the Connections page.')
       Object.assign(music, { playing: true, track: 'Sunday Morning', artist: 'Maroon 5', device: 'Café speaker' })
     },
     async musicPause() { music.playing = false },

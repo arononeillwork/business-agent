@@ -1,4 +1,4 @@
-import type { AppNotification, Brand, BreakType, Business, CalendarEvent, ConnectorProvider, CorrectionRequest, EventAlert, Expense, InstagramProfile, IntegrationsState, KioskPerson, MusicNow, MusicPlaylist, MusicProvider, MyMusic, MyNowPlaying, OpenBreak, OpeningHours, OutboxItem, PartnerArea, PayRate, Position, Profile, Settings, Shift, SpotifyPlaylist, TimeEntry, TimeEntryChange, TimeOff, TimeOffKind } from '../../shared/types'
+import type { AppNotification, Brand, BreakType, Business, CalendarApp, CalendarEvent, ConnectorProvider, ContactMethod, CorrectionRequest, EventAlert, Expense, InstagramProfile, Integration, IntegrationProvider, IntegrationsState, KioskPerson, MusicNow, MusicPlaylist, MusicProvider, MyMusic, MyNowPlaying, OpenBreak, OpeningHours, OutboxItem, PartnerArea, PayRate, Position, Profile, Settings, Shift, SpotifyPlaylist, TimeEntry, TimeEntryChange, TimeOff, TimeOffKind } from '../../shared/types'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
 
 export type ShiftInput = Omit<Shift, 'id' | 'status'> & { id?: string; status?: Shift['status'] }
@@ -83,7 +83,7 @@ export interface Api {
   setPin(pin: string, profileId?: string): Promise<void>
   setPayRate(profileId: string, hourlyRate: number): Promise<void>
   /** Email an invite, or (with a temporary password) create the account straight away. */
-  invite(email: string, fullName: string, role: 'admin' | 'employee' | 'kiosk', password?: string): Promise<void>
+  invite(email: string, fullName: string, role: 'admin' | 'employee' | 'kiosk', password?: string, contact?: { phone?: string | null; contact_method?: ContactMethod | null }): Promise<void>
   /** Admins: give someone (not an admin) a new temporary password to sign in with. */
   setTemporaryPassword(userId: string, password: string): Promise<void>
 
@@ -122,13 +122,21 @@ export interface Api {
 
   // connections: Google Business Profile, WhatsApp, Instagram (admins)
   integrations(): Promise<IntegrationsState>
-  connectGoogle(): Promise<void>
+  connectGoogle(back?: 'setup' | 'connections'): Promise<void>
+  /** One click: sign in on instagram.com and come back connected. */
+  connectInstagram(back?: 'setup' | 'connections'): Promise<void>
   chooseGoogleListing(location: string | null, closedOnHolidays?: boolean): Promise<void>
   syncGoogleNow(): Promise<void>
   googleHours(): Promise<OpeningHours>
   disconnect(provider: string): Promise<void>
-  /** Start connecting Gmail, Outlook, Google Drive or OneDrive (goes to Google/Microsoft and back). */
+  /** Start connecting Gmail, Outlook, Google Drive, OneDrive or YouTube Music (goes to Google/Microsoft and back). */
   connectService(provider: ConnectorProvider, back?: 'setup' | 'connections'): Promise<void>
+  /** Prove a connection still works, now (the result is also on its card). */
+  checkConnection(provider: IntegrationProvider): Promise<Integration | null>
+  /** Check every connection that is (or was) working. */
+  checkConnections(): Promise<Integration[]>
+  /** Choose Google Calendar or Outlook Calendar: returns the page that adds the team calendar there. */
+  chooseCalendar(app: CalendarApp): Promise<{ url: string; feed: string }>
   /** Send a test email from the connected mailbox. */
   sendTestEmail(to: string): Promise<void>
   /** Save a file into "Business Agent/<folder>" in the connected Drive/OneDrive; returns a link to it. */
@@ -139,8 +147,9 @@ export interface Api {
   share(caption: string, imageUrl: string | null, targets: ('instagram' | 'google')[], eventId?: string): Promise<number>
   sendRota(monday: string): Promise<number>
   connectSpotify(): Promise<void>
-  spotifyPlaylists(): Promise<{ playlists: SpotifyPlaylist[]; approved: SpotifyPlaylist | null }>
-  chooseSpotifyPlaylist(playlist: SpotifyPlaylist): Promise<void>
+  /** The café music account's playlists (Spotify or YouTube Music, whichever is connected) and the approved one. */
+  cafePlaylists(): Promise<{ provider: 'spotify' | 'youtube_music'; playlists: SpotifyPlaylist[]; approved: SpotifyPlaylist | null }>
+  chooseCafePlaylist(playlist: SpotifyPlaylist): Promise<void>
 
   // Brand guidelines (everyone reads; admins change) and the Google Fonts list for the picker
   brand(): Promise<Brand>

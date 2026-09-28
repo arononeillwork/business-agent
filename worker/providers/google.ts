@@ -74,8 +74,12 @@ async function tokenRequest(body: Record<string, string>) {
   const res = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(body),
   })
-  const json = await res.json() as { access_token?: string; refresh_token?: string; expires_in?: number; error_description?: string; error?: string }
-  if (!res.ok || !json.access_token) throw new Error(json.error_description ?? json.error ?? 'Google sign-in failed')
+  // `scope`: what the person actually allowed (Google lets them untick boxes on the consent screen).
+  const json = await res.json() as { access_token?: string; refresh_token?: string; expires_in?: number; scope?: string; error_description?: string; error?: string }
+  if (!res.ok || !json.access_token) {
+    // Keep the error code: invalid_grant means the access was revoked or expired.
+    throw new Error(json.error === 'invalid_grant' ? `invalid_grant: ${json.error_description ?? 'access revoked or expired'}` : (json.error_description ?? json.error ?? 'Google sign-in failed'))
+  }
   return json
 }
 
@@ -182,6 +186,18 @@ async function folder(token: string, name: string, parent = 'root') {
     body: JSON.stringify({ name, mimeType: 'application/vnd.google-apps.folder', parents: [parent] }),
   })
   return made.id
+}
+
+/** The app's "Business Agent" folder in the café's Drive (created if missing); returns its id. */
+export const ensureDriveFolder = (token: string) => folder(token, 'Business Agent')
+
+/** Is the folder still there (not deleted or in the bin)? */
+export async function driveFolderAlive(token: string, id: string) {
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?fields=id,trashed`, { headers: { authorization: `Bearer ${token}` } })
+  if (res.status === 404) return false
+  const json = await res.json() as { trashed?: boolean; error?: { message?: string } }
+  if (!res.ok) throw new Error(`Google Drive: ${json.error?.message ?? res.status}`)
+  return !json.trashed
 }
 
 /** Save a file into "Business Agent/<sub>" in the café's Drive; returns its web link. */

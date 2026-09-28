@@ -1,138 +1,61 @@
-// Connections to Google Business Profile, WhatsApp and Instagram, and the outbox worker that
-// delivers everything queued in the database (with retries; see migration 7).
+// Connections to Google Business Profile, WhatsApp, Instagram, email, files, calendars and music,
+// and the outbox worker that delivers everything queued in the database (with retries; see
+// migration 7). Whether a connection really works is decided in connections.ts.
 import { Hono, type Context } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { bearer, serviceClient, userClient, type Env } from './supabase'
-import { seal, signState, unseal, verifyState } from './crypto'
+import { seal, signState, verifyState } from './crypto'
 import * as google from './providers/google'
 import * as whatsapp from './providers/whatsapp'
 import * as instagram from './providers/instagram'
 import * as spotify from './providers/spotify'
 import * as ms from './providers/microsoft'
+import * as youtube from './providers/youtube'
 import { alertEmail, base64url, mimeMessage } from '../shared/alertText'
+import { addToCalendarUrl, optionName } from '../shared/connections'
 import { finishMusicConnect, type MusicState } from './music'
-import type { Business, CalendarEvent } from '../shared/types'
+import { ensureFeed } from './calendarFeed'
+import {
+  CONNECTORS, PROVIDERS, ROW_COLUMNS, SCOPES, calendarSeen, calendarFetched, checkAll, checkOne, connectedOf, connectorConfigured,
+  connectorGrant, explain, googleConfig, googleSession, instagramOAuth, instagramSession, isCalendarApp, isGoogle, lasting, markBroken, msConfig,
+  proveInstagram, proveNew, proveSpotify, setIntegration, spotifyConfig, spotifySession, waConfig, type Connector, type Provider,
+} from './connections'
+import type { Business, CalendarEvent, SpotifyPlaylist } from '../shared/types'
 import { today } from '../shared/time'
 
-type Provider = 'google_business' | 'whatsapp' | 'instagram' | 'spotify' | Connector
-/** Email and file connections: one sign-in with Google or Microsoft each. */
-type Connector = 'gmail' | 'outlook' | 'google_drive' | 'onedrive'
-const CONNECTORS: Connector[] = ['gmail', 'outlook', 'google_drive', 'onedrive']
-const isGoogleConnector = (p: Connector) => p === 'gmail' || p === 'google_drive'
-const CONNECTOR_NAME: Record<Connector, string> = { gmail: 'Gmail', outlook: 'Outlook', google_drive: 'Google Drive', onedrive: 'OneDrive' }
+export { waConfig }
+
 interface ConnectorState { uid: string; kind: 'connector'; provider: Connector; back?: 'setup' | 'connections' }
 
-const graphVersion = (env: Env) => env.META_GRAPH_VERSION ?? 'v23.0'
-
-export const waConfig = (env: Env): whatsapp.WhatsAppConfig | null =>
-  env.META_ACCESS_TOKEN && env.WHATSAPP_PHONE_NUMBER_ID
-    ? { token: env.META_ACCESS_TOKEN, phoneNumberId: env.WHATSAPP_PHONE_NUMBER_ID, graphVersion: graphVersion(env), language: env.WHATSAPP_TEMPLATE_LANG ?? 'es' }
-    : null
-
-export const igConfig = (env: Env): instagram.InstagramConfig | null =>
-  env.META_ACCESS_TOKEN && env.INSTAGRAM_USER_ID
-    ? { token: env.META_ACCESS_TOKEN, userId: env.INSTAGRAM_USER_ID, graphVersion: graphVersion(env) }
-    : null
-
-const googleConfig = (env: Env, origin: string): google.GoogleOAuthConfig | null =>
-  env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET && env.INTEGRATION_KEY
-    ? { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET, redirectUri: `${origin}/api/integrations/google/callback` }
-    : null
-
-const msConfig = (env: Env, origin: string): ms.MicrosoftOAuthConfig | null =>
-  env.MS_CLIENT_ID && env.MS_CLIENT_SECRET && env.INTEGRATION_KEY
-    ? { clientId: env.MS_CLIENT_ID, clientSecret: env.MS_CLIENT_SECRET, redirectUri: `${origin}/api/integrations/microsoft/callback` }
-    : null
-
-const connectorConfigured = (env: Env, p: Connector) => isGoogleConnector(p) ? !!googleConfig(env, '') : !!msConfig(env, '')
-
-/** A fresh access token for an email/file connection. Microsoft rotates refresh tokens, so keep the new one. */
-async function connectorToken(env: Env, db: SupabaseClient, p: Connector, origin = ''): Promise<string> {
-  const { data: secret } = await db.from('integration_secrets').select('ciphertext').eq('provider', p).maybeSingle()
-  if (!secret) throw new Error(`${CONNECTOR_NAME[p]} is not connected`)
-  const { refresh_token } = await unseal<{ refresh_token: string }>(env.INTEGRATION_KEY!, secret.ciphertext)
-  if (isGoogleConnector(p)) {
-    const cfg = googleConfig(env, origin)
-    if (!cfg) throw new Error('Google is not set up')
-    return (await google.refreshAccess(cfg, refresh_token)).access_token!
-  }
-  const cfg = msConfig(env, origin)
-  if (!cfg) throw new Error('Microsoft is not set up')
-  const t = await ms.refreshAccess(cfg, refresh_token)
-  if (t.refresh_token && t.refresh_token !== refresh_token) {
-    await db.from('integration_secrets').update({ ciphertext: await seal(env.INTEGRATION_KEY!, { refresh_token: t.refresh_token }) }).eq('provider', p)
-  }
-  return t.access_token!
-}
-
-const connectedOf = async (db: SupabaseClient, options: Connector[]) => {
-  const { data } = await db.from('integrations').select('provider, status').in('provider', options)
-  return options.find(p => data?.some(r => r.provider === p && r.status === 'connected')) ?? null
-}
-
-/** Send an email from the café's connected mailbox (Gmail first, else Outlook). */
+/** Send an email from the café's connected mailbox (Gmail or Outlook, whichever the business chose). */
 export async function sendEmail(env: Env, db: SupabaseClient, m: { to: string; subject: string; text: string }) {
-  const p = await connectedOf(db, ['gmail', 'outlook'])
+  const p = await connectedOf(db, ['gmail', 'outlook'] as const)
   if (!p) throw new Error('No mailbox connected. Connect Gmail or Outlook on the Connections page.')
-  const token = await connectorToken(env, db, p)
-  if (p === 'gmail') return google.sendGmail(token, base64url(mimeMessage(m)))
-  await ms.sendMail(token, m)
-  return null
-}
-
-/** Save a file to the café's connected storage (Google Drive first, else OneDrive); returns a link. */
-export async function saveFile(env: Env, db: SupabaseClient, f: { folder: string; name: string; content: string; type: string }) {
-  const p = await connectedOf(db, ['google_drive', 'onedrive'])
-  if (!p) throw new Error('No file storage connected. Connect Google Drive or OneDrive on the Connections page.')
-  const token = await connectorToken(env, db, p)
-  const link = p === 'google_drive' ? await google.saveToDrive(token, f.folder, f.name, f.content, f.type) : await ms.saveFile(token, f.folder, f.name, f.content, f.type)
-  await setIntegration(db, p, { last_sync_at: new Date().toISOString(), last_error: null })
-  return { link, provider: p }
-}
-
-const spotifyConfig = (env: Env, origin: string): spotify.SpotifyOAuthConfig | null =>
-  env.SPOTIFY_CLIENT_ID && env.SPOTIFY_CLIENT_SECRET && env.INTEGRATION_KEY
-    ? { clientId: env.SPOTIFY_CLIENT_ID, clientSecret: env.SPOTIFY_CLIENT_SECRET, redirectUri: `${origin}/api/integrations/spotify/callback` }
-    : null
-
-/** A fresh Spotify access token for the café's account, plus the approved playlist. */
-async function spotifySession(env: Env, db: SupabaseClient, origin: string) {
-  const cfg = spotifyConfig(env, origin)
-  if (!cfg) throw new Error('Spotify is not set up')
-  const [{ data: row }, { data: secret }] = await Promise.all([
-    db.from('integrations').select('external').eq('provider', 'spotify').single(),
-    db.from('integration_secrets').select('ciphertext').eq('provider', 'spotify').maybeSingle(),
-  ])
-  if (!secret) throw new Error('Spotify is not connected')
-  const { refresh_token } = await unseal<{ refresh_token: string }>(env.INTEGRATION_KEY!, secret.ciphertext)
-  const t = await spotify.refreshAccess(cfg, refresh_token)
-  if (t.refresh_token && t.refresh_token !== refresh_token) {
-    await db.from('integration_secrets').update({ ciphertext: await seal(env.INTEGRATION_KEY!, { refresh_token: t.refresh_token }) }).eq('provider', 'spotify')
+  try {
+    const { token } = await connectorGrant(env, db, p)
+    if (p === 'gmail') return await google.sendGmail(token, base64url(mimeMessage(m)))
+    await ms.sendMail(token, m)
+    return null
+  } catch (e) {
+    // Access removed, permission missing…: the card turns red and admins hear about it.
+    if (lasting(p, e)) await markBroken(db, p, explain(p, e))
+    throw new Error(explain(p, e))
   }
-  const ext = (row?.external ?? {}) as { playlist?: spotify.Playlist }
-  return { token: t.access_token!, playlist: ext.playlist, external: ext }
 }
 
-async function setIntegration(db: SupabaseClient, provider: Provider, patch: Record<string, unknown>) {
-  const { error } = await db.from('integrations').update({ ...patch, updated_at: new Date().toISOString() }).eq('provider', provider)
-  if (error) throw new Error(error.message)
-}
-
-interface GoogleSecret { refresh_token: string }
-
-/** A fresh Google access token plus the chosen location. */
-async function googleSession(env: Env, db: SupabaseClient, origin = '') {
-  const cfg = googleConfig(env, origin)
-  if (!cfg) throw new Error('Google is not set up (client id/secret missing)')
-  const [{ data: row }, { data: secret }] = await Promise.all([
-    db.from('integrations').select('external, status').eq('provider', 'google_business').single(),
-    db.from('integration_secrets').select('ciphertext').eq('provider', 'google_business').maybeSingle(),
-  ])
-  if (!secret) throw new Error('Google is not connected')
-  const { refresh_token } = await unseal<GoogleSecret>(env.INTEGRATION_KEY!, secret.ciphertext)
-  const { access_token } = await google.refreshAccess(cfg, refresh_token)
-  const ext = (row?.external ?? {}) as { location?: string; account?: string; closed_on_holidays?: boolean }
-  return { token: access_token!, location: ext.location, account: ext.account, closedOnHolidays: !!ext.closed_on_holidays }
+/** Save a file to the café's connected storage (Google Drive or OneDrive); returns a link. */
+export async function saveFile(env: Env, db: SupabaseClient, f: { folder: string; name: string; content: string; type: string }) {
+  const p = await connectedOf(db, ['google_drive', 'onedrive'] as const)
+  if (!p) throw new Error('No file storage connected. Connect Google Drive or OneDrive on the Connections page.')
+  try {
+    const { token } = await connectorGrant(env, db, p)
+    const link = p === 'google_drive' ? await google.saveToDrive(token, f.folder, f.name, f.content, f.type) : await ms.saveFile(token, f.folder, f.name, f.content, f.type)
+    await setIntegration(db, p, { last_sync_at: new Date().toISOString(), last_error: null })
+    return { link, provider: p }
+  } catch (e) {
+    if (lasting(p, e)) await markBroken(db, p, explain(p, e))
+    throw new Error(explain(p, e))
+  }
 }
 
 /** Push the app's hours, closures and phone to Google. */
@@ -176,16 +99,15 @@ export async function drainOutbox(env: Env) {
         const { data: biz } = await db.from('business').select('name').eq('id', 1).single()
         externalId = await sendEmail(env, db, { to: p.to, ...alertEmail(p.template, p.params ?? [], biz?.name ?? 'Business Agent') })
       } else if (job.kind === 'instagram_post') {
-        const cfg = igConfig(env)
-        if (!cfg) throw new Error('Instagram is not set up')
         const p = job.payload as { image_url: string; caption: string }
-        externalId = await instagram.publishPhoto(cfg, p.image_url, p.caption)
+        externalId = await instagram.publishPhoto(await instagramSession(env, db), p.image_url, p.caption)
       }
       await db.rpc('complete_outbox', { p_id: job.id, p_ok: true, p_external_id: externalId })
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e)
       await db.rpc('complete_outbox', { p_id: job.id, p_ok: false, p_error: message })
       if (job.kind.startsWith('google')) await setIntegration(db, 'google_business', { last_error: message }).catch(() => {})
+      if (job.kind === 'instagram_post' && lasting('instagram', e)) await markBroken(db, 'instagram', explain('instagram', e)).catch(() => {})
     }
   }
 }
@@ -227,13 +149,16 @@ integrations.use('/api/integrations/*', async (c, next) => {
 
 integrations.get('/api/integrations', async c => {
   const db = serviceClient(c.env)
-  const { data } = await db.from('integrations').select('provider, status, account_label, external, connected_at, last_sync_at, last_error')
+  const { data } = await db.from('integrations').select(ROW_COLUMNS)
   const setup = {
     google_business: !!googleConfig(c.env, ''),
     whatsapp: !!waConfig(c.env) && !!c.env.META_APP_SECRET && !!c.env.WHATSAPP_VERIFY_TOKEN,
-    instagram: !!igConfig(c.env),
+    instagram: !!instagramOAuth(c.env, ''),
     spotify: !!spotifyConfig(c.env, ''),
     ...Object.fromEntries(CONNECTORS.map(p => [p, connectorConfigured(c.env, p)])),
+    // Calendars need no keys of their own: the calendar app subscribes to the team calendar link.
+    google_calendar: !!c.env.INTEGRATION_KEY,
+    outlook_calendar: !!c.env.INTEGRATION_KEY,
   }
   const { data: queue } = await db.from('outbox').select('kind, status').in('status', ['pending', 'failed', 'dead'])
   return c.json({ integrations: data, configured: setup, queue })
@@ -244,55 +169,90 @@ integrations.post('/api/integrations/google/start', async c => {
   const origin = new URL(c.req.url).origin
   const cfg = googleConfig(c.env, origin)
   if (!cfg) return c.json({ error: 'Google is not set up yet. Add GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and INTEGRATION_KEY.' }, 400)
-  const state = await signState(c.env.INTEGRATION_KEY!, { uid: c.get('userId') })
+  const { back } = await c.req.json<{ back?: 'setup' | 'connections' }>().catch(() => ({ back: undefined }))
+  const state = await signState(c.env.INTEGRATION_KEY!, { uid: c.get('userId'), back })
   return c.json({ url: google.authUrl(cfg, state) })
 })
 
-// Email and file connections: start (the browser then goes to Google or Microsoft)…
+// Email, files and YouTube Music: start (the browser then goes to Google or Microsoft)…
 integrations.post('/api/integrations/connect/:provider/start', async c => {
   const p = c.req.param('provider') as Connector
   if (!CONNECTORS.includes(p)) return c.json({ error: 'Unknown connection' }, 404)
   const origin = new URL(c.req.url).origin
   const { back } = await c.req.json<{ back?: 'setup' | 'connections' }>().catch(() => ({ back: undefined }))
   const state = await signState(c.env.INTEGRATION_KEY ?? '', { uid: c.get('userId'), kind: 'connector', provider: p, back } satisfies ConnectorState)
-  if (isGoogleConnector(p)) {
+  if (isGoogle(p)) {
     const cfg = googleConfig(c.env, origin)
-    if (!cfg) return c.json({ error: `${CONNECTOR_NAME[p]} needs the Google keys first (GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET; see docs/sign-in-setup.md).` }, 400)
-    return c.json({ url: google.authUrl(cfg, state, p === 'gmail' ? google.GMAIL_SCOPES : google.DRIVE_SCOPES) })
+    if (!cfg) return c.json({ error: `${optionName(p)} needs the Google keys first (GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET; see docs/sign-in-setup.md).` }, 400)
+    return c.json({ url: google.authUrl(cfg, state, [...SCOPES[p]]) })
   }
   const cfg = msConfig(c.env, origin)
-  if (!cfg) return c.json({ error: `${CONNECTOR_NAME[p]} needs the Microsoft app first: run the "Set up Microsoft sign-in" workflow (docs/sign-in-setup.md).` }, 400)
-  return c.json({ url: ms.authUrl(cfg, state, p === 'outlook' ? ms.MS_SCOPES.outlook : ms.MS_SCOPES.onedrive) })
+  if (!cfg) return c.json({ error: `${optionName(p)} needs the Microsoft app first: run the "Set up Microsoft sign-in" workflow (docs/sign-in-setup.md).` }, 400)
+  return c.json({ url: ms.authUrl(cfg, state, SCOPES[p]) })
 })
 
-/** …and finish: keep the refresh token (encrypted) and show which account is connected. */
+/**
+ * …and finish: use the new connection for real first (send the confirmation email, make the
+ * folder, read the playlists). Only if that works is the access kept (encrypted) and the app shown
+ * as connected; the other app in its group is then disconnected by the database (migration 28).
+ */
 async function finishConnector(c: Context<{ Bindings: Env; Variables: { userId: string } }>, state: ConnectorState) {
   const origin = new URL(c.req.url).origin
   const back = (q: string) => c.redirect(`${origin}/${state.back === 'setup' ? 'setup' : 'connections'}?${q}`)
+  const p = state.provider
+  const db = serviceClient(c.env)
+  if (c.req.query('error')) {
+    const cancelled = /access_denied|consent_required/.test(c.req.query('error')!)
+    return back(`connect_error=${encodeURIComponent(cancelled ? `${optionName(p)} connection was cancelled` : (c.req.query('error_description') ?? c.req.query('error')!))}`)
+  }
   try {
-    if (c.req.query('error')) throw new Error(/access_denied|consent_required/.test(c.req.query('error')!) ? `${CONNECTOR_NAME[state.provider]} connection was cancelled` : (c.req.query('error_description') ?? c.req.query('error')))
     const code = c.req.query('code') ?? ''
-    let refresh: string | undefined
-    let label: string | undefined
-    if (isGoogleConnector(state.provider)) {
-      const t = await google.exchangeCode(googleConfig(c.env, origin)!, code)
-      refresh = t.refresh_token
-      label = await google.accountEmail(t.access_token!)
-    } else {
-      const t = await ms.exchangeCode(msConfig(c.env, origin)!, code)
-      refresh = t.refresh_token
-      const who = await ms.me(t.access_token!)
-      label = who.mail ?? who.userPrincipalName ?? who.displayName
-    }
-    if (!refresh) throw new Error(`${CONNECTOR_NAME[state.provider]} did not allow offline access. Remove the app from your account's connected apps and connect again.`)
-    const db = serviceClient(c.env)
-    await db.from('integration_secrets').upsert({ provider: state.provider, ciphertext: await seal(c.env.INTEGRATION_KEY!, { refresh_token: refresh }) })
-    await setIntegration(db, state.provider, { status: 'connected', connected_by: state.uid, connected_at: new Date().toISOString(), last_error: null, account_label: label ?? null, external: {} })
-    return back(`connected=${state.provider}`)
+    const gcfg = googleConfig(c.env, origin), mcfg = msConfig(c.env, origin)
+    if (isGoogle(p) ? !gcfg : !mcfg) throw new Error(`${optionName(p)} is not set up`)
+    const t = isGoogle(p) ? await google.exchangeCode(gcfg!, code) : await ms.exchangeCode(mcfg!, code)
+    if (!t.refresh_token) throw new Error(`${optionName(p)} did not allow offline access. Remove the app from your account's connected apps and connect again.`)
+    const { data: biz } = await db.from('business').select('name').eq('id', 1).maybeSingle()
+    const proven = await proveNew(p, { access_token: t.access_token!, scope: t.scope }, biz?.name ?? 'Business Agent')
+    const { error } = await db.from('integration_secrets').upsert({ provider: p, ciphertext: await seal(c.env.INTEGRATION_KEY!, { refresh_token: t.refresh_token }), updated_at: new Date().toISOString() })
+    if (error) throw new Error(error.message)
+    const now = new Date().toISOString()
+    await setIntegration(db, p, { status: 'connected', connected_by: state.uid, connected_at: now, last_checked_at: now, last_error: null, account_label: proven.label, external: proven.external })
+    return back(`connected=${p}`)
   } catch (e) {
-    return back(`connect_error=${encodeURIComponent(e instanceof Error ? e.message : String(e))}`)
+    // Not connected. The reason shows on this app's card; whatever was connected before stays.
+    const why = explain(p, e)
+    await setIntegration(db, p, { last_error: why }).catch(() => {})
+    return back(`connect_error=${encodeURIComponent(why)}`)
   }
 }
+
+// "Check now": prove one connection (or every one) still works, right away.
+integrations.post('/api/integrations/check', async c =>
+  c.json({ integrations: await checkAll(c.env, serviceClient(c.env), { notify: false }) }))
+
+integrations.post('/api/integrations/:provider/check', async c => {
+  const p = c.req.param('provider') as Provider
+  if (!PROVIDERS.includes(p)) return c.json({ error: 'Unknown connection' }, 404)
+  return c.json(await checkOne(c.env, serviceClient(c.env), p, { notify: false }))
+})
+
+// Calendar: choose Google Calendar or Outlook Calendar. It shows as connected once that app has
+// fetched the team calendar (it does within minutes of being added; calendarFeed.ts notices).
+integrations.post('/api/integrations/calendar/:app/choose', async c => {
+  const app = c.req.param('app')
+  if (!isCalendarApp(app)) return c.json({ error: 'Unknown calendar app' }, 404)
+  if (!c.env.INTEGRATION_KEY) return c.json({ error: 'Calendar links are being set up' }, 503)
+  const db = serviceClient(c.env)
+  const feed = await ensureFeed(c.env, db, c.get('userId'), 'business', new URL(c.req.url).origin)
+  const { data: row } = await db.from('integrations').select('status').eq('provider', app).maybeSingle()
+  if (row?.status !== 'connected') {
+    await setIntegration(db, app, { status: 'pending', connected_by: c.get('userId'), connected_at: null, last_error: null, account_label: null, external: {} })
+    // Already subscribed in that app before choosing it here: connected straight away.
+    const seen = await calendarSeen(db, app)
+    if (seen && Date.now() - Date.parse(seen) < 3 * 86_400_000) await calendarFetched(db, app, seen)
+  }
+  return c.json({ url: addToCalendarUrl(app, feed), feed })
+})
 
 const connectorState = async (env: Env, raw: string) => {
   try {
@@ -338,26 +298,36 @@ integrations.get('/api/integrations/google/callback', async c => {
   const connector = await connectorState(c.env, c.req.query('state') ?? '')
   if (connector) return finishConnector(c, connector)
   const origin = new URL(c.req.url).origin
-  const back = (q: string) => c.redirect(`${origin}/connections?${q}`)
+  let state: { uid: string; back?: string } | null = null
+  try { state = await verifyState<{ uid: string; back?: string }>(c.env.INTEGRATION_KEY ?? '', c.req.query('state') ?? '') } catch { /* expired or forged */ }
+  const back = (q: string) => c.redirect(`${origin}/${state?.back === 'setup' ? 'setup' : 'connections'}?${q}`)
+  if (!state) return back(`connect_error=${encodeURIComponent('That connection link expired. Try again.')}`)
+  if (c.req.query('error')) return back(`connect_error=${encodeURIComponent(c.req.query('error') === 'access_denied' ? 'Google Maps connection was cancelled' : c.req.query('error')!)}`)
+  const db = serviceClient(c.env)
   try {
     const cfg = googleConfig(c.env, origin)
     if (!cfg) throw new Error('Google is not set up')
-    if (c.req.query('error')) throw new Error(c.req.query('error'))
-    const { uid } = await verifyState<{ uid: string }>(c.env.INTEGRATION_KEY!, c.req.query('state') ?? '')
+    const { uid } = state
     const tokens = await google.exchangeCode(cfg, c.req.query('code') ?? '')
     if (!tokens.refresh_token) throw new Error('Google did not return offline access. Remove the app in your Google account and connect again.')
-    const db = serviceClient(c.env)
-    await db.from('integration_secrets').upsert({ provider: 'google_business', ciphertext: await seal(c.env.INTEGRATION_KEY!, { refresh_token: tokens.refresh_token }) })
+    if (!/business\.manage/.test(tokens.scope ?? 'business.manage')) throw new Error(explain('google_business', 'insufficient authentication scopes'))
+    // Proof first: the account manages at least one listing. Only then is the access kept.
     const locations = await google.listLocations(tokens.access_token!)
+    if (!locations.length) throw new Error('This Google account has no Google Maps listing. Sign in with the account that owns (or manages) the café’s listing.')
+    const { error } = await db.from('integration_secrets').upsert({ provider: 'google_business', updated_at: new Date().toISOString(), ciphertext: await seal(c.env.INTEGRATION_KEY!, { refresh_token: tokens.refresh_token }) })
+    if (error) throw new Error(error.message)
     const only = locations.length === 1 ? locations[0] : null
+    const now = new Date().toISOString()
     await setIntegration(db, 'google_business', {
-      status: 'connected', connected_by: uid, connected_at: new Date().toISOString(), last_error: null,
+      status: 'connected', connected_by: uid, connected_at: now, last_checked_at: now, last_error: null,
       account_label: only?.title ?? `${locations.length} listings found`,
       external: { locations, ...(only ? { location: only.name, account: only.account } : {}) },
     })
-    return back('connected=google')
+    return back('connected=google_business')
   } catch (e) {
-    return back(`connect_error=${encodeURIComponent(e instanceof Error ? e.message : String(e))}`)
+    const why = explain('google_business', e)
+    await setIntegration(db, 'google_business', { last_error: why }).catch(() => {})
+    return back(`connect_error=${encodeURIComponent(why)}`)
   }
 })
 
@@ -390,9 +360,10 @@ integrations.get('/api/integrations/google/hours', async c => {
 
 integrations.post('/api/integrations/:provider/disconnect', async c => {
   const provider = c.req.param('provider') as Provider
+  if (!PROVIDERS.includes(provider)) return c.json({ error: 'Unknown connection' }, 404)
   const db = serviceClient(c.env)
   await db.from('integration_secrets').delete().eq('provider', provider)
-  await setIntegration(db, provider, { status: 'disconnected', external: {}, account_label: null, last_error: null })
+  await setIntegration(db, provider, { status: 'disconnected', external: {}, account_label: null, last_error: null, last_checked_at: null })
   return c.json({ ok: true })
 })
 
@@ -414,29 +385,54 @@ integrations.get('/api/integrations/spotify/callback', async c => {
     if (c.req.query('error')) throw new Error(c.req.query('error') === 'access_denied' ? 'Spotify connection was cancelled' : c.req.query('error'))
     const { uid } = await verifyState<{ uid: string }>(c.env.INTEGRATION_KEY!, c.req.query('state') ?? '')
     const t = await spotify.exchangeCode(cfg, c.req.query('code') ?? '')
-    const who = await spotify.me(t.access_token!)
+    if (!t.refresh_token) throw new Error('Spotify did not allow lasting access. Connect again.')
+    // Proof first: the account signs in and its playlists can be read. Only then is it kept.
+    const proven = await proveSpotify(t.access_token!)
     const db = serviceClient(c.env)
-    await db.from('integration_secrets').upsert({ provider: 'spotify', ciphertext: await seal(c.env.INTEGRATION_KEY!, { refresh_token: t.refresh_token }) })
-    await setIntegration(db, 'spotify', { status: 'connected', connected_by: uid, connected_at: new Date().toISOString(), last_error: null,
-      account_label: `${who.display_name ?? who.id}${who.product === 'premium' ? '' : ' (not Premium: playback control won’t work)'}`, external: {} })
+    const { error } = await db.from('integration_secrets').upsert({ provider: 'spotify', ciphertext: await seal(c.env.INTEGRATION_KEY!, { refresh_token: t.refresh_token }), updated_at: new Date().toISOString() })
+    if (error) throw new Error(error.message)
+    const now = new Date().toISOString()
+    await setIntegration(db, 'spotify', { status: 'connected', connected_by: uid, connected_at: now, last_checked_at: now, last_error: null,
+      account_label: proven.label, external: proven.external })
     return back('connected=spotify')
   } catch (e) {
-    return back(`connect_error=${encodeURIComponent(e instanceof Error ? e.message : String(e))}`)
+    const why = explain('spotify', e)
+    await setIntegration(serviceClient(c.env), 'spotify', { last_error: why }).catch(() => {})
+    return back(`connect_error=${encodeURIComponent(why)}`)
   }
 })
 
-integrations.get('/api/integrations/spotify/playlists', async c => {
-  const s = await spotifySession(c.env, serviceClient(c.env), new URL(c.req.url).origin)
-  return c.json({ playlists: await spotify.playlists(s.token), approved: s.playlist ?? null })
+/** The café's music account (Spotify or YouTube Music, whichever is connected) and its playlists. */
+async function cafeMusic(env: Env, db: SupabaseClient, origin: string) {
+  const p = await connectedOf(db, ['spotify', 'youtube_music'] as const)
+  if (p === 'spotify') {
+    const s = await spotifySession(env, db, origin)
+    return { provider: p, external: s.external, approved: s.playlist ?? null, playlists: () => spotify.playlists(s.token) }
+  }
+  if (p === 'youtube_music') {
+    const [{ token }, { data }] = await Promise.all([connectorGrant(env, db, p, origin), db.from('integrations').select('external').eq('provider', p).single()])
+    const ext = (data?.external ?? {}) as { playlist?: SpotifyPlaylist }
+    return { provider: p, external: ext as Record<string, unknown>, approved: ext.playlist ?? null,
+      playlists: async (): Promise<SpotifyPlaylist[]> => (await youtube.playlists(token)).map(({ provider: _, ...pl }) => pl) }
+  }
+  return null
+}
+
+// The approved café playlist: pick one of the connected account's own playlists.
+integrations.get('/api/integrations/music/playlists', async c => {
+  const m = await cafeMusic(c.env, serviceClient(c.env), new URL(c.req.url).origin)
+  if (!m) return c.json({ error: 'Connect Spotify or YouTube Music first' }, 400)
+  return c.json({ provider: m.provider, playlists: await m.playlists(), approved: m.approved })
 })
 
-integrations.post('/api/integrations/spotify/playlist', async c => {
-  const { playlist } = await c.req.json<{ playlist: spotify.Playlist }>()
+integrations.post('/api/integrations/music/playlist', async c => {
+  const { playlist } = await c.req.json<{ playlist: { id: string } }>()
   const db = serviceClient(c.env)
-  const s = await spotifySession(c.env, db, new URL(c.req.url).origin)
-  const mine = (await spotify.playlists(s.token)).find(p => p.id === playlist?.id)
-  if (!mine) return c.json({ error: 'That playlist is not in the connected Spotify account' }, 400)
-  await setIntegration(db, 'spotify', { external: { ...s.external, playlist: mine } })
+  const m = await cafeMusic(c.env, db, new URL(c.req.url).origin)
+  if (!m) return c.json({ error: 'Connect Spotify or YouTube Music first' }, 400)
+  const mine = (await m.playlists()).find(p => p.id === playlist?.id)
+  if (!mine) return c.json({ error: `That playlist is not in the connected ${optionName(m.provider)} account` }, 400)
+  await setIntegration(db, m.provider, { external: { ...m.external, playlist: mine } })
   return c.json({ ok: true })
 })
 
@@ -449,12 +445,24 @@ integrations.use('/api/music/*', async (c, next) => {
   await next()
 })
 
+const YOUTUBE_PLAYS_ON_DEVICE = 'YouTube Music plays on the café device: open the playlist there.'
+
+// Spotify can be played and paused from the app; YouTube Music has no remote control, so staff
+// open the approved playlist on the café device.
 integrations.get('/api/music/now', async c => {
-  const s = await spotifySession(c.env, serviceClient(c.env), new URL(c.req.url).origin)
-  return c.json({ playlist: s.playlist ?? null, ...(await spotify.nowPlaying(s.token, s.playlist?.id)) })
+  const db = serviceClient(c.env)
+  const p = await connectedOf(db, ['spotify', 'youtube_music'] as const)
+  if (!p) return c.json({ error: 'No café music connected yet. An admin connects Spotify or YouTube Music on the Connections page.' }, 400)
+  if (p === 'youtube_music') {
+    const { data } = await db.from('integrations').select('external').eq('provider', p).single()
+    return c.json({ provider: 'youtube', controls: false, playlist: (data?.external as { playlist?: SpotifyPlaylist })?.playlist ?? null, playing: false, onApprovedPlaylist: false })
+  }
+  const s = await spotifySession(c.env, db, new URL(c.req.url).origin)
+  return c.json({ provider: 'spotify', controls: true, playlist: s.playlist ?? null, ...(await spotify.nowPlaying(s.token, s.playlist?.id)) })
 })
 
 integrations.post('/api/music/play', async c => {
+  if (await connectedOf(serviceClient(c.env), ['youtube_music'])) return c.json({ error: YOUTUBE_PLAYS_ON_DEVICE }, 400)
   const s = await spotifySession(c.env, serviceClient(c.env), new URL(c.req.url).origin)
   if (!s.playlist) return c.json({ error: 'No playlist approved yet. An admin picks one on the Connections page.' }, 400)
   await spotify.playPlaylist(s.token, s.playlist.id)
@@ -462,6 +470,7 @@ integrations.post('/api/music/play', async c => {
 })
 
 integrations.post('/api/music/pause', async c => {
+  if (await connectedOf(serviceClient(c.env), ['youtube_music'])) return c.json({ error: YOUTUBE_PLAYS_ON_DEVICE }, 400)
   const s = await spotifySession(c.env, serviceClient(c.env), new URL(c.req.url).origin)
   await spotify.pause(s.token)
   return c.json({ ok: true })
@@ -472,30 +481,70 @@ integrations.post('/api/integrations/whatsapp/test', async c => {
   const cfg = waConfig(c.env)
   if (!cfg) return c.json({ error: 'WhatsApp is not set up yet. Add META_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID.' }, 400)
   const { to } = await c.req.json<{ to: string }>()
+  const db = serviceClient(c.env)
   try {
-    const id = await whatsapp.sendTemplate(cfg, to.replace(/\D/g, ''), 'hello_world', [])
-    await setIntegration(serviceClient(c.env), 'whatsapp', { status: 'connected', last_error: null, connected_at: new Date().toISOString() })
+    // Connected = WhatsApp accepted a message from the café's number (and the number answers).
+    const id = await whatsapp.sendTemplate(cfg, (to ?? '').replace(/\D/g, ''), 'hello_world', [])
+    const label = await whatsapp.phoneNumber(cfg).catch(() => null)
+    const now = new Date().toISOString()
+    await setIntegration(db, 'whatsapp', { status: 'connected', last_error: null, connected_at: now, last_checked_at: now, ...(label ? { account_label: label } : {}) })
     return c.json({ ok: true, id })
   } catch (e) {
-    const message = e instanceof Error ? e.message : String(e)
-    await setIntegration(serviceClient(c.env), 'whatsapp', { status: 'error', last_error: message })
-    return c.json({ error: message }, 400)
+    const why = explain('whatsapp', e)
+    await markBroken(db, 'whatsapp', why, false)
+    return c.json({ error: why }, 400)
+  }
+})
+
+// Instagram: one click. The owner signs in on instagram.com; we keep a 60-day token (renewed nightly).
+integrations.post('/api/integrations/instagram/start', async c => {
+  const cfg = instagramOAuth(c.env, new URL(c.req.url).origin)
+  if (!cfg) return c.json({ error: 'Instagram needs the Instagram app keys first (INSTAGRAM_APP_ID and INSTAGRAM_APP_SECRET; see docs/INTEGRATIONS.md).' }, 400)
+  const { back } = await c.req.json<{ back?: 'setup' | 'connections' }>().catch(() => ({ back: undefined }))
+  return c.json({ url: instagram.authUrl(cfg, await signState(c.env.INTEGRATION_KEY!, { uid: c.get('userId'), kind: 'instagram', back })) })
+})
+
+integrations.get('/api/integrations/instagram/callback', async c => {
+  const origin = new URL(c.req.url).origin
+  let state: { uid: string; kind?: string; back?: string }
+  try { state = await verifyState(c.env.INTEGRATION_KEY ?? '', c.req.query('state') ?? '') } catch { state = { uid: '' } }
+  const back = (q: string) => c.redirect(`${origin}/${state.back === 'setup' ? 'setup' : 'connections'}?${q}`)
+  if (state.kind !== 'instagram') return back(`connect_error=${encodeURIComponent('That connection link expired. Try again.')}`)
+  if (c.req.query('error')) {
+    return back(`connect_error=${encodeURIComponent(c.req.query('error') === 'access_denied' ? 'Instagram connection was cancelled' : (c.req.query('error_description') ?? c.req.query('error')!))}`)
+  }
+  const db = serviceClient(c.env)
+  try {
+    const cfg = instagramOAuth(c.env, origin)
+    if (!cfg) throw new Error('Instagram is not set up')
+    const t = await instagram.exchangeCode(cfg, c.req.query('code') ?? '')
+    // Proof first: the profile and posts can be read and posting was allowed. Only then is it kept.
+    const proven = await proveInstagram(t, c.env)
+    const { error } = await db.from('integration_secrets').upsert({ provider: 'instagram', updated_at: new Date().toISOString(),
+      ciphertext: await seal(c.env.INTEGRATION_KEY!, { access_token: t.access_token, expires_at: t.expires_at, user_id: t.userId }) })
+    if (error) throw new Error(error.message)
+    const now = new Date().toISOString()
+    await setIntegration(db, 'instagram', { status: 'connected', connected_by: state.uid, connected_at: now, last_checked_at: now, last_sync_at: now,
+      last_error: null, account_label: proven.label, external: proven.external })
+    return back('connected=instagram')
+  } catch (e) {
+    const why = explain('instagram', e)
+    await setIntegration(db, 'instagram', { last_error: why }).catch(() => {})
+    return back(`connect_error=${encodeURIComponent(why)}`)
   }
 })
 
 // Instagram: profile and recent posts for the Connections page.
 integrations.get('/api/integrations/instagram/profile', async c => {
-  const cfg = igConfig(c.env)
-  if (!cfg) return c.json({ error: 'Instagram is not set up yet. Add META_ACCESS_TOKEN and INSTAGRAM_USER_ID.' }, 400)
   const db = serviceClient(c.env)
   try {
-    const p = await instagram.profile(cfg)
-    await setIntegration(db, 'instagram', { status: 'connected', account_label: `@${p.username}`, last_error: null, last_sync_at: new Date().toISOString() })
+    const p = await instagram.profile(await instagramSession(c.env, db))
+    await setIntegration(db, 'instagram', { last_sync_at: new Date().toISOString() })
     return c.json(p)
   } catch (e) {
-    const message = e instanceof Error ? e.message : String(e)
-    await setIntegration(db, 'instagram', { status: 'error', last_error: message })
-    return c.json({ error: message }, 400)
+    const why = explain('instagram', e)
+    if (lasting('instagram', e)) await markBroken(db, 'instagram', why, false)
+    return c.json({ error: why }, 400)
   }
 })
 

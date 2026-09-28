@@ -7,7 +7,7 @@ import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction, useNotify } from '../app/Notify'
 import { PageHeader } from '../components/common'
-import { ServiceConnections, serviceName } from '../components/Connectors'
+import { ServiceConnections, connectedMessage } from '../components/Connectors'
 import { InviteDialog } from './TeamPage'
 import { BrandLogo } from '../components/Logo'
 import { checkTaxId } from '../../shared/taxId'
@@ -53,7 +53,7 @@ export function SetupPage() {
 
   // Back from Google / Microsoft after connecting an app.
   useEffect(() => {
-    if (params.get('connected')) notify(`${serviceName(params.get('connected')!)} connected`, 'success')
+    if (params.get('connected')) notify(connectedMessage(params.get('connected')!), 'success')
     if (params.get('connect_error')) notify(params.get('connect_error')!, 'error')
     if (params.has('connected') || params.has('connect_error')) setParams({ step: 'apps' }, { replace: true })
   }, [params, notify, setParams])
@@ -91,10 +91,10 @@ export function SetupPage() {
               text="Your weekly hours, busy times and holiday closures. The rota uses them, and they update Google Maps when it's connected." />}
             {step === 'team' && <TeamStep />}
             {step === 'apps' && <>
-              <Alert severity="info" sx={{ mb: 3 }}>Each connection is one sign-in with that app. You come straight back here afterwards, and you can disconnect any time from Settings → Connections.</Alert>
-              <ServiceConnections back="setup" categories={['communication', 'email', 'calendar', 'files']} />
+              <Alert severity="info" sx={{ mb: 3 }}>Each connection is one sign-in with that app, and one app per kind. You come straight back here afterwards; an app shows as connected once it has really worked. Disconnect any time from Settings → Connections.</Alert>
+              <ServiceConnections back="setup" groups={['communication', 'email', 'calendar', 'files', 'maps', 'social']} />
               <Typography variant="body2" sx={{ color: 'text.secondary', mt: 3 }}>
-                Google Maps, WhatsApp, Instagram and Spotify are on the <RouterLink to="/connections">Connections page</RouterLink>.
+                Café music (Spotify or YouTube Music) is on the <RouterLink to="/connections">Connections page</RouterLink>.
               </Typography>
             </>}
             <Stack direction="row" spacing={1} sx={{ mt: 4, justifyContent: 'space-between' }}>

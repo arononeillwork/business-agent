@@ -1,5 +1,5 @@
 import {
-  Box, Button, Card, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Drawer, FormControlLabel, IconButton,
+  Alert, Box, Button, Card, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Drawer, FormControlLabel, IconButton,
   InputAdornment, MenuItem, Stack, Switch, Table, TableBody, TableCell, TableHead, TableRow, TextField, Tooltip, Typography,
 } from '@mui/material'
 import { useSearchParams } from 'react-router-dom'
@@ -7,11 +7,14 @@ import PersonAddIcon from '@mui/icons-material/PersonAddAlt'
 import RefreshIcon from '@mui/icons-material/Refresh'
 import SearchIcon from '@mui/icons-material/Search'
 import CloseIcon from '@mui/icons-material/Close'
+import WarnIcon from '@mui/icons-material/ErrorOutlineRounded'
 import { useEffect, useState } from 'react'
 import { useApp } from '../app/AppContext'
+import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { PageHeader, PersonAvatar } from '../components/common'
-import type { Profile } from '../../shared/types'
+import type { ContactMethod, Profile } from '../../shared/types'
+import { howReached } from '../../shared/reach'
 import { currencySymbol, formatMoney } from '../../shared/time'
 import { FEATURES } from '../app/features'
 import { ContactMethodField, contactMethod } from '../components/ContactMethod'
@@ -44,6 +47,7 @@ export function TeamPage() {
     .sort((x, y) => Number(y.active) - Number(x.active) || x.full_name.localeCompare(y.full_name))
   const selected = people.find(p => p.id === open) ?? null
   const cell = { py: 1.25, borderColor: tokens.line } as const
+  const integ = useReachData(isAdmin)
 
   return (
     <>
@@ -73,7 +77,8 @@ export function TeamPage() {
                 <TableCell>Name</TableCell>
                 <TableCell>Role</TableCell>
                 {isAdmin && <TableCell>Status</TableCell>}
-                {isAdmin && <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Contact</TableCell>}
+                {isAdmin && <TableCell>Prefers</TableCell>}
+                {isAdmin && <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Phone</TableCell>}
                 {canSeePay && <TableCell align="right">Hourly rate</TableCell>}
               </TableRow>
             </TableHead>
@@ -102,16 +107,8 @@ export function TeamPage() {
                       </Stack>
                     </TableCell>
                   )}
-                  {isAdmin && <TableCell sx={{ ...cell, display: { xs: 'none', md: 'table-cell' }, color: 'text.secondary' }}>
-                    <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                      <span>{p.phone ?? '—'}</span>
-                      {contactMethod(p.contact_method) && (
-                        <Tooltip title={`Prefers ${contactMethod(p.contact_method)!.label.toLowerCase()}`}>
-                          <Box component="span" aria-label={`Prefers ${contactMethod(p.contact_method)!.label}`} sx={{ display: 'inline-flex', color: tokens.roseDeep }}>{contactMethod(p.contact_method)!.icon}</Box>
-                        </Tooltip>
-                      )}
-                    </Stack>
-                  </TableCell>}
+                  {isAdmin && <TableCell sx={cell}><Preference person={p} integrations={integ} /></TableCell>}
+                  {isAdmin && <TableCell sx={{ ...cell, display: { xs: 'none', md: 'table-cell' }, color: 'text.secondary' }}>{p.phone ?? '—'}</TableCell>}
                   {canSeePay && <TableCell sx={{ ...cell, fontVariantNumeric: 'tabular-nums' }} align="right">{rates.has(p.id) ? `${formatMoney(rates.get(p.id)!)}/h` : '—'}</TableCell>}
                 </TableRow>
               ))}
@@ -133,12 +130,37 @@ export function TeamPage() {
   )
 }
 
+/** The business's connections, to tell admins how each person will really be reached. */
+function useReachData(isAdmin: boolean) {
+  const { api } = useApp()
+  const data = useAsync('integrations', () => (isAdmin ? api.integrations() : Promise.resolve(null)), [])
+  return data.data?.integrations ?? null
+}
+
+/** "WhatsApp" with its icon, and a warning when that preference can't be honoured yet. */
+function Preference({ person, integrations }: { person: Profile; integrations: ReturnType<typeof useReachData> }) {
+  const m = contactMethod(person.contact_method)
+  const reach = integrations ? howReached(person, integrations) : null
+  return (
+    <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', whiteSpace: 'nowrap', '& svg': { color: tokens.inkSoft } }}>
+      {m ? <>{m.icon}<span>{m.label}</span></> : <Typography variant="body2" component="span" sx={{ color: 'text.secondary' }}>No preference</Typography>}
+      {reach && !reach.ok && (
+        <Tooltip title={reach.text}>
+          <WarnIcon aria-label={`Alerts won’t reach ${person.full_name} this way: ${reach.text}`} sx={{ fontSize: 18, color: `${tokens.warnFg} !important` }} />
+        </Tooltip>
+      )}
+    </Stack>
+  )
+}
+
 /** The side panel with everything an admin can change about one person. */
 function PersonPanel({ person: p, onClose }: { person: Profile; onClose: () => void }) {
   const { api, canSeePay, rates, me, refresh } = useApp()
   const run = useAction()
   const [pinFor, setPinFor] = useState<Profile | null>(null)
   const [passwordFor, setPasswordFor] = useState<Profile | null>(null)
+  const integrations = useReachData(true)
+  const reach = integrations ? howReached(p, integrations) : null
   const update = (patch: Partial<Profile>, msg = 'Saved') => run(async () => { await api.updateProfile(p.id, patch); await refresh() }, msg)
   const self = p.id === me?.id
   return (
@@ -192,9 +214,12 @@ function PersonPanel({ person: p, onClose }: { person: Profile; onClose: () => v
         <Box>
           <Typography variant="overline" sx={{ color: 'text.secondary' }}>Contact</Typography>
           <Typography sx={{ mt: 0.5, mb: 1.5 }}>{p.phone ?? 'No phone number'}{p.email ? ` · ${p.email}` : ''}</Typography>
-          <ContactMethodField value={p.contact_method ?? null} label="Prefers to be contacted by"
+          <ContactMethodField value={p.contact_method ?? null} label="Prefers to be contacted by" helperText="How the café reaches them about shifts and changes"
             onChange={v => run(async () => { await api.updateProfile(p.id, { contact_method: v }); await refresh() }, 'Contact preference saved')} />
           <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1 }}>WhatsApp messages {p.whatsapp_opt_in ? 'on' : 'off'} (they choose this on My account)</Typography>
+          {reach && <Alert severity={reach.ok ? 'success' : 'warning'} sx={{ mt: 1.5 }} role="status" aria-label="How alerts reach them">
+            <b>Shift alerts reach them by:</b> {reach.text}
+          </Alert>}
         </Box>
       </Stack>
       {pinFor && <PinDialog person={pinFor} onClose={() => setPinFor(null)} />}
@@ -211,6 +236,8 @@ export function InviteDialog({ onClose }: { onClose: () => void }) {
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
   const [role, setRole] = useState<'admin' | 'employee' | 'kiosk'>('employee')
+  const [phone, setPhone] = useState('')
+  const [method, setMethod] = useState<ContactMethod | null>(null)
   const [setup, setSetup] = useSignInSetup()
   const [done, setDone] = useState<string | null>(null)
   return (
@@ -225,6 +252,10 @@ export function InviteDialog({ onClose }: { onClose: () => void }) {
             <MenuItem value="admin">Admin</MenuItem>
             {FEATURES.kiosk && <MenuItem value="kiosk">Kiosk (café tablet)</MenuItem>}
           </TextField>
+          {role !== 'kiosk' && <>
+            <TextField label="Mobile (optional)" type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+34 600 000 000" />
+            <ContactMethodField value={method} onChange={setMethod} label="Prefers to be contacted by" helperText="They can change it later on My account" />
+          </>}
           {done ? <PasswordToShare email={email.trim()} password={done} /> : <SignInSetupFields value={setup} onChange={setSetup} />}
         </Stack>
       </DialogContent>
@@ -233,10 +264,11 @@ export function InviteDialog({ onClose }: { onClose: () => void }) {
           <Button onClick={onClose}>Cancel</Button>
           <Button variant="contained" disabled={!email.trim() || !name.trim()} onClick={() => run(async () => {
             if (!EMAIL.test(email.trim())) throw new Error('Enter a full email address, like name@example.com')
+            const contact = role === 'kiosk' ? undefined : { phone: phone.trim() || null, contact_method: method }
             if (setup.how === 'password') {
-              await api.invite(email.trim(), name.trim(), role, setup.password); await refresh(); setDone(setup.password)
+              await api.invite(email.trim(), name.trim(), role, setup.password, contact); await refresh(); setDone(setup.password)
             } else {
-              await api.invite(email.trim(), name.trim(), role); await refresh(); onClose()
+              await api.invite(email.trim(), name.trim(), role, undefined, contact); await refresh(); onClose()
             }
           }, setup.how === 'password' ? `Account created for ${name.trim()}` : `Invite sent to ${email.trim()}`)}>
             {setup.how === 'password' ? 'Create account' : 'Send invite'}

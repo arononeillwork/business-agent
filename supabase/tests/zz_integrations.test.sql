@@ -445,3 +445,35 @@ begin
   update public.integrations set status = 'disconnected' where provider = 'gmail';
   assert (select count(*) from public.integrations where provider in ('gmail', 'outlook', 'google_drive', 'onedrive')) = 4, 'new connections listed';
 end $$;
+
+-- 20. One app per group: connecting Outlook replaces Gmail (and deletes Gmail's stored access) -----
+reset role;
+update public.integrations set status = 'connected', account_label = 'cafe@gmail.com' where provider = 'gmail';
+insert into public.integration_secrets (provider, ciphertext) values ('gmail', 'sealed-gmail'), ('outlook', 'sealed-outlook')
+  on conflict (provider) do update set ciphertext = excluded.ciphertext;
+update public.integrations set status = 'connected', account_label = 'cafe@outlook.com' where provider = 'outlook';
+do $$ begin
+  assert (select status from public.integrations where provider = 'gmail') = 'disconnected', 'Gmail replaced by Outlook';
+  assert (select account_label is null from public.integrations where provider = 'gmail'), 'and forgotten';
+  assert not exists (select 1 from public.integration_secrets where provider = 'gmail'), 'its stored access is deleted';
+  assert exists (select 1 from public.integration_secrets where provider = 'outlook'), 'the new one keeps its access';
+  assert (select count(*) from public.integrations where public.integration_group(provider) = 'email' and status = 'connected') = 1,
+    'only one mailbox is ever connected';
+end $$;
+-- Other groups are untouched; calendars count as chosen while waiting to be proven.
+update public.integrations set status = 'connected' where provider = 'google_drive';
+update public.integrations set status = 'connected' where provider = 'outlook_calendar';
+update public.integrations set status = 'pending' where provider = 'google_calendar';
+update public.integrations set status = 'connected' where provider = 'spotify';
+update public.integrations set status = 'connected' where provider = 'youtube_music';
+do $$ begin
+  assert (select status from public.integrations where provider = 'outlook') = 'connected', 'email unaffected by other groups';
+  assert (select status from public.integrations where provider = 'google_drive') = 'connected', 'files unaffected';
+  assert (select status from public.integrations where provider = 'outlook_calendar') = 'disconnected', 'choosing Google Calendar replaces Outlook Calendar';
+  assert (select status from public.integrations where provider = 'spotify') = 'disconnected', 'YouTube Music replaces Spotify for the café';
+  assert public.integration_group('google_business') is null and public.integration_group('instagram') is null,
+    'Google Maps and Instagram are extras, not a choice';
+end $$;
+-- Tidy up for later sections.
+update public.integrations set status = 'disconnected' where provider in ('outlook', 'google_drive', 'google_calendar', 'youtube_music');
+delete from public.integration_secrets where provider in ('outlook');

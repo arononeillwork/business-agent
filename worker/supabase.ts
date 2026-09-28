@@ -12,13 +12,14 @@ export interface Env {
   INTEGRATION_KEY?: string            // encrypts stored tokens, signs OAuth state
   GOOGLE_CLIENT_ID?: string
   GOOGLE_CLIENT_SECRET?: string
-  META_ACCESS_TOKEN?: string          // Meta system-user token (WhatsApp + Instagram)
+  META_ACCESS_TOKEN?: string          // Meta system-user token (WhatsApp)
   META_APP_SECRET?: string            // verifies WhatsApp webhooks
   META_GRAPH_VERSION?: string         // var, e.g. v23.0
   WHATSAPP_PHONE_NUMBER_ID?: string   // secret (GitHub → deploy)
   WHATSAPP_VERIFY_TOKEN?: string
   WHATSAPP_TEMPLATE_LANG?: string     // var, e.g. es
-  INSTAGRAM_USER_ID?: string          // secret (GitHub → deploy)
+  INSTAGRAM_APP_ID?: string           // Instagram Login app (Meta app → Instagram → API setup with Instagram login)
+  INSTAGRAM_APP_SECRET?: string
   SPOTIFY_CLIENT_ID?: string
   SPOTIFY_CLIENT_SECRET?: string
   MS_CLIENT_ID?: string               // Microsoft app (Outlook email, OneDrive files); set by the Microsoft setup workflow

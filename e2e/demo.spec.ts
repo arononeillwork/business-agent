@@ -384,22 +384,24 @@ test.describe('time off', () => {
 })
 
 test.describe('connections', () => {
-  test('admin sees Google, WhatsApp and Instagram, and compares opening hours with Google', async ({ page }) => {
+  test('admin sees Google Maps, WhatsApp and Instagram, and compares opening hours with Google', async ({ page }) => {
     await open(page, '/connections')
-    const card = page.locator('.MuiCard-root', { hasText: 'Connections' })
-    await expect(card).toContainText('Google Maps & Search')
-    await expect(card).toContainText('WhatsApp')
-    await expect(page.getByText('@easy.beans.coffee').first()).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Maps and search' }).getByRole('article', { name: 'Google Maps' })).toContainText('Connected')
+    await expect(page.getByRole('region', { name: 'Social media' }).getByRole('article', { name: 'Instagram' })).toContainText('@easy.beans.coffee')
     await expect(page.getByText('followers', { exact: true })).toBeVisible()
 
-    await card.getByRole('button', { name: 'Compare with Google' }).click()
+    const maps = page.getByRole('region', { name: 'Google Maps settings' })
+    await maps.getByRole('button', { name: 'Compare with Google' }).click()
     const compare = page.getByRole('dialog', { name: /app vs Google/ })
     await expect(compare).toContainText('10:00–15:00')
     await compare.getByRole('button', { name: 'Put the app’s hours on Google' }).click()
     await toast(page, 'Google updated')
 
-    await card.getByLabel('Test number').fill('12')
-    await card.getByRole('button', { name: 'Send test' }).click()
+    await page.getByRole('button', { name: 'Manage WhatsApp' }).click()
+    const wa = page.getByRole('dialog', { name: 'WhatsApp' })
+    await expect(wa).toContainText('Send template messages from the café’s number')
+    await wa.getByLabel('Test number').fill('12')
+    await wa.getByRole('button', { name: 'Send a test' }).click()
     await toast(page, 'full number with country code')
   })
 
@@ -410,7 +412,8 @@ test.describe('connections', () => {
     await expect(page.getByRole('link', { name: 'Alerts' })).toHaveCount(0)
     await expect(page.getByRole('link', { name: 'Finances' })).toHaveCount(0)
     await page.goto('/connections')
-    await expect(page.getByText('Google Maps & Search')).toHaveCount(0)
+    await expect(page.getByRole('heading', { name: 'Business connections' })).toHaveCount(0)
+    await expect(page.getByRole('article', { name: 'Gmail' })).toHaveCount(0)
   })
 
   test('share an event to Instagram and Google', async ({ page }) => {
@@ -439,12 +442,13 @@ test.describe('connections', () => {
 
 test('café music: admin approves a Spotify playlist, staff play it', async ({ page }) => {
   await open(page, '/connections')
-  const card = page.locator('.MuiCard-root', { hasText: 'Connections' })
-  await expect(card).toContainText('Spotify')
+  await page.getByRole('button', { name: 'Manage Spotify' }).click()
+  const card = page.getByRole('dialog', { name: 'Spotify' })
   await expect(card).toContainText('SGAE/AGEDI')
   await card.getByLabel('Approved playlist').click()
   await page.getByRole('option', { name: /Afternoon chill/ }).click()
   await toast(page, '“Easy Beans · Afternoon chill” is now the café playlist')
+  await card.getByRole('button', { name: 'Close' }).click()
 
   await signInAs(page, 'maria@example.com')
   await page.getByRole('link', { name: 'Today' }).first().click()
@@ -953,16 +957,45 @@ test('people choose how they like to be contacted; admins see it on the team lis
   await toast(page, /^Saved$/)
   await signInAs(page, 'aron@example.com')
   await page.getByRole('link', { name: 'Team', exact: true }).first().click()
-  await expect(page.getByRole('row', { name: /Maria/ }).getByLabel('Prefers Text message')).toBeVisible()
-  await expect(page.getByRole('row', { name: /Julio/ }).getByLabel('Prefers WhatsApp')).toBeVisible()
-  await page.getByRole('row', { name: /Julio/ }).click()
+  const maria = page.getByRole('row', { name: /Maria/ })
+  await expect(maria.getByRole('cell').nth(3)).toHaveText('Text message')
+  // Texts aren't connected yet: the list warns, and says what happens meanwhile.
+  await expect(maria.getByLabel(/Alerts won’t reach Maria this way: Prefers text messages, which are coming soon. Until then: WhatsApp/)).toBeVisible()
+  const julio = page.getByRole('row', { name: /Julio/ })
+  await expect(julio.getByRole('cell').nth(3)).toHaveText('WhatsApp')
+  await expect(julio.getByLabel(/Alerts won’t reach/)).toHaveCount(0)
+  await julio.click()
   const panel = page.getByRole('dialog', { name: 'Julio' })
+  await expect(panel.getByRole('status', { name: 'How alerts reach them' })).toContainText('WhatsApp to +34 600 111 222')
   await panel.getByLabel('Prefers to be contacted by').click()
   await page.getByRole('option', { name: 'Email' }).click()
   await toast(page, 'Contact preference saved')
   await expect(panel.getByLabel('Prefers to be contacted by')).toContainText('Email')
+  await expect(panel.getByRole('status', { name: 'How alerts reach them' })).toContainText('Prefers email, but no mailbox is connected')
   await panel.getByRole('button', { name: 'Close' }).click()
-  await expect(page.getByRole('row', { name: /Julio/ }).getByLabel('Prefers Email')).toBeVisible()
+  await expect(julio.getByRole('cell').nth(3)).toHaveText('Email')
+
+  // Once a mailbox is connected, email people really get email.
+  await page.getByRole('link', { name: 'Connections' }).first().click()
+  await page.getByRole('button', { name: 'Connect Gmail' }).click()
+  await page.getByRole('link', { name: 'Team', exact: true }).first().click()
+  await page.getByRole('row', { name: /Julio/ }).click()
+  await expect(page.getByRole('dialog', { name: 'Julio' }).getByRole('status', { name: 'How alerts reach them' }))
+    .toContainText('Email to julio@example.com, from easybeanscafe@gmail.com')
+})
+
+test('an admin sets a new person’s mobile and contact preference when inviting them', async ({ page }) => {
+  await open(page, '/team')
+  await page.getByRole('button', { name: 'Invite' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Invite to the team' })
+  await dialog.getByLabel('Full name').fill('Lucía')
+  await dialog.getByRole('textbox', { name: 'Email' }).fill('lucia@example.com')
+  await dialog.getByLabel('Mobile (optional)').fill('+34 600 999 000')
+  await dialog.getByLabel('Prefers to be contacted by').click()
+  await page.getByRole('option', { name: 'WhatsApp', exact: true }).click()
+  await dialog.getByRole('button', { name: 'Create account' }).click()
+  await dialog.getByRole('button', { name: 'Done' }).click()
+  await expect(page.getByRole('row', { name: /Lucía/ }).getByRole('cell').nth(3)).toHaveText('WhatsApp')
 })
 
 test.describe('top bar', () => {
@@ -1100,40 +1133,99 @@ test('guest link: opens already signed in as a Guest admin, no sign-in page', as
 })
 
 test.describe('connections for email, files and music', () => {
-  test('connect Gmail and Google Drive, send a test email, save timecards to Drive', async ({ page }) => {
+  test('like AI connectors: one click to connect, one app per kind, and "Connected" says what it proved', async ({ page }) => {
     await open(page, '/connections')
     const email = page.getByRole('region', { name: 'Email', exact: true })
     const files = page.getByRole('region', { name: 'Files and storage' })
-    await expect(page.getByRole('region', { name: 'Music', exact: true }).getByRole('article', { name: 'YouTube Music' })).toBeVisible()
-    await expect(page.getByRole('region', { name: 'Music', exact: true }).getByRole('article', { name: 'Spotify' })).toContainText('Connected')
-    await expect(files.getByRole('article', { name: 'SharePoint' })).toContainText('Coming soon')
-    const comms = page.getByRole('region', { name: 'Communication' })
+    const comms = page.getByRole('region', { name: 'Team messages' })
+    const music = page.getByRole('region', { name: 'Café music' })
     await expect(comms.getByRole('article', { name: 'WhatsApp' })).toContainText('Connected')
     await expect(comms.getByRole('article', { name: 'Slack' })).toContainText('Coming soon')
-    await expect(comms.getByRole('article', { name: 'Text messages (SMS)' })).toContainText('Coming soon')
-    // Calendar: one link the calendar app subscribes to; no extra keys.
-    const calendar = page.getByRole('region', { name: 'Calendar', exact: true })
-    await calendar.getByRole('article', { name: 'Google Calendar' }).getByRole('button', { name: 'Create calendar link' }).click()
-    await toast(page, 'Calendar link created')
-    await expect(calendar.getByRole('link', { name: 'Add to Google Calendar' })).toHaveAttribute('href', /calendar\.google\.com\/calendar\/render\?cid=webcal/)
-    await expect(calendar.getByRole('link', { name: 'Add to Outlook Calendar' })).toHaveAttribute('href', /outlook\.live\.com\/calendar\/0\/addfromweb/)
-    await email.getByRole('button', { name: 'Connect Gmail' }).click()
+    await expect(files.getByRole('article', { name: 'SharePoint' })).toContainText('Coming soon')
+    await expect(music.getByRole('article', { name: 'Spotify' })).toContainText('Connected')
+
+    // Details first, like an AI connector: what it can do before you connect.
+    await email.getByRole('button', { name: 'Gmail details' }).click()
+    const details = page.getByRole('dialog', { name: 'Gmail' })
+    await expect(details).toContainText('It can’t read, delete or search your inbox')
+    await expect(details).toContainText('It shows as connected only once it has really worked')
+    await details.getByRole('button', { name: 'Connect Gmail' }).click()
+    await expect(details).toContainText('Connected')
+    await expect(details).toContainText('A confirmation email was sent from this mailbox to itself.')
+    await details.getByRole('button', { name: 'Close' }).click()
+    await expect(email.getByRole('article', { name: 'Gmail' })).toContainText('Connected')
     await expect(email.getByRole('article', { name: 'Gmail' })).toContainText('easybeanscafe@gmail.com')
-    await email.getByRole('button', { name: 'Send a test' }).click()
-    const dialog = page.getByRole('dialog', { name: 'Send a test email' })
-    await dialog.getByRole('button', { name: 'Send' }).click()
+
+    // One mailbox at a time: switching to Outlook replaces Gmail.
+    await email.getByRole('button', { name: 'Switch to Outlook' }).click()
+    await page.getByRole('dialog', { name: 'Switch to Outlook?' }).getByRole('button', { name: 'Switch to Outlook' }).click()
+    await expect(email.getByRole('article', { name: 'Outlook' })).toContainText('Connected')
+    await expect(email.getByRole('article', { name: 'Gmail' })).not.toContainText('Connected')
+    await email.getByRole('button', { name: 'Manage Outlook' }).click()
+    const outlook = page.getByRole('dialog', { name: 'Outlook' })
+    await expect(outlook).toContainText('A confirmation email was sent from this mailbox to itself.')
+    await outlook.getByRole('button', { name: 'Check now' }).click()
+    await toast(page, 'Outlook works')
+    await outlook.getByRole('button', { name: 'Send a test' }).click()
+    await page.getByRole('dialog', { name: 'Send a test email' }).getByRole('button', { name: 'Send' }).click()
     await toast(page, 'Test email sent to aron@example.com')
-    // No storage yet: no "Save to Drive" on Timecards.
+    await outlook.getByRole('button', { name: 'Close' }).click()
+
+    // No storage yet: no "Save to" on Timecards.
     await page.getByRole('link', { name: 'Timecards' }).first().click()
     await expect(page.getByRole('button', { name: /Save to/ })).toHaveCount(0)
     await page.getByRole('link', { name: 'Connections' }).first().click()
-    await page.getByRole('region', { name: 'Files and storage' }).getByRole('button', { name: 'Connect Google Drive' }).click()
+    await page.getByRole('button', { name: 'Connect Google Drive' }).click()
     await expect(page.getByRole('region', { name: 'Files and storage' }).getByRole('article', { name: 'Google Drive' })).toContainText('Connected')
     await page.getByRole('link', { name: 'Timecards' }).first().click()
     const popup = page.waitForEvent('popup')
     await page.getByRole('button', { name: 'Save to Drive' }).click()
     await toast(page, 'Saved to Google Drive › Business Agent › Timecards')
     await popup // the saved file opens in a new tab
+
+    await page.getByRole('link', { name: 'Connections' }).first().click()
+    await page.getByRole('button', { name: 'Check all connections' }).click()
+    await toast(page, 'Every connection works')
+  })
+
+  test('calendar: waits until the calendar app has fetched the team calendar, then shows connected', async ({ page }) => {
+    await open(page, '/connections')
+    const calendar = page.getByRole('region', { name: 'Calendar', exact: true })
+    await page.context().route('https://calendar.google.com/**', r => r.fulfill({ body: 'Google Calendar' }))
+    const popup = page.waitForEvent('popup')
+    await calendar.getByRole('button', { name: 'Add to Google Calendar' }).click()
+    const tab = await popup
+    await expect.poll(() => tab.url()).toMatch(/calendar\.google\.com\/calendar\/render\?cid=webcal/)
+    await expect(calendar.getByRole('article', { name: 'Google Calendar' })).toContainText('Waiting')
+    await calendar.getByRole('button', { name: 'Manage Google Calendar' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Google Calendar' })
+    await expect(dialog).toContainText('Waiting for Google Calendar to fetch the team calendar')
+    await dialog.getByRole('button', { name: 'Check now' }).click() // the demo pretends Google fetched it
+    await expect(dialog).toContainText('Google Calendar has fetched the team calendar.')
+    await dialog.getByRole('button', { name: 'Close' }).click()
+    await expect(calendar.getByRole('article', { name: 'Google Calendar' })).toContainText('Connected')
+    await expect(page.getByRole('region', { name: 'Team calendar' }).getByLabel('Calendar link')).toContainText('.ics')
+  })
+
+  test('café music: switching to YouTube Music replaces Spotify; staff open the playlist on the café device', async ({ page }) => {
+    await open(page, '/connections')
+    const music = page.getByRole('region', { name: 'Café music' })
+    await music.getByRole('button', { name: 'Switch to YouTube Music' }).click()
+    await page.getByRole('dialog', { name: 'Switch to YouTube Music?' }).getByRole('button', { name: 'Switch to YouTube Music' }).click()
+    await expect(music.getByRole('article', { name: 'YouTube Music' })).toContainText('Connected')
+    await expect(music.getByRole('article', { name: 'Spotify' })).not.toContainText('Connected')
+    await music.getByRole('button', { name: 'Manage YouTube Music' }).click()
+    const dialog = page.getByRole('dialog', { name: 'YouTube Music' })
+    await dialog.getByLabel('Approved playlist').click()
+    await page.getByRole('option', { name: /Café mix/ }).click()
+    await toast(page, '“Easy Beans · Café mix” is now the café playlist')
+    await dialog.getByRole('button', { name: 'Close' }).click()
+
+    await signInAs(page, 'maria@example.com')
+    const card = page.locator('.MuiCard-root', { hasText: 'Café music' })
+    await expect(card).toContainText('Easy Beans · Café mix')
+    await expect(card).toContainText('Plays on the café device')
+    await expect(card.getByRole('link', { name: 'Open playlist' })).toHaveAttribute('href', 'https://music.youtube.com/playlist?list=yt1')
   })
 
   test('the set-up wizard walks an admin through details, team and apps; Today prompts until done', async ({ page }) => {

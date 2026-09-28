@@ -91,8 +91,7 @@ ticked, public holidays updates Google automatically within a minute.
 3. WhatsApp → API Setup → add the business phone number. It can't also be used in the normal
    WhatsApp app. Note the **Phone number ID** → Worker var `WHATSAPP_PHONE_NUMBER_ID`.
 4. Business Settings → System users → add an admin system user → generate a **permanent token**
-   with `whatsapp_business_messaging`, `whatsapp_business_management` (and for Instagram:
-   `instagram_basic`, `instagram_content_publish`, `pages_show_list`) → secret `META_ACCESS_TOKEN`.
+   with `whatsapp_business_messaging` and `whatsapp_business_management` → secret `META_ACCESS_TOKEN`.
 5. App settings → Basic → **App secret** → secret `META_APP_SECRET`.
 6. WhatsApp → Configuration → Webhook: callback `https://<worker-url>/api/webhooks/whatsapp`,
    verify token = any string you choose → secret `WHATSAPP_VERIFY_TOKEN`. Subscribe to `messages`.
@@ -112,14 +111,27 @@ ticked, public holidays updates Google automatically within a minute.
 Staff turn messages on under **My account** (their consent, as GDPR requires). Replying `STOP`
 or `BAJA` turns them off.
 
-## 4. Instagram
+## 4. Instagram (one click for each business)
 
-1. Switch @easy.beans.coffee to a **professional** account and link it to the café's Facebook Page.
-2. Give the system user from step 3.4 access to the Page and the Instagram account.
-3. Find the Instagram account ID (Graph API Explorer: `me/accounts?fields=instagram_business_account`)
-   → Worker var `INSTAGRAM_USER_ID`.
-4. Photos for posts are stored in Cloudflare R2: enable R2 in the Cloudflare dashboard, create the
-   bucket `business-agent-media`, and uncomment the `r2_buckets` line in `wrangler.jsonc`.
+Each business connects its own Instagram with one click ("Connect Instagram", sign in on
+instagram.com, allow). One Meta app serves every business; it is set up once:
+
+1. <https://developers.facebook.com/apps> → **Create app** → use case *Manage messaging & content
+   on Instagram* (type Business).
+2. **Instagram → API setup with Instagram login** → note the **Instagram app ID** and
+   **Instagram app secret** → GitHub repo secrets `INSTAGRAM_APP_ID` and `INSTAGRAM_APP_SECRET`
+   (the deploy passes them to the Worker).
+3. Same page → **Set up Instagram business login** → OAuth redirect URI:
+   `https://<worker-url>/api/integrations/instagram/callback`.
+4. Until the app passes Meta's App Review (Advanced Access for `instagram_business_basic` and
+   `instagram_business_content_publish`), only Instagram accounts added under **App roles →
+   Instagram testers** can connect. Add the café's account there (and accept the invite in
+   Instagram → Settings → Apps and websites), then press **Connect Instagram** in the app.
+5. The account must be professional (Business or Creator). Photos for posts are stored in
+   Cloudflare R2 (bucket `business-agent-media`, set up by the deploy).
+
+"Connected" means the app signed in, read the profile and posts, and was allowed to post. The
+60-day access is renewed every night; if it stops working, admins get a notification.
 
 The Connections page then shows followers and recent posts, and calendar events get a **Share**
 button that posts to Instagram and the Google listing together.
