@@ -14,7 +14,8 @@ Google does not let apps create sign-in keys automatically, so this part is manu
    project (top bar → project picker → **New project**), e.g. **Business Agent**.
 2. **APIs & Services → OAuth consent screen** (or **Google Auth Platform → Branding**):
    - App name: **Business Agent** · User support email: your email
-   - Authorised domains: `lhakrmmoxaareykglmtx.supabase.co`, `businesssagent.com` and `business-agent.arononeillwork.workers.dev` (skip any that Google refuses)
+   - Authorised domains: `lhakrmmoxaareykglmtx.supabase.co`, `businesssagent.com` and `arononeillwork.workers.dev`
+     (not `supabase.co` or `workers.dev` on their own: Google refuses shared domains with "must be a top private domain")
    - Developer contact: your email → **Save**
 3. **Audience**: *External* → **Publish app** (status *In production*). Sign-in only asks for name
    and email, so Google doesn't need to review it.
