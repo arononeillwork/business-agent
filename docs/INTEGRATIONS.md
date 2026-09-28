@@ -231,3 +231,15 @@ TikTok and Google Maps, post now or schedule for a Madrid date and time. Every m
 queues due posts (`queue_due_social_posts`), one outbox job per network, and each network's
 outcome, with a link to the post, shows under **Sent → Where it went**. A post that fails on one
 network but not others is marked *partly sent*; failures retry like every other outbox job.
+
+## Sign-in emails from the business's own mailbox
+
+Invites, sign-up confirmations, sign-in codes and password resets are sent by Supabase Auth. Once
+the business has connected **Gmail or Outlook** (Connections page), the next deploy switches on
+Supabase's *send email hook*: Supabase then hands each of these emails to the Worker
+(`/api/auth/send-email`, signed with a secret derived from the service key) and the Worker sends
+it from that mailbox, like the team alerts. Until a mailbox is connected, Supabase sends them itself.
+The deploy summary says which is in use ("Sign-in emails: …"). If the mailbox stops working, the
+emails fail with the reason (and admins are told the connection broke); the next deploy switches
+back to Supabase's sender until it is reconnected. Admins can always add people with a temporary
+password, which needs no email.

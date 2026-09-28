@@ -12,6 +12,7 @@ import { unseal } from './crypto'
 import { FakeSupabase, GROUP } from './test/fakeSupabase'
 import { FakeProviders, readGmail } from './test/fakeProviders'
 import { GROUPS, groupOf } from '../shared/connections'
+import { authEmail, hookSecret, verifyHook } from './authEmail'
 
 const APP = 'https://app.test'
 const env = {
@@ -531,5 +532,68 @@ describe('Facebook, TikTok and Square: one click, connected once they really wor
     await drainOutbox(env)
     expect(db.table('outbox')[0]).toMatchObject({ status: 'failed', last_error: 'TikTok: picture_size_check_failed' })
     expect(status('tiktok')).toBe('connected') // the account still works; only this post failed
+  })
+})
+
+describe('Sign-in emails come from the business’s own Gmail or Outlook (Supabase send-email hook)', () => {
+  const b64 = (b: ArrayBuffer) => btoa(String.fromCharCode(...new Uint8Array(b)))
+  /** A call signed the way Supabase signs it (Standard Webhooks). */
+  async function hook(payload: unknown, { key = env.SUPABASE_SERVICE_ROLE_KEY!, at = Date.now() } = {}) {
+    const body = JSON.stringify(payload), id = 'msg_1', ts = String(Math.floor(at / 1000))
+    const k = await crypto.subtle.importKey('raw', await hookSecret(key), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+    const sig = b64(await crypto.subtle.sign('HMAC', k, new TextEncoder().encode(`${id}.${ts}.${body}`)))
+    return authEmail.request(`${APP}/api/auth/send-email`, {
+      method: 'POST', body, headers: { 'webhook-id': id, 'webhook-timestamp': ts, 'webhook-signature': `v1,${sig}`, 'content-type': 'application/json' },
+    }, env, ctx())
+  }
+  const email = (type: string, extra = {}) => ({
+    user: { email: 'eva@example.com', user_metadata: { full_name: 'Eva Ruiz' } },
+    email_data: { token: '123456', token_hash: 'hash-abc', redirect_to: 'https://app.test/account', email_action_type: type, site_url: 'https://app.test', ...extra },
+  })
+
+  it('sends a password reset from the connected Gmail, with a Supabase link back to the app', async () => {
+    await connect('gmail')
+    const res = await hook(email('recovery'))
+    expect(res.status).toBe(200)
+    const sent = readGmail(apis.google.sent.at(-1)!)
+    expect(sent.to).toBe('eva@example.com')
+    expect(sent.subject).toBe('Reset your Easy Beans password')
+    expect(sent.text).toContain('Hola Eva,')
+    expect(sent.text).toContain('https://db.test/auth/v1/verify?token=hash-abc&type=recovery&redirect_to=https%3A%2F%2Fapp.test%2Faccount')
+  })
+
+  it('sends invites and sign-in codes from Outlook when that is the mailbox', async () => {
+    await connect('outlook')
+    expect((await hook(email('invite'))).status).toBe(200)
+    expect((await hook(email('magiclink'))).status).toBe(200)
+    expect(apis.microsoft.sent.slice(-2)).toEqual([
+      { to: 'eva@example.com', subject: "You're invited to the Easy Beans team app" },
+      { to: 'eva@example.com', subject: 'Your Easy Beans sign-in code' },
+    ])
+  })
+
+  it('without a connected mailbox it refuses with a reason Supabase shows to the person', async () => {
+    const res = await hook(email('recovery'))
+    expect(res.status).toBe(503)
+    expect((await res.json() as { error: { message: string } }).error.message).toMatch(/Connect Gmail or Outlook/)
+  })
+
+  it('rejects calls not signed with the service key, and stale ones', async () => {
+    await connect('gmail')
+    const before = apis.google.sent.length
+    expect((await hook(email('recovery'), { key: 'someone-else' })).status).toBe(401)
+    expect((await hook(email('recovery'), { at: Date.now() - 10 * 60_000 })).status).toBe(401)
+    expect(apis.google.sent).toHaveLength(before)
+    expect(await verifyHook('k', new Headers(), '{}')).toBe(false)
+  })
+
+  it('uses the same secret the deploy gives Supabase (scripts/ops/supabase-auth.mjs)', async () => {
+    // node -e "console.log(require('crypto').createHmac('sha256','sb_secret_test').update('business-agent:send-email-hook').digest('base64'))"
+    expect(b64(await hookSecret('sb_secret_test'))).toBe('l1jtZCyHDwea5xlEe3ldo9dRtQi1diUSS7OMxEi6w+E=')
+  })
+
+  it('refuses kinds of email the app does not use', async () => {
+    await connect('gmail')
+    expect((await hook(email('email_change'))).status).toBe(400)
   })
 })
