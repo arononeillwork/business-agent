@@ -21,7 +21,8 @@ out('CLOUDFLARE_API_TOKEN', token)
 const user = await cf('/user/tokens/verify')
 if (user.success && user.result?.status === 'active') {
   console.log('Cloudflare user API token is active.')
-  const configured = process.env.CF_ACCOUNT_SECRET?.trim()
+  // The later steps (photo storage, custom domain) need the account: repo secret, else wrangler.jsonc.
+  const configured = process.env.CF_ACCOUNT_SECRET?.trim() || readFileSync('wrangler.jsonc', 'utf8').match(/"account_id":\s*"([0-9a-f]{32})"/)?.[1]
   if (configured) out('CLOUDFLARE_ACCOUNT_ID', configured)
   process.exit(0)
 }
