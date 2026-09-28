@@ -167,7 +167,7 @@ test.describe('admin', () => {
     await signIn(page, 'admin')
     const pages: { link: string; path: string; check: (p: Page) => Promise<void> }[] = [
       { link: 'Business', path: '/business', check: p => expect(p.getByRole('heading', { level: 1, name: business.name })).toBeVisible(NET) },
-      { link: 'Today', path: '/', check: p => expect(p.getByRole('heading', { name: 'Hola, Ana' })).toBeVisible(NET) },
+      { link: 'Home: Today', path: '/', check: p => expect(p.getByRole('heading', { name: 'Hola, Ana' })).toBeVisible(NET) },
       ...['Rota', 'Time off', 'Timecards', 'Team', 'Opening hours', 'Brand', 'Calendar', 'Sports', 'Music', 'Finances', 'Alerts', 'Connections', 'My account', 'Appearance'].map(name => ({
         link: name,
         path: { 'Time off': '/time-off', 'My account': '/account', 'Opening hours': '/opening-hours' }[name] ?? `/${name.toLowerCase()}`,
@@ -385,7 +385,7 @@ test.describe('employee', () => {
   test('has no admin or money pages in the menu, and /finances shows no expenses', async ({ page }) => {
     await signIn(page, 'employee')
     await expect(page.getByRole('heading', { name: 'Hola, Eva' })).toBeVisible(NET)
-    for (const name of ['Business', 'Today', 'Rota', 'Time off', 'Timecards', 'Calendar', 'Team', 'My account']) {
+    for (const name of ['Business', 'Home: Today', 'Rota', 'Time off', 'Timecards', 'Calendar', 'Team', 'My account']) {
       await expect.soft(nav(page).getByRole('link', { name, exact: true })).toBeVisible()
     }
     for (const name of ['Finances', 'Alerts', 'Connections', 'Partners', 'Café tablet']) {

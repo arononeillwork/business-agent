@@ -84,7 +84,9 @@ export function BusinessPage() {
               <InfoRow icon={<BadgeIcon fontSize="small" />} label="CIF / NIF">
                 <Box component="span" sx={{ fontVariantNumeric: 'tabular-nums', letterSpacing: '0.04em' }}>{b.tax_id || (isAdmin ? 'Not added yet' : '—')}</Box>
               </InfoRow>
-              <InfoRow icon={<CurrencyIcon fontSize="small" />} label="Currency">{b.currency ?? 'EUR'}</InfoRow>
+              <InfoRow icon={<CurrencyIcon fontSize="small" />} label="Currency">
+                {isAdmin ? <CurrencySelect /> : currencyLabel(b.currency ?? 'EUR')}
+              </InfoRow>
               <InfoRow icon={<ChatIcon fontSize="small" />} label="Team alerts go to">{b.team_channel ? CHANNEL[b.team_channel] : 'Not set yet'}</InfoRow>
               {b.towns_followed.length > 0 && (
                 <InfoRow icon={<MapIcon fontSize="small" />} label="Nearby towns on the calendar">
@@ -132,6 +134,26 @@ const CURRENCIES: [string, string][] = [
   ['AUD', 'Australian dollar'], ['NZD', 'New Zealand dollar'], ['JPY', 'Japanese yen'], ['MXN', 'Mexican peso'], ['BRL', 'Brazilian real'],
 ]
 
+const currencyLabel = (code: string) => {
+  const name = CURRENCIES.find(c => c[0] === code)?.[1] ?? code
+  const symbol = new Intl.NumberFormat('en', { style: 'currency', currency: code, currencyDisplay: 'narrowSymbol' }).formatToParts(0).find(p => p.type === 'currency')?.value
+  return symbol && symbol !== code ? `${symbol} ${name}` : `${code} · ${name}`
+}
+
+/** Right on the page: the café's currency, euro unless an admin picks another. Saves straight away. */
+function CurrencySelect() {
+  const { api, business, refresh } = useApp()
+  const run = useAction()
+  const value = business?.currency ?? 'EUR'
+  return (
+    <TextField select size="small" value={value} variant="standard" aria-label="Currency" sx={{ minWidth: 200, mt: 0.25 }}
+      slotProps={{ select: { disableUnderline: true, sx: { fontWeight: 600 } } as never, htmlInput: { 'aria-label': 'Currency' } }}
+      onChange={e => run(async () => { await api.updateBusiness({ currency: e.target.value }); await refresh() }, `Currency: ${currencyLabel(e.target.value)}`)}>
+      {CURRENCIES.map(([code]) => <MenuItem key={code} value={code}>{currencyLabel(code)}</MenuItem>)}
+    </TextField>
+  )
+}
+
 function DetailsDialog({ onClose }: { onClose: () => void }) {
   const { api, refresh } = useApp()
   const [b, setB] = useBusinessDraft()
@@ -161,10 +183,6 @@ function DetailsDialog({ onClose }: { onClose: () => void }) {
       {field('address', 'Address')}
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>{field('phone', 'Phone')}{field('email', 'Email')}</Stack>
       {field('instagram', 'Instagram')}
-      <TextField select label="Currency" value={b.currency ?? 'EUR'} helperText="Pay, costs and totals are shown in this. It doesn't convert amounts."
-        onChange={e => setB({ ...b, currency: e.target.value })}>
-        {CURRENCIES.map(([code, name]) => <MenuItem key={code} value={code}>{code} · {name}</MenuItem>)}
-      </TextField>
       <TextField select label="Team alerts go to" value={b.team_channel ?? ''}
         onChange={e => setB({ ...b, team_channel: (e.target.value || null) as Business['team_channel'] })}>
         <MenuItem value="">Not set</MenuItem>

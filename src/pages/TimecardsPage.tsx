@@ -3,6 +3,7 @@ import {
   IconButton, List, ListItem, ListItemText, MenuItem, Stack, Table, TableBody, TableCell, TableHead,
   TableRow, TextField, Tooltip, Typography,
 } from '@mui/material'
+import CloudUploadIcon from '@mui/icons-material/CloudUploadOutlined'
 import LockIcon from '@mui/icons-material/LockOutlined'
 import EditIcon from '@mui/icons-material/EditOutlined'
 import DownloadIcon from '@mui/icons-material/FileDownloadOutlined'
@@ -21,8 +22,10 @@ import type { CorrectionRequest, TimeEntry } from '../../shared/types'
 const toInput = (iso: string | null) => (iso ? formatLocal(iso, "yyyy-MM-dd'T'HH:mm") : '')
 const fromInput = (v: string) => (v ? zonedIso(v.slice(0, 10), v.slice(11, 16)) : null)
 
+const toCsv = (rows: (string | number)[][]) => rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\r\n')
+
 function download(filename: string, rows: (string | number)[][]) {
-  const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\r\n')
+  const csv = toCsv(rows)
   const url = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }))
   const a = Object.assign(document.createElement('a'), { href: url, download: filename })
   a.click()
@@ -55,7 +58,10 @@ export function TimecardsPage() {
   const allApproved = entries.length > 0 && entries.every(e => e.approved_at)
   const shiftOf = (e: TimeEntry) => data.data?.shifts.find(s => s.id === e.shift_id)
 
-  const exportCsv = () => {
+  // The café's Drive / OneDrive, if connected (admins): exports can be saved straight there.
+  const links = useAsync('integrations', () => (isAdmin ? api.integrations() : Promise.resolve(null)), [])
+  const storage = links.data?.integrations.find(i => (i.provider === 'google_drive' || i.provider === 'onedrive') && i.status === 'connected')
+  const csvRows = () => {
     const rows: (string | number)[][] = [['Employee', 'Date', 'Position', 'Clock in', 'Clock out', 'Break (min)',
       'Paid hours', 'Holiday', 'Flags', 'Approved', ...(canSeePay ? [`Rate ${currencySymbol()}/h`, `Gross ${currencySymbol()}`] : [])]]
     for (const e of entries) {
@@ -66,8 +72,13 @@ export function TimecardsPage() {
         ...(canSeePay ? [String(rates.get(e.profile_id) ?? 0).replace('.', ','),
           (hours * (rates.get(e.profile_id) ?? 0)).toFixed(2).replace('.', ',')] : [])])
     }
-    download(`timecards-${monday}.csv`, rows)
+    return rows
   }
+  const exportCsv = () => download(`timecards-${monday}.csv`, csvRows())
+  const saveToStorage = () => run(async () => {
+    const r = await api.saveFile({ folder: 'Timecards', name: `timecards-${monday}.csv`, content: '\ufeff' + toCsv(csvRows()), type: 'text/csv;charset=utf-8' })
+    window.open(r.link, '_blank', 'noopener')
+  }, `Saved to ${storage?.provider === 'onedrive' ? 'OneDrive' : 'Google Drive'} › Business Agent › Timecards`)
 
   return (
     <>
@@ -84,6 +95,11 @@ export function TimecardsPage() {
             </TextField>
           )}
           <Button startIcon={<DownloadIcon />} variant="outlined" onClick={exportCsv} disabled={!entries.length}>CSV</Button>
+          {storage && (
+            <Button startIcon={<CloudUploadIcon />} variant="outlined" onClick={saveToStorage} disabled={!entries.length}>
+              Save to {storage.provider === 'onedrive' ? 'OneDrive' : 'Drive'}
+            </Button>
+          )}
           <Button startIcon={<PrintIcon />} variant="outlined" component={RouterLink} to={`/registro?month=${monday.slice(0, 7)}${person !== 'all' ? `&person=${person}` : ''}`}>
             Monthly record
           </Button>

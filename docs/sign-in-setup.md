@@ -19,7 +19,9 @@ Google does not let apps create sign-in keys automatically, so this part is manu
 3. **Audience**: *External* → **Publish app** (status *In production*). Sign-in only asks for name
    and email, so Google doesn't need to review it.
 4. **Data access / Scopes**: add `openid`, `.../auth/userinfo.email`, `.../auth/userinfo.profile`.
-   (For the Google Maps connection also add `https://www.googleapis.com/auth/business.manage`.)
+   Also add the ones for the Google connections: `business.manage` (Google Maps listing),
+   `gmail.send` (Gmail: send team alerts) and `drive.file` (Google Drive: only files the app makes).
+   Also enable the **Gmail API** and **Google Drive API** under APIs & Services → Library.
 5. **Clients → Create client → Web application**, name **Business Agent web**:
    - Authorised JavaScript origins: `https://business-agent.arononeillwork.workers.dev`
    - Authorised redirect URIs (both):
@@ -36,9 +38,13 @@ Google does not let apps create sign-in keys automatically, so this part is manu
    Google sign-in" passes (it fails if Google shows an error such as `redirect_uri_mismatch`).
    Then open the site → **Google** → pick your account.
 
+The same Google keys power sign-in, Google Maps, Gmail and Google Drive: one set of keys, and
+each business just presses **Connect** on its Connections page.
+
 ## Microsoft (automatic, 2 minutes)
 
 Run **Actions → Set up Microsoft sign-in → Run workflow** (or ask Claude to start it). Open the
 log, copy the code it prints, and enter it at <https://microsoft.com/devicelogin> within 15 minutes
 while signed in to your Microsoft account. The workflow creates the app and switches Microsoft on
-in Supabase itself.
+in Supabase itself. The same run also gives the Worker the app for **Outlook** (send team alerts)
+and **OneDrive** (save exports), so those Connect buttons start working too.

@@ -142,3 +142,59 @@ export async function createPost(token: string, account: string, location: strin
   return gfetch<{ name: string }>(token, `https://mybusiness.googleapis.com/v4/${account}/locations/${locationId}/localPosts`,
     { method: 'POST', body: JSON.stringify(body) })
 }
+
+// ---------------------------------------------------------------------------------------------
+// Gmail and Google Drive: the café's mailbox sends alerts; exports are saved to its Drive.
+// ---------------------------------------------------------------------------------------------
+export const GMAIL_SCOPES = ['https://www.googleapis.com/auth/gmail.send', 'openid', 'email']
+// drive.file: only files this app creates (a "Business Agent" folder), never the rest of the Drive.
+export const DRIVE_SCOPES = ['https://www.googleapis.com/auth/drive.file', 'openid', 'email']
+
+/** The Google account's email address. */
+export async function accountEmail(token: string): Promise<string | undefined> {
+  const res = await fetch('https://openidconnect.googleapis.com/v1/userinfo', { headers: { authorization: `Bearer ${token}` } })
+  return res.ok ? ((await res.json()) as { email?: string }).email : undefined
+}
+
+export async function sendGmail(token: string, raw: string) {
+  const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+    method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ raw }),
+  })
+  const json = await res.json() as { id?: string; error?: { message?: string } }
+  if (!res.ok || !json.id) throw new Error(`Gmail: ${json.error?.message ?? res.status}`)
+  return json.id
+}
+
+async function drive<T>(token: string, url: string, init: RequestInit = {}): Promise<T> {
+  const res = await fetch(url, { ...init, headers: { authorization: `Bearer ${token}`, ...(init.headers ?? {}) } })
+  const json = await res.json() as T & { error?: { message?: string } }
+  if (!res.ok) throw new Error(`Google Drive: ${json.error?.message ?? res.status}`)
+  return json
+}
+
+/** The folder with this name under `parent` (made by this app), created if missing. */
+async function folder(token: string, name: string, parent = 'root') {
+  const q = `name = '${name.replace(/'/g, "\\'")}' and mimeType = 'application/vnd.google-apps.folder' and '${parent}' in parents and trashed = false`
+  const found = await drive<{ files: { id: string }[] }>(token, `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)`)
+  if (found.files[0]) return found.files[0].id
+  const made = await drive<{ id: string }>(token, 'https://www.googleapis.com/drive/v3/files?fields=id', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name, mimeType: 'application/vnd.google-apps.folder', parents: [parent] }),
+  })
+  return made.id
+}
+
+/** Save a file into "Business Agent/<sub>" in the café's Drive; returns its web link. */
+export async function saveToDrive(token: string, sub: string, name: string, content: string, type: string) {
+  const root = await folder(token, 'Business Agent')
+  const parent = sub ? await folder(token, sub, root) : root
+  const boundary = `ba${crypto.randomUUID()}`
+  const body = [
+    `--${boundary}`, 'Content-Type: application/json; charset=UTF-8', '', JSON.stringify({ name, parents: [parent] }),
+    `--${boundary}`, `Content-Type: ${type}`, '', content, `--${boundary}--`, '',
+  ].join('\r\n')
+  const file = await drive<{ webViewLink: string }>(token, 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=webViewLink', {
+    method: 'POST', headers: { 'content-type': `multipart/related; boundary=${boundary}` }, body,
+  })
+  return file.webViewLink
+}

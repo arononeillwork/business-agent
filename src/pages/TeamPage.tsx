@@ -205,7 +205,7 @@ function PersonPanel({ person: p, onClose }: { person: Profile; onClose: () => v
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 
-function InviteDialog({ onClose }: { onClose: () => void }) {
+export function InviteDialog({ onClose }: { onClose: () => void }) {
   const { api, refresh } = useApp()
   const run = useAction()
   const [email, setEmail] = useState('')

@@ -50,7 +50,7 @@ export function createDemoApi(): Api {
     updated_at: nowIso(),
   }
   const integ: IntegrationsState = {
-    configured: { google_business: true, whatsapp: true, instagram: true, spotify: true },
+    configured: { google_business: true, whatsapp: true, instagram: true, spotify: true, gmail: true, outlook: true, google_drive: true, onedrive: true },
     queue: [],
     integrations: [
       { provider: 'google_business', status: 'connected', account_label: 'Easy Beans Coffee',
@@ -61,6 +61,8 @@ export function createDemoApi(): Api {
         external: { playlist: { id: 'pl1', name: 'Easy Beans · Mornings', tracks: 84, url: 'https://open.spotify.com', owner: 'Easy Beans' } },
         connected_at: nowIso(), last_sync_at: null, last_error: null },
       { provider: 'instagram', status: 'connected', account_label: '@easy.beans.coffee', external: {}, connected_at: nowIso(), last_sync_at: nowIso(), last_error: null },
+      ...(['gmail', 'outlook', 'google_drive', 'onedrive'] as const).map(provider => ({
+        provider, status: 'disconnected' as const, account_label: null, external: {}, connected_at: null, last_sync_at: null, last_error: null })),
     ],
   }
   const demoPlaylists = [
@@ -80,10 +82,8 @@ export function createDemoApi(): Api {
     colours: [
       { name: 'Rose Pink', hex: '#F79BA4', role: 'primary', use: 'Buttons, highlights, the logo circle' },
       { name: 'Grey Limewash', hex: '#C6C2BB', role: 'secondary', use: 'Surfaces and panels, used generously' },
-      { name: 'Rose Wash', hex: '#F3DED3', role: 'accent', use: 'Soft panels behind copy' },
       { name: 'Ube Lilac', hex: '#B7A3D8', role: 'accent', use: 'Ube drinks, seasonal moments' },
       { name: 'Matcha Green', hex: '#6B8E4E', role: 'accent', use: 'Wellbeing, sourcing, all-good cues' },
-      { name: 'Cream', hex: '#FBF8F4', role: 'base', use: 'Preferred background' },
     ],
   }
   const notes: (AppNotification & { profile_id: string })[] = []
@@ -748,6 +748,24 @@ export function createDemoApi(): Api {
     async disconnect(provider) {
       requireAdmin()
       Object.assign(integ.integrations.find(i => i.provider === provider)!, { status: 'disconnected', account_label: null, external: {} })
+    },
+    async connectService(provider) {
+      requireAdmin()
+      // Demo: pretend the café signed in with its Google / Microsoft account.
+      const account = provider === 'gmail' || provider === 'google_drive' ? 'easybeanscafe@gmail.com' : 'easybeans@outlook.com'
+      Object.assign(integ.integrations.find(i => i.provider === provider)!, { status: 'connected', account_label: account, connected_at: nowIso(), last_error: null })
+    },
+    async sendTestEmail(to) {
+      requireAdmin()
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(to)) throw new Error('Enter a full email address')
+      if (!integ.integrations.some(i => (i.provider === 'gmail' || i.provider === 'outlook') && i.status === 'connected')) {
+        throw new Error('No mailbox connected. Connect Gmail or Outlook on the Connections page.')
+      }
+    },
+    async saveFile(f) {
+      const store = (['google_drive', 'onedrive'] as const).find(p => integ.integrations.some(i => i.provider === p && i.status === 'connected'))
+      if (!store) throw new Error('No file storage connected. Connect Google Drive or OneDrive on the Connections page.')
+      return { provider: store, link: `https://${store === 'google_drive' ? 'drive.google.com' : 'onedrive.live.com'}/demo/Business Agent/${f.folder}/${f.name}` }
     },
     async whatsappTest(to) {
       requireAdmin()

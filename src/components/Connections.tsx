@@ -13,11 +13,12 @@ import { useAsync } from '../app/hooks'
 import { useAction, useNotify } from '../app/Notify'
 import { SectionTitle, Tag } from './common'
 import { ShareDialog } from './ShareDialog'
-import { DAY_KEYS, type Integration, type IntegrationProvider, type OpeningHours } from '../../shared/types'
+import { DAY_KEYS, type ConnectorProvider, type Integration, type IntegrationProvider, type OpeningHours } from '../../shared/types'
+import { serviceName } from './Connectors'
 import { formatLocal, formatNumber } from '../../shared/time'
 import { tokens } from '../theme'
 
-const META: Record<IntegrationProvider, { name: string; icon: ReactNode; does: string }> = {
+const META: Record<Exclude<IntegrationProvider, ConnectorProvider>, { name: string; icon: ReactNode; does: string }> = {
   google_business: { name: 'Google Maps & Search', icon: <GoogleIcon />, does: 'Opening hours, closures and phone stay in sync on your Google listing. Post events.' },
   whatsapp: { name: 'WhatsApp', icon: <WhatsAppIcon sx={{ color: '#1f9e55' }} />, does: 'Shift reminders, missed clock-ins and the weekly rota go to staff who opted in.' },
   instagram: { name: 'Instagram', icon: <InstagramIcon sx={{ color: '#c13584' }} />, does: 'Followers and recent posts here; publish events and specials.' },
@@ -31,7 +32,7 @@ function status(i: Integration | undefined, configured: boolean) {
   return { text: 'Connected', fg: tokens.goodFg, bg: tokens.goodBg }
 }
 
-const SETUP_HELP: Record<IntegrationProvider, string> = {
+const SETUP_HELP: Record<Exclude<IntegrationProvider, ConnectorProvider>, string> = {
   google_business: 'Add GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and INTEGRATION_KEY to the Worker (see docs/INTEGRATIONS.md), then connect with the Google account that owns the listing.',
   whatsapp: 'Create a Meta app with WhatsApp, verify the business, add the number, then set META_ACCESS_TOKEN, META_APP_SECRET, WHATSAPP_VERIFY_TOKEN and WHATSAPP_PHONE_NUMBER_ID (see docs/INTEGRATIONS.md).',
   spotify: 'Create a free app at developer.spotify.com, add the redirect URL, then set SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET (see docs/INTEGRATIONS.md).',
@@ -49,7 +50,7 @@ export function ConnectionsCard() {
   // Coming back from Google's consent screen.
   useEffect(() => {
     const q = new URLSearchParams(location.search)
-    if (q.get('connected')) notify(`${q.get('connected') === 'spotify' ? 'Spotify' : 'Google'} connected`, 'success')
+    if (q.get('connected')) notify(`${serviceName(q.get('connected')!)} connected`, 'success')
     if (q.get('connect_error')) notify(q.get('connect_error')!, 'error')
     if (q.has('connected') || q.has('connect_error')) history.replaceState(null, '', location.pathname)
   }, [notify])
@@ -59,7 +60,7 @@ export function ConnectionsCard() {
   const waiting = data.data?.queue.filter(q => q.status === 'pending').length ?? 0
   const failing = data.data?.queue.filter(q => q.status !== 'pending').length ?? 0
 
-  const row = (p: IntegrationProvider, actions: ReactNode) => {
+  const row = (p: Exclude<IntegrationProvider, ConnectorProvider>, actions: ReactNode) => {
     const i = get(p)
     const st = status(i, configured(p))
     return (

@@ -82,8 +82,6 @@ export function BrandPage() {
             <Stack spacing={2.5}>
               <LogoCard title="Logo" value={b.logo} fallback={logoUrl} canEdit={isAdmin}
                 onChange={logo => save({ logo }, logo ? 'Logo updated' : 'Logo removed')} />
-              <LogoCard title="Small version (icon)" hint="For app icons, stickers and profile pictures." value={b.logo_mark} canEdit={isAdmin}
-                onChange={logo_mark => save({ logo_mark }, logo_mark ? 'Icon updated' : 'Icon removed')} />
             </Stack>
           </Grid>
           <Grid size={{ xs: 12, lg: 7 }}>

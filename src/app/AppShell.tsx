@@ -17,6 +17,7 @@ import TimeOffIcon from '@mui/icons-material/BeachAccessOutlined'
 import FinanceIcon from '@mui/icons-material/PaymentsOutlined'
 import AlertsIcon from '@mui/icons-material/CampaignOutlined'
 import ConnectIcon from '@mui/icons-material/HubOutlined'
+import SetupIcon from '@mui/icons-material/RocketLaunchOutlined'
 import LogoutIcon from '@mui/icons-material/LogoutOutlined'
 import PartnersIcon from '@mui/icons-material/HandshakeOutlined'
 import MoreIcon from '@mui/icons-material/MoreHoriz'
@@ -43,11 +44,8 @@ import { fonts, tokens } from '../theme'
 interface NavItem { key: string; to: string; label: string; short?: string; icon: ReactNode; who?: 'admin' | 'pay'; partner?: PartnerArea[] | 'any' }
 interface NavSection { key: string; label: string | null; items: NavItem[] }
 
-// The menu, in sections. Today is the home page (the logo goes there too).
+// The menu, in sections. Today is the landing page: the logo goes there, so it has no menu item.
 export const SECTIONS: NavSection[] = [
-  { key: 'home', label: null, items: [
-    { key: 'today', to: '/', label: 'Today', icon: <TodayIcon /> },
-  ] },
   { key: 'business', label: 'Business', items: [
     { key: 'business', to: '/business', label: 'Business', icon: <BusinessIcon />, partner: 'any' },
     { key: 'hours', to: '/opening-hours', label: 'Opening hours', icon: <HoursIcon />, partner: 'any' },
@@ -66,6 +64,7 @@ export const SECTIONS: NavSection[] = [
     { key: 'team', to: '/team', label: 'Team', icon: <TeamIcon /> },
   ] },
   { key: 'admin', label: 'Settings', items: [
+    { key: 'setup', to: '/setup', label: 'Set-up', icon: <SetupIcon />, who: 'admin' },
     { key: 'connections', to: '/connections', label: 'Connections', icon: <ConnectIcon />, who: 'admin' },
     { key: 'alerts', to: '/alerts', label: 'Alerts', icon: <AlertsIcon />, who: 'admin' },
     ...(FEATURES.partners ? [{ key: 'partners', to: '/partners', label: 'Partners', icon: <PartnersIcon />, who: 'admin' as const }] : []),
@@ -79,7 +78,7 @@ export const SECTIONS: NavSection[] = [
 const DRAWER = 252
 const MINI = 76
 // Phone tabs: the everyday pages first; everything else sits under "More".
-const PHONE_TABS = ['today', 'rota', 'timeoff', 'timecards', 'business', 'calendar']
+const PHONE_TABS = ['rota', 'timeoff', 'timecards', 'calendar', 'business']
 
 // The desktop sidebar: deep espresso with cream text and the brand's Rose Pink for the current page.
 const SIDEBAR = {
@@ -161,7 +160,7 @@ function PhoneNav({ sections, current }: { sections: NavSection[]; current: stri
   const overflow = flat.length > 5
   const shown = overflow ? tabbable.slice(0, 4) : tabbable
   const shownKeys = shown.map(n => n.key)
-  const inRest = !!current && !shownKeys.includes(current)
+  const inRest = !!current && current !== 'today' && !shownKeys.includes(current)
   return (
     <Paper component="nav" aria-label="Main" elevation={0}
       sx={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 10, pb: 'env(safe-area-inset-bottom)' }}>
@@ -328,7 +327,10 @@ export function AppShell() {
   const all = SECTIONS.flatMap(s => s.items)
   const current = all.find(n => n.to !== '/' && pathname.startsWith(n.to))?.key ?? (pathname === '/' ? 'today' : false)
   const home = isPartner ? '/business' : '/'
-  const searchPages = sections.flatMap(s => s.items.map(n => ({ key: n.key, to: n.to, label: n.label, icon: n.icon, section: s.label })))
+  const searchPages = [
+    ...(isPartner ? [] : [{ key: 'today', to: '/', label: 'Today', icon: <TodayIcon />, section: null }]),
+    ...sections.flatMap(s => s.items.map(n => ({ key: n.key, to: n.to, label: n.label, icon: n.icon, section: s.label }))),
+  ]
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh' }}>

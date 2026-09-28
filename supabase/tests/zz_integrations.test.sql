@@ -429,3 +429,19 @@ reset role;
 do $$ begin
   assert (select count(*) from public.sports_favourites) = 3, 'favourites kept';
 end $$;
+
+-- 19. People who prefer email get alerts by email once a mailbox is connected -------------------
+reset role;
+update public.profiles set contact_method = 'email', whatsapp_opt_in = true, phone = '+34 600 111 222' where email = 'julio@test';
+do $$
+declare v_id bigint;
+begin
+  -- No mailbox yet: they still get WhatsApp (they opted in).
+  v_id := public._enqueue_whatsapp((select id from public.profiles where email = 'julio@test'), 'rota_published', array['Julio', '5 Oct', 'Mon 9-17'], 'test-rota-1');
+  assert (select kind from public.outbox where id = v_id) = 'whatsapp', 'without a mailbox, WhatsApp';
+  update public.integrations set status = 'connected' where provider = 'gmail';
+  v_id := public._enqueue_whatsapp((select id from public.profiles where email = 'julio@test'), 'rota_published', array['Julio', '12 Oct', 'Tue 9-17'], 'test-rota-2');
+  assert (select kind = 'email' and payload->>'to' = 'julio@test' from public.outbox where id = v_id), 'with Gmail connected, email';
+  update public.integrations set status = 'disconnected' where provider = 'gmail';
+  assert (select count(*) from public.integrations where provider in ('gmail', 'outlook', 'google_drive', 'onedrive')) = 4, 'new connections listed';
+end $$;

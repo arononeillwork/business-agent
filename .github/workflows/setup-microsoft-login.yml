@@ -18,6 +18,10 @@ jobs:
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       REDIRECT: https://lhakrmmoxaareykglmtx.supabase.co/auth/v1/callback
+      # Outlook email and OneDrive files connect through the Worker with the same app.
+      WORKER_REDIRECT: https://business-agent.arononeillwork.workers.dev/api/integrations/microsoft/callback
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       APP_NAME: Easy Beans Team
     steps:
       - uses: actions/checkout@v4
@@ -34,21 +38,25 @@ jobs:
           if [ -z "$app" ]; then
             # Personal accounts need v2 tokens, which must be set before the audience can include them.
             app=$(az ad app create --display-name "$APP_NAME" --sign-in-audience AzureADMultipleOrgs \
-              --web-redirect-uris "$REDIRECT" --query appId -o tsv)
+              --web-redirect-uris "$REDIRECT" "$WORKER_REDIRECT" --query appId -o tsv)
             az ad app update --id "$app" --set api.requestedAccessTokenVersion=2
             az ad app update --id "$app" --sign-in-audience AzureADandPersonalMicrosoftAccount
             echo "Created app $app"
           else
-            az ad app update --id "$app" --web-redirect-uris "$REDIRECT"
+            az ad app update --id "$app" --web-redirect-uris "$REDIRECT" "$WORKER_REDIRECT"
             echo "Reusing app $app"
           fi
-          # Microsoft Graph delegated: openid, email, profile, User.Read
+          # Microsoft Graph delegated: openid, email, profile, User.Read (sign-in) and
+          # offline_access, Mail.Send (Outlook alerts), Files.ReadWrite (OneDrive exports)
           cat > perms.json <<'JSON'
           [{"resourceAppId":"00000003-0000-0000-c000-000000000000","resourceAccess":[
             {"id":"37f7f235-527c-4136-accd-4a02d197296e","type":"Scope"},
             {"id":"64a6cdd6-aab1-4aaf-94b8-3cc8405e90d0","type":"Scope"},
             {"id":"14dad69e-099b-42c9-810b-d002981feec1","type":"Scope"},
-            {"id":"e1fe6dd8-ba31-4d61-89e7-88639da4683d","type":"Scope"}]}]
+            {"id":"e1fe6dd8-ba31-4d61-89e7-88639da4683d","type":"Scope"},
+            {"id":"7427e0e9-2fba-42fe-b0c0-848c9e6a8182","type":"Scope"},
+            {"id":"e383f46e-2787-4529-855e-0e479a3ffac0","type":"Scope"},
+            {"id":"5c28f0bf-8a70-41f1-8ab2-9032436ddb65","type":"Scope"}]}]
           JSON
           az ad app update --id "$app" --required-resource-accesses @perms.json
           cat > claims.json <<'JSON'
@@ -65,3 +73,17 @@ jobs:
         run: node scripts/ops/supabase-auth.mjs | tee -a "$GITHUB_STEP_SUMMARY"
         env:
           AZURE_CLIENT_ID: ${{ steps.app.outputs.client_id }}
+      - uses: actions/setup-node@v4
+        if: env.CLOUDFLARE_API_TOKEN != ''
+        with:
+          node-version: 22
+          cache: npm
+      - name: Give the Worker the Microsoft app (Outlook and OneDrive connections)
+        if: env.CLOUDFLARE_API_TOKEN != ''
+        env:
+          MS_CLIENT_ID: ${{ steps.app.outputs.client_id }}
+        run: |
+          npm ci --no-audit --no-fund
+          printf '%s' "$MS_CLIENT_ID" | npx wrangler secret put MS_CLIENT_ID
+          printf '%s' "$AZURE_CLIENT_SECRET" | npx wrangler secret put MS_CLIENT_SECRET
+          echo "Outlook and OneDrive can now be connected on the Connections page." >> "$GITHUB_STEP_SUMMARY"

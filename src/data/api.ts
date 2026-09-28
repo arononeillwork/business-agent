@@ -1,8 +1,4 @@
-import type {
-  Expense, InstagramProfile, IntegrationsState, MusicNow, OutboxItem, OpeningHours, SpotifyPlaylist, TimeOff, TimeOffKind,
-  BreakType, Business, CalendarEvent, CorrectionRequest, KioskPerson, OpenBreak, PayRate,
-  AppNotification, Brand, EventAlert, MusicPlaylist, MusicProvider, MyMusic, MyNowPlaying, PartnerArea, Position, Profile, Settings, Shift, TimeEntry, TimeEntryChange,
-} from '../../shared/types'
+import type { AppNotification, Brand, BreakType, Business, CalendarEvent, ConnectorProvider, CorrectionRequest, EventAlert, Expense, InstagramProfile, IntegrationsState, KioskPerson, MusicNow, MusicPlaylist, MusicProvider, MyMusic, MyNowPlaying, OpenBreak, OpeningHours, OutboxItem, PartnerArea, PayRate, Position, Profile, Settings, Shift, SpotifyPlaylist, TimeEntry, TimeEntryChange, TimeOff, TimeOffKind } from '../../shared/types'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
 
 export type ShiftInput = Omit<Shift, 'id' | 'status'> & { id?: string; status?: Shift['status'] }
@@ -131,6 +127,12 @@ export interface Api {
   syncGoogleNow(): Promise<void>
   googleHours(): Promise<OpeningHours>
   disconnect(provider: string): Promise<void>
+  /** Start connecting Gmail, Outlook, Google Drive or OneDrive (goes to Google/Microsoft and back). */
+  connectService(provider: ConnectorProvider, back?: 'setup' | 'connections'): Promise<void>
+  /** Send a test email from the connected mailbox. */
+  sendTestEmail(to: string): Promise<void>
+  /** Save a file into "Business Agent/<folder>" in the connected Drive/OneDrive; returns a link to it. */
+  saveFile(f: { folder: string; name: string; content: string; type?: string }): Promise<{ link: string; provider: ConnectorProvider }>
   whatsappTest(to: string): Promise<void>
   instagramProfile(): Promise<InstagramProfile>
   uploadPhoto(file: File): Promise<string>

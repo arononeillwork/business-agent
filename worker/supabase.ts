@@ -21,6 +21,8 @@ export interface Env {
   INSTAGRAM_USER_ID?: string          // secret (GitHub → deploy)
   SPOTIFY_CLIENT_ID?: string
   SPOTIFY_CLIENT_SECRET?: string
+  MS_CLIENT_ID?: string               // Microsoft app (Outlook email, OneDrive files); set by the Microsoft setup workflow
+  MS_CLIENT_SECRET?: string
 }
 
 export type Via = 'app' | 'api' | 'ai'

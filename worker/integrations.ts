@@ -8,11 +8,19 @@ import * as google from './providers/google'
 import * as whatsapp from './providers/whatsapp'
 import * as instagram from './providers/instagram'
 import * as spotify from './providers/spotify'
+import * as ms from './providers/microsoft'
+import { alertEmail, base64url, mimeMessage } from '../shared/alertText'
 import { finishMusicConnect, type MusicState } from './music'
 import type { Business, CalendarEvent } from '../shared/types'
 import { today } from '../shared/time'
 
-type Provider = 'google_business' | 'whatsapp' | 'instagram' | 'spotify'
+type Provider = 'google_business' | 'whatsapp' | 'instagram' | 'spotify' | Connector
+/** Email and file connections: one sign-in with Google or Microsoft each. */
+type Connector = 'gmail' | 'outlook' | 'google_drive' | 'onedrive'
+const CONNECTORS: Connector[] = ['gmail', 'outlook', 'google_drive', 'onedrive']
+const isGoogleConnector = (p: Connector) => p === 'gmail' || p === 'google_drive'
+const CONNECTOR_NAME: Record<Connector, string> = { gmail: 'Gmail', outlook: 'Outlook', google_drive: 'Google Drive', onedrive: 'OneDrive' }
+interface ConnectorState { uid: string; kind: 'connector'; provider: Connector; back?: 'setup' | 'connections' }
 
 const graphVersion = (env: Env) => env.META_GRAPH_VERSION ?? 'v23.0'
 
@@ -30,6 +38,57 @@ const googleConfig = (env: Env, origin: string): google.GoogleOAuthConfig | null
   env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET && env.INTEGRATION_KEY
     ? { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET, redirectUri: `${origin}/api/integrations/google/callback` }
     : null
+
+const msConfig = (env: Env, origin: string): ms.MicrosoftOAuthConfig | null =>
+  env.MS_CLIENT_ID && env.MS_CLIENT_SECRET && env.INTEGRATION_KEY
+    ? { clientId: env.MS_CLIENT_ID, clientSecret: env.MS_CLIENT_SECRET, redirectUri: `${origin}/api/integrations/microsoft/callback` }
+    : null
+
+const connectorConfigured = (env: Env, p: Connector) => isGoogleConnector(p) ? !!googleConfig(env, '') : !!msConfig(env, '')
+
+/** A fresh access token for an email/file connection. Microsoft rotates refresh tokens, so keep the new one. */
+async function connectorToken(env: Env, db: SupabaseClient, p: Connector, origin = ''): Promise<string> {
+  const { data: secret } = await db.from('integration_secrets').select('ciphertext').eq('provider', p).maybeSingle()
+  if (!secret) throw new Error(`${CONNECTOR_NAME[p]} is not connected`)
+  const { refresh_token } = await unseal<{ refresh_token: string }>(env.INTEGRATION_KEY!, secret.ciphertext)
+  if (isGoogleConnector(p)) {
+    const cfg = googleConfig(env, origin)
+    if (!cfg) throw new Error('Google is not set up')
+    return (await google.refreshAccess(cfg, refresh_token)).access_token!
+  }
+  const cfg = msConfig(env, origin)
+  if (!cfg) throw new Error('Microsoft is not set up')
+  const t = await ms.refreshAccess(cfg, refresh_token)
+  if (t.refresh_token && t.refresh_token !== refresh_token) {
+    await db.from('integration_secrets').update({ ciphertext: await seal(env.INTEGRATION_KEY!, { refresh_token: t.refresh_token }) }).eq('provider', p)
+  }
+  return t.access_token!
+}
+
+const connectedOf = async (db: SupabaseClient, options: Connector[]) => {
+  const { data } = await db.from('integrations').select('provider, status').in('provider', options)
+  return options.find(p => data?.some(r => r.provider === p && r.status === 'connected')) ?? null
+}
+
+/** Send an email from the café's connected mailbox (Gmail first, else Outlook). */
+export async function sendEmail(env: Env, db: SupabaseClient, m: { to: string; subject: string; text: string }) {
+  const p = await connectedOf(db, ['gmail', 'outlook'])
+  if (!p) throw new Error('No mailbox connected. Connect Gmail or Outlook on the Connections page.')
+  const token = await connectorToken(env, db, p)
+  if (p === 'gmail') return google.sendGmail(token, base64url(mimeMessage(m)))
+  await ms.sendMail(token, m)
+  return null
+}
+
+/** Save a file to the café's connected storage (Google Drive first, else OneDrive); returns a link. */
+export async function saveFile(env: Env, db: SupabaseClient, f: { folder: string; name: string; content: string; type: string }) {
+  const p = await connectedOf(db, ['google_drive', 'onedrive'])
+  if (!p) throw new Error('No file storage connected. Connect Google Drive or OneDrive on the Connections page.')
+  const token = await connectorToken(env, db, p)
+  const link = p === 'google_drive' ? await google.saveToDrive(token, f.folder, f.name, f.content, f.type) : await ms.saveFile(token, f.folder, f.name, f.content, f.type)
+  await setIntegration(db, p, { last_sync_at: new Date().toISOString(), last_error: null })
+  return { link, provider: p }
+}
 
 const spotifyConfig = (env: Env, origin: string): spotify.SpotifyOAuthConfig | null =>
   env.SPOTIFY_CLIENT_ID && env.SPOTIFY_CLIENT_SECRET && env.INTEGRATION_KEY
@@ -112,6 +171,10 @@ export async function drainOutbox(env: Env) {
         const s = await googleSession(env, db)
         if (!s.location || !s.account) throw new Error('Choose which Google listing to post to')
         externalId = (await google.createPost(s.token, s.account, s.location, job.payload as never)).name
+      } else if (job.kind === 'email') {
+        const p = job.payload as { to: string; template: string; params: string[] }
+        const { data: biz } = await db.from('business').select('name').eq('id', 1).single()
+        externalId = await sendEmail(env, db, { to: p.to, ...alertEmail(p.template, p.params ?? [], biz?.name ?? 'Business Agent') })
       } else if (job.kind === 'instagram_post') {
         const cfg = igConfig(env)
         if (!cfg) throw new Error('Instagram is not set up')
@@ -170,6 +233,7 @@ integrations.get('/api/integrations', async c => {
     whatsapp: !!waConfig(c.env) && !!c.env.META_APP_SECRET && !!c.env.WHATSAPP_VERIFY_TOKEN,
     instagram: !!igConfig(c.env),
     spotify: !!spotifyConfig(c.env, ''),
+    ...Object.fromEntries(CONNECTORS.map(p => [p, connectorConfigured(c.env, p)])),
   }
   const { data: queue } = await db.from('outbox').select('kind, status').in('status', ['pending', 'failed', 'dead'])
   return c.json({ integrations: data, configured: setup, queue })
@@ -184,9 +248,95 @@ integrations.post('/api/integrations/google/start', async c => {
   return c.json({ url: google.authUrl(cfg, state) })
 })
 
+// Email and file connections: start (the browser then goes to Google or Microsoft)…
+integrations.post('/api/integrations/connect/:provider/start', async c => {
+  const p = c.req.param('provider') as Connector
+  if (!CONNECTORS.includes(p)) return c.json({ error: 'Unknown connection' }, 404)
+  const origin = new URL(c.req.url).origin
+  const { back } = await c.req.json<{ back?: 'setup' | 'connections' }>().catch(() => ({ back: undefined }))
+  const state = await signState(c.env.INTEGRATION_KEY ?? '', { uid: c.get('userId'), kind: 'connector', provider: p, back } satisfies ConnectorState)
+  if (isGoogleConnector(p)) {
+    const cfg = googleConfig(c.env, origin)
+    if (!cfg) return c.json({ error: `${CONNECTOR_NAME[p]} needs the Google keys first (GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET; see docs/sign-in-setup.md).` }, 400)
+    return c.json({ url: google.authUrl(cfg, state, p === 'gmail' ? google.GMAIL_SCOPES : google.DRIVE_SCOPES) })
+  }
+  const cfg = msConfig(c.env, origin)
+  if (!cfg) return c.json({ error: `${CONNECTOR_NAME[p]} needs the Microsoft app first: run the "Set up Microsoft sign-in" workflow (docs/sign-in-setup.md).` }, 400)
+  return c.json({ url: ms.authUrl(cfg, state, p === 'outlook' ? ms.MS_SCOPES.outlook : ms.MS_SCOPES.onedrive) })
+})
+
+/** …and finish: keep the refresh token (encrypted) and show which account is connected. */
+async function finishConnector(c: Context<{ Bindings: Env; Variables: { userId: string } }>, state: ConnectorState) {
+  const origin = new URL(c.req.url).origin
+  const back = (q: string) => c.redirect(`${origin}/${state.back === 'setup' ? 'setup' : 'connections'}?${q}`)
+  try {
+    if (c.req.query('error')) throw new Error(/access_denied|consent_required/.test(c.req.query('error')!) ? `${CONNECTOR_NAME[state.provider]} connection was cancelled` : (c.req.query('error_description') ?? c.req.query('error')))
+    const code = c.req.query('code') ?? ''
+    let refresh: string | undefined
+    let label: string | undefined
+    if (isGoogleConnector(state.provider)) {
+      const t = await google.exchangeCode(googleConfig(c.env, origin)!, code)
+      refresh = t.refresh_token
+      label = await google.accountEmail(t.access_token!)
+    } else {
+      const t = await ms.exchangeCode(msConfig(c.env, origin)!, code)
+      refresh = t.refresh_token
+      const who = await ms.me(t.access_token!)
+      label = who.mail ?? who.userPrincipalName ?? who.displayName
+    }
+    if (!refresh) throw new Error(`${CONNECTOR_NAME[state.provider]} did not allow offline access. Remove the app from your account's connected apps and connect again.`)
+    const db = serviceClient(c.env)
+    await db.from('integration_secrets').upsert({ provider: state.provider, ciphertext: await seal(c.env.INTEGRATION_KEY!, { refresh_token: refresh }) })
+    await setIntegration(db, state.provider, { status: 'connected', connected_by: state.uid, connected_at: new Date().toISOString(), last_error: null, account_label: label ?? null, external: {} })
+    return back(`connected=${state.provider}`)
+  } catch (e) {
+    return back(`connect_error=${encodeURIComponent(e instanceof Error ? e.message : String(e))}`)
+  }
+}
+
+const connectorState = async (env: Env, raw: string) => {
+  try {
+    const s = await verifyState<ConnectorState | { kind?: undefined }>(env.INTEGRATION_KEY!, raw)
+    return s.kind === 'connector' ? s : null
+  } catch { return null }
+}
+
+integrations.get('/api/integrations/microsoft/callback', async c => {
+  const state = await connectorState(c.env, c.req.query('state') ?? '')
+  if (!state) return c.redirect(`${new URL(c.req.url).origin}/connections?connect_error=${encodeURIComponent('That connection link expired. Try again.')}`)
+  return finishConnector(c, state)
+})
+
+// Try it: an email from the café's mailbox to the admin.
+integrations.post('/api/integrations/email/test', async c => {
+  const { to } = await c.req.json<{ to: string }>()
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(to ?? '')) return c.json({ error: 'Enter a full email address' }, 400)
+  const db = serviceClient(c.env)
+  try {
+    await sendEmail(c.env, db, { to, subject: 'Test email from Business Agent', text: 'It works: team alerts for people who prefer email will come from this mailbox.' })
+    return c.json({ ok: true })
+  } catch (e) {
+    return c.json({ error: e instanceof Error ? e.message : String(e) }, 400)
+  }
+})
+
+// Save an export (timecards, registro) into the café's Drive / OneDrive.
+integrations.post('/api/integrations/files/save', async c => {
+  const f = await c.req.json<{ folder?: string; name: string; content: string; type?: string }>()
+  if (!f.name || typeof f.content !== 'string') return c.json({ error: 'Nothing to save' }, 400)
+  if (f.content.length > 3_500_000) return c.json({ error: 'File is too large to save this way' }, 400)
+  try {
+    return c.json(await saveFile(c.env, serviceClient(c.env), { folder: f.folder ?? '', name: f.name.replace(/[\\/:*?"<>|]/g, '-'), content: f.content, type: f.type ?? 'text/csv' }))
+  } catch (e) {
+    return c.json({ error: e instanceof Error ? e.message : String(e) }, 400)
+  }
+})
+
 integrations.get('/api/integrations/google/callback', async c => {
   const personal = await musicCallback(c, 'youtube')
   if (personal) return personal
+  const connector = await connectorState(c.env, c.req.query('state') ?? '')
+  if (connector) return finishConnector(c, connector)
   const origin = new URL(c.req.url).origin
   const back = (q: string) => c.redirect(`${origin}/connections?${q}`)
   try {

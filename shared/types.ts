@@ -33,6 +33,8 @@ export interface Business {
   suppliers: { name: string; type?: string; phone?: string; email?: string; notes?: string }[]
   towns_followed: string[]
   notes: string | null
+  /** When an admin finished or skipped the set-up wizard; until then Today shows a prompt. */
+  setup_completed_at?: string | null
   updated_at: string
 }
 
@@ -245,7 +247,9 @@ export const TIME_OFF_LABELS: Record<TimeOffKind, string> = {
   vacation: 'Holiday', personal: 'Personal day', sick: 'Sick', other: 'Other',
 }
 
-export type IntegrationProvider = 'google_business' | 'whatsapp' | 'instagram' | 'spotify'
+export type IntegrationProvider = 'google_business' | 'whatsapp' | 'instagram' | 'spotify' | ConnectorProvider
+/** Email and file connections (one sign-in with Google or Microsoft each). */
+export type ConnectorProvider = 'gmail' | 'outlook' | 'google_drive' | 'onedrive'
 
 export interface SpotifyPlaylist { id: string; name: string; image?: string; tracks: number; url: string; owner?: string }
 

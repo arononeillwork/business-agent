@@ -354,6 +354,12 @@ export function createSupabaseApi(url: string, key: string): Api {
     async syncGoogleNow() { await worker('/api/integrations/google/sync', { method: 'POST' }) },
     async googleHours() { return (await worker<{ opening_hours: never }>('/api/integrations/google/hours')).opening_hours },
     async disconnect(provider) { await worker(`/api/integrations/${provider}/disconnect`, { method: 'POST' }) },
+    async connectService(provider, back) {
+      const { url } = await worker<{ url: string }>(`/api/integrations/connect/${provider}/start`, { method: 'POST', body: JSON.stringify({ back }) })
+      location.assign(url)
+    },
+    async sendTestEmail(to) { await worker('/api/integrations/email/test', { method: 'POST', body: JSON.stringify({ to }) }) },
+    saveFile: f => worker('/api/integrations/files/save', { method: 'POST', body: JSON.stringify(f) }),
     async whatsappTest(to) { await worker('/api/integrations/whatsapp/test', { method: 'POST', body: JSON.stringify({ to }) }) },
     instagramProfile: () => worker('/api/integrations/instagram/profile'),
     async uploadPhoto(file) {
