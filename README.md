@@ -85,6 +85,15 @@ Entra app and switches the provider on in Supabase.
 
 The first account to sign up becomes the admin; invite everyone else from the Team page.
 
+### Custom domain
+
+The app is served at <https://businesssagent.com> (and still at the workers.dev address). The
+domain is registered at Vercel with its DNS on Cloudflare (free plan): Cloudflare only attaches a
+Worker to a domain whose DNS it runs. Each deploy attaches the domain to the Worker
+(`scripts/ops/custom-domain.mjs`) and points Supabase sign-in at it; the deploy summary says
+what's missing if it can't. Every app's redirect URI can use either address, e.g.
+`https://businesssagent.com/api/integrations/<app>/callback`.
+
 ## Use it from any AI
 
 The app is an MCP server at `https://<worker-url>/mcp`. Each person connects their own AI and it

@@ -85,6 +85,10 @@ jobs:
           url=$(grep -oE 'https://[a-zA-Z0-9.-]+\.workers\.dev' deploy.log | head -1)
           echo "url=$url" >> "$GITHUB_OUTPUT"
           echo "### Live at $url" >> "$GITHUB_STEP_SUMMARY"
+      - name: Custom domain
+        id: domain
+        if: steps.gate.outputs.ready == 'true'
+        run: node scripts/ops/custom-domain.mjs
       - name: Sync Worker secrets
         if: steps.gate.outputs.ready == 'true'
         run: |
@@ -94,7 +98,8 @@ jobs:
           rm -f "$RUNNER_TEMP/secrets.json"
       - name: Point Supabase sign-in at the live site
         if: steps.gate.outputs.ready == 'true' && steps.deploy.outputs.url != ''
-        run: node scripts/ops/supabase-auth.mjs "${{ steps.deploy.outputs.url }}" | tee -a "$GITHUB_STEP_SUMMARY"
+        # The custom domain once it's live (workers.dev stays allowed for sign-in redirects).
+        run: node scripts/ops/supabase-auth.mjs "${{ steps.domain.outputs.site || steps.deploy.outputs.url }}" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Smoke-test the live site
         if: steps.gate.outputs.ready == 'true' && steps.deploy.outputs.url != ''
         run: |
@@ -103,7 +108,7 @@ jobs:
           npx playwright test e2e/smoke.spec.ts --project desktop
         env:
           CI: true
-          E2E_BASE_URL: ${{ steps.deploy.outputs.url }}
+          E2E_BASE_URL: ${{ steps.domain.outputs.site || steps.deploy.outputs.url }}
           # Only require the methods that are configured so far; the monitor checks all three.
           EXPECT_PROVIDERS: email
 

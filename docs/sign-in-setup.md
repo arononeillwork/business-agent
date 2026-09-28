@@ -14,7 +14,7 @@ Google does not let apps create sign-in keys automatically, so this part is manu
    project (top bar → project picker → **New project**), e.g. **Business Agent**.
 2. **APIs & Services → OAuth consent screen** (or **Google Auth Platform → Branding**):
    - App name: **Business Agent** · User support email: your email
-   - Authorised domains: `lhakrmmoxaareykglmtx.supabase.co` and `business-agent.arononeillwork.workers.dev` (skip any that Google refuses)
+   - Authorised domains: `lhakrmmoxaareykglmtx.supabase.co`, `businesssagent.com` and `business-agent.arononeillwork.workers.dev` (skip any that Google refuses)
    - Developer contact: your email → **Save**
 3. **Audience**: *External* → **Publish app** (status *In production*). Sign-in only asks for name
    and email, so Google doesn't need to review it.
@@ -27,10 +27,11 @@ Google does not let apps create sign-in keys automatically, so this part is manu
    Google Maps also needs Google to switch on Business Profile access for the project once:
    request it with Google's "Business Profile API access" form (usually approved in a few days).
 5. **Clients → Create client → Web application**, name **Business Agent web**:
-   - Authorised JavaScript origins: `https://business-agent.arononeillwork.workers.dev`
-   - Authorised redirect URIs (both):
+   - Authorised JavaScript origins: `https://businesssagent.com` and `https://business-agent.arononeillwork.workers.dev`
+   - Authorised redirect URIs (all three):
      - `https://lhakrmmoxaareykglmtx.supabase.co/auth/v1/callback`  (sign-in)
-     - `https://business-agent.arononeillwork.workers.dev/api/integrations/google/callback`  (Google Maps connection)
+     - `https://businesssagent.com/api/integrations/google/callback`  (Google connections)
+     - `https://business-agent.arononeillwork.workers.dev/api/integrations/google/callback`  (same, on the workers.dev address)
    - **Create**, then copy the **Client ID** and **Client secret**.
 6. GitHub → the `business-agent` repo → **Settings → Secrets and variables → Actions →
    New repository secret**, add:
