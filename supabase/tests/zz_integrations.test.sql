@@ -477,3 +477,27 @@ end $$;
 -- Tidy up for later sections.
 update public.integrations set status = 'disconnected' where provider in ('outlook', 'google_drive', 'google_calendar', 'youtube_music');
 delete from public.integration_secrets where provider in ('outlook');
+
+-- 21. Access keys: only hashes, and nobody reads them from the app (the Worker manages them) ------
+reset role;
+insert into public.api_keys (profile_id, name, prefix, key_hash)
+  select id, 'n8n', 'ba_AbC1', repeat('a', 64) from public.profiles where email = 'julio@test';
+do $$ begin
+  begin
+    insert into public.api_keys (profile_id, name, prefix, key_hash)
+      select id, 'plain', 'ba_AbC1', 'ba_not-a-hash' from public.profiles where email = 'julio@test';
+    assert false, 'a key that is not a hash must be refused';
+  exception when check_violation then null;
+  end;
+end $$;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from public.profiles where email = 'julio@test'), 'role', 'authenticated')::text, false);
+set role authenticated;
+do $$ begin
+  begin
+    perform 1 from public.api_keys;
+    assert false, 'signed-in people cannot read keys directly, not even their own';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+delete from public.api_keys;

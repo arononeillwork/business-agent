@@ -7,5 +7,7 @@ const demoOnly = process.env.VITE_DEMO_ONLY === '1'
 
 export default defineConfig({
   plugins: [react(), cloudflare()],
+  // Pre-bundle the brand-logo set at start-up; found later, it makes the dev server reload the page.
+  optimizeDeps: { include: ['simple-icons'] },
   ...(demoOnly ? { build: { assetsInlineLimit: 200_000, rollupOptions: { output: { inlineDynamicImports: true } } } } : {}),
 })

@@ -4,25 +4,7 @@ import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { SectionTitle } from './common'
 import { CalendarFeedCard } from './CalendarFeed'
-import { tokens } from '../theme'
-
-/** Talk to the app from Claude: each person signs in with their own account and gets their own tools. */
-export function AiConnectorCard() {
-  return (
-    <Card component="section" aria-label="AI connector">
-      <CardContent>
-        <SectionTitle>Claude (AI connector)</SectionTitle>
-        <Typography variant="body2">In Claude, open Settings → Connectors → <b>Add custom connector</b> and paste:</Typography>
-        <Box sx={{ mt: 1, p: 1.25, borderRadius: 2, bgcolor: tokens.surfaceAlt, border: 1, borderColor: 'divider', fontFamily: 'ui-monospace, monospace', fontSize: 13, wordBreak: 'break-all' }}>
-          {location.origin}/mcp
-        </Box>
-        <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1 }}>
-          Sign in with your own team account. Claude can then do what you can do here, nothing more; each change is logged as made via AI.
-        </Typography>
-      </CardContent>
-    </Card>
-  )
-}
+import { AiAssistants } from './AiAssistants'
 
 function MusicStatusCard() {
   const { api } = useApp()
@@ -54,7 +36,8 @@ export function MyConnections() {
       </Typography>
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, md: 6 }}><CalendarFeedCard scope="me" /></Grid>
-        <Grid size={{ xs: 12, md: 6 }}><Stack spacing={2}><MusicStatusCard /><AiConnectorCard /></Stack></Grid>
+        <Grid size={{ xs: 12, md: 6 }}><MusicStatusCard /></Grid>
+        <Grid size={12}><AiAssistants /></Grid>
       </Grid>
     </Box>
   )

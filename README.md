@@ -5,7 +5,8 @@ Square-style rota and time tracking, Spanish holidays and registro de jornada ru
 built-in **AI connector** so owners can run it by talking to Claude.
 
 - Web app: installable on phones (Add to Home Screen) and the café tablet (kiosk with PINs)
-- AI: MCP connector at `/mcp` with sign-in, plus a REST API at `/api/v1` for n8n/Zapier
+- AI: MCP server at `/mcp` for Claude, ChatGPT, Cursor and any MCP client (sign-in or personal access
+  keys), plus a REST API at `/api/v1` with an OpenAPI description for GPT actions, n8n and Zapier
 - Hosting: one Cloudflare Worker. Data and login: Supabase (EU): email/password, Google, Microsoft
 - Partners: outside businesses (gestoría, suppliers) get a read-only login to the areas an admin
   picks (rota, payroll, finances, calendar). Enforced by database row security and in the AI tools.
@@ -81,19 +82,32 @@ Entra app and switches the provider on in Supabase.
 
 The first account to sign up becomes the admin; invite everyone else from the Team page.
 
-## Connect Claude
+## Use it from any AI
 
-Claude → Settings → Connectors → Add custom connector → `https://<worker-url>/mcp`.
-Sign in with your team account. Claude then works with your permissions; every change is
-logged as made "via AI". Try: *"Who's working on Saturday, and are any shifts still open?"*
+The app is an MCP server at `https://<worker-url>/mcp`. Each person connects their own AI and it
+works with their permissions; every change is logged as made "via AI". **My account → AI
+assistants** has the steps for each one, with the URL filled in:
+
+- **Claude** (web, desktop, mobile): Settings → Connectors → Add custom connector → paste the URL → sign in.
+- **ChatGPT**: Settings → Apps & Connectors → Advanced → Developer mode → Create → the URL, OAuth → sign in.
+- **Claude Code**: `claude mcp add --transport http easy-beans https://<worker-url>/mcp`, then `/mcp` → Authenticate.
+- **Cursor, VS Code (Copilot), Gemini CLI** and any other MCP client: add the URL; they sign in by themselves.
+- **AIs that send a header instead of signing in** (the OpenAI and Anthropic APIs, n8n, agent
+  frameworks): make a personal **access key** on My account and send `Authorization: Bearer ba_…`.
+
+Try: *"Who's working on Saturday, and are any shifts still open?"*
 
 ## REST API
 
 ```
-GET  /api/v1/tools              list tools + JSON schemas
+GET  /api/v1/openapi.json       OpenAPI 3.1 of every tool (import into GPT actions, n8n, Zapier, Make)
+GET  /api/v1/tools              the tools you may use + JSON schemas
 POST /api/v1/tools/{name}       run a tool, JSON body
-Authorization: Bearer <Supabase access token>
+Authorization: Bearer <personal access key>   (or a Supabase session token)
 ```
+
+Access keys are made and revoked on My account; only a hash is stored, and a key acts as its
+owner through a normal session, so the database rules apply exactly as in the app.
 
 ## New business
 

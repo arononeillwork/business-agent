@@ -341,3 +341,6 @@ export interface Brand {
   notes: string | null
   updated_at: string
 }
+
+/** A personal access key for AIs and automations (the key itself is shown only when it's made). */
+export interface ApiKey { id: string; name: string; prefix: string; created_at: string; last_used_at: string | null }

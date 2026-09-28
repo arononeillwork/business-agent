@@ -1,4 +1,4 @@
-import type { AppNotification, Brand, BreakType, Business, CalendarApp, CalendarEvent, ConnectorProvider, ContactMethod, CorrectionRequest, EventAlert, Expense, InstagramProfile, Integration, IntegrationProvider, IntegrationsState, KioskPerson, MusicNow, MusicPlaylist, MusicProvider, MyMusic, MyNowPlaying, OpenBreak, OpeningHours, OutboxItem, PartnerArea, PayRate, Position, Profile, Settings, Shift, SpotifyPlaylist, TimeEntry, TimeEntryChange, TimeOff, TimeOffKind } from '../../shared/types'
+import type { ApiKey, AppNotification, Brand, BreakType, Business, CalendarApp, CalendarEvent, ConnectorProvider, ContactMethod, CorrectionRequest, EventAlert, Expense, InstagramProfile, Integration, IntegrationProvider, IntegrationsState, KioskPerson, MusicNow, MusicPlaylist, MusicProvider, MyMusic, MyNowPlaying, OpenBreak, OpeningHours, OutboxItem, PartnerArea, PayRate, Position, Profile, Settings, Shift, SpotifyPlaylist, TimeEntry, TimeEntryChange, TimeOff, TimeOffKind } from '../../shared/types'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
 
 export type ShiftInput = Omit<Shift, 'id' | 'status'> & { id?: string; status?: Shift['status'] }
@@ -166,6 +166,12 @@ export interface Api {
   calendarFeeds(): Promise<Partial<Record<'me' | 'business', string>>>
   makeCalendarFeed(scope: 'me' | 'business'): Promise<string>
   stopCalendarFeed(scope: 'me' | 'business'): Promise<void>
+
+  // AI assistants: personal access keys for AIs and automations that don't sign in (MCP header, REST)
+  apiKeys(): Promise<ApiKey[]>
+  /** Returns the new key; it is shown only this once. */
+  createApiKey(name: string): Promise<ApiKey & { key: string }>
+  revokeApiKey(id: string): Promise<void>
 
   // Music page: each person's own Spotify / YouTube Music (must connect to use it)
   myMusic(): Promise<MyMusic>

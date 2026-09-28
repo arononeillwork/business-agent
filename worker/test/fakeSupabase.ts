@@ -14,7 +14,7 @@ export const GROUP: Record<string, string> = {
 
 /** Primary keys, for upserts. Tables not listed get a numeric id. */
 const KEYS: Record<string, string[]> = {
-  integrations: ['provider'], integration_secrets: ['provider'], calendar_feeds: ['profile_id', 'scope'], profiles: ['id'], business: ['id'],
+  integrations: ['provider'], integration_secrets: ['provider'], calendar_feeds: ['profile_id', 'scope'], profiles: ['id'], business: ['id'], api_keys: ['id'],
 }
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
@@ -52,6 +52,10 @@ export class FakeSupabase {
   tables: Record<string, Row[]> = {}
   /** Bearer token → signed-in person. */
   people = new Map<string, { id: string; role: 'admin' | 'employee' }>()
+  /** Sign-ins made by the Worker for access keys (one-time links used, sessions refreshed). */
+  auth = { links: 0, refreshes: 0 }
+  private links = new Map<string, string>()
+  private refreshTokens = new Map<string, string>()
   private nextId = 1
 
   constructor() {
@@ -60,13 +64,14 @@ export class FakeSupabase {
       last_sync_at: null, last_error: null, last_checked_at: null, updated_at: null,
     }))
     this.tables.integration_secrets = []
-    this.tables.business = [{ id: 1, name: 'Easy Beans', address: 'Calle Mayor 1' }]
+    this.tables.business = [{ id: 1, name: 'Easy Beans', address: 'Calle Mayor 1', timezone: 'Europe/Madrid' }]
     this.tables.profiles = [
-      { id: 'admin-1', full_name: 'Aron', role: 'admin', active: true },
-      { id: 'admin-2', full_name: 'Maria', role: 'admin', active: true },
-      { id: 'staff-1', full_name: 'Julio', role: 'employee', active: true },
-      { id: 'admin-gone', full_name: 'Former admin', role: 'admin', active: false },
+      { id: 'admin-1', full_name: 'Aron', email: 'aron@example.com', role: 'admin', active: true },
+      { id: 'admin-2', full_name: 'Maria', email: 'maria@example.com', role: 'admin', active: true },
+      { id: 'staff-1', full_name: 'Julio', email: 'julio@example.com', role: 'employee', active: true },
+      { id: 'admin-gone', full_name: 'Former admin', email: 'gone@example.com', role: 'admin', active: false },
     ]
+    this.tables.api_keys = []
     this.tables.notifications = []
     this.tables.calendar_feeds = []
     this.people.set('admin-token', { id: 'admin-1', role: 'admin' })
@@ -83,6 +88,31 @@ export class FakeSupabase {
     if (url.origin !== this.url) return null
     const method = (init.method ?? 'GET').toUpperCase()
     const headers = new Headers(init.headers)
+    // Access keys: the Worker signs in as the key's owner with a one-time link, then refreshes.
+    if (url.pathname === '/auth/v1/admin/generate_link') {
+      const { email } = JSON.parse(String(init.body)) as { email: string }
+      const person = this.table('profiles').find(p => p.email === email)
+      if (!person) return json({ code: 404, msg: 'User not found' }, 404)
+      const hashed = `link-${this.nextId++}`
+      this.links.set(hashed, person.id as string)
+      return json({ id: person.id, aud: 'authenticated', email, action_link: 'https://db.test/verify', email_otp: '123456', hashed_token: hashed, verification_type: 'magiclink', redirect_to: '' })
+    }
+    if (url.pathname === '/auth/v1/verify') {
+      const { token_hash } = JSON.parse(String(init.body)) as { token_hash: string }
+      const uid = this.links.get(token_hash)
+      if (!uid) return json({ code: 403, msg: 'Token has expired or is invalid' }, 403)
+      this.links.delete(token_hash)
+      this.auth.links++
+      return json(this.session(uid))
+    }
+    if (url.pathname === '/auth/v1/token' && url.searchParams.get('grant_type') === 'refresh_token') {
+      const { refresh_token } = JSON.parse(String(init.body)) as { refresh_token: string }
+      const uid = this.refreshTokens.get(refresh_token)
+      if (!uid) return json({ code: 400, error: 'invalid_grant', msg: 'Invalid Refresh Token: Already Used' }, 400)
+      this.refreshTokens.delete(refresh_token)
+      this.auth.refreshes++
+      return json(this.session(uid))
+    }
     if (url.pathname === '/auth/v1/user') {
       const who = this.people.get(bearerOf(headers))
       return who
@@ -139,6 +169,16 @@ export class FakeSupabase {
       return new Response(null, { status: 204 })
     }
     return json({ message: `fake Supabase: ${method} not supported` }, 405)
+  }
+
+  /** A new session for this person (access tokens work with /auth/v1/user; refresh tokens rotate). */
+  session(uid: string, expiresIn = 3600) {
+    const person = this.table('profiles').find(p => p.id === uid)!
+    const access = `access-${this.nextId++}`, refresh = `refresh-${this.nextId++}`
+    this.people.set(access, { id: uid, role: person.role as 'admin' | 'employee' })
+    this.refreshTokens.set(refresh, uid)
+    return { access_token: access, refresh_token: refresh, token_type: 'bearer', expires_in: expiresIn, expires_at: Math.floor(Date.now() / 1000) + expiresIn,
+      user: { id: uid, aud: 'authenticated', role: 'authenticated', email: person.email, app_metadata: {}, user_metadata: {}, created_at: '' } }
   }
 
   /** Migration 28: connecting (or choosing) one app in a group disconnects the others. */

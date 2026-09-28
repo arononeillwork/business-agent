@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { Api } from './api'
-import type { AppNotification, Brand, Business, EventAlert, Expense, Integration, MusicPlaylist, OutboxItem, Profile, Settings, TimeEntry, TimeOff } from '../../shared/types'
+import type { ApiKey, AppNotification, Brand, Business, EventAlert, Expense, Integration, MusicPlaylist, OutboxItem, Profile, Settings, TimeEntry, TimeOff } from '../../shared/types'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
 
 const PROFILE_COLUMNS = 'id, full_name, email, role, can_see_pay, colour, active, phone, birth_date, whatsapp_opt_in, partner_company, partner_access, preferences'
@@ -411,6 +411,9 @@ export function createSupabaseApi(url: string, key: string): Api {
     calendarFeeds: () => worker('/api/me/calendar-feed'),
     async makeCalendarFeed(scope) { return (await worker<{ url: string }>(`/api/me/calendar-feed/${scope}`, { method: 'POST' })).url },
     async stopCalendarFeed(scope) { await worker(`/api/me/calendar-feed/${scope}`, { method: 'DELETE' }) },
+    async apiKeys() { return (await worker<{ keys: ApiKey[] }>('/api/me/api-keys')).keys },
+    createApiKey: name => worker('/api/me/api-keys', { method: 'POST', body: JSON.stringify({ name }) }),
+    async revokeApiKey(id) { await worker(`/api/me/api-keys/${id}`, { method: 'DELETE' }) },
     myMusic: () => worker('/api/me/music'),
     async connectMyMusic(provider) {
       const { url } = await worker<{ url: string }>(`/api/me/music/${provider}/start`, { method: 'POST' })

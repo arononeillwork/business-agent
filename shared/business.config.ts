@@ -6,6 +6,8 @@ export const businessConfig = {
   id: 'easy-beans',
   name: 'Easy Beans Coffee',
   shortName: 'Easy Beans',
+  /** Where this business's app is deployed (the demo shows it in the AI set-up steps). */
+  appUrl: 'https://business-agent.arononeillwork.workers.dev',
   timezone: 'Europe/Madrid',
   locale: 'es-ES',
   currency: 'EUR',

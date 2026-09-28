@@ -3,7 +3,7 @@
 // of truth: the database functions are.
 import type { Api, ShiftInput } from './api'
 import type {
-  AppNotification, Brand, EventAlert, MusicAccount, MusicPlaylist, MusicProvider, MyNowPlaying,
+  ApiKey, AppNotification, Brand, EventAlert, MusicAccount, MusicPlaylist, MusicProvider, MyNowPlaying,
   Expense, Integration, IntegrationProvider, IntegrationsState, OutboxItem, PartnerArea, TimeOff,
   BreakType, Business, CalendarEvent, CorrectionRequest, PayRate, Position, Profile, Settings,
   Shift, TimeEntry, TimeEntryChange,
@@ -94,6 +94,7 @@ export function createDemoApi(): Api {
   const myAccounts = new Map<string, MusicAccount[]>()
   const myPlayer: MyNowPlaying = { playing: false }
   const feeds = new Map<string, Partial<Record<'me' | 'business', string>>>()
+  const keys = new Map<string, ApiKey[]>()
   const alerts: EventAlert[] = []
   const brand: Brand = {
     logo: null, logo_mark: null, heading_font: 'Poppins', body_font: 'Figtree', updated_at: nowIso(),
@@ -895,6 +896,18 @@ export function createDemoApi(): Api {
       delete f[scope]
       feeds.set(currentUser!, f)
     },
+    async apiKeys() { return clone(keys.get(currentUser!) ?? []) },
+    async createApiKey(name) {
+      if (!name.trim()) throw new Error('Give the key a name, like “ChatGPT” or “n8n”')
+      const list = keys.get(currentUser!) ?? []
+      if (list.length >= 10) throw new Error('You have 10 keys already. Revoke one you no longer use first.')
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+      const key = `ba_${Array.from(crypto.getRandomValues(new Uint8Array(40)), b => chars[b % 62]).join('')}`
+      const row: ApiKey = { id: uid(), name: name.trim(), prefix: key.slice(0, 7), created_at: nowIso(), last_used_at: null }
+      keys.set(currentUser!, [row, ...list])
+      return { ...row, key }
+    },
+    async revokeApiKey(id) { keys.set(currentUser!, (keys.get(currentUser!) ?? []).filter(k => k.id !== id)) },
     async myMusic() {
       if (!['admin', 'employee'].includes(me()?.role ?? '')) throw new Error('Music is for the team')
       return { configured: { spotify: true, youtube: true }, accounts: clone(myAccounts.get(currentUser!) ?? []) }

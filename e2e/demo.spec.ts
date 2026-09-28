@@ -757,7 +757,7 @@ test.describe('business-wide vs personal', () => {
     await mine.getByRole('button', { name: 'Make a new link' }).click()
     await expect(mine.getByLabel('Calendar link')).not.toHaveText(link!)
     await expect(page.getByRole('region', { name: 'My music' }).getByText('Not connected')).toBeVisible()
-    await expect(page.getByRole('region', { name: 'AI connector' })).toContainText('/mcp')
+    await expect(page.getByRole('region', { name: 'AI assistants' })).toContainText('https://business-agent.arononeillwork.workers.dev/mcp')
     // Employees never see the team calendar or the business's own accounts.
     await expect(page.getByRole('region', { name: 'Team calendar' })).toHaveCount(0)
     await expect(page.getByRole('link', { name: 'Connections' })).toHaveCount(0)
@@ -1259,4 +1259,37 @@ test.describe('connections for email, files and music', () => {
     await expect(page.getByText('Rose Wash')).toHaveCount(0)
     await expect(page.getByText('Rose Pink').first()).toBeVisible()
   })
+})
+
+test('use the app from any AI: steps for each one, and access keys for the rest', async ({ page }) => {
+  await open(page, '/account', 'maria@example.com')
+  const ai = page.getByRole('region', { name: 'AI assistants' })
+  const tabs = ai.getByRole('tablist', { name: 'Choose your AI' })
+  for (const name of ['Claude', 'ChatGPT', 'Claude Code', 'Cursor', 'VS Code', 'Gemini CLI', 'Other AIs and automations']) {
+    await expect(tabs.getByRole('tab', { name, exact: true })).toBeVisible()
+  }
+  await expect(ai.getByRole('tabpanel', { name: 'Claude set-up' })).toContainText('Add custom connector')
+  await tabs.getByRole('tab', { name: 'ChatGPT' }).click()
+  await expect(ai.getByRole('tabpanel', { name: 'ChatGPT set-up' })).toContainText('Developer mode')
+  await tabs.getByRole('tab', { name: 'Claude Code' }).click()
+  await expect(ai.getByRole('tabpanel')).toContainText('claude mcp add --transport http easy-beans https://business-agent.arononeillwork.workers.dev/mcp')
+  await tabs.getByRole('tab', { name: 'Other AIs and automations' }).click()
+  await expect(ai.getByRole('tabpanel')).toContainText('/api/v1/openapi.json')
+
+  // Access keys: shown once, listed by name and prefix, revoked with a confirmation.
+  const keys = ai.getByRole('region', { name: 'Access keys' })
+  await keys.getByRole('button', { name: 'Make a key' }).click()
+  await toast(page, 'Give the key a name')
+  await keys.getByLabel('Key name').fill('n8n')
+  await keys.getByRole('button', { name: 'Make a key' }).click()
+  const shown = keys.getByRole('status', { name: 'New access key' })
+  await expect(shown).toContainText('It won’t be shown again')
+  const key = await shown.locator('pre').textContent()
+  expect(key).toMatch(/^ba_[A-Za-z0-9]{40}$/)
+  await expect(keys.getByRole('listitem', { name: 'Key n8n' })).toContainText(`${key!.slice(0, 7)}…`)
+  await expect(keys.getByRole('listitem', { name: 'Key n8n' })).toContainText('not used yet')
+  await keys.getByRole('listitem', { name: 'Key n8n' }).getByRole('button', { name: 'Revoke' }).click()
+  await page.getByRole('dialog', { name: 'Revoke “n8n”?' }).getByRole('button', { name: 'Revoke' }).click()
+  await toast(page, 'Key revoked')
+  await expect(keys.getByRole('listitem', { name: 'Key n8n' })).toHaveCount(0)
 })

@@ -326,3 +326,38 @@ test.describe('business connections', () => {
     expect((await request.post('/api/integrations/check')).status()).toBe(401)
   })
 })
+
+test.describe('access keys (any AI)', () => {
+  test('an employee makes a key; the REST API and MCP act as them with it; revoking stops it at once', async ({ request }) => {
+    const { session } = await signedIn(cfg, 'employee')
+    const auth = { authorization: `Bearer ${session.access_token}` }
+    const made = await request.post('/api/me/api-keys', { headers: auth, data: { name: 'e2e agent' } })
+    expect(made.status(), await made.text()).toBe(200)
+    const { id, key } = await made.json() as { id: string; key: string }
+    expect(key).toMatch(/^ba_[A-Za-z0-9]{40}$/)
+    const withKey = { authorization: `Bearer ${key}` }
+
+    const who = await request.post('/api/v1/tools/whoami', { headers: withKey, data: {} })
+    expect(who.status(), await who.text()).toBe(200)
+    expect((await who.json() as { result: { role: string } }).result.role).toBe('employee')
+    const refused = await request.post('/api/v1/tools/create_shift', { headers: withKey, data: {} })
+    expect(refused.status()).toBe(404) // not one of an employee's tools
+
+    await mcp(request, key, 'initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'e2e', version: '1' } })
+    const names = (await mcp(request, key, 'tools/list')).result.tools.map((t: { name: string }) => t.name)
+    expect(names).toContain('whoami')
+    expect(names).not.toContain('create_shift')
+    // A key can't make more keys.
+    expect((await request.post('/api/me/api-keys', { headers: withKey, data: { name: 'x' } })).status()).toBe(401)
+
+    expect((await request.delete(`/api/me/api-keys/${id}`, { headers: auth })).status()).toBe(200)
+    expect((await request.post('/api/v1/tools/whoami', { headers: withKey, data: {} })).status()).toBe(401)
+  })
+
+  test('the OpenAPI description is public and lists the tools', async ({ request }) => {
+    const res = await request.get('/api/v1/openapi.json')
+    expect(res.status()).toBe(200)
+    const spec = await res.json() as { paths: Record<string, unknown> }
+    expect(Object.keys(spec.paths)).toContain('/tools/whoami')
+  })
+})

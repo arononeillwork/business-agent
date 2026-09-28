@@ -8,7 +8,8 @@ import { refreshAllSports, refreshStaleSports, syncCrests } from './sports'
 import { music } from './music'
 import { calendarFeeds } from './calendarFeed'
 import { fonts } from './fonts'
-import { authorizeGet, authorizePost, mcpApiHandler, tokenExchangeCallback, type OAuthEnv } from './mcp'
+import { authorizeGet, authorizePost, mcpApiHandler, tokenExchangeCallback, type GrantProps, type OAuthEnv } from './mcp'
+import { apiKeys, isAccessKey, resolveKey } from './apiKeys'
 
 const NIGHTLY = '15 1 * * *' // 03:15 Madrid in summer, 02:15 in winter
 
@@ -138,6 +139,9 @@ app.route('/', calendarFeeds)
 // Google / WhatsApp / Instagram connections, webhooks and post photos.
 app.route('/', integrations)
 
+// Personal access keys (My account → AI assistants) for AIs and automations.
+app.route('/', apiKeys)
+
 // REST API for scripts, n8n, Zapier (same tools and rules as the AI connector).
 app.route('/api/v1', rest)
 
@@ -159,6 +163,15 @@ const provider = (env: Env, origin: string) => new OAuthProvider<Env>({
   clientRegistrationEndpoint: '/register',
   accessTokenTTL: 3000, // just under Supabase's 1-hour session
   tokenExchangeCallback: options => tokenExchangeCallback(env, options),
+  // Besides OAuth sign-in, /mcp takes a personal access key as the bearer token (AIs that send a
+  // header instead of signing in: the OpenAI and Anthropic APIs, n8n, agent frameworks).
+  resolveExternalToken: async ({ token }) => {
+    if (!isAccessKey(token)) return null
+    const key = await resolveKey(env, token).catch(e => { console.error('access key failed', e); return null })
+    if (!key) return null
+    const props: GrantProps = { userId: key.userId, name: '', accessToken: key.accessToken, refreshToken: '' }
+    return { props, audience: `${origin}/mcp` }
+  },
   resourceMetadata: { resource: `${origin}/mcp`, resource_name: 'Business Agent' },
 })
 
