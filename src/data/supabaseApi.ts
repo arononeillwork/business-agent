@@ -93,7 +93,18 @@ export function createSupabaseApi(url: string, key: string): Api {
     authError: () => urlError,
     signInMethods,
     onAuthChange(cb) {
-      const { data } = sb.auth.onAuthStateChange(() => cb())
+      // Only when the person changes (sign-in, sign-out, switching accounts): the initial session
+      // and hourly token refreshes aren't a reason to reload everything. And run it after this
+      // callback returns: Supabase holds its auth lock while calling it, so queries started from
+      // inside it wait on that lock (sign-in took seconds longer than it should).
+      let who: string | null | undefined
+      const { data } = sb.auth.onAuthStateChange((_event, session) => {
+        const id = session?.user.id ?? null
+        if (who === undefined) { who = id; return }
+        if (id === who) return
+        who = id
+        setTimeout(cb, 0)
+      })
       return () => data.subscription.unsubscribe()
     },
     async signUp(fullName, email, password) {
