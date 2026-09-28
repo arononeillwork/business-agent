@@ -130,7 +130,9 @@ function SignInForm() {
   const [codeSent, setCodeSent] = useState(false)
   const [code, setCode] = useState('')
   const [methods, setMethods] = useState<{ google: boolean; microsoft: boolean } | null>(null)
-  useEffect(() => { api.signInMethods().then(setMethods, () => {}) }, [api])
+  // Until Supabase says which methods are on, the Google/Microsoft buttons wait: a click before
+  // then could open a provider that isn't set up. If the check fails, offer them anyway.
+  useEffect(() => { api.signInMethods().then(setMethods, () => setMethods({ google: true, microsoft: true })) }, [api])
   const off = [methods && !methods.google && 'Google', methods && !methods.microsoft && 'Microsoft'].filter(Boolean) as string[]
   const sendCode = async () => {
     if (!email.trim()) return notify('Enter your email first', 'warning')
@@ -180,9 +182,9 @@ function SignInForm() {
         </>}
         <Divider sx={{ color: BA.faint, fontSize: 13, pt: 1 }}>or continue with</Divider>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25}>
-          <Button fullWidth variant="outlined" size="large" startIcon={<GoogleIcon />} disabled={methods?.google === false} sx={outlineBtn}
+          <Button fullWidth variant="outlined" size="large" startIcon={<GoogleIcon />} disabled={!methods?.google} sx={outlineBtn}
             onClick={() => run(() => api.signInWithGoogle())}>Google</Button>
-          <Button fullWidth variant="outlined" size="large" startIcon={<MicrosoftIcon />} disabled={methods?.microsoft === false} sx={outlineBtn}
+          <Button fullWidth variant="outlined" size="large" startIcon={<MicrosoftIcon />} disabled={!methods?.microsoft} sx={outlineBtn}
             onClick={() => run(() => api.signInWithMicrosoft())}>Microsoft</Button>
         </Stack>
         <Typography variant="caption" sx={{ color: BA.faint, textAlign: 'center' }}>

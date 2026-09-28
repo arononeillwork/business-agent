@@ -47,6 +47,13 @@ jobs:
       - name: Sign-in, clocking, pay privacy, kiosk, AI connector
         if: success() || failure()
         run: npx playwright test e2e/live.spec.ts --project desktop --workers 1 --output test-results/core
+      # What the page showed when a test failed (first attempts too), right in the log.
+      - name: Page at each failure
+        if: always()
+        run: |
+          find test-results -name error-context.md 2>/dev/null | while read -r f; do
+            echo "::group::$f"; sed -n '/^# Error details/,/^# Test source/p' "$f" | head -150; echo "::endgroup::"
+          done
       # Also when a retry passed: the first attempt's trace explains flaky tests.
       - uses: actions/upload-artifact@v4
         if: always()

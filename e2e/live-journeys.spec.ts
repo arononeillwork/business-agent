@@ -131,6 +131,8 @@ for (const [label, hosts] of [
     const button = page.getByRole('button', { name: label, exact: true })
     await expect(button).toBeVisible()
     const explained = page.getByText(/not switched on|being set up/i)
+    // The button stays disabled until the app knows whether the method is on: wait for that.
+    await expect.poll(async () => (await explained.count()) > 0 || await button.isEnabled(), NET).toBe(true)
 
     if (await button.isDisabled()) {
       // Allowed: the app knows the method is off and says so instead of offering a broken button.
