@@ -1,8 +1,7 @@
-import { Box, Dialog, IconButton, InputBase, List, ListItemButton, ListItemIcon, ListItemText, ListSubheader, Tooltip, Typography } from '@mui/material'
+import { Box, Dialog, IconButton, InputBase, List, ListItemButton, ListItemIcon, ListItemText, ListSubheader, SvgIcon, Tooltip, Typography, type SvgIconProps } from '@mui/material'
 import { useColorScheme } from '@mui/material/styles'
 import SearchIcon from '@mui/icons-material/SearchRounded'
 import SunIcon from '@mui/icons-material/LightModeOutlined'
-import MoonIcon from '@mui/icons-material/DarkModeOutlined'
 import PersonIcon from '@mui/icons-material/PersonOutlineRounded'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -17,6 +16,18 @@ const roundButton = {
   width: 40, height: 40, borderRadius: '50%', color: tokens.inkSoft, border: `1px solid ${tokens.line}`, bgcolor: tokens.surface,
   transition: 'color .15s, border-color .15s, background .15s, transform .15s',
   '&:hover': { color: tokens.ink, borderColor: tokens.lineStrong, bgcolor: tokens.surface, transform: 'translateY(-1px)' },
+}
+
+/**
+ * A crescent drawn so it sits in the middle of the button (the stock moon's weight is off to the
+ * lower left, so it looked misplaced next to the search icon). Same stroke weight as the sun.
+ */
+function MoonIcon(props: SvgIconProps) {
+  return (
+    <SvgIcon {...props}>
+      <path d="M20.92 12.38A8 8 0 1 1 11.63 3.09A6.6 6.6 0 0 0 20.92 12.38Z" fill="none" stroke="currentColor" strokeWidth={2} strokeLinejoin="round" />
+    </SvgIcon>
+  )
 }
 
 /** Sun or moon: flips between light and dark, and remembers it on the person's account. */
@@ -36,7 +47,9 @@ export function ThemeToggle() {
   return (
     <Tooltip title={label}>
       <IconButton aria-label={label} onClick={toggle} sx={roundButton}>
-        <Box sx={{ display: 'grid', placeItems: 'center', transition: 'transform .35s ease', transform: dark ? 'rotate(0deg)' : 'rotate(-30deg)' }}>
+        <Box key={dark ? 'sun' : 'moon'} sx={{ display: 'grid', placeItems: 'center', animation: 'eb-theme-swap .3s ease',
+          '@keyframes eb-theme-swap': { from: { opacity: 0, transform: 'scale(.7)' }, to: { opacity: 1, transform: 'none' } },
+          '@media (prefers-reduced-motion: reduce)': { animation: 'none' } }}>
           {dark ? <SunIcon fontSize="small" /> : <MoonIcon fontSize="small" />}
         </Box>
       </IconButton>
