@@ -25,7 +25,7 @@ export function AccountPage() {
       <PageHeader eyebrow="You" title="My account" subtitle={me.email ?? undefined}
         actions={<Button variant="outlined" onClick={() => api.signOut()}>Sign out</Button>} />
       <Grid container spacing={2}>
-        <Grid size={{ xs: 12, md: 6 }}>
+        <Grid size={12}>
           <Card>
             <CardContent>
               <SectionTitle>Details</SectionTitle>
@@ -50,7 +50,7 @@ export function AccountPage() {
             </CardContent>
           </Card>
         </Grid>
-        <Grid size={{ xs: 12, md: 6 }}>
+        <Grid size={12}>
           {!isPartner && FEATURES.kiosk && (
             <Card sx={{ mb: 2 }}>
               <CardContent>

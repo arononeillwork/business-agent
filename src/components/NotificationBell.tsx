@@ -25,7 +25,7 @@ export function NotificationBell({ tone }: { tone?: 'nav' }) {
       <Tooltip title="Notifications">
         <IconButton aria-label={unread ? `Notifications, ${unread} new` : 'Notifications'} onClick={e => setAnchor(e.currentTarget)}
           sx={tone === 'nav' ? { color: tokens.navText, '&:hover': { color: tokens.navBright, background: tokens.navHover } } : undefined}>
-          <Badge badgeContent={unread} color="primary" max={9} sx={{ '& .MuiBadge-badge': { fontWeight: 600, color: '#2B2522' } }}>
+          <Badge badgeContent={unread} color="primary" max={9} sx={{ '& .MuiBadge-badge': { fontWeight: 500, color: '#2B2522' } }}>
             <BellIcon />
           </Badge>
         </IconButton>

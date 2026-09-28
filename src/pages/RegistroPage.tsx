@@ -47,7 +47,7 @@ export function RegistroPage() {
         '@media print': { display: 'none' } }}>
         <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center', flexWrap: 'wrap', maxWidth: 900, mx: 'auto' }}>
           <Button component={RouterLink} to={seeAll ? '/timecards' : '/account'} startIcon={<BackIcon />}>Back</Button>
-          <Typography sx={{ fontWeight: 600, flex: 1, minWidth: 160 }}>Monthly hours record</Typography>
+          <Typography sx={{ fontWeight: 500, flex: 1, minWidth: 160 }}>Monthly hours record</Typography>
           <TextField type="month" size="small" label="Month" value={month} onChange={e => e.target.value && set('month', e.target.value)}
             slotProps={{ inputLabel: { shrink: true } }} sx={{ width: 180 }} />
           {seeAll && (
@@ -81,7 +81,7 @@ function Sheet({ person, business, entries, month }: { person: Profile; business
           <Typography sx={{ fontFamily: fonts.display, fontWeight: 500, fontSize: '1.3rem' }}>Registro diario de jornada</Typography>
           <Typography sx={{ fontSize: 13, color: '#6B645E' }}>Daily working hours record · art. 34.9 Estatuto de los Trabajadores</Typography>
         </Box>
-        <Typography sx={{ fontWeight: 600, textTransform: 'capitalize', whiteSpace: 'nowrap' }}>{monthName}</Typography>
+        <Typography sx={{ fontWeight: 500, textTransform: 'capitalize', whiteSpace: 'nowrap' }}>{monthName}</Typography>
       </Stack>
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1, fontSize: 13, mb: 2 }}>
         <Box><b>Empresa / Company:</b> {business.name}{business.address ? `, ${business.address}` : ''}</Box>
@@ -91,7 +91,7 @@ function Sheet({ person, business, entries, month }: { person: Profile; business
         <thead>
           <tr>
             {['Día / Day', 'Entrada / In', 'Salida / Out', 'Pausas / Breaks', 'Horas / Hours'].map(h => (
-              <Box component="th" key={h} sx={{ ...cell, bgcolor: '#F3F1EE', textAlign: 'left', fontWeight: 600 }}>{h}</Box>
+              <Box component="th" key={h} sx={{ ...cell, bgcolor: '#F3F1EE', textAlign: 'left', fontWeight: 500 }}>{h}</Box>
             ))}
           </tr>
         </thead>
@@ -112,8 +112,8 @@ function Sheet({ person, business, entries, month }: { person: Profile; business
             ))
           })}
           <tr>
-            <Box component="td" colSpan={4} sx={{ ...cell, fontWeight: 600, textAlign: 'right' }}>Total ({r.days_worked} days worked)</Box>
-            <Box component="td" sx={{ ...cell, fontWeight: 600 }}>{formatDuration(r.worked_minutes)}</Box>
+            <Box component="td" colSpan={4} sx={{ ...cell, fontWeight: 500, textAlign: 'right' }}>Total ({r.days_worked} days worked)</Box>
+            <Box component="td" sx={{ ...cell, fontWeight: 500 }}>{formatDuration(r.worked_minutes)}</Box>
           </tr>
         </tbody>
       </Box>

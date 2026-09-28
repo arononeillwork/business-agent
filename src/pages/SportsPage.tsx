@@ -144,7 +144,7 @@ export function SportsPage() {
               bgcolor: 'background.default', py: 0.75, zIndex: 1 }}>
               {dayLabel(day)} <Typography component="span" sx={{ color: 'text.secondary', fontWeight: 400, fontSize: '0.9rem' }}>· {list.length}</Typography>
             </Typography>
-            <Box sx={{ display: 'grid', gap: 1.25, gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' } }}>
+            <Box sx={{ display: 'grid', gap: 1.25 }}>
               {list.map(e => <EventCard key={e.id} e={e} c={comps.get(e.competition)!} fav={fav} onFav={toggleFav} />)}
             </Box>
           </Box>
@@ -177,7 +177,7 @@ function Crest({ src, name }: { src: string | null; name: string | null }) {
   const [bg, fg] = CREST[[...n].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 7) % CREST.length]
   return (
     <Avatar src={src ?? undefined} alt="" variant="rounded" slotProps={{ img: { loading: 'lazy' } }}
-      sx={{ width: 34, height: 34, bgcolor: src ? tokens.surfaceAlt : bg, color: fg, fontSize: 12, fontWeight: 600, letterSpacing: '0.02em', '& img': { objectFit: 'contain' } }}>
+      sx={{ width: 34, height: 34, bgcolor: src ? tokens.surfaceAlt : bg, color: fg, fontSize: 12, fontWeight: 500, letterSpacing: '0.02em', '& img': { objectFit: 'contain' } }}>
       {initials(n)}
     </Avatar>
   )
@@ -219,13 +219,13 @@ function Favourites({ favs, upcoming, comps, events, onRemove, onShowAll }: {
           {upcoming.length === 0 ? (
             <Typography variant="body2" sx={{ color: 'text.secondary' }}>Nothing on for your favourites in the next three weeks.</Typography>
           ) : (
-            <Box sx={{ display: 'grid', gap: 1, gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' } }}>
+            <Box sx={{ display: 'grid', gap: 1 }}>
               {upcoming.slice(0, 3).map(e => (
                 <Box key={e.id} sx={{ p: 1.5, borderRadius: '14px', bgcolor: tokens.surfaceAlt, border: `1px solid ${tokens.line}`, minWidth: 0 }}>
-                  <Typography variant="caption" sx={{ color: tokens.roseDeep, fontWeight: 600 }}>
+                  <Typography variant="caption" sx={{ color: tokens.roseDeep, fontWeight: 500 }}>
                     {dayLabel(localDate(e.starts_at)).split(' · ')[0]} · {e.time_tbc ? 'TBC' : localTime(e.starts_at)}
                   </Typography>
-                  <Typography sx={{ fontWeight: 600 }} noWrap>{e.title}</Typography>
+                  <Typography sx={{ fontWeight: 500 }} noWrap>{e.title}</Typography>
                   <Typography variant="caption" sx={{ color: 'text.secondary' }} noWrap>{comps.get(e.competition)?.name}</Typography>
                 </Box>
               ))}
@@ -245,7 +245,7 @@ function NextBigNight({ e, c }: { e: SportsEvent; c: SportsCompetition }) {
     <Card component="section" aria-label="Next big night" sx={{ mb: 3, p: { xs: 2.25, md: 3 }, position: 'relative', overflow: 'hidden', border: 'none',
       background: `linear-gradient(120deg, ${tokens.espresso} 0%, #4A3B36 100%)`, color: '#fff' }}>
       <Box aria-hidden sx={{ position: 'absolute', right: -30, top: -30, opacity: 0.08, '& svg': { fontSize: 220 } }}>{s.icon}</Box>
-      <Typography variant="overline" sx={{ color: tokens.rose, fontWeight: 600, letterSpacing: '0.12em' }}>Next big night</Typography>
+      <Typography variant="overline" sx={{ color: tokens.rose, fontWeight: 500, letterSpacing: '0.12em' }}>Next big night</Typography>
       <Stack direction={{ xs: 'column', md: 'row' }} sx={{ gap: { xs: 1.5, md: 3 }, alignItems: { md: 'center' }, mt: 0.5 }}>
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography sx={{ fontFamily: fonts.display, fontWeight: 500, fontSize: { xs: '1.35rem', md: '1.75rem' }, lineHeight: 1.2 }}>{e.title}</Typography>
@@ -294,7 +294,7 @@ function EventCard({ e, c, fav, onFav }: { e: SportsEvent; c: SportsCompetition;
             </Typography>
           )}
           {e.status !== 'scheduled' && (
-            <Typography variant="caption" sx={{ fontWeight: 600, color: e.status === 'live' ? tokens.danger : 'text.secondary' }}>
+            <Typography variant="caption" sx={{ fontWeight: 500, color: e.status === 'live' ? tokens.danger : 'text.secondary' }}>
               {e.status === 'live' ? 'LIVE' : e.status === 'postponed' ? 'Postponed' : 'Full time'}
             </Typography>
           )}
@@ -312,7 +312,7 @@ function EventCard({ e, c, fav, onFav }: { e: SportsEvent; c: SportsCompetition;
             {[[e.home, e.home_badge], [e.away, e.away_badge]].map(([name, badge]) => (
               <Stack key={name} direction="row" spacing={1.25} sx={{ alignItems: 'center', minWidth: 0 }}>
                 <Crest src={badge} name={name} />
-                <Typography sx={{ fontWeight: 600 }} noWrap>{name}</Typography>
+                <Typography sx={{ fontWeight: 500 }} noWrap>{name}</Typography>
                 {name && <Star on={fav.teams.has(name)} name={name} onClick={() => onFav({ kind: 'team', ref: name }, !fav.teams.has(name), name)} />}
               </Stack>
             ))}
@@ -320,7 +320,7 @@ function EventCard({ e, c, fav, onFav }: { e: SportsEvent; c: SportsCompetition;
         ) : (
           <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center' }}>
             {e.image && <Avatar src={e.image} alt="" variant="rounded" sx={{ width: 52, height: 52 }} />}
-            <Typography sx={{ fontWeight: 600, lineHeight: 1.3 }}>{e.title}</Typography>
+            <Typography sx={{ fontWeight: 500, lineHeight: 1.3 }}>{e.title}</Typography>
           </Stack>
         )}
         {(e.venue || e.city) && (
@@ -358,7 +358,7 @@ function CompetitionsDialog({ competitions, onClose }: { competitions: SportsCom
         <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
           Fixtures for these appear on the Sports page and refresh every few hours.
         </Typography>
-        <Box sx={{ display: 'grid', gap: 2.5, gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' } }}>
+        <Box sx={{ display: 'grid', gap: 2.5 }}>
           {regions.map(r => (
             <Box key={r}>
               <Typography variant="overline" sx={{ color: 'text.secondary' }}>{r}</Typography>

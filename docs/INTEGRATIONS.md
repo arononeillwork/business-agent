@@ -1,4 +1,4 @@
-# Connecting Google, WhatsApp and Instagram
+# Connecting Google, WhatsApp, social media and Square
 
 Everything below is built and tested in the app; each service only needs your account and a
 few keys. Keys are Worker secrets (Cloudflare → Workers → business-agent → Settings →
@@ -173,3 +173,61 @@ with the same redirect URIs, so there is little extra to set up:
 
 Tokens are encrypted with `INTEGRATION_KEY` and stored per person (`music_accounts`), readable
 only by the Worker. People can disconnect at any time from the Music page.
+
+## 7. Facebook Page (Social planner)
+
+Posts go to a Facebook **Page** (not a personal profile). It uses a Meta app with Facebook Login
+for Business; the WhatsApp app from section 3 can be reused.
+
+1. <https://developers.facebook.com/apps> → your app → **Add product → Facebook Login for
+   Business** → Settings → Valid OAuth redirect URIs:
+   `https://<worker-url>/api/integrations/facebook/callback`.
+2. App settings → Basic → **App ID** → GitHub repo secret `META_APP_ID` (the app secret is the
+   `META_APP_SECRET` from section 3).
+3. Permissions: `pages_show_list`, `pages_manage_posts`, `pages_read_engagement`. Until App Review
+   grants Advanced Access, only people with a role on the app (App roles → Roles) can connect.
+4. In the app: Connections → **Connect Facebook**. If the account manages several Pages, choose
+   the one to post to under **Facebook details → Page to post to**.
+
+"Connected" means the app signed in, found the Page and holds a Page token allowed to post.
+
+## 8. TikTok (Social planner)
+
+1. <https://developers.tiktok.com> → Manage apps → **Create app** → add **Login Kit** and
+   **Content Posting API** (turn on *Direct Post*).
+2. Login Kit → Redirect URI: `https://<worker-url>/api/integrations/tiktok/callback`.
+3. Content Posting API → **Verify domain** (URL prefix) for `https://<worker-url>/`: TikTok pulls
+   each photo from our own domain, so the domain must be verified.
+4. Scopes: `user.info.basic`, `video.publish`.
+5. **Client key** and **Client secret** → GitHub repo secrets `TIKTOK_CLIENT_KEY`,
+   `TIKTOK_CLIENT_SECRET`.
+6. Until TikTok audits the app, posts can only be **private** (visible to the account only), and
+   only accounts added as target users in the sandbox can connect. The app says so on the TikTok
+   tile. Submit the app for audit to post publicly.
+
+TikTok photo posts need a JPEG photo (`.jpg`/`.jpeg`); the planner checks this before scheduling.
+Access lasts a day and is renewed automatically with the 1-year refresh token.
+
+## 9. Square (takings on Finances)
+
+1. <https://developer.squareup.com/apps> → **Create app** → OAuth → Production (or Sandbox for
+   testing) → Redirect URL: `https://<worker-url>/api/integrations/square/callback`.
+2. **Application ID** and **Application secret** → GitHub repo secrets `SQUARE_APP_ID`,
+   `SQUARE_APP_SECRET`. For sandbox testing also set `SQUARE_ENVIRONMENT` to `sandbox`
+   (leave it unset for real takings).
+3. Permissions asked for: `MERCHANT_PROFILE_READ`, `PAYMENTS_READ` (read only; the app never
+   takes or refunds payments).
+4. In the app: Connections → Payments and sales → **Connect Square**.
+
+The Finances page then shows takings for today, this week, last week and the last 30 days
+(completed payments at every active location, by Madrid day), and team cost this week as a share
+of takings. Only admins who can see pay see these figures. Access lasts 30 days and is renewed a
+week before it runs out; if it stops working, admins get a notification.
+
+## Social planner
+
+Admins plan posts on **Social planner** (left menu): write once, pick Instagram, Facebook,
+TikTok and Google Maps, post now or schedule for a Madrid date and time. Every minute the Worker
+queues due posts (`queue_due_social_posts`), one outbox job per network, and each network's
+outcome, with a link to the post, shows under **Sent → Where it went**. A post that fails on one
+network but not others is marked *partly sent*; failures retry like every other outbox job.

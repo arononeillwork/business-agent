@@ -147,7 +147,7 @@ export function RotaPage() {
         <Typography variant="caption" component="div" sx={{ color: 'text.secondary', lineHeight: 1.3, pl: 0.5 }} noWrap>
           {pos?.name}{s.break_minutes ? ` · ${s.break_minutes}m break` : ''}{mine ? ' · You' : ''}
         </Typography>
-        {!s.profile_id && !isAdmin && !isPartner && <Typography variant="caption" sx={{ color: tokens.roseDeep, fontWeight: 600, pl: 0.5 }}>Tap to take</Typography>}
+        {!s.profile_id && !isAdmin && !isPartner && <Typography variant="caption" sx={{ color: tokens.roseDeep, fontWeight: 500, pl: 0.5 }}>Tap to take</Typography>}
         {s.note && <Typography variant="caption" component="div" sx={{ fontStyle: 'italic', color: 'text.secondary', pl: 0.5 }} noWrap>{s.note}</Typography>}
       </Box>
     )
@@ -180,7 +180,7 @@ export function RotaPage() {
             bgcolor: isToday ? tokens.rose : 'transparent', color: isToday ? '#2B2522' : 'text.primary' }}>
             <Typography sx={{ fontWeight: 500, fontSize: '1.05rem', fontVariantNumeric: 'tabular-nums' }}>{formatLocal(`${date}T12:00:00Z`, 'd')}</Typography>
           </Box>
-          <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: isToday ? tokens.roseDeep : 'text.secondary' }}>
+          <Typography sx={{ fontSize: '0.72rem', fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase', color: isToday ? tokens.roseDeep : 'text.secondary' }}>
             {formatLocal(`${date}T12:00:00Z`, 'EEE')}{isToday ? ' · Today' : ''}
           </Typography>
         </Stack>

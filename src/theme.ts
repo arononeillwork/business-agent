@@ -77,7 +77,8 @@ export const fonts = {
   text: 'var(--eb-font-text, "Figtree", "Helvetica Neue", Helvetica, Arial, sans-serif)',
 }
 
-const display = { fontFamily: fonts.display, fontWeight: 500, letterSpacing: '-0.015em' }
+// Light and airy: Poppins at its regular weight for titles, Figtree for everything else.
+const display = { fontFamily: fonts.display, fontWeight: 400, letterSpacing: '-0.01em' }
 
 const scheme = (p: Palette) => ({
   palette: {
@@ -102,14 +103,14 @@ export const theme = createTheme({
     fontSize: 15,
     fontWeightBold: 600,
     h1: display, h2: display, h3: display,
-    h4: { ...display, fontSize: '2.1rem', lineHeight: 1.15, letterSpacing: '-0.025em' },
-    h5: { ...display, fontSize: '1.45rem', lineHeight: 1.25 },
-    h6: { fontFamily: fonts.text, fontWeight: 600, fontSize: '1.05rem', lineHeight: 1.35, letterSpacing: 0 },
+    h4: { ...display, fontSize: '1.95rem', lineHeight: 1.2, letterSpacing: '-0.015em' },
+    h5: { ...display, fontSize: '1.4rem', lineHeight: 1.3 },
+    h6: { fontFamily: fonts.text, fontWeight: 500, fontSize: '1.05rem', lineHeight: 1.4, letterSpacing: 0 },
     subtitle1: { fontWeight: 500 },
     subtitle2: { fontWeight: 500, fontSize: '0.9rem' },
-    body1: { lineHeight: 1.6 },
-    body2: { lineHeight: 1.55 },
-    overline: { fontFamily: fonts.text, fontWeight: 600, letterSpacing: '0.1em', fontSize: '0.69rem', lineHeight: 1.6 },
+    body1: { lineHeight: 1.65 },
+    body2: { lineHeight: 1.6 },
+    overline: { fontFamily: fonts.text, fontWeight: 500, letterSpacing: '0.08em', fontSize: '0.7rem', lineHeight: 1.6 },
     caption: { fontSize: '0.8rem', lineHeight: 1.45 },
     button: { fontFamily: fonts.text, textTransform: 'none', fontWeight: 500, letterSpacing: 0 },
   },
@@ -155,7 +156,7 @@ export const theme = createTheme({
       },
       variants: [
         { props: { variant: 'contained', color: 'primary' },
-          style: { backgroundColor: brand.rosePink, color: '#2B2522', fontWeight: 600, '&:hover': { backgroundColor: '#F28893' } } },
+          style: { backgroundColor: brand.rosePink, color: '#2B2522', fontWeight: 500, '&:hover': { backgroundColor: '#F28893' } } },
       ],
     },
     MuiIconButton: { styleOverrides: { root: { borderRadius: 12 } } },
@@ -200,13 +201,13 @@ export const theme = createTheme({
     MuiTableCell: {
       styleOverrides: {
         root: { borderColor: tokens.line, paddingBlock: 12 },
-        head: { fontSize: '0.69rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase',
+        head: { fontSize: '0.7rem', fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase',
           color: tokens.inkSoft, background: tokens.surfaceAlt },
       },
     },
     MuiDialog: { styleOverrides: { paper: { borderRadius: 24, border: `1px solid ${tokens.line}`, backgroundColor: tokens.surface,
       backgroundImage: tokens.sheen, boxShadow: `inset 0 1px 0 ${tokens.edge}, 0 24px 64px -24px ${tokens.shadow}` } } },
-    MuiDialogTitle: { styleOverrides: { root: { ...display, fontSize: '1.25rem', paddingTop: 24 } } },
+    MuiDialogTitle: { styleOverrides: { root: { ...display, fontSize: '1.2rem', paddingTop: 24 } } },
     MuiTooltip: { styleOverrides: { tooltip: { background: '#2B2522', fontSize: '0.8rem', borderRadius: 10, padding: '8px 10px' } } },
     MuiListItemButton: {
       styleOverrides: {

@@ -1,4 +1,4 @@
-import type { ApiKey, AppNotification, Brand, BreakType, Business, CalendarApp, CalendarEvent, ConnectorProvider, ContactMethod, CorrectionRequest, EventAlert, Expense, InstagramProfile, Integration, IntegrationProvider, IntegrationsState, KioskPerson, MusicNow, MusicPlaylist, MusicProvider, MyMusic, MyNowPlaying, OpenBreak, OpeningHours, OutboxItem, PartnerArea, PayRate, Position, Profile, Settings, Shift, SpotifyPlaylist, TimeEntry, TimeEntryChange, TimeOff, TimeOffKind } from '../../shared/types'
+import type { ApiKey, AppNotification, Brand, BreakType, Business, CalendarApp, CalendarEvent, ConnectorProvider, ContactMethod, CorrectionRequest, EventAlert, Expense, InstagramProfile, Integration, Sales, SocialNetwork, SocialPost, IntegrationProvider, IntegrationsState, KioskPerson, MusicNow, MusicPlaylist, MusicProvider, MyMusic, MyNowPlaying, OpenBreak, OpeningHours, OutboxItem, PartnerArea, PayRate, Position, Profile, Settings, Shift, SpotifyPlaylist, TimeEntry, TimeEntryChange, TimeOff, TimeOffKind } from '../../shared/types'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
 
 export type ShiftInput = Omit<Shift, 'id' | 'status'> & { id?: string; status?: Shift['status'] }
@@ -125,6 +125,18 @@ export interface Api {
   connectGoogle(back?: 'setup' | 'connections'): Promise<void>
   /** One click: sign in on instagram.com and come back connected. */
   connectInstagram(back?: 'setup' | 'connections'): Promise<void>
+  /** One click for Facebook, TikTok or Square: sign in there and come back connected. */
+  connectApp(provider: 'facebook' | 'tiktok' | 'square', back?: 'setup' | 'connections'): Promise<void>
+  /** Facebook: which Page to post to, when the account manages more than one. */
+  chooseFacebookPage(pageId: string): Promise<void>
+  /** Takings per day from Square (admins with pay access), from and to inclusive. */
+  sales(from: string, to: string): Promise<Sales>
+
+  // Social planner (admins)
+  socialPosts(): Promise<SocialPost[]>
+  /** Save a draft or schedule a post (scheduled_at now = post now). Returns its id. */
+  saveSocialPost(post: Partial<SocialPost> & { caption: string; targets: SocialNetwork[]; status: 'draft' | 'scheduled' }): Promise<string>
+  deleteSocialPost(id: string): Promise<void>
   chooseGoogleListing(location: string | null, closedOnHolidays?: boolean): Promise<void>
   syncGoogleNow(): Promise<void>
   googleHours(): Promise<OpeningHours>

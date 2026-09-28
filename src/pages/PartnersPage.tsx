@@ -32,7 +32,7 @@ export function PartnersPage() {
       {partners.data?.length === 0 && <Empty>No partners yet. Invite one and choose what they can see.</Empty>}
       <Grid container spacing={2.5}>
         {partners.data?.map(p => (
-          <Grid key={p.id} size={{ xs: 12, md: 6, xl: 4 }}>
+          <Grid key={p.id} size={12}>
             <Card sx={{ height: '100%', opacity: p.active ? 1 : 0.6 }}>
               <CardContent>
                 <SectionTitle action={<Button size="small" onClick={() => setEditing(p)}>Edit access</Button>}>
@@ -41,7 +41,7 @@ export function PartnersPage() {
                 <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 1.5 }}>
                   <PersonAvatar name={p.full_name} colour={p.colour} size={36} />
                   <Stack sx={{ minWidth: 0 }}>
-                    <Typography sx={{ fontWeight: 600 }} noWrap>{p.full_name}</Typography>
+                    <Typography sx={{ fontWeight: 500 }} noWrap>{p.full_name}</Typography>
                     <Typography variant="body2" sx={{ color: 'text.secondary' }} noWrap>{p.email}</Typography>
                   </Stack>
                 </Stack>

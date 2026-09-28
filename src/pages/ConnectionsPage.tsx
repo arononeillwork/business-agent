@@ -20,13 +20,13 @@ export function ConnectionsPage() {
         <Typography variant="h6" component="h2">Settings for connected apps</Typography>
         <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>The team calendar link, your Google Maps listing and Instagram.</Typography>
         <Grid container spacing={2.5}>
-          <Grid size={{ xs: 12, lg: 6 }}>
+          <Grid size={12}>
             <Stack spacing={2.5}>
               <CalendarFeedCard scope="business" />
               <GoogleMapsCard />
             </Stack>
           </Grid>
-          <Grid size={{ xs: 12, lg: 6 }}><InstagramCard /></Grid>
+          <Grid size={12}><InstagramCard /></Grid>
         </Grid>
       </Box>
     </>

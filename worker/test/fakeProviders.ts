@@ -61,6 +61,32 @@ export class FakeProviders {
     files: [] as string[],
   }
   spotify = { premium: true, revoked: false }
+  facebook = {
+    granted: ['pages_show_list', 'pages_manage_posts', 'pages_read_engagement', 'public_profile'],
+    pages: [{ id: 'page-1', name: 'Easy Beans Coffee', access_token: 'page-token-1' }] as { id: string; name: string; access_token: string }[],
+    revoked: false,
+    posts: [] as { page: string; kind: 'photos' | 'feed'; caption?: string; url?: string }[],
+  }
+  tiktok = {
+    scope: 'user.info.basic,video.publish',
+    privacy: ['SELF_ONLY'] as string[],
+    revoked: false,
+    /** Refresh tokens that still work (TikTok may hand out a new one on refresh). */
+    refreshes: 0,
+    posts: [] as { caption: string; image: string; privacy: string }[],
+    failPost: null as string | null,
+  }
+  square = {
+    locations: [{ id: 'L1', name: 'Easy Beans · San Pedro', status: 'ACTIVE', currency: 'EUR' }],
+    revoked: false,
+    refreshes: 0,
+    payments: [
+      { created_at: '2026-09-28T08:15:00Z', status: 'COMPLETED', amount_money: { amount: 350, currency: 'EUR' }, tip_money: { amount: 50 } },
+      { created_at: '2026-09-28T21:30:00Z', status: 'COMPLETED', amount_money: { amount: 1200, currency: 'EUR' } }, // 23:30 in Madrid, same day
+      { created_at: '2026-09-28T22:30:00Z', status: 'COMPLETED', amount_money: { amount: 900, currency: 'EUR' } },  // 00:30 next day in Madrid
+      { created_at: '2026-09-28T10:00:00Z', status: 'FAILED', amount_money: { amount: 9999, currency: 'EUR' } },
+    ],
+  }
   whatsapp = { sent: [] as { to: string; template: string }[], broken: false }
   /** Every call, as "METHOD host/path". */
   calls: string[] = []
@@ -193,6 +219,67 @@ export class FakeProviders {
       if (url.pathname === '/v1/me') return json({ id: 'easybeans', display_name: 'Easy Beans', product: this.spotify.premium ? 'premium' : 'free' })
       if (url.pathname === '/v1/me/playlists') return json({ items: [{ id: 'sp1', name: 'Café mornings', tracks: { total: 30 }, images: [], external_urls: { spotify: 'https://open.spotify.com/playlist/sp1' }, owner: { display_name: 'Easy Beans' } }] })
       if (url.pathname === '/v1/me/player') return new Response(null, { status: 204 })
+    }
+
+    // ---- Facebook Pages (Meta Graph) ----
+    if (url.host === 'graph.facebook.com' && /\/oauth\/access_token$/.test(url.pathname)) {
+      if (url.searchParams.get('grant_type') === 'fb_exchange_token') return json({ access_token: 'fb-user-long', token_type: 'bearer', expires_in: 5_184_000 })
+      return json({ access_token: 'fb-user-short', token_type: 'bearer', expires_in: 3600 })
+    }
+    if (url.host === 'graph.facebook.com' && /\/me\/permissions$/.test(url.pathname)) return json({ data: this.facebook.granted.map(permission => ({ permission, status: 'granted' })) })
+    if (url.host === 'graph.facebook.com' && /\/me\/accounts$/.test(url.pathname)) return json({ data: this.facebook.pages })
+    const pageCall = url.host === 'graph.facebook.com' && url.pathname.match(/\/v[\d.]+\/(page-[\w-]+)(\/photos|\/feed)?$/)
+    if (pageCall) {
+      const token = new Headers(init.headers).get('authorization')?.replace('Bearer ', '')
+      const page = this.facebook.pages.find(p => p.id === pageCall[1])
+      if (this.facebook.revoked || !page || token !== page.access_token) return json({ error: { message: 'Error validating access token: The session has been invalidated.', code: 190 } }, 400)
+      if (!pageCall[2]) return json({ id: page.id, name: page.name, followers_count: 812 })
+      const f = form()
+      this.facebook.posts.push({ page: page.id, kind: pageCall[2] === '/photos' ? 'photos' : 'feed', caption: f.get('caption') ?? f.get('message') ?? undefined, url: f.get('url') ?? undefined })
+      return json({ id: `${this.nextId++}`, post_id: `${page.id}_${this.nextId++}` })
+    }
+
+    // ---- TikTok ----
+    if (url.href === 'https://open.tiktokapis.com/v2/oauth/token/') {
+      const f = form()
+      if (f.get('grant_type') === 'refresh_token' && (this.tiktok.revoked || f.get('refresh_token') !== `tt-refresh-${this.tiktok.refreshes}`)) {
+        return json({ error: 'invalid_grant', error_description: 'Refresh token is invalid or expired.' }, 400)
+      }
+      if (f.get('grant_type') === 'refresh_token') this.tiktok.refreshes++
+      return json({ access_token: `tt-access-${this.nextId++}`, refresh_token: `tt-refresh-${this.tiktok.refreshes}`, expires_in: 86_400, open_id: 'open-1', scope: this.tiktok.scope, token_type: 'Bearer' })
+    }
+    if (url.host === 'open.tiktokapis.com') {
+      if (this.tiktok.revoked) return json({ data: {}, error: { code: 'access_token_invalid', message: 'The access token is invalid or not found in the request.' } }, 401)
+      if (url.pathname === '/v2/user/info/') return json({ data: { user: { open_id: 'open-1', display_name: 'Easy Beans' } }, error: { code: 'ok', message: '' } })
+      if (url.pathname === '/v2/post/publish/creator_info/query/') {
+        return json({ data: { creator_username: 'easybeanscoffee', creator_nickname: 'Easy Beans', privacy_level_options: this.tiktok.privacy }, error: { code: 'ok', message: '' } })
+      }
+      if (url.pathname === '/v2/post/publish/content/init/') {
+        const b = body() as { post_info: { description: string; privacy_level: string }; source_info: { photo_images: string[] } }
+        this.tiktok.posts.push({ caption: b.post_info.description, image: b.source_info.photo_images[0], privacy: b.post_info.privacy_level })
+        return json({ data: { publish_id: 'p_pub_1' }, error: { code: 'ok', message: '' } })
+      }
+      if (url.pathname === '/v2/post/publish/status/fetch/') {
+        if (!this.tiktok.failPost) return new Response(JSON.stringify({ data: { status: 'PUBLISH_COMPLETE', publicaly_available_post_id: ['POST_ID'] }, error: { code: 'ok', message: '' } }).replace('"POST_ID"', '7400000000000000001'), { headers: { 'content-type': 'application/json' } })
+        return json({ data: this.tiktok.failPost ? { status: 'FAILED', fail_reason: this.tiktok.failPost } : { status: 'PUBLISH_COMPLETE', publicaly_available_post_id: ['POST_ID'] }, error: { code: 'ok', message: '' } })
+      }
+    }
+
+    // ---- Square ----
+    if (url.href === 'https://connect.squareup.com/oauth2/token') {
+      const b = body() as { grant_type: string; refresh_token?: string }
+      if (b.grant_type === 'refresh_token' && (this.square.revoked || b.refresh_token !== 'sq-refresh')) return json({ message: 'Invalid refresh token', type: 'service.not_authorized' }, 401)
+      if (b.grant_type === 'refresh_token') this.square.refreshes++
+      return json({ access_token: `sq-access-${this.nextId++}`, token_type: 'bearer', expires_at: new Date(Date.now() + 30 * 86_400_000).toISOString(), merchant_id: 'M1', refresh_token: 'sq-refresh' })
+    }
+    if (url.host === 'connect.squareup.com') {
+      if (this.square.revoked) return json({ errors: [{ category: 'AUTHENTICATION_ERROR', code: 'ACCESS_TOKEN_REVOKED', detail: 'The access token has been revoked.' }] }, 401)
+      if (url.pathname === '/v2/merchants/me') return json({ merchant: { id: 'M1', business_name: 'Easy Beans Coffee', country: 'ES', currency: 'EUR' } })
+      if (url.pathname === '/v2/locations') return json({ locations: this.square.locations })
+      if (url.pathname === '/v2/payments') {
+        const from = url.searchParams.get('begin_time')!, to = url.searchParams.get('end_time')!
+        return json({ payments: this.square.payments.filter(p => p.created_at >= from && p.created_at < to) })
+      }
     }
 
     // ---- WhatsApp (Meta Graph) ----

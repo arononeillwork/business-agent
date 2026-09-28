@@ -52,7 +52,7 @@ export function OpeningHoursPage() {
         actions={<Tag fg={s.open ? tokens.goodFg : tokens.neutralFg} bg={s.open ? tokens.goodBg : tokens.neutralBg}>● {s.text}</Tag>} />
 
       <Grid container spacing={2.5}>
-        <Grid size={{ xs: 12, lg: 7 }}>
+        <Grid size={12}>
           <Card component="section" aria-label="Weekly hours">
             <CardContent>
               <SectionTitle>Every week</SectionTitle>
@@ -99,7 +99,7 @@ export function OpeningHoursPage() {
           </Card>
         </Grid>
 
-        <Grid size={{ xs: 12, lg: 5 }}>
+        <Grid size={12}>
           <Stack spacing={2.5}>
             <Card component="section" aria-label="Busiest hours">
               <CardContent>
@@ -129,7 +129,7 @@ export function OpeningHoursPage() {
                       <Stack key={e.id} direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
                         <Box sx={{ width: 52, textAlign: 'center', flexShrink: 0, py: 0.5, borderRadius: '10px', bgcolor: closed ? tokens.badBg : tokens.surfaceAlt }}>
                           <Typography variant="caption" sx={{ display: 'block', lineHeight: 1.2, textTransform: 'uppercase', color: 'text.secondary' }}>{formatLocal(`${e.starts_on}T12:00:00Z`, 'MMM')}</Typography>
-                          <Typography sx={{ fontWeight: 600, lineHeight: 1.1 }}>{Number(e.starts_on.slice(8))}</Typography>
+                          <Typography sx={{ fontWeight: 500, lineHeight: 1.1 }}>{Number(e.starts_on.slice(8))}</Typography>
                         </Box>
                         <Box sx={{ minWidth: 0, flex: 1 }}>
                           <Typography noWrap>{e.title}</Typography>

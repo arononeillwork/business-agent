@@ -66,7 +66,7 @@ export function TimeOffPage() {
 
       <Grid container spacing={2.5}>
         {isAdmin && (
-          <Grid size={{ xs: 12, lg: 6 }}>
+          <Grid size={12}>
             <Card>
               <CardContent>
                 <SectionTitle>Requests to approve</SectionTitle>
@@ -78,7 +78,7 @@ export function TimeOffPage() {
                       <Stack key={t.id} direction="row" spacing={1.5} sx={{ alignItems: 'center', p: 1.5, borderRadius: 3, border: 1, borderColor: 'divider' }}>
                         {p && <PersonAvatar name={p.full_name} colour={p.colour} size={36} />}
                         <Box sx={{ flex: 1, minWidth: 0 }}>
-                          <Typography sx={{ fontWeight: 600 }}>{p?.full_name} · {TIME_OFF_LABELS[t.kind]}</Typography>
+                          <Typography sx={{ fontWeight: 500 }}>{p?.full_name} · {TIME_OFF_LABELS[t.kind]}</Typography>
                           <Typography variant="body2">{range(t)} · {days(t)} day{days(t) > 1 ? 's' : ''}</Typography>
                           {t.note && <Typography variant="body2" sx={{ color: 'text.secondary' }}>“{t.note}”</Typography>}
                         </Box>
@@ -92,7 +92,7 @@ export function TimeOffPage() {
           </Grid>
         )}
 
-        <Grid size={{ xs: 12, lg: isAdmin ? 6 : 7 }}>
+        <Grid size={12}>
           <Card>
             <CardContent>
               <SectionTitle>My requests</SectionTitle>
@@ -101,7 +101,7 @@ export function TimeOffPage() {
                 {mine.map(t => (
                   <Stack key={t.id} direction="row" spacing={1.5} sx={{ alignItems: 'center', py: 1.25, borderBottom: 1, borderColor: 'divider', '&:last-of-type': { borderBottom: 0 } }}>
                     <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Typography sx={{ fontWeight: 600 }}>{range(t)}</Typography>
+                      <Typography sx={{ fontWeight: 500 }}>{range(t)}</Typography>
                       <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                         {TIME_OFF_LABELS[t.kind]} · {days(t)} day{days(t) > 1 ? 's' : ''}{t.decision_note ? ` · “${t.decision_note}”` : ''}
                       </Typography>
@@ -117,7 +117,7 @@ export function TimeOffPage() {
           </Card>
         </Grid>
 
-        <Grid size={{ xs: 12, lg: isAdmin ? 12 : 5 }}>
+        <Grid size={12}>
           <Card>
             <CardContent>
               <SectionTitle>Who's away</SectionTitle>
@@ -128,7 +128,7 @@ export function TimeOffPage() {
                   return (
                     <Stack key={t.id} direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
                       {p && <PersonAvatar name={p.full_name} colour={p.colour} size={30} />}
-                      <Typography sx={{ fontWeight: 600, minWidth: 120 }}>{p?.full_name}</Typography>
+                      <Typography sx={{ fontWeight: 500, minWidth: 120 }}>{p?.full_name}</Typography>
                       <Typography variant="body2" sx={{ color: 'text.secondary' }}>{range(t)} · {TIME_OFF_LABELS[t.kind]}</Typography>
                     </Stack>
                   )

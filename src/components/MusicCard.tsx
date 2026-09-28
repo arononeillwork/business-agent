@@ -31,7 +31,7 @@ export function MusicCard() {
                 : <MusicIcon sx={{ color: '#fff' }} />}
             </Box>
             <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography sx={{ fontWeight: 600 }} noWrap>{m.playlist.name}</Typography>
+              <Typography sx={{ fontWeight: 500 }} noWrap>{m.playlist.name}</Typography>
               <Typography variant="body2" sx={{ color: 'text.secondary' }} noWrap>
                 {youtube ? 'Plays on the café device' : m.playing ? `${m.track ?? ''}${m.artist ? ` · ${m.artist}` : ''}` : 'Not playing'}
               </Typography>

@@ -501,3 +501,74 @@ do $$ begin
 end $$;
 reset role;
 delete from public.api_keys;
+
+-- 22. Social planner: admins only; the rules; publishing makes one outbox job per network; the
+--     outcome of each job comes back onto the post ------------------------------------------------
+select pg_temp.act_as('julio@test');
+select pg_temp.expect_error($q$insert into public.social_posts (caption) values ('hi')$q$, 'row-level security');
+select pg_temp.act_as('maria@test');
+select pg_temp.expect_error($q$insert into public.social_posts (caption, targets, status) values ('Feria!', '{instagram}', 'scheduled')$q$, 'Pick when to post');
+select pg_temp.expect_error($q$insert into public.social_posts (caption, targets, status, scheduled_at) values ('Feria!', '{}', 'scheduled', now())$q$, 'at least one network');
+select pg_temp.expect_error($q$insert into public.social_posts (caption, targets, status, scheduled_at) values ('Feria!', '{instagram}', 'scheduled', now())$q$, 'need a photo');
+select pg_temp.expect_error($q$insert into public.social_posts (caption, image_url, targets, status, scheduled_at) values ('Feria!', 'https://x.test/a.png', '{tiktok}', 'scheduled', now())$q$, 'JPEG');
+select pg_temp.expect_error($q$insert into public.social_posts (caption, targets, status) values ('x', '{instagram}', 'published')$q$, 'draft or schedule');
+select pg_temp.expect_error($q$insert into public.social_posts (caption, targets) values ('x', '{myspace}')$q$, 'check constraint');
+insert into public.social_posts (caption, image_url, targets, status, scheduled_at)
+  values ('Feria week: open late!', 'https://x.test/feria.jpg', '{tiktok,instagram,facebook,instagram}', 'scheduled', now() - interval '1 minute');
+insert into public.social_posts (caption, targets, status, scheduled_at) values ('Next month', '{facebook}', 'scheduled', now() + interval '30 days');
+insert into public.social_posts (caption, targets) values ('Just an idea', '{facebook}');
+do $$ begin
+  assert (select targets from public.social_posts where caption like 'Feria week%') = '{facebook,instagram,tiktok}', 'networks tidied (no repeats)';
+end $$;
+reset role;
+do $$
+declare v_n int; v_post uuid := (select id from public.social_posts where caption like 'Feria week%');
+begin
+  v_n := public.queue_due_social_posts();
+  assert v_n = 3, 'one job per network for the due post only, got ' || v_n;
+  assert (select status from public.social_posts where id = v_post) = 'publishing', 'publishing';
+  assert (select count(*) from public.outbox where payload->>'post_id' = v_post::text) = 3, 'three jobs';
+  assert (select kind from public.outbox where payload->>'post_id' = v_post::text and payload->>'target' = 'tiktok') = 'tiktok_post', 'kind per network';
+  assert public.queue_due_social_posts() = 0, 'never sent twice';
+  assert (select status from public.social_posts where caption = 'Next month') = 'scheduled', 'future posts wait';
+  assert (select status from public.social_posts where caption = 'Just an idea') = 'draft', 'drafts wait';
+end $$;
+-- The Worker reports back: Instagram and Facebook sent, TikTok fails for good.
+do $$
+declare v_post text := (select id::text from public.social_posts where caption like 'Feria week%'); v_job bigint;
+begin
+  perform public.claim_outbox(25); -- the Worker picks the jobs up
+  select id into v_job from public.outbox where payload->>'post_id' = v_post and payload->>'target' = 'instagram';
+  perform public.complete_outbox(v_job, true, null, 'https://www.instagram.com/p/abc/');
+  select id into v_job from public.outbox where payload->>'post_id' = v_post and payload->>'target' = 'facebook';
+  perform public.complete_outbox(v_job, true, null, '123_456');
+  select id into v_job from public.outbox where payload->>'post_id' = v_post and payload->>'target' = 'tiktok';
+  perform public.complete_outbox(v_job, false, 'TikTok: spam_risk_too_many_posts', null);
+  assert (select results->'tiktok'->>'status' from public.social_posts where id = v_post::uuid) = 'retrying', 'a first failure is retried';
+  assert (select status from public.social_posts where id = v_post::uuid) = 'publishing', 'still going while TikTok retries';
+  update public.outbox set attempts = 6 where id = v_job;
+  perform public.complete_outbox(v_job, false, 'TikTok: spam_risk_too_many_posts', null);
+  assert (select status from public.social_posts where id = v_post::uuid) = 'partly', 'partly published';
+  assert (select results->'instagram'->>'url' from public.social_posts where id = v_post::uuid) = 'https://www.instagram.com/p/abc/', 'link kept';
+  assert (select results->'facebook'->>'id' from public.social_posts where id = v_post::uuid) = '123_456', 'id kept';
+  assert (select results->'tiktok'->>'error' from public.social_posts where id = v_post::uuid) like '%spam_risk%', 'reason kept';
+  assert (select published_at is not null from public.social_posts where id = v_post::uuid), 'when it went out';
+end $$;
+select pg_temp.act_as('maria@test');
+select pg_temp.expect_error($q$update public.social_posts set caption = 'edited' where caption like 'Feria week%'$q$, 'already gone out');
+delete from public.social_posts where caption like 'Feria week%';
+-- Sharing an event goes through the planner too.
+select public.queue_share('Sunday slow bar', null, '{facebook}', null);
+do $$ begin
+  assert (select status from public.social_posts where caption = 'Sunday slow bar') = 'publishing', 'shared straight away';
+end $$;
+reset role;
+delete from public.outbox where kind in ('facebook_post', 'tiktok_post') or payload ? 'post_id' and payload->>'target' <> 'google';
+delete from public.social_posts where caption <> 'Feria this weekend';
+
+-- 23. Square is the business's one payment system; Facebook and TikTok sit alongside Instagram ----
+do $$ begin
+  assert public.integration_group('square') = 'payments', 'Square is a payment system';
+  assert public.integration_group('facebook') is null and public.integration_group('tiktok') is null, 'social apps are not a choice';
+  assert (select count(*) from public.integrations where provider in ('facebook', 'tiktok', 'square')) = 3, 'new connections listed';
+end $$;

@@ -1293,3 +1293,77 @@ test('use the app from any AI: steps for each one, and access keys for the rest'
   await toast(page, 'Key revoked')
   await expect(keys.getByRole('listitem', { name: 'Key n8n' })).toHaveCount(0)
 })
+
+test.describe('social planner', () => {
+  test('plan a post for several accounts, schedule it, post another now, and see where it went', async ({ page }) => {
+    await open(page, '/connections')
+    // Connect Facebook in one click (Instagram and Google Maps are already connected in the demo).
+    await page.getByRole('button', { name: 'Connect Facebook' }).click()
+    await expect(page.getByRole('region', { name: 'Social media' }).getByRole('article', { name: 'Facebook' })).toContainText('Connected')
+
+    await page.getByRole('link', { name: 'Social planner' }).first().click()
+    await expect(page.getByRole('heading', { level: 1, name: 'Social planner' })).toBeVisible()
+    const accounts = page.getByRole('region', { name: 'Accounts' })
+    await expect(accounts).toContainText('@easy.beans.coffee')
+    await expect(accounts.getByRole('link', { name: 'Connect' })).toHaveCount(1) // TikTok only
+    const coming = page.getByRole('region', { name: 'Coming up' })
+    await expect(coming).toContainText('Feria week')
+    await expect(page.getByRole('region', { name: 'Sent' })).toContainText('Iced oat latte')
+
+    await page.getByRole('button', { name: 'New post' }).click()
+    const dialog = page.getByRole('dialog', { name: 'New post' })
+    await dialog.getByLabel('Caption').fill('Matcha week starts Monday: 2x1 on iced matcha before 11:00.')
+    // Connected accounts start ticked; Instagram needs a photo, TikTok isn't connected.
+    await expect(dialog.getByRole('checkbox', { name: /TikTok/ })).toBeDisabled()
+    await expect(dialog.getByRole('alert')).toContainText('Instagram needs a photo')
+    await dialog.getByRole('checkbox', { name: /Instagram/ }).uncheck()
+    await dialog.getByRole('radio', { name: 'Schedule' }).check()
+    await dialog.getByLabel('Date').fill('2026-10-05')
+    await dialog.getByLabel('Time (Madrid)').fill('09:30')
+    await dialog.getByRole('button', { name: 'Schedule' }).click()
+    await toast(page, 'Scheduled for Mon 5 Oct, 09:30')
+    await expect(coming.getByRole('article', { name: /Matcha week/ })).toContainText('09:30')
+
+    await page.getByRole('button', { name: 'New post' }).click()
+    const now = page.getByRole('dialog', { name: 'New post' })
+    await now.getByLabel('Caption').fill('Open until 23:00 tonight!')
+    await now.getByRole('checkbox', { name: /Instagram/ }).uncheck()
+    await now.getByRole('button', { name: 'Post now' }).click()
+    await toast(page, 'Posting now')
+    const sent = page.getByRole('region', { name: 'Sent' }).getByRole('article', { name: /Open until 23:00/ })
+    await expect(sent).toContainText('Posted')
+    await expect(sent.getByRole('list', { name: 'Where it went' })).toContainText('Facebook: posted')
+    await expect(sent.getByRole('list', { name: 'Where it went' })).toContainText('Google Maps: posted')
+  })
+
+  test('employees don’t get the planner', async ({ page }) => {
+    await open(page, '/', 'maria@example.com')
+    await expect(page.getByRole('link', { name: 'Social planner' })).toHaveCount(0)
+    await page.goto('/social')
+    await expect(page.getByRole('heading', { name: 'Social planner' })).toHaveCount(0)
+  })
+})
+
+test('Square: connect the payment system, then takings show on Finances next to the team’s cost', async ({ page }) => {
+  await open(page, '/finances')
+  const prompt = page.getByRole('alert').filter({ hasText: 'Connect Square to see takings' })
+  await expect(prompt).toBeVisible()
+  await prompt.getByRole('link', { name: 'Connect' }).click()
+  const payments = page.getByRole('region', { name: 'Payments and sales' })
+  await expect(payments.getByRole('article', { name: 'SumUp' })).toContainText('Coming soon')
+  await payments.getByRole('button', { name: 'Connect Square' }).click()
+  await expect(payments.getByRole('article', { name: 'Square' })).toContainText('Connected')
+  await page.getByRole('link', { name: 'Finances' }).first().click()
+  const takings = page.getByRole('region', { name: 'Takings' })
+  await expect(takings).toContainText('This week')
+  await expect(takings).toContainText('Last 30 days')
+  await expect(takings).toContainText(/€/)
+})
+
+test('TikTok connects in one click and says posts stay private until TikTok approves the app', async ({ page }) => {
+  await open(page, '/connections')
+  const social = page.getByRole('region', { name: 'Social media' })
+  await social.getByRole('button', { name: 'Connect TikTok' }).click()
+  await social.getByRole('button', { name: 'Manage TikTok' }).click()
+  await expect(page.getByRole('dialog', { name: 'TikTok' })).toContainText('private')
+})

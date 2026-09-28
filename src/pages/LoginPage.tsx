@@ -51,7 +51,7 @@ const FEATURES: { icon: ReactNode; title: string; text: string }[] = [
 ]
 
 // Buttons in the product's own colours (the app's theme is the business's brand).
-const primaryBtn = { bgcolor: BA.accent, color: '#fff', fontWeight: 600, '&:hover': { bgcolor: BA.accentDeep } }
+const primaryBtn = { bgcolor: BA.accent, color: '#fff', fontWeight: 500, '&:hover': { bgcolor: BA.accentDeep } }
 const outlineBtn = { borderColor: BA.line, color: BA.ink, bgcolor: '#fff', '&:hover': { borderColor: BA.accent, bgcolor: BA.accentSoft } }
 
 /** Signed out: the Business Agent landing page with sign-in and registration. */
@@ -66,47 +66,49 @@ export function LoginPage() {
       backgroundImage: `radial-gradient(900px 420px at 85% -120px, rgba(79,70,229,0.14), transparent 70%), radial-gradient(700px 380px at 0% 0%, rgba(14,165,160,0.10), transparent 70%)` }}>
       <Box component="header" sx={{ maxWidth: 1180, mx: 'auto', px: { xs: 2, md: 4 }, py: 2.25, display: 'flex', alignItems: 'center', gap: 1.25 }}>
         <AgentMark />
-        <Typography sx={{ fontFamily: display, fontWeight: 600, fontSize: '1.15rem', letterSpacing: '-0.01em', flex: 1 }}>Business Agent</Typography>
+        <Typography sx={{ fontFamily: display, fontWeight: 500, fontSize: '1.15rem', letterSpacing: '-0.01em', flex: 1 }}>Business Agent</Typography>
         <Button onClick={() => setTab('signin')} href="#account" sx={{ color: BA.ink, display: { xs: 'none', sm: 'inline-flex' } }}>Sign in</Button>
         <Button variant="contained" href="#account" onClick={() => setTab('signup')} sx={primaryBtn}>Get started</Button>
       </Box>
 
-      <Box component="main" sx={{ maxWidth: 1180, mx: 'auto', px: { xs: 2, md: 4 }, pt: { xs: 1, md: 5 }, pb: 8,
-        display: 'grid', gap: { xs: 4, md: 7 }, gridTemplateColumns: { xs: '1fr', md: '1.1fr 420px' }, alignItems: 'start' }}>
-        <Box sx={{ order: { xs: 2, md: 1 }, pt: { md: 3 } }}>
-          <Typography sx={{ color: BA.accent, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', fontSize: '0.75rem' }}>
+      <Box component="main" sx={{ mx: 'auto', px: { xs: 2, md: 4 }, pt: { xs: 1, md: 5 }, pb: 8,
+        display: 'grid', gap: { xs: 4, md: 5 }, maxWidth: 720, alignItems: 'start' }}>
+        <Box sx={{ order: 1, pt: { md: 3 } }}>
+          <Typography sx={{ color: BA.accent, fontWeight: 500, letterSpacing: '0.12em', textTransform: 'uppercase', fontSize: '0.75rem' }}>
             For cafés, shops and small teams
           </Typography>
-          <Typography component="h1" sx={{ fontFamily: display, fontWeight: 600, fontSize: { xs: '2.1rem', md: '3.1rem' }, lineHeight: 1.08, letterSpacing: '-0.035em', mt: 1.5, maxWidth: 620 }}>
+          <Typography component="h1" sx={{ fontFamily: display, fontWeight: 500, fontSize: { xs: '2.1rem', md: '3.1rem' }, lineHeight: 1.08, letterSpacing: '-0.035em', mt: 1.5, maxWidth: 620 }}>
             The agent that runs your business's day-to-day.
           </Typography>
           <Typography sx={{ color: BA.soft, fontSize: '1.1rem', mt: 2.5, maxWidth: 560, lineHeight: 1.6 }}>
             Rota, clock-ins, time off, opening hours and team messages in one place, in your own brand.
             Your team signs in and sees your business, not ours.
           </Typography>
-          <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, mt: 5 }}>
-            {FEATURES.map(f => (
-              <Box key={f.title} sx={{ p: 2.25, borderRadius: '16px', bgcolor: 'rgba(255,255,255,0.7)', border: `1px solid ${BA.line}`, backdropFilter: 'blur(6px)' }}>
-                <Box sx={{ width: 36, height: 36, borderRadius: '10px', display: 'grid', placeItems: 'center', bgcolor: BA.accentSoft, color: BA.accent, mb: 1.25 }}>{f.icon}</Box>
-                <Typography sx={{ fontWeight: 600 }}>{f.title}</Typography>
-                <Typography variant="body2" sx={{ color: BA.soft, mt: 0.5 }}>{f.text}</Typography>
-              </Box>
-            ))}
-          </Box>
         </Box>
 
-        <Box id="account" sx={{ order: { xs: 1, md: 2 }, position: { md: 'sticky' }, top: { md: 24 } }}>
+        <Box id="account" sx={{ order: 2 }}>
           <Box sx={{ p: { xs: 2.5, sm: 3.5 }, borderRadius: '24px', bgcolor: BA.card, border: `1px solid ${BA.line}`,
             boxShadow: '0 24px 60px -30px rgba(18,20,26,0.35)' }}>
             <Tabs value={tab} onChange={(_, v) => setTab(v)} variant="fullWidth" aria-label="Account"
               sx={{ mb: 2.5, minHeight: 40, bgcolor: BA.bg, borderRadius: '12px', p: 0.5,
                 '& .MuiTabs-indicator': { display: 'none' },
-                '& .MuiTab-root': { minHeight: 36, borderRadius: '9px', color: BA.soft, fontWeight: 600, textTransform: 'none' },
+                '& .MuiTab-root': { minHeight: 36, borderRadius: '9px', color: BA.soft, fontWeight: 500, textTransform: 'none' },
                 '& .Mui-selected': { bgcolor: '#fff', color: `${BA.ink} !important`, boxShadow: '0 1px 3px rgba(18,20,26,0.12)' } }}>
               <Tab value="signin" label="Sign in" />
               <Tab value="signup" label="Create account" />
             </Tabs>
             {tab === 'signin' ? <SignInForm /> : <SignUpForm onSignIn={() => setTab('signin')} />}
+          </Box>
+        </Box>
+        <Box sx={{ order: 3 }}>
+          <Box sx={{ display: 'grid', gap: 1.25, }}>
+            {FEATURES.map(f => (
+              <Box key={f.title} sx={{ p: 2.25, borderRadius: '16px', bgcolor: 'rgba(255,255,255,0.7)', border: `1px solid ${BA.line}`, backdropFilter: 'blur(6px)' }}>
+                <Box sx={{ width: 36, height: 36, borderRadius: '10px', display: 'grid', placeItems: 'center', bgcolor: BA.accentSoft, color: BA.accent, mb: 1.25 }}>{f.icon}</Box>
+                <Typography sx={{ fontWeight: 500 }}>{f.title}</Typography>
+                <Typography variant="body2" sx={{ color: BA.soft, mt: 0.5 }}>{f.text}</Typography>
+              </Box>
+            ))}
           </Box>
         </Box>
       </Box>
@@ -144,7 +146,7 @@ function SignInForm() {
     <Box component="form" onSubmit={submit}>
       <Stack spacing={2.25}>
         <Box>
-          <Typography variant="h5" component="h2" sx={{ fontFamily: display, fontWeight: 600, color: BA.ink }}>Sign in</Typography>
+          <Typography variant="h5" component="h2" sx={{ fontFamily: display, fontWeight: 500, color: BA.ink }}>Sign in</Typography>
           <Typography sx={{ color: BA.soft, mt: 0.5 }}>Welcome back. You'll go straight to your business.</Typography>
         </Box>
         {api.authError?.() && <Alert severity="error">{api.authError()}</Alert>}
@@ -213,7 +215,7 @@ function SignUpForm({ onSignIn }: { onSignIn: () => void }) {
   }
   if (sent) return (
     <Stack spacing={2}>
-      <Typography variant="h5" component="h2" sx={{ fontFamily: display, fontWeight: 600 }}>Check your email</Typography>
+      <Typography variant="h5" component="h2" sx={{ fontFamily: display, fontWeight: 500 }}>Check your email</Typography>
       <Typography sx={{ color: BA.soft }}>We sent a link to <b>{sent}</b>. Open it to confirm your account, then sign in.</Typography>
       <Button variant="outlined" sx={outlineBtn} onClick={onSignIn}>Back to sign in</Button>
     </Stack>
@@ -222,7 +224,7 @@ function SignUpForm({ onSignIn }: { onSignIn: () => void }) {
     <Box component="form" onSubmit={submit}>
       <Stack spacing={2.25}>
         <Box>
-          <Typography variant="h5" component="h2" sx={{ fontFamily: display, fontWeight: 600, color: BA.ink }}>Create account</Typography>
+          <Typography variant="h5" component="h2" sx={{ fontFamily: display, fontWeight: 500, color: BA.ink }}>Create account</Typography>
           <Typography sx={{ color: BA.soft, mt: 0.5 }}>Joining a team? Register here, then your business's admin adds you.</Typography>
         </Box>
         {!open && <Alert severity="info">Registration is closed for now. Ask your business's admin to invite you.</Alert>}

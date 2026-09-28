@@ -7,7 +7,7 @@
 // Creates @business-agent.test accounts and removes them and their data afterwards.
 import { createHash, randomBytes } from 'node:crypto'
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
-import { EMPLOYEE_PIN, PASSWORD, USERS, cleanUp, liveConfig, service, setUp, signedIn, type LiveConfig, type UserKey } from './live/fixtures'
+import { EMPLOYEE_PIN, HOOK_TIMEOUT, PASSWORD, USERS, cleanUp, liveConfig, service, setUp, signedIn, type LiveConfig, type UserKey } from './live/fixtures'
 
 test.skip(!process.env.E2E_LIVE, 'Live tests need E2E_LIVE=1 and SUPABASE_SERVICE_ROLE_KEY')
 test.describe.configure({ mode: 'serial' })
@@ -16,11 +16,13 @@ let cfg: LiveConfig
 let ids: Record<string, string>
 
 test.beforeAll(async ({ baseURL }) => {
+  test.setTimeout(HOOK_TIMEOUT)
   cfg = await liveConfig(baseURL!)
   ;({ ids } = await setUp(cfg))
 })
 
 test.afterAll(async () => {
+  test.setTimeout(HOOK_TIMEOUT)
   if (cfg) await cleanUp(service(cfg))
 })
 

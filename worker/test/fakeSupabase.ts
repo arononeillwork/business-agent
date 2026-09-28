@@ -9,7 +9,7 @@ export type Row = Record<string, unknown>
 /** integration_group() in migration 28. */
 export const GROUP: Record<string, string> = {
   gmail: 'email', outlook: 'email', google_drive: 'files', onedrive: 'files',
-  google_calendar: 'calendar', outlook_calendar: 'calendar', spotify: 'music', youtube_music: 'music', whatsapp: 'communication',
+  google_calendar: 'calendar', outlook_calendar: 'calendar', spotify: 'music', youtube_music: 'music', whatsapp: 'communication', square: 'payments',
 }
 
 /** Primary keys, for upserts. Tables not listed get a numeric id. */
@@ -66,12 +66,13 @@ export class FakeSupabase {
     this.tables.integration_secrets = []
     this.tables.business = [{ id: 1, name: 'Easy Beans', address: 'Calle Mayor 1', timezone: 'Europe/Madrid' }]
     this.tables.profiles = [
-      { id: 'admin-1', full_name: 'Aron', email: 'aron@example.com', role: 'admin', active: true },
-      { id: 'admin-2', full_name: 'Maria', email: 'maria@example.com', role: 'admin', active: true },
+      { id: 'admin-1', full_name: 'Aron', email: 'aron@example.com', role: 'admin', active: true, can_see_pay: true },
+      { id: 'admin-2', full_name: 'Maria', email: 'maria@example.com', role: 'admin', active: true, can_see_pay: false },
       { id: 'staff-1', full_name: 'Julio', email: 'julio@example.com', role: 'employee', active: true },
       { id: 'admin-gone', full_name: 'Former admin', email: 'gone@example.com', role: 'admin', active: false },
     ]
     this.tables.api_keys = []
+    this.tables.outbox = []
     this.tables.notifications = []
     this.tables.calendar_feeds = []
     this.people.set('admin-token', { id: 'admin-1', role: 'admin' })
@@ -124,6 +125,18 @@ export class FakeSupabase {
       const who = this.people.get(bearerOf(headers))
       if (rpc[1] === 'is_admin') return json(who?.role === 'admin')
       if (rpc[1] === 'my_role') return json(who?.role ?? null)
+      // The outbox (migration 7): the Worker claims due jobs, then reports each one back.
+      if (rpc[1] === 'claim_outbox') {
+        const due = this.table('outbox').filter(j => j.status === 'pending' || j.status === 'failed')
+        for (const j of due) Object.assign(j, { status: 'sending', attempts: Number(j.attempts ?? 0) + 1 })
+        return json(due.map(j => ({ id: j.id, kind: j.kind, payload: j.payload })))
+      }
+      if (rpc[1] === 'complete_outbox') {
+        const a = JSON.parse(String(init.body)) as { p_id: number; p_ok: boolean; p_error?: string; p_external_id?: string | null }
+        const j = this.table('outbox').find(x => x.id === a.p_id)!
+        Object.assign(j, a.p_ok ? { status: 'sent', external_id: a.p_external_id ?? null, last_error: null } : { status: 'failed', last_error: a.p_error })
+        return json(null)
+      }
       return json({ message: `fake Supabase: no rpc ${rpc[1]}` }, 404)
     }
     const m = url.pathname.match(/^\/rest\/v1\/(\w+)$/)

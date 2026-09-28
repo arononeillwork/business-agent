@@ -64,7 +64,7 @@ export function SetupPage() {
     <>
       <PageHeader eyebrow="Settings" title="Set up your business"
         subtitle={`${count} of ${total} done. Everything can be changed later; skip anything you're not ready for.`} />
-      <Box sx={{ display: 'grid', gap: 3, gridTemplateColumns: { xs: '1fr', md: '260px 1fr' }, alignItems: 'start' }}>
+      <Box sx={{ display: 'grid', gap: 3, alignItems: 'start' }}>
         <Box component="nav" aria-label="Set-up steps" sx={{ display: 'grid', gap: 0.5 }}>
           {STEPS.map((s, i) => (
             <Box key={s.key} component="button" type="button" onClick={() => go(s.key)} aria-current={s.key === step ? 'step' : undefined}
@@ -123,7 +123,8 @@ function DetailsStep({ onNext }: { onNext: () => void }) {
       {field('name', 'Business name', { required: true })}
       {field('business_type', 'Type of business', { placeholder: 'Café, shop, salon…' })}
       {field('address', 'Address')}
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>{field('phone', 'Phone')}{field('email', 'Email')}</Stack>
+      {field('phone', 'Phone')}
+      {field('email', 'Email')}
       {field('tax_id', 'CIF / NIF', { error: !!tax && !tax.ok, helperText: !tax ? 'Company CIF, or NIF/NIE if self-employed' : tax.ok ? `Valid ${tax.kind}` : tax.error })}
       <Box>
         <Button variant="contained" onClick={async () => {
@@ -178,7 +179,7 @@ export function SetupPrompt() {
     <Card component="section" aria-label="Finish setting up" sx={{ mb: 2.5, borderColor: tokens.rose, background: `linear-gradient(120deg, ${tokens.roseSoft}, ${tokens.surface} 70%)` }}>
       <CardContent sx={{ display: 'flex', gap: 2, alignItems: { sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' } }}>
         <Box sx={{ flex: 1 }}>
-          <Typography sx={{ fontWeight: 600 }}>Finish setting up your business</Typography>
+          <Typography sx={{ fontWeight: 500 }}>Finish setting up your business</Typography>
           <Typography variant="body2" sx={{ color: 'text.secondary' }}>
             {count} of {total} steps done. Add your details and brand, invite the team, and connect your email and files.
           </Typography>

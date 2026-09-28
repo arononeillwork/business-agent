@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { Api } from './api'
-import type { ApiKey, AppNotification, Brand, Business, EventAlert, Expense, Integration, MusicPlaylist, OutboxItem, Profile, Settings, TimeEntry, TimeOff } from '../../shared/types'
+import type { ApiKey, AppNotification, Brand, Business, SocialPost, EventAlert, Expense, Integration, MusicPlaylist, OutboxItem, Profile, Settings, TimeEntry, TimeOff } from '../../shared/types'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
 
 const PROFILE_COLUMNS = 'id, full_name, email, role, can_see_pay, colour, active, phone, birth_date, whatsapp_opt_in, partner_company, partner_access, preferences'
@@ -347,6 +347,22 @@ export function createSupabaseApi(url: string, key: string): Api {
       const { url } = await worker<{ url: string }>('/api/integrations/google/start', { method: 'POST', body: JSON.stringify({ back }) })
       location.assign(url)
     },
+    async connectApp(provider, back) {
+      const { url } = await worker<{ url: string }>(`/api/integrations/${provider}/start`, { method: 'POST', body: JSON.stringify({ back }) })
+      location.assign(url)
+    },
+    async chooseFacebookPage(pageId) { await worker('/api/integrations/facebook/page', { method: 'POST', body: JSON.stringify({ page_id: pageId }) }) },
+    sales: (from, to) => worker(`/api/integrations/square/sales?from=${from}&to=${to}`),
+    async socialPosts() {
+      return check(await sb.from('social_posts').select('id, caption, image_url, targets, scheduled_at, status, results, created_at, published_at')
+        .order('scheduled_at', { ascending: false, nullsFirst: true }).order('created_at', { ascending: false }).limit(200)) as SocialPost[]
+    },
+    async saveSocialPost(p) {
+      const row = { caption: p.caption, image_url: p.image_url ?? null, targets: p.targets, status: p.status, scheduled_at: p.scheduled_at ?? null }
+      if (p.id) { check(await sb.from('social_posts').update(row).eq('id', p.id)); return p.id }
+      return (check(await sb.from('social_posts').insert(row).select('id').single()) as { id: string }).id
+    },
+    async deleteSocialPost(id) { check(await sb.from('social_posts').delete().eq('id', id)) },
     async connectInstagram(back) {
       const { url } = await worker<{ url: string }>('/api/integrations/instagram/start', { method: 'POST', body: JSON.stringify({ back }) })
       location.assign(url)

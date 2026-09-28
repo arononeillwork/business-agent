@@ -30,6 +30,7 @@ const AlertsPage = page(() => import('./pages/AlertsPage'), 'AlertsPage')
 const SportsPage = page(() => import('./pages/SportsPage'), 'SportsPage')
 const MusicPage = page(() => import('./pages/MusicPage'), 'MusicPage')
 const ConnectionsPage = page(() => import('./pages/ConnectionsPage'), 'ConnectionsPage')
+const SocialPlannerPage = page(() => import('./pages/SocialPlannerPage'), 'SocialPlannerPage')
 const SetupPage = page(() => import('./pages/SetupPage'), 'SetupPage')
 const PartnersPage = page(() => import('./pages/PartnersPage'), 'PartnersPage')
 const RegistroPage = page(() => import('./pages/RegistroPage'), 'RegistroPage')
@@ -86,6 +87,7 @@ function Routed() {
         <Route path="finances" element={<FinancesPage />} />
         <Route path="alerts" element={isAdmin ? <AlertsPage /> : <Navigate to="/" />} />
         <Route path="connections" element={isAdmin ? <ConnectionsPage /> : <Navigate to="/" />} />
+        <Route path="social" element={isAdmin ? <SocialPlannerPage /> : <Navigate to="/" />} />
         <Route path="setup" element={isAdmin ? <SetupPage /> : <Navigate to="/" />} />
         <Route path="partners" element={isAdmin && FEATURES.partners ? <PartnersPage /> : <Navigate to="/" />} />
         <Route path="*" element={<Navigate to="/" />} />

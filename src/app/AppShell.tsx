@@ -15,6 +15,7 @@ import AppearanceIcon from '@mui/icons-material/PaletteOutlined'
 import KioskIcon from '@mui/icons-material/TabletMacOutlined'
 import TimeOffIcon from '@mui/icons-material/BeachAccessOutlined'
 import FinanceIcon from '@mui/icons-material/PaymentsOutlined'
+import SocialIcon from '@mui/icons-material/CampaignOutlined'
 import AlertsIcon from '@mui/icons-material/CampaignOutlined'
 import ConnectIcon from '@mui/icons-material/HubOutlined'
 import SetupIcon from '@mui/icons-material/RocketLaunchOutlined'
@@ -50,6 +51,7 @@ export const SECTIONS: NavSection[] = [
     { key: 'business', to: '/business', label: 'Business', icon: <BusinessIcon />, partner: 'any' },
     { key: 'hours', to: '/opening-hours', label: 'Opening hours', icon: <HoursIcon />, partner: 'any' },
     { key: 'brand', to: '/brand', label: 'Brand', icon: <BrandIcon />, partner: 'any' },
+    { key: 'social', to: '/social', label: 'Social planner', icon: <SocialIcon />, who: 'admin' },
     { key: 'finances', to: '/finances', label: 'Finances', icon: <FinanceIcon />, who: 'pay', partner: ['finances'] },
   ] },
   { key: 'whatson', label: "What's on", items: [
@@ -138,7 +140,7 @@ function DemoBanner() {
       sx={{ borderRadius: 0, border: 0, py: 0.25, px: { xs: 2, md: 4 }, borderBottom: 1, borderColor: 'divider', '& .MuiAlert-message': { py: 1 } }}
       action={
         <Select size="small" variant="standard" disableUnderline value={me?.email ?? ''} aria-label="View as"
-          sx={{ fontSize: 14, fontWeight: 600 }} onChange={e => api.signIn(String(e.target.value), '')}>
+          sx={{ fontSize: 14, fontWeight: 500 }} onChange={e => api.signIn(String(e.target.value), '')}>
           {accounts.map(a => <MenuItem key={a.email} value={a.email}>View as {a.label}</MenuItem>)}
         </Select>
       }>
@@ -274,7 +276,7 @@ function SidebarSection({ section, current, folded, onToggle, mini, onReorder }:
     <Box component="section" aria-labelledby={`${id}-h`} sx={{ mb: 0.75 }}>
       <ButtonBase id={`${id}-h`} onClick={onToggle} aria-expanded={!folded} aria-controls={id}
         sx={{ width: '100%', justifyContent: 'space-between', px: 1.25, py: 0.6, borderRadius: '8px', color: SIDEBAR.faint,
-          fontSize: '0.7rem', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase',
+          fontSize: '0.7rem', fontWeight: 500, letterSpacing: '0.12em', textTransform: 'uppercase',
           '&:hover': { color: SIDEBAR.text }, '&.Mui-focusVisible': { outline: `2px solid ${tokens.rose}` } }}>
         {section.label}
         <ExpandIcon sx={{ fontSize: 18, transition: 'transform .2s', transform: folded ? 'rotate(-90deg)' : 'none' }} />

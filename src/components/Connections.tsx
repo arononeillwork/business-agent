@@ -66,7 +66,7 @@ export function GoogleMapsCard() {
                 const differs = fmt(a) !== fmt(b)
                 return (
                   <TableRow key={d} sx={{ bgcolor: differs ? tokens.warnBg : undefined }}>
-                    <TableCell sx={{ textTransform: 'capitalize', fontWeight: 600 }}>{d}</TableCell>
+                    <TableCell sx={{ textTransform: 'capitalize', fontWeight: 500 }}>{d}</TableCell>
                     <TableCell>{fmt(a)}</TableCell>
                     <TableCell sx={{ fontWeight: differs ? 800 : 400 }}>{fmt(b)}</TableCell>
                   </TableRow>
@@ -105,28 +105,33 @@ export function InstagramCard() {
         {p && <>
           <Stack direction="row" spacing={3} sx={{ mb: 2, flexWrap: 'wrap', rowGap: 1 }}>
             <Box>
-              <Typography sx={{ fontWeight: 600 }}>@{p.username}</Typography>
+              <Typography sx={{ fontWeight: 500 }}>@{p.username}</Typography>
               {p.biography && <Typography variant="body2" sx={{ color: 'text.secondary', maxWidth: 360 }}>{p.biography}</Typography>}
             </Box>
-            <Box><Typography sx={{ fontWeight: 600, fontSize: '1.3rem', fontVariantNumeric: 'tabular-nums' }}>{formatNumber(p.followers_count)}</Typography>
+            <Box><Typography sx={{ fontWeight: 500, fontSize: '1.3rem', fontVariantNumeric: 'tabular-nums' }}>{formatNumber(p.followers_count)}</Typography>
               <Typography variant="caption" sx={{ color: 'text.secondary' }}>followers</Typography></Box>
-            <Box><Typography sx={{ fontWeight: 600, fontSize: '1.3rem' }}>{p.media_count}</Typography>
+            <Box><Typography sx={{ fontWeight: 500, fontSize: '1.3rem' }}>{p.media_count}</Typography>
               <Typography variant="caption" sx={{ color: 'text.secondary' }}>posts</Typography></Box>
           </Stack>
-          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 1 }}>
+          <Stack component="ul" aria-label="Recent posts" sx={{ listStyle: 'none', m: 0, p: 0 }}>
             {p.recent.map(m => (
-              <Box key={m.id} component="a" href={m.permalink} target="_blank" rel="noreferrer"
-                sx={{ aspectRatio: '1', borderRadius: 2, overflow: 'hidden', position: 'relative', display: 'block', color: 'inherit', textDecoration: 'none',
-                  bgcolor: tokens.surfaceAlt, border: 1, borderColor: 'divider', maxWidth: '100%' }}>
-                {(m.thumbnail_url ?? m.media_url)
-                  ? <Box component="img" src={m.thumbnail_url ?? m.media_url} alt={m.caption ?? 'Instagram post'} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  : <Typography variant="caption" sx={{ p: 1, display: 'block', fontWeight: 600 }}>{m.caption}</Typography>}
-                <Stack direction="row" spacing={0.5} sx={{ position: 'absolute', left: 6, bottom: 6, alignItems: 'center', bgcolor: 'rgba(255,255,255,0.9)', px: 0.75, borderRadius: 1 }}>
-                  <FavoriteIcon sx={{ fontSize: 13 }} /><Typography variant="caption" sx={{ fontWeight: 600 }}>{m.like_count ?? 0}</Typography>
-                </Stack>
+              <Box component="li" key={m.id} sx={{ borderTop: `1px solid ${tokens.line}`, '&:first-of-type': { borderTop: 0 } }}>
+                <Box component="a" href={m.permalink} target="_blank" rel="noreferrer"
+                  sx={{ display: 'flex', gap: 1.5, alignItems: 'center', py: 1.25, color: 'inherit', textDecoration: 'none', '&:hover': { color: tokens.roseDeep } }}>
+                  <Box sx={{ width: 56, height: 56, flexShrink: 0, borderRadius: 2, overflow: 'hidden', bgcolor: tokens.surfaceAlt, border: 1, borderColor: 'divider' }}>
+                    {(m.thumbnail_url ?? m.media_url) && <Box component="img" src={m.thumbnail_url ?? m.media_url} alt="" sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                  </Box>
+                  <Box sx={{ minWidth: 0, flex: 1 }}>
+                    <Typography noWrap>{m.caption ?? 'Instagram post'}</Typography>
+                    <Typography variant="caption" sx={{ color: 'text.secondary' }}>{formatLocal(m.timestamp, 'd MMM')}</Typography>
+                  </Box>
+                  <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', color: 'text.secondary' }}>
+                    <FavoriteIcon sx={{ fontSize: 15 }} /><Typography variant="body2">{m.like_count ?? 0}</Typography>
+                  </Stack>
+                </Box>
               </Box>
             ))}
-          </Box>
+          </Stack>
         </>}
       </CardContent>
       {sharing && <ShareDialog onClose={() => setSharing(false)} />}

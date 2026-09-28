@@ -70,7 +70,7 @@ export function CalendarPage() {
         actions={<>
           <Stack direction="row" sx={{ alignItems: 'center' }}>
             <IconButton aria-label="Previous month" onClick={() => setMonth(addMonths(month, -1))}><ChevronLeft /></IconButton>
-            <Typography sx={{ minWidth: 130, textAlign: 'center', fontWeight: 600, textTransform: 'capitalize' }}>
+            <Typography sx={{ minWidth: 130, textAlign: 'center', fontWeight: 500, textTransform: 'capitalize' }}>
               {formatLocal(`${month}T12:00:00Z`, 'MMMM yyyy')}
             </Typography>
             <IconButton aria-label="Next month" onClick={() => setMonth(addMonths(month, 1))}><ChevronRight /></IconButton>
@@ -93,7 +93,7 @@ export function CalendarPage() {
         <Card>
           <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
             {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => (
-              <Box key={d} sx={{ p: 1, fontWeight: 600, fontSize: 13, borderBottom: 1, borderColor: 'divider', bgcolor: tokens.surfaceAlt }}>{d}</Box>
+              <Box key={d} sx={{ p: 1, fontWeight: 500, fontSize: 13, borderBottom: 1, borderColor: 'divider', bgcolor: tokens.surfaceAlt }}>{d}</Box>
             ))}
             {days.map(d => (
               <Box key={d} onClick={() => isAdmin && setEditing({ starts_on: d, ends_on: null, starts_at: null, title: '',

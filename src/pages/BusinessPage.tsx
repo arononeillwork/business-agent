@@ -38,7 +38,7 @@ function InfoRow({ icon, label, children }: { icon: ReactNode; label: string; ch
       <Box sx={{ color: tokens.inkFaint, pt: 0.25, display: 'flex' }}>{icon}</Box>
       <Box sx={{ minWidth: 0 }}>
         <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>{label}</Typography>
-        <Box sx={{ fontWeight: 600, wordBreak: 'break-word' }}>{children}</Box>
+        <Box sx={{ fontWeight: 500, wordBreak: 'break-word' }}>{children}</Box>
       </Box>
     </Stack>
   )
@@ -60,7 +60,7 @@ export function BusinessPage() {
         actions={<Tag fg={status.open ? tokens.goodFg : tokens.neutralFg} bg={status.open ? tokens.goodBg : tokens.neutralBg}>● {status.text}</Tag>} />
 
       <Grid container spacing={2.5}>
-        <Grid size={{ xs: 12, md: 6 }}>
+        <Grid size={12}>
           <Card sx={{ height: '100%' }}>
             <CardContent>
               <SectionTitle action={edit()}>Contact</SectionTitle>
@@ -76,7 +76,7 @@ export function BusinessPage() {
           </Card>
         </Grid>
 
-        <Grid size={{ xs: 12, md: 6 }}>
+        <Grid size={12}>
           <Card sx={{ height: '100%' }}>
             <CardContent>
               <SectionTitle action={edit()}>Company</SectionTitle>
@@ -147,7 +147,7 @@ function CurrencySelect() {
   const value = business?.currency ?? 'EUR'
   return (
     <TextField select size="small" value={value} variant="standard" aria-label="Currency" sx={{ minWidth: 200, mt: 0.25 }}
-      slotProps={{ select: { disableUnderline: true, sx: { fontWeight: 600 } } as never, htmlInput: { 'aria-label': 'Currency' } }}
+      slotProps={{ select: { disableUnderline: true, sx: { fontWeight: 500 } } as never, htmlInput: { 'aria-label': 'Currency' } }}
       onChange={e => run(async () => { await api.updateBusiness({ currency: e.target.value }); await refresh() }, `Currency: ${currencyLabel(e.target.value)}`)}>
       {CURRENCIES.map(([code]) => <MenuItem key={code} value={code}>{currencyLabel(code)}</MenuItem>)}
     </TextField>
@@ -174,14 +174,15 @@ function DetailsDialog({ onClose }: { onClose: () => void }) {
       await api.updateBusiness(patch); await refresh()
     }}>
       {field('name', 'Name')}
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+      <Stack spacing={2}>
         {field('business_type', 'Type')}
         <TextField label="CIF / NIF" value={b.tax_id ?? ''} placeholder="B12345674" helperText={taxHint}
           error={!!b.tax_id?.trim() && !tax?.ok} onChange={e => setB({ ...b, tax_id: e.target.value })}
           slotProps={{ htmlInput: { maxLength: 20, style: { textTransform: 'uppercase' } } }} />
       </Stack>
       {field('address', 'Address')}
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>{field('phone', 'Phone')}{field('email', 'Email')}</Stack>
+      {field('phone', 'Phone')}
+      {field('email', 'Email')}
       {field('instagram', 'Instagram')}
       <TextField select label="Team alerts go to" value={b.team_channel ?? ''}
         onChange={e => setB({ ...b, team_channel: (e.target.value || null) as Business['team_channel'] })}>

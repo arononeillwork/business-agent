@@ -96,13 +96,13 @@ function RulesDialog({ onClose }: { onClose: () => void }) {
         label="Fill missing timecards from the rota every night (marked for review)" />
       <Alert severity="info">Spanish defaults. Check your convenio with the gestor; it can be stricter.</Alert>
       <Grid container spacing={2}>
-        <Grid size={6}>{num('break_after_hours', 'Break needed after', 'h')}</Grid>
-        <Grid size={6}>{num('min_break_minutes', 'Minimum break', 'min')}</Grid>
-        <Grid size={6}>{num('max_daily_hours', 'Max per day', 'h')}</Grid>
-        <Grid size={6}>{num('max_weekly_hours', 'Max per week', 'h')}</Grid>
-        <Grid size={6}>{num('min_rest_hours', 'Rest between shifts', 'h')}</Grid>
-        <Grid size={6}>{num('employer_cost_multiplier', 'Employer cost', '×')}</Grid>
-        <Grid size={6}>{num('vacation_days_per_year', 'Holiday per year', 'days')}</Grid>
+        <Grid size={12}>{num('break_after_hours', 'Break needed after', 'h')}</Grid>
+        <Grid size={12}>{num('min_break_minutes', 'Minimum break', 'min')}</Grid>
+        <Grid size={12}>{num('max_daily_hours', 'Max per day', 'h')}</Grid>
+        <Grid size={12}>{num('max_weekly_hours', 'Max per week', 'h')}</Grid>
+        <Grid size={12}>{num('min_rest_hours', 'Rest between shifts', 'h')}</Grid>
+        <Grid size={12}>{num('employer_cost_multiplier', 'Employer cost', '×')}</Grid>
+        <Grid size={12}>{num('vacation_days_per_year', 'Holiday per year', 'days')}</Grid>
       </Grid>
     </RulesEditDialog>
   )

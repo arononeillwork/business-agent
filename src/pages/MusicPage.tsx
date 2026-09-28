@@ -99,12 +99,12 @@ function ConnectGate({ configured }: { configured: Record<MusicProvider, boolean
       <Box aria-hidden sx={{ position: 'absolute', right: -40, bottom: -60, opacity: 0.07, '& svg': { fontSize: 280 } }}><MusicIcon /></Box>
       <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1 }}>
         <LockIcon sx={{ fontSize: 18, color: tokens.rose }} />
-        <Typography variant="overline" sx={{ color: tokens.rose, fontWeight: 600, letterSpacing: '0.12em' }}>Connect to use Music</Typography>
+        <Typography variant="overline" sx={{ color: tokens.rose, fontWeight: 500, letterSpacing: '0.12em' }}>Connect to use Music</Typography>
       </Stack>
       <Typography sx={{ fontFamily: fonts.display, fontWeight: 500, fontSize: { xs: '1.4rem', md: '1.9rem' }, lineHeight: 1.2, maxWidth: 560 }}>
         Bring your own music. Connect Spotify or YouTube Music to unlock this page.
       </Typography>
-      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, mt: 3, position: 'relative' }}>
+      <Box sx={{ display: 'grid', gap: 2, mt: 3, position: 'relative' }}>
         {PROVIDERS.map(p => {
           const b = BRAND[p]
           return (
@@ -141,24 +141,29 @@ function Library({ provider }: { provider: MusicProvider }) {
       <ErrorBox error={lists.error} />
       {lists.data?.length === 0 && <Empty>No playlists in this {BRAND[provider].name} account yet. Make one in the app and it shows up here.</Empty>}
       {current && (
-        <Box sx={{ display: 'grid', gap: 3, gridTemplateColumns: { xs: '1fr', lg: 'minmax(0, 1fr) 420px' }, alignItems: 'start' }}>
-          <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(3, minmax(0, 1fr))', xl: 'repeat(4, minmax(0, 1fr))' } }}
-            role="list" aria-label="Your playlists">
-            {lists.data!.map(p => {
-              const on = p.id === current.id
-              return (
-                <Card key={p.id} role="listitem" sx={{ ...(on ? { borderColor: BRAND[provider].colour, boxShadow: `0 0 0 2px ${BRAND[provider].colour}` } : {}) }}>
-                  <CardActionArea onClick={() => setPicked(p)} aria-pressed={on} aria-label={p.name} sx={{ p: 1.25 }}>
-                    <Cover playlist={p} />
-                    <Typography sx={{ fontWeight: 600, mt: 1 }} noWrap>{p.name}</Typography>
-                    <Typography variant="body2" sx={{ color: 'text.secondary' }} noWrap>{p.tracks} {p.tracks === 1 ? 'song' : 'songs'}</Typography>
-                  </CardActionArea>
-                </Card>
-              )
-            })}
-          </Box>
+        <Stack spacing={3}>
           <Player playlist={current} />
-        </Box>
+          <Card>
+            <Box role="list" aria-label="Your playlists">
+              {lists.data!.map(p => {
+                const on = p.id === current.id
+                return (
+                  <Box key={p.id} role="listitem" sx={{ borderTop: `1px solid ${tokens.line}`, '&:first-of-type': { borderTop: 0 } }}>
+                    <CardActionArea onClick={() => setPicked(p)} aria-pressed={on} aria-label={p.name}
+                      sx={{ px: 2, py: 1.25, display: 'flex', justifyContent: 'flex-start', gap: 1.5, ...(on ? { bgcolor: tokens.roseSoft } : {}) }}>
+                      <Cover playlist={p} size={48} />
+                      <Box sx={{ minWidth: 0, flex: 1 }}>
+                        <Typography sx={{ fontWeight: 500 }} noWrap>{p.name}</Typography>
+                        <Typography variant="body2" sx={{ color: 'text.secondary' }} noWrap>{p.tracks} {p.tracks === 1 ? 'song' : 'songs'}</Typography>
+                      </Box>
+                      {on && <Typography variant="caption" sx={{ color: BRAND[provider].colour, fontWeight: 500 }}>Selected</Typography>}
+                    </CardActionArea>
+                  </Box>
+                )
+              })}
+            </Box>
+          </Card>
+        </Stack>
       )}
     </>
   )
@@ -200,7 +205,7 @@ function Player({ playlist }: { playlist: MusicPlaylist }) {
       {sample ? (
         <Box sx={{ p: 3, textAlign: 'center', bgcolor: tokens.surfaceAlt }}>
           <MusicIcon sx={{ fontSize: 40, color: b.colour }} />
-          <Typography sx={{ fontWeight: 600, mt: 1 }}>The {b.name} player appears here</Typography>
+          <Typography sx={{ fontWeight: 500, mt: 1 }}>The {b.name} player appears here</Typography>
           <Typography variant="body2" sx={{ color: 'text.secondary' }}>Sample data: connect a real account on the live app.</Typography>
         </Box>
       ) : (

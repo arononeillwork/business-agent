@@ -4,7 +4,7 @@
 //   - a business has at most one app per group (Gmail or Outlook, Drive or OneDrive…)
 //   - when a working connection stops working, it says why and admins are told (once)
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { integrations } from './integrations'
+import { drainOutbox, integrations, setTikTokWait } from './integrations'
 import { calendarFeeds } from './calendarFeed'
 import { checkAll, explain, hasScope, PROVIDERS } from './connections'
 import { serviceClient, type Env } from './supabase'
@@ -20,6 +20,7 @@ const env = {
   MS_CLIENT_ID: 'ms-id', MS_CLIENT_SECRET: 'ms-secret', SPOTIFY_CLIENT_ID: 'spotify-id', SPOTIFY_CLIENT_SECRET: 'spotify-secret',
   META_ACCESS_TOKEN: 'meta-token', WHATSAPP_PHONE_NUMBER_ID: '555', META_APP_SECRET: 'meta-secret', WHATSAPP_VERIFY_TOKEN: 'verify',
   INSTAGRAM_APP_ID: 'ig-app', INSTAGRAM_APP_SECRET: 'ig-secret',
+  META_APP_ID: 'meta-app', TIKTOK_CLIENT_KEY: 'tt-key', TIKTOK_CLIENT_SECRET: 'tt-secret', SQUARE_APP_ID: 'sq-app', SQUARE_APP_SECRET: 'sq-secret',
 } as unknown as Env
 
 let db: FakeSupabase
@@ -57,7 +58,7 @@ async function connect(provider: string, back: 'connections' | 'setup' = 'connec
 }
 
 /** The apps with their own start and callback routes (Spotify, Instagram, Google Maps). */
-async function connectOwn(provider: 'spotify' | 'instagram' | 'google', query = 'code=c') {
+async function connectOwn(provider: 'spotify' | 'instagram' | 'google' | 'facebook' | 'tiktok' | 'square', query = 'code=c') {
   const start = await post(`/api/integrations/${provider}/start`)
   expect(start.status).toBe(200)
   const state = new URL((await start.json() as { url: string }).url).searchParams.get('state')!
@@ -414,7 +415,8 @@ describe('Groups and permissions', () => {
     // Every group with more than one real choice is enforced by the database too.
     for (const g of GROUPS) {
       const real = g.options.filter(o => !o.soon)
-      if (real.length > 1) for (const o of real) expect(GROUP[o.id]).toBe(g.key)
+      if (g.pickOne && real.length > 1) for (const o of real) expect(GROUP[o.id]).toBe(g.key)
+      if (!g.pickOne) for (const o of real) expect(GROUP[o.id]).toBeUndefined()
       for (const o of real) expect(PROVIDERS).toContain(o.id)
     }
   })
@@ -432,5 +434,102 @@ describe('Groups and permissions', () => {
     expect(explain('spotify', new Error('Refresh token revoked'))).toBe('Spotify access was removed or has expired. Connect it again.')
     expect(explain('onedrive', new Error('Microsoft: Tenant does not have a SPO license.'))).toMatch(/no OneDrive yet/)
     expect(explain('gmail', new Error('Gmail: Request had insufficient authentication scopes.'))).toMatch(/leave every box ticked/)
+  })
+})
+
+describe('Facebook, TikTok and Square: one click, connected once they really work', () => {
+  beforeEach(() => setTikTokWait({ waitMs: 0, tries: 2 }))
+  const job = (kind: string, payload: Record<string, unknown>) => db.table('outbox').push({ id: db.table('outbox').length + 1, kind, payload, status: 'pending', attempts: 0 })
+
+  it('Facebook: signs in, finds the one Page it manages, keeps only Page tokens (encrypted)', async () => {
+    const start = await post('/api/integrations/facebook/start')
+    const auth = new URL((await start.json() as { url: string }).url)
+    expect(auth.searchParams.get('scope')).toBe('pages_show_list,pages_manage_posts,pages_read_engagement')
+    expect((await connectOwn('facebook')).searchParams.get('connected')).toBe('facebook')
+    expect(db.integration('facebook')).toMatchObject({ status: 'connected', account_label: 'Easy Beans Coffee', external: { page_id: 'page-1', followers: 812 } })
+    expect(await unseal(env.INTEGRATION_KEY!, String(db.secret('facebook')!.ciphertext))).toEqual({ pages: { 'page-1': 'page-token-1' } })
+  })
+
+  it('Facebook: with several Pages it waits for the admin to pick one, then checks that Page', async () => {
+    apis.facebook.pages.push({ id: 'page-2', name: 'Easy Beans Events', access_token: 'page-token-2' })
+    await connectOwn('facebook')
+    expect(db.integration('facebook')).toMatchObject({ status: 'pending', external: { pages: [{ id: 'page-1' }, { id: 'page-2' }] } })
+    expect((await post('/api/integrations/facebook/page', { page_id: 'page-9' })).status).toBe(400)
+    expect((await post('/api/integrations/facebook/page', { page_id: 'page-2' })).status).toBe(200)
+    expect(db.integration('facebook')).toMatchObject({ status: 'connected', account_label: 'Easy Beans Events' })
+  })
+
+  it('Facebook: no Page, or posting not allowed, means not connected', async () => {
+    apis.facebook.granted = ['pages_show_list']
+    expect((await connectOwn('facebook')).searchParams.get('connect_error')).toMatch(/without the permission/)
+    apis.facebook.granted = ['pages_show_list', 'pages_manage_posts']
+    apis.facebook.pages = []
+    expect((await connectOwn('facebook')).searchParams.get('connect_error')).toMatch(/doesn’t manage any Page/)
+    expect(status('facebook')).toBe('disconnected')
+    expect(db.secret('facebook')).toBeUndefined()
+  })
+
+  it('TikTok: connected once TikTok confirms the account can post; notes when posts can only be private', async () => {
+    expect((await connectOwn('tiktok')).searchParams.get('connected')).toBe('tiktok')
+    expect(db.integration('tiktok')).toMatchObject({ status: 'connected', account_label: '@easybeanscoffee', external: { private_only: true } })
+  })
+
+  it('TikTok: posting not allowed means not connected; a revoked account turns red at night', async () => {
+    apis.tiktok.scope = 'user.info.basic'
+    expect((await connectOwn('tiktok')).searchParams.get('connect_error')).toMatch(/without the permission/)
+    apis.tiktok.scope = 'user.info.basic,video.publish'
+    await connectOwn('tiktok')
+    apis.tiktok.revoked = true
+    await nightly()
+    expect(db.integration('tiktok')).toMatchObject({ status: 'error' })
+    expect(db.table('notifications')[0]).toMatchObject({ title: 'TikTok stopped working' })
+  })
+
+  it('Square: finds the business and its location; takings are added up per day in Madrid time', async () => {
+    expect((await connectOwn('square')).searchParams.get('connected')).toBe('square')
+    expect(db.integration('square')).toMatchObject({ status: 'connected', account_label: 'Easy Beans Coffee', external: { locations: [{ id: 'L1' }] } })
+    const res = await get('/api/integrations/square/sales?from=2026-09-28&to=2026-09-29')
+    expect(res.status).toBe(200)
+    const sales = await res.json() as { currency: string; days: { date: string; gross: number; tips: number; payments: number }[] }
+    expect(sales.currency).toBe('EUR')
+    expect(sales.days).toEqual([
+      expect.objectContaining({ date: '2026-09-28', gross: 15.5, tips: 0.5, payments: 2 }),
+      expect.objectContaining({ date: '2026-09-29', gross: 9, payments: 1 }),
+    ])
+  })
+
+  it('Square: takings only for admins with pay access; no location means not connected', async () => {
+    await connectOwn('square')
+    db.table('profiles').find(p => p.id === 'admin-1')!.can_see_pay = false
+    expect((await get('/api/integrations/square/sales?from=2026-09-28&to=2026-09-28')).status).toBe(403)
+    apis.square.locations = []
+    expect((await connectOwn('square')).searchParams.get('connect_error')).toMatch(/no open location/)
+  })
+
+  it('publishes planned posts to the Facebook Page and TikTok, and reports links back', async () => {
+    await connectOwn('facebook')
+    await connectOwn('tiktok')
+    job('facebook_post', { post_id: 'p1', target: 'facebook', caption: 'Feria week!', image_url: 'https://app.test/media/posts/a.jpg' })
+    job('facebook_post', { post_id: 'p2', target: 'facebook', caption: 'Open late tonight' })
+    job('tiktok_post', { post_id: 'p1', target: 'tiktok', caption: 'Feria week!', image_url: 'https://app.test/media/posts/a.jpg' })
+    await drainOutbox(env)
+    expect(apis.facebook.posts).toEqual([
+      { page: 'page-1', kind: 'photos', caption: 'Feria week!', url: 'https://app.test/media/posts/a.jpg' },
+      { page: 'page-1', kind: 'feed', caption: 'Open late tonight', url: undefined },
+    ])
+    expect(apis.tiktok.posts).toEqual([{ caption: 'Feria week!', image: 'https://app.test/media/posts/a.jpg', privacy: 'SELF_ONLY' }])
+    const jobs = db.table('outbox')
+    expect(jobs.map(j => j.status)).toEqual(['sent', 'sent', 'sent'])
+    expect(String(jobs[0].external_id)).toMatch(/^https:\/\/www\.facebook\.com\/page-1_/)
+    expect(jobs[2].external_id).toBe('https://www.tiktok.com/@easybeanscoffee/photo/7400000000000000001')
+  })
+
+  it('a post TikTok rejects fails with TikTok’s reason (and is retried by the outbox)', async () => {
+    await connectOwn('tiktok')
+    apis.tiktok.failPost = 'picture_size_check_failed'
+    job('tiktok_post', { post_id: 'p1', target: 'tiktok', caption: 'x', image_url: 'https://app.test/media/posts/a.jpg' })
+    await drainOutbox(env)
+    expect(db.table('outbox')[0]).toMatchObject({ status: 'failed', last_error: 'TikTok: picture_size_check_failed' })
+    expect(status('tiktok')).toBe('connected') // the account still works; only this post failed
   })
 })

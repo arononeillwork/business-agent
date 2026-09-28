@@ -66,7 +66,7 @@ export async function cleanUp(admin: SupabaseClient) {
     must(await admin.from(table).update({ updated_by: null }).in('updated_by', ids))
   }
   await purgeTestAlerts(admin, ids)
-  for (const id of ids) must(await admin.auth.admin.deleteUser(id))
+  await Promise.all(ids.map(async id => must(await admin.auth.admin.deleteUser(id))))
 }
 
 /** Names of rows the tests create (expenses, events) start with this, so clean-up can find them. */
@@ -109,21 +109,25 @@ export async function purgeTestAlerts(admin: SupabaseClient, ids: string[] = [])
 }
 
 /** Fresh test accounts with known roles, a pay rate for "other", and a kiosk PIN for "employee". */
+/** Time the set-up and clean-up hooks may take: they create and delete real accounts. */
+export const HOOK_TIMEOUT = 120_000
+
 export async function setUp(cfg: LiveConfig) {
   const admin = service(cfg)
   await cleanUp(admin)
-  for (const u of Object.values(USERS)) {
+  // In parallel: Supabase's account API can be slow, and one-by-one ran past the hook timeout.
+  await Promise.all(Object.values(USERS).map(async u => {
     const { error } = await admin.auth.admin.createUser({
       email: u.email, password: PASSWORD, email_confirm: true, user_metadata: { full_name: u.name },
     })
     if (error) throw error
-  }
+  }))
   const ids = await testUserIds(admin)
-  for (const u of Object.values(USERS)) {
+  await Promise.all(Object.values(USERS).map(async u => {
     const { error } = await admin.from('profiles')
       .update({ role: u.role, can_see_pay: u.can_see_pay, active: true }).eq('id', ids[u.email])
     if (error) throw error
-  }
+  }))
   const { error } = await admin.from('pay_rates').insert([
     { profile_id: ids[USERS.other.email], hourly_rate: 11.5 },
     { profile_id: ids[USERS.employee.email], hourly_rate: 9.25 },

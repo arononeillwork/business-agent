@@ -59,7 +59,7 @@ export function AlertsPage() {
       )}
 
       <Grid container spacing={2.5}>
-        <Grid size={{ xs: 12, lg: 5 }}>
+        <Grid size={12}>
           <Card>
             <CardContent>
               <SectionTitle>What gets sent</SectionTitle>
@@ -67,7 +67,7 @@ export function AlertsPage() {
                 {KINDS.map(k => (
                   <Stack key={k.key} direction="row" spacing={2} sx={{ py: 1.5, borderBottom: 1, borderColor: 'divider', alignItems: 'center', '&:last-of-type': { borderBottom: 0 } }}>
                     <Box sx={{ flex: 1 }}>
-                      <Typography sx={{ fontWeight: 600 }}>{k.title}</Typography>
+                      <Typography sx={{ fontWeight: 500 }}>{k.title}</Typography>
                       <Typography variant="body2" sx={{ color: 'text.secondary' }}>{k.when} · to {k.who.toLowerCase()}</Typography>
                     </Box>
                     <Switch checked={!!settings[k.key]} slotProps={{ input: { 'aria-label': k.title } }}
@@ -82,7 +82,7 @@ export function AlertsPage() {
             </CardContent>
           </Card>
         </Grid>
-        <Grid size={{ xs: 12, lg: 7 }}>
+        <Grid size={12}>
           <Card>
             <CardContent>
               <SectionTitle>Recently sent</SectionTitle>

@@ -14,6 +14,7 @@ import { FEATURES } from '../src/app/features'
 import {
   PARTNER, PASSWORD, TEST_ROW_PREFIX, USERS, addPartner, cleanUp, liveConfig, purgeTestAlerts, service, setUp,
   type LiveConfig, type UserKey,
+  HOOK_TIMEOUT,
 } from './live/fixtures'
 
 // Every test fails on an uncaught error thrown by the app's own page (not Google's or Microsoft's).
@@ -44,6 +45,7 @@ let business: { name: string; phone: string | null }
 let shiftReminders: boolean
 
 test.beforeAll(async ({ baseURL }) => {
+  test.setTimeout(HOOK_TIMEOUT)
   cfg = await liveConfig(baseURL!)
   ;({ ids } = await setUp(cfg))
   await addPartner(cfg)
@@ -60,6 +62,7 @@ test.beforeAll(async ({ baseURL }) => {
 })
 
 test.afterAll(async () => {
+  test.setTimeout(HOOK_TIMEOUT)
   if (!cfg) return
   const sb = service(cfg)
   // Put back anything a failed test may have left changed on the real business.

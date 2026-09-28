@@ -11,17 +11,21 @@ import * as instagram from './providers/instagram'
 import * as spotify from './providers/spotify'
 import * as ms from './providers/microsoft'
 import * as youtube from './providers/youtube'
+import * as facebook from './providers/facebook'
+import * as tiktok from './providers/tiktok'
+import * as square from './providers/square'
 import { alertEmail, base64url, mimeMessage } from '../shared/alertText'
 import { addToCalendarUrl, optionName } from '../shared/connections'
 import { finishMusicConnect, type MusicState } from './music'
 import { ensureFeed } from './calendarFeed'
 import {
   CONNECTORS, PROVIDERS, ROW_COLUMNS, SCOPES, calendarSeen, calendarFetched, checkAll, checkOne, connectedOf, connectorConfigured,
-  connectorGrant, explain, googleConfig, googleSession, instagramOAuth, instagramSession, isCalendarApp, isGoogle, lasting, markBroken, msConfig,
-  proveInstagram, proveNew, proveSpotify, setIntegration, spotifyConfig, spotifySession, waConfig, type Connector, type Provider,
+  connectorGrant, explain, facebookOAuth, facebookSession, googleConfig, googleSession, instagramOAuth, instagramSession, isCalendarApp, isGoogle,
+  lasting, markBroken, msConfig, proveFacebook, proveInstagram, proveNew, proveSpotify, proveSquare, proveTikTok, setIntegration, spotifyConfig,
+  spotifySession, squareOAuth, squareSession, tiktokOAuth, tiktokSession, waConfig, type Connector, type Provider,
 } from './connections'
 import type { Business, CalendarEvent, SpotifyPlaylist } from '../shared/types'
-import { today } from '../shared/time'
+import { today, zonedIso } from '../shared/time'
 
 export { waConfig }
 
@@ -75,6 +79,10 @@ export async function syncGoogle(env: Env, db: SupabaseClient) {
   await setIntegration(db, 'google_business', { last_sync_at: new Date().toISOString(), last_error: null, status: 'connected' })
 }
 
+/** How long to wait for TikTok to confirm a post (tests set it to nothing). */
+let tiktokWait: { waitMs?: number; tries?: number } = {}
+export const setTikTokWait = (w: typeof tiktokWait) => { tiktokWait = w }
+
 /** Deliver due outbox jobs. Called by the cron every minute. */
 export async function drainOutbox(env: Env) {
   const db = serviceClient(env)
@@ -101,13 +109,22 @@ export async function drainOutbox(env: Env) {
       } else if (job.kind === 'instagram_post') {
         const p = job.payload as { image_url: string; caption: string }
         externalId = await instagram.publishPhoto(await instagramSession(env, db), p.image_url, p.caption)
+      } else if (job.kind === 'facebook_post') {
+        const p = job.payload as { image_url?: string | null; caption: string }
+        const s = await facebookSession(env, db)
+        externalId = await facebook.publish(s.graphVersion, s.pageId, s.token, p.caption, p.image_url)
+      } else if (job.kind === 'tiktok_post') {
+        const p = job.payload as { image_url: string; caption: string }
+        externalId = await tiktok.publishPhoto(await tiktokSession(env, db), p.caption, p.image_url, tiktokWait)
       }
       await db.rpc('complete_outbox', { p_id: job.id, p_ok: true, p_external_id: externalId })
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e)
       await db.rpc('complete_outbox', { p_id: job.id, p_ok: false, p_error: message })
       if (job.kind.startsWith('google')) await setIntegration(db, 'google_business', { last_error: message }).catch(() => {})
-      if (job.kind === 'instagram_post' && lasting('instagram', e)) await markBroken(db, 'instagram', explain('instagram', e)).catch(() => {})
+      // A post failing because the access was removed turns that app red (admins are told once).
+      const app = ({ instagram_post: 'instagram', facebook_post: 'facebook', tiktok_post: 'tiktok' } as Record<string, Provider>)[job.kind]
+      if (app && lasting(app, e)) await markBroken(db, app, explain(app, e)).catch(() => {})
     }
   }
 }
@@ -154,6 +171,9 @@ integrations.get('/api/integrations', async c => {
     google_business: !!googleConfig(c.env, ''),
     whatsapp: !!waConfig(c.env) && !!c.env.META_APP_SECRET && !!c.env.WHATSAPP_VERIFY_TOKEN,
     instagram: !!instagramOAuth(c.env, ''),
+    facebook: !!facebookOAuth(c.env, ''),
+    tiktok: !!tiktokOAuth(c.env, ''),
+    square: !!squareOAuth(c.env, ''),
     spotify: !!spotifyConfig(c.env, ''),
     ...Object.fromEntries(CONNECTORS.map(p => [p, connectorConfigured(c.env, p)])),
     // Calendars need no keys of their own: the calendar app subscribes to the team calendar link.
@@ -531,6 +551,137 @@ integrations.get('/api/integrations/instagram/callback', async c => {
     const why = explain('instagram', e)
     await setIntegration(db, 'instagram', { last_error: why }).catch(() => {})
     return back(`connect_error=${encodeURIComponent(why)}`)
+  }
+})
+
+/**
+ * The finish of a one-click connection (Facebook, TikTok, Square): check the signed state, handle
+ * "cancelled", run the proof and keep the access only if it passes; then back to where they started.
+ */
+async function appCallback(c: Context<{ Bindings: Env; Variables: { userId: string } }>, provider: Provider,
+  finish: (state: { uid: string }, origin: string, db: SupabaseClient) => Promise<void>) {
+  const origin = new URL(c.req.url).origin
+  let state: { uid: string; kind?: string; back?: string } | null = null
+  try { state = await verifyState(c.env.INTEGRATION_KEY ?? '', c.req.query('state') ?? '') } catch { /* expired or forged */ }
+  const back = (q: string) => c.redirect(`${origin}/${state?.back === 'setup' ? 'setup' : 'connections'}?${q}`)
+  if (!state || state.kind !== provider) return back(`connect_error=${encodeURIComponent('That connection link expired. Try again.')}`)
+  if (c.req.query('error')) {
+    const cancelled = /access_denied|user_denied|cancel/i.test(`${c.req.query('error')} ${c.req.query('error_reason') ?? ''}`)
+    return back(`connect_error=${encodeURIComponent(cancelled ? `${optionName(provider)} connection was cancelled` : (c.req.query('error_description') ?? c.req.query('error')!))}`)
+  }
+  const db = serviceClient(c.env)
+  try {
+    await finish(state, origin, db)
+    return back(`connected=${provider}`)
+  } catch (e) {
+    const why = explain(provider, e)
+    await setIntegration(db, provider, { last_error: why }).catch(() => {})
+    return back(`connect_error=${encodeURIComponent(why)}`)
+  }
+}
+
+const startState = async (c: Context<{ Bindings: Env; Variables: { userId: string } }>, kind: Provider) => {
+  const { back } = await c.req.json<{ back?: 'setup' | 'connections' }>().catch(() => ({ back: undefined }))
+  return signState(c.env.INTEGRATION_KEY!, { uid: c.get('userId'), kind, back })
+}
+
+const keep = async (env: Env, db: SupabaseClient, provider: Provider, secret: unknown) => {
+  const { error } = await db.from('integration_secrets').upsert({ provider, ciphertext: await seal(env.INTEGRATION_KEY!, secret), updated_at: new Date().toISOString() })
+  if (error) throw new Error(error.message)
+}
+
+// Facebook: sign in, allow posting, pick the Page (automatic when there's only one).
+integrations.post('/api/integrations/facebook/start', async c => {
+  const cfg = facebookOAuth(c.env, new URL(c.req.url).origin)
+  if (!cfg) return c.json({ error: 'Facebook needs the Meta app keys first (META_APP_ID and META_APP_SECRET; see docs/INTEGRATIONS.md).' }, 400)
+  return c.json({ url: facebook.authUrl(cfg, await startState(c, 'facebook')) })
+})
+
+integrations.get('/api/integrations/facebook/callback', c => appCallback(c, 'facebook', async (state, origin, db) => {
+  const cfg = facebookOAuth(c.env, origin)
+  if (!cfg) throw new Error('Facebook is not set up')
+  const { granted, pages } = await facebook.exchangeCode(cfg, c.req.query('code') ?? '')
+  const proven = await proveFacebook(c.env, granted, pages)
+  await keep(c.env, db, 'facebook', { pages: Object.fromEntries(pages.map(p => [p.id, p.access_token])) })
+  const now = new Date().toISOString()
+  await setIntegration(db, 'facebook', { status: proven.chosen ? 'connected' : 'pending', connected_by: state.uid, connected_at: now,
+    last_checked_at: proven.chosen ? now : null, last_error: null, account_label: proven.label, external: proven.external })
+}))
+
+// Which Page to post to (when the owner manages more than one): connected once that Page answers.
+integrations.post('/api/integrations/facebook/page', async c => {
+  const { page_id } = await c.req.json<{ page_id?: string }>()
+  const db = serviceClient(c.env)
+  const { data } = await db.from('integrations').select('external').eq('provider', 'facebook').single()
+  const ext = (data?.external ?? {}) as { pages?: { id: string; name: string }[] }
+  if (!ext.pages?.some(p => p.id === page_id)) return c.json({ error: 'That Page isn’t one this account manages' }, 400)
+  await setIntegration(db, 'facebook', { external: { ...ext, page_id } })
+  try {
+    const s = await facebookSession(c.env, db)
+    const page = await facebook.page(s.graphVersion, s.pageId, s.token)
+    const now = new Date().toISOString()
+    await setIntegration(db, 'facebook', { status: 'connected', last_checked_at: now, last_error: null, account_label: page.name,
+      external: { ...ext, page_id, page_name: page.name, followers: page.followers_count ?? page.fan_count } })
+    return c.json({ ok: true })
+  } catch (e) {
+    const why = explain('facebook', e)
+    await setIntegration(db, 'facebook', { last_error: why })
+    return c.json({ error: why }, 400)
+  }
+})
+
+// TikTok: sign in, allow posting; connected once TikTok confirms the account can post.
+integrations.post('/api/integrations/tiktok/start', async c => {
+  const cfg = tiktokOAuth(c.env, new URL(c.req.url).origin)
+  if (!cfg) return c.json({ error: 'TikTok needs the TikTok app keys first (TIKTOK_CLIENT_KEY and TIKTOK_CLIENT_SECRET; see docs/INTEGRATIONS.md).' }, 400)
+  return c.json({ url: tiktok.authUrl(cfg, await startState(c, 'tiktok')) })
+})
+
+integrations.get('/api/integrations/tiktok/callback', c => appCallback(c, 'tiktok', async (state, origin, db) => {
+  const cfg = tiktokOAuth(c.env, origin)
+  if (!cfg) throw new Error('TikTok is not set up')
+  const t = await tiktok.exchangeCode(cfg, c.req.query('code') ?? '')
+  const proven = await proveTikTok(t.access_token!, t.scope)
+  await keep(c.env, db, 'tiktok', { access_token: t.access_token, refresh_token: t.refresh_token, expires_at: new Date(Date.now() + (t.expires_in ?? 86_400) * 1000).toISOString() })
+  const now = new Date().toISOString()
+  await setIntegration(db, 'tiktok', { status: 'connected', connected_by: state.uid, connected_at: now, last_checked_at: now, last_error: null,
+    account_label: proven.label, external: proven.external })
+}))
+
+// Square: sign in to the business's Square account (read-only).
+integrations.post('/api/integrations/square/start', async c => {
+  const cfg = squareOAuth(c.env, new URL(c.req.url).origin)
+  if (!cfg) return c.json({ error: 'Square needs the Square app keys first (SQUARE_APP_ID and SQUARE_APP_SECRET; see docs/INTEGRATIONS.md).' }, 400)
+  return c.json({ url: square.authUrl(cfg, await startState(c, 'square')) })
+})
+
+integrations.get('/api/integrations/square/callback', c => appCallback(c, 'square', async (state, origin, db) => {
+  const cfg = squareOAuth(c.env, origin)
+  if (!cfg) throw new Error('Square is not set up')
+  const t = await square.exchangeCode(cfg, c.req.query('code') ?? '')
+  if (!t.refresh_token) throw new Error('Square did not allow lasting access. Connect again.')
+  const proven = await proveSquare(cfg.sandbox, t.access_token!)
+  await keep(c.env, db, 'square', { access_token: t.access_token, refresh_token: t.refresh_token, expires_at: t.expires_at ?? new Date(Date.now() + 30 * 86_400_000).toISOString() })
+  const now = new Date().toISOString()
+  await setIntegration(db, 'square', { status: 'connected', connected_by: state.uid, connected_at: now, last_checked_at: now, last_error: null,
+    account_label: proven.label, external: proven.external })
+}))
+
+// Takings per day from Square (admins with pay access): ?from=YYYY-MM-DD&to=YYYY-MM-DD (inclusive).
+integrations.get('/api/integrations/square/sales', async c => {
+  const db = serviceClient(c.env)
+  const { data: me } = await db.from('profiles').select('can_see_pay').eq('id', c.get('userId')).single()
+  if (!me?.can_see_pay) return c.json({ error: 'Takings are for admins with pay access' }, 403)
+  const from = c.req.query('from') ?? '', to = c.req.query('to') ?? ''
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || from > to) return c.json({ error: 'Give from and to dates (YYYY-MM-DD)' }, 400)
+  try {
+    const s = await squareSession(c.env, db)
+    const end = new Date(Date.parse(`${to}T12:00:00Z`) + 86_400_000).toISOString().slice(0, 10)
+    return c.json(await square.salesByDay(s.sandbox, s.token, s.locationIds, zonedIso(from, '00:00'), zonedIso(end, '00:00')))
+  } catch (e) {
+    const why = explain('square', e)
+    if (lasting('square', e)) await markBroken(db, 'square', why)
+    return c.json({ error: why }, 400)
   }
 })
 

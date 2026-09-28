@@ -14,6 +14,9 @@ built-in **AI connector** so owners can run it by talking to Claude.
   European nights, national teams), UFC and boxing, with "big nights" flagged. The Worker refreshes
   each followed competition every 6 hours from free sources (fixturedownload.com, TheSportsDB,
   Wikipedia's UFC schedule); no keys needed. Admins pick competitions on the Sports page.
+- Social planner: write a post once and schedule it to Instagram, Facebook, TikTok and Google Maps;
+  each network's result links to the live post. Square connects as the till, so Finances shows
+  takings next to team cost. Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) sections 7-9.
 
 See [docs/PLAN.md](docs/PLAN.md) for decisions, architecture and phases.
 

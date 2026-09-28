@@ -71,5 +71,7 @@ export async function publishPhoto(cfg: InstagramConfig, imageUrl: string, capti
   const form = (o: Record<string, string>) => ({ method: 'POST', body: new URLSearchParams(o) })
   const container = await graph<{ id: string }>(cfg, `${cfg.userId}/media`, form({ image_url: imageUrl, caption: caption.slice(0, 2200) }))
   const published = await graph<{ id: string }>(cfg, `${cfg.userId}/media_publish`, form({ creation_id: container.id }))
-  return published.id
+  // The post's link, for the planner (falls back to the id if Instagram doesn't say).
+  const made = await graph<{ permalink?: string }>(cfg, `${published.id}?fields=permalink`).catch(() => ({ permalink: undefined }))
+  return made.permalink ?? published.id
 }

@@ -35,8 +35,8 @@ export function MyConnections() {
         Just for you. The café's own accounts (Google Maps, WhatsApp number, Instagram, café Spotify) are under Connections, for admins.
       </Typography>
       <Grid container spacing={2}>
-        <Grid size={{ xs: 12, md: 6 }}><CalendarFeedCard scope="me" /></Grid>
-        <Grid size={{ xs: 12, md: 6 }}><MusicStatusCard /></Grid>
+        <Grid size={12}><CalendarFeedCard scope="me" /></Grid>
+        <Grid size={12}><MusicStatusCard /></Grid>
         <Grid size={12}><AiAssistants /></Grid>
       </Grid>
     </Box>

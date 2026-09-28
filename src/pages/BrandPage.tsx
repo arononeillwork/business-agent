@@ -78,19 +78,19 @@ export function BrandPage() {
       <ErrorBox error={brand.error} />
       {b && (
         <Grid container spacing={2.5}>
-          <Grid size={{ xs: 12, lg: 5 }}>
+          <Grid size={12}>
             <Stack spacing={2.5}>
               <LogoCard title="Logo" value={b.logo} fallback={logoUrl} canEdit={isAdmin}
                 onChange={logo => save({ logo }, logo ? 'Logo updated' : 'Logo removed')} />
             </Stack>
           </Grid>
-          <Grid size={{ xs: 12, lg: 7 }}>
+          <Grid size={12}>
             <Stack spacing={2.5}>
               <Card component="section" aria-label="Colours">
                 <CardContent>
                   <SectionTitle action={isAdmin && <Button size="small" startIcon={<AddIcon />}
                     onClick={() => setEditing({ index: null, colour: { name: '', hex: '#F79BA4', role: 'accent' } })}>Add colour</Button>}>Colours</SectionTitle>
-                  <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(3, 1fr)' } }}>
+                  <Box sx={{ display: 'grid', gap: 1.25 }}>
                     {b.colours.map((c, i) => <Swatch key={`${c.name}-${i}`} colour={c} canEdit={isAdmin} onEdit={() => setEditing({ index: i, colour: c })} />)}
                   </Box>
                 </CardContent>
@@ -165,7 +165,7 @@ function LogoCard({ title, hint, value, fallback, canEdit, onChange }: {
       <CardContent>
         <SectionTitle action={src && <Button size="small" startIcon={<DownloadIcon fontSize="small" />} component="a" href={src} download={`easy-beans-${title.toLowerCase().replace(/\W+/g, '-')}.png`}>Download</Button>}>{title}</SectionTitle>
         {hint && <Typography variant="body2" sx={{ color: 'text.secondary', mt: -1, mb: 1.5 }}>{hint}</Typography>}
-        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, mb: canEdit ? 1.5 : 0 }}>
+        <Box sx={{ display: 'grid', gap: 1, mb: canEdit ? 1.5 : 0 }}>
           {['#FFFFFF', '#2B2522'].map(bg => (
             <Box key={bg} sx={{ height: 140, borderRadius: '14px', bgcolor: bg, border: 1, borderColor: 'divider', display: 'flex', alignItems: 'center', justifyContent: 'center', p: 2, overflow: 'hidden' }}>
               {src ? <Box component="img" src={src} alt={`${title} on ${bg === '#FFFFFF' ? 'white' : 'dark'}`} sx={{ display: 'block', maxWidth: '100%', maxHeight: 108, objectFit: 'contain' }} />
@@ -193,13 +193,15 @@ function LogoCard({ title, hint, value, fallback, canEdit, onChange }: {
 function Swatch({ colour: c, canEdit, onEdit }: { colour: BrandColour; canEdit: boolean; onEdit: () => void }) {
   const notify = useNotify()
   return (
-    <Box sx={{ borderRadius: '14px', overflow: 'hidden', border: 1, borderColor: 'divider', bgcolor: tokens.surface }}>
-      <Box sx={{ height: 76, bgcolor: c.hex, color: inkOn(c.hex), p: 1.25, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-        <Chip size="small" label={ROLES[c.role]} sx={{ bgcolor: 'rgba(255,255,255,0.75)', color: '#2B2522' }} />
-        {canEdit && <IconButton size="small" aria-label={`Edit ${c.name}`} onClick={onEdit} sx={{ color: 'inherit' }}><EditIcon fontSize="small" /></IconButton>}
-      </Box>
-      <Box sx={{ p: 1.25 }}>
-        <Typography sx={{ fontWeight: 500 }} noWrap>{c.name}</Typography>
+    <Box sx={{ borderRadius: '14px', overflow: 'hidden', border: 1, borderColor: 'divider', bgcolor: tokens.surface, display: 'flex', alignItems: 'stretch' }}>
+      <Box sx={{ width: 88, flexShrink: 0, bgcolor: c.hex, color: inkOn(c.hex) }} />
+      <Box sx={{ p: 1.5, flex: 1, minWidth: 0 }}>
+        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+          <Typography sx={{ fontWeight: 500 }} noWrap>{c.name}</Typography>
+          <Chip size="small" label={ROLES[c.role]} variant="outlined" />
+          <Box sx={{ flex: 1 }} />
+          {canEdit && <IconButton size="small" aria-label={`Edit ${c.name}`} onClick={onEdit}><EditIcon fontSize="small" /></IconButton>}
+        </Stack>
         <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
           <Typography variant="body2" sx={{ fontFamily: 'ui-monospace, monospace', color: 'text.secondary' }}>{c.hex.toUpperCase()}</Typography>
           <Tooltip title="Copy">

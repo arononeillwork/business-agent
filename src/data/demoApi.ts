@@ -3,7 +3,7 @@
 // of truth: the database functions are.
 import type { Api, ShiftInput } from './api'
 import type {
-  ApiKey, AppNotification, Brand, EventAlert, MusicAccount, MusicPlaylist, MusicProvider, MyNowPlaying,
+  ApiKey, AppNotification, Brand, EventAlert, Sales, SocialNetwork, SocialPost, MusicAccount, MusicPlaylist, MusicProvider, MyNowPlaying,
   Expense, Integration, IntegrationProvider, IntegrationsState, OutboxItem, PartnerArea, TimeOff,
   BreakType, Business, CalendarEvent, CorrectionRequest, PayRate, Position, Profile, Settings,
   Shift, TimeEntry, TimeEntryChange,
@@ -52,7 +52,7 @@ export function createDemoApi(): Api {
   }
   const integ: IntegrationsState = {
     configured: { google_business: true, whatsapp: true, instagram: true, spotify: true, gmail: true, outlook: true, google_drive: true, onedrive: true,
-      youtube_music: true, google_calendar: true, outlook_calendar: true },
+      youtube_music: true, google_calendar: true, outlook_calendar: true, facebook: true, tiktok: true, square: true },
     queue: [],
     integrations: [
       { provider: 'google_business', status: 'connected', account_label: 'Easy Beans Coffee',
@@ -63,7 +63,7 @@ export function createDemoApi(): Api {
         external: { playlist: { id: 'pl1', name: 'Easy Beans · Mornings', tracks: 84, url: 'https://open.spotify.com', owner: 'Easy Beans' } },
         connected_at: nowIso(), last_sync_at: null, last_error: null, last_checked_at: nowIso() },
       { provider: 'instagram', status: 'connected', account_label: '@easy.beans.coffee', external: {}, connected_at: nowIso(), last_sync_at: nowIso(), last_error: null, last_checked_at: nowIso() },
-      ...(['gmail', 'outlook', 'google_drive', 'onedrive', 'youtube_music', 'google_calendar', 'outlook_calendar'] as const).map(provider => ({
+      ...(['gmail', 'outlook', 'google_drive', 'onedrive', 'youtube_music', 'google_calendar', 'outlook_calendar', 'facebook', 'tiktok', 'square'] as const).map(provider => ({
         provider, status: 'disconnected' as const, account_label: null, external: {}, connected_at: null, last_sync_at: null, last_error: null, last_checked_at: null })),
     ],
   }
@@ -90,6 +90,42 @@ export function createDemoApi(): Api {
   ]
   const music: { playing: boolean; track?: string; artist?: string; device?: string } = { playing: false }
   const cafeMusic = () => integ.integrations.find(i => (i.provider === 'spotify' || i.provider === 'youtube_music') && i.status === 'connected')
+  // Social planner: a published post, one going out soon, one next week, and a draft.
+  const hoursFromNow = (h: number) => new Date(Date.now() + h * 3_600_000).toISOString()
+  const PHOTO = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400"><rect width="400" height="400" fill="#F3DED3"/><circle cx="200" cy="215" r="120" fill="#fff"/><circle cx="200" cy="215" r="92" fill="#8B5E3C"/><path d="M165 205c20-30 50-30 70 0-20 30-50 30-70 0z" fill="#F3DED3"/><text x="200" y="70" font-family="sans-serif" font-size="28" text-anchor="middle" fill="#A85A68">Easy Beans</text></svg>')}`
+  const posts: SocialPost[] = [
+    { id: uid(), caption: 'Iced oat latte season is here. Come and cool down on the terrace.', image_url: PHOTO, targets: ['facebook', 'instagram'],
+      scheduled_at: hoursFromNow(-26), status: 'published', created_at: hoursFromNow(-50), published_at: hoursFromNow(-26),
+      results: { instagram: { status: 'published', url: 'https://www.instagram.com/easy.beans.coffee/' }, facebook: { status: 'published', url: 'https://www.facebook.com/' } } },
+    { id: uid(), caption: 'Feria week: we stay open until 23:00 from Thursday to Sunday. See you there!', image_url: PHOTO, targets: ['google', 'instagram'],
+      scheduled_at: hoursFromNow(20), status: 'scheduled', results: {}, created_at: nowIso(), published_at: null },
+    { id: uid(), caption: 'Sunday slow bar: our new Ethiopian filter, brewed to order.', image_url: null, targets: ['facebook'],
+      scheduled_at: hoursFromNow(24 * 6), status: 'scheduled', results: {}, created_at: nowIso(), published_at: null },
+    { id: uid(), caption: 'Ideas for the matcha menu launch…', image_url: null, targets: ['instagram'], scheduled_at: null, status: 'draft', results: {}, created_at: nowIso(), published_at: null },
+  ]
+  /** Demo: posts that are due "go out" to every connected network. */
+  const publishDue = () => {
+    for (const p of posts) {
+      if (p.status !== 'scheduled' || !p.scheduled_at || p.scheduled_at > nowIso()) continue
+      const connected = (n: string) => integ.integrations.some(i => i.provider === (n === 'google' ? 'google_business' : n) && i.status === 'connected')
+      p.results = Object.fromEntries(p.targets.map(t => [t, connected(t) ? { status: 'published' as const, at: nowIso() } : { status: 'failed' as const, error: `${t === 'google' ? 'Google Maps' : t[0].toUpperCase() + t.slice(1)} is not connected`, at: nowIso() }]))
+      const ok = Object.values(p.results).filter(r => r.status === 'published').length
+      p.status = ok === p.targets.length ? 'published' : ok ? 'partly' : 'failed'
+      p.published_at = ok ? nowIso() : null
+    }
+  }
+  /** Demo takings: a believable café week (quieter Mondays, busy weekends). */
+  const demoSales = (from: string, to: string): Sales => {
+    const days: Sales['days'] = []
+    for (let d = from; d <= to; d = addDays(d, 1)) {
+      if (d > today()) break
+      const dow = new Date(`${d}T12:00:00Z`).getUTCDay()
+      const seed = [...d].reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) % 997, 7)
+      const gross = Math.round(([520, 380, 430, 450, 610, 890, 820][dow] + (seed % 90) - 45) * 100) / 100
+      days.push({ date: d, gross, tips: Math.round(gross * 0.04 * 100) / 100, refunds: 0, payments: Math.round(gross / 6.4) })
+    }
+    return { currency: 'EUR', days }
+  }
   // Music page: each person's own accounts (connecting is simulated in the demo).
   const myAccounts = new Map<string, MusicAccount[]>()
   const myPlayer: MyNowPlaying = { playing: false }
@@ -817,6 +853,52 @@ export function createDemoApi(): Api {
       requireAdmin()
       if (!/\d{9,}/.test(to.replace(/\D/g, ''))) throw new Error('Enter a full number with country code, e.g. +34 600 000 000')
       setConnection('whatsapp', { status: 'connected', account_label: '+34 695 415 335', last_checked_at: nowIso(), last_error: null })
+    },
+    async connectApp(provider) {
+      requireAdmin()
+      const label = { facebook: 'Easy Beans Coffee', tiktok: '@easybeanscoffee', square: 'Easy Beans Coffee' }[provider]
+      const external = provider === 'facebook' ? { pages: [{ id: 'page-1', name: 'Easy Beans Coffee' }], page_id: 'page-1' } : provider === 'tiktok' ? { private_only: true } : {}
+      setConnection(provider, { status: 'connected', account_label: label, connected_at: nowIso(), last_checked_at: nowIso(), last_error: null, external })
+    },
+    async chooseFacebookPage(pageId) {
+      requireAdmin()
+      const fb = integ.integrations.find(i => i.provider === 'facebook')!
+      const page = fb.external.pages?.find(p => p.id === pageId)
+      if (!page) throw new Error('That Page isn’t one this account manages')
+      Object.assign(fb, { status: 'connected', account_label: page.name, external: { ...fb.external, page_id: pageId } })
+    },
+    async sales(from, to) {
+      requireAdmin()
+      if (!integ.integrations.some(i => i.provider === 'square' && i.status === 'connected')) throw new Error('Connect Square on the Connections page to see takings')
+      return demoSales(from, to)
+    },
+    async socialPosts() {
+      requireAdmin()
+      publishDue()
+      return clone(posts)
+    },
+    async saveSocialPost(p) {
+      requireAdmin()
+      const targets = [...new Set(p.targets)].sort() as SocialNetwork[]
+      if (p.status === 'scheduled') {
+        if (!p.scheduled_at) throw new Error('Pick when to post')
+        if (!targets.length) throw new Error('Pick at least one network')
+        if (!p.caption.trim() && !p.image_url) throw new Error('Write a caption or add a photo')
+        if (!p.image_url && (targets.includes('instagram') || targets.includes('tiktok'))) throw new Error('Instagram and TikTok posts need a photo')
+        if (targets.includes('google') && p.caption.length > 1500) throw new Error('Google Maps posts are limited to 1500 characters')
+      }
+      const existing = p.id ? posts.find(x => x.id === p.id) : undefined
+      if (existing && ['publishing', 'published', 'partly'].includes(existing.status)) throw new Error('This post has already gone out. Make a new post instead.')
+      const row: SocialPost = { id: existing?.id ?? uid(), caption: p.caption, image_url: p.image_url ?? null, targets, scheduled_at: p.scheduled_at ?? null,
+        status: p.status, results: {}, created_at: existing?.created_at ?? nowIso(), published_at: null }
+      if (existing) Object.assign(existing, row); else posts.unshift(row)
+      publishDue()
+      return row.id
+    },
+    async deleteSocialPost(id) {
+      requireAdmin()
+      const i = posts.findIndex(p => p.id === id)
+      if (i >= 0) posts.splice(i, 1)
     },
     async instagramProfile() {
       if (integ.integrations.find(i => i.provider === 'instagram')!.status !== 'connected') throw new Error('Instagram is not connected')

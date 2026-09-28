@@ -187,7 +187,7 @@ export function TimecardsPage() {
                         <TableCell>{localTime(e.clock_in)}</TableCell>
                         <TableCell>{e.clock_out ? localTime(e.clock_out) : <Chip size="small" color="success" label="On shift" />}</TableCell>
                         <TableCell>{e.break_minutes ? `${e.break_minutes}m` : '—'}</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>{formatDuration(e.paid_minutes)}</TableCell>
+                        <TableCell sx={{ fontWeight: 500 }}>{formatDuration(e.paid_minutes)}</TableCell>
                         <TableCell><Flags flags={e.flags} /></TableCell>
                         <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                           {e.approved_at && <Tooltip title="Approved"><LockIcon fontSize="small" color="action" sx={{ verticalAlign: 'middle' }} /></Tooltip>}

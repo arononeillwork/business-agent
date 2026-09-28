@@ -202,7 +202,7 @@ export function TodayPage() {
       <ClockCard onChange={data.reload} />
 
       <Grid container spacing={2.5}>
-        <Grid size={{ xs: 12, md: 7 }}>
+        <Grid size={12}>
           <Stack spacing={2.5}>
             <Card component="section" aria-label="Who's on today">
               <CardContent>
@@ -246,7 +246,7 @@ export function TodayPage() {
             </Card>
           </Stack>
         </Grid>
-        <Grid size={{ xs: 12, md: 5 }}>
+        <Grid size={12}>
           <Stack spacing={2.5}>
             <Card component="section" aria-label="My next shifts">
               <CardContent>

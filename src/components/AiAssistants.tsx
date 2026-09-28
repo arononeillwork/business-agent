@@ -96,7 +96,7 @@ export function AiAssistants() {
           {CLIENTS.map(c => (
             <Chip key={c.key} role="tab" aria-selected={pick === c.key} icon={<Box sx={{ display: 'grid', placeItems: 'center', ml: '6px !important', color: tokens.ink }}>{c.icon}</Box>}
               label={c.name} clickable onClick={() => setPick(c.key)} variant={pick === c.key ? 'filled' : 'outlined'}
-              sx={pick === c.key ? { bgcolor: tokens.roseSoft, color: tokens.ink, fontWeight: 600 } : undefined} />
+              sx={pick === c.key ? { bgcolor: tokens.roseSoft, color: tokens.ink, fontWeight: 500 } : undefined} />
           ))}
         </Stack>
         <Box role="tabpanel" aria-label={`${client.name} set-up`}>
@@ -128,7 +128,7 @@ function AccessKeys() {
     <Box component="section" aria-label="Access keys" sx={{ mt: 3, pt: 2.5, borderTop: `1px solid ${tokens.line}` }}>
       <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
         <KeyIcon sx={{ color: tokens.inkSoft }} />
-        <Typography sx={{ fontWeight: 600 }}>Access keys</Typography>
+        <Typography sx={{ fontWeight: 500 }}>Access keys</Typography>
       </Stack>
       <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5, mb: 1.5 }}>
         Only for AIs and automations that can’t sign in. A key acts as you, so keep it secret; revoke it here any time. Make one per app so you can revoke them separately.

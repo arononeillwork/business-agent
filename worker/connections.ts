@@ -15,6 +15,9 @@ import * as spotify from './providers/spotify'
 import * as youtube from './providers/youtube'
 import * as whatsapp from './providers/whatsapp'
 import * as instagram from './providers/instagram'
+import * as facebook from './providers/facebook'
+import * as tiktok from './providers/tiktok'
+import * as square from './providers/square'
 import { base64url, mimeMessage } from '../shared/alertText'
 import { calendarAppFromAgent, optionName } from '../shared/connections'
 import type { CalendarApp, IntegrationProvider } from '../shared/types'
@@ -23,7 +26,7 @@ export type Provider = IntegrationProvider
 /** Signed in with Google or Microsoft: one refresh token each. */
 export type Connector = 'gmail' | 'outlook' | 'google_drive' | 'onedrive' | 'youtube_music'
 export const CONNECTORS: Connector[] = ['gmail', 'outlook', 'google_drive', 'onedrive', 'youtube_music']
-export const PROVIDERS: Provider[] = ['google_business', 'whatsapp', 'instagram', 'spotify', ...CONNECTORS, 'google_calendar', 'outlook_calendar']
+export const PROVIDERS: Provider[] = ['google_business', 'whatsapp', 'instagram', 'facebook', 'tiktok', 'spotify', 'square', ...CONNECTORS, 'google_calendar', 'outlook_calendar']
 export const isConnector = (p: string): p is Connector => (CONNECTORS as string[]).includes(p)
 export const isGoogle = (p: Connector) => p === 'gmail' || p === 'google_drive' || p === 'youtube_music'
 export const isCalendarApp = (p: string): p is CalendarApp => p === 'google_calendar' || p === 'outlook_calendar'
@@ -51,6 +54,21 @@ export const googleConfig = (env: Env, origin: string): google.GoogleOAuthConfig
 export const msConfig = (env: Env, origin: string): ms.MicrosoftOAuthConfig | null =>
   env.MS_CLIENT_ID && env.MS_CLIENT_SECRET && env.INTEGRATION_KEY
     ? { clientId: env.MS_CLIENT_ID, clientSecret: env.MS_CLIENT_SECRET, redirectUri: `${origin}/api/integrations/microsoft/callback` }
+    : null
+
+export const facebookOAuth = (env: Env, origin: string): facebook.FacebookOAuthConfig | null =>
+  env.META_APP_ID && env.META_APP_SECRET && env.INTEGRATION_KEY
+    ? { appId: env.META_APP_ID, appSecret: env.META_APP_SECRET, redirectUri: `${origin}/api/integrations/facebook/callback`, graphVersion: graphVersion(env) }
+    : null
+
+export const tiktokOAuth = (env: Env, origin: string): tiktok.TikTokOAuthConfig | null =>
+  env.TIKTOK_CLIENT_KEY && env.TIKTOK_CLIENT_SECRET && env.INTEGRATION_KEY
+    ? { clientKey: env.TIKTOK_CLIENT_KEY, clientSecret: env.TIKTOK_CLIENT_SECRET, redirectUri: `${origin}/api/integrations/tiktok/callback` }
+    : null
+
+export const squareOAuth = (env: Env, origin: string): square.SquareOAuthConfig | null =>
+  env.SQUARE_APP_ID && env.SQUARE_APP_SECRET && env.INTEGRATION_KEY
+    ? { appId: env.SQUARE_APP_ID, appSecret: env.SQUARE_APP_SECRET, redirectUri: `${origin}/api/integrations/square/callback`, sandbox: env.SQUARE_ENVIRONMENT === 'sandbox' }
     : null
 
 export const spotifyConfig = (env: Env, origin: string): spotify.SpotifyOAuthConfig | null =>
@@ -99,9 +117,10 @@ export function explain(p: Provider, e: unknown): string {
   const raw = message(e)
   const name = optionName(p)
   if (/invalid_grant|revoked|expired or revoked/i.test(raw)) return `${name} access was removed or has expired. Connect it again.`
-  if (p === 'instagram' && /Error validating access token|has not authorized application|Session has expired|Invalid OAuth access token/i.test(raw)) {
-    return 'Instagram access was removed or has expired. Connect it again.'
+  if ((p === 'instagram' || p === 'facebook') && /Error validating access token|has not authorized application|Session has expired|Invalid OAuth access token/i.test(raw)) {
+    return `${name} access was removed or has expired. Connect it again.`
   }
+  if (p === 'tiktok' && /access_token_invalid|scope_not_authorized/i.test(raw)) return /scope/i.test(raw) ? missingPermission(p) : `${name} access was removed or has expired. Connect it again.`
   if (p === 'instagram' && /Insufficient Developer Role|not.*tester/i.test(raw)) {
     return 'This Instagram account can’t connect yet: until the app passes Meta’s review, only accounts added as Instagram testers in the Meta app can connect.'
   }
@@ -208,6 +227,77 @@ export async function proveInstagram(t: { access_token: string; userId: string; 
   if (t.permissions !== undefined && !/instagram_business_content_publish/.test(t.permissions)) throw new Error(missingPermission('instagram'))
   const p = await instagram.profile({ token: t.access_token, userId: t.userId, graphVersion: graphVersion(env) })
   return { label: `@${p.username}`, external: { user_id: t.userId, username: p.username, followers: p.followers_count } }
+}
+
+/** Tokens that run out (TikTok: a day, Square: 30 days) are renewed with the refresh token when needed. */
+interface RenewableSecret { access_token: string; refresh_token: string; expires_at: string }
+
+async function renewable(env: Env, db: SupabaseClient, p: 'tiktok' | 'square', renewWithinMs: number,
+  refresh: (refreshToken: string) => Promise<{ access_token?: string; refresh_token?: string; expires_at?: string; expires_in?: number }>) {
+  const { data: secret } = await db.from('integration_secrets').select('ciphertext').eq('provider', p).maybeSingle()
+  if (!secret) throw new Error(`${optionName(p)} is not connected`)
+  let s = await unseal<RenewableSecret>(env.INTEGRATION_KEY!, secret.ciphertext)
+  if (Date.parse(s.expires_at) - Date.now() < renewWithinMs) {
+    const t = await refresh(s.refresh_token)
+    s = { access_token: t.access_token!, refresh_token: t.refresh_token ?? s.refresh_token, expires_at: t.expires_at ?? new Date(Date.now() + (t.expires_in ?? 3600) * 1000).toISOString() }
+    await db.from('integration_secrets').update({ ciphertext: await seal(env.INTEGRATION_KEY!, s), updated_at: new Date().toISOString() }).eq('provider', p)
+  }
+  return s.access_token
+}
+
+export async function tiktokSession(env: Env, db: SupabaseClient) {
+  const cfg = tiktokOAuth(env, '')
+  if (!cfg) throw new Error('TikTok is not set up')
+  return renewable(env, db, 'tiktok', 10 * 60_000, r => tiktok.refreshAccess(cfg, r))
+}
+
+export async function squareSession(env: Env, db: SupabaseClient) {
+  const cfg = squareOAuth(env, '')
+  if (!cfg) throw new Error('Square is not set up')
+  const [token, { data: row }] = await Promise.all([
+    renewable(env, db, 'square', 7 * 86_400_000, r => square.refreshAccess(cfg, r)),
+    db.from('integrations').select('external').eq('provider', 'square').single(),
+  ])
+  const ext = (row?.external ?? {}) as { locations?: square.SquareLocation[] }
+  return { token, sandbox: cfg.sandbox, locationIds: (ext.locations ?? []).map(l => l.id) }
+}
+
+/** The chosen Facebook Page and its token. */
+export async function facebookSession(env: Env, db: SupabaseClient) {
+  const [{ data: secret }, { data: row }] = await Promise.all([
+    db.from('integration_secrets').select('ciphertext').eq('provider', 'facebook').maybeSingle(),
+    db.from('integrations').select('external').eq('provider', 'facebook').single(),
+  ])
+  if (!secret) throw new Error('Facebook is not connected')
+  const { pages } = await unseal<{ pages: Record<string, string> }>(env.INTEGRATION_KEY!, secret.ciphertext)
+  const pageId = (row?.external as { page_id?: string } | undefined)?.page_id
+  if (!pageId || !pages[pageId]) throw new Error('Choose which Facebook Page to post to')
+  return { pageId, token: pages[pageId], graphVersion: graphVersion(env) }
+}
+
+/** Facebook: posting was allowed and the owner manages a Page (one is picked straight away). */
+export async function proveFacebook(env: Env, granted: string[], pages: facebook.FacebookPage[]) {
+  if (!granted.includes('pages_manage_posts') || !granted.includes('pages_show_list')) throw new Error(missingPermission('facebook'))
+  if (!pages.length) throw new Error('This Facebook account doesn’t manage any Page. Sign in with an account that is an admin of the café’s Page.')
+  const list = pages.map(p => ({ id: p.id, name: p.name }))
+  if (pages.length > 1) return { label: null, external: { pages: list }, chosen: false }
+  const page = await facebook.page(graphVersion(env), pages[0].id, pages[0].access_token)
+  return { label: page.name, external: { pages: list, page_id: page.id, page_name: page.name, followers: page.followers_count ?? page.fan_count }, chosen: true }
+}
+
+/** TikTok: posting was allowed and TikTok says this account can post (and whether only privately for now). */
+export async function proveTikTok(token: string, scope: string | undefined): Promise<Proven> {
+  if (scope !== undefined && !scope.split(/[,\s]+/).includes('video.publish')) throw new Error(missingPermission('tiktok'))
+  const [who, info] = await Promise.all([tiktok.user(token), tiktok.creatorInfo(token)])
+  const username = info.creator_username ?? who.display_name ?? null
+  return { label: username ? `@${username}` : null, external: { username, private_only: !info.privacy_level_options.includes('PUBLIC_TO_EVERYONE') } }
+}
+
+/** Square: the business and at least one open location, whose payments can be read. */
+export async function proveSquare(sandbox: boolean, token: string): Promise<Proven> {
+  const [m, locs] = await Promise.all([square.merchant(sandbox, token), square.locations(sandbox, token)])
+  if (!locs.length) throw new Error('This Square account has no open location yet. Add one in Square, then connect again.')
+  return { label: m.business_name ?? locs[0].name, external: { merchant_id: m.id, currency: m.currency ?? locs[0].currency, locations: locs.map(l => ({ id: l.id, name: l.name })) } }
 }
 
 /** A fresh Google access token for the Google Maps listing, plus the chosen location. */
@@ -334,6 +424,20 @@ async function stillWorks(env: Env, db: SupabaseClient, row: Row): Promise<Parti
       if (!instagramOAuth(env, '')) throw new Error('Instagram is not set up')
       const p = await instagram.profile(await instagramSession(env, db, true))
       return { account_label: `@${p.username}`, external: { ...row.external, username: p.username, followers: p.followers_count } }
+    }
+    case 'facebook': {
+      const s = await facebookSession(env, db)
+      const page = await facebook.page(s.graphVersion, s.pageId, s.token)
+      return { account_label: page.name, external: { ...row.external, page_name: page.name, followers: page.followers_count ?? page.fan_count } }
+    }
+    case 'tiktok': {
+      const info = await tiktok.creatorInfo(await tiktokSession(env, db))
+      return { external: { ...row.external, private_only: !info.privacy_level_options.includes('PUBLIC_TO_EVERYONE') } }
+    }
+    case 'square': {
+      const s = await squareSession(env, db)
+      await square.merchant(s.sandbox, s.token)
+      return {}
     }
     case 'google_business': {
       const s = await googleSession(env, db)

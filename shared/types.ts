@@ -247,7 +247,7 @@ export const TIME_OFF_LABELS: Record<TimeOffKind, string> = {
   vacation: 'Holiday', personal: 'Personal day', sick: 'Sick', other: 'Other',
 }
 
-export type IntegrationProvider = 'google_business' | 'whatsapp' | 'instagram' | 'spotify' | ConnectorProvider | CalendarApp
+export type IntegrationProvider = 'google_business' | 'whatsapp' | 'instagram' | 'facebook' | 'tiktok' | 'spotify' | 'square' | ConnectorProvider | CalendarApp
 /** Connections made with one sign-in with Google or Microsoft (email, files, café YouTube Music). */
 export type ConnectorProvider = 'gmail' | 'outlook' | 'google_drive' | 'onedrive' | 'youtube_music'
 /** Calendar apps that subscribe to the team calendar link. */
@@ -279,7 +279,13 @@ export interface Integration {
   /** 'connected' only once the Worker has proven it works; 'pending' = chosen, waiting to be proven. */
   status: 'connected' | 'pending' | 'needs_setup' | 'error' | 'disconnected'
   account_label: string | null
-  external: { locations?: { name: string; title: string; address?: string }[]; location?: string; closed_on_holidays?: boolean; playlist?: SpotifyPlaylist }
+  external: {
+    locations?: { name: string; title: string; address?: string }[]; location?: string; closed_on_holidays?: boolean; playlist?: SpotifyPlaylist
+    /** Facebook: the Pages the account manages, and the chosen one. */
+    pages?: { id: string; name: string }[]; page_id?: string
+    /** TikTok: posts stay private until TikTok audits the app. */
+    private_only?: boolean
+  }
   connected_at: string | null
   last_sync_at: string | null
   last_error: string | null
@@ -344,3 +350,20 @@ export interface Brand {
 
 /** A personal access key for AIs and automations (the key itself is shown only when it's made). */
 export interface ApiKey { id: string; name: string; prefix: string; created_at: string; last_used_at: string | null }
+
+/** Social planner: one post, sent to each chosen network at the planned time. */
+export type SocialNetwork = 'instagram' | 'facebook' | 'tiktok' | 'google'
+export interface SocialPost {
+  id: string
+  caption: string
+  image_url: string | null
+  targets: SocialNetwork[]
+  scheduled_at: string | null
+  status: 'draft' | 'scheduled' | 'publishing' | 'published' | 'partly' | 'failed'
+  results: Partial<Record<SocialNetwork, { status: 'queued' | 'retrying' | 'published' | 'failed'; id?: string; url?: string; error?: string; at?: string }>>
+  created_at: string
+  published_at: string | null
+}
+
+/** Takings from the payment system (Square), per day in the business's time zone. */
+export interface Sales { currency: string; days: { date: string; gross: number; tips: number; refunds: number; payments: number }[] }

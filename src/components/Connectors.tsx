@@ -10,16 +10,17 @@ import VerifiedIcon from '@mui/icons-material/TaskAltRounded'
 import SmsIcon from '@mui/icons-material/SmsOutlined'
 import CalendarIcon from '@mui/icons-material/CalendarMonthOutlined'
 import CloseIcon from '@mui/icons-material/CloseRounded'
+import PaymentsIcon from '@mui/icons-material/PaymentsOutlined'
 import DotIcon from '@mui/icons-material/FiberManualRecord'
 import {
-  siApple, siDropbox, siFacebook, siGmail, siGooglecalendar, siGoogledrive, siGooglemaps, siInstagram, siSpotify, siTiktok, siWhatsapp, siYoutubemusic,
+  siApple, siDropbox, siFacebook, siGmail, siGooglecalendar, siGoogledrive, siGooglemaps, siInstagram, siSpotify, siSquare, siStripe, siTiktok, siWhatsapp, siYoutubemusic,
   type SimpleIcon,
 } from 'simple-icons'
 import { useEffect, useState, type ReactNode } from 'react'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction, useNotify } from '../app/Notify'
-import { GROUPS, optionName, type ConnectionGroup, type ConnectionOption } from '../../shared/connections'
+import { GROUPS, optionName, type ConnectionGroup, type ConnectionGroupInfo, type ConnectionOption } from '../../shared/connections'
 import type { CalendarApp, ConnectorProvider, Integration, IntegrationProvider, IntegrationsState } from '../../shared/types'
 import { formatLocal } from '../../shared/time'
 import { tokens } from '../theme'
@@ -54,6 +55,9 @@ const LOGO: Record<OptionId, ReactNode> = {
   tiktok: <Brand icon={siTiktok} />,
   spotify: <Brand icon={siSpotify} />,
   youtube_music: <Brand icon={siYoutubemusic} />,
+  square: <Brand icon={siSquare} />,
+  sumup: <PaymentsIcon sx={{ color: '#1A1A1A' }} />,
+  stripe: <Brand icon={siStripe} />,
 }
 
 const DOES: Partial<Record<OptionId, string>> = {
@@ -70,9 +74,12 @@ const DOES: Partial<Record<OptionId, string>> = {
   dropbox: 'Exports saved to Dropbox.',
   google_business: 'Opening hours, holiday closures and phone stay right on Google Maps and Search.',
   apple_maps: 'Hours and closures on Apple Maps.',
-  instagram: 'Followers and recent posts here; publish events and specials.',
-  facebook: 'Post events and specials to your Facebook Page.',
-  tiktok: 'Share videos of specials and events.',
+  instagram: 'Followers and recent posts here; plan and publish posts.',
+  facebook: 'Plan and publish posts to your Facebook Page.',
+  tiktok: 'Plan and publish photo posts to your TikTok account.',
+  square: 'Your till’s takings on the Finances page, with the team’s cost as a share of sales.',
+  sumup: 'Takings from a SumUp card reader.',
+  stripe: 'Online payments and takings from Stripe.',
   spotify: 'The approved playlist; staff play or pause it on the café speaker.',
   youtube_music: 'The approved playlist; staff open it on the café device.',
 }
@@ -87,7 +94,10 @@ const CAN: Partial<Record<OptionId, string[]>> = {
   google_drive: ['Create files in a “Business Agent” folder and open the ones it made', 'It can’t see anything else in your Drive'],
   onedrive: ['Create and update files; it only uses the “Business Agent” folder', 'See your name and email address'],
   google_business: ['Update opening hours, holiday closures and phone on your listing', 'Publish posts to your listing'],
-  instagram: ['See your profile, follower count and recent posts', 'Publish the posts you create here, when you press Post'],
+  instagram: ['See your profile, follower count and recent posts', 'Publish the posts you plan here, at the time you choose'],
+  facebook: ['See the Pages you manage and pick one', 'Publish the posts you plan here to that Page, at the time you choose'],
+  tiktok: ['See your TikTok name and picture', 'Publish the photo posts you plan here, at the time you choose'],
+  square: ['See your business name and locations', 'Read payments (takings) — it can’t take, refund or change anything'],
   spotify: ['See your playlists', 'Play and pause the approved playlist on the café speaker (Premium)'],
   youtube_music: ['See your playlists (read-only)'],
 }
@@ -95,6 +105,7 @@ const CAN: Partial<Record<OptionId, string[]>> = {
 const KEYS_NEEDED: Partial<Record<OptionId, string>> = {
   gmail: 'the Google keys', google_drive: 'the Google keys', youtube_music: 'the Google keys', google_business: 'the Google keys',
   outlook: 'the Microsoft app', onedrive: 'the Microsoft app', spotify: 'the Spotify keys', instagram: 'the Instagram app keys',
+  facebook: 'the Meta app keys', tiktok: 'the TikTok app keys', square: 'the Square app keys',
   whatsapp: 'the WhatsApp Business number', google_calendar: 'the calendar link key', outlook_calendar: 'the calendar link key',
 }
 
@@ -142,12 +153,12 @@ export function ServiceConnections({ back = 'connections', groups = GROUPS.map(g
   const { api } = useApp()
   const data = useAsync('integrations', () => api.integrations(), [])
   const [open, setOpen] = useState<OptionId | null>(null)
-  const stateOf = (o: ConnectionOption, group: ConnectionOption[]): OptionState => {
+  const stateOf = (o: ConnectionOption, g: ConnectionGroupInfo): OptionState => {
     const find = (id: string) => data.data?.integrations.find(i => i.provider === id)
     const row = o.soon ? undefined : find(o.id)
     return {
       o, row, configured: !o.soon && !!data.data?.configured[o.id as IntegrationProvider], status: row?.status ?? 'disconnected',
-      current: group.find(x => x.id !== o.id && active(find(x.id))),
+      current: g.pickOne ? g.options.find(x => x.id !== o.id && active(find(x.id))) : undefined,
     }
   }
   const openGroup = GROUPS.find(g => g.options.some(o => o.id === open))
@@ -157,17 +168,17 @@ export function ServiceConnections({ back = 'connections', groups = GROUPS.map(g
         <Box key={g.key} component="section" aria-label={g.title}>
           <Stack direction="row" spacing={1} sx={{ alignItems: 'baseline', flexWrap: 'wrap' }}>
             <Typography variant="h6" component="h2">{g.title}</Typography>
-            {g.options.filter(o => !o.soon).length > 1 && <Typography variant="caption" sx={{ color: 'text.secondary' }}>· choose one</Typography>}
+            {g.pickOne && g.options.filter(o => !o.soon).length > 1 && <Typography variant="caption" sx={{ color: 'text.secondary' }}>· choose one</Typography>}
           </Stack>
           <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>{g.hint}</Typography>
-          <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(3, minmax(0, 1fr))' } }}>
-            {g.options.map(o => <Tile key={o.id} s={stateOf(o, g.options)} back={back} reload={data.reload} onOpen={() => setOpen(o.id)} />)}
-          </Box>
+          <Card>
+            {g.options.map(o => <Tile key={o.id} s={stateOf(o, g)} back={back} reload={data.reload} onOpen={() => setOpen(o.id)} loading={!data.data} />)}
+          </Card>
         </Box>
       ))}
       {!data.data && data.error && <Alert severity="error">{data.error}</Alert>}
       {open && openGroup && (
-        <ConnectorDialog s={stateOf(openGroup.options.find(o => o.id === open)!, openGroup.options)} back={back} reload={data.reload} onClose={() => setOpen(null)} />
+        <ConnectorDialog s={stateOf(openGroup.options.find(o => o.id === open)!, openGroup)} back={back} reload={data.reload} onClose={() => setOpen(null)} />
       )}
     </Stack>
   )
@@ -196,6 +207,7 @@ function useConnect(s: OptionState, back: 'setup' | 'connections', reload: () =>
     if (p === 'spotify') return api.connectSpotify()
     if (p === 'instagram') return api.connectInstagram(back)
     if (p === 'google_business') return api.connectGoogle(back)
+    if (p === 'facebook' || p === 'tiktok' || p === 'square') return api.connectApp(p, back)
     if (isCalendar(p)) {
       // Open the tab now (popup blockers allow it on a click), then point it at the calendar app.
       const tab = window.open('', '_blank')
@@ -207,43 +219,45 @@ function useConnect(s: OptionState, back: 'setup' | 'connections', reload: () =>
   }, isCalendar(p) ? `Add the team calendar in ${s.o.name}. It shows as connected once ${s.o.name} has fetched it.` : undefined)
 }
 
-function Tile({ s, back, reload, onOpen }: { s: OptionState; back: 'setup' | 'connections'; reload: () => Promise<void>; onOpen: () => void }) {
+/** One app as a row in its group's card: logo, name, what it does (or its account), status and one action. */
+function Tile({ s, back, reload, onOpen, loading }: { s: OptionState; back: 'setup' | 'connections'; reload: () => Promise<void>; onOpen: () => void; loading: boolean }) {
   const connect = useConnect(s, back, reload)
   const [confirm, setConfirm] = useState(false)
   const { o, status, row } = s
   const oneClick = s.configured && o.id !== 'whatsapp' && status === 'disconnected'
   return (
-    <Card component="article" aria-label={o.name} sx={{ display: 'flex', flexDirection: 'column',
-      ...(status === 'connected' ? { borderColor: tokens.matcha, boxShadow: `inset 0 0 0 1px ${tokens.matcha}` } : {}),
-      ...(status === 'error' ? { borderColor: tokens.badFg } : {}), ...(o.soon ? { opacity: 0.7 } : {}) }}>
-      <CardActionArea disabled={o.soon} onClick={onOpen} aria-label={`${o.name} details`} sx={{ p: 2, flex: 1, display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-start', gap: 1.5 }}>
-        <Logo id={o.id} />
+    <Box component="article" aria-label={o.name} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: { xs: 'wrap', sm: 'nowrap' },
+      px: { xs: 1.5, sm: 2 }, py: 1.25, borderTop: `1px solid ${tokens.line}`, '&:first-of-type': { borderTop: 0 },
+      ...(status === 'connected' ? { boxShadow: `inset 3px 0 0 ${tokens.matcha}` } : {}),
+      ...(status === 'error' ? { boxShadow: `inset 3px 0 0 ${tokens.badFg}` } : {}), ...(o.soon ? { opacity: 0.65 } : {}) }}>
+      <CardActionArea disabled={o.soon} onClick={onOpen} aria-label={`${o.name} details`}
+        sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 1.5, borderRadius: '12px', p: 0.5 }}>
+        <Logo id={o.id} size={40} />
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Stack direction="row" spacing={1} sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
-            <Box sx={{ minWidth: 0 }}>
-              <Typography sx={{ fontWeight: 600, lineHeight: 1.3 }} noWrap>{o.name}</Typography>
-              <Typography variant="caption" sx={{ color: 'text.secondary' }}>by {o.by}</Typography>
-            </Box>
-            <StatusChip s={s} />
-          </Stack>
-          <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.75, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-            {status === 'connected' && row?.account_label ? <Box component="span" sx={{ color: 'text.primary', fontWeight: 500 }}>{row.account_label}</Box> : DOES[o.id]}
+          <Typography sx={{ lineHeight: 1.35 }} noWrap>
+            {o.name} <Box component="span" sx={{ color: 'text.secondary', fontSize: '0.8rem' }}>· {o.by}</Box>
+          </Typography>
+          <Typography variant="body2" sx={{ color: 'text.secondary' }} noWrap>
+            {status === 'connected' && row?.account_label
+              ? <><Box component="span" sx={{ color: 'text.primary' }}>{row.account_label}</Box>{row.last_checked_at ? ` · checked ${ago(row.last_checked_at)}` : ''}</>
+              : DOES[o.id]}
           </Typography>
         </Box>
       </CardActionArea>
-      {!o.soon && (
-        <Stack direction="row" sx={{ px: 2, pb: 1.75, pt: 0.25, gap: 1, alignItems: 'center' }}>
-          {oneClick && !s.current && <Button size="small" variant="contained" aria-label={`${isCalendar(o.id) ? 'Add to' : 'Connect'} ${o.name}`} onClick={connect}>{isCalendar(o.id) ? 'Add' : 'Connect'}</Button>}
-          {oneClick && s.current && <Button size="small" variant="outlined" aria-label={`Switch to ${o.name}`} onClick={() => setConfirm(true)}>Switch</Button>}
-          {status === 'error' && <Button size="small" variant="contained" color="error" onClick={onOpen} aria-label={`Fix ${o.name}`}>Fix</Button>}
-          {(status === 'connected' || status === 'pending') && <Button size="small" onClick={onOpen} aria-label={`Manage ${o.name}`}>Manage</Button>}
-          {(!s.configured || (o.id === 'whatsapp' && status === 'disconnected')) && <Button size="small" onClick={onOpen} aria-label={`Set up ${o.name}`}>Set up</Button>}
-          <Box sx={{ flex: 1 }} />
-          {status === 'connected' && row?.last_checked_at && <Typography variant="caption" sx={{ color: 'text.secondary' }}>Checked {ago(row.last_checked_at)}</Typography>}
+      {!loading && (
+        <Stack direction="row" sx={{ gap: 1, alignItems: 'center', flexShrink: 0, ml: { xs: 'auto', sm: 0 } }}>
+          <StatusChip s={s} />
+          {!o.soon && <>
+            {oneClick && !s.current && <Button size="small" variant="contained" aria-label={`${isCalendar(o.id) ? 'Add to' : 'Connect'} ${o.name}`} onClick={connect}>{isCalendar(o.id) ? 'Add' : 'Connect'}</Button>}
+            {oneClick && s.current && <Button size="small" variant="outlined" aria-label={`Switch to ${o.name}`} onClick={() => setConfirm(true)}>Switch</Button>}
+            {status === 'error' && <Button size="small" variant="contained" color="error" onClick={onOpen} aria-label={`Fix ${o.name}`}>Fix</Button>}
+            {(status === 'connected' || status === 'pending') && <Button size="small" onClick={onOpen} aria-label={`Manage ${o.name}`}>Manage</Button>}
+            {(!s.configured || (o.id === 'whatsapp' && status === 'disconnected')) && <Button size="small" onClick={onOpen} aria-label={`Set up ${o.name}`}>Set up</Button>}
+          </>}
         </Stack>
       )}
       <SwitchDialog open={confirm} s={s} onClose={() => setConfirm(false)} onConfirm={() => { setConfirm(false); void connect() }} />
-    </Card>
+    </Box>
   )
 }
 
@@ -279,7 +293,7 @@ function ConnectorDialog({ s, back, reload, onClose }: { s: OptionState; back: '
     const r = await api.checkConnection(p)
     await reload()
     if (r?.status === 'error') throw new Error(r.last_error ?? `${o.name} isn’t working`)
-    if (r?.status === 'pending') throw new Error(`${o.name} hasn’t fetched the team calendar yet. Add it there, then check again in a few minutes.`)
+    if (r?.status === 'pending') throw new Error(isCalendar(p) ? `${o.name} hasn’t fetched the team calendar yet. Add it there, then check again in a few minutes.` : 'Pick the Page to post to first.')
   }, `${o.name} works`)
   const label = status === 'error' ? `Connect ${o.name} again` : isCalendar(p) ? `Add to ${o.name}` : `Connect ${o.name}`
 
@@ -298,7 +312,7 @@ function ConnectorDialog({ s, back, reload, onClose }: { s: OptionState; back: '
         <Typography sx={{ color: 'text.secondary' }}>{DOES[o.id]}</Typography>
 
         {status === 'connected' && <Box sx={{ mt: 2, p: 1.5, borderRadius: '12px', bgcolor: tokens.goodBg }}>
-          {row?.account_label && <Typography sx={{ fontWeight: 600 }}>{row.account_label}</Typography>}
+          {row?.account_label && <Typography sx={{ fontWeight: 500 }}>{row.account_label}</Typography>}
           {o.proves && <Stack direction="row" spacing={0.75} sx={{ mt: 0.5, alignItems: 'flex-start', color: tokens.goodFg }}>
             <VerifiedIcon sx={{ fontSize: 18, mt: '1px' }} /><Typography variant="body2">{o.proves}</Typography>
           </Stack>}
@@ -306,7 +320,8 @@ function ConnectorDialog({ s, back, reload, onClose }: { s: OptionState; back: '
             Last checked {ago(row.last_checked_at)}. Checked again every night; admins get a notification if it stops working.</Typography>}
         </Box>}
         {status === 'pending' && <Alert severity="info" sx={{ mt: 2 }}>
-          Waiting for {o.name} to fetch the team calendar. Add it in the tab that opened; it usually shows as connected within minutes.
+          {isCalendar(p) ? `Waiting for ${o.name} to fetch the team calendar. Add it in the tab that opened; it usually shows as connected within minutes.`
+            : 'This account manages more than one Page. Pick the one to post to below.'}
         </Alert>}
         {row?.last_error && status !== 'connected' && <Alert severity="error" sx={{ mt: 2 }}>{row.last_error}</Alert>}
         {!s.configured && <Alert severity="warning" sx={{ mt: 2 }}>Needs {KEYS_NEEDED[o.id]} first. The steps are in docs/sign-in-setup.md and docs/INTEGRATIONS.md; then every business connects with one click.</Alert>}
@@ -329,6 +344,16 @@ function ConnectorDialog({ s, back, reload, onClose }: { s: OptionState; back: '
           <WhatsAppTest onDone={reload} label={status === 'connected' ? 'Send a test' : 'Send a test to connect'} />
         </Stack>}
         {status === 'connected' && (p === 'spotify' || p === 'youtube_music') && <CafePlaylist provider={p} />}
+        {p === 'facebook' && (row?.external.pages?.length ?? 0) > 1 && (
+          <TextField select size="small" label="Page to post to" value={row?.external.page_id ?? ''} sx={{ mt: 2.5, maxWidth: 380 }}
+            onChange={e => run(async () => { await api.chooseFacebookPage(e.target.value); await reload() }, 'Page chosen')}>
+            {row!.external.pages!.map(pg => <MenuItem key={pg.id} value={pg.id}>{pg.name}</MenuItem>)}
+          </TextField>
+        )}
+        {p === 'tiktok' && status === 'connected' && row?.external.private_only && <Alert severity="info" sx={{ mt: 2 }}>
+          Posts go to TikTok as private (only this account sees them) until TikTok approves the app for public posting.
+        </Alert>}
+        {p === 'square' && status === 'connected' && <Typography variant="body2" sx={{ mt: 2 }}>Takings show on the <b>Finances</b> page.</Typography>}
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2.5, flexWrap: 'wrap', gap: 1 }}>
         {active(row) && <Button color="error" onClick={() => run(async () => { await api.disconnect(p); await reload(); onClose() }, `${o.name} disconnected`)} sx={{ mr: 'auto' }}>
@@ -336,7 +361,7 @@ function ConnectorDialog({ s, back, reload, onClose }: { s: OptionState; back: '
         </Button>}
         {active(row) && <Button variant="outlined" onClick={check}>Check now</Button>}
         {status === 'connected' && (p === 'gmail' || p === 'outlook') && <Button variant="outlined" onClick={() => setTesting(true)}>Send a test</Button>}
-        {status === 'pending' && <Button variant="contained" onClick={connect}>Add to {o.name} again</Button>}
+        {status === 'pending' && isCalendar(p) && <Button variant="contained" onClick={connect}>Add to {o.name} again</Button>}
         {p !== 'whatsapp' && (status === 'disconnected' || status === 'error' || status === 'needs_setup') && (
           s.current && status !== 'error'
             ? <Button variant="contained" disabled={!s.configured} onClick={() => setConfirm(true)}>Switch to {o.name}</Button>

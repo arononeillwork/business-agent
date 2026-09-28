@@ -13,7 +13,8 @@ export interface Env {
   GOOGLE_CLIENT_ID?: string
   GOOGLE_CLIENT_SECRET?: string
   META_ACCESS_TOKEN?: string          // Meta system-user token (WhatsApp)
-  META_APP_SECRET?: string            // verifies WhatsApp webhooks
+  META_APP_ID?: string                // Meta app: Facebook Page connections (Facebook Login)
+  META_APP_SECRET?: string            // verifies WhatsApp webhooks; Facebook Login
   META_GRAPH_VERSION?: string         // var, e.g. v23.0
   WHATSAPP_PHONE_NUMBER_ID?: string   // secret (GitHub → deploy)
   WHATSAPP_VERIFY_TOKEN?: string
@@ -22,6 +23,11 @@ export interface Env {
   INSTAGRAM_APP_SECRET?: string
   SPOTIFY_CLIENT_ID?: string
   SPOTIFY_CLIENT_SECRET?: string
+  TIKTOK_CLIENT_KEY?: string          // TikTok app (Login Kit + Content Posting API)
+  TIKTOK_CLIENT_SECRET?: string
+  SQUARE_APP_ID?: string              // Square app (OAuth): takings on the Finances page
+  SQUARE_APP_SECRET?: string
+  SQUARE_ENVIRONMENT?: string         // var: 'production' (default) or 'sandbox'
   MS_CLIENT_ID?: string               // Microsoft app (Outlook email, OneDrive files); set by the Microsoft setup workflow
   MS_CLIENT_SECRET?: string
 }
