@@ -1,0 +1,58 @@
+@import "tailwindcss";
+
+/* Mediterranean palette: sand, terracotta, deep navy. Tweak here to restyle the whole site. */
+:root {
+  --bg: #faf7f2;
+  --surface: #ffffff;
+  --ink: #1b2a41;
+  --muted: #5d6b7e;
+  --line: #e8e1d6;
+  --accent: #c4552d;
+  --accent-soft: #f7e6de;
+  --sea: #1f6f8b;
+  --sea-soft: #e1eff4;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1722;
+    --surface: #172231;
+    --ink: #eef2f7;
+    --muted: #9aa8ba;
+    --line: #26344a;
+    --accent: #e9774c;
+    --accent-soft: #3a2219;
+    --sea: #5bb3d1;
+    --sea-soft: #16303d;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-sea: var(--sea);
+  --color-sea-soft: var(--sea-soft);
+  --font-sans: var(--font-inter);
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.card {
+  @apply rounded-2xl border border-line bg-surface p-6 shadow-[0_1px_2px_rgba(0,0,0,0.04)];
+}
+
+.chip {
+  @apply inline-flex items-center gap-1 rounded-full bg-sea-soft px-3 py-1 text-xs font-medium text-sea;
+}
+
+.link {
+  @apply font-medium text-accent underline-offset-4 hover:underline;
+}
