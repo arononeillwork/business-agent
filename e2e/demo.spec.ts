@@ -1425,3 +1425,17 @@ test('the privacy policy is public, linked from the sign-in page, and covers Goo
   for (const s of ['Gmail', 'Google Drive', 'Google Business Profile (Google Maps)']) await expect(page.getByRole('cell', { name: s, exact: true })).toBeVisible()
   await expect(page.getByText(/Ireland/)).toBeVisible()
 })
+
+test('every page in the menu shows its title, whatever buttons its header has', async ({ page }) => {
+  await open(page, '/')
+  const nav = page.getByRole('navigation', { name: 'Main' })
+  const links = await nav.getByRole('region').getByRole('link').evaluateAll(els => els.map(e => e.getAttribute('href')!))
+  expect(links.length).toBeGreaterThan(10)
+  for (const href of links) {
+    await nav.locator(`a[href="${href}"]`).click()
+    await expect(page).toHaveURL(new RegExp(`${href.split('?')[0]}(\\?|$)`))
+    const h1 = page.getByRole('main').getByRole('heading', { level: 1 })
+    await expect(h1, href).toBeVisible()
+    await expect.poll(async () => (await h1.boundingBox().catch(() => null))?.width ?? 0, { message: `${href}: title squeezed` }).toBeGreaterThan(80)
+  }
+})

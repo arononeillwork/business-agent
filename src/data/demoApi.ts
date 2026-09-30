@@ -318,8 +318,8 @@ export function createDemoApi(): Api {
       return guestMode ? 'p-guest' : null
     }
   })()
-  const listeners = new Set<() => void>()
-  const notify = () => { remember(currentUser); listeners.forEach(l => l()) }
+  const listeners = new Set<(userId: string | null) => void>()
+  const notify = () => { remember(currentUser); listeners.forEach(l => l(currentUser)) }
 
   const me = () => profiles.find(p => p.id === currentUser)
   const favourites: (SportsFavourite & { profile_id: string })[] = [{ profile_id: P.aron, kind: 'team', ref: 'Real Betis' }]

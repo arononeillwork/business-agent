@@ -12,15 +12,16 @@ export function PageHeader({ eyebrow, title, subtitle, actions }: {
   return (
     <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}
       sx={{ mb: 3, alignItems: { md: 'flex-start' }, justifyContent: 'space-between' }}>
-      <Box sx={{ minWidth: 0 }}>
+      {/* The title keeps its room; a page with many buttons wraps them instead of squeezing it. */}
+      <Box sx={{ minWidth: { md: 280 }, flex: { md: '1 1 auto' } }}>
         {eyebrow && <Typography variant="overline" sx={{ color: tokens.roseDeep }}>{eyebrow}</Typography>}
         <Typography variant="h4" component="h1">{title}</Typography>
         {subtitle && <Typography sx={{ color: 'text.secondary', mt: 0.5, maxWidth: 640 }}>{subtitle}</Typography>}
       </Box>
       {actions && (
-        // Level with the title (below the small eyebrow line), on one line, never squeezed by a long subtitle.
-        <Stack direction="row" spacing={1} sx={{ flexWrap: { xs: 'wrap', md: 'nowrap' }, flexShrink: 0, rowGap: 1, alignItems: 'center',
-          pt: { md: eyebrow ? 3.25 : 0.5 } }}>{actions}</Stack>
+        // Level with the title (below the small eyebrow line); lines up to the right and wraps when there are many.
+        <Stack direction="row" useFlexGap spacing={1} sx={{ flexWrap: 'wrap', justifyContent: { md: 'flex-end' }, alignItems: 'center',
+          minWidth: 0, flex: { md: '0 1 auto' }, pt: { md: eyebrow ? 3.25 : 0.5 } }}>{actions}</Stack>
       )}
     </Stack>
   )

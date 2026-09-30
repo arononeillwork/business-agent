@@ -22,7 +22,8 @@ export interface Api {
 
   // auth
   currentUserId(): Promise<string | null>
-  onAuthChange(cb: () => void): () => void
+  /** Calls back with who is signed in now (null: nobody) whenever that may have changed. */
+  onAuthChange(cb: (userId: string | null) => void): () => void
   signIn(email: string, password: string): Promise<void>
   signOut(): Promise<void>
   sendPasswordReset(email: string): Promise<void>

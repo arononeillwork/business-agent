@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Api } from '../data/api'
 import { currentRates } from '../data/api'
 import { createDemoApi } from '../data/demoApi'
@@ -94,10 +94,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
   })
 
-  // Signing in or out changes what everyone may see: drop the whole cache.
+  // Signing in or out changes what everyone may see: drop the whole cache when the person signed in
+  // is not the one the app has loaded (or nothing is loaded yet). Compared with what is loaded, not
+  // with the previous event, so it doesn't matter which of Supabase's events arrives first; token
+  // refreshes for the same person don't reload anything.
+  const loaded = useRef<string | null | undefined>(undefined)
+  loaded.current = shared.isSuccess ? shared.data.me?.id ?? null : undefined
   useEffect(() => {
     if (!api) return
-    return api.onAuthChange(() => { client.resetQueries() })
+    return api.onAuthChange(id => { if (id !== loaded.current) client.resetQueries() })
   }, [api, client])
 
   const refresh = useCallback(async () => { await client.invalidateQueries() }, [client])
