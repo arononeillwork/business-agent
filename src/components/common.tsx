@@ -11,14 +11,16 @@ export function PageHeader({ eyebrow, title, subtitle, actions }: {
 }) {
   return (
     <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}
-      sx={{ mb: 3, alignItems: { md: 'flex-end' }, justifyContent: 'space-between' }}>
+      sx={{ mb: 3, alignItems: { md: 'flex-start' }, justifyContent: 'space-between' }}>
       <Box sx={{ minWidth: 0 }}>
         {eyebrow && <Typography variant="overline" sx={{ color: tokens.roseDeep }}>{eyebrow}</Typography>}
         <Typography variant="h4" component="h1">{title}</Typography>
         {subtitle && <Typography sx={{ color: 'text.secondary', mt: 0.5, maxWidth: 640 }}>{subtitle}</Typography>}
       </Box>
       {actions && (
-        <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', rowGap: 1, alignItems: 'center' }}>{actions}</Stack>
+        // Level with the title (below the small eyebrow line), on one line, never squeezed by a long subtitle.
+        <Stack direction="row" spacing={1} sx={{ flexWrap: { xs: 'wrap', md: 'nowrap' }, flexShrink: 0, rowGap: 1, alignItems: 'center',
+          pt: { md: eyebrow ? 3.25 : 0.5 } }}>{actions}</Stack>
       )}
     </Stack>
   )

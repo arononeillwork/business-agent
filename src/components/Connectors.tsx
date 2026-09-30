@@ -20,6 +20,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction, useNotify } from '../app/Notify'
+import { FEATURES } from '../app/features'
 import { GROUPS, optionName, type ConnectionGroup, type ConnectionGroupInfo, type ConnectionOption } from '../../shared/connections'
 import type { CalendarApp, ConnectorProvider, Integration, IntegrationProvider, IntegrationsState } from '../../shared/types'
 import { formatLocal } from '../../shared/time'
@@ -164,7 +165,7 @@ export function ServiceConnections({ back = 'connections', groups = GROUPS.map(g
   const openGroup = GROUPS.find(g => g.options.some(o => o.id === open))
   return (
     <Stack spacing={3.5}>
-      {GROUPS.filter(g => groups.includes(g.key)).map(g => (
+      {GROUPS.filter(g => groups.includes(g.key) && (g.key !== 'payments' || FEATURES.square)).map(g => (
         <Box key={g.key} component="section" aria-label={g.title}>
           <Stack direction="row" spacing={1} sx={{ alignItems: 'baseline', flexWrap: 'wrap' }}>
             <Typography variant="h6" component="h2">{g.title}</Typography>

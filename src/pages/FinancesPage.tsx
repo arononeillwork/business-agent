@@ -1,3 +1,4 @@
+import { FEATURES } from '../app/features'
 import {
   Alert, Box, Button, Card, CardContent, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, InputAdornment,
   Stack, Table, TableBody, TableCell, TableFooter, TableHead, TableRow, TextField, Tooltip, Typography,
@@ -41,7 +42,7 @@ export function FinancesPage() {
         actions={canEdit && <Button variant="contained" startIcon={<AddIcon />} onClick={() => setEditing({ name: '', amount: 0 })}>Add expense</Button>} />
       <ErrorBox error={data.error} />
 
-      {canEdit && <Takings />}
+      {canEdit && FEATURES.square && <Takings />}
 
       <StatRow>
         <Stat label="Monthly costs" value={formatMoney(total)} note={`${list.length} items`} />

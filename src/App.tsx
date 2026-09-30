@@ -1,7 +1,7 @@
 import { CssBaseline, ThemeProvider } from '@mui/material'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClient } from './app/query'
-import { BrowserRouter, HashRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AppProvider, useApp } from './app/AppContext'
 import { NotifyProvider } from './app/Notify'
 import { AppShell } from './app/AppShell'
@@ -37,9 +37,13 @@ const RegistroPage = page(() => import('./pages/RegistroPage'), 'RegistroPage')
 const OpeningHoursPage = page(() => import('./pages/OpeningHoursPage'), 'OpeningHoursPage')
 const AppearancePage = page(() => import('./pages/AppearancePage'), 'AppearancePage')
 const BrandPage = page(() => import('./pages/BrandPage'), 'BrandPage')
+const PrivacyPage = page(() => import('./pages/PrivacyPage'), 'PrivacyPage')
 
 function Routed() {
   const { me, loading, isAdmin, isPartner, partnerCan } = useApp()
+  const { pathname } = useLocation()
+  // Public, signed in or not (Google and others check it before approving the app).
+  if (pathname === '/privacy') return <PrivacyPage />
   if (loading) return <Loading />
   if (!me) return <LoginPage />
   if (!me.active) return <NotActive />

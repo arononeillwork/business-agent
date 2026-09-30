@@ -173,6 +173,27 @@ test.describe('admin', () => {
     await expect(page.getByRole('dialog').getByText(/via app: Forgot to clock out/)).toBeVisible()
   })
 
+  test('calendar: month or week view, with Today and previous/next in one toolbar', async ({ page }) => {
+    await open(page, '/calendar')
+    const bar = page.getByRole('toolbar', { name: 'Calendar' })
+    await expect(bar.getByRole('heading', { name: 'September 2026' })).toBeVisible()
+    await expect(bar.getByRole('button', { name: 'Today' })).toBeDisabled() // already showing today
+    await bar.getByRole('button', { name: 'Week', exact: true }).click()
+    await expect(bar.getByRole('heading', { name: '28 Sep – 4 Oct 2026' })).toBeVisible()
+    const grid = page.getByRole('grid')
+    await expect(grid.getByRole('columnheader')).toHaveText(['Mon 28', 'Tue 29', 'Wed 30', 'Thu 1', 'Fri 2', 'Sat 3', 'Sun 4'])
+    await expect(grid.getByRole('gridcell', { name: 'Friday 2 October' })).toContainText('Real Madrid vs FC Barcelona')
+    await bar.getByRole('button', { name: 'Next week' }).click()
+    await expect(bar.getByRole('heading', { name: '5 – 11 Oct 2026' })).toBeVisible()
+    await bar.getByRole('button', { name: 'Today' }).click()
+    await expect(bar.getByRole('heading', { name: '28 Sep – 4 Oct 2026' })).toBeVisible()
+    // The choice is remembered.
+    await page.reload()
+    await expect(page.getByRole('toolbar', { name: 'Calendar' }).getByRole('button', { name: 'Week', exact: true })).toHaveAttribute('aria-pressed', 'true')
+    await page.getByRole('button', { name: 'Month', exact: true }).click()
+    await expect(page.getByRole('grid').getByRole('columnheader')).toHaveText(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])
+  })
+
   test('adds a calendar event', async ({ page }) => {
     await open(page, '/calendar')
     await expect(page.getByText('Fiesta Nacional de España')).toHaveCount(0) // October
@@ -186,28 +207,49 @@ test.describe('admin', () => {
     await expect(page.getByText('Fiesta Nacional de España')).toBeVisible()
   })
 
-  test('edits business details, and the CIF/NIF is checked before saving', async ({ page }) => {
+  test('edits business details right on the page; phone is digits, Instagram has its @, and the CIF/NIF is checked', async ({ page }) => {
     await open(page, '/business')
     // Just the business: no opening hours or notes here (hours have their own page).
     await expect(page.getByText('Admin-only notes')).toHaveCount(0)
     await expect(page.getByRole('heading', { name: 'Opening hours' })).toHaveCount(0)
     await expect(page.getByText('C. Pizarro, 8', { exact: false }).first()).toBeVisible()
     await expect(page.getByText('B12345674')).toBeVisible()
-    await page.getByRole('button', { name: 'Edit', exact: true }).first().click()
-    const dialog = page.getByRole('dialog', { name: 'Business details' })
-    await dialog.getByRole('textbox', { name: 'Phone', exact: true }).fill('+34 600 000 000')
-    const cif = dialog.getByRole('textbox', { name: 'CIF / NIF' })
+    await expect(page.getByText('Nearby towns')).toHaveCount(0)
+
+    const contact = page.getByRole('region', { name: 'Contact' })
+    await contact.getByRole('button', { name: 'Edit' }).click()
+    await expect(page.getByRole('dialog')).toHaveCount(0) // fields open in place, not in a pop-up
+    const phone = contact.getByRole('textbox', { name: 'Phone' })
+    await expect(phone).toHaveAttribute('type', 'tel')
+    await phone.fill('')
+    await phone.pressSequentially('+34 600-abc 000 000')
+    await expect(phone).toHaveValue('+34 600 000 000')
+    const insta = contact.getByRole('textbox', { name: 'Instagram' })
+    await expect(insta).toHaveValue('easy.beans.coffee')
+    await expect(contact.getByText('@', { exact: true })).toBeVisible()
+    await insta.fill('@easybeans.marbella!')
+    await expect(insta).toHaveValue('easybeans.marbella')
+    await contact.getByRole('button', { name: 'Save' }).click()
+    await toast(page, /^Saved$/)
+    await expect(contact.getByRole('textbox')).toHaveCount(0)
+    await expect(contact).toContainText('+34 600 000 000')
+    await expect(contact.getByRole('link', { name: '@easybeans.marbella' })).toHaveAttribute('href', 'https://instagram.com/easybeans.marbella')
+
+    const company = page.getByRole('region', { name: 'Company' })
+    await company.getByRole('button', { name: 'Edit' }).click()
+    await expect(company.getByText('Nearby towns')).toHaveCount(0)
+    const cif = company.getByRole('textbox', { name: 'CIF / NIF' })
     await cif.fill('B12345678')
-    await expect(dialog.getByText(/control character/)).toBeVisible()
-    await dialog.getByRole('button', { name: 'Save' }).click()
+    await expect(company.getByText(/control character/)).toBeVisible()
+    await company.getByRole('button', { name: 'Save' }).click()
     await toast(page, /control character/)
     await cif.fill('12345678-z')
-    await expect(dialog.getByText('Valid NIF')).toBeVisible()
-    await dialog.getByRole('button', { name: 'Save' }).click()
-    await expect(dialog).toHaveCount(0)
-    await expect(page.getByText('+34 600 000 000')).toBeVisible()
-    await expect(page.getByText('12345678Z')).toBeVisible()
+    await expect(company.getByText('Valid NIF')).toBeVisible()
+    await company.getByRole('button', { name: 'Save' }).click()
+    await expect(company.getByRole('textbox')).toHaveCount(0)
+    await expect(company).toContainText('12345678Z')
   })
+
 })
 
 test.describe('café tablet (kiosk)', () => {
@@ -273,12 +315,12 @@ test.describe('guard rails', () => {
 
   test('the business keeps a name, and invites need a real email', async ({ page }) => {
     await open(page, '/business')
-    await page.getByRole('button', { name: 'Edit' }).first().click()
-    const dialog = page.getByRole('dialog', { name: 'Business details' })
-    await dialog.getByRole('textbox', { name: 'Name', exact: true }).fill('')
-    await dialog.getByRole('button', { name: 'Save' }).click()
+    const company = page.getByRole('region', { name: 'Company' })
+    await company.getByRole('button', { name: 'Edit' }).click()
+    await company.getByRole('textbox', { name: 'Name', exact: true }).fill('')
+    await company.getByRole('button', { name: 'Save' }).click()
     await toast(page, 'The business needs a name')
-    await dialog.getByRole('button', { name: 'Cancel' }).click()
+    await company.getByRole('button', { name: 'Cancel' }).click()
     await expect(page.getByRole('heading', { name: 'Easy Beans Coffee' })).toBeVisible()
 
     await page.getByRole('link', { name: 'Team' }).first().click()
@@ -644,16 +686,16 @@ test('admin creates a staff account with a temporary password, and can reset it'
   await expect(page.getByRole('dialog', { name: "Aron O'Neill (you)" }).getByRole('button', { name: 'Temporary password' })).toHaveCount(0)
 })
 
-test('a message never covers a dialog\'s buttons', async ({ page }) => {
+test('a message never covers the buttons it is about', async ({ page }) => {
   await open(page, '/business')
-  await page.getByRole('button', { name: 'Edit' }).first().click()
-  const dialog = page.getByRole('dialog', { name: 'Business details' })
-  await dialog.getByRole('textbox', { name: 'Name', exact: true }).fill('')
-  await dialog.getByRole('button', { name: 'Save' }).click()
+  const company = page.getByRole('region', { name: 'Company' })
+  await company.getByRole('button', { name: 'Edit' }).click()
+  await company.getByRole('textbox', { name: 'Name', exact: true }).fill('')
+  await company.getByRole('button', { name: 'Save' }).click()
   await toast(page, 'The business needs a name')
   // Clickable straight away, while the message is still showing.
-  await dialog.getByRole('button', { name: 'Cancel' }).click({ timeout: 2000 })
-  await expect(dialog).toHaveCount(0)
+  await company.getByRole('button', { name: 'Cancel' }).click({ timeout: 2000 })
+  await expect(company.getByRole('textbox')).toHaveCount(0)
 })
 
 test.describe('sports', () => {
@@ -932,17 +974,20 @@ test.describe('menu', () => {
   })
 })
 
-test('admins pick the café\'s currency; euro until they do', async ({ page }) => {
+test('admins pick the café\'s currency on the Business page; euro until they do', async ({ page }) => {
   await open(page, '/team')
   const maria = page.getByRole('row', { name: /Maria/ })
   await expect(maria).toContainText('8,80 €/h')
   await page.getByRole('link', { name: 'Business', exact: true }).first().click()
-  // Right on the Business page: a selector, euro to start with.
-  const currency = page.getByRole('combobox', { name: 'Currency' })
-  await expect(currency).toContainText('€ Euro')
-  await currency.click()
-  await page.getByRole('option', { name: /Pound sterling/ }).click()
-  await toast(page, 'Currency: £ Pound sterling')
+  const company = page.getByRole('region', { name: 'Company' })
+  await expect(company).toContainText('€ Euro')
+  await company.getByRole('button', { name: 'Edit' }).click()
+  // A plain dropdown, edited right on the page (no pop-up).
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await company.getByRole('combobox', { name: 'Currency' }).selectOption({ label: '£ Pound sterling' })
+  await company.getByRole('button', { name: 'Save' }).click()
+  await toast(page, /^Saved$/)
+  await expect(company).toContainText('£ Pound sterling')
   await page.getByRole('link', { name: 'Team', exact: true }).first().click()
   await expect(maria).toContainText('8,80 £/h')
 })
@@ -1345,6 +1390,7 @@ test.describe('social planner', () => {
 })
 
 test('Square: connect the payment system, then takings show on Finances next to the team’s cost', async ({ page }) => {
+  test.skip(!FEATURES.square, 'Square is switched off for now')
   await open(page, '/finances')
   const prompt = page.getByRole('alert').filter({ hasText: 'Connect Square to see takings' })
   await expect(prompt).toBeVisible()
@@ -1366,4 +1412,16 @@ test('TikTok connects in one click and says posts stay private until TikTok appr
   await social.getByRole('button', { name: 'Connect TikTok' }).click()
   await social.getByRole('button', { name: 'Manage TikTok' }).click()
   await expect(page.getByRole('dialog', { name: 'TikTok' })).toContainText('private')
+})
+
+test('the privacy policy is public, linked from the sign-in page, and covers Google user data', async ({ page }) => {
+  await page.goto('/?demo')
+  await page.getByRole('contentinfo').getByRole('link', { name: 'Privacy policy' }).click()
+  await expect(page).toHaveURL(/\/privacy/)
+  await expect(page.getByRole('heading', { level: 1, name: 'Privacy policy' })).toBeVisible()
+  await expect(page.getByRole('textbox', { name: 'Email' })).toHaveCount(0) // no sign-in needed
+  await expect(page.getByText(/Limited Use requirements/)).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Google API Services User Data Policy' })).toHaveAttribute('href', 'https://developers.google.com/terms/api-services-user-data-policy')
+  for (const s of ['Gmail', 'Google Drive', 'Google Business Profile (Google Maps)']) await expect(page.getByRole('cell', { name: s, exact: true })).toBeVisible()
+  await expect(page.getByText(/Ireland/)).toBeVisible()
 })

@@ -4,4 +4,6 @@ export const FEATURES = {
   partners: false,
   /** The café tablet: a shared clock-in screen where staff tap their name and enter a PIN. */
   kiosk: false,
+  /** Square as the payment system: takings on Finances, next to the team's cost. */
+  square: false,
 }
