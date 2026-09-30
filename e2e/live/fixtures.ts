@@ -1,6 +1,7 @@
 // Test accounts and clean-up for live tests against a real Supabase project.
 // Only ever touches accounts with the @business-agent.test domain.
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import type { Page, TestInfo } from '@playwright/test'
 
 export const DOMAIN = 'business-agent.test'
 export const PASSWORD = process.env.E2E_PASSWORD ?? `e2e-${Math.random().toString(36).slice(2)}-Aa1!`
@@ -137,4 +138,37 @@ export async function setUp(cfg: LiveConfig) {
   const pin = await emp.sb.rpc('set_pin', { p_pin: EMPLOYEE_PIN })
   if (pin.error) throw pin.error
   return { admin, ids }
+}
+
+/**
+ * Records what the browser did on the network: failed requests (never reached the server, so
+ * they are missing from Supabase's logs), error responses, slow requests and console errors.
+ * Printed only when a test fails, so a flaky live failure explains itself in the CI log.
+ */
+export function recordNetwork(test: {
+  beforeEach: (fn: (args: { page: Page }) => void) => void
+  afterEach: (fn: (args: { page: Page }, info: TestInfo) => void) => void
+}) {
+  const logs = new WeakMap<Page, string[]>()
+  test.beforeEach(({ page }) => {
+    const log: string[] = []
+    const t0 = Date.now()
+    const at = () => `+${((Date.now() - t0) / 1000).toFixed(2)}s`
+    const short = (u: string) => u.replace(/^https?:\/\/[^/]+/, '').slice(0, 110)
+    const started = new Map<object, number>()
+    page.on('request', r => { started.set(r, Date.now()); if (!/\.(js|css|png|svg|woff2?)(\?|$)/.test(r.url())) log.push(`${at()} → ${r.method()} ${short(r.url())}`) })
+    page.on('requestfailed', r => log.push(`${at()} ✗ ${r.method()} ${short(r.url())} FAILED: ${r.failure()?.errorText}`))
+    page.on('response', r => {
+      const ms = Date.now() - (started.get(r.request()) ?? Date.now())
+      if (r.status() >= 400 || ms > 1500) log.push(`${at()} ← ${r.status()} ${short(r.url())} (${ms} ms)`)
+    })
+    page.on('console', m => { if (m.type() === 'error' || m.type() === 'warning') log.push(`${at()} console.${m.type()}: ${m.text().slice(0, 200)}`) })
+    page.on('pageerror', e => log.push(`${at()} page error: ${e.message.slice(0, 200)}`))
+    logs.set(page, log)
+  })
+  test.afterEach(({ page }, info) => {
+    if (info.status === info.expectedStatus) return
+    const log = logs.get(page) ?? []
+    console.log(`\n── Network and console for "${info.title}" (last ${Math.min(log.length, 80)} of ${log.length}) ──\n${log.slice(-80).join('\n')}\n`)
+  })
 }

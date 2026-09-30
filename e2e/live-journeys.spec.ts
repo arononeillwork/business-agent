@@ -14,7 +14,7 @@ import { FEATURES } from '../src/app/features'
 import {
   PARTNER, PASSWORD, TEST_ROW_PREFIX, USERS, addPartner, cleanUp, liveConfig, purgeTestAlerts, service, setUp,
   type LiveConfig, type UserKey,
-  HOOK_TIMEOUT,
+  HOOK_TIMEOUT, recordNetwork,
 } from './live/fixtures'
 
 // Every test fails on an uncaught error thrown by the app's own page (not Google's or Microsoft's).
@@ -34,6 +34,7 @@ const test = base.extend<{ pageErrors: string[] }>({
 
 test.skip(!process.env.E2E_LIVE, 'Live tests need E2E_LIVE=1 and SUPABASE_SERVICE_ROLE_KEY')
 test.describe.configure({ mode: 'serial' })
+recordNetwork(test)
 
 const NET = { timeout: 10_000 }
 const tag = Math.random().toString(36).slice(2, 7)
