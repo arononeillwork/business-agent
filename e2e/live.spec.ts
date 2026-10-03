@@ -6,8 +6,13 @@
 //
 // Creates @business-agent.test accounts and removes them and their data afterwards.
 import { createHash, randomBytes } from 'node:crypto'
-import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
+import { expect as baseExpect, test, type APIRequestContext, type Page } from '@playwright/test'
 import { EMPLOYEE_PIN, HOOK_TIMEOUT, PASSWORD, USERS, cleanUp, liveConfig, recordNetwork, service, setUp, signedIn, type LiveConfig, type UserKey } from './live/fixtures'
+
+// Every step here waits on the real Supabase. Its own logs show its sign-in service taking 2–3 s
+// (and up to 6 s) while these tests create and delete their accounts, so allow 10 s like the
+// other live tests, rather than the 5 s that suits the in-memory demo.
+const expect = baseExpect.configure({ timeout: 10_000 })
 
 test.skip(!process.env.E2E_LIVE, 'Live tests need E2E_LIVE=1 and SUPABASE_SERVICE_ROLE_KEY')
 test.describe.configure({ mode: 'serial' })
