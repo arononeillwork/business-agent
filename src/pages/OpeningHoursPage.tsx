@@ -9,20 +9,11 @@ import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { PageHeader, SectionTitle, Tag } from '../components/common'
 import { DAY_KEYS, type DayKey, type OpeningHours } from '../../shared/types'
-import { addDays, dayKey, formatLocal, hmToMinutes, localTime, today } from '../../shared/time'
+import { addDays, dayKey, formatLocal, hmToMinutes, today } from '../../shared/time'
 import { tokens } from '../theme'
 
 const DAY_LABELS: Record<DayKey, string> = {
   mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday', sun: 'Sunday',
-}
-
-function status(hours: OpeningHours) {
-  const h = hours[dayKey(today())]
-  if (!h) return { open: false, text: 'Closed today' }
-  const now = hmToMinutes(localTime(new Date()))
-  if (now < hmToMinutes(h.open)) return { open: false, text: `Opens at ${h.open}` }
-  if (now >= hmToMinutes(h.close)) return { open: false, text: 'Closed now' }
-  return { open: true, text: `Open now · closes ${h.close}` }
 }
 
 /** When the café is open: weekly hours, busiest hours, and upcoming holidays and closures. */
@@ -39,7 +30,6 @@ export function OpeningHoursPage() {
 
   const changed = JSON.stringify(hours) !== JSON.stringify(b.opening_hours) || JSON.stringify(peak) !== JSON.stringify(b.peak_hours)
   const invalid = DAY_KEYS.some(d => hours[d] && hmToMinutes(hours[d]!.close) <= hmToMinutes(hours[d]!.open))
-  const s = status(b.opening_hours)
   const g = google.data?.integrations.find(i => i.provider === 'google_business')
   const upcoming = (special.data ?? []).filter(e =>
     ['national', 'regional', 'local'].includes(e.category) || (e.category === 'business' && /closed|cerrad|closure/i.test(e.title)))
@@ -48,8 +38,7 @@ export function OpeningHoursPage() {
   return (
     <>
       <PageHeader eyebrow="Café" title="Opening hours"
-        subtitle="The hours the rota, alerts and your Google listing use."
-        actions={<Tag fg={s.open ? tokens.goodFg : tokens.neutralFg} bg={s.open ? tokens.goodBg : tokens.neutralBg}>● {s.text}</Tag>} />
+        subtitle="The hours the rota, alerts and your Google listing use." />
 
       <Grid container spacing={2.5}>
         <Grid size={12}>

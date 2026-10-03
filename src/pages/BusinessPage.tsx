@@ -11,22 +11,13 @@ import CurrencyIcon from '@mui/icons-material/PaymentsOutlined'
 import { useState, type ReactNode } from 'react'
 import { useApp } from '../app/AppContext'
 import { useAction } from '../app/Notify'
-import { PageHeader, SectionTitle, Tag } from '../components/common'
+import { PageHeader, SectionTitle } from '../components/common'
 import type { Business } from '../../shared/types'
 import { checkTaxId } from '../../shared/taxId'
-import { dayKey, formatLocal, hmToMinutes, localTime, today } from '../../shared/time'
+import { formatLocal } from '../../shared/time'
 import { tokens } from '../theme'
 
 const CHANNEL: Record<string, string> = { whatsapp: 'WhatsApp', slack: 'Slack', sms: 'Text message' }
-
-function openStatus(b: Business) {
-  const h = b.opening_hours[dayKey(today())]
-  if (!h) return { open: false, text: 'Closed today' }
-  const now = hmToMinutes(localTime(new Date()))
-  if (now < hmToMinutes(h.open)) return { open: false, text: `Opens at ${h.open}` }
-  if (now >= hmToMinutes(h.close)) return { open: false, text: `Closed now · today ${h.open}–${h.close}` }
-  return { open: true, text: `Open now · closes at ${h.close}` }
-}
 
 function InfoRow({ icon, label, children }: { icon: ReactNode; label: string; children: ReactNode }) {
   return (
@@ -99,7 +90,6 @@ function EditableCard({ title, business, canEdit, view, form, onSave }: {
 export function BusinessPage() {
   const { api, business: b, isAdmin, refresh } = useApp()
   if (!b) return null
-  const status = openStatus(b)
   /** Save only the card's own fields, after checking them. */
   const save = (keys: (keyof Business)[], check: (p: Partial<Business>) => void) => async (d: Business) => {
     const patch = Object.fromEntries(keys.map(k => [k, d[k]])) as Partial<Business>
@@ -111,8 +101,7 @@ export function BusinessPage() {
   return (
     <>
       <PageHeader eyebrow="Business" title={b.name}
-        subtitle={[b.business_type, b.address].filter(Boolean).join(' · ')}
-        actions={<Tag fg={status.open ? tokens.goodFg : tokens.neutralFg} bg={status.open ? tokens.goodBg : tokens.neutralBg}>● {status.text}</Tag>} />
+        subtitle={[b.business_type, b.address].filter(Boolean).join(' · ')} />
 
       <Stack spacing={2.5}>
         <EditableCard title="Contact" business={b} canEdit={isAdmin}
