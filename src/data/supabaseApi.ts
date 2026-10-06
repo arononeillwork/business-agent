@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { Api } from './api'
-import type { ApiKey, AppNotification, Brand, Business, SocialPost, EventAlert, Expense, Integration, MusicPlaylist, OutboxItem, Profile, Settings, TimeEntry, TimeOff } from '../../shared/types'
+import type { ApiKey, AppNotification, Brand, Business, SocialPost, EventAlert, Expense, Integration, MusicPlaylist, OutboxItem, Profile, Settings, TimeEntry, TimeOff, Todo, TodoCategory } from '../../shared/types'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
 
 const PROFILE_COLUMNS = 'id, full_name, email, role, can_see_pay, colour, active, phone, birth_date, whatsapp_opt_in, partner_company, partner_access, preferences'
@@ -321,6 +321,28 @@ export function createSupabaseApi(url: string, key: string): Api {
       else check(await sb.from('expenses').insert({ ...row, source: 'app' }))
     },
     async deleteExpense(id) { check(await sb.from('expenses').delete().eq('id', id)) },
+
+    async todos() {
+      const [categories, todos] = await Promise.all([
+        sb.from('todo_categories').select('id, name, hint, colour, sort').order('sort').order('name'),
+        sb.from('todos').select('id, title, category_id, section, assignee_id, done, done_at, starred, pinned, position, created_at')
+          .order('position').order('created_at'),
+      ])
+      return { categories: check(categories) as TodoCategory[], todos: check(todos) as Todo[] }
+    },
+    async addTodo(t) {
+      return check(await sb.from('todos').insert({ title: t.title.trim(), category_id: t.category_id, position: t.position })
+        .select('id, title, category_id, section, assignee_id, done, done_at, starred, pinned, position, created_at').single()) as Todo
+    },
+    async updateTodo(id, patch) { check(await sb.from('todos').update(patch).eq('id', id)) },
+    async deleteTodo(id) { check(await sb.from('todos').delete().eq('id', id)) },
+    async saveTodoCategory(c) {
+      const row = { name: c.name.trim(), hint: c.hint?.trim() || null, ...(c.colour ? { colour: c.colour } : {}), ...(c.sort !== undefined ? { sort: c.sort } : {}) }
+      const res = c.id ? await sb.from('todo_categories').update(row).eq('id', c.id) : await sb.from('todo_categories').insert(row)
+      if (res.error?.code === '23505') throw new Error(`There is already a category called “${row.name}”`)
+      check(res)
+    },
+    async deleteTodoCategory(id) { check(await sb.from('todo_categories').delete().eq('id', id)) },
     async sentAlerts(limit = 50) {
       return check(await sb.from('outbox').select('*').order('created_at', { ascending: false }).limit(limit)) as OutboxItem[]
     },

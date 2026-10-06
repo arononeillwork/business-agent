@@ -33,6 +33,7 @@ const ConnectionsPage = page(() => import('./pages/ConnectionsPage'), 'Connectio
 const SocialPlannerPage = page(() => import('./pages/SocialPlannerPage'), 'SocialPlannerPage')
 const SetupPage = page(() => import('./pages/SetupPage'), 'SetupPage')
 const PartnersPage = page(() => import('./pages/PartnersPage'), 'PartnersPage')
+const TodoPage = page(() => import('./pages/TodoPage'), 'TodoPage')
 const RegistroPage = page(() => import('./pages/RegistroPage'), 'RegistroPage')
 const OpeningHoursPage = page(() => import('./pages/OpeningHoursPage'), 'OpeningHoursPage')
 const AppearancePage = page(() => import('./pages/AppearancePage'), 'AppearancePage')
@@ -84,6 +85,7 @@ function Routed() {
         <Route path="music" element={<MusicPage />} />
         <Route path="team" element={<TeamPage />} />
         <Route path="business" element={<BusinessPage />} />
+        <Route path="todo" element={<TodoPage />} />
         <Route path="opening-hours" element={<OpeningHoursPage />} />
         <Route path="brand" element={<BrandPage />} />
         <Route path="appearance" element={<AppearancePage />} />

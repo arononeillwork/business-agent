@@ -1,4 +1,4 @@
-import type { ApiKey, AppNotification, Brand, BreakType, Business, CalendarApp, CalendarEvent, ConnectorProvider, ContactMethod, CorrectionRequest, EventAlert, Expense, InstagramProfile, Integration, Sales, SocialNetwork, SocialPost, IntegrationProvider, IntegrationsState, KioskPerson, MusicNow, MusicPlaylist, MusicProvider, MyMusic, MyNowPlaying, OpenBreak, OpeningHours, OutboxItem, PartnerArea, PayRate, Position, Profile, Settings, Shift, SpotifyPlaylist, TimeEntry, TimeEntryChange, TimeOff, TimeOffKind } from '../../shared/types'
+import type { ApiKey, AppNotification, Brand, BreakType, Business, CalendarApp, CalendarEvent, ConnectorProvider, ContactMethod, CorrectionRequest, EventAlert, Expense, InstagramProfile, Integration, Sales, SocialNetwork, SocialPost, IntegrationProvider, IntegrationsState, KioskPerson, MusicNow, MusicPlaylist, MusicProvider, MyMusic, MyNowPlaying, OpenBreak, OpeningHours, OutboxItem, PartnerArea, PayRate, Position, Profile, Settings, Shift, SpotifyPlaylist, TimeEntry, TimeEntryChange, TimeOff, TimeOffKind, Todo, TodoCategory, TodoPatch } from '../../shared/types'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
 
 export type ShiftInput = Omit<Shift, 'id' | 'status'> & { id?: string; status?: Shift['status'] }
@@ -108,6 +108,14 @@ export interface Api {
   expenses(): Promise<Expense[]>
   saveExpense(expense: Partial<Expense> & { name: string; amount: number }): Promise<void>
   deleteExpense(id: string): Promise<void>
+
+  // To Do List (the team; admins manage categories)
+  todos(): Promise<{ categories: TodoCategory[]; todos: Todo[] }>
+  addTodo(todo: { title: string; category_id: string | null; position: number }): Promise<Todo>
+  updateTodo(id: string, patch: TodoPatch): Promise<void>
+  deleteTodo(id: string): Promise<void>
+  saveTodoCategory(category: Partial<TodoCategory> & { name: string }): Promise<void>
+  deleteTodoCategory(id: string): Promise<void>
 
   // alerts log (admins)
   sentAlerts(limit?: number): Promise<OutboxItem[]>

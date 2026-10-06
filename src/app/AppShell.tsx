@@ -8,6 +8,7 @@ import TimecardIcon from '@mui/icons-material/AccessTimeOutlined'
 import CalendarIcon from '@mui/icons-material/EventOutlined'
 import TeamIcon from '@mui/icons-material/PeopleAltOutlined'
 import BusinessIcon from '@mui/icons-material/StorefrontOutlined'
+import TodoIcon from '@mui/icons-material/ChecklistRtlOutlined'
 import HoursIcon from '@mui/icons-material/ScheduleOutlined'
 import BrandIcon from '@mui/icons-material/BrushOutlined'
 import AccountIcon from '@mui/icons-material/AccountCircleOutlined'
@@ -49,6 +50,7 @@ interface NavSection { key: string; label: string | null; items: NavItem[] }
 export const SECTIONS: NavSection[] = [
   { key: 'business', label: 'Business', items: [
     { key: 'business', to: '/business', label: 'Business', icon: <BusinessIcon />, partner: 'any' },
+    { key: 'todo', to: '/todo', label: 'To Do List', short: 'To do', icon: <TodoIcon /> },
     { key: 'hours', to: '/opening-hours', label: 'Opening hours', icon: <HoursIcon />, partner: 'any' },
     { key: 'brand', to: '/brand', label: 'Brand', icon: <BrandIcon />, partner: 'any' },
     { key: 'social', to: '/social', label: 'Social planner', icon: <SocialIcon />, who: 'admin' },

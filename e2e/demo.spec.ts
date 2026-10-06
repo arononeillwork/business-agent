@@ -1113,13 +1113,17 @@ test('pages can be dragged into a new order, but only within their own section',
   const team = nav.locator('section', { has: page.getByRole('button', { name: 'Team', exact: true }) })
   const names = () => team.getByRole('link').allTextContents()
   expect(await names()).toEqual(['Rota', 'Time off', 'Timecards', 'Team'])
-  // Keyboard: pick up Team, move it up twice, drop it.
+  // Keyboard: pick up Team, move it up a place, drop it; twice. Each drop waits for the screen-reader
+  // announcement of the move, so a busy machine can't drop it before the move has registered.
   const handle = team.getByRole('button', { name: 'Reorder Team' })
-  await handle.focus()
-  await page.keyboard.press('Space')
-  for (let i = 0; i < 2; i++) { await page.keyboard.press('ArrowUp'); await page.waitForTimeout(250) }
-  await page.keyboard.press('Space')
-  await expect.poll(names).toEqual(['Rota', 'Team', 'Time off', 'Timecards'])
+  for (const [over, order] of [['timecards', ['Rota', 'Time off', 'Team', 'Timecards']], ['timeoff', ['Rota', 'Team', 'Time off', 'Timecards']]] as const) {
+    await handle.focus()
+    await page.keyboard.press('Space')
+    await page.keyboard.press('ArrowUp')
+    await expect(team.getByRole('status')).toContainText(`over droppable area ${over}`)
+    await page.keyboard.press('Space')
+    await expect.poll(names).toEqual(order)
+  }
   // Mouse: dragging Rota far down stops at the end of its own section.
   const rota = team.getByRole('button', { name: 'Reorder Rota' })
   const box = (await rota.boundingBox())!
@@ -1438,4 +1442,94 @@ test('every page in the menu shows its title, whatever buttons its header has', 
     await expect(h1, href).toBeVisible()
     await expect.poll(async () => (await h1.boundingBox().catch(() => null))?.width ?? 0, { message: `${href}: title squeezed` }).toBeGreaterThan(80)
   }
+})
+
+test.describe('To Do List', () => {
+  test('groups jobs by category, with no priority headings', async ({ page }) => {
+    await open(page, '/todo')
+    await expect(page.getByRole('heading', { name: 'To Do List', level: 1 })).toBeVisible()
+    const shop = page.getByRole('region', { name: 'Shop' })
+    await expect(shop.getByRole('heading', { name: 'Shop' })).toBeVisible()
+    await expect(shop).toContainText('Get the AC serviced before summer')
+    await expect(page.getByRole('region', { name: 'Tech & till' }).getByRole('heading', { name: 'Square' })).toBeVisible()
+    await expect(page.getByText(/before we (re)?open/i)).toHaveCount(0)
+    await expect(page.getByText(/priority/i)).toHaveCount(0)
+    // Done jobs stay hidden until asked for.
+    await expect(page.getByText('Clean the outside terrace')).toHaveCount(0)
+    await page.getByLabel('Show done').check()
+    await expect(page.getByText('Clean the outside terrace')).toBeVisible()
+  })
+
+  test('add a job under the chosen category, tick it off, delete and undo', async ({ page }) => {
+    await open(page, '/todo')
+    const filters = page.getByRole('group', { name: 'Filter by category' })
+    await filters.getByRole('button', { name: /^Design/ }).click()
+    await expect(page.getByLabel('Category for the new job')).toHaveValue(/.+/)
+    await page.getByLabel('New job', { exact: true }).fill('Window vinyl')
+    await page.getByRole('button', { name: 'Add', exact: true }).click()
+    const design = page.getByRole('region', { name: 'Design' })
+    // New jobs go to the top, under any pinned ones (the branded fans are pinned).
+    await expect(design.getByTestId('todo-row').nth(1)).toContainText('Window vinyl')
+    await expect(page.getByRole('region', { name: 'Shop' })).toHaveCount(0) // the filter is on
+
+    const row = page.getByTestId('todo-row').filter({ hasText: 'Window vinyl' })
+    // Ticked-off jobs leave the list (the box goes with them, so click rather than check).
+    await row.getByLabel('Mark as done').click()
+    await expect(page.getByText('Window vinyl')).toHaveCount(0)
+    await page.getByLabel('Show done').check()
+    await row.getByLabel('Mark as not done').click()
+    await expect(row.getByLabel('Mark as done')).not.toBeChecked()
+    await row.getByRole('button', { name: 'Delete' }).click()
+    await expect(page.getByText('Window vinyl', { exact: true })).toHaveCount(0)
+    await page.getByRole('button', { name: 'Undo' }).click()
+    await expect(row).toBeVisible()
+  })
+
+  test('rename a job, give it a sub-heading, star it and assign it', async ({ page }) => {
+    await open(page, '/todo')
+    const row = page.getByTestId('todo-row').filter({ hasText: 'Menu board for the counter' })
+    await row.getByRole('button', { name: 'Rename' }).click()
+    await page.getByLabel('Job', { exact: true }).fill('Chalk menu board')
+    await page.getByLabel('Sub-heading').fill('Counter')
+    await page.getByRole('button', { name: 'Save' }).click()
+    const design = page.getByRole('region', { name: 'Design' })
+    await expect(design.getByRole('heading', { name: 'Counter' })).toBeVisible()
+    const renamed = page.getByTestId('todo-row').filter({ hasText: 'Chalk menu board' })
+    await renamed.getByRole('button', { name: 'Star' }).click()
+    await expect(renamed.getByRole('button', { name: 'Star' })).toHaveAttribute('aria-pressed', 'true')
+    await renamed.getByRole('button', { name: 'Assign to someone' }).click()
+    await page.getByRole('menuitem', { name: 'Julio' }).click()
+    await expect(renamed.getByRole('button', { name: 'Assigned to Julio' })).toBeVisible()
+    // Move it to another category from the row itself.
+    await renamed.getByLabel('Change category').selectOption({ label: 'Marketing' })
+    await expect(page.getByRole('region', { name: 'Marketing' })).toContainText('Chalk menu board')
+  })
+
+  test('admins add and remove categories; removed categories keep their jobs', async ({ page }) => {
+    await open(page, '/todo')
+    await page.getByRole('button', { name: 'Categories' }).click()
+    const manager = page.getByRole('region', { name: 'Categories' })
+    await manager.getByLabel('New category').fill('Kitchen')
+    await manager.getByRole('button', { name: 'Add category' }).click()
+    const filters = page.getByRole('group', { name: 'Filter by category' })
+    await expect(filters.getByRole('button', { name: /^Kitchen/ })).toBeVisible()
+    await manager.getByLabel('New category').fill('kitchen')
+    await manager.getByRole('button', { name: 'Add category' }).click()
+    await expect(page.getByText('There is already a category called “kitchen”')).toBeVisible()
+
+    await manager.getByRole('button', { name: 'Remove Shop' }).click()
+    await expect(manager.getByText(/Its \d jobs? move to No category/)).toBeVisible()
+    await manager.getByRole('button', { name: 'Remove', exact: true }).click()
+    await expect(filters.getByRole('button', { name: /^Shop/ })).toHaveCount(0)
+    await expect(page.getByRole('region', { name: 'No category' })).toContainText('Get the AC serviced before summer')
+  })
+
+  test('employees use the list but cannot change the categories', async ({ page }) => {
+    await open(page, '/todo', 'julio@example.com')
+    await expect(page.getByRole('heading', { name: 'To Do List', level: 1 })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Categories' })).toHaveCount(0)
+    await page.getByLabel('New job', { exact: true }).fill('Restock napkins')
+    await page.getByRole('button', { name: 'Add', exact: true }).click()
+    await expect(page.getByText('Restock napkins')).toBeVisible()
+  })
 })

@@ -6,7 +6,7 @@ import type {
   ApiKey, AppNotification, Brand, EventAlert, Sales, SocialNetwork, SocialPost, MusicAccount, MusicPlaylist, MusicProvider, MyNowPlaying,
   Expense, Integration, IntegrationProvider, IntegrationsState, OutboxItem, PartnerArea, TimeOff,
   BreakType, Business, CalendarEvent, CorrectionRequest, PayRate, Position, Profile, Settings,
-  Shift, TimeEntry, TimeEntryChange,
+  Shift, TimeEntry, TimeEntryChange, Todo, TodoCategory,
 } from '../../shared/types'
 import { demoSports } from './demoSports'
 import type { SportsFavourite } from '../../shared/sports'
@@ -171,6 +171,30 @@ export function createDemoApi(): Api {
       attempts: 2, last_error: 'Recipient phone number not on WhatsApp', delivery: null,
       created_at: new Date(Date.now() - 2 * 86400000).toISOString(), sent_at: null },
   ]
+  const todoCategories: TodoCategory[] = ([
+    ['Legal & money', 'Contracts, licences, insurance, bills', '#2F4C73'], ['People', 'Roles, reviews, standards, hiring, pay', '#21907F'],
+    ['Shop', 'The space: fit-out, repairs, cleaning', '#D46A2E'], ['Buying', 'Stock, packaging, equipment', '#C2961C'],
+    ['Food & drink', 'Menu, recipes, ingredients, prep', '#4F8A3F'], ['Tech & till', 'Till, wifi, TV, website', '#4B4FB0'],
+    ['Design', 'Menus, signage, branding, print', '#7C52AE'], ['Social & content', 'Photos, videos, posts', '#2479A8'],
+    ['Marketing', 'Events, collabs, outreach', '#B23C78'], ['Future ideas', 'New business ideas for later', '#6E7D1A'],
+  ] as const).map(([name, hint, colour], i) => ({ id: `tc-${i + 1}`, name, hint, colour, sort: i + 1 }))
+  const cat = (name: string) => todoCategories.find(c => c.name === name)!.id
+  const todos: Todo[] = ([
+    ['Get the AC serviced before summer', 'Shop', null, 'p-mark', false, false, false],
+    ['Buy bowls and plates', 'Buying', null, null, true, false, false],
+    ['Add a photo to every item on the till', 'Tech & till', 'Square', null, false, false, false],
+    ['Set up the card reader on the terrace', 'Tech & till', 'Square', 'p-aron', false, false, false],
+    ['Branded paper fans for the terrace', 'Design', null, null, true, false, true],
+    ['Menu board for the counter', 'Design', null, null, false, false, false],
+    ['Rubbish bin for outside', 'Buying', null, null, false, false, false],
+    ['Image / video loop for the TV', 'Social & content', null, 'p-maria', false, false, false],
+    ['Renew the terrace licence', 'Legal & money', null, 'p-aron', false, false, false],
+    ['Write the closing checklist', 'People', null, 'p-julio', false, false, false],
+    ['Test a cold brew recipe', 'Food & drink', null, null, false, false, false],
+    ['Clean the outside terrace', 'Shop', null, 'p-cleaner', false, true, false],
+    ['Order more oat milk', 'Buying', null, null, true, false, false],
+  ] as const).map(([title, c, section, assignee, starred, done, pinned], i) => ({ id: `td-${i + 1}`, title, category_id: cat(c), section,
+    assignee_id: assignee, done, done_at: done ? nowIso() : null, starred, pinned, position: i + 1, created_at: nowIso() }))
   let adminNotes: string | null = 'Demo: alarm code holder, wifi for the kiosk, landlord and gestor contacts.'
   const settings: Settings = {
     early_clock_in_minutes: 10, unscheduled_clock_in: 'flag', auto_clock_out_minutes: 60,
@@ -748,6 +772,48 @@ export function createDemoApi(): Api {
       if (!(me()?.role === 'admin' && me()?.can_see_pay)) throw new Error('Only admins with pay access can change finances')
       const i = expenses.findIndex(x => x.id === id)
       if (i >= 0) expenses.splice(i, 1)
+    },
+    async todos() {
+      if (!staffOnly(me()!)) return { categories: [], todos: [] }
+      return { categories: clone(todoCategories).sort((a, b) => a.sort - b.sort), todos: clone(todos) }
+    },
+    async addTodo(t) {
+      if (!staffOnly(me()!)) throw new Error('Only the team can add jobs')
+      if (!t.title.trim()) throw new Error('Write the job first')
+      const todo: Todo = { id: uid(), title: t.title.trim(), category_id: t.category_id, section: null, assignee_id: null, done: false,
+        done_at: null, starred: false, pinned: false, position: t.position, created_at: nowIso() }
+      todos.push(todo)
+      return clone(todo)
+    },
+    async updateTodo(id, patch) {
+      if (!staffOnly(me()!)) throw new Error('Only the team can change jobs')
+      const t = todos.find(x => x.id === id)
+      if (!t) throw new Error('That job has gone')
+      if (patch.title !== undefined && !patch.title.trim()) throw new Error('A job needs a name')
+      Object.assign(t, patch, patch.title !== undefined ? { title: patch.title.trim() } : {},
+        patch.section !== undefined ? { section: patch.section?.trim() || null } : {},
+        patch.done !== undefined ? { done_at: patch.done ? (t.done_at ?? nowIso()) : null } : {})
+    },
+    async deleteTodo(id) {
+      if (!staffOnly(me()!)) throw new Error('Only the team can delete jobs')
+      const i = todos.findIndex(x => x.id === id)
+      if (i >= 0) todos.splice(i, 1)
+    },
+    async saveTodoCategory(c) {
+      requireAdmin()
+      const name = c.name.trim()
+      if (!name) throw new Error('Give the category a name')
+      if (name.length > 40) throw new Error('Keep the name to 40 characters')
+      if (todoCategories.some(x => x.id !== c.id && x.name.toLowerCase() === name.toLowerCase())) throw new Error(`There is already a category called “${name}”`)
+      const existing = c.id && todoCategories.find(x => x.id === c.id)
+      if (existing) Object.assign(existing, { ...c, name, hint: c.hint?.trim() || null })
+      else todoCategories.push({ id: uid(), colour: '#8A7E76', sort: Math.max(0, ...todoCategories.map(x => x.sort)) + 1, ...c, name, hint: c.hint?.trim() || null })
+    },
+    async deleteTodoCategory(id) {
+      requireAdmin()
+      const i = todoCategories.findIndex(x => x.id === id)
+      if (i >= 0) todoCategories.splice(i, 1)
+      todos.forEach(t => { if (t.category_id === id) t.category_id = null })
     },
     async sentAlerts() {
       requireAdmin()

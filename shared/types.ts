@@ -367,3 +367,21 @@ export interface SocialPost {
 
 /** Takings from the payment system (Square), per day in the business's time zone. */
 export interface Sales { currency: string; days: { date: string; gross: number; tips: number; refunds: number; payments: number }[] }
+
+/** To Do List: a category the admins manage (jobs are grouped by these). */
+export interface TodoCategory { id: string; name: string; hint: string | null; colour: string; sort: number }
+/** One job on the To Do List. `category_id` is null after its category was removed. */
+export interface Todo {
+  id: string
+  title: string
+  category_id: string | null
+  section: string | null
+  assignee_id: string | null
+  done: boolean
+  done_at: string | null
+  starred: boolean
+  pinned: boolean
+  position: number
+  created_at: string
+}
+export type TodoPatch = Partial<Pick<Todo, 'title' | 'category_id' | 'section' | 'assignee_id' | 'done' | 'starred' | 'pinned' | 'position'>>
