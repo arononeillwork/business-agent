@@ -194,6 +194,31 @@ test.describe('admin', () => {
     await expect(page.getByRole('grid').getByRole('columnheader')).toHaveText(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])
   })
 
+  test('calendar list view: what is coming up, with holidays and closures marked', async ({ page }) => {
+    await open(page, '/calendar')
+    const bar = page.getByRole('toolbar', { name: 'Calendar' })
+    await bar.getByRole('button', { name: 'List', exact: true }).click()
+    await expect(bar.getByRole('heading', { name: 'September – November 2026' })).toBeVisible()
+    const list = page.getByRole('list', { name: 'Events' })
+    await expect(list.getByRole('listitem', { name: 'Fiesta Nacional de España' })).toContainText('Holiday')
+    // Add a closure: it shows as Closed (and closes the Google listing that day).
+    await page.getByRole('button', { name: 'Add a closure' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Add a closure' })
+    await expect(dialog.getByLabel('Title')).toHaveValue('Closed')
+    await dialog.getByLabel('Title').fill('Closed: Deep clean')
+    await dialog.getByLabel('From').fill('2026-10-20')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await toast(page, 'Closure added')
+    const closure = list.getByRole('listitem', { name: 'Closed: Deep clean' })
+    await expect(closure).toContainText('Closed')
+    await expect(page.getByRole('region', { name: 'October 2026' })).toContainText('Closed: Deep clean')
+    // The next three months, and the choice is remembered.
+    await bar.getByRole('button', { name: 'Next 3 months' }).click()
+    await expect(bar.getByRole('heading', { name: 'December 2026 – February 2027' })).toBeVisible()
+    await page.reload()
+    await expect(page.getByRole('toolbar', { name: 'Calendar' }).getByRole('button', { name: 'List', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  })
+
   test('adds a calendar event', async ({ page }) => {
     await open(page, '/calendar')
     await expect(page.getByText('Fiesta Nacional de España')).toHaveCount(0) // October
@@ -523,12 +548,27 @@ test.describe('finances', () => {
     await expect(page.getByText('18 items')).toBeVisible()
     await expect(page.getByText('Rent', { exact: true })).toBeVisible()
     await expect(page.getByText(/7[.,]?865[.,]09/).first()).toBeVisible()
-    await page.getByRole('button', { name: 'Edit Broadband' }).click()
-    const dialog = page.getByRole('dialog')
-    await dialog.getByLabel('Per month').fill('30')
-    await dialog.getByRole('button', { name: 'Save' }).click()
-    await toast(page, 'Expense saved')
-    await expect(page.getByText(/7[.,]?875[.,]09/).first()).toBeVisible()
+    // The four headline figures sit side by side, two by two.
+    const tiles = page.getByRole('list', { name: 'At a glance' }).getByRole('listitem')
+    await expect(tiles).toHaveCount(4)
+    const [first, second, third] = await Promise.all([0, 1, 2].map(i => tiles.nth(i).boundingBox()))
+    expect(Math.abs(first!.y - second!.y)).toBeLessThan(2)
+    expect(third!.y).toBeGreaterThan(first!.y + first!.height - 2)
+
+    // One Edit button for the whole list; every change saves at once.
+    await page.getByRole('button', { name: 'Edit expenses' }).click()
+    await page.getByLabel('Per month for Broadband').fill('30')
+    await page.getByLabel('Count Loan in the total').uncheck()
+    await page.getByRole('button', { name: 'Add expense' }).click()
+    await page.getByLabel('Name').last().fill('Coffee beans')
+    await page.getByLabel('Per month for Coffee beans').fill('250')
+    await page.getByRole('button', { name: 'Save changes' }).click()
+    await toast(page, 'Expenses saved')
+    // 7,865.09 + 10 (broadband) + 250 (beans) − 641.53 (loan, no longer counted)
+    await expect(page.getByText(/7[.,]?483[.,]56/).first()).toBeVisible()
+    await expect(page.getByText('18 items · 1 not counted')).toBeVisible()
+    await expect(page.getByRole('row').filter({ hasText: 'Loan' })).toContainText('Not counted')
+    await expect(page.getByRole('button', { name: 'Save changes' })).toHaveCount(0)
   })
 
   test('employees cannot see finances', async ({ page }) => {
@@ -879,19 +919,15 @@ test.describe('appearance and accessibility', () => {
 })
 
 test.describe('opening hours', () => {
-  test('admin changes a day and adds a closure; staff see them read-only', async ({ page }) => {
+  test('admin changes a day; closures live in the calendar; staff see the hours read-only', async ({ page }) => {
     await open(page, '/opening-hours')
     const week = page.getByRole('region', { name: 'Weekly hours' })
     await week.getByLabel('Open on Sunday').uncheck()
     await page.getByRole('button', { name: 'Save hours' }).click()
     await toast(page, 'Opening hours saved')
-    await page.getByRole('button', { name: 'Add a closure' }).click()
-    const dialog = page.getByRole('dialog', { name: 'Add a closure' })
-    await dialog.getByLabel('Closed from').fill('2026-10-20')
-    await dialog.getByLabel('Reason (optional)').fill('Deep clean')
-    await dialog.getByRole('button', { name: 'Add closure' }).click()
-    await toast(page, 'Closure added')
-    await expect(page.getByRole('region', { name: 'Holidays and closures' }).getByText('Closed: Deep clean')).toBeVisible()
+    // Holidays and closures moved to the calendar's list view.
+    await expect(page.getByRole('region', { name: 'Holidays and closures' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Add a closure' })).toHaveCount(0)
     await signInAs(page, 'maria@example.com')
     await page.getByRole('link', { name: 'Opening hours' }).first().click()
     await expect(page.getByRole('region', { name: 'Weekly hours' }).getByText('Closed').last()).toBeVisible()

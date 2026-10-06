@@ -53,6 +53,29 @@ export function StatRow({ children }: { children: ReactNode }) {
   return <Card role="list" aria-label="At a glance" sx={{ mb: 3 }}>{children}</Card>
 }
 
+/** Headline figures as tiles side by side: two across (a 2×2 grid for four). */
+export function StatGrid({ children }: { children: ReactNode }) {
+  return (
+    <Box role="list" aria-label="At a glance" sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: { xs: 1.5, sm: 2 }, mb: 3 }}>
+      {children}
+    </Box>
+  )
+}
+
+/** One tile in a StatGrid. */
+export function StatTile({ label, value, note }: { label: string; value: ReactNode; note?: ReactNode }) {
+  return (
+    <Card role="listitem" sx={{ px: { xs: 2, sm: 2.75 }, py: { xs: 1.75, sm: 2.25 }, minWidth: 0 }}>
+      <Typography variant="body2" sx={{ color: 'text.secondary' }}>{label}</Typography>
+      <Typography sx={{ fontFamily: fonts.display, fontSize: { xs: '1.35rem', sm: '1.7rem' }, fontWeight: 400, letterSpacing: '-0.01em',
+        fontVariantNumeric: 'tabular-nums', lineHeight: 1.25, mt: 0.5, overflowWrap: 'anywhere' }}>
+        {value}
+      </Typography>
+      {note && <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.25 }}>{note}</Typography>}
+    </Card>
+  )
+}
+
 export function SectionTitle({ children, action }: { children: ReactNode; action?: ReactNode }) {
   return (
     <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 1.5, gap: 1 }}>

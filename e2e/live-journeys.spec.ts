@@ -174,9 +174,9 @@ test.describe('admin', () => {
     const pages: { link: string; path: string; check: (p: Page) => Promise<void> }[] = [
       { link: 'Business', path: '/business', check: p => expect(p.getByRole('heading', { level: 1, name: business.name })).toBeVisible(NET) },
       { link: 'Home: Today', path: '/', check: p => expect(p.getByRole('heading', { name: 'Hola, Ana' })).toBeVisible(NET) },
-      ...['Rota', 'Time off', 'Timecards', 'Team', 'Opening hours', 'Brand', 'Calendar', 'Sports', 'Music', 'Finances', 'Alerts', 'Connections', 'My account', 'Appearance'].map(name => ({
+      ...['To Do List', 'Rota', 'Time off', 'Timecards', 'Team', 'Opening hours', 'Brand', 'Calendar', 'Sports', 'Music', 'Finances', 'Alerts', 'Connections', 'My account', 'Appearance'].map(name => ({
         link: name,
-        path: { 'Time off': '/time-off', 'My account': '/account', 'Opening hours': '/opening-hours' }[name] ?? `/${name.toLowerCase()}`,
+        path: { 'Time off': '/time-off', 'My account': '/account', 'Opening hours': '/opening-hours', 'To Do List': '/todo' }[name] ?? `/${name.toLowerCase()}`,
         check: (p: Page) => expect(p.getByRole('heading', { level: 1, name: { Connections: 'Business connections' }[name] ?? name, exact: true })).toBeVisible(NET),
       })),
     ]
@@ -277,20 +277,21 @@ test.describe('admin', () => {
     const total = page.locator('tfoot tr').first()
     const before = (await total.innerText()).trim()
 
+    // One Edit button turns the whole list into fields; Save changes keeps them all.
+    await page.getByRole('button', { name: 'Edit expenses' }).click()
     await page.getByRole('button', { name: 'Add expense' }).click()
-    const dialog = page.getByRole('dialog', { name: 'Add expense' })
-    await dialog.getByLabel('Name').fill(name)
-    await dialog.getByLabel('Per month').fill('12.34')
-    await dialog.getByRole('button', { name: 'Save' }).click()
-    await toast(page, 'Expense saved')
+    await page.getByLabel('Name', { exact: true }).last().fill(name)
+    await page.getByLabel(`Per month for ${name}`).fill('12.34')
+    await page.getByRole('button', { name: 'Save changes' }).click()
+    await toast(page, 'Expenses saved')
     await expect(page.getByText(name)).toBeVisible(NET)
     const totalText = async () => (await total.innerText()).trim()
     await expect.poll(totalText, NET).not.toBe(before)
 
-    await page.getByRole('button', { name: `Edit ${name}` }).click()
-    const edit = page.getByRole('dialog', { name: 'Edit expense' })
-    await edit.getByRole('button', { name: 'Remove' }).click()
-    await toast(page, 'Expense removed')
+    await page.getByRole('button', { name: 'Edit expenses' }).click()
+    await page.getByRole('button', { name: `Remove ${name}` }).click()
+    await page.getByRole('button', { name: 'Save changes' }).click()
+    await toast(page, 'Expenses saved')
     await expect(page.getByText(name)).toHaveCount(0, NET)
     await expect.poll(totalText, NET).toBe(before)
     await expectNoErrorShown(page, 'Finances')

@@ -690,7 +690,7 @@ export const TOOLS: ToolDef[] = [
   tool({
     name: 'list_expenses',
     title: 'Monthly expenses',
-    description: 'Admins with pay access: the café’s recurring monthly costs (rent, wages, utilities, loan…) and the monthly total in euros.',
+    description: 'Admins with pay access: the café’s recurring monthly costs (rent, wages, utilities, loan…) and the monthly total in euros. Expenses with active: false stay on the list but are not counted in the total.',
     admin: true,
     readOnly: true,
     partner: ['finances'],
@@ -706,7 +706,7 @@ export const TOOLS: ToolDef[] = [
   tool({
     name: 'save_expense',
     title: 'Add/change expense',
-    description: 'Admins with pay access: add a monthly expense, or change one (pass expense_id). Amounts are euros per month.',
+    description: 'Admins with pay access: add a monthly expense, or change one (pass expense_id). Amounts are euros per month. active: false keeps it on the list but leaves it out of the monthly total.',
     admin: true,
     input: z.object({
       expense_id: z.string().uuid().optional(), name: z.string().min(1).optional(), monthly_eur: z.number().min(0).optional(),
