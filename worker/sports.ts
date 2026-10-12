@@ -175,10 +175,10 @@ export async function refreshStaleSports(db: SupabaseClient, max = 2, sources?: 
   const due = ((data ?? []) as SportsCompetition[])
     .filter((c, i, all) => c.source !== 'thesportsdb' || all.findIndex(x => x.source === 'thesportsdb') === i)
     .slice(0, max)
-  let n = 0
-  for (const c of due) {
-    n += await refreshCompetition(db, c).catch(e => { console.error(`sports ${c.code} failed`, e); return 0 })
-  }
+  // All at once: the whole-season sources have no rate limit, and there's at most one TheSportsDB
+  // competition (its calls are spaced by tsdb() anyway). One at a time took 15-20 s for "Refresh now".
+  const counts = await Promise.all(due.map(c => refreshCompetition(db, c).catch(e => { console.error(`sports ${c.code} failed`, e); return 0 })))
+  const n = counts.reduce((a, b) => a + b, 0)
   if (due.length) await db.from('sports_events').delete().lt('starts_at', new Date(Date.now() - 2 * 86_400_000).toISOString())
   return n
 }

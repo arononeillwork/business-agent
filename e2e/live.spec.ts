@@ -273,6 +273,8 @@ test.describe('AI connector (MCP over OAuth)', () => {
 
 test.describe('sports', () => {
   test('admin refreshes fixtures from the free sources and sees La Liga', async ({ page }) => {
+    // Sign-in, the page and a refresh of every competition, each waiting on outside services.
+    test.setTimeout(90_000)
     await signInUi(page, 'admin')
     // Click through (a page load straight after "Sign in" can beat the session being saved).
     await page.getByRole('link', { name: 'Sports' }).first().click()
