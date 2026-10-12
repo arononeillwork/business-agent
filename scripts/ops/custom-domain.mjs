@@ -38,13 +38,17 @@ if (zone.status !== 'active') {
   process.exit(0)
 }
 
-const attached = await cf(`/accounts/${account}/workers/domains`, {
-  method: 'PUT', body: JSON.stringify({ environment: 'production', hostname: DOMAIN, service: WORKER, zone_id: zone.id }),
+const attach = hostname => cf(`/accounts/${account}/workers/domains`, {
+  method: 'PUT', body: JSON.stringify({ environment: 'production', hostname, service: WORKER, zone_id: zone.id }),
 })
+const attached = await attach(DOMAIN)
 if (!attached.body?.success) {
-  summary(`Custom domain: couldn't attach ${DOMAIN} to the Worker (${errors(attached)}). The token needs "Zone: Workers Routes Edit" and "Zone: DNS Edit" for ${DOMAIN}.`)
+  summary(`Custom domain: couldn't attach ${DOMAIN} to the Worker (${errors(attached)}). The token needs "Zone: Workers Routes Edit" and "Zone: DNS Edit" for ${DOMAIN}. If it says a DNS record already exists, delete the ${DOMAIN} A/CNAME records in Cloudflare (DNS → Records) and deploy again.`)
   process.exit(0)
 }
+// www.<domain> serves the same app, whose page sends visitors on to <domain> (index.html).
+const www = await attach(`www.${DOMAIN}`)
+if (!www.body?.success) summary(`Custom domain: www.${DOMAIN} not attached (${errors(www)}); ${DOMAIN} itself is fine.`)
 
 // The certificate can take a minute or two on the first attach.
 const site = `https://${DOMAIN}`
