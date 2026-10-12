@@ -144,7 +144,7 @@ export function explain(p: Provider, e: unknown): string {
   }
   if (/SPO license|mysite not found|Drive not found/i.test(raw)) return 'This Microsoft account has no OneDrive yet. Open OneDrive once in the browser, then connect again.'
   if (p === 'google_business' && /Quota exceeded|limit '?[^']*'? of service 'mybusiness/i.test(raw)) {
-    return 'Google hasn’t switched on Business Profile access for this app yet. Request it once (Google Business Profile API access form, see docs/INTEGRATIONS.md), then connect again.'
+    return 'Google hasn’t switched on Business Profile access for this app yet. It’s waiting for Google to approve the app (usually a few days); once approved, connect again.'
   }
   return raw
 }

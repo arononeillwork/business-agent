@@ -437,6 +437,11 @@ describe('Groups and permissions', () => {
     expect(maps).toMatch(/^The My Business Account Management API is switched off/)
     expect(maps).toContain('both My Business Account Management API and My Business Business Information API')
     expect(lasting('google_business', new Error('Google My Business API has not been used in project 1 before or it is disabled.'))).toBe(true)
+    // Before Google approves the project's Business Profile access, every call is over a quota of 0.
+    const pending = explain('google_business', new Error("Quota exceeded for quota metric 'Requests' and limit 'Requests per minute' of service 'mybusinessaccountmanagement.googleapis.com' for consumer 'project_number:914610483740'."))
+    expect(pending).toMatch(/waiting for Google to approve/)
+    expect(pending).not.toMatch(/docs\//)
+    expect(lasting('google_business', new Error(pending))).toBe(true)
     expect(explain('spotify', new Error('Refresh token revoked'))).toBe('Spotify access was removed or has expired. Connect it again.')
     expect(explain('onedrive', new Error('Microsoft: Tenant does not have a SPO license.'))).toMatch(/no OneDrive yet/)
     expect(explain('gmail', new Error('Gmail: Request had insufficient authentication scopes.'))).toMatch(/leave every box ticked/)
