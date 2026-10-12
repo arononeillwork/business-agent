@@ -1466,6 +1466,20 @@ test('the privacy policy is public, linked from the sign-in page, and covers Goo
   await expect(page.getByText(/Ireland/)).toBeVisible()
 })
 
+test('the terms of service are public, linked from the sign-in page and the privacy policy', async ({ page }) => {
+  await page.goto('/?demo')
+  await page.getByRole('contentinfo').getByRole('link', { name: 'Terms of service' }).click()
+  await expect(page).toHaveURL(/\/terms/)
+  await expect(page.getByRole('heading', { level: 1, name: 'Terms of service' })).toBeVisible()
+  await expect(page.getByRole('textbox', { name: 'Email' })).toHaveCount(0) // no sign-in needed
+  await expect(page.getByRole('heading', { name: '6. Connected apps' })).toBeVisible()
+  await expect(page.getByText(/governed by Spanish law/)).toBeVisible()
+  // Each legal page links to the other at the bottom (exact: the terms also mention the privacy policy in a sentence).
+  await page.getByRole('link', { name: 'Privacy policy', exact: true }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Privacy policy' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Terms of service', exact: true })).toBeVisible()
+})
+
 test('every page in the menu shows its title, whatever buttons its header has', async ({ page }) => {
   await open(page, '/')
   const nav = page.getByRole('navigation', { name: 'Main' })

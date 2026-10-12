@@ -39,12 +39,14 @@ const OpeningHoursPage = page(() => import('./pages/OpeningHoursPage'), 'Opening
 const AppearancePage = page(() => import('./pages/AppearancePage'), 'AppearancePage')
 const BrandPage = page(() => import('./pages/BrandPage'), 'BrandPage')
 const PrivacyPage = page(() => import('./pages/PrivacyPage'), 'PrivacyPage')
+const TermsPage = page(() => import('./pages/TermsPage'), 'TermsPage')
 
 function Routed() {
   const { me, loading, isAdmin, isPartner, partnerCan } = useApp()
   const { pathname } = useLocation()
   // Public, signed in or not (Google and others check it before approving the app).
   if (pathname === '/privacy') return <PrivacyPage />
+  if (pathname === '/terms') return <TermsPage />
   if (loading) return <Loading />
   if (!me) return <LoginPage />
   if (!me.active) return <NotActive />

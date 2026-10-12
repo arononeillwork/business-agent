@@ -1,22 +1,9 @@
-import { Box, Link, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material'
-import type { ReactNode } from 'react'
-import { Link as RouterLink } from 'react-router-dom'
+import { Box, Link, Table, TableBody, TableCell, TableHead, TableRow } from '@mui/material'
 import { LEGAL } from '../../shared/legal'
-import { formatLocal } from '../../shared/time'
-import { tokens } from '../theme'
+import { H, LegalPage, Mail, P, Ul, operatorLine } from '../components/legal'
 
 // The public privacy policy (no sign-in needed). Google, Meta and TikTok check it before approving
 // the app, so it states exactly what the app does with data from each connected service.
-
-const H = ({ children }: { children: ReactNode }) => (
-  <Typography variant="h5" component="h2" sx={{ mt: 5, mb: 1.5 }}>{children}</Typography>
-)
-const P = ({ children }: { children: ReactNode }) => <Typography sx={{ mb: 1.5, lineHeight: 1.7 }}>{children}</Typography>
-const Ul = ({ items }: { items: ReactNode[] }) => (
-  <Box component="ul" sx={{ pl: 3, mt: 0, mb: 2, '& li': { mb: 0.75, lineHeight: 1.7 } }}>
-    {items.map((it, i) => <li key={i}>{it}</li>)}
-  </Box>
-)
 
 const CONNECTIONS: [string, string, string][] = [
   ['Google Business Profile (Google Maps)', 'Manage the business listing', 'Keep opening hours and closures up to date, and publish posts the business writes.'],
@@ -33,14 +20,10 @@ const CONNECTIONS: [string, string, string][] = [
 
 export function PrivacyPage() {
   const L = LEGAL
-  const who = [L.operator || L.service, L.address].filter(Boolean).join(', ')
-  const mail = <Link href={`mailto:${L.contactEmail}`}>{L.contactEmail}</Link>
+  const who = operatorLine()
+  const mail = <Mail to={L.contactEmail} />
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
-      <Box component="main" sx={{ maxWidth: 760, mx: 'auto', px: { xs: 2, sm: 3 }, py: { xs: 4, sm: 6 } }}>
-        <Link component={RouterLink} to="/" underline="hover" sx={{ fontSize: 14 }}>← {L.service}</Link>
-        <Typography variant="h3" component="h1" sx={{ mt: 2 }}>Privacy policy</Typography>
-        <Typography sx={{ color: 'text.secondary', mt: 1 }}>Last updated {formatLocal(`${L.updated}T12:00:00Z`, 'd MMMM yyyy')}</Typography>
+    <LegalPage title="Privacy policy" updated={L.updated}>
 
         <H>Who we are</H>
         <P>
@@ -148,8 +131,6 @@ export function PrivacyPage() {
         <H>Contact</H>
         <P>Questions about privacy: {mail}{who ? <>, {who}</> : null}.</P>
 
-        <Typography variant="caption" sx={{ display: 'block', mt: 6, color: tokens.inkFaint }}>© {L.service}</Typography>
-      </Box>
-    </Box>
+    </LegalPage>
   )
 }

@@ -117,7 +117,8 @@ export function LoginPage() {
       <Box component="footer" sx={{ borderTop: `1px solid ${BA.line}`, py: 3, textAlign: 'center' }}>
         <Typography variant="caption" sx={{ color: BA.faint }}>
           Business Agent · Made in Marbella · Data stored in the EU ·{' '}
-          <Link component={RouterLink} to="/privacy" underline="hover" sx={{ color: 'inherit' }}>Privacy policy</Link>
+          <Link component={RouterLink} to="/privacy" underline="hover" sx={{ color: 'inherit' }}>Privacy policy</Link>{' · '}
+          <Link component={RouterLink} to="/terms" underline="hover" sx={{ color: 'inherit' }}>Terms of service</Link>
         </Typography>
       </Box>
     </Box>
