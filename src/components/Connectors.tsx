@@ -10,7 +10,6 @@ import VerifiedIcon from '@mui/icons-material/TaskAltRounded'
 import SmsIcon from '@mui/icons-material/SmsOutlined'
 import CalendarIcon from '@mui/icons-material/CalendarMonthOutlined'
 import CloseIcon from '@mui/icons-material/CloseRounded'
-import PaymentsIcon from '@mui/icons-material/PaymentsOutlined'
 import DotIcon from '@mui/icons-material/FiberManualRecord'
 import {
   siApple, siDropbox, siFacebook, siGmail, siGooglecalendar, siGoogledrive, siGooglemaps, siInstagram, siSpotify, siSquare, siStripe, siTiktok, siWhatsapp, siYoutubemusic,
@@ -57,7 +56,6 @@ const LOGO: Record<OptionId, ReactNode> = {
   spotify: <Brand icon={siSpotify} />,
   youtube_music: <Brand icon={siYoutubemusic} />,
   square: <Brand icon={siSquare} />,
-  sumup: <PaymentsIcon sx={{ color: '#1A1A1A' }} />,
   stripe: <Brand icon={siStripe} />,
 }
 
@@ -79,7 +77,6 @@ const DOES: Partial<Record<OptionId, string>> = {
   facebook: 'Plan and publish posts to your Facebook Page.',
   tiktok: 'Plan and publish photo posts to your TikTok account.',
   square: 'Your till’s takings on the Finances page, with the team’s cost as a share of sales.',
-  sumup: 'Takings from a SumUp card reader.',
   stripe: 'Takings from Stripe on the Finances page, with the team’s cost as a share of sales.',
   spotify: 'The approved playlist; staff play or pause it on the café speaker.',
   youtube_music: 'The approved playlist; staff open it on the café device.',
@@ -165,10 +162,15 @@ export function ServiceConnections({ back = 'connections', groups = GROUPS.map(g
     }
   }
   const openGroup = GROUPS.find(g => g.options.some(o => o.id === open))
+  // What's connected comes first: the kinds with an app in use, and in each kind its connected apps.
+  const rank = (o: ConnectionOption) => (o.soon ? 3 : find(o.id)?.status === 'connected' ? 0 : active(find(o.id)) ? 1 : 2)
+  const shown = GROUPS.filter(g => groups.includes(g.key))
+    .map(g => ({ ...g, options: [...g.options].sort((a, b) => rank(a) - rank(b)) }))
+    .sort((a, b) => Math.min(...a.options.map(rank)) - Math.min(...b.options.map(rank)))
   return (
     <Stack spacing={3.5}>
-      {GROUPS.filter(g => groups.includes(g.key)).map(g0 => {
-        // Square is switched off for now (Stripe is the payment system); its option is hidden.
+      {shown.map(g0 => {
+        // Square can be switched off (src/app/features.ts); its option is then hidden.
         const g = { ...g0, options: g0.options.filter(o => o.id !== 'square' || FEATURES.square) }
         // Choose-one groups show just the app in use, with the alternatives as small chips underneath.
         const current = inUse(g)

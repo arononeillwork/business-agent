@@ -99,7 +99,7 @@ export class FakeProviders {
       { id: 'txn_5', type: 'payout', amount: -5000, currency: 'eur', created: Date.parse('2026-09-29T09:00:00Z') / 1000 },
     ],
   }
-  whatsapp = { sent: [] as { to: string; template: string }[], broken: false }
+  whatsapp = { sent: [] as { to: string; template: string; language: string }[], broken: false }
   /** Every call, as "METHOD host/path". */
   calls: string[] = []
   private nextId = 1
@@ -315,8 +315,8 @@ export class FakeProviders {
     if (url.host === 'graph.facebook.com') {
       if (this.whatsapp.broken) return json({ error: { message: 'Error validating access token: Session has expired.', code: 190 } }, 401)
       if (url.pathname.endsWith('/messages')) {
-        const m = body() as { to: string; template: { name: string } }
-        this.whatsapp.sent.push({ to: m.to, template: m.template.name })
+        const m = body() as { to: string; template: { name: string; language: { code: string } } }
+        this.whatsapp.sent.push({ to: m.to, template: m.template.name, language: m.template.language.code })
         return json({ messaging_product: 'whatsapp', messages: [{ id: `wamid.${this.nextId++}` }] })
       }
       return json({ display_phone_number: '+34 600 000 000', verified_name: 'Easy Beans', id: '555' })

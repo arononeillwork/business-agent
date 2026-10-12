@@ -1,4 +1,4 @@
-# Connecting Google, WhatsApp, social media and Square
+# Connecting Google, WhatsApp, social media, Stripe and Square
 
 Everything below is built and tested in the app; each service only needs your account and a
 few keys. Keys are Worker secrets (Cloudflare → Workers → business-agent → Settings →
@@ -210,8 +210,11 @@ Access lasts a day and is renewed automatically with the 1-year refresh token.
 
 ## 9. Square (takings on Finances)
 
+Square and Stripe are the two payment systems; a business connects one of them.
+
 1. <https://developer.squareup.com/apps> → **Create app** → OAuth → Production (or Sandbox for
-   testing) → Redirect URL: `https://<worker-url>/api/integrations/square/callback`.
+   testing) → Redirect URL: `https://businesssagent.com/api/integrations/square/callback` (Square
+   takes one; admins then connect Square from businesssagent.com).
 2. **Application ID** and **Application secret** → GitHub repo secrets `SQUARE_APP_ID`,
    `SQUARE_APP_SECRET`. For sandbox testing also set `SQUARE_ENVIRONMENT` to `sandbox`
    (leave it unset for real takings).

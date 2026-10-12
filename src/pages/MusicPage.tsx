@@ -7,6 +7,7 @@ import ShuffleIcon from '@mui/icons-material/ShuffleRounded'
 import VolumeIcon from '@mui/icons-material/VolumeUpRounded'
 import DragIcon from '@mui/icons-material/DragIndicator'
 import SearchIcon from '@mui/icons-material/Search'
+import CloseIcon from '@mui/icons-material/CloseRounded'
 import NextUpIcon from '@mui/icons-material/PlaylistPlayRounded'
 import QueueAddIcon from '@mui/icons-material/PlaylistAddRounded'
 import SpeakerIcon from '@mui/icons-material/SpeakerOutlined'
@@ -166,7 +167,7 @@ function NowPlaying() {
   )
 }
 
-/** The songs in play order: tap one to play it, drag to change the order, shuffle what's left. */
+/** The songs in play order: tap one to play it, drag to change the order, take one off, shuffle what's left. */
 function Queue() {
   const music = useCafeMusic()!
   const run = useAction()
@@ -185,6 +186,9 @@ function Queue() {
     for (let i = rest.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [rest[i], rest[j]] = [rest[j], rest[i]] }
     return run(() => music.setQueue(s.playlist, [current, ...rest], 0), 'Shuffled')
   }
+  // The song playing now stays where it is; the speaker doesn't restart it.
+  const remove = (i: number) => run(() => music.setQueue(s.playlist, s.queue.filter((_, j) => j !== i), i < s.position ? s.position - 1 : s.position),
+    `Removed ${s.queue[i].title}`)
   return (
     <Card component="section" aria-label="Up next">
       <Stack direction="row" sx={{ alignItems: 'center', px: 2, pt: 1.5, pb: 1 }}>
@@ -196,7 +200,7 @@ function Queue() {
           <Box role="list" aria-label="Queue" sx={{ maxHeight: 420, overflowY: 'auto' }}>
             {s.queue.map((t, i) => (
               <QueueRow key={keys[i]} id={keys[i]} track={t} index={i} current={i === s.position} playing={i === s.position && s.playing && music.live}
-                onPlay={() => run(() => music.control('jump', i))} />
+                onPlay={() => run(() => music.control('jump', i))} onRemove={i === s.position ? undefined : () => remove(i)} />
             ))}
           </Box>
         </SortableContext>
@@ -205,7 +209,9 @@ function Queue() {
   )
 }
 
-function QueueRow({ id, track, index, current, playing, onPlay }: { id: string; track: CafeTrack; index: number; current: boolean; playing: boolean; onPlay: () => void }) {
+function QueueRow({ id, track, index, current, playing, onPlay, onRemove }: {
+  id: string; track: CafeTrack; index: number; current: boolean; playing: boolean; onPlay: () => void; onRemove?: () => void
+}) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
   return (
     <Box ref={setNodeRef} role="listitem" aria-label={track.title} aria-current={current ? 'true' : undefined}
@@ -227,6 +233,9 @@ function QueueRow({ id, track, index, current, playing, onPlay }: { id: string; 
           {track.artist && <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }} noWrap>{track.artist}</Typography>}
         </Box>
       </CardActionArea>
+      {onRemove
+        ? <Tooltip title="Remove from the queue"><IconButton size="small" aria-label={`Remove ${track.title} from the queue`} onClick={onRemove} sx={{ color: tokens.inkFaint }}><CloseIcon fontSize="small" /></IconButton></Tooltip>
+        : <Box sx={{ width: 34, flexShrink: 0 }} />}
     </Box>
   )
 }
@@ -246,7 +255,12 @@ function FindMusic() {
     <Card component="section" aria-label="Find music">
       <Box component="form" onSubmit={e => { e.preventDefault(); search() }} sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', p: 2, pb: r ? 1 : 2 }}>
         <TextField value={q} onChange={e => setQ(e.target.value)} placeholder="Search songs, artists or playlists" size="small" sx={{ flex: '1 1 240px' }}
-          slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }, htmlInput: { 'aria-label': 'Search music' } }} />
+          slotProps={{ input: {
+            startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>,
+            endAdornment: (q || asked) && <InputAdornment position="end">
+              <IconButton size="small" edge="end" aria-label="Clear search" onClick={() => { setQ(''); setAsked(null) }}><CloseIcon fontSize="small" /></IconButton>
+            </InputAdornment>,
+          }, htmlInput: { 'aria-label': 'Search music' } }} />
         <ToggleButtonGroup exclusive size="small" value={kind} aria-label="Search for" onChange={(_, v) => { if (v) { setKind(v); if (asked) search(v) } }}>
           <ToggleButton value="songs" sx={{ px: 1.75 }}>Songs</ToggleButton>
           <ToggleButton value="playlists" sx={{ px: 1.75 }}>Playlists</ToggleButton>

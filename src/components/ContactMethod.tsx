@@ -27,7 +27,8 @@ export function ContactMethodField({ value, onChange, label = 'Preferred contact
   return (
     <TextField select label={label} value={value ?? ''} onChange={e => onChange((e.target.value || null) as ContactMethod | null)}
       helperText={helperText}
-      slotProps={{ select: { renderValue: v => {
+      // The label stays above the field: "No preference" is a value shown in the box, so the two never overlap.
+      slotProps={{ inputLabel: { shrink: true }, select: { renderValue: v => {
         const m = contactMethod(v as ContactMethod)
         return m ? <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, '& svg': { color: tokens.inkSoft } }}>{m.icon}{m.label}</Box> : 'No preference'
       }, displayEmpty: true } }}>

@@ -7,7 +7,7 @@ import type { IntegrationProvider } from './types'
 export type ConnectionGroup = 'communication' | 'email' | 'calendar' | 'files' | 'maps' | 'social' | 'payments' | 'music'
 
 export interface ConnectionOption {
-  id: IntegrationProvider | 'slack' | 'sms' | 'sharepoint' | 'dropbox' | 'apple_maps' | 'sumup' | 'stripe'
+  id: IntegrationProvider | 'slack' | 'sms' | 'sharepoint' | 'dropbox' | 'apple_maps' | 'stripe'
   name: string
   by: string
   /** Shown but not selectable yet. */
@@ -54,7 +54,6 @@ export const GROUPS: ConnectionGroupInfo[] = [
   { key: 'payments', title: 'Payments and sales', pickOne: true, options: [
     { id: 'stripe', name: 'Stripe', by: 'Stripe', proves: 'The Stripe account was found and its payments can be read.' },
     { id: 'square', name: 'Square', by: 'Block', proves: 'The business and its locations were found and its payments can be read.' },
-    { id: 'sumup', name: 'SumUp', by: 'SumUp', soon: true },
   ] },
   { key: 'music', title: 'Café music', pickOne: true, options: [
     { id: 'spotify', name: 'Spotify', by: 'Spotify', proves: 'The account signed in and its playlists can be read. Staff can play or pause it on the speaker.' },

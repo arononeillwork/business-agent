@@ -11,11 +11,12 @@ import TvIcon from '@mui/icons-material/LiveTvOutlined'
 import PlaceIcon from '@mui/icons-material/PlaceOutlined'
 import StarIcon from '@mui/icons-material/StarRounded'
 import StarOutlineIcon from '@mui/icons-material/StarOutlineRounded'
+import CloseIcon from '@mui/icons-material/CloseRounded'
 import { useMemo, useState, type ReactNode } from 'react'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
-import { Empty, ErrorBox, PageHeader, Stat, StatRow, Tag } from '../components/common'
+import { Empty, ErrorBox, PageHeader, Tag } from '../components/common'
 import { addDays, formatLocal, localDate, localTime, today, zonedIso } from '../../shared/time'
 import type { Sport, SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
 import { fonts, tokens } from '../theme'
@@ -90,7 +91,6 @@ export function SportsPage() {
   const lastRefresh = followed.map(c => c.refreshed_at).filter(Boolean).sort().at(0) ?? null
   const errors = followed.filter(c => c.last_error)
   const all = data.data?.events.filter(e => comps.get(e.competition)?.followed) ?? []
-  const thisWeek = all.filter(e => localDate(e.starts_at) < addDays(from, 7))
   const nextBig = all.find(e => e.big && e.status !== 'finished' && Date.parse(e.starts_at) > Date.now() - 2 * 3_600_000)
 
   return (
@@ -111,12 +111,6 @@ export function SportsPage() {
       )}
 
       {nextBig && comps.get(nextBig.competition) && <NextBigNight e={nextBig} c={comps.get(nextBig.competition)!} />}
-
-      <StatRow>
-        <Stat label="This week" value={thisWeek.length} note="fixtures you follow" />
-        <Stat label="Big nights" value={thisWeek.filter(e => e.big).length} note="this week · expect fans" tone={thisWeek.some(e => e.big) ? 'warning' : undefined} />
-        <Stat label="Following" value={followed.length} note="competitions" />
-      </StatRow>
 
       <Favourites favs={fav.list} upcoming={all.filter(fav.has)} comps={comps} events={data.data?.events ?? []}
         onRemove={(f, name) => toggleFav(f, false, name)} onShowAll={() => setFilter('fav')} />
@@ -156,6 +150,12 @@ export function SportsPage() {
   )
 }
 
+/** "Today", "Tomorrow" or "Sat 17 Oct". */
+function shortDay(iso: string) {
+  const d = localDate(iso), t = today()
+  return d === t ? 'Today' : d === addDays(t, 1) ? 'Tomorrow' : formatLocal(iso, 'EEE d MMM')
+}
+
 function dayLabel(day: string) {
   const t = today()
   const pretty = formatLocal(zonedIso(day, '12:00'), 'EEEE d MMMM')
@@ -183,12 +183,13 @@ function Crest({ src, name }: { src: string | null; name: string | null }) {
   )
 }
 
-/** Your favourite teams and competitions, and when they're next on. */
+/** Your favourite teams and competitions as tiles, each with when it's next on. */
 function Favourites({ favs, upcoming, comps, events, onRemove, onShowAll }: {
   favs: SportsFavourite[]; upcoming: SportsEvent[]; comps: Map<string, SportsCompetition>; events: SportsEvent[]
   onRemove: (f: SportsFavourite, name: string) => void; onShowAll: () => void
 }) {
   const badge = (team: string) => events.find(e => e.home === team)?.home_badge ?? events.find(e => e.away === team)?.away_badge ?? null
+  const next = (f: SportsFavourite) => upcoming.find(e => (f.kind === 'competition' ? e.competition === f.ref : e.home === f.ref || e.away === f.ref))
   return (
     <Card component="section" aria-label="Favourites" sx={{ mb: 3 }}>
       <Box sx={{ p: { xs: 2, md: 2.5 } }}>
@@ -197,41 +198,39 @@ function Favourites({ favs, upcoming, comps, events, onRemove, onShowAll }: {
             <StarIcon sx={{ color: tokens.warning, fontSize: 20 }} />
             <Typography variant="h6" component="h2">Favourites</Typography>
           </Stack>
-          {upcoming.length > 3 && <Button size="small" onClick={onShowAll}>All {upcoming.length}</Button>}
+          {upcoming.length > 0 && <Button size="small" onClick={onShowAll}>Their games ({upcoming.length})</Button>}
         </Stack>
         {favs.length === 0 ? (
           <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-            Tap the ☆ next to any team or competition below to keep it here, with its next games. Only you see your favourites.
+            Tap the ☆ next to any team or competition below to keep it here, with its next game. Only you see your favourites.
           </Typography>
-        ) : <>
-          <Stack direction="row" sx={{ gap: 0.75, flexWrap: 'wrap', mb: upcoming.length ? 2 : 0 }}>
+        ) : (
+          <Box component="ul" sx={{ m: 0, p: 0, listStyle: 'none', display: 'grid', gap: 1.25, gridTemplateColumns: 'repeat(auto-fill, minmax(min(300px, 100%), 1fr))' }}>
             {favs.map(f => {
               const name = f.kind === 'competition' ? comps.get(f.ref)?.name ?? f.ref : f.ref
-              const img = f.kind === 'team' ? badge(f.ref) : null
+              const e = next(f)
+              const versus = e && f.kind === 'team' ? (e.home === f.ref ? e.away : e.home) : null
               return (
-                <Chip key={`${f.kind}:${f.ref}`} label={name} onDelete={() => onRemove(f, name)}
-                  avatar={img ? <Avatar src={img} alt="" sx={{ bgcolor: 'transparent', '& img': { objectFit: 'contain' } }} /> : undefined}
-                  slotProps={{ deleteIcon: { 'aria-label': `Remove ${name} from favourites` } } as never}
-                  sx={{ bgcolor: tokens.surfaceAlt, border: `1px solid ${tokens.line}` }} />
+                <Stack component="li" key={`${f.kind}:${f.ref}`} aria-label={name} direction="row" spacing={1.25}
+                  sx={{ alignItems: 'center', p: 1.25, pr: 0.5, borderRadius: '14px', bgcolor: tokens.surfaceAlt, border: `1px solid ${tokens.line}`, minWidth: 0,
+                    ...(e?.big ? { boxShadow: `inset 3px 0 0 ${tokens.rose}` } : {}) }}>
+                  {f.kind === 'team' ? <Crest src={badge(f.ref)} name={f.ref} />
+                    : <Avatar variant="rounded" sx={{ width: 34, height: 34, bgcolor: tokens.warnBg, color: tokens.warning }}><StarIcon fontSize="small" /></Avatar>}
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography sx={{ fontWeight: 500 }} noWrap>{name}</Typography>
+                    <Typography variant="body2" sx={{ color: e ? tokens.roseDeep : 'text.secondary' }} noWrap>
+                      {e ? `${shortDay(e.starts_at)} · ${e.time_tbc ? 'TBC' : localTime(e.starts_at)}${versus ? ` · v ${versus}` : ''}`
+                        : f.kind === 'team' ? 'Team' : 'Competition'}
+                    </Typography>
+                  </Box>
+                  <IconButton size="small" aria-label={`Remove ${name} from favourites`} onClick={() => onRemove(f, name)} sx={{ color: tokens.inkFaint }}>
+                    <CloseIcon fontSize="small" />
+                  </IconButton>
+                </Stack>
               )
             })}
-          </Stack>
-          {upcoming.length === 0 ? (
-            <Typography variant="body2" sx={{ color: 'text.secondary' }}>Nothing on for your favourites in the next three weeks.</Typography>
-          ) : (
-            <Box sx={{ display: 'grid', gap: 1 }}>
-              {upcoming.slice(0, 3).map(e => (
-                <Box key={e.id} sx={{ p: 1.5, borderRadius: '14px', bgcolor: tokens.surfaceAlt, border: `1px solid ${tokens.line}`, minWidth: 0 }}>
-                  <Typography variant="caption" sx={{ color: tokens.roseDeep, fontWeight: 500 }}>
-                    {dayLabel(localDate(e.starts_at)).split(' · ')[0]} · {e.time_tbc ? 'TBC' : localTime(e.starts_at)}
-                  </Typography>
-                  <Typography sx={{ fontWeight: 500 }} noWrap>{e.title}</Typography>
-                  <Typography variant="caption" sx={{ color: 'text.secondary' }} noWrap>{comps.get(e.competition)?.name}</Typography>
-                </Box>
-              ))}
-            </Box>
-          )}
-        </>}
+          </Box>
+        )}
       </Box>
     </Card>
   )

@@ -754,6 +754,7 @@ test.describe('sports', () => {
     await open(page, '/sports', 'maria@example.com')
     await expect(page.getByRole('heading', { name: 'Sports' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Competitions' })).toHaveCount(0) // admins choose
+    await expect(page.getByRole('list', { name: 'At a glance' })).toHaveCount(0) // no counts, straight to the games
     const today = page.getByRole('region', { name: /^Today/ })
     await expect(today.getByText('Real Betis')).toBeVisible()
     const clasico = page.getByRole('article', { name: /Barcelona vs Real Madrid/ })
@@ -884,7 +885,7 @@ test.describe('music', () => {
 
     const find = page.getByRole('region', { name: 'Find music' })
     await find.getByLabel('Search music').fill('Lofi')
-    await find.getByRole('button', { name: 'Search' }).click()
+    await find.getByRole('button', { name: 'Search', exact: true }).click()
     const songs = find.getByRole('list', { name: 'Songs found' })
     await expect(songs.getByRole('listitem')).toHaveCount(3)
     const queue = page.getByRole('list', { name: 'Queue' })
@@ -893,6 +894,12 @@ test.describe('music', () => {
     await expect(queue.getByRole('listitem').nth(1)).toHaveAccessibleName('Lofi (Live)')
     await songs.getByRole('button', { name: 'Add Lofi (Acoustic) to the queue' }).click()
     await expect(queue.getByRole('listitem').last()).toHaveAccessibleName('Lofi (Acoustic)')
+    // The X takes a song off the queue; the one playing carries on (and has no X).
+    await queue.getByRole('button', { name: 'Remove Lofi (Acoustic) from the queue' }).click()
+    await toast(page, 'Removed Lofi (Acoustic)')
+    await expect(queue.getByRole('listitem', { name: 'Lofi (Acoustic)' })).toHaveCount(0)
+    await expect(now.getByRole('heading', { name: 'Sunday Morning' })).toBeVisible()
+    await expect(queue.getByRole('button', { name: 'Remove Sunday Morning from the queue' })).toHaveCount(0)
     await songs.getByRole('button', { name: 'Play Lofi now' }).click()
     await expect(now.getByRole('heading', { name: 'Lofi', exact: true })).toBeVisible()
     await expect(queue.getByRole('listitem', { name: 'Lofi', exact: true })).toHaveAttribute('aria-current', 'true')
@@ -901,6 +908,11 @@ test.describe('music', () => {
     const lists = find.getByRole('list', { name: 'Playlists found' })
     await lists.getByRole('listitem', { name: 'Lofi mix' }).getByRole('button', { name: 'Play' }).click()
     await expect(now.getByRole('heading', { name: 'Holocene' })).toBeVisible()
+    // The X in the search box clears it and the results.
+    await find.getByRole('button', { name: 'Clear search' }).click()
+    await expect(find.getByLabel('Search music')).toHaveValue('')
+    await expect(find.getByRole('list', { name: 'Playlists found' })).toHaveCount(0)
+    await expect(find.getByRole('button', { name: 'Clear search' })).toHaveCount(0)
   })
 
   test('café music: playlists play one after another, in an order anyone can drag; only music playlists show', async ({ page }) => {
@@ -1045,6 +1057,7 @@ test.describe('appearance and accessibility', () => {
 test.describe('opening hours', () => {
   test('admin changes a day; closures live in the calendar; staff see the hours read-only', async ({ page }) => {
     await open(page, '/opening-hours')
+    await expect(page.getByRole('region', { name: 'Busiest hours' })).toHaveCount(0)
     const week = page.getByRole('region', { name: 'Weekly hours' })
     await week.getByLabel('Open on Sunday').uncheck()
     await page.getByRole('button', { name: 'Save hours' }).click()
@@ -1096,6 +1109,40 @@ test.describe('event alerts', () => {
     await page.getByRole('link', { name: 'Sports' }).first().click()
     await expect(page.getByRole('button', { name: 'Alert on for Barcelona vs Real Madrid' })).toBeDisabled()
   })
+})
+
+test('Today is a short overview: who’s on and the hours, what’s coming up, your shifts, big nights and music', async ({ page }) => {
+  await open(page, '/', 'maria@example.com')
+  await expect(page.getByRole('heading', { name: 'Hola, Maria' })).toBeVisible()
+  await expect(page.getByRole('list', { name: 'At a glance' })).toHaveCount(0) // no counters
+  const who = page.getByRole('region', { name: "Who's on today" })
+  await expect(who).toContainText(/The café is (open \d\d:\d\d–\d\d:\d\d|closed today)/)
+  for (const name of ['Coming up', 'My next shifts', 'Big nights']) await expect(page.getByRole('region', { name })).toBeVisible()
+  // Two columns on a computer: your own things on the right.
+  const left = (await who.boundingBox())!, right = (await page.getByRole('region', { name: 'My next shifts' }).boundingBox())!
+  expect(right.x).toBeGreaterThan(left.x + left.width - 2)
+  expect(Math.abs(right.y - left.y)).toBeLessThan(4)
+})
+
+test('Connections lists what’s connected first, and a kind moves up once one of its apps is connected', async ({ page }) => {
+  await open(page, '/connections')
+  await expect(page.getByRole('region', { name: 'Team messages' }).getByRole('article', { name: 'WhatsApp' })).toContainText('Connected')
+  const kinds = () => page.getByRole('main').locator('section[aria-label] > div > h2').allTextContents()
+  const first = await kinds()
+  const connected = ['Team messages', 'Maps and search', 'Social media', 'Café music']
+  expect(first.slice(0, connected.length).sort()).toEqual([...connected].sort())
+  expect(first.indexOf('Files and storage')).toBeGreaterThan(first.indexOf('Email'))
+  await page.getByRole('region', { name: 'Files and storage' }).getByRole('button', { name: 'Connect Google Drive' }).click()
+  await expect(page.getByRole('region', { name: 'Files and storage' }).getByRole('article', { name: 'Google Drive' })).toContainText('Connected')
+  await expect.poll(async () => { const k = await kinds(); return k.indexOf('Files and storage') < k.indexOf('Email') }).toBe(true)
+})
+
+test('the contact preference label sits above the field, never on top of “No preference”', async ({ page }) => {
+  await open(page, '/account', 'maria@example.com')
+  const label = page.locator('.MuiInputLabel-root', { hasText: 'Preferred contact' })
+  await expect(label).toHaveAttribute('data-shrink', 'true')
+  const field = page.getByRole('combobox', { name: 'Preferred contact' })
+  expect((await label.boundingBox())!.y + 6).toBeLessThan((await field.boundingBox())!.y)
 })
 
 test.describe('menu', () => {
@@ -1240,8 +1287,9 @@ test('each person stars teams and sees them in Favourites', async ({ page }) => 
   await page.getByRole('button', { name: 'Add Arsenal to favourites' }).first().click()
   await toast(page, 'Arsenal added to favourites')
   await expect(favourites.getByRole('button', { name: /Arsenal/ })).toBeVisible()
-  await expect(favourites).toContainText('Arsenal')
-  await expect(page.getByRole('button', { name: 'Remove Arsenal from favourites' }).first()).toHaveAttribute('aria-pressed', 'true')
+  await expect(favourites.getByRole('listitem', { name: 'Arsenal' })).toBeVisible()
+  await expect(favourites).not.toContainText('Nothing on for your favourites')
+  await expect(page.getByRole('article').getByRole('button', { name: 'Remove Arsenal from favourites' }).first()).toHaveAttribute('aria-pressed', 'true')
   await page.getByRole('button', { name: '★ Favourites' }).click()
   for (const card of await page.getByRole('article').all()) await expect(card).toContainText('Arsenal')
   // Favourites are personal: Aron has his own.
@@ -1532,15 +1580,18 @@ test.describe('social planner', () => {
 test('Square: connect the payment system, then takings show on Finances next to the team’s cost', async ({ page }) => {
   test.skip(!FEATURES.square, 'Square is switched off for now')
   await open(page, '/finances')
-  const prompt = page.getByRole('alert').filter({ hasText: 'Connect Square to see takings' })
+  const prompt = page.getByRole('alert').filter({ hasText: 'Connect Stripe or Square to see takings' })
   await expect(prompt).toBeVisible()
   await prompt.getByRole('link', { name: 'Connect' }).click()
   const payments = page.getByRole('region', { name: 'Payments and sales' })
-  await expect(payments.getByRole('article', { name: 'SumUp' })).toContainText('Coming soon')
+  // Stripe and Square, nothing else (no SumUp).
+  await expect(payments.getByRole('button', { name: 'Connect Square' })).toBeVisible()
+  expect(await payments.getByRole('article').evaluateAll(els => els.map(e => e.getAttribute('aria-label')))).toEqual(['Stripe', 'Square'])
   await payments.getByRole('button', { name: 'Connect Square' }).click()
   await expect(payments.getByRole('article', { name: 'Square' })).toContainText('Connected')
   await page.getByRole('link', { name: 'Finances' }).first().click()
   const takings = page.getByRole('region', { name: 'Takings' })
+  await expect(takings).toContainText('from Square')
   await expect(takings).toContainText('This week')
   await expect(takings).toContainText('Last 30 days')
   await expect(takings).toContainText(/€/)
@@ -1548,11 +1599,10 @@ test('Square: connect the payment system, then takings show on Finances next to 
 
 test('Stripe: connect it in one click, then takings show on Finances next to the team’s cost', async ({ page }) => {
   await open(page, '/finances')
-  const prompt = page.getByRole('alert').filter({ hasText: 'Connect Stripe to see takings' })
+  const prompt = page.getByRole('alert').filter({ hasText: 'Connect Stripe or Square to see takings' })
   await expect(prompt).toBeVisible()
   await prompt.getByRole('link', { name: 'Connect' }).click()
   const payments = page.getByRole('region', { name: 'Payments and sales' })
-  await expect(payments.getByRole('article', { name: 'SumUp' })).toContainText('Coming soon')
   await payments.getByRole('button', { name: 'Stripe details' }).click()
   const details = page.getByRole('dialog', { name: 'Stripe', exact: true })
   await expect(details).toContainText('it can’t take, refund or change anything')
@@ -1561,9 +1611,10 @@ test('Stripe: connect it in one click, then takings show on Finances next to the
   await expect(details).toContainText('The Stripe account was found and its payments can be read.')
   await details.getByRole('button', { name: 'Close' }).click()
   await expect(payments.getByRole('article', { name: 'Stripe' })).toContainText('Connected')
-  // One payment system at a time: the others wait under "Also works with".
-  await expect(payments.getByRole('article', { name: 'SumUp' })).toHaveCount(0)
-  await expect(payments.getByRole('group', { name: 'Other payments and sales apps' }).getByLabel('SumUp, coming soon')).toBeVisible()
+  // One payment system at a time: Square waits under "Also works with".
+  await expect(payments.getByRole('article', { name: 'Square' })).toHaveCount(0)
+  await expect(payments.getByRole('group', { name: 'Other payments and sales apps' }).getByRole('button', { name: 'Use Square instead' })).toBeVisible()
+  await expect(payments).not.toContainText('SumUp')
 
   await page.getByRole('link', { name: 'Finances' }).first().click()
   const takings = page.getByRole('region', { name: 'Takings' })

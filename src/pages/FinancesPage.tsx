@@ -201,7 +201,7 @@ function Expenses({ list, total, canEdit, loaded }: { list: Expense[]; total: nu
   )
 }
 
-/** Takings from the payment system (Stripe), and what the team costs as a share of them. */
+/** Takings from the payment system (Stripe or Square), and what the team costs as a share of them. */
 function Takings() {
   const { api, rates, settings } = useApp()
   const integ = useAsync('integrations', () => api.integrations(), [])
@@ -216,7 +216,7 @@ function Takings() {
   if (!on) {
     return (
       <Alert severity="info" sx={{ mb: 3 }} action={<Button component={RouterLink} to="/connections" size="small">Connect</Button>}>
-        Connect Stripe to see takings here, next to what the team costs.
+        Connect Stripe or Square to see takings here, next to what the team costs.
       </Alert>
     )
   }

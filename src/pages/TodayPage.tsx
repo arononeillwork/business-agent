@@ -1,18 +1,18 @@
 import {
   Alert, Box, Button, Card, CardContent, Dialog, DialogActions, DialogContent, DialogTitle,
-  Grid, List, ListItem, ListItemAvatar, ListItemText, Menu, MenuItem, Stack, TextField, Typography,
+  Grid, Menu, MenuItem, Stack, TextField, Typography,
 } from '@mui/material'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAsync, useTick } from '../app/hooks'
 import { useAction } from '../app/Notify'
-import { ErrorBox, Flags, Loading, PageHeader, PersonAvatar, SectionTitle, Stat, StatRow, Tag } from '../components/common'
+import { ErrorBox, Flags, Loading, PageHeader, PersonAvatar, SectionTitle, Tag } from '../components/common'
 import { MusicCard } from '../components/MusicCard'
 import { SetupPrompt } from './SetupPage'
 import { holidayOn } from '../../shared/rules'
-import { addDays, formatDuration, formatLocal, localDate, localTime, minutesBetween, today, zonedIso } from '../../shared/time'
-import { tokens } from '../theme'
+import { addDays, dayKey, formatDuration, formatLocal, localDate, localTime, minutesBetween, today, zonedIso } from '../../shared/time'
+import { fonts, tokens } from '../theme'
 import { EventAlertButton } from '../components/NotificationBell'
 import { CATEGORY_META, type TimeEntry } from '../../shared/types'
 
@@ -146,6 +146,43 @@ const Row = ({ label, value, strong }: { label: string; value: string; strong?: 
   </Stack>
 )
 
+/** A small calendar date: the weekday over the day of the month, with the event's colour on top. */
+function DateBadge({ date, accent, today: isToday }: { date: string; accent?: string; today?: boolean }) {
+  const at = `${date}T12:00:00Z`
+  return (
+    <Box aria-hidden sx={{ width: 46, flexShrink: 0, borderRadius: '10px', overflow: 'hidden', textAlign: 'center', pb: 0.5,
+      bgcolor: isToday ? tokens.roseSoft : tokens.surfaceAlt, border: `1px solid ${tokens.line}`, borderTop: `3px solid ${accent ?? (isToday ? tokens.rose : tokens.line)}` }}>
+      <Typography sx={{ fontSize: '0.62rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', lineHeight: 1.6, mt: 0.25,
+        color: isToday ? tokens.roseDeep : 'text.secondary' }}>
+        {formatLocal(at, 'EEE')}
+      </Typography>
+      <Typography sx={{ fontFamily: fonts.display, fontSize: '1.15rem', lineHeight: 1.1 }}>{formatLocal(at, 'd')}</Typography>
+    </Box>
+  )
+}
+
+/** One line in a Today card: a date or a face, two lines of text, and an optional button. */
+function Item({ lead, primary, secondary, action, label }: { lead: ReactNode; primary: ReactNode; secondary?: ReactNode; action?: ReactNode; label?: string }) {
+  return (
+    <Stack component="li" aria-label={label} direction="row" spacing={1.5}
+      sx={{ alignItems: 'center', py: 1, borderTop: `1px solid ${tokens.line}`, '&:first-of-type': { borderTop: 0, pt: 0 } }}>
+      {lead}
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Typography noWrap>{primary}</Typography>
+        {secondary && <Typography variant="body2" sx={{ color: 'text.secondary' }} noWrap>{secondary}</Typography>}
+      </Box>
+      {action}
+    </Stack>
+  )
+}
+
+const Items = ({ children }: { children: ReactNode }) => <Box component="ul" sx={{ m: 0, p: 0, listStyle: 'none' }}>{children}</Box>
+const Quiet = ({ children }: { children: ReactNode }) => <Typography sx={{ color: 'text.secondary' }}>{children}</Typography>
+
+/**
+ * The landing page: a short overview of the day. Clock in, who's on and the café's hours, what's
+ * coming up, your own next shifts, the week's big matches and the music.
+ */
 export function TodayPage() {
   const { api, me, profiles, positions, isAdmin, business } = useApp()
   const d = today()
@@ -170,9 +207,8 @@ export function TodayPage() {
   const person = (id: string | null) => profiles.find(p => p.id === id)
   const position = (id: number | null) => positions.find(p => p.id === id)
   const upcoming = (data.data?.events ?? []).filter(e => e.starts_on <= addDays(d, 21))
-  const nextClosure = (data.data?.events ?? []).find(e =>
-    ['national', 'regional', 'local'].includes(e.category) || (e.category === 'business' && /closed|cerrad|closure/i.test(e.title)))
   const big = data.data?.bigNights ?? []
+  const hours = business?.opening_hours[dayKey(d)]
 
   return (
     <>
@@ -191,37 +227,31 @@ export function TodayPage() {
         </Alert>
       )}
 
-      <StatRow>
-        <Stat label="On today" value={data.data ? todays.filter(s => s.profile_id).length : '–'} note={todays.length ? `${localTime(todays[0].starts_at)} to ${localTime(todays.reduce((m, s) => s.ends_at > m ? s.ends_at : m, todays[0].ends_at))}` : 'Nobody scheduled'} />
-        <Stat label="Open shifts" value={data.data ? openShifts.length : '–'} note="this week" tone={openShifts.length ? 'warning' : undefined} />
-        <Stat label="Big nights" value={data.data ? big.length : '–'} note={big[0] ? `next: ${formatLocal(big[0].starts_at, 'EEE')} · ${big[0].title}` : 'none this week'} />
-        <Stat label="Next day off" value={nextClosure ? formatLocal(`${nextClosure.starts_on}T12:00:00Z`, 'd MMM') : '–'} note={nextClosure?.title ?? 'No holidays in the next 2 months'} />
-      </StatRow>
-
       <ClockCard onChange={data.reload} />
 
       <Grid container spacing={2.5}>
-        <Grid size={12}>
+        <Grid size={{ xs: 12, md: 7 }}>
           <Stack spacing={2.5}>
             <Card component="section" aria-label="Who's on today">
               <CardContent>
                 <SectionTitle action={<Button size="small" component={Link} to="/rota">Rota</Button>}>Who's on today</SectionTitle>
+                <Typography variant="body2" sx={{ color: 'text.secondary', mt: -1, mb: 1.5 }}>
+                  {hours ? `The café is open ${hours.open}–${hours.close}` : 'The café is closed today'}
+                </Typography>
                 {!data.data && <Loading />}
-                {data.data && todays.length === 0 && <Typography color="text.secondary">Nobody is scheduled today.</Typography>}
-                <List dense disablePadding>
+                {data.data && todays.length === 0 && <Quiet>Nobody is scheduled today.</Quiet>}
+                <Items>
                   {todays.map(s => {
                     const p = person(s.profile_id)
                     return (
-                      <ListItem key={s.id} disableGutters>
-                        <ListItemAvatar>{p ? <PersonAvatar name={p.full_name} colour={p.colour} /> : <PersonAvatar name="?" colour="#C6C2BB" />}</ListItemAvatar>
-                        <ListItemText primary={p?.full_name ?? 'Open shift'}
-                          secondary={`${localTime(s.starts_at)}–${localTime(s.ends_at)} · ${position(s.position_id)?.name ?? ''}`} />
-                      </ListItem>
+                      <Item key={s.id} lead={<PersonAvatar name={p?.full_name ?? '?'} colour={p?.colour ?? '#C6C2BB'} size={36} />}
+                        primary={p?.full_name ?? 'Open shift'}
+                        secondary={[`${localTime(s.starts_at)}–${localTime(s.ends_at)}`, position(s.position_id)?.name].filter(Boolean).join(' · ')} />
                     )
                   })}
-                </List>
+                </Items>
                 {openShifts.length > 0 && (
-                  <Alert severity="info" sx={{ mt: 1 }} action={<Button component={Link} to="/rota" color="inherit">View</Button>}>
+                  <Alert severity="info" sx={{ mt: 1.5 }} action={<Button component={Link} to="/rota" color="inherit">View</Button>}>
                     {openShifts.length} open shift{openShifts.length > 1 ? 's' : ''} this week you can pick up
                   </Alert>
                 )}
@@ -230,49 +260,46 @@ export function TodayPage() {
             <Card component="section" aria-label="Coming up">
               <CardContent>
                 <SectionTitle action={<Button size="small" component={Link} to="/calendar">Calendar</Button>}>Coming up</SectionTitle>
-                {data.data && upcoming.length === 0 && <Typography color="text.secondary">Nothing in the next 3 weeks.</Typography>}
-                <List dense disablePadding>
-                  {upcoming.slice(0, 8).map(e => (
-                    <ListItem key={e.id} disableGutters secondaryAction={<EventAlertButton kind="calendar" refId={e.id} title={e.title} />}>
-                      <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: CATEGORY_META[e.category].colour, mr: 1.5, flexShrink: 0 }} />
-                      <ListItemText
-                        primary={e.title}
-                        secondary={`${formatLocal(`${e.starts_on}T12:00:00Z`, 'EEE d MMM')}${e.starts_at ? ` · ${localTime(e.starts_at)}` : ''} · ${e.competition ?? CATEGORY_META[e.category].label}${e.town ? ` · ${e.town}` : ''}`} />
-                    </ListItem>
+                {data.data && upcoming.length === 0 && <Quiet>Nothing in the next 3 weeks.</Quiet>}
+                <Items>
+                  {upcoming.slice(0, 6).map(e => (
+                    <Item key={e.id} label={e.title} lead={<DateBadge date={e.starts_on} accent={CATEGORY_META[e.category].colour} today={e.starts_on === d} />}
+                      primary={e.title}
+                      secondary={[e.starts_at ? localTime(e.starts_at) : null, e.competition ?? CATEGORY_META[e.category].label, e.town].filter(Boolean).join(' · ')}
+                      action={<EventAlertButton kind="calendar" refId={e.id} title={e.title} />} />
                   ))}
-                </List>
+                </Items>
               </CardContent>
             </Card>
           </Stack>
         </Grid>
-        <Grid size={12}>
+        <Grid size={{ xs: 12, md: 5 }}>
           <Stack spacing={2.5}>
             <Card component="section" aria-label="My next shifts">
               <CardContent>
                 <SectionTitle>My next shifts</SectionTitle>
-                {mine.length === 0 && <Typography color="text.secondary">No shifts in the next week.</Typography>}
-                <List dense disablePadding>
-                  {mine.slice(0, 5).map(s => (
-                    <ListItem key={s.id} disableGutters>
-                      <ListItemText primary={`${formatLocal(s.starts_at, 'EEE d MMM')} · ${localTime(s.starts_at)}–${localTime(s.ends_at)}`}
-                        secondary={[position(s.position_id)?.name, s.break_minutes ? `${s.break_minutes} min break` : null, s.note].filter(Boolean).join(' · ')} />
-                    </ListItem>
+                {data.data && mine.length === 0 && <Quiet>No shifts in the next week.</Quiet>}
+                <Items>
+                  {mine.slice(0, 4).map(s => (
+                    <Item key={s.id} lead={<DateBadge date={localDate(s.starts_at)} today={localDate(s.starts_at) === d} />}
+                      primary={`${localTime(s.starts_at)}–${localTime(s.ends_at)}`}
+                      secondary={[position(s.position_id)?.name, s.break_minutes ? `${s.break_minutes} min break` : null, s.note].filter(Boolean).join(' · ')} />
                   ))}
-                </List>
+                </Items>
               </CardContent>
             </Card>
             <Card component="section" aria-label="Big nights">
               <CardContent>
                 <SectionTitle action={<Button size="small" component={Link} to="/sports">Sports</Button>}>Big nights this week</SectionTitle>
-                {data.data && big.length === 0 && <Typography color="text.secondary">No big matches or fights this week.</Typography>}
-                <List dense disablePadding>
+                {data.data && big.length === 0 && <Quiet>No big matches or fights this week.</Quiet>}
+                <Items>
                   {big.slice(0, 4).map(e => (
-                    <ListItem key={e.id} disableGutters secondaryAction={<EventAlertButton kind="sports" refId={e.id} title={e.title} />}>
-                      <ListItemText primary={e.title}
-                        secondary={`${formatLocal(e.starts_at, 'EEE d MMM')}${e.time_tbc ? '' : ` · ${localTime(e.starts_at)}`} · ${e.compName}`} />
-                    </ListItem>
+                    <Item key={e.id} label={e.title} lead={<DateBadge date={localDate(e.starts_at)} accent={tokens.rose} today={localDate(e.starts_at) === d} />}
+                      primary={e.title}
+                      secondary={[e.time_tbc ? 'Time to be confirmed' : localTime(e.starts_at), e.compName].join(' · ')}
+                      action={<EventAlertButton kind="sports" refId={e.id} title={e.title} />} />
                   ))}
-                </List>
+                </Items>
               </CardContent>
             </Card>
             <MusicCard />

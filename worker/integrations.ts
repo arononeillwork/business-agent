@@ -570,7 +570,8 @@ integrations.post('/api/integrations/whatsapp/test', async c => {
   const db = serviceClient(c.env)
   try {
     // Connected = WhatsApp accepted a message from the café's number (and the number answers).
-    const id = await whatsapp.sendTemplate(cfg, (to ?? '').replace(/\D/g, ''), 'hello_world', [])
+    // Meta's ready-made "hello_world" template exists only in English, whatever language the alerts use.
+    const id = await whatsapp.sendTemplate({ ...cfg, language: 'en_US' }, (to ?? '').replace(/\D/g, ''), 'hello_world', [])
     const label = await whatsapp.phoneNumber(cfg).catch(() => null)
     const now = new Date().toISOString()
     await setIntegration(db, 'whatsapp', { status: 'connected', last_error: null, connected_at: now, last_checked_at: now, ...(label ? { account_label: label } : {}) })
@@ -758,7 +759,7 @@ integrations.get('/api/integrations/payments/sales', async c => {
   const from = c.req.query('from') ?? '', to = c.req.query('to') ?? ''
   if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || from > to) return c.json({ error: 'Give from and to dates (YYYY-MM-DD)' }, 400)
   const p = await connectedOf(db, ['square', 'stripe'] as const)
-  if (!p) return c.json({ error: 'Connect Stripe on the Connections page to see takings' }, 400)
+  if (!p) return c.json({ error: 'Connect Stripe or Square on the Connections page to see takings' }, 400)
   try {
     const end = new Date(Date.parse(`${to}T12:00:00Z`) + 86_400_000).toISOString().slice(0, 10)
     if (p === 'stripe') {

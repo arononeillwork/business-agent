@@ -403,7 +403,7 @@ describe('Checks: a connection that stops working turns red and admins hear abou
   it('WhatsApp: connected when a test message goes out; a dead token turns it red at night', async () => {
     const res = await post('/api/integrations/whatsapp/test', { to: '+34 600 111 222' })
     expect(res.status).toBe(200)
-    expect(apis.whatsapp.sent).toEqual([{ to: '34600111222', template: 'hello_world' }])
+    expect(apis.whatsapp.sent).toEqual([{ to: '34600111222', template: 'hello_world', language: 'en_US' }]) // Meta's own template, English only
     expect(db.integration('whatsapp')).toMatchObject({ status: 'connected', account_label: '+34 600 000 000' })
     apis.whatsapp.broken = true
     await nightly()
