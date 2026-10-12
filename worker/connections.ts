@@ -109,8 +109,12 @@ export function hasScope(p: Connector, granted: string | undefined) {
 const API_NAME: Partial<Record<Provider, string>> = {
   gmail: 'Gmail API', google_drive: 'Google Drive API', youtube_music: 'YouTube Data API v3', google_business: 'Business Profile APIs',
 }
-/** The Google Cloud APIs the Google Maps connection calls (worker/providers/google.ts). */
-export const GOOGLE_MAPS_APIS = ['My Business Account Management API', 'My Business Business Information API', 'Google My Business API']
+/**
+ * The Google Cloud APIs that connecting Google Maps and syncing hours call (worker/providers/google.ts).
+ * Posts also use the Google My Business API, which only shows in the API Library once Google has
+ * approved the project's Business Profile API access.
+ */
+export const GOOGLE_MAPS_APIS = ['My Business Account Management API', 'My Business Business Information API']
 const message = (e: unknown) => e instanceof Error ? e.message : String(e)
 
 export const missingPermission = (p: Provider) => `${optionName(p)} was connected without the permission it needs. Connect again and leave every box ticked.`
@@ -130,7 +134,7 @@ export function explain(p: Provider, e: unknown): string {
     if (p === 'google_business') {
       // Google names the API that's off ("My Business Account Management API has not been used in project …").
       const off = raw.match(/([A-Z][\w ]*?API) has not been used in project/)?.[1]
-      return `${off ? `The ${off}` : 'A Business Profile API'} is switched off for this app. Google Maps needs all three of these switched on in Google Cloud (APIs & Services → Library): ${GOOGLE_MAPS_APIS.join(', ')}. Then connect again.`
+      return `${off ? `The ${off}` : 'A Business Profile API'} is switched off for this app. Google Maps needs both ${GOOGLE_MAPS_APIS.join(' and ')} switched on in Google Cloud (APIs & Services → Library). Then connect again.`
     }
     return `The ${API_NAME[p] ?? 'API'} is switched off for this app. Switch it on in Google Cloud (APIs & Services → Library), then connect again.`
   }
