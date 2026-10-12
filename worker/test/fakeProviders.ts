@@ -87,6 +87,18 @@ export class FakeProviders {
       { created_at: '2026-09-28T10:00:00Z', status: 'FAILED', amount_money: { amount: 9999, currency: 'EUR' } },
     ],
   }
+  stripe = {
+    revoked: false,
+    deauthorized: [] as string[],
+    /** Balance transactions: payments, a refund and a payout (ignored). */
+    txs: [
+      { id: 'txn_1', type: 'charge', amount: 350, currency: 'eur', created: Date.parse('2026-09-28T08:15:00Z') / 1000 },
+      { id: 'txn_2', type: 'payment', amount: 1200, currency: 'eur', created: Date.parse('2026-09-28T21:30:00Z') / 1000 }, // 23:30 in Madrid, same day
+      { id: 'txn_3', type: 'refund', amount: -200, currency: 'eur', created: Date.parse('2026-09-28T12:00:00Z') / 1000 },
+      { id: 'txn_4', type: 'charge', amount: 900, currency: 'eur', created: Date.parse('2026-09-28T22:30:00Z') / 1000 },  // 00:30 next day in Madrid
+      { id: 'txn_5', type: 'payout', amount: -5000, currency: 'eur', created: Date.parse('2026-09-29T09:00:00Z') / 1000 },
+    ],
+  }
   whatsapp = { sent: [] as { to: string; template: string }[], broken: false }
   /** Every call, as "METHOD host/path". */
   calls: string[] = []
@@ -279,6 +291,23 @@ export class FakeProviders {
       if (url.pathname === '/v2/payments') {
         const from = url.searchParams.get('begin_time')!, to = url.searchParams.get('end_time')!
         return json({ payments: this.square.payments.filter(p => p.created_at >= from && p.created_at < to) })
+      }
+    }
+
+    // ---- Stripe (Connect OAuth, then the platform key with Stripe-Account) ----
+    if (url.href === 'https://connect.stripe.com/oauth/token') return json({ stripe_user_id: 'acct_1', scope: 'read_only', livemode: false })
+    if (url.href === 'https://connect.stripe.com/oauth/deauthorize') {
+      const id = new URLSearchParams(String(init.body)).get('stripe_user_id')!
+      this.stripe.deauthorized.push(id)
+      return json({ stripe_user_id: id })
+    }
+    if (url.host === 'api.stripe.com') {
+      if (new Headers(init.headers).get('Stripe-Account') !== 'acct_1') return json({ error: { message: 'Missing Stripe-Account' } }, 400)
+      if (this.stripe.revoked) return json({ error: { type: 'invalid_request_error', message: 'The provided key does not have access to account acct_1 (or that account does not exist).' } }, 403)
+      if (url.pathname === '/v1/account') return json({ id: 'acct_1', business_profile: { name: 'Easy Beans Coffee SL' }, default_currency: 'eur', charges_enabled: true })
+      if (url.pathname === '/v1/balance_transactions') {
+        const gte = Number(url.searchParams.get('created[gte]')), lt = Number(url.searchParams.get('created[lt]'))
+        return json({ data: this.stripe.txs.filter(t => t.created >= gte && t.created < lt), has_more: false })
       }
     }
 

@@ -135,7 +135,7 @@ export interface Api {
   /** One click: sign in on instagram.com and come back connected. */
   connectInstagram(back?: 'setup' | 'connections'): Promise<void>
   /** One click for Facebook, TikTok or Square: sign in there and come back connected. */
-  connectApp(provider: 'facebook' | 'tiktok' | 'square', back?: 'setup' | 'connections'): Promise<void>
+  connectApp(provider: 'facebook' | 'tiktok' | 'square' | 'stripe', back?: 'setup' | 'connections'): Promise<void>
   /** Facebook: which Page to post to, when the account manages more than one. */
   chooseFacebookPage(pageId: string): Promise<void>
   /** Takings per day from Square (admins with pay access), from and to inclusive. */
@@ -211,6 +211,10 @@ export interface Api {
   musicSend(action: MusicAction, value?: number): Promise<void>
   /** A new queue: another playlist, a new order or shuffled. */
   musicSetQueue(playlist: SpotifyPlaylist | null, queue: CafeTrack[], position: number): Promise<void>
+  /** Search all of YouTube for songs or playlists. */
+  cafeSearch(q: string, kind: 'songs' | 'playlists'): Promise<{ tracks: CafeTrack[]; playlists: MusicPlaylist[] }>
+  /** The order playlists play in, one after another. */
+  musicSetPlaylistOrder(ids: string[]): Promise<void>
   /** The playing device says what it's doing (and claims the speaker with device_id). With asDevice, only while it still is the speaker. */
   musicReport(report: MusicPlayerReport, asDevice?: string): Promise<void>
 

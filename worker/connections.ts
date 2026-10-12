@@ -18,6 +18,7 @@ import * as instagram from './providers/instagram'
 import * as facebook from './providers/facebook'
 import * as tiktok from './providers/tiktok'
 import * as square from './providers/square'
+import * as stripe from './providers/stripe'
 import { base64url, mimeMessage } from '../shared/alertText'
 import { calendarAppFromAgent, optionName } from '../shared/connections'
 import type { CalendarApp, IntegrationProvider } from '../shared/types'
@@ -26,7 +27,7 @@ export type Provider = IntegrationProvider
 /** Signed in with Google or Microsoft: one refresh token each. */
 export type Connector = 'gmail' | 'outlook' | 'google_drive' | 'onedrive' | 'youtube_music'
 export const CONNECTORS: Connector[] = ['gmail', 'outlook', 'google_drive', 'onedrive', 'youtube_music']
-export const PROVIDERS: Provider[] = ['google_business', 'whatsapp', 'instagram', 'facebook', 'tiktok', 'spotify', 'square', ...CONNECTORS, 'google_calendar', 'outlook_calendar']
+export const PROVIDERS: Provider[] = ['google_business', 'whatsapp', 'instagram', 'facebook', 'tiktok', 'spotify', 'square', 'stripe', ...CONNECTORS, 'google_calendar', 'outlook_calendar']
 export const isConnector = (p: string): p is Connector => (CONNECTORS as string[]).includes(p)
 export const isGoogle = (p: Connector) => p === 'gmail' || p === 'google_drive' || p === 'youtube_music'
 export const isCalendarApp = (p: string): p is CalendarApp => p === 'google_calendar' || p === 'outlook_calendar'
@@ -66,6 +67,10 @@ export const tiktokOAuth = (env: Env, origin: string): tiktok.TikTokOAuthConfig 
     ? { clientKey: env.TIKTOK_CLIENT_KEY, clientSecret: env.TIKTOK_CLIENT_SECRET, redirectUri: `${origin}/api/integrations/tiktok/callback` }
     : null
 
+export const stripeOAuth = (env: Env, origin: string): stripe.StripeOAuthConfig | null =>
+  env.STRIPE_CLIENT_ID && env.STRIPE_SECRET_KEY && env.INTEGRATION_KEY
+    ? { clientId: env.STRIPE_CLIENT_ID, secretKey: env.STRIPE_SECRET_KEY, redirectUri: `${origin}/api/integrations/stripe/callback` }
+    : null
 export const squareOAuth = (env: Env, origin: string): square.SquareOAuthConfig | null =>
   env.SQUARE_APP_ID && env.SQUARE_APP_SECRET && env.INTEGRATION_KEY
     ? { appId: env.SQUARE_APP_ID, appSecret: env.SQUARE_APP_SECRET, redirectUri: `${origin}/api/integrations/square/callback`, sandbox: env.SQUARE_ENVIRONMENT === 'sandbox' }
@@ -273,6 +278,16 @@ export async function squareSession(env: Env, db: SupabaseClient) {
   return { token, sandbox: cfg.sandbox, locationIds: (ext.locations ?? []).map(l => l.id) }
 }
 
+/** The connected Stripe account, read with the platform key. */
+export async function stripeSession(env: Env, db: SupabaseClient) {
+  const cfg = stripeOAuth(env, '')
+  if (!cfg) throw new Error('Stripe is not set up')
+  const { data: row } = await db.from('integrations').select('external').eq('provider', 'stripe').single()
+  const accountId = (row?.external as { account_id?: string } | null)?.account_id
+  if (!accountId) throw new Error('Stripe is not connected')
+  return { cfg, secretKey: cfg.secretKey, accountId }
+}
+
 /** The chosen Facebook Page and its token. */
 export async function facebookSession(env: Env, db: SupabaseClient) {
   const [{ data: secret }, { data: row }] = await Promise.all([
@@ -309,6 +324,12 @@ export async function proveSquare(sandbox: boolean, token: string): Promise<Prov
   const [m, locs] = await Promise.all([square.merchant(sandbox, token), square.locations(sandbox, token)])
   if (!locs.length) throw new Error('This Square account has no open location yet. Add one in Square, then connect again.')
   return { label: m.business_name ?? locs[0].name, external: { merchant_id: m.id, currency: m.currency ?? locs[0].currency, locations: locs.map(l => ({ id: l.id, name: l.name })) } }
+}
+
+/** Stripe: the account can be read (and takes payments). */
+export async function proveStripe(secretKey: string, accountId: string): Promise<Proven> {
+  const a = await stripe.account(secretKey, accountId)
+  return { label: a.name, external: { account_id: a.id, currency: a.currency, charges_enabled: a.chargesEnabled } }
 }
 
 /** A fresh Google access token for the Google Maps listing, plus the chosen location. */
@@ -449,6 +470,11 @@ async function stillWorks(env: Env, db: SupabaseClient, row: Row): Promise<Parti
       const s = await squareSession(env, db)
       await square.merchant(s.sandbox, s.token)
       return {}
+    }
+    case 'stripe': {
+      const s = await stripeSession(env, db)
+      const proven = await proveStripe(s.secretKey, s.accountId)
+      return { account_label: proven.label, external: { ...row.external, ...proven.external } }
     }
     case 'google_business': {
       const s = await googleSession(env, db)

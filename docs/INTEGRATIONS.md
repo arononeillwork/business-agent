@@ -224,6 +224,25 @@ The Finances page then shows takings for today, this week, last week and the las
 of takings. Only admins who can see pay see these figures. Access lasts 30 days and is renewed a
 week before it runs out; if it stops working, admins get a notification.
 
+## 10. Stripe (takings on Finances)
+
+Each business connects its own Stripe account with one click (sign in on Stripe, allow read-only
+access). One Stripe *platform* account serves every business; it's set up once:
+
+1. <https://dashboard.stripe.com> (the Business Agent account) → **Settings → Connect** → turn on
+   Connect, then **Connect → Settings → OAuth**: enable OAuth for Standard accounts and add the
+   redirect URIs `https://businesssagent.com/api/integrations/stripe/callback` and
+   `https://business-agent.arononeillwork.workers.dev/api/integrations/stripe/callback`.
+2. Note the **client ID** (`ca_…`, same page) and the platform **secret key** (Developers → API
+   keys) → GitHub repo secrets `STRIPE_CLIENT_ID` and `STRIPE_SECRET_KEY` (the deploy passes them
+   to the Worker). Use test-mode keys first if you like; live keys when it works.
+3. Redeploy, then **Connections → Payments and sales → Connect Stripe**.
+
+The app keeps only the connected account's id (`acct_…`) and reads its balance transactions
+(payments and refunds) with the platform key, read-only: it can't take, refund or move money.
+Disconnecting also removes the app's access on Stripe's side. "Connected" means the account was
+found and its payments could be read; it's checked again every night.
+
 ## Social planner
 
 Admins plan posts on **Social planner** (left menu): write once, pick Instagram, Facebook,

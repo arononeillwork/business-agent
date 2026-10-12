@@ -25,7 +25,6 @@ export function PartnersPage() {
   return (
     <>
       <PageHeader eyebrow="Settings" title="Partners"
-        subtitle="Give another business its own login to part of Easy Beans, for example your gestoría for payroll or a supplier for the calendar. Partners can look but never change anything."
         actions={<Button variant="contained" startIcon={<AddIcon />} onClick={() => setEditing('new')}>Invite partner</Button>} />
       <ErrorBox error={partners.error} />
 

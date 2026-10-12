@@ -33,8 +33,7 @@ export function AppearancePage() {
 
   return (
     <>
-      <PageHeader eyebrow="You" title="Appearance"
-        subtitle="How the app looks for you. Saved to your account, so it's the same on your phone, the café tablet and any computer." />
+      <PageHeader eyebrow="You" title="Appearance" />
       <Stack spacing={2.5} sx={{ maxWidth: 860 }}>
         <Card component="section" aria-label="Theme">
           <CardContent>

@@ -129,6 +129,18 @@ function demoEngine(host: HTMLElement, ev: EngineEvents): Engine {
   }
 }
 
+/**
+ * The order playlists play in: the order the team saved, then any playlists not in it yet (the
+ * approved one first). Playlists that aren't music only count once someone put them in the order.
+ */
+export function playlistOrder(saved: string[], lib: CafeMusicLibrary, withOthers = false): SpotifyPlaylist[] {
+  const all = [...lib.playlists, ...(lib.other_playlists ?? [])]
+  const listed = saved.map(id => all.find(p => p.id === id)).filter((p): p is SpotifyPlaylist => !!p)
+  const rest = [...lib.playlists, ...(withOthers ? lib.other_playlists ?? [] : [])].filter(p => !saved.includes(p.id))
+    .sort((a, b) => Number(b.id === lib.approved?.id) - Number(a.id === lib.approved?.id))
+  return [...listed, ...rest]
+}
+
 // ---------------------------------------------------------------------------------------------
 // Shared state for the whole app
 // ---------------------------------------------------------------------------------------------
@@ -149,6 +161,9 @@ interface CafeMusic {
   control(action: MusicAction, value?: number): Promise<void>
   setQueue(playlist: SpotifyPlaylist | null, queue: CafeTrack[], position: number): Promise<void>
   playPlaylist(playlist: SpotifyPlaylist): Promise<void>
+  /** Songs from a search: play now, play next, or add to the end of the queue. */
+  addTracks(tracks: CafeTrack[], where: 'now' | 'next' | 'end'): Promise<void>
+  setPlaylistOrder(ids: string[]): Promise<void>
   claim(): Promise<void>
   release(): Promise<void>
   /** Pages that show the player call this so it keeps the state fresh while they're open. */
@@ -174,6 +189,9 @@ export function CafeSpeakerProvider({ children }: { children: ReactNode }) {
   /** What the speaker is doing (it is the authority on these while it plays). */
   const local = useRef({ version: -1, seq: -1, queue: [] as CafeTrack[], position: 0, playing: false, volume: 80, errors: 0, autoplay: false })
   const here = !!state && state.device_id === deviceId
+  // The latest shared state and library, for the player's callbacks.
+  const latest = useRef({ state, library: library.data })
+  latest.current = { state, library: library.data }
   const live = !!state?.device_id && !!state.heartbeat_at && Date.now() - Date.parse(state.heartbeat_at) < STALE_MS
 
   const refresh = useCallback(async () => {
@@ -196,6 +214,35 @@ export function CafeSpeakerProvider({ children }: { children: ReactNode }) {
       heartbeat_at: new Date().toISOString(), ...extra }, deviceId).catch(() => {})
   }, [api, deviceId])
 
+  /**
+   * End of the queue: start the next playlist in the team's order (back to the first after the
+   * last). False when there's no order to follow, so the same queue starts again.
+   */
+  const nextPlaylist = useCallback(() => {
+    const { state: s, library: lib } = latest.current
+    if (!lib) return false
+    const order = playlistOrder(s?.playlist_order ?? [], lib)
+    if (order.length < 2) return false
+    const at = s?.playlist ? order.findIndex(p => p.id === s.playlist!.id) : -1
+    const playlist = order[(at + 1) % order.length]
+    // A song or playlist from a search isn't in the order: carry on from the first playlist.
+    if (playlist.id === s?.playlist?.id) return false
+    local.current.autoplay = true
+    void api.cafeTracks(playlist.id)
+      .then(tracks => (tracks.length ? api.musicSetQueue(playlist, tracks, 0) : Promise.reject(new Error(`${playlist.name} has no songs that can play`))))
+      .then(() => api.musicPlayer()).then(setState)
+      .catch(e => setError(e instanceof Error ? e.message : String(e)))
+    return true
+  }, [api])
+
+  /** The next song, or the next playlist after the last song. */
+  const forward = useCallback(() => {
+    const l = local.current
+    if (l.position + 1 >= l.queue.length && nextPlaylist()) return
+    go(l.position + 1)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nextPlaylist])
+
   const go = useCallback((index: number, autoplay = true) => {
     const l = local.current
     if (!l.queue.length || !engine.current) return
@@ -210,13 +257,13 @@ export function CafeSpeakerProvider({ children }: { children: ReactNode }) {
     if (!e) return
     if (action === 'play') { if (l.queue.length) { e.play(); l.playing = true } }
     else if (action === 'pause') { e.pause(); l.playing = false }
-    else if (action === 'next') go(l.position + 1)
+    else if (action === 'next') forward()
     else if (action === 'previous') { if (e.time().elapsed > 4) e.seek(0); else go(l.position - 1) }
     else if (action === 'jump' && value != null) go(value)
     else if (action === 'seek' && value != null) e.seek(value)
     else if (action === 'volume' && value != null) { l.volume = Math.max(0, Math.min(100, Math.round(value))); e.setVolume(l.volume) }
     void report()
-  }, [go, report])
+  }, [go, forward, report])
 
   // Becoming the speaker: start the player in the mini player; stop when another device takes over.
   useEffect(() => {
@@ -227,7 +274,7 @@ export function CafeSpeakerProvider({ children }: { children: ReactNode }) {
     l.version = -1
     l.volume = state.volume
     const events: EngineEvents = {
-      onEnded: () => go(local.current.position + 1),
+      onEnded: () => forward(),
       onPlaying: p => { local.current.playing = p; if (p) local.current.errors = 0; void report() },
       onError: () => {
         const c = local.current
@@ -301,6 +348,22 @@ export function CafeSpeakerProvider({ children }: { children: ReactNode }) {
         if (!tracks.length) throw new Error('That playlist has no songs that can play')
         local.current.autoplay = true
         await api.musicSetQueue(playlist, tracks, 0)
+        await refresh()
+      },
+      async addTracks(tracks, where) {
+        const q = shown?.queue ?? []
+        const at = shown?.position ?? 0
+        if (!q.length) { local.current.autoplay = true; await api.musicSetQueue(shown?.playlist ?? null, tracks, 0) }
+        else if (where === 'end') await api.musicSetQueue(shown!.playlist, [...q, ...tracks], at)
+        else {
+          // Right after the song playing now; "now" also moves to it (the speaker starts it).
+          if (where === 'now') local.current.autoplay = true
+          await api.musicSetQueue(shown!.playlist, [...q.slice(0, at + 1), ...tracks, ...q.slice(at + 1)], where === 'now' ? at + 1 : at)
+        }
+        await refresh()
+      },
+      async setPlaylistOrder(ids) {
+        await api.musicSetPlaylistOrder(ids)
         await refresh()
       },
       async claim() {

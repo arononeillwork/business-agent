@@ -24,11 +24,11 @@ import { Fragment, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction, useNotify } from '../app/Notify'
-import { Empty, ErrorBox, PageHeader, PersonAvatar, SectionTitle, Stat, StatRow } from '../components/common'
+import { Empty, ErrorBox, PageHeader, PersonAvatar, SectionTitle } from '../components/common'
 import { restrictToVerticalAxis } from '../components/dnd'
 import { NO_CATEGORY, buildBoard, flatten, resolveMove, toPlainText, topPosition, visible, type TodoFilters } from '../../shared/todo'
 import type { Profile, Todo, TodoCategory, TodoPatch } from '../../shared/types'
-import { tokens } from '../theme'
+import { fonts, tokens } from '../theme'
 
 const VIEW_KEY = 'todo-view'
 const DEFAULT_VIEW: TodoFilters = { categoryId: null, starredOnly: false, showDone: false }
@@ -143,7 +143,6 @@ export function TodoPage() {
   return (
     <>
       <PageHeader eyebrow="Business" title="To Do List"
-        subtitle="Everything still to do, by category. The whole team sees and ticks off the same list."
         actions={<>
           <Button variant="outlined" startIcon={<CopyIcon />} onClick={copy} disabled={!items.length}>Copy as text</Button>
           {isAdmin && (
@@ -155,11 +154,22 @@ export function TodoPage() {
         </>} />
       <ErrorBox error={data.error} />
 
-      <StatRow>
-        <Stat label="Open" value={data.data ? open.length : '–'} note="jobs left" />
-        <Stat label="Done" value={data.data ? done : '–'} note={items.length ? `${Math.round(done / items.length * 100)}% of all jobs` : undefined} tone="good" />
-        <Stat label="Starred" value={data.data ? open.filter(t => t.starred).length : '–'} note="open and starred" />
-      </StatRow>
+      {/* At a glance, on one line. */}
+      <Stack direction="row" role="list" aria-label="At a glance" useFlexGap sx={{ gap: { xs: 2, sm: 3.5 }, flexWrap: 'wrap', alignItems: 'baseline', mb: 2.5 }}>
+        {[
+          { label: 'open', value: open.length, colour: tokens.ink },
+          { label: 'done', value: done, colour: tokens.matchaDeep },
+          { label: 'starred', value: open.filter(t => t.starred).length, colour: STAR },
+        ].map(x => (
+          <Typography key={x.label} role="listitem" sx={{ color: 'text.secondary' }}>
+            <Box component="span" sx={{ fontFamily: fonts.display, fontSize: '1.6rem', color: x.colour, mr: 0.75, fontVariantNumeric: 'tabular-nums' }}>
+              {data.data ? x.value : '–'}
+            </Box>
+            {x.label}
+          </Typography>
+        ))}
+        {items.length > 0 && <Typography variant="body2" sx={{ color: 'text.secondary' }}>· {Math.round(done / items.length * 100)}% done</Typography>}
+      </Stack>
 
       <Stack spacing={2.5}>
         {managing && isAdmin && (

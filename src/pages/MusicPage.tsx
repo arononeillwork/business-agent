@@ -1,4 +1,4 @@
-import { Alert, Box, Button, Card, CardActionArea, Chip, IconButton, LinearProgress, Slider, Stack, Tab, Tabs, Typography } from '@mui/material'
+import { Alert, Box, Button, Card, CardActionArea, Chip, IconButton, InputAdornment, LinearProgress, Slider, Stack, Tab, Tabs, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography } from '@mui/material'
 import PlayIcon from '@mui/icons-material/PlayArrowRounded'
 import PauseIcon from '@mui/icons-material/PauseRounded'
 import NextIcon from '@mui/icons-material/SkipNextRounded'
@@ -6,6 +6,9 @@ import PrevIcon from '@mui/icons-material/SkipPreviousRounded'
 import ShuffleIcon from '@mui/icons-material/ShuffleRounded'
 import VolumeIcon from '@mui/icons-material/VolumeUpRounded'
 import DragIcon from '@mui/icons-material/DragIndicator'
+import SearchIcon from '@mui/icons-material/Search'
+import NextUpIcon from '@mui/icons-material/PlaylistPlayRounded'
+import QueueAddIcon from '@mui/icons-material/PlaylistAddRounded'
 import SpeakerIcon from '@mui/icons-material/SpeakerOutlined'
 import MusicIcon from '@mui/icons-material/MusicNote'
 import OpenIcon from '@mui/icons-material/OpenInNew'
@@ -15,13 +18,13 @@ import { CSS } from '@dnd-kit/utilities'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link as RouterLink, useSearchParams } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
-import { useCafeMusic, useWatchCafeMusic } from '../app/CafeSpeaker'
+import { playlistOrder, useCafeMusic, useWatchCafeMusic } from '../app/CafeSpeaker'
 import { useAsync, useTick } from '../app/hooks'
 import { useAction, useNotify } from '../app/Notify'
-import { Empty, ErrorBox, PageHeader, SectionTitle, Tag } from '../components/common'
+import { Empty, ErrorBox, SectionTitle, Tag } from '../components/common'
 import { MusicCard } from '../components/MusicCard'
 import { restrictToVerticalAxis } from '../components/dnd'
-import type { CafeTrack, MusicPlaylist, MusicProvider, MyNowPlaying } from '../../shared/types'
+import type { CafeTrack, MusicPlaylist, MusicProvider, MyNowPlaying, SpotifyPlaylist } from '../../shared/types'
 import { fonts, tokens } from '../theme'
 
 const BRAND: Record<MusicProvider, { name: string; colour: string; soft: string; blurb: string; logo: ReactNode }> = {
@@ -65,8 +68,8 @@ export function MusicPage() {
 
   return (
     <>
-      <PageHeader eyebrow="What's on" title="Music"
-        subtitle="The café’s music: play it on the café tablet or computer, and control it from any phone." />
+      {/* No visible header: the player is the page. The title stays for screen readers. */}
+      <Typography variant="h4" component="h1" sx={visuallyHidden}>Music</Typography>
       <Stack spacing={3}>
         <CafeMusicSection />
         <PersonalMusic tab={tab} setTab={setTab} />
@@ -74,6 +77,9 @@ export function MusicPage() {
     </>
   )
 }
+
+/** Read by screen readers, not shown. */
+const visuallyHidden = { position: 'absolute', width: '1px', height: '1px', p: 0, m: '-1px', overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap', border: 0 } as const
 
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
 
@@ -93,6 +99,7 @@ function CafeMusicSection() {
     <>
       <ErrorBox error={music.error} />
       <NowPlaying />
+      <FindMusic />
       <Queue />
       <CafePlaylists />
     </>
@@ -152,11 +159,6 @@ function NowPlaying() {
             {!live && <Button variant="contained" startIcon={<SpeakerIcon />} onClick={() => run(() => music.claim())}>Play on this device</Button>}
             {live && !music.here && <Button variant="outlined" startIcon={<SpeakerIcon />} onClick={() => run(() => music.claim())}>Play here instead</Button>}
             {music.here && <Button onClick={() => run(() => music.release(), 'Stopped playing on this device')}>Stop playing on this device</Button>}
-            {!live && (
-              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                Use the café tablet or computer that’s connected to the speaker. Then anyone on the team can control it from their phone.
-              </Typography>
-            )}
           </Stack>
         </Box>
       </Stack>
@@ -229,36 +231,139 @@ function QueueRow({ id, track, index, current, playing, onPlay }: { id: string; 
   )
 }
 
+/** Search all of YouTube Music: play a song now or next, add it to the queue, or play a whole playlist. */
+function FindMusic() {
+  const music = useCafeMusic()!
+  const { api } = useApp()
+  const run = useAction()
+  const [q, setQ] = useState('')
+  const [kind, setKind] = useState<'songs' | 'playlists'>('songs')
+  const [asked, setAsked] = useState<{ q: string; kind: 'songs' | 'playlists' } | null>(null)
+  const results = useAsync('music-search', () => (asked ? api.cafeSearch(asked.q, asked.kind) : Promise.resolve(null)), [asked?.q, asked?.kind])
+  const search = (k = kind) => { if (q.trim().length >= 2) setAsked({ q: q.trim(), kind: k }) }
+  const r = asked && results.data
+  return (
+    <Card component="section" aria-label="Find music">
+      <Box component="form" onSubmit={e => { e.preventDefault(); search() }} sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', p: 2, pb: r ? 1 : 2 }}>
+        <TextField value={q} onChange={e => setQ(e.target.value)} placeholder="Search songs, artists or playlists" size="small" sx={{ flex: '1 1 240px' }}
+          slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }, htmlInput: { 'aria-label': 'Search music' } }} />
+        <ToggleButtonGroup exclusive size="small" value={kind} aria-label="Search for" onChange={(_, v) => { if (v) { setKind(v); if (asked) search(v) } }}>
+          <ToggleButton value="songs" sx={{ px: 1.75 }}>Songs</ToggleButton>
+          <ToggleButton value="playlists" sx={{ px: 1.75 }}>Playlists</ToggleButton>
+        </ToggleButtonGroup>
+        <Button type="submit" variant="contained" disabled={q.trim().length < 2}>Search</Button>
+      </Box>
+      <ErrorBox error={asked ? results.error : null} />
+      {asked && results.loading && !r && <Typography variant="body2" sx={{ color: 'text.secondary', px: 2, pb: 2 }}>Searching…</Typography>}
+      {r && r.tracks.length + r.playlists.length === 0 && <Typography variant="body2" sx={{ color: 'text.secondary', px: 2, pb: 2 }}>Nothing found for “{asked.q}”.</Typography>}
+      {r && r.tracks.length > 0 && (
+        <Box role="list" aria-label="Songs found" sx={{ maxHeight: 360, overflowY: 'auto' }}>
+          {r.tracks.map(t => (
+            <Stack key={t.id} role="listitem" aria-label={t.title} direction="row" spacing={1.25} sx={{ alignItems: 'center', px: 2, py: 0.75, borderTop: `1px solid ${tokens.line}` }}>
+              <Thumb src={t.image} />
+              <Box sx={{ minWidth: 0, flex: 1 }}>
+                <Typography variant="body2" noWrap>{t.title}</Typography>
+                {t.artist && <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }} noWrap>{t.artist}</Typography>}
+              </Box>
+              <Tooltip title="Play now"><IconButton size="small" aria-label={`Play ${t.title} now`} onClick={() => run(() => music.addTracks([t], 'now'), music.live ? `Playing ${t.title}` : `${t.title} is up next`)}><PlayIcon /></IconButton></Tooltip>
+              <Tooltip title="Play next"><IconButton size="small" aria-label={`Play ${t.title} next`} onClick={() => run(() => music.addTracks([t], 'next'), `${t.title} plays next`)}><NextUpIcon fontSize="small" /></IconButton></Tooltip>
+              <Tooltip title="Add to the end of the queue"><IconButton size="small" aria-label={`Add ${t.title} to the queue`} onClick={() => run(() => music.addTracks([t], 'end'), `Added ${t.title}`)}><QueueAddIcon fontSize="small" /></IconButton></Tooltip>
+            </Stack>
+          ))}
+        </Box>
+      )}
+      {r && r.playlists.length > 0 && (
+        <Box role="list" aria-label="Playlists found" sx={{ maxHeight: 360, overflowY: 'auto' }}>
+          {r.playlists.map(p => (
+            <Stack key={p.id} role="listitem" aria-label={p.name} direction="row" spacing={1.25} sx={{ alignItems: 'center', px: 2, py: 0.75, borderTop: `1px solid ${tokens.line}` }}>
+              <Thumb src={p.image} />
+              <Box sx={{ minWidth: 0, flex: 1 }}>
+                <Typography variant="body2" noWrap>{p.name}</Typography>
+                {p.owner && <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }} noWrap>{p.owner}</Typography>}
+              </Box>
+              <Button size="small" startIcon={<PlayIcon />} onClick={() => run(() => music.playPlaylist(p), music.live ? `Playing ${p.name}` : `${p.name} is up next`)}>Play</Button>
+            </Stack>
+          ))}
+        </Box>
+      )}
+    </Card>
+  )
+}
+
+function Thumb({ src }: { src?: string }) {
+  return (
+    <Box sx={{ width: 40, height: 40, borderRadius: 1.5, overflow: 'hidden', flexShrink: 0, bgcolor: tokens.surfaceAlt, display: 'grid', placeItems: 'center' }}>
+      {src ? <Box component="img" src={src} alt="" loading="lazy" sx={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <MusicIcon sx={{ fontSize: 18, color: tokens.inkFaint }} />}
+    </Box>
+  )
+}
+
+/**
+ * The café account's YouTube Music playlists, in the order they play: when one ends, the next
+ * starts (back to the first after the last). Drag to change the order; tap one to play it now.
+ */
 function CafePlaylists() {
   const music = useCafeMusic()!
   const run = useAction()
+  const [showOthers, setShowOthers] = useState(false)
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }))
   const lib = music.library!
-  const lists = [...lib.playlists].sort((a, b) => Number(b.id === lib.approved?.id) - Number(a.id === lib.approved?.id))
-  if (!lists.length) return <Empty>The café’s YouTube Music account has no playlists yet. Make one in YouTube Music and it shows up here.</Empty>
+  const lists = playlistOrder(music.state?.playlist_order ?? [], lib, showOthers)
+  const others = lib.other_playlists?.length ?? 0
+  if (!lists.length && !others) return <Empty>The café’s YouTube Music account has no playlists yet. Make one in YouTube Music and it shows up here.</Empty>
+  const onDragEnd = ({ active, over }: DragEndEvent) => {
+    if (!over || active.id === over.id) return
+    const ids = lists.map(p => p.id)
+    void run(() => music.setPlaylistOrder(arrayMove(ids, ids.indexOf(String(active.id)), ids.indexOf(String(over.id)))), 'Playlist order saved')
+  }
   return (
     <Card component="section" aria-label="Café playlists">
-      <Typography variant="h6" component="h2" sx={{ px: 2, pt: 1.5, pb: 1 }}>Playlists</Typography>
-      <Box role="list" aria-label="Café playlists">
-        {lists.map(p => {
-          const on = music.state?.playlist?.id === p.id
-          return (
-            <Box key={p.id} role="listitem" sx={{ borderTop: `1px solid ${tokens.line}` }}>
-              <CardActionArea aria-label={p.name} aria-pressed={on}
-                onClick={() => run(() => music.playPlaylist(p), music.live ? `Playing ${p.name}` : `${p.name} is up next. Press Play on this device, or on the café tablet.`)}
-                sx={{ px: 2, py: 1.25, display: 'flex', justifyContent: 'flex-start', gap: 1.5, ...(on ? { bgcolor: tokens.roseSoft } : {}) }}>
-                <Cover playlist={{ ...p, provider: 'youtube' }} size={48} />
-                <Box sx={{ minWidth: 0, flex: 1 }}>
-                  <Typography sx={{ fontWeight: 500 }} noWrap>{p.name}</Typography>
-                  <Typography variant="body2" sx={{ color: 'text.secondary' }} noWrap>{p.tracks} {p.tracks === 1 ? 'song' : 'songs'}</Typography>
-                </Box>
-                {p.id === lib.approved?.id && <Tag>Approved</Tag>}
-                {on && <Tag fg={tokens.goodFg} bg={tokens.goodBg}>Playing</Tag>}
-              </CardActionArea>
-            </Box>
-          )
-        })}
+      <Box sx={{ px: 2, pt: 1.5, pb: 1 }}>
+        <Typography variant="h6" component="h2">Playlists</Typography>
+        {lists.length > 1 && <Typography variant="body2" sx={{ color: 'text.secondary' }}>They play one after another, in this order. Drag to change it.</Typography>}
       </Box>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToVerticalAxis]} onDragEnd={onDragEnd}>
+        <SortableContext items={lists.map(p => p.id)} strategy={verticalListSortingStrategy}>
+          <Box role="list" aria-label="Café playlists">
+            {lists.map((p, i) => (
+              <PlaylistRow key={p.id} playlist={p} index={i} approved={p.id === lib.approved?.id} playing={music.state?.playlist?.id === p.id}
+                onPlay={() => run(() => music.playPlaylist(p), music.live ? `Playing ${p.name}` : `${p.name} is up next. Press Play on this device, or on the café tablet.`)} />
+            ))}
+          </Box>
+        </SortableContext>
+      </DndContext>
+      {others > 0 && (
+        <Box sx={{ borderTop: `1px solid ${tokens.line}`, px: 1.5, py: 0.75 }}>
+          <Button size="small" onClick={() => setShowOthers(x => !x)}>
+            {showOthers ? 'Hide other YouTube playlists' : `Show ${others} other YouTube ${others === 1 ? 'playlist' : 'playlists'} (not music)`}
+          </Button>
+        </Box>
+      )}
     </Card>
+  )
+}
+
+function PlaylistRow({ playlist: p, index, approved, playing, onPlay }: { playlist: SpotifyPlaylist; index: number; approved: boolean; playing: boolean; onPlay: () => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: p.id })
+  return (
+    <Box ref={setNodeRef} role="listitem" aria-label={p.name} style={{ transform: CSS.Transform.toString(transform), transition }}
+      sx={{ display: 'flex', alignItems: 'center', gap: 0.5, pl: 0.5, borderTop: `1px solid ${tokens.line}`, position: 'relative', zIndex: isDragging ? 2 : 'auto',
+        bgcolor: playing ? tokens.roseSoft : isDragging ? tokens.surfaceAlt : tokens.surface }}>
+      <IconButton size="small" {...attributes} {...listeners} aria-label={`Move ${p.name}`} sx={{ cursor: 'grab', touchAction: 'none', color: tokens.inkFaint }}>
+        <DragIcon fontSize="small" />
+      </IconButton>
+      <CardActionArea aria-label={p.name} aria-pressed={playing} onClick={onPlay}
+        sx={{ pr: 2, py: 1.25, display: 'flex', justifyContent: 'flex-start', gap: 1.5 }}>
+        <Typography variant="body2" sx={{ width: 18, color: 'text.secondary', textAlign: 'right', flexShrink: 0 }}>{index + 1}</Typography>
+        <Cover playlist={{ ...p, provider: 'youtube' }} size={48} />
+        <Box sx={{ minWidth: 0, flex: 1 }}>
+          <Typography sx={{ fontWeight: 500 }} noWrap>{p.name}</Typography>
+          <Typography variant="body2" sx={{ color: 'text.secondary' }} noWrap>{p.tracks} {p.tracks === 1 ? 'song' : 'songs'}</Typography>
+        </Box>
+        {approved && <Tag>Approved</Tag>}
+        {playing && <Tag fg={tokens.goodFg} bg={tokens.goodBg}>Playing</Tag>}
+      </CardActionArea>
+    </Box>
   )
 }
 

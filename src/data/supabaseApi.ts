@@ -379,7 +379,7 @@ export function createSupabaseApi(url: string, key: string): Api {
       location.assign(url)
     },
     async chooseFacebookPage(pageId) { await worker('/api/integrations/facebook/page', { method: 'POST', body: JSON.stringify({ page_id: pageId }) }) },
-    sales: (from, to) => worker(`/api/integrations/square/sales?from=${from}&to=${to}`),
+    sales: (from, to) => worker(`/api/integrations/payments/sales?from=${from}&to=${to}`),
     async socialPosts() {
       return check(await sb.from('social_posts').select('id, caption, image_url, targets, scheduled_at, status, results, created_at, published_at')
         .order('scheduled_at', { ascending: false, nullsFirst: true }).order('created_at', { ascending: false }).limit(200)) as SocialPost[]
@@ -471,6 +471,12 @@ export function createSupabaseApi(url: string, key: string): Api {
     async pauseMySpotify() { await worker('/api/me/music/spotify/pause', { method: 'POST' }) },
     cafeMusicLibrary: () => worker('/api/music/library'),
     async cafeTracks(playlistId) { return (await worker<{ tracks: CafeTrack[] }>(`/api/music/tracks/${encodeURIComponent(playlistId)}`)).tracks },
+    async cafeSearch(q, kind) {
+      return worker<{ tracks: CafeTrack[]; playlists: MusicPlaylist[] }>(`/api/music/search?kind=${kind}&q=${encodeURIComponent(q)}`)
+    },
+    async musicSetPlaylistOrder(ids) {
+      check(await sb.from('music_player').update({ playlist_order: ids, updated_at: new Date().toISOString() }).eq('id', 1))
+    },
     async musicPlayer() { return check(await sb.from('music_player').select('*').eq('id', 1).single()) as MusicPlayerState },
     async musicSend(action, value) { check(await sb.rpc('music_send', { p_action: action, p_value: value ?? null })) },
     async musicSetQueue(playlist, queue, position) { check(await sb.rpc('music_set_queue', { p_playlist: playlist, p_queue: queue, p_position: position })) },

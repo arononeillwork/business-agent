@@ -267,8 +267,6 @@ export function RotaPage() {
   return (
     <>
       <PageHeader eyebrow="Team" title="Rota"
-        subtitle={isAdmin ? 'Click a day to add a shift, or a shift to change it. Warnings follow Spanish working-time rules.'
-          : isPartner ? 'The published rota, read-only.' : 'Your shifts are marked “You”. Open shifts can be picked up.'}
         actions={isAdmin && <>
           <Button startIcon={<CopyIcon />} variant="outlined" onClick={() => run(async () => {
             const n = await copyLastWeek(); await data.reload(); if (!n) throw new Error('Nothing new to copy from last week')

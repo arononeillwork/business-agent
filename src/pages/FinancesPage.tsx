@@ -40,9 +40,7 @@ export function FinancesPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Money" title="Finances"
-        subtitle={canEdit ? 'What it costs to keep Easy Beans open each month. Imported from the Accounts sheet; edit here from now on.'
-          : 'What it costs to keep Easy Beans open each month. Read-only.'} />
+      <PageHeader eyebrow="Money" title="Finances" actions={!canEdit && <Tag>Read-only</Tag>} />
       <ErrorBox error={data.error} />
 
       <StatGrid>
@@ -55,7 +53,7 @@ export function FinancesPage() {
           : <StatTile label="Biggest cost" value={biggest?.name ?? '–'} note={biggest && total ? `${formatMoney(biggest.amount)} · ${Math.round(biggest.amount / total * 100)}%` : undefined} />}
       </StatGrid>
 
-      {canEdit && FEATURES.square && <Takings />}
+      {canEdit && <Takings />}
 
       <Expenses list={all} total={total} canEdit={canEdit} loaded={!!data.data} />
     </>
@@ -203,20 +201,22 @@ function Expenses({ list, total, canEdit, loaded }: { list: Expense[]; total: nu
   )
 }
 
-/** Takings from the payment system (Square), and what the team costs as a share of them. */
+/** Takings from the payment system (Stripe), and what the team costs as a share of them. */
 function Takings() {
   const { api, rates, settings } = useApp()
   const integ = useAsync('integrations', () => api.integrations(), [])
-  const square = integ.data?.integrations.find(i => i.provider === 'square')
-  const on = square?.status === 'connected'
+  // Stripe, or Square when it's switched on: whichever payment system is connected.
+  const till = integ.data?.integrations.find(i => (i.provider === 'stripe' || (FEATURES.square && i.provider === 'square')) && i.status === 'connected')
+  const on = !!till
+  const name = till?.provider === 'square' ? 'Square' : 'Stripe'
   const day = today(), monday = weekStart(day)
-  const sales = useAsync('square-sales', () => (on ? api.sales(addDays(day, -29), day) : Promise.resolve(null)), [on, day])
+  const sales = useAsync('payment-sales', () => (on ? api.sales(addDays(day, -29), day) : Promise.resolve(null)), [on, day])
   const shifts = useAsync('takings-shifts', () => (on ? api.shifts(zonedIso(monday, '00:00'), zonedIso(addDays(monday, 7), '00:00')) : Promise.resolve([])), [on, monday])
   if (!integ.data) return null
   if (!on) {
     return (
       <Alert severity="info" sx={{ mb: 3 }} action={<Button component={RouterLink} to="/connections" size="small">Connect</Button>}>
-        Connect Square to see takings here, next to what the team costs.
+        Connect Stripe to see takings here, next to what the team costs.
       </Alert>
     )
   }
@@ -228,7 +228,7 @@ function Takings() {
     .reduce((m, s) => m + shiftPaidMinutes(s) / 60 * (s.profile_id ? rates.get(s.profile_id) ?? 0 : 0) * mult, 0)
   return (
     <Box component="section" aria-label="Takings" sx={{ mb: 3 }}>
-      <SectionTitle>Takings <Typography component="span" variant="body2" sx={{ color: 'text.secondary' }}>· from Square</Typography></SectionTitle>
+      <SectionTitle>Takings <Typography component="span" variant="body2" sx={{ color: 'text.secondary' }}>· from {name}</Typography></SectionTitle>
       <ErrorBox error={sales.error} />
       <StatRow>
         <Stat label="Today" value={sales.data ? formatMoney(sum(day, day)) : '–'} note={`${days.find(d => d.date === day)?.payments ?? 0} payments`} />

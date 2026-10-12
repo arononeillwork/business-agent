@@ -6,9 +6,7 @@ import { FLAG_LABELS } from '../../shared/types'
 import { addDays, formatLocal, today, weekStart } from '../../shared/time'
 import { fonts, tokens } from '../theme'
 
-export function PageHeader({ eyebrow, title, subtitle, actions }: {
-  eyebrow?: string; title: string; subtitle?: ReactNode; actions?: ReactNode
-}) {
+export function PageHeader({ eyebrow, title, actions }: { eyebrow?: string; title: string; actions?: ReactNode }) {
   return (
     <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}
       sx={{ mb: 3, alignItems: { md: 'flex-start' }, justifyContent: 'space-between' }}>
@@ -16,7 +14,6 @@ export function PageHeader({ eyebrow, title, subtitle, actions }: {
       <Box sx={{ minWidth: { md: 280 }, flex: { md: '1 1 auto' } }}>
         {eyebrow && <Typography variant="overline" sx={{ color: tokens.roseDeep }}>{eyebrow}</Typography>}
         <Typography variant="h4" component="h1">{title}</Typography>
-        {subtitle && <Typography sx={{ color: 'text.secondary', mt: 0.5, maxWidth: 640 }}>{subtitle}</Typography>}
       </Box>
       {actions && (
         // Level with the title (below the small eyebrow line); lines up to the right and wraps when there are many.

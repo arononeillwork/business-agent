@@ -14,6 +14,7 @@ import * as youtube from './providers/youtube'
 import * as facebook from './providers/facebook'
 import * as tiktok from './providers/tiktok'
 import * as square from './providers/square'
+import * as stripe from './providers/stripe'
 import { alertEmail, base64url, mimeMessage } from '../shared/alertText'
 import { addToCalendarUrl, optionName } from '../shared/connections'
 import { finishMusicConnect, type MusicState } from './music'
@@ -21,8 +22,8 @@ import { ensureFeed } from './calendarFeed'
 import {
   CONNECTORS, PROVIDERS, ROW_COLUMNS, SCOPES, calendarSeen, calendarFetched, checkAll, checkOne, connectedOf, connectorConfigured,
   connectorGrant, explain, facebookOAuth, facebookSession, googleConfig, googleSession, instagramOAuth, instagramSession, isCalendarApp, isGoogle,
-  lasting, markBroken, msConfig, proveFacebook, proveInstagram, proveNew, proveSpotify, proveSquare, proveTikTok, setIntegration, spotifyConfig,
-  spotifySession, squareOAuth, squareSession, tiktokOAuth, tiktokSession, waConfig, type Connector, type Provider,
+  lasting, markBroken, msConfig, proveFacebook, proveInstagram, proveNew, proveSpotify, proveSquare, proveStripe, proveTikTok, setIntegration, spotifyConfig,
+  spotifySession, squareOAuth, squareSession, stripeOAuth, stripeSession, tiktokOAuth, tiktokSession, waConfig, type Connector, type Provider,
 } from './connections'
 import type { Business, CalendarEvent, SpotifyPlaylist } from '../shared/types'
 import { today, zonedIso } from '../shared/time'
@@ -174,6 +175,7 @@ integrations.get('/api/integrations', async c => {
     facebook: !!facebookOAuth(c.env, ''),
     tiktok: !!tiktokOAuth(c.env, ''),
     square: !!squareOAuth(c.env, ''),
+    stripe: !!stripeOAuth(c.env, ''),
     spotify: !!spotifyConfig(c.env, ''),
     ...Object.fromEntries(CONNECTORS.map(p => [p, connectorConfigured(c.env, p)])),
     // Calendars need no keys of their own: the calendar app subscribes to the team calendar link.
@@ -382,6 +384,8 @@ integrations.post('/api/integrations/:provider/disconnect', async c => {
   const provider = c.req.param('provider') as Provider
   if (!PROVIDERS.includes(provider)) return c.json({ error: 'Unknown connection' }, 404)
   const db = serviceClient(c.env)
+  // Stripe: also tell Stripe the app no longer has access to the account.
+  if (provider === 'stripe') await stripeSession(c.env, db).then(s => stripe.deauthorize(s.cfg, s.accountId)).catch(() => {})
   await db.from('integration_secrets').delete().eq('provider', provider)
   await setIntegration(db, provider, { status: 'disconnected', external: {}, account_label: null, last_error: null, last_checked_at: null })
   return c.json({ ok: true })
@@ -477,8 +481,42 @@ integrations.get('/api/music/library', async c => {
   const m = await cafeMusic(c.env, db, new URL(c.req.url).origin)
   if (!m) return c.json({ provider: null, account: null, playlists: [], approved: null })
   const { data } = await db.from('integrations').select('account_label').eq('provider', m.provider).single()
-  return c.json({ provider: m.provider === 'youtube_music' ? 'youtube' : 'spotify', account: data?.account_label ?? null,
-    playlists: await m.playlists(), approved: m.approved })
+  const playlists = await m.playlists()
+  if (m.provider !== 'youtube_music') return c.json({ provider: 'spotify', account: data?.account_label ?? null, playlists, approved: m.approved })
+  // YouTube Music: only the playlists of music. Each playlist is checked once (again if its size changes).
+  type Kinds = Record<string, { n: number; music: boolean }>
+  const known = ((m.external as { music_kinds?: Kinds }).music_kinds ?? {}) as Kinds
+  const unknown = playlists.filter(p => known[p.id]?.n !== p.tracks).map(p => p.id)
+  let kinds = known
+  if (unknown.length) {
+    const { token } = await connectorGrant(c.env, db, 'youtube_music', new URL(c.req.url).origin)
+    const found = await youtube.musicPlaylists(token, unknown)
+    kinds = Object.fromEntries(playlists.map(p => [p.id, p.id in found ? { n: p.tracks, music: found[p.id] } : known[p.id]]).filter(([, v]) => v))
+    await setIntegration(db, 'youtube_music', { external: { ...m.external, music_kinds: kinds } })
+  }
+  // The approved playlist always counts, whatever is in it; one not checked yet shows until it is.
+  const isMusic = (p: SpotifyPlaylist) => p.id === m.approved?.id || kinds[p.id]?.music !== false
+  return c.json({ provider: 'youtube', account: data?.account_label ?? null, approved: m.approved,
+    playlists: playlists.filter(isMusic), other_playlists: playlists.filter(p => !isMusic(p)) })
+})
+
+// Search all of YouTube for songs or playlists (not only the café account's). A search costs 100
+// of YouTube's 10,000 daily units, so the same search is answered from Cloudflare's cache for a day.
+integrations.get('/api/music/search', async c => {
+  if (!await isTeam(c)) return c.json({ error: 'Music is for the team' }, 403)
+  const q = (c.req.query('q') ?? '').trim().slice(0, 100)
+  const kind = c.req.query('kind') === 'playlists' ? 'playlists' : 'songs'
+  if (q.length < 2) return c.json({ tracks: [], playlists: [] })
+  const db = serviceClient(c.env)
+  if (await connectedOf(db, ['youtube_music']) !== 'youtube_music') return c.json({ error: 'Connect YouTube Music first' }, 400)
+  const cache = (caches as unknown as { default: Cache }).default
+  const key = new Request(`https://music-search.internal/${kind}?q=${encodeURIComponent(q.toLowerCase())}`)
+  const hit = await cache.match(key)
+  if (hit) return c.json(await hit.json())
+  const { token } = await connectorGrant(c.env, db, 'youtube_music', new URL(c.req.url).origin)
+  const result = await youtube.search(token, q, kind)
+  c.executionCtx.waitUntil(cache.put(key, new Response(JSON.stringify(result), { headers: { 'content-type': 'application/json', 'cache-control': 'max-age=86400' } })))
+  return c.json(result)
 })
 
 // The songs in one of the café account's playlists (YouTube Music), for the queue.
@@ -487,8 +525,9 @@ integrations.get('/api/music/tracks/:playlist', async c => {
   const db = serviceClient(c.env)
   if (await connectedOf(db, ['youtube_music']) !== 'youtube_music') return c.json({ error: 'Connect YouTube Music first' }, 400)
   const { token } = await connectorGrant(c.env, db, 'youtube_music', new URL(c.req.url).origin)
+  // The café account's playlists, or any public one found by searching.
   const id = c.req.param('playlist')
-  if (!(await youtube.playlists(token)).some(p => p.id === id)) return c.json({ error: 'That playlist is not in the café’s YouTube Music account' }, 404)
+  if (!/^[A-Za-z0-9_-]{2,64}$/.test(id)) return c.json({ error: 'Not a YouTube playlist' }, 400)
   return c.json({ tracks: await youtube.playlistTracks(token, id) })
 })
 
@@ -694,20 +733,43 @@ integrations.get('/api/integrations/square/callback', c => appCallback(c, 'squar
     account_label: proven.label, external: proven.external })
 }))
 
-// Takings per day from Square (admins with pay access): ?from=YYYY-MM-DD&to=YYYY-MM-DD (inclusive).
-integrations.get('/api/integrations/square/sales', async c => {
+// Stripe: sign in to the business's Stripe account (read-only).
+integrations.post('/api/integrations/stripe/start', async c => {
+  const cfg = stripeOAuth(c.env, new URL(c.req.url).origin)
+  if (!cfg) return c.json({ error: 'Stripe needs the Stripe platform keys first (STRIPE_CLIENT_ID and STRIPE_SECRET_KEY; see docs/INTEGRATIONS.md).' }, 400)
+  return c.json({ url: stripe.authUrl(cfg, await startState(c, 'stripe')) })
+})
+
+integrations.get('/api/integrations/stripe/callback', c => appCallback(c, 'stripe', async (state, origin, db) => {
+  const cfg = stripeOAuth(c.env, origin)
+  if (!cfg) throw new Error('Stripe is not set up')
+  const { accountId } = await stripe.exchangeCode(cfg, c.req.query('code') ?? '')
+  const proven = await proveStripe(cfg.secretKey, accountId)
+  const now = new Date().toISOString()
+  await setIntegration(db, 'stripe', { status: 'connected', connected_by: state.uid, connected_at: now, last_checked_at: now, last_error: null,
+    account_label: proven.label, external: proven.external })
+}))
+
+// Takings per day from the payment system (Square or Stripe, admins with pay access): ?from=YYYY-MM-DD&to=YYYY-MM-DD (inclusive).
+integrations.get('/api/integrations/payments/sales', async c => {
   const db = serviceClient(c.env)
   const { data: me } = await db.from('profiles').select('can_see_pay').eq('id', c.get('userId')).single()
   if (!me?.can_see_pay) return c.json({ error: 'Takings are for admins with pay access' }, 403)
   const from = c.req.query('from') ?? '', to = c.req.query('to') ?? ''
   if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || from > to) return c.json({ error: 'Give from and to dates (YYYY-MM-DD)' }, 400)
+  const p = await connectedOf(db, ['square', 'stripe'] as const)
+  if (!p) return c.json({ error: 'Connect Stripe on the Connections page to see takings' }, 400)
   try {
-    const s = await squareSession(c.env, db)
     const end = new Date(Date.parse(`${to}T12:00:00Z`) + 86_400_000).toISOString().slice(0, 10)
-    return c.json(await square.salesByDay(s.sandbox, s.token, s.locationIds, zonedIso(from, '00:00'), zonedIso(end, '00:00')))
+    if (p === 'stripe') {
+      const s = await stripeSession(c.env, db)
+      return c.json({ provider: p, ...await stripe.salesByDay(s.secretKey, s.accountId, zonedIso(from, '00:00'), zonedIso(end, '00:00')) })
+    }
+    const s = await squareSession(c.env, db)
+    return c.json({ provider: p, ...await square.salesByDay(s.sandbox, s.token, s.locationIds, zonedIso(from, '00:00'), zonedIso(end, '00:00')) })
   } catch (e) {
-    const why = explain('square', e)
-    if (lasting('square', e)) await markBroken(db, 'square', why)
+    const why = explain(p, e)
+    if (lasting(p, e)) await markBroken(db, p, why)
     return c.json({ error: why }, 400)
   }
 })

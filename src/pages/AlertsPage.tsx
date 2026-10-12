@@ -49,8 +49,7 @@ export function AlertsPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Messages" title="Alerts"
-        subtitle="Choose which WhatsApp alerts go out, and see everything the app has sent to WhatsApp, Google and Instagram." />
+      <PageHeader eyebrow="Messages" title="Alerts" />
 
       {wa?.status !== 'connected' && (
         <Alert severity="warning" sx={{ mb: 2.5 }}>

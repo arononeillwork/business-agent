@@ -1,7 +1,7 @@
 // End-to-end tests in demo mode (in-memory Easy Beans data, no backend needed).
 // The browser clock is fixed to Wednesday 30 Sep 2026, 09:00 in Madrid so the sample rota and
 // the clock-in rules give the same results whenever the tests run.
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
 import { FEATURES } from '../src/app/features'
 
 const WED_0900 = new Date('2026-09-30T07:00:00Z') // 09:00 Europe/Madrid (CEST)
@@ -39,6 +39,16 @@ async function signInAs(page: Page, email: string) {
 }
 
 const toast = (page: Page, text: string | RegExp) => expect(page.getByRole('alert').filter({ hasText: text })).toBeVisible()
+
+/** In a choose-one group on Connections: pick another app from "Also works with", switch to it and close its details. */
+async function switchApp(page: Page, group: Locator, name: string) {
+  await group.getByRole('group', { name: /^Other / }).getByRole('button', { name: `Use ${name} instead` }).click()
+  const details = page.getByRole('dialog', { name, exact: true })
+  await details.getByRole('button', { name: `Switch to ${name}` }).click()
+  await page.getByRole('dialog', { name: `Switch to ${name}?` }).getByRole('button', { name: `Switch to ${name}` }).click()
+  await expect(details).toContainText('Connected')
+  await details.getByRole('button', { name: 'Close' }).click()
+}
 
 test.describe('clock in and out', () => {
   test('admin clocks in on time, takes a break and sees the workday summary', async ({ page }) => {
@@ -503,7 +513,7 @@ test.describe('connections', () => {
     await toast(page, 'Rota sent on WhatsApp')
     await page.getByRole('link', { name: 'My account' }).first().click()
     await page.getByLabel(/shift reminders and rota updates on WhatsApp/).check()
-    await expect(page.getByText('Add your mobile number above')).toBeVisible()
+    await expect(page.getByText('Add your mobile number so the café can reach you that way.')).toBeVisible()
   })
 })
 
@@ -621,11 +631,12 @@ test.describe('partners (outside businesses)', () => {
 
     await nav.getByRole('link', { name: 'Finances' }).click()
     await expect(page.getByText(/7[.,]?865[.,]09/).first()).toBeVisible()
+    await expect(page.getByRole('main').getByText('Read-only', { exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Add expense' })).toHaveCount(0)
     await expect(page.getByRole('button', { name: /^Edit / })).toHaveCount(0)
 
     await nav.getByRole('link', { name: 'Timecards' }).click()
-    await expect(page.getByText('read-only. Download the CSV for payroll')).toBeVisible()
+    await expect(page.getByRole('main').getByText('Read-only', { exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Approve week' })).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Edit', exact: true })).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Request correction' })).toHaveCount(0)
@@ -823,16 +834,14 @@ test.describe('music', () => {
   test('café music: one device plays the café’s YouTube Music, with now playing, controls, queue and playlists', async ({ page }) => {
     await open(page, '/connections')
     const cafe = page.getByRole('region', { name: 'Café music' })
-    await cafe.getByRole('button', { name: 'Use YouTube Music instead' }).click()
-    await cafe.getByRole('button', { name: 'Switch to YouTube Music' }).click()
-    await page.getByRole('dialog', { name: 'Switch to YouTube Music?' }).getByRole('button', { name: 'Switch to YouTube Music' }).click()
+    await switchApp(page, cafe, 'YouTube Music')
     await expect(cafe.getByRole('article', { name: 'YouTube Music' })).toContainText('Connected')
 
     // No personal connection needed: the café account's music is right there.
     await page.getByRole('link', { name: 'Music' }).first().click()
     const now = page.getByRole('region', { name: 'Now playing' })
     await expect(now).toContainText('Nothing playing')
-    await expect(page.getByRole('region', { name: 'Café playlists' }).getByRole('button', { name: 'Easy Beans · Café mix' })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Café playlists' }).getByRole('button', { name: 'Easy Beans · Café mix', exact: true })).toBeVisible()
     await now.getByRole('button', { name: 'Play on this device' }).click()
     await expect(now).toContainText('Playing on this device')
     await expect(now.getByRole('heading', { name: 'Sunday Morning' })).toBeVisible()
@@ -847,7 +856,7 @@ test.describe('music', () => {
     await queue.getByRole('button', { name: 'Play Bloom' }).click()
     await expect(now.getByRole('heading', { name: 'Bloom' })).toBeVisible()
     await expect(queue.getByRole('listitem', { name: 'Bloom' })).toHaveAttribute('aria-current', 'true')
-    await page.getByRole('region', { name: 'Café playlists' }).getByRole('button', { name: 'Sunday slow bar' }).click()
+    await page.getByRole('region', { name: 'Café playlists' }).getByRole('button', { name: 'Sunday slow bar', exact: true }).click()
     await expect(now.getByRole('heading', { name: 'Holocene' })).toBeVisible()
     await expect(queue.getByRole('listitem')).toHaveCount(3)
 
@@ -862,6 +871,78 @@ test.describe('music', () => {
     await expect(card).toContainText('Nothing playing')
   })
 
+  test('café music: search all of YouTube Music, and play a song now, next or at the end, or a whole playlist', async ({ page }) => {
+    await open(page, '/connections')
+    await switchApp(page, page.getByRole('region', { name: 'Café music' }), 'YouTube Music')
+    await page.getByRole('link', { name: 'Music' }).first().click()
+    // No header text or speaker instructions: the page opens on what's playing.
+    await expect(page.getByText('connected to the speaker')).toHaveCount(0)
+    await expect(page.getByText('What’s on')).toHaveCount(0)
+    const now = page.getByRole('region', { name: 'Now playing' })
+    await now.getByRole('button', { name: 'Play on this device' }).click()
+    await expect(now.getByRole('heading', { name: 'Sunday Morning' })).toBeVisible()
+
+    const find = page.getByRole('region', { name: 'Find music' })
+    await find.getByLabel('Search music').fill('Lofi')
+    await find.getByRole('button', { name: 'Search' }).click()
+    const songs = find.getByRole('list', { name: 'Songs found' })
+    await expect(songs.getByRole('listitem')).toHaveCount(3)
+    const queue = page.getByRole('list', { name: 'Queue' })
+    await songs.getByRole('button', { name: 'Play Lofi (Live) next' }).click()
+    await toast(page, 'Lofi (Live) plays next')
+    await expect(queue.getByRole('listitem').nth(1)).toHaveAccessibleName('Lofi (Live)')
+    await songs.getByRole('button', { name: 'Add Lofi (Acoustic) to the queue' }).click()
+    await expect(queue.getByRole('listitem').last()).toHaveAccessibleName('Lofi (Acoustic)')
+    await songs.getByRole('button', { name: 'Play Lofi now' }).click()
+    await expect(now.getByRole('heading', { name: 'Lofi', exact: true })).toBeVisible()
+    await expect(queue.getByRole('listitem', { name: 'Lofi', exact: true })).toHaveAttribute('aria-current', 'true')
+
+    await find.getByRole('button', { name: 'Playlists' }).click()
+    const lists = find.getByRole('list', { name: 'Playlists found' })
+    await lists.getByRole('listitem', { name: 'Lofi mix' }).getByRole('button', { name: 'Play' }).click()
+    await expect(now.getByRole('heading', { name: 'Holocene' })).toBeVisible()
+  })
+
+  test('café music: playlists play one after another, in an order anyone can drag; only music playlists show', async ({ page }) => {
+    await open(page, '/connections')
+    await switchApp(page, page.getByRole('region', { name: 'Café music' }), 'YouTube Music')
+    await page.getByRole('link', { name: 'Music' }).first().click()
+    const cafe = page.getByRole('region', { name: 'Café playlists' })
+    const order = () => cafe.getByRole('list', { name: 'Café playlists' }).getByRole('listitem').evaluateAll(els => els.map(e => e.getAttribute('aria-label')))
+    await expect(cafe).toContainText('They play one after another, in this order.')
+    await expect.poll(order).toEqual(['Easy Beans · Café mix', 'Sunday slow bar'])
+
+    // When the last song of a playlist ends, the next playlist starts (and after the last, the first).
+    const now = page.getByRole('region', { name: 'Now playing' })
+    await cafe.getByRole('button', { name: 'Sunday slow bar', exact: true }).click()
+    await now.getByRole('button', { name: 'Play on this device' }).click()
+    await expect(now.getByRole('heading', { name: 'Holocene' })).toBeVisible()
+    for (const song of ['Skinny Love', 'Ho Hey', 'Sunday Morning']) {
+      await now.getByRole('button', { name: 'Next song' }).click()
+      await expect(now.getByRole('heading', { name: song })).toBeVisible()
+    }
+    await expect(cafe.getByRole('button', { name: 'Easy Beans · Café mix', exact: true })).toHaveAttribute('aria-pressed', 'true')
+
+    // Keyboard drag: Sunday slow bar goes first, and the order is kept.
+    await cafe.getByRole('button', { name: 'Move Sunday slow bar' }).focus()
+    await page.keyboard.press('Space')
+    await page.keyboard.press('ArrowUp')
+    await expect(page.getByRole('status').filter({ hasText: 'over droppable area yt1' })).toHaveCount(1)
+    await page.keyboard.press('Space')
+    await toast(page, 'Playlist order saved')
+    await expect.poll(order).toEqual(['Sunday slow bar', 'Easy Beans · Café mix'])
+    await page.getByRole('link', { name: 'Home: Today' }).click()
+    await page.getByRole('link', { name: 'Music' }).first().click()
+    await expect.poll(order).toEqual(['Sunday slow bar', 'Easy Beans · Café mix'])
+
+    // Plain YouTube playlists (not music) stay hidden unless asked for.
+    await expect(cafe.getByText('Café refit timelapse')).toHaveCount(0)
+    await cafe.getByRole('button', { name: 'Show 1 other YouTube playlist (not music)' }).click()
+    await expect(cafe.getByRole('button', { name: 'Café refit timelapse', exact: true })).toBeVisible()
+    await cafe.getByRole('button', { name: 'Hide other YouTube playlists' }).click()
+    await expect(cafe.getByText('Café refit timelapse')).toHaveCount(0)
+  })
+
   test('partners do not get music', async ({ page }) => {
     await open(page, '/music', 'laura@gestoria.example')
     await expect(page.getByRole('link', { name: 'Music' })).toHaveCount(0)
@@ -869,19 +950,22 @@ test.describe('music', () => {
 })
 
 test.describe('business-wide vs personal', () => {
-  test('everyone has their own connections on My account: calendar link, music, Claude', async ({ page }) => {
+  test('My account is just your personal details, password and data: no connections or access keys', async ({ page }) => {
     await open(page, '/account', 'maria@example.com')
-    const mine = page.getByRole('region', { name: 'My shifts in my calendar' })
-    await mine.getByRole('button', { name: 'Add my shifts to my calendar' }).click()
-    await toast(page, 'Calendar link ready')
-    const link = await mine.getByLabel('Calendar link').textContent()
-    expect(link).toMatch(/\/cal\/[a-z0-9]{40,}\.ics$/)
-    await expect(mine.getByRole('link', { name: 'Add to Google Calendar' })).toHaveAttribute('href', /calendar\.google\.com.*cid=webcal/)
-    await expect(mine.getByRole('link', { name: 'Apple / Outlook' })).toHaveAttribute('href', /^webcal:/)
-    await mine.getByRole('button', { name: 'Make a new link' }).click()
-    await expect(mine.getByLabel('Calendar link')).not.toHaveText(link!)
-    await expect(page.getByRole('region', { name: 'My music' }).getByText('Not connected')).toBeVisible()
-    await expect(page.getByRole('region', { name: 'AI assistants' })).toContainText('https://business-agent.arononeillwork.workers.dev/mcp')
+    const details = page.getByRole('region', { name: 'Personal details' })
+    await expect(details.getByRole('heading', { name: 'Personal details' })).toBeVisible()
+    // The email is a field like the others, not a line under the title; it can't be edited here.
+    await expect(details.getByLabel('Email')).toHaveValue('maria@example.com')
+    await expect(details.getByLabel('Email')).not.toBeEditable()
+    await expect(details.getByRole('button', { name: 'Save' })).toBeDisabled()
+    await details.getByLabel('Name').fill('Maria García')
+    await details.getByRole('button', { name: 'Save' }).click()
+    await toast(page, /^Saved$/)
+    for (const name of ['My shifts in my calendar', 'My music', 'AI assistants', 'Access keys']) {
+      await expect(page.getByRole('region', { name })).toHaveCount(0)
+    }
+    await expect(page.getByRole('region', { name: 'Password' })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Your data' })).toBeVisible()
     // Employees never see the team calendar or the business's own accounts.
     await expect(page.getByRole('region', { name: 'Team calendar' })).toHaveCount(0)
     await expect(page.getByRole('link', { name: 'Connections' })).toHaveCount(0)
@@ -896,8 +980,6 @@ test.describe('business-wide vs personal', () => {
     await team.getByRole('button', { name: 'Switch off' }).click()
     await toast(page, 'Calendar link switched off')
     await expect(team.getByRole('button', { name: 'Make the team calendar link' })).toBeVisible()
-    await page.getByRole('link', { name: 'My account' }).last().click()
-    await expect(page.getByRole('region', { name: 'My shifts in my calendar' })).toBeVisible()
   })
 })
 
@@ -1267,6 +1349,8 @@ test.describe('connections for email, files and music', () => {
     const comms = page.getByRole('region', { name: 'Team messages' })
     const music = page.getByRole('region', { name: 'Café music' })
     await expect(comms.getByRole('article', { name: 'WhatsApp' })).toContainText('Connected')
+    // Each kind is just its heading and its apps, no line of text underneath.
+    await expect(page.getByText(/Connect every account you post to|How the team hears about shifts/)).toHaveCount(0)
     // A choose-one group shows just the app in use (WhatsApp), not the alternatives.
     await expect(comms.getByRole('article', { name: 'Slack' })).toHaveCount(0)
     await expect(files.getByRole('article', { name: 'SharePoint' })).toContainText('Coming soon')
@@ -1286,11 +1370,11 @@ test.describe('connections for email, files and music', () => {
 
     // One mailbox at a time: Outlook only shows when asked for; switching to it replaces Gmail.
     await expect(email.getByRole('article', { name: 'Outlook' })).toHaveCount(0)
-    await email.getByRole('button', { name: 'Use Outlook instead' }).click()
-    await email.getByRole('button', { name: 'Switch to Outlook' }).click()
-    await page.getByRole('dialog', { name: 'Switch to Outlook?' }).getByRole('button', { name: 'Switch to Outlook' }).click()
+    await expect(email.getByRole('group', { name: 'Other email apps' })).toContainText('Also works with')
+    await switchApp(page, email, 'Outlook')
     await expect(email.getByRole('article', { name: 'Outlook' })).toContainText('Connected')
-    await expect(email.getByRole('article', { name: 'Gmail' })).not.toContainText('Connected')
+    await expect(email.getByRole('article', { name: 'Gmail' })).toHaveCount(0)
+    await expect(email.getByRole('button', { name: 'Use Gmail instead' })).toBeVisible()
     await email.getByRole('button', { name: 'Manage Outlook' }).click()
     const outlook = page.getByRole('dialog', { name: 'Outlook' })
     await expect(outlook).toContainText('A confirmation email was sent from this mailbox to itself.')
@@ -1340,11 +1424,9 @@ test.describe('connections for email, files and music', () => {
   test('café music: switching to YouTube Music replaces Spotify; staff open the playlist on the café device', async ({ page }) => {
     await open(page, '/connections')
     const music = page.getByRole('region', { name: 'Café music' })
-    await music.getByRole('button', { name: 'Use YouTube Music instead' }).click()
-    await music.getByRole('button', { name: 'Switch to YouTube Music' }).click()
-    await page.getByRole('dialog', { name: 'Switch to YouTube Music?' }).getByRole('button', { name: 'Switch to YouTube Music' }).click()
+    await switchApp(page, music, 'YouTube Music')
     await expect(music.getByRole('article', { name: 'YouTube Music' })).toContainText('Connected')
-    await expect(music.getByRole('article', { name: 'Spotify' })).not.toContainText('Connected')
+    await expect(music.getByRole('article', { name: 'Spotify' })).toHaveCount(0)
     await music.getByRole('button', { name: 'Manage YouTube Music' }).click()
     const dialog = page.getByRole('dialog', { name: 'YouTube Music' })
     await dialog.getByLabel('Approved playlist').click()
@@ -1356,7 +1438,7 @@ test.describe('connections for email, files and music', () => {
     const card = page.getByRole('region', { name: 'Café music' })
     await expect(card).toContainText('Nothing playing')
     await card.getByRole('link', { name: 'Open Music' }).click()
-    await expect(page.getByRole('region', { name: 'Café playlists' }).getByRole('button', { name: 'Easy Beans · Café mix' })).toContainText('Approved')
+    await expect(page.getByRole('region', { name: 'Café playlists' }).getByRole('button', { name: 'Easy Beans · Café mix', exact: true })).toContainText('Approved')
   })
 
   test('the set-up wizard walks an admin through details, team and apps; Today prompts until done', async ({ page }) => {
@@ -1389,40 +1471,12 @@ test.describe('connections for email, files and music', () => {
     await expect(page.getByText('Small version (icon)')).toHaveCount(0)
     await expect(page.getByText('Rose Wash')).toHaveCount(0)
     await expect(page.getByText('Rose Pink').first()).toBeVisible()
+    // The logo on the left, the colours beside it on the right.
+    const logo = (await page.locator('.MuiCard-root', { hasText: 'Logo' }).first().boundingBox())!
+    const colours = (await page.locator('.MuiCard-root', { hasText: 'Rose Pink' }).first().boundingBox())!
+    expect(colours.x).toBeGreaterThan(logo.x + logo.width - 2)
+    expect(Math.abs(colours.y - logo.y)).toBeLessThan(4)
   })
-})
-
-test('use the app from any AI: steps for each one, and access keys for the rest', async ({ page }) => {
-  await open(page, '/account', 'maria@example.com')
-  const ai = page.getByRole('region', { name: 'AI assistants' })
-  const tabs = ai.getByRole('tablist', { name: 'Choose your AI' })
-  for (const name of ['Claude', 'ChatGPT', 'Claude Code', 'Cursor', 'VS Code', 'Gemini CLI', 'Other AIs and automations']) {
-    await expect(tabs.getByRole('tab', { name, exact: true })).toBeVisible()
-  }
-  await expect(ai.getByRole('tabpanel', { name: 'Claude set-up' })).toContainText('Add custom connector')
-  await tabs.getByRole('tab', { name: 'ChatGPT' }).click()
-  await expect(ai.getByRole('tabpanel', { name: 'ChatGPT set-up' })).toContainText('Developer mode')
-  await tabs.getByRole('tab', { name: 'Claude Code' }).click()
-  await expect(ai.getByRole('tabpanel')).toContainText('claude mcp add --transport http easy-beans https://business-agent.arononeillwork.workers.dev/mcp')
-  await tabs.getByRole('tab', { name: 'Other AIs and automations' }).click()
-  await expect(ai.getByRole('tabpanel')).toContainText('/api/v1/openapi.json')
-
-  // Access keys: shown once, listed by name and prefix, revoked with a confirmation.
-  const keys = ai.getByRole('region', { name: 'Access keys' })
-  await keys.getByRole('button', { name: 'Make a key' }).click()
-  await toast(page, 'Give the key a name')
-  await keys.getByLabel('Key name').fill('n8n')
-  await keys.getByRole('button', { name: 'Make a key' }).click()
-  const shown = keys.getByRole('status', { name: 'New access key' })
-  await expect(shown).toContainText('It won’t be shown again')
-  const key = await shown.locator('pre').textContent()
-  expect(key).toMatch(/^ba_[A-Za-z0-9]{40}$/)
-  await expect(keys.getByRole('listitem', { name: 'Key n8n' })).toContainText(`${key!.slice(0, 7)}…`)
-  await expect(keys.getByRole('listitem', { name: 'Key n8n' })).toContainText('not used yet')
-  await keys.getByRole('listitem', { name: 'Key n8n' }).getByRole('button', { name: 'Revoke' }).click()
-  await page.getByRole('dialog', { name: 'Revoke “n8n”?' }).getByRole('button', { name: 'Revoke' }).click()
-  await toast(page, 'Key revoked')
-  await expect(keys.getByRole('listitem', { name: 'Key n8n' })).toHaveCount(0)
 })
 
 test.describe('social planner', () => {
@@ -1492,6 +1546,33 @@ test('Square: connect the payment system, then takings show on Finances next to 
   await expect(takings).toContainText(/€/)
 })
 
+test('Stripe: connect it in one click, then takings show on Finances next to the team’s cost', async ({ page }) => {
+  await open(page, '/finances')
+  const prompt = page.getByRole('alert').filter({ hasText: 'Connect Stripe to see takings' })
+  await expect(prompt).toBeVisible()
+  await prompt.getByRole('link', { name: 'Connect' }).click()
+  const payments = page.getByRole('region', { name: 'Payments and sales' })
+  await expect(payments.getByRole('article', { name: 'SumUp' })).toContainText('Coming soon')
+  await payments.getByRole('button', { name: 'Stripe details' }).click()
+  const details = page.getByRole('dialog', { name: 'Stripe', exact: true })
+  await expect(details).toContainText('it can’t take, refund or change anything')
+  await details.getByRole('button', { name: 'Connect Stripe' }).click()
+  await expect(details).toContainText('Easy Beans Coffee SL')
+  await expect(details).toContainText('The Stripe account was found and its payments can be read.')
+  await details.getByRole('button', { name: 'Close' }).click()
+  await expect(payments.getByRole('article', { name: 'Stripe' })).toContainText('Connected')
+  // One payment system at a time: the others wait under "Also works with".
+  await expect(payments.getByRole('article', { name: 'SumUp' })).toHaveCount(0)
+  await expect(payments.getByRole('group', { name: 'Other payments and sales apps' }).getByLabel('SumUp, coming soon')).toBeVisible()
+
+  await page.getByRole('link', { name: 'Finances' }).first().click()
+  const takings = page.getByRole('region', { name: 'Takings' })
+  await expect(takings).toContainText('from Stripe')
+  await expect(takings).toContainText('This week')
+  await expect(takings).toContainText('Last 30 days')
+  await expect(takings).toContainText(/€/)
+})
+
 test('TikTok connects in one click and says posts stay private until TikTok approves the app', async ({ page }) => {
   await open(page, '/connections')
   const social = page.getByRole('region', { name: 'Social media' })
@@ -1535,6 +1616,8 @@ test('every page in the menu shows its title, whatever buttons its header has', 
     await nav.locator(`a[href="${href}"]`).click()
     await expect(page).toHaveURL(new RegExp(`${href.split('?')[0]}(\\?|$)`))
     const h1 = page.getByRole('main').getByRole('heading', { level: 1 })
+    // Music starts straight with what's playing: its title is there for screen readers only.
+    if (href === '/music') { await expect(h1, href).toHaveText('Music'); await expect(h1, href).toBeVisible(); continue }
     await expect(h1, href).toBeVisible()
     await expect.poll(async () => (await h1.boundingBox().catch(() => null))?.width ?? 0, { message: `${href}: title squeezed` }).toBeGreaterThan(80)
   }
@@ -1550,6 +1633,13 @@ test.describe('To Do List', () => {
     await expect(page.getByRole('region', { name: 'Tech & till' }).getByRole('heading', { name: 'Square' })).toBeVisible()
     await expect(page.getByText(/before we (re)?open/i)).toHaveCount(0)
     await expect(page.getByText(/priority/i)).toHaveCount(0)
+    // Open, done and starred on one line.
+    const glance = page.getByRole('list', { name: 'At a glance' }).getByRole('listitem')
+    await expect(glance).toHaveCount(3)
+    const [a, b, c] = await Promise.all([0, 1, 2].map(i => glance.nth(i).boundingBox()))
+    expect(Math.abs(a!.y - b!.y)).toBeLessThan(4)
+    expect(Math.abs(a!.y - c!.y)).toBeLessThan(4)
+    await expect(glance.nth(0)).toContainText('open')
     // Done jobs stay hidden until asked for.
     await expect(page.getByText('Clean the outside terrace')).toHaveCount(0)
     await page.getByLabel('Show done').check()

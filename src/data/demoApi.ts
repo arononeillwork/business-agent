@@ -52,7 +52,7 @@ export function createDemoApi(): Api {
   }
   const integ: IntegrationsState = {
     configured: { google_business: true, whatsapp: true, instagram: true, spotify: true, gmail: true, outlook: true, google_drive: true, onedrive: true,
-      youtube_music: true, google_calendar: true, outlook_calendar: true, facebook: true, tiktok: true, square: true },
+      youtube_music: true, google_calendar: true, outlook_calendar: true, facebook: true, tiktok: true, square: true, stripe: true },
     queue: [],
     integrations: [
       { provider: 'google_business', status: 'connected', account_label: 'Easy Beans Coffee',
@@ -63,7 +63,7 @@ export function createDemoApi(): Api {
         external: { playlist: { id: 'pl1', name: 'Easy Beans · Mornings', tracks: 84, url: 'https://open.spotify.com', owner: 'Easy Beans' } },
         connected_at: nowIso(), last_sync_at: null, last_error: null, last_checked_at: nowIso() },
       { provider: 'instagram', status: 'connected', account_label: '@easy.beans.coffee', external: {}, connected_at: nowIso(), last_sync_at: nowIso(), last_error: null, last_checked_at: nowIso() },
-      ...(['gmail', 'outlook', 'google_drive', 'onedrive', 'youtube_music', 'google_calendar', 'outlook_calendar', 'facebook', 'tiktok', 'square'] as const).map(provider => ({
+      ...(['gmail', 'outlook', 'google_drive', 'onedrive', 'youtube_music', 'google_calendar', 'outlook_calendar', 'facebook', 'tiktok', 'square', 'stripe'] as const).map(provider => ({
         provider, status: 'disconnected' as const, account_label: null, external: {}, connected_at: null, last_sync_at: null, last_error: null, last_checked_at: null })),
     ],
   }
@@ -94,8 +94,9 @@ export function createDemoApi(): Api {
     yt1: [['Sunday Morning', 'Maroon 5'], ['Coffee', 'beabadoobee'], ['Banana Pancakes', 'Jack Johnson'], ['Bloom', 'The Paper Kites'],
       ['Golden Hour', 'JVKE'], ['Riptide', 'Vance Joy']].map(([title, artist], i) => ({ id: `demo-yt1-${i + 1}`, title, artist })),
     yt2: [['Holocene', 'Bon Iver'], ['Skinny Love', 'Birdy'], ['Ho Hey', 'The Lumineers']].map(([title, artist], i) => ({ id: `demo-yt2-${i + 1}`, title, artist })),
+    yt3: [['Day one', 'Easy Beans'], ['Day two', 'Easy Beans']].map(([title, artist], i) => ({ id: `demo-yt3-${i + 1}`, title, artist })),
   }
-  const player: MusicPlayerState = { device_id: null, device_name: null, playlist: null, queue: [], queue_version: 0, position: 0, playing: false,
+  const player: MusicPlayerState = { device_id: null, device_name: null, playlist: null, queue: [], queue_version: 0, playlist_order: [], position: 0, playing: false,
     elapsed: 0, duration: 0, volume: 80, command: null, command_seq: 0, heartbeat_at: null, updated_at: nowIso() }
   const cafeMusic = () => integ.integrations.find(i => (i.provider === 'spotify' || i.provider === 'youtube_music') && i.status === 'connected')
   // Social planner: a published post, one going out soon, one next week, and a draft.
@@ -930,7 +931,7 @@ export function createDemoApi(): Api {
     },
     async connectApp(provider) {
       requireAdmin()
-      const label = { facebook: 'Easy Beans Coffee', tiktok: '@easybeanscoffee', square: 'Easy Beans Coffee' }[provider]
+      const label = { facebook: 'Easy Beans Coffee', tiktok: '@easybeanscoffee', square: 'Easy Beans Coffee', stripe: 'Easy Beans Coffee SL' }[provider]
       const external = provider === 'facebook' ? { pages: [{ id: 'page-1', name: 'Easy Beans Coffee' }], page_id: 'page-1' } : provider === 'tiktok' ? { private_only: true } : {}
       setConnection(provider, { status: 'connected', account_label: label, connected_at: nowIso(), last_checked_at: nowIso(), last_error: null, external })
     },
@@ -943,8 +944,9 @@ export function createDemoApi(): Api {
     },
     async sales(from, to) {
       requireAdmin()
-      if (!integ.integrations.some(i => i.provider === 'square' && i.status === 'connected')) throw new Error('Connect Square on the Connections page to see takings')
-      return demoSales(from, to)
+      const p = integ.integrations.find(i => (i.provider === 'square' || i.provider === 'stripe') && i.status === 'connected')
+      if (!p) throw new Error('Connect Stripe on the Connections page to see takings')
+      return { provider: p.provider as 'square' | 'stripe', ...demoSales(from, to) }
     },
     async socialPosts() {
       requireAdmin()
@@ -1094,13 +1096,27 @@ export function createDemoApi(): Api {
       if (!p) return { provider: null, account: null, playlists: [], approved: null }
       const youtube = p.provider === 'youtube_music'
       return { provider: youtube ? 'youtube' : 'spotify', account: p.account_label ?? null,
-        playlists: clone(youtube ? youtubePlaylists : demoPlaylists), approved: clone(p.external.playlist ?? null), demo: true }
+        playlists: clone(youtube ? youtubePlaylists : demoPlaylists), approved: clone(p.external.playlist ?? null), demo: true,
+        // A YouTube playlist that isn't music: hidden unless asked for.
+        other_playlists: youtube ? [{ id: 'yt3', name: 'Café refit timelapse', tracks: 4, url: 'https://music.youtube.com/playlist?list=yt3', owner: 'Easy Beans' }] : undefined }
     },
     async cafeTracks(playlistId) {
       if (!staffOnly(me()!)) throw new Error('Music is for the team')
       const t = demoTracks[playlistId]
       if (!t) throw new Error('That playlist is not in the café’s YouTube Music account')
       return clone(t)
+    },
+    async cafeSearch(q, kind) {
+      if (!staffOnly(me()!)) throw new Error('Music is for the team')
+      const t = q.trim()
+      if (t.length < 2) return { tracks: [], playlists: [] }
+      return kind === 'songs'
+        ? { playlists: [], tracks: [`${t}`, `${t} (Live)`, `${t} (Acoustic)`].map((title, i) => ({ id: `demo-search-${i + 1}`, title, artist: 'Search result' })) }
+        : { tracks: [], playlists: [{ id: 'yt2', provider: 'youtube' as const, name: `${t} mix`, tracks: 3, url: 'https://music.youtube.com', owner: 'YouTube Music' }] }
+    },
+    async musicSetPlaylistOrder(ids) {
+      if (!staffOnly(me()!)) throw new Error('Music is for the team')
+      Object.assign(player, { playlist_order: [...ids], updated_at: nowIso() })
     },
     async musicPlayer() {
       if (!staffOnly(me()!)) throw new Error('Music is for the team')

@@ -32,8 +32,7 @@ export function OpeningHoursPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Café" title="Opening hours"
-        subtitle="The hours the rota, alerts and your Google listing use." />
+      <PageHeader eyebrow="Café" title="Opening hours" />
 
       <Grid container spacing={2.5}>
         <Grid size={12}>

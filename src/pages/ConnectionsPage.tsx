@@ -10,8 +10,7 @@ export function ConnectionsPage() {
   useConnectResult()
   return (
     <>
-      <PageHeader eyebrow="Settings" title="Business connections" actions={<CheckAllButton />}
-        subtitle="Connect the apps your business already uses: one sign-in each, and one app per kind (Gmail or Outlook, Drive or OneDrive). An app shows as connected only once it has really worked, and it's checked again every night." />
+      <PageHeader eyebrow="Settings" title="Business connections" actions={<CheckAllButton />} />
       <Alert severity="info" sx={{ mb: 3 }}>
         Personal connections (my shifts in my calendar, my music, AI assistants) are on <RouterLink to="/account">My account</RouterLink>; every team member sets up their own.
       </Alert>

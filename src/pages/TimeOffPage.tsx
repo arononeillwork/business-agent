@@ -50,8 +50,6 @@ export function TimeOffPage() {
   return (
     <>
       <PageHeader eyebrow="Holidays & days off" title="Time off"
-        subtitle={isAdmin ? 'Approve requests, see who is away, and keep the rota covered.'
-          : 'Ask for holidays or a day off. You will get an answer here (and on WhatsApp if you turned it on).'}
         actions={<Button variant="contained" startIcon={<AddIcon />} onClick={() => setAsking(true)}>Request time off</Button>} />
       <ErrorBox error={data.error} />
 

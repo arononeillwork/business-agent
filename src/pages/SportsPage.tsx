@@ -96,8 +96,8 @@ export function SportsPage() {
   return (
     <>
       <PageHeader eyebrow="What's on TV" title="Sports"
-        subtitle={`Football, UFC and boxing for the next ${DAYS / 7} weeks, in Madrid time. Updated ${ago(lastRefresh)}; refreshes by itself every few hours.`}
         actions={isAdmin && <>
+          <Typography variant="body2" sx={{ color: 'text.secondary' }}>Updated {ago(lastRefresh)}</Typography>
           <Button variant="outlined" startIcon={<TuneIcon />} onClick={() => setManaging(true)}>Competitions</Button>
           <Button variant="contained" startIcon={<RefreshIcon />} onClick={() => run(async () => {
             const n = await api.refreshSports(); await data.reload(); return n

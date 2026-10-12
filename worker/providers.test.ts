@@ -2,6 +2,8 @@ import { describe, expect, it, vi, afterEach } from 'vitest'
 import { fromGoogleHours, toGoogleHours, toSpecialHours } from './providers/google'
 import { parseWebhook, sendTemplate, templateBody, verifySignature } from './providers/whatsapp'
 import { publishPhoto } from './providers/instagram'
+import { musicPlaylists, search } from './providers/youtube'
+import { salesByDay } from './providers/stripe'
 import { hmacHex, seal, signState, unseal, verifyState } from './crypto'
 import type { CalendarEvent, OpeningHours } from '../shared/types'
 
@@ -134,5 +136,53 @@ describe('Spotify', () => {
     expect(JSON.parse(String(fetchMock.mock.calls[0][1].body))).toEqual({ context_uri: 'spotify:playlist:abc' })
     await expect(playPlaylist('t', 'abc')).rejects.toThrow('No Spotify speaker is on')
     expect(await nowPlaying('t', 'abc')).toEqual({ playing: true, track: 'Song', artist: 'A', device: 'Café speaker', onApprovedPlaylist: true })
+  })
+})
+
+describe('YouTube Music', () => {
+  const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status })
+  const item = (videoId: string, channel = 'Someone') => ({ snippet: { resourceId: { videoId }, videoOwnerChannelTitle: channel } })
+  it('tells music playlists from other YouTube playlists, and leaves undecided the ones YouTube could not answer for', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: string) => {
+      const u = new URL(input)
+      if (u.pathname.endsWith('/playlistItems')) {
+        const id = u.searchParams.get('playlistId')
+        if (id === 'songs') return json({ items: [item('a', 'Bon Iver - Topic'), item('b')] })
+        if (id === 'vlog') return json({ items: [item('c'), item('d'), item('e')] })
+        if (id === 'empty') return json({ items: [] })
+        return json({ error: { message: 'Backend Error', errors: [{ reason: 'backendError' }] } }, 500)
+      }
+      return json({ items: [{ id: 'a', snippet: { categoryId: '22' } }, { id: 'b', snippet: { categoryId: '10' } }, { id: 'c', snippet: { categoryId: '22' } },
+        { id: 'd', snippet: { categoryId: '10' } }, { id: 'e', snippet: { categoryId: '19' } }] })
+    }))
+    expect(await musicPlaylists('t', ['songs', 'vlog', 'empty', 'broken'])).toEqual({ songs: true, vlog: false, empty: true })
+  })
+  it('searches songs in the Music category only, and tidies the titles', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(json({ items: [
+      { id: { videoId: 'v1' }, snippet: { title: 'Holocene &amp; more', channelTitle: 'Bon Iver - Topic', thumbnails: { default: { url: 'https://i/1.jpg' } } } },
+    ] }))
+    vi.stubGlobal('fetch', fetchMock)
+    expect(await search('t', 'holocene', 'songs')).toEqual({ playlists: [], tracks: [{ id: 'v1', title: 'Holocene & more', artist: 'Bon Iver', image: 'https://i/1.jpg' }] })
+    expect(String(fetchMock.mock.calls[0][0])).toContain('videoCategoryId=10')
+  })
+  it('says plainly when the daily search limit is used up', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({ error: { message: 'quota', errors: [{ reason: 'quotaExceeded' }] } }, 403)))
+    await expect(search('t', 'holocene', 'playlists')).rejects.toThrow('daily limit')
+  })
+})
+
+describe('Stripe', () => {
+  it('adds up payments and refunds per Madrid day, as the connected account', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ has_more: false, data: [
+      { id: 'tx1', type: 'charge', amount: 450, currency: 'eur', created: Date.parse('2026-10-05T22:30:00Z') / 1000 }, // 00:30 on the 6th in Madrid
+      { id: 'tx2', type: 'payment', amount: 1200, currency: 'eur', created: Date.parse('2026-10-06T10:00:00Z') / 1000 },
+      { id: 'tx3', type: 'refund', amount: -450, currency: 'eur', created: Date.parse('2026-10-06T11:00:00Z') / 1000 },
+      { id: 'tx4', type: 'payout', amount: -5000, currency: 'eur', created: Date.parse('2026-10-06T12:00:00Z') / 1000 },
+    ] })))
+    vi.stubGlobal('fetch', fetchMock)
+    expect(await salesByDay('sk_test', 'acct_1', '2026-10-05T22:00:00Z', '2026-10-06T22:00:00Z')).toEqual({
+      currency: 'EUR', days: [{ date: '2026-10-06', gross: 16.5, tips: 0, refunds: 4.5, payments: 2 }],
+    })
+    expect(fetchMock.mock.calls[0][1].headers['Stripe-Account']).toBe('acct_1')
   })
 })

@@ -14,7 +14,7 @@ import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { ClockRulesCard } from '../components/ClockRules'
-import { ErrorBox, Flags, Loading, PageHeader, PersonAvatar, SectionTitle, Stat, StatRow, WeekNav } from '../components/common'
+import { ErrorBox, Flags, Loading, PageHeader, PersonAvatar, SectionTitle, Stat, StatRow, Tag, WeekNav } from '../components/common'
 import { addDays, currencySymbol, formatDuration, formatLocal, formatMoney, localDate, localTime, today, weekStart, zonedIso } from '../../shared/time'
 import type { CorrectionRequest, TimeEntry } from '../../shared/types'
 
@@ -83,10 +83,8 @@ export function TimecardsPage() {
   return (
     <>
       <PageHeader eyebrow="Registro de jornada" title="Timecards"
-        subtitle={isAdmin ? 'Times come from the server. Cards can be corrected with a reason, never deleted.'
-          : isPartner ? 'The team’s hours, read-only. Download the CSV for payroll.'
-          : 'Your hours this week. Spot a mistake? Tap the pencil to request a correction.'}
         actions={<>
+          {isPartner && <Tag>Read-only</Tag>}
           <WeekNav monday={monday} onChange={setMonday} />
           {(isAdmin || isPartner) && (
             <TextField select size="small" label="Person" value={person} onChange={e => setPerson(e.target.value)} sx={{ width: 150 }}>

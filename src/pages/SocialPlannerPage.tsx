@@ -63,7 +63,6 @@ export function SocialPlannerPage() {
   return (
     <>
       <PageHeader eyebrow="Business" title="Social planner"
-        subtitle="Write a post once, pick the accounts and the time, and it goes out by itself. Every post is checked before it's scheduled, and you can see where it went."
         actions={<Button variant="contained" startIcon={<AddIcon />} onClick={() => setEditing({ caption: '', targets: [], image_url: null })}>New post</Button>} />
       <ErrorBox error={posts.error} />
 

@@ -73,28 +73,28 @@ export function BrandPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Café" title="Brand"
-        subtitle="The logo, colours and fonts to use on menus, posts and signs. Everyone can see them; admins change them." />
+      <PageHeader eyebrow="Café" title="Brand" />
       <ErrorBox error={brand.error} />
       {b && (
         <Grid container spacing={2.5}>
-          <Grid size={12}>
-            <Stack spacing={2.5}>
-              <LogoCard title="Logo" value={b.logo} fallback={logoUrl} canEdit={isAdmin}
-                onChange={logo => save({ logo }, logo ? 'Logo updated' : 'Logo removed')} />
-            </Stack>
+          {/* The logo on the left, its colours beside it (stacked on phones). */}
+          <Grid size={{ xs: 12, md: 5 }}>
+            <LogoCard title="Logo" value={b.logo} fallback={logoUrl} canEdit={isAdmin}
+              onChange={logo => save({ logo }, logo ? 'Logo updated' : 'Logo removed')} />
+          </Grid>
+          <Grid size={{ xs: 12, md: 7 }}>
+            <Card component="section" aria-label="Colours" sx={{ height: '100%' }}>
+              <CardContent>
+                <SectionTitle action={isAdmin && <Button size="small" startIcon={<AddIcon />}
+                  onClick={() => setEditing({ index: null, colour: { name: '', hex: '#F79BA4', role: 'accent' } })}>Add colour</Button>}>Colours</SectionTitle>
+                <Box sx={{ display: 'grid', gap: 1.25 }}>
+                  {b.colours.map((c, i) => <Swatch key={`${c.name}-${i}`} colour={c} canEdit={isAdmin} onEdit={() => setEditing({ index: i, colour: c })} />)}
+                </Box>
+              </CardContent>
+            </Card>
           </Grid>
           <Grid size={12}>
             <Stack spacing={2.5}>
-              <Card component="section" aria-label="Colours">
-                <CardContent>
-                  <SectionTitle action={isAdmin && <Button size="small" startIcon={<AddIcon />}
-                    onClick={() => setEditing({ index: null, colour: { name: '', hex: '#F79BA4', role: 'accent' } })}>Add colour</Button>}>Colours</SectionTitle>
-                  <Box sx={{ display: 'grid', gap: 1.25 }}>
-                    {b.colours.map((c, i) => <Swatch key={`${c.name}-${i}`} colour={c} canEdit={isAdmin} onEdit={() => setEditing({ index: i, colour: c })} />)}
-                  </Box>
-                </CardContent>
-              </Card>
 
               <Card component="section" aria-label="Fonts">
                 <CardContent>
@@ -161,7 +161,7 @@ function LogoCard({ title, hint, value, fallback, canEdit, onChange }: {
   const input = useRef<HTMLInputElement>(null)
   const src = value ?? fallback ?? null
   return (
-    <Card component="section" aria-label={title}>
+    <Card component="section" aria-label={title} sx={{ height: '100%' }}>
       <CardContent>
         <SectionTitle action={src && <Button size="small" startIcon={<DownloadIcon fontSize="small" />} component="a" href={src} download={`easy-beans-${title.toLowerCase().replace(/\W+/g, '-')}.png`}>Download</Button>}>{title}</SectionTitle>
         {hint && <Typography variant="body2" sx={{ color: 'text.secondary', mt: -1, mb: 1.5 }}>{hint}</Typography>}

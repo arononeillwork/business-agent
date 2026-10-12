@@ -177,7 +177,6 @@ export function TodayPage() {
   return (
     <>
       <PageHeader eyebrow={formatLocal(new Date(), 'EEEE d MMMM')} title={`Hola, ${me?.full_name.split(' ')[0]}`}
-        subtitle="Here's the café today."
         actions={holiday && <Tag fg={tokens.badFg} bg={tokens.badBg}>Holiday · {holiday.title}</Tag>} />
       <ErrorBox error={data.error} />
       {isAdmin && business && !business.setup_completed_at && <SetupPrompt />}

@@ -45,7 +45,7 @@ export function SetupPage() {
   const notify = useNotify()
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
-  const { done, count, total } = useSetupProgress()
+  const { done } = useSetupProgress()
   const step = (STEPS.find(s => s.key === params.get('step'))?.key
     ?? (params.has('connected') || params.has('connect_error') ? 'apps' : STEPS.find(s => !done[s.key])?.key ?? 'apps')) as StepKey
   const go = (k: StepKey) => setParams({ step: k }, { replace: true })
@@ -62,8 +62,7 @@ export function SetupPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Settings" title="Set up your business"
-        subtitle={`${count} of ${total} done. Everything can be changed later; skip anything you're not ready for.`} />
+      <PageHeader eyebrow="Settings" title="Set up your business" />
       <Box sx={{ display: 'grid', gap: 3, alignItems: 'start' }}>
         <Box component="nav" aria-label="Set-up steps" sx={{ display: 'grid', gap: 0.5 }}>
           {STEPS.map((s, i) => (

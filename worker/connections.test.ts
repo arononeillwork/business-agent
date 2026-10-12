@@ -22,6 +22,7 @@ const env = {
   META_ACCESS_TOKEN: 'meta-token', WHATSAPP_PHONE_NUMBER_ID: '555', META_APP_SECRET: 'meta-secret', WHATSAPP_VERIFY_TOKEN: 'verify',
   INSTAGRAM_APP_ID: 'ig-app', INSTAGRAM_APP_SECRET: 'ig-secret',
   META_APP_ID: 'meta-app', TIKTOK_CLIENT_KEY: 'tt-key', TIKTOK_CLIENT_SECRET: 'tt-secret', SQUARE_APP_ID: 'sq-app', SQUARE_APP_SECRET: 'sq-secret',
+  STRIPE_CLIENT_ID: 'ca_test', STRIPE_SECRET_KEY: 'sk_test_platform',
 } as unknown as Env
 
 let db: FakeSupabase
@@ -59,7 +60,7 @@ async function connect(provider: string, back: 'connections' | 'setup' = 'connec
 }
 
 /** The apps with their own start and callback routes (Spotify, Instagram, Google Maps). */
-async function connectOwn(provider: 'spotify' | 'instagram' | 'google' | 'facebook' | 'tiktok' | 'square', query = 'code=c') {
+async function connectOwn(provider: 'spotify' | 'instagram' | 'google' | 'facebook' | 'tiktok' | 'square' | 'stripe', query = 'code=c') {
   const start = await post(`/api/integrations/${provider}/start`)
   expect(start.status).toBe(200)
   const state = new URL((await start.json() as { url: string }).url).searchParams.get('state')!
@@ -499,7 +500,7 @@ describe('Facebook, TikTok and Square: one click, connected once they really wor
   it('Square: finds the business and its location; takings are added up per day in Madrid time', async () => {
     expect((await connectOwn('square')).searchParams.get('connected')).toBe('square')
     expect(db.integration('square')).toMatchObject({ status: 'connected', account_label: 'Easy Beans Coffee', external: { locations: [{ id: 'L1' }] } })
-    const res = await get('/api/integrations/square/sales?from=2026-09-28&to=2026-09-29')
+    const res = await get('/api/integrations/payments/sales?from=2026-09-28&to=2026-09-29')
     expect(res.status).toBe(200)
     const sales = await res.json() as { currency: string; days: { date: string; gross: number; tips: number; payments: number }[] }
     expect(sales.currency).toBe('EUR')
@@ -512,9 +513,38 @@ describe('Facebook, TikTok and Square: one click, connected once they really wor
   it('Square: takings only for admins with pay access; no location means not connected', async () => {
     await connectOwn('square')
     db.table('profiles').find(p => p.id === 'admin-1')!.can_see_pay = false
-    expect((await get('/api/integrations/square/sales?from=2026-09-28&to=2026-09-28')).status).toBe(403)
+    expect((await get('/api/integrations/payments/sales?from=2026-09-28&to=2026-09-28')).status).toBe(403)
     apis.square.locations = []
     expect((await connectOwn('square')).searchParams.get('connect_error')).toMatch(/no open location/)
+  })
+
+  it('Stripe: one click, read-only; takings per day in Madrid time; replaces Square; disconnect removes access on Stripe too', async () => {
+    const start = await post('/api/integrations/stripe/start')
+    const auth = new URL((await start.json() as { url: string }).url)
+    expect(auth.host).toBe('connect.stripe.com')
+    expect(auth.searchParams.get('scope')).toBe('read_only')
+    expect(auth.searchParams.get('client_id')).toBe('ca_test')
+    await connectOwn('square')
+    expect((await connectOwn('stripe')).searchParams.get('connected')).toBe('stripe')
+    expect(db.integration('stripe')).toMatchObject({ status: 'connected', account_label: 'Easy Beans Coffee SL', external: { account_id: 'acct_1', currency: 'EUR' } })
+    expect(status('square')).toBe('disconnected') // one payment system at a time
+    const sales = await (await get('/api/integrations/payments/sales?from=2026-09-28&to=2026-09-29')).json() as { provider: string; currency: string; days: { date: string; gross: number; refunds: number; payments: number }[] }
+    expect(sales.provider).toBe('stripe')
+    expect(sales.currency).toBe('EUR')
+    expect(sales.days).toEqual([
+      expect.objectContaining({ date: '2026-09-28', gross: 15.5, refunds: 2, payments: 2 }),
+      expect.objectContaining({ date: '2026-09-29', gross: 9, refunds: 0, payments: 1 }),
+    ])
+    expect((await post('/api/integrations/stripe/disconnect')).status).toBe(200)
+    expect(apis.stripe.deauthorized).toEqual(['acct_1'])
+    expect(status('stripe')).toBe('disconnected')
+  })
+
+  it('Stripe: removed on Stripe\'s side shows as not working after the nightly check', async () => {
+    await connectOwn('stripe')
+    apis.stripe.revoked = true
+    await nightly()
+    expect(db.integration('stripe')).toMatchObject({ status: 'error' })
   })
 
   it('publishes planned posts to the Facebook Page and TikTok, and reports links back', async () => {

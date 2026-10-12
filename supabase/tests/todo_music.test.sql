@@ -45,3 +45,12 @@ select pg_temp.expect_error($q$select public.music_send('play')$q$, 'Music is fo
 reset role;
 select set_config('request.jwt.claim.sub', '', false);
 do $$ begin assert (select playing from public.music_player), 'outsider update ignored'; end $$;
+
+-- The order the café's playlists play in: a list, kept by the shared player, team only.
+select pg_temp.act_as('julio@test');
+do $$ begin
+  assert (select playlist_order from public.music_player) = '[]'::jsonb, 'no order until someone drags one';
+  update public.music_player set playlist_order = '["PL2", "PL1"]';
+  assert (select playlist_order->>0 from public.music_player) = 'PL2', 'the team can reorder the playlists';
+end $$;
+select pg_temp.expect_error($q$update public.music_player set playlist_order = '{"a":1}'$q$, 'playlist_order');

@@ -80,7 +80,7 @@ const DOES: Partial<Record<OptionId, string>> = {
   tiktok: 'Plan and publish photo posts to your TikTok account.',
   square: 'Your till’s takings on the Finances page, with the team’s cost as a share of sales.',
   sumup: 'Takings from a SumUp card reader.',
-  stripe: 'Online payments and takings from Stripe.',
+  stripe: 'Takings from Stripe on the Finances page, with the team’s cost as a share of sales.',
   spotify: 'The approved playlist; staff play or pause it on the café speaker.',
   youtube_music: 'The approved playlist; staff open it on the café device.',
 }
@@ -99,6 +99,7 @@ const CAN: Partial<Record<OptionId, string[]>> = {
   facebook: ['See the Pages you manage and pick one', 'Publish the posts you plan here to that Page, at the time you choose'],
   tiktok: ['See your TikTok name and picture', 'Publish the photo posts you plan here, at the time you choose'],
   square: ['See your business name and locations', 'Read payments (takings) — it can’t take, refund or change anything'],
+  stripe: ['See your business name', 'Read payments and refunds (takings) — it can’t take, refund or change anything'],
   spotify: ['See your playlists', 'Play and pause the approved playlist on the café speaker (Premium)'],
   youtube_music: ['See your playlists (read-only)'],
 }
@@ -106,7 +107,7 @@ const CAN: Partial<Record<OptionId, string[]>> = {
 const KEYS_NEEDED: Partial<Record<OptionId, string>> = {
   gmail: 'the Google keys', google_drive: 'the Google keys', youtube_music: 'the Google keys', google_business: 'the Google keys',
   outlook: 'the Microsoft app', onedrive: 'the Microsoft app', spotify: 'the Spotify keys', instagram: 'the Instagram app keys',
-  facebook: 'the Meta app keys', tiktok: 'the TikTok app keys', square: 'the Square app keys',
+  facebook: 'the Meta app keys', tiktok: 'the TikTok app keys', square: 'the Square app keys', stripe: 'the Stripe platform keys',
   whatsapp: 'the WhatsApp Business number', google_calendar: 'the calendar link key', outlook_calendar: 'the calendar link key',
 }
 
@@ -154,8 +155,6 @@ export function ServiceConnections({ back = 'connections', groups = GROUPS.map(g
   const { api } = useApp()
   const data = useAsync('integrations', () => api.integrations(), [])
   const [open, setOpen] = useState<OptionId | null>(null)
-  // Choose-one groups show just the app in use; the others appear when asked for ("Use Outlook instead").
-  const [expanded, setExpanded] = useState<string[]>([])
   const find = (id: string) => data.data?.integrations.find(i => i.provider === id)
   const inUse = (g: ConnectionGroupInfo) => (g.pickOne ? g.options.find(o => !o.soon && active(find(o.id))) : undefined)
   const stateOf = (o: ConnectionOption, g: ConnectionGroupInfo): OptionState => {
@@ -168,25 +167,33 @@ export function ServiceConnections({ back = 'connections', groups = GROUPS.map(g
   const openGroup = GROUPS.find(g => g.options.some(o => o.id === open))
   return (
     <Stack spacing={3.5}>
-      {GROUPS.filter(g => groups.includes(g.key) && (g.key !== 'payments' || FEATURES.square)).map(g => {
+      {GROUPS.filter(g => groups.includes(g.key)).map(g0 => {
+        // Square is switched off for now (Stripe is the payment system); its option is hidden.
+        const g = { ...g0, options: g0.options.filter(o => o.id !== 'square' || FEATURES.square) }
+        // Choose-one groups show just the app in use, with the alternatives as small chips underneath.
         const current = inUse(g)
-        const others = current ? g.options.filter(o => o !== current && !o.soon) : []
-        const all = !current || expanded.includes(g.key)
+        const others = current ? g.options.filter(o => o !== current) : []
         return (
           <Box key={g.key} component="section" aria-label={g.title}>
-            <Stack direction="row" spacing={1} sx={{ alignItems: 'baseline', flexWrap: 'wrap' }}>
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'baseline', flexWrap: 'wrap', mb: 1.25 }}>
               <Typography variant="h6" component="h2">{g.title}</Typography>
               {g.pickOne && !current && g.options.filter(o => !o.soon).length > 1 && <Typography variant="caption" sx={{ color: 'text.secondary' }}>· choose one</Typography>}
             </Stack>
-            <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>{g.hint}</Typography>
             <Card>
-              {(all ? g.options : [current!]).map(o => <Tile key={o.id} s={stateOf(o, g)} back={back} reload={data.reload} onOpen={() => setOpen(o.id)} loading={!data.data} />)}
-              {!all && others.length > 0 && (
-                <Box sx={{ borderTop: `1px solid ${tokens.line}`, px: 1.5, py: 0.75 }}>
-                  <Button size="small" onClick={() => setExpanded(x => [...x, g.key])}>
-                    Use {others.map(o => o.name).join(' or ')} instead
-                  </Button>
-                </Box>
+              {(current ? [current] : g.options).map(o => <Tile key={o.id} s={stateOf(o, g)} back={back} reload={data.reload} onOpen={() => setOpen(o.id)} loading={!data.data} />)}
+              {others.length > 0 && (
+                <Stack direction="row" role="group" aria-label={`Other ${g.title.toLowerCase()} apps`} useFlexGap
+                  sx={{ borderTop: `1px solid ${tokens.line}`, px: 2, py: 1.25, alignItems: 'center', gap: 1, flexWrap: 'wrap', bgcolor: tokens.surfaceAlt }}>
+                  <Typography variant="body2" sx={{ color: 'text.secondary', mr: 0.5 }}>Also works with</Typography>
+                  {others.map(o => (
+                    <Chip key={o.id} variant="outlined" size="small" disabled={o.soon}
+                      onClick={o.soon ? undefined : () => setOpen(o.id)}
+                      aria-label={o.soon ? `${o.name}, coming soon` : `Use ${o.name} instead`}
+                      avatar={<Box sx={{ display: 'grid', placeItems: 'center', bgcolor: 'transparent !important', '& svg': { width: 16, height: 16 } }}>{LOGO[o.id]}</Box>}
+                      label={o.soon ? `${o.name} · soon` : o.name}
+                      sx={{ bgcolor: tokens.surface, '&.Mui-disabled': { opacity: 0.6 } }} />
+                  ))}
+                </Stack>
               )}
             </Card>
           </Box>
@@ -223,7 +230,7 @@ function useConnect(s: OptionState, back: 'setup' | 'connections', reload: () =>
     if (p === 'spotify') return api.connectSpotify()
     if (p === 'instagram') return api.connectInstagram(back)
     if (p === 'google_business') return api.connectGoogle(back)
-    if (p === 'facebook' || p === 'tiktok' || p === 'square') return api.connectApp(p, back)
+    if (p === 'facebook' || p === 'tiktok' || p === 'square' || p === 'stripe') return api.connectApp(p, back)
     if (isCalendar(p)) {
       // Open the tab now (popup blockers allow it on a click), then point it at the calendar app.
       const tab = window.open('', '_blank')
@@ -315,7 +322,8 @@ function ConnectorDialog({ s, back, reload, onClose }: { s: OptionState; back: '
 
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="sm" aria-labelledby="connector-title">
-      <DialogTitle component="div" sx={{ display: 'flex', gap: 1.5, alignItems: 'center', pr: 6 }}>
+      {/* Its own id, so the dialog is named by the app's name alone (not "by …" and the close button). */}
+      <DialogTitle component="div" id="connector-head" sx={{ display: 'flex', gap: 1.5, alignItems: 'center', pr: 6 }}>
         <Logo id={o.id} size={48} />
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography id="connector-title" variant="h6" component="h2">{o.name}</Typography>
@@ -340,7 +348,7 @@ function ConnectorDialog({ s, back, reload, onClose }: { s: OptionState; back: '
             : 'This account manages more than one Page. Pick the one to post to below.'}
         </Alert>}
         {row?.last_error && status !== 'connected' && <Alert severity="error" sx={{ mt: 2 }}>{row.last_error}</Alert>}
-        {!s.configured && <Alert severity="warning" sx={{ mt: 2 }}>Needs {KEYS_NEEDED[o.id]} first. The steps are in docs/sign-in-setup.md and docs/INTEGRATIONS.md; then every business connects with one click.</Alert>}
+        {!s.configured && <Alert severity="warning" sx={{ mt: 2 }}>Not set up yet: Business Agent needs {KEYS_NEEDED[o.id]} before anyone can connect {o.name}. They’re added once, for every business; after that, connecting is one click.</Alert>}
 
         {CAN[o.id] && <>
           <Typography variant="overline" component="h3" sx={{ display: 'block', color: 'text.secondary', mt: 2.5 }}>

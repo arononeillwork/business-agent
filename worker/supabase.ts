@@ -25,6 +25,8 @@ export interface Env {
   SPOTIFY_CLIENT_SECRET?: string
   TIKTOK_CLIENT_KEY?: string          // TikTok app (Login Kit + Content Posting API)
   TIKTOK_CLIENT_SECRET?: string
+  STRIPE_CLIENT_ID?: string           // Stripe Connect (OAuth, ca_…): takings on the Finances page
+  STRIPE_SECRET_KEY?: string          // the platform's secret key (reads connected accounts)
   SQUARE_APP_ID?: string              // Square app (OAuth): takings on the Finances page
   SQUARE_APP_SECRET?: string
   SQUARE_ENVIRONMENT?: string         // var: 'production' (default) or 'sandbox'

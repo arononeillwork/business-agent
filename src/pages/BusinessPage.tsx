@@ -100,8 +100,7 @@ export function BusinessPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Business" title={b.name}
-        subtitle={[b.business_type, b.address].filter(Boolean).join(' · ')} />
+      <PageHeader eyebrow="Business" title={b.name} />
 
       <Stack spacing={2.5}>
         <EditableCard title="Contact" business={b} canEdit={isAdmin}

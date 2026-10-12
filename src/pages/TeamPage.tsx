@@ -51,7 +51,7 @@ export function TeamPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Team" title="Team" subtitle={isAdmin ? 'Everyone with a login. Click a person to change their role, pay, PIN or access.' : 'Your colleagues'} />
+      <PageHeader eyebrow="Team" title="Team" />
 
       {/* Command bar */}
       <Stack direction="row" sx={{ gap: 1, alignItems: 'center', flexWrap: 'wrap', mb: 1.5, pb: 1.5, borderBottom: `1px solid ${tokens.line}` }}>

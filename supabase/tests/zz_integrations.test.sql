@@ -572,3 +572,15 @@ do $$ begin
   assert public.integration_group('facebook') is null and public.integration_group('tiktok') is null, 'social apps are not a choice';
   assert (select count(*) from public.integrations where provider in ('facebook', 'tiktok', 'square')) = 3, 'new connections listed';
 end $$;
+
+-- 24. Stripe is the other payment system: connecting it replaces Square ---------------------------
+reset role;
+update public.integrations set status = 'connected', account_label = 'Easy Beans (Square)' where provider = 'square';
+update public.integrations set status = 'connected', account_label = 'Easy Beans Coffee SL' where provider = 'stripe';
+do $$ begin
+  assert public.integration_group('stripe') = 'payments', 'Stripe is a payment system';
+  assert (select status from public.integrations where provider = 'square') = 'disconnected', 'Stripe replaces Square';
+  assert (select count(*) from public.integrations where public.integration_group(provider) = 'payments' and status = 'connected') = 1,
+    'only one payment system is ever connected';
+end $$;
+update public.integrations set status = 'disconnected', account_label = null where provider = 'stripe';

@@ -9,7 +9,7 @@ export type Row = Record<string, unknown>
 /** integration_group() in migration 28. */
 export const GROUP: Record<string, string> = {
   gmail: 'email', outlook: 'email', google_drive: 'files', onedrive: 'files',
-  google_calendar: 'calendar', outlook_calendar: 'calendar', spotify: 'music', youtube_music: 'music', whatsapp: 'communication', square: 'payments',
+  google_calendar: 'calendar', outlook_calendar: 'calendar', spotify: 'music', youtube_music: 'music', whatsapp: 'communication', square: 'payments', stripe: 'payments',
 }
 
 /** Primary keys, for upserts. Tables not listed get a numeric id. */

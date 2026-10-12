@@ -247,7 +247,7 @@ export const TIME_OFF_LABELS: Record<TimeOffKind, string> = {
   vacation: 'Holiday', personal: 'Personal day', sick: 'Sick', other: 'Other',
 }
 
-export type IntegrationProvider = 'google_business' | 'whatsapp' | 'instagram' | 'facebook' | 'tiktok' | 'spotify' | 'square' | ConnectorProvider | CalendarApp
+export type IntegrationProvider = 'google_business' | 'whatsapp' | 'instagram' | 'facebook' | 'tiktok' | 'spotify' | 'square' | 'stripe' | ConnectorProvider | CalendarApp
 /** Connections made with one sign-in with Google or Microsoft (email, files, café YouTube Music). */
 export type ConnectorProvider = 'gmail' | 'outlook' | 'google_drive' | 'onedrive' | 'youtube_music'
 /** Calendar apps that subscribe to the team calendar link. */
@@ -366,7 +366,7 @@ export interface SocialPost {
 }
 
 /** Takings from the payment system (Square), per day in the business's time zone. */
-export interface Sales { currency: string; days: { date: string; gross: number; tips: number; refunds: number; payments: number }[] }
+export interface Sales { /** Which payment system the takings come from. */ provider?: 'square' | 'stripe'; currency: string; days: { date: string; gross: number; tips: number; refunds: number; payments: number }[] }
 
 /** To Do List: a category the admins manage (jobs are grouped by these). */
 export interface TodoCategory { id: string; name: string; hint: string | null; colour: string; sort: number }
@@ -387,7 +387,7 @@ export interface Todo {
 export type TodoPatch = Partial<Pick<Todo, 'title' | 'category_id' | 'section' | 'assignee_id' | 'done' | 'starred' | 'pinned' | 'position'>>
 
 /** Café music (Music page): the café account's playlists, whichever service is connected. */
-export interface CafeMusicLibrary { provider: 'youtube' | 'spotify' | null; account: string | null; playlists: SpotifyPlaylist[]; approved: SpotifyPlaylist | null; /** Sample songs (demo): played by a pretend player. */ demo?: boolean }
+export interface CafeMusicLibrary { provider: 'youtube' | 'spotify' | null; account: string | null; playlists: SpotifyPlaylist[]; approved: SpotifyPlaylist | null; /** YouTube playlists that aren't music (hidden unless asked for). */ other_playlists?: SpotifyPlaylist[]; /** Sample songs (demo): played by a pretend player. */ demo?: boolean }
 /** One song in the café queue (YouTube video id). */
 export interface CafeTrack { id: string; title: string; artist?: string; image?: string }
 export type MusicAction = 'play' | 'pause' | 'next' | 'previous' | 'jump' | 'seek' | 'volume'
@@ -398,6 +398,8 @@ export interface MusicPlayerState {
   playlist: SpotifyPlaylist | null
   queue: CafeTrack[]
   queue_version: number
+  /** Playlist ids in the order they play, one after another. */
+  playlist_order: string[]
   position: number
   playing: boolean
   elapsed: number

@@ -119,7 +119,7 @@ export function CalendarPage() {
 
   return (
     <>
-      <PageHeader eyebrow="What's on" title="Calendar" subtitle="Holidays, closures, ferias, football and business events. Tap a category to hide it."
+      <PageHeader eyebrow="What's on" title="Calendar"
         actions={isAdmin && <>
           <Button variant="outlined" startIcon={<ClosedIcon />} onClick={newClosure}>Add a closure</Button>
           <Button variant="contained" startIcon={<AddIcon />} onClick={() => newEvent(today())}>Add event</Button>
