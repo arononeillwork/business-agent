@@ -3,10 +3,13 @@ import { Alert, Box, Button, Divider, Link, Stack, Tab, Tabs, TextField, Typogra
 import GoogleIcon from '@mui/icons-material/Google'
 import RotaIcon from '@mui/icons-material/CalendarViewWeekOutlined'
 import ClockIcon from '@mui/icons-material/AccessTimeOutlined'
+import TimeOffIcon from '@mui/icons-material/BeachAccessOutlined'
 import MapIcon from '@mui/icons-material/StorefrontOutlined'
 import ChatIcon from '@mui/icons-material/ForumOutlined'
-import TvIcon from '@mui/icons-material/LiveTvOutlined'
+import SparkIcon from '@mui/icons-material/AutoAwesomeOutlined'
 import LockIcon from '@mui/icons-material/VerifiedUserOutlined'
+import EuIcon from '@mui/icons-material/PublicOutlined'
+import QuickIcon from '@mui/icons-material/BoltOutlined'
 import { useEffect, useState, type ReactNode } from 'react'
 import { useApp } from '../app/AppContext'
 import { useAction, useNotify } from '../app/Notify'
@@ -42,13 +45,19 @@ function MicrosoftIcon() {
   )
 }
 
-const FEATURES: { icon: ReactNode; title: string; text: string }[] = [
-  { icon: <RotaIcon />, title: 'Rota in minutes', text: 'Drag shifts into place, share the week, and staff see their hours on their phone.' },
-  { icon: <ClockIcon />, title: 'Clock-ins and hours', text: 'Timecards, breaks and the monthly registro de jornada, ready for your gestoría.' },
-  { icon: <MapIcon />, title: 'Your business, in sync', text: 'Opening hours and closures update Google Maps by themselves.' },
-  { icon: <ChatIcon />, title: 'The team in the loop', text: 'Shift reminders and changes on WhatsApp, text or email: however each person prefers.' },
-  { icon: <TvIcon />, title: "What's on", text: 'Big matches, local fiestas and bank holidays, so you can plan staff and the TV.' },
-  { icon: <LockIcon />, title: 'Private by design', text: 'Pay stays with the people who should see it. Data is stored in the EU.' },
+// What it does, at a glance: an icon and a few words each, no paragraphs to read.
+const HIGHLIGHTS: { icon: ReactNode; label: string }[] = [
+  { icon: <RotaIcon />, label: 'Rota in minutes' },
+  { icon: <ClockIcon />, label: 'Clock-ins and hours' },
+  { icon: <TimeOffIcon />, label: 'Time off' },
+  { icon: <MapIcon />, label: 'Google Maps in sync' },
+  { icon: <ChatIcon />, label: 'WhatsApp reminders' },
+  { icon: <SparkIcon />, label: 'Ask Claude or ChatGPT' },
+]
+const TRUST: { icon: ReactNode; label: string }[] = [
+  { icon: <QuickIcon />, label: 'Set up in minutes' },
+  { icon: <LockIcon />, label: 'Pay stays private' },
+  { icon: <EuIcon />, label: 'Data stored in the EU' },
 ]
 
 // Buttons in the product's own colours (the app's theme is the business's brand).
@@ -59,37 +68,46 @@ const outlineBtn = { borderColor: BA.line, color: BA.ink, bgcolor: '#fff', '&:ho
 export function LoginPage() {
   const [tab, setTab] = useState<'signin' | 'signup'>('signin')
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: BA.bg, color: BA.ink, colorScheme: 'light',
+    <Box sx={{ minHeight: '100vh', bgcolor: BA.bg, color: BA.ink, colorScheme: 'light', display: 'flex', flexDirection: 'column',
       '& .MuiOutlinedInput-root': { bgcolor: '#fff', color: BA.ink },
       '& .MuiOutlinedInput-notchedOutline': { borderColor: BA.line },
       '& .Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: `${BA.accent} !important` },
       '& .MuiInputLabel-root': { color: BA.soft }, '& .MuiInputLabel-root.Mui-focused': { color: BA.accent },
-      backgroundImage: `radial-gradient(900px 420px at 85% -120px, rgba(79,70,229,0.14), transparent 70%), radial-gradient(700px 380px at 0% 0%, rgba(14,165,160,0.10), transparent 70%)` }}>
-      <Box component="header" sx={{ maxWidth: 1180, mx: 'auto', px: { xs: 2, md: 4 }, py: 2.25, display: 'flex', alignItems: 'center', gap: 1.25 }}>
+      backgroundImage: `radial-gradient(900px 480px at 85% -120px, rgba(79,70,229,0.16), transparent 70%), radial-gradient(760px 420px at 0% 0%, rgba(14,165,160,0.12), transparent 70%)`,
+      backgroundRepeat: 'no-repeat' }}>
+      <Box component="header" sx={{ width: '100%', maxWidth: 1180, mx: 'auto', px: { xs: 2, md: 4 }, py: 2.25, display: 'flex', alignItems: 'center', gap: 1.25 }}>
         <AgentMark />
         <Typography sx={{ fontFamily: display, fontWeight: 500, fontSize: '1.15rem', letterSpacing: '-0.01em', flex: 1 }}>Business Agent</Typography>
         <Button onClick={() => setTab('signin')} href="#account" sx={{ color: BA.ink, display: { xs: 'none', sm: 'inline-flex' } }}>Sign in</Button>
         <Button variant="contained" href="#account" onClick={() => setTab('signup')} sx={primaryBtn}>Get started</Button>
       </Box>
 
-      <Box component="main" sx={{ mx: 'auto', px: { xs: 2, md: 4 }, pt: { xs: 1, md: 5 }, pb: 8,
-        display: 'grid', gap: { xs: 4, md: 5 }, maxWidth: 720, alignItems: 'start' }}>
-        <Box sx={{ order: 1, pt: { md: 3 } }}>
-          <Typography sx={{ color: BA.accent, fontWeight: 500, letterSpacing: '0.12em', textTransform: 'uppercase', fontSize: '0.75rem' }}>
-            For cafés, shops and small teams
+      {/* Phones: the headline, then sign-in, then the rest. Wider screens: sign-in beside it all. */}
+      <Box component="main" sx={{ flex: 1, width: '100%', maxWidth: 1180, mx: 'auto', px: { xs: 2, md: 4 }, pt: { xs: 2, md: 8 }, pb: { xs: 6, md: 10 },
+        display: 'grid', columnGap: 8, rowGap: { xs: 4, md: 5 }, alignItems: 'start',
+        gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'minmax(0, 1fr) 440px' },
+        gridTemplateRows: { md: 'auto 1fr' },
+        gridTemplateAreas: { xs: '"hero" "account" "more"', md: '"hero account" "more account"' } }}>
+        <Box sx={{ gridArea: 'hero' }}>
+          <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1, px: 1.5, py: 0.5, borderRadius: 99, bgcolor: BA.accentSoft, color: BA.accentDeep }}>
+            <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: BA.teal }} />
+            <Typography sx={{ fontWeight: 500, fontSize: '0.8rem' }}>For cafés, shops and small teams</Typography>
+          </Box>
+          <Typography component="h1" sx={{ fontFamily: display, fontWeight: 500, fontSize: { xs: '2.25rem', sm: '2.8rem', md: '3.5rem' }, lineHeight: 1.05,
+            letterSpacing: '-0.035em', mt: 2.5, maxWidth: 640 }}>
+            The agent that runs your business's{' '}
+            <Box component="span" sx={{ background: `linear-gradient(90deg, ${BA.accent}, ${BA.teal})`, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', whiteSpace: 'nowrap' }}>
+              day-to-day.
+            </Box>
           </Typography>
-          <Typography component="h1" sx={{ fontFamily: display, fontWeight: 500, fontSize: { xs: '2.1rem', md: '3.1rem' }, lineHeight: 1.08, letterSpacing: '-0.035em', mt: 1.5, maxWidth: 620 }}>
-            The agent that runs your business's day-to-day.
-          </Typography>
-          <Typography sx={{ color: BA.soft, fontSize: '1.1rem', mt: 2.5, maxWidth: 560, lineHeight: 1.6 }}>
-            Rota, clock-ins, time off, opening hours and team messages in one place, in your own brand.
-            Your team signs in and sees your business, not ours.
+          <Typography sx={{ color: BA.soft, fontSize: { xs: '1.05rem', md: '1.2rem' }, mt: 2.5, maxWidth: 520, lineHeight: 1.55 }}>
+            Rota, clock-ins, time off and team messages in one place, in your own brand.
           </Typography>
         </Box>
 
-        <Box id="account" sx={{ order: 2 }}>
+        <Box id="account" sx={{ gridArea: 'account', scrollMarginTop: 16 }}>
           <Box sx={{ p: { xs: 2.5, sm: 3.5 }, borderRadius: '24px', bgcolor: BA.card, border: `1px solid ${BA.line}`,
-            boxShadow: '0 24px 60px -30px rgba(18,20,26,0.35)' }}>
+            boxShadow: '0 30px 70px -36px rgba(18,20,26,0.4)' }}>
             <Tabs value={tab} onChange={(_, v) => setTab(v)} variant="fullWidth" aria-label="Account"
               sx={{ mb: 2.5, minHeight: 40, bgcolor: BA.bg, borderRadius: '12px', p: 0.5,
                 '& .MuiTabs-indicator': { display: 'none' },
@@ -101,22 +119,31 @@ export function LoginPage() {
             {tab === 'signin' ? <SignInForm /> : <SignUpForm onSignIn={() => setTab('signin')} />}
           </Box>
         </Box>
-        <Box sx={{ order: 3 }}>
-          <Box sx={{ display: 'grid', gap: 1.25, }}>
-            {FEATURES.map(f => (
-              <Box key={f.title} sx={{ p: 2.25, borderRadius: '16px', bgcolor: 'rgba(255,255,255,0.7)', border: `1px solid ${BA.line}`, backdropFilter: 'blur(6px)' }}>
-                <Box sx={{ width: 36, height: 36, borderRadius: '10px', display: 'grid', placeItems: 'center', bgcolor: BA.accentSoft, color: BA.accent, mb: 1.25 }}>{f.icon}</Box>
-                <Typography sx={{ fontWeight: 500 }}>{f.title}</Typography>
-                <Typography variant="body2" sx={{ color: BA.soft, mt: 0.5 }}>{f.text}</Typography>
+
+        <Box sx={{ gridArea: 'more' }}>
+          <Box component="ul" aria-label="What it does" sx={{ listStyle: 'none', m: 0, p: 0, display: 'grid', columnGap: 2, rowGap: 2.25, maxWidth: 600,
+            gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(3, minmax(0, 1fr))' } }}>
+            {HIGHLIGHTS.map(h => (
+              <Box component="li" key={h.label} sx={{ display: 'flex', alignItems: 'center', gap: 1.25, minWidth: 0 }}>
+                <Box sx={{ width: 36, height: 36, borderRadius: '10px', display: 'grid', placeItems: 'center', flexShrink: 0,
+                  bgcolor: '#fff', color: BA.accent, border: `1px solid ${BA.line}`, '& svg': { fontSize: 20 } }}>{h.icon}</Box>
+                <Typography sx={{ fontWeight: 500, fontSize: '0.95rem', lineHeight: 1.3 }}>{h.label}</Typography>
               </Box>
             ))}
           </Box>
+          <Stack direction="row" useFlexGap sx={{ flexWrap: 'wrap', columnGap: 2.5, rowGap: 1, mt: 4, color: BA.soft }}>
+            {TRUST.map(t => (
+              <Stack key={t.label} direction="row" spacing={0.75} sx={{ alignItems: 'center', '& svg': { fontSize: 18, color: BA.teal } }}>
+                {t.icon}<Typography variant="body2">{t.label}</Typography>
+              </Stack>
+            ))}
+          </Stack>
         </Box>
       </Box>
 
-      <Box component="footer" sx={{ borderTop: `1px solid ${BA.line}`, py: 3, textAlign: 'center' }}>
+      <Box component="footer" sx={{ borderTop: `1px solid ${BA.line}`, py: 3, px: 2, textAlign: 'center' }}>
         <Typography variant="caption" sx={{ color: BA.faint }}>
-          Business Agent · Made in Marbella · Data stored in the EU ·{' '}
+          Business Agent · Made in Marbella ·{' '}
           <Link component={RouterLink} to="/privacy" underline="hover" sx={{ color: 'inherit' }}>Privacy policy</Link>{' · '}
           <Link component={RouterLink} to="/terms" underline="hover" sx={{ color: 'inherit' }}>Terms of service</Link>
         </Typography>

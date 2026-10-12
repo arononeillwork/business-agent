@@ -33,7 +33,8 @@ supabase/          migrations (schema, RLS, SQL rules), seed data, SQL tests
 
 ```bash
 npm install
-npm run dev            # http://localhost:5173  (add ?demo for sample data, no backend)
+npm run dev            # http://localhost:5173  (add ?demo for sample data, no backend;
+                       #   ?demo&fresh for a brand-new business, to try its set-up)
 ```
 
 The app reads the Supabase URL and publishable key from `wrangler.jsonc` via `/api/config`.
@@ -83,7 +84,9 @@ Microsoft sign-in: run the **Set up Microsoft sign-in** workflow (or change
 `ops/setup-microsoft.txt`). It prints a code to enter at microsoft.com/devicelogin, creates the
 Entra app and switches the provider on in Supabase.
 
-The first account to sign up becomes the admin; invite everyone else from the Team page.
+The first account to sign up becomes the admin and goes straight into a quick, full-screen set-up
+(business details, opening hours, messaging and other apps, team invites). Only the business name
+is needed; every other step can be skipped and picked up later from Settings → Set-up.
 
 ### Custom domain
 
@@ -125,3 +128,5 @@ owner through a normal session, so the database rules apply exactly as in the ap
 
 Copy `shared/business.config.ts`, create a Supabase project (apply `supabase/migrations`, write a
 seed like `supabase/seed/easy_beans.sql`), and deploy a new Worker with its own `wrangler.jsonc` vars.
+The seed's `business` row only needs a name: the owner fills in the rest during set-up, which
+opens on their first sign-in while `setup_completed_at` is empty.

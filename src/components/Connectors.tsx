@@ -149,9 +149,12 @@ interface OptionState { o: ConnectionOption; row?: Integration; configured: bool
 /**
  * The business's apps, like an AI's connector directory: one tile per app, in groups. In each group
  * the business picks ONE (Gmail or Outlook, Google Drive or OneDrive…). An app shows "Connected"
- * only once it has really worked. `back`: where the sign-in sends you afterwards.
+ * only once it has really worked. `back`: where the sign-in sends you afterwards. `hideSoon`: leave out
+ * the apps that aren't ready yet (set-up keeps to what can be connected today).
  */
-export function ServiceConnections({ back = 'connections', groups = GROUPS.map(g => g.key) }: { back?: 'setup' | 'connections'; groups?: ConnectionGroup[] }) {
+export function ServiceConnections({ back = 'connections', groups = GROUPS.map(g => g.key), hideSoon = false }: {
+  back?: 'setup' | 'connections'; groups?: ConnectionGroup[]; hideSoon?: boolean
+}) {
   const { api } = useApp()
   const data = useAsync('integrations', () => api.integrations(), [])
   const [open, setOpen] = useState<OptionId | null>(null)
@@ -169,7 +172,7 @@ export function ServiceConnections({ back = 'connections', groups = GROUPS.map(g
     <Stack spacing={3.5}>
       {GROUPS.filter(g => groups.includes(g.key)).map(g0 => {
         // Square is switched off for now (Stripe is the payment system); its option is hidden.
-        const g = { ...g0, options: g0.options.filter(o => o.id !== 'square' || FEATURES.square) }
+        const g = { ...g0, options: g0.options.filter(o => (o.id !== 'square' || FEATURES.square) && !(hideSoon && o.soon)) }
         // Choose-one groups show just the app in use, with the alternatives as small chips underneath.
         const current = inUse(g)
         const others = current ? g.options.filter(o => o !== current) : []

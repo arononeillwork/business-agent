@@ -339,6 +339,18 @@ test('@phone a message never covers the sign-in buttons', async ({ page }) => {
   expect(alert.y + alert.height, 'message sits above the sign-in buttons').toBeLessThan(google.y)
 })
 
+test('@phone set-up fits a phone, with its buttons always in reach', async ({ page }) => {
+  await open(page, '/?fresh')
+  for (const name of ['1. Business', '2. Hours', '3. Messages', '4. Apps', '5. Team']) {
+    await page.getByRole('button', { name }).click()
+    await expect(page.getByRole('navigation', { name: 'Set-up steps' }).getByRole('button', { name })).toHaveAttribute('aria-current', 'step')
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), `${name}: no sideways scrolling`).toBeLessThanOrEqual(0)
+  }
+  // The longest step still shows Continue without scrolling to the end.
+  await page.getByRole('button', { name: '4. Apps' }).click()
+  await expect(page.getByRole('button', { name: 'Continue' })).toBeInViewport()
+})
+
 test.describe('guard rails', () => {
   test('an admin cannot switch themselves off or demote themselves', async ({ page }) => {
     await open(page, '/team')
@@ -1306,6 +1318,8 @@ test('signed out: the Business Agent landing page; a new registration waits to b
   await page.goto('/?demo')
   await expect(page.getByRole('heading', { level: 1, name: /runs your business/ })).toBeVisible()
   await expect(page.getByText('Business Agent').first()).toBeVisible()
+  // What it does at a glance: short labels, not boxes of text.
+  await expect(page.getByRole('list', { name: 'What it does' }).getByRole('listitem')).toHaveCount(6)
   // None of the café's branding before sign-in.
   await expect(page.getByText('Easy Beans')).toHaveCount(0)
   await page.getByRole('tab', { name: 'Create account' }).click()
@@ -1441,31 +1455,6 @@ test.describe('connections for email, files and music', () => {
     await expect(page.getByRole('region', { name: 'Café playlists' }).getByRole('button', { name: 'Easy Beans · Café mix', exact: true })).toContainText('Approved')
   })
 
-  test('the set-up wizard walks an admin through details, team and apps; Today prompts until done', async ({ page }) => {
-    await open(page, '/')
-    const prompt = page.getByRole('region', { name: 'Finish setting up' })
-    await expect(prompt).toBeVisible()
-    await prompt.getByRole('link', { name: 'Continue set-up' }).click()
-    await expect(page.getByRole('heading', { name: 'Set up your business' })).toBeVisible()
-    const steps = page.getByRole('navigation', { name: 'Set-up steps' })
-    await steps.getByRole('button', { name: /Your business/ }).click()
-    const details = page.getByRole('region', { name: 'Your business' })
-    await details.getByLabel('CIF / NIF').fill('B1234')
-    await details.getByRole('button', { name: 'Save and continue' }).click()
-    await toast(page, /Spanish CIF/)
-    await details.getByLabel('CIF / NIF').fill('B12345674')
-    await details.getByRole('button', { name: 'Save and continue' }).click()
-    await expect(page.getByRole('region', { name: 'Your brand' })).toBeVisible()
-    await steps.getByRole('button', { name: /Connect your apps/ }).click()
-    const apps = page.getByRole('region', { name: 'Connect your apps' })
-    await apps.getByRole('button', { name: 'Connect Outlook' }).click()
-    await expect(apps.getByRole('article', { name: 'Outlook', exact: true })).toContainText('Connected')
-    await apps.getByRole('button', { name: 'Finish set-up' }).click()
-    await toast(page, 'All set')
-    await expect(page.getByRole('heading', { name: /Hola/ })).toBeVisible()
-    await expect(page.getByRole('region', { name: 'Finish setting up' })).toHaveCount(0)
-  })
-
   test('the brand page shows one logo and the main brand colours only', async ({ page }) => {
     await open(page, '/brand')
     await expect(page.getByText('Small version (icon)')).toHaveCount(0)
@@ -1476,6 +1465,99 @@ test.describe('connections for email, files and music', () => {
     const colours = (await page.locator('.MuiCard-root', { hasText: 'Rose Pink' }).first().boundingBox())!
     expect(colours.x).toBeGreaterThan(logo.x + logo.width - 2)
     expect(Math.abs(colours.y - logo.y)).toBeLessThan(4)
+  })
+})
+
+test.describe('set-up for a new business', () => {
+  test('a new business: its first admin goes straight into a quick set-up where only the name is needed', async ({ page }) => {
+    await open(page, '/?fresh')
+    const step = (name: string) => page.getByRole('region', { name })
+    // Full screen, no menu: one thing to do.
+    await expect(page.getByRole('navigation', { name: 'Main' })).toHaveCount(0)
+    await expect(page.getByRole('navigation', { name: 'Set-up steps' }).getByRole('button', { name: '1. Business' })).toHaveAttribute('aria-current', 'step')
+
+    const details = step('Tell us about your business')
+    await details.getByLabel('Business name').fill('')
+    await details.getByRole('button', { name: 'Continue' }).click()
+    await toast(page, 'needs a name')
+    await details.getByLabel('Business name').fill('Café Sol')
+    await details.getByRole('button', { name: 'Café', exact: true }).click()
+    await expect(details.getByRole('button', { name: 'Café', exact: true })).toHaveAttribute('aria-pressed', 'true')
+    await details.getByLabel('Logo file').setInputFiles('public/icon-192.png')
+    await toast(page, 'Logo added')
+    await expect(details.getByRole('img', { name: 'Your logo' })).toBeVisible()
+    await details.getByLabel('CIF / NIF').fill('B1234')
+    await details.getByRole('button', { name: 'Continue' }).click()
+    await toast(page, /Spanish CIF/)
+    await details.getByLabel('CIF / NIF').fill('')
+    await details.getByRole('button', { name: 'Continue' }).click()
+
+    const hours = step('When are you open?')
+    await hours.getByRole('button', { name: 'Mon–Fri, 9:00–17:00' }).click()
+    await expect(hours.getByRole('switch', { name: 'Open on Monday' })).toBeChecked()
+    await hours.getByRole('switch', { name: 'Open on Saturday' }).check()
+    await hours.getByRole('button', { name: 'Continue' }).click()
+    await toast(page, 'Opening hours saved')
+
+    // Messaging first, and every connection can be skipped. Apps that aren't ready yet are left out.
+    const messages = step('Keep your team in the loop')
+    await expect(messages.getByRole('article', { name: 'WhatsApp' })).toBeVisible()
+    await expect(messages.getByRole('article', { name: 'Slack' })).toHaveCount(0)
+    await messages.getByRole('button', { name: 'Skip for now' }).click()
+
+    const apps = step('Connect your other apps')
+    await apps.getByRole('button', { name: 'Connect Google Drive' }).click()
+    await expect(apps.getByRole('article', { name: 'Google Drive' })).toContainText('Connected')
+    await expect(apps.getByRole('button', { name: 'Skip for now' })).toHaveCount(0)
+    await apps.getByRole('button', { name: 'Continue' }).click()
+
+    const team = step('Invite your team')
+    await expect(team).toContainText("It's just you so far")
+    await team.getByLabel('Name').fill('Lucía')
+    await team.getByRole('textbox', { name: 'Email' }).fill('lucia@example.com')
+    await team.getByRole('button', { name: 'Invite', exact: true }).click()
+    await toast(page, 'Invite sent to lucia@example.com')
+    await expect(team.getByRole('list', { name: 'On the team' })).toContainText('Lucía')
+    await team.getByRole('button', { name: 'Finish' }).click()
+
+    await expect(page.getByRole('heading', { name: "You're all set, Aron" })).toBeVisible()
+    const summary = page.getByRole('list', { name: 'Set-up summary' })
+    await expect(summary).toContainText('Café Sol · Café')
+    await expect(summary).toContainText('Open 6 days a week')
+    await expect(summary).toContainText('Google Drive')
+    await expect(summary).toContainText('1 person besides you')
+    await expect(summary.getByRole('link', { name: 'Set up team messages' })).toHaveAttribute('href', '/connections')
+    await page.getByRole('link', { name: 'Go to my dashboard' }).click()
+    await expect(page.getByRole('heading', { name: 'Hola, Aron' })).toBeVisible()
+    await expect(page.getByRole('navigation', { name: 'Main' })).toContainText('Café Sol')
+  })
+
+  test('set-up can be skipped in one click and opened again from Settings', async ({ page }) => {
+    await open(page, '/?fresh')
+    await page.getByRole('button', { name: 'Skip set-up' }).click()
+    await toast(page, 'Set-up skipped')
+    await expect(page.getByRole('heading', { name: 'Hola, Aron' })).toBeVisible()
+    await page.getByRole('link', { name: 'Home: Today' }).first().click()
+    await expect(page.getByRole('heading', { name: 'Hola, Aron' })).toBeVisible()
+    await page.getByRole('link', { name: 'Set-up', exact: true }).first().click()
+    await expect(page.getByRole('heading', { name: 'Tell us about your business' })).toBeVisible()
+    await page.getByRole('button', { name: 'Back to the app' }).click()
+    await expect(page.getByRole('heading', { name: 'Hola, Aron' })).toBeVisible()
+  })
+
+  test('an established business opens on Today; back from an app’s sign-in, set-up opens on that app’s step', async ({ page }) => {
+    await open(page, '/')
+    await expect(page.getByRole('heading', { name: 'Hola, Aron' })).toBeVisible()
+    await page.goto('/setup?connected=outlook')
+    await toast(page, 'Outlook connected.')
+    await expect(page.getByRole('region', { name: 'Keep your team in the loop' })).toBeVisible()
+    await expect(page).toHaveURL(/step=messages/)
+  })
+
+  test('employees never see set-up', async ({ page }) => {
+    await open(page, '/setup', 'maria@example.com')
+    await expect(page.getByRole('heading', { name: 'Hola, Maria' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Tell us about your business' })).toHaveCount(0)
   })
 })
 
@@ -1618,6 +1700,8 @@ test('every page in the menu shows its title, whatever buttons its header has', 
     const h1 = page.getByRole('main').getByRole('heading', { level: 1 })
     // Music starts straight with what's playing: its title is there for screen readers only.
     if (href === '/music') { await expect(h1, href).toHaveText('Music'); await expect(h1, href).toBeVisible(); continue }
+    // Set-up is full screen, without the menu: check its title, then go back to the app.
+    if (href === '/setup') { await expect(h1, href).toBeVisible(); await page.getByRole('button', { name: 'Back to the app' }).click(); continue }
     await expect(h1, href).toBeVisible()
     await expect.poll(async () => (await h1.boundingBox().catch(() => null))?.width ?? 0, { message: `${href}: title squeezed` }).toBeGreaterThan(80)
   }

@@ -42,7 +42,7 @@ const PrivacyPage = page(() => import('./pages/PrivacyPage'), 'PrivacyPage')
 const TermsPage = page(() => import('./pages/TermsPage'), 'TermsPage')
 
 function Routed() {
-  const { me, loading, isAdmin, isPartner, partnerCan } = useApp()
+  const { me, business, loading, isAdmin, isPartner, partnerCan } = useApp()
   const { pathname } = useLocation()
   // Public, signed in or not (Google and others check it before approving the app).
   if (pathname === '/privacy') return <PrivacyPage />
@@ -71,14 +71,18 @@ function Routed() {
       </Routes>
     )
   }
+  // A new business: its admins start with the quick set-up until someone finishes or skips it.
+  const needsSetup = isAdmin && !!business && !business.setup_completed_at
   return (
     <Routes>
       {/* Staff use the tablet itself (kiosk account); admins can open it to set it up. */}
       <Route path="/kiosk" element={isAdmin && FEATURES.kiosk ? <KioskPage /> : <Navigate to="/" />} />
       {/* Printable monthly hours record (no menu around it). */}
       <Route path="/registro" element={<RegistroPage />} />
+      {/* Set-up is full screen (no menu around it), so a new business has one thing to do. */}
+      <Route path="/setup" element={isAdmin ? <SetupPage /> : <Navigate to="/" />} />
       <Route element={<AppShell />}>
-        <Route index element={<TodayPage />} />
+        <Route index element={needsSetup ? <Navigate to="/setup" replace /> : <TodayPage />} />
         <Route path="rota" element={<RotaPage />} />
         <Route path="timecards" element={<TimecardsPage />} />
         <Route path="calendar" element={<CalendarPage />} />
@@ -96,7 +100,6 @@ function Routed() {
         <Route path="alerts" element={isAdmin ? <AlertsPage /> : <Navigate to="/" />} />
         <Route path="connections" element={isAdmin ? <ConnectionsPage /> : <Navigate to="/" />} />
         <Route path="social" element={isAdmin ? <SocialPlannerPage /> : <Navigate to="/" />} />
-        <Route path="setup" element={isAdmin ? <SetupPage /> : <Navigate to="/" />} />
         <Route path="partners" element={isAdmin && FEATURES.partners ? <PartnersPage /> : <Navigate to="/" />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Route>

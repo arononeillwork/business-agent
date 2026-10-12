@@ -48,6 +48,7 @@ export function createDemoApi(): Api {
       notes: 'Croissants daily, pastries every 2 days' }],
     towns_followed: ['Marbella', 'Estepona', 'Benahavís', 'Málaga'],
     notes: 'Weekday closing time to confirm: 18:00 (plan) vs 15:00 (Square rota).',
+    setup_completed_at: '2026-04-01T09:00:00Z',
     updated_at: nowIso(),
   }
   const integ: IntegrationsState = {
@@ -332,6 +333,16 @@ export function createDemoApi(): Api {
     { id: uid(), starts_on: addDays(today(), 5), ends_on: null, starts_at: null, title: 'Staff training: new espresso recipe',
       category: 'business', town: null, competition: null, source: 'admin', confirmed: true, visibility: 'all' },
   )
+
+  // A brand-new client (?fresh): only the business's name and its first admin, nothing scheduled or
+  // connected, and set-up not done, so signing in as aron@example.com opens the onboarding.
+  if (new URLSearchParams(globalThis.location?.search ?? '').has('fresh')) {
+    Object.assign(business, { business_type: null, address: null, phone: null, email: null, instagram: null, tax_id: null,
+      opening_hours: {}, peak_hours: null, owners: [], suppliers: [], notes: null, setup_completed_at: null })
+    for (const i of integ.integrations) Object.assign(i, { status: 'disconnected', account_label: null, external: {}, connected_at: null, last_sync_at: null, last_checked_at: null })
+    profiles.splice(0, profiles.length, ...profiles.filter(p => p.id === P.aron))
+    for (const list of [shifts, entries, breaks, changes, timeOff, corrections]) list.length = 0
+  }
 
   // Who is signed in survives a page reload within the tab (the demo data itself does not).
   const remember = (id: string | null) => {
