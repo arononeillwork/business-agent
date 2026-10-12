@@ -109,6 +109,8 @@ export function hasScope(p: Connector, granted: string | undefined) {
 const API_NAME: Partial<Record<Provider, string>> = {
   gmail: 'Gmail API', google_drive: 'Google Drive API', youtube_music: 'YouTube Data API v3', google_business: 'Business Profile APIs',
 }
+/** The Google Cloud APIs the Google Maps connection calls (worker/providers/google.ts). */
+export const GOOGLE_MAPS_APIS = ['My Business Account Management API', 'My Business Business Information API', 'Google My Business API']
 const message = (e: unknown) => e instanceof Error ? e.message : String(e)
 
 export const missingPermission = (p: Provider) => `${optionName(p)} was connected without the permission it needs. Connect again and leave every box ticked.`
@@ -125,6 +127,11 @@ export function explain(p: Provider, e: unknown): string {
     return 'This Instagram account can’t connect yet: until the app passes Meta’s review, only accounts added as Instagram testers in the Meta app can connect.'
   }
   if (/has not been used in project|it is disabled|accessNotConfigured|SERVICE_DISABLED|not switched on/i.test(raw)) {
+    if (p === 'google_business') {
+      // Google names the API that's off ("My Business Account Management API has not been used in project …").
+      const off = raw.match(/([A-Z][\w ]*?API) has not been used in project/)?.[1]
+      return `${off ? `The ${off}` : 'A Business Profile API'} is switched off for this app. Google Maps needs all three of these switched on in Google Cloud (APIs & Services → Library): ${GOOGLE_MAPS_APIS.join(', ')}. Then connect again.`
+    }
     return `The ${API_NAME[p] ?? 'API'} is switched off for this app. Switch it on in Google Cloud (APIs & Services → Library), then connect again.`
   }
   if (/insufficient authentication scopes|insufficientPermissions|ACCESS_TOKEN_SCOPE_INSUFFICIENT|ErrorAccessDenied|Access is denied/i.test(raw)) return missingPermission(p)

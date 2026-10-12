@@ -6,7 +6,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { drainOutbox, integrations, setTikTokWait } from './integrations'
 import { calendarFeeds } from './calendarFeed'
-import { checkAll, explain, hasScope, PROVIDERS } from './connections'
+import { checkAll, explain, hasScope, lasting, PROVIDERS } from './connections'
 import { serviceClient, type Env } from './supabase'
 import { unseal } from './crypto'
 import { FakeSupabase, GROUP } from './test/fakeSupabase'
@@ -432,6 +432,11 @@ describe('Groups and permissions', () => {
 
   it('explains provider errors in words an admin can act on', () => {
     expect(explain('google_drive', new Error('Google Drive: Google Drive API has not been used in project 1 before or it is disabled.'))).toMatch(/Google Drive API is switched off/)
+    // Google Maps: names the API that's off, and lists all three it needs.
+    const maps = explain('google_business', new Error('My Business Account Management API has not been used in project 914610483740 before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/mybusinessaccountmanagement.googleapis.com/overview?project=914610483740 then retry.'))
+    expect(maps).toMatch(/^The My Business Account Management API is switched off/)
+    expect(maps).toContain('My Business Account Management API, My Business Business Information API, Google My Business API')
+    expect(lasting('google_business', new Error('Google My Business API has not been used in project 1 before or it is disabled.'))).toBe(true)
     expect(explain('spotify', new Error('Refresh token revoked'))).toBe('Spotify access was removed or has expired. Connect it again.')
     expect(explain('onedrive', new Error('Microsoft: Tenant does not have a SPO license.'))).toMatch(/no OneDrive yet/)
     expect(explain('gmail', new Error('Gmail: Request had insufficient authentication scopes.'))).toMatch(/leave every box ticked/)

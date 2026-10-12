@@ -25,8 +25,11 @@ Google does not let apps create sign-in keys automatically, so this part is manu
    and `youtube.readonly` (YouTube Music: read playlists).
    Also enable the **Gmail API**, **Google Drive API** and **YouTube Data API v3** under
    APIs & Services → Library. (If one is off, connecting that app says exactly which to switch on.)
-   Google Maps also needs Google to switch on Business Profile access for the project once:
-   request it with Google's "Business Profile API access" form (usually approved in a few days).
+   For Google Maps, enable these three (the Business Profile *Performance* API is not used):
+   **My Business Account Management API**, **My Business Business Information API** and
+   **Google My Business API**. Google Maps also needs Google to switch on Business Profile access
+   for the project once: request it with Google's "Business Profile API access" form (usually
+   approved in a few days).
 5. **Clients → Create client → Web application**, name **Business Agent web**:
    - Authorised JavaScript origins: `https://businesssagent.com` and `https://business-agent.arononeillwork.workers.dev`
    - Authorised redirect URIs (all three):
