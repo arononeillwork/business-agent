@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { Api } from './api'
-import type { ApiKey, AppNotification, Brand, Business, SocialPost, EventAlert, Expense, Integration, MusicPlaylist, OutboxItem, Profile, Settings, TimeEntry, TimeOff, Todo, TodoCategory } from '../../shared/types'
+import type { ApiKey, AppNotification, Brand, Business, SocialPost, EventAlert, Expense, Integration, MusicPlaylist, OutboxItem, Profile, Settings, TimeEntry, TimeOff, Todo, TodoCategory, CafeTrack, MusicPlayerState } from '../../shared/types'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
 
 const PROFILE_COLUMNS = 'id, full_name, email, role, can_see_pay, colour, active, phone, birth_date, whatsapp_opt_in, partner_company, partner_access, preferences'
@@ -469,6 +469,15 @@ export function createSupabaseApi(url: string, key: string): Api {
       await worker('/api/me/music/spotify/play', { method: 'POST', body: JSON.stringify({ playlist_id: playlistId }) })
     },
     async pauseMySpotify() { await worker('/api/me/music/spotify/pause', { method: 'POST' }) },
+    cafeMusicLibrary: () => worker('/api/music/library'),
+    async cafeTracks(playlistId) { return (await worker<{ tracks: CafeTrack[] }>(`/api/music/tracks/${encodeURIComponent(playlistId)}`)).tracks },
+    async musicPlayer() { return check(await sb.from('music_player').select('*').eq('id', 1).single()) as MusicPlayerState },
+    async musicSend(action, value) { check(await sb.rpc('music_send', { p_action: action, p_value: value ?? null })) },
+    async musicSetQueue(playlist, queue, position) { check(await sb.rpc('music_set_queue', { p_playlist: playlist, p_queue: queue, p_position: position })) },
+    async musicReport(report, asDevice) {
+      const q = sb.from('music_player').update({ ...report, updated_at: new Date().toISOString() }).eq('id', 1)
+      check(await (asDevice ? q.eq('device_id', asDevice) : q))
+    },
     musicNow: () => worker('/api/music/now'),
     async musicPlay() { await worker('/api/music/play', { method: 'POST' }) },
     async musicPause() { await worker('/api/music/pause', { method: 'POST' }) },

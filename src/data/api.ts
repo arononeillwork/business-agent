@@ -1,4 +1,4 @@
-import type { ApiKey, AppNotification, Brand, BreakType, Business, CalendarApp, CalendarEvent, ConnectorProvider, ContactMethod, CorrectionRequest, EventAlert, Expense, InstagramProfile, Integration, Sales, SocialNetwork, SocialPost, IntegrationProvider, IntegrationsState, KioskPerson, MusicNow, MusicPlaylist, MusicProvider, MyMusic, MyNowPlaying, OpenBreak, OpeningHours, OutboxItem, PartnerArea, PayRate, Position, Profile, Settings, Shift, SpotifyPlaylist, TimeEntry, TimeEntryChange, TimeOff, TimeOffKind, Todo, TodoCategory, TodoPatch } from '../../shared/types'
+import type { ApiKey, AppNotification, Brand, BreakType, Business, CalendarApp, CalendarEvent, ConnectorProvider, ContactMethod, CorrectionRequest, EventAlert, Expense, InstagramProfile, Integration, Sales, SocialNetwork, SocialPost, IntegrationProvider, IntegrationsState, KioskPerson, MusicNow, MusicPlaylist, MusicProvider, MyMusic, MyNowPlaying, OpenBreak, OpeningHours, OutboxItem, PartnerArea, PayRate, Position, Profile, Settings, Shift, SpotifyPlaylist, TimeEntry, TimeEntryChange, TimeOff, TimeOffKind, Todo, TodoCategory, TodoPatch, CafeMusicLibrary, CafeTrack, MusicAction, MusicPlayerReport, MusicPlayerState } from '../../shared/types'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
 
 export type ShiftInput = Omit<Shift, 'id' | 'status'> & { id?: string; status?: Shift['status'] }
@@ -202,6 +202,17 @@ export interface Api {
   myNowPlaying(): Promise<MyNowPlaying>
   playMySpotify(playlistId: string): Promise<void>
   pauseMySpotify(): Promise<void>
+
+  // café music player (Music page): the café account's playlists, one device plays, any phone controls it
+  cafeMusicLibrary(): Promise<CafeMusicLibrary>
+  cafeTracks(playlistId: string): Promise<CafeTrack[]>
+  musicPlayer(): Promise<MusicPlayerState>
+  /** A button press for whichever device is playing. */
+  musicSend(action: MusicAction, value?: number): Promise<void>
+  /** A new queue: another playlist, a new order or shuffled. */
+  musicSetQueue(playlist: SpotifyPlaylist | null, queue: CafeTrack[], position: number): Promise<void>
+  /** The playing device says what it's doing (and claims the speaker with device_id). With asDevice, only while it still is the speaker. */
+  musicReport(report: MusicPlayerReport, asDevice?: string): Promise<void>
 
   // café music (staff): only the approved playlist
   musicNow(): Promise<MusicNow>

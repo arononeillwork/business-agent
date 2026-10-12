@@ -1,7 +1,7 @@
 // YouTube Music for the Music page: a person's own playlists (YouTube Music playlists are YouTube
 // playlists), read-only. Uses the same Google OAuth client as sign-in; the YouTube Data API v3
 // must be enabled in that Google Cloud project. Playback is the YouTube embed player in the page.
-import type { MusicPlaylist } from '../../shared/types'
+import type { CafeTrack, MusicPlaylist } from '../../shared/types'
 
 export const YOUTUBE_SCOPES = ['https://www.googleapis.com/auth/youtube.readonly', 'openid', 'email']
 
@@ -33,4 +33,26 @@ export async function playlists(accessToken: string): Promise<MusicPlaylist[]> {
       url: `https://music.youtube.com/playlist?list=${p.id}`,
     }
   })
+}
+
+type RawItem = { snippet?: { title?: string; videoOwnerChannelTitle?: string; thumbnails?: Record<string, { url: string }>; resourceId?: { videoId?: string } }; status?: { privacyStatus?: string } }
+
+/** The songs in one playlist, in its order (up to 500). Deleted and private videos are left out. */
+export async function playlistTracks(accessToken: string, playlistId: string): Promise<CafeTrack[]> {
+  const out: CafeTrack[] = []
+  let page = ''
+  for (let i = 0; i < 10; i++) {
+    const r = await api<{ items?: RawItem[]; nextPageToken?: string }>(accessToken,
+      `/playlistItems?part=snippet,status&maxResults=50&playlistId=${encodeURIComponent(playlistId)}${page ? `&pageToken=${page}` : ''}`)
+    for (const it of r.items ?? []) {
+      const id = it.snippet?.resourceId?.videoId
+      const title = it.snippet?.title ?? ''
+      if (!id || it.status?.privacyStatus === 'private' || /^(Deleted|Private) video$/.test(title)) continue
+      const t = it.snippet?.thumbnails ?? {}
+      out.push({ id, title, artist: it.snippet?.videoOwnerChannelTitle?.replace(/ - Topic$/, ''), image: (t.medium ?? t.default ?? t.high)?.url })
+    }
+    if (!r.nextPageToken) break
+    page = r.nextPageToken
+  }
+  return out
 }

@@ -385,3 +385,28 @@ export interface Todo {
   created_at: string
 }
 export type TodoPatch = Partial<Pick<Todo, 'title' | 'category_id' | 'section' | 'assignee_id' | 'done' | 'starred' | 'pinned' | 'position'>>
+
+/** Café music (Music page): the café account's playlists, whichever service is connected. */
+export interface CafeMusicLibrary { provider: 'youtube' | 'spotify' | null; account: string | null; playlists: SpotifyPlaylist[]; approved: SpotifyPlaylist | null; /** Sample songs (demo): played by a pretend player. */ demo?: boolean }
+/** One song in the café queue (YouTube video id). */
+export interface CafeTrack { id: string; title: string; artist?: string; image?: string }
+export type MusicAction = 'play' | 'pause' | 'next' | 'previous' | 'jump' | 'seek' | 'volume'
+/** The shared café player: which device plays, the queue, and where it's up to. */
+export interface MusicPlayerState {
+  device_id: string | null
+  device_name: string | null
+  playlist: SpotifyPlaylist | null
+  queue: CafeTrack[]
+  queue_version: number
+  position: number
+  playing: boolean
+  elapsed: number
+  duration: number
+  volume: number
+  command: { action: MusicAction; value: number | null; by: string | null } | null
+  command_seq: number
+  heartbeat_at: string | null
+  updated_at: string
+}
+/** What the speaker reports about itself. */
+export type MusicPlayerReport = Partial<Pick<MusicPlayerState, 'device_id' | 'device_name' | 'position' | 'playing' | 'elapsed' | 'duration' | 'volume' | 'heartbeat_at'>>

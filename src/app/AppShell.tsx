@@ -39,6 +39,7 @@ import type { PartnerArea } from '../../shared/types'
 import { BrandLogo } from '../components/Logo'
 import { Loading, PersonAvatar } from '../components/common'
 import { NotificationBell } from '../components/NotificationBell'
+import { CafeSpeakerProvider } from './CafeSpeaker'
 import { SearchButton, ThemeToggle } from './QuickActions'
 import { fonts, tokens } from '../theme'
 
@@ -411,7 +412,7 @@ export function AppShell() {
         )}
         <DemoBanner />
         <Box component="main" sx={{ px: { xs: 2, md: 4 }, pt: { xs: 2.5, md: 1.5 }, pb: { xs: 2.5, md: 4 }, maxWidth: 1360, mx: 'auto' }}>
-          <Suspense fallback={<Loading />}><Outlet /></Suspense>
+          <CafeSpeakerProvider><Suspense fallback={<Loading />}><Outlet /></Suspense></CafeSpeakerProvider>
         </Box>
       </Box>
       {!desktop && <PhoneNav sections={sections} current={current} />}

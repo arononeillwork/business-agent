@@ -1,17 +1,27 @@
-import { Box, Button, Card, CardActionArea, Chip, Stack, Tab, Tabs, Typography } from '@mui/material'
+import { Alert, Box, Button, Card, CardActionArea, Chip, IconButton, LinearProgress, Slider, Stack, Tab, Tabs, Typography } from '@mui/material'
 import PlayIcon from '@mui/icons-material/PlayArrowRounded'
 import PauseIcon from '@mui/icons-material/PauseRounded'
+import NextIcon from '@mui/icons-material/SkipNextRounded'
+import PrevIcon from '@mui/icons-material/SkipPreviousRounded'
+import ShuffleIcon from '@mui/icons-material/ShuffleRounded'
+import VolumeIcon from '@mui/icons-material/VolumeUpRounded'
+import DragIcon from '@mui/icons-material/DragIndicator'
 import SpeakerIcon from '@mui/icons-material/SpeakerOutlined'
-import LockIcon from '@mui/icons-material/LockOutlined'
 import MusicIcon from '@mui/icons-material/MusicNote'
 import OpenIcon from '@mui/icons-material/OpenInNew'
+import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
+import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { useEffect, useState, type ReactNode } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link as RouterLink, useSearchParams } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
-import { useAsync } from '../app/hooks'
+import { useCafeMusic, useWatchCafeMusic } from '../app/CafeSpeaker'
+import { useAsync, useTick } from '../app/hooks'
 import { useAction, useNotify } from '../app/Notify'
-import { Empty, ErrorBox, PageHeader, Tag } from '../components/common'
-import type { MusicPlaylist, MusicProvider, MyNowPlaying } from '../../shared/types'
+import { Empty, ErrorBox, PageHeader, SectionTitle, Tag } from '../components/common'
+import { MusicCard } from '../components/MusicCard'
+import { restrictToVerticalAxis } from '../components/dnd'
+import type { CafeTrack, MusicPlaylist, MusicProvider, MyNowPlaying } from '../../shared/types'
 import { fonts, tokens } from '../theme'
 
 const BRAND: Record<MusicProvider, { name: string; colour: string; soft: string; blurb: string; logo: ReactNode }> = {
@@ -35,18 +45,14 @@ const BRAND: Record<MusicProvider, { name: string; colour: string; soft: string;
 const PROVIDERS: MusicProvider[] = ['spotify', 'youtube']
 
 /**
- * Music: each person connects their own Spotify or YouTube Music; the page stays locked until
- * they do. Then: their playlists, a player in the page, and (Spotify) play on their devices.
+ * Music. Top: the café's music (the YouTube Music account an admin connected): one device plays
+ * it, anyone on the team controls it. Below: each person's own Spotify / YouTube Music, if they
+ * want to connect it (only they see it).
  */
 export function MusicPage() {
-  const { api } = useApp()
-  const run = useAction()
   const notify = useNotify()
   const [params, setParams] = useSearchParams()
-  const mine = useAsync('my-music', () => api.myMusic(), [])
-  const connected = PROVIDERS.filter(p => mine.data?.accounts.some(a => a.provider === p))
   const [tab, setTab] = useState<MusicProvider | null>(null)
-  const active = tab && connected.includes(tab) ? tab : connected[0] ?? null
 
   // Back from Spotify / Google: say how it went, then tidy the address bar.
   useEffect(() => {
@@ -59,13 +65,227 @@ export function MusicPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Your music" title="Music"
-        subtitle="Connect your own Spotify or YouTube Music to play your playlists here. Only you can see your accounts." />
-      <ErrorBox error={mine.error} />
+      <PageHeader eyebrow="What's on" title="Music"
+        subtitle="The café’s music: play it on the café tablet or computer, and control it from any phone." />
+      <Stack spacing={3}>
+        <CafeMusicSection />
+        <PersonalMusic tab={tab} setTab={setTab} />
+      </Stack>
+    </>
+  )
+}
 
-      {mine.data && connected.length === 0 && <ConnectGate configured={mine.data.configured} />}
+const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
 
-      {mine.data && connected.length > 0 && (
+function CafeMusicSection() {
+  const music = useWatchCafeMusic()
+  const { isAdmin } = useApp()
+  if (!music || !music.library) return null
+  if (music.library.provider === 'spotify') return <MusicCard />
+  if (!music.enabled) {
+    return (
+      <Alert severity="info" action={isAdmin && <Button component={RouterLink} to="/connections" size="small">Connect</Button>}>
+        No café music connected yet. {isAdmin ? 'Connect the café’s YouTube Music on Connections.' : 'An admin connects it on the Connections page.'}
+      </Alert>
+    )
+  }
+  return (
+    <>
+      <ErrorBox error={music.error} />
+      <NowPlaying />
+      <Queue />
+      <CafePlaylists />
+    </>
+  )
+}
+
+function NowPlaying() {
+  const music = useCafeMusic()!
+  const run = useAction()
+  const s = music.state
+  useTick(1000)
+  const track = s?.queue[s.position]
+  const live = music.live
+  const elapsed = music.elapsed()
+  const duration = s?.duration ?? 0
+  const art = track?.image ?? s?.playlist?.image
+  return (
+    <Card component="section" aria-label="Now playing" sx={{ overflow: 'hidden' }}>
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2.5} sx={{ p: { xs: 2, sm: 2.5 } }}>
+        <Box sx={{ width: { xs: '100%', sm: 132 }, maxWidth: 220, aspectRatio: '1', borderRadius: 3, overflow: 'hidden', flexShrink: 0, alignSelf: { xs: 'center', sm: 'flex-start' },
+          background: `linear-gradient(135deg, ${BRAND.youtube.colour} 0%, ${tokens.espresso} 130%)`, display: 'grid', placeItems: 'center' }}>
+          {art ? <Box component="img" src={art} alt="" sx={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <MusicIcon sx={{ color: '#fff', fontSize: 52 }} />}
+        </Box>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography variant="overline" sx={{ color: live ? tokens.matchaDeep : 'text.secondary' }}>
+            {!live ? 'Nothing playing' : music.here ? 'Playing on this device' : `Playing on ${s?.device_name ?? 'another device'}`}
+          </Typography>
+          <Typography variant="h5" component="h2" sx={{ lineHeight: 1.25, wordBreak: 'break-word' }}>{track?.title ?? 'Pick a playlist below'}</Typography>
+          <Typography sx={{ color: 'text.secondary' }} noWrap>
+            {[track?.artist, s?.playlist?.name].filter(Boolean).join(' · ') || `${BRAND.youtube.name}${music.library?.account ? ` · ${music.library.account}` : ''}`}
+          </Typography>
+          {live && track && (
+            <Box sx={{ mt: 1.5 }}>
+              <LinearProgress variant="determinate" value={duration ? Math.min(100, (elapsed / duration) * 100) : 0} aria-label="Song progress"
+                sx={{ height: 6, borderRadius: 3, bgcolor: tokens.surfaceAlt, '& .MuiLinearProgress-bar': { bgcolor: BRAND.youtube.colour } }} />
+              <Stack direction="row" sx={{ justifyContent: 'space-between', mt: 0.5 }}>
+                <Typography variant="caption" sx={{ color: 'text.secondary' }}>{mmss(elapsed)}</Typography>
+                <Typography variant="caption" sx={{ color: 'text.secondary' }}>{duration ? mmss(duration) : ''}</Typography>
+              </Stack>
+            </Box>
+          )}
+          <Stack direction="row" sx={{ alignItems: 'center', gap: 0.5, mt: 1.5, flexWrap: 'wrap' }}>
+            <IconButton aria-label="Previous song" disabled={!live} onClick={() => run(() => music.control('previous'))}><PrevIcon /></IconButton>
+            {s?.playing && live
+              ? <IconButton aria-label="Pause" onClick={() => run(() => music.control('pause'))} sx={{ bgcolor: BRAND.youtube.colour, color: '#fff', '&:hover': { bgcolor: BRAND.youtube.colour } }}><PauseIcon /></IconButton>
+              : <IconButton aria-label="Play" disabled={!live} onClick={() => run(() => music.control('play'))} sx={{ bgcolor: BRAND.youtube.colour, color: '#fff', '&:hover': { bgcolor: BRAND.youtube.colour }, '&.Mui-disabled': { bgcolor: tokens.surfaceAlt } }}><PlayIcon /></IconButton>}
+            <IconButton aria-label="Next song" disabled={!live} onClick={() => run(() => music.control('next'))}><NextIcon /></IconButton>
+            {live && (
+              <Stack direction="row" spacing={1} sx={{ alignItems: 'center', ml: { sm: 2 }, width: 150 }}>
+                <VolumeIcon fontSize="small" sx={{ color: 'text.secondary' }} />
+                <Slider size="small" value={s?.volume ?? 80} aria-label="Volume" key={music.here ? 'here' : s?.volume}
+                  onChangeCommitted={(_, v) => void run(() => music.control('volume', v as number))} />
+              </Stack>
+            )}
+          </Stack>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 2, alignItems: { sm: 'center' } }}>
+            {!live && <Button variant="contained" startIcon={<SpeakerIcon />} onClick={() => run(() => music.claim())}>Play on this device</Button>}
+            {live && !music.here && <Button variant="outlined" startIcon={<SpeakerIcon />} onClick={() => run(() => music.claim())}>Play here instead</Button>}
+            {music.here && <Button onClick={() => run(() => music.release(), 'Stopped playing on this device')}>Stop playing on this device</Button>}
+            {!live && (
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                Use the café tablet or computer that’s connected to the speaker. Then anyone on the team can control it from their phone.
+              </Typography>
+            )}
+          </Stack>
+        </Box>
+      </Stack>
+    </Card>
+  )
+}
+
+/** The songs in play order: tap one to play it, drag to change the order, shuffle what's left. */
+function Queue() {
+  const music = useCafeMusic()!
+  const run = useAction()
+  const s = music.state
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }))
+  if (!s?.queue.length) return null
+  const current = s.queue[s.position]
+  const keys = s.queue.map((t, i) => `${i}:${t.id}`)
+  const reorder = (queue: CafeTrack[]) => music.setQueue(s.playlist, queue, Math.max(0, queue.findIndex(t => t === current)))
+  const onDragEnd = ({ active, over }: DragEndEvent) => {
+    if (!over || active.id === over.id) return
+    void run(() => reorder(arrayMove(s.queue, keys.indexOf(String(active.id)), keys.indexOf(String(over.id)))))
+  }
+  const shuffle = () => {
+    const rest = s.queue.filter((_, i) => i !== s.position)
+    for (let i = rest.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [rest[i], rest[j]] = [rest[j], rest[i]] }
+    return run(() => music.setQueue(s.playlist, [current, ...rest], 0), 'Shuffled')
+  }
+  return (
+    <Card component="section" aria-label="Up next">
+      <Stack direction="row" sx={{ alignItems: 'center', px: 2, pt: 1.5, pb: 1 }}>
+        <Typography variant="h6" component="h2" sx={{ flex: 1 }}>Up next <Typography component="span" sx={{ color: 'text.secondary' }}>· {s.queue.length} songs</Typography></Typography>
+        <Button size="small" startIcon={<ShuffleIcon />} onClick={shuffle}>Shuffle</Button>
+      </Stack>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToVerticalAxis]} onDragEnd={onDragEnd}>
+        <SortableContext items={keys} strategy={verticalListSortingStrategy}>
+          <Box role="list" aria-label="Queue" sx={{ maxHeight: 420, overflowY: 'auto' }}>
+            {s.queue.map((t, i) => (
+              <QueueRow key={keys[i]} id={keys[i]} track={t} index={i} current={i === s.position} playing={i === s.position && s.playing && music.live}
+                onPlay={() => run(() => music.control('jump', i))} />
+            ))}
+          </Box>
+        </SortableContext>
+      </DndContext>
+    </Card>
+  )
+}
+
+function QueueRow({ id, track, index, current, playing, onPlay }: { id: string; track: CafeTrack; index: number; current: boolean; playing: boolean; onPlay: () => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
+  return (
+    <Box ref={setNodeRef} role="listitem" aria-label={track.title} aria-current={current ? 'true' : undefined}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1, py: 0.5, borderTop: `1px solid ${tokens.line}`,
+        bgcolor: current ? tokens.roseSoft : isDragging ? tokens.surfaceAlt : 'transparent', position: 'relative', zIndex: isDragging ? 2 : 'auto' }}>
+      <IconButton size="small" {...attributes} {...listeners} aria-label={`Move ${track.title}`} sx={{ cursor: 'grab', touchAction: 'none', color: tokens.inkFaint }}>
+        <DragIcon fontSize="small" />
+      </IconButton>
+      <CardActionArea onClick={onPlay} aria-label={`Play ${track.title}`} sx={{ display: 'flex', justifyContent: 'flex-start', gap: 1.25, borderRadius: 2, p: 0.5, minWidth: 0 }}>
+        <Typography variant="body2" sx={{ width: 22, textAlign: 'right', color: current ? BRAND.youtube.colour : 'text.secondary', flexShrink: 0 }}>
+          {playing ? '♪' : index + 1}
+        </Typography>
+        <Box sx={{ width: 40, height: 40, borderRadius: 1.5, overflow: 'hidden', flexShrink: 0, bgcolor: tokens.surfaceAlt, display: 'grid', placeItems: 'center' }}>
+          {track.image ? <Box component="img" src={track.image} alt="" loading="lazy" sx={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <MusicIcon sx={{ fontSize: 18, color: tokens.inkFaint }} />}
+        </Box>
+        <Box sx={{ minWidth: 0, flex: 1 }}>
+          <Typography variant="body2" sx={{ fontWeight: current ? 600 : 400 }} noWrap>{track.title}</Typography>
+          {track.artist && <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }} noWrap>{track.artist}</Typography>}
+        </Box>
+      </CardActionArea>
+    </Box>
+  )
+}
+
+function CafePlaylists() {
+  const music = useCafeMusic()!
+  const run = useAction()
+  const lib = music.library!
+  const lists = [...lib.playlists].sort((a, b) => Number(b.id === lib.approved?.id) - Number(a.id === lib.approved?.id))
+  if (!lists.length) return <Empty>The café’s YouTube Music account has no playlists yet. Make one in YouTube Music and it shows up here.</Empty>
+  return (
+    <Card component="section" aria-label="Café playlists">
+      <Typography variant="h6" component="h2" sx={{ px: 2, pt: 1.5, pb: 1 }}>Playlists</Typography>
+      <Box role="list" aria-label="Café playlists">
+        {lists.map(p => {
+          const on = music.state?.playlist?.id === p.id
+          return (
+            <Box key={p.id} role="listitem" sx={{ borderTop: `1px solid ${tokens.line}` }}>
+              <CardActionArea aria-label={p.name} aria-pressed={on}
+                onClick={() => run(() => music.playPlaylist(p), music.live ? `Playing ${p.name}` : `${p.name} is up next. Press Play on this device, or on the café tablet.`)}
+                sx={{ px: 2, py: 1.25, display: 'flex', justifyContent: 'flex-start', gap: 1.5, ...(on ? { bgcolor: tokens.roseSoft } : {}) }}>
+                <Cover playlist={{ ...p, provider: 'youtube' }} size={48} />
+                <Box sx={{ minWidth: 0, flex: 1 }}>
+                  <Typography sx={{ fontWeight: 500 }} noWrap>{p.name}</Typography>
+                  <Typography variant="body2" sx={{ color: 'text.secondary' }} noWrap>{p.tracks} {p.tracks === 1 ? 'song' : 'songs'}</Typography>
+                </Box>
+                {p.id === lib.approved?.id && <Tag>Approved</Tag>}
+                {on && <Tag fg={tokens.goodFg} bg={tokens.goodBg}>Playing</Tag>}
+              </CardActionArea>
+            </Box>
+          )
+        })}
+      </Box>
+    </Card>
+  )
+}
+
+/** Each person's own Spotify / YouTube Music: optional, only they see it. */
+function PersonalMusic({ tab, setTab }: { tab: MusicProvider | null; setTab: (p: MusicProvider) => void }) {
+  const { api } = useApp()
+  const run = useAction()
+  const mine = useAsync('my-music', () => api.myMusic(), [])
+  const connected = PROVIDERS.filter(p => mine.data?.accounts.some(a => a.provider === p))
+  const active = tab && connected.includes(tab) ? tab : connected[0] ?? null
+  if (!mine.data) return <ErrorBox error={mine.error} />
+  return (
+    <Box component="section" aria-label={connected.length ? 'Your own music' : 'Connect a music account'}>
+      <SectionTitle>Your own music</SectionTitle>
+      {connected.length === 0 ? (
+        <Card sx={{ p: 2 }}>
+          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>
+            Optional: connect your own Spotify or YouTube Music to play your playlists here. Only you see your account.
+          </Typography>
+          <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+            {PROVIDERS.map(p => (
+              <Button key={p} variant="outlined" disabled={!mine.data!.configured[p]} onClick={() => run(() => api.connectMyMusic(p))}
+                startIcon={<Box sx={{ width: 18, height: 18 }}>{BRAND[p].logo}</Box>}>Connect {BRAND[p].name}</Button>
+            ))}
+          </Stack>
+        </Card>
+      ) : (
         <>
           <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', alignItems: 'center', mb: 2.5 }}>
             {mine.data.accounts.map(a => (
@@ -86,48 +306,7 @@ export function MusicPage() {
           {active && <Library key={active} provider={active} />}
         </>
       )}
-    </>
-  )
-}
-
-function ConnectGate({ configured }: { configured: Record<MusicProvider, boolean> }) {
-  const { api } = useApp()
-  const run = useAction()
-  return (
-    <Card component="section" aria-label="Connect a music account" sx={{ p: { xs: 2.5, md: 4 }, border: 'none', position: 'relative', overflow: 'hidden',
-      background: `linear-gradient(135deg, ${tokens.espresso} 0%, #3B2F2B 60%, #4A3B36 100%)`, color: '#fff' }}>
-      <Box aria-hidden sx={{ position: 'absolute', right: -40, bottom: -60, opacity: 0.07, '& svg': { fontSize: 280 } }}><MusicIcon /></Box>
-      <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1 }}>
-        <LockIcon sx={{ fontSize: 18, color: tokens.rose }} />
-        <Typography variant="overline" sx={{ color: tokens.rose, fontWeight: 500, letterSpacing: '0.12em' }}>Connect to use Music</Typography>
-      </Stack>
-      <Typography sx={{ fontFamily: fonts.display, fontWeight: 500, fontSize: { xs: '1.4rem', md: '1.9rem' }, lineHeight: 1.2, maxWidth: 560 }}>
-        Bring your own music. Connect Spotify or YouTube Music to unlock this page.
-      </Typography>
-      <Box sx={{ display: 'grid', gap: 2, mt: 3, position: 'relative' }}>
-        {PROVIDERS.map(p => {
-          const b = BRAND[p]
-          return (
-            <Box key={p} sx={{ bgcolor: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 3, p: 2.5, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-              <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
-                <Box sx={{ width: 40, height: 40, flexShrink: 0 }}>{b.logo}</Box>
-                <Typography sx={{ fontFamily: fonts.display, fontWeight: 500, fontSize: '1.15rem' }}>{b.name}</Typography>
-              </Stack>
-              <Typography sx={{ opacity: 0.78, flex: 1 }}>{b.blurb}</Typography>
-              <Button variant="contained" disabled={!configured[p]} onClick={() => run(() => api.connectMyMusic(p))}
-                sx={{ bgcolor: b.colour, color: '#fff', alignSelf: 'flex-start', '&:hover': { bgcolor: b.colour, filter: 'brightness(0.92)' },
-                  '&.Mui-disabled': { bgcolor: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.6)' } }}>
-                Connect {b.name}
-              </Button>
-              {!configured[p] && <Typography variant="caption" sx={{ opacity: 0.7 }}>{b.name} is being set up. Ask an admin.</Typography>}
-            </Box>
-          )
-        })}
-      </Box>
-      <Typography variant="body2" sx={{ opacity: 0.6, mt: 2.5 }}>
-        You sign in on {'Spotify’s'} or {'Google’s'} own page; Easy Beans never sees your password. Disconnect any time.
-      </Typography>
-    </Card>
+    </Box>
   )
 }
 

@@ -465,6 +465,33 @@ integrations.use('/api/music/*', async (c, next) => {
   await next()
 })
 
+/** Café music player: the team (not partners or the tablet account) browses the café account's playlists. */
+const isTeam = async (c: { env: Env; req: { header: (n: string) => string | undefined } }) => {
+  const { data: role } = await userClient(c.env, bearer(c.req.header('authorization'))!, 'app').rpc('my_role')
+  return role === 'admin' || role === 'employee'
+}
+
+integrations.get('/api/music/library', async c => {
+  if (!await isTeam(c)) return c.json({ error: 'Music is for the team' }, 403)
+  const db = serviceClient(c.env)
+  const m = await cafeMusic(c.env, db, new URL(c.req.url).origin)
+  if (!m) return c.json({ provider: null, account: null, playlists: [], approved: null })
+  const { data } = await db.from('integrations').select('account_label').eq('provider', m.provider).single()
+  return c.json({ provider: m.provider === 'youtube_music' ? 'youtube' : 'spotify', account: data?.account_label ?? null,
+    playlists: await m.playlists(), approved: m.approved })
+})
+
+// The songs in one of the café account's playlists (YouTube Music), for the queue.
+integrations.get('/api/music/tracks/:playlist', async c => {
+  if (!await isTeam(c)) return c.json({ error: 'Music is for the team' }, 403)
+  const db = serviceClient(c.env)
+  if (await connectedOf(db, ['youtube_music']) !== 'youtube_music') return c.json({ error: 'Connect YouTube Music first' }, 400)
+  const { token } = await connectorGrant(c.env, db, 'youtube_music', new URL(c.req.url).origin)
+  const id = c.req.param('playlist')
+  if (!(await youtube.playlists(token)).some(p => p.id === id)) return c.json({ error: 'That playlist is not in the café’s YouTube Music account' }, 404)
+  return c.json({ tracks: await youtube.playlistTracks(token, id) })
+})
+
 const YOUTUBE_PLAYS_ON_DEVICE = 'YouTube Music plays on the café device: open the playlist there.'
 
 // Spotify can be played and paused from the app; YouTube Music has no remote control, so staff

@@ -154,8 +154,11 @@ export function ServiceConnections({ back = 'connections', groups = GROUPS.map(g
   const { api } = useApp()
   const data = useAsync('integrations', () => api.integrations(), [])
   const [open, setOpen] = useState<OptionId | null>(null)
+  // Choose-one groups show just the app in use; the others appear when asked for ("Use Outlook instead").
+  const [expanded, setExpanded] = useState<string[]>([])
+  const find = (id: string) => data.data?.integrations.find(i => i.provider === id)
+  const inUse = (g: ConnectionGroupInfo) => (g.pickOne ? g.options.find(o => !o.soon && active(find(o.id))) : undefined)
   const stateOf = (o: ConnectionOption, g: ConnectionGroupInfo): OptionState => {
-    const find = (id: string) => data.data?.integrations.find(i => i.provider === id)
     const row = o.soon ? undefined : find(o.id)
     return {
       o, row, configured: !o.soon && !!data.data?.configured[o.id as IntegrationProvider], status: row?.status ?? 'disconnected',
@@ -165,18 +168,30 @@ export function ServiceConnections({ back = 'connections', groups = GROUPS.map(g
   const openGroup = GROUPS.find(g => g.options.some(o => o.id === open))
   return (
     <Stack spacing={3.5}>
-      {GROUPS.filter(g => groups.includes(g.key) && (g.key !== 'payments' || FEATURES.square)).map(g => (
-        <Box key={g.key} component="section" aria-label={g.title}>
-          <Stack direction="row" spacing={1} sx={{ alignItems: 'baseline', flexWrap: 'wrap' }}>
-            <Typography variant="h6" component="h2">{g.title}</Typography>
-            {g.pickOne && g.options.filter(o => !o.soon).length > 1 && <Typography variant="caption" sx={{ color: 'text.secondary' }}>· choose one</Typography>}
-          </Stack>
-          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>{g.hint}</Typography>
-          <Card>
-            {g.options.map(o => <Tile key={o.id} s={stateOf(o, g)} back={back} reload={data.reload} onOpen={() => setOpen(o.id)} loading={!data.data} />)}
-          </Card>
-        </Box>
-      ))}
+      {GROUPS.filter(g => groups.includes(g.key) && (g.key !== 'payments' || FEATURES.square)).map(g => {
+        const current = inUse(g)
+        const others = current ? g.options.filter(o => o !== current && !o.soon) : []
+        const all = !current || expanded.includes(g.key)
+        return (
+          <Box key={g.key} component="section" aria-label={g.title}>
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'baseline', flexWrap: 'wrap' }}>
+              <Typography variant="h6" component="h2">{g.title}</Typography>
+              {g.pickOne && !current && g.options.filter(o => !o.soon).length > 1 && <Typography variant="caption" sx={{ color: 'text.secondary' }}>· choose one</Typography>}
+            </Stack>
+            <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>{g.hint}</Typography>
+            <Card>
+              {(all ? g.options : [current!]).map(o => <Tile key={o.id} s={stateOf(o, g)} back={back} reload={data.reload} onOpen={() => setOpen(o.id)} loading={!data.data} />)}
+              {!all && others.length > 0 && (
+                <Box sx={{ borderTop: `1px solid ${tokens.line}`, px: 1.5, py: 0.75 }}>
+                  <Button size="small" onClick={() => setExpanded(x => [...x, g.key])}>
+                    Use {others.map(o => o.name).join(' or ')} instead
+                  </Button>
+                </Box>
+              )}
+            </Card>
+          </Box>
+        )
+      })}
       {!data.data && data.error && <Alert severity="error">{data.error}</Alert>}
       {open && openGroup && (
         <ConnectorDialog s={stateOf(openGroup.options.find(o => o.id === open)!, openGroup)} back={back} reload={data.reload} onClose={() => setOpen(null)} />

@@ -6,7 +6,7 @@ import type {
   ApiKey, AppNotification, Brand, EventAlert, Sales, SocialNetwork, SocialPost, MusicAccount, MusicPlaylist, MusicProvider, MyNowPlaying,
   Expense, Integration, IntegrationProvider, IntegrationsState, OutboxItem, PartnerArea, TimeOff,
   BreakType, Business, CalendarEvent, CorrectionRequest, PayRate, Position, Profile, Settings,
-  Shift, TimeEntry, TimeEntryChange, Todo, TodoCategory,
+  Shift, TimeEntry, TimeEntryChange, Todo, TodoCategory, CafeTrack, MusicPlayerState,
 } from '../../shared/types'
 import { demoSports } from './demoSports'
 import type { SportsFavourite } from '../../shared/sports'
@@ -89,6 +89,14 @@ export function createDemoApi(): Api {
     { id: 'pl3', name: 'Aron’s gym mix', tracks: 40, url: 'https://open.spotify.com', owner: 'Aron' },
   ]
   const music: { playing: boolean; track?: string; artist?: string; device?: string } = { playing: false }
+  // The café player (Music page): sample songs; the demo plays them with a pretend player.
+  const demoTracks: Record<string, CafeTrack[]> = {
+    yt1: [['Sunday Morning', 'Maroon 5'], ['Coffee', 'beabadoobee'], ['Banana Pancakes', 'Jack Johnson'], ['Bloom', 'The Paper Kites'],
+      ['Golden Hour', 'JVKE'], ['Riptide', 'Vance Joy']].map(([title, artist], i) => ({ id: `demo-yt1-${i + 1}`, title, artist })),
+    yt2: [['Holocene', 'Bon Iver'], ['Skinny Love', 'Birdy'], ['Ho Hey', 'The Lumineers']].map(([title, artist], i) => ({ id: `demo-yt2-${i + 1}`, title, artist })),
+  }
+  const player: MusicPlayerState = { device_id: null, device_name: null, playlist: null, queue: [], queue_version: 0, position: 0, playing: false,
+    elapsed: 0, duration: 0, volume: 80, command: null, command_seq: 0, heartbeat_at: null, updated_at: nowIso() }
   const cafeMusic = () => integ.integrations.find(i => (i.provider === 'spotify' || i.provider === 'youtube_music') && i.status === 'connected')
   // Social planner: a published post, one going out soon, one next week, and a draft.
   const hoursFromNow = (h: number) => new Date(Date.now() + h * 3_600_000).toISOString()
@@ -1080,6 +1088,38 @@ export function createDemoApi(): Api {
     },
     async pauseMySpotify() { myPlayer.playing = false },
 
+    async cafeMusicLibrary() {
+      if (!staffOnly(me()!)) throw new Error('Music is for the team')
+      const p = cafeMusic()
+      if (!p) return { provider: null, account: null, playlists: [], approved: null }
+      const youtube = p.provider === 'youtube_music'
+      return { provider: youtube ? 'youtube' : 'spotify', account: p.account_label ?? null,
+        playlists: clone(youtube ? youtubePlaylists : demoPlaylists), approved: clone(p.external.playlist ?? null), demo: true }
+    },
+    async cafeTracks(playlistId) {
+      if (!staffOnly(me()!)) throw new Error('Music is for the team')
+      const t = demoTracks[playlistId]
+      if (!t) throw new Error('That playlist is not in the café’s YouTube Music account')
+      return clone(t)
+    },
+    async musicPlayer() {
+      if (!staffOnly(me()!)) throw new Error('Music is for the team')
+      return clone(player)
+    },
+    async musicSend(action, value) {
+      if (!staffOnly(me()!)) throw new Error('Music is for the team')
+      Object.assign(player, { command: { action, value: value ?? null, by: currentUser }, command_seq: player.command_seq + 1, updated_at: nowIso() })
+    },
+    async musicSetQueue(playlist, queue, position) {
+      if (!staffOnly(me()!)) throw new Error('Music is for the team')
+      Object.assign(player, { playlist: clone(playlist), queue: clone(queue), position: Math.max(0, Math.min(position, queue.length - 1)),
+        queue_version: player.queue_version + 1, updated_at: nowIso() })
+    },
+    async musicReport(report, asDevice) {
+      if (!staffOnly(me()!)) throw new Error('Music is for the team')
+      if (asDevice && player.device_id !== asDevice) return
+      Object.assign(player, report, { updated_at: nowIso() })
+    },
     async musicNow() {
       const s = cafeMusic()
       if (!s) throw new Error('No café music connected yet. An admin connects Spotify or YouTube Music on the Connections page.')
