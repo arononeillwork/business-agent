@@ -1,4 +1,5 @@
 import type { InboxConversation, InboxMessage, MessageKind, TaggedPost } from '../../shared/messages'
+import type { PostKind, PostMedia } from '../../shared/types'
 
 // Instagram (professional account), connected by the business itself with one click: "Instagram API
 // with Instagram Login". The owner signs in on instagram.com and allows access; we keep a long-lived
@@ -71,15 +72,61 @@ export async function profile(cfg: InstagramConfig): Promise<InstagramProfile> {
   return { ...p, recent: media.data }
 }
 
-/** Publish a photo post: create a media container, then publish it. Returns the media id. */
-export async function publishPhoto(cfg: InstagramConfig, imageUrl: string, caption: string) {
+/** How long to wait for Instagram to finish with a video (tests set it to nothing). */
+export interface PublishWait { waitMs?: number; tries?: number }
+
+/**
+ * Wait until Instagram has fetched and processed a container: photos are ready at once, videos
+ * take a while. Throws when Instagram couldn't use the file, or is still busy after ~3 minutes
+ * (the post is tried again later).
+ */
+async function ready(cfg: InstagramConfig, id: string, wait: PublishWait) {
+  const tries = wait.tries ?? 36
+  for (let i = 0; i < tries; i++) {
+    const s = await graph<{ status_code?: string; status?: string }>(cfg, `${id}?fields=status_code,status`)
+    if (!s.status_code || s.status_code === 'FINISHED' || s.status_code === 'PUBLISHED') return
+    if (s.status_code === 'ERROR' || s.status_code === 'EXPIRED') {
+      throw new Error(`Instagram couldn’t use the photo or video${s.status ? ` (${s.status})` : ''}. Check it’s a JPEG photo, or an MP4/MOV video Instagram accepts.`)
+    }
+    if (i < tries - 1) await new Promise(r => setTimeout(r, wait.waitMs ?? 5000))
+  }
+  throw new Error('Instagram is still processing the video. It will be tried again shortly.')
+}
+
+/**
+ * Publish a post, carousel, reel or story: one container per photo/video (a carousel's go inside
+ * its own), wait until Instagram has processed them, then publish. Returns the post's link (or id).
+ */
+export async function publish(cfg: InstagramConfig, post: { kind: PostKind; media: PostMedia[]; caption: string }, wait: PublishWait = {}) {
   const form = (o: Record<string, string>) => ({ method: 'POST', body: new URLSearchParams(o) })
-  const container = await graph<{ id: string }>(cfg, `${cfg.userId}/media`, form({ image_url: imageUrl, caption: caption.slice(0, 2200) }))
-  const published = await graph<{ id: string }>(cfg, `${cfg.userId}/media_publish`, form({ creation_id: container.id }))
+  const make = async (o: Record<string, string>) => (await graph<{ id: string }>(cfg, `${cfg.userId}/media`, form(o))).id
+  const file = (m: PostMedia): Record<string, string> => (m.type === 'video' ? { video_url: m.url } : { image_url: m.url })
+  const first = post.media[0]
+  if (!first) throw new Error('Instagram posts need a photo or video')
+  const caption = post.caption.slice(0, 2200)
+  let container: string
+  if (post.kind === 'carousel') {
+    const children: string[] = []
+    for (const m of post.media.slice(0, 10)) children.push(await make({ is_carousel_item: 'true', ...(m.type === 'video' ? { media_type: 'VIDEO' } : {}), ...file(m) }))
+    for (const id of children) await ready(cfg, id, wait)
+    container = await make({ media_type: 'CAROUSEL', children: children.join(','), caption })
+  } else if (post.kind === 'reel') {
+    container = await make({ media_type: 'REELS', video_url: first.url, caption, share_to_feed: 'true' })
+  } else if (post.kind === 'story') {
+    container = await make({ media_type: 'STORIES', ...file(first) })
+  } else {
+    container = await make({ image_url: first.url, caption })
+  }
+  await ready(cfg, container, wait)
+  const published = await graph<{ id: string }>(cfg, `${cfg.userId}/media_publish`, form({ creation_id: container }))
   // The post's link, for the planner (falls back to the id if Instagram doesn't say).
   const made = await graph<{ permalink?: string }>(cfg, `${published.id}?fields=permalink`).catch(() => ({ permalink: undefined }))
   return made.permalink ?? published.id
 }
+
+/** Publish a photo post. Returns its link (or id). */
+export const publishPhoto = (cfg: InstagramConfig, imageUrl: string, caption: string, wait: PublishWait = {}) =>
+  publish(cfg, { kind: 'post', media: [{ url: imageUrl, type: 'image' }], caption }, wait)
 
 // ---- Direct messages (Messages page) ----------------------------------------------------------
 // Instagram's Conversations API: conversations and their 20 latest messages, replies by text within

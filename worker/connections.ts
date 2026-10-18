@@ -564,15 +564,16 @@ export async function checkOne(env: Env, db: SupabaseClient, p: Provider, { noti
   }
 }
 
-/** Check every connection that is (or was) working. The nightly job; admins get notified. */
+/**
+ * Check every connection that is (or was) working. The nightly job; admins get notified. The apps
+ * are checked at the same time (each has its own access), so "Check all" takes as long as the
+ * slowest one rather than all of them added up.
+ */
 export async function checkAll(env: Env, db: SupabaseClient, options: CheckOptions = {}) {
   const { data } = await db.from('integrations').select('provider').in('status', ['connected', 'error', 'pending'])
-  const out: Row[] = []
-  for (const { provider } of (data ?? []) as { provider: Provider }[]) {
-    const row = await checkOne(env, db, provider, options).catch(e => { console.error(`check ${provider} failed`, e); return null })
-    if (row) out.push(row)
-  }
-  return out
+  const rows = await Promise.all(((data ?? []) as { provider: Provider }[]).map(({ provider }) =>
+    checkOne(env, db, provider, options).catch(e => { console.error(`check ${provider} failed`, e); return null })))
+  return rows.filter((r): r is Row => !!r)
 }
 
 /**

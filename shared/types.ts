@@ -303,6 +303,8 @@ export interface IntegrationsState {
   integrations: Integration[]
   configured: Record<IntegrationProvider, boolean>
   queue: { kind: string; status: string }[]
+  /** Where photos and videos for posts are kept: the connected Drive/OneDrive, R2, or nowhere yet. */
+  media_storage?: 'google_drive' | 'onedrive' | 'r2' | null
 }
 
 export interface InstagramProfile {
@@ -359,14 +361,24 @@ export interface ApiKey { id: string; name: string; prefix: string; created_at: 
 
 /** Social planner: one post, sent to each chosen network at the planned time. */
 export type SocialNetwork = 'instagram' | 'facebook' | 'tiktok' | 'google'
+/** What kind of post: a feed post (one photo), a carousel (2–10 photos/videos), a reel (one video) or a story. */
+export type PostKind = 'post' | 'carousel' | 'reel' | 'story'
+/** A photo or video of a post, at a public address the networks fetch it from. */
+export interface PostMedia { url: string; type: 'image' | 'video' }
 export interface SocialPost {
   id: string
+  kind: PostKind
   caption: string
+  /** The first photo or video (the cover); `media` has them all, in order. */
   image_url: string | null
+  media: PostMedia[]
   targets: SocialNetwork[]
   scheduled_at: string | null
-  status: 'draft' | 'scheduled' | 'publishing' | 'published' | 'partly' | 'failed'
-  results: Partial<Record<SocialNetwork, { status: 'queued' | 'retrying' | 'published' | 'failed'; id?: string; url?: string; error?: string; at?: string }>>
+  /** true: it posts itself at the time. false: a reminder at the time, and you post it yourself. */
+  auto: boolean
+  /** due: a reminder whose time has come (post it yourself, then mark it posted). */
+  status: 'draft' | 'scheduled' | 'due' | 'publishing' | 'published' | 'partly' | 'failed'
+  results: Partial<Record<SocialNetwork, { status: 'queued' | 'retrying' | 'published' | 'failed'; id?: string; url?: string; error?: string; at?: string; manual?: boolean }>>
   created_at: string
   published_at: string | null
 }

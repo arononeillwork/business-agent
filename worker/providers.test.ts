@@ -79,15 +79,17 @@ describe('WhatsApp', () => {
 })
 
 describe('Instagram', () => {
-  it('publishes a photo in two steps', async () => {
+  it('publishes a photo: container, ready, publish', async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ id: 'container' })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ status_code: 'FINISHED' })))
       .mockResolvedValueOnce(new Response(JSON.stringify({ id: 'media-1' })))
     vi.stubGlobal('fetch', fetchMock)
     expect(await publishPhoto({ token: 't', userId: '17841', graphVersion: 'v23.0' }, 'https://x/a.jpg', 'Feria!')).toBe('media-1')
     expect(String(fetchMock.mock.calls[0][0])).toContain('/17841/media')
-    expect(String(fetchMock.mock.calls[1][0])).toContain('/17841/media_publish')
-    expect(String(fetchMock.mock.calls[1][1].body)).toContain('creation_id=container')
+    expect(String(fetchMock.mock.calls[1][0])).toContain('/container?fields=status_code')
+    expect(String(fetchMock.mock.calls[2][0])).toContain('/17841/media_publish')
+    expect(String(fetchMock.mock.calls[2][1].body)).toContain('creation_id=container')
   })
 })
 

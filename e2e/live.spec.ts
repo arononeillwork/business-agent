@@ -325,6 +325,8 @@ test.describe('personal calendar feed', () => {
 
 test.describe('business connections', () => {
   test('every app the business connected still works (checked now, like the nightly check)', async ({ request }) => {
+    // Each connected app is asked in turn by its own service (Google, Instagram…): allow a minute.
+    test.setTimeout(60_000)
     const { session } = await signedIn(cfg, 'admin')
     const auth = { authorization: `Bearer ${session.access_token}` }
     const list = await request.get('/api/integrations', { headers: auth })

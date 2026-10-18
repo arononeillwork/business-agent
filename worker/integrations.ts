@@ -20,13 +20,14 @@ import { alertEmail, base64url, mimeMessage } from '../shared/alertText'
 import { addToCalendarUrl, optionName } from '../shared/connections'
 import { finishMusicConnect, type MusicState } from './music'
 import { ensureFeed } from './calendarFeed'
+import { MediaError, checkFile, mediaStorage, serveMedia, storeMedia } from './media'
 import {
   CONNECTORS, PROVIDERS, ROW_COLUMNS, SCOPES, calendarSeen, calendarFetched, checkAll, checkOne, connectedOf, connectorConfigured,
   connectorGrant, explain, facebookOAuth, facebookSession, googleConfig, googleSession, instagramOAuth, instagramSession, isCalendarApp, isGoogle,
   lasting, markBroken, msConfig, proveFacebook, proveInstagram, proveNew, proveSpotify, proveSquare, proveStripe, proveTikTok, setIntegration, showInstagramHandle, spotifyConfig,
   spotifySession, squareOAuth, squareSession, stripeOAuth, stripeSession, tellAdmins, tiktokOAuth, tiktokSession, waConfig, type Connector, type Provider,
 } from './connections'
-import type { Business, CalendarEvent, OpeningHours, SpotifyPlaylist } from '../shared/types'
+import type { Business, CalendarEvent, OpeningHours, PostKind, PostMedia, SpotifyPlaylist } from '../shared/types'
 import { today, zonedIso } from '../shared/time'
 
 export { waConfig }
@@ -133,6 +134,9 @@ export async function syncGoogleBothWays(env: Env, db: SupabaseClient): Promise<
 /** How long to wait for TikTok to confirm a post (tests set it to nothing). */
 let tiktokWait: { waitMs?: number; tries?: number } = {}
 export const setTikTokWait = (w: typeof tiktokWait) => { tiktokWait = w }
+/** How long to wait for Instagram to process a video (tests set it to nothing). */
+let instagramWait: instagram.PublishWait = {}
+export const setInstagramWait = (w: instagram.PublishWait) => { instagramWait = w }
 
 /** Deliver due outbox jobs. Called by the cron every minute. */
 export async function drainOutbox(env: Env) {
@@ -162,8 +166,10 @@ export async function drainOutbox(env: Env) {
         const { data: biz } = await db.from('business').select('name').eq('id', 1).single()
         externalId = await sendEmail(env, db, { to: p.to, ...alertEmail(p.template, p.params ?? [], biz?.name ?? 'Business Agent') })
       } else if (job.kind === 'instagram_post') {
-        const p = job.payload as { image_url: string; caption: string }
-        externalId = await instagram.publishPhoto(await instagramSession(env, db), p.image_url, p.caption)
+        // Post, carousel, reel or story, with every photo and video (older jobs: just image_url).
+        const p = job.payload as { image_url: string; caption: string; kind?: PostKind; media?: PostMedia[] }
+        const media = p.media?.length ? p.media : [{ url: p.image_url, type: 'image' as const }]
+        externalId = await instagram.publish(await instagramSession(env, db), { kind: p.kind ?? 'post', media, caption: p.caption }, instagramWait)
       } else if (job.kind === 'facebook_post') {
         const p = job.payload as { image_url?: string | null; caption: string }
         const s = await facebookSession(env, db)
@@ -243,7 +249,7 @@ integrations.get('/api/integrations', async c => {
     outlook_calendar: !!c.env.INTEGRATION_KEY,
   }
   const { data: queue } = await db.from('outbox').select('kind, status').in('status', ['pending', 'failed', 'dead'])
-  return c.json({ integrations: data, configured: setup, queue })
+  return c.json({ integrations: data, configured: setup, queue, media_storage: await mediaStorage(c.env, db) })
 })
 
 // Google: start OAuth (the browser then navigates to the returned URL).
@@ -908,17 +914,25 @@ integrations.post('/api/integrations/instagram/inbox/:id/reply', async c => {
   }
 })
 
-// Photos for posts: stored in R2, served publicly so Instagram and Google can fetch them.
+// Photos and videos for posts: kept in the café's Drive or OneDrive (or R2), in the folder for the
+// kind of post (?folder=Posts|Carousels|Reels|Stories), and handed out publicly at /media/… so the
+// networks can fetch them (worker/media.ts).
 integrations.post('/api/integrations/media', async c => {
-  if (!c.env.MEDIA) return c.json({ error: 'Photo storage is not set up' }, 400)
-  const type = c.req.header('content-type') ?? ''
-  if (!/^image\/(jpeg|png)$/.test(type)) return c.json({ error: 'Use a JPEG or PNG photo' }, 400)
-  const body = await c.req.arrayBuffer()
-  if (body.byteLength > 8 * 1024 * 1024) return c.json({ error: 'Photo is larger than 8 MB' }, 400)
-  const key = `posts/${crypto.randomUUID()}.${type.endsWith('png') ? 'png' : 'jpg'}`
-  await c.env.MEDIA.put(key, body, { httpMetadata: { contentType: type } })
-  return c.json({ url: `${new URL(c.req.url).origin}/media/${key}` })
+  const type = (c.req.header('content-type') ?? '').split(';')[0].trim().toLowerCase()
+  const declared = Number(c.req.header('content-length') ?? '') || null
+  try {
+    checkFile(type, declared)
+    // A known size streams straight through to storage; otherwise it's read first (up to 100 MB).
+    const Fixed = (globalThis as { FixedLengthStream?: new (n: number) => TransformStream }).FixedLengthStream
+    const body = declared && c.req.raw.body && Fixed ? c.req.raw.body.pipeThrough(new Fixed(declared)) : await c.req.arrayBuffer()
+    const size = body instanceof ArrayBuffer ? body.byteLength : declared!
+    return c.json(await storeMedia(c.env, serviceClient(c.env), new URL(c.req.url).origin, { type, size, body, folder: c.req.query('folder') ?? 'Posts' }))
+  } catch (e) {
+    return c.json({ error: e instanceof Error ? e.message : String(e) }, e instanceof MediaError ? 400 : 502)
+  }
 })
+
+integrations.get('/media/:p{[go]}/:id/:file', c => serveMedia(c.env, c.req.raw, c.req.param('p'), decodeURIComponent(c.req.param('id')), c.req.param('file')))
 
 integrations.get('/media/*', async c => {
   const obj = await c.env.MEDIA?.get(c.req.path.slice('/media/'.length))

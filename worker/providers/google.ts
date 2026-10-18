@@ -206,6 +206,39 @@ export async function driveFolderAlive(token: string, id: string) {
   return !json.trashed
 }
 
+/** "Business Agent/<path…>" in the café's Drive (each folder made if missing); returns the last one's id. */
+export async function folderPath(token: string, path: string[]) {
+  let parent = 'root'
+  for (const name of ['Business Agent', ...path]) parent = await folder(token, name, parent)
+  return parent
+}
+
+/**
+ * Upload a photo or video into a Drive folder. Resumable, so a large video streams straight
+ * through instead of being held in memory. Returns the file's id.
+ */
+export async function uploadToDrive(token: string, parent: string, name: string, type: string, size: number, body: ReadableStream | ArrayBuffer) {
+  const start = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id', {
+    method: 'POST',
+    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json; charset=UTF-8', 'x-upload-content-type': type, 'x-upload-content-length': String(size) },
+    body: JSON.stringify({ name, parents: [parent] }),
+  })
+  if (!start.ok) {
+    const json = await start.json().catch(() => ({})) as { error?: { message?: string } }
+    throw new Error(`Google Drive: ${json.error?.message ?? start.status}`)
+  }
+  const session = start.headers.get('location')
+  if (!session) throw new Error('Google Drive: no upload address')
+  const put = await fetch(session, { method: 'PUT', headers: { 'content-type': type }, body, duplex: 'half' } as RequestInit)
+  const json = await put.json().catch(() => ({})) as { id?: string; error?: { message?: string } }
+  if (!put.ok || !json.id) throw new Error(`Google Drive: ${json.error?.message ?? put.status}`)
+  return json.id
+}
+
+/** A file's content from Drive (a Range asked for by a video player is passed on). */
+export const driveDownload = (token: string, id: string, range?: string | null) =>
+  fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?alt=media`, { headers: { authorization: `Bearer ${token}`, ...(range ? { range } : {}) } })
+
 /** Save a file into "Business Agent/<sub>" in the café's Drive; returns its web link. */
 export async function saveToDrive(token: string, sub: string, name: string, content: string, type: string) {
   const root = await folder(token, 'Business Agent')

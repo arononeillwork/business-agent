@@ -3,6 +3,15 @@
 export type Json = Record<string, unknown>
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
+/** A request body as bytes (the Worker sends uploads as ArrayBuffers or pieces of one). */
+const bytesOf = (b: unknown) => (b instanceof Uint8Array ? b : b instanceof ArrayBuffer ? new Uint8Array(b) : new TextEncoder().encode(String(b ?? '')))
+/** A stored file, whole or the Range asked for. */
+function bytesResponse(bytes: Uint8Array, type: string, range: string | null) {
+  const m = range?.match(/bytes=(\d+)-(\d*)/)
+  if (!m) return new Response(bytes, { status: 200, headers: { 'content-type': type, 'content-length': String(bytes.length) } })
+  const from = Number(m[1]), to = m[2] ? Number(m[2]) : bytes.length - 1
+  return new Response(bytes.slice(from, to + 1), { status: 206, headers: { 'content-type': type, 'content-length': String(to - from + 1), 'content-range': `bytes ${from}-${to}/${bytes.length}` } })
+}
 const googleError = (status: number, message: string, reason?: string) =>
   json({ error: { code: status, message, ...(reason ? { errors: [{ reason, message }] } : {}) } }, status)
 
@@ -32,6 +41,9 @@ export class FakeProviders {
     sent: [] as string[],
     folders: new Map<string, { name: string; parent: string; trashed: boolean }>(),
     uploads: [] as { parent: string; name: string }[],
+    /** Photos and videos stored by resumable upload, by file id. */
+    blobs: new Map<string, { name: string; parent: string; type: string; bytes: Uint8Array }>(),
+    sessions: new Map<string, { name: string; parent: string; type: string }>(),
     channel: 'Easy Beans' as string | null,
     playlists: [{ id: 'PL1', snippet: { title: 'Morning café', channelTitle: 'Easy Beans', thumbnails: {} }, contentDetails: { itemCount: 42 } }],
     /** Answer the next N Drive calls with a 500 (a provider having a bad minute). */
@@ -70,6 +82,13 @@ export class FakeProviders {
     plainOnly: false,
     /** The account didn't allow messages / comments when it connected. */
     noMessages: false, noTags: false,
+    /** Media containers made for posting, and how many more status checks a video stays "in progress". */
+    containers: new Map<string, { params: Record<string, string>; busy: number }>(),
+    /** Videos take this many status checks before Instagram has processed them. */
+    videoChecks: 1,
+    /** Instagram can't use the videos (bad format). */
+    badVideo: false,
+    published: [] as { id: string; params: Record<string, string>; children: Record<string, string>[] }[],
   }
   microsoft = {
     mail: 'cafe@outlook.com' as string | null,
@@ -81,6 +100,11 @@ export class FakeProviders {
     sent: [] as { to: string; subject: string }[],
     folderId: null as string | null,
     files: [] as string[],
+    /** Folders below Business Agent, by path ("Business Agent/Social"), and by id. */
+    paths: new Map<string, string>(),
+    /** Upload sessions in progress, and the stored photos and videos by item id. */
+    sessions: new Map<string, { path: string; got: Uint8Array[]; size: number }>(),
+    blobs: new Map<string, { path: string; bytes: Uint8Array }>(),
   }
   spotify = { premium: true, revoked: false }
   facebook = {
@@ -153,6 +177,10 @@ export class FakeProviders {
       if (this.google.disabled.has('drive')) return googleError(403, 'Google Drive API has not been used in project 1234 before or it is disabled.', 'accessNotConfigured')
       if (this.google.driveHiccups > 0) { this.google.driveHiccups--; return googleError(500, 'Backend Error', 'backendError') }
       const byId = url.pathname.match(/\/drive\/v3\/files\/([^/]+)$/)
+      if (byId && url.searchParams.get('alt') === 'media') {
+        const f = this.google.blobs.get(decodeURIComponent(byId[1]))
+        return f ? bytesResponse(f.bytes, f.type, new Headers(init.headers).get('range')) : googleError(404, `File not found: ${byId[1]}.`, 'notFound')
+      }
       if (byId) {
         const f = this.google.folders.get(decodeURIComponent(byId[1]))
         return f ? json({ id: byId[1], trashed: f.trashed }) : googleError(404, `File not found: ${byId[1]}.`, 'notFound')
@@ -166,6 +194,19 @@ export class FakeProviders {
       const made = body() as { name: string; parents: string[] }
       const id = `folder-${this.nextId++}`
       this.google.folders.set(id, { name: made.name, parent: made.parents[0], trashed: false })
+      return json({ id })
+    }
+    if (url.host === 'www.googleapis.com' && url.pathname.startsWith('/upload/drive/v3/files') && url.searchParams.get('uploadType') === 'resumable') {
+      const upload = url.searchParams.get('upload_id')
+      if (!upload) {
+        const meta = body() as { name: string; parents: string[] }
+        const id = `sess-${this.nextId++}`
+        this.google.sessions.set(id, { name: meta.name, parent: meta.parents[0], type: new Headers(init.headers).get('x-upload-content-type') ?? '' })
+        return new Response(null, { status: 200, headers: { location: `https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&upload_id=${id}` } })
+      }
+      const sess = this.google.sessions.get(upload)!
+      const id = `file-${this.nextId++}`
+      this.google.blobs.set(id, { ...sess, bytes: bytesOf(init.body) })
       return json({ id })
     }
     if (url.host === 'www.googleapis.com' && url.pathname.startsWith('/upload/drive/v3/files')) {
@@ -228,6 +269,31 @@ export class FakeProviders {
         if (this.instagram.noTags) return json({ error: { message: '(#10) Application does not have permission for this action', code: 10 } }, 400)
         return json({ data: [{ id: 'tag-1', username: 'sanpedro.eats', caption: 'Morning stop', media_url: 'https://cdn.instagram.test/t.jpg', permalink: 'https://instagram.com/p/t1', timestamp: '2026-10-16T09:00:00+0000' }] })
       }
+      if (/\/\d+\/media$/.test(url.pathname) && method === 'POST') {
+        const params = Object.fromEntries(form())
+        const id = `container-${this.nextId++}`
+        const video = !!params.video_url || params.media_type === 'VIDEO' || params.media_type === 'REELS'
+        this.instagram.containers.set(id, { params, busy: video ? this.instagram.videoChecks : 0 })
+        return json({ id })
+      }
+      if (url.pathname.endsWith('/media_publish') && method === 'POST') {
+        const c = this.instagram.containers.get(form().get('creation_id') ?? '')
+        if (!c) return json({ error: { message: 'Media ID is not available', code: 9007 } }, 400)
+        if (c.busy > 0) return json({ error: { message: 'Media ID is not available', code: 9007 } }, 400)
+        const id = `ig-media-${this.nextId++}`
+        const children = (c.params.children ?? '').split(',').filter(Boolean).map(k => this.instagram.containers.get(k)!.params)
+        this.instagram.published.push({ id, params: c.params, children })
+        return json({ id })
+      }
+      const container = this.instagram.containers.get(url.pathname.split('/').pop() ?? '')
+      if (container) {
+        const video = !!container.params.video_url
+        if (video && this.instagram.badVideo) return json({ id: 'x', status_code: 'ERROR', status: 'Error: 2207026' })
+        if (container.busy > 0) { container.busy--; return json({ status_code: 'IN_PROGRESS', status: 'In Progress' }) }
+        return json({ status_code: 'FINISHED', status: 'Finished' })
+      }
+      const post = this.instagram.published.find(p => url.pathname.endsWith(`/${p.id}`))
+      if (post) return json({ permalink: `https://www.instagram.com/p/${post.id}/` })
       const chat = this.instagram.chats.find(c => url.pathname.endsWith(`/${c.id}`))
       if (chat) return this.instagram.noMessages ? noMessages() : json(chat)
     }
@@ -261,10 +327,55 @@ export class FakeProviders {
         this.microsoft.folderId = `ms-folder-${this.nextId++}`
         return json({ id: this.microsoft.folderId, name: 'Business Agent', folder: {} }, 201)
       }
+      if (path.startsWith('/me/drive/root:/Business%20Agent/') && method === 'GET' && !path.includes(':/', '/me/drive/root:/'.length)) {
+        const at = decodeURIComponent(path.slice('/me/drive/root:/'.length))
+        const id = [...this.microsoft.paths].find(([, p]) => p === at)?.[0]
+        return id ? json({ id, name: at.split('/').pop(), folder: {} }) : json({ error: { code: 'itemNotFound', message: 'The resource could not be found.' } }, 404)
+      }
+      const children = path.match(/^\/me\/drive\/items\/([^/]+)\/children$/)
+      if (children && method === 'POST') {
+        const parent = children[1] === this.microsoft.folderId ? 'Business Agent' : this.microsoft.paths.get(children[1])!
+        const id = `ms-folder-${this.nextId++}`
+        this.microsoft.paths.set(id, `${parent}/${(body() as { name: string }).name}`)
+        return json({ id, folder: {} }, 201)
+      }
+      if (path.startsWith('/me/drive/root:/') && path.endsWith(':/createUploadSession') && method === 'POST') {
+        const at = decodeURIComponent(path.slice('/me/drive/root:/'.length, -':/createUploadSession'.length))
+        const id = `up-${this.nextId++}`
+        this.microsoft.sessions.set(id, { path: at, got: [], size: 0 })
+        return json({ uploadUrl: `https://upload.onedrive.test/${id}` })
+      }
+      const content = path.match(/^\/me\/drive\/items\/([^/]+)\/content$/)
+      if (content) {
+        if (new Headers(init.headers).get('authorization') === null) return json({ error: { code: 'unauthenticated' } }, 401)
+        return this.microsoft.blobs.has(content[1]) ? new Response(null, { status: 302, headers: { location: `https://download.onedrive.test/${content[1]}` } })
+          : json({ error: { code: 'itemNotFound', message: 'The resource could not be found.' } }, 404)
+      }
       if (path.startsWith('/me/drive/root:/') && path.endsWith(':/content') && method === 'PUT') {
         this.microsoft.files.push(decodeURIComponent(path.slice('/me/drive/root:/'.length, -':/content'.length)))
         return json({ id: `item-${this.nextId++}`, webUrl: `https://onedrive.live.com/?id=${this.nextId}` }, 201)
       }
+    }
+
+    if (url.host === 'upload.onedrive.test') {
+      // The upload address carries its own permission; a sign-in header is refused.
+      if (new Headers(init.headers).get('authorization')) return json({ error: { code: 'invalidRequest', message: 'Authorization header not allowed' } }, 401)
+      const sess = this.microsoft.sessions.get(url.pathname.slice(1))!
+      const range = new Headers(init.headers).get('content-range')!.match(/bytes (\d+)-(\d+)\/(\d+)/)!
+      sess.got.push(bytesOf(init.body))
+      sess.size = Number(range[3])
+      if (Number(range[2]) + 1 < sess.size) return json({ nextExpectedRanges: [`${Number(range[2]) + 1}-`] }, 202)
+      const id = `item-${this.nextId++}`
+      const all = new Uint8Array(sess.got.reduce((n, b) => n + b.length, 0))
+      let at = 0
+      for (const b of sess.got) { all.set(b, at); at += b.length }
+      this.microsoft.blobs.set(id, { path: sess.path, bytes: all })
+      return json({ id, name: sess.path.split('/').pop() }, 201)
+    }
+    if (url.host === 'download.onedrive.test') {
+      if (new Headers(init.headers).get('authorization')) return json({ error: 'pre-authenticated: no sign-in header' }, 401)
+      const f = this.microsoft.blobs.get(url.pathname.slice(1))
+      return f ? bytesResponse(f.bytes, 'application/octet-stream', new Headers(init.headers).get('range')) : new Response('Not found', { status: 404 })
     }
 
     // ---- Spotify ----
