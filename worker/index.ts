@@ -11,14 +11,18 @@ import { fonts } from './fonts'
 import { authorizeGet, authorizePost, mcpApiHandler, tokenExchangeCallback, type GrantProps, type OAuthEnv } from './mcp'
 import { apiKeys, isAccessKey, resolveKey } from './apiKeys'
 import { authEmail } from './authEmail'
+import { billing, planBlocksInvite, syncBilling } from './billing'
 import { referrals } from './referrals'
 
 const NIGHTLY = '15 1 * * *' // 03:15 Madrid in summer, 02:15 in winter
 
 const googleConnected = async (db: ReturnType<typeof serviceClient>) => {
   const { data } = await db.from('integrations').select('status').eq('provider', 'google_business').maybeSingle()
-  return data?.status === 'connected'
+  // Only while the plan includes it (a lapsed subscription pauses the sync).
+  return data?.status === 'connected' && (await db.rpc('plan_allows', { p_feature: 'google_maps' })).data === true
 }
+const sportsOn = async (db: ReturnType<typeof serviceClient>) =>
+  await sportsEnabled(db) && (await db.rpc('plan_allows', { p_feature: 'sports' })).data === true
 
 const app = new Hono<{ Bindings: OAuthEnv }>()
 
@@ -37,7 +41,8 @@ app.get('/api/health', async c => {
     const res = await fetch(`${c.env.SUPABASE_URL}/auth/v1/settings`, { headers: { apikey: c.env.SUPABASE_PUBLISHABLE_KEY } })
     if (!res.ok) return c.json({ ok: false, supabase: `auth answered ${res.status}` }, 503)
     const s = await res.json() as { external?: Record<string, boolean> }
-    const signIn = { email: !!s.external?.email, google: !!s.external?.google, microsoft: !!s.external?.azure }
+    const signIn = { email: !!s.external?.email, google: !!s.external?.google, microsoft: !!s.external?.azure,
+      facebook: !!s.external?.facebook, apple: !!s.external?.apple }
     return c.json({ ok: true, supabase: 'up', sign_in: signIn })
   } catch (e) {
     return c.json({ ok: false, supabase: String(e) }, 503)
@@ -67,6 +72,9 @@ app.post('/api/admin/invite', async c => {
     ...(body.phone?.trim() ? { phone: body.phone.trim() } : {}),
     ...(body.contact_method && ['whatsapp', 'sms', 'email'].includes(body.contact_method) ? { contact_method: body.contact_method } : {}),
   }
+
+  const blocked = await planBlocksInvite(c.env, role!)
+  if (blocked) return c.json({ error: blocked }, 402)
 
   // With a temporary password: create the account now, no email needed (Supabase's built-in email
   // only reaches the project's own members). app_metadata is service-only, so the role is trusted.
@@ -156,6 +164,9 @@ app.route('/', authEmail)
 // Referral links: count opens, join the waitlist (no sign-in).
 app.route('/', referrals)
 
+// Business Agent's own subscription (Stripe Billing): plans, checkout, portal, webhook.
+app.route('/', billing)
+
 // REST API for scripts, n8n, Zapier (same tools and rules as the AI connector).
 app.route('/api/v1', rest)
 
@@ -203,6 +214,8 @@ export default {
     if (event.cron === NIGHTLY) {
       ctx.waitUntil((async () => {
         await Promise.resolve(db.rpc('auto_fill_timecards')).then(log('auto_fill_timecards'))
+        // The subscription, straight from Stripe (in case a webhook was missed).
+        await syncBilling(env).catch(e => console.error('billing sync failed', e))
         // Prove every connection still works; admins get a notification when one stops working.
         await checkAll(env, db).catch(e => console.error('connection checks failed', e))
         // Hours both ways first (an edit made on Google comes in, not overwritten), then re-send
@@ -213,7 +226,7 @@ export default {
             .catch(e => console.error('nightly google sync failed', e))
         }
         // Crests for new teams (flags straight away; a few club look-ups, the GitHub sync does the rest).
-        if (await sportsEnabled(db)) await syncCrests(db, 8).catch(e => console.error('crests failed', e))
+        if (await sportsOn(db)) await syncCrests(db, 8).catch(e => console.error('crests failed', e))
       })())
       return
     }
@@ -230,7 +243,7 @@ export default {
         await syncGoogleBothWays(env, db).catch(e => console.error('google hours sync failed', e))
       }
       // Sports only while it's switched on (Sports page).
-      if (await sportsEnabled(db)) await refreshStaleSports(db).catch(e => console.error('sports failed', e))
+      if (await sportsOn(db)) await refreshStaleSports(db).catch(e => console.error('sports failed', e))
     })())
   },
 } satisfies ExportedHandler<Env>

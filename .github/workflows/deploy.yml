@@ -5,7 +5,8 @@ name: Deploy
 #   CLOUDFLARE_API_TOKEN   required ("Edit Cloudflare Workers" template)
 #   CLOUDFLARE_ACCOUNT_ID  only if the token can see more than one account
 #   SUPABASE_ACCESS_TOKEN  Supabase personal access token (service key + Auth settings)
-#   GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET, META_*, SPOTIFY_*  optional integrations
+#   GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET, META_*, APPLE_*, SPOTIFY_*  optional integrations
+# Repo variable FACEBOOK_SIGN_IN=on switches on "Log in with Facebook" (docs/sign-in-setup.md).
 on:
   push:
     branches: [main, claude/easy-beans-architecture-plan-dknqka]
@@ -36,6 +37,11 @@ jobs:
       STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
       INSTAGRAM_APP_SECRET: ${{ secrets.INSTAGRAM_APP_SECRET }}
       META_APP_ID: ${{ secrets.META_APP_ID }}
+      FACEBOOK_SIGN_IN: ${{ vars.FACEBOOK_SIGN_IN }}
+      APPLE_CLIENT_ID: ${{ secrets.APPLE_CLIENT_ID }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_KEY_ID: ${{ secrets.APPLE_KEY_ID }}
+      APPLE_PRIVATE_KEY: ${{ secrets.APPLE_PRIVATE_KEY }}
       TIKTOK_CLIENT_KEY: ${{ secrets.TIKTOK_CLIENT_KEY }}
       TIKTOK_CLIENT_SECRET: ${{ secrets.TIKTOK_CLIENT_SECRET }}
       SQUARE_APP_ID: ${{ secrets.SQUARE_APP_ID }}
@@ -102,6 +108,9 @@ jobs:
         if: steps.gate.outputs.ready == 'true' && steps.deploy.outputs.url != ''
         # The custom domain once it's live (workers.dev stays allowed for sign-in redirects).
         run: node scripts/ops/supabase-auth.mjs "${{ steps.domain.outputs.site || steps.deploy.outputs.url }}" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Stripe billing webhook
+        if: steps.gate.outputs.ready == 'true' && steps.deploy.outputs.url != ''
+        run: node scripts/ops/stripe-billing.mjs "${{ steps.domain.outputs.site || steps.deploy.outputs.url }}" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Smoke-test the live site
         if: steps.gate.outputs.ready == 'true' && steps.deploy.outputs.url != ''
         run: |

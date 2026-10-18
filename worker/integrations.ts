@@ -3,6 +3,7 @@
 // migration 7). Whether a connection really works is decided in connections.ts.
 import { Hono, type Context } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { planFeatures } from './billing'
 import { bearer, serviceClient, userClient, type Env } from './supabase'
 import { seal, signState, verifyState } from './crypto'
 import * as google from './providers/google'
@@ -138,9 +139,13 @@ export async function drainOutbox(env: Env) {
   const db = serviceClient(env)
   const { data: jobs, error } = await db.rpc('claim_outbox', { p_limit: 25 })
   if (error) throw new Error(error.message)
+  const features = jobs?.length ? await planFeatures(env) : new Set<string>()
   for (const job of (jobs ?? []) as { id: number; kind: string; payload: Record<string, unknown> }[]) {
     try {
       let externalId: string | null = null
+      // A lapsed subscription pauses what the plan no longer includes.
+      const needs = ({ whatsapp: 'whatsapp', google_sync: 'google_maps', google_post: 'google_maps' } as Record<string, string>)[job.kind]
+      if (needs && !features.has(needs)) throw new Error('Paused: your plan does not include this. Upgrade on the Billing page.')
       if (job.kind === 'whatsapp') {
         const cfg = waConfig(env)
         if (!cfg) throw new Error('WhatsApp is not set up')
@@ -211,6 +216,12 @@ integrations.use('/api/integrations/*', async (c, next) => {
   const [{ data: user }, { data: isAdmin }] = await Promise.all([sb.auth.getUser(token), sb.rpc('is_admin')])
   if (!user.user || !isAdmin) return c.json({ error: 'Only an admin can manage connections' }, 403)
   c.set('userId', user.user.id)
+  // Starting a connection the plan doesn't include: say so before sending anyone off to sign in.
+  const starting = /^\/api\/integrations\/(?:connect\/)?([a-z_]+)\/start$/.exec(c.req.path)?.[1]
+  if (starting) {
+    const { error: planError } = await sb.rpc('plan_check_connect', { p_provider: starting === 'google' ? 'google_business' : starting })
+    if (planError) return c.json({ error: planError.message }, 402)
+  }
   await next()
 })
 
@@ -804,6 +815,7 @@ integrations.get('/api/integrations/stripe/callback', c => appCallback(c, 'strip
 
 // Takings per day from the payment system (Square or Stripe, admins with pay access): ?from=YYYY-MM-DD&to=YYYY-MM-DD (inclusive).
 integrations.get('/api/integrations/payments/sales', async c => {
+  if (!(await planFeatures(c.env)).has('takings')) return c.json({ error: 'Takings need the Pro plan or higher. Upgrade on the Billing page.' }, 402)
   const db = serviceClient(c.env)
   const { data: me } = await db.from('profiles').select('can_see_pay').eq('id', c.get('userId')).single()
   if (!me?.can_see_pay) return c.json({ error: 'Takings are for admins with pay access' }, 403)

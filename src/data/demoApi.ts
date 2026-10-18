@@ -1,7 +1,8 @@
 // In-memory demo of the app with Easy Beans sample data. Used for previews, sales demos and
 // when no Supabase project is configured. Mirrors the SQL rules closely but is not the source
 // of truth: the database functions are.
-import type { Api, ShiftInput } from './api'
+import type { Api, BillingInfo, ShiftInput } from './api'
+import { PLANS, TRIAL_DAYS, effectivePlan, plan as planById, type PlanId } from '../../shared/plans'
 import type {
   ApiKey, AppNotification, Brand, EventAlert, Sales, SocialNetwork, SocialPost, MusicAccount, MusicPlaylist, MusicProvider, MyNowPlaying,
   Expense, Integration, IntegrationProvider, IntegrationsState, OutboxItem, PartnerArea, TimeOff,
@@ -352,6 +353,22 @@ export function createDemoApi(): Api {
       category: 'business', town: null, competition: null, source: 'admin', confirmed: true, visibility: 'all' },
   )
 
+  // The subscription: the sample café is on Business (given free); ?plan=free|starter|pro|business
+  // shows another plan, remembered for the tab like the signed-in person.
+  const demoPlan = (() => {
+    try {
+      const q = new URLSearchParams(location.search).get('plan')
+      if (q) sessionStorage.setItem('demo-plan', q)
+      return (q ?? sessionStorage.getItem('demo-plan')) || 'business'
+    } catch { return 'business' }
+  })()
+  const demoBilling: BillingInfo = {
+    plan: PLANS.some(p => p.id === demoPlan) ? demoPlan as PlanId : 'business', status: demoPlan === 'business' ? 'comped' : demoPlan === 'free' ? 'none' : 'active',
+    interval: demoPlan === 'business' || demoPlan === 'free' ? null : 'month', trial_ends_at: null, current_period_end: null,
+    cancel_at_period_end: false, trial_used: false, has_customer: demoPlan !== 'business' && demoPlan !== 'free', ready: true,
+    complimentary: demoPlan === 'business' ? 'founder' : null, complimentary_note: demoPlan === 'business' ? 'Easy Beans Coffee' : null,
+  }
+
   // Who is signed in survives a page reload within the tab (the demo data itself does not).
   const remember = (id: string | null) => {
     try { sessionStorage.setItem('demo-user', id ?? '') } catch { /* storage unavailable */ }
@@ -484,7 +501,7 @@ export function createDemoApi(): Api {
       notify()
     },
     async signOut() { currentUser = null; notify() },
-    async signInMethods() { return { google: true, microsoft: true, signup: true } },
+    async signInMethods() { return { google: true, apple: true, facebook: true, microsoft: true, signup: true } },
     async signUp(fullName, email, password) {
       const e = email.trim().toLowerCase()
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e)) throw new Error('Enter a full email address')
@@ -776,11 +793,34 @@ export function createDemoApi(): Api {
       return n
     },
 
-    async signInWithGoogle() {
-      throw new Error('Google sign-in works on the live app. In the demo, use an example email.')
+    async planStatus() {
+      const p = planById(effectivePlan(demoBilling))
+      const month = new Date().toISOString().slice(0, 7)
+      return {
+        plan: p.id,
+        limits: { people: p.limits.people, social_accounts: p.limits.socialAccounts, posts_per_month: p.limits.postsPerMonth, features: p.features },
+        usage: {
+          people: profiles.filter(x => x.active && (x.role === 'admin' || x.role === 'employee')).length,
+          social_accounts: integ.integrations.filter(i => ['instagram', 'facebook', 'tiktok'].includes(i.provider) && i.status === 'connected').length,
+          posts_this_month: posts.filter(x => x.status !== 'draft' && x.scheduled_at?.startsWith(month)).length,
+        },
+      }
     },
-    async signInWithMicrosoft() {
-      throw new Error('Microsoft sign-in works on the live app. In the demo, use an example email.')
+    async billing() { return { ...demoBilling } },
+    async syncBilling() { return { ...demoBilling } },
+    async choosePlan(plan, interval) {
+      // The live app goes to Stripe Checkout here; the demo pretends the card went through.
+      const trial = planById(plan).trial && !demoBilling.trial_used
+      if (demoBilling.status === 'comped') throw new Error('This business already has the top plan, free. Nothing to pay.')
+      Object.assign(demoBilling, { plan, interval, has_customer: true, status: trial ? 'trialing' : 'active', trial_used: demoBilling.trial_used || trial,
+        trial_ends_at: trial ? new Date(Date.now() + TRIAL_DAYS * 86400_000).toISOString() : demoBilling.trial_ends_at })
+      return { changed: true }
+    },
+    async billingPortal() { throw new Error("Stripe's billing page opens on the live app.") },
+
+    async signInWith(provider) {
+      const label = { google: 'Google', apple: 'Apple', facebook: 'Facebook', microsoft: 'Microsoft' }[provider]
+      throw new Error(`${label} sign-in works on the live app. In the demo, use an example email.`)
     },
 
     async expenses() {

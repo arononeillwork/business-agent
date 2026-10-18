@@ -1,8 +1,12 @@
 // Configures Supabase Auth through the Management API (runs in GitHub Actions, never locally
 // with real tokens in chat). Needs SUPABASE_ACCESS_TOKEN.
 //   node scripts/ops/supabase-auth.mjs <site-url>
-// Optional env: GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET, AZURE_CLIENT_ID + AZURE_CLIENT_SECRET
-// switch on those providers. Prints only which methods are on, never the secrets.
+// Optional env switches on sign-in providers (docs/sign-in-setup.md):
+//   GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET            Google
+//   AZURE_CLIENT_ID + AZURE_CLIENT_SECRET              Microsoft
+//   META_APP_ID + META_APP_SECRET + FACEBOOK_SIGN_IN=on Facebook (the Meta app the Facebook Page connection uses)
+//   APPLE_CLIENT_ID + APPLE_TEAM_ID + APPLE_KEY_ID + APPLE_PRIVATE_KEY   Apple
+// Prints only which methods are on, never the secrets.
 const REF = process.env.SUPABASE_PROJECT_REF ?? 'lhakrmmoxaareykglmtx'
 const token = process.env.SUPABASE_ACCESS_TOKEN
 if (!token) { console.log('::warning::SUPABASE_ACCESS_TOKEN not set; skipping Supabase Auth setup'); process.exit(0) }
@@ -39,7 +43,23 @@ Object.assign(patch, {
 <p>If the link says it has expired, open {{ .SiteURL }}, type this email address and tap
 <b>Email me a sign-in code</b>.</p>`,
 })
-const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET } = process.env
+const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, META_APP_ID, META_APP_SECRET, FACEBOOK_SIGN_IN,
+  APPLE_CLIENT_ID, APPLE_TEAM_ID, APPLE_KEY_ID, APPLE_PRIVATE_KEY } = process.env
+// Facebook waits for FACEBOOK_SIGN_IN=on: until Supabase's callback is added to the Meta app's
+// Facebook Login redirect URIs, the button would lead to Facebook's "URL blocked" page.
+if (META_APP_ID && META_APP_SECRET && FACEBOOK_SIGN_IN === 'on') Object.assign(patch, {
+  external_facebook_enabled: true, external_facebook_client_id: META_APP_ID, external_facebook_secret: META_APP_SECRET,
+})
+// Apple's client secret is a JWT that lives at most 6 months, so a fresh one is signed on every deploy.
+if (APPLE_CLIENT_ID && APPLE_TEAM_ID && APPLE_KEY_ID && APPLE_PRIVATE_KEY) {
+  const { createPrivateKey, sign } = await import('node:crypto')
+  const b64 = v => Buffer.from(typeof v === 'string' ? v : JSON.stringify(v)).toString('base64url')
+  const now = Math.floor(Date.now() / 1000)
+  const unsigned = `${b64({ alg: 'ES256', kid: APPLE_KEY_ID })}.${b64({ iss: APPLE_TEAM_ID, iat: now, exp: now + 180 * 86400, aud: 'https://appleid.apple.com', sub: APPLE_CLIENT_ID })}`
+  const key = createPrivateKey(APPLE_PRIVATE_KEY.replace(/\\n/g, '\n'))
+  const signature = sign('sha256', Buffer.from(unsigned), { key, dsaEncoding: 'ieee-p1363' }).toString('base64url')
+  Object.assign(patch, { external_apple_enabled: true, external_apple_client_id: APPLE_CLIENT_ID, external_apple_secret: `${unsigned}.${signature}` })
+}
 if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) Object.assign(patch, {
   external_google_enabled: true, external_google_client_id: GOOGLE_CLIENT_ID, external_google_secret: GOOGLE_CLIENT_SECRET,
 })
@@ -73,7 +93,7 @@ console.log(after.hook_send_email_enabled
   : "Sign-in emails: sent by Supabase (connect Gmail or Outlook on the Connections page, then deploy, to send them from the business's own mailbox)")
 console.log(`Supabase Auth: site ${after.site_url}`)
 console.log(`Redirects allowed: ${after.uri_allow_list}`)
-console.log(`Sign-in methods on: email=${!!after.external_email_enabled} google=${!!after.external_google_enabled} microsoft=${!!after.external_azure_enabled}`)
+console.log(`Sign-in methods on: email=${!!after.external_email_enabled} google=${!!after.external_google_enabled} microsoft=${!!after.external_azure_enabled} facebook=${!!after.external_facebook_enabled} apple=${!!after.external_apple_enabled}`)
 if (!after.external_google_enabled) {
   console.log('::warning::Google sign-in is OFF: add the GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET repo secrets, then run Deploy again (docs/sign-in-setup.md)')
 }

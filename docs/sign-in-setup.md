@@ -1,8 +1,11 @@
-# Google and Microsoft sign-in
+# Google, Apple, Facebook and Microsoft sign-in
 
-Email + password and email codes work out of the box. "Continue with Google" and "Continue with
-Microsoft" need a one-off setup each. Until then the buttons are greyed out with "being set up",
-and every deploy prints a warning.
+Email + password and email codes work out of the box. The one-tap Google, Apple, Facebook and
+Microsoft buttons need a one-off setup each. Until a method is switched on its button is left off
+the sign-in card (so nobody lands on an error page), and every deploy prints a warning.
+
+Instagram: Supabase has no "Log in with Instagram" (Instagram's own login is only for business
+APIs, not for signing people in). Instagram accounts belong to Meta, so people use **Facebook**.
 
 Never paste client secrets into chat or code. They go only into GitHub repo secrets.
 
@@ -59,3 +62,48 @@ log, copy the code it prints, and enter it at <https://microsoft.com/devicelogin
 while signed in to your Microsoft account. The workflow creates the app and switches Microsoft on
 in Supabase itself. The same run also gives the Worker the app for **Outlook** (send team alerts)
 and **OneDrive** (save exports), so those Connect buttons start working too.
+
+## Facebook (5 minutes, reuses the Meta app you already have)
+
+"Log in with Facebook" uses the same Meta app as the Facebook Page connection (`META_APP_ID` and
+`META_APP_SECRET`, see [INTEGRATIONS.md](INTEGRATIONS.md) section 7), so there are no new keys.
+
+1. <https://developers.facebook.com/apps> → your app → **Facebook Login → Settings** →
+   **Valid OAuth Redirect URIs**: add
+   `https://lhakrmmoxaareykglmtx.supabase.co/auth/v1/callback` (keep the existing
+   `/api/integrations/facebook/callback` ones) → **Save changes**.
+2. **App settings → Basic**: check *Privacy policy URL* is `https://businesssagent.com/privacy`,
+   *Terms of service URL* is `https://businesssagent.com/terms` and the app has an icon and a category.
+3. **Use cases → Authentication and account creation → Customise**: make sure the `email` and
+   `public_profile` permissions are added (both are standard access, no App Review needed).
+4. Top bar: switch the app to **Live** (in *Development* only people with a role on the app
+   can log in).
+5. GitHub → the repo → **Settings → Secrets and variables → Actions → Variables → New repository
+   variable**: `FACEBOOK_SIGN_IN` = `on`. Then **Actions → Deploy → Run workflow**.
+6. Check: the deploy summary says `facebook=true`, and the live test "the Facebook button reaches
+   Facebook sign-in" passes.
+
+Facebook waits for that variable on purpose: without step 1, the button would open Facebook's
+"URL blocked" page.
+
+## Apple (about 15 minutes, needs an Apple Developer account)
+
+1. <https://developer.apple.com/account/resources/identifiers/list> → **+** → **App IDs** →
+   App → description *Business Agent*, bundle ID e.g. `com.businesssagent.app` → tick
+   **Sign in with Apple** → Register.
+2. **+** → **Services IDs** → description *Business Agent web*, identifier e.g.
+   `com.businesssagent.web` (this is the client ID) → Register. Open it → tick **Sign in with
+   Apple** → **Configure**: primary App ID from step 1; domains `lhakrmmoxaareykglmtx.supabase.co`
+   and `businesssagent.com`; return URL `https://lhakrmmoxaareykglmtx.supabase.co/auth/v1/callback`
+   → Save → Continue → Save.
+3. **Keys → +** → name *Business Agent sign-in*, tick **Sign in with Apple** → Configure → the App
+   ID from step 1 → Register → **Download** the `.p8` file (only once!) and note the **Key ID**.
+   Your **Team ID** is at the top right of the developer site.
+4. GitHub repo secrets:
+   - `APPLE_CLIENT_ID` = the Services ID from step 2 (e.g. `com.businesssagent.web`)
+   - `APPLE_TEAM_ID` = your Team ID
+   - `APPLE_KEY_ID` = the Key ID
+   - `APPLE_PRIVATE_KEY` = the whole contents of the `.p8` file, including the `BEGIN`/`END` lines
+5. **Actions → Deploy → Run workflow**. Apple's client secret only lasts 6 months, so every deploy
+   signs a fresh one from the key: no reminder needed as long as the app is deployed at least
+   twice a year.

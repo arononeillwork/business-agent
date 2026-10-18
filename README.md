@@ -7,7 +7,13 @@ built-in **AI connector** so owners can run it by talking to Claude.
 - Web app: installable on phones (Add to Home Screen) and the café tablet (kiosk with PINs)
 - AI: MCP server at `/mcp` for Claude, ChatGPT, Cursor and any MCP client (sign-in or personal access
   keys), plus a REST API at `/api/v1` with an OpenAPI description for GPT actions, n8n and Zapier
-- Hosting: one Cloudflare Worker. Data and login: Supabase (EU): email/password, Google, Microsoft
+- Hosting: one Cloudflare Worker. Data and login: Supabase (EU): email/password or code, Google, Apple,
+  Facebook, Microsoft ([setup](docs/sign-in-setup.md))
+- Public pages: landing page with sign-in at `/`, the four plans at `/pricing`, and the savings
+  against Square and GoHighLevel at `/compare`
+- Plans and billing: Free, Starter €25, Pro €49, Business €79 (2 months free), paid through Stripe
+  subscriptions; an unpaid trial or failed renewal drops the business to Free, enforced by the
+  database ([docs/billing.md](docs/billing.md))
 - Partners: outside businesses (gestoría, suppliers) get a read-only login to the areas an admin
   picks (rota, payroll, finances, calendar). Enforced by database row security and in the AI tools.
 - Sports: the next 3 weeks of football (Spanish, English, Scottish, Dutch and other leagues, cups,
