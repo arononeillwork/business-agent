@@ -20,6 +20,7 @@ jobs:
       REDIRECT: https://lhakrmmoxaareykglmtx.supabase.co/auth/v1/callback
       # Outlook email and OneDrive files connect through the Worker with the same app.
       WORKER_REDIRECT: https://business-agent.arononeillwork.workers.dev/api/integrations/microsoft/callback
+      SITE_REDIRECT: https://businesssagent.com/api/integrations/microsoft/callback
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       APP_NAME: Easy Beans Team
@@ -38,12 +39,12 @@ jobs:
           if [ -z "$app" ]; then
             # Personal accounts need v2 tokens, which must be set before the audience can include them.
             app=$(az ad app create --display-name "$APP_NAME" --sign-in-audience AzureADMultipleOrgs \
-              --web-redirect-uris "$REDIRECT" "$WORKER_REDIRECT" --query appId -o tsv)
+              --web-redirect-uris "$REDIRECT" "$WORKER_REDIRECT" "$SITE_REDIRECT" --query appId -o tsv)
             az ad app update --id "$app" --set api.requestedAccessTokenVersion=2
             az ad app update --id "$app" --sign-in-audience AzureADandPersonalMicrosoftAccount
             echo "Created app $app"
           else
-            az ad app update --id "$app" --web-redirect-uris "$REDIRECT" "$WORKER_REDIRECT"
+            az ad app update --id "$app" --web-redirect-uris "$REDIRECT" "$WORKER_REDIRECT" "$SITE_REDIRECT"
             echo "Reusing app $app"
           fi
           # Microsoft Graph delegated: openid, email, profile, User.Read (sign-in) and
