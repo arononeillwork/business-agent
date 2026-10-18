@@ -18,7 +18,7 @@ async function open(page: Page, path = '/', email = 'aron@example.com') {
 test('the app opens at the sign-in screen and shows nothing before login', async ({ page }) => {
   await page.goto('/?demo')
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
-  await expect(page.getByRole('navigation')).toHaveCount(0)
+  await expect(page.getByRole('navigation', { name: 'Main' })).toHaveCount(0)
   await page.goto('/rota')
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
   await expect(page.getByText('Labour cost')).toHaveCount(0)
@@ -538,16 +538,14 @@ test('café music: admin approves a Spotify playlist, staff play it', async ({ p
   await expect(music).toContainText('Not playing')
 })
 
-test('sign-in: email and password first, then Google and Microsoft underneath', async ({ page }) => {
+test('sign-in: one-tap accounts first, then email and password underneath', async ({ page }) => {
   await page.goto('/?demo')
-  const password = await page.getByLabel('Password').boundingBox()
-  const google = page.getByRole('button', { name: 'Google' })
-  const microsoft = page.getByRole('button', { name: 'Microsoft' })
-  await expect(page.getByText('or continue with')).toBeVisible()
-  expect((await google.boundingBox())!.y).toBeGreaterThan(password!.y)
+  const google = page.getByRole('button', { name: 'Google', exact: true })
+  await expect(page.getByText('or with your email')).toBeVisible()
+  expect((await google.boundingBox())!.y).toBeLessThan((await page.getByLabel('Password').boundingBox())!.y)
   await google.click()
   await toast(page, 'Google sign-in works on the live app')
-  await microsoft.click()
+  await page.getByRole('button', { name: 'Microsoft', exact: true }).click()
   await toast(page, 'Microsoft sign-in works on the live app')
 })
 
@@ -1411,6 +1409,30 @@ test('signed out: the Business Agent landing page; a new registration waits to b
   await page.getByRole('link', { name: 'Home: Today' }).first().click()
   await expect(page.getByRole('heading', { name: /Hola, Sofía/ })).toBeVisible()
   await expect(page.getByRole('navigation', { name: 'Main' })).toContainText('Easy Beans Coffee')
+})
+
+test('signed out: one-tap Google, Apple, Facebook and Microsoft sign-in next to email', async ({ page }) => {
+  await page.goto('/?demo')
+  for (const name of ['Google', 'Apple', 'Facebook', 'Microsoft']) {
+    await expect(page.getByRole('button', { name, exact: true })).toBeEnabled()
+  }
+  await page.getByRole('button', { name: 'Facebook', exact: true }).click()
+  await toast(page, 'Facebook sign-in works on the live app')
+})
+
+test('pricing: three plans with a 2-month free trial; "Try" opens Create account on the landing page', async ({ page }) => {
+  await page.goto('/pricing?demo')
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Start free')
+  await expect(page.getByRole('article', { name: /plan$/ })).toHaveCount(3)
+  const team = page.getByRole('article', { name: 'Team plan' })
+  await expect(team).toContainText('€39')
+  await page.getByRole('button', { name: /Yearly/ }).first().click()
+  await expect(team).toContainText('€32.50')
+  await expect(team).toContainText('€390 billed yearly')
+  await expect(page.getByRole('table', { name: 'Plan comparison' })).toBeVisible()
+  await team.getByRole('link', { name: 'Try Team free for 2 months' }).click()
+  await expect(page.getByRole('heading', { name: 'Create your account' })).toBeVisible()
+  await expect(page.getByRole('tab', { name: 'Create account' })).toHaveAttribute('aria-selected', 'true')
 })
 
 test('guest link: opens already signed in as a Guest admin, no sign-in page', async ({ page }) => {

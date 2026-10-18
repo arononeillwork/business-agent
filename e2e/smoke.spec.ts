@@ -2,7 +2,8 @@
 // Supabase have every sign-in method switched on? Run by the uptime monitor every 15 minutes.
 //   E2E_BASE_URL=https://app.example.com npx playwright test e2e/smoke.spec.ts --project desktop
 // Optional: SMOKE_EMAIL + SMOKE_PASSWORD (a low-privilege test account) also signs in for real.
-// EXPECT_PROVIDERS (default "email,google,microsoft") lists the sign-in methods that must be on.
+// EXPECT_PROVIDERS (default "email,google,microsoft") lists the sign-in methods that must be on
+// (facebook and apple can be added once they are set up).
 import { expect, test } from '@playwright/test'
 
 test.skip(!process.env.E2E_BASE_URL, 'Set E2E_BASE_URL to the deployed app')
@@ -17,21 +18,31 @@ test('the Worker answers and Supabase is reachable', async ({ request }) => {
   }
 })
 
-test('the sign-in screen loads with email, Google and Microsoft', async ({ page }) => {
+test('the sign-in screen loads with email and every switched-on outside sign-in', async ({ page, request }) => {
   const errors: string[] = []
   page.on('pageerror', e => errors.push(e.message))
+  const on = (await (await request.get('/api/health?deep=1')).json()).sign_in ?? {}
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
   await expect(page.getByRole('textbox', { name: 'Email' })).toBeVisible()
   await expect(page.getByLabel('Password')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Google' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Microsoft' })).toBeVisible()
+  for (const [label, key] of [['Google', 'google'], ['Apple', 'apple'], ['Facebook', 'facebook'], ['Microsoft', 'microsoft']]) {
+    // Methods that are off are left out, so nobody lands on a provider's error page.
+    await expect(page.getByRole('button', { name: label, exact: true })).toHaveCount(on[key] ? 1 : 0)
+  }
   expect(errors).toEqual([])
+})
+
+test('the pricing page shows the plans and the free trial', async ({ page }) => {
+  await page.goto('/pricing')
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+  await expect(page.getByRole('article', { name: /plan$/ })).toHaveCount(3)
+  await expect(page.getByText(/months free/).first()).toBeVisible()
 })
 
 // Clicking an outside sign-in button must reach that provider's real sign-in page (not its error
 // page), sending people back to our Supabase project. If the method isn't switched on, the button
-// is disabled with a note, and the run is flagged loudly. When the keys are in the repo secrets but
+// is left off the page, and the run is flagged loudly. When the keys are in the repo secrets but
 // Supabase still has the method off, that's a failure.
 const SUPABASE_CALLBACK = 'https://lhakrmmoxaareykglmtx.supabase.co/auth/v1/callback'
 for (const [label, key, hosts, secret, problems] of [
@@ -39,18 +50,21 @@ for (const [label, key, hosts, secret, problems] of [
     /redirect_uri_mismatch|invalid_client|OAuth client was not found|Access blocked|Error 400|Error 401|deleted_client|disabled_client/i],
   ['Microsoft', 'microsoft', /(^|\.)(login\.microsoftonline\.com|login\.live\.com)$/, 'AZURE_CLIENT_ID',
     /AADSTS\d+|unauthorized_client|invalid_request/i],
+  ['Facebook', 'facebook', /(^|\.)facebook\.com$/, 'META_APP_ID',
+    /URL blocked|URL Blocked|Can't load URL|App not active|Invalid App ID|isn't available/i],
+  ['Apple', 'apple', /(^|\.)appleid\.apple\.com$/, 'APPLE_CLIENT_ID', /invalid_client|invalid_request/i],
 ] as const) {
   test(`the ${label} button reaches ${label} sign-in (or says it isn't set up)`, async ({ page, request }) => {
     const on = (await (await request.get('/api/health?deep=1')).json()).sign_in?.[key]
     await page.goto('/')
     const button = page.getByRole('button', { name: label, exact: true })
     if (!on) {
-      expect(process.env[secret], `${secret} is in the repo secrets, but ${label} sign-in is still off in Supabase`).toBeFalsy()
-      const note = `${label} sign-in is OFF on the live site: add the ${secret} and its secret to the repo secrets (docs/sign-in-setup.md).`
+      // Facebook also waits for the FACEBOOK_SIGN_IN repo variable, so its keys alone aren't a failure.
+      if (key !== 'facebook') expect(process.env[secret], `${secret} is in the repo secrets, but ${label} sign-in is still off in Supabase`).toBeFalsy()
+      const note = `${label} sign-in is OFF on the live site (docs/sign-in-setup.md).`
       console.log(`::warning::${note}`)
       test.info().annotations.push({ type: 'warning', description: note })
-      await expect(button).toBeDisabled()
-      await expect(page.getByText(new RegExp(`${label}.*being set up`))).toBeVisible()
+      await expect(button).toHaveCount(0)
       return
     }
     await button.click()

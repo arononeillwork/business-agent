@@ -467,7 +467,7 @@ export function createDemoApi(): Api {
       notify()
     },
     async signOut() { currentUser = null; notify() },
-    async signInMethods() { return { google: true, microsoft: true, signup: true } },
+    async signInMethods() { return { google: true, apple: true, facebook: true, microsoft: true, signup: true } },
     async signUp(fullName, email, password) {
       const e = email.trim().toLowerCase()
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e)) throw new Error('Enter a full email address')
@@ -759,11 +759,9 @@ export function createDemoApi(): Api {
       return n
     },
 
-    async signInWithGoogle() {
-      throw new Error('Google sign-in works on the live app. In the demo, use an example email.')
-    },
-    async signInWithMicrosoft() {
-      throw new Error('Microsoft sign-in works on the live app. In the demo, use an example email.')
+    async signInWith(provider) {
+      const label = { google: 'Google', apple: 'Apple', facebook: 'Facebook', microsoft: 'Microsoft' }[provider]
+      throw new Error(`${label} sign-in works on the live app. In the demo, use an example email.`)
     },
 
     async expenses() {

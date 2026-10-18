@@ -36,7 +36,8 @@ app.get('/api/health', async c => {
     const res = await fetch(`${c.env.SUPABASE_URL}/auth/v1/settings`, { headers: { apikey: c.env.SUPABASE_PUBLISHABLE_KEY } })
     if (!res.ok) return c.json({ ok: false, supabase: `auth answered ${res.status}` }, 503)
     const s = await res.json() as { external?: Record<string, boolean> }
-    const signIn = { email: !!s.external?.email, google: !!s.external?.google, microsoft: !!s.external?.azure }
+    const signIn = { email: !!s.external?.email, google: !!s.external?.google, microsoft: !!s.external?.azure,
+      facebook: !!s.external?.facebook, apple: !!s.external?.apple }
     return c.json({ ok: true, supabase: 'up', sign_in: signIn })
   } catch (e) {
     return c.json({ ok: false, supabase: String(e) }, 503)

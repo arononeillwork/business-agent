@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import type { Api } from './api'
+import { SOCIAL_PROVIDERS, type Api, type SignInMethods, type SocialProvider } from './api'
 import type { ApiKey, AppNotification, Brand, Business, SocialPost, EventAlert, Expense, Integration, MusicPlaylist, OutboxItem, Profile, Settings, TimeEntry, TimeOff, Todo, TodoCategory, CafeTrack, MusicPlayerState } from '../../shared/types'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
 
@@ -43,6 +43,15 @@ export async function sessionFromUrl(sb: SupabaseClient) {
   }
 }
 
+// Supabase's names for the sign-in providers (Microsoft accounts go through "azure").
+const SUPABASE_PROVIDER = { google: 'google', apple: 'apple', facebook: 'facebook', microsoft: 'azure' } as const
+const OAUTH: Record<SocialProvider, { label: string; queryParams?: Record<string, string>; scopes?: string }> = {
+  google: { label: 'Google', queryParams: { prompt: 'select_account' } },
+  apple: { label: 'Apple' },
+  facebook: { label: 'Facebook', scopes: 'email public_profile' },
+  microsoft: { label: 'Microsoft', queryParams: { prompt: 'select_account' }, scopes: 'openid email profile' },
+}
+
 export function createSupabaseApi(url: string, key: string): Api {
   const sb: SupabaseClient = createClient(url, key, {
     // PKCE for Google/Microsoft sign-in (a one-time ?code= comes back). Links in Supabase emails
@@ -54,22 +63,25 @@ export function createSupabaseApi(url: string, key: string): Api {
   const fromUrl = sessionFromUrl(sb).catch(e => { urlError = e instanceof Error ? e.message : String(e) })
 
   // Supabase answers a sign-in redirect for a provider that is off with a bare 400 page, so ask first.
-  let methods: Promise<{ google: boolean; microsoft: boolean; signup: boolean }> | null = null
+  let methods: Promise<SignInMethods> | null = null
   const signInMethods = () => methods ??= fetch(`${url}/auth/v1/settings`, { headers: { apikey: key } })
     .then(r => r.ok ? r.json() : Promise.reject(new Error(`settings ${r.status}`)))
-    .then((s: { external?: Record<string, boolean>; disable_signup?: boolean }) => ({ google: !!s.external?.google, microsoft: !!s.external?.azure, signup: !s.disable_signup }))
-    .catch(() => { methods = null; return { google: true, microsoft: true, signup: true } }) // unknown: let Supabase decide
+    .then((s: { external?: Record<string, boolean>; disable_signup?: boolean }) => ({
+      ...Object.fromEntries(SOCIAL_PROVIDERS.map(p => [p, !!s.external?.[SUPABASE_PROVIDER[p]]])) as Record<SocialProvider, boolean>,
+      signup: !s.disable_signup,
+    }))
+    .catch(() => { methods = null; return { google: true, apple: false, facebook: false, microsoft: true, signup: true } }) // unknown: let Supabase decide
 
   /** Sign in through Supabase with an outside account. Supabase handles the whole OAuth flow. */
-  const oauth = async (provider: 'google' | 'azure', label: string, queryParams: Record<string, string>, scopes?: string) => {
-    const on = await signInMethods()
-    if (!(provider === 'google' ? on.google : on.microsoft)) {
-      throw new Error(`${label} sign-in is not switched on yet. Use your email and password for now.`)
+  const oauth = async (provider: SocialProvider) => {
+    const { label, queryParams, scopes } = OAUTH[provider]
+    if (!(await signInMethods())[provider]) {
+      throw new Error(`${label} sign-in is not switched on yet. Use your email for now.`)
     }
-    const { error } = await sb.auth.signInWithOAuth({ provider, options: { redirectTo: location.origin, queryParams, scopes } })
+    const { error } = await sb.auth.signInWithOAuth({ provider: SUPABASE_PROVIDER[provider], options: { redirectTo: location.origin, queryParams, scopes } })
     if (error) {
       throw new Error(/provider is not enabled|unsupported provider/i.test(error.message)
-        ? `${label} sign-in is not switched on yet. Use your email and password for now.`
+        ? `${label} sign-in is not switched on yet. Use your email for now.`
         : error.message)
     }
   }
@@ -307,9 +319,7 @@ export function createSupabaseApi(url: string, key: string): Api {
       return check(await sb.rpc('decide_time_off', { p_id: id, p_approve: approve, p_note: note ?? null, p_release_shifts: releaseShifts })) as number
     },
 
-    signInWithGoogle: () => oauth('google', 'Google', { prompt: 'select_account' }),
-    // Supabase calls Microsoft (Outlook / Microsoft 365 / Entra ID) "azure".
-    signInWithMicrosoft: () => oauth('azure', 'Microsoft', { prompt: 'select_account' }, 'openid email profile'),
+    signInWith: oauth,
 
     async expenses() {
       return check(await sb.from('expenses').select('*').order('sort').order('name')) as Expense[]

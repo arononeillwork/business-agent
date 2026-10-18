@@ -4,6 +4,11 @@ import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shar
 export type ShiftInput = Omit<Shift, 'id' | 'status'> & { id?: string; status?: Shift['status'] }
 export type EventInput = Omit<CalendarEvent, 'id' | 'source' | 'competition'> & { id?: string; competition?: string | null }
 
+/** Outside accounts people can sign in with (Supabase Auth providers; Microsoft is Supabase's "azure"). */
+export type SocialProvider = 'google' | 'apple' | 'facebook' | 'microsoft'
+export const SOCIAL_PROVIDERS: SocialProvider[] = ['google', 'apple', 'facebook', 'microsoft']
+export type SignInMethods = Record<SocialProvider, boolean> & { signup?: boolean }
+
 export interface ClockState {
   entry: TimeEntry | null
   openBreak: OpenBreak | null
@@ -36,7 +41,7 @@ export interface Api {
   /** A problem signing in from an email or sign-in link, to show on the sign-in screen. */
   authError?(): string | null
   /** Which outside sign-in methods are switched on (so a button never leads to an error page). */
-  signInMethods(): Promise<{ google: boolean; microsoft: boolean; signup?: boolean }>
+  signInMethods(): Promise<SignInMethods>
   /** Register a new account. `confirmEmail`: they must click the link in their email before signing in. */
   signUp(fullName: string, email: string, password: string): Promise<{ confirmEmail: boolean }>
   me(): Promise<Profile | null>
@@ -100,9 +105,8 @@ export interface Api {
   cancelTimeOff(id: string): Promise<void>
   decideTimeOff(id: string, approve: boolean, note?: string, releaseShifts?: boolean): Promise<number>
 
-  // sign-in with Google / Microsoft (Supabase OAuth)
-  signInWithGoogle(): Promise<void>
-  signInWithMicrosoft(): Promise<void>
+  // sign-in with Google, Apple, Facebook or Microsoft (Supabase OAuth)
+  signInWith(provider: SocialProvider): Promise<void>
 
   // finances (admins with pay access)
   expenses(): Promise<Expense[]>

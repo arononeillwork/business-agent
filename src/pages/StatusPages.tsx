@@ -1,7 +1,8 @@
 import { Box, Button, Card, CardContent, Stack, Typography } from '@mui/material'
 import { useApp } from '../app/AppContext'
 import { Logo } from '../components/Logo'
-import { AgentMark } from './LoginPage'
+import { AgentMark } from './marketing/site'
+import { LEGAL } from '../../shared/legal'
 
 function Panel({ title, children, action }: { title: string; children: React.ReactNode; action: React.ReactNode }) {
   return (
@@ -44,7 +45,7 @@ export function NotActive() {
           </Typography>
           <Box component="ul" sx={{ m: 0, pl: 2.5, color: '#4B5160', '& li': { mb: 0.75 } }}>
             <li><b>Joining a team?</b> Ask your manager to add <b>{me?.email}</b> on their Team page. You'll get straight in next time you sign in.</li>
-            <li><b>Setting up your own business?</b> That's coming soon to Business Agent.</li>
+            <li><b>Starting a free trial for your own business?</b> We'll be in touch at <b>{me?.email}</b> to switch on your business, or write to <a href={`mailto:${LEGAL.supportEmail}`}>{LEGAL.supportEmail}</a>.</li>
           </Box>
           <Stack direction="row" spacing={1}>
             <Button variant="contained" onClick={() => location.reload()} sx={{ bgcolor: '#4F46E5', color: '#fff', '&:hover': { bgcolor: '#3730A3' } }}>Check again</Button>
