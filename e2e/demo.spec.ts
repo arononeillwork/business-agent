@@ -788,6 +788,38 @@ test.describe('sports', () => {
     await expect(page.getByText(/Updated just now/)).toBeVisible()
   })
 
+  test('admin switches Sports off and on again; turning it on explains match days first', async ({ page }) => {
+    await open(page, '/sports')
+    const sports = page.getByRole('switch', { name: 'Sports' })
+    await sports.click()
+    await toast(page, 'Sports is off')
+    await expect(page.getByRole('region', { name: 'Sports is off' })).toContainText('Turn it back on with the switch above')
+    await expect(page.getByRole('article', { name: /Barcelona vs Real Madrid/ })).toHaveCount(0)
+    await page.getByRole('link', { name: 'Today' }).first().click()
+    await expect(page.getByRole('region', { name: 'My next shifts' })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Big nights' })).toHaveCount(0)
+
+    // Staff see it's off but can't switch it.
+    await signInAs(page, 'maria@example.com')
+    await page.getByRole('link', { name: 'Sports' }).first().click()
+    await expect(page.getByRole('region', { name: 'Sports is off' })).toContainText('An admin can turn it back on')
+    await expect(page.getByRole('switch', { name: 'Sports' })).toHaveCount(0)
+
+    await signInAs(page, 'aron@example.com')
+    await page.getByRole('link', { name: 'Sports' }).first().click()
+    await page.getByRole('switch', { name: 'Sports' }).click()
+    const ask = page.getByRole('dialog', { name: 'Turn on Sports?' })
+    await expect(ask).toContainText('On match days')
+    await expect(ask).toContainText('1.1.1.1 app (WARP)')
+    await ask.getByRole('button', { name: 'Cancel' }).click()
+    await expect(page.getByRole('region', { name: 'Sports is off' })).toBeVisible()
+    await page.getByRole('switch', { name: 'Sports' }).click()
+    await page.getByRole('dialog', { name: 'Turn on Sports?' }).getByRole('button', { name: 'Turn on' }).click()
+    await toast(page, 'Sports is on')
+    await expect(page.getByRole('article', { name: /Barcelona vs Real Madrid/ })).toBeVisible()
+    await expect(page.getByRole('switch', { name: 'Sports' })).toBeChecked()
+  })
+
   test('partners do not get the sports page', async ({ page }) => {
     await open(page, '/sports', 'laura@gestoria.example')
     await expect(page.getByRole('link', { name: 'Sports' })).toHaveCount(0)

@@ -186,18 +186,19 @@ const Quiet = ({ children }: { children: ReactNode }) => <Typography sx={{ color
 export function TodayPage() {
   const { api, me, profiles, positions, isAdmin, business } = useApp()
   const d = today()
+  const sportsOn = !!business?.sports_enabled
   const data = useAsync('today', async () => {
     const [shifts, events, corrections, timeOff, comps, sports] = await Promise.all([
       api.shifts(zonedIso(d, '00:00'), zonedIso(addDays(d, 8), '00:00')),
       api.events(d, addDays(d, 60)),
       isAdmin ? api.corrections() : Promise.resolve([]),
       isAdmin ? api.timeOff(d, addDays(d, 365)) : Promise.resolve([]),
-      api.sportsCompetitions().catch(() => []),
-      api.sportsEvents(zonedIso(d, '00:00'), zonedIso(addDays(d, 8), '00:00')).catch(() => []),
+      sportsOn ? api.sportsCompetitions().catch(() => []) : Promise.resolve([]),
+      sportsOn ? api.sportsEvents(zonedIso(d, '00:00'), zonedIso(addDays(d, 8), '00:00')).catch(() => []) : Promise.resolve([]),
     ])
     const followed = new Map(comps.filter(c => c.followed).map(c => [c.code, c.name]))
     return { shifts, events, corrections, timeOff, bigNights: sports.filter(e => e.big && followed.has(e.competition)).map(e => ({ ...e, compName: followed.get(e.competition)! })) }
-  }, [d])
+  }, [d, sportsOn])
 
   const todays = (data.data?.shifts ?? []).filter(s => localDate(s.starts_at) === d)
   const mine = (data.data?.shifts ?? []).filter(s => s.profile_id === me?.id)
@@ -288,7 +289,7 @@ export function TodayPage() {
                 </Items>
               </CardContent>
             </Card>
-            <Card component="section" aria-label="Big nights">
+            {sportsOn && <Card component="section" aria-label="Big nights">
               <CardContent>
                 <SectionTitle action={<Button size="small" component={Link} to="/sports">Sports</Button>}>Big nights this week</SectionTitle>
                 {data.data && big.length === 0 && <Quiet>No big matches or fights this week.</Quiet>}
@@ -301,7 +302,7 @@ export function TodayPage() {
                   ))}
                 </Items>
               </CardContent>
-            </Card>
+            </Card>}
             <MusicCard />
           </Stack>
         </Grid>

@@ -183,6 +183,12 @@ export async function refreshStaleSports(db: SupabaseClient, max = 2, sources?: 
   return n
 }
 
+/** Sports is a business-wide switch on the Sports page, off until an admin turns it on. */
+export async function sportsEnabled(db: SupabaseClient) {
+  const { data } = await db.from('business').select('sports_enabled').eq('id', 1).maybeSingle()
+  return !!data?.sports_enabled
+}
+
 /**
  * Admin "Refresh now": mark every followed competition due, update the quick whole-season sources
  * straight away (a second or two), and leave TheSportsDB ones to the background refresh.

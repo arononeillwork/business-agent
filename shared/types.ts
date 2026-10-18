@@ -35,6 +35,8 @@ export interface Business {
   notes: string | null
   /** When an admin finished or skipped the set-up wizard; until then Today shows a prompt. */
   setup_completed_at?: string | null
+  /** Sports page, live scores and big nights on Today. Off until an admin turns it on. */
+  sports_enabled: boolean
   updated_at: string
 }
 

@@ -4,7 +4,7 @@ import { bearer, serviceClient, userClient, type Env } from './supabase'
 import { rest } from './rest'
 import { drainOutbox, integrations, syncGoogle, syncGoogleBothWays } from './integrations'
 import { checkAll } from './connections'
-import { refreshAllSports, refreshStaleSports, syncCrests } from './sports'
+import { refreshAllSports, refreshStaleSports, sportsEnabled, syncCrests } from './sports'
 import { music } from './music'
 import { calendarFeeds } from './calendarFeed'
 import { fonts } from './fonts'
@@ -130,7 +130,9 @@ app.post('/api/admin/sports/refresh', async c => {
   if (!token) return c.json({ error: 'Not signed in' }, 401)
   const { data: isAdmin, error } = await userClient(c.env, token, 'app').rpc('is_admin')
   if (error || !isAdmin) return c.json({ error: 'Only an admin can do that' }, 403)
-  return c.json({ ok: true, events: await refreshAllSports(serviceClient(c.env)) })
+  const db = serviceClient(c.env)
+  if (!await sportsEnabled(db)) return c.json({ error: 'Sports is off. Turn it on on the Sports page first.' }, 409)
+  return c.json({ ok: true, events: await refreshAllSports(db) })
 })
 
 // Music page: each person's own Spotify / YouTube Music.
@@ -208,7 +210,7 @@ export default {
             .catch(e => console.error('nightly google sync failed', e))
         }
         // Crests for new teams (flags straight away; a few club look-ups, the GitHub sync does the rest).
-        await syncCrests(db, 8).catch(e => console.error('crests failed', e))
+        if (await sportsEnabled(db)) await syncCrests(db, 8).catch(e => console.error('crests failed', e))
       })())
       return
     }
@@ -224,7 +226,8 @@ export default {
       if (Math.floor(event.scheduledTime / 60_000) % 15 === 0 && await googleConnected(db)) {
         await syncGoogleBothWays(env, db).catch(e => console.error('google hours sync failed', e))
       }
-      await refreshStaleSports(db).catch(e => console.error('sports failed', e))
+      // Sports only while it's switched on (Sports page).
+      if (await sportsEnabled(db)) await refreshStaleSports(db).catch(e => console.error('sports failed', e))
     })())
   },
 } satisfies ExportedHandler<Env>

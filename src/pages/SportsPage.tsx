@@ -1,6 +1,6 @@
 import {
-  Alert, Avatar, Box, Button, Card, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogTitle,
-  FormControlLabel, IconButton, Stack, Tooltip, Typography,
+  Alert, AlertTitle, Avatar, Box, Button, Card, CardContent, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogTitle,
+  FormControlLabel, IconButton, Stack, Switch, Tooltip, Typography,
 } from '@mui/material'
 import RefreshIcon from '@mui/icons-material/Refresh'
 import TuneIcon from '@mui/icons-material/TuneOutlined'
@@ -42,8 +42,72 @@ const ago = (iso: string | null) => {
   return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 48 * 60 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`
 }
 
-/** Upcoming football (leagues, cups, national teams), UFC and boxing, refreshed automatically. */
+/** Sports is a business-wide switch, off until an admin turns it on here. */
 export function SportsPage() {
+  const { business } = useApp()
+  return business?.sports_enabled ? <Fixtures /> : <SportsOff />
+}
+
+/** While Sports is off: nothing is fetched, and admins get the switch to turn it on. */
+function SportsOff() {
+  const { isAdmin } = useApp()
+  return (
+    <>
+      <PageHeader eyebrow="What's on TV" title="Sports" actions={isAdmin && <SportsSwitch on={false} />} />
+      <Card component="section" aria-label="Sports is off">
+        <CardContent>
+          <Typography variant="h6" component="h2" sx={{ mb: 0.5 }}>Sports is off</Typography>
+          <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+            Football, UFC and boxing fixtures, live scores and big nights on Today are hidden, and nothing is fetched.
+            {isAdmin ? ' Turn it back on with the switch above.' : ' An admin can turn it back on.'}
+          </Typography>
+        </CardContent>
+      </Card>
+    </>
+  )
+}
+
+/** On/off for the whole business. Turning it on explains match days first. */
+function SportsSwitch({ on }: { on: boolean }) {
+  const { api, refresh } = useApp()
+  const run = useAction()
+  const [asking, setAsking] = useState(false)
+  const set = (enabled: boolean) => run(async () => {
+    await api.updateBusiness({ sports_enabled: enabled })
+    if (enabled) await api.refreshSports().catch(() => 0)
+    setAsking(false)
+    await refresh()
+  }, enabled ? 'Sports is on' : 'Sports is off')
+  return (
+    <>
+      <FormControlLabel sx={{ mr: 0 }} label="Sports"
+        control={<Switch checked={on} onChange={e => (e.target.checked ? setAsking(true) : set(false))} />} />
+      <Dialog open={asking} onClose={() => setAsking(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Turn on Sports?</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ mb: 2 }}>
+            Shows upcoming football, UFC and boxing with live scores, and big nights on Today, for the whole
+            team. Fixtures update automatically every few hours.
+          </Typography>
+          <Alert severity="warning">
+            <AlertTitle>On match days</AlertTitle>
+            During LaLiga matches, Movistar, Vodafone, Orange, DIGI and Masmovil block large parts of
+            Cloudflare, where this app runs, so the app may not load on those connections while a match is
+            on. That happens whether Sports is on or off. If it won't load, use the free 1.1.1.1 app (WARP)
+            or mobile data from another provider.
+          </Alert>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button onClick={() => setAsking(false)}>Cancel</Button>
+          <Button variant="contained" onClick={() => set(true)}>Turn on</Button>
+        </DialogActions>
+      </Dialog>
+    </>
+  )
+}
+
+/** Upcoming football (leagues, cups, national teams), UFC and boxing, refreshed automatically. */
+function Fixtures() {
   const { api, isAdmin } = useApp()
   const run = useAction()
   const [filter, setFilter] = useState<Filter>('all')
@@ -97,6 +161,7 @@ export function SportsPage() {
     <>
       <PageHeader eyebrow="What's on TV" title="Sports"
         actions={isAdmin && <>
+          <SportsSwitch on />
           <Typography variant="body2" sx={{ color: 'text.secondary' }}>Updated {ago(lastRefresh)}</Typography>
           <Button variant="outlined" startIcon={<TuneIcon />} onClick={() => setManaging(true)}>Competitions</Button>
           <Button variant="contained" startIcon={<RefreshIcon />} onClick={() => run(async () => {

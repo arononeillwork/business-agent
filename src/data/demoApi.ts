@@ -48,6 +48,8 @@ export function createDemoApi(): Api {
       notes: 'Croissants daily, pastries every 2 days' }],
     towns_followed: ['Marbella', 'Estepona', 'Benahavís', 'Málaga'],
     notes: 'Weekday closing time to confirm: 18:00 (plan) vs 15:00 (Square rota).',
+    // The sample café shows every feature; a real business starts with Sports off.
+    sports_enabled: true,
     updated_at: nowIso(),
   }
   const integ: IntegrationsState = {
@@ -850,6 +852,7 @@ export function createDemoApi(): Api {
     },
     async refreshSports() {
       requireAdmin()
+      if (!business.sports_enabled) throw new Error('Sports is off. Turn it on on the Sports page first.')
       for (const c of sports.competitions) c.refreshed_at = nowIso()
       return sports.events.length
     },
