@@ -10,6 +10,7 @@ import BadgeIcon from '@mui/icons-material/BadgeOutlined'
 import CurrencyIcon from '@mui/icons-material/PaymentsOutlined'
 import { useState, type ReactNode } from 'react'
 import { useApp } from '../app/AppContext'
+import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { PageHeader, SectionTitle } from '../components/common'
 import type { Business } from '../../shared/types'
@@ -89,6 +90,10 @@ function EditableCard({ title, business, canEdit, view, form, onSave }: {
 
 export function BusinessPage() {
   const { api, business: b, isAdmin, refresh } = useApp()
+  // Admins: the connected Instagram account, which fills in the handle (still editable).
+  const integ = useAsync('integrations', () => (isAdmin ? api.integrations() : Promise.resolve(null)), [isAdmin])
+  const igRow = integ.data?.integrations.find(i => i.provider === 'instagram' && i.status === 'connected')
+  const connectedHandle = igRow ? String(igRow.external?.username ?? igRow.account_label ?? '').replace(/^@+/, '') : ''
   if (!b) return null
   /** Save only the card's own fields, after checking them. */
   const save = (keys: (keyof Business)[], check: (p: Partial<Business>) => void) => async (d: Business) => {
@@ -112,6 +117,9 @@ export function BusinessPage() {
             <InfoRow icon={<MailIcon fontSize="small" />} label="Email">{b.email ?? '—'}</InfoRow>
             <InfoRow icon={<InstagramIcon fontSize="small" />} label="Instagram">
               {handleOf(b) ? <Link href={`https://instagram.com/${handleOf(b)}`} target="_blank" rel="noreferrer" underline="hover" color="inherit">@{handleOf(b)}</Link> : '—'}
+              {connectedHandle && connectedHandle.toLowerCase() === handleOf(b).toLowerCase() && (
+                <Typography component="span" variant="body2" sx={{ color: 'text.secondary', fontWeight: 400 }}> · connected</Typography>
+              )}
             </InfoRow>
           </>}
           form={({ d, set }) => <>
@@ -120,8 +128,8 @@ export function BusinessPage() {
               slotProps={{ htmlInput: { inputMode: 'tel', maxLength: 20 } }}
               onChange={e => set({ phone: cleanPhone(e.target.value) })} />
             <TextField label="Email" type="email" value={d.email ?? ''} onChange={e => set({ email: e.target.value })} />
-            <TextField label="Instagram" value={handleOf(d)} placeholder="yourbusiness"
-              helperText="Your Instagram username"
+            <TextField label="Instagram" value={handleOf(d)} placeholder={connectedHandle || 'yourbusiness'}
+              helperText={connectedHandle ? `Filled in from your connected Instagram (@${connectedHandle}). You can change it.` : 'Your Instagram username'}
               slotProps={{ input: { startAdornment: <InputAdornment position="start">@</InputAdornment> }, htmlInput: { autoCapitalize: 'none', spellCheck: false } }}
               onChange={e => set({ instagram: cleanHandle(e.target.value) || null })} />
           </>}

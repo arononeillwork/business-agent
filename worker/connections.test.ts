@@ -274,6 +274,24 @@ describe('Instagram and Google Maps: one click, connected once they really work'
     expect(db.table('notifications')[0]).toMatchObject({ title: 'Instagram stopped working' })
   })
 
+  it('Instagram: business details show the connected handle, follow a rename, and keep one typed by hand', async () => {
+    const handle = () => db.table('business')[0].instagram
+    await connectOwn('instagram')
+    expect(handle()).toBe('@easy.beans.coffee')
+    // Renamed on Instagram: the nightly check follows it.
+    apis.instagram.username = 'easybeans.marbella'
+    await nightly()
+    expect(handle()).toBe('@easybeans.marbella')
+    // An admin typed another handle: renames no longer change it.
+    db.table('business')[0].instagram = '@easybeans.events'
+    apis.instagram.username = 'easybeans.cafe'
+    await nightly()
+    expect(handle()).toBe('@easybeans.events')
+    // Connecting (again) is the admin choosing that account: its handle is shown.
+    await connectOwn('instagram')
+    expect(handle()).toBe('@easybeans.cafe')
+  })
+
   it('Instagram: an account that isn’t a tester yet is told why, and nothing is stored', async () => {
     apis.instagram.tester = false
     expect((await connectOwn('instagram')).searchParams.get('connect_error')).toMatch(/Instagram testers/)

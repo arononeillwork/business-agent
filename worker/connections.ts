@@ -248,6 +248,18 @@ export async function proveInstagram(t: { access_token: string; userId: string; 
     can_message: allowed('instagram_business_manage_messages'), can_see_tags: allowed('instagram_business_manage_comments') } }
 }
 
+/**
+ * Business details show the connected account's handle: set when Instagram is connected, and
+ * followed when the account is renamed (`previous`), unless an admin typed another handle by hand.
+ */
+export async function showInstagramHandle(db: SupabaseClient, username: string, previous?: string) {
+  const { data } = await db.from('business').select('instagram').eq('id', 1).maybeSingle()
+  const now = String(data?.instagram ?? '').replace(/^@+/, '').toLowerCase()
+  if (now === username.toLowerCase()) return
+  if (previous !== undefined && now && now !== previous.toLowerCase()) return
+  await db.from('business').update({ instagram: `@${username}` }).eq('id', 1)
+}
+
 /** Tokens that run out (TikTok: a day, Square: 30 days) are renewed with the refresh token when needed. */
 interface RenewableSecret { access_token: string; refresh_token: string; expires_at: string }
 
@@ -458,6 +470,7 @@ async function stillWorks(env: Env, db: SupabaseClient, row: Row): Promise<Parti
     case 'instagram': {
       if (!instagramOAuth(env, '')) throw new Error('Instagram is not set up')
       const p = await instagram.profile(await instagramSession(env, db, true))
+      await showInstagramHandle(db, p.username, String(row.external?.username ?? ''))
       return { account_label: `@${p.username}`, external: { ...row.external, username: p.username, followers: p.followers_count } }
     }
     case 'facebook': {

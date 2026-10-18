@@ -289,6 +289,8 @@ export interface Integration {
     private_only?: boolean
     /** Instagram: whether the account allowed reading and answering messages, and seeing posts it's tagged in. */
     can_message?: boolean; can_see_tags?: boolean
+    /** Instagram: the connected account's username (without the @). */
+    username?: string
   }
   connected_at: string | null
   last_sync_at: string | null

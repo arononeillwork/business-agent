@@ -23,7 +23,7 @@ import { ensureFeed } from './calendarFeed'
 import {
   CONNECTORS, PROVIDERS, ROW_COLUMNS, SCOPES, calendarSeen, calendarFetched, checkAll, checkOne, connectedOf, connectorConfigured,
   connectorGrant, explain, facebookOAuth, facebookSession, googleConfig, googleSession, instagramOAuth, instagramSession, isCalendarApp, isGoogle,
-  lasting, markBroken, msConfig, proveFacebook, proveInstagram, proveNew, proveSpotify, proveSquare, proveStripe, proveTikTok, setIntegration, spotifyConfig,
+  lasting, markBroken, msConfig, proveFacebook, proveInstagram, proveNew, proveSpotify, proveSquare, proveStripe, proveTikTok, setIntegration, showInstagramHandle, spotifyConfig,
   spotifySession, squareOAuth, squareSession, stripeOAuth, stripeSession, tellAdmins, tiktokOAuth, tiktokSession, waConfig, type Connector, type Provider,
 } from './connections'
 import type { Business, CalendarEvent, OpeningHours, SpotifyPlaylist } from '../shared/types'
@@ -675,6 +675,7 @@ integrations.get('/api/integrations/instagram/callback', async c => {
     const now = new Date().toISOString()
     await setIntegration(db, 'instagram', { status: 'connected', connected_by: state.uid, connected_at: now, last_checked_at: now, last_sync_at: now,
       last_error: null, account_label: proven.label, external: proven.external })
+    await showInstagramHandle(db, String(proven.external.username)).catch(() => {})
     return back('connected=instagram')
   } catch (e) {
     const why = explain('instagram', e)
