@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="robots" content="noindex" />
+<title>Deploy Tracker</title>
+<link rel="icon" href="/icon-192.png" type="image/png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Poppins:wght@600;700&family=JetBrains+Mono:wght@500&display=swap" />
+<style>
+/* One column: the live verdict first, then the push in flight as a step track, then recent pushes. */
+:root {
+  --bg: #FBF8F4; --panel: #FFFFFF; --fg: #1F1B2E; --muted: #6B6578; --line: #E8E2DA;
+  --accent: #4F46E5; --accent-soft: #EEEDFD;
+  --ok: #15803D; --ok-soft: #E3F4E8; --warn: #B45309; --warn-soft: #FDF0DC; --bad: #B91C1C; --bad-soft: #FBE4E4;
+  --display: 'Poppins', 'Segoe UI', system-ui, sans-serif;
+  --body: 'Figtree', 'Segoe UI', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #15131D; --panel: #1E1B29; --fg: #EDEAF4; --muted: #A39DB3; --line: #2E2A3C;
+    --accent: #8B85F5; --accent-soft: #27244A;
+    --ok: #4ADE80; --ok-soft: #14301F; --warn: #FBBF24; --warn-soft: #33270F; --bad: #F87171; --bad-soft: #3A1717;
+    color-scheme: dark; }
+}
+* { box-sizing: border-box }
+html { padding-block: env(safe-area-inset-top, 0px) env(safe-area-inset-bottom, 0px) }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 var(--body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+main { max-width: 760px; margin: 0 auto; padding-block: 28px 48px; display: grid; gap: 20px }
+header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px }
+h1 { font: 700 22px/1.2 var(--display); margin: 0; text-wrap: balance }
+h2 { font: 600 13px/1 var(--body); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 12px }
+.sub { color: var(--muted); font-size: 13px }
+.mono { font-family: var(--mono); font-size: 13px }
+a { color: var(--accent) }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px }
+section { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px }
+
+.verdict { display: grid; gap: 14px }
+.verdict .row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap }
+.dot { width: 14px; height: 14px; border-radius: 50%; background: var(--muted); flex: none }
+.ok .dot { background: var(--ok); box-shadow: 0 0 0 5px var(--ok-soft) }
+.busy .dot { background: var(--accent); box-shadow: 0 0 0 5px var(--accent-soft); animation: pulse 1.4s ease-in-out infinite }
+.bad .dot { background: var(--bad); box-shadow: 0 0 0 5px var(--bad-soft) }
+@keyframes pulse { 50% { opacity: .35 } }
+@media (prefers-reduced-motion: reduce) { .busy .dot, .bar i { animation: none } }
+.headline { font: 600 20px/1.3 var(--display); min-width: 0 }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px 20px; margin: 0 }
+.facts div { min-width: 0 }
+.facts dt { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em }
+.facts dd { margin: 2px 0 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere }
+
+.track { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px }
+.track li { display: grid; gap: 6px; font-size: 12px; color: var(--muted); min-width: 0 }
+.track li span { overflow-wrap: anywhere }
+.bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; position: relative }
+.track .done .bar { background: var(--ok) }
+.track .done { color: var(--fg) }
+.track .now { color: var(--fg); font-weight: 600 }
+.track .now .bar i { position: absolute; inset: 0; background: var(--accent); animation: slide 1.6s ease-in-out infinite }
+.track .fail .bar { background: var(--bad) }
+.track .fail { color: var(--bad); font-weight: 600 }
+@keyframes slide { 0% { transform: translateX(-100%) } 100% { transform: translateX(100%) } }
+.step { margin-top: 14px; font-size: 14px }
+.eta { font-variant-numeric: tabular-nums }
+
+table { width: 100%; border-collapse: collapse; font-size: 14px }
+.scroll { overflow-x: auto }
+th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 600; padding: 0 10px 8px 0; text-transform: uppercase; letter-spacing: .05em }
+td { padding: 9px 10px 9px 0; border-top: 1px solid var(--line); vertical-align: top; font-variant-numeric: tabular-nums }
+td.msg { min-width: 180px }
+.pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; background: var(--line); color: var(--muted) }
+.pill.ok { background: var(--ok-soft); color: var(--ok) } .pill.busy { background: var(--accent-soft); color: var(--accent) }
+.pill.bad { background: var(--bad-soft); color: var(--bad) } .pill.warn { background: var(--warn-soft); color: var(--warn) }
+.note { font-size: 13px; color: var(--muted) }
+.err { color: var(--bad) }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Deploy Tracker</h1>
+    <span class="sub" id="checked">Checking…</span>
+  </header>
+
+  <section class="verdict" id="verdict" aria-live="polite">
+    <div class="row"><span class="dot"></span><span class="headline" id="headline">Checking what's live…</span></div>
+    <dl class="facts">
+      <div><dt>Live commit</dt><dd class="mono" id="live-commit">–</dd></div>
+      <div><dt>Went live</dt><dd id="live-at">–</dd></div>
+      <div><dt>Latest push</dt><dd class="mono" id="head-commit">–</dd></div>
+    </dl>
+  </section>
+
+  <section id="flight" hidden>
+    <h2>Push in progress</h2>
+    <ol class="track" id="track"></ol>
+    <div class="step" id="step"></div>
+  </section>
+
+  <section>
+    <h2>Recent pushes</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Pushed</th><th>Change</th><th>Status</th><th>Took</th></tr></thead>
+        <tbody id="runs"><tr><td colspan="4" class="note">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <p class="note">Every push to the deploy branch runs the tests, then deploys to Cloudflare. This page reads the live site's version
+    and GitHub's deploy runs, refreshing every few seconds while a push is on its way. <span id="ratelimit"></span></p>
+</main>
+
+<script>
+const REPO = 'arononeillwork/business-agent'
+const BRANCH = 'claude/easy-beans-architecture-plan-dknqka'
+const GH = 'https://api.github.com/repos/' + REPO
+const STAGES = ['Queued', 'Tests', 'Deploying', 'Live', 'Live checks']
+
+const $ = id => document.getElementById(id)
+const etags = new Map(), bodies = new Map()
+let live = null, runs = [], jobs = new Map(), estimate = null, wasLive = null
+
+// GitHub allows 60 calls an hour without sign-in; an unchanged answer (304) doesn't count.
+async function gh(path) {
+  const headers = { accept: 'application/vnd.github+json' }
+  if (etags.has(path)) headers['if-none-match'] = etags.get(path)
+  const res = await fetch(GH + path, { headers })
+  const left = res.headers.get('x-ratelimit-remaining')
+  if (left !== null) $('ratelimit').textContent = left < 10 ? `GitHub checks left this hour: ${left}.` : ''
+  if (res.status === 304) return bodies.get(path)
+  if (!res.ok) throw new Error(res.status === 403 ? 'GitHub check limit reached for this hour; the live version still updates.' : `GitHub answered ${res.status}`)
+  const body = await res.json()
+  etags.set(path, res.headers.get('etag')); bodies.set(path, body)
+  return body
+}
+
+const short = sha => sha ? sha.slice(0, 7) : '–'
+const mins = ms => { const s = Math.max(0, Math.round(ms / 1000)); return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, '0')}s` }
+const ago = iso => { const ms = Date.now() - new Date(iso); return ms < 45e3 ? 'just now' : ms < 3600e3 ? `${Math.round(ms / 60e3)} min ago` : ms < 86400e3 ? `${Math.round(ms / 3600e3)} h ago` : new Date(iso).toLocaleDateString() }
+const clock = iso => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+const firstLine = s => (s || '').split('\n')[0]
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
+
+async function loadLive() {
+  try {
+    const res = await fetch('/api/health', { cache: 'no-store' })
+    live = await res.json()
+  } catch { live = { error: true } }
+}
+
+async function loadRuns() {
+  const data = await gh(`/actions/workflows/deploy.yml/runs?branch=${encodeURIComponent(BRANCH)}&per_page=8`)
+  runs = data.workflow_runs
+  const active = runs.filter(r => r.status !== 'completed').slice(0, 4)
+  const recentDone = runs.find(r => r.conclusion === 'success' || r.conclusion === 'failure')
+  for (const r of active) jobs.set(r.id, (await gh(`/actions/runs/${r.id}/jobs`)).jobs)
+  if (!estimate && recentDone) {
+    // How long tests + deploy took last time, for the "about X left" line.
+    const j = (await gh(`/actions/runs/${recentDone.id}/jobs`)).jobs
+    const span = list => { const a = list.map(x => x.started_at).filter(Boolean).sort()[0], b = list.map(x => x.completed_at).filter(Boolean).sort().pop(); return a && b ? new Date(b) - new Date(a) : null }
+    const t = span(j.filter(x => x.name.startsWith('test'))), d = span(j.filter(x => x.name === 'deploy'))
+    if (t && d) estimate = { test: t, deploy: d }
+    jobs.set(recentDone.id, j)
+  }
+}
+
+// Where a run is: 0 queued, 1 tests, 2 deploying, 3 live, 4 live checks running/finished.
+function stageOf(run) {
+  const j = jobs.get(run.id) || []
+  // The tests can be several jobs at once (test / checks, test / browser 1-3 …).
+  const tests = j.filter(x => x.name.startsWith('test')), deploy = j.find(x => x.name === 'deploy')
+  const failedTest = tests.find(x => x.conclusion === 'failure')
+  const test = failedTest || tests.find(x => x.status === 'in_progress') || tests[0]
+  const after = j.filter(x => x.name.startsWith('live') || x.name.startsWith('sports'))
+  if (deploy?.conclusion === 'success') return { i: after.some(x => x.status !== 'completed') ? 4 : 5, failed: false, job: after.find(x => x.status !== 'completed') }
+  if (deploy?.status === 'in_progress') return { i: 2, job: deploy }
+  if (failedTest || deploy?.conclusion === 'failure') return { i: failedTest ? 1 : 2, failed: true, job: failedTest || deploy }
+  if (tests.some(x => x.status === 'in_progress' || x.status === 'completed')) return { i: 1, job: test, started: tests.map(x => x.started_at).filter(Boolean).sort()[0] }
+  return { i: 0 }
+}
+
+function render() {
+  $('checked').textContent = 'Checked ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  const head = runs[0]
+  const liveSha = live?.commit && live.commit !== 'dev' ? live.commit : null
+  $('live-commit').textContent = liveSha ? short(liveSha) : live?.error ? 'site not answering' : 'older version (no stamp yet)'
+  $('live-at').textContent = live?.deployed_at ? `${clock(live.deployed_at)} · ${ago(live.deployed_at)}` : '–'
+  $('head-commit').textContent = head ? `${short(head.head_sha)} · ${ago(head.created_at)}` : '–'
+
+  const v = $('verdict'), h = $('headline')
+  v.className = 'verdict'
+  const inFlight = runs.find(r => r.status !== 'completed')
+  const upToDate = head && liveSha === head.head_sha
+  if (live?.error) { v.classList.add('bad'); h.textContent = "The live site isn't answering" }
+  else if (upToDate) { v.classList.add('ok'); h.textContent = 'Live is up to date' }
+  else if (inFlight) { v.classList.add('busy'); h.textContent = `Your latest push is on its way (${short(inFlight.head_sha)})` }
+  else if (head?.conclusion === 'failure' || head?.conclusion === 'cancelled') {
+    const s = stageOf(head)
+    if (s.i >= 3) { v.classList.add('ok'); h.textContent = 'Live is up to date (a check after the deploy failed)' }
+    else { v.classList.add('bad'); h.textContent = `The latest push didn't go live: ${s.failed ? 'a test failed' : 'it was replaced by a newer push'}` }
+  } else { h.textContent = liveSha ? 'Live is behind the latest push' : 'Live version unknown until the next deploy stamps it' }
+  document.title = upToDate ? 'Live · Deploy Tracker' : inFlight ? 'Deploying… · Deploy Tracker' : 'Deploy Tracker'
+  if (wasLive === false && upToDate) try { navigator.vibrate?.(200) } catch {}
+  wasLive = !!upToDate
+
+  // The push in flight, as a step track.
+  const f = $('flight')
+  f.hidden = !inFlight
+  if (inFlight) {
+    const s = stageOf(inFlight)
+    const at = s.i >= 5 ? 5 : s.i
+    $('track').innerHTML = STAGES.map((name, i) => {
+      const cls = s.failed && i === at ? 'fail' : i < at ? 'done' : i === at ? 'now' : ''
+      return `<li class="${cls}"><div class="bar"><i></i></div><span>${name}</span></li>`
+    }).join('')
+    const step = s.job?.steps?.find(x => x.status === 'in_progress')
+    let left = ''
+    if (estimate && s.i <= 2) {
+      const started = new Date(s.started || s.job?.started_at || Date.now())
+      const remain = s.i === 0 ? estimate.test + estimate.deploy
+        : s.i === 1 ? estimate.test - (Date.now() - started) + estimate.deploy
+        : estimate.deploy - (Date.now() - started)
+      left = s.i === 0 ? ` · waiting for a GitHub machine, then about ${mins(remain)}` : ` · about ${mins(Math.max(remain, 15e3))} until live`
+    }
+    $('step').innerHTML = `<b>${esc(firstLine(inFlight.head_commit?.message))}</b><br>` +
+      `<span class="note">${s.i === 0 ? 'Waiting to start' : step ? esc(step.name) : s.job ? esc(s.job.name) : 'Starting'} · pushed ${mins(Date.now() - new Date(inFlight.created_at))} ago<span class="eta">${left}</span> · <a href="${inFlight.html_url}" target="_blank" rel="noopener">open on GitHub</a></span>`
+  }
+
+  $('runs').innerHTML = runs.map(r => {
+    const s = stageOf(r)
+    const [cls, label] = r.status !== 'completed' ? ['busy', s.i >= 3 ? 'Live, checking' : STAGES[s.i]]
+      : r.conclusion === 'success' ? ['ok', 'Live']
+      : r.conclusion === 'cancelled' ? ['', 'Replaced']
+      : s.i >= 3 ? ['warn', 'Live, check failed']
+      : r.conclusion === 'failure' ? ['bad', 'Failed'] : ['', r.conclusion || r.status]
+    const isLive = liveSha && r.head_sha === liveSha ? ' <span class="pill ok">on site</span>' : ''
+    const took = r.status === 'completed' ? mins(new Date(r.updated_at) - new Date(r.created_at)) : '…'
+    return `<tr><td>${clock(r.created_at)}<br><span class="note mono">${short(r.head_sha)}</span></td>` +
+      `<td class="msg"><a href="${r.html_url}" target="_blank" rel="noopener">${esc(firstLine(r.head_commit?.message))}</a>${isLive}</td>` +
+      `<td><span class="pill ${cls}">${label}</span></td><td>${took}</td></tr>`
+  }).join('') || '<tr><td colspan="4" class="note">No deploys yet.</td></tr>'
+}
+
+let ghTimer = 0
+async function tick() {
+  await loadLive()
+  // GitHub only every 20s while something is moving, every 60s otherwise (rate limit).
+  const busy = runs.some(r => r.status !== 'completed')
+  if (Date.now() - ghTimer > (busy || !runs.length ? 20e3 : 60e3)) {
+    ghTimer = Date.now()
+    try { await loadRuns() } catch (e) { $('ratelimit').innerHTML = `<span class="err">${esc(e.message)}</span>` }
+  }
+  render()
+}
+tick()
+setInterval(tick, 8000)
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { ghTimer = 0; tick() } })
+</script>
+</body>
+</html>

@@ -7,6 +7,11 @@ name: Set up Microsoft sign-in
 # Runs when triggered by hand, or when ops/setup-microsoft.txt changes.
 on:
   workflow_dispatch:
+    inputs:
+      tenant:
+        description: Microsoft directory (tenant) to create the app in, e.g. yourname.onmicrosoft.com. Empty = the account's own.
+        required: false
+        default: ''
   push:
     branches: [main, claude/easy-beans-architecture-plan-dknqka]
     paths: [ops/setup-microsoft.txt]
@@ -20,6 +25,7 @@ jobs:
       REDIRECT: https://lhakrmmoxaareykglmtx.supabase.co/auth/v1/callback
       # Outlook email and OneDrive files connect through the Worker with the same app.
       WORKER_REDIRECT: https://business-agent.arononeillwork.workers.dev/api/integrations/microsoft/callback
+      SITE_REDIRECT: https://businesssagent.com/api/integrations/microsoft/callback
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       APP_NAME: Easy Beans Team
@@ -29,7 +35,18 @@ jobs:
         run: |
           if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then echo "::error::Add the SUPABASE_ACCESS_TOKEN repo secret first"; exit 1; fi
       - name: Sign in to Microsoft (enter the code shown below at microsoft.com/devicelogin)
-        run: az login --use-device-code --allow-no-subscriptions --output none
+        env:
+          TENANT: ${{ inputs.tenant }}
+        run: |
+          az login --use-device-code --allow-no-subscriptions --output none ${TENANT:+--tenant "$TENANT"} || true
+          # az login can end "successfully" with no account when a directory refuses the sign-in
+          # (multi-factor not finished, code expired): stop here with the reason, not three steps later.
+          if ! who=$(az account show --query "{directory: tenantDisplayName || tenantId, account: user.name}" -o tsv 2>/dev/null); then
+            echo "::error::Microsoft sign-in didn't finish (code expired, or the directory needs multi-factor that wasn't completed). Run this again and finish the sign-in within 15 minutes; see docs/sign-in-setup.md."
+            exit 1
+          fi
+          echo "Signed in: $who"
+          echo "The app is created in this Microsoft directory: $who" >> "$GITHUB_STEP_SUMMARY"
       - name: Create or update the app registration
         id: app
         run: |
@@ -38,12 +55,12 @@ jobs:
           if [ -z "$app" ]; then
             # Personal accounts need v2 tokens, which must be set before the audience can include them.
             app=$(az ad app create --display-name "$APP_NAME" --sign-in-audience AzureADMultipleOrgs \
-              --web-redirect-uris "$REDIRECT" "$WORKER_REDIRECT" --query appId -o tsv)
+              --web-redirect-uris "$REDIRECT" "$WORKER_REDIRECT" "$SITE_REDIRECT" --query appId -o tsv)
             az ad app update --id "$app" --set api.requestedAccessTokenVersion=2
             az ad app update --id "$app" --sign-in-audience AzureADandPersonalMicrosoftAccount
             echo "Created app $app"
           else
-            az ad app update --id "$app" --web-redirect-uris "$REDIRECT" "$WORKER_REDIRECT"
+            az ad app update --id "$app" --web-redirect-uris "$REDIRECT" "$WORKER_REDIRECT" "$SITE_REDIRECT"
             echo "Reusing app $app"
           fi
           # Microsoft Graph delegated: openid, email, profile, User.Read (sign-in) and

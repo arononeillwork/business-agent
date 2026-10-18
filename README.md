@@ -67,6 +67,13 @@ The live suite creates `@business-agent.test` accounts and deletes them and thei
 end. Run it against the dev project, not production. First-time Playwright setup:
 `npx playwright install chromium`.
 
+In CI the browser tests run on 3 machines at once (Playwright shards, in Playwright's own image).
+Branch pushes and pull requests run only the browser tests for the areas a change touches, plus the
+core ones that always run (sign-in, landing page, permissions, privacy, café tablet PIN, partners):
+see `scripts/ci/select-e2e.ts`, where each area lists its files and test titles. Shared code (app
+shell, data layer, theme, config, the tests themselves) or an unknown file runs everything, and
+deploys always run everything.
+
 Uptime: `.github/workflows/ci.yml` runs all of the above on every push;
 `.github/workflows/monitor.yml` smoke-tests the live site every 15 minutes (`e2e/smoke.spec.ts`:
 site up, Supabase reachable, email/Google/Microsoft sign-in switched on). Set the repo variable
