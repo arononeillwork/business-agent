@@ -291,7 +291,8 @@ test.describe('sports', () => {
       await expect(page.getByRole('alert').filter({ hasText: 'Sports is on' })).toBeVisible({ timeout: 30_000 })
       await page.getByRole('button', { name: 'Refresh now' }).click()
       await expect(page.getByRole('alert').filter({ hasText: 'Fixtures updated' })).toBeVisible({ timeout: 30_000 })
-      await expect(page.getByText(/Couldn't update .*La Liga/)).toHaveCount(0)
+      // Only La Liga matters here (TheSportsDB competitions are refreshed from GitHub, not Cloudflare).
+      await expect(page.getByRole('alert').filter({ hasText: /Couldn't update/ }).filter({ hasText: 'La Liga' })).toHaveCount(0)
       // La Liga (fixturedownload) plays every week from mid-August to May.
       const month = new Date().getUTCMonth() + 1
       if (month === 6 || month === 7) return
