@@ -272,20 +272,33 @@ test.describe('AI connector (MCP over OAuth)', () => {
 })
 
 test.describe('sports', () => {
-  test('admin refreshes fixtures from the free sources and sees La Liga', async ({ page }) => {
-    // Sign-in, the page and a refresh of every competition, each waiting on outside services.
-    test.setTimeout(90_000)
-    await signInUi(page, 'admin')
-    // Click through (a page load straight after "Sign in" can beat the session being saved).
-    await page.getByRole('link', { name: 'Sports' }).first().click()
-    await expect(page.getByRole('heading', { name: 'Sports' })).toBeVisible()
-    await page.getByRole('button', { name: 'Refresh now' }).click()
-    await expect(page.getByRole('alert').filter({ hasText: 'Fixtures updated' })).toBeVisible({ timeout: 30_000 })
-    await expect(page.getByText(/Couldn't update .*La Liga/)).toHaveCount(0)
-    // La Liga (fixturedownload) plays every week from mid-August to May.
-    const month = new Date().getUTCMonth() + 1
-    if (month === 6 || month === 7) return
-    await expect(page.getByRole('article').filter({ hasText: 'La Liga' }).first()).toBeVisible({ timeout: 15_000 })
+  test('Sports is off until an admin turns it on; then fixtures refresh from the free sources and La Liga shows', async ({ page }) => {
+    // Sign-in, turning Sports on (which refreshes) and a refresh of every competition, each waiting on outside services.
+    test.setTimeout(120_000)
+    // Start from off, and leave the business's switch as it was whatever happens.
+    const db = service(cfg)
+    const { data: before } = await db.from('business').select('sports_enabled').eq('id', 1).single()
+    await db.from('business').update({ sports_enabled: false }).eq('id', 1)
+    try {
+      await signInUi(page, 'admin')
+      // Click through (a page load straight after "Sign in" can beat the session being saved).
+      await page.getByRole('link', { name: 'Sports' }).first().click()
+      await expect(page.getByRole('heading', { name: 'Sports is off' })).toBeVisible()
+      await page.getByRole('switch', { name: 'Sports' }).click()
+      const ask = page.getByRole('dialog', { name: 'Turn on Sports?' })
+      await expect(ask).toContainText('On match days')
+      await ask.getByRole('button', { name: 'Turn on' }).click()
+      await expect(page.getByRole('alert').filter({ hasText: 'Sports is on' })).toBeVisible({ timeout: 30_000 })
+      await page.getByRole('button', { name: 'Refresh now' }).click()
+      await expect(page.getByRole('alert').filter({ hasText: 'Fixtures updated' })).toBeVisible({ timeout: 30_000 })
+      await expect(page.getByText(/Couldn't update .*La Liga/)).toHaveCount(0)
+      // La Liga (fixturedownload) plays every week from mid-August to May.
+      const month = new Date().getUTCMonth() + 1
+      if (month === 6 || month === 7) return
+      await expect(page.getByRole('article').filter({ hasText: 'La Liga' }).first()).toBeVisible({ timeout: 15_000 })
+    } finally {
+      await db.from('business').update({ sports_enabled: before?.sports_enabled ?? false }).eq('id', 1)
+    }
   })
 })
 
