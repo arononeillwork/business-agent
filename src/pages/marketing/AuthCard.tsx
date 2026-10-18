@@ -187,7 +187,7 @@ function SignUpForm({ onSignIn }: { onSignIn: () => void }) {
       <Stack spacing={2.25}>
         <Box>
           <Typography variant="h5" component="h2" sx={{ fontFamily: display, fontWeight: 600, letterSpacing: '-0.02em', color: BA.ink }}>Create your account</Typography>
-          <Typography sx={{ color: BA.soft, mt: 0.5 }}>{TRIAL_MONTHS} months free for your business, no card needed. Joining a team? Register, then your admin adds you.</Typography>
+          <Typography sx={{ color: BA.soft, mt: 0.5 }}>Start on the Free plan, no card needed, or try Business free for {TRIAL_MONTHS} months. Joining a team? Register, then your admin adds you.</Typography>
         </Box>
         {!open && <Alert severity="info">Registration is closed for now. Ask your business's admin to invite you.</Alert>}
         {open && <>

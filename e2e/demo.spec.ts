@@ -1372,7 +1372,7 @@ test('pages can be dragged into a new order, but only within their own section',
   await page.mouse.up()
   await expect.poll(names).toEqual(['Team', 'Time off', 'Timecards', 'Rota'])
   expect(await nav.locator('section', { has: page.getByRole('button', { name: 'Settings', exact: true }) }).getByRole('link').allTextContents())
-    .toEqual(['Set-up', 'Connections', 'Alerts'])
+    .toEqual(['Set-up', 'Connections', 'Alerts', 'Billing'])
   // Saved to Aron's account: someone else gets the usual order, and Aron his own when he's back.
   await signInAs(page, 'mark@example.com')
   await expect.poll(names).toEqual(['Rota', 'Time off', 'Timecards', 'Team'])
@@ -1420,19 +1420,56 @@ test('signed out: one-tap Google, Apple, Facebook and Microsoft sign-in next to 
   await toast(page, 'Facebook sign-in works on the live app')
 })
 
-test('pricing: three plans with a 2-month free trial; "Try" opens Create account on the landing page', async ({ page }) => {
+test('pricing: four plans, every feature line by line, and "Try free" opens Create account', async ({ page }) => {
   await page.goto('/pricing?demo')
   await expect(page.getByRole('heading', { level: 1 })).toContainText('Start free')
-  await expect(page.getByRole('article', { name: /plan$/ })).toHaveCount(3)
-  const team = page.getByRole('article', { name: 'Team plan' })
-  await expect(team).toContainText('€39')
+  await expect(page.getByRole('article', { name: /plan$/ })).toHaveCount(4)
+  const pro = page.getByRole('article', { name: 'Pro plan' })
+  await expect(pro).toContainText('€49')
+  await expect(page.getByRole('article', { name: 'Free plan' })).toContainText('1 social account, 1 scheduled post a month')
   await page.getByRole('button', { name: /Yearly/ }).first().click()
-  await expect(team).toContainText('€32.50')
-  await expect(team).toContainText('€390 billed yearly')
-  await expect(page.getByRole('table', { name: 'Plan comparison' })).toBeVisible()
-  await team.getByRole('link', { name: 'Try Team free for 2 months' }).click()
+  await expect(pro).toContainText('€40.83')
+  await expect(pro).toContainText('€490 billed yearly')
+  const table = page.getByRole('table', { name: 'Plan comparison' })
+  await expect(table.getByRole('row', { name: /Custom MCP connection/ }).getByLabel('Included')).toHaveCount(4)
+  await expect(table.getByRole('row', { name: /Scheduled posts per month/ }).getByRole('cell')).toHaveText(['Scheduled posts per month', '1', '12', '60', 'Unlimited'])
+  await page.getByRole('article', { name: 'Business plan' }).getByRole('link', { name: 'Try free for 2 months' }).click()
   await expect(page.getByRole('heading', { name: 'Create your account' })).toBeVisible()
   await expect(page.getByRole('tab', { name: 'Create account' })).toHaveAttribute('aria-selected', 'true')
+})
+
+test('compare: Square and GoHighLevel stacks add up line by line against Business', async ({ page }) => {
+  await page.goto('/pricing?demo')
+  await page.getByRole('link', { name: /Compare with Square and GoHighLevel/ }).click()
+  const square = page.getByRole('table', { name: 'Square stack' })
+  await expect(square.getByRole('row')).toHaveCount(5) // heading, 3 lines, total
+  await expect(square.getByRole('row', { name: /Total with Square/ })).toContainText('€94')
+  await expect(page.getByLabel('Savings')).toContainText('€15/mo')
+  await expect(page.getByLabel('Savings')).toContainText('€180 a year')
+  await page.getByRole('button', { name: 'vs GoHighLevel' }).click()
+  await expect(page.getByRole('table', { name: 'GoHighLevel stack' }).getByRole('row', { name: /Total with GoHighLevel/ })).toContainText('€169.69')
+  await expect(page.getByLabel('Savings')).toContainText('€90.69/mo')
+  await expect(page.getByLabel('Savings')).toContainText('€1,088.28 a year')
+})
+
+test.describe('billing', () => {
+  test('on Free: paid pages show what they need, the trial of Business unlocks them', async ({ page }) => {
+    await open(page, '/sports?plan=free')
+    await expect(page.getByRole('heading', { name: /is on the Pro plan/ })).toBeVisible()
+    await page.getByRole('link', { name: 'See plans' }).click()
+    await expect(page.getByRole('heading', { name: 'Billing' })).toBeVisible()
+    await expect(page.getByText('People on the team')).toBeVisible()
+    await page.getByRole('button', { name: 'Start 2-month free trial' }).click()
+    await toast(page, "You're on Business")
+    await expect(page.getByText(/Free trial: 60 days left/)).toBeVisible()
+    await page.getByRole('link', { name: 'Sports', exact: true }).first().click()
+    await expect(page.getByRole('heading', { name: /is on the Pro plan/ })).toHaveCount(0)
+  })
+
+  test('employees never see Billing', async ({ page }) => {
+    await open(page, '/billing', 'maria@example.com')
+    await expect(page.getByRole('heading', { name: 'Billing' })).toHaveCount(0)
+  })
 })
 
 test('guest link: opens already signed in as a Guest admin, no sign-in page', async ({ page }) => {

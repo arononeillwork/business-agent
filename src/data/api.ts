@@ -1,4 +1,5 @@
 import type { ApiKey, AppNotification, Brand, BreakType, Business, CalendarApp, CalendarEvent, ConnectorProvider, ContactMethod, CorrectionRequest, EventAlert, Expense, InstagramProfile, Integration, Sales, SocialNetwork, SocialPost, IntegrationProvider, IntegrationsState, KioskPerson, MusicNow, MusicPlaylist, MusicProvider, MyMusic, MyNowPlaying, OpenBreak, OpeningHours, OutboxItem, PartnerArea, PayRate, Position, Profile, Settings, Shift, SpotifyPlaylist, TimeEntry, TimeEntryChange, TimeOff, TimeOffKind, Todo, TodoCategory, TodoPatch, CafeMusicLibrary, CafeTrack, MusicAction, MusicPlayerReport, MusicPlayerState } from '../../shared/types'
+import type { Billing, Interval, PlanId } from '../../shared/plans'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
 
 export type ShiftInput = Omit<Shift, 'id' | 'status'> & { id?: string; status?: Shift['status'] }
@@ -8,6 +9,14 @@ export type EventInput = Omit<CalendarEvent, 'id' | 'source' | 'competition'> & 
 export type SocialProvider = 'google' | 'apple' | 'facebook' | 'microsoft'
 export const SOCIAL_PROVIDERS: SocialProvider[] = ['google', 'apple', 'facebook', 'microsoft']
 export type SignInMethods = Record<SocialProvider, boolean> & { signup?: boolean }
+
+/** The plan in force for the business, its limits and what's used (public.plan_status()). */
+export interface PlanStatus {
+  plan: PlanId
+  limits: { people: number | null; social_accounts: number; posts_per_month: number | null; features: string[] }
+  usage: { people: number; social_accounts: number; posts_this_month: number }
+}
+export type BillingInfo = Billing & { ready: boolean }
 
 export interface ClockState {
   entry: TimeEntry | null
@@ -104,6 +113,16 @@ export interface Api {
   requestTimeOff(startsOn: string, endsOn: string, kind: TimeOffKind, note: string): Promise<void>
   cancelTimeOff(id: string): Promise<void>
   decideTimeOff(id: string, approve: boolean, note?: string, releaseShifts?: boolean): Promise<number>
+
+  // Business Agent subscription (Stripe Billing). planStatus: everyone; the rest: admins.
+  planStatus(): Promise<PlanStatus>
+  billing(): Promise<BillingInfo>
+  /** After Stripe Checkout: read the subscription from Stripe again. */
+  syncBilling(): Promise<BillingInfo>
+  /** A paid plan: a Stripe Checkout URL to go to, or `changed` when an existing subscription moved plan. */
+  choosePlan(plan: PlanId, interval: Interval): Promise<{ url?: string; changed?: boolean }>
+  /** Stripe's page to change the card, see invoices or cancel. */
+  billingPortal(): Promise<string>
 
   // sign-in with Google, Apple, Facebook or Microsoft (Supabase OAuth)
   signInWith(provider: SocialProvider): Promise<void>

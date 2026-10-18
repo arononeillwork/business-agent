@@ -11,6 +11,7 @@ import { theme } from './theme'
 import { AppearanceSync } from './app/Appearance'
 import { LoginPage } from './pages/LoginPage'
 import { NotActive } from './pages/StatusPages'
+import { PlanGate } from './app/plan'
 import { lazy, Suspense, type ComponentType } from 'react'
 
 // Pages load when first opened, so the first screen is quick on phones.
@@ -40,6 +41,8 @@ const AppearancePage = page(() => import('./pages/AppearancePage'), 'AppearanceP
 const BrandPage = page(() => import('./pages/BrandPage'), 'BrandPage')
 const PrivacyPage = page(() => import('./pages/PrivacyPage'), 'PrivacyPage')
 const TermsPage = page(() => import('./pages/TermsPage'), 'TermsPage')
+const BillingPage = page(() => import('./pages/BillingPage'), 'BillingPage')
+const ComparePage = page(() => import('./pages/ComparePage'), 'ComparePage')
 const PricingPage = page(() => import('./pages/PricingPage'), 'PricingPage')
 
 function Routed() {
@@ -49,10 +52,11 @@ function Routed() {
   if (pathname === '/privacy') return <PrivacyPage />
   if (pathname === '/terms') return <TermsPage />
   if (pathname === '/pricing') return <PricingPage />
+  if (pathname === '/compare') return <ComparePage />
   if (loading) return <Loading />
   if (!me) return <LoginPage />
   if (!me.active) return <NotActive />
-  if (me.role === 'kiosk') return <KioskPage />
+  if (me.role === 'kiosk') return <PlanGate feature="kiosk"><KioskPage /></PlanGate>
   if (isPartner) {
     // Outside businesses: read-only, only the areas an admin gave them (the database enforces it too).
     return (
@@ -76,7 +80,7 @@ function Routed() {
   return (
     <Routes>
       {/* Staff use the tablet itself (kiosk account); admins can open it to set it up. */}
-      <Route path="/kiosk" element={isAdmin && FEATURES.kiosk ? <KioskPage /> : <Navigate to="/" />} />
+      <Route path="/kiosk" element={isAdmin && FEATURES.kiosk ? <PlanGate feature="kiosk"><KioskPage /></PlanGate> : <Navigate to="/" />} />
       {/* Printable monthly hours record (no menu around it). */}
       <Route path="/registro" element={<RegistroPage />} />
       <Route element={<AppShell />}>
@@ -85,8 +89,8 @@ function Routed() {
         <Route path="timecards" element={<TimecardsPage />} />
         <Route path="calendar" element={<CalendarPage />} />
         <Route path="time-off" element={<TimeOffPage />} />
-        <Route path="sports" element={<SportsPage />} />
-        <Route path="music" element={<MusicPage />} />
+        <Route path="sports" element={<PlanGate feature="sports"><SportsPage /></PlanGate>} />
+        <Route path="music" element={<PlanGate feature="music"><MusicPage /></PlanGate>} />
         <Route path="team" element={<TeamPage />} />
         <Route path="business" element={<BusinessPage />} />
         <Route path="todo" element={<TodoPage />} />
@@ -96,10 +100,11 @@ function Routed() {
         <Route path="account" element={<AccountPage />} />
         <Route path="finances" element={<FinancesPage />} />
         <Route path="alerts" element={isAdmin ? <AlertsPage /> : <Navigate to="/" />} />
+        <Route path="billing" element={isAdmin ? <BillingPage /> : <Navigate to="/" />} />
         <Route path="connections" element={isAdmin ? <ConnectionsPage /> : <Navigate to="/" />} />
         <Route path="social" element={isAdmin ? <SocialPlannerPage /> : <Navigate to="/" />} />
         <Route path="setup" element={isAdmin ? <SetupPage /> : <Navigate to="/" />} />
-        <Route path="partners" element={isAdmin && FEATURES.partners ? <PartnersPage /> : <Navigate to="/" />} />
+        <Route path="partners" element={isAdmin && FEATURES.partners ? <PlanGate feature="partners"><PartnersPage /></PlanGate> : <Navigate to="/" />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Route>
     </Routes>

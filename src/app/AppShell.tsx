@@ -16,6 +16,7 @@ import AppearanceIcon from '@mui/icons-material/PaletteOutlined'
 import KioskIcon from '@mui/icons-material/TabletMacOutlined'
 import TimeOffIcon from '@mui/icons-material/BeachAccessOutlined'
 import FinanceIcon from '@mui/icons-material/PaymentsOutlined'
+import BillingIcon from '@mui/icons-material/CreditCardOutlined'
 import SocialIcon from '@mui/icons-material/CampaignOutlined'
 import AlertsIcon from '@mui/icons-material/CampaignOutlined'
 import ConnectIcon from '@mui/icons-material/HubOutlined'
@@ -40,6 +41,7 @@ import { BrandLogo } from '../components/Logo'
 import { Loading, PersonAvatar } from '../components/common'
 import { NotificationBell } from '../components/NotificationBell'
 import { CafeSpeakerProvider } from './CafeSpeaker'
+import { BillingBanner } from './plan'
 import { SearchButton, ThemeToggle } from './QuickActions'
 import { fonts, tokens } from '../theme'
 
@@ -72,6 +74,7 @@ export const SECTIONS: NavSection[] = [
     { key: 'setup', to: '/setup', label: 'Set-up', icon: <SetupIcon />, who: 'admin' },
     { key: 'connections', to: '/connections', label: 'Connections', icon: <ConnectIcon />, who: 'admin' },
     { key: 'alerts', to: '/alerts', label: 'Alerts', icon: <AlertsIcon />, who: 'admin' },
+    { key: 'billing', to: '/billing', label: 'Billing', icon: <BillingIcon />, who: 'admin' },
     ...(FEATURES.partners ? [{ key: 'partners', to: '/partners', label: 'Partners', icon: <PartnersIcon />, who: 'admin' as const }] : []),
     ...(FEATURES.kiosk ? [{ key: 'kiosk', to: '/kiosk', label: 'Café tablet', icon: <KioskIcon />, who: 'admin' as const }] : []),
   ] },
@@ -411,6 +414,7 @@ export function AppShell() {
           </Box>
         )}
         <DemoBanner />
+        <BillingBanner />
         <Box component="main" sx={{ px: { xs: 2, md: 4 }, pt: { xs: 2.5, md: 1.5 }, pb: { xs: 2.5, md: 4 }, maxWidth: 1360, mx: 'auto' }}>
           <CafeSpeakerProvider><Suspense fallback={<Loading />}><Outlet /></Suspense></CafeSpeakerProvider>
         </Box>

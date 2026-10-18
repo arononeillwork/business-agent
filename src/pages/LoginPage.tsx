@@ -37,7 +37,7 @@ const STEPS = [
 ]
 
 const FAQ: { q: string; a: string }[] = [
-  { q: 'How does the free trial work?', a: `Every plan is free for the first ${TRIAL_MONTHS} months, with every feature switched on. You don't need a card to start, and nothing is charged automatically: before the trial ends we'll ask whether you want to continue.` },
+  { q: 'How does the free trial work?', a: `The Business plan, with everything switched on, is free for ${TRIAL_MONTHS} months. You add a card to start and nothing is charged until the trial ends; cancel before then and you pay nothing. If the first payment doesn't go through, you move to the Free plan until it does.` },
   { q: 'Do my staff need to pay or download anything?', a: 'No. Your team is included in your plan. They open the app in their phone\'s browser and add it to their home screen: no app store needed.' },
   { q: 'Do I need yet another password?', a: 'No. Log in with your Google, Apple, Facebook or Microsoft account in one tap. If you prefer email, use a password or a one-time code we send you.' },
   { q: 'Does it follow the Spanish working-time rules?', a: 'Yes. Clock-ins, breaks and the monthly registro de jornada follow the rules for Spain, and you can share them with your gestoría as read-only.' },
@@ -72,7 +72,7 @@ export function LoginPage() {
               <Stack direction="row" spacing={1} sx={{ alignItems: 'center', display: 'inline-flex', px: 1.5, py: 0.6, borderRadius: 99,
                 bgcolor: '#fff', border: `1px solid ${BA.line}`, fontSize: '0.85rem', color: BA.soft }}>
                 <Box component="span" sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: '#22A06B' }} />
-                <span>{TRIAL_MONTHS} months free on every plan</span>
+                <span>Free plan · {TRIAL_MONTHS} months of Business free</span>
               </Stack>
               <Typography component="h1" sx={{ fontFamily: display, fontWeight: 600, fontSize: { xs: '2.4rem', sm: '3rem', md: '3.6rem' },
                 lineHeight: 1.04, letterSpacing: '-0.04em', mt: 3, maxWidth: 640 }}>
@@ -91,7 +91,7 @@ export function LoginPage() {
                 </Button>
               </Stack>
               <Stack direction="row" spacing={{ xs: 2, sm: 3 }} sx={{ mt: 3.5, color: BA.soft, fontSize: '0.9rem', flexWrap: 'wrap', rowGap: 1 }}>
-                {['No card needed', 'Set up in 10 minutes', 'Cancel any time'].map(t => (
+                {['Free plan, no card', 'Set up in 10 minutes', 'Cancel any time'].map(t => (
                   <Stack key={t} direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
                     <CheckIcon sx={{ fontSize: 17, color: BA.accent }} /><span>{t}</span>
                   </Stack>
@@ -144,10 +144,13 @@ export function LoginPage() {
         <Box sx={{ bgcolor: '#fff', borderTop: `1px solid ${BA.line}`, borderBottom: `1px solid ${BA.line}` }}>
           <Container maxWidth="lg" sx={{ py: { xs: 9, md: 13 } }}>
             <SectionIntro eyebrow="Pricing" title={`Simple plans. ${TRIAL_MONTHS} months on us.`}
-              text="One price for the whole team, not per person. Try any plan free, with every feature." />
+              text="One price for the whole team, not per person. Start on Free, or try Business free for 2 months." />
             <PricingCards />
             <Box sx={{ textAlign: 'center', mt: 3 }}>
-              <Button component={RouterLink} to="/pricing" sx={{ color: BA.ink, textTransform: 'none', fontWeight: 500 }}>Compare plans in detail →</Button>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ justifyContent: 'center' }}>
+                <Button component={RouterLink} to="/pricing" sx={{ color: BA.ink, textTransform: 'none', fontWeight: 500 }}>Compare plans line by line →</Button>
+                <Button component={RouterLink} to="/compare" sx={{ color: BA.ink, textTransform: 'none', fontWeight: 500 }}>Compare with Square and GoHighLevel →</Button>
+              </Stack>
             </Box>
           </Container>
         </Box>
@@ -193,7 +196,7 @@ export function ClosingCta() {
           Give your evenings back.
         </Typography>
         <Typography sx={{ color: 'rgba(255,255,255,0.72)', mt: 2, fontSize: '1.1rem', maxWidth: 520, mx: 'auto' }}>
-          Try Business Agent free for {TRIAL_MONTHS} months. No card, no contract, no set-up fee.
+          Start on the Free plan, or try Business free for {TRIAL_MONTHS} months. No contract, no set-up fee.
         </Typography>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mt: 4, justifyContent: 'center' }}>
           <Button component={RouterLink} to="/#start" size="large" variant="contained"

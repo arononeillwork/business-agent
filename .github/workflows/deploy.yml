@@ -108,6 +108,9 @@ jobs:
         if: steps.gate.outputs.ready == 'true' && steps.deploy.outputs.url != ''
         # The custom domain once it's live (workers.dev stays allowed for sign-in redirects).
         run: node scripts/ops/supabase-auth.mjs "${{ steps.domain.outputs.site || steps.deploy.outputs.url }}" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Stripe billing webhook
+        if: steps.gate.outputs.ready == 'true' && steps.deploy.outputs.url != ''
+        run: node scripts/ops/stripe-billing.mjs "${{ steps.domain.outputs.site || steps.deploy.outputs.url }}" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Smoke-test the live site
         if: steps.gate.outputs.ready == 'true' && steps.deploy.outputs.url != ''
         run: |

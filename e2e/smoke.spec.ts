@@ -36,7 +36,7 @@ test('the sign-in screen loads with email and every switched-on outside sign-in'
 test('the pricing page shows the plans and the free trial', async ({ page }) => {
   await page.goto('/pricing')
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
-  await expect(page.getByRole('article', { name: /plan$/ })).toHaveCount(3)
+  await expect(page.getByRole('article', { name: /plan$/ })).toHaveCount(4)
   await expect(page.getByText(/months free/).first()).toBeVisible()
 })
 

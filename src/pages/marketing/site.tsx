@@ -61,6 +61,7 @@ function SiteHeader() {
         <Stack component="nav" aria-label="Site" direction="row" spacing={3.5} sx={{ display: { xs: 'none', md: 'flex' }, flex: 1 }}>
           <Link component={RouterLink} to="/#features" sx={navLink}>Features</Link>
           <Link component={RouterLink} to="/pricing" sx={navLink}>Pricing</Link>
+          <Link component={RouterLink} to="/compare" sx={navLink}>Compare</Link>
           <Link component={RouterLink} to="/#faq" sx={navLink}>FAQ</Link>
         </Stack>
         <Box sx={{ flex: { xs: 1, md: 0 } }} />
@@ -92,7 +93,7 @@ function SiteFooter() {
             The team app for cafés, shops and small businesses. Made in Marbella, data stored in the EU.
           </Typography>
         </Stack>
-        {col('Product', [['Features', '/#features'], ['Pricing', '/pricing'], ['FAQ', '/#faq']])}
+        {col('Product', [['Features', '/#features'], ['Pricing', '/pricing'], ['Compare with Square', '/compare'], ['Compare with GoHighLevel', '/compare?vs=gohighlevel']])}
         {col('Account', [['Log in', '/#account'], ['Start free trial', '/#start']])}
         {col('Legal', [['Privacy policy', '/privacy'], ['Terms of service', '/terms']])}
       </Container>

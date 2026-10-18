@@ -1,8 +1,9 @@
 // A stand-in for Supabase (PostgREST and auth) with the tables in memory, so the Worker's routes can
 // be run end to end in unit tests. It understands the queries the Worker makes (select with eq/neq/
-// in/is/gte/gt/lte/lt, single/maybeSingle, insert/upsert/update/delete, rpc is_admin/my_role) and
+// in/is/gte/gt/lte/lt, single/maybeSingle, insert/upsert/update/delete, rpc is_admin/my_role and the plan checks) and
 // mirrors the one-app-per-group trigger from migration 28 (supabase/tests prove the real one).
 import { PROVIDERS } from '../connections'
+import { CONNECTION_FEATURE } from '../../shared/plans'
 
 export type Row = Record<string, unknown>
 
@@ -50,6 +51,9 @@ function project(r: Row, select: string | null) {
 export class FakeSupabase {
   readonly url = 'https://db.test'
   tables: Record<string, Row[]> = {}
+  /** The plan in force (public.plan_status / plan_check_connect, migration 36): everything unless a test says otherwise. */
+  plan: { plan: string; people: number | null; features: string[] } = {
+    plan: 'business', people: null, features: ['google_maps', 'apps', 'whatsapp', 'takings', 'sports', 'music', 'kiosk', 'partners'] }
   /** Bearer token → signed-in person. */
   people = new Map<string, { id: string; role: 'admin' | 'employee' }>()
   /** Sign-ins made by the Worker for access keys (one-time links used, sessions refreshed). */
@@ -125,6 +129,18 @@ export class FakeSupabase {
       const who = this.people.get(bearerOf(headers))
       if (rpc[1] === 'is_admin') return json(who?.role === 'admin')
       if (rpc[1] === 'my_role') return json(who?.role ?? null)
+      if (rpc[1] === 'plan_status') {
+        const people = this.table('profiles').filter(p => p.active !== false && ['admin', 'employee'].includes(p.role as string)).length
+        return json({ plan: this.plan.plan, limits: { people: this.plan.people, features: this.plan.features }, usage: { people } })
+      }
+      if (rpc[1] === 'plan_allows') return json(this.plan.features.includes((JSON.parse(String(init.body)) as { p_feature: string }).p_feature))
+      if (rpc[1] === 'plan_check_connect') {
+        const { p_provider } = JSON.parse(String(init.body)) as { p_provider: string }
+        const needs = CONNECTION_FEATURE[p_provider]
+        return needs && !this.plan.features.includes(needs)
+          ? json({ message: 'Connecting this app needs the Pro plan or higher. Upgrade on the Billing page.', code: 'P0402' }, 400)
+          : json(null)
+      }
       // The outbox (migration 7): the Worker claims due jobs, then reports each one back.
       if (rpc[1] === 'claim_outbox') {
         const due = this.table('outbox').filter(j => j.status === 'pending' || j.status === 'failed')

@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { SOCIAL_PROVIDERS, type Api, type SignInMethods, type SocialProvider } from './api'
+import { SOCIAL_PROVIDERS, type Api, type BillingInfo, type PlanStatus, type SignInMethods, type SocialProvider } from './api'
 import type { ApiKey, AppNotification, Brand, Business, SocialPost, EventAlert, Expense, Integration, MusicPlaylist, OutboxItem, Profile, Settings, TimeEntry, TimeOff, Todo, TodoCategory, CafeTrack, MusicPlayerState } from '../../shared/types'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
 
@@ -320,6 +320,16 @@ export function createSupabaseApi(url: string, key: string): Api {
     },
 
     signInWith: oauth,
+
+    async planStatus() {
+      const { data, error } = await sb.rpc('plan_status')
+      if (error) throw new Error(error.message)
+      return data as PlanStatus
+    },
+    billing: () => worker<BillingInfo>('/api/billing'),
+    syncBilling: () => worker<BillingInfo>('/api/billing/sync', { method: 'POST' }),
+    choosePlan: (plan, interval) => worker('/api/billing/checkout', { method: 'POST', body: JSON.stringify({ plan, interval }) }),
+    async billingPortal() { return (await worker<{ url: string }>('/api/billing/portal', { method: 'POST' })).url },
 
     async expenses() {
       return check(await sb.from('expenses').select('*').order('sort').order('name')) as Expense[]
