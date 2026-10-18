@@ -1,5 +1,5 @@
 import { Link as RouterLink, useLocation } from 'react-router-dom'
-import { Accordion, AccordionDetails, AccordionSummary, Box, Button, Container, Stack, Typography } from '@mui/material'
+import { Accordion, AccordionDetails, AccordionSummary, Box, Button, Container, Stack, TextField, Typography } from '@mui/material'
 import RotaIcon from '@mui/icons-material/CalendarViewWeekOutlined'
 import ClockIcon from '@mui/icons-material/AccessTimeOutlined'
 import MapIcon from '@mui/icons-material/StorefrontOutlined'
@@ -11,7 +11,11 @@ import EuroIcon from '@mui/icons-material/EuroOutlined'
 import CampaignIcon from '@mui/icons-material/CampaignOutlined'
 import ExpandIcon from '@mui/icons-material/ExpandMoreRounded'
 import CheckIcon from '@mui/icons-material/CheckCircleRounded'
+import GiftIcon from '@mui/icons-material/CardGiftcardOutlined'
 import { useEffect, useState, type ReactNode } from 'react'
+import { useApp } from '../app/AppContext'
+import { useAction } from '../app/Notify'
+import { cleanCode } from '../../shared/referrals'
 import { AuthCard } from './marketing/AuthCard'
 import { PricingCards, TRIAL_MONTHS } from './marketing/plans'
 import { BA, MarketingFrame, SectionIntro, display, outlineBtn, primaryBtn } from './marketing/site'
@@ -99,6 +103,7 @@ export function LoginPage() {
               </Stack>
             </Box>
             <Box id="account" sx={{ scrollMarginTop: 88 }}>
+              <Invite />
               <AuthCard tab={tab} onTab={setTab} />
             </Box>
           </Container>
@@ -164,6 +169,61 @@ export function LoginPage() {
         <ClosingCta />
       </Box>
     </MarketingFrame>
+  )
+}
+
+/**
+ * Arrived from another business's referral link (/?ref=CODE): who invited you, and the waitlist.
+ * The link is counted once per visit. A wrong code shows nothing.
+ */
+function Invite() {
+  const { api } = useApp()
+  const run = useAction()
+  const [code] = useState(() => cleanCode(new URLSearchParams(location.search).get('ref')))
+  const [by, setBy] = useState<string | null>(null)
+  const [form, setForm] = useState({ business_name: '', contact_name: '', email: '' })
+  const [joined, setJoined] = useState(false)
+  useEffect(() => {
+    if (!code) return
+    let seen = false
+    try { seen = sessionStorage.getItem(`ref-${code}`) === '1'; sessionStorage.setItem(`ref-${code}`, '1') } catch { /* private mode: count it */ }
+    void api.openReferral(code, !seen).then(r => setBy(r.business), () => {})
+  }, [api, code])
+  if (!code || !by) return null
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm(f => ({ ...f, [k]: e.target.value }))
+  const join = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (await run(() => api.joinReferral({ code, ...form }))) setJoined(true)
+  }
+  return (
+    <Box component="section" aria-label="You’re invited" sx={{ mb: 2.5, p: { xs: 2.5, sm: 3.5 }, borderRadius: '24px', bgcolor: BA.card,
+      border: `1px solid ${BA.accent}`, boxShadow: '0 24px 60px -30px rgba(79,70,229,0.45)' }}>
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'center', color: BA.accent, mb: 1 }}>
+        <GiftIcon fontSize="small" />
+        <Typography sx={{ fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase', fontSize: '0.75rem' }}>Invited by {by}</Typography>
+      </Stack>
+      {joined ? (
+        <>
+          <Typography variant="h5" component="h2" sx={{ fontFamily: display, fontWeight: 500 }}>You’re on the list</Typography>
+          <Typography sx={{ color: BA.soft, mt: 1 }}>
+            We’ll email you when sign-up opens. When your business finishes setting up, you and {by} each get a month free.
+          </Typography>
+        </>
+      ) : (
+        <Box component="form" onSubmit={join}>
+          <Typography variant="h5" component="h2" sx={{ fontFamily: display, fontWeight: 500 }}>Get your first month free</Typography>
+          <Typography sx={{ color: BA.soft, mt: 1, mb: 2 }}>
+            Sign-up for new businesses opens soon. Join the waitlist: when your business finishes setting up, you and {by} each get a month free.
+          </Typography>
+          <Stack spacing={1.75}>
+            <TextField label="Business name" value={form.business_name} onChange={set('business_name')} required slotProps={{ htmlInput: { maxLength: 120 } }} />
+            <TextField label="Your name" autoComplete="name" value={form.contact_name} onChange={set('contact_name')} slotProps={{ htmlInput: { maxLength: 120 } }} />
+            <TextField label="Email" type="email" autoComplete="email" value={form.email} onChange={set('email')} required />
+            <Button type="submit" variant="contained" size="large" sx={primaryBtn}>Join the waitlist</Button>
+          </Stack>
+        </Box>
+      )}
+    </Box>
   )
 }
 

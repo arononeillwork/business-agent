@@ -28,7 +28,7 @@ import { tokens } from '../theme'
 type OptionId = ConnectionOption['id']
 
 /** A brand mark from Simple Icons (black marks follow the text colour, so they show in dark mode). */
-function Brand({ icon }: { icon: SimpleIcon }) {
+export function Brand({ icon }: { icon: SimpleIcon }) {
   return (
     <Box component="svg" viewBox="0 0 24 24" aria-hidden sx={{ width: 22, height: 22, display: 'block' }}>
       <path d={icon.path} fill={icon.hex === '000000' ? 'currentColor' : `#${icon.hex}`} />
@@ -59,7 +59,7 @@ const LOGO: Record<OptionId, ReactNode> = {
   stripe: <Brand icon={siStripe} />,
 }
 
-const DOES: Partial<Record<OptionId, string>> = {
+export const DOES: Partial<Record<OptionId, string>> = {
   whatsapp: 'Shift reminders, missed clock-ins and the weekly rota, from the café’s WhatsApp number.',
   slack: 'Rota changes and alerts in a Slack channel.',
   sms: 'Shift reminders by text for people who prefer SMS.',
@@ -73,7 +73,7 @@ const DOES: Partial<Record<OptionId, string>> = {
   dropbox: 'Exports saved to Dropbox.',
   google_business: 'Opening hours, holiday closures and phone stay right on Google Maps and Search.',
   apple_maps: 'Hours and closures on Apple Maps.',
-  instagram: 'Followers and recent posts here; plan and publish posts.',
+  instagram: 'Followers and recent posts here; plan and publish posts; read and answer DMs on Messages.',
   facebook: 'Plan and publish posts to your Facebook Page.',
   tiktok: 'Plan and publish photo posts to your TikTok account.',
   square: 'Your till’s takings on the Finances page, with the team’s cost as a share of sales.',
@@ -83,7 +83,7 @@ const DOES: Partial<Record<OptionId, string>> = {
 }
 
 /** What the connection can do once allowed (shown before connecting, like an AI connector). */
-const CAN: Partial<Record<OptionId, string[]>> = {
+export const CAN: Partial<Record<OptionId, string[]>> = {
   whatsapp: ['Send template messages from the café’s number to staff who switched them on', 'Staff reply STOP to turn them off'],
   gmail: ['Send email from this address: team alerts, and one confirmation to itself', 'It can’t read, delete or search your inbox'],
   outlook: ['Send email from this address: team alerts, and one confirmation to itself', 'See your name and email address', 'It can’t read your inbox'],
@@ -92,7 +92,8 @@ const CAN: Partial<Record<OptionId, string[]>> = {
   google_drive: ['Create files in a “Business Agent” folder and open the ones it made', 'It can’t see anything else in your Drive'],
   onedrive: ['Create and update files; it only uses the “Business Agent” folder', 'See your name and email address'],
   google_business: ['Update opening hours, holiday closures and phone on your listing', 'Publish posts to your listing'],
-  instagram: ['See your profile, follower count and recent posts', 'Publish the posts you plan here, at the time you choose'],
+  instagram: ['See your profile, follower count and recent posts', 'Publish the posts you plan here, at the time you choose',
+    'Read and answer your direct messages on the Messages page', 'See posts you’re tagged in'],
   facebook: ['See the Pages you manage and pick one', 'Publish the posts you plan here to that Page, at the time you choose'],
   tiktok: ['See your TikTok name and picture', 'Publish the photo posts you plan here, at the time you choose'],
   square: ['See your business name and locations', 'Read payments (takings) — it can’t take, refund or change anything'],
@@ -101,7 +102,7 @@ const CAN: Partial<Record<OptionId, string[]>> = {
   youtube_music: ['See your playlists (read-only)'],
 }
 
-const KEYS_NEEDED: Partial<Record<OptionId, string>> = {
+export const KEYS_NEEDED: Partial<Record<OptionId, string>> = {
   gmail: 'the Google keys', google_drive: 'the Google keys', youtube_music: 'the Google keys', google_business: 'the Google keys',
   outlook: 'the Microsoft app', onedrive: 'the Microsoft app', spotify: 'the Spotify keys', instagram: 'the Instagram app keys',
   facebook: 'the Meta app keys', tiktok: 'the TikTok app keys', square: 'the Square app keys', stripe: 'the Stripe platform keys',

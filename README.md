@@ -127,6 +127,16 @@ Authorization: Bearer <personal access key>   (or a Supabase session token)
 Access keys are made and revoked on My account; only a hash is stored, and a key acts as its
 owner through a normal session, so the database rules apply exactly as in the app.
 
+## Referrals
+
+Account menu (your name, bottom left) → **Referrals** (admins): the business's link
+(`/?ref=CODE`), how it's doing, and free months banked. Rules (`shared/referrals.ts`): when a
+business you referred **finishes set-up**, you both get a month free, stacking up to 12, applied
+when paid plans start. Until self-serve sign-up opens, the link shows "Invited by …" on the
+sign-up page and a waitlist form (`worker/referrals.ts`: link opens are counted, joining keeps
+business name, name and email; admins only can read them). When a referred business goes live,
+call `select public.mark_referral_set_up('their@email')` as the service role; that is what counts.
+
 ## New business
 
 Copy `shared/business.config.ts`, create a Supabase project (apply `supabase/migrations`, write a

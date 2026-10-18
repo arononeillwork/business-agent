@@ -242,7 +242,10 @@ export async function instagramSession(env: Env, db: SupabaseClient, renew = fal
 export async function proveInstagram(t: { access_token: string; userId: string; permissions?: string }, env: Env): Promise<Proven> {
   if (t.permissions !== undefined && !/instagram_business_content_publish/.test(t.permissions)) throw new Error(missingPermission('instagram'))
   const p = await instagram.profile({ token: t.access_token, userId: t.userId, graphVersion: graphVersion(env) })
-  return { label: `@${p.username}`, external: { user_id: t.userId, username: p.username, followers: p.followers_count } }
+  // Messages and tagged posts are optional extras: noted here so the Messages page can say what's missing.
+  const allowed = (perm: string) => (t.permissions === undefined ? undefined : t.permissions.includes(perm))
+  return { label: `@${p.username}`, external: { user_id: t.userId, username: p.username, followers: p.followers_count,
+    can_message: allowed('instagram_business_manage_messages'), can_see_tags: allowed('instagram_business_manage_comments') } }
 }
 
 /** Tokens that run out (TikTok: a day, Square: 30 days) are renewed with the refresh token when needed. */

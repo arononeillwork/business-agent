@@ -12,6 +12,7 @@ import { authorizeGet, authorizePost, mcpApiHandler, tokenExchangeCallback, type
 import { apiKeys, isAccessKey, resolveKey } from './apiKeys'
 import { authEmail } from './authEmail'
 import { billing, planBlocksInvite, syncBilling } from './billing'
+import { referrals } from './referrals'
 
 const NIGHTLY = '15 1 * * *' // 03:15 Madrid in summer, 02:15 in winter
 
@@ -160,6 +161,8 @@ app.route('/', apiKeys)
 
 // Sign-in emails from the business's own Gmail/Outlook (Supabase Auth's send-email hook).
 app.route('/', authEmail)
+// Referral links: count opens, join the waitlist (no sign-in).
+app.route('/', referrals)
 
 // Business Agent's own subscription (Stripe Billing): plans, checkout, portal, webhook.
 app.route('/', billing)

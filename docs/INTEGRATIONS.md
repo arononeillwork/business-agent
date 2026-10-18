@@ -142,6 +142,18 @@ instagram.com, allow). One Meta app serves every business; it is set up once:
 The Connections page then shows followers and recent posts, and calendar events get a **Share**
 button that posts to Instagram and the Google listing together.
 
+**Messages page (Instagram DMs).** Connecting also asks for `instagram_business_manage_messages`
+(read and answer direct messages) and `instagram_business_manage_comments` (posts the business is
+tagged in); add both to the app's Instagram use case in the Meta dashboard. In the Instagram app,
+turn on Settings → Messages and story replies → Message controls → **Allow access to messages**.
+Connect works from Messages or Connections (it's one connection). What Instagram allows:
+- chats and their 20 latest messages: text, photos, videos, voice messages, story mentions, story
+  replies and shared posts; replies by text within 24 hours of the customer's last message;
+- no Primary / General / Requests folders through the API (every chat shows together), and
+  messages read here aren't marked read in the Instagram app until someone replies.
+An account that declined messages still connects (posting is what "connected" needs); the Messages
+page then asks to connect again with "Manage messages" ticked.
+
 Not possible through Meta's API: editing the Instagram bio. Keep the bio link pointing at a page
 that shows current hours (Google Maps listing), which the app keeps up to date.
 

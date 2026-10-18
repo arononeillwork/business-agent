@@ -317,7 +317,10 @@ test('@phone layout: bottom navigation and a full-width clock-in button', async 
   await open(page)
   await expect(page.getByRole('link', { name: 'Rota' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Hours' })).toBeVisible()
-  await expect(page.getByRole('link', { name: 'My account' })).toBeVisible()
+  // My account is in the account menu at the top (with Referrals, Appearance and Sign out).
+  await page.getByRole('button', { name: /^Account menu/ }).click()
+  await expect(page.getByRole('menuitem', { name: 'My account' })).toBeVisible()
+  await page.keyboard.press('Escape')
   const button = page.getByRole('button', { name: 'Clock in' })
   const box = await button.boundingBox()
   expect(box!.width).toBeGreaterThan(250)
@@ -1866,5 +1869,143 @@ test.describe('To Do List', () => {
     await page.getByLabel('New job', { exact: true }).fill('Restock napkins')
     await page.getByRole('button', { name: 'Add', exact: true }).click()
     await expect(page.getByText('Restock napkins')).toBeVisible()
+  })
+})
+
+test.describe('messages', () => {
+  test('admin reads Instagram DMs by kind, answers one, and sees when Instagram no longer allows a reply', async ({ page }) => {
+    await open(page, '/messages')
+    const apps = page.getByRole('group', { name: 'Apps' })
+    await expect(apps.getByRole('button', { name: 'Instagram' })).toHaveAttribute('aria-pressed', 'true')
+    for (const soon of ['WhatsApp · soon', 'Messenger · soon', 'TikTok · soon']) await expect(apps.getByText(soon)).toBeVisible()
+    await expect(apps.getByRole('button', { name: /WhatsApp/ })).toBeDisabled()
+
+    const chats = page.getByRole('list', { name: 'Instagram chats' })
+    await expect(chats.getByRole('listitem')).toHaveCount(6)
+    await page.getByRole('button', { name: 'Mentions & tags 1' }).click()
+    await expect(chats.getByRole('listitem')).toHaveCount(1)
+    await expect(chats.getByRole('listitem', { name: '@sanpedro.eats' })).toContainText('Story mention')
+    await expect(page.getByRole('region', { name: 'Posts you’re tagged in' }).getByRole('link')).toHaveCount(2)
+    await page.getByRole('button', { name: 'Shared posts 1' }).click()
+    await expect(chats).toContainText('Marta')
+    await page.getByRole('button', { name: 'Needs reply 5' }).click()
+    await expect(chats.getByRole('listitem', { name: '@happy.client' })).toHaveCount(0)
+
+    await chats.getByRole('listitem', { name: '@lucia.marbella' }).getByRole('button').click()
+    const chat = page.getByRole('region', { name: 'Chat with @lucia.marbella' })
+    await expect(chat.getByRole('list', { name: 'Messages' })).toContainText('Do you have oat milk')
+    await chat.getByRole('textbox', { name: 'Reply' }).fill('Yes! Oat and almond.')
+    await chat.getByRole('button', { name: 'Send' }).click()
+    await toast(page, 'Sent')
+    await expect(chat.getByRole('listitem', { name: 'You: Yes! Oat and almond.' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Needs reply 4' })).toBeVisible()
+
+    // Three days since their message: Instagram doesn't allow a reply any more.
+    await page.getByRole('button', { name: 'All', exact: true }).click()
+    await chats.getByRole('listitem', { name: '@weekend.visitor' }).getByRole('button').click()
+    const old = page.getByRole('region', { name: 'Chat with @weekend.visitor' })
+    await expect(old).toContainText('only allows replies within 24 hours')
+    await expect(old.getByRole('textbox', { name: 'Reply' })).toHaveCount(0)
+  })
+
+  test('connecting Instagram from Messages is the same connection as on Connections', async ({ page }) => {
+    await open(page, '/connections')
+    await page.getByRole('button', { name: 'Manage Instagram' }).click()
+    await page.getByRole('dialog', { name: 'Instagram' }).getByRole('button', { name: 'Disconnect' }).click()
+    await toast(page, 'Instagram disconnected')
+    await page.getByRole('link', { name: 'Messages' }).first().click()
+    const connect = page.getByRole('region', { name: 'Connect Instagram' })
+    await expect(connect).toContainText('Read and answer your direct messages')
+    await connect.getByRole('button', { name: 'Connect Instagram' }).click()
+    await expect(page.getByRole('list', { name: 'Instagram chats' })).toBeVisible()
+    await page.getByRole('link', { name: 'Connections' }).first().click()
+    await expect(page.getByRole('region', { name: 'Social media' }).getByRole('article', { name: 'Instagram' })).toContainText('@easy.beans.coffee')
+  })
+
+  test('staff don’t get Messages', async ({ page }) => {
+    await open(page, '/messages', 'maria@example.com')
+    await expect(page.getByRole('link', { name: 'Messages' })).toHaveCount(0)
+    await expect(page.getByRole('heading', { name: 'Messages' })).toHaveCount(0)
+  })
+
+  test('@phone the chat list opens a chat full width, with a way back', async ({ page }) => {
+    await open(page, '/messages')
+    await page.getByRole('list', { name: 'Instagram chats' }).getByRole('listitem', { name: '@tom_runs' }).getByRole('button').click()
+    await expect(page.getByRole('region', { name: 'Chat with @tom_runs' })).toContainText('Replied to your story')
+    await page.getByRole('button', { name: 'Back to chats' }).click()
+    await expect(page.getByRole('list', { name: 'Instagram chats' })).toBeVisible()
+  })
+})
+
+test.describe('referrals', () => {
+  test('your name at the bottom left opens the account menu, with Referrals for admins', async ({ page, context }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+    await open(page, '/')
+    await page.getByRole('button', { name: /^Account menu/ }).click()
+    const menu = page.getByRole('menu')
+    for (const item of ['My account', 'Referrals', 'Appearance', 'Sign out']) await expect(menu.getByRole('menuitem', { name: item })).toBeVisible()
+    await menu.getByRole('menuitem', { name: 'Referrals' }).click()
+    await expect(page.getByRole('heading', { name: 'Referrals', level: 1 })).toBeVisible({ timeout: 15_000 })
+
+    // Four businesses finished set-up: four free months of twelve.
+    await expect(page.getByRole('figure', { name: '4 of 12 free months earned' })).toBeVisible()
+    const stats = page.getByRole('region', { name: 'How your link is doing' })
+    await expect(stats).toContainText('Link opened46')
+    await expect(stats).toContainText('Joined7')
+    await expect(stats).toContainText('Set up4')
+    const list = page.getByRole('region', { name: 'Businesses you referred' })
+    await expect(list.getByRole('listitem')).toHaveCount(7)
+    await expect(list.getByRole('listitem', { name: 'La Tostadora' })).toContainText('Set up · +1 month')
+    await expect(list.getByRole('listitem', { name: 'Café Alameda' })).toContainText('Joined · setting up')
+
+    const chart = page.getByRole('region', { name: 'Free months over time' })
+    await chart.getByRole('img', { name: /4 of 12 now/ }).focus()
+    await page.keyboard.press('ArrowLeft')
+    await expect(chart.getByRole('status')).toContainText('Week of')
+    await chart.getByRole('button', { name: 'Show as table' }).click()
+    await expect(chart.getByRole('table')).toContainText('Free months')
+
+    await expect(page.getByRole('textbox', { name: 'Your link' })).toHaveValue(/\?ref=EASYBEAN$/)
+    await page.getByRole('button', { name: 'Copy link' }).click()
+    await toast(page, 'Link copied')
+  })
+
+  test('staff don’t get Referrals', async ({ page }) => {
+    await open(page, '/', 'maria@example.com')
+    await page.getByRole('button', { name: /^Account menu/ }).click()
+    await expect(page.getByRole('menuitem', { name: 'My account' })).toBeVisible()
+    await expect(page.getByRole('menuitem', { name: 'Referrals' })).toHaveCount(0)
+  })
+
+  test('a referral link says who invited you, joins the waitlist, and shows up for the café that shared it', async ({ page }) => {
+    await page.clock.install({ time: WED_0900 })
+    await page.goto('/?ref=easybean&demo')
+    const invite = page.getByRole('region', { name: 'You’re invited' })
+    await expect(invite).toContainText('Invited by Easy Beans')
+    await invite.getByRole('textbox', { name: 'Business name' }).fill('Café Nuevo')
+    await invite.getByRole('textbox', { name: 'Your name' }).fill('Lola')
+    await invite.getByRole('textbox', { name: 'Email' }).fill('lola@cafenuevo.test')
+    await invite.getByRole('button', { name: 'Join the waitlist' }).click()
+    await expect(invite).toContainText('You’re on the list')
+
+    await page.getByRole('textbox', { name: 'Email', exact: true }).last().fill('aron@example.com')
+    await page.getByRole('button', { name: 'Sign in' }).last().click()
+    await page.getByRole('button', { name: /^Account menu/ }).click()
+    await page.getByRole('menuitem', { name: 'Referrals' }).click()
+    await expect(page.getByRole('region', { name: 'Businesses you referred' }).getByRole('listitem', { name: 'Café Nuevo' })).toContainText('Joined')
+    await expect(page.getByRole('region', { name: 'How your link is doing' })).toContainText('Link opened47')
+  })
+
+  test('a wrong referral code shows no invite', async ({ page }) => {
+    await page.goto('/?ref=NOPE1234&demo')
+    await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'You’re invited' })).toHaveCount(0)
+  })
+
+  test('@phone the account icon opens the same menu', async ({ page }) => {
+    await open(page, '/')
+    await page.getByRole('button', { name: /^Account menu/ }).click()
+    await page.getByRole('menuitem', { name: 'Referrals' }).click()
+    await expect(page.getByRole('figure', { name: '4 of 12 free months earned' })).toBeVisible()
   })
 })

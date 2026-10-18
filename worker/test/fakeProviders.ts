@@ -54,6 +54,22 @@ export class FakeProviders {
     refreshes: 0,
     /** The long-lived token the Worker should be using now. */
     current: '',
+    /** Direct messages, as Instagram's Conversations API returns them (newest first). */
+    chats: [
+      { id: 'conv-1', updated_time: '2026-10-18T10:05:00+0000',
+        participants: { data: [{ id: '17841400000000001', username: 'easy.beans.coffee' }, { id: 'igsid-lucia', username: 'lucia.marbella' }] },
+        messages: { data: [
+          { id: 'mid-3', created_time: '2026-10-18T10:05:00+0000', from: { id: 'igsid-lucia', username: 'lucia.marbella' }, message: 'Do you have oat milk?' },
+          { id: 'mid-2', created_time: '2026-10-18T09:00:00+0000', from: { id: 'igsid-lucia', username: 'lucia.marbella' }, message: '',
+            story: { mention: { link: 'https://cdn.instagram.test/story.jpg', id: 'story-1' } } },
+          { id: 'mid-1', created_time: '2026-10-17T18:00:00+0000', from: { id: '17841400000000001', username: 'easy.beans.coffee' }, message: 'See you tomorrow!' },
+        ] } },
+    ] as Json[],
+    sent: [] as Json[],
+    /** Instagram refuses the detailed message fields (the Worker asks again for the plain ones). */
+    plainOnly: false,
+    /** The account didn't allow messages / comments when it connected. */
+    noMessages: false, noTags: false,
   }
   microsoft = {
     mail: 'cafe@outlook.com' as string | null,
@@ -196,6 +212,24 @@ export class FakeProviders {
       }
       if (url.pathname.endsWith('/me')) return json({ user_id: '17841400000000001', username: this.instagram.username, account_type: 'BUSINESS', followers_count: 1284, media_count: 57 })
       if (url.pathname.endsWith('/me/media')) return json({ data: [{ id: 'm1', caption: 'Iced oat latte season', permalink: 'https://instagram.com/p/1', timestamp: '2026-09-27T10:00:00Z' }] })
+      const noMessages = () => json({ error: { message: '(#3) Application does not have the capability to make this API call.', type: 'OAuthException', code: 3 } }, 400)
+      const fieldsOk = () => !this.instagram.plainOnly || !(url.searchParams.get('fields') ?? '').includes('image_data')
+      if (url.pathname.endsWith('/me/conversations')) {
+        if (this.instagram.noMessages) return noMessages()
+        if (!fieldsOk()) return json({ error: { message: '(#100) Tried accessing nonexisting field (image_data)', code: 100 } }, 400)
+        return json({ data: this.instagram.chats })
+      }
+      if (url.pathname.endsWith('/me/messages') && method === 'POST') {
+        if (this.instagram.noMessages) return noMessages()
+        this.instagram.sent.push(body())
+        return json({ recipient_id: (body().recipient as Json).id, message_id: `mid-sent-${this.nextId++}` })
+      }
+      if (url.pathname.endsWith('/me/tags')) {
+        if (this.instagram.noTags) return json({ error: { message: '(#10) Application does not have permission for this action', code: 10 } }, 400)
+        return json({ data: [{ id: 'tag-1', username: 'sanpedro.eats', caption: 'Morning stop', media_url: 'https://cdn.instagram.test/t.jpg', permalink: 'https://instagram.com/p/t1', timestamp: '2026-10-16T09:00:00+0000' }] })
+      }
+      const chat = this.instagram.chats.find(c => url.pathname.endsWith(`/${c.id}`))
+      if (chat) return this.instagram.noMessages ? noMessages() : json(chat)
     }
 
     // ---- Microsoft ----

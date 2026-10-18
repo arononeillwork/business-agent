@@ -647,7 +647,7 @@ integrations.post('/api/integrations/whatsapp/test', async c => {
 integrations.post('/api/integrations/instagram/start', async c => {
   const cfg = instagramOAuth(c.env, new URL(c.req.url).origin)
   if (!cfg) return c.json({ error: 'Instagram needs the Instagram app keys first (INSTAGRAM_APP_ID and INSTAGRAM_APP_SECRET; see docs/INTEGRATIONS.md).' }, 400)
-  const { back } = await c.req.json<{ back?: 'setup' | 'connections' }>().catch(() => ({ back: undefined }))
+  const { back } = await c.req.json<{ back?: 'setup' | 'connections' | 'messages' }>().catch(() => ({ back: undefined }))
   return c.json({ url: instagram.authUrl(cfg, await signState(c.env.INTEGRATION_KEY!, { uid: c.get('userId'), kind: 'instagram', back })) })
 })
 
@@ -655,7 +655,9 @@ integrations.get('/api/integrations/instagram/callback', async c => {
   const origin = new URL(c.req.url).origin
   let state: { uid: string; kind?: string; back?: string }
   try { state = await verifyState(c.env.INTEGRATION_KEY ?? '', c.req.query('state') ?? '') } catch { state = { uid: '' } }
-  const back = (q: string) => c.redirect(`${origin}/${state.back === 'setup' ? 'setup' : 'connections'}?${q}`)
+  // Back to where Connect was pressed: Connections, set-up or Messages.
+  const page = state.back === 'setup' || state.back === 'messages' ? state.back : 'connections'
+  const back = (q: string) => c.redirect(`${origin}/${page}?${q}`)
   if (state.kind !== 'instagram') return back(`connect_error=${encodeURIComponent('That connection link expired. Try again.')}`)
   if (c.req.query('error')) {
     return back(`connect_error=${encodeURIComponent(c.req.query('error') === 'access_denied' ? 'Instagram connection was cancelled' : (c.req.query('error_description') ?? c.req.query('error')!))}`)
@@ -847,6 +849,61 @@ integrations.get('/api/integrations/instagram/profile', async c => {
     const why = explain('instagram', e)
     if (lasting('instagram', e)) await markBroken(db, 'instagram', why, false)
     return c.json({ error: why }, 400)
+  }
+})
+
+// Messages page: the Instagram inbox (admins). Read live from Instagram each time; nothing is stored.
+async function instagramInbox(c: Context<{ Bindings: Env; Variables: { userId: string } }>) {
+  const db = serviceClient(c.env)
+  const { data: row } = await db.from('integrations').select('status, external').eq('provider', 'instagram').single()
+  if (row?.status !== 'connected') throw new Error('Instagram is not connected')
+  const ext = (row.external ?? {}) as { user_id?: string; username?: string }
+  return { db, cfg: await instagramSession(c.env, db), me: { id: ext.user_id ?? '', username: ext.username } }
+}
+
+/** Instagram's errors, in words for the Messages page (a missing permission means connecting again). */
+function inboxError(e: unknown) {
+  const raw = e instanceof Error ? e.message : String(e)
+  if (/permission|capability|\(#3\)|\(#10\)|\(#200\)/i.test(raw)) {
+    return 'Instagram hasn’t allowed this app to read messages. Connect Instagram again and leave “Manage messages” ticked; in the Instagram app, also turn on Settings → Messages and story replies → Message controls → Allow access to messages.'
+  }
+  if (/24 hour|outside of allowed window|window/i.test(raw)) return 'Instagram only allows replies within 24 hours of their last message. Reply in the Instagram app instead.'
+  return explain('instagram', e)
+}
+
+integrations.get('/api/integrations/instagram/inbox', async c => {
+  try {
+    const { cfg, me } = await instagramInbox(c)
+    const [chats, tags] = await Promise.all([instagram.conversations(cfg, me), instagram.tagged(cfg).then(t => ({ t }), (e: unknown) => ({ e }))])
+    return c.json({ conversations: chats, tagged: 't' in tags ? tags.t : null,
+      ...('e' in tags ? { taggedNote: 'Instagram didn’t share the posts you’re tagged in. Connect Instagram again and leave “Manage comments” ticked.' } : {}) })
+  } catch (e) {
+    return c.json({ error: inboxError(e) }, 400)
+  }
+})
+
+integrations.get('/api/integrations/instagram/inbox/:id', async c => {
+  try {
+    const { cfg, me } = await instagramInbox(c)
+    return c.json(await instagram.conversation(cfg, me, c.req.param('id')))
+  } catch (e) {
+    return c.json({ error: inboxError(e) }, 400)
+  }
+})
+
+integrations.post('/api/integrations/instagram/inbox/:id/reply', async c => {
+  const { text } = await c.req.json<{ text?: string }>().catch(() => ({ text: undefined }))
+  const said = (text ?? '').trim()
+  if (!said) return c.json({ error: 'Write a message first' }, 400)
+  if (new TextEncoder().encode(said).length > 1000) return c.json({ error: 'Instagram messages can be up to 1000 characters' }, 400)
+  try {
+    const { cfg, me } = await instagramInbox(c)
+    // Reply to the person in this chat (never to an id the browser chose).
+    const { conversation } = await instagram.conversation(cfg, me, c.req.param('id'))
+    if (!conversation.with.id) throw new Error('Couldn’t find who this chat is with')
+    return c.json({ ok: true, id: await instagram.sendText(cfg, conversation.with.id, said) })
+  } catch (e) {
+    return c.json({ error: inboxError(e) }, 400)
   }
 })
 
