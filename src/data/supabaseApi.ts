@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { Api } from './api'
 import type { ApiKey, AppNotification, Brand, Business, SocialPost, EventAlert, Expense, Integration, MusicPlaylist, OutboxItem, Profile, Settings, TimeEntry, TimeOff, Todo, TodoCategory, CafeTrack, MusicPlayerState } from '../../shared/types'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
+import type { ReferralState } from '../../shared/referrals'
 
 const PROFILE_COLUMNS = 'id, full_name, email, role, can_see_pay, colour, active, phone, birth_date, whatsapp_opt_in, partner_company, partner_access, preferences'
 
@@ -414,6 +415,16 @@ export function createSupabaseApi(url: string, key: string): Api {
     instagramProfile: () => worker('/api/integrations/instagram/profile'),
     instagramInbox: () => worker('/api/integrations/instagram/inbox'),
     instagramThread: id => worker(`/api/integrations/instagram/inbox/${encodeURIComponent(id)}`),
+    async referrals() {
+      const [{ data: b }, list, opens] = await Promise.all([
+        sb.from('business').select('referral_code').eq('id', 1).single(),
+        sb.from('referrals').select('id, business_name, joined_at, set_up_at').order('joined_at', { ascending: false }),
+        sb.from('referral_opens').select('id', { count: 'exact', head: true }),
+      ])
+      return { code: (b as { referral_code: string } | null)?.referral_code ?? '', referrals: check(list) as ReferralState['referrals'], opens: opens.count ?? 0 }
+    },
+    openReferral: (code, count = true) => worker('/api/referrals/open', { method: 'POST', body: JSON.stringify({ code, count }) }),
+    async joinReferral(input) { await worker('/api/referrals/join', { method: 'POST', body: JSON.stringify(input) }) },
     async replyInstagram(id, text) {
       await worker(`/api/integrations/instagram/inbox/${encodeURIComponent(id)}/reply`, { method: 'POST', body: JSON.stringify({ text }) })
     },

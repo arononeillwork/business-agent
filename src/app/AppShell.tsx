@@ -1,6 +1,6 @@
 import {
-  Alert, AppBar, BottomNavigation, BottomNavigationAction, Box, ButtonBase, Collapse, Drawer, IconButton, List, ListItemButton,
-  ListItemIcon, ListItemText, ListSubheader, MenuItem, Paper, Select, Stack, Toolbar, Tooltip, Typography, useMediaQuery, useTheme,
+  Alert, AppBar, BottomNavigation, BottomNavigationAction, Box, ButtonBase, Collapse, Divider, Drawer, IconButton, List, ListItemButton,
+  ListItemIcon, ListItemText, ListSubheader, Menu, MenuItem, Paper, Select, Stack, Toolbar, Tooltip, Typography, useMediaQuery, useTheme,
 } from '@mui/material'
 import TodayIcon from '@mui/icons-material/WbSunnyOutlined'
 import RotaIcon from '@mui/icons-material/CalendarViewWeekOutlined'
@@ -18,6 +18,7 @@ import TimeOffIcon from '@mui/icons-material/BeachAccessOutlined'
 import FinanceIcon from '@mui/icons-material/PaymentsOutlined'
 import SocialIcon from '@mui/icons-material/CampaignOutlined'
 import MessagesIcon from '@mui/icons-material/ChatBubbleOutlineRounded'
+import ReferralsIcon from '@mui/icons-material/CardGiftcardOutlined'
 import AlertsIcon from '@mui/icons-material/CampaignOutlined'
 import ConnectIcon from '@mui/icons-material/HubOutlined'
 import SetupIcon from '@mui/icons-material/RocketLaunchOutlined'
@@ -86,6 +87,34 @@ const DRAWER = 252
 const MINI = 76
 // Phone tabs: the everyday pages first; everything else sits under "More".
 const PHONE_TABS = ['rota', 'timeoff', 'timecards', 'calendar', 'business']
+
+/** You: the account menu, opened from your name at the bottom left (or the account icon on a phone). */
+function AccountMenu({ children, label, sx }: { children: ReactNode; label?: string; sx?: object }) {
+  const { me, isAdmin, isPartner, api } = useApp()
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null)
+  const close = () => setAnchor(null)
+  const item = (to: string, text: string, icon: ReactNode) => (
+    <MenuItem component={Link} to={to} onClick={close}><ListItemIcon>{icon}</ListItemIcon><ListItemText primary={text} /></MenuItem>
+  )
+  return (
+    <>
+      <Tooltip title={label ?? ''} placement="right">
+        <ButtonBase onClick={e => setAnchor(e.currentTarget)} aria-label={`Account menu${me ? `: ${me.full_name}` : ''}`}
+          aria-haspopup="menu" aria-expanded={!!anchor} sx={{ display: 'flex', alignItems: 'center', ...sx }}>
+          {children}
+        </ButtonBase>
+      </Tooltip>
+      <Menu anchorEl={anchor} open={!!anchor} onClose={close} anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
+        transformOrigin={{ vertical: 'bottom', horizontal: 'left' }} slotProps={{ paper: { sx: { minWidth: 220, borderRadius: '14px' } } }}>
+        {item('/account', 'My account', <AccountIcon fontSize="small" />)}
+        {isAdmin && !isPartner && item('/referrals', 'Referrals', <ReferralsIcon fontSize="small" />)}
+        {item('/appearance', 'Appearance', <AppearanceIcon fontSize="small" />)}
+        <Divider />
+        <MenuItem onClick={() => { close(); void api.signOut() }}><ListItemIcon><LogoutIcon fontSize="small" /></ListItemIcon><ListItemText primary="Sign out" /></MenuItem>
+      </Menu>
+    </>
+  )
+}
 
 // The desktop sidebar: deep espresso with cream text and the brand's Rose Pink for the current page.
 const SIDEBAR = {
@@ -379,11 +408,15 @@ export function AppShell() {
             </IconButton>
           </Tooltip>
           <Stack direction={mini ? 'column' : 'row'} spacing={mini ? 0.5 : 1.25} sx={{ mt: 1, mb: 2, flexShrink: 0, p: mini ? 0.75 : 1.25, alignItems: 'center', borderRadius: '14px', bgcolor: tokens.navPanel }}>
-            {me && <Tooltip title={mini ? me.full_name : ''} placement="right"><span><PersonAvatar name={me.full_name} colour={me.colour} size={34} /></span></Tooltip>}
-            {!mini && <Box sx={{ minWidth: 0, flex: 1 }}>
-              <Typography sx={{ fontWeight: 500, fontSize: '0.88rem', color: SIDEBAR.bright }} noWrap>{me?.full_name}</Typography>
-              <Typography variant="caption" sx={{ color: SIDEBAR.faint }}>{me?.role === 'admin' ? 'Admin' : me?.role === 'partner' ? me.partner_company ?? 'Partner' : 'Employee'}</Typography>
-            </Box>}
+            {/* You: your name opens the account menu (My account, Referrals, Appearance, Sign out). */}
+            <AccountMenu label={mini ? me?.full_name : undefined}
+              sx={{ flex: mini ? 'none' : 1, minWidth: 0, gap: 1.25, justifyContent: 'flex-start', borderRadius: '10px', p: 0.25, '&:hover': { background: SIDEBAR.hover } }}>
+              {me && <PersonAvatar name={me.full_name} colour={me.colour} size={34} />}
+              {!mini && <Box sx={{ minWidth: 0, flex: 1, textAlign: 'left' }}>
+                <Typography sx={{ fontWeight: 500, fontSize: '0.88rem', color: SIDEBAR.bright }} noWrap>{me?.full_name}</Typography>
+                <Typography variant="caption" sx={{ color: SIDEBAR.faint }}>{me?.role === 'admin' ? 'Admin' : me?.role === 'partner' ? me.partner_company ?? 'Partner' : 'Employee'}</Typography>
+              </Box>}
+            </AccountMenu>
             <Tooltip title="Sign out">
               <IconButton size="small" aria-label="Sign out" onClick={() => api.signOut()} sx={{ color: SIDEBAR.text, '&:hover': { color: SIDEBAR.bright, background: SIDEBAR.hover } }}><LogoutIcon fontSize="small" /></IconButton>
             </Tooltip>
@@ -401,7 +434,7 @@ export function AppShell() {
               <SearchButton pages={searchPages} />
               <ThemeToggle />
               {!isPartner && <NotificationBell />}
-              <IconButton component={Link} to="/account" aria-label="My account"><AccountIcon /></IconButton>
+              <AccountMenu sx={{ p: 1, borderRadius: '50%' }}><AccountIcon /></AccountMenu>
             </Toolbar>
           </AppBar>
         )}

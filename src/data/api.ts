@@ -1,6 +1,7 @@
 import type { ApiKey, AppNotification, Brand, BreakType, Business, CalendarApp, CalendarEvent, ConnectorProvider, ContactMethod, CorrectionRequest, EventAlert, Expense, InstagramProfile, Integration, Sales, SocialNetwork, SocialPost, IntegrationProvider, IntegrationsState, KioskPerson, MusicNow, MusicPlaylist, MusicProvider, MyMusic, MyNowPlaying, OpenBreak, OpeningHours, OutboxItem, PartnerArea, PayRate, Position, Profile, Settings, Shift, SpotifyPlaylist, TimeEntry, TimeEntryChange, TimeOff, TimeOffKind, Todo, TodoCategory, TodoPatch, CafeMusicLibrary, CafeTrack, MusicAction, MusicPlayerReport, MusicPlayerState } from '../../shared/types'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
 import type { InboxState, InboxThread } from '../../shared/messages'
+import type { ReferralState } from '../../shared/referrals'
 
 export type ShiftInput = Omit<Shift, 'id' | 'status'> & { id?: string; status?: Shift['status'] }
 export type EventInput = Omit<CalendarEvent, 'id' | 'source' | 'competition'> & { id?: string; competition?: string | null }
@@ -170,6 +171,12 @@ export interface Api {
   instagramThread(id: string): Promise<InboxThread>
   /** Reply by text; Instagram allows it within 24 hours of the customer's last message. */
   replyInstagram(id: string, text: string): Promise<void>
+  // Referrals: admins see the link, how it's doing and the free months banked.
+  referrals(): Promise<ReferralState>
+  /** Someone opened a referral link (no sign-in): counted, and who invited them. */
+  openReferral(code: string, count?: boolean): Promise<{ business: string }>
+  /** A business joins the waitlist from a referral link (no sign-in). */
+  joinReferral(input: { code: string; business_name: string; contact_name?: string; email: string }): Promise<void>
   uploadPhoto(file: File): Promise<string>
   share(caption: string, imageUrl: string | null, targets: ('instagram' | 'google')[], eventId?: string): Promise<number>
   sendRota(monday: string): Promise<number>

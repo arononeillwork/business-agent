@@ -317,7 +317,10 @@ test('@phone layout: bottom navigation and a full-width clock-in button', async 
   await open(page)
   await expect(page.getByRole('link', { name: 'Rota' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Hours' })).toBeVisible()
-  await expect(page.getByRole('link', { name: 'My account' })).toBeVisible()
+  // My account is in the account menu at the top (with Referrals, Appearance and Sign out).
+  await page.getByRole('button', { name: /^Account menu/ }).click()
+  await expect(page.getByRole('menuitem', { name: 'My account' })).toBeVisible()
+  await page.keyboard.press('Escape')
   const button = page.getByRole('button', { name: 'Clock in' })
   const box = await button.boundingBox()
   expect(box!.width).toBeGreaterThan(250)
@@ -1865,5 +1868,78 @@ test.describe('messages', () => {
     await expect(page.getByRole('region', { name: 'Chat with @tom_runs' })).toContainText('Replied to your story')
     await page.getByRole('button', { name: 'Back to chats' }).click()
     await expect(page.getByRole('list', { name: 'Instagram chats' })).toBeVisible()
+  })
+})
+
+test.describe('referrals', () => {
+  test('your name at the bottom left opens the account menu, with Referrals for admins', async ({ page, context }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+    await open(page, '/')
+    await page.getByRole('button', { name: /^Account menu/ }).click()
+    const menu = page.getByRole('menu')
+    for (const item of ['My account', 'Referrals', 'Appearance', 'Sign out']) await expect(menu.getByRole('menuitem', { name: item })).toBeVisible()
+    await menu.getByRole('menuitem', { name: 'Referrals' }).click()
+    await expect(page.getByRole('heading', { name: 'Referrals', level: 1 })).toBeVisible({ timeout: 15_000 })
+
+    // Four businesses finished set-up: four free months of twelve.
+    await expect(page.getByRole('figure', { name: '4 of 12 free months earned' })).toBeVisible()
+    const stats = page.getByRole('region', { name: 'How your link is doing' })
+    await expect(stats).toContainText('Link opened46')
+    await expect(stats).toContainText('Joined7')
+    await expect(stats).toContainText('Set up4')
+    const list = page.getByRole('region', { name: 'Businesses you referred' })
+    await expect(list.getByRole('listitem')).toHaveCount(7)
+    await expect(list.getByRole('listitem', { name: 'La Tostadora' })).toContainText('Set up · +1 month')
+    await expect(list.getByRole('listitem', { name: 'Café Alameda' })).toContainText('Joined · setting up')
+
+    const chart = page.getByRole('region', { name: 'Free months over time' })
+    await chart.getByRole('img', { name: /4 of 12 now/ }).focus()
+    await page.keyboard.press('ArrowLeft')
+    await expect(chart.getByRole('status')).toContainText('Week of')
+    await chart.getByRole('button', { name: 'Show as table' }).click()
+    await expect(chart.getByRole('table')).toContainText('Free months')
+
+    await expect(page.getByRole('textbox', { name: 'Your link' })).toHaveValue(/\?ref=EASYBEAN$/)
+    await page.getByRole('button', { name: 'Copy link' }).click()
+    await toast(page, 'Link copied')
+  })
+
+  test('staff don’t get Referrals', async ({ page }) => {
+    await open(page, '/', 'maria@example.com')
+    await page.getByRole('button', { name: /^Account menu/ }).click()
+    await expect(page.getByRole('menuitem', { name: 'My account' })).toBeVisible()
+    await expect(page.getByRole('menuitem', { name: 'Referrals' })).toHaveCount(0)
+  })
+
+  test('a referral link says who invited you, joins the waitlist, and shows up for the café that shared it', async ({ page }) => {
+    await page.clock.install({ time: WED_0900 })
+    await page.goto('/?ref=easybean&demo')
+    const invite = page.getByRole('region', { name: 'You’re invited' })
+    await expect(invite).toContainText('Invited by Easy Beans')
+    await invite.getByRole('textbox', { name: 'Business name' }).fill('Café Nuevo')
+    await invite.getByRole('textbox', { name: 'Your name' }).fill('Lola')
+    await invite.getByRole('textbox', { name: 'Email' }).fill('lola@cafenuevo.test')
+    await invite.getByRole('button', { name: 'Join the waitlist' }).click()
+    await expect(invite).toContainText('You’re on the list')
+
+    await page.getByRole('textbox', { name: 'Email', exact: true }).last().fill('aron@example.com')
+    await page.getByRole('button', { name: 'Sign in' }).last().click()
+    await page.getByRole('button', { name: /^Account menu/ }).click()
+    await page.getByRole('menuitem', { name: 'Referrals' }).click()
+    await expect(page.getByRole('region', { name: 'Businesses you referred' }).getByRole('listitem', { name: 'Café Nuevo' })).toContainText('Joined')
+    await expect(page.getByRole('region', { name: 'How your link is doing' })).toContainText('Link opened47')
+  })
+
+  test('a wrong referral code shows no invite', async ({ page }) => {
+    await page.goto('/?ref=NOPE1234&demo')
+    await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'You’re invited' })).toHaveCount(0)
+  })
+
+  test('@phone the account icon opens the same menu', async ({ page }) => {
+    await open(page, '/')
+    await page.getByRole('button', { name: /^Account menu/ }).click()
+    await page.getByRole('menuitem', { name: 'Referrals' }).click()
+    await expect(page.getByRole('figure', { name: '4 of 12 free months earned' })).toBeVisible()
   })
 })

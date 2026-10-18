@@ -11,6 +11,7 @@ import { fonts } from './fonts'
 import { authorizeGet, authorizePost, mcpApiHandler, tokenExchangeCallback, type GrantProps, type OAuthEnv } from './mcp'
 import { apiKeys, isAccessKey, resolveKey } from './apiKeys'
 import { authEmail } from './authEmail'
+import { referrals } from './referrals'
 
 const NIGHTLY = '15 1 * * *' // 03:15 Madrid in summer, 02:15 in winter
 
@@ -152,6 +153,8 @@ app.route('/', apiKeys)
 
 // Sign-in emails from the business's own Gmail/Outlook (Supabase Auth's send-email hook).
 app.route('/', authEmail)
+// Referral links: count opens, join the waitlist (no sign-in).
+app.route('/', referrals)
 
 // REST API for scripts, n8n, Zapier (same tools and rules as the AI connector).
 app.route('/api/v1', rest)

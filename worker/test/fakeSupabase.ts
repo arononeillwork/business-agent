@@ -14,7 +14,7 @@ export const GROUP: Record<string, string> = {
 
 /** Primary keys, for upserts. Tables not listed get a numeric id. */
 const KEYS: Record<string, string[]> = {
-  integrations: ['provider'], integration_secrets: ['provider'], calendar_feeds: ['profile_id', 'scope'], profiles: ['id'], business: ['id'], api_keys: ['id'],
+  integrations: ['provider'], integration_secrets: ['provider'], calendar_feeds: ['profile_id', 'scope'], profiles: ['id'], business: ['id'], api_keys: ['id'], referrals: ['email'],
 }
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })

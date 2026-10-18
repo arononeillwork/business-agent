@@ -10,6 +10,7 @@ import type {
 } from '../../shared/types'
 import { demoSports } from './demoSports'
 import { demoInbox } from './demoMessages'
+import { cleanCode } from '../../shared/referrals'
 import type { SportsFavourite } from '../../shared/sports'
 import { POPULAR_FONTS } from '../../shared/fonts'
 import { addToCalendarUrl, groupOf } from '../../shared/connections'
@@ -54,6 +55,20 @@ export function createDemoApi(): Api {
     updated_at: nowIso(),
   }
   const inbox = demoInbox()
+  // Referrals: ten weeks of a café sharing its link; four businesses have gone live.
+  const daysAgo = (d: number) => new Date(Date.now() - d * 86_400_000).toISOString()
+  const referralDemo = {
+    code: 'EASYBEAN', opens: 46,
+    referrals: [
+      { id: 'r1', business_name: 'La Tostadora', joined_at: daysAgo(66), set_up_at: daysAgo(58) },
+      { id: 'r2', business_name: 'Panadería Sol', joined_at: daysAgo(52), set_up_at: daysAgo(40) },
+      { id: 'r3', business_name: 'Matcha Marbella', joined_at: daysAgo(31), set_up_at: daysAgo(24) },
+      { id: 'r4', business_name: 'Brunch Club Estepona', joined_at: daysAgo(19), set_up_at: daysAgo(9) },
+      { id: 'r5', business_name: 'Heladería Nieve', joined_at: daysAgo(12), set_up_at: null },
+      { id: 'r6', business_name: 'The Juice Bar', joined_at: daysAgo(6), set_up_at: null },
+      { id: 'r7', business_name: 'Café Alameda', joined_at: daysAgo(2), set_up_at: null },
+    ].reverse().sort((a, b) => b.joined_at.localeCompare(a.joined_at)),
+  }
   const integ: IntegrationsState = {
     configured: { google_business: true, whatsapp: true, instagram: true, spotify: true, gmail: true, outlook: true, google_drive: true, onedrive: true,
       youtube_music: true, google_calendar: true, outlook_calendar: true, facebook: true, tiktok: true, square: true, stripe: true },
@@ -980,6 +995,21 @@ export function createDemoApi(): Api {
       requireAdmin()
       const i = posts.findIndex(p => p.id === id)
       if (i >= 0) posts.splice(i, 1)
+    },
+    async referrals() {
+      requireAdmin()
+      return { code: referralDemo.code, opens: referralDemo.opens, referrals: [...referralDemo.referrals] }
+    },
+    async openReferral(code, count = true) {
+      if (cleanCode(code) !== referralDemo.code) throw new Error('That invite link isn’t valid')
+      if (count) referralDemo.opens++
+      return { business: business.name }
+    },
+    async joinReferral(input) {
+      if (cleanCode(input.code) !== referralDemo.code) throw new Error('That invite link isn’t valid')
+      if (!input.business_name.trim()) throw new Error('Add your business’s name')
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(input.email.trim())) throw new Error('Add a valid email address')
+      referralDemo.referrals.unshift({ id: uid(), business_name: input.business_name.trim(), joined_at: nowIso(), set_up_at: null })
     },
     async instagramInbox() {
       requireAdmin()
