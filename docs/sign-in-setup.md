@@ -63,6 +63,16 @@ while signed in to your Microsoft account. The workflow creates the app and swit
 in Supabase itself. The same run also gives the Worker the app for **Outlook** (send team alerts)
 and **OneDrive** (save exports), so those Connect buttons start working too.
 
+**Which Microsoft account to use.** The app is created in the Microsoft directory (tenant) of the
+account that signs in, so use one that belongs to the business, not an employer's work account.
+A work or school account (e.g. one ending in your company's domain) creates it in that company's
+directory, which usually needs an administrator and multi-factor sign-in. A personal
+Outlook/Hotmail account works if it has its own directory: sign in once at
+<https://entra.microsoft.com> (this creates a free "Default Directory"). To pick a directory, run
+the workflow with the **tenant** box filled in (e.g. `yourname.onmicrosoft.com`). If the run says
+"Microsoft sign-in didn't finish", run it again and complete every prompt, including the
+multi-factor one, within 15 minutes.
+
 ## Facebook (5 minutes, reuses the Meta app you already have)
 
 "Log in with Facebook" uses the same Meta app as the Facebook Page connection (`META_APP_ID` and
