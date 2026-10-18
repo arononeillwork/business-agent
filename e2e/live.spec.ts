@@ -349,6 +349,41 @@ test.describe('business connections', () => {
     expect((await request.post('/api/integrations/connect/gmail/start', { headers: auth, data: {} })).status()).toBe(403)
     expect((await request.post('/api/integrations/check')).status()).toBe(401)
   })
+
+  test('Instagram: Connect on Messages reaches Instagram’s sign-in for this app (or says it isn’t set up)', async ({ page, request, baseURL }) => {
+    const { session } = await signedIn(cfg, 'admin')
+    const state = await (await request.get('/api/integrations', { headers: { authorization: `Bearer ${session.access_token}` } })).json() as
+      { integrations: { provider: string; status: string }[]; configured: Record<string, boolean> }
+    await signInUi(page, 'admin')
+    await page.getByRole('link', { name: 'Messages', exact: true }).first().click()
+    await expect(page.getByRole('heading', { level: 1, name: 'Messages' })).toBeVisible()
+    const card = page.getByRole('region', { name: 'Connect Instagram' })
+    if (state.integrations.find(i => i.provider === 'instagram')?.status === 'connected') {
+      await expect(card).toHaveCount(0)
+      return
+    }
+    const button = card.getByRole('button', { name: /^Connect (Instagram|again)$/ })
+    if (!state.configured.instagram) {
+      const note = 'Instagram is OFF on the live site: add INSTAGRAM_APP_ID and INSTAGRAM_APP_SECRET to the repo secrets (docs/INTEGRATIONS.md).'
+      console.log(`::warning::${note}`)
+      test.info().annotations.push({ type: 'warning', description: note })
+      await expect(card).toContainText('Not set up yet')
+      await expect(button).toBeDisabled()
+      return
+    }
+    await expect(card).not.toContainText('Not set up yet')
+    const authorize = page.waitForRequest(/^https:\/\/www\.instagram\.com\/oauth\/authorize\?/, { timeout: 15_000 })
+    await button.click()
+    const url = new URL((await authorize).url())
+    const sent = Object.fromEntries([...url.searchParams].filter(([k]) => k !== 'state'))
+    console.log(`Instagram sign-in asked for: ${JSON.stringify(sent)}`)
+    expect(sent.client_id, 'INSTAGRAM_APP_ID should be the Instagram app ID (digits)').toMatch(/^\d{6,}$/)
+    expect(sent.redirect_uri).toBe(`${baseURL}/api/integrations/instagram/callback`)
+    expect(sent.scope).toContain('instagram_business_manage_messages')
+    // Instagram's page must be its sign-in, not an error about our app's set-up on Meta.
+    await page.waitForURL(u => /(^|\.)instagram\.com$/.test(new URL(u).hostname), { timeout: 15_000 })
+    await expect(page.locator('body')).not.toContainText(/Invalid (Request|redirect_uri|platform app|app ID|client_id)|Insufficient developer role/i, { timeout: 5_000 })
+  })
 })
 
 test.describe('access keys (any AI)', () => {

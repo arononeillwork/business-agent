@@ -174,7 +174,7 @@ test.describe('admin', () => {
     const pages: { link: string; path: string; check: (p: Page) => Promise<void> }[] = [
       { link: 'Business', path: '/business', check: p => expect(p.getByRole('heading', { level: 1, name: business.name })).toBeVisible(NET) },
       { link: 'Home: Today', path: '/', check: p => expect(p.getByRole('heading', { name: 'Hola, Ana' })).toBeVisible(NET) },
-      ...['To Do List', 'Rota', 'Time off', 'Timecards', 'Team', 'Opening hours', 'Brand', 'Calendar', 'Sports', 'Music', 'Finances', 'Alerts', 'Connections', 'My account', 'Appearance'].map(name => ({
+      ...['To Do List', 'Rota', 'Time off', 'Timecards', 'Team', 'Opening hours', 'Brand', 'Calendar', 'Sports', 'Music', 'Messages', 'Finances', 'Alerts', 'Connections', 'My account', 'Appearance'].map(name => ({
         link: name,
         path: { 'Time off': '/time-off', 'My account': '/account', 'Opening hours': '/opening-hours', 'To Do List': '/todo' }[name] ?? `/${name.toLowerCase()}`,
         check: (p: Page) => expect(p.getByRole('heading', { level: 1, name: { Connections: 'Business connections' }[name] ?? name, exact: true })).toBeVisible(NET),
