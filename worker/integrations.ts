@@ -23,9 +23,9 @@ import {
   CONNECTORS, PROVIDERS, ROW_COLUMNS, SCOPES, calendarSeen, calendarFetched, checkAll, checkOne, connectedOf, connectorConfigured,
   connectorGrant, explain, facebookOAuth, facebookSession, googleConfig, googleSession, instagramOAuth, instagramSession, isCalendarApp, isGoogle,
   lasting, markBroken, msConfig, proveFacebook, proveInstagram, proveNew, proveSpotify, proveSquare, proveStripe, proveTikTok, setIntegration, spotifyConfig,
-  spotifySession, squareOAuth, squareSession, stripeOAuth, stripeSession, tiktokOAuth, tiktokSession, waConfig, type Connector, type Provider,
+  spotifySession, squareOAuth, squareSession, stripeOAuth, stripeSession, tellAdmins, tiktokOAuth, tiktokSession, waConfig, type Connector, type Provider,
 } from './connections'
-import type { Business, CalendarEvent, SpotifyPlaylist } from '../shared/types'
+import type { Business, CalendarEvent, OpeningHours, SpotifyPlaylist } from '../shared/types'
 import { today, zonedIso } from '../shared/time'
 
 export { waConfig }
@@ -63,9 +63,12 @@ export async function saveFile(env: Env, db: SupabaseClient, f: { folder: string
   }
 }
 
-/** Push the app's hours, closures and phone to Google. */
-export async function syncGoogle(env: Env, db: SupabaseClient) {
-  const s = await googleSession(env, db)
+type GoogleSession = Awaited<ReturnType<typeof googleSession>>
+/** Kept in `external` next to the listing: the hours Google was last sent, and last seen on Google. */
+interface HoursMemory { synced_hours?: OpeningHours; google_hours?: OpeningHours }
+
+/** Push the app's hours, closures and phone to Google. Returns the hours sent. */
+async function pushGoogle(db: SupabaseClient, s: GoogleSession) {
   if (!s.location) throw new Error('Choose which Google listing to update')
   const [{ data: b }, { data: events }] = await Promise.all([
     db.from('business').select('opening_hours, phone').eq('id', 1).single(),
@@ -77,7 +80,53 @@ export async function syncGoogle(env: Env, db: SupabaseClient) {
     specialHours: google.toSpecialHours((events ?? []) as CalendarEvent[], today(), s.closedOnHolidays),
     phone: biz.phone,
   })
-  await setIntegration(db, 'google_business', { last_sync_at: new Date().toISOString(), last_error: null, status: 'connected' })
+  return biz.opening_hours
+}
+
+const synced = (s: GoogleSession, memory: HoursMemory) =>
+  ({ last_sync_at: new Date().toISOString(), last_error: null, status: 'connected', external: { ...s.external, ...memory } })
+
+/** Push the app's hours, closures and phone to Google. */
+export async function syncGoogle(env: Env, db: SupabaseClient) {
+  const s = await googleSession(env, db)
+  await setIntegration(db, 'google_business', synced(s, { synced_hours: await pushGoogle(db, s) }))
+}
+
+/**
+ * Opening hours both ways (every 15 minutes). Whichever side changed since last time wins:
+ * - the app has hours Google hasn't been sent → they go to Google (the app wins if both changed);
+ * - otherwise, Google's hours changed since the last look (edited on Google Maps) → the app takes them,
+ *   and admins are told.
+ * Google's hours are compared with what Google showed last time, not with the app, so a change the
+ * app sent that Google hasn't shown yet is never mistaken for an edit on Google.
+ */
+export async function syncGoogleBothWays(env: Env, db: SupabaseClient): Promise<'pushed' | 'pulled' | 'same'> {
+  const s = await googleSession(env, db)
+  if (!s.location) throw new Error('Choose which Google listing to update')
+  const [{ data: b }, onGoogle] = await Promise.all([
+    db.from('business').select('opening_hours').eq('id', 1).single(),
+    google.getLocationHours(s.token, s.location),
+  ])
+  const app = (b as Pick<Business, 'opening_hours'>).opening_hours
+  const memory = s.external as HoursMemory
+  if (!memory.synced_hours || !google.sameHours(app, memory.synced_hours)) {
+    await setIntegration(db, 'google_business', synced(s, { synced_hours: await pushGoogle(db, s), google_hours: onGoogle }))
+    return 'pushed'
+  }
+  // A listing with no hours at all (removed on Google) never empties the app's week.
+  const anyOpen = Object.values(onGoogle).some(Boolean)
+  if (anyOpen && memory.google_hours && !google.sameHours(onGoogle, memory.google_hours) && !google.sameHours(onGoogle, app)) {
+    // The database then queues a push of these same hours (with closures and phone): harmless.
+    const { error } = await db.from('business').update({ opening_hours: onGoogle }).eq('id', 1)
+    if (error) throw new Error(error.message)
+    await setIntegration(db, 'google_business', synced(s, { synced_hours: onGoogle, google_hours: onGoogle }))
+    await tellAdmins(db, 'Opening hours changed on Google Maps', 'The app now uses the hours from your Google listing.')
+    return 'pulled'
+  }
+  if (!memory.google_hours || !google.sameHours(onGoogle, memory.google_hours)) {
+    await setIntegration(db, 'google_business', { external: { ...s.external, google_hours: onGoogle } })
+  }
+  return 'same'
 }
 
 /** How long to wait for TikTok to confirm a post (tests set it to nothing). */

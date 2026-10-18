@@ -28,8 +28,11 @@ export function GoogleMapsCard() {
     <Card component="section" aria-label="Google Maps settings">
       <CardContent>
         <SectionTitle>Google Maps</SectionTitle>
-        <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>
+        <Typography variant="body2" sx={{ color: 'text.secondary' }}>
           {g.account_label}{g.last_sync_at ? ` · last updated ${formatLocal(g.last_sync_at, 'd MMM, HH:mm')}` : ''}
+        </Typography>
+        <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>
+          Opening hours stay the same in both: changes here reach Google in a minute, changes made on Google Maps come in within 15 minutes.
         </Typography>
         {(waiting > 0 || failing > 0) && (
           <Alert severity={failing ? 'warning' : 'info'} sx={{ mb: 1.5 }}>

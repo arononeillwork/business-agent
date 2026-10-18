@@ -4,7 +4,9 @@
 //   - a business has at most one app per group (Gmail or Outlook, Drive or OneDrive…)
 //   - when a working connection stops working, it says why and admins are told (once)
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { drainOutbox, integrations, setTikTokWait } from './integrations'
+import { drainOutbox, integrations, setTikTokWait, syncGoogleBothWays } from './integrations'
+import { fromGoogleHours, sameHours, toGoogleHours } from './providers/google'
+import type { OpeningHours } from '../shared/types'
 import { calendarFeeds } from './calendarFeed'
 import { checkAll, explain, hasScope, lasting, PROVIDERS } from './connections'
 import { serviceClient, type Env } from './supabase'
@@ -297,6 +299,76 @@ describe('Instagram and Google Maps: one click, connected once they really work'
     expect((await connectOwn('google')).searchParams.get('connect_error')).toMatch(/no Google Maps listing/)
     expect(status('google_business')).toBe('disconnected')
     expect(db.secret('google_business')).toBeUndefined()
+  })
+})
+
+describe('Google Maps opening hours: kept the same both ways', () => {
+  const week = (mon: string): OpeningHours => ({
+    mon: { open: '08:00', close: mon }, tue: { open: '08:00', close: '18:00' }, wed: { open: '08:00', close: '18:00' },
+    thu: { open: '08:00', close: '18:00' }, fri: { open: '08:00', close: '18:00' }, sat: { open: '09:00', close: '18:00' }, sun: null,
+  })
+  const inApp = () => db.table('business')[0].opening_hours as OpeningHours
+  const setInApp = (h: OpeningHours) => { db.table('business')[0].opening_hours = h }
+  const onGoogle = () => fromGoogleHours(apis.google.hours as never)
+  const setOnGoogle = (h: OpeningHours) => { apis.google.hours = toGoogleHours(h) as never }
+  const sync = () => syncGoogleBothWays(env, serviceClient(env))
+
+  beforeEach(async () => {
+    await connectOwn('google')
+    setInApp(week('18:00'))
+  })
+
+  it('the first time, the app’s hours go to Google; after that nothing is sent until something changes', async () => {
+    expect(await sync()).toBe('pushed')
+    expect(sameHours(onGoogle(), week('18:00'))).toBe(true)
+    expect(await sync()).toBe('same')
+    expect(await sync()).toBe('same')
+    expect(apis.google.edits).toHaveLength(1)
+  })
+
+  it('hours changed on Google Maps come into the app, and admins are told', async () => {
+    await sync(); await sync()
+    setOnGoogle(week('15:00'))
+    expect(await sync()).toBe('pulled')
+    expect(inApp().mon).toEqual({ open: '08:00', close: '15:00' })
+    expect(db.table('notifications').filter(n => n.title === 'Opening hours changed on Google Maps').map(n => n.profile_id)).toEqual(['admin-1', 'admin-2'])
+    expect(await sync()).toBe('same')
+    expect(apis.google.edits).toHaveLength(1)
+  })
+
+  it('hours changed in the app go to Google, and the app wins if both changed', async () => {
+    await sync(); await sync()
+    setInApp(week('16:00'))
+    setOnGoogle(week('15:00'))
+    expect(await sync()).toBe('pushed')
+    expect(onGoogle().mon).toEqual({ open: '08:00', close: '16:00' })
+    expect(inApp().mon).toEqual({ open: '08:00', close: '16:00' })
+    expect(await sync()).toBe('same')
+  })
+
+  it('a change Google is slow to show is not mistaken for an edit on Google', async () => {
+    await sync(); await sync()
+    apis.google.slowToShow = true
+    setInApp(week('16:00'))
+    expect(await sync()).toBe('pushed')
+    expect(await sync()).toBe('same')
+    expect(inApp().mon).toEqual({ open: '08:00', close: '16:00' })
+    setOnGoogle(week('16:00')) // Google shows it at last
+    expect(await sync()).toBe('same')
+    expect(apis.google.edits).toHaveLength(2)
+  })
+
+  it('hours removed from the Google listing don’t empty the app’s week', async () => {
+    await sync(); await sync()
+    apis.google.hours = { periods: [] } as never
+    expect(await sync()).toBe('same')
+    expect(sameHours(inApp(), week('18:00'))).toBe(true)
+  })
+
+  it('“Push hours to Google” counts as sent, so it isn’t sent again', async () => {
+    expect((await post('/api/integrations/google/sync')).status).toBe(200)
+    expect(await sync()).toBe('same')
+    expect(apis.google.edits).toHaveLength(1)
   })
 })
 

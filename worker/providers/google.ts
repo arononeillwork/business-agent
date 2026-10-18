@@ -43,6 +43,12 @@ export function fromGoogleHours(regular: { periods?: GPeriod[] } | undefined): O
   return out
 }
 
+/** Same opening hours every day ("8:00" and "08:00" match; a missing day is closed). */
+export function sameHours(a: OpeningHours, b: OpeningHours) {
+  const day = (h: { open: string; close: string } | null | undefined) => (h ? `${h.open.padStart(5, '0')}-${h.close.padStart(5, '0')}` : 'closed')
+  return DAY_KEYS.every(k => day(a[k]) === day(b[k]))
+}
+
 /**
  * Days the café is closed that Google should show: public holidays it closes on, and business
  * closures. Future dates only. Holidays count as closed only when `closedOnHolidays` is true.

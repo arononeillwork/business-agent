@@ -38,6 +38,12 @@ export class FakeProviders {
     driveHiccups: 0,
     /** Google Maps listings the account manages. */
     listings: [{ name: 'locations/1', title: 'Easy Beans Coffee', storefrontAddress: { addressLines: ['Calle Mayor 1'], locality: 'San Pedro' } }] as Json[],
+    /** The listing's opening hours, as Google shows them (set it to edit hours "on Google Maps"). */
+    hours: { periods: [] } as Json,
+    /** Updates the app sent to the listing. */
+    edits: [] as Json[],
+    /** Google takes edits but keeps showing the old hours for a while. */
+    slowToShow: false,
   }
   instagram = {
     username: 'easy.beans.coffee',
@@ -160,7 +166,13 @@ export class FakeProviders {
     if (url.host === 'mybusinessaccountmanagement.googleapis.com') return json({ accounts: [{ name: 'accounts/1' }] })
     if (url.host === 'mybusinessbusinessinformation.googleapis.com') {
       if (url.pathname.endsWith('/locations')) return json({ locations: this.google.listings })
-      return json({ regularHours: { periods: [] } })
+      if (method === 'PATCH') {
+        const edit = body()
+        this.google.edits.push(edit)
+        if (edit.regularHours && !this.google.slowToShow) this.google.hours = edit.regularHours as Json
+        return json({})
+      }
+      return json({ regularHours: this.google.hours })
     }
 
     // ---- Instagram (Instagram Login) ----

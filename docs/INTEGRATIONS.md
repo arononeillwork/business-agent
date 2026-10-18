@@ -84,6 +84,12 @@ low-privilege test account to also test a real sign-in.
 After that, changing opening hours in the app, adding a business closure ("Closed …") or, if
 ticked, public holidays updates Google automatically within a minute.
 
+Opening hours also come the other way: every 15 minutes the Worker reads the listing's hours, and
+if they were changed on Google Maps (by you, or by Google from a suggested edit) the app takes them
+and admins get a notification. Whichever side changed wins; if both changed since the last check,
+the app wins. The first check after connecting sends the app's hours, so use **Compare with
+Google** first if Google's are the right ones. Closures and phone only go app → Google.
+
 ## 3. WhatsApp (Meta Cloud API, direct)
 
 1. <https://developers.facebook.com> → Create app → Business → add **WhatsApp**.

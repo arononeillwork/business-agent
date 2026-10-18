@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { OAuthProvider } from '@cloudflare/workers-oauth-provider'
 import { bearer, serviceClient, userClient, type Env } from './supabase'
 import { rest } from './rest'
-import { drainOutbox, integrations, syncGoogle } from './integrations'
+import { drainOutbox, integrations, syncGoogle, syncGoogleBothWays } from './integrations'
 import { checkAll } from './connections'
 import { refreshAllSports, refreshStaleSports, syncCrests } from './sports'
 import { music } from './music'
@@ -13,6 +13,11 @@ import { apiKeys, isAccessKey, resolveKey } from './apiKeys'
 import { authEmail } from './authEmail'
 
 const NIGHTLY = '15 1 * * *' // 03:15 Madrid in summer, 02:15 in winter
+
+const googleConnected = async (db: ReturnType<typeof serviceClient>) => {
+  const { data } = await db.from('integrations').select('status').eq('provider', 'google_business').maybeSingle()
+  return data?.status === 'connected'
+}
 
 const app = new Hono<{ Bindings: OAuthEnv }>()
 
@@ -195,10 +200,13 @@ export default {
         await Promise.resolve(db.rpc('auto_fill_timecards')).then(log('auto_fill_timecards'))
         // Prove every connection still works; admins get a notification when one stops working.
         await checkAll(env, db).catch(e => console.error('connection checks failed', e))
-        // Re-send hours, closures and phone to Google Maps every night, so the listing stays right
-        // even if someone edits it on Google or a change was missed (changes also sync within a minute).
-        const { data: g } = await db.from('integrations').select('status').eq('provider', 'google_business').maybeSingle()
-        if (g?.status === 'connected') await syncGoogle(env, db).catch(e => console.error('nightly google sync failed', e))
+        // Hours both ways first (an edit made on Google comes in, not overwritten), then re-send
+        // closures and phone to Google Maps, in case a change was missed (changes also sync within a minute).
+        if (await googleConnected(db)) {
+          await syncGoogleBothWays(env, db)
+            .then(done => (done === 'pushed' ? undefined : syncGoogle(env, db)))
+            .catch(e => console.error('nightly google sync failed', e))
+        }
         // Crests for new teams (flags straight away; a few club look-ups, the GitHub sync does the rest).
         await syncCrests(db, 8).catch(e => console.error('crests failed', e))
       })())
@@ -211,6 +219,11 @@ export default {
       // Social planner: posts that are due become one outbox job per network (sent just below).
       await Promise.resolve(db.rpc('queue_due_social_posts')).then(log('queue_due_social_posts'))
       await drainOutbox(env).catch(e => console.error('outbox failed', e))
+      // Every 15 minutes: opening hours both ways with Google Maps (after the outbox, so a change
+      // made in the app has already gone to Google).
+      if (Math.floor(event.scheduledTime / 60_000) % 15 === 0 && await googleConnected(db)) {
+        await syncGoogleBothWays(env, db).catch(e => console.error('google hours sync failed', e))
+      }
       await refreshStaleSports(db).catch(e => console.error('sports failed', e))
     })())
   },

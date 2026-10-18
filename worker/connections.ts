@@ -339,7 +339,7 @@ export async function googleSession(env: Env, db: SupabaseClient, origin = '') {
   const { data: row } = await db.from('integrations').select('external').eq('provider', 'google_business').single()
   const { access_token } = await google.refreshAccess(cfg, await refreshTokenOf(env, db, 'google_business'))
   const ext = (row?.external ?? {}) as { location?: string; account?: string; closed_on_holidays?: boolean }
-  return { token: access_token!, location: ext.location, account: ext.account, closedOnHolidays: !!ext.closed_on_holidays }
+  return { token: access_token!, location: ext.location, account: ext.account, closedOnHolidays: !!ext.closed_on_holidays, external: ext as Record<string, unknown> }
 }
 
 /** Which of these is connected (at most one per group, see migration 28). */
