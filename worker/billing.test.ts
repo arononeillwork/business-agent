@@ -113,6 +113,17 @@ describe('choosing a plan', () => {
     expect(stripe.checkouts[1].get('subscription_data[trial_period_days]')).toBeNull()
   })
 
+  it('a complimentary account (founding, friends & family) has nothing to pay, and Stripe never changes it', async () => {
+    Object.assign(row(), { plan: 'business', status: 'comped', complimentary: 'friends_family', stripe_customer_id: 'cus_1' })
+    expect((await post('/api/billing/checkout', { plan: 'business', interval: 'month' })).status).toBe(409)
+    expect(await (await billing.request(`${APP}/api/billing`, { headers: headers('admin') }, env)).json())
+      .toMatchObject({ plan: 'business', status: 'comped', complimentary: 'friends_family' })
+    stripe.subs = [{ ...({} as Sub), id: 'sub_old', status: 'canceled', customer: 'cus_1', trial_end: null, current_period_end: 0, cancel_at_period_end: false, created: 1,
+      items: { data: [{ id: 'si', price: { id: 'p', unit_amount: 2500, lookup_key: 'business_agent_starter_month', recurring: { interval: 'month' } } }] } }]
+    await syncBilling(env)
+    expect(row()).toMatchObject({ plan: 'business', status: 'comped' })
+  })
+
   it('admins only; Free is not something to check out', async () => {
     expect((await post('/api/billing/checkout', { plan: 'business' }, 'staff')).status).toBe(403)
     expect((await post('/api/billing/checkout', { plan: 'free' })).status).toBe(400)

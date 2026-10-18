@@ -45,7 +45,7 @@ interface Subscription {
   id: string; status: string; customer: string; trial_end: number | null; current_period_end: number | null; cancel_at_period_end: boolean
   created: number; items: { data: { id: string; price: Price }[] }
 }
-interface BillingRow { plan: PlanId; status: string; stripe_customer_id: string | null; stripe_subscription_id: string | null; trial_used: boolean }
+interface BillingRow { plan: PlanId; status: string; stripe_customer_id: string | null; stripe_subscription_id: string | null; trial_used: boolean; complimentary?: string | null }
 
 const lookupKey = (p: PlanId, i: Interval) => `business_agent_${p}_${i}`
 const fromLookup = (key: string | null) => {
@@ -82,7 +82,8 @@ export async function syncBilling(env: Env): Promise<void> {
   if (!env.STRIPE_SECRET_KEY || !env.SUPABASE_SERVICE_ROLE_KEY) return
   const db = serviceClient(env)
   const { data: row } = await db.from('billing').select('plan, status, stripe_customer_id, stripe_subscription_id, trial_used').eq('id', 1).single<BillingRow>()
-  if (!row?.stripe_customer_id) return
+  // Complimentary accounts are ours to set; Stripe never changes them.
+  if (!row?.stripe_customer_id || row.status === 'comped') return
   const subs = await stripe<{ data: Subscription[] }>(env, 'GET', `/subscriptions?customer=${row.stripe_customer_id}&status=all&limit=10`)
   // The live one if there is one, else the most recent.
   const live = ['active', 'trialing', 'past_due', 'unpaid', 'incomplete', 'paused']
@@ -135,6 +136,7 @@ const view = (r: Record<string, unknown>, env: Env) => ({
   plan: r.plan, status: r.status, interval: r.billing_interval ?? null, trial_ends_at: r.trial_ends_at ?? null,
   current_period_end: r.current_period_end ?? null, cancel_at_period_end: !!r.cancel_at_period_end, trial_used: !!r.trial_used,
   has_customer: !!r.stripe_customer_id, ready: !!env.STRIPE_SECRET_KEY,
+  complimentary: r.complimentary ?? null, complimentary_note: r.complimentary_note ?? null,
 })
 
 billing.get('/api/billing', async c => c.json(view(await row(c.env), c.env)))
@@ -168,6 +170,7 @@ billing.post('/api/billing/checkout', async c => {
   const interval: Interval = body.interval === 'year' ? 'year' : 'month'
   if (!target) return c.json({ error: 'Choose a paid plan' }, 400)
   const r = await row(c.env)
+  if (r.status === 'comped') return c.json({ error: 'This business already has the top plan, free. Nothing to pay.' }, 409)
   const origin = new URL(c.req.url).origin
   const price = await priceFor(c.env, target.id, interval)
 

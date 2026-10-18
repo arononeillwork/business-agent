@@ -1466,6 +1466,13 @@ test.describe('billing', () => {
     await expect(page.getByRole('heading', { name: /is on the Pro plan/ })).toHaveCount(0)
   })
 
+  test('the sample café is the founding account: the top plan, free, nothing to choose', async ({ page }) => {
+    await open(page, '/billing')
+    await expect(page.getByText('Founding account: free')).toBeVisible()
+    await expect(page.getByLabel('Business plan').getByRole('button', { name: 'Current plan' })).toBeVisible()
+    await expect(page.getByLabel('Pro plan').getByRole('button', { name: 'Choose Pro' })).toBeDisabled()
+  })
+
   test('employees never see Billing', async ({ page }) => {
     await open(page, '/billing', 'maria@example.com')
     await expect(page.getByRole('heading', { name: 'Billing' })).toHaveCount(0)

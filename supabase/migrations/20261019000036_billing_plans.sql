@@ -24,7 +24,7 @@ create policy plan_limits_read on public.plan_limits for select to authenticated
 create table public.billing (
   id                      int primary key default 1 check (id = 1),
   plan                    text not null default 'free' references public.plan_limits,
-  -- Stripe's subscription status, or 'none' (never subscribed) / 'comped' (given free by us).
+  -- Stripe's subscription status, or 'none' (never subscribed) / 'comped' (complimentary, below).
   status                  text not null default 'none' check (status in ('none', 'comped', 'trialing', 'active', 'past_due',
                             'unpaid', 'canceled', 'incomplete', 'incomplete_expired', 'paused')),
   billing_interval        text check (billing_interval in ('month', 'year')),
@@ -34,16 +34,59 @@ create table public.billing (
   current_period_end      timestamptz,
   cancel_at_period_end    boolean not null default false,
   trial_used              boolean not null default false,
-  updated_at              timestamptz not null default now()
+  -- Complimentary accounts: always the top plan, free, set by us (never by Stripe or the app).
+  --   founder        the business Business Agent was built with (Easy Beans)
+  --   friends_family friends and family, added by hand
+  complimentary           text check (complimentary in ('founder', 'friends_family')),
+  complimentary_note      text,
+  complimentary_since     timestamptz,
+  updated_at              timestamptz not null default now(),
+  constraint billing_complimentary check (
+    (status = 'comped') = (complimentary is not null) and (status <> 'comped' or plan = 'business'))
 );
--- A business already running when plans arrive keeps everything (given free); new ones start on Free.
-insert into public.billing (plan, status)
-  select case when exists (select 1 from public.business) then 'business' else 'free' end,
-         case when exists (select 1 from public.business) then 'comped' else 'none' end;
+-- The business already running when plans arrive (Easy Beans) is the founding account: the top
+-- plan, free. A new business starts on Free.
+insert into public.billing (plan, status, complimentary, complimentary_note, complimentary_since)
+  select 'business', 'comped', 'founder', (select name from public.business where id = 1), now()
+   where exists (select 1 from public.business)
+  union all
+  select 'free', 'none', null, null, null
+   where not exists (select 1 from public.business);
 alter table public.billing enable row level security;
 revoke all on public.billing from anon, authenticated;
 grant select on public.billing to authenticated;
 create policy billing_admin_read on public.billing for select to authenticated using ((select public.is_admin()));
+
+-- Complimentary access, given and taken away by us only (service role: the Supabase SQL editor,
+-- the connector or a script). Always the top plan. Ending it leaves the business on Free; if it
+-- also has a Stripe subscription, the next sync puts that back.
+create or replace function public.grant_complimentary(p_kind text, p_note text default null) returns void
+language plpgsql security definer set search_path = ''
+as $$
+begin
+  if p_kind not in ('founder', 'friends_family') then
+    raise exception 'Complimentary kind must be founder or friends_family';
+  end if;
+  update public.billing set plan = 'business', status = 'comped', complimentary = p_kind,
+    complimentary_note = coalesce(p_note, complimentary_note), complimentary_since = coalesce(complimentary_since, now()),
+    updated_at = now()
+   where id = 1;
+end;
+$$;
+
+create or replace function public.end_complimentary() returns void
+language plpgsql security definer set search_path = ''
+as $$
+begin
+  update public.billing set plan = 'free', status = 'none', complimentary = null, complimentary_note = null,
+    complimentary_since = null, updated_at = now()
+   where id = 1 and status = 'comped';
+end;
+$$;
+revoke execute on function public.grant_complimentary(text, text) from public, anon, authenticated;
+revoke execute on function public.end_complimentary() from public, anon, authenticated;
+grant execute on function public.grant_complimentary(text, text) to service_role;
+grant execute on function public.end_complimentary() to service_role;
 
 -- 3. The plan in force. Paid plans count only while paid up: trialing (until its end date),
 --    active, or comped. A trial that ends without a payment, or a failed renewal, means Free
@@ -107,7 +150,8 @@ as $$
       'posts_this_month', public.posts_this_month(now())))
   where auth.uid() is null or exists (select 1 from public.profiles where id = auth.uid() and active);
 $$;
-revoke execute on function public.plan_status() from anon;
+revoke execute on function public.plan_status() from public, anon;
+grant execute on function public.plan_status() to authenticated, service_role;
 
 -- Raises a plain-language error when the plan doesn't allow connecting this app. Used by the
 -- trigger below and by the Worker before it sends someone off to sign in to the app.

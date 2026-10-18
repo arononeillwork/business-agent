@@ -28,7 +28,7 @@ describe('plans', () => {
 describe('effectivePlan', () => {
   const now = new Date('2026-12-01T10:00:00Z')
   const b = (patch: Partial<Billing>): Billing => ({ plan: 'business', status: 'trialing', interval: 'month', trial_ends_at: '2026-12-20T00:00:00Z',
-    current_period_end: null, cancel_at_period_end: false, trial_used: true, has_customer: true, ...patch })
+    current_period_end: null, cancel_at_period_end: false, trial_used: true, has_customer: true, complimentary: null, complimentary_note: null, ...patch })
 
   it('gives the plan during the trial and once paid', () => {
     expect(effectivePlan(b({}), now)).toBe('business')

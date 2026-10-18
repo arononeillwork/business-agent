@@ -7,7 +7,7 @@ import { useAsync } from '../app/hooks'
 import { useAction, useNotify } from '../app/Notify'
 import { usePlan } from '../app/plan'
 import { PageHeader, SectionTitle } from '../components/common'
-import { PLANS, TRIAL_MONTHS, effectivePlan, paymentProblem, plan as planById, planHighlights, type Billing, type Interval, type PlanId } from '../../shared/plans'
+import { COMPLIMENTARY_LABEL, PLANS, TRIAL_MONTHS, effectivePlan, paymentProblem, plan as planById, planHighlights, type Billing, type Interval, type PlanId } from '../../shared/plans'
 import { formatLocal } from '../../shared/time'
 
 const daysLeft = (iso: string) => Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / 86400_000))
@@ -15,7 +15,7 @@ const daysLeft = (iso: string) => Math.max(0, Math.ceil((new Date(iso).getTime()
 function statusChip(b: Billing) {
   if (paymentProblem(b)) return <Chip color="warning" label={b.status === 'canceled' ? 'Ended' : b.status === 'trialing' ? 'Trial ended' : 'Payment failed'} />
   if (b.status === 'trialing' && b.trial_ends_at) return <Chip color="info" label={`Free trial: ${daysLeft(b.trial_ends_at)} days left`} />
-  if (b.status === 'comped') return <Chip color="success" label="Given free" />
+  if (b.status === 'comped') return <Chip color="success" label={`${COMPLIMENTARY_LABEL[b.complimentary ?? 'friends_family']}: free`} />
   if (b.status === 'active') return <Chip color="success" label={b.cancel_at_period_end ? 'Ends at the end of the period' : 'Active'} />
   return null
 }
@@ -101,6 +101,13 @@ export function BillingPage() {
                     Free until {formatLocal(b.trial_ends_at, 'd MMMM yyyy')}. Then €{planById(b.plan)[b.interval === 'year' ? 'yearly' : 'monthly']} a {b.interval === 'year' ? 'year' : 'month'} goes on your card, unless you cancel before.
                   </Typography>
                 )}
+                {b?.status === 'comped' && (
+                  <Typography color="text.secondary" sx={{ mt: 0.5 }}>
+                    {b.complimentary === 'founder'
+                      ? 'The founding business of Business Agent: every feature of the top plan, free for good.'
+                      : 'A friends & family account: every feature of the top plan, free. Nothing to pay and no card needed.'}
+                  </Typography>
+                )}
                 {b?.status === 'active' && b.current_period_end && (
                   <Typography color="text.secondary" sx={{ mt: 0.5 }}>
                     {b.cancel_at_period_end ? 'Ends' : 'Renews'} on {formatLocal(b.current_period_end, 'd MMMM yyyy')}, billed {b.interval === 'year' ? 'yearly' : 'monthly'}.
@@ -154,10 +161,10 @@ export function BillingPage() {
                     <Box sx={{ mt: 2 }}>
                       {current ? <Button fullWidth disabled variant="outlined">Current plan</Button>
                         : p.id === 'free'
-                          ? <Button fullWidth variant="outlined" disabled={!b?.has_customer || busy !== null} onClick={portal}>
+                          ? <Button fullWidth variant="outlined" disabled={!b?.has_customer || b.status === 'comped' || busy !== null} onClick={portal}>
                               {b?.has_customer ? 'Cancel paid plan' : 'Included'}
                             </Button>
-                          : <Button fullWidth variant={trial || p.popular ? 'contained' : 'outlined'} disabled={busy !== null || (b ? !b.ready : true)} onClick={() => choose(p.id)}>
+                          : <Button fullWidth variant={trial || p.popular ? 'contained' : 'outlined'} disabled={busy !== null || !b || !b.ready || b.status === 'comped'} onClick={() => choose(p.id)}>
                               {busy === p.id ? 'Opening Stripe…' : trial ? `Start ${TRIAL_MONTHS}-month free trial` : `Choose ${p.name}`}
                             </Button>}
                     </Box>

@@ -349,6 +349,7 @@ export function createDemoApi(): Api {
     plan: PLANS.some(p => p.id === demoPlan) ? demoPlan as PlanId : 'business', status: demoPlan === 'business' ? 'comped' : demoPlan === 'free' ? 'none' : 'active',
     interval: demoPlan === 'business' || demoPlan === 'free' ? null : 'month', trial_ends_at: null, current_period_end: null,
     cancel_at_period_end: false, trial_used: false, has_customer: demoPlan !== 'business' && demoPlan !== 'free', ready: true,
+    complimentary: demoPlan === 'business' ? 'founder' : null, complimentary_note: demoPlan === 'business' ? 'Easy Beans Coffee' : null,
   }
 
   // Who is signed in survives a page reload within the tab (the demo data itself does not).
@@ -793,6 +794,7 @@ export function createDemoApi(): Api {
     async choosePlan(plan, interval) {
       // The live app goes to Stripe Checkout here; the demo pretends the card went through.
       const trial = planById(plan).trial && !demoBilling.trial_used
+      if (demoBilling.status === 'comped') throw new Error('This business already has the top plan, free. Nothing to pay.')
       Object.assign(demoBilling, { plan, interval, has_customer: true, status: trial ? 'trialing' : 'active', trial_used: demoBilling.trial_used || trial,
         trial_ends_at: trial ? new Date(Date.now() + TRIAL_DAYS * 86400_000).toISOString() : demoBilling.trial_ends_at })
       return { changed: true }

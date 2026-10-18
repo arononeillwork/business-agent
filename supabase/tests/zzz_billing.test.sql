@@ -13,6 +13,8 @@ select set_config('request.jwt.claim.sub', '', false);
 
 -- 1. Which plan is in force ------------------------------------------------------------
 do $$ begin
+  assert public.current_plan() = 'business' and (select complimentary = 'founder' from public.billing), 'set up as the founding account';
+  perform public.end_complimentary();
   update public.billing set plan = 'business', status = 'trialing', trial_ends_at = now() + interval '59 days';
   assert public.current_plan() = 'business', 'trial gives the top plan';
   update public.billing set trial_ends_at = now() - interval '1 minute';
@@ -26,6 +28,18 @@ do $$ begin
   update public.billing set plan = 'pro', status = 'active';
   assert public.plan_allows('whatsapp') and not public.plan_allows('partners'), 'Pro has WhatsApp, not partners';
 end $$;
+
+-- 1b. Complimentary: always the top plan, only through the functions ---------------------
+do $$ begin
+  perform public.grant_complimentary('friends_family', 'Café Lola (Aron''s sister)');
+  assert public.current_plan() = 'business', 'friends and family get the top plan';
+  assert (select complimentary = 'friends_family' and complimentary_note like 'Café Lola%' from public.billing), 'tagged';
+  perform public.end_complimentary();
+  assert public.current_plan() = 'free' and (select complimentary is null from public.billing), 'ended: Free';
+end $$;
+select pg_temp.expect_error($q$update public.billing set plan = 'pro', status = 'comped', complimentary = 'friends_family'$q$, 'billing_complimentary');
+select pg_temp.expect_error($q$update public.billing set status = 'comped'$q$, 'billing_complimentary');
+select pg_temp.expect_error($q$select public.grant_complimentary('cousin')$q$, 'founder or friends_family');
 
 -- 2. Free: limits on people, social accounts, posts and paid apps --------------------------
 update public.billing set plan = 'free', status = 'none';
@@ -70,6 +84,7 @@ end $$;
 select set_config('request.jwt.claim.sub', (select id::text from auth.users where email = 'julio@test'), false);
 set role authenticated;
 select pg_temp.expect_error($q$update public.billing set status = 'comped'$q$, 'permission denied');
+select pg_temp.expect_error($q$select public.grant_complimentary('friends_family')$q$, 'permission denied');
 do $$ begin
   assert (select count(*) from public.billing) = 0, 'employees see no billing row';
   assert (public.plan_status() ->> 'plan') = 'business', 'but everyone sees the plan in force';

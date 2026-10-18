@@ -164,11 +164,17 @@ export interface Billing {
   cancel_at_period_end: boolean
   trial_used: boolean
   has_customer: boolean
+  /** Complimentary (status 'comped'): always the top plan, free, set by us. */
+  complimentary: Complimentary | null
+  complimentary_note: string | null
 }
+
+export type Complimentary = 'founder' | 'friends_family'
+export const COMPLIMENTARY_LABEL: Record<Complimentary, string> = { founder: 'Founding account', friends_family: 'Friends & family' }
 
 /**
  * The plan in force. Paid plans count only while the subscription is paid up: trialing (within
- * its end date), active, or given free (comped). Once a trial ends without a payment, or a renewal
+ * its end date), active, or complimentary (comped: founding account, friends & family). Once a trial ends without a payment, or a renewal
  * fails, the business is on Free until Stripe takes the payment. Mirrors public.current_plan().
  */
 export function effectivePlan(b: Pick<Billing, 'plan' | 'status' | 'trial_ends_at'> | null | undefined, now = new Date()): PlanId {
