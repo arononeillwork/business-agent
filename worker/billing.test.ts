@@ -26,6 +26,8 @@ class FakeStripe {
   checkouts: URLSearchParams[] = []
   subs: Sub[] = []
   events = new Map<string, { type: string; data: { object: { customer: string } } }>()
+  /** Customer balance credits, by idempotency key (a repeated key is the same transaction, as on Stripe). */
+  credits = new Map<string, { customer: string; amount: number; description: string }>()
   handle(url: string, init?: RequestInit): Response | null {
     const u = new URL(url)
     if (u.host !== 'api.stripe.com') return null
@@ -57,6 +59,12 @@ class FakeStripe {
     }
     const ev = /^\/events\/(\w+)$/.exec(path)
     if (ev) return this.events.has(ev[1]) ? json({ id: ev[1], ...this.events.get(ev[1]) }) : json({ error: { message: 'No such event' } }, 404)
+    const bal = /^\/customers\/(\w+)\/balance_transactions$/.exec(path)
+    if (bal) {
+      const key = new Headers(init?.headers).get('idempotency-key') ?? `no-key-${this.credits.size}`
+      if (!this.credits.has(key)) this.credits.set(key, { customer: bal[1], amount: Number(body.get('amount')), description: body.get('description')! })
+      return json({ id: `cbtxn_${this.credits.size}`, ...this.credits.get(key) })
+    }
     if (path === '/billing_portal/sessions') return json({ url: 'https://billing.stripe.com/p/session/1' })
     return json({ error: { message: `fake Stripe: ${method} ${path}` } }, 404)
   }
@@ -170,6 +178,49 @@ describe('following Stripe', () => {
 
   it('the portal opens for a business with a Stripe customer', async () => {
     expect(await (await post('/api/billing/portal')).json()).toEqual({ url: 'https://billing.stripe.com/p/session/1' })
+  })
+})
+
+describe('referral months as Stripe credit', () => {
+  beforeEach(async () => { await post('/api/billing/checkout', { plan: 'pro', interval: 'month' }) })
+  const setUp = (n: number) => { db.tables.referrals = Array.from({ length: n }, (_, i) => ({ id: `r${i}`, email: `c${i}@test.es`, set_up_at: '2026-10-01T00:00:00Z' })) }
+
+  it('each month earned goes on the bill once, worth a month of the plan, and only while there is a subscription', async () => {
+    setUp(2)
+    await syncBilling(env)
+    expect(stripe.credits.size).toBe(0) // nothing to pay yet: kept for later
+    stripe.subscribe('business_agent_pro_month', 'trialing', new Date(Date.now() + 86400_000))
+    await syncBilling(env)
+    expect([...stripe.credits.values()]).toEqual([
+      { customer: 'cus_1', amount: -4900, description: 'Referral: a month of Business Agent Pro free (1)' },
+      { customer: 'cus_1', amount: -4900, description: 'Referral: a month of Business Agent Pro free (2)' },
+    ])
+    expect(row().referral_months_applied).toBe(2)
+    await syncBilling(env)
+    expect(stripe.credits.size).toBe(2) // no double credit
+    setUp(3)
+    Object.assign(row(), { referred_month: true })
+    await syncBilling(env)
+    expect(stripe.credits.size).toBe(4)
+    expect(row().referral_months_applied).toBe(4)
+  })
+
+  it('a month at the yearly rate on yearly billing; capped at 12 referrals', async () => {
+    await post('/api/billing/checkout', { plan: 'business', interval: 'year' })
+    stripe.subscribe('business_agent_business_year', 'active', null)
+    setUp(15)
+    await syncBilling(env)
+    expect(stripe.credits.size).toBe(12)
+    expect([...stripe.credits.values()][0].amount).toBe(-6583) // €790 / 12
+  })
+
+  it('a key already sent (a crash after Stripe took it) is not credited twice', async () => {
+    stripe.subscribe('business_agent_pro_month', 'active', null)
+    setUp(1)
+    stripe.credits.set('business-agent-referral-cus_1-1', { customer: 'cus_1', amount: -4900, description: 'earlier' })
+    await syncBilling(env)
+    expect(stripe.credits.size).toBe(1)
+    expect(row().referral_months_applied).toBe(1)
   })
 })
 

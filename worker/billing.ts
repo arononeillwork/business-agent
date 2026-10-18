@@ -28,12 +28,13 @@ export function encodeForm(data: Form, prefix = '', out = new URLSearchParams())
   return out
 }
 
-async function stripe<T>(env: Env, method: 'GET' | 'POST', path: string, body?: Form): Promise<T> {
+async function stripe<T>(env: Env, method: 'GET' | 'POST', path: string, body?: Form, idempotencyKey?: string): Promise<T> {
   if (!env.STRIPE_SECRET_KEY) throw new Error('Billing is not set up yet (STRIPE_SECRET_KEY).')
   const res = await fetch(`https://api.stripe.com/v1${path}`, {
     method, body: body ? encodeForm(body) : undefined,
     headers: { authorization: `Bearer ${env.STRIPE_SECRET_KEY}`, 'Stripe-Version': STRIPE_VERSION,
-      ...(body ? { 'content-type': 'application/x-www-form-urlencoded' } : {}) },
+      ...(body ? { 'content-type': 'application/x-www-form-urlencoded' } : {}),
+      ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}) },
   })
   const json = await res.json().catch(() => ({})) as T & { error?: { message?: string } }
   if (!res.ok) throw new Error(`Stripe: ${json.error?.message ?? res.status}`)
@@ -106,6 +107,37 @@ export async function syncBilling(env: Env): Promise<void> {
     updated_at: new Date().toISOString(),
   }).eq('id', 1)
   if (error) throw new Error(error.message)
+  if (['active', 'trialing'].includes(sub.status) && chosen) await creditReferralMonths(env, row.stripe_customer_id, chosen.plan, chosen.interval)
+}
+
+/** One month of a plan, in cents, at the rate the business pays (a twelfth of the year on yearly). */
+export const monthCents = (id: PlanId, interval: Interval) =>
+  Math.round((interval === 'year' ? planById(id).yearly / 12 : planById(id).monthly) * 100)
+
+/**
+ * Referral months still owed go onto the Stripe customer's balance as credit, which Stripe takes
+ * off the next invoices by itself (the first one after a trial included). Each month is sent once:
+ * its own idempotency key, and the count kept in billing.referral_months_applied.
+ */
+async function creditReferralMonths(env: Env, customer: string, id: PlanId, interval: Interval) {
+  const db = serviceClient(env)
+  const [{ data: earned }, { data: b }] = await Promise.all([
+    db.rpc('referral_months_earned'),
+    db.from('billing').select('referral_months_applied').eq('id', 1).single<{ referral_months_applied: number }>(),
+  ])
+  const owed = Number(earned ?? 0)
+  let applied = b?.referral_months_applied ?? 0
+  if (owed <= applied || id === 'free') return
+  const amount = monthCents(id, interval)
+  for (let n = applied + 1; n <= owed; n++) {
+    await stripe(env, 'POST', `/customers/${customer}/balance_transactions`, {
+      amount: -amount, currency: 'eur', description: `Referral: a month of Business Agent ${planById(id).name} free (${n})`,
+      metadata: { business_agent_referral_month: n },
+    }, `business-agent-referral-${customer}-${n}`)
+    applied = n
+    const { error } = await db.from('billing').update({ referral_months_applied: applied, updated_at: new Date().toISOString() }).eq('id', 1)
+    if (error) throw new Error(error.message)
+  }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -137,6 +169,7 @@ const view = (r: Record<string, unknown>, env: Env) => ({
   current_period_end: r.current_period_end ?? null, cancel_at_period_end: !!r.cancel_at_period_end, trial_used: !!r.trial_used,
   has_customer: !!r.stripe_customer_id, ready: !!env.STRIPE_SECRET_KEY,
   complimentary: r.complimentary ?? null, complimentary_note: r.complimentary_note ?? null,
+  referral_months_applied: Number(r.referral_months_applied ?? 0), referred_by: r.referred_by ?? null,
 })
 
 billing.get('/api/billing', async c => c.json(view(await row(c.env), c.env)))

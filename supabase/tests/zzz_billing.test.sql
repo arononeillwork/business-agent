@@ -91,3 +91,18 @@ do $$ begin
 end $$;
 reset role;
 select set_config('request.jwt.claim.sub', '', false);
+
+-- 5. Referral months: earned from set-up referrals (capped at 12) plus our own -------------
+do $$ begin
+  delete from public.referrals;
+  insert into public.referrals (business_name, email, set_up_at)
+    select 'Café ' || g, 'cafe' || g || '@test.es', case when g <= 14 then now() end from generate_series(1, 16) g;
+  assert public.referral_months_earned() = 12, 'capped at 12';
+  perform public.mark_referred('Bar Pepe');
+  assert public.referral_months_earned() = 13, 'plus the month for being referred';
+  assert (select referred_by = 'Bar Pepe' from public.billing), 'who referred us';
+end $$;
+select set_config('request.jwt.claim.sub', (select id::text from auth.users where email = 'julio@test'), false);
+set role authenticated;
+select pg_temp.expect_error($q$select public.mark_referred('Me')$q$, 'permission denied');
+reset role;

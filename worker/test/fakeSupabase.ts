@@ -133,6 +133,10 @@ export class FakeSupabase {
         const people = this.table('profiles').filter(p => p.active !== false && ['admin', 'employee'].includes(p.role as string)).length
         return json({ plan: this.plan.plan, limits: { people: this.plan.people, features: this.plan.features }, usage: { people } })
       }
+      if (rpc[1] === 'referral_months_earned') {
+        const setUp = this.table('referrals').filter(r => r.set_up_at).length
+        return json(Math.min(12, setUp) + (this.table('billing')[0]?.referred_month ? 1 : 0))
+      }
       if (rpc[1] === 'plan_allows') return json(this.plan.features.includes((JSON.parse(String(init.body)) as { p_feature: string }).p_feature))
       if (rpc[1] === 'plan_check_connect') {
         const { p_provider } = JSON.parse(String(init.body)) as { p_provider: string }

@@ -1,5 +1,6 @@
 // Referrals: a business shares its link to Business Agent. When a business it referred finishes
-// set-up, both get a month free, stacking up to 12 for the referrer, applied when paid plans start.
+// set-up, both get a month free, stacking up to 12 for the referrer, credited on the Stripe bill
+// (worker/billing.ts).
 
 /** The most free months one business can bank from referrals. */
 export const MAX_FREE_MONTHS = 12

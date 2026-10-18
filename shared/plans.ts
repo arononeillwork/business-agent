@@ -167,6 +167,10 @@ export interface Billing {
   /** Complimentary (status 'comped'): always the top plan, free, set by us. */
   complimentary: Complimentary | null
   complimentary_note: string | null
+  /** Referral months already credited on the Stripe bill. */
+  referral_months_applied: number
+  /** Another business that referred this one (its own month free). */
+  referred_by: string | null
 }
 
 export type Complimentary = 'founder' | 'friends_family'
