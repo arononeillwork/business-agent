@@ -1,5 +1,6 @@
 import type { ApiKey, AppNotification, Brand, BreakType, Business, CalendarApp, CalendarEvent, ConnectorProvider, ContactMethod, CorrectionRequest, EventAlert, Expense, InstagramProfile, Integration, Sales, SocialNetwork, SocialPost, IntegrationProvider, IntegrationsState, KioskPerson, MusicNow, MusicPlaylist, MusicProvider, MyMusic, MyNowPlaying, OpenBreak, OpeningHours, OutboxItem, PartnerArea, PayRate, Position, Profile, Settings, Shift, SpotifyPlaylist, TimeEntry, TimeEntryChange, TimeOff, TimeOffKind, Todo, TodoCategory, TodoPatch, CafeMusicLibrary, CafeTrack, MusicAction, MusicPlayerReport, MusicPlayerState } from '../../shared/types'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
+import type { InboxState, InboxThread } from '../../shared/messages'
 
 export type ShiftInput = Omit<Shift, 'id' | 'status'> & { id?: string; status?: Shift['status'] }
 export type EventInput = Omit<CalendarEvent, 'id' | 'source' | 'competition'> & { id?: string; competition?: string | null }
@@ -133,7 +134,7 @@ export interface Api {
   integrations(): Promise<IntegrationsState>
   connectGoogle(back?: 'setup' | 'connections'): Promise<void>
   /** One click: sign in on instagram.com and come back connected. */
-  connectInstagram(back?: 'setup' | 'connections'): Promise<void>
+  connectInstagram(back?: 'setup' | 'connections' | 'messages'): Promise<void>
   /** One click for Facebook, TikTok or Square: sign in there and come back connected. */
   connectApp(provider: 'facebook' | 'tiktok' | 'square' | 'stripe', back?: 'setup' | 'connections'): Promise<void>
   /** Facebook: which Page to post to, when the account manages more than one. */
@@ -164,6 +165,11 @@ export interface Api {
   saveFile(f: { folder: string; name: string; content: string; type?: string }): Promise<{ link: string; provider: ConnectorProvider }>
   whatsappTest(to: string): Promise<void>
   instagramProfile(): Promise<InstagramProfile>
+  // Messages page (admins): the Instagram inbox, read live from Instagram.
+  instagramInbox(): Promise<InboxState>
+  instagramThread(id: string): Promise<InboxThread>
+  /** Reply by text; Instagram allows it within 24 hours of the customer's last message. */
+  replyInstagram(id: string, text: string): Promise<void>
   uploadPhoto(file: File): Promise<string>
   share(caption: string, imageUrl: string | null, targets: ('instagram' | 'google')[], eventId?: string): Promise<number>
   sendRota(monday: string): Promise<number>

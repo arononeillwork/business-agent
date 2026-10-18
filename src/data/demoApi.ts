@@ -9,6 +9,7 @@ import type {
   Shift, TimeEntry, TimeEntryChange, Todo, TodoCategory, CafeTrack, MusicPlayerState,
 } from '../../shared/types'
 import { demoSports } from './demoSports'
+import { demoInbox } from './demoMessages'
 import type { SportsFavourite } from '../../shared/sports'
 import { POPULAR_FONTS } from '../../shared/fonts'
 import { addToCalendarUrl, groupOf } from '../../shared/connections'
@@ -52,6 +53,7 @@ export function createDemoApi(): Api {
     sports_enabled: true,
     updated_at: nowIso(),
   }
+  const inbox = demoInbox()
   const integ: IntegrationsState = {
     configured: { google_business: true, whatsapp: true, instagram: true, spotify: true, gmail: true, outlook: true, google_drive: true, onedrive: true,
       youtube_music: true, google_calendar: true, outlook_calendar: true, facebook: true, tiktok: true, square: true, stripe: true },
@@ -978,6 +980,17 @@ export function createDemoApi(): Api {
       requireAdmin()
       const i = posts.findIndex(p => p.id === id)
       if (i >= 0) posts.splice(i, 1)
+    },
+    async instagramInbox() {
+      requireAdmin()
+      if (integ.integrations.find(i => i.provider === 'instagram')!.status !== 'connected') throw new Error('Instagram is not connected')
+      return inbox.state()
+    },
+    async instagramThread(id) { requireAdmin(); return inbox.thread(id) },
+    async replyInstagram(id, text) {
+      requireAdmin()
+      if (!text.trim()) throw new Error('Write a message first')
+      inbox.reply(id, text.trim())
     },
     async instagramProfile() {
       if (integ.integrations.find(i => i.provider === 'instagram')!.status !== 'connected') throw new Error('Instagram is not connected')

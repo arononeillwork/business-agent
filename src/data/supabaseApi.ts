@@ -412,6 +412,11 @@ export function createSupabaseApi(url: string, key: string): Api {
     saveFile: f => worker('/api/integrations/files/save', { method: 'POST', body: JSON.stringify(f) }),
     async whatsappTest(to) { await worker('/api/integrations/whatsapp/test', { method: 'POST', body: JSON.stringify({ to }) }) },
     instagramProfile: () => worker('/api/integrations/instagram/profile'),
+    instagramInbox: () => worker('/api/integrations/instagram/inbox'),
+    instagramThread: id => worker(`/api/integrations/instagram/inbox/${encodeURIComponent(id)}`),
+    async replyInstagram(id, text) {
+      await worker(`/api/integrations/instagram/inbox/${encodeURIComponent(id)}/reply`, { method: 'POST', body: JSON.stringify({ text }) })
+    },
     async uploadPhoto(file) {
       return (await worker<{ url: string }>('/api/integrations/media', { method: 'POST', body: file,
         headers: { 'content-type': file.type } })).url

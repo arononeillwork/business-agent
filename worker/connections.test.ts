@@ -243,7 +243,7 @@ describe('Instagram and Google Maps: one click, connected once they really work'
     const start = await post('/api/integrations/instagram/start')
     const auth = new URL((await start.json() as { url: string }).url)
     expect(auth.origin + auth.pathname).toBe('https://www.instagram.com/oauth/authorize')
-    expect(auth.searchParams.get('scope')).toBe('instagram_business_basic,instagram_business_content_publish')
+    expect(auth.searchParams.get('scope')).toBe('instagram_business_basic,instagram_business_content_publish,instagram_business_manage_messages,instagram_business_manage_comments')
     expect(auth.searchParams.get('redirect_uri')).toBe(`${APP}/api/integrations/instagram/callback`)
 
     expect((await connectOwn('instagram')).searchParams.get('connected')).toBe('instagram')
@@ -707,5 +707,75 @@ describe('Sign-in emails come from the business’s own Gmail or Outlook (Supaba
   it('refuses kinds of email the app does not use', async () => {
     await connect('gmail')
     expect((await hook(email('email_change'))).status).toBe(400)
+  })
+})
+
+describe('Messages: the Instagram inbox (read and answer DMs)', () => {
+  const ALL = 'instagram_business_basic,instagram_business_content_publish,instagram_business_manage_messages,instagram_business_manage_comments'
+  beforeEach(async () => {
+    apis.instagram.permissions = ALL
+    await connectOwn('instagram')
+  })
+  const inbox = async () => (await get('/api/integrations/instagram/inbox')).json() as Promise<{
+    conversations: { id: string; with: { id: string; username: string }; recent: { kind: string; fromMe: boolean; text: string }[] }[]
+    tagged: { username: string }[] | null; taggedNote?: string; error?: string }>
+
+  it('connecting notes that messages and tagged posts were allowed', () => {
+    expect(db.integration('instagram').external).toMatchObject({ can_message: true, can_see_tags: true })
+  })
+
+  it('lists chats with who they are with, newest message first, its kind, and the posts the café is tagged in', async () => {
+    const res = await inbox()
+    expect(res.conversations).toHaveLength(1)
+    const [c] = res.conversations
+    expect(c.with).toEqual({ id: 'igsid-lucia', username: 'lucia.marbella' })
+    expect(c.recent.map(m => [m.kind, m.fromMe, m.text])).toEqual([
+      ['text', false, 'Do you have oat milk?'], ['story_mention', false, ''], ['text', true, 'See you tomorrow!']])
+    expect(res.tagged).toEqual([expect.objectContaining({ username: 'sanpedro.eats', permalink: 'https://instagram.com/p/t1' })])
+  })
+
+  it('opens a chat oldest first, and a reply goes to the person in that chat', async () => {
+    const thread = await (await get('/api/integrations/instagram/inbox/conv-1')).json() as { messages: { id: string }[] }
+    expect(thread.messages.map(m => m.id)).toEqual(['mid-1', 'mid-2', 'mid-3'])
+    const res = await post('/api/integrations/instagram/inbox/conv-1/reply', { text: '  Yes, oat and almond!  ', to: 'someone-else' })
+    expect(res.status).toBe(200)
+    expect(apis.instagram.sent).toEqual([{ recipient: { id: 'igsid-lucia' }, message: { text: 'Yes, oat and almond!' } }])
+  })
+
+  it('an empty or too long reply is refused before anything is sent', async () => {
+    expect((await post('/api/integrations/instagram/inbox/conv-1/reply', { text: '   ' })).status).toBe(400)
+    expect((await post('/api/integrations/instagram/inbox/conv-1/reply', { text: 'é'.repeat(501) })).status).toBe(400)
+    expect(apis.instagram.sent).toEqual([])
+  })
+
+  it('works when Instagram refuses the detailed message fields', async () => {
+    apis.instagram.plainOnly = true
+    expect((await inbox()).conversations[0].recent[0].text).toBe('Do you have oat milk?')
+  })
+
+  it('an account that didn’t allow messages is told to connect again; one that didn’t allow comments just loses tagged posts', async () => {
+    apis.instagram.noTags = true
+    const partly = await inbox()
+    expect(partly.conversations).toHaveLength(1)
+    expect(partly.tagged).toBeNull()
+    expect(partly.taggedNote).toMatch(/Manage comments/)
+    apis.instagram.noMessages = true
+    const res = await get('/api/integrations/instagram/inbox')
+    expect(res.status).toBe(400)
+    expect((await res.json() as { error: string }).error).toMatch(/Connect Instagram again.*Allow access to messages/)
+  })
+
+  it('staff can’t read the business’s messages', async () => {
+    expect((await get('/api/integrations/instagram/inbox', 'staff')).status).toBe(403)
+    expect((await post('/api/integrations/instagram/inbox/conv-1/reply', { text: 'hi' }, 'staff')).status).toBe(403)
+  })
+
+  it('Connect pressed on Messages comes back to Messages', async () => {
+    const start = await post('/api/integrations/instagram/start', { back: 'messages' })
+    const state = new URL((await start.json() as { url: string }).url).searchParams.get('state')!
+    const res = await integrations.request(`${APP}/api/integrations/instagram/callback?code=c&state=${encodeURIComponent(state)}`, {}, env, ctx())
+    const back = new URL(res.headers.get('location')!)
+    expect(back.pathname).toBe('/messages')
+    expect(back.searchParams.get('connected')).toBe('instagram')
   })
 })

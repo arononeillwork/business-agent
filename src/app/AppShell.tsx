@@ -17,6 +17,7 @@ import KioskIcon from '@mui/icons-material/TabletMacOutlined'
 import TimeOffIcon from '@mui/icons-material/BeachAccessOutlined'
 import FinanceIcon from '@mui/icons-material/PaymentsOutlined'
 import SocialIcon from '@mui/icons-material/CampaignOutlined'
+import MessagesIcon from '@mui/icons-material/ChatBubbleOutlineRounded'
 import AlertsIcon from '@mui/icons-material/CampaignOutlined'
 import ConnectIcon from '@mui/icons-material/HubOutlined'
 import SetupIcon from '@mui/icons-material/RocketLaunchOutlined'
@@ -55,6 +56,7 @@ export const SECTIONS: NavSection[] = [
     { key: 'hours', to: '/opening-hours', label: 'Opening hours', icon: <HoursIcon />, partner: 'any' },
     { key: 'brand', to: '/brand', label: 'Brand', icon: <BrandIcon />, partner: 'any' },
     { key: 'social', to: '/social', label: 'Social planner', icon: <SocialIcon />, who: 'admin' },
+    { key: 'messages', to: '/messages', label: 'Messages', icon: <MessagesIcon />, who: 'admin' },
     { key: 'finances', to: '/finances', label: 'Finances', icon: <FinanceIcon />, who: 'pay', partner: ['finances'] },
   ] },
   { key: 'whatson', label: "What's on", items: [

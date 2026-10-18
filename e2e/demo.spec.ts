@@ -1802,3 +1802,68 @@ test.describe('To Do List', () => {
     await expect(page.getByText('Restock napkins')).toBeVisible()
   })
 })
+
+test.describe('messages', () => {
+  test('admin reads Instagram DMs by kind, answers one, and sees when Instagram no longer allows a reply', async ({ page }) => {
+    await open(page, '/messages')
+    const apps = page.getByRole('group', { name: 'Apps' })
+    await expect(apps.getByRole('button', { name: 'Instagram' })).toHaveAttribute('aria-pressed', 'true')
+    for (const soon of ['WhatsApp · soon', 'Messenger · soon', 'TikTok · soon']) await expect(apps.getByText(soon)).toBeVisible()
+    await expect(apps.getByRole('button', { name: /WhatsApp/ })).toBeDisabled()
+
+    const chats = page.getByRole('list', { name: 'Instagram chats' })
+    await expect(chats.getByRole('listitem')).toHaveCount(6)
+    await page.getByRole('button', { name: 'Mentions & tags 1' }).click()
+    await expect(chats.getByRole('listitem')).toHaveCount(1)
+    await expect(chats.getByRole('listitem', { name: '@sanpedro.eats' })).toContainText('Story mention')
+    await expect(page.getByRole('region', { name: 'Posts you’re tagged in' }).getByRole('link')).toHaveCount(2)
+    await page.getByRole('button', { name: 'Shared posts 1' }).click()
+    await expect(chats).toContainText('Marta')
+    await page.getByRole('button', { name: 'Needs reply 5' }).click()
+    await expect(chats.getByRole('listitem', { name: '@happy.client' })).toHaveCount(0)
+
+    await chats.getByRole('listitem', { name: '@lucia.marbella' }).getByRole('button').click()
+    const chat = page.getByRole('region', { name: 'Chat with @lucia.marbella' })
+    await expect(chat.getByRole('list', { name: 'Messages' })).toContainText('Do you have oat milk')
+    await chat.getByRole('textbox', { name: 'Reply' }).fill('Yes! Oat and almond.')
+    await chat.getByRole('button', { name: 'Send' }).click()
+    await toast(page, 'Sent')
+    await expect(chat.getByRole('listitem', { name: 'You: Yes! Oat and almond.' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Needs reply 4' })).toBeVisible()
+
+    // Three days since their message: Instagram doesn't allow a reply any more.
+    await page.getByRole('button', { name: 'All', exact: true }).click()
+    await chats.getByRole('listitem', { name: '@weekend.visitor' }).getByRole('button').click()
+    const old = page.getByRole('region', { name: 'Chat with @weekend.visitor' })
+    await expect(old).toContainText('only allows replies within 24 hours')
+    await expect(old.getByRole('textbox', { name: 'Reply' })).toHaveCount(0)
+  })
+
+  test('connecting Instagram from Messages is the same connection as on Connections', async ({ page }) => {
+    await open(page, '/connections')
+    await page.getByRole('button', { name: 'Manage Instagram' }).click()
+    await page.getByRole('dialog', { name: 'Instagram' }).getByRole('button', { name: 'Disconnect' }).click()
+    await toast(page, 'Instagram disconnected')
+    await page.getByRole('link', { name: 'Messages' }).first().click()
+    const connect = page.getByRole('region', { name: 'Connect Instagram' })
+    await expect(connect).toContainText('Read and answer your direct messages')
+    await connect.getByRole('button', { name: 'Connect Instagram' }).click()
+    await expect(page.getByRole('list', { name: 'Instagram chats' })).toBeVisible()
+    await page.getByRole('link', { name: 'Connections' }).first().click()
+    await expect(page.getByRole('region', { name: 'Social media' }).getByRole('article', { name: 'Instagram' })).toContainText('@easy.beans.coffee')
+  })
+
+  test('staff don’t get Messages', async ({ page }) => {
+    await open(page, '/messages', 'maria@example.com')
+    await expect(page.getByRole('link', { name: 'Messages' })).toHaveCount(0)
+    await expect(page.getByRole('heading', { name: 'Messages' })).toHaveCount(0)
+  })
+
+  test('@phone the chat list opens a chat full width, with a way back', async ({ page }) => {
+    await open(page, '/messages')
+    await page.getByRole('list', { name: 'Instagram chats' }).getByRole('listitem', { name: '@tom_runs' }).getByRole('button').click()
+    await expect(page.getByRole('region', { name: 'Chat with @tom_runs' })).toContainText('Replied to your story')
+    await page.getByRole('button', { name: 'Back to chats' }).click()
+    await expect(page.getByRole('list', { name: 'Instagram chats' })).toBeVisible()
+  })
+})

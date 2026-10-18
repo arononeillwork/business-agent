@@ -1,7 +1,12 @@
+import type { InboxConversation, InboxMessage, MessageKind, TaggedPost } from '../../shared/messages'
+
 // Instagram (professional account), connected by the business itself with one click: "Instagram API
 // with Instagram Login". The owner signs in on instagram.com and allows access; we keep a long-lived
 // token (60 days) and renew it every night, long before it runs out. Setup: docs/INTEGRATIONS.md.
-export const INSTAGRAM_SCOPES = ['instagram_business_basic', 'instagram_business_content_publish']
+// Messages (Messages page) and comments (posts the business is tagged in) are asked for too; posting
+// alone is what "connected" needs, so an account that declines them still connects.
+export const INSTAGRAM_SCOPES = ['instagram_business_basic', 'instagram_business_content_publish',
+  'instagram_business_manage_messages', 'instagram_business_manage_comments']
 
 export interface InstagramOAuthConfig { appId: string; appSecret: string; redirectUri: string }
 /** A connected account: its token and Instagram user id. */
@@ -74,4 +79,104 @@ export async function publishPhoto(cfg: InstagramConfig, imageUrl: string, capti
   // The post's link, for the planner (falls back to the id if Instagram doesn't say).
   const made = await graph<{ permalink?: string }>(cfg, `${published.id}?fields=permalink`).catch(() => ({ permalink: undefined }))
   return made.permalink ?? published.id
+}
+
+// ---- Direct messages (Messages page) ----------------------------------------------------------
+// Instagram's Conversations API: conversations and their 20 latest messages, replies by text within
+// 24 hours of the customer's last message. Folders (Primary/General/Requests) aren't shared.
+
+/** Who "we" are in a chat: the account's Instagram id and username. */
+export interface Me { id: string; username?: string }
+
+const FIELDS = 'id,created_time,from,to,message,attachments{image_data,video_data,file_url,name},story,shares{name,description,type,url,id},reactions,is_unsupported'
+// If Instagram refuses one of the detailed fields, ask again for the plain ones.
+const PLAIN_FIELDS = 'id,created_time,from,to,message,attachments,story,shares'
+
+interface RawUser { id?: string; username?: string; name?: string }
+interface RawMedia { url?: string; preview_url?: string }
+export interface RawMessage {
+  id: string; created_time: string; from?: RawUser; message?: string; is_unsupported?: boolean
+  attachments?: { data?: { image_data?: RawMedia; video_data?: RawMedia; file_url?: string; name?: string; mime_type?: string }[] }
+  story?: unknown
+  shares?: { data?: { url?: string; link?: string; name?: string; description?: string; type?: string; id?: string; image_url?: string }[] }
+  reactions?: { data?: { reaction?: string; emoji?: string }[] }
+}
+interface RawConversation { id: string; updated_time: string; participants?: { data?: RawUser[] }; messages?: { data?: RawMessage[] } }
+
+/** Story mention or story reply, in either shape Instagram uses ({mention: …} or a list of typed items). */
+function storyOf(story: unknown): { kind: 'story_mention' | 'story_reply'; link?: string } | null {
+  if (!story || typeof story !== 'object') return null
+  const items = Array.isArray(story) ? story : (story as { data?: unknown[] }).data ?? [story]
+  for (const it of items as Record<string, { link?: string; url?: string } | string | undefined>[]) {
+    const mention = it.mention as { link?: string; url?: string } | undefined
+    const reply = it.reply_to as { link?: string; url?: string } | undefined
+    if (mention) return { kind: 'story_mention', link: mention.link ?? mention.url }
+    if (reply) return { kind: 'story_reply', link: reply.link ?? reply.url }
+    const type = String(it.type ?? '').toLowerCase()
+    if (type.includes('mention')) return { kind: 'story_mention', link: (it.link ?? it.url) as string | undefined }
+    if (type.includes('reply')) return { kind: 'story_reply', link: (it.link ?? it.url) as string | undefined }
+  }
+  return null
+}
+
+/** One Instagram message, as the Messages page shows it. */
+export function toInboxMessage(m: RawMessage, me: Me): InboxMessage {
+  const fromMe = !!m.from && (m.from.id === me.id || (!!me.username && m.from.username === me.username))
+  const base = { id: m.id, at: m.created_time, fromMe, text: m.message ?? '' }
+  const reactions = (m.reactions?.data ?? []).map(r => r.emoji ?? r.reaction ?? '').filter(Boolean)
+  const extra = reactions.length ? { reactions } : {}
+  if (m.is_unsupported) return { ...base, kind: 'unsupported', ...extra }
+  const story = storyOf(m.story)
+  if (story) return { ...base, kind: story.kind, mediaUrl: story.link, ...extra }
+  const share = m.shares?.data?.[0]
+  if (share) return { ...base, kind: 'share', link: share.url ?? share.link, mediaUrl: share.image_url, text: base.text || share.name || share.description || '', ...extra }
+  const a = m.attachments?.data?.[0]
+  if (a) {
+    const kind: MessageKind = a.video_data ? 'video' : a.image_data ? 'image' : /audio/.test(a.mime_type ?? '') ? 'audio' : 'file'
+    return { ...base, kind, mediaUrl: a.video_data?.preview_url ?? a.video_data?.url ?? a.image_data?.url ?? a.image_data?.preview_url ?? a.file_url, ...extra }
+  }
+  return { ...base, kind: 'text', ...extra }
+}
+
+function toConversation(c: RawConversation, me: Me): InboxConversation {
+  const people = c.participants?.data ?? []
+  const other = people.find(p => p.id !== me.id && (!me.username || p.username !== me.username)) ?? people[0] ?? {}
+  return {
+    id: c.id, platform: 'instagram', updatedAt: c.updated_time,
+    with: { id: other.id ?? '', username: other.username ?? 'instagram user', ...(other.name ? { name: other.name } : {}) },
+    recent: (c.messages?.data ?? []).map(m => toInboxMessage(m, me)).sort((a, b) => b.at.localeCompare(a.at)),
+  }
+}
+
+const detailed = <T>(cfg: InstagramConfig, path: (fields: string) => string) =>
+  graph<T>(cfg, path(FIELDS)).catch(e => (/field|param/i.test(String(e)) ? graph<T>(cfg, path(PLAIN_FIELDS)) : Promise.reject(e)))
+
+/** The latest chats, newest first, each with its latest few messages. */
+export async function conversations(cfg: InstagramConfig, me: Me): Promise<InboxConversation[]> {
+  const res = await detailed<{ data: RawConversation[] }>(cfg,
+    f => `me/conversations?platform=instagram&limit=25&fields=id,updated_time,participants,messages.limit(5){${f}}`)
+  return res.data.map(c => toConversation(c, me)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+}
+
+/** One chat with its 20 latest messages (all Instagram shares), oldest first. */
+export async function conversation(cfg: InstagramConfig, me: Me, id: string) {
+  const c = await detailed<RawConversation>(cfg, f => `${encodeURIComponent(id)}?fields=id,updated_time,participants,messages.limit(20){${f}}`)
+  const chat = toConversation({ ...c, id }, me)
+  return { conversation: { ...chat, recent: chat.recent.slice(0, 5) }, messages: [...chat.recent].reverse() }
+}
+
+/** Reply by text (Instagram allows it within 24 hours of the customer's last message). */
+export async function sendText(cfg: InstagramConfig, to: string, text: string) {
+  const sent = await graph<{ message_id?: string }>(cfg, 'me/messages', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ recipient: { id: to }, message: { text } }),
+  })
+  return sent.message_id ?? null
+}
+
+/** Posts other accounts tagged the business in. */
+export async function tagged(cfg: InstagramConfig): Promise<TaggedPost[]> {
+  const res = await graph<{ data: { id: string; username?: string; caption?: string; media_url?: string; thumbnail_url?: string; permalink: string; timestamp: string }[] }>(cfg,
+    'me/tags?fields=id,username,caption,media_type,media_url,thumbnail_url,permalink,timestamp&limit=12')
+  return res.data.map(p => ({ id: p.id, username: p.username, caption: p.caption, mediaUrl: p.thumbnail_url ?? p.media_url, permalink: p.permalink, at: p.timestamp }))
 }

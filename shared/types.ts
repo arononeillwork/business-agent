@@ -287,6 +287,8 @@ export interface Integration {
     pages?: { id: string; name: string }[]; page_id?: string
     /** TikTok: posts stay private until TikTok audits the app. */
     private_only?: boolean
+    /** Instagram: whether the account allowed reading and answering messages, and seeing posts it's tagged in. */
+    can_message?: boolean; can_see_tags?: boolean
   }
   connected_at: string | null
   last_sync_at: string | null

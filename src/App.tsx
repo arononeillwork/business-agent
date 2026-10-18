@@ -17,6 +17,7 @@ import { lazy, Suspense, type ComponentType } from 'react'
 const page = <K extends string>(load: () => Promise<Record<K, ComponentType>>, name: K) =>
   lazy(() => load().then(m => ({ default: m[name] })))
 const TodayPage = page(() => import('./pages/TodayPage'), 'TodayPage')
+const MessagesPage = page(() => import('./pages/MessagesPage'), 'MessagesPage')
 const RotaPage = page(() => import('./pages/RotaPage'), 'RotaPage')
 const TimecardsPage = page(() => import('./pages/TimecardsPage'), 'TimecardsPage')
 const CalendarPage = page(() => import('./pages/CalendarPage'), 'CalendarPage')
@@ -96,6 +97,7 @@ function Routed() {
         <Route path="alerts" element={isAdmin ? <AlertsPage /> : <Navigate to="/" />} />
         <Route path="connections" element={isAdmin ? <ConnectionsPage /> : <Navigate to="/" />} />
         <Route path="social" element={isAdmin ? <SocialPlannerPage /> : <Navigate to="/" />} />
+        <Route path="messages" element={isAdmin ? <MessagesPage /> : <Navigate to="/" />} />
         <Route path="setup" element={isAdmin ? <SetupPage /> : <Navigate to="/" />} />
         <Route path="partners" element={isAdmin && FEATURES.partners ? <PartnersPage /> : <Navigate to="/" />} />
         <Route path="*" element={<Navigate to="/" />} />
