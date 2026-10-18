@@ -18,6 +18,7 @@ import * as square from './providers/square'
 import * as stripe from './providers/stripe'
 import { alertEmail, base64url, mimeMessage } from '../shared/alertText'
 import { addToCalendarUrl, optionName } from '../shared/connections'
+import { replyWindow } from '../shared/messages'
 import { finishMusicConnect, type MusicState } from './music'
 import { ensureFeed } from './calendarFeed'
 import {
@@ -867,9 +868,12 @@ function inboxError(e: unknown) {
   if (/permission|capability|\(#3\)|\(#10\)|\(#200\)/i.test(raw)) {
     return 'Instagram hasn’t allowed this app to read messages. Connect Instagram again and leave “Manage messages” ticked; in the Instagram app, also turn on Settings → Messages and story replies → Message controls → Allow access to messages.'
   }
-  if (/24 hour|outside of allowed window|window/i.test(raw)) return 'Instagram only allows replies within 24 hours of their last message. Reply in the Instagram app instead.'
+  if (/24 hour|outside of allowed window|window/i.test(raw)) return 'Instagram only allows replies within 24 hours of their last message (7 days as a personal reply). Reply in the Instagram app instead.'
   return explain('instagram', e)
 }
+
+/** Instagram refused a reply sent after 24 hours (the human agent tag): what to do about it. */
+const HUMAN_AGENT_REFUSED = 'Instagram didn’t accept a reply after 24 hours. Add the Human Agent feature to the Meta app (App Dashboard → Use cases → Instagram → Permissions and features → Human Agent), or reply in the Instagram app.'
 
 integrations.get('/api/integrations/instagram/inbox', async c => {
   try {
@@ -899,8 +903,22 @@ integrations.post('/api/integrations/instagram/inbox/:id/reply', async c => {
   try {
     const { cfg, me } = await instagramInbox(c)
     // Reply to the person in this chat (never to an id the browser chose).
-    const { conversation } = await instagram.conversation(cfg, me, c.req.param('id'))
+    const { conversation, messages } = await instagram.conversation(cfg, me, c.req.param('id'))
     if (!conversation.with.id) throw new Error('Couldn’t find who this chat is with')
+    // Within 24 hours of their last message: a normal reply. Up to 7 days: a personal reply with the
+    // human agent tag. After that Instagram allows nothing from other apps.
+    const can = replyWindow(messages)
+    if (can.mode === 'closed') {
+      return c.json({ error: 'Instagram allows replies up to 7 days after their last message. Reply in the Instagram app instead.' }, 400)
+    }
+    if (can.mode === 'human_agent') {
+      try {
+        return c.json({ ok: true, id: await instagram.sendText(cfg, conversation.with.id, said, 'HUMAN_AGENT'), human_agent: true })
+      } catch (e) {
+        if (/permission|capabilit|human.?agent|tag|window|\(#3\)|\(#10\)|\(#200\)|\(#100\)/i.test(String(e))) return c.json({ error: HUMAN_AGENT_REFUSED }, 400)
+        throw e
+      }
+    }
     return c.json({ ok: true, id: await instagram.sendText(cfg, conversation.with.id, said) })
   } catch (e) {
     return c.json({ error: inboxError(e) }, 400)

@@ -1881,14 +1881,14 @@ test.describe('messages', () => {
     await expect(apps.getByRole('button', { name: /WhatsApp/ })).toBeDisabled()
 
     const chats = page.getByRole('list', { name: 'Instagram chats' })
-    await expect(chats.getByRole('listitem')).toHaveCount(6)
+    await expect(chats.getByRole('listitem')).toHaveCount(7)
     await page.getByRole('button', { name: 'Mentions & tags 1' }).click()
     await expect(chats.getByRole('listitem')).toHaveCount(1)
     await expect(chats.getByRole('listitem', { name: '@sanpedro.eats' })).toContainText('Story mention')
     await expect(page.getByRole('region', { name: 'Posts you’re tagged in' }).getByRole('link')).toHaveCount(2)
     await page.getByRole('button', { name: 'Shared posts 1' }).click()
     await expect(chats).toContainText('Marta')
-    await page.getByRole('button', { name: 'Needs reply 5' }).click()
+    await page.getByRole('button', { name: 'Needs reply 6' }).click()
     await expect(chats.getByRole('listitem', { name: '@happy.client' })).toHaveCount(0)
 
     await chats.getByRole('listitem', { name: '@lucia.marbella' }).getByRole('button').click()
@@ -1898,14 +1898,41 @@ test.describe('messages', () => {
     await chat.getByRole('button', { name: 'Send' }).click()
     await toast(page, 'Sent')
     await expect(chat.getByRole('listitem', { name: 'You: Yes! Oat and almond.' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Needs reply 4' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Needs reply 5' })).toBeVisible()
 
-    // Three days since their message: Instagram doesn't allow a reply any more.
+    // Three days since their message: a personal reply (Instagram's human agent tag) is still allowed.
     await page.getByRole('button', { name: 'All', exact: true }).click()
     await chats.getByRole('listitem', { name: '@weekend.visitor' }).getByRole('button').click()
-    const old = page.getByRole('region', { name: 'Chat with @weekend.visitor' })
-    await expect(old).toContainText('only allows replies within 24 hours')
+    const later = page.getByRole('region', { name: 'Chat with @weekend.visitor' })
+    await expect(later.getByRole('note', { name: 'Personal reply' })).toContainText('more than 24 hours')
+    await later.getByRole('textbox', { name: 'Reply' }).fill('Yes, Sundays 9 to 2!')
+    await later.getByRole('button', { name: 'Send' }).click()
+    await toast(page, 'Sent')
+
+    // Nine days: Instagram doesn't allow a reply from other apps any more.
+    await chats.getByRole('listitem', { name: '@old.friend' }).getByRole('button').click()
+    const old = page.getByRole('region', { name: 'Chat with @old.friend' })
+    await expect(old).toContainText('up to 7 days after their last message')
     await expect(old.getByRole('textbox', { name: 'Reply' })).toHaveCount(0)
+  })
+
+  test('profile photos (or initials), and the chats use the full width until one is open', async ({ page }) => {
+    await open(page, '/messages')
+    const chats = page.getByRole('list', { name: 'Instagram chats' })
+    const lucia = chats.getByRole('listitem', { name: '@lucia.marbella' })
+    await expect(lucia.locator('img')).toHaveAttribute('src', /^data:image\/svg/)
+    await expect(chats.getByRole('listitem', { name: '@tom_runs' }).locator('.MuiAvatar-root')).toHaveText('T')
+    await expect(chats.getByRole('listitem', { name: '@tom_runs' }).locator('img')).toHaveCount(0)
+
+    const fullWidth = (await chats.boundingBox())!.width
+    expect(fullWidth).toBeGreaterThan(600)
+    await lucia.getByRole('button').click()
+    const chat = page.getByRole('region', { name: 'Chat with @lucia.marbella' })
+    await expect(chat.getByRole('list', { name: 'Messages' }).locator('img').first()).toBeVisible() // their photo beside their message
+    expect((await chats.boundingBox())!.width).toBeLessThan(360)
+    await chat.getByRole('button', { name: 'Close chat' }).click()
+    await expect(chat).toHaveCount(0)
+    expect((await chats.boundingBox())!.width).toBeGreaterThan(600)
   })
 
   test('connecting Instagram from Messages is the same connection as on Connections', async ({ page }) => {

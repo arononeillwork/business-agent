@@ -3,6 +3,7 @@ import {
   useMediaQuery, useTheme,
 } from '@mui/material'
 import BackIcon from '@mui/icons-material/ArrowBackRounded'
+import CloseIcon from '@mui/icons-material/CloseRounded'
 import SendIcon from '@mui/icons-material/SendRounded'
 import OpenIcon from '@mui/icons-material/OpenInNewRounded'
 import InfoIcon from '@mui/icons-material/InfoOutlined'
@@ -14,7 +15,7 @@ import { useAction } from '../app/Notify'
 import { Empty, ErrorBox, PageHeader } from '../components/common'
 import { Brand, CAN, DOES, KEYS_NEEDED, ago, useConnectResult } from '../components/Connectors'
 import {
-  INBOX_FILTERS, matchesFilter, needsReply, preview, replyUntil,
+  INBOX_FILTERS, initials, matchesFilter, needsReply, preview, replyWindow,
   type InboxConversation, type InboxFilter, type InboxMessage, type MessagePlatform, type TaggedPost,
 } from '../../shared/messages'
 import type { Integration } from '../../shared/types'
@@ -128,12 +129,12 @@ function Inbox({ ig }: { ig: Integration }) {
         <InfoIcon sx={{ fontSize: 16, mt: '2px' }} />
         <Typography variant="caption">
           Instagram doesn’t share its Primary, General and Requests folders with other apps, so every chat is here.
-          You can reply for 24 hours after someone’s last message.
+          You can reply for 24 hours after someone’s last message, and for up to 7 days as a personal reply you write yourself.
         </Typography>
       </Stack>
       {data.data && shown.length === 0 && <Empty>{filter === 'all' ? 'No Instagram messages yet.' : 'Nothing here right now.'}</Empty>}
       <Stack component="ul" aria-label="Instagram chats" sx={{ m: 0, p: 0, listStyle: 'none', gap: 0.5 }}>
-        {shown.map(c => <ChatRow key={c.id} c={c} selected={c.id === open} onOpen={() => setOpen(c.id)} />)}
+        {shown.map(c => <ChatRow key={c.id} c={c} selected={c.id === open} roomy={wide && !chosen} onOpen={() => setOpen(c.id)} />)}
       </Stack>
       {filter === 'mentions' && <Tagged posts={data.data?.tagged ?? null} note={data.data?.taggedNote} />}
     </Box>
@@ -143,10 +144,11 @@ function Inbox({ ig }: { ig: Integration }) {
     <Card>
       <CardContent sx={{ p: { xs: 1.5, md: 2 } }}>
         <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>{ig.account_label}</Typography>
-        {wide ? (
+        {/* A computer: the chats fill the card until one is open, then chats and chat side by side. A phone: one at a time. */}
+        {wide && chosen ? (
           <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 340px) 1fr', gap: 2.5, alignItems: 'start' }}>
             {list}
-            {chosen ? <Thread c={chosen} onSent={data.reload} /> : <Empty>Pick a chat to read it and reply.</Empty>}
+            <Thread c={chosen} onSent={data.reload} onClose={() => setOpen(null)} />
           </Box>
         ) : chosen ? <Thread c={chosen} onSent={data.reload} onBack={() => setOpen(null)} /> : list}
       </CardContent>
@@ -156,25 +158,39 @@ function Inbox({ ig }: { ig: Integration }) {
 
 const KIND_TAG: Partial<Record<InboxMessage['kind'], string>> = { story_mention: 'Story mention', story_reply: 'Story reply', share: 'Shared post' }
 
-function ChatRow({ c, selected, onOpen }: { c: InboxConversation; selected: boolean; onOpen: () => void }) {
+/** Their Instagram profile photo, or their initials (also when the photo's link has expired). */
+function PersonAvatar({ who, size }: { who: InboxConversation['with']; size: number }) {
+  return (
+    <Avatar src={who.picture} alt="" aria-hidden slotProps={{ img: { referrerPolicy: 'no-referrer', loading: 'lazy' } }}
+      sx={{ width: size, height: size, fontSize: size * 0.4, bgcolor: tokens.ubeSoft, color: tokens.ubeDeep, fontWeight: 600, flexShrink: 0 }}>
+      {initials(who)}
+    </Avatar>
+  )
+}
+
+function ChatRow({ c, selected, roomy, onOpen }: { c: InboxConversation; selected: boolean; roomy: boolean; onOpen: () => void }) {
   const last = c.recent[0]
   const waiting = needsReply(c)
   const tag = c.recent.find(m => !m.fromMe && KIND_TAG[m.kind])
   return (
     <Box component="li" aria-label={`@${c.with.username}`}>
       <Box component="button" type="button" onClick={onOpen} aria-current={selected || undefined}
-        sx={{ all: 'unset', boxSizing: 'border-box', width: '100%', cursor: 'pointer', display: 'flex', gap: 1.25, alignItems: 'center',
-          p: 1.25, borderRadius: '12px', bgcolor: selected ? tokens.roseSoft : 'transparent', '&:hover': { bgcolor: selected ? tokens.roseSoft : tokens.hover },
+        sx={{ all: 'unset', boxSizing: 'border-box', width: '100%', cursor: 'pointer', display: 'flex', gap: roomy ? 1.75 : 1.25, alignItems: 'center',
+          p: roomy ? 1.75 : 1.25, borderRadius: '12px', bgcolor: selected ? tokens.roseSoft : 'transparent', '&:hover': { bgcolor: selected ? tokens.roseSoft : tokens.hover },
           '&:focus-visible': { outline: `2px solid ${tokens.rose}` } }}>
-        <Avatar sx={{ width: 40, height: 40, bgcolor: tokens.ubeSoft, color: tokens.ubeDeep, fontWeight: 600 }}>{c.with.username[0]?.toUpperCase()}</Avatar>
+        <PersonAvatar who={c.with} size={roomy ? 52 : 44} />
         <Box sx={{ minWidth: 0, flex: 1 }}>
           <Stack direction="row" spacing={1} sx={{ alignItems: 'baseline' }}>
-            <Typography variant="body2" sx={{ fontWeight: waiting ? 700 : 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+            <Typography variant="body2" sx={{ fontWeight: waiting ? 700 : 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: roomy ? '0 1 auto' : 1 }}>
               {c.with.name ?? c.with.username}
             </Typography>
-            <Typography variant="caption" sx={{ color: 'text.secondary', flexShrink: 0 }}>{ago(c.updatedAt)}</Typography>
+            {roomy && c.with.name && (
+              <Typography variant="caption" sx={{ color: 'text.secondary', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>@{c.with.username}</Typography>
+            )}
+            <Typography variant="caption" sx={{ color: 'text.secondary', flexShrink: 0, ml: 'auto' }}>{ago(c.updatedAt)}</Typography>
           </Stack>
-          <Typography variant="caption" component="p" sx={{ color: waiting ? 'text.primary' : 'text.secondary', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <Typography variant={roomy ? 'body2' : 'caption'} component="p" sx={{ color: waiting ? 'text.primary' : 'text.secondary', overflow: 'hidden',
+            ...(roomy ? { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' } : { textOverflow: 'ellipsis', whiteSpace: 'nowrap' }) }}>
             {preview(last)}
           </Typography>
           {(waiting || tag) && (
@@ -189,13 +205,14 @@ function ChatRow({ c, selected, onOpen }: { c: InboxConversation; selected: bool
   )
 }
 
-function Thread({ c, onSent, onBack }: { c: InboxConversation; onSent: () => Promise<void>; onBack?: () => void }) {
+function Thread({ c, onSent, onBack, onClose }: { c: InboxConversation; onSent: () => Promise<void>; onBack?: () => void; onClose?: () => void }) {
   const { api } = useApp()
   const run = useAction()
   const [text, setText] = useState('')
   const t = useAsync('instagram-thread', () => api.instagramThread(c.id), [c.id], { refetchInterval: 30_000 })
   const messages = t.data?.messages ?? []
-  const until = useMemo(() => replyUntil(messages), [messages])
+  const can = useMemo(() => replyWindow(messages), [messages])
+  const who = t.data?.conversation.with ?? c.with
   const send = () => run(async () => {
     await api.replyInstagram(c.id, text)
     setText('')
@@ -206,28 +223,40 @@ function Thread({ c, onSent, onBack }: { c: InboxConversation; onSent: () => Pro
     <Box component="section" aria-label={`Chat with @${c.with.username}`} sx={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
       <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
         {onBack && <IconButton aria-label="Back to chats" onClick={onBack} edge="start"><BackIcon /></IconButton>}
+        <PersonAvatar who={who} size={40} />
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography variant="h6" component="h2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.with.name ?? c.with.username}</Typography>
-          <Typography variant="caption" sx={{ color: 'text.secondary' }}>@{c.with.username}</Typography>
+          <Typography variant="h6" component="h2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{who.name ?? who.username}</Typography>
+          <Typography variant="caption" sx={{ color: 'text.secondary' }}>@{who.username}</Typography>
         </Box>
         <Button size="small" endIcon={<OpenIcon />} href="https://www.instagram.com/direct/inbox/" target="_blank" rel="noreferrer">Instagram</Button>
+        {onClose && <Tooltip title="Close chat"><IconButton aria-label="Close chat" onClick={onClose}><CloseIcon /></IconButton></Tooltip>}
       </Stack>
       <ErrorBox error={t.error} />
       <Stack component="ol" aria-label="Messages" sx={{ m: 0, p: 1.5, listStyle: 'none', gap: 1, bgcolor: tokens.surfaceAlt, borderRadius: '14px',
         maxHeight: { md: 460 }, overflowY: 'auto', minHeight: 160 }}>
-        {messages.map(m => <Bubble key={m.id} m={m} />)}
+        {messages.map((m, i) => (
+          // Instagram style: their photo beside the last message of each run of theirs.
+          <Bubble key={m.id} m={m} who={m.fromMe ? undefined : who} showAvatar={!m.fromMe && (messages[i + 1]?.fromMe ?? true)} />
+        ))}
         {t.data && messages.length === 0 && <Typography variant="body2" sx={{ color: 'text.secondary' }}>No messages Instagram can share.</Typography>}
       </Stack>
-      {until ? (
+      {t.data && can.mode === 'human_agent' && (
+        <Alert severity="info" variant="outlined" role="note" aria-label="Personal reply">
+          It’s been more than 24 hours since their last message, so Instagram takes this as a personal reply (its “human agent” tag):
+          write it yourself, and no promotions. Allowed until {formatLocal(can.until, 'EEE d MMM, HH:mm')}.
+        </Alert>
+      )}
+      {can.mode !== 'closed' ? (
         <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-end' }}>
           <TextField label="Reply" value={text} onChange={e => setText(e.target.value)} multiline maxRows={4} fullWidth size="small"
-            helperText={`You can reply until ${formatLocal(until, 'EEE HH:mm')}.`} slotProps={{ htmlInput: { maxLength: 1000 } }}
+            helperText={can.mode === 'normal' ? `You can reply until ${formatLocal(can.until, 'EEE HH:mm')}.` : 'Sent as a personal reply.'}
+            slotProps={{ htmlInput: { maxLength: 1000 } }}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && text.trim()) { e.preventDefault(); void send() } }} />
           <IconButton aria-label="Send" color="primary" disabled={!text.trim()} onClick={() => void send()} sx={{ mb: 3 }}><SendIcon /></IconButton>
         </Stack>
       ) : t.data && (
         <Alert severity="info">
-          Instagram only allows replies within 24 hours of their last message.{' '}
+          Instagram only allows replies from other apps up to 7 days after their last message.{' '}
           <MuiLink href="https://www.instagram.com/direct/inbox/" target="_blank" rel="noreferrer">Reply in the Instagram app</MuiLink> instead.
         </Alert>
       )}
@@ -240,28 +269,35 @@ const LABEL: Partial<Record<InboxMessage['kind'], string>> = {
   video: 'Video', audio: 'Voice message', file: 'File',
 }
 
-function Bubble({ m }: { m: InboxMessage }) {
+const BUBBLE_AVATAR = 28
+
+function Bubble({ m, who, showAvatar }: { m: InboxMessage; who?: InboxConversation['with']; showAvatar?: boolean }) {
   const mine = m.fromMe
   const label = LABEL[m.kind]
   return (
     <Box component="li" aria-label={`${mine ? 'You' : 'Them'}: ${label ?? ''}${label && m.text ? ' · ' : ''}${m.text}`}
-      sx={{ alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '82%' }}>
-      <Box sx={{ px: 1.5, py: 1, borderRadius: '16px', bgcolor: mine ? tokens.rose : tokens.surface, color: mine ? '#2B2522' : 'text.primary',
-        border: mine ? 'none' : `1px solid ${tokens.line}` }}>
-        {label && <Typography variant="caption" component="p" sx={{ fontWeight: 600, mb: m.text || m.mediaUrl ? 0.5 : 0 }}>{label}</Typography>}
-        {m.mediaUrl && (m.kind === 'audio'
-          ? <Box component="audio" controls src={m.mediaUrl} sx={{ display: 'block', maxWidth: 240 }} />
-          : m.kind === 'file'
-            ? <MuiLink href={m.mediaUrl} target="_blank" rel="noreferrer">Open file</MuiLink>
-            : <Box component="img" src={m.mediaUrl} alt="" sx={{ display: 'block', width: 160, maxWidth: '100%', borderRadius: '10px', mb: m.text ? 0.75 : 0 }} />)}
-        {m.kind === 'unsupported'
-          ? <Typography variant="body2" sx={{ fontStyle: 'italic' }}>A message Instagram doesn’t share with other apps. Open Instagram to see it.</Typography>
-          : m.text && <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{m.text}</Typography>}
-        {m.link && <MuiLink href={m.link} target="_blank" rel="noreferrer" variant="caption">Open on Instagram</MuiLink>}
+      sx={{ alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '82%', display: 'flex', gap: 1, alignItems: 'flex-end' }}>
+      {who && (showAvatar
+        ? <Box sx={{ mb: 2.5 }}><PersonAvatar who={who} size={BUBBLE_AVATAR} /></Box>
+        : <Box sx={{ width: BUBBLE_AVATAR, flexShrink: 0 }} />)}
+      <Box sx={{ minWidth: 0 }}>
+        <Box sx={{ px: 1.5, py: 1, borderRadius: '16px', bgcolor: mine ? tokens.rose : tokens.surface, color: mine ? '#2B2522' : 'text.primary',
+          border: mine ? 'none' : `1px solid ${tokens.line}` }}>
+          {label && <Typography variant="caption" component="p" sx={{ fontWeight: 600, mb: m.text || m.mediaUrl ? 0.5 : 0 }}>{label}</Typography>}
+          {m.mediaUrl && (m.kind === 'audio'
+            ? <Box component="audio" controls src={m.mediaUrl} sx={{ display: 'block', maxWidth: 240 }} />
+            : m.kind === 'file'
+              ? <MuiLink href={m.mediaUrl} target="_blank" rel="noreferrer">Open file</MuiLink>
+              : <Box component="img" src={m.mediaUrl} alt="" sx={{ display: 'block', width: 160, maxWidth: '100%', borderRadius: '10px', mb: m.text ? 0.75 : 0 }} />)}
+          {m.kind === 'unsupported'
+            ? <Typography variant="body2" sx={{ fontStyle: 'italic' }}>A message Instagram doesn’t share with other apps. Open Instagram to see it.</Typography>
+            : m.text && <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{m.text}</Typography>}
+          {m.link && <MuiLink href={m.link} target="_blank" rel="noreferrer" variant="caption">Open on Instagram</MuiLink>}
+        </Box>
+        <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', textAlign: mine ? 'right' : 'left', mt: 0.25 }}>
+          {formatLocal(m.at, 'd MMM, HH:mm')}{m.reactions?.length ? ` · ${m.reactions.join(' ')}` : ''}
+        </Typography>
       </Box>
-      <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', textAlign: mine ? 'right' : 'left', mt: 0.25 }}>
-        {formatLocal(m.at, 'd MMM, HH:mm')}{m.reactions?.length ? ` · ${m.reactions.join(' ')}` : ''}
-      </Typography>
     </Box>
   )
 }

@@ -83,7 +83,8 @@ export async function publishPhoto(cfg: InstagramConfig, imageUrl: string, capti
 
 // ---- Direct messages (Messages page) ----------------------------------------------------------
 // Instagram's Conversations API: conversations and their 20 latest messages, replies by text within
-// 24 hours of the customer's last message. Folders (Primary/General/Requests) aren't shared.
+// 24 hours of the customer's last message (7 days with the human agent tag). Folders
+// (Primary/General/Requests) aren't shared.
 
 /** Who "we" are in a chat: the account's Instagram id and username. */
 export interface Me { id: string; username?: string }
@@ -151,25 +152,63 @@ function toConversation(c: RawConversation, me: Me): InboxConversation {
 const detailed = <T>(cfg: InstagramConfig, path: (fields: string) => string) =>
   graph<T>(cfg, path(FIELDS)).catch(e => (/field|param/i.test(String(e)) ? graph<T>(cfg, path(PLAIN_FIELDS)) : Promise.reject(e)))
 
+/** A customer's name and profile photo (Instagram's User Profile API; they must have messaged the business). */
+export interface Person { name?: string; username?: string; picture?: string }
+
+const PERSON_TTL_S = 6 * 3600
+// Workers' cache (absent in tests and local Node): profile photos are links that last a few days, so
+// each person is looked up at most every 6 hours rather than on every inbox refresh.
+const edgeCache = () => (globalThis as { caches?: { default?: Cache } }).caches?.default
+
+/** Who an Instagram-scoped id is; never throws (no photo is better than no inbox). */
+export async function person(cfg: InstagramConfig, igsid: string): Promise<Person> {
+  if (!igsid) return {}
+  const cache = edgeCache()
+  const key = `https://instagram-person.cache/${encodeURIComponent(cfg.userId)}/${encodeURIComponent(igsid)}`
+  const hit = await cache?.match(key).catch(() => undefined)
+  if (hit) return hit.json() as Promise<Person>
+  let found: Person = {}
+  let ttl = PERSON_TTL_S
+  try {
+    const p = await graph<{ name?: string; username?: string; profile_pic?: string }>(cfg, `${encodeURIComponent(igsid)}?fields=name,username,profile_pic`)
+    found = { ...(p.name ? { name: p.name } : {}), ...(p.username ? { username: p.username } : {}), ...(p.profile_pic ? { picture: p.profile_pic } : {}) }
+  } catch {
+    ttl = 3600 // blocked us, or Instagram is busy: try again in an hour
+  }
+  await cache?.put(key, new Response(JSON.stringify(found), { headers: { 'content-type': 'application/json', 'cache-control': `max-age=${ttl}` } })).catch(() => {})
+  return found
+}
+
+/** The chat's other person with their name and photo filled in where Instagram shares them. */
+async function withPerson(cfg: InstagramConfig, c: InboxConversation): Promise<InboxConversation> {
+  const p = await person(cfg, c.with.id)
+  const name = p.name ?? c.with.name
+  return { ...c, with: { id: c.with.id, username: p.username ?? c.with.username, ...(name ? { name } : {}), ...(p.picture ? { picture: p.picture } : {}) } }
+}
+
 /** The latest chats, newest first, each with its latest few messages. */
 export async function conversations(cfg: InstagramConfig, me: Me): Promise<InboxConversation[]> {
   const res = await detailed<{ data: RawConversation[] }>(cfg,
     f => `me/conversations?platform=instagram&limit=25&fields=id,updated_time,participants,messages.limit(5){${f}}`)
-  return res.data.map(c => toConversation(c, me)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+  const chats = await Promise.all(res.data.map(c => withPerson(cfg, toConversation(c, me))))
+  return chats.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
 }
 
 /** One chat with its 20 latest messages (all Instagram shares), oldest first. */
 export async function conversation(cfg: InstagramConfig, me: Me, id: string) {
   const c = await detailed<RawConversation>(cfg, f => `${encodeURIComponent(id)}?fields=id,updated_time,participants,messages.limit(20){${f}}`)
-  const chat = toConversation({ ...c, id }, me)
+  const chat = await withPerson(cfg, toConversation({ ...c, id }, me))
   return { conversation: { ...chat, recent: chat.recent.slice(0, 5) }, messages: [...chat.recent].reverse() }
 }
 
-/** Reply by text (Instagram allows it within 24 hours of the customer's last message). */
-export async function sendText(cfg: InstagramConfig, to: string, text: string) {
+/**
+ * Reply by text. Within 24 hours of the customer's last message it goes as a normal reply; up to 7
+ * days, a person replying sends it with the HUMAN_AGENT tag (the Meta app needs the Human Agent feature).
+ */
+export async function sendText(cfg: InstagramConfig, to: string, text: string, tag?: 'HUMAN_AGENT') {
   const sent = await graph<{ message_id?: string }>(cfg, 'me/messages', {
     method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ recipient: { id: to }, message: { text } }),
+    body: JSON.stringify({ recipient: { id: to }, message: { text }, ...(tag ? { messaging_type: 'MESSAGE_TAG', tag } : {}) }),
   })
   return sent.message_id ?? null
 }
