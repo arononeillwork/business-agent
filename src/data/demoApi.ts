@@ -367,6 +367,7 @@ export function createDemoApi(): Api {
     interval: demoPlan === 'business' || demoPlan === 'free' ? null : 'month', trial_ends_at: null, current_period_end: null,
     cancel_at_period_end: false, trial_used: false, has_customer: demoPlan !== 'business' && demoPlan !== 'free', ready: true,
     complimentary: demoPlan === 'business' ? 'founder' : null, complimentary_note: demoPlan === 'business' ? 'Easy Beans Coffee' : null,
+    referral_months_applied: 0, referred_by: null,
   }
 
   // Who is signed in survives a page reload within the tab (the demo data itself does not).

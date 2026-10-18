@@ -87,9 +87,9 @@ export function ReferralsPage() {
             {list.map(r => <ReferralRow key={r.id} r={r} />)}
           </Stack>
           <Typography variant="caption" component="p" sx={{ color: 'text.secondary', mt: 2 }}>
-            Free months go on your Business Agent plan when paid plans start (Business Agent is free during early access,
-            with 30 days’ notice before any paid plan). Sign-up for new businesses opens soon; until then your link takes
-            them to the waitlist, and they count once they finish setting up.
+            Each free month goes on your bill as credit (one month of your plan) and is taken off your next payments
+            automatically; see Billing. Sign-up for new businesses opens soon; until then your link takes them to the
+            waitlist, and they count once they finish setting up.
           </Typography>
         </CardContent>
       </Card>

@@ -108,6 +108,11 @@ export function BillingPage() {
                       : 'A friends & family account: every feature of the top plan, free. Nothing to pay and no card needed.'}
                   </Typography>
                 )}
+                {b && b.referral_months_applied > 0 && (
+                  <Typography color="text.secondary" sx={{ mt: 0.5 }}>
+                    Referral credit: {b.referral_months_applied} free month{b.referral_months_applied === 1 ? '' : 's'} added to your bill, taken off your next payments.
+                  </Typography>
+                )}
                 {b?.status === 'active' && b.current_period_end && (
                   <Typography color="text.secondary" sx={{ mt: 0.5 }}>
                     {b.cancel_at_period_end ? 'Ends' : 'Renews'} on {formatLocal(b.current_period_end, 'd MMMM yyyy')}, billed {b.interval === 'year' ? 'yearly' : 'monthly'}.

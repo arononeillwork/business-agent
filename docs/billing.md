@@ -56,9 +56,25 @@ select plan, status, complimentary, complimentary_note, complimentary_since from
 Free-trial businesses are separate: they are on Business with Stripe status `trialing` until the
 trial ends, then paying (`active`) or back on Free.
 
+## Referral months as credit
+
+Give a month, get a month (Referrals page): each referred business that finishes set-up earns this
+business a free month (up to 12), and a business that was itself referred gets one month. Each
+month goes onto the Stripe customer's balance as credit worth one month of its plan (a twelfth of
+the yearly price on yearly billing), and Stripe takes it off the next invoices by itself, the first
+payment after a trial included. Months are credited once there is a subscription (trialing or
+active), each with its own idempotency key, and counted in `billing.referral_months_applied`, so a
+month is never credited twice. Complimentary accounts have nothing to pay; their months wait.
+
+Marking a business as referred (in its Supabase project, when we set it up):
+
+```sql
+select public.mark_referred('Easy Beans Coffee');
+```
+
 ## Setup (once)
 
-1. **Apply migrations** 36 and 37 (`supabase/migrations/2026101900003*`) to the Supabase project
+1. **Apply migrations** 36 to 38 (`supabase/migrations/2026101900003*`) to the Supabase project
    (the same way as the others: the Supabase connector, or `supabase db push`). Done on the
    BusinessAgent project on 19 October 2026.
 2. GitHub repo secret **`STRIPE_SECRET_KEY`**: the Business Agent Stripe account's secret key
