@@ -1,8 +1,9 @@
-import type { ApiKey, AppNotification, Brand, BreakType, Business, CalendarApp, CalendarEvent, ConnectorProvider, ContactMethod, CorrectionRequest, EventAlert, Expense, InstagramProfile, Integration, Sales, SocialNetwork, SocialPost, IntegrationProvider, IntegrationsState, KioskPerson, MusicNow, MusicPlaylist, MusicProvider, MyMusic, MyNowPlaying, OpenBreak, OpeningHours, OutboxItem, PartnerArea, PayRate, Position, Profile, Settings, Shift, SpotifyPlaylist, TimeEntry, TimeEntryChange, TimeOff, TimeOffKind, Todo, TodoCategory, TodoPatch, CafeMusicLibrary, CafeTrack, MusicAction, MusicPlayerReport, MusicPlayerState } from '../../shared/types'
+import type { ApiKey, AppNotification, Brand, BreakType, Business, CalendarApp, CalendarEvent, ConnectorProvider, ContactMethod, CorrectionRequest, EventAlert, Expense, InstagramProfile, Integration, PostMedia, Sales, SocialNetwork, SocialPost, IntegrationProvider, IntegrationsState, KioskPerson, MusicNow, MusicPlaylist, MusicProvider, MyMusic, MyNowPlaying, OpenBreak, OpeningHours, OutboxItem, PartnerArea, PayRate, Position, Profile, Settings, Shift, SpotifyPlaylist, TimeEntry, TimeEntryChange, TimeOff, TimeOffKind, Todo, TodoCategory, TodoPatch, CafeMusicLibrary, CafeTrack, MusicAction, MusicPlayerReport, MusicPlayerState } from '../../shared/types'
 import type { Billing, Interval, PlanId } from '../../shared/plans'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
 import type { InboxState, InboxThread } from '../../shared/messages'
 import type { ReferralState } from '../../shared/referrals'
+import type { KindInfo } from '../../shared/social'
 
 export type ShiftInput = Omit<Shift, 'id' | 'status'> & { id?: string; status?: Shift['status'] }
 export type EventInput = Omit<CalendarEvent, 'id' | 'source' | 'competition'> & { id?: string; competition?: string | null }
@@ -171,6 +172,13 @@ export interface Api {
   /** Save a draft or schedule a post (scheduled_at now = post now). Returns its id. */
   saveSocialPost(post: Partial<SocialPost> & { caption: string; targets: SocialNetwork[]; status: 'draft' | 'scheduled' }): Promise<string>
   deleteSocialPost(id: string): Promise<void>
+  /** A reminder you posted yourself: mark it posted. */
+  markPosted(id: string): Promise<void>
+  /**
+   * Keep a photo (JPEG) or video (MP4/MOV) for a post in the connected Google Drive or OneDrive,
+   * in Business Agent/Social/<folder>; returns its public address and type.
+   */
+  uploadMedia(file: File, folder: KindInfo['folder']): Promise<PostMedia>
   chooseGoogleListing(location: string | null, closedOnHolidays?: boolean): Promise<void>
   syncGoogleNow(): Promise<void>
   googleHours(): Promise<OpeningHours>

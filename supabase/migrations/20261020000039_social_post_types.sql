@@ -73,14 +73,16 @@ begin
   if new.status = 'scheduled' then
     if new.scheduled_at is null then raise exception 'Pick when to post'; end if;
     if cardinality(new.targets) = 0 then raise exception 'Pick at least one network'; end if;
-    if btrim(new.caption) = '' and v_n = 0 then
-      raise exception '%', case when new.kind = 'story' then 'Add the photo or video for the story' else 'Write a caption or add a photo' end;
-    end if;
     -- Posting by itself: the networks need the photos and videos (a reminder doesn't).
     if new.auto then
       if new.kind = 'carousel' and v_n < 2 then raise exception 'A carousel needs at least 2 photos or videos'; end if;
       if new.kind = 'reel' and v_n < 1 then raise exception 'Add the reel''s video'; end if;
       if new.kind = 'story' and v_n < 1 then raise exception 'Add the story''s photo or video'; end if;
+    end if;
+    if btrim(new.caption) = '' and v_n = 0 then
+      raise exception '%', case when new.kind = 'story' then 'Add the photo or video for the story' else 'Write a caption or add a photo' end;
+    end if;
+    if new.auto then
       if v_n = 0 and ('instagram' = any(new.targets) or 'tiktok' = any(new.targets)) then
         raise exception 'Instagram and TikTok posts need a photo';
       end if;

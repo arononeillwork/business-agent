@@ -36,7 +36,8 @@ select pg_temp.expect_error($q$insert into public.social_posts (kind, caption, t
 select pg_temp.expect_error($q$insert into public.social_posts (kind, caption, targets, media, status, scheduled_at) values ('carousel', 'x', '{instagram}',
   '[{"url": "https://x.test/a.jpg", "type": "image"}]', 'scheduled', now())$q$, 'at least 2');
 select pg_temp.expect_error($q$insert into public.social_posts (kind, caption, targets, status, scheduled_at) values ('reel', 'Watch this', '{instagram}', 'scheduled', now())$q$, 'reel''s video');
-select pg_temp.expect_error($q$insert into public.social_posts (kind, targets, status, scheduled_at) values ('story', '{instagram}', 'scheduled', now())$q$, 'photo or video for the story');
+select pg_temp.expect_error($q$insert into public.social_posts (kind, targets, status, scheduled_at) values ('story', '{instagram}', 'scheduled', now())$q$, 'story''s photo or video');
+select pg_temp.expect_error($q$insert into public.social_posts (kind, targets, status, scheduled_at, auto) values ('story', '{instagram}', 'scheduled', now(), false)$q$, 'photo or video for the story');
 
 -- A carousel of a photo and a video: the cover is the first, kept in image_url too.
 insert into public.social_posts (kind, caption, targets, media, status, scheduled_at)

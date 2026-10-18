@@ -64,12 +64,12 @@ export function postProblem(p: Pick<SocialPost, 'kind' | 'caption' | 'media' | '
   if (other) return `${info.plural} go to Instagram only for now`
   if (p.status !== 'scheduled') return null
   if (!p.targets.length) return 'Pick at least one network'
+  // Posting by itself: the networks need the photos and videos (a reminder doesn't).
+  if (p.auto && p.kind === 'carousel' && n < 2) return 'A carousel needs at least 2 photos or videos'
+  if (p.auto && p.kind === 'reel' && n < 1) return 'Add the reel’s video'
+  if (p.auto && p.kind === 'story' && n < 1) return 'Add the story’s photo or video'
   if (!p.caption.trim() && !n) return p.kind === 'story' ? 'Add the photo or video for the story' : 'Write a caption or add a photo'
   if (!p.auto) return null
-  // Posting by itself: the networks need the photos and videos.
-  if (p.kind === 'carousel' && n < 2) return 'A carousel needs at least 2 photos or videos'
-  if (p.kind === 'reel' && n < 1) return 'Add the reel’s video'
-  if (p.kind === 'story' && n < 1) return 'Add the story’s photo or video'
   if (!n && (p.targets.includes('instagram') || p.targets.includes('tiktok'))) return 'Instagram and TikTok posts need a photo'
   if (p.targets.includes('tiktok') && p.media.some(m => m.type !== 'image' || !/\.jpe?g(\?|$)/i.test(m.url))) return 'TikTok only takes JPEG photos'
   if (p.targets.includes('google') && p.caption.length > 1500) return 'Google Maps posts are limited to 1500 characters'

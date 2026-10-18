@@ -1629,27 +1629,44 @@ test.describe('connections for email, files and music', () => {
 })
 
 test.describe('social planner', () => {
+  // A 1×1 PNG: the planner turns photos into JPEG before they're uploaded.
+  const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64')
+  const photo = (name: string) => ({ name, mimeType: 'image/png', buffer: PNG })
+  const video = (name: string) => ({ name, mimeType: 'video/mp4', buffer: Buffer.from('not really a video') })
+  const view = (page: Page, name: 'List' | 'Calendar' | 'Table') => page.getByRole('group', { name: 'View' }).getByRole('button', { name }).click()
+  async function connectDrive(page: Page) {
+    await page.getByRole('link', { name: 'Connections' }).first().click()
+    await page.getByRole('region', { name: 'Files and storage' }).getByRole('button', { name: 'Connect Google Drive' }).click()
+    await expect(page.getByRole('region', { name: 'Files and storage' }).getByRole('article', { name: 'Google Drive' })).toContainText('Connected')
+    await page.getByRole('link', { name: 'Social planner' }).first().click()
+    // The planner has loaded and knows where photos and videos go.
+    await expect(page.getByRole('region', { name: 'Accounts' })).toContainText('Google Drive · easybeanscafe@gmail.com')
+    await expect(page.getByRole('tab', { name: /^All/ })).toHaveAttribute('aria-selected', 'true')
+  }
+
   test('plan a post for several accounts, schedule it, post another now, and see where it went', async ({ page }) => {
     await open(page, '/connections')
     // Connect Facebook in one click (Instagram and Google Maps are already connected in the demo).
     await page.getByRole('button', { name: 'Connect Facebook' }).click()
     await expect(page.getByRole('region', { name: 'Social media' }).getByRole('article', { name: 'Facebook' })).toContainText('Connected')
+    await connectDrive(page)
 
-    await page.getByRole('link', { name: 'Social planner' }).first().click()
     await expect(page.getByRole('heading', { level: 1, name: 'Social planner' })).toBeVisible()
     const accounts = page.getByRole('region', { name: 'Accounts' })
     await expect(accounts).toContainText('@easy.beans.coffee')
     await expect(accounts.getByRole('link', { name: 'Connect' })).toHaveCount(1) // TikTok only
+    await expect(accounts).toContainText('Google Drive · easybeanscafe@gmail.com')
     const coming = page.getByRole('region', { name: 'Coming up' })
     await expect(coming).toContainText('Feria week')
     await expect(page.getByRole('region', { name: 'Sent' })).toContainText('Iced oat latte')
 
     await page.getByRole('button', { name: 'New post' }).click()
     const dialog = page.getByRole('dialog', { name: 'New post' })
-    await dialog.getByLabel('Caption').fill('Matcha week starts Monday: 2x1 on iced matcha before 11:00.')
-    // Connected accounts start ticked; Instagram needs a photo, TikTok isn't connected.
+    await dialog.getByLabel('Caption', { exact: true }).fill('Matcha week starts Monday: 2x1 on iced matcha before 11:00.')
+    // Storage connected: it posts by itself. Connected accounts start ticked; Instagram needs a photo.
+    await expect(dialog.getByRole('radio', { name: /Post it automatically/ })).toBeChecked()
     await expect(dialog.getByRole('checkbox', { name: /TikTok/ })).toBeDisabled()
-    await expect(dialog.getByRole('alert')).toContainText('Instagram needs a photo')
+    await expect(dialog.getByRole('alert')).toContainText('Instagram and TikTok posts need a photo')
     await dialog.getByRole('checkbox', { name: /Instagram/ }).uncheck()
     await dialog.getByRole('radio', { name: 'Schedule' }).check()
     await dialog.getByLabel('Date').fill('2026-10-05')
@@ -1660,7 +1677,7 @@ test.describe('social planner', () => {
 
     await page.getByRole('button', { name: 'New post' }).click()
     const now = page.getByRole('dialog', { name: 'New post' })
-    await now.getByLabel('Caption').fill('Open until 23:00 tonight!')
+    await now.getByLabel('Caption', { exact: true }).fill('Open until 23:00 tonight!')
     await now.getByRole('checkbox', { name: /Instagram/ }).uncheck()
     await now.getByRole('button', { name: 'Post now' }).click()
     await toast(page, 'Posting now')
@@ -1668,6 +1685,119 @@ test.describe('social planner', () => {
     await expect(sent).toContainText('Posted')
     await expect(sent.getByRole('list', { name: 'Where it went' })).toContainText('Facebook: posted')
     await expect(sent.getByRole('list', { name: 'Where it went' })).toContainText('Google Maps: posted')
+  })
+
+  test('without storage, posts are reminders: it’s your turn, copy the caption, mark it posted', async ({ page }) => {
+    await open(page, '/social')
+    await expect(page.getByRole('region', { name: 'Accounts' })).toContainText('Connect storage to add photos and videos and post automatically')
+    const turn = page.getByRole('region', { name: 'Your turn to post' })
+    const due = turn.getByRole('article', { name: /Poll sticker/ })
+    await expect(due).toContainText('Planned for Wed 30 Sep, 08:00 on Instagram')
+    await expect(due.getByRole('link', { name: 'Open Instagram' })).toHaveAttribute('href', 'https://www.instagram.com/')
+
+    // Composer: no photos without storage, and posting by itself is off.
+    await page.getByRole('button', { name: 'New post' }).click()
+    const dialog = page.getByRole('dialog', { name: 'New post' })
+    await expect(dialog.getByRole('group', { name: 'Photos and videos' })).toContainText('Connect Google Drive or OneDrive to add photos and videos')
+    await expect(dialog.getByRole('radio', { name: /Post it automatically/ })).toBeDisabled()
+    await expect(dialog.getByRole('radio', { name: /Remind me to post it myself/ })).toBeChecked()
+    await dialog.getByRole('button', { name: 'Story' }).click()
+    await expect(dialog.getByRole('checkbox', { name: /Google Maps/ })).toBeDisabled()
+    await expect(dialog.getByRole('group', { name: 'Post to' })).toContainText('posts only')
+    await dialog.getByLabel(/Note \(for you/).fill('Behind the bar: new grinder')
+    await dialog.getByRole('radio', { name: 'Schedule' }).check()
+    await dialog.getByLabel('Date').fill('2026-10-02')
+    await dialog.getByLabel('Time (Madrid)').fill('18:00')
+    await dialog.getByRole('button', { name: 'Set reminder' }).click()
+    await toast(page, 'Reminder set for Fri 2 Oct, 18:00')
+    const planned = page.getByRole('region', { name: 'Coming up' }).getByRole('article', { name: /Behind the bar/ })
+    await expect(planned).toContainText('Reminder')
+    await expect(planned).toContainText('Story')
+
+    await due.getByRole('button', { name: 'Mark as posted' }).click()
+    await toast(page, 'Marked as posted')
+    await expect(turn).toHaveCount(0)
+    await expect(page.getByRole('region', { name: 'Sent' }).getByRole('article', { name: /Poll sticker/ })).toContainText('Instagram: posted by hand')
+  })
+
+  test('with Google Drive: a reel’s video and a carousel’s photos, the kinds, photos or videos, calendar and table', async ({ page }) => {
+    await open(page, '/connections')
+    await connectDrive(page)
+
+    // A reel: one video, Instagram only, saved in Drive › Business Agent › Social › Reels.
+    await page.getByRole('button', { name: 'New post' }).click()
+    let dialog = page.getByRole('dialog', { name: 'New post' })
+    await dialog.getByRole('button', { name: 'Reel' }).click()
+    await expect(dialog).toContainText('Saved in Google Drive › Business Agent › Social › Reels')
+    await expect(dialog.getByRole('alert')).toContainText('Add the reel’s video')
+    await dialog.getByLabel('Photo or video file').setInputFiles(video('pour.mp4'))
+    await expect(dialog.getByRole('button', { name: 'Remove video 1' })).toBeVisible()
+    await expect(dialog.getByRole('button', { name: 'Add the video' })).toHaveCount(0)
+    await dialog.getByLabel('Caption', { exact: true }).fill('Slow pour, new beans')
+    await dialog.getByRole('radio', { name: 'Schedule' }).check()
+    await dialog.getByLabel('Date').fill('2026-10-07')
+    await dialog.getByLabel('Time (Madrid)').fill('12:00')
+    await dialog.getByRole('button', { name: 'Schedule' }).click()
+    await toast(page, 'Scheduled for Wed 7 Oct, 12:00')
+
+    // A carousel: photos in order (moved around), then saved as a draft.
+    await page.getByRole('button', { name: 'New post' }).click()
+    dialog = page.getByRole('dialog', { name: 'New post' })
+    await dialog.getByRole('button', { name: 'Carousel' }).click()
+    await dialog.getByLabel('Photo or video file').setInputFiles([photo('a.png'), photo('b.png'), photo('c.png')])
+    await expect(dialog.getByRole('button', { name: /Remove photo/ })).toHaveCount(3)
+    await expect(dialog.getByRole('group', { name: 'Photos and videos' })).toContainText('3 of up to 10')
+    await dialog.getByRole('button', { name: 'Move 1 later' }).click()
+    await dialog.getByLabel('Caption', { exact: true }).fill('Autumn menu, swipe →')
+    await dialog.getByRole('button', { name: 'Save draft' }).click()
+    await toast(page, 'Draft saved')
+
+    // Folders: each kind on its own tab; photos or videos.
+    const tabs = page.getByRole('tablist', { name: 'Kinds of post' })
+    await tabs.getByRole('tab', { name: /^Reels/ }).click()
+    await expect(page.getByRole('region', { name: 'Coming up' }).getByRole('article')).toHaveCount(2) // the demo's reel and the new one
+    await expect(page.getByRole('region', { name: 'Drafts' })).toHaveCount(0)
+    await tabs.getByRole('tab', { name: /^Carousels/ }).click()
+    await expect(page.getByRole('region', { name: 'Drafts' }).getByRole('article', { name: /Autumn menu/ })).toBeVisible()
+    await tabs.getByRole('tab', { name: /^All/ }).click()
+    await page.getByRole('group', { name: 'Photos or videos' }).getByRole('button', { name: 'Videos' }).click()
+    await expect(page.getByRole('region', { name: 'Coming up' }).getByRole('article', { name: /Feria week/ })).toHaveCount(0)
+    await expect(page.getByRole('region', { name: 'Coming up' }).getByRole('article', { name: /Slow pour/ })).toBeVisible()
+    await page.getByRole('group', { name: 'Photos or videos' }).getByRole('button', { name: 'All' }).click()
+
+    // Calendar: the month, each post on its day; opening one edits it.
+    await view(page, 'Calendar')
+    const cal = page.getByRole('region', { name: 'Calendar' })
+    await expect(cal.getByRole('heading', { name: 'September 2026' })).toBeVisible()
+    await cal.getByRole('button', { name: 'Next month' }).click()
+    await expect(cal.getByRole('gridcell', { name: 'Wednesday 7 October' }).getByRole('button', { name: /Reel at 12:00: Slow pour/ })).toBeVisible()
+    await cal.getByRole('gridcell', { name: 'Wednesday 7 October' }).getByRole('button', { name: /Reel at 12:00/ }).click()
+    await expect(page.getByRole('dialog', { name: 'Edit post' }).getByLabel('Caption', { exact: true })).toHaveValue('Slow pour, new beans')
+    await page.getByRole('dialog', { name: 'Edit post' }).getByRole('button', { name: 'Cancel' }).click()
+
+    // Table: every post, newest first by default; the kind, how and status of each.
+    await view(page, 'Table')
+    const table = page.getByRole('table', { name: 'Posts' })
+    const reel = table.getByRole('row', { name: /Slow pour/ })
+    await expect(reel).toContainText('Reel')
+    await expect(reel).toContainText('Automatically')
+    await expect(reel).toContainText('Scheduled')
+    await expect(table.getByRole('row', { name: /Poll sticker/ })).toContainText('Reminder')
+    // The view is remembered.
+    await page.reload()
+    await expect(page.getByRole('table', { name: 'Posts' })).toBeVisible()
+  })
+
+  test('@phone the calendar shows dots per day and the chosen day’s posts below', async ({ page }) => {
+    await open(page, '/social')
+    await view(page, 'Calendar')
+    const cal = page.getByRole('region', { name: 'Calendar' })
+    await cal.getByRole('gridcell', { name: 'Wednesday 30 September' }).click()
+    await expect(page.getByRole('region', { name: 'Wednesday 30 September' }).getByRole('article', { name: /Poll sticker/ })).toBeVisible()
+    await cal.getByRole('button', { name: 'Next month' }).click()
+    await cal.getByRole('gridcell', { name: 'Thursday 1 October' }).click()
+    await expect(page.getByRole('region', { name: 'Thursday 1 October' }).getByRole('article', { name: /Feria week/ })).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
   })
 
   test('employees don’t get the planner', async ({ page }) => {

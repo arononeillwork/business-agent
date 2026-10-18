@@ -3,6 +3,7 @@ import { SOCIAL_PROVIDERS, type Api, type BillingInfo, type PlanStatus, type Sig
 import type { ApiKey, AppNotification, Brand, Business, SocialPost, EventAlert, Expense, Integration, MusicPlaylist, OutboxItem, Profile, Settings, TimeEntry, TimeOff, Todo, TodoCategory, CafeTrack, MusicPlayerState } from '../../shared/types'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
 import type { ReferralState } from '../../shared/referrals'
+import { readyPhoto } from '../lib/media'
 
 const PROFILE_COLUMNS = 'id, full_name, email, role, can_see_pay, colour, active, phone, birth_date, whatsapp_opt_in, partner_company, partner_access, preferences'
 
@@ -402,15 +403,23 @@ export function createSupabaseApi(url: string, key: string): Api {
     async chooseFacebookPage(pageId) { await worker('/api/integrations/facebook/page', { method: 'POST', body: JSON.stringify({ page_id: pageId }) }) },
     sales: (from, to) => worker(`/api/integrations/payments/sales?from=${from}&to=${to}`),
     async socialPosts() {
-      return check(await sb.from('social_posts').select('id, caption, image_url, targets, scheduled_at, status, results, created_at, published_at')
+      return check(await sb.from('social_posts').select('id, kind, caption, image_url, media, targets, scheduled_at, auto, status, results, created_at, published_at')
         .order('scheduled_at', { ascending: false, nullsFirst: true }).order('created_at', { ascending: false }).limit(200)) as SocialPost[]
     },
     async saveSocialPost(p) {
-      const row = { caption: p.caption, image_url: p.image_url ?? null, targets: p.targets, status: p.status, scheduled_at: p.scheduled_at ?? null }
+      // The cover (image_url) follows the media in the database.
+      const row = { kind: p.kind ?? 'post', caption: p.caption, media: p.media ?? (p.image_url ? [{ url: p.image_url, type: 'image' }] : []),
+        targets: p.targets, status: p.status, scheduled_at: p.scheduled_at ?? null, auto: p.auto ?? true }
       if (p.id) { check(await sb.from('social_posts').update(row).eq('id', p.id)); return p.id }
       return (check(await sb.from('social_posts').insert(row).select('id').single()) as { id: string }).id
     },
     async deleteSocialPost(id) { check(await sb.from('social_posts').delete().eq('id', id)) },
+    async markPosted(id) { check(await sb.from('social_posts').update({ status: 'published' }).eq('id', id)) },
+    async uploadMedia(file, folder) {
+      const { url, type } = await worker<{ url: string; type: 'image' | 'video' }>(`/api/integrations/media?folder=${folder}`, {
+        method: 'POST', body: file, headers: { 'content-type': file.type } })
+      return { url, type }
+    },
     async connectInstagram(back) {
       const { url } = await worker<{ url: string }>('/api/integrations/instagram/start', { method: 'POST', body: JSON.stringify({ back }) })
       location.assign(url)
@@ -449,8 +458,9 @@ export function createSupabaseApi(url: string, key: string): Api {
       await worker(`/api/integrations/instagram/inbox/${encodeURIComponent(id)}/reply`, { method: 'POST', body: JSON.stringify({ text }) })
     },
     async uploadPhoto(file) {
-      return (await worker<{ url: string }>('/api/integrations/media', { method: 'POST', body: file,
-        headers: { 'content-type': file.type } })).url
+      const jpeg = await readyPhoto(file, false)
+      return (await worker<{ url: string }>('/api/integrations/media?folder=Posts', { method: 'POST', body: jpeg,
+        headers: { 'content-type': jpeg.type } })).url
     },
     async share(caption, imageUrl, targets, eventId) {
       return check(await sb.rpc('queue_share', { p_caption: caption, p_image_url: imageUrl, p_targets: targets,

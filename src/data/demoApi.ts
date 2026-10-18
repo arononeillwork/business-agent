@@ -13,6 +13,7 @@ import { demoSports } from './demoSports'
 import { demoInbox } from './demoMessages'
 import { replyWindow } from '../../shared/messages'
 import { cleanCode } from '../../shared/referrals'
+import { postProblem } from '../../shared/social'
 import type { SportsFavourite } from '../../shared/sports'
 import { POPULAR_FONTS } from '../../shared/fonts'
 import { addToCalendarUrl, groupOf } from '../../shared/connections'
@@ -120,23 +121,50 @@ export function createDemoApi(): Api {
   const player: MusicPlayerState = { device_id: null, device_name: null, playlist: null, queue: [], queue_version: 0, playlist_order: [], position: 0, playing: false,
     elapsed: 0, duration: 0, volume: 80, command: null, command_seq: 0, heartbeat_at: null, updated_at: nowIso() }
   const cafeMusic = () => integ.integrations.find(i => (i.provider === 'spotify' || i.provider === 'youtube_music') && i.status === 'connected')
-  // Social planner: a published post, one going out soon, one next week, and a draft.
+  // Social planner: a published post and carousel, a reel and a story coming up, a story reminder
+  // that's due now (posted by hand), a Facebook text post next week, and a draft.
   const hoursFromNow = (h: number) => new Date(Date.now() + h * 3_600_000).toISOString()
-  const PHOTO = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400"><rect width="400" height="400" fill="#F3DED3"/><circle cx="200" cy="215" r="120" fill="#fff"/><circle cx="200" cy="215" r="92" fill="#8B5E3C"/><path d="M165 205c20-30 50-30 70 0-20 30-50 30-70 0z" fill="#F3DED3"/><text x="200" y="70" font-family="sans-serif" font-size="28" text-anchor="middle" fill="#A85A68">Easy Beans</text></svg>')}`
+  const svg = (bg: string, cup: string, text: string) => `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400"><rect width="400" height="400" fill="${bg}"/><circle cx="200" cy="215" r="120" fill="#fff"/><circle cx="200" cy="215" r="92" fill="${cup}"/><path d="M165 205c20-30 50-30 70 0-20 30-50 30-70 0z" fill="${bg}"/><text x="200" y="70" font-family="sans-serif" font-size="28" text-anchor="middle" fill="#A85A68">${text}</text></svg>`)}`
+  const PHOTO = svg('#F3DED3', '#8B5E3C', 'Easy Beans')
+  const MATCHA = svg('#E3EDD9', '#6B8E4E', 'Matcha')
+  const UBE = svg('#E9E2F4', '#7E64A8', 'Ube latte')
+  // Demo "videos" are pictures (the planner shows a video badge and plays what it can).
+  const CLIP = svg('#2B2B2B', '#8B5E3C', 'Latte art')
+  const photo = (url: string) => ({ url, type: 'image' as const })
+  const clip = (url: string) => ({ url, type: 'video' as const })
   const posts: SocialPost[] = [
-    { id: uid(), caption: 'Iced oat latte season is here. Come and cool down on the terrace.', image_url: PHOTO, targets: ['facebook', 'instagram'],
+    { id: uid(), kind: 'post', caption: 'Iced oat latte season is here. Come and cool down on the terrace.', image_url: PHOTO, media: [photo(PHOTO)], targets: ['facebook', 'instagram'], auto: true,
       scheduled_at: hoursFromNow(-26), status: 'published', created_at: hoursFromNow(-50), published_at: hoursFromNow(-26),
       results: { instagram: { status: 'published', url: 'https://www.instagram.com/easy.beans.coffee/' }, facebook: { status: 'published', url: 'https://www.facebook.com/' } } },
-    { id: uid(), caption: 'Feria week: we stay open until 23:00 from Thursday to Sunday. See you there!', image_url: PHOTO, targets: ['google', 'instagram'],
+    { id: uid(), kind: 'carousel', caption: 'Three new drinks for autumn: which one first?', image_url: MATCHA, media: [photo(MATCHA), photo(UBE), photo(PHOTO)], targets: ['instagram'], auto: true,
+      scheduled_at: hoursFromNow(-24 * 5), status: 'published', created_at: hoursFromNow(-24 * 6), published_at: hoursFromNow(-24 * 5),
+      results: { instagram: { status: 'published', url: 'https://www.instagram.com/easy.beans.coffee/' } } },
+    { id: uid(), kind: 'story', caption: 'Poll sticker: oat or almond?', image_url: null, media: [], targets: ['instagram'], auto: false,
+      scheduled_at: hoursFromNow(-1), status: 'due', results: {}, created_at: hoursFromNow(-30), published_at: null },
+    { id: uid(), kind: 'post', caption: 'Feria week: we stay open until 23:00 from Thursday to Sunday. See you there!', image_url: PHOTO, media: [photo(PHOTO)], targets: ['google', 'instagram'], auto: true,
       scheduled_at: hoursFromNow(20), status: 'scheduled', results: {}, created_at: nowIso(), published_at: null },
-    { id: uid(), caption: 'Sunday slow bar: our new Ethiopian filter, brewed to order.', image_url: null, targets: ['facebook'],
+    { id: uid(), kind: 'reel', caption: 'Latte art, slowly. 🎥', image_url: CLIP, media: [clip(CLIP)], targets: ['instagram'], auto: true,
+      scheduled_at: hoursFromNow(24 * 2 + 3), status: 'scheduled', results: {}, created_at: nowIso(), published_at: null },
+    { id: uid(), kind: 'story', caption: '', image_url: UBE, media: [photo(UBE)], targets: ['instagram'], auto: true,
+      scheduled_at: hoursFromNow(24 * 3), status: 'scheduled', results: {}, created_at: nowIso(), published_at: null },
+    { id: uid(), kind: 'post', caption: 'Sunday slow bar: our new Ethiopian filter, brewed to order.', image_url: null, media: [], targets: ['facebook'], auto: true,
       scheduled_at: hoursFromNow(24 * 6), status: 'scheduled', results: {}, created_at: nowIso(), published_at: null },
-    { id: uid(), caption: 'Ideas for the matcha menu launch…', image_url: null, targets: ['instagram'], scheduled_at: null, status: 'draft', results: {}, created_at: nowIso(), published_at: null },
+    { id: uid(), kind: 'post', caption: 'Ideas for the matcha menu launch…', image_url: null, media: [], targets: ['instagram'], auto: true, scheduled_at: null, status: 'draft', results: {}, created_at: nowIso(), published_at: null },
   ]
-  /** Demo: posts that are due "go out" to every connected network. */
+  /** Where the demo keeps photos and videos: the connected Drive or OneDrive. */
+  const mediaStorage = () => (['google_drive', 'onedrive'] as const).find(p => integ.integrations.some(i => i.provider === p && i.status === 'connected')) ?? null
+  /** Demo: posts that are due "go out" to every connected network; reminders become due and admins are told. */
   const publishDue = () => {
     for (const p of posts) {
       if (p.status !== 'scheduled' || !p.scheduled_at || p.scheduled_at > nowIso()) continue
+      if (!p.auto) {
+        p.status = 'due'
+        for (const a of profiles.filter(x => x.role === 'admin' && x.active)) {
+          notes.push({ id: notes.length + 1, profile_id: a.id, title: `Time to post your ${p.kind} on ${p.targets.map(t => (t === 'google' ? 'Google Maps' : t === 'tiktok' ? 'TikTok' : t[0].toUpperCase() + t.slice(1))).join(' and ')}`,
+            body: p.caption.slice(0, 140) || null, link: '/social', created_at: nowIso(), read_at: null })
+        }
+        continue
+      }
       const connected = (n: string) => integ.integrations.some(i => i.provider === (n === 'google' ? 'google_business' : n) && i.status === 'connected')
       p.results = Object.fromEntries(p.targets.map(t => [t, connected(t) ? { status: 'published' as const, at: nowIso() } : { status: 'failed' as const, error: `${t === 'google' ? 'Google Maps' : t[0].toUpperCase() + t.slice(1)} is not connected`, at: nowIso() }]))
       const ok = Object.values(p.results).filter(r => r.status === 'published').length
@@ -918,7 +946,7 @@ export function createDemoApi(): Api {
 
     async integrations() {
       requireAdmin()
-      return structuredClone(integ)
+      return { ...structuredClone(integ), media_storage: mediaStorage() }
     },
     async connectGoogle() {
       requireAdmin()
@@ -1018,17 +1046,17 @@ export function createDemoApi(): Api {
     async saveSocialPost(p) {
       requireAdmin()
       const targets = [...new Set(p.targets)].sort() as SocialNetwork[]
-      if (p.status === 'scheduled') {
-        if (!p.scheduled_at) throw new Error('Pick when to post')
-        if (!targets.length) throw new Error('Pick at least one network')
-        if (!p.caption.trim() && !p.image_url) throw new Error('Write a caption or add a photo')
-        if (!p.image_url && (targets.includes('instagram') || targets.includes('tiktok'))) throw new Error('Instagram and TikTok posts need a photo')
-        if (targets.includes('google') && p.caption.length > 1500) throw new Error('Google Maps posts are limited to 1500 characters')
-      }
+      const kind = p.kind ?? 'post'
+      const media = p.media ?? (p.image_url ? [{ url: p.image_url, type: 'image' as const }] : [])
+      const auto = p.auto ?? true
+      // The database's rules (shared/social.ts mirrors them).
+      const problem = postProblem({ kind, caption: p.caption, media, targets, auto, status: p.status })
+      if (problem) throw new Error(problem)
+      if (p.status === 'scheduled' && !p.scheduled_at) throw new Error('Pick when to post')
       const existing = p.id ? posts.find(x => x.id === p.id) : undefined
       if (existing && ['publishing', 'published', 'partly'].includes(existing.status)) throw new Error('This post has already gone out. Make a new post instead.')
-      const row: SocialPost = { id: existing?.id ?? uid(), caption: p.caption, image_url: p.image_url ?? null, targets, scheduled_at: p.scheduled_at ?? null,
-        status: p.status, results: {}, created_at: existing?.created_at ?? nowIso(), published_at: null }
+      const row: SocialPost = { id: existing?.id ?? uid(), kind, caption: p.caption, image_url: media[0]?.url ?? null, media, targets, scheduled_at: p.scheduled_at ?? null,
+        auto, status: p.status, results: {}, created_at: existing?.created_at ?? nowIso(), published_at: null }
       if (existing) Object.assign(existing, row); else posts.unshift(row)
       publishDue()
       return row.id
@@ -1037,6 +1065,19 @@ export function createDemoApi(): Api {
       requireAdmin()
       const i = posts.findIndex(p => p.id === id)
       if (i >= 0) posts.splice(i, 1)
+    },
+    async markPosted(id) {
+      requireAdmin()
+      const p = posts.find(x => x.id === id)
+      if (!p || p.status !== 'due') throw new Error('Only a reminder that’s due can be marked posted')
+      Object.assign(p, { status: 'published', published_at: nowIso(),
+        results: Object.fromEntries(p.targets.map(t => [t, { status: 'published', manual: true, at: nowIso() }])) })
+    },
+    async uploadMedia(file, folder) {
+      requireAdmin()
+      if (!mediaStorage()) throw new Error('Connect Google Drive or OneDrive on the Connections page to add photos and videos. They’re kept in its Business Agent folder.')
+      void folder
+      return { url: URL.createObjectURL(file), type: file.type.startsWith('video/') ? 'video' : 'image' }
     },
     async referrals() {
       requireAdmin()
@@ -1078,6 +1119,7 @@ export function createDemoApi(): Api {
       }
     },
     async uploadPhoto(file) {
+      if (!mediaStorage()) throw new Error('Connect Google Drive or OneDrive on the Connections page to add photos and videos. They’re kept in its Business Agent folder.')
       return URL.createObjectURL(file)
     },
     async share(caption, imageUrl, targets) {

@@ -133,8 +133,26 @@ instagram.com, allow). One Meta app serves every business; it is set up once:
    `instagram_business_content_publish`), only Instagram accounts added under **App roles →
    Instagram testers** can connect. Add the café's account there (and accept the invite in
    Instagram → Settings → Apps and websites), then press **Connect Instagram** in the app.
-5. The account must be professional (Business or Creator). Photos for posts are stored in
-   Cloudflare R2 (bucket `business-agent-media`, set up by the deploy).
+5. The account must be professional (Business or Creator).
+
+**Photos and videos for posts.** Instagram (like Facebook, TikTok and Google) doesn't take files
+from apps: it fetches each photo or video from a public web address when it posts. They live in
+the café's own storage, the connected **Google Drive or OneDrive** (Connections → Files and
+storage), in `Business Agent/Social/Posts`, `Carousels`, `Reels` and `Stories`. Business Agent
+hands Instagram a signed address (`/media/g|o/<file>/<signature>.<ext>`) that opens only files it
+saved there. Free: it uses the storage that comes with the account (15 GB on Google). If the
+deploy has Cloudflare R2 (bucket `business-agent-media`), that's used when no Drive or OneDrive is
+connected. Photos are sent as JPEG up to 8 MB (the app converts them, and crops feed photos to
+between 4:5 and 1.91:1); videos MP4 or MOV up to 100 MB.
+
+**Social planner.** Posts (one photo; Facebook and Google Maps also take text only), carousels
+(2–10 photos or videos), reels (one video, 3 s–15 min) and stories (one photo or video up to
+60 s); carousels, reels and stories go to Instagram only for now. Each can **post automatically**
+at its time (only offered once Drive or OneDrive is connected) or be a **reminder**: at the time
+admins get a notification, the post shows under "Your turn to post" with the caption to copy and
+the files to download, and whoever posts it marks it posted. Stickers, music and links on stories
+are added in the Instagram app, so use a reminder for those. Instagram allows 100 posts a day
+through the API; a carousel counts as one.
 
 "Connected" means the app signed in, read the profile and posts, and was allowed to post. The
 60-day access is renewed every night; if it stops working, admins get a notification.
