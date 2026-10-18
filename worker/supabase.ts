@@ -6,6 +6,8 @@ export interface Env {
   SUPABASE_SERVICE_ROLE_KEY?: string
   BUSINESS_ID: string
   ASSETS: Fetcher
+  GIT_SHA?: string                    // set by the deploy: the commit that's live
+  DEPLOYED_AT?: string                // set by the deploy: when it went live (ISO time)
   MEDIA?: R2Bucket
   // Integrations (secrets unless noted). Anything missing shows as "needs setup" in the app.
   GOOGLE_FONTS_API_KEY?: string       // optional: official Google Fonts list (brand page)

@@ -36,7 +36,11 @@ app.get('/api/config', c => c.json({
 // ?deep=1 also checks that Supabase answers and which sign-in methods it has switched on
 // (the uptime monitor calls this, so a broken login is caught, not just a dead page).
 app.get('/api/health', async c => {
-  if (!c.req.query('deep')) return c.json({ ok: true })
+  // Which commit is live, readable from anywhere (the deploy tracker polls it).
+  c.header('access-control-allow-origin', '*')
+  c.header('cache-control', 'no-store')
+  const version = { commit: c.env.GIT_SHA ?? 'dev', deployed_at: c.env.DEPLOYED_AT ?? null }
+  if (!c.req.query('deep')) return c.json({ ok: true, ...version })
   try {
     const res = await fetch(`${c.env.SUPABASE_URL}/auth/v1/settings`, { headers: { apikey: c.env.SUPABASE_PUBLISHABLE_KEY } })
     if (!res.ok) return c.json({ ok: false, supabase: `auth answered ${res.status}` }, 503)
