@@ -11,6 +11,7 @@ import type {
 } from '../../shared/types'
 import { demoSports } from './demoSports'
 import { demoInbox } from './demoMessages'
+import { replyWindow } from '../../shared/messages'
 import { cleanCode } from '../../shared/referrals'
 import type { SportsFavourite } from '../../shared/sports'
 import { POPULAR_FONTS } from '../../shared/fonts'
@@ -1061,6 +1062,7 @@ export function createDemoApi(): Api {
     async replyInstagram(id, text) {
       requireAdmin()
       if (!text.trim()) throw new Error('Write a message first')
+      if (replyWindow(inbox.thread(id).messages).mode === 'closed') throw new Error('Instagram allows replies up to 7 days after their last message. Reply in the Instagram app instead.')
       inbox.reply(id, text.trim())
     },
     async instagramProfile() {

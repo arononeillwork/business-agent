@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { matchesFilter, needsReply, preview, replyUntil, type InboxConversation, type InboxMessage } from './messages'
+import { initials, matchesFilter, needsReply, preview, replyUntil, replyWindow, type InboxConversation, type InboxMessage } from './messages'
 
 const NOW = Date.parse('2026-10-18T12:00:00Z')
 const m = (hoursAgo: number, fromMe: boolean, extra: Partial<InboxMessage> = {}): InboxMessage =>
@@ -12,6 +12,21 @@ describe('Messages rules', () => {
     expect(replyUntil([m(30, false), m(2, false), m(1, true)], NOW)).toBe(new Date(NOW + 22 * 3_600_000).toISOString())
     expect(replyUntil([m(25, false), m(1, true)], NOW)).toBeNull()
     expect(replyUntil([m(1, true)], NOW)).toBeNull()
+  })
+
+  it('after 24 hours a person can still reply for 7 days (human agent); then it’s closed', () => {
+    const h = (n: number) => new Date(NOW + n * 3_600_000).toISOString()
+    expect(replyWindow([m(2, false)], NOW)).toEqual({ mode: 'normal', until: h(22) })
+    expect(replyWindow([m(30, false), m(1, true)], NOW)).toEqual({ mode: 'human_agent', until: h(7 * 24 - 30) })
+    expect(replyWindow([m(7 * 24, false)], NOW)).toEqual({ mode: 'closed', until: null })
+    expect(replyWindow([m(1, true)], NOW)).toEqual({ mode: 'closed', until: null }) // they never wrote
+  })
+
+  it('initials when there’s no profile photo', () => {
+    expect(initials({ username: 'lucia.marbella', name: 'Lucía García' })).toBe('LG')
+    expect(initials({ username: 'tom_runs', name: 'Tom' })).toBe('T')
+    expect(initials({ username: '_ana', name: '🌸' })).toBe('A')
+    expect(initials({ username: '___' })).toBe('?')
   })
 
   it('needs a reply while the customer wrote last', () => {

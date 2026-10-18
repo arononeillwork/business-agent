@@ -735,8 +735,13 @@ describe('Messages: the Instagram inbox (read and answer DMs)', () => {
     await connectOwn('instagram')
   })
   const inbox = async () => (await get('/api/integrations/instagram/inbox')).json() as Promise<{
-    conversations: { id: string; with: { id: string; username: string }; recent: { kind: string; fromMe: boolean; text: string }[] }[]
+    conversations: { id: string; with: { id: string; username: string; name?: string; picture?: string }; recent: { kind: string; fromMe: boolean; text: string }[] }[]
     tagged: { username: string }[] | null; taggedNote?: string; error?: string }>
+  /** Lucía's last message was this many hours ago (the café answered before that). */
+  const luciaWrote = (hoursAgo: number) => {
+    const msgs = ((apis.instagram.chats[0] as { messages: { data: { created_time: string }[] } }).messages.data)
+    msgs.forEach((m, i) => { m.created_time = new Date(Date.now() - (hoursAgo + i) * 3_600_000).toISOString() })
+  }
 
   it('connecting notes that messages and tagged posts were allowed', () => {
     expect(db.integration('instagram').external).toMatchObject({ can_message: true, can_see_tags: true })
@@ -746,18 +751,54 @@ describe('Messages: the Instagram inbox (read and answer DMs)', () => {
     const res = await inbox()
     expect(res.conversations).toHaveLength(1)
     const [c] = res.conversations
-    expect(c.with).toEqual({ id: 'igsid-lucia', username: 'lucia.marbella' })
+    expect(c.with).toEqual({ id: 'igsid-lucia', username: 'lucia.marbella', name: 'Lucía García', picture: 'https://cdn.instagram.test/lucia.jpg' })
     expect(c.recent.map(m => [m.kind, m.fromMe, m.text])).toEqual([
       ['text', false, 'Do you have oat milk?'], ['story_mention', false, ''], ['text', true, 'See you tomorrow!']])
     expect(res.tagged).toEqual([expect.objectContaining({ username: 'sanpedro.eats', permalink: 'https://instagram.com/p/t1' })])
   })
 
-  it('opens a chat oldest first, and a reply goes to the person in that chat', async () => {
-    const thread = await (await get('/api/integrations/instagram/inbox/conv-1')).json() as { messages: { id: string }[] }
+  it('a person Instagram won’t describe (blocked, or Instagram busy) still shows, with no photo', async () => {
+    apis.instagram.profileFails = ['igsid-lucia']
+    const res = await inbox()
+    expect(res.conversations[0].with).toEqual({ id: 'igsid-lucia', username: 'lucia.marbella' })
+    const thread = await (await get('/api/integrations/instagram/inbox/conv-1')).json() as { conversation: { with: { picture?: string } } }
+    expect(thread.conversation.with.picture).toBeUndefined()
+  })
+
+  it('opens a chat oldest first (with their photo), and a reply goes to the person in that chat', async () => {
+    luciaWrote(1)
+    const thread = await (await get('/api/integrations/instagram/inbox/conv-1')).json() as { conversation: { with: { picture?: string } }; messages: { id: string }[] }
     expect(thread.messages.map(m => m.id)).toEqual(['mid-1', 'mid-2', 'mid-3'])
+    expect(thread.conversation.with.picture).toBe('https://cdn.instagram.test/lucia.jpg')
     const res = await post('/api/integrations/instagram/inbox/conv-1/reply', { text: '  Yes, oat and almond!  ', to: 'someone-else' })
     expect(res.status).toBe(200)
     expect(apis.instagram.sent).toEqual([{ recipient: { id: 'igsid-lucia' }, message: { text: 'Yes, oat and almond!' } }])
+  })
+
+  it('after 24 hours a reply goes as a personal (human agent) reply, up to 7 days', async () => {
+    luciaWrote(30)
+    const res = await post('/api/integrations/instagram/inbox/conv-1/reply', { text: 'Sorry for the wait: yes, oat milk!' })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ ok: true, human_agent: true })
+    expect(apis.instagram.sent).toEqual([{ recipient: { id: 'igsid-lucia' }, message: { text: 'Sorry for the wait: yes, oat milk!' },
+      messaging_type: 'MESSAGE_TAG', tag: 'HUMAN_AGENT' }])
+  })
+
+  it('a Meta app without the Human Agent feature: told what to add, or to reply in Instagram', async () => {
+    luciaWrote(30)
+    apis.instagram.noHumanAgent = true
+    const res = await post('/api/integrations/instagram/inbox/conv-1/reply', { text: 'Sorry for the wait' })
+    expect(res.status).toBe(400)
+    expect((await res.json() as { error: string }).error).toMatch(/Human Agent feature.*Instagram app/)
+    expect(apis.instagram.sent).toEqual([])
+  })
+
+  it('after 7 days nothing is sent: Instagram doesn’t allow it', async () => {
+    luciaWrote(8 * 24)
+    const res = await post('/api/integrations/instagram/inbox/conv-1/reply', { text: 'Hello?' })
+    expect(res.status).toBe(400)
+    expect((await res.json() as { error: string }).error).toMatch(/up to 7 days.*Instagram app/)
+    expect(apis.instagram.sent).toEqual([])
   })
 
   it('an empty or too long reply is refused before anything is sent', async () => {

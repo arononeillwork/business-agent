@@ -149,6 +149,12 @@ turn on Settings → Messages and story replies → Message controls → **Allow
 Connect works from Messages or Connections (it's one connection). What Instagram allows:
 - chats and their 20 latest messages: text, photos, videos, voice messages, story mentions, story
   replies and shared posts; replies by text within 24 hours of the customer's last message;
+- after that, up to 7 days, a person's reply goes with the `HUMAN_AGENT` tag. Add the **Human
+  Agent** feature to the app's Instagram use case (Permissions and features); accounts with a
+  role on the app can use it straight away, others once Meta's App Review approves it. Without
+  it, the Messages page says so and points to the Instagram app;
+- each customer's name and profile photo (User Profile API), looked up at most every 6 hours
+  (Instagram's photo links expire after a few days);
 - no Primary / General / Requests folders through the API (every chat shows together), and
   messages read here aren't marked read in the Instagram app until someone replies.
 An account that declined messages still connects (posting is what "connected" needs); the Messages

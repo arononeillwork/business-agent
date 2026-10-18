@@ -89,6 +89,13 @@ export class FakeProviders {
     /** Instagram can't use the videos (bad format). */
     badVideo: false,
     published: [] as { id: string; params: Record<string, string>; children: Record<string, string>[] }[],
+    /** What the User Profile API says about people who messaged the café. */
+    people: { 'igsid-lucia': { name: 'Lucía García', username: 'lucia.marbella', profile_pic: 'https://cdn.instagram.test/lucia.jpg' } } as Record<string, Json>,
+    /** Profile lookups that fail (the person blocked the café, or Instagram is busy). */
+    profileFails: [] as string[],
+    profileLookups: 0,
+    /** The Meta app doesn't have the Human Agent feature: replies after 24 hours are refused. */
+    noHumanAgent: false,
   }
   microsoft = {
     mail: 'cafe@outlook.com' as string | null,
@@ -262,6 +269,9 @@ export class FakeProviders {
       }
       if (url.pathname.endsWith('/me/messages') && method === 'POST') {
         if (this.instagram.noMessages) return noMessages()
+        if (body().tag && this.instagram.noHumanAgent) {
+          return json({ error: { message: '(#10) This message is sent outside of allowed window.', type: 'OAuthException', code: 10, error_subcode: 2534022 } }, 400)
+        }
         this.instagram.sent.push(body())
         return json({ recipient_id: (body().recipient as Json).id, message_id: `mid-sent-${this.nextId++}` })
       }
@@ -294,6 +304,13 @@ export class FakeProviders {
       }
       const post = this.instagram.published.find(p => url.pathname.endsWith(`/${p.id}`))
       if (post) return json({ permalink: `https://www.instagram.com/p/${post.id}/` })
+      if ((url.searchParams.get('fields') ?? '').includes('profile_pic')) {
+        const who = decodeURIComponent(url.pathname.split('/').pop() ?? '')
+        this.instagram.profileLookups++
+        const p = this.instagram.people[who]
+        if (!p || this.instagram.profileFails.includes(who)) return json({ error: { message: '(#100) The user can not be found', code: 100 } }, 400)
+        return json({ id: who, ...p })
+      }
       const chat = this.instagram.chats.find(c => url.pathname.endsWith(`/${c.id}`))
       if (chat) return this.instagram.noMessages ? noMessages() : json(chat)
     }
