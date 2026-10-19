@@ -62,6 +62,8 @@ export class FakeProviders {
     permissions: 'instagram_business_basic,instagram_business_content_publish',
     /** Until Meta's review, only accounts added as Instagram testers can connect. */
     tester: true,
+    /** The id Instagram Login hands back with the token: not the one posting takes. */
+    loginId: '29327688583481868',
     revoked: false,
     refreshes: 0,
     /** The long-lived token the Worker should be using now. */
@@ -242,7 +244,8 @@ export class FakeProviders {
     // ---- Instagram (Instagram Login) ----
     if (url.href === 'https://api.instagram.com/oauth/access_token') {
       if (!this.instagram.tester) return json({ error_type: 'OAuthException', code: 400, error_message: 'Insufficient Developer Role' }, 400)
-      return json({ data: [{ access_token: 'ig-short', user_id: '17841400000000001', permissions: this.instagram.permissions }] })
+      // Not the professional account's id (that's /me's user_id), as with the real Instagram Login.
+      return json({ data: [{ access_token: 'ig-short', user_id: this.instagram.loginId, permissions: this.instagram.permissions }] })
     }
     if (url.host === 'graph.instagram.com' && url.pathname === '/access_token') {
       this.instagram.current = 'ig-long-0'
@@ -278,6 +281,11 @@ export class FakeProviders {
       if (url.pathname.endsWith('/me/tags')) {
         if (this.instagram.noTags) return json({ error: { message: '(#10) Application does not have permission for this action', code: 10 } }, 400)
         return json({ data: [{ id: 'tag-1', username: 'sanpedro.eats', caption: 'Morning stop', media_url: 'https://cdn.instagram.test/t.jpg', permalink: 'https://instagram.com/p/t1', timestamp: '2026-10-16T09:00:00+0000' }] })
+      }
+      // Posting takes only the professional account's id.
+      const postingAs = /\/(\d+)\/media(?:_publish)?$/.exec(url.pathname)?.[1]
+      if (postingAs && postingAs !== '17841400000000001' && method === 'POST') {
+        return json({ error: { message: `Unsupported post request. Object with ID '${postingAs}' does not exist, cannot be loaded due to missing permissions, or does not support this operation`, type: 'GraphMethodException', code: 100, error_subcode: 33 } }, 400)
       }
       if (/\/\d+\/media$/.test(url.pathname) && method === 'POST') {
         const params = Object.fromEntries(form())

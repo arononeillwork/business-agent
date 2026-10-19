@@ -677,7 +677,7 @@ integrations.get('/api/integrations/instagram/callback', async c => {
     // Proof first: the profile and posts can be read and posting was allowed. Only then is it kept.
     const proven = await proveInstagram(t, c.env)
     const { error } = await db.from('integration_secrets').upsert({ provider: 'instagram', updated_at: new Date().toISOString(),
-      ciphertext: await seal(c.env.INTEGRATION_KEY!, { access_token: t.access_token, expires_at: t.expires_at, user_id: t.userId }) })
+      ciphertext: await seal(c.env.INTEGRATION_KEY!, { access_token: t.access_token, expires_at: t.expires_at, user_id: String(proven.external.user_id) }) })
     if (error) throw new Error(error.message)
     const now = new Date().toISOString()
     await setIntegration(db, 'instagram', { status: 'connected', connected_by: state.uid, connected_at: now, last_checked_at: now, last_sync_at: now,

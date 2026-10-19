@@ -58,6 +58,8 @@ async function graph<T>(cfg: InstagramConfig, path: string, init: RequestInit = 
 }
 
 export interface InstagramProfile {
+  /** The professional account's id: the one posting and messages use. */
+  user_id?: string
   username: string; name?: string; followers_count: number; follows_count?: number; media_count: number
   profile_picture_url?: string; biography?: string; website?: string
   recent: { id: string; caption?: string; media_url?: string; thumbnail_url?: string; permalink: string; timestamp: string; like_count?: number; comments_count?: number }[]
@@ -70,6 +72,16 @@ export async function profile(cfg: InstagramConfig): Promise<InstagramProfile> {
   const media = await graph<{ data: InstagramProfile['recent'] }>(cfg,
     'me/media?fields=id,caption,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count&limit=6')
   return { ...p, recent: media.data }
+}
+
+/**
+ * The professional account's id, as Instagram says it. The id that comes with the token isn't
+ * always the one posting takes (and arrives as a number too long for JavaScript to keep exactly):
+ * posting to it fails with "Object with ID … does not exist". Older connections still have it stored.
+ */
+export async function accountId(cfg: InstagramConfig) {
+  const me = await graph<{ user_id?: string | number }>(cfg, 'me?fields=user_id')
+  return me.user_id ? String(me.user_id) : cfg.userId
 }
 
 /** How long to wait for Instagram to finish with a video (tests set it to nothing). */
@@ -99,7 +111,8 @@ async function ready(cfg: InstagramConfig, id: string, wait: PublishWait) {
  */
 export async function publish(cfg: InstagramConfig, post: { kind: PostKind; media: PostMedia[]; caption: string }, wait: PublishWait = {}) {
   const form = (o: Record<string, string>) => ({ method: 'POST', body: new URLSearchParams(o) })
-  const make = async (o: Record<string, string>) => (await graph<{ id: string }>(cfg, `${cfg.userId}/media`, form(o))).id
+  const userId = await accountId(cfg)
+  const make = async (o: Record<string, string>) => (await graph<{ id: string }>(cfg, `${userId}/media`, form(o))).id
   const file = (m: PostMedia): Record<string, string> => (m.type === 'video' ? { video_url: m.url } : { image_url: m.url })
   const first = post.media[0]
   if (!first) throw new Error('Instagram posts need a photo or video')
@@ -118,7 +131,7 @@ export async function publish(cfg: InstagramConfig, post: { kind: PostKind; medi
     container = await make({ image_url: first.url, caption })
   }
   await ready(cfg, container, wait)
-  const published = await graph<{ id: string }>(cfg, `${cfg.userId}/media_publish`, form({ creation_id: container }))
+  const published = await graph<{ id: string }>(cfg, `${userId}/media_publish`, form({ creation_id: container }))
   // The post's link, for the planner (falls back to the id if Instagram doesn't say).
   const made = await graph<{ permalink?: string }>(cfg, `${published.id}?fields=permalink`).catch(() => ({ permalink: undefined }))
   return made.permalink ?? published.id
