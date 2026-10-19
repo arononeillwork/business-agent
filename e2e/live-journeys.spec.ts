@@ -122,24 +122,22 @@ test('health: the Worker answers and reaches Supabase', async ({ request }) => {
 // ---------------------------------------------------------------------------------------------
 // Sign-in buttons: Google and Microsoft never end on a raw error page.
 // ---------------------------------------------------------------------------------------------
-for (const [label, hosts] of [
-  ['Google', /(^|\.)accounts\.google\.com$/],
-  ['Microsoft', /(^|\.)(login\.microsoftonline\.com|login\.live\.com)$/],
+for (const [label, key, hosts] of [
+  ['Google', 'google', /(^|\.)accounts\.google\.com$/],
+  ['Microsoft', 'microsoft', /(^|\.)(login\.microsoftonline\.com|login\.live\.com)$/],
 ] as const) {
-  test(`sign-in: the ${label} button reaches ${label} or explains it isn't switched on`, async ({ page }) => {
+  test(`sign-in: the ${label} button reaches ${label} or explains it isn't switched on`, async ({ page, request }) => {
+    const on = (await (await request.get('/api/health?deep=1', NET)).json()).sign_in?.[key]
     await page.goto('/?live')
     await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible(NET)
     const button = page.getByRole('button', { name: label, exact: true })
-    await expect(button).toBeVisible()
-    const explained = page.getByText(/not switched on|being set up/i)
-    // The button stays disabled until the app knows whether the method is on: wait for that.
-    await expect.poll(async () => (await explained.count()) > 0 || await button.isEnabled(), NET).toBe(true)
-
-    if (await button.isDisabled()) {
-      // Allowed: the app knows the method is off and says so instead of offering a broken button.
-      await expect(explained.first()).toBeVisible()
+    if (!on) {
+      // Switched off: the sign-in card leaves the button out rather than offering a broken one.
+      await expect(button).toHaveCount(0, NET)
       return
     }
+    // The button stays disabled until the app knows which methods are on: wait for that.
+    await expect(button).toBeEnabled(NET)
     await button.click()
     const outcome = async () => {
       let host = ''
