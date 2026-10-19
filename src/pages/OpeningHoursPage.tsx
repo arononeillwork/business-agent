@@ -1,5 +1,5 @@
 import {
-  Alert, Box, Button, Card, CardContent, Grid, Stack, Switch, TextField, Typography,
+  Alert, Box, Button, Card, CardContent, Checkbox, FormControlLabel, Grid, Stack, TextField, Typography,
 } from '@mui/material'
 import { useEffect, useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
@@ -10,7 +10,7 @@ import { PageHeader, SectionTitle } from '../components/common'
 import { DAY_KEYS, type DayKey, type OpeningHours } from '../../shared/types'
 import { dayKey, hmToMinutes, today } from '../../shared/time'
 import { tokens } from '../theme'
-import { msg, t, tr } from '../i18n'
+import { msg, t, tc, tr } from '../i18n'
 
 const DAY_LABELS: Record<DayKey, string> = {
   mon: msg('Monday'), tue: msg('Tuesday'), wed: msg('Wednesday'), thu: msg('Thursday'), fri: msg('Friday'), sat: msg('Saturday'), sun: msg('Sunday'),
@@ -51,17 +51,19 @@ export function OpeningHoursPage() {
                         {isToday && <Typography variant="caption" sx={{ color: tokens.roseDeep }}>{t('Today')}</Typography>}
                       </Box>
                       {isAdmin && (
-                        <Switch checked={!!h} slotProps={{ input: { 'aria-label': t('Open on {day}', { day: t(DAY_LABELS[d]) }) } }}
-                          onChange={e => setDay(d, e.target.checked ? (b.opening_hours[d] ?? { open: '09:00', close: '17:00' }) : null)} />
+                        // A ticked "Open" box: unticked means closed all day.
+                        <FormControlLabel label={tc('hours', 'Open')} sx={{ mr: 0.5, minWidth: 84 }}
+                          control={<Checkbox checked={!!h} slotProps={{ input: { 'aria-label': t('Open on {day}', { day: t(DAY_LABELS[d]) }) } }}
+                            onChange={e => setDay(d, e.target.checked ? (b.opening_hours[d] ?? { open: '09:00', close: '17:00' }) : null)} />} />
                       )}
                       {h ? (
                         isAdmin ? (
                           <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flex: 1, minWidth: 220 }}>
                             <TextField type="time" size="small" label={t('Opens')} value={h.open} onChange={e => setDay(d, { ...h, open: e.target.value })}
-                              slotProps={{ inputLabel: { shrink: true } }} sx={{ maxWidth: 130 }} />
+                              slotProps={{ inputLabel: { shrink: true } }} sx={{ maxWidth: 150 }} />
                             <Typography sx={{ color: 'text.secondary' }}>{t('to')}</Typography>
                             <TextField type="time" size="small" label={t('Closes')} value={h.close} onChange={e => setDay(d, { ...h, close: e.target.value })}
-                              error={!!bad} slotProps={{ inputLabel: { shrink: true } }} sx={{ maxWidth: 130 }} />
+                              error={!!bad} slotProps={{ inputLabel: { shrink: true } }} sx={{ maxWidth: 150 }} />
                           </Stack>
                         ) : <Typography sx={{ fontVariantNumeric: 'tabular-nums' }}>{h.open} – {h.close}</Typography>
                       ) : <Typography sx={{ color: 'text.secondary' }}>{t('Closed')}</Typography>}

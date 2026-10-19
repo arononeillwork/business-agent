@@ -216,6 +216,7 @@ export default {
   'Closes': 'Cierra',
   'Closed': 'Cerrado',
   'Opening hours saved': 'Horario guardado',
+  'hours|Open': 'Abierto',
   'Save hours': 'Guardar horario',
   'Undo changes': 'Deshacer cambios',
   'Closing time must be after opening time.': 'La hora de cierre debe ser posterior a la de apertura.',

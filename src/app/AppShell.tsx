@@ -62,21 +62,22 @@ interface NavSection { key: string; label: string | null; items: NavItem[] }
 export const SECTIONS: NavSection[] = [
   { key: 'business', label: msg('Business'), items: [
     { key: 'business', to: '/business', label: msg('Business'), icon: <BusinessIcon />, partner: 'any' },
-    { key: 'customers', to: '/customers', label: msg('Customers'), icon: <CustomersIcon />, who: 'admin' },
     { key: 'todo', to: '/todo', label: msg('To Do List'), short: msg('To do'), icon: <TodoIcon /> },
     { key: 'hours', to: '/opening-hours', label: msg('Opening hours'), icon: <HoursIcon />, partner: 'any' },
     { key: 'brand', to: '/brand', label: msg('Brand'), icon: <BrandIcon />, partner: 'any' },
-    { key: 'social', to: '/social', label: msg('Social planner'), icon: <SocialIcon />, who: 'admin' },
     { key: 'messages', to: '/messages', label: msg('Messages'), icon: <MessagesIcon />, who: 'admin' },
   ] },
-  // Takings from the till (Square, SumUp or Stripe), the running costs, and how the website does: a section each.
+  // Takings from the till (Square, SumUp or Stripe) and the people who buy; the running costs; then
+  // marketing (the social planner and how the website does): a section each.
   { key: 'sales', label: msg('Sales'), items: [
     { key: 'sales', to: '/sales', label: msg('Sales'), icon: <SalesIcon />, who: 'pay' },
+    { key: 'customers', to: '/customers', label: msg('Customers'), icon: <CustomersIcon />, who: 'admin' },
   ] },
   { key: 'accounts', label: msg('Accounts'), items: [
     { key: 'finances', to: '/finances', label: msg('Finances'), icon: <FinanceIcon />, who: 'pay', partner: ['finances'] },
   ] },
-  { key: 'analytics', label: msg('Analytics'), items: [
+  { key: 'marketing', label: msg('Marketing'), items: [
+    { key: 'social', to: '/social', label: msg('Social planner'), icon: <SocialIcon />, who: 'admin' },
     { key: 'analytics', to: '/analytics', label: msg('Analytics'), icon: <AnalyticsIcon />, who: 'admin' },
   ] },
   { key: 'whatson', label: msg("What's on"), items: [

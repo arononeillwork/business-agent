@@ -1571,13 +1571,15 @@ test.describe('billing', () => {
     await expect(page.getByRole('heading', { name: 'Billing' })).toBeVisible()
   })
 
-  test('Sales and Analytics are menu sections of their own; old Sales links still land', async ({ page }) => {
+  test('Sales (with Customers) and Marketing (Social planner, Analytics) are menu sections of their own; old Sales links still land', async ({ page }) => {
     await open(page, '/team')
     const nav = page.getByRole('navigation', { name: 'Main' })
     await nav.getByRole('region', { name: 'Sales' }).getByRole('link', { name: 'Sales' }).click()
     await expect(page).toHaveURL(/\/sales$/)
     await expect(page.getByRole('heading', { name: 'Sales', level: 1 })).toBeVisible()
-    await nav.getByRole('region', { name: 'Analytics' }).getByRole('link', { name: 'Analytics' }).click()
+    await expect(nav.getByRole('region', { name: 'Sales' }).getByRole('link')).toHaveText(['Sales', 'Customers'])
+    await expect(nav.getByRole('region', { name: 'Marketing' }).getByRole('link')).toHaveText(['Social planner', 'Analytics'])
+    await nav.getByRole('region', { name: 'Marketing' }).getByRole('link', { name: 'Analytics' }).click()
     await expect(page.getByRole('heading', { name: 'Analytics', level: 1 })).toBeVisible()
     await expect(nav.getByRole('region', { name: 'Accounts' }).getByRole('link')).toHaveText(['Finances'])
     await page.goto('/finances/sales')
