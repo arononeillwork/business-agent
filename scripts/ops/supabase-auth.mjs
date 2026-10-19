@@ -1,6 +1,6 @@
 // Configures Supabase Auth through the Management API (runs in GitHub Actions, never locally
 // with real tokens in chat). Needs SUPABASE_ACCESS_TOKEN.
-//   node scripts/ops/supabase-auth.mjs <site-url>
+//   node scripts/ops/supabase-auth.mjs <site-url> [workers-dev-url]
 // Optional env switches on sign-in providers (docs/sign-in-setup.md):
 //   GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET            Google
 //   AZURE_CLIENT_ID + AZURE_CLIENT_SECRET              Microsoft
@@ -11,6 +11,11 @@ const REF = process.env.SUPABASE_PROJECT_REF ?? 'lhakrmmoxaareykglmtx'
 const token = process.env.SUPABASE_ACCESS_TOKEN
 if (!token) { console.log('::warning::SUPABASE_ACCESS_TOKEN not set; skipping Supabase Auth setup'); process.exit(0) }
 const site = process.argv[2]?.replace(/\/$/, '')
+// The Worker's own workers.dev URL. It stays in the redirect allow list even once the custom
+// domain is the site URL, so signing in with Google (or any outside sign-in) from workers.dev
+// comes back to workers.dev: sent back to another origin, the sign-in can't finish (the code
+// verifier lives in the browser storage of the origin that started it).
+const dev = process.argv[3]?.replace(/\/$/, '')
 
 const api = async (method, body) => {
   const res = await fetch(`https://api.supabase.com/v1/projects/${REF}/config/auth`, {
@@ -27,6 +32,7 @@ if (site) {
   patch.site_url = site
   const allow = new Set((current.uri_allow_list ?? '').split(',').map(s => s.trim()).filter(Boolean))
   allow.add(`${site}/**`); allow.add('http://localhost:5173/**')
+  if (dev && dev !== site) allow.add(`${dev}/**`)
   patch.uri_allow_list = [...allow].join(',')
 }
 // Sign-in emails carry a 6-digit code (typed into the app), not just a link: links expire, get
