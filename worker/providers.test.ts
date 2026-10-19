@@ -83,15 +83,18 @@ describe('WhatsApp', () => {
 describe('Instagram', () => {
   it('publishes a photo: container, ready, publish', async () => {
     const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ user_id: '17841', id: '2932' })))
       .mockResolvedValueOnce(new Response(JSON.stringify({ id: 'container' })))
       .mockResolvedValueOnce(new Response(JSON.stringify({ status_code: 'FINISHED' })))
       .mockResolvedValueOnce(new Response(JSON.stringify({ id: 'media-1' })))
     vi.stubGlobal('fetch', fetchMock)
-    expect(await publishPhoto({ token: 't', userId: '17841', graphVersion: 'v23.0' }, 'https://x/a.jpg', 'Feria!')).toBe('media-1')
-    expect(String(fetchMock.mock.calls[0][0])).toContain('/17841/media')
-    expect(String(fetchMock.mock.calls[1][0])).toContain('/container?fields=status_code')
-    expect(String(fetchMock.mock.calls[2][0])).toContain('/17841/media_publish')
-    expect(String(fetchMock.mock.calls[2][1].body)).toContain('creation_id=container')
+    // The id kept from sign-in is only a fallback: posting goes to the one /me says.
+    expect(await publishPhoto({ token: 't', userId: '2932', graphVersion: 'v23.0' }, 'https://x/a.jpg', 'Feria!')).toBe('media-1')
+    expect(String(fetchMock.mock.calls[0][0])).toContain('/me?fields=user_id')
+    expect(String(fetchMock.mock.calls[1][0])).toContain('/17841/media')
+    expect(String(fetchMock.mock.calls[2][0])).toContain('/container?fields=status_code')
+    expect(String(fetchMock.mock.calls[3][0])).toContain('/17841/media_publish')
+    expect(String(fetchMock.mock.calls[3][1].body)).toContain('creation_id=container')
   })
 })
 
