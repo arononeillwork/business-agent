@@ -126,10 +126,13 @@ export class FakeProviders {
   }
   spotify = { premium: true, revoked: false }
   facebook = {
-    granted: ['pages_show_list', 'pages_manage_posts', 'pages_read_engagement', 'public_profile'],
+    granted: ['pages_show_list', 'pages_manage_posts', 'pages_read_engagement', 'pages_messaging', 'public_profile'],
     pages: [{ id: 'page-1', name: 'Easy Beans Coffee', access_token: 'page-token-1' }] as { id: string; name: string; access_token: string }[],
     revoked: false,
     posts: [] as { page: string; kind: 'photos' | 'feed'; caption?: string; url?: string }[],
+    /** Messenger chats on the Page (newest message first), and replies sent. */
+    chats: [] as { id: string; updated_time: string; with: { id: string; name: string }; messages: { id: string; created_time: string; fromPage: boolean; message: string }[] }[],
+    replies: [] as { to: string; text: string; messaging_type: string; tag?: string }[],
   }
   tiktok = {
     scope: 'user.info.basic,video.publish',
@@ -500,6 +503,26 @@ export class FakeProviders {
     }
     if (url.host === 'graph.facebook.com' && /\/me\/permissions$/.test(url.pathname)) return json({ data: this.facebook.granted.map(permission => ({ permission, status: 'granted' })) })
     if (url.host === 'graph.facebook.com' && /\/me\/accounts$/.test(url.pathname)) return json({ data: this.facebook.pages })
+    // Messenger: the Page's chats and replies (pages_messaging), with the Page token.
+    const messenger = url.host === 'graph.facebook.com' && url.pathname.match(/\/v[\d.]+\/(?:(page-[\w-]+)\/(conversations|messages)|(t_[\w-]+))$/)
+    if (messenger) {
+      const token = new Headers(init.headers).get('authorization')?.replace('Bearer ', '')
+      if (this.facebook.revoked || !this.facebook.pages.some(p => p.access_token === token)) return json({ error: { message: 'Error validating access token: The session has been invalidated.', code: 190 } }, 400)
+      if (!this.facebook.granted.includes('pages_messaging')) return json({ error: { message: '(#10) This endpoint requires the pages_messaging permission to manage the object', code: 10 } }, 403)
+      const raw = (c: FakeProviders['facebook']['chats'][number], n: number) => ({
+        id: c.id, updated_time: c.updated_time,
+        participants: { data: [{ id: c.with.id, name: c.with.name }, { id: 'page-1', name: 'Easy Beans Coffee' }] },
+        messages: { data: c.messages.slice(0, n).map(m => ({ id: m.id, created_time: m.created_time, message: m.message, from: m.fromPage ? { id: 'page-1', name: 'Easy Beans Coffee' } : c.with })) },
+      })
+      if (messenger[2] === 'conversations') return json({ data: url.searchParams.get('platform') === 'messenger' ? this.facebook.chats.map(c => raw(c, 5)) : [] })
+      if (messenger[2] === 'messages' && method === 'POST') {
+        const b = body() as { recipient: { id: string }; messaging_type: string; tag?: string; message: { text: string } }
+        this.facebook.replies.push({ to: b.recipient.id, text: b.message.text, messaging_type: b.messaging_type, ...(b.tag ? { tag: b.tag } : {}) })
+        return json({ recipient_id: b.recipient.id, message_id: `m_${this.nextId++}` })
+      }
+      const chat = this.facebook.chats.find(c => c.id === messenger[3])
+      return chat ? json(raw(chat, 20)) : json({ error: { message: 'Unsupported get request', code: 100 } }, 400)
+    }
     const pageCall = url.host === 'graph.facebook.com' && url.pathname.match(/\/v[\d.]+\/(page-[\w-]+)(\/photos|\/feed)?$/)
     if (pageCall) {
       const token = new Headers(init.headers).get('authorization')?.replace('Bearer ', '')

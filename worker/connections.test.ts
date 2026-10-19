@@ -562,7 +562,7 @@ describe('Facebook, TikTok and Square: one click, connected once they really wor
   it('Facebook: signs in, finds the one Page it manages, keeps only Page tokens (encrypted)', async () => {
     const start = await post('/api/integrations/facebook/start')
     const auth = new URL((await start.json() as { url: string }).url)
-    expect(auth.searchParams.get('scope')).toBe('pages_show_list,pages_manage_posts,pages_read_engagement')
+    expect(auth.searchParams.get('scope')).toBe('pages_show_list,pages_manage_posts,pages_read_engagement,pages_messaging')
     expect((await connectOwn('facebook')).searchParams.get('connected')).toBe('facebook')
     expect(db.integration('facebook')).toMatchObject({ status: 'connected', account_label: 'Easy Beans Coffee', external: { page_id: 'page-1', followers: 812 } })
     expect(await unseal(env.INTEGRATION_KEY!, String(db.secret('facebook')!.ciphertext))).toEqual({ pages: { 'page-1': 'page-token-1' } })
@@ -575,6 +575,51 @@ describe('Facebook, TikTok and Square: one click, connected once they really wor
     expect((await post('/api/integrations/facebook/page', { page_id: 'page-9' })).status).toBe(400)
     expect((await post('/api/integrations/facebook/page', { page_id: 'page-2' })).status).toBe(200)
     expect(db.integration('facebook')).toMatchObject({ status: 'connected', account_label: 'Easy Beans Events' })
+  })
+
+  it('Messenger: the Page’s chats on the Messages page as soon as Facebook is connected, even with none yet; replies go to that person', async () => {
+    expect((await get('/api/integrations/facebook/inbox')).status).toBe(400) // not connected
+    await connectOwn('facebook')
+    expect(db.integration('facebook').external).toMatchObject({ messenger: true })
+    expect(await (await get('/api/integrations/facebook/inbox')).json()).toEqual({ conversations: [] })
+
+    const now = Date.now(), at = (min: number) => new Date(now - min * 60_000).toISOString()
+    apis.facebook.chats.push(
+      { id: 't_1', updated_time: at(10), with: { id: 'psid-1', name: 'Lucía García' }, messages: [
+        { id: 'm2', created_time: at(10), fromPage: false, message: 'Do you have oat milk?' },
+        { id: 'm1', created_time: at(60), fromPage: true, message: 'Hi Lucía!' }] },
+      { id: 't_2', updated_time: at(3 * 24 * 60), with: { id: 'psid-2', name: 'Tom' }, messages: [
+        { id: 'm3', created_time: at(3 * 24 * 60), fromPage: false, message: 'Open on Sunday?' }] },
+    )
+    const inbox = await (await get('/api/integrations/facebook/inbox')).json() as { conversations: { id: string; platform: string; with: { name: string }; recent: { text: string; fromMe: boolean }[] }[] }
+    expect(inbox.conversations.map(c => [c.id, c.platform, c.with.name])).toEqual([['t_1', 'messenger', 'Lucía García'], ['t_2', 'messenger', 'Tom']])
+    expect(inbox.conversations[0].recent.map(m => [m.text, m.fromMe])).toEqual([['Do you have oat milk?', false], ['Hi Lucía!', true]])
+    const thread = await (await get('/api/integrations/facebook/inbox/t_1')).json() as { messages: { text: string }[] }
+    expect(thread.messages.map(m => m.text)).toEqual(['Hi Lucía!', 'Do you have oat milk?']) // oldest first
+
+    expect((await post('/api/integrations/facebook/inbox/t_1/reply', { text: 'Yes! Oat and almond.' })).status).toBe(200)
+    expect((await post('/api/integrations/facebook/inbox/t_2/reply', { text: 'Sundays 9 to 2' })).status).toBe(200)
+    expect(apis.facebook.replies).toEqual([
+      { to: 'psid-1', text: 'Yes! Oat and almond.', messaging_type: 'RESPONSE' },
+      { to: 'psid-2', text: 'Sundays 9 to 2', messaging_type: 'MESSAGE_TAG', tag: 'HUMAN_AGENT' }, // after 24 hours: a personal reply
+    ])
+    expect((await post('/api/integrations/facebook/inbox/t_1/reply', { text: '  ' })).status).toBe(400)
+  })
+
+  it('Messenger: a Facebook connection made before Messenger asks to connect again, and keeps posting', async () => {
+    apis.facebook.granted = ['pages_show_list', 'pages_manage_posts', 'pages_read_engagement']
+    await connectOwn('facebook')
+    expect(db.integration('facebook').external).toMatchObject({ messenger: false })
+    const res = await get('/api/integrations/facebook/inbox')
+    expect(res.status).toBe(400)
+    expect((await res.json() as { error: string }).error).toMatch(/Connect Facebook again/)
+    // Older still: no note of what was allowed, so Facebook's own answer says it.
+    delete (db.integration('facebook').external as Record<string, unknown>).messenger
+    expect((await (await get('/api/integrations/facebook/inbox')).json() as { error: string }).error).toMatch(/Connect Facebook again/)
+    expect(status('facebook')).toBe('connected')
+    expect(db.integration('facebook').last_error).toBeNull()
+    await nightly()
+    expect(status('facebook')).toBe('connected')
   })
 
   it('Facebook: no Page, or posting not allowed, means not connected', async () => {

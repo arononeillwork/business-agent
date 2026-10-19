@@ -727,7 +727,7 @@ async function appCallback(c: Context<{ Bindings: Env; Variables: { userId: stri
   try { state = await verifyState(c.env.INTEGRATION_KEY ?? '', c.req.query('state') ?? '') } catch { /* expired or forged */ }
   // Back to the address they connected from (Square always comes back to the main domain).
   const home = state?.from && appOrigins(origin).includes(state.from) ? state.from : origin
-  const back = (q: string) => c.redirect(`${home}/${state?.back === 'setup' ? 'setup' : 'connections'}?${q}`)
+  const back = (q: string) => c.redirect(`${home}/${state?.back === 'setup' || state?.back === 'messages' ? state.back : 'connections'}?${q}`)
   if (!state || state.kind !== provider) return back(`connect_error=${encodeURIComponent('That connection link expired. Try again.')}`)
   if (c.req.query('error')) {
     const cancelled = /access_denied|user_denied|user_cancelled|cancel/i.test(`${c.req.query('error')} ${c.req.query('error_reason') ?? ''}`)
@@ -747,7 +747,7 @@ async function appCallback(c: Context<{ Bindings: Env; Variables: { userId: stri
 }
 
 const startState = async (c: Context<{ Bindings: Env; Variables: { userId: string } }>, kind: Provider) => {
-  const { back } = await c.req.json<{ back?: 'setup' | 'connections' }>().catch(() => ({ back: undefined }))
+  const { back } = await c.req.json<{ back?: 'setup' | 'connections' | 'messages' }>().catch(() => ({ back: undefined }))
   return signState(c.env.INTEGRATION_KEY!, { uid: c.get('userId'), kind, back, from: new URL(c.req.url).origin })
 }
 
@@ -773,8 +773,10 @@ integrations.get('/api/integrations/facebook/callback', c => appCallback(c, 'fac
   const proven = await proveFacebook(c.env, granted, pages)
   await keep(c.env, db, 'facebook', { pages: Object.fromEntries(pages.map(p => [p.id, p.access_token])) })
   const now = new Date().toISOString()
+  // Messenger (pages_messaging) is optional: posting works without it, the Messages page says to connect again.
   await setIntegration(db, 'facebook', { status: proven.chosen ? 'connected' : 'pending', connected_by: state.uid, connected_at: now,
-    last_checked_at: proven.chosen ? now : null, last_error: null, account_label: proven.label, external: proven.external })
+    last_checked_at: proven.chosen ? now : null, last_error: null, account_label: proven.label,
+    external: { ...proven.external, messenger: granted.includes('pages_messaging') } })
 }))
 
 // Which Page to post to (when the owner manages more than one): connected once that Page answers.
@@ -1134,6 +1136,71 @@ integrations.post('/api/integrations/instagram/inbox/:id/reply', async c => {
     return c.json({ ok: true, id: await instagram.sendText(cfg, conversation.with.id, said) })
   } catch (e) {
     return c.json({ error: inboxError(e) }, 400)
+  }
+})
+
+// Messages page: the Facebook Page's Messenger chats (admins), with the Page token of the Facebook
+// connection. Read live each time; nothing is stored. Connected Facebook with no chats yet is an empty inbox.
+const MESSENGER_RECONNECT = 'Facebook hasn’t allowed this app to read Messenger yet. Connect Facebook again and leave “Manage and access Page conversations in Messenger” ticked.'
+
+async function messengerInbox(c: Context<{ Bindings: Env; Variables: { userId: string } }>) {
+  const db = serviceClient(c.env)
+  const { data: row } = await db.from('integrations').select('status, external').eq('provider', 'facebook').single()
+  if (row?.status !== 'connected') throw new Error('Facebook is not connected')
+  // Connected without Messenger allowed: no need to ask Facebook to know the answer.
+  if ((row.external as { messenger?: boolean } | null)?.messenger === false) throw new facebook.FacebookError(MESSENGER_RECONNECT, 200)
+  return facebookSession(c.env, db)
+}
+
+/** Facebook's errors, in words for the Messages page. A missing permission means connecting again, never a broken connection. */
+function messengerError(e: unknown) {
+  const raw = e instanceof Error ? e.message : String(e)
+  if ((e instanceof facebook.FacebookError && [3, 10, 200, 230].includes(e.code ?? 0)) || /pages_messaging|permission|\(#10\)|\(#200\)|\(#230\)/i.test(raw)) return MESSENGER_RECONNECT
+  if (/24 hour|outside of allowed window|window/i.test(raw)) return 'Messenger only allows replies within 24 hours of their last message (7 days as a personal reply). Reply in Meta Business Suite instead.'
+  return explain('facebook', e)
+}
+
+integrations.get('/api/integrations/facebook/inbox', async c => {
+  try {
+    return c.json({ conversations: await facebook.conversations(await messengerInbox(c)) })
+  } catch (e) {
+    return c.json({ error: messengerError(e) }, 400)
+  }
+})
+
+integrations.get('/api/integrations/facebook/inbox/:id', async c => {
+  try {
+    return c.json(await facebook.conversation(await messengerInbox(c), c.req.param('id')))
+  } catch (e) {
+    return c.json({ error: messengerError(e) }, 400)
+  }
+})
+
+integrations.post('/api/integrations/facebook/inbox/:id/reply', async c => {
+  const { text } = await c.req.json<{ text?: string }>().catch(() => ({ text: undefined }))
+  const said = (text ?? '').trim()
+  if (!said) return c.json({ error: 'Write a message first' }, 400)
+  if (new TextEncoder().encode(said).length > 2000) return c.json({ error: 'Messenger messages can be up to 2000 characters' }, 400)
+  try {
+    const s = await messengerInbox(c)
+    // Reply to the person in this chat (never to an id the browser chose), within Messenger's window.
+    const { conversation, messages } = await facebook.conversation(s, c.req.param('id'))
+    if (!conversation.with.id) throw new Error('Couldn’t find who this chat is with')
+    const can = replyWindow(messages)
+    if (can.mode === 'closed') return c.json({ error: 'Messenger allows replies up to 7 days after their last message. Reply in Meta Business Suite instead.' }, 400)
+    if (can.mode === 'human_agent') {
+      try {
+        return c.json({ ok: true, id: await facebook.sendText(s, conversation.with.id, said, 'HUMAN_AGENT'), human_agent: true })
+      } catch (e) {
+        if (/permission|capabilit|human.?agent|tag|window|\(#3\)|\(#10\)|\(#200\)|\(#100\)/i.test(String(e))) {
+          return c.json({ error: 'Messenger didn’t accept a reply after 24 hours. Add the Human Agent feature to the Meta app (App Dashboard → Messenger → Permissions and features → Human Agent), or reply in Meta Business Suite.' }, 400)
+        }
+        throw e
+      }
+    }
+    return c.json({ ok: true, id: await facebook.sendText(s, conversation.with.id, said) })
+  } catch (e) {
+    return c.json({ error: messengerError(e) }, 400)
   }
 })
 

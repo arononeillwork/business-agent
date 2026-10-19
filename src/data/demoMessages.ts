@@ -1,4 +1,5 @@
-// Sample Instagram inbox for the demo café: every kind of message the Messages page shows.
+// Sample Instagram inbox for the demo café: every kind of message the Messages page shows. And its
+// Facebook Page's Messenger chats (shown once Facebook is connected).
 import type { InboxConversation, InboxMessage, TaggedPost } from '../../shared/messages'
 
 const PIC = (bg: string, fg: string, word: string) => `data:image/svg+xml,${encodeURIComponent(
@@ -55,6 +56,33 @@ export function demoInbox() {
     thread: (id: string) => {
       const c = chats.find(x => x.id === id)
       if (!c) throw new Error('That chat is no longer on Instagram')
+      return { conversation: toConversation(c), messages: [...c.messages] }
+    },
+    reply: (id: string, text: string) => chats.find(x => x.id === id)!.messages.push(msg(0, true, text)),
+  }
+}
+
+/** The Facebook Page's Messenger chats: names, not @handles. */
+export function demoMessenger() {
+  const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString()
+  let n = 0
+  const msg = (min: number, fromMe: boolean, text: string): InboxMessage => ({ id: `fm${++n}`, at: ago(min), fromMe, text, kind: 'text' })
+  const chats = [
+    { id: 't_1', name: 'Carmen Ruiz', messages: [msg(70, false, 'Hola! Do you take bookings for 8 people on Saturday?')] },
+    { id: 't_2', name: 'Hotel Puente Romano', messages: [
+      msg(2 * 24 * 60, false, 'Could you send us a price for coffee for 40 guests?'),
+      msg(2 * 24 * 60 - 30, true, 'Of course! I’ll email you the menu today.'),
+    ] },
+  ]
+  const toConversation = (c: (typeof chats)[number]): InboxConversation => ({
+    id: c.id, platform: 'messenger', with: { id: `psid-${c.id}`, username: c.name, name: c.name },
+    updatedAt: c.messages[c.messages.length - 1].at, recent: [...c.messages].reverse().slice(0, 5),
+  })
+  return {
+    state: () => ({ conversations: chats.map(toConversation).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)) }),
+    thread: (id: string) => {
+      const c = chats.find(x => x.id === id)
+      if (!c) throw new Error('That chat is no longer on Messenger')
       return { conversation: toConversation(c), messages: [...c.messages] }
     },
     reply: (id: string, text: string) => chats.find(x => x.id === id)!.messages.push(msg(0, true, text)),

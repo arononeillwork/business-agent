@@ -2314,10 +2314,11 @@ test.describe('messages', () => {
     await expect(apps.getByRole('button').first()).toHaveText('All')
     await expect(apps.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true')
     await expect(apps.getByRole('button', { name: 'Instagram' })).toHaveAttribute('aria-pressed', 'false')
-    for (const soon of ['WhatsApp · soon', 'Messenger · soon', 'TikTok · soon']) await expect(apps.getByText(soon)).toBeVisible()
+    for (const soon of ['WhatsApp · soon', 'TikTok · soon']) await expect(apps.getByText(soon)).toBeVisible()
     await expect(apps.getByRole('button', { name: /WhatsApp/ })).toBeDisabled()
+    await expect(apps.getByRole('button', { name: 'Messenger' })).toBeEnabled() // comes with the Facebook connection
 
-    const chats = page.getByRole('list', { name: 'Instagram chats' })
+    const chats = page.getByRole('list', { name: 'Chats' })
     await expect(chats.getByRole('listitem')).toHaveCount(7)
     expect(await chats.locator(':scope > li').evaluateAll(els => els.map(e => e.getAttribute('aria-label'))))
       .toEqual(['@lucia.marbella', '@sanpedro.eats', '@tom_runs', '@marta.g', '@happy.client', '@weekend.visitor', '@old.friend'])
@@ -2360,7 +2361,7 @@ test.describe('messages', () => {
 
   test('profile photos (or initials), and the chats use the full width until one is open', async ({ page }) => {
     await open(page, '/messages')
-    const chats = page.getByRole('list', { name: 'Instagram chats' })
+    const chats = page.getByRole('list', { name: 'Chats' })
     const lucia = chats.getByRole('listitem', { name: '@lucia.marbella' })
     await expect(lucia.locator('img')).toHaveAttribute('src', /^data:image\/svg/)
     await expect(chats.getByRole('listitem', { name: '@tom_runs' }).locator('.MuiAvatar-root')).toHaveText('T')
@@ -2386,9 +2387,30 @@ test.describe('messages', () => {
     const connect = page.getByRole('region', { name: 'Connect Instagram' })
     await expect(connect).toContainText('Read and answer your direct messages')
     await connect.getByRole('button', { name: 'Connect Instagram' }).click()
-    await expect(page.getByRole('list', { name: 'Instagram chats' })).toBeVisible()
+    await expect(page.getByRole('list', { name: 'Chats' })).toBeVisible()
     await page.getByRole('link', { name: 'Connections' }).first().click()
     await expect(page.getByRole('region', { name: 'Social media' }).getByRole('article', { name: 'Instagram' })).toContainText('@easy.beans.coffee')
+  })
+
+  test('Messenger comes with the Facebook connection: connect it from Messages, then the Page’s chats sit next to Instagram’s', async ({ page }) => {
+    await open(page, '/messages')
+    const apps = page.getByRole('group', { name: 'Apps' })
+    await apps.getByRole('button', { name: 'Messenger' }).click()
+    const connect = page.getByRole('region', { name: 'Connect Facebook' })
+    await expect(connect).toContainText('Read and answer your Page’s Messenger messages on the Messages page')
+    await connect.getByRole('button', { name: 'Connect Facebook' }).click()
+    const chats = page.getByRole('list', { name: 'Chats' })
+    expect(await chats.locator(':scope > li').evaluateAll(els => els.map(e => e.getAttribute('aria-label')))).toEqual(['Carmen Ruiz', 'Hotel Puente Romano'])
+    await chats.getByRole('listitem', { name: 'Carmen Ruiz' }).getByRole('button').click()
+    const chat = page.getByRole('region', { name: 'Chat with Carmen Ruiz' })
+    await chat.getByRole('textbox', { name: 'Reply' }).fill('Yes! See you at 11.')
+    await chat.getByRole('button', { name: 'Send' }).click()
+    await toast(page, 'Sent')
+    await expect(chat.getByRole('listitem', { name: 'You: Yes! See you at 11.' })).toBeVisible()
+    // All: both apps' chats together, newest first.
+    await apps.getByRole('button', { name: 'All' }).click()
+    await expect(chats.getByRole('listitem')).toHaveCount(9)
+    await expect(chats.locator(':scope > li').first()).toHaveAttribute('aria-label', 'Carmen Ruiz')
   })
 
   test('staff don’t get Messages', async ({ page }) => {
@@ -2399,10 +2421,10 @@ test.describe('messages', () => {
 
   test('@phone the chat list opens a chat full width, with a way back', async ({ page }) => {
     await open(page, '/messages')
-    await page.getByRole('list', { name: 'Instagram chats' }).getByRole('listitem', { name: '@tom_runs' }).getByRole('button').click()
+    await page.getByRole('list', { name: 'Chats' }).getByRole('listitem', { name: '@tom_runs' }).getByRole('button').click()
     await expect(page.getByRole('region', { name: 'Chat with @tom_runs' })).toContainText('Replied to your story')
     await page.getByRole('button', { name: 'Back to chats' }).click()
-    await expect(page.getByRole('list', { name: 'Instagram chats' })).toBeVisible()
+    await expect(page.getByRole('list', { name: 'Chats' })).toBeVisible()
   })
 })
 

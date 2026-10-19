@@ -216,7 +216,7 @@ with the same redirect URIs, so there is little extra to set up:
 Tokens are encrypted with `INTEGRATION_KEY` and stored per person (`music_accounts`), readable
 only by the Worker. People can disconnect at any time from the Music page.
 
-## 7. Facebook Page (Social planner)
+## 7. Facebook Page (Social planner and Messenger)
 
 Posts go to a Facebook **Page** (not a personal profile). It uses a Meta app with Facebook Login
 for Business; the WhatsApp app from section 3 can be reused.
@@ -226,12 +226,25 @@ for Business; the WhatsApp app from section 3 can be reused.
    `https://<worker-url>/api/integrations/facebook/callback`.
 2. App settings → Basic → **App ID** → GitHub repo secret `META_APP_ID` (the app secret is the
    `META_APP_SECRET` from section 3).
-3. Permissions: `pages_show_list`, `pages_manage_posts`, `pages_read_engagement`. Until App Review
-   grants Advanced Access, only people with a role on the app (App roles → Roles) can connect.
+3. Permissions: `pages_show_list`, `pages_manage_posts`, `pages_read_engagement` and
+   `pages_messaging` (the Page's Messenger chats, on the Messages page). Until App Review grants
+   Advanced Access, only people with a role on the app (App roles → Roles) can connect.
+   For Messenger, also add the **Messenger** use case (App Dashboard → Use cases → *Engage with
+   customers on Messenger from Meta*) and connect the Page there. Until `pages_messaging` has
+   Advanced Access, the Messages page only shows chats with people who have a role on the app
+   (admins, developers, testers); real customers' messages appear once App Review approves it.
 4. In the app: Connections → **Connect Facebook**. If the account manages several Pages, choose
    the one to post to under **Facebook details → Page to post to**.
 
 "Connected" means the app signed in, found the Page and holds a Page token allowed to post.
+
+**Messenger (Messages page).** As soon as Facebook is connected, **Messages → Messenger** shows the
+Page's chats (an empty inbox until someone writes), and **All** puts them next to Instagram's, newest
+first. They're read live from Facebook; nothing is stored. Replies follow Messenger's rules: within
+24 hours of the person's last message a normal reply, up to 7 days a personal one (the *Human Agent*
+tag: add the **Human Agent** feature to the Meta app), after that only from Meta Business Suite.
+`pages_messaging` is optional: a Page connected before Messenger was added, or with that box
+unticked, keeps posting, and the Messages page asks to connect Facebook again.
 
 ## 8. TikTok (Social planner)
 

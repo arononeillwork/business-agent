@@ -391,6 +391,7 @@ export default {
   'See posts you’re tagged in': 'Ver las publicaciones en las que te etiquetan',
   'See the Pages you manage and pick one': 'Ver las páginas que gestionas y elegir una',
   'Publish the posts you plan here to that Page, at the time you choose': 'Publicar en esa página lo que planifiques aquí, a la hora que elijas',
+  'Read and answer your Page’s Messenger messages on the Messages page': 'Leer y responder los mensajes de Messenger de tu página en la página de Mensajes',
   'See your TikTok name and picture': 'Ver tu nombre y tu foto de TikTok',
   'Publish the photo posts you plan here, at the time you choose': 'Publicar las fotos que planifiques aquí, a la hora que elijas',
   'See your business name and locations': 'Ver el nombre de tu negocio y sus locales',

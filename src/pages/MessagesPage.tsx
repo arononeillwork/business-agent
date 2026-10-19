@@ -10,6 +10,7 @@ import OpenIcon from '@mui/icons-material/OpenInNewRounded'
 import InfoIcon from '@mui/icons-material/InfoOutlined'
 import { siInstagram, siMessenger, siTiktok, siWhatsapp, type SimpleIcon } from 'simple-icons'
 import { useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
@@ -27,21 +28,30 @@ import { msg, t, tr } from '../i18n'
 const PLATFORMS: { id: MessagePlatform; name: string; icon: SimpleIcon; live: boolean }[] = [
   { id: 'instagram', name: 'Instagram', icon: siInstagram, live: true },
   { id: 'whatsapp', name: 'WhatsApp', icon: siWhatsapp, live: false },
-  { id: 'messenger', name: 'Messenger', icon: siMessenger, live: false },
+  // Messenger comes with the Facebook connection (the Page's chats).
+  { id: 'messenger', name: 'Messenger', icon: siMessenger, live: true },
   { id: 'tiktok', name: 'TikTok', icon: siTiktok, live: false },
 ]
 
+/** Which connection each app's chats come from. */
+type Source = 'instagram' | 'facebook'
+const SOURCE: Partial<Record<MessagePlatform, Source>> = { instagram: 'instagram', messenger: 'facebook' }
+
 /**
- * The business's direct messages in one place. Instagram for now; the other apps show, greyed out,
- * until they're added. Connecting here is the same one click as on Connections (it's one connection).
+ * The business's direct messages in one place: Instagram, and Messenger once Facebook is connected
+ * (even before anyone has written). The other apps show, greyed out, until they're added. Connecting
+ * here is the same one click as on Connections (it's one connection).
  */
 export function MessagesPage() {
   const { api } = useApp()
   const integ = useAsync('integrations', () => api.integrations(), [])
   useConnectResult(() => { void integ.reload() })
-  const ig = integ.data?.integrations.find(i => i.provider === 'instagram')
-  const connected = ig?.status === 'connected'
+  const row = (p: Source) => integ.data?.integrations.find(i => i.provider === p)
+  const on = (p: Source) => row(p)?.status === 'connected'
   const [app, setApp] = useState<MessagePlatform | 'all'>('all')
+  // What to offer connecting: the chosen app's connection, or (All) every one that isn't connected yet.
+  const missing: Source[] = app === 'all' ? (on('instagram') || on('facebook') ? [] : ['instagram', 'facebook'])
+    : SOURCE[app] && !on(SOURCE[app]!) ? [SOURCE[app]!] : []
 
   return (
     <>
@@ -62,36 +72,52 @@ export function MessagesPage() {
         ))}
       </Stack>
       <ErrorBox error={integ.error} />
-      {integ.data && !connected && <ConnectInstagram row={ig} configured={!!integ.data.configured.instagram} />}
-      {connected && <Inbox ig={ig!} app={app} />}
+      {integ.data && missing.length > 0 && (
+        <Stack spacing={2}>
+          {missing.map(p => <ConnectCard key={p} provider={p} row={row(p)} configured={!!integ.data!.configured[p]} />)}
+        </Stack>
+      )}
+      {integ.data && missing.length === 0 && (on('instagram') || on('facebook')) && (
+        <Inbox ig={on('instagram') ? row('instagram') : undefined} fb={on('facebook') ? row('facebook') : undefined} app={app} />
+      )}
     </>
   )
 }
 
+const CONNECT_NAME: Record<Source, string> = { instagram: 'Instagram', facebook: 'Facebook' }
+
 /** Not connected yet: the same Connect as on Connections, coming back here afterwards. */
-function ConnectInstagram({ row, configured }: { row?: Integration; configured: boolean }) {
+function ConnectCard({ provider, row, configured }: { provider: Source; row?: Integration; configured: boolean }) {
   const { api, refresh } = useApp()
   const run = useAction()
+  const name = CONNECT_NAME[provider]
+  const connect = () => run(async () => {
+    if (provider === 'instagram') await api.connectInstagram('messages')
+    else await api.connectApp('facebook', 'messages')
+    await refresh()
+  })
   return (
-    <Card component="section" aria-label={t('Connect Instagram')}>
+    <Card component="section" aria-label={t('Connect {app}', { app: name })}>
       <CardContent>
         <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 1 }}>
           <Box sx={{ width: 44, height: 44, borderRadius: '12px', display: 'grid', placeItems: 'center', bgcolor: tokens.surfaceAlt, border: `1px solid ${tokens.line}` }}>
-            <Brand icon={siInstagram} />
+            <Brand icon={provider === 'instagram' ? siInstagram : siMessenger} />
           </Box>
           <Box>
-            <Typography variant="h6" component="h2">{t('Connect Instagram')}</Typography>
-            <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t(DOES.instagram ?? '')}</Typography>
+            <Typography variant="h6" component="h2">{t('Connect {app}', { app: name })}</Typography>
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+              {provider === 'instagram' ? t(DOES.instagram ?? '') : t('Messenger comes with the Facebook connection: your Page’s chats show here.')}
+            </Typography>
           </Box>
         </Stack>
         {row?.last_error && <Alert severity="error" sx={{ mt: 1.5 }}>{row.last_error}</Alert>}
-        {!configured && <Alert severity="warning" sx={{ mt: 1.5 }}>{t('Not set up yet: Business Agent needs {keys} before anyone can connect Instagram. They’re added once, for every business; after that, connecting is one click.', { keys: t(KEYS_NEEDED.instagram ?? '') })}</Alert>}
+        {!configured && <Alert severity="warning" sx={{ mt: 1.5 }}>{t('Not set up yet: Business Agent needs {keys} before anyone can connect {app}. They’re added once, for every business; after that, connecting is one click.', { keys: t(KEYS_NEEDED[provider] ?? ''), app: name })}</Alert>}
         <Typography variant="overline" component="h3" sx={{ display: 'block', color: 'text.secondary', mt: 2 }}>{t('When you connect, it can')}</Typography>
         <Stack component="ul" spacing={0.5} sx={{ m: 0, p: 0, pl: 2.5 }}>
-          {CAN.instagram!.map(c => <Typography key={c} component="li" variant="body2">{t(c)}</Typography>)}
+          {CAN[provider]!.map(c => <Typography key={c} component="li" variant="body2">{t(c)}</Typography>)}
         </Stack>
-        <Button variant="contained" sx={{ mt: 2.5 }} disabled={!configured} onClick={() => run(async () => { await api.connectInstagram('messages'); await refresh() })}>
-          {row?.status === 'error' ? t('Connect again') : t('Connect Instagram')}
+        <Button variant="contained" sx={{ mt: 2.5 }} disabled={!configured} onClick={connect}>
+          {row?.status === 'error' ? t('Connect again') : t('Connect {app}', { app: name })}
         </Button>
         <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1.5 }}>
           {t('It’s the same connection as on Connections: connect here or there and both pages update.')}
@@ -101,7 +127,17 @@ function ConnectInstagram({ row, configured }: { row?: Integration; configured: 
   )
 }
 
-function Inbox({ ig, app }: { ig: Integration; app: MessagePlatform | 'all' }) {
+/** Read live, every minute; a failed read is shown, not retried in a loop. Shares 'instagram-inbox' with the menu's badge. */
+function useInbox<T>(key: string, enabled: boolean, fn: () => Promise<T>) {
+  const q = useQuery({ queryKey: [key], queryFn: fn, enabled, refetchInterval: 60_000, retry: false, placeholderData: prev => prev })
+  return {
+    data: enabled ? q.data ?? null : null, loaded: !enabled || q.data !== undefined || !!q.error,
+    error: enabled && q.error ? (q.error instanceof Error ? q.error.message : String(q.error)) : null,
+    reload: async () => { if (enabled) await q.refetch() },
+  }
+}
+
+function Inbox({ ig, fb, app }: { ig?: Integration; fb?: Integration; app: MessagePlatform | 'all' }) {
   const { api } = useApp()
   const run = useAction()
   const theme = useTheme()
@@ -109,23 +145,37 @@ function Inbox({ ig, app }: { ig: Integration; app: MessagePlatform | 'all' }) {
   const [filter, setFilter] = useState<InboxFilter>('all')
   const [search, setSearch] = useState('')
   const [open, setOpen] = useState<string | null>(null)
-  const data = useAsync('instagram-inbox', () => api.instagramInbox(), [], { refetchInterval: 60_000 })
-  // Newest first: the chat with the latest message (from either side) at the top.
-  const all = useMemo(() => (data.data?.conversations ?? [])
+  const insta = useInbox('instagram-inbox', !!ig && app !== 'messenger', () => api.instagramInbox())
+  const messenger = useInbox('messenger-inbox', !!fb && app !== 'instagram', () => api.messengerInbox())
+  const reload = async () => { await Promise.all([insta.reload(), messenger.reload()]) }
+  const loaded = insta.loaded && messenger.loaded
+  // Newest first, every app together: the chat with the latest message (from either side) at the top.
+  const all = useMemo(() => [...insta.data?.conversations ?? [], ...messenger.data?.conversations ?? []]
     .filter(c => app === 'all' || c.platform === app)
-    .sort((a, b) => lastAt(b) - lastAt(a)), [data.data, app])
+    .sort((a, b) => lastAt(b) - lastAt(a)), [insta.data, messenger.data, app])
   const shown = all.filter(c => matchesFilter(c, filter) && matchesSearch(c, search))
   const count = (f: InboxFilter) => all.filter(c => matchesFilter(c, f)).length
   const chosen = all.find(c => c.id === open) ?? null
+  const showsInstagram = !!ig && app !== 'messenger', showsMessenger = !!fb && app !== 'instagram'
 
-  if (data.error) {
-    const reconnect = /Connect Instagram again/.test(data.error)
-    return (
-      <Alert severity="warning" action={reconnect && <Button color="inherit" onClick={() => run(() => api.connectInstagram('messages'))}>{t('Connect again')}</Button>}>
-        {data.error}
-      </Alert>
-    )
-  }
+  // One app not answering (or needing a reconnect) doesn't hide the other's chats.
+  const problems = (
+    <>
+      {insta.error && (
+        <Alert severity="warning" sx={{ mb: 1.5 }} action={/Connect Instagram again/.test(insta.error)
+          && <Button color="inherit" onClick={() => run(() => api.connectInstagram('messages'))}>{t('Connect again')}</Button>}>
+          {insta.error}
+        </Alert>
+      )}
+      {messenger.error && (
+        <Alert severity="warning" sx={{ mb: 1.5 }} action={/Connect Facebook again/.test(messenger.error)
+          && <Button color="inherit" onClick={() => run(() => api.connectApp('facebook', 'messages'))}>{t('Connect again')}</Button>}>
+          {messenger.error}
+        </Alert>
+      )}
+    </>
+  )
+  if ((insta.error || !showsInstagram) && (messenger.error || !showsMessenger)) return problems
 
   const list = (
     <Box component="section" aria-label={t('Chats')} sx={{ minWidth: 0 }}>
@@ -150,37 +200,48 @@ function Inbox({ ig, app }: { ig: Integration; app: MessagePlatform | 'all' }) {
       <Stack direction="row" spacing={0.75} sx={{ color: 'text.secondary', mb: 1.5, alignItems: 'flex-start' }}>
         <InfoIcon sx={{ fontSize: 16, mt: '2px' }} />
         <Typography variant="caption">
-          {t('Instagram doesn’t share its Primary, General and Requests folders with other apps, so every chat is here. You can reply for 24 hours after someone’s last message, and for up to 7 days as a personal reply you write yourself.')}
+          {showsInstagram
+            ? t('Instagram doesn’t share its Primary, General and Requests folders with other apps, so every chat is here. You can reply for 24 hours after someone’s last message, and for up to 7 days as a personal reply you write yourself.')
+            : t('Your Facebook Page’s Messenger chats. You can reply for 24 hours after someone’s last message, and for up to 7 days as a personal reply you write yourself.')}
         </Typography>
       </Stack>
-      {data.data && shown.length === 0 && (
+      {loaded && shown.length === 0 && (
         <Empty>
           {search.trim() ? t('No chats match “{search}”.', { search: search.trim() })
-            : filter === 'all' ? (app === 'all' ? t('No messages yet.') : t('No Instagram messages yet.')) : t('Nothing here right now.')}
+            : filter !== 'all' ? t('Nothing here right now.')
+              : app === 'instagram' ? t('No Instagram messages yet.') : app === 'messenger' ? t('No Messenger messages yet.') : t('No messages yet.')}
         </Empty>
       )}
-      <Stack component="ul" aria-label={t('Instagram chats')} sx={{ m: 0, p: 0, listStyle: 'none', gap: 0.5 }}>
-        {shown.map(c => <ChatRow key={c.id} c={c} selected={c.id === open} roomy={wide && !chosen} onOpen={() => setOpen(c.id)} />)}
+      <Stack component="ul" aria-label={t('Chats')} sx={{ m: 0, p: 0, listStyle: 'none', gap: 0.5 }}>
+        {shown.map(c => <ChatRow key={c.id} c={c} selected={c.id === open} roomy={wide && !chosen} mixed={showsInstagram && showsMessenger} onOpen={() => setOpen(c.id)} />)}
       </Stack>
-      {filter === 'mentions' && <Tagged posts={data.data?.tagged ?? null} note={data.data?.taggedNote} />}
+      {filter === 'mentions' && showsInstagram && <Tagged posts={insta.data?.tagged ?? null} note={insta.data?.taggedNote} />}
     </Box>
   )
 
   return (
-    <Card>
-      <CardContent sx={{ p: { xs: 1.5, md: 2 } }}>
-        <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>{ig.account_label}</Typography>
-        {/* A computer: the chats fill the card until one is open, then chats and chat side by side. A phone: one at a time. */}
-        {wide && chosen ? (
-          <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 340px) 1fr', gap: 2.5, alignItems: 'start' }}>
-            {list}
-            <Thread c={chosen} onSent={data.reload} onClose={() => setOpen(null)} />
-          </Box>
-        ) : chosen ? <Thread c={chosen} onSent={data.reload} onBack={() => setOpen(null)} /> : list}
-      </CardContent>
-    </Card>
+    <>
+      {problems}
+      <Card>
+        <CardContent sx={{ p: { xs: 1.5, md: 2 } }}>
+          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>
+            {[showsInstagram && ig?.account_label, showsMessenger && fb?.account_label && `${'Messenger'} · ${fb.account_label}`].filter(Boolean).join(' · ')}
+          </Typography>
+          {/* A computer: the chats fill the card until one is open, then chats and chat side by side. A phone: one at a time. */}
+          {wide && chosen ? (
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 340px) 1fr', gap: 2.5, alignItems: 'start' }}>
+              {list}
+              <Thread c={chosen} onSent={reload} onClose={() => setOpen(null)} />
+            </Box>
+          ) : chosen ? <Thread c={chosen} onSent={reload} onBack={() => setOpen(null)} /> : list}
+        </CardContent>
+      </Card>
+    </>
   )
 }
+
+/** Who a chat is with, as each app names people: an @handle on Instagram, a name on Messenger. */
+const handle = (c: InboxConversation) => (c.platform === 'messenger' ? c.with.name ?? c.with.username : `@${c.with.username}`)
 
 /** When a chat last moved: its newest message, or Instagram's own updated time. */
 const lastAt = (c: InboxConversation) => Math.max(Date.parse(c.updatedAt) || 0, ...c.recent.map(m => Date.parse(m.at) || 0))
@@ -197,12 +258,12 @@ function PersonAvatar({ who, size }: { who: InboxConversation['with']; size: num
   )
 }
 
-function ChatRow({ c, selected, roomy, onOpen }: { c: InboxConversation; selected: boolean; roomy: boolean; onOpen: () => void }) {
+function ChatRow({ c, selected, roomy, mixed, onOpen }: { c: InboxConversation; selected: boolean; roomy: boolean; mixed: boolean; onOpen: () => void }) {
   const last = c.recent[0]
   const waiting = needsReply(c)
   const tag = c.recent.find(m => !m.fromMe && KIND_TAG[m.kind])
   return (
-    <Box component="li" aria-label={`@${c.with.username}`}>
+    <Box component="li" aria-label={handle(c)}>
       <Box component="button" type="button" onClick={onOpen} aria-current={selected || undefined}
         sx={{ all: 'unset', boxSizing: 'border-box', width: '100%', cursor: 'pointer', display: 'flex', gap: roomy ? 1.75 : 1.25, alignItems: 'center',
           p: roomy ? 1.75 : 1.25, borderRadius: '12px', bgcolor: selected ? tokens.roseSoft : 'transparent', '&:hover': { bgcolor: selected ? tokens.roseSoft : tokens.hover },
@@ -213,10 +274,16 @@ function ChatRow({ c, selected, roomy, onOpen }: { c: InboxConversation; selecte
             <Typography variant="body2" sx={{ fontWeight: waiting ? 700 : 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: roomy ? '0 1 auto' : 1 }}>
               {c.with.name ?? c.with.username}
             </Typography>
-            {roomy && c.with.name && (
+            {roomy && c.with.name && c.platform !== 'messenger' && (
               <Typography variant="caption" sx={{ color: 'text.secondary', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>@{c.with.username}</Typography>
             )}
-            <Typography variant="caption" sx={{ color: 'text.secondary', flexShrink: 0, ml: 'auto' }}>{ago(c.updatedAt)}</Typography>
+            {/* All apps together: which one the chat is on. */}
+            {mixed && (
+              <Box title={c.platform === 'messenger' ? 'Messenger' : 'Instagram'} sx={{ display: 'flex', flexShrink: 0, ml: 'auto', '& svg': { width: 14, height: 14 } }}>
+                <Brand icon={c.platform === 'messenger' ? siMessenger : siInstagram} />
+              </Box>
+            )}
+            <Typography variant="caption" sx={{ color: 'text.secondary', flexShrink: 0, ml: mixed ? 0 : 'auto' }}>{ago(c.updatedAt)}</Typography>
           </Stack>
           <Typography variant={roomy ? 'body2' : 'caption'} component="p" sx={{ color: waiting ? 'text.primary' : 'text.secondary', overflow: 'hidden',
             ...(roomy ? { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' } : { textOverflow: 'ellipsis', whiteSpace: 'nowrap' }) }}>
@@ -238,26 +305,29 @@ function Thread({ c, onSent, onBack, onClose }: { c: InboxConversation; onSent: 
   const { api } = useApp()
   const run = useAction()
   const [text, setText] = useState('')
-  const thread = useAsync('instagram-thread', () => api.instagramThread(c.id), [c.id], { refetchInterval: 30_000 })
+  const fb = c.platform === 'messenger'
+  const thread = useAsync(`${c.platform}-thread`, () => (fb ? api.messengerThread(c.id) : api.instagramThread(c.id)), [c.id], { refetchInterval: 30_000 })
   const messages = thread.data?.messages ?? []
   const can = useMemo(() => replyWindow(messages), [messages])
   const who = thread.data?.conversation.with ?? c.with
+  const appLink = fb ? 'https://business.facebook.com/latest/inbox/all' : 'https://www.instagram.com/direct/inbox/'
   const send = () => run(async () => {
-    await api.replyInstagram(c.id, text)
+    await (fb ? api.replyMessenger(c.id, text) : api.replyInstagram(c.id, text))
     setText('')
     await Promise.all([thread.reload(), onSent()])
   }, t('Sent'))
 
   return (
-    <Box component="section" aria-label={t('Chat with @{username}', { username: c.with.username })} sx={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+    <Box component="section" aria-label={fb ? t('Chat with {name}', { name: handle(c) }) : t('Chat with @{username}', { username: c.with.username })}
+      sx={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
       <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
         {onBack && <IconButton aria-label={t('Back to chats')} onClick={onBack} edge="start"><BackIcon /></IconButton>}
         <PersonAvatar who={who} size={40} />
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography variant="h6" component="h2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{who.name ?? who.username}</Typography>
-          <Typography variant="caption" sx={{ color: 'text.secondary' }}>@{who.username}</Typography>
+          <Typography variant="caption" sx={{ color: 'text.secondary' }}>{fb ? 'Messenger' : `@${who.username}`}</Typography>
         </Box>
-        <Button size="small" endIcon={<OpenIcon />} href="https://www.instagram.com/direct/inbox/" target="_blank" rel="noreferrer">{'Instagram'}</Button>
+        <Button size="small" endIcon={<OpenIcon />} href={appLink} target="_blank" rel="noreferrer">{fb ? 'Messenger' : 'Instagram'}</Button>
         {onClose && <Tooltip title={t('Close chat')}><IconButton aria-label={t('Close chat')} onClick={onClose}><CloseIcon /></IconButton></Tooltip>}
       </Stack>
       <ErrorBox error={thread.error} />
@@ -267,26 +337,32 @@ function Thread({ c, onSent, onBack, onClose }: { c: InboxConversation; onSent: 
           // Instagram style: their photo beside the last message of each run of theirs.
           <Bubble key={m.id} m={m} who={m.fromMe ? undefined : who} showAvatar={!m.fromMe && (messages[i + 1]?.fromMe ?? true)} />
         ))}
-        {thread.data && messages.length === 0 && <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('No messages Instagram can share.')}</Typography>}
+        {thread.data && messages.length === 0 && <Typography variant="body2" sx={{ color: 'text.secondary' }}>{fb ? t('No messages yet.') : t('No messages Instagram can share.')}</Typography>}
       </Stack>
       {thread.data && can.mode === 'human_agent' && (
         <Alert severity="info" variant="outlined" role="note" aria-label={t('Personal reply')}>
-          {t('It’s been more than 24 hours since their last message, so Instagram takes this as a personal reply (its “human agent” tag): write it yourself, and no promotions. Allowed until {until}.', { until: formatLocal(can.until, 'EEE d MMM, HH:mm') })}
+          {fb
+            ? t('It’s been more than 24 hours since their last message, so Messenger takes this as a personal reply (its “human agent” tag): write it yourself, and no promotions. Allowed until {until}.', { until: formatLocal(can.until, 'EEE d MMM, HH:mm') })
+            : t('It’s been more than 24 hours since their last message, so Instagram takes this as a personal reply (its “human agent” tag): write it yourself, and no promotions. Allowed until {until}.', { until: formatLocal(can.until, 'EEE d MMM, HH:mm') })}
         </Alert>
       )}
       {can.mode !== 'closed' ? (
         <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-end' }}>
           <TextField label={t('Reply')} value={text} onChange={e => setText(e.target.value)} multiline maxRows={4} fullWidth size="small"
             helperText={can.mode === 'normal' ? t('You can reply until {until}.', { until: formatLocal(can.until, 'EEE HH:mm') }) : t('Sent as a personal reply.')}
-            slotProps={{ htmlInput: { maxLength: 1000 } }}
+            slotProps={{ htmlInput: { maxLength: fb ? 2000 : 1000 } }}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && text.trim()) { e.preventDefault(); void send() } }} />
           <IconButton aria-label={t('Send')} color="primary" disabled={!text.trim()} onClick={() => void send()} sx={{ mb: 3 }}><SendIcon /></IconButton>
         </Stack>
       ) : thread.data && (
         <Alert severity="info">
-          {tr('Instagram only allows replies from other apps up to 7 days after their last message. {link} instead.', {
-            link: <MuiLink href="https://www.instagram.com/direct/inbox/" target="_blank" rel="noreferrer">{t('Reply in the Instagram app')}</MuiLink>,
-          })}
+          {fb
+            ? tr('Messenger only allows replies from other apps up to 7 days after their last message. {link} instead.', {
+              link: <MuiLink href={appLink} target="_blank" rel="noreferrer">{t('Reply in Meta Business Suite')}</MuiLink>,
+            })
+            : tr('Instagram only allows replies from other apps up to 7 days after their last message. {link} instead.', {
+              link: <MuiLink href={appLink} target="_blank" rel="noreferrer">{t('Reply in the Instagram app')}</MuiLink>,
+            })}
         </Alert>
       )}
     </Box>

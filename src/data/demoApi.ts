@@ -11,7 +11,7 @@ import type {
 } from '../../shared/types'
 import { mentionTitle, mentionsIn, type InstagramMention } from '../../shared/mentions'
 import { demoSports } from './demoSports'
-import { demoInbox } from './demoMessages'
+import { demoInbox, demoMessenger } from './demoMessages'
 import { replyWindow } from '../../shared/messages'
 import { cleanCode } from '../../shared/referrals'
 import { postProblem } from '../../shared/social'
@@ -61,6 +61,7 @@ export function createDemoApi(): Api {
     updated_at: nowIso(),
   }
   const inbox = demoInbox()
+  const messenger = demoMessenger()
   // Instagram mentions from the sample inbox: the bell tells every admin once (as the Worker does).
   let mentions: InstagramMention[] | null = null
   const demoMentions = () => {
@@ -1335,6 +1336,19 @@ export function createDemoApi(): Api {
       if (!text.trim()) throw new Error('Write a message first')
       if (replyWindow(inbox.thread(id).messages).mode === 'closed') throw new Error('Instagram allows replies up to 7 days after their last message. Reply in the Instagram app instead.')
       inbox.reply(id, text.trim())
+    },
+    // Messenger comes with the Facebook connection (connect it to see the Page's two chats).
+    async messengerInbox() {
+      requireAdmin()
+      if (integ.integrations.find(i => i.provider === 'facebook')!.status !== 'connected') throw new Error('Facebook is not connected')
+      return { conversations: messenger.state().conversations }
+    },
+    async messengerThread(id) { requireAdmin(); return messenger.thread(id) },
+    async replyMessenger(id, text) {
+      requireAdmin()
+      if (!text.trim()) throw new Error('Write a message first')
+      if (replyWindow(messenger.thread(id).messages).mode === 'closed') throw new Error('Messenger allows replies up to 7 days after their last message. Reply in Meta Business Suite instead.')
+      messenger.reply(id, text.trim())
     },
     async instagramProfile() {
       if (integ.integrations.find(i => i.provider === 'instagram')!.status !== 'connected') throw new Error('Instagram is not connected')

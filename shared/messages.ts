@@ -1,5 +1,5 @@
-// Messages page: one inbox for the business's direct messages. Instagram for now; WhatsApp, Messenger
-// and TikTok show as "soon". What Instagram shares with other apps (and what it doesn't) is in
+// Messages page: one inbox for the business's direct messages. Instagram, and Messenger with the
+// Facebook connection; WhatsApp and TikTok show as "soon". What Instagram shares with other apps (and what it doesn't) is in
 // docs/INTEGRATIONS.md: no Primary/General/Requests folders, the 20 latest messages of a chat, and
 // replies within 24 hours of the customer's last message (up to 7 days as a personal, human-agent reply).
 import { msg } from './i18n'
