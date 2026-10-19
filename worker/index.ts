@@ -26,6 +26,21 @@ const sportsOn = async (db: ReturnType<typeof serviceClient>) =>
 
 const app = new Hono<{ Bindings: OAuthEnv }>()
 
+// A self-destructing service worker at the usual service-worker addresses. The app has none, but
+// a browser that kept one from an earlier site on this domain serves that old site from its cache
+// forever. The browser still re-checks the worker's own address, gets this, and the new worker
+// wipes the caches, unregisters and reloads the page — the visitor recovers by themselves.
+const KILL_SERVICE_WORKER = `self.addEventListener('install', () => self.skipWaiting())
+self.addEventListener('activate', e => e.waitUntil((async () => {
+  await Promise.all((await caches.keys()).map(k => caches.delete(k)))
+  await self.registration.unregister()
+  for (const c of await self.clients.matchAll({ type: 'window' })) c.navigate(c.url)
+})()))
+`
+for (const path of ['/sw.js', '/service-worker.js', '/serviceworker.js', '/registerSW.js', '/worker.js']) {
+  app.get(path, c => c.body(KILL_SERVICE_WORKER, 200, { 'content-type': 'text/javascript', 'cache-control': 'no-cache' }))
+}
+
 // Public config for the web app (publishable key only).
 app.get('/api/config', c => c.json({
   businessId: c.env.BUSINESS_ID,
