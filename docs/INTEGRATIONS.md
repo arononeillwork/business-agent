@@ -235,7 +235,9 @@ for Business; the WhatsApp app from section 3 can be reused.
 
 ## 8. TikTok (Social planner)
 
-1. <https://developers.tiktok.com> → Manage apps → **Create app** → add **Login Kit** and
+1. <https://developers.tiktok.com> → Manage apps → **Create app** (platform **Web**, website
+   `https://businesssagent.com`, Terms of Service URL `https://businesssagent.com/tiktok/terms`,
+   Privacy Policy URL `https://businesssagent.com/tiktok/privacy`) → add **Login Kit** and
    **Content Posting API** (turn on *Direct Post*).
 2. Login Kit → Redirect URI: `https://<worker-url>/api/integrations/tiktok/callback`.
 3. Content Posting API → **Verify domain** (URL prefix) for `https://<worker-url>/`: TikTok pulls
