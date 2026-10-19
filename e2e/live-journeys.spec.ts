@@ -172,9 +172,9 @@ test.describe('admin', () => {
     const pages: { link: string; path: string; check: (p: Page) => Promise<void> }[] = [
       { link: 'Business', path: '/business', check: p => expect(p.getByRole('heading', { level: 1, name: business.name })).toBeVisible(NET) },
       { link: 'Home: Today', path: '/', check: p => expect(p.getByRole('heading', { name: 'Hola, Ana' })).toBeVisible(NET) },
-      ...['To Do List', 'Rota', 'Time off', 'Timecards', 'Team', 'Opening hours', 'Brand', 'Calendar', 'Sports', 'Music', 'Messages', 'Finances', 'Alerts', 'Connections', 'My account', 'Appearance'].map(name => ({
+      ...['To Do List', 'Rota', 'Time off', 'Timecards', 'Team', 'Opening hours', 'Brand', 'Analytics', 'Calendar', 'Sports', 'Music', 'Messages', 'Finances', 'Alerts', 'Connections'].map(name => ({
         link: name,
-        path: { 'Time off': '/time-off', 'My account': '/account', 'Opening hours': '/opening-hours', 'To Do List': '/todo' }[name] ?? `/${name.toLowerCase()}`,
+        path: { 'Time off': '/time-off', 'Opening hours': '/opening-hours', 'To Do List': '/todo' }[name] ?? `/${name.toLowerCase()}`,
         check: (p: Page) => expect(p.getByRole('heading', { level: 1, name: { Connections: 'Business connections' }[name] ?? name, exact: true })).toBeVisible(NET),
       })),
     ]
@@ -184,6 +184,16 @@ test.describe('admin', () => {
         await expect(page).toHaveURL(url => new URL(url).pathname === path, NET)
         await check(page)
         await expectNoErrorShown(page, link)
+      })
+    }
+    // Your own pages open from the account menu (your name at the bottom left), not the sidebar.
+    for (const [item, path] of [['My account', '/account'], ['Appearance', '/appearance']] as const) {
+      await test.step(item, async () => {
+        await page.getByRole('button', { name: /^Account menu/ }).first().click()
+        await page.getByRole('menuitem', { name: item }).click()
+        await expect(page).toHaveURL(url => new URL(url).pathname === path, NET)
+        await expect(page.getByRole('heading', { level: 1, name: item, exact: true })).toBeVisible(NET)
+        await expectNoErrorShown(page, item)
       })
     }
     if (FEATURES.kiosk) await test.step('Café tablet', async () => {
@@ -202,7 +212,8 @@ test.describe('admin', () => {
     try {
       const contact = page.getByRole('region', { name: 'Contact' })
       await contact.getByRole('button', { name: 'Edit', exact: true }).click()
-      await contact.getByRole('textbox', { name: 'Phone', exact: true }).fill(phone)
+      // The +34 is picked from the country list (Spain by default); the rest is typed.
+      await contact.getByRole('textbox', { name: 'Phone', exact: true }).fill(phone.replace(/^\+34 /, ''))
       await contact.getByRole('button', { name: 'Save' }).click()
       await toast(page, /^Saved$/)
       await expect(page.getByText(phone)).toBeVisible(NET)
@@ -390,7 +401,7 @@ test.describe('employee', () => {
   test('has no admin or money pages in the menu, and /finances shows no expenses', async ({ page }) => {
     await signIn(page, 'employee')
     await expect(page.getByRole('heading', { name: 'Hola, Eva' })).toBeVisible(NET)
-    for (const name of ['Business', 'Home: Today', 'Rota', 'Time off', 'Timecards', 'Calendar', 'Team', 'My account']) {
+    for (const name of ['Business', 'Home: Today', 'Rota', 'Time off', 'Timecards', 'Calendar', 'Team']) {
       await expect.soft(nav(page).getByRole('link', { name, exact: true })).toBeVisible()
     }
     for (const name of ['Finances', 'Alerts', 'Connections', 'Partners', 'Café tablet']) {
@@ -456,12 +467,12 @@ test.describe('employee', () => {
 // Partner (outside business, read-only payroll + finances)
 // ---------------------------------------------------------------------------------------------
 test.describe('partner', () => {
-  test('lands on Business and only sees Business, Rota, Timecards, Finances and My account', async ({ page }) => {
+  test('lands on Business and only sees Business, Rota, Timecards and Finances, with My account in the account menu', async ({ page }) => {
     await signInUi(page, PARTNER.email)
     await expect(page).toHaveURL(url => new URL(url).pathname === '/business', NET)
     await expect(page.getByRole('heading', { level: 1, name: business.name })).toBeVisible(NET)
     await expect(page.getByRole('button', { name: 'Edit' })).toHaveCount(0)
-    for (const name of ['Business', 'Rota', 'Timecards', 'Finances', 'My account']) {
+    for (const name of ['Business', 'Rota', 'Timecards', 'Finances']) {
       await expect.soft(nav(page).getByRole('link', { name, exact: true })).toBeVisible()
     }
     for (const name of ['Today', 'Time off', 'Calendar', 'Team', 'Partners', 'Alerts', 'Connections', 'Café tablet']) {
@@ -471,7 +482,10 @@ test.describe('partner', () => {
 
     for (const [link, path] of [['Rota', '/rota'], ['Timecards', '/timecards'], ['My account', '/account']] as const) {
       await test.step(link, async () => {
-        await nav(page).getByRole('link', { name: link, exact: true }).click()
+        if (link === 'My account') {
+          await page.getByRole('button', { name: /^Account menu/ }).first().click()
+          await page.getByRole('menuitem', { name: link }).click()
+        } else await nav(page).getByRole('link', { name: link, exact: true }).click()
         await expect(page).toHaveURL(url => new URL(url).pathname === path, NET)
         await expect(page.getByRole('heading', { level: 1, name: link, exact: true })).toBeVisible(NET)
         if (link === 'Rota') await expect(page.getByRole('button', { name: 'Add shift' })).toHaveCount(0)
