@@ -17,7 +17,7 @@ import { addDays, currencySymbol, formatMoney, today, weekStart, zonedIso } from
 import { shiftPaidMinutes } from '../../shared/rules'
 import type { Expense } from '../../shared/types'
 import { Link as RouterLink } from 'react-router-dom'
-import { FinanceTabs, TILL_NAMES, tillOf } from '../components/FinanceTabs'
+import { TILL_NAMES, tillOf } from '../components/till'
 import { msg, t, tc } from '../i18n'
 
 /** Monthly running costs. Admins with pay access edit; finance partners read (enforced in the database too). */
@@ -44,7 +44,6 @@ export function FinancesPage() {
   return (
     <>
       <PageHeader eyebrow={t('Accounts')} title={t('Finances')} actions={!canEdit && <Tag>{t('Read-only')}</Tag>} />
-      <FinanceTabs />
       <ErrorBox error={data.error} />
 
       <StatGrid>
@@ -335,7 +334,7 @@ function Takings() {
     .reduce((m, s) => m + shiftPaidMinutes(s) / 60 * (s.profile_id ? rates.get(s.profile_id) ?? 0 : 0) * mult, 0)
   return (
     <Box component="section" aria-label={t('Takings')} sx={{ mb: 3 }}>
-      <SectionTitle action={<Button component={RouterLink} to="/finances/sales" size="small">{t('See sales')}</Button>}>
+      <SectionTitle action={<Button component={RouterLink} to="/sales" size="small">{t('See sales')}</Button>}>
         {t('Takings')} <Typography component="span" variant="body2" sx={{ color: 'text.secondary' }}>{t('· from {name}', { name })}</Typography>
       </SectionTitle>
       <ErrorBox error={sales.error} />

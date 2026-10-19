@@ -1,5 +1,5 @@
 import { Box, Checkbox, ListItemIcon, ListItemText, MenuItem, Stack, TextField, ToggleButton, ToggleButtonGroup, Tooltip } from '@mui/material'
-import { useId } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { useApp } from '../app/AppContext'
 import { LANGUAGES, chosenLanguages, setLanguage, t, useLanguage, type Language } from '../i18n'
 import { tokens } from '../theme'
@@ -63,25 +63,37 @@ export function LanguageToggle({ always }: { always?: boolean }) {
   )
 }
 
-/** My account → Language: tick one or both; with both, the flags at the top switch between them. */
+/**
+ * My account → Language: tick one or both; with both, the flags at the top switch between them.
+ * Ticks show at once (the account saves behind); the last one can't be unticked, and says why.
+ */
 export function LanguagePicker() {
   const { api, me, refresh } = useApp()
   const current = useLanguage()
+  const saved = chosenLanguages(me?.preferences)
+  const [picked, setPicked] = useState<Language[]>(saved)
+  const [lastOne, setLastOne] = useState(false)
+  // Follows the account when it changes elsewhere (the flags, another device).
+  const key = saved.join()
+  useEffect(() => setPicked(key.split(',') as Language[]), [key])
   if (!me) return null
-  const mine = chosenLanguages(me.preferences)
   const save = (next: Language[]) => {
-    if (!next.length) return // always at least one
+    if (!next.length) { setLastOne(true); return }
+    setLastOne(false)
     const ordered = LANGUAGES.map(l => l.code).filter(c => next.includes(c))
     const language = ordered.includes(current) ? current : ordered[0]
+    setPicked(ordered)
     void setLanguage(language)
     void api.updateProfile(me.id, { preferences: { ...me.preferences, languages: ordered, language } }).then(refresh)
   }
   return (
-    <TextField select fullWidth label={t('Languages')} value={mine}
-      helperText={mine.length > 1 ? t('Switch between them with the flags at the top right.') : t('Pick both to switch with a flag at the top right.')}
+    <TextField select fullWidth label={t('Languages')} value={picked} error={lastOne}
+      helperText={lastOne ? t('Keep at least one. To change language, tick the other one first, then untick this one.')
+        : picked.length > 1 ? t('Switch between them with the flags at the top right.') : t('Pick both to switch with a flag at the top right.')}
       slotProps={{ select: {
         multiple: true,
         onChange: e => save(e.target.value as unknown as Language[]),
+        onClose: () => setLastOne(false),
         renderValue: v => (
           <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
             {(v as Language[]).map(code => (
@@ -92,7 +104,7 @@ export function LanguagePicker() {
       } }}>
       {LANGUAGES.map(({ code, name }) => (
         <MenuItem key={code} value={code} lang={code}>
-          <Checkbox size="small" checked={mine.includes(code)} disabled={mine.length === 1 && mine.includes(code)} sx={{ ml: -1, mr: 0.5 }} />
+          <Checkbox size="small" checked={picked.includes(code)} sx={{ ml: -1, mr: 0.5 }} />
           <ListItemIcon sx={{ minWidth: 32 }}><Flag code={code} /></ListItemIcon>
           <ListItemText primary={name} />
         </MenuItem>

@@ -112,9 +112,9 @@ function Routed() {
         <Route path="appearance" element={<AppearancePage />} />
         <Route path="account" element={<AccountPage />} />
         <Route path="finances" element={<FinancesPage />} />
-        <Route path="finances/sales" element={<PlanGate feature="takings"><SalesPage /></PlanGate>} />
-        {/* Sales used to be its own page, and Accounts is a menu section: both open Finances' pages. */}
-        <Route path="sales" element={<Navigate to="/finances/sales" replace />} />
+        <Route path="sales" element={<PlanGate feature="takings"><SalesPage /></PlanGate>} />
+        {/* Sales was briefly under Finances, and Accounts is a menu section: old links still land. */}
+        <Route path="finances/sales" element={<Navigate to="/sales" replace />} />
         <Route path="accounts" element={<Navigate to="/finances" replace />} />
         <Route path="analytics" element={isAdmin ? <AnalyticsPage /> : <Navigate to="/" />} />
         <Route path="alerts" element={isAdmin ? <AlertsPage /> : <Navigate to="/" />} />

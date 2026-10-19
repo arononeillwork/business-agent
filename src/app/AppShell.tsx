@@ -65,14 +65,17 @@ export const SECTIONS: NavSection[] = [
     { key: 'hours', to: '/opening-hours', label: msg('Opening hours'), icon: <HoursIcon />, partner: 'any' },
     { key: 'brand', to: '/brand', label: msg('Brand'), icon: <BrandIcon />, partner: 'any' },
     { key: 'social', to: '/social', label: msg('Social planner'), icon: <SocialIcon />, who: 'admin' },
-    { key: 'analytics', to: '/analytics', label: msg('Analytics'), icon: <AnalyticsIcon />, who: 'admin' },
     { key: 'messages', to: '/messages', label: msg('Messages'), icon: <MessagesIcon />, who: 'admin' },
   ] },
-  // Money: the running costs, with sales from the till (Square, SumUp or Stripe) as a sub-page.
+  // Takings from the till (Square, SumUp or Stripe), the running costs, and how the website does: a section each.
+  { key: 'sales', label: msg('Sales'), items: [
+    { key: 'sales', to: '/sales', label: msg('Sales'), icon: <SalesIcon />, who: 'pay' },
+  ] },
   { key: 'accounts', label: msg('Accounts'), items: [
-    { key: 'finances', to: '/finances', label: msg('Finances'), icon: <FinanceIcon />, who: 'pay', partner: ['finances'], children: [
-      { key: 'sales', to: '/finances/sales', label: msg('Sales'), icon: <SalesIcon />, who: 'pay' },
-    ] },
+    { key: 'finances', to: '/finances', label: msg('Finances'), icon: <FinanceIcon />, who: 'pay', partner: ['finances'] },
+  ] },
+  { key: 'analytics', label: msg('Analytics'), items: [
+    { key: 'analytics', to: '/analytics', label: msg('Analytics'), icon: <AnalyticsIcon />, who: 'admin' },
   ] },
   { key: 'whatson', label: msg("What's on"), items: [
     { key: 'calendar', to: '/calendar', label: msg('Calendar'), icon: <CalendarIcon />, partner: ['calendar'] },

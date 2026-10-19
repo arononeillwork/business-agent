@@ -41,7 +41,8 @@ export default {
   'Make sure {site} is added and verified in Search Console (search.google.com/search-console).': 'Comprueba que {site} está añadida y verificada en Search Console (search.google.com/search-console).',
   'Add your website on the Business page, and make sure it is verified in Search Console (search.google.com/search-console).':
     'Añade tu web en la página Negocio y comprueba que está verificada en Search Console (search.google.com/search-console).',
-  'Open Connections, find Maps and search, and press Connect next to Search Console.': 'Abre Conexiones, busca Mapas y búsqueda y pulsa Conectar junto a Search Console.',
+  'Open Connections, find Analytics, and press Connect next to Search Console.': 'Abre Conexiones, busca Analítica y pulsa Conectar junto a Search Console.',
+  'Keep at least one. To change language, tick the other one first, then untick this one.': 'Deja al menos uno. Para cambiar de idioma, marca primero el otro y luego desmarca este.',
   'Sign in with the Google account that owns the website in Search Console. Your site is picked automatically.': 'Inicia sesión con la cuenta de Google propietaria de la web en Search Console. Tu sitio se elige automáticamente.',
   'Go to Connections': 'Ir a Conexiones',
   'Analytics': 'Analítica',
