@@ -89,7 +89,7 @@ export function LanguagePicker() {
   return (
     <TextField select fullWidth label={t('Languages')} value={picked} error={lastOne}
       helperText={lastOne ? t('Keep at least one. To change language, tick the other one first, then untick this one.')
-        : picked.length > 1 ? t('Switch between them with the flags at the top right.') : t('Pick both to switch with a flag at the top right.')}
+        : picked.length > 1 ? t('Switch between them with the flags at the top right.') : undefined}
       slotProps={{ select: {
         multiple: true,
         onChange: e => save(e.target.value as unknown as Language[]),

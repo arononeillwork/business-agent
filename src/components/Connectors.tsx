@@ -146,7 +146,8 @@ export const KEYS_NEEDED: Partial<Record<OptionId, string>> = {
 }
 
 const isCalendar = (p: string): p is CalendarApp => p === 'google_calendar' || p === 'outlook_calendar'
-const isConnector = (p: string): p is ConnectorProvider => ['gmail', 'outlook', 'google_drive', 'onedrive', 'youtube_music'].includes(p)
+// Signed in with Google or Microsoft (see CONNECTORS in worker/connections.ts).
+const isConnector = (p: string): p is ConnectorProvider => ['gmail', 'outlook', 'google_drive', 'onedrive', 'youtube_music', 'search_console'].includes(p)
 const active = (i?: Integration) => !!i && ['connected', 'pending', 'error'].includes(i.status)
 
 /** "just now", "5 min ago", "3 h ago", else the date. */

@@ -25,6 +25,7 @@ import { addToCalendarUrl, optionName } from '../shared/connections'
 import { replyWindow } from '../shared/messages'
 import { finishMusicConnect, type MusicState } from './music'
 import { ensureFeed } from './calendarFeed'
+import { checkMentions, decide, repostMention } from './mentions'
 import { MediaError, checkFile, mediaBytes, mediaStorage, serveMedia, storeMedia } from './media'
 import {
   CONNECTORS, PROVIDERS, ROW_COLUMNS, SCOPES, calendarSeen, calendarFetched, checkAll, checkOne, connectedOf, connectorConfigured,
@@ -1047,6 +1048,29 @@ integrations.get('/api/integrations/instagram/inbox', async c => {
   } catch (e) {
     return c.json({ error: inboxError(e) }, 400)
   }
+})
+
+// Mentions (tagged posts, story mentions): look now, repost one to the business's story, or ignore it.
+integrations.post('/api/integrations/instagram/mentions/check', async c => {
+  try {
+    return c.json({ added: await checkMentions(c.env, serviceClient(c.env)) })
+  } catch (e) {
+    return c.json({ error: inboxError(e) }, 400)
+  }
+})
+
+integrations.post('/api/integrations/instagram/mentions/:id/repost', async c => {
+  try {
+    const url = await repostMention(c.env, serviceClient(c.env), new URL(c.req.url).origin, c.req.param('id'), c.get('userId'))
+    return c.json({ ok: true, url })
+  } catch (e) {
+    return c.json({ error: e instanceof MediaError ? e.message : explain('instagram', e) }, 400)
+  }
+})
+
+integrations.post('/api/integrations/instagram/mentions/:id/ignore', async c => {
+  await decide(serviceClient(c.env), c.req.param('id'), 'ignored', c.get('userId'))
+  return c.json({ ok: true })
 })
 
 integrations.get('/api/integrations/instagram/inbox/:id', async c => {

@@ -1,9 +1,10 @@
-import type { ApiKey, AppNotification, Brand, BreakType, Business, CalendarApp, CalendarEvent, ConnectorProvider, ContactMethod, CorrectionRequest, EventAlert, Expense, InstagramProfile, Integration, PostMedia, Sales, SalesItems, SearchReport, SocialNetwork, SocialPost, IntegrationProvider, IntegrationsState, KioskPerson, MusicNow, MusicPlaylist, MusicProvider, MyMusic, MyNowPlaying, OpenBreak, OpeningHours, OutboxItem, PartnerArea, PayRate, Position, Profile, Settings, Shift, SpotifyPlaylist, TimeEntry, TimeEntryChange, TimeOff, TimeOffKind, Todo, TodoCategory, TodoPatch, CafeMusicLibrary, CafeTrack, MusicAction, MusicPlayerReport, MusicPlayerState } from '../../shared/types'
+import type { ApiKey, AppNotification, Brand, BreakType, Business, CalendarApp, CalendarEvent, ConnectorProvider, ContactMethod, CorrectionRequest, Customer, CustomerInput, EventAlert, Expense, InstagramProfile, Integration, PostMedia, Sales, SalesItems, SearchReport, SocialNetwork, SocialPost, IntegrationProvider, IntegrationsState, KioskPerson, MusicNow, MusicPlaylist, MusicProvider, MyMusic, MyNowPlaying, OpenBreak, OpeningHours, OutboxItem, PartnerArea, PayRate, Position, Profile, Settings, Shift, SpotifyPlaylist, TimeEntry, TimeEntryChange, TimeOff, TimeOffKind, Todo, TodoCategory, TodoPatch, CafeMusicLibrary, CafeTrack, MusicAction, MusicPlayerReport, MusicPlayerState } from '../../shared/types'
 import type { Billing, Interval, PlanId } from '../../shared/plans'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
 import type { InboxState, InboxThread } from '../../shared/messages'
 import type { ReferralState } from '../../shared/referrals'
 import type { KindInfo } from '../../shared/social'
+import type { InstagramMention } from '../../shared/mentions'
 
 export type ShiftInput = Omit<Shift, 'id' | 'status'> & { id?: string; status?: Shift['status'] }
 export type EventInput = Omit<CalendarEvent, 'id' | 'source' | 'competition'> & { id?: string; competition?: string | null }
@@ -135,6 +136,14 @@ export interface Api {
   saveExpense(expense: Partial<Expense> & { name: string; amount: number }): Promise<void>
   deleteExpense(id: string): Promise<void>
 
+  // Customers and leads, for marketing (admins)
+  customers(): Promise<Customer[]>
+  /** Add someone (no id) or change them. */
+  saveCustomer(patch: CustomerInput): Promise<void>
+  deleteCustomer(id: string): Promise<void>
+  /** Add many at once (a CSV file); returns how many were added. */
+  importCustomers(rows: CustomerInput[]): Promise<number>
+
   // To Do List (the team; admins manage categories)
   todos(): Promise<{ categories: TodoCategory[]; todos: Todo[] }>
   addTodo(todo: { title: string; category_id: string | null; position: number }): Promise<Todo>
@@ -232,6 +241,13 @@ export interface Api {
   // Notifications (the bell) and event alerts (admins get reminded before an event)
   notifications(): Promise<AppNotification[]>
   markNotificationsRead(): Promise<void>
+  /** Instagram tags and story mentions (admins), newest first, with what was done about each. */
+  instagramMentions(): Promise<InstagramMention[]>
+  /** Put a mention's photo or video on the business's Instagram story. */
+  repostMention(id: string): Promise<void>
+  ignoreMention(id: string): Promise<void>
+  /** Look for new mentions now (the Worker also looks every 15 minutes); how many were new. */
+  checkMentions(): Promise<number>
   eventAlerts(): Promise<EventAlert[]>
   setEventAlert(kind: EventAlert['kind'], refId: string, on: boolean): Promise<boolean>
 

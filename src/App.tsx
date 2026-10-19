@@ -32,7 +32,7 @@ const TimeOffPage = page(() => import('./pages/TimeOffPage'), 'TimeOffPage')
 const FinancesPage = page(() => import('./pages/FinancesPage'), 'FinancesPage')
 const SalesPage = page(() => import('./pages/SalesPage'), 'SalesPage')
 const AnalyticsPage = page(() => import('./pages/AnalyticsPage'), 'AnalyticsPage')
-const AlertsPage = page(() => import('./pages/AlertsPage'), 'AlertsPage')
+const NotificationsPage = page(() => import('./pages/NotificationsPage'), 'NotificationsPage')
 const SportsPage = page(() => import('./pages/SportsPage'), 'SportsPage')
 const MusicPage = page(() => import('./pages/MusicPage'), 'MusicPage')
 const ConnectionsPage = page(() => import('./pages/ConnectionsPage'), 'ConnectionsPage')
@@ -117,7 +117,9 @@ function Routed() {
         <Route path="finances/sales" element={<Navigate to="/sales" replace />} />
         <Route path="accounts" element={<Navigate to="/finances" replace />} />
         <Route path="analytics" element={isAdmin ? <AnalyticsPage /> : <Navigate to="/" />} />
-        <Route path="alerts" element={isAdmin ? <AlertsPage /> : <Navigate to="/" />} />
+        <Route path="notifications" element={<NotificationsPage />} />
+        {/* Alerts became part of Notifications. */}
+        <Route path="alerts" element={<Navigate to="/notifications" replace />} />
         <Route path="account/billing" element={isAdmin ? <BillingPage /> : <Navigate to="/" />} />
         {/* Billing used to be under Settings: old links (and Stripe's way back) still land on it. */}
         <Route path="billing" element={<ToBilling />} />

@@ -1,12 +1,15 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { SOCIAL_PROVIDERS, type Api, type BillingInfo, type PlanStatus, type SignInMethods, type SocialProvider } from './api'
-import type { ApiKey, AppNotification, Brand, Business, SocialPost, EventAlert, Expense, Integration, MusicPlaylist, OutboxItem, Profile, Settings, TimeEntry, TimeOff, Todo, TodoCategory, CafeTrack, MusicPlayerState } from '../../shared/types'
+import type { ApiKey, AppNotification, Brand, Business, Customer, SocialPost, EventAlert, Expense, Integration, MusicPlaylist, OutboxItem, Profile, Settings, TimeEntry, TimeOff, Todo, TodoCategory, CafeTrack, MusicPlayerState } from '../../shared/types'
+import type { InstagramMention } from '../../shared/mentions'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
 import type { ReferralState } from '../../shared/referrals'
 import { readyPhoto } from '../lib/media'
 import { cleanWebsite } from '../../shared/connections'
 
 const PROFILE_COLUMNS = 'id, full_name, email, role, can_see_pay, colour, active, phone, birth_date, whatsapp_opt_in, partner_company, partner_access, preferences'
+
+const CUSTOMER_COLUMNS = 'id, kind, first_name, last_name, email, phone, company, source, instagram, birthday, tags, notes, marketing_consent, consent_at, last_contacted_at, created_at, updated_at'
 
 /** Throw the Postgres error message (our SQL functions raise human-readable ones). */
 function check<T>(res: { data: T; error: { message: string } | null }): NonNullable<T> {
@@ -346,6 +349,20 @@ export function createSupabaseApi(url: string, key: string): Api {
     },
     async deleteExpense(id) { check(await sb.from('expenses').delete().eq('id', id)) },
 
+    async customers() {
+      return check(await sb.from('customers').select(CUSTOMER_COLUMNS).order('created_at', { ascending: false })) as Customer[]
+    },
+    async saveCustomer({ id, ...patch }) {
+      if (id) check(await sb.from('customers').update(patch).eq('id', id))
+      else check(await sb.from('customers').insert(patch))
+    },
+    async deleteCustomer(id) { check(await sb.from('customers').delete().eq('id', id)) },
+    async importCustomers(rows) {
+      // In batches, so a long list doesn't make one huge request. A field a row leaves out takes the column's default.
+      for (let i = 0; i < rows.length; i += 500) check(await sb.from('customers').insert(rows.slice(i, i + 500), { defaultToNull: false }))
+      return rows.length
+    },
+
     async todos() {
       const [categories, todos] = await Promise.all([
         sb.from('todo_categories').select('id, name, hint, colour, sort').order('sort').order('name'),
@@ -494,6 +511,12 @@ export function createSupabaseApi(url: string, key: string): Api {
     async notifications() {
       return check(await sb.from('notifications').select('*').order('created_at', { ascending: false }).limit(30)) as AppNotification[]
     },
+    async instagramMentions() {
+      return check(await sb.from('instagram_mentions').select('*').order('mentioned_at', { ascending: false }).limit(50)) as InstagramMention[]
+    },
+    async repostMention(id) { await worker(`/api/integrations/instagram/mentions/${encodeURIComponent(id)}/repost`, { method: 'POST' }) },
+    async ignoreMention(id) { await worker(`/api/integrations/instagram/mentions/${encodeURIComponent(id)}/ignore`, { method: 'POST' }) },
+    async checkMentions() { return (await worker<{ added: number }>('/api/integrations/instagram/mentions/check', { method: 'POST' })).added },
     async markNotificationsRead() {
       check(await sb.from('notifications').update({ read_at: new Date().toISOString() }).is('read_at', null))
     },

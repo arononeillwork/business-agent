@@ -1,4 +1,4 @@
-import { Alert, Box, Button, Card, CardContent, FormControlLabel, Stack, Switch, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, Card, CardContent, Stack, TextField, Typography } from '@mui/material'
 import { FEATURES } from '../app/features'
 import { useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
@@ -17,12 +17,11 @@ export function AccountPage() {
   const run = useAction()
   const [name, setName] = useState(me?.full_name ?? '')
   const [phone, setPhone] = useState(me?.phone ?? '')
-  const [optIn, setOptIn] = useState(!!me?.whatsapp_opt_in)
   const [method, setMethod] = useState<ContactMethod | null>(me?.contact_method ?? null)
   const [password, setPassword] = useState('')
   const [pin, setPin] = useState(false)
   if (!me) return null
-  const dirty = name !== (me.full_name ?? '') || phone !== (me.phone ?? '') || optIn !== !!me.whatsapp_opt_in || method !== (me.contact_method ?? null)
+  const dirty = name !== (me.full_name ?? '') || phone !== (me.phone ?? '') || method !== (me.contact_method ?? null)
   return (
     <>
       <PageHeader eyebrow={t('You')} title={t('My account')}
@@ -45,17 +44,15 @@ export function AccountPage() {
                 {t('{company}: read-only partner access. Ask {business} to change what you can see.', { company: me.partner_company ?? '', business: business?.name ?? 'Easy Beans' })}
               </Typography>
             ) : (
-              <Stack spacing={1.5} sx={{ mt: 1.5 }}>
-                <FormControlLabel control={<Switch checked={optIn} onChange={e => setOptIn(e.target.checked)} />}
-                  label={t('Send me shift reminders and rota updates on WhatsApp')} />
-                {(method === 'sms' || method === 'whatsapp' || optIn) && !phone && <Alert severity="info">{t('Add your mobile number so the café can reach you that way.')}</Alert>}
-              </Stack>
+              (method === 'sms' || method === 'whatsapp') && !phone && (
+                <Alert severity="info" sx={{ mt: 1.5 }}>{t('Add your mobile number so the café can reach you that way.')}</Alert>
+              )
             )}
             <Stack direction="row" spacing={1} sx={{ mt: 2, justifyContent: 'flex-end' }}>
-              {dirty && <Button onClick={() => { setName(me.full_name ?? ''); setPhone(me.phone ?? ''); setOptIn(!!me.whatsapp_opt_in); setMethod(me.contact_method ?? null) }}>{t('Cancel')}</Button>}
+              {dirty && <Button onClick={() => { setName(me.full_name ?? ''); setPhone(me.phone ?? ''); setMethod(me.contact_method ?? null) }}>{t('Cancel')}</Button>}
               <Button variant="contained" disabled={!dirty || !name.trim()} onClick={() => run(async () => {
                 if (phone && phone.replace(/\D/g, '').length < 8) throw new Error(t('Enter the full mobile number'))
-                await api.updateProfile(me.id, { full_name: name, phone: phone || null, whatsapp_opt_in: optIn, ...(isPartner ? {} : { contact_method: method }) }); await refresh()
+                await api.updateProfile(me.id, { full_name: name, phone: phone || null, ...(isPartner ? {} : { contact_method: method, whatsapp_opt_in: method === 'whatsapp' }) }); await refresh()
               }, t('Saved'))}>{t('Save')}</Button>
             </Stack>
           </CardContent>

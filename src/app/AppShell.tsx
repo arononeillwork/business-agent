@@ -21,7 +21,7 @@ import BillingIcon from '@mui/icons-material/CreditCardOutlined'
 import SocialIcon from '@mui/icons-material/CampaignOutlined'
 import MessagesIcon from '@mui/icons-material/ChatBubbleOutlineRounded'
 import ReferralsIcon from '@mui/icons-material/CardGiftcardOutlined'
-import AlertsIcon from '@mui/icons-material/CampaignOutlined'
+import NotificationsIcon from '@mui/icons-material/NotificationsNoneOutlined'
 import ConnectIcon from '@mui/icons-material/HubOutlined'
 import SetupIcon from '@mui/icons-material/RocketLaunchOutlined'
 import LogoutIcon from '@mui/icons-material/LogoutOutlined'
@@ -91,7 +91,7 @@ export const SECTIONS: NavSection[] = [
   { key: 'admin', label: msg('Settings'), items: [
     { key: 'setup', to: '/setup', label: msg('Set-up'), icon: <SetupIcon />, who: 'admin' },
     { key: 'connections', to: '/connections', label: msg('Connections'), icon: <ConnectIcon />, who: 'admin' },
-    { key: 'alerts', to: '/alerts', label: msg('Alerts'), icon: <AlertsIcon />, who: 'admin' },
+    { key: 'notifications', to: '/notifications', label: msg('Notifications'), icon: <NotificationsIcon /> },
     ...(FEATURES.partners ? [{ key: 'partners', to: '/partners', label: msg('Partners'), icon: <PartnersIcon />, who: 'admin' as const }] : []),
     ...(FEATURES.kiosk ? [{ key: 'kiosk', to: '/kiosk', label: msg('Café tablet'), icon: <KioskIcon />, who: 'admin' as const }] : []),
   ] },

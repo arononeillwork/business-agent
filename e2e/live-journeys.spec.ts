@@ -172,7 +172,7 @@ test.describe('admin', () => {
     const pages: { link: string; path: string; check: (p: Page) => Promise<void> }[] = [
       { link: 'Business', path: '/business', check: p => expect(p.getByRole('heading', { level: 1, name: business.name })).toBeVisible(NET) },
       { link: 'Home: Today', path: '/', check: p => expect(p.getByRole('heading', { name: 'Hola, Ana' })).toBeVisible(NET) },
-      ...['To Do List', 'Rota', 'Time off', 'Timecards', 'Team', 'Opening hours', 'Brand', 'Analytics', 'Calendar', 'Sports', 'Music', 'Messages', 'Finances', 'Alerts', 'Connections'].map(name => ({
+      ...['To Do List', 'Rota', 'Time off', 'Timecards', 'Team', 'Opening hours', 'Brand', 'Analytics', 'Calendar', 'Sports', 'Music', 'Messages', 'Finances', 'Notifications', 'Connections'].map(name => ({
         link: name,
         path: { 'Time off': '/time-off', 'Opening hours': '/opening-hours', 'To Do List': '/todo' }[name] ?? `/${name.toLowerCase()}`,
         check: (p: Page) => expect(p.getByRole('heading', { level: 1, name: { Connections: 'Business connections' }[name] ?? name, exact: true })).toBeVisible(NET),
@@ -308,8 +308,8 @@ test.describe('admin', () => {
 
   test('switches an alert off and back on', async ({ page }) => {
     await signIn(page, 'admin')
-    await nav(page).getByRole('link', { name: 'Alerts', exact: true }).click()
-    await expect(page.getByRole('heading', { name: 'Alerts', exact: true })).toBeVisible(NET)
+    await nav(page).getByRole('link', { name: 'Notifications', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'Notifications', exact: true })).toBeVisible(NET)
     const reminders = page.getByRole('switch', { name: 'Shift reminders' }).or(page.getByLabel('Shift reminders'))
     await expect(reminders).toBeVisible(NET)
     const was = await reminders.isChecked()
@@ -325,7 +325,7 @@ test.describe('admin', () => {
     }
     const { data } = await service(cfg).from('settings').select('alert_shift_reminders').eq('id', 1).single()
     expect(data?.alert_shift_reminders).toBe(shiftReminders)
-    await expectNoErrorShown(page, 'Alerts')
+    await expectNoErrorShown(page, 'Notifications')
   })
 
   test('partners (and the café tablet, when off) have no menu item, and their pages send admins home', async ({ page }) => {
@@ -404,7 +404,7 @@ test.describe('employee', () => {
     for (const name of ['Business', 'Home: Today', 'Rota', 'Time off', 'Timecards', 'Calendar', 'Team']) {
       await expect.soft(nav(page).getByRole('link', { name, exact: true })).toBeVisible()
     }
-    for (const name of ['Finances', 'Alerts', 'Connections', 'Partners', 'Café tablet']) {
+    for (const name of ['Finances', 'Connections', 'Partners', 'Café tablet']) {
       await expect.soft(nav(page).getByRole('link', { name, exact: true })).toHaveCount(0)
     }
     await expectNoErrorShown(page, 'Today')
@@ -414,10 +414,14 @@ test.describe('employee', () => {
     await expect(page.getByText('only visible to admins')).toBeVisible(NET)
     await expect(page.getByText(PARTNER_EXPENSE)).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Add expense' })).toHaveCount(0)
-    for (const path of ['/alerts', '/connections', '/partners']) {
+    for (const path of ['/connections', '/partners']) {
       await page.goto(path)
       await expect(page).toHaveURL(url => new URL(url).pathname === '/', NET)
     }
+    // Notifications is everyone's, but the team alert switches are for admins.
+    await page.goto('/notifications')
+    await expect(page.getByRole('heading', { name: 'Notifications', exact: true })).toBeVisible(NET)
+    await expect(page.getByLabel('Shift reminders')).toHaveCount(0)
   })
 
   test('clocks in and out on Today', async ({ page }) => {
@@ -475,7 +479,7 @@ test.describe('partner', () => {
     for (const name of ['Business', 'Rota', 'Timecards', 'Finances']) {
       await expect.soft(nav(page).getByRole('link', { name, exact: true })).toBeVisible()
     }
-    for (const name of ['Today', 'Time off', 'Calendar', 'Team', 'Partners', 'Alerts', 'Connections', 'Café tablet']) {
+    for (const name of ['Today', 'Time off', 'Calendar', 'Team', 'Partners', 'Notifications', 'Connections', 'Café tablet']) {
       await expect.soft(nav(page).getByRole('link', { name, exact: true })).toHaveCount(0)
     }
     await expectNoErrorShown(page, 'Business (partner)')

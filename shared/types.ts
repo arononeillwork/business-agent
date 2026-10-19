@@ -63,6 +63,8 @@ export interface Settings {
   alert_missed_clock_in: boolean
   alert_rota: boolean
   alert_time_off: boolean
+  /** Admins are told when someone tags the business on Instagram or mentions it in their story. */
+  alert_instagram_mentions?: boolean
 }
 
 export interface Expense {
@@ -76,6 +78,34 @@ export interface Expense {
   source: 'sheet' | 'app' | 'ai'
   updated_at: string
 }
+
+/** Customers page: people who buy (customers) and people who might (leads). Admins only. */
+export type CustomerKind = 'customer' | 'lead'
+export type CustomerSource = 'walk_in' | 'instagram' | 'facebook' | 'tiktok' | 'website' | 'google' | 'referral' | 'event' | 'other'
+export interface Customer {
+  id: string
+  kind: CustomerKind
+  first_name: string | null
+  last_name: string | null
+  email: string | null
+  /** "+34 600 000 000", as on profiles. */
+  phone: string | null
+  company: string | null
+  source: CustomerSource
+  /** Instagram handle without the @. */
+  instagram: string | null
+  birthday: string | null
+  tags: string[]
+  notes: string | null
+  /** They agreed to receive marketing (GDPR); consent_at is when, set by the database. */
+  marketing_consent: boolean
+  consent_at: string | null
+  last_contacted_at: string | null
+  created_at: string
+  updated_at: string
+}
+/** What the app writes: everything but what the database keeps itself. */
+export type CustomerInput = Partial<Omit<Customer, 'consent_at' | 'created_at' | 'updated_at'>>
 
 /** A message or update the app has sent (or is sending) to an outside service. */
 export interface OutboxItem {
@@ -353,7 +383,12 @@ export const FLAG_LABELS: Record<string, string> = {
 }
 
 /** In-app notification (the bell). */
-export interface AppNotification { id: number; title: string; body: string | null; link: string | null; created_at: string; read_at: string | null }
+export interface AppNotification {
+  id: number; title: string; body: string | null; link: string | null; created_at: string; read_at: string | null
+  /** One with buttons: an Instagram mention (Repost / Ignore), data.mention its id. */
+  kind?: 'instagram_mention' | null
+  data?: { mention?: string }
+}
 
 /** A bell switched on for a calendar event or sports fixture: admins are reminded before it. */
 export interface EventAlert { kind: 'calendar' | 'sports'; ref_id: string; remind_at: string; sent_at: string | null }

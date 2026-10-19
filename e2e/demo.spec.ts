@@ -352,7 +352,7 @@ test('@phone layout: bottom navigation and a full-width clock-in button', async 
   // Every admin page is reachable on a phone: the rest sit under "More".
   await page.getByRole('button', { name: 'More' }).click()
   const sheet = page.getByRole('list', { name: 'More pages' })
-  for (const name of ['Opening hours', 'Brand', 'Finances', 'Sports', 'Team', 'Alerts', 'Connections', 'Analytics']) {
+  for (const name of ['Opening hours', 'Brand', 'Finances', 'Sports', 'Team', 'Notifications', 'Connections', 'Analytics']) {
     await expect(sheet.getByRole('link', { name })).toBeVisible()
   }
   await sheet.getByRole('link', { name: 'Finances' }).click()
@@ -516,7 +516,6 @@ test.describe('connections', () => {
     await open(page)
     await signInAs(page, 'maria@example.com')
     await expect(page.getByRole('link', { name: 'Connections' })).toHaveCount(0)
-    await expect(page.getByRole('link', { name: 'Alerts' })).toHaveCount(0)
     await expect(page.getByRole('link', { name: 'Finances' })).toHaveCount(0)
     await page.goto('/connections')
     await expect(page.getByRole('heading', { name: 'Business connections' })).toHaveCount(0)
@@ -537,12 +536,15 @@ test.describe('connections', () => {
     await toast(page, 'Post queued')
   })
 
-  test('send the rota on WhatsApp and opt in from My account', async ({ page }) => {
+  test('send the rota on WhatsApp, and choose WhatsApp as the way to be reached on My account', async ({ page }) => {
     await open(page, '/rota')
     await page.getByRole('button', { name: 'Send on WhatsApp' }).click()
     await toast(page, 'Rota sent on WhatsApp')
     await fromAccountMenu(page, 'My account')
-    await page.getByLabel(/shift reminders and rota updates on WhatsApp/).check()
+    // No separate WhatsApp switch: picking WhatsApp as the preferred contact is the opt-in.
+    await expect(page.getByLabel(/shift reminders and rota updates on WhatsApp/)).toHaveCount(0)
+    await page.getByLabel('Preferred contact').click()
+    await page.getByRole('option', { name: 'WhatsApp', exact: true }).click()
     await expect(page.getByText('Add your mobile number so the café can reach you that way.')).toBeVisible()
   })
 })
@@ -649,9 +651,10 @@ test.describe('finances', () => {
   })
 })
 
-test('alerts: admin switches an alert off and sees what was sent', async ({ page }) => {
+test('notifications: admin switches a team alert off and sees what was sent (the old Alerts address still lands)', async ({ page }) => {
   await open(page, '/alerts')
-  await expect(page.getByRole('heading', { name: 'Alerts' })).toBeVisible()
+  await expect(page).toHaveURL(/\/notifications$/)
+  await expect(page.getByRole('heading', { name: 'Notifications', level: 1 })).toBeVisible()
   const reminders = page.getByRole('switch', { name: 'Shift reminders' }).or(page.getByLabel('Shift reminders'))
   await expect(reminders).toBeChecked()
   await reminders.click()
@@ -682,7 +685,7 @@ test.describe('partners (outside businesses)', () => {
     await expect(page).toHaveURL(/\/business/)
     const nav = page.getByRole('navigation', { name: 'Main' })
     for (const name of ['Business', 'Rota', 'Timecards', 'Finances']) await expect(nav.getByRole('link', { name })).toBeVisible()
-    for (const name of ['Today', 'Team', 'Time off', 'Calendar', 'Alerts', 'Connections', 'Partners']) {
+    for (const name of ['Today', 'Team', 'Time off', 'Calendar', 'Notifications', 'Connections', 'Partners']) {
       await expect(nav.getByRole('link', { name })).toHaveCount(0)
     }
     await expect(page.getByText('Gestoría Marbella').first()).toBeVisible()
@@ -1178,10 +1181,11 @@ test.describe('event alerts', () => {
     await page.getByRole('button', { name: 'Alert me about Barcelona vs Real Madrid' }).click()
     await toast(page, 'Alert on: admins will be reminded')
     await expect(page.getByRole('button', { name: 'Alert on for Barcelona vs Real Madrid' })).toHaveAttribute('aria-pressed', 'true')
-    await page.getByRole('button', { name: /Notifications, 1 new/ }).first().click()
+    // The demo also has Instagram mentions waiting, so the count is more than one.
+    await page.getByRole('button', { name: /Notifications, \d+ new/ }).first().click()
     await expect(page.getByRole('region', { name: 'Notifications' }).getByText('Barcelona vs Real Madrid')).toBeVisible()
     await page.keyboard.press('Escape')
-    await expect(page.getByRole('button', { name: /Notifications, 1 new/ })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /Notifications, \d+ new/ })).toHaveCount(0)
     // Staff see the bell is on but can't change it.
     await signInAs(page, 'maria@example.com')
     await page.getByRole('link', { name: 'Sports' }).first().click()
@@ -1420,7 +1424,7 @@ test('pages can be dragged into a new order, but only within their own section',
   await page.mouse.up()
   await expect.poll(names).toEqual(['Team', 'Time off', 'Timecards', 'Rota'])
   expect(await nav.locator('section', { has: page.getByRole('button', { name: 'Settings', exact: true }) }).getByRole('link').allTextContents())
-    .toEqual(['Set-up', 'Connections', 'Alerts'])
+    .toEqual(['Set-up', 'Connections', 'Notifications'])
   // Saved to Aron's account: someone else gets the usual order, and Aron his own when he's back.
   await signInAs(page, 'mark@example.com')
   await expect.poll(names).toEqual(['Rota', 'Time off', 'Timecards', 'Team'])
@@ -2443,5 +2447,41 @@ test.describe('new connections and details', () => {
     await expect(contact.getByRole('link', { name: 'easybeans.example' })).toHaveAttribute('href', 'https://easybeans.example')
     // The name top left is the one on this page.
     await expect(page.getByRole('region', { name: 'Company' })).toContainText('Business name')
+  })
+})
+
+test.describe('notifications and Instagram mentions', () => {
+  test('the bell links to the Notifications page; a story mention or tag can be reposted or ignored in one press', async ({ page }) => {
+    await open(page, '/')
+    await page.getByRole('button', { name: /^Notifications/ }).first().click()
+    const bell = page.getByRole('region', { name: 'Notifications' })
+    await expect(bell).toContainText('@sanpedro.eats mentioned you in their story')
+    await bell.getByRole('button', { name: 'Repost @sanpedro.eats’s story to your story' }).click()
+    await toast(page, 'Reposted to your Instagram story')
+    await bell.getByRole('link', { name: 'See all notifications' }).click()
+    await expect(page).toHaveURL(/\/notifications$/)
+    const mentions = page.getByRole('region', { name: 'Instagram tags and mentions' })
+    await expect(mentions).toContainText('Reposted to your story')
+    await expect(mentions).toContainText('@costa.del.sol.food tagged you in a post')
+    await mentions.getByRole('button', { name: 'Ignore @costa.del.sol.food’s post' }).click()
+    await toast(page, 'Ignored')
+    await expect(mentions.getByRole('switch', { name: 'Instagram tags and mentions' })).toBeChecked()
+  })
+
+  test('employees get their own notifications, without the admin settings', async ({ page }) => {
+    await open(page, '/notifications', 'maria@example.com')
+    await expect(page.getByRole('region', { name: 'Your notifications' })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Instagram tags and mentions' })).toHaveCount(0)
+    await expect(page.getByLabel('Shift reminders')).toHaveCount(0)
+  })
+
+  test('Search Console connects from its Connect button', async ({ page }) => {
+    await open(page, '/connections')
+    const analytics = page.getByRole('region', { name: 'Analytics' })
+    await analytics.getByRole('button', { name: 'Manage Search Console' }).click()
+    await page.getByRole('dialog').getByRole('button', { name: 'Disconnect' }).click()
+    await toast(page, 'Search Console disconnected')
+    await analytics.getByRole('button', { name: 'Connect Search Console' }).click()
+    await expect(analytics.getByRole('article', { name: 'Search Console' })).toContainText('Connected')
   })
 })

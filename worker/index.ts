@@ -4,6 +4,7 @@ import { bearer, serviceClient, userClient, type Env } from './supabase'
 import { rest } from './rest'
 import { drainOutbox, integrations, syncGoogle, syncGoogleBothWays } from './integrations'
 import { checkAll } from './connections'
+import { checkMentions } from './mentions'
 import { refreshAllSports, refreshStaleSports, sportsEnabled, syncCrests } from './sports'
 import { music } from './music'
 import { calendarFeeds } from './calendarFeed'
@@ -260,6 +261,10 @@ export default {
       // made in the app has already gone to Google).
       if (Math.floor(event.scheduledTime / 60_000) % 15 === 0 && await googleConnected(db)) {
         await syncGoogleBothWays(env, db).catch(e => console.error('google hours sync failed', e))
+      }
+      // Every 15 minutes: new Instagram tags and story mentions, for admins to repost or ignore.
+      if (Math.floor(event.scheduledTime / 60_000) % 15 === 0) {
+        await checkMentions(env, db).catch(e => console.error('instagram mentions failed', e))
       }
       // Sports only while it's switched on (Sports page).
       if (await sportsOn(db)) await refreshStaleSports(db).catch(e => console.error('sports failed', e))

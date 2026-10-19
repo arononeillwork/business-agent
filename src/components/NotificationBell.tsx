@@ -6,9 +6,23 @@ import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { formatLocal } from '../../shared/time'
+import type { AppNotification } from '../../shared/types'
 import { tokens } from '../theme'
 import { t } from '../i18n'
 import { roundButton } from '../app/QuickActions'
+import { Link as RouterLink } from 'react-router-dom'
+import { MentionActions, useMentions } from './Mentions'
+
+/**
+ * A notification's title in the person's language. The Worker writes them in English; the ones
+ * with a known shape (Instagram mentions) are said again from their details.
+ */
+export function notificationTitle(n: AppNotification) {
+  const m = /^(@\S+|Someone) (mentioned you in their story|tagged you in a post)$/.exec(n.title)
+  if (n.kind !== 'instagram_mention' || !m) return n.title
+  const who = m[1] === 'Someone' ? t('Someone') : m[1]
+  return m[2].startsWith('mentioned') ? t('{who} mentioned you in their story', { who }) : t('{who} tagged you in a post', { who })
+}
 
 /** The bell: reminders for events you asked to be alerted about, and other news for you. */
 export function NotificationBell() {
@@ -18,6 +32,8 @@ export function NotificationBell() {
   const list = useAsync('notifications', () => api.notifications(), [], { refetchInterval: 60_000 })
   const [anchor, setAnchor] = useState<HTMLElement | null>(null)
   const unread = (list.data ?? []).filter(n => !n.read_at).length
+  // Mentions carry Repost / Ignore right in the list.
+  const mentions = useMentions(!!anchor && !!list.data?.some(n => n.kind === 'instagram_mention'))
   const close = () => {
     setAnchor(null)
     if (unread) run(() => api.markNotificationsRead())
@@ -43,21 +59,30 @@ export function NotificationBell() {
             </Typography>
           )}
           <Stack spacing={0.5} sx={{ maxHeight: 360, overflowY: 'auto' }}>
-            {list.data?.map(n => (
-              <Box key={n.id} component={n.link ? 'button' : 'div'} onClick={n.link ? () => { close(); navigate(n.link!) } : undefined}
-                sx={{ all: 'unset', display: 'flex', gap: 1.25, p: 1.25, borderRadius: '12px', cursor: n.link ? 'pointer' : 'default',
-                  bgcolor: n.read_at ? 'transparent' : tokens.roseSoft, '&:hover': { bgcolor: tokens.hover },
-                  '&:focus-visible': { outline: `2px solid ${tokens.roseDeep}` } }}>
-                <Box aria-hidden sx={{ width: 8, height: 8, mt: 0.9, borderRadius: '50%', flexShrink: 0, bgcolor: n.read_at ? 'transparent' : tokens.rose }} />
-                <Box sx={{ minWidth: 0 }}>
-                  <Typography sx={{ fontWeight: 500, fontSize: '0.92rem' }}>{n.title}</Typography>
-                  {n.body && <Typography variant="body2" sx={{ color: 'text.secondary' }}>{n.body}</Typography>}
-                  <Typography variant="caption" sx={{ color: 'text.disabled' }}>{formatLocal(n.created_at, 'EEE d MMM, HH:mm')}</Typography>
+            {list.data?.map(n => {
+              const mention = n.kind === 'instagram_mention' ? mentions.data?.find(m => m.id === n.data?.mention) : undefined
+              // A mention has its own buttons, so the row itself isn't one.
+              const opens = !!n.link && n.kind !== 'instagram_mention'
+              return (
+                <Box key={n.id} component={opens ? 'button' : 'div'} onClick={opens ? () => { close(); navigate(n.link!) } : undefined}
+                  sx={{ all: 'unset', display: 'flex', gap: 1.25, p: 1.25, borderRadius: '12px', cursor: opens ? 'pointer' : 'default',
+                    bgcolor: n.read_at ? 'transparent' : tokens.roseSoft, '&:hover': { bgcolor: tokens.hover },
+                    '&:focus-visible': { outline: `2px solid ${tokens.roseDeep}` } }}>
+                  <Box aria-hidden sx={{ width: 8, height: 8, mt: 0.9, borderRadius: '50%', flexShrink: 0, bgcolor: n.read_at ? 'transparent' : tokens.rose }} />
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography sx={{ fontWeight: 500, fontSize: '0.92rem' }}>{notificationTitle(n)}</Typography>
+                    {n.body && <Typography variant="body2" sx={{ color: 'text.secondary' }}>{n.body}</Typography>}
+                    <Typography variant="caption" sx={{ color: 'text.disabled' }}>{formatLocal(n.created_at, 'EEE d MMM, HH:mm')}</Typography>
+                    {mention && <Box sx={{ mt: 0.75 }}><MentionActions mention={mention} /></Box>}
+                  </Box>
                 </Box>
-              </Box>
-            ))}
+              )
+            })}
           </Stack>
-          {unread > 0 && <Button size="small" sx={{ mt: 1 }} onClick={close}>{t('Mark all as read')}</Button>}
+          <Stack direction="row" sx={{ mt: 1, justifyContent: 'space-between', alignItems: 'center' }}>
+            <Button size="small" component={RouterLink} to="/notifications" onClick={close}>{t('See all notifications')}</Button>
+            {unread > 0 && <Button size="small" onClick={close}>{t('Mark all as read')}</Button>}
+          </Stack>
         </Box>
       </Popover>
     </>

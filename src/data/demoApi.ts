@@ -4,11 +4,12 @@
 import type { Api, BillingInfo, ShiftInput } from './api'
 import { PLANS, SOCIAL_CONNECTIONS, TRIAL_DAYS, effectivePlan, plan as planById, type PlanId } from '../../shared/plans'
 import type {
-  ApiKey, AppNotification, Brand, EventAlert, Sales, SalesItem, SearchReport, SearchRow, SocialNetwork, SocialPost, MusicAccount, MusicPlaylist, MusicProvider, MyNowPlaying,
+  ApiKey, AppNotification, Brand, Customer, EventAlert, Sales, SalesItem, SearchReport, SearchRow, SocialNetwork, SocialPost, MusicAccount, MusicPlaylist, MusicProvider, MyNowPlaying,
   Expense, Integration, IntegrationProvider, IntegrationsState, OutboxItem, PartnerArea, TimeOff,
   BreakType, Business, CalendarEvent, CorrectionRequest, PayRate, Position, Profile, Settings,
   Shift, TimeEntry, TimeEntryChange, Todo, TodoCategory, CafeTrack, MusicPlayerState,
 } from '../../shared/types'
+import { mentionTitle, mentionsIn, type InstagramMention } from '../../shared/mentions'
 import { demoSports } from './demoSports'
 import { demoInbox } from './demoMessages'
 import { replyWindow } from '../../shared/messages'
@@ -59,6 +60,24 @@ export function createDemoApi(): Api {
     updated_at: nowIso(),
   }
   const inbox = demoInbox()
+  // Instagram mentions from the sample inbox: the bell tells every admin once (as the Worker does).
+  let mentions: InstagramMention[] | null = null
+  const demoMentions = () => {
+    if (mentions) return mentions
+    const { conversations, tagged } = inbox.state()
+    mentions = mentionsIn(conversations, tagged).map(m => ({ ...m, status: 'new' as const, reposted_url: null, decided_at: null }))
+    for (const m of mentions) for (const a of profiles.filter(p => p.role === 'admin' && p.active)) {
+      notes.push({ id: notes.length + 1, profile_id: a.id, title: mentionTitle(m), body: m.caption, link: '/notifications',
+        created_at: m.mentioned_at, read_at: null, kind: 'instagram_mention', data: { mention: m.id } })
+    }
+    return mentions
+  }
+  const decideMention = (id: string, status: 'reposted' | 'ignored') => {
+    const m = demoMentions().find(x => x.id === id)
+    if (!m) throw new Error('That mention has gone')
+    Object.assign(m, { status, decided_at: nowIso(), reposted_url: status === 'reposted' ? 'https://www.instagram.com/stories/easy.beans.coffee/' : null })
+    for (const n of notes) if (n.kind === 'instagram_mention' && n.data?.mention === id && !n.read_at) n.read_at = nowIso()
+  }
   // Referrals: ten weeks of a café sharing its link; four businesses have gone live.
   const daysAgo = (d: number) => new Date(Date.now() - d * 86_400_000).toISOString()
   const referralDemo = {
@@ -340,6 +359,43 @@ export function createDemoApi(): Api {
     ['Order more oat milk', 'Buying', null, null, true, false, false],
   ] as const).map(([title, c, section, assignee, starred, done, pinned], i) => ({ id: `td-${i + 1}`, title, category_id: cat(c), section,
     assignee_id: assignee, done, done_at: done ? nowIso() : null, starred, pinned, position: i + 1, created_at: nowIso() }))
+  // Customers and leads: regulars, people who asked about something, and a few businesses to win over.
+  const person = (c: Partial<Customer> & { days: number }): Customer => {
+    const { days, ...rest } = c
+    return { id: uid(), kind: 'customer', first_name: null, last_name: null, email: null, phone: null, company: null, source: 'walk_in',
+      instagram: null, birthday: null, tags: [], notes: null, marketing_consent: false, consent_at: null, last_contacted_at: null,
+      created_at: daysAgo(days), updated_at: daysAgo(days), ...rest, ...(rest.marketing_consent ? { consent_at: daysAgo(days) } : {}) }
+  }
+  const customers: Customer[] = [
+    person({ days: 140, first_name: 'Lucía', last_name: 'García López', email: 'lucia.garcia@example.com', phone: '+34 611 204 318', source: 'instagram',
+      instagram: 'lucia.mbl', birthday: '1992-11-03', tags: ['regular', 'oat milk'], notes: 'Oat flat white every morning before work', marketing_consent: true,
+      last_contacted_at: daysAgo(9) }),
+    person({ days: 120, first_name: 'James', last_name: 'Whitfield', email: 'james.whitfield@example.co.uk', phone: '+44 7700 900123',
+      tags: ['regular', 'laptop'], notes: 'Works from the window table on weekdays', marketing_consent: true }),
+    person({ days: 96, first_name: 'Carmen', last_name: 'Ruiz Navarro', phone: '+34 622 418 905', source: 'google', notes: 'Left a 5-star review in August' }),
+    person({ days: 75, first_name: 'Sofia', last_name: 'Lindqvist', email: 'sofia.lindqvist@example.se', source: 'tiktok', birthday: '1998-10-12',
+      tags: ['matcha'], marketing_consent: true }),
+    person({ days: 64, first_name: 'Pablo', last_name: 'Ortega', email: 'pablo.ortega@example.es', phone: '+34 633 551 274', source: 'referral',
+      birthday: '1985-10-04', tags: ['regular'], notes: 'Came with Lucía; double espresso', marketing_consent: true }),
+    person({ days: 51, first_name: 'Aisha', last_name: 'Rahman', email: 'aisha.rahman@example.com', source: 'facebook' }),
+    person({ days: 44, first_name: 'Kate', last_name: 'Murphy', phone: '+353 87 123 4567', tags: ['dog owner'],
+      notes: 'Brings Luna the beagle; a puppuccino for her', marketing_consent: true }),
+    person({ days: 20, first_name: 'Liam', last_name: "O'Connor", email: 'liam.oconnor@example.ie', source: 'event', tags: ['latte art class'], marketing_consent: true }),
+    person({ days: 25, kind: 'lead', first_name: 'Marco', last_name: 'Bellini', company: 'Hotel Costa Serena (concierge)', email: 'concierge@costaserena.example',
+      phone: '+34 952 880 410', source: 'event', tags: ['B2B', 'hotel'], notes: 'Met at the San Pedro business breakfast; wants a coffee voucher for guests' }),
+    person({ days: 12, kind: 'lead', first_name: 'Elena', last_name: 'Vidal', company: 'Nomad Hub Coworking', email: 'elena@nomadhub.example', phone: '+34 644 902 117',
+      source: 'referral', tags: ['B2B', 'office coffee'], notes: 'Coffee for 30 desks, twice a week. Send prices.' }),
+    person({ days: 9, kind: 'lead', first_name: 'Inés', last_name: 'Castillo', company: 'Estudio Shanti Yoga', instagram: 'shanti.yoga.sanpedro', source: 'instagram',
+      tags: ['B2B', 'collab'], notes: 'Coffee after class for their members, 10% off?', marketing_consent: true }),
+    person({ days: 6, kind: 'lead', first_name: 'Javier', last_name: 'Moreno', instagram: 'javi.runs', source: 'instagram',
+      notes: 'Asked about a Sunday running club coffee', marketing_consent: true }),
+    person({ days: 3, kind: 'lead', first_name: 'Hannah', last_name: 'Becker', email: 'hannah.becker@example.de', source: 'website',
+      notes: 'Asked about cakes and coffee for a baby shower, 15 people', marketing_consent: true }),
+    person({ days: 2, kind: 'lead', first_name: 'Marta', last_name: 'Jiménez', email: 'marta.jimenez@example.es', source: 'other',
+      notes: 'Signed up at the Saturday market stall' }),
+    person({ days: 1, kind: 'lead', first_name: 'Diego', last_name: 'Fernández', phone: '+34 655 310 862', source: 'google',
+      notes: 'Phoned about booking the terrace for a birthday' }),
+  ]
   let adminNotes: string | null = 'Demo: alarm code holder, wifi for the kiosk, landlord and gestor contacts.'
   const settings: Settings = {
     early_clock_in_minutes: 10, unscheduled_clock_in: 'flag', auto_clock_out_minutes: 60,
@@ -515,6 +571,19 @@ export function createDemoApi(): Api {
   const partnerCan = (area: PartnerArea) => !!(isPartner() && me()?.active && me()?.partner_access?.includes(area))
   const staffOnly = (p: Profile) => p.role === 'admin' || p.role === 'employee'
   const requireAdmin = () => { if (!isAdmin()) throw new Error('Only an admin can do that') }
+
+  /** The customers table's rules (supabase/migrations/…_customers.sql): tidy what's typed, and someone to reach. */
+  function tidyCustomer(c: Customer): Customer {
+    const text = (v: string | null | undefined) => v?.trim() || null
+    const out: Customer = { ...c, first_name: text(c.first_name), last_name: text(c.last_name), email: text(c.email)?.toLowerCase() ?? null,
+      phone: text(c.phone)?.replace(/\s+/g, ' ') ?? null, company: text(c.company), instagram: text(c.instagram)?.replace(/^@/, '') || null,
+      notes: text(c.notes), tags: [...new Set((c.tags ?? []).map(x => x.trim()).filter(Boolean))].sort() }
+    if (!out.first_name && !out.last_name && !out.email && !out.phone) throw new Error('Add a name, an email or a phone number')
+    if (out.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(out.email)) throw new Error('That email doesn’t look right')
+    if (out.phone && !/^\+\d[\d ]{4,24}$/.test(out.phone)) throw new Error('That phone number doesn’t look right')
+    if (out.instagram && !/^[A-Za-z0-9._]{1,30}$/.test(out.instagram)) throw new Error('That Instagram name doesn’t look right')
+    return out
+  }
 
   function computeFlags(e: RawEntry): string[] {
     const keep = e.flags.filter(f => f !== 'missed_break' && f !== 'over_daily_limit')
@@ -958,6 +1027,31 @@ export function createDemoApi(): Api {
       const i = expenses.findIndex(x => x.id === id)
       if (i >= 0) expenses.splice(i, 1)
     },
+    async customers() {
+      if (!isAdmin()) return []
+      return clone(customers).sort((a, b) => b.created_at.localeCompare(a.created_at))
+    },
+    async saveCustomer(c) {
+      requireAdmin()
+      const existing = c.id ? customers.find(x => x.id === c.id) : undefined
+      if (c.id && !existing) throw new Error('That person has gone')
+      const next = tidyCustomer({ ...(existing ?? person({ days: 0, kind: 'lead' })), ...c })
+      // Mirrors the database: when they said yes is recorded here, and cleared when they take it back.
+      next.consent_at = !next.marketing_consent ? null : existing?.marketing_consent ? existing.consent_at : nowIso()
+      if (existing) Object.assign(existing, next, { updated_at: nowIso() })
+      else customers.push({ ...next, id: uid(), created_at: nowIso(), updated_at: nowIso() })
+    },
+    async deleteCustomer(id) {
+      requireAdmin()
+      const i = customers.findIndex(x => x.id === id)
+      if (i >= 0) customers.splice(i, 1)
+    },
+    async importCustomers(rows) {
+      requireAdmin()
+      const added = rows.map(r => tidyCustomer({ ...person({ days: 0, kind: 'lead' }), ...r, id: uid() }))
+      for (const c of added) customers.push({ ...c, consent_at: c.marketing_consent ? nowIso() : null })
+      return added.length
+    },
     async todos() {
       if (!staffOnly(me()!)) return { categories: [], todos: [] }
       return { categories: clone(todoCategories).sort((a, b) => a.sort - b.sort), todos: clone(todos) }
@@ -1279,10 +1373,28 @@ export function createDemoApi(): Api {
     },
     async fontList() { return { source: 'built-in', fonts: POPULAR_FONTS } },
     async notifications() {
+      demoMentions()
       return clone(notes.filter(n => n.profile_id === currentUser).map(({ profile_id: _p, ...n }) => n).reverse())
     },
     async markNotificationsRead() {
       for (const n of notes) if (n.profile_id === currentUser && !n.read_at) n.read_at = nowIso()
+    },
+    async instagramMentions() {
+      requireAdmin()
+      return clone(demoMentions())
+    },
+    async repostMention(id) {
+      requireAdmin()
+      decideMention(id, 'reposted')
+    },
+    async ignoreMention(id) {
+      requireAdmin()
+      decideMention(id, 'ignored')
+    },
+    async checkMentions() {
+      requireAdmin()
+      demoMentions()
+      return 0
     },
     async eventAlerts() { return clone(alerts) },
     async setEventAlert(kind, refId, on) {
