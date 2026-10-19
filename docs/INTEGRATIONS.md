@@ -250,24 +250,59 @@ for Business; the WhatsApp app from section 3 can be reused.
 TikTok photo posts need a JPEG photo (`.jpg`/`.jpeg`); the planner checks this before scheduling.
 Access lasts a day and is renewed automatically with the 1-year refresh token.
 
-## 9. Square (takings on Finances)
+## 9. Square (Sales and takings)
 
-Square and Stripe are the two payment systems; a business connects one of them.
+Square and Stripe are the two payment systems; a business connects one of them. Square gives the
+most: the **Sales** page (Accounts → Sales) and the takings on Finances.
 
-1. <https://developer.squareup.com/apps> → **Create app** → OAuth → Production (or Sandbox for
-   testing) → Redirect URL: `https://businesssagent.com/api/integrations/square/callback` (Square
-   takes one; admins then connect Square from businesssagent.com).
-2. **Application ID** and **Application secret** → GitHub repo secrets `SQUARE_APP_ID`,
-   `SQUARE_APP_SECRET`. For sandbox testing also set `SQUARE_ENVIRONMENT` to `sandbox`
-   (leave it unset for real takings).
-3. Permissions asked for: `MERCHANT_PROFILE_READ`, `PAYMENTS_READ` (read only; the app never
-   takes or refunds payments).
-4. In the app: Connections → Payments and sales → **Connect Square**.
+**Once, for the whole app** (the Business Agent's own Square app; each business then signs in to its
+own Square account with one click):
 
-The Finances page then shows takings for today, this week, last week and the last 30 days
-(completed payments at every active location, by Madrid day), and team cost this week as a share
-of takings. Only admins who can see pay see these figures. Access lasts 30 days and is renewed a
-week before it runs out; if it stops working, admins get a notification.
+1. Go to <https://developer.squareup.com/apps>, sign in with any Square account and press **+**
+   (Create an application). Name it "Business Agent".
+2. Open the app → **OAuth** (left menu). At the top, pick **Production** (real takings) or
+   **Sandbox** (test data). Set **Redirect URL** to
+   `https://businesssagent.com/api/integrations/square/callback` → Save. Square takes one redirect
+   URL per environment, so admins connect Square from businesssagent.com (not the workers.dev address).
+3. On the same page copy the **Application ID** and press **Show** to copy the **Application
+   secret** (it starts `sq0csp-`; the *access token* on the Credentials page is a different thing,
+   not needed).
+4. GitHub → the repo → *Settings → Secrets and variables → Actions* → new repository secrets:
+   `SQUARE_APP_ID` and `SQUARE_APP_SECRET`. For Sandbox also add `SQUARE_ENVIRONMENT` = `sandbox`
+   (leave it out for real takings). Production and Sandbox have different ID and secret: use the
+   pair for the environment you picked.
+5. Redeploy (push to `main`, or re-run the Deploy workflow). The deploy passes the secrets to the
+   Worker; until it has them, "Connect Square" says the keys are missing.
+
+**Each business:**
+
+6. In the app: **Connections → Payments and sales → Connect Square**, sign in with the Square
+   account the till uses and press **Allow**. You come back connected; "Connected" means the business
+   and at least one open location were found. Every active location is included.
+
+Permissions asked for, all read only: `MERCHANT_PROFILE_READ` (business name and locations),
+`PAYMENTS_READ` (takings, tips, refunds, card/cash) and `ORDERS_READ` (what was sold, for best
+sellers). The app can't take, move or refund money.
+
+Testing with Sandbox: in the Developer Console open **Sandbox test accounts → Default Test Account →
+Open in Square Dashboard** first (Square only lets a sandbox seller authorise while that dashboard is
+open in the same browser), then Connect Square. Take a few test payments in the sandbox (the Square
+API Explorer's *Payments → CreatePayment* with source `cnon:card-nonce-ok`) to see figures.
+
+What shows where (admins who can see pay only; Pro plan and up):
+
+- **Accounts → Sales**, like Square's own dashboard: gross and net sales, transactions and average
+  sale for today, yesterday, this or last week, this or last month or the last 30 days, each against
+  the period before; sales over time (or by hour for one day) with the earlier period as a line;
+  busiest hours; days of the week; how people paid; best sellers; and every day in a table, with
+  Excel/CSV/PDF export. Days run midnight to midnight, Madrid time.
+- **Accounts → Finances**: takings today, this week, last week and the last 30 days, and team cost
+  this week as a share of takings.
+
+Access lasts 30 days and is renewed a week before it runs out; if it stops working, admins get a
+notification. A business connected **before best sellers were added** keeps its takings, and the
+Best sellers card asks for one reconnect (Connections → Square → Connect Square again) to allow
+`ORDERS_READ`.
 
 ## 10. Stripe (takings on Finances)
 

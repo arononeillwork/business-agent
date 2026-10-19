@@ -821,25 +821,55 @@ integrations.get('/api/integrations/stripe/callback', c => appCallback(c, 'strip
     account_label: proven.label, external: proven.external })
 }))
 
-// Takings per day from the payment system (Square or Stripe, admins with pay access): ?from=YYYY-MM-DD&to=YYYY-MM-DD (inclusive).
-integrations.get('/api/integrations/payments/sales', async c => {
-  if (!(await planFeatures(c.env)).has('takings')) return c.json({ error: 'Takings need the Pro plan or higher. Upgrade on the Billing page.' }, 402)
+/**
+ * Who may read takings, and for which days: the plan has takings, the person can see pay, from and
+ * to are dates (inclusive) and a payment system is connected. Either an error response, or the range
+ * as instants (local midnight to the midnight after `to`).
+ */
+async function takingsRequest(c: Context<{ Bindings: Env; Variables: { userId: string } }>) {
+  if (!(await planFeatures(c.env)).has('takings')) return { error: c.json({ error: 'Takings need the Pro plan or higher. Upgrade on the Billing page.' }, 402) }
   const db = serviceClient(c.env)
   const { data: me } = await db.from('profiles').select('can_see_pay').eq('id', c.get('userId')).single()
-  if (!me?.can_see_pay) return c.json({ error: 'Takings are for admins with pay access' }, 403)
+  if (!me?.can_see_pay) return { error: c.json({ error: 'Takings are for admins with pay access' }, 403) }
   const from = c.req.query('from') ?? '', to = c.req.query('to') ?? ''
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || from > to) return c.json({ error: 'Give from and to dates (YYYY-MM-DD)' }, 400)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || from > to) return { error: c.json({ error: 'Give from and to dates (YYYY-MM-DD)' }, 400) }
   const p = await connectedOf(db, ['square', 'stripe'] as const)
-  if (!p) return c.json({ error: 'Connect Stripe or Square on the Connections page to see takings' }, 400)
+  if (!p) return { error: c.json({ error: 'Connect Stripe or Square on the Connections page to see takings' }, 400) }
+  const end = new Date(Date.parse(`${to}T12:00:00Z`) + 86_400_000).toISOString().slice(0, 10)
+  return { db, p, fromIso: zonedIso(from, '00:00'), toIso: zonedIso(end, '00:00') }
+}
+
+// Takings per day from the payment system (Square or Stripe, admins with pay access): ?from=YYYY-MM-DD&to=YYYY-MM-DD (inclusive).
+integrations.get('/api/integrations/payments/sales', async c => {
+  const r = await takingsRequest(c)
+  if ('error' in r) return r.error
+  const { db, p, fromIso, toIso } = r
   try {
-    const end = new Date(Date.parse(`${to}T12:00:00Z`) + 86_400_000).toISOString().slice(0, 10)
     if (p === 'stripe') {
       const s = await stripeSession(c.env, db)
-      return c.json({ provider: p, ...await stripe.salesByDay(s.secretKey, s.accountId, zonedIso(from, '00:00'), zonedIso(end, '00:00')) })
+      return c.json({ provider: p, ...await stripe.salesByDay(s.secretKey, s.accountId, fromIso, toIso) })
     }
     const s = await squareSession(c.env, db)
-    return c.json({ provider: p, ...await square.salesByDay(s.sandbox, s.token, s.locationIds, zonedIso(from, '00:00'), zonedIso(end, '00:00')) })
+    return c.json({ provider: p, ...await square.salesByDay(s.sandbox, s.token, s.locationIds, fromIso, toIso) })
   } catch (e) {
+    const why = explain(p, e)
+    if (lasting(p, e)) await markBroken(db, p, why)
+    return c.json({ error: why }, 400)
+  }
+})
+
+// Best sellers from Square's orders, same rules and dates as the takings. Stripe has no items; a
+// Square connection made before items were asked for (ORDERS_READ) says so, and keeps working.
+integrations.get('/api/integrations/payments/items', async c => {
+  const r = await takingsRequest(c)
+  if ('error' in r) return r.error
+  const { db, p, fromIso, toIso } = r
+  if (p === 'stripe') return c.json({ items: null, reason: 'stripe' })
+  try {
+    const s = await squareSession(c.env, db)
+    return c.json({ items: await square.topItems(s.sandbox, s.token, s.locationIds, fromIso, toIso) })
+  } catch (e) {
+    if (e instanceof square.SquareError && e.code === 'INSUFFICIENT_SCOPES') return c.json({ items: null, reason: 'reconnect' })
     const why = explain(p, e)
     if (lasting(p, e)) await markBroken(db, p, why)
     return c.json({ error: why }, 400)

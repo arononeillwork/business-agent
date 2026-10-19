@@ -183,7 +183,8 @@ describe('Stripe', () => {
     ] })))
     vi.stubGlobal('fetch', fetchMock)
     expect(await salesByDay('sk_test', 'acct_1', '2026-10-05T22:00:00Z', '2026-10-06T22:00:00Z')).toEqual({
-      currency: 'EUR', days: [{ date: '2026-10-06', gross: 16.5, tips: 0, refunds: 4.5, payments: 2 }],
+      currency: 'EUR', days: [{ date: '2026-10-06', gross: 16.5, tips: 0, refunds: 4.5, payments: 2,
+        hours: Array.from({ length: 24 }, (_, h) => (h === 0 ? 4.5 : h === 12 ? 12 : 0)) }], // 00:30 and 12:00 Madrid time
     })
     expect(fetchMock.mock.calls[0][1].headers['Stripe-Account']).toBe('acct_1')
   })

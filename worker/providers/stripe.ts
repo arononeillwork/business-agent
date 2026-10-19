@@ -59,8 +59,12 @@ interface BalanceTx { id: string; type: string; amount: number; currency: string
  * account's balance: payments add to gross, refunds to refunds. Amounts in main units (euros).
  */
 export async function salesByDay(secretKey: string, accountId: string, fromIso: string, toIso: string, timeZone = 'Europe/Madrid') {
-  const day = (unix: number) => new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(unix * 1000))
-  const byDay = new Map<string, { date: string; gross: number; tips: number; refunds: number; payments: number }>()
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' })
+  const local = (unix: number) => {
+    const p = Object.fromEntries(parts.formatToParts(new Date(unix * 1000)).map(x => [x.type, x.value]))
+    return { date: `${p.year}-${p.month}-${p.day}`, hour: Number(p.hour) % 24 }
+  }
+  const byDay = new Map<string, { date: string; gross: number; tips: number; refunds: number; payments: number; hours: number[] }>()
   let currency: string | undefined
   let after: string | undefined
   for (let page = 0; page < 30; page++) {
@@ -72,14 +76,14 @@ export async function salesByDay(secretKey: string, accountId: string, fromIso: 
       const refund = t.type === 'refund' || t.type === 'payment_refund'
       if (!pay && !refund) continue
       currency ??= t.currency.toUpperCase()
-      const d = day(t.created)
-      const row = byDay.get(d) ?? { date: d, gross: 0, tips: 0, refunds: 0, payments: 0 }
-      if (pay) { row.gross += t.amount / 100; row.payments += 1 } else row.refunds += Math.abs(t.amount) / 100
-      byDay.set(d, row)
+      const { date, hour } = local(t.created)
+      const row = byDay.get(date) ?? { date, gross: 0, tips: 0, refunds: 0, payments: 0, hours: Array<number>(24).fill(0) }
+      if (pay) { row.gross += t.amount / 100; row.payments += 1; row.hours[hour] += t.amount / 100 } else row.refunds += Math.abs(t.amount) / 100
+      byDay.set(date, row)
     }
     if (!r.has_more || !r.data.length) break
     after = r.data[r.data.length - 1].id
   }
   const round = (n: number) => Math.round(n * 100) / 100
-  return { currency: currency ?? 'EUR', days: [...byDay.values()].sort((a, b) => a.date.localeCompare(b.date)).map(d => ({ ...d, gross: round(d.gross), refunds: round(d.refunds) })) }
+  return { currency: currency ?? 'EUR', days: [...byDay.values()].sort((a, b) => a.date.localeCompare(b.date)).map(d => ({ ...d, gross: round(d.gross), refunds: round(d.refunds), hours: d.hours.map(round) })) }
 }

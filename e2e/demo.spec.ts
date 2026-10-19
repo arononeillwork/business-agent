@@ -1214,11 +1214,11 @@ test('the contact preference label sits above the field, never on top of “No p
 })
 
 test.describe('menu', () => {
-  test('business first, then what\'s on, then the team; partners and the café tablet are switched off', async ({ page }) => {
+  test('business first, then accounts, what\'s on and the team; partners and the café tablet are switched off', async ({ page }) => {
     await open(page, '/')
     const nav = page.getByRole('navigation', { name: 'Main' })
     const headings = await nav.locator('section > button').allTextContents()
-    expect(headings.map(h => h.trim())).toEqual(['Business', "What's on", 'Team', 'Settings', 'You'])
+    expect(headings.map(h => h.trim())).toEqual(['Business', 'Accounts', "What's on", 'Team', 'Settings', 'You'])
     await expect(nav.getByRole('link', { name: 'Partners' })).toHaveCount(0)
     await expect(nav.getByRole('link', { name: 'Café tablet' })).toHaveCount(0)
     // Today is the landing page: no menu item, the logo takes you there.
@@ -1733,7 +1733,7 @@ test.describe('social planner', () => {
     await expect(page.getByRole('region', { name: 'Files and storage' }).getByRole('article', { name: 'Google Drive' })).toContainText('Connected')
     await page.getByRole('link', { name: 'Social planner' }).first().click()
     // The planner has loaded and knows where photos and videos go.
-    await expect(page.getByRole('region', { name: 'Accounts' })).toContainText('Google Drive · easybeanscafe@gmail.com')
+    await expect(page.getByRole('main').getByRole('region', { name: 'Accounts' })).toContainText('Google Drive · easybeanscafe@gmail.com')
     await expect(page.getByRole('tab', { name: /^All/ })).toHaveAttribute('aria-selected', 'true')
   }
 
@@ -1745,7 +1745,7 @@ test.describe('social planner', () => {
     await connectDrive(page)
 
     await expect(page.getByRole('heading', { level: 1, name: 'Social planner' })).toBeVisible()
-    const accounts = page.getByRole('region', { name: 'Accounts' })
+    const accounts = page.getByRole('main').getByRole('region', { name: 'Accounts' })
     await expect(accounts).toContainText('@easy.beans.coffee')
     await expect(accounts.getByRole('link', { name: 'Connect' })).toHaveCount(1) // TikTok only
     await expect(accounts).toContainText('Google Drive · easybeanscafe@gmail.com')
@@ -1782,7 +1782,7 @@ test.describe('social planner', () => {
 
   test('without storage, posts are reminders: it’s your turn, copy the caption, mark it posted', async ({ page }) => {
     await open(page, '/social')
-    await expect(page.getByRole('region', { name: 'Accounts' })).toContainText('Connect storage to add photos and videos and post automatically')
+    await expect(page.getByRole('main').getByRole('region', { name: 'Accounts' })).toContainText('Connect storage to add photos and videos and post automatically')
     const turn = page.getByRole('region', { name: 'Your turn to post' })
     const due = turn.getByRole('article', { name: /Poll sticker/ })
     await expect(due).toContainText('Planned for Wed 30 Sep, 08:00 on Instagram')
@@ -1919,6 +1919,51 @@ test('Square: connect the payment system, then takings show on Finances next to 
   await expect(takings).toContainText('This week')
   await expect(takings).toContainText('Last 30 days')
   await expect(takings).toContainText(/€/)
+})
+
+test('Sales page: Accounts in the menu; connect Square, then sales, charts and best sellers against the period before', async ({ page }) => {
+  test.skip(!FEATURES.square, 'Square is switched off for now')
+  await open(page, '/')
+  const nav = page.getByRole('navigation', { name: 'Main' })
+  const accounts = nav.getByRole('region', { name: 'Accounts' })
+  await expect(accounts.getByRole('link', { name: 'Sales' })).toBeVisible()
+  await expect(accounts.getByRole('link', { name: 'Finances' })).toBeVisible()
+  await accounts.getByRole('link', { name: 'Sales' }).click()
+  await expect(page.getByRole('heading', { name: 'Sales', level: 1 })).toBeVisible()
+  await expect(page.getByText('Connect Square to see your sales')).toBeVisible()
+  await page.getByRole('link', { name: 'Go to Connections' }).click()
+  await page.getByRole('region', { name: 'Payments and sales' }).getByRole('button', { name: 'Connect Square' }).click()
+  await expect(page.getByRole('region', { name: 'Payments and sales' }).getByRole('article', { name: 'Square' })).toContainText('Connected')
+  await accounts.getByRole('link', { name: 'Sales' }).click()
+  await expect(page.getByText('From Square')).toBeVisible()
+  const tiles = page.getByRole('list', { name: 'At a glance' })
+  for (const label of ['Gross sales', 'Net sales', 'Transactions', 'Average sale']) await expect(tiles).toContainText(label)
+  await expect(tiles).toContainText(/vs last week|nothing last week to compare/)
+  await expect(page.getByRole('region', { name: 'Sales over time' }).getByRole('img')).toBeVisible()
+  await expect(page.getByRole('region', { name: 'How people paid' })).toContainText('Card')
+  await expect(page.getByRole('region', { name: 'Best sellers' }).getByRole('table')).toContainText('Iced Matcha Latte')
+  // Last 30 days: every chart, the weekday averages and one row per day.
+  await page.getByRole('combobox', { name: 'Period' }).click()
+  await page.getByRole('option', { name: 'Last 30 days' }).click()
+  await expect(tiles).toContainText('the 30 days before')
+  await expect(page.getByRole('region', { name: 'Days of the week' })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Busiest hours' })).toContainText('Busiest at')
+  await expect(page.getByRole('table', { name: 'Sales by day' }).locator('tbody tr')).toHaveCount(30)
+  // One day: sales by the hour against the same day last week.
+  await page.getByRole('combobox', { name: 'Period' }).click()
+  await page.getByRole('option', { name: 'Yesterday' }).click()
+  await expect(page.getByRole('region', { name: 'Sales over time' })).toContainText('Sales by hour')
+  // Finances links across.
+  await accounts.getByRole('link', { name: 'Finances' }).click()
+  await page.getByRole('region', { name: 'Takings' }).getByRole('link', { name: 'See sales' }).click()
+  await expect(page.getByRole('heading', { name: 'Sales', level: 1 })).toBeVisible()
+})
+
+test('Sales page: employees don’t get it', async ({ page }) => {
+  await open(page, '/', 'maria@example.com')
+  await expect(page.getByRole('link', { name: 'Sales' })).toHaveCount(0)
+  await page.goto('/sales')
+  await expect(page.getByRole('heading', { name: 'Sales', level: 1 })).toHaveCount(0)
 })
 
 test('Stripe: connect it in one click, then takings show on Finances next to the team’s cost', async ({ page }) => {

@@ -27,7 +27,7 @@ export function FinancesPage() {
 
   if (!canSeeFinances) {
     return <>
-      <PageHeader eyebrow="Money" title="Finances" />
+      <PageHeader eyebrow="Accounts" title="Finances" />
       <Alert severity="info">Finances are only visible to admins with pay access.</Alert>
     </>
   }
@@ -42,7 +42,7 @@ export function FinancesPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Money" title="Finances" actions={!canEdit && <Tag>Read-only</Tag>} />
+      <PageHeader eyebrow="Accounts" title="Finances" actions={!canEdit && <Tag>Read-only</Tag>} />
       <ErrorBox error={data.error} />
 
       <StatGrid>
@@ -333,7 +333,9 @@ function Takings() {
     .reduce((m, s) => m + shiftPaidMinutes(s) / 60 * (s.profile_id ? rates.get(s.profile_id) ?? 0 : 0) * mult, 0)
   return (
     <Box component="section" aria-label="Takings" sx={{ mb: 3 }}>
-      <SectionTitle>Takings <Typography component="span" variant="body2" sx={{ color: 'text.secondary' }}>· from {name}</Typography></SectionTitle>
+      <SectionTitle action={<Button component={RouterLink} to="/sales" size="small">See sales</Button>}>
+        Takings <Typography component="span" variant="body2" sx={{ color: 'text.secondary' }}>· from {name}</Typography>
+      </SectionTitle>
       <ErrorBox error={sales.error} />
       <StatRow>
         <Stat label="Today" value={sales.data ? formatMoney(sum(day, day)) : '–'} note={`${days.find(d => d.date === day)?.payments ?? 0} payments`} />

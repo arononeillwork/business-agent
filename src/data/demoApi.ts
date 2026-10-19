@@ -4,7 +4,7 @@
 import type { Api, BillingInfo, ShiftInput } from './api'
 import { PLANS, TRIAL_DAYS, effectivePlan, plan as planById, type PlanId } from '../../shared/plans'
 import type {
-  ApiKey, AppNotification, Brand, EventAlert, Sales, SocialNetwork, SocialPost, MusicAccount, MusicPlaylist, MusicProvider, MyNowPlaying,
+  ApiKey, AppNotification, Brand, EventAlert, Sales, SalesItem, SocialNetwork, SocialPost, MusicAccount, MusicPlaylist, MusicProvider, MyNowPlaying,
   Expense, Integration, IntegrationProvider, IntegrationsState, OutboxItem, PartnerArea, TimeOff,
   BreakType, Business, CalendarEvent, CorrectionRequest, PayRate, Position, Profile, Settings,
   Shift, TimeEntry, TimeEntryChange, Todo, TodoCategory, CafeTrack, MusicPlayerState,
@@ -172,17 +172,37 @@ export function createDemoApi(): Api {
       p.published_at = ok ? nowIso() : null
     }
   }
-  /** Demo takings: a believable café week (quieter Mondays, busy weekends). */
-  const demoSales = (from: string, to: string): Sales => {
+  /**
+   * Demo takings: a believable café week (quieter Mondays, busy weekends), spread over the opening
+   * hours with the 11–3 rush, and paid mostly by card. Stripe sends no payment methods.
+   */
+  const round2 = (n: number) => Math.round(n * 100) / 100
+  const demoSales = (from: string, to: string, provider: 'square' | 'stripe'): Sales => {
     const days: Sales['days'] = []
     for (let d = from; d <= to; d = addDays(d, 1)) {
       if (d > today()) break
       const dow = new Date(`${d}T12:00:00Z`).getUTCDay()
       const seed = [...d].reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) % 997, 7)
-      const gross = Math.round(([520, 380, 430, 450, 610, 890, 820][dow] + (seed % 90) - 45) * 100) / 100
-      days.push({ date: d, gross, tips: Math.round(gross * 0.04 * 100) / 100, refunds: 0, payments: Math.round(gross / 6.4) })
+      const gross = round2([520, 380, 430, 450, 610, 890, 820][dow] + (seed % 90) - 45)
+      const [open, close] = dow === 0 ? [9, 16] : dow === 6 ? [9, 18] : [8, 18]
+      const weight = Array.from({ length: 24 }, (_, h) => (h < open || h >= close ? 0 : h >= 11 && h < 15 ? 2.4 + ((seed + h) % 5) / 10 : 1 + ((seed * h) % 4) / 10))
+      const total = weight.reduce((a, b) => a + b, 0)
+      const hours = weight.map(w => round2(gross * w / total))
+      const methods = provider === 'square' ? { card: round2(gross * 0.71), wallet: round2(gross * 0.19), cash: round2(gross * 0.09), other: round2(gross * 0.01) } : undefined
+      days.push({ date: d, gross, tips: round2(gross * 0.04), refunds: seed % 11 === 0 ? 4.2 : 0, payments: Math.round(gross / 6.4), hours, ...(methods ? { methods } : {}) })
     }
     return { currency: 'EUR', days }
+  }
+  /** Demo best sellers: the Easy Beans menu, in proportion to the days asked for. */
+  const demoItems = (from: string, to: string): SalesItem[] => {
+    const span = Math.max(1, Math.round((Date.parse(`${to > today() ? today() : to}T12:00:00Z`) - Date.parse(`${from}T12:00:00Z`)) / 86_400_000) + 1)
+    const menu: [string, number, number][] = [
+      ['Iced Matcha Latte', 4.5, 21], ['Flat White', 3.2, 24], ['Cappuccino', 3, 17], ['Iced Strawberry Ube Latte', 5.2, 11],
+      ['Croissant', 2.4, 15], ['Pistachio Croissant', 4.2, 9], ['Açaí Bowl', 8.5, 6], ['Iced Latte', 3.8, 12],
+      ['Matcha Latte', 4.2, 10], ['Americano', 2.5, 9], ['Smoothie', 5.5, 5], ['Almond Croissant', 3.4, 5], ['Brownie', 3.2, 4], ['Lemon Tart', 4.5, 3],
+    ]
+    return menu.map(([name, price, perDay]) => ({ name, quantity: perDay * span, gross: round2(perDay * span * price) }))
+      .sort((a, b) => b.gross - a.gross)
   }
   // Music page: each person's own accounts (connecting is simulated in the demo).
   const myAccounts = new Map<string, MusicAccount[]>()
@@ -1036,7 +1056,13 @@ export function createDemoApi(): Api {
       requireAdmin()
       const p = integ.integrations.find(i => (i.provider === 'square' || i.provider === 'stripe') && i.status === 'connected')
       if (!p) throw new Error('Connect Stripe on the Connections page to see takings')
-      return { provider: p.provider as 'square' | 'stripe', ...demoSales(from, to) }
+      return { provider: p.provider as 'square' | 'stripe', ...demoSales(from, to, p.provider as 'square' | 'stripe') }
+    },
+    async salesItems(from, to) {
+      requireAdmin()
+      const p = integ.integrations.find(i => (i.provider === 'square' || i.provider === 'stripe') && i.status === 'connected')
+      if (!p) throw new Error('Connect Stripe or Square on the Connections page to see takings')
+      return p.provider === 'stripe' ? { items: null, reason: 'stripe' as const } : { items: demoItems(from, to) }
     },
     async socialPosts() {
       requireAdmin()
