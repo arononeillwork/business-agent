@@ -13,7 +13,8 @@ import { t } from '../i18n'
 
 // The two buttons at the top right: search (Ctrl/⌘ K) and the light/dark switch.
 
-const roundButton = {
+/** The round buttons at the top right (notifications, search, theme). */
+export const roundButton = {
   width: 40, height: 40, borderRadius: '50%', color: tokens.inkSoft, border: `1px solid ${tokens.line}`, bgcolor: tokens.surface,
   transition: 'color .15s, border-color .15s, background .15s, transform .15s',
   '&:hover': { color: tokens.ink, borderColor: tokens.lineStrong, bgcolor: tokens.surface, transform: 'translateY(-1px)' },

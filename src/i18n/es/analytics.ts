@@ -45,4 +45,8 @@ export default {
   'Sign in with the Google account that owns the website in Search Console. Your site is picked automatically.': 'Inicia sesión con la cuenta de Google propietaria de la web en Search Console. Tu sitio se elige automáticamente.',
   'Go to Connections': 'Ir a Conexiones',
   'Analytics': 'Analítica',
+  // Same English, another meaning elsewhere (see tc() in src/i18n).
+  'portion|Share': 'Porcentaje',
+  'social|Accounts': 'Cuentas',
+  'verb|Set up': 'Configurar',
 } satisfies Record<string, string>

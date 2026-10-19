@@ -108,7 +108,8 @@ function SiteHeader() {
           <Link component={RouterLink} to="/#faq" sx={navLink}>{t('FAQ')}</Link>
         </Stack>
         <Box sx={{ flex: { xs: 1, md: 0 } }} />
-        <LanguageToggle always />
+        {/* No room on a phone: the flags are in the footer there. */}
+        <Box sx={{ display: { xs: 'none', sm: 'block' } }}><LanguageToggle always /></Box>
         <Link component={RouterLink} to="/#account" sx={{ ...navLink, display: { xs: 'none', sm: 'inline' }, whiteSpace: 'nowrap' }}>{t('Log in')}</Link>
         <Button component={RouterLink} to="/#start" variant="contained" sx={{ ...primaryBtn, whiteSpace: 'nowrap', px: 2.25 }}>{t('Start free trial')}</Button>
       </Container>
@@ -138,6 +139,7 @@ function SiteFooter() {
           <Typography variant="body2" sx={{ color: BA.soft, maxWidth: 300, lineHeight: 1.7 }}>
             {t('The team app for cafés, shops and small businesses. Made in Marbella, data stored in the EU.')}
           </Typography>
+          <Box><LanguageToggle always /></Box>
         </Stack>
         {col(t('Product'), [[t('Features'), '/#features'], [t('Pricing'), '/pricing'], [ENTERPRISE.name, '/pricing#enterprise'], [t('Compare with Square'), '/compare'], [t('Compare with GoHighLevel'), '/compare?vs=gohighlevel']])}
         {col(t('Account'), [[t('Log in'), '/#account'], [t('Start free trial'), '/#start']])}

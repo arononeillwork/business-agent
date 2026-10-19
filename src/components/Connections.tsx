@@ -10,7 +10,7 @@ import { useAction } from '../app/Notify'
 import { SectionTitle } from './common'
 import { ShareDialog } from './ShareDialog'
 import { DAY_KEYS, type OpeningHours } from '../../shared/types'
-import { formatLocal, formatNumber } from '../../shared/time'
+import { addDays, formatLocal, formatNumber } from '../../shared/time'
 import { tokens } from '../theme'
 import { t, tn } from '../i18n'
 
@@ -70,7 +70,7 @@ export function GoogleMapsCard() {
                 const differs = fmt(a) !== fmt(b)
                 return (
                   <TableRow key={d} sx={{ bgcolor: differs ? tokens.warnBg : undefined }}>
-                    <TableCell sx={{ textTransform: 'capitalize', fontWeight: 500 }}>{formatLocal(`2026-01-0${5 + DAY_KEYS.indexOf(d)}T12:00:00Z`, 'EEEE')}</TableCell>
+                    <TableCell sx={{ textTransform: 'capitalize', fontWeight: 500 }}>{formatLocal(`${addDays('2026-01-05', DAY_KEYS.indexOf(d))}T12:00:00Z`, 'EEEE') /* a Monday onwards: the day's name */}</TableCell>
                     <TableCell>{fmt(a)}</TableCell>
                     <TableCell sx={{ fontWeight: differs ? 800 : 400 }}>{fmt(b)}</TableCell>
                   </TableRow>

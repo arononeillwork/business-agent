@@ -18,7 +18,7 @@ import { shiftPaidMinutes } from '../../shared/rules'
 import type { Expense } from '../../shared/types'
 import { Link as RouterLink } from 'react-router-dom'
 import { FinanceTabs, TILL_NAMES, tillOf } from '../components/FinanceTabs'
-import { msg, t } from '../i18n'
+import { msg, t, tc } from '../i18n'
 
 /** Monthly running costs. Admins with pay access edit; finance partners read (enforced in the database too). */
 export function FinancesPage() {
@@ -120,7 +120,7 @@ function Expenses({ list, total, canEdit, loaded }: { list: Expense[]; total: nu
   const table = (): ExportTable => ({
     title: active.length ? t('Monthly expenses: {categories}', { categories: active.map(c => t(c)).join(', ') }) : t('Monthly expenses'),
     filename: `expenses-${today()}`,
-    columns: [t('Expense'), t('Category'), t('Notes'), t('Per month ({currency})', { currency: currencySymbol() }), t('Counted'), t('Share')],
+    columns: [t('Expense'), t('Category'), t('Notes'), t('Per month ({currency})', { currency: currencySymbol() }), t('Counted'), tc('portion', 'Share')],
     rows: rows.map(e => [e.name, e.category ? t(e.category) : '', e.notes ?? '', Number(e.amount), e.active ? t('Yes') : t('No'),
       e.active && total > 0 ? `${Math.round(e.amount / total * 100)}%` : '']),
     footer: [active.length ? t('Total shown') : t('Total'), '', '', shownTotal, '', ''],
@@ -188,7 +188,7 @@ function Expenses({ list, total, canEdit, loaded }: { list: Expense[]; total: nu
                     <SortCell sort={sort} id="name">{t('Expense')}</SortCell>
                     <SortCell sort={sort} id="category">{t('Category')}</SortCell>
                     <SortCell sort={sort} id="amount" align="right">{t('Per month')}</SortCell>
-                    <SortCell sort={sort} id="share" align="right">{t('Share')}</SortCell>
+                    <SortCell sort={sort} id="share" align="right">{tc('portion', 'Share')}</SortCell>
                   </TableRow>
                 )}
               </TableHead>

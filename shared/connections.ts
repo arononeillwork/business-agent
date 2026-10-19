@@ -3,6 +3,7 @@
 // exception: connect as many as you use. Shared by the Worker (which verifies a connection before
 // calling it connected) and the app (which shows the choices).
 import type { IntegrationProvider } from './types'
+import { msg } from './i18n'
 
 export type ConnectionGroup = 'communication' | 'email' | 'calendar' | 'files' | 'maps' | 'social' | 'payments' | 'music'
 
@@ -23,44 +24,44 @@ export interface ConnectionGroupInfo {
 }
 
 export const GROUPS: ConnectionGroupInfo[] = [
-  { key: 'communication', title: 'Team messages', pickOne: true, options: [
-    { id: 'whatsapp', name: 'WhatsApp', by: 'Meta', proves: 'A test message was delivered from the café’s number.' },
+  { key: 'communication', title: msg('Team messages'), pickOne: true, options: [
+    { id: 'whatsapp', name: 'WhatsApp', by: 'Meta', proves: msg('A test message was delivered from the café’s number.') },
     { id: 'slack', name: 'Slack', by: 'Slack', soon: true },
     { id: 'sms', name: 'Text messages', by: 'Twilio', soon: true },
   ] },
-  { key: 'email', title: 'Email', pickOne: true, options: [
-    { id: 'gmail', name: 'Gmail', by: 'Google', proves: 'A confirmation email was sent from this mailbox to itself.' },
-    { id: 'outlook', name: 'Outlook', by: 'Microsoft', proves: 'A confirmation email was sent from this mailbox to itself.' },
+  { key: 'email', title: msg('Email'), pickOne: true, options: [
+    { id: 'gmail', name: 'Gmail', by: 'Google', proves: msg('A confirmation email was sent from this mailbox to itself.') },
+    { id: 'outlook', name: 'Outlook', by: 'Microsoft', proves: msg('A confirmation email was sent from this mailbox to itself.') },
   ] },
-  { key: 'calendar', title: 'Calendar', pickOne: true, options: [
-    { id: 'google_calendar', name: 'Google Calendar', by: 'Google', proves: 'Google Calendar has fetched the team calendar.' },
-    { id: 'outlook_calendar', name: 'Outlook Calendar', by: 'Microsoft', proves: 'Outlook has fetched the team calendar.' },
+  { key: 'calendar', title: msg('Calendar'), pickOne: true, options: [
+    { id: 'google_calendar', name: 'Google Calendar', by: 'Google', proves: msg('Google Calendar has fetched the team calendar.') },
+    { id: 'outlook_calendar', name: 'Outlook Calendar', by: 'Microsoft', proves: msg('Outlook has fetched the team calendar.') },
   ] },
-  { key: 'files', title: 'Files and storage', pickOne: true, options: [
-    { id: 'google_drive', name: 'Google Drive', by: 'Google', proves: 'The “Business Agent” folder was created in this Drive.' },
-    { id: 'onedrive', name: 'OneDrive', by: 'Microsoft', proves: 'The “Business Agent” folder was created in this OneDrive.' },
+  { key: 'files', title: msg('Files and storage'), pickOne: true, options: [
+    { id: 'google_drive', name: 'Google Drive', by: 'Google', proves: msg('The “Business Agent” folder was created in this Drive.') },
+    { id: 'onedrive', name: 'OneDrive', by: 'Microsoft', proves: msg('The “Business Agent” folder was created in this OneDrive.') },
     { id: 'sharepoint', name: 'SharePoint', by: 'Microsoft', soon: true },
     { id: 'dropbox', name: 'Dropbox', by: 'Dropbox', soon: true },
   ] },
-  { key: 'maps', title: 'Maps and search', pickOne: false, options: [
-    { id: 'google_business', name: 'Google Maps', by: 'Google', proves: 'The café’s listing was found and can be updated.' },
-    { id: 'search_console', name: 'Search Console', by: 'Google', proves: 'Google confirmed this account can read the website’s search data.' },
+  { key: 'maps', title: msg('Maps and search'), pickOne: false, options: [
+    { id: 'google_business', name: 'Google Maps', by: 'Google', proves: msg('The café’s listing was found and can be updated.') },
+    { id: 'search_console', name: 'Search Console', by: 'Google', proves: msg('Google confirmed this account can read the website’s search data.') },
     { id: 'apple_maps', name: 'Apple Maps', by: 'Apple', soon: true },
   ] },
-  { key: 'social', title: 'Social media', pickOne: false, options: [
-    { id: 'instagram', name: 'Instagram', by: 'Meta', proves: 'The profile and posts could be read, and posting was allowed.' },
-    { id: 'facebook', name: 'Facebook', by: 'Meta', proves: 'The Page was found and posting to it was allowed.' },
-    { id: 'tiktok', name: 'TikTok', by: 'TikTok', proves: 'The account signed in and TikTok confirmed it can post.' },
-    { id: 'linkedin', name: 'LinkedIn', by: 'Microsoft', proves: 'The account signed in and posting was allowed.' },
+  { key: 'social', title: msg('Social media'), pickOne: false, options: [
+    { id: 'instagram', name: 'Instagram', by: 'Meta', proves: msg('The profile and posts could be read, and posting was allowed.') },
+    { id: 'facebook', name: 'Facebook', by: 'Meta', proves: msg('The Page was found and posting to it was allowed.') },
+    { id: 'tiktok', name: 'TikTok', by: 'TikTok', proves: msg('The account signed in and TikTok confirmed it can post.') },
+    { id: 'linkedin', name: 'LinkedIn', by: 'Microsoft', proves: msg('The account signed in and posting was allowed.') },
   ] },
-  { key: 'payments', title: 'Payments and sales', pickOne: true, options: [
-    { id: 'stripe', name: 'Stripe', by: 'Stripe', proves: 'The Stripe account was found and its payments can be read.' },
-    { id: 'square', name: 'Square', by: 'Block', proves: 'The business and its locations were found and its payments can be read.' },
-    { id: 'sumup', name: 'SumUp', by: 'SumUp', proves: 'The SumUp account was found and its sales can be read.' },
+  { key: 'payments', title: msg('Payments and sales'), pickOne: true, options: [
+    { id: 'stripe', name: 'Stripe', by: 'Stripe', proves: msg('The Stripe account was found and its payments can be read.') },
+    { id: 'square', name: 'Square', by: 'Block', proves: msg('The business and its locations were found and its payments can be read.') },
+    { id: 'sumup', name: 'SumUp', by: 'SumUp', proves: msg('The SumUp account was found and its sales can be read.') },
   ] },
-  { key: 'music', title: 'Café music', pickOne: true, options: [
-    { id: 'spotify', name: 'Spotify', by: 'Spotify', proves: 'The account signed in and its playlists can be read. Staff can play or pause it on the speaker.' },
-    { id: 'youtube_music', name: 'YouTube Music', by: 'Google', proves: 'The account signed in and its playlists can be read. Staff open the playlist on the café device.' },
+  { key: 'music', title: msg('Café music'), pickOne: true, options: [
+    { id: 'spotify', name: 'Spotify', by: 'Spotify', proves: msg('The account signed in and its playlists can be read. Staff can play or pause it on the speaker.') },
+    { id: 'youtube_music', name: 'YouTube Music', by: 'Google', proves: msg('The account signed in and its playlists can be read. Staff open the playlist on the café device.') },
   ] },
 ]
 

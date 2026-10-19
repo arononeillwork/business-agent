@@ -4,6 +4,7 @@ import type { ApiKey, AppNotification, Brand, Business, SocialPost, EventAlert, 
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
 import type { ReferralState } from '../../shared/referrals'
 import { readyPhoto } from '../lib/media'
+import { cleanWebsite } from '../../shared/connections'
 
 const PROFILE_COLUMNS = 'id, full_name, email, role, can_see_pay, colour, active, phone, birth_date, whatsapp_opt_in, partner_company, partner_access, preferences'
 
@@ -268,7 +269,8 @@ export function createSupabaseApi(url: string, key: string): Api {
     },
 
     async updateBusiness(patch) {
-      check(await sb.from('business').update(patch).eq('id', 1))
+      // A website typed without https:// gets it (the database takes http(s) addresses only).
+      check(await sb.from('business').update('website' in patch ? { ...patch, website: cleanWebsite(patch.website) } : patch).eq('id', 1))
     },
     async updateAdminNotes(notes) {
       check(await sb.from('business_admin_notes').update({ notes }).eq('id', 1))

@@ -1,4 +1,4 @@
-# Connecting Google, WhatsApp, social media, Stripe and Square
+# Connecting Google, WhatsApp, social media, Stripe, Square and SumUp
 
 Everything below is built and tested in the app; each service only needs your account and a
 few keys. Keys are Worker secrets (Cloudflare → Workers → business-agent → Settings →
@@ -145,7 +145,7 @@ deploy has Cloudflare R2 (bucket `business-agent-media`), that's used when no Dr
 connected. Photos are sent as JPEG up to 8 MB (the app converts them, and crops feed photos to
 between 4:5 and 1.91:1); videos MP4 or MOV up to 100 MB.
 
-**Social planner.** Posts (one photo; Facebook and Google Maps also take text only), carousels
+**Social planner.** Posts (one photo; Facebook, LinkedIn and Google Maps also take text only), carousels
 (2–10 photos or videos), reels (one video, 3 s–15 min) and stories (one photo or video up to
 60 s); carousels, reels and stories go to Instagram only for now. Each can **post automatically**
 at its time (only offered once Drive or OneDrive is connected) or be a **reminder**: at the time
@@ -252,8 +252,8 @@ Access lasts a day and is renewed automatically with the 1-year refresh token.
 
 ## 9. Square (Sales and takings)
 
-Square and Stripe are the two payment systems; a business connects one of them. Square gives the
-most: the **Sales** page (Accounts → Sales) and the takings on Finances.
+Square, Stripe and SumUp are the payment systems; a business connects one of them. Square gives the
+most: the **Sales** page (Accounts → Sales) with best sellers, and the takings on Finances.
 
 **Once, for the whole app** (the Business Agent's own Square app; each business then signs in to its
 own Square account with one click):
@@ -323,10 +323,82 @@ The app keeps only the connected account's id (`acct_…`) and reads its balance
 Disconnecting also removes the app's access on Stripe's side. "Connected" means the account was
 found and its payments could be read; it's checked again every night.
 
+## 11. SumUp (Sales and takings)
+
+The third payment system, for businesses whose card reader is SumUp. One SumUp app serves every
+business; it's set up once:
+
+1. <https://me.sumup.com/developers> (sign in with any SumUp account) → **Create OAuth app**
+   (OAuth → Create client credentials). Name it "Business Agent", type *Web*.
+2. Redirect URI: `https://businesssagent.com/api/integrations/sumup/callback` (add the workers.dev
+   address too if you connect from there).
+3. Copy the **Client ID** and **Client secret** → GitHub repo secrets `SUMUP_CLIENT_ID` and
+   `SUMUP_CLIENT_SECRET`, then redeploy.
+4. Scopes asked for, both read only: `transactions.history` (payments, tips, refunds, card or cash)
+   and `user.profile_readonly` (the business name and merchant code). Not `payments` or
+   `user.app-settings`: the app can't take, refund or move money, or change the SumUp app.
+
+Each business: **Connections → Payments and sales → Connect SumUp**, sign in, allow. "Connected"
+means the merchant account was found and its transactions could be read. Takings show on Sales
+(by day, by hour, and card, cash or Apple/Google Pay) and on Finances, like Square's. SumUp's history
+has no line items, so the Best sellers card says SumUp doesn't send them. Access lasts an hour and is
+renewed with the refresh token (which lapses after 6 months unused); checked every night.
+
+## 12. LinkedIn (Social planner)
+
+Posts go to the café's LinkedIn **company Page**, or to the owner's own profile. One LinkedIn app
+serves every business:
+
+1. <https://www.linkedin.com/developers/apps> → **Create app** (it needs a LinkedIn Page to belong
+   to: the Business Agent Page) → **Auth** → Authorized redirect URL:
+   `https://businesssagent.com/api/integrations/linkedin/callback`.
+2. **Products**: add **Sign In with LinkedIn using OpenID Connect** and **Share on LinkedIn**
+   (both granted straight away: post as the person who signs in), and request the **Community
+   Management API** (company Pages: `r_organization_admin`, `w_organization_social`; LinkedIn reviews
+   it, which takes a while and needs a registered business).
+3. **Auth** → copy the **Client ID** and **Primary Client Secret** → GitHub repo secrets
+   `LINKEDIN_CLIENT_ID` and `LINKEDIN_CLIENT_SECRET`.
+4. Until the Community Management API is approved, LinkedIn refuses the sign-in when the Page
+   permissions are asked for. Set the GitHub repo **variable** `LINKEDIN_PAGES` = `off` and redeploy:
+   the app then asks for the person's profile only (`openid profile w_member_social`) and posts there.
+   Remove the variable once the product is approved.
+5. Redeploy, then **Connections → Social media → Connect LinkedIn**. If the person administers
+   company Pages, the card asks where posts go: a Page or their own profile.
+
+What goes: posts (text, or text and one photo, uploaded to LinkedIn); carousels, reels and stories
+stay Instagram-only. Videos aren't sent to LinkedIn. #hashtags become LinkedIn hashtags. Each post's
+result links to it (`linkedin.com/feed/update/…`). LinkedIn counts as a social account for the plan.
+
+LinkedIn access lasts **60 days** and, for most apps, can't be renewed without the person: admins
+get a notification a week before, and after that the card turns red ("LinkedIn access has expired.
+Connect it again."). Apps LinkedIn has approved for refresh tokens are renewed by themselves.
+The Posts API version is `LINKEDIN_VERSION` (YYYYMM, default in `worker/connections.ts`); LinkedIn
+retires each version after about a year, so move it on now and then.
+
+## 13. Google Search Console (Analytics: the website on Google)
+
+Shows how the business's website does in Google Search: clicks, views (impressions), click-through
+rate and position, by day, search, page, device and country. It uses the Google app from sections
+1-2, read only (`webmasters.readonly`). Once, in the same Google Cloud project:
+
+1. *APIs & Services → Library* → **Google Search Console API** → Enable.
+2. *OAuth consent screen* (Google Auth Platform → Data access) → **Add or remove scopes** → add
+   `https://www.googleapis.com/auth/webmasters.readonly` → Save. While the app is in *Testing*, the
+   Google account that connects must be a test user; `webmasters.readonly` is a sensitive scope, so
+   Google verifies the app before anyone else can use it.
+
+Each business: set the website on **Business** (Café → Business details), then **Connections → Maps
+and search → Connect Search Console** and sign in with a Google account that has the website in
+Search Console (<https://search.google.com/search-console>, verified as a domain or URL-prefix
+property). The property for the business's website is picked by itself (a `sc-domain:` property
+first, then the `https://…/` one); with several and none matching, the card asks which. No website
+in the account means not connected, with the steps to add it. Google's figures are 2-3 days behind.
+Checked every night (the website must still be in the account); on every plan.
+
 ## Social planner
 
 Admins plan posts on **Social planner** (left menu): write once, pick Instagram, Facebook,
-TikTok and Google Maps, post now or schedule for a Madrid date and time. Every minute the Worker
+TikTok, LinkedIn and Google Maps, post now or schedule for a Madrid date and time. Every minute the Worker
 queues due posts (`queue_due_social_posts`), one outbox job per network, and each network's
 outcome, with a link to the post, shows under **Sent → Where it went**. A post that fails on one
 network but not others is marked *partly sent*; failures retry like every other outbox job.

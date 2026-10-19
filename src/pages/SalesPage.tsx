@@ -16,7 +16,7 @@ import type { ExportTable } from '../lib/export'
 import { addDays, currencySymbol, formatLocal, formatMoney, formatNumber, today, weekStart } from '../../shared/time'
 import type { PayMethod, SalesDay, SalesItem } from '../../shared/types'
 import { tokens } from '../theme'
-import { msg, t, tr } from '../i18n'
+import { msg, t, tr, tc } from '../i18n'
 
 // The periods to look at, each compared with the one before it (as Square's sales summary does).
 type Period = 'today' | 'yesterday' | 'week' | 'lastweek' | 'month' | 'lastmonth' | '30'
@@ -81,7 +81,7 @@ function Change({ now, before, vs }: { now: number; before: number; vs: string }
       <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', color: up ? tokens.goodFg : tokens.badFg, fontWeight: 600 }}>
         {up ? <UpIcon sx={{ fontSize: 14 }} /> : <DownIcon sx={{ fontSize: 14 }} />}{Math.abs(pct)}%
       </Box>
-      &nbsp;{t('vs {previous}', { previous: vs })}
+      {'\u00a0'}{t('vs {previous}', { previous: vs })}
     </Box>
   )
 }
@@ -317,7 +317,7 @@ function BestSellers({ data, error, periodName }: { data: { items: SalesItem[] |
   const shown = rows.slice(0, 10)
   const table = (): ExportTable => ({
     title: t('Best sellers: {period}', { period: periodName.toLowerCase() }), filename: `best-sellers-${today()}`,
-    columns: [t('Item'), t('Sold'), t('Sales ({currency})', { currency: currencySymbol() }), t('Share')],
+    columns: [t('Item'), t('Sold'), t('Sales ({currency})', { currency: currencySymbol() }), tc('portion', 'Share')],
     rows: rows.map(i => [i.name, i.quantity, i.gross, total ? `${Math.round(i.gross / total * 100)}%` : '']),
     money: [2],
   })

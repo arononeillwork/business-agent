@@ -352,7 +352,7 @@ test('@phone layout: bottom navigation and a full-width clock-in button', async 
   // Every admin page is reachable on a phone: the rest sit under "More".
   await page.getByRole('button', { name: 'More' }).click()
   const sheet = page.getByRole('list', { name: 'More pages' })
-  for (const name of ['Opening hours', 'Brand', 'Finances', 'Sports', 'Team', 'Alerts', 'Connections', 'Appearance']) {
+  for (const name of ['Opening hours', 'Brand', 'Finances', 'Sports', 'Team', 'Alerts', 'Connections', 'Analytics']) {
     await expect(sheet.getByRole('link', { name })).toBeVisible()
   }
   await sheet.getByRole('link', { name: 'Finances' }).click()
@@ -380,7 +380,7 @@ test.describe('guard rails', () => {
     await open(page, '/business')
     const company = page.getByRole('region', { name: 'Company' })
     await company.getByRole('button', { name: 'Edit' }).click()
-    await company.getByRole('textbox', { name: 'Name', exact: true }).fill('')
+    await company.getByRole('textbox', { name: 'Business name' }).fill('')
     await company.getByRole('button', { name: 'Save' }).click()
     await toast(page, 'The business needs a name')
     await company.getByRole('button', { name: 'Cancel' }).click()
@@ -681,7 +681,7 @@ test.describe('partners (outside businesses)', () => {
     await open(page, '/', 'laura@gestoria.example')
     await expect(page).toHaveURL(/\/business/)
     const nav = page.getByRole('navigation', { name: 'Main' })
-    for (const name of ['Business', 'Rota', 'Timecards', 'Finances', 'My account']) await expect(nav.getByRole('link', { name })).toBeVisible()
+    for (const name of ['Business', 'Rota', 'Timecards', 'Finances']) await expect(nav.getByRole('link', { name })).toBeVisible()
     for (const name of ['Today', 'Team', 'Time off', 'Calendar', 'Alerts', 'Connections', 'Partners']) {
       await expect(nav.getByRole('link', { name })).toHaveCount(0)
     }
@@ -787,7 +787,7 @@ test('a message never covers the buttons it is about', async ({ page }) => {
   await open(page, '/business')
   const company = page.getByRole('region', { name: 'Company' })
   await company.getByRole('button', { name: 'Edit' }).click()
-  await company.getByRole('textbox', { name: 'Name', exact: true }).fill('')
+  await company.getByRole('textbox', { name: 'Business name' }).fill('')
   await company.getByRole('button', { name: 'Save' }).click()
   await toast(page, 'The business needs a name')
   // Clickable straight away, while the message is still showing.
@@ -2004,7 +2004,8 @@ test('Stripe: connect it in one click, then takings show on Finances next to the
   // One payment system at a time: Square waits under "Also works with".
   await expect(payments.getByRole('article', { name: 'Square' })).toHaveCount(0)
   await expect(payments.getByRole('group', { name: 'Other payments and sales apps' }).getByRole('button', { name: 'Use Square instead' })).toBeVisible()
-  await expect(payments).not.toContainText('SumUp')
+  // SumUp is the third choice of till.
+  await expect(payments.getByRole('group', { name: /^Other / })).toContainText('SumUp')
 
   await page.getByRole('link', { name: 'Finances' }).first().click()
   const takings = page.getByRole('region', { name: 'Takings' })
@@ -2381,7 +2382,62 @@ test.describe('language', () => {
 
   test('the public pages have the flags too', async ({ page }) => {
     await page.goto('/pricing?demo')
-    await page.getByRole('group', { name: 'Language' }).getByRole('button', { name: 'Español' }).click()
+    await page.getByRole('group', { name: 'Language' }).first().getByRole('button', { name: 'Español' }).click()
     await expect(page.getByRole('link', { name: 'Precios' }).first()).toBeVisible()
+  })
+})
+
+test.describe('new connections and details', () => {
+  test('Analytics shows Google Search Console: clicks, searches and pages, against the period before', async ({ page }) => {
+    await open(page, '/analytics')
+    await expect(page.getByRole('heading', { name: 'Analytics', level: 1 })).toBeVisible()
+    await expect(page.getByText('www.easybeanscoffee.com')).toBeVisible()
+    const tiles = page.getByRole('list', { name: 'At a glance' })
+    for (const label of ['Clicks', 'Times shown', 'Click rate', 'Average position']) await expect(tiles).toContainText(label)
+    await expect(tiles).toContainText('vs the 28 days before')
+    await expect(page.getByRole('region', { name: 'What people searched for' }).getByRole('table')).toContainText('easy beans coffee')
+    await expect(page.getByRole('region', { name: 'Clicks from Google' }).getByRole('img')).toBeVisible()
+    await page.getByRole('combobox', { name: 'Period' }).click()
+    await page.getByRole('option', { name: 'Last 7 days' }).click()
+    await expect(tiles).toContainText('vs the 7 days before')
+  })
+
+  test('Connections offers SumUp, LinkedIn and Search Console, and Slack has its logo', async ({ page }) => {
+    await open(page, '/connections')
+    await expect(page.getByRole('region', { name: 'Social media' }).getByRole('article', { name: 'LinkedIn' })).toContainText('Connected')
+    await expect(page.getByRole('region', { name: 'Maps and search' }).getByRole('article', { name: 'Search Console' })).toContainText('Connected')
+    await expect(page.getByRole('region', { name: 'Payments and sales' }).getByRole('article', { name: 'SumUp' })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Team messages' }).locator('svg path[fill="#E01E5A"]').first()).toBeAttached()
+  })
+
+  test('a phone number is a country code picked from a list, then the number', async ({ page }) => {
+    await open(page, '/account')
+    const details = page.getByRole('region', { name: 'Personal details' })
+    const code = details.getByRole('combobox', { name: 'Country code' })
+    await expect(code).toHaveValue('🇪🇸 +34')
+    await code.click()
+    await code.fill('Irel')
+    await page.getByRole('option', { name: /Ireland/ }).click()
+    await expect(code).toHaveValue('🇮🇪 +353')
+    await details.getByRole('textbox', { name: 'Mobile' }).fill('87 123 4567')
+    await details.getByRole('button', { name: 'Save' }).click()
+    await toast(page, /^Saved$/)
+    // Searching by the code works too.
+    await code.click()
+    await code.fill('44')
+    await expect(page.getByRole('option', { name: /United Kingdom/ })).toBeVisible()
+  })
+
+  test('the business has a website, shown as a link', async ({ page }) => {
+    await open(page, '/business')
+    const contact = page.getByRole('region', { name: 'Contact' })
+    await expect(contact.getByRole('link', { name: 'www.easybeanscoffee.com' })).toHaveAttribute('href', 'https://www.easybeanscoffee.com/')
+    await contact.getByRole('button', { name: 'Edit' }).click()
+    await contact.getByRole('textbox', { name: 'Website' }).fill('easybeans.example')
+    await contact.getByRole('button', { name: 'Save' }).click()
+    await toast(page, /^Saved$/)
+    await expect(contact.getByRole('link', { name: 'easybeans.example' })).toHaveAttribute('href', 'https://easybeans.example')
+    // The name top left is the one on this page.
+    await expect(page.getByRole('region', { name: 'Company' })).toContainText('Business name')
   })
 })

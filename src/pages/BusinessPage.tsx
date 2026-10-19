@@ -165,7 +165,8 @@ export function BusinessPage() {
             {mailbox && d.email && d.email.toLowerCase() !== mailbox.toLowerCase() && (
               <Box sx={{ mt: -1 }}><Button size="small" onClick={() => set({ email: mailbox })}>{t('Use {email}', { email: mailbox })}</Button></Box>
             )}
-            <TextField label={t('Website')} type="url" value={d.website ?? ''} placeholder="https://www.yourbusiness.com"
+            {/* Not type="url": the browser would refuse an address without https://, which is added on save. */}
+            <TextField label={t('Website')} value={d.website ?? ''} placeholder={t('https://www.yourbusiness.com')}
               slotProps={{ htmlInput: { inputMode: 'url', autoCapitalize: 'none', spellCheck: false } }}
               onChange={e => set({ website: e.target.value })} />
             <TextField label={'Instagram'} value={handleOf(d)} placeholder={connectedHandle || t('yourbusiness')}
@@ -202,7 +203,7 @@ export function BusinessPage() {
             <TextField label={t('Business name')} value={d.name} onChange={e => set({ name: e.target.value })}
               helperText={t('Shown at the top left of the app, next to your logo (the logo is set on the Brand page).')} />
             <TextField label={t('Type of business')} value={d.business_type ?? ''} onChange={e => set({ business_type: e.target.value })} />
-            <TextField label={'CIF / NIF'} value={d.tax_id ?? ''} placeholder="B12345674" helperText={taxHint}
+            <TextField label={'CIF / NIF'} value={d.tax_id ?? ''} placeholder={'B12345674'} helperText={taxHint}
               error={!!d.tax_id?.trim() && !tax?.ok} onChange={e => set({ tax_id: e.target.value })}
               slotProps={{ htmlInput: { maxLength: 20, style: { textTransform: 'uppercase' } } }} />
             {/* The device's own list: opens the same way everywhere, phones included. */}

@@ -24,7 +24,7 @@ import { GROUPS, optionName, type ConnectionGroup, type ConnectionGroupInfo, typ
 import type { CalendarApp, ConnectorProvider, Integration, IntegrationProvider, IntegrationsState } from '../../shared/types'
 import { formatLocal } from '../../shared/time'
 import { tokens } from '../theme'
-import { msg, t, tn, tr } from '../i18n'
+import { msg, t, tn, tr, tc } from '../i18n'
 
 type OptionId = ConnectionOption['id']
 
@@ -314,7 +314,7 @@ function Tile({ s, back, reload, onOpen, loading }: { s: OptionState; back: 'set
             {oneClick && s.current && <Button size="small" variant="outlined" aria-label={t('Switch to {app}', { app: o.name })} onClick={() => setConfirm(true)}>{t('Switch')}</Button>}
             {status === 'error' && <Button size="small" variant="contained" color="error" onClick={onOpen} aria-label={t('Fix {app}', { app: o.name })}>{t('Fix')}</Button>}
             {(status === 'connected' || status === 'pending') && <Button size="small" onClick={onOpen} aria-label={t('Manage {app}', { app: o.name })}>{t('Manage')}</Button>}
-            {(!s.configured || (o.id === 'whatsapp' && status === 'disconnected')) && <Button size="small" onClick={onOpen} aria-label={t('Set up {app}', { app: o.name })}>{t('Set up')}</Button>}
+            {(!s.configured || (o.id === 'whatsapp' && status === 'disconnected')) && <Button size="small" onClick={onOpen} aria-label={t('Set up {app}', { app: o.name })}>{tc('verb', 'Set up')}</Button>}
           </>}
         </Stack>
       )}

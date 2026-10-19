@@ -1,4 +1,4 @@
-// Stand-ins for the Google, Microsoft, Spotify and Meta APIs the connections use, answering the way
+// Stand-ins for the Google, Microsoft, Spotify, Meta, TikTok, LinkedIn and payment APIs the connections use, answering the way
 // the real ones do (including their error shapes), with switches to make each one misbehave.
 export type Json = Record<string, unknown>
 
@@ -15,7 +15,7 @@ function bytesResponse(bytes: Uint8Array, type: string, range: string | null) {
 const googleError = (status: number, message: string, reason?: string) =>
   json({ error: { code: status, message, ...(reason ? { errors: [{ reason, message }] } : {}) } }, status)
 
-const GOOGLE_SCOPES = 'https://www.googleapis.com/auth/business.manage https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/youtube.readonly openid https://www.googleapis.com/auth/userinfo.email'
+const GOOGLE_SCOPES = 'https://www.googleapis.com/auth/business.manage https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/webmasters.readonly openid https://www.googleapis.com/auth/userinfo.email'
 const MS_SCOPES = 'Mail.Send Files.ReadWrite User.Read openid email profile'
 
 /** Decode a Gmail `raw` message into its To, Subject and text. */
@@ -56,6 +56,15 @@ export class FakeProviders {
     edits: [] as Json[],
     /** Google takes edits but keeps showing the old hours for a while. */
     slowToShow: false,
+  }
+  /** Search Console: the websites (properties) the Google account can see, and the queries asked of it. */
+  searchConsole = {
+    sites: [
+      { siteUrl: 'https://www.easybeanscoffee.com/', permissionLevel: 'siteOwner' },
+      { siteUrl: 'sc-domain:easybeans.events', permissionLevel: 'siteFullUser' },
+      { siteUrl: 'https://old.example.com/', permissionLevel: 'siteUnverifiedUser' },
+    ],
+    queries: [] as { site: string; dimensions: string[]; startDate: string; endDate: string }[],
   }
   instagram = {
     username: 'easy.beans.coffee',
@@ -162,6 +171,35 @@ export class FakeProviders {
       { id: 'txn_5', type: 'payout', amount: -5000, currency: 'eur', created: Date.parse('2026-09-29T09:00:00Z') / 1000 },
     ],
   }
+  sumup = {
+    revoked: false,
+    /** Refreshes made; the refresh token that still works is su-refresh-<refreshes> (SumUp hands out a new one each time). */
+    refreshes: 0,
+    merchant: { merchant_code: 'MCODE1', company_name: 'Easy Beans Coffee SL', doing_business_as: { business_name: 'Easy Beans Coffee' }, country: 'ES' } as Json,
+    /** Transactions history: amounts in euros, including the tip. A page holds this many. */
+    pageSize: 2,
+    txs: [
+      { id: 'tx1', timestamp: '2026-09-28T08:15:00.000Z', amount: 4, tip_amount: 0.5, currency: 'EUR', status: 'SUCCESSFUL', type: 'PAYMENT', payment_type: 'POS', entry_mode: 'CONTACTLESS', card_type: 'VISA' },
+      { id: 'tx2', timestamp: '2026-09-28T21:30:00.000Z', amount: 12, currency: 'EUR', status: 'SUCCESSFUL', type: 'PAYMENT', payment_type: 'CASH' }, // 23:30 in Madrid, same day
+      { id: 'tx3', timestamp: '2026-09-28T22:30:00.000Z', amount: 9, currency: 'EUR', status: 'SUCCESSFUL', type: 'PAYMENT', payment_type: 'POS', entry_mode: 'APPLE_PAY', card_type: 'MASTERCARD' }, // 00:30 next day
+      { id: 'tx4', timestamp: '2026-09-28T10:00:00.000Z', amount: 99.99, currency: 'EUR', status: 'FAILED', type: 'PAYMENT', payment_type: 'POS' },
+      { id: 'tx5', timestamp: '2026-09-28T12:00:00.000Z', amount: 5, refunded_amount: 5, currency: 'EUR', status: 'REFUNDED', type: 'PAYMENT', payment_type: 'POS', entry_mode: 'CHIP', card_type: 'VISA' },
+    ] as Json[],
+    pages: 0,
+  }
+  linkedin = {
+    /** What the person allowed (LinkedIn lists scopes with commas). */
+    scope: 'openid,profile,w_member_social,r_organization_admin,w_organization_social',
+    member: { sub: 'mem-1', name: 'Aron O’Neill', given_name: 'Aron', family_name: 'O’Neill' },
+    /** Company Pages the person administers. */
+    orgs: [{ id: 101, localizedName: 'Easy Beans Coffee', vanityName: 'easy-beans-coffee' }] as { id: number; localizedName: string; vanityName?: string }[],
+    revoked: false,
+    /** Apps LinkedIn approved for refresh tokens get one; most don't. */
+    refreshable: false,
+    refreshes: 0,
+    uploads: [] as { owner: string; type: string; size: number; image: string }[],
+    posts: [] as Json[],
+  }
   whatsapp = { sent: [] as { to: string; template: string; language: string }[], broken: false }
   /** Every call, as "METHOD host/path". */
   calls: string[] = []
@@ -237,6 +275,29 @@ export class FakeProviders {
       if (url.pathname.endsWith('/playlists')) return json({ items: this.google.playlists })
     }
 
+    if (url.host === 'searchconsole.googleapis.com') {
+      if (this.google.disabled.has('search_console')) return googleError(403, 'Google Search Console API has not been used in project 1234 before or it is disabled.', 'accessNotConfigured')
+      if (this.google.revoked) return googleError(401, 'Request had invalid authentication credentials.')
+      if (url.pathname === '/webmasters/v3/sites') return json({ siteEntry: this.searchConsole.sites })
+      const q = url.pathname.match(/^\/webmasters\/v3\/sites\/([^/]+)\/searchAnalytics\/query$/)
+      if (q && method === 'POST') {
+        const site = decodeURIComponent(q[1])
+        if (!this.searchConsole.sites.some(s => s.siteUrl === site && s.permissionLevel !== 'siteUnverifiedUser')) return googleError(403, `User does not have sufficient permission for site '${site}'.`, 'forbidden')
+        const b = body() as { dimensions?: string[]; startDate: string; endDate: string }
+        const dimensions = b.dimensions ?? []
+        this.searchConsole.queries.push({ site, dimensions, startDate: b.startDate, endDate: b.endDate })
+        const r = (keys: string[] | null, clicks: number, impressions: number, position: number) => ({ ...(keys ? { keys } : {}), clicks, impressions, ctr: clicks / impressions, position })
+        const rows: Record<string, unknown[]> = {
+          '': [r(null, 61, 2400, 9.4567)],
+          date: [r(['2026-10-02'], 25, 1300, 9.1), r(['2026-10-01'], 36, 1100, 9.88)],
+          query: [r(['brunch marbella'], 4, 900, 13.97), r(['easy beans coffee'], 40, 101, 1.12)],
+          page: [r(['https://www.easybeanscoffee.com/'], 50, 1800, 8.2)],
+          device: [r(['DESKTOP'], 11, 500, 10.3), r(['MOBILE'], 49, 1850, 9.2), r(['TABLET'], 1, 50, 11)],
+          country: [r(['gbr'], 9, 400, 11.5), r(['esp'], 50, 1900, 8.9)],
+        }
+        return json(rows[dimensions.join(',')]?.length ? { rows: rows[dimensions.join(',')], responseAggregationType: 'byProperty' } : { responseAggregationType: 'byProperty' })
+      }
+    }
     if (url.host === 'mybusinessaccountmanagement.googleapis.com') return json({ accounts: [{ name: 'accounts/1' }] })
     if (url.host === 'mybusinessbusinessinformation.googleapis.com') {
       if (url.pathname.endsWith('/locations')) return json({ locations: this.google.listings })
@@ -500,6 +561,84 @@ export class FakeProviders {
         return json({ data: this.stripe.txs.filter(t => t.created >= gte && t.created < lt), has_more: false })
       }
     }
+
+    // ---- SumUp (OAuth, then the merchant's own API) ----
+    if (url.href === 'https://api.sumup.com/token') {
+      const f = form()
+      if (f.get('grant_type') === 'refresh_token' && (this.sumup.revoked || f.get('refresh_token') !== `su-refresh-${this.sumup.refreshes}`)) {
+        return json({ error: 'invalid_grant', error_description: 'The refresh token is invalid.' }, 400)
+      }
+      if (f.get('grant_type') === 'refresh_token') this.sumup.refreshes++
+      return json({ access_token: `su-access-${this.nextId++}`, token_type: 'Bearer', expires_in: 3599, refresh_token: `su-refresh-${this.sumup.refreshes}`, scope: 'transactions.history user.profile_readonly' })
+    }
+    if (url.host === 'api.sumup.com') {
+      if (this.sumup.revoked) return json({ error_message: 'invalid access token', error_code: 'NOT_AUTHORIZED' }, 401)
+      if (url.pathname === '/v0.1/me') return json({ account: { username: 'cafe@easybeans.es', type: 'normal' }, merchant_profile: this.sumup.merchant })
+      if (url.pathname === '/v0.1/me/transactions/history') {
+        const p = url.searchParams
+        const limit = Number(p.get('limit') ?? 10)
+        const statuses = p.getAll('statuses[]'), types = p.getAll('types[]')
+        let items = this.sumup.txs.filter(t => (!statuses.length || statuses.includes(String(t.status))) && (!types.length || types.includes(String(t.type)))
+          && (!p.get('oldest_time') || String(t.timestamp) >= p.get('oldest_time')!) && (!p.get('newest_time') || String(t.timestamp) <= p.get('newest_time')!))
+          .sort((a, b) => String(a.timestamp).localeCompare(String(b.timestamp)) * (p.get('order') === 'descending' ? -1 : 1))
+        const after = p.get('oldest_ref')
+        if (after) items = items.slice(items.findIndex(t => t.id === after) + 1)
+        const page = items.slice(0, Math.min(limit, this.sumup.pageSize))
+        this.sumup.pages++
+        const next = new URLSearchParams(p)
+        if (page.length) next.set('oldest_ref', String(page.at(-1)!.id))
+        return json({ items: page, links: items.length > page.length ? [{ rel: 'next', href: next.toString() }] : [] })
+      }
+    }
+
+    // ---- LinkedIn (OAuth, OpenID userinfo, Posts and Images APIs) ----
+    if (url.href === 'https://www.linkedin.com/oauth/v2/accessToken') {
+      const f = form()
+      if (f.get('grant_type') === 'refresh_token') {
+        if (this.linkedin.revoked || f.get('refresh_token') !== 'li-refresh') return json({ error: 'invalid_grant', error_description: 'The provided authorization grant or refresh token is invalid, expired or revoked.' }, 400)
+        this.linkedin.refreshes++
+      }
+      return json({ access_token: `li-access-${this.nextId++}`, expires_in: 5_184_000, scope: this.linkedin.scope, token_type: 'Bearer', id_token: 'jwt',
+        ...(this.linkedin.refreshable ? { refresh_token: 'li-refresh', refresh_token_expires_in: 31_536_000 } : {}) })
+    }
+    if (url.host === 'www.linkedin.com' && url.pathname.startsWith('/dms-uploads/') && method === 'PUT') {
+      if (!new Headers(init.headers).get('authorization')) return json({ message: 'Unauthorized' }, 401)
+      const up = this.linkedin.uploads.find(u => url.pathname.endsWith(u.image.split(':').pop()!))!
+      Object.assign(up, { type: new Headers(init.headers).get('content-type') ?? '', size: bytesOf(init.body).length })
+      return new Response(null, { status: 201 })
+    }
+    if (url.host === 'api.linkedin.com') {
+      const h = new Headers(init.headers)
+      if (this.linkedin.revoked) return json({ status: 401, serviceErrorCode: 65601, code: 'REVOKED_ACCESS_TOKEN', message: 'The token used in the request has been revoked by the user' }, 401)
+      if (url.pathname === '/v2/userinfo') return json(this.linkedin.member)
+      if (!/^\d{6}$/.test(h.get('LinkedIn-Version') ?? '')) return json({ status: 426, code: 'NONEXISTENT_VERSION', message: 'Requested version is not active' }, 426)
+      const orgScopes = this.linkedin.scope.includes('r_organization_admin')
+      if (url.pathname === '/rest/organizationAcls') {
+        if (!orgScopes) return json({ status: 403, code: 'ACCESS_DENIED', message: 'Not enough permissions to access: organizationAcls.FINDER-roleAssignee' }, 403)
+        return json({ elements: this.linkedin.orgs.map(o => ({ organization: `urn:li:organization:${o.id}`, role: 'ADMINISTRATOR', state: 'APPROVED', roleAssignee: `urn:li:person:${this.linkedin.member.sub}` })) })
+      }
+      const org = url.pathname.match(/^\/rest\/organizations\/(\d+)$/)
+      if (org) {
+        const o = this.linkedin.orgs.find(x => String(x.id) === org[1])
+        return o ? json(o) : json({ status: 404, code: 'NOT_FOUND', message: 'Not found' }, 404)
+      }
+      if (url.pathname === '/rest/images' && url.searchParams.get('action') === 'initializeUpload' && method === 'POST') {
+        const id = `IMG${this.nextId++}`
+        this.linkedin.uploads.push({ owner: String((body().initializeUploadRequest as Json).owner), type: '', size: 0, image: `urn:li:image:${id}` })
+        return json({ value: { uploadUrlExpiresAt: Date.now() + 3_600_000, uploadUrl: `https://www.linkedin.com/dms-uploads/${id}`, image: `urn:li:image:${id}` } })
+      }
+      if (url.pathname === '/rest/posts' && method === 'POST') {
+        const b = body()
+        if (String(b.author).startsWith('urn:li:organization:') && !this.linkedin.scope.includes('w_organization_social')) {
+          return json({ status: 403, code: 'ACCESS_DENIED', message: 'Not enough permissions to access: partnerApiPostsExternal.CREATE' }, 403)
+        }
+        this.linkedin.posts.push(b)
+        return new Response(null, { status: 201, headers: { 'x-restli-id': `urn:li:share:70000000000000000${this.linkedin.posts.length}` } })
+      }
+    }
+
+    // A photo for a post, at a public address (the networks that take uploads read it first).
+    if (url.host === 'cdn.test') return new Response(new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4]), { headers: { 'content-type': 'image/jpeg' } })
 
     // ---- WhatsApp (Meta Graph) ----
     if (url.host === 'graph.facebook.com') {

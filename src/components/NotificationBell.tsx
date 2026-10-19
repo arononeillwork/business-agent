@@ -8,9 +8,10 @@ import { useAction } from '../app/Notify'
 import { formatLocal } from '../../shared/time'
 import { tokens } from '../theme'
 import { t } from '../i18n'
+import { roundButton } from '../app/QuickActions'
 
 /** The bell: reminders for events you asked to be alerted about, and other news for you. */
-export function NotificationBell({ tone }: { tone?: 'nav' }) {
+export function NotificationBell() {
   const { api } = useApp()
   const run = useAction()
   const navigate = useNavigate()
@@ -25,14 +26,14 @@ export function NotificationBell({ tone }: { tone?: 'nav' }) {
     <>
       <Tooltip title={t('Notifications')}>
         <IconButton aria-label={unread ? t('Notifications, {n} new', { n: unread }) : t('Notifications')} onClick={e => setAnchor(e.currentTarget)}
-          sx={tone === 'nav' ? { color: tokens.navText, '&:hover': { color: tokens.navBright, background: tokens.navHover } } : undefined}>
+          sx={roundButton}>
           <Badge badgeContent={unread} color="primary" max={9} sx={{ '& .MuiBadge-badge': { fontWeight: 500, color: '#2B2522' } }}>
             <BellIcon />
           </Badge>
         </IconButton>
       </Tooltip>
       <Popover open={!!anchor} anchorEl={anchor} onClose={close}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }} transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         slotProps={{ paper: { sx: { width: 340, maxWidth: 'calc(100vw - 24px)', borderRadius: '18px', border: `1px solid ${tokens.line}`, mt: 1 } } }}>
         <Box role="region" aria-label={t('Notifications')} sx={{ p: 2 }}>
           <Typography variant="h6" component="h2" sx={{ mb: 1 }}>{t('Notifications')}</Typography>

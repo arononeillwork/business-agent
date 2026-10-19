@@ -10,7 +10,7 @@ import type { OpeningHours } from '../shared/types'
 import { calendarFeeds } from './calendarFeed'
 import { checkAll, explain, hasScope, lasting, PROVIDERS } from './connections'
 import { serviceClient, type Env } from './supabase'
-import { unseal } from './crypto'
+import { seal, unseal } from './crypto'
 import { FakeSupabase, GROUP } from './test/fakeSupabase'
 import { FakeProviders, readGmail } from './test/fakeProviders'
 import { GROUPS, groupOf } from '../shared/connections'
@@ -25,6 +25,7 @@ const env = {
   INSTAGRAM_APP_ID: 'ig-app', INSTAGRAM_APP_SECRET: 'ig-secret',
   META_APP_ID: 'meta-app', TIKTOK_CLIENT_KEY: 'tt-key', TIKTOK_CLIENT_SECRET: 'tt-secret', SQUARE_APP_ID: 'sq-app', SQUARE_APP_SECRET: 'sq-secret',
   STRIPE_CLIENT_ID: 'ca_test', STRIPE_SECRET_KEY: 'sk_test_platform',
+  SUMUP_CLIENT_ID: 'su-id', SUMUP_CLIENT_SECRET: 'su-secret', LINKEDIN_CLIENT_ID: 'li-id', LINKEDIN_CLIENT_SECRET: 'li-secret',
 } as unknown as Env
 
 let db: FakeSupabase
@@ -62,11 +63,11 @@ async function connect(provider: string, back: 'connections' | 'setup' = 'connec
 }
 
 /** The apps with their own start and callback routes (Spotify, Instagram, Google Maps). */
-async function connectOwn(provider: 'spotify' | 'instagram' | 'google' | 'facebook' | 'tiktok' | 'square' | 'stripe', query = 'code=c') {
-  const start = await post(`/api/integrations/${provider}/start`)
+async function connectOwn(provider: 'spotify' | 'instagram' | 'google' | 'facebook' | 'tiktok' | 'square' | 'stripe' | 'sumup' | 'linkedin', query = 'code=c', withEnv = env) {
+  const start = await integrations.request(`${APP}/api/integrations/${provider}/start`, { method: 'POST', headers: as('admin'), body: '{}' }, withEnv, ctx())
   expect(start.status).toBe(200)
   const state = new URL((await start.json() as { url: string }).url).searchParams.get('state')!
-  const res = await integrations.request(`${APP}/api/integrations/${provider}/callback?${query}&state=${encodeURIComponent(state)}`, {}, env, ctx())
+  const res = await integrations.request(`${APP}/api/integrations/${provider}/callback?${query}&state=${encodeURIComponent(state)}`, {}, withEnv, ctx())
   expect(res.status).toBe(302)
   return new URL(res.headers.get('location')!)
 }
@@ -93,6 +94,20 @@ describe('Connecting an app: "Connected" only once it has really worked', () => 
     const secret = db.secret('gmail')!
     expect(String(secret.ciphertext)).not.toContain('g-refresh')
     expect(await unseal(env.INTEGRATION_KEY!, String(secret.ciphertext))).toEqual({ refresh_token: 'g-refresh' })
+  })
+
+  it('Gmail or Outlook becomes the business’s email when none was typed, and never replaces one that was', async () => {
+    const email = () => db.table('business')[0].email
+    await connect('gmail')
+    expect(email()).toBe('cafe@gmail.com')
+    await connect('outlook') // an address is set now (by the first mailbox): kept
+    expect(email()).toBe('cafe@gmail.com')
+    db.table('business')[0].email = '  '
+    await connect('outlook')
+    expect(email()).toBe('cafe@outlook.com')
+    db.table('business')[0].email = 'hola@easybeans.es'
+    await connect('gmail')
+    expect(email()).toBe('hola@easybeans.es')
   })
 
   it('asks Google only for what that app needs, with lasting access', async () => {
@@ -687,6 +702,225 @@ describe('Facebook, TikTok and Square: one click, connected once they really wor
     await drainOutbox(env)
     expect(db.table('outbox')[0]).toMatchObject({ status: 'failed', last_error: 'TikTok: picture_size_check_failed' })
     expect(status('tiktok')).toBe('connected') // the account still works; only this post failed
+  })
+})
+
+describe('SumUp, LinkedIn and Search Console: connected once they really work', () => {
+  const job = (kind: string, payload: Record<string, unknown>) => db.table('outbox').push({ id: db.table('outbox').length + 1, kind, payload, status: 'pending', attempts: 0 })
+  /** Change what is kept (encrypted) for a connection, e.g. to make its access run out. */
+  async function editSecret(provider: string, patch: Record<string, unknown>) {
+    const row = db.secret(provider)!
+    row.ciphertext = await seal(env.INTEGRATION_KEY!, { ...await unseal<Record<string, unknown>>(env.INTEGRATION_KEY!, String(row.ciphertext)), ...patch })
+  }
+
+  it('SumUp: one click, read-only; replaces Stripe; takings per Madrid day by hour and how people paid, across pages', async () => {
+    const auth = new URL((await (await post('/api/integrations/sumup/start')).json() as { url: string }).url)
+    expect(`${auth.origin}${auth.pathname}`).toBe('https://api.sumup.com/authorize')
+    expect(auth.searchParams.get('scope')).toBe('transactions.history user.profile_readonly')
+    expect(auth.searchParams.get('redirect_uri')).toBe(`${APP}/api/integrations/sumup/callback`)
+    await connectOwn('stripe')
+    expect((await connectOwn('sumup')).searchParams.get('connected')).toBe('sumup')
+    expect(db.integration('sumup')).toMatchObject({ status: 'connected', account_label: 'Easy Beans Coffee', external: { merchant_code: 'MCODE1', currency: 'EUR' } })
+    expect(status('stripe')).toBe('disconnected') // one payment system at a time
+    expect(await unseal(env.INTEGRATION_KEY!, String(db.secret('sumup')!.ciphertext))).toMatchObject({ refresh_token: 'su-refresh-0' })
+
+    apis.sumup.pages = 0
+    const sales = await (await get('/api/integrations/payments/sales?from=2026-09-28&to=2026-09-29')).json() as { provider: string; currency: string; days: { date: string; gross: number; tips: number; refunds: number; payments: number; hours: number[]; methods: Record<string, number> }[] }
+    expect(apis.sumup.pages).toBe(2) // two payments a page: every page is read
+    expect(sales.provider).toBe('sumup')
+    expect(sales.currency).toBe('EUR')
+    // The tip is kept apart from the sale; the refunded payment counts, with its refund; the failed one doesn't.
+    expect(sales.days).toEqual([
+      expect.objectContaining({ date: '2026-09-28', gross: 20.5, tips: 0.5, refunds: 5, payments: 3 }),
+      expect.objectContaining({ date: '2026-09-29', gross: 9, tips: 0, refunds: 0, payments: 1 }),
+    ])
+    expect(sales.days[0].hours[10]).toBe(3.5) // 08:15 UTC is 10:15 in Madrid
+    expect(sales.days[0].hours[14]).toBe(5)
+    expect(sales.days[0].hours[23]).toBe(12)
+    expect(sales.days[0].methods).toEqual({ card: 8.5, cash: 12 })
+    expect(sales.days[1].methods).toEqual({ wallet: 9 }) // Apple Pay
+    // SumUp's history has no line items: no best sellers, and the page says why.
+    expect(await (await get('/api/integrations/payments/items?from=2026-09-28&to=2026-09-29')).json()).toEqual({ items: null, reason: 'sumup' })
+  })
+
+  it('SumUp: the hour-long access is renewed with the refresh token; removed access turns it red at night', async () => {
+    await connectOwn('sumup')
+    await editSecret('sumup', { expires_at: new Date(Date.now() - 60_000).toISOString() })
+    expect((await get('/api/integrations/payments/sales?from=2026-09-28&to=2026-09-28')).status).toBe(200)
+    expect(apis.sumup.refreshes).toBe(1)
+    expect(await unseal(env.INTEGRATION_KEY!, String(db.secret('sumup')!.ciphertext))).toMatchObject({ refresh_token: 'su-refresh-1' })
+    apis.sumup.revoked = true
+    await nightly()
+    expect(db.integration('sumup')).toMatchObject({ status: 'error', last_error: 'SumUp access was removed or has expired. Connect it again.' })
+    expect(db.table('notifications')[0]).toMatchObject({ title: 'SumUp stopped working' })
+  })
+
+  it('SumUp: needs the takings plan, like the other payment systems', async () => {
+    db.plan = { plan: 'starter', people: 10, features: ['google_maps', 'apps'] }
+    const res = await post('/api/integrations/sumup/start')
+    expect(res.status).toBe(402)
+  })
+
+  it('LinkedIn: asks to post as the person and to their Pages; with a Page it waits for the choice, then checks it', async () => {
+    const auth = new URL((await (await post('/api/integrations/linkedin/start')).json() as { url: string }).url)
+    expect(`${auth.origin}${auth.pathname}`).toBe('https://www.linkedin.com/oauth/v2/authorization')
+    expect(auth.searchParams.get('scope')).toBe('openid profile w_member_social r_organization_admin w_organization_social')
+    await connectOwn('linkedin')
+    const row = db.integration('linkedin')
+    expect(row).toMatchObject({ status: 'pending', account_label: null, external: { member: { id: 'mem-1', name: 'Aron O’Neill' }, pages: [{ id: '101', name: 'Easy Beans Coffee' }] } })
+    // 60 days, kept with the access (encrypted) and shown on the card.
+    const secret = await unseal<{ access_token: string; expires_at: string }>(env.INTEGRATION_KEY!, String(db.secret('linkedin')!.ciphertext))
+    expect(Date.parse(secret.expires_at) - Date.now()).toBeGreaterThan(59 * 86_400_000)
+    expect((row.external as { expires_at: string }).expires_at).toBe(secret.expires_at)
+
+    expect((await post('/api/integrations/linkedin/page', { page_id: '999' })).status).toBe(400)
+    expect((await post('/api/integrations/linkedin/page', { page_id: '101' })).status).toBe(200)
+    expect(db.integration('linkedin')).toMatchObject({ status: 'connected', account_label: 'Easy Beans Coffee', external: { page_id: '101', page_name: 'Easy Beans Coffee' } })
+    // Or their own profile instead.
+    expect((await post('/api/integrations/linkedin/page', { page_id: 'me' })).status).toBe(200)
+    expect(db.integration('linkedin')).toMatchObject({ status: 'connected', account_label: 'Aron O’Neill', external: { page_id: 'me' } })
+  })
+
+  it('LinkedIn: with no Page, or Pages switched off (LINKEDIN_PAGES=off), it posts as the person straight away', async () => {
+    apis.linkedin.orgs = []
+    await connectOwn('linkedin')
+    expect(db.integration('linkedin')).toMatchObject({ status: 'connected', account_label: 'Aron O’Neill', external: { page_id: 'me', page_name: 'Aron O’Neill', pages: [] } })
+
+    const off = { ...env, LINKEDIN_PAGES: 'off' } as Env
+    const start = await integrations.request(`${APP}/api/integrations/linkedin/start`, { method: 'POST', headers: as('admin'), body: '{}' }, off, ctx())
+    expect(new URL((await start.json() as { url: string }).url).searchParams.get('scope')).toBe('openid profile w_member_social')
+    apis.linkedin.orgs = [{ id: 101, localizedName: 'Easy Beans Coffee' }]
+    apis.linkedin.scope = 'openid,profile,w_member_social'
+    await connectOwn('linkedin', 'code=c', off)
+    expect(db.integration('linkedin')).toMatchObject({ status: 'connected', external: { page_id: 'me', pages: [] } })
+  })
+
+  it('LinkedIn: an app not approved for Pages, or posting unticked, is told why and not connected', async () => {
+    const refused = await connectOwn('linkedin', 'error=unauthorized_scope_error&error_description=Scope%20%22r_organization_admin%22%20is%20not%20authorized%20for%20your%20application')
+    expect(refused.searchParams.get('connect_error')).toMatch(/hasn’t approved this app for company Pages.*LINKEDIN_PAGES=off/)
+    expect((await connectOwn('linkedin', 'error=user_cancelled_authorize&error_description=The%20user%20cancelled')).searchParams.get('connect_error')).toBe('LinkedIn connection was cancelled')
+    apis.linkedin.scope = 'openid,profile'
+    expect((await connectOwn('linkedin')).searchParams.get('connect_error')).toMatch(/without the permission/)
+    expect(status('linkedin')).toBe('disconnected')
+    expect(db.secret('linkedin')).toBeUndefined()
+  })
+
+  it('LinkedIn: posts go to the chosen Page (text in LinkedIn’s format, the photo uploaded) and link back', async () => {
+    await connectOwn('linkedin')
+    await post('/api/integrations/linkedin/page', { page_id: '101' })
+    job('linkedin_post', { post_id: 'p1', target: 'linkedin', caption: 'We’re hiring (barista) #SanPedro #coffee', image_url: 'https://cdn.test/team.jpg', kind: 'post', media: [{ url: 'https://cdn.test/team.jpg', type: 'image' }] })
+    job('linkedin_post', { post_id: 'p2', target: 'linkedin', caption: 'Open late tonight', image_url: null, kind: 'post', media: [] })
+    await drainOutbox(env)
+    expect(apis.linkedin.uploads).toEqual([{ owner: 'urn:li:organization:101', type: 'image/jpeg', size: 8, image: expect.stringMatching(/^urn:li:image:/) }])
+    expect(apis.linkedin.posts).toEqual([
+      expect.objectContaining({ author: 'urn:li:organization:101', visibility: 'PUBLIC', lifecycleState: 'PUBLISHED',
+        commentary: 'We’re hiring \\(barista\\) {hashtag|\\#|SanPedro} {hashtag|\\#|coffee}',
+        distribution: { feedDistribution: 'MAIN_FEED', targetEntities: [], thirdPartyDistributionChannels: [] },
+        content: { media: { id: apis.linkedin.uploads[0].image } } }),
+      expect.not.objectContaining({ content: expect.anything() }),
+    ])
+    const jobs = db.table('outbox')
+    expect(jobs.map(j => j.status)).toEqual(['sent', 'sent'])
+    expect(jobs[0].external_id).toBe('https://www.linkedin.com/feed/update/urn:li:share:700000000000000001')
+    // As the person: their own profile is the author.
+    await post('/api/integrations/linkedin/page', { page_id: 'me' })
+    job('linkedin_post', { post_id: 'p3', target: 'linkedin', caption: 'Hello', image_url: null })
+    await drainOutbox(env)
+    expect(apis.linkedin.posts.at(-1)).toMatchObject({ author: 'urn:li:person:mem-1', commentary: 'Hello' })
+  })
+
+  it('LinkedIn: after 60 days it says to connect again; admins are warned a week before; removed access turns it red', async () => {
+    await connectOwn('linkedin')
+    await post('/api/integrations/linkedin/page', { page_id: '101' })
+    await editSecret('linkedin', { expires_at: new Date(Date.now() + 3 * 86_400_000).toISOString() })
+    await nightly()
+    await nightly()
+    expect(status('linkedin')).toBe('connected')
+    expect(db.table('notifications').filter(n => n.title === 'LinkedIn needs connecting again soon')).toHaveLength(2) // once, to each active admin
+    await editSecret('linkedin', { expires_at: new Date(Date.now() - 60_000).toISOString() })
+    await nightly()
+    expect(db.integration('linkedin')).toMatchObject({ status: 'error', last_error: 'LinkedIn access has expired. Connect it again.' })
+    job('linkedin_post', { post_id: 'p1', target: 'linkedin', caption: 'x', image_url: null })
+    await drainOutbox(env)
+    expect(db.table('outbox')[0]).toMatchObject({ status: 'failed', last_error: 'LinkedIn access has expired. Connect it again.' })
+
+    await connectOwn('linkedin')
+    await post('/api/integrations/linkedin/page', { page_id: 'me' })
+    apis.linkedin.revoked = true
+    await nightly()
+    expect(db.integration('linkedin')).toMatchObject({ status: 'error', last_error: 'LinkedIn access was removed or has expired. Connect it again.' })
+  })
+
+  it('LinkedIn: an app LinkedIn approved for refresh tokens renews the access instead of asking', async () => {
+    apis.linkedin.refreshable = true
+    await connectOwn('linkedin')
+    await post('/api/integrations/linkedin/page', { page_id: '101' })
+    await editSecret('linkedin', { expires_at: new Date(Date.now() + 2 * 86_400_000).toISOString() })
+    await nightly()
+    expect(apis.linkedin.refreshes).toBe(1)
+    expect(status('linkedin')).toBe('connected')
+    expect(db.table('notifications')).toHaveLength(0)
+  })
+
+  it('Search Console: picks the business’s website, proves its search data can be read, and needs only read access', async () => {
+    db.table('business')[0].website = 'https://www.easybeanscoffee.com'
+    const start = await post('/api/integrations/connect/search_console/start')
+    expect(new URL((await start.json() as { url: string }).url).searchParams.get('scope')).toBe('https://www.googleapis.com/auth/webmasters.readonly openid email')
+    expect((await connect('search_console')).searchParams.get('connected')).toBe('search_console')
+    expect(db.integration('search_console')).toMatchObject({ status: 'connected', account_label: 'www.easybeanscoffee.com',
+      external: { site: 'https://www.easybeanscoffee.com/', sites: ['https://www.easybeanscoffee.com/', 'sc-domain:easybeans.events'] } })
+    expect(apis.searchConsole.queries[0]).toMatchObject({ site: 'https://www.easybeanscoffee.com/', dimensions: [] })
+    expect(apis.google.sent).toHaveLength(0) // no confirmation email for this one
+  })
+
+  it('Search Console: with several websites and none the business’s, it waits for the admin to choose one', async () => {
+    db.table('business')[0].website = null
+    await connect('search_console')
+    expect(db.integration('search_console')).toMatchObject({ status: 'pending', external: { sites: ['https://www.easybeanscoffee.com/', 'sc-domain:easybeans.events'] } })
+    expect((await get('/api/integrations/search_console/report?from=2026-10-01&to=2026-10-02')).status).toBe(400)
+    expect((await post('/api/integrations/search_console/site', { site: 'https://old.example.com/' })).status).toBe(400) // unverified: not offered
+    expect((await post('/api/integrations/search_console/site', { site: 'sc-domain:easybeans.events' })).status).toBe(200)
+    expect(db.integration('search_console')).toMatchObject({ status: 'connected', account_label: 'easybeans.events', external: { site: 'sc-domain:easybeans.events' } })
+  })
+
+  it('Search Console: an account with no website in it is not connected, and says what to do', async () => {
+    apis.searchConsole.sites = []
+    expect((await connect('search_console')).searchParams.get('connect_error'))
+      .toBe('This Google account has no website in Search Console. Add and verify the website at search.google.com/search-console, then connect again.')
+    expect(status('search_console')).toBe('disconnected')
+    apis.searchConsole.sites = [{ siteUrl: 'https://x.test/', permissionLevel: 'siteOwner' }]
+    apis.google.disabled.add('search_console')
+    expect((await connect('search_console')).searchParams.get('connect_error')).toMatch(/^The Google Search Console API is switched off/)
+  })
+
+  it('Search Console: the report has totals, days in order, top searches and pages, devices and countries', async () => {
+    db.table('business')[0].website = 'easybeanscoffee.com'
+    await connect('search_console')
+    const res = await get('/api/integrations/search_console/report?from=2026-10-01&to=2026-10-02')
+    expect(res.status).toBe(200)
+    const r = await res.json() as import('../shared/types').SearchReport
+    expect(r).toMatchObject({ site: 'https://www.easybeanscoffee.com/', from: '2026-10-01', to: '2026-10-02' })
+    expect(r.totals).toEqual({ clicks: 61, impressions: 2400, ctr: 0.0254, position: 9.5 })
+    expect(r.days.map(d => d.date)).toEqual(['2026-10-01', '2026-10-02'])
+    expect(r.queries.map(q => q.query)).toEqual(['easy beans coffee', 'brunch marbella'])
+    expect(r.queries[0]).toEqual({ query: 'easy beans coffee', clicks: 40, impressions: 101, ctr: 0.396, position: 1.1 })
+    expect(r.pages).toEqual([{ page: 'https://www.easybeanscoffee.com/', clicks: 50, impressions: 1800, ctr: 0.0278, position: 8.2 }])
+    expect(r.devices.map(d => d.device)).toEqual(['MOBILE', 'DESKTOP', 'TABLET'])
+    expect(r.countries.map(c => c.country)).toEqual(['esp', 'gbr'])
+    expect(apis.searchConsole.queries.filter(q => q.startDate === '2026-10-01').map(q => q.dimensions.join(',')).sort()).toEqual(['', 'country', 'date', 'device', 'page', 'query'])
+    expect((await get('/api/integrations/search_console/report?from=2026-10-02&to=2026-10-01')).status).toBe(400)
+    expect((await get('/api/integrations/search_console/report?from=2026-10-01&to=2026-10-02', 'staff')).status).toBe(403)
+  })
+
+  it('Search Console: the website taken out of the account turns it red at night', async () => {
+    db.table('business')[0].website = 'https://www.easybeanscoffee.com/'
+    await connect('search_console')
+    await nightly()
+    expect(status('search_console')).toBe('connected')
+    apis.searchConsole.sites = apis.searchConsole.sites.filter(s => s.siteUrl !== 'https://www.easybeanscoffee.com/')
+    await nightly()
+    expect(db.integration('search_console')).toMatchObject({ status: 'error',
+      last_error: 'www.easybeanscoffee.com is no longer in this Google account’s Search Console. Choose another website or connect again.' })
   })
 })
 

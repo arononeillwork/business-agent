@@ -57,7 +57,7 @@ function Change({ now, before, vs, lowerIsBetter }: { now: number; before?: numb
       <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', color: good ? tokens.goodFg : tokens.badFg, fontWeight: 600 }}>
         {pct > 0 ? <UpIcon sx={{ fontSize: 14 }} /> : <DownIcon sx={{ fontSize: 14 }} />}{Math.abs(pct)}%
       </Box>
-      &nbsp;{t('vs {period}', { period: vs })}
+      {'\u00a0'}{t('vs {period}', { period: vs })}
     </Box>
   )
 }

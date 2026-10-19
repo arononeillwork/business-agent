@@ -2,9 +2,9 @@
 // when no Supabase project is configured. Mirrors the SQL rules closely but is not the source
 // of truth: the database functions are.
 import type { Api, BillingInfo, ShiftInput } from './api'
-import { PLANS, TRIAL_DAYS, effectivePlan, plan as planById, type PlanId } from '../../shared/plans'
+import { PLANS, SOCIAL_CONNECTIONS, TRIAL_DAYS, effectivePlan, plan as planById, type PlanId } from '../../shared/plans'
 import type {
-  ApiKey, AppNotification, Brand, EventAlert, Sales, SalesItem, SocialNetwork, SocialPost, MusicAccount, MusicPlaylist, MusicProvider, MyNowPlaying,
+  ApiKey, AppNotification, Brand, EventAlert, Sales, SalesItem, SearchReport, SearchRow, SocialNetwork, SocialPost, MusicAccount, MusicPlaylist, MusicProvider, MyNowPlaying,
   Expense, Integration, IntegrationProvider, IntegrationsState, OutboxItem, PartnerArea, TimeOff,
   BreakType, Business, CalendarEvent, CorrectionRequest, PayRate, Position, Profile, Settings,
   Shift, TimeEntry, TimeEntryChange, Todo, TodoCategory, CafeTrack, MusicPlayerState,
@@ -16,7 +16,7 @@ import { cleanCode } from '../../shared/referrals'
 import { postProblem } from '../../shared/social'
 import type { SportsFavourite } from '../../shared/sports'
 import { POPULAR_FONTS } from '../../shared/fonts'
-import { addToCalendarUrl, groupOf } from '../../shared/connections'
+import { addToCalendarUrl, cleanWebsite, groupOf } from '../../shared/connections'
 import { addDays, localDate, minutesBetween, today, weekDates, weekStart, zonedIso } from '../../shared/time'
 
 interface RawEntry {
@@ -37,6 +37,7 @@ export function createDemoApi(): Api {
     phone: '+34 695 415 335',
     email: 'easybeanscafe@gmail.com',
     instagram: '@easy.beans.coffee',
+    website: 'https://www.easybeanscoffee.com/',
     timezone: 'Europe/Madrid',
     currency: 'EUR',
     tax_id: 'B12345674',
@@ -74,7 +75,8 @@ export function createDemoApi(): Api {
   }
   const integ: IntegrationsState = {
     configured: { google_business: true, whatsapp: true, instagram: true, spotify: true, gmail: true, outlook: true, google_drive: true, onedrive: true,
-      youtube_music: true, google_calendar: true, outlook_calendar: true, facebook: true, tiktok: true, square: true, stripe: true },
+      youtube_music: true, google_calendar: true, outlook_calendar: true, facebook: true, tiktok: true, square: true, stripe: true,
+      sumup: true, linkedin: true, search_console: true },
     queue: [],
     integrations: [
       { provider: 'google_business', status: 'connected', account_label: 'Easy Beans Coffee',
@@ -85,7 +87,15 @@ export function createDemoApi(): Api {
         external: { playlist: { id: 'pl1', name: 'Easy Beans · Mornings', tracks: 84, url: 'https://open.spotify.com', owner: 'Easy Beans' } },
         connected_at: nowIso(), last_sync_at: null, last_error: null, last_checked_at: nowIso() },
       { provider: 'instagram', status: 'connected', account_label: '@easy.beans.coffee', external: {}, connected_at: nowIso(), last_sync_at: nowIso(), last_error: null, last_checked_at: nowIso() },
-      ...(['gmail', 'outlook', 'google_drive', 'onedrive', 'youtube_music', 'google_calendar', 'outlook_calendar', 'facebook', 'tiktok', 'square', 'stripe'] as const).map(provider => ({
+      // LinkedIn posts to the café's Page; Search Console reads the café's website.
+      { provider: 'linkedin', status: 'connected', account_label: 'Easy Beans Coffee',
+        external: { member: { id: 'demo-member', name: "Aron O'Neill" }, pages: [{ id: '101', name: 'Easy Beans Coffee' }], page_id: '101', page_name: 'Easy Beans Coffee',
+          expires_at: new Date(Date.now() + 45 * 86_400_000).toISOString() },
+        connected_at: nowIso(), last_sync_at: null, last_error: null, last_checked_at: nowIso() },
+      { provider: 'search_console', status: 'connected', account_label: 'www.easybeanscoffee.com',
+        external: { sites: ['https://www.easybeanscoffee.com/'], site: 'https://www.easybeanscoffee.com/' },
+        connected_at: nowIso(), last_sync_at: nowIso(), last_error: null, last_checked_at: nowIso() },
+      ...(['gmail', 'outlook', 'google_drive', 'onedrive', 'youtube_music', 'google_calendar', 'outlook_calendar', 'facebook', 'tiktok', 'square', 'stripe', 'sumup'] as const).map(provider => ({
         provider, status: 'disconnected' as const, account_label: null, external: {}, connected_at: null, last_sync_at: null, last_error: null, last_checked_at: null })),
     ],
   }
@@ -153,6 +163,7 @@ export function createDemoApi(): Api {
   ]
   /** Where the demo keeps photos and videos: the connected Drive or OneDrive. */
   const mediaStorage = () => (['google_drive', 'onedrive'] as const).find(p => integ.integrations.some(i => i.provider === p && i.status === 'connected')) ?? null
+  const networkName = (t: SocialNetwork) => ({ google: 'Google Maps', tiktok: 'TikTok', linkedin: 'LinkedIn' } as Partial<Record<SocialNetwork, string>>)[t] ?? t[0].toUpperCase() + t.slice(1)
   /** Demo: posts that are due "go out" to every connected network; reminders become due and admins are told. */
   const publishDue = () => {
     for (const p of posts) {
@@ -160,13 +171,13 @@ export function createDemoApi(): Api {
       if (!p.auto) {
         p.status = 'due'
         for (const a of profiles.filter(x => x.role === 'admin' && x.active)) {
-          notes.push({ id: notes.length + 1, profile_id: a.id, title: `Time to post your ${p.kind} on ${p.targets.map(t => (t === 'google' ? 'Google Maps' : t === 'tiktok' ? 'TikTok' : t[0].toUpperCase() + t.slice(1))).join(' and ')}`,
+          notes.push({ id: notes.length + 1, profile_id: a.id, title: `Time to post your ${p.kind} on ${p.targets.map(networkName).join(' and ')}`,
             body: p.caption.slice(0, 140) || null, link: '/social', created_at: nowIso(), read_at: null })
         }
         continue
       }
       const connected = (n: string) => integ.integrations.some(i => i.provider === (n === 'google' ? 'google_business' : n) && i.status === 'connected')
-      p.results = Object.fromEntries(p.targets.map(t => [t, connected(t) ? { status: 'published' as const, at: nowIso() } : { status: 'failed' as const, error: `${t === 'google' ? 'Google Maps' : t[0].toUpperCase() + t.slice(1)} is not connected`, at: nowIso() }]))
+      p.results = Object.fromEntries(p.targets.map(t => [t, connected(t) ? { status: 'published' as const, at: nowIso() } : { status: 'failed' as const, error: `${networkName(t)} is not connected`, at: nowIso() }]))
       const ok = Object.values(p.results).filter(r => r.status === 'published').length
       p.status = ok === p.targets.length ? 'published' : ok ? 'partly' : 'failed'
       p.published_at = ok ? nowIso() : null
@@ -177,7 +188,7 @@ export function createDemoApi(): Api {
    * hours with the 11–3 rush, and paid mostly by card. Stripe sends no payment methods.
    */
   const round2 = (n: number) => Math.round(n * 100) / 100
-  const demoSales = (from: string, to: string, provider: 'square' | 'stripe'): Sales => {
+  const demoSales = (from: string, to: string, provider: 'square' | 'stripe' | 'sumup'): Sales => {
     const days: Sales['days'] = []
     for (let d = from; d <= to; d = addDays(d, 1)) {
       if (d > today()) break
@@ -188,7 +199,7 @@ export function createDemoApi(): Api {
       const weight = Array.from({ length: 24 }, (_, h) => (h < open || h >= close ? 0 : h >= 11 && h < 15 ? 2.4 + ((seed + h) % 5) / 10 : 1 + ((seed * h) % 4) / 10))
       const total = weight.reduce((a, b) => a + b, 0)
       const hours = weight.map(w => round2(gross * w / total))
-      const methods = provider === 'square' ? { card: round2(gross * 0.71), wallet: round2(gross * 0.19), cash: round2(gross * 0.09), other: round2(gross * 0.01) } : undefined
+      const methods = provider !== 'stripe' ? { card: round2(gross * 0.71), wallet: round2(gross * 0.19), cash: round2(gross * 0.09), other: round2(gross * 0.01) } : undefined
       days.push({ date: d, gross, tips: round2(gross * 0.04), refunds: seed % 11 === 0 ? 4.2 : 0, payments: Math.round(gross / 6.4), hours, ...(methods ? { methods } : {}) })
     }
     return { currency: 'EUR', days }
@@ -203,6 +214,62 @@ export function createDemoApi(): Api {
     ]
     return menu.map(([name, price, perDay]) => ({ name, quantity: perDay * span, gross: round2(perDay * span * price) }))
       .sort((a, b) => b.gross - a.gross)
+  }
+  /**
+   * Demo Search Console: the café's website on Google since it went live two months ago, growing
+   * week by week, busier at weekends (brunch), mostly found on phones, with Google's 2-day lag.
+   */
+  const SITE_START = addDays(today(), -60)
+  const SEARCHES: [string, number, number][] = [ // what people searched, impressions a day, average position
+    ['easy beans coffee', 34, 1.1], ['easy beans san pedro', 12, 1.3], ['coffee san pedro de alcantara', 48, 4.6], ['cafe san pedro alcantara', 41, 5.4],
+    ['specialty coffee marbella', 58, 8.7], ['brunch marbella', 115, 13.8], ['best coffee marbella', 66, 11.2], ['breakfast san pedro de alcantara', 31, 7.4],
+    ['matcha latte marbella', 21, 6.2], ['iced matcha marbella', 11, 7.8], ['açaí bowl marbella', 17, 9.1], ['ube latte', 24, 12.6],
+    ['oat latte san pedro', 8, 3.1], ['cafe calle pizarro san pedro', 5, 1.6], ['coffee shop near me', 90, 18.3], ['specialty coffee costa del sol', 27, 15.4],
+    ['brunch san pedro alcantara', 39, 5.9], ['croissant san pedro de alcantara', 14, 6.8], ['coffee marbella', 72, 16.1], ['flat white marbella', 9, 8.2],
+  ]
+  const ctrAt = (pos: number) => (pos < 1.5 ? 0.41 : pos < 3 ? 0.19 : pos < 5 ? 0.092 : pos < 8 ? 0.046 : pos < 11 ? 0.024 : 0.007)
+  const sumRows = (rows: SearchRow[]): SearchRow => {
+    const clicks = rows.reduce((n, r) => n + r.clicks, 0), impressions = rows.reduce((n, r) => n + r.impressions, 0)
+    const position = impressions ? rows.reduce((n, r) => n + r.position * r.impressions, 0) / impressions : 0
+    return { clicks, impressions, ctr: impressions ? Math.round(clicks / impressions * 10_000) / 10_000 : 0, position: Math.round(position * 10) / 10 }
+  }
+  /** One part of the whole (a page, device or country): its share of clicks, a little higher or lower on the page (lower down: fewer clicks per view). */
+  const share = (all: SearchRow, part: number, lower: number): SearchRow =>
+    sumRows([{ clicks: Math.round(all.clicks * part), impressions: Math.round(all.impressions * part * (1 + lower / 8)), ctr: 0, position: Math.max(1, all.position + lower) }])
+  const demoSearch = (from: string, to: string): SearchReport => {
+    const site = 'https://www.easybeanscoffee.com/'
+    const byQuery = new Map<string, SearchRow[]>()
+    const days: SearchReport['days'] = []
+    const last = addDays(today(), -2)
+    for (let d = from < SITE_START ? SITE_START : from; d <= to && d <= last; d = addDays(d, 1)) {
+      const age = Math.round((Date.parse(`${d}T12:00:00Z`) - Date.parse(`${SITE_START}T12:00:00Z`)) / 86_400_000)
+      const dow = new Date(`${d}T12:00:00Z`).getUTCDay()
+      const growth = 0.45 + 0.55 * Math.min(1, age / 60)
+      const rows = SEARCHES.map(([q, perDay, pos], i) => {
+        const seed = [...`${d}${q}`].reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) % 1009, 11)
+        const weekend = (dow === 0 || dow === 6) && /brunch|breakfast/.test(q) ? 1.6 : 1
+        const impressions = Math.round(perDay * growth * weekend * (0.75 + (seed % 50) / 100))
+        const position = Math.max(1, pos * (1.15 - 0.15 * Math.min(1, age / 60)) + ((seed % 7) - 3) / 10)
+        const clicks = Math.round(impressions * ctrAt(position) * (0.8 + ((seed * (i + 1)) % 40) / 100))
+        const r = { clicks, impressions, ctr: 0, position }
+        byQuery.set(q, [...(byQuery.get(q) ?? []), r])
+        return r
+      })
+      days.push({ date: d, ...sumRows(rows) })
+    }
+    const totals = sumRows(days)
+    const byClicks = (a: SearchRow, b: SearchRow) => b.clicks - a.clicks || b.impressions - a.impressions
+    const pages: [string, number, number][] = [['', 0.5, -0.4], ['menu/', 0.21, 0.6], ['brunch/', 0.12, 1.4], ['contact/', 0.1, 0.2], ['about/', 0.07, 2.1]]
+    const devices: [SearchReport['devices'][number]['device'], number, number][] = [['MOBILE', 0.74, -0.3], ['DESKTOP', 0.22, 0.8], ['TABLET', 0.04, 0.4]]
+    const countries: [string, number, number][] = [['esp', 0.6, -0.5], ['gbr', 0.17, 0.4], ['irl', 0.05, 0.9], ['deu', 0.04, 1.3], ['nld', 0.035, 1.1],
+      ['fra', 0.03, 1.6], ['swe', 0.025, 1.2], ['usa', 0.02, 2.4], ['bel', 0.015, 1.5], ['nor', 0.015, 1.8]]
+    return {
+      site, from, to, totals, days,
+      queries: [...byQuery].map(([query, rows]) => ({ query, ...sumRows(rows) })).sort(byClicks).slice(0, 25),
+      pages: pages.map(([path, part, lower]) => ({ page: `${site}${path}`, ...share(totals, part, lower) })).sort(byClicks),
+      devices: devices.map(([device, part, lower]) => ({ device, ...share(totals, part, lower) })).sort(byClicks),
+      countries: countries.map(([country, part, lower]) => ({ country, ...share(totals, part, lower) })).sort(byClicks),
+    }
   }
   // Music page: each person's own accounts (connecting is simulated in the demo).
   const myAccounts = new Map<string, MusicAccount[]>()
@@ -729,7 +796,7 @@ export function createDemoApi(): Api {
     async updateBusiness(patch) {
       requireAdmin()
       if ('name' in patch && !patch.name?.trim()) throw new Error('The business needs a name')
-      Object.assign(business, patch, { updated_at: nowIso() })
+      Object.assign(business, patch, 'website' in patch ? { website: cleanWebsite(patch.website) } : {}, { updated_at: nowIso() })
     },
     async updateAdminNotes(notes) { requireAdmin(); adminNotes = notes },
     async updateSettings(patch) { requireAdmin(); Object.assign(settings, patch) },
@@ -851,7 +918,7 @@ export function createDemoApi(): Api {
         limits: { people: p.limits.people, social_accounts: p.limits.socialAccounts, posts_per_month: p.limits.postsPerMonth, features: p.features },
         usage: {
           people: profiles.filter(x => x.active && (x.role === 'admin' || x.role === 'employee')).length,
-          social_accounts: integ.integrations.filter(i => ['instagram', 'facebook', 'tiktok'].includes(i.provider) && i.status === 'connected').length,
+          social_accounts: integ.integrations.filter(i => SOCIAL_CONNECTIONS.includes(i.provider) && i.status === 'connected').length,
           posts_this_month: posts.filter(x => x.status !== 'draft' && x.scheduled_at?.startsWith(month)).length,
         },
       }
@@ -997,8 +1064,17 @@ export function createDemoApi(): Api {
     async connectService(provider) {
       requireAdmin()
       // Demo: pretend the café signed in with its Google / Microsoft account and the proof passed.
+      if (provider === 'search_console') {
+        // The café's website is in the account, so it's picked straight away.
+        const site = 'https://www.easybeanscoffee.com/'
+        setConnection(provider, { status: 'connected', account_label: 'www.easybeanscoffee.com', connected_at: nowIso(), last_checked_at: nowIso(), last_error: null,
+          external: { sites: [site, 'sc-domain:easybeans.events'], site } })
+        return
+      }
       const account = provider === 'youtube_music' ? 'Easy Beans' : provider === 'gmail' || provider === 'google_drive' ? 'easybeanscafe@gmail.com' : 'easybeans@outlook.com'
       setConnection(provider, { status: 'connected', account_label: account, connected_at: nowIso(), last_checked_at: nowIso(), last_error: null, external: {} })
+      // Like the Worker: the mailbox becomes the business's email when none was typed.
+      if ((provider === 'gmail' || provider === 'outlook') && !business.email?.trim()) business.email = account
     },
     async checkConnection(provider) {
       requireAdmin()
@@ -1041,9 +1117,35 @@ export function createDemoApi(): Api {
     },
     async connectApp(provider) {
       requireAdmin()
-      const label = { facebook: 'Easy Beans Coffee', tiktok: '@easybeanscoffee', square: 'Easy Beans Coffee', stripe: 'Easy Beans Coffee SL' }[provider]
-      const external = provider === 'facebook' ? { pages: [{ id: 'page-1', name: 'Easy Beans Coffee' }], page_id: 'page-1' } : provider === 'tiktok' ? { private_only: true } : {}
+      if (provider === 'linkedin') {
+        // Signed in as the owner, who runs the café's Page: they choose where posts go (chooseLinkedInPage).
+        setConnection(provider, { status: 'pending', account_label: null, connected_at: nowIso(), last_checked_at: null, last_error: null,
+          external: { member: { id: 'demo-member', name: "Aron O'Neill" }, pages: [{ id: '101', name: 'Easy Beans Coffee' }], expires_at: new Date(Date.now() + 60 * 86_400_000).toISOString() } })
+        return
+      }
+      const label = { facebook: 'Easy Beans Coffee', tiktok: '@easybeanscoffee', square: 'Easy Beans Coffee', stripe: 'Easy Beans Coffee SL', sumup: 'Easy Beans Coffee' }[provider]
+      const external = provider === 'facebook' ? { pages: [{ id: 'page-1', name: 'Easy Beans Coffee' }], page_id: 'page-1' } : provider === 'tiktok' ? { private_only: true }
+        : provider === 'sumup' ? { merchant_code: 'MDEMO123', currency: 'EUR' } : {}
       setConnection(provider, { status: 'connected', account_label: label, connected_at: nowIso(), last_checked_at: nowIso(), last_error: null, external })
+    },
+    async chooseLinkedInPage(pageId) {
+      requireAdmin()
+      const li = integ.integrations.find(i => i.provider === 'linkedin')!
+      const name = pageId === 'me' ? li.external.member?.name : li.external.pages?.find(p => p.id === pageId)?.name
+      if (!li.external.member || !name) throw new Error('That Page isn’t one this account manages')
+      Object.assign(li, { status: 'connected', account_label: name, last_checked_at: nowIso(), last_error: null, external: { ...li.external, page_id: pageId, page_name: name } })
+    },
+    async chooseSearchConsoleSite(site) {
+      requireAdmin()
+      const sc = integ.integrations.find(i => i.provider === 'search_console')!
+      if (!sc.external.sites?.includes(site)) throw new Error('That website isn’t in this Google account’s Search Console')
+      Object.assign(sc, { status: 'connected', account_label: site.replace(/^sc-domain:|^https?:\/\/|\/$/g, ''), last_checked_at: nowIso(), last_error: null, external: { ...sc.external, site } })
+    },
+    async searchConsole(from, to) {
+      requireAdmin()
+      const sc = integ.integrations.find(i => i.provider === 'search_console')!
+      if (sc.status !== 'connected') throw new Error('Connect Search Console on the Connections page to see how the website does on Google')
+      return demoSearch(from, to)
     },
     async chooseFacebookPage(pageId) {
       requireAdmin()
@@ -1054,15 +1156,16 @@ export function createDemoApi(): Api {
     },
     async sales(from, to) {
       requireAdmin()
-      const p = integ.integrations.find(i => (i.provider === 'square' || i.provider === 'stripe') && i.status === 'connected')
-      if (!p) throw new Error('Connect Stripe on the Connections page to see takings')
-      return { provider: p.provider as 'square' | 'stripe', ...demoSales(from, to, p.provider as 'square' | 'stripe') }
+      const p = integ.integrations.find(i => (i.provider === 'square' || i.provider === 'stripe' || i.provider === 'sumup') && i.status === 'connected')
+      if (!p) throw new Error('Connect Stripe, Square or SumUp on the Connections page to see takings')
+      return { provider: p.provider as 'square' | 'stripe' | 'sumup', ...demoSales(from, to, p.provider as 'square' | 'stripe' | 'sumup') }
     },
     async salesItems(from, to) {
       requireAdmin()
-      const p = integ.integrations.find(i => (i.provider === 'square' || i.provider === 'stripe') && i.status === 'connected')
-      if (!p) throw new Error('Connect Stripe or Square on the Connections page to see takings')
-      return p.provider === 'stripe' ? { items: null, reason: 'stripe' as const } : { items: demoItems(from, to) }
+      const p = integ.integrations.find(i => (i.provider === 'square' || i.provider === 'stripe' || i.provider === 'sumup') && i.status === 'connected')
+      if (!p) throw new Error('Connect Stripe, Square or SumUp on the Connections page to see takings')
+      // Stripe and SumUp send no items, so there are no best sellers.
+      return p.provider === 'stripe' || p.provider === 'sumup' ? { items: null, reason: p.provider } : { items: demoItems(from, to) }
     },
     async socialPosts() {
       requireAdmin()

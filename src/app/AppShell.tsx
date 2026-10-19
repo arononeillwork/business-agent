@@ -484,7 +484,6 @@ export function AppShell() {
                 </Typography>
               )}
             </ButtonBase>
-            {!isPartner && <NotificationBell tone="nav" />}
           </Stack>
           {/* Scrolls only on short screens, without a visible scrollbar. */}
           <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', mx: mini ? -1 : -1.5, px: mini ? 1 : 1.5, pb: 2,
@@ -531,9 +530,9 @@ export function AppShell() {
                 {business?.name && <Typography component="span" noWrap sx={{ fontFamily: fonts.display, fontWeight: 500, fontSize: '1rem', color: tokens.ink }}>{business.name}</Typography>}
               </ButtonBase>
               <LanguageToggle />
+              {!isPartner && <NotificationBell />}
               <SearchButton pages={searchPages} />
               <ThemeToggle />
-              {!isPartner && <NotificationBell />}
               <AccountMenu sx={{ p: 1, borderRadius: '50%' }}><AccountIcon /></AccountMenu>
             </Toolbar>
           </AppBar>
@@ -541,6 +540,7 @@ export function AppShell() {
         {desktop && (
           <Box sx={{ position: 'sticky', top: 0, zIndex: 5, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 1,
             px: 4, height: 60, backdropFilter: 'blur(12px)', background: `color-mix(in srgb, ${tokens.bg} 78%, transparent)` }}>
+            {!isPartner && <NotificationBell />}
             <SearchButton pages={searchPages} />
             <ThemeToggle />
             <LanguageToggle />

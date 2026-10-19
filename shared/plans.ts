@@ -14,7 +14,7 @@ export type Feature = 'google_maps' | 'apps' | 'whatsapp' | 'takings' | 'sports'
 export interface PlanLimits {
   /** Active admins and employees. null: no limit. */
   people: number | null
-  /** Instagram, Facebook and TikTok accounts connected at once. */
+  /** Instagram, Facebook, TikTok and LinkedIn accounts connected at once. */
   socialAccounts: number
   /** Social posts scheduled per calendar month. null: no limit. */
   postsPerMonth: number | null
@@ -105,7 +105,7 @@ export const FEATURE_LABEL: Record<Feature, string> = {
   google_maps: msg('Opening hours synced to Google Maps'),
   apps: msg('Gmail, Outlook, Google Drive and OneDrive'),
   whatsapp: msg('WhatsApp and text reminders'),
-  takings: msg('Takings from Stripe or Square'),
+  takings: msg('Takings from Square, SumUp or Stripe'),
   sports: msg("What's on: matches and fiestas"),
   music: msg('Music for the venue'),
   kiosk: msg('Clock-in tablet with staff PINs'),
@@ -150,7 +150,7 @@ export const COMPARE: { group: string; rows: CompareRow[] }[] = [
       explain: msg('A tablet by the door where staff clock in with a PIN.') },
   ] },
   { group: msg('Social media'), rows: [
-    { label: msg('Social accounts connected (Instagram, Facebook, TikTok)'), values: byLimit(l => String(l.socialAccounts)),
+    { label: msg('Social accounts connected (Instagram, Facebook, TikTok, LinkedIn)'), values: byLimit(l => String(l.socialAccounts)),
       explain: msg('How many accounts you can post to at once.') },
     { label: msg('Scheduled posts per month'), values: byLimit(l => lim(l.postsPerMonth)),
       explain: msg('Posts planned for a date. Reminders to post yourself count too.') },
@@ -176,7 +176,7 @@ export const COMPARE: { group: string; rows: CompareRow[] }[] = [
       explain: msg('An approved playlist staff can play and pause from the app.') },
   ] },
   { group: msg('Money and admin'), rows: [
-    { label: msg('Takings from Stripe or Square next to team cost'), values: byFeature('takings'),
+    { label: msg('Takings from Square, SumUp or Stripe next to team cost'), values: byFeature('takings'),
       explain: msg('Sales each day beside what the rota costs.') },
     { label: msg('Gmail, Outlook, Google Drive and OneDrive'), values: byFeature('apps'),
       explain: msg('Alerts sent from your own email; exports saved to your own drive.') },
@@ -213,7 +213,7 @@ export function planHighlights(p: Plan, say: Say = english): string[] {
   const extra: Record<PlanId, string[]> = {
     free: [msg('Rota, clock-ins and timecards'), msg('Registro de jornada'), msg('Email reminders')],
     starter: [msg('Everything in Free'), msg('Opening hours synced to Google Maps'), msg('Gmail, Outlook, Drive and OneDrive')],
-    pro: [msg('Everything in Starter'), msg('WhatsApp and text reminders'), msg('Takings from Stripe or Square'), msg('Clock-in tablet, music and match nights')],
+    pro: [msg('Everything in Starter'), msg('WhatsApp and text reminders'), msg('Takings from Square, SumUp or Stripe'), msg('Clock-in tablet, music and match nights')],
     business: [msg('Everything in Pro'), msg('Gestoría and partner access'), msg('Priority support')],
   }
   return [...base, ...extra[p.id].map(x => say(x))]

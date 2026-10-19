@@ -6,6 +6,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { shiftPaidMinutes, shiftWarnings } from '../shared/rules'
 import { addDays, localDate, localTime, today, weekStart, zonedIso, formatLocal } from '../shared/time'
 import type { Business, CalendarEvent, PartnerArea, PayRate, Position, Profile, Settings, Shift } from '../shared/types'
+import { cleanWebsite } from '../shared/connections'
 
 export interface ToolContext {
   sb: SupabaseClient
@@ -124,7 +125,7 @@ export const TOOLS: ToolDef[] = [
   tool({
     name: 'get_business_details',
     title: 'Business details',
-    description: 'Address, phone, email, Instagram, opening hours, team channel, towns followed and notes.',
+    description: 'Address, phone, email, Instagram, website, opening hours, team channel, towns followed and notes.',
     partner: 'any',
     input: z.object({}),
     readOnly: true,
@@ -145,6 +146,7 @@ export const TOOLS: ToolDef[] = [
       phone: z.string().optional(),
       email: z.string().optional(),
       instagram: z.string().optional(),
+      website: z.string().nullable().optional().describe('The business website, e.g. https://www.example.com/ (https:// is added if missing; null removes it)'),
       team_channel: z.enum(['whatsapp', 'slack', 'sms']).optional(),
       towns_followed: z.array(z.string()).optional(),
       notes: z.string().optional(),
@@ -154,6 +156,7 @@ export const TOOLS: ToolDef[] = [
         .describe('Days to change, e.g. {"mon": {"open": "08:00", "close": "15:00"}, "sun": null} (null = closed)'),
     }),
     async run({ sb }, { admin_notes, opening_hours, ...patch }) {
+      if (patch.website !== undefined) patch.website = cleanWebsite(patch.website)
       if (opening_hours) {
         const cur = check(await sb.from('business').select('opening_hours').eq('id', 1).single())
         Object.assign(patch, { opening_hours: { ...cur.opening_hours, ...opening_hours } })

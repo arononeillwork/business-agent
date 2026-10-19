@@ -67,7 +67,7 @@ export const COMPETITORS: Competitor[] = [
     ],
     missing: [
       msg('Opening hours synced to Google Maps'),
-      msg('Takings from Stripe or Square next to team cost'),
+      msg('Takings from Square, SumUp or Stripe next to team cost'),
       msg("What's on: matches, fiestas and bank holidays"),
       msg('One app for the team: rota and messages live in two different products'),
     ],
