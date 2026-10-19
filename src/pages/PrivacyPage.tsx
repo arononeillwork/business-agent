@@ -1,4 +1,5 @@
 import { Box, Link, Table, TableBody, TableCell, TableHead, TableRow } from '@mui/material'
+import { Link as RouterLink } from 'react-router-dom'
 import { LEGAL } from '../../shared/legal'
 import { H, LegalPage, Mail, P, Ul, operatorLine } from '../components/legal'
 
@@ -117,7 +118,8 @@ export function PrivacyPage() {
         <H>Your rights</H>
         <P>
           You can ask to access, correct, delete or export your data, to restrict or object to how it is used, and to withdraw
-          consent. Write to {mail}. If your data is held for your employer, you can also ask them directly. You have the right to
+          consent. Write to {mail}. How to have your data deleted, step by step:{' '}
+          <Link component={RouterLink} to="/data-deletion">data deletion</Link>. If your data is held for your employer, you can also ask them directly. You have the right to
           complain to your data protection authority; in Spain that is the{' '}
           <Link href="https://www.aepd.es" target="_blank" rel="noreferrer">Agencia Española de Protección de Datos</Link>.
         </P>

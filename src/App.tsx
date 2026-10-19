@@ -43,6 +43,7 @@ const AppearancePage = page(() => import('./pages/AppearancePage'), 'AppearanceP
 const BrandPage = page(() => import('./pages/BrandPage'), 'BrandPage')
 const PrivacyPage = page(() => import('./pages/PrivacyPage'), 'PrivacyPage')
 const TermsPage = page(() => import('./pages/TermsPage'), 'TermsPage')
+const DataDeletionPage = page(() => import('./pages/DataDeletionPage'), 'DataDeletionPage')
 const BillingPage = page(() => import('./pages/BillingPage'), 'BillingPage')
 const ComparePage = page(() => import('./pages/ComparePage'), 'ComparePage')
 const PricingPage = page(() => import('./pages/PricingPage'), 'PricingPage')
@@ -53,6 +54,7 @@ function Routed() {
   // Public, signed in or not (Google and others check it before approving the app).
   if (pathname === '/privacy') return <PrivacyPage />
   if (pathname === '/terms') return <TermsPage />
+  if (pathname === '/data-deletion') return <DataDeletionPage />
   if (pathname === '/pricing') return <PricingPage />
   if (pathname === '/compare') return <ComparePage />
   if (loading) return <Loading />

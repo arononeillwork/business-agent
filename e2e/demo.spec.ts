@@ -1891,6 +1891,14 @@ test('the privacy policy is public, linked from the sign-in page, and covers Goo
   await expect(page.getByText(/Ireland/)).toBeVisible()
 })
 
+test('the data deletion instructions are public and linked from the privacy policy', async ({ page }) => {
+  await page.goto('/privacy?demo')
+  await page.getByRole('link', { name: 'data deletion' }).click()
+  await expect(page.getByRole('heading', { name: 'Data deletion' })).toBeVisible()
+  await expect(page.getByText(/Delete my data/)).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toHaveCount(0)
+})
+
 test('the terms of service are public, linked from the sign-in page and the privacy policy', async ({ page }) => {
   await page.goto('/?demo')
   await page.getByRole('contentinfo').getByRole('link', { name: 'Terms of service' }).click()

@@ -82,8 +82,9 @@ multi-factor one, within 15 minutes.
    **Valid OAuth Redirect URIs**: add
    `https://lhakrmmoxaareykglmtx.supabase.co/auth/v1/callback` (keep the existing
    `/api/integrations/facebook/callback` ones) → **Save changes**.
-2. **App settings → Basic**: check *Privacy policy URL* is `https://businesssagent.com/privacy`,
-   *Terms of service URL* is `https://businesssagent.com/terms` and the app has an icon and a category.
+2. **App settings → Basic**: *Privacy policy URL* `https://businesssagent.com/privacy`, *Terms of
+   service URL* `https://businesssagent.com/terms`, *User data deletion* → **Data deletion
+   instructions URL** `https://businesssagent.com/data-deletion`, an app icon and a category.
 3. **Use cases → Authentication and account creation → Customise**: make sure the `email` and
    `public_profile` permissions are added (both are standard access, no App Review needed).
 4. Top bar: switch the app to **Live** (in *Development* only people with a role on the app
