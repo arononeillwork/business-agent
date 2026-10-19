@@ -32,7 +32,7 @@ const KIND_TAG: Record<CustomerKind, { label: string; fg: string; bg: string }> 
 }
 
 const SORT_BY: Record<string, (c: Customer) => string | number | null> = {
-  name: c => customerName(c), kind: c => c.kind, email: c => c.email, phone: c => c.phone, company: c => c.company,
+  first: c => c.first_name || c.company, last: c => c.last_name, kind: c => c.kind, email: c => c.email, phone: c => c.phone, notes: c => c.notes,
   source: c => t(sourceLabel(c.source)), tags: c => c.tags.join(', ') || null, consent: c => (c.marketing_consent ? 0 : 1),
   added: c => c.created_at,
 }
@@ -72,7 +72,7 @@ export function CustomersPage() {
   }
 
   const cell = { py: 1.25, borderColor: tokens.line } as const
-  const hide = (from: 'sm' | 'md' | 'lg') => ({ display: { xs: 'none', [from]: 'table-cell' } })
+  const hide = (from: 'sm' | 'md' | 'lg' | 'xl') => ({ display: { xs: 'none', [from]: 'table-cell' } })
   return (
     <>
       <PageHeader eyebrow={t('Business')} title={t('Customers')}
@@ -113,7 +113,7 @@ export function CustomersPage() {
               variant={consentOnly ? 'filled' : 'outlined'} color={consentOnly ? 'success' : 'default'} />
           </Stack>
           <Box sx={{ flex: 1 }} />
-          <TextField select size="small" value={source} onChange={e => setSource(e.target.value as CustomerSource | '')} sx={{ minWidth: 160 }}
+          <TextField select size="small" value={source} onChange={e => setSource(e.target.value as CustomerSource | '')} sx={{ width: { xs: '100%', sm: 180 } }}
             slotProps={{ select: { displayEmpty: true, SelectDisplayProps: { 'aria-label': t('Source') } } }}>
             <MenuItem value="">{t('Every source')}</MenuItem>
             {SOURCES.map(s => <MenuItem key={s.key} value={s.key}>{t(s.label)}</MenuItem>)}
@@ -130,15 +130,15 @@ export function CustomersPage() {
             <Table size="small" aria-label={t('Customers')}>
               <TableHead>
                 <TableRow>
-                  <SortCell sort={sort} id="name">{t('Name')}</SortCell>
-                  <SortCell sort={sort} id="kind">{t('Type')}</SortCell>
-                  <SortCell sort={sort} id="email" sx={hide('sm')}>{t('Email')}</SortCell>
+                  <SortCell sort={sort} id="first">{t('First name')}</SortCell>
+                  <SortCell sort={sort} id="last" sx={hide('sm')}>{t('Last name')}</SortCell>
                   <SortCell sort={sort} id="phone" sx={hide('md')}>{t('Phone')}</SortCell>
-                  <SortCell sort={sort} id="company" sx={hide('lg')}>{t('Company')}</SortCell>
-                  <SortCell sort={sort} id="source" sx={hide('md')}>{t('Source')}</SortCell>
-                  <SortCell sort={sort} id="tags" sx={hide('lg')}>{t('Tags')}</SortCell>
+                  <SortCell sort={sort} id="email" sx={hide('md')}>{t('Email')}</SortCell>
+                  <SortCell sort={sort} id="notes" sx={hide('lg')}>{t('Notes')}</SortCell>
+                  <SortCell sort={sort} id="kind">{t('Type')}</SortCell>
+                  <SortCell sort={sort} id="source" sx={hide('xl')}>{t('Source')}</SortCell>
                   <SortCell sort={sort} id="consent">{t('Marketing OK')}</SortCell>
-                  <SortCell sort={sort} id="added" sx={hide('sm')}>{t('Added')}</SortCell>
+                  <SortCell sort={sort} id="added" sx={hide('xl')}>{t('Added')}</SortCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -146,31 +146,36 @@ export function CustomersPage() {
                   <TableRow key={c.id} hover onClick={() => setOpen(c)} tabIndex={0} aria-label={t('{name}: open details', { name: customerName(c) })}
                     onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(c) } }}
                     sx={{ cursor: 'pointer', '&:last-child td': { borderBottom: 0 }, '&:focus-visible': { outline: `2px solid ${tokens.roseDeep}`, outlineOffset: -2 } }}>
-                    <TableCell sx={cell}>
-                      <Typography sx={{ fontWeight: 500 }} noWrap>{customerName(c)}</Typography>
-                      {/* On a phone, the columns that are hidden come under the name. */}
-                      <Typography variant="body2" noWrap sx={{ color: 'text.secondary', display: { xs: 'block', lg: c.company && c.company !== customerName(c) ? 'block' : 'none' } }}>
-                        {[c.company !== customerName(c) ? c.company : null, c.email ?? c.phone].filter(Boolean).join(' · ')}
-                      </Typography>
+                    <TableCell sx={{ ...cell, maxWidth: { xs: 190, sm: 220 } }}>
+                      <Typography sx={{ fontWeight: 500 }} noWrap>{c.first_name || (c.last_name ? '' : c.company) || '—'}</Typography>
+                      {/* What the hidden columns would show comes under it: the surname on a phone, the company, and on a phone the email or phone. */}
+                      {c.last_name && <Typography noWrap sx={{ fontWeight: 500, display: { xs: 'block', sm: 'none' } }}>{c.last_name}</Typography>}
+                      {c.company && c.company !== c.first_name && (
+                        <Typography variant="body2" noWrap sx={{ color: 'text.secondary' }}>{c.company}</Typography>
+                      )}
+                      {(c.email || c.phone) && (
+                        <Typography variant="body2" noWrap sx={{ color: 'text.secondary', display: { xs: 'block', md: 'none' } }}>{c.phone ?? c.email}</Typography>
+                      )}
                     </TableCell>
-                    <TableCell sx={cell}><Tag fg={KIND_TAG[c.kind].fg} bg={KIND_TAG[c.kind].bg}>{t(KIND_TAG[c.kind].label)}</Tag></TableCell>
-                    <TableCell sx={{ ...cell, ...hide('sm') }}>
-                      {c.email ? <Link href={`mailto:${c.email}`} onClick={e => e.stopPropagation()} underline="hover">{c.email}</Link> : '—'}
-                    </TableCell>
+                    <TableCell sx={{ ...cell, ...hide('sm'), fontWeight: 500 }}>{c.last_name ?? '—'}</TableCell>
                     <TableCell sx={{ ...cell, ...hide('md'), whiteSpace: 'nowrap' }}>
                       {c.phone ? <Link href={`tel:${c.phone.replace(/\s/g, '')}`} onClick={e => e.stopPropagation()} underline="hover">{c.phone}</Link> : '—'}
                     </TableCell>
-                    <TableCell sx={{ ...cell, ...hide('lg'), color: 'text.secondary' }}>{c.company ?? '—'}</TableCell>
-                    <TableCell sx={{ ...cell, ...hide('md') }}>{t(sourceLabel(c.source))}</TableCell>
-                    <TableCell sx={{ ...cell, ...hide('lg') }}>
-                      <Stack direction="row" sx={{ gap: 0.5, flexWrap: 'wrap' }}>{c.tags.map(x => <Tag key={x}>{x}</Tag>)}</Stack>
+                    <TableCell sx={{ ...cell, ...hide('md') }}>
+                      {c.email ? <Link href={`mailto:${c.email}`} onClick={e => e.stopPropagation()} underline="hover">{c.email}</Link> : '—'}
                     </TableCell>
+                    <TableCell sx={{ ...cell, ...hide('lg'), maxWidth: 260, color: 'text.secondary' }}>
+                      <Typography variant="body2" sx={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{c.notes ?? '—'}</Typography>
+                      {c.tags.length > 0 && <Stack direction="row" sx={{ gap: 0.5, flexWrap: 'wrap', mt: 0.5 }}>{c.tags.map(x => <Tag key={x}>{x}</Tag>)}</Stack>}
+                    </TableCell>
+                    <TableCell sx={cell}><Tag fg={KIND_TAG[c.kind].fg} bg={KIND_TAG[c.kind].bg}>{t(KIND_TAG[c.kind].label)}</Tag></TableCell>
+                    <TableCell sx={{ ...cell, ...hide('xl') }}>{t(sourceLabel(c.source))}</TableCell>
                     <TableCell sx={cell}>
                       {c.marketing_consent
                         ? <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', color: tokens.goodFg }}><ConsentIcon sx={{ fontSize: 18 }} /><span>{t('Yes')}</span></Stack>
                         : <Typography variant="body2" component="span" sx={{ color: 'text.secondary' }}>{t('No')}</Typography>}
                     </TableCell>
-                    <TableCell sx={{ ...cell, ...hide('sm'), color: 'text.secondary', whiteSpace: 'nowrap' }}>{formatLocal(c.created_at, 'd MMM yyyy')}</TableCell>
+                    <TableCell sx={{ ...cell, ...hide('xl'), color: 'text.secondary', whiteSpace: 'nowrap' }}>{formatLocal(c.created_at, 'd MMM yyyy')}</TableCell>
                   </TableRow>
                 ))}
                 {data.data && rows.length === 0 && (

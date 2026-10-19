@@ -52,7 +52,7 @@ export function AccountPage() {
               {dirty && <Button onClick={() => { setName(me.full_name ?? ''); setPhone(me.phone ?? ''); setMethod(me.contact_method ?? null) }}>{t('Cancel')}</Button>}
               <Button variant="contained" disabled={!dirty || !name.trim()} onClick={() => run(async () => {
                 if (phone && phone.replace(/\D/g, '').length < 8) throw new Error(t('Enter the full mobile number'))
-                await api.updateProfile(me.id, { full_name: name, phone: phone || null, ...(isPartner ? {} : { contact_method: method, whatsapp_opt_in: method === 'whatsapp' }) }); await refresh()
+                await api.updateProfile(me.id, { full_name: name, phone: phone || null, ...(isPartner ? {} : { contact_method: method, whatsapp_opt_in: method === 'whatsapp' || method === 'sms' }) }); await refresh()
               }, t('Saved'))}>{t('Save')}</Button>
             </Stack>
           </CardContent>

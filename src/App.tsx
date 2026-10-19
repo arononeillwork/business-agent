@@ -59,7 +59,7 @@ function ToBilling() {
 }
 
 function Routed() {
-  const { me, loading, isAdmin, isPartner, partnerCan } = useApp()
+  const { me, loading, isAdmin, isPartner, partnerCan, canSeePay } = useApp()
   const { pathname } = useLocation()
   // Public, signed in or not (Google and others check it before approving the app).
   if (pathname === '/privacy') return <PrivacyPage />
@@ -114,7 +114,7 @@ function Routed() {
         <Route path="appearance" element={<AppearancePage />} />
         <Route path="account" element={<AccountPage />} />
         <Route path="finances" element={<FinancesPage />} />
-        <Route path="sales" element={<PlanGate feature="takings"><SalesPage /></PlanGate>} />
+        <Route path="sales" element={canSeePay ? <PlanGate feature="takings"><SalesPage /></PlanGate> : <Navigate to="/" />} />
         {/* Sales was briefly under Finances, and Accounts is a menu section: old links still land. */}
         <Route path="finances/sales" element={<Navigate to="/sales" replace />} />
         <Route path="accounts" element={<Navigate to="/finances" replace />} />
