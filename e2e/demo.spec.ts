@@ -1903,6 +1903,98 @@ test.describe('social planner', () => {
     await expect(page.getByRole('table', { name: 'Posts' })).toBeVisible()
   })
 
+  test('every row has edit and bin; a post that didn’t go out is fixed and posted again', async ({ page }) => {
+    await open(page, '/connections')
+    await connectDrive(page)
+
+    // Instagram refused it: it says why, and it can be edited to try again.
+    const failed = page.getByRole('region', { name: 'Sent' }).getByRole('article', { name: /Acai bowls/ })
+    await expect(failed).toContainText('Not posted')
+    await expect(failed).toContainText('Instagram: not posted (Instagram couldn’t use the photo or video)')
+    await failed.getByRole('button', { name: 'Edit post' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Edit post' })
+    await expect(dialog.getByRole('alert').first()).toContainText('This didn’t go out: Instagram couldn’t use the photo or video')
+    // Its time has passed, so it starts from Now; the caption, photo and accounts can all change.
+    await expect(dialog.getByRole('radio', { name: 'Now' })).toBeChecked()
+    await dialog.getByLabel('Caption', { exact: true }).fill('Acai bowls are back, all week.')
+    await dialog.getByRole('button', { name: 'Remove photo 1' }).click()
+    await dialog.getByLabel('Photo or video file').setInputFiles(photo('acai.png'))
+    await expect(dialog.getByRole('button', { name: 'Remove photo 1' })).toBeVisible()
+    await dialog.getByRole('checkbox', { name: /Google Maps/ }).check()
+    await dialog.getByRole('button', { name: 'Post now' }).click()
+    await toast(page, 'Posting now')
+    const again = page.getByRole('region', { name: 'Sent' }).getByRole('article', { name: /all week/ })
+    await expect(again).toContainText('Posted')
+    await expect(again.getByRole('list', { name: 'Where it went' })).toContainText('Instagram: posted')
+    await expect(again.getByRole('list', { name: 'Where it went' })).toContainText('Google Maps: posted')
+    // Gone out: it can't be edited any more; the bin only takes it off the list.
+    await expect(again.getByRole('button', { name: 'Edit post' })).toHaveCount(0)
+    await again.getByRole('button', { name: 'Delete post' }).click()
+    const remove = page.getByRole('dialog', { name: 'Remove this post from the list?' })
+    await expect(remove).toContainText('stays on the networks it went to')
+    await remove.getByRole('button', { name: 'Remove' }).click()
+    await toast(page, 'Removed from the list')
+    await expect(page.getByRole('region', { name: 'Sent' }).getByRole('article', { name: /all week/ })).toHaveCount(0)
+
+    // The reminder that's due has both too.
+    const due = page.getByRole('region', { name: 'Your turn to post' }).getByRole('article', { name: /Poll sticker/ })
+    await expect(due.getByRole('button', { name: 'Edit post' })).toBeVisible()
+    await expect(due.getByRole('button', { name: 'Delete post' })).toBeVisible()
+
+    // The table: edit and bin at the end of each row. The bin asks first.
+    await view(page, 'Table')
+    const row = page.getByRole('table', { name: 'Posts' }).getByRole('row', { name: /Feria week/ })
+    await row.getByRole('button', { name: 'Edit post' }).click()
+    const edit = page.getByRole('dialog', { name: 'Edit post' })
+    await expect(edit.getByRole('radio', { name: 'Schedule' })).toBeChecked()
+    await edit.getByRole('checkbox', { name: /Google Maps/ }).uncheck()
+    await edit.getByLabel('Caption', { exact: true }).fill('Feria week: open until midnight, Thursday to Sunday.')
+    await edit.getByRole('button', { name: 'Schedule' }).click()
+    await toast(page, /^Scheduled for/)
+    const feria = page.getByRole('table', { name: 'Posts' }).getByRole('row', { name: /until midnight/ })
+    await expect(feria.getByLabel('Google Maps', { exact: true })).toHaveCount(0)
+    await feria.getByRole('button', { name: 'Delete post' }).click()
+    const confirm = page.getByRole('dialog', { name: 'Delete this post?' })
+    await confirm.getByRole('button', { name: 'Keep' }).click()
+    await expect(feria).toBeVisible()
+    await feria.getByRole('button', { name: 'Delete post' }).click()
+    await page.getByRole('dialog', { name: 'Delete this post?' }).getByRole('button', { name: 'Delete' }).click()
+    await toast(page, 'Post deleted')
+    await expect(page.getByRole('table', { name: 'Posts' }).getByRole('row', { name: /until midnight/ })).toHaveCount(0)
+  })
+
+  test('posts are planned in your own time zone, chosen in My account', async ({ page }) => {
+    await open(page, '/account')
+    const zone = page.getByRole('region', { name: 'Time zone' })
+    // The café's until you choose.
+    await expect(zone.getByRole('combobox', { name: 'Time zone' })).toHaveValue(/^Europe\/Madrid/)
+    await expect(zone).toContainText('It’s 09:00 there now')
+    await zone.getByRole('combobox', { name: 'Time zone' }).fill('London')
+    await page.getByRole('option', { name: /Europe\/London/ }).click()
+    await toast(page, 'Time zone set to London')
+    await expect(zone).toContainText('It’s 08:00 there now')
+
+    // 09:30 in London is 10:30 at the café.
+    await page.getByRole('link', { name: 'Social planner' }).first().click()
+    await page.getByRole('button', { name: 'New post' }).click()
+    const dialog = page.getByRole('dialog', { name: 'New post' })
+    await dialog.getByLabel('Caption', { exact: true }).fill('Flat white Friday')
+    await dialog.getByRole('checkbox', { name: /Instagram/ }).uncheck()
+    await dialog.getByRole('radio', { name: 'Schedule' }).check()
+    await dialog.getByLabel('Date').fill('2026-10-02')
+    await dialog.getByLabel('Time (London)').fill('09:30')
+    await dialog.getByRole('button', { name: /Schedule|Set reminder/ }).click()
+    await toast(page, /for Fri 2 Oct, 09:30/)
+    await expect(page.getByRole('region', { name: 'Coming up' }).getByRole('article', { name: /Flat white Friday/ })).toContainText('09:30')
+
+    await fromAccountMenu(page, 'My account')
+    await zone.getByRole('combobox', { name: 'Time zone' }).fill('Madrid')
+    await page.getByRole('option', { name: /Europe\/Madrid/ }).click()
+    await toast(page, 'Time zone set to Madrid')
+    await page.getByRole('link', { name: 'Social planner' }).first().click()
+    await expect(page.getByRole('region', { name: 'Coming up' }).getByRole('article', { name: /Flat white Friday/ })).toContainText('10:30')
+  })
+
   test('@phone the calendar shows dots per day and the chosen day’s posts below', async ({ page }) => {
     await open(page, '/social')
     await view(page, 'Calendar')
