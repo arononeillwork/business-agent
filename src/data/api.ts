@@ -1,7 +1,7 @@
 import type { ApiKey, AppNotification, Brand, BreakType, Business, CalendarApp, CalendarEvent, ConnectorProvider, ContactMethod, CorrectionRequest, Customer, CustomerInput, EventAlert, Expense, InstagramProfile, Integration, PostMedia, Sales, SalesItems, SearchReport, SocialNetwork, SocialPost, IntegrationProvider, IntegrationsState, KioskPerson, MusicNow, MusicPlaylist, MusicProvider, MyMusic, MyNowPlaying, OpenBreak, OpeningHours, OutboxItem, PartnerArea, PayRate, Position, Profile, Settings, Shift, SpotifyPlaylist, TimeEntry, TimeEntryChange, TimeOff, TimeOffKind, Todo, TodoCategory, TodoPatch, CafeMusicLibrary, CafeTrack, MusicAction, MusicPlayerReport, MusicPlayerState } from '../../shared/types'
 import type { Billing, Interval, PlanId } from '../../shared/plans'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
-import type { InboxState, InboxThread } from '../../shared/messages'
+import type { InboxConversation, InboxState, InboxThread } from '../../shared/messages'
 import type { ReferralState } from '../../shared/referrals'
 import type { KindInfo } from '../../shared/social'
 import type { InstagramMention } from '../../shared/mentions'
@@ -170,7 +170,7 @@ export interface Api {
   /** One click: sign in on instagram.com and come back connected. */
   connectInstagram(back?: 'setup' | 'connections' | 'messages'): Promise<void>
   /** One click for Facebook, TikTok, LinkedIn, Square, Stripe or SumUp: sign in there and come back connected. */
-  connectApp(provider: 'facebook' | 'tiktok' | 'square' | 'stripe' | 'sumup' | 'linkedin', back?: 'setup' | 'connections'): Promise<void>
+  connectApp(provider: 'facebook' | 'tiktok' | 'square' | 'stripe' | 'sumup' | 'linkedin', back?: 'setup' | 'connections' | 'messages'): Promise<void>
   /** Facebook: which Page to post to, when the account manages more than one. */
   chooseFacebookPage(pageId: string): Promise<void>
   /** LinkedIn: post to one of their company Pages, or 'me' for their own profile. */
@@ -219,6 +219,10 @@ export interface Api {
   instagramThread(id: string): Promise<InboxThread>
   /** Reply by text; Instagram allows it within 24 hours of the customer's last message. */
   replyInstagram(id: string, text: string): Promise<void>
+  // The Facebook Page's Messenger chats, read live with the Facebook connection (same reply rules).
+  messengerInbox(): Promise<{ conversations: InboxConversation[] }>
+  messengerThread(id: string): Promise<InboxThread>
+  replyMessenger(id: string, text: string): Promise<void>
   // Referrals: admins see the link, how it's doing and the free months banked.
   referrals(): Promise<ReferralState>
   /** Someone opened a referral link (no sign-in): counted, and who invited them. */

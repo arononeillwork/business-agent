@@ -480,6 +480,11 @@ export function createSupabaseApi(url: string, key: string): Api {
     async replyInstagram(id, text) {
       await worker(`/api/integrations/instagram/inbox/${encodeURIComponent(id)}/reply`, { method: 'POST', body: JSON.stringify({ text }) })
     },
+    messengerInbox: () => worker('/api/integrations/facebook/inbox'),
+    messengerThread: id => worker(`/api/integrations/facebook/inbox/${encodeURIComponent(id)}`),
+    async replyMessenger(id, text) {
+      await worker(`/api/integrations/facebook/inbox/${encodeURIComponent(id)}/reply`, { method: 'POST', body: JSON.stringify({ text }) })
+    },
     async uploadPhoto(file) {
       const jpeg = await readyPhoto(file, false)
       return (await worker<{ url: string }>('/api/integrations/media?folder=Posts', { method: 'POST', body: jpeg,
