@@ -234,8 +234,8 @@ billing.post('/api/billing/checkout', async c => {
     billing_address_collection: 'required',
     tax_id_collection: { enabled: true },
     customer_update: { name: 'auto', address: 'auto' },
-    success_url: `${origin}/billing?checkout=done`,
-    cancel_url: `${origin}/billing?checkout=cancelled`,
+    success_url: `${origin}/account/billing?checkout=done`,
+    cancel_url: `${origin}/account/billing?checkout=cancelled`,
   })
   return c.json({ url: session.url })
 })
@@ -244,7 +244,7 @@ billing.post('/api/billing/checkout', async c => {
 billing.post('/api/billing/portal', async c => {
   const r = await row(c.env)
   if (!r.stripe_customer_id) return c.json({ error: 'There is no subscription yet. Choose a plan first.' }, 400)
-  const return_url = `${new URL(c.req.url).origin}/billing`
+  const return_url = `${new URL(c.req.url).origin}/account/billing`
   const open = () => stripe<{ url: string }>(c.env, 'POST', '/billing_portal/sessions', { customer: r.stripe_customer_id!, return_url })
   try {
     return c.json({ url: (await open()).url })

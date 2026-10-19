@@ -559,12 +559,36 @@ test.describe('finances', () => {
     await expect(page.getByText('18 items')).toBeVisible()
     await expect(page.getByText('Rent', { exact: true })).toBeVisible()
     await expect(page.getByText(/7[.,]?865[.,]09/).first()).toBeVisible()
-    // The four headline figures sit side by side, two by two.
+    // The four headline figures sit in one row on a computer.
     const tiles = page.getByRole('list', { name: 'At a glance' }).getByRole('listitem')
     await expect(tiles).toHaveCount(4)
-    const [first, second, third] = await Promise.all([0, 1, 2].map(i => tiles.nth(i).boundingBox()))
-    expect(Math.abs(first!.y - second!.y)).toBeLessThan(2)
-    expect(third!.y).toBeGreaterThan(first!.y + first!.height - 2)
+    const boxes = await Promise.all([0, 1, 2, 3].map(i => tiles.nth(i).boundingBox()))
+    for (const b of boxes) expect(Math.abs(b!.y - boxes[0]!.y)).toBeLessThan(2)
+
+    // Sort by a column heading; filter by category with the chips above the table.
+    const names = () => page.getByRole('table', { name: 'Expenses' }).locator('tbody tr td:first-child').allTextContents()
+    await page.getByRole('button', { name: 'Per month' }).click()
+    await expect.poll(async () => (await names())[0]).toMatch(/^Staff wages/)
+    await page.getByRole('button', { name: 'Per month' }).click()
+    await expect.poll(async () => (await names())[0]).toMatch(/^Broadband/)
+    const filters = page.getByRole('group', { name: 'Filter by category' })
+    await filters.getByRole('button', { name: 'Utilities 3' }).click()
+    await expect.poll(names).toEqual(['Broadband', 'Water', 'Electricity'])
+    await expect(page.getByRole('row').filter({ hasText: 'Total shown' })).toContainText(/270/)
+    await filters.getByRole('button', { name: 'Premises 4' }).click()
+    await expect(page.getByRole('table', { name: 'Expenses' }).locator('tbody tr')).toHaveCount(7)
+    await filters.getByRole('button', { name: 'All 18' }).click()
+    await expect(page.getByRole('table', { name: 'Expenses' }).locator('tbody tr')).toHaveCount(18)
+
+    // Export: Excel, CSV, PDF and copy.
+    await page.getByRole('button', { name: 'Export' }).click()
+    const download = page.waitForEvent('download')
+    await page.getByRole('menuitem', { name: /Excel/ }).click()
+    expect((await download).suggestedFilename()).toMatch(/^expenses-.*\.xlsx$/)
+    await page.getByRole('button', { name: 'Export' }).click()
+    const csv = page.waitForEvent('download')
+    await page.getByRole('menuitem', { name: /CSV/ }).click()
+    expect((await csv).suggestedFilename()).toMatch(/\.csv$/)
 
     // One Edit button for the whole list; every change saves at once.
     await page.getByRole('button', { name: 'Edit expenses' }).click()
@@ -572,6 +596,12 @@ test.describe('finances', () => {
     await page.getByLabel('Count Loan in the total').uncheck()
     await page.getByRole('button', { name: 'Add expense' }).click()
     await page.getByLabel('Name').last().fill('Coffee beans')
+    // Category is a list; a new one can be added to it.
+    await page.getByLabel('Category for Coffee beans').click()
+    await page.getByRole('option', { name: 'Add category…' }).click()
+    await page.getByLabel('Category name').fill('Beans')
+    await page.getByRole('button', { name: 'Add', exact: true }).click()
+    await expect(page.getByLabel('Category for Coffee beans')).toHaveText('Beans')
     await page.getByLabel('Per month for Coffee beans').fill('250')
     await page.getByRole('button', { name: 'Save changes' }).click()
     await toast(page, 'Expenses saved')
@@ -580,6 +610,7 @@ test.describe('finances', () => {
     await expect(page.getByText('18 items · 1 not counted')).toBeVisible()
     await expect(page.getByRole('row').filter({ hasText: 'Loan' })).toContainText('Not counted')
     await expect(page.getByRole('button', { name: 'Save changes' })).toHaveCount(0)
+    await expect(page.getByRole('group', { name: 'Filter by category' }).getByRole('button', { name: 'Beans 1' })).toBeVisible()
   })
 
   test('employees cannot see finances', async ({ page }) => {
@@ -1362,7 +1393,7 @@ test('pages can be dragged into a new order, but only within their own section',
   await page.mouse.up()
   await expect.poll(names).toEqual(['Team', 'Time off', 'Timecards', 'Rota'])
   expect(await nav.locator('section', { has: page.getByRole('button', { name: 'Settings', exact: true }) }).getByRole('link').allTextContents())
-    .toEqual(['Set-up', 'Connections', 'Alerts', 'Billing'])
+    .toEqual(['Set-up', 'Connections', 'Alerts'])
   // Saved to Aron's account: someone else gets the usual order, and Aron his own when he's back.
   await signInAs(page, 'mark@example.com')
   await expect.poll(names).toEqual(['Rota', 'Time off', 'Timecards', 'Team'])
@@ -1469,9 +1500,28 @@ test.describe('billing', () => {
 
   test('the sample café is the founding account: the top plan, free, nothing to choose', async ({ page }) => {
     await open(page, '/billing')
+    // Billing lives under My account now; the old address still lands on it.
+    await expect(page).toHaveURL(/\/account\/billing(\?|$)/)
     await expect(page.getByText('Founding account: free')).toBeVisible()
     await expect(page.getByLabel('Business plan').getByRole('button', { name: 'Current plan' })).toBeVisible()
     await expect(page.getByLabel('Pro plan').getByRole('button', { name: 'Choose Pro' })).toBeDisabled()
+  })
+
+  test('Billing is a sub-page of My account in the menu, with an arrow to show it', async ({ page }) => {
+    await open(page, '/team')
+    const nav = page.getByRole('navigation', { name: 'Main' })
+    const billing = nav.getByRole('link', { name: 'Billing' })
+    await expect(billing).toBeHidden()
+    await nav.getByRole('button', { name: 'Show My account pages' }).click()
+    await billing.click()
+    await expect(page).toHaveURL(/\/account\/billing(\?|$)/)
+    await expect(page.getByRole('heading', { name: 'Billing' })).toBeVisible()
+    await expect(billing).toHaveClass(/Mui-selected/)
+    await nav.getByRole('button', { name: 'Hide My account pages' }).click()
+    await expect(billing).toBeHidden()
+    // Opening My account shows its pages.
+    await nav.getByRole('link', { name: 'My account' }).click()
+    await expect(billing).toBeVisible()
   })
 
   test('employees never see Billing', async ({ page }) => {
@@ -2012,11 +2062,19 @@ test.describe('messages', () => {
   test('admin reads Instagram DMs by kind, answers one, and sees when Instagram no longer allows a reply', async ({ page }) => {
     await open(page, '/messages')
     const apps = page.getByRole('group', { name: 'Apps' })
-    await expect(apps.getByRole('button', { name: 'Instagram' })).toHaveAttribute('aria-pressed', 'true')
+    // All is first and chosen to start with: every app's chats, the newest at the top.
+    await expect(apps.getByRole('button').first()).toHaveText('All')
+    await expect(apps.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(apps.getByRole('button', { name: 'Instagram' })).toHaveAttribute('aria-pressed', 'false')
     for (const soon of ['WhatsApp · soon', 'Messenger · soon', 'TikTok · soon']) await expect(apps.getByText(soon)).toBeVisible()
     await expect(apps.getByRole('button', { name: /WhatsApp/ })).toBeDisabled()
 
     const chats = page.getByRole('list', { name: 'Instagram chats' })
+    await expect(chats.getByRole('listitem')).toHaveCount(7)
+    expect(await chats.locator(':scope > li').evaluateAll(els => els.map(e => e.getAttribute('aria-label'))))
+      .toEqual(['@lucia.marbella', '@sanpedro.eats', '@tom_runs', '@marta.g', '@happy.client', '@weekend.visitor', '@old.friend'])
+    await apps.getByRole('button', { name: 'Instagram' }).click()
+    await expect(apps.getByRole('button', { name: 'Instagram' })).toHaveAttribute('aria-pressed', 'true')
     await expect(chats.getByRole('listitem')).toHaveCount(7)
     await page.getByRole('button', { name: 'Mentions & tags 1' }).click()
     await expect(chats.getByRole('listitem')).toHaveCount(1)
@@ -2037,7 +2095,7 @@ test.describe('messages', () => {
     await expect(page.getByRole('button', { name: 'Needs reply 5' })).toBeVisible()
 
     // Three days since their message: a personal reply (Instagram's human agent tag) is still allowed.
-    await page.getByRole('button', { name: 'All', exact: true }).click()
+    await page.getByRole('group', { name: 'Show' }).getByRole('button', { name: 'All', exact: true }).click()
     await chats.getByRole('listitem', { name: '@weekend.visitor' }).getByRole('button').click()
     const later = page.getByRole('region', { name: 'Chat with @weekend.visitor' })
     await expect(later.getByRole('note', { name: 'Personal reply' })).toContainText('more than 24 hours')

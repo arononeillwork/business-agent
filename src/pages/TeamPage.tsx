@@ -13,6 +13,7 @@ import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { PageHeader, PersonAvatar } from '../components/common'
+import { SortCell, useSort } from '../components/tables'
 import type { ContactMethod, Profile } from '../../shared/types'
 import { howReached } from '../../shared/reach'
 import { currencySymbol, formatMoney } from '../../shared/time'
@@ -45,6 +46,10 @@ export function TeamPage() {
     .filter(p => filter === 'all' ? true : filter === 'off' ? !p.active : p.role === filter && p.active)
     .filter(p => !term || p.full_name.toLowerCase().includes(term) || (p.email ?? '').toLowerCase().includes(term))
     .sort((x, y) => Number(y.active) - Number(x.active) || x.full_name.localeCompare(y.full_name))
+  const { rows, sort } = useSort(shown, {
+    name: p => p.full_name, role: p => p.role, status: p => (p.active ? 0 : 1), phone: p => p.phone,
+    rate: p => (rates.has(p.id) ? rates.get(p.id)! : null),
+  }, undefined, ['rate'])
   const selected = people.find(p => p.id === open) ?? null
   const cell = { py: 1.25, borderColor: tokens.line } as const
   const integ = useReachData(isAdmin)
@@ -74,16 +79,16 @@ export function TeamPage() {
           <Table size="small" aria-label="Team">
             <TableHead>
               <TableRow>
-                <TableCell>Name</TableCell>
-                <TableCell>Role</TableCell>
-                {isAdmin && <TableCell>Status</TableCell>}
+                <SortCell sort={sort} id="name">Name</SortCell>
+                <SortCell sort={sort} id="role">Role</SortCell>
+                {isAdmin && <SortCell sort={sort} id="status">Status</SortCell>}
                 {isAdmin && <TableCell>Prefers</TableCell>}
-                {isAdmin && <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Phone</TableCell>}
-                {canSeePay && <TableCell align="right">Hourly rate</TableCell>}
+                {isAdmin && <SortCell sort={sort} id="phone" sx={{ display: { xs: 'none', md: 'table-cell' } }}>Phone</SortCell>}
+                {canSeePay && <SortCell sort={sort} id="rate" align="right">Hourly rate</SortCell>}
               </TableRow>
             </TableHead>
             <TableBody>
-              {shown.map(p => (
+              {rows.map(p => (
                 <TableRow key={p.id} hover={isAdmin} onClick={isAdmin ? () => setOpen(p.id) : undefined}
                   tabIndex={isAdmin ? 0 : undefined} onKeyDown={e => { if (isAdmin && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setOpen(p.id) } }}
                   aria-label={isAdmin ? `${p.full_name}${p.id === me?.id ? ' (you)' : ''}: open details` : undefined}

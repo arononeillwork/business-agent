@@ -34,7 +34,7 @@ export function UpgradeCard({ feature, children }: { feature: Feature; children?
             {children ?? `Your current plan doesn't include it. ${needs.name} is €${needs.monthly} a month.`}
           </Typography>
           {isAdmin
-            ? <Button component={RouterLink} to="/billing" variant="contained">See plans</Button>
+            ? <Button component={RouterLink} to="/account/billing" variant="contained">See plans</Button>
             : <Typography variant="body2" color="text.secondary">Ask an admin to upgrade on the Billing page.</Typography>}
         </Stack>
       </CardContent>
@@ -59,7 +59,7 @@ export function BillingBanner() {
   const why = b.status === 'trialing' ? `Your free trial of ${name} has ended`
     : b.status === 'canceled' ? `Your ${name} plan has ended` : `The payment for ${name} didn't go through`
   return (
-    <Alert severity="warning" sx={{ borderRadius: 0 }} action={<Button color="inherit" size="small" component={RouterLink} to="/billing">Fix billing</Button>}>
+    <Alert severity="warning" sx={{ borderRadius: 0 }} action={<Button color="inherit" size="small" component={RouterLink} to="/account/billing">Fix billing</Button>}>
       {why}. You're on the Free plan until it's paid: paid features are paused, nothing is deleted.
     </Alert>
   )

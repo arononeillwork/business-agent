@@ -50,7 +50,7 @@ export function BillingPage() {
   useEffect(() => {
     const result = new URLSearchParams(search).get('checkout')
     if (!result) return
-    navigate('/billing', { replace: true })
+    navigate('/account/billing', { replace: true })
     if (result === 'done') {
       void api.syncBilling().then(() => { void billing.reload(); void plan.reload() })
       notify('Thanks! Your plan is set up.', 'success')
@@ -77,7 +77,7 @@ export function BillingPage() {
   const s = plan.status
   return (
     <Box>
-      <PageHeader eyebrow="Settings" title="Billing" />
+      <PageHeader eyebrow="My account" title="Billing" />
       <Stack spacing={3}>
         {b && !b.ready && <Alert severity="info">Paid plans aren't switched on yet: the Stripe key (STRIPE_SECRET_KEY) still needs adding. See docs/billing.md.</Alert>}
         {b && paymentProblem(b) && (
@@ -187,10 +187,6 @@ export function BillingPage() {
               <Button variant="outlined" href={`mailto:${ENTERPRISE.email}?subject=${encodeURIComponent('Business Agent Enterprise')}`}>Contact sales</Button>
             </CardContent>
           </Card>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-            Payments are taken by Stripe. The {TRIAL_MONTHS}-month trial of Business asks for a card up front and charges nothing until it ends; if the payment
-            then doesn't go through, the business moves to Free until it does. Change or cancel any time.
-          </Typography>
         </Box>
       </Stack>
     </Box>

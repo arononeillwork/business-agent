@@ -39,24 +39,29 @@ export function MessagesPage() {
   useConnectResult(() => { void integ.reload() })
   const ig = integ.data?.integrations.find(i => i.provider === 'instagram')
   const connected = ig?.status === 'connected'
+  const [app, setApp] = useState<MessagePlatform | 'all'>('all')
 
   return (
     <>
       <PageHeader eyebrow="Business" title="Messages" />
       <Stack direction="row" role="group" aria-label="Apps" sx={{ gap: 1, flexWrap: 'wrap', mb: 2.5 }}>
+        {/* All: every app's chats together, newest first (the default). */}
+        <Chip label="All" clickable onClick={() => setApp('all')} aria-pressed={app === 'all'}
+          color={app === 'all' ? 'primary' : 'default'} variant={app === 'all' ? 'filled' : 'outlined'} />
         {PLATFORMS.map(p => (
           <Tooltip key={p.id} title={p.live ? '' : `${p.name} messages are coming soon`}>
             <span>
               <Chip icon={<Box sx={{ display: 'flex', ml: 0.75, opacity: p.live ? 1 : 0.5 }}><Brand icon={p.icon} /></Box>}
-                label={p.live ? p.name : `${p.name} · soon`} disabled={!p.live} aria-pressed={p.live} onClick={() => {}}
-                color={p.live ? 'primary' : 'default'} variant={p.live ? 'filled' : 'outlined'} />
+                label={p.live ? p.name : `${p.name} · soon`} disabled={!p.live} aria-pressed={app === p.id}
+                onClick={() => { if (p.live) setApp(p.id) }}
+                color={app === p.id ? 'primary' : 'default'} variant={app === p.id ? 'filled' : 'outlined'} />
             </span>
           </Tooltip>
         ))}
       </Stack>
       <ErrorBox error={integ.error} />
       {integ.data && !connected && <ConnectInstagram row={ig} configured={!!integ.data.configured.instagram} />}
-      {connected && <Inbox ig={ig!} />}
+      {connected && <Inbox ig={ig!} app={app} />}
     </>
   )
 }
@@ -94,7 +99,7 @@ function ConnectInstagram({ row, configured }: { row?: Integration; configured: 
   )
 }
 
-function Inbox({ ig }: { ig: Integration }) {
+function Inbox({ ig, app }: { ig: Integration; app: MessagePlatform | 'all' }) {
   const { api } = useApp()
   const run = useAction()
   const theme = useTheme()
@@ -102,7 +107,10 @@ function Inbox({ ig }: { ig: Integration }) {
   const [filter, setFilter] = useState<InboxFilter>('all')
   const [open, setOpen] = useState<string | null>(null)
   const data = useAsync('instagram-inbox', () => api.instagramInbox(), [], { refetchInterval: 60_000 })
-  const all = data.data?.conversations ?? []
+  // Newest first: the chat with the latest message (from either side) at the top.
+  const all = useMemo(() => (data.data?.conversations ?? [])
+    .filter(c => app === 'all' || c.platform === app)
+    .sort((a, b) => lastAt(b) - lastAt(a)), [data.data, app])
   const shown = all.filter(c => matchesFilter(c, filter))
   const count = (f: InboxFilter) => all.filter(c => matchesFilter(c, f)).length
   const chosen = all.find(c => c.id === open) ?? null
@@ -132,7 +140,7 @@ function Inbox({ ig }: { ig: Integration }) {
           You can reply for 24 hours after someone’s last message, and for up to 7 days as a personal reply you write yourself.
         </Typography>
       </Stack>
-      {data.data && shown.length === 0 && <Empty>{filter === 'all' ? 'No Instagram messages yet.' : 'Nothing here right now.'}</Empty>}
+      {data.data && shown.length === 0 && <Empty>{filter === 'all' ? (app === 'all' ? 'No messages yet.' : 'No Instagram messages yet.') : 'Nothing here right now.'}</Empty>}
       <Stack component="ul" aria-label="Instagram chats" sx={{ m: 0, p: 0, listStyle: 'none', gap: 0.5 }}>
         {shown.map(c => <ChatRow key={c.id} c={c} selected={c.id === open} roomy={wide && !chosen} onOpen={() => setOpen(c.id)} />)}
       </Stack>
@@ -155,6 +163,9 @@ function Inbox({ ig }: { ig: Integration }) {
     </Card>
   )
 }
+
+/** When a chat last moved: its newest message, or Instagram's own updated time. */
+const lastAt = (c: InboxConversation) => Math.max(Date.parse(c.updatedAt) || 0, ...c.recent.map(m => Date.parse(m.at) || 0))
 
 const KIND_TAG: Partial<Record<InboxMessage['kind'], string>> = { story_mention: 'Story mention', story_reply: 'Story reply', share: 'Shared post' }
 

@@ -14,9 +14,10 @@ import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { ClockRulesCard } from '../components/ClockRules'
+import { SortCell, useSort } from '../components/tables'
 import { ErrorBox, Flags, Loading, PageHeader, PersonAvatar, SectionTitle, Stat, StatRow, Tag, WeekNav } from '../components/common'
 import { addDays, currencySymbol, formatDuration, formatLocal, formatMoney, localDate, localTime, today, weekStart, zonedIso } from '../../shared/time'
-import type { CorrectionRequest, TimeEntry } from '../../shared/types'
+import type { CorrectionRequest, Shift, TimeEntry } from '../../shared/types'
 
 /** yyyy-MM-ddTHH:mm in business time, for datetime-local inputs. */
 const toInput = (iso: string | null) => (iso ? formatLocal(iso, "yyyy-MM-dd'T'HH:mm") : '')
@@ -166,40 +167,7 @@ export function TimecardsPage() {
                   <Chip variant="outlined" label={`${canSeePay ? '' : 'Est. '}${formatMoney(paid / 60 * rate * (canSeePay ? mult : 1))}`} />
                 )}
               </Stack>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Day</TableCell><TableCell>Scheduled</TableCell><TableCell>In</TableCell><TableCell>Out</TableCell>
-                    <TableCell>Breaks</TableCell><TableCell>Paid</TableCell><TableCell>Flags</TableCell><TableCell />
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {list.map(e => {
-                    const s = shiftOf(e)
-                    return (
-                      <TableRow key={e.id} hover>
-                        <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                          {formatLocal(e.clock_in, 'EEE d')}{e.on_holiday && <Chip size="small" label="Holiday" color="error" sx={{ ml: 0.5 }} />}
-                        </TableCell>
-                        <TableCell sx={{ color: 'text.secondary', whiteSpace: 'nowrap' }}>{s ? `${localTime(s.starts_at)}–${localTime(s.ends_at)}` : '—'}</TableCell>
-                        <TableCell>{localTime(e.clock_in)}</TableCell>
-                        <TableCell>{e.clock_out ? localTime(e.clock_out) : <Chip size="small" color="success" label="On shift" />}</TableCell>
-                        <TableCell>{e.break_minutes ? `${e.break_minutes}m` : '—'}</TableCell>
-                        <TableCell sx={{ fontWeight: 500 }}>{formatDuration(e.paid_minutes)}</TableCell>
-                        <TableCell><Flags flags={e.flags} /></TableCell>
-                        <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                          {e.approved_at && <Tooltip title="Approved"><LockIcon fontSize="small" color="action" sx={{ verticalAlign: 'middle' }} /></Tooltip>}
-                          {(isAdmin || (e.profile_id === me?.id && e.clock_out)) && (
-                            <IconButton size="small" aria-label={isAdmin ? 'Edit' : 'Request correction'} onClick={() => setEditing(e)}>
-                              <EditIcon fontSize="small" />
-                            </IconButton>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
+              <TimecardTable list={list} shiftOf={shiftOf} onEdit={setEditing} />
             </CardContent>
           </Card>
         )
@@ -208,6 +176,53 @@ export function TimecardsPage() {
       {editing && <EditDialog entry={editing} onClose={() => setEditing(null)} onSaved={data.reload} />}
       {adding && <AddDialog monday={monday} onClose={() => setAdding(false)} onSaved={data.reload} />}
     </>
+  )
+}
+
+/** One person's week, day by day; the headings sort it. */
+function TimecardTable({ list, shiftOf, onEdit }: { list: TimeEntry[]; shiftOf: (e: TimeEntry) => Shift | undefined; onEdit: (e: TimeEntry) => void }) {
+  const { isAdmin, me } = useApp()
+  const { rows, sort } = useSort(list, {
+    day: e => e.clock_in, scheduled: e => { const s = shiftOf(e); return s ? localTime(s.starts_at) : null }, in: e => localTime(e.clock_in),
+    out: e => (e.clock_out ? localTime(e.clock_out) : null), breaks: e => e.break_minutes, paid: e => e.paid_minutes, flags: e => e.flags.length || null,
+  }, undefined, ['paid', 'breaks', 'flags'])
+  return (
+    <Table size="small">
+      <TableHead>
+        <TableRow>
+          <SortCell sort={sort} id="day">Day</SortCell><SortCell sort={sort} id="scheduled">Scheduled</SortCell>
+          <SortCell sort={sort} id="in">In</SortCell><SortCell sort={sort} id="out">Out</SortCell>
+          <SortCell sort={sort} id="breaks">Breaks</SortCell><SortCell sort={sort} id="paid">Paid</SortCell>
+          <SortCell sort={sort} id="flags">Flags</SortCell><TableCell />
+        </TableRow>
+      </TableHead>
+      <TableBody>
+        {rows.map(e => {
+          const s = shiftOf(e)
+          return (
+            <TableRow key={e.id} hover>
+              <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                {formatLocal(e.clock_in, 'EEE d')}{e.on_holiday && <Chip size="small" label="Holiday" color="error" sx={{ ml: 0.5 }} />}
+              </TableCell>
+              <TableCell sx={{ color: 'text.secondary', whiteSpace: 'nowrap' }}>{s ? `${localTime(s.starts_at)}–${localTime(s.ends_at)}` : '—'}</TableCell>
+              <TableCell>{localTime(e.clock_in)}</TableCell>
+              <TableCell>{e.clock_out ? localTime(e.clock_out) : <Chip size="small" color="success" label="On shift" />}</TableCell>
+              <TableCell>{e.break_minutes ? `${e.break_minutes}m` : '—'}</TableCell>
+              <TableCell sx={{ fontWeight: 500 }}>{formatDuration(e.paid_minutes)}</TableCell>
+              <TableCell><Flags flags={e.flags} /></TableCell>
+              <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                {e.approved_at && <Tooltip title="Approved"><LockIcon fontSize="small" color="action" sx={{ verticalAlign: 'middle' }} /></Tooltip>}
+                {(isAdmin || (e.profile_id === me?.id && e.clock_out)) && (
+                  <IconButton size="small" aria-label={isAdmin ? 'Edit' : 'Request correction'} onClick={() => onEdit(e)}>
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                )}
+              </TableCell>
+            </TableRow>
+          )
+        })}
+      </TableBody>
+    </Table>
   )
 }
 

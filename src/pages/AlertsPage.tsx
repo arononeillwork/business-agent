@@ -4,6 +4,7 @@ import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { Empty, PageHeader, SectionTitle, Tag } from '../components/common'
+import { SortCell, useSort } from '../components/tables'
 import { formatLocal } from '../../shared/time'
 import type { OutboxItem, Settings } from '../../shared/types'
 import { tokens } from '../theme'
@@ -35,7 +36,6 @@ export function AlertsPage() {
   const integ = useAsync('integrations', () => api.integrations(), [])
   const wa = integ.data?.integrations.find(i => i.provider === 'whatsapp')
   const optedIn = profiles.filter(p => p.whatsapp_opt_in && p.phone && p.active).length
-  if (!settings) return null
 
   const describe = (o: OutboxItem) => {
     if (o.kind === 'whatsapp') {
@@ -46,6 +46,11 @@ export function AlertsPage() {
     if (o.kind === 'google_post') return { what: 'Post', to: 'Google listing', channel: 'Google' }
     return { what: 'Post', to: 'Instagram', channel: 'Instagram' }
   }
+
+  const { rows: sent, sort } = useSort(log.data ?? [], {
+    when: o => o.created_at, what: o => describe(o).what, to: o => describe(o).to, status: o => o.status,
+  }, { by: 'when', dir: 'desc' }, ['when'])
+  if (!settings) return null
 
   return (
     <>
@@ -89,9 +94,14 @@ export function AlertsPage() {
               {(log.data?.length ?? 0) > 0 && (
                 <Box sx={{ overflowX: 'auto' }}>
                   <Table size="small">
-                    <TableHead><TableRow><TableCell>When</TableCell><TableCell>What</TableCell><TableCell>To</TableCell><TableCell>Status</TableCell></TableRow></TableHead>
+                    <TableHead>
+                      <TableRow>
+                        <SortCell sort={sort} id="when">When</SortCell><SortCell sort={sort} id="what">What</SortCell>
+                        <SortCell sort={sort} id="to">To</SortCell><SortCell sort={sort} id="status">Status</SortCell>
+                      </TableRow>
+                    </TableHead>
                     <TableBody>
-                      {log.data!.map(o => {
+                      {sent.map(o => {
                         const d = describe(o)
                         const st = STATUS[o.status]
                         return (

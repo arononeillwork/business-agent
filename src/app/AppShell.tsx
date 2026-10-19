@@ -48,7 +48,8 @@ import { SearchButton, ThemeToggle } from './QuickActions'
 import { fonts, tokens } from '../theme'
 
 // `partner`: which partner areas show the item ('any' = every partner). Items without it are staff-only.
-interface NavItem { key: string; to: string; label: string; short?: string; icon: ReactNode; who?: 'admin' | 'pay'; partner?: PartnerArea[] | 'any' }
+// `children`: sub-pages, shown indented under the item when it's opened (or its arrow is pressed).
+interface NavItem { key: string; to: string; label: string; short?: string; icon: ReactNode; who?: 'admin' | 'pay'; partner?: PartnerArea[] | 'any'; children?: NavItem[] }
 interface NavSection { key: string; label: string | null; items: NavItem[] }
 
 // The menu, in sections. Today is the landing page: the logo goes there, so it has no menu item.
@@ -77,12 +78,13 @@ export const SECTIONS: NavSection[] = [
     { key: 'setup', to: '/setup', label: 'Set-up', icon: <SetupIcon />, who: 'admin' },
     { key: 'connections', to: '/connections', label: 'Connections', icon: <ConnectIcon />, who: 'admin' },
     { key: 'alerts', to: '/alerts', label: 'Alerts', icon: <AlertsIcon />, who: 'admin' },
-    { key: 'billing', to: '/billing', label: 'Billing', icon: <BillingIcon />, who: 'admin' },
     ...(FEATURES.partners ? [{ key: 'partners', to: '/partners', label: 'Partners', icon: <PartnersIcon />, who: 'admin' as const }] : []),
     ...(FEATURES.kiosk ? [{ key: 'kiosk', to: '/kiosk', label: 'Café tablet', icon: <KioskIcon />, who: 'admin' as const }] : []),
   ] },
   { key: 'me', label: 'You', items: [
-    { key: 'account', to: '/account', label: 'My account', short: 'Me', icon: <AccountIcon />, partner: 'any' },
+    { key: 'account', to: '/account', label: 'My account', short: 'Me', icon: <AccountIcon />, partner: 'any', children: [
+      { key: 'billing', to: '/account/billing', label: 'Billing', icon: <BillingIcon />, who: 'admin' },
+    ] },
     { key: 'appearance', to: '/appearance', label: 'Appearance', icon: <AppearanceIcon />, partner: 'any' },
   ] },
 ]
@@ -90,6 +92,8 @@ const DRAWER = 252
 const MINI = 76
 // Phone tabs: the everyday pages first; everything else sits under "More".
 const PHONE_TABS = ['rota', 'timeoff', 'timecards', 'calendar', 'business']
+/** Every page, sub-pages included. */
+const withChildren = (items: NavItem[]) => items.flatMap(n => [n, ...(n.children ?? [])])
 
 /** You: the account menu, opened from your name at the bottom left (or the account icon on a phone). */
 function AccountMenu({ children, label, sx }: { children: ReactNode; label?: string; sx?: object }) {
@@ -110,6 +114,7 @@ function AccountMenu({ children, label, sx }: { children: ReactNode; label?: str
       <Menu anchorEl={anchor} open={!!anchor} onClose={close} anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
         transformOrigin={{ vertical: 'bottom', horizontal: 'left' }} slotProps={{ paper: { sx: { minWidth: 220, borderRadius: '14px' } } }}>
         {item('/account', 'My account', <AccountIcon fontSize="small" />)}
+        {isAdmin && !isPartner && item('/account/billing', 'Billing', <BillingIcon fontSize="small" />)}
         {isAdmin && !isPartner && item('/referrals', 'Referrals', <ReferralsIcon fontSize="small" />)}
         {item('/appearance', 'Appearance', <AppearanceIcon fontSize="small" />)}
         <Divider />
@@ -193,7 +198,7 @@ function DemoBanner() {
 function PhoneNav({ sections, current }: { sections: NavSection[]; current: string | false }) {
   const { api } = useApp()
   const [more, setMore] = useState(false)
-  const flat = sections.flatMap(s => s.items).filter(n => n.key !== 'account')
+  const flat = sections.flatMap(s => withChildren(s.items)).filter(n => n.key !== 'account')
   const rank = (n: NavItem) => { const i = PHONE_TABS.indexOf(n.key); return i < 0 ? PHONE_TABS.length : i }
   const tabbable = flat.filter(n => n.key !== 'kiosk').sort((a, b) => rank(a) - rank(b))
   const overflow = flat.length > 5
@@ -217,7 +222,7 @@ function PhoneNav({ sections, current }: { sections: NavSection[]; current: stri
         slotProps={{ paper: { sx: { borderTopLeftRadius: 20, borderTopRightRadius: 20, pb: 'env(safe-area-inset-bottom)', maxHeight: '85vh' } } }}>
         <List aria-label="More pages" sx={{ py: 1 }} onClick={() => setMore(false)}>
           {sections.map(s => {
-            const rest = s.items.filter(n => !shownKeys.includes(n.key))
+            const rest = withChildren(s.items).filter(n => n.key !== 'account' && !shownKeys.includes(n.key))
             if (!rest.length) return null
             return (
               <Box key={s.key}>
@@ -241,28 +246,61 @@ function PhoneNav({ sections, current }: { sections: NavSection[]; current: stri
   )
 }
 
-/** One menu row. With `sortable`, a drag handle sits at the right end (drag it, or focus it and use the arrow keys). */
+/**
+ * One menu row. With `sortable`, a drag handle sits at the right end (drag it, or focus it and use the arrow keys).
+ * A page with sub-pages has an arrow to show them; they open by themselves while you're on the page or one of them.
+ */
 function NavRow({ n, current, sortable }: { n: NavItem; current: string | false; sortable: boolean }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: n.key, disabled: !sortable })
+  const kids = n.children ?? []
+  const inside = current === n.key || kids.some(k => k.key === current)
+  const [open, setOpen] = useState(inside)
+  useEffect(() => { if (inside) setOpen(true) }, [inside])
+  const selected = (key: string) => current === key
+  const dark = selected(n.key)
   return (
     <Box ref={setNodeRef} sx={{ position: 'relative', mb: 0.25, transform: CSS.Transform.toString(transform), transition,
       zIndex: isDragging ? 2 : 'auto', opacity: isDragging ? 0.92 : 1,
       '&:hover .nav-drag, & .nav-drag:focus-visible': { opacity: 1 } }}>
-      <ListItemButton component={Link} to={n.to} selected={current === n.key}
-        sx={{ py: 0.6, pl: 1.25, pr: sortable ? 4 : 1.25, ...(isDragging ? { boxShadow: `0 10px 24px -10px ${tokens.shadow}`, bgcolor: tokens.surface } : {}) }}>
-        <ListItemIcon sx={{ minWidth: 34, '& svg': { fontSize: 20 } }}>{n.icon}</ListItemIcon>
-        <ListItemText primary={n.label} slotProps={{ primary: { sx: { fontWeight: current === n.key ? 600 : 400, fontSize: '0.9rem' } } }} />
-      </ListItemButton>
-      {sortable && (
-        <Box ref={setActivatorNodeRef} className="nav-drag" component="button" type="button" aria-label={`Reorder ${n.label}`}
-          {...attributes} {...listeners} aria-roledescription="drag handle"
-          sx={{ all: 'unset', position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', display: 'grid', placeItems: 'center',
-            width: 24, height: 24, borderRadius: '6px', cursor: isDragging ? 'grabbing' : 'grab', opacity: isDragging ? 1 : 0, transition: 'opacity .15s',
-            color: current === n.key ? '#2B2522' : SIDEBAR.faint, touchAction: 'none',
-            '&:hover': { color: current === n.key ? '#2B2522' : SIDEBAR.bright, background: current === n.key ? 'rgba(43,37,34,0.08)' : SIDEBAR.hover },
-            '&:focus-visible': { outline: `2px solid ${tokens.rose}` } }}>
-          <DragIcon sx={{ fontSize: 18 }} />
-        </Box>
+      <Box sx={{ position: 'relative' }}>
+        <ListItemButton component={Link} to={n.to} selected={dark} onClick={kids.length ? () => setOpen(true) : undefined}
+          sx={{ py: 0.6, pl: 1.25, pr: (sortable ? 4 : 1.25) + (kids.length ? 3 : 0), ...(isDragging ? { boxShadow: `0 10px 24px -10px ${tokens.shadow}`, bgcolor: tokens.surface } : {}) }}>
+          <ListItemIcon sx={{ minWidth: 34, '& svg': { fontSize: 20 } }}>{n.icon}</ListItemIcon>
+          <ListItemText primary={n.label} slotProps={{ primary: { sx: { fontWeight: dark ? 600 : 400, fontSize: '0.9rem' } } }} />
+        </ListItemButton>
+        {kids.length > 0 && (
+          <Box component="button" type="button" onClick={() => setOpen(!open)} aria-expanded={open} aria-controls={`nav-sub-${n.key}`}
+            aria-label={`${open ? 'Hide' : 'Show'} ${n.label} pages`}
+            sx={{ all: 'unset', position: 'absolute', right: sortable ? 30 : 6, top: '50%', transform: 'translateY(-50%)', display: 'grid', placeItems: 'center',
+              width: 24, height: 24, borderRadius: '6px', cursor: 'pointer', color: dark ? '#2B2522' : SIDEBAR.faint,
+              '&:hover': { color: dark ? '#2B2522' : SIDEBAR.bright, background: dark ? 'rgba(43,37,34,0.08)' : SIDEBAR.hover },
+              '&:focus-visible': { outline: `2px solid ${tokens.rose}` } }}>
+            <ExpandIcon sx={{ fontSize: 18, transition: 'transform .2s', transform: open ? 'rotate(180deg)' : 'none' }} />
+          </Box>
+        )}
+        {sortable && (
+          <Box ref={setActivatorNodeRef} className="nav-drag" component="button" type="button" aria-label={`Reorder ${n.label}`}
+            {...attributes} {...listeners} aria-roledescription="drag handle"
+            sx={{ all: 'unset', position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', display: 'grid', placeItems: 'center',
+              width: 24, height: 24, borderRadius: '6px', cursor: isDragging ? 'grabbing' : 'grab', opacity: isDragging ? 1 : 0, transition: 'opacity .15s',
+              color: dark ? '#2B2522' : SIDEBAR.faint, touchAction: 'none',
+              '&:hover': { color: dark ? '#2B2522' : SIDEBAR.bright, background: dark ? 'rgba(43,37,34,0.08)' : SIDEBAR.hover },
+              '&:focus-visible': { outline: `2px solid ${tokens.rose}` } }}>
+            <DragIcon sx={{ fontSize: 18 }} />
+          </Box>
+        )}
+      </Box>
+      {kids.length > 0 && (
+        <Collapse in={open} id={`nav-sub-${n.key}`}>
+          <List disablePadding aria-label={`${n.label} pages`} sx={{ mt: 0.25, ml: 2.25, pl: 1, borderLeft: `1px solid ${tokens.navLine}` }}>
+            {kids.map(k => (
+              <ListItemButton key={k.key} component={Link} to={k.to} selected={selected(k.key)} sx={{ py: 0.45, pl: 1, mb: 0.25 }}>
+                <ListItemIcon sx={{ minWidth: 30, '& svg': { fontSize: 18 } }}>{k.icon}</ListItemIcon>
+                <ListItemText primary={k.label} slotProps={{ primary: { sx: { fontWeight: selected(k.key) ? 600 : 400, fontSize: '0.85rem' } } }} />
+              </ListItemButton>
+            ))}
+          </List>
+        </Collapse>
       )}
     </Box>
   )
@@ -286,7 +324,7 @@ function SidebarSection({ section, current, folded, onToggle, mini, onReorder }:
   }
   const list = mini ? (
     <List disablePadding>
-      {section.items.map(n => (
+      {withChildren(section.items).map(n => (
         <Tooltip key={n.key} title={n.label} placement="right">
           <ListItemButton component={Link} to={n.to} selected={current === n.key} aria-label={n.label}
             sx={{ justifyContent: 'center', py: 0.9, mb: 0.25 }}>
@@ -362,13 +400,15 @@ export function AppShell() {
     setNavOrder(next)
     if (me) api.updateProfile(me.id, { preferences: { ...me.preferences, navOrder: next } }).then(refresh).catch(() => { /* kept on screen; saves next time */ })
   }
-  const sections = orderSections(SECTIONS.map(s => ({ ...s, items: s.items.filter(allowed) })).filter(s => s.items.length), navOrder)
-  const all = SECTIONS.flatMap(s => s.items)
+  const sections = orderSections(SECTIONS.map(s => ({ ...s, items: s.items.filter(allowed).map(n => (n.children ? { ...n, children: n.children.filter(allowed) } : n)) }))
+    .filter(s => s.items.length), navOrder)
+  // The most specific match wins, so /account/billing is Billing, not My account.
+  const all = SECTIONS.flatMap(s => withChildren(s.items)).sort((a, b) => b.to.length - a.to.length)
   const current = all.find(n => n.to !== '/' && pathname.startsWith(n.to))?.key ?? (pathname === '/' ? 'today' : false)
   const home = isPartner ? '/business' : '/'
   const searchPages = [
     ...(isPartner ? [] : [{ key: 'today', to: '/', label: 'Today', icon: <TodayIcon />, section: null }]),
-    ...sections.flatMap(s => s.items.map(n => ({ key: n.key, to: n.to, label: n.label, icon: n.icon, section: s.label }))),
+    ...sections.flatMap(s => withChildren(s.items).map(n => ({ key: n.key, to: n.to, label: n.label, icon: n.icon, section: s.label }))),
   ]
 
   return (
@@ -396,7 +436,7 @@ export function AppShell() {
             maskImage: 'linear-gradient(to bottom, #000 calc(100% - 28px), transparent)' }}>
             {sections.map(s => (
               <SidebarSection key={s.key} section={s} current={current} mini={mini}
-                folded={!mini && folded.includes(s.key) && !s.items.some(n => n.key === current)}
+                folded={!mini && folded.includes(s.key) && !withChildren(s.items).some(n => n.key === current)}
                 onToggle={() => toggleFolded(s.key)} onReorder={keys => reorder(s.key, keys)} />
             ))}
           </Box>
@@ -411,7 +451,7 @@ export function AppShell() {
             </IconButton>
           </Tooltip>
           <Stack direction={mini ? 'column' : 'row'} spacing={mini ? 0.5 : 1.25} sx={{ mt: 1, mb: 2, flexShrink: 0, p: mini ? 0.75 : 1.25, alignItems: 'center', borderRadius: '14px', bgcolor: tokens.navPanel }}>
-            {/* You: your name opens the account menu (My account, Referrals, Appearance, Sign out). */}
+            {/* You: your name opens the account menu (My account, Billing, Referrals, Appearance, Sign out). */}
             <AccountMenu label={mini ? me?.full_name : undefined}
               sx={{ flex: mini ? 'none' : 1, minWidth: 0, gap: 1.25, justifyContent: 'flex-start', borderRadius: '10px', p: 0.25, '&:hover': { background: SIDEBAR.hover } }}>
               {me && <PersonAvatar name={me.full_name} colour={me.colour} size={34} />}

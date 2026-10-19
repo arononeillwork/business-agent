@@ -48,6 +48,12 @@ const BillingPage = page(() => import('./pages/BillingPage'), 'BillingPage')
 const ComparePage = page(() => import('./pages/ComparePage'), 'ComparePage')
 const PricingPage = page(() => import('./pages/PricingPage'), 'PricingPage')
 
+/** /billing → /account/billing, keeping ?checkout=… from Stripe. */
+function ToBilling() {
+  const { search } = useLocation()
+  return <Navigate to={{ pathname: '/account/billing', search }} replace />
+}
+
 function Routed() {
   const { me, loading, isAdmin, isPartner, partnerCan } = useApp()
   const { pathname } = useLocation()
@@ -104,7 +110,9 @@ function Routed() {
         <Route path="account" element={<AccountPage />} />
         <Route path="finances" element={<FinancesPage />} />
         <Route path="alerts" element={isAdmin ? <AlertsPage /> : <Navigate to="/" />} />
-        <Route path="billing" element={isAdmin ? <BillingPage /> : <Navigate to="/" />} />
+        <Route path="account/billing" element={isAdmin ? <BillingPage /> : <Navigate to="/" />} />
+        {/* Billing used to be under Settings: old links (and Stripe's way back) still land on it. */}
+        <Route path="billing" element={<ToBilling />} />
         <Route path="connections" element={isAdmin ? <ConnectionsPage /> : <Navigate to="/" />} />
         <Route path="social" element={isAdmin ? <SocialPlannerPage /> : <Navigate to="/" />} />
         <Route path="messages" element={isAdmin ? <MessagesPage /> : <Navigate to="/" />} />

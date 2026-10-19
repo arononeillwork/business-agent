@@ -1,6 +1,6 @@
 import {
   Alert, Box, Button, Card, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, LinearProgress,
-  Radio, RadioGroup, Stack, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TableSortLabel, Tabs, TextField,
+  Radio, RadioGroup, Stack, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tabs, TextField,
   ToggleButton, ToggleButtonGroup, Tooltip, Typography, useMediaQuery, useTheme,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
@@ -34,6 +34,7 @@ import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction, useNotify } from '../app/Notify'
 import { Empty, ErrorBox, PageHeader, SectionTitle, Tag } from '../components/common'
+import { SortCell, useSort } from '../components/tables'
 import { formatLocal, localDate, localTime, today, zonedIso } from '../../shared/time'
 import { KINDS, kindInfo, matchesMedia, monthWeeks, postProblem, shiftMonth, type MediaFilter } from '../../shared/social'
 import type { IntegrationProvider, IntegrationsState, PostKind, PostMedia, SocialNetwork, SocialPost } from '../../shared/types'
@@ -328,11 +329,10 @@ function CalendarChip({ p, onOpen }: { p: SocialPost; onOpen: () => void }) {
 }
 
 function TableView({ posts, loaded, onEdit }: { posts: SocialPost[]; loaded: boolean; onEdit: (p: SocialPost) => void }) {
-  const [desc, setDesc] = useState(true)
-  const rows = [...posts].sort((a, b) => {
-    const x = whenOf(a) ?? '9999', y = whenOf(b) ?? '9999'
-    return desc ? y.localeCompare(x) : x.localeCompare(y)
-  })
+  const { rows, sort } = useSort(posts, {
+    when: p => whenOf(p), kind: p => kindInfo(p.kind).label, caption: p => p.caption, where: p => p.targets.map(t => networkOf(t).name).join(', '),
+    how: p => (p.auto ? 0 : 1), status: p => STATUS[p.status].label,
+  }, { by: 'when', dir: 'desc' }, ['when'])
   if (loaded && rows.length === 0) return <Empty>No posts here yet. Press New post to plan one.</Empty>
   return (
     <Card>
@@ -340,15 +340,13 @@ function TableView({ posts, loaded, onEdit }: { posts: SocialPost[]; loaded: boo
         <Table size="small" aria-label="Posts" sx={{ minWidth: 720, '& th, & td': { px: 1.25 } }}>
           <TableHead>
             <TableRow>
-              <TableCell sortDirection={desc ? 'desc' : 'asc'}>
-                <TableSortLabel active direction={desc ? 'desc' : 'asc'} onClick={() => setDesc(!desc)}>When</TableSortLabel>
-              </TableCell>
-              <TableCell>Kind</TableCell>
+              <SortCell sort={sort} id="when">When</SortCell>
+              <SortCell sort={sort} id="kind">Kind</SortCell>
               <TableCell>Media</TableCell>
-              <TableCell>Caption</TableCell>
-              <TableCell>Where</TableCell>
-              <TableCell>How</TableCell>
-              <TableCell>Status</TableCell>
+              <SortCell sort={sort} id="caption">Caption</SortCell>
+              <SortCell sort={sort} id="where">Where</SortCell>
+              <SortCell sort={sort} id="how">How</SortCell>
+              <SortCell sort={sort} id="status">Status</SortCell>
               <TableCell />
             </TableRow>
           </TableHead>

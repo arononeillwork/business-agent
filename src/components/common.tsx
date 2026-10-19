@@ -50,10 +50,10 @@ export function StatRow({ children }: { children: ReactNode }) {
   return <Card role="list" aria-label="At a glance" sx={{ mb: 3 }}>{children}</Card>
 }
 
-/** Headline figures as tiles side by side: two across (a 2×2 grid for four). */
+/** Headline figures as compact tiles side by side: two across on a phone, four in a row on a computer. */
 export function StatGrid({ children }: { children: ReactNode }) {
   return (
-    <Box role="list" aria-label="At a glance" sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: { xs: 1.5, sm: 2 }, mb: 3 }}>
+    <Box role="list" aria-label="At a glance" sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(4, minmax(0, 1fr))' }, gap: 1.5, mb: 3 }}>
       {children}
     </Box>
   )
@@ -62,13 +62,13 @@ export function StatGrid({ children }: { children: ReactNode }) {
 /** One tile in a StatGrid. */
 export function StatTile({ label, value, note }: { label: string; value: ReactNode; note?: ReactNode }) {
   return (
-    <Card role="listitem" sx={{ px: { xs: 2, sm: 2.75 }, py: { xs: 1.75, sm: 2.25 }, minWidth: 0 }}>
-      <Typography variant="body2" sx={{ color: 'text.secondary' }}>{label}</Typography>
-      <Typography sx={{ fontFamily: fonts.display, fontSize: { xs: '1.35rem', sm: '1.7rem' }, fontWeight: 400, letterSpacing: '-0.01em',
-        fontVariantNumeric: 'tabular-nums', lineHeight: 1.25, mt: 0.5, overflowWrap: 'anywhere' }}>
+    <Card role="listitem" sx={{ px: 2, py: 1.5, minWidth: 0 }}>
+      <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.8rem' }}>{label}</Typography>
+      <Typography sx={{ fontFamily: fonts.display, fontSize: { xs: '1.25rem', lg: '1.45rem' }, fontWeight: 400, letterSpacing: '-0.01em',
+        fontVariantNumeric: 'tabular-nums', lineHeight: 1.25, mt: 0.25, overflowWrap: 'anywhere' }}>
         {value}
       </Typography>
-      {note && <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.25 }}>{note}</Typography>}
+      {note && <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mt: 0.25 }}>{note}</Typography>}
     </Card>
   )
 }

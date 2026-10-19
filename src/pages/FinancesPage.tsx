@@ -1,7 +1,7 @@
 import { FEATURES } from '../app/features'
 import {
-  Alert, Box, Button, Card, CardContent, Checkbox, IconButton, InputAdornment,
-  Stack, Table, TableBody, TableCell, TableFooter, TableHead, TableRow, TextField, Tooltip, Typography,
+  Alert, Box, Button, Card, CardContent, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, IconButton, InputAdornment,
+  MenuItem, Stack, Table, TableBody, TableCell, TableFooter, TableHead, TableRow, TextField, Tooltip, Typography,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import CheckIcon from '@mui/icons-material/Check'
@@ -12,6 +12,8 @@ import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { Empty, ErrorBox, PageHeader, SectionTitle, Stat, StatGrid, StatRow, StatTile, Tag } from '../components/common'
+import { ExportButton, SortCell, useSort } from '../components/tables'
+import type { ExportTable } from '../lib/export'
 import { addDays, currencySymbol, formatMoney, today, weekStart, zonedIso } from '../../shared/time'
 import { shiftPaidMinutes } from '../../shared/rules'
 import type { Expense } from '../../shared/types'
@@ -63,13 +65,34 @@ export function FinancesPage() {
 type Draft = Partial<Expense> & { key: string; removed?: boolean }
 const blank = (): Draft => ({ key: crypto.randomUUID(), name: '', amount: 0, category: null, notes: null, active: true })
 
+// Offered in the Category list alongside any the business has added itself.
+const CATEGORIES = ['Premises', 'People', 'Utilities', 'Services', 'Supplies', 'Stock', 'Equipment', 'Marketing', 'Software', 'Insurance', 'Finance', 'Taxes & fees', 'Other']
+const NONE = 'Uncategorised'
+const ADD = '\u0000add'
+
 /** The list of expenses. One Edit button turns the whole list into fields; Save keeps every change at once. */
 function Expenses({ list, total, canEdit, loaded }: { list: Expense[]; total: number; canEdit: boolean; loaded: boolean }) {
   const { api } = useApp()
   const run = useAction()
   const [drafts, setDrafts] = useState<Draft[] | null>(null)
+  const [added, setAdded] = useState<string[]>([])
+  const [adding, setAdding] = useState<string | null>(null)
+  const [picked, setPicked] = useState<string[]>([])
   const editing = drafts !== null
   const set = (key: string, patch: Partial<Draft>) => setDrafts(d => d!.map(x => (x.key === key ? { ...x, ...patch } : x)))
+
+  const used = [...list.map(e => e.category), ...(drafts ?? []).map(d => d.category)].map(c => c?.trim()).filter((c): c is string => !!c)
+  const categories = [...new Set([...CATEGORIES, ...used, ...added])].sort((a, b) => (a === 'Other' ? 1 : b === 'Other' ? -1 : a.localeCompare(b)))
+
+  // Filters: the categories this list actually uses, each with how many expenses are in it.
+  const catOf = (e: Expense) => e.category?.trim() || NONE
+  const counts = new Map<string, number>()
+  for (const e of list) counts.set(catOf(e), (counts.get(catOf(e)) ?? 0) + 1)
+  const filters = [...counts.keys()].sort((a, b) => (a === NONE ? 1 : b === NONE ? -1 : a.localeCompare(b)))
+  const active = picked.filter(c => counts.has(c))
+  const filtered = active.length ? list.filter(e => active.includes(catOf(e))) : list
+  const { rows, sort } = useSort(filtered, SORT_BY, undefined, ['amount', 'share'])
+  const shownTotal = rows.filter(e => e.active).reduce((s, e) => s + Number(e.amount), 0)
 
   const save = async () => {
     const rows = drafts!.filter(d => !d.removed)
@@ -91,20 +114,34 @@ function Expenses({ list, total, canEdit, loaded }: { list: Expense[]; total: nu
     if (ok) setDrafts(null)
   }
 
-  const shown = editing ? drafts.filter(d => !d.removed) : list
+  const table = (): ExportTable => ({
+    title: active.length ? `Monthly expenses: ${active.join(', ')}` : 'Monthly expenses',
+    filename: `expenses-${today()}`,
+    columns: ['Expense', 'Category', 'Notes', `Per month (${currencySymbol()})`, 'Counted', 'Share'],
+    rows: rows.map(e => [e.name, e.category ?? '', e.notes ?? '', Number(e.amount), e.active ? 'Yes' : 'No',
+      e.active && total > 0 ? `${Math.round(e.amount / total * 100)}%` : '']),
+    footer: [active.length ? 'Total shown' : 'Total', '', '', shownTotal, '', ''],
+  })
+
+  const shown = editing ? drafts.filter(d => !d.removed) : rows
   return (
     <Card component="section" aria-label="Monthly expenses">
       <CardContent>
-        <SectionTitle action={canEdit && (editing ? (
+        <SectionTitle action={editing ? (
           <Stack direction="row" spacing={1}>
             <Button onClick={() => setDrafts(null)}>Cancel</Button>
             <Button variant="contained" startIcon={<CheckIcon />} onClick={save}>Save changes</Button>
           </Stack>
         ) : (
-          <Button variant="outlined" startIcon={<EditIcon />} onClick={() => setDrafts(list.map(e => ({ ...e, key: e.id })))} aria-label="Edit expenses">
-            Edit
-          </Button>
-        ))}>
+          <Stack direction="row" spacing={1}>
+            <ExportButton table={table} disabled={!rows.length} folder="Finances" />
+            {canEdit && (
+              <Button variant="outlined" startIcon={<EditIcon />} onClick={() => setDrafts(list.map(e => ({ ...e, key: e.id })))} aria-label="Edit expenses">
+                Edit
+              </Button>
+            )}
+          </Stack>
+        )}>
           Monthly expenses
         </SectionTitle>
         {editing && (
@@ -112,18 +149,44 @@ function Expenses({ list, total, canEdit, loaded }: { list: Expense[]; total: nu
             Untick “Count” to keep an expense on the list without adding it to the total.
           </Typography>
         )}
+        {!editing && filters.length > 1 && (
+          <Stack direction="row" role="group" aria-label="Filter by category" sx={{ gap: 0.75, flexWrap: 'wrap', alignItems: 'center', mb: 1.5 }}>
+            <Chip size="small" clickable label={`All ${list.length}`} onClick={() => setPicked([])} aria-pressed={!active.length}
+              variant={!active.length ? 'filled' : 'outlined'} color={!active.length ? 'primary' : 'default'} />
+            {filters.map(c => {
+              const on = active.includes(c)
+              return (
+                <Chip key={c} size="small" clickable label={`${c} ${counts.get(c)}`} aria-pressed={on}
+                  onClick={() => setPicked(on ? active.filter(x => x !== c) : [...active, c])}
+                  variant={on ? 'filled' : 'outlined'} color={on ? 'primary' : 'default'} />
+              )
+            })}
+            {active.length > 0 && (
+              <Typography variant="body2" sx={{ color: 'text.secondary', ml: 0.5 }}>
+                {rows.length} of {list.length} · {formatMoney(shownTotal)} a month
+              </Typography>
+            )}
+          </Stack>
+        )}
         {loaded && !editing && list.length === 0 && <Empty>No expenses yet.{canEdit && ' Press Edit to add one.'}</Empty>}
         {(shown.length > 0 || editing) && (
           <Box sx={{ overflowX: 'auto' }}>
-            <Table size="small" sx={{ minWidth: editing ? 680 : undefined }}>
+            <Table size="small" aria-label="Expenses" sx={{ minWidth: editing ? 680 : undefined }}>
               <TableHead>
-                <TableRow>
-                  {editing && <TableCell padding="checkbox">Count</TableCell>}
-                  <TableCell>Expense</TableCell><TableCell>Category</TableCell>
-                  {editing && <TableCell>Notes</TableCell>}
-                  <TableCell align="right">Per month</TableCell>
-                  <TableCell align="right">{editing ? '' : 'Share'}</TableCell>
-                </TableRow>
+                {editing ? (
+                  <TableRow>
+                    <TableCell padding="checkbox">Count</TableCell>
+                    <TableCell>Expense</TableCell><TableCell>Category</TableCell><TableCell>Notes</TableCell>
+                    <TableCell align="right">Per month</TableCell><TableCell />
+                  </TableRow>
+                ) : (
+                  <TableRow>
+                    <SortCell sort={sort} id="name">Expense</SortCell>
+                    <SortCell sort={sort} id="category">Category</SortCell>
+                    <SortCell sort={sort} id="amount" align="right">Per month</SortCell>
+                    <SortCell sort={sort} id="share" align="right">Share</SortCell>
+                  </TableRow>
+                )}
               </TableHead>
               <TableBody>
                 {editing ? drafts.filter(d => !d.removed).map(d => (
@@ -136,9 +199,15 @@ function Expenses({ list, total, canEdit, loaded }: { list: Expense[]; total: nu
                       <TextField size="small" fullWidth value={d.name ?? ''} onChange={e => set(d.key, { name: e.target.value })} placeholder="Name"
                         slotProps={{ htmlInput: { 'aria-label': 'Name' } }} />
                     </TableCell>
-                    <TableCell sx={{ minWidth: 130 }}>
-                      <TextField size="small" fullWidth value={d.category ?? ''} onChange={e => set(d.key, { category: e.target.value })} placeholder="Category"
-                        slotProps={{ htmlInput: { 'aria-label': `Category for ${d.name || 'this expense'}` } }} />
+                    <TableCell sx={{ minWidth: 150 }}>
+                      <TextField select size="small" fullWidth value={d.category?.trim() ?? ''}
+                        onChange={e => (e.target.value === ADD ? setAdding(d.key) : set(d.key, { category: e.target.value || null }))}
+                        slotProps={{ select: { displayEmpty: true, SelectDisplayProps: { 'aria-label': `Category for ${d.name || 'this expense'}` } } }}>
+                        <MenuItem value=""><Typography component="span" sx={{ color: 'text.secondary' }}>None</Typography></MenuItem>
+                        {categories.map(c => <MenuItem key={c} value={c}>{c}</MenuItem>)}
+                        <Divider />
+                        <MenuItem value={ADD} sx={{ color: 'primary.main' }}><AddIcon fontSize="small" sx={{ mr: 1 }} />Add category…</MenuItem>
+                      </TextField>
                     </TableCell>
                     <TableCell sx={{ minWidth: 150 }}>
                       <TextField size="small" fullWidth value={d.notes ?? ''} onChange={e => set(d.key, { notes: e.target.value })} placeholder="Notes"
@@ -157,7 +226,7 @@ function Expenses({ list, total, canEdit, loaded }: { list: Expense[]; total: nu
                       </Tooltip>
                     </TableCell>
                   </TableRow>
-                )) : list.map(e => (
+                )) : rows.map(e => (
                   <TableRow key={e.id} hover sx={{ '& td': { color: e.active ? undefined : 'text.secondary' } }}>
                     <TableCell sx={{ fontWeight: 500 }}>
                       {e.name}
@@ -184,8 +253,8 @@ function Expenses({ list, total, canEdit, loaded }: { list: Expense[]; total: nu
               {!editing && (
                 <TableFooter>
                   <TableRow>
-                    <TableCell sx={{ fontWeight: 500, color: 'text.primary', fontSize: '0.95rem' }}>Total</TableCell><TableCell />
-                    <TableCell align="right" sx={{ fontWeight: 500, color: 'text.primary', fontSize: '0.95rem', fontVariantNumeric: 'tabular-nums' }}>{formatMoney(total)}</TableCell>
+                    <TableCell sx={{ fontWeight: 500, color: 'text.primary', fontSize: '0.95rem' }}>{active.length ? 'Total shown' : 'Total'}</TableCell><TableCell />
+                    <TableCell align="right" sx={{ fontWeight: 500, color: 'text.primary', fontSize: '0.95rem', fontVariantNumeric: 'tabular-nums' }}>{formatMoney(shownTotal)}</TableCell>
                     <TableCell />
                   </TableRow>
                 </TableFooter>
@@ -197,7 +266,42 @@ function Expenses({ list, total, canEdit, loaded }: { list: Expense[]; total: nu
           <Button startIcon={<AddIcon />} sx={{ mt: 1.5 }} onClick={() => setDrafts(d => [...d!, blank()])}>Add expense</Button>
         )}
       </CardContent>
+      {adding && (
+        <AddCategory existing={categories} onClose={() => setAdding(null)} onAdd={name => {
+          setAdded(a => [...a, name]); set(adding, { category: name }); setAdding(null)
+        }} />
+      )}
     </Card>
+  )
+}
+
+const SORT_BY: Record<string, (e: Expense) => string | number | null> = {
+  name: e => e.name,
+  category: e => e.category,
+  amount: e => Number(e.amount),
+  // Expenses not counted have no share: they sort to the end.
+  share: e => (e.active ? Number(e.amount) : null),
+}
+
+/** A new option for the Category list; it's kept once an expense is saved with it. */
+function AddCategory({ existing, onAdd, onClose }: { existing: string[]; onAdd: (name: string) => void; onClose: () => void }) {
+  const [name, setName] = useState('')
+  const clean = name.trim()
+  const dupe = existing.find(c => c.toLowerCase() === clean.toLowerCase())
+  const submit = () => { if (clean) onAdd(dupe ?? clean) }
+  return (
+    <Dialog open onClose={onClose} maxWidth="xs" fullWidth>
+      <DialogTitle>Add a category</DialogTitle>
+      <DialogContent>
+        <TextField autoFocus fullWidth label="Category name" value={name} onChange={e => setName(e.target.value)} sx={{ mt: 1 }}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); submit() } }}
+          helperText={dupe ? `“${dupe}” is already on the list: it will be used.` : 'For example Coffee beans, Repairs or Delivery'} />
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Cancel</Button>
+        <Button variant="contained" disabled={!clean} onClick={submit}>Add</Button>
+      </DialogActions>
+    </Dialog>
   )
 }
 
