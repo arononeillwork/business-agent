@@ -1,5 +1,5 @@
 // Square's customer directory comes into Customers by itself: right after Square is connected,
-// then every 15 minutes (only the people added or changed since). Each one is a customer with
+// then every hour (only the people added or changed since). Each one is a customer with
 // source "square", linked by Square's id so they're never added twice. Someone already on the list
 // (same email or phone) is linked rather than added again, and keeps where they came from. What's
 // typed in the app wins: Square only fills fields that are empty here. Nobody is opted in to

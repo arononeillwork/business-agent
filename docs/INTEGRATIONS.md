@@ -304,7 +304,7 @@ What shows where (admins who can see pay only; Pro plan and up):
 - **Accounts → Finances**: takings today, this week, last week and the last 30 days, and team cost
   this week as a share of takings.
 - **Business → Customers**: everyone in Square's customer directory (Square → Customers), brought in
-  straight after connecting and then every 15 minutes (people added or changed since). Each is a
+  straight after connecting and then every hour (people added or changed since). Each is a
   *Customer* with source **Square** (a "Square" tag in the list, and "Square" in the source filter).
   Someone already on the list with the same email or phone is linked instead of added twice, and
   keeps where they came from; Square only fills fields that are empty in the app, so edits made here

@@ -916,7 +916,7 @@ integrations.get('/api/integrations/square/callback', c => appCallback(c, 'squar
   const now = new Date().toISOString()
   await setIntegration(db, 'square', { status: 'connected', connected_by: state.uid, connected_at: now, last_checked_at: now, last_error: null,
     account_label: proven.label, external: proven.external })
-  // The till's customers come into Customers straight away (then every 15 minutes, by the cron).
+  // The till's customers come into Customers straight away (then every hour, by the cron).
   c.executionCtx.waitUntil(syncSquareCustomers(c.env, db, true).catch(e => console.error('square customers failed', e)))
 }))
 

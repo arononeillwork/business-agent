@@ -225,7 +225,7 @@ export default {
   fetch: (request, env, ctx) => provider(env, new URL(request.url).origin).fetch(request, env, ctx),
   // Every minute: close forgotten timecards, queue shift alerts, remind admins about events,
   // send planned social posts, deliver the outbox, refresh sports; every 15 minutes, Instagram
-  // mentions and new Square customers.
+  // mentions; every hour, new Square customers.
   // Nightly: fill yesterday's missing timecards from the rota, check every connection still works.
   async scheduled(event, env, ctx) {
     if (!env.SUPABASE_SERVICE_ROLE_KEY) return
@@ -267,7 +267,9 @@ export default {
       // Every 15 minutes: new Instagram tags and story mentions, for admins to repost or ignore.
       if (Math.floor(event.scheduledTime / 60_000) % 15 === 0) {
         await checkMentions(env, db).catch(e => console.error('instagram mentions failed', e))
-        // And Square customers added or changed since the last look, into Customers.
+      }
+      // Every hour: Square customers added or changed since the last look, into Customers.
+      if (Math.floor(event.scheduledTime / 60_000) % 60 === 0) {
         await syncSquareCustomers(env, db).catch(e => console.error('square customers failed', e))
       }
       // Sports only while it's switched on (Sports page).
