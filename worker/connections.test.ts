@@ -15,6 +15,7 @@ import { FakeSupabase, GROUP } from './test/fakeSupabase'
 import { FakeProviders, readGmail } from './test/fakeProviders'
 import { GROUPS, groupOf } from '../shared/connections'
 import { authEmail, hookSecret, verifyHook } from './authEmail'
+import { syncSquareCustomers } from './squareCustomers'
 
 const APP = 'https://app.test'
 const env = {
@@ -624,7 +625,7 @@ describe('Facebook, TikTok and Square: one click, connected once they really wor
   it('Square: best sellers from completed orders, added up by item; an older connection is asked to connect again', async () => {
     await connectOwn('square')
     const auth = new URL((await (await post('/api/integrations/square/start')).json() as { url: string }).url)
-    expect(auth.searchParams.get('scope')).toBe('MERCHANT_PROFILE_READ PAYMENTS_READ ORDERS_READ')
+    expect(auth.searchParams.get('scope')).toBe('MERCHANT_PROFILE_READ PAYMENTS_READ ORDERS_READ CUSTOMERS_READ')
     const res = await get('/api/integrations/payments/items?from=2026-09-28&to=2026-09-29')
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ items: [
@@ -636,6 +637,37 @@ describe('Facebook, TikTok and Square: one click, connected once they really wor
     expect(status('square')).toBe('connected') // takings keep working meanwhile
     db.table('profiles').find(p => p.id === 'admin-1')!.can_see_pay = false
     expect((await get('/api/integrations/payments/items?from=2026-09-28&to=2026-09-28')).status).toBe(403)
+  })
+
+  it('Square: its customers come into Customers when connecting, tagged Square, then only what changed', async () => {
+    // Already on the list from the café (same phone): linked, gaps filled, keeps where they came from and the notes typed here.
+    db.table('customers').push({ id: 'c-1', kind: 'customer', first_name: 'Lucía', last_name: null, email: null, phone: '+34 600 111 222',
+      company: null, birthday: null, notes: 'Regular, sits outside', source: 'walk_in', square_id: null })
+    await connectOwn('square')
+    await Promise.all(background)
+    const people = () => db.table('customers')
+    expect(people()).toHaveLength(2) // the one Square has no name, email or phone for is left out
+    expect(people()[0]).toMatchObject({ id: 'c-1', square_id: 'SQC1', source: 'walk_in', last_name: 'García', email: 'lucia@example.com',
+      notes: 'Regular, sits outside', birthday: null }) // Square had no year
+    expect(people()[1]).toMatchObject({ square_id: 'SQC2', kind: 'customer', source: 'square', first_name: 'Tom', email: 'tom@example.co.uk',
+      notes: 'Oat flat white', phone: null })
+    expect(people()[1].marketing_consent).toBeUndefined() // nobody is opted in to marketing for them (the database default is no)
+    expect(db.integration('square').last_sync_at).toBeTruthy()
+
+    // Later: only people added or changed since; nobody twice, and what's typed here wins.
+    people()[1].notes = 'Oat flat white, extra hot'
+    apis.square.customers[1] = { ...apis.square.customers[1], note: 'Changed in Square', updated_at: new Date().toISOString() }
+    apis.square.customers.push({ id: 'SQC4', given_name: 'Ana', phone_number: '+44 7700 900123', updated_at: new Date().toISOString() })
+    expect(await syncSquareCustomers(env, serviceClient(env))).toBe(1)
+    expect(people()).toHaveLength(3)
+    expect(people()[1].notes).toBe('Oat flat white, extra hot')
+    expect(people()[2]).toMatchObject({ square_id: 'SQC4', source: 'square', first_name: 'Ana', phone: '+44 7700 900123' })
+    expect(await syncSquareCustomers(env, serviceClient(env))).toBe(0)
+
+    // A connection made before customers were asked for: says reconnect, and takings keep working.
+    apis.square.customersScope = false
+    expect(await syncSquareCustomers(env, serviceClient(env), true)).toBe('reconnect')
+    expect(status('square')).toBe('connected')
   })
 
   it('Square: takings only for admins with pay access; no location means not connected', async () => {

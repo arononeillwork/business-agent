@@ -95,7 +95,7 @@ export function CustomersPage() {
       {data.data && all.length === 0 ? (
         <Empty>
           <Typography sx={{ fontWeight: 500, color: 'text.primary', mb: 0.5 }}>{t('Keep your customers and leads in one place')}</Typography>
-          {t('Add regulars, people who asked about catering or an event, and businesses you’d like to work with (a hotel, an office, a gym). Tick who agreed to receive marketing, then export them for a newsletter or an offer. Have a list already? Import it from a CSV file.')}
+          {t('Add regulars, people who asked about catering or an event, and businesses you’d like to work with (a hotel, an office, a gym). Tick who agreed to receive marketing, then export them for a newsletter or an offer. Have a list already? Import it from a CSV file. Using Square? Connect it on the Connections page and its customers come in by themselves.')}
           <Stack direction="row" spacing={1} sx={{ justifyContent: 'center', mt: 2 }}>
             <Button variant="contained" startIcon={<PersonAddIcon />} onClick={() => setOpen('new')}>{t('Add someone')}</Button>
             <Button variant="outlined" startIcon={<UploadIcon />} onClick={() => setImporting(true)}>{t('Import a CSV')}</Button>
@@ -168,7 +168,13 @@ export function CustomersPage() {
                       <Typography variant="body2" sx={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{c.notes ?? '—'}</Typography>
                       {c.tags.length > 0 && <Stack direction="row" sx={{ gap: 0.5, flexWrap: 'wrap', mt: 0.5 }}>{c.tags.map(x => <Tag key={x}>{x}</Tag>)}</Stack>}
                     </TableCell>
-                    <TableCell sx={cell}><Tag fg={KIND_TAG[c.kind].fg} bg={KIND_TAG[c.kind].bg}>{t(KIND_TAG[c.kind].label)}</Tag></TableCell>
+                    <TableCell sx={cell}>
+                      <Stack direction="row" sx={{ gap: 0.5, flexWrap: 'wrap' }}>
+                        <Tag fg={KIND_TAG[c.kind].fg} bg={KIND_TAG[c.kind].bg}>{t(KIND_TAG[c.kind].label)}</Tag>
+                        {/* Brought in from the till by itself: tagged so it's clear where they came from. */}
+                        {c.source === 'square' && <Tag>{'Square'}</Tag>}
+                      </Stack>
+                    </TableCell>
                     <TableCell sx={{ ...cell, ...hide('xl') }}>{t(sourceLabel(c.source))}</TableCell>
                     <TableCell sx={cell}>
                       {c.marketing_consent
@@ -247,7 +253,7 @@ function CustomerDialog({ customer, tags, onClose }: { customer: Customer | null
             helperText={t('For a business you’d like to work with: a hotel, an office, a gym')} slotProps={{ htmlInput: { maxLength: 120 } }} />
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField select label={t('Where they came from')} value={c.source ?? 'walk_in'} onChange={e => set({ source: e.target.value as CustomerSource })} fullWidth>
-              {SOURCES.map(s => <MenuItem key={s.key} value={s.key}>{t(s.label)}</MenuItem>)}
+              {SOURCES.filter(s => s.key !== 'square' || customer?.source === 'square').map(s => <MenuItem key={s.key} value={s.key}>{t(s.label)}</MenuItem>)}
             </TextField>
             <TextField label={t('Instagram (optional)')} value={c.instagram ?? ''} onChange={e => set({ instagram: e.target.value })} fullWidth
               slotProps={{ input: { startAdornment: <InputAdornment position="start">@</InputAdornment> }, htmlInput: { maxLength: 31 } }} />
@@ -374,7 +380,7 @@ function ImportDialog({ existing, onClose }: { existing: Customer[]; onClose: ()
                 <ToggleButton value="customer">{t('Customers')}</ToggleButton>
               </ToggleButtonGroup>
               <TextField select size="small" label={t('Where they came from')} value={source} onChange={e => setSource(e.target.value as CustomerSource)} sx={{ minWidth: 200 }}>
-                {SOURCES.map(s => <MenuItem key={s.key} value={s.key}>{t(s.label)}</MenuItem>)}
+                {SOURCES.filter(s => s.key !== 'square').map(s => <MenuItem key={s.key} value={s.key}>{t(s.label)}</MenuItem>)}
               </TextField>
             </Stack>
             <Typography variant="body2" sx={{ color: 'text.secondary' }}>

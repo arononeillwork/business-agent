@@ -81,7 +81,8 @@ export interface Expense {
 
 /** Customers page: people who buy (customers) and people who might (leads). Admins only. */
 export type CustomerKind = 'customer' | 'lead'
-export type CustomerSource = 'walk_in' | 'instagram' | 'facebook' | 'tiktok' | 'website' | 'google' | 'referral' | 'event' | 'other'
+/** square: brought in from Square's customer directory, by itself. */
+export type CustomerSource = 'walk_in' | 'instagram' | 'facebook' | 'tiktok' | 'website' | 'google' | 'referral' | 'event' | 'square' | 'other'
 export interface Customer {
   id: string
   kind: CustomerKind

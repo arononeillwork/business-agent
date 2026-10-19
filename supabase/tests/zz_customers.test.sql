@@ -97,3 +97,11 @@ end $$;
 
 reset role;
 select set_config('request.jwt.claim.sub', '', false);
+
+-- 6. Square's customers: source 'square', each Square id once -------------------------------
+insert into public.customers (first_name, email, source, kind, square_id) values ('Inés', 'ines@example.com', 'square', 'customer', 'SQ-1');
+do $$ begin
+  assert (select source from public.customers where square_id = 'SQ-1') = 'square', 'square is a source';
+end $$;
+select pg_temp.expect_error($q$insert into public.customers (first_name, source, square_id) values ('Inés again', 'square', 'SQ-1')$q$, 'duplicate key');
+select pg_temp.expect_error($q$insert into public.customers (first_name, source) values ('Nobody', 'myspace')$q$, 'customers_source_check');

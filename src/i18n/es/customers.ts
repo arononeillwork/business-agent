@@ -19,8 +19,8 @@ export default {
   '{pct}% of everyone': '{pct}% del total',
   'Added this month': 'Añadidos este mes',
   'Keep your customers and leads in one place': 'Ten a tus clientes y clientes potenciales en un solo sitio',
-  'Add regulars, people who asked about catering or an event, and businesses you’d like to work with (a hotel, an office, a gym). Tick who agreed to receive marketing, then export them for a newsletter or an offer. Have a list already? Import it from a CSV file.':
-    'Añade a los habituales, a quien te preguntó por un catering o un evento, y a los negocios con los que te gustaría trabajar (un hotel, una oficina, un gimnasio). Marca quién aceptó recibir marketing y luego expórtalos para una newsletter o una oferta. ¿Ya tienes una lista? Impórtala desde un archivo CSV.',
+  'Add regulars, people who asked about catering or an event, and businesses you’d like to work with (a hotel, an office, a gym). Tick who agreed to receive marketing, then export them for a newsletter or an offer. Have a list already? Import it from a CSV file. Using Square? Connect it on the Connections page and its customers come in by themselves.':
+    'Añade a los habituales, a quien te preguntó por un catering o un evento, y a los negocios con los que te gustaría trabajar (un hotel, una oficina, un gimnasio). Marca quién aceptó recibir marketing y luego expórtalos para una newsletter o una oferta. ¿Ya tienes una lista? Impórtala desde un archivo CSV. ¿Usas Square? Conéctalo en la página de Conexiones y sus clientes llegan solos.',
   'Add someone': 'Añadir a alguien',
   'Import a CSV': 'Importar un CSV',
   'Filter by type': 'Filtrar por tipo',

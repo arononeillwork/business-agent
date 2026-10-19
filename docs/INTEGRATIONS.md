@@ -281,8 +281,9 @@ own Square account with one click):
    and at least one open location were found. Every active location is included.
 
 Permissions asked for, all read only: `MERCHANT_PROFILE_READ` (business name and locations),
-`PAYMENTS_READ` (takings, tips, refunds, card/cash) and `ORDERS_READ` (what was sold, for best
-sellers). The app can't take, move or refund money.
+`PAYMENTS_READ` (takings, tips, refunds, card/cash), `ORDERS_READ` (what was sold, for best
+sellers) and `CUSTOMERS_READ` (the customer directory, for Customers). The app can't take, move or
+refund money, or change anything in Square.
 
 Testing with Sandbox: in the Developer Console open **Sandbox test accounts → Default Test Account →
 Open in Square Dashboard** first (Square only lets a sandbox seller authorise while that dashboard is
@@ -298,11 +299,20 @@ What shows where (admins who can see pay only; Pro plan and up):
   Excel/CSV/PDF export. Days run midnight to midnight, Madrid time.
 - **Accounts → Finances**: takings today, this week, last week and the last 30 days, and team cost
   this week as a share of takings.
+- **Business → Customers**: everyone in Square's customer directory (Square → Customers), brought in
+  straight after connecting and then every 15 minutes (people added or changed since). Each is a
+  *Customer* with source **Square** (a "Square" tag in the list, and "Square" in the source filter).
+  Someone already on the list with the same email or phone is linked instead of added twice, and
+  keeps where they came from; Square only fills fields that are empty in the app, so edits made here
+  stay. Nobody is ticked as agreeing to marketing (Square doesn't record that yes), and deleting
+  someone in Square doesn't delete them here. People without a name, email or phone are left out,
+  as is a birthday with no year.
 
 Access lasts 30 days and is renewed a week before it runs out; if it stops working, admins get a
 notification. A business connected **before best sellers were added** keeps its takings, and the
 Best sellers card asks for one reconnect (Connections → Square → Connect Square again) to allow
-`ORDERS_READ`.
+`ORDERS_READ`. The same goes for customers: a connection made before they were added needs one
+reconnect to allow `CUSTOMERS_READ`; until then takings carry on and no customers come in.
 
 ## 10. Stripe (takings on Finances)
 

@@ -767,7 +767,7 @@ export const TOOLS: ToolDef[] = [
     input: z.object({
       customer_id: z.string().uuid().optional(), kind: z.enum(['customer', 'lead']).optional(),
       first_name: z.string().optional(), last_name: z.string().optional(), email: z.string().email().optional(), phone: z.string().optional(),
-      company: z.string().optional(), source: z.enum(['walk_in', 'instagram', 'facebook', 'tiktok', 'website', 'google', 'referral', 'event', 'other']).optional(),
+      company: z.string().optional(), source: z.enum(['walk_in', 'instagram', 'facebook', 'tiktok', 'website', 'google', 'referral', 'event', 'square', 'other']).optional(),
       instagram: z.string().optional(), birthday: date.optional(), tags: z.array(z.string()).optional(), notes: z.string().optional(),
       marketing_consent: z.boolean().optional(), last_contacted_on: date.optional(),
     }),

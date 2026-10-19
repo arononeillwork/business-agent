@@ -150,6 +150,13 @@ export class FakeProviders {
       { created_at: '2026-09-28T22:30:00Z', status: 'COMPLETED', source_type: 'WALLET', amount_money: { amount: 900, currency: 'EUR' } },  // 00:30 next day in Madrid
       { created_at: '2026-09-28T10:00:00Z', status: 'FAILED', amount_money: { amount: 9999, currency: 'EUR' } },
     ],
+    /** The customer directory. `customersScope: false` is a connection made before CUSTOMERS_READ was asked for. */
+    customersScope: true,
+    customers: [
+      { id: 'SQC1', given_name: 'Lucía', family_name: 'García', email_address: 'Lucia@Example.com', phone_number: '+34600111222', birthday: '0000-05-14', updated_at: '2026-09-01T10:00:00Z' },
+      { id: 'SQC2', given_name: 'Tom', email_address: 'tom@example.co.uk', note: 'Oat flat white', updated_at: '2026-09-02T10:00:00Z' },
+      { id: 'SQC3', company_name: 'No way to reach them', updated_at: '2026-09-03T10:00:00Z' },
+    ] as { id: string; updated_at: string; [k: string]: string }[],
     /** Completed orders, for best sellers. `ordersScope: false` is a connection made before ORDERS_READ was asked for. */
     ordersScope: true,
     orders: [
@@ -544,6 +551,11 @@ export class FakeProviders {
       if (url.pathname === '/v2/payments') {
         const from = url.searchParams.get('begin_time')!, to = url.searchParams.get('end_time')!
         return json({ payments: this.square.payments.filter(p => p.created_at >= from && p.created_at < to) })
+      }
+      if (url.pathname === '/v2/customers/search' && method === 'POST') {
+        if (!this.square.customersScope) return json({ errors: [{ category: 'AUTHENTICATION_ERROR', code: 'INSUFFICIENT_SCOPES', detail: 'The merchant has not granted CUSTOMERS_READ' }] }, 403)
+        const since = (body() as { query?: { filter?: { updated_at?: { start_at?: string } } } }).query?.filter?.updated_at?.start_at ?? ''
+        return json({ customers: this.square.customers.filter(c => c.updated_at >= since) })
       }
       if (url.pathname === '/v2/orders/search' && method === 'POST') {
         if (!this.square.ordersScope) return json({ errors: [{ category: 'AUTHENTICATION_ERROR', code: 'INSUFFICIENT_SCOPES', detail: 'The merchant has not granted ORDERS_READ' }] }, 403)

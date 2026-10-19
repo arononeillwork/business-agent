@@ -1,10 +1,11 @@
 // Square (Block) as the café's payment system, connected with one click (Square OAuth). Read-only:
-// the business profile, its locations, its payments and its orders, so Finances can show takings
-// next to the team's cost and Sales can show what sold. Access lasts 30 days and is renewed with
-// the refresh token. ORDERS_READ came later: a connection made before it still works, without items.
+// the business profile, its locations, its payments, its orders and its customer directory, so
+// Finances can show takings next to the team's cost, Sales can show what sold and Customers lists
+// the till's customers. Access lasts 30 days and is renewed with the refresh token. ORDERS_READ and
+// CUSTOMERS_READ came later: a connection made before them still works, without items or customers.
 import type { PayMethod, SalesDay, SalesItem } from '../../shared/types'
 
-export const SQUARE_SCOPES = ['MERCHANT_PROFILE_READ', 'PAYMENTS_READ', 'ORDERS_READ']
+export const SQUARE_SCOPES = ['MERCHANT_PROFILE_READ', 'PAYMENTS_READ', 'ORDERS_READ', 'CUSTOMERS_READ']
 const VERSION = '2025-01-23'
 
 export interface SquareOAuthConfig { appId: string; appSecret: string; redirectUri: string; sandbox: boolean }
@@ -137,4 +138,37 @@ export async function topItems(sandbox: boolean, accessToken: string, locationId
   }
   return [...byName.values()].map(i => ({ ...i, gross: round(i.gross), quantity: Math.round(i.quantity * 100) / 100 }))
     .sort((a, b) => b.gross - a.gross || b.quantity - a.quantity).slice(0, limit)
+}
+
+/** A customer in the seller's Square directory (what we read of it). */
+export interface SquareCustomer {
+  id: string
+  given_name?: string
+  family_name?: string
+  company_name?: string
+  email_address?: string
+  phone_number?: string
+  /** "1990-05-14", or "0000-05-14" when Square wasn't told the year. */
+  birthday?: string
+  note?: string
+  updated_at?: string
+}
+
+/**
+ * The customer directory, or only the customers added or changed since an instant. Needs
+ * CUSTOMERS_READ: without it Square answers INSUFFICIENT_SCOPES (a SquareError with that code).
+ */
+export async function customers(sandbox: boolean, accessToken: string, updatedSince?: string): Promise<SquareCustomer[]> {
+  const out: SquareCustomer[] = []
+  let cursor: string | undefined
+  for (let page = 0; page < 200; page++) {
+    const r = await api<{ customers?: SquareCustomer[]; cursor?: string }>(sandbox, accessToken, '/v2/customers/search', {
+      limit: 100, ...(cursor ? { cursor } : {}),
+      query: { ...(updatedSince ? { filter: { updated_at: { start_at: updatedSince } } } : {}), sort: { field: 'CREATED_AT', order: 'ASC' } },
+    })
+    out.push(...r.customers ?? [])
+    cursor = r.cursor
+    if (!cursor) break
+  }
+  return out
 }

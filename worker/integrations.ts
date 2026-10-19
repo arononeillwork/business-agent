@@ -16,6 +16,7 @@ import * as youtube from './providers/youtube'
 import * as facebook from './providers/facebook'
 import * as tiktok from './providers/tiktok'
 import * as square from './providers/square'
+import { syncSquareCustomers } from './squareCustomers'
 import * as stripe from './providers/stripe'
 import * as sumup from './providers/sumup'
 import * as linkedin from './providers/linkedin'
@@ -908,6 +909,8 @@ integrations.get('/api/integrations/square/callback', c => appCallback(c, 'squar
   const now = new Date().toISOString()
   await setIntegration(db, 'square', { status: 'connected', connected_by: state.uid, connected_at: now, last_checked_at: now, last_error: null,
     account_label: proven.label, external: proven.external })
+  // The till's customers come into Customers straight away (then every 15 minutes, by the cron).
+  c.executionCtx.waitUntil(syncSquareCustomers(c.env, db, true).catch(e => console.error('square customers failed', e)))
 }))
 
 // Stripe: sign in to the business's Stripe account (read-only).

@@ -5,6 +5,7 @@ import { rest } from './rest'
 import { drainOutbox, integrations, syncGoogle, syncGoogleBothWays } from './integrations'
 import { checkAll } from './connections'
 import { checkMentions } from './mentions'
+import { syncSquareCustomers } from './squareCustomers'
 import { refreshAllSports, refreshStaleSports, sportsEnabled, syncCrests } from './sports'
 import { music } from './music'
 import { calendarFeeds } from './calendarFeed'
@@ -223,7 +224,8 @@ const provider = (env: Env, origin: string) => new OAuthProvider<Env>({
 export default {
   fetch: (request, env, ctx) => provider(env, new URL(request.url).origin).fetch(request, env, ctx),
   // Every minute: close forgotten timecards, queue shift alerts, remind admins about events,
-  // send planned social posts, deliver the outbox, refresh sports.
+  // send planned social posts, deliver the outbox, refresh sports; every 15 minutes, Instagram
+  // mentions and new Square customers.
   // Nightly: fill yesterday's missing timecards from the rota, check every connection still works.
   async scheduled(event, env, ctx) {
     if (!env.SUPABASE_SERVICE_ROLE_KEY) return
@@ -265,6 +267,8 @@ export default {
       // Every 15 minutes: new Instagram tags and story mentions, for admins to repost or ignore.
       if (Math.floor(event.scheduledTime / 60_000) % 15 === 0) {
         await checkMentions(env, db).catch(e => console.error('instagram mentions failed', e))
+        // And Square customers added or changed since the last look, into Customers.
+        await syncSquareCustomers(env, db).catch(e => console.error('square customers failed', e))
       }
       // Sports only while it's switched on (Sports page).
       if (await sportsOn(db)) await refreshStaleSports(db).catch(e => console.error('sports failed', e))

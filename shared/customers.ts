@@ -7,7 +7,7 @@ import type { Customer, CustomerInput, CustomerSource } from './types'
 export const SOURCES: { key: CustomerSource; label: string }[] = [
   { key: 'walk_in', label: msg('Walk-in') }, { key: 'instagram', label: 'Instagram' }, { key: 'facebook', label: 'Facebook' },
   { key: 'tiktok', label: 'TikTok' }, { key: 'website', label: msg('Website') }, { key: 'google', label: 'Google' },
-  { key: 'referral', label: msg('Referral') }, { key: 'event', label: msg('Event') }, { key: 'other', label: msg('Other') },
+  { key: 'referral', label: msg('Referral') }, { key: 'event', label: msg('Event') }, { key: 'square', label: 'Square' }, { key: 'other', label: msg('Other') },
 ]
 export const sourceLabel = (s: CustomerSource) => SOURCES.find(x => x.key === s)?.label ?? s
 
