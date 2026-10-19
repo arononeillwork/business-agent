@@ -545,10 +545,10 @@ export const TOOLS: ToolDef[] = [
   tool({
     name: 'list_sports_fixtures',
     title: 'Sports fixtures',
-    description: 'Upcoming football (leagues, cups, national teams), UFC and boxing from the competitions the café follows, in UTC. big = likely a busy night (put it on the TV, plan staff).',
+    description: 'Upcoming football (leagues, cups, national teams), rugby, UFC and boxing from the competitions the café follows, in UTC. big = likely a busy night (put it on the TV, plan staff).',
     input: z.object({
       from: z.string().describe('Start date YYYY-MM-DD'), to: z.string().describe('End date YYYY-MM-DD (inclusive)'),
-      sport: z.enum(['football', 'ufc', 'boxing']).optional(), big_only: z.boolean().default(false),
+      sport: z.enum(['football', 'rugby', 'ufc', 'boxing']).optional(), big_only: z.boolean().default(false),
     }),
     readOnly: true,
     async run({ sb }, a) {
