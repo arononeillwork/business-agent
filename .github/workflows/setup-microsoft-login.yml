@@ -53,16 +53,20 @@ jobs:
           set -euo pipefail
           app=$(az ad app list --display-name "$APP_NAME" --query "[0].appId" -o tsv)
           if [ -z "$app" ]; then
-            # Personal accounts need v2 tokens, which must be set before the audience can include them.
             app=$(az ad app create --display-name "$APP_NAME" --sign-in-audience AzureADMultipleOrgs \
               --web-redirect-uris "$REDIRECT" "$WORKER_REDIRECT" "$SITE_REDIRECT" --query appId -o tsv)
-            az ad app update --id "$app" --set api.requestedAccessTokenVersion=2
-            az ad app update --id "$app" --sign-in-audience AzureADandPersonalMicrosoftAccount
             echo "Created app $app"
           else
             az ad app update --id "$app" --web-redirect-uris "$REDIRECT" "$WORKER_REDIRECT" "$SITE_REDIRECT"
             echo "Reusing app $app"
           fi
+          # Personal accounts (Outlook, Hotmail) need v2 tokens, set before the audience can include
+          # them. Through Microsoft Graph: az's --set can't add api.* to a new app (its "api" is empty).
+          graph="https://graph.microsoft.com/v1.0/applications(appId='$app')"
+          az rest --method PATCH --uri "$graph" --headers Content-Type=application/json \
+            --body '{"api":{"requestedAccessTokenVersion":2}}'
+          az rest --method PATCH --uri "$graph" --headers Content-Type=application/json \
+            --body '{"signInAudience":"AzureADandPersonalMicrosoftAccount"}'
           # Microsoft Graph delegated: openid, email, profile, User.Read (sign-in) and
           # offline_access, Mail.Send (Outlook alerts), Files.ReadWrite (OneDrive exports)
           cat > perms.json <<'JSON'

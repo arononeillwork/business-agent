@@ -73,6 +73,8 @@ async function priceFor(env: Env, id: PlanId, interval: Interval): Promise<strin
     product, currency: 'eur', unit_amount: cents, recurring: { interval }, tax_behavior: 'exclusive',
     lookup_key: key, transfer_lookup_key: true, metadata: { business_agent_plan: id },
   })
+  // The old amount comes off sale (subscribers already on it keep it; Stripe never deletes a used price).
+  if (found.data[0]) await stripe(env, 'POST', `/prices/${found.data[0].id}`, { active: false })
   return price.id
 }
 
