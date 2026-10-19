@@ -13,3 +13,4 @@ worker-configuration.d.ts
 test-results/
 playwright-report/
 dist-demo/
+.claude/worktrees/
