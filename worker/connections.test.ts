@@ -723,7 +723,7 @@ describe('Facebook, TikTok and Square: one click, connected once they really wor
     const URL = 'https://business-agent.arononeillwork.workers.dev/api/webhooks/square'
     const hook = async (event: unknown, sign = true) => {
       const raw = JSON.stringify(event)
-      const headers = sign ? { 'x-square-hmacsha256-signature': await hmacBase64('sq-hook-key', URL + raw) } : {}
+      const headers: Record<string, string> = sign ? { 'x-square-hmacsha256-signature': await hmacBase64('sq-hook-key', URL + raw) } : {}
       background = []
       const res = await integrations.request(`${APP}/api/webhooks/square`, { method: 'POST', headers, body: raw }, env, ctx())
       await Promise.all(background)
