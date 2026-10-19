@@ -1232,7 +1232,7 @@ test.describe('menu', () => {
     await open(page, '/')
     const nav = page.getByRole('navigation', { name: 'Main' })
     const headings = await nav.locator('section > button').allTextContents()
-    expect(headings.map(h => h.trim())).toEqual(['Business', 'Sales', 'Accounts', 'Analytics', "What's on", 'Team', 'Settings'])
+    expect(headings.map(h => h.trim())).toEqual(['Business', 'Sales', 'Accounts', 'Marketing', "What's on", 'Team', 'Settings'])
     await expect(nav.getByRole('link', { name: 'Partners' })).toHaveCount(0)
     await expect(nav.getByRole('link', { name: 'Café tablet' })).toHaveCount(0)
     // Today is the landing page: no menu item, the logo takes you there.
@@ -2274,7 +2274,7 @@ test.describe('To Do List', () => {
     await expect(renamed.getByRole('button', { name: 'Assigned to Julio' })).toBeVisible()
     // Move it to another category from the row itself.
     await renamed.getByLabel('Change category').selectOption({ label: 'Marketing' })
-    await expect(page.getByRole('region', { name: 'Marketing' })).toContainText('Chalk menu board')
+    await expect(page.getByRole('main').getByRole('region', { name: 'Marketing' })).toContainText('Chalk menu board')
   })
 
   test('admins add and remove categories; removed categories keep their jobs', async ({ page }) => {
