@@ -7,6 +7,7 @@ import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { formatLocal } from '../../shared/time'
 import { tokens } from '../theme'
+import { t } from '../i18n'
 
 /** The bell: reminders for events you asked to be alerted about, and other news for you. */
 export function NotificationBell({ tone }: { tone?: 'nav' }) {
@@ -22,8 +23,8 @@ export function NotificationBell({ tone }: { tone?: 'nav' }) {
   }
   return (
     <>
-      <Tooltip title="Notifications">
-        <IconButton aria-label={unread ? `Notifications, ${unread} new` : 'Notifications'} onClick={e => setAnchor(e.currentTarget)}
+      <Tooltip title={t('Notifications')}>
+        <IconButton aria-label={unread ? t('Notifications, {n} new', { n: unread }) : t('Notifications')} onClick={e => setAnchor(e.currentTarget)}
           sx={tone === 'nav' ? { color: tokens.navText, '&:hover': { color: tokens.navBright, background: tokens.navHover } } : undefined}>
           <Badge badgeContent={unread} color="primary" max={9} sx={{ '& .MuiBadge-badge': { fontWeight: 500, color: '#2B2522' } }}>
             <BellIcon />
@@ -33,11 +34,11 @@ export function NotificationBell({ tone }: { tone?: 'nav' }) {
       <Popover open={!!anchor} anchorEl={anchor} onClose={close}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }} transformOrigin={{ vertical: 'top', horizontal: 'left' }}
         slotProps={{ paper: { sx: { width: 340, maxWidth: 'calc(100vw - 24px)', borderRadius: '18px', border: `1px solid ${tokens.line}`, mt: 1 } } }}>
-        <Box role="region" aria-label="Notifications" sx={{ p: 2 }}>
-          <Typography variant="h6" component="h2" sx={{ mb: 1 }}>Notifications</Typography>
+        <Box role="region" aria-label={t('Notifications')} sx={{ p: 2 }}>
+          <Typography variant="h6" component="h2" sx={{ mb: 1 }}>{t('Notifications')}</Typography>
           {list.data?.length === 0 && (
             <Typography variant="body2" sx={{ color: 'text.secondary', py: 2 }}>
-              Nothing yet. Tap the bell on a calendar event or match to get reminded before it.
+              {t('Nothing yet. Tap the bell on a calendar event or match to get reminded before it.')}
             </Typography>
           )}
           <Stack spacing={0.5} sx={{ maxHeight: 360, overflowY: 'auto' }}>
@@ -55,7 +56,7 @@ export function NotificationBell({ tone }: { tone?: 'nav' }) {
               </Box>
             ))}
           </Stack>
-          {unread > 0 && <Button size="small" sx={{ mt: 1 }} onClick={close}>Mark all as read</Button>}
+          {unread > 0 && <Button size="small" sx={{ mt: 1 }} onClick={close}>{t('Mark all as read')}</Button>}
         </Box>
       </Popover>
     </>
@@ -69,12 +70,12 @@ export function EventAlertButton({ kind, refId, title }: { kind: 'calendar' | 's
   const alerts = useAsync('event-alerts', () => api.eventAlerts(), [])
   const on = !!alerts.data?.some(a => a.kind === kind && a.ref_id === refId)
   if (!isAdmin && !on) return null
-  const label = on ? `Alert on for ${title}` : `Alert me about ${title}`
+  const label = on ? t('Alert on for {title}', { title }) : t('Alert me about {title}', { title })
   return (
-    <Tooltip title={isAdmin ? (on ? 'Admins will be reminded. Tap to turn off.' : 'Remind the admins before this') : 'Admins will be reminded'}>
+    <Tooltip title={isAdmin ? (on ? t('Admins will be reminded. Tap to turn off.') : t('Remind the admins before this')) : t('Admins will be reminded')}>
       <span>
         <IconButton size="small" aria-label={label} aria-pressed={on} disabled={!isAdmin}
-          onClick={e => { e.stopPropagation(); run(() => api.setEventAlert(kind, refId, !on), on ? 'Alert turned off' : 'Alert on: admins will be reminded') }}
+          onClick={e => { e.stopPropagation(); run(() => api.setEventAlert(kind, refId, !on), on ? t('Alert turned off') : t('Alert on: admins will be reminded')) }}
           sx={{ color: on ? tokens.roseDeep : tokens.inkFaint, bgcolor: on ? tokens.roseSoft : 'transparent', '&:hover': { color: tokens.roseDeep, bgcolor: tokens.roseSoft } }}>
           {on ? <ActiveBell /> : <BellIcon fontSize="small" />}
         </IconButton>

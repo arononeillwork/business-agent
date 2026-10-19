@@ -3,6 +3,7 @@
 import { businessConfig } from './business.config'
 import type { CalendarEvent, OpeningHours, Shift } from './types'
 import { dayKey, hmToMinutes, localDate, localTime, minutesBetween } from './time'
+import { msg } from './i18n'
 
 export interface RuleLimits {
   breakAfterHours: number
@@ -19,7 +20,15 @@ export interface Warning {
     | 'overlap' | 'no_break' | 'outside_hours' | 'closed_day' | 'holiday'
     | 'no_pay_rate' | 'short_rest' | 'over_daily'
   message: string
+  /** The English template and its values, so a page can show the message in the person's language: t(text, vars). */
+  text: string
+  vars?: Vars
 }
+
+type Vars = Record<string, string | number>
+const fill = (text: string, vars?: Vars) =>
+  vars ? text.replace(/\{(\w+)\}/g, (all, k: string) => (k in vars ? String(vars[k]) : all)) : text
+const warning = (code: Warning['code'], text: string, vars?: Vars): Warning => ({ code, message: fill(text, vars), text, vars })
 
 export const HOLIDAY_CATEGORIES = new Set(['national', 'regional', 'local'])
 
@@ -49,7 +58,7 @@ export function shiftWarnings(shift: Shift, ctx: ShiftContext): Warning[] {
     const mine = ctx.shifts.filter(s => s.profile_id === shift.profile_id && s.id !== shift.id)
     const overlap = mine.find(s => s.starts_at < shift.ends_at && s.ends_at > shift.starts_at)
     if (overlap) {
-      out.push({ code: 'overlap', message: `Overlaps another shift (${localTime(overlap.starts_at)}–${localTime(overlap.ends_at)})` })
+      out.push(warning('overlap', msg('Overlaps another shift ({from}–{to})'), { from: localTime(overlap.starts_at), to: localTime(overlap.ends_at) }))
     }
     const before = mine
       .filter(s => s.ends_at <= shift.starts_at)
@@ -57,36 +66,36 @@ export function shiftWarnings(shift: Shift, ctx: ShiftContext): Warning[] {
     if (before) {
       const rest = minutesBetween(before.ends_at, shift.starts_at)
       if (rest < limits.minRestHours * 60) {
-        out.push({ code: 'short_rest', message: `Only ${Math.floor(rest / 60)}h rest since last shift (min ${limits.minRestHours}h)` })
+        out.push(warning('short_rest', msg('Only {hours}h rest since last shift (min {min}h)'), { hours: Math.floor(rest / 60), min: limits.minRestHours }))
       }
     }
     if (ctx.hasPayRate && !ctx.hasPayRate(shift.profile_id)) {
-      out.push({ code: 'no_pay_rate', message: 'No pay rate set' })
+      out.push(warning('no_pay_rate', msg('No pay rate set')))
     }
   }
 
   if (length > limits.breakAfterHours * 60 && shift.break_minutes < limits.minBreakMinutes) {
-    out.push({ code: 'no_break', message: `Over ${limits.breakAfterHours}h without a ${limits.minBreakMinutes}-min break` })
+    out.push(warning('no_break', msg('Over {hours}h without a {minutes}-min break'), { hours: limits.breakAfterHours, minutes: limits.minBreakMinutes }))
   }
   if (shiftPaidMinutes(shift) > limits.maxDailyHours * 60) {
-    out.push({ code: 'over_daily', message: `Over ${limits.maxDailyHours}h of work in a day` })
+    out.push(warning('over_daily', msg('Over {hours}h of work in a day'), { hours: limits.maxDailyHours }))
   }
 
   const hours = ctx.openingHours[dayKey(date)]
   if (!hours) {
-    out.push({ code: 'closed_day', message: 'The café is closed that day' })
+    out.push(warning('closed_day', msg('The café is closed that day')))
   } else {
     const start = hmToMinutes(localTime(shift.starts_at))
     const endDate = localDate(shift.ends_at)
     const end = endDate > date ? 24 * 60 : hmToMinutes(localTime(shift.ends_at))
     // Allow 60 min before opening (setup) and 60 min after close (cleanup).
     if (start < hmToMinutes(hours.open) - 60 || end > hmToMinutes(hours.close) + 60) {
-      out.push({ code: 'outside_hours', message: `Outside opening hours (${hours.open}–${hours.close})` })
+      out.push(warning('outside_hours', msg('Outside opening hours ({open}–{close})'), { open: hours.open, close: hours.close }))
     }
   }
 
   const holiday = holidayOn(date, ctx.events)
-  if (holiday) out.push({ code: 'holiday', message: `Holiday: ${holiday.title}` })
+  if (holiday) out.push(warning('holiday', msg('Holiday: {name}'), { name: holiday.title }))
 
   return out
 }
@@ -95,17 +104,19 @@ export interface WeeklyCheck {
   paidMinutes: number
   daysWorked: number
   warnings: string[]
+  /** The same warnings as English templates and values, for t(text, vars) on screen. */
+  notes: { text: string; vars?: Vars }[]
 }
 
 /** Per-person weekly checks: 40h average and 1.5 days' weekly rest. */
 export function weeklyCheck(shifts: Shift[], limits: RuleLimits = defaultLimits): WeeklyCheck {
   const paidMinutes = shifts.reduce((sum, s) => sum + shiftPaidMinutes(s), 0)
   const days = new Set(shifts.map(s => localDate(s.starts_at)))
-  const warnings: string[] = []
-  if (paidMinutes > limits.maxWeeklyHours * 60) warnings.push(`Over ${limits.maxWeeklyHours}h this week`)
-  if (days.size >= 7) warnings.push('No weekly rest day')
-  else if (days.size === 6) warnings.push('Check weekly rest (1.5 days)')
-  return { paidMinutes, daysWorked: days.size, warnings }
+  const notes: { text: string; vars?: Vars }[] = []
+  if (paidMinutes > limits.maxWeeklyHours * 60) notes.push({ text: msg('Over {hours}h this week'), vars: { hours: limits.maxWeeklyHours } })
+  if (days.size >= 7) notes.push({ text: msg('No weekly rest day') })
+  else if (days.size === 6) notes.push({ text: msg('Check weekly rest (1.5 days)') })
+  return { paidMinutes, daysWorked: days.size, warnings: notes.map(n => fill(n.text, n.vars)), notes }
 }
 
 export interface CoverageSegment {

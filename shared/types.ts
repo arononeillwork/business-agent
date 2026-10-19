@@ -1,12 +1,14 @@
+import { msg } from './i18n'
+
 export type Role = 'admin' | 'employee' | 'kiosk' | 'partner'
 
 /** What an outside business (partner) can be given read-only access to. */
 export type PartnerArea = 'calendar' | 'rota' | 'payroll' | 'finances'
 export const PARTNER_AREAS: { key: PartnerArea; label: string; detail: string }[] = [
-  { key: 'rota', label: 'Rota', detail: 'Published shifts and approved time off' },
-  { key: 'payroll', label: 'Payroll', detail: 'Timecards, hours and pay rates' },
-  { key: 'finances', label: 'Finances', detail: 'Monthly expenses' },
-  { key: 'calendar', label: 'Calendar', detail: 'Holidays and events' },
+  { key: 'rota', label: msg('Rota'), detail: msg('Published shifts and approved time off') },
+  { key: 'payroll', label: msg('Payroll'), detail: msg('Timecards, hours and pay rates') },
+  { key: 'finances', label: msg('Finances'), detail: msg('Monthly expenses') },
+  { key: 'calendar', label: msg('Calendar'), detail: msg('Holidays and events') },
 ]
 
 export type DayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'
@@ -21,6 +23,8 @@ export interface Business {
   phone: string | null
   email: string | null
   instagram: string | null
+  /** The business's website (https://…), when it has one. Search Console is matched to it. */
+  website?: string | null
   timezone: string
   /** ISO 4217 code, e.g. EUR. Money everywhere is shown in it. */
   currency: string
@@ -114,12 +118,16 @@ export interface Preferences {
   contrast?: 'normal' | 'high'
   font?: 'default' | 'readable'
   motion?: 'system' | 'reduce'
-  /** Decimal mark for money and numbers: 1.234,50 € (comma) or €1,234.50 (point). */
+  /** Decimal mark for money and numbers: €1.234,50 (comma) or €1,234.50 (point). */
   numberFormat?: 'comma' | 'point'
   /** Page background tint: a brand colour (#RRGGBB). Unset = the house cream. */
   background?: string
   /** Their own order of pages within each menu section: section key → page keys. */
   navOrder?: Record<string, string[]>
+  /** The languages they use the app in (My account → Language). With both, flags at the top switch between them. */
+  languages?: ('en' | 'es')[]
+  /** The one shown now. */
+  language?: 'en' | 'es'
 }
 
 export interface Position {
@@ -246,12 +254,12 @@ export interface TimeOff {
 }
 
 export const TIME_OFF_LABELS: Record<TimeOffKind, string> = {
-  vacation: 'Holiday', personal: 'Personal day', sick: 'Sick', other: 'Other',
+  vacation: msg('Holiday'), personal: msg('Personal day'), sick: msg('Sick'), other: msg('Other'),
 }
 
-export type IntegrationProvider = 'google_business' | 'whatsapp' | 'instagram' | 'facebook' | 'tiktok' | 'spotify' | 'square' | 'stripe' | ConnectorProvider | CalendarApp
-/** Connections made with one sign-in with Google or Microsoft (email, files, café YouTube Music). */
-export type ConnectorProvider = 'gmail' | 'outlook' | 'google_drive' | 'onedrive' | 'youtube_music'
+export type IntegrationProvider = 'google_business' | 'whatsapp' | 'instagram' | 'facebook' | 'tiktok' | 'linkedin' | 'spotify' | 'square' | 'stripe' | 'sumup' | ConnectorProvider | CalendarApp
+/** Connections made with one sign-in with Google or Microsoft (email, files, café YouTube Music, Search Console). */
+export type ConnectorProvider = 'gmail' | 'outlook' | 'google_drive' | 'onedrive' | 'youtube_music' | 'search_console'
 /** Calendar apps that subscribe to the team calendar link. */
 export type CalendarApp = 'google_calendar' | 'outlook_calendar'
 
@@ -283,8 +291,14 @@ export interface Integration {
   account_label: string | null
   external: {
     locations?: { name: string; title: string; address?: string }[]; location?: string; closed_on_holidays?: boolean; playlist?: SpotifyPlaylist
-    /** Facebook: the Pages the account manages, and the chosen one. */
-    pages?: { id: string; name: string }[]; page_id?: string
+    /** Facebook and LinkedIn: the Pages the account manages, and the chosen one (LinkedIn: 'me' = the person's own profile). */
+    pages?: { id: string; name: string }[]; page_id?: string; page_name?: string
+    /** LinkedIn: who signed in, and when the 60-day access runs out. */
+    member?: { id: string; name: string }; expires_at?: string
+    /** Search Console: the websites the account can read, and the chosen one (`https://…/` or `sc-domain:…`). */
+    sites?: string[]; site?: string
+    /** SumUp: the merchant account and its currency. */
+    merchant_code?: string; currency?: string
     /** TikTok: posts stay private until TikTok audits the app. */
     private_only?: boolean
     /** Instagram: whether the account allowed reading and answering messages, and seeing posts it's tagged in. */
@@ -318,24 +332,24 @@ export interface InstagramProfile {
 }
 
 export const CATEGORY_META: Record<EventCategory, { label: string; colour: string }> = {
-  national: { label: 'National holiday', colour: '#c62828' },
-  regional: { label: 'Andalucía holiday', colour: '#2e7d32' },
-  local:    { label: 'Local holiday', colour: '#6a1b9a' },
-  area:     { label: 'Nearby town holiday', colour: '#8d6e63' },
-  event:    { label: 'Local event / feria', colour: '#ef6c00' },
-  sports:   { label: 'Football', colour: '#1565c0' },
-  business: { label: 'Business', colour: '#37474f' },
-  staff:    { label: 'Staff', colour: '#00838f' },
+  national: { label: msg('National holiday'), colour: '#c62828' },
+  regional: { label: msg('Andalucía holiday'), colour: '#2e7d32' },
+  local:    { label: msg('Local holiday'), colour: '#6a1b9a' },
+  area:     { label: msg('Nearby town holiday'), colour: '#8d6e63' },
+  event:    { label: msg('Local event / feria'), colour: '#ef6c00' },
+  sports:   { label: msg('Football'), colour: '#1565c0' },
+  business: { label: msg('Business'), colour: '#37474f' },
+  staff:    { label: msg('Staff'), colour: '#00838f' },
 }
 
 export const FLAG_LABELS: Record<string, string> = {
-  missed_break: 'Missed break',
-  over_daily_limit: 'Over 9h',
-  unscheduled: 'Unscheduled',
-  auto_clock_out: 'Auto clock-out',
-  edited: 'Edited',
-  early_override: 'Early (override)',
-  from_rota: 'From rota',
+  missed_break: msg('Missed break'),
+  over_daily_limit: msg('Over 9h'),
+  unscheduled: msg('Unscheduled'),
+  auto_clock_out: msg('Auto clock-out'),
+  edited: msg('Edited'),
+  early_override: msg('Early (override)'),
+  from_rota: msg('From rota'),
 }
 
 /** In-app notification (the bell). */
@@ -360,7 +374,7 @@ export interface Brand {
 export interface ApiKey { id: string; name: string; prefix: string; created_at: string; last_used_at: string | null }
 
 /** Social planner: one post, sent to each chosen network at the planned time. */
-export type SocialNetwork = 'instagram' | 'facebook' | 'tiktok' | 'google'
+export type SocialNetwork = 'instagram' | 'facebook' | 'tiktok' | 'google' | 'linkedin'
 /** What kind of post: a feed post (one photo), a carousel (2–10 photos/videos), a reel (one video) or a story. */
 export type PostKind = 'post' | 'carousel' | 'reel' | 'story'
 /** A photo or video of a post, at a public address the networks fetch it from. */
@@ -383,19 +397,31 @@ export interface SocialPost {
   published_at: string | null
 }
 
-/** Takings from the payment system (Square), per day in the business's time zone. */
+/** Takings from the payment system (Square, Stripe or SumUp), per day in the business's time zone. */
 /** How a payment was paid: card, cash, a phone wallet (Apple Pay, Google Pay) or anything else (gift card, bank, external). */
 export type PayMethod = 'card' | 'cash' | 'wallet' | 'other'
 /**
  * One local day of takings. `gross` excludes tips. `hours` (24 values, sales by local hour) and
- * `methods` (sales by how people paid) come from Square; Stripe sends hours only.
+ * `methods` (sales by how people paid) come from Square and SumUp; Stripe sends hours only.
  */
 export interface SalesDay { date: string; gross: number; tips: number; refunds: number; payments: number; hours?: number[]; methods?: Partial<Record<PayMethod, number>> }
-export interface Sales { /** Which payment system the takings come from. */ provider?: 'square' | 'stripe'; currency: string; days: SalesDay[] }
+export interface Sales { /** Which payment system the takings come from. */ provider?: 'square' | 'stripe' | 'sumup'; currency: string; days: SalesDay[] }
 /** One item on the Sales page's best sellers (Square orders): units sold and their sales before discounts. */
 export interface SalesItem { name: string; quantity: number; gross: number }
-/** Best sellers, or why there are none: Stripe has no items, or Square was connected before items were asked for. */
-export interface SalesItems { items: SalesItem[] | null; reason?: 'stripe' | 'reconnect' }
+/** Best sellers, or why there are none: Stripe and SumUp send no items, or Square was connected before items were asked for. */
+export interface SalesItems { items: SalesItem[] | null; reason?: 'stripe' | 'sumup' | 'reconnect' }
+
+/** Search Console (Google): how the website did in Google Search. Figures lag Google by 2–3 days. */
+export interface SearchRow { clicks: number; impressions: number; /** 0–1 */ ctr: number; /** average position, 1 = top */ position: number }
+export interface SearchReport {
+  site: string; from: string; to: string
+  totals: SearchRow
+  days: (SearchRow & { date: string })[]
+  queries: (SearchRow & { query: string })[]
+  pages: (SearchRow & { page: string })[]
+  devices: (SearchRow & { device: 'DESKTOP' | 'MOBILE' | 'TABLET' })[]
+  countries: (SearchRow & { country: string })[]  // ISO 3166 alpha-3 lower-case as Google returns it
+}
 
 /** To Do List: a category the admins manage (jobs are grouped by these). */
 export interface TodoCategory { id: string; name: string; hint: string | null; colour: string; sort: number }

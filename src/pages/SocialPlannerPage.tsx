@@ -41,11 +41,16 @@ import type { IntegrationProvider, IntegrationsState, PostKind, PostMedia, Socia
 import { readyPhoto, readyVideo, videoSeconds } from '../lib/media'
 import { tokens } from '../theme'
 
+type Icon = Pick<SimpleIcon, 'path' | 'hex'>
+// LinkedIn asked Simple Icons to drop its mark, so it's kept here.
+const siLinkedin: Icon = { hex: '0A66C2', path: 'M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z' }
+
 /** The networks the planner posts to, and which connection each needs. */
-const NETWORKS: { id: SocialNetwork; name: string; icon: SimpleIcon; provider: IntegrationProvider; limit: number }[] = [
+const NETWORKS: { id: SocialNetwork; name: string; icon: Icon; provider: IntegrationProvider; limit: number }[] = [
   { id: 'instagram', name: 'Instagram', icon: siInstagram, provider: 'instagram', limit: 2200 },
   { id: 'facebook', name: 'Facebook', icon: siFacebook, provider: 'facebook', limit: 2200 },
   { id: 'tiktok', name: 'TikTok', icon: siTiktok, provider: 'tiktok', limit: 2200 },
+  { id: 'linkedin', name: 'LinkedIn', icon: siLinkedin, provider: 'linkedin', limit: 3000 },
   { id: 'google', name: 'Google Maps', icon: siGooglemaps, provider: 'google_business', limit: 1500 },
 ]
 const networkOf = (id: SocialNetwork) => NETWORKS.find(n => n.id === id)!
@@ -60,7 +65,7 @@ const KIND_TONE: Record<PostKind, { fg: string; bg: string }> = {
 }
 const STORAGE_NAME = { google_drive: 'Google Drive', onedrive: 'OneDrive', r2: 'Business Agent’s photo storage' } as const
 
-function Mark({ icon, size = 16 }: { icon: SimpleIcon; size?: number }) {
+function Mark({ icon, size = 16 }: { icon: Icon; size?: number }) {
   return (
     <Box component="svg" viewBox="0 0 24 24" aria-hidden sx={{ width: size, height: size, display: 'block', flexShrink: 0 }}>
       <path d={icon.path} fill={icon.hex === '000000' ? 'currentColor' : `#${icon.hex}`} />
@@ -562,7 +567,8 @@ function Composer({ post, storage, isConnected, onClose, onSaved }: {
   const [uploading, setUploading] = useState<{ done: number; of: number } | null>(null)
   const info = kindInfo(kind)
   const chosen = NETWORKS.filter(n => targets.includes(n.id))
-  const limit = Math.min(2200, ...chosen.map(n => n.limit))
+  // The tightest limit of the networks picked (LinkedIn alone takes 3000).
+  const limit = chosen.length ? Math.min(...chosen.map(n => n.limit)) : 2200
   const problem = postProblem({ kind, caption, media, targets, auto, status: 'scheduled' })
   const room = info.max - media.length
 

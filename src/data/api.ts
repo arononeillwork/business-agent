@@ -1,4 +1,4 @@
-import type { ApiKey, AppNotification, Brand, BreakType, Business, CalendarApp, CalendarEvent, ConnectorProvider, ContactMethod, CorrectionRequest, EventAlert, Expense, InstagramProfile, Integration, PostMedia, Sales, SalesItems, SocialNetwork, SocialPost, IntegrationProvider, IntegrationsState, KioskPerson, MusicNow, MusicPlaylist, MusicProvider, MyMusic, MyNowPlaying, OpenBreak, OpeningHours, OutboxItem, PartnerArea, PayRate, Position, Profile, Settings, Shift, SpotifyPlaylist, TimeEntry, TimeEntryChange, TimeOff, TimeOffKind, Todo, TodoCategory, TodoPatch, CafeMusicLibrary, CafeTrack, MusicAction, MusicPlayerReport, MusicPlayerState } from '../../shared/types'
+import type { ApiKey, AppNotification, Brand, BreakType, Business, CalendarApp, CalendarEvent, ConnectorProvider, ContactMethod, CorrectionRequest, EventAlert, Expense, InstagramProfile, Integration, PostMedia, Sales, SalesItems, SearchReport, SocialNetwork, SocialPost, IntegrationProvider, IntegrationsState, KioskPerson, MusicNow, MusicPlaylist, MusicProvider, MyMusic, MyNowPlaying, OpenBreak, OpeningHours, OutboxItem, PartnerArea, PayRate, Position, Profile, Settings, Shift, SpotifyPlaylist, TimeEntry, TimeEntryChange, TimeOff, TimeOffKind, Todo, TodoCategory, TodoPatch, CafeMusicLibrary, CafeTrack, MusicAction, MusicPlayerReport, MusicPlayerState } from '../../shared/types'
 import type { Billing, Interval, PlanId } from '../../shared/plans'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
 import type { InboxState, InboxThread } from '../../shared/messages'
@@ -160,11 +160,17 @@ export interface Api {
   connectGoogle(back?: 'setup' | 'connections'): Promise<void>
   /** One click: sign in on instagram.com and come back connected. */
   connectInstagram(back?: 'setup' | 'connections' | 'messages'): Promise<void>
-  /** One click for Facebook, TikTok or Square: sign in there and come back connected. */
-  connectApp(provider: 'facebook' | 'tiktok' | 'square' | 'stripe', back?: 'setup' | 'connections'): Promise<void>
+  /** One click for Facebook, TikTok, LinkedIn, Square, Stripe or SumUp: sign in there and come back connected. */
+  connectApp(provider: 'facebook' | 'tiktok' | 'square' | 'stripe' | 'sumup' | 'linkedin', back?: 'setup' | 'connections'): Promise<void>
   /** Facebook: which Page to post to, when the account manages more than one. */
   chooseFacebookPage(pageId: string): Promise<void>
-  /** Takings per day from Square (admins with pay access), from and to inclusive. */
+  /** LinkedIn: post to one of their company Pages, or 'me' for their own profile. */
+  chooseLinkedInPage(pageId: string): Promise<void>
+  /** Search Console: which website to read, when the account has several and none is the business's. */
+  chooseSearchConsoleSite(site: string): Promise<void>
+  /** How the website did in Google Search (admins), from and to inclusive. Google is 2–3 days behind. */
+  searchConsole(from: string, to: string): Promise<SearchReport>
+  /** Takings per day from Square, Stripe or SumUp (admins with pay access), from and to inclusive. */
   sales(from: string, to: string): Promise<Sales>
   /** Best sellers from Square's orders, same dates and rules as `sales`. */
   salesItems(from: string, to: string): Promise<SalesItems>
@@ -185,7 +191,7 @@ export interface Api {
   syncGoogleNow(): Promise<void>
   googleHours(): Promise<OpeningHours>
   disconnect(provider: string): Promise<void>
-  /** Start connecting Gmail, Outlook, Google Drive, OneDrive or YouTube Music (goes to Google/Microsoft and back). */
+  /** Start connecting Gmail, Outlook, Google Drive, OneDrive, YouTube Music or Search Console (goes to Google/Microsoft and back). */
   connectService(provider: ConnectorProvider, back?: 'setup' | 'connections'): Promise<void>
   /** Prove a connection still works, now (the result is also on its card). */
   checkConnection(provider: IntegrationProvider): Promise<Integration | null>

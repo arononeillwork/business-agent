@@ -1,7 +1,7 @@
 -- Easy Beans Coffee: business data. Idempotent; safe to re-run.
 -- People are not seeded: they join through invites (the first sign-up becomes admin).
 
-insert into public.business (id, name, business_type, address, phone, email, instagram, timezone,
+insert into public.business (id, name, business_type, address, phone, email, instagram, website, timezone,
   opening_hours, peak_hours, owners, suppliers, towns_followed, notes)
 values (1,
   'Easy Beans Coffee',
@@ -10,6 +10,7 @@ values (1,
   '+34 695 415 335',
   'easybeanscafe@gmail.com',
   '@easy.beans.coffee',
+  'https://www.easybeanscoffee.com/',
   'Europe/Madrid',
   '{"mon":{"open":"08:00","close":"18:00"},"tue":{"open":"08:00","close":"18:00"},
     "wed":{"open":"08:00","close":"18:00"},"thu":{"open":"08:00","close":"18:00"},

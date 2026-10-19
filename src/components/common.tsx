@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
 import { FLAG_LABELS } from '../../shared/types'
 import { addDays, formatLocal, today, weekStart } from '../../shared/time'
 import { fonts, tokens } from '../theme'
+import { t } from '../i18n'
 
 export function PageHeader({ eyebrow, title, actions }: { eyebrow?: string; title: string; actions?: ReactNode }) {
   return (
@@ -47,13 +48,13 @@ export function Stat({ label, value, note, tone }: {
 
 /** Figures at the top of a page, one under the other in a single card. */
 export function StatRow({ children }: { children: ReactNode }) {
-  return <Card role="list" aria-label="At a glance" sx={{ mb: 3 }}>{children}</Card>
+  return <Card role="list" aria-label={t('At a glance')} sx={{ mb: 3 }}>{children}</Card>
 }
 
 /** Headline figures as compact tiles side by side: two across on a phone, four in a row on a computer. */
 export function StatGrid({ children }: { children: ReactNode }) {
   return (
-    <Box role="list" aria-label="At a glance" sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(4, minmax(0, 1fr))' }, gap: 1.5, mb: 3 }}>
+    <Box role="list" aria-label={t('At a glance')} sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(4, minmax(0, 1fr))' }, gap: 1.5, mb: 3 }}>
       {children}
     </Box>
   )
@@ -110,13 +111,13 @@ export function WeekNav({ monday, onChange }: { monday: string; onChange: (monda
   const thisWeek = weekStart(today())
   return (
     <Stack direction="row" sx={{ alignItems: 'center', border: 1, borderColor: 'divider', borderRadius: 2.5, bgcolor: 'background.paper', pl: 0.5 }}>
-      <IconButton size="small" aria-label="Previous week" onClick={() => onChange(addDays(monday, -7))}><ChevronLeft /></IconButton>
+      <IconButton size="small" aria-label={t('Previous week')} onClick={() => onChange(addDays(monday, -7))}><ChevronLeft /></IconButton>
       <Typography sx={{ minWidth: 132, textAlign: 'center', fontWeight: 500, fontSize: '0.9rem', fontVariantNumeric: 'tabular-nums' }}>
         {formatLocal(`${monday}T12:00:00Z`, 'd MMM')} – {formatLocal(`${sunday}T12:00:00Z`, 'd MMM')}
       </Typography>
-      <IconButton size="small" aria-label="Next week" onClick={() => onChange(addDays(monday, 7))}><ChevronRight /></IconButton>
+      <IconButton size="small" aria-label={t('Next week')} onClick={() => onChange(addDays(monday, 7))}><ChevronRight /></IconButton>
       <Button size="small" disabled={monday === thisWeek} onClick={() => onChange(thisWeek)}
-        sx={{ borderLeft: 1, borderColor: 'divider', borderRadius: 0, px: 1.5 }}>This week</Button>
+        sx={{ borderLeft: 1, borderColor: 'divider', borderRadius: 0, px: 1.5 }}>{t('This week')}</Button>
     </Stack>
   )
 }
@@ -143,7 +144,7 @@ export function Tag({ children, fg = tokens.neutralFg, bg = tokens.neutralBg }: 
 export function Flags({ flags }: { flags: string[] }) {
   return (
     <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', rowGap: 0.5 }}>
-      {flags.map(f => <Tag key={f} {...(FLAG_TONE[f] ?? {})}>{FLAG_LABELS[f] ?? f}</Tag>)}
+      {flags.map(f => <Tag key={f} {...(FLAG_TONE[f] ?? {})}>{FLAG_LABELS[f] ? t(FLAG_LABELS[f]) : f}</Tag>)}
     </Stack>
   )
 }

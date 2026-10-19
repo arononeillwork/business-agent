@@ -44,16 +44,19 @@ export const GROUPS: ConnectionGroupInfo[] = [
   ] },
   { key: 'maps', title: 'Maps and search', pickOne: false, options: [
     { id: 'google_business', name: 'Google Maps', by: 'Google', proves: 'The café’s listing was found and can be updated.' },
+    { id: 'search_console', name: 'Search Console', by: 'Google', proves: 'Google confirmed this account can read the website’s search data.' },
     { id: 'apple_maps', name: 'Apple Maps', by: 'Apple', soon: true },
   ] },
   { key: 'social', title: 'Social media', pickOne: false, options: [
     { id: 'instagram', name: 'Instagram', by: 'Meta', proves: 'The profile and posts could be read, and posting was allowed.' },
     { id: 'facebook', name: 'Facebook', by: 'Meta', proves: 'The Page was found and posting to it was allowed.' },
     { id: 'tiktok', name: 'TikTok', by: 'TikTok', proves: 'The account signed in and TikTok confirmed it can post.' },
+    { id: 'linkedin', name: 'LinkedIn', by: 'Microsoft', proves: 'The account signed in and posting was allowed.' },
   ] },
   { key: 'payments', title: 'Payments and sales', pickOne: true, options: [
     { id: 'stripe', name: 'Stripe', by: 'Stripe', proves: 'The Stripe account was found and its payments can be read.' },
     { id: 'square', name: 'Square', by: 'Block', proves: 'The business and its locations were found and its payments can be read.' },
+    { id: 'sumup', name: 'SumUp', by: 'SumUp', proves: 'The SumUp account was found and its sales can be read.' },
   ] },
   { key: 'music', title: 'Café music', pickOne: true, options: [
     { id: 'spotify', name: 'Spotify', by: 'Spotify', proves: 'The account signed in and its playlists can be read. Staff can play or pause it on the speaker.' },
@@ -82,4 +85,11 @@ export function addToCalendarUrl(app: 'google_calendar' | 'outlook_calendar', fe
   return app === 'google_calendar'
     ? `https://calendar.google.com/calendar/render?cid=${encodeURIComponent(feedUrl.replace(/^https?:/, 'webcal:'))}`
     : `https://outlook.live.com/calendar/0/addfromweb?url=${encodeURIComponent(feedUrl)}&name=${encodeURIComponent('Team calendar')}`
+}
+
+/** A website as typed ("easybeanscoffee.com", " https://www.x.es ") → https://… (null: none). The database takes http(s) only. */
+export function cleanWebsite(typed: string | null | undefined): string | null {
+  const w = (typed ?? '').trim()
+  if (!w) return null
+  return /^https?:\/\//i.test(w) ? w : `https://${w.replace(/^\/+/, '')}`
 }

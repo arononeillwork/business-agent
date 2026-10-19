@@ -2,6 +2,7 @@
 //   Gmail, Outlook            a confirmation email went from the mailbox to itself
 //   Google Drive, OneDrive    the "Business Agent" folder is there
 //   Spotify, YouTube Music    the account signed in and its playlists could be read
+//   Search Console            the account can read the website's search data (the business's website is picked)
 //   WhatsApp                  a test message was accepted from the café's number
 //   Google/Outlook Calendar   that app fetched the team calendar (calendarFeed.ts reports it)
 // Every night, and on "Check now", each connection is checked again. When one stops working its
@@ -19,17 +20,20 @@ import * as facebook from './providers/facebook'
 import * as tiktok from './providers/tiktok'
 import * as square from './providers/square'
 import * as stripe from './providers/stripe'
+import * as sumup from './providers/sumup'
+import * as linkedin from './providers/linkedin'
+import * as searchConsole from './providers/searchConsole'
 import { base64url, mimeMessage } from '../shared/alertText'
 import { calendarAppFromAgent, optionName } from '../shared/connections'
 import type { CalendarApp, IntegrationProvider } from '../shared/types'
 
 export type Provider = IntegrationProvider
 /** Signed in with Google or Microsoft: one refresh token each. */
-export type Connector = 'gmail' | 'outlook' | 'google_drive' | 'onedrive' | 'youtube_music'
-export const CONNECTORS: Connector[] = ['gmail', 'outlook', 'google_drive', 'onedrive', 'youtube_music']
-export const PROVIDERS: Provider[] = ['google_business', 'whatsapp', 'instagram', 'facebook', 'tiktok', 'spotify', 'square', 'stripe', ...CONNECTORS, 'google_calendar', 'outlook_calendar']
+export type Connector = 'gmail' | 'outlook' | 'google_drive' | 'onedrive' | 'youtube_music' | 'search_console'
+export const CONNECTORS: Connector[] = ['gmail', 'outlook', 'google_drive', 'onedrive', 'youtube_music', 'search_console']
+export const PROVIDERS: Provider[] = ['google_business', 'whatsapp', 'instagram', 'facebook', 'tiktok', 'linkedin', 'spotify', 'square', 'stripe', 'sumup', ...CONNECTORS, 'google_calendar', 'outlook_calendar']
 export const isConnector = (p: string): p is Connector => (CONNECTORS as string[]).includes(p)
-export const isGoogle = (p: Connector) => p === 'gmail' || p === 'google_drive' || p === 'youtube_music'
+export const isGoogle = (p: Connector) => p === 'gmail' || p === 'google_drive' || p === 'youtube_music' || p === 'search_console'
 export const isCalendarApp = (p: string): p is CalendarApp => p === 'google_calendar' || p === 'outlook_calendar'
 
 // ---------------------------------------------------------------------------------------------
@@ -75,6 +79,17 @@ export const squareOAuth = (env: Env, origin: string): square.SquareOAuthConfig 
   env.SQUARE_APP_ID && env.SQUARE_APP_SECRET && env.INTEGRATION_KEY
     ? { appId: env.SQUARE_APP_ID, appSecret: env.SQUARE_APP_SECRET, redirectUri: `${origin}/api/integrations/square/callback`, sandbox: env.SQUARE_ENVIRONMENT === 'sandbox' }
     : null
+export const sumupOAuth = (env: Env, origin: string): sumup.SumUpOAuthConfig | null =>
+  env.SUMUP_CLIENT_ID && env.SUMUP_CLIENT_SECRET && env.INTEGRATION_KEY
+    ? { clientId: env.SUMUP_CLIENT_ID, clientSecret: env.SUMUP_CLIENT_SECRET, redirectUri: `${origin}/api/integrations/sumup/callback` }
+    : null
+
+/** LinkedIn. LINKEDIN_PAGES=off: people only, until LinkedIn approves the app for company Pages. */
+export const linkedinOAuth = (env: Env, origin: string): linkedin.LinkedInOAuthConfig | null =>
+  env.LINKEDIN_CLIENT_ID && env.LINKEDIN_CLIENT_SECRET && env.INTEGRATION_KEY
+    ? { clientId: env.LINKEDIN_CLIENT_ID, clientSecret: env.LINKEDIN_CLIENT_SECRET, redirectUri: `${origin}/api/integrations/linkedin/callback`,
+        pages: !/^(off|false|0|no)$/i.test(env.LINKEDIN_PAGES ?? ''), version: env.LINKEDIN_VERSION ?? '202509' }
+    : null
 
 export const spotifyConfig = (env: Env, origin: string): spotify.SpotifyOAuthConfig | null =>
   env.SPOTIFY_CLIENT_ID && env.SPOTIFY_CLIENT_SECRET && env.INTEGRATION_KEY
@@ -86,7 +101,7 @@ export const connectorConfigured = (env: Env, p: Connector) => isGoogle(p) ? !!g
 /** What each connection asks for on the Google / Microsoft consent screen. */
 export const SCOPES: Record<Connector, readonly string[]> = {
   gmail: google.GMAIL_SCOPES, google_drive: google.DRIVE_SCOPES, youtube_music: youtube.YOUTUBE_SCOPES,
-  outlook: ms.MS_SCOPES.outlook, onedrive: ms.MS_SCOPES.onedrive,
+  search_console: searchConsole.SEARCH_CONSOLE_SCOPES, outlook: ms.MS_SCOPES.outlook, onedrive: ms.MS_SCOPES.onedrive,
 }
 
 /** The one permission each connection can't work without (people can untick it when they sign in). */
@@ -94,6 +109,7 @@ const NEEDS: Record<Connector, string> = {
   gmail: 'https://www.googleapis.com/auth/gmail.send',
   google_drive: 'https://www.googleapis.com/auth/drive.file',
   youtube_music: 'https://www.googleapis.com/auth/youtube.readonly',
+  search_console: 'https://www.googleapis.com/auth/webmasters.readonly',
   outlook: 'Mail.Send',
   onedrive: 'Files.ReadWrite',
 }
@@ -113,6 +129,7 @@ export function hasScope(p: Connector, granted: string | undefined) {
 // ---------------------------------------------------------------------------------------------
 const API_NAME: Partial<Record<Provider, string>> = {
   gmail: 'Gmail API', google_drive: 'Google Drive API', youtube_music: 'YouTube Data API v3', google_business: 'Business Profile APIs',
+  search_console: 'Google Search Console API',
 }
 /**
  * The Google Cloud APIs that connecting Google Maps and syncing hours call (worker/providers/google.ts).
@@ -132,6 +149,9 @@ export function explain(p: Provider, e: unknown): string {
     return `${name} access was removed or has expired. Connect it again.`
   }
   if (p === 'tiktok' && /access_token_invalid|scope_not_authorized/i.test(raw)) return /scope/i.test(raw) ? missingPermission(p) : `${name} access was removed or has expired. Connect it again.`
+  if (p === 'linkedin' && /Not enough permissions|ACCESS_DENIED/i.test(raw)) {
+    return 'LinkedIn didn’t allow posting there. Check you’re still an admin of the Page (or choose your own profile), then connect again.'
+  }
   if (p === 'instagram' && /Insufficient Developer Role|not.*tester/i.test(raw)) {
     return 'This Instagram account can’t connect yet: until the app passes Meta’s review, only accounts added as Instagram testers in the Meta app can connect.'
   }
@@ -155,7 +175,7 @@ export function explain(p: Provider, e: unknown): string {
 }
 
 /** Failures that trying again won't fix (as opposed to a provider having a bad minute). */
-const LASTING = /invalid_grant|access was removed|switched off|without the permission|no Outlook mailbox|no OneDrive|no YouTube channel|not connected|not set up|hasn.t fetched|hasn.t switched on|no Google Maps listing|can.t connect yet/i
+const LASTING = /invalid_grant|access was removed|access has expired|switched off|without the permission|no Outlook mailbox|no OneDrive|no YouTube channel|not connected|not set up|hasn.t fetched|hasn.t switched on|no Google Maps listing|can.t connect yet|no website in Search Console|no longer in this Google account|didn.t allow posting/i
 export const lasting = (p: Provider, e: unknown) => LASTING.test(message(e)) || LASTING.test(explain(p, e))
 
 // ---------------------------------------------------------------------------------------------
@@ -260,10 +280,10 @@ export async function showInstagramHandle(db: SupabaseClient, username: string, 
   await db.from('business').update({ instagram: `@${username}` }).eq('id', 1)
 }
 
-/** Tokens that run out (TikTok: a day, Square: 30 days) are renewed with the refresh token when needed. */
+/** Tokens that run out (TikTok: a day, Square: 30 days, SumUp: an hour) are renewed with the refresh token when needed. */
 interface RenewableSecret { access_token: string; refresh_token: string; expires_at: string }
 
-async function renewable(env: Env, db: SupabaseClient, p: 'tiktok' | 'square', renewWithinMs: number,
+async function renewable(env: Env, db: SupabaseClient, p: 'tiktok' | 'square' | 'sumup', renewWithinMs: number,
   refresh: (refreshToken: string) => Promise<{ access_token?: string; refresh_token?: string; expires_at?: string; expires_in?: number }>) {
   const { data: secret } = await db.from('integration_secrets').select('ciphertext').eq('provider', p).maybeSingle()
   if (!secret) throw new Error(`${optionName(p)} is not connected`)
@@ -291,6 +311,38 @@ export async function squareSession(env: Env, db: SupabaseClient) {
   ])
   const ext = (row?.external ?? {}) as { locations?: square.SquareLocation[] }
   return { token, sandbox: cfg.sandbox, locationIds: (ext.locations ?? []).map(l => l.id) }
+}
+
+export async function sumupSession(env: Env, db: SupabaseClient) {
+  const cfg = sumupOAuth(env, '')
+  if (!cfg) throw new Error('SumUp is not set up')
+  return renewable(env, db, 'sumup', 5 * 60_000, r => sumup.refreshAccess(cfg, r))
+}
+
+/** LinkedIn's access: 60 days, then connect again (apps LinkedIn approved for it get a refresh token instead). */
+export interface LinkedInSecret { access_token: string; expires_at: string; refresh_token?: string }
+export interface LinkedInExternal { member?: linkedin.LinkedInMember; pages?: linkedin.LinkedInPage[]; page_id?: string; page_name?: string; expires_at?: string; expiry_warned?: boolean }
+const LINKEDIN_WARN_MS = 7 * 86_400_000
+
+/** The LinkedIn access and who posts (the chosen Page, or 'me'). With `renew`, a refreshable token close to running out is renewed. */
+export async function linkedinSession(env: Env, db: SupabaseClient, renew = false) {
+  const cfg = linkedinOAuth(env, '')
+  if (!cfg) throw new Error('LinkedIn is not set up')
+  const [{ data: secret }, { data: row }] = await Promise.all([
+    db.from('integration_secrets').select('ciphertext').eq('provider', 'linkedin').maybeSingle(),
+    db.from('integrations').select('external').eq('provider', 'linkedin').single(),
+  ])
+  if (!secret) throw new Error('LinkedIn is not connected')
+  let s = await unseal<LinkedInSecret>(env.INTEGRATION_KEY!, secret.ciphertext)
+  const left = Date.parse(s.expires_at) - Date.now()
+  if (renew && s.refresh_token && left < LINKEDIN_WARN_MS) {
+    const t = await linkedin.refreshAccess(cfg, s.refresh_token)
+    s = { access_token: t.access_token!, refresh_token: t.refresh_token ?? s.refresh_token, expires_at: new Date(Date.now() + (t.expires_in ?? 5_184_000) * 1000).toISOString() }
+    await db.from('integration_secrets').update({ ciphertext: await seal(env.INTEGRATION_KEY!, s), updated_at: new Date().toISOString() }).eq('provider', 'linkedin')
+  } else if (left <= 0) throw new Error('LinkedIn access has expired. Connect it again.')
+  const ext = (row?.external ?? {}) as LinkedInExternal
+  return { cfg, token: s.access_token, expiresAt: s.expires_at, refreshable: !!s.refresh_token, external: ext,
+    author: ext.page_id && ext.member ? linkedin.authorUrn(ext.page_id, ext.member.id) : null }
 }
 
 /** The connected Stripe account, read with the platform key. */
@@ -341,6 +393,30 @@ export async function proveSquare(sandbox: boolean, token: string): Promise<Prov
   return { label: m.business_name ?? locs[0].name, external: { merchant_id: m.id, currency: m.currency ?? locs[0].currency, locations: locs.map(l => ({ id: l.id, name: l.name })) } }
 }
 
+/** SumUp: the merchant account was found and its transactions can be read. */
+export async function proveSumUp(token: string): Promise<Proven> {
+  const [m, last] = await Promise.all([sumup.merchant(token), sumup.latest(token)])
+  return { label: m.name, external: { merchant_code: m.merchant_code, currency: m.currency ?? last?.currency ?? 'EUR' } }
+}
+
+/**
+ * LinkedIn: posting was allowed and the person could be read. With company Pages they administer
+ * (and Pages allowed), it waits for the admin to pick a Page or their own profile ('me'); without,
+ * it posts as the person straight away.
+ */
+export async function proveLinkedIn(cfg: linkedin.LinkedInOAuthConfig, t: linkedin.LinkedInToken): Promise<Proven> {
+  const scopes = linkedin.granted(t.scope)
+  if (scopes && !scopes.includes('w_member_social')) throw new Error(missingPermission('linkedin'))
+  const token = t.access_token!
+  const member = await linkedin.member(cfg.version, token)
+  // An app without the Community Management API (or Pages unticked) has the person only.
+  const canPages = cfg.pages && (!scopes || (scopes.includes('r_organization_admin') && scopes.includes('w_organization_social')))
+  const pages = canPages ? await linkedin.pages(cfg.version, token).catch(() => []) : []
+  const external = { member, pages, expires_at: new Date(Date.now() + (t.expires_in ?? 5_184_000) * 1000).toISOString() }
+  if (pages.length) return { label: null, external, pending: true }
+  return { label: member.name, external: { ...external, page_id: 'me', page_name: member.name } }
+}
+
 /** Stripe: the account can be read (and takes payments). */
 export async function proveStripe(secretKey: string, accountId: string): Promise<Proven> {
   const a = await stripe.account(secretKey, accountId)
@@ -366,7 +442,11 @@ export async function connectedOf<P extends Provider>(db: SupabaseClient, option
 // ---------------------------------------------------------------------------------------------
 // Proof on connect: nothing is stored until this passes
 // ---------------------------------------------------------------------------------------------
-export interface Proven { label: string | null; external: Record<string, unknown> }
+export interface Proven {
+  label: string | null; external: Record<string, unknown>
+  /** Signed in and allowed, but the admin still has to choose (a LinkedIn Page, a Search Console website). */
+  pending?: boolean
+}
 
 const confirmation = (p: 'gmail' | 'outlook', email: string, business: string) => ({
   to: email,
@@ -375,8 +455,11 @@ const confirmation = (p: 'gmail' | 'outlook', email: string, business: string) =
     'Team alerts for people who prefer email will come from this address. You can disconnect it any time on the Connections page.',
 })
 
-/** Use a new Google/Microsoft connection for real. Throws, in plain words, if it can't do its job. */
-export async function proveNew(p: Connector, t: { access_token: string; scope?: string }, business: string): Promise<Proven> {
+/**
+ * Use a new Google/Microsoft connection for real. Throws, in plain words, if it can't do its job.
+ * `website`: the business's own, so Search Console can pick it.
+ */
+export async function proveNew(p: Connector, t: { access_token: string; scope?: string }, business: string, website?: string | null): Promise<Proven> {
   if (!hasScope(p, t.scope)) throw new Error(missingPermission(p))
   const token = t.access_token
   switch (p) {
@@ -406,7 +489,22 @@ export async function proveNew(p: Connector, t: { access_token: string; scope?: 
       if (!channel) throw new Error('This Google account has no YouTube channel, so it has no playlists. Open YouTube Music with it, make a playlist, then connect again.')
       return { label: channel, external: { playlists: (await youtube.playlists(token)).length } }
     }
+    case 'search_console': {
+      const [email, sites] = await Promise.all([google.accountEmail(token), searchConsole.sites(token)])
+      if (!sites.length) throw new Error('This Google account has no website in Search Console. Add and verify the website at search.google.com/search-console, then connect again.')
+      const site = searchConsole.pickSite(sites, website)
+      if (!site) return { label: email ?? null, external: { sites, email }, pending: true }
+      await searchConsole.probe(token, site)
+      return { label: searchConsole.siteLabel(site), external: { sites, site, email } }
+    }
   }
+}
+
+/** Business details show the connected mailbox as the business's email when none was typed (one typed by hand is never replaced). */
+export async function showMailboxAddress(db: SupabaseClient, email: string) {
+  const { data } = await db.from('business').select('email').eq('id', 1).maybeSingle()
+  if (!data || String(data.email ?? '').trim()) return
+  await db.from('business').update({ email }).eq('id', 1)
 }
 
 /** Spotify: the account signed in and its playlists can be read. */
@@ -441,6 +539,12 @@ async function stillWorks(env: Env, db: SupabaseClient, row: Row): Promise<Parti
     if (!hasScope(p, scope)) throw new Error(missingPermission(p))
     if (p === 'outlook') await ms.me(token)
     if (p === 'youtube_music') await youtube.channel(token)
+    if (p === 'search_console') {
+      const sites = await searchConsole.sites(token)
+      const site = row.external.site as string | undefined
+      if (site && !sites.includes(site)) throw new Error(`${searchConsole.siteLabel(site)} is no longer in this Google account’s Search Console. Choose another website or connect again.`)
+      return { external: { ...row.external, sites } }
+    }
     if (p === 'google_drive') {
       const id = row.external.folder_id as string | undefined
       // Someone deleted the folder: make it again (exports keep working), still a pass.
@@ -491,6 +595,23 @@ async function stillWorks(env: Env, db: SupabaseClient, row: Row): Promise<Parti
       const s = await stripeSession(env, db)
       const proven = await proveStripe(s.secretKey, s.accountId)
       return { account_label: proven.label, external: { ...row.external, ...proven.external } }
+    }
+    case 'sumup': {
+      const proven = await proveSumUp(await sumupSession(env, db))
+      return { account_label: proven.label, external: { ...row.external, ...proven.external } }
+    }
+    case 'linkedin': {
+      const s = await linkedinSession(env, db, true)
+      const member = await linkedin.member(s.cfg.version, s.token)
+      const pageId = s.external.page_id ?? 'me'
+      const name = pageId === 'me' ? member.name : (await linkedin.page(s.cfg.version, s.token, pageId)).name
+      const external: LinkedInExternal = { ...s.external, member, page_name: name, expires_at: s.expiresAt }
+      // No silent renewal for most apps: admins hear a week before the 60 days are up (once).
+      if (!s.refreshable && Date.parse(s.expiresAt) - Date.now() < LINKEDIN_WARN_MS && !s.external.expiry_warned) {
+        await tellAdmins(db, 'LinkedIn needs connecting again soon', `LinkedIn only allows access for 60 days. Connect it again before ${day(s.expiresAt)} to keep posting.`)
+        external.expiry_warned = true
+      }
+      return { account_label: name, external: external as Record<string, unknown> }
     }
     case 'google_business': {
       const s = await googleSession(env, db)

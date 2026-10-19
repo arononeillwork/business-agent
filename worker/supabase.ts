@@ -32,6 +32,12 @@ export interface Env {
   SQUARE_APP_ID?: string              // Square app (OAuth): takings on the Finances page
   SQUARE_APP_SECRET?: string
   SQUARE_ENVIRONMENT?: string         // var: 'production' (default) or 'sandbox'
+  SUMUP_CLIENT_ID?: string            // SumUp app (OAuth, read-only): takings on the Finances page
+  SUMUP_CLIENT_SECRET?: string
+  LINKEDIN_CLIENT_ID?: string         // LinkedIn app (Sign In with OpenID Connect, Share on LinkedIn, Community Management API)
+  LINKEDIN_CLIENT_SECRET?: string
+  LINKEDIN_PAGES?: string             // 'off': post as the person only (the app has no Community Management API yet)
+  LINKEDIN_VERSION?: string           // var: Posts API version, YYYYMM (default in connections.ts)
   MS_CLIENT_ID?: string               // Microsoft app (Outlook email, OneDrive files); set by the Microsoft setup workflow
   MS_CLIENT_SECRET?: string
 }

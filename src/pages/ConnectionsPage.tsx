@@ -4,20 +4,21 @@ import { PageHeader } from '../components/common'
 import { GoogleMapsCard, InstagramCard } from '../components/Connections'
 import { CheckAllButton, ServiceConnections, useConnectResult } from '../components/Connectors'
 import { CalendarFeedCard } from '../components/CalendarFeed'
+import { t, tr } from '../i18n'
 
 /** Admins: the business's own apps, like an AI's connectors. Each person's own connections live on My account. */
 export function ConnectionsPage() {
   useConnectResult()
   return (
     <>
-      <PageHeader eyebrow="Settings" title="Business connections" actions={<CheckAllButton />} />
+      <PageHeader eyebrow={t('Settings')} title={t('Business connections')} actions={<CheckAllButton />} />
       <Alert severity="info" sx={{ mb: 3 }}>
-        Personal connections (my shifts in my calendar, my music, AI assistants) are on <RouterLink to="/account">My account</RouterLink>; every team member sets up their own.
+        {tr('Personal connections (my shifts in my calendar, my music, AI assistants) are on {account}; every team member sets up their own.', { account: <RouterLink to="/account">{t('My account')}</RouterLink> })}
       </Alert>
       <ServiceConnections />
-      <Box component="section" aria-label="Settings for connected apps" sx={{ mt: 4 }}>
-        <Typography variant="h6" component="h2">Settings for connected apps</Typography>
-        <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>The team calendar link, your Google Maps listing and Instagram.</Typography>
+      <Box component="section" aria-label={t('Settings for connected apps')} sx={{ mt: 4 }}>
+        <Typography variant="h6" component="h2">{t('Settings for connected apps')}</Typography>
+        <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>{t('The team calendar link, your Google Maps listing and Instagram.')}</Typography>
         <Grid container spacing={2.5}>
           <Grid size={12}>
             <Stack spacing={2.5}>

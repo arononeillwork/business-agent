@@ -91,6 +91,23 @@ end $$;
 select pg_temp.expect_error($q$update public.social_posts set caption = 'again' where caption = 'Poll: oat or almond?'$q$, 'already gone out');
 select pg_temp.expect_error($q$insert into public.social_posts (caption, targets, status) values ('x', '{facebook}', 'due')$q$, 'draft or schedule');
 
+-- 4. LinkedIn: posts only (text, or one photo), one 'linkedin_post' job each; reminders name it ------
+select pg_temp.expect_error($q$insert into public.social_posts (kind, caption, targets, media) values ('carousel', 'x', '{instagram,linkedin}',
+  '[{"url": "https://x.test/a.jpg", "type": "image"}, {"url": "https://x.test/b.jpg", "type": "image"}]')$q$, 'Carousels go to Instagram only');
+select pg_temp.expect_error($q$insert into public.social_posts (kind, caption, targets) values ('reel', 'x', '{linkedin}')$q$, 'Reels go to Instagram only');
+select pg_temp.expect_error($q$insert into public.social_posts (caption, targets) values ('x', '{mastodon}')$q$, 'social_posts_targets_check');
+insert into public.social_posts (caption, targets, status, scheduled_at) values ('We are hiring a barista', '{linkedin}', 'scheduled', now() - interval '1 minute');
+insert into public.social_posts (caption, targets, media, status, scheduled_at)
+  values ('Meet the team', '{facebook,linkedin}', '[{"url": "https://x.test/team.jpg", "type": "image"}]', 'scheduled', now() - interval '1 minute');
+insert into public.social_posts (caption, targets, status, scheduled_at, auto) values ('Post the job ad yourself', '{linkedin}', 'scheduled', now() - interval '1 minute', false);
+reset role;
+do $$ begin
+  assert public.queue_due_social_posts() = 3, 'one job per network';
+  assert (select count(*) from public.outbox where kind = 'linkedin_post') = 2, 'LinkedIn jobs queued';
+  assert (select payload->>'image_url' from public.outbox where kind = 'linkedin_post' and payload->>'caption' = 'Meet the team') = 'https://x.test/team.jpg', 'with its photo';
+  assert exists (select 1 from public.notifications where title = 'Time to post your post on LinkedIn'), 'the reminder says LinkedIn';
+end $$;
+
 reset role;
 delete from public.outbox where payload ? 'post_id';
 delete from public.social_posts;

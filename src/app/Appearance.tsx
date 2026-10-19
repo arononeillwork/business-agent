@@ -3,16 +3,17 @@ import { useEffect } from 'react'
 import type { Preferences } from '../../shared/types'
 import { setNumberFormat } from '../../shared/time'
 import { useApp } from './AppContext'
+import { msg } from '../i18n'
 
 // Each person's appearance and accessibility choices (saved on their profile, so they follow them
 // to any device), applied to the whole app. A copy is kept on this device so the next visit opens
 // in the right theme and size straight away, before sign-in finishes.
 const CACHE = 'eb-preferences'
 export const TEXT_SIZES: Record<NonNullable<Preferences['textSize']>, { label: string; scale: string }> = {
-  small: { label: 'Small', scale: '93.75%' },
-  default: { label: 'Standard', scale: '100%' },
-  large: { label: 'Large', scale: '112.5%' },
-  larger: { label: 'Extra large', scale: '125%' },
+  small: { label: msg('Small'), scale: '93.75%' },
+  default: { label: msg('Standard'), scale: '100%' },
+  large: { label: msg('Large'), scale: '112.5%' },
+  larger: { label: msg('Extra large'), scale: '125%' },
 }
 
 export function cachedPreferences(): Preferences {

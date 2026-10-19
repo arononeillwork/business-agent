@@ -27,11 +27,12 @@ import { MusicCard } from '../components/MusicCard'
 import { restrictToVerticalAxis } from '../components/dnd'
 import type { CafeTrack, MusicPlaylist, MusicProvider, MyNowPlaying, SpotifyPlaylist } from '../../shared/types'
 import { fonts, tokens } from '../theme'
+import { msg, t, tn, tc } from '../i18n'
 
 const BRAND: Record<MusicProvider, { name: string; colour: string; soft: string; blurb: string; logo: ReactNode }> = {
   spotify: {
     name: 'Spotify', colour: '#1DB954', soft: '#E7F7EC',
-    blurb: 'Your playlists, played here or on your phone and speakers (Premium plays on your devices).',
+    blurb: msg('Your playlists, played here or on your phone and speakers (Premium plays on your devices).'),
     logo: (
       <svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden><circle cx="12" cy="12" r="12" fill="#1DB954" />
         <path d="M17.5 16.3a.75.75 0 0 1-1 .25c-2.8-1.7-6.3-2.1-10.4-1.2a.75.75 0 1 1-.33-1.46c4.5-1 8.4-.56 11.5 1.36.35.21.46.67.24 1.05zm1.4-3.2a.94.94 0 0 1-1.3.31c-3.2-2-8.1-2.55-11.9-1.4a.94.94 0 1 1-.54-1.8c4.3-1.3 9.7-.68 13.4 1.6.44.27.58.85.31 1.29zm.12-3.3C15.2 7.5 8.8 7.3 5.1 8.4a1.12 1.12 0 1 1-.65-2.15c4.3-1.3 11.3-1.05 15.7 1.57a1.12 1.12 0 0 1-1.15 1.93z" fill="#fff" /></svg>
@@ -39,7 +40,7 @@ const BRAND: Record<MusicProvider, { name: string; colour: string; soft: string;
   },
   youtube: {
     name: 'YouTube Music', colour: '#FF0033', soft: '#FDE8EC',
-    blurb: 'Your YouTube Music playlists, played right here in the page.',
+    blurb: msg('Your YouTube Music playlists, played right here in the page.'),
     logo: (
       <svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden><circle cx="12" cy="12" r="12" fill="#FF0033" />
         <circle cx="12" cy="12" r="6.2" fill="none" stroke="#fff" strokeWidth="1.3" /><path d="M10.3 9.3v5.4l4.6-2.7z" fill="#fff" /></svg>
@@ -62,7 +63,7 @@ export function MusicPage() {
   useEffect(() => {
     const ok = params.get('connected'), err = params.get('connect_error')
     if (!ok && !err) return
-    if (ok) { notify(`${BRAND[ok as MusicProvider]?.name ?? 'Music'} connected`, 'success'); setTab(ok as MusicProvider) }
+    if (ok) { notify(t('{name} connected', { name: BRAND[ok as MusicProvider]?.name ?? t('Music') }), 'success'); setTab(ok as MusicProvider) }
     if (err) notify(err, 'error')
     setParams({}, { replace: true })
   }, [params, setParams, notify])
@@ -70,7 +71,7 @@ export function MusicPage() {
   return (
     <>
       {/* No visible header: the player is the page. The title stays for screen readers. */}
-      <Typography variant="h4" component="h1" sx={visuallyHidden}>Music</Typography>
+      <Typography variant="h4" component="h1" sx={visuallyHidden}>{t('Music')}</Typography>
       <Stack spacing={3}>
         <CafeMusicSection />
         <PersonalMusic tab={tab} setTab={setTab} />
@@ -91,8 +92,8 @@ function CafeMusicSection() {
   if (music.library.provider === 'spotify') return <MusicCard />
   if (!music.enabled) {
     return (
-      <Alert severity="info" action={isAdmin && <Button component={RouterLink} to="/connections" size="small">Connect</Button>}>
-        No café music connected yet. {isAdmin ? 'Connect the café’s YouTube Music on Connections.' : 'An admin connects it on the Connections page.'}
+      <Alert severity="info" action={isAdmin && <Button component={RouterLink} to="/connections" size="small">{t('Connect')}</Button>}>
+        {t('No café music connected yet.')} {isAdmin ? t('Connect the café’s YouTube Music on Connections.') : t('An admin connects it on the Connections page.')}
       </Alert>
     )
   }
@@ -118,7 +119,7 @@ function NowPlaying() {
   const duration = s?.duration ?? 0
   const art = track?.image ?? s?.playlist?.image
   return (
-    <Card component="section" aria-label="Now playing" sx={{ overflow: 'hidden' }}>
+    <Card component="section" aria-label={t('Now playing')} sx={{ overflow: 'hidden' }}>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2.5} sx={{ p: { xs: 2, sm: 2.5 } }}>
         <Box sx={{ width: { xs: '100%', sm: 132 }, maxWidth: 220, aspectRatio: '1', borderRadius: 3, overflow: 'hidden', flexShrink: 0, alignSelf: { xs: 'center', sm: 'flex-start' },
           background: `linear-gradient(135deg, ${BRAND.youtube.colour} 0%, ${tokens.espresso} 130%)`, display: 'grid', placeItems: 'center' }}>
@@ -126,15 +127,15 @@ function NowPlaying() {
         </Box>
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography variant="overline" sx={{ color: live ? tokens.matchaDeep : 'text.secondary' }}>
-            {!live ? 'Nothing playing' : music.here ? 'Playing on this device' : `Playing on ${s?.device_name ?? 'another device'}`}
+            {!live ? t('Nothing playing') : music.here ? t('Playing on this device') : t('Playing on {device}', { device: s?.device_name ?? t('another device') })}
           </Typography>
-          <Typography variant="h5" component="h2" sx={{ lineHeight: 1.25, wordBreak: 'break-word' }}>{track?.title ?? 'Pick a playlist below'}</Typography>
+          <Typography variant="h5" component="h2" sx={{ lineHeight: 1.25, wordBreak: 'break-word' }}>{track?.title ?? t('Pick a playlist below')}</Typography>
           <Typography sx={{ color: 'text.secondary' }} noWrap>
             {[track?.artist, s?.playlist?.name].filter(Boolean).join(' · ') || `${BRAND.youtube.name}${music.library?.account ? ` · ${music.library.account}` : ''}`}
           </Typography>
           {live && track && (
             <Box sx={{ mt: 1.5 }}>
-              <LinearProgress variant="determinate" value={duration ? Math.min(100, (elapsed / duration) * 100) : 0} aria-label="Song progress"
+              <LinearProgress variant="determinate" value={duration ? Math.min(100, (elapsed / duration) * 100) : 0} aria-label={t('Song progress')}
                 sx={{ height: 6, borderRadius: 3, bgcolor: tokens.surfaceAlt, '& .MuiLinearProgress-bar': { bgcolor: BRAND.youtube.colour } }} />
               <Stack direction="row" sx={{ justifyContent: 'space-between', mt: 0.5 }}>
                 <Typography variant="caption" sx={{ color: 'text.secondary' }}>{mmss(elapsed)}</Typography>
@@ -143,23 +144,23 @@ function NowPlaying() {
             </Box>
           )}
           <Stack direction="row" sx={{ alignItems: 'center', gap: 0.5, mt: 1.5, flexWrap: 'wrap' }}>
-            <IconButton aria-label="Previous song" disabled={!live} onClick={() => run(() => music.control('previous'))}><PrevIcon /></IconButton>
+            <IconButton aria-label={t('Previous song')} disabled={!live} onClick={() => run(() => music.control('previous'))}><PrevIcon /></IconButton>
             {s?.playing && live
-              ? <IconButton aria-label="Pause" onClick={() => run(() => music.control('pause'))} sx={{ bgcolor: BRAND.youtube.colour, color: '#fff', '&:hover': { bgcolor: BRAND.youtube.colour } }}><PauseIcon /></IconButton>
-              : <IconButton aria-label="Play" disabled={!live} onClick={() => run(() => music.control('play'))} sx={{ bgcolor: BRAND.youtube.colour, color: '#fff', '&:hover': { bgcolor: BRAND.youtube.colour }, '&.Mui-disabled': { bgcolor: tokens.surfaceAlt } }}><PlayIcon /></IconButton>}
-            <IconButton aria-label="Next song" disabled={!live} onClick={() => run(() => music.control('next'))}><NextIcon /></IconButton>
+              ? <IconButton aria-label={t('Pause')} onClick={() => run(() => music.control('pause'))} sx={{ bgcolor: BRAND.youtube.colour, color: '#fff', '&:hover': { bgcolor: BRAND.youtube.colour } }}><PauseIcon /></IconButton>
+              : <IconButton aria-label={t('Play')} disabled={!live} onClick={() => run(() => music.control('play'))} sx={{ bgcolor: BRAND.youtube.colour, color: '#fff', '&:hover': { bgcolor: BRAND.youtube.colour }, '&.Mui-disabled': { bgcolor: tokens.surfaceAlt } }}><PlayIcon /></IconButton>}
+            <IconButton aria-label={t('Next song')} disabled={!live} onClick={() => run(() => music.control('next'))}><NextIcon /></IconButton>
             {live && (
               <Stack direction="row" spacing={1} sx={{ alignItems: 'center', ml: { sm: 2 }, width: 150 }}>
                 <VolumeIcon fontSize="small" sx={{ color: 'text.secondary' }} />
-                <Slider size="small" value={s?.volume ?? 80} aria-label="Volume" key={music.here ? 'here' : s?.volume}
+                <Slider size="small" value={s?.volume ?? 80} aria-label={t('Volume')} key={music.here ? 'here' : s?.volume}
                   onChangeCommitted={(_, v) => void run(() => music.control('volume', v as number))} />
               </Stack>
             )}
           </Stack>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 2, alignItems: { sm: 'center' } }}>
-            {!live && <Button variant="contained" startIcon={<SpeakerIcon />} onClick={() => run(() => music.claim())}>Play on this device</Button>}
-            {live && !music.here && <Button variant="outlined" startIcon={<SpeakerIcon />} onClick={() => run(() => music.claim())}>Play here instead</Button>}
-            {music.here && <Button onClick={() => run(() => music.release(), 'Stopped playing on this device')}>Stop playing on this device</Button>}
+            {!live && <Button variant="contained" startIcon={<SpeakerIcon />} onClick={() => run(() => music.claim())}>{t('Play on this device')}</Button>}
+            {live && !music.here && <Button variant="outlined" startIcon={<SpeakerIcon />} onClick={() => run(() => music.claim())}>{t('Play here instead')}</Button>}
+            {music.here && <Button onClick={() => run(() => music.release(), t('Stopped playing on this device'))}>{t('Stop playing on this device')}</Button>}
           </Stack>
         </Box>
       </Stack>
@@ -175,8 +176,8 @@ function Queue() {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }))
   if (!s?.queue.length) return null
   const current = s.queue[s.position]
-  const keys = s.queue.map((t, i) => `${i}:${t.id}`)
-  const reorder = (queue: CafeTrack[]) => music.setQueue(s.playlist, queue, Math.max(0, queue.findIndex(t => t === current)))
+  const keys = s.queue.map((x, i) => `${i}:${x.id}`)
+  const reorder = (queue: CafeTrack[]) => music.setQueue(s.playlist, queue, Math.max(0, queue.findIndex(x => x === current)))
   const onDragEnd = ({ active, over }: DragEndEvent) => {
     if (!over || active.id === over.id) return
     void run(() => reorder(arrayMove(s.queue, keys.indexOf(String(active.id)), keys.indexOf(String(over.id)))))
@@ -184,22 +185,22 @@ function Queue() {
   const shuffle = () => {
     const rest = s.queue.filter((_, i) => i !== s.position)
     for (let i = rest.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [rest[i], rest[j]] = [rest[j], rest[i]] }
-    return run(() => music.setQueue(s.playlist, [current, ...rest], 0), 'Shuffled')
+    return run(() => music.setQueue(s.playlist, [current, ...rest], 0), t('Shuffled'))
   }
   // The song playing now stays where it is; the speaker doesn't restart it.
   const remove = (i: number) => run(() => music.setQueue(s.playlist, s.queue.filter((_, j) => j !== i), i < s.position ? s.position - 1 : s.position),
-    `Removed ${s.queue[i].title}`)
+    t('Removed {title}', { title: s.queue[i].title }))
   return (
-    <Card component="section" aria-label="Up next">
+    <Card component="section" aria-label={t('Up next')}>
       <Stack direction="row" sx={{ alignItems: 'center', px: 2, pt: 1.5, pb: 1 }}>
-        <Typography variant="h6" component="h2" sx={{ flex: 1 }}>Up next <Typography component="span" sx={{ color: 'text.secondary' }}>· {s.queue.length} songs</Typography></Typography>
-        <Button size="small" startIcon={<ShuffleIcon />} onClick={shuffle}>Shuffle</Button>
+        <Typography variant="h6" component="h2" sx={{ flex: 1 }}>{t('Up next')} <Typography component="span" sx={{ color: 'text.secondary' }}>· {t('{n} songs', { n: s.queue.length })}</Typography></Typography>
+        <Button size="small" startIcon={<ShuffleIcon />} onClick={shuffle}>{t('Shuffle')}</Button>
       </Stack>
       <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToVerticalAxis]} onDragEnd={onDragEnd}>
         <SortableContext items={keys} strategy={verticalListSortingStrategy}>
-          <Box role="list" aria-label="Queue" sx={{ maxHeight: 420, overflowY: 'auto' }}>
-            {s.queue.map((t, i) => (
-              <QueueRow key={keys[i]} id={keys[i]} track={t} index={i} current={i === s.position} playing={i === s.position && s.playing && music.live}
+          <Box role="list" aria-label={t('Queue')} sx={{ maxHeight: 420, overflowY: 'auto' }}>
+            {s.queue.map((x, i) => (
+              <QueueRow key={keys[i]} id={keys[i]} track={x} index={i} current={i === s.position} playing={i === s.position && s.playing && music.live}
                 onPlay={() => run(() => music.control('jump', i))} onRemove={i === s.position ? undefined : () => remove(i)} />
             ))}
           </Box>
@@ -218,10 +219,10 @@ function QueueRow({ id, track, index, current, playing, onPlay, onRemove }: {
       style={{ transform: CSS.Transform.toString(transform), transition }}
       sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1, py: 0.5, borderTop: `1px solid ${tokens.line}`,
         bgcolor: current ? tokens.roseSoft : isDragging ? tokens.surfaceAlt : 'transparent', position: 'relative', zIndex: isDragging ? 2 : 'auto' }}>
-      <IconButton size="small" {...attributes} {...listeners} aria-label={`Move ${track.title}`} sx={{ cursor: 'grab', touchAction: 'none', color: tokens.inkFaint }}>
+      <IconButton size="small" {...attributes} {...listeners} aria-label={t('Move {name}', { name: track.title })} sx={{ cursor: 'grab', touchAction: 'none', color: tokens.inkFaint }}>
         <DragIcon fontSize="small" />
       </IconButton>
-      <CardActionArea onClick={onPlay} aria-label={`Play ${track.title}`} sx={{ display: 'flex', justifyContent: 'flex-start', gap: 1.25, borderRadius: 2, p: 0.5, minWidth: 0 }}>
+      <CardActionArea onClick={onPlay} aria-label={t('Play {title}', { title: track.title })} sx={{ display: 'flex', justifyContent: 'flex-start', gap: 1.25, borderRadius: 2, p: 0.5, minWidth: 0 }}>
         <Typography variant="body2" sx={{ width: 22, textAlign: 'right', color: current ? BRAND.youtube.colour : 'text.secondary', flexShrink: 0 }}>
           {playing ? '♪' : index + 1}
         </Typography>
@@ -234,7 +235,7 @@ function QueueRow({ id, track, index, current, playing, onPlay, onRemove }: {
         </Box>
       </CardActionArea>
       {onRemove
-        ? <Tooltip title="Remove from the queue"><IconButton size="small" aria-label={`Remove ${track.title} from the queue`} onClick={onRemove} sx={{ color: tokens.inkFaint }}><CloseIcon fontSize="small" /></IconButton></Tooltip>
+        ? <Tooltip title={t('Remove from the queue')}><IconButton size="small" aria-label={t('Remove {title} from the queue', { title: track.title })} onClick={onRemove} sx={{ color: tokens.inkFaint }}><CloseIcon fontSize="small" /></IconButton></Tooltip>
         : <Box sx={{ width: 34, flexShrink: 0 }} />}
     </Box>
   )
@@ -252,42 +253,42 @@ function FindMusic() {
   const search = (k = kind) => { if (q.trim().length >= 2) setAsked({ q: q.trim(), kind: k }) }
   const r = asked && results.data
   return (
-    <Card component="section" aria-label="Find music">
+    <Card component="section" aria-label={t('Find music')}>
       <Box component="form" onSubmit={e => { e.preventDefault(); search() }} sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', p: 2, pb: r ? 1 : 2 }}>
-        <TextField value={q} onChange={e => setQ(e.target.value)} placeholder="Search songs, artists or playlists" size="small" sx={{ flex: '1 1 240px' }}
+        <TextField value={q} onChange={e => setQ(e.target.value)} placeholder={t('Search songs, artists or playlists')} size="small" sx={{ flex: '1 1 240px' }}
           slotProps={{ input: {
             startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>,
             endAdornment: (q || asked) && <InputAdornment position="end">
-              <IconButton size="small" edge="end" aria-label="Clear search" onClick={() => { setQ(''); setAsked(null) }}><CloseIcon fontSize="small" /></IconButton>
+              <IconButton size="small" edge="end" aria-label={t('Clear search')} onClick={() => { setQ(''); setAsked(null) }}><CloseIcon fontSize="small" /></IconButton>
             </InputAdornment>,
-          }, htmlInput: { 'aria-label': 'Search music' } }} />
-        <ToggleButtonGroup exclusive size="small" value={kind} aria-label="Search for" onChange={(_, v) => { if (v) { setKind(v); if (asked) search(v) } }}>
-          <ToggleButton value="songs" sx={{ px: 1.75 }}>Songs</ToggleButton>
-          <ToggleButton value="playlists" sx={{ px: 1.75 }}>Playlists</ToggleButton>
+          }, htmlInput: { 'aria-label': t('Search music') } }} />
+        <ToggleButtonGroup exclusive size="small" value={kind} aria-label={t('Search for')} onChange={(_, v) => { if (v) { setKind(v); if (asked) search(v) } }}>
+          <ToggleButton value="songs" sx={{ px: 1.75 }}>{t('Songs')}</ToggleButton>
+          <ToggleButton value="playlists" sx={{ px: 1.75 }}>{t('Playlists')}</ToggleButton>
         </ToggleButtonGroup>
-        <Button type="submit" variant="contained" disabled={q.trim().length < 2}>Search</Button>
+        <Button type="submit" variant="contained" disabled={q.trim().length < 2}>{t('Search')}</Button>
       </Box>
       <ErrorBox error={asked ? results.error : null} />
-      {asked && results.loading && !r && <Typography variant="body2" sx={{ color: 'text.secondary', px: 2, pb: 2 }}>Searching…</Typography>}
-      {r && r.tracks.length + r.playlists.length === 0 && <Typography variant="body2" sx={{ color: 'text.secondary', px: 2, pb: 2 }}>Nothing found for “{asked.q}”.</Typography>}
+      {asked && results.loading && !r && <Typography variant="body2" sx={{ color: 'text.secondary', px: 2, pb: 2 }}>{t('Searching…')}</Typography>}
+      {r && r.tracks.length + r.playlists.length === 0 && <Typography variant="body2" sx={{ color: 'text.secondary', px: 2, pb: 2 }}>{t('Nothing found for “{q}”.', { q: asked.q })}</Typography>}
       {r && r.tracks.length > 0 && (
-        <Box role="list" aria-label="Songs found" sx={{ maxHeight: 360, overflowY: 'auto' }}>
-          {r.tracks.map(t => (
-            <Stack key={t.id} role="listitem" aria-label={t.title} direction="row" spacing={1.25} sx={{ alignItems: 'center', px: 2, py: 0.75, borderTop: `1px solid ${tokens.line}` }}>
-              <Thumb src={t.image} />
+        <Box role="list" aria-label={t('Songs found')} sx={{ maxHeight: 360, overflowY: 'auto' }}>
+          {r.tracks.map(x => (
+            <Stack key={x.id} role="listitem" aria-label={x.title} direction="row" spacing={1.25} sx={{ alignItems: 'center', px: 2, py: 0.75, borderTop: `1px solid ${tokens.line}` }}>
+              <Thumb src={x.image} />
               <Box sx={{ minWidth: 0, flex: 1 }}>
-                <Typography variant="body2" noWrap>{t.title}</Typography>
-                {t.artist && <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }} noWrap>{t.artist}</Typography>}
+                <Typography variant="body2" noWrap>{x.title}</Typography>
+                {x.artist && <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }} noWrap>{x.artist}</Typography>}
               </Box>
-              <Tooltip title="Play now"><IconButton size="small" aria-label={`Play ${t.title} now`} onClick={() => run(() => music.addTracks([t], 'now'), music.live ? `Playing ${t.title}` : `${t.title} is up next`)}><PlayIcon /></IconButton></Tooltip>
-              <Tooltip title="Play next"><IconButton size="small" aria-label={`Play ${t.title} next`} onClick={() => run(() => music.addTracks([t], 'next'), `${t.title} plays next`)}><NextUpIcon fontSize="small" /></IconButton></Tooltip>
-              <Tooltip title="Add to the end of the queue"><IconButton size="small" aria-label={`Add ${t.title} to the queue`} onClick={() => run(() => music.addTracks([t], 'end'), `Added ${t.title}`)}><QueueAddIcon fontSize="small" /></IconButton></Tooltip>
+              <Tooltip title={t('Play now')}><IconButton size="small" aria-label={t('Play {title} now', { title: x.title })} onClick={() => run(() => music.addTracks([x], 'now'), music.live ? t('Playing {name}', { name: x.title }) : t('{name} is up next', { name: x.title }))}><PlayIcon /></IconButton></Tooltip>
+              <Tooltip title={t('Play next')}><IconButton size="small" aria-label={t('Play {title} next', { title: x.title })} onClick={() => run(() => music.addTracks([x], 'next'), t('{title} plays next', { title: x.title }))}><NextUpIcon fontSize="small" /></IconButton></Tooltip>
+              <Tooltip title={t('Add to the end of the queue')}><IconButton size="small" aria-label={t('Add {title} to the queue', { title: x.title })} onClick={() => run(() => music.addTracks([x], 'end'), t('Added {title}', { title: x.title }))}><QueueAddIcon fontSize="small" /></IconButton></Tooltip>
             </Stack>
           ))}
         </Box>
       )}
       {r && r.playlists.length > 0 && (
-        <Box role="list" aria-label="Playlists found" sx={{ maxHeight: 360, overflowY: 'auto' }}>
+        <Box role="list" aria-label={t('Playlists found')} sx={{ maxHeight: 360, overflowY: 'auto' }}>
           {r.playlists.map(p => (
             <Stack key={p.id} role="listitem" aria-label={p.name} direction="row" spacing={1.25} sx={{ alignItems: 'center', px: 2, py: 0.75, borderTop: `1px solid ${tokens.line}` }}>
               <Thumb src={p.image} />
@@ -295,7 +296,7 @@ function FindMusic() {
                 <Typography variant="body2" noWrap>{p.name}</Typography>
                 {p.owner && <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }} noWrap>{p.owner}</Typography>}
               </Box>
-              <Button size="small" startIcon={<PlayIcon />} onClick={() => run(() => music.playPlaylist(p), music.live ? `Playing ${p.name}` : `${p.name} is up next`)}>Play</Button>
+              <Button size="small" startIcon={<PlayIcon />} onClick={() => run(() => music.playPlaylist(p), music.live ? t('Playing {name}', { name: p.name }) : t('{name} is up next', { name: p.name }))}>{t('Play')}</Button>
             </Stack>
           ))}
         </Box>
@@ -324,24 +325,24 @@ function CafePlaylists() {
   const lib = music.library!
   const lists = playlistOrder(music.state?.playlist_order ?? [], lib, showOthers)
   const others = lib.other_playlists?.length ?? 0
-  if (!lists.length && !others) return <Empty>The café’s YouTube Music account has no playlists yet. Make one in YouTube Music and it shows up here.</Empty>
+  if (!lists.length && !others) return <Empty>{t('The café’s YouTube Music account has no playlists yet. Make one in YouTube Music and it shows up here.')}</Empty>
   const onDragEnd = ({ active, over }: DragEndEvent) => {
     if (!over || active.id === over.id) return
     const ids = lists.map(p => p.id)
-    void run(() => music.setPlaylistOrder(arrayMove(ids, ids.indexOf(String(active.id)), ids.indexOf(String(over.id)))), 'Playlist order saved')
+    void run(() => music.setPlaylistOrder(arrayMove(ids, ids.indexOf(String(active.id)), ids.indexOf(String(over.id)))), t('Playlist order saved'))
   }
   return (
-    <Card component="section" aria-label="Café playlists">
+    <Card component="section" aria-label={t('Café playlists')}>
       <Box sx={{ px: 2, pt: 1.5, pb: 1 }}>
-        <Typography variant="h6" component="h2">Playlists</Typography>
-        {lists.length > 1 && <Typography variant="body2" sx={{ color: 'text.secondary' }}>They play one after another, in this order. Drag to change it.</Typography>}
+        <Typography variant="h6" component="h2">{t('Playlists')}</Typography>
+        {lists.length > 1 && <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('They play one after another, in this order. Drag to change it.')}</Typography>}
       </Box>
       <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToVerticalAxis]} onDragEnd={onDragEnd}>
         <SortableContext items={lists.map(p => p.id)} strategy={verticalListSortingStrategy}>
-          <Box role="list" aria-label="Café playlists">
+          <Box role="list" aria-label={t('Café playlists')}>
             {lists.map((p, i) => (
               <PlaylistRow key={p.id} playlist={p} index={i} approved={p.id === lib.approved?.id} playing={music.state?.playlist?.id === p.id}
-                onPlay={() => run(() => music.playPlaylist(p), music.live ? `Playing ${p.name}` : `${p.name} is up next. Press Play on this device, or on the café tablet.`)} />
+                onPlay={() => run(() => music.playPlaylist(p), music.live ? t('Playing {name}', { name: p.name }) : t('{name} is up next. Press Play on this device, or on the café tablet.', { name: p.name }))} />
             ))}
           </Box>
         </SortableContext>
@@ -349,7 +350,7 @@ function CafePlaylists() {
       {others > 0 && (
         <Box sx={{ borderTop: `1px solid ${tokens.line}`, px: 1.5, py: 0.75 }}>
           <Button size="small" onClick={() => setShowOthers(x => !x)}>
-            {showOthers ? 'Hide other YouTube playlists' : `Show ${others} other YouTube ${others === 1 ? 'playlist' : 'playlists'} (not music)`}
+            {showOthers ? t('Hide other YouTube playlists') : tn(others, 'Show {n} other YouTube playlist (not music)', 'Show {n} other YouTube playlists (not music)')}
           </Button>
         </Box>
       )}
@@ -363,7 +364,7 @@ function PlaylistRow({ playlist: p, index, approved, playing, onPlay }: { playli
     <Box ref={setNodeRef} role="listitem" aria-label={p.name} style={{ transform: CSS.Transform.toString(transform), transition }}
       sx={{ display: 'flex', alignItems: 'center', gap: 0.5, pl: 0.5, borderTop: `1px solid ${tokens.line}`, position: 'relative', zIndex: isDragging ? 2 : 'auto',
         bgcolor: playing ? tokens.roseSoft : isDragging ? tokens.surfaceAlt : tokens.surface }}>
-      <IconButton size="small" {...attributes} {...listeners} aria-label={`Move ${p.name}`} sx={{ cursor: 'grab', touchAction: 'none', color: tokens.inkFaint }}>
+      <IconButton size="small" {...attributes} {...listeners} aria-label={t('Move {name}', { name: p.name })} sx={{ cursor: 'grab', touchAction: 'none', color: tokens.inkFaint }}>
         <DragIcon fontSize="small" />
       </IconButton>
       <CardActionArea aria-label={p.name} aria-pressed={playing} onClick={onPlay}
@@ -372,10 +373,10 @@ function PlaylistRow({ playlist: p, index, approved, playing, onPlay }: { playli
         <Cover playlist={{ ...p, provider: 'youtube' }} size={48} />
         <Box sx={{ minWidth: 0, flex: 1 }}>
           <Typography sx={{ fontWeight: 500 }} noWrap>{p.name}</Typography>
-          <Typography variant="body2" sx={{ color: 'text.secondary' }} noWrap>{p.tracks} {p.tracks === 1 ? 'song' : 'songs'}</Typography>
+          <Typography variant="body2" sx={{ color: 'text.secondary' }} noWrap>{tn(p.tracks, '{n} song', '{n} songs')}</Typography>
         </Box>
-        {approved && <Tag>Approved</Tag>}
-        {playing && <Tag fg={tokens.goodFg} bg={tokens.goodBg}>Playing</Tag>}
+        {approved && <Tag>{t('Approved')}</Tag>}
+        {playing && <Tag fg={tokens.goodFg} bg={tokens.goodBg}>{t('Playing')}</Tag>}
       </CardActionArea>
     </Box>
   )
@@ -390,17 +391,17 @@ function PersonalMusic({ tab, setTab }: { tab: MusicProvider | null; setTab: (p:
   const active = tab && connected.includes(tab) ? tab : connected[0] ?? null
   if (!mine.data) return <ErrorBox error={mine.error} />
   return (
-    <Box component="section" aria-label={connected.length ? 'Your own music' : 'Connect a music account'}>
-      <SectionTitle>Your own music</SectionTitle>
+    <Box component="section" aria-label={connected.length ? t('Your own music') : t('Connect a music account')}>
+      <SectionTitle>{t('Your own music')}</SectionTitle>
       {connected.length === 0 ? (
         <Card sx={{ p: 2 }}>
           <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>
-            Optional: connect your own Spotify or YouTube Music to play your playlists here. Only you see your account.
+            {t('Optional: connect your own Spotify or YouTube Music to play your playlists here. Only you see your account.')}
           </Typography>
           <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
             {PROVIDERS.map(p => (
               <Button key={p} variant="outlined" disabled={!mine.data!.configured[p]} onClick={() => run(() => api.connectMyMusic(p))}
-                startIcon={<Box sx={{ width: 18, height: 18 }}>{BRAND[p].logo}</Box>}>Connect {BRAND[p].name}</Button>
+                startIcon={<Box sx={{ width: 18, height: 18 }}>{BRAND[p].logo}</Box>}>{t('Connect {name}', { name: BRAND[p].name })}</Button>
             ))}
           </Stack>
         </Card>
@@ -411,14 +412,14 @@ function PersonalMusic({ tab, setTab }: { tab: MusicProvider | null; setTab: (p:
               <Chip key={a.provider} variant="outlined"
                 avatar={<Box sx={{ width: 20, height: 20, ml: 0.5 }}>{BRAND[a.provider].logo}</Box>}
                 label={`${BRAND[a.provider].name}${a.account_label ? ` · ${a.account_label}` : ''}`}
-                onDelete={() => run(() => api.disconnectMyMusic(a.provider), `${BRAND[a.provider].name} disconnected`)} />
+                onDelete={() => run(() => api.disconnectMyMusic(a.provider), t('{name} disconnected', { name: BRAND[a.provider].name }))} />
             ))}
             {PROVIDERS.filter(p => !connected.includes(p) && mine.data!.configured[p]).map(p => (
-              <Button key={p} size="small" onClick={() => run(() => api.connectMyMusic(p))}>Connect {BRAND[p].name}</Button>
+              <Button key={p} size="small" onClick={() => run(() => api.connectMyMusic(p))}>{t('Connect {name}', { name: BRAND[p].name })}</Button>
             ))}
           </Stack>
           {connected.length > 1 && (
-            <Tabs value={active} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }} aria-label="Music service">
+            <Tabs value={active} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }} aria-label={t('Music service')}>
               {connected.map(p => <Tab key={p} value={p} label={BRAND[p].name} />)}
             </Tabs>
           )}
@@ -437,12 +438,12 @@ function Library({ provider }: { provider: MusicProvider }) {
   return (
     <>
       <ErrorBox error={lists.error} />
-      {lists.data?.length === 0 && <Empty>No playlists in this {BRAND[provider].name} account yet. Make one in the app and it shows up here.</Empty>}
+      {lists.data?.length === 0 && <Empty>{t('No playlists in this {name} account yet. Make one in the app and it shows up here.', { name: BRAND[provider].name })}</Empty>}
       {current && (
         <Stack spacing={3}>
           <Player playlist={current} />
           <Card>
-            <Box role="list" aria-label="Your playlists">
+            <Box role="list" aria-label={t('Your playlists')}>
               {lists.data!.map(p => {
                 const on = p.id === current.id
                 return (
@@ -452,9 +453,9 @@ function Library({ provider }: { provider: MusicProvider }) {
                       <Cover playlist={p} size={48} />
                       <Box sx={{ minWidth: 0, flex: 1 }}>
                         <Typography sx={{ fontWeight: 500 }} noWrap>{p.name}</Typography>
-                        <Typography variant="body2" sx={{ color: 'text.secondary' }} noWrap>{p.tracks} {p.tracks === 1 ? 'song' : 'songs'}</Typography>
+                        <Typography variant="body2" sx={{ color: 'text.secondary' }} noWrap>{tn(p.tracks, '{n} song', '{n} songs')}</Typography>
                       </Box>
-                      {on && <Typography variant="caption" sx={{ color: BRAND[provider].colour, fontWeight: 500 }}>Selected</Typography>}
+                      {on && <Typography variant="caption" sx={{ color: BRAND[provider].colour, fontWeight: 500 }}>{t('Selected')}</Typography>}
                     </CardActionArea>
                   </Box>
                 )
@@ -491,23 +492,23 @@ function Player({ playlist }: { playlist: MusicPlaylist }) {
     ? `https://open.spotify.com/embed/playlist/${encodeURIComponent(playlist.id)}?theme=0`
     : `https://www.youtube-nocookie.com/embed/videoseries?list=${encodeURIComponent(playlist.id)}`
   return (
-    <Card component="section" aria-label="Player" sx={{ position: { lg: 'sticky' }, top: { lg: 76 }, overflow: 'hidden' }}>
+    <Card component="section" aria-label={t('Player')} sx={{ position: { lg: 'sticky' }, top: { lg: 76 }, overflow: 'hidden' }}>
       <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', p: 2, bgcolor: b.soft }}>
         <Cover playlist={playlist} size={56} />
         <Box sx={{ minWidth: 0, flex: 1 }}>
           <Typography variant="overline" sx={{ color: 'text.secondary', lineHeight: 1.4 }}>{b.name}</Typography>
           <Typography sx={{ fontFamily: fonts.display, fontWeight: 500, fontSize: '1.1rem' }} noWrap>{playlist.name}</Typography>
         </Box>
-        <Button size="small" endIcon={<OpenIcon fontSize="small" />} href={playlist.url} target="_blank" rel="noreferrer">Open</Button>
+        <Button size="small" endIcon={<OpenIcon fontSize="small" />} href={playlist.url} target="_blank" rel="noreferrer">{tc('verb', 'Open')}</Button>
       </Stack>
       {sample ? (
         <Box sx={{ p: 3, textAlign: 'center', bgcolor: tokens.surfaceAlt }}>
           <MusicIcon sx={{ fontSize: 40, color: b.colour }} />
-          <Typography sx={{ fontWeight: 500, mt: 1 }}>The {b.name} player appears here</Typography>
-          <Typography variant="body2" sx={{ color: 'text.secondary' }}>Sample data: connect a real account on the live app.</Typography>
+          <Typography sx={{ fontWeight: 500, mt: 1 }}>{t('The {name} player appears here', { name: b.name })}</Typography>
+          <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('Sample data: connect a real account on the live app.')}</Typography>
         </Box>
       ) : (
-        <Box component="iframe" key={src} src={src} title={`${b.name} player: ${playlist.name}`} loading="lazy"
+        <Box component="iframe" key={src} src={src} title={t('{provider} player: {name}', { provider: b.name, name: playlist.name })} loading="lazy"
           allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
           sx={{ display: 'block', width: '100%', border: 0, height: playlist.provider === 'spotify' ? 380 : 'auto', aspectRatio: playlist.provider === 'youtube' ? '16 / 9' : undefined }} />
       )}
@@ -516,14 +517,14 @@ function Player({ playlist }: { playlist: MusicPlaylist }) {
           <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
             <SpeakerIcon fontSize="small" sx={{ color: 'text.secondary' }} />
             <Typography variant="body2" sx={{ color: 'text.secondary', flex: 1, minWidth: 0 }} noWrap>
-              {now.data?.playing ? `${now.data.track ?? ''}${now.data.artist ? ` · ${now.data.artist}` : ''}` : 'Nothing playing on your devices'}
+              {now.data?.playing ? `${now.data.track ?? ''}${now.data.artist ? ` · ${now.data.artist}` : ''}` : t('Nothing playing on your devices')}
             </Typography>
-            {now.data?.playing && now.data.device && <Tag fg={tokens.matchaDeep} bg={tokens.matchaSoft}>On {now.data.device}</Tag>}
+            {now.data?.playing && now.data.device && <Tag fg={tokens.matchaDeep} bg={tokens.matchaSoft}>{t('On {device}', { device: now.data.device })}</Tag>}
           </Stack>
           <Stack direction="row" spacing={1}>
             <Button variant="contained" startIcon={<PlayIcon />} sx={{ bgcolor: b.colour, color: '#fff', '&:hover': { bgcolor: b.colour, filter: 'brightness(0.92)' } }}
-              onClick={() => run(() => api.playMySpotify(playlist.id), `Playing ${playlist.name}`)}>Play on my devices</Button>
-            {now.data?.playing && <Button variant="outlined" startIcon={<PauseIcon />} onClick={() => run(() => api.pauseMySpotify(), 'Paused')}>Pause</Button>}
+              onClick={() => run(() => api.playMySpotify(playlist.id), t('Playing {name}', { name: playlist.name }))}>{t('Play on my devices')}</Button>
+            {now.data?.playing && <Button variant="outlined" startIcon={<PauseIcon />} onClick={() => run(() => api.pauseMySpotify(), t('Paused'))}>{t('Pause')}</Button>}
           </Stack>
         </Stack>
       )}

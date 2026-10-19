@@ -2,6 +2,8 @@
 // the Billing page, feature locks in the app and the Worker (Stripe Checkout).
 // The limits and features are enforced by the database (migration 36, `plan_limits` and
 // `plan_features`); plans.test.ts checks that migration still matches this file.
+// Display text is marked with msg() and translated where it's shown (t() in the app).
+import { msg } from './i18n'
 
 export type PlanId = 'free' | 'starter' | 'pro' | 'business'
 export type Interval = 'month' | 'year'
@@ -43,30 +45,30 @@ export const TRIAL_MONTHS = 2
 
 export const PLANS: Plan[] = [
   {
-    id: 'free', name: 'Free', blurb: 'Try the basics with a very small team.', monthly: 0, yearly: 0,
-    bestFor: 'A small team trying Business Agent: the rota, clock-ins and the legal hours record, free for ever.',
-    support: 'Help centre and email',
+    id: 'free', name: msg('Free'), blurb: msg('Try the basics with a very small team.'), monthly: 0, yearly: 0,
+    bestFor: msg('A small team trying Business Agent: the rota, clock-ins and the legal hours record, free for ever.'),
+    support: msg('Help centre and email'),
     limits: { people: 3, socialAccounts: 1, postsPerMonth: 1 },
     features: [],
   },
   {
-    id: 'starter', name: 'Starter', blurb: 'For a small team getting organised.', monthly: 39, yearly: 390,
-    bestFor: 'One venue with a small team that wants its Google listing, email and files to look after themselves.',
-    support: 'Email, reply within 2 working days',
+    id: 'starter', name: 'Starter', blurb: msg('For a small team getting organised.'), monthly: 39, yearly: 390,
+    bestFor: msg('One venue with a small team that wants its Google listing, email and files to look after themselves.'),
+    support: msg('Email, reply within 2 working days'),
     limits: { people: 10, socialAccounts: 1, postsPerMonth: 12 },
     features: ['google_maps', 'apps'],
   },
   {
-    id: 'pro', name: 'Pro', blurb: 'For busy venues that want it all in sync.', monthly: 79, yearly: 790, popular: true,
-    bestFor: 'A busy café, bar or shop: WhatsApp reminders, takings next to the rota, the clock-in tablet and social every week.',
-    support: 'Email, reply within 1 working day',
+    id: 'pro', name: 'Pro', blurb: msg('For busy venues that want it all in sync.'), monthly: 79, yearly: 790, popular: true,
+    bestFor: msg('A busy café, bar or shop: WhatsApp reminders, takings next to the rota, the clock-in tablet and social every week.'),
+    support: msg('Email, reply within 1 working day'),
     limits: { people: 25, socialAccounts: 3, postsPerMonth: 60 },
     features: ['google_maps', 'apps', 'whatsapp', 'takings', 'sports', 'music', 'kiosk'],
   },
   {
-    id: 'business', name: 'Business', blurb: 'Everything, for larger teams and their advisers.', monthly: 129, yearly: 1290, trial: true,
-    bestFor: 'A larger team, or a business that works with a gestoría or partners: everything switched on, no limits on people or posts.',
-    support: 'Priority email and phone, same working day',
+    id: 'business', name: 'Business', blurb: msg('Everything, for larger teams and their advisers.'), monthly: 129, yearly: 1290, trial: true,
+    bestFor: msg('A larger team, or a business that works with a gestoría or partners: everything switched on, no limits on people or posts.'),
+    support: msg('Priority email and phone, same working day'),
     limits: { people: null, socialAccounts: 3, postsPerMonth: null },
     features: ['google_maps', 'apps', 'whatsapp', 'takings', 'sports', 'music', 'kiosk', 'partners'],
   },
@@ -78,18 +80,18 @@ export const PLANS: Plan[] = [
  */
 export const ENTERPRISE = {
   name: 'Enterprise',
-  blurb: 'For groups, franchises and multi-site operators.',
-  price: 'Tailored to your group',
+  blurb: msg('For groups, franchises and multi-site operators.'),
+  price: msg('Tailored to your group'),
   email: 'sales@businesssagent.com',
   includes: [
-    'Everything in Business, with limits set for you',
-    'Each venue its own branded app, one contract and one invoice',
-    'Your own private instance, data kept in the EU',
-    'Onboarding, staff training and data import done for you',
-    'Single sign-on with Google Workspace or Microsoft 365',
-    'Custom integrations and higher API limits',
-    'A named account manager and a support agreement',
-    'Annual invoicing and payment by bank transfer',
+    msg('Everything in Business, with limits set for you'),
+    msg('Each venue its own branded app, one contract and one invoice'),
+    msg('Your own private instance, data kept in the EU'),
+    msg('Onboarding, staff training and data import done for you'),
+    msg('Single sign-on with Google Workspace or Microsoft 365'),
+    msg('Custom integrations and higher API limits'),
+    msg('A named account manager and a support agreement'),
+    msg('Annual invoicing and payment by bank transfer'),
   ],
 }
 
@@ -100,27 +102,27 @@ export const TRIAL_PLAN = PLANS.find(p => p.trial)!
 export const planFor = (f: Feature): Plan => PLANS.find(p => p.features.includes(f))!
 
 export const FEATURE_LABEL: Record<Feature, string> = {
-  google_maps: 'Opening hours synced to Google Maps',
-  apps: 'Gmail, Outlook, Google Drive and OneDrive',
-  whatsapp: 'WhatsApp and text reminders',
-  takings: 'Takings from Stripe or Square',
-  sports: "What's on: matches and fiestas",
-  music: 'Music for the venue',
-  kiosk: 'Clock-in tablet with staff PINs',
-  partners: 'Read-only access for your gestoría and partners',
+  google_maps: msg('Opening hours synced to Google Maps'),
+  apps: msg('Gmail, Outlook, Google Drive and OneDrive'),
+  whatsapp: msg('WhatsApp and text reminders'),
+  takings: msg('Takings from Stripe or Square'),
+  sports: msg("What's on: matches and fiestas"),
+  music: msg('Music for the venue'),
+  kiosk: msg('Clock-in tablet with staff PINs'),
+  partners: msg('Read-only access for your gestoría and partners'),
 }
 
 /** Which plan feature an app connection needs (connections not listed are on every plan). */
 export const CONNECTION_FEATURE: Record<string, Feature> = {
-  google_business: 'google_maps', whatsapp: 'whatsapp', square: 'takings', stripe: 'takings',
+  google_business: 'google_maps', whatsapp: 'whatsapp', square: 'takings', stripe: 'takings', sumup: 'takings',
   spotify: 'music', youtube_music: 'music', gmail: 'apps', outlook: 'apps', google_drive: 'apps', onedrive: 'apps',
 }
-export const SOCIAL_CONNECTIONS = ['instagram', 'facebook', 'tiktok']
+export const SOCIAL_CONNECTIONS = ['instagram', 'facebook', 'tiktok', 'linkedin']
 
 // ---------------------------------------------------------------------------------------------
 // Line-by-line comparison (pricing page). Values: true/false, or text for limits.
 // ---------------------------------------------------------------------------------------------
-const lim = (n: number | null, unit = '') => (n === null ? 'Unlimited' : `${n}${unit}`)
+const lim = (n: number | null, unit = '') => (n === null ? msg('Unlimited') : `${n}${unit}`)
 type Cell = boolean | string
 /** One line of the comparison: what it is in plain words (`explain`), and each plan's value. */
 export interface CompareRow { label: string; values: Record<PlanId, Cell>; note?: string; explain?: string }
@@ -131,83 +133,90 @@ const byLimit = (pick: (l: PlanLimits) => string): Record<PlanId, Cell> =>
   Object.fromEntries(PLANS.map(p => [p.id, pick(p.limits)])) as Record<PlanId, Cell>
 
 export const COMPARE: { group: string; rows: CompareRow[] }[] = [
-  { group: 'Team', rows: [
-    { label: 'People on the team', values: byLimit(l => lim(l.people)),
-      explain: 'Admins and staff who sign in. People who have left don’t count.' },
-    { label: 'Drag-and-drop rota, shared to phones', values: every(),
-      explain: 'Plan the week by dragging shifts; everyone sees their hours on their phone.' },
-    { label: 'Clock-ins, breaks and timecards', values: every(),
-      explain: 'Staff clock in and out on their phone; hours and breaks add up by themselves.' },
-    { label: 'Registro de jornada (monthly record)', values: every(), note: 'Required by law in Spain, so it is on every plan.',
-      explain: 'The monthly working-time record, ready to sign and share.' },
-    { label: 'Time off and holiday allowance', values: every(),
-      explain: 'Requests, approvals and how many days each person has left.' },
-    { label: 'Shared team calendar and to-do list', values: every(),
-      explain: 'Events, closures and the jobs to get done, in one place.' },
-    { label: 'Clock-in tablet with staff PINs', values: byFeature('kiosk'),
-      explain: 'A tablet by the door where staff clock in with a PIN.' },
+  { group: msg('Team'), rows: [
+    { label: msg('People on the team'), values: byLimit(l => lim(l.people)),
+      explain: msg('Admins and staff who sign in. People who have left don’t count.') },
+    { label: msg('Drag-and-drop rota, shared to phones'), values: every(),
+      explain: msg('Plan the week by dragging shifts; everyone sees their hours on their phone.') },
+    { label: msg('Clock-ins, breaks and timecards'), values: every(),
+      explain: msg('Staff clock in and out on their phone; hours and breaks add up by themselves.') },
+    { label: msg('Registro de jornada (monthly record)'), values: every(), note: msg('Required by law in Spain, so it is on every plan.'),
+      explain: msg('The monthly working-time record, ready to sign and share.') },
+    { label: msg('Time off and holiday allowance'), values: every(),
+      explain: msg('Requests, approvals and how many days each person has left.') },
+    { label: msg('Shared team calendar and to-do list'), values: every(),
+      explain: msg('Events, closures and the jobs to get done, in one place.') },
+    { label: msg('Clock-in tablet with staff PINs'), values: byFeature('kiosk'),
+      explain: msg('A tablet by the door where staff clock in with a PIN.') },
   ] },
-  { group: 'Social media', rows: [
-    { label: 'Social accounts connected (Instagram, Facebook, TikTok)', values: byLimit(l => String(l.socialAccounts)),
-      explain: 'How many accounts you can post to at once.' },
-    { label: 'Scheduled posts per month', values: byLimit(l => lim(l.postsPerMonth)),
-      explain: 'Posts planned for a date. Reminders to post yourself count too.' },
-    { label: 'Posts, carousels, reels and stories', values: every(),
-      explain: 'Plan every kind of post on a calendar, list or table.' },
-    { label: 'Photos and videos kept in your Google Drive or OneDrive', values: byFeature('apps'),
-      explain: 'Needed to post automatically: the files wait there for Instagram to collect.' },
-    { label: 'Instagram messages inbox', values: every(),
-      explain: 'Read and answer Instagram DMs, story mentions and replies in the app.' },
+  { group: msg('Social media'), rows: [
+    { label: msg('Social accounts connected (Instagram, Facebook, TikTok)'), values: byLimit(l => String(l.socialAccounts)),
+      explain: msg('How many accounts you can post to at once.') },
+    { label: msg('Scheduled posts per month'), values: byLimit(l => lim(l.postsPerMonth)),
+      explain: msg('Posts planned for a date. Reminders to post yourself count too.') },
+    { label: msg('Posts, carousels, reels and stories'), values: every(),
+      explain: msg('Plan every kind of post on a calendar, list or table.') },
+    { label: msg('Photos and videos kept in your Google Drive or OneDrive'), values: byFeature('apps'),
+      explain: msg('Needed to post automatically: the files wait there for Instagram to collect.') },
+    { label: msg('Instagram messages inbox'), values: every(),
+      explain: msg('Read and answer Instagram DMs, story mentions and replies in the app.') },
   ] },
-  { group: 'Messages', rows: [
-    { label: 'Shift reminders by email', values: every(),
-      explain: 'Everyone gets their shifts and changes by email.' },
-    { label: 'WhatsApp and text reminders', values: byFeature('whatsapp'),
-      explain: 'Shift reminders and rota changes on WhatsApp or text, from your number.' },
+  { group: msg('Messages'), rows: [
+    { label: msg('Shift reminders by email'), values: every(),
+      explain: msg('Everyone gets their shifts and changes by email.') },
+    { label: msg('WhatsApp and text reminders'), values: byFeature('whatsapp'),
+      explain: msg('Shift reminders and rota changes on WhatsApp or text, from your number.') },
   ] },
-  { group: 'Your business online', rows: [
-    { label: 'Opening hours synced to Google Maps', values: byFeature('google_maps'),
-      explain: 'Change your hours or a closure once; Google Maps updates by itself.' },
-    { label: "What's on: matches, fiestas, bank holidays", values: byFeature('sports'),
-      explain: 'Big matches and local events, so you can plan staff and the TV.' },
-    { label: 'Music for the venue (Spotify, YouTube Music)', values: byFeature('music'),
-      explain: 'An approved playlist staff can play and pause from the app.' },
+  { group: msg('Your business online'), rows: [
+    { label: msg('Opening hours synced to Google Maps'), values: byFeature('google_maps'),
+      explain: msg('Change your hours or a closure once; Google Maps updates by itself.') },
+    { label: msg("What's on: matches, fiestas, bank holidays"), values: byFeature('sports'),
+      explain: msg('Big matches and local events, so you can plan staff and the TV.') },
+    { label: msg('Music for the venue (Spotify, YouTube Music)'), values: byFeature('music'),
+      explain: msg('An approved playlist staff can play and pause from the app.') },
   ] },
-  { group: 'Money and admin', rows: [
-    { label: 'Takings from Stripe or Square next to team cost', values: byFeature('takings'),
-      explain: 'Sales each day beside what the rota costs.' },
-    { label: 'Gmail, Outlook, Google Drive and OneDrive', values: byFeature('apps'),
-      explain: 'Alerts sent from your own email; exports saved to your own drive.' },
-    { label: 'Read-only access for your gestoría and partners', values: byFeature('partners'),
-      explain: 'Your gestoría sees hours and pay records, and changes nothing.' },
+  { group: msg('Money and admin'), rows: [
+    { label: msg('Takings from Stripe or Square next to team cost'), values: byFeature('takings'),
+      explain: msg('Sales each day beside what the rota costs.') },
+    { label: msg('Gmail, Outlook, Google Drive and OneDrive'), values: byFeature('apps'),
+      explain: msg('Alerts sent from your own email; exports saved to your own drive.') },
+    { label: msg('Read-only access for your gestoría and partners'), values: byFeature('partners'),
+      explain: msg('Your gestoría sees hours and pay records, and changes nothing.') },
   ] },
-  { group: 'AI', rows: [
-    { label: 'Custom MCP connection (Claude, ChatGPT, Cursor, n8n…)', values: every(),
-      explain: 'Ask your own AI “who is working Saturday?” and it answers from your data.' },
-    { label: 'REST API and personal access keys', values: every(),
-      explain: 'Connect your own tools and automations.' },
+  { group: msg('AI'), rows: [
+    { label: msg('Custom MCP connection (Claude, ChatGPT, Cursor, n8n…)'), values: every(),
+      explain: msg('Ask your own AI “who is working Saturday?” and it answers from your data.') },
+    { label: msg('REST API and personal access keys'), values: every(),
+      explain: msg('Connect your own tools and automations.') },
   ] },
-  { group: 'Support', rows: [
-    { label: 'Help', values: Object.fromEntries(PLANS.map(p => [p.id, p.support])) as Record<PlanId, Cell>,
-      explain: 'How to reach us, and how quickly we reply.' },
-    { label: 'Priority support', values: { free: false, starter: false, pro: false, business: true },
-      explain: 'Your questions go to the front of the queue.' },
+  { group: msg('Support'), rows: [
+    { label: msg('Help'), values: Object.fromEntries(PLANS.map(p => [p.id, p.support])) as Record<PlanId, Cell>,
+      explain: msg('How to reach us, and how quickly we reply.') },
+    { label: msg('Priority support'), values: { free: false, starter: false, pro: false, business: true },
+      explain: msg('Your questions go to the front of the queue.') },
   ] },
 ]
 
-/** Short "what you get" bullets for each plan card. */
-export function planHighlights(p: Plan): string[] {
+/** Fills {placeholders}: what planHighlights uses when no translator is passed (English). */
+type Say = (text: string, vars?: Record<string, string | number>) => string
+const english: Say = (text, vars) => (vars ? text.replace(/\{(\w+)\}/g, (all, k: string) => (k in vars ? String(vars[k]) : all)) : text)
+
+/** Short "what you get" bullets for each plan card. Pass the app's t() to get them in the person's language. */
+export function planHighlights(p: Plan, say: Say = english): string[] {
   const l = p.limits
-  const people = l.people === null ? 'Unlimited team members' : `Up to ${l.people} team members`
-  const social = `${l.socialAccounts} social account${l.socialAccounts > 1 ? 's' : ''}, ${l.postsPerMonth === null ? 'unlimited' : l.postsPerMonth} scheduled post${l.postsPerMonth === 1 ? '' : 's'} a month`
-  const base = [people, social, 'Custom MCP connection for your AI']
+  const people = l.people === null ? say(msg('Unlimited team members')) : say(msg('Up to {n} team members'), { n: l.people })
+  const accounts = say(l.socialAccounts > 1 ? msg('{n} social accounts') : msg('{n} social account'), { n: l.socialAccounts })
+  const posts = l.postsPerMonth === null ? say(msg('unlimited scheduled posts'))
+    : say(l.postsPerMonth === 1 ? msg('{n} scheduled post') : msg('{n} scheduled posts'), { n: l.postsPerMonth })
+  const social = say(msg('{accounts}, {posts} a month'), { accounts, posts })
+  const base = [people, social, say(msg('Custom MCP connection for your AI'))]
   const extra: Record<PlanId, string[]> = {
-    free: ['Rota, clock-ins and timecards', 'Registro de jornada', 'Email reminders'],
-    starter: ['Everything in Free', 'Opening hours synced to Google Maps', 'Gmail, Outlook, Drive and OneDrive'],
-    pro: ['Everything in Starter', 'WhatsApp and text reminders', 'Takings from Stripe or Square', 'Clock-in tablet, music and match nights'],
-    business: ['Everything in Pro', 'Gestoría and partner access', 'Priority support'],
+    free: [msg('Rota, clock-ins and timecards'), msg('Registro de jornada'), msg('Email reminders')],
+    starter: [msg('Everything in Free'), msg('Opening hours synced to Google Maps'), msg('Gmail, Outlook, Drive and OneDrive')],
+    pro: [msg('Everything in Starter'), msg('WhatsApp and text reminders'), msg('Takings from Stripe or Square'), msg('Clock-in tablet, music and match nights')],
+    business: [msg('Everything in Pro'), msg('Gestoría and partner access'), msg('Priority support')],
   }
-  return [...base, ...extra[p.id]]
+  return [...base, ...extra[p.id].map(x => say(x))]
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -234,7 +243,7 @@ export interface Billing {
 }
 
 export type Complimentary = 'founder' | 'friends_family'
-export const COMPLIMENTARY_LABEL: Record<Complimentary, string> = { founder: 'Founding account', friends_family: 'Friends & family' }
+export const COMPLIMENTARY_LABEL: Record<Complimentary, string> = { founder: msg('Founding account'), friends_family: msg('Friends & family') }
 
 /**
  * The plan in force. Paid plans count only while the subscription is paid up: trialing (within

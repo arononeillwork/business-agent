@@ -112,3 +112,21 @@ export async function serveMedia(env: Env, req: Request, p: string, id: string, 
   }
   return new Response(res.body, { status: res.status, headers })
 }
+
+/**
+ * A post's photo as bytes, for networks that take an upload instead of fetching an address
+ * (LinkedIn). Our own /media addresses are read straight from storage (a Worker can't always fetch
+ * its own address); anything else is fetched.
+ */
+export async function mediaBytes(env: Env, url: string): Promise<{ bytes: ArrayBuffer; type: string }> {
+  const path = new URL(url).pathname
+  const own = path.match(/^\/media\/([go])\/([^/]+)\/([^/]+)$/)
+  let res: Response
+  if (own) res = await serveMedia(env, new Request(url), own[1], decodeURIComponent(own[2]), own[3])
+  else if (path.startsWith('/media/') && env.MEDIA) {
+    const obj = await env.MEDIA.get(path.slice('/media/'.length))
+    res = obj ? new Response(obj.body, { headers: { 'content-type': obj.httpMetadata?.contentType ?? 'image/jpeg' } }) : new Response('Not found', { status: 404 })
+  } else res = await fetch(url)
+  if (!res.ok) throw new Error(`The photo couldn’t be read (${res.status}). Add it to the post again.`)
+  return { bytes: await res.arrayBuffer(), type: res.headers.get('content-type')?.split(';')[0] || 'image/jpeg' }
+}

@@ -1,5 +1,5 @@
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
-import { addDays as addDaysFns, parseISO } from 'date-fns'
+import { addDays as addDaysFns, parseISO, type Locale } from 'date-fns'
 import { businessConfig } from './business.config'
 import type { DayKey } from './types'
 import { DAY_KEYS } from './types'
@@ -12,7 +12,11 @@ export const localDate = (iso: string | Date) => formatInTimeZone(iso, TZ, 'yyyy
 /** HH:mm of an instant, in business time (24-hour, as used in Spain). */
 export const localTime = (iso: string | Date) => formatInTimeZone(iso, TZ, 'HH:mm')
 
-export const formatLocal = (iso: string | Date, pattern: string) => formatInTimeZone(iso, TZ, pattern)
+// Month and day names follow the person's language (set by the app; the Worker always writes English).
+let dateLocale: Locale | undefined
+export function setDateLocale(locale: Locale | undefined) { dateLocale = locale }
+
+export const formatLocal = (iso: string | Date, pattern: string) => formatInTimeZone(iso, TZ, pattern, { locale: dateLocale })
 
 /** Instant (ISO, UTC) for a business-local date and HH:mm. */
 export const zonedIso = (date: string, time: string) =>
@@ -52,11 +56,22 @@ export const formatDuration = (minutes: number) => {
   return r === 0 ? `${sign}${h}h` : `${sign}${h}h ${String(r).padStart(2, '0')}m`
 }
 
-/** How each person likes decimals shown: "843,44 €" (comma, the Spanish way) or "€843.44" (point). */
+/** How each person likes decimals shown: "€843,44" (comma, the Spanish way) or "€843.44" (point). */
 export type NumberFormat = 'comma' | 'point'
 const LOCALES: Record<NumberFormat, string> = { comma: businessConfig.locale, point: 'en-IE' }
 let currency: string = businessConfig.currency
-const money = (f: NumberFormat) => new Intl.NumberFormat(LOCALES[f], { style: 'currency', currency, currencyDisplay: 'narrowSymbol', useGrouping: 'always' })
+/** The currency symbol always goes in front of the amount ("€843,44", "-€12,50"), whichever decimal mark is used. */
+const money = (f: NumberFormat) => {
+  const nf = new Intl.NumberFormat(LOCALES[f], { style: 'currency', currency, currencyDisplay: 'narrowSymbol', useGrouping: 'always' })
+  return { format: (n: number) => {
+    const parts = nf.formatToParts(n)
+    const symbol = parts.find(p => p.type === 'currency')?.value ?? ''
+    const sign = parts.filter(p => p.type === 'minusSign' || p.type === 'plusSign').map(p => p.value).join('')
+    const digits = parts.filter(p => !['currency', 'literal', 'minusSign', 'plusSign'].includes(p.type)).map(p => p.value).join('')
+    // A code rather than a sign (CHF, kr) keeps a space before the number.
+    return `${sign}${symbol}${/\p{L}$/u.test(symbol) ? '\u00a0' : ''}${digits}`
+  } }
+}
 let eur = money('comma')
 let decimal = new Intl.NumberFormat(LOCALES.comma, { maximumFractionDigits: 2, useGrouping: 'always' })
 let current: NumberFormat = 'comma'

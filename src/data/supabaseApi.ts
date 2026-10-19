@@ -401,6 +401,9 @@ export function createSupabaseApi(url: string, key: string): Api {
       location.assign(url)
     },
     async chooseFacebookPage(pageId) { await worker('/api/integrations/facebook/page', { method: 'POST', body: JSON.stringify({ page_id: pageId }) }) },
+    async chooseLinkedInPage(pageId) { await worker('/api/integrations/linkedin/page', { method: 'POST', body: JSON.stringify({ page_id: pageId }) }) },
+    async chooseSearchConsoleSite(site) { await worker('/api/integrations/search_console/site', { method: 'POST', body: JSON.stringify({ site }) }) },
+    searchConsole: (from, to) => worker(`/api/integrations/search_console/report?from=${from}&to=${to}`),
     sales: (from, to) => worker(`/api/integrations/payments/sales?from=${from}&to=${to}`),
     salesItems: (from, to) => worker(`/api/integrations/payments/items?from=${from}&to=${to}`),
     async socialPosts() {

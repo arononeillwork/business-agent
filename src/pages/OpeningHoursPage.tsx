@@ -10,9 +10,10 @@ import { PageHeader, SectionTitle } from '../components/common'
 import { DAY_KEYS, type DayKey, type OpeningHours } from '../../shared/types'
 import { dayKey, hmToMinutes, today } from '../../shared/time'
 import { tokens } from '../theme'
+import { msg, t, tr } from '../i18n'
 
 const DAY_LABELS: Record<DayKey, string> = {
-  mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday', sun: 'Sunday',
+  mon: msg('Monday'), tue: msg('Tuesday'), wed: msg('Wednesday'), thu: msg('Thursday'), fri: msg('Friday'), sat: msg('Saturday'), sun: msg('Sunday'),
 }
 
 /** When the café is open, week by week (closures live in the Calendar). */
@@ -31,13 +32,13 @@ export function OpeningHoursPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Café" title="Opening hours" />
+      <PageHeader eyebrow={t('Café')} title={t('Opening hours')} />
 
       <Grid container spacing={2.5}>
         <Grid size={12}>
-          <Card component="section" aria-label="Weekly hours">
+          <Card component="section" aria-label={t('Weekly hours')}>
             <CardContent>
-              <SectionTitle>Every week</SectionTitle>
+              <SectionTitle>{t('Every week')}</SectionTitle>
               <Stack divider={<Box sx={{ borderTop: 1, borderColor: 'divider' }} />}>
                 {DAY_KEYS.map(d => {
                   const h = hours[d]
@@ -46,24 +47,24 @@ export function OpeningHoursPage() {
                   return (
                     <Stack key={d} direction="row" sx={{ alignItems: 'center', gap: 1.5, py: 1.1, flexWrap: 'wrap' }}>
                       <Box sx={{ width: 130, flexShrink: 0 }}>
-                        <Typography sx={{ fontWeight: isToday ? 600 : 400 }}>{DAY_LABELS[d]}</Typography>
-                        {isToday && <Typography variant="caption" sx={{ color: tokens.roseDeep }}>Today</Typography>}
+                        <Typography sx={{ fontWeight: isToday ? 600 : 400 }}>{t(DAY_LABELS[d])}</Typography>
+                        {isToday && <Typography variant="caption" sx={{ color: tokens.roseDeep }}>{t('Today')}</Typography>}
                       </Box>
                       {isAdmin && (
-                        <Switch checked={!!h} slotProps={{ input: { 'aria-label': `Open on ${DAY_LABELS[d]}` } }}
+                        <Switch checked={!!h} slotProps={{ input: { 'aria-label': t('Open on {day}', { day: t(DAY_LABELS[d]) }) } }}
                           onChange={e => setDay(d, e.target.checked ? (b.opening_hours[d] ?? { open: '09:00', close: '17:00' }) : null)} />
                       )}
                       {h ? (
                         isAdmin ? (
                           <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flex: 1, minWidth: 220 }}>
-                            <TextField type="time" size="small" label="Opens" value={h.open} onChange={e => setDay(d, { ...h, open: e.target.value })}
+                            <TextField type="time" size="small" label={t('Opens')} value={h.open} onChange={e => setDay(d, { ...h, open: e.target.value })}
                               slotProps={{ inputLabel: { shrink: true } }} sx={{ maxWidth: 130 }} />
-                            <Typography sx={{ color: 'text.secondary' }}>to</Typography>
-                            <TextField type="time" size="small" label="Closes" value={h.close} onChange={e => setDay(d, { ...h, close: e.target.value })}
+                            <Typography sx={{ color: 'text.secondary' }}>{t('to')}</Typography>
+                            <TextField type="time" size="small" label={t('Closes')} value={h.close} onChange={e => setDay(d, { ...h, close: e.target.value })}
                               error={!!bad} slotProps={{ inputLabel: { shrink: true } }} sx={{ maxWidth: 130 }} />
                           </Stack>
                         ) : <Typography sx={{ fontVariantNumeric: 'tabular-nums' }}>{h.open} – {h.close}</Typography>
-                      ) : <Typography sx={{ color: 'text.secondary' }}>Closed</Typography>}
+                      ) : <Typography sx={{ color: 'text.secondary' }}>{t('Closed')}</Typography>}
                     </Stack>
                   )
                 })}
@@ -72,9 +73,9 @@ export function OpeningHoursPage() {
                 <Stack direction="row" spacing={1} sx={{ mt: 2, alignItems: 'center' }}>
                   <Button variant="contained" disabled={!changed || invalid} onClick={() => run(async () => {
                     await api.updateBusiness({ opening_hours: hours }); await refresh()
-                  }, 'Opening hours saved')}>Save hours</Button>
-                  {changed && <Button onClick={() => setHours(b.opening_hours)}>Undo changes</Button>}
-                  {invalid && <Typography variant="body2" sx={{ color: 'error.main' }}>Closing time must be after opening time.</Typography>}
+                  }, t('Opening hours saved'))}>{t('Save hours')}</Button>
+                  {changed && <Button onClick={() => setHours(b.opening_hours)}>{t('Undo changes')}</Button>}
+                  {invalid && <Typography variant="body2" sx={{ color: 'error.main' }}>{t('Closing time must be after opening time.')}</Typography>}
                 </Stack>
               )}
             </CardContent>
@@ -85,8 +86,9 @@ export function OpeningHoursPage() {
           <Grid size={12}>
             <Alert severity={g?.status === 'connected' ? 'success' : 'info'}>
               {g?.status === 'connected'
-                ? <>Google Maps is kept in step: changes here, and closures you add in the <RouterLink to="/calendar">Calendar</RouterLink>, reach your listing within a minute.</>
-                : <>Connect your Google listing on <RouterLink to="/connections">Connections</RouterLink> and these hours, and closures you add in the <RouterLink to="/calendar">Calendar</RouterLink>, update Google Maps by themselves.</>}
+                ? tr('Google Maps is kept in step: changes here, and closures you add in the {calendar}, reach your listing within a minute.', { calendar: <RouterLink to="/calendar">{t('Calendar')}</RouterLink> })
+                : tr('Connect your Google listing on {connections} and these hours, and closures you add in the {calendar}, update Google Maps by themselves.', {
+                  connections: <RouterLink to="/connections">{t('Connections')}</RouterLink>, calendar: <RouterLink to="/calendar">{t('Calendar')}</RouterLink> })}
             </Alert>
           </Grid>
         )}

@@ -1,5 +1,6 @@
 // To Do List board logic, kept apart from the page so it can be unit tested: grouping by
 // category, the order jobs show in, where a dragged job lands, and the plain-text copy.
+import { msg } from './i18n'
 import type { Todo, TodoCategory } from './types'
 
 export interface TodoFilters { categoryId: string | null; starredOnly: boolean; showDone: boolean }
@@ -32,7 +33,7 @@ export function buildBoard(todos: Todo[], categories: TodoCategory[], f: TodoFil
   const defs = [
     ...[...categories].sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name))
       .map(c => ({ key: c.id, label: c.name, hint: c.hint, colour: c.colour })),
-    { key: NO_CATEGORY, label: 'No category', hint: 'Jobs whose category was removed', colour: '#8A7E76' },
+    { key: NO_CATEGORY, label: msg('No category'), hint: msg('Jobs whose category was removed'), colour: '#8A7E76' },
   ]
   return defs.map(d => {
     const items = shown.filter(t => keyOf(t, categories) === d.key).sort(byPinnedThenDone)
@@ -108,11 +109,15 @@ export function resolveMove(order: Todo[], categories: TodoCategory[], activeId:
   return { ...adopted, position }
 }
 
+/** Fills {placeholders} in English: the default for `translate` (the page passes its t()). */
+type Translate = (text: string, vars?: Record<string, string>) => string
+const asIs: Translate = (text, vars) => text.replace(/\{(\w+)\}/g, (all, k: string) => vars?.[k] ?? all)
+
 /** The whole list as plain text, for pasting into a message or a note. */
-export function toPlainText(todos: Todo[], categories: TodoCategory[], names: Map<string, string>, business = 'The business'): string {
-  const lines = [`${business}: to do`, '']
+export function toPlainText(todos: Todo[], categories: TodoCategory[], names: Map<string, string>, business: string = msg('The business'), translate = asIs): string {
+  const lines = [translate(msg('{business}: to do'), { business }), '']
   for (const g of buildBoard(todos, categories, { categoryId: null, starredOnly: false, showDone: true })) {
-    lines.push(g.label.toUpperCase())
+    lines.push((g.key === NO_CATEGORY ? translate(g.label) : g.label).toUpperCase())
     for (const s of g.sections) {
       for (const t of s.items) {
         const tags = [s.label, t.assignee_id ? names.get(t.assignee_id) : null].filter(Boolean)

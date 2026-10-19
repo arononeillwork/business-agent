@@ -9,6 +9,7 @@ import { useApp } from './AppContext'
 import { applyPreferences } from './Appearance'
 import { PersonAvatar } from '../components/common'
 import { tokens } from '../theme'
+import { t } from '../i18n'
 
 // The two buttons at the top right: search (Ctrl/⌘ K) and the light/dark switch.
 
@@ -35,7 +36,7 @@ export function ThemeToggle() {
   const { api, me, refresh } = useApp()
   const { mode, systemMode, setMode } = useColorScheme()
   const dark = (mode === 'system' ? systemMode : mode) === 'dark'
-  const label = dark ? 'Switch to light mode' : 'Switch to dark mode'
+  const label = dark ? t('Switch to light mode') : t('Switch to dark mode')
   const toggle = () => {
     const theme = dark ? 'light' : 'dark'
     setMode(theme)
@@ -72,8 +73,8 @@ export function SearchButton({ pages }: { pages: SearchPage[] }) {
   }, [])
   return (
     <>
-      <Tooltip title="Search (Ctrl K)">
-        <IconButton aria-label="Search" aria-keyshortcuts="Control+K Meta+K" onClick={() => setOpen(true)} sx={roundButton}>
+      <Tooltip title={t('Search (Ctrl K)')}>
+        <IconButton aria-label={t('Search')} aria-keyshortcuts="Control+K Meta+K" onClick={() => setOpen(true)} sx={roundButton}>
           <SearchIcon fontSize="small" />
         </IconButton>
       </Tooltip>
@@ -91,10 +92,10 @@ function SearchDialog({ pages, onClose }: { pages: SearchPage[]; onClose: () => 
   const [active, setActive] = useState(0)
   const input = useRef<HTMLInputElement>(null)
   // Type straight away (the dialog's own focus handling can land a beat later).
-  useEffect(() => { const t = setTimeout(() => input.current?.focus(), 0); return () => clearTimeout(t) }, [])
+  useEffect(() => { const timer = setTimeout(() => input.current?.focus(), 0); return () => clearTimeout(timer) }, [])
   const results = useMemo<Result[]>(() => {
     const words = norm(q).split(/\s+/).filter(Boolean)
-    const hit = (...texts: (string | null | undefined)[]) => { const t = norm(texts.filter(Boolean).join(' ')); return words.every(w => t.includes(w)) }
+    const hit = (...texts: (string | null | undefined)[]) => { const text = norm(texts.filter(Boolean).join(' ')); return words.every(w => text.includes(w)) }
     const pageHits: Result[] = pages.filter(p => hit(p.label, p.section)).map(p => ({
       id: `page:${p.key}`, group: 'Pages', label: p.label, hint: p.section ?? undefined, icon: p.icon, to: p.to,
     }))
@@ -102,7 +103,7 @@ function SearchDialog({ pages, onClose }: { pages: SearchPage[]; onClose: () => 
       .filter(p => p.active && p.role !== 'kiosk' && p.role !== 'partner' && words.length > 0 && hit(p.full_name, p.email))
       .slice(0, 6)
       .map(p => ({
-        id: `person:${p.id}`, group: 'People', label: p.full_name + (p.id === me?.id ? ' (you)' : ''), hint: p.role === 'admin' ? 'Admin' : 'Team',
+        id: `person:${p.id}`, group: 'People', label: p.id === me?.id ? t('{name} (you)', { name: p.full_name }) : p.full_name, hint: p.role === 'admin' ? t('Admin') : t('Team'),
         icon: <PersonAvatar name={p.full_name} colour={p.colour} size={26} />,
         to: `/team?q=${encodeURIComponent(p.full_name)}${isAdmin ? `&person=${p.id}` : ''}`,
       }))
@@ -112,12 +113,12 @@ function SearchDialog({ pages, onClose }: { pages: SearchPage[]; onClose: () => 
   const go = (r: Result | undefined) => { if (!r) return; onClose(); navigate(r.to) }
 
   return (
-    <Dialog open onClose={onClose} fullWidth maxWidth="sm" aria-label="Search" disableAutoFocus
+    <Dialog open onClose={onClose} fullWidth maxWidth="sm" aria-label={t('Search')} disableAutoFocus
       slotProps={{ paper: { sx: { alignSelf: 'flex-start', mt: { xs: 2, sm: '12vh' }, overflow: 'hidden' } } }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, px: 2.5, py: 1.75, borderBottom: `1px solid ${tokens.line}` }}>
         <SearchIcon sx={{ color: tokens.inkFaint }} />
-        <InputBase autoFocus fullWidth inputRef={input} placeholder="Search pages and people…" value={q} onChange={e => setQ(e.target.value)}
-          inputProps={{ 'aria-label': 'Search pages and people', role: 'combobox', 'aria-expanded': true, 'aria-controls': 'search-results',
+        <InputBase autoFocus fullWidth inputRef={input} placeholder={t('Search pages and people…')} value={q} onChange={e => setQ(e.target.value)}
+          inputProps={{ 'aria-label': t('Search pages and people'), role: 'combobox', 'aria-expanded': true, 'aria-controls': 'search-results',
             'aria-activedescendant': results[active] ? `sr-${active}` : undefined }}
           onKeyDown={e => {
             if (e.key === 'ArrowDown') { e.preventDefault(); setActive(a => Math.min(a + 1, results.length - 1)) }
@@ -125,16 +126,16 @@ function SearchDialog({ pages, onClose }: { pages: SearchPage[]; onClose: () => 
             if (e.key === 'Enter') { e.preventDefault(); go(results[active]) }
           }}
           sx={{ fontSize: '1.05rem' }} />
-        <Typography component="kbd" sx={{ fontSize: 11, color: tokens.inkFaint, border: `1px solid ${tokens.line}`, borderRadius: 1, px: 0.75, py: 0.25 }}>Esc</Typography>
+        <Typography component="kbd" sx={{ fontSize: 11, color: tokens.inkFaint, border: `1px solid ${tokens.line}`, borderRadius: 1, px: 0.75, py: 0.25 }}>{'Esc'}</Typography>
       </Box>
-      <List id="search-results" role="listbox" aria-label="Results" dense sx={{ maxHeight: '55vh', overflowY: 'auto', py: 1 }}>
-        {results.length === 0 && <Typography sx={{ px: 3, py: 3, color: 'text.secondary' }}>Nothing matches “{q}”.</Typography>}
-        {(['Pages', 'People'] as const).map(group => {
+      <List id="search-results" role="listbox" aria-label={t('Results')} dense sx={{ maxHeight: '55vh', overflowY: 'auto', py: 1 }}>
+        {results.length === 0 && <Typography sx={{ px: 3, py: 3, color: 'text.secondary' }}>{t('Nothing matches “{q}”.', { q })}</Typography>}
+        {([['Pages', t('Pages')], ['People', t('People')]] as const).map(([group, heading]) => {
           const items = results.map((r, i) => ({ r, i })).filter(x => x.r.group === group)
           if (!items.length) return null
           return (
             <Box key={group} component="li" sx={{ listStyle: 'none' }}>
-              <ListSubheader disableSticky sx={{ bgcolor: 'transparent', lineHeight: '28px', fontSize: '0.7rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: tokens.inkFaint }}>{group}</ListSubheader>
+              <ListSubheader disableSticky sx={{ bgcolor: 'transparent', lineHeight: '28px', fontSize: '0.7rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: tokens.inkFaint }}>{heading}</ListSubheader>
               <Box component="ul" sx={{ p: 0, m: 0 }}>
                 {items.map(({ r, i }) => (
                   <ListItemButton key={r.id} id={`sr-${i}`} role="option" aria-selected={i === active} selected={i === active}

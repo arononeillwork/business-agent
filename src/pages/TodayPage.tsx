@@ -15,6 +15,7 @@ import { addDays, dayKey, formatDuration, formatLocal, localDate, localTime, min
 import { fonts, tokens } from '../theme'
 import { EventAlertButton } from '../components/NotificationBell'
 import { CATEGORY_META, type TimeEntry } from '../../shared/types'
+import { t, tn } from '../i18n'
 
 function ClockCard({ onChange }: { onChange: () => void }) {
   const { api, positions, breakTypes, settings } = useApp()
@@ -46,7 +47,7 @@ function ClockCard({ onChange }: { onChange: () => void }) {
 
   const tone = openBreak ? tokens.warning : entry ? tokens.matcha : tokens.inkFaint
   return (
-    <Card component="section" aria-label="Your clock" sx={{ mb: 2.5 }}>
+    <Card component="section" aria-label={t('Your clock')} sx={{ mb: 2.5 }}>
       <CardContent sx={{ py: '14px !important' }}>
         <Stack direction={{ xs: 'column', sm: 'row' }} sx={{ gap: 1.5, alignItems: { sm: 'center' } }}>
           <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flex: 1, minWidth: 0 }}>
@@ -54,7 +55,7 @@ function ClockCard({ onChange }: { onChange: () => void }) {
               boxShadow: entry ? `0 0 0 4px ${openBreak ? tokens.warnBg : tokens.goodBg}` : 'none' }} />
             <Box sx={{ minWidth: 0 }}>
               <Stack direction="row" spacing={0.75} sx={{ alignItems: 'baseline' }}>
-                <Typography sx={{ fontWeight: 500 }}>{openBreak ? 'On a break' : entry ? 'Clocked in' : 'Not clocked in'}</Typography>
+                <Typography sx={{ fontWeight: 500 }}>{openBreak ? t('On a break') : entry ? t('Clocked in') : t('Not clocked in')}</Typography>
                 {(entry || openBreak) && (
                   <Typography sx={{ color: 'text.secondary', fontVariantNumeric: 'tabular-nums' }}>
                     · {formatDuration(minutesBetween(openBreak ? openBreak.started_at : entry!.clock_in, now))}
@@ -62,9 +63,9 @@ function ClockCard({ onChange }: { onChange: () => void }) {
                 )}
               </Stack>
               <Typography variant="body2" color="text.secondary">
-                {entry ? `Since ${localTime(entry.clock_in)}${entry.break_minutes ? ` · ${entry.break_minutes} min break so far` : ''}`
-                  : shift ? `Your shift today: ${localTime(shift.starts_at)}–${localTime(shift.ends_at)}`
-                  : 'No shift scheduled today'}
+                {entry ? t('Since {time}', { time: localTime(entry.clock_in) }) + (entry.break_minutes ? ` · ${t('{n} min break so far', { n: entry.break_minutes })}` : '')
+                  : shift ? t('Your shift today: {from}–{to}', { from: localTime(shift.starts_at), to: localTime(shift.ends_at) })
+                  : t('No shift scheduled today')}
               </Typography>
               {entry && entry.flags.length > 0 && <Box sx={{ mt: 0.5 }}><Flags flags={entry.flags} /></Box>}
             </Box>
@@ -73,20 +74,20 @@ function ClockCard({ onChange }: { onChange: () => void }) {
           {!entry && (
             <Stack direction={{ xs: 'column', sm: 'row' }} sx={{ gap: 1, alignItems: { sm: 'center' }, width: { xs: '100%', sm: 'auto' } }}>
               {positions.length > 1 && (
-                <TextField select size="small" label="Position" value={positionId || shift?.position_id || ''}
+                <TextField select size="small" label={t('Position')} value={positionId || shift?.position_id || ''}
                   onChange={e => setPositionId(Number(e.target.value))} sx={{ width: { xs: '100%', sm: 160 } }}>
                   {positions.filter(p => p.active).map(p => <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>)}
                 </TextField>
               )}
               <Button variant="contained" disabled={busy} sx={{ flex: { xs: 1, sm: 'none' }, minHeight: { xs: 46, sm: 38 } }}
-                onClick={() => act(() => api.clockIn(positionId || shift?.position_id || null), 'Clocked in. Have a good shift!')}>
-                Clock in
+                onClick={() => act(() => api.clockIn(positionId || shift?.position_id || null), t('Clocked in. Have a good shift!'))}>
+                {t('Clock in')}
               </Button>
             </Stack>
           )}
           {entry && !openBreak && (
             <Stack direction="row" spacing={1}>
-              <Button variant="outlined" disabled={busy} onClick={e => setBreakMenu(e.currentTarget)}>Start break</Button>
+              <Button variant="outlined" disabled={busy} onClick={e => setBreakMenu(e.currentTarget)}>{t('Start break')}</Button>
               <Button variant="outlined" color="error" disabled={busy}
                 onClick={async () => {
                   setBusy(true)
@@ -98,42 +99,42 @@ function ClockCard({ onChange }: { onChange: () => void }) {
                   } catch (e) {
                     await run(() => Promise.reject(e))
                   } finally { setBusy(false) }
-                }}>Clock out</Button>
+                }}>{t('Clock out')}</Button>
               <Menu anchorEl={breakMenu} open={!!breakMenu} onClose={() => setBreakMenu(null)}>
-                {breakTypes.map(t => (
-                  <MenuItem key={t.id} onClick={() => { setBreakMenu(null); act(() => api.startBreak(t.id), 'Enjoy your break') }}>
-                    {t.name}
+                {breakTypes.map(b => (
+                  <MenuItem key={b.id} onClick={() => { setBreakMenu(null); act(() => api.startBreak(b.id), t('Enjoy your break')) }}>
+                    {b.name}
                   </MenuItem>
                 ))}
               </Menu>
             </Stack>
           )}
           {openBreak && (
-            <Button variant="contained" disabled={busy} onClick={() => act(() => api.endBreak(), 'Welcome back')}>End break</Button>
+            <Button variant="contained" disabled={busy} onClick={() => act(() => api.endBreak(), t('Welcome back'))}>{t('End break')}</Button>
           )}
         </Stack>
         {settings?.phone_clock_in === 'off' && !entry && (
-          <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1 }}>Clock-in from phones is off. Use the café tablet.</Typography>
+          <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1 }}>{t('Clock-in from phones is off. Use the café tablet.')}</Typography>
         )}
       </CardContent>
 
       <Dialog open={!!summary} onClose={() => setSummary(null)} fullWidth maxWidth="xs">
-        <DialogTitle>Workday summary</DialogTitle>
+        <DialogTitle>{t('Workday summary')}</DialogTitle>
         {summary && (
           <DialogContent>
             <Stack spacing={1}>
-              <Row label="Clock in" value={localTime(summary.clock_in)} />
-              <Row label="Clock out" value={summary.clock_out ? localTime(summary.clock_out) : '—'} />
-              <Row label="Breaks" value={`${summary.break_minutes} min`} />
-              <Row label="Paid hours" value={formatDuration(summary.paid_minutes)} strong />
+              <Row label={t('Clock in')} value={localTime(summary.clock_in)} />
+              <Row label={t('Clock out')} value={summary.clock_out ? localTime(summary.clock_out) : '—'} />
+              <Row label={t('Breaks')} value={t('{n} min', { n: summary.break_minutes })} />
+              <Row label={t('Paid hours')} value={formatDuration(summary.paid_minutes)} strong />
               {summary.flags.length > 0 && <Flags flags={summary.flags} />}
               {summary.flags.includes('missed_break') && (
-                <Alert severity="warning">Shifts over 6 hours need at least a 15-minute break. Tell a manager if you took one.</Alert>
+                <Alert severity="warning">{t('Shifts over 6 hours need at least a 15-minute break. Tell a manager if you took one.')}</Alert>
               )}
             </Stack>
           </DialogContent>
         )}
-        <DialogActions><Button onClick={() => setSummary(null)}>Done</Button></DialogActions>
+        <DialogActions><Button onClick={() => setSummary(null)}>{t('Done')}</Button></DialogActions>
       </Dialog>
     </Card>
   )
@@ -213,18 +214,18 @@ export function TodayPage() {
 
   return (
     <>
-      <PageHeader eyebrow={formatLocal(new Date(), 'EEEE d MMMM')} title={`Hola, ${me?.full_name.split(' ')[0]}`}
-        actions={holiday && <Tag fg={tokens.badFg} bg={tokens.badBg}>Holiday · {holiday.title}</Tag>} />
+      <PageHeader eyebrow={formatLocal(new Date(), 'EEEE d MMMM')} title={t('Hola, {name}', { name: me?.full_name.split(' ')[0] ?? '' })}
+        actions={holiday && <Tag fg={tokens.badFg} bg={tokens.badBg}>{t('Holiday · {name}', { name: holiday.title })}</Tag>} />
       <ErrorBox error={data.error} />
       {isAdmin && business && !business.setup_completed_at && <SetupPrompt />}
       {isAdmin && (data.data?.timeOff ?? []).some(t => t.status === 'pending') && (
-        <Alert severity="info" sx={{ mb: 2 }} action={<Button component={Link} to="/time-off" color="inherit">Review</Button>}>
-          Time off requests waiting for approval
+        <Alert severity="info" sx={{ mb: 2 }} action={<Button component={Link} to="/time-off" color="inherit">{t('Review')}</Button>}>
+          {t('Time off requests waiting for approval')}
         </Alert>
       )}
       {isAdmin && pending > 0 && (
-        <Alert severity="warning" sx={{ mb: 2 }} action={<Button component={Link} to="/timecards" color="inherit">Review</Button>}>
-          {pending} timecard correction request{pending > 1 ? 's' : ''} waiting for approval
+        <Alert severity="warning" sx={{ mb: 2 }} action={<Button component={Link} to="/timecards" color="inherit">{t('Review')}</Button>}>
+          {tn(pending, '{n} timecard correction request waiting for approval', '{n} timecard correction requests waiting for approval')}
         </Alert>
       )}
 
@@ -233,40 +234,40 @@ export function TodayPage() {
       <Grid container spacing={2.5}>
         <Grid size={{ xs: 12, md: 7 }}>
           <Stack spacing={2.5}>
-            <Card component="section" aria-label="Who's on today">
+            <Card component="section" aria-label={t("Who's on today")}>
               <CardContent>
-                <SectionTitle action={<Button size="small" component={Link} to="/rota">Rota</Button>}>Who's on today</SectionTitle>
+                <SectionTitle action={<Button size="small" component={Link} to="/rota">{t('Rota')}</Button>}>{t("Who's on today")}</SectionTitle>
                 <Typography variant="body2" sx={{ color: 'text.secondary', mt: -1, mb: 1.5 }}>
-                  {hours ? `The café is open ${hours.open}–${hours.close}` : 'The café is closed today'}
+                  {hours ? t('The café is open {open}–{close}', { open: hours.open, close: hours.close }) : t('The café is closed today')}
                 </Typography>
                 {!data.data && <Loading />}
-                {data.data && todays.length === 0 && <Quiet>Nobody is scheduled today.</Quiet>}
+                {data.data && todays.length === 0 && <Quiet>{t('Nobody is scheduled today.')}</Quiet>}
                 <Items>
                   {todays.map(s => {
                     const p = person(s.profile_id)
                     return (
                       <Item key={s.id} lead={<PersonAvatar name={p?.full_name ?? '?'} colour={p?.colour ?? '#C6C2BB'} size={36} />}
-                        primary={p?.full_name ?? 'Open shift'}
+                        primary={p?.full_name ?? t('Open shift')}
                         secondary={[`${localTime(s.starts_at)}–${localTime(s.ends_at)}`, position(s.position_id)?.name].filter(Boolean).join(' · ')} />
                     )
                   })}
                 </Items>
                 {openShifts.length > 0 && (
-                  <Alert severity="info" sx={{ mt: 1.5 }} action={<Button component={Link} to="/rota" color="inherit">View</Button>}>
-                    {openShifts.length} open shift{openShifts.length > 1 ? 's' : ''} this week you can pick up
+                  <Alert severity="info" sx={{ mt: 1.5 }} action={<Button component={Link} to="/rota" color="inherit">{t('View')}</Button>}>
+                    {tn(openShifts.length, '{n} open shift this week you can pick up', '{n} open shifts this week you can pick up')}
                   </Alert>
                 )}
               </CardContent>
             </Card>
-            <Card component="section" aria-label="Coming up">
+            <Card component="section" aria-label={t('Coming up')}>
               <CardContent>
-                <SectionTitle action={<Button size="small" component={Link} to="/calendar">Calendar</Button>}>Coming up</SectionTitle>
-                {data.data && upcoming.length === 0 && <Quiet>Nothing in the next 3 weeks.</Quiet>}
+                <SectionTitle action={<Button size="small" component={Link} to="/calendar">{t('Calendar')}</Button>}>{t('Coming up')}</SectionTitle>
+                {data.data && upcoming.length === 0 && <Quiet>{t('Nothing in the next 3 weeks.')}</Quiet>}
                 <Items>
                   {upcoming.slice(0, 6).map(e => (
                     <Item key={e.id} label={e.title} lead={<DateBadge date={e.starts_on} accent={CATEGORY_META[e.category].colour} today={e.starts_on === d} />}
                       primary={e.title}
-                      secondary={[e.starts_at ? localTime(e.starts_at) : null, e.competition ?? CATEGORY_META[e.category].label, e.town].filter(Boolean).join(' · ')}
+                      secondary={[e.starts_at ? localTime(e.starts_at) : null, e.competition ?? t(CATEGORY_META[e.category].label), e.town].filter(Boolean).join(' · ')}
                       action={<EventAlertButton kind="calendar" refId={e.id} title={e.title} />} />
                   ))}
                 </Items>
@@ -276,28 +277,28 @@ export function TodayPage() {
         </Grid>
         <Grid size={{ xs: 12, md: 5 }}>
           <Stack spacing={2.5}>
-            <Card component="section" aria-label="My next shifts">
+            <Card component="section" aria-label={t('My next shifts')}>
               <CardContent>
-                <SectionTitle>My next shifts</SectionTitle>
-                {data.data && mine.length === 0 && <Quiet>No shifts in the next week.</Quiet>}
+                <SectionTitle>{t('My next shifts')}</SectionTitle>
+                {data.data && mine.length === 0 && <Quiet>{t('No shifts in the next week.')}</Quiet>}
                 <Items>
                   {mine.slice(0, 4).map(s => (
                     <Item key={s.id} lead={<DateBadge date={localDate(s.starts_at)} today={localDate(s.starts_at) === d} />}
                       primary={`${localTime(s.starts_at)}–${localTime(s.ends_at)}`}
-                      secondary={[position(s.position_id)?.name, s.break_minutes ? `${s.break_minutes} min break` : null, s.note].filter(Boolean).join(' · ')} />
+                      secondary={[position(s.position_id)?.name, s.break_minutes ? t('{n} min break', { n: s.break_minutes }) : null, s.note].filter(Boolean).join(' · ')} />
                   ))}
                 </Items>
               </CardContent>
             </Card>
-            {sportsOn && <Card component="section" aria-label="Big nights">
+            {sportsOn && <Card component="section" aria-label={t('Big nights')}>
               <CardContent>
-                <SectionTitle action={<Button size="small" component={Link} to="/sports">Sports</Button>}>Big nights this week</SectionTitle>
-                {data.data && big.length === 0 && <Quiet>No big matches or fights this week.</Quiet>}
+                <SectionTitle action={<Button size="small" component={Link} to="/sports">{t('Sports')}</Button>}>{t('Big nights this week')}</SectionTitle>
+                {data.data && big.length === 0 && <Quiet>{t('No big matches or fights this week.')}</Quiet>}
                 <Items>
                   {big.slice(0, 4).map(e => (
                     <Item key={e.id} label={e.title} lead={<DateBadge date={localDate(e.starts_at)} accent={tokens.rose} today={localDate(e.starts_at) === d} />}
                       primary={e.title}
-                      secondary={[e.time_tbc ? 'Time to be confirmed' : localTime(e.starts_at), e.compName].join(' · ')}
+                      secondary={[e.time_tbc ? t('Time to be confirmed') : localTime(e.starts_at), e.compName].join(' · ')}
                       action={<EventAlertButton kind="sports" refId={e.id} title={e.title} />} />
                   ))}
                 </Items>

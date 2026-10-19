@@ -7,6 +7,12 @@ import { FEATURES } from '../src/app/features'
 const WED_0900 = new Date('2026-09-30T07:00:00Z') // 09:00 Europe/Madrid (CEST)
 
 /** Open the demo and sign in (everyone starts at the sign-in screen), as the admin by default. */
+/** Your own pages (My account, Billing, Referrals, Appearance) open from the account menu: your name at the bottom left. */
+async function fromAccountMenu(page: Page, item: string) {
+  await page.getByRole('button', { name: /^Account menu/ }).first().click()
+  await page.getByRole('menuitem', { name: item }).click()
+}
+
 async function open(page: Page, path = '/', email = 'aron@example.com') {
   await page.clock.install({ time: WED_0900 })
   await page.goto(`${path}${path.includes('?') ? '&' : '?'}demo`)
@@ -271,11 +277,13 @@ test.describe('admin', () => {
     const contact = page.getByRole('region', { name: 'Contact' })
     await contact.getByRole('button', { name: 'Edit' }).click()
     await expect(page.getByRole('dialog')).toHaveCount(0) // fields open in place, not in a pop-up
+    // The country code is picked from a list (searchable); the number is typed after it.
+    await expect(contact.getByRole('combobox', { name: 'Country code' })).toHaveValue('🇪🇸 +34')
     const phone = contact.getByRole('textbox', { name: 'Phone' })
     await expect(phone).toHaveAttribute('type', 'tel')
     await phone.fill('')
-    await phone.pressSequentially('+34 600-abc 000 000')
-    await expect(phone).toHaveValue('+34 600 000 000')
+    await phone.pressSequentially('600-abc 000 000')
+    await expect(phone).toHaveValue('600 000 000')
     const insta = contact.getByRole('textbox', { name: 'Instagram' })
     await expect(insta).toHaveValue('easy.beans.coffee')
     await expect(contact.getByText('@', { exact: true })).toBeVisible()
@@ -399,7 +407,9 @@ test.describe('guard rails', () => {
 test('sidebar is grouped into sections that fold away, and the logo goes to Today', async ({ page }) => {
   await open(page, '/business')
   const nav = page.getByRole('navigation', { name: 'Main' })
-  for (const section of ['Business', "What's on", 'Team', 'Settings', 'You']) await expect(nav.getByRole('button', { name: section, exact: true })).toBeVisible()
+  for (const section of ['Business', "What's on", 'Team', 'Settings']) await expect(nav.getByRole('button', { name: section, exact: true })).toBeVisible()
+  // Your own pages are in the account menu, not the sidebar.
+  await expect(nav.getByRole('button', { name: 'You', exact: true })).toHaveCount(0)
   await expect(nav.getByRole('link', { name: 'Opening hours' })).toBeVisible()
   await nav.getByRole('button', { name: 'Settings' }).click()
   await expect(nav.getByRole('link', { name: 'Connections' })).toBeHidden()
@@ -531,7 +541,7 @@ test.describe('connections', () => {
     await open(page, '/rota')
     await page.getByRole('button', { name: 'Send on WhatsApp' }).click()
     await toast(page, 'Rota sent on WhatsApp')
-    await page.getByRole('link', { name: 'My account' }).first().click()
+    await fromAccountMenu(page, 'My account')
     await page.getByLabel(/shift reminders and rota updates on WhatsApp/).check()
     await expect(page.getByText('Add your mobile number so the café can reach you that way.')).toBeVisible()
   })
@@ -1109,8 +1119,8 @@ test.describe('appearance and accessibility', () => {
   test('each person picks a decimal comma or point, and amounts follow it', async ({ page }) => {
     await open(page, '/team')
     const maria = page.getByRole('row', { name: /Maria/ })
-    await expect(maria).toContainText('8,80 €/h')
-    await page.getByRole('link', { name: 'Appearance' }).first().click()
+    await expect(maria).toContainText('€8,80/h')
+    await fromAccountMenu(page, 'Appearance')
     await page.getByRole('radio', { name: 'Decimal point' }).click()
     await toast(page, 'Numbers: decimal point')
     await page.getByRole('link', { name: 'Team' }).first().click()
@@ -1118,7 +1128,7 @@ test.describe('appearance and accessibility', () => {
     // Another person on this device still sees their own choice (the comma).
     await signInAs(page, 'mark@example.com')
     await page.getByRole('link', { name: 'Team' }).first().click()
-    await expect(maria).toContainText('8,80 €/h')
+    await expect(maria).toContainText('€8,80/h')
   })
 })
 
@@ -1218,7 +1228,7 @@ test.describe('menu', () => {
     await open(page, '/')
     const nav = page.getByRole('navigation', { name: 'Main' })
     const headings = await nav.locator('section > button').allTextContents()
-    expect(headings.map(h => h.trim())).toEqual(['Business', 'Accounts', "What's on", 'Team', 'Settings', 'You'])
+    expect(headings.map(h => h.trim())).toEqual(['Business', 'Accounts', "What's on", 'Team', 'Settings'])
     await expect(nav.getByRole('link', { name: 'Partners' })).toHaveCount(0)
     await expect(nav.getByRole('link', { name: 'Café tablet' })).toHaveCount(0)
     // Today is the landing page: no menu item, the logo takes you there.
@@ -1252,7 +1262,7 @@ test.describe('menu', () => {
 test('admins pick the café\'s currency on the Business page; euro until they do', async ({ page }) => {
   await open(page, '/team')
   const maria = page.getByRole('row', { name: /Maria/ })
-  await expect(maria).toContainText('8,80 €/h')
+  await expect(maria).toContainText('€8,80/h')
   await page.getByRole('link', { name: 'Business', exact: true }).first().click()
   const company = page.getByRole('region', { name: 'Company' })
   await expect(company).toContainText('€ Euro')
@@ -1264,7 +1274,7 @@ test('admins pick the café\'s currency on the Business page; euro until they do
   await toast(page, /^Saved$/)
   await expect(company).toContainText('£ Pound sterling')
   await page.getByRole('link', { name: 'Team', exact: true }).first().click()
-  await expect(maria).toContainText('8,80 £/h')
+  await expect(maria).toContainText('£8,80/h')
 })
 
 test('people choose how they like to be contacted; admins see it on the team list', async ({ page }) => {
@@ -1310,7 +1320,7 @@ test('an admin sets a new person’s mobile and contact preference when inviting
   const dialog = page.getByRole('dialog', { name: 'Invite to the team' })
   await dialog.getByLabel('Full name').fill('Lucía')
   await dialog.getByRole('textbox', { name: 'Email' }).fill('lucia@example.com')
-  await dialog.getByLabel('Mobile (optional)').fill('+34 600 999 000')
+  await dialog.getByRole('textbox', { name: 'Mobile (optional)' }).fill('600 999 000')
   await dialog.getByLabel('Prefers to be contacted by').click()
   await page.getByRole('option', { name: 'WhatsApp', exact: true }).click()
   await dialog.getByRole('button', { name: 'Create account' }).click()
@@ -1341,7 +1351,7 @@ test.describe('top bar', () => {
     if (before === 'dark') await page.getByRole('button', { name: 'Switch to light mode' }).click()
     await toDark.click()
     await expect(root).toHaveAttribute('data-eb-theme', 'dark')
-    await page.getByRole('link', { name: 'Appearance' }).first().click()
+    await fromAccountMenu(page, 'Appearance')
     await expect(page.getByRole('radio', { name: 'Dark' })).toHaveAttribute('aria-checked', 'true')
     await page.getByRole('button', { name: 'Switch to light mode' }).click()
     await expect(root).toHaveAttribute('data-eb-theme', 'light')
@@ -1548,21 +1558,33 @@ test.describe('billing', () => {
     await expect(page.getByLabel('Pro plan').getByRole('button', { name: 'Choose Pro' })).toBeDisabled()
   })
 
-  test('Billing is a sub-page of My account in the menu, with an arrow to show it', async ({ page }) => {
+  test('Billing opens from the account menu, and is found by search', async ({ page }) => {
     await open(page, '/team')
     const nav = page.getByRole('navigation', { name: 'Main' })
-    const billing = nav.getByRole('link', { name: 'Billing' })
-    await expect(billing).toBeHidden()
-    await nav.getByRole('button', { name: 'Show My account pages' }).click()
-    await billing.click()
+    await expect(nav.getByRole('link', { name: 'Billing' })).toHaveCount(0)
+    await fromAccountMenu(page, 'Billing')
     await expect(page).toHaveURL(/\/account\/billing(\?|$)/)
     await expect(page.getByRole('heading', { name: 'Billing' })).toBeVisible()
-    await expect(billing).toHaveClass(/Mui-selected/)
-    await nav.getByRole('button', { name: 'Hide My account pages' }).click()
-    await expect(billing).toBeHidden()
-    // Opening My account shows its pages.
-    await nav.getByRole('link', { name: 'My account' }).click()
-    await expect(billing).toBeVisible()
+  })
+
+  test('Sales is a sub-page of Finances in the menu, with an arrow to show it', async ({ page }) => {
+    await open(page, '/team')
+    const nav = page.getByRole('navigation', { name: 'Main' })
+    const sales = nav.getByRole('link', { name: 'Sales' })
+    await expect(sales).toBeHidden()
+    await nav.getByRole('button', { name: 'Show Finances pages' }).click()
+    await sales.click()
+    await expect(page).toHaveURL(/\/finances\/sales$/)
+    await expect(page.getByRole('heading', { name: 'Sales', level: 1 })).toBeVisible()
+    await expect(sales).toHaveClass(/Mui-selected/)
+    // Tabs at the top switch between the two.
+    await page.getByRole('tab', { name: 'Costs' }).click()
+    await expect(page).toHaveURL(/\/finances$/)
+    await page.getByRole('tab', { name: 'Sales' }).click()
+    await expect(page).toHaveURL(/\/finances\/sales$/)
+    // The old address still works.
+    await page.goto('/sales')
+    await expect(page).toHaveURL(/\/finances\/sales$/)
   })
 
   test('employees never see Billing', async ({ page }) => {
@@ -1904,13 +1926,13 @@ test.describe('social planner', () => {
 test('Square: connect the payment system, then takings show on Finances next to the team’s cost', async ({ page }) => {
   test.skip(!FEATURES.square, 'Square is switched off for now')
   await open(page, '/finances')
-  const prompt = page.getByRole('alert').filter({ hasText: 'Connect Stripe or Square to see takings' })
+  const prompt = page.getByRole('alert').filter({ hasText: 'Connect Square, SumUp or Stripe to see takings' })
   await expect(prompt).toBeVisible()
   await prompt.getByRole('link', { name: 'Connect' }).click()
   const payments = page.getByRole('region', { name: 'Payments and sales' })
-  // Stripe and Square, nothing else (no SumUp).
+  // Stripe, Square and SumUp: pick one.
   await expect(payments.getByRole('button', { name: 'Connect Square' })).toBeVisible()
-  expect(await payments.getByRole('article').evaluateAll(els => els.map(e => e.getAttribute('aria-label')))).toEqual(['Stripe', 'Square'])
+  expect(await payments.getByRole('article').evaluateAll(els => els.map(e => e.getAttribute('aria-label')))).toEqual(['Stripe', 'Square', 'SumUp'])
   await payments.getByRole('button', { name: 'Connect Square' }).click()
   await expect(payments.getByRole('article', { name: 'Square' })).toContainText('Connected')
   await page.getByRole('link', { name: 'Finances' }).first().click()
@@ -1921,16 +1943,15 @@ test('Square: connect the payment system, then takings show on Finances next to 
   await expect(takings).toContainText(/€/)
 })
 
-test('Sales page: Accounts in the menu; connect Square, then sales, charts and best sellers against the period before', async ({ page }) => {
+test('Sales page: under Finances in the menu; connect Square, then sales, charts and best sellers against the period before', async ({ page }) => {
   test.skip(!FEATURES.square, 'Square is switched off for now')
   await open(page, '/')
   const nav = page.getByRole('navigation', { name: 'Main' })
   const accounts = nav.getByRole('region', { name: 'Accounts' })
-  await expect(accounts.getByRole('link', { name: 'Sales' })).toBeVisible()
-  await expect(accounts.getByRole('link', { name: 'Finances' })).toBeVisible()
+  await accounts.getByRole('link', { name: 'Finances' }).click()
   await accounts.getByRole('link', { name: 'Sales' }).click()
   await expect(page.getByRole('heading', { name: 'Sales', level: 1 })).toBeVisible()
-  await expect(page.getByText('Connect Square to see your sales')).toBeVisible()
+  await expect(page.getByText('Connect your till to see your sales')).toBeVisible()
   await page.getByRole('link', { name: 'Go to Connections' }).click()
   await page.getByRole('region', { name: 'Payments and sales' }).getByRole('button', { name: 'Connect Square' }).click()
   await expect(page.getByRole('region', { name: 'Payments and sales' }).getByRole('article', { name: 'Square' })).toContainText('Connected')
@@ -1962,13 +1983,13 @@ test('Sales page: Accounts in the menu; connect Square, then sales, charts and b
 test('Sales page: employees don’t get it', async ({ page }) => {
   await open(page, '/', 'maria@example.com')
   await expect(page.getByRole('link', { name: 'Sales' })).toHaveCount(0)
-  await page.goto('/sales')
+  await page.goto('/finances/sales')
   await expect(page.getByRole('heading', { name: 'Sales', level: 1 })).toHaveCount(0)
 })
 
 test('Stripe: connect it in one click, then takings show on Finances next to the team’s cost', async ({ page }) => {
   await open(page, '/finances')
-  const prompt = page.getByRole('alert').filter({ hasText: 'Connect Stripe or Square to see takings' })
+  const prompt = page.getByRole('alert').filter({ hasText: 'Connect Square, SumUp or Stripe to see takings' })
   await expect(prompt).toBeVisible()
   await prompt.getByRole('link', { name: 'Connect' }).click()
   const payments = page.getByRole('region', { name: 'Payments and sales' })
@@ -2318,5 +2339,49 @@ test.describe('referrals', () => {
     await page.getByRole('button', { name: /^Account menu/ }).click()
     await page.getByRole('menuitem', { name: 'Referrals' }).click()
     await expect(page.getByRole('figure', { name: '4 of 12 free months earned' })).toBeVisible()
+  })
+})
+
+test.describe('language', () => {
+  test('someone picks English and Spanish in My account; flags at the top right switch the whole app', async ({ page }) => {
+    await open(page, '/account')
+    // English only to start with: no flags.
+    await expect(page.getByRole('group', { name: 'Language' })).toHaveCount(0)
+    await page.getByRole('combobox', { name: 'Languages' }).click()
+    await page.getByRole('option', { name: 'Español' }).click()
+    await page.keyboard.press('Escape')
+    const flags = page.getByRole('group', { name: 'Language' })
+    await expect(flags.getByRole('button', { name: 'English' })).toHaveAttribute('aria-pressed', 'true')
+    await flags.getByRole('button', { name: 'Español' }).click()
+    await expect(page.getByRole('heading', { name: 'Mi cuenta', level: 1 })).toBeVisible()
+    const nav = page.getByRole('navigation', { name: 'Principal' })
+    await expect(nav.getByRole('link', { name: 'Cuadrante' })).toBeVisible()
+    await expect(nav.getByRole('link', { name: 'Fichajes' })).toBeVisible()
+    await nav.getByRole('link', { name: 'Cuadrante' }).click()
+    await expect(page.getByRole('heading', { name: 'Cuadrante', level: 1 })).toBeVisible()
+    await page.getByRole('group', { name: 'Idioma' }).getByRole('button', { name: 'English' }).click()
+    await expect(page.getByRole('heading', { name: 'Rota', level: 1 })).toBeVisible()
+    await fromAccountMenu(page, 'My account')
+    await expect(page.getByRole('heading', { name: 'My account', level: 1 })).toBeVisible()
+  })
+
+  test('with only Spanish picked, the app is in Spanish and there are no flags', async ({ page }) => {
+    await open(page, '/account')
+    await page.getByRole('combobox', { name: 'Languages' }).click()
+    await page.getByRole('option', { name: 'Español' }).click()
+    await page.getByRole('option', { name: 'English' }).click()
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('heading', { name: 'Mi cuenta', level: 1 })).toBeVisible()
+    await expect(page.getByRole('group', { name: 'Idioma' })).toHaveCount(0)
+    await page.getByRole('navigation', { name: 'Principal' }).getByRole('link', { name: 'Finanzas' }).click()
+    await expect(page.getByRole('heading', { name: 'Finanzas', level: 1 })).toBeVisible()
+    // Money keeps the euro sign in front.
+    await expect(page.getByRole('list', { name: 'De un vistazo' })).toContainText(/€\d/)
+  })
+
+  test('the public pages have the flags too', async ({ page }) => {
+    await page.goto('/pricing?demo')
+    await page.getByRole('group', { name: 'Language' }).getByRole('button', { name: 'Español' }).click()
+    await expect(page.getByRole('link', { name: 'Precios' }).first()).toBeVisible()
   })
 })

@@ -6,6 +6,7 @@ import { useAction, useNotify } from '../../app/Notify'
 import { SOCIAL_PROVIDERS, type SignInMethods, type SocialProvider } from '../../data/api'
 import { BA, display, outlineBtn, primaryBtn } from './site'
 import { TRIAL_MONTHS } from './plans'
+import { t, tr } from '../../i18n'
 
 /** Google's four-colour "G", as Google asks sign-in buttons to show it. */
 function GoogleIcon() {
@@ -78,13 +79,13 @@ export function AuthCard({ tab, onTab }: { tab: 'signin' | 'signup'; onTab: (t: 
   return (
     <Box sx={{ p: { xs: 2.5, sm: 3.5 }, borderRadius: '22px', bgcolor: BA.card, border: `1px solid ${BA.line}`,
       boxShadow: '0 1px 2px rgba(43,37,34,0.04), 0 30px 60px -32px rgba(43,37,34,0.3)' }}>
-      <Tabs value={tab} onChange={(_, v) => onTab(v)} variant="fullWidth" aria-label="Account"
+      <Tabs value={tab} onChange={(_, v) => onTab(v)} variant="fullWidth" aria-label={t('Account')}
         sx={{ mb: 3, minHeight: 40, bgcolor: BA.tint, borderRadius: '12px', p: 0.5,
           '& .MuiTabs-indicator': { display: 'none' },
           '& .MuiTab-root': { minHeight: 36, borderRadius: '9px', color: BA.soft, fontWeight: 500, textTransform: 'none' },
           '& .Mui-selected': { bgcolor: '#fff', color: `${BA.ink} !important`, boxShadow: '0 1px 3px rgba(43,37,34,0.14)' } }}>
-        <Tab value="signin" label="Sign in" />
-        <Tab value="signup" label="Create account" />
+        <Tab value="signin" label={t('Sign in')} />
+        <Tab value="signup" label={t('Create account')} />
       </Tabs>
       {tab === 'signin' ? <SignInForm /> : <SignUpForm onSignIn={() => onTab('signin')} />}
     </Box>
@@ -111,27 +112,27 @@ function SignInForm() {
     <Box component="form" onSubmit={submit}>
       <Stack spacing={2.25}>
         <Box>
-          <Typography variant="h5" component="h2" sx={{ fontFamily: display, fontWeight: 500, fontSize: '2.1rem', lineHeight: 1.05, letterSpacing: '-0.01em', color: BA.ink }}>Sign in</Typography>
-          <Typography sx={{ color: BA.soft, mt: 0.5 }}>Welcome back. You'll go straight to your business.</Typography>
+          <Typography variant="h5" component="h2" sx={{ fontFamily: display, fontWeight: 500, fontSize: '2.1rem', lineHeight: 1.05, letterSpacing: '-0.01em', color: BA.ink }}>{t('Sign in')}</Typography>
+          <Typography sx={{ color: BA.soft, mt: 0.5 }}>{t("Welcome back. You'll go straight to your business.")}</Typography>
         </Box>
         {api.authError?.() && <Alert severity="error">{api.authError()}</Alert>}
         {api.mode === 'demo' && (
-          <Alert severity="info">Demo: use aron@example.com (admin) or maria@example.com (employee), any password.</Alert>
+          <Alert severity="info">{t('Demo: use aron@example.com (admin) or maria@example.com (employee), any password.')}</Alert>
         )}
         <SocialButtons methods={methods} />
-        <Divider sx={{ color: BA.faint, fontSize: 13 }}>or with your email</Divider>
-        <TextField label="Email" type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} required />
+        <Divider sx={{ color: BA.faint, fontSize: 13 }}>{t('or with your email')}</Divider>
+        <TextField label={t('Email')} type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} required />
         <Box>
-          <TextField label="Password" type="password" autoComplete="current-password" value={password} fullWidth
+          <TextField label={t('Password')} type="password" autoComplete="current-password" value={password} fullWidth
             onChange={e => setPassword(e.target.value)} required={api.mode === 'live'} />
           <Stack direction="row" sx={{ justifyContent: 'flex-end', mt: 1 }}>
             <Link component="button" type="button" variant="body2" sx={linkSx} onClick={async () => {
-              if (!email) return notify('Enter your email first', 'warning')
-              await run(() => api.sendPasswordReset(email), 'Check your email for a reset link')
-            }}>Forgot password?</Link>
+              if (!email) return notify(t('Enter your email first'), 'warning')
+              await run(() => api.sendPasswordReset(email), t('Check your email for a reset link'))
+            }}>{t('Forgot password?')}</Link>
           </Stack>
         </Box>
-        <Button type="submit" variant="contained" size="large" disabled={busy} sx={primaryBtn}>Sign in</Button>
+        <Button type="submit" variant="contained" size="large" disabled={busy} sx={primaryBtn}>{t('Sign in')}</Button>
       </Stack>
     </Box>
   )
@@ -149,7 +150,7 @@ function SignUpForm({ onSignIn }: { onSignIn: () => void }) {
   const open = methods?.signup !== false
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (password.length < 8) return run(async () => { throw new Error('Use at least 8 characters for your password') })
+    if (password.length < 8) return run(async () => { throw new Error(t('Use at least 8 characters for your password')) })
     setBusy(true)
     let confirm = false
     await run(async () => { confirm = (await api.signUp(name, email, password)).confirmEmail })
@@ -158,30 +159,33 @@ function SignUpForm({ onSignIn }: { onSignIn: () => void }) {
   }
   if (sent) return (
     <Stack spacing={2}>
-      <Typography variant="h5" component="h2" sx={{ fontFamily: display, fontWeight: 500, fontSize: '2rem' }}>Check your email</Typography>
-      <Typography sx={{ color: BA.soft }}>We sent a link to <b>{sent}</b>. Open it to confirm your account, then sign in.</Typography>
-      <Button variant="outlined" sx={outlineBtn} onClick={onSignIn}>Back to sign in</Button>
+      <Typography variant="h5" component="h2" sx={{ fontFamily: display, fontWeight: 500, fontSize: '2rem' }}>{t('Check your email')}</Typography>
+      <Typography sx={{ color: BA.soft }}>{tr('We sent a link to {email}. Open it to confirm your account, then sign in.', { email: <b>{sent}</b> })}</Typography>
+      <Button variant="outlined" sx={outlineBtn} onClick={onSignIn}>{t('Back to sign in')}</Button>
     </Stack>
   )
   return (
     <Box component="form" onSubmit={submit}>
       <Stack spacing={2.25}>
         <Box>
-          <Typography variant="h5" component="h2" sx={{ fontFamily: display, fontWeight: 500, fontSize: '2.1rem', lineHeight: 1.05, letterSpacing: '-0.01em', color: BA.ink }}>Create your account</Typography>
-          <Typography sx={{ color: BA.soft, mt: 0.5 }}>Start on the Free plan, no card needed, or try Business free for {TRIAL_MONTHS} months. Joining a team? Register, then your admin adds you.</Typography>
+          <Typography variant="h5" component="h2" sx={{ fontFamily: display, fontWeight: 500, fontSize: '2.1rem', lineHeight: 1.05, letterSpacing: '-0.01em', color: BA.ink }}>{t('Create your account')}</Typography>
+          <Typography sx={{ color: BA.soft, mt: 0.5 }}>{t('Start on the Free plan, no card needed, or try Business free for {n} months. Joining a team? Register, then your admin adds you.', { n: TRIAL_MONTHS })}</Typography>
         </Box>
-        {!open && <Alert severity="info">Registration is closed for now. Ask your business's admin to invite you.</Alert>}
+        {!open && <Alert severity="info">{t("Registration is closed for now. Ask your business's admin to invite you.")}</Alert>}
         {open && <>
           <SocialButtons methods={methods} />
-          <Divider sx={{ color: BA.faint, fontSize: 13 }}>or with your email</Divider>
+          <Divider sx={{ color: BA.faint, fontSize: 13 }}>{t('or with your email')}</Divider>
         </>}
-        <TextField label="Your name" autoComplete="name" value={name} onChange={e => setName(e.target.value)} required disabled={!open} />
-        <TextField label="Email" type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} required disabled={!open} />
-        <TextField label="Password" type="password" autoComplete="new-password" value={password} onChange={e => setPassword(e.target.value)}
-          required disabled={!open} helperText="At least 8 characters" />
-        <Button type="submit" variant="contained" size="large" disabled={busy || !open} sx={primaryBtn}>Create account</Button>
+        <TextField label={t('Your name')} autoComplete="name" value={name} onChange={e => setName(e.target.value)} required disabled={!open} />
+        <TextField label={t('Email')} type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} required disabled={!open} />
+        <TextField label={t('Password')} type="password" autoComplete="new-password" value={password} onChange={e => setPassword(e.target.value)}
+          required disabled={!open} helperText={t('At least 8 characters')} />
+        <Button type="submit" variant="contained" size="large" disabled={busy || !open} sx={primaryBtn}>{t('Create account')}</Button>
         <Typography variant="caption" sx={{ color: BA.faint, textAlign: 'center' }}>
-          By creating an account you agree to the <Link href="/terms" sx={{ color: 'inherit' }}>terms</Link> and <Link href="/privacy" sx={{ color: 'inherit' }}>privacy policy</Link>.
+          {tr('By creating an account you agree to the {terms} and {privacy}.', {
+            terms: <Link href="/terms" sx={{ color: 'inherit' }}>{t('terms')}</Link>,
+            privacy: <Link href="/privacy" sx={{ color: 'inherit' }}>{t('privacy policy')}</Link>,
+          })}
         </Typography>
       </Stack>
     </Box>

@@ -29,6 +29,7 @@ import PartnersIcon from '@mui/icons-material/HandshakeOutlined'
 import MoreIcon from '@mui/icons-material/MoreHoriz'
 import SportsIcon from '@mui/icons-material/SportsSoccerOutlined'
 import MusicIcon from '@mui/icons-material/LibraryMusicOutlined'
+import AnalyticsIcon from '@mui/icons-material/QueryStatsOutlined'
 import ExpandIcon from '@mui/icons-material/ExpandMore'
 import DragIcon from '@mui/icons-material/DragIndicator'
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent, type Modifier } from '@dnd-kit/core'
@@ -48,6 +49,8 @@ import { CafeSpeakerProvider } from './CafeSpeaker'
 import { BillingBanner } from './plan'
 import { SearchButton, ThemeToggle } from './QuickActions'
 import { fonts, tokens } from '../theme'
+import { msg, t, tr } from '../i18n'
+import { LanguageToggle } from '../components/Language'
 
 // `partner`: which partner areas show the item ('any' = every partner). Items without it are staff-only.
 // `children`: sub-pages, shown indented under the item when it's opened (or its arrow is pressed).
@@ -56,43 +59,47 @@ interface NavSection { key: string; label: string | null; items: NavItem[] }
 
 // The menu, in sections. Today is the landing page: the logo goes there, so it has no menu item.
 export const SECTIONS: NavSection[] = [
-  { key: 'business', label: 'Business', items: [
-    { key: 'business', to: '/business', label: 'Business', icon: <BusinessIcon />, partner: 'any' },
-    { key: 'todo', to: '/todo', label: 'To Do List', short: 'To do', icon: <TodoIcon /> },
-    { key: 'hours', to: '/opening-hours', label: 'Opening hours', icon: <HoursIcon />, partner: 'any' },
-    { key: 'brand', to: '/brand', label: 'Brand', icon: <BrandIcon />, partner: 'any' },
-    { key: 'social', to: '/social', label: 'Social planner', icon: <SocialIcon />, who: 'admin' },
-    { key: 'messages', to: '/messages', label: 'Messages', icon: <MessagesIcon />, who: 'admin' },
+  { key: 'business', label: msg('Business'), items: [
+    { key: 'business', to: '/business', label: msg('Business'), icon: <BusinessIcon />, partner: 'any' },
+    { key: 'todo', to: '/todo', label: msg('To Do List'), short: msg('To do'), icon: <TodoIcon /> },
+    { key: 'hours', to: '/opening-hours', label: msg('Opening hours'), icon: <HoursIcon />, partner: 'any' },
+    { key: 'brand', to: '/brand', label: msg('Brand'), icon: <BrandIcon />, partner: 'any' },
+    { key: 'social', to: '/social', label: msg('Social planner'), icon: <SocialIcon />, who: 'admin' },
+    { key: 'analytics', to: '/analytics', label: msg('Analytics'), icon: <AnalyticsIcon />, who: 'admin' },
+    { key: 'messages', to: '/messages', label: msg('Messages'), icon: <MessagesIcon />, who: 'admin' },
   ] },
-  // Money: takings from the till (Square or Stripe) and the running costs.
-  { key: 'accounts', label: 'Accounts', items: [
-    { key: 'sales', to: '/sales', label: 'Sales', icon: <SalesIcon />, who: 'pay' },
-    { key: 'finances', to: '/finances', label: 'Finances', icon: <FinanceIcon />, who: 'pay', partner: ['finances'] },
-  ] },
-  { key: 'whatson', label: "What's on", items: [
-    { key: 'calendar', to: '/calendar', label: 'Calendar', icon: <CalendarIcon />, partner: ['calendar'] },
-    { key: 'sports', to: '/sports', label: 'Sports', icon: <SportsIcon /> },
-    { key: 'music', to: '/music', label: 'Music', icon: <MusicIcon /> },
-  ] },
-  { key: 'team', label: 'Team', items: [
-    { key: 'rota', to: '/rota', label: 'Rota', icon: <RotaIcon />, partner: ['rota', 'payroll'] },
-    { key: 'timeoff', to: '/time-off', label: 'Time off', icon: <TimeOffIcon /> },
-    { key: 'timecards', to: '/timecards', label: 'Timecards', short: 'Hours', icon: <TimecardIcon />, partner: ['payroll'] },
-    { key: 'team', to: '/team', label: 'Team', icon: <TeamIcon /> },
-  ] },
-  { key: 'admin', label: 'Settings', items: [
-    { key: 'setup', to: '/setup', label: 'Set-up', icon: <SetupIcon />, who: 'admin' },
-    { key: 'connections', to: '/connections', label: 'Connections', icon: <ConnectIcon />, who: 'admin' },
-    { key: 'alerts', to: '/alerts', label: 'Alerts', icon: <AlertsIcon />, who: 'admin' },
-    ...(FEATURES.partners ? [{ key: 'partners', to: '/partners', label: 'Partners', icon: <PartnersIcon />, who: 'admin' as const }] : []),
-    ...(FEATURES.kiosk ? [{ key: 'kiosk', to: '/kiosk', label: 'Café tablet', icon: <KioskIcon />, who: 'admin' as const }] : []),
-  ] },
-  { key: 'me', label: 'You', items: [
-    { key: 'account', to: '/account', label: 'My account', short: 'Me', icon: <AccountIcon />, partner: 'any', children: [
-      { key: 'billing', to: '/account/billing', label: 'Billing', icon: <BillingIcon />, who: 'admin' },
+  // Money: the running costs, with sales from the till (Square, SumUp or Stripe) as a sub-page.
+  { key: 'accounts', label: msg('Accounts'), items: [
+    { key: 'finances', to: '/finances', label: msg('Finances'), icon: <FinanceIcon />, who: 'pay', partner: ['finances'], children: [
+      { key: 'sales', to: '/finances/sales', label: msg('Sales'), icon: <SalesIcon />, who: 'pay' },
     ] },
-    { key: 'appearance', to: '/appearance', label: 'Appearance', icon: <AppearanceIcon />, partner: 'any' },
   ] },
+  { key: 'whatson', label: msg("What's on"), items: [
+    { key: 'calendar', to: '/calendar', label: msg('Calendar'), icon: <CalendarIcon />, partner: ['calendar'] },
+    { key: 'sports', to: '/sports', label: msg('Sports'), icon: <SportsIcon /> },
+    { key: 'music', to: '/music', label: msg('Music'), icon: <MusicIcon /> },
+  ] },
+  { key: 'team', label: msg('Team'), items: [
+    { key: 'rota', to: '/rota', label: msg('Rota'), icon: <RotaIcon />, partner: ['rota', 'payroll'] },
+    { key: 'timeoff', to: '/time-off', label: msg('Time off'), icon: <TimeOffIcon /> },
+    { key: 'timecards', to: '/timecards', label: msg('Timecards'), short: msg('Hours'), icon: <TimecardIcon />, partner: ['payroll'] },
+    { key: 'team', to: '/team', label: msg('Team'), icon: <TeamIcon /> },
+  ] },
+  { key: 'admin', label: msg('Settings'), items: [
+    { key: 'setup', to: '/setup', label: msg('Set-up'), icon: <SetupIcon />, who: 'admin' },
+    { key: 'connections', to: '/connections', label: msg('Connections'), icon: <ConnectIcon />, who: 'admin' },
+    { key: 'alerts', to: '/alerts', label: msg('Alerts'), icon: <AlertsIcon />, who: 'admin' },
+    ...(FEATURES.partners ? [{ key: 'partners', to: '/partners', label: msg('Partners'), icon: <PartnersIcon />, who: 'admin' as const }] : []),
+    ...(FEATURES.kiosk ? [{ key: 'kiosk', to: '/kiosk', label: msg('Café tablet'), icon: <KioskIcon />, who: 'admin' as const }] : []),
+  ] },
+]
+// Your own pages: not in the menu (your name at the bottom left, or the account icon on a phone,
+// opens them), but still found by search and shown as the current page.
+const YOU: NavItem[] = [
+  { key: 'account', to: '/account', label: msg('My account'), icon: <AccountIcon />, partner: 'any' },
+  { key: 'billing', to: '/account/billing', label: msg('Billing'), icon: <BillingIcon />, who: 'admin' },
+  { key: 'referrals', to: '/referrals', label: msg('Referrals'), icon: <ReferralsIcon />, who: 'admin' },
+  { key: 'appearance', to: '/appearance', label: msg('Appearance'), icon: <AppearanceIcon />, partner: 'any' },
 ]
 const DRAWER = 252
 const MINI = 76
@@ -126,6 +133,8 @@ function IconCount({ n, children }: { n?: number; children: ReactNode }) {
 }
 // Phone tabs: the everyday pages first; everything else sits under "More".
 const PHONE_TABS = ['rota', 'timeoff', 'timecards', 'calendar', 'business']
+/** A menu item with its words in the person's language. */
+const inLanguage = (n: NavItem): NavItem => ({ ...n, label: t(n.label), short: n.short && t(n.short), children: n.children?.map(inLanguage) })
 /** Every page, sub-pages included. */
 const withChildren = (items: NavItem[]) => items.flatMap(n => [n, ...(n.children ?? [])])
 
@@ -140,19 +149,19 @@ function AccountMenu({ children, label, sx }: { children: ReactNode; label?: str
   return (
     <>
       <Tooltip title={label ?? ''} placement="right">
-        <ButtonBase onClick={e => setAnchor(e.currentTarget)} aria-label={`Account menu${me ? `: ${me.full_name}` : ''}`}
+        <ButtonBase onClick={e => setAnchor(e.currentTarget)} aria-label={me ? t('Account menu: {name}', { name: me.full_name }) : t('Account menu')}
           aria-haspopup="menu" aria-expanded={!!anchor} sx={{ display: 'flex', alignItems: 'center', ...sx }}>
           {children}
         </ButtonBase>
       </Tooltip>
       <Menu anchorEl={anchor} open={!!anchor} onClose={close} anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
         transformOrigin={{ vertical: 'bottom', horizontal: 'left' }} slotProps={{ paper: { sx: { minWidth: 220, borderRadius: '14px' } } }}>
-        {item('/account', 'My account', <AccountIcon fontSize="small" />)}
-        {isAdmin && !isPartner && item('/account/billing', 'Billing', <BillingIcon fontSize="small" />)}
-        {isAdmin && !isPartner && item('/referrals', 'Referrals', <ReferralsIcon fontSize="small" />)}
-        {item('/appearance', 'Appearance', <AppearanceIcon fontSize="small" />)}
+        {item('/account', t('My account'), <AccountIcon fontSize="small" />)}
+        {isAdmin && !isPartner && item('/account/billing', t('Billing'), <BillingIcon fontSize="small" />)}
+        {isAdmin && !isPartner && item('/referrals', t('Referrals'), <ReferralsIcon fontSize="small" />)}
+        {item('/appearance', t('Appearance'), <AppearanceIcon fontSize="small" />)}
         <Divider />
-        <MenuItem onClick={() => { close(); void api.signOut() }}><ListItemIcon><LogoutIcon fontSize="small" /></ListItemIcon><ListItemText primary="Sign out" /></MenuItem>
+        <MenuItem onClick={() => { close(); void api.signOut() }}><ListItemIcon><LogoutIcon fontSize="small" /></ListItemIcon><ListItemText primary={t('Sign out')} /></MenuItem>
       </Menu>
     </>
   )
@@ -210,17 +219,17 @@ function DemoBanner() {
   const { api, me } = useApp()
   if (api.mode !== 'demo') return null
   const accounts = me?.email && !DEMO_ACCOUNTS.some(a => a.email === me.email)
-    ? [...DEMO_ACCOUNTS, { email: me.email, label: `${me.full_name} (${me.role})` }] : DEMO_ACCOUNTS
+    ? [...DEMO_ACCOUNTS, { email: me.email, label: `${me.full_name} (${t(me.role)})` }] : DEMO_ACCOUNTS
   return (
     <Alert severity="info" icon={false}
       sx={{ borderRadius: 0, border: 0, py: 0.25, px: { xs: 2, md: 4 }, borderBottom: 1, borderColor: 'divider', '& .MuiAlert-message': { py: 1 } }}
       action={
-        <Select size="small" variant="standard" disableUnderline value={me?.email ?? ''} aria-label="View as"
+        <Select size="small" variant="standard" disableUnderline value={me?.email ?? ''} aria-label={t('View as')}
           sx={{ fontSize: 14, fontWeight: 500 }} onChange={e => api.signIn(String(e.target.value), '')}>
-          {accounts.map(a => <MenuItem key={a.email} value={a.email}>View as {a.label}</MenuItem>)}
+          {accounts.map(a => <MenuItem key={a.email} value={a.email}>{t('View as {who}', { who: a.label })}</MenuItem>)}
         </Select>
       }>
-      <b>Demo</b> · sample data, nothing is saved
+      {tr('{demo} · sample data, nothing is saved', { demo: <b>{t('Demo')}</b> })}
     </Alert>
   )
 }
@@ -240,7 +249,7 @@ function PhoneNav({ sections, current, badges }: { sections: NavSection[]; curre
   const shownKeys = shown.map(n => n.key)
   const inRest = !!current && current !== 'today' && !shownKeys.includes(current)
   return (
-    <Paper component="nav" aria-label="Main" elevation={0}
+    <Paper component="nav" aria-label={t('Main')} elevation={0}
       sx={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 10, pb: 'env(safe-area-inset-bottom)' }}>
       <BottomNavigation showLabels value={inRest ? 'more' : current}>
         {shown.map(n => (
@@ -249,7 +258,7 @@ function PhoneNav({ sections, current, badges }: { sections: NavSection[]; curre
         ))}
         {overflow && (
           // A quiet dot when a page under "More" has something waiting (e.g. Messages).
-          <BottomNavigationAction value="more" label="More" sx={{ minWidth: 0 }}
+          <BottomNavigationAction value="more" label={t('More')} sx={{ minWidth: 0 }}
             icon={
               <Badge variant="dot" invisible={!flat.some(n => !shownKeys.includes(n.key) && badges[n.key])}
                 sx={{ '& .MuiBadge-badge': { bgcolor: tokens.rose } }}>
@@ -261,7 +270,7 @@ function PhoneNav({ sections, current, badges }: { sections: NavSection[]; curre
       </BottomNavigation>
       <Drawer anchor="bottom" open={more} onClose={() => setMore(false)}
         slotProps={{ paper: { sx: { borderTopLeftRadius: 20, borderTopRightRadius: 20, pb: 'env(safe-area-inset-bottom)', maxHeight: '85vh' } } }}>
-        <List aria-label="More pages" sx={{ py: 1 }} onClick={() => setMore(false)}>
+        <List aria-label={t('More pages')} sx={{ py: 1 }} onClick={() => setMore(false)}>
           {sections.map(s => {
             const rest = withChildren(s.items).filter(n => n.key !== 'account' && !shownKeys.includes(n.key))
             if (!rest.length) return null
@@ -280,7 +289,7 @@ function PhoneNav({ sections, current, badges }: { sections: NavSection[]; curre
           })}
           <ListItemButton onClick={() => api.signOut()} sx={{ mx: 1, mt: 1 }}>
             <ListItemIcon sx={{ minWidth: 40 }}><LogoutIcon /></ListItemIcon>
-            <ListItemText primary="Sign out" />
+            <ListItemText primary={t('Sign out')} />
           </ListItemButton>
         </List>
       </Drawer>
@@ -313,7 +322,7 @@ function NavRow({ n, current, sortable, badge }: { n: NavItem; current: string |
         </ListItemButton>
         {kids.length > 0 && (
           <Box component="button" type="button" onClick={() => setOpen(!open)} aria-expanded={open} aria-controls={`nav-sub-${n.key}`}
-            aria-label={`${open ? 'Hide' : 'Show'} ${n.label} pages`}
+            aria-label={t(open ? 'Hide {page} pages' : 'Show {page} pages', { page: n.label })}
             sx={{ all: 'unset', position: 'absolute', right: sortable ? 30 : 6, top: '50%', transform: 'translateY(-50%)', display: 'grid', placeItems: 'center',
               width: 24, height: 24, borderRadius: '6px', cursor: 'pointer', color: dark ? '#2B2522' : SIDEBAR.faint,
               '&:hover': { color: dark ? '#2B2522' : SIDEBAR.bright, background: dark ? 'rgba(43,37,34,0.08)' : SIDEBAR.hover },
@@ -322,7 +331,7 @@ function NavRow({ n, current, sortable, badge }: { n: NavItem; current: string |
           </Box>
         )}
         {sortable && (
-          <Box ref={setActivatorNodeRef} className="nav-drag" component="button" type="button" aria-label={`Reorder ${n.label}`}
+          <Box ref={setActivatorNodeRef} className="nav-drag" component="button" type="button" aria-label={t('Reorder {page}', { page: n.label })}
             {...attributes} {...listeners} aria-roledescription="drag handle"
             sx={{ all: 'unset', position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', display: 'grid', placeItems: 'center',
               width: 24, height: 24, borderRadius: '6px', cursor: isDragging ? 'grabbing' : 'grab', opacity: isDragging ? 1 : 0, transition: 'opacity .15s',
@@ -335,7 +344,7 @@ function NavRow({ n, current, sortable, badge }: { n: NavItem; current: string |
       </Box>
       {kids.length > 0 && (
         <Collapse in={open} id={`nav-sub-${n.key}`}>
-          <List disablePadding aria-label={`${n.label} pages`} sx={{ mt: 0.25, ml: 2.25, pl: 1, borderLeft: `1px solid ${tokens.navLine}` }}>
+          <List disablePadding aria-label={t('{page} pages', { page: n.label })} sx={{ mt: 0.25, ml: 2.25, pl: 1, borderLeft: `1px solid ${tokens.navLine}` }}>
             {kids.map(k => (
               <ListItemButton key={k.key} component={Link} to={k.to} selected={selected(k.key)} sx={{ py: 0.45, pl: 1, mb: 0.25 }}>
                 <ListItemIcon sx={{ minWidth: 30, '& svg': { fontSize: 18 } }}>{k.icon}</ListItemIcon>
@@ -378,7 +387,7 @@ function SidebarSection({ section, current, folded, onToggle, mini, onReorder, b
     </List>
   ) : (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd} modifiers={modifiers}
-      accessibility={{ screenReaderInstructions: { draggable: 'Press space to pick up this page, use the arrow keys to move it within its section, and space again to drop it.' } }}>
+      accessibility={{ screenReaderInstructions: { draggable: t('Press space to pick up this page, use the arrow keys to move it within its section, and space again to drop it.') } }}>
       <SortableContext items={keys} strategy={verticalListSortingStrategy}>
         <List disablePadding ref={listRef}>
           {section.items.map(n => <NavRow key={n.key} n={n} current={current} sortable={sortable} badge={badges[n.key]} />)}
@@ -446,25 +455,26 @@ export function AppShell() {
     setNavOrder(next)
     if (me) api.updateProfile(me.id, { preferences: { ...me.preferences, navOrder: next } }).then(refresh).catch(() => { /* kept on screen; saves next time */ })
   }
-  const sections = orderSections(SECTIONS.map(s => ({ ...s, items: s.items.filter(allowed).map(n => (n.children ? { ...n, children: n.children.filter(allowed) } : n)) }))
+  const sections = orderSections(SECTIONS.map(s => ({ ...s, label: s.label && t(s.label), items: s.items.filter(allowed).map(n => (n.children ? { ...n, children: n.children.filter(allowed) } : n)).map(inLanguage) }))
     .filter(s => s.items.length), navOrder)
   // The most specific match wins, so /account/billing is Billing, not My account.
-  const all = SECTIONS.flatMap(s => withChildren(s.items)).sort((a, b) => b.to.length - a.to.length)
+  const all = [...SECTIONS.flatMap(s => withChildren(s.items)), ...YOU].sort((a, b) => b.to.length - a.to.length)
   const current = all.find(n => n.to !== '/' && pathname.startsWith(n.to))?.key ?? (pathname === '/' ? 'today' : false)
   const home = isPartner ? '/business' : '/'
   const searchPages = [
-    ...(isPartner ? [] : [{ key: 'today', to: '/', label: 'Today', icon: <TodayIcon />, section: null }]),
+    ...(isPartner ? [] : [{ key: 'today', to: '/', label: t('Today'), icon: <TodayIcon />, section: null }]),
     ...sections.flatMap(s => withChildren(s.items).map(n => ({ key: n.key, to: n.to, label: n.label, icon: n.icon, section: s.label }))),
+    ...YOU.filter(allowed).map(n => ({ key: n.key, to: n.to, label: t(n.label), icon: n.icon, section: t('You') })),
   ]
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh' }}>
       {desktop && (
-        <Box component="nav" aria-label="Main" sx={{ width: mini ? MINI : DRAWER, flexShrink: 0, position: 'sticky', top: 0, height: '100vh',
+        <Box component="nav" aria-label={t('Main')} sx={{ width: mini ? MINI : DRAWER, flexShrink: 0, position: 'sticky', top: 0, height: '100vh',
           transition: 'width .2s ease', zIndex: 6,
           display: 'flex', flexDirection: 'column', background: SIDEBAR.bg, color: SIDEBAR.text, borderRight: `1px solid ${tokens.navLine}`, px: mini ? 1 : 1.5, ...sidebarItems }}>
           <Stack direction={mini ? 'column' : 'row'} spacing={1} sx={{ alignItems: 'center', pt: 2.25, pb: 1.75 }}>
-            <ButtonBase component={Link} to={home} aria-label={isPartner ? 'Home' : 'Home: Today'}
+            <ButtonBase component={Link} to={home} aria-label={isPartner ? t('Home') : t('Home: Today')}
               sx={{ flex: mini ? 'none' : 1, minWidth: 0, justifyContent: mini ? 'center' : 'flex-start', px: mini ? 0.5 : 1, py: 0.5, borderRadius: '12px', '&:hover': { background: SIDEBAR.hover } }}>
               <BrandLogo height={mini ? 44 : 48} />
               {!mini && business?.name && (
@@ -487,8 +497,8 @@ export function AppShell() {
             ))}
           </Box>
           {/* Fold the menu to icons: a round arrow on the edge, halfway down. */}
-          <Tooltip title={mini ? 'Show labels' : 'Icons only'} placement="right">
-            <IconButton onClick={toggleMini} aria-label={mini ? 'Expand menu' : 'Collapse menu to icons'} aria-expanded={!mini}
+          <Tooltip title={mini ? t('Show labels') : t('Icons only')} placement="right">
+            <IconButton onClick={toggleMini} aria-label={mini ? t('Expand menu') : t('Collapse menu to icons')} aria-expanded={!mini}
               sx={{ position: 'absolute', top: '50%', right: 0, transform: 'translate(50%, -50%)', width: 28, height: 28, borderRadius: '50%',
                 bgcolor: tokens.surface, color: tokens.inkSoft, border: `1px solid ${tokens.lineStrong}`,
                 boxShadow: `0 6px 16px -6px ${tokens.shadow}`, transition: 'background .15s, color .15s, border-color .15s, box-shadow .15s',
@@ -503,11 +513,11 @@ export function AppShell() {
               {me && <PersonAvatar name={me.full_name} colour={me.colour} size={34} />}
               {!mini && <Box sx={{ minWidth: 0, flex: 1, textAlign: 'left' }}>
                 <Typography sx={{ fontWeight: 500, fontSize: '0.88rem', color: SIDEBAR.bright }} noWrap>{me?.full_name}</Typography>
-                <Typography variant="caption" sx={{ color: SIDEBAR.faint }}>{me?.role === 'admin' ? 'Admin' : me?.role === 'partner' ? me.partner_company ?? 'Partner' : 'Employee'}</Typography>
+                <Typography variant="caption" sx={{ color: SIDEBAR.faint }}>{me?.role === 'admin' ? t('Admin') : me?.role === 'partner' ? me.partner_company ?? t('Partner') : t('Employee')}</Typography>
               </Box>}
             </AccountMenu>
-            <Tooltip title="Sign out">
-              <IconButton size="small" aria-label="Sign out" onClick={() => api.signOut()} sx={{ color: SIDEBAR.text, '&:hover': { color: SIDEBAR.bright, background: SIDEBAR.hover } }}><LogoutIcon fontSize="small" /></IconButton>
+            <Tooltip title={t('Sign out')}>
+              <IconButton size="small" aria-label={t('Sign out')} onClick={() => api.signOut()} sx={{ color: SIDEBAR.text, '&:hover': { color: SIDEBAR.bright, background: SIDEBAR.hover } }}><LogoutIcon fontSize="small" /></IconButton>
             </Tooltip>
           </Stack>
         </Box>
@@ -516,10 +526,11 @@ export function AppShell() {
         {!desktop && (
           <AppBar position="sticky" elevation={0} color="inherit" sx={{ bgcolor: tokens.surface, backdropFilter: 'blur(8px)', borderBottom: 1, borderColor: 'divider' }}>
             <Toolbar sx={{ gap: 1, minHeight: 56 }}>
-              <ButtonBase component={Link} to={home} aria-label={isPartner ? 'Home' : 'Home: Today'} sx={{ gap: 1.25, flex: 1, justifyContent: 'flex-start', borderRadius: '10px', py: 0.5 }}>
+              <ButtonBase component={Link} to={home} aria-label={isPartner ? t('Home') : t('Home: Today')} sx={{ gap: 1.25, flex: 1, justifyContent: 'flex-start', borderRadius: '10px', py: 0.5 }}>
                 <BrandLogo height={36} />
                 {business?.name && <Typography component="span" noWrap sx={{ fontFamily: fonts.display, fontWeight: 500, fontSize: '1rem', color: tokens.ink }}>{business.name}</Typography>}
               </ButtonBase>
+              <LanguageToggle />
               <SearchButton pages={searchPages} />
               <ThemeToggle />
               {!isPartner && <NotificationBell />}
@@ -532,6 +543,7 @@ export function AppShell() {
             px: 4, height: 60, backdropFilter: 'blur(12px)', background: `color-mix(in srgb, ${tokens.bg} 78%, transparent)` }}>
             <SearchButton pages={searchPages} />
             <ThemeToggle />
+            <LanguageToggle />
           </Box>
         )}
         <DemoBanner />

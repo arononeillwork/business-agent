@@ -12,7 +12,8 @@ import { AppearanceSync } from './app/Appearance'
 import { LoginPage } from './pages/LoginPage'
 import { NotActive } from './pages/StatusPages'
 import { PlanGate } from './app/plan'
-import { lazy, Suspense, type ComponentType } from 'react'
+import { Fragment, lazy, Suspense, useEffect, type ComponentType, type ReactNode } from 'react'
+import { preferredLanguage, setLanguage, useLanguage } from './i18n'
 
 // Pages load when first opened, so the first screen is quick on phones.
 const page = <K extends string>(load: () => Promise<Record<K, ComponentType>>, name: K) =>
@@ -30,6 +31,7 @@ const KioskPage = page(() => import('./pages/KioskPage'), 'KioskPage')
 const TimeOffPage = page(() => import('./pages/TimeOffPage'), 'TimeOffPage')
 const FinancesPage = page(() => import('./pages/FinancesPage'), 'FinancesPage')
 const SalesPage = page(() => import('./pages/SalesPage'), 'SalesPage')
+const AnalyticsPage = page(() => import('./pages/AnalyticsPage'), 'AnalyticsPage')
 const AlertsPage = page(() => import('./pages/AlertsPage'), 'AlertsPage')
 const SportsPage = page(() => import('./pages/SportsPage'), 'SportsPage')
 const MusicPage = page(() => import('./pages/MusicPage'), 'MusicPage')
@@ -110,9 +112,11 @@ function Routed() {
         <Route path="appearance" element={<AppearancePage />} />
         <Route path="account" element={<AccountPage />} />
         <Route path="finances" element={<FinancesPage />} />
-        <Route path="sales" element={<PlanGate feature="takings"><SalesPage /></PlanGate>} />
-        {/* Accounts is a menu section: its address opens its first page. */}
-        <Route path="accounts" element={<Navigate to="/sales" replace />} />
+        <Route path="finances/sales" element={<PlanGate feature="takings"><SalesPage /></PlanGate>} />
+        {/* Sales used to be its own page, and Accounts is a menu section: both open Finances' pages. */}
+        <Route path="sales" element={<Navigate to="/finances/sales" replace />} />
+        <Route path="accounts" element={<Navigate to="/finances" replace />} />
+        <Route path="analytics" element={isAdmin ? <AnalyticsPage /> : <Navigate to="/" />} />
         <Route path="alerts" element={isAdmin ? <AlertsPage /> : <Navigate to="/" />} />
         <Route path="account/billing" element={isAdmin ? <BillingPage /> : <Navigate to="/" />} />
         {/* Billing used to be under Settings: old links (and Stripe's way back) still land on it. */}
@@ -129,6 +133,19 @@ function Routed() {
   )
 }
 
+/**
+ * Shows the app in the signed-in person's language, and redraws everything when it changes (text is
+ * looked up as each page renders). Signed out, it keeps the language last used on this device.
+ */
+function InLanguage({ children }: { children: ReactNode }) {
+  const { me } = useApp()
+  const language = useLanguage()
+  const wanted = me ? preferredLanguage(me.preferences) : null
+  // Only when what the account asks for changes: a flag pressed a moment ago isn't undone while it saves.
+  useEffect(() => { if (wanted) void setLanguage(wanted) }, [wanted])
+  return <Fragment key={language}>{children}</Fragment>
+}
+
 // The demo-only build is served from a single page URL, so it routes with the hash.
 const Router = import.meta.env.VITE_DEMO_ONLY === '1' ? HashRouter : BrowserRouter
 
@@ -141,7 +158,7 @@ export function App() {
         <AppProvider>
           <AppearanceSync />
           <Router>
-            <Suspense fallback={<Loading />}><Routed /></Suspense>
+            <InLanguage><Suspense fallback={<Loading />}><Routed /></Suspense></InLanguage>
           </Router>
         </AppProvider>
       </NotifyProvider>

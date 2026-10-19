@@ -10,6 +10,7 @@ import { useApp } from './AppContext'
 import { useAsync } from './hooks'
 import type { CafeMusicLibrary, CafeTrack, MusicAction, MusicPlayerState, SpotifyPlaylist } from '../../shared/types'
 import { tokens } from '../theme'
+import { t } from '../i18n'
 
 // The café speaker. One device (the café tablet, or whoever presses "Play on this device")
 // plays the café's YouTube Music queue with YouTube's embedded player; it lives here, at the
@@ -68,7 +69,7 @@ function loadYouTube(): Promise<YTNamespace> {
     const s = document.createElement('script')
     s.src = 'https://www.youtube.com/iframe_api'
     s.async = true
-    s.onerror = () => { ytLoading = null; reject(new Error('Could not load the YouTube player. Check the internet connection.')) }
+    s.onerror = () => { ytLoading = null; reject(new Error(t('Could not load the YouTube player. Check the internet connection.'))) }
     document.head.appendChild(s)
   })
   return ytLoading
@@ -111,7 +112,7 @@ function demoEngine(host: HTMLElement, ev: EngineEvents): Engine {
   let elapsed = 0, playing = false
   const duration = 180
   host.replaceChildren(Object.assign(document.createElement('div'), {
-    textContent: '♪ Sample song (demo)',
+    textContent: t('♪ Sample song (demo)'),
     style: 'display:grid;place-items:center;height:100%;color:#fff;font-size:13px;background:linear-gradient(135deg,#FF0033,#2B2522)',
   }))
   const timer = setInterval(() => {
@@ -179,7 +180,9 @@ export function CafeSpeakerProvider({ children }: { children: ReactNode }) {
   const library = useAsync('cafe-music-library', () => (staff ? api.cafeMusicLibrary() : Promise.resolve(null)), [staff])
   const enabled = library.data?.provider === 'youtube'
   const deviceId = useMemo(myDeviceId, [])
-  const deviceName = `${me?.full_name?.split(' ')[0] ?? 'Someone'}’s ${deviceKind()}`
+  const kind = deviceKind()
+  const owner = me?.full_name?.split(' ')[0] ?? t('Someone')
+  const deviceName = kind === 'tablet' ? t('{name}’s tablet', { name: owner }) : kind === 'phone' ? t('{name}’s phone', { name: owner }) : t('{name}’s computer', { name: owner })
   const [state, setState] = useState<MusicPlayerState | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [watchers, setWatchers] = useState(0)
@@ -202,15 +205,15 @@ export function CafeSpeakerProvider({ children }: { children: ReactNode }) {
   useEffect(() => { if (enabled) void refresh() }, [enabled, refresh])
   useEffect(() => {
     if (!enabled || (!here && watchers === 0)) return
-    const t = setInterval(() => void refresh(), here ? 1500 : 3000)
-    return () => clearInterval(t)
+    const timer = setInterval(() => void refresh(), here ? 1500 : 3000)
+    return () => clearInterval(timer)
   }, [enabled, here, watchers, refresh])
 
   const report = useCallback(async (extra: object = {}) => {
     const e = engine.current
-    const t = e?.time() ?? { elapsed: 0, duration: 0 }
+    const time = e?.time() ?? { elapsed: 0, duration: 0 }
     const l = local.current
-    await api.musicReport({ position: l.position, playing: l.playing, volume: l.volume, elapsed: t.elapsed, duration: t.duration,
+    await api.musicReport({ position: l.position, playing: l.playing, volume: l.volume, elapsed: time.elapsed, duration: time.duration,
       heartbeat_at: new Date().toISOString(), ...extra }, deviceId).catch(() => {})
   }, [api, deviceId])
 
@@ -229,7 +232,7 @@ export function CafeSpeakerProvider({ children }: { children: ReactNode }) {
     if (playlist.id === s?.playlist?.id) return false
     local.current.autoplay = true
     void api.cafeTracks(playlist.id)
-      .then(tracks => (tracks.length ? api.musicSetQueue(playlist, tracks, 0) : Promise.reject(new Error(`${playlist.name} has no songs that can play`))))
+      .then(tracks => (tracks.length ? api.musicSetQueue(playlist, tracks, 0) : Promise.reject(new Error(t('{name} has no songs that can play', { name: playlist.name })))))
       .then(() => api.musicPlayer()).then(setState)
       .catch(e => setError(e instanceof Error ? e.message : String(e)))
     return true
@@ -279,7 +282,7 @@ export function CafeSpeakerProvider({ children }: { children: ReactNode }) {
       onError: () => {
         const c = local.current
         c.errors += 1
-        if (c.errors >= c.queue.length) { c.playing = false; setError('None of these songs can play here (YouTube doesn’t allow them on other sites).'); void report(); return }
+        if (c.errors >= c.queue.length) { c.playing = false; setError(t('None of these songs can play here (YouTube doesn’t allow them on other sites).')); void report(); return }
         go(c.position + 1)
       },
     }
@@ -318,8 +321,8 @@ export function CafeSpeakerProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!here) return
     const r = setInterval(() => void report(), 2000)
-    const t = setInterval(() => setTick(n => n + 1), 1000)
-    return () => { clearInterval(r); clearInterval(t) }
+    const redraw = setInterval(() => setTick(n => n + 1), 1000)
+    return () => { clearInterval(r); clearInterval(redraw) }
   }, [here, report])
 
   const value = useMemo<CafeMusic>(() => {
@@ -345,7 +348,7 @@ export function CafeSpeakerProvider({ children }: { children: ReactNode }) {
       },
       async playPlaylist(playlist) {
         const tracks = await api.cafeTracks(playlist.id)
-        if (!tracks.length) throw new Error('That playlist has no songs that can play')
+        if (!tracks.length) throw new Error(t('That playlist has no songs that can play'))
         local.current.autoplay = true
         await api.musicSetQueue(playlist, tracks, 0)
         await refresh()
@@ -418,24 +421,24 @@ function MiniPlayer({ music, onHost }: { music: CafeMusic; onHost: (el: HTMLElem
   const s = music.state
   const track = s?.queue[s.position]
   return (
-    <Card role="region" aria-label="Café speaker" elevation={8}
+    <Card role="region" aria-label={t('Café speaker')} elevation={8}
       sx={{ position: 'fixed', zIndex: 1200, right: desktop ? 24 : 8, bottom: desktop ? 24 : 76, width: 220, overflow: 'hidden', borderRadius: '14px' }}>
       <Box ref={onHost} sx={{ width: 220, height: 200, bgcolor: '#000' }} />
       <Box sx={{ px: 1.25, pt: 1 }}>
-        <Typography variant="body2" sx={{ fontWeight: 500 }} noWrap>{track?.title ?? 'Pick a playlist'}</Typography>
+        <Typography variant="body2" sx={{ fontWeight: 500 }} noWrap>{track?.title ?? t('Pick a playlist')}</Typography>
         <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }} noWrap>
-          {track?.artist ?? (pathname === '/music' ? 'Café speaker' : <RouterLink to="/music">Open Music</RouterLink>)}
+          {track?.artist ?? (pathname === '/music' ? t('Café speaker') : <RouterLink to="/music">{t('Open Music')}</RouterLink>)}
         </Typography>
       </Box>
       <Stack direction="row" sx={{ alignItems: 'center', px: 0.5, pb: 0.5 }}>
-        <IconButton aria-label="Previous song" onClick={() => void music.control('previous')}><PrevIcon /></IconButton>
+        <IconButton aria-label={t('Previous song')} onClick={() => void music.control('previous')}><PrevIcon /></IconButton>
         {s?.playing
-          ? <IconButton aria-label="Pause" onClick={() => void music.control('pause')}><PauseIcon /></IconButton>
-          : <IconButton aria-label="Play" onClick={() => void music.control('play')} sx={{ color: tokens.roseDeep }}><PlayIcon /></IconButton>}
-        <IconButton aria-label="Next song" onClick={() => void music.control('next')}><NextIcon /></IconButton>
+          ? <IconButton aria-label={t('Pause')} onClick={() => void music.control('pause')}><PauseIcon /></IconButton>
+          : <IconButton aria-label={t('Play')} onClick={() => void music.control('play')} sx={{ color: tokens.roseDeep }}><PlayIcon /></IconButton>}
+        <IconButton aria-label={t('Next song')} onClick={() => void music.control('next')}><NextIcon /></IconButton>
         <Box sx={{ flex: 1 }} />
-        <Tooltip title="Stop playing on this device">
-          <IconButton aria-label="Stop playing on this device" size="small" onClick={() => void music.release()}><CloseIcon fontSize="small" /></IconButton>
+        <Tooltip title={t('Stop playing on this device')}>
+          <IconButton aria-label={t('Stop playing on this device')} size="small" onClick={() => void music.release()}><CloseIcon fontSize="small" /></IconButton>
         </Tooltip>
       </Stack>
     </Card>

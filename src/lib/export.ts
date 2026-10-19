@@ -1,5 +1,6 @@
 // Tables out of the app: CSV, Excel (.xlsx), a printable page (save it as PDF) and tab-separated
 // text for pasting into Google Sheets or Numbers. No library: an .xlsx is a few XML files in a zip.
+import { currentLanguage } from '../i18n'
 
 export type Cell = string | number | null | undefined
 export interface ExportTable {
@@ -60,7 +61,7 @@ export function printPdf(t: ExportTable, money: (n: number) => string = n => n.t
     table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #e6dfda}
     th{font-weight:600;background:#f6f2ef}.n{text-align:right;font-variant-numeric:tabular-nums}tfoot td{font-weight:600;border-top:2px solid #2b2522}
     @page{margin:14mm}</style></head><body>
-    <h1>${esc(t.title)}</h1><p>${esc(new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' }))}</p>
+    <h1>${esc(t.title)}</h1><p>${esc(new Date().toLocaleDateString(currentLanguage() === 'es' ? 'es-ES' : undefined, { day: 'numeric', month: 'long', year: 'numeric' }))}</p>
     <table><thead><tr>${t.columns.map((c, i) => cell(c, 'th', i)).join('')}</tr></thead>
     <tbody>${t.rows.map(r => `<tr>${r.map((c, i) => cell(c, 'td', i)).join('')}</tr>`).join('')}</tbody>
     ${t.footer ? `<tfoot><tr>${t.footer.map((c, i) => cell(c, 'td', i)).join('')}</tr></tfoot>` : ''}</table></body></html>`

@@ -22,6 +22,7 @@ import {
 import type { Integration } from '../../shared/types'
 import { formatLocal } from '../../shared/time'
 import { tokens } from '../theme'
+import { msg, t, tr } from '../i18n'
 
 const PLATFORMS: { id: MessagePlatform; name: string; icon: SimpleIcon; live: boolean }[] = [
   { id: 'instagram', name: 'Instagram', icon: siInstagram, live: true },
@@ -44,16 +45,16 @@ export function MessagesPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Business" title="Messages" />
-      <Stack direction="row" role="group" aria-label="Apps" sx={{ gap: 1, flexWrap: 'wrap', mb: 2.5 }}>
+      <PageHeader eyebrow={t('Business')} title={t('Messages')} />
+      <Stack direction="row" role="group" aria-label={t('Apps')} sx={{ gap: 1, flexWrap: 'wrap', mb: 2.5 }}>
         {/* All: every app's chats together, newest first (the default). */}
-        <Chip label="All" clickable onClick={() => setApp('all')} aria-pressed={app === 'all'}
+        <Chip label={t('All')} clickable onClick={() => setApp('all')} aria-pressed={app === 'all'}
           color={app === 'all' ? 'primary' : 'default'} variant={app === 'all' ? 'filled' : 'outlined'} />
         {PLATFORMS.map(p => (
-          <Tooltip key={p.id} title={p.live ? '' : `${p.name} messages are coming soon`}>
+          <Tooltip key={p.id} title={p.live ? '' : t('{app} messages are coming soon', { app: p.name })}>
             <span>
               <Chip icon={<Box sx={{ display: 'flex', ml: 0.75, opacity: p.live ? 1 : 0.5 }}><Brand icon={p.icon} /></Box>}
-                label={p.live ? p.name : `${p.name} · soon`} disabled={!p.live} aria-pressed={app === p.id}
+                label={p.live ? p.name : t('{app} · soon', { app: p.name })} disabled={!p.live} aria-pressed={app === p.id}
                 onClick={() => { if (p.live) setApp(p.id) }}
                 color={app === p.id ? 'primary' : 'default'} variant={app === p.id ? 'filled' : 'outlined'} />
             </span>
@@ -72,28 +73,28 @@ function ConnectInstagram({ row, configured }: { row?: Integration; configured: 
   const { api, refresh } = useApp()
   const run = useAction()
   return (
-    <Card component="section" aria-label="Connect Instagram">
+    <Card component="section" aria-label={t('Connect Instagram')}>
       <CardContent>
         <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 1 }}>
           <Box sx={{ width: 44, height: 44, borderRadius: '12px', display: 'grid', placeItems: 'center', bgcolor: tokens.surfaceAlt, border: `1px solid ${tokens.line}` }}>
             <Brand icon={siInstagram} />
           </Box>
           <Box>
-            <Typography variant="h6" component="h2">Connect Instagram</Typography>
-            <Typography variant="body2" sx={{ color: 'text.secondary' }}>{DOES.instagram}</Typography>
+            <Typography variant="h6" component="h2">{t('Connect Instagram')}</Typography>
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t(DOES.instagram ?? '')}</Typography>
           </Box>
         </Stack>
         {row?.last_error && <Alert severity="error" sx={{ mt: 1.5 }}>{row.last_error}</Alert>}
-        {!configured && <Alert severity="warning" sx={{ mt: 1.5 }}>Not set up yet: Business Agent needs {KEYS_NEEDED.instagram} before anyone can connect Instagram. They’re added once, for every business; after that, connecting is one click.</Alert>}
-        <Typography variant="overline" component="h3" sx={{ display: 'block', color: 'text.secondary', mt: 2 }}>When you connect, it can</Typography>
+        {!configured && <Alert severity="warning" sx={{ mt: 1.5 }}>{t('Not set up yet: Business Agent needs {keys} before anyone can connect Instagram. They’re added once, for every business; after that, connecting is one click.', { keys: t(KEYS_NEEDED.instagram ?? '') })}</Alert>}
+        <Typography variant="overline" component="h3" sx={{ display: 'block', color: 'text.secondary', mt: 2 }}>{t('When you connect, it can')}</Typography>
         <Stack component="ul" spacing={0.5} sx={{ m: 0, p: 0, pl: 2.5 }}>
-          {CAN.instagram!.map(c => <Typography key={c} component="li" variant="body2">{c}</Typography>)}
+          {CAN.instagram!.map(c => <Typography key={c} component="li" variant="body2">{t(c)}</Typography>)}
         </Stack>
         <Button variant="contained" sx={{ mt: 2.5 }} disabled={!configured} onClick={() => run(async () => { await api.connectInstagram('messages'); await refresh() })}>
-          {row?.status === 'error' ? 'Connect again' : 'Connect Instagram'}
+          {row?.status === 'error' ? t('Connect again') : t('Connect Instagram')}
         </Button>
         <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1.5 }}>
-          It’s the same connection as on Connections: connect here or there and both pages update.
+          {t('It’s the same connection as on Connections: connect here or there and both pages update.')}
         </Typography>
       </CardContent>
     </Card>
@@ -120,46 +121,45 @@ function Inbox({ ig, app }: { ig: Integration; app: MessagePlatform | 'all' }) {
   if (data.error) {
     const reconnect = /Connect Instagram again/.test(data.error)
     return (
-      <Alert severity="warning" action={reconnect && <Button color="inherit" onClick={() => run(() => api.connectInstagram('messages'))}>Connect again</Button>}>
+      <Alert severity="warning" action={reconnect && <Button color="inherit" onClick={() => run(() => api.connectInstagram('messages'))}>{t('Connect again')}</Button>}>
         {data.error}
       </Alert>
     )
   }
 
   const list = (
-    <Box component="section" aria-label="Chats" sx={{ minWidth: 0 }}>
+    <Box component="section" aria-label={t('Chats')} sx={{ minWidth: 0 }}>
       {/* Search across every chat: who it's with and what was said. */}
-      <TextField value={search} onChange={e => setSearch(e.target.value)} size="small" fullWidth placeholder="Search chats"
-        aria-label="Search chats" sx={{ mb: 1.5 }}
+      <TextField value={search} onChange={e => setSearch(e.target.value)} size="small" fullWidth placeholder={t('Search chats')}
+        aria-label={t('Search chats')} sx={{ mb: 1.5 }}
         slotProps={{ input: {
           startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>,
           endAdornment: search ? (
             <InputAdornment position="end">
-              <IconButton size="small" aria-label="Clear search" onClick={() => setSearch('')}><CloseIcon fontSize="small" /></IconButton>
+              <IconButton size="small" aria-label={t('Clear search')} onClick={() => setSearch('')}><CloseIcon fontSize="small" /></IconButton>
             </InputAdornment>
           ) : undefined,
         } }} />
-      <Stack direction="row" role="group" aria-label="Show" sx={{ gap: 0.75, flexWrap: 'wrap', mb: 1.5 }}>
+      <Stack direction="row" role="group" aria-label={t('Show')} sx={{ gap: 0.75, flexWrap: 'wrap', mb: 1.5 }}>
         {INBOX_FILTERS.map(f => (
           <Chip key={f.key} size="small" clickable onClick={() => setFilter(f.key)} aria-pressed={filter === f.key}
-            label={f.key === 'all' ? f.label : `${f.label} ${count(f.key)}`}
+            label={f.key === 'all' ? t(f.label) : `${t(f.label)} ${count(f.key)}`}
             color={filter === f.key ? 'primary' : 'default'} variant={filter === f.key ? 'filled' : 'outlined'} />
         ))}
       </Stack>
       <Stack direction="row" spacing={0.75} sx={{ color: 'text.secondary', mb: 1.5, alignItems: 'flex-start' }}>
         <InfoIcon sx={{ fontSize: 16, mt: '2px' }} />
         <Typography variant="caption">
-          Instagram doesn’t share its Primary, General and Requests folders with other apps, so every chat is here.
-          You can reply for 24 hours after someone’s last message, and for up to 7 days as a personal reply you write yourself.
+          {t('Instagram doesn’t share its Primary, General and Requests folders with other apps, so every chat is here. You can reply for 24 hours after someone’s last message, and for up to 7 days as a personal reply you write yourself.')}
         </Typography>
       </Stack>
       {data.data && shown.length === 0 && (
         <Empty>
-          {search.trim() ? `No chats match “${search.trim()}”.`
-            : filter === 'all' ? (app === 'all' ? 'No messages yet.' : 'No Instagram messages yet.') : 'Nothing here right now.'}
+          {search.trim() ? t('No chats match “{search}”.', { search: search.trim() })
+            : filter === 'all' ? (app === 'all' ? t('No messages yet.') : t('No Instagram messages yet.')) : t('Nothing here right now.')}
         </Empty>
       )}
-      <Stack component="ul" aria-label="Instagram chats" sx={{ m: 0, p: 0, listStyle: 'none', gap: 0.5 }}>
+      <Stack component="ul" aria-label={t('Instagram chats')} sx={{ m: 0, p: 0, listStyle: 'none', gap: 0.5 }}>
         {shown.map(c => <ChatRow key={c.id} c={c} selected={c.id === open} roomy={wide && !chosen} onOpen={() => setOpen(c.id)} />)}
       </Stack>
       {filter === 'mentions' && <Tagged posts={data.data?.tagged ?? null} note={data.data?.taggedNote} />}
@@ -185,7 +185,7 @@ function Inbox({ ig, app }: { ig: Integration; app: MessagePlatform | 'all' }) {
 /** When a chat last moved: its newest message, or Instagram's own updated time. */
 const lastAt = (c: InboxConversation) => Math.max(Date.parse(c.updatedAt) || 0, ...c.recent.map(m => Date.parse(m.at) || 0))
 
-const KIND_TAG: Partial<Record<InboxMessage['kind'], string>> = { story_mention: 'Story mention', story_reply: 'Story reply', share: 'Shared post' }
+const KIND_TAG: Partial<Record<InboxMessage['kind'], string>> = { story_mention: msg('Story mention'), story_reply: msg('Story reply'), share: msg('Shared post') }
 
 /** Their Instagram profile photo, or their initials (also when the photo's link has expired). */
 function PersonAvatar({ who, size }: { who: InboxConversation['with']; size: number }) {
@@ -220,12 +220,12 @@ function ChatRow({ c, selected, roomy, onOpen }: { c: InboxConversation; selecte
           </Stack>
           <Typography variant={roomy ? 'body2' : 'caption'} component="p" sx={{ color: waiting ? 'text.primary' : 'text.secondary', overflow: 'hidden',
             ...(roomy ? { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' } : { textOverflow: 'ellipsis', whiteSpace: 'nowrap' }) }}>
-            {preview(last)}
+            {preview(last, t)}
           </Typography>
           {(waiting || tag) && (
             <Stack direction="row" spacing={0.5} sx={{ mt: 0.5 }}>
-              {waiting && <Chip size="small" label="Needs reply" sx={{ height: 20, bgcolor: tokens.roseSoft, color: tokens.roseDeep }} />}
-              {tag && <Chip size="small" label={KIND_TAG[tag.kind]} sx={{ height: 20, bgcolor: tokens.ubeSoft, color: tokens.ubeDeep }} />}
+              {waiting && <Chip size="small" label={t('Needs reply')} sx={{ height: 20, bgcolor: tokens.roseSoft, color: tokens.roseDeep }} />}
+              {tag && <Chip size="small" label={t(KIND_TAG[tag.kind] ?? '')} sx={{ height: 20, bgcolor: tokens.ubeSoft, color: tokens.ubeDeep }} />}
             </Stack>
           )}
         </Box>
@@ -238,55 +238,55 @@ function Thread({ c, onSent, onBack, onClose }: { c: InboxConversation; onSent: 
   const { api } = useApp()
   const run = useAction()
   const [text, setText] = useState('')
-  const t = useAsync('instagram-thread', () => api.instagramThread(c.id), [c.id], { refetchInterval: 30_000 })
-  const messages = t.data?.messages ?? []
+  const thread = useAsync('instagram-thread', () => api.instagramThread(c.id), [c.id], { refetchInterval: 30_000 })
+  const messages = thread.data?.messages ?? []
   const can = useMemo(() => replyWindow(messages), [messages])
-  const who = t.data?.conversation.with ?? c.with
+  const who = thread.data?.conversation.with ?? c.with
   const send = () => run(async () => {
     await api.replyInstagram(c.id, text)
     setText('')
-    await Promise.all([t.reload(), onSent()])
-  }, 'Sent')
+    await Promise.all([thread.reload(), onSent()])
+  }, t('Sent'))
 
   return (
-    <Box component="section" aria-label={`Chat with @${c.with.username}`} sx={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+    <Box component="section" aria-label={t('Chat with @{username}', { username: c.with.username })} sx={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
       <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-        {onBack && <IconButton aria-label="Back to chats" onClick={onBack} edge="start"><BackIcon /></IconButton>}
+        {onBack && <IconButton aria-label={t('Back to chats')} onClick={onBack} edge="start"><BackIcon /></IconButton>}
         <PersonAvatar who={who} size={40} />
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography variant="h6" component="h2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{who.name ?? who.username}</Typography>
           <Typography variant="caption" sx={{ color: 'text.secondary' }}>@{who.username}</Typography>
         </Box>
-        <Button size="small" endIcon={<OpenIcon />} href="https://www.instagram.com/direct/inbox/" target="_blank" rel="noreferrer">Instagram</Button>
-        {onClose && <Tooltip title="Close chat"><IconButton aria-label="Close chat" onClick={onClose}><CloseIcon /></IconButton></Tooltip>}
+        <Button size="small" endIcon={<OpenIcon />} href="https://www.instagram.com/direct/inbox/" target="_blank" rel="noreferrer">{'Instagram'}</Button>
+        {onClose && <Tooltip title={t('Close chat')}><IconButton aria-label={t('Close chat')} onClick={onClose}><CloseIcon /></IconButton></Tooltip>}
       </Stack>
-      <ErrorBox error={t.error} />
-      <Stack component="ol" aria-label="Messages" sx={{ m: 0, p: 1.5, listStyle: 'none', gap: 1, bgcolor: tokens.surfaceAlt, borderRadius: '14px',
+      <ErrorBox error={thread.error} />
+      <Stack component="ol" aria-label={t('Messages')} sx={{ m: 0, p: 1.5, listStyle: 'none', gap: 1, bgcolor: tokens.surfaceAlt, borderRadius: '14px',
         maxHeight: { md: 460 }, overflowY: 'auto', minHeight: 160 }}>
         {messages.map((m, i) => (
           // Instagram style: their photo beside the last message of each run of theirs.
           <Bubble key={m.id} m={m} who={m.fromMe ? undefined : who} showAvatar={!m.fromMe && (messages[i + 1]?.fromMe ?? true)} />
         ))}
-        {t.data && messages.length === 0 && <Typography variant="body2" sx={{ color: 'text.secondary' }}>No messages Instagram can share.</Typography>}
+        {thread.data && messages.length === 0 && <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('No messages Instagram can share.')}</Typography>}
       </Stack>
-      {t.data && can.mode === 'human_agent' && (
-        <Alert severity="info" variant="outlined" role="note" aria-label="Personal reply">
-          It’s been more than 24 hours since their last message, so Instagram takes this as a personal reply (its “human agent” tag):
-          write it yourself, and no promotions. Allowed until {formatLocal(can.until, 'EEE d MMM, HH:mm')}.
+      {thread.data && can.mode === 'human_agent' && (
+        <Alert severity="info" variant="outlined" role="note" aria-label={t('Personal reply')}>
+          {t('It’s been more than 24 hours since their last message, so Instagram takes this as a personal reply (its “human agent” tag): write it yourself, and no promotions. Allowed until {until}.', { until: formatLocal(can.until, 'EEE d MMM, HH:mm') })}
         </Alert>
       )}
       {can.mode !== 'closed' ? (
         <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-end' }}>
-          <TextField label="Reply" value={text} onChange={e => setText(e.target.value)} multiline maxRows={4} fullWidth size="small"
-            helperText={can.mode === 'normal' ? `You can reply until ${formatLocal(can.until, 'EEE HH:mm')}.` : 'Sent as a personal reply.'}
+          <TextField label={t('Reply')} value={text} onChange={e => setText(e.target.value)} multiline maxRows={4} fullWidth size="small"
+            helperText={can.mode === 'normal' ? t('You can reply until {until}.', { until: formatLocal(can.until, 'EEE HH:mm') }) : t('Sent as a personal reply.')}
             slotProps={{ htmlInput: { maxLength: 1000 } }}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && text.trim()) { e.preventDefault(); void send() } }} />
-          <IconButton aria-label="Send" color="primary" disabled={!text.trim()} onClick={() => void send()} sx={{ mb: 3 }}><SendIcon /></IconButton>
+          <IconButton aria-label={t('Send')} color="primary" disabled={!text.trim()} onClick={() => void send()} sx={{ mb: 3 }}><SendIcon /></IconButton>
         </Stack>
-      ) : t.data && (
+      ) : thread.data && (
         <Alert severity="info">
-          Instagram only allows replies from other apps up to 7 days after their last message.{' '}
-          <MuiLink href="https://www.instagram.com/direct/inbox/" target="_blank" rel="noreferrer">Reply in the Instagram app</MuiLink> instead.
+          {tr('Instagram only allows replies from other apps up to 7 days after their last message. {link} instead.', {
+            link: <MuiLink href="https://www.instagram.com/direct/inbox/" target="_blank" rel="noreferrer">{t('Reply in the Instagram app')}</MuiLink>,
+          })}
         </Alert>
       )}
     </Box>
@@ -294,17 +294,18 @@ function Thread({ c, onSent, onBack, onClose }: { c: InboxConversation; onSent: 
 }
 
 const LABEL: Partial<Record<InboxMessage['kind'], string>> = {
-  story_mention: 'Mentioned you in their story', story_reply: 'Replied to your story', share: 'Shared a post',
-  video: 'Video', audio: 'Voice message', file: 'File',
+  story_mention: msg('Mentioned you in their story'), story_reply: msg('Replied to your story'), share: msg('Shared a post'),
+  video: msg('Video'), audio: msg('Voice message'), file: msg('File'),
 }
 
 const BUBBLE_AVATAR = 28
 
 function Bubble({ m, who, showAvatar }: { m: InboxMessage; who?: InboxConversation['with']; showAvatar?: boolean }) {
   const mine = m.fromMe
-  const label = LABEL[m.kind]
+  const label = LABEL[m.kind] && t(LABEL[m.kind]!)
+  const said = `${label ?? ''}${label && m.text ? ' · ' : ''}${m.text}`
   return (
-    <Box component="li" aria-label={`${mine ? 'You' : 'Them'}: ${label ?? ''}${label && m.text ? ' · ' : ''}${m.text}`}
+    <Box component="li" aria-label={mine ? t('You: {text}', { text: said }) : t('Them: {text}', { text: said })}
       sx={{ alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '82%', display: 'flex', gap: 1, alignItems: 'flex-end' }}>
       {who && (showAvatar
         ? <Box sx={{ mb: 2.5 }}><PersonAvatar who={who} size={BUBBLE_AVATAR} /></Box>
@@ -316,12 +317,12 @@ function Bubble({ m, who, showAvatar }: { m: InboxMessage; who?: InboxConversati
           {m.mediaUrl && (m.kind === 'audio'
             ? <Box component="audio" controls src={m.mediaUrl} sx={{ display: 'block', maxWidth: 240 }} />
             : m.kind === 'file'
-              ? <MuiLink href={m.mediaUrl} target="_blank" rel="noreferrer">Open file</MuiLink>
+              ? <MuiLink href={m.mediaUrl} target="_blank" rel="noreferrer">{t('Open file')}</MuiLink>
               : <Box component="img" src={m.mediaUrl} alt="" sx={{ display: 'block', width: 160, maxWidth: '100%', borderRadius: '10px', mb: m.text ? 0.75 : 0 }} />)}
           {m.kind === 'unsupported'
-            ? <Typography variant="body2" sx={{ fontStyle: 'italic' }}>A message Instagram doesn’t share with other apps. Open Instagram to see it.</Typography>
+            ? <Typography variant="body2" sx={{ fontStyle: 'italic' }}>{t('A message Instagram doesn’t share with other apps. Open Instagram to see it.')}</Typography>
             : m.text && <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{m.text}</Typography>}
-          {m.link && <MuiLink href={m.link} target="_blank" rel="noreferrer" variant="caption">Open on Instagram</MuiLink>}
+          {m.link && <MuiLink href={m.link} target="_blank" rel="noreferrer" variant="caption">{t('Open on Instagram')}</MuiLink>}
         </Box>
         <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', textAlign: mine ? 'right' : 'left', mt: 0.25 }}>
           {formatLocal(m.at, 'd MMM, HH:mm')}{m.reactions?.length ? ` · ${m.reactions.join(' ')}` : ''}
@@ -334,15 +335,15 @@ function Bubble({ m, who, showAvatar }: { m: InboxMessage; who?: InboxConversati
 /** Posts other accounts tagged the business in. */
 function Tagged({ posts, note }: { posts: TaggedPost[] | null; note?: string }) {
   return (
-    <Box component="section" aria-label="Posts you’re tagged in" sx={{ mt: 2.5 }}>
-      <Typography variant="overline" component="h3" sx={{ display: 'block', color: 'text.secondary' }}>Posts you’re tagged in</Typography>
+    <Box component="section" aria-label={t('Posts you’re tagged in')} sx={{ mt: 2.5 }}>
+      <Typography variant="overline" component="h3" sx={{ display: 'block', color: 'text.secondary' }}>{t('Posts you’re tagged in')}</Typography>
       {note && <Typography variant="body2" sx={{ color: 'text.secondary' }}>{note}</Typography>}
-      {posts && posts.length === 0 && <Typography variant="body2" sx={{ color: 'text.secondary' }}>No one has tagged you in a post lately.</Typography>}
+      {posts && posts.length === 0 && <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('No one has tagged you in a post lately.')}</Typography>}
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(96px, 1fr))', gap: 1, mt: 1 }}>
         {posts?.map(p => (
-          <MuiLink key={p.id} href={p.permalink} target="_blank" rel="noreferrer" aria-label={`Post by @${p.username ?? 'someone'}: ${p.caption ?? ''}`} underline="none">
+          <MuiLink key={p.id} href={p.permalink} target="_blank" rel="noreferrer" aria-label={t('Post by @{username}: {caption}', { username: p.username ?? t('someone'), caption: p.caption ?? '' })} underline="none">
             {p.mediaUrl && <Box component="img" src={p.mediaUrl} alt="" sx={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: '10px', display: 'block' }} />}
-            <Typography variant="caption" sx={{ color: 'text.secondary' }}>@{p.username ?? 'someone'}</Typography>
+            <Typography variant="caption" sx={{ color: 'text.secondary' }}>@{p.username ?? t('someone')}</Typography>
           </MuiLink>
         ))}
       </Box>

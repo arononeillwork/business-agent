@@ -584,3 +584,28 @@ do $$ begin
     'only one payment system is ever connected';
 end $$;
 update public.integrations set status = 'disconnected', account_label = null where provider = 'stripe';
+
+-- 25. SumUp is the third payment system; LinkedIn and Search Console sit alongside the others ------
+reset role;
+update public.integrations set status = 'connected', account_label = 'Easy Beans Coffee SL' where provider = 'stripe';
+update public.integrations set status = 'connected', account_label = 'Easy Beans Coffee', external = '{"merchant_code": "MCODE1"}' where provider = 'sumup';
+do $$ begin
+  assert public.integration_group('sumup') = 'payments', 'SumUp is a payment system';
+  assert (select status from public.integrations where provider = 'stripe') = 'disconnected', 'SumUp replaces Stripe';
+  assert public.plan_feature_of('sumup') = 'takings', 'SumUp needs the takings feature';
+  assert public.integration_group('linkedin') is null and public.integration_group('search_console') is null, 'not choose-one';
+  assert public.plan_feature_of('search_console') is null, 'Search Console is on every plan';
+  assert (select count(*) from public.integrations where provider in ('sumup', 'linkedin', 'search_console')) = 3, 'new connections listed';
+end $$;
+update public.integrations set status = 'disconnected', account_label = null, external = '{}' where provider = 'sumup';
+
+-- 26. The business's website: http(s) only ------------------------------------------------------
+select pg_temp.act_as('maria@test');
+select pg_temp.expect_error($q$update public.business set website = 'easybeanscoffee.com' where id = 1$q$, 'business_website_http');
+select pg_temp.expect_error($q$update public.business set website = 'https:// x' where id = 1$q$, 'business_website_http');
+update public.business set website = 'https://www.easybeanscoffee.com/' where id = 1;
+do $$ begin
+  assert (select website from public.business where id = 1) = 'https://www.easybeanscoffee.com/', 'an admin sets the website';
+end $$;
+update public.business set website = null where id = 1;
+reset role;
