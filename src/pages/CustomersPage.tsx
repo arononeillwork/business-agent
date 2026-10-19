@@ -169,11 +169,10 @@ export function CustomersPage() {
                       {c.tags.length > 0 && <Stack direction="row" sx={{ gap: 0.5, flexWrap: 'wrap', mt: 0.5 }}>{c.tags.map(x => <Tag key={x}>{x}</Tag>)}</Stack>}
                     </TableCell>
                     <TableCell sx={cell}>
-                      <Stack direction="row" sx={{ gap: 0.5, flexWrap: 'wrap' }}>
-                        <Tag fg={KIND_TAG[c.kind].fg} bg={KIND_TAG[c.kind].bg}>{t(KIND_TAG[c.kind].label)}</Tag>
-                        {/* Brought in from the till by itself: tagged so it's clear where they came from. */}
-                        {c.source === 'square' && <Tag>{'Square'}</Tag>}
-                      </Stack>
+                      {/* One tag each: people brought in from the till say Square (they're customers) instead. */}
+                      {c.source === 'square'
+                        ? <Tag fg={KIND_TAG.customer.fg} bg={KIND_TAG.customer.bg}>{'Square'}</Tag>
+                        : <Tag fg={KIND_TAG[c.kind].fg} bg={KIND_TAG[c.kind].bg}>{t(KIND_TAG[c.kind].label)}</Tag>}
                     </TableCell>
                     <TableCell sx={{ ...cell, ...hide('xl') }}>{t(sourceLabel(c.source))}</TableCell>
                     <TableCell sx={cell}>
