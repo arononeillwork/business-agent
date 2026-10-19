@@ -252,8 +252,10 @@ Access lasts a day and is renewed automatically with the 1-year refresh token.
 
 ## 9. Square (Sales and takings)
 
-Square, Stripe and SumUp are the payment systems; a business connects one of them. Square gives the
-most: the **Sales** page (Accounts → Sales) with best sellers, and the takings on Finances.
+The till is **Square or SumUp** (one at a time: connecting one replaces the other). **Stripe** is for
+online payments and can be connected on top of either: Sales and Finances then add the two up, and
+Sales shows how much came through each ("Where sales came from"). Square gives the most: best
+sellers on the **Sales** page, and the takings on Finances.
 
 **Once, for the whole app** (the Business Agent's own Square app; each business then signs in to its
 own Square account with one click):
@@ -318,7 +320,7 @@ Best sellers card asks for one reconnect (Connections → Square → Connect Squ
 `ORDERS_READ`. The same goes for customers: a connection made before they were added needs one
 reconnect to allow `CUSTOMERS_READ`; until then takings carry on and no customers come in.
 
-## 10. Stripe (takings on Finances)
+## 10. Stripe (online payments, on top of the till)
 
 Each business connects its own Stripe account with one click (sign in on Stripe, allow read-only
 access). One Stripe *platform* account serves every business; it's set up once:

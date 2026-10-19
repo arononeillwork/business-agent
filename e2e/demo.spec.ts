@@ -2056,9 +2056,10 @@ test('Square: connect the payment system, then takings show on Finances next to 
   await expect(prompt).toBeVisible()
   await prompt.getByRole('link', { name: 'Connect' }).click()
   const payments = page.getByRole('region', { name: 'Payments and sales' })
-  // Stripe, Square and SumUp: pick one.
+  // The till: Square or SumUp, pick one. Stripe (online payments) sits apart, on top of either.
   await expect(payments.getByRole('button', { name: 'Connect Square' })).toBeVisible()
-  expect(await payments.getByRole('article').evaluateAll(els => els.map(e => e.getAttribute('aria-label')))).toEqual(['Stripe', 'Square', 'SumUp'])
+  expect(await payments.getByRole('article').evaluateAll(els => els.map(e => e.getAttribute('aria-label')))).toEqual(['Square', 'SumUp'])
+  await expect(page.getByRole('region', { name: 'Online payments' }).getByRole('article', { name: 'Stripe' })).toBeVisible()
   await payments.getByRole('button', { name: 'Connect Square' }).click()
   await expect(payments.getByRole('article', { name: 'Square' })).toContainText('Connected')
   await page.getByRole('link', { name: 'Finances' }).first().click()
@@ -2113,12 +2114,12 @@ test('Sales page: employees don’t get it', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Sales', level: 1 })).toHaveCount(0)
 })
 
-test('Stripe: connect it in one click, then takings show on Finances next to the team’s cost', async ({ page }) => {
+test('Stripe: connect it in one click, then takings show on Finances; with Square too, Sales adds them up', async ({ page }) => {
   await open(page, '/finances')
   const prompt = page.getByRole('alert').filter({ hasText: 'Connect Square, SumUp or Stripe to see takings' })
   await expect(prompt).toBeVisible()
   await prompt.getByRole('link', { name: 'Connect' }).click()
-  const payments = page.getByRole('region', { name: 'Payments and sales' })
+  const payments = page.getByRole('region', { name: 'Online payments' })
   await payments.getByRole('button', { name: 'Stripe details' }).click()
   const details = page.getByRole('dialog', { name: 'Stripe', exact: true })
   await expect(details).toContainText('it can’t take, refund or change anything')
@@ -2127,11 +2128,10 @@ test('Stripe: connect it in one click, then takings show on Finances next to the
   await expect(details).toContainText('The Stripe account was found and its payments can be read.')
   await details.getByRole('button', { name: 'Close' }).click()
   await expect(payments.getByRole('article', { name: 'Stripe' })).toContainText('Connected')
-  // One payment system at a time: Square waits under "Also works with".
-  await expect(payments.getByRole('article', { name: 'Square' })).toHaveCount(0)
-  await expect(payments.getByRole('group', { name: 'Other payments and sales apps' }).getByRole('button', { name: 'Use Square instead' })).toBeVisible()
-  // SumUp is the third choice of till.
-  await expect(payments.getByRole('group', { name: /^Other / })).toContainText('SumUp')
+  // Stripe doesn't take the till's place: Square and SumUp are still there to connect.
+  const till = page.getByRole('region', { name: 'Payments and sales' })
+  await expect(till.getByRole('button', { name: 'Connect Square' })).toBeVisible()
+  await expect(till.getByRole('article', { name: 'SumUp' })).toBeVisible()
 
   await page.getByRole('link', { name: 'Finances' }).first().click()
   const takings = page.getByRole('region', { name: 'Takings' })
@@ -2139,6 +2139,16 @@ test('Stripe: connect it in one click, then takings show on Finances next to the
   await expect(takings).toContainText('This week')
   await expect(takings).toContainText('Last 30 days')
   await expect(takings).toContainText(/€/)
+  // Square as the till as well: both are added up, and Sales shows each one's share.
+  if (FEATURES.square) {
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Connections' }).click()
+    await page.getByRole('region', { name: 'Payments and sales' }).getByRole('button', { name: 'Connect Square' }).click()
+    await expect(page.getByRole('region', { name: 'Online payments' }).getByRole('article', { name: 'Stripe' })).toContainText('Connected')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('region', { name: 'Sales' }).getByRole('link', { name: 'Sales' }).click()
+    await expect(page.getByText('From Square + Stripe')).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Where sales came from' })).toContainText('Stripe')
+    await expect(page.getByRole('region', { name: 'Best sellers' })).toContainText('online payments through Stripe')
+  }
 })
 
 test('TikTok connects in one click and says posts stay private until TikTok approves the app', async ({ page }) => {

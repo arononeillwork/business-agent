@@ -442,12 +442,26 @@ export type PayMethod = 'card' | 'cash' | 'wallet' | 'other'
  * One local day of takings. `gross` excludes tips. `hours` (24 values, sales by local hour) and
  * `methods` (sales by how people paid) come from Square and SumUp; Stripe sends hours only.
  */
-export interface SalesDay { date: string; gross: number; tips: number; refunds: number; payments: number; hours?: number[]; methods?: Partial<Record<PayMethod, number>> }
-export interface Sales { /** Which payment system the takings come from. */ provider?: 'square' | 'stripe' | 'sumup'; currency: string; days: SalesDay[] }
+/** Where takings come from: the till (Square or SumUp) and/or Stripe (online payments), which can be added to either. */
+export type SalesProvider = 'square' | 'stripe' | 'sumup'
+export interface SalesDay {
+  date: string; gross: number; tips: number; refunds: number; payments: number; hours?: number[]; methods?: Partial<Record<PayMethod, number>>
+  /** Gross sales by payment system, when more than one is connected. */
+  sources?: Partial<Record<SalesProvider, number>>
+}
+export interface Sales {
+  /** The first payment system the takings come from (the till before Stripe); `providers` lists them all. */
+  provider?: SalesProvider
+  providers?: SalesProvider[]
+  currency: string
+  days: SalesDay[]
+  /** Payment systems that couldn't be read just now (the others' takings are still shown). */
+  failed?: { provider: SalesProvider; error: string }[]
+}
 /** One item on the Sales page's best sellers (Square orders): units sold and their sales before discounts. */
 export interface SalesItem { name: string; quantity: number; gross: number }
 /** Best sellers, or why there are none: Stripe and SumUp send no items, or Square was connected before items were asked for. */
-export interface SalesItems { items: SalesItem[] | null; reason?: 'stripe' | 'sumup' | 'reconnect' }
+export interface SalesItems { items: SalesItem[] | null; reason?: 'stripe' | 'sumup' | 'reconnect'; /** Square's items, with Stripe's online sales not among them. */ partial?: 'stripe' }
 
 /** Search Console (Google): how the website did in Google Search. Figures lag Google by 2–3 days. */
 export interface SearchRow { clicks: number; impressions: number; /** 0–1 */ ctr: number; /** average position, 1 = top */ position: number }

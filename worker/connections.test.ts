@@ -693,16 +693,14 @@ describe('Facebook, TikTok and Square: one click, connected once they really wor
     expect((await connectOwn('square')).searchParams.get('connect_error')).toMatch(/no open location/)
   })
 
-  it('Stripe: one click, read-only; takings per day in Madrid time; replaces Square; disconnect removes access on Stripe too', async () => {
+  it('Stripe: one click, read-only; takings per day in Madrid time; disconnect removes access on Stripe too', async () => {
     const start = await post('/api/integrations/stripe/start')
     const auth = new URL((await start.json() as { url: string }).url)
     expect(auth.host).toBe('connect.stripe.com')
     expect(auth.searchParams.get('scope')).toBe('read_only')
     expect(auth.searchParams.get('client_id')).toBe('ca_test')
-    await connectOwn('square')
     expect((await connectOwn('stripe')).searchParams.get('connected')).toBe('stripe')
     expect(db.integration('stripe')).toMatchObject({ status: 'connected', account_label: 'Easy Beans Coffee SL', external: { account_id: 'acct_1', currency: 'EUR' } })
-    expect(status('square')).toBe('disconnected') // one payment system at a time
     const sales = await (await get('/api/integrations/payments/sales?from=2026-09-28&to=2026-09-29')).json() as { provider: string; currency: string; days: { date: string; gross: number; refunds: number; payments: number }[] }
     expect(sales.provider).toBe('stripe')
     expect(sales.currency).toBe('EUR')
@@ -715,6 +713,30 @@ describe('Facebook, TikTok and Square: one click, connected once they really wor
     expect((await post('/api/integrations/stripe/disconnect')).status).toBe(200)
     expect(apis.stripe.deauthorized).toEqual(['acct_1'])
     expect(status('stripe')).toBe('disconnected')
+  })
+
+  it('Stripe on top of the till: Square stays, takings are added up day by day with each one’s share, best sellers are Square’s', async () => {
+    await connectOwn('square')
+    await connectOwn('stripe')
+    expect(status('square')).toBe('connected') // the till stays: Stripe is online payments on top
+    const sales = await (await get('/api/integrations/payments/sales?from=2026-09-28&to=2026-09-29')).json() as {
+      provider: string; providers: string[]; days: { date: string; gross: number; payments: number; sources: Record<string, number>; methods: Record<string, number>; hours: number[] }[] }
+    expect(sales.providers).toEqual(['square', 'stripe'])
+    expect(sales.provider).toBe('square')
+    expect(sales.days[0]).toMatchObject({ date: '2026-09-28', gross: 31, payments: 4, sources: { square: 15.5, stripe: 15.5 } })
+    expect(sales.days[0].methods).toEqual({ card: 19, cash: 12 }) // Stripe's are all card
+    expect(sales.days[1]).toMatchObject({ date: '2026-09-29', gross: 18, sources: { square: 9, stripe: 9 } })
+    expect(await (await get('/api/integrations/payments/items?from=2026-09-28&to=2026-09-29')).json())
+      .toMatchObject({ partial: 'stripe', items: [{ name: 'Flat White' }, { name: 'Croissant · Pistachio' }] })
+    // One that can't be read just now leaves the other's takings showing.
+    apis.stripe.revoked = true
+    const some = await (await get('/api/integrations/payments/sales?from=2026-09-28&to=2026-09-29')).json() as { providers: string[]; failed: { provider: string }[]; days: { gross: number }[] }
+    expect(some.providers).toEqual(['square'])
+    expect(some.failed).toEqual([expect.objectContaining({ provider: 'stripe' })])
+    expect(some.days[0].gross).toBe(15.5)
+    // SumUp replaces Square as the till; Stripe stays.
+    await connectOwn('sumup')
+    expect([status('square'), status('sumup'), status('stripe')]).toEqual(['disconnected', 'connected', 'error'])
   })
 
   it('Stripe: removed on Stripe\'s side shows as not working after the nightly check', async () => {
@@ -760,15 +782,15 @@ describe('SumUp, LinkedIn and Search Console: connected once they really work', 
     row.ciphertext = await seal(env.INTEGRATION_KEY!, { ...await unseal<Record<string, unknown>>(env.INTEGRATION_KEY!, String(row.ciphertext)), ...patch })
   }
 
-  it('SumUp: one click, read-only; replaces Stripe; takings per Madrid day by hour and how people paid, across pages', async () => {
+  it('SumUp: one click, read-only; replaces Square as the till; takings per Madrid day by hour and how people paid, across pages', async () => {
     const auth = new URL((await (await post('/api/integrations/sumup/start')).json() as { url: string }).url)
     expect(`${auth.origin}${auth.pathname}`).toBe('https://api.sumup.com/authorize')
     expect(auth.searchParams.get('scope')).toBe('transactions.history user.profile_readonly')
     expect(auth.searchParams.get('redirect_uri')).toBe(`${APP}/api/integrations/sumup/callback`)
-    await connectOwn('stripe')
+    await connectOwn('square')
     expect((await connectOwn('sumup')).searchParams.get('connected')).toBe('sumup')
     expect(db.integration('sumup')).toMatchObject({ status: 'connected', account_label: 'Easy Beans Coffee', external: { merchant_code: 'MCODE1', currency: 'EUR' } })
-    expect(status('stripe')).toBe('disconnected') // one payment system at a time
+    expect(status('square')).toBe('disconnected') // one till at a time
     expect(await unseal(env.INTEGRATION_KEY!, String(db.secret('sumup')!.ciphertext))).toMatchObject({ refresh_token: 'su-refresh-0' })
 
     apis.sumup.pages = 0

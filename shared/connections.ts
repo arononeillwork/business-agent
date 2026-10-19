@@ -5,7 +5,7 @@
 import type { IntegrationProvider } from './types'
 import { msg } from './i18n'
 
-export type ConnectionGroup = 'communication' | 'email' | 'calendar' | 'files' | 'maps' | 'analytics' | 'social' | 'payments' | 'music'
+export type ConnectionGroup = 'communication' | 'email' | 'calendar' | 'files' | 'maps' | 'analytics' | 'social' | 'payments' | 'online_payments' | 'music'
 
 export interface ConnectionOption {
   id: IntegrationProvider | 'slack' | 'sms' | 'sharepoint' | 'dropbox' | 'apple_maps' | 'stripe'
@@ -57,10 +57,14 @@ export const GROUPS: ConnectionGroupInfo[] = [
     { id: 'tiktok', name: 'TikTok', by: 'TikTok', proves: msg('The account signed in and TikTok confirmed it can post.') },
     { id: 'linkedin', name: 'LinkedIn', by: 'Microsoft', proves: msg('The account signed in and posting was allowed.') },
   ] },
+  // The till: Square or SumUp, one at a time. Stripe (online payments) can be added to either, and
+  // the Sales page adds them up.
   { key: 'payments', title: msg('Payments and sales'), pickOne: true, options: [
-    { id: 'stripe', name: 'Stripe', by: 'Stripe', proves: msg('The Stripe account was found and its payments can be read.') },
     { id: 'square', name: 'Square', by: 'Block', proves: msg('The business and its locations were found and its payments can be read.') },
     { id: 'sumup', name: 'SumUp', by: 'SumUp', proves: msg('The SumUp account was found and its sales can be read.') },
+  ] },
+  { key: 'online_payments', title: msg('Online payments'), pickOne: false, options: [
+    { id: 'stripe', name: 'Stripe', by: 'Stripe', proves: msg('The Stripe account was found and its payments can be read.') },
   ] },
   { key: 'music', title: msg('Café music'), pickOne: true, options: [
     { id: 'spotify', name: 'Spotify', by: 'Spotify', proves: msg('The account signed in and its playlists can be read. Staff can play or pause it on the speaker.') },

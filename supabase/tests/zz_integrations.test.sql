@@ -573,31 +573,31 @@ do $$ begin
   assert (select count(*) from public.integrations where provider in ('facebook', 'tiktok', 'square')) = 3, 'new connections listed';
 end $$;
 
--- 24. Stripe is the other payment system: connecting it replaces Square ---------------------------
+-- 24. Stripe (online payments) joins the till, it doesn't replace it ------------------------------
 reset role;
 update public.integrations set status = 'connected', account_label = 'Easy Beans (Square)' where provider = 'square';
 update public.integrations set status = 'connected', account_label = 'Easy Beans Coffee SL' where provider = 'stripe';
 do $$ begin
-  assert public.integration_group('stripe') = 'payments', 'Stripe is a payment system';
-  assert (select status from public.integrations where provider = 'square') = 'disconnected', 'Stripe replaces Square';
-  assert (select count(*) from public.integrations where public.integration_group(provider) = 'payments' and status = 'connected') = 1,
-    'only one payment system is ever connected';
+  assert public.integration_group('stripe') is null, 'Stripe is not a choose-one';
+  assert (select status from public.integrations where provider = 'square') = 'connected', 'Square stays next to Stripe';
 end $$;
-update public.integrations set status = 'disconnected', account_label = null where provider = 'stripe';
+update public.integrations set status = 'disconnected', account_label = null where provider in ('stripe', 'square');
 
--- 25. SumUp is the third payment system; LinkedIn and Search Console sit alongside the others ------
+-- 25. SumUp is the other till (Square or SumUp, one at a time); LinkedIn and Search Console sit alongside --
 reset role;
+update public.integrations set status = 'connected', account_label = 'Easy Beans (Square)' where provider = 'square';
 update public.integrations set status = 'connected', account_label = 'Easy Beans Coffee SL' where provider = 'stripe';
 update public.integrations set status = 'connected', account_label = 'Easy Beans Coffee', external = '{"merchant_code": "MCODE1"}' where provider = 'sumup';
 do $$ begin
-  assert public.integration_group('sumup') = 'payments', 'SumUp is a payment system';
-  assert (select status from public.integrations where provider = 'stripe') = 'disconnected', 'SumUp replaces Stripe';
+  assert public.integration_group('sumup') = 'payments', 'SumUp is a till';
+  assert (select status from public.integrations where provider = 'square') = 'disconnected', 'SumUp replaces Square';
+  assert (select status from public.integrations where provider = 'stripe') = 'connected', 'Stripe stays next to SumUp';
   assert public.plan_feature_of('sumup') = 'takings', 'SumUp needs the takings feature';
   assert public.integration_group('linkedin') is null and public.integration_group('search_console') is null, 'not choose-one';
   assert public.plan_feature_of('search_console') is null, 'Search Console is on every plan';
   assert (select count(*) from public.integrations where provider in ('sumup', 'linkedin', 'search_console')) = 3, 'new connections listed';
 end $$;
-update public.integrations set status = 'disconnected', account_label = null, external = '{}' where provider = 'sumup';
+update public.integrations set status = 'disconnected', account_label = null, external = '{}' where provider in ('sumup', 'stripe');
 
 -- 26. The business's website: http(s) only ------------------------------------------------------
 select pg_temp.act_as('maria@test');

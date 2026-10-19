@@ -17,7 +17,7 @@ import { addDays, currencySymbol, formatMoney, today, weekStart, zonedIso } from
 import { shiftPaidMinutes } from '../../shared/rules'
 import type { Expense } from '../../shared/types'
 import { Link as RouterLink } from 'react-router-dom'
-import { TILL_NAMES, tillOf } from '../components/till'
+import { tillNames, tillsOf } from '../components/till'
 import { msg, t, tc } from '../i18n'
 
 /** Monthly running costs. Admins with pay access edit; finance partners read (enforced in the database too). */
@@ -308,13 +308,13 @@ function AddCategory({ existing, onAdd, onClose }: { existing: string[]; onAdd: 
   )
 }
 
-/** Takings from the payment system (Square, SumUp or Stripe), and what the team costs as a share of them. */
+/** Takings from the till (Square or SumUp) and Stripe, added up, and what the team costs as a share of them. */
 function Takings() {
   const { api, rates, settings } = useApp()
   const integ = useAsync('integrations', () => api.integrations(), [])
-  const till = tillOf(integ.data?.integrations)
-  const on = !!till
-  const name = TILL_NAMES[till?.provider ?? 'stripe']
+  const tills = tillsOf(integ.data?.integrations)
+  const on = tills.length > 0
+  const name = tillNames(tills)
   const day = today(), monday = weekStart(day)
   const sales = useAsync('payment-sales', () => (on ? api.sales(addDays(day, -29), day) : Promise.resolve(null)), [on, day])
   const shifts = useAsync('takings-shifts', () => (on ? api.shifts(zonedIso(monday, '00:00'), zonedIso(addDays(monday, 7), '00:00')) : Promise.resolve([])), [on, monday])

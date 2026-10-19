@@ -7,10 +7,10 @@ import { CONNECTION_FEATURE } from '../../shared/plans'
 
 export type Row = Record<string, unknown>
 
-/** integration_group() (migrations 28, 34 and 40). */
+/** integration_group() (migrations 28, 34, 40 and 45). */
 export const GROUP: Record<string, string> = {
   gmail: 'email', outlook: 'email', google_drive: 'files', onedrive: 'files',
-  google_calendar: 'calendar', outlook_calendar: 'calendar', spotify: 'music', youtube_music: 'music', whatsapp: 'communication', square: 'payments', stripe: 'payments', sumup: 'payments',
+  google_calendar: 'calendar', outlook_calendar: 'calendar', spotify: 'music', youtube_music: 'music', whatsapp: 'communication', square: 'payments', sumup: 'payments',
 }
 
 /** Primary keys, for upserts. Tables not listed get a numeric id. */

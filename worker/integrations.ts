@@ -35,8 +35,9 @@ import {
   proveSumUp, proveTikTok, setIntegration, showInstagramHandle, showMailboxAddress, spotifyConfig, spotifySession, squareOAuth, squareSession, stripeOAuth,
   stripeSession, sumupOAuth, sumupSession, tellAdmins, tiktokOAuth, tiktokSession, waConfig, type Connector, type LinkedInExternal, type Provider,
 } from './connections'
-import type { Business, CalendarEvent, OpeningHours, PostKind, PostMedia, SpotifyPlaylist } from '../shared/types'
+import type { Business, CalendarEvent, OpeningHours, PostKind, PostMedia, SalesProvider, SpotifyPlaylist } from '../shared/types'
 import { today, zonedIso } from '../shared/time'
+import { mergeSales } from '../shared/sales'
 import { LEGAL } from '../shared/legal'
 import { businessConfig } from '../shared/business.config'
 
@@ -959,7 +960,8 @@ integrations.get('/api/integrations/sumup/callback', c => appCallback(c, 'sumup'
 /**
  * Who may read takings, and for which days: the plan has takings, the person can see pay, from and
  * to are dates (inclusive) and a payment system is connected. Either an error response, or the range
- * as instants (local midnight to the midnight after `to`).
+ * as instants (local midnight to the midnight after `to`) and the connected payment systems: the
+ * till (Square or SumUp, one at a time) first, then Stripe (online payments, on top of either).
  */
 async function takingsRequest(c: Context<{ Bindings: Env; Variables: { userId: string } }>) {
   if (!(await planFeatures(c.env)).has('takings')) return { error: c.json({ error: 'Takings need the Pro plan or higher. Upgrade on the Billing page.' }, 402) }
@@ -968,47 +970,60 @@ async function takingsRequest(c: Context<{ Bindings: Env; Variables: { userId: s
   if (!me?.can_see_pay) return { error: c.json({ error: 'Takings are for admins with pay access' }, 403) }
   const from = c.req.query('from') ?? '', to = c.req.query('to') ?? ''
   if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || from > to) return { error: c.json({ error: 'Give from and to dates (YYYY-MM-DD)' }, 400) }
-  const p = await connectedOf(db, ['square', 'stripe', 'sumup'] as const)
-  if (!p) return { error: c.json({ error: 'Connect Stripe, Square or SumUp on the Connections page to see takings' }, 400) }
+  const { data: rows } = await db.from('integrations').select('provider, status').in('provider', PAYMENT_SYSTEMS)
+  const ps = PAYMENT_SYSTEMS.filter(p => rows?.some(r => r.provider === p && r.status === 'connected'))
+  if (!ps.length) return { error: c.json({ error: 'Connect Square, SumUp or Stripe on the Connections page to see takings' }, 400) }
   const end = new Date(Date.parse(`${to}T12:00:00Z`) + 86_400_000).toISOString().slice(0, 10)
-  return { db, p, fromIso: zonedIso(from, '00:00'), toIso: zonedIso(end, '00:00') }
+  return { db, ps, fromIso: zonedIso(from, '00:00'), toIso: zonedIso(end, '00:00') }
+}
+const PAYMENT_SYSTEMS: SalesProvider[] = ['square', 'sumup', 'stripe']
+
+/** One payment system's takings per day. */
+async function salesOf(env: Env, db: SupabaseClient, p: SalesProvider, fromIso: string, toIso: string) {
+  if (p === 'stripe') {
+    const s = await stripeSession(env, db)
+    return stripe.salesByDay(s.secretKey, s.accountId, fromIso, toIso)
+  }
+  if (p === 'sumup') return sumup.salesByDay(await sumupSession(env, db), fromIso, toIso)
+  const s = await squareSession(env, db)
+  return square.salesByDay(s.sandbox, s.token, s.locationIds, fromIso, toIso)
 }
 
-// Takings per day from the payment system (Square, Stripe or SumUp, admins with pay access): ?from=YYYY-MM-DD&to=YYYY-MM-DD (inclusive).
+// Takings per day from the payment systems (the till, Square or SumUp, plus Stripe when that's
+// connected too; admins with pay access): ?from=YYYY-MM-DD&to=YYYY-MM-DD (inclusive). Added up day
+// by day; one that can't be read just now leaves the others' takings showing.
 integrations.get('/api/integrations/payments/sales', async c => {
   const r = await takingsRequest(c)
   if ('error' in r) return r.error
-  const { db, p, fromIso, toIso } = r
-  try {
-    if (p === 'stripe') {
-      const s = await stripeSession(c.env, db)
-      return c.json({ provider: p, ...await stripe.salesByDay(s.secretKey, s.accountId, fromIso, toIso) })
-    }
-    if (p === 'sumup') return c.json({ provider: p, ...await sumup.salesByDay(await sumupSession(c.env, db), fromIso, toIso) })
-    const s = await squareSession(c.env, db)
-    return c.json({ provider: p, ...await square.salesByDay(s.sandbox, s.token, s.locationIds, fromIso, toIso) })
-  } catch (e) {
+  const { db, ps, fromIso, toIso } = r
+  const read = await Promise.all(ps.map(p => salesOf(c.env, db, p, fromIso, toIso).then(sales => ({ provider: p, sales }), async (e: unknown) => {
     const why = explain(p, e)
     if (lasting(p, e)) await markBroken(db, p, why)
-    return c.json({ error: why }, 400)
-  }
+    return { provider: p, error: why }
+  })))
+  const ok = read.filter((x): x is { provider: SalesProvider; sales: Awaited<ReturnType<typeof salesOf>> } => 'sales' in x)
+  const failed = read.filter((x): x is { provider: SalesProvider; error: string } => 'error' in x)
+  if (!ok.length) return c.json({ error: failed[0].error }, 400)
+  return c.json({ provider: ok[0].provider, providers: ok.map(x => x.provider), ...mergeSales(ok), ...(failed.length ? { failed } : {}) })
 })
 
 // Best sellers from Square's orders, same rules and dates as the takings. Stripe and SumUp have no
-// items (SumUp's history only has a one-line summary per sale); a Square connection made before
-// items were asked for (ORDERS_READ) says so, and keeps working.
+// items (SumUp's history only has a one-line summary per sale), so with Square and Stripe both
+// connected the items are Square's (`partial`); a Square connection made before items were asked
+// for (ORDERS_READ) says so, and keeps working.
 integrations.get('/api/integrations/payments/items', async c => {
   const r = await takingsRequest(c)
   if ('error' in r) return r.error
-  const { db, p, fromIso, toIso } = r
-  if (p === 'stripe' || p === 'sumup') return c.json({ items: null, reason: p })
+  const { db, ps, fromIso, toIso } = r
+  if (!ps.includes('square')) return c.json({ items: null, reason: ps[0] })
+  const partial = ps.includes('stripe') ? { partial: 'stripe' } : {}
   try {
     const s = await squareSession(c.env, db)
-    return c.json({ items: await square.topItems(s.sandbox, s.token, s.locationIds, fromIso, toIso) })
+    return c.json({ items: await square.topItems(s.sandbox, s.token, s.locationIds, fromIso, toIso), ...partial })
   } catch (e) {
     if (e instanceof square.SquareError && e.code === 'INSUFFICIENT_SCOPES') return c.json({ items: null, reason: 'reconnect' })
-    const why = explain(p, e)
-    if (lasting(p, e)) await markBroken(db, p, why)
+    const why = explain('square', e)
+    if (lasting('square', e)) await markBroken(db, 'square', why)
     return c.json({ error: why }, 400)
   }
 })

@@ -7,14 +7,14 @@ import DownIcon from '@mui/icons-material/ArrowDownwardRounded'
 import { useState, type ReactNode } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
-import { TILL_NAMES, tillOf } from '../components/till'
+import { TILL_NAMES, tillNames, tillsOf } from '../components/till'
 import { useAsync } from '../app/hooks'
 import { BarChart, ShareBars, type BarPoint } from '../components/charts'
 import { Empty, ErrorBox, Loading, PageHeader, SectionTitle, StatGrid, StatTile, Tag } from '../components/common'
 import { ExportButton, SortCell, useSort } from '../components/tables'
 import type { ExportTable } from '../lib/export'
 import { addDays, currencySymbol, formatLocal, formatMoney, formatNumber, today, weekStart } from '../../shared/time'
-import type { PayMethod, SalesDay, SalesItem } from '../../shared/types'
+import type { PayMethod, SalesDay, SalesItems, SalesProvider } from '../../shared/types'
 import { tokens } from '../theme'
 import { msg, t, tr, tc } from '../i18n'
 
@@ -97,7 +97,10 @@ const remembered = (): Period => {
 
 type Metric = 'sales' | 'payments' | 'average'
 
-/** Sales: takings from Square, SumUp or Stripe like Square's own dashboard, with each figure next to the period before. */
+/**
+ * Sales: takings from the till (Square or SumUp) and Stripe's online payments, added up, like Square's
+ * own dashboard, with each figure next to the period before.
+ */
 export function SalesPage() {
   const { api, canSeePay, isPartner } = useApp()
   const [period, setPeriod] = useState<Period>(remembered)
@@ -105,8 +108,8 @@ export function SalesPage() {
   const day = today()
   const range = rangeOf(period, day)
   const integ = useAsync('integrations', () => api.integrations(), [])
-  const till = tillOf(integ.data?.integrations)
-  const on = !!till && canSeePay && !isPartner
+  const tills = tillsOf(integ.data?.integrations)
+  const on = tills.length > 0 && canSeePay && !isPartner
   // One read covers both periods; best sellers are for the period itself.
   const sales = useAsync('sales-page', () => (on ? api.sales(range.prevFrom, range.to) : Promise.resolve(null)), [on, period, day])
   const items = useAsync('sales-items', () => (on ? api.salesItems(range.from, range.to) : Promise.resolve(null)), [on, period, day])
@@ -127,7 +130,7 @@ export function SalesPage() {
       {PERIODS.map(p => <MenuItem key={p.id} value={p.id}>{t(p.label)}</MenuItem>)}
     </TextField>
   )
-  const name = TILL_NAMES[till?.provider ?? 'square']
+  const name = tillNames(tills)
   const header = <>
     <PageHeader title={t('Sales')} actions={on && <>
       <Tag>{t('From {name}', { name })}</Tag>
@@ -135,7 +138,7 @@ export function SalesPage() {
     </>} />
   </>
   if (!integ.data) return <>{header}<ErrorBox error={integ.error} /><Loading /></>
-  if (!till) return <>{header}<ConnectFirst /></>
+  if (!tills.length) return <>{header}<ConnectFirst /></>
 
   const all = sales.data?.days ?? []
   const cur = fill(all, range.from, range.to)
@@ -151,6 +154,9 @@ export function SalesPage() {
     <>
       {header}
       <ErrorBox error={sales.error} />
+      {sales.data?.failed?.map(f => (
+        <Alert key={f.provider} severity="warning" sx={{ mb: 2 }}>{t('{app} couldn’t be read just now, so its sales aren’t included: {reason}', { app: TILL_NAMES[f.provider], reason: f.error })}</Alert>
+      ))}
 
       <StatGrid>
         <StatTile label={t('Gross sales')} value={loaded ? formatMoney(now.gross) : '–'} note={loaded && <Change now={now.gross} before={before.gross} vs={vs} />} />
@@ -186,6 +192,7 @@ export function SalesPage() {
           {!single && <BusiestHours days={cur} />}
           {cur.length >= 7 && <ByWeekday days={cur} />}
           <Methods days={cur} />
+          <Sources days={cur} />
           <BestSellers data={items.data} error={items.error} periodName={periodName} />
         </Box>
       )}
@@ -206,7 +213,8 @@ function ConnectFirst() {
         </Typography>
         <Box component="ol" sx={{ pl: 2.5, my: 0, '& li': { mb: 0.5 } }}>
           <li>{tr('Open {connections} and find {payments}.', { connections: <b>{t('Connections')}</b>, payments: <b>{t('Payments and sales')}</b> })}</li>
-          <li>{tr("Press {connect} next to Square, SumUp or Stripe and sign in with the account the café's till uses.", { connect: <b>{t('Connect')}</b> })}</li>
+          <li>{tr("Press {connect} next to Square or SumUp and sign in with the account the café's till uses.", { connect: <b>{t('Connect')}</b> })}</li>
+          <li>{tr('Take payments online with Stripe too? Connect it under {online}: its sales are added to the till’s.', { online: <b>{t('Online payments')}</b> })}</li>
           <li>{t("Allow access. You're brought back here, connected, with every active location included.")}</li>
         </Box>
         <Button component={RouterLink} to="/connections" variant="contained" sx={{ mt: 2 }}>{t('Go to Connections')}</Button>
@@ -290,6 +298,19 @@ function ByWeekday({ days }: { days: SalesDay[] }) {
   )
 }
 
+/** With the till and Stripe both connected: how much came through each (in the café, and online). */
+function Sources({ days }: { days: SalesDay[] }) {
+  const sum: Partial<Record<SalesProvider, number>> = {}
+  for (const d of days) for (const [k, v] of Object.entries(d.sources ?? {}) as [SalesProvider, number][]) sum[k] = (sum[k] ?? 0) + v
+  const rows = (Object.entries(sum) as [SalesProvider, number][]).sort((a, b) => b[1] - a[1]).map(([k, v]) => ({ name: TILL_NAMES[k], value: v }))
+  if (rows.length < 2) return null
+  return (
+    <Panel title={t('Where sales came from')} note={t('The till and online payments through Stripe, added up above')}>
+      <ShareBars rows={rows} format={formatMoney} label={t('Sales by payment system')} />
+    </Panel>
+  )
+}
+
 /** How people paid (Square and SumUp: Stripe is all card). */
 function Methods({ days }: { days: SalesDay[] }) {
   const sum: Partial<Record<PayMethod, number>> = {}
@@ -309,7 +330,7 @@ function Methods({ days }: { days: SalesDay[] }) {
   )
 }
 
-function BestSellers({ data, error, periodName }: { data: { items: SalesItem[] | null; reason?: string } | null; error: string | null; periodName: string }) {
+function BestSellers({ data, error, periodName }: { data: SalesItems | null; error: string | null; periodName: string }) {
   const list = data?.items ?? []
   const total = list.reduce((s, i) => s + i.gross, 0)
   const { rows, sort } = useSort(list, { name: i => i.name, quantity: i => i.quantity, gross: i => i.gross }, { by: 'gross', dir: 'desc' }, ['quantity', 'gross'])
@@ -334,6 +355,9 @@ function BestSellers({ data, error, periodName }: { data: { items: SalesItem[] |
           </Alert>
         )}
         {data?.items && !list.length && <Empty>{t('Nothing sold in this period.')}</Empty>}
+        {data?.partial === 'stripe' && list.length > 0 && (
+          <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mb: 1 }}>{t('From Square’s orders: online payments through Stripe don’t say what was sold.')}</Typography>
+        )}
         {shown.length > 0 && (
           <Box sx={{ overflowX: 'auto' }}>
             <Table size="small" aria-label={t('Best sellers')}>

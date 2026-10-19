@@ -18,6 +18,7 @@ import { postProblem } from '../../shared/social'
 import type { SportsFavourite } from '../../shared/sports'
 import { POPULAR_FONTS } from '../../shared/fonts'
 import { addToCalendarUrl, cleanWebsite, groupOf } from '../../shared/connections'
+import { mergeSales } from '../../shared/sales'
 import { addDays, localDate, minutesBetween, today, weekDates, weekStart, zonedIso } from '../../shared/time'
 
 interface RawEntry {
@@ -211,13 +212,14 @@ export function createDemoApi(): Api {
    * hours with the 11–3 rush, and paid mostly by card. Stripe sends no payment methods.
    */
   const round2 = (n: number) => Math.round(n * 100) / 100
-  const demoSales = (from: string, to: string, provider: 'square' | 'stripe' | 'sumup'): Sales => {
+  const paymentSystems = () => (['square', 'sumup', 'stripe'] as const).filter(p => integ.integrations.some(i => i.provider === p && i.status === 'connected'))
+  const demoSales = (from: string, to: string, provider: 'square' | 'stripe' | 'sumup', share = 1): Sales => {
     const days: Sales['days'] = []
     for (let d = from; d <= to; d = addDays(d, 1)) {
       if (d > today()) break
       const dow = new Date(`${d}T12:00:00Z`).getUTCDay()
       const seed = [...d].reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) % 997, 7)
-      const gross = round2([520, 380, 430, 450, 610, 890, 820][dow] + (seed % 90) - 45)
+      const gross = round2(([520, 380, 430, 450, 610, 890, 820][dow] + (seed % 90) - 45) * share)
       const [open, close] = dow === 0 ? [9, 16] : dow === 6 ? [9, 18] : [8, 18]
       const weight = Array.from({ length: 24 }, (_, h) => (h < open || h >= close ? 0 : h >= 11 && h < 15 ? 2.4 + ((seed + h) % 5) / 10 : 1 + ((seed * h) % 4) / 10))
       const total = weight.reduce((a, b) => a + b, 0)
@@ -1254,16 +1256,17 @@ export function createDemoApi(): Api {
     },
     async sales(from, to) {
       requireAdmin()
-      const p = integ.integrations.find(i => (i.provider === 'square' || i.provider === 'stripe' || i.provider === 'sumup') && i.status === 'connected')
-      if (!p) throw new Error('Connect Stripe, Square or SumUp on the Connections page to see takings')
-      return { provider: p.provider as 'square' | 'stripe' | 'sumup', ...demoSales(from, to, p.provider as 'square' | 'stripe' | 'sumup') }
+      const ps = paymentSystems()
+      if (!ps.length) throw new Error('Connect Square, SumUp or Stripe on the Connections page to see takings')
+      // The till and Stripe added up (Stripe's online share is about a fifth of the till's).
+      return { provider: ps[0], providers: ps, ...mergeSales(ps.map(p => ({ provider: p, sales: demoSales(from, to, p, ps.length > 1 && p === 'stripe' ? 0.2 : 1) }))) }
     },
     async salesItems(from, to) {
       requireAdmin()
-      const p = integ.integrations.find(i => (i.provider === 'square' || i.provider === 'stripe' || i.provider === 'sumup') && i.status === 'connected')
-      if (!p) throw new Error('Connect Stripe, Square or SumUp on the Connections page to see takings')
-      // Stripe and SumUp send no items, so there are no best sellers.
-      return p.provider === 'stripe' || p.provider === 'sumup' ? { items: null, reason: p.provider } : { items: demoItems(from, to) }
+      const ps = paymentSystems()
+      if (!ps.length) throw new Error('Connect Square, SumUp or Stripe on the Connections page to see takings')
+      // Only Square sends items; Stripe and SumUp send payments only, so there are no best sellers without Square.
+      return ps.includes('square') ? { items: demoItems(from, to), ...(ps.includes('stripe') ? { partial: 'stripe' as const } : {}) } : { items: null, reason: ps[0] as 'stripe' | 'sumup' }
     },
     async socialPosts() {
       requireAdmin()
