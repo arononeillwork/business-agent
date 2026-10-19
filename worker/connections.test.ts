@@ -598,6 +598,29 @@ describe('Facebook, TikTok and Square: one click, connected once they really wor
       expect.objectContaining({ date: '2026-09-28', gross: 15.5, tips: 0.5, payments: 2 }),
       expect.objectContaining({ date: '2026-09-29', gross: 9, payments: 1 }),
     ])
+    // Each day by Madrid hour and by how people paid, for the Sales page.
+    const [first, second] = sales.days as unknown as { hours: number[]; methods: Record<string, number> }[]
+    expect(first.hours[10]).toBe(3.5)  // 08:15 UTC is 10:15 in Madrid
+    expect(first.hours[23]).toBe(12)
+    expect(first.methods).toEqual({ card: 3.5, cash: 12 })
+    expect(second.methods).toEqual({ wallet: 9 })
+  })
+
+  it('Square: best sellers from completed orders, added up by item; an older connection is asked to connect again', async () => {
+    await connectOwn('square')
+    const auth = new URL((await (await post('/api/integrations/square/start')).json() as { url: string }).url)
+    expect(auth.searchParams.get('scope')).toBe('MERCHANT_PROFILE_READ PAYMENTS_READ ORDERS_READ')
+    const res = await get('/api/integrations/payments/items?from=2026-09-28&to=2026-09-29')
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ items: [
+      { name: 'Flat White', quantity: 3, gross: 9.6 },
+      { name: 'Croissant · Pistachio', quantity: 1, gross: 4.2 },
+    ] })
+    apis.square.ordersScope = false
+    expect(await (await get('/api/integrations/payments/items?from=2026-09-28&to=2026-09-29')).json()).toEqual({ items: null, reason: 'reconnect' })
+    expect(status('square')).toBe('connected') // takings keep working meanwhile
+    db.table('profiles').find(p => p.id === 'admin-1')!.can_see_pay = false
+    expect((await get('/api/integrations/payments/items?from=2026-09-28&to=2026-09-28')).status).toBe(403)
   })
 
   it('Square: takings only for admins with pay access; no location means not connected', async () => {
@@ -625,6 +648,8 @@ describe('Facebook, TikTok and Square: one click, connected once they really wor
       expect.objectContaining({ date: '2026-09-28', gross: 15.5, refunds: 2, payments: 2 }),
       expect.objectContaining({ date: '2026-09-29', gross: 9, refunds: 0, payments: 1 }),
     ])
+    // Stripe sends payments only, so there are no best sellers.
+    expect(await (await get('/api/integrations/payments/items?from=2026-09-28&to=2026-09-29')).json()).toEqual({ items: null, reason: 'stripe' })
     expect((await post('/api/integrations/stripe/disconnect')).status).toBe(200)
     expect(apis.stripe.deauthorized).toEqual(['acct_1'])
     expect(status('stripe')).toBe('disconnected')

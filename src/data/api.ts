@@ -1,4 +1,4 @@
-import type { ApiKey, AppNotification, Brand, BreakType, Business, CalendarApp, CalendarEvent, ConnectorProvider, ContactMethod, CorrectionRequest, EventAlert, Expense, InstagramProfile, Integration, PostMedia, Sales, SocialNetwork, SocialPost, IntegrationProvider, IntegrationsState, KioskPerson, MusicNow, MusicPlaylist, MusicProvider, MyMusic, MyNowPlaying, OpenBreak, OpeningHours, OutboxItem, PartnerArea, PayRate, Position, Profile, Settings, Shift, SpotifyPlaylist, TimeEntry, TimeEntryChange, TimeOff, TimeOffKind, Todo, TodoCategory, TodoPatch, CafeMusicLibrary, CafeTrack, MusicAction, MusicPlayerReport, MusicPlayerState } from '../../shared/types'
+import type { ApiKey, AppNotification, Brand, BreakType, Business, CalendarApp, CalendarEvent, ConnectorProvider, ContactMethod, CorrectionRequest, EventAlert, Expense, InstagramProfile, Integration, PostMedia, Sales, SalesItems, SocialNetwork, SocialPost, IntegrationProvider, IntegrationsState, KioskPerson, MusicNow, MusicPlaylist, MusicProvider, MyMusic, MyNowPlaying, OpenBreak, OpeningHours, OutboxItem, PartnerArea, PayRate, Position, Profile, Settings, Shift, SpotifyPlaylist, TimeEntry, TimeEntryChange, TimeOff, TimeOffKind, Todo, TodoCategory, TodoPatch, CafeMusicLibrary, CafeTrack, MusicAction, MusicPlayerReport, MusicPlayerState } from '../../shared/types'
 import type { Billing, Interval, PlanId } from '../../shared/plans'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
 import type { InboxState, InboxThread } from '../../shared/messages'
@@ -166,6 +166,8 @@ export interface Api {
   chooseFacebookPage(pageId: string): Promise<void>
   /** Takings per day from Square (admins with pay access), from and to inclusive. */
   sales(from: string, to: string): Promise<Sales>
+  /** Best sellers from Square's orders, same dates and rules as `sales`. */
+  salesItems(from: string, to: string): Promise<SalesItems>
 
   // Social planner (admins)
   socialPosts(): Promise<SocialPost[]>

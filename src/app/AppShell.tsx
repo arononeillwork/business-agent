@@ -16,6 +16,7 @@ import AppearanceIcon from '@mui/icons-material/PaletteOutlined'
 import KioskIcon from '@mui/icons-material/TabletMacOutlined'
 import TimeOffIcon from '@mui/icons-material/BeachAccessOutlined'
 import FinanceIcon from '@mui/icons-material/PaymentsOutlined'
+import SalesIcon from '@mui/icons-material/InsightsOutlined'
 import BillingIcon from '@mui/icons-material/CreditCardOutlined'
 import SocialIcon from '@mui/icons-material/CampaignOutlined'
 import MessagesIcon from '@mui/icons-material/ChatBubbleOutlineRounded'
@@ -62,6 +63,10 @@ export const SECTIONS: NavSection[] = [
     { key: 'brand', to: '/brand', label: 'Brand', icon: <BrandIcon />, partner: 'any' },
     { key: 'social', to: '/social', label: 'Social planner', icon: <SocialIcon />, who: 'admin' },
     { key: 'messages', to: '/messages', label: 'Messages', icon: <MessagesIcon />, who: 'admin' },
+  ] },
+  // Money: takings from the till (Square or Stripe) and the running costs.
+  { key: 'accounts', label: 'Accounts', items: [
+    { key: 'sales', to: '/sales', label: 'Sales', icon: <SalesIcon />, who: 'pay' },
     { key: 'finances', to: '/finances', label: 'Finances', icon: <FinanceIcon />, who: 'pay', partner: ['finances'] },
   ] },
   { key: 'whatson', label: "What's on", items: [

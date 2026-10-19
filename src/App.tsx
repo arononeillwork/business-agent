@@ -29,6 +29,7 @@ const AccountPage = page(() => import('./pages/AccountPage'), 'AccountPage')
 const KioskPage = page(() => import('./pages/KioskPage'), 'KioskPage')
 const TimeOffPage = page(() => import('./pages/TimeOffPage'), 'TimeOffPage')
 const FinancesPage = page(() => import('./pages/FinancesPage'), 'FinancesPage')
+const SalesPage = page(() => import('./pages/SalesPage'), 'SalesPage')
 const AlertsPage = page(() => import('./pages/AlertsPage'), 'AlertsPage')
 const SportsPage = page(() => import('./pages/SportsPage'), 'SportsPage')
 const MusicPage = page(() => import('./pages/MusicPage'), 'MusicPage')
@@ -109,6 +110,9 @@ function Routed() {
         <Route path="appearance" element={<AppearancePage />} />
         <Route path="account" element={<AccountPage />} />
         <Route path="finances" element={<FinancesPage />} />
+        <Route path="sales" element={<PlanGate feature="takings"><SalesPage /></PlanGate>} />
+        {/* Accounts is a menu section: its address opens its first page. */}
+        <Route path="accounts" element={<Navigate to="/sales" replace />} />
         <Route path="alerts" element={isAdmin ? <AlertsPage /> : <Navigate to="/" />} />
         <Route path="account/billing" element={isAdmin ? <BillingPage /> : <Navigate to="/" />} />
         {/* Billing used to be under Settings: old links (and Stripe's way back) still land on it. */}

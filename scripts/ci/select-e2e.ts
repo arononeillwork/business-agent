@@ -34,6 +34,7 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'music', files: [/MusicPage/, /MusicCard/, /CafeSpeaker/], tests: String.raw`music|playlist|song` },
   { name: 'sports', files: [/SportsPage/, /shared\/(sports|crests)/], tests: String.raw`sports|teams|big nights|Favourites` },
   { name: 'finances', files: [/FinancesPage/], tests: String.raw`finances|takings|expenses` },
+  { name: 'sales', files: [/SalesPage/, /components\/charts/], tests: String.raw`Sales page|best sellers` },
   { name: 'alerts', files: [/AlertsPage/, /NotificationBell/], tests: String.raw`alert|notification|bell` },
   { name: 'to do', files: [/TodoPage/, /shared\/todo/], tests: String.raw`To Do|job|categor` },
   { name: 'set-up', files: [/SetupPage/], tests: String.raw`set-up|wizard` },

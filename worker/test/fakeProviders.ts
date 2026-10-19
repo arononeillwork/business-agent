@@ -134,10 +134,20 @@ export class FakeProviders {
     revoked: false,
     refreshes: 0,
     payments: [
-      { created_at: '2026-09-28T08:15:00Z', status: 'COMPLETED', amount_money: { amount: 350, currency: 'EUR' }, tip_money: { amount: 50 } },
-      { created_at: '2026-09-28T21:30:00Z', status: 'COMPLETED', amount_money: { amount: 1200, currency: 'EUR' } }, // 23:30 in Madrid, same day
-      { created_at: '2026-09-28T22:30:00Z', status: 'COMPLETED', amount_money: { amount: 900, currency: 'EUR' } },  // 00:30 next day in Madrid
+      { created_at: '2026-09-28T08:15:00Z', status: 'COMPLETED', source_type: 'CARD', amount_money: { amount: 350, currency: 'EUR' }, tip_money: { amount: 50 } },
+      { created_at: '2026-09-28T21:30:00Z', status: 'COMPLETED', source_type: 'CASH', amount_money: { amount: 1200, currency: 'EUR' } }, // 23:30 in Madrid, same day
+      { created_at: '2026-09-28T22:30:00Z', status: 'COMPLETED', source_type: 'WALLET', amount_money: { amount: 900, currency: 'EUR' } },  // 00:30 next day in Madrid
       { created_at: '2026-09-28T10:00:00Z', status: 'FAILED', amount_money: { amount: 9999, currency: 'EUR' } },
+    ],
+    /** Completed orders, for best sellers. `ordersScope: false` is a connection made before ORDERS_READ was asked for. */
+    ordersScope: true,
+    orders: [
+      { closed_at: '2026-09-28T08:15:00Z', line_items: [
+        { name: 'Flat White', variation_name: 'Regular', quantity: '2', gross_sales_money: { amount: 640 } },
+        { name: 'Croissant', variation_name: 'Pistachio', quantity: '1', gross_sales_money: { amount: 420 } },
+      ] },
+      { closed_at: '2026-09-28T12:00:00Z', line_items: [{ name: 'Flat White', variation_name: 'Regular', quantity: '1', gross_sales_money: { amount: 320 } }] },
+      { closed_at: '2026-10-02T12:00:00Z', line_items: [{ name: 'Açaí Bowl', quantity: '1', gross_sales_money: { amount: 850 } }] },
     ],
   }
   stripe = {
@@ -465,6 +475,12 @@ export class FakeProviders {
       if (url.pathname === '/v2/payments') {
         const from = url.searchParams.get('begin_time')!, to = url.searchParams.get('end_time')!
         return json({ payments: this.square.payments.filter(p => p.created_at >= from && p.created_at < to) })
+      }
+      if (url.pathname === '/v2/orders/search' && method === 'POST') {
+        if (!this.square.ordersScope) return json({ errors: [{ category: 'AUTHENTICATION_ERROR', code: 'INSUFFICIENT_SCOPES', detail: 'The merchant has not granted ORDERS_READ' }] }, 403)
+        const q = body() as { query: { filter: { date_time_filter: { closed_at: { start_at: string; end_at: string } } } } }
+        const { start_at, end_at } = q.query.filter.date_time_filter.closed_at
+        return json({ orders: this.square.orders.filter(o => o.closed_at >= start_at && o.closed_at < end_at) })
       }
     }
 

@@ -402,6 +402,7 @@ export function createSupabaseApi(url: string, key: string): Api {
     },
     async chooseFacebookPage(pageId) { await worker('/api/integrations/facebook/page', { method: 'POST', body: JSON.stringify({ page_id: pageId }) }) },
     sales: (from, to) => worker(`/api/integrations/payments/sales?from=${from}&to=${to}`),
+    salesItems: (from, to) => worker(`/api/integrations/payments/items?from=${from}&to=${to}`),
     async socialPosts() {
       return check(await sb.from('social_posts').select('id, kind, caption, image_url, media, targets, scheduled_at, auto, status, results, created_at, published_at')
         .order('scheduled_at', { ascending: false, nullsFirst: true }).order('created_at', { ascending: false }).limit(200)) as SocialPost[]

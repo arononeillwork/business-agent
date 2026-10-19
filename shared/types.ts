@@ -384,7 +384,18 @@ export interface SocialPost {
 }
 
 /** Takings from the payment system (Square), per day in the business's time zone. */
-export interface Sales { /** Which payment system the takings come from. */ provider?: 'square' | 'stripe'; currency: string; days: { date: string; gross: number; tips: number; refunds: number; payments: number }[] }
+/** How a payment was paid: card, cash, a phone wallet (Apple Pay, Google Pay) or anything else (gift card, bank, external). */
+export type PayMethod = 'card' | 'cash' | 'wallet' | 'other'
+/**
+ * One local day of takings. `gross` excludes tips. `hours` (24 values, sales by local hour) and
+ * `methods` (sales by how people paid) come from Square; Stripe sends hours only.
+ */
+export interface SalesDay { date: string; gross: number; tips: number; refunds: number; payments: number; hours?: number[]; methods?: Partial<Record<PayMethod, number>> }
+export interface Sales { /** Which payment system the takings come from. */ provider?: 'square' | 'stripe'; currency: string; days: SalesDay[] }
+/** One item on the Sales page's best sellers (Square orders): units sold and their sales before discounts. */
+export interface SalesItem { name: string; quantity: number; gross: number }
+/** Best sellers, or why there are none: Stripe has no items, or Square was connected before items were asked for. */
+export interface SalesItems { items: SalesItem[] | null; reason?: 'stripe' | 'reconnect' }
 
 /** To Do List: a category the admins manage (jobs are grouped by these). */
 export interface TodoCategory { id: string; name: string; hint: string | null; colour: string; sort: number }
