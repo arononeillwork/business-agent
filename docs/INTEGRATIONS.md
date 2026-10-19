@@ -306,6 +306,18 @@ own Square account with one click):
 5. Redeploy (push to `main`, or re-run the Deploy workflow). The deploy passes the secrets to the
    Worker; until it has them, "Connect Square" says the keys are missing.
 
+**Customers straight away (optional, once):** without this, new Square customers come in within
+the hour; with it, within seconds.
+
+- Square Developer Console → your app → **Webhooks → Subscriptions** → **Add subscription**
+  (pick the same Production or Sandbox as above). Name it "Customers", URL
+  `https://business-agent.arononeillwork.workers.dev/api/webhooks/square`, events
+  **customer.created** and **customer.updated** → Save.
+- Open the subscription and copy its **Signature key** → GitHub repo secret
+  `SQUARE_WEBHOOK_SIGNATURE_KEY` → redeploy. Use **Send test event** to check: the subscription's
+  log should show `200`. (A different URL in Square needs `SQUARE_WEBHOOK_URL` set to exactly that
+  URL: the signature covers it.)
+
 **Each business:**
 
 6. In the app: **Connections → Payments and sales → Connect Square**, sign in with the Square
@@ -331,8 +343,9 @@ What shows where (admins who can see pay only; Pro plan and up):
   Excel/CSV/PDF export. Days run midnight to midnight, Madrid time.
 - **Accounts → Finances**: takings today, this week, last week and the last 30 days, and team cost
   this week as a share of takings.
-- **Business → Customers**: everyone in Square's customer directory (Square → Customers), brought in
-  straight after connecting and then every hour (people added or changed since). Each is a
+- **Sales → Customers**: everyone in Square's customer directory (Square → Customers), brought in
+  straight after connecting, then within seconds of being added or changed in Square (with the
+  webhook above), and every hour as a safety net (people added or changed since). Each is a
   *Customer* with source **Square** (a "Square" tag in the list, and "Square" in the source filter).
   Someone already on the list with the same email or phone is linked instead of added twice, and
   keeps where they came from; Square only fills fields that are empty in the app, so edits made here

@@ -1,5 +1,6 @@
 // Square's customer directory comes into Customers by itself: right after Square is connected,
-// then every hour (only the people added or changed since). Each one is a customer with
+// straight away when someone is added or changed in Square (its customer webhook), and every hour
+// as a safety net (only the people added or changed since). Each one is a customer with
 // source "square", linked by Square's id so they're never added twice. Someone already on the list
 // (same email or phone) is linked rather than added again, and keeps where they came from. What's
 // typed in the app wins: Square only fills fields that are empty here. Nobody is opted in to
@@ -77,22 +78,39 @@ export async function syncSquareCustomers(env: Env, db: SupabaseClient, full = f
     if (e instanceof square.SquareError && e.code === 'INSUFFICIENT_SCOPES') return 'reconnect'
     throw e
   }
-  const incoming = found.map(fromSquare).filter((c): c is Incoming => !!c)
-  let added = 0
-  if (incoming.length) {
-    const { data: existing, error } = await db.from('customers').select('id, square_id, first_name, last_name, email, phone, company, birthday, notes')
-    if (error) throw new Error(error.message)
-    const { add, fill } = plan(incoming, (existing ?? []) as Row[])
-    for (let i = 0; i < add.length; i += 500) {
-      const { error: e } = await db.from('customers').insert(add.slice(i, i + 500), { defaultToNull: false })
-      if (e) throw new Error(e.message)
-    }
-    for (const f of fill) {
-      const { error: e } = await db.from('customers').update(f.patch).eq('id', f.id)
-      if (e) throw new Error(e.message)
-    }
-    added = add.length
-  }
+  const added = await save(db, found.map(fromSquare).filter((c): c is Incoming => !!c))
   await setIntegration(db, 'square', { last_sync_at: started.toISOString() })
   return added
+}
+
+/** Add the new people and fill the gaps of those already here. Returns how many were added. */
+async function save(db: SupabaseClient, incoming: Incoming[]) {
+  if (!incoming.length) return 0
+  const { data: existing, error } = await db.from('customers').select('id, square_id, first_name, last_name, email, phone, company, birthday, notes')
+  if (error) throw new Error(error.message)
+  const { add, fill } = plan(incoming, (existing ?? []) as Row[])
+  for (let i = 0; i < add.length; i += 500) {
+    const { error: e } = await db.from('customers').insert(add.slice(i, i + 500), { defaultToNull: false })
+    if (e) throw new Error(e.message)
+  }
+  for (const f of fill) {
+    const { error: e } = await db.from('customers').update(f.patch).eq('id', f.id)
+    if (e) throw new Error(e.message)
+  }
+  return add.length
+}
+
+/**
+ * One customer.created or customer.updated webhook: that person, straight into Customers. Only
+ * for the Square account this business connected (Square sends every connected seller's events
+ * to the one app). Returns whether someone was added.
+ */
+export async function squareCustomerEvent(db: SupabaseClient, event: square.SquareCustomerEvent) {
+  if (event.type !== 'customer.created' && event.type !== 'customer.updated') return false
+  const customer = event.data?.object?.customer
+  if (!customer?.id) return false
+  const { data: row } = await db.from('integrations').select('status, external').eq('provider', 'square').single()
+  if (row?.status !== 'connected' || (row.external as { merchant_id?: string } | null)?.merchant_id !== event.merchant_id) return false
+  const one = fromSquare(customer)
+  return one ? (await save(db, [one])) > 0 : false
 }

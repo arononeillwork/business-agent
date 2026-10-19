@@ -16,7 +16,7 @@ import * as youtube from './providers/youtube'
 import * as facebook from './providers/facebook'
 import * as tiktok from './providers/tiktok'
 import * as square from './providers/square'
-import { syncSquareCustomers } from './squareCustomers'
+import { squareCustomerEvent, syncSquareCustomers } from './squareCustomers'
 import * as stripe from './providers/stripe'
 import * as sumup from './providers/sumup'
 import * as linkedin from './providers/linkedin'
@@ -30,7 +30,7 @@ import { checkMentions, decide, repostMention } from './mentions'
 import * as waInbox from './whatsappInbox'
 import { MediaError, checkFile, mediaBytes, mediaStorage, serveMedia, storeMedia } from './media'
 import {
-  CONNECTORS, PROVIDERS, ROW_COLUMNS, SCOPES, calendarSeen, calendarFetched, checkAll, checkOne, connectedOf, connectorConfigured,
+  CONNECTORS, PROVIDERS, ROW_COLUMNS, SCOPES, squareWebhookUrl, calendarSeen, calendarFetched, checkAll, checkOne, connectedOf, connectorConfigured,
   connectorGrant, explain, facebookOAuth, facebookSession, googleConfig, googleSession, instagramOAuth, instagramSession, isCalendarApp, isGoogle,
   lasting, linkedinOAuth, linkedinSession, markBroken, msConfig, proveFacebook, proveInstagram, proveLinkedIn, proveNew, proveSpotify, proveSquare, proveStripe,
   proveSumUp, proveTikTok, setIntegration, showInstagramHandle, showMailboxAddress, spotifyConfig, spotifySession, squareOAuth, squareSession, stripeOAuth,
@@ -1296,6 +1296,20 @@ integrations.get('/media/*', async c => {
   const obj = await c.env.MEDIA?.get(c.req.path.slice('/media/'.length))
   if (!obj) return c.notFound()
   return new Response(obj.body, { headers: { 'content-type': obj.httpMetadata?.contentType ?? 'image/jpeg', 'cache-control': 'public, max-age=31536000, immutable' } })
+})
+
+// Square webhook: a customer added or changed in Square comes into Customers straight away.
+// Signed with the subscription's signature key over the notification URL as registered in Square.
+integrations.post('/api/webhooks/square', async c => {
+  const raw = await c.req.text()
+  const key = c.env.SQUARE_WEBHOOK_SIGNATURE_KEY
+  if (!key || !(await square.verifyWebhook(key, squareWebhookUrl(c.env), raw, c.req.header('x-square-hmacsha256-signature')))) {
+    return c.text('Invalid signature', 401)
+  }
+  const event = JSON.parse(raw) as square.SquareCustomerEvent
+  // Answer Square at once (it retries anything slow); the customer is saved just after.
+  c.executionCtx.waitUntil(squareCustomerEvent(serviceClient(c.env), event).catch(e => console.error('square customer webhook failed', e)))
+  return c.text('ok')
 })
 
 // WhatsApp webhook: verification handshake, delivery receipts and replies (STOP opts out).

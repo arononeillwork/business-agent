@@ -87,7 +87,7 @@ export function BarChart({ points, format, axisFormat = format, label, current, 
             <Typography variant="caption" sx={{ color: 'text.secondary' }}>{current}</Typography>
           </Stack>
           <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
-            <Box sx={{ width: 14, height: 2, borderRadius: 1, bgcolor: tokens.inkFaint }} />
+            <Box sx={{ width: 14, height: 0, borderTop: `2px dashed ${tokens.inkSoft}` }} />
             <Typography variant="caption" sx={{ color: 'text.secondary' }}>{previous}</Typography>
           </Stack>
         </Stack>
@@ -108,12 +108,12 @@ export function BarChart({ points, format, axisFormat = format, label, current, 
               const x0 = cx(i) - barW / 2, y0 = y(p.value)
               // Rounded at the top only: the bar stands on the baseline.
               const d = h <= 0 ? '' : `M${x0},${y(0)}V${y0 + r}Q${x0},${y0} ${x0 + r},${y0}H${x0 + barW - r}Q${x0 + barW},${y0} ${x0 + barW},${y0 + r}V${y(0)}Z`
-              return d ? <path key={i} d={d} fill={tokens.chart} fillOpacity={hover === null || hover === i ? 1 : 0.45} /> : null
+              return d ? <path key={i} d={d} fill={hover === i ? tokens.chartHover : tokens.chart} fillOpacity={hover === null || hover === i ? 1 : 0.6} /> : null
             })}
             {compare && (
               <g pointerEvents="none">
-                <path d={prevPath} fill="none" stroke={tokens.inkFaint} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
-                {n <= 31 && points.map((p, i) => <circle key={i} cx={cx(i)} cy={y(p.prev ?? 0)} r={hover === i ? 4.5 : 2.5} fill={tokens.inkFaint} stroke={tokens.surface} strokeWidth={1.5} />)}
+                <path d={prevPath} fill="none" stroke={tokens.inkSoft} strokeWidth={1.75} strokeLinejoin="round" strokeLinecap="round" strokeDasharray="4 3" />
+                {n <= 31 && points.map((p, i) => <circle key={i} cx={cx(i)} cy={y(p.prev ?? 0)} r={hover === i ? 4.5 : 2.5} fill={tokens.inkSoft} stroke={tokens.surface} strokeWidth={1.5} />)}
               </g>
             )}
             {points.map((p, i) => (i % tickEvery === 0 ? (
@@ -133,7 +133,7 @@ export function BarChart({ points, format, axisFormat = format, label, current, 
             </Stack>
             {at.prev !== undefined && (
               <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                <Box sx={{ width: 10, height: 2, borderRadius: 1, bgcolor: tokens.inkFaint, flexShrink: 0 }} />
+                <Box sx={{ width: 10, height: 0, borderTop: `2px dashed ${tokens.inkSoft}`, flexShrink: 0 }} />
                 <Typography variant="body2" sx={{ color: 'text.secondary', fontVariantNumeric: 'tabular-nums' }}>{format(at.prev)}{previous ? ` ${previous.toLowerCase()}` : ''}</Typography>
               </Stack>
             )}
