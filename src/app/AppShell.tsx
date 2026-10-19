@@ -94,11 +94,15 @@ const MINI = 76
 /** Per-page counts shown in the menu (today just Messages: chats waiting on a reply). */
 type NavBadges = Record<string, number>
 
-/** A small count that blends into the menu row (`dark`: the row is selected, so it sits on rose). */
+/**
+ * A small count that blends into the menu row (`dark`: the row is selected, so it sits on rose).
+ * Hidden from the accessibility tree so the link keeps its plain name ("Messages", not
+ * "Messages 3 waiting") for assistive tech and the live tests alike.
+ */
 function NavCount({ n, dark }: { n?: number; dark?: boolean }) {
   if (!n) return null
   return (
-    <Box component="span" aria-label={`${n} waiting`} sx={{ ml: 1, minWidth: 20, height: 20, px: 0.6, borderRadius: '10px',
+    <Box component="span" aria-hidden sx={{ ml: 1, minWidth: 20, height: 20, px: 0.6, borderRadius: '10px',
       display: 'inline-grid', placeItems: 'center', flexShrink: 0, fontSize: '0.7rem', fontWeight: 700, lineHeight: 1,
       bgcolor: dark ? 'rgba(43,37,34,0.16)' : tokens.rose, color: '#2B2522' }}>
       {n > 99 ? '99+' : n}
@@ -106,10 +110,10 @@ function NavCount({ n, dark }: { n?: number; dark?: boolean }) {
   )
 }
 
-/** The same count on an icon, for the icons-only sidebar and the phone tabs. */
+/** The same count on an icon, for the icons-only sidebar and the phone tabs (visual only). */
 function IconCount({ n, children }: { n?: number; children: ReactNode }) {
   return (
-    <Badge badgeContent={n ?? 0} max={99} overlap="circular"
+    <Badge badgeContent={n ?? 0} max={99} overlap="circular" slotProps={{ badge: { 'aria-hidden': true } }}
       sx={{ '& .MuiBadge-badge': { bgcolor: tokens.rose, color: '#2B2522', fontWeight: 700, fontSize: '0.65rem', minWidth: 16, height: 16 } }}>
       {children}
     </Badge>
