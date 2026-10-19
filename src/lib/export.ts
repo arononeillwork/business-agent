@@ -11,6 +11,8 @@ export interface ExportTable {
   rows: Cell[][]
   /** A last row in bold (totals). */
   footer?: Cell[]
+  /** Columns (by position) holding money: the PDF shows them with the currency. */
+  money?: number[]
 }
 
 const text = (c: Cell) => (c === null || c === undefined ? '' : String(c))
@@ -48,9 +50,10 @@ export async function copyTsv(t: ExportTable) {
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
 /** Opens the browser's print dialog on a clean copy of the table; "Save as PDF" makes the file. */
-export function printPdf(t: ExportTable, money?: (n: number) => string) {
-  const cell = (c: Cell, tag: 'td' | 'th') =>
-    `<${tag}${typeof c === 'number' ? ' class="n"' : ''}>${esc(typeof c === 'number' && money ? money(c) : text(c))}</${tag}>`
+export function printPdf(t: ExportTable, money: (n: number) => string = n => n.toFixed(2)) {
+  const num = (c: number, i: number) => (t.money?.includes(i) ? money(c) : c.toLocaleString(undefined, { maximumFractionDigits: 2 }))
+  const cell = (c: Cell, tag: 'td' | 'th', i: number) =>
+    `<${tag}${typeof c === 'number' ? ' class="n"' : ''}>${esc(typeof c === 'number' ? num(c, i) : text(c))}</${tag}>`
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(t.title)}</title><style>
     body{font:12px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#2b2522;margin:24px}
     h1{font-size:18px;margin:0 0 4px}p{color:#6b625d;margin:0 0 16px}
@@ -58,9 +61,9 @@ export function printPdf(t: ExportTable, money?: (n: number) => string) {
     th{font-weight:600;background:#f6f2ef}.n{text-align:right;font-variant-numeric:tabular-nums}tfoot td{font-weight:600;border-top:2px solid #2b2522}
     @page{margin:14mm}</style></head><body>
     <h1>${esc(t.title)}</h1><p>${esc(new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' }))}</p>
-    <table><thead><tr>${t.columns.map(c => cell(c, 'th')).join('')}</tr></thead>
-    <tbody>${t.rows.map(r => `<tr>${r.map(c => cell(c, 'td')).join('')}</tr>`).join('')}</tbody>
-    ${t.footer ? `<tfoot><tr>${t.footer.map(c => cell(c, 'td')).join('')}</tr></tfoot>` : ''}</table></body></html>`
+    <table><thead><tr>${t.columns.map((c, i) => cell(c, 'th', i)).join('')}</tr></thead>
+    <tbody>${t.rows.map(r => `<tr>${r.map((c, i) => cell(c, 'td', i)).join('')}</tr>`).join('')}</tbody>
+    ${t.footer ? `<tfoot><tr>${t.footer.map((c, i) => cell(c, 'td', i)).join('')}</tr></tfoot>` : ''}</table></body></html>`
   const frame = Object.assign(document.createElement('iframe'), { title: t.title })
   frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0'
   document.body.append(frame)

@@ -169,6 +169,23 @@ test.describe('admin', () => {
     await expect(page.getByRole('button', { name: 'Approved' })).toBeDisabled()
   })
 
+  test('exports the week as Excel or CSV, for the gestoría', async ({ page }) => {
+    await open(page, '/timecards')
+    await page.getByRole('button', { name: 'Export' }).click()
+    for (const f of ['Excel', 'CSV', 'PDF', 'Copy']) await expect(page.getByRole('menuitem', { name: new RegExp(f) })).toBeVisible()
+    const xlsx = page.waitForEvent('download')
+    await page.getByRole('menuitem', { name: /Excel/ }).click()
+    expect((await xlsx).suggestedFilename()).toBe('timecards-2026-09-28.xlsx')
+    await page.getByRole('button', { name: 'Export' }).click()
+    const csv = page.waitForEvent('download')
+    await page.getByRole('menuitem', { name: /CSV/ }).click()
+    const text = await (await csv).createReadStream().then(s => new Response(s as unknown as ReadableStream).text())
+    const lines = text.replace(/^\ufeff/, '').split('\r\n')
+    expect(lines[0]).toBe('"Employee";"Date";"Position";"Clock in";"Clock out";"Break (min)";"Paid hours";"Holiday";"Flags";"Approved";"Rate €/h";"Gross €"')
+    expect(lines[1]).toMatch(/^"[^"]+";"2026-09-28";/)
+    expect(lines.at(-1)).toMatch(/^"Total";/)
+  })
+
   test('edits a timecard only with a reason, and the change is logged', async ({ page }) => {
     await open(page, '/timecards')
     await page.getByRole('button', { name: 'Edit', exact: true }).first().click()
@@ -1484,6 +1501,30 @@ test('compare: Square against Pro and GoHighLevel against Business, line by line
   await expect(page.getByLabel('Savings')).toContainText('€488.28 a year')
 })
 
+test.describe('team export', () => {
+  test('team: admins export the list, sorted and filtered as shown', async ({ page }) => {
+    await open(page, '/team')
+    await page.getByRole('button', { name: 'Name' }).click()
+    await page.getByRole('button', { name: 'Name' }).click()
+    await page.getByRole('button', { name: 'Export' }).click()
+    const csv = page.waitForEvent('download')
+    await page.getByRole('menuitem', { name: /CSV/ }).click()
+    const download = await csv
+    expect(download.suggestedFilename()).toMatch(/^team-.*\.csv$/)
+    const lines = (await new Response((await download.createReadStream()) as unknown as ReadableStream).text()).replace(/^\ufeff/, '').split('\r\n')
+    expect(lines[0]).toBe('"Name";"Email";"Role";"Status";"Prefers";"Phone";"Hourly rate (€)"')
+    const names = lines.slice(1).map(l => l.split(';')[0].replace(/"/g, ''))
+    expect(names).toEqual([...names].sort((a, b) => b.localeCompare(a)))
+    expect(names).toContain('Maria')
+  })
+
+  test('employees don’t get the team export', async ({ page }) => {
+    await open(page, '/team', 'maria@example.com')
+    await expect(page.getByRole('heading', { name: 'Team' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Export' })).toHaveCount(0)
+  })
+})
+
 test.describe('billing', () => {
   test('on Free: paid pages show what they need, the trial of Business unlocks them', async ({ page }) => {
     await open(page, '/sports?plan=free')
@@ -1584,13 +1625,17 @@ test.describe('connections for email, files and music', () => {
 
     // No storage yet: no "Save to" on Timecards.
     await page.getByRole('link', { name: 'Timecards' }).first().click()
-    await expect(page.getByRole('button', { name: /Save to/ })).toHaveCount(0)
+    await page.getByRole('button', { name: 'Export' }).click()
+    await expect(page.getByRole('menuitem', { name: /Excel/ })).toBeVisible()
+    await expect(page.getByRole('menuitem', { name: /Save to/ })).toHaveCount(0)
+    await page.keyboard.press('Escape')
     await page.getByRole('link', { name: 'Connections' }).first().click()
     await page.getByRole('button', { name: 'Connect Google Drive' }).click()
     await expect(page.getByRole('region', { name: 'Files and storage' }).getByRole('article', { name: 'Google Drive' })).toContainText('Connected')
     await page.getByRole('link', { name: 'Timecards' }).first().click()
     const popup = page.waitForEvent('popup')
-    await page.getByRole('button', { name: 'Save to Drive' }).click()
+    await page.getByRole('button', { name: 'Export' }).click()
+    await page.getByRole('menuitem', { name: /Save to Drive/ }).click()
     await toast(page, 'Saved to Google Drive › Business Agent › Timecards')
     await popup // the saved file opens in a new tab
 

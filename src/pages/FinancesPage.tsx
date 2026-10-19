@@ -121,6 +121,7 @@ function Expenses({ list, total, canEdit, loaded }: { list: Expense[]; total: nu
     rows: rows.map(e => [e.name, e.category ?? '', e.notes ?? '', Number(e.amount), e.active ? 'Yes' : 'No',
       e.active && total > 0 ? `${Math.round(e.amount / total * 100)}%` : '']),
     footer: [active.length ? 'Total shown' : 'Total', '', '', shownTotal, '', ''],
+    money: [3],
   })
 
   const shown = editing ? drafts.filter(d => !d.removed) : rows

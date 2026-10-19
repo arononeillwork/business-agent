@@ -13,10 +13,11 @@ import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { PageHeader, PersonAvatar } from '../components/common'
-import { SortCell, useSort } from '../components/tables'
+import { ExportButton, SortCell, useSort } from '../components/tables'
+import type { ExportTable } from '../lib/export'
 import type { ContactMethod, Profile } from '../../shared/types'
 import { howReached } from '../../shared/reach'
-import { currencySymbol, formatMoney } from '../../shared/time'
+import { currencySymbol, formatMoney, today } from '../../shared/time'
 import { FEATURES } from '../app/features'
 import { ContactMethodField, contactMethod } from '../components/ContactMethod'
 import { tokens } from '../theme'
@@ -50,6 +51,15 @@ export function TeamPage() {
     name: p => p.full_name, role: p => p.role, status: p => (p.active ? 0 : 1), phone: p => p.phone,
     rate: p => (rates.has(p.id) ? rates.get(p.id)! : null),
   }, undefined, ['rate'])
+  const table = (): ExportTable => ({
+    title: filter === 'all' ? 'Team' : `Team: ${FILTERS.find(f => f.key === filter)!.label}`,
+    filename: `team-${today()}`,
+    columns: ['Name', 'Email', 'Role', ...(isAdmin ? ['Status', 'Prefers', 'Phone'] : []), ...(canSeePay ? [`Hourly rate (${currencySymbol()})`] : [])],
+    rows: rows.map(p => [p.full_name, p.email ?? '', p.role === 'admin' ? 'Admin' : 'Employee',
+      ...(isAdmin ? [p.active ? 'Active' : 'Switched off', contactMethod(p.contact_method)?.label ?? '', p.phone ?? ''] : []),
+      ...(canSeePay ? [rates.has(p.id) ? rates.get(p.id)! : null] : [])]),
+    money: canSeePay ? [isAdmin ? 6 : 3] : [],
+  })
   const selected = people.find(p => p.id === open) ?? null
   const cell = { py: 1.25, borderColor: tokens.line } as const
   const integ = useReachData(isAdmin)
@@ -62,6 +72,7 @@ export function TeamPage() {
       <Stack direction="row" sx={{ gap: 1, alignItems: 'center', flexWrap: 'wrap', mb: 1.5, pb: 1.5, borderBottom: `1px solid ${tokens.line}` }}>
         {isAdmin && <Button variant="contained" startIcon={<PersonAddIcon />} onClick={() => setInviting(true)}>Invite</Button>}
         <Button startIcon={<RefreshIcon />} onClick={() => refresh()}>Refresh</Button>
+        {isAdmin && <ExportButton table={table} disabled={!rows.length} folder="Team" />}
         <Box sx={{ flex: 1 }} />
         <TextField size="small" placeholder="Search by name or email" value={q} onChange={e => setQ(e.target.value)} sx={{ width: { xs: '100%', sm: 280 } }}
           slotProps={{ htmlInput: { 'aria-label': 'Search the team' }, input: { startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> } }} />
