@@ -26,17 +26,20 @@ import { tokens } from '../theme'
 
 const CHANNEL: Record<string, string> = { whatsapp: 'WhatsApp', slack: 'Slack', sms: msg('Text message') }
 
+/** One detail: the icon says what it is (its name shows on hover and is read out by screen readers). */
 function InfoRow({ icon, label, children }: { icon: ReactNode; label: string; children: ReactNode }) {
   return (
     <Stack direction="row" spacing={1.5} sx={{ py: 1.25, borderBottom: 1, borderColor: 'divider', '&:last-of-type': { borderBottom: 0 } }}>
-      <Box sx={{ color: tokens.inkFaint, pt: 0.25, display: 'flex' }}>{icon}</Box>
+      <Box title={label} sx={{ color: tokens.inkFaint, pt: 0.25, display: 'flex' }}>{icon}</Box>
       <Box sx={{ minWidth: 0 }}>
-        <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>{label}</Typography>
+        <Box component="span" sx={visuallyHidden}>{label}: </Box>
         <Box sx={{ fontWeight: 500, wordBreak: 'break-word' }}>{children}</Box>
       </Box>
     </Stack>
   )
 }
+
+const visuallyHidden = { position: 'absolute', width: '1px', height: '1px', p: 0, m: '-1px', overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap', border: 0 } as const
 
 /** A quiet note after a value ("· connected"). */
 const Aside = ({ children }: { children: ReactNode }) => (
