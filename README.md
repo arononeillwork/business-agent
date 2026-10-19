@@ -17,9 +17,11 @@ built-in **AI connector** so owners can run it by talking to Claude.
 - Partners: outside businesses (gestoría, suppliers) get a read-only login to the areas an admin
   picks (rota, payroll, finances, calendar). Enforced by database row security and in the AI tools.
 - Sports: the next 3 weeks of football (Spanish, English, Scottish, Dutch and other leagues, cups,
-  European nights, national teams), UFC and boxing, with "big nights" flagged. The Worker refreshes
+  European nights, national teams), rugby (Six Nations, Premiership, Champions Cup and more), UFC and
+  boxing, with "big nights" flagged. The Worker refreshes
   each followed competition every 6 hours from free sources (fixturedownload.com, TheSportsDB,
-  Wikipedia's UFC schedule); no keys needed. Admins pick competitions on the Sports page.
+  Wikipedia's UFC schedule); no keys of our own (TheSportsDB's free test key "123"). Admins pick
+  competitions on the Sports page.
 - Social planner: write a post once and schedule it to Instagram, Facebook, TikTok, LinkedIn and Google
   Maps; each network's result links to the live post. Stripe, Square or SumUp connects as the till: the Accounts
   section has **Sales** (a Square-style dashboard: sales against the period before, busiest hours and

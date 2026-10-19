@@ -60,6 +60,10 @@ describe('big nights', () => {
     expect(isBigEvent({ sport: 'football', title: '', home: 'England', away: 'Latvia', round: '1' }, { kind: 'national', code: 'x' })).toBe(true)
     expect(isBigEvent({ sport: 'ufc', title: 'UFC 334: Gane vs. Hokit', home: null, away: null, round: null }, { kind: 'fight', code: 'ufc' })).toBe(true)
     expect(isBigEvent({ sport: 'ufc', title: 'UFC Fight Night: Allen vs. Duncan', home: null, away: null, round: null }, { kind: 'fight', code: 'ufc' })).toBe(false)
+    // Rugby: the home nations' tests are big; club rugby only for the knock-outs.
+    expect(isBigEvent({ sport: 'rugby', title: '', home: 'Ireland', away: 'England', round: '1' }, { kind: 'national', code: 'rugby-six-nations' })).toBe(true)
+    expect(isBigEvent({ sport: 'rugby', title: '', home: 'Gloucester', away: 'Bath Rugby', round: '4' }, { kind: 'league', code: 'rugby-premiership' })).toBe(false)
+    expect(isBigEvent({ sport: 'rugby', title: '', home: 'Leinster', away: 'Toulouse', round: 'Final' }, { kind: 'cup', code: 'rugby-champions-cup' })).toBe(true)
   })
 })
 

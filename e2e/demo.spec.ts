@@ -799,7 +799,7 @@ test('a message never covers the buttons it is about', async ({ page }) => {
 })
 
 test.describe('sports', () => {
-  test('staff see the next three weeks by day, with big nights, filters and times to be confirmed', async ({ page }) => {
+  test('staff see the next three weeks by day, with big nights, a sport at a time and times to be confirmed', async ({ page }) => {
     await open(page, '/sports', 'maria@example.com')
     await expect(page.getByRole('heading', { name: 'Sports' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Competitions' })).toHaveCount(0) // admins choose
@@ -811,15 +811,36 @@ test.describe('sports', () => {
     await expect(clasico.getByText('Matchday 10')).toBeVisible()
     await expect(page.getByRole('article', { name: /Time to be confirmed UFC 322/ }).getByText('TBC')).toBeVisible()
 
-    await page.getByRole('button', { name: 'UFC', exact: true }).click()
+    // One row of sports; no "Big nights" filter (big nights are marked on the games themselves).
+    const sport = page.getByRole('group', { name: 'Sport' })
+    await expect(sport.getByRole('button')).toHaveText(['All', 'Football', 'Rugby', 'UFC', 'Boxing'])
+    await expect(page.getByRole('button', { name: 'Big nights' })).toHaveCount(0)
+    await sport.getByRole('button', { name: 'UFC', exact: true }).click()
     await expect(page.getByText('UFC 322: Makhachev vs Topuria')).toBeVisible()
     await expect(page.getByText('Barcelona')).toHaveCount(0)
-    await page.getByRole('button', { name: 'National teams' }).click()
-    await expect(page.getByText('Spain', { exact: true })).toBeVisible()
-    await expect(page.getByText('UFC 322: Makhachev vs Topuria')).toHaveCount(0)
-    await page.getByRole('button', { name: 'Big nights' }).click()
-    await expect(page.getByText('Villarreal')).toHaveCount(0)
-    await expect(page.getByRole('article', { name: /Atlético Madrid vs Real Madrid/ })).toBeVisible()
+    await expect(page.getByRole('group', { name: 'Which football' })).toHaveCount(0)
+  })
+
+  test('rugby has its own chip; football narrows to national teams or a country in a second row', async ({ page }) => {
+    await open(page, '/sports', 'maria@example.com')
+    const sport = page.getByRole('group', { name: 'Sport' })
+    await sport.getByRole('button', { name: 'Rugby' }).click()
+    await expect(page.getByRole('article', { name: /Ireland vs England/ })).toContainText('Six Nations')
+    await expect(page.getByRole('article', { name: /Leinster vs Toulouse/ })).toBeVisible()
+    await expect(page.getByRole('article', { name: /Real Betis/ })).toHaveCount(0)
+    await expect(page.getByRole('article', { name: /Ireland vs England/ }).getByText('Big night')).toBeVisible()
+
+    await sport.getByRole('button', { name: 'Football' }).click()
+    const which = page.getByRole('group', { name: 'Which football' })
+    await expect(which.getByRole('button')).toHaveText(['All football', 'National teams', 'Spain', 'England', 'Netherlands', 'Europe'])
+    await which.getByRole('button', { name: 'National teams' }).click()
+    await expect(page.getByRole('article', { name: /Spain vs Netherlands/ })).toBeVisible()
+    await expect(page.getByRole('article', { name: /Real Betis/ })).toHaveCount(0)
+    await which.getByRole('button', { name: 'Spain' }).click()
+    await expect(page.getByRole('article', { name: /Real Betis vs Sevilla/ })).toBeVisible()
+    await expect(page.getByRole('article', { name: /Arsenal/ })).toHaveCount(0)
+    await expect(page.getByRole('article', { name: /Spain vs Netherlands/ })).toHaveCount(0)
+    await expect(page.getByRole('article', { name: /Leinster/ })).toHaveCount(0)
   })
 
   test('admin stops following a competition and refreshes', async ({ page }) => {
@@ -1374,23 +1395,32 @@ test.describe('top bar', () => {
   })
 })
 
-test('each person stars teams and sees them in Favourites', async ({ page }) => {
+test('each person stars teams; the Favourites button opens them and can show only their games', async ({ page }) => {
   await open(page, '/sports', 'maria@example.com')
-  const favourites = page.getByRole('region', { name: 'Favourites' })
+  // The matches are the page: favourites wait behind a button with a count.
+  await expect(page.getByRole('region', { name: 'Favourites' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Favourites (0)' }).click()
+  let favourites = page.getByRole('dialog', { name: 'Favourites' })
   await expect(favourites).toContainText('Tap the ☆')
+  await favourites.getByRole('button', { name: 'Close' }).click()
   await page.getByRole('button', { name: 'Add Arsenal to favourites' }).first().click()
   await toast(page, 'Arsenal added to favourites')
-  await expect(favourites.getByRole('button', { name: /Arsenal/ })).toBeVisible()
-  await expect(favourites.getByRole('listitem', { name: 'Arsenal' })).toBeVisible()
-  await expect(favourites).not.toContainText('Nothing on for your favourites')
   await expect(page.getByRole('article').getByRole('button', { name: 'Remove Arsenal from favourites' }).first()).toHaveAttribute('aria-pressed', 'true')
-  await page.getByRole('button', { name: '★ Favourites' }).click()
+  await page.getByRole('button', { name: 'Favourites (1)' }).click()
+  favourites = page.getByRole('dialog', { name: 'Favourites' })
+  await expect(favourites.getByRole('listitem', { name: 'Arsenal' })).toBeVisible()
+  await favourites.getByRole('button', { name: /Show only their games/ }).click()
+  await expect(page.getByRole('button', { name: 'Favourites (1)' })).toHaveAttribute('aria-pressed', 'true')
   for (const card of await page.getByRole('article').all()) await expect(card).toContainText('Arsenal')
+  await page.getByRole('button', { name: 'Favourites (1)' }).click()
+  await page.getByRole('dialog', { name: 'Favourites' }).getByRole('button', { name: 'Show all games' }).click()
+  await expect(page.getByRole('article', { name: /Real Betis vs Sevilla/ })).toBeVisible()
   // Favourites are personal: Aron has his own.
   await signInAs(page, 'aron@example.com')
   await page.getByRole('link', { name: 'Sports' }).first().click()
-  await expect(page.getByRole('region', { name: 'Favourites' })).toContainText('Real Betis')
-  await expect(page.getByRole('region', { name: 'Favourites' })).not.toContainText('Arsenal')
+  await page.getByRole('button', { name: /^Favourites \(\d+\)$/ }).click()
+  await expect(page.getByRole('dialog', { name: 'Favourites' })).toContainText('Real Betis')
+  await expect(page.getByRole('dialog', { name: 'Favourites' })).not.toContainText('Arsenal')
 })
 
 test('each person can tint the background with a brand colour', async ({ page }) => {

@@ -5,6 +5,7 @@ import {
 import RefreshIcon from '@mui/icons-material/Refresh'
 import TuneIcon from '@mui/icons-material/TuneOutlined'
 import FootballIcon from '@mui/icons-material/SportsSoccerOutlined'
+import RugbyIcon from '@mui/icons-material/SportsRugbyOutlined'
 import FightIcon from '@mui/icons-material/SportsMmaOutlined'
 import BoxingIcon from '@mui/icons-material/SportsKabaddiOutlined'
 import TvIcon from '@mui/icons-material/LiveTvOutlined'
@@ -25,14 +26,23 @@ import { msg, t } from '../i18n'
 
 const DAYS = 21
 
-type Filter = 'all' | Sport | 'big' | 'national' | 'fav'
-const FILTERS: { key: Filter; label: string }[] = [
-  { key: 'all', label: msg('All') }, { key: 'fav', label: msg('★ Favourites') }, { key: 'big', label: msg('Big nights') }, { key: 'football', label: msg('Football') },
-  { key: 'national', label: msg('National teams') }, { key: 'ufc', label: 'UFC' }, { key: 'boxing', label: msg('Boxing') },
-]
+/** The sport chips along the top (only sports with a followed competition show). */
+type SportFilter = 'all' | Sport
+const SPORT_ORDER: Sport[] = ['football', 'rugby', 'ufc', 'boxing']
+/** Football's second row: national teams, or one country's (or Europe's) competitions. */
+type Area = 'all' | 'national' | string
+
+// Region names as the catalogue has them, for the football row and the competitions list.
+const REGION: Record<string, string> = {
+  'National teams': msg('National teams'), Spain: msg('Spain'), England: msg('England'), Scotland: msg('Scotland'),
+  Netherlands: msg('Netherlands'), Germany: msg('Germany'), Italy: msg('Italy'), France: msg('France'), Portugal: msg('Portugal'),
+  Europe: msg('Europe'), Fights: msg('Fights'),
+}
+const regionName = (r: string) => (REGION[r] ? t(REGION[r]) : r)
 
 const SPORT: Record<Sport, { icon: ReactNode; fg: string; bg: string; label: string }> = {
   football: { icon: <FootballIcon fontSize="small" />, fg: tokens.matchaDeep, bg: tokens.matchaSoft, label: msg('Football') },
+  rugby: { icon: <RugbyIcon fontSize="small" />, fg: tokens.infoFg, bg: tokens.infoBg, label: msg('Rugby') },
   ufc: { icon: <FightIcon fontSize="small" />, fg: tokens.danger, bg: tokens.dangerSoft, label: 'UFC' },
   boxing: { icon: <BoxingIcon fontSize="small" />, fg: tokens.ubeDeep, bg: tokens.ubeSoft, label: msg('Boxing') },
 }
@@ -59,7 +69,7 @@ function SportsOff() {
         <CardContent>
           <Typography variant="h6" component="h2" sx={{ mb: 0.5 }}>{t('Sports is off')}</Typography>
           <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-            {t('Football, UFC and boxing fixtures, live scores and big nights on Today are hidden, and nothing is fetched.')}
+            {t('Football, rugby, UFC and boxing fixtures, live scores and big nights on Today are hidden, and nothing is fetched.')}
             {' '}{isAdmin ? t('Turn it back on with the switch above.') : t('An admin can turn it back on.')}
           </Typography>
         </CardContent>
@@ -87,7 +97,7 @@ function SportsSwitch({ on }: { on: boolean }) {
         <DialogTitle>{t('Turn on Sports?')}</DialogTitle>
         <DialogContent>
           <Typography variant="body2" sx={{ mb: 2 }}>
-            {t('Shows upcoming football, UFC and boxing with live scores, and big nights on Today, for the whole team. Fixtures update automatically every few hours.')}
+            {t('Shows upcoming football, rugby, UFC and boxing with live scores, and big nights on Today, for the whole team. Fixtures update automatically every few hours.')}
           </Typography>
           <Alert severity="warning">
             <AlertTitle>{t('On match days')}</AlertTitle>
@@ -103,11 +113,18 @@ function SportsSwitch({ on }: { on: boolean }) {
   )
 }
 
-/** Upcoming football (leagues, cups, national teams), UFC and boxing, refreshed automatically. */
+/**
+ * Upcoming football (leagues, cups, national teams), rugby, UFC and boxing, refreshed automatically.
+ * The matches are the page: a row of sports (and, for football, national teams or a country) above
+ * them, and favourites behind a star button.
+ */
 function Fixtures() {
   const { api, isAdmin } = useApp()
   const run = useAction()
-  const [filter, setFilter] = useState<Filter>('all')
+  const [sport, setSport] = useState<SportFilter>('all')
+  const [area, setArea] = useState<Area>('all')
+  const [favOnly, setFavOnly] = useState(false)
+  const [showFavs, setShowFavs] = useState(false)
   const [managing, setManaging] = useState(false)
   const from = today()
   const data = useAsync('sports', async () => {
@@ -131,14 +148,21 @@ function Fixtures() {
 
   const comps = useMemo(() => new Map((data.data?.competitions ?? []).map(c => [c.code, c])), [data.data])
   const followed = (data.data?.competitions ?? []).filter(c => c.followed)
+  const sports = SPORT_ORDER.filter(s => followed.some(c => c.sport === s))
+  // Football's areas, in catalogue order: national teams first, then each country, then Europe.
+  const football = followed.filter(c => c.sport === 'football').sort((a, b) => a.sort - b.sort)
+  const areas: Area[] = [
+    ...(football.some(c => c.kind === 'national') ? ['national'] : []),
+    ...new Set(football.filter(c => c.kind !== 'national').map(c => c.region)),
+  ]
+  const pickSport = (s: SportFilter) => { setSport(s); setArea('all') }
   const events = (data.data?.events ?? []).filter(e => {
     const c = comps.get(e.competition)
     if (!c?.followed) return false
-    if (filter === 'all') return true
-    if (filter === 'fav') return fav.has(e)
-    if (filter === 'big') return e.big
-    if (filter === 'national') return c.kind === 'national'
-    return e.sport === filter
+    if (favOnly && !fav.has(e)) return false
+    if (sport !== 'all' && e.sport !== sport) return false
+    if (sport === 'football' && area !== 'all') return area === 'national' ? c.kind === 'national' : c.kind !== 'national' && c.region === area
+    return true
   })
   const byDay = useMemo(() => {
     const m = new Map<string, SportsEvent[]>()
@@ -174,20 +198,38 @@ function Fixtures() {
 
       {nextBig && comps.get(nextBig.competition) && <NextBigNight e={nextBig} c={comps.get(nextBig.competition)!} />}
 
-      <Favourites favs={fav.list} upcoming={all.filter(fav.has)} comps={comps} events={data.data?.events ?? []}
-        onRemove={(f, name) => toggleFav(f, false, name)} onShowAll={() => setFilter('fav')} />
-
-      <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', mb: 2.5 }} role="group" aria-label={t('Show')}>
-        {FILTERS.map(f => (
-          <Chip key={f.key} label={t(f.label)} clickable onClick={() => setFilter(f.key)}
-            color={filter === f.key ? 'primary' : 'default'} variant={filter === f.key ? 'filled' : 'outlined'}
-            aria-pressed={filter === f.key} />
-        ))}
+      <Stack direction="row" sx={{ gap: 1, alignItems: 'center', mb: sport === 'football' && areas.length > 1 ? 1.25 : 2.5 }}>
+        <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', flex: 1, minWidth: 0 }} role="group" aria-label={t('Sport')}>
+          <Chip label={t('All')} clickable onClick={() => pickSport('all')} aria-pressed={sport === 'all'}
+            color={sport === 'all' ? 'primary' : 'default'} variant={sport === 'all' ? 'filled' : 'outlined'} />
+          {sports.map(s => (
+            <Chip key={s} label={t(SPORT[s].label)} clickable onClick={() => pickSport(s)} aria-pressed={sport === s}
+              icon={<Box component="span" sx={{ display: 'inline-flex', ml: 0.5, '& svg': { fontSize: 17 } }}>{SPORT[s].icon}</Box>}
+              color={sport === s ? 'primary' : 'default'} variant={sport === s ? 'filled' : 'outlined'} />
+          ))}
+        </Stack>
+        <Button variant={favOnly ? 'contained' : 'outlined'} color={favOnly ? 'warning' : 'inherit'} onClick={() => setShowFavs(true)}
+          aria-label={t('Favourites ({n})', { n: fav.list.length })} aria-pressed={favOnly}
+          startIcon={<StarIcon sx={{ color: favOnly ? undefined : tokens.warning }} />}
+          sx={{ flexShrink: 0, borderColor: tokens.line, ...(favOnly ? {} : { color: 'text.primary' }) }}>
+          <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' }, mr: 0.75 }}>{t('Favourites')}</Box>{fav.list.length}
+        </Button>
       </Stack>
+
+      {/* Football: national teams, or one country's (or Europe's) competitions; a quiet second row. */}
+      {sport === 'football' && areas.length > 1 && (
+        <Stack direction="row" sx={{ gap: 0.75, flexWrap: 'wrap', mb: 2.5 }} role="group" aria-label={t('Which football')}>
+          {(['all', ...areas] as Area[]).map(a => (
+            <Chip key={a} size="small" clickable onClick={() => setArea(a)} aria-pressed={area === a}
+              label={a === 'all' ? t('All football') : a === 'national' ? t('National teams') : regionName(a)}
+              sx={area === a ? { bgcolor: tokens.matchaSoft, color: tokens.matchaDeep, fontWeight: 500 } : { bgcolor: 'transparent', color: 'text.secondary' }} />
+          ))}
+        </Stack>
+      )}
 
       {data.data && byDay.length === 0 && (
         <Empty>{followed.length === 0 ? t('No competitions followed yet.')
-          : filter === 'fav' ? t('None of your favourites play in the next three weeks. Tap ☆ next to a team to add it.')
+          : favOnly ? t('None of your favourites play in the next three weeks. Tap ☆ next to a team to add it.')
           : t('Nothing scheduled in the next three weeks for this filter.')}
           {isAdmin && followed.length === 0 && <Box sx={{ mt: 1 }}><Button onClick={() => setManaging(true)}>{t('Choose competitions')}</Button></Box>}
         </Empty>
@@ -207,6 +249,11 @@ function Fixtures() {
         ))}
       </Stack>
 
+      {showFavs && (
+        <FavouritesDialog favs={fav.list} upcoming={all.filter(fav.has)} comps={comps} events={data.data?.events ?? []} favOnly={favOnly}
+          onRemove={(f, name) => toggleFav(f, false, name)} onClose={() => setShowFavs(false)}
+          onShowOnly={on => { setFavOnly(on); setShowFavs(false) }} />
+      )}
       {managing && <CompetitionsDialog competitions={data.data?.competitions ?? []} onClose={() => setManaging(false)} />}
     </>
   )
@@ -245,26 +292,22 @@ function Crest({ src, name }: { src: string | null; name: string | null }) {
   )
 }
 
-/** Your favourite teams and competitions as tiles, each with when it's next on. */
-function Favourites({ favs, upcoming, comps, events, onRemove, onShowAll }: {
-  favs: SportsFavourite[]; upcoming: SportsEvent[]; comps: Map<string, SportsCompetition>; events: SportsEvent[]
-  onRemove: (f: SportsFavourite, name: string) => void; onShowAll: () => void
+/** Your favourite teams and competitions, each with when it's next on; and the way to show only their games. */
+function FavouritesDialog({ favs, upcoming, comps, events, favOnly, onRemove, onClose, onShowOnly }: {
+  favs: SportsFavourite[]; upcoming: SportsEvent[]; comps: Map<string, SportsCompetition>; events: SportsEvent[]; favOnly: boolean
+  onRemove: (f: SportsFavourite, name: string) => void; onClose: () => void; onShowOnly: (on: boolean) => void
 }) {
   const badge = (team: string) => events.find(e => e.home === team)?.home_badge ?? events.find(e => e.away === team)?.away_badge ?? null
   const next = (f: SportsFavourite) => upcoming.find(e => (f.kind === 'competition' ? e.competition === f.ref : e.home === f.ref || e.away === f.ref))
   return (
-    <Card component="section" aria-label={t('Favourites')} sx={{ mb: 3 }}>
-      <Box sx={{ p: { xs: 2, md: 2.5 } }}>
-        <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
-          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-            <StarIcon sx={{ color: tokens.warning, fontSize: 20 }} />
-            <Typography variant="h6" component="h2">{t('Favourites')}</Typography>
-          </Stack>
-          {upcoming.length > 0 && <Button size="small" onClick={onShowAll}>{t('Their games ({n})', { n: upcoming.length })}</Button>}
-        </Stack>
+    <Dialog open onClose={onClose} fullWidth maxWidth="sm" aria-labelledby="favourites-title">
+      <DialogTitle id="favourites-title" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <StarIcon sx={{ color: tokens.warning }} />{t('Favourites')}
+      </DialogTitle>
+      <DialogContent>
         {favs.length === 0 ? (
           <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-            {t('Tap the ☆ next to any team or competition below to keep it here, with its next game. Only you see your favourites.')}
+            {t('Tap the ☆ next to any team or competition on the games to keep it here, with its next game. Only you see your favourites.')}
           </Typography>
         ) : (
           <Box component="ul" sx={{ m: 0, p: 0, listStyle: 'none', display: 'grid', gap: 1.25, gridTemplateColumns: 'repeat(auto-fill, minmax(min(300px, 100%), 1fr))' }}>
@@ -293,8 +336,14 @@ function Favourites({ favs, upcoming, comps, events, onRemove, onShowAll }: {
             })}
           </Box>
         )}
-      </Box>
-    </Card>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2.5 }}>
+        <Button onClick={onClose}>{t('Close')}</Button>
+        {favOnly
+          ? <Button variant="contained" onClick={() => onShowOnly(false)}>{t('Show all games')}</Button>
+          : <Button variant="contained" disabled={!favs.length} onClick={() => onShowOnly(true)}>{t('Show only their games ({n})', { n: upcoming.length })}</Button>}
+      </DialogActions>
+    </Dialog>
   )
 }
 
@@ -351,7 +400,7 @@ function EventCard({ e, c, fav, onFav }: { e: SportsEvent; c: SportsCompetition;
           </Typography>
           {e.time_tbc && e.status === 'scheduled' && (
             <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 0.25 }}>
-              {e.sport === 'football' ? t('kick-off') : t('start time')}
+              {e.sport === 'football' || e.sport === 'rugby' ? t('kick-off') : t('start time')}
             </Typography>
           )}
           {e.status !== 'scheduled' && (
@@ -366,6 +415,7 @@ function EventCard({ e, c, fav, onFav }: { e: SportsEvent; c: SportsCompetition;
           <Tag fg={s.fg} bg={s.bg}><Box component="span" sx={{ display: 'inline-flex', mr: 0.5, '& svg': { fontSize: 14 } }}>{s.icon}</Box>{c.name}</Tag>
           <Star on={compFav} name={c.name} size={16} onClick={() => onFav({ kind: 'competition', ref: c.code }, !compFav, c.name)} />
           {e.round && e.sport === 'football' && Number(e.round) < 60 && <Tag>{t('Matchday {n}', { n: e.round })}</Tag>}
+          {e.round && e.sport === 'rugby' && Number(e.round) < 60 && <Tag>{t('Round {n}', { n: e.round })}</Tag>}
           {e.big && <Tag fg={tokens.warnFg} bg={tokens.warnBg}>{t('Big night')}</Tag>}
         </Stack>
         {teams ? (
@@ -386,7 +436,7 @@ function EventCard({ e, c, fav, onFav }: { e: SportsEvent; c: SportsCompetition;
         )}
         {(e.venue || e.city) && (
           <Typography variant="caption" sx={{ color: 'text.secondary', display: 'flex', alignItems: 'center', gap: 0.5, mt: 1 }} noWrap>
-            <PlaceIcon sx={{ fontSize: 14 }} />{[e.venue, e.city, e.sport !== 'football' ? e.country : null].filter(Boolean).join(', ')}
+            <PlaceIcon sx={{ fontSize: 14 }} />{[e.venue, e.city, e.sport === 'ufc' || e.sport === 'boxing' ? e.country : null].filter(Boolean).join(', ')}
           </Typography>
         )}
       </Box>
@@ -405,7 +455,11 @@ function EventCard({ e, c, fav, onFav }: { e: SportsEvent; c: SportsCompetition;
 function CompetitionsDialog({ competitions, onClose }: { competitions: SportsCompetition[]; onClose: () => void }) {
   const { api } = useApp()
   const run = useAction()
-  const regions = [...new Set(competitions.map(c => c.region))]
+  // By sport, then by region (Spain, England, National teams…) within it; the fights together.
+  const groups = (['football', 'rugby'] as Sport[]).flatMap(s => [...new Set(competitions.filter(c => c.sport === s).map(c => c.region))]
+    .map(r => ({ key: `${s}:${r}`, title: `${t(SPORT[s].label)} · ${regionName(r)}`, list: competitions.filter(c => c.sport === s && c.region === r) })))
+  const fights = competitions.filter(c => c.kind === 'fight')
+  if (fights.length) groups.push({ key: 'fights', title: regionName('Fights'), list: fights })
   // Ticks change straight away; the saved list catches up in the background.
   const [on, setOn] = useState(() => new Set(competitions.filter(c => c.followed).map(c => c.code)))
   const toggle = (c: SportsCompetition, follow: boolean) => {
@@ -420,10 +474,10 @@ function CompetitionsDialog({ competitions, onClose }: { competitions: SportsCom
           {t('Fixtures for these appear on the Sports page and refresh every few hours.')}
         </Typography>
         <Box sx={{ display: 'grid', gap: 2.5 }}>
-          {regions.map(r => (
-            <Box key={r}>
-              <Typography variant="overline" sx={{ color: 'text.secondary' }}>{r}</Typography>
-              {competitions.filter(c => c.region === r).map(c => (
+          {groups.map(g => (
+            <Box key={g.key}>
+              <Typography variant="overline" sx={{ color: 'text.secondary' }}>{g.title}</Typography>
+              {g.list.map(c => (
                 <FormControlLabel key={c.code} sx={{ display: 'flex' }} label={c.name}
                   control={<Checkbox checked={on.has(c.code)} onChange={e => toggle(c, e.target.checked)} />} />
               ))}

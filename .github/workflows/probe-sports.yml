@@ -13,7 +13,7 @@ jobs:
       - shell: bash
         run: |
           set +e +o pipefail
-          B=https://www.thesportsdb.com/api/v1/json/3
+          B=https://www.thesportsdb.com/api/v1/json/123
           j() { curl -s -m 25 -A 'EasyBeans/1.0 (cafe app)' "$1"; sleep 2.2; }
           echo "=== fixturedownload slugs"
           for f in championship-2026 efl-championship-2026 europa-league-2026 conference-league-2026 scottish-premiership-2026 primeira-liga-2026 la-liga-2-2026 segunda-division-2026 laliga2-2026 nations-league-2026 uefa-nations-league-2026 fa-cup-2026 copa-del-rey-2026; do

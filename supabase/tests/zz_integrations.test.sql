@@ -609,3 +609,10 @@ do $$ begin
 end $$;
 update public.business set website = null where id = 1;
 reset role;
+
+-- Rugby joins the sports catalogue ---------------------------------------------------------------
+reset role;
+do $$ begin
+  assert (select count(*) from public.sports_competitions where sport = 'rugby') = 7, 'rugby competitions listed';
+  assert (select followed from public.sports_competitions where code = 'rugby-six-nations'), 'the Six Nations is followed';
+end $$;
