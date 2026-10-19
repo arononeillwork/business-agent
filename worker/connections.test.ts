@@ -670,6 +670,21 @@ describe('Facebook, TikTok and Square: one click, connected once they really wor
     expect(status('square')).toBe('connected')
   })
 
+  it('Square: connects from the workers.dev address too (Square comes back to the domain, then back to where they started)', async () => {
+    const WORKERS = 'https://business-agent.arononeillwork.workers.dev'
+    const start = await integrations.request(`${WORKERS}/api/integrations/square/start`, { method: 'POST', headers: as('admin'), body: '{}' }, env, ctx())
+    const auth = new URL((await start.json() as { url: string }).url)
+    expect(auth.searchParams.get('redirect_uri')).toBe('https://businesssagent.com/api/integrations/square/callback')
+    const res = await integrations.request(`https://businesssagent.com/api/integrations/square/callback?code=c&state=${encodeURIComponent(auth.searchParams.get('state')!)}`, {}, env, ctx())
+    expect(res.headers.get('location')).toBe(`${WORKERS}/connections?connected=square`)
+    expect(status('square')).toBe('connected')
+    // Started on the domain: stays on the domain.
+    const again = await integrations.request('https://businesssagent.com/api/integrations/square/start', { method: 'POST', headers: as('admin'), body: '{}' }, env, ctx())
+    const state = new URL((await again.json() as { url: string }).url).searchParams.get('state')!
+    const back = await integrations.request(`https://businesssagent.com/api/integrations/square/callback?error=access_denied&state=${encodeURIComponent(state)}`, {}, env, ctx())
+    expect(back.headers.get('location')).toMatch(/^https:\/\/businesssagent\.com\/connections\?connect_error=/)
+  })
+
   it('Square: takings only for admins with pay access; no location means not connected', async () => {
     await connectOwn('square')
     db.table('profiles').find(p => p.id === 'admin-1')!.can_see_pay = false

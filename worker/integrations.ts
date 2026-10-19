@@ -37,6 +37,8 @@ import {
 } from './connections'
 import type { Business, CalendarEvent, OpeningHours, PostKind, PostMedia, SpotifyPlaylist } from '../shared/types'
 import { today, zonedIso } from '../shared/time'
+import { LEGAL } from '../shared/legal'
+import { businessConfig } from '../shared/business.config'
 
 export { waConfig }
 
@@ -256,7 +258,7 @@ integrations.get('/api/integrations', async c => {
     facebook: !!facebookOAuth(c.env, ''),
     tiktok: !!tiktokOAuth(c.env, ''),
     linkedin: !!linkedinOAuth(c.env, ''),
-    square: !!squareOAuth(c.env, ''),
+    square: !!squareOAuth(c.env),
     stripe: !!stripeOAuth(c.env, ''),
     sumup: !!sumupOAuth(c.env, ''),
     spotify: !!spotifyConfig(c.env, ''),
@@ -720,9 +722,11 @@ const LINKEDIN_PAGES_REFUSED = 'LinkedIn hasn’t approved this app for company 
 async function appCallback(c: Context<{ Bindings: Env; Variables: { userId: string } }>, provider: Provider,
   finish: (state: { uid: string }, origin: string, db: SupabaseClient) => Promise<void>) {
   const origin = new URL(c.req.url).origin
-  let state: { uid: string; kind?: string; back?: string } | null = null
+  let state: { uid: string; kind?: string; back?: string; from?: string } | null = null
   try { state = await verifyState(c.env.INTEGRATION_KEY ?? '', c.req.query('state') ?? '') } catch { /* expired or forged */ }
-  const back = (q: string) => c.redirect(`${origin}/${state?.back === 'setup' ? 'setup' : 'connections'}?${q}`)
+  // Back to the address they connected from (Square always comes back to the main domain).
+  const home = state?.from && appOrigins(origin).includes(state.from) ? state.from : origin
+  const back = (q: string) => c.redirect(`${home}/${state?.back === 'setup' ? 'setup' : 'connections'}?${q}`)
   if (!state || state.kind !== provider) return back(`connect_error=${encodeURIComponent('That connection link expired. Try again.')}`)
   if (c.req.query('error')) {
     const cancelled = /access_denied|user_denied|user_cancelled|cancel/i.test(`${c.req.query('error')} ${c.req.query('error_reason') ?? ''}`)
@@ -743,8 +747,11 @@ async function appCallback(c: Context<{ Bindings: Env; Variables: { userId: stri
 
 const startState = async (c: Context<{ Bindings: Env; Variables: { userId: string } }>, kind: Provider) => {
   const { back } = await c.req.json<{ back?: 'setup' | 'connections' }>().catch(() => ({ back: undefined }))
-  return signState(c.env.INTEGRATION_KEY!, { uid: c.get('userId'), kind, back })
+  return signState(c.env.INTEGRATION_KEY!, { uid: c.get('userId'), kind, back, from: new URL(c.req.url).origin })
 }
+
+/** The app's own addresses, the only ones a connection sends people back to. */
+const appOrigins = (here: string) => [here, `https://${LEGAL.domain}`, `https://www.${LEGAL.domain}`, new URL(businessConfig.appUrl).origin]
 
 const keep = async (env: Env, db: SupabaseClient, provider: Provider, secret: unknown) => {
   const { error } = await db.from('integration_secrets').upsert({ provider, ciphertext: await seal(env.INTEGRATION_KEY!, secret), updated_at: new Date().toISOString() })
@@ -894,13 +901,13 @@ integrations.get('/api/integrations/search_console/report', async c => {
 
 // Square: sign in to the business's Square account (read-only).
 integrations.post('/api/integrations/square/start', async c => {
-  const cfg = squareOAuth(c.env, new URL(c.req.url).origin)
+  const cfg = squareOAuth(c.env)
   if (!cfg) return c.json({ error: 'Square needs the Square app keys first (SQUARE_APP_ID and SQUARE_APP_SECRET; see docs/INTEGRATIONS.md).' }, 400)
   return c.json({ url: square.authUrl(cfg, await startState(c, 'square')) })
 })
 
-integrations.get('/api/integrations/square/callback', c => appCallback(c, 'square', async (state, origin, db) => {
-  const cfg = squareOAuth(c.env, origin)
+integrations.get('/api/integrations/square/callback', c => appCallback(c, 'square', async (state, _origin, db) => {
+  const cfg = squareOAuth(c.env)
   if (!cfg) throw new Error('Square is not set up')
   const t = await square.exchangeCode(cfg, c.req.query('code') ?? '')
   if (!t.refresh_token) throw new Error('Square did not allow lasting access. Connect again.')

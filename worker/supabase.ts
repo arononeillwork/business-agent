@@ -32,6 +32,7 @@ export interface Env {
   SQUARE_APP_ID?: string              // Square app (OAuth): takings on the Finances page
   SQUARE_APP_SECRET?: string
   SQUARE_ENVIRONMENT?: string         // var: 'production' (default) or 'sandbox'
+  SQUARE_REDIRECT_URL?: string        // the Redirect URL set in the Square app; default https://businesssagent.com/api/integrations/square/callback
   SUMUP_CLIENT_ID?: string            // SumUp app (OAuth, read-only): takings on the Finances page
   SUMUP_CLIENT_SECRET?: string
   LINKEDIN_CLIENT_ID?: string         // LinkedIn app (Sign In with OpenID Connect, Share on LinkedIn, Community Management API)
