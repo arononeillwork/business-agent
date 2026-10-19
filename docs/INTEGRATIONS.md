@@ -262,12 +262,12 @@ own Square account with one click):
    (Create an application). Name it "Business Agent".
 2. Open the app → **OAuth** (left menu). At the top, pick **Production** (real takings) or
    **Sandbox** (test data). Set **Redirect URL** to
-   `https://businesssagent.com/api/integrations/square/callback` → Save. Square takes one redirect
-   URL per environment, so Square always comes back to businesssagent.com, which then sends the admin
-   back to the address they connected from: connecting works from businesssagent.com and from
-   `business-agent.arononeillwork.workers.dev` alike (the same Worker serves both). To register a
-   different Redirect URL (say a Sandbox app pointed at the workers.dev address), set the repository
-   secret `SQUARE_REDIRECT_URL` to exactly that URL.
+   `https://business-agent.arononeillwork.workers.dev/api/integrations/square/callback` → Save.
+   Square takes one redirect URL per environment, so Square always comes back to the workers.dev
+   address, which then sends the admin back to the address they connected from: connecting works
+   from the workers.dev address and from businesssagent.com alike (the same Worker serves both). To
+   register a different Redirect URL instead (say businesssagent.com), set the repository secret
+   `SQUARE_REDIRECT_URL` to exactly that URL.
 3. On the same page copy the **Application ID** and press **Show** to copy the **Application
    secret** (it starts `sq0csp-`; the *access token* on the Credentials page is a different thing,
    not needed).

@@ -26,7 +26,7 @@ import * as searchConsole from './providers/searchConsole'
 import { base64url, mimeMessage } from '../shared/alertText'
 import { calendarAppFromAgent, optionName } from '../shared/connections'
 import type { CalendarApp, IntegrationProvider } from '../shared/types'
-import { LEGAL } from '../shared/legal'
+import { businessConfig } from '../shared/business.config'
 
 export type Provider = IntegrationProvider
 /** Signed in with Google or Microsoft: one refresh token each. */
@@ -77,11 +77,11 @@ export const stripeOAuth = (env: Env, origin: string): stripe.StripeOAuthConfig 
     ? { clientId: env.STRIPE_CLIENT_ID, secretKey: env.STRIPE_SECRET_KEY, redirectUri: `${origin}/api/integrations/stripe/callback` }
     : null
 /**
- * Square takes one Redirect URL per app, so Square always comes back to the main domain, whichever
- * address the admin connected from (businesssagent.com or the workers.dev one); from there they're
- * sent back to where they started (the signed state carries it).
+ * Square takes one Redirect URL per app, so Square always comes back to the app's own address (the
+ * workers.dev one), whichever address the admin connected from (that or businesssagent.com); from
+ * there they're sent back to where they started (the signed state carries it).
  */
-export const squareRedirect = (env: Env) => env.SQUARE_REDIRECT_URL || `https://${LEGAL.domain}/api/integrations/square/callback`
+export const squareRedirect = (env: Env) => env.SQUARE_REDIRECT_URL || `${businessConfig.appUrl}/api/integrations/square/callback`
 export const squareOAuth = (env: Env): square.SquareOAuthConfig | null =>
   env.SQUARE_APP_ID && env.SQUARE_APP_SECRET && env.INTEGRATION_KEY
     ? { appId: env.SQUARE_APP_ID, appSecret: env.SQUARE_APP_SECRET, redirectUri: squareRedirect(env), sandbox: env.SQUARE_ENVIRONMENT === 'sandbox' }
