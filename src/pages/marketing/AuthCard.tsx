@@ -77,12 +77,12 @@ function SocialButtons({ methods }: { methods: SignInMethods | null }) {
 export function AuthCard({ tab, onTab }: { tab: 'signin' | 'signup'; onTab: (t: 'signin' | 'signup') => void }) {
   return (
     <Box sx={{ p: { xs: 2.5, sm: 3.5 }, borderRadius: '22px', bgcolor: BA.card, border: `1px solid ${BA.line}`,
-      boxShadow: '0 1px 2px rgba(17,19,24,0.04), 0 30px 60px -32px rgba(17,19,24,0.28)' }}>
+      boxShadow: '0 1px 2px rgba(43,37,34,0.04), 0 30px 60px -32px rgba(43,37,34,0.3)' }}>
       <Tabs value={tab} onChange={(_, v) => onTab(v)} variant="fullWidth" aria-label="Account"
         sx={{ mb: 3, minHeight: 40, bgcolor: BA.tint, borderRadius: '12px', p: 0.5,
           '& .MuiTabs-indicator': { display: 'none' },
           '& .MuiTab-root': { minHeight: 36, borderRadius: '9px', color: BA.soft, fontWeight: 500, textTransform: 'none' },
-          '& .Mui-selected': { bgcolor: '#fff', color: `${BA.ink} !important`, boxShadow: '0 1px 3px rgba(17,19,24,0.12)' } }}>
+          '& .Mui-selected': { bgcolor: '#fff', color: `${BA.ink} !important`, boxShadow: '0 1px 3px rgba(43,37,34,0.14)' } }}>
         <Tab value="signin" label="Sign in" />
         <Tab value="signup" label="Create account" />
       </Tabs>
@@ -117,7 +117,7 @@ function SignInForm() {
     <Box component="form" onSubmit={submit}>
       <Stack spacing={2.25}>
         <Box>
-          <Typography variant="h5" component="h2" sx={{ fontFamily: display, fontWeight: 600, letterSpacing: '-0.02em', color: BA.ink }}>Sign in</Typography>
+          <Typography variant="h5" component="h2" sx={{ fontFamily: display, fontWeight: 400, fontSize: '2.1rem', lineHeight: 1.05, letterSpacing: '-0.01em', color: BA.ink }}>Sign in</Typography>
           <Typography sx={{ color: BA.soft, mt: 0.5 }}>Welcome back. You'll go straight to your business.</Typography>
         </Box>
         {api.authError?.() && <Alert severity="error">{api.authError()}</Alert>}
@@ -177,7 +177,7 @@ function SignUpForm({ onSignIn }: { onSignIn: () => void }) {
   }
   if (sent) return (
     <Stack spacing={2}>
-      <Typography variant="h5" component="h2" sx={{ fontFamily: display, fontWeight: 600 }}>Check your email</Typography>
+      <Typography variant="h5" component="h2" sx={{ fontFamily: display, fontWeight: 400, fontSize: '2rem' }}>Check your email</Typography>
       <Typography sx={{ color: BA.soft }}>We sent a link to <b>{sent}</b>. Open it to confirm your account, then sign in.</Typography>
       <Button variant="outlined" sx={outlineBtn} onClick={onSignIn}>Back to sign in</Button>
     </Stack>
@@ -186,7 +186,7 @@ function SignUpForm({ onSignIn }: { onSignIn: () => void }) {
     <Box component="form" onSubmit={submit}>
       <Stack spacing={2.25}>
         <Box>
-          <Typography variant="h5" component="h2" sx={{ fontFamily: display, fontWeight: 600, letterSpacing: '-0.02em', color: BA.ink }}>Create your account</Typography>
+          <Typography variant="h5" component="h2" sx={{ fontFamily: display, fontWeight: 400, fontSize: '2.1rem', lineHeight: 1.05, letterSpacing: '-0.01em', color: BA.ink }}>Create your account</Typography>
           <Typography sx={{ color: BA.soft, mt: 0.5 }}>Start on the Free plan, no card needed, or try Business free for {TRIAL_MONTHS} months. Joining a team? Register, then your admin adds you.</Typography>
         </Box>
         {!open && <Alert severity="info">Registration is closed for now. Ask your business's admin to invite you.</Alert>}

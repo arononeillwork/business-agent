@@ -7,7 +7,7 @@ import { useAsync } from '../app/hooks'
 import { useAction, useNotify } from '../app/Notify'
 import { usePlan } from '../app/plan'
 import { PageHeader, SectionTitle } from '../components/common'
-import { COMPLIMENTARY_LABEL, PLANS, TRIAL_MONTHS, effectivePlan, paymentProblem, plan as planById, planHighlights, type Billing, type Interval, type PlanId } from '../../shared/plans'
+import { COMPLIMENTARY_LABEL, ENTERPRISE, PLANS, TRIAL_MONTHS, effectivePlan, paymentProblem, plan as planById, planHighlights, type Billing, type Interval, type PlanId } from '../../shared/plans'
 import { formatLocal } from '../../shared/time'
 
 const daysLeft = (iso: string) => Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / 86400_000))
@@ -178,6 +178,15 @@ export function BillingPage() {
               )
             })}
           </Box>
+          <Card variant="outlined" component="section" aria-label="Enterprise" sx={{ mt: 2 }}>
+            <CardContent sx={{ display: 'flex', gap: 2, alignItems: { sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' } }}>
+              <Box sx={{ flex: 1 }}>
+                <Typography variant="h6" component="h3">{ENTERPRISE.name}</Typography>
+                <Typography variant="body2" color="text.secondary">{ENTERPRISE.blurb} Every venue on one contract, set up and supported by our team.</Typography>
+              </Box>
+              <Button variant="outlined" href={`mailto:${ENTERPRISE.email}?subject=${encodeURIComponent('Business Agent Enterprise')}`}>Contact sales</Button>
+            </CardContent>
+          </Card>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
             Payments are taken by Stripe. The {TRIAL_MONTHS}-month trial of Business asks for a card up front and charges nothing until it ends; if the payment
             then doesn't go through, the business moves to Free until it does. Change or cancel any time.

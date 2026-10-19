@@ -98,6 +98,12 @@ jobs:
         id: domain
         if: steps.gate.outputs.ready == 'true'
         run: node scripts/ops/custom-domain.mjs
+      # hello@, sales@ and support@ the domain, forwarded to the Gmail in EMAIL_FORWARD_TO (docs/business-email.md).
+      - name: Business email
+        if: steps.gate.outputs.ready == 'true'
+        env:
+          EMAIL_FORWARD_TO: ${{ secrets.EMAIL_FORWARD_TO }}
+        run: node scripts/ops/email-routing.mjs
       - name: Sync Worker secrets
         if: steps.gate.outputs.ready == 'true'
         run: |

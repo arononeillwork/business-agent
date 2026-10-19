@@ -106,7 +106,7 @@ describe('choosing a plan', () => {
     expect(c.get('payment_method_collection')).toBe('always')
     expect(c.get('subscription_data[trial_period_days]')).toBe(String(TRIAL_DAYS))
     expect(c.get('subscription_data[trial_settings][end_behavior][missing_payment_method]')).toBe('cancel')
-    expect(stripe.prices).toEqual([expect.objectContaining({ unit_amount: 7900, lookup_key: 'business_agent_business_month' })])
+    expect(stripe.prices).toEqual([expect.objectContaining({ unit_amount: 12900, lookup_key: 'business_agent_business_month' })])
     expect(row().stripe_customer_id).toBe('cus_1')
     await post('/api/billing/checkout', { plan: 'business', interval: 'month' })
     expect(stripe.prices).toHaveLength(1)
@@ -115,7 +115,7 @@ describe('choosing a plan', () => {
   it('no second trial, and no trial on the other plans', async () => {
     await post('/api/billing/checkout', { plan: 'pro', interval: 'year' })
     expect(stripe.checkouts[0].get('subscription_data[trial_period_days]')).toBeNull()
-    expect(stripe.prices[0]).toMatchObject({ unit_amount: 49000, lookup_key: 'business_agent_pro_year' })
+    expect(stripe.prices[0]).toMatchObject({ unit_amount: 79000, lookup_key: 'business_agent_pro_year' })
     Object.assign(row(), { trial_used: true })
     await post('/api/billing/checkout', { plan: 'business', interval: 'month' })
     expect(stripe.checkouts[1].get('subscription_data[trial_period_days]')).toBeNull()
@@ -192,8 +192,8 @@ describe('referral months as Stripe credit', () => {
     stripe.subscribe('business_agent_pro_month', 'trialing', new Date(Date.now() + 86400_000))
     await syncBilling(env)
     expect([...stripe.credits.values()]).toEqual([
-      { customer: 'cus_1', amount: -4900, description: 'Referral: a month of Business Agent Pro free (1)' },
-      { customer: 'cus_1', amount: -4900, description: 'Referral: a month of Business Agent Pro free (2)' },
+      { customer: 'cus_1', amount: -7900, description: 'Referral: a month of Business Agent Pro free (1)' },
+      { customer: 'cus_1', amount: -7900, description: 'Referral: a month of Business Agent Pro free (2)' },
     ])
     expect(row().referral_months_applied).toBe(2)
     await syncBilling(env)
@@ -211,13 +211,13 @@ describe('referral months as Stripe credit', () => {
     setUp(15)
     await syncBilling(env)
     expect(stripe.credits.size).toBe(12)
-    expect([...stripe.credits.values()][0].amount).toBe(-6583) // €790 / 12
+    expect([...stripe.credits.values()][0].amount).toBe(-10750) // €1,290 / 12
   })
 
   it('a key already sent (a crash after Stripe took it) is not credited twice', async () => {
     stripe.subscribe('business_agent_pro_month', 'active', null)
     setUp(1)
-    stripe.credits.set('business-agent-referral-cus_1-1', { customer: 'cus_1', amount: -4900, description: 'earlier' })
+    stripe.credits.set('business-agent-referral-cus_1-1', { customer: 'cus_1', amount: -7900, description: 'earlier' })
     await syncBilling(env)
     expect(stripe.credits.size).toBe(1)
     expect(row().referral_months_applied).toBe(1)

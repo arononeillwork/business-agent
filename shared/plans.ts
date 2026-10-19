@@ -22,6 +22,10 @@ export interface Plan {
   id: PlanId
   name: string
   blurb: string
+  /** Who it's for, in a sentence (plan details). */
+  bestFor: string
+  /** How help works on this plan. */
+  support: string
   /** Euros a month on monthly billing, VAT not included. */
   monthly: number
   /** Euros a year on yearly billing (two months free). */
@@ -40,25 +44,54 @@ export const TRIAL_MONTHS = 2
 export const PLANS: Plan[] = [
   {
     id: 'free', name: 'Free', blurb: 'Try the basics with a very small team.', monthly: 0, yearly: 0,
+    bestFor: 'A small team trying Business Agent: the rota, clock-ins and the legal hours record, free for ever.',
+    support: 'Help centre and email',
     limits: { people: 3, socialAccounts: 1, postsPerMonth: 1 },
     features: [],
   },
   {
-    id: 'starter', name: 'Starter', blurb: 'For a small team getting organised.', monthly: 25, yearly: 250,
+    id: 'starter', name: 'Starter', blurb: 'For a small team getting organised.', monthly: 39, yearly: 390,
+    bestFor: 'One venue with a small team that wants its Google listing, email and files to look after themselves.',
+    support: 'Email, reply within 2 working days',
     limits: { people: 10, socialAccounts: 1, postsPerMonth: 12 },
     features: ['google_maps', 'apps'],
   },
   {
-    id: 'pro', name: 'Pro', blurb: 'For busy venues that want it all in sync.', monthly: 49, yearly: 490, popular: true,
+    id: 'pro', name: 'Pro', blurb: 'For busy venues that want it all in sync.', monthly: 79, yearly: 790, popular: true,
+    bestFor: 'A busy café, bar or shop: WhatsApp reminders, takings next to the rota, the clock-in tablet and social every week.',
+    support: 'Email, reply within 1 working day',
     limits: { people: 25, socialAccounts: 3, postsPerMonth: 60 },
     features: ['google_maps', 'apps', 'whatsapp', 'takings', 'sports', 'music', 'kiosk'],
   },
   {
-    id: 'business', name: 'Business', blurb: 'Everything, for larger teams and their advisers.', monthly: 79, yearly: 790, trial: true,
+    id: 'business', name: 'Business', blurb: 'Everything, for larger teams and their advisers.', monthly: 129, yearly: 1290, trial: true,
+    bestFor: 'A larger team, or a business that works with a gestoría or partners: everything switched on, no limits on people or posts.',
+    support: 'Priority email and phone, same working day',
     limits: { people: null, socialAccounts: 3, postsPerMonth: null },
     features: ['google_maps', 'apps', 'whatsapp', 'takings', 'sports', 'music', 'kiosk', 'partners'],
   },
 ]
+
+/**
+ * Enterprise: groups, franchises and multi-site operators. Not self-serve: a conversation with
+ * sales, a contract and limits to fit (shown at the foot of the plans).
+ */
+export const ENTERPRISE = {
+  name: 'Enterprise',
+  blurb: 'For groups, franchises and multi-site operators.',
+  price: 'Tailored to your group',
+  email: 'sales@businesssagent.com',
+  includes: [
+    'Everything in Business, with limits set for you',
+    'Each venue its own branded app, one contract and one invoice',
+    'Your own private instance, data kept in the EU',
+    'Onboarding, staff training and data import done for you',
+    'Single sign-on with Google Workspace or Microsoft 365',
+    'Custom integrations and higher API limits',
+    'A named account manager and a support agreement',
+    'Annual invoicing and payment by bank transfer',
+  ],
+}
 
 export const plan = (id: PlanId | string | null | undefined): Plan => PLANS.find(p => p.id === id) ?? PLANS[0]
 export const TRIAL_PLAN = PLANS.find(p => p.trial)!
@@ -89,7 +122,8 @@ export const SOCIAL_CONNECTIONS = ['instagram', 'facebook', 'tiktok']
 // ---------------------------------------------------------------------------------------------
 const lim = (n: number | null, unit = '') => (n === null ? 'Unlimited' : `${n}${unit}`)
 type Cell = boolean | string
-export interface CompareRow { label: string; values: Record<PlanId, Cell>; note?: string }
+/** One line of the comparison: what it is in plain words (`explain`), and each plan's value. */
+export interface CompareRow { label: string; values: Record<PlanId, Cell>; note?: string; explain?: string }
 const every = (v: Cell = true): Record<PlanId, Cell> => ({ free: v, starter: v, pro: v, business: v })
 const byFeature = (f: Feature): Record<PlanId, Cell> =>
   Object.fromEntries(PLANS.map(p => [p.id, p.features.includes(f)])) as Record<PlanId, Cell>
@@ -98,40 +132,66 @@ const byLimit = (pick: (l: PlanLimits) => string): Record<PlanId, Cell> =>
 
 export const COMPARE: { group: string; rows: CompareRow[] }[] = [
   { group: 'Team', rows: [
-    { label: 'People on the team', values: byLimit(l => lim(l.people)) },
-    { label: 'Drag-and-drop rota, shared to phones', values: every() },
-    { label: 'Clock-ins, breaks and timecards', values: every() },
-    { label: 'Registro de jornada (monthly record)', values: every(), note: 'Required by law in Spain, so it is on every plan.' },
-    { label: 'Time off and holiday allowance', values: every() },
-    { label: 'Shared team calendar and to-do list', values: every() },
-    { label: 'Clock-in tablet with staff PINs', values: byFeature('kiosk') },
+    { label: 'People on the team', values: byLimit(l => lim(l.people)),
+      explain: 'Admins and staff who sign in. People who have left don’t count.' },
+    { label: 'Drag-and-drop rota, shared to phones', values: every(),
+      explain: 'Plan the week by dragging shifts; everyone sees their hours on their phone.' },
+    { label: 'Clock-ins, breaks and timecards', values: every(),
+      explain: 'Staff clock in and out on their phone; hours and breaks add up by themselves.' },
+    { label: 'Registro de jornada (monthly record)', values: every(), note: 'Required by law in Spain, so it is on every plan.',
+      explain: 'The monthly working-time record, ready to sign and share.' },
+    { label: 'Time off and holiday allowance', values: every(),
+      explain: 'Requests, approvals and how many days each person has left.' },
+    { label: 'Shared team calendar and to-do list', values: every(),
+      explain: 'Events, closures and the jobs to get done, in one place.' },
+    { label: 'Clock-in tablet with staff PINs', values: byFeature('kiosk'),
+      explain: 'A tablet by the door where staff clock in with a PIN.' },
   ] },
   { group: 'Social media', rows: [
-    { label: 'Social accounts connected (Instagram, Facebook, TikTok)', values: byLimit(l => String(l.socialAccounts)) },
-    { label: 'Scheduled posts per month', values: byLimit(l => lim(l.postsPerMonth)) },
-    { label: 'Write once, post to every connected network', values: every() },
+    { label: 'Social accounts connected (Instagram, Facebook, TikTok)', values: byLimit(l => String(l.socialAccounts)),
+      explain: 'How many accounts you can post to at once.' },
+    { label: 'Scheduled posts per month', values: byLimit(l => lim(l.postsPerMonth)),
+      explain: 'Posts planned for a date. Reminders to post yourself count too.' },
+    { label: 'Posts, carousels, reels and stories', values: every(),
+      explain: 'Plan every kind of post on a calendar, list or table.' },
+    { label: 'Photos and videos kept in your Google Drive or OneDrive', values: byFeature('apps'),
+      explain: 'Needed to post automatically: the files wait there for Instagram to collect.' },
+    { label: 'Instagram messages inbox', values: every(),
+      explain: 'Read and answer Instagram DMs, story mentions and replies in the app.' },
   ] },
   { group: 'Messages', rows: [
-    { label: 'Shift reminders by email', values: every() },
-    { label: 'WhatsApp and text reminders', values: byFeature('whatsapp') },
+    { label: 'Shift reminders by email', values: every(),
+      explain: 'Everyone gets their shifts and changes by email.' },
+    { label: 'WhatsApp and text reminders', values: byFeature('whatsapp'),
+      explain: 'Shift reminders and rota changes on WhatsApp or text, from your number.' },
   ] },
   { group: 'Your business online', rows: [
-    { label: 'Opening hours synced to Google Maps', values: byFeature('google_maps') },
-    { label: "What's on: matches, fiestas, bank holidays", values: byFeature('sports') },
-    { label: 'Music for the venue (Spotify, YouTube Music)', values: byFeature('music') },
+    { label: 'Opening hours synced to Google Maps', values: byFeature('google_maps'),
+      explain: 'Change your hours or a closure once; Google Maps updates by itself.' },
+    { label: "What's on: matches, fiestas, bank holidays", values: byFeature('sports'),
+      explain: 'Big matches and local events, so you can plan staff and the TV.' },
+    { label: 'Music for the venue (Spotify, YouTube Music)', values: byFeature('music'),
+      explain: 'An approved playlist staff can play and pause from the app.' },
   ] },
   { group: 'Money and admin', rows: [
-    { label: 'Takings from Stripe or Square next to team cost', values: byFeature('takings') },
-    { label: 'Gmail, Outlook, Google Drive and OneDrive', values: byFeature('apps') },
-    { label: 'Read-only access for your gestoría and partners', values: byFeature('partners') },
+    { label: 'Takings from Stripe or Square next to team cost', values: byFeature('takings'),
+      explain: 'Sales each day beside what the rota costs.' },
+    { label: 'Gmail, Outlook, Google Drive and OneDrive', values: byFeature('apps'),
+      explain: 'Alerts sent from your own email; exports saved to your own drive.' },
+    { label: 'Read-only access for your gestoría and partners', values: byFeature('partners'),
+      explain: 'Your gestoría sees hours and pay records, and changes nothing.' },
   ] },
   { group: 'AI', rows: [
-    { label: 'Custom MCP connection (Claude, ChatGPT, Cursor, n8n…)', values: every() },
-    { label: 'REST API and personal access keys', values: every() },
+    { label: 'Custom MCP connection (Claude, ChatGPT, Cursor, n8n…)', values: every(),
+      explain: 'Ask your own AI “who is working Saturday?” and it answers from your data.' },
+    { label: 'REST API and personal access keys', values: every(),
+      explain: 'Connect your own tools and automations.' },
   ] },
   { group: 'Support', rows: [
-    { label: 'Help by email', values: every() },
-    { label: 'Priority support', values: { free: false, starter: false, pro: false, business: true } },
+    { label: 'Help', values: Object.fromEntries(PLANS.map(p => [p.id, p.support])) as Record<PlanId, Cell>,
+      explain: 'How to reach us, and how quickly we reply.' },
+    { label: 'Priority support', values: { free: false, starter: false, pro: false, business: true },
+      explain: 'Your questions go to the front of the queue.' },
   ] },
 ]
 

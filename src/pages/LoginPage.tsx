@@ -17,8 +17,8 @@ import { useApp } from '../app/AppContext'
 import { useAction } from '../app/Notify'
 import { cleanCode } from '../../shared/referrals'
 import { AuthCard } from './marketing/AuthCard'
-import { PricingCards, TRIAL_MONTHS } from './marketing/plans'
-import { BA, MarketingFrame, SectionIntro, display, outlineBtn, primaryBtn } from './marketing/site'
+import { EnterprisePlan, PlanDetails, PricingCards, TRIAL_MONTHS } from './marketing/plans'
+import { BA, MarketingFrame, SectionIntro, display, glow, outlineBtn, primaryBtn, roseBtn } from './marketing/site'
 
 export { AgentMark } from './marketing/site'
 
@@ -69,28 +69,28 @@ export function LoginPage() {
     <MarketingFrame>
       <Box component="main">
         {/* Hero */}
-        <Box sx={{ position: 'relative', backgroundImage: `radial-gradient(1000px 480px at 80% -160px, rgba(63,60,187,0.10), transparent 70%), radial-gradient(800px 420px at -10% 10%, rgba(214,180,140,0.16), transparent 70%)` }}>
+        <Box sx={{ position: 'relative', backgroundImage: glow() }}>
           <Container maxWidth="lg" sx={{ pt: { xs: 4, md: 9 }, pb: { xs: 7, md: 11 }, display: 'grid', gap: { xs: 5, md: 8 },
             gridTemplateColumns: { xs: '1fr', md: '1.15fr 0.85fr' }, alignItems: 'center' }}>
             <Box>
               <Stack direction="row" spacing={1} sx={{ alignItems: 'center', display: 'inline-flex', px: 1.5, py: 0.6, borderRadius: 99,
                 bgcolor: '#fff', border: `1px solid ${BA.line}`, fontSize: '0.85rem', color: BA.soft }}>
-                <Box component="span" sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: '#22A06B' }} />
+                <Box component="span" sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: '#6B8E4E' }} />
                 <span>Free plan · {TRIAL_MONTHS} months of Business free</span>
               </Stack>
-              <Typography component="h1" sx={{ fontFamily: display, fontWeight: 600, fontSize: { xs: '2.4rem', sm: '3rem', md: '3.6rem' },
-                lineHeight: 1.04, letterSpacing: '-0.04em', mt: 3, maxWidth: 640 }}>
-                The assistant that runs your business's day-to-day.
+              <Typography component="h1" sx={{ fontFamily: display, fontWeight: 400, fontSize: { xs: '3rem', sm: '3.8rem', md: '4.7rem' },
+                lineHeight: 0.98, letterSpacing: '-0.02em', mt: 3, maxWidth: 660 }}>
+                The assistant that runs your business's <Box component="em" sx={{ fontStyle: 'italic', color: BA.roseDeep, whiteSpace: 'nowrap' }}>day&#8209;to&#8209;day.</Box>
               </Typography>
               <Typography sx={{ color: BA.soft, fontSize: { xs: '1.08rem', md: '1.2rem' }, mt: 3, maxWidth: 540, lineHeight: 1.6 }}>
                 Rota, clock-ins, time off, opening hours and team messages in one calm app, in your own brand.
                 Built for cafés, shops and small teams.
               </Typography>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mt: 4 }}>
-                <Button component={RouterLink} to="/#start" size="large" variant="contained" sx={{ ...primaryBtn, px: 3, py: 1.4 }}>
+                <Button component={RouterLink} to="/#start" size="large" variant="contained" sx={{ ...primaryBtn, px: 3.5, py: 1.45 }}>
                   Start your free trial
                 </Button>
-                <Button component={RouterLink} to="/pricing" size="large" variant="outlined" sx={{ ...outlineBtn, px: 3, py: 1.4 }}>
+                <Button component={RouterLink} to="/pricing" size="large" variant="outlined" sx={{ ...outlineBtn, px: 3.5, py: 1.45 }}>
                   See pricing
                 </Button>
               </Stack>
@@ -137,7 +137,7 @@ export function LoginPage() {
           <Box sx={{ display: 'grid', gap: 2.5, gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' } }}>
             {STEPS.map((s, i) => (
               <Box key={s.title} sx={{ p: 3.5, borderRadius: '20px', border: `1px solid ${BA.line}`, bgcolor: '#fff' }}>
-                <Typography sx={{ fontFamily: display, fontWeight: 600, color: BA.accent, fontSize: '0.9rem' }}>0{i + 1}</Typography>
+                <Typography sx={{ fontFamily: display, fontStyle: 'italic', color: BA.roseDeep, fontSize: '2.2rem', lineHeight: 1 }}>0{i + 1}</Typography>
                 <Typography component="h3" sx={{ fontWeight: 600, fontSize: '1.1rem', mt: 1.5 }}>{s.title}</Typography>
                 <Typography sx={{ color: BA.soft, mt: 1, lineHeight: 1.6 }}>{s.text}</Typography>
               </Box>
@@ -148,15 +148,17 @@ export function LoginPage() {
         {/* Pricing */}
         <Box sx={{ bgcolor: '#fff', borderTop: `1px solid ${BA.line}`, borderBottom: `1px solid ${BA.line}` }}>
           <Container maxWidth="lg" sx={{ py: { xs: 9, md: 13 } }}>
-            <SectionIntro eyebrow="Pricing" title={`Simple plans. ${TRIAL_MONTHS} months on us.`}
+            <SectionIntro eyebrow="Pricing" title={<>Simple plans. <em>{TRIAL_MONTHS} months on us.</em></>}
               text="One price for the whole team, not per person. Start on Free, or try Business free for 2 months." />
             <PricingCards />
+            <Box sx={{ mt: { xs: 9, md: 12 } }}><PlanDetails /></Box>
             <Box sx={{ textAlign: 'center', mt: 3 }}>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ justifyContent: 'center' }}>
-                <Button component={RouterLink} to="/pricing" sx={{ color: BA.ink, textTransform: 'none', fontWeight: 500 }}>Compare plans line by line →</Button>
+                <Button component={RouterLink} to="/pricing" sx={{ color: BA.ink, textTransform: 'none', fontWeight: 500 }}>Every plan side by side →</Button>
                 <Button component={RouterLink} to="/compare" sx={{ color: BA.ink, textTransform: 'none', fontWeight: 500 }}>Compare with Square and GoHighLevel →</Button>
               </Stack>
             </Box>
+            <Box sx={{ mt: { xs: 7, md: 9 } }}><EnterprisePlan /></Box>
           </Container>
         </Box>
 
@@ -197,21 +199,21 @@ function Invite() {
   }
   return (
     <Box component="section" aria-label="You’re invited" sx={{ mb: 2.5, p: { xs: 2.5, sm: 3.5 }, borderRadius: '24px', bgcolor: BA.card,
-      border: `1px solid ${BA.accent}`, boxShadow: '0 24px 60px -30px rgba(79,70,229,0.45)' }}>
+      border: `1px solid ${BA.rose}`, boxShadow: '0 24px 60px -30px rgba(168,90,104,0.45)' }}>
       <Stack direction="row" spacing={1} sx={{ alignItems: 'center', color: BA.accent, mb: 1 }}>
         <GiftIcon fontSize="small" />
         <Typography sx={{ fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase', fontSize: '0.75rem' }}>Invited by {by}</Typography>
       </Stack>
       {joined ? (
         <>
-          <Typography variant="h5" component="h2" sx={{ fontFamily: display, fontWeight: 500 }}>You’re on the list</Typography>
+          <Typography variant="h5" component="h2" sx={{ fontFamily: display, fontWeight: 400, fontSize: '2rem' }}>You’re on the list</Typography>
           <Typography sx={{ color: BA.soft, mt: 1 }}>
             We’ll email you when sign-up opens. When your business finishes setting up, you and {by} each get a month free.
           </Typography>
         </>
       ) : (
         <Box component="form" onSubmit={join}>
-          <Typography variant="h5" component="h2" sx={{ fontFamily: display, fontWeight: 500 }}>Get your first month free</Typography>
+          <Typography variant="h5" component="h2" sx={{ fontFamily: display, fontWeight: 400, fontSize: '2rem' }}>Get your first month free</Typography>
           <Typography sx={{ color: BA.soft, mt: 1, mb: 2 }}>
             Sign-up for new businesses opens soon. Join the waitlist: when your business finishes setting up, you and {by} each get a month free.
           </Typography>
@@ -250,17 +252,17 @@ export function Faq({ items }: { items: { q: string; a: string }[] }) {
 export function ClosingCta() {
   return (
     <Container maxWidth="lg" sx={{ pb: { xs: 8, md: 12 } }}>
-      <Box sx={{ borderRadius: '28px', bgcolor: BA.ink, color: '#fff', px: { xs: 3, md: 8 }, py: { xs: 6, md: 9 }, textAlign: 'center',
-        backgroundImage: 'radial-gradient(700px 300px at 50% -80px, rgba(129,124,255,0.35), transparent 70%)' }}>
-        <Typography component="h2" sx={{ fontFamily: display, fontWeight: 600, fontSize: { xs: '1.9rem', md: '2.6rem' }, letterSpacing: '-0.03em', lineHeight: 1.12 }}>
-          Give your evenings back.
+      <Box sx={{ borderRadius: '32px', bgcolor: BA.ink, color: '#fff', px: { xs: 3, md: 8 }, py: { xs: 7, md: 10 }, textAlign: 'center',
+        backgroundImage: 'radial-gradient(700px 300px at 50% -80px, rgba(247,155,164,0.32), transparent 70%), radial-gradient(500px 260px at 100% 120%, rgba(183,163,216,0.25), transparent 70%)' }}>
+        <Typography component="h2" sx={{ fontFamily: display, fontWeight: 400, fontSize: { xs: '2.5rem', md: '3.6rem' }, letterSpacing: '-0.015em', lineHeight: 1.02 }}>
+          Give your <Box component="em" sx={{ color: BA.rose }}>evenings</Box> back.
         </Typography>
         <Typography sx={{ color: 'rgba(255,255,255,0.72)', mt: 2, fontSize: '1.1rem', maxWidth: 520, mx: 'auto' }}>
           Start on the Free plan, or try Business free for {TRIAL_MONTHS} months. No contract, no set-up fee.
         </Typography>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mt: 4, justifyContent: 'center' }}>
           <Button component={RouterLink} to="/#start" size="large" variant="contained"
-            sx={{ ...primaryBtn, bgcolor: '#fff', color: BA.ink, px: 3.5, py: 1.4, '&:hover': { bgcolor: '#ECEAE6' } }}>Start your free trial</Button>
+            sx={{ ...roseBtn, px: 3.5, py: 1.4 }}>Start your free trial</Button>
           <Button component={RouterLink} to="/pricing" size="large" variant="outlined"
             sx={{ ...outlineBtn, bgcolor: 'transparent', color: '#fff', borderColor: 'rgba(255,255,255,0.28)', px: 3.5, py: 1.4,
               '&:hover': { bgcolor: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.5)' } }}>See pricing</Button>
@@ -271,10 +273,10 @@ export function ClosingCta() {
 }
 
 const SHIFTS: { who: string; role: string; days: (string | null)[]; tone: string }[] = [
-  { who: 'Lucía', role: 'Barista', days: ['7–15', '7–15', null, '7–15', '7–15'], tone: '#E9E7FB' },
+  { who: 'Lucía', role: 'Barista', days: ['7–15', '7–15', null, '7–15', '7–15'], tone: '#EFE9F8' },
   { who: 'Marco', role: 'Kitchen', days: [null, '10–18', '10–18', '10–18', '12–20'], tone: '#FCEBDD' },
   { who: 'Sara', role: 'Floor', days: ['15–23', null, '15–23', '15–23', '16–24'], tone: '#E2F2EA' },
-  { who: 'Diego', role: 'Floor', days: ['9–17', '9–17', '9–17', null, null], tone: '#E5EEF8' },
+  { who: 'Diego', role: 'Floor', days: ['9–17', '9–17', '9–17', null, null], tone: '#FCEDEE' },
 ]
 
 /** A drawn, illustrative week rota, so visitors see the product without a screenshot to keep current. */
@@ -282,14 +284,14 @@ function ProductPreview() {
   const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
   return (
     <Box aria-hidden sx={{ borderRadius: '24px', border: `1px solid ${BA.line}`, bgcolor: '#fff', overflow: 'hidden',
-      boxShadow: '0 50px 100px -50px rgba(17,19,24,0.35)' }}>
+      boxShadow: '0 50px 100px -50px rgba(43,37,34,0.38)' }}>
       <Stack direction="row" spacing={0.75} sx={{ px: 2.5, py: 1.75, borderBottom: `1px solid ${BA.lineSoft}`, bgcolor: BA.bg }}>
         {['#F0B1A8', '#F2D59A', '#B5DDB8'].map(c => <Box key={c} sx={{ width: 11, height: 11, borderRadius: '50%', bgcolor: c }} />)}
       </Stack>
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 300px' } }}>
         <Box sx={{ p: { xs: 2, md: 3.5 }, overflowX: 'auto' }}>
           <Stack direction="row" sx={{ alignItems: 'baseline', justifyContent: 'space-between', mb: 2.5 }}>
-            <Typography sx={{ fontFamily: display, fontWeight: 600, fontSize: '1.2rem' }}>This week</Typography>
+            <Typography sx={{ fontFamily: display, fontWeight: 400, fontSize: '1.7rem', lineHeight: 1 }}>This week</Typography>
             <Typography variant="body2" sx={{ color: BA.faint }}>142 h · €1,986</Typography>
           </Stack>
           <Box sx={{ display: 'grid', gridTemplateColumns: '110px repeat(5, minmax(64px, 1fr))', gap: 1, minWidth: 480, fontSize: '0.85rem' }}>

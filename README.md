@@ -11,7 +11,7 @@ built-in **AI connector** so owners can run it by talking to Claude.
   Facebook, Microsoft ([setup](docs/sign-in-setup.md))
 - Public pages: landing page with sign-in at `/`, the four plans at `/pricing`, and the savings
   against Square and GoHighLevel at `/compare`
-- Plans and billing: Free, Starter €25, Pro €49, Business €79 (2 months free), paid through Stripe
+- Plans and billing: Free, Starter €39, Pro €79, Business €129 (2 months free), Enterprise by contact with sales, paid through Stripe
   subscriptions; an unpaid trial or failed renewal drops the business to Free, enforced by the
   database ([docs/billing.md](docs/billing.md))
 - Partners: outside businesses (gestoría, suppliers) get a read-only login to the areas an admin

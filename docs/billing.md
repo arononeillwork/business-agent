@@ -5,9 +5,14 @@ Business Agent is sold in four plans (`shared/plans.ts`), prices in euros exclud
 | Plan | Monthly | Yearly | People | Social accounts | Scheduled posts / month |
 |---|---|---|---|---|---|
 | Free | €0 | €0 | 3 | 1 | 1 |
-| Starter | €25 | €250 | 10 | 1 | 12 |
-| Pro | €49 | €490 | 25 | 3 | 60 |
-| Business | €79 | €790 | Unlimited | 3 | Unlimited |
+| Starter | €39 | €390 | 10 | 1 | 12 |
+| Pro | €79 | €790 | 25 | 3 | 60 |
+| Business | €129 | €1,290 | Unlimited | 3 | Unlimited |
+
+**Enterprise** (groups, franchises, several venues) isn't self-serve: "Contact sales" on the pricing
+page writes to sales@businesssagent.com (docs/business-email.md), and the terms are agreed case by case.
+Stripe prices follow `shared/plans.ts`: a changed amount gets a new Stripe price the next time someone
+checks out (looked up by its lookup key); existing subscriptions keep the price they started on.
 
 The custom MCP connection (Claude, ChatGPT, n8n…) and the REST API are on every plan, and so is the
 registro de jornada (Spanish law requires it). Feature by feature: `/pricing`. Against Square and

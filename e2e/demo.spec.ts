@@ -1423,36 +1423,52 @@ test('signed out: one-tap Google, Apple, Facebook and Microsoft sign-in next to 
   await toast(page, 'Facebook sign-in works on the live app')
 })
 
-test('pricing: four plans, every feature line by line, and "Try free" opens Create account', async ({ page }) => {
+test('pricing: four plans, each in detail, every feature line by line, Enterprise, and "Try free" opens Create account', async ({ page }) => {
   await page.goto('/pricing?demo')
   await expect(page.getByRole('heading', { level: 1 })).toContainText('Start free')
   await expect(page.getByRole('article', { name: /plan$/ })).toHaveCount(4)
   const pro = page.getByRole('article', { name: 'Pro plan' })
-  await expect(pro).toContainText('€49')
+  await expect(pro).toContainText('€79')
   await expect(page.getByRole('article', { name: 'Free plan' })).toContainText('1 social account, 1 scheduled post a month')
   await page.getByRole('button', { name: /Yearly/ }).first().click()
-  await expect(pro).toContainText('€40.83')
-  await expect(pro).toContainText('€490 billed yearly')
+  await expect(pro).toContainText('€65.83')
+  await expect(pro).toContainText('€790 billed yearly')
+  // Each plan in detail: the overview first, then every feature and limit, and where a missing one is.
+  const details = page.getByRole('region', { name: 'Plan details' })
+  await expect(details.getByRole('tabpanel', { name: 'Pro plan details' })).toContainText('€79 a month, or €790 a year')
+  await expect(details.getByRole('tabpanel')).toContainText('Up to 25')
+  await expect(details.getByRole('listitem', { name: /Read-only access for your gestoría and partners: not included/ })).toContainText('On Business')
+  await details.getByRole('tab', { name: /Business/ }).click()
+  const business = details.getByRole('tabpanel', { name: 'Business plan details' })
+  await expect(business).toContainText('Unlimited')
+  await expect(business).toContainText('Priority email and phone, same working day')
+  await expect(business.getByRole('listitem', { name: /Read-only access for your gestoría and partners: included/ })).toBeVisible()
+  // Enterprise, at the foot: by conversation with sales.
+  const enterprise = page.getByRole('region', { name: 'Enterprise plan' })
+  await expect(enterprise).toContainText('For groups, franchises and multi-site operators.')
+  await expect(enterprise.getByRole('link', { name: 'Contact sales' })).toHaveAttribute('href', /^mailto:sales@businesssagent\.com\?subject=Business%20Agent%20Enterprise/)
   const table = page.getByRole('table', { name: 'Plan comparison' })
   await expect(table.getByRole('row', { name: /Custom MCP connection/ }).getByLabel('Included')).toHaveCount(4)
-  await expect(table.getByRole('row', { name: /Scheduled posts per month/ }).getByRole('cell')).toHaveText(['Scheduled posts per month', '1', '12', '60', 'Unlimited'])
+  await expect(table.getByRole('row', { name: /Scheduled posts per month/ }).getByRole('cell')).toHaveText([/^Scheduled posts per month/, '1', '12', '60', 'Unlimited'])
   await page.getByRole('article', { name: 'Business plan' }).getByRole('link', { name: 'Try free for 2 months' }).click()
   await expect(page.getByRole('heading', { name: 'Create your account' })).toBeVisible()
   await expect(page.getByRole('tab', { name: 'Create account' })).toHaveAttribute('aria-selected', 'true')
 })
 
-test('compare: Square and GoHighLevel stacks add up line by line against Business', async ({ page }) => {
+test('compare: Square against Pro and GoHighLevel against Business, line by line', async ({ page }) => {
   await page.goto('/pricing?demo')
   await page.getByRole('link', { name: /Compare with Square and GoHighLevel/ }).click()
   const square = page.getByRole('table', { name: 'Square stack' })
   await expect(square.getByRole('row')).toHaveCount(5) // heading, 3 lines, total
   await expect(square.getByRole('row', { name: /Total with Square/ })).toContainText('€94')
+  await expect(page.getByLabel('Savings')).toContainText('Business Agent Pro€79/mo')
   await expect(page.getByLabel('Savings')).toContainText('€15/mo')
   await expect(page.getByLabel('Savings')).toContainText('€180 a year')
   await page.getByRole('button', { name: 'vs GoHighLevel' }).click()
   await expect(page.getByRole('table', { name: 'GoHighLevel stack' }).getByRole('row', { name: /Total with GoHighLevel/ })).toContainText('€169.69')
-  await expect(page.getByLabel('Savings')).toContainText('€90.69/mo')
-  await expect(page.getByLabel('Savings')).toContainText('€1,088.28 a year')
+  await expect(page.getByLabel('Savings')).toContainText('Business Agent Business€129/mo')
+  await expect(page.getByLabel('Savings')).toContainText('€40.69/mo')
+  await expect(page.getByLabel('Savings')).toContainText('€488.28 a year')
 })
 
 test.describe('billing', () => {

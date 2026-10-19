@@ -1,5 +1,5 @@
-// What a café would pay elsewhere for what Business Agent's top plan does, line by line, for the
-// comparison page (/compare). List prices, excluding VAT, checked 18 October 2026; US dollar prices
+// What a café would pay elsewhere for what a Business Agent plan does, line by line, for the
+// comparison page (/compare). Each stack is set against the plan that covers what it does. List prices, excluding VAT, checked 18 October 2026; US dollar prices
 // converted at €0.92 per dollar. Example business: one café, 10 staff. Re-check before changing.
 // competitors.test.ts checks every total adds up.
 
@@ -17,9 +17,13 @@ export interface StackLine {
   source: string
 }
 
+import type { PlanId } from './plans'
+
 export interface Competitor {
   id: 'square' | 'gohighlevel'
   name: string
+  /** The Business Agent plan that does what this stack does. */
+  plan: PlanId
   /** One-line summary for the tab. */
   tagline: string
   lines: StackLine[]
@@ -33,7 +37,7 @@ const usd = (n: number) => Math.round(n * USD_TO_EUR * 100) / 100
 
 export const COMPETITORS: Competitor[] = [
   {
-    id: 'square', name: 'Square', tagline: 'Square for Restaurants with its add-ons',
+    id: 'square', name: 'Square', plan: 'pro', tagline: 'Square for Restaurants with its add-ons',
     lines: [
       { item: 'Square for Restaurants Plus', covers: 'Rota (Turnos), timecards, team permissions (Equipos Plus), shift reports', eur: 59,
         source: 'https://squareup.com/es/es/point-of-sale/restaurants/pricing' },
@@ -44,14 +48,13 @@ export const COMPETITORS: Competitor[] = [
     ],
     missing: [
       'Opening hours synced to Google Maps',
-      'Read-only access for your gestoría',
       "What's on: matches, fiestas and bank holidays for planning staff",
       'WhatsApp shift reminders (Square Messages Plus is not confirmed in Spain)',
     ],
     extras: ['Square Loyalty, from €40 a month, is not counted: Business Agent has no loyalty scheme.'],
   },
   {
-    id: 'gohighlevel', name: 'GoHighLevel', tagline: 'GoHighLevel plus a rota app (it has no rota or timecards)',
+    id: 'gohighlevel', name: 'GoHighLevel', plan: 'business', tagline: 'GoHighLevel plus a rota app (it has no rota or timecards)',
     lines: [
       { item: 'GoHighLevel Starter ($97)', covers: 'Social planner, messaging inbox, email marketing', eur: usd(97), usd: 97,
         source: 'https://www.gohighlevel.com/pricing' },

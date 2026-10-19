@@ -2,43 +2,80 @@ import { Link as RouterLink } from 'react-router-dom'
 import { Box, Button, Container, Link, Stack, Typography } from '@mui/material'
 import type { ReactNode } from 'react'
 import iconUrl from '../../assets/icon.png'
+import { ENTERPRISE } from '../../../shared/plans'
 
 // Business Agent: the product. Signed-out visitors see its own look (not any one business's
-// brand); once someone signs in, they see their business's branded app.
+// brand); once someone signs in, they see their business's branded app. The palette is natural
+// and warm, from the first Easy Beans colours: rose pink, grey limewash and ube lilac on cream,
+// with espresso ink. Headlines and the wordmark are set in an editorial serif.
 export const BA = {
-  ink: '#111318', soft: '#4A505E', faint: '#878D9B', line: '#E7E5E1', lineSoft: '#F0EEEA',
-  bg: '#FBFAF8', card: '#FFFFFF', tint: '#F4F2EE',
-  accent: '#3F3CBB', accentDeep: '#2E2B94', accentSoft: '#EEEDFB',
+  ink: '#2B2522', soft: '#5F5852', faint: '#8E877F', line: '#E7E1DA', lineSoft: '#F0EBE5',
+  bg: '#FBF8F4', card: '#FFFFFF', tint: '#F3EEE8', limewash: '#C6C2BB',
+  rose: '#F79BA4', roseHover: '#F28893', roseDeep: '#A85A68', roseSoft: '#FCEDEE',
+  lilac: '#B7A3D8', lilacDeep: '#5B4A86', lilacSoft: '#F3EFFA',
+  matchaDeep: '#4A6536', matchaSoft: '#EEF4E8',
+  // The accent (labels, ticks, links) is the deep rose: readable on cream and white.
+  accent: '#A85A68', accentDeep: '#8E4655', accentSoft: '#FCEDEE',
 }
-export const display = '"Poppins", system-ui, sans-serif'
+/** The editorial serif for headlines, prices and the wordmark (one weight: it's never bolded). */
+export const display = '"Instrument Serif", "Cormorant Garamond", Georgia, serif'
+export const CONTACT = { hello: 'hello@businesssagent.com', sales: ENTERPRISE.email, support: 'support@businesssagent.com' }
+
+/** Soft glows of the three brand colours, for hero backgrounds. */
+export const glow = (x = '80%', y = '-160px') =>
+  `radial-gradient(900px 460px at ${x} ${y}, rgba(247,155,164,0.20), transparent 70%), ` +
+  'radial-gradient(760px 420px at -10% 10%, rgba(183,163,216,0.18), transparent 70%), ' +
+  'radial-gradient(700px 380px at 50% 110%, rgba(198,194,187,0.30), transparent 70%)'
 
 /** The Business Agent mark: the coffee-cup icon the site uses as its favicon. */
 export function AgentMark({ size = 32 }: { size?: number }) {
   return (
     <Box component="img" src={iconUrl} alt="" width={size} height={size}
-      sx={{ display: 'block', flexShrink: 0, borderRadius: `${Math.round(size * 0.28)}px`, bgcolor: '#fff',
+      sx={{ display: 'block', flexShrink: 0, borderRadius: `${Math.round(size * 0.3)}px`, bgcolor: '#fff',
         border: `1px solid ${BA.line}`, p: `${Math.max(2, Math.round(size * 0.1))}px` }} />
   )
 }
 
+/** "Business Agent", set in the serif, Agent in italic. */
+export function Wordmark({ size = '1.6rem', light }: { size?: string; light?: boolean }) {
+  return (
+    <Typography component="span" sx={{ fontFamily: display, fontWeight: 400, fontSize: size, letterSpacing: '-0.01em', lineHeight: 1,
+      color: light ? '#fff' : BA.ink, whiteSpace: 'nowrap' }}>
+      Business <Box component="em" sx={{ fontStyle: 'italic', color: light ? BA.rose : BA.roseDeep }}>Agent</Box>
+    </Typography>
+  )
+}
+
+/** Small spaced capitals above a headline. */
+export function Eyebrow({ children, light }: { children: ReactNode; light?: boolean }) {
+  return (
+    <Typography sx={{ color: light ? BA.rose : BA.roseDeep, fontWeight: 600, letterSpacing: '0.16em', textTransform: 'uppercase', fontSize: '0.72rem' }}>
+      {children}
+    </Typography>
+  )
+}
+
+const pill = { fontWeight: 500, textTransform: 'none', borderRadius: '999px', boxShadow: 'none', letterSpacing: '0.005em' } as const
 export const primaryBtn = {
-  bgcolor: BA.ink, color: '#fff', fontWeight: 500, textTransform: 'none', borderRadius: '10px', boxShadow: 'none',
-  '&:hover': { bgcolor: '#2A2D35', boxShadow: 'none' },
+  ...pill, bgcolor: BA.ink, color: BA.bg, '&:hover': { bgcolor: '#433A35', boxShadow: 'none' },
+} as const
+export const roseBtn = {
+  ...pill, bgcolor: BA.rose, color: BA.ink, '&:hover': { bgcolor: BA.roseHover, boxShadow: 'none' },
 } as const
 export const outlineBtn = {
-  borderColor: BA.line, color: BA.ink, bgcolor: '#fff', fontWeight: 500, textTransform: 'none', borderRadius: '10px',
-  '&:hover': { borderColor: '#C9C6C0', bgcolor: BA.tint },
+  ...pill, borderColor: BA.limewash, color: BA.ink, bgcolor: 'transparent',
+  '&:hover': { borderColor: BA.ink, bgcolor: 'rgba(43,37,34,0.03)' },
 } as const
 
 /** The light, warm page every public marketing page sits on (inputs styled to match). */
 export function MarketingFrame({ children }: { children: ReactNode }) {
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: BA.bg, color: BA.ink, colorScheme: 'light', overflowX: 'hidden',
-      '& .MuiOutlinedInput-root': { bgcolor: '#fff', color: BA.ink, borderRadius: '10px' },
+      '& .MuiOutlinedInput-root': { bgcolor: '#fff', color: BA.ink, borderRadius: '12px' },
       '& .MuiOutlinedInput-notchedOutline': { borderColor: BA.line },
       '& .Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: `${BA.ink} !important` },
       '& .MuiInputLabel-root': { color: BA.soft }, '& .MuiInputLabel-root.Mui-focused': { color: BA.ink },
-      '& a': { WebkitTapHighlightColor: 'transparent' } }}>
+      '& a': { WebkitTapHighlightColor: 'transparent' }, '& ::selection': { bgcolor: BA.roseSoft } }}>
       <SiteHeader />
       {children}
       <SiteFooter />
@@ -46,27 +83,28 @@ export function MarketingFrame({ children }: { children: ReactNode }) {
   )
 }
 
-const navLink = { color: BA.soft, fontWeight: 500, fontSize: '0.95rem', textDecoration: 'none', '&:hover': { color: BA.ink } }
+const navLink = { color: BA.soft, fontWeight: 500, fontSize: '0.93rem', textDecoration: 'none', '&:hover': { color: BA.ink } }
 
 function SiteHeader() {
   return (
-    <Box component="header" sx={{ position: 'sticky', top: 0, zIndex: 10, bgcolor: 'rgba(251,250,248,0.82)',
-      backdropFilter: 'saturate(180%) blur(12px)', borderBottom: `1px solid ${BA.lineSoft}` }}>
+    <Box component="header" sx={{ position: 'sticky', top: 0, zIndex: 10, bgcolor: 'rgba(251,248,244,0.84)',
+      backdropFilter: 'saturate(160%) blur(14px)', borderBottom: `1px solid ${BA.lineSoft}` }}>
       <Container maxWidth="lg" sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1.5, md: 4 }, py: 1.5 }}>
         <Stack component={RouterLink} to="/" direction="row" spacing={1.25} aria-label="Business Agent home"
           sx={{ alignItems: 'center', color: 'inherit', textDecoration: 'none' }}>
           <AgentMark size={34} />
-          <Typography sx={{ fontFamily: display, fontWeight: 600, fontSize: '1.08rem', letterSpacing: '-0.015em' }}>Business Agent</Typography>
+          <Wordmark size="1.55rem" />
         </Stack>
-        <Stack component="nav" aria-label="Site" direction="row" spacing={3.5} sx={{ display: { xs: 'none', md: 'flex' }, flex: 1 }}>
+        <Stack component="nav" aria-label="Site" direction="row" spacing={3.5} sx={{ display: { xs: 'none', md: 'flex' }, flex: 1, justifyContent: 'center' }}>
           <Link component={RouterLink} to="/#features" sx={navLink}>Features</Link>
           <Link component={RouterLink} to="/pricing" sx={navLink}>Pricing</Link>
+          <Link component={RouterLink} to="/pricing#enterprise" sx={navLink}>Enterprise</Link>
           <Link component={RouterLink} to="/compare" sx={navLink}>Compare</Link>
           <Link component={RouterLink} to="/#faq" sx={navLink}>FAQ</Link>
         </Stack>
         <Box sx={{ flex: { xs: 1, md: 0 } }} />
         <Link component={RouterLink} to="/#account" sx={{ ...navLink, display: { xs: 'none', sm: 'inline' }, whiteSpace: 'nowrap' }}>Log in</Link>
-        <Button component={RouterLink} to="/#start" variant="contained" sx={{ ...primaryBtn, whiteSpace: 'nowrap', px: 2 }}>Start free trial</Button>
+        <Button component={RouterLink} to="/#start" variant="contained" sx={{ ...primaryBtn, whiteSpace: 'nowrap', px: 2.25 }}>Start free trial</Button>
       </Container>
     </Box>
   )
@@ -75,29 +113,32 @@ function SiteHeader() {
 function SiteFooter() {
   const col = (title: string, links: [string, string][]) => (
     <Stack spacing={1.25}>
-      <Typography sx={{ fontWeight: 600, fontSize: '0.85rem' }}>{title}</Typography>
+      <Typography sx={{ fontWeight: 600, fontSize: '0.78rem', letterSpacing: '0.12em', textTransform: 'uppercase', color: BA.faint }}>{title}</Typography>
       {links.map(([label, to]) => (
-        <Link key={label} component={RouterLink} to={to} sx={{ ...navLink, fontSize: '0.9rem', fontWeight: 400 }}>{label}</Link>
+        to.startsWith('mailto:')
+          ? <Link key={label} href={to} sx={{ ...navLink, fontSize: '0.92rem', fontWeight: 400 }}>{label}</Link>
+          : <Link key={label} component={RouterLink} to={to} sx={{ ...navLink, fontSize: '0.92rem', fontWeight: 400 }}>{label}</Link>
       ))}
     </Stack>
   )
   return (
-    <Box component="footer" sx={{ borderTop: `1px solid ${BA.line}`, bgcolor: '#fff' }}>
-      <Container maxWidth="lg" sx={{ py: 6, display: 'grid', gap: 5, gridTemplateColumns: { xs: '1fr 1fr', md: '2fr 1fr 1fr 1fr' } }}>
-        <Stack spacing={1.5} sx={{ gridColumn: { xs: '1 / -1', md: 'auto' } }}>
+    <Box component="footer" sx={{ borderTop: `1px solid ${BA.line}`, bgcolor: BA.tint }}>
+      <Container maxWidth="lg" sx={{ py: { xs: 6, md: 8 }, display: 'grid', gap: 5, gridTemplateColumns: { xs: '1fr 1fr', md: '2fr 1fr 1fr 1fr 1fr' } }}>
+        <Stack spacing={2} sx={{ gridColumn: { xs: '1 / -1', md: 'auto' } }}>
           <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center' }}>
-            <AgentMark size={28} />
-            <Typography sx={{ fontFamily: display, fontWeight: 600 }}>Business Agent</Typography>
+            <AgentMark size={30} />
+            <Wordmark size="1.45rem" />
           </Stack>
-          <Typography variant="body2" sx={{ color: BA.soft, maxWidth: 300 }}>
+          <Typography variant="body2" sx={{ color: BA.soft, maxWidth: 300, lineHeight: 1.7 }}>
             The team app for cafés, shops and small businesses. Made in Marbella, data stored in the EU.
           </Typography>
         </Stack>
-        {col('Product', [['Features', '/#features'], ['Pricing', '/pricing'], ['Compare with Square', '/compare'], ['Compare with GoHighLevel', '/compare?vs=gohighlevel']])}
+        {col('Product', [['Features', '/#features'], ['Pricing', '/pricing'], ['Enterprise', '/pricing#enterprise'], ['Compare with Square', '/compare'], ['Compare with GoHighLevel', '/compare?vs=gohighlevel']])}
         {col('Account', [['Log in', '/#account'], ['Start free trial', '/#start']])}
+        {col('Contact', [[CONTACT.hello, `mailto:${CONTACT.hello}`], [CONTACT.sales, `mailto:${CONTACT.sales}`], [CONTACT.support, `mailto:${CONTACT.support}`]])}
         {col('Legal', [['Privacy policy', '/privacy'], ['Terms of service', '/terms']])}
       </Container>
-      <Container maxWidth="lg" sx={{ py: 2.5, borderTop: `1px solid ${BA.lineSoft}` }}>
+      <Container maxWidth="lg" sx={{ py: 2.5, borderTop: `1px solid ${BA.line}` }}>
         <Typography variant="caption" sx={{ color: BA.faint }}>© {new Date().getFullYear()} Business Agent. All rights reserved.</Typography>
       </Container>
     </Box>
@@ -105,14 +146,15 @@ function SiteFooter() {
 }
 
 /** A centred section intro: small label, headline, one line of support. */
-export function SectionIntro({ eyebrow, title, text }: { eyebrow: string; title: string; text?: string }) {
+export function SectionIntro({ eyebrow, title, text, light }: { eyebrow: string; title: ReactNode; text?: string; light?: boolean }) {
   return (
-    <Box sx={{ textAlign: 'center', maxWidth: 640, mx: 'auto', mb: { xs: 5, md: 7 } }}>
-      <Typography sx={{ color: BA.accent, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', fontSize: '0.75rem' }}>{eyebrow}</Typography>
-      <Typography component="h2" sx={{ fontFamily: display, fontWeight: 600, fontSize: { xs: '1.85rem', md: '2.5rem' }, lineHeight: 1.12, letterSpacing: '-0.03em', mt: 1.5 }}>
+    <Box sx={{ textAlign: 'center', maxWidth: 680, mx: 'auto', mb: { xs: 5, md: 7 } }}>
+      <Eyebrow light={light}>{eyebrow}</Eyebrow>
+      <Typography component="h2" sx={{ fontFamily: display, fontWeight: 400, fontSize: { xs: '2.2rem', md: '3.1rem' }, lineHeight: 1.05, letterSpacing: '-0.015em', mt: 1.75,
+        color: light ? '#fff' : BA.ink, '& em': { fontStyle: 'italic', color: light ? BA.rose : BA.roseDeep } }}>
         {title}
       </Typography>
-      {text && <Typography sx={{ color: BA.soft, fontSize: '1.08rem', mt: 2, lineHeight: 1.6 }}>{text}</Typography>}
+      {text && <Typography sx={{ color: light ? 'rgba(255,255,255,0.72)' : BA.soft, fontSize: '1.08rem', mt: 2, lineHeight: 1.65 }}>{text}</Typography>}
     </Box>
   )
 }
