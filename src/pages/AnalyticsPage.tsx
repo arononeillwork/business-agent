@@ -83,7 +83,7 @@ export function AnalyticsPage() {
   const site = r?.site ?? (row?.external.site as string | undefined)
 
   const header = (
-    <PageHeader eyebrow={t('Business')} title={t('Analytics')} actions={on && <>
+    <PageHeader title={t('Analytics')} actions={on && <>
       {site && <Tag>{siteName(site)}</Tag>}
       <TextField select size="small" value={period} onChange={e => pick(e.target.value as Period)} sx={{ minWidth: 170 }}
         slotProps={{ select: { SelectDisplayProps: { 'aria-label': t('Period') } } }}>
@@ -231,7 +231,7 @@ function ConnectFirst({ website }: { website: string | null }) {
           <li>{website
             ? t('Make sure {site} is added and verified in Search Console (search.google.com/search-console).', { site: siteName(website) })
             : t('Add your website on the Business page, and make sure it is verified in Search Console (search.google.com/search-console).')}</li>
-          <li>{t('Open Connections, find Maps and search, and press Connect next to Search Console.')}</li>
+          <li>{t('Open Connections, find Analytics, and press Connect next to Search Console.')}</li>
           <li>{t('Sign in with the Google account that owns the website in Search Console. Your site is picked automatically.')}</li>
         </Box>
         <Button component={RouterLink} to="/connections" variant="contained" sx={{ mt: 2 }}>{t('Go to Connections')}</Button>

@@ -5,7 +5,7 @@
 import type { IntegrationProvider } from './types'
 import { msg } from './i18n'
 
-export type ConnectionGroup = 'communication' | 'email' | 'calendar' | 'files' | 'maps' | 'social' | 'payments' | 'music'
+export type ConnectionGroup = 'communication' | 'email' | 'calendar' | 'files' | 'maps' | 'analytics' | 'social' | 'payments' | 'music'
 
 export interface ConnectionOption {
   id: IntegrationProvider | 'slack' | 'sms' | 'sharepoint' | 'dropbox' | 'apple_maps' | 'stripe'
@@ -45,8 +45,11 @@ export const GROUPS: ConnectionGroupInfo[] = [
   ] },
   { key: 'maps', title: msg('Maps and search'), pickOne: false, options: [
     { id: 'google_business', name: 'Google Maps', by: 'Google', proves: msg('The café’s listing was found and can be updated.') },
-    { id: 'search_console', name: 'Search Console', by: 'Google', proves: msg('Google confirmed this account can read the website’s search data.') },
     { id: 'apple_maps', name: 'Apple Maps', by: 'Apple', soon: true },
+  ] },
+  // How the website does: shown on the Analytics page.
+  { key: 'analytics', title: msg('Analytics'), pickOne: false, options: [
+    { id: 'search_console', name: 'Search Console', by: 'Google', proves: msg('Google confirmed this account can read the website’s search data.') },
   ] },
   { key: 'social', title: msg('Social media'), pickOne: false, options: [
     { id: 'instagram', name: 'Instagram', by: 'Meta', proves: msg('The profile and posts could be read, and posting was allowed.') },

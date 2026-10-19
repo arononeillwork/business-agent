@@ -7,7 +7,7 @@ import DownIcon from '@mui/icons-material/ArrowDownwardRounded'
 import { useState, type ReactNode } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
-import { FinanceTabs, TILL_NAMES, tillOf } from '../components/FinanceTabs'
+import { TILL_NAMES, tillOf } from '../components/till'
 import { useAsync } from '../app/hooks'
 import { BarChart, ShareBars, type BarPoint } from '../components/charts'
 import { Empty, ErrorBox, Loading, PageHeader, SectionTitle, StatGrid, StatTile, Tag } from '../components/common'
@@ -97,7 +97,7 @@ const remembered = (): Period => {
 
 type Metric = 'sales' | 'payments' | 'average'
 
-/** Sales (under Finances): takings from Square, SumUp or Stripe like Square's own dashboard, with each figure next to the period before. */
+/** Sales: takings from Square, SumUp or Stripe like Square's own dashboard, with each figure next to the period before. */
 export function SalesPage() {
   const { api, canSeePay, isPartner } = useApp()
   const [period, setPeriod] = useState<Period>(remembered)
@@ -113,7 +113,7 @@ export function SalesPage() {
 
   if (!canSeePay || isPartner) {
     return <>
-      <PageHeader eyebrow={t('Finances')} title={t('Sales')} />
+      <PageHeader title={t('Sales')} />
       <Alert severity="info">{t('Sales are only visible to admins with pay access.')}</Alert>
     </>
   }
@@ -129,11 +129,10 @@ export function SalesPage() {
   )
   const name = TILL_NAMES[till?.provider ?? 'square']
   const header = <>
-    <PageHeader eyebrow={t('Finances')} title={t('Sales')} actions={on && <>
+    <PageHeader title={t('Sales')} actions={on && <>
       <Tag>{t('From {name}', { name })}</Tag>
       {picker}
     </>} />
-    <FinanceTabs />
   </>
   if (!integ.data) return <>{header}<ErrorBox error={integ.error} /><Loading /></>
   if (!till) return <>{header}<ConnectFirst /></>
