@@ -40,6 +40,7 @@ const SocialPlannerPage = page(() => import('./pages/SocialPlannerPage'), 'Socia
 const SetupPage = page(() => import('./pages/SetupPage'), 'SetupPage')
 const PartnersPage = page(() => import('./pages/PartnersPage'), 'PartnersPage')
 const TodoPage = page(() => import('./pages/TodoPage'), 'TodoPage')
+const CustomersPage = page(() => import('./pages/CustomersPage'), 'CustomersPage')
 const RegistroPage = page(() => import('./pages/RegistroPage'), 'RegistroPage')
 const OpeningHoursPage = page(() => import('./pages/OpeningHoursPage'), 'OpeningHoursPage')
 const AppearancePage = page(() => import('./pages/AppearancePage'), 'AppearancePage')
@@ -106,6 +107,7 @@ function Routed() {
         <Route path="music" element={<PlanGate feature="music"><MusicPage /></PlanGate>} />
         <Route path="team" element={<TeamPage />} />
         <Route path="business" element={<BusinessPage />} />
+        <Route path="customers" element={isAdmin ? <CustomersPage /> : <Navigate to="/" />} />
         <Route path="todo" element={<TodoPage />} />
         <Route path="opening-hours" element={<OpeningHoursPage />} />
         <Route path="brand" element={<BrandPage />} />

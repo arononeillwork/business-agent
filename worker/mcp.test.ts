@@ -37,6 +37,7 @@ describe('AI connector tools', () => {
     expect(employee).toContain('request_timecard_correction')
     expect(employee).not.toContain('create_shift')
     expect(employee).not.toContain('update_business_details')
+    expect(employee).not.toContain('list_customers')
     expect(toolsFor(person('admin')).length).toBe(TOOLS.length)
   })
 
@@ -48,6 +49,7 @@ describe('AI connector tools', () => {
     expect(names).not.toContain('clock')
     expect(names).not.toContain('request_time_off')
     expect(names).not.toContain('save_expense')
+    expect(names).not.toContain('list_customers')
     expect(toolsFor(gestoria).every(t => t.readOnly)).toBe(true)
 
     const supplier: Profile = { ...person('partner'), partner_access: ['calendar'] }

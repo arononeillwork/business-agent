@@ -5,7 +5,8 @@ import { z } from 'zod'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { shiftPaidMinutes, shiftWarnings } from '../shared/rules'
 import { addDays, localDate, localTime, today, weekStart, zonedIso, formatLocal } from '../shared/time'
-import type { Business, CalendarEvent, PartnerArea, PayRate, Position, Profile, Settings, Shift } from '../shared/types'
+import type { Business, CalendarEvent, Customer, PartnerArea, PayRate, Position, Profile, Settings, Shift } from '../shared/types'
+import { cleanPhone, matchesSearch } from '../shared/customers'
 import { cleanWebsite } from '../shared/connections'
 
 export interface ToolContext {
@@ -739,6 +740,47 @@ export const TOOLS: ToolDef[] = [
       if (!me.can_see_pay) throw new Error('You need pay access to change finances')
       check(await sb.from('expenses').delete().eq('id', expense_id))
       return { ok: true }
+    },
+  }),
+
+  // ---------------- Customers ----------------
+  tool({
+    name: 'list_customers',
+    title: 'Customers and leads',
+    description: 'Admins: the business’s customers (people who buy) and leads (people or businesses who might), for marketing. marketing_consent: true means they agreed to receive marketing; under GDPR only those may be sent offers or newsletters. Filter by kind, consent or a search word (name, email, phone, company, notes, tags).',
+    admin: true,
+    readOnly: true,
+    input: z.object({
+      kind: z.enum(['customer', 'lead']).optional(), marketing_consent_only: z.boolean().optional(), search: z.string().optional(),
+    }),
+    async run({ sb }, a) {
+      const rows = check(await sb.from('customers').select('*').order('created_at', { ascending: false })) as Customer[]
+      return rows.filter(c => (!a.kind || c.kind === a.kind) && (!a.marketing_consent_only || c.marketing_consent) && matchesSearch(c, a.search ?? ''))
+        .map(({ id, created_at, updated_at: _u, ...c }) => ({ customer_id: id, ...c, added: localDate(created_at) }))
+    },
+  }),
+  tool({
+    name: 'save_customer',
+    title: 'Add/change customer',
+    description: 'Admins: add a customer or lead (a name, an email or a phone is needed), or change one (pass customer_id), e.g. kind: "customer" when a lead buys. Phone as "+34 600 000 000". Only set marketing_consent: true when the person really agreed to receive marketing (GDPR); the date is recorded.',
+    admin: true,
+    input: z.object({
+      customer_id: z.string().uuid().optional(), kind: z.enum(['customer', 'lead']).optional(),
+      first_name: z.string().optional(), last_name: z.string().optional(), email: z.string().email().optional(), phone: z.string().optional(),
+      company: z.string().optional(), source: z.enum(['walk_in', 'instagram', 'facebook', 'tiktok', 'website', 'google', 'referral', 'event', 'other']).optional(),
+      instagram: z.string().optional(), birthday: date.optional(), tags: z.array(z.string()).optional(), notes: z.string().optional(),
+      marketing_consent: z.boolean().optional(), last_contacted_on: date.optional(),
+    }),
+    async run({ sb }, { customer_id, phone, last_contacted_on, ...rest }) {
+      const patch: Record<string, unknown> = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined))
+      if (phone !== undefined) patch.phone = cleanPhone(phone) ?? phone
+      if (last_contacted_on) patch.last_contacted_at = zonedIso(last_contacted_on, '12:00')
+      if (customer_id) {
+        check(await sb.from('customers').update(patch).eq('id', customer_id))
+        return { ok: true, customer_id }
+      }
+      const row = check(await sb.from('customers').insert(patch).select('id').single())
+      return { ok: true, customer_id: row.id }
     },
   }),
 ]

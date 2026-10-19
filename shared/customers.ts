@@ -81,7 +81,7 @@ export function parseCsv(text: string): string[][] {
 
 /** A CSV file's text: UTF-8, or Windows-1252 (what Excel on a Spanish PC saves), so accents survive either way. */
 export function decodeCsv(bytes: Uint8Array): string {
-  try { return new TextDecoder('utf-8', { fatal: true }).decode(bytes) } catch { return new TextDecoder('windows-1252').decode(bytes) }
+  try { return new TextDecoder('utf-8', { fatal: true, ignoreBOM: false }).decode(bytes) } catch { return new TextDecoder('windows-1252').decode(bytes) }
 }
 
 export type ImportField = 'first_name' | 'last_name' | 'full_name' | 'email' | 'phone' | 'company' | 'notes' | 'instagram'

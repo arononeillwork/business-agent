@@ -37,6 +37,7 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'sales', files: [/SalesPage/, /components\/charts/], tests: String.raw`Sales page|best sellers` },
   { name: 'alerts', files: [/AlertsPage/, /NotificationBell/], tests: String.raw`alert|notification|bell` },
   { name: 'to do', files: [/TodoPage/, /shared\/todo/], tests: String.raw`To Do|job|categor` },
+  { name: 'customers', files: [/CustomersPage/, /shared\/customers/], tests: String.raw`customers|leads` },
   { name: 'set-up', files: [/SetupPage/], tests: String.raw`set-up|wizard` },
   { name: 'appearance', files: [/AppearancePage/, /app\/Appearance/], tests: String.raw`theme|text size|decimal|tint|appearance` },
   { name: 'account', files: [/AccountPage/, /StatusPages/], tests: String.raw`My account|account|registered` },
