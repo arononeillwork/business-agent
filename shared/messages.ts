@@ -96,6 +96,15 @@ export function matchesFilter(c: InboxConversation, f: InboxFilter) {
   return true
 }
 
+/** Case-insensitive search across who the chat is with and its latest messages. Empty finds everything. */
+export function matchesSearch(c: Pick<InboxConversation, 'with' | 'recent'>, query: string) {
+  const q = query.trim().toLowerCase()
+  if (!q) return true
+  return c.with.username.toLowerCase().includes(q)
+    || (c.with.name?.toLowerCase().includes(q) ?? false)
+    || c.recent.some(m => m.text.toLowerCase().includes(q))
+}
+
 /** One line for the chat list and notifications. */
 export function preview(m: InboxMessage | undefined) {
   if (!m) return 'No messages yet'

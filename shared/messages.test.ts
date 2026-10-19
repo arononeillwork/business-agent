@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { initials, matchesFilter, needsReply, preview, replyUntil, replyWindow, type InboxConversation, type InboxMessage } from './messages'
+import { initials, matchesFilter, matchesSearch, needsReply, preview, replyUntil, replyWindow, type InboxConversation, type InboxMessage } from './messages'
 
 const NOW = Date.parse('2026-10-18T12:00:00Z')
 const m = (hoursAgo: number, fromMe: boolean, extra: Partial<InboxMessage> = {}): InboxMessage =>
@@ -41,6 +41,17 @@ describe('Messages rules', () => {
     expect(matchesFilter(mention, 'shares')).toBe(false)
     expect(matchesFilter(mine, 'shares')).toBe(false) // only what customers sent counts
     expect(matchesFilter(mine, 'all')).toBe(true)
+  })
+
+  it('search finds chats by name, username or what was said, ignoring case', () => {
+    const lucia: InboxConversation = { ...chat([m(1, false, { text: 'Do you have oat milk?' })]), with: { id: 'u', username: 'lucia.marbella', name: 'Lucía García' } }
+    expect(matchesSearch(lucia, '')).toBe(true)
+    expect(matchesSearch(lucia, '  ')).toBe(true)
+    expect(matchesSearch(lucia, 'OAT')).toBe(true)
+    expect(matchesSearch(lucia, 'marbella')).toBe(true)
+    expect(matchesSearch(lucia, 'garcía')).toBe(true)
+    expect(matchesSearch(lucia, 'matcha')).toBe(false)
+    expect(matchesSearch(chat([m(1, false)]), 'lucia')).toBe(false) // no name: username only
   })
 
   it('previews say what a message is', () => {

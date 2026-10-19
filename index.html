@@ -4,6 +4,12 @@
     <meta charset="UTF-8" />
     <!-- www.<domain> → <domain>, same page (static pages are served before the Worker runs). -->
     <script>if (location.hostname.indexOf('www.') === 0) location.replace(location.href.replace('//www.', '//'))</script>
+    <!-- The app has no service worker. A browser that kept one from an earlier site on this domain
+         would go on serving that old version from its cache, so drop it (and its caches) here. -->
+    <script>
+      if ('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(function (rs) { rs.forEach(function (r) { r.unregister() }) }).catch(function () {})
+      if (window.caches) caches.keys().then(function (ks) { ks.forEach(function (k) { caches.delete(k) }) }).catch(function () {})
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#FBF8F4" />
     <meta name="apple-mobile-web-app-capable" content="yes" />

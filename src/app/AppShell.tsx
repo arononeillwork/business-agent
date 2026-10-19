@@ -1,5 +1,5 @@
 import {
-  Alert, AppBar, BottomNavigation, BottomNavigationAction, Box, ButtonBase, Collapse, Divider, Drawer, IconButton, List, ListItemButton,
+  Alert, AppBar, Badge, BottomNavigation, BottomNavigationAction, Box, ButtonBase, Collapse, Divider, Drawer, IconButton, List, ListItemButton,
   ListItemIcon, ListItemText, ListSubheader, Menu, MenuItem, Paper, Select, Stack, Toolbar, Tooltip, Typography, useMediaQuery, useTheme,
 } from '@mui/material'
 import TodayIcon from '@mui/icons-material/WbSunnyOutlined'
@@ -38,6 +38,7 @@ import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from '
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { useApp } from './AppContext'
 import { FEATURES } from './features'
+import { useUnreadMessages } from './unread'
 import type { PartnerArea } from '../../shared/types'
 import { BrandLogo } from '../components/Logo'
 import { Loading, PersonAvatar } from '../components/common'
@@ -90,6 +91,30 @@ export const SECTIONS: NavSection[] = [
 ]
 const DRAWER = 252
 const MINI = 76
+/** Per-page counts shown in the menu (today just Messages: chats waiting on a reply). */
+type NavBadges = Record<string, number>
+
+/** A small count that blends into the menu row (`dark`: the row is selected, so it sits on rose). */
+function NavCount({ n, dark }: { n?: number; dark?: boolean }) {
+  if (!n) return null
+  return (
+    <Box component="span" aria-label={`${n} waiting`} sx={{ ml: 1, minWidth: 20, height: 20, px: 0.6, borderRadius: '10px',
+      display: 'inline-grid', placeItems: 'center', flexShrink: 0, fontSize: '0.7rem', fontWeight: 700, lineHeight: 1,
+      bgcolor: dark ? 'rgba(43,37,34,0.16)' : tokens.rose, color: '#2B2522' }}>
+      {n > 99 ? '99+' : n}
+    </Box>
+  )
+}
+
+/** The same count on an icon, for the icons-only sidebar and the phone tabs. */
+function IconCount({ n, children }: { n?: number; children: ReactNode }) {
+  return (
+    <Badge badgeContent={n ?? 0} max={99} overlap="circular"
+      sx={{ '& .MuiBadge-badge': { bgcolor: tokens.rose, color: '#2B2522', fontWeight: 700, fontSize: '0.65rem', minWidth: 16, height: 16 } }}>
+      {children}
+    </Badge>
+  )
+}
 // Phone tabs: the everyday pages first; everything else sits under "More".
 const PHONE_TABS = ['rota', 'timeoff', 'timecards', 'calendar', 'business']
 /** Every page, sub-pages included. */
@@ -195,7 +220,7 @@ function DemoBanner() {
  * Phone: four tabs plus "More" (a sheet with every other page, by section, and sign out).
  * "My account" lives in the top bar.
  */
-function PhoneNav({ sections, current }: { sections: NavSection[]; current: string | false }) {
+function PhoneNav({ sections, current, badges }: { sections: NavSection[]; current: string | false; badges: NavBadges }) {
   const { api } = useApp()
   const [more, setMore] = useState(false)
   const flat = sections.flatMap(s => withChildren(s.items)).filter(n => n.key !== 'account')
@@ -211,10 +236,17 @@ function PhoneNav({ sections, current }: { sections: NavSection[]; current: stri
       <BottomNavigation showLabels value={inRest ? 'more' : current}>
         {shown.map(n => (
           <BottomNavigationAction key={n.key} value={n.key} label={n.short ?? n.label}
-            icon={n.icon} component={Link} to={n.to} sx={{ minWidth: 0 }} />
+            icon={<IconCount n={badges[n.key]}>{n.icon}</IconCount>} component={Link} to={n.to} sx={{ minWidth: 0 }} />
         ))}
         {overflow && (
-          <BottomNavigationAction value="more" label="More" icon={<MoreIcon />} sx={{ minWidth: 0 }}
+          // A quiet dot when a page under "More" has something waiting (e.g. Messages).
+          <BottomNavigationAction value="more" label="More" sx={{ minWidth: 0 }}
+            icon={
+              <Badge variant="dot" invisible={!flat.some(n => !shownKeys.includes(n.key) && badges[n.key])}
+                sx={{ '& .MuiBadge-badge': { bgcolor: tokens.rose } }}>
+                <MoreIcon />
+              </Badge>
+            }
             onClick={() => setMore(true)} aria-haspopup="dialog" />
         )}
       </BottomNavigation>
@@ -231,6 +263,7 @@ function PhoneNav({ sections, current }: { sections: NavSection[]; current: stri
                   <ListItemButton key={n.key} component={Link} to={n.to} selected={current === n.key} sx={{ mx: 1 }}>
                     <ListItemIcon sx={{ minWidth: 40 }}>{n.icon}</ListItemIcon>
                     <ListItemText primary={n.label} />
+                    <NavCount n={badges[n.key]} />
                   </ListItemButton>
                 ))}
               </Box>
@@ -250,7 +283,7 @@ function PhoneNav({ sections, current }: { sections: NavSection[]; current: stri
  * One menu row. With `sortable`, a drag handle sits at the right end (drag it, or focus it and use the arrow keys).
  * A page with sub-pages has an arrow to show them; they open by themselves while you're on the page or one of them.
  */
-function NavRow({ n, current, sortable }: { n: NavItem; current: string | false; sortable: boolean }) {
+function NavRow({ n, current, sortable, badge }: { n: NavItem; current: string | false; sortable: boolean; badge?: number }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: n.key, disabled: !sortable })
   const kids = n.children ?? []
   const inside = current === n.key || kids.some(k => k.key === current)
@@ -267,6 +300,7 @@ function NavRow({ n, current, sortable }: { n: NavItem; current: string | false;
           sx={{ py: 0.6, pl: 1.25, pr: (sortable ? 4 : 1.25) + (kids.length ? 3 : 0), ...(isDragging ? { boxShadow: `0 10px 24px -10px ${tokens.shadow}`, bgcolor: tokens.surface } : {}) }}>
           <ListItemIcon sx={{ minWidth: 34, '& svg': { fontSize: 20 } }}>{n.icon}</ListItemIcon>
           <ListItemText primary={n.label} slotProps={{ primary: { sx: { fontWeight: dark ? 600 : 400, fontSize: '0.9rem' } } }} />
+          <NavCount n={badge} dark={dark} />
         </ListItemButton>
         {kids.length > 0 && (
           <Box component="button" type="button" onClick={() => setOpen(!open)} aria-expanded={open} aria-controls={`nav-sub-${n.key}`}
@@ -306,8 +340,8 @@ function NavRow({ n, current, sortable }: { n: NavItem; current: string | false;
   )
 }
 
-function SidebarSection({ section, current, folded, onToggle, mini, onReorder }: {
-  section: NavSection; current: string | false; folded: boolean; onToggle: () => void; mini: boolean; onReorder: (keys: string[]) => void
+function SidebarSection({ section, current, folded, onToggle, mini, onReorder, badges }: {
+  section: NavSection; current: string | false; folded: boolean; onToggle: () => void; mini: boolean; onReorder: (keys: string[]) => void; badges: NavBadges
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -328,7 +362,7 @@ function SidebarSection({ section, current, folded, onToggle, mini, onReorder }:
         <Tooltip key={n.key} title={n.label} placement="right">
           <ListItemButton component={Link} to={n.to} selected={current === n.key} aria-label={n.label}
             sx={{ justifyContent: 'center', py: 0.9, mb: 0.25 }}>
-            <ListItemIcon sx={{ minWidth: 0, '& svg': { fontSize: 22 } }}>{n.icon}</ListItemIcon>
+            <ListItemIcon sx={{ minWidth: 0, '& svg': { fontSize: 22 } }}><IconCount n={badges[n.key]}>{n.icon}</IconCount></ListItemIcon>
           </ListItemButton>
         </Tooltip>
       ))}
@@ -338,7 +372,7 @@ function SidebarSection({ section, current, folded, onToggle, mini, onReorder }:
       accessibility={{ screenReaderInstructions: { draggable: 'Press space to pick up this page, use the arrow keys to move it within its section, and space again to drop it.' } }}>
       <SortableContext items={keys} strategy={verticalListSortingStrategy}>
         <List disablePadding ref={listRef}>
-          {section.items.map(n => <NavRow key={n.key} n={n} current={current} sortable={sortable} />)}
+          {section.items.map(n => <NavRow key={n.key} n={n} current={current} sortable={sortable} badge={badges[n.key]} />)}
         </List>
       </SortableContext>
     </DndContext>
@@ -389,6 +423,9 @@ export function AppShell() {
   const { pathname } = useLocation()
   const [folded, toggleFolded] = useFolded()
   const [mini, toggleMini] = useMini()
+  // Chats waiting on a reply, as a small count on Messages (sidebar, icons-only menu and phone alike).
+  const unread = useUnreadMessages()
+  const badges: NavBadges = unread > 0 ? { messages: unread } : {}
   const allowed = (n: NavItem) => isPartner
     ? n.partner === 'any' || (!!n.partner && n.partner.some(partnerCan))
     : !n.who || (n.who === 'admin' ? isAdmin : canSeePay)
@@ -435,7 +472,7 @@ export function AppShell() {
             scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' },
             maskImage: 'linear-gradient(to bottom, #000 calc(100% - 28px), transparent)' }}>
             {sections.map(s => (
-              <SidebarSection key={s.key} section={s} current={current} mini={mini}
+              <SidebarSection key={s.key} section={s} current={current} mini={mini} badges={badges}
                 folded={!mini && folded.includes(s.key) && !withChildren(s.items).some(n => n.key === current)}
                 onToggle={() => toggleFolded(s.key)} onReorder={keys => reorder(s.key, keys)} />
             ))}
@@ -494,7 +531,7 @@ export function AppShell() {
           <CafeSpeakerProvider><Suspense fallback={<Loading />}><Outlet /></Suspense></CafeSpeakerProvider>
         </Box>
       </Box>
-      {!desktop && <PhoneNav sections={sections} current={current} />}
+      {!desktop && <PhoneNav sections={sections} current={current} badges={badges} />}
     </Box>
   )
 }

@@ -1,7 +1,8 @@
 import {
-  Alert, Avatar, Box, Button, Card, CardContent, Chip, IconButton, Link as MuiLink, Stack, TextField, Tooltip, Typography,
+  Alert, Avatar, Box, Button, Card, CardContent, Chip, IconButton, InputAdornment, Link as MuiLink, Stack, TextField, Tooltip, Typography,
   useMediaQuery, useTheme,
 } from '@mui/material'
+import SearchIcon from '@mui/icons-material/SearchRounded'
 import BackIcon from '@mui/icons-material/ArrowBackRounded'
 import CloseIcon from '@mui/icons-material/CloseRounded'
 import SendIcon from '@mui/icons-material/SendRounded'
@@ -15,7 +16,7 @@ import { useAction } from '../app/Notify'
 import { Empty, ErrorBox, PageHeader } from '../components/common'
 import { Brand, CAN, DOES, KEYS_NEEDED, ago, useConnectResult } from '../components/Connectors'
 import {
-  INBOX_FILTERS, initials, matchesFilter, needsReply, preview, replyWindow,
+  INBOX_FILTERS, initials, matchesFilter, matchesSearch, needsReply, preview, replyWindow,
   type InboxConversation, type InboxFilter, type InboxMessage, type MessagePlatform, type TaggedPost,
 } from '../../shared/messages'
 import type { Integration } from '../../shared/types'
@@ -105,13 +106,14 @@ function Inbox({ ig, app }: { ig: Integration; app: MessagePlatform | 'all' }) {
   const theme = useTheme()
   const wide = useMediaQuery(theme.breakpoints.up('md'))
   const [filter, setFilter] = useState<InboxFilter>('all')
+  const [search, setSearch] = useState('')
   const [open, setOpen] = useState<string | null>(null)
   const data = useAsync('instagram-inbox', () => api.instagramInbox(), [], { refetchInterval: 60_000 })
   // Newest first: the chat with the latest message (from either side) at the top.
   const all = useMemo(() => (data.data?.conversations ?? [])
     .filter(c => app === 'all' || c.platform === app)
     .sort((a, b) => lastAt(b) - lastAt(a)), [data.data, app])
-  const shown = all.filter(c => matchesFilter(c, filter))
+  const shown = all.filter(c => matchesFilter(c, filter) && matchesSearch(c, search))
   const count = (f: InboxFilter) => all.filter(c => matchesFilter(c, f)).length
   const chosen = all.find(c => c.id === open) ?? null
 
@@ -126,6 +128,17 @@ function Inbox({ ig, app }: { ig: Integration; app: MessagePlatform | 'all' }) {
 
   const list = (
     <Box component="section" aria-label="Chats" sx={{ minWidth: 0 }}>
+      {/* Search across every chat: who it's with and what was said. */}
+      <TextField value={search} onChange={e => setSearch(e.target.value)} size="small" fullWidth placeholder="Search chats"
+        aria-label="Search chats" sx={{ mb: 1.5 }}
+        slotProps={{ input: {
+          startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>,
+          endAdornment: search ? (
+            <InputAdornment position="end">
+              <IconButton size="small" aria-label="Clear search" onClick={() => setSearch('')}><CloseIcon fontSize="small" /></IconButton>
+            </InputAdornment>
+          ) : undefined,
+        } }} />
       <Stack direction="row" role="group" aria-label="Show" sx={{ gap: 0.75, flexWrap: 'wrap', mb: 1.5 }}>
         {INBOX_FILTERS.map(f => (
           <Chip key={f.key} size="small" clickable onClick={() => setFilter(f.key)} aria-pressed={filter === f.key}
@@ -140,7 +153,12 @@ function Inbox({ ig, app }: { ig: Integration; app: MessagePlatform | 'all' }) {
           You can reply for 24 hours after someone’s last message, and for up to 7 days as a personal reply you write yourself.
         </Typography>
       </Stack>
-      {data.data && shown.length === 0 && <Empty>{filter === 'all' ? (app === 'all' ? 'No messages yet.' : 'No Instagram messages yet.') : 'Nothing here right now.'}</Empty>}
+      {data.data && shown.length === 0 && (
+        <Empty>
+          {search.trim() ? `No chats match “${search.trim()}”.`
+            : filter === 'all' ? (app === 'all' ? 'No messages yet.' : 'No Instagram messages yet.') : 'Nothing here right now.'}
+        </Empty>
+      )}
       <Stack component="ul" aria-label="Instagram chats" sx={{ m: 0, p: 0, listStyle: 'none', gap: 0.5 }}>
         {shown.map(c => <ChatRow key={c.id} c={c} selected={c.id === open} roomy={wide && !chosen} onOpen={() => setOpen(c.id)} />)}
       </Stack>
