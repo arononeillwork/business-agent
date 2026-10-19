@@ -41,7 +41,7 @@ Object.assign(patch, {
   mailer_templates_invite_content: `<h2>Welcome to the Easy Beans team app</h2>
 <p><a href="{{ .ConfirmationURL }}">Accept the invite</a> to sign in and choose a password.</p>
 <p>If the link says it has expired, open {{ .SiteURL }}, type this email address and tap
-<b>Email me a sign-in code</b>.</p>`,
+<b>Forgot password?</b> to set one.</p>`,
 })
 const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, META_APP_ID, META_APP_SECRET, FACEBOOK_SIGN_IN,
   APPLE_CLIENT_ID, APPLE_TEAM_ID, APPLE_KEY_ID, APPLE_PRIVATE_KEY } = process.env
@@ -97,7 +97,7 @@ console.log(`Sign-in methods on: email=${!!after.external_email_enabled} google=
 if (!after.external_google_enabled) {
   console.log('::warning::Google sign-in is OFF: add the GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET repo secrets, then run Deploy again (docs/sign-in-setup.md)')
 }
-// Read back: the sign-in email must carry the code, or "Email me a sign-in code" can't work.
+// Read back: the sign-in email must carry the code (the app API can still send one).
 const check = await api('GET')
 const hasCode = String(check.mailer_templates_magic_link_content ?? '').includes('{{ .Token }}')
 console.log(`Sign-in email shows the 6-digit code: ${hasCode}`)

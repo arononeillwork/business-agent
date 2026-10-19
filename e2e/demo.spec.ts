@@ -689,23 +689,10 @@ test.describe('partners (outside businesses)', () => {
   })
 })
 
-test('sign in with an emailed code instead of a link or password', async ({ page }) => {
-  await page.clock.install({ time: WED_0900 })
+test('sign in is one-tap accounts or email and password: no emailed code', async ({ page }) => {
   await page.goto('/?demo')
-  await page.getByRole('button', { name: 'Email me a sign-in code' }).click()
-  await toast(page, 'Enter your email first')
-  await page.getByRole('textbox', { name: 'Email' }).fill('nobody@example.com')
-  await page.getByRole('button', { name: 'Email me a sign-in code' }).click()
-  await toast(page, 'No invited account uses this email')
-  await page.getByRole('textbox', { name: 'Email' }).fill('maria@example.com')
-  await page.getByRole('button', { name: 'Email me a sign-in code' }).click()
-  await toast(page, 'Code sent to maria@example.com')
-  await page.getByLabel('6-digit code').fill('000000')
-  await page.getByRole('button', { name: 'Sign in with code' }).click()
-  await toast(page, 'wrong or has expired')
-  await page.getByLabel('6-digit code').fill('123 456')
-  await page.getByRole('button', { name: 'Sign in with code' }).click()
-  await expect(page.getByRole('heading', { name: /Hola, Maria/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Forgot password?' })).toBeVisible()
+  await expect(page.getByText(/sign-in code/i)).toHaveCount(0)
 })
 
 test('admin creates a staff account with a temporary password, and can reset it', async ({ page }) => {
@@ -1387,6 +1374,7 @@ test('signed out: the Business Agent landing page; a new registration waits to b
   await page.goto('/?demo')
   await expect(page.getByRole('heading', { level: 1, name: /runs your business/ })).toBeVisible()
   await expect(page.getByText('Business Agent').first()).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Enterprise plan' })).toHaveCount(0) // only on the pricing page
   // None of the café's branding before sign-in.
   await expect(page.getByText('Easy Beans')).toHaveCount(0)
   await page.getByRole('tab', { name: 'Create account' }).click()
@@ -1423,7 +1411,7 @@ test('signed out: one-tap Google, Apple, Facebook and Microsoft sign-in next to 
   await toast(page, 'Facebook sign-in works on the live app')
 })
 
-test('pricing: four plans, each in detail, every feature line by line, Enterprise, and "Try free" opens Create account', async ({ page }) => {
+test('pricing: four plans, a simple feature table, Enterprise at the foot, and "Try free" opens Create account', async ({ page }) => {
   await page.goto('/pricing?demo')
   await expect(page.getByRole('heading', { level: 1 })).toContainText('Start free')
   await expect(page.getByRole('article', { name: /plan$/ })).toHaveCount(4)
@@ -1433,23 +1421,17 @@ test('pricing: four plans, each in detail, every feature line by line, Enterpris
   await page.getByRole('button', { name: /Yearly/ }).first().click()
   await expect(pro).toContainText('€65.83')
   await expect(pro).toContainText('€790 billed yearly')
-  // Each plan in detail: the overview first, then every feature and limit, and where a missing one is.
-  const details = page.getByRole('region', { name: 'Plan details' })
-  await expect(details.getByRole('tabpanel', { name: 'Pro plan details' })).toContainText('€79 a month, or €790 a year')
-  await expect(details.getByRole('tabpanel')).toContainText('Up to 25')
-  await expect(details.getByRole('listitem', { name: /Read-only access for your gestoría and partners: not included/ })).toContainText('On Business')
-  await details.getByRole('tab', { name: /Business/ }).click()
-  const business = details.getByRole('tabpanel', { name: 'Business plan details' })
-  await expect(business).toContainText('Unlimited')
-  await expect(business).toContainText('Priority email and phone, same working day')
-  await expect(business.getByRole('listitem', { name: /Read-only access for your gestoría and partners: included/ })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Plan details' })).toHaveCount(0)
   // Enterprise, at the foot: by conversation with sales.
   const enterprise = page.getByRole('region', { name: 'Enterprise plan' })
   await expect(enterprise).toContainText('For groups, franchises and multi-site operators.')
   await expect(enterprise.getByRole('link', { name: 'Contact sales' })).toHaveAttribute('href', /^mailto:sales@businesssagent\.com\?subject=Business%20Agent%20Enterprise/)
   const table = page.getByRole('table', { name: 'Plan comparison' })
   await expect(table.getByRole('row', { name: /Custom MCP connection/ }).getByLabel('Included')).toHaveCount(4)
-  await expect(table.getByRole('row', { name: /Scheduled posts per month/ }).getByRole('cell')).toHaveText([/^Scheduled posts per month/, '1', '12', '60', 'Unlimited'])
+  await expect(table.getByRole('row', { name: /Scheduled posts per month/ }).getByRole('cell')).toHaveText(['Scheduled posts per month', '1', '12', '60', 'Unlimited'])
+  // Enterprise is the last section before the closing banner, and only on this page.
+  const sections = await page.locator('main > *').evaluateAll(els => els.map(e => (e.querySelector('[aria-label="Enterprise plan"]') ? 'enterprise' : e.textContent?.includes('Give your') ? 'closing' : 'other')))
+  expect(sections.slice(-2)).toEqual(['enterprise', 'closing'])
   await page.getByRole('article', { name: 'Business plan' }).getByRole('link', { name: 'Try free for 2 months' }).click()
   await expect(page.getByRole('heading', { name: 'Create your account' })).toBeVisible()
   await expect(page.getByRole('tab', { name: 'Create account' })).toHaveAttribute('aria-selected', 'true')

@@ -3,7 +3,7 @@ import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom'
 import CheckIcon from '@mui/icons-material/CheckRounded'
 import { useEffect } from 'react'
 import { ClosingCta } from './LoginPage'
-import { BA, Eyebrow, MarketingFrame, display, glow, primaryBtn } from './marketing/site'
+import { BA, Eyebrow, MarketingFrame, display, figures, glow, primaryBtn } from './marketing/site'
 import { COMPETITORS, PRICES_CHECKED, USD_TO_EUR, euro, savings, stackTotal, type Competitor } from '../../shared/competitors'
 import { TRIAL_MONTHS, TRIAL_PLAN, plan, planHighlights } from '../../shared/plans'
 
@@ -26,7 +26,7 @@ export function ComparePage() {
         <Box sx={{ backgroundImage: glow('50%', '-200px') }}>
           <Container maxWidth="lg" sx={{ pt: { xs: 6, md: 9 }, pb: { xs: 6, md: 8 }, textAlign: 'center' }}>
             <Eyebrow>Compare</Eyebrow>
-            <Typography component="h1" sx={{ fontFamily: display, fontWeight: 400, fontSize: { xs: '2.8rem', md: '4.2rem' }, lineHeight: 1, letterSpacing: '-0.02em', mt: 1.75, maxWidth: 860, mx: 'auto' }}>
+            <Typography component="h1" sx={{ fontFamily: display, fontWeight: 500, fontSize: { xs: '2.8rem', md: '4.2rem' }, lineHeight: 1, letterSpacing: '-0.02em', mt: 1.75, maxWidth: 860, mx: 'auto' }}>
               One app instead of a <Box component="em" sx={{ fontStyle: 'italic', color: BA.roseDeep }}>stack of add-ons.</Box>
             </Typography>
             <Typography sx={{ color: BA.soft, fontSize: { xs: '1.05rem', md: '1.15rem' }, mt: 2.5, maxWidth: 640, mx: 'auto', lineHeight: 1.6 }}>
@@ -53,7 +53,7 @@ export function ComparePage() {
             ].map(([label, value], i) => (
               <Box key={label}>
                 <Typography sx={{ color: 'rgba(255,255,255,0.65)', fontSize: '0.9rem' }}>{label}</Typography>
-                <Typography sx={{ fontFamily: display, fontWeight: 400, fontSize: { xs: '2.6rem', md: '3.4rem' }, letterSpacing: '-0.015em', lineHeight: 1.1, color: i === 2 ? BA.rose : '#fff' }}>{value}</Typography>
+                <Typography sx={{ ...figures, fontSize: { xs: '2.2rem', md: '2.8rem' }, lineHeight: 1.1, color: i === 2 ? BA.rose : '#fff' }}>{value}</Typography>
                 {i === 2 && <Typography sx={{ color: 'rgba(255,255,255,0.75)' }}>{euro(s.year)} a year · {s.percent}% less</Typography>}
               </Box>
             ))}
@@ -62,8 +62,8 @@ export function ComparePage() {
           <Box sx={{ mt: 4, display: 'grid', gap: 3, gridTemplateColumns: { xs: '1fr', md: '1.5fr 1fr' }, alignItems: 'start' }}>
             <StackTable c={c} />
             <Box sx={{ p: 3.5, borderRadius: '24px', bgcolor: '#fff', border: `2px solid ${BA.ink}` }}>
-              <Typography component="h2" sx={{ fontFamily: display, fontWeight: 400, fontSize: '2rem', lineHeight: 1.1 }}>Business Agent {ours.name}</Typography>
-              <Typography sx={{ mt: 1 }}><Box component="b" sx={{ fontFamily: display, fontWeight: 400, fontSize: '2.6rem' }}>{euro(ours.monthly)}</Box> / month, plus VAT</Typography>
+              <Typography component="h2" sx={{ fontFamily: display, fontWeight: 500, fontSize: '2rem', lineHeight: 1.1 }}>Business Agent {ours.name}</Typography>
+              <Typography sx={{ mt: 1 }}><Box component="b" sx={{ ...figures, fontSize: '2.2rem' }}>{euro(ours.monthly)}</Box> / month, plus VAT</Typography>
               <Typography variant="body2" sx={{ color: BA.soft }}>Everything in one app. Try {TRIAL_PLAN.name}, which includes it all, free for {TRIAL_MONTHS} months.</Typography>
               <Stack component="ul" spacing={1} sx={{ listStyle: 'none', p: 0, m: 0, mt: 2.5 }}>
                 {planHighlights(ours).map(h => (

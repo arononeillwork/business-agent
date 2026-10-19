@@ -49,7 +49,7 @@ export function authMessage(env: Env, business: string, p: HookPayload) {
   const ignore = "If you didn't ask for this, you can ignore this email."
   switch (d.email_action_type) {
     case 'invite':
-      return { subject: `You're invited to the ${business} team app`, text: `${hi}\n\n${business} has invited you to its team app. Open this link to accept and choose a password:\n\n${link('invite')}\n\nIf the link has expired, open ${d.site_url}, type this email address and tap "Email me a sign-in code".` }
+      return { subject: `You're invited to the ${business} team app`, text: `${hi}\n\n${business} has invited you to its team app. Open this link to accept and choose a password:\n\n${link('invite')}\n\nIf the link has expired, open ${d.site_url}, type this email address and tap "Forgot password?" to set one.` }
     case 'signup':
       return { subject: `Confirm your email for ${business}`, text: `${hi}\n\nOpen this link to confirm your email address:\n\n${link('signup')}\n\n${ignore}` }
     case 'magiclink':

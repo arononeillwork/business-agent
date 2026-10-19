@@ -1,9 +1,9 @@
 import { Box, Button, Container, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material'
-import { Link as RouterLink } from 'react-router-dom'
+import { Link as RouterLink, useLocation } from 'react-router-dom'
 import CheckIcon from '@mui/icons-material/CheckRounded'
 import { useEffect } from 'react'
 import { ClosingCta, Faq } from './LoginPage'
-import { EnterprisePlan, PlanDetails, PricingCards } from './marketing/plans'
+import { EnterprisePlan, PricingCards } from './marketing/plans'
 import { BA, Eyebrow, MarketingFrame, SectionIntro, display, glow, outlineBtn } from './marketing/site'
 import { COMPARE, ENTERPRISE, PLANS, TRIAL_MONTHS, TRIAL_PLAN, plan } from '../../shared/plans'
 import { COMPETITORS, euro, savings } from '../../shared/competitors'
@@ -30,6 +30,11 @@ function Cell({ v, strong }: { v: boolean | string; strong?: boolean }) {
 
 /** Public: the four plans, the free trial, and every feature line by line. */
 export function PricingPage() {
+  const { hash } = useLocation()
+  // /pricing#enterprise (header and footer links): go to that section once it's on the page.
+  useEffect(() => {
+    if (hash) requestAnimationFrame(() => document.getElementById(hash.slice(1))?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  }, [hash])
   useEffect(() => {
     const before = document.title
     document.title = 'Pricing · Business Agent'
@@ -50,7 +55,7 @@ export function PricingPage() {
             </Stack>
             <Box sx={{ textAlign: 'center', maxWidth: 720, mx: 'auto', mb: { xs: 5, md: 7 } }}>
               <Eyebrow>Pricing</Eyebrow>
-              <Typography component="h1" sx={{ fontFamily: display, fontWeight: 400, fontSize: { xs: '3rem', md: '4.6rem' }, lineHeight: 0.98, letterSpacing: '-0.02em', mt: 1.75 }}>
+              <Typography component="h1" sx={{ fontFamily: display, fontWeight: 500, fontSize: { xs: '3rem', md: '4.6rem' }, lineHeight: 0.98, letterSpacing: '-0.02em', mt: 1.75 }}>
                 Start free. <Box component="em" sx={{ fontStyle: 'italic', color: BA.roseDeep }}>Grow into it.</Box>
               </Typography>
               <Typography sx={{ color: BA.soft, fontSize: { xs: '1.08rem', md: '1.2rem' }, mt: 2.5, lineHeight: 1.6 }}>
@@ -61,22 +66,18 @@ export function PricingPage() {
           </Container>
         </Box>
 
-        <Container maxWidth="lg" sx={{ py: { xs: 9, md: 12 } }}>
-          <PlanDetails />
-        </Container>
-
         <Box sx={{ bgcolor: '#fff', borderTop: `1px solid ${BA.line}`, borderBottom: `1px solid ${BA.line}` }}>
           <Container maxWidth="lg" sx={{ py: { xs: 9, md: 12 } }}>
             <SectionIntro eyebrow="Compare plans" title={<>Every plan, <em>side by side</em></>} text="The custom MCP connection for your AI is on every plan." />
             <Box sx={{ overflowX: 'auto', border: `1px solid ${BA.line}`, borderRadius: '22px' }}>
-              <Table sx={{ minWidth: 720, '& td, & th': { color: BA.ink } }} aria-label="Plan comparison">
+              <Table size="small" sx={{ minWidth: 640, '& td, & th': { color: BA.ink, py: 1.1 } }} aria-label="Plan comparison">
                 <TableHead>
                   <TableRow>
                     <TableCell sx={{ borderColor: BA.line, width: '36%' }} />
                     {PLANS.map(p => (
                       <TableCell key={p.id} align="center" sx={{ borderColor: BA.line, bgcolor: p.trial ? 'rgba(247,155,164,0.07)' : undefined }}>
-                        <Typography sx={{ fontFamily: display, fontWeight: 400, fontSize: '1.5rem', lineHeight: 1.1 }}>{p.name}</Typography>
-                        <Typography variant="body2" sx={{ color: BA.soft }}>{p.monthly ? `€${p.monthly} / month` : 'Free'}</Typography>
+                        <Typography sx={{ fontWeight: 600, fontSize: '1.05rem' }}>{p.name}</Typography>
+                        <Typography variant="body2" sx={{ color: BA.soft }}>€{p.monthly} / month</Typography>
                       </TableCell>
                     ))}
                   </TableRow>
@@ -90,11 +91,7 @@ export function PricingPage() {
                     </TableRow>,
                     ...g.rows.map(r => (
                       <TableRow key={r.label}>
-                        <TableCell sx={{ borderColor: BA.lineSoft }}>
-                          {r.label}
-                          {r.explain && <Typography variant="caption" component="div" sx={{ color: BA.soft }}>{r.explain}</Typography>}
-                          {r.note && <Typography variant="caption" component="div" sx={{ color: BA.faint }}>{r.note}</Typography>}
-                        </TableCell>
+                        <TableCell sx={{ borderColor: BA.lineSoft }}>{r.label}</TableCell>
                         {PLANS.map(p => <Cell key={p.id} v={r.values[p.id]} strong={p.trial} />)}
                       </TableRow>
                     )),
@@ -110,7 +107,7 @@ export function PricingPage() {
           <Box sx={{ display: 'grid', gap: 2.5, gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' } }}>
             {compared.map(({ c, p, s }) => (
               <Box key={c.id} sx={{ p: 3.5, borderRadius: '24px', bgcolor: '#fff', border: `1px solid ${BA.line}` }}>
-                <Typography component="h3" sx={{ fontFamily: display, fontWeight: 400, fontSize: '1.9rem', lineHeight: 1.1 }}>{p.name} vs {c.name}</Typography>
+                <Typography component="h3" sx={{ fontFamily: display, fontWeight: 500, fontSize: '1.9rem', lineHeight: 1.1 }}>{p.name} vs {c.name}</Typography>
                 <Stack spacing={0.75} sx={{ mt: 2, fontVariantNumeric: 'tabular-nums' }}>
                   <Stack direction="row" sx={{ justifyContent: 'space-between', gap: 2 }}><span>{c.tagline}</span><b>{euro(s.theirs)}</b></Stack>
                   <Stack direction="row" sx={{ justifyContent: 'space-between', gap: 2 }}><span>Business Agent {p.name}</span><b>{euro(s.ours)}</b></Stack>
@@ -126,13 +123,13 @@ export function PricingPage() {
           </Box>
         </Container>
 
-        <Container maxWidth="lg" sx={{ pb: { xs: 9, md: 12 } }}>
-          <EnterprisePlan />
-        </Container>
-
         <Container maxWidth="md" sx={{ pb: { xs: 9, md: 12 } }}>
           <SectionIntro eyebrow="FAQ" title={<>Pricing <em>questions</em></>} />
           <Faq items={PRICING_FAQ} />
+        </Container>
+
+        <Container maxWidth="lg" sx={{ pb: { xs: 9, md: 12 } }}>
+          <EnterprisePlan />
         </Container>
 
         <ClosingCta />

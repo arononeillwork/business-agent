@@ -7,7 +7,8 @@ import { ENTERPRISE } from '../../../shared/plans'
 // Business Agent: the product. Signed-out visitors see its own look (not any one business's
 // brand); once someone signs in, they see their business's branded app. The palette is natural
 // and warm, from the first Easy Beans colours: rose pink, grey limewash and ube lilac on cream,
-// with espresso ink. Headlines and the wordmark are set in an editorial serif.
+// with espresso ink. Headlines and the wordmark are set in a sturdy serif (Fraunces, weight 500);
+// prices and figures stay in the plain sans so they read at a glance.
 export const BA = {
   ink: '#2B2522', soft: '#5F5852', faint: '#8E877F', line: '#E7E1DA', lineSoft: '#F0EBE5',
   bg: '#FBF8F4', card: '#FFFFFF', tint: '#F3EEE8', limewash: '#C6C2BB',
@@ -17,8 +18,10 @@ export const BA = {
   // The accent (labels, ticks, links) is the deep rose: readable on cream and white.
   accent: '#A85A68', accentDeep: '#8E4655', accentSoft: '#FCEDEE',
 }
-/** The editorial serif for headlines, prices and the wordmark (one weight: it's never bolded). */
-export const display = '"Instrument Serif", "Cormorant Garamond", Georgia, serif'
+/** The serif for headlines and the wordmark. */
+export const display = '"Fraunces", Georgia, serif'
+/** Prices and big figures: the body sans, so numbers read at a glance. */
+export const figures = { fontFamily: '"Figtree", system-ui, sans-serif', fontWeight: 600, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em' } as const
 export const CONTACT = { hello: 'hello@businesssagent.com', sales: ENTERPRISE.email, support: 'support@businesssagent.com' }
 
 /** Soft glows of the three brand colours, for hero backgrounds. */
@@ -39,7 +42,7 @@ export function AgentMark({ size = 32 }: { size?: number }) {
 /** "Business Agent", set in the serif, Agent in italic. */
 export function Wordmark({ size = '1.6rem', light }: { size?: string; light?: boolean }) {
   return (
-    <Typography component="span" sx={{ fontFamily: display, fontWeight: 400, fontSize: size, letterSpacing: '-0.01em', lineHeight: 1,
+    <Typography component="span" sx={{ fontFamily: display, fontWeight: 500, fontSize: size, letterSpacing: '-0.01em', lineHeight: 1,
       color: light ? '#fff' : BA.ink, whiteSpace: 'nowrap' }}>
       Business <Box component="em" sx={{ fontStyle: 'italic', color: light ? BA.rose : BA.roseDeep }}>Agent</Box>
     </Typography>
@@ -150,7 +153,7 @@ export function SectionIntro({ eyebrow, title, text, light }: { eyebrow: string;
   return (
     <Box sx={{ textAlign: 'center', maxWidth: 680, mx: 'auto', mb: { xs: 5, md: 7 } }}>
       <Eyebrow light={light}>{eyebrow}</Eyebrow>
-      <Typography component="h2" sx={{ fontFamily: display, fontWeight: 400, fontSize: { xs: '2.2rem', md: '3.1rem' }, lineHeight: 1.05, letterSpacing: '-0.015em', mt: 1.75,
+      <Typography component="h2" sx={{ fontFamily: display, fontWeight: 500, fontSize: { xs: '2.2rem', md: '3.1rem' }, lineHeight: 1.05, letterSpacing: '-0.015em', mt: 1.75,
         color: light ? '#fff' : BA.ink, '& em': { fontStyle: 'italic', color: light ? BA.rose : BA.roseDeep } }}>
         {title}
       </Typography>

@@ -17,7 +17,7 @@ import { useApp } from '../app/AppContext'
 import { useAction } from '../app/Notify'
 import { cleanCode } from '../../shared/referrals'
 import { AuthCard } from './marketing/AuthCard'
-import { EnterprisePlan, PlanDetails, PricingCards, TRIAL_MONTHS } from './marketing/plans'
+import { PricingCards, TRIAL_MONTHS } from './marketing/plans'
 import { BA, MarketingFrame, SectionIntro, display, glow, outlineBtn, primaryBtn, roseBtn } from './marketing/site'
 
 export { AgentMark } from './marketing/site'
@@ -43,7 +43,7 @@ const STEPS = [
 const FAQ: { q: string; a: string }[] = [
   { q: 'How does the free trial work?', a: `The Business plan, with everything switched on, is free for ${TRIAL_MONTHS} months. You add a card to start and nothing is charged until the trial ends; cancel before then and you pay nothing. If the first payment doesn't go through, you move to the Free plan until it does.` },
   { q: 'Do my staff need to pay or download anything?', a: 'No. Your team is included in your plan. They open the app in their phone\'s browser and add it to their home screen: no app store needed.' },
-  { q: 'Do I need yet another password?', a: 'No. Log in with your Google, Apple, Facebook or Microsoft account in one tap. If you prefer email, use a password or a one-time code we send you.' },
+  { q: 'Do I need yet another password?', a: 'No. Log in with your Google, Apple, Facebook or Microsoft account in one tap. If you prefer, use your email and a password.' },
   { q: 'Does it follow the Spanish working-time rules?', a: 'Yes. Clock-ins, breaks and the monthly registro de jornada follow the rules for Spain, and you can share them with your gestoría as read-only.' },
   { q: 'Can I change plan or cancel?', a: 'Any time. Plans are month to month (or yearly if you prefer), with no contract and no set-up fee.' },
   { q: 'Where is my data kept?', a: 'In the EU, protected so each person only sees what they should. Pay and personal details stay with the people who need them.' },
@@ -78,7 +78,7 @@ export function LoginPage() {
                 <Box component="span" sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: '#6B8E4E' }} />
                 <span>Free plan · {TRIAL_MONTHS} months of Business free</span>
               </Stack>
-              <Typography component="h1" sx={{ fontFamily: display, fontWeight: 400, fontSize: { xs: '3rem', sm: '3.8rem', md: '4.7rem' },
+              <Typography component="h1" sx={{ fontFamily: display, fontWeight: 500, fontSize: { xs: '3rem', sm: '3.8rem', md: '4.7rem' },
                 lineHeight: 0.98, letterSpacing: '-0.02em', mt: 3, maxWidth: 660 }}>
                 The assistant that runs your business's <Box component="em" sx={{ fontStyle: 'italic', color: BA.roseDeep, whiteSpace: 'nowrap' }}>day&#8209;to&#8209;day.</Box>
               </Typography>
@@ -151,14 +151,12 @@ export function LoginPage() {
             <SectionIntro eyebrow="Pricing" title={<>Simple plans. <em>{TRIAL_MONTHS} months on us.</em></>}
               text="One price for the whole team, not per person. Start on Free, or try Business free for 2 months." />
             <PricingCards />
-            <Box sx={{ mt: { xs: 9, md: 12 } }}><PlanDetails /></Box>
             <Box sx={{ textAlign: 'center', mt: 3 }}>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ justifyContent: 'center' }}>
                 <Button component={RouterLink} to="/pricing" sx={{ color: BA.ink, textTransform: 'none', fontWeight: 500 }}>Every plan side by side →</Button>
                 <Button component={RouterLink} to="/compare" sx={{ color: BA.ink, textTransform: 'none', fontWeight: 500 }}>Compare with Square and GoHighLevel →</Button>
               </Stack>
             </Box>
-            <Box sx={{ mt: { xs: 7, md: 9 } }}><EnterprisePlan /></Box>
           </Container>
         </Box>
 
@@ -206,14 +204,14 @@ function Invite() {
       </Stack>
       {joined ? (
         <>
-          <Typography variant="h5" component="h2" sx={{ fontFamily: display, fontWeight: 400, fontSize: '2rem' }}>You’re on the list</Typography>
+          <Typography variant="h5" component="h2" sx={{ fontFamily: display, fontWeight: 500, fontSize: '2rem' }}>You’re on the list</Typography>
           <Typography sx={{ color: BA.soft, mt: 1 }}>
             We’ll email you when sign-up opens. When your business finishes setting up, you and {by} each get a month free.
           </Typography>
         </>
       ) : (
         <Box component="form" onSubmit={join}>
-          <Typography variant="h5" component="h2" sx={{ fontFamily: display, fontWeight: 400, fontSize: '2rem' }}>Get your first month free</Typography>
+          <Typography variant="h5" component="h2" sx={{ fontFamily: display, fontWeight: 500, fontSize: '2rem' }}>Get your first month free</Typography>
           <Typography sx={{ color: BA.soft, mt: 1, mb: 2 }}>
             Sign-up for new businesses opens soon. Join the waitlist: when your business finishes setting up, you and {by} each get a month free.
           </Typography>
@@ -254,7 +252,7 @@ export function ClosingCta() {
     <Container maxWidth="lg" sx={{ pb: { xs: 8, md: 12 } }}>
       <Box sx={{ borderRadius: '32px', bgcolor: BA.ink, color: '#fff', px: { xs: 3, md: 8 }, py: { xs: 7, md: 10 }, textAlign: 'center',
         backgroundImage: 'radial-gradient(700px 300px at 50% -80px, rgba(247,155,164,0.32), transparent 70%), radial-gradient(500px 260px at 100% 120%, rgba(183,163,216,0.25), transparent 70%)' }}>
-        <Typography component="h2" sx={{ fontFamily: display, fontWeight: 400, fontSize: { xs: '2.5rem', md: '3.6rem' }, letterSpacing: '-0.015em', lineHeight: 1.02 }}>
+        <Typography component="h2" sx={{ fontFamily: display, fontWeight: 500, fontSize: { xs: '2.5rem', md: '3.6rem' }, letterSpacing: '-0.015em', lineHeight: 1.02 }}>
           Give your <Box component="em" sx={{ color: BA.rose }}>evenings</Box> back.
         </Typography>
         <Typography sx={{ color: 'rgba(255,255,255,0.72)', mt: 2, fontSize: '1.1rem', maxWidth: 520, mx: 'auto' }}>
@@ -291,7 +289,7 @@ function ProductPreview() {
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 300px' } }}>
         <Box sx={{ p: { xs: 2, md: 3.5 }, overflowX: 'auto' }}>
           <Stack direction="row" sx={{ alignItems: 'baseline', justifyContent: 'space-between', mb: 2.5 }}>
-            <Typography sx={{ fontFamily: display, fontWeight: 400, fontSize: '1.7rem', lineHeight: 1 }}>This week</Typography>
+            <Typography sx={{ fontFamily: display, fontWeight: 500, fontSize: '1.7rem', lineHeight: 1 }}>This week</Typography>
             <Typography variant="body2" sx={{ color: BA.faint }}>142 h · €1,986</Typography>
           </Stack>
           <Box sx={{ display: 'grid', gridTemplateColumns: '110px repeat(5, minmax(64px, 1fr))', gap: 1, minWidth: 480, fontSize: '0.85rem' }}>

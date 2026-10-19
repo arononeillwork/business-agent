@@ -101,12 +101,6 @@ function SignInForm() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
-  const [codeSent, setCodeSent] = useState(false)
-  const [code, setCode] = useState('')
-  const sendCode = async () => {
-    if (!email.trim()) return notify('Enter your email first', 'warning')
-    if (await run(() => api.sendSignInCode(email), `Code sent to ${email.trim()}. Check your inbox (and spam).`)) setCodeSent(true)
-  }
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setBusy(true)
@@ -117,7 +111,7 @@ function SignInForm() {
     <Box component="form" onSubmit={submit}>
       <Stack spacing={2.25}>
         <Box>
-          <Typography variant="h5" component="h2" sx={{ fontFamily: display, fontWeight: 400, fontSize: '2.1rem', lineHeight: 1.05, letterSpacing: '-0.01em', color: BA.ink }}>Sign in</Typography>
+          <Typography variant="h5" component="h2" sx={{ fontFamily: display, fontWeight: 500, fontSize: '2.1rem', lineHeight: 1.05, letterSpacing: '-0.01em', color: BA.ink }}>Sign in</Typography>
           <Typography sx={{ color: BA.soft, mt: 0.5 }}>Welcome back. You'll go straight to your business.</Typography>
         </Box>
         {api.authError?.() && <Alert severity="error">{api.authError()}</Alert>}
@@ -127,30 +121,17 @@ function SignInForm() {
         <SocialButtons methods={methods} />
         <Divider sx={{ color: BA.faint, fontSize: 13 }}>or with your email</Divider>
         <TextField label="Email" type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} required />
-        {codeSent ? <>
-          <TextField label="6-digit code" value={code} onChange={e => setCode(e.target.value)} autoFocus
-            slotProps={{ htmlInput: { inputMode: 'numeric', autoComplete: 'one-time-code', maxLength: 8 } }}
-            helperText={api.mode === 'demo' ? 'Demo: the code is 123456' : `We emailed a code to ${email.trim()}. It works once, for an hour.`} />
-          <Button variant="contained" size="large" disabled={busy || code.replace(/\D/g, '').length < 6} sx={primaryBtn}
-            onClick={() => run(() => api.verifySignInCode(email, code))}>Sign in with code</Button>
-          <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
-            <Link component="button" type="button" variant="body2" onClick={sendCode} sx={linkSx}>Send a new code</Link>
-            <Link component="button" type="button" variant="body2" onClick={() => { setCodeSent(false); setCode('') }} sx={linkSx}>Use my password</Link>
+        <Box>
+          <TextField label="Password" type="password" autoComplete="current-password" value={password} fullWidth
+            onChange={e => setPassword(e.target.value)} required={api.mode === 'live'} />
+          <Stack direction="row" sx={{ justifyContent: 'flex-end', mt: 1 }}>
+            <Link component="button" type="button" variant="body2" sx={linkSx} onClick={async () => {
+              if (!email) return notify('Enter your email first', 'warning')
+              await run(() => api.sendPasswordReset(email), 'Check your email for a reset link')
+            }}>Forgot password?</Link>
           </Stack>
-        </> : <>
-          <Box>
-            <TextField label="Password" type="password" autoComplete="current-password" value={password} fullWidth
-              onChange={e => setPassword(e.target.value)} required={api.mode === 'live'} />
-            <Stack direction="row" sx={{ justifyContent: 'space-between', mt: 1 }}>
-              <Link component="button" type="button" variant="body2" onClick={sendCode} sx={linkSx}>Email me a sign-in code</Link>
-              <Link component="button" type="button" variant="body2" sx={linkSx} onClick={async () => {
-                if (!email) return notify('Enter your email first', 'warning')
-                await run(() => api.sendPasswordReset(email), 'Check your email for a reset link')
-              }}>Forgot password?</Link>
-            </Stack>
-          </Box>
-          <Button type="submit" variant="contained" size="large" disabled={busy} sx={primaryBtn}>Sign in</Button>
-        </>}
+        </Box>
+        <Button type="submit" variant="contained" size="large" disabled={busy} sx={primaryBtn}>Sign in</Button>
       </Stack>
     </Box>
   )
@@ -177,7 +158,7 @@ function SignUpForm({ onSignIn }: { onSignIn: () => void }) {
   }
   if (sent) return (
     <Stack spacing={2}>
-      <Typography variant="h5" component="h2" sx={{ fontFamily: display, fontWeight: 400, fontSize: '2rem' }}>Check your email</Typography>
+      <Typography variant="h5" component="h2" sx={{ fontFamily: display, fontWeight: 500, fontSize: '2rem' }}>Check your email</Typography>
       <Typography sx={{ color: BA.soft }}>We sent a link to <b>{sent}</b>. Open it to confirm your account, then sign in.</Typography>
       <Button variant="outlined" sx={outlineBtn} onClick={onSignIn}>Back to sign in</Button>
     </Stack>
@@ -186,7 +167,7 @@ function SignUpForm({ onSignIn }: { onSignIn: () => void }) {
     <Box component="form" onSubmit={submit}>
       <Stack spacing={2.25}>
         <Box>
-          <Typography variant="h5" component="h2" sx={{ fontFamily: display, fontWeight: 400, fontSize: '2.1rem', lineHeight: 1.05, letterSpacing: '-0.01em', color: BA.ink }}>Create your account</Typography>
+          <Typography variant="h5" component="h2" sx={{ fontFamily: display, fontWeight: 500, fontSize: '2.1rem', lineHeight: 1.05, letterSpacing: '-0.01em', color: BA.ink }}>Create your account</Typography>
           <Typography sx={{ color: BA.soft, mt: 0.5 }}>Start on the Free plan, no card needed, or try Business free for {TRIAL_MONTHS} months. Joining a team? Register, then your admin adds you.</Typography>
         </Box>
         {!open && <Alert severity="info">Registration is closed for now. Ask your business's admin to invite you.</Alert>}
