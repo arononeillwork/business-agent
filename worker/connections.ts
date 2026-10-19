@@ -81,6 +81,8 @@ export const stripeOAuth = (env: Env, origin: string): stripe.StripeOAuthConfig 
  * workers.dev one), whichever address the admin connected from (that or businesssagent.com); from
  * there they're sent back to where they started (the signed state carries it).
  */
+/** Where Square sends its customer webhook: exactly the URL registered in the Square app (the signature covers it). */
+export const squareWebhookUrl = (env: Env) => env.SQUARE_WEBHOOK_URL || `${businessConfig.appUrl}/api/webhooks/square`
 export const squareRedirect = (env: Env) => env.SQUARE_REDIRECT_URL || `${businessConfig.appUrl}/api/integrations/square/callback`
 export const squareOAuth = (env: Env): square.SquareOAuthConfig | null =>
   env.SQUARE_APP_ID && env.SQUARE_APP_SECRET && env.INTEGRATION_KEY

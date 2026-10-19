@@ -32,6 +32,8 @@ export interface Env {
   SQUARE_APP_ID?: string              // Square app (OAuth): takings on the Finances page
   SQUARE_APP_SECRET?: string
   SQUARE_ENVIRONMENT?: string         // var: 'production' (default) or 'sandbox'
+  SQUARE_WEBHOOK_SIGNATURE_KEY?: string // the Square app's webhook subscription signature key (customers sync instantly)
+  SQUARE_WEBHOOK_URL?: string          // the notification URL registered for it; default the app's workers.dev address + /api/webhooks/square
   SQUARE_REDIRECT_URL?: string        // the Redirect URL set in the Square app; default the app's workers.dev address + /api/integrations/square/callback
   SUMUP_CLIENT_ID?: string            // SumUp app (OAuth, read-only): takings on the Finances page
   SUMUP_CLIENT_SECRET?: string

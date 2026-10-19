@@ -4,6 +4,7 @@
 // the till's customers. Access lasts 30 days and is renewed with the refresh token. ORDERS_READ and
 // CUSTOMERS_READ came later: a connection made before them still works, without items or customers.
 import type { PayMethod, SalesDay, SalesItem } from '../../shared/types'
+import { hmacBase64, safeEqual } from '../crypto'
 
 export const SQUARE_SCOPES = ['MERCHANT_PROFILE_READ', 'PAYMENTS_READ', 'ORDERS_READ', 'CUSTOMERS_READ']
 const VERSION = '2025-01-23'
@@ -172,3 +173,16 @@ export async function customers(sandbox: boolean, accessToken: string, updatedSi
   }
   return out
 }
+
+/**
+ * A webhook from Square is genuine when its x-square-hmacsha256-signature is the HMAC-SHA256 (base64)
+ * of the notification URL as registered followed by the raw body, keyed with the subscription's
+ * signature key.
+ */
+export async function verifyWebhook(signatureKey: string, notificationUrl: string, rawBody: string, header: string | null | undefined) {
+  if (!header) return false
+  return safeEqual(header, await hmacBase64(signatureKey, notificationUrl + rawBody))
+}
+
+/** What a customer.created / customer.updated webhook carries (the customer as it is now). */
+export interface SquareCustomerEvent { merchant_id?: string; type?: string; data?: { id?: string; object?: { customer?: SquareCustomer } } }

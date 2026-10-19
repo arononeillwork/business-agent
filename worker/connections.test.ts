@@ -16,6 +16,7 @@ import { FakeProviders, readGmail } from './test/fakeProviders'
 import { GROUPS, groupOf } from '../shared/connections'
 import { authEmail, hookSecret, verifyHook } from './authEmail'
 import { syncSquareCustomers } from './squareCustomers'
+import { hmacBase64 } from './crypto'
 
 const APP = 'https://app.test'
 const env = {
@@ -24,7 +25,7 @@ const env = {
   MS_CLIENT_ID: 'ms-id', MS_CLIENT_SECRET: 'ms-secret', SPOTIFY_CLIENT_ID: 'spotify-id', SPOTIFY_CLIENT_SECRET: 'spotify-secret',
   META_ACCESS_TOKEN: 'meta-token', WHATSAPP_PHONE_NUMBER_ID: '555', META_APP_SECRET: 'meta-secret', WHATSAPP_VERIFY_TOKEN: 'verify',
   INSTAGRAM_APP_ID: 'ig-app', INSTAGRAM_APP_SECRET: 'ig-secret',
-  META_APP_ID: 'meta-app', TIKTOK_CLIENT_KEY: 'tt-key', TIKTOK_CLIENT_SECRET: 'tt-secret', SQUARE_APP_ID: 'sq-app', SQUARE_APP_SECRET: 'sq-secret',
+  META_APP_ID: 'meta-app', TIKTOK_CLIENT_KEY: 'tt-key', TIKTOK_CLIENT_SECRET: 'tt-secret', SQUARE_APP_ID: 'sq-app', SQUARE_APP_SECRET: 'sq-secret', SQUARE_WEBHOOK_SIGNATURE_KEY: 'sq-hook-key',
   STRIPE_CLIENT_ID: 'ca_test', STRIPE_SECRET_KEY: 'sk_test_platform',
   SUMUP_CLIENT_ID: 'su-id', SUMUP_CLIENT_SECRET: 'su-secret', LINKEDIN_CLIENT_ID: 'li-id', LINKEDIN_CLIENT_SECRET: 'li-secret',
 } as unknown as Env
@@ -713,6 +714,35 @@ describe('Facebook, TikTok and Square: one click, connected once they really wor
     apis.square.customersScope = false
     expect(await syncSquareCustomers(env, serviceClient(env), true)).toBe('reconnect')
     expect(status('square')).toBe('connected')
+  })
+
+  it('Square: a customer added in Square comes in straight away by webhook, signed; other sellers and bad signatures are ignored', async () => {
+    await connectOwn('square')
+    await Promise.all(background)
+    const before = db.table('customers').length
+    const URL = 'https://business-agent.arononeillwork.workers.dev/api/webhooks/square'
+    const hook = async (event: unknown, sign = true) => {
+      const raw = JSON.stringify(event)
+      const headers = sign ? { 'x-square-hmacsha256-signature': await hmacBase64('sq-hook-key', URL + raw) } : {}
+      background = []
+      const res = await integrations.request(`${APP}/api/webhooks/square`, { method: 'POST', headers, body: raw }, env, ctx())
+      await Promise.all(background)
+      return res.status
+    }
+    const created = (merchant: string, id: string, given: string) => ({ merchant_id: merchant, type: 'customer.created', data: { type: 'customer', id,
+      object: { customer: { id, given_name: given, email_address: `${given.toLowerCase()}@example.com`, updated_at: new Date().toISOString() } } } })
+    expect(await hook(created('M1', 'SQC9', 'Marta'))).toBe(200)
+    expect(db.table('customers')).toHaveLength(before + 1)
+    expect(db.table('customers').at(-1)).toMatchObject({ square_id: 'SQC9', source: 'square', kind: 'customer', first_name: 'Marta', email: 'marta@example.com' })
+    // The same person again (Square retries; customer.updated): nobody twice.
+    expect(await hook({ ...created('M1', 'SQC9', 'Marta'), type: 'customer.updated' })).toBe(200)
+    expect(db.table('customers')).toHaveLength(before + 1)
+    // Another seller's customer (the app serves many), an unsigned call, a forged one: nothing.
+    expect(await hook(created('M2', 'SQX1', 'Someone'))).toBe(200)
+    expect(await hook(created('M1', 'SQC10', 'Unsigned'), false)).toBe(401)
+    const raw = JSON.stringify(created('M1', 'SQC11', 'Forged'))
+    expect((await integrations.request(`${APP}/api/webhooks/square`, { method: 'POST', headers: { 'x-square-hmacsha256-signature': await hmacBase64('wrong', URL + raw) }, body: raw }, env, ctx())).status).toBe(401)
+    expect(db.table('customers')).toHaveLength(before + 1)
   })
 
   it('Square: comes back to the workers.dev address, then back to where they started (the domain too)', async () => {
