@@ -50,6 +50,14 @@ if (!attached.body?.success) {
 const www = await attach(`www.${DOMAIN}`)
 if (!www.body?.success) summary(`Custom domain: www.${DOMAIN} not attached (${errors(www)}); ${DOMAIN} itself is fine.`)
 
+// Purge the domain's edge cache so this deploy shows on the very next load. Without this, HTML
+// cached at Cloudflare's edge (the zone had cached pages from before the Worker) can keep serving
+// the previous version even after a browser refresh. Built assets are content-hashed, so
+// re-fetching them after a purge is cheap and always correct.
+const purge = await cf(`/zones/${zone.id}/purge_cache`, { method: 'POST', body: JSON.stringify({ purge_everything: true }) })
+if (purge.body?.success) summary(`Cache: purged ${DOMAIN}, so everyone's next load or refresh is this version.`)
+else summary(`Cache: couldn't purge ${DOMAIN} (${errors(purge)}). Add "Zone: Cache Purge" for ${DOMAIN} to the Cloudflare token, or visitors may see the previous version until the cached copy expires.`)
+
 // The certificate can take a minute or two on the first attach.
 const site = `https://${DOMAIN}`
 for (let i = 0; i < 12; i++) {
