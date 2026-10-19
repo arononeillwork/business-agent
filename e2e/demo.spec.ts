@@ -1723,6 +1723,31 @@ test.describe('connections for email, files and music', () => {
     await expect(page.getByRole('region', { name: 'Finish setting up' })).toHaveCount(0)
   })
 
+  test('one logo: admins click it to replace it ("Replace" shows on hover); staff only look', async ({ page }) => {
+    await open(page, '/brand')
+    const card = page.getByRole('region', { name: 'Logo' })
+    await expect(card.getByRole('img', { name: 'Logo' })).toHaveCount(1) // no dark version
+    const logo = card.getByRole('button', { name: 'Replace logo' })
+    const hint = card.getByText('Replace', { exact: true })
+    await expect(hint).toHaveCSS('opacity', '0')
+    await logo.hover()
+    await expect(hint).toHaveCSS('opacity', '1')
+    const box = (await logo.boundingBox())!
+    const at = (await hint.boundingBox())!
+    expect(at.x).toBeGreaterThan(box.x + box.width / 2)
+    expect(at.y).toBeGreaterThan(box.y + box.height / 2)
+    const chooser = page.waitForEvent('filechooser')
+    await logo.click()
+    await (await chooser).setFiles({ name: 'new-logo.png', mimeType: 'image/png',
+      buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64') })
+    await toast(page, 'Logo updated')
+    await expect(card.getByRole('img', { name: 'Logo' })).toHaveAttribute('src', /^data:image\/png/)
+    await signInAs(page, 'maria@example.com')
+    await page.getByRole('link', { name: 'Brand' }).first().click()
+    await expect(page.getByRole('region', { name: 'Logo' }).getByRole('img', { name: 'Logo' })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Logo' }).getByRole('button', { name: 'Replace logo' })).toHaveCount(0)
+  })
+
   test('the brand page shows one logo and the main brand colours only', async ({ page }) => {
     await open(page, '/brand')
     await expect(page.getByText('Small version (icon)')).toHaveCount(0)
@@ -1920,9 +1945,19 @@ test.describe('social planner', () => {
     await expect(again).toContainText('Posted')
     await expect(again.getByRole('list', { name: 'Where it went' })).toContainText('Instagram: posted')
     await expect(again.getByRole('list', { name: 'Where it went' })).toContainText('Google Maps: posted')
-    // Gone out: it can't be edited any more; the bin only takes it off the list.
-    await expect(again.getByRole('button', { name: 'Edit post' })).toHaveCount(0)
-    await again.getByRole('button', { name: 'Delete post' }).click()
+    // Gone out: it can't change on the networks, so editing it starts a new post from it.
+    await again.getByRole('button', { name: 'Edit post' }).click()
+    const copy = page.getByRole('dialog', { name: 'Post again' })
+    await expect(copy.getByRole('alert').first()).toContainText('Saving makes a new post')
+    await expect(copy.getByLabel('Caption', { exact: true })).toHaveValue('Acai bowls are back, all week.')
+    await copy.getByRole('button', { name: 'Cancel' }).click()
+    // Edit sits left of the bin; the bin doesn't change under the pointer, and asks first.
+    const pencil = (await again.getByRole('button', { name: 'Edit post' }).boundingBox())!
+    const bin = again.getByRole('button', { name: 'Delete post' })
+    expect((await bin.boundingBox())!.x).toBeGreaterThan(pencil.x)
+    await bin.hover()
+    expect(await bin.evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgba(0, 0, 0, 0)')
+    await bin.click()
     const remove = page.getByRole('dialog', { name: 'Remove this post from the list?' })
     await expect(remove).toContainText('stays on the networks it went to')
     await remove.getByRole('button', { name: 'Remove' }).click()

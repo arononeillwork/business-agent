@@ -596,4 +596,9 @@ export default {
   '“{name}” won’t go out, and can’t be brought back.': '«{name}» no se publicará y no se podrá recuperar.',
   'This didn’t go out: {why}. Fix what’s needed and post it again.': 'No se publicó: {why}. Corrige lo necesario y vuelve a publicarla.',
   'the networks refused it': 'las redes la rechazaron',
+  'Posting now: you can edit it once it’s done': 'Publicándose: podrás editarla cuando termine',
+  'Edit as a new post': 'Editar como publicación nueva',
+  'Post again': 'Publicar de nuevo',
+  'This one went out already, so it can’t change there. Saving makes a new post; the one already posted stays as it is.':
+    'Esta ya se publicó y allí no se puede cambiar. Al guardar se crea una publicación nueva; la que ya está publicada se queda como está.',
 } satisfies Record<string, string>

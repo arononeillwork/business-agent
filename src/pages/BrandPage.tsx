@@ -1,8 +1,7 @@
 import {
-  Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Grid, IconButton, InputAdornment,
+  Box, Button, ButtonBase, Card, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Grid, IconButton, InputAdornment,
   MenuItem, Stack, TextField, Tooltip, Typography,
 } from '@mui/material'
-import UploadIcon from '@mui/icons-material/FileUploadOutlined'
 import SearchIcon from '@mui/icons-material/Search'
 import CopyIcon from '@mui/icons-material/ContentCopy'
 import EditIcon from '@mui/icons-material/EditOutlined'
@@ -159,36 +158,47 @@ export function BrandPage() {
   )
 }
 
+/**
+ * The one logo, on white. Admins click it to upload a new one ("Replace" shows faintly at the
+ * bottom right on hover, and always on touch screens, which can't hover).
+ */
 function LogoCard({ title, hint, value, fallback, canEdit, onChange }: {
   title: string; hint?: string; value: string | null; fallback?: string; canEdit: boolean; onChange: (v: string | null) => unknown
 }) {
   const notify = useNotify()
   const input = useRef<HTMLInputElement>(null)
   const src = value ?? fallback ?? null
+  // Fills the card beside the colours on a computer; a fixed height on phones.
+  const frame = { width: '100%', height: { xs: 200, md: 'auto' }, minHeight: { md: 240 }, flex: { md: 1 }, borderRadius: '14px', bgcolor: '#FFFFFF', border: 1, borderColor: 'divider',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', p: 2.5, overflow: 'hidden' }
+  const preview = src
+    ? <Box component="img" src={src} alt={title} sx={{ display: 'block', maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+    : <Typography variant="body2" sx={{ color: '#8E877F' }}>{canEdit ? t('Click to upload your logo') : t('No file yet')}</Typography>
   return (
-    <Card component="section" aria-label={title} sx={{ height: '100%' }}>
-      <CardContent>
+    <Card component="section" aria-label={title} sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <CardContent sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
         <SectionTitle action={src && <Button size="small" startIcon={<DownloadIcon fontSize="small" />} component="a" href={src} download={`easy-beans-${title.toLowerCase().replace(/\W+/g, '-')}.png`}>{t('Download')}</Button>}>{title}</SectionTitle>
         {hint && <Typography variant="body2" sx={{ color: 'text.secondary', mt: -1, mb: 1.5 }}>{hint}</Typography>}
-        <Box sx={{ display: 'grid', gap: 1, mb: canEdit ? 1.5 : 0 }}>
-          {['#FFFFFF', '#2B2522'].map(bg => (
-            <Box key={bg} sx={{ height: 140, borderRadius: '14px', bgcolor: bg, border: 1, borderColor: 'divider', display: 'flex', alignItems: 'center', justifyContent: 'center', p: 2, overflow: 'hidden' }}>
-              {src ? <Box component="img" src={src} alt={bg === '#FFFFFF' ? t('{name} on white', { name: title }) : t('{name} on dark', { name: title })} sx={{ display: 'block', maxWidth: '100%', maxHeight: 108, objectFit: 'contain' }} />
-                : <Typography variant="body2" sx={{ color: bg === '#FFFFFF' ? '#8E877F' : '#958C84' }}>{t('No file yet')}</Typography>}
-            </Box>
-          ))}
-        </Box>
+        {canEdit ? (
+          <ButtonBase disableRipple onClick={() => input.current?.click()} aria-label={src ? t('Replace {name}', { name: title.toLowerCase() }) : t('Upload {name}', { name: title.toLowerCase() })}
+            sx={{ ...frame, position: 'relative', cursor: 'pointer',
+              '&:hover .replace, &.Mui-focusVisible .replace': { opacity: 1 }, '@media (hover: none)': { '& .replace': { opacity: 1 } },
+              '&.Mui-focusVisible': { outline: `2px solid ${tokens.rose}`, outlineOffset: 2 } }}>
+            {preview}
+            {src && <Typography className="replace" component="span" aria-hidden variant="caption"
+              sx={{ position: 'absolute', right: 12, bottom: 8, color: '#8E877F', opacity: 0, transition: 'opacity 150ms' }}>{t('Replace')}</Typography>}
+          </ButtonBase>
+        ) : <Box sx={frame}>{preview}</Box>}
         {canEdit && (
-          <Stack direction="row" spacing={1}>
+          <>
             <input ref={input} type="file" hidden accept="image/png,image/jpeg,image/webp,image/svg+xml" aria-label={t('Upload {name}', { name: title.toLowerCase() })}
               onChange={async e => {
                 const f = e.target.files?.[0]; e.target.value = ''
                 if (!f) return
                 try { await onChange(await readLogo(f)) } catch (err) { notify(err instanceof Error ? err.message : String(err), 'error') }
               }} />
-            <Button variant="outlined" startIcon={<UploadIcon />} onClick={() => input.current?.click()}>{value ? t('Replace') : t('Upload')}</Button>
-            {value && <Button color="error" onClick={() => onChange(null)}>{t('Remove')}</Button>}
-          </Stack>
+            {value && <Button size="small" color="error" sx={{ mt: 1, alignSelf: 'flex-start' }} onClick={() => onChange(null)}>{t('Remove')}</Button>}
+          </>
         )}
       </CardContent>
     </Card>
