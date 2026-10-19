@@ -6,7 +6,7 @@ name: Deploy
 #   CLOUDFLARE_ACCOUNT_ID  only if the token can see more than one account
 #   SUPABASE_ACCESS_TOKEN  Supabase personal access token (service key + Auth settings)
 #   GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET, META_*, APPLE_*, SPOTIFY_*  optional integrations
-# Repo variable FACEBOOK_SIGN_IN=on switches on "Log in with Facebook" (docs/sign-in-setup.md).
+# "Log in with Facebook" is on; repo variable FACEBOOK_SIGN_IN=off switches it off (docs/sign-in-setup.md).
 on:
   push:
     branches: [main, claude/easy-beans-architecture-plan-dknqka]
@@ -38,7 +38,7 @@ jobs:
       STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
       INSTAGRAM_APP_SECRET: ${{ secrets.INSTAGRAM_APP_SECRET }}
       META_APP_ID: ${{ secrets.META_APP_ID }}
-      FACEBOOK_SIGN_IN: ${{ vars.FACEBOOK_SIGN_IN }}
+      FACEBOOK_SIGN_IN: ${{ vars.FACEBOOK_SIGN_IN || 'on' }}
       APPLE_CLIENT_ID: ${{ secrets.APPLE_CLIENT_ID }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       APPLE_KEY_ID: ${{ secrets.APPLE_KEY_ID }}

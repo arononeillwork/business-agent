@@ -59,7 +59,7 @@ for (const [label, key, hosts, secret, problems] of [
     await page.goto('/')
     const button = page.getByRole('button', { name: label, exact: true })
     if (!on) {
-      // Facebook also waits for the FACEBOOK_SIGN_IN repo variable, so its keys alone aren't a failure.
+      // Facebook can be switched off with the FACEBOOK_SIGN_IN=off repo variable, so its keys alone aren't a failure.
       if (key !== 'facebook') expect(process.env[secret], `${secret} is in the repo secrets, but ${label} sign-in is still off in Supabase`).toBeFalsy()
       const note = `${label} sign-in is OFF on the live site (docs/sign-in-setup.md).`
       console.log(`::warning::${note}`)

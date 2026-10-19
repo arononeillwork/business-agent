@@ -1,6 +1,6 @@
 # Google, Apple, Facebook and Microsoft sign-in
 
-Email + password and email codes work out of the box. The one-tap Google, Apple, Facebook and
+Email + password works out of the box. The one-tap Google, Apple, Facebook and
 Microsoft buttons need a one-off setup each. Until a method is switched on its button is left off
 the sign-in card (so nobody lands on an error page), and every deploy prints a warning.
 
@@ -89,12 +89,12 @@ multi-factor one, within 15 minutes.
    `public_profile` permissions are added (both are standard access, no App Review needed).
 4. Top bar: switch the app to **Live** (in *Development* only people with a role on the app
    can log in).
-5. GitHub → the repo → **Settings → Secrets and variables → Actions → Variables → New repository
-   variable**: `FACEBOOK_SIGN_IN` = `on`. Then **Actions → Deploy → Run workflow**.
+5. Deploy (**Actions → Deploy → Run workflow**). Facebook is on by default; to switch it off, add the
+   repository variable `FACEBOOK_SIGN_IN` = `off`.
 6. Check: the deploy summary says `facebook=true`, and the live test "the Facebook button reaches
    Facebook sign-in" passes.
 
-Facebook waits for that variable on purpose: without step 1, the button would open Facebook's
+Steps 1 to 4 must be done before Facebook is on: without step 1, the button opens Facebook's
 "URL blocked" page.
 
 ## Apple (about 15 minutes, needs an Apple Developer account)
