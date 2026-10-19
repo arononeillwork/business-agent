@@ -30,9 +30,12 @@ GoHighLevel: `/compare` (numbers and sources in `shared/competitors.ts`, checked
 - **Stripe → app:** Stripe calls `/api/billing/webhook`. The Worker fetches each event back from
   Stripe with the secret key before believing it (no signing secret to manage), then copies the
   subscription into `public.billing`. The nightly job and the return from Checkout copy it again.
-- Prices are created in Stripe the first time they're needed (lookup keys
-  `business_agent_<plan>_<month|year>`). Changing an amount in `shared/plans.ts` makes a new price;
-  existing subscribers keep theirs until they change plan.
+- **Stripe follows `shared/plans.ts`.** Every deploy runs `scripts/ops/stripe-prices.ts`: one
+  product per paid plan and one active monthly and yearly price in euros (lookup keys
+  `business_agent_<plan>_<month|year>`). Change an amount in `shared/plans.ts` and deploy: the new
+  price takes the key over and the old one is archived (off sale; anyone already on it keeps it,
+  as Stripe never deletes a used price). Prices and products of plans that are gone are archived
+  too. Free and any plan without a price have nothing in Stripe.
 
 ## Complimentary accounts (founding account, friends & family)
 

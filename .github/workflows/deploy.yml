@@ -112,6 +112,9 @@ jobs:
       - name: Stripe billing webhook
         if: steps.gate.outputs.ready == 'true' && steps.deploy.outputs.url != ''
         run: node scripts/ops/stripe-billing.mjs "${{ steps.domain.outputs.site || steps.deploy.outputs.url }}" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Stripe prices (match shared/plans.ts, archive old ones)
+        if: steps.gate.outputs.ready == 'true' && steps.deploy.outputs.url != ''
+        run: node --experimental-strip-types scripts/ops/stripe-prices.ts | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Smoke-test the live site
         if: steps.gate.outputs.ready == 'true' && steps.deploy.outputs.url != ''
         run: |
