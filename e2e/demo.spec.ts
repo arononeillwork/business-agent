@@ -1097,6 +1097,48 @@ test.describe('business-wide vs personal', () => {
   })
 })
 
+test.describe('data retention', () => {
+  test('admins choose how long WhatsApp messages are kept: 3 months to start, shorter deletes older ones now', async ({ page }) => {
+    await open(page, '/account')
+    const retention = page.getByRole('region', { name: 'Data retention' })
+    const keep = retention.getByRole('combobox', { name: 'Keep for' })
+    await expect(keep).toHaveText('3 months (default)')
+
+    // Shorter: asks first; Cancel changes nothing.
+    await keep.click()
+    await page.getByRole('option', { name: '1 month' }).click()
+    const ask = page.getByRole('dialog', { name: 'Keep WhatsApp messages for 1 month?' })
+    await expect(ask).toContainText('will be deleted now')
+    await ask.getByRole('button', { name: 'Cancel' }).click()
+    await expect(keep).toHaveText('3 months (default)')
+
+    await keep.click()
+    await page.getByRole('option', { name: '1 month' }).click()
+    await page.getByRole('dialog').getByRole('button', { name: 'Delete older messages' }).click()
+    await toast(page, 'WhatsApp messages are now kept for 1 month. 3 older messages deleted.')
+    await expect(keep).toHaveText('1 month')
+
+    // The Messages page shows only what's left: Sofía's chat from 45 days ago (both sides) and Julio's rota from 60 days ago went.
+    await page.getByRole('link', { name: 'Messages' }).first().click()
+    await page.getByRole('group', { name: 'Apps' }).getByRole('button', { name: 'WhatsApp' }).click()
+    await page.getByRole('list', { name: 'Chats' }).getByRole('listitem', { name: 'Sofía Martín' }).getByRole('button').click()
+    await expect(page.getByRole('region', { name: 'Chat with Sofía Martín' })).not.toContainText('leche de avena')
+
+    // Longer: no question (nothing is deleted).
+    await fromAccountMenu(page, 'My account')
+    await keep.click()
+    await page.getByRole('option', { name: '1 year' }).click()
+    await toast(page, 'WhatsApp messages are now kept for 1 year.')
+    await expect(keep).toHaveText('1 year')
+  })
+
+  test('employees don’t see it', async ({ page }) => {
+    await open(page, '/account', 'maria@example.com')
+    await expect(page.getByRole('region', { name: 'Your data' })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Data retention' })).toHaveCount(0)
+  })
+})
+
 test.describe('monthly hours record (registro de jornada)', () => {
   test('an employee prints only their own month', async ({ page }) => {
     await open(page, '/account', 'maria@example.com')
@@ -2331,17 +2373,18 @@ test.describe('messages', () => {
     await expect(apps.getByRole('button').first()).toHaveText('All')
     await expect(apps.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true')
     await expect(apps.getByRole('button', { name: 'Instagram' })).toHaveAttribute('aria-pressed', 'false')
-    for (const soon of ['WhatsApp · soon', 'TikTok · soon', 'LinkedIn · soon']) await expect(apps.getByText(soon)).toBeVisible()
-    await expect(apps.getByRole('button', { name: /WhatsApp/ })).toBeDisabled()
+    for (const soon of ['TikTok · soon', 'LinkedIn · soon']) await expect(apps.getByText(soon)).toBeVisible()
+    await expect(apps.getByRole('button', { name: 'WhatsApp' })).toBeEnabled() // the demo café's WhatsApp is connected
     await expect(apps.getByRole('button', { name: 'Messenger' })).toBeEnabled() // comes with the Facebook connection
 
+    // All: Instagram's seven chats and the three WhatsApp ones the app saved.
     const chats = page.getByRole('list', { name: 'Chats' })
-    await expect(chats.getByRole('listitem')).toHaveCount(7)
-    expect(await chats.locator(':scope > li').evaluateAll(els => els.map(e => e.getAttribute('aria-label'))))
-      .toEqual(['@lucia.marbella', '@sanpedro.eats', '@tom_runs', '@marta.g', '@happy.client', '@weekend.visitor', '@old.friend'])
+    await expect(chats.getByRole('listitem')).toHaveCount(10)
     await apps.getByRole('button', { name: 'Instagram' }).click()
     await expect(apps.getByRole('button', { name: 'Instagram' })).toHaveAttribute('aria-pressed', 'true')
     await expect(chats.getByRole('listitem')).toHaveCount(7)
+    expect(await chats.locator(':scope > li').evaluateAll(els => els.map(e => e.getAttribute('aria-label'))))
+      .toEqual(['@lucia.marbella', '@sanpedro.eats', '@tom_runs', '@marta.g', '@happy.client', '@weekend.visitor', '@old.friend'])
     await page.getByRole('button', { name: 'Mentions & tags 1' }).click()
     await expect(chats.getByRole('listitem')).toHaveCount(1)
     await expect(chats.getByRole('listitem', { name: '@sanpedro.eats' })).toContainText('Story mention')
@@ -2401,6 +2444,8 @@ test.describe('messages', () => {
     await page.getByRole('dialog', { name: 'Instagram' }).getByRole('button', { name: 'Disconnect' }).click()
     await toast(page, 'Instagram disconnected')
     await page.getByRole('link', { name: 'Messages' }).first().click()
+    // WhatsApp's chats still show under All; Instagram's own chip offers to connect it.
+    await page.getByRole('group', { name: 'Apps' }).getByRole('button', { name: 'Instagram' }).click()
     const connect = page.getByRole('region', { name: 'Connect Instagram' })
     await expect(connect).toContainText('Read and answer your direct messages')
     await connect.getByRole('button', { name: 'Connect Instagram' }).click()
@@ -2424,10 +2469,37 @@ test.describe('messages', () => {
     await chat.getByRole('button', { name: 'Send' }).click()
     await toast(page, 'Sent')
     await expect(chat.getByRole('listitem', { name: 'You: Yes! See you at 11.' })).toBeVisible()
-    // All: both apps' chats together, newest first.
+    // All: every app's chats together (Instagram, Messenger, WhatsApp), newest first.
     await apps.getByRole('button', { name: 'All' }).click()
-    await expect(chats.getByRole('listitem')).toHaveCount(9)
+    await expect(chats.getByRole('listitem')).toHaveCount(12)
     await expect(chats.locator(':scope > li').first()).toHaveAttribute('aria-label', 'Carmen Ruiz')
+  })
+
+  test('WhatsApp: the chats the app saved, a photo and a location, a reply within 24 hours, and none after', async ({ page }) => {
+    await open(page, '/messages')
+    const apps = page.getByRole('group', { name: 'Apps' })
+    await apps.getByRole('button', { name: 'WhatsApp' }).click()
+    await expect(page.getByText('WhatsApp doesn’t let apps read chats back')).toBeVisible()
+    const chats = page.getByRole('list', { name: 'Chats' })
+    expect(await chats.locator(':scope > li').evaluateAll(els => els.map(e => e.getAttribute('aria-label')))).toEqual(['Sofía Martín', 'Julio', 'By Eric'])
+    await expect(chats.getByRole('listitem', { name: 'Sofía Martín' })).toContainText('Sent a photo')
+
+    await chats.getByRole('listitem', { name: 'Sofía Martín' }).getByRole('button').click()
+    const sofia = page.getByRole('region', { name: 'Chat with Sofía Martín' })
+    await expect(sofia).toContainText('+34611222333')
+    await expect(sofia.getByRole('list', { name: 'Messages' }).locator('img')).toBeVisible()
+    await expect(sofia.getByRole('link', { name: 'Instagram' })).toHaveCount(0) // no other app to open
+    await sofia.getByRole('textbox', { name: 'Reply' }).fill('Yes, until 6!')
+    await sofia.getByRole('button', { name: 'Send' }).click()
+    await toast(page, 'Sent')
+    await expect(sofia.getByRole('listitem', { name: 'You: Yes, until 6!' })).toContainText('Sent')
+
+    // Three days since By Eric wrote: WhatsApp allows only templates now.
+    await chats.getByRole('listitem', { name: 'By Eric' }).getByRole('button').click()
+    const eric = page.getByRole('region', { name: 'Chat with By Eric' })
+    await expect(eric.getByRole('link', { name: 'Open map' })).toHaveAttribute('href', /google\.com\/maps/)
+    await expect(eric).toContainText('only allows free replies for 24 hours')
+    await expect(eric.getByRole('textbox', { name: 'Reply' })).toHaveCount(0)
   })
 
   test('staff don’t get Messages', async ({ page }) => {

@@ -11,8 +11,8 @@ import type {
 } from '../../shared/types'
 import { mentionTitle, mentionsIn, type InstagramMention } from '../../shared/mentions'
 import { demoSports } from './demoSports'
-import { demoInbox, demoMessenger } from './demoMessages'
-import { replyWindow } from '../../shared/messages'
+import { demoInbox, demoMessenger, demoWhatsApp } from './demoMessages'
+import { DEFAULT_WHATSAPP_RETENTION, isRetention, replyWindow } from '../../shared/messages'
 import { cleanCode } from '../../shared/referrals'
 import { postProblem } from '../../shared/social'
 import type { SportsFavourite } from '../../shared/sports'
@@ -62,6 +62,7 @@ export function createDemoApi(): Api {
   }
   const inbox = demoInbox()
   const messenger = demoMessenger()
+  const whatsappChats = demoWhatsApp()
   // Instagram mentions from the sample inbox: the bell tells every admin once (as the Worker does).
   let mentions: InstagramMention[] | null = null
   const demoMentions = () => {
@@ -410,6 +411,7 @@ export function createDemoApi(): Api {
     break_after_hours: 6, max_daily_hours: 9, max_weekly_hours: 40, min_rest_hours: 12,
     approval_weekday: 1, employer_cost_multiplier: 1.3, auto_timecards_from_rota: true, vacation_days_per_year: 30,
     alert_shift_reminders: true, alert_missed_clock_in: true, alert_rota: true, alert_time_off: true,
+    whatsapp_retention_days: DEFAULT_WHATSAPP_RETENTION,
   }
 
   const P = { aron: 'p-aron', mark: 'p-mark', julio: 'p-julio', maria: 'p-maria', cleaner: 'p-cleaner' }
@@ -1349,6 +1351,26 @@ export function createDemoApi(): Api {
       if (!text.trim()) throw new Error('Write a message first')
       if (replyWindow(messenger.thread(id).messages).mode === 'closed') throw new Error('Messenger allows replies up to 7 days after their last message. Reply in Meta Business Suite instead.')
       messenger.reply(id, text.trim())
+    },
+    // WhatsApp: the chats the app saved (shown while WhatsApp is connected).
+    async whatsappInbox() {
+      requireAdmin()
+      return whatsappChats.state()
+    },
+    async whatsappThread(id) { requireAdmin(); return whatsappChats.thread(id) },
+    async replyWhatsApp(id, text) {
+      requireAdmin()
+      if (!text.trim()) throw new Error('Write a message first')
+      if (replyWindow(whatsappChats.thread(id).messages, Date.now(), 'whatsapp').mode === 'closed') {
+        throw new Error('WhatsApp only allows replies within 24 hours of their last message. After that, the café can only send approved templates.')
+      }
+      whatsappChats.reply(id, text.trim())
+    },
+    async setWhatsappRetention(days) {
+      requireAdmin()
+      if (!isRetention(days)) throw new Error('Choose 1 month, 3 months, 6 months, 1 year or 2 years')
+      settings.whatsapp_retention_days = days
+      return { days, deleted: whatsappChats.purge(days) }
     },
     async instagramProfile() {
       if (integ.integrations.find(i => i.provider === 'instagram')!.status !== 'connected') throw new Error('Instagram is not connected')

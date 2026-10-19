@@ -223,6 +223,13 @@ export interface Api {
   messengerInbox(): Promise<{ conversations: InboxConversation[] }>
   messengerThread(id: string): Promise<InboxThread>
   replyMessenger(id: string, text: string): Promise<void>
+  // WhatsApp chats: the ones the app saved (WhatsApp can't be read back), kept as long as Data retention says.
+  whatsappInbox(): Promise<{ conversations: InboxConversation[] }>
+  whatsappThread(id: string): Promise<InboxThread>
+  /** Reply by text; WhatsApp allows it within 24 hours of the person's last message. */
+  replyWhatsApp(id: string, text: string): Promise<void>
+  /** How long WhatsApp chats are kept (days); anything older is deleted now. Returns how many messages went. */
+  setWhatsappRetention(days: number): Promise<{ days: number; deleted: number }>
   // Referrals: admins see the link, how it's doing and the free months banked.
   referrals(): Promise<ReferralState>
   /** Someone opened a referral link (no sign-in): counted, and who invited them. */

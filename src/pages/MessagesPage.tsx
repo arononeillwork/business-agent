@@ -10,6 +10,7 @@ import OpenIcon from '@mui/icons-material/OpenInNewRounded'
 import InfoIcon from '@mui/icons-material/InfoOutlined'
 import { siInstagram, siMessenger, siTiktok, siWhatsapp } from 'simple-icons'
 import { useMemo, useState, type ReactNode } from 'react'
+import { Link as RouterLink } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
@@ -25,10 +26,11 @@ import { formatLocal } from '../../shared/time'
 import { tokens } from '../theme'
 import { msg, t, tr } from '../i18n'
 
-// LinkedIn shows (greyed out, like WhatsApp and TikTok) until its messages can be read.
+// LinkedIn shows (greyed out, like TikTok) until its messages can be read.
 const PLATFORMS: { id: MessagePlatform | 'linkedin'; name: string; icon: ReactNode; live: boolean }[] = [
   { id: 'instagram', name: 'Instagram', icon: <Brand icon={siInstagram} />, live: true },
-  { id: 'whatsapp', name: 'WhatsApp', icon: <Brand icon={siWhatsapp} />, live: false },
+  // WhatsApp: the chats Business Agent saved (WhatsApp can't be read back), with the WhatsApp connection.
+  { id: 'whatsapp', name: 'WhatsApp', icon: <Brand icon={siWhatsapp} />, live: true },
   // Messenger comes with the Facebook connection (the Page's chats).
   { id: 'messenger', name: 'Messenger', icon: <Brand icon={siMessenger} />, live: true },
   { id: 'tiktok', name: 'TikTok', icon: <Brand icon={siTiktok} />, live: false },
@@ -36,13 +38,16 @@ const PLATFORMS: { id: MessagePlatform | 'linkedin'; name: string; icon: ReactNo
 ]
 
 /** Which connection each app's chats come from. */
-type Source = 'instagram' | 'facebook'
-const SOURCE: Partial<Record<MessagePlatform, Source>> = { instagram: 'instagram', messenger: 'facebook' }
+type Source = 'instagram' | 'facebook' | 'whatsapp'
+const SOURCE: Partial<Record<MessagePlatform, Source>> = { instagram: 'instagram', messenger: 'facebook', whatsapp: 'whatsapp' }
+const ICON: Record<MessagePlatform, typeof siInstagram> = { instagram: siInstagram, messenger: siMessenger, whatsapp: siWhatsapp, tiktok: siTiktok }
+const NAME: Record<MessagePlatform, string> = { instagram: 'Instagram', messenger: 'Messenger', whatsapp: 'WhatsApp', tiktok: 'TikTok' }
 
 /**
- * The business's direct messages in one place: Instagram, and Messenger once Facebook is connected
- * (even before anyone has written). The other apps show, greyed out, until they're added. Connecting
- * here is the same one click as on Connections (it's one connection).
+ * The business's direct messages in one place: Instagram, Messenger once Facebook is connected
+ * (even before anyone has written), and WhatsApp once it's connected. The other apps show, greyed
+ * out, until they're added. Connecting here is the same one click as on Connections (it's one
+ * connection); WhatsApp is set up there.
  */
 export function MessagesPage() {
   const { api } = useApp()
@@ -52,7 +57,8 @@ export function MessagesPage() {
   const on = (p: Source) => row(p)?.status === 'connected'
   const [app, setApp] = useState<MessagePlatform | 'all'>('all')
   // What to offer connecting: the chosen app's connection, or (All) every one that isn't connected yet.
-  const missing: Source[] = app === 'all' ? (on('instagram') || on('facebook') ? [] : ['instagram', 'facebook'])
+  const any = on('instagram') || on('facebook') || on('whatsapp')
+  const missing: Source[] = app === 'all' ? (any ? [] : ['instagram', 'facebook', 'whatsapp'])
     : SOURCE[app] && !on(SOURCE[app]!) ? [SOURCE[app]!] : []
 
   return (
@@ -79,17 +85,19 @@ export function MessagesPage() {
           {missing.map(p => <ConnectCard key={p} provider={p} row={row(p)} configured={!!integ.data!.configured[p]} />)}
         </Stack>
       )}
-      {integ.data && missing.length === 0 && (on('instagram') || on('facebook')) && (
-        <Inbox ig={on('instagram') ? row('instagram') : undefined} fb={on('facebook') ? row('facebook') : undefined} app={app} />
+      {integ.data && missing.length === 0 && any && (
+        <Inbox ig={on('instagram') ? row('instagram') : undefined} fb={on('facebook') ? row('facebook') : undefined}
+          wa={on('whatsapp') ? row('whatsapp') : undefined} app={app} />
       )}
     </>
   )
 }
 
-const CONNECT_NAME: Record<Source, string> = { instagram: 'Instagram', facebook: 'Facebook' }
+const CONNECT_NAME: Record<Source, string> = { instagram: 'Instagram', facebook: 'Facebook', whatsapp: 'WhatsApp' }
 
-/** Not connected yet: the same Connect as on Connections, coming back here afterwards. */
+/** Not connected yet: the same Connect as on Connections, coming back here afterwards (WhatsApp: set up there). */
 function ConnectCard({ provider, row, configured }: { provider: Source; row?: Integration; configured: boolean }) {
+  if (provider === 'whatsapp') return <WhatsAppCard row={row} />
   const { api, refresh } = useApp()
   const run = useAction()
   const name = CONNECT_NAME[provider]
@@ -129,6 +137,29 @@ function ConnectCard({ provider, row, configured }: { provider: Source; row?: In
   )
 }
 
+/** WhatsApp is connected on Connections (a test message from the café's number proves it). */
+function WhatsAppCard({ row }: { row?: Integration }) {
+  return (
+    <Card component="section" aria-label={t('Connect {app}', { app: 'WhatsApp' })}>
+      <CardContent>
+        <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 1 }}>
+          <Box sx={{ width: 44, height: 44, borderRadius: '12px', display: 'grid', placeItems: 'center', bgcolor: tokens.surfaceAlt, border: `1px solid ${tokens.line}` }}>
+            <Brand icon={siWhatsapp} />
+          </Box>
+          <Box>
+            <Typography variant="h6" component="h2">{t('Connect {app}', { app: 'WhatsApp' })}</Typography>
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+              {t('Once WhatsApp is connected, the messages people send the café’s number show here, and you can reply.')}
+            </Typography>
+          </Box>
+        </Stack>
+        {row?.last_error && <Alert severity="error" sx={{ mt: 1.5 }}>{row.last_error}</Alert>}
+        <Button variant="contained" sx={{ mt: 2 }} component={RouterLink} to="/connections">{t('Set up on Connections')}</Button>
+      </CardContent>
+    </Card>
+  )
+}
+
 /** Read live, every minute; a failed read is shown, not retried in a loop. Shares 'instagram-inbox' with the menu's badge. */
 function useInbox<T>(key: string, enabled: boolean, fn: () => Promise<T>) {
   const q = useQuery({ queryKey: [key], queryFn: fn, enabled, refetchInterval: 60_000, retry: false, placeholderData: prev => prev })
@@ -139,7 +170,7 @@ function useInbox<T>(key: string, enabled: boolean, fn: () => Promise<T>) {
   }
 }
 
-function Inbox({ ig, fb, app }: { ig?: Integration; fb?: Integration; app: MessagePlatform | 'all' }) {
+function Inbox({ ig, fb, wa, app }: { ig?: Integration; fb?: Integration; wa?: Integration; app: MessagePlatform | 'all' }) {
   const { api } = useApp()
   const run = useAction()
   const theme = useTheme()
@@ -147,18 +178,22 @@ function Inbox({ ig, fb, app }: { ig?: Integration; fb?: Integration; app: Messa
   const [filter, setFilter] = useState<InboxFilter>('all')
   const [search, setSearch] = useState('')
   const [open, setOpen] = useState<string | null>(null)
-  const insta = useInbox('instagram-inbox', !!ig && app !== 'messenger', () => api.instagramInbox())
-  const messenger = useInbox('messenger-inbox', !!fb && app !== 'instagram', () => api.messengerInbox())
-  const reload = async () => { await Promise.all([insta.reload(), messenger.reload()]) }
-  const loaded = insta.loaded && messenger.loaded
+  const showsInstagram = !!ig && (app === 'all' || app === 'instagram'), showsMessenger = !!fb && (app === 'all' || app === 'messenger')
+  const showsWhatsApp = !!wa && (app === 'all' || app === 'whatsapp')
+  const insta = useInbox('instagram-inbox', showsInstagram, () => api.instagramInbox())
+  const messenger = useInbox('messenger-inbox', showsMessenger, () => api.messengerInbox())
+  const whats = useInbox('whatsapp-inbox', showsWhatsApp, () => api.whatsappInbox())
+  const reload = async () => { await Promise.all([insta.reload(), messenger.reload(), whats.reload()]) }
+  const loaded = insta.loaded && messenger.loaded && whats.loaded
   // Newest first, every app together: the chat with the latest message (from either side) at the top.
-  const all = useMemo(() => [...insta.data?.conversations ?? [], ...messenger.data?.conversations ?? []]
+  const all = useMemo(() => [...insta.data?.conversations ?? [], ...messenger.data?.conversations ?? [], ...whats.data?.conversations ?? []]
     .filter(c => app === 'all' || c.platform === app)
-    .sort((a, b) => lastAt(b) - lastAt(a)), [insta.data, messenger.data, app])
+    .sort((a, b) => lastAt(b) - lastAt(a)), [insta.data, messenger.data, whats.data, app])
   const shown = all.filter(c => matchesFilter(c, filter) && matchesSearch(c, search))
   const count = (f: InboxFilter) => all.filter(c => matchesFilter(c, f)).length
-  const chosen = all.find(c => c.id === open) ?? null
-  const showsInstagram = !!ig && app !== 'messenger', showsMessenger = !!fb && app !== 'instagram'
+  // Chats are told apart by app and id (two apps could use the same id).
+  const chosen = all.find(c => key(c) === open) ?? null
+  const mixed = [showsInstagram, showsMessenger, showsWhatsApp].filter(Boolean).length > 1
 
   // One app not answering (or needing a reconnect) doesn't hide the other's chats.
   const problems = (
@@ -175,9 +210,10 @@ function Inbox({ ig, fb, app }: { ig?: Integration; fb?: Integration; app: Messa
           {messenger.error}
         </Alert>
       )}
+      {whats.error && <Alert severity="warning" sx={{ mb: 1.5 }}>{whats.error}</Alert>}
     </>
   )
-  if ((insta.error || !showsInstagram) && (messenger.error || !showsMessenger)) return problems
+  if ((insta.error || !showsInstagram) && (messenger.error || !showsMessenger) && (whats.error || !showsWhatsApp)) return problems
 
   const list = (
     <Box component="section" aria-label={t('Chats')} sx={{ minWidth: 0 }}>
@@ -202,20 +238,23 @@ function Inbox({ ig, fb, app }: { ig?: Integration; fb?: Integration; app: Messa
       <Stack direction="row" spacing={0.75} sx={{ color: 'text.secondary', mb: 1.5, alignItems: 'flex-start' }}>
         <InfoIcon sx={{ fontSize: 16, mt: '2px' }} />
         <Typography variant="caption">
-          {showsInstagram
-            ? t('Instagram doesn’t share its Primary, General and Requests folders with other apps, so every chat is here. You can reply for 24 hours after someone’s last message, and for up to 7 days as a personal reply you write yourself.')
-            : t('Your Facebook Page’s Messenger chats. You can reply for 24 hours after someone’s last message, and for up to 7 days as a personal reply you write yourself.')}
+          {app === 'whatsapp' || (showsWhatsApp && !showsInstagram && !showsMessenger)
+            ? t('WhatsApp doesn’t let apps read chats back, so these are the messages Business Agent saved as they came and went, kept for as long as Data retention on My account says. You can reply for 24 hours after someone’s last message.')
+            : showsInstagram
+              ? t('Instagram doesn’t share its Primary, General and Requests folders with other apps, so every chat is here. You can reply for 24 hours after someone’s last message, and for up to 7 days as a personal reply you write yourself.')
+              : t('Your Facebook Page’s Messenger chats. You can reply for 24 hours after someone’s last message, and for up to 7 days as a personal reply you write yourself.')}
         </Typography>
       </Stack>
       {loaded && shown.length === 0 && (
         <Empty>
           {search.trim() ? t('No chats match “{search}”.', { search: search.trim() })
             : filter !== 'all' ? t('Nothing here right now.')
-              : app === 'instagram' ? t('No Instagram messages yet.') : app === 'messenger' ? t('No Messenger messages yet.') : t('No messages yet.')}
+              : app === 'instagram' ? t('No Instagram messages yet.') : app === 'messenger' ? t('No Messenger messages yet.')
+                : app === 'whatsapp' ? t('No WhatsApp messages yet.') : t('No messages yet.')}
         </Empty>
       )}
       <Stack component="ul" aria-label={t('Chats')} sx={{ m: 0, p: 0, listStyle: 'none', gap: 0.5 }}>
-        {shown.map(c => <ChatRow key={c.id} c={c} selected={c.id === open} roomy={wide && !chosen} mixed={showsInstagram && showsMessenger} onOpen={() => setOpen(c.id)} />)}
+        {shown.map(c => <ChatRow key={key(c)} c={c} selected={key(c) === open} roomy={wide && !chosen} mixed={mixed} onOpen={() => setOpen(key(c))} />)}
       </Stack>
       {filter === 'mentions' && showsInstagram && <Tagged posts={insta.data?.tagged ?? null} note={insta.data?.taggedNote} />}
     </Box>
@@ -227,7 +266,8 @@ function Inbox({ ig, fb, app }: { ig?: Integration; fb?: Integration; app: Messa
       <Card>
         <CardContent sx={{ p: { xs: 1.5, md: 2 } }}>
           <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>
-            {[showsInstagram && ig?.account_label, showsMessenger && fb?.account_label && `${'Messenger'} · ${fb.account_label}`].filter(Boolean).join(' · ')}
+            {[showsInstagram && ig?.account_label, showsMessenger && fb?.account_label && `${'Messenger'} · ${fb.account_label}`,
+              showsWhatsApp && wa?.account_label && `${'WhatsApp'} · ${wa.account_label}`].filter(Boolean).join(' · ')}
           </Typography>
           {/* A computer: the chats fill the card until one is open, then chats and chat side by side. A phone: one at a time. */}
           {wide && chosen ? (
@@ -242,8 +282,10 @@ function Inbox({ ig, fb, app }: { ig?: Integration; fb?: Integration; app: Messa
   )
 }
 
-/** Who a chat is with, as each app names people: an @handle on Instagram, a name on Messenger. */
-const handle = (c: InboxConversation) => (c.platform === 'messenger' ? c.with.name ?? c.with.username : `@${c.with.username}`)
+/** Who a chat is with, as each app names people: an @handle on Instagram, a name on Messenger, a name or number on WhatsApp. */
+const handle = (c: InboxConversation) => (c.platform === 'instagram' ? `@${c.with.username}` : c.with.name ?? c.with.username)
+/** A chat, told apart from other apps' chats. */
+const key = (c: InboxConversation) => `${c.platform}:${c.id}`
 
 /** When a chat last moved: its newest message, or Instagram's own updated time. */
 const lastAt = (c: InboxConversation) => Math.max(Date.parse(c.updatedAt) || 0, ...c.recent.map(m => Date.parse(m.at) || 0))
@@ -277,12 +319,14 @@ function ChatRow({ c, selected, roomy, mixed, onOpen }: { c: InboxConversation; 
               {c.with.name ?? c.with.username}
             </Typography>
             {roomy && c.with.name && c.platform !== 'messenger' && (
-              <Typography variant="caption" sx={{ color: 'text.secondary', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>@{c.with.username}</Typography>
+              <Typography variant="caption" sx={{ color: 'text.secondary', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {c.platform === 'whatsapp' ? c.with.username : `@${c.with.username}`}
+              </Typography>
             )}
             {/* All apps together: which one the chat is on. */}
             {mixed && (
-              <Box title={c.platform === 'messenger' ? 'Messenger' : 'Instagram'} sx={{ display: 'flex', flexShrink: 0, ml: 'auto', '& svg': { width: 14, height: 14 } }}>
-                <Brand icon={c.platform === 'messenger' ? siMessenger : siInstagram} />
+              <Box title={NAME[c.platform]} sx={{ display: 'flex', flexShrink: 0, ml: 'auto', '& svg': { width: 14, height: 14 } }}>
+                <Brand icon={ICON[c.platform]} />
               </Box>
             )}
             <Typography variant="caption" sx={{ color: 'text.secondary', flexShrink: 0, ml: mixed ? 0 : 'auto' }}>{ago(c.updatedAt)}</Typography>
@@ -307,29 +351,30 @@ function Thread({ c, onSent, onBack, onClose }: { c: InboxConversation; onSent: 
   const { api } = useApp()
   const run = useAction()
   const [text, setText] = useState('')
-  const fb = c.platform === 'messenger'
-  const thread = useAsync(`${c.platform}-thread`, () => (fb ? api.messengerThread(c.id) : api.instagramThread(c.id)), [c.id], { refetchInterval: 30_000 })
+  const fb = c.platform === 'messenger', wa = c.platform === 'whatsapp'
+  const thread = useAsync(`${c.platform}-thread`, () => (wa ? api.whatsappThread(c.id) : fb ? api.messengerThread(c.id) : api.instagramThread(c.id)), [c.id], { refetchInterval: 30_000 })
   const messages = thread.data?.messages ?? []
-  const can = useMemo(() => replyWindow(messages), [messages])
+  const can = useMemo(() => replyWindow(messages, Date.now(), c.platform), [messages, c.platform])
   const who = thread.data?.conversation.with ?? c.with
-  const appLink = fb ? 'https://business.facebook.com/latest/inbox/all' : 'https://www.instagram.com/direct/inbox/'
+  // WhatsApp: the café's number lives on Business Agent, so there's no other app to open.
+  const appLink = wa ? null : fb ? 'https://business.facebook.com/latest/inbox/all' : 'https://www.instagram.com/direct/inbox/'
   const send = () => run(async () => {
-    await (fb ? api.replyMessenger(c.id, text) : api.replyInstagram(c.id, text))
+    await (wa ? api.replyWhatsApp(c.id, text) : fb ? api.replyMessenger(c.id, text) : api.replyInstagram(c.id, text))
     setText('')
     await Promise.all([thread.reload(), onSent()])
   }, t('Sent'))
 
   return (
-    <Box component="section" aria-label={fb ? t('Chat with {name}', { name: handle(c) }) : t('Chat with @{username}', { username: c.with.username })}
+    <Box component="section" aria-label={c.platform === 'instagram' ? t('Chat with @{username}', { username: c.with.username }) : t('Chat with {name}', { name: handle(c) })}
       sx={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
       <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
         {onBack && <IconButton aria-label={t('Back to chats')} onClick={onBack} edge="start"><BackIcon /></IconButton>}
         <PersonAvatar who={who} size={40} />
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography variant="h6" component="h2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{who.name ?? who.username}</Typography>
-          <Typography variant="caption" sx={{ color: 'text.secondary' }}>{fb ? 'Messenger' : `@${who.username}`}</Typography>
+          <Typography variant="caption" sx={{ color: 'text.secondary' }}>{wa ? `${'WhatsApp'} · ${who.username}` : fb ? 'Messenger' : `@${who.username}`}</Typography>
         </Box>
-        <Button size="small" endIcon={<OpenIcon />} href={appLink} target="_blank" rel="noreferrer">{fb ? 'Messenger' : 'Instagram'}</Button>
+        {appLink && <Button size="small" endIcon={<OpenIcon />} href={appLink} target="_blank" rel="noreferrer">{fb ? 'Messenger' : 'Instagram'}</Button>}
         {onClose && <Tooltip title={t('Close chat')}><IconButton aria-label={t('Close chat')} onClick={onClose}><CloseIcon /></IconButton></Tooltip>}
       </Stack>
       <ErrorBox error={thread.error} />
@@ -337,9 +382,9 @@ function Thread({ c, onSent, onBack, onClose }: { c: InboxConversation; onSent: 
         maxHeight: { md: 460 }, overflowY: 'auto', minHeight: 160 }}>
         {messages.map((m, i) => (
           // Instagram style: their photo beside the last message of each run of theirs.
-          <Bubble key={m.id} m={m} who={m.fromMe ? undefined : who} showAvatar={!m.fromMe && (messages[i + 1]?.fromMe ?? true)} />
+          <Bubble key={m.id} m={m} who={m.fromMe ? undefined : who} showAvatar={!m.fromMe && (messages[i + 1]?.fromMe ?? true)} platform={c.platform} />
         ))}
-        {thread.data && messages.length === 0 && <Typography variant="body2" sx={{ color: 'text.secondary' }}>{fb ? t('No messages yet.') : t('No messages Instagram can share.')}</Typography>}
+        {thread.data && messages.length === 0 && <Typography variant="body2" sx={{ color: 'text.secondary' }}>{c.platform === 'instagram' ? t('No messages Instagram can share.') : t('No messages yet.')}</Typography>}
       </Stack>
       {thread.data && can.mode === 'human_agent' && (
         <Alert severity="info" variant="outlined" role="note" aria-label={t('Personal reply')}>
@@ -352,18 +397,19 @@ function Thread({ c, onSent, onBack, onClose }: { c: InboxConversation; onSent: 
         <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-end' }}>
           <TextField label={t('Reply')} value={text} onChange={e => setText(e.target.value)} multiline maxRows={4} fullWidth size="small"
             helperText={can.mode === 'normal' ? t('You can reply until {until}.', { until: formatLocal(can.until, 'EEE HH:mm') }) : t('Sent as a personal reply.')}
-            slotProps={{ htmlInput: { maxLength: fb ? 2000 : 1000 } }}
+            slotProps={{ htmlInput: { maxLength: wa ? 4096 : fb ? 2000 : 1000 } }}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && text.trim()) { e.preventDefault(); void send() } }} />
           <IconButton aria-label={t('Send')} color="primary" disabled={!text.trim()} onClick={() => void send()} sx={{ mb: 3 }}><SendIcon /></IconButton>
         </Stack>
       ) : thread.data && (
         <Alert severity="info">
-          {fb
+          {wa ? t('WhatsApp only allows free replies for 24 hours after their last message. After that, the café can only send approved templates (like shift reminders).')
+            : fb
             ? tr('Messenger only allows replies from other apps up to 7 days after their last message. {link} instead.', {
-              link: <MuiLink href={appLink} target="_blank" rel="noreferrer">{t('Reply in Meta Business Suite')}</MuiLink>,
+              link: <MuiLink href={appLink ?? undefined} target="_blank" rel="noreferrer">{t('Reply in Meta Business Suite')}</MuiLink>,
             })
             : tr('Instagram only allows replies from other apps up to 7 days after their last message. {link} instead.', {
-              link: <MuiLink href={appLink} target="_blank" rel="noreferrer">{t('Reply in the Instagram app')}</MuiLink>,
+              link: <MuiLink href={appLink ?? undefined} target="_blank" rel="noreferrer">{t('Reply in the Instagram app')}</MuiLink>,
             })}
         </Alert>
       )}
@@ -373,12 +419,15 @@ function Thread({ c, onSent, onBack, onClose }: { c: InboxConversation; onSent: 
 
 const LABEL: Partial<Record<InboxMessage['kind'], string>> = {
   story_mention: msg('Mentioned you in their story'), story_reply: msg('Replied to your story'), share: msg('Shared a post'),
-  video: msg('Video'), audio: msg('Voice message'), file: msg('File'),
+  video: msg('Video'), audio: msg('Voice message'), file: msg('File'), location: msg('Location'),
 }
+
+/** How far one of the café's WhatsApp messages got. */
+const STATUS: Record<NonNullable<InboxMessage['status']>, string> = { sent: msg('Sent'), delivered: msg('Delivered'), read: msg('Read'), failed: msg('Not delivered') }
 
 const BUBBLE_AVATAR = 28
 
-function Bubble({ m, who, showAvatar }: { m: InboxMessage; who?: InboxConversation['with']; showAvatar?: boolean }) {
+function Bubble({ m, who, showAvatar, platform }: { m: InboxMessage; who?: InboxConversation['with']; showAvatar?: boolean; platform: MessagePlatform }) {
   const mine = m.fromMe
   const label = LABEL[m.kind] && t(LABEL[m.kind]!)
   const said = `${label ?? ''}${label && m.text ? ' · ' : ''}${m.text}`
@@ -394,16 +443,21 @@ function Bubble({ m, who, showAvatar }: { m: InboxMessage; who?: InboxConversati
           {label && <Typography variant="caption" component="p" sx={{ fontWeight: 600, mb: m.text || m.mediaUrl ? 0.5 : 0 }}>{label}</Typography>}
           {m.mediaUrl && (m.kind === 'audio'
             ? <Box component="audio" controls src={m.mediaUrl} sx={{ display: 'block', maxWidth: 240 }} />
+            : m.kind === 'video' && platform === 'whatsapp'
+              ? <Box component="video" controls src={m.mediaUrl} sx={{ display: 'block', width: 220, maxWidth: '100%', borderRadius: '10px', mb: m.text ? 0.75 : 0 }} />
             : m.kind === 'file'
               ? <MuiLink href={m.mediaUrl} target="_blank" rel="noreferrer">{t('Open file')}</MuiLink>
               : <Box component="img" src={m.mediaUrl} alt="" sx={{ display: 'block', width: 160, maxWidth: '100%', borderRadius: '10px', mb: m.text ? 0.75 : 0 }} />)}
           {m.kind === 'unsupported'
             ? <Typography variant="body2" sx={{ fontStyle: 'italic' }}>{t('A message Instagram doesn’t share with other apps. Open Instagram to see it.')}</Typography>
-            : m.text && <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{m.text}</Typography>}
-          {m.link && <MuiLink href={m.link} target="_blank" rel="noreferrer" variant="caption">{t('Open on Instagram')}</MuiLink>}
+            : m.kind === 'other'
+              ? <Typography variant="body2" sx={{ fontStyle: 'italic' }}>{t('A kind of message Business Agent can’t show yet (a poll or an order, for example).')}</Typography>
+              : m.text && <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{m.text}</Typography>}
+          {m.link && <MuiLink href={m.link} target="_blank" rel="noreferrer" variant="caption">{m.kind === 'location' ? t('Open map') : t('Open on Instagram')}</MuiLink>}
         </Box>
         <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', textAlign: mine ? 'right' : 'left', mt: 0.25 }}>
           {formatLocal(m.at, 'd MMM, HH:mm')}{m.reactions?.length ? ` · ${m.reactions.join(' ')}` : ''}
+          {mine && m.status && <Box component="span" title={m.error} sx={{ color: m.status === 'failed' ? 'error.main' : undefined }}>{` · ${t(STATUS[m.status])}`}</Box>}
         </Typography>
       </Box>
     </Box>

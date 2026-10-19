@@ -6,6 +6,7 @@ import { drainOutbox, integrations, syncGoogle, syncGoogleBothWays } from './int
 import { checkAll } from './connections'
 import { checkMentions } from './mentions'
 import { syncSquareCustomers } from './squareCustomers'
+import { purge as purgeWhatsApp } from './whatsappInbox'
 import { refreshAllSports, refreshStaleSports, sportsEnabled, syncCrests } from './sports'
 import { music } from './music'
 import { calendarFeeds } from './calendarFeed'
@@ -236,6 +237,8 @@ export default {
     if (event.cron === NIGHTLY) {
       ctx.waitUntil((async () => {
         await Promise.resolve(db.rpc('auto_fill_timecards')).then(log('auto_fill_timecards'))
+        // WhatsApp chats older than Data retention allows, with their photos and voice notes.
+        await purgeWhatsApp(db).catch(e => console.error('whatsapp purge failed', e))
         // The subscription, straight from Stripe (in case a webhook was missed).
         await syncBilling(env).catch(e => console.error('billing sync failed', e))
         // Prove every connection still works; admins get a notification when one stops working.

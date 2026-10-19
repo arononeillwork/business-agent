@@ -65,6 +65,8 @@ export interface Settings {
   alert_time_off: boolean
   /** Admins are told when someone tags the business on Instagram or mentions it in their story. */
   alert_instagram_mentions?: boolean
+  /** Data retention: how many days saved WhatsApp chats are kept (30, 90, 180, 365 or 730; 90 unless changed). */
+  whatsapp_retention_days?: number
 }
 
 export interface Expense {

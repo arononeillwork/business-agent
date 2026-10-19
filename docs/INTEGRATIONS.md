@@ -117,6 +117,19 @@ Google** first if Google's are the right ones. Closures and phone only go app �
 Staff turn messages on under **My account** (their consent, as GDPR requires). Replying `STOP`
 or `BAJA` turns them off.
 
+**WhatsApp chats on the Messages page.** Meta never lets an app read WhatsApp messages back, so the
+Worker saves each one as the webhook delivers it (table `whatsapp_messages`, migration 47), and the
+café's own replies and alerts as they're sent. Photos, videos, voice notes and files (up to 25 MB)
+are copied into a private Supabase Storage bucket, `whatsapp-media`, made on first use, and shown
+through short-lived signed links. Replies from the page are allowed for 24 hours after the person's
+last message; after that WhatsApp only takes approved templates. Only messages that arrive after
+the webhook is subscribed to `messages` show up.
+
+**Data retention.** Admins choose how long the chats are kept under **My account → Data retention**:
+1 month, 3 months (the default), 6 months, 1 year or 2 years. Choosing a shorter time deletes
+everything older straight away, files included (after asking); the nightly cron deletes whatever
+has grown too old since.
+
 ## 4. Instagram (one click for each business)
 
 Each business connects its own Instagram with one click ("Connect Instagram", sign in on

@@ -1,20 +1,21 @@
-import { Alert, Box, Button, Card, CardContent, Stack, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, Card, CardContent, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Stack, TextField, Typography } from '@mui/material'
 import { FEATURES } from '../app/features'
 import { useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
-import { useAction } from '../app/Notify'
+import { useAction, useNotify } from '../app/Notify'
 import { PageHeader, SectionTitle } from '../components/common'
 import { PinDialog } from './TeamPage'
 import { ContactMethodField } from '../components/ContactMethod'
 import { LanguagePicker } from '../components/Language'
 import { PhoneField } from '../components/PhoneField'
 import { TimeZoneField } from '../components/TimeZoneField'
-import { t } from '../i18n'
+import { t, tn } from '../i18n'
 import type { ContactMethod } from '../../shared/types'
+import { DEFAULT_WHATSAPP_RETENTION, RETENTION_LABEL, WHATSAPP_RETENTION_DAYS, isRetention, type WhatsAppRetention } from '../../shared/messages'
 
 export function AccountPage() {
-  const { api, me, refresh, isPartner, business } = useApp()
+  const { api, me, refresh, isPartner, isAdmin, business } = useApp()
   const run = useAction()
   const [name, setName] = useState(me?.full_name ?? '')
   const [phone, setPhone] = useState(me?.phone ?? '')
@@ -107,8 +108,74 @@ export function AccountPage() {
             </CardContent>
           </Card>
         </Box>
+
+        {isAdmin && !isPartner && <DataRetention />}
       </Stack>
       {pin && <PinDialog onClose={() => setPin(false)} />}
     </>
+  )
+}
+
+/**
+ * How long the business keeps what Business Agent saves for it (admins). Today: the WhatsApp chats on
+ * the Messages page, which WhatsApp can't share back, so the app keeps its own copy. A shorter time
+ * deletes what's now too old straight away (after asking); a longer one keeps future messages longer.
+ */
+function DataRetention() {
+  const { api, settings, refresh } = useApp()
+  const run = useAction()
+  const notify = useNotify()
+  const saved = isRetention(settings?.whatsapp_retention_days) ? settings.whatsapp_retention_days : DEFAULT_WHATSAPP_RETENTION
+  // A shorter time waits for a yes: it deletes messages.
+  const [shorter, setShorter] = useState<WhatsAppRetention | null>(null)
+  const apply = (days: WhatsAppRetention) => run(async () => {
+    const { deleted } = await api.setWhatsappRetention(days)
+    await refresh()
+    setShorter(null)
+    const kept = t('WhatsApp messages are now kept for {time}.', { time: t(RETENTION_LABEL[days]) })
+    notify(deleted ? `${kept} ${tn(deleted, '{n} older message deleted.', '{n} older messages deleted.')}` : kept, 'success')
+  })
+  const choose = (days: WhatsAppRetention) => {
+    if (days === saved) return
+    if (days < saved) setShorter(days)
+    else void apply(days)
+  }
+  return (
+    <Card component="section" aria-label={t('Data retention')}>
+      <CardContent>
+        <SectionTitle>{t('Data retention')}</SectionTitle>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          {t('How long Business Agent keeps what it saves for the business. Anything older is deleted for good, every night.')}
+        </Typography>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ alignItems: { sm: 'center' } }}>
+          <Box sx={{ flex: 1 }}>
+            <Typography variant="subtitle2" component="h3">{t('WhatsApp messages')}</Typography>
+            <Typography variant="body2" color="text.secondary">
+              {t('The chats on the Messages page, with their photos, voice notes and files. WhatsApp doesn’t let apps read chats back, so Business Agent keeps its own copy.')}
+            </Typography>
+          </Box>
+          <TextField select size="small" label={t('Keep for')} value={saved} sx={{ minWidth: 180 }}
+            onChange={e => void choose(Number(e.target.value) as WhatsAppRetention)}>
+            {WHATSAPP_RETENTION_DAYS.map(d => (
+              <MenuItem key={d} value={d}>{d === DEFAULT_WHATSAPP_RETENTION ? t('{time} (default)', { time: t(RETENTION_LABEL[d]) }) : t(RETENTION_LABEL[d])}</MenuItem>
+            ))}
+          </TextField>
+        </Stack>
+      </CardContent>
+      {shorter && (
+        <Dialog open onClose={() => setShorter(null)} fullWidth maxWidth="xs" aria-labelledby="retention-title">
+          <DialogTitle id="retention-title">{t('Keep WhatsApp messages for {time}?', { time: t(RETENTION_LABEL[shorter]) })}</DialogTitle>
+          <DialogContent>
+            <Typography variant="body2">
+              {t('Messages older than {time}, with their photos, voice notes and files, will be deleted now. This can’t be undone.', { time: t(RETENTION_LABEL[shorter]) })}
+            </Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setShorter(null)}>{t('Cancel')}</Button>
+            <Button variant="contained" color="error" onClick={() => void apply(shorter)}>{t('Delete older messages')}</Button>
+          </DialogActions>
+        </Dialog>
+      )}
+    </Card>
   )
 }

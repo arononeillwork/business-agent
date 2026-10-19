@@ -485,6 +485,12 @@ export function createSupabaseApi(url: string, key: string): Api {
     async replyMessenger(id, text) {
       await worker(`/api/integrations/facebook/inbox/${encodeURIComponent(id)}/reply`, { method: 'POST', body: JSON.stringify({ text }) })
     },
+    whatsappInbox: () => worker('/api/integrations/whatsapp/inbox'),
+    whatsappThread: id => worker(`/api/integrations/whatsapp/inbox/${encodeURIComponent(id)}`),
+    async replyWhatsApp(id, text) {
+      await worker(`/api/integrations/whatsapp/inbox/${encodeURIComponent(id)}/reply`, { method: 'POST', body: JSON.stringify({ text }) })
+    },
+    setWhatsappRetention: days => worker('/api/integrations/whatsapp/retention', { method: 'POST', body: JSON.stringify({ days }) }),
     async uploadPhoto(file) {
       const jpeg = await readyPhoto(file, false)
       return (await worker<{ url: string }>('/api/integrations/media?folder=Posts', { method: 'POST', body: jpeg,

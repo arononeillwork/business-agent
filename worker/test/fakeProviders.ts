@@ -212,7 +212,14 @@ export class FakeProviders {
     uploads: [] as { owner: string; type: string; size: number; image: string }[],
     posts: [] as Json[],
   }
-  whatsapp = { sent: [] as { to: string; template: string; language: string }[], broken: false }
+  whatsapp = {
+    sent: [] as { to: string; template: string; language: string }[],
+    /** Free-form replies (within 24 hours of the person's last message). */
+    texts: [] as { to: string; text: string }[],
+    broken: false,
+    /** Photos and voice notes people sent, by media id (Meta keeps them for a while, then they're gone). */
+    media: new Map<string, { type: string; bytes: Uint8Array }>(),
+  }
   /** Every call, as "METHOD host/path". */
   calls: string[] = []
   private nextId = 1
@@ -683,13 +690,26 @@ export class FakeProviders {
     // A photo for a post, at a public address (the networks that take uploads read it first).
     if (url.host === 'cdn.test') return new Response(new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4]), { headers: { 'content-type': 'image/jpeg' } })
 
+    if (url.host === 'lookaside.fbsbx.com') {
+      const m = this.whatsapp.media.get(url.searchParams.get('mid') ?? '')
+      if (!m || new Headers(init?.headers).get('authorization') !== 'Bearer meta-token') return new Response('Not found', { status: 404 })
+      return new Response(m.bytes, { headers: { 'content-type': m.type } })
+    }
     // ---- WhatsApp (Meta Graph) ----
     if (url.host === 'graph.facebook.com') {
       if (this.whatsapp.broken) return json({ error: { message: 'Error validating access token: Session has expired.', code: 190 } }, 401)
       if (url.pathname.endsWith('/messages')) {
-        const m = body() as { to: string; template: { name: string; language: { code: string } } }
-        this.whatsapp.sent.push({ to: m.to, template: m.template.name, language: m.template.language.code })
+        const m = body() as { to: string; type: string; text?: { body: string }; template?: { name: string; language: { code: string } } }
+        if (m.type === 'text') this.whatsapp.texts.push({ to: m.to, text: m.text!.body })
+        else this.whatsapp.sent.push({ to: m.to, template: m.template!.name, language: m.template!.language.code })
         return json({ messaging_product: 'whatsapp', messages: [{ id: `wamid.${this.nextId++}` }] })
+      }
+      // A photo or voice note: its details, then a short-lived address that needs the token.
+      const mediaId = url.pathname.match(/\/v[\d.]+\/(media-[\w-]+)$/)?.[1]
+      if (mediaId) {
+        const m = this.whatsapp.media.get(mediaId)
+        if (!m) return json({ error: { message: 'Media not found', code: 100 } }, 404)
+        return json({ url: `https://lookaside.fbsbx.com/whatsapp_business/attachments/?mid=${mediaId}`, mime_type: m.type, file_size: m.bytes.length, id: mediaId })
       }
       return json({ display_phone_number: '+34 600 000 000', verified_name: 'Easy Beans', id: '555' })
     }

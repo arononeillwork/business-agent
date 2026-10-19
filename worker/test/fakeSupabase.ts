@@ -1,6 +1,6 @@
-// A stand-in for Supabase (PostgREST and auth) with the tables in memory, so the Worker's routes can
+// A stand-in for Supabase (PostgREST, auth and storage) with the tables and files in memory, so the Worker's routes can
 // be run end to end in unit tests. It understands the queries the Worker makes (select with eq/neq/
-// in/is/gte/gt/lte/lt, single/maybeSingle, insert/upsert/update/delete, rpc is_admin/my_role and the plan checks) and
+// in/is/gte/gt/lte/lt, order and limit, single/maybeSingle, insert/upsert/update/delete, rpc is_admin/my_role and the plan checks) and
 // mirrors the one-app-per-group trigger from migration 28 (supabase/tests prove the real one).
 import { PROVIDERS } from '../connections'
 import { CONNECTION_FEATURE } from '../../shared/plans'
@@ -16,7 +16,10 @@ export const GROUP: Record<string, string> = {
 /** Primary keys, for upserts. Tables not listed get a numeric id. */
 const KEYS: Record<string, string[]> = {
   integrations: ['provider'], integration_secrets: ['provider'], calendar_feeds: ['profile_id', 'scope'], profiles: ['id'], business: ['id'], api_keys: ['id'], referrals: ['email'],
+  whatsapp_messages: ['wa_message_id'], settings: ['id'],
 }
+/** Keyed tables that still get a numeric id of their own (an identity column beside the unique key). */
+const AUTO_ID = new Set(['whatsapp_messages'])
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 const bearerOf = (h: Headers) => h.get('authorization')?.replace(/^Bearer\s+/i, '') ?? ''
@@ -58,6 +61,9 @@ export class FakeSupabase {
   people = new Map<string, { id: string; role: 'admin' | 'employee' }>()
   /** Sign-ins made by the Worker for access keys (one-time links used, sessions refreshed). */
   auth = { links: 0, refreshes: 0 }
+  /** Storage: the buckets made, and each file by "bucket/path". */
+  buckets = new Set<string>()
+  files = new Map<string, { bytes: Uint8Array; type: string }>()
   private links = new Map<string, string>()
   private refreshTokens = new Map<string, string>()
   private nextId = 1
@@ -79,6 +85,7 @@ export class FakeSupabase {
     this.tables.outbox = []
     this.tables.notifications = []
     this.tables.calendar_feeds = []
+    this.tables.settings = [{ id: 1, whatsapp_retention_days: 90 }]
     this.people.set('admin-token', { id: 'admin-1', role: 'admin' })
     this.people.set('staff-token', { id: 'staff-1', role: 'employee' })
   }
@@ -118,6 +125,7 @@ export class FakeSupabase {
       this.auth.refreshes++
       return json(this.session(uid))
     }
+    if (url.pathname.startsWith('/storage/v1/')) return this.storage(url, method, init)
     if (url.pathname === '/auth/v1/user') {
       const who = this.people.get(bearerOf(headers))
       return who
@@ -157,6 +165,14 @@ export class FakeSupabase {
         Object.assign(j, a.p_ok ? { status: 'sent', external_id: a.p_external_id ?? null, last_error: null } : { status: 'failed', last_error: a.p_error })
         return json(null)
       }
+      // Migration 47: delete WhatsApp messages older than the chosen time, returning their files.
+      if (rpc[1] === 'purge_whatsapp_messages') {
+        const days = Number(this.table('settings')[0]?.whatsapp_retention_days ?? 90)
+        const cutoff = new Date(Date.now() - days * 86_400_000).toISOString()
+        const gone = this.table('whatsapp_messages').filter(r => String(r.at) < cutoff)
+        this.tables.whatsapp_messages = this.table('whatsapp_messages').filter(r => !gone.includes(r))
+        return json(gone.map(r => r.media_path ?? null))
+      }
       return json({ message: `fake Supabase: no rpc ${rpc[1]}` }, 404)
     }
     const m = url.pathname.match(/^\/rest\/v1\/(\w+)$/)
@@ -173,7 +189,16 @@ export class FakeSupabase {
       }
       return json(data.map(r => project(r, select)), status)
     }
-    if (method === 'GET') return respond(rows.filter(match))
+    if (method === 'GET') {
+      let hit = rows.filter(match)
+      const order = url.searchParams.get('order')
+      if (order) {
+        const [col, dir] = order.split('.')
+        hit = [...hit].sort((a, b) => String(a[col] ?? '').localeCompare(String(b[col] ?? '')) * (dir === 'desc' ? -1 : 1))
+      }
+      const limit = Number(url.searchParams.get('limit') ?? '') || null
+      return respond(limit ? hit.slice(0, limit) : hit)
+    }
     if (method === 'PATCH') {
       const hit = rows.filter(match)
       for (const r of hit) {
@@ -188,9 +213,10 @@ export class FakeSupabase {
       const out: Row[] = []
       for (const item of (Array.isArray(body) ? body : [body!])) {
         const existing = keys && rows.find(r => keys.every(k => r[k] === item[k]))
+        if (existing && prefer.includes('resolution=ignore-duplicates')) continue
         if (existing && !prefer.includes('resolution=merge-duplicates')) return json({ code: '23505', message: 'duplicate key value violates unique constraint' }, 409)
         if (existing) { Object.assign(existing, item); out.push(existing) } else {
-          const r = { ...(keys ? {} : { id: this.nextId++ }), ...item }
+          const r = { ...(keys && !AUTO_ID.has(name) ? {} : { id: this.nextId++ }), ...item }
           rows.push(r)
           out.push(r)
         }
@@ -202,6 +228,40 @@ export class FakeSupabase {
       return new Response(null, { status: 204 })
     }
     return json({ message: `fake Supabase: ${method} not supported` }, 405)
+  }
+
+  /** Supabase Storage: make a bucket, upload, sign links, remove (an upload to a missing bucket fails as the real one does). */
+  private storage(url: URL, method: string, init: RequestInit) {
+    const path = decodeURIComponent(url.pathname.replace(/^\/storage\/v1/, ''))
+    const body = () => JSON.parse(String(init.body)) as Record<string, unknown>
+    if (method === 'POST' && path === '/bucket') {
+      const { name, id } = body() as { name?: string; id?: string }
+      this.buckets.add(String(id ?? name))
+      return json({ name: id ?? name })
+    }
+    const sign = path.match(/^\/object\/sign\/([^/]+)$/)
+    if (method === 'POST' && sign) {
+      const { paths } = body() as { paths: string[] }
+      return json(paths.map(p => (this.files.has(`${sign[1]}/${p}`)
+        ? { path: p, signedURL: `/object/sign/${sign[1]}/${p}?token=signed`, error: null }
+        : { path: p, signedURL: null, error: 'Object not found' })))
+    }
+    const object = path.match(/^\/object\/([^/]+)(?:\/(.+))?$/)
+    if (!object) return json({ message: 'not found' }, 404)
+    const [, bucket, key] = object
+    if (method === 'POST' && key) {
+      if (!this.buckets.has(bucket)) return json({ statusCode: '404', error: 'Bucket not found', message: 'Bucket not found' }, 400)
+      const raw = init.body
+      const bytes = raw instanceof Uint8Array ? raw : raw instanceof ArrayBuffer ? new Uint8Array(raw) : new TextEncoder().encode(String(raw ?? ''))
+      this.files.set(`${bucket}/${key}`, { bytes, type: new Headers(init.headers).get('content-type') ?? '' })
+      return json({ Key: `${bucket}/${key}`, Id: key })
+    }
+    if (method === 'DELETE' && !key) {
+      const { prefixes } = body() as { prefixes: string[] }
+      const gone = prefixes.filter(p => this.files.delete(`${bucket}/${p}`))
+      return json(gone.map(name => ({ name, bucket_id: bucket })))
+    }
+    return json({ message: `fake Supabase storage: ${method} ${path} not supported` }, 405)
   }
 
   /** A new session for this person (access tokens work with /auth/v1/user; refresh tokens rotate). */

@@ -27,6 +27,7 @@ import { replyWindow } from '../shared/messages'
 import { finishMusicConnect, type MusicState } from './music'
 import { ensureFeed } from './calendarFeed'
 import { checkMentions, decide, repostMention } from './mentions'
+import * as waInbox from './whatsappInbox'
 import { MediaError, checkFile, mediaBytes, mediaStorage, serveMedia, storeMedia } from './media'
 import {
   CONNECTORS, PROVIDERS, ROW_COLUMNS, SCOPES, calendarSeen, calendarFetched, checkAll, checkOne, connectedOf, connectorConfigured,
@@ -166,6 +167,9 @@ export async function drainOutbox(env: Env) {
         if (!cfg) throw new Error('WhatsApp is not set up')
         const p = job.payload as { to: string; template: string; params: string[] }
         externalId = await whatsapp.sendTemplate(cfg, p.to, p.template, p.params ?? [])
+        // Into the chat on the Messages page, as the person received it (it's sent either way).
+        await waInbox.saveOutgoing(db, { id: externalId, to: p.to, text: waInbox.templateText(p.template, p.params ?? []) })
+          .catch(e => console.error('whatsapp chat save failed', e))
       } else if (job.kind === 'google_sync') {
         await syncGoogle(env, db)
       } else if (job.kind === 'google_post') {
@@ -1204,6 +1208,70 @@ integrations.post('/api/integrations/facebook/inbox/:id/reply', async c => {
   }
 })
 
+// Messages page: the café's WhatsApp chats (admins). WhatsApp can't be read back from Meta, so these
+// are the messages the webhook and the app saved (worker/whatsappInbox.ts), for as long as Data retention says.
+/** WhatsApp's errors, in words for the Messages page. */
+function whatsappError(e: unknown) {
+  const raw = e instanceof Error ? e.message : String(e)
+  if (/131047|re-?engagement|24 hours|outside.*window/i.test(raw)) return 'WhatsApp only allows replies within 24 hours of their last message. After that, the café can only send approved templates.'
+  return explain('whatsapp', e)
+}
+
+integrations.get('/api/integrations/whatsapp/inbox', async c => {
+  try {
+    return c.json({ conversations: await waInbox.conversations(serviceClient(c.env)) })
+  } catch (e) {
+    return c.json({ error: whatsappError(e) }, 400)
+  }
+})
+
+integrations.get('/api/integrations/whatsapp/inbox/:id', async c => {
+  const waId = c.req.param('id')
+  if (!/^[0-9]{6,20}$/.test(waId)) return c.json({ error: 'No such chat' }, 404)
+  try {
+    return c.json(await waInbox.thread(serviceClient(c.env), waId))
+  } catch (e) {
+    return c.json({ error: whatsappError(e) }, 400)
+  }
+})
+
+integrations.post('/api/integrations/whatsapp/inbox/:id/reply', async c => {
+  const waId = c.req.param('id')
+  if (!/^[0-9]{6,20}$/.test(waId)) return c.json({ error: 'No such chat' }, 404)
+  const { text } = await c.req.json<{ text?: string }>().catch(() => ({ text: undefined }))
+  const said = (text ?? '').trim()
+  if (!said) return c.json({ error: 'Write a message first' }, 400)
+  if (said.length > 4096) return c.json({ error: 'WhatsApp messages can be up to 4096 characters' }, 400)
+  const cfg = waConfig(c.env)
+  if (!cfg) return c.json({ error: 'WhatsApp is not set up yet. Add META_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID.' }, 400)
+  const db = serviceClient(c.env)
+  try {
+    // Only to someone who wrote in the last 24 hours (WhatsApp refuses anything else but templates).
+    const { messages } = await waInbox.thread(db, waId)
+    if (replyWindow(messages, Date.now(), 'whatsapp').mode === 'closed') {
+      return c.json({ error: 'WhatsApp only allows replies within 24 hours of their last message. After that, the café can only send approved templates.' }, 400)
+    }
+    const id = await whatsapp.sendText(cfg, waId, said)
+    // It's sent: a failed save mustn't look like a failed send (and get sent twice).
+    await waInbox.saveOutgoing(db, { id, to: waId, text: said }).catch(e => console.error('whatsapp chat save failed', e))
+    return c.json({ ok: true, id })
+  } catch (e) {
+    return c.json({ error: whatsappError(e) }, 400)
+  }
+})
+
+// Data retention (My account): how long WhatsApp chats are kept. Shortening it deletes what's now
+// too old straight away, photos and voice notes included.
+integrations.post('/api/integrations/whatsapp/retention', async c => {
+  const { days } = await c.req.json<{ days?: number }>().catch(() => ({ days: undefined }))
+  try {
+    const asAdmin = userClient(c.env, bearer(c.req.header('authorization'))!, 'app')
+    return c.json(await waInbox.setRetention(asAdmin, serviceClient(c.env), Number(days)))
+  } catch (e) {
+    return c.json({ error: e instanceof Error ? e.message : String(e) }, 400)
+  }
+})
+
 // Photos and videos for posts: kept in the café's Drive or OneDrive (or R2), in the folder for the
 // kind of post (?folder=Posts|Carousels|Reels|Stories), and handed out publicly at /media/… so the
 // networks can fetch them (worker/media.ts).
@@ -1248,6 +1316,10 @@ integrations.post('/api/webhooks/whatsapp', async c => {
   for (const s of events.statuses) {
     await db.from('outbox').update({ delivery: s.status, ...(s.error ? { last_error: s.error } : {}) }).eq('external_id', s.id)
   }
+  // Messages page: keep every message (WhatsApp can't be read back later), then copy photos, voice
+  // notes and files from Meta after answering, so Meta isn't kept waiting.
+  const withMedia = await waInbox.saveInbound(db, events).catch(e => { console.error('whatsapp chat save failed', e); return [] })
+  if (withMedia.length) c.executionCtx.waitUntil(Promise.all(withMedia.map(r => waInbox.saveMedia(c.env, db, r))))
   for (const m of events.messages) {
     if (/^\s*(stop|baja|parar)\s*$/i.test(m.text)) {
       // Opt the sender out: match on digits of their stored number.
