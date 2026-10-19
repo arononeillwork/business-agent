@@ -9,6 +9,7 @@ import { PinDialog } from './TeamPage'
 import { ContactMethodField } from '../components/ContactMethod'
 import { LanguagePicker } from '../components/Language'
 import { PhoneField } from '../components/PhoneField'
+import { TimeZoneField } from '../components/TimeZoneField'
 import { t } from '../i18n'
 import type { ContactMethod } from '../../shared/types'
 
@@ -62,6 +63,13 @@ export function AccountPage() {
           <CardContent>
             <SectionTitle>{t('Language')}</SectionTitle>
             <Box sx={{ maxWidth: 420 }}><LanguagePicker /></Box>
+          </CardContent>
+        </Card>
+
+        <Card component="section" aria-label={t('Time zone')}>
+          <CardContent>
+            <SectionTitle>{t('Time zone')}</SectionTitle>
+            <TimeZoneField />
           </CardContent>
         </Card>
 

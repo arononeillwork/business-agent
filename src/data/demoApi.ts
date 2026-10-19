@@ -150,8 +150,9 @@ export function createDemoApi(): Api {
   const player: MusicPlayerState = { device_id: null, device_name: null, playlist: null, queue: [], queue_version: 0, playlist_order: [], position: 0, playing: false,
     elapsed: 0, duration: 0, volume: 80, command: null, command_seq: 0, heartbeat_at: null, updated_at: nowIso() }
   const cafeMusic = () => integ.integrations.find(i => (i.provider === 'spotify' || i.provider === 'youtube_music') && i.status === 'connected')
-  // Social planner: a published post and carousel, a reel and a story coming up, a story reminder
-  // that's due now (posted by hand), a Facebook text post next week, and a draft.
+  // Social planner: a published post and carousel, a post Instagram refused (to fix and post again),
+  // a reel and a story coming up, a story reminder that's due now (posted by hand), a Facebook text
+  // post next week, and a draft.
   const hoursFromNow = (h: number) => new Date(Date.now() + h * 3_600_000).toISOString()
   const svg = (bg: string, cup: string, text: string) => `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400"><rect width="400" height="400" fill="${bg}"/><circle cx="200" cy="215" r="120" fill="#fff"/><circle cx="200" cy="215" r="92" fill="${cup}"/><path d="M165 205c20-30 50-30 70 0-20 30-50 30-70 0z" fill="${bg}"/><text x="200" y="70" font-family="sans-serif" font-size="28" text-anchor="middle" fill="#A85A68">${text}</text></svg>`)}`
   const PHOTO = svg('#F3DED3', '#8B5E3C', 'Easy Beans')
@@ -168,6 +169,9 @@ export function createDemoApi(): Api {
     { id: uid(), kind: 'carousel', caption: 'Three new drinks for autumn: which one first?', image_url: MATCHA, media: [photo(MATCHA), photo(UBE), photo(PHOTO)], targets: ['instagram'], auto: true,
       scheduled_at: hoursFromNow(-24 * 5), status: 'published', created_at: hoursFromNow(-24 * 6), published_at: hoursFromNow(-24 * 5),
       results: { instagram: { status: 'published', url: 'https://www.instagram.com/easy.beans.coffee/' } } },
+    { id: uid(), kind: 'post', caption: 'Acai bowls are back: fresh fruit, granola, honey.', image_url: UBE, media: [photo(UBE)], targets: ['instagram'], auto: true,
+      scheduled_at: hoursFromNow(-3), status: 'failed', created_at: hoursFromNow(-28), published_at: null,
+      results: { instagram: { status: 'failed', error: 'Instagram couldn’t use the photo or video', at: hoursFromNow(-2) } } },
     { id: uid(), kind: 'story', caption: 'Poll sticker: oat or almond?', image_url: null, media: [], targets: ['instagram'], auto: false,
       scheduled_at: hoursFromNow(-1), status: 'due', results: {}, created_at: hoursFromNow(-30), published_at: null },
     { id: uid(), kind: 'post', caption: 'Feria week: we stay open until 23:00 from Thursday to Sunday. See you there!', image_url: PHOTO, media: [photo(PHOTO)], targets: ['google', 'instagram'], auto: true,

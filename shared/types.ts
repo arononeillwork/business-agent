@@ -158,6 +158,8 @@ export interface Preferences {
   languages?: ('en' | 'es')[]
   /** The one shown now. */
   language?: 'en' | 'es'
+  /** Their own time zone (IANA, e.g. "Europe/London"): social posts are planned and shown in it. Unset = the café's. */
+  timeZone?: string
 }
 
 export interface Position {

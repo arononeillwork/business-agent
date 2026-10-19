@@ -241,7 +241,7 @@ export default {
   'posts only': 'solo publicaciones',
   'Now': 'Ahora',
   'Schedule': 'Programar',
-  'Time (Madrid)': 'Hora (Madrid)',
+  'Time ({zone})': 'Hora ({zone})',
   'How it goes out': 'Cómo se publica',
   'Post it automatically': 'Publicarla automáticamente',
   'It goes out by itself at the time.': 'Se publica sola a su hora.',
@@ -579,4 +579,26 @@ export default {
   'The NIE letter doesn\'t match the number': 'La letra del NIE no corresponde al número',
   'The CIF control character doesn\'t match': 'El carácter de control del CIF no coincide',
   'Use a Spanish CIF (B12345674), NIF (12345678Z) or NIE (X1234567L)': 'Usa un CIF (B12345674), NIF (12345678Z) o NIE (X1234567L) español',
+  // Time zone (My account) and the planner's edit and bin.
+  'Time zone': 'Zona horaria',
+  'Time zone set to {zone}': 'Zona horaria: {zone}',
+  'No time zone found': 'No se encontró esa zona horaria',
+  'It’s {time} there now. Social posts are planned and shown in this time; shifts and timecards stay in the café’s ({cafe}).':
+    'Allí son las {time}. Las publicaciones se programan y se muestran en esta hora; los turnos y fichajes siguen en la del café ({cafe}).',
+  'This device is set to {zone}.': 'Este dispositivo está en {zone}.',
+  'Use {zone}': 'Usar {zone}',
+  'Edit and try again': 'Editar y volver a intentarlo',
+  'Posting now: you can remove it once it’s done': 'Publicándose: podrás quitarla cuando termine',
+  'Remove this post from the list?': '¿Quitar esta publicación de la lista?',
+  'Delete this post?': '¿Eliminar esta publicación?',
+  '“{name}” stays on the networks it went to. Delete it there if you want it gone.':
+    '«{name}» sigue en las redes donde se publicó. Elimínala allí si quieres que desaparezca.',
+  '“{name}” won’t go out, and can’t be brought back.': '«{name}» no se publicará y no se podrá recuperar.',
+  'This didn’t go out: {why}. Fix what’s needed and post it again.': 'No se publicó: {why}. Corrige lo necesario y vuelve a publicarla.',
+  'the networks refused it': 'las redes la rechazaron',
+  'Posting now: you can edit it once it’s done': 'Publicándose: podrás editarla cuando termine',
+  'Edit as a new post': 'Editar como publicación nueva',
+  'Post again': 'Publicar de nuevo',
+  'This one went out already, so it can’t change there. Saving makes a new post; the one already posted stays as it is.':
+    'Esta ya se publicó y allí no se puede cambiar. Al guardar se crea una publicación nueva; la que ya está publicada se queda como está.',
 } satisfies Record<string, string>

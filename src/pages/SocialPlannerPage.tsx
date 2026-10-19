@@ -35,7 +35,7 @@ import { useAsync } from '../app/hooks'
 import { useAction, useNotify } from '../app/Notify'
 import { Empty, ErrorBox, PageHeader, SectionTitle, Tag } from '../components/common'
 import { SortCell, useSort } from '../components/tables'
-import { formatLocal, localDate, localTime, today, zonedIso } from '../../shared/time'
+import { formatLocal as formatIn, localDate as dateIn, localTime as timeIn, ownTimeZone, today as todayIn, zoneCity, zonedIso as isoIn } from '../../shared/time'
 import { KINDS, kindInfo, matchesMedia, monthWeeks, postProblem, shiftMonth, type MediaFilter } from '../../shared/social'
 import type { IntegrationProvider, IntegrationsState, PostKind, PostMedia, SocialNetwork, SocialPost } from '../../shared/types'
 import { readyPhoto, readyVideo, videoSeconds } from '../lib/media'
@@ -74,6 +74,13 @@ function Mark({ icon, size = 16 }: { icon: Icon; size?: number }) {
   )
 }
 
+// Posts are planned and shown in the person's own time zone (My account → Time zone; the café's by default).
+const formatLocal = (iso: string | Date, pattern: string) => formatIn(iso, pattern, ownTimeZone())
+const localDate = (iso: string | Date) => dateIn(iso, ownTimeZone())
+const localTime = (iso: string | Date) => timeIn(iso, ownTimeZone())
+const today = () => todayIn(ownTimeZone())
+const zonedIso = (date: string, time: string) => isoIn(date, time, ownTimeZone())
+
 const dayLabel = (iso: string) => (localDate(iso) === today() ? t('Today') : formatLocal(iso, 'EEEE d MMMM'))
 /** Monday to Sunday (1 to 7 January 2024), for day names in the current language. */
 const weekday = (i: number) => `2024-01-0${i + 1}T12:00:00Z`
@@ -82,6 +89,8 @@ const whenOf = (p: SocialPost) => p.scheduled_at ?? p.published_at
 /** "Instagram and Facebook" (every name joined with "and"). */
 const joinAnd = (names: string[]) => (names.length ? names.reduce((a, b) => t('{a} and {b}', { a, b })) : '')
 const sentOf = (p: SocialPost) => ['publishing', 'published', 'partly', 'failed'].includes(p.status)
+/** What can still change: anything that hasn't gone out, and a post that didn't go out anywhere (to fix and try again). */
+const editable = (p: SocialPost) => !sentOf(p) || p.status === 'failed'
 
 type View = 'list' | 'calendar' | 'table'
 const remembered = <T extends string>(key: string, fallback: T): T => {
@@ -98,7 +107,7 @@ export function SocialPlannerPage() {
   const { api } = useApp()
   const posts = useAsync('social-posts', () => api.socialPosts(), [], { refetchInterval: 30_000 })
   const integ = useAsync('integrations', () => api.integrations(), [])
-  const [editing, setEditing] = useState<Partial<SocialPost> | null>(null)
+  const [editing, setEditing] = useState<(Partial<SocialPost> & { copied?: boolean }) | null>(null)
   const [kind, setKind] = useState<'all' | PostKind>(() => remembered<'all' | PostKind>('planner-kind', 'all'))
   const [media, setMedia] = useState<MediaFilter>('all')
   const [view, setView] = useState<View>(() => remembered<View>('planner-view', 'list'))
@@ -108,6 +117,9 @@ export function SocialPlannerPage() {
   const all = posts.data ?? []
   const shown = all.filter(p => (kind === 'all' || p.kind === kind) && matchesMedia(p, media))
   const count = (k: 'all' | PostKind) => all.filter(p => (k === 'all' || p.kind === k) && matchesMedia(p, media)).length
+  // A post that went out can't change there: editing it starts a new post from it.
+  const edit = (p: SocialPost) => setEditing(editable(p) ? p : { kind: p.kind, caption: p.caption, media: p.media, auto: p.auto, copied: true,
+    targets: p.targets.filter(net => connected(networkOf(net).provider)) })
   const newPost = (date?: string) => setEditing({ kind: kind === 'all' ? 'post' : kind, caption: '', targets: [], media: [],
     ...(date ? { scheduled_at: zonedIso(date, '10:00') } : {}) })
 
@@ -143,9 +155,9 @@ export function SocialPlannerPage() {
             </Stack>
           </Stack>
 
-          {view === 'list' && <ListView posts={shown} loaded={!!posts.data} onEdit={setEditing} reload={posts.reload} />}
-          {view === 'calendar' && <CalendarView posts={shown} onEdit={setEditing} onNew={newPost} reload={posts.reload} />}
-          {view === 'table' && <TableView posts={shown} loaded={!!posts.data} onEdit={setEditing} />}
+          {view === 'list' && <ListView posts={shown} loaded={!!posts.data} onEdit={edit} reload={posts.reload} />}
+          {view === 'calendar' && <CalendarView posts={shown} onEdit={edit} onNew={newPost} reload={posts.reload} />}
+          {view === 'table' && <TableView posts={shown} loaded={!!posts.data} onEdit={edit} reload={posts.reload} />}
         </Box>
       </Stack>
 
@@ -240,7 +252,7 @@ function ListView({ posts, loaded, onEdit, reload }: { posts: SocialPost[]; load
       <Box component="section" aria-label={t('Sent')}>
         <SectionTitle>{t('Sent')}</SectionTitle>
         {loaded && sent.length === 0 && <Empty>{t('Posts that have gone out show here, with a link to each one.')}</Empty>}
-        {sent.length > 0 && <Card>{sent.map(p => <PostRow key={p.id} p={p} reload={reload} />)}</Card>}
+        {sent.length > 0 && <Card>{sent.map(p => <PostRow key={p.id} p={p} onEdit={() => onEdit(p)} reload={reload} />)}</Card>}
       </Box>
     </Stack>
   )
@@ -286,7 +298,7 @@ function CalendarView({ posts, onEdit, onNew, reload }: {
                 </Typography>
                 {wide ? (
                   <Stack spacing={0.5} onClick={e => e.stopPropagation()}>
-                    {list.slice(0, 3).map(p => <CalendarChip key={p.id} p={p} onOpen={() => onEdit(p)} />)}
+                    {list.slice(0, 3).map(p => <CalendarChip key={p.id} p={p} onOpen={p.status === 'publishing' ? undefined : () => onEdit(p)} />)}
                     {list.length > 3 && <Typography variant="caption" sx={{ color: 'text.secondary' }}>{t('+{n} more', { n: list.length - 3 })}</Typography>}
                   </Stack>
                 ) : (
@@ -308,7 +320,7 @@ function CalendarView({ posts, onEdit, onNew, reload }: {
           {on(picked).length === 0
             ? <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('Nothing planned.')}</Typography>
             : <Card>{on(picked).map(p => (p.status === 'due' ? <DueRow key={p.id} p={p} onEdit={() => onEdit(p)} reload={reload} />
-              : <PostRow key={p.id} p={p} onEdit={sentOf(p) ? undefined : () => onEdit(p)} reload={reload} />))}</Card>}
+              : <PostRow key={p.id} p={p} onEdit={() => onEdit(p)} reload={reload} />))}</Card>}
         </Box>
       )}
       <Stack direction="row" spacing={1.5} sx={{ mt: 1.5, flexWrap: 'wrap', rowGap: 0.5 }} aria-label={t('Key')}>
@@ -324,12 +336,12 @@ function CalendarView({ posts, onEdit, onNew, reload }: {
 }
 
 /** One post on the calendar: time, kind, a glimpse of the photo and the caption. */
-function CalendarChip({ p, onOpen }: { p: SocialPost; onOpen: () => void }) {
+function CalendarChip({ p, onOpen }: { p: SocialPost; onOpen?: () => void }) {
   const tone = KIND_TONE[p.kind]
   const info = kindInfo(p.kind)
   return (
-    <Box component="button" type="button" onClick={onOpen} aria-label={t('{kind} at {time}: {caption}', { kind: t(info.label), time: localTime(whenOf(p)!), caption: p.caption.slice(0, 40) || t('no caption') })}
-      sx={{ display: 'flex', alignItems: 'center', gap: 0.5, width: '100%', minWidth: 0, p: 0.25, pr: 0.75, border: 0, borderRadius: 1, cursor: 'pointer',
+    <Box component={onOpen ? 'button' : 'div'} type={onOpen ? 'button' : undefined} onClick={onOpen} aria-label={t('{kind} at {time}: {caption}', { kind: t(info.label), time: localTime(whenOf(p)!), caption: p.caption.slice(0, 40) || t('no caption') })}
+      sx={{ display: 'flex', alignItems: 'center', gap: 0.5, width: '100%', minWidth: 0, p: 0.25, pr: 0.75, border: 0, borderRadius: 1, cursor: onOpen ? 'pointer' : 'default',
         bgcolor: tone.bg, color: tone.fg, font: 'inherit', fontSize: 12, textAlign: 'left', opacity: sentOf(p) && p.status !== 'publishing' ? 0.75 : 1 }}>
       {p.media[0] ? <Thumb m={p.media[0]} size={20} radius={4} /> : <Box sx={{ display: 'flex', '& svg': { fontSize: 16 } }}>{KIND_ICON[p.kind]}</Box>}
       <Box component="span" sx={{ fontWeight: 600, flexShrink: 0 }}>{localTime(whenOf(p)!)}</Box>
@@ -338,7 +350,7 @@ function CalendarChip({ p, onOpen }: { p: SocialPost; onOpen: () => void }) {
   )
 }
 
-function TableView({ posts, loaded, onEdit }: { posts: SocialPost[]; loaded: boolean; onEdit: (p: SocialPost) => void }) {
+function TableView({ posts, loaded, onEdit, reload }: { posts: SocialPost[]; loaded: boolean; onEdit: (p: SocialPost) => void; reload: () => Promise<void> }) {
   const { rows, sort } = useSort(posts, {
     when: p => whenOf(p), kind: p => t(kindInfo(p.kind).label), caption: p => p.caption, where: p => p.targets.map(net => networkOf(net).name).join(', '),
     how: p => (p.auto ? 0 : 1), status: p => t(STATUS[p.status].label),
@@ -347,7 +359,7 @@ function TableView({ posts, loaded, onEdit }: { posts: SocialPost[]; loaded: boo
   return (
     <Card>
       <TableContainer sx={{ overflowX: 'auto' }}>
-        <Table size="small" aria-label={t('Posts')} sx={{ minWidth: 720, '& th, & td': { px: 1.25 } }}>
+        <Table size="small" aria-label={t('Posts')} sx={{ minWidth: 760, '& th, & td': { px: 1.25 } }}>
           <TableHead>
             <TableRow>
               <SortCell sort={sort} id="when">{t('When')}</SortCell>
@@ -376,8 +388,8 @@ function TableView({ posts, loaded, onEdit }: { posts: SocialPost[]; loaded: boo
                   <TableCell><Stack direction="row" spacing={0.75}>{p.targets.map(net => <Tooltip key={net} title={networkOf(net).name}><Box aria-label={networkOf(net).name}><Mark icon={networkOf(net).icon} /></Box></Tooltip>)}</Stack></TableCell>
                   <TableCell sx={{ whiteSpace: 'nowrap' }}>{p.auto ? t('Automatically') : t('Reminder')}</TableCell>
                   <TableCell><Tag fg={st.fg} bg={st.bg}>{t(st.label)}</Tag></TableCell>
-                  <TableCell padding="checkbox">
-                    {!sentOf(p) && <Tooltip title={t('Edit')}><IconButton size="small" aria-label={t('Edit post')} onClick={() => onEdit(p)}><EditIcon fontSize="small" /></IconButton></Tooltip>}
+                  <TableCell sx={{ width: 0, whiteSpace: 'nowrap', textAlign: 'right' }}>
+                    <RowActions p={p} onEdit={() => onEdit(p)} reload={reload} />
                   </TableCell>
                 </TableRow>
               )
@@ -449,8 +461,6 @@ function Cover({ p, size = 56 }: { p: SocialPost; size?: number }) {
 
 /** One post as a row: when, what kind, where; and for sent posts, what happened on each network. */
 function PostRow({ p, onEdit, reload }: { p: SocialPost; onEdit?: () => void; reload: () => Promise<void> }) {
-  const { api } = useApp()
-  const run = useAction()
   const st = STATUS[p.status]
   const sent = sentOf(p)
   return (
@@ -491,16 +501,55 @@ function PostRow({ p, onEdit, reload }: { p: SocialPost; onEdit?: () => void; re
         )}
       </Box>
       <Stack direction="row" sx={{ alignItems: 'flex-start', flexShrink: 0 }}>
-        {onEdit && <Tooltip title={t('Edit')}><IconButton size="small" aria-label={t('Edit post')} onClick={onEdit}><EditIcon fontSize="small" /></IconButton></Tooltip>}
-        {p.status !== 'publishing' && (
-          <Tooltip title={sent ? t('Remove from the list (it stays on the networks)') : t('Delete')}>
-            <IconButton size="small" aria-label={t('Delete post')} onClick={() => run(async () => { await api.deleteSocialPost(p.id); await reload() }, sent ? t('Removed from the list') : t('Post deleted'))}>
-              <DeleteIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        )}
+        <RowActions p={p} onEdit={onEdit} reload={reload} />
       </Stack>
     </Box>
+  )
+}
+
+/**
+ * Edit, then the bin, at the end of every row. A post that went out is edited as a new post (it
+ * can't change on the networks); the bin asks first, and for a post that went out it only leaves
+ * the list. While a post is going out, both wait until it's done.
+ */
+function RowActions({ p, onEdit, reload }: { p: SocialPost; onEdit?: () => void; reload: () => Promise<void> }) {
+  const { api } = useApp()
+  const run = useAction()
+  const [asking, setAsking] = useState(false)
+  const busy = p.status === 'publishing'
+  const out = sentOf(p) && p.status !== 'failed'
+  const name = p.caption.slice(0, 40) || t(kindInfo(p.kind).label)
+  // The bin stays still under the pointer: no circle or colour on hover.
+  const still = { '&:hover': { bgcolor: 'transparent' } }
+  return (
+    <>
+      {onEdit && (
+        <Tooltip title={busy ? t('Posting now: you can edit it once it’s done') : p.status === 'failed' ? t('Edit and try again') : out ? t('Edit as a new post') : t('Edit')}>
+          <span><IconButton size="small" aria-label={t('Edit post')} disabled={busy} onClick={onEdit}><EditIcon fontSize="small" /></IconButton></span>
+        </Tooltip>
+      )}
+      <Tooltip title={busy ? t('Posting now: you can remove it once it’s done') : out ? t('Remove from the list (it stays on the networks)') : t('Delete')}>
+        <span><IconButton size="small" aria-label={t('Delete post')} disabled={busy} disableRipple onClick={() => setAsking(true)} sx={still}>
+          <DeleteIcon fontSize="small" />
+        </IconButton></span>
+      </Tooltip>
+      {asking && (
+        <Dialog open onClose={() => setAsking(false)} maxWidth="xs" fullWidth>
+          <DialogTitle>{out ? t('Remove this post from the list?') : t('Delete this post?')}</DialogTitle>
+          <DialogContent>
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+              {out ? t('“{name}” stays on the networks it went to. Delete it there if you want it gone.', { name })
+                : t('“{name}” won’t go out, and can’t be brought back.', { name })}
+            </Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setAsking(false)}>{t('Keep')}</Button>
+            <Button color="error" variant="contained" onClick={() => run(async () => { await api.deleteSocialPost(p.id); setAsking(false); await reload() },
+              out ? t('Removed from the list') : t('Post deleted'))}>{out ? t('Remove') : t('Delete')}</Button>
+          </DialogActions>
+        </Dialog>
+      )}
+    </>
   )
 }
 
@@ -538,7 +587,7 @@ function DueRow({ p, onEdit, reload }: { p: SocialPost; onEdit: () => void; relo
         </Stack>
       </Box>
       <Stack direction="row" sx={{ alignItems: 'flex-start', flexShrink: 0 }}>
-        <Tooltip title={t('Edit or move it')}><IconButton size="small" aria-label={t('Edit post')} onClick={onEdit}><EditIcon fontSize="small" /></IconButton></Tooltip>
+        <RowActions p={p} onEdit={onEdit} reload={reload} />
       </Stack>
     </Box>
   )
@@ -549,7 +598,7 @@ function DueRow({ p, onEdit, reload }: { p: SocialPost; onEdit: () => void; relo
 // ---------------------------------------------------------------------------------------------
 /** Write or edit a post: its kind, photos and videos, caption, accounts, when, and how it goes out. */
 function Composer({ post, storage, isConnected, onClose, onSaved }: {
-  post: Partial<SocialPost>; storage: IntegrationsState['media_storage'] | null; isConnected: (p: IntegrationProvider) => boolean
+  post: Partial<SocialPost> & { copied?: boolean }; storage: IntegrationsState['media_storage'] | null; isConnected: (p: IntegrationProvider) => boolean
   onClose: () => void; onSaved: () => Promise<void>
 }) {
   const { api } = useApp()
@@ -561,9 +610,11 @@ function Composer({ post, storage, isConnected, onClose, onSaved }: {
   const [media, setMedia] = useState<PostMedia[]>(post.media ?? [])
   const [targets, setTargets] = useState<SocialNetwork[]>(post.targets?.length ? post.targets
     : NETWORKS.filter(n => isConnected(n.provider) && kindInfo(post.kind ?? 'post').networks.includes(n.id)).map(n => n.id))
-  const [when, setWhen] = useState<'now' | 'later'>(post.scheduled_at ? 'later' : 'now')
-  const [date, setDate] = useState(post.scheduled_at ? localDate(post.scheduled_at) : today())
-  const [time, setTime] = useState(post.scheduled_at ? localTime(post.scheduled_at) : '10:00')
+  // A time still ahead is kept; one that's passed (a post that didn't go out) starts again from now.
+  const ahead = post.scheduled_at && Date.parse(post.scheduled_at) > Date.now() ? post.scheduled_at : null
+  const [when, setWhen] = useState<'now' | 'later'>(ahead || (post.scheduled_at && post.status !== 'failed') ? 'later' : 'now')
+  const [date, setDate] = useState(post.scheduled_at && (ahead || post.status !== 'failed') ? localDate(post.scheduled_at) : today())
+  const [time, setTime] = useState(post.scheduled_at && (ahead || post.status !== 'failed') ? localTime(post.scheduled_at) : '10:00')
   // Posting by itself needs somewhere for the photos and videos to wait for the networks.
   const [auto, setAuto] = useState(post.id ? (post.auto ?? true) && !!storage : !!storage)
   const chose = useRef(false)
@@ -632,9 +683,16 @@ function Composer({ post, storage, isConnected, onClose, onSaved }: {
   const accept = info.accepts.map(a => (a === 'image' ? 'image/jpeg,image/png,image/webp' : 'video/mp4,video/quicktime')).join(',')
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="sm" fullScreen={phone}>
-      <DialogTitle>{post.id ? t('Edit post') : t('New post')}</DialogTitle>
+      <DialogTitle>{post.id ? t('Edit post') : post.copied ? t('Post again') : t('New post')}</DialogTitle>
       <DialogContent>
         <Stack spacing={2.5} sx={{ pt: 1 }}>
+          {post.copied && <Alert severity="info">{t('This one went out already, so it can’t change there. Saving makes a new post; the one already posted stays as it is.')}</Alert>}
+          {post.status === 'failed' && (
+            <Alert severity="error">
+              {t('This didn’t go out: {why}. Fix what’s needed and post it again.', {
+                why: Object.values(post.results ?? {}).map(r => r?.error).filter(Boolean).join('; ') || t('the networks refused it') })}
+            </Alert>
+          )}
           <Box>
             <ToggleButtonGroup exclusive fullWidth size="small" value={kind} onChange={(_, k: PostKind | null) => changeKind(k)} aria-label={t('Type of post')}>
               {KINDS.map(k => (
@@ -732,7 +790,7 @@ function Composer({ post, storage, isConnected, onClose, onSaved }: {
             {when === 'later' && (
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mt: 1 }}>
                 <TextField type="date" label={t('Date')} value={date} onChange={e => setDate(e.target.value)} slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: today() } }} />
-                <TextField type="time" label={t('Time (Madrid)')} value={time} onChange={e => setTime(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
+                <TextField type="time" label={t('Time ({zone})', { zone: zoneCity(ownTimeZone()) })} value={time} onChange={e => setTime(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
               </Stack>
             )}
           </Box>
