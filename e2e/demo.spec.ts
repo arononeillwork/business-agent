@@ -495,7 +495,7 @@ test.describe('connections', () => {
     await open(page, '/connections')
     await expect(page.getByRole('region', { name: 'Maps and search' }).getByRole('article', { name: 'Google Maps' })).toContainText('Connected')
     await expect(page.getByRole('region', { name: 'Social media' }).getByRole('article', { name: 'Instagram' })).toContainText('@easy.beans.coffee')
-    await expect(page.getByText('followers', { exact: true })).toBeVisible()
+    await expect(page.getByText('followers', { exact: true })).toHaveCount(0) // no Instagram posts section here
 
     const maps = page.getByRole('region', { name: 'Google Maps settings' })
     await maps.getByRole('button', { name: 'Compare with Google' }).click()
@@ -1246,6 +1246,18 @@ test.describe('menu', () => {
     }
   })
 
+  test('a pin puts a page at the top of its section, on a soft pink; unpinning puts it back', async ({ page }) => {
+    await open(page, '/')
+    const team = page.getByRole('navigation', { name: 'Main' }).getByRole('region', { name: 'Team' })
+    await expect(team.getByRole('link')).toHaveText(['Rota', 'Time off', 'Timecards', 'Team'])
+    await team.getByRole('link', { name: 'Timecards' }).hover()
+    await team.getByRole('button', { name: 'Pin Timecards to the top' }).click()
+    await expect(team.getByRole('link')).toHaveText(['Timecards', 'Rota', 'Time off', 'Team'])
+    await expect(team.getByRole('button', { name: 'Unpin Timecards' })).toHaveAttribute('aria-pressed', 'true')
+    await team.getByRole('button', { name: 'Unpin Timecards' }).click()
+    await expect(team.getByRole('link')).toHaveText(['Rota', 'Time off', 'Timecards', 'Team'])
+  })
+
   test('the sidebar folds down to icons and remembers it', async ({ page }) => {
     await open(page, '/')
     const nav = page.getByRole('navigation', { name: 'Main' })
@@ -1424,7 +1436,7 @@ test('pages can be dragged into a new order, but only within their own section',
   await page.mouse.up()
   await expect.poll(names).toEqual(['Team', 'Time off', 'Timecards', 'Rota'])
   expect(await nav.locator('section', { has: page.getByRole('button', { name: 'Settings', exact: true }) }).getByRole('link').allTextContents())
-    .toEqual(['Set-up', 'Connections', 'Notifications'])
+    .toEqual(['Connections', 'Notifications'])
   // Saved to Aron's account: someone else gets the usual order, and Aron his own when he's back.
   await signInAs(page, 'mark@example.com')
   await expect.poll(names).toEqual(['Rota', 'Time off', 'Timecards', 'Team'])
@@ -1704,31 +1716,6 @@ test.describe('connections for email, files and music', () => {
     await expect(page.getByRole('region', { name: 'Café playlists' }).getByRole('button', { name: 'Easy Beans · Café mix', exact: true })).toContainText('Approved')
   })
 
-  test('the set-up wizard walks an admin through details, team and apps; Today prompts until done', async ({ page }) => {
-    await open(page, '/')
-    const prompt = page.getByRole('region', { name: 'Finish setting up' })
-    await expect(prompt).toBeVisible()
-    await prompt.getByRole('link', { name: 'Continue set-up' }).click()
-    await expect(page.getByRole('heading', { name: 'Set up your business' })).toBeVisible()
-    const steps = page.getByRole('navigation', { name: 'Set-up steps' })
-    await steps.getByRole('button', { name: /Your business/ }).click()
-    const details = page.getByRole('region', { name: 'Your business' })
-    await details.getByLabel('CIF / NIF').fill('B1234')
-    await details.getByRole('button', { name: 'Save and continue' }).click()
-    await toast(page, /Spanish CIF/)
-    await details.getByLabel('CIF / NIF').fill('B12345674')
-    await details.getByRole('button', { name: 'Save and continue' }).click()
-    await expect(page.getByRole('region', { name: 'Your brand' })).toBeVisible()
-    await steps.getByRole('button', { name: /Connect your apps/ }).click()
-    const apps = page.getByRole('region', { name: 'Connect your apps' })
-    await apps.getByRole('button', { name: 'Connect Outlook' }).click()
-    await expect(apps.getByRole('article', { name: 'Outlook', exact: true })).toContainText('Connected')
-    await apps.getByRole('button', { name: 'Finish set-up' }).click()
-    await toast(page, 'All set')
-    await expect(page.getByRole('heading', { name: /Hola/ })).toBeVisible()
-    await expect(page.getByRole('region', { name: 'Finish setting up' })).toHaveCount(0)
-  })
-
   test('one logo: admins click it to replace it ("Replace" shows on hover); staff only look', async ({ page }) => {
     await open(page, '/brand')
     const card = page.getByRole('region', { name: 'Logo' })
@@ -1828,7 +1815,7 @@ test.describe('social planner', () => {
 
   test('without storage, posts are reminders: it’s your turn, copy the caption, mark it posted', async ({ page }) => {
     await open(page, '/social')
-    await expect(page.getByRole('main').getByRole('region', { name: 'Accounts' })).toContainText('Connect storage to add photos and videos and post automatically')
+    await expect(page.getByRole('main').getByRole('region', { name: 'Accounts' }).getByLabel('Photos and videos')).toHaveAttribute('title', 'Connect storage to add photos and videos and post automatically')
     const turn = page.getByRole('region', { name: 'Your turn to post' })
     const due = turn.getByRole('article', { name: /Poll sticker/ })
     await expect(due).toContainText('Planned for Wed 30 Sep, 08:00 on Instagram')
@@ -2314,7 +2301,7 @@ test.describe('messages', () => {
     await expect(apps.getByRole('button').first()).toHaveText('All')
     await expect(apps.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true')
     await expect(apps.getByRole('button', { name: 'Instagram' })).toHaveAttribute('aria-pressed', 'false')
-    for (const soon of ['WhatsApp · soon', 'TikTok · soon']) await expect(apps.getByText(soon)).toBeVisible()
+    for (const soon of ['WhatsApp · soon', 'TikTok · soon', 'LinkedIn · soon']) await expect(apps.getByText(soon)).toBeVisible()
     await expect(apps.getByRole('button', { name: /WhatsApp/ })).toBeDisabled()
     await expect(apps.getByRole('button', { name: 'Messenger' })).toBeEnabled() // comes with the Facebook connection
 

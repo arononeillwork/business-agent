@@ -24,7 +24,6 @@ import MessagesIcon from '@mui/icons-material/ChatBubbleOutlineRounded'
 import ReferralsIcon from '@mui/icons-material/CardGiftcardOutlined'
 import NotificationsIcon from '@mui/icons-material/NotificationsNoneOutlined'
 import ConnectIcon from '@mui/icons-material/HubOutlined'
-import SetupIcon from '@mui/icons-material/RocketLaunchOutlined'
 import LogoutIcon from '@mui/icons-material/LogoutOutlined'
 import PartnersIcon from '@mui/icons-material/HandshakeOutlined'
 import MoreIcon from '@mui/icons-material/MoreHoriz'
@@ -33,6 +32,8 @@ import MusicIcon from '@mui/icons-material/LibraryMusicOutlined'
 import AnalyticsIcon from '@mui/icons-material/QueryStatsOutlined'
 import ExpandIcon from '@mui/icons-material/ExpandMore'
 import DragIcon from '@mui/icons-material/DragIndicator'
+import PinIcon from '@mui/icons-material/PushPin'
+import PinOutlineIcon from '@mui/icons-material/PushPinOutlined'
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent, type Modifier } from '@dnd-kit/core'
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -92,7 +93,6 @@ export const SECTIONS: NavSection[] = [
     { key: 'team', to: '/team', label: msg('Team'), icon: <TeamIcon /> },
   ] },
   { key: 'admin', label: msg('Settings'), items: [
-    { key: 'setup', to: '/setup', label: msg('Set-up'), icon: <SetupIcon />, who: 'admin' },
     { key: 'connections', to: '/connections', label: msg('Connections'), icon: <ConnectIcon />, who: 'admin' },
     { key: 'notifications', to: '/notifications', label: msg('Notifications'), icon: <NotificationsIcon /> },
     ...(FEATURES.partners ? [{ key: 'partners', to: '/partners', label: msg('Partners'), icon: <PartnersIcon />, who: 'admin' as const }] : []),
@@ -304,10 +304,13 @@ function PhoneNav({ sections, current, badges }: { sections: NavSection[]; curre
 }
 
 /**
- * One menu row. With `sortable`, a drag handle sits at the right end (drag it, or focus it and use the arrow keys).
+ * One menu row. With `sortable`, a drag handle sits at the right end (drag it, or focus it and use the arrow keys),
+ * with a pin next to it: a pinned page stays at the top of its section, on a soft pink.
  * A page with sub-pages has an arrow to show them; they open by themselves while you're on the page or one of them.
  */
-function NavRow({ n, current, sortable, badge }: { n: NavItem; current: string | false; sortable: boolean; badge?: number }) {
+function NavRow({ n, current, sortable, badge, pinned, onPin }: {
+  n: NavItem; current: string | false; sortable: boolean; badge?: number; pinned: boolean; onPin: () => void
+}) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: n.key, disabled: !sortable })
   const kids = n.children ?? []
   const inside = current === n.key || kids.some(k => k.key === current)
@@ -321,7 +324,8 @@ function NavRow({ n, current, sortable, badge }: { n: NavItem; current: string |
       '&:hover .nav-drag, & .nav-drag:focus-visible': { opacity: 1 } }}>
       <Box sx={{ position: 'relative' }}>
         <ListItemButton component={Link} to={n.to} selected={dark} onClick={kids.length ? () => setOpen(true) : undefined}
-          sx={{ py: 0.6, pl: 1.25, pr: (sortable ? 4 : 1.25) + (kids.length ? 3 : 0), ...(isDragging ? { boxShadow: `0 10px 24px -10px ${tokens.shadow}`, bgcolor: tokens.surface } : {}) }}>
+          sx={{ py: 0.6, pl: 1.25, pr: (sortable ? 7 : 1.25) + (kids.length ? 3 : 0), ...(pinned && !dark ? { bgcolor: tokens.roseSoft } : {}),
+            ...(isDragging ? { boxShadow: `0 10px 24px -10px ${tokens.shadow}`, bgcolor: tokens.surface } : {}) }}>
           <ListItemIcon sx={{ minWidth: 34, '& svg': { fontSize: 20 } }}>{n.icon}</ListItemIcon>
           <ListItemText primary={n.label} slotProps={{ primary: { sx: { fontWeight: dark ? 600 : 400, fontSize: '0.9rem' } } }} />
           <NavCount n={badge} dark={dark} />
@@ -329,11 +333,23 @@ function NavRow({ n, current, sortable, badge }: { n: NavItem; current: string |
         {kids.length > 0 && (
           <Box component="button" type="button" onClick={() => setOpen(!open)} aria-expanded={open} aria-controls={`nav-sub-${n.key}`}
             aria-label={t(open ? 'Hide {page} pages' : 'Show {page} pages', { page: n.label })}
-            sx={{ all: 'unset', position: 'absolute', right: sortable ? 30 : 6, top: '50%', transform: 'translateY(-50%)', display: 'grid', placeItems: 'center',
+            sx={{ all: 'unset', position: 'absolute', right: sortable ? 54 : 6, top: '50%', transform: 'translateY(-50%)', display: 'grid', placeItems: 'center',
               width: 24, height: 24, borderRadius: '6px', cursor: 'pointer', color: dark ? '#2B2522' : SIDEBAR.faint,
               '&:hover': { color: dark ? '#2B2522' : SIDEBAR.bright, background: dark ? 'rgba(43,37,34,0.08)' : SIDEBAR.hover },
               '&:focus-visible': { outline: `2px solid ${tokens.rose}` } }}>
             <ExpandIcon sx={{ fontSize: 18, transition: 'transform .2s', transform: open ? 'rotate(180deg)' : 'none' }} />
+          </Box>
+        )}
+        {sortable && (
+          // Shows on hover like the drag handle; a pinned page keeps it showing, filled in.
+          <Box component="button" type="button" className={pinned ? undefined : 'nav-drag'} onClick={onPin} aria-pressed={pinned}
+            aria-label={t(pinned ? 'Unpin {page}' : 'Pin {page} to the top', { page: n.label })} title={t(pinned ? 'Unpin' : 'Pin to the top')}
+            sx={{ all: 'unset', position: 'absolute', right: 30, top: '50%', transform: 'translateY(-50%)', display: 'grid', placeItems: 'center',
+              width: 24, height: 24, borderRadius: '6px', cursor: 'pointer', opacity: pinned ? 1 : 0, transition: 'opacity .15s',
+              color: dark ? '#2B2522' : pinned ? tokens.roseDeep : SIDEBAR.faint,
+              '&:hover': { color: dark ? '#2B2522' : SIDEBAR.bright, background: dark ? 'rgba(43,37,34,0.08)' : SIDEBAR.hover },
+              '&:focus-visible': { outline: `2px solid ${tokens.rose}`, opacity: 1 } }}>
+            {pinned ? <PinIcon sx={{ fontSize: 15 }} /> : <PinOutlineIcon sx={{ fontSize: 15 }} />}
           </Box>
         )}
         {sortable && (
@@ -364,8 +380,9 @@ function NavRow({ n, current, sortable, badge }: { n: NavItem; current: string |
   )
 }
 
-function SidebarSection({ section, current, folded, onToggle, mini, onReorder, badges }: {
+function SidebarSection({ section, current, folded, onToggle, mini, onReorder, badges, pins, onPin }: {
   section: NavSection; current: string | false; folded: boolean; onToggle: () => void; mini: boolean; onReorder: (keys: string[]) => void; badges: NavBadges
+  pins: string[]; onPin: (key: string) => void
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -396,7 +413,7 @@ function SidebarSection({ section, current, folded, onToggle, mini, onReorder, b
       accessibility={{ screenReaderInstructions: { draggable: t('Press space to pick up this page, use the arrow keys to move it within its section, and space again to drop it.') } }}>
       <SortableContext items={keys} strategy={verticalListSortingStrategy}>
         <List disablePadding ref={listRef}>
-          {section.items.map(n => <NavRow key={n.key} n={n} current={current} sortable={sortable} badge={badges[n.key]} />)}
+          {section.items.map(n => <NavRow key={n.key} n={n} current={current} sortable={sortable} badge={badges[n.key]} pinned={pins.includes(n.key)} onPin={() => onPin(n.key)} />)}
         </List>
       </SortableContext>
     </DndContext>
@@ -429,14 +446,13 @@ const restrictTo = (list: { current: HTMLElement | null }): Modifier => ({ trans
   return { ...t, y: Math.min(Math.max(t.y, minY), maxY) }
 }
 
-/** The person's own order of pages within each section (saved to their account). */
-function orderSections(sections: NavSection[], order: Record<string, string[]> | undefined): NavSection[] {
-  if (!order) return sections
+/** The person's own order of pages within each section (saved to their account), pinned pages first. */
+function orderSections(sections: NavSection[], order: Record<string, string[]> | undefined, pins: string[] = []): NavSection[] {
   return sections.map(s => {
-    const o = order[s.key]
-    if (!o?.length) return s
+    const o = order?.[s.key] ?? []
     const rank = (k: string) => { const i = o.indexOf(k); return i < 0 ? o.length + s.items.findIndex(n => n.key === k) : i }
-    return { ...s, items: [...s.items].sort((a, b) => rank(a.key) - rank(b.key)) }
+    const pinned = (k: string) => (pins.includes(k) ? 0 : 1)
+    return { ...s, items: [...s.items].sort((a, b) => pinned(a.key) - pinned(b.key) || rank(a.key) - rank(b.key)) }
   })
 }
 
@@ -461,8 +477,16 @@ export function AppShell() {
     setNavOrder(next)
     if (me) api.updateProfile(me.id, { preferences: { ...me.preferences, navOrder: next } }).then(refresh).catch(() => { /* kept on screen; saves next time */ })
   }
+  // Pinned pages go to the top of their section (in the person's own order among themselves).
+  const [navPins, setNavPins] = useState<string[]>(me?.preferences?.navPins ?? [])
+  useEffect(() => setNavPins(me?.preferences?.navPins ?? []), [me?.preferences?.navPins])
+  const pin = (key: string) => {
+    const next = navPins.includes(key) ? navPins.filter(k => k !== key) : [...navPins, key]
+    setNavPins(next)
+    if (me) api.updateProfile(me.id, { preferences: { ...me.preferences, navPins: next } }).then(refresh).catch(() => { /* kept on screen; saves next time */ })
+  }
   const sections = orderSections(SECTIONS.map(s => ({ ...s, label: s.label && t(s.label), items: s.items.filter(allowed).map(n => (n.children ? { ...n, children: n.children.filter(allowed) } : n)).map(inLanguage) }))
-    .filter(s => s.items.length), navOrder)
+    .filter(s => s.items.length), navOrder, navPins)
   // The most specific match wins, so /account/billing is Billing, not My account.
   const all = [...SECTIONS.flatMap(s => withChildren(s.items)), ...YOU].sort((a, b) => b.to.length - a.to.length)
   const current = all.find(n => n.to !== '/' && pathname.startsWith(n.to))?.key ?? (pathname === '/' ? 'today' : false)
@@ -498,7 +522,7 @@ export function AppShell() {
             {sections.map(s => (
               <SidebarSection key={s.key} section={s} current={current} mini={mini} badges={badges}
                 folded={!mini && folded.includes(s.key) && !withChildren(s.items).some(n => n.key === current)}
-                onToggle={() => toggleFolded(s.key)} onReorder={keys => reorder(s.key, keys)} />
+                onToggle={() => toggleFolded(s.key)} onReorder={keys => reorder(s.key, keys)} pins={navPins} onPin={pin} />
             ))}
           </Box>
           {/* Fold the menu to icons: a round arrow on the edge, halfway down. */}

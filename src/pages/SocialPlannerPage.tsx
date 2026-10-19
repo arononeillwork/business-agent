@@ -129,7 +129,7 @@ export function SocialPlannerPage() {
         actions={<Button variant="contained" startIcon={<AddIcon />} onClick={() => newPost()}>{t('New post')}</Button>} />
       <ErrorBox error={posts.error} />
 
-      <Stack spacing={3}>
+      <Stack spacing={2.5}>
         <Accounts integ={integ.data} storage={storage} connected={connected} />
 
         <Box>
@@ -175,34 +175,32 @@ function TabLabel({ n, children }: { n: number; children: ReactNode }) {
   )
 }
 
-/** The accounts posts go to, and where photos and videos are kept. */
+/**
+ * The accounts posts go to, and where photos and videos are kept: one row of small pills along the
+ * top, so the posts below get the room.
+ */
 function Accounts({ integ, storage, connected }: { integ: IntegrationsState | null; storage: IntegrationsState['media_storage'] | null; connected: (p: IntegrationProvider) => unknown }) {
   const row = (p: IntegrationProvider) => integ?.integrations.find(i => i.provider === p && i.status === 'connected')
-  const line = { alignItems: 'center', px: { xs: 2, sm: 2.75 }, py: 1.5, borderTop: `1px solid ${tokens.line}`, '&:first-of-type': { borderTop: 0 } }
+  const pill = { display: 'inline-flex', alignItems: 'center', gap: 0.75, minWidth: 0, maxWidth: '100%', pl: 1.25, pr: 1, py: 0.5,
+    border: `1px solid ${tokens.line}`, borderRadius: 999, bgcolor: 'background.paper' } as const
+  const connect = <Button size="small" component={RouterLink} to="/connections" sx={{ minWidth: 0, px: 1, py: 0 }}>{t('Connect')}</Button>
   return (
-    <Card component="section" aria-label={tc('social', 'Accounts')}>
+    <Box component="section" aria-label={tc('social', 'Accounts')} sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
       {NETWORKS.map(n => (
-        <Stack key={n.id} direction="row" spacing={1.5} sx={line}>
-          <Box sx={{ color: tokens.ink }}><Mark icon={n.icon} size={20} /></Box>
-          <Typography sx={{ flex: 1, minWidth: 0 }} noWrap>{n.name}</Typography>
+        <Box key={n.id} sx={pill}>
+          <Box sx={{ color: tokens.ink, display: 'flex' }}><Mark icon={n.icon} size={16} /></Box>
           {connected(n.provider)
-            ? <Typography variant="body2" sx={{ color: 'text.secondary' }} noWrap>{row(n.provider)?.account_label ?? t('Connected')}</Typography>
-            : <Button size="small" component={RouterLink} to="/connections">{t('Connect')}</Button>}
-        </Stack>
-      ))}
-      <Stack direction="row" spacing={1.5} sx={line} aria-label={t('Photos and videos')}>
-        <Box sx={{ color: tokens.inkSoft, display: 'flex' }}><FolderIcon sx={{ fontSize: 20 }} /></Box>
-        <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography noWrap>{t('Photos and videos')}</Typography>
-          <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>
-            {storage ? (storage === 'r2' ? t('Kept for posting automatically') : t('Business Agent › Social, a folder for each kind')) : t('Connect storage to add photos and videos and post automatically')}
-          </Typography>
+            ? <Typography variant="body2" noWrap title={n.name}>{row(n.provider)?.account_label ?? n.name}</Typography>
+            : <><Typography variant="body2" sx={{ color: 'text.secondary' }} noWrap>{n.name}</Typography>{connect}</>}
         </Box>
+      ))}
+      <Box sx={pill} aria-label={t('Photos and videos')} title={storage ? (storage === 'r2' ? t('Kept for posting automatically') : t('Business Agent › Social, a folder for each kind')) : t('Connect storage to add photos and videos and post automatically')}>
+        <Box sx={{ color: tokens.inkSoft, display: 'flex' }}><FolderIcon sx={{ fontSize: 16 }} /></Box>
         {storage
-          ? <Typography variant="body2" sx={{ color: 'text.secondary' }} noWrap>{storage === 'r2' ? t('Ready') : `${t(STORAGE_NAME[storage])}${row(storage)?.account_label ? ` · ${row(storage)!.account_label}` : ''}`}</Typography>
-          : <Button size="small" component={RouterLink} to="/connections">{t('Connect')}</Button>}
-      </Stack>
-    </Card>
+          ? <Typography variant="body2" noWrap>{storage === 'r2' ? t('Photos and videos: ready') : `${t(STORAGE_NAME[storage])}${row(storage)?.account_label ? ` · ${row(storage)!.account_label}` : ''}`}</Typography>
+          : <><Typography variant="body2" sx={{ color: 'text.secondary' }} noWrap>{t('Photos and videos')}</Typography>{connect}</>}
+      </Box>
+    </Box>
   )
 }
 

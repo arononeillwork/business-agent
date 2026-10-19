@@ -48,7 +48,7 @@ const Mark = ({ children }: { children: ReactNode }) => (
   <Box component="svg" viewBox="0 0 24 24" aria-hidden sx={{ width: 22, height: 22, display: 'block' }}>{children}</Box>
 )
 const SlackLogo = () => <Mark>{SLACK.map(([fill, d]) => <path key={fill} fill={fill} d={d} />)}</Mark>
-const LinkedInLogo = () => (
+export const LinkedInLogo = () => (
   <Mark>
     <rect width="24" height="24" rx="4" fill="#0A66C2" />
     <circle cx="6.9" cy="6.9" r="1.75" fill="#fff" />

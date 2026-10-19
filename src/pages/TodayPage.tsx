@@ -9,7 +9,6 @@ import { useAsync, useTick } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { ErrorBox, Flags, Loading, PageHeader, PersonAvatar, SectionTitle, Tag } from '../components/common'
 import { MusicCard } from '../components/MusicCard'
-import { SetupPrompt } from './SetupPage'
 import { holidayOn } from '../../shared/rules'
 import { addDays, dayKey, formatDuration, formatLocal, localDate, localTime, minutesBetween, today, zonedIso } from '../../shared/time'
 import { fonts, tokens } from '../theme'
@@ -217,7 +216,6 @@ export function TodayPage() {
       <PageHeader eyebrow={formatLocal(new Date(), 'EEEE d MMMM')} title={t('Hola, {name}', { name: me?.full_name.split(' ')[0] ?? '' })}
         actions={holiday && <Tag fg={tokens.badFg} bg={tokens.badBg}>{t('Holiday · {name}', { name: holiday.title })}</Tag>} />
       <ErrorBox error={data.error} />
-      {isAdmin && business && !business.setup_completed_at && <SetupPrompt />}
       {isAdmin && (data.data?.timeOff ?? []).some(t => t.status === 'pending') && (
         <Alert severity="info" sx={{ mb: 2 }} action={<Button component={Link} to="/time-off" color="inherit">{t('Review')}</Button>}>
           {t('Time off requests waiting for approval')}

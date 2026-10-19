@@ -155,6 +155,8 @@ export interface Preferences {
   background?: string
   /** Their own order of pages within each menu section: section key → page keys. */
   navOrder?: Record<string, string[]>
+  /** Pages they pinned to the top of their menu section (page keys). */
+  navPins?: string[]
   /** The languages they use the app in (My account → Language). With both, flags at the top switch between them. */
   languages?: ('en' | 'es')[]
   /** The one shown now. */

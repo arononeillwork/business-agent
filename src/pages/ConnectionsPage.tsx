@@ -1,7 +1,7 @@
-import { Alert, Box, Grid, Stack, Typography } from '@mui/material'
+import { Alert, Box, Stack, Typography } from '@mui/material'
 import { Link as RouterLink } from 'react-router-dom'
 import { PageHeader } from '../components/common'
-import { GoogleMapsCard, InstagramCard } from '../components/Connections'
+import { GoogleMapsCard } from '../components/Connections'
 import { CheckAllButton, ServiceConnections, useConnectResult } from '../components/Connectors'
 import { CalendarFeedCard } from '../components/CalendarFeed'
 import { t, tr } from '../i18n'
@@ -18,16 +18,11 @@ export function ConnectionsPage() {
       <ServiceConnections />
       <Box component="section" aria-label={t('Settings for connected apps')} sx={{ mt: 4 }}>
         <Typography variant="h6" component="h2">{t('Settings for connected apps')}</Typography>
-        <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>{t('The team calendar link, your Google Maps listing and Instagram.')}</Typography>
-        <Grid container spacing={2.5}>
-          <Grid size={12}>
-            <Stack spacing={2.5}>
-              <CalendarFeedCard scope="business" />
-              <GoogleMapsCard />
-            </Stack>
-          </Grid>
-          <Grid size={12}><InstagramCard /></Grid>
-        </Grid>
+        <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>{t('The team calendar link and your Google Maps listing.')}</Typography>
+        <Stack spacing={2.5}>
+          <CalendarFeedCard scope="business" />
+          <GoogleMapsCard />
+        </Stack>
       </Box>
     </>
   )

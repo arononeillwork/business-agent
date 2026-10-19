@@ -8,14 +8,14 @@ import CloseIcon from '@mui/icons-material/CloseRounded'
 import SendIcon from '@mui/icons-material/SendRounded'
 import OpenIcon from '@mui/icons-material/OpenInNewRounded'
 import InfoIcon from '@mui/icons-material/InfoOutlined'
-import { siInstagram, siMessenger, siTiktok, siWhatsapp, type SimpleIcon } from 'simple-icons'
-import { useMemo, useState } from 'react'
+import { siInstagram, siMessenger, siTiktok, siWhatsapp } from 'simple-icons'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { Empty, ErrorBox, PageHeader } from '../components/common'
-import { Brand, CAN, DOES, KEYS_NEEDED, ago, useConnectResult } from '../components/Connectors'
+import { Brand, CAN, LinkedInLogo, DOES, KEYS_NEEDED, ago, useConnectResult } from '../components/Connectors'
 import {
   INBOX_FILTERS, initials, matchesFilter, matchesSearch, needsReply, preview, replyWindow,
   type InboxConversation, type InboxFilter, type InboxMessage, type MessagePlatform, type TaggedPost,
@@ -25,12 +25,14 @@ import { formatLocal } from '../../shared/time'
 import { tokens } from '../theme'
 import { msg, t, tr } from '../i18n'
 
-const PLATFORMS: { id: MessagePlatform; name: string; icon: SimpleIcon; live: boolean }[] = [
-  { id: 'instagram', name: 'Instagram', icon: siInstagram, live: true },
-  { id: 'whatsapp', name: 'WhatsApp', icon: siWhatsapp, live: false },
+// LinkedIn shows (greyed out, like WhatsApp and TikTok) until its messages can be read.
+const PLATFORMS: { id: MessagePlatform | 'linkedin'; name: string; icon: ReactNode; live: boolean }[] = [
+  { id: 'instagram', name: 'Instagram', icon: <Brand icon={siInstagram} />, live: true },
+  { id: 'whatsapp', name: 'WhatsApp', icon: <Brand icon={siWhatsapp} />, live: false },
   // Messenger comes with the Facebook connection (the Page's chats).
-  { id: 'messenger', name: 'Messenger', icon: siMessenger, live: true },
-  { id: 'tiktok', name: 'TikTok', icon: siTiktok, live: false },
+  { id: 'messenger', name: 'Messenger', icon: <Brand icon={siMessenger} />, live: true },
+  { id: 'tiktok', name: 'TikTok', icon: <Brand icon={siTiktok} />, live: false },
+  { id: 'linkedin', name: 'LinkedIn', icon: <LinkedInLogo />, live: false },
 ]
 
 /** Which connection each app's chats come from. */
@@ -63,9 +65,9 @@ export function MessagesPage() {
         {PLATFORMS.map(p => (
           <Tooltip key={p.id} title={p.live ? '' : t('{app} messages are coming soon', { app: p.name })}>
             <span>
-              <Chip icon={<Box sx={{ display: 'flex', ml: 0.75, opacity: p.live ? 1 : 0.5 }}><Brand icon={p.icon} /></Box>}
+              <Chip icon={<Box sx={{ display: 'flex', ml: 0.75, opacity: p.live ? 1 : 0.5 }}>{p.icon}</Box>}
                 label={p.live ? p.name : t('{app} · soon', { app: p.name })} disabled={!p.live} aria-pressed={app === p.id}
-                onClick={() => { if (p.live) setApp(p.id) }}
+                onClick={() => { if (p.live && p.id !== 'linkedin') setApp(p.id) }}
                 color={app === p.id ? 'primary' : 'default'} variant={app === p.id ? 'filled' : 'outlined'} />
             </span>
           </Tooltip>

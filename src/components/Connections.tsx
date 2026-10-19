@@ -1,16 +1,14 @@
 import {
-  Alert, Box, Button, Card, CardContent, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel,
+  Alert, Button, Card, CardContent, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel,
   MenuItem, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
 } from '@mui/material'
-import FavoriteIcon from '@mui/icons-material/FavoriteBorder'
 import { useState } from 'react'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { SectionTitle } from './common'
-import { ShareDialog } from './ShareDialog'
 import { DAY_KEYS, type OpeningHours } from '../../shared/types'
-import { addDays, formatLocal, formatNumber } from '../../shared/time'
+import { addDays, formatLocal } from '../../shared/time'
 import { tokens } from '../theme'
 import { t, tn } from '../i18n'
 
@@ -88,57 +86,6 @@ export function GoogleMapsCard() {
             t('Google updated with the app’s hours'))}>{t('Put the app’s hours on Google')}</Button>
         </DialogActions>
       </Dialog>
-    </Card>
-  )
-}
-
-/** Instagram once it's connected: followers, recent posts, and a new post. */
-export function InstagramCard() {
-  const { api } = useApp()
-  const data = useAsync('integrations', () => api.integrations(), [])
-  const on = data.data?.integrations.some(i => i.provider === 'instagram' && i.status === 'connected') ?? false
-  const profile = useAsync('instagram-profile', () => (on ? api.instagramProfile() : Promise.resolve(null)), [on])
-  const [sharing, setSharing] = useState(false)
-  const p = profile.data
-  if (!on) return null
-  return (
-    <Card component="section" aria-label={'Instagram'}>
-      <CardContent>
-        <SectionTitle action={<Button size="small" variant="outlined" onClick={() => setSharing(true)}>{t('New post')}</Button>}>{'Instagram'}</SectionTitle>
-        {profile.error && <Typography variant="body2" sx={{ color: 'text.secondary' }}>{profile.error}</Typography>}
-        {p && <>
-          <Stack direction="row" spacing={3} sx={{ mb: 2, flexWrap: 'wrap', rowGap: 1 }}>
-            <Box>
-              <Typography sx={{ fontWeight: 500 }}>@{p.username}</Typography>
-              {p.biography && <Typography variant="body2" sx={{ color: 'text.secondary', maxWidth: 360 }}>{p.biography}</Typography>}
-            </Box>
-            <Box><Typography sx={{ fontWeight: 500, fontSize: '1.3rem', fontVariantNumeric: 'tabular-nums' }}>{formatNumber(p.followers_count)}</Typography>
-              <Typography variant="caption" sx={{ color: 'text.secondary' }}>{t('followers')}</Typography></Box>
-            <Box><Typography sx={{ fontWeight: 500, fontSize: '1.3rem' }}>{p.media_count}</Typography>
-              <Typography variant="caption" sx={{ color: 'text.secondary' }}>{t('posts')}</Typography></Box>
-          </Stack>
-          <Stack component="ul" aria-label={t('Recent posts')} sx={{ listStyle: 'none', m: 0, p: 0 }}>
-            {p.recent.map(m => (
-              <Box component="li" key={m.id} sx={{ borderTop: `1px solid ${tokens.line}`, '&:first-of-type': { borderTop: 0 } }}>
-                <Box component="a" href={m.permalink} target="_blank" rel="noreferrer"
-                  sx={{ display: 'flex', gap: 1.5, alignItems: 'center', py: 1.25, color: 'inherit', textDecoration: 'none', '&:hover': { color: tokens.roseDeep } }}>
-                  <Box sx={{ width: 56, height: 56, flexShrink: 0, borderRadius: 2, overflow: 'hidden', bgcolor: tokens.surfaceAlt, border: 1, borderColor: 'divider' }}>
-                    {(m.thumbnail_url ?? m.media_url) && <Box component="img" src={m.thumbnail_url ?? m.media_url} alt="" sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
-                  </Box>
-                  <Box sx={{ minWidth: 0, flex: 1 }}>
-                    <Typography noWrap>{m.caption ?? t('Instagram post')}</Typography>
-                    <Typography variant="caption" sx={{ color: 'text.secondary' }}>{formatLocal(m.timestamp, 'd MMM')}</Typography>
-                  </Box>
-                  <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', color: 'text.secondary' }}>
-                    <FavoriteIcon sx={{ fontSize: 15 }} /><Typography variant="body2">{m.like_count ?? 0}</Typography>
-                  </Stack>
-                </Box>
-              </Box>
-            ))}
-          </Stack>
-        </>}
-      </CardContent>
-      {sharing && <ShareDialog onClose={() => setSharing(false)} />}
     </Card>
   )
 }
