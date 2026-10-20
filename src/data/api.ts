@@ -5,6 +5,7 @@ import type { InboxConversation, InboxState, InboxThread } from '../../shared/me
 import type { ReferralState } from '../../shared/referrals'
 import type { KindInfo } from '../../shared/social'
 import type { InstagramMention } from '../../shared/mentions'
+import type { PnlLine, PnlLineInput, PnlSettings } from '../../shared/pnl'
 
 export type ShiftInput = Omit<Shift, 'id' | 'status'> & { id?: string; status?: Shift['status'] }
 export type EventInput = Omit<CalendarEvent, 'id' | 'source' | 'competition'> & { id?: string; competition?: string | null }
@@ -135,6 +136,15 @@ export interface Api {
   expenses(): Promise<Expense[]>
   saveExpense(expense: Partial<Expense> & { name: string; amount: number }): Promise<void>
   deleteExpense(id: string): Promise<void>
+
+  // Profit & loss (admins with pay access; finance partners read): the IVA rate and one-off lines
+  pnlSettings(): Promise<PnlSettings>
+  savePnlSettings(patch: Partial<PnlSettings>): Promise<void>
+  /** One-off income and costs for the months from and to (YYYY-MM), inclusive. */
+  pnlLines(fromMonth: string, toMonth: string): Promise<PnlLine[]>
+  /** Add a line (no id) or change it. */
+  savePnlLine(line: PnlLineInput): Promise<void>
+  deletePnlLine(id: string): Promise<void>
 
   // Customers and leads, for marketing (admins)
   customers(): Promise<Customer[]>

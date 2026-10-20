@@ -25,7 +25,10 @@ built-in **AI connector** so owners can run it by talking to Claude.
 - Social planner: write a post once and schedule it to Instagram, Facebook, TikTok, LinkedIn and Google
   Maps; each network's result links to the live post. Stripe, Square or SumUp connects as the till: the Accounts
   section has **Sales** (a Square-style dashboard: sales against the period before, busiest hours and
-  days, how people paid, best sellers) and **Finances** (running costs, takings next to team cost).
+  days, how people paid, best sellers), **Finances** (running costs, takings next to team cost) and
+  **Profit & loss** (month by month: takings without IVA, cost of sales, the team from timecards or
+  the rota with Social Security on top, running costs and one-off lines; an estimate, exported to
+  Excel, CSV or PDF like every Accounts table).
   Search Console shows how the website does on Google.
   Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) sections 7-13.
 

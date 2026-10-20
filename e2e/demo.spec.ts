@@ -3,6 +3,7 @@
 // the clock-in rules give the same results whenever the tests run.
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { FEATURES } from '../src/app/features'
+import { readFileSync } from 'node:fs'
 
 const WED_0900 = new Date('2026-09-30T07:00:00Z') // 09:00 Europe/Madrid (CEST)
 
@@ -1665,7 +1666,7 @@ test.describe('billing', () => {
     await expect(nav.getByRole('region', { name: 'Marketing' }).getByRole('link')).toHaveText(['Social planner', 'Analytics'])
     await nav.getByRole('region', { name: 'Marketing' }).getByRole('link', { name: 'Analytics' }).click()
     await expect(page.getByRole('heading', { name: 'Analytics', level: 1 })).toBeVisible()
-    await expect(nav.getByRole('region', { name: 'Accounts' }).getByRole('link')).toHaveText(['Finances'])
+    await expect(nav.getByRole('region', { name: 'Accounts' }).getByRole('link')).toHaveText(['Finances', 'Profit & loss'])
     await page.goto('/finances/sales')
     await expect(page).toHaveURL(/\/sales$/)
   })
@@ -2857,5 +2858,85 @@ test.describe('customers', () => {
     await page.goto('/customers?demo')
     await expect(page.getByRole('heading', { name: /Hola/ })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Customers' })).toHaveCount(0)
+  })
+})
+
+test.describe('profit and loss', () => {
+  /** Connect Square (the till) from the page's own prompt, then come back by the menu. */
+  async function withSquare(page: Page) {
+    await open(page, '/profit-and-loss')
+    const prompt = page.getByRole('alert').filter({ hasText: /Connect Square, SumUp or Stripe to count takings as income/ })
+    await prompt.getByRole('link', { name: 'Connect' }).click()
+    await page.getByRole('region', { name: 'Payments and sales' }).getByRole('button', { name: 'Connect Square' }).click()
+    await expect(page.getByRole('region', { name: 'Payments and sales' }).getByRole('article', { name: 'Square' })).toContainText('Connected')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Profit & loss' }).click()
+    await expect(page.getByRole('heading', { name: 'Profit & loss', exact: true })).toBeVisible()
+  }
+
+  test('the statement shows the months since the café opened: takings without IVA, costs and profit', async ({ page }) => {
+    test.skip(!FEATURES.square, 'Square is switched off for now')
+    await withSquare(page)
+    const statement = page.getByRole('table', { name: 'Profit & loss statement' })
+    // This year, from April (when Easy Beans opened) to September; September is still going.
+    await expect(statement.getByRole('columnheader', { name: /^Apr 26/ })).toBeVisible()
+    await expect(statement.getByRole('columnheader', { name: /^Sep 26/ })).toBeVisible()
+    await expect(statement.getByRole('columnheader', { name: /^Mar 26/ })).toHaveCount(0)
+    for (const line of ['Takings, without IVA', 'Total cost of sales', 'Gross profit', 'Total team', 'Total running costs', 'Operating profit']) {
+      await expect(statement.getByRole('rowheader', { name: new RegExp(`^${line}`) })).toBeVisible()
+    }
+    // Finances' wages estimate fills the months before there are timecards; expenses are grouped by category.
+    await expect(statement.getByRole('rowheader', { name: /^Wages estimate from Finances/ })).toBeVisible()
+    await expect(statement.getByRole('rowheader', { name: /^Premises/ })).toBeVisible()
+    await expect(statement.getByRole('rowheader', { name: /^Rent/ })).toHaveCount(0)
+    const tiles = page.getByRole('list', { name: 'At a glance' }).getByRole('listitem')
+    await expect(tiles.filter({ hasText: 'Income' })).toContainText('with IVA from the till')
+    await expect(page.getByText(/An estimate from the app’s own figures/)).toBeVisible()
+  })
+
+  test('adding a one-off cost lowers the operating profit by that much', async ({ page }) => {
+    await open(page, '/profit-and-loss')
+    const profit = page.getByRole('list', { name: 'At a glance' }).getByRole('listitem').filter({ hasText: 'Operating profit' })
+    await expect(profit).toContainText('€')
+    const amount = async () => Number((await profit.locator('p').nth(1).textContent())!.replace(/[^\d,-]/g, '').replace(',', '.'))
+    const before = await amount()
+    await expect(page.getByRole('table', { name: 'One-off income and costs' })).toContainText('Grinder service')
+    await page.getByRole('button', { name: 'Add a line' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Add a line' })
+    await dialog.getByLabel('What it is').fill('New fridge')
+    await dialog.getByLabel('Amount').fill('500')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await toast(page, 'Line saved')
+    await expect.poll(amount).toBeCloseTo(before - 500, 1)
+    await expect(page.getByRole('table', { name: 'Profit & loss statement' }).getByRole('rowheader', { name: /^New fridge/ })).toBeVisible()
+    await page.getByRole('button', { name: 'Remove New fridge' }).click()
+    await expect.poll(amount).toBeCloseTo(before, 1)
+  })
+
+  test('the statement exports like the other Accounts pages: Excel, CSV, PDF and copy', async ({ page }) => {
+    test.skip(!FEATURES.square, 'Square is switched off for now')
+    await withSquare(page)
+    const statement = page.getByRole('region', { name: 'Profit & loss statement' })
+    await statement.getByRole('button', { name: 'Export' }).click()
+    await expect(page.getByRole('menuitem', { name: /PDF/ })).toBeVisible()
+    await expect(page.getByRole('menuitem', { name: /Copy/ })).toBeVisible()
+    const xlsx = page.waitForEvent('download')
+    await page.getByRole('menuitem', { name: /Excel/ }).click()
+    expect((await xlsx).suggestedFilename()).toBe('profit-and-loss-2026-04-2026-09.xlsx')
+    await statement.getByRole('button', { name: 'Export' }).click()
+    const csv = page.waitForEvent('download')
+    await page.getByRole('menuitem', { name: /CSV/ }).click()
+    const file = await csv
+    expect(file.suggestedFilename()).toBe('profit-and-loss-2026-04-2026-09.csv')
+    const text = readFileSync((await file.path())!, 'utf8')
+    expect(text).toContain('"Operating profit"')
+    expect(text).toContain('"Takings, without IVA"')
+  })
+
+  test('employees cannot open profit and loss', async ({ page }) => {
+    await open(page, '/', 'maria@example.com')
+    await expect(page.getByRole('heading', { name: /Hola/ })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Profit & loss' })).toHaveCount(0)
+    await page.goto('/profit-and-loss?demo')
+    await expect(page.getByText('Takings, without IVA')).toHaveCount(0)
   })
 })
