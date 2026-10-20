@@ -24,6 +24,7 @@ import { DEFAULT_VAT_RATE, type PnlLine } from '../../shared/pnl'
 import { cleanAnswers, isDone, type GrantApplication, type GrantProfile } from '../../shared/grants'
 import { adjustProblem, giftCardAmountProblem, type GiftCard, type GiftCardActivity, type LoyaltyEvent, type LoyaltyMember, type LoyaltyProgram } from '../../shared/loyalty'
 import type { MovementInput, StockItem, StockMovement, Supplier } from '../../shared/stock'
+import type { Recipe } from '../../shared/recipes'
 import { addDays, localDate, minutesBetween, today, weekDates, weekStart, zonedIso } from '../../shared/time'
 
 interface RawEntry {
@@ -479,7 +480,40 @@ export function createDemoApi(): Api {
   ]
   const movements: StockMovement[] = stock.slice(0, 6).map((i, n) => ({ id: uid(), item_id: i.id, at: new Date(Date.now() - (n + 1) * 86_400_000).toISOString(),
     reason: n % 2 ? 'count' : 'delivery', change: n % 2 ? -1 : i.order_multiple * 2, counted: n % 2 ? i.on_hand : null, on_hand_after: i.on_hand,
-    note: null, by: null }))
+    note: null, by: null, waste_reason: null }))
+  // Some waste this week and last, for the Waste page.
+  const wasted = (name: string, change: number, reason: StockMovement['waste_reason'], daysAgo: number, note: string | null = null) => {
+    const i = stock.find(x => x.name === name)!
+    movements.push({ id: uid(), item_id: i.id, at: new Date(Date.now() - daysAgo * 86_400_000).toISOString(), reason: 'waste', change, counted: null,
+      on_hand_after: i.on_hand, note, by: null, waste_reason: reason })
+  }
+  wasted('Butter croissants', -4, 'expired', 0.2, 'Left at closing')
+  wasted('Whole milk', -1, 'spilled', 1)
+  wasted('Oat milk (barista)', -0.5, 'wrong_order', 2)
+  wasted('Pain au chocolat', -3, 'expired', 3)
+  wasted('House espresso blend', -0.05, 'quality', 4, 'Dialling in the grinder')
+  wasted('Butter croissants', -2, 'expired', 8)
+  // Menu items, made of the stock items above (by name).
+  const byName = (name: string) => stock.find(x => x.name === name)!.id
+  const line = (name: string, quantity: number, unit: StockItem['unit'], variant_id: string | null = null, replaces?: string) =>
+    ({ item_id: byName(name), quantity, unit, variant_id, replaces_item_id: replaces ? byName(replaces) : null })
+  const cupAndLid = [line('Cups 8 oz', 1, 'unit'), line('Lids 8 oz', 1, 'unit')]
+  const recipe = (r: Partial<Recipe> & { name: string }): Recipe => ({ id: uid(), category: 'Coffee', square_item: null, sell_price: null, vat_rate: 10,
+    target_margin: 70, wastage_pct: 3, notes: null, active: true, variants: [], lines: [], ...r })
+  const recipes: Recipe[] = [
+    recipe({ name: 'Flat white', sell_price: 3.2, square_item: 'Flat white', variants: [{ id: 'v-fw-oat', name: 'Oat milk', price_change: 0.4 }, { id: 'v-fw-shot', name: 'Extra shot', price_change: 0.5 }],
+      lines: [line('House espresso blend', 18, 'g'), line('Whole milk', 150, 'ml'), ...cupAndLid,
+        line('Oat milk (barista)', 150, 'ml', 'v-fw-oat', 'Whole milk'), line('House espresso blend', 9, 'g', 'v-fw-shot')] }),
+    recipe({ name: 'Cappuccino', sell_price: 2.9, variants: [{ id: 'v-cap-oat', name: 'Oat milk', price_change: 0.4 }],
+      lines: [line('House espresso blend', 18, 'g'), line('Whole milk', 180, 'ml'), ...cupAndLid, line('Oat milk (barista)', 180, 'ml', 'v-cap-oat', 'Whole milk')] }),
+    recipe({ name: 'Espresso', sell_price: 1.6, lines: [line('House espresso blend', 18, 'g')] }),
+    recipe({ name: 'Iced matcha latte', category: 'Tea & matcha', sell_price: 4.5, target_margin: 70,
+      lines: [line('Ceremonial matcha', 0.04, 'unit'), line('Oat milk (barista)', 250, 'ml'), ...cupAndLid] }),
+    recipe({ name: 'Chai latte', category: 'Tea & matcha', sell_price: 3.8, lines: [line('Chai concentrate', 0.06, 'bottle'), line('Whole milk', 200, 'ml'), ...cupAndLid] }),
+    recipe({ name: 'Caramel latte', sell_price: 3.6, lines: [line('House espresso blend', 18, 'g'), line('Whole milk', 220, 'ml'), line('Caramel syrup', 0.03, 'bottle'), ...cupAndLid] }),
+    recipe({ name: 'Croissant', category: 'Bakery', sell_price: 1.8, target_margin: 60, wastage_pct: 10, lines: [line('Butter croissants', 1, 'unit')] }),
+    recipe({ name: 'Pain au chocolat', category: 'Bakery', sell_price: 2, target_margin: 60, wastage_pct: 10, lines: [line('Pain au chocolat', 1, 'unit')] }),
+  ]
   const expenses: Expense[] = ([
     ['Rent', 1530, 'Premises'], ['Staff wages', 4300, 'People'], ['Electricity', 200, 'Utilities'], ['Insurance', 100, 'Premises'],
     ['Council tax', 50, 'Premises'], ['Broadband', 20, 'Utilities'], ['Accountant', 100, 'Services'], ['Water', 50, 'Utilities'],
@@ -1374,6 +1408,23 @@ export function createDemoApi(): Api {
       if (!readStock()) return []
       return clone(movements.filter(m => !itemId || m.item_id === itemId)).sort((a, b) => b.at.localeCompare(a.at))
     },
+    async recipes() { return isAdmin() || partnerCan('finances') ? clone(recipes).sort((a, b) => a.name.localeCompare(b.name)) : [] },
+    async saveRecipe({ id, ...r }) {
+      requireAdmin()
+      if (!r.name.trim()) throw new Error('Give it a name')
+      if (r.lines.some(l => !(l.quantity > 0))) throw new Error('Every ingredient needs a quantity')
+      if (r.square_item && recipes.some(x => x.square_item === r.square_item && x.id !== id)) throw new Error('That Square item is already on the menu')
+      const existing = id ? recipes.find(x => x.id === id) : undefined
+      if (existing) { Object.assign(existing, { ...r, name: r.name.trim() }); return existing.id }
+      const made = recipe({ ...r, name: r.name.trim() })
+      recipes.push(made)
+      return made.id
+    },
+    async deleteRecipe(id) {
+      requireAdmin()
+      const i = recipes.findIndex(x => x.id === id)
+      if (i >= 0) recipes.splice(i, 1)
+    },
     async recordStock(moves: MovementInput[]) {
       if (!isStaff()) throw new Error('Only the team records stock')
       // Check them all first: the database takes all or none.
@@ -1393,7 +1444,7 @@ export function createDemoApi(): Api {
         const change = m.reason === 'count' ? m.counted! - item.on_hand : m.change!
         item.on_hand = Math.round((item.on_hand + change) * 100) / 100
         movements.push({ id: uid(), item_id: item.id, at: nowIso(), reason: m.reason, change, counted: m.reason === 'count' ? m.counted! : null,
-          on_hand_after: item.on_hand, note: m.note?.trim() || null, by: me()?.id ?? null })
+          on_hand_after: item.on_hand, note: m.note?.trim() || null, by: me()?.id ?? null, waste_reason: m.reason === 'waste' ? m.waste_reason ?? 'other' : null })
       }
     },
     async customers() {

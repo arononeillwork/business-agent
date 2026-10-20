@@ -6,6 +6,7 @@ import type { FilingRecord, TaxDocument, TaxSettings } from '../../shared/tax'
 import { DEFAULT_VAT_RATE, type PnlLine, type PnlSettings } from '../../shared/pnl'
 import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
 import type { StockItem, StockMovement, Supplier } from '../../shared/stock'
+import type { Recipe } from '../../shared/recipes'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
 import type { ReferralState } from '../../shared/referrals'
 import { readyPhoto } from '../lib/media'
@@ -436,8 +437,23 @@ export function createSupabaseApi(url: string, key: string): Api {
       if (!moves.length) return
       // A count only needs the figure; the database works out the change.
       check(await sb.from('stock_movements').insert(moves.map(m => ({ item_id: m.item_id, reason: m.reason, note: m.note ?? null,
+        ...(m.reason === 'waste' && m.waste_reason ? { waste_reason: m.waste_reason } : {}),
         ...(m.reason === 'count' ? { counted: m.counted, change: 0 } : { change: m.change }) }))))
     },
+    async recipes() {
+      type Row = Omit<Recipe, 'variants' | 'lines'> & { recipe_variants: (Recipe['variants'][number] & { sort: number })[]; recipe_lines: (Recipe['lines'][number] & { sort: number })[] }
+      const rows = check(await sb.from('recipes').select('*, recipe_variants(*), recipe_lines(*)').order('name')) as Row[]
+      return rows.map(({ recipe_variants, recipe_lines, ...r }) => ({
+        ...r, sell_price: r.sell_price === null ? null : Number(r.sell_price), vat_rate: Number(r.vat_rate), target_margin: Number(r.target_margin),
+        wastage_pct: Number(r.wastage_pct),
+        variants: [...recipe_variants].sort((a, b) => a.sort - b.sort).map(v => ({ id: v.id, name: v.name, price_change: Number(v.price_change) })),
+        lines: [...recipe_lines].sort((a, b) => a.sort - b.sort).map(l => ({ item_id: l.item_id, quantity: Number(l.quantity), unit: l.unit,
+          variant_id: l.variant_id, replaces_item_id: l.replaces_item_id })),
+      }))
+    },
+    // One call, so a recipe is never left half saved.
+    async saveRecipe(r) { return check(await sb.rpc('save_recipe', { p: r })) as string },
+    async deleteRecipe(id) { check(await sb.from('recipes').delete().eq('id', id)) },
 
     async customers() {
       return check(await sb.from('customers').select(CUSTOMER_COLUMNS).order('created_at', { ascending: false })) as Customer[]

@@ -10,6 +10,7 @@ import type { PnlLine, PnlLineInput, PnlSettings } from '../../shared/pnl'
 import type { GrantApplication, GrantApplicationInput, GrantProfile } from '../../shared/grants'
 import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
 import type { MovementInput, StockItem, StockItemInput, StockMovement, Supplier, SupplierInput } from '../../shared/stock'
+import type { Recipe, RecipeInput } from '../../shared/recipes'
 
 export type ShiftInput = Omit<Shift, 'id' | 'status'> & { id?: string; status?: Shift['status'] }
 export type EventInput = Omit<CalendarEvent, 'id' | 'source' | 'competition'> & { id?: string; competition?: string | null }
@@ -198,6 +199,11 @@ export interface Api {
   stockMovements(itemId?: string): Promise<StockMovement[]>
   /** Record deliveries, counts, waste… (a stocktake sends many at once). */
   recordStock(moves: MovementInput[]): Promise<void>
+  /** Menu items and what goes in them (admins; finance partners read). */
+  recipes(): Promise<Recipe[]>
+  /** Save a recipe with its variants and lines (they replace the ones there were); returns its id. */
+  saveRecipe(recipe: RecipeInput): Promise<string>
+  deleteRecipe(id: string): Promise<void>
 
   // To Do List (the team; admins manage categories)
   todos(): Promise<{ categories: TodoCategory[]; todos: Todo[] }>

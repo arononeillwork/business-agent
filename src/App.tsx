@@ -47,6 +47,8 @@ const CustomersPage = page(() => import('./pages/CustomersPage'), 'CustomersPage
 const LoyaltyPage = page(() => import('./pages/LoyaltyPage'), 'LoyaltyPage')
 const StockPage = page(() => import('./pages/StockPage'), 'StockPage')
 const SuppliersPage = page(() => import('./pages/SuppliersPage'), 'SuppliersPage')
+const RecipesPage = page(() => import('./pages/RecipesPage'), 'RecipesPage')
+const WastePage = page(() => import('./pages/WastePage'), 'WastePage')
 const RegistroPage = page(() => import('./pages/RegistroPage'), 'RegistroPage')
 const OpeningHoursPage = page(() => import('./pages/OpeningHoursPage'), 'OpeningHoursPage')
 const AppearancePage = page(() => import('./pages/AppearancePage'), 'AppearancePage')
@@ -98,6 +100,8 @@ function Routed() {
           {partnerCan('finances') && <Route path="grants" element={<GrantsPage />} />}
           {partnerCan('finances') && <Route path="stock" element={<StockPage />} />}
           {partnerCan('finances') && <Route path="suppliers" element={<SuppliersPage />} />}
+          {partnerCan('finances') && <Route path="recipes" element={<RecipesPage />} />}
+          {partnerCan('finances') && <Route path="waste" element={<WastePage />} />}
           <Route path="*" element={<Navigate to="/business" />} />
         </Route>
       </Routes>
@@ -124,6 +128,8 @@ function Routed() {
         <Route path="loyalty" element={isAdmin ? <LoyaltyPage /> : <Navigate to="/" />} />
         <Route path="stock" element={<StockPage />} />
         <Route path="suppliers" element={isAdmin ? <SuppliersPage /> : <Navigate to="/" />} />
+        <Route path="recipes" element={isAdmin ? <RecipesPage /> : <Navigate to="/" />} />
+        <Route path="waste" element={<WastePage />} />
         <Route path="todo" element={<TodoPage />} />
         <Route path="opening-hours" element={<OpeningHoursPage />} />
         <Route path="brand" element={<BrandPage />} />

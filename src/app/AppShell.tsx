@@ -12,6 +12,8 @@ import CustomersIcon from '@mui/icons-material/ContactsOutlined'
 import LoyaltyIcon from '@mui/icons-material/LoyaltyOutlined'
 import StockIcon from '@mui/icons-material/Inventory2Outlined'
 import SuppliersIcon from '@mui/icons-material/LocalShippingOutlined'
+import RecipesIcon from '@mui/icons-material/MenuBookOutlined'
+import WasteIcon from '@mui/icons-material/DeleteSweepOutlined'
 import TodoIcon from '@mui/icons-material/ChecklistRtlOutlined'
 import HoursIcon from '@mui/icons-material/ScheduleOutlined'
 import BrandIcon from '@mui/icons-material/BrushOutlined'
@@ -88,6 +90,8 @@ export const SECTIONS: NavSection[] = [
   { key: 'stock', label: msg('Stock'), items: [
     { key: 'stock', to: '/stock', label: msg('Stock'), icon: <StockIcon />, partner: ['finances'] },
     { key: 'suppliers', to: '/suppliers', label: msg('Suppliers'), icon: <SuppliersIcon />, who: 'admin', partner: ['finances'] },
+    { key: 'recipes', to: '/recipes', label: msg('Menu costing'), icon: <RecipesIcon />, who: 'admin', partner: ['finances'] },
+    { key: 'waste', to: '/waste', label: msg('Waste log'), icon: <WasteIcon />, partner: ['finances'] },
   ] },
   { key: 'accounts', label: msg('Accounts'), items: [
     { key: 'finances', to: '/finances', label: msg('Finances'), icon: <FinanceIcon />, who: 'pay', partner: ['finances'] },
