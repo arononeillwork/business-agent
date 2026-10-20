@@ -58,7 +58,16 @@ export class FakeProviders {
     slowToShow: false,
     /** The mailbox, for reading invoices that come by email (Gmail with gmail.readonly). */
     inbox: [] as { id: string; from: string; subject: string; at: string; files: { id: string; name: string; type: string; bytes: Uint8Array }[] }[],
+    /** Reviews on the listing (v4 My Business API), newest first; replies the app sent, by review name. */
+    reviews: [] as Json[],
+    replies: new Map<string, string>(),
+    /** The listing's phone, as Google Maps shows it. */
+    phone: '+34 695 415 335',
   }
+  /** Google's public listing (Places API): rating, count and the 5 newest reviews; empty when Google leaves them out. */
+  places = { rating: 4.7, count: 38, reviews: [] as Json[], calls: 0 }
+  /** PageSpeed Insights: the next answers (a 429 when the free quota is used up). */
+  pagespeed = { quotaUsed: false, score: 0.62, calls: [] as { url: string; strategy: string }[] }
   /** Search Console: the websites (properties) the Google account can see, and the queries asked of it. */
   searchConsole = {
     sites: [
@@ -438,6 +447,27 @@ export class FakeProviders {
         return json(rows[dimensions.join(',')]?.length ? { rows: rows[dimensions.join(',')], responseAggregationType: 'byProperty' } : { responseAggregationType: 'byProperty' })
       }
     }
+    if (url.host === 'mybusiness.googleapis.com' && /\/reviews$/.test(url.pathname) && method === 'GET') {
+      return json({ reviews: this.google.reviews.map(r => ({ ...r, ...(this.google.replies.has(String(r.name)) ? { reviewReply: { comment: this.google.replies.get(String(r.name)), updateTime: '2026-10-20T10:00:00Z' } } : {}) })) })
+    }
+    const reply = url.pathname.match(/^\/v4\/(accounts\/[^/]+\/locations\/[^/]+\/reviews\/[^/]+)\/reply$/)
+    if (url.host === 'mybusiness.googleapis.com' && reply) {
+      if (method === 'DELETE') { this.google.replies.delete(reply[1]); return json({}) }
+      this.google.replies.set(reply[1], String((body() as { comment: string }).comment))
+      return json({ comment: (body() as { comment: string }).comment, updateTime: '2026-10-20T10:00:00Z' })
+    }
+    if (url.host === 'places.googleapis.com') {
+      this.places.calls++
+      if (new Headers(init.headers).get('x-goog-api-key') !== 'places-key') return googleError(403, 'API key not valid. Please pass a valid API key.', 'forbidden')
+      return json({ rating: this.places.rating, userRatingCount: this.places.count, ...(this.places.reviews.length ? { reviews: this.places.reviews } : {}) })
+    }
+    if (url.host === 'www.googleapis.com' && url.pathname === '/pagespeedonline/v5/runPagespeed') {
+      this.pagespeed.calls.push({ url: url.searchParams.get('url')!, strategy: url.searchParams.get('strategy')! })
+      if (this.pagespeed.quotaUsed) return googleError(429, "Quota exceeded for quota metric 'Queries' and limit 'Queries per day'.", 'rateLimitExceeded')
+      return json({ lighthouseResult: { categories: { performance: { score: this.pagespeed.score }, accessibility: { score: 0.9 }, 'best-practices': { score: 1 }, seo: { score: 0.92 } },
+        audits: { 'largest-contentful-paint': { numericValue: 3200 }, 'cumulative-layout-shift': { numericValue: 0.02 },
+          'uses-webp-images': { title: 'Serve images in modern formats', details: { type: 'opportunity', overallSavingsMs: 1200 } } } } })
+    }
     if (url.host === 'mybusinessaccountmanagement.googleapis.com') return json({ accounts: [{ name: 'accounts/1' }] })
     if (url.host === 'mybusinessbusinessinformation.googleapis.com') {
       if (url.pathname.endsWith('/locations')) return json({ locations: this.google.listings })
@@ -447,7 +477,7 @@ export class FakeProviders {
         if (edit.regularHours && !this.google.slowToShow) this.google.hours = edit.regularHours as Json
         return json({})
       }
-      return json({ regularHours: this.google.hours })
+      return json({ ...this.google.listings[0], phoneNumbers: { primaryPhone: this.google.phone }, regularHours: this.google.hours })
     }
 
     // ---- Instagram (Instagram Login) ----

@@ -532,6 +532,41 @@ permission. Nothing in the mailbox is changed or deleted.
 
 Whether reading was allowed is kept on the mailbox's connection (`external.reads_mail`); connecting
 again from Connections (send only) switches reading off until it's allowed again.
+## 16. Reviews (Google reviews: read, reply, new ones in the bell)
+
+The Reviews page reads the café's Google reviews, every hour looks for new ones (each admin gets a
+notification, a 1-3 star review flagged "worth a reply") and lets admins reply from a template in
+the review's language, edited before it's sent. No AI writes the replies.
+
+- **Best: the business's own profile (Google Maps connection, section 2).** All reviews and
+  replying. It uses the same `business.manage` permission as hours and posts, through the legacy
+  v4 host (`mybusiness.googleapis.com/v4/…/reviews`), which Google left reviews on. It works once
+  Google has approved the Cloud project for Business Profile API access (the same approval section 2
+  waits on); nothing else to switch on.
+- **Until then: the public listing (Places API).** Google's rating, its review count and the 5
+  newest reviews; no replying, and the page says so. Google sometimes leaves reviews out of Places
+  answers for EEA billing accounts (the café website hit this), in which case the page shows the
+  rating only. In the same Cloud project: *APIs & Services → Library* → **Places API (New)** →
+  Enable; *Credentials* → Create an API key restricted to Places API (New). Then repo secrets:
+  - `GOOGLE_PLACES_API_KEY`: that key;
+  - `GOOGLE_PLACE_ID`: the café's place id (look it up at
+    <https://developers.google.com/maps/documentation/places/web-service/place-id>).
+
+TripAdvisor and TheFork are listed as coming soon (neither offers an API to small businesses for this).
+
+## 17. Website & SEO (the website check and Google PageSpeed)
+
+The Website & SEO page checks the website on the Business page: the Worker fetches the homepage,
+robots.txt, the sitemap and up to 10 pages, and checks titles, descriptions, headings, phone
+set-up, canonical, language, sharing tags, the business's structured data (name, address, phone
+and hours compared with the app and Google Maps), image descriptions, broken links and page weight.
+Nothing to set up. The last result is kept, and a new check runs when an admin asks.
+
+**Google PageSpeed Insights** (speed, accessibility, best practices and SEO scores, Core Web Vitals)
+works without a key on a small shared allowance; when it says the allowance is used up, add a key:
+*APIs & Services → Library* → **PageSpeed Insights API** → Enable; *Credentials* → API key
+restricted to it → repo secret `GOOGLE_PAGESPEED_API_KEY`. The Search Console figures on the page
+come from section 13.
 
 ## Social planner
 

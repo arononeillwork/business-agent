@@ -41,6 +41,8 @@ import MoreIcon from '@mui/icons-material/MoreHoriz'
 import SportsIcon from '@mui/icons-material/SportsSoccerOutlined'
 import MusicIcon from '@mui/icons-material/LibraryMusicOutlined'
 import AnalyticsIcon from '@mui/icons-material/QueryStatsOutlined'
+import ReviewsIcon from '@mui/icons-material/StarOutlineRounded'
+import WebsiteIcon from '@mui/icons-material/LanguageOutlined'
 import ExpandIcon from '@mui/icons-material/ExpandMore'
 import DragIcon from '@mui/icons-material/DragIndicator'
 import PinIcon from '@mui/icons-material/PushPin'
@@ -106,6 +108,8 @@ export const SECTIONS: NavSection[] = [
     { key: 'social', to: '/social', label: msg('Social planner'), icon: <SocialIcon />, who: 'admin' },
     { key: 'ads', to: '/ads', label: msg('Ads'), icon: <AdsIcon />, who: 'admin' },
     { key: 'analytics', to: '/analytics', label: msg('Analytics'), icon: <AnalyticsIcon />, who: 'admin' },
+    { key: 'reviews', to: '/reviews', label: msg('Reviews'), icon: <ReviewsIcon />, who: 'admin' },
+    { key: 'website', to: '/website', label: msg('Website & SEO'), icon: <WebsiteIcon />, who: 'admin' },
   ] },
   { key: 'whatson', label: msg("What's on"), items: [
     { key: 'calendar', to: '/calendar', label: msg('Calendar'), icon: <CalendarIcon />, partner: ['calendar'] },

@@ -20,6 +20,8 @@ import { referrals } from './referrals'
 import { tax } from './tax'
 import { invoices } from './invoices'
 import { loyaltyRoutes } from './loyalty'
+import { checkReviews, reviews, reviewsConfigured } from './reviews'
+import { website } from './website'
 
 const NIGHTLY = '15 1 * * *' // 03:15 Madrid in summer, 02:15 in winter
 
@@ -199,6 +201,9 @@ app.route('/', tax)
 app.route('/', invoices)
 // Square loyalty (the stamp card) and gift cards, for the Loyalty page.
 app.route('/', loyaltyRoutes)
+// Reviews (Google) and Website & SEO (Marketing).
+app.route('/', reviews)
+app.route('/', website)
 
 // Business Agent's own subscription (Stripe Billing): plans, checkout, portal, webhook.
 app.route('/', billing)
@@ -240,7 +245,7 @@ export default {
   fetch: (request, env, ctx) => provider(env, new URL(request.url).origin).fetch(request, env, ctx),
   // Every minute: close forgotten timecards, queue shift alerts, remind admins about events,
   // send planned social posts, deliver the outbox, refresh sports; every 15 minutes, Instagram
-  // mentions; every hour, new Square customers.
+  // mentions; every hour, new Square customers and new Google reviews.
   // Nightly: fill yesterday's missing timecards from the rota, check every connection still works.
   async scheduled(event, env, ctx) {
     if (!env.SUPABASE_SERVICE_ROLE_KEY) return
@@ -288,6 +293,10 @@ export default {
       // Every hour: Square customers added or changed since the last look, into Customers.
       if (Math.floor(event.scheduledTime / 60_000) % 60 === 0) {
         await syncSquareCustomers(env, db).catch(e => console.error('square customers failed', e))
+      }
+      // Every hour (on the half hour, away from Square's): new Google reviews, for admins to read and reply to.
+      if (Math.floor(event.scheduledTime / 60_000) % 60 === 30 && await reviewsConfigured(env, db)) {
+        await checkReviews(env, db).catch(e => console.error('reviews failed', e))
       }
       // Sports only while it's switched on (Sports page).
       if (await sportsOn(db)) await refreshStaleSports(db).catch(e => console.error('sports failed', e))

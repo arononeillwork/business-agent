@@ -27,6 +27,8 @@ import { adjustProblem, giftCardAmountProblem, type GiftCard, type GiftCardActiv
 import type { MovementInput, StockItem, StockMovement, Supplier } from '../../shared/stock'
 import type { Recipe } from '../../shared/recipes'
 import { AD_PLATFORMS, NO_METRICS, PLATFORM_NAMES, addMetrics, sumDays, type AdCampaign, type AdDay, type AdMetrics, type AdPlatform, type AdSettings, type AdsReport } from '../../shared/ads'
+import { CONNECT_MAPS, MAX_REPLY, type Review } from '../../shared/reviews'
+import { checkSite, parsePage, scoreOf, type PageSpeed, type WebsiteReport } from '../../shared/seo'
 import { addDays, localDate, minutesBetween, today, weekDates, weekStart, zonedIso } from '../../shared/time'
 
 interface RawEntry {
@@ -305,6 +307,52 @@ export function createDemoApi(): Api {
       attachments: [{ id: 'att-3', name: 'Fra. 2026/311.pdf', size: 120_480, type: 'application/pdf', imported: false }] },
   ]
   const needInvoices = () => { if (!(me()?.role === 'admin' && me()?.can_see_pay)) throw new Error('Only admins with pay access manage invoices') }
+  // Reviews on the café's Google profile since it opened in April: mostly glowing, two waiting on a reply.
+  const review = (id: string, rating: Review['rating'], reviewer: string, created_at: string, language: Review['language'], text: string | null,
+    reply: string | null = null, replied_at: string | null = null): Review =>
+    ({ id: `accounts/1/locations/1/reviews/${id}`, source: 'google', rating, reviewer, created_at, language, text, reply, replied_at, url: null })
+  const demoReviews: Review[] = [
+    review('r12', 2, 'Tom Hughes', '2026-09-28T16:20:00Z', 'en', 'Coffee was good but we waited 20 minutes for two flat whites on Saturday morning, and nobody said sorry.'),
+    review('r11', 3, 'Javier Ruiz', '2026-09-24T09:05:00Z', 'es', 'El café está bien, pero la terraza se llena enseguida y no hay sitio para sentarse.'),
+    review('r10', 5, 'Lucía Pérez', '2026-09-19T10:40:00Z', 'es', 'El mejor café de San Pedro. El matcha latte con leche de avena es una maravilla y el personal muy amable.',
+      '¡Hola, Lucía! Muchísimas gracias por tu reseña. ¡Te esperamos pronto!', '2026-09-19T15:00:00Z'),
+    review('r9', 5, 'Sarah Collins', '2026-09-08T08:55:00Z', 'en', 'Lovely little spot, really friendly staff and the best flat white I’ve had on the coast.',
+      'Hi Sarah, thank you so much! See you soon for the next one.', '2026-09-08T12:30:00Z'),
+    review('r8', 4, 'Miguel Ángel Torres', '2026-08-30T11:10:00Z', 'es', 'Muy buen café de especialidad. Un poco caro, pero merece la pena.',
+      'Gracias, Miguel Ángel. Nos alegra que te haya gustado.', '2026-08-31T09:00:00Z'),
+    review('r7', 5, 'Emma Johansson', '2026-08-14T09:30:00Z', 'en', 'Amazing pastries from By Eric and great coffee. We came back every morning of our holiday.',
+      'Hi Emma, that’s lovely to hear, thank you!', '2026-08-14T18:00:00Z'),
+    review('r6', 5, 'Carmen López', '2026-07-22T10:15:00Z', 'es', 'Riquísimo todo. Volveremos.', '¡Gracias, Carmen!', '2026-07-23T08:00:00Z'),
+    review('r5', 4, 'David Smith', '2026-07-03T13:45:00Z', 'en', 'Good coffee, nice vibe. Would love more seating inside.',
+      'Thanks David! More seats are on the way.', '2026-07-05T10:00:00Z'),
+    review('r4', 5, 'Ana García', '2026-06-12T08:20:00Z', 'es', null, '¡Gracias, Ana!', '2026-06-12T12:00:00Z'),
+    review('r3', 5, 'Pablo Moreno', '2026-05-18T09:00:00Z', 'es', 'Por fin un café de especialidad en San Pedro. Gracias por abrir.', '¡Gracias a ti, Pablo!', '2026-05-18T11:00:00Z'),
+    review('r2', 5, 'Laura Fernández', '2026-04-25T10:30:00Z', 'es', 'Me encanta el sitio y la música. El chai está buenísimo.', '¡Gracias, Laura!', '2026-04-26T09:00:00Z'),
+    review('r1', 4, 'James O’Brien', '2026-04-11T09:10:00Z', 'en', 'Great opening week, coffee spot on.', 'Thanks James!', '2026-04-11T16:00:00Z'),
+  ]
+  // The café's website as the demo "fetches" it: a few things to look at, one to fix.
+  const DEMO_HOME = `<html lang="es"><head><title>Easy Beans Coffee · Specialty café in San Pedro</title>
+<meta name="description" content="Specialty coffee in San Pedro de Alcántara.">
+<meta name="viewport" content="width=device-width, initial-scale=1"><link rel="canonical" href="https://www.easybeanscoffee.com/">
+<meta property="og:title" content="Easy Beans Coffee"><meta property="og:description" content="Specialty coffee, matcha and pastries">
+<script type="application/ld+json">{"@type":"CafeOrCoffeeShop","name":"Easy Beans Coffee","telephone":"+34 695 415 335",
+"address":{"streetAddress":"C. Pizarro, 8","postalCode":"29670","addressLocality":"San Pedro de Alcántara"},
+"openingHoursSpecification":[{"dayOfWeek":["Monday","Tuesday","Wednesday","Thursday","Friday"],"opens":"08:00","closes":"18:00"},
+{"dayOfWeek":"Saturday","opens":"09:00","closes":"18:00"},{"dayOfWeek":"Sunday","opens":"09:00","closes":"15:00"}]}</script></head>
+<body><h1>Easy Beans Coffee</h1><img src="/flat-white.jpg" alt="Flat white"><img src="/terrace.jpg"><img src="/matcha.jpg">
+<a href="/order">Order</a><a href="/shop">Shop</a><a href="/carta-verano">Summer menu</a></body></html>`
+  const demoCheck = (): WebsiteReport => {
+    const home = parsePage('https://www.easybeanscoffee.com/', DEMO_HOME)
+    const others = [parsePage('https://www.easybeanscoffee.com/order', '<html><head><title>Order · Easy Beans Coffee</title><meta name="description" content="Order your drink for collection."></head></html>'),
+      parsePage('https://www.easybeanscoffee.com/shop', '<html><head><title>Shop · Easy Beans Coffee</title></head></html>')]
+    const items = checkSite(home, others, { robots: 'User-agent: *\nAllow: /', sitemap: '<urlset><url><loc>https://www.easybeanscoffee.com/</loc></url></urlset>',
+      broken: [{ url: 'https://www.easybeanscoffee.com/carta-verano', status: 404 }] },
+      { name: business.name, phone: business.phone, address: business.address, opening_hours: business.opening_hours })
+    return { url: home.url, checked_at: nowIso(), pages: [home, ...others].map(p => ({ url: p.url, status: p.status, title: p.title })), items, score: scoreOf(items),
+      site_business: home.business, google_listing: { name: 'Easy Beans Coffee', phone: '+34 695 415 335', address: 'C. Pizarro, 8, 29670 San Pedro de Alcántara', hours: business.opening_hours } }
+  }
+  let websiteReport: WebsiteReport | null = null
+  const demoPageSpeed: Partial<Record<'mobile' | 'desktop', PageSpeed>> = {}
 
   /** Where the demo keeps photos and videos: the connected Drive or OneDrive. */
   const mediaStorage = () => (['google_drive', 'onedrive'] as const).find(p => integ.integrations.some(i => i.provider === p && i.status === 'connected')) ?? null
@@ -1832,6 +1880,45 @@ export function createDemoApi(): Api {
       const sc = integ.integrations.find(i => i.provider === 'search_console')!
       if (!sc.external.sites?.includes(site)) throw new Error('That website isn’t in this Google account’s Search Console')
       Object.assign(sc, { status: 'connected', account_label: site.replace(/^sc-domain:|^https?:\/\/|\/$/g, ''), last_checked_at: nowIso(), last_error: null, external: { ...sc.external, site } })
+    },
+    async reviews() {
+      requireAdmin()
+      const profile = integ.integrations.find(i => i.provider === 'google_business')?.status === 'connected'
+      return { feed: profile ? 'business_profile' : 'places', can_reply: profile, google_rating: profile ? null : 4.6, google_count: profile ? null : demoReviews.length,
+        reviews: clone(profile ? demoReviews : demoReviews.slice(0, 5).map(r => ({ ...r, reply: null, replied_at: null }))),
+        problem: profile ? null : CONNECT_MAPS }
+    },
+    async replyReview(id, text) {
+      requireAdmin()
+      const r = demoReviews.find(x => x.id === id)
+      if (!r) throw new Error('That review can’t be replied to here')
+      if (!text.trim()) throw new Error('Write a reply first')
+      if (text.length > MAX_REPLY) throw new Error(`Replies can be up to ${MAX_REPLY} characters`)
+      Object.assign(r, { reply: text.trim(), replied_at: nowIso() })
+    },
+    async deleteReviewReply(id) {
+      requireAdmin()
+      const r = demoReviews.find(x => x.id === id)
+      if (r) Object.assign(r, { reply: null, replied_at: null })
+    },
+    async website() {
+      requireAdmin()
+      return { website: business.website ?? null, report: clone(websiteReport), checked_at: websiteReport?.checked_at ?? null, pagespeed: clone(demoPageSpeed) }
+    },
+    async checkWebsite() {
+      requireAdmin()
+      if (!business.website) throw new Error('Add the website on the Business page first.')
+      websiteReport = demoCheck()
+      return clone(websiteReport)
+    },
+    async pageSpeed(strategy) {
+      requireAdmin()
+      const mobile = strategy === 'mobile'
+      demoPageSpeed[strategy] = { strategy, checked_at: nowIso(),
+        scores: { performance: mobile ? 64 : 91, accessibility: 88, best_practices: 96, seo: 92 },
+        vitals: { lcp_ms: mobile ? 3400 : 1600, cls: 0.04, inp_ms: mobile ? 240 : 110, field: mobile },
+        opportunities: ['Serve images in modern formats', 'Properly size images', 'Eliminate render-blocking resources'] }
+      return clone(demoPageSpeed[strategy]!)
     },
     async searchConsole(from, to) {
       requireAdmin()

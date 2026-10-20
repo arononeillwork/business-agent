@@ -37,7 +37,9 @@ built-in **AI connector** so owners can run it by talking to Claude.
   café's stamp card with its members, and the gift cards with what's still owed on them.
   Search Console shows how the website does on Google. **Ads** puts Meta Ads (Facebook and Instagram)
   and Google Ads side by side: spend, clicks and results per campaign next to the takings, monthly
-  limits, and pause, resume or daily budget changes sent straight to the platform.
+  limits, and pause, resume or daily budget changes sent straight to the platform. **Reviews** reads the
+  Google reviews (new ones in the bell, replies from templates in the review's language) and **Website &
+  SEO** checks the website (SEO, Google PageSpeed, the same details as the app and Google Maps).
 - Invoices: what suppliers invoice (and the sales invoices sent), each tied to its supplier from Stock
   and to its file, with what's to pay, overdue and paid, notes, and totals by supplier. Invoices come
   in from the connected Gmail or Outlook (once reading it is allowed), by upload, or typed in; a
@@ -54,7 +56,7 @@ built-in **AI connector** so owners can run it by talking to Claude.
   Menu costing works out what each drink or dish costs from the stock in it (with variants such as oat
   milk or an extra shot, and a waste allowance) and its margin against the menu price; the Waste log
   takes what's thrown away and why off the stock, with its cost for admins.
-  Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) sections 7-14.
+  Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) sections 7-17.
 
 See [docs/PLAN.md](docs/PLAN.md) for decisions, architecture and phases.
 
