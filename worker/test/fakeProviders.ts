@@ -160,6 +160,33 @@ export class FakeProviders {
       { id: 'SQC2', given_name: 'Tom', email_address: 'tom@example.co.uk', note: 'Oat flat white', updated_at: '2026-09-02T10:00:00Z' },
       { id: 'SQC3', company_name: 'No way to reach them', updated_at: '2026-09-03T10:00:00Z' },
     ] as { id: string; updated_at: string; [k: string]: string }[],
+    /** Loyalty and gift cards. `loyaltyScope: false` is a connection made before LOYALTY_READ and GIFTCARDS_READ were asked for. */
+    loyaltyScope: true,
+    /** The loyalty programme (null: none set up): a stamp card, a stamp a visit, the 10th coffee free. */
+    program: { status: 'ACTIVE', terminology: { one: 'Stamp', other: 'Stamps' }, reward_tiers: [{ id: 'T1', name: 'Free coffee', points: 9 }],
+      accrual_rules: [{ accrual_type: 'VISIT', points: 1, visit_data: { minimum_amount_money: { amount: 250, currency: 'EUR' } } }] } as Record<string, unknown> | null,
+    loyaltyAccounts: [
+      { id: 'LA1', customer_id: 'SQC1', balance: 7, lifetime_points: 25, enrolled_at: '2026-05-02T09:00:00Z' },
+      { id: 'LA2', customer_id: 'SQC9', balance: 3, lifetime_points: 3, enrolled_at: '2026-09-01T09:00:00Z' },
+    ] as { id: string; customer_id?: string; balance: number; lifetime_points: number; enrolled_at: string }[],
+    loyaltyEvents: [
+      { id: 'E1', type: 'ACCUMULATE_POINTS', created_at: '2026-09-28T08:15:00Z', loyalty_account_id: 'LA1', accumulate_points: { points: 1 } },
+      { id: 'E2', type: 'CREATE_REWARD', created_at: '2026-09-27T10:00:00Z', loyalty_account_id: 'LA1', create_reward: { points: 9 } },
+      { id: 'E3', type: 'REDEEM_REWARD', created_at: '2026-09-27T10:00:00Z', loyalty_account_id: 'LA1', redeem_reward: { reward_id: 'R1' } },
+      { id: 'E4', type: 'ACCUMULATE_POINTS', created_at: '2026-09-20T08:15:00Z', loyalty_account_id: 'LA2', accumulate_points: { points: 1 } },
+    ] as { id: string; type: string; created_at: string; loyalty_account_id: string; [k: string]: unknown }[],
+    /** Points adjustments asked for, by idempotency key (the same key twice is one adjustment, as on Square). */
+    adjustments: new Map<string, { account: string; points: number; reason: string }>(),
+    giftCards: [
+      { id: 'GC1', type: 'DIGITAL', state: 'ACTIVE', gan: '7783320001234567', balance_money: { amount: 2500, currency: 'EUR' }, created_at: '2026-09-10T10:00:00Z', customer_ids: ['SQC1'] },
+      { id: 'GC2', type: 'PHYSICAL', state: 'DEACTIVATED', gan: '7783320009876543', balance_money: { amount: 0, currency: 'EUR' }, created_at: '2026-08-01T10:00:00Z' },
+    ] as { id: string; type: string; state: string; gan: string; balance_money: { amount: number; currency: string }; created_at: string; customer_ids?: string[] }[],
+    giftActivities: [
+      { id: 'GA1', type: 'ACTIVATE', created_at: '2026-09-10T10:00:00Z', gift_card_gan: '7783320001234567', activate_activity_details: { amount_money: { amount: 3000, currency: 'EUR' } }, gift_card_balance_money: { amount: 3000, currency: 'EUR' } },
+      { id: 'GA2', type: 'REDEEM', created_at: '2026-09-20T10:00:00Z', gift_card_gan: '7783320001234567', redeem_activity_details: { amount_money: { amount: 500, currency: 'EUR' } }, gift_card_balance_money: { amount: 2500, currency: 'EUR' } },
+    ] as { id: string; type: string; created_at: string; gift_card_gan: string; [k: string]: unknown }[],
+    /** Idempotency keys seen on gift card writes. */
+    giftKeys: [] as string[],
     /** Completed orders, for best sellers. `ordersScope: false` is a connection made before ORDERS_READ was asked for. */
     ordersScope: true,
     orders: [
@@ -586,6 +613,58 @@ export class FakeProviders {
         if (!this.square.customersScope) return json({ errors: [{ category: 'AUTHENTICATION_ERROR', code: 'INSUFFICIENT_SCOPES', detail: 'The merchant has not granted CUSTOMERS_READ' }] }, 403)
         const since = (body() as { query?: { filter?: { updated_at?: { start_at?: string } } } }).query?.filter?.updated_at?.start_at ?? ''
         return json({ customers: this.square.customers.filter(c => c.updated_at >= since) })
+      }
+      if (url.pathname.startsWith('/v2/loyalty/') || url.pathname.startsWith('/v2/gift-cards')) {
+        const sq = this.square
+        if (!sq.loyaltyScope) return json({ errors: [{ category: 'AUTHENTICATION_ERROR', code: 'INSUFFICIENT_SCOPES', detail: 'The merchant has not granted LOYALTY_READ' }] }, 403)
+        if (url.pathname === '/v2/loyalty/programs/main') {
+          return sq.program ? json({ program: sq.program }) : json({ errors: [{ category: 'INVALID_REQUEST_ERROR', code: 'NOT_FOUND', detail: 'Merchant does not have a loyalty program' }] }, 404)
+        }
+        if (url.pathname === '/v2/loyalty/accounts/search') return json({ loyalty_accounts: sq.loyaltyAccounts })
+        if (url.pathname === '/v2/loyalty/events/search') {
+          const range = (body() as { query: { filter: { date_time_filter: { created_at: { start_at: string; end_at: string } } } } }).query.filter.date_time_filter.created_at
+          return json({ events: sq.loyaltyEvents.filter(e => e.created_at >= range.start_at && e.created_at < range.end_at) })
+        }
+        const adjust = url.pathname.match(/^\/v2\/loyalty\/accounts\/([^/]+)\/adjust$/)
+        if (adjust && method === 'POST') {
+          const b = body() as { idempotency_key: string; adjust_points: { points: number; reason: string } }
+          const account = sq.loyaltyAccounts.find(a => a.id === adjust[1])
+          if (!account) return json({ errors: [{ code: 'NOT_FOUND', detail: 'Loyalty account not found' }] }, 404)
+          if (!sq.adjustments.has(b.idempotency_key)) {
+            sq.adjustments.set(b.idempotency_key, { account: account.id, points: b.adjust_points.points, reason: b.adjust_points.reason })
+            account.balance += b.adjust_points.points
+          }
+          return json({ event: { id: `E-${b.idempotency_key}`, type: 'ADJUST_POINTS' } })
+        }
+        if (url.pathname === '/v2/gift-cards' && method === 'GET') return json({ gift_cards: sq.giftCards })
+        if (url.pathname === '/v2/gift-cards' && method === 'POST') {
+          const b = body() as { idempotency_key: string; location_id: string; gift_card: { type: string } }
+          sq.giftKeys.push(b.idempotency_key)
+          const card = { id: `GC-${this.nextId++}`, type: b.gift_card.type, state: 'PENDING', gan: `77833200${String(this.nextId).padStart(8, '0')}`,
+            balance_money: { amount: 0, currency: 'EUR' }, created_at: '2026-09-30T07:00:00Z' }
+          sq.giftCards.push(card)
+          return json({ gift_card: card })
+        }
+        if (url.pathname === '/v2/gift-cards/activities' && method === 'GET') {
+          const from = url.searchParams.get('begin_time')!, to = url.searchParams.get('end_time')!
+          return json({ gift_card_activities: sq.giftActivities.filter(a => a.created_at >= from && a.created_at < to) })
+        }
+        if (url.pathname === '/v2/gift-cards/activities' && method === 'POST') {
+          const b = body() as { idempotency_key: string; gift_card_activity: { type: string; gift_card_id: string; location_id: string; activate_activity_details: { amount_money: { amount: number; currency: string } } } }
+          sq.giftKeys.push(b.idempotency_key)
+          const card = sq.giftCards.find(g => g.id === b.gift_card_activity.gift_card_id)!
+          card.state = 'ACTIVE'
+          card.balance_money = b.gift_card_activity.activate_activity_details.amount_money
+          sq.giftActivities.push({ id: `GA-${this.nextId++}`, type: 'ACTIVATE', created_at: '2026-09-30T07:00:00Z', gift_card_gan: card.gan,
+            activate_activity_details: b.gift_card_activity.activate_activity_details, location_id: b.gift_card_activity.location_id })
+          return json({ gift_card_activity: { id: 'GA-new', type: 'ACTIVATE' } })
+        }
+        const link = url.pathname.match(/^\/v2\/gift-cards\/([^/]+)\/link-customer$/)
+        if (link && method === 'POST') {
+          const card = sq.giftCards.find(g => g.id === link[1])!
+          card.customer_ids = [(body() as { customer_id: string }).customer_id]
+          return json({ gift_card: card })
+        }
       }
       if (url.pathname === '/v2/orders/search' && method === 'POST') {
         if (!this.square.ordersScope) return json({ errors: [{ category: 'AUTHENTICATION_ERROR', code: 'INSUFFICIENT_SCOPES', detail: 'The merchant has not granted ORDERS_READ' }] }, 403)

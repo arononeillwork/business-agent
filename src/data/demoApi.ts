@@ -19,6 +19,7 @@ import type { SportsFavourite } from '../../shared/sports'
 import { POPULAR_FONTS } from '../../shared/fonts'
 import { addToCalendarUrl, cleanWebsite, groupOf } from '../../shared/connections'
 import { mergeSales } from '../../shared/sales'
+import { adjustProblem, giftCardAmountProblem, type GiftCard, type GiftCardActivity, type LoyaltyEvent, type LoyaltyMember, type LoyaltyProgram } from '../../shared/loyalty'
 import { addDays, localDate, minutesBetween, today, weekDates, weekStart, zonedIso } from '../../shared/time'
 
 interface RawEntry {
@@ -187,6 +188,55 @@ export function createDemoApi(): Api {
       scheduled_at: hoursFromNow(24 * 6), status: 'scheduled', results: {}, created_at: nowIso(), published_at: null },
     { id: uid(), kind: 'post', caption: 'Ideas for the matcha menu launch…', image_url: null, media: [], targets: ['instagram'], auto: true, scheduled_at: null, status: 'draft', results: {}, created_at: nowIso(), published_at: null },
   ]
+  // Square loyalty (Easy Beans Club: a stamp a visit, the 10th coffee free) and gift cards, once Square is connected.
+  const clubProgram: LoyaltyProgram = { one: 'Stamp', other: 'Stamps', per_visit: 1, minimum_spend: 2.5, per_spend: null,
+    tiers: [{ id: 'tier-coffee', name: 'Free coffee (the 10th)', points: 9 }] }
+  const seeded = (seed: number) => () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647 }
+  const roll = seeded(42)
+  const CLUB = ['Lucía García', 'Tom Baker', 'Carmen Ruiz', 'Javier López', 'Emma Wilson', 'Sofía Martín', 'Daniel Sánchez', 'Olivia Brown', 'Pablo Romero',
+    'Laura Navarro', 'James Taylor', 'Elena Torres', 'Hugo Díaz', 'Chloe Martin', 'Marta Gil', 'Lars Jensen', 'Paula Molina', 'Isabel Ortega', 'Noah Smith',
+    'Alba Castro', 'Diego Ramos', 'Grace Evans', 'Irene Vázquez', 'Mateo Herrera', 'Ana Morales', 'Sven Larsen', 'Nuria Iglesias', 'Leo Garrido',
+    'Rocío Prieto', 'Ella Johnson', 'Adrián Cano', 'Clara Rubio', 'Mia Thomas', 'Álvaro Peña', 'Inés Calvo', 'Lucas Fuentes', 'Sara Méndez', 'Oscar Lund',
+    'Julia Serrano', null]
+  const clubMembers: LoyaltyMember[] = []
+  const clubEvents: LoyaltyEvent[] = []
+  CLUB.forEach((name, i) => {
+    const id = `la-${i + 1}`
+    const visits = Math.floor(roll() * 14) + 1
+    let balance = Math.floor(roll() * 9)
+    let last: string | null = null
+    for (let v = 0; v < visits; v++) {
+      const at = new Date(Date.now() - Math.floor(roll() * 59 * 86_400_000) - 3_600_000).toISOString()
+      clubEvents.push({ id: `${id}-v${v}`, kind: 'earn', points: 1, at, account_id: id })
+      if (!last || at > last) last = at
+    }
+    if (visits > 9) clubEvents.push({ id: `${id}-r`, kind: 'redeem', points: 0, at: new Date(Date.now() - Math.floor(roll() * 20 * 86_400_000)).toISOString(), account_id: id })
+    if (i === 0) balance = 8 // Lucía: one more coffee and the next is free
+    clubMembers.push({ id, customer_id: `sq-c${i + 1}`, name, balance, lifetime: visits + balance, enrolled_at: new Date(Date.now() - (60 + i) * 86_400_000).toISOString(), last_visit: last })
+  })
+  clubEvents.sort((a, b) => b.at.localeCompare(a.at))
+  const gan4 = () => String(1000 + Math.floor(roll() * 9000))
+  const cardDay = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString()
+  const giftCardList: GiftCard[] = [
+    [25, 25, 3, 'Lucía García'], [50, 32.4, 9, null], [20, 0, 40, 'Tom Baker'], [30, 30, 12, null],
+    [15, 6.8, 22, 'Carmen Ruiz'], [40, 40, 1, null], [25, 11.2, 30, 'Emma Wilson'], [100, 100, 6, 'Hotel Puente Romano'],
+  ].map(([sold, balance, ago, customer], i) => ({ id: `gc-${i + 1}`, last4: gan4(), type: 'DIGITAL' as const,
+    state: (balance === 0 ? 'DEACTIVATED' : 'ACTIVE') as GiftCard['state'], balance: balance as number, created_at: cardDay(ago as number),
+    customer_id: customer ? `sq-g${i + 1}` : null, customer: customer as string | null, sold: sold as number }))
+    .map(({ sold: _sold, ...c }) => c)
+  const giftActivity: GiftCardActivity[] = giftCardList.flatMap((c, i) => {
+    const sold = [25, 50, 20, 30, 15, 40, 25, 100][i]
+    const out: GiftCardActivity[] = [{ id: `ga-${i}-a`, kind: 'activate', amount: sold, at: c.created_at, last4: c.last4, balance: sold }]
+    if (c.balance < sold) out.push({ id: `ga-${i}-r`, kind: 'redeem', amount: Math.round((sold - c.balance) * 100) / 100, at: new Date(Date.parse(c.created_at) + 2 * 86_400_000).toISOString(), last4: c.last4, balance: c.balance })
+    return out
+  }).sort((a, b) => b.at.localeCompare(a.at))
+  const squareOn = () => integ.integrations.some(i => i.provider === 'square' && i.status === 'connected')
+  const needSquare = () => {
+    if (!isAdmin()) throw new Error('Only an admin can see loyalty and gift cards')
+    if (!squareOn()) throw new Error('Connect Square on the Connections page to see loyalty and gift cards.')
+  }
+  const inRange = (at: string, from: string, to: string) => at.slice(0, 10) >= from && at.slice(0, 10) <= to
+
   /** Where the demo keeps photos and videos: the connected Drive or OneDrive. */
   const mediaStorage = () => (['google_drive', 'onedrive'] as const).find(p => integ.integrations.some(i => i.provider === p && i.status === 'connected')) ?? null
   const networkName = (t: SocialNetwork) => ({ google: 'Google Maps', tiktok: 'TikTok', linkedin: 'LinkedIn' } as Partial<Record<SocialNetwork, string>>)[t] ?? t[0].toUpperCase() + t.slice(1)
@@ -1035,6 +1085,37 @@ export function createDemoApi(): Api {
       if (!(me()?.role === 'admin' && me()?.can_see_pay)) throw new Error('Only admins with pay access can change finances')
       const i = expenses.findIndex(x => x.id === id)
       if (i >= 0) expenses.splice(i, 1)
+    },
+    async loyalty(from, to) {
+      needSquare()
+      return { status: 'ok', program: clone(clubProgram), members: clone(clubMembers).sort((a, b) => b.balance - a.balance || b.lifetime - a.lifetime),
+        events: clone(clubEvents.filter(e => inRange(e.at, from, to))) }
+    },
+    async adjustLoyalty(accountId, points, reason) {
+      needSquare()
+      const problem = adjustProblem(points)
+      if (problem) throw new Error(problem)
+      if (!reason.trim()) throw new Error('Say why, for the record (Square keeps it)')
+      const m = clubMembers.find(x => x.id === accountId)
+      if (!m) throw new Error('Choose a member')
+      m.balance += points
+      clubEvents.unshift({ id: uid(), kind: 'adjust', points, at: nowIso(), account_id: accountId, reason: reason.trim() })
+    },
+    async giftCards(from, to) {
+      needSquare()
+      return { status: 'ok', currency: 'EUR', cards: clone(giftCardList).sort((a, b) => b.created_at.localeCompare(a.created_at)),
+        activities: clone(giftActivity.filter(a => inRange(a.at, from, to))) }
+    },
+    async sellGiftCard(amount, customerId) {
+      needSquare()
+      const problem = giftCardAmountProblem(amount)
+      if (problem) throw new Error(problem)
+      const member = clubMembers.find(m => m.customer_id === customerId)
+      const card: GiftCard = { id: uid(), last4: gan4(), type: 'DIGITAL', state: 'ACTIVE', balance: amount, created_at: nowIso(),
+        customer_id: customerId, customer: member?.name ?? null }
+      giftCardList.push(card)
+      giftActivity.unshift({ id: uid(), kind: 'activate', amount, at: card.created_at, last4: card.last4, balance: amount })
+      return clone(card)
     },
     async customers() {
       if (!isAdmin()) return []

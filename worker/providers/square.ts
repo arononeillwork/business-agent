@@ -1,12 +1,15 @@
-// Square (Block) as the café's payment system, connected with one click (Square OAuth). Read-only:
+// Square (Block) as the café's payment system, connected with one click (Square OAuth). It reads
 // the business profile, its locations, its payments, its orders and its customer directory, so
 // Finances can show takings next to the team's cost, Sales can show what sold and Customers lists
-// the till's customers. Access lasts 30 days and is renewed with the refresh token. ORDERS_READ and
-// CUSTOMERS_READ came later: a connection made before them still works, without items or customers.
+// the till's customers; and its loyalty programme and gift cards (the Loyalty page), where the only
+// changes the app makes are goodwill points and selling a digital gift card. Access lasts 30 days
+// and is renewed with the refresh token. ORDERS_READ, CUSTOMERS_READ and the loyalty and gift card
+// permissions came later: a connection made before them still works, without those parts.
 import type { PayMethod, SalesDay, SalesItem } from '../../shared/types'
 import { hmacBase64, safeEqual } from '../crypto'
 
-export const SQUARE_SCOPES = ['MERCHANT_PROFILE_READ', 'PAYMENTS_READ', 'ORDERS_READ', 'CUSTOMERS_READ']
+export const SQUARE_SCOPES = ['MERCHANT_PROFILE_READ', 'PAYMENTS_READ', 'ORDERS_READ', 'CUSTOMERS_READ',
+  'LOYALTY_READ', 'LOYALTY_WRITE', 'GIFTCARDS_READ', 'GIFTCARDS_WRITE']
 const VERSION = '2025-01-23'
 
 export interface SquareOAuthConfig { appId: string; appSecret: string; redirectUri: string; sandbox: boolean }
@@ -51,6 +54,9 @@ async function api<T>(sandbox: boolean, accessToken: string, path: string, body?
   }
   return json
 }
+
+/** Square's API for the other Square modules (loyalty and gift cards): GET, or POST with a body. */
+export const squareApi = api
 
 export interface SquareLocation { id: string; name: string; currency?: string; status?: string }
 

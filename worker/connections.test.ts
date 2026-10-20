@@ -671,7 +671,7 @@ describe('Facebook, TikTok and Square: one click, connected once they really wor
   it('Square: best sellers from completed orders, added up by item; an older connection is asked to connect again', async () => {
     await connectOwn('square')
     const auth = new URL((await (await post('/api/integrations/square/start')).json() as { url: string }).url)
-    expect(auth.searchParams.get('scope')).toBe('MERCHANT_PROFILE_READ PAYMENTS_READ ORDERS_READ CUSTOMERS_READ')
+    expect(auth.searchParams.get('scope')).toBe('MERCHANT_PROFILE_READ PAYMENTS_READ ORDERS_READ CUSTOMERS_READ LOYALTY_READ LOYALTY_WRITE GIFTCARDS_READ GIFTCARDS_WRITE')
     const res = await get('/api/integrations/payments/items?from=2026-09-28&to=2026-09-29')
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ items: [

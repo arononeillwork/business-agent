@@ -26,6 +26,8 @@ built-in **AI connector** so owners can run it by talking to Claude.
   Maps; each network's result links to the live post. Stripe, Square or SumUp connects as the till: the Accounts
   section has **Sales** (a Square-style dashboard: sales against the period before, busiest hours and
   days, how people paid, best sellers) and **Finances** (running costs, takings next to team cost).
+  With Square, **Loyalty & gift cards** (Sales section) shows the Square loyalty programme as the
+  café's stamp card with its members, and the gift cards with what's still owed on them.
   Search Console shows how the website does on Google.
   Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) sections 7-13.
 
