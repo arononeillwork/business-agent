@@ -40,6 +40,10 @@ built-in **AI connector** so owners can run it by talking to Claude.
   their last days, marked to do, with the gestoría or filed; documents (invoices, receipts, payslips,
   statements) uploaded in bulk, a folder at a time, into the connected Google Drive or OneDrive under
   Business Agent/Tax, sorted by year, quarter and kind or into a folder chosen there.
+- Stock: every wholesale item (beans, milk, cups, pastries) and the shop's own products, each with its
+  supplier, link, cost and reorder level. The team records deliveries, counts and waste (or a whole
+  stocktake at once); the order list groups what's low by supplier, with the order day and a message
+  ready for WhatsApp or email. Suppliers keep their contact details, website, order page and order days.
   Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) sections 7-13.
 
 See [docs/PLAN.md](docs/PLAN.md) for decisions, architecture and phases.

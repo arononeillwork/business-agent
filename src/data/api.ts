@@ -9,6 +9,7 @@ import type { FilingRecord, Quarter, TaxDocKind, TaxDocument, TaxSettings } from
 import type { PnlLine, PnlLineInput, PnlSettings } from '../../shared/pnl'
 import type { GrantApplication, GrantApplicationInput, GrantProfile } from '../../shared/grants'
 import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
+import type { MovementInput, StockItem, StockItemInput, StockMovement, Supplier, SupplierInput } from '../../shared/stock'
 
 export type ShiftInput = Omit<Shift, 'id' | 'status'> & { id?: string; status?: Shift['status'] }
 export type EventInput = Omit<CalendarEvent, 'id' | 'source' | 'competition'> & { id?: string; competition?: string | null }
@@ -182,6 +183,21 @@ export interface Api {
   /** Track a grant (no id) or change an application. Returns its id. */
   saveGrantApplication(a: GrantApplicationInput): Promise<string>
   deleteGrantApplication(id: string): Promise<void>
+  // Stock and suppliers: the team reads and records deliveries, counts and waste; admins change
+  // items (prices included) and suppliers; finance partners read.
+  suppliers(): Promise<Supplier[]>
+  saveSupplier(s: SupplierInput): Promise<void>
+  deleteSupplier(id: string): Promise<void>
+  stockItems(): Promise<StockItem[]>
+  /** Add an item (no id; on_hand is its first count) or change one (on_hand changes only through recordStock). */
+  saveStockItem(item: StockItemInput): Promise<void>
+  deleteStockItem(id: string): Promise<void>
+  /** Add many at once (a CSV file); returns how many were added. */
+  importStockItems(rows: StockItemInput[]): Promise<number>
+  /** What changed the figures, newest first: one item's, or everything's. */
+  stockMovements(itemId?: string): Promise<StockMovement[]>
+  /** Record deliveries, counts, waste… (a stocktake sends many at once). */
+  recordStock(moves: MovementInput[]): Promise<void>
 
   // To Do List (the team; admins manage categories)
   todos(): Promise<{ categories: TodoCategory[]; todos: Todo[] }>

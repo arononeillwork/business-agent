@@ -10,6 +10,8 @@ import TeamIcon from '@mui/icons-material/PeopleAltOutlined'
 import BusinessIcon from '@mui/icons-material/StorefrontOutlined'
 import CustomersIcon from '@mui/icons-material/ContactsOutlined'
 import LoyaltyIcon from '@mui/icons-material/LoyaltyOutlined'
+import StockIcon from '@mui/icons-material/Inventory2Outlined'
+import SuppliersIcon from '@mui/icons-material/LocalShippingOutlined'
 import TodoIcon from '@mui/icons-material/ChecklistRtlOutlined'
 import HoursIcon from '@mui/icons-material/ScheduleOutlined'
 import BrandIcon from '@mui/icons-material/BrushOutlined'
@@ -81,6 +83,11 @@ export const SECTIONS: NavSection[] = [
     { key: 'sales', to: '/sales', label: msg('Sales'), icon: <SalesIcon />, who: 'pay' },
     { key: 'customers', to: '/customers', label: msg('Customers'), icon: <CustomersIcon />, who: 'admin' },
     { key: 'loyalty', to: '/loyalty', label: msg('Loyalty & gift cards'), short: msg('Loyalty'), icon: <LoyaltyIcon />, who: 'admin', needs: 'square' },
+  ] },
+  // What's bought wholesale and sold in the shop, and who from. The team counts; admins price and order.
+  { key: 'stock', label: msg('Stock'), items: [
+    { key: 'stock', to: '/stock', label: msg('Stock'), icon: <StockIcon />, partner: ['finances'] },
+    { key: 'suppliers', to: '/suppliers', label: msg('Suppliers'), icon: <SuppliersIcon />, who: 'admin', partner: ['finances'] },
   ] },
   { key: 'accounts', label: msg('Accounts'), items: [
     { key: 'finances', to: '/finances', label: msg('Finances'), icon: <FinanceIcon />, who: 'pay', partner: ['finances'] },

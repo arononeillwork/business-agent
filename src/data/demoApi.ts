@@ -23,6 +23,7 @@ import { DEFAULT_TAX_SETTINGS, cleanFolderName, cleanFolderPath, taxFileProblem,
 import { DEFAULT_VAT_RATE, type PnlLine } from '../../shared/pnl'
 import { cleanAnswers, isDone, type GrantApplication, type GrantProfile } from '../../shared/grants'
 import { adjustProblem, giftCardAmountProblem, type GiftCard, type GiftCardActivity, type LoyaltyEvent, type LoyaltyMember, type LoyaltyProgram } from '../../shared/loyalty'
+import type { MovementInput, StockItem, StockMovement, Supplier } from '../../shared/stock'
 import { addDays, localDate, minutesBetween, today, weekDates, weekStart, zonedIso } from '../../shared/time'
 
 interface RawEntry {
@@ -415,6 +416,70 @@ export function createDemoApi(): Api {
       { provider: 'youtube', id: 'demo-yt-2', name: 'Spanish summer', tracks: 45, url: 'https://music.youtube.com', owner: 'You' },
     ],
   }
+  // Stock: the café's wholesale suppliers and what it buys from each (By Eric is the bakery from the business details).
+  const supplier = (s: Partial<Supplier> & { id: string; name: string }): Supplier => ({ kind: null, contact_name: null, email: null, phone: null,
+    whatsapp: false, website: null, order_url: null, address: null, account_number: null, order_days: [], cutoff: null, lead_days: 1,
+    minimum_order: null, payment_terms: null, notes: null, active: true, ...s })
+  const suppliers: Supplier[] = [
+    supplier({ id: 'sup-eric', name: 'By Eric', kind: 'Bakery', contact_name: 'Eric', phone: '+34 683 16 94 37', whatsapp: true, email: 'info@by-eric.es',
+      order_days: ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'], cutoff: '17:00', lead_days: 1, notes: 'Croissants daily, pastries every 2 days' }),
+    supplier({ id: 'sup-roaster', name: 'Tostadores del Sur', kind: 'Coffee roaster', contact_name: 'Lucía', phone: '+34 952 77 41 10', whatsapp: true,
+      email: 'pedidos@tostadoresdelsur.example', website: 'https://tostadoresdelsur.example', order_url: 'https://tostadoresdelsur.example/trade',
+      account_number: 'EB-2041', order_days: ['mon', 'thu'], cutoff: '12:00', lead_days: 2, minimum_order: 80, payment_terms: '30 days' }),
+    supplier({ id: 'sup-dairy', name: 'Lácteos Costa del Sol', kind: 'Dairy', contact_name: 'Paco', phone: '+34 611 48 20 93', whatsapp: true,
+      email: 'pedidos@lacteoscosta.example', website: 'https://lacteoscosta.example', order_days: ['mon', 'wed', 'fri'], cutoff: '12:00', lead_days: 1,
+      minimum_order: 60, payment_terms: 'Direct debit, monthly' }),
+    supplier({ id: 'sup-pack', name: 'EcoPack Andalucía', kind: 'Packaging', email: 'ventas@ecopack.example', phone: '+34 954 30 12 88',
+      website: 'https://ecopack.example', order_url: 'https://ecopack.example/shop', order_days: ['tue'], lead_days: 3, minimum_order: 150,
+      payment_terms: 'Card on order' }),
+    supplier({ id: 'sup-matcha', name: 'Matcha & Chai Co.', kind: 'Drinks', contact_name: 'Hana', email: 'trade@matchachai.example',
+      website: 'https://matchachai.example', order_url: 'https://matchachai.example/wholesale', order_days: ['mon', 'tue', 'wed', 'thu', 'fri'],
+      lead_days: 3, minimum_order: 50 }),
+    supplier({ id: 'sup-cash', name: 'Cash & Carry Marbella', kind: 'Cash & carry', phone: '+34 952 82 33 00', address: 'Pol. Ind. La Ermita, Marbella',
+      account_number: '7781-332', notes: 'Card needed at the door. Syrups, napkins and cleaning when short.' }),
+  ]
+  const stockItem = (i: Partial<StockItem> & { name: string }): StockItem => ({ id: uid(), category: null, supplier_id: null, supplier_sku: null,
+    product_url: null, unit: 'unit', pack_size: null, order_multiple: 1, cost_per_unit: null, vat_rate: 10, sell_price: null, on_hand: 0,
+    par_level: null, reorder_at: null, location: 'Storeroom', retail: false, notes: null, active: true, updated_at: nowIso(), ...i })
+  const stock: StockItem[] = [
+    stockItem({ name: 'House espresso blend', category: 'Coffee', supplier_id: 'sup-roaster', supplier_sku: 'ESP-HOUSE-1K', unit: 'kg', pack_size: '1 kg bag',
+      product_url: 'https://tostadoresdelsur.example/trade/house-espresso', cost_per_unit: 18.5, on_hand: 6, par_level: 12, reorder_at: 4 }),
+    stockItem({ name: 'Decaf beans', category: 'Coffee', supplier_id: 'sup-roaster', supplier_sku: 'DEC-1K', unit: 'kg', pack_size: '1 kg bag', cost_per_unit: 21,
+      on_hand: 1.5, par_level: 3, reorder_at: 1 }),
+    stockItem({ name: 'Guest filter coffee', category: 'Coffee', supplier_id: 'sup-roaster', supplier_sku: 'GUEST-500', unit: 'kg', pack_size: '500 g bag',
+      order_multiple: 0.5, cost_per_unit: 24, on_hand: 0.8, par_level: 3, reorder_at: 1 }),
+    stockItem({ name: 'Whole milk', category: 'Milk & dairy', supplier_id: 'sup-dairy', supplier_sku: 'LE-1L', unit: 'l', pack_size: '6 × 1 l', order_multiple: 6,
+      cost_per_unit: 0.95, on_hand: 14, par_level: 36, reorder_at: 12, location: 'Fridge' }),
+    stockItem({ name: 'Oat milk (barista)', category: 'Milk & dairy', supplier_id: 'sup-dairy', supplier_sku: 'AV-B-1L', unit: 'l', pack_size: '6 × 1 l',
+      order_multiple: 6, cost_per_unit: 1.45, on_hand: 8, par_level: 24, reorder_at: 10 }),
+    stockItem({ name: 'Almond milk', category: 'Milk & dairy', supplier_id: 'sup-dairy', supplier_sku: 'AL-1L', unit: 'l', pack_size: '6 × 1 l', order_multiple: 6,
+      cost_per_unit: 1.9, on_hand: 7, par_level: 12, reorder_at: 4 }),
+    stockItem({ name: 'Ceremonial matcha', category: 'Tea & matcha', supplier_id: 'sup-matcha', supplier_sku: 'MAT-100', pack_size: '100 g tin',
+      product_url: 'https://matchachai.example/wholesale/ceremonial-matcha', cost_per_unit: 14, on_hand: 2, par_level: 6, reorder_at: 2, location: 'Bar' }),
+    stockItem({ name: 'Chai concentrate', category: 'Tea & matcha', supplier_id: 'sup-matcha', unit: 'bottle', pack_size: '1 l', cost_per_unit: 9.5,
+      on_hand: 5, par_level: 6, reorder_at: 2, location: 'Fridge' }),
+    stockItem({ name: 'Vanilla syrup', category: 'Syrups & sauces', supplier_id: 'sup-cash', unit: 'bottle', pack_size: '70 cl', cost_per_unit: 6.2,
+      on_hand: 3, par_level: 6, reorder_at: 2, location: 'Bar' }),
+    stockItem({ name: 'Caramel syrup', category: 'Syrups & sauces', supplier_id: 'sup-cash', unit: 'bottle', pack_size: '70 cl', cost_per_unit: 6.2,
+      on_hand: 1, par_level: 6, reorder_at: 2, location: 'Bar' }),
+    stockItem({ name: 'Butter croissants', category: 'Bakery', supplier_id: 'sup-eric', order_multiple: 10, cost_per_unit: 0.85, on_hand: 18, par_level: 40,
+      reorder_at: 12, location: 'Bar' }),
+    stockItem({ name: 'Pain au chocolat', category: 'Bakery', supplier_id: 'sup-eric', order_multiple: 6, cost_per_unit: 0.95, on_hand: 6, par_level: 24,
+      reorder_at: 8, location: 'Bar' }),
+    stockItem({ name: 'Cups 8 oz', category: 'Packaging', supplier_id: 'sup-pack', supplier_sku: 'CUP-8-K', pack_size: '1000 per case', order_multiple: 1000,
+      cost_per_unit: 0.08, vat_rate: 21, on_hand: 650, par_level: 2000, reorder_at: 500, product_url: 'https://ecopack.example/shop/cups-8oz-kraft' }),
+    stockItem({ name: 'Lids 8 oz', category: 'Packaging', supplier_id: 'sup-pack', supplier_sku: 'LID-8', pack_size: '1000 per case', order_multiple: 1000,
+      cost_per_unit: 0.04, vat_rate: 21, on_hand: 300, par_level: 2000, reorder_at: 500 }),
+    stockItem({ name: 'Napkins', category: 'Packaging', supplier_id: 'sup-cash', unit: 'pack', pack_size: '500 napkins', cost_per_unit: 2.1, vat_rate: 21,
+      on_hand: 3, par_level: 10, reorder_at: 4 }),
+    stockItem({ name: 'Easy Beans house blend 250 g', category: 'Shop', supplier_id: 'sup-roaster', supplier_sku: 'EB-RET-250', unit: 'bag', cost_per_unit: 5.2,
+      sell_price: 12.5, on_hand: 14, par_level: 20, reorder_at: 6, location: 'Shop shelf', retail: true }),
+    stockItem({ name: 'Easy Beans tote bag', category: 'Shop', cost_per_unit: 4.5, sell_price: 15, vat_rate: 21, on_hand: 9, par_level: 12, reorder_at: 3,
+      location: 'Shop shelf', retail: true }),
+  ]
+  const movements: StockMovement[] = stock.slice(0, 6).map((i, n) => ({ id: uid(), item_id: i.id, at: new Date(Date.now() - (n + 1) * 86_400_000).toISOString(),
+    reason: n % 2 ? 'count' : 'delivery', change: n % 2 ? -1 : i.order_multiple * 2, counted: n % 2 ? i.on_hand : null, on_hand_after: i.on_hand,
+    note: null, by: null }))
   const expenses: Expense[] = ([
     ['Rent', 1530, 'Premises'], ['Staff wages', 4300, 'People'], ['Electricity', 200, 'Utilities'], ['Insurance', 100, 'Premises'],
     ['Council tax', 50, 'Premises'], ['Broadband', 20, 'Utilities'], ['Accountant', 100, 'Services'], ['Water', 50, 'Utilities'],
@@ -670,6 +735,8 @@ export function createDemoApi(): Api {
   const favourites: (SportsFavourite & { profile_id: string })[] = [{ profile_id: P.aron, kind: 'team', ref: 'Real Betis' }]
   const isAdmin = () => me()?.role === 'admin'
   const isPartner = () => me()?.role === 'partner'
+  const isStaff = () => me()?.role === 'admin' || me()?.role === 'employee'
+  const readStock = () => isStaff() || partnerCan('finances')
   /** Mirrors partner_can() in SQL: an active partner who was given that area. */
   const partnerCan = (area: PartnerArea) => !!(isPartner() && me()?.active && me()?.partner_access?.includes(area))
   const staffOnly = (p: Profile) => p.role === 'admin' || p.role === 'employee'
@@ -1267,6 +1334,67 @@ export function createDemoApi(): Api {
       giftCardList.push(card)
       giftActivity.unshift({ id: uid(), kind: 'activate', amount, at: card.created_at, last4: card.last4, balance: amount })
       return clone(card)
+    },
+    async suppliers() { return readStock() ? clone(suppliers).sort((a, b) => a.name.localeCompare(b.name)) : [] },
+    async saveSupplier({ id, ...patch }) {
+      requireAdmin()
+      if (!patch.name?.trim()) throw new Error('Give the supplier a name')
+      const row = { ...patch, name: patch.name.trim(), whatsapp: !!patch.phone && !!(patch.whatsapp ?? false) }
+      const existing = id ? suppliers.find(x => x.id === id) : undefined
+      if (existing) Object.assign(existing, row)
+      else suppliers.push(supplier({ ...row, id: uid() }))
+    },
+    async deleteSupplier(id) {
+      requireAdmin()
+      const i = suppliers.findIndex(x => x.id === id)
+      if (i >= 0) suppliers.splice(i, 1)
+      for (const item of stock) if (item.supplier_id === id) item.supplier_id = null
+    },
+    async stockItems() { return readStock() ? clone(stock).sort((a, b) => a.name.localeCompare(b.name)) : [] },
+    async saveStockItem({ id, ...patch }) {
+      requireAdmin()
+      if (!patch.name?.trim()) throw new Error('Give the item a name')
+      if (patch.reorder_at != null && patch.par_level != null && patch.reorder_at > patch.par_level) throw new Error('Reorder at can’t be more than the par level')
+      const existing = id ? stock.find(x => x.id === id) : undefined
+      // How many are in changes only through a delivery, count…: editing an item keeps it.
+      if (existing) Object.assign(existing, { ...patch, name: patch.name.trim(), on_hand: existing.on_hand, updated_at: nowIso() })
+      else stock.push(stockItem({ ...patch, name: patch.name.trim() }))
+    },
+    async deleteStockItem(id) {
+      requireAdmin()
+      const i = stock.findIndex(x => x.id === id)
+      if (i >= 0) stock.splice(i, 1)
+    },
+    async importStockItems(rows) {
+      requireAdmin()
+      for (const r of rows) stock.push(stockItem({ ...r, name: r.name.trim() }))
+      return rows.length
+    },
+    async stockMovements(itemId) {
+      if (!readStock()) return []
+      return clone(movements.filter(m => !itemId || m.item_id === itemId)).sort((a, b) => b.at.localeCompare(a.at))
+    },
+    async recordStock(moves: MovementInput[]) {
+      if (!isStaff()) throw new Error('Only the team records stock')
+      // Check them all first: the database takes all or none.
+      const checked = moves.map(m => {
+        const item = stock.find(x => x.id === m.item_id)
+        if (!item) throw new Error('No such stock item')
+        if (m.reason === 'count') {
+          if (m.counted === undefined || !(m.counted >= 0)) throw new Error('Enter how many you counted')
+          return { m, item }
+        }
+        if (!m.change) throw new Error('Enter how many')
+        if (m.reason === 'delivery' && m.change < 0) throw new Error('A delivery adds stock')
+        if (['waste', 'sold', 'used'].includes(m.reason) && m.change > 0) throw new Error('Waste, used and sold take stock away')
+        return { m, item }
+      })
+      for (const { m, item } of checked) {
+        const change = m.reason === 'count' ? m.counted! - item.on_hand : m.change!
+        item.on_hand = Math.round((item.on_hand + change) * 100) / 100
+        movements.push({ id: uid(), item_id: item.id, at: nowIso(), reason: m.reason, change, counted: m.reason === 'count' ? m.counted! : null,
+          on_hand_after: item.on_hand, note: m.note?.trim() || null, by: me()?.id ?? null })
+      }
     },
     async customers() {
       if (!isAdmin()) return []
