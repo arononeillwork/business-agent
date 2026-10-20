@@ -17,6 +17,7 @@ import { authEmail } from './authEmail'
 import { billing, planBlocksInvite, syncBilling } from './billing'
 import { referrals } from './referrals'
 import { tax } from './tax'
+import { loyaltyRoutes } from './loyalty'
 
 const NIGHTLY = '15 1 * * *' // 03:15 Madrid in summer, 02:15 in winter
 
@@ -189,6 +190,8 @@ app.route('/', referrals)
 
 // Tax documents into the café's Drive or OneDrive (Tax page).
 app.route('/', tax)
+// Square loyalty (the stamp card) and gift cards, for the Loyalty page.
+app.route('/', loyaltyRoutes)
 
 // Business Agent's own subscription (Stripe Billing): plans, checkout, portal, webhook.
 app.route('/', billing)

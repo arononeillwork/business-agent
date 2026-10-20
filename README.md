@@ -33,6 +33,8 @@ built-in **AI connector** so owners can run it by talking to Claude.
   **Profit & loss** (month by month: takings without IVA, cost of sales, the team from timecards or
   the rota with Social Security on top, running costs and one-off lines; an estimate, exported to
   Excel, CSV or PDF like every Accounts table).
+  With Square, **Loyalty & gift cards** (Sales section) shows the Square loyalty programme as the
+  café's stamp card with its members, and the gift cards with what's still owed on them.
   Search Console shows how the website does on Google.
 - Tax: the returns an SL files (303, 111, 115, 202, 390, 190, 180, 347, 200 and the annual accounts) with
   their last days, marked to do, with the gestoría or filed; documents (invoices, receipts, payslips,

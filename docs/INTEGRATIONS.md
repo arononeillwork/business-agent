@@ -324,10 +324,13 @@ the hour; with it, within seconds.
    account the till uses and press **Allow**. You come back connected; "Connected" means the business
    and at least one open location were found. Every active location is included.
 
-Permissions asked for, all read only: `MERCHANT_PROFILE_READ` (business name and locations),
-`PAYMENTS_READ` (takings, tips, refunds, card/cash), `ORDERS_READ` (what was sold, for best
-sellers) and `CUSTOMERS_READ` (the customer directory, for Customers). The app can't take, move or
-refund money, or change anything in Square.
+Permissions asked for: `MERCHANT_PROFILE_READ` (business name and locations), `PAYMENTS_READ`
+(takings, tips, refunds, card/cash), `ORDERS_READ` (what was sold, for best sellers),
+`CUSTOMERS_READ` (the customer directory, for Customers), `LOYALTY_READ` and `GIFTCARDS_READ` (the
+loyalty programme and gift cards, for Loyalty & gift cards) and `LOYALTY_WRITE` and
+`GIFTCARDS_WRITE` for the only two changes the app makes in Square: goodwill points for a member
+(with a reason Square keeps) and selling a digital gift card an admin confirms. Both send an
+idempotency key, so trying again never gives twice. The app can't take, move or refund money.
 
 Testing with Sandbox: in the Developer Console open **Sandbox test accounts → Default Test Account →
 Open in Square Dashboard** first (Square only lets a sandbox seller authorise while that dashboard is
@@ -352,12 +355,21 @@ What shows where (admins who can see pay only; Pro plan and up):
   stay. Nobody is ticked as agreeing to marketing (Square doesn't record that yes), and deleting
   someone in Square doesn't delete them here. People without a name, email or phone are left out,
   as is a birthday with no year.
+- **Sales → Loyalty & gift cards** (admins; in the menu only while Square is connected): the
+  loyalty programme set up in Square Dashboard → Loyalty. One that gives points per visit is shown
+  as the stamp card ("9 stamps, then a free coffee"); one by spend shows points. Its members (named
+  from Customers), what they earned and redeemed, and goodwill points. Gift cards with the balance
+  still owed on them, what was sold and spent, and "Sell a gift card" (a digital card, activated at
+  the first location for an amount taken at the till). Card numbers only ever show their last 4 digits.
+  No programme yet: the page explains how to make one in Square (the app doesn't create programmes).
 
 Access lasts 30 days and is renewed a week before it runs out; if it stops working, admins get a
 notification. A business connected **before best sellers were added** keeps its takings, and the
 Best sellers card asks for one reconnect (Connections → Square → Connect Square again) to allow
 `ORDERS_READ`. The same goes for customers: a connection made before they were added needs one
-reconnect to allow `CUSTOMERS_READ`; until then takings carry on and no customers come in.
+reconnect to allow `CUSTOMERS_READ`; until then takings carry on and no customers come in. And for
+loyalty and gift cards: until a reconnect allows the four `LOYALTY_*`/`GIFTCARDS_*` permissions, that
+page says "Reconnect Square to allow loyalty and gift cards" with the button to do it.
 
 ## 10. Stripe (online payments, on top of the till)
 

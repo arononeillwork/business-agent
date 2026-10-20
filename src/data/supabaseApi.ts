@@ -4,6 +4,7 @@ import type { ApiKey, AppNotification, Brand, Business, Customer, SocialPost, Ev
 import type { InstagramMention } from '../../shared/mentions'
 import type { FilingRecord, TaxDocument, TaxSettings } from '../../shared/tax'
 import { DEFAULT_VAT_RATE, type PnlLine, type PnlSettings } from '../../shared/pnl'
+import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
 import type { ReferralState } from '../../shared/referrals'
 import { readyPhoto } from '../lib/media'
@@ -504,6 +505,14 @@ export function createSupabaseApi(url: string, key: string): Api {
     },
     async deleteSocialPost(id) { check(await sb.from('social_posts').delete().eq('id', id)) },
     async markPosted(id) { check(await sb.from('social_posts').update({ status: 'published' }).eq('id', id)) },
+    loyalty: (from, to) => worker<LoyaltyState>(`/api/loyalty?from=${from}&to=${to}`),
+    async adjustLoyalty(accountId, points, reason, key) {
+      await worker('/api/loyalty/adjust', { method: 'POST', body: JSON.stringify({ account_id: accountId, points, reason, key }) })
+    },
+    giftCards: (from, to) => worker<GiftCards>(`/api/giftcards?from=${from}&to=${to}`),
+    async sellGiftCard(amount, customerId, key) {
+      return (await worker<{ card: GiftCard }>('/api/giftcards', { method: 'POST', body: JSON.stringify({ amount, customer_id: customerId, key }) })).card
+    },
     async uploadMedia(file, folder) {
       const { url, type } = await worker<{ url: string; type: 'image' | 'video' }>(`/api/integrations/media?folder=${folder}`, {
         method: 'POST', body: file, headers: { 'content-type': file.type } })

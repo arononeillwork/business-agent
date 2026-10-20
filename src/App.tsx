@@ -44,6 +44,7 @@ const SocialPlannerPage = page(() => import('./pages/SocialPlannerPage'), 'Socia
 const PartnersPage = page(() => import('./pages/PartnersPage'), 'PartnersPage')
 const TodoPage = page(() => import('./pages/TodoPage'), 'TodoPage')
 const CustomersPage = page(() => import('./pages/CustomersPage'), 'CustomersPage')
+const LoyaltyPage = page(() => import('./pages/LoyaltyPage'), 'LoyaltyPage')
 const RegistroPage = page(() => import('./pages/RegistroPage'), 'RegistroPage')
 const OpeningHoursPage = page(() => import('./pages/OpeningHoursPage'), 'OpeningHoursPage')
 const AppearancePage = page(() => import('./pages/AppearancePage'), 'AppearancePage')
@@ -115,6 +116,8 @@ function Routed() {
         <Route path="team" element={<TeamPage />} />
         <Route path="business" element={<BusinessPage />} />
         <Route path="customers" element={isAdmin ? <CustomersPage /> : <Navigate to="/" />} />
+        {/* Only while Square is the till: the page itself goes to Connections otherwise. */}
+        <Route path="loyalty" element={isAdmin ? <LoyaltyPage /> : <Navigate to="/" />} />
         <Route path="todo" element={<TodoPage />} />
         <Route path="opening-hours" element={<OpeningHoursPage />} />
         <Route path="brand" element={<BrandPage />} />

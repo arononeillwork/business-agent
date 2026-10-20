@@ -3152,3 +3152,76 @@ test.describe('pages: hide what you don’t use', () => {
     await expect(page.getByRole('option', { name: /Music/ })).toHaveCount(0)
   })
 })
+
+test.describe('loyalty and gift cards', () => {
+  /** Connect Square on Connections, then open Loyalty & gift cards from the menu (it only shows once Square is the till). */
+  async function openLoyalty(page: Page) {
+    await open(page, '/connections')
+    await expect(page.getByRole('link', { name: 'Loyalty & gift cards' })).toHaveCount(0)
+    const payments = page.getByRole('region', { name: 'Payments and sales' })
+    await payments.getByRole('button', { name: 'Connect Square' }).click()
+    await expect(payments.getByRole('article', { name: 'Square' })).toContainText('Connected')
+    // The menu item has only just appeared (the sidebar shifts as it does): press it once it's settled.
+    await expect(async () => {
+      await page.getByRole('link', { name: 'Loyalty & gift cards' }).first().click()
+      await expect(page.getByRole('heading', { name: 'Loyalty & gift cards' })).toBeVisible({ timeout: 2000 })
+    }).toPass()
+  }
+
+  test('the stamp card from Square, its members, and goodwill stamps for one of them', async ({ page }) => {
+    await openLoyalty(page)
+    await expect(page.getByRole('img', { name: '9 stamps, then Free coffee (the 10th)' })).toBeVisible()
+    await expect(page.getByRole('list', { name: 'At a glance' })).toContainText('Members40')
+    const members = page.getByRole('region', { name: 'Members' })
+    const lucia = members.getByRole('row').filter({ hasText: 'Lucía García' })
+    await expect(lucia).toContainText('8 of 9')
+    await lucia.getByRole('button', { name: 'Adjust Lucía García' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Adjust Lucía García' })
+    await expect(dialog.getByRole('button', { name: 'Save' })).toBeDisabled() // a reason is needed
+    await dialog.getByRole('textbox', { name: 'Why' }).fill('Waited too long on Saturday')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await toast(page, 'Lucía García: +1 stamps')
+    await expect(lucia).toContainText('0 of 9')
+    await expect(lucia).toContainText('1 reward waiting')
+    await members.getByRole('button', { name: 'Export' }).click()
+    await expect(page.getByRole('menuitem', { name: /Excel/ })).toBeVisible()
+    await expect(page.getByRole('menuitem', { name: /CSV/ })).toBeVisible()
+  })
+
+  test('gift cards show only their last 4 digits; selling one asks for confirmation first', async ({ page }) => {
+    await openLoyalty(page)
+    const cards = page.getByRole('table', { name: 'Gift cards' })
+    await expect(cards.getByRole('row')).toHaveCount(9) // the heading row and 8 cards
+    await expect(cards).toContainText('•••• ')
+    await page.getByRole('button', { name: 'Sell a gift card' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Sell a digital gift card' })
+    await dialog.getByRole('textbox', { name: 'Amount' }).fill('2')
+    await expect(dialog).toContainText('Gift cards start at €5')
+    await expect(dialog.getByRole('button', { name: 'Next' })).toBeDisabled()
+    await dialog.getByRole('textbox', { name: 'Amount' }).fill('30')
+    await dialog.getByRole('button', { name: 'Next' }).click()
+    const confirm = page.getByRole('dialog', { name: 'Sell this gift card?' })
+    await expect(confirm).toContainText('active straight away')
+    await confirm.getByRole('button', { name: /^Sell for/ }).click()
+    await toast(page, /Gift card for .*30.* is active/)
+    await expect(cards.getByRole('row')).toHaveCount(10)
+  })
+
+  test('the menu item goes once Square is disconnected', async ({ page }) => {
+    await openLoyalty(page)
+    await page.getByRole('link', { name: 'Connections' }).first().click()
+    await page.getByRole('button', { name: 'Manage Square' }).click()
+    await page.getByRole('dialog', { name: 'Square' }).getByRole('button', { name: 'Disconnect' }).click()
+    await toast(page, 'Square disconnected')
+    await expect(page.getByRole('link', { name: 'Loyalty & gift cards' })).toHaveCount(0)
+  })
+
+  test('employees don’t get loyalty and gift cards', async ({ page }) => {
+    await open(page, '/', 'maria@example.com')
+    await expect(page.getByRole('heading', { name: /Hola/ })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Loyalty & gift cards' })).toHaveCount(0)
+    await page.goto('/loyalty?demo')
+    await expect(page.getByRole('heading', { name: /Hola/ })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Loyalty & gift cards' })).toHaveCount(0)
+  })
+})

@@ -9,6 +9,7 @@ import CalendarIcon from '@mui/icons-material/EventOutlined'
 import TeamIcon from '@mui/icons-material/PeopleAltOutlined'
 import BusinessIcon from '@mui/icons-material/StorefrontOutlined'
 import CustomersIcon from '@mui/icons-material/ContactsOutlined'
+import LoyaltyIcon from '@mui/icons-material/LoyaltyOutlined'
 import TodoIcon from '@mui/icons-material/ChecklistRtlOutlined'
 import HoursIcon from '@mui/icons-material/ScheduleOutlined'
 import BrandIcon from '@mui/icons-material/BrushOutlined'
@@ -47,6 +48,7 @@ import { Link, Outlet, useLocation } from 'react-router-dom'
 import { useApp } from './AppContext'
 import { FEATURES } from './features'
 import { useUnreadMessages } from './unread'
+import { useConnected } from './connected'
 import type { PartnerArea } from '../../shared/types'
 import { BrandLogo } from '../components/Logo'
 import { Loading, PersonAvatar } from '../components/common'
@@ -60,7 +62,8 @@ import { LanguageToggle } from '../components/Language'
 
 // `partner`: which partner areas show the item ('any' = every partner). Items without it are staff-only.
 // `children`: sub-pages, shown indented under the item when it's opened (or its arrow is pressed).
-export interface NavItem { key: string; to: string; label: string; short?: string; icon: ReactNode; who?: 'admin' | 'pay'; partner?: PartnerArea[] | 'any'; children?: NavItem[] }
+// `needs`: shown only while that app is connected (Loyalty & gift cards: Square).
+export interface NavItem { key: string; to: string; label: string; short?: string; icon: ReactNode; who?: 'admin' | 'pay'; partner?: PartnerArea[] | 'any'; children?: NavItem[]; needs?: 'square' }
 export interface NavSection { key: string; label: string | null; items: NavItem[] }
 
 // The menu, in sections. Today is the landing page: the logo goes there, so it has no menu item.
@@ -77,6 +80,7 @@ export const SECTIONS: NavSection[] = [
   { key: 'sales', label: msg('Sales'), items: [
     { key: 'sales', to: '/sales', label: msg('Sales'), icon: <SalesIcon />, who: 'pay' },
     { key: 'customers', to: '/customers', label: msg('Customers'), icon: <CustomersIcon />, who: 'admin' },
+    { key: 'loyalty', to: '/loyalty', label: msg('Loyalty & gift cards'), short: msg('Loyalty'), icon: <LoyaltyIcon />, who: 'admin', needs: 'square' },
   ] },
   { key: 'accounts', label: msg('Accounts'), items: [
     { key: 'finances', to: '/finances', label: msg('Finances'), icon: <FinanceIcon />, who: 'pay', partner: ['finances'] },
@@ -491,7 +495,8 @@ export function AppShell() {
   const badges: NavBadges = unread > 0 ? { messages: unread } : {}
   // Pages they can open, less the ones hidden from their menu (they still open from a link).
   const hidden = hiddenPages(settings, me)
-  const allowed = (n: NavItem) => canOpen(n, { isAdmin, isPartner, canSeePay, partnerCan }) && !hidden.has(n.key)
+  const square = useConnected('square')
+  const allowed = (n: NavItem) => (n.needs !== 'square' || square === true) && canOpen(n, { isAdmin, isPartner, canSeePay, partnerCan }) && !hidden.has(n.key)
   // Page order within sections: the person's own, kept locally while it saves.
   const [navOrder, setNavOrder] = useState<Record<string, string[]> | undefined>(me?.preferences?.navOrder)
   useEffect(() => setNavOrder(me?.preferences?.navOrder), [me?.preferences?.navOrder])

@@ -8,6 +8,7 @@ import type { InstagramMention } from '../../shared/mentions'
 import type { FilingRecord, Quarter, TaxDocKind, TaxDocument, TaxSettings } from '../../shared/tax'
 import type { PnlLine, PnlLineInput, PnlSettings } from '../../shared/pnl'
 import type { GrantApplication, GrantApplicationInput, GrantProfile } from '../../shared/grants'
+import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
 
 export type ShiftInput = Omit<Shift, 'id' | 'status'> & { id?: string; status?: Shift['status'] }
 export type EventInput = Omit<CalendarEvent, 'id' | 'source' | 'competition'> & { id?: string; competition?: string | null }
@@ -221,6 +222,15 @@ export interface Api {
   sales(from: string, to: string): Promise<Sales>
   /** Best sellers from Square's orders, same dates and rules as `sales`. */
   salesItems(from: string, to: string): Promise<SalesItems>
+
+  // Loyalty and gift cards, from Square (admins, while Square is the connected till). `key`: one per
+  // action the person takes, so trying again never gives points or a card twice.
+  loyalty(from: string, to: string): Promise<LoyaltyState>
+  /** Goodwill points for a member (negative takes some back), with the reason Square keeps. */
+  adjustLoyalty(accountId: string, points: number, reason: string, key: string): Promise<void>
+  giftCards(from: string, to: string): Promise<GiftCards>
+  /** Sell a digital gift card for an amount paid at the till, optionally for a Square customer. */
+  sellGiftCard(amount: number, customerId: string | null, key: string): Promise<GiftCard>
 
   // Social planner (admins)
   socialPosts(): Promise<SocialPost[]>
