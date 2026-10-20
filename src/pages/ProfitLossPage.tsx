@@ -17,7 +17,7 @@ import { tillsOf } from '../components/till'
 import type { ExportTable } from '../lib/export'
 import { buildPnl, COST_OF_SALES, monthsBetween, PEOPLE, yearBefore, type Pnl, type PnlLine, type PnlRow } from '../../shared/pnl'
 import { addDays, currencySymbol, formatLocal, formatMoney, today, zonedIso } from '../../shared/time'
-import { msg, t } from '../i18n'
+import { msg, t, tc } from '../i18n'
 import { tokens } from '../theme'
 
 type Period = 'year' | '12' | 'quarter' | 'lastquarter' | 'custom'
@@ -272,7 +272,7 @@ function OneOffLines({ lines, months, canEdit }: { lines: PnlLine[]; months: str
                   <TableRow key={l.id} hover>
                     <TableCell>{monthName(monthOf(l.month), 'MMMM yyyy')}</TableCell>
                     <TableCell sx={{ fontWeight: 500 }}>{l.label}</TableCell>
-                    <TableCell>{l.kind === 'income' ? <Tag fg={tokens.matchaDeep}>{t('Income')}</Tag> : <Tag>{l.category ? t(l.category) : t('Cost')}</Tag>}</TableCell>
+                    <TableCell>{l.kind === 'income' ? <Tag fg={tokens.matchaDeep}>{t('Income')}</Tag> : <Tag>{l.category ? t(l.category) : tc('expense', 'Cost')}</Tag>}</TableCell>
                     <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{l.kind === 'cost' ? '−' : ''}{formatMoney(l.amount)}</TableCell>
                     {canEdit && (
                       <TableCell align="right" sx={{ whiteSpace: 'nowrap', width: 96 }}>
@@ -312,7 +312,7 @@ function LineDialog({ line, months, onClose }: { line: Partial<PnlLine>; months:
         <Stack spacing={2} sx={{ mt: 1 }}>
           <TextField select label={t('Income or cost')} value={d.kind ?? 'cost'} onChange={e => setD({ ...d, kind: e.target.value as PnlLine['kind'] })}>
             <MenuItem value="income">{t('Income')}</MenuItem>
-            <MenuItem value="cost">{t('Cost')}</MenuItem>
+            <MenuItem value="cost">{tc('expense', 'Cost')}</MenuItem>
           </TextField>
           <TextField label={t('What it is')} value={d.label ?? ''} onChange={e => setD({ ...d, label: e.target.value })} autoFocus
             placeholder={d.kind === 'income' ? t('For example a grant paid out') : t('For example Grinder repair')} />

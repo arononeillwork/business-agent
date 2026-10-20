@@ -36,7 +36,7 @@ export default {
     'Para lo que la caja y Finanzas no saben: una subvención cobrada, una reparación, existencias para un evento.',
   'No one-off lines in these months.': 'No hay partidas puntuales en estos meses.',
   'Amount': 'Importe',
-  'Cost': 'Gasto',
+  'expense|Cost': 'Gasto',
   'Line removed': 'Partida eliminada',
   'Line saved': 'Partida guardada',
   'Change the line': 'Cambiar la partida',
