@@ -5,6 +5,7 @@ import { msg } from './i18n'
 import { DAY_KEYS, type DayKey } from './types'
 import { addDays, dayKey, localDate, localTime } from './time'
 import { cleanPhone, decodeCsv, parseCsv } from './customers'
+import type { WasteReason } from './recipes'
 
 export interface Supplier {
   id: string
@@ -96,9 +97,11 @@ export interface StockMovement {
   on_hand_after: number
   note: string | null
   by: string | null
+  /** Waste only: why. */
+  waste_reason: WasteReason | null
 }
 /** A delivery, waste… (change: how many in or out) or a count (counted: the figure). */
-export type MovementInput = { item_id: string; reason: MovementReason; change?: number; counted?: number; note?: string | null }
+export type MovementInput = { item_id: string; reason: MovementReason; change?: number; counted?: number; note?: string | null; waste_reason?: WasteReason }
 
 const round2 = (n: number) => Math.round(n * 100) / 100
 

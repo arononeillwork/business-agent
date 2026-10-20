@@ -31,6 +31,9 @@ built-in **AI connector** so owners can run it by talking to Claude.
   supplier, link, cost and reorder level. The team records deliveries, counts and waste (or a whole
   stocktake at once); the order list groups what's low by supplier, with the order day and a message
   ready for WhatsApp or email. Suppliers keep their contact details, website, order page and order days.
+  Menu costing works out what each drink or dish costs from the stock in it (with variants such as oat
+  milk or an extra shot, and a waste allowance) and its margin against the menu price; the Waste log
+  takes what's thrown away and why off the stock, with its cost for admins.
   Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) sections 7-13.
 
 See [docs/PLAN.md](docs/PLAN.md) for decisions, architecture and phases.
