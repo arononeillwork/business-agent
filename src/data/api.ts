@@ -5,6 +5,8 @@ import type { InboxConversation, InboxState, InboxThread } from '../../shared/me
 import type { ReferralState } from '../../shared/referrals'
 import type { KindInfo } from '../../shared/social'
 import type { InstagramMention } from '../../shared/mentions'
+import type { ReviewsState } from '../../shared/reviews'
+import type { PageSpeed, Strategy, WebsiteReport, WebsiteState } from '../../shared/seo'
 
 export type ShiftInput = Omit<Shift, 'id' | 'status'> & { id?: string; status?: Shift['status'] }
 export type EventInput = Omit<CalendarEvent, 'id' | 'source' | 'competition'> & { id?: string; competition?: string | null }
@@ -179,6 +181,15 @@ export interface Api {
   chooseSearchConsoleSite(site: string): Promise<void>
   /** How the website did in Google Search (admins), from and to inclusive. Google is 2–3 days behind. */
   searchConsole(from: string, to: string): Promise<SearchReport>
+  // Reviews (admins): Google reviews, read now from the business's profile (or the public listing until that's approved).
+  reviews(): Promise<ReviewsState>
+  /** Reply to a review on Google (or change the reply). Only with the business's own profile. */
+  replyReview(id: string, text: string): Promise<void>
+  deleteReviewReply(id: string): Promise<void>
+  // Website & SEO (admins): the last check and PageSpeed results; run either again.
+  website(): Promise<WebsiteState>
+  checkWebsite(): Promise<WebsiteReport>
+  pageSpeed(strategy: Strategy): Promise<PageSpeed>
   /** Takings per day from Square, Stripe or SumUp (admins with pay access), from and to inclusive. */
   sales(from: string, to: string): Promise<Sales>
   /** Best sellers from Square's orders, same dates and rules as `sales`. */

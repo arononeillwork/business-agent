@@ -26,8 +26,10 @@ built-in **AI connector** so owners can run it by talking to Claude.
   Maps; each network's result links to the live post. Stripe, Square or SumUp connects as the till: the Accounts
   section has **Sales** (a Square-style dashboard: sales against the period before, busiest hours and
   days, how people paid, best sellers) and **Finances** (running costs, takings next to team cost).
-  Search Console shows how the website does on Google.
-  Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) sections 7-13.
+  Search Console shows how the website does on Google. **Reviews** reads the Google reviews (new
+  ones in the bell, replies from templates in the review's language) and **Website & SEO** checks
+  the website (SEO, Google PageSpeed, the same details as the app and Google Maps).
+  Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) sections 7-15.
 
 See [docs/PLAN.md](docs/PLAN.md) for decisions, architecture and phases.
 

@@ -153,6 +153,49 @@ export async function createPost(token: string, account: string, location: strin
     { method: 'POST', body: JSON.stringify(body) })
 }
 
+// Reviews on the business's own profile. Still on the v4 host: Google moved the rest of this API to
+// v1 and left reviews behind. Needs the same business.manage permission as hours and posts.
+export interface GoogleReview {
+  name: string; reviewId?: string; starRating?: string; comment?: string; createTime?: string; updateTime?: string
+  reviewer?: { displayName?: string; isAnonymous?: boolean }
+  reviewReply?: { comment?: string; updateTime?: string }
+}
+
+/** Every review of the listing, newest first (up to `max`, 50 a page). */
+export async function listReviews(token: string, account: string, location: string, max = 500): Promise<GoogleReview[]> {
+  const locationId = location.split('/').pop()
+  const out: GoogleReview[] = []
+  let page: string | undefined
+  do {
+    const q = new URLSearchParams({ pageSize: '50', orderBy: 'updateTime desc', ...(page ? { pageToken: page } : {}) })
+    const r = await gfetch<{ reviews?: GoogleReview[]; nextPageToken?: string }>(token,
+      `https://mybusiness.googleapis.com/v4/${account}/locations/${locationId}/reviews?${q}`)
+    out.push(...(r.reviews ?? []))
+    page = r.nextPageToken
+  } while (page && out.length < max)
+  return out
+}
+
+/** Reply to a review (or change the reply): `name` is the review's accounts/…/locations/…/reviews/… path. */
+export const replyToReview = (token: string, name: string, comment: string) =>
+  gfetch<{ comment?: string; updateTime?: string }>(token, `https://mybusiness.googleapis.com/v4/${name}/reply`, { method: 'PUT', body: JSON.stringify({ comment }) })
+
+export const deleteReviewReply = (token: string, name: string) =>
+  gfetch(token, `https://mybusiness.googleapis.com/v4/${name}/reply`, { method: 'DELETE' })
+
+/** The listing's name, phone, address and hours, to compare with the app and the website. */
+export async function listingFacts(token: string, location: string) {
+  const l = await gfetch<{ title?: string; phoneNumbers?: { primaryPhone?: string }; regularHours?: { periods?: GPeriod[] }
+    storefrontAddress?: { addressLines?: string[]; postalCode?: string; locality?: string } }>(token,
+    `https://mybusinessbusinessinformation.googleapis.com/v1/${location}?readMask=title,phoneNumbers,storefrontAddress,regularHours`)
+  const a = l.storefrontAddress
+  return {
+    name: l.title ?? null, phone: l.phoneNumbers?.primaryPhone ?? null,
+    address: a ? [...(a.addressLines ?? []), [a.postalCode, a.locality].filter(Boolean).join(' ')].filter(Boolean).join(', ') : null,
+    hours: l.regularHours ? fromGoogleHours(l.regularHours) : null,
+  }
+}
+
 // ---------------------------------------------------------------------------------------------
 // Gmail and Google Drive: the café's mailbox sends alerts; exports are saved to its Drive.
 // ---------------------------------------------------------------------------------------------

@@ -11,6 +11,9 @@ export interface Env {
   MEDIA?: R2Bucket
   // Integrations (secrets unless noted). Anything missing shows as "needs setup" in the app.
   GOOGLE_FONTS_API_KEY?: string       // optional: official Google Fonts list (brand page)
+  GOOGLE_PLACES_API_KEY?: string      // optional: Google reviews from the public listing until Business Profile access is approved
+  GOOGLE_PLACE_ID?: string            // the café's Google Maps place id, for the above
+  GOOGLE_PAGESPEED_API_KEY?: string   // optional: PageSpeed Insights beyond its small keyless quota (Website & SEO)
   INTEGRATION_KEY?: string            // encrypts stored tokens, signs OAuth state
   GOOGLE_CLIENT_ID?: string
   GOOGLE_CLIENT_SECRET?: string

@@ -30,7 +30,10 @@ function matcher(params: URLSearchParams) {
     if (['select', 'order', 'limit', 'offset', 'on_conflict', 'columns'].includes(key)) continue
     const dot = raw.indexOf('.')
     const op = raw.slice(0, dot), arg = raw.slice(dot + 1)
-    const v = (r: Row) => r[key] == null ? null : String(r[key])
+    // A field inside a json column ("data->>review") or the column itself.
+    const [col, inner] = key.split('->>')
+    const at = (r: Row) => (inner ? (r[col] as Row | null | undefined)?.[inner] : r[key])
+    const v = (r: Row) => at(r) == null ? null : String(at(r))
     if (op === 'eq') tests.push(r => v(r) === arg)
     else if (op === 'neq') tests.push(r => v(r) !== arg)
     else if (op === 'is') tests.push(r => arg === 'null' ? r[key] == null : v(r) === arg)
