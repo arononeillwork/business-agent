@@ -54,6 +54,32 @@ export async function sendMail(token: string, m: { to: string; subject: string; 
   })
 }
 
+// Outlook, read (Invoices): emails with files attached that could be invoices. Needs Mail.Read.
+/** Emails from the last `days` with attachments, newest first, each with who sent it and its files. */
+export async function outlookWithAttachments(token: string, days: number, max = 40) {
+  const since = new Date(Date.now() - days * 86_400_000).toISOString()
+  const filter = encodeURIComponent(`hasAttachments eq true and receivedDateTime ge ${since}`)
+  const list = await graph<{ value: { id: string; subject?: string; receivedDateTime: string; from?: { emailAddress?: { name?: string; address?: string } } }[] }>(token,
+    `/me/messages?$filter=${filter}&$orderby=receivedDateTime desc&$top=${max}&$select=id,subject,receivedDateTime,from`)
+  const out = []
+  for (const m of list.value) {
+    const files = await graph<{ value: { id: string; name: string; size: number; contentType?: string; '@odata.type'?: string }[] }>(token,
+      `/me/messages/${encodeURIComponent(m.id)}/attachments?$select=id,name,size,contentType`)
+    const a = m.from?.emailAddress
+    out.push({ id: m.id, from: a?.name ? `${a.name} <${a.address ?? ''}>` : a?.address ?? '', subject: m.subject ?? '', at: m.receivedDateTime,
+      files: files.value.filter(f => !f['@odata.type'] || f['@odata.type'] === '#microsoft.graph.fileAttachment')
+        .map(f => ({ id: f.id, name: f.name, size: f.size, type: f.contentType ?? '' })) })
+  }
+  return out
+}
+
+/** An attachment's bytes. */
+export async function outlookAttachment(token: string, message: string, attachment: string) {
+  const res = await fetch(`${GRAPH}/me/messages/${encodeURIComponent(message)}/attachments/${encodeURIComponent(attachment)}/$value`, { headers: { authorization: `Bearer ${token}` } })
+  if (!res.ok) throw new Error(`Microsoft: the attachment couldn’t be read (${res.status})`)
+  return new Uint8Array(await res.arrayBuffer())
+}
+
 /** The app's "Business Agent" folder in OneDrive (created if missing); returns its id. */
 export async function ensureFolder(token: string) {
   const res = await fetch(`${GRAPH}/me/drive/root:/Business%20Agent`, { headers: { authorization: `Bearer ${token}` } })

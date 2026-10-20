@@ -3,6 +3,7 @@ import { SOCIAL_PROVIDERS, type Api, type BillingInfo, type PlanStatus, type Sig
 import type { ApiKey, AppNotification, Brand, Business, Customer, SocialPost, EventAlert, Expense, Integration, MusicPlaylist, OutboxItem, Profile, Settings, TimeEntry, TimeOff, Todo, TodoCategory, CafeTrack, MusicPlayerState } from '../../shared/types'
 import type { InstagramMention } from '../../shared/mentions'
 import type { FilingRecord, TaxDocument, TaxSettings } from '../../shared/tax'
+import type { Invoice } from '../../shared/invoices'
 import { DEFAULT_VAT_RATE, type PnlLine, type PnlSettings } from '../../shared/pnl'
 import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
 import type { StockItem, StockMovement, Supplier } from '../../shared/stock'
@@ -361,6 +362,25 @@ export function createSupabaseApi(url: string, key: string): Api {
     },
     async deleteExpense(id) { check(await sb.from('expenses').delete().eq('id', id)) },
 
+    async invoices() {
+      const rows = check(await sb.from('invoices').select('*, document:tax_documents(name, link)').order('issued_on', { ascending: false, nullsFirst: true })
+        .order('created_at', { ascending: false })) as (Invoice & { document: { name: string; link: string | null } | null })[]
+      const n = (v: unknown) => (v === null || v === undefined ? null : Number(v))
+      return rows.map(r => ({ ...r, net: n(r.net), vat: n(r.vat), total: n(r.total) }))
+    },
+    async saveInvoice({ id, ...i }) {
+      const { document: _doc, created_at: _at, ...row } = i as typeof i & { document?: unknown; created_at?: unknown }
+      if (id) { check(await sb.from('invoices').update(row).eq('id', id)); return id }
+      return (check(await sb.from('invoices').insert(row).select('id').single()) as { id: string }).id
+    },
+    async deleteInvoice(id) { check(await sb.from('invoices').delete().eq('id', id)) },
+    invoiceInbox: days => worker(`/api/invoices/inbox${days ? `?days=${days}` : ''}`),
+    async importInvoice(m, attachment, supplierId) {
+      const a = m.attachments.find(x => x.id === attachment)!
+      return (await worker<{ invoice: Invoice }>('/api/invoices/import', { method: 'POST', body: JSON.stringify({
+        message: m.id, attachment, name: a.name, at: m.at, from: m.from_name ? `${m.from_name} <${m.from}>` : m.from, from_name: m.from_name, subject: m.subject,
+        supplier_id: supplierId ?? m.supplier_id }) })).invoice
+    },
     async taxSettings() {
       return check(await sb.from('tax_settings').select('withholding, rent, intra_eu, instalments, gestor_email').eq('id', 1).single()) as TaxSettings
     },
@@ -595,8 +615,8 @@ export function createSupabaseApi(url: string, key: string): Api {
     async syncGoogleNow() { await worker('/api/integrations/google/sync', { method: 'POST' }) },
     async googleHours() { return (await worker<{ opening_hours: never }>('/api/integrations/google/hours')).opening_hours },
     async disconnect(provider) { await worker(`/api/integrations/${provider}/disconnect`, { method: 'POST' }) },
-    async connectService(provider, back) {
-      const { url } = await worker<{ url: string }>(`/api/integrations/connect/${provider}/start`, { method: 'POST', body: JSON.stringify({ back }) })
+    async connectService(provider, back, opts) {
+      const { url } = await worker<{ url: string }>(`/api/integrations/connect/${provider}/start`, { method: 'POST', body: JSON.stringify({ back, read: opts?.read }) })
       location.assign(url)
     },
     checkConnection: provider => worker(`/api/integrations/${provider}/check`, { method: 'POST' }),

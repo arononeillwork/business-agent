@@ -16,7 +16,7 @@ type Storage = 'google_drive' | 'onedrive'
 export const tax = new Hono<{ Bindings: Env; Variables: { token: string } }>()
 
 /** A problem with what was sent (shown as is), as opposed to storage failing. */
-class TaxError extends Error {}
+export class TaxError extends Error {}
 
 tax.use('/api/tax/*', async (c, next) => {
   const token = bearer(c.req.header('authorization'))
@@ -136,28 +136,38 @@ tax.post('/api/tax/upload', async c => {
     if (size > MAX_TAX_FILE_BYTES) throw new TaxError('Files can be up to 25 MB')
     const type = taxFileType(name)!
 
-    const s = await storage(c.env, db)
-    let file: { id: string; link: string | null }
-    try {
-      if (s.storage === 'google_drive') {
-        const id = await google.uploadToDrive(s.token, await google.folderPath(s.token, folder), name, type, size, body)
-        file = { id, link: google.fileLink(id) }
-      } else {
-        const item = await ms.uploadItem(s.token, folder, name, size, body)
-        file = { id: item.id, link: item.webUrl }
-      }
-    } catch (e) {
-      throw await broken(db, s.storage, e)
-    }
-    await setIntegration(db, s.storage, { last_sync_at: new Date().toISOString(), last_error: null })
-
-    // Saved as the person, so the database's rules (and the audit log) apply.
-    const { data, error } = await asPerson.from('tax_documents').insert({
-      name, kind, year, quarter, size, sha256, storage: s.storage, file_id: file.id, folder, link: file.link,
-    }).select('*').single()
-    if (error) throw new TaxError(/duplicate|unique/i.test(error.message) ? 'That file is already kept' : error.message)
-    return c.json({ document: data })
+    return c.json({ document: await keepTaxFile(c.env, db, asPerson, { name, kind, year, quarter, size, sha256, folder, type, body }) })
   } catch (e) {
     return c.json(fail(e), status(e))
   }
 })
+
+/**
+ * Put a file in the connected Drive or OneDrive under Business Agent/<folder…> and save its
+ * tax_documents row as the person (so the database's rules and the audit log apply). Also used by
+ * Invoices for invoices that come by email.
+ */
+export async function keepTaxFile(env: Env, db: SupabaseClient, asPerson: SupabaseClient, f: {
+  name: string; kind: string; year: number; quarter: number | null; size: number; sha256: string | null; folder: string[]; type: string; body: ReadableStream | ArrayBuffer | Uint8Array
+}) {
+  const s = await storage(env, db)
+  const body = f.body instanceof Uint8Array ? f.body.slice().buffer : f.body
+  let file: { id: string; link: string | null }
+  try {
+    if (s.storage === 'google_drive') {
+      const id = await google.uploadToDrive(s.token, await google.folderPath(s.token, f.folder), f.name, f.type, f.size, body)
+      file = { id, link: google.fileLink(id) }
+    } else {
+      const item = await ms.uploadItem(s.token, f.folder, f.name, f.size, body)
+      file = { id: item.id, link: item.webUrl }
+    }
+  } catch (e) {
+    throw await broken(db, s.storage, e)
+  }
+  await setIntegration(db, s.storage, { last_sync_at: new Date().toISOString(), last_error: null })
+  const { data, error } = await asPerson.from('tax_documents').insert({
+    name: f.name, kind: f.kind, year: f.year, quarter: f.quarter, size: f.size, sha256: f.sha256, storage: s.storage, file_id: file.id, folder: f.folder, link: file.link,
+  }).select('*').single()
+  if (error) throw new TaxError(/duplicate|unique/i.test(error.message) ? 'That file is already kept' : error.message)
+  return data as Record<string, unknown> & { id: string }
+}

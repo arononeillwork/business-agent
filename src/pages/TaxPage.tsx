@@ -436,7 +436,14 @@ async function droppedFiles(e: DragEvent): Promise<File[]> {
  * is and which quarter it's for (guessed from its name), then send them to the café's Drive or
  * OneDrive, sorted into Tax/<year>/Q<n>/<kind> or into one folder chosen (or made) there.
  */
-function UploadDialog({ year, known, onClose }: { year: number; known: TaxDocument[]; onClose: () => void }) {
+export function UploadDialog({ year, known, onClose, kind, onKept, title = t('Upload documents') }: {
+  year: number; known: TaxDocument[]; onClose: () => void
+  /** Every file starts as this kind (Invoices: purchase invoices), instead of a guess from its name. */
+  kind?: TaxDocKind
+  /** Called with each document once it's kept (Invoices adds the invoice). */
+  onKept?: (doc: TaxDocument) => Promise<void>
+  title?: string
+}) {
   const { api } = useApp()
   const run = useAction()
   const [items, setItems] = useState<Pending[]>([])
@@ -451,7 +458,7 @@ function UploadDialog({ year, known, onClose }: { year: number; known: TaxDocume
     const added: Pending[] = list.filter(f => !f.name.startsWith('.')).map(file => {
       const p = guessPeriod(file.name, file.lastModified)
       const problem = taxFileProblem(file.name, file.size)
-      return { key: crypto.randomUUID(), file, kind: guessKind(file.name), period: `${p.year}-${p.quarter}`,
+      return { key: crypto.randomUUID(), file, kind: kind ?? guessKind(file.name), period: `${p.year}-${p.quarter}`,
         state: problem ? 'refused' : 'checking', error: problem ? t(problem) : undefined }
     })
     setItems(prev => [...prev, ...added])
@@ -483,7 +490,8 @@ function UploadDialog({ year, known, onClose }: { year: number; known: TaxDocume
       for (let x = queue.shift(); x; x = queue.shift()) {
         set(x.key, { state: 'uploading', error: undefined })
         try {
-          await api.uploadTaxDocument(x.file, { name: x.file.name, kind: x.kind, sha256: x.sha256!, ...target(x) })
+          const doc = await api.uploadTaxDocument(x.file, { name: x.file.name, kind: x.kind, sha256: x.sha256!, ...target(x) })
+          await onKept?.(doc)
           set(x.key, { state: 'done' })
           kept++
         } catch (e) {
@@ -505,7 +513,7 @@ function UploadDialog({ year, known, onClose }: { year: number; known: TaxDocume
 
   return (
     <Dialog open onClose={busy ? undefined : onClose} fullWidth maxWidth="md" aria-labelledby="upload-title">
-      <DialogTitle id="upload-title">{t('Upload documents')}</DialogTitle>
+      <DialogTitle id="upload-title">{title}</DialogTitle>
       <DialogContent>
         <Box onDragOver={e => { e.preventDefault(); setOver(true) }} onDragLeave={() => setOver(false)}
           onDrop={e => { e.preventDefault(); setOver(false); void droppedFiles(e).then(add) }}

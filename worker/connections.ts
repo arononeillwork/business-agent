@@ -139,6 +139,19 @@ const NEEDS: Record<Connector, string> = {
   onedrive: 'Files.ReadWrite',
 }
 
+/** Reading the mailbox (Invoices: invoices that come by email), asked for only when the admin allows it. */
+export const READ_MAIL: Partial<Record<Connector, string>> = { gmail: 'https://www.googleapis.com/auth/gmail.readonly', outlook: 'Mail.Read' }
+
+/** Was reading the mailbox allowed? (Not reported: assume not; the Invoices page offers to ask again.) */
+export function canReadMail(p: Connector, granted: string | undefined) {
+  const need = READ_MAIL[p]?.toLowerCase()
+  if (!need || granted === undefined) return false
+  return granted.split(/\s+/).some(s => {
+    const g = s.toLowerCase().replace(/^https:\/\/graph\.microsoft\.com\//, '')
+    return g === need || g === `${need}.all` || (p === 'gmail' && (g === 'https://mail.google.com/' || g === 'https://www.googleapis.com/auth/gmail.modify'))
+  })
+}
+
 /** Was that permission granted? Microsoft may answer with full URIs or another case; `.All` covers it too. */
 export function hasScope(p: Connector, granted: string | undefined) {
   if (granted === undefined) return true // not reported: the proof that follows still has to pass

@@ -28,6 +28,8 @@ export interface Supplier {
   lead_days: number
   minimum_order: number | null
   payment_terms: string | null
+  /** Their CIF/NIF, to recognise their e-invoices (Invoices). */
+  tax_id?: string | null
   notes: string | null
   active: boolean
 }

@@ -6,6 +6,7 @@ import type { ReferralState } from '../../shared/referrals'
 import type { KindInfo } from '../../shared/social'
 import type { InstagramMention } from '../../shared/mentions'
 import type { FilingRecord, Quarter, TaxDocKind, TaxDocument, TaxSettings } from '../../shared/tax'
+import type { InboxInvoice, InboxState as InvoiceInbox, Invoice, InvoiceInput } from '../../shared/invoices'
 import type { PnlLine, PnlLineInput, PnlSettings } from '../../shared/pnl'
 import type { GrantApplication, GrantApplicationInput, GrantProfile } from '../../shared/grants'
 import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
@@ -142,6 +143,16 @@ export interface Api {
   expenses(): Promise<Expense[]>
   saveExpense(expense: Partial<Expense> & { name: string; amount: number }): Promise<void>
   deleteExpense(id: string): Promise<void>
+
+  // Invoices (admins with pay access; finance partners read): received and sent, each with its supplier and file.
+  invoices(): Promise<Invoice[]>
+  /** Add an invoice (no id) or change one; returns its id. */
+  saveInvoice(i: InvoiceInput): Promise<string>
+  deleteInvoice(id: string): Promise<void>
+  /** Emails from the last `days` with files that could be invoices (once reading the mailbox is allowed). */
+  invoiceInbox(days?: number): Promise<InvoiceInbox>
+  /** Bring one attachment in as an invoice, its file kept with the tax documents. */
+  importInvoice(message: InboxInvoice, attachmentId: string, supplierId?: string | null): Promise<Invoice>
 
   // Tax (admins with pay access; finance partners read). The files are in the café's Drive or OneDrive.
   taxSettings(): Promise<TaxSettings>
@@ -282,7 +293,7 @@ export interface Api {
   googleHours(): Promise<OpeningHours>
   disconnect(provider: string): Promise<void>
   /** Start connecting Gmail, Outlook, Google Drive, OneDrive, YouTube Music or Search Console (goes to Google/Microsoft and back). */
-  connectService(provider: ConnectorProvider, back?: 'setup' | 'connections'): Promise<void>
+  connectService(provider: ConnectorProvider, back?: 'setup' | 'connections' | 'invoices', opts?: { read?: boolean }): Promise<void>
   /** Prove a connection still works, now (the result is also on its card). */
   checkConnection(provider: IntegrationProvider): Promise<Integration | null>
   /** Check every connection that is (or was) working. */

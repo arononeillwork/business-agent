@@ -336,6 +336,8 @@ export interface Integration {
     pages?: { id: string; name: string }[]; page_id?: string; page_name?: string
     /** LinkedIn: who signed in, and when the 60-day access runs out. */
     member?: { id: string; name: string }; expires_at?: string
+    /** Gmail or Outlook: it may also be read, for invoices that come by email (allowed from Invoices). */
+    reads_mail?: boolean
     /** Search Console: the websites the account can read, and the chosen one (`https://…/` or `sc-domain:…`). */
     sites?: string[]; site?: string
     /** SumUp: the merchant account and its currency. */

@@ -1667,7 +1667,7 @@ test.describe('billing', () => {
     await expect(nav.getByRole('region', { name: 'Marketing' }).getByRole('link')).toHaveText(['Social planner', 'Ads', 'Analytics'])
     await nav.getByRole('region', { name: 'Marketing' }).getByRole('link', { name: 'Analytics' }).click()
     await expect(page.getByRole('heading', { name: 'Analytics', level: 1 })).toBeVisible()
-    await expect(nav.getByRole('region', { name: 'Accounts' }).getByRole('link')).toHaveText(['Finances', 'Profit & loss', 'Tax', 'Grants'])
+    await expect(nav.getByRole('region', { name: 'Accounts' }).getByRole('link')).toHaveText(['Finances', 'Profit & loss', 'Invoices', 'Tax', 'Grants'])
     await page.goto('/finances/sales')
     await expect(page).toHaveURL(/\/sales$/)
   })
@@ -3495,5 +3495,67 @@ test.describe('ads', () => {
     await page.goto('/ads?demo')
     await expect(page.getByRole('heading', { name: /Hola/ })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Ads' })).toHaveCount(0)
+  })
+})
+
+test.describe('invoices', () => {
+  test.describe.configure({ timeout: 90_000 })
+
+  test('invoices received, by supplier: what’s to pay and overdue, a status changed in place, and exported', async ({ page }) => {
+    await open(page, '/invoices')
+    await expect(page.getByRole('heading', { name: 'Invoices', level: 1 })).toBeVisible()
+    const glance = page.getByRole('list', { name: 'At a glance' })
+    await expect(glance).toContainText('€1.120,00') // to pay: Tostadores €320 + By Eric €600 + Lácteos €200 (to check)
+    const list = page.getByRole('region', { name: 'Invoices', exact: true })
+    await expect(list.getByRole('row').filter({ hasText: '2026-0812' })).toContainText('Overdue') // By Eric, due 15 Sep
+    const bySupplier = page.getByRole('region', { name: 'By supplier' })
+    await expect(bySupplier.getByRole('row').filter({ hasText: 'Tostadores del Sur' })).toContainText('€690,00')
+
+    await list.getByRole('combobox', { name: 'Status of 2026-0812' }).click()
+    await page.getByRole('option', { name: 'Paid', exact: true }).click()
+    await toast(page, /^Saved$/)
+    await expect(list.getByRole('row').filter({ hasText: '2026-0812' })).not.toContainText('Overdue')
+
+    // Categorised through the supplier: pick one to see only theirs.
+    await bySupplier.getByRole('button', { name: 'Tostadores del Sur' }).click()
+    await expect(list.getByRole('row')).toHaveCount(3) // the heading row and two invoices
+    await list.getByRole('button', { name: 'Export' }).click()
+    await expect(page.getByRole('menuitem', { name: /Excel/ })).toBeVisible()
+  })
+
+  test('from email: allow reading the mailbox, then bring an invoice in, matched to its supplier, with a note', async ({ page }) => {
+    await open(page, '/connections')
+    await page.getByRole('region', { name: 'Files and storage' }).getByRole('button', { name: 'Connect Google Drive' }).click()
+    await expect(page.getByRole('region', { name: 'Files and storage' }).getByRole('article', { name: 'Google Drive' })).toContainText('Connected')
+    await page.getByRole('region', { name: 'Email' }).getByRole('button', { name: 'Connect Gmail' }).click()
+    await expect(page.getByRole('region', { name: 'Email' }).getByRole('article', { name: 'Gmail' })).toContainText('Connected')
+    await page.getByRole('link', { name: 'Invoices', exact: true }).first().click()
+
+    const email = page.getByRole('region', { name: 'From email' })
+    await expect(email).toContainText('Gmail is connected to send email only.')
+    await email.getByRole('button', { name: 'Allow reading' }).click()
+    const roaster = email.getByRole('article', { name: 'Factura F2026-0142' })
+    await expect(roaster.getByRole('combobox', { name: 'Supplier' })).toHaveText('Tostadores del Sur') // the same company domain
+    await expect(email.getByRole('article', { name: 'Su factura Makro' }).getByRole('combobox', { name: 'Supplier' })).toHaveText('Not one of mine')
+    await roaster.getByRole('button', { name: 'Bring in Factura F2026-0142.pdf' }).click()
+    await toast(page, 'Invoice brought in')
+    await expect(email.getByRole('article', { name: 'Factura F2026-0142' })).toHaveCount(0)
+
+    const row = page.getByRole('region', { name: 'Invoices', exact: true }).getByRole('row').filter({ hasText: 'F2026-0142' })
+    await expect(row).toContainText('Tostadores del Sur')
+    await expect(row).toContainText('To check')
+    await row.getByRole('button', { name: 'Edit F2026-0142' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Invoice F2026-0142' })
+    await dialog.getByRole('textbox', { name: 'Notes' }).fill('September beans, 12 kg')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await toast(page, /^Saved$/)
+    await expect(row.getByRole('button', { name: 'Notes: September beans, 12 kg' })).toBeVisible()
+  })
+
+  test('employees don’t get invoices', async ({ page }) => {
+    await open(page, '/', 'maria@example.com')
+    await expect(page.getByRole('link', { name: 'Invoices', exact: true })).toHaveCount(0)
+    await page.goto('/invoices?demo')
+    await expect(page.getByText('Invoices are only visible to admins with pay access.')).toBeVisible()
   })
 })

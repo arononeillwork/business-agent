@@ -31,7 +31,7 @@ import { checkMentions, decide, repostMention } from './mentions'
 import * as waInbox from './whatsappInbox'
 import { MediaError, checkFile, mediaBytes, mediaStorage, serveMedia, storeMedia } from './media'
 import {
-  CONNECTORS, PROVIDERS, ROW_COLUMNS, SCOPES, squareWebhookUrl, calendarSeen, calendarFetched, checkAll, checkOne, connectedOf, connectorConfigured,
+  CONNECTORS, PROVIDERS, READ_MAIL, ROW_COLUMNS, SCOPES, canReadMail, squareWebhookUrl, calendarSeen, calendarFetched, checkAll, checkOne, connectedOf, connectorConfigured,
   connectorGrant, explain, facebookOAuth, facebookSession, googleAdsConfig, googleConfig, googleSession, instagramOAuth, instagramSession, isCalendarApp, isGoogle,
   metaAdsOAuth, proveMetaAds,
   lasting, linkedinOAuth, linkedinSession, markBroken, msConfig, proveFacebook, proveInstagram, proveLinkedIn, proveNew, proveSpotify, proveSquare, proveStripe,
@@ -46,7 +46,7 @@ import { businessConfig } from '../shared/business.config'
 
 export { waConfig }
 
-interface ConnectorState { uid: string; kind: 'connector'; provider: Connector; back?: 'setup' | 'connections' }
+interface ConnectorState { uid: string; kind: 'connector'; provider: Connector; back?: 'setup' | 'connections' | 'invoices'; read?: boolean }
 
 /** Send an email from the café's connected mailbox (Gmail or Outlook, whichever the business chose). */
 export async function sendEmail(env: Env, db: SupabaseClient, m: { to: string; subject: string; text: string }) {
@@ -294,17 +294,20 @@ integrations.post('/api/integrations/connect/:provider/start', async c => {
   const p = c.req.param('provider') as Connector
   if (!CONNECTORS.includes(p)) return c.json({ error: 'Unknown connection' }, 404)
   const origin = new URL(c.req.url).origin
-  const { back } = await c.req.json<{ back?: 'setup' | 'connections' }>().catch(() => ({ back: undefined }))
-  const state = await signState(c.env.INTEGRATION_KEY ?? '', { uid: c.get('userId'), kind: 'connector', provider: p, back } satisfies ConnectorState)
+  // `read`: also allow reading the mailbox (Invoices brings in invoices that come by email).
+  const { back, read } = await c.req.json<{ back?: ConnectorState['back']; read?: boolean }>().catch(() => ({ back: undefined, read: undefined }))
+  const reading = !!read && !!READ_MAIL[p]
+  const state = await signState(c.env.INTEGRATION_KEY ?? '', { uid: c.get('userId'), kind: 'connector', provider: p, back, ...(reading ? { read: true } : {}) } satisfies ConnectorState)
+  const scopes = [...SCOPES[p], ...(reading ? [READ_MAIL[p]!] : [])]
   if (isGoogle(p)) {
     const cfg = googleConfig(c.env, origin)
     if (!cfg) return c.json({ error: `${optionName(p)} needs the Google keys first (GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET; see docs/sign-in-setup.md).` }, 400)
     if (p === 'google_ads' && !googleAdsConfig(c.env)) return c.json({ error: 'Google Ads needs Business Agent’s Google Ads developer token first (GOOGLE_ADS_DEVELOPER_TOKEN; see docs/INTEGRATIONS.md).' }, 400)
-    return c.json({ url: google.authUrl(cfg, state, [...SCOPES[p]]) })
+    return c.json({ url: google.authUrl(cfg, state, scopes) })
   }
   const cfg = msConfig(c.env, origin)
   if (!cfg) return c.json({ error: `${optionName(p)} needs the Microsoft app first: run the "Set up Microsoft sign-in" workflow (docs/sign-in-setup.md).` }, 400)
-  return c.json({ url: ms.authUrl(cfg, state, SCOPES[p]) })
+  return c.json({ url: ms.authUrl(cfg, state, scopes) })
 })
 
 /**
@@ -315,7 +318,7 @@ integrations.post('/api/integrations/connect/:provider/start', async c => {
  */
 async function finishConnector(c: Context<{ Bindings: Env; Variables: { userId: string } }>, state: ConnectorState) {
   const origin = new URL(c.req.url).origin
-  const back = (q: string) => c.redirect(`${origin}/${state.back === 'setup' ? 'setup' : 'connections'}?${q}`)
+  const back = (q: string) => c.redirect(`${origin}/${state.back === 'setup' ? 'setup' : state.back === 'invoices' ? 'invoices' : 'connections'}?${q}`)
   const p = state.provider
   const db = serviceClient(c.env)
   if (c.req.query('error')) {
@@ -334,7 +337,9 @@ async function finishConnector(c: Context<{ Bindings: Env; Variables: { userId: 
     if (error) throw new Error(error.message)
     const now = new Date().toISOString()
     await setIntegration(db, p, { status: proven.pending ? 'pending' : 'connected', connected_by: state.uid, connected_at: now, last_checked_at: proven.pending ? null : now,
-      last_error: null, account_label: proven.label, external: proven.external })
+      last_error: null, account_label: proven.label,
+      // A mailbox: whether it may be read too (Invoices), as allowed on Google's or Microsoft's screen.
+      external: READ_MAIL[p] ? { ...proven.external, reads_mail: !!state.read && canReadMail(p, t.scope) } : proven.external })
     // The mailbox becomes the business's email address, unless one was typed in.
     if ((p === 'gmail' || p === 'outlook') && proven.label) await showMailboxAddress(db, proven.label).catch(() => {})
     return back(`connected=${p}`)

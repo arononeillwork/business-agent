@@ -19,6 +19,7 @@ import type { SportsFavourite } from '../../shared/sports'
 import { POPULAR_FONTS } from '../../shared/fonts'
 import { addToCalendarUrl, cleanWebsite, groupOf } from '../../shared/connections'
 import { mergeSales } from '../../shared/sales'
+import { dueFrom, emailId, matchSupplier, numberFromName, type InboxInvoice, type Invoice } from '../../shared/invoices'
 import { DEFAULT_TAX_SETTINGS, cleanFolderName, cleanFolderPath, taxFileProblem, type FilingRecord, type TaxDocument, type TaxSettings } from '../../shared/tax'
 import { DEFAULT_VAT_RATE, type PnlLine } from '../../shared/pnl'
 import { cleanAnswers, isDone, type GrantApplication, type GrantProfile } from '../../shared/grants'
@@ -283,6 +284,27 @@ export function createDemoApi(): Api {
     if (!squareOn()) throw new Error('Connect Square on the Connections page to see loyalty and gift cards.')
   }
   const inRange = (at: string, from: string, to: string) => at.slice(0, 10) >= from && at.slice(0, 10) <= to
+
+  // Invoices: a few from the café's suppliers, and three waiting in the mailbox once reading it is allowed.
+  const invoice = (p: Partial<Invoice>): Invoice => ({ id: uid(), direction: 'in', supplier_id: null, party_name: null, party_email: null, party_tax_id: null, number: null,
+    issued_on: null, due_on: null, net: null, vat: null, total: null, currency: 'EUR', category: null, status: 'to_check', paid_on: null, document_id: null,
+    source: 'manual', email_id: null, email_from: null, email_subject: null, email_at: null, notes: null, created_at: nowIso(), ...p })
+  const invoiceList: Invoice[] = [
+    invoice({ supplier_id: 'sup-roaster', number: 'F2026-0119', issued_on: '2026-08-18', due_on: '2026-09-17', net: 336.36, vat: 33.64, total: 370, category: 'Coffee roaster', status: 'paid', paid_on: '2026-09-15', source: 'email' }),
+    invoice({ supplier_id: 'sup-roaster', number: 'F2026-0131', issued_on: '2026-09-01', due_on: '2026-10-01', net: 290.91, vat: 29.09, total: 320, category: 'Coffee roaster', status: 'to_pay', source: 'email' }),
+    invoice({ supplier_id: 'sup-eric', number: '2026-0812', issued_on: '2026-08-31', due_on: '2026-09-15', net: 545.45, vat: 54.55, total: 600, category: 'Bakery', status: 'to_pay', source: 'email', notes: 'Croissants and pastries, August' }),
+    invoice({ supplier_id: 'sup-dairy', number: 'LC-4471', issued_on: '2026-09-20', due_on: '2026-10-20', net: 181.82, vat: 18.18, total: 200, category: 'Dairy', status: 'to_check', source: 'upload' }),
+    invoice({ direction: 'out', party_name: 'Hotel Puente Romano', number: 'EB-2026-007', issued_on: '2026-09-12', due_on: '2026-10-12', net: 409.09, vat: 40.91, total: 450, category: 'Catering', status: 'sent' }),
+  ]
+  const mailInvoices: InboxInvoice[] = [
+    { id: 'mail-1', from: 'facturacion@tostadoresdelsur.example', from_name: 'Tostadores del Sur', subject: 'Factura F2026-0142', at: '2026-09-15T08:00:00Z', supplier_id: null,
+      attachments: [{ id: 'att-1', name: 'Factura F2026-0142.pdf', size: 84_211, type: 'application/pdf', imported: false }] },
+    { id: 'mail-2', from: 'info@by-eric.es', from_name: 'By Eric', subject: 'Factura septiembre', at: '2026-09-29T17:40:00Z', supplier_id: null,
+      attachments: [{ id: 'att-2', name: 'Factura 2026-0930.pdf', size: 66_502, type: 'application/pdf', imported: false }] },
+    { id: 'mail-3', from: 'facturas@makro.example', from_name: 'Makro', subject: 'Su factura Makro', at: '2026-09-21T10:12:00Z', supplier_id: null,
+      attachments: [{ id: 'att-3', name: 'Fra. 2026/311.pdf', size: 120_480, type: 'application/pdf', imported: false }] },
+  ]
+  const needInvoices = () => { if (!(me()?.role === 'admin' && me()?.can_see_pay)) throw new Error('Only admins with pay access manage invoices') }
 
   /** Where the demo keeps photos and videos: the connected Drive or OneDrive. */
   const mediaStorage = () => (['google_drive', 'onedrive'] as const).find(p => integ.integrations.some(i => i.provider === p && i.status === 'connected')) ?? null
@@ -1300,6 +1322,62 @@ export function createDemoApi(): Api {
       const i = expenses.findIndex(x => x.id === id)
       if (i >= 0) expenses.splice(i, 1)
     },
+    async invoices() {
+      if (!readTax()) return []
+      return clone(invoiceList).map(i => {
+        const d = i.document_id ? taxDocuments.find(x => x.id === i.document_id) : undefined
+        return { ...i, document: d ? { name: d.name, link: d.link } : null }
+      }).sort((a, b) => (b.issued_on ?? '9').localeCompare(a.issued_on ?? '9') || b.created_at.localeCompare(a.created_at))
+    },
+    async saveInvoice({ id, ...i }) {
+      needInvoices()
+      const { document: _doc, ...patch } = i as typeof i & { document?: unknown }
+      const tidy = (x: Partial<Invoice>) => {
+        if (x.category == null && x.supplier_id) x.category = suppliers.find(s => s.id === x.supplier_id)?.kind ?? null
+        x.paid_on = x.status === 'paid' ? x.paid_on ?? today() : null
+        x.notes = x.notes?.trim() || null
+        return x
+      }
+      const existing = id ? invoiceList.find(x => x.id === id) : undefined
+      if (existing) { Object.assign(existing, tidy({ ...existing, ...patch })); return existing.id }
+      const made = invoice(tidy({ ...patch }))
+      invoiceList.push(made)
+      return made.id
+    },
+    async deleteInvoice(id) {
+      needInvoices()
+      const i = invoiceList.findIndex(x => x.id === id)
+      if (i >= 0) invoiceList.splice(i, 1)
+    },
+    async invoiceInbox() {
+      needInvoices()
+      const box = (['gmail', 'outlook'] as const).find(p => integ.integrations.some(i => i.provider === p && i.status === 'connected'))
+      const row = box && integ.integrations.find(i => i.provider === box)
+      if (!box || !(row?.external as { reads_mail?: boolean }).reads_mail) return { mailbox: box ?? null, can_read: false, messages: [] }
+      const done = new Set(invoiceList.map(i => i.email_id))
+      return { mailbox: box, can_read: true, messages: clone(mailInvoices).map(m => ({ ...m, supplier_id: matchSupplier(suppliers, { email: m.from }),
+        attachments: m.attachments.map(a => ({ ...a, imported: done.has(emailId(box, m.id, a.id)) })) })) }
+    },
+    async importInvoice(m, attachment, supplierId) {
+      needInvoices()
+      const box = (['gmail', 'outlook'] as const).find(p => integ.integrations.some(i => i.provider === p && i.status === 'connected'))!
+      const id = emailId(box, m.id, attachment)
+      if (invoiceList.some(i => i.email_id === id)) throw new Error('That invoice is already in')
+      const a = m.attachments.find(x => x.id === attachment)!
+      const storage = taxStorage()
+      const at = m.at.slice(0, 10)
+      const quarter = (Math.floor((Number(at.slice(5, 7)) - 1) / 3) + 1) as 1 | 2 | 3 | 4
+      const folder = ['Tax', at.slice(0, 4), `Q${quarter}`, 'Purchase invoices']
+      const doc: TaxDocument = { id: uid(), name: a.name, kind: 'purchase_invoice', year: Number(at.slice(0, 4)), quarter, size: a.size, sha256: null, storage, file_id: uid(), folder,
+        link: `https://${storage === 'google_drive' ? 'drive.google.com' : 'onedrive.live.com'}/demo/Business Agent/${folder.join('/')}/${a.name}`, notes: null, uploaded_by: me()?.id ?? null, uploaded_at: nowIso() }
+      taxDocuments.push(doc)
+      const sup = supplierId ?? matchSupplier(suppliers, { email: m.from })
+      const made = invoice({ supplier_id: sup, party_name: m.from_name, party_email: m.from, number: numberFromName(a.name), issued_on: null,
+        due_on: dueFrom(null, suppliers.find(s => s.id === sup)?.payment_terms), category: suppliers.find(s => s.id === sup)?.kind ?? null,
+        document_id: doc.id, source: 'email', email_id: id, email_from: m.from, email_subject: m.subject, email_at: m.at })
+      invoiceList.push(made)
+      return clone(made)
+    },
     async taxSettings() { return readTax() ? clone(taxSettings) : DEFAULT_TAX_SETTINGS },
     async saveTaxSettings(patch) {
       needTax()
@@ -1661,8 +1739,15 @@ export function createDemoApi(): Api {
       requireAdmin()
       Object.assign(integ.integrations.find(i => i.provider === provider)!, { status: 'disconnected', account_label: null, external: {}, last_error: null, last_checked_at: null })
     },
-    async connectService(provider) {
+    async connectService(provider, _back, opts) {
       requireAdmin()
+      // Demo: a mailbox connected from Invoices may also be read (as if allowed on Google's screen).
+      if ((provider === 'gmail' || provider === 'outlook') && opts?.read) {
+        const account = provider === 'gmail' ? 'easybeanscafe@gmail.com' : 'easybeans@outlook.com'
+        setConnection(provider, { status: 'connected', account_label: account, connected_at: nowIso(), last_checked_at: nowIso(), last_error: null,
+          external: { reads_mail: true } })
+        return
+      }
       // Demo: pretend the café signed in with its Google / Microsoft account and the proof passed.
       if (provider === 'search_console') {
         // The café's website is in the account, so it's picked straight away.

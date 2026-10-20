@@ -251,6 +251,44 @@ export const folderLink = (id: string) => `https://drive.google.com/drive/folder
 export const driveDownload = (token: string, id: string, range?: string | null) =>
   fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?alt=media`, { headers: { authorization: `Bearer ${token}`, ...(range ? { range } : {}) } })
 
+// Gmail, read (Invoices): emails with files attached that could be invoices. Needs gmail.readonly.
+interface GmailPart { filename?: string; mimeType?: string; body?: { attachmentId?: string; size?: number }; parts?: GmailPart[] }
+interface GmailMessage { id: string; internalDate?: string; payload?: GmailPart & { headers?: { name: string; value: string }[] } }
+
+async function gmail<T>(token: string, path: string): Promise<T> {
+  const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/${path}`, { headers: { authorization: `Bearer ${token}` } })
+  const json = await res.json() as T & { error?: { message?: string } }
+  if (!res.ok) throw new Error(`Gmail: ${json.error?.message ?? res.status}`)
+  return json
+}
+
+/** Emails from the last `days` with attachments, newest first, each with who sent it and its files. */
+export async function gmailWithAttachments(token: string, days: number, max = 40) {
+  const q = `has:attachment newer_than:${days}d -in:sent -in:chats`
+  const list = await gmail<{ messages?: { id: string }[] }>(token, `messages?q=${encodeURIComponent(q)}&maxResults=${max}`)
+  const out = []
+  for (const { id } of list.messages ?? []) {
+    const m = await gmail<GmailMessage>(token, `messages/${encodeURIComponent(id)}?format=full`)
+    const header = (n: string) => m.payload?.headers?.find(h => h.name.toLowerCase() === n)?.value ?? ''
+    const files: { id: string; name: string; size: number; type: string }[] = []
+    const walk = (p?: GmailPart) => {
+      if (!p) return
+      if (p.filename && p.body?.attachmentId) files.push({ id: p.body.attachmentId, name: p.filename, size: p.body.size ?? 0, type: p.mimeType ?? '' })
+      p.parts?.forEach(walk)
+    }
+    walk(m.payload)
+    out.push({ id, from: header('from'), subject: header('subject'), at: new Date(Number(m.internalDate ?? Date.now())).toISOString(), files })
+  }
+  return out
+}
+
+/** An attachment's bytes. */
+export async function gmailAttachment(token: string, message: string, attachment: string) {
+  const a = await gmail<{ data: string }>(token, `messages/${encodeURIComponent(message)}/attachments/${encodeURIComponent(attachment)}`)
+  const bin = atob(a.data.replace(/-/g, '+').replace(/_/g, '/'))
+  return Uint8Array.from(bin, c => c.charCodeAt(0))
+}
+
 /** Save a file into "Business Agent/<sub>" in the café's Drive; returns its web link. */
 export async function saveToDrive(token: string, sub: string, name: string, content: string, type: string) {
   const root = await folder(token, 'Business Agent')

@@ -513,6 +513,26 @@ budget here: changing it would change the other campaigns too.
 **Results** are Google's conversions, and for Meta: purchases, leads and messaging conversations
 started (link clicks are the clicks figure). Both are checked every night.
 
+## 15. Invoices by email (Gmail or Outlook, read)
+
+The Invoices page brings in invoices that suppliers email: it reads the connected mailbox for
+emails from the last 60 days with a PDF, photo or e-invoice (Facturae XML) attached, matches each
+to a supplier (Stock → Suppliers: the same email address, CIF/NIF, or company domain) and keeps the
+file with the tax documents (Business Agent/Tax/<year>/Q<n>/Purchase invoices in the connected
+Drive or OneDrive). The mailbox connection on its own only sends email; reading is asked for
+separately, from **Invoices → From email → Allow reading**, which signs in again with one more
+permission. Nothing in the mailbox is changed or deleted.
+
+- **Gmail** asks for `https://www.googleapis.com/auth/gmail.readonly`. Add it to the OAuth consent
+  screen's scopes in Google Cloud. It is a *restricted* scope: while the app is in testing only its
+  test users can allow it, and for everyone else Google requires app verification and a yearly
+  security assessment (CASA). Until then, Outlook works without that review.
+- **Outlook** asks for `Mail.Read` (delegated). Add it to the Entra app's API permissions
+  (Microsoft Graph → Delegated → Mail.Read); work accounts may need an admin's consent.
+
+Whether reading was allowed is kept on the mailbox's connection (`external.reads_mail`); connecting
+again from Connections (send only) switches reading off until it's allowed again.
+
 ## Social planner
 
 Admins plan posts on **Social planner** (left menu): write once, pick Instagram, Facebook,

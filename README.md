@@ -38,6 +38,11 @@ built-in **AI connector** so owners can run it by talking to Claude.
   Search Console shows how the website does on Google. **Ads** puts Meta Ads (Facebook and Instagram)
   and Google Ads side by side: spend, clicks and results per campaign next to the takings, monthly
   limits, and pause, resume or daily budget changes sent straight to the platform.
+- Invoices: what suppliers invoice (and the sales invoices sent), each tied to its supplier from Stock
+  and to its file, with what's to pay, overdue and paid, notes, and totals by supplier. Invoices come
+  in from the connected Gmail or Outlook (once reading it is allowed), by upload, or typed in; a
+  Facturae e-invoice fills in its number, days and amounts by itself. The app records invoices, it
+  doesn't issue them (that needs invoicing software that meets Verifactu).
 - Tax: the returns an SL files (303, 111, 115, 202, 390, 190, 180, 347, 200 and the annual accounts) with
   their last days, marked to do, with the gestoría or filed; documents (invoices, receipts, payslips,
   statements) uploaded in bulk, a folder at a time, into the connected Google Drive or OneDrive under

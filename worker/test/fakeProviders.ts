@@ -56,6 +56,8 @@ export class FakeProviders {
     edits: [] as Json[],
     /** Google takes edits but keeps showing the old hours for a while. */
     slowToShow: false,
+    /** The mailbox, for reading invoices that come by email (Gmail with gmail.readonly). */
+    inbox: [] as { id: string; from: string; subject: string; at: string; files: { id: string; name: string; type: string; bytes: Uint8Array }[] }[],
   }
   /** Search Console: the websites (properties) the Google account can see, and the queries asked of it. */
   searchConsole = {
@@ -306,6 +308,20 @@ export class FakeProviders {
     if (url.href === 'https://openidconnect.googleapis.com/v1/userinfo') return json({ email: this.google.email })
     if (url.host === 'gmail.googleapis.com') {
       if (this.google.disabled.has('gmail')) return googleError(403, 'Gmail API has not been used in project 1234 before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/gmail.googleapis.com/overview?project=1234 then retry.', 'accessNotConfigured')
+      // Reading the mailbox (Invoices).
+      if (method === 'GET' && url.pathname.startsWith('/gmail/v1/users/me/messages')) {
+        if (!this.google.granted.includes('gmail.readonly')) return googleError(403, 'Request had insufficient authentication scopes.', 'insufficientPermissions')
+        const [, , , , , , id, , att] = url.pathname.split('/')
+        if (!id) return json({ messages: this.google.inbox.map(m => ({ id: m.id })) })
+        const m = this.google.inbox.find(x => x.id === decodeURIComponent(id))
+        if (!m) return googleError(404, 'Requested entity was not found.', 'notFound')
+        if (att) {
+          const f = m.files.find(x => x.id === decodeURIComponent(att))!
+          return json({ data: Buffer.from(f.bytes).toString('base64').replace(/\+/g, '-').replace(/\//g, '_') })
+        }
+        return json({ id: m.id, internalDate: String(Date.parse(m.at)), payload: { headers: [{ name: 'From', value: m.from }, { name: 'Subject', value: m.subject }],
+          parts: [{ mimeType: 'text/plain', body: { size: 10 } }, ...m.files.map(f => ({ filename: f.name, mimeType: f.type, body: { attachmentId: f.id, size: f.bytes.length } }))] } })
+      }
       if (!this.google.granted.includes('gmail.send')) return googleError(403, 'Request had insufficient authentication scopes.', 'insufficientPermissions')
       this.google.sent.push(String(body().raw))
       return json({ id: `msg-${this.nextId++}`, threadId: 't', labelIds: ['SENT'] })
