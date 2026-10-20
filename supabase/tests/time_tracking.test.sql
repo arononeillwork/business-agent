@@ -241,8 +241,9 @@ end $$;
 -- 12. Timecards fill in from the rota when nobody clocked in -----------------------
 reset role;
 insert into public.shifts (profile_id, position_id, starts_at, ends_at, break_minutes)
-select id, 1, date_trunc('day', now() - interval '2 days') + interval '8 hours',
-       date_trunc('day', now() - interval '2 days') + interval '15 hours', 30
+-- On the day before yesterday in Madrid (as the fill below counts days), 08:00–15:00 there.
+select id, 1, ((now() at time zone 'Europe/Madrid')::date - 2 + time '08:00') at time zone 'Europe/Madrid',
+       ((now() at time zone 'Europe/Madrid')::date - 2 + time '15:00') at time zone 'Europe/Madrid', 30
   from public.profiles where email = 'julio@test';
 select pg_temp.act_as('julio@test');
 select pg_temp.expect_error($q$select public.fill_timecards_from_rota(current_date - 7)$q$, 'Only an admin');
