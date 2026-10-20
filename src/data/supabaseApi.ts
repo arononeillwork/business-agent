@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { SOCIAL_PROVIDERS, type Api, type BillingInfo, type PlanStatus, type SignInMethods, type SocialProvider } from './api'
 import type { ApiKey, AppNotification, Brand, Business, Customer, SocialPost, EventAlert, Expense, Integration, MusicPlaylist, OutboxItem, Profile, Settings, TimeEntry, TimeOff, Todo, TodoCategory, CafeTrack, MusicPlayerState } from '../../shared/types'
 import type { InstagramMention } from '../../shared/mentions'
+import type { StockItem, StockMovement, Supplier } from '../../shared/stock'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
 import type { ReferralState } from '../../shared/referrals'
 import { readyPhoto } from '../lib/media'
@@ -348,6 +349,45 @@ export function createSupabaseApi(url: string, key: string): Api {
       else check(await sb.from('expenses').insert({ ...row, source: 'app' }))
     },
     async deleteExpense(id) { check(await sb.from('expenses').delete().eq('id', id)) },
+
+    async suppliers() {
+      return (check(await sb.from('suppliers').select('*').order('name')) as Supplier[])
+        .map(s => ({ ...s, cutoff: s.cutoff?.slice(0, 5) ?? null, minimum_order: s.minimum_order === null ? null : Number(s.minimum_order) }))
+    },
+    async saveSupplier({ id, ...s }) {
+      if (id) check(await sb.from('suppliers').update(s).eq('id', id))
+      else check(await sb.from('suppliers').insert(s))
+    },
+    async deleteSupplier(id) { check(await sb.from('suppliers').delete().eq('id', id)) },
+    async stockItems() {
+      const num = (v: unknown) => (v === null || v === undefined ? null : Number(v))
+      return (check(await sb.from('stock_items').select('*').order('name')) as StockItem[]).map(i => ({
+        ...i, on_hand: Number(i.on_hand), order_multiple: Number(i.order_multiple), vat_rate: Number(i.vat_rate), cost_per_unit: num(i.cost_per_unit),
+        sell_price: num(i.sell_price), par_level: num(i.par_level), reorder_at: num(i.reorder_at),
+      }))
+    },
+    async saveStockItem({ id, updated_at: _u, ...i }: Parameters<Api['saveStockItem']>[0] & { updated_at?: string }) {
+      if (id) { const { on_hand: _o, ...rest } = i; check(await sb.from('stock_items').update(rest).eq('id', id)) }
+      else check(await sb.from('stock_items').insert(i))
+    },
+    async deleteStockItem(id) { check(await sb.from('stock_items').delete().eq('id', id)) },
+    async importStockItems(rows) {
+      if (!rows.length) return 0
+      check(await sb.from('stock_items').insert(rows))
+      return rows.length
+    },
+    async stockMovements(itemId) {
+      let q = sb.from('stock_movements').select('*').order('at', { ascending: false }).limit(200)
+      if (itemId) q = q.eq('item_id', itemId)
+      return (check(await q) as StockMovement[]).map(m => ({ ...m, change: Number(m.change), on_hand_after: Number(m.on_hand_after),
+        counted: m.counted === null ? null : Number(m.counted) }))
+    },
+    async recordStock(moves) {
+      if (!moves.length) return
+      // A count only needs the figure; the database works out the change.
+      check(await sb.from('stock_movements').insert(moves.map(m => ({ item_id: m.item_id, reason: m.reason, note: m.note ?? null,
+        ...(m.reason === 'count' ? { counted: m.counted, change: 0 } : { change: m.change }) }))))
+    },
 
     async customers() {
       return check(await sb.from('customers').select(CUSTOMER_COLUMNS).order('created_at', { ascending: false })) as Customer[]

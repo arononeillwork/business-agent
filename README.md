@@ -27,6 +27,10 @@ built-in **AI connector** so owners can run it by talking to Claude.
   section has **Sales** (a Square-style dashboard: sales against the period before, busiest hours and
   days, how people paid, best sellers) and **Finances** (running costs, takings next to team cost).
   Search Console shows how the website does on Google.
+- Stock: every wholesale item (beans, milk, cups, pastries) and the shop's own products, each with its
+  supplier, link, cost and reorder level. The team records deliveries, counts and waste (or a whole
+  stocktake at once); the order list groups what's low by supplier, with the order day and a message
+  ready for WhatsApp or email. Suppliers keep their contact details, website, order page and order days.
   Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) sections 7-13.
 
 See [docs/PLAN.md](docs/PLAN.md) for decisions, architecture and phases.
