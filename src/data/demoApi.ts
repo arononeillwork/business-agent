@@ -21,6 +21,7 @@ import { addToCalendarUrl, cleanWebsite, groupOf } from '../../shared/connection
 import { mergeSales } from '../../shared/sales'
 import { DEFAULT_TAX_SETTINGS, cleanFolderName, cleanFolderPath, taxFileProblem, type FilingRecord, type TaxDocument, type TaxSettings } from '../../shared/tax'
 import { DEFAULT_VAT_RATE, type PnlLine } from '../../shared/pnl'
+import { cleanAnswers, isDone, type GrantApplication, type GrantProfile } from '../../shared/grants'
 import { addDays, localDate, minutesBetween, today, weekDates, weekStart, zonedIso } from '../../shared/time'
 
 interface RawEntry {
@@ -625,6 +626,26 @@ export function createDemoApi(): Api {
   const staffOnly = (p: Profile) => p.role === 'admin' || p.role === 'employee'
   const requireAdmin = () => { if (!isAdmin()) throw new Error('Only an admin can do that') }
 
+  // Grants: some answers given, and Talento Joven being prepared (its deadline is on the calendar).
+  let grantAnswers: Partial<GrantProfile> = { debts: 'no', startY: 2026, startM: 4, hiring: 'yes', candidate: 'unsure' }
+  const grantApps: GrantApplication[] = [{
+    id: 'ga-talento', grant_id: 'talento-joven', grant_name: 'Hiring grant: Talento Joven', stage: 'gathering', submitted_on: null, expediente: null,
+    amount_requested: 5000, amount_awarded: null, amount_received: null, deadline: '2026-12-31', deadline_label: 'Apply on the Cámara e-office',
+    notes: 'Ask the Cámara for candidates from the programme.', docs_done: ['cert_aeat', 'cert_ss'], obligations_done: [],
+    created_at: '2026-09-21T10:00:00Z', updated_at: '2026-09-21T10:00:00Z',
+  }]
+  const paysAdmin = () => !!(me()?.role === 'admin' && me()?.can_see_pay)
+  const requirePay = () => { if (!paysAdmin()) throw new Error('Only admins with pay access can change grants') }
+  /** Mirrors grant_deadline_event() in SQL: the deadline as an admins-only calendar event while the application is open. */
+  function grantEvent(a: GrantApplication | undefined, id: string) {
+    const i = events.findIndex(e => e.id === `grant:${id}`)
+    if (i >= 0) events.splice(i, 1)
+    if (!a?.deadline || isDone(a.stage)) return
+    events.push({ id: `grant:${id}`, starts_on: a.deadline, ends_on: null, starts_at: null, category: 'business', town: null, competition: null,
+      title: `Grant deadline: ${a.grant_name}${a.deadline_label ? ` (${a.deadline_label})` : ''}`, source: 'app', confirmed: true, visibility: 'admins' })
+  }
+  grantApps.forEach(a => grantEvent(a, a.id))
+
   /** The customers table's rules (supabase/migrations/…_customers.sql): tidy what's typed, and someone to reach. */
   function tidyCustomer(c: Customer): Customer {
     const text = (v: string | null | undefined) => v?.trim() || null
@@ -1191,6 +1212,43 @@ export function createDemoApi(): Api {
       const added = rows.map(r => tidyCustomer({ ...person({ days: 0, kind: 'lead' }), ...r, id: uid() }))
       for (const c of added) customers.push({ ...c, consent_at: c.marketing_consent ? nowIso() : null })
       return added.length
+    },
+    async grantProfile() {
+      if (!paysAdmin() && !partnerCan('finances')) return {}
+      return clone(grantAnswers)
+    },
+    async saveGrantProfile(answers) {
+      requirePay()
+      grantAnswers = cleanAnswers(answers)
+    },
+    async grantApplications() {
+      if (!paysAdmin() && !partnerCan('finances')) return []
+      return clone(grantApps)
+    },
+    async saveGrantApplication({ id, ...patch }) {
+      requirePay()
+      const text = (v: string | null | undefined) => v?.trim() || null
+      const existing = id ? grantApps.find(a => a.id === id) : undefined
+      if (id && !existing) throw new Error('That application has gone')
+      const next: GrantApplication = { ...(existing ?? { id: uid(), grant_id: '', grant_name: '', stage: 'interested', submitted_on: null, expediente: null,
+        amount_requested: null, amount_awarded: null, amount_received: null, deadline: null, deadline_label: null, notes: null, docs_done: [],
+        obligations_done: [], created_at: nowIso() }), ...patch, updated_at: nowIso() }
+      // The database's rules: tidy text, one open application per grant, dated when submitted, the grant stays.
+      Object.assign(next, { expediente: text(next.expediente), deadline_label: text(next.deadline_label), notes: text(next.notes),
+        docs_done: [...new Set(next.docs_done)].sort(), obligations_done: [...new Set(next.obligations_done)].sort() })
+      if (existing) next.grant_id = existing.grant_id
+      if (!existing && grantApps.some(a => a.grant_id === next.grant_id && !isDone(a.stage))) throw new Error('That grant is already in your applications')
+      if (next.stage === 'submitted' && !next.submitted_on) next.submitted_on = today()
+      if (existing) Object.assign(existing, next)
+      else grantApps.push(next)
+      grantEvent(next, next.id)
+      return next.id
+    },
+    async deleteGrantApplication(id) {
+      requirePay()
+      const i = grantApps.findIndex(a => a.id === id)
+      if (i >= 0) grantApps.splice(i, 1)
+      grantEvent(undefined, id)
     },
     async todos() {
       if (!staffOnly(me()!)) return { categories: [], todos: [] }

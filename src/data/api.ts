@@ -7,6 +7,7 @@ import type { KindInfo } from '../../shared/social'
 import type { InstagramMention } from '../../shared/mentions'
 import type { FilingRecord, Quarter, TaxDocKind, TaxDocument, TaxSettings } from '../../shared/tax'
 import type { PnlLine, PnlLineInput, PnlSettings } from '../../shared/pnl'
+import type { GrantApplication, GrantApplicationInput, GrantProfile } from '../../shared/grants'
 
 export type ShiftInput = Omit<Shift, 'id' | 'status'> & { id?: string; status?: Shift['status'] }
 export type EventInput = Omit<CalendarEvent, 'id' | 'source' | 'competition'> & { id?: string; competition?: string | null }
@@ -171,6 +172,15 @@ export interface Api {
   deleteCustomer(id: string): Promise<void>
   /** Add many at once (a CSV file); returns how many were added. */
   importCustomers(rows: CustomerInput[]): Promise<number>
+
+  // Grants (admins with pay access; finance partners read): the answers that decide which fit, and the applications
+  /** The answers given so far (what the app works out by itself isn't saved). */
+  grantProfile(): Promise<Partial<GrantProfile>>
+  saveGrantProfile(answers: Partial<GrantProfile>): Promise<void>
+  grantApplications(): Promise<GrantApplication[]>
+  /** Track a grant (no id) or change an application. Returns its id. */
+  saveGrantApplication(a: GrantApplicationInput): Promise<string>
+  deleteGrantApplication(id: string): Promise<void>
 
   // To Do List (the team; admins manage categories)
   todos(): Promise<{ categories: TodoCategory[]; todos: Todo[] }>

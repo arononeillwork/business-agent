@@ -22,6 +22,10 @@ built-in **AI connector** so owners can run it by talking to Claude.
   each followed competition every 6 hours from free sources (fixturedownload.com, TheSportsDB,
   Wikipedia's UFC schedule); no keys of our own (TheSportsDB's free test key "123"). Admins pick
   competitions on the Sports page.
+- Grants (Accounts section): which grants for Andalucía fit the business, from a few adaptive questions
+  (most answers come from the business details), using Solicita's hand-checked list with each
+  grant's official source and check date; then each application tracked stage by stage, with its
+  documents and obligations ticked off and its next deadline on the team calendar.
 - Social planner: write a post once and schedule it to Instagram, Facebook, TikTok, LinkedIn and Google
   Maps; each network's result links to the live post. Stripe, Square or SumUp connects as the till: the Accounts
   section has **Sales** (a Square-style dashboard: sales against the period before, busiest hours and
