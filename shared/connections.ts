@@ -5,7 +5,7 @@
 import type { IntegrationProvider } from './types'
 import { msg } from './i18n'
 
-export type ConnectionGroup = 'communication' | 'email' | 'calendar' | 'files' | 'maps' | 'analytics' | 'social' | 'payments' | 'online_payments' | 'music'
+export type ConnectionGroup = 'communication' | 'email' | 'calendar' | 'files' | 'maps' | 'analytics' | 'social' | 'advertising' | 'payments' | 'online_payments' | 'music'
 
 export interface ConnectionOption {
   id: IntegrationProvider | 'slack' | 'sms' | 'sharepoint' | 'dropbox' | 'apple_maps' | 'stripe'
@@ -56,6 +56,11 @@ export const GROUPS: ConnectionGroupInfo[] = [
     { id: 'facebook', name: 'Facebook', by: 'Meta', proves: msg('The Page was found and posting to it was allowed.') },
     { id: 'tiktok', name: 'TikTok', by: 'TikTok', proves: msg('The account signed in and TikTok confirmed it can post.') },
     { id: 'linkedin', name: 'LinkedIn', by: 'Microsoft', proves: msg('The account signed in and posting was allowed.') },
+  ] },
+  // Paid ads on the Ads page: as many as the business runs.
+  { key: 'advertising', title: msg('Advertising'), pickOne: false, options: [
+    { id: 'meta_ads', name: 'Meta Ads', by: 'Meta', proves: msg('The ad accounts could be read and the café’s one was picked.') },
+    { id: 'google_ads', name: 'Google Ads', by: 'Google', proves: msg('The ad accounts could be read and the café’s one was picked.') },
   ] },
   // The till: Square or SumUp, one at a time. Stripe (online payments) can be added to either, and
   // the Sales page adds them up.

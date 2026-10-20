@@ -298,9 +298,9 @@ export const TIME_OFF_LABELS: Record<TimeOffKind, string> = {
   vacation: msg('Holiday'), personal: msg('Personal day'), sick: msg('Sick'), other: msg('Other'),
 }
 
-export type IntegrationProvider = 'google_business' | 'whatsapp' | 'instagram' | 'facebook' | 'tiktok' | 'linkedin' | 'spotify' | 'square' | 'stripe' | 'sumup' | ConnectorProvider | CalendarApp
-/** Connections made with one sign-in with Google or Microsoft (email, files, café YouTube Music, Search Console). */
-export type ConnectorProvider = 'gmail' | 'outlook' | 'google_drive' | 'onedrive' | 'youtube_music' | 'search_console'
+export type IntegrationProvider = 'google_business' | 'whatsapp' | 'instagram' | 'facebook' | 'tiktok' | 'linkedin' | 'spotify' | 'square' | 'stripe' | 'sumup' | 'meta_ads' | ConnectorProvider | CalendarApp
+/** Connections made with one sign-in with Google or Microsoft (email, files, café YouTube Music, Search Console, Google Ads). */
+export type ConnectorProvider = 'gmail' | 'outlook' | 'google_drive' | 'onedrive' | 'youtube_music' | 'search_console' | 'google_ads'
 /** Calendar apps that subscribe to the team calendar link. */
 export type CalendarApp = 'google_calendar' | 'outlook_calendar'
 
@@ -346,6 +346,10 @@ export interface Integration {
     can_message?: boolean; can_see_tags?: boolean
     /** Instagram: the connected account's username (without the @). */
     username?: string
+    /** Meta Ads and Google Ads: the ad accounts the person can use, and the chosen one. */
+    accounts?: { id: string; name: string; currency: string }[]; account_id?: string; account_name?: string
+    /** Meta Ads: allowed to pause, resume and change budgets (not only read). */
+    can_manage?: boolean
   }
   connected_at: string | null
   last_sync_at: string | null

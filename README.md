@@ -35,7 +35,9 @@ built-in **AI connector** so owners can run it by talking to Claude.
   Excel, CSV or PDF like every Accounts table).
   With Square, **Loyalty & gift cards** (Sales section) shows the Square loyalty programme as the
   café's stamp card with its members, and the gift cards with what's still owed on them.
-  Search Console shows how the website does on Google.
+  Search Console shows how the website does on Google. **Ads** puts Meta Ads (Facebook and Instagram)
+  and Google Ads side by side: spend, clicks and results per campaign next to the takings, monthly
+  limits, and pause, resume or daily budget changes sent straight to the platform.
 - Tax: the returns an SL files (303, 111, 115, 202, 390, 190, 180, 347, 200 and the annual accounts) with
   their last days, marked to do, with the gestoría or filed; documents (invoices, receipts, payslips,
   statements) uploaded in bulk, a folder at a time, into the connected Google Drive or OneDrive under
@@ -47,7 +49,7 @@ built-in **AI connector** so owners can run it by talking to Claude.
   Menu costing works out what each drink or dish costs from the stock in it (with variants such as oat
   milk or an extra shot, and a waste allowance) and its margin against the menu price; the Waste log
   takes what's thrown away and why off the stock, with its cost for admins.
-  Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) sections 7-13.
+  Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) sections 7-14.
 
 See [docs/PLAN.md](docs/PLAN.md) for decisions, architecture and phases.
 

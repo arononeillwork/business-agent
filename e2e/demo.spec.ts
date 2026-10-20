@@ -1276,7 +1276,7 @@ test('Connections lists what’s connected first, and a kind moves up once one o
   await expect(page.getByRole('region', { name: 'Team messages' }).getByRole('article', { name: 'WhatsApp' })).toContainText('Connected')
   const kinds = () => page.getByRole('main').locator('section[aria-label] > div > h2').allTextContents()
   const first = await kinds()
-  const connected = ['Team messages', 'Maps and search', 'Analytics', 'Social media', 'Café music']
+  const connected = ['Team messages', 'Maps and search', 'Analytics', 'Social media', 'Advertising', 'Café music']
   expect(first.slice(0, connected.length).sort()).toEqual([...connected].sort())
   expect(first.indexOf('Files and storage')).toBeGreaterThan(first.indexOf('Email'))
   await page.getByRole('region', { name: 'Files and storage' }).getByRole('button', { name: 'Connect Google Drive' }).click()
@@ -1657,14 +1657,14 @@ test.describe('billing', () => {
     await expect(page.getByRole('heading', { name: 'Billing' })).toBeVisible()
   })
 
-  test('Sales (with Customers) and Marketing (Social planner, Analytics) are menu sections of their own; old Sales links still land', async ({ page }) => {
+  test('Sales (with Customers) and Marketing (Social planner, Ads, Analytics) are menu sections of their own; old Sales links still land', async ({ page }) => {
     await open(page, '/team')
     const nav = page.getByRole('navigation', { name: 'Main' })
     await nav.getByRole('region', { name: 'Sales' }).getByRole('link', { name: 'Sales' }).click()
     await expect(page).toHaveURL(/\/sales$/)
     await expect(page.getByRole('heading', { name: 'Sales', level: 1 })).toBeVisible()
     await expect(nav.getByRole('region', { name: 'Sales' }).getByRole('link')).toHaveText(['Sales', 'Customers'])
-    await expect(nav.getByRole('region', { name: 'Marketing' }).getByRole('link')).toHaveText(['Social planner', 'Analytics'])
+    await expect(nav.getByRole('region', { name: 'Marketing' }).getByRole('link')).toHaveText(['Social planner', 'Ads', 'Analytics'])
     await nav.getByRole('region', { name: 'Marketing' }).getByRole('link', { name: 'Analytics' }).click()
     await expect(page.getByRole('heading', { name: 'Analytics', level: 1 })).toBeVisible()
     await expect(nav.getByRole('region', { name: 'Accounts' }).getByRole('link')).toHaveText(['Finances', 'Profit & loss', 'Tax', 'Grants'])
@@ -3411,5 +3411,89 @@ test.describe('recipes and waste', () => {
     await expect(page.getByRole('region', { name: /Wednesday 30 September/ })).toContainText('Spilled or dropped')
     await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Stock', exact: true }).click()
     await expect(page.getByRole('table', { name: 'Stock items' }).getByRole('row', { name: 'Napkins' })).toContainText('2 packs')
+  })
+})
+
+test.describe('ads', () => {
+  test('the Ads page shows both platforms’ spend and campaigns, with the monthly limits', async ({ page }) => {
+    await open(page, '/ads')
+    await expect(page.getByRole('heading', { name: 'Ads' })).toBeVisible()
+    const tiles = page.getByRole('list', { name: 'At a glance' })
+    await expect(tiles.getByRole('listitem').filter({ hasText: 'Spent on ads' })).toContainText('on 2 platforms')
+    await expect(tiles.getByRole('listitem').filter({ hasText: 'Clicks' })).toContainText('times shown')
+    const campaigns = page.getByRole('table', { name: /^Campaigns/ })
+    await expect(campaigns.getByRole('row', { name: /new autumn menu/ })).toContainText('Meta Ads')
+    await expect(campaigns.getByRole('row', { name: /café San Pedro de Alcántara/ })).toContainText('Google Ads')
+    await expect(campaigns.getByRole('row', { name: /specialty coffee Marbella/ })).toContainText('Paused')
+    // Google is on course to pass its limit this month; a lower Meta limit is passed already.
+    const limits = page.getByRole('region', { name: 'Monthly limits' })
+    await expect(limits.getByRole('article', { name: 'Google Ads' })).toContainText(/Close to the limit|Over the limit/)
+    await limits.getByRole('button', { name: 'Change the Meta Ads monthly limit' }).click()
+    await limits.getByRole('textbox', { name: 'Monthly limit' }).fill('100')
+    await limits.getByRole('button', { name: 'Save' }).click()
+    await toast(page, 'Monthly limit saved')
+    await expect(limits.getByRole('article', { name: 'Meta Ads' })).toContainText('Over the limit by')
+    // A new campaign is made on the platform itself.
+    await expect(page.getByRole('link', { name: 'New on Meta Ads' })).toHaveAttribute('href', /adsmanager\.facebook\.com/)
+  })
+
+  test('pausing a campaign asks first, then shows it paused; resuming brings it back', async ({ page }) => {
+    await open(page, '/ads')
+    const row = page.getByRole('table', { name: /^Campaigns/ }).getByRole('row', { name: /new autumn menu/ })
+    await row.getByRole('button', { name: /^Pause / }).click()
+    const confirm = page.getByRole('dialog', { name: 'Pause this campaign?' })
+    await expect(confirm).toContainText('stops showing ads on Meta Ads straight away')
+    await confirm.getByRole('button', { name: 'Cancel' }).click()
+    await expect(row).toContainText('Active')
+    await row.getByRole('button', { name: /^Pause / }).click()
+    await page.getByRole('dialog', { name: 'Pause this campaign?' }).getByRole('button', { name: 'Pause on Meta Ads' }).click()
+    await toast(page, 'Campaign paused')
+    await expect(row).toContainText('Paused')
+    await row.getByRole('button', { name: /^Resume / }).click()
+    await page.getByRole('dialog', { name: 'Resume this campaign?' }).getByRole('button', { name: 'Resume on Meta Ads' }).click()
+    await toast(page, 'Campaign resumed')
+    await expect(row).toContainText('Active')
+  })
+
+  test('changing a campaign’s daily budget says the old and new amounts before it goes to Google', async ({ page }) => {
+    await open(page, '/ads')
+    const row = page.getByRole('table', { name: /^Campaigns/ }).getByRole('row', { name: /café San Pedro de Alcántara/ })
+    await row.getByRole('button', { name: /^Change the daily budget of / }).click()
+    const dialog = page.getByRole('dialog', { name: 'Daily budget' })
+    await dialog.getByLabel('New daily budget').fill('0.5')
+    await expect(dialog.getByRole('button', { name: 'Next' })).toBeDisabled()
+    await dialog.getByLabel('New daily budget').fill('12')
+    await dialog.getByRole('button', { name: 'Next' }).click()
+    const confirm = page.getByRole('dialog', { name: 'Change the daily budget?' })
+    await expect(confirm).toContainText(/on Google Ads goes from €8[.,]00 to €12[.,]00 a day/)
+    await confirm.getByRole('button', { name: 'Change on Google Ads' }).click()
+    await toast(page, 'Daily budget changed')
+    await expect(row.getByRole('cell').nth(2)).toHaveText(/€12[.,]00/)
+  })
+
+  test('the UTM link builder makes a tracked link to the website', async ({ page }) => {
+    await open(page, '/ads')
+    const card = page.getByRole('region', { name: 'Tracked link' })
+    await expect(card.getByLabel('Your link')).toContainText('Fill in')
+    await card.getByLabel('Campaign').fill('Autumn menú')
+    await card.getByLabel('Ad (optional)').fill('Reel 1')
+    await expect(card.getByLabel('Your link')).toHaveText('https://www.easybeanscoffee.com/?utm_source=instagram&utm_medium=paid_social&utm_campaign=autumn-menu&utm_content=reel-1')
+    await expect(card.getByRole('button', { name: 'Copy link' })).toBeEnabled()
+  })
+
+  test('Meta Ads and Google Ads are under Advertising on Connections', async ({ page }) => {
+    await open(page, '/connections')
+    const group = page.getByRole('region', { name: 'Advertising' })
+    await expect(group.getByRole('article', { name: 'Meta Ads' })).toContainText('Connected')
+    await expect(group.getByRole('article', { name: 'Google Ads' })).toContainText('Connected')
+  })
+
+  test('employees don’t get the Ads page', async ({ page }) => {
+    await open(page, '/', 'maria@example.com')
+    await expect(page.getByRole('heading', { name: /Hola/ })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Ads', exact: true })).toHaveCount(0)
+    await page.goto('/ads?demo')
+    await expect(page.getByRole('heading', { name: /Hola/ })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Ads' })).toHaveCount(0)
   })
 })

@@ -7,6 +7,7 @@ import { DEFAULT_VAT_RATE, type PnlLine, type PnlSettings } from '../../shared/p
 import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
 import type { StockItem, StockMovement, Supplier } from '../../shared/stock'
 import type { Recipe } from '../../shared/recipes'
+import type { AdSettings } from '../../shared/ads'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
 import type { ReferralState } from '../../shared/referrals'
 import { readyPhoto } from '../lib/media'
@@ -547,6 +548,16 @@ export function createSupabaseApi(url: string, key: string): Api {
     searchConsole: (from, to) => worker(`/api/integrations/search_console/report?from=${from}&to=${to}`),
     sales: (from, to) => worker(`/api/integrations/payments/sales?from=${from}&to=${to}`),
     salesItems: (from, to) => worker(`/api/integrations/payments/items?from=${from}&to=${to}`),
+    adsReport: (from, to) => worker(`/api/ads/report?from=${from}&to=${to}`),
+    async setAdCampaign(platform, id, patch) { await worker(`/api/ads/${platform}/campaigns/${encodeURIComponent(id)}`, { method: 'POST', body: JSON.stringify(patch) }) },
+    async chooseAdAccount(platform, id) { await worker(`/api/ads/${platform}/account`, { method: 'POST', body: JSON.stringify({ id }) }) },
+    async adSettings() {
+      const row = check(await sb.from('ad_settings').select('meta_ads_monthly_cap, google_ads_monthly_cap, alert_at_percent').eq('id', 1).single()) as AdSettings
+      // Money columns (numeric) can arrive as text: keep them numbers.
+      return { ...row, meta_ads_monthly_cap: row.meta_ads_monthly_cap === null ? null : Number(row.meta_ads_monthly_cap),
+        google_ads_monthly_cap: row.google_ads_monthly_cap === null ? null : Number(row.google_ads_monthly_cap) }
+    },
+    async saveAdSettings(patch) { check(await sb.from('ad_settings').update(patch).eq('id', 1)) },
     async socialPosts() {
       return check(await sb.from('social_posts').select('id, kind, caption, image_url, media, targets, scheduled_at, auto, status, results, created_at, published_at')
         .order('scheduled_at', { ascending: false, nullsFirst: true }).order('created_at', { ascending: false }).limit(200)) as SocialPost[]

@@ -41,6 +41,8 @@ export interface Env {
   LINKEDIN_CLIENT_SECRET?: string
   LINKEDIN_PAGES?: string             // 'off': post as the person only (the app has no Community Management API yet)
   LINKEDIN_VERSION?: string           // var: Posts API version, YYYYMM (default in connections.ts)
+  GOOGLE_ADS_DEVELOPER_TOKEN?: string // Google Ads API developer token (Google Ads manager account → API Center): the Ads page
+  GOOGLE_ADS_API_VERSION?: string     // var, e.g. v21 (default in providers/googleAds.ts)
   MS_CLIENT_ID?: string               // Microsoft app (Outlook email, OneDrive files); set by the Microsoft setup workflow
   MS_CLIENT_SECRET?: string
 }

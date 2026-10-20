@@ -15,7 +15,7 @@ function bytesResponse(bytes: Uint8Array, type: string, range: string | null) {
 const googleError = (status: number, message: string, reason?: string) =>
   json({ error: { code: status, message, ...(reason ? { errors: [{ reason, message }] } : {}) } }, status)
 
-const GOOGLE_SCOPES = 'https://www.googleapis.com/auth/business.manage https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/webmasters.readonly openid https://www.googleapis.com/auth/userinfo.email'
+const GOOGLE_SCOPES = 'https://www.googleapis.com/auth/business.manage https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/webmasters.readonly https://www.googleapis.com/auth/adwords openid https://www.googleapis.com/auth/userinfo.email'
 const MS_SCOPES = 'Mail.Send Files.ReadWrite User.Read openid email profile'
 
 /** Decode a Gmail `raw` message into its To, Subject and text. */
@@ -65,6 +65,41 @@ export class FakeProviders {
       { siteUrl: 'https://old.example.com/', permissionLevel: 'siteUnverifiedUser' },
     ],
     queries: [] as { site: string; dimensions: string[]; startDate: string; endDate: string }[],
+  }
+  /** Google Ads: the accounts the Google sign-in reaches (one under a manager), campaigns, daily figures and the changes made. */
+  googleAds = {
+    /** Google hasn't approved the developer token for real accounts yet. */
+    unapproved: false,
+    accessible: ['1112223333'],
+    customers: { '1112223333': { name: 'Easy Beans Coffee', currency: 'EUR', manager: false } } as Record<string, { name: string; currency: string; manager: boolean; clients?: string[] }>,
+    campaigns: [
+      { id: '111', name: 'Search — café San Pedro de Alcántara', status: 'ENABLED', budget: 'customers/1112223333/campaignBudgets/9', amountMicros: '8000000', shared: false },
+      { id: '112', name: 'Brand (shared budget)', status: 'PAUSED', budget: 'customers/1112223333/campaignBudgets/10', amountMicros: '3000000', shared: true },
+    ],
+    metrics: [
+      { campaign: '111', date: '2026-09-28', costMicros: '4560000', impressions: '300', clicks: '20', conversions: 1.5 },
+      { campaign: '111', date: '2026-09-29', costMicros: '2005000', impressions: '150', clicks: '9', conversions: 0 },
+    ],
+    /** login-customer-id headers seen, and the changes made. */
+    logins: [] as (string | null)[],
+    mutations: [] as Json[],
+  }
+  /** Meta Ads: the person's ad accounts, campaigns and daily insights, and the changes made. */
+  metaAds = {
+    /** Until Meta's App Review, people outside the app's roles get (#200) on the ads calls. */
+    unapproved: false,
+    accounts: [{ id: 'act_101', name: 'Easy Beans Coffee', currency: 'EUR', account_status: 1 }] as Json[],
+    campaigns: [
+      { id: '2381', name: 'Instagram — new autumn menu', status: 'ACTIVE', effective_status: 'ACTIVE', daily_budget: '500' },
+      { id: '2382', name: 'Summer (ad set budgets)', status: 'PAUSED', effective_status: 'PAUSED' },
+      { id: '2383', name: 'Old opening', status: 'PAUSED', effective_status: 'ARCHIVED', daily_budget: '300' },
+    ] as Json[],
+    insights: [
+      { campaign_id: '2381', date_start: '2026-09-28', spend: '4.12', impressions: '800', clicks: '25',
+        actions: [{ action_type: 'link_click', value: '25' }, { action_type: 'onsite_conversion.messaging_conversation_started_7d', value: '3' }, { action_type: 'lead', value: '1' }] },
+      { campaign_id: '2382', date_start: '2026-09-29', spend: '1.00', impressions: '120', clicks: '2' },
+    ] as Json[],
+    updates: [] as { id: string; status?: string; daily_budget?: string }[],
   }
   instagram = {
     username: 'easy.beans.coffee',
@@ -126,7 +161,8 @@ export class FakeProviders {
   }
   spotify = { premium: true, revoked: false }
   facebook = {
-    granted: ['pages_show_list', 'pages_manage_posts', 'pages_read_engagement', 'pages_messaging', 'public_profile'],
+    /** What the person allowed (Facebook and Meta Ads share the sign-in's permission list here). */
+    granted: ['pages_show_list', 'pages_manage_posts', 'pages_read_engagement', 'pages_messaging', 'public_profile', 'ads_read', 'ads_management', 'business_management'],
     pages: [{ id: 'page-1', name: 'Easy Beans Coffee', access_token: 'page-token-1' }] as { id: string; name: string; access_token: string }[],
     revoked: false,
     posts: [] as { page: string; kind: 'photos' | 'feed'; caption?: string; url?: string }[],
@@ -321,6 +357,46 @@ export class FakeProviders {
       if (this.google.disabled.has('youtube')) return googleError(403, 'YouTube Data API v3 has not been used in project 1234 before or it is disabled.', 'accessNotConfigured')
       if (url.pathname.endsWith('/channels')) return json({ items: this.google.channel ? [{ snippet: { title: this.google.channel } }] : [] })
       if (url.pathname.endsWith('/playlists')) return json({ items: this.google.playlists })
+    }
+
+    if (url.host === 'googleads.googleapis.com') {
+      const g = this.googleAds
+      const headers = new Headers(init.headers)
+      if (!headers.get('developer-token')) return googleError(401, 'The developer token is missing.')
+      if (this.google.revoked) return googleError(401, 'Request had invalid authentication credentials.')
+      if (g.unapproved) {
+        return json({ error: { code: 403, status: 'PERMISSION_DENIED', message: 'The caller does not have permission',
+          details: [{ errors: [{ errorCode: { authorizationError: 'DEVELOPER_TOKEN_NOT_APPROVED' }, message: 'The developer token is only approved for use with test accounts.' }] }] } }, 403)
+      }
+      if (url.pathname.endsWith('/customers:listAccessibleCustomers')) return json({ resourceNames: g.accessible.map(id => `customers/${id}`) })
+      const call = url.pathname.match(/\/customers\/(\d+)\/(googleAds:search|campaigns:mutate|campaignBudgets:mutate)$/)
+      if (!call) return googleError(404, 'Not found')
+      g.logins.push(headers.get('login-customer-id'))
+      const [, customer, what] = call
+      const b = body() as { query?: string; operations?: { update: Json; updateMask: string }[] }
+      if (what !== 'googleAds:search') {
+        g.mutations.push({ customer, what, ...b.operations![0] })
+        const u = b.operations![0].update as { resourceName: string; status?: string; amountMicros?: string }
+        if (what === 'campaigns:mutate') { const c = g.campaigns.find(x => u.resourceName.endsWith(`/campaigns/${x.id}`)); if (c && u.status) c.status = u.status }
+        else { const c = g.campaigns.find(x => x.budget === u.resourceName); if (c && u.amountMicros) c.amountMicros = u.amountMicros }
+        return json({ results: [{ resourceName: u.resourceName }] })
+      }
+      const q = b.query ?? ''
+      if (/FROM customer_client/.test(q)) {
+        return json({ results: (g.customers[customer]?.clients ?? []).map(id => ({ customerClient: { id, descriptiveName: g.customers[id].name, currencyCode: g.customers[id].currency, manager: false } })) })
+      }
+      if (/FROM customer /.test(`${q} `) && !/campaign/.test(q)) {
+        const c = g.customers[customer]
+        return json({ results: c ? [{ customer: { id: customer, descriptiveName: c.name, currencyCode: c.currency, manager: c.manager } }] : [] })
+      }
+      if (/segments\.date BETWEEN/.test(q)) {
+        const [, from, to] = q.match(/BETWEEN '(.*?)' AND '(.*?)'/)!
+        return json({ results: g.metrics.filter(m => m.date >= from && m.date <= to).map(m => ({ campaign: { id: m.campaign }, segments: { date: m.date },
+          metrics: { costMicros: m.costMicros, impressions: m.impressions, clicks: m.clicks, conversions: m.conversions } })) })
+      }
+      const one = q.match(/campaign\.id = (\d+)/)?.[1]
+      return json({ results: g.campaigns.filter(c => (!one || c.id === one) && c.status !== 'REMOVED').map(c => ({ campaign: { id: c.id, name: c.name, status: c.status },
+        campaignBudget: { resourceName: c.budget, amountMicros: c.amountMicros, explicitlyShared: c.shared, period: 'DAILY' } })) })
     }
 
     if (url.host === 'searchconsole.googleapis.com') {
@@ -546,6 +622,26 @@ export class FakeProviders {
     }
     if (url.host === 'graph.facebook.com' && /\/me\/permissions$/.test(url.pathname)) return json({ data: this.facebook.granted.map(permission => ({ permission, status: 'granted' })) })
     if (url.host === 'graph.facebook.com' && /\/me\/accounts$/.test(url.pathname)) return json({ data: this.facebook.pages })
+    // Meta Ads (Marketing API), with the person's own sign-in.
+    const campaignId = url.pathname.match(/\/v[\d.]+\/(\d+)$/)?.[1]
+    const adsCall = url.host === 'graph.facebook.com' && (url.pathname.match(/\/v[\d.]+\/(?:me\/(adaccounts)|(act_\d+)\/(campaigns|insights))$/)
+      ?? (method === 'POST' && this.metaAds.campaigns.some(c => c.id === campaignId) ? [url.pathname, undefined, undefined, undefined, campaignId] : null))
+    if (adsCall) {
+      const m = this.metaAds
+      if (m.unapproved) return json({ error: { message: '(#200) Requires ads_read permission to manage the object', type: 'OAuthException', code: 200 } }, 403)
+      if (adsCall[1]) return json({ data: m.accounts })
+      if (adsCall[3] === 'campaigns') return json({ data: m.campaigns })
+      if (adsCall[3] === 'insights') {
+        const range = JSON.parse(url.searchParams.get('time_range') ?? '{}') as { since: string; until: string }
+        return json({ data: m.insights.filter(i => String(i.date_start) >= range.since && String(i.date_start) <= range.until) })
+      }
+      const f = form()
+      const change = { id: adsCall[4]!, ...(f.get('status') ? { status: f.get('status')! } : {}), ...(f.get('daily_budget') ? { daily_budget: f.get('daily_budget')! } : {}) }
+      m.updates.push(change)
+      const c = m.campaigns.find(x => x.id === adsCall[4])
+      if (c) Object.assign(c, change.status ? { status: change.status, effective_status: change.status } : {}, change.daily_budget ? { daily_budget: change.daily_budget } : {})
+      return json({ success: true })
+    }
     // Messenger: the Page's chats and replies (pages_messaging), with the Page token.
     const messenger = url.host === 'graph.facebook.com' && url.pathname.match(/\/v[\d.]+\/(?:(page-[\w-]+)\/(conversations|messages)|(t_[\w-]+))$/)
     if (messenger) {

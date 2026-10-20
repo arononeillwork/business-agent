@@ -11,6 +11,7 @@ import { refreshAllSports, refreshStaleSports, sportsEnabled, syncCrests } from 
 import { music } from './music'
 import { calendarFeeds } from './calendarFeed'
 import { fonts } from './fonts'
+import { ads } from './ads'
 import { authorizeGet, authorizePost, mcpApiHandler, tokenExchangeCallback, type GrantProps, type OAuthEnv } from './mcp'
 import { apiKeys, isAccessKey, resolveKey } from './apiKeys'
 import { authEmail } from './authEmail'
@@ -173,6 +174,9 @@ app.route('/', music)
 
 // Google Fonts list for the brand page's font picker.
 app.route('/', fonts)
+
+// The Ads page: Meta Ads and Google Ads, read and changed live.
+app.route('/', ads)
 
 // Calendar feeds: my shifts (everyone) and the team calendar (admins), for Google/Apple/Outlook.
 app.route('/', calendarFeeds)

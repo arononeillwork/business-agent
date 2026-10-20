@@ -116,6 +116,7 @@ export const FEATURE_LABEL: Record<Feature, string> = {
 export const CONNECTION_FEATURE: Record<string, Feature> = {
   google_business: 'google_maps', whatsapp: 'whatsapp', square: 'takings', stripe: 'takings', sumup: 'takings',
   spotify: 'music', youtube_music: 'music', gmail: 'apps', outlook: 'apps', google_drive: 'apps', onedrive: 'apps',
+  meta_ads: 'apps', google_ads: 'apps',
 }
 export const SOCIAL_CONNECTIONS = ['instagram', 'facebook', 'tiktok', 'linkedin']
 
