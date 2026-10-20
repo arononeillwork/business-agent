@@ -21,6 +21,7 @@ import * as stripe from './providers/stripe'
 import * as sumup from './providers/sumup'
 import * as linkedin from './providers/linkedin'
 import * as searchConsole from './providers/searchConsole'
+import * as metaAds from './providers/metaAds'
 import { alertEmail, base64url, mimeMessage } from '../shared/alertText'
 import { addToCalendarUrl, optionName } from '../shared/connections'
 import { replyWindow } from '../shared/messages'
@@ -31,7 +32,8 @@ import * as waInbox from './whatsappInbox'
 import { MediaError, checkFile, mediaBytes, mediaStorage, serveMedia, storeMedia } from './media'
 import {
   CONNECTORS, PROVIDERS, ROW_COLUMNS, SCOPES, squareWebhookUrl, calendarSeen, calendarFetched, checkAll, checkOne, connectedOf, connectorConfigured,
-  connectorGrant, explain, facebookOAuth, facebookSession, googleConfig, googleSession, instagramOAuth, instagramSession, isCalendarApp, isGoogle,
+  connectorGrant, explain, facebookOAuth, facebookSession, googleAdsConfig, googleConfig, googleSession, instagramOAuth, instagramSession, isCalendarApp, isGoogle,
+  metaAdsOAuth, proveMetaAds,
   lasting, linkedinOAuth, linkedinSession, markBroken, msConfig, proveFacebook, proveInstagram, proveLinkedIn, proveNew, proveSpotify, proveSquare, proveStripe,
   proveSumUp, proveTikTok, setIntegration, showInstagramHandle, showMailboxAddress, spotifyConfig, spotifySession, squareOAuth, squareSession, stripeOAuth,
   stripeSession, sumupOAuth, sumupSession, tellAdmins, tiktokOAuth, tiktokSession, waConfig, type Connector, type LinkedInExternal, type Provider,
@@ -261,6 +263,7 @@ integrations.get('/api/integrations', async c => {
     whatsapp: !!waConfig(c.env) && !!c.env.META_APP_SECRET && !!c.env.WHATSAPP_VERIFY_TOKEN,
     instagram: !!instagramOAuth(c.env, ''),
     facebook: !!facebookOAuth(c.env, ''),
+    meta_ads: !!metaAdsOAuth(c.env, ''),
     tiktok: !!tiktokOAuth(c.env, ''),
     linkedin: !!linkedinOAuth(c.env, ''),
     square: !!squareOAuth(c.env),
@@ -296,6 +299,7 @@ integrations.post('/api/integrations/connect/:provider/start', async c => {
   if (isGoogle(p)) {
     const cfg = googleConfig(c.env, origin)
     if (!cfg) return c.json({ error: `${optionName(p)} needs the Google keys first (GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET; see docs/sign-in-setup.md).` }, 400)
+    if (p === 'google_ads' && !googleAdsConfig(c.env)) return c.json({ error: 'Google Ads needs Business Agent’s Google Ads developer token first (GOOGLE_ADS_DEVELOPER_TOKEN; see docs/INTEGRATIONS.md).' }, 400)
     return c.json({ url: google.authUrl(cfg, state, [...SCOPES[p]]) })
   }
   const cfg = msConfig(c.env, origin)
@@ -325,7 +329,7 @@ async function finishConnector(c: Context<{ Bindings: Env; Variables: { userId: 
     const t = isGoogle(p) ? await google.exchangeCode(gcfg!, code) : await ms.exchangeCode(mcfg!, code)
     if (!t.refresh_token) throw new Error(`${optionName(p)} did not allow offline access. Remove the app from your account's connected apps and connect again.`)
     const { data: biz } = await db.from('business').select('name, website').eq('id', 1).maybeSingle()
-    const proven = await proveNew(p, { access_token: t.access_token!, scope: t.scope }, biz?.name ?? 'Business Agent', biz?.website)
+    const proven = await proveNew(p, { access_token: t.access_token!, scope: t.scope }, biz?.name ?? 'Business Agent', biz?.website, googleAdsConfig(c.env))
     const { error } = await db.from('integration_secrets').upsert({ provider: p, ciphertext: await seal(c.env.INTEGRATION_KEY!, { refresh_token: t.refresh_token }), updated_at: new Date().toISOString() })
     if (error) throw new Error(error.message)
     const now = new Date().toISOString()
@@ -804,6 +808,25 @@ integrations.post('/api/integrations/facebook/page', async c => {
     return c.json({ error: why }, 400)
   }
 })
+
+// Meta Ads: sign in with Facebook, allow reading (and changing) ads, pick the ad account (automatic
+// when there's only one; the Ads page's /api/ads/meta_ads/account otherwise).
+integrations.post('/api/integrations/meta_ads/start', async c => {
+  const cfg = metaAdsOAuth(c.env, new URL(c.req.url).origin)
+  if (!cfg) return c.json({ error: 'Meta Ads needs the Meta app keys first (META_APP_ID and META_APP_SECRET; see docs/INTEGRATIONS.md).' }, 400)
+  return c.json({ url: metaAds.authUrl(cfg, await startState(c, 'meta_ads')) })
+})
+
+integrations.get('/api/integrations/meta_ads/callback', c => appCallback(c, 'meta_ads', async (state, origin, db) => {
+  const cfg = metaAdsOAuth(c.env, origin)
+  if (!cfg) throw new Error('Meta Ads is not set up')
+  const t = await metaAds.exchangeCode(cfg, c.req.query('code') ?? '')
+  const proven = await proveMetaAds(c.env, t)
+  await keep(c.env, db, 'meta_ads', { access_token: t.access_token, expires_at: t.expires_at })
+  const now = new Date().toISOString()
+  await setIntegration(db, 'meta_ads', { status: proven.pending ? 'pending' : 'connected', connected_by: state.uid, connected_at: now,
+    last_checked_at: proven.pending ? null : now, last_error: null, account_label: proven.label, external: proven.external })
+}))
 
 // TikTok: sign in, allow posting; connected once TikTok confirms the account can post.
 integrations.post('/api/integrations/tiktok/start', async c => {

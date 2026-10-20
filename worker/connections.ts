@@ -3,6 +3,7 @@
 //   Google Drive, OneDrive    the "Business Agent" folder is there
 //   Spotify, YouTube Music    the account signed in and its playlists could be read
 //   Search Console            the account can read the website's search data (the business's website is picked)
+//   Google Ads, Meta Ads      the ad accounts could be read (the admin picks one when there are several)
 //   WhatsApp                  a test message was accepted from the café's number
 //   Google/Outlook Calendar   that app fetched the team calendar (calendarFeed.ts reports it)
 // Every night, and on "Check now", each connection is checked again. When one stops working its
@@ -23,6 +24,8 @@ import * as stripe from './providers/stripe'
 import * as sumup from './providers/sumup'
 import * as linkedin from './providers/linkedin'
 import * as searchConsole from './providers/searchConsole'
+import * as googleAds from './providers/googleAds'
+import * as metaAds from './providers/metaAds'
 import { base64url, mimeMessage } from '../shared/alertText'
 import { calendarAppFromAgent, optionName } from '../shared/connections'
 import type { CalendarApp, IntegrationProvider } from '../shared/types'
@@ -30,11 +33,11 @@ import { businessConfig } from '../shared/business.config'
 
 export type Provider = IntegrationProvider
 /** Signed in with Google or Microsoft: one refresh token each. */
-export type Connector = 'gmail' | 'outlook' | 'google_drive' | 'onedrive' | 'youtube_music' | 'search_console'
-export const CONNECTORS: Connector[] = ['gmail', 'outlook', 'google_drive', 'onedrive', 'youtube_music', 'search_console']
-export const PROVIDERS: Provider[] = ['google_business', 'whatsapp', 'instagram', 'facebook', 'tiktok', 'linkedin', 'spotify', 'square', 'stripe', 'sumup', ...CONNECTORS, 'google_calendar', 'outlook_calendar']
+export type Connector = 'gmail' | 'outlook' | 'google_drive' | 'onedrive' | 'youtube_music' | 'search_console' | 'google_ads'
+export const CONNECTORS: Connector[] = ['gmail', 'outlook', 'google_drive', 'onedrive', 'youtube_music', 'search_console', 'google_ads']
+export const PROVIDERS: Provider[] = ['google_business', 'whatsapp', 'instagram', 'facebook', 'tiktok', 'linkedin', 'spotify', 'square', 'stripe', 'sumup', ...CONNECTORS, 'google_calendar', 'outlook_calendar', 'meta_ads']
 export const isConnector = (p: string): p is Connector => (CONNECTORS as string[]).includes(p)
-export const isGoogle = (p: Connector) => p === 'gmail' || p === 'google_drive' || p === 'youtube_music' || p === 'search_console'
+export const isGoogle = (p: Connector) => p === 'gmail' || p === 'google_drive' || p === 'youtube_music' || p === 'search_console' || p === 'google_ads'
 export const isCalendarApp = (p: string): p is CalendarApp => p === 'google_calendar' || p === 'outlook_calendar'
 
 // ---------------------------------------------------------------------------------------------
@@ -66,6 +69,16 @@ export const facebookOAuth = (env: Env, origin: string): facebook.FacebookOAuthC
   env.META_APP_ID && env.META_APP_SECRET && env.INTEGRATION_KEY
     ? { appId: env.META_APP_ID, appSecret: env.META_APP_SECRET, redirectUri: `${origin}/api/integrations/facebook/callback`, graphVersion: graphVersion(env) }
     : null
+
+/** Meta Ads: the same Meta app as the Facebook Page connection, its own sign-in (ads permissions) and return address. */
+export const metaAdsOAuth = (env: Env, origin: string): metaAds.MetaAdsOAuthConfig | null =>
+  env.META_APP_ID && env.META_APP_SECRET && env.INTEGRATION_KEY
+    ? { appId: env.META_APP_ID, appSecret: env.META_APP_SECRET, redirectUri: `${origin}/api/integrations/meta_ads/callback`, graphVersion: graphVersion(env) }
+    : null
+
+/** Google Ads: the developer token from Business Agent's Google Ads manager account (API Center). */
+export const googleAdsConfig = (env: Env): googleAds.GoogleAdsConfig | null =>
+  env.GOOGLE_ADS_DEVELOPER_TOKEN ? { developerToken: env.GOOGLE_ADS_DEVELOPER_TOKEN, version: env.GOOGLE_ADS_API_VERSION ?? googleAds.GOOGLE_ADS_VERSION } : null
 
 export const tiktokOAuth = (env: Env, origin: string): tiktok.TikTokOAuthConfig | null =>
   env.TIKTOK_CLIENT_KEY && env.TIKTOK_CLIENT_SECRET && env.INTEGRATION_KEY
@@ -105,12 +118,14 @@ export const spotifyConfig = (env: Env, origin: string): spotify.SpotifyOAuthCon
     ? { clientId: env.SPOTIFY_CLIENT_ID, clientSecret: env.SPOTIFY_CLIENT_SECRET, redirectUri: `${origin}/api/integrations/spotify/callback` }
     : null
 
-export const connectorConfigured = (env: Env, p: Connector) => isGoogle(p) ? !!googleConfig(env, '') : !!msConfig(env, '')
+export const connectorConfigured = (env: Env, p: Connector) =>
+  isGoogle(p) ? !!googleConfig(env, '') && (p !== 'google_ads' || !!googleAdsConfig(env)) : !!msConfig(env, '')
 
 /** What each connection asks for on the Google / Microsoft consent screen. */
 export const SCOPES: Record<Connector, readonly string[]> = {
   gmail: google.GMAIL_SCOPES, google_drive: google.DRIVE_SCOPES, youtube_music: youtube.YOUTUBE_SCOPES,
   search_console: searchConsole.SEARCH_CONSOLE_SCOPES, outlook: ms.MS_SCOPES.outlook, onedrive: ms.MS_SCOPES.onedrive,
+  google_ads: googleAds.GOOGLE_ADS_SCOPES,
 }
 
 /** The one permission each connection can't work without (people can untick it when they sign in). */
@@ -119,6 +134,7 @@ const NEEDS: Record<Connector, string> = {
   google_drive: 'https://www.googleapis.com/auth/drive.file',
   youtube_music: 'https://www.googleapis.com/auth/youtube.readonly',
   search_console: 'https://www.googleapis.com/auth/webmasters.readonly',
+  google_ads: 'https://www.googleapis.com/auth/adwords',
   outlook: 'Mail.Send',
   onedrive: 'Files.ReadWrite',
 }
@@ -138,7 +154,7 @@ export function hasScope(p: Connector, granted: string | undefined) {
 // ---------------------------------------------------------------------------------------------
 const API_NAME: Partial<Record<Provider, string>> = {
   gmail: 'Gmail API', google_drive: 'Google Drive API', youtube_music: 'YouTube Data API v3', google_business: 'Business Profile APIs',
-  search_console: 'Google Search Console API',
+  search_console: 'Google Search Console API', google_ads: 'Google Ads API',
 }
 /**
  * The Google Cloud APIs that connecting Google Maps and syncing hours call (worker/providers/google.ts).
@@ -160,6 +176,19 @@ export function explain(p: Provider, e: unknown): string {
   if (p === 'tiktok' && /access_token_invalid|scope_not_authorized/i.test(raw)) return /scope/i.test(raw) ? missingPermission(p) : `${name} access was removed or has expired. Connect it again.`
   if (p === 'linkedin' && /Not enough permissions|ACCESS_DENIED/i.test(raw)) {
     return 'LinkedIn didn’t allow posting there. Check you’re still an admin of the Page (or choose your own profile), then connect again.'
+  }
+  if (p === 'google_ads' && /DEVELOPER_TOKEN_NOT_APPROVED|DEVELOPER_TOKEN_PROHIBITED|only approved for use with test accounts/i.test(raw)) {
+    return 'Google hasn’t approved Business Agent’s Google Ads access for real ad accounts yet (the developer token is for test accounts only). Once Google approves it, connect again.'
+  }
+  if (p === 'google_ads' && /NOT_ADS_USER/i.test(raw)) return 'This Google account has no Google Ads account. Sign in with the account that runs the café’s ads.'
+  if (p === 'google_ads' && /USER_PERMISSION_DENIED|CUSTOMER_NOT_ENABLED/i.test(raw)) {
+    return 'This Google account can’t use that ad account any more (it was closed, or the account was taken off it). Choose another ad account or connect again.'
+  }
+  if (p === 'meta_ads' && /Error validating access token|has not authorized application|Session has expired|Invalid OAuth access token/i.test(raw)) {
+    return 'Meta Ads access was removed or has expired. Connect it again.'
+  }
+  if (p === 'meta_ads' && /\(#(?:10|200|294)\)|requires ads_|Ads API access|Advanced Access/i.test(raw)) {
+    return 'Meta hasn’t approved this app for ads yet: until it passes Meta’s App Review (Advanced Access for ads_read and ads_management), only people with a role in the Meta app can connect their ad accounts.'
   }
   if (p === 'instagram' && /Insufficient Developer Role|not.*tester/i.test(raw)) {
     return 'This Instagram account can’t connect yet: until the app passes Meta’s review, only accounts added as Instagram testers in the Meta app can connect.'
@@ -184,7 +213,7 @@ export function explain(p: Provider, e: unknown): string {
 }
 
 /** Failures that trying again won't fix (as opposed to a provider having a bad minute). */
-const LASTING = /invalid_grant|access was removed|access has expired|switched off|without the permission|no Outlook mailbox|no OneDrive|no YouTube channel|not connected|not set up|hasn.t fetched|hasn.t switched on|no Google Maps listing|can.t connect yet|no website in Search Console|no longer in this Google account|didn.t allow posting/i
+const LASTING = /invalid_grant|access was removed|access has expired|switched off|without the permission|no Outlook mailbox|no OneDrive|no YouTube channel|not connected|not set up|hasn.t fetched|hasn.t switched on|no Google Maps listing|can.t connect yet|no website in Search Console|no longer in this Google account|didn.t allow posting|hasn.t approved|no Google Ads account|no ad account|can.t use that ad account/i
 export const lasting = (p: Provider, e: unknown) => LASTING.test(message(e)) || LASTING.test(explain(p, e))
 
 // ---------------------------------------------------------------------------------------------
@@ -377,6 +406,51 @@ export async function facebookSession(env: Env, db: SupabaseClient) {
   return { pageId, token: pages[pageId], graphVersion: graphVersion(env) }
 }
 
+/** Meta Ads and Google Ads keep the chosen ad account (and the ones to choose from) in `external`. */
+export interface AdsExternal {
+  accounts?: googleAds.GoogleAdsAccount[]; account_id?: string; account_name?: string; currency?: string
+  /** Meta: allowed to pause, resume and change budgets (ads_management). */
+  can_manage?: boolean; expires_at?: string; expiry_warned?: boolean; email?: string
+}
+const ADS_WARN_MS = 7 * 86_400_000
+
+/** The chosen Meta ad account and the 60-day sign-in to read it with. */
+export async function metaAdsSession(env: Env, db: SupabaseClient) {
+  const [{ data: secret }, { data: row }] = await Promise.all([
+    db.from('integration_secrets').select('ciphertext').eq('provider', 'meta_ads').maybeSingle(),
+    db.from('integrations').select('external').eq('provider', 'meta_ads').single(),
+  ])
+  if (!secret) throw new Error('Meta Ads is not connected')
+  const s = await unseal<{ access_token: string; expires_at: string }>(env.INTEGRATION_KEY!, secret.ciphertext)
+  if (Date.parse(s.expires_at) <= Date.now()) throw new Error('Meta Ads access has expired. Connect it again.')
+  const ext = (row?.external ?? {}) as AdsExternal
+  return { token: s.access_token, expiresAt: s.expires_at, graphVersion: graphVersion(env), external: ext, account: ext.accounts?.find(a => a.id === ext.account_id) ?? null }
+}
+
+/** The chosen Google Ads account, a fresh access token and the developer token. */
+export async function googleAdsSession(env: Env, db: SupabaseClient, origin = '') {
+  const cfg = googleAdsConfig(env)
+  if (!cfg) throw new Error('Google Ads is not set up')
+  const [{ token }, { data: row }] = await Promise.all([connectorGrant(env, db, 'google_ads', origin), db.from('integrations').select('external').eq('provider', 'google_ads').single()])
+  const ext = (row?.external ?? {}) as AdsExternal
+  return { cfg, token, external: ext, account: ext.accounts?.find(a => a.id === ext.account_id) ?? null }
+}
+
+/** One ad account is used straight away; with several, the admin picks (pending until then). */
+function chooseAccount(accounts: googleAds.GoogleAdsAccount[], extra: Record<string, unknown>): Proven {
+  if (accounts.length !== 1) return { label: null, external: { accounts, ...extra }, pending: true }
+  const a = accounts[0]
+  return { label: a.name, external: { accounts, account_id: a.id, account_name: a.name, currency: a.currency, ...extra } }
+}
+
+/** Meta Ads: reading ads was allowed and the person has an ad account. Changes need ads_management, which can be left out. */
+export async function proveMetaAds(env: Env, t: { access_token: string; expires_at: string; granted: string[] }): Promise<Proven> {
+  if (!t.granted.includes('ads_read') && !t.granted.includes('ads_management')) throw new Error(missingPermission('meta_ads'))
+  const accounts = await metaAds.adAccounts(graphVersion(env), t.access_token)
+  if (!accounts.length) throw new Error('This Facebook account has no ad account. Sign in with the account that runs the café’s ads in Meta Ads Manager.')
+  return chooseAccount(accounts, { can_manage: t.granted.includes('ads_management'), expires_at: t.expires_at })
+}
+
 /** Facebook: posting was allowed and the owner manages a Page (one is picked straight away). */
 export async function proveFacebook(env: Env, granted: string[], pages: facebook.FacebookPage[]) {
   if (!granted.includes('pages_manage_posts') || !granted.includes('pages_show_list')) throw new Error(missingPermission('facebook'))
@@ -468,7 +542,8 @@ const confirmation = (p: 'gmail' | 'outlook', email: string, business: string) =
  * Use a new Google/Microsoft connection for real. Throws, in plain words, if it can't do its job.
  * `website`: the business's own, so Search Console can pick it.
  */
-export async function proveNew(p: Connector, t: { access_token: string; scope?: string }, business: string, website?: string | null): Promise<Proven> {
+export async function proveNew(p: Connector, t: { access_token: string; scope?: string }, business: string, website?: string | null,
+  ads?: googleAds.GoogleAdsConfig | null): Promise<Proven> {
   if (!hasScope(p, t.scope)) throw new Error(missingPermission(p))
   const token = t.access_token
   switch (p) {
@@ -505,6 +580,12 @@ export async function proveNew(p: Connector, t: { access_token: string; scope?: 
       if (!site) return { label: email ?? null, external: { sites, email }, pending: true }
       await searchConsole.probe(token, site)
       return { label: searchConsole.siteLabel(site), external: { sites, site, email } }
+    }
+    case 'google_ads': {
+      if (!ads) throw new Error('Google Ads is not set up')
+      const [email, accounts] = await Promise.all([google.accountEmail(token), googleAds.accounts(ads, token)])
+      if (!accounts.length) throw new Error('This Google account has no Google Ads account. Sign in with the account that runs the café’s ads.')
+      return chooseAccount(accounts, { email })
     }
   }
 }
@@ -553,6 +634,11 @@ async function stillWorks(env: Env, db: SupabaseClient, row: Row): Promise<Parti
       const site = row.external.site as string | undefined
       if (site && !sites.includes(site)) throw new Error(`${searchConsole.siteLabel(site)} is no longer in this Google account’s Search Console. Choose another website or connect again.`)
       return { external: { ...row.external, sites } }
+    }
+    if (p === 'google_ads') {
+      const cfg = googleAdsConfig(env)
+      if (!cfg) throw new Error('Google Ads is not set up')
+      return { external: { ...row.external, accounts: stillThere(await googleAds.accounts(cfg, token), row.external as AdsExternal) } }
     }
     if (p === 'google_drive') {
       const id = row.external.folder_id as string | undefined
@@ -622,6 +708,16 @@ async function stillWorks(env: Env, db: SupabaseClient, row: Row): Promise<Parti
       }
       return { account_label: name, external: external as Record<string, unknown> }
     }
+    case 'meta_ads': {
+      const s = await metaAdsSession(env, db)
+      const external: AdsExternal = { ...s.external, accounts: stillThere(await metaAds.adAccounts(s.graphVersion, s.token), s.external) }
+      // Meta gives no refresh: admins hear a week before the 60 days are up (once).
+      if (Date.parse(s.expiresAt) - Date.now() < ADS_WARN_MS && !s.external.expiry_warned) {
+        await tellAdmins(db, 'Meta Ads needs connecting again soon', `Meta only allows access for 60 days. Connect Meta Ads again before ${day(s.expiresAt)} to keep seeing your ads.`)
+        external.expiry_warned = true
+      }
+      return { external: external as Record<string, unknown> }
+    }
     case 'google_business': {
       const s = await googleSession(env, db)
       if (s.location) await google.getLocationHours(s.token, s.location)
@@ -630,6 +726,15 @@ async function stillWorks(env: Env, db: SupabaseClient, row: Row): Promise<Parti
     }
   }
   return {}
+}
+
+/** The ad accounts, as long as the chosen one is still among them. */
+function stillThere(accounts: googleAds.GoogleAdsAccount[], ext: AdsExternal) {
+  if (!accounts.length) throw new Error('This account has no ad account any more. Connect again with the account that runs the café’s ads.')
+  if (ext.account_id && !accounts.some(a => a.id === ext.account_id)) {
+    throw new Error(`This account can’t use that ad account (${ext.account_name ?? ext.account_id}) any more. Choose another ad account or connect again.`)
+  }
+  return accounts
 }
 
 /** Every active admin gets a notification (the bell), linking to the Connections page. */

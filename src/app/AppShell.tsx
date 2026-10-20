@@ -20,6 +20,7 @@ import FinanceIcon from '@mui/icons-material/PaymentsOutlined'
 import SalesIcon from '@mui/icons-material/InsightsOutlined'
 import BillingIcon from '@mui/icons-material/CreditCardOutlined'
 import SocialIcon from '@mui/icons-material/CampaignOutlined'
+import AdsIcon from '@mui/icons-material/AdsClickOutlined'
 import MessagesIcon from '@mui/icons-material/ChatBubbleOutlineRounded'
 import ReferralsIcon from '@mui/icons-material/CardGiftcardOutlined'
 import NotificationsIcon from '@mui/icons-material/NotificationsNoneOutlined'
@@ -79,6 +80,7 @@ export const SECTIONS: NavSection[] = [
   ] },
   { key: 'marketing', label: msg('Marketing'), items: [
     { key: 'social', to: '/social', label: msg('Social planner'), icon: <SocialIcon />, who: 'admin' },
+    { key: 'ads', to: '/ads', label: msg('Ads'), icon: <AdsIcon />, who: 'admin' },
     { key: 'analytics', to: '/analytics', label: msg('Analytics'), icon: <AnalyticsIcon />, who: 'admin' },
   ] },
   { key: 'whatson', label: msg("What's on"), items: [

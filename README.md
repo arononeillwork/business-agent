@@ -26,8 +26,10 @@ built-in **AI connector** so owners can run it by talking to Claude.
   Maps; each network's result links to the live post. Stripe, Square or SumUp connects as the till: the Accounts
   section has **Sales** (a Square-style dashboard: sales against the period before, busiest hours and
   days, how people paid, best sellers) and **Finances** (running costs, takings next to team cost).
-  Search Console shows how the website does on Google.
-  Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) sections 7-13.
+  Search Console shows how the website does on Google. **Ads** puts Meta Ads (Facebook and Instagram)
+  and Google Ads side by side: spend, clicks and results per campaign next to the takings, monthly
+  limits, and pause, resume or daily budget changes sent straight to the platform.
+  Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) sections 7-14.
 
 See [docs/PLAN.md](docs/PLAN.md) for decisions, architecture and phases.
 

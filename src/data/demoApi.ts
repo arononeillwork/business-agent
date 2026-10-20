@@ -19,6 +19,7 @@ import type { SportsFavourite } from '../../shared/sports'
 import { POPULAR_FONTS } from '../../shared/fonts'
 import { addToCalendarUrl, cleanWebsite, groupOf } from '../../shared/connections'
 import { mergeSales } from '../../shared/sales'
+import { AD_PLATFORMS, NO_METRICS, PLATFORM_NAMES, addMetrics, sumDays, type AdCampaign, type AdDay, type AdMetrics, type AdPlatform, type AdSettings, type AdsReport } from '../../shared/ads'
 import { addDays, localDate, minutesBetween, today, weekDates, weekStart, zonedIso } from '../../shared/time'
 
 interface RawEntry {
@@ -98,7 +99,7 @@ export function createDemoApi(): Api {
   const integ: IntegrationsState = {
     configured: { google_business: true, whatsapp: true, instagram: true, spotify: true, gmail: true, outlook: true, google_drive: true, onedrive: true,
       youtube_music: true, google_calendar: true, outlook_calendar: true, facebook: true, tiktok: true, square: true, stripe: true,
-      sumup: true, linkedin: true, search_console: true },
+      sumup: true, linkedin: true, search_console: true, meta_ads: true, google_ads: true },
     queue: [],
     integrations: [
       { provider: 'google_business', status: 'connected', account_label: 'Easy Beans Coffee',
@@ -116,6 +117,13 @@ export function createDemoApi(): Api {
         connected_at: nowIso(), last_sync_at: null, last_error: null, last_checked_at: nowIso() },
       { provider: 'search_console', status: 'connected', account_label: 'www.easybeanscoffee.com',
         external: { sites: ['https://www.easybeanscoffee.com/'], site: 'https://www.easybeanscoffee.com/' },
+        connected_at: nowIso(), last_sync_at: nowIso(), last_error: null, last_checked_at: nowIso() },
+      // Both ad platforms run the café's own ad account (the Ads page).
+      { provider: 'meta_ads', status: 'connected', account_label: 'Easy Beans Coffee',
+        external: { accounts: [{ id: 'act_1358524', name: 'Easy Beans Coffee', currency: 'EUR' }], account_id: 'act_1358524', account_name: 'Easy Beans Coffee', can_manage: true },
+        connected_at: nowIso(), last_sync_at: nowIso(), last_error: null, last_checked_at: nowIso() },
+      { provider: 'google_ads', status: 'connected', account_label: 'Easy Beans Coffee',
+        external: { accounts: [{ id: '4471230098', name: 'Easy Beans Coffee', currency: 'EUR' }], account_id: '4471230098', account_name: 'Easy Beans Coffee' },
         connected_at: nowIso(), last_sync_at: nowIso(), last_error: null, last_checked_at: nowIso() },
       ...(['gmail', 'outlook', 'google_drive', 'onedrive', 'youtube_music', 'google_calendar', 'outlook_calendar', 'facebook', 'tiktok', 'square', 'stripe', 'sumup'] as const).map(provider => ({
         provider, status: 'disconnected' as const, account_label: null, external: {}, connected_at: null, last_sync_at: null, last_error: null, last_checked_at: null })),
@@ -242,6 +250,47 @@ export function createDemoApi(): Api {
     return menu.map(([name, price, perDay]) => ({ name, quantity: perDay * span, gross: round2(perDay * span * price) }))
       .sort((a, b) => b.gross - a.gross)
   }
+  /**
+   * Demo ads: the café's own small campaigns over the last two months. Meta: a local awareness ad
+   * within 5 km for the new autumn menu, weekend brunch, and an opening-week push that has finished.
+   * Google: searches for a café in San Pedro, directions on Maps, and a Marbella test that was paused.
+   * Each running day spends most of its daily budget; the figures are fixed per date, so a page shows
+   * the same thing every time.
+   */
+  /** `runs`: when it was running (an open end: still is); a pause closes the last one, a resume starts another. */
+  interface DemoCampaign { platform: AdPlatform; id: string; name: string; daily_budget: number | null; runs: [string, string | null][] }
+  const adCampaigns: DemoCampaign[] = [
+    { platform: 'meta_ads', id: '23851', name: 'Instagram — new autumn menu (5 km around the café)', daily_budget: 6, runs: [[addDays(today(), -25), null]] },
+    { platform: 'meta_ads', id: '23852', name: 'Facebook — weekend brunch', daily_budget: 4, runs: [[addDays(today(), -59), null]] },
+    { platform: 'meta_ads', id: '23853', name: 'Instagram — opening week', daily_budget: 10, runs: [[addDays(today(), -59), addDays(today(), -45)]] },
+    { platform: 'google_ads', id: '19041', name: 'Search — café San Pedro de Alcántara', daily_budget: 8, runs: [[addDays(today(), -59), null]] },
+    { platform: 'google_ads', id: '19042', name: 'Maps — directions to the café', daily_budget: 3, runs: [[addDays(today(), -40), null]] },
+    { platform: 'google_ads', id: '19043', name: 'Search — specialty coffee Marbella', daily_budget: 5, runs: [[addDays(today(), -59), addDays(today(), -25)]] },
+  ]
+  const adSettings: AdSettings = { meta_ads_monthly_cap: 350, google_ads_monthly_cap: 330, alert_at_percent: 80 }
+  const adDay = (c: DemoCampaign, d: string): AdMetrics => {
+    if (!c.runs.some(([a, b]) => d >= a && (!b || d <= b)) || d > today() || !c.daily_budget) return NO_METRICS
+    const seed = [...`${d}${c.id}`].reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) % 997, 11) / 997
+    const spend = round2(c.daily_budget * (0.75 + 0.25 * seed))
+    const impressions = Math.round(spend * (c.platform === 'meta_ads' ? 170 : 45) * (0.85 + 0.3 * seed))
+    const clicks = Math.round(impressions * (c.platform === 'meta_ads' ? 0.013 : 0.07) * (1.1 - 0.2 * seed))
+    return { spend, impressions, clicks, results: Math.round(clicks * (c.platform === 'meta_ads' ? 0.14 : 0.18) * (0.5 + seed)) }
+  }
+  const demoAds = (from: string, to: string): AdsReport => ({
+    from, to,
+    platforms: AD_PLATFORMS.filter(p => integ.integrations.some(i => i.provider === p && i.status === 'connected')).map(platform => {
+      const row = integ.integrations.find(i => i.provider === platform)!
+      const camps = adCampaigns.filter(c => c.platform === platform)
+      const days: AdDay[] = []
+      for (let d = from; d <= to && d <= today(); d = addDays(d, 1)) days.push({ date: d, ...camps.reduce((s, c) => addMetrics(s, adDay(c, d)), NO_METRICS) })
+      const campaigns: AdCampaign[] = camps.map(c => {
+        let m = NO_METRICS
+        for (let d = from; d <= to && d <= today(); d = addDays(d, 1)) m = addMetrics(m, adDay(c, d))
+        return { platform, id: c.id, name: c.name, status: c.runs.at(-1)![1] ? 'paused' : 'active', daily_budget: c.daily_budget, ...m }
+      })
+      return { platform, account: { id: row.external.account_id ?? '', name: row.account_label ?? '', currency: 'EUR' }, can_manage: true, totals: sumDays(days), days, campaigns }
+    }),
+  })
   /**
    * Demo Search Console: the café's website on Google since it went live two months ago, growing
    * week by week, busier at weekends (brunch), mostly found on phones, with Google's 2-day lag.
@@ -1174,6 +1223,12 @@ export function createDemoApi(): Api {
           external: { sites: [site, 'sc-domain:easybeans.events'], site } })
         return
       }
+      if (provider === 'google_ads') {
+        const account = { id: '4471230098', name: 'Easy Beans Coffee', currency: 'EUR' }
+        setConnection(provider, { status: 'connected', account_label: account.name, connected_at: nowIso(), last_checked_at: nowIso(), last_error: null,
+          external: { accounts: [account], account_id: account.id, account_name: account.name } })
+        return
+      }
       const account = provider === 'youtube_music' ? 'Easy Beans' : provider === 'gmail' || provider === 'google_drive' ? 'easybeanscafe@gmail.com' : 'easybeans@outlook.com'
       setConnection(provider, { status: 'connected', account_label: account, connected_at: nowIso(), last_checked_at: nowIso(), last_error: null, external: {} })
       // Like the Worker: the mailbox becomes the business's email when none was typed.
@@ -1226,8 +1281,9 @@ export function createDemoApi(): Api {
           external: { member: { id: 'demo-member', name: "Aron O'Neill" }, pages: [{ id: '101', name: 'Easy Beans Coffee' }], expires_at: new Date(Date.now() + 60 * 86_400_000).toISOString() } })
         return
       }
-      const label = { facebook: 'Easy Beans Coffee', tiktok: '@easybeanscoffee', square: 'Easy Beans Coffee', stripe: 'Easy Beans Coffee SL', sumup: 'Easy Beans Coffee' }[provider]
+      const label = { facebook: 'Easy Beans Coffee', tiktok: '@easybeanscoffee', square: 'Easy Beans Coffee', stripe: 'Easy Beans Coffee SL', sumup: 'Easy Beans Coffee', meta_ads: 'Easy Beans Coffee' }[provider]
       const external = provider === 'facebook' ? { pages: [{ id: 'page-1', name: 'Easy Beans Coffee' }], page_id: 'page-1' } : provider === 'tiktok' ? { private_only: true }
+        : provider === 'meta_ads' ? { accounts: [{ id: 'act_1358524', name: 'Easy Beans Coffee', currency: 'EUR' }], account_id: 'act_1358524', account_name: 'Easy Beans Coffee', can_manage: true }
         : provider === 'sumup' ? { merchant_code: 'MDEMO123', currency: 'EUR' } : {}
       setConnection(provider, { status: 'connected', account_label: label, connected_at: nowIso(), last_checked_at: nowIso(), last_error: null, external })
     },
@@ -1263,6 +1319,43 @@ export function createDemoApi(): Api {
       if (!ps.length) throw new Error('Connect Square, SumUp or Stripe on the Connections page to see takings')
       // The till and Stripe added up (Stripe's online share is about a fifth of the till's).
       return { provider: ps[0], providers: ps, ...mergeSales(ps.map(p => ({ provider: p, sales: demoSales(from, to, p, ps.length > 1 && p === 'stripe' ? 0.2 : 1) }))) }
+    },
+    async adsReport(from, to) {
+      requireAdmin()
+      if (!me()?.can_see_pay) throw new Error('Ad spend is for admins with pay access')
+      if (!AD_PLATFORMS.some(p => integ.integrations.some(i => i.provider === p && i.status === 'connected'))) throw new Error('Connect Meta Ads or Google Ads on the Connections page to see your ads')
+      return demoAds(from, to)
+    },
+    async setAdCampaign(platform, id, patch) {
+      requireAdmin()
+      if (!me()?.can_see_pay) throw new Error('Ad spend is for admins with pay access')
+      const c = adCampaigns.find(x => x.platform === platform && x.id === id)
+      if (!c) throw new Error('Unknown campaign')
+      if (patch.daily_budget !== undefined) {
+        if (!(patch.daily_budget >= 1 && patch.daily_budget <= 10_000)) throw new Error('A daily budget is between 1 and 10,000')
+        if (c.daily_budget === null) throw new Error(`This campaign’s budget isn’t a daily one. Change it in ${PLATFORM_NAMES[platform]}.`)
+        c.daily_budget = round2(patch.daily_budget)
+      }
+      const last = c.runs.at(-1)!
+      if (patch.status === 'paused' && !last[1]) last[1] = today()
+      if (patch.status === 'active' && last[1]) c.runs.push([today(), null])
+    },
+    async chooseAdAccount(platform, id) {
+      requireAdmin()
+      const row = integ.integrations.find(i => i.provider === platform)!
+      const account = row.external.accounts?.find(a => a.id === id)
+      if (!account) throw new Error('That ad account isn’t one this sign-in can use')
+      Object.assign(row, { status: 'connected', account_label: account.name, last_checked_at: nowIso(), last_error: null, external: { ...row.external, account_id: id, account_name: account.name } })
+    },
+    async adSettings() {
+      requireAdmin()
+      return { ...adSettings }
+    },
+    async saveAdSettings(patch) {
+      requireAdmin()
+      for (const cap of [patch.meta_ads_monthly_cap, patch.google_ads_monthly_cap]) if (cap !== undefined && cap !== null && !(cap >= 0)) throw new Error('A monthly limit can’t be below zero')
+      if (patch.alert_at_percent !== undefined && !(patch.alert_at_percent >= 1 && patch.alert_at_percent <= 100)) throw new Error('Warn somewhere between 1% and 100%')
+      Object.assign(adSettings, patch)
     },
     async salesItems(from, to) {
       requireAdmin()

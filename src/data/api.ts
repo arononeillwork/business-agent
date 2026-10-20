@@ -5,6 +5,7 @@ import type { InboxConversation, InboxState, InboxThread } from '../../shared/me
 import type { ReferralState } from '../../shared/referrals'
 import type { KindInfo } from '../../shared/social'
 import type { InstagramMention } from '../../shared/mentions'
+import type { AdPlatform, AdSettings, AdsReport, CampaignPatch } from '../../shared/ads'
 
 export type ShiftInput = Omit<Shift, 'id' | 'status'> & { id?: string; status?: Shift['status'] }
 export type EventInput = Omit<CalendarEvent, 'id' | 'source' | 'competition'> & { id?: string; competition?: string | null }
@@ -170,7 +171,7 @@ export interface Api {
   /** One click: sign in on instagram.com and come back connected. */
   connectInstagram(back?: 'setup' | 'connections' | 'messages'): Promise<void>
   /** One click for Facebook, TikTok, LinkedIn, Square, Stripe or SumUp: sign in there and come back connected. */
-  connectApp(provider: 'facebook' | 'tiktok' | 'square' | 'stripe' | 'sumup' | 'linkedin', back?: 'setup' | 'connections' | 'messages'): Promise<void>
+  connectApp(provider: 'facebook' | 'tiktok' | 'square' | 'stripe' | 'sumup' | 'linkedin' | 'meta_ads', back?: 'setup' | 'connections' | 'messages'): Promise<void>
   /** Facebook: which Page to post to, when the account manages more than one. */
   chooseFacebookPage(pageId: string): Promise<void>
   /** LinkedIn: post to one of their company Pages, or 'me' for their own profile. */
@@ -183,6 +184,17 @@ export interface Api {
   sales(from: string, to: string): Promise<Sales>
   /** Best sellers from Square's orders, same dates and rules as `sales`. */
   salesItems(from: string, to: string): Promise<SalesItems>
+
+  // Ads (admins with pay access): Meta Ads and Google Ads, read and changed live on each platform
+  /** Spend, clicks and results per day and campaign, from and to inclusive. */
+  adsReport(from: string, to: string): Promise<AdsReport>
+  /** Pause or resume a campaign, or change its daily budget, on its platform. */
+  setAdCampaign(platform: AdPlatform, id: string, patch: CampaignPatch): Promise<void>
+  /** Which ad account to show, when the sign-in can use several. */
+  chooseAdAccount(platform: AdPlatform, id: string): Promise<void>
+  /** The monthly limits the business set itself (admins). */
+  adSettings(): Promise<AdSettings>
+  saveAdSettings(patch: Partial<AdSettings>): Promise<void>
 
   // Social planner (admins)
   socialPosts(): Promise<SocialPost[]>

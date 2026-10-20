@@ -450,6 +450,57 @@ first, then the `https://…/` one); with several and none matching, the card as
 in the account means not connected, with the steps to add it. Google's figures are 2-3 days behind.
 Checked every night (the website must still be in the account); on every plan.
 
+## 14. Meta Ads and Google Ads (the Ads page)
+
+The **Ads** page (Marketing section) shows Facebook/Instagram ads and Google ads side by side:
+spend, clicks, results and each campaign, with the till's takings for the same days, the business's
+own monthly limits, and pause, resume and daily budget changes that go straight to the platform.
+Admins with pay access only. Both are under **Connections → Advertising**, need the Starter plan or
+higher (the apps feature), and can both be connected at once. The figures are read live; only the
+chosen ad account is stored.
+
+### Meta Ads
+
+Same Meta app as the Facebook Page connection (section 7), its own sign-in:
+
+1. Meta app → *Facebook Login → Settings* → add the redirect URI
+   `https://<worker-url>/api/integrations/meta_ads/callback` (and the custom domain's).
+2. *Use cases → Create & manage ads with the Marketing API* (add it), then *Permissions*: ask for
+   `ads_read`, `ads_management` and `business_management`.
+3. **App Review (Advanced Access) for `ads_read` and `ads_management`.** Until Meta approves it, only
+   people with a role in the Meta app (admins, developers, testers) can connect their ad accounts;
+   anyone else is told "Meta hasn't approved this app for ads yet". Meta asks for a screencast of
+   the Ads page and a business verification.
+
+No new secrets: it uses `META_APP_ID` and `META_APP_SECRET`. Meta gives a person's sign-in for 60
+days without a refresh token, so admins get a notification a week before and then connect again.
+Someone who leaves `ads_management` unticked is connected read-only: the page shows their ads and
+the card says to connect again to change campaigns.
+
+### Google Ads
+
+Same Google app as sections 1-2, plus a **developer token**:
+
+1. Sign in to Google Ads with a **manager account** (create one at <https://ads.google.com/home/tools/manager-accounts/>
+   if there's none) → *Tools → API Center* → apply for API access. You get a developer token with
+   *Test account* access straight away; apply for **Basic access** (a short form; Google answers
+   in a few working days). Until then only Google Ads test accounts work, and connecting says
+   "Google hasn't approved Business Agent's Google Ads access for real ad accounts yet".
+2. Add the repo secret `GOOGLE_ADS_DEVELOPER_TOKEN` (the deploy passes it to the Worker).
+   `GOOGLE_ADS_API_VERSION` (a Worker var, default in `worker/providers/googleAds.ts`) moves the API
+   version on; Google retires each one after about a year.
+3. Google Cloud: *APIs & Services → Library* → **Google Ads API** → Enable; *OAuth consent screen →
+   Data access* → add `https://www.googleapis.com/auth/adwords` (a sensitive scope: Google verifies
+   the app before people outside the test users can use it).
+
+Each business: **Connections → Advertising → Connect Google Ads** with the Google account that runs
+the ads. Accounts run through an agency's manager account are found under it. With more than one
+ad account, the card (and the Ads page) asks which. Campaigns on a shared budget show no daily
+budget here: changing it would change the other campaigns too.
+
+**Results** are Google's conversions, and for Meta: purchases, leads and messaging conversations
+started (link clicks are the clicks figure). Both are checked every night.
+
 ## Social planner
 
 Admins plan posts on **Social planner** (left menu): write once, pick Instagram, Facebook,

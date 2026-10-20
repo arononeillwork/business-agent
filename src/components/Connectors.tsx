@@ -11,7 +11,7 @@ import CalendarIcon from '@mui/icons-material/CalendarMonthOutlined'
 import CloseIcon from '@mui/icons-material/CloseRounded'
 import DotIcon from '@mui/icons-material/FiberManualRecord'
 import {
-  siApple, siDropbox, siFacebook, siGmail, siGooglecalendar, siGoogledrive, siGooglemaps, siGooglesearchconsole, siInstagram, siSpotify, siSquare, siStripe, siTiktok,
+  siApple, siDropbox, siFacebook, siGmail, siGoogleads, siGooglecalendar, siGoogledrive, siGooglemaps, siGooglesearchconsole, siInstagram, siMeta, siSpotify, siSquare, siStripe, siTiktok,
   siWhatsapp, siYoutubemusic,
   type SimpleIcon,
 } from 'simple-icons'
@@ -86,6 +86,8 @@ const LOGO: Record<OptionId, ReactNode> = {
   sumup: <SumUpLogo />,
   linkedin: <LinkedInLogo />,
   search_console: <Brand icon={siGooglesearchconsole} />,
+  meta_ads: <Brand icon={siMeta} />,
+  google_ads: <Brand icon={siGoogleads} />,
 }
 
 export const DOES: Partial<Record<OptionId, string>> = {
@@ -110,6 +112,8 @@ export const DOES: Partial<Record<OptionId, string>> = {
   sumup: msg('Takings from your SumUp card reader on Finances and Sales, with the team’s cost as a share of sales.'),
   linkedin: msg('Plan and publish posts to your LinkedIn company Page (or your own profile).'),
   search_console: msg('How people find your website on Google: searches, clicks and top pages, on the Analytics page.'),
+  meta_ads: msg('Your Facebook and Instagram ads on the Ads page: what they cost and brought in, with pause and budgets.'),
+  google_ads: msg('Your Google search and Maps ads on the Ads page: what they cost and brought in, with pause and budgets.'),
   spotify: msg('The approved playlist; staff play or pause it on the café speaker.'),
   youtube_music: msg('The approved playlist; staff open it on the café device.'),
 }
@@ -135,6 +139,8 @@ export const CAN: Partial<Record<OptionId, string[]>> = {
   sumup: [msg('See your business name'), msg('Read your sales history (takings) — it can’t take, refund or change anything')],
   linkedin: [msg('See your name and the company Pages you manage'), msg('Publish the posts you plan here to the Page you pick, at the time you choose')],
   search_console: [msg('See the websites in your Search Console'), msg('Read search data for your website (read-only)')],
+  meta_ads: [msg('See your ad accounts, campaigns and what they spent and brought in'), msg('Pause or resume a campaign, or change its daily budget, when you ask it to here')],
+  google_ads: [msg('See your ad accounts, campaigns and what they spent and brought in'), msg('Pause or resume a campaign, or change its daily budget, when you ask it to here')],
   spotify: [msg('See your playlists'), msg('Play and pause the approved playlist on the café speaker (Premium)')],
   youtube_music: [msg('See your playlists (read-only)')],
 }
@@ -144,12 +150,14 @@ export const KEYS_NEEDED: Partial<Record<OptionId, string>> = {
   outlook: msg('the Microsoft app'), onedrive: msg('the Microsoft app'), spotify: msg('the Spotify keys'), instagram: msg('the Instagram app keys'),
   facebook: msg('the Meta app keys'), tiktok: msg('the TikTok app keys'), square: msg('the Square app keys'), stripe: msg('the Stripe platform keys'),
   sumup: msg('the SumUp app keys'), linkedin: msg('the LinkedIn app keys'), search_console: msg('the Google keys'),
+  meta_ads: msg('the Meta app keys'), google_ads: msg('the Google keys and a Google Ads developer token'),
   whatsapp: msg('the WhatsApp Business number'), google_calendar: msg('the calendar link key'), outlook_calendar: msg('the calendar link key'),
 }
 
 const isCalendar = (p: string): p is CalendarApp => p === 'google_calendar' || p === 'outlook_calendar'
 // Signed in with Google or Microsoft (see CONNECTORS in worker/connections.ts).
-const isConnector = (p: string): p is ConnectorProvider => ['gmail', 'outlook', 'google_drive', 'onedrive', 'youtube_music', 'search_console'].includes(p)
+const isConnector = (p: string): p is ConnectorProvider => ['gmail', 'outlook', 'google_drive', 'onedrive', 'youtube_music', 'search_console', 'google_ads'].includes(p)
+const isAds = (p: string): p is 'meta_ads' | 'google_ads' => p === 'meta_ads' || p === 'google_ads'
 const active = (i?: Integration) => !!i && ['connected', 'pending', 'error'].includes(i.status)
 
 /** "just now", "5 min ago", "3 h ago", else the date. */
@@ -272,7 +280,7 @@ function useConnect(s: OptionState, back: 'setup' | 'connections', reload: () =>
     if (p === 'spotify') return api.connectSpotify()
     if (p === 'instagram') return api.connectInstagram(back)
     if (p === 'google_business') return api.connectGoogle(back)
-    if (p === 'facebook' || p === 'tiktok' || p === 'square' || p === 'stripe' || p === 'sumup' || p === 'linkedin') return api.connectApp(p, back)
+    if (p === 'facebook' || p === 'tiktok' || p === 'square' || p === 'stripe' || p === 'sumup' || p === 'linkedin' || p === 'meta_ads') return api.connectApp(p, back)
     if (isCalendar(p)) {
       // Open the tab now (popup blockers allow it on a click), then point it at the calendar app.
       const tab = window.open('', '_blank')
@@ -359,7 +367,7 @@ function ConnectorDialog({ s, back, reload, onClose }: { s: OptionState; back: '
     await reload()
     if (r?.status === 'error') throw new Error(r.last_error ?? t('{app} isn’t working', { app: o.name }))
     if (r?.status === 'pending') throw new Error(isCalendar(p) ? t('{app} hasn’t fetched the team calendar yet. Add it there, then check again in a few minutes.', { app: o.name })
-      : p === 'search_console' ? t('Pick the website first.') : t('Pick the Page to post to first.'))
+      : p === 'search_console' ? t('Pick the website first.') : isAds(p) ? t('Pick the ad account first.') : t('Pick the Page to post to first.'))
   }, t('{app} works', { app: o.name }))
   const label = status === 'error' ? t('Connect {app} again', { app: o.name }) : isCalendar(p) ? t('Add to {app}', { app: o.name }) : t('Connect {app}', { app: o.name })
 
@@ -389,6 +397,7 @@ function ConnectorDialog({ s, back, reload, onClose }: { s: OptionState; back: '
         {status === 'pending' && <Alert severity="info" sx={{ mt: 2 }}>
           {isCalendar(p) ? t('Waiting for {app} to fetch the team calendar. Add it in the tab that opened; it usually shows as connected within minutes.', { app: o.name })
             : p === 'search_console' ? t('This Google account has more than one website in Search Console. Pick the one to show below.')
+            : isAds(p) ? t('This sign-in can use more than one ad account. Pick the café’s below.')
             : t('This account manages more than one Page. Pick the one to post to below.')}
         </Alert>}
         {row?.last_error && status !== 'connected' && <Alert severity="error" sx={{ mt: 2 }}>{row.last_error}</Alert>}
@@ -431,6 +440,16 @@ function ConnectorDialog({ s, back, reload, onClose }: { s: OptionState; back: '
             {(row!.external.sites as string[]).map(site => <MenuItem key={site} value={site}>{site.replace(/^sc-domain:/, '')}</MenuItem>)}
           </TextField>
         )}
+        {isAds(p) && active(row) && (row?.external.accounts?.length ?? 0) > 1 && (
+          <TextField select size="small" label={t('Ad account')} value={row?.external.account_id ?? ''} sx={{ mt: 2.5, maxWidth: 380 }}
+            onChange={e => run(async () => { await api.chooseAdAccount(p, e.target.value); await reload() }, t('Ad account chosen'))}>
+            {row!.external.accounts!.map(a => <MenuItem key={a.id} value={a.id}>{a.name}</MenuItem>)}
+          </TextField>
+        )}
+        {isAds(p) && status === 'connected' && <Typography variant="body2" sx={{ mt: 2 }}>{tr('Your ads show on the {page} page.', { page: <b>{t('Ads')}</b> })}</Typography>}
+        {p === 'meta_ads' && status === 'connected' && row?.external.can_manage === false && <Alert severity="info" sx={{ mt: 2 }}>
+          {t('Connected to read only: to pause campaigns or change budgets here, connect again and allow managing ads.')}
+        </Alert>}
         {p === 'search_console' && status === 'connected' && <Typography variant="body2" sx={{ mt: 2 }}>{tr('Search data shows on the {page} page.', { page: <b>{t('Analytics')}</b> })}</Typography>}
         {p === 'tiktok' && status === 'connected' && row?.external.private_only && <Alert severity="info" sx={{ mt: 2 }}>
           {t('Posts go to TikTok as private (only this account sees them) until TikTok approves the app for public posting.')}
