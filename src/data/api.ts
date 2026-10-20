@@ -5,6 +5,7 @@ import type { InboxConversation, InboxState, InboxThread } from '../../shared/me
 import type { ReferralState } from '../../shared/referrals'
 import type { KindInfo } from '../../shared/social'
 import type { InstagramMention } from '../../shared/mentions'
+import type { FilingRecord, Quarter, TaxDocKind, TaxDocument, TaxSettings } from '../../shared/tax'
 
 export type ShiftInput = Omit<Shift, 'id' | 'status'> & { id?: string; status?: Shift['status'] }
 export type EventInput = Omit<CalendarEvent, 'id' | 'source' | 'competition'> & { id?: string; competition?: string | null }
@@ -135,6 +136,24 @@ export interface Api {
   expenses(): Promise<Expense[]>
   saveExpense(expense: Partial<Expense> & { name: string; amount: number }): Promise<void>
   deleteExpense(id: string): Promise<void>
+
+  // Tax (admins with pay access; finance partners read). The files are in the café's Drive or OneDrive.
+  taxSettings(): Promise<TaxSettings>
+  saveTaxSettings(patch: Partial<TaxSettings>): Promise<void>
+  /** What's been done about each return of the tax year. */
+  taxFilings(year: number): Promise<FilingRecord[]>
+  saveTaxFiling(record: FilingRecord): Promise<void>
+  /** The documents kept for a tax year, newest first. */
+  taxDocuments(year: number): Promise<TaxDocument[]>
+  updateTaxDocument(id: string, patch: Partial<Pick<TaxDocument, 'kind' | 'year' | 'quarter' | 'notes'>>): Promise<void>
+  /** Take a document off the list (the file stays in Drive or OneDrive). */
+  removeTaxDocument(id: string): Promise<void>
+  /** The folders inside one under Business Agent (["Tax", "2026"]), and a link to open it there. */
+  taxFolders(path: string[]): Promise<{ storage: 'google_drive' | 'onedrive'; path: string[]; folders: string[]; link: string | null }>
+  /** Make a folder inside one; returns its path. */
+  makeTaxFolder(path: string[], name: string): Promise<string[]>
+  /** Upload one document into a folder under Business Agent/Tax; refused when the same file (sha256) is already kept. */
+  uploadTaxDocument(file: Blob, meta: { name: string; kind: TaxDocKind; year: number; quarter: Quarter | null; folder: string[]; sha256: string }): Promise<TaxDocument>
 
   // Customers and leads, for marketing (admins)
   customers(): Promise<Customer[]>

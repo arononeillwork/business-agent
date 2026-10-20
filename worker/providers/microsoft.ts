@@ -94,8 +94,8 @@ export async function* pieces(body: ReadableStream<Uint8Array> | ArrayBuffer, si
   if (buf.length) yield buf
 }
 
-/** "Business Agent/<path…>" in OneDrive, each folder made if missing. */
-async function ensurePath(token: string, path: string[]) {
+/** "Business Agent/<path…>" in OneDrive, each folder made if missing; returns the last one's id. */
+export async function ensurePath(token: string, path: string[]) {
   let parent = await ensureFolder(token)
   let at = 'Business Agent'
   for (const name of path) {
@@ -107,10 +107,27 @@ async function ensurePath(token: string, path: string[]) {
       body: JSON.stringify({ name, folder: {}, '@microsoft.graph.conflictBehavior': 'replace' }),
     })).id
   }
+  return parent
+}
+
+const pathOf = (path: string[]) => ['Business Agent', ...path].map(encodeURIComponent).join('/')
+
+/** The folders inside "Business Agent/<path…>" (made if missing), by name, and OneDrive's page for it. */
+export async function listFolders(token: string, path: string[]) {
+  await ensurePath(token, path)
+  const [children, self] = await Promise.all([
+    graph<{ value: { name: string; folder?: unknown }[] }>(token, `/me/drive/root:/${pathOf(path)}:/children?$select=name,folder&$top=200`),
+    graph<{ webUrl?: string }>(token, `/me/drive/root:/${pathOf(path)}`),
+  ])
+  return { folders: children.value.filter(i => i.folder).map(i => i.name).sort((a, b) => a.localeCompare(b)), link: self.webUrl ?? null }
 }
 
 /** Upload a photo or video into "Business Agent/<path…>" in OneDrive (any size, in pieces); returns its id. */
-export async function uploadToOneDrive(token: string, path: string[], name: string, size: number, body: ReadableStream | ArrayBuffer) {
+export const uploadToOneDrive = async (token: string, path: string[], name: string, size: number, body: ReadableStream | ArrayBuffer) =>
+  (await uploadItem(token, path, name, size, body)).id
+
+/** The same, returning OneDrive's page for the file too. */
+export async function uploadItem(token: string, path: string[], name: string, size: number, body: ReadableStream | ArrayBuffer) {
   await ensurePath(token, path)
   const at = ['Business Agent', ...path, name].map(encodeURIComponent).join('/')
   const { uploadUrl } = await graph<{ uploadUrl: string }>(token, `/me/drive/root:/${at}:/createUploadSession`, {
@@ -118,7 +135,7 @@ export async function uploadToOneDrive(token: string, path: string[], name: stri
     body: JSON.stringify({ item: { '@microsoft.graph.conflictBehavior': 'rename' } }),
   })
   let offset = 0
-  let item: { id?: string } = {}
+  let item: { id?: string; webUrl?: string } = {}
   for await (const piece of pieces(body)) {
     // The upload address carries its own permission: no sign-in header (OneDrive refuses one).
     const res = await fetch(uploadUrl, { method: 'PUT', headers: { 'content-range': `bytes ${offset}-${offset + piece.byteLength - 1}/${size}` }, body: piece })
@@ -127,10 +144,10 @@ export async function uploadToOneDrive(token: string, path: string[], name: stri
       throw new Error(`Microsoft: ${err.error?.message ?? res.status}`)
     }
     offset += piece.byteLength
-    if (res.status === 200 || res.status === 201) item = await res.json() as { id?: string }
+    if (res.status === 200 || res.status === 201) item = await res.json() as { id?: string; webUrl?: string }
   }
   if (!item.id) throw new Error('Microsoft: the upload didn’t finish')
-  return item.id
+  return { id: item.id, webUrl: item.webUrl ?? null }
 }
 
 /** A file's content from OneDrive: it answers with a ready-signed download address, fetched without our sign-in. */

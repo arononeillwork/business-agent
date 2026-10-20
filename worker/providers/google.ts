@@ -235,6 +235,18 @@ export async function uploadToDrive(token: string, parent: string, name: string,
   return json.id
 }
 
+/** The folders this app made inside a Drive folder, by name (drive.file sees only those). */
+export async function listFolders(token: string, parent: string) {
+  const q = `mimeType = 'application/vnd.google-apps.folder' and '${parent}' in parents and trashed = false`
+  const found = await drive<{ files: { id: string; name: string }[] }>(token,
+    `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&orderBy=name&pageSize=200`)
+  return found.files.map(f => f.name)
+}
+
+/** Drive's own page for a file or folder. */
+export const fileLink = (id: string) => `https://drive.google.com/file/d/${encodeURIComponent(id)}/view`
+export const folderLink = (id: string) => `https://drive.google.com/drive/folders/${encodeURIComponent(id)}`
+
 /** A file's content from Drive (a Range asked for by a video player is passed on). */
 export const driveDownload = (token: string, id: string, range?: string | null) =>
   fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?alt=media`, { headers: { authorization: `Bearer ${token}`, ...(range ? { range } : {}) } })

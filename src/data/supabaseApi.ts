@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { SOCIAL_PROVIDERS, type Api, type BillingInfo, type PlanStatus, type SignInMethods, type SocialProvider } from './api'
 import type { ApiKey, AppNotification, Brand, Business, Customer, SocialPost, EventAlert, Expense, Integration, MusicPlaylist, OutboxItem, Profile, Settings, TimeEntry, TimeOff, Todo, TodoCategory, CafeTrack, MusicPlayerState } from '../../shared/types'
 import type { InstagramMention } from '../../shared/mentions'
+import type { FilingRecord, TaxDocument, TaxSettings } from '../../shared/tax'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
 import type { ReferralState } from '../../shared/referrals'
 import { readyPhoto } from '../lib/media'
@@ -348,6 +349,31 @@ export function createSupabaseApi(url: string, key: string): Api {
       else check(await sb.from('expenses').insert({ ...row, source: 'app' }))
     },
     async deleteExpense(id) { check(await sb.from('expenses').delete().eq('id', id)) },
+
+    async taxSettings() {
+      return check(await sb.from('tax_settings').select('withholding, rent, intra_eu, instalments, gestor_email').eq('id', 1).single()) as TaxSettings
+    },
+    async saveTaxSettings(patch) { check(await sb.from('tax_settings').update(patch).eq('id', 1)) },
+    async taxFilings(year) {
+      return (check(await sb.from('tax_filings').select('id, model, year, period, status, amount, filed_on, reference, notes').eq('year', year)) as FilingRecord[])
+        .map(r => ({ ...r, amount: r.amount === null ? null : Number(r.amount) }))
+    },
+    async saveTaxFiling({ id: _id, ...r }) {
+      check(await sb.from('tax_filings').upsert(r, { onConflict: 'model,year,period' }))
+    },
+    async taxDocuments(year) {
+      return check(await sb.from('tax_documents').select('*').eq('year', year).order('uploaded_at', { ascending: false })) as TaxDocument[]
+    },
+    async updateTaxDocument(id, patch) { check(await sb.from('tax_documents').update(patch).eq('id', id)) },
+    async removeTaxDocument(id) { check(await sb.from('tax_documents').delete().eq('id', id)) },
+    taxFolders: path => worker(`/api/tax/folders?path=${encodeURIComponent(path.join('/'))}`),
+    async makeTaxFolder(path, name) {
+      return (await worker<{ path: string[] }>('/api/tax/folders', { method: 'POST', body: JSON.stringify({ path, name }) })).path
+    },
+    async uploadTaxDocument(file, m) {
+      const q = new URLSearchParams({ name: m.name, kind: m.kind, year: String(m.year), quarter: m.quarter ? String(m.quarter) : '', folder: m.folder.join('/'), sha256: m.sha256 })
+      return (await worker<{ document: TaxDocument }>(`/api/tax/upload?${q}`, { method: 'POST', body: file, headers: { 'content-type': 'application/octet-stream' } })).document
+    },
 
     async customers() {
       return check(await sb.from('customers').select(CUSTOMER_COLUMNS).order('created_at', { ascending: false })) as Customer[]

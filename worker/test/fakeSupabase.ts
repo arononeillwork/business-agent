@@ -137,6 +137,7 @@ export class FakeSupabase {
       const who = this.people.get(bearerOf(headers))
       if (rpc[1] === 'is_admin') return json(who?.role === 'admin')
       if (rpc[1] === 'my_role') return json(who?.role ?? null)
+      if (rpc[1] === 'can_see_pay') return json(who?.role === 'admin' && this.table('profiles').some(p => p.id === who.id && p.can_see_pay === true))
       if (rpc[1] === 'plan_status') {
         const people = this.table('profiles').filter(p => p.active !== false && ['admin', 'employee'].includes(p.role as string)).length
         return json({ plan: this.plan.plan, limits: { people: this.plan.people, features: this.plan.features }, usage: { people } })

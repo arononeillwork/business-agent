@@ -19,6 +19,7 @@ import type { SportsFavourite } from '../../shared/sports'
 import { POPULAR_FONTS } from '../../shared/fonts'
 import { addToCalendarUrl, cleanWebsite, groupOf } from '../../shared/connections'
 import { mergeSales } from '../../shared/sales'
+import { DEFAULT_TAX_SETTINGS, cleanFolderName, cleanFolderPath, taxFileProblem, type FilingRecord, type TaxDocument, type TaxSettings } from '../../shared/tax'
 import { addDays, localDate, minutesBetween, today, weekDates, weekStart, zonedIso } from '../../shared/time'
 
 interface RawEntry {
@@ -187,6 +188,41 @@ export function createDemoApi(): Api {
       scheduled_at: hoursFromNow(24 * 6), status: 'scheduled', results: {}, created_at: nowIso(), published_at: null },
     { id: uid(), kind: 'post', caption: 'Ideas for the matcha menu launch…', image_url: null, media: [], targets: ['instagram'], auto: true, scheduled_at: null, status: 'draft', results: {}, created_at: nowIso(), published_at: null },
   ]
+  // Tax: what the business files, returns done so far this year, and documents kept (Easy Beans opened in April).
+  const taxSettings: TaxSettings = { ...DEFAULT_TAX_SETTINGS, gestor_email: 'hola@gestoriacosta.es' }
+  const taxFilings: FilingRecord[] = [
+    { id: uid(), model: '303', year: 2026, period: '2T', status: 'filed', amount: 1284.6, filed_on: '2026-07-14', reference: '3036203812456', notes: null },
+    { id: uid(), model: '111', year: 2026, period: '2T', status: 'filed', amount: 412.18, filed_on: '2026-07-14', reference: '1116203812457', notes: null },
+    { id: uid(), model: '115', year: 2026, period: '2T', status: 'filed', amount: 342, filed_on: '2026-07-15', reference: '1156203812458', notes: null },
+    { id: uid(), model: '303', year: 2026, period: '1T', status: 'not_needed', amount: null, filed_on: null, reference: null, notes: 'Opened in April' },
+    { id: uid(), model: '111', year: 2026, period: '1T', status: 'not_needed', amount: null, filed_on: null, reference: null, notes: 'Opened in April' },
+    { id: uid(), model: '115', year: 2026, period: '1T', status: 'not_needed', amount: null, filed_on: null, reference: null, notes: 'Opened in April' },
+    { id: uid(), model: '303', year: 2026, period: '3T', status: 'with_gestor', amount: null, filed_on: null, reference: null, notes: null },
+  ]
+  const taxDoc = (name: string, kind: TaxDocument['kind'], quarter: TaxDocument['quarter'], day: string, size: number): TaxDocument => {
+    const folder = ['Tax', '2026', `Q${quarter}`, ({ purchase_invoice: 'Purchase invoices', sales_invoice: 'Sales invoices', receipt: 'Receipts', payslip: 'Payslips',
+      bank_statement: 'Bank statements', tax_return: 'Tax returns', contract: 'Contracts', other: 'Other' } as const)[kind]]
+    return { id: uid(), name, kind, year: 2026, quarter, size, sha256: null, storage: 'google_drive', file_id: uid(), folder,
+      link: `https://drive.google.com/demo/Business Agent/${folder.join('/')}/${name}`, notes: null, uploaded_by: null, uploaded_at: `${day}T10:00:00Z` }
+  }
+  const taxDocuments: TaxDocument[] = [
+    taxDoc('Factura By Eric agosto.pdf', 'purchase_invoice', 3, '2026-09-02', 184_220),
+    taxDoc('Factura Makro 2026-08-21.pdf', 'purchase_invoice', 3, '2026-08-22', 96_512),
+    taxDoc('Extracto BBVA agosto.pdf', 'bank_statement', 3, '2026-09-03', 402_118),
+    taxDoc('Nómina Julio agosto.pdf', 'payslip', 3, '2026-09-01', 88_004),
+    taxDoc('Modelo 303 2T 2026 justificante.pdf', 'tax_return', 2, '2026-07-14', 61_877),
+  ]
+  // Folders made in the demo Drive under Business Agent (the sorted ones exist once a document is in them).
+  const taxFolderPaths = new Set<string>(['Tax/2026/Gestoría'])
+  const canTax = () => me()?.role === 'admin' && !!me()?.can_see_pay
+  const readTax = () => canTax() || partnerCan('finances')
+  const needTax = () => { if (!canTax()) throw new Error('Only admins with pay access manage tax documents') }
+  const taxStorage = () => {
+    const store = (['google_drive', 'onedrive'] as const).find(p => integ.integrations.some(i => i.provider === p && i.status === 'connected'))
+    if (!store) throw new Error('Connect Google Drive or OneDrive on the Connections page to keep tax documents. They go in its Business Agent/Tax folder.')
+    return store
+  }
+
   /** Where the demo keeps photos and videos: the connected Drive or OneDrive. */
   const mediaStorage = () => (['google_drive', 'onedrive'] as const).find(p => integ.integrations.some(i => i.provider === p && i.status === 'connected')) ?? null
   const networkName = (t: SocialNetwork) => ({ google: 'Google Maps', tiktok: 'TikTok', linkedin: 'LinkedIn' } as Partial<Record<SocialNetwork, string>>)[t] ?? t[0].toUpperCase() + t.slice(1)
@@ -1035,6 +1071,66 @@ export function createDemoApi(): Api {
       if (!(me()?.role === 'admin' && me()?.can_see_pay)) throw new Error('Only admins with pay access can change finances')
       const i = expenses.findIndex(x => x.id === id)
       if (i >= 0) expenses.splice(i, 1)
+    },
+    async taxSettings() { return readTax() ? clone(taxSettings) : DEFAULT_TAX_SETTINGS },
+    async saveTaxSettings(patch) {
+      needTax()
+      const email = patch.gestor_email === undefined ? taxSettings.gestor_email : patch.gestor_email?.trim().toLowerCase() || null
+      if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error('Enter a full email address, like name@example.com')
+      Object.assign(taxSettings, patch, { gestor_email: email })
+    },
+    async taxFilings(year) { return readTax() ? clone(taxFilings.filter(f => f.year === year)) : [] },
+    async saveTaxFiling(r) {
+      needTax()
+      const row = { ...r, filed_on: r.status === 'filed' ? r.filed_on ?? today() : r.status === 'not_needed' ? r.filed_on : null,
+        reference: r.reference?.trim() || null, notes: r.notes?.trim() || null }
+      const existing = taxFilings.find(f => f.model === r.model && f.year === r.year && f.period === r.period)
+      if (existing) Object.assign(existing, row, { id: existing.id })
+      else taxFilings.push({ ...row, id: uid() })
+    },
+    async taxDocuments(year) {
+      return readTax() ? clone(taxDocuments.filter(d => d.year === year)).sort((a, b) => b.uploaded_at.localeCompare(a.uploaded_at)) : []
+    },
+    async updateTaxDocument(id, patch) {
+      needTax()
+      const d = taxDocuments.find(x => x.id === id)
+      if (d) Object.assign(d, patch, { notes: patch.notes === undefined ? d.notes : patch.notes?.trim() || null })
+    },
+    async removeTaxDocument(id) {
+      needTax()
+      const i = taxDocuments.findIndex(x => x.id === id)
+      if (i >= 0) taxDocuments.splice(i, 1)
+    },
+    async taxFolders(path) {
+      needTax()
+      const storage = taxStorage()
+      const at = path.join('/')
+      const known = [...taxFolderPaths, ...taxDocuments.map(d => d.folder.join('/'))]
+      const folders = [...new Set(known.flatMap(p => (p.startsWith(`${at}/`) ? [p.slice(at.length + 1).split('/')[0]] : [])))].sort((a, b) => a.localeCompare(b))
+      return { storage, path, folders, link: `https://${storage === 'google_drive' ? 'drive.google.com' : 'onedrive.live.com'}/demo/Business Agent/${at}` }
+    },
+    async makeTaxFolder(path, name) {
+      needTax()
+      taxStorage()
+      const clean = cleanFolderName(name)
+      if (!clean) throw new Error('Give the folder a name (up to 100 characters)')
+      const made = cleanFolderPath([...path, clean])
+      if (!made) throw new Error('That folder isn’t in the Tax folder')
+      taxFolderPaths.add(made.join('/'))
+      return made
+    },
+    async uploadTaxDocument(file, m) {
+      needTax()
+      const storage = taxStorage()
+      const problem = taxFileProblem(m.name, file.size)
+      if (problem) throw new Error(problem)
+      const kept = taxDocuments.find(d => d.sha256 === m.sha256)
+      if (kept) throw new Error(`Already kept as “${kept.name}”`)
+      const doc: TaxDocument = { id: uid(), name: m.name, kind: m.kind, year: m.year, quarter: m.quarter, size: file.size, sha256: m.sha256, storage,
+        file_id: uid(), folder: m.folder, link: `https://${storage === 'google_drive' ? 'drive.google.com' : 'onedrive.live.com'}/demo/Business Agent/${m.folder.join('/')}/${m.name}`,
+        notes: null, uploaded_by: me()?.id ?? null, uploaded_at: nowIso() }
+      taxDocuments.push(doc)
+      return clone(doc)
     },
     async customers() {
       if (!isAdmin()) return []

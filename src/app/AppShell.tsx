@@ -18,6 +18,7 @@ import KioskIcon from '@mui/icons-material/TabletMacOutlined'
 import TimeOffIcon from '@mui/icons-material/BeachAccessOutlined'
 import FinanceIcon from '@mui/icons-material/PaymentsOutlined'
 import SalesIcon from '@mui/icons-material/InsightsOutlined'
+import TaxIcon from '@mui/icons-material/ReceiptLongOutlined'
 import BillingIcon from '@mui/icons-material/CreditCardOutlined'
 import SocialIcon from '@mui/icons-material/CampaignOutlined'
 import MessagesIcon from '@mui/icons-material/ChatBubbleOutlineRounded'
@@ -76,6 +77,7 @@ export const SECTIONS: NavSection[] = [
   ] },
   { key: 'accounts', label: msg('Accounts'), items: [
     { key: 'finances', to: '/finances', label: msg('Finances'), icon: <FinanceIcon />, who: 'pay', partner: ['finances'] },
+    { key: 'tax', to: '/tax', label: msg('Tax'), icon: <TaxIcon />, who: 'pay', partner: ['finances'] },
   ] },
   { key: 'marketing', label: msg('Marketing'), items: [
     { key: 'social', to: '/social', label: msg('Social planner'), icon: <SocialIcon />, who: 'admin' },

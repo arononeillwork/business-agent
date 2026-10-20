@@ -27,6 +27,10 @@ built-in **AI connector** so owners can run it by talking to Claude.
   section has **Sales** (a Square-style dashboard: sales against the period before, busiest hours and
   days, how people paid, best sellers) and **Finances** (running costs, takings next to team cost).
   Search Console shows how the website does on Google.
+- Tax: the returns an SL files (303, 111, 115, 202, 390, 190, 180, 347, 200 and the annual accounts) with
+  their last days, marked to do, with the gestoría or filed; documents (invoices, receipts, payslips,
+  statements) uploaded in bulk, a folder at a time, into the connected Google Drive or OneDrive under
+  Business Agent/Tax, sorted by year, quarter and kind or into a folder chosen there.
   Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) sections 7-13.
 
 See [docs/PLAN.md](docs/PLAN.md) for decisions, architecture and phases.

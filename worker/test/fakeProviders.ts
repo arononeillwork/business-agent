@@ -262,7 +262,9 @@ export class FakeProviders {
       if (method === 'GET') {
         const q = url.searchParams.get('q') ?? ''
         const name = q.match(/name = '(.*?)'/)?.[1], parent = q.match(/'([^']+)' in parents/)?.[1]
-        const files = [...this.google.folders].filter(([, f]) => f.name === name && f.parent === parent && !f.trashed).map(([id]) => ({ id }))
+        // Without a name: every folder inside the parent (the Tax page's folder list).
+        const files = [...this.google.folders].filter(([, f]) => (name === undefined || f.name === name) && f.parent === parent && !f.trashed)
+          .map(([id, f]) => ({ id, name: f.name })).sort((a, b) => a.name.localeCompare(b.name))
         return json({ files })
       }
       const made = body() as { name: string; parents: string[] }
@@ -443,7 +445,14 @@ export class FakeProviders {
       if (path.startsWith('/me/drive/root:/Business%20Agent/') && method === 'GET' && !path.includes(':/', '/me/drive/root:/'.length)) {
         const at = decodeURIComponent(path.slice('/me/drive/root:/'.length))
         const id = [...this.microsoft.paths].find(([, p]) => p === at)?.[0]
-        return id ? json({ id, name: at.split('/').pop(), folder: {} }) : json({ error: { code: 'itemNotFound', message: 'The resource could not be found.' } }, 404)
+        return id ? json({ id, name: at.split('/').pop(), folder: {}, webUrl: `https://onedrive.live.com/?id=${id}` }) : json({ error: { code: 'itemNotFound', message: 'The resource could not be found.' } }, 404)
+      }
+      // A folder's children by path (the Tax page's folder list): the folders made inside it.
+      if (path.startsWith('/me/drive/root:/') && path.endsWith(':/children') && method === 'GET') {
+        const at = decodeURIComponent(path.slice('/me/drive/root:/'.length, -':/children'.length))
+        const value = [...this.microsoft.paths.values()].filter(p => p.startsWith(`${at}/`) && !p.slice(at.length + 1).includes('/'))
+          .map(p => ({ name: p.split('/').pop(), folder: {} }))
+        return json({ value })
       }
       const children = path.match(/^\/me\/drive\/items\/([^/]+)\/children$/)
       if (children && method === 'POST') {
@@ -483,7 +492,7 @@ export class FakeProviders {
       let at = 0
       for (const b of sess.got) { all.set(b, at); at += b.length }
       this.microsoft.blobs.set(id, { path: sess.path, bytes: all })
-      return json({ id, name: sess.path.split('/').pop() }, 201)
+      return json({ id, name: sess.path.split('/').pop(), webUrl: `https://onedrive.live.com/?id=${id}` }, 201)
     }
     if (url.host === 'download.onedrive.test') {
       if (new Headers(init.headers).get('authorization')) return json({ error: 'pre-authenticated: no sign-in header' }, 401)
