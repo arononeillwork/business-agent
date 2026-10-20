@@ -30,6 +30,7 @@ const AccountPage = page(() => import('./pages/AccountPage'), 'AccountPage')
 const KioskPage = page(() => import('./pages/KioskPage'), 'KioskPage')
 const TimeOffPage = page(() => import('./pages/TimeOffPage'), 'TimeOffPage')
 const FinancesPage = page(() => import('./pages/FinancesPage'), 'FinancesPage')
+const GrantsPage = page(() => import('./pages/GrantsPage'), 'GrantsPage')
 const SalesPage = page(() => import('./pages/SalesPage'), 'SalesPage')
 const AnalyticsPage = page(() => import('./pages/AnalyticsPage'), 'AnalyticsPage')
 const NotificationsPage = page(() => import('./pages/NotificationsPage'), 'NotificationsPage')
@@ -85,6 +86,7 @@ function Routed() {
           {partnerCan('payroll') && <Route path="timecards" element={<TimecardsPage />} />}
           {partnerCan('calendar') && <Route path="calendar" element={<CalendarPage />} />}
           {partnerCan('finances') && <Route path="finances" element={<FinancesPage />} />}
+          {partnerCan('finances') && <Route path="grants" element={<GrantsPage />} />}
           <Route path="*" element={<Navigate to="/business" />} />
         </Route>
       </Routes>
@@ -113,6 +115,7 @@ function Routed() {
         <Route path="appearance" element={<AppearancePage />} />
         <Route path="account" element={<AccountPage />} />
         <Route path="finances" element={<FinancesPage />} />
+        <Route path="grants" element={<GrantsPage />} />
         <Route path="sales" element={canSeePay ? <PlanGate feature="takings"><SalesPage /></PlanGate> : <Navigate to="/" />} />
         {/* Sales was briefly under Finances, and Accounts is a menu section: old links still land. */}
         <Route path="finances/sales" element={<Navigate to="/sales" replace />} />

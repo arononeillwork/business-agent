@@ -6,10 +6,16 @@ import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shar
 import type { ReferralState } from '../../shared/referrals'
 import { readyPhoto } from '../lib/media'
 import { cleanWebsite } from '../../shared/connections'
+import { cleanAnswers, type GrantApplication } from '../../shared/grants'
 
 const PROFILE_COLUMNS = 'id, full_name, email, role, can_see_pay, colour, active, phone, birth_date, whatsapp_opt_in, partner_company, partner_access, preferences'
 
+const GRANT_APPLICATION_COLUMNS = 'id, grant_id, grant_name, stage, submitted_on, expediente, amount_requested, amount_awarded, amount_received, deadline, deadline_label, notes, docs_done, obligations_done, created_at, updated_at'
+
 const CUSTOMER_COLUMNS = 'id, kind, first_name, last_name, email, phone, company, source, instagram, birthday, tags, notes, marketing_consent, consent_at, last_contacted_at, created_at, updated_at'
+
+/** Postgres numeric can come back as text: a number, or null. */
+const num = (v: unknown) => (v == null ? null : Number(v))
 
 /** Throw the Postgres error message (our SQL functions raise human-readable ones). */
 function check<T>(res: { data: T; error: { message: string } | null }): NonNullable<T> {
@@ -357,6 +363,22 @@ export function createSupabaseApi(url: string, key: string): Api {
       else check(await sb.from('customers').insert(patch))
     },
     async deleteCustomer(id) { check(await sb.from('customers').delete().eq('id', id)) },
+
+    async grantProfile() {
+      const { data, error } = await sb.from('grant_profile').select('answers').maybeSingle()
+      if (error) throw new Error(error.message)
+      return cleanAnswers(data?.answers)
+    },
+    async saveGrantProfile(answers) { check(await sb.from('grant_profile').update({ answers: cleanAnswers(answers) }).eq('id', true)) },
+    async grantApplications() {
+      return (check(await sb.from('grant_applications').select(GRANT_APPLICATION_COLUMNS).order('created_at')) as GrantApplication[])
+        .map(a => ({ ...a, amount_requested: num(a.amount_requested), amount_awarded: num(a.amount_awarded), amount_received: num(a.amount_received) }))
+    },
+    async saveGrantApplication({ id, ...patch }) {
+      if (id) { check(await sb.from('grant_applications').update(patch).eq('id', id)); return id }
+      return (check(await sb.from('grant_applications').insert(patch).select('id').single()) as { id: string }).id
+    },
+    async deleteGrantApplication(id) { check(await sb.from('grant_applications').delete().eq('id', id)) },
     async importCustomers(rows) {
       // In batches, so a long list doesn't make one huge request. A field a row leaves out takes the column's default.
       for (let i = 0; i < rows.length; i += 500) check(await sb.from('customers').insert(rows.slice(i, i + 500), { defaultToNull: false }))

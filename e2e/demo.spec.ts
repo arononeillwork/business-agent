@@ -2859,3 +2859,88 @@ test.describe('customers', () => {
     await expect(page.getByRole('heading', { name: 'Customers' })).toHaveCount(0)
   })
 })
+
+test.describe('grants', () => {
+  test('answers change the grants straight away: the equipment grant is eligible on its last day once there is equipment to replace', async ({ page }) => {
+    await open(page, '/grants')
+    await expect(page.getByRole('heading', { name: 'Grants', level: 1 })).toBeVisible()
+    // What the app knows already: an SL in Marbella (a large town), a café.
+    const answers = page.getByRole('region', { name: 'Your answers' })
+    await expect(answers.getByRole('group', { name: 'Business type' }).getByRole('button', { name: 'SL (limited company)' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(answers.getByRole('group', { name: 'Town size' }).getByRole('button', { name: 'Over 20,000' })).toHaveAttribute('aria-pressed', 'true')
+
+    const results = page.getByRole('region', { name: 'Grants for you' })
+    const equipment = results.getByRole('button', { name: 'Hospitality equipment renewal (RD 638/2026)' })
+    const replace = answers.getByRole('group', { name: 'Is there older equipment you could replace with a more efficient model?' })
+    await expect(equipment).toContainText('Confirm first')
+    await expect(equipment).toContainText('30 Sep 2026 (last day)')
+    await replace.getByRole('button', { name: 'Yes', exact: true }).click()
+    await expect(equipment).toContainText('Eligible')
+    await replace.getByRole('button', { name: 'No', exact: true }).click()
+    await expect(equipment).toContainText('Not eligible')
+    // Small-town and new-autónomo grants don't fit an SL in Marbella.
+    await expect(results.getByRole('button', { name: /Diputación de Málaga/ })).toContainText('Not eligible')
+    await expect(results.getByRole('button', { name: /Línea 2/ })).toContainText('Not eligible')
+
+    // Each grant shows its official source and when it was checked; the filters narrow the list.
+    await results.getByRole('button', { name: 'Hiring grant: Talento 45+' }).click()
+    await expect(results.getByRole('link', { name: 'Official page' }).first()).toHaveAttribute('href', /camaramalaga\.com/)
+    await expect(results.getByText(/^Checked on 23 Sep 2026/).first()).toBeVisible()
+    await results.getByRole('button', { name: /^Staff & training/ }).click()
+    await expect(results.getByRole('button', { name: /Diputación de Málaga/ })).toHaveCount(0)
+
+    // The same export as Finances.
+    await results.getByRole('button', { name: 'Export' }).click()
+    await expect(page.getByRole('menuitem', { name: /^Excel/ })).toBeVisible()
+    await expect(page.getByRole('menuitem', { name: /^CSV/ })).toBeVisible()
+  })
+
+  test('track a grant, move an application on a stage and tick its documents; deadlines go on the calendar', async ({ page }) => {
+    await open(page, '/grants')
+    const results = page.getByRole('region', { name: 'Grants for you' })
+    await results.getByRole('button', { name: 'Hiring grant: Talento 45+' }).click()
+    await results.getByRole('button', { name: 'Track this grant' }).click()
+    await toast(page, 'Added to your applications')
+    const mine = page.getByRole('region', { name: 'My applications' })
+    await expect(mine.getByRole('article', { name: 'Hiring grant: Talento 45+' })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Coming up' })).toContainText('Hiring grant: Talento 45+')
+
+    const talento = mine.getByRole('article', { name: 'Hiring grant: Talento Joven' })
+    await talento.getByRole('button', { name: 'Move to Submitted' }).click()
+    await toast(page, 'Moved to Submitted')
+    await expect(talento).toContainText('Submitted 30 Sep 2026')
+    await expect(talento.getByRole('button', { name: 'Move to Awarded' })).toBeVisible()
+    const contract = talento.getByRole('checkbox', { name: 'Signed full-time employment contract (6 months or more)' })
+    await contract.check()
+    await expect(contract).toBeChecked()
+    await expect(talento).toContainText('Documents · 3 of 8')
+
+    await mine.getByRole('button', { name: 'Export' }).click()
+    await expect(page.getByRole('menuitem', { name: /^CSV/ })).toBeVisible()
+    await page.keyboard.press('Escape')
+
+    // Both deadlines are on the team calendar, for admins.
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Calendar' }).click()
+    const bar = page.getByRole('toolbar', { name: 'Calendar' })
+    await bar.getByRole('button', { name: 'List', exact: true }).click()
+    await bar.getByRole('button', { name: 'Next 3 months' }).click()
+    const list = page.getByRole('list', { name: 'Events' })
+    await expect(list.getByRole('listitem', { name: 'Grant deadline: Hiring grant: Talento 45+ (Apply)' })).toBeVisible()
+    await expect(list.getByRole('listitem', { name: /^Grant deadline: Hiring grant: Talento Joven/ })).toBeVisible()
+  })
+
+  test('employees can’t see grants, and the gestoría reads them without changing anything', async ({ page }) => {
+    await open(page, '/', 'maria@example.com')
+    await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Grants' })).toHaveCount(0)
+    await page.goto('/grants?demo')
+    await expect(page.getByText('Grants are only visible to admins with pay access.')).toBeVisible()
+    await expect(page.getByRole('region', { name: 'My applications' })).toHaveCount(0)
+
+    await signInAs(page, 'laura@gestoria.example')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Grants' }).click()
+    await expect(page.getByRole('main').getByText('Read-only', { exact: true })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'My applications' }).getByRole('article', { name: 'Hiring grant: Talento Joven' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Track this grant' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /^Move to/ })).toHaveCount(0)
+  })
+})
