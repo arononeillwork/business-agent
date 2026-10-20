@@ -341,8 +341,10 @@ test.describe('sign-in', () => {
 
 test('@phone layout: bottom navigation and a full-width clock-in button', async ({ page }) => {
   await open(page)
-  await expect(page.getByRole('link', { name: 'Rota' })).toBeVisible()
-  await expect(page.getByRole('link', { name: 'Hours' })).toBeVisible()
+  // The phone's tabs (Today's "Who's on today" card has a Rota link of its own).
+  const tabs = page.getByRole('navigation', { name: 'Main' })
+  await expect(tabs.getByRole('link', { name: 'Rota' })).toBeVisible()
+  await expect(tabs.getByRole('link', { name: 'Hours' })).toBeVisible()
   // My account is in the account menu at the top (with Referrals, Appearance and Sign out).
   await page.getByRole('button', { name: /^Account menu/ }).click()
   await expect(page.getByRole('menuitem', { name: 'My account' })).toBeVisible()
@@ -1297,7 +1299,7 @@ test.describe('menu', () => {
     await open(page, '/')
     const nav = page.getByRole('navigation', { name: 'Main' })
     const headings = await nav.locator('section > button').allTextContents()
-    expect(headings.map(h => h.trim())).toEqual(['Business', 'Sales', 'Accounts', 'Marketing', "What's on", 'Team', 'Settings'])
+    expect(headings.map(h => h.trim())).toEqual(['Business', 'Sales', 'Stock', 'Accounts', 'Marketing', "What's on", 'Team', 'Settings'])
     await expect(nav.getByRole('link', { name: 'Partners' })).toHaveCount(0)
     await expect(nav.getByRole('link', { name: 'Café tablet' })).toHaveCount(0)
     // Today is the landing page: no menu item, the logo takes you there.
@@ -1510,7 +1512,7 @@ test('pages can be dragged into a new order, but only within their own section',
   await page.mouse.up()
   await expect.poll(names).toEqual(['Team', 'Time off', 'Timecards', 'Rota'])
   expect(await nav.locator('section', { has: page.getByRole('button', { name: 'Settings', exact: true }) }).getByRole('link').allTextContents())
-    .toEqual(['Connections', 'Notifications'])
+    .toEqual(['Connections', 'Notifications', 'Pages'])
   // Saved to Aron's account: someone else gets the usual order, and Aron his own when he's back.
   await signInAs(page, 'mark@example.com')
   await expect.poll(names).toEqual(['Rota', 'Time off', 'Timecards', 'Team'])
