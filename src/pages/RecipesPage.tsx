@@ -20,7 +20,7 @@ import {
 import { unitLabel, type StockItem } from '../../shared/stock'
 import { addDays, formatMoney, formatNumber, today } from '../../shared/time'
 import { tokens } from '../theme'
-import { t, tn } from '../i18n'
+import { t, tc, tn } from '../i18n'
 
 const pct = (n: number | null) => (n === null ? '—' : `${formatNumber(n)}%`)
 type Row = Recipe & { c: ReturnType<typeof costing> }
@@ -190,7 +190,7 @@ function RecipeDialog({ recipe, items, readOnly, onClose }: { recipe: Recipe | n
               getOptionLabel={o => o.name} isOptionEqualToValue={(a, b) => a.id === b.id}
               onChange={(_, v) => v && setLine(i, { item_id: v.id, unit: unitsFor(v.unit).includes(l.unit) ? l.unit : unitsFor(v.unit)[0] })}
               renderInput={p => <TextField {...p} label={t('Ingredient')} />} />
-            <TextField size="small" sx={{ width: 90 }} label={t('Amount')} value={l.quantity || ''} disabled={readOnly} inputMode="decimal"
+            <TextField size="small" sx={{ width: 90 }} label={tc('quantity', 'Amount')} value={l.quantity || ''} disabled={readOnly} inputMode="decimal"
               onChange={e => setLine(i, { quantity: num(e.target.value) ?? 0 })} />
             <TextField select size="small" sx={{ width: 90 }} label={t('Unit')} value={l.unit} disabled={readOnly} onChange={e => setLine(i, { unit: e.target.value as RecipeLine['unit'] })}>
               {unitsFor(item?.unit ?? 'unit').map(u => <MenuItem key={u} value={u}>{t(unitLabel(u))}</MenuItem>)}

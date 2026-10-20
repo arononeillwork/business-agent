@@ -36,7 +36,7 @@ export default {
   'Every ingredient needs a quantity': 'Cada ingrediente necesita una cantidad',
   'Give every variant a name': 'Ponle nombre a cada variante',
   'Ingredient': 'Ingrediente',
-  'Amount': 'Cantidad',
+  'quantity|Amount': 'Cantidad',
   'Instead of': 'En lugar de',
   'Nothing (added)': 'Nada (se añade)',
   'No cost': 'Sin coste',
@@ -66,7 +66,7 @@ export default {
   // Waste log
   'Waste log': 'Registro de mermas',
   'Waste: {period}': 'Mermas: {period}',
-  'Why': 'Por qué',
+  'Why': 'Motivo',
   'Times logged': 'Veces anotadas',
   'Cost of waste': 'Coste de las mermas',
   'Of what was delivered': 'De lo que ha llegado',
