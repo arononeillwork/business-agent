@@ -19,6 +19,7 @@ import TimeOffIcon from '@mui/icons-material/BeachAccessOutlined'
 import FinanceIcon from '@mui/icons-material/PaymentsOutlined'
 import SalesIcon from '@mui/icons-material/InsightsOutlined'
 import TaxIcon from '@mui/icons-material/ReceiptLongOutlined'
+import ProfitLossIcon from '@mui/icons-material/RequestQuoteOutlined'
 import BillingIcon from '@mui/icons-material/CreditCardOutlined'
 import SocialIcon from '@mui/icons-material/CampaignOutlined'
 import MessagesIcon from '@mui/icons-material/ChatBubbleOutlineRounded'
@@ -77,6 +78,7 @@ export const SECTIONS: NavSection[] = [
   ] },
   { key: 'accounts', label: msg('Accounts'), items: [
     { key: 'finances', to: '/finances', label: msg('Finances'), icon: <FinanceIcon />, who: 'pay', partner: ['finances'] },
+    { key: 'pnl', to: '/profit-and-loss', label: msg('Profit & loss'), icon: <ProfitLossIcon />, who: 'pay', partner: ['finances'] },
     { key: 'tax', to: '/tax', label: msg('Tax'), icon: <TaxIcon />, who: 'pay', partner: ['finances'] },
   ] },
   { key: 'marketing', label: msg('Marketing'), items: [

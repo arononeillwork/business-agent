@@ -20,6 +20,7 @@ import { POPULAR_FONTS } from '../../shared/fonts'
 import { addToCalendarUrl, cleanWebsite, groupOf } from '../../shared/connections'
 import { mergeSales } from '../../shared/sales'
 import { DEFAULT_TAX_SETTINGS, cleanFolderName, cleanFolderPath, taxFileProblem, type FilingRecord, type TaxDocument, type TaxSettings } from '../../shared/tax'
+import { DEFAULT_VAT_RATE, type PnlLine } from '../../shared/pnl'
 import { addDays, localDate, minutesBetween, today, weekDates, weekStart, zonedIso } from '../../shared/time'
 
 interface RawEntry {
@@ -251,9 +252,11 @@ export function createDemoApi(): Api {
    */
   const round2 = (n: number) => Math.round(n * 100) / 100
   const paymentSystems = () => (['square', 'sumup', 'stripe'] as const).filter(p => integ.integrations.some(i => i.provider === p && i.status === 'connected'))
+  // Easy Beans opened in April 2026: no takings before then.
+  const OPENED = '2026-04-01'
   const demoSales = (from: string, to: string, provider: 'square' | 'stripe' | 'sumup', share = 1): Sales => {
     const days: Sales['days'] = []
-    for (let d = from; d <= to; d = addDays(d, 1)) {
+    for (let d = from < OPENED ? OPENED : from; d <= to; d = addDays(d, 1)) {
       if (d > today()) break
       const dow = new Date(`${d}T12:00:00Z`).getUTCDay()
       const seed = [...d].reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) % 997, 7)
@@ -370,6 +373,11 @@ export function createDemoApi(): Api {
     ['Advertising / social media', 50, 'Marketing'], ['Security system', 43.56, 'Premises'],
   ] as const).map(([name, amount, category], i) => ({ id: uid(), name, amount, category, notes: null, active: true, sort: i + 1,
     source: 'sheet' as const, updated_at: nowIso() }))
+  // Profit & loss: the café's IVA rate and a one-off cost (the grinder's first service).
+  const pnlSettings = { vat_rate: DEFAULT_VAT_RATE }
+  const pnlLines: PnlLine[] = [
+    { id: uid(), month: '2026-07-01', kind: 'cost', category: 'Equipment', label: 'Grinder service', amount: 180, notes: null },
+  ]
   const sent: OutboxItem[] = [
     { id: 3, kind: 'whatsapp', payload: { template: 'shift_reminder', to: '34600111222', profile_id: 'p-julio' }, status: 'sent',
       attempts: 1, last_error: null, delivery: 'read', created_at: new Date(Date.now() - 3600000).toISOString(), sent_at: new Date(Date.now() - 3590000).toISOString() },
@@ -1131,6 +1139,33 @@ export function createDemoApi(): Api {
         notes: null, uploaded_by: me()?.id ?? null, uploaded_at: nowIso() }
       taxDocuments.push(doc)
       return clone(doc)
+    },
+    async pnlSettings() {
+      if (!(me()?.role === 'admin' && me()?.can_see_pay) && !partnerCan('finances')) throw new Error('Profit & loss is only visible to admins with pay access')
+      return { ...pnlSettings }
+    },
+    async savePnlSettings(patch) {
+      if (!(me()?.role === 'admin' && me()?.can_see_pay)) throw new Error('Only admins with pay access can change finances')
+      if (patch.vat_rate !== undefined && !(patch.vat_rate >= 0 && patch.vat_rate <= 30)) throw new Error('IVA is between 0% and 30%')
+      Object.assign(pnlSettings, patch)
+    },
+    async pnlLines(from, to) {
+      if (!(me()?.role === 'admin' && me()?.can_see_pay) && !partnerCan('finances')) return []
+      return clone(pnlLines.filter(l => l.month.slice(0, 7) >= from && l.month.slice(0, 7) <= to)).sort((a, b) => a.month.localeCompare(b.month))
+    },
+    async savePnlLine({ id, ...l }) {
+      if (!(me()?.role === 'admin' && me()?.can_see_pay)) throw new Error('Only admins with pay access can change finances')
+      if (!l.label.trim()) throw new Error('Say what it is')
+      if (!(l.amount >= 0)) throw new Error('Enter an amount of 0 or more')
+      const row = { month: `${l.month.slice(0, 7)}-01`, kind: l.kind, category: l.category?.trim() || null, label: l.label.trim(), amount: l.amount, notes: l.notes?.trim() || null }
+      const existing = id && pnlLines.find(x => x.id === id)
+      if (existing) Object.assign(existing, row)
+      else pnlLines.push({ id: uid(), ...row })
+    },
+    async deletePnlLine(id) {
+      if (!(me()?.role === 'admin' && me()?.can_see_pay)) throw new Error('Only admins with pay access can change finances')
+      const i = pnlLines.findIndex(x => x.id === id)
+      if (i >= 0) pnlLines.splice(i, 1)
     },
     async customers() {
       if (!isAdmin()) return []

@@ -14,6 +14,14 @@ describe('export', () => {
     expect(xml).toContain('<c r="B3" s="3"><v>1530</v></c>')
   })
 
+  it('rows asked for in bold are bold (headings and subtotals); the others stay plain', () => {
+    const xml = xlsxSheet({ title: 't', filename: 'f', columns: ['Line', 'Jul'], rows: [['Income', null], ['Takings', 900], ['Total income', 900]], bold: [0, 2] })
+    expect(xml).toContain('<c r="A2" t="inlineStr" s="1">')
+    expect(xml).toContain('<c r="A3" t="inlineStr"><is>')
+    expect(xml).toContain('<c r="B3" s="2"><v>900</v></c>')
+    expect(xml).toContain('<c r="B4" s="3"><v>900</v></c>')
+  })
+
   it('makes a valid zip: local headers, a central directory and the end record', () => {
     const z = zip({ 'a.txt': 'hello', 'b/c.xml': '<x/>' })
     const view = new DataView(z.buffer)

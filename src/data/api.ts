@@ -6,6 +6,7 @@ import type { ReferralState } from '../../shared/referrals'
 import type { KindInfo } from '../../shared/social'
 import type { InstagramMention } from '../../shared/mentions'
 import type { FilingRecord, Quarter, TaxDocKind, TaxDocument, TaxSettings } from '../../shared/tax'
+import type { PnlLine, PnlLineInput, PnlSettings } from '../../shared/pnl'
 
 export type ShiftInput = Omit<Shift, 'id' | 'status'> & { id?: string; status?: Shift['status'] }
 export type EventInput = Omit<CalendarEvent, 'id' | 'source' | 'competition'> & { id?: string; competition?: string | null }
@@ -154,6 +155,14 @@ export interface Api {
   makeTaxFolder(path: string[], name: string): Promise<string[]>
   /** Upload one document into a folder under Business Agent/Tax; refused when the same file (sha256) is already kept. */
   uploadTaxDocument(file: Blob, meta: { name: string; kind: TaxDocKind; year: number; quarter: Quarter | null; folder: string[]; sha256: string }): Promise<TaxDocument>
+  // Profit & loss (admins with pay access; finance partners read): the IVA rate and one-off lines
+  pnlSettings(): Promise<PnlSettings>
+  savePnlSettings(patch: Partial<PnlSettings>): Promise<void>
+  /** One-off income and costs for the months from and to (YYYY-MM), inclusive. */
+  pnlLines(fromMonth: string, toMonth: string): Promise<PnlLine[]>
+  /** Add a line (no id) or change it. */
+  savePnlLine(line: PnlLineInput): Promise<void>
+  deletePnlLine(id: string): Promise<void>
 
   // Customers and leads, for marketing (admins)
   customers(): Promise<Customer[]>

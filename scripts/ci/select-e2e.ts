@@ -36,6 +36,7 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'finances', files: [/FinancesPage/], tests: String.raw`finances|takings|expenses` },
   { name: 'tax', files: [/TaxPage/, /shared\/tax/], tests: String.raw`tax|upload` },
   { name: 'sales', files: [/SalesPage/, /components\/charts/], tests: String.raw`Sales page|best sellers` },
+  { name: 'profit and loss', files: [/ProfitLossPage/, /shared\/pnl/], tests: String.raw`profit and loss|P&L` },
   { name: 'alerts', files: [/AlertsPage/, /NotificationBell/], tests: String.raw`alert|notification|bell` },
   { name: 'to do', files: [/TodoPage/, /shared\/todo/], tests: String.raw`To Do|job|categor` },
   { name: 'customers', files: [/CustomersPage/, /shared\/customers/], tests: String.raw`customers|leads` },

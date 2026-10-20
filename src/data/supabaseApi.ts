@@ -3,6 +3,7 @@ import { SOCIAL_PROVIDERS, type Api, type BillingInfo, type PlanStatus, type Sig
 import type { ApiKey, AppNotification, Brand, Business, Customer, SocialPost, EventAlert, Expense, Integration, MusicPlaylist, OutboxItem, Profile, Settings, TimeEntry, TimeOff, Todo, TodoCategory, CafeTrack, MusicPlayerState } from '../../shared/types'
 import type { InstagramMention } from '../../shared/mentions'
 import type { FilingRecord, TaxDocument, TaxSettings } from '../../shared/tax'
+import { DEFAULT_VAT_RATE, type PnlLine, type PnlSettings } from '../../shared/pnl'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
 import type { ReferralState } from '../../shared/referrals'
 import { readyPhoto } from '../lib/media'
@@ -374,6 +375,23 @@ export function createSupabaseApi(url: string, key: string): Api {
       const q = new URLSearchParams({ name: m.name, kind: m.kind, year: String(m.year), quarter: m.quarter ? String(m.quarter) : '', folder: m.folder.join('/'), sha256: m.sha256 })
       return (await worker<{ document: TaxDocument }>(`/api/tax/upload?${q}`, { method: 'POST', body: file, headers: { 'content-type': 'application/octet-stream' } })).document
     },
+    async pnlSettings() {
+      const { data, error } = await sb.from('pnl_settings').select('vat_rate').eq('id', 1).maybeSingle()
+      if (error) throw new Error(error.message)
+      return { vat_rate: Number((data as PnlSettings | null)?.vat_rate ?? DEFAULT_VAT_RATE) }
+    },
+    async savePnlSettings(patch) { check(await sb.from('pnl_settings').upsert({ id: 1, ...patch })) },
+    async pnlLines(from, to) {
+      const rows = check(await sb.from('pnl_lines').select('id, month, kind, category, label, amount, notes')
+        .gte('month', `${from}-01`).lte('month', `${to}-01`).order('month').order('label')) as PnlLine[]
+      return rows.map(l => ({ ...l, amount: Number(l.amount) }))
+    },
+    async savePnlLine({ id, ...l }) {
+      const row = { month: `${l.month.slice(0, 7)}-01`, kind: l.kind, category: l.category ?? null, label: l.label.trim(), amount: l.amount, notes: l.notes ?? null }
+      if (id) check(await sb.from('pnl_lines').update(row).eq('id', id))
+      else check(await sb.from('pnl_lines').insert(row))
+    },
+    async deletePnlLine(id) { check(await sb.from('pnl_lines').delete().eq('id', id)) },
 
     async customers() {
       return check(await sb.from('customers').select(CUSTOMER_COLUMNS).order('created_at', { ascending: false })) as Customer[]
