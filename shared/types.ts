@@ -65,6 +65,8 @@ export interface Settings {
   alert_time_off: boolean
   /** Admins are told when someone tags the business on Instagram or mentions it in their story. */
   alert_instagram_mentions?: boolean
+  /** Pages the admins hid from everyone's menu (Settings → Pages), by page key. */
+  hidden_pages?: string[]
   /** Data retention: how many days saved WhatsApp chats are kept (30, 90, 180, 365 or 730; 90 unless changed). */
   whatsapp_retention_days?: number
 }
@@ -159,6 +161,8 @@ export interface Preferences {
   navOrder?: Record<string, string[]>
   /** Pages they pinned to the top of their menu section (page keys). */
   navPins?: string[]
+  /** Pages they hid from their own menu (Settings → Pages), by page key. */
+  navHidden?: string[]
   /** The languages they use the app in (My account → Language). With both, flags at the top switch between them. */
   languages?: ('en' | 'es')[]
   /** The one shown now. */

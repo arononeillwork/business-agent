@@ -456,7 +456,7 @@ export function createDemoApi(): Api {
     break_after_hours: 6, max_daily_hours: 9, max_weekly_hours: 40, min_rest_hours: 12,
     approval_weekday: 1, employer_cost_multiplier: 1.3, auto_timecards_from_rota: true, vacation_days_per_year: 30,
     alert_shift_reminders: true, alert_missed_clock_in: true, alert_rota: true, alert_time_off: true,
-    whatsapp_retention_days: DEFAULT_WHATSAPP_RETENTION,
+    whatsapp_retention_days: DEFAULT_WHATSAPP_RETENTION, hidden_pages: [],
   }
 
   const P = { aron: 'p-aron', mark: 'p-mark', julio: 'p-julio', maria: 'p-maria', cleaner: 'p-cleaner' }

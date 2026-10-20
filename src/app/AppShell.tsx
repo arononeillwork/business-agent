@@ -27,6 +27,7 @@ import MessagesIcon from '@mui/icons-material/ChatBubbleOutlineRounded'
 import ReferralsIcon from '@mui/icons-material/CardGiftcardOutlined'
 import NotificationsIcon from '@mui/icons-material/NotificationsNoneOutlined'
 import ConnectIcon from '@mui/icons-material/HubOutlined'
+import PagesIcon from '@mui/icons-material/VisibilityOutlined'
 import LogoutIcon from '@mui/icons-material/LogoutOutlined'
 import PartnersIcon from '@mui/icons-material/HandshakeOutlined'
 import MoreIcon from '@mui/icons-material/MoreHoriz'
@@ -59,8 +60,8 @@ import { LanguageToggle } from '../components/Language'
 
 // `partner`: which partner areas show the item ('any' = every partner). Items without it are staff-only.
 // `children`: sub-pages, shown indented under the item when it's opened (or its arrow is pressed).
-interface NavItem { key: string; to: string; label: string; short?: string; icon: ReactNode; who?: 'admin' | 'pay'; partner?: PartnerArea[] | 'any'; children?: NavItem[] }
-interface NavSection { key: string; label: string | null; items: NavItem[] }
+export interface NavItem { key: string; to: string; label: string; short?: string; icon: ReactNode; who?: 'admin' | 'pay'; partner?: PartnerArea[] | 'any'; children?: NavItem[] }
+export interface NavSection { key: string; label: string | null; items: NavItem[] }
 
 // The menu, in sections. Today is the landing page: the logo goes there, so it has no menu item.
 export const SECTIONS: NavSection[] = [
@@ -101,6 +102,7 @@ export const SECTIONS: NavSection[] = [
   { key: 'admin', label: msg('Settings'), items: [
     { key: 'connections', to: '/connections', label: msg('Connections'), icon: <ConnectIcon />, who: 'admin' },
     { key: 'notifications', to: '/notifications', label: msg('Notifications'), icon: <NotificationsIcon /> },
+    { key: 'pages', to: '/pages', label: msg('Pages'), icon: <PagesIcon />, partner: 'any' },
     ...(FEATURES.partners ? [{ key: 'partners', to: '/partners', label: msg('Partners'), icon: <PartnersIcon />, who: 'admin' as const }] : []),
     ...(FEATURES.kiosk ? [{ key: 'kiosk', to: '/kiosk', label: msg('Café tablet'), icon: <KioskIcon />, who: 'admin' as const }] : []),
   ] },
@@ -462,8 +464,23 @@ function orderSections(sections: NavSection[], order: Record<string, string[]> |
   })
 }
 
+/** Pages that can't be hidden: the one that shows them again. */
+export const ALWAYS_SHOWN = ['pages']
+
+/** Can this person open the page at all (their role, pay access, a partner's areas)? */
+export function canOpen(n: NavItem, who: { isAdmin: boolean; isPartner: boolean; canSeePay: boolean; partnerCan: (a: PartnerArea) => boolean }) {
+  return who.isPartner
+    ? n.partner === 'any' || (!!n.partner && n.partner.some(who.partnerCan))
+    : !n.who || (n.who === 'admin' ? who.isAdmin : who.canSeePay)
+}
+
+/** Pages hidden from this person's menu: by the admins for everyone, or by themselves (Settings → Pages). */
+export function hiddenPages(settings: { hidden_pages?: string[] } | null, me: { preferences?: { navHidden?: string[] } } | null) {
+  return new Set([...(settings?.hidden_pages ?? []), ...(me?.preferences?.navHidden ?? [])].filter(k => !ALWAYS_SHOWN.includes(k)))
+}
+
 export function AppShell() {
-  const { isAdmin, isPartner, partnerCan, canSeePay, me, api, refresh, business } = useApp()
+  const { isAdmin, isPartner, partnerCan, canSeePay, me, api, refresh, business, settings } = useApp()
   const theme = useTheme()
   const desktop = useMediaQuery(theme.breakpoints.up('md'))
   const { pathname } = useLocation()
@@ -472,9 +489,9 @@ export function AppShell() {
   // Chats waiting on a reply, as a small count on Messages (sidebar, icons-only menu and phone alike).
   const unread = useUnreadMessages()
   const badges: NavBadges = unread > 0 ? { messages: unread } : {}
-  const allowed = (n: NavItem) => isPartner
-    ? n.partner === 'any' || (!!n.partner && n.partner.some(partnerCan))
-    : !n.who || (n.who === 'admin' ? isAdmin : canSeePay)
+  // Pages they can open, less the ones hidden from their menu (they still open from a link).
+  const hidden = hiddenPages(settings, me)
+  const allowed = (n: NavItem) => canOpen(n, { isAdmin, isPartner, canSeePay, partnerCan }) && !hidden.has(n.key)
   // Page order within sections: the person's own, kept locally while it saves.
   const [navOrder, setNavOrder] = useState<Record<string, string[]> | undefined>(me?.preferences?.navOrder)
   useEffect(() => setNavOrder(me?.preferences?.navOrder), [me?.preferences?.navOrder])

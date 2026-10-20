@@ -3120,3 +3120,35 @@ test.describe('grants', () => {
     await expect(page.getByRole('button', { name: /^Move to/ })).toHaveCount(0)
   })
 })
+
+test.describe('pages: hide what you don’t use', () => {
+  test('each person hides a page from their own menu, and shows it again', async ({ page }) => {
+    await open(page, '/', 'maria@example.com')
+    const nav = page.getByRole('navigation', { name: 'Main' })
+    await expect(nav.getByRole('link', { name: 'Sports' })).toBeVisible()
+    await nav.getByRole('link', { name: 'Pages' }).click()
+    await expect(page.getByRole('heading', { name: 'Pages', level: 1 })).toBeVisible()
+    await expect(page.getByRole('switch', { name: 'Show Sports for the team' })).toHaveCount(0) // employees: their own menu only
+    await page.getByRole('switch', { name: 'Show Sports in my menu' }).uncheck()
+    await expect(nav.getByRole('link', { name: 'Sports' })).toHaveCount(0)
+    await expect(page.getByRole('switch', { name: 'Show Pages in my menu' })).toBeDisabled() // always there, to come back
+    await page.getByRole('button', { name: 'Show 1 hidden page again' }).click()
+    await toast(page, 'Every page is in the menu again')
+    await expect(nav.getByRole('link', { name: 'Sports' })).toBeVisible()
+  })
+
+  test('admins hide a page for the whole team', async ({ page }) => {
+    await open(page, '/pages')
+    const nav = page.getByRole('navigation', { name: 'Main' })
+    await page.getByRole('switch', { name: 'Show Music for the team' }).uncheck()
+    await expect(nav.getByRole('link', { name: 'Music' })).toHaveCount(0)
+    await expect(page.getByRole('main').getByRole('region', { name: "What's on" })).toContainText('Hidden for the team')
+    await expect(page.getByRole('switch', { name: 'Show Music in my menu' })).toBeDisabled()
+    await signInAs(page, 'maria@example.com')
+    await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Rota' })).toBeVisible()
+    await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Music' })).toHaveCount(0)
+    await page.getByRole('button', { name: 'Search' }).click()
+    await page.keyboard.type('Music')
+    await expect(page.getByRole('option', { name: /Music/ })).toHaveCount(0)
+  })
+})
