@@ -1274,7 +1274,7 @@ test('Connections lists what’s connected first, and a kind moves up once one o
   await expect(page.getByRole('region', { name: 'Team messages' }).getByRole('article', { name: 'WhatsApp' })).toContainText('Connected')
   const kinds = () => page.getByRole('main').locator('section[aria-label] > div > h2').allTextContents()
   const first = await kinds()
-  const connected = ['Team messages', 'Maps and search', 'Analytics', 'Social media', 'Café music']
+  const connected = ['Team messages', 'Maps and search', 'Analytics', 'Social media', 'Advertising', 'Café music']
   expect(first.slice(0, connected.length).sort()).toEqual([...connected].sort())
   expect(first.indexOf('Files and storage')).toBeGreaterThan(first.indexOf('Email'))
   await page.getByRole('region', { name: 'Files and storage' }).getByRole('button', { name: 'Connect Google Drive' }).click()
@@ -1655,14 +1655,14 @@ test.describe('billing', () => {
     await expect(page.getByRole('heading', { name: 'Billing' })).toBeVisible()
   })
 
-  test('Sales (with Customers) and Marketing (Social planner, Analytics) are menu sections of their own; old Sales links still land', async ({ page }) => {
+  test('Sales (with Customers) and Marketing (Social planner, Ads, Analytics) are menu sections of their own; old Sales links still land', async ({ page }) => {
     await open(page, '/team')
     const nav = page.getByRole('navigation', { name: 'Main' })
     await nav.getByRole('region', { name: 'Sales' }).getByRole('link', { name: 'Sales' }).click()
     await expect(page).toHaveURL(/\/sales$/)
     await expect(page.getByRole('heading', { name: 'Sales', level: 1 })).toBeVisible()
     await expect(nav.getByRole('region', { name: 'Sales' }).getByRole('link')).toHaveText(['Sales', 'Customers'])
-    await expect(nav.getByRole('region', { name: 'Marketing' }).getByRole('link')).toHaveText(['Social planner', 'Analytics'])
+    await expect(nav.getByRole('region', { name: 'Marketing' }).getByRole('link')).toHaveText(['Social planner', 'Ads', 'Analytics'])
     await nav.getByRole('region', { name: 'Marketing' }).getByRole('link', { name: 'Analytics' }).click()
     await expect(page.getByRole('heading', { name: 'Analytics', level: 1 })).toBeVisible()
     await expect(nav.getByRole('region', { name: 'Accounts' }).getByRole('link')).toHaveText(['Finances'])
