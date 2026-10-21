@@ -22,7 +22,8 @@ import { mergeSales } from '../../shared/sales'
 import { dueFrom, emailId, matchSupplier, numberFromName, type InboxInvoice, type Invoice } from '../../shared/invoices'
 import type { Licence } from '../../shared/licences'
 import { DEFAULT_RULES, draw, newEntries, type Competition, type CompetitionEntry } from '../../shared/competitions'
-import { DEFAULT_TAX_SETTINGS, cleanFolderName, cleanFolderPath, taxFileProblem, type FilingRecord, type TaxDocument, type TaxSettings } from '../../shared/tax'
+import { cleanTags, sortEntries, type KeptDocument, type StorageEntry } from '../../shared/documents'
+import { DEFAULT_TAX_SETTINGS, cleanFolderName, cleanFolderPath, taxFileProblem, taxFileType, type FilingRecord, type TaxDocument, type TaxSettings } from '../../shared/tax'
 import { DEFAULT_VAT_RATE, type PnlLine } from '../../shared/pnl'
 import { cleanAnswers, isDone, type GrantApplication, type GrantProfile } from '../../shared/grants'
 import { adjustProblem, giftCardAmountProblem, type GiftCard, type GiftCardActivity, type LoyaltyEvent, type LoyaltyMember, type LoyaltyProgram } from '../../shared/loyalty'
@@ -223,18 +224,39 @@ export function createDemoApi(): Api {
     return { id: uid(), name, kind, year: 2026, quarter, size, sha256: null, storage: 'google_drive', file_id: uid(), folder,
       link: `https://drive.google.com/demo/Business Agent/${folder.join('/')}/${name}`, notes: null, uploaded_by: null, uploaded_at: `${day}T10:00:00Z` }
   }
+  const byEricAugust = taxDoc('Factura By Eric agosto.pdf', 'purchase_invoice', 3, '2026-09-02', 184_220)
+  // The Documents hub's own, under Business Agent/Documents: the lease, the insurance policy (the licence's document), a certificate.
+  const hubDoc = (name: string, kind: TaxDocument['kind'], year: number, folder: string, day: string, size: number, more: Partial<TaxDocument> = {}): TaxDocument => ({
+    id: uid(), name, kind, year, quarter: null, size, sha256: null, storage: 'google_drive', file_id: uid(), folder: ['Documents', folder],
+    link: `https://drive.google.com/demo/Business Agent/Documents/${folder}/${name}`, notes: null, title: null, tags: [], expires_on: null,
+    uploaded_by: null, uploaded_at: `${day}T10:00:00Z`, ...more })
+  const insurancePolicy = hubDoc('Póliza RC Mapfre 2025-2026.pdf', 'contract', 2025, 'Insurance', '2025-10-10', 512_330, { tags: ['seguro'] })
   const taxDocuments: TaxDocument[] = [
-    taxDoc('Factura By Eric agosto.pdf', 'purchase_invoice', 3, '2026-09-02', 184_220),
+    byEricAugust,
     taxDoc('Factura Makro 2026-08-21.pdf', 'purchase_invoice', 3, '2026-08-22', 96_512),
     taxDoc('Extracto BBVA agosto.pdf', 'bank_statement', 3, '2026-09-03', 402_118),
     taxDoc('Nómina Julio agosto.pdf', 'payslip', 3, '2026-09-01', 88_004),
     taxDoc('Modelo 303 2T 2026 justificante.pdf', 'tax_return', 2, '2026-07-14', 61_877),
+    hubDoc('Contrato alquiler local.pdf', 'contract', 2026, 'Contracts', '2026-03-15', 1_204_551,
+      { title: 'Lease of the premises', tags: ['local', 'lease'], expires_on: '2031-03-31', notes: 'Five years, rent reviewed each March' }),
+    insurancePolicy,
+    hubDoc('Certificado manipulador alimentos Julio.pdf', 'other', 2026, 'Certificates', '2026-04-02', 98_114, { tags: ['staff'], expires_on: '2026-11-20' }),
   ]
+  // Files in the demo Drive's Business Agent folder that aren't kept on any list (exports, a plan of the premises).
+  const looseFiles = [
+    { path: 'Documents/Contracts/Plano del local.pdf', size: 2_048_000, type: 'application/pdf', modified: '2026-03-15T10:05:00Z' },
+    { path: 'Exports/Rota 2026-09-28.xlsx', size: 18_220, type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', modified: '2026-09-28T18:00:00Z' },
+  ].map(f => ({ ...f, id: uid() }))
   // Folders made in the demo Drive under Business Agent (the sorted ones exist once a document is in them).
-  const taxFolderPaths = new Set<string>(['Tax/2026/Gestoría'])
+  const taxFolderPaths = new Set<string>(['Tax/2026/Gestoría', 'Documents/Seguros'])
   const canTax = () => me()?.role === 'admin' && !!me()?.can_see_pay
   const readTax = () => canTax() || partnerCan('finances')
   const needTax = () => { if (!canTax()) throw new Error('Only admins with pay access manage tax documents') }
+  const docStorage = () => {
+    const store = (['google_drive', 'onedrive'] as const).find(p => integ.integrations.some(i => i.provider === p && i.status === 'connected'))
+    if (!store) throw new Error('Connect Google Drive or OneDrive on the Connections page to keep documents. They go in its Business Agent/Documents folder.')
+    return store
+  }
   const taxStorage = () => {
     const store = (['google_drive', 'onedrive'] as const).find(p => integ.integrations.some(i => i.provider === p && i.status === 'connected'))
     if (!store) throw new Error('Connect Google Drive or OneDrive on the Connections page to keep tax documents. They go in its Business Agent/Tax folder.')
@@ -300,7 +322,7 @@ export function createDemoApi(): Api {
     licence({ name: 'Licencia de terraza (ocupación de vía pública)', issuer: 'Ayuntamiento de Marbella', reference: 'OVP-2026-221', starts_on: '2026-04-01',
       expires_on: '2026-12-31', renew_every_months: 12, cost: 380, notes: '4 tables, 16 chairs' }),
     licence({ name: 'Seguro de responsabilidad civil', category: 'insurance', issuer: 'Mapfre', reference: 'RC-0099-441', starts_on: '2025-10-15',
-      expires_on: '2026-10-15', renew_every_months: 12, cost: 312 }),
+      expires_on: '2026-10-15', renew_every_months: 12, cost: 312, document_id: insurancePolicy.id }),
     licence({ name: 'Revisión de extintores', category: 'safety', issuer: 'Extintores Costa', expires_on: '2026-09-01', renew_every_months: 12, cost: 65 }),
   ]
 
@@ -311,7 +333,8 @@ export function createDemoApi(): Api {
   const invoiceList: Invoice[] = [
     invoice({ supplier_id: 'sup-roaster', number: 'F2026-0119', issued_on: '2026-08-18', due_on: '2026-09-17', net: 336.36, vat: 33.64, total: 370, category: 'Coffee roaster', status: 'paid', paid_on: '2026-09-15', source: 'email' }),
     invoice({ supplier_id: 'sup-roaster', number: 'F2026-0131', issued_on: '2026-09-01', due_on: '2026-10-01', net: 290.91, vat: 29.09, total: 320, category: 'Coffee roaster', status: 'to_pay', source: 'email' }),
-    invoice({ supplier_id: 'sup-eric', number: '2026-0812', issued_on: '2026-08-31', due_on: '2026-09-15', net: 545.45, vat: 54.55, total: 600, category: 'Bakery', status: 'to_pay', source: 'email', notes: 'Croissants and pastries, August' }),
+    invoice({ supplier_id: 'sup-eric', number: '2026-0812', issued_on: '2026-08-31', due_on: '2026-09-15', net: 545.45, vat: 54.55, total: 600, category: 'Bakery', status: 'to_pay', source: 'email', notes: 'Croissants and pastries, August',
+      document_id: byEricAugust.id }),
     invoice({ supplier_id: 'sup-dairy', number: 'LC-4471', issued_on: '2026-09-20', due_on: '2026-10-20', net: 181.82, vat: 18.18, total: 200, category: 'Dairy', status: 'to_check', source: 'upload' }),
     invoice({ direction: 'out', party_name: 'Hotel Puente Romano', number: 'EB-2026-007', issued_on: '2026-09-12', due_on: '2026-10-12', net: 409.09, vat: 40.91, total: 450, category: 'Catering', status: 'sent' }),
   ]
@@ -1608,12 +1631,13 @@ export function createDemoApi(): Api {
       else taxFilings.push({ ...row, id: uid() })
     },
     async taxDocuments(year) {
-      return readTax() ? clone(taxDocuments.filter(d => d.year === year)).sort((a, b) => b.uploaded_at.localeCompare(a.uploaded_at)) : []
+      return readTax() ? clone(taxDocuments.filter(d => d.year === year && d.folder[0] === 'Tax')).sort((a, b) => b.uploaded_at.localeCompare(a.uploaded_at)) : []
     },
     async updateTaxDocument(id, patch) {
       needTax()
       const d = taxDocuments.find(x => x.id === id)
-      if (d) Object.assign(d, patch, { notes: patch.notes === undefined ? d.notes : patch.notes?.trim() || null })
+      if (d) Object.assign(d, patch, { notes: patch.notes === undefined ? d.notes : patch.notes?.trim() || null,
+        title: patch.title === undefined ? d.title : patch.title?.trim() || null, tags: patch.tags === undefined ? d.tags : cleanTags(patch.tags) })
     },
     async removeTaxDocument(id) {
       needTax()
@@ -1650,6 +1674,57 @@ export function createDemoApi(): Api {
         notes: null, uploaded_by: me()?.id ?? null, uploaded_at: nowIso() }
       taxDocuments.push(doc)
       return clone(doc)
+    },
+    async documents() {
+      if (!readTax()) return []
+      return clone(taxDocuments).map((d): KeptDocument => ({ title: null, tags: [], expires_on: null, ...d,
+        invoices: invoiceList.filter(i => i.document_id === d.id).map(i => ({ id: i.id, number: i.number, party_name: i.party_name,
+          supplier: i.supplier_id ? { name: suppliers.find(x => x.id === i.supplier_id)?.name ?? '' } : null })),
+        licences: licenceList.filter(l => l.document_id === d.id).map(l => ({ id: l.id, name: l.name, expires_on: l.expires_on })),
+      })).sort((a, b) => b.uploaded_at.localeCompare(a.uploaded_at))
+    },
+    async browseFiles(path) {
+      if (!canTax()) throw new Error('Only admins with pay access manage documents')
+      const storage = docStorage()
+      const at = path.join('/')
+      const kept = taxDocuments.filter(d => d.storage === storage)
+      const folders = [...taxFolderPaths, ...kept.map(d => d.folder.join('/')), ...looseFiles.map(f => f.path.split('/').slice(0, -1).join('/'))]
+      const link = (p: string) => `https://${storage === 'google_drive' ? 'drive.google.com' : 'onedrive.live.com'}/demo/Business Agent/${p}`
+      if (at && !folders.some(f => f === at || f.startsWith(`${at}/`))) return { storage, path, link: null, entries: [] }
+      const inside = (p: string) => (at ? p.startsWith(`${at}/`) : true)
+      const names = [...new Set(folders.filter(f => f && inside(f)).map(f => f.slice(at ? at.length + 1 : 0).split('/')[0]))].filter(Boolean)
+      const entries: StorageEntry[] = [
+        ...names.map(n => ({ id: `folder:${at}/${n}`, name: n, folder: true, size: null, modified: null, type: null, link: link(at ? `${at}/${n}` : n), kept_id: null })),
+        ...kept.filter(d => d.folder.join('/') === at).map(d => ({ id: d.file_id, name: d.name, folder: false, size: d.size, modified: d.uploaded_at,
+          type: taxFileType(d.name), link: d.link, kept_id: d.id })),
+        ...looseFiles.filter(f => f.path.split('/').slice(0, -1).join('/') === at).map(f => ({ id: f.id, name: f.path.split('/').pop()!, folder: false,
+          size: f.size, modified: f.modified, type: f.type, link: link(f.path), kept_id: null })),
+      ]
+      return { storage, path, link: link(at), entries: sortEntries(entries) }
+    },
+    async makeDocumentsFolder(path, name) {
+      if (!canTax()) throw new Error('Only admins with pay access manage documents')
+      docStorage()
+      const clean = cleanFolderName(name)
+      if (!clean) throw new Error('Give the folder a name (up to 100 characters)')
+      const made = cleanFolderPath([...path, clean], ['Documents'])
+      if (!made) throw new Error('That folder isn’t in the Documents folder')
+      taxFolderPaths.add(made.join('/'))
+      return made
+    },
+    async uploadDocument(file, m) {
+      if (!canTax()) throw new Error('Only admins with pay access manage documents')
+      const storage = docStorage()
+      if (!cleanFolderPath(m.folder, ['Documents'])) throw new Error('That folder isn’t in the Documents folder')
+      const problem = taxFileProblem(m.name, file.size)
+      if (problem) throw new Error(problem)
+      const kept = taxDocuments.find(d => d.sha256 === m.sha256)
+      if (kept) throw new Error(`Already kept as “${kept.name}”`)
+      const doc: TaxDocument = { id: uid(), name: m.name, kind: m.kind, year: m.year, quarter: null, size: file.size, sha256: m.sha256, storage,
+        file_id: uid(), folder: m.folder, link: `https://${storage === 'google_drive' ? 'drive.google.com' : 'onedrive.live.com'}/demo/Business Agent/${m.folder.join('/')}/${m.name}`,
+        notes: null, title: m.title?.trim() || null, tags: cleanTags(m.tags ?? []), expires_on: m.expires_on || null, uploaded_by: me()?.id ?? null, uploaded_at: nowIso() }
+      taxDocuments.push(doc)
+      return { ...clone(doc), invoices: [], licences: [] }
     },
     async pnlSettings() {
       if (!(me()?.role === 'admin' && me()?.can_see_pay) && !partnerCan('finances')) throw new Error('Profit & loss is only visible to admins with pay access')

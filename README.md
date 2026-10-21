@@ -48,6 +48,13 @@ built-in **AI connector** so owners can run it by talking to Claude.
   and AGEDI/AIE for the music, the terrace permit, insurance, extinguisher and electrical checks, staff
   food handler certificates), each with its number, when it runs out, how often it renews, its cost
   and its document; one press marks it renewed, and admins are reminded in the bell beforehand.
+- Documents (Business section): every file kept in the café's own Google Drive or OneDrive (the Tax
+  page's, invoices brought in by email, licences' documents, and contracts, insurance policies and
+  certificates kept here), all years in one list with what each belongs to (an invoice, a licence, the
+  Tax page), a title, tags and when it runs out; searched and filtered by kind, year and what it belongs
+  to. Browse storage looks inside the Business Agent folder there (folders and files, kept ones marked,
+  each opened in Drive or OneDrive) and uploads into its Documents folder or a new folder made in it.
+  Admins with pay access; a gestoría with finances access reads the list.
 - Invoices: what suppliers invoice (and the sales invoices sent), each tied to its supplier from Stock
   and to its file, with what's to pay, overdue and paid, notes, and totals by supplier. Invoices come
   in from the connected Gmail or Outlook (once reading it is allowed), by upload, or typed in; a
