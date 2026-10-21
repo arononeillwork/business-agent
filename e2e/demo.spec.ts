@@ -806,7 +806,7 @@ test.describe('sports', () => {
   test('staff see the next three weeks by day, with big nights, a sport at a time and times to be confirmed', async ({ page }) => {
     await open(page, '/sports', 'maria@example.com')
     await expect(page.getByRole('heading', { name: 'Sports' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Competitions' })).toHaveCount(0) // admins choose
+    await expect(page.getByRole('button', { name: 'Competitions', exact: true })).toHaveCount(0) // admins choose
     await expect(page.getByRole('list', { name: 'At a glance' })).toHaveCount(0) // no counts, straight to the games
     const today = page.getByRole('region', { name: /^Today/ })
     await expect(today.getByText('Real Betis')).toBeVisible()
@@ -850,7 +850,7 @@ test.describe('sports', () => {
   test('admin stops following a competition and refreshes', async ({ page }) => {
     await open(page, '/sports')
     await expect(page.getByRole('article', { name: /Barcelona vs Real Madrid/ })).toBeVisible()
-    await page.getByRole('button', { name: 'Competitions' }).click()
+    await page.getByRole('button', { name: 'Competitions', exact: true }).click()
     const dialog = page.getByRole('dialog', { name: 'Competitions to follow' })
     await dialog.getByRole('checkbox', { name: 'La Liga', exact: true }).uncheck()
     await toast(page, 'Stopped following La Liga')
