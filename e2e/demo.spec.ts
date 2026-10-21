@@ -3235,7 +3235,7 @@ test.describe('stock and suppliers', () => {
   test.describe.configure({ timeout: 60_000 })
   test('low items show, a delivery raises what is in, and the order list offers WhatsApp with the message', async ({ page }) => {
     await open(page, '/stock')
-    await expect(page.getByRole('heading', { name: 'Stock', level: 1 })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Current stock', level: 1 })).toBeVisible()
     const tiles = page.getByRole('list', { name: 'At a glance' })
     await expect(tiles.getByRole('listitem').filter({ hasText: 'Low on stock' })).toContainText('7')
 
@@ -3304,7 +3304,7 @@ test.describe('stock and suppliers', () => {
     await expect(card).toContainText('Orders: Fri')
     await expect(card.getByRole('link', { name: 'Website' })).toHaveAttribute('href', 'https://frutas.example')
 
-    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Stock', exact: true }).click()
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Wholesale' }).click()
     await page.getByRole('button', { name: 'Add item' }).click()
     const item = page.getByRole('dialog', { name: 'Add an item' })
     await item.getByRole('textbox', { name: 'Name' }).fill('Oranges')
@@ -3316,15 +3316,19 @@ test.describe('stock and suppliers', () => {
     await item.getByRole('textbox', { name: 'Reorder at' }).fill('10')
     await item.getByRole('button', { name: 'Add' }).click()
     await toast(page, 'Added Oranges')
-    const row = page.getByRole('table', { name: 'Stock items' }).getByRole('row', { name: 'Oranges' })
-    await expect(row).toContainText('Low')
-    await expect(row.getByRole('link', { name: 'Oranges on the supplier’s website' })).toHaveAttribute('href', 'https://frutas.example/naranjas')
+    // On Wholesale under its supplier, with its price and link; on Current stock, low.
+    const priced = page.getByRole('table', { name: 'Items from Frutas Paqui' }).getByRole('row', { name: 'Oranges' })
+    await expect(priced).toContainText('1,20')
+    await expect(priced.getByRole('link', { name: 'Oranges on the supplier’s website' })).toHaveAttribute('href', 'https://frutas.example/naranjas')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Current stock' }).click()
+    await expect(page.getByRole('table', { name: 'Stock items' }).getByRole('row', { name: 'Oranges' })).toContainText('Low')
   })
 
   test('an employee can count but not see Suppliers or change prices', async ({ page }) => {
     await open(page, '/stock', 'maria@example.com')
-    await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Stock' })).toBeVisible()
+    await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Current stock' })).toBeVisible()
     await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Suppliers' })).toHaveCount(0)
+    await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Wholesale' })).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Add item' })).toHaveCount(0)
     const row = page.getByRole('table', { name: 'Stock items' }).getByRole('row', { name: 'Napkins' })
     await row.getByRole('button', { name: 'Count Napkins' }).click()
@@ -3413,8 +3417,61 @@ test.describe('recipes and waste', () => {
     await toast(page, '1 logged as waste')
     await expect(tiles.getByRole('listitem').filter({ hasText: 'Times logged' })).toContainText('4')
     await expect(page.getByRole('region', { name: /Wednesday 30 September/ })).toContainText('Spilled or dropped')
-    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Stock', exact: true }).click()
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Current stock' }).click()
     await expect(page.getByRole('table', { name: 'Stock items' }).getByRole('row', { name: 'Napkins' })).toContainText('2 packs')
+  })
+})
+
+test.describe('wholesale', () => {
+  test('wholesale shows every item by supplier with its price with and without IVA, what went up and the shop margin', async ({ page }) => {
+    await open(page, '/wholesale')
+    await expect(page.getByRole('heading', { name: 'Wholesale', level: 1 })).toBeVisible()
+    const tiles = page.getByRole('list', { name: 'At a glance' })
+    const rises = tiles.getByRole('listitem').filter({ hasText: 'Price rises, last 90 days' })
+    await expect(rises).toContainText('2')
+    await expect(rises).toContainText('Ceremonial matcha +12%')
+
+    const roaster = page.getByRole('region', { name: 'Tostadores del Sur' })
+    await expect(roaster.getByRole('link', { name: 'Order page' })).toHaveAttribute('href', 'https://tostadoresdelsur.example/trade')
+    const beans = roaster.getByRole('table', { name: 'Items from Tostadores del Sur' }).getByRole('row', { name: 'House espresso blend' })
+    await expect(beans).toContainText('18,50')
+    await expect(beans).toContainText('20,35') // with 10% IVA
+    await expect(beans).toContainText('+7,6% on 15 Sep')
+    await expect(roaster.getByRole('row', { name: 'Easy Beans house blend 250 g' })).toContainText('Margin 54,2%')
+
+    await beans.getByRole('button', { name: 'Price history of House espresso blend' }).click()
+    const history = page.getByRole('dialog', { name: 'Price history: House espresso blend' })
+    await expect(history.getByRole('row')).toHaveCount(3) // heading, now and before
+    await expect(history.getByRole('row').nth(1)).toContainText('15 Sep 2026')
+    await expect(history.getByRole('row').nth(1)).toContainText('+7,6%')
+    await expect(history.getByRole('row').nth(2)).toContainText('1 Apr 2026')
+    await history.getByRole('button', { name: 'Close' }).click()
+
+    // Only what changed price lately: whole milk went down in July, too long ago.
+    await page.getByRole('button', { name: /^Price changes/ }).click()
+    await expect(page.getByRole('row', { name: 'House espresso blend' })).toBeVisible()
+    await expect(page.getByRole('row', { name: 'Ceremonial matcha' })).toBeVisible()
+    await expect(page.getByRole('row', { name: 'Whole milk' })).toHaveCount(0)
+    await expect(page.getByRole('region', { name: 'Lácteos Costa del Sol' })).toHaveCount(0)
+  })
+
+  test('a supplier’s price list again updates the prices already there and adds the rest', async ({ page }) => {
+    await open(page, '/wholesale')
+    await page.getByRole('button', { name: 'Import a price list' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Import items from a CSV file' })
+    await dialog.getByLabel('CSV file').setInputFiles({ name: 'tarifa.csv', mimeType: 'text/csv',
+      buffer: Buffer.from('Referencia;Producto;Proveedor;Coste\r\nDEC-1K;Decaf beans;Tostadores del Sur;22,50\r\nGUEST-500;Guest filter coffee;Tostadores del Sur;24\r\n'
+        + 'KEN-1K;Single origin Kenya;Tostadores del Sur;28\r\n') })
+    await expect(dialog.getByRole('status')).toContainText('1 item to add')
+    await expect(dialog.getByRole('status')).toContainText('1 already on the list: its price and details updated.')
+    await expect(dialog.getByRole('status')).toContainText('1 already on the list and the same: left as is.')
+    await dialog.getByRole('button', { name: 'Save 2 items' }).click()
+    await toast(page, '1 item added · 1 item updated')
+    const roaster = page.getByRole('table', { name: 'Items from Tostadores del Sur' })
+    await expect(roaster.getByRole('row', { name: 'Decaf beans' })).toContainText('22,50')
+    await expect(roaster.getByRole('row', { name: 'Decaf beans' })).toContainText('+7,1%')
+    await expect(roaster.getByRole('row', { name: 'Guest filter coffee' })).toContainText('No change')
+    await expect(roaster.getByRole('row', { name: 'Single origin Kenya' })).toContainText('28,00')
   })
 })
 

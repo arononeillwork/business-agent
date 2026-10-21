@@ -53,10 +53,13 @@ built-in **AI connector** so owners can run it by talking to Claude.
   their last days, marked to do, with the gestoría or filed; documents (invoices, receipts, payslips,
   statements) uploaded in bulk, a folder at a time, into the connected Google Drive or OneDrive under
   Business Agent/Tax, sorted by year, quarter and kind or into a folder chosen there.
-- Stock: every wholesale item (beans, milk, cups, pastries) and the shop's own products, each with its
-  supplier, link, cost and reorder level. The team records deliveries, counts and waste (or a whole
-  stocktake at once); the order list groups what's low by supplier, with the order day and a message
-  ready for WhatsApp or email. Suppliers keep their contact details, website, order page and order days.
+- Stock: Current stock shows how many of each item are in and where, what's low and its worth. The
+  team records deliveries, counts and waste (or a whole stocktake at once); the order list groups what's
+  low by supplier, with the order day and a message ready for WhatsApp or email. Wholesale lists every
+  item bought (beans, milk, cups, pastries) and the shop's own products by supplier, with the link to
+  order it, its cost with and without IVA, each price change kept over time (what went up, by how much
+  and when) and the shop margin; a supplier's price list imported again updates the prices already
+  there. Suppliers keep their contact details, website, order page and order days.
   Menu costing works out what each drink or dish costs from the stock in it (with variants such as oat
   milk or an extra shot, and a waste allowance) and its margin against the menu price; the Waste log
   takes what's thrown away and why off the stock, with its cost for admins.

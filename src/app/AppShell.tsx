@@ -12,6 +12,7 @@ import CustomersIcon from '@mui/icons-material/ContactsOutlined'
 import LoyaltyIcon from '@mui/icons-material/LoyaltyOutlined'
 import StockIcon from '@mui/icons-material/Inventory2Outlined'
 import SuppliersIcon from '@mui/icons-material/LocalShippingOutlined'
+import WholesaleIcon from '@mui/icons-material/WarehouseOutlined'
 import RecipesIcon from '@mui/icons-material/MenuBookOutlined'
 import WasteIcon from '@mui/icons-material/DeleteSweepOutlined'
 import TodoIcon from '@mui/icons-material/ChecklistRtlOutlined'
@@ -94,7 +95,8 @@ export const SECTIONS: NavSection[] = [
   ] },
   // What's bought wholesale and sold in the shop, and who from. The team counts; admins price and order.
   { key: 'stock', label: msg('Stock'), items: [
-    { key: 'stock', to: '/stock', label: msg('Stock'), icon: <StockIcon />, partner: ['finances'] },
+    { key: 'stock', to: '/stock', label: msg('Current stock'), icon: <StockIcon />, partner: ['finances'] },
+    { key: 'wholesale', to: '/wholesale', label: msg('Wholesale'), icon: <WholesaleIcon />, who: 'admin', partner: ['finances'] },
     { key: 'suppliers', to: '/suppliers', label: msg('Suppliers'), icon: <SuppliersIcon />, who: 'admin', partner: ['finances'] },
     { key: 'recipes', to: '/recipes', label: msg('Menu costing'), icon: <RecipesIcon />, who: 'admin', partner: ['finances'] },
     { key: 'waste', to: '/waste', label: msg('Waste log'), icon: <WasteIcon />, partner: ['finances'] },

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  emailLink, isLow, nextOrderDay, orderList, orderMessage, readNumber, readStockCsv, retailMargin, stockValue, suggestedOrder, whatsappLink,
+  matchPriceList,
+  costWithVat, emailLink, isLow, lastPriceChanges, risesSince, nextOrderDay, orderList, orderMessage, readNumber, readStockCsv, retailMargin, stockValue, suggestedOrder, whatsappLink,
   type StockItem, type Supplier,
 } from './stock'
 
@@ -104,5 +105,56 @@ describe('importing a price list', () => {
     expect(readNumber('0,08 €')).toBe(0.08)
     expect(readNumber('')).toBeNull()
     expect(readNumber('n/a')).toBeNull()
+  })
+})
+
+describe('wholesale prices over time', () => {
+  const p = (item_id: string, cost_per_unit: number, changed_at: string) => ({ item_id, cost_per_unit, changed_at })
+  it('each item’s last change, from the price before it; unchanged items have none', () => {
+    const changes = lastPriceChanges([
+      p('beans', 22, '2026-04-01T09:00:00Z'), p('beans', 23.5, '2026-08-01T09:00:00Z'), p('beans', 24.2, '2026-09-20T09:00:00Z'),
+      p('milk', 0.95, '2026-04-01T09:00:00Z'), p('milk', 0.89, '2026-09-01T09:00:00Z'),
+      p('cups', 0.08, '2026-04-01T09:00:00Z'),
+      p('lids', 0.03, '2026-04-01T09:00:00Z'), p('lids', 0.03, '2026-06-01T09:00:00Z'),
+    ])
+    expect(changes).toEqual([
+      { item_id: 'beans', from: 23.5, to: 24.2, pct: 3, at: '2026-09-20T09:00:00Z' },
+      { item_id: 'milk', from: 0.95, to: 0.89, pct: -6.3, at: '2026-09-01T09:00:00Z' },
+    ])
+    expect(risesSince(changes, '2026-07-01').map(c => c.item_id)).toEqual(['beans'])
+    expect(risesSince(changes, '2026-09-21')).toEqual([])
+  })
+
+  it('cost with IVA on top', () => {
+    expect(costWithVat({ cost_per_unit: 24.2, vat_rate: 10 })).toBe(26.62)
+    expect(costWithVat({ cost_per_unit: 0.08, vat_rate: 21 })).toBe(0.1)
+    expect(costWithVat({ cost_per_unit: null, vat_rate: 10 })).toBeNull()
+  })
+})
+
+describe('a price list again', () => {
+  const item = (id: string, name: string, extra: Partial<StockItem> = {}): StockItem => ({
+    id, name, category: null, supplier_id: 'roaster', supplier_sku: null, product_url: null, unit: 'kg', pack_size: null, order_multiple: 1,
+    cost_per_unit: 20, vat_rate: 10, sell_price: null, on_hand: 3, par_level: null, reorder_at: null, location: null, retail: false, notes: null,
+    active: true, updated_at: '2026-09-01T09:00:00Z', ...extra,
+  })
+  const items = [item('house', 'House espresso', { supplier_sku: 'ESP-1' }), item('decaf', 'Decaf', { cost_per_unit: 25 }),
+    item('milk', 'Whole milk', { supplier_id: 'dairy', unit: 'l', cost_per_unit: 0.95 })]
+  const supplierId = (name?: string | null) => ({ 'tostadores sur': 'roaster', 'lácteos': 'dairy' } as Record<string, string>)[name?.trim().toLowerCase() ?? ''] ?? null
+  const file = (text: string) => readStockCsv(new TextEncoder().encode(text))
+
+  it('the same reference or name updates the item (only what the file has); the rest are new', () => {
+    const m = matchPriceList(file('Ref;Producto;Proveedor;Coste\n'
+      + 'ESP-1;House espresso blend 1kg;Tostadores Sur;21,40\n' // by reference, though renamed
+      + ';decaf;Tostadores Sur;25\n' // by name: same price, nothing to change
+      + ';Whole milk;Tostadores Sur;0,90\n' // another supplier's milk: a new item
+      + ';Guest filter;Tostadores Sur;19\n'), items, supplierId)
+    expect(m.updates).toEqual([{ item: items[0], patch: { cost_per_unit: 21.4 } }])
+    expect(m.unchanged).toBe(1)
+    expect(m.added.map(a => [a.name, a.supplier_id])).toEqual([['Whole milk', 'roaster'], ['Guest filter', 'roaster']])
+  })
+
+  it('a column the file doesn’t have leaves that alone', () => {
+    expect(matchPriceList(file('Item,Cost\nDecaf,26\n'), items, supplierId).updates[0].patch).toEqual({ cost_per_unit: 26 }) // IVA, unit and pack untouched
   })
 })

@@ -11,7 +11,7 @@ import type { Licence, LicenceInput } from '../../shared/licences'
 import type { PnlLine, PnlLineInput, PnlSettings } from '../../shared/pnl'
 import type { GrantApplication, GrantApplicationInput, GrantProfile } from '../../shared/grants'
 import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
-import type { MovementInput, StockItem, StockItemInput, StockMovement, Supplier, SupplierInput } from '../../shared/stock'
+import type { MovementInput, StockItem, StockItemInput, StockMovement, Supplier, SupplierInput, StockPrice } from '../../shared/stock'
 import type { Recipe, RecipeInput } from '../../shared/recipes'
 import type { AdPlatform, AdSettings, AdsReport, CampaignPatch } from '../../shared/ads'
 import type { ReviewsState } from '../../shared/reviews'
@@ -211,6 +211,8 @@ export interface Api {
   saveSupplier(s: SupplierInput): Promise<void>
   deleteSupplier(id: string): Promise<void>
   stockItems(): Promise<StockItem[]>
+  /** Every wholesale price each item has had (kept by the database when a cost changes), oldest first. */
+  stockPrices(): Promise<StockPrice[]>
   /** Add an item (no id; on_hand is its first count) or change one (on_hand changes only through recordStock). */
   saveStockItem(item: StockItemInput): Promise<void>
   deleteStockItem(id: string): Promise<void>

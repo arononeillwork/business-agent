@@ -25,7 +25,7 @@ import { DEFAULT_TAX_SETTINGS, cleanFolderName, cleanFolderPath, taxFileProblem,
 import { DEFAULT_VAT_RATE, type PnlLine } from '../../shared/pnl'
 import { cleanAnswers, isDone, type GrantApplication, type GrantProfile } from '../../shared/grants'
 import { adjustProblem, giftCardAmountProblem, type GiftCard, type GiftCardActivity, type LoyaltyEvent, type LoyaltyMember, type LoyaltyProgram } from '../../shared/loyalty'
-import type { MovementInput, StockItem, StockMovement, Supplier } from '../../shared/stock'
+import type { MovementInput, StockItem, StockMovement, StockPrice, Supplier } from '../../shared/stock'
 import type { Recipe } from '../../shared/recipes'
 import { AD_PLATFORMS, NO_METRICS, PLATFORM_NAMES, addMetrics, sumDays, type AdCampaign, type AdDay, type AdMetrics, type AdPlatform, type AdSettings, type AdsReport } from '../../shared/ads'
 import { CONNECT_MAPS, MAX_REPLY, type Review } from '../../shared/reviews'
@@ -577,6 +577,20 @@ export function createDemoApi(): Api {
   const stockItem = (i: Partial<StockItem> & { name: string }): StockItem => ({ id: uid(), category: null, supplier_id: null, supplier_sku: null,
     product_url: null, unit: 'unit', pack_size: null, order_multiple: 1, cost_per_unit: null, vat_rate: 10, sell_price: null, on_hand: 0,
     par_level: null, reorder_at: null, location: 'Storeroom', retail: false, notes: null, active: true, updated_at: nowIso(), ...i })
+  const stockPrices: StockPrice[] = []
+  // Each item's price since opening, a few of them changed since (beans and matcha up, whole milk down).
+  function seedStockPrices() {
+    if (stockPrices.length) return
+    for (const i of stock) if (i.cost_per_unit !== null) stockPrices.push({ item_id: i.id, cost_per_unit: i.cost_per_unit, changed_at: '2026-04-01T08:00:00Z' })
+    const was = (name: string, cost: number, at: string) => {
+      const i = stock.find(x => x.name === name)
+      if (i && i.cost_per_unit !== null) stockPrices.splice(stockPrices.findIndex(p => p.item_id === i.id), 1,
+        { item_id: i.id, cost_per_unit: cost, changed_at: '2026-04-01T08:00:00Z' }, { item_id: i.id, cost_per_unit: i.cost_per_unit, changed_at: at })
+    }
+    was('House espresso blend', 17.2, '2026-09-15T08:00:00Z')
+    was('Ceremonial matcha', 12.5, '2026-08-20T08:00:00Z')
+    was('Whole milk', 1.05, '2026-07-01T08:00:00Z')
+  }
   const stock: StockItem[] = [
     stockItem({ name: 'House espresso blend', category: 'Coffee', supplier_id: 'sup-roaster', supplier_sku: 'ESP-HOUSE-1K', unit: 'kg', pack_size: '1 kg bag',
       product_url: 'https://tostadoresdelsur.example/trade/house-espresso', cost_per_unit: 18.5, on_hand: 6, par_level: 12, reorder_at: 4 }),
@@ -1599,14 +1613,25 @@ export function createDemoApi(): Api {
       for (const item of stock) if (item.supplier_id === id) item.supplier_id = null
     },
     async stockItems() { return readStock() ? clone(stock).sort((a, b) => a.name.localeCompare(b.name)) : [] },
+    async stockPrices() {
+      if (!readStock()) return []
+      seedStockPrices()
+      return clone(stockPrices)
+    },
     async saveStockItem({ id, ...patch }) {
       requireAdmin()
       if (!patch.name?.trim()) throw new Error('Give the item a name')
       if (patch.reorder_at != null && patch.par_level != null && patch.reorder_at > patch.par_level) throw new Error('Reorder at can’t be more than the par level')
       const existing = id ? stock.find(x => x.id === id) : undefined
       // How many are in changes only through a delivery, count…: editing an item keeps it.
+      // Like the database: a new cost is kept with the prices before it.
+      seedStockPrices()
+      const before = existing?.cost_per_unit ?? null
       if (existing) Object.assign(existing, { ...patch, name: patch.name.trim(), on_hand: existing.on_hand, updated_at: nowIso() })
       else stock.push(stockItem({ ...patch, name: patch.name.trim() }))
+      const saved = existing ?? stock[stock.length - 1]
+      if (saved.cost_per_unit !== null && saved.cost_per_unit !== before)
+        stockPrices.push({ item_id: saved.id, cost_per_unit: saved.cost_per_unit, changed_at: nowIso() })
     },
     async deleteStockItem(id) {
       requireAdmin()
@@ -1615,7 +1640,12 @@ export function createDemoApi(): Api {
     },
     async importStockItems(rows) {
       requireAdmin()
-      for (const r of rows) stock.push(stockItem({ ...r, name: r.name.trim() }))
+      seedStockPrices()
+      for (const r of rows) {
+        const added = stockItem({ ...r, name: r.name.trim() })
+        stock.push(added)
+        if (added.cost_per_unit !== null) stockPrices.push({ item_id: added.id, cost_per_unit: added.cost_per_unit, changed_at: nowIso() })
+      }
       return rows.length
     },
     async stockMovements(itemId) {

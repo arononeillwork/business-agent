@@ -2,7 +2,6 @@ import {
   Alert, Box, Button, Card, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, InputAdornment,
   Link, MenuItem, Stack, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs, TextField, Tooltip, Typography, useMediaQuery, useTheme,
 } from '@mui/material'
-import AddIcon from '@mui/icons-material/Add'
 import UploadIcon from '@mui/icons-material/UploadFileOutlined'
 import SearchIcon from '@mui/icons-material/Search'
 import InIcon from '@mui/icons-material/AddCircleOutlineOutlined'
@@ -14,6 +13,7 @@ import WhatsAppIcon from '@mui/icons-material/WhatsApp'
 import EmailIcon from '@mui/icons-material/EmailOutlined'
 import PhoneIcon from '@mui/icons-material/PhoneOutlined'
 import ChecklistIcon from '@mui/icons-material/FactCheckOutlined'
+import WholesaleIcon from '@mui/icons-material/WarehouseOutlined'
 import DeleteIcon from '@mui/icons-material/DeleteOutlined'
 import { useMemo, useRef, useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
@@ -24,7 +24,7 @@ import { Empty, ErrorBox, PageHeader, StatGrid, StatTile, Tag } from '../compone
 import { ExportButton, SortCell, useSort } from '../components/tables'
 import type { ExportTable } from '../lib/export'
 import {
-  CATEGORIES, LOCATIONS, REASONS, UNITS, emailLink, isLow, nextOrderDay, orderList, orderMessage, readStockCsv, reasonLabel, retailMargin,
+  CATEGORIES, LOCATIONS, REASONS, UNITS, emailLink, isLow, matchPriceList, nextOrderDay, orderList, orderMessage, readStockCsv, reasonLabel, retailMargin,
   stockValue, unitLabel, whatsappLink,
   type MovementReason, type StockCsvImport, type StockItem, type StockItemInput, type StockMovement, type Supplier, type SupplierOrder,
 } from '../../shared/stock'
@@ -37,13 +37,14 @@ const LOW_TAG = { fg: tokens.badFg, bg: tokens.badBg }
 
 const SORT_BY: Record<string, (i: StockItem) => string | number | null> = {
   name: i => i.name, supplier: i => i.supplier_id, on_hand: i => i.on_hand, reorder: i => i.reorder_at, par: i => i.par_level,
-  cost: i => i.cost_per_unit, location: i => i.location, category: i => i.category,
+  value: i => (i.cost_per_unit === null ? null : stockValue([i])), location: i => i.location, category: i => i.category,
 }
 const qty = (n: number, unit: StockItem['unit']) => `${formatNumber(n)} ${t(unitLabel(unit))}`
 
 /**
- * Stock: everything bought wholesale and sold in the shop, how many are in, what to order from whom.
- * The team records deliveries, counts and waste; admins add and price items; finance partners read.
+ * Current stock: how many of each item are in and where, what's low, what to order from whom.
+ * The team records deliveries, counts and waste; admins edit items (added and priced on Wholesale);
+ * finance partners read.
  */
 export function StockPage() {
   const { api, isAdmin, isPartner } = useApp()
@@ -59,7 +60,6 @@ export function StockPage() {
   const [editing, setEditing] = useState<StockItem | 'new' | null>(null)
   const [moving, setMoving] = useState<{ item: StockItem; reason: MovementReason } | null>(null)
   const [stocktake, setStocktake] = useState(false)
-  const [importing, setImporting] = useState(false)
   const canRecord = !isPartner
 
   const all = useMemo(() => (items.data ?? []).filter(i => i.active), [items.data])
@@ -80,8 +80,8 @@ export function StockPage() {
   const filtered = lowOnly || shopOnly || !!category || !!supplierId || !!location || !!needle
 
   const table = (): ExportTable => ({
-    title: lowOnly ? t('Stock: low only') : t('Stock'),
-    filename: `stock-${today()}`,
+    title: lowOnly ? t('Current stock: low only') : t('Current stock'),
+    filename: `current-stock-${today()}`,
     columns: [t('Item'), t('Category'), t('Supplier'), t('Reference'), t('On hand'), t('Unit'), t('Reorder at'), t('Par level'), t('Cost per unit'),
       t('IVA %'), t('Stock value'), t('Shop price'), t('Location'), t('Link')],
     rows: rows.map(i => [i.name, i.category ? t(i.category) : '', supplierOf(i)?.name ?? '', i.supplier_sku ?? '', i.on_hand, t(unitLabel(i.unit)),
@@ -95,11 +95,10 @@ export function StockPage() {
   const hide = (from: 'sm' | 'md' | 'lg' | 'xl') => ({ display: { xs: 'none', [from]: 'table-cell' } })
   return (
     <>
-      <PageHeader eyebrow={t('Stock')} title={t('Stock')}
+      <PageHeader eyebrow={t('Stock')} title={t('Current stock')}
         actions={<>
-          {isAdmin && <Button variant="contained" startIcon={<AddIcon />} onClick={() => setEditing('new')}>{t('Add item')}</Button>}
-          {canRecord && <Button variant="outlined" startIcon={<ChecklistIcon />} onClick={() => setStocktake(true)} disabled={!all.length}>{t('Stocktake')}</Button>}
-          {isAdmin && <Button variant="outlined" startIcon={<UploadIcon />} onClick={() => setImporting(true)}>{t('Import')}</Button>}
+          {canRecord && <Button variant="contained" startIcon={<ChecklistIcon />} onClick={() => setStocktake(true)} disabled={!all.length}>{t('Stocktake')}</Button>}
+          {isAdmin && <Button variant="outlined" startIcon={<WholesaleIcon />} component={RouterLink} to="/wholesale">{t('Wholesale and prices')}</Button>}
         </>} />
       <ErrorBox error={items.error ?? suppliers.error} />
 
@@ -119,12 +118,12 @@ export function StockPage() {
 
       {view === 'items' && (items.data && all.length === 0 ? (
         <Empty>
-          <Typography sx={{ fontWeight: 500, color: 'text.primary', mb: 0.5 }}>{t('Keep every wholesale item in one place')}</Typography>
-          {t('Add what you buy (beans, milk, cups, pastries) and what you sell in the shop, with its supplier, cost and link. Set a reorder level and the order list fills itself.')}
+          <Typography sx={{ fontWeight: 500, color: 'text.primary', mb: 0.5 }}>{t('Nothing in stock yet')}</Typography>
+          {isAdmin ? t('Add what you buy (beans, milk, cups, pastries) and what you sell in the shop on Wholesale, with its supplier, cost and link. Set a reorder level and the order list fills itself.')
+            : t('Once the items you use are added, you can record deliveries and counts here.')}
           {isAdmin && (
             <Stack direction="row" spacing={1} sx={{ justifyContent: 'center', mt: 2 }}>
-              <Button variant="contained" startIcon={<AddIcon />} onClick={() => setEditing('new')}>{t('Add item')}</Button>
-              <Button variant="outlined" startIcon={<UploadIcon />} onClick={() => setImporting(true)}>{t('Import a CSV')}</Button>
+              <Button variant="contained" startIcon={<WholesaleIcon />} component={RouterLink} to="/wholesale">{t('Go to Wholesale')}</Button>
             </Stack>
           )}
         </Empty>
@@ -161,7 +160,7 @@ export function StockPage() {
                   <SortCell sort={sort} id="on_hand" align="right">{t('On hand')}</SortCell>
                   <SortCell sort={sort} id="reorder" align="right" sx={hide('sm')}>{t('Reorder at')}</SortCell>
                   <SortCell sort={sort} id="par" align="right" sx={hide('lg')}>{t('Par level')}</SortCell>
-                  <SortCell sort={sort} id="cost" align="right" sx={hide('md')}>{t('Cost')}</SortCell>
+                  <SortCell sort={sort} id="value" align="right" sx={hide('md')}>{t('Worth')}</SortCell>
                   <SortCell sort={sort} id="location" sx={hide('xl')}>{t('Location')}</SortCell>
                   {canRecord && <TableCell sx={{ width: 1 }}><Box component="span" sx={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>{t('Record')}</Box></TableCell>}
                 </TableRow>
@@ -196,8 +195,8 @@ export function StockPage() {
                       </TableCell>
                       <TableCell align="right" sx={{ ...cell, ...hide('sm'), color: 'text.secondary' }}>{i.reorder_at === null ? '—' : formatNumber(i.reorder_at)}</TableCell>
                       <TableCell align="right" sx={{ ...cell, ...hide('lg'), color: 'text.secondary' }}>{i.par_level === null ? '—' : formatNumber(i.par_level)}</TableCell>
-                      <TableCell align="right" sx={{ ...cell, ...hide('md'), whiteSpace: 'nowrap' }}>
-                        {i.cost_per_unit === null ? '—' : t('{price} / {unit}', { price: formatMoney(i.cost_per_unit), unit: t(unitLabel(i.unit)) })}
+                      <TableCell align="right" sx={{ ...cell, ...hide('md'), whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+                        {i.cost_per_unit === null ? '—' : formatMoney(stockValue([i]))}
                       </TableCell>
                       <TableCell sx={{ ...cell, ...hide('xl'), color: 'text.secondary' }}>{i.location ? t(i.location) : '—'}</TableCell>
                       {canRecord && (
@@ -226,7 +225,6 @@ export function StockPage() {
         readOnly={!isAdmin} onClose={() => setEditing(null)} />}
       {moving && <MoveDialog item={moving.item} reason={moving.reason} onClose={() => setMoving(null)} />}
       {stocktake && <StocktakeDialog items={all} locations={locations} onClose={() => setStocktake(false)} />}
-      {importing && <ImportDialog suppliers={sups} onClose={() => setImporting(false)} />}
     </>
   )
 }
@@ -453,7 +451,7 @@ const blank = (): StockItemInput => ({ name: '', category: null, supplier_id: nu
   retail: false, notes: null, active: true })
 
 /** Add or edit an item (admins), or look at one and its history (everyone else). */
-function ItemDialog({ item, suppliers, categories, locations, readOnly, onClose }: {
+export function ItemDialog({ item, suppliers, categories, locations, readOnly, onClose }: {
   item: StockItem | null; suppliers: Supplier[]; categories: string[]; locations: string[]; readOnly: boolean; onClose: () => void
 }) {
   const { api, profiles } = useApp()
@@ -575,8 +573,11 @@ const FIELD_LABELS: Record<string, string> = {
   reorder: msg('Reorder at'), location: msg('Location'), notes: msg('Notes'),
 }
 
-/** Items from a spreadsheet or a supplier's price list; suppliers are matched by name. */
-function ImportDialog({ suppliers, onClose }: { suppliers: Supplier[]; onClose: () => void }) {
+/**
+ * Items from a spreadsheet or a supplier's price list; suppliers are matched by name. Items already
+ * there (the same reference or name) take the file's new prices instead of being added twice.
+ */
+export function ImportDialog({ suppliers, items, onClose }: { suppliers: Supplier[]; items: StockItem[]; onClose: () => void }) {
   const { api } = useApp()
   const run = useAction()
   const input = useRef<HTMLInputElement>(null)
@@ -585,6 +586,8 @@ function ImportDialog({ suppliers, onClose }: { suppliers: Supplier[]; onClose: 
   const used = file?.csv.columns.filter(c => c.field) ?? []
   const match = (name?: string | null) => (name ? suppliers.find(s => s.name.trim().toLowerCase() === name.trim().toLowerCase())?.id ?? null : null)
   const unmatched = [...new Set((file?.csv.rows ?? []).filter(r => r.supplier && !match(r.supplier)).map(r => r.supplier!))]
+  const plan = file ? matchPriceList(file.csv, items, match) : null
+  const changes = plan ? plan.added.length + plan.updates.length : 0
   const pick = async (f: File | undefined) => {
     if (!f) return
     setProblem(null)
@@ -593,9 +596,14 @@ function ImportDialog({ suppliers, onClose }: { suppliers: Supplier[]; onClose: 
     setFile({ name: f.name, csv })
   }
   const add = () => run(async () => {
-    await api.importStockItems(file!.csv.rows.map(({ supplier, ...r }) => ({ ...r, supplier_id: match(supplier) })))
+    for (const { item, patch } of plan!.updates) {
+      const { updated_at: _u, ...row } = item
+      await api.saveStockItem({ ...row, ...patch, name: item.name })
+    }
+    if (plan!.added.length) await api.importStockItems(plan!.added)
     onClose()
-  }, tn(file?.csv.rows.length ?? 0, '{n} item added', '{n} items added'))
+  }, [plan!.added.length && tn(plan!.added.length, '{n} item added', '{n} items added'),
+    plan!.updates.length && tn(plan!.updates.length, '{n} item updated', '{n} items updated')].filter(Boolean).join(' · '))
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="sm">
       <DialogTitle>{t('Import items from a CSV file')}</DialogTitle>
@@ -611,8 +619,10 @@ function ImportDialog({ suppliers, onClose }: { suppliers: Supplier[]; onClose: 
           </Box>
           {problem && <Alert severity="warning">{problem}</Alert>}
           {file && <>
-            <Alert severity={file.csv.rows.length ? 'success' : 'info'} role="status">
-              <b>{tn(file.csv.rows.length, '{n} item to add', '{n} items to add')}</b>
+            <Alert severity={changes ? 'success' : 'info'} role="status">
+              <b>{tn(plan!.added.length, '{n} item to add', '{n} items to add')}</b>
+              {plan!.updates.length > 0 && <Box>{tn(plan!.updates.length, '{n} already on the list: its price and details updated.', '{n} already on the list: their prices and details updated.')}</Box>}
+              {plan!.unchanged > 0 && <Box>{tn(plan!.unchanged, '{n} already on the list and the same: left as is.', '{n} already on the list and the same: left as is.')}</Box>}
               {file.csv.skipped > 0 && <Box>{tn(file.csv.skipped, '{n} line has no item name: left out.', '{n} lines have no item name: left out.')}</Box>}
               {unmatched.length > 0 && <Box>{t('Not on your suppliers yet, so left without one: {names}', { names: unmatched.join(', ') })}</Box>}
             </Alert>
@@ -624,7 +634,9 @@ function ImportDialog({ suppliers, onClose }: { suppliers: Supplier[]; onClose: 
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>{t('Cancel')}</Button>
-        <Button variant="contained" disabled={!file?.csv.rows.length} onClick={add}>{tn(file?.csv.rows.length ?? 0, 'Add {n} item', 'Add {n} items')}</Button>
+        <Button variant="contained" disabled={!changes} onClick={add}>
+          {!plan?.updates.length ? tn(plan?.added.length ?? 0, 'Add {n} item', 'Add {n} items') : tn(changes, 'Save {n} item', 'Save {n} items')}
+        </Button>
       </DialogActions>
     </Dialog>
   )

@@ -7,7 +7,7 @@ import type { Invoice } from '../../shared/invoices'
 import type { Licence } from '../../shared/licences'
 import { DEFAULT_VAT_RATE, type PnlLine, type PnlSettings } from '../../shared/pnl'
 import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
-import type { StockItem, StockMovement, Supplier } from '../../shared/stock'
+import type { StockItem, StockMovement, Supplier, StockPrice } from '../../shared/stock'
 import type { Recipe } from '../../shared/recipes'
 import type { AdSettings } from '../../shared/ads'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
@@ -442,6 +442,12 @@ export function createSupabaseApi(url: string, key: string): Api {
       else check(await sb.from('suppliers').insert(s))
     },
     async deleteSupplier(id) { check(await sb.from('suppliers').delete().eq('id', id)) },
+    async stockPrices() {
+      // Newest first, so that the page limit leaves out the oldest prices, never the latest change.
+      return (check(await sb.from('stock_item_prices').select('item_id, cost_per_unit, changed_at')
+        .order('changed_at', { ascending: false }).order('id', { ascending: false })) as StockPrice[])
+        .map(p => ({ ...p, cost_per_unit: Number(p.cost_per_unit) }))
+    },
     async stockItems() {
       const num = (v: unknown) => (v === null || v === undefined ? null : Number(v))
       return (check(await sb.from('stock_items').select('*').order('name')) as StockItem[]).map(i => ({
