@@ -2,7 +2,7 @@ import { Box, Button, Card, CardContent, Stack, Switch, Table, TableBody, TableC
 import { useEffect, useState } from 'react'
 import { useApp } from '../app/AppContext'
 import { useAction } from '../app/Notify'
-import { ALWAYS_SHOWN, SECTIONS, canOpen, type NavItem } from '../app/AppShell'
+import { ALWAYS_SHOWN, SECTIONS, canOpen, navLabel, type NavItem } from '../app/AppShell'
 import { PageHeader } from '../components/common'
 import { tokens } from '../theme'
 import { t, tn } from '../i18n'
@@ -53,19 +53,19 @@ export function PagesPage() {
           <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
             <Box sx={{ color: 'text.secondary', display: 'flex' }}>{n.icon}</Box>
             <Box>
-              <Typography>{t(n.label)}</Typography>
+              <Typography>{navLabel(n)}</Typography>
               {!forTeam && <Typography variant="caption" sx={{ color: tokens.roseDeep }}>{t('Hidden for the team')}</Typography>}
             </Box>
           </Stack>
         </TableCell>
         <TableCell align="center">
           <Switch checked={fixed || !mine.includes(n.key)} disabled={fixed || !forTeam} onChange={e => void setMine(n.key, e.target.checked)}
-            slotProps={{ input: { 'aria-label': t('Show {page} in my menu', { page: t(n.label) }) } }} />
+            slotProps={{ input: { 'aria-label': t('Show {page} in my menu', { page: navLabel(n) }) } }} />
         </TableCell>
         {admin && (
           <TableCell align="center">
             <Switch checked={fixed || forTeam} disabled={fixed} onChange={e => void setTeam(n.key, e.target.checked)}
-              slotProps={{ input: { 'aria-label': t('Show {page} for the team', { page: t(n.label) }) } }} />
+              slotProps={{ input: { 'aria-label': t('Show {page} for the team', { page: navLabel(n) }) } }} />
           </TableCell>
         )}
       </TableRow>

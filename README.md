@@ -40,6 +40,10 @@ built-in **AI connector** so owners can run it by talking to Claude.
   limits, and pause, resume or daily budget changes sent straight to the platform. **Reviews** reads the
   Google reviews (new ones in the bell, replies from templates in the review's language) and **Website &
   SEO** checks the website (SEO, Google PageSpeed, the same details as the app and Google Maps).
+  **Competitions** suggests giveaways and draws from the calendar, the quiet days, the big matches and
+  the shop's stock (or one of your own), writes the bases legales in Spanish with Meta's line and the
+  tax note when they apply, warns about what the platforms ban (a review to enter), and runs the
+  entries (pasted Instagram comments, customers who said yes, a CSV) and a one-time random draw.
 - Licences & renewals (Business section): everything the business keeps open (licencia de apertura, SGAE
   and AGEDI/AIE for the music, the terrace permit, insurance, extinguisher and electrical checks, staff
   food handler certificates), each with its number, when it runs out, how often it renews, its cost

@@ -16,6 +16,7 @@ import type { Recipe, RecipeInput } from '../../shared/recipes'
 import type { AdPlatform, AdSettings, AdsReport, CampaignPatch } from '../../shared/ads'
 import type { ReviewsState } from '../../shared/reviews'
 import type { PageSpeed, Strategy, WebsiteReport, WebsiteState } from '../../shared/seo'
+import type { Competition, CompetitionEntry, CompetitionInput, EntryInput } from '../../shared/competitions'
 
 export type ShiftInput = Omit<Shift, 'id' | 'status'> & { id?: string; status?: Shift['status'] }
 export type EventInput = Omit<CalendarEvent, 'id' | 'source' | 'competition'> & { id?: string; competition?: string | null }
@@ -301,6 +302,23 @@ export interface Api {
   deleteSocialPost(id: string): Promise<void>
   /** A reminder you posted yourself: mark it posted. */
   markPosted(id: string): Promise<void>
+
+  // Competitions (admins): giveaways and draws, their entries and the draw. The post goes out
+  // through the Social planner (saveSocialPost).
+  /** Every competition, newest first, each with how many entries it has. */
+  competitions(): Promise<Competition[]>
+  /** Add one (no id) or change one; returns its id. */
+  saveCompetition(c: CompetitionInput): Promise<string>
+  /** Delete one and its entries (the people's details go with it). */
+  deleteCompetition(id: string): Promise<void>
+  competitionEntries(id: string): Promise<CompetitionEntry[]>
+  /** Add entries; whoever is already in (the same username or email) is skipped. */
+  addEntries(id: string, rows: EntryInput[]): Promise<{ added: number; skipped: number }>
+  updateEntry(id: string, patch: Pick<Partial<CompetitionEntry>, 'valid' | 'note' | 'name' | 'email' | 'phone'>): Promise<void>
+  /** Pick the winners and then the reserves at random from the valid entries (once). Returns how many were picked. */
+  drawCompetition(id: string): Promise<number>
+  /** The winners have their prizes: a stock prize comes off the stock (one each). */
+  givePrize(id: string): Promise<void>
   /**
    * Keep a photo (JPEG) or video (MP4/MOV) for a post in the connected Google Drive or OneDrive,
    * in Business Agent/Social/<folder>; returns its public address and type.

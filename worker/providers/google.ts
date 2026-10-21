@@ -334,8 +334,8 @@ export async function gmailAttachment(token: string, message: string, attachment
 
 /** Save a file into "Business Agent/<sub>" in the café's Drive; returns its web link. */
 export async function saveToDrive(token: string, sub: string, name: string, content: string, type: string) {
-  const root = await folder(token, 'Business Agent')
-  const parent = sub ? await folder(token, sub, root) : root
+  // "Marketing/Competitions": a folder in a folder.
+  const parent = await folderPath(token, sub.split('/').map(x => x.trim()).filter(x => x && x !== '.' && x !== '..'))
   const boundary = `ba${crypto.randomUUID()}`
   const body = [
     `--${boundary}`, 'Content-Type: application/json; charset=UTF-8', '', JSON.stringify({ name, parents: [parent] }),
