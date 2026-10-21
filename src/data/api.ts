@@ -7,6 +7,7 @@ import type { KindInfo } from '../../shared/social'
 import type { InstagramMention } from '../../shared/mentions'
 import type { FilingRecord, Quarter, TaxDocKind, TaxDocument, TaxSettings } from '../../shared/tax'
 import type { InboxInvoice, InboxState as InvoiceInbox, Invoice, InvoiceInput } from '../../shared/invoices'
+import type { Licence, LicenceInput } from '../../shared/licences'
 import type { PnlLine, PnlLineInput, PnlSettings } from '../../shared/pnl'
 import type { GrantApplication, GrantApplicationInput, GrantProfile } from '../../shared/grants'
 import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
@@ -145,6 +146,12 @@ export interface Api {
   expenses(): Promise<Expense[]>
   saveExpense(expense: Partial<Expense> & { name: string; amount: number }): Promise<void>
   deleteExpense(id: string): Promise<void>
+
+  // Licences & renewals (admins; finance partners read): what the business keeps open and when each runs out.
+  licences(): Promise<Licence[]>
+  /** Add a licence (no id) or change one; returns its id. */
+  saveLicence(l: LicenceInput): Promise<string>
+  deleteLicence(id: string): Promise<void>
 
   // Invoices (admins with pay access; finance partners read): received and sent, each with its supplier and file.
   invoices(): Promise<Invoice[]>

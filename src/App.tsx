@@ -33,6 +33,7 @@ const FinancesPage = page(() => import('./pages/FinancesPage'), 'FinancesPage')
 const GrantsPage = page(() => import('./pages/GrantsPage'), 'GrantsPage')
 const SalesPage = page(() => import('./pages/SalesPage'), 'SalesPage')
 const TaxPage = page(() => import('./pages/TaxPage'), 'TaxPage')
+const LicencesPage = page(() => import('./pages/LicencesPage'), 'LicencesPage')
 const InvoicesPage = page(() => import('./pages/InvoicesPage'), 'InvoicesPage')
 const PagesPage = page(() => import('./pages/PagesPage'), 'PagesPage')
 const ProfitLossPage = page(() => import('./pages/ProfitLossPage'), 'ProfitLossPage')
@@ -100,6 +101,7 @@ function Routed() {
           {partnerCan('calendar') && <Route path="calendar" element={<CalendarPage />} />}
           {partnerCan('finances') && <Route path="finances" element={<FinancesPage />} />}
           {partnerCan('finances') && <Route path="tax" element={<TaxPage />} />}
+          {partnerCan('finances') && <Route path="licences" element={<LicencesPage />} />}
           {partnerCan('finances') && <Route path="invoices" element={<InvoicesPage />} />}
           {partnerCan('finances') && <Route path="profit-and-loss" element={<ProfitLossPage />} />}
           {partnerCan('finances') && <Route path="grants" element={<GrantsPage />} />}
@@ -142,6 +144,7 @@ function Routed() {
         <Route path="account" element={<AccountPage />} />
         <Route path="finances" element={<FinancesPage />} />
         <Route path="tax" element={<TaxPage />} />
+        <Route path="licences" element={isAdmin ? <LicencesPage /> : <Navigate to="/" />} />
         <Route path="invoices" element={<InvoicesPage />} />
         <Route path="profit-and-loss" element={<ProfitLossPage />} />
         <Route path="grants" element={<GrantsPage />} />

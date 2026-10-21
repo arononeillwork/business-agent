@@ -4,6 +4,7 @@ import type { ApiKey, AppNotification, Brand, Business, Customer, SocialPost, Ev
 import type { InstagramMention } from '../../shared/mentions'
 import type { FilingRecord, TaxDocument, TaxSettings } from '../../shared/tax'
 import type { Invoice } from '../../shared/invoices'
+import type { Licence } from '../../shared/licences'
 import { DEFAULT_VAT_RATE, type PnlLine, type PnlSettings } from '../../shared/pnl'
 import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
 import type { StockItem, StockMovement, Supplier } from '../../shared/stock'
@@ -362,6 +363,16 @@ export function createSupabaseApi(url: string, key: string): Api {
     },
     async deleteExpense(id) { check(await sb.from('expenses').delete().eq('id', id)) },
 
+    async licences() {
+      const rows = check(await sb.from('licences').select('*, document:tax_documents(name, link)').order('expires_on', { nullsFirst: false }).order('name')) as Licence[]
+      return rows.map(l => ({ ...l, cost: l.cost === null ? null : Number(l.cost) }))
+    },
+    async saveLicence({ id, ...l }) {
+      const { document: _doc, ...row } = l as typeof l & { document?: unknown }
+      if (id) { check(await sb.from('licences').update(row).eq('id', id)); return id }
+      return (check(await sb.from('licences').insert(row).select('id').single()) as { id: string }).id
+    },
+    async deleteLicence(id) { check(await sb.from('licences').delete().eq('id', id)) },
     async invoices() {
       const rows = check(await sb.from('invoices').select('*, document:tax_documents(name, link)').order('issued_on', { ascending: false, nullsFirst: true })
         .order('created_at', { ascending: false })) as (Invoice & { document: { name: string; link: string | null } | null })[]

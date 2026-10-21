@@ -40,6 +40,10 @@ built-in **AI connector** so owners can run it by talking to Claude.
   limits, and pause, resume or daily budget changes sent straight to the platform. **Reviews** reads the
   Google reviews (new ones in the bell, replies from templates in the review's language) and **Website &
   SEO** checks the website (SEO, Google PageSpeed, the same details as the app and Google Maps).
+- Licences & renewals (Business section): everything the business keeps open (licencia de apertura, SGAE
+  and AGEDI/AIE for the music, the terrace permit, insurance, extinguisher and electrical checks, staff
+  food handler certificates), each with its number, when it runs out, how often it renews, its cost
+  and its document; one press marks it renewed, and admins are reminded in the bell beforehand.
 - Invoices: what suppliers invoice (and the sales invoices sent), each tied to its supplier from Stock
   and to its file, with what's to pay, overdue and paid, notes, and totals by supplier. Invoices come
   in from the connected Gmail or Outlook (once reading it is allowed), by upload, or typed in; a

@@ -24,6 +24,7 @@ import TimeOffIcon from '@mui/icons-material/BeachAccessOutlined'
 import FinanceIcon from '@mui/icons-material/PaymentsOutlined'
 import SalesIcon from '@mui/icons-material/InsightsOutlined'
 import TaxIcon from '@mui/icons-material/ReceiptLongOutlined'
+import LicencesIcon from '@mui/icons-material/VerifiedOutlined'
 import InvoicesIcon from '@mui/icons-material/DescriptionOutlined'
 import ProfitLossIcon from '@mui/icons-material/RequestQuoteOutlined'
 import GrantsIcon from '@mui/icons-material/VolunteerActivismOutlined'
@@ -80,6 +81,7 @@ export const SECTIONS: NavSection[] = [
     { key: 'business', to: '/business', label: msg('Business'), icon: <BusinessIcon />, partner: 'any' },
     { key: 'todo', to: '/todo', label: msg('To Do List'), short: msg('To do'), icon: <TodoIcon /> },
     { key: 'hours', to: '/opening-hours', label: msg('Opening hours'), icon: <HoursIcon />, partner: 'any' },
+    { key: 'licences', to: '/licences', label: msg('Licences & renewals'), short: msg('Licences'), icon: <LicencesIcon />, who: 'admin', partner: ['finances'] },
     { key: 'brand', to: '/brand', label: msg('Brand'), icon: <BrandIcon />, partner: 'any' },
     { key: 'messages', to: '/messages', label: msg('Messages'), icon: <MessagesIcon />, who: 'admin' },
   ] },

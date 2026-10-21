@@ -20,6 +20,7 @@ import { POPULAR_FONTS } from '../../shared/fonts'
 import { addToCalendarUrl, cleanWebsite, groupOf } from '../../shared/connections'
 import { mergeSales } from '../../shared/sales'
 import { dueFrom, emailId, matchSupplier, numberFromName, type InboxInvoice, type Invoice } from '../../shared/invoices'
+import type { Licence } from '../../shared/licences'
 import { DEFAULT_TAX_SETTINGS, cleanFolderName, cleanFolderPath, taxFileProblem, type FilingRecord, type TaxDocument, type TaxSettings } from '../../shared/tax'
 import { DEFAULT_VAT_RATE, type PnlLine } from '../../shared/pnl'
 import { cleanAnswers, isDone, type GrantApplication, type GrantProfile } from '../../shared/grants'
@@ -286,6 +287,21 @@ export function createDemoApi(): Api {
     if (!squareOn()) throw new Error('Connect Square on the Connections page to see loyalty and gift cards.')
   }
   const inRange = (at: string, from: string, to: string) => at.slice(0, 10) >= from && at.slice(0, 10) <= to
+
+  // Licences: the café's, one running out soon (insurance) and one already out (the extinguishers' check).
+  const licence = (p: Partial<Licence> & { name: string }): Licence => ({ id: uid(), category: 'permit', issuer: null, reference: null, holder: null, starts_on: null,
+    expires_on: null, renew_every_months: null, auto_renews: false, cost: null, reminder_days: 30, document_id: null, link: null, notes: null, active: true, ...p })
+  const licenceList: Licence[] = [
+    licence({ name: 'Licencia de apertura / actividad', issuer: 'Ayuntamiento de Marbella', reference: 'EXP-2026/0412', starts_on: '2026-03-20',
+      notes: 'Declaración responsable, Tenencia de Alcaldía de San Pedro' }),
+    licence({ name: 'SGAE (música ambiente)', category: 'music', issuer: 'SGAE', reference: 'SGAE-29-118804', starts_on: '2026-04-01', expires_on: '2027-03-31',
+      renew_every_months: 12, cost: 246.5, auto_renews: true, link: 'https://www.sgae.es' }),
+    licence({ name: 'Licencia de terraza (ocupación de vía pública)', issuer: 'Ayuntamiento de Marbella', reference: 'OVP-2026-221', starts_on: '2026-04-01',
+      expires_on: '2026-12-31', renew_every_months: 12, cost: 380, notes: '4 tables, 16 chairs' }),
+    licence({ name: 'Seguro de responsabilidad civil', category: 'insurance', issuer: 'Mapfre', reference: 'RC-0099-441', starts_on: '2025-10-15',
+      expires_on: '2026-10-15', renew_every_months: 12, cost: 312 }),
+    licence({ name: 'Revisión de extintores', category: 'safety', issuer: 'Extintores Costa', expires_on: '2026-09-01', renew_every_months: 12, cost: 65 }),
+  ]
 
   // Invoices: a few from the café's suppliers, and three waiting in the mailbox once reading it is allowed.
   const invoice = (p: Partial<Invoice>): Invoice => ({ id: uid(), direction: 'in', supplier_id: null, party_name: null, party_email: null, party_tax_id: null, number: null,
@@ -1369,6 +1385,29 @@ export function createDemoApi(): Api {
       if (!(me()?.role === 'admin' && me()?.can_see_pay)) throw new Error('Only admins with pay access can change finances')
       const i = expenses.findIndex(x => x.id === id)
       if (i >= 0) expenses.splice(i, 1)
+    },
+    async licences() {
+      if (!isAdmin() && !partnerCan('finances')) return []
+      return clone(licenceList).map(l => {
+        const d = l.document_id ? taxDocuments.find(x => x.id === l.document_id) : undefined
+        return { ...l, document: d ? { name: d.name, link: d.link } : null }
+      }).sort((a, b) => (a.expires_on ?? '9999').localeCompare(b.expires_on ?? '9999') || a.name.localeCompare(b.name))
+    },
+    async saveLicence({ id, ...l }) {
+      requireAdmin()
+      const { document: _doc, ...patch } = l as typeof l & { document?: unknown }
+      if (!patch.name?.trim()) throw new Error('Give it a name')
+      if (patch.starts_on && patch.expires_on && patch.expires_on < patch.starts_on) throw new Error('It can’t run out before it starts')
+      const existing = id ? licenceList.find(x => x.id === id) : undefined
+      if (existing) { Object.assign(existing, patch, { name: patch.name.trim() }); return existing.id }
+      const made = licence({ ...patch, name: patch.name.trim() })
+      licenceList.push(made)
+      return made.id
+    },
+    async deleteLicence(id) {
+      requireAdmin()
+      const i = licenceList.findIndex(x => x.id === id)
+      if (i >= 0) licenceList.splice(i, 1)
     },
     async invoices() {
       if (!readTax()) return []

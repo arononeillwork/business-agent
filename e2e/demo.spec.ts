@@ -2257,6 +2257,8 @@ test('the terms of service are public, linked from the sign-in page and the priv
 })
 
 test('every page in the menu shows its title, whatever buttons its header has', async ({ page }) => {
+  // It opens every page in the menu (some thirty now), each one loaded the first time.
+  test.setTimeout(90_000)
   await open(page, '/')
   const nav = page.getByRole('navigation', { name: 'Main' })
   const links = await nav.getByRole('region').getByRole('link').evaluateAll(els => els.map(e => e.getAttribute('href')!))
@@ -3634,5 +3636,51 @@ test.describe('reviews and website', () => {
     await expect(page.getByRole('heading', { name: /Hola/ })).toBeVisible()
     await page.goto('/website?demo')
     await expect(page.getByRole('heading', { name: /Hola/ })).toBeVisible()
+  })
+})
+
+test.describe('licences and renewals', () => {
+  test('what runs out soon or ran out, renewed in one press, and exported', async ({ page }) => {
+    await open(page, '/licences')
+    await expect(page.getByRole('heading', { name: 'Licences & renewals', level: 1 })).toBeVisible()
+    const list = page.getByRole('main').getByRole('region', { name: 'Licences & renewals' })
+    await expect(list.getByRole('row').filter({ hasText: 'Seguro de responsabilidad civil' })).toContainText('in 15 days')
+    await expect(list.getByRole('row').filter({ hasText: 'Licencia de apertura' })).toContainText('Doesn’t run out')
+    const extinguishers = list.getByRole('row').filter({ hasText: 'Revisión de extintores' })
+    await expect(extinguishers).toContainText('Ran out')
+    await expect(page.getByRole('alert').filter({ hasText: /^Ran out:/ })).toContainText('Revisión de extintores')
+
+    await extinguishers.getByRole('button', { name: 'Renewed Revisión de extintores' }).click()
+    await toast(page, 'Renewed until 1 Sep 2027')
+    await expect(extinguishers).toContainText('Up to date')
+    await expect(page.getByRole('alert').filter({ hasText: /^Ran out:/ })).toHaveCount(0)
+
+    await page.getByRole('button', { name: 'Export' }).click()
+    await expect(page.getByRole('menuitem', { name: /Excel/ })).toBeVisible()
+  })
+
+  test('the café’s usual licences add in one click, filled in', async ({ page }) => {
+    await open(page, '/licences')
+    const usual = page.getByRole('region', { name: 'Usual for a café' })
+    await expect(usual).not.toContainText('SGAE (música ambiente)') // already added
+    await usual.getByRole('button', { name: 'Add AGEDI / AIE (música grabada)' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Add a licence' })
+    await expect(dialog.getByRole('textbox', { name: 'Name' })).toHaveValue('AGEDI / AIE (música grabada)')
+    await expect(dialog.getByRole('combobox', { name: 'Renews' })).toHaveText('Every year')
+    await dialog.getByRole('textbox', { name: 'Number' }).fill('VUD-2026-5531')
+    await dialog.getByLabel('Runs out').fill('2027-03-31')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await toast(page, /^Saved$/)
+    const row = page.getByRole('main').getByRole('region', { name: 'Licences & renewals' }).getByRole('row').filter({ hasText: 'AGEDI / AIE' })
+    await expect(row).toContainText('VUD-2026-5531')
+    await expect(row).toContainText('Up to date')
+    await expect(usual).not.toContainText('AGEDI / AIE')
+  })
+
+  test('employees don’t get licences', async ({ page }) => {
+    await open(page, '/', 'maria@example.com')
+    await expect(page.getByRole('link', { name: 'Licences & renewals' })).toHaveCount(0)
+    await page.goto('/licences?demo')
+    await expect(page.getByRole('heading', { name: 'Licences & renewals' })).toHaveCount(0)
   })
 })

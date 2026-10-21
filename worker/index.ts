@@ -256,6 +256,8 @@ export default {
     if (event.cron === NIGHTLY) {
       ctx.waitUntil((async () => {
         await Promise.resolve(db.rpc('auto_fill_timecards')).then(log('auto_fill_timecards'))
+        // Licences running out within their reminder days: admins hear about each once (Licences page).
+        await Promise.resolve(db.rpc('licence_reminders')).then(log('licence_reminders'))
         // WhatsApp chats older than Data retention allows, with their photos and voice notes.
         await purgeWhatsApp(db).catch(e => console.error('whatsapp purge failed', e))
         // The subscription, straight from Stripe (in case a webhook was missed).
