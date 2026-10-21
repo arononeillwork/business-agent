@@ -46,6 +46,7 @@ const MusicPage = page(() => import('./pages/MusicPage'), 'MusicPage')
 const ConnectionsPage = page(() => import('./pages/ConnectionsPage'), 'ConnectionsPage')
 const SocialPlannerPage = page(() => import('./pages/SocialPlannerPage'), 'SocialPlannerPage')
 const AdsPage = page(() => import('./pages/AdsPage'), 'AdsPage')
+const CompetitionsPage = page(() => import('./pages/CompetitionsPage'), 'CompetitionsPage')
 const PartnersPage = page(() => import('./pages/PartnersPage'), 'PartnersPage')
 const TodoPage = page(() => import('./pages/TodoPage'), 'TodoPage')
 const CustomersPage = page(() => import('./pages/CustomersPage'), 'CustomersPage')
@@ -167,6 +168,7 @@ function Routed() {
         <Route path="billing" element={<ToBilling />} />
         <Route path="connections" element={isAdmin ? <ConnectionsPage /> : <Navigate to="/" />} />
         <Route path="social" element={isAdmin ? <SocialPlannerPage /> : <Navigate to="/" />} />
+        <Route path="competitions" element={isAdmin ? <CompetitionsPage /> : <Navigate to="/" />} />
         <Route path="ads" element={isAdmin ? <AdsPage /> : <Navigate to="/" />} />
         <Route path="messages" element={isAdmin ? <MessagesPage /> : <Navigate to="/" />} />
         <Route path="referrals" element={isAdmin ? <ReferralsPage /> : <Navigate to="/" />} />

@@ -186,7 +186,8 @@ export async function oneDriveDownload(token: string, id: string, range?: string
 
 /** Save a small file (under 4 MB) into "Business Agent/<folder>" in OneDrive; returns its web link. */
 export async function saveFile(token: string, folder: string, name: string, content: string, type: string) {
-  const path = ['Business Agent', folder, name].filter(Boolean).map(encodeURIComponent).join('/')
+  // "Marketing/Competitions": a folder in a folder.
+  const path = ['Business Agent', ...folder.split('/').map(x => x.trim()).filter(x => x && x !== '.' && x !== '..'), name].filter(Boolean).map(encodeURIComponent).join('/')
   const item = await graph<{ webUrl: string }>(token, `/me/drive/root:/${path}:/content`, {
     method: 'PUT', headers: { 'content-type': type }, body: content,
   })

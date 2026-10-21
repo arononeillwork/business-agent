@@ -21,6 +21,7 @@ import { addToCalendarUrl, cleanWebsite, groupOf } from '../../shared/connection
 import { mergeSales } from '../../shared/sales'
 import { dueFrom, emailId, matchSupplier, numberFromName, type InboxInvoice, type Invoice } from '../../shared/invoices'
 import type { Licence } from '../../shared/licences'
+import { DEFAULT_RULES, draw, newEntries, type Competition, type CompetitionEntry } from '../../shared/competitions'
 import { DEFAULT_TAX_SETTINGS, cleanFolderName, cleanFolderPath, taxFileProblem, type FilingRecord, type TaxDocument, type TaxSettings } from '../../shared/tax'
 import { DEFAULT_VAT_RATE, type PnlLine } from '../../shared/pnl'
 import { cleanAnswers, isDone, type GrantApplication, type GrantProfile } from '../../shared/grants'
@@ -746,6 +747,41 @@ export function createDemoApi(): Api {
     person({ days: 1, kind: 'lead', first_name: 'Diego', last_name: 'Fernández', phone: '+34 655 310 862', source: 'google',
       notes: 'Phoned about booking the terrace for a birthday' }),
   ]
+
+  // Competitions: the monthly draw for signing up, like the website's (live, its entries coming in),
+  // and the opening giveaway, drawn with its prizes given.
+  const makeCompetition = (p: Partial<Competition> & { name: string }): Competition => ({ id: uid(), kind: 'custom', channels: [], status: 'draft',
+    starts_on: null, ends_on: null, draw_on: null, prize: null, prize_value: null, prize_item_id: null, winners: 1, reserves: 2, how_to_enter: [],
+    rules: { ...DEFAULT_RULES }, terms: null, caption: null, caption_es: null, notes: null, drawn_at: null, entry_count: null, prize_given_at: null,
+    created_at: nowIso(), ...p })
+  const makeEntry = (competition_id: string, p: Partial<CompetitionEntry>, at: string): CompetitionEntry => ({ id: uid(), competition_id, name: null, handle: null,
+    email: null, phone: null, source: 'manual', customer_id: null, valid: true, note: null, rank: null, created_at: at, ...p })
+  const drawDay = today().slice(8, 10) < '15' ? `${today().slice(0, 7)}-15` : `${addDays(`${today().slice(0, 7)}-28`, 18).slice(0, 8)}15`
+  const tote = stock.find(i => i.name === 'Easy Beans tote bag')!
+  const monthly = makeCompetition({ name: 'Monthly draw for signing up', kind: 'email_draw', channels: ['instagram', 'in_cafe', 'website'], status: 'live',
+    starts_on: addDays(drawDay, -30), ends_on: addDays(drawDay, -1), draw_on: drawDay, prize: 'A €10 gift card', prize_value: 10, winners: 1, reserves: 2,
+    how_to_enter: ['Sigue a @easy.beans.coffee en Instagram', 'Apúntate a nuestras novedades y ofertas en la web'],
+    rules: { ...DEFAULT_RULES, marketing_signup: true }, created_at: daysAgo(30),
+    caption: '🎁 Every month we draw a €10 gift card. Follow @easy.beans.coffee and sign up for our news to enter.',
+    caption_es: '🎁 Cada mes sorteamos una tarjeta regalo de 10 €. Sigue a @easy.beans.coffee y apúntate a nuestras novedades para participar.' })
+  const opening = makeCompetition({ name: 'Opening week giveaway', kind: 'instagram_giveaway', channels: ['instagram'], status: 'drawn',
+    starts_on: '2026-03-25', ends_on: '2026-04-05', draw_on: '2026-04-06', prize: 'An Easy Beans tote bag and a coffee a week for a month', prize_value: 35,
+    prize_item_id: tote.id, winners: 2, reserves: 2, how_to_enter: ['Sigue a @easy.beans.coffee', 'Dale me gusta a la publicación', 'Comenta con quién vendrías'],
+    drawn_at: '2026-04-06T10:12:00.000Z', entry_count: 31, prize_given_at: '2026-04-09T09:30:00.000Z', created_at: '2026-03-24T18:00:00.000Z' })
+  const competitionList: Competition[] = [opening, monthly]
+  let entryList: CompetitionEntry[] = [
+    ...['marta.sanpedro', 'javi_runs', 'laura.mbl', 'coffee.tom', 'nuria.yoga', 'ali.surf', 'paco_bike', 'irene.art', 'dani.cocina', 'sara_and_luna', 'mike.costa', 'elena.r']
+      .map((handle, i) => makeEntry(monthly.id, { handle, source: 'instagram_paste' }, daysAgo(28 - i * 2))),
+    ...[['Rocío Martín', 'rocio.martin@example.es'], ['Tom Baker', 'tom.baker@example.co.uk'], ['Inés Vidal', 'ines.vidal@example.es'],
+      ['Hugo Romero', 'hugo.romero@example.es'], ['Emma Jansen', 'emma.jansen@example.nl'], ['Álvaro Gil', 'alvaro.gil@example.es'],
+      ['Claire Dubois', 'claire.dubois@example.fr'], ['Marcos León', 'marcos.leon@example.es']]
+      .map(([name, email], i) => makeEntry(monthly.id, { name, email, source: 'csv' }, daysAgo(25 - i * 3))),
+    ...customers.filter(c => c.marketing_consent).slice(0, 4).map((c, i) => makeEntry(monthly.id, { name: [c.first_name, c.last_name].filter(Boolean).join(' '),
+      email: c.email, phone: c.phone, handle: c.instagram, source: 'customers', customer_id: c.id }, daysAgo(20 - i))),
+    makeEntry(monthly.id, { handle: 'laura.mbl2', source: 'instagram_paste', valid: false, note: 'Second account of laura.mbl' }, daysAgo(6)),
+    ...Array.from({ length: 31 }, (_, i) => makeEntry(opening.id, { handle: `${['cafe', 'sol', 'mar', 'luz', 'rio'][i % 5]}.${['lover', 'fan', 'sanpedro', 'mbl', 'costa', 'and.co', 'daily'][i % 7]}${i}`,
+      source: 'instagram_paste', rank: i < 4 ? i + 1 : null }, `2026-03-${String(25 + (i % 7)).padStart(2, '0')}T12:00:00.000Z`)),
+  ]
   let adminNotes: string | null = 'Demo: alarm code holder, wifi for the kiosk, landlord and gestor contacts.'
   const settings: Settings = {
     early_clock_in_minutes: 10, unscheduled_clock_in: 'flag', auto_clock_out_minutes: 60,
@@ -1422,6 +1458,82 @@ export function createDemoApi(): Api {
       requireAdmin()
       const i = licenceList.findIndex(x => x.id === id)
       if (i >= 0) licenceList.splice(i, 1)
+    },
+    async competitions() {
+      if (!isAdmin()) return []
+      return clone(competitionList).map(c => ({ ...c, entries: entryList.filter(e => e.competition_id === c.id).length }))
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    },
+    async saveCompetition({ id, ...c }) {
+      requireAdmin()
+      const { entries: _e, drawn_at: _d, entry_count: _n, created_at: _c, ...patch } = c as typeof c & Partial<Competition>
+      if (!patch.name?.trim()) throw new Error('Give it a name')
+      // The database's checks.
+      if (patch.starts_on && patch.ends_on && patch.ends_on < patch.starts_on) throw new Error('It closes before it starts.')
+      if (patch.ends_on && patch.draw_on && patch.draw_on < patch.ends_on) throw new Error('The draw is before entries close.')
+      const existing = id ? competitionList.find(x => x.id === id) : undefined
+      if (patch.status === 'drawn' && !existing?.drawn_at) throw new Error('Draw the winners first')
+      const tidy = { ...patch, name: patch.name.trim(), prize: patch.prize?.trim() || null,
+        how_to_enter: (patch.how_to_enter ?? existing?.how_to_enter ?? []).map(x => x.trim()).filter(Boolean),
+        channels: [...new Set(patch.channels ?? existing?.channels ?? [])].sort(), rules: { ...DEFAULT_RULES, ...existing?.rules, ...patch.rules } }
+      if (existing) {
+        Object.assign(existing, tidy)
+        if (existing.drawn_at && existing.status !== 'drawn' && existing.status !== 'closed') existing.status = 'drawn'
+        return existing.id
+      }
+      const made = makeCompetition({ ...tidy, status: tidy.status ?? 'draft' })
+      competitionList.push(made)
+      return made.id
+    },
+    async deleteCompetition(id) {
+      requireAdmin()
+      const i = competitionList.findIndex(x => x.id === id)
+      if (i >= 0) competitionList.splice(i, 1)
+      entryList = entryList.filter(e => e.competition_id !== id)
+    },
+    async competitionEntries(id) {
+      if (!isAdmin()) return []
+      return clone(entryList.filter(e => e.competition_id === id)).sort((a, b) => a.created_at.localeCompare(b.created_at))
+    },
+    async addEntries(id, rows) {
+      requireAdmin()
+      const c = competitionList.find(x => x.id === id)
+      if (!c) throw new Error('No such competition')
+      if (c.drawn_at) throw new Error('The draw is done: no more entries')
+      const { fresh, skipped } = newEntries(entryList.filter(e => e.competition_id === id), rows)
+      const made = fresh.map(r => {
+        const email = r.email?.trim().toLowerCase() || null
+        if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error(`“${email}” isn’t an email address`)
+        return makeEntry(id, { name: r.name?.trim().replace(/\s+/g, ' ') || null, handle: r.handle ?? null, email, phone: r.phone?.trim() || null,
+          source: r.source ?? 'manual', customer_id: r.customer_id ?? null, valid: r.valid ?? true, note: r.note?.trim() || null }, nowIso())
+      })
+      entryList.push(...made)
+      return { added: made.length, skipped }
+    },
+    async updateEntry(id, patch) {
+      requireAdmin()
+      const e = entryList.find(x => x.id === id)
+      if (e) Object.assign(e, patch, 'note' in patch ? { note: patch.note?.trim() || null } : {})
+    },
+    async drawCompetition(id) {
+      requireAdmin()
+      const c = competitionList.find(x => x.id === id)
+      if (!c) throw new Error('No such competition')
+      if (c.drawn_at) throw new Error('It has already been drawn')
+      const pool = entryList.filter(e => e.competition_id === id && e.valid)
+      if (!pool.length) throw new Error('There are no entries to draw from')
+      for (const p of draw(pool, c.winners, c.reserves)) entryList.find(e => e.id === p.id)!.rank = p.rank
+      Object.assign(c, { drawn_at: nowIso(), entry_count: pool.length, status: 'drawn' })
+      return Math.min(pool.length, c.winners + c.reserves)
+    },
+    async givePrize(id) {
+      requireAdmin()
+      const c = competitionList.find(x => x.id === id)
+      if (!c || c.prize_given_at) return
+      if (c.prize_item_id && stock.some(i => i.id === c.prize_item_id)) {
+        await api.recordStock([{ item_id: c.prize_item_id, reason: 'used', change: -c.winners, note: `Prize: ${c.name}` }])
+      }
+      c.prize_given_at = nowIso()
     },
     async invoices() {
       if (!readTax()) return []

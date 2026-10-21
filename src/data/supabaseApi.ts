@@ -12,6 +12,7 @@ import type { Recipe } from '../../shared/recipes'
 import type { AdSettings } from '../../shared/ads'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
 import type { ReferralState } from '../../shared/referrals'
+import { newEntries, type Competition, type CompetitionEntry } from '../../shared/competitions'
 import { readyPhoto } from '../lib/media'
 import { cleanWebsite } from '../../shared/connections'
 import { cleanAnswers, type GrantApplication } from '../../shared/grants'
@@ -608,6 +609,42 @@ export function createSupabaseApi(url: string, key: string): Api {
     },
     async deleteSocialPost(id) { check(await sb.from('social_posts').delete().eq('id', id)) },
     async markPosted(id) { check(await sb.from('social_posts').update({ status: 'published' }).eq('id', id)) },
+    async competitions() {
+      type Row = Competition & { competition_entries: { count: number }[] }
+      const rows = check(await sb.from('competitions').select('*, competition_entries(count)').order('created_at', { ascending: false })) as Row[]
+      return rows.map(({ competition_entries, ...c }) => ({ ...c, prize_value: c.prize_value === null ? null : Number(c.prize_value),
+        entries: competition_entries[0]?.count ?? 0 }))
+    },
+    async saveCompetition({ id, ...c }) {
+      const { entries: _e, drawn_at: _d, entry_count: _n, created_at: _c, ...row } = c as typeof c & Partial<Competition>
+      if (id) { check(await sb.from('competitions').update(row).eq('id', id)); return id }
+      return (check(await sb.from('competitions').insert(row).select('id').single()) as { id: string }).id
+    },
+    async deleteCompetition(id) { check(await sb.from('competitions').delete().eq('id', id)) },
+    async competitionEntries(id) {
+      // A page at a time: a big giveaway can have more entries than one read returns.
+      const out: CompetitionEntry[] = []
+      for (let from = 0; ; from += 1000) {
+        const page = check(await sb.from('competition_entries').select('*').eq('competition_id', id)
+          .order('created_at').order('id').range(from, from + 999)) as CompetitionEntry[]
+        out.push(...page)
+        if (page.length < 1000) return out
+      }
+    },
+    async addEntries(id, rows) {
+      const { fresh, skipped } = newEntries(await api.competitionEntries(id), rows)
+      if (fresh.length) check(await sb.from('competition_entries').insert(fresh.map(r => ({ ...r, competition_id: id }))))
+      return { added: fresh.length, skipped }
+    },
+    async updateEntry(id, patch) { check(await sb.from('competition_entries').update(patch).eq('id', id)) },
+    async drawCompetition(id) { return check(await sb.rpc('draw_competition', { p_id: id })) as number },
+    async givePrize(id) {
+      const c = check(await sb.from('competitions').select('name, winners, prize_item_id, prize_given_at').eq('id', id).single()) as
+        Pick<Competition, 'name' | 'winners' | 'prize_item_id' | 'prize_given_at'>
+      if (c.prize_given_at) return
+      check(await sb.from('competitions').update({ prize_given_at: new Date().toISOString() }).eq('id', id))
+      if (c.prize_item_id) await api.recordStock([{ item_id: c.prize_item_id, reason: 'used', change: -c.winners, note: `Prize: ${c.name}`.slice(0, 300) }])
+    },
     loyalty: (from, to) => worker<LoyaltyState>(`/api/loyalty?from=${from}&to=${to}`),
     async adjustLoyalty(accountId, points, reason, key) {
       await worker('/api/loyalty/adjust', { method: 'POST', body: JSON.stringify({ account_id: accountId, points, reason, key }) })

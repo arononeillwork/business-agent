@@ -32,6 +32,7 @@ import GrantsIcon from '@mui/icons-material/VolunteerActivismOutlined'
 import BillingIcon from '@mui/icons-material/CreditCardOutlined'
 import SocialIcon from '@mui/icons-material/CampaignOutlined'
 import AdsIcon from '@mui/icons-material/AdsClickOutlined'
+import CompetitionsIcon from '@mui/icons-material/EmojiEventsOutlined'
 import MessagesIcon from '@mui/icons-material/ChatBubbleOutlineRounded'
 import ReferralsIcon from '@mui/icons-material/CardGiftcardOutlined'
 import NotificationsIcon from '@mui/icons-material/NotificationsNoneOutlined'
@@ -67,13 +68,17 @@ import { CafeSpeakerProvider } from './CafeSpeaker'
 import { BillingBanner } from './plan'
 import { SearchButton, ThemeToggle } from './QuickActions'
 import { fonts, tokens } from '../theme'
-import { msg, t, tr } from '../i18n'
+import { msg, t, tc, tr } from '../i18n'
 import { LanguageToggle } from '../components/Language'
 
 // `partner`: which partner areas show the item ('any' = every partner). Items without it are staff-only.
 // `children`: sub-pages, shown indented under the item when it's opened (or its arrow is pressed).
 // `needs`: shown only while that app is connected (Loyalty & gift cards: Square).
-export interface NavItem { key: string; to: string; label: string; short?: string; icon: ReactNode; who?: 'admin' | 'pay'; partner?: PartnerArea[] | 'any'; children?: NavItem[]; needs?: 'square' }
+export interface NavItem {
+  key: string; to: string; label: string; short?: string; icon: ReactNode; who?: 'admin' | 'pay'; partner?: PartnerArea[] | 'any'; children?: NavItem[]; needs?: 'square'
+  /** The label's English means something else elsewhere: its Spanish is kept under "context|label" (see tc). */
+  context?: string
+}
 export interface NavSection { key: string; label: string | null; items: NavItem[] }
 
 // The menu, in sections. Today is the landing page: the logo goes there, so it has no menu item.
@@ -110,6 +115,7 @@ export const SECTIONS: NavSection[] = [
   ] },
   { key: 'marketing', label: msg('Marketing'), items: [
     { key: 'social', to: '/social', label: msg('Social planner'), icon: <SocialIcon />, who: 'admin' },
+    { key: 'competitions', to: '/competitions', label: msg('Competitions'), context: 'marketing', icon: <CompetitionsIcon />, who: 'admin' },
     { key: 'ads', to: '/ads', label: msg('Ads'), icon: <AdsIcon />, who: 'admin' },
     { key: 'analytics', to: '/analytics', label: msg('Analytics'), icon: <AnalyticsIcon />, who: 'admin' },
     { key: 'reviews', to: '/reviews', label: msg('Reviews'), icon: <ReviewsIcon />, who: 'admin' },
@@ -175,7 +181,9 @@ function IconCount({ n, children }: { n?: number; children: ReactNode }) {
 // Phone tabs: the everyday pages first; everything else sits under "More".
 const PHONE_TABS = ['rota', 'timeoff', 'timecards', 'calendar', 'business']
 /** A menu item with its words in the person's language. */
-const inLanguage = (n: NavItem): NavItem => ({ ...n, label: t(n.label), short: n.short && t(n.short), children: n.children?.map(inLanguage) })
+/** A menu item's name in the person's language. */
+export const navLabel = (n: Pick<NavItem, 'label' | 'context'>) => (n.context ? tc(n.context, n.label) : t(n.label))
+const inLanguage = (n: NavItem): NavItem => ({ ...n, label: navLabel(n), short: n.short && t(n.short), children: n.children?.map(inLanguage) })
 /** Every page, sub-pages included. */
 const withChildren = (items: NavItem[]) => items.flatMap(n => [n, ...(n.children ?? [])])
 
