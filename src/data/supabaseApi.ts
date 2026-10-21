@@ -5,6 +5,7 @@ import type { InstagramMention } from '../../shared/mentions'
 import type { FilingRecord, TaxDocument, TaxSettings } from '../../shared/tax'
 import type { Invoice } from '../../shared/invoices'
 import type { Licence } from '../../shared/licences'
+import type { KeptDocument } from '../../shared/documents'
 import { DEFAULT_VAT_RATE, type PnlLine, type PnlSettings } from '../../shared/pnl'
 import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
 import type { StockItem, StockMovement, Supplier } from '../../shared/stock'
@@ -404,7 +405,9 @@ export function createSupabaseApi(url: string, key: string): Api {
       check(await sb.from('tax_filings').upsert(r, { onConflict: 'model,year,period' }))
     },
     async taxDocuments(year) {
-      return check(await sb.from('tax_documents').select('*').eq('year', year).order('uploaded_at', { ascending: false })) as TaxDocument[]
+      // The Tax page's own: those under Business Agent/Tax (the Documents hub's are on its page).
+      return (check(await sb.from('tax_documents').select('*').eq('year', year).order('uploaded_at', { ascending: false })) as TaxDocument[])
+        .filter(d => d.folder[0] === 'Tax')
     },
     async updateTaxDocument(id, patch) { check(await sb.from('tax_documents').update(patch).eq('id', id)) },
     async removeTaxDocument(id) { check(await sb.from('tax_documents').delete().eq('id', id)) },
@@ -415,6 +418,19 @@ export function createSupabaseApi(url: string, key: string): Api {
     async uploadTaxDocument(file, m) {
       const q = new URLSearchParams({ name: m.name, kind: m.kind, year: String(m.year), quarter: m.quarter ? String(m.quarter) : '', folder: m.folder.join('/'), sha256: m.sha256 })
       return (await worker<{ document: TaxDocument }>(`/api/tax/upload?${q}`, { method: 'POST', body: file, headers: { 'content-type': 'application/octet-stream' } })).document
+    },
+    async documents() {
+      return check(await sb.from('tax_documents').select('*, invoices(id, number, party_name, supplier:suppliers(name)), licences(id, name, expires_on)')
+        .order('uploaded_at', { ascending: false })) as KeptDocument[]
+    },
+    browseFiles: path => worker(`/api/files/browse?path=${encodeURIComponent(path.join('/'))}`),
+    async makeDocumentsFolder(path, name) {
+      return (await worker<{ path: string[] }>('/api/files/folders', { method: 'POST', body: JSON.stringify({ path, name }) })).path
+    },
+    async uploadDocument(file, m) {
+      const q = new URLSearchParams({ name: m.name, kind: m.kind, year: String(m.year), folder: m.folder.join('/'), sha256: m.sha256,
+        title: m.title ?? '', tags: (m.tags ?? []).join(','), expires_on: m.expires_on ?? '' })
+      return (await worker<{ document: KeptDocument }>(`/api/files/upload?${q}`, { method: 'POST', body: file, headers: { 'content-type': 'application/octet-stream' } })).document
     },
     async pnlSettings() {
       const { data, error } = await sb.from('pnl_settings').select('vat_rate').eq('id', 1).maybeSingle()

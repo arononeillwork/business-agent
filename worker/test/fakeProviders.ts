@@ -350,10 +350,13 @@ export class FakeProviders {
       if (method === 'GET') {
         const q = url.searchParams.get('q') ?? ''
         const name = q.match(/name = '(.*?)'/)?.[1], parent = q.match(/'([^']+)' in parents/)?.[1]
-        // Without a name: every folder inside the parent (the Tax page's folder list).
-        const files = [...this.google.folders].filter(([, f]) => (name === undefined || f.name === name) && f.parent === parent && !f.trashed)
-          .map(([id, f]) => ({ id, name: f.name })).sort((a, b) => a.name.localeCompare(b.name))
-        return json({ files })
+        // Without a name: every folder inside the parent (the Tax page's folder list), and its files too
+        // when not only folders are asked for (the Documents hub's browser).
+        const folders = [...this.google.folders].filter(([, f]) => (name === undefined || f.name === name) && f.parent === parent && !f.trashed)
+          .map(([id, f]) => ({ id, name: f.name, mimeType: 'application/vnd.google-apps.folder' }))
+        const files = q.includes('mimeType') || name !== undefined ? [] : [...this.google.blobs].filter(([, f]) => f.parent === parent)
+          .map(([id, f]) => ({ id, name: f.name, mimeType: f.type, size: String(f.bytes.length), modifiedTime: '2026-10-20T09:30:00.000Z', webViewLink: `https://drive.google.com/file/d/${id}/view` }))
+        return json({ files: [...folders, ...files].sort((a, b) => a.name.localeCompare(b.name)) })
       }
       const made = body() as { name: string; parents: string[] }
       const id = `folder-${this.nextId++}`
@@ -585,7 +588,8 @@ export class FakeProviders {
         return new Response(null, { status: 202 })
       }
       if (path === '/me/drive/root:/Business%20Agent' || path === '/me/drive/root:/Business Agent') {
-        return this.microsoft.folderId ? json({ id: this.microsoft.folderId, name: 'Business Agent', folder: {} }) : json({ error: { code: 'itemNotFound', message: 'The resource could not be found.' } }, 404)
+        return this.microsoft.folderId ? json({ id: this.microsoft.folderId, name: 'Business Agent', folder: {}, webUrl: `https://onedrive.live.com/?id=${this.microsoft.folderId}` })
+          : json({ error: { code: 'itemNotFound', message: 'The resource could not be found.' } }, 404)
       }
       if (path === '/me/drive/root/children' && method === 'POST') {
         this.microsoft.folderId = `ms-folder-${this.nextId++}`
@@ -596,11 +600,17 @@ export class FakeProviders {
         const id = [...this.microsoft.paths].find(([, p]) => p === at)?.[0]
         return id ? json({ id, name: at.split('/').pop(), folder: {}, webUrl: `https://onedrive.live.com/?id=${id}` }) : json({ error: { code: 'itemNotFound', message: 'The resource could not be found.' } }, 404)
       }
-      // A folder's children by path (the Tax page's folder list): the folders made inside it.
+      // A folder's children by path (the Tax page's folder list, the Documents hub's browser): the folders made inside it and the files put there.
       if (path.startsWith('/me/drive/root:/') && path.endsWith(':/children') && method === 'GET') {
         const at = decodeURIComponent(path.slice('/me/drive/root:/'.length, -':/children'.length))
-        const value = [...this.microsoft.paths.values()].filter(p => p.startsWith(`${at}/`) && !p.slice(at.length + 1).includes('/'))
-          .map(p => ({ name: p.split('/').pop(), folder: {} }))
+        const there = at === 'Business Agent' ? !!this.microsoft.folderId : [...this.microsoft.paths.values()].includes(at)
+        if (!there) return json({ error: { code: 'itemNotFound', message: 'The resource could not be found.' } }, 404)
+        const inside = (p: string) => p.startsWith(`${at}/`) && !p.slice(at.length + 1).includes('/')
+        const value = [
+          ...[...this.microsoft.paths].filter(([, p]) => inside(p)).map(([id, p]) => ({ id, name: p.split('/').pop(), folder: {}, webUrl: `https://onedrive.live.com/?id=${id}` })),
+          ...[...this.microsoft.blobs].filter(([, f]) => inside(f.path)).map(([id, f]) => ({ id, name: f.path.split('/').pop(), size: f.bytes.length,
+            file: { mimeType: 'application/pdf' }, lastModifiedDateTime: '2026-10-20T09:30:00Z', webUrl: `https://onedrive.live.com/?id=${id}` })),
+        ]
         return json({ value })
       }
       const children = path.match(/^\/me\/drive\/items\/([^/]+)\/children$/)

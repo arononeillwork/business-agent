@@ -225,11 +225,17 @@ async function drive<T>(token: string, url: string, init: RequestInit = {}): Pro
   return json
 }
 
-/** The folder with this name under `parent` (made by this app), created if missing. */
-async function folder(token: string, name: string, parent = 'root') {
+/** The folder with this name under `parent` (made by this app), if it's there. */
+async function findFolder(token: string, name: string, parent: string) {
   const q = `name = '${name.replace(/'/g, "\\'")}' and mimeType = 'application/vnd.google-apps.folder' and '${parent}' in parents and trashed = false`
   const found = await drive<{ files: { id: string }[] }>(token, `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)`)
-  if (found.files[0]) return found.files[0].id
+  return found.files[0]?.id ?? null
+}
+
+/** The folder with this name under `parent` (made by this app), created if missing. */
+async function folder(token: string, name: string, parent = 'root') {
+  const found = await findFolder(token, name, parent)
+  if (found) return found
   const made = await drive<{ id: string }>(token, 'https://www.googleapis.com/drive/v3/files?fields=id', {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ name, mimeType: 'application/vnd.google-apps.folder', parents: [parent] }),
@@ -276,6 +282,24 @@ export async function uploadToDrive(token: string, parent: string, name: string,
   const json = await put.json().catch(() => ({})) as { id?: string; error?: { message?: string } }
   if (!put.ok || !json.id) throw new Error(`Google Drive: ${json.error?.message ?? put.status}`)
   return json.id
+}
+
+/** "Business Agent/<path…>" in the café's Drive if it's there (nothing is made); its id, or null. */
+export async function findFolderPath(token: string, path: string[]) {
+  let parent: string | null = 'root'
+  for (const name of ['Business Agent', ...path]) if (!(parent = await findFolder(token, name, parent))) return null
+  return parent
+}
+
+export const DRIVE_FOLDER = 'application/vnd.google-apps.folder'
+export interface DriveItem { id: string; name: string; mimeType: string; size?: string; modifiedTime?: string; webViewLink?: string }
+
+/** Everything this app put inside a Drive folder, folders and files (drive.file sees only those). */
+export async function listChildren(token: string, parent: string) {
+  const q = `'${parent}' in parents and trashed = false`
+  const found = await drive<{ files: DriveItem[] }>(token, `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}` +
+    '&fields=files(id,name,mimeType,size,modifiedTime,webViewLink)&orderBy=folder,name&pageSize=500')
+  return found.files
 }
 
 /** The folders this app made inside a Drive folder, by name (drive.file sees only those). */

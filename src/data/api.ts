@@ -8,6 +8,7 @@ import type { InstagramMention } from '../../shared/mentions'
 import type { FilingRecord, Quarter, TaxDocKind, TaxDocument, TaxSettings } from '../../shared/tax'
 import type { InboxInvoice, InboxState as InvoiceInbox, Invoice, InvoiceInput } from '../../shared/invoices'
 import type { Licence, LicenceInput } from '../../shared/licences'
+import type { KeptDocument, StorageFolder } from '../../shared/documents'
 import type { PnlLine, PnlLineInput, PnlSettings } from '../../shared/pnl'
 import type { GrantApplication, GrantApplicationInput, GrantProfile } from '../../shared/grants'
 import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
@@ -171,7 +172,7 @@ export interface Api {
   saveTaxFiling(record: FilingRecord): Promise<void>
   /** The documents kept for a tax year, newest first. */
   taxDocuments(year: number): Promise<TaxDocument[]>
-  updateTaxDocument(id: string, patch: Partial<Pick<TaxDocument, 'kind' | 'year' | 'quarter' | 'notes'>>): Promise<void>
+  updateTaxDocument(id: string, patch: Partial<Pick<TaxDocument, 'kind' | 'year' | 'quarter' | 'notes' | 'title' | 'tags' | 'expires_on'>>): Promise<void>
   /** Take a document off the list (the file stays in Drive or OneDrive). */
   removeTaxDocument(id: string): Promise<void>
   /** The folders inside one under Business Agent (["Tax", "2026"]), and a link to open it there. */
@@ -180,6 +181,15 @@ export interface Api {
   makeTaxFolder(path: string[], name: string): Promise<string[]>
   /** Upload one document into a folder under Business Agent/Tax; refused when the same file (sha256) is already kept. */
   uploadTaxDocument(file: Blob, meta: { name: string; kind: TaxDocKind; year: number; quarter: Quarter | null; folder: string[]; sha256: string }): Promise<TaxDocument>
+  // Documents hub (admins with pay access; finance partners read the list): every kept file, and the café's Business Agent folder.
+  /** Every kept document (all years, Tax and Documents), newest first, with the invoices and licences that point at it. */
+  documents(): Promise<KeptDocument[]>
+  /** What's inside a folder under Business Agent ([] is Business Agent itself); nothing is made. */
+  browseFiles(path: string[]): Promise<StorageFolder>
+  /** Make a folder inside Documents; returns its path. */
+  makeDocumentsFolder(path: string[], name: string): Promise<string[]>
+  /** Upload one document into Documents/<folder…>; refused when the same file (sha256) is already kept. */
+  uploadDocument(file: Blob, meta: { name: string; kind: TaxDocKind; year: number; folder: string[]; sha256: string; title?: string | null; tags?: string[]; expires_on?: string | null }): Promise<KeptDocument>
   // Profit & loss (admins with pay access; finance partners read): the IVA rate and one-off lines
   pnlSettings(): Promise<PnlSettings>
   savePnlSettings(patch: Partial<PnlSettings>): Promise<void>
