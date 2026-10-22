@@ -227,6 +227,9 @@ export default {
   'Sign out': 'Cerrar sesión',
   "Can't reach the app": 'No se puede conectar con la app',
   'Try again': 'Reintentar',
+  'Your business didn’t load': 'Tu negocio no se ha cargado',
+  'You’re signed in, but the business’s details couldn’t be loaded. Try again, or sign out to use another account. ({message})':
+    'Has iniciado sesión, pero no se han podido cargar los datos del negocio. Vuelve a intentarlo o cierra sesión para usar otra cuenta. ({message})',
   'Check your internet connection and try again. ({message})': 'Comprueba tu conexión a internet y vuelve a intentarlo. ({message})',
   // shared/plans.ts: plans
   'Try the basics with a very small team.': 'Prueba lo básico con un equipo muy pequeño.',

@@ -59,6 +59,20 @@ export function NotActive() {
   )
 }
 
+/** Signed in, but the business's details didn't load: try again, or sign out to use another account. */
+export function LoadError({ message, retry }: { message: string; retry: () => void }) {
+  const { api } = useApp()
+  return (
+    <Panel title={t('Your business didn’t load')}
+      action={<Stack direction="row" spacing={1}>
+        <Button variant="contained" onClick={retry}>{t('Try again')}</Button>
+        <Button variant="outlined" onClick={() => void api.signOut()}>{t('Sign out')}</Button>
+      </Stack>}>
+      {t('You’re signed in, but the business’s details couldn’t be loaded. Try again, or sign out to use another account. ({message})', { message })}
+    </Panel>
+  )
+}
+
 /** The app couldn't start (server unreachable or misconfigured). Never falls back to sample data. */
 export function StartError({ message }: { message: string }) {
   return (
