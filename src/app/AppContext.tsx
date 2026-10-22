@@ -6,7 +6,7 @@ import { createDemoApi } from '../data/demoApi'
 import { createSupabaseApi } from '../data/supabaseApi'
 import type { BreakType, Business, PartnerArea, PayRate, Position, Profile, Settings } from '../../shared/types'
 import { setCurrency, setNumberFormat, setOwnTimeZone } from '../../shared/time'
-import { StartError } from '../pages/StatusPages'
+import { LoadError, StartError } from '../pages/StatusPages'
 
 export interface AppData {
   api: Api
@@ -86,7 +86,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     enabled: !!api,
     queryFn: async (): Promise<Shared> => {
       const me = await api!.me().catch(() => null)
-      if (!me || me.role === 'kiosk') return { ...EMPTY, me }
+      // Someone not on the team yet (a new Google sign-in nobody added) or switched off can read
+      // only their own profile: the business is hidden from them, so there is nothing more to load.
+      if (!me || me.role === 'kiosk' || !me.active) return { ...EMPTY, me }
       const [business, settings, profiles, positions, breakTypes, payRates] = await Promise.all([
         api!.business(), api!.settings(), api!.profiles(), api!.positions(), api!.breakTypes(), api!.payRates(),
       ])
@@ -134,5 +136,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   if (startError) return <StartError message={startError} />
   if (!value) return null
+  // Signed in, but the café's details didn't load (after the retries): say so and offer to try
+  // again, rather than showing the sign-in page as if signed out. A later background refresh that
+  // fails keeps what's on screen.
+  if (shared.isLoadingError) return <Ctx.Provider value={value}><LoadError message={String(shared.error?.message ?? shared.error)} retry={() => void shared.refetch()} /></Ctx.Provider>
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

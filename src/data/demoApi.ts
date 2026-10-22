@@ -905,6 +905,9 @@ export function createDemoApi(): Api {
   const isAdmin = () => me()?.role === 'admin'
   const isPartner = () => me()?.role === 'partner'
   const isStaff = () => me()?.role === 'admin' || me()?.role === 'employee'
+  /** On the team and switched on, or a partner: who the database lets read the business. */
+  const isMember = () => !!me()?.active && (isStaff() || isPartner())
+  const requireMember = () => { if (!isMember()) throw new Error('Cannot coerce the result to a single JSON object') }
   const readStock = () => isStaff() || partnerCan('finances')
   /** Mirrors partner_can() in SQL: an active partner who was given that area. */
   const partnerCan = (area: PartnerArea) => !!(isPartner() && me()?.active && me()?.partner_access?.includes(area))
@@ -1071,17 +1074,19 @@ export function createDemoApi(): Api {
     async updatePassword() {},
 
     async me() { const p = me(); return p ? visibleProfile(p) : null },
-    async business() { return clone(business) },
+    // Like the database: someone not on the team yet (or switched off) reads none of the business,
+    // and asking for its one row then fails the way Supabase's .single() does.
+    async business() { requireMember(); return clone(business) },
     async adminNotes() { requireAdmin(); return adminNotes },
-    async settings() { return clone(settings) },
+    async settings() { requireMember(); return clone(settings) },
     async profiles() {
       if (!isPartner()) return profiles.filter(p => p.role !== 'partner').map(visibleProfile)
       if (!partnerCan('rota') && !partnerCan('payroll')) return []
       return profiles.filter(staffOnly).map(p => ({ id: p.id, full_name: p.full_name, colour: p.colour, role: p.role,
         active: p.active, email: null, can_see_pay: false, phone: null, birth_date: null }))
     },
-    async positions() { return clone(positions) },
-    async breakTypes() { return clone(breakTypes) },
+    async positions() { return isMember() ? clone(positions) : [] },
+    async breakTypes() { return isMember() ? clone(breakTypes) : [] },
     async payRates() {
       const m = me()
       return payRates.filter(r => (m?.role === 'admin' && m.can_see_pay) || partnerCan('payroll') || r.profile_id === currentUser)
