@@ -1,6 +1,6 @@
 // A stand-in for Supabase (PostgREST, auth and storage) with the tables and files in memory, so the Worker's routes can
 // be run end to end in unit tests. It understands the queries the Worker makes (select with eq/neq/
-// in/is/gte/gt/lte/lt, order and limit, single/maybeSingle, insert/upsert/update/delete, rpc is_admin/my_role and the plan checks) and
+// in/is/gte/gt/lte/lt/not, order and limit, single/maybeSingle, insert/upsert/update/delete, rpc is_admin/my_role and the plan checks) and
 // mirrors the one-app-per-group trigger from migration 28 (supabase/tests prove the real one).
 import { PROVIDERS } from '../connections'
 import { CONNECTION_FEATURE } from '../../shared/plans'
@@ -44,7 +44,10 @@ function matcher(params: URLSearchParams) {
     else if (op === 'gt') tests.push(r => v(r) !== null && v(r)! > arg)
     else if (op === 'lte') tests.push(r => v(r) !== null && v(r)! <= arg)
     else if (op === 'lt') tests.push(r => v(r) !== null && v(r)! < arg)
-    else throw new Error(`fake Supabase: unsupported filter ${key}=${raw}`)
+    else if (op === 'not') {
+      const inner = matcher(new URLSearchParams([[key, arg]]))
+      tests.push(r => !inner(r))
+    } else throw new Error(`fake Supabase: unsupported filter ${key}=${raw}`)
   }
   return (r: Row) => tests.every(t => t(r))
 }
@@ -171,7 +174,14 @@ export class FakeSupabase {
         Object.assign(j, a.p_ok ? { status: 'sent', external_id: a.p_external_id ?? null, last_error: null } : { status: 'failed', last_error: a.p_error })
         return json(null)
       }
-      // Migration 62: AI music uses, reserved before ElevenLabs is asked and settled after.
+      // Migration 62: AI music uses, quoted, reserved before ElevenLabs is asked and settled after.
+      if (rpc[1] === 'ai_music_quote') {
+        const { p_seconds } = JSON.parse(String(init.body)) as { p_seconds: number }
+        const uses = Math.max(1, Math.ceil(Math.max(3, p_seconds) / 60))
+        const free = Math.min(uses, this.music.freeLeft)
+        return json({ allowed: !this.music.reason, plan: 'business', uses, free, free_left: this.music.freeLeft, included: 1, unit_cents: this.music.unitCents,
+          price_cents: (uses - free) * this.music.unitCents, spent_cents: 0, limit_cents: 2500, reason: this.music.reason })
+      }
       if (rpc[1] === 'ai_music_start') {
         if (who?.role !== 'admin') return json({ message: 'Only an admin can make AI music' }, 400)
         if (this.music.reason) return json({ message: this.music.reason, code: 'P0402' }, 400)

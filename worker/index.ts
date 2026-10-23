@@ -16,7 +16,7 @@ import { authorizeGet, authorizePost, mcpApiHandler, tokenExchangeCallback, type
 import { apiKeys, isAccessKey, resolveKey } from './apiKeys'
 import { authEmail } from './authEmail'
 import { billing, chargePendingAiMusic, planBlocksInvite, syncBilling } from './billing'
-import { fillStarterPack, socialMusic } from './socialMusic'
+import { fillStarterPack, socialMusic, syncMusicInsights } from './socialMusic'
 import { businessConfig } from '../shared/business.config'
 import { referrals } from './referrals'
 import { tax } from './tax'
@@ -269,6 +269,8 @@ export default {
         await syncBilling(env).catch(e => console.error('billing sync failed', e))
         // AI music tracks made while Stripe didn't answer go on the bill now.
         await chargePendingAiMusic(env).catch(e => console.error('ai music charges failed', e))
+        // Instagram's likes and comments on posts with music, so suggestions learn what does well.
+        await syncMusicInsights(env).catch(e => console.error('music insights failed', e))
         // Prove every connection still works; admins get a notification when one stops working.
         await checkAll(env, db).catch(e => console.error('connection checks failed', e))
         // Hours both ways first (an edit made on Google comes in, not overwritten), then re-send

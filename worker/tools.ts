@@ -5,13 +5,24 @@ import { z } from 'zod'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { shiftPaidMinutes, shiftWarnings } from '../shared/rules'
 import { addDays, localDate, localTime, today, weekStart, zonedIso, formatLocal } from '../shared/time'
-import type { Business, CalendarEvent, Customer, PartnerArea, PayRate, Position, Profile, Settings, Shift } from '../shared/types'
+import type {
+  AiMusicQuote, Brand, Business, CalendarEvent, Customer, InstagramMusic, MixedMusic, MusicTrack, PartnerArea, PayRate, Position, Profile, Settings, Shift, SocialPost,
+} from '../shared/types'
 import { cleanPhone, matchesSearch } from '../shared/customers'
 import { cleanWebsite } from '../shared/connections'
+import {
+  DEFAULT_PHOTO_SECONDS, MOOD_IDS, REASON_LABEL, aiPrompt, aiSeconds, audioName, clampStart, energyOf, engagementByTrack, formatTime, parseTime, photoCuts,
+  recentTracks, renderKey, suggest, type Mood,
+} from '../shared/music'
+import { MusicError, makeAiMusic, renderMusic } from './socialMusic'
+import type { Env } from './supabase'
 
 export interface ToolContext {
   sb: SupabaseClient
   me: Profile
+  /** The Worker's settings and its address, for tools that use a service (music: ElevenLabs, the render service). */
+  env?: Env
+  origin?: string
 }
 
 export interface ToolDef<S extends z.ZodType = z.ZodType> {
@@ -42,6 +53,7 @@ function check<T>(res: { data: T; error: { message: string } | null }): NonNulla
 const rowsAs = <T,>() => (res: { data: unknown; error: { message: string } | null }) => check(res) as T
 
 const PROFILE_COLUMNS = 'id, full_name, email, role, can_see_pay, colour, active, phone, birth_date, partner_company, partner_access'
+const MUSIC_COLUMNS = 'id, source, title, artist, url, duration_s, bpm, energy, moods, genre, vocals, highlight_s, saved'
 
 const partnerCan = (me: Profile, area: PartnerArea) => me.role === 'partner' && !!me.partner_access?.includes(area)
 /** Pay rates and labour cost: admins with pay access, or payroll partners (read-only). */
@@ -781,6 +793,156 @@ export const TOOLS: ToolDef[] = [
       }
       const row = check(await sb.from('customers').insert(patch).select('id').single())
       return { ok: true, customer_id: row.id }
+    },
+  }),
+
+  // ---------------- Social planner: music (docs/SOCIAL_MUSIC_PLAN.md) ----------------
+  tool({
+    name: 'suggest_music',
+    title: 'Suggest music for a post',
+    description: 'Admins: tracks from the Social planner\'s music library that suit a story or reel, best first, and why (the brand\'s sound, the caption, the time of day, what did well on Instagram). Also says whether AI music can be made now and what it would cost. Put one on a post with set_post_music.',
+    admin: true,
+    readOnly: true,
+    input: z.object({
+      kind: z.enum(['story', 'reel']).default('story'),
+      caption: z.string().max(2200).default('').describe('The caption, or what the post is about'),
+      seconds: z.number().min(3).max(900).default(DEFAULT_PHOTO_SECONDS).describe('How long the story or reel is (photos: 15 by default)'),
+      hour: z.number().int().min(0).max(23).optional().describe('The hour it goes out, Madrid time'),
+      limit: z.number().int().min(1).max(20).default(5),
+    }),
+    async run({ sb }, { kind, caption, seconds, hour, limit }) {
+      const [tracks, brand, posts, quote] = await Promise.all([
+        sb.from('music_tracks').select(MUSIC_COLUMNS).eq('hidden', false).limit(500).then(rowsAs<MusicTrack[]>()),
+        sb.from('brand').select('sound_moods, sound_avoid').eq('id', 1).maybeSingle().then(rowsAs<Pick<Brand, 'sound_moods' | 'sound_avoid'> | null>()),
+        sb.from('social_posts').select('music, insights, scheduled_at, published_at').not('music', 'is', null)
+          .order('created_at', { ascending: false }).limit(100).then(rowsAs<Pick<SocialPost, 'music' | 'insights' | 'scheduled_at' | 'published_at'>[]>()),
+        sb.rpc('ai_music_quote', { p_seconds: aiSeconds(seconds) }).then(rowsAs<AiMusicQuote>()),
+      ])
+      const ranked = suggest(tracks, {
+        kind, seconds, caption, hour: hour ?? null, sound: { moods: brand?.sound_moods ?? [], avoid: brand?.sound_avoid ?? [] },
+        recent: recentTracks(posts), engagement: engagementByTrack(posts),
+      })
+      return {
+        tracks: ranked.slice(0, limit).map(s => ({
+          track_id: s.track.id, title: s.track.title, artist: s.track.artist, listen: s.track.url, length: formatTime(s.track.duration_s),
+          best_part_from: formatTime(s.track.highlight_s), moods: s.track.moods, source: s.track.source,
+          why: [...(s.occasion ? [s.occasion] : []), ...s.reasons.map(r => REASON_LABEL[r])],
+        })),
+        in_library: tracks.length,
+        ai_music: quote.allowed
+          ? { can_make: true, cost: quote.price_cents ? `€${(quote.price_cents / 100).toFixed(2)}, added to the monthly bill` : 'Free (included in the plan this month)' }
+          : { can_make: false, why: quote.reason },
+      }
+    },
+  }),
+  tool({
+    name: 'make_music',
+    title: 'Make music with AI',
+    description: 'Admins: make an instrumental track with AI (ElevenLabs) for a story or reel. Two versions are added to the music library. Pay per use: €0.99 a track of up to a minute on Starter and Pro, added to the monthly bill within the limit set on Billing; Business includes one a month; not on Free. Check the cost with suggest_music and confirm it with the user first. Describe the feel, never a real artist or song.',
+    admin: true,
+    input: z.object({
+      description: z.string().min(3).max(400).describe('The feel in a few words, e.g. "warm acoustic guitar for a slow Sunday brunch"'),
+      moods: z.array(z.enum(MOOD_IDS as [Mood, ...Mood[]])).max(4).default([]),
+      energy: z.number().int().min(1).max(5).default(3).describe('1 calm … 5 lively'),
+      kind: z.enum(['story', 'reel']).default('story'),
+      seconds: z.number().min(3).max(600).default(DEFAULT_PHOTO_SECONDS).describe('How long the story or reel is; the track is made to fit'),
+      title: z.string().min(1).max(70).optional(),
+      post_id: z.string().uuid().optional().describe('The planned post it is for, if any'),
+    }),
+    async run({ sb, me, env, origin }, a) {
+      if (!env || !origin) throw new Error('Making music needs the app’s server: use the API or the MCP connection')
+      const b = check(await sb.from('business').select('name, business_type').eq('id', 1).single()) as Pick<Business, 'name' | 'business_type'>
+      const what = b.business_type?.split(',')[0]?.trim()
+      const prompt = aiPrompt({ moods: a.moods, instruments: [], energy: a.energy, describe: a.description, kind: a.kind, business: what ? `a ${what.toLowerCase()}` : undefined })
+      try {
+        const made = await makeAiMusic(env, sb, me.id, origin, {
+          prompt, seconds: aiSeconds(a.seconds), title: a.title ?? `AI track · ${formatLocal(new Date().toISOString(), 'd MMM')}`,
+          moods: a.moods, energy: a.energy, bpm: energyOf(a.energy).bpm, post_id: a.post_id ?? null,
+        })
+        return {
+          cost: made.generation.price_cents ? `€${(made.generation.price_cents / 100).toFixed(2)}, added to the monthly bill` : 'Free (included in the plan)',
+          versions: made.tracks.map(t => ({ track_id: t.id, title: t.title, listen: t.url, length: formatTime(t.duration_s) })),
+          note: 'Both versions are in Music. Use one with set_post_music; the other can be hidden in the app.',
+        }
+      } catch (e) {
+        if (!(e instanceof MusicError)) throw e
+        throw new Error(e.suggestion ? `${e.message} ElevenLabs suggests: "${e.suggestion}"` : e.message)
+      }
+    },
+  }),
+  tool({
+    name: 'set_post_music',
+    title: 'Music on a post',
+    description: 'Admins: music on a planned story or reel in the Social planner (not one that already went out). Pass one of: track_id (from suggest_music or make_music) to put that track into the photo or video now, from its best part unless start is given (a reel of photos changes photo on the beat); instagram_song for a song from Instagram\'s own library, which can only be added in the Instagram app, so the post becomes a reminder that names it; or remove: true.',
+    admin: true,
+    input: z.object({
+      post_id: z.string().uuid(),
+      track_id: z.string().uuid().optional(),
+      instagram_song: z.string().min(1).max(120).optional().describe('"Song - Artist", from Instagram\'s library'),
+      remove: z.boolean().optional(),
+      start: z.union([z.number().min(0), z.string()]).optional().describe('Where the part starts: seconds or "m:ss" (a track: its best part by default)'),
+      seconds: z.number().min(3).max(180).optional().describe('Photos: how long the story or reel lasts (15 by default; stories up to 60). A video keeps its own length.'),
+      music_volume: z.number().int().min(0).max(100).optional(),
+      original_volume: z.number().int().min(0).max(100).optional().describe('A video\'s own sound under the music (60 by default)'),
+      label: z.boolean().optional().describe('A photo story: show "♫ title · artist" on the photo'),
+    }),
+    async run({ sb, env, origin }, a) {
+      if ([a.track_id, a.instagram_song, a.remove || undefined].filter(x => x !== undefined).length !== 1) {
+        throw new Error('Pass one of track_id, instagram_song or remove: true')
+      }
+      const post = check(await sb.from('social_posts').select('id, kind, media, music, status').eq('id', a.post_id).maybeSingle()) as
+        Pick<SocialPost, 'id' | 'kind' | 'media' | 'music' | 'status'> | null
+      if (!post) throw new Error('No planned post with that id')
+      if (['publishing', 'published', 'partly'].includes(post.status)) throw new Error('That post went out already: its music can’t change there')
+      // The photo or video from before any music went in.
+      const before = post.music?.mode === 'mixed' ? post.music.source_media : post.media
+      const start = typeof a.start === 'string' ? parseTime(a.start) : a.start
+      if (start === null) throw new Error('Write start like 0:45')
+
+      if (a.remove) {
+        check(await sb.from('social_posts').update({ music: null, media: before }).eq('id', post.id))
+        return { ok: true, post_id: post.id, music: null }
+      }
+      if (a.instagram_song) {
+        const music: InstagramMusic = { mode: 'in_instagram', song: a.instagram_song.trim(), start: start ?? 0 }
+        check(await sb.from('social_posts').update({ music, media: before, auto: false }).eq('id', post.id))
+        return { ok: true, post_id: post.id, music,
+          note: 'It is now a reminder: at the time, admins get the caption, the photos and the song to add in the Instagram app.' }
+      }
+
+      if (post.kind !== 'story' && post.kind !== 'reel') {
+        throw new Error('Music goes into stories and reels: change it to a Story or Reel in the app (photos can become a reel), or use instagram_song')
+      }
+      if (!env || !origin) throw new Error('Putting music in needs the app’s server: use the API or the MCP connection')
+      if (!before.length) throw new Error(post.kind === 'reel' ? 'Add the reel’s video first' : 'Add the story’s photo or video first')
+      const track = check(await sb.from('music_tracks').select(MUSIC_COLUMNS).eq('id', a.track_id!).maybeSingle()) as MusicTrack | null
+      if (!track) throw new Error('That track isn’t in the music library')
+      const video = before.length === 1 && before[0].type === 'video'
+      // A video keeps its own length (up to what the kind allows); photos last as asked.
+      const asked = video ? (post.kind === 'story' ? 60 : 900) : Math.min(a.seconds ?? DEFAULT_PHOTO_SECONDS, post.kind === 'story' ? 60 : 180)
+      const from = video ? Math.min(Math.max(0, start ?? track.highlight_s), Math.max(0, track.duration_s - 3)) : clampStart(start ?? track.highlight_s, track.duration_s, asked)
+      const cuts = before.every(m => m.type === 'image') ? photoCuts({ bpm: track.bpm, seconds: asked }, before.length) : undefined
+      const mix = {
+        url: track.url, start: from, music_volume: a.music_volume ?? (video ? 80 : 100), original_volume: video ? a.original_volume ?? 60 : 0,
+        fade_in: true, fade_out: true, label: !!a.label && post.kind === 'story' && !video && before.length === 1,
+      }
+      let rendered
+      try {
+        rendered = await renderMusic(env, sb, origin, { kind: post.kind, sources: before, cuts, track_id: track.id, seconds: asked, ...mix })
+      } catch (e) {
+        if (e instanceof MusicError) throw new Error(e.message)
+        throw e
+      }
+      const seconds = video ? rendered.seconds ?? asked : asked
+      const b = check(await sb.from('business').select('name').eq('id', 1).single()) as Pick<Business, 'name'>
+      const music: MixedMusic = {
+        mode: 'mixed', track_id: track.id, title: track.title, artist: track.artist, ...mix, seconds,
+        audio_name: post.kind === 'reel' ? audioName(b.name, track.title) : null, source_media: before, cuts, bpm: track.bpm,
+        // The same fingerprint the app makes, so opening it there doesn't put the music in again.
+        rendered_url: rendered.media.url, rendered_for: renderKey({ ...mix, seconds, sources: before.map(m => m.url), cuts }),
+      }
+      check(await sb.from('social_posts').update({ media: [rendered.media], music }).eq('id', post.id))
+      return { ok: true, post_id: post.id, music: { title: track.title, part: `${formatTime(from)}–${formatTime(from + seconds)}`, file: rendered.media.url } }
     },
   }),
 ]

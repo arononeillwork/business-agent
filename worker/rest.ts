@@ -80,7 +80,7 @@ rest.post('/tools/:name', async c => {
   const t = toolsFor(me).find(x => x.name === c.req.param('name'))
   if (!t) return c.json({ error: 'Unknown tool' }, 404)
   try {
-    return c.json({ result: await runTool(t, { sb, me }, await c.req.json().catch(() => ({}))) })
+    return c.json({ result: await runTool(t, { sb, me, env: c.env, origin: new URL(c.req.url).origin }, await c.req.json().catch(() => ({}))) })
   } catch (e) {
     return c.json({ error: e instanceof Error ? e.message : String(e) }, 400)
   }

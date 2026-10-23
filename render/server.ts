@@ -53,9 +53,10 @@ function run(cmd: 'ffmpeg' | 'ffprobe', args: string[]): Promise<string> {
   })
 }
 
-/** One job, in its own folder (removed after): returns the MP4's path. */
-async function render(j: RenderJob, dir: string): Promise<string> {
+/** One job, in its own folder (removed after): the MP4's path and how long it is. */
+async function render(j: RenderJob, dir: string): Promise<{ out: string; seconds: number }> {
   const out = join(dir, 'out.mp4')
+  let seconds = j.seconds
   const track = join(dir, 'track')
   await download(j.track.url, track)
   let labelFile: string | undefined
@@ -85,8 +86,9 @@ async function render(j: RenderJob, dir: string): Promise<string> {
     await download(j.source.url, video)
     const probe = readProbe(await run('ffprobe', probeArgs(video)))
     await run('ffmpeg', videoArgs(video, probe, track, j, out))
+    seconds = Math.min(probe.duration || j.seconds, j.seconds)
   }
-  return out
+  return { out, seconds }
 }
 
 let busy = 0
@@ -119,9 +121,11 @@ export const server = createServer(async (req, res) => {
   try {
     const job = checkJob(await readBody(req))
     dir = await mkdtemp(join(tmpdir(), 'render-'))
-    const out = await turn(() => render(job, dir!))
+    const { out, seconds } = await turn(() => render(job, dir!))
     const { size } = await stat(out)
-    res.writeHead(200, { 'content-type': 'video/mp4', 'content-length': String(size), 'x-render-ms': String(Date.now() - started) })
+    res.writeHead(200, {
+      'content-type': 'video/mp4', 'content-length': String(size), 'x-render-ms': String(Date.now() - started), 'x-render-seconds': String(Math.round(seconds * 10) / 10),
+    })
     await pipeline(createReadStream(out), res)
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e)

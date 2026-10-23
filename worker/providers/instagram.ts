@@ -74,6 +74,13 @@ export async function profile(cfg: InstagramConfig): Promise<InstagramProfile> {
   return { ...p, recent: media.data }
 }
 
+/** Likes and comments on the account's latest posts and reels (stories have none Instagram shares). */
+export async function mediaCounts(cfg: InstagramConfig, limit = 100) {
+  const r = await graph<{ data: { id: string; permalink?: string; like_count?: number; comments_count?: number }[] }>(cfg,
+    `me/media?fields=id,permalink,like_count,comments_count&limit=${limit}`)
+  return r.data
+}
+
 /**
  * The professional account's id, as Instagram says it. The id that comes with the token isn't
  * always the one posting takes (and arrives as a number too long for JavaScript to keep exactly):
