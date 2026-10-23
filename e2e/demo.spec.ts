@@ -1673,7 +1673,7 @@ test.describe('billing', () => {
     await expect(page).toHaveURL(/\/sales$/)
     await expect(page.getByRole('heading', { name: 'Sales', level: 1 })).toBeVisible()
     await expect(nav.getByRole('region', { name: 'Sales' }).getByRole('link')).toHaveText(['Sales', 'Customers'])
-    await expect(nav.getByRole('region', { name: 'Marketing' }).getByRole('link')).toHaveText(['Social planner', 'Ads', 'Analytics', 'Reviews', 'Website & SEO'])
+    await expect(nav.getByRole('region', { name: 'Marketing' }).getByRole('link')).toHaveText(['Social planner', 'Ads', 'Analytics', 'Reviews', 'Website & SEO', 'Competitors'])
     await nav.getByRole('region', { name: 'Marketing' }).getByRole('link', { name: 'Analytics' }).click()
     await expect(page.getByRole('heading', { name: 'Analytics', level: 1 })).toBeVisible()
     await expect(nav.getByRole('region', { name: 'Accounts' }).getByRole('link')).toHaveText(['Finances', 'Profit & loss', 'Invoices', 'Tax', 'Grants'])
