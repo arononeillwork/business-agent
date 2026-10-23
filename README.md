@@ -44,6 +44,11 @@ built-in **AI connector** so owners can run it by talking to Claude.
   and AGEDI/AIE for the music, the terrace permit, insurance, extinguisher and electrical checks, staff
   food handler certificates), each with its number, when it runs out, how often it renews, its cost
   and its document; one press marks it renewed, and admins are reminded in the bell beforehand.
+- Legal (Business section): the business's legal documents (lease, company deeds, insurance, contracts,
+  licences, policies) picked where they already are in the connected Google Drive or OneDrive (both can
+  be connected; the admin chooses which), grouped by kind, shown in the page straight from the storage
+  and opened there. Nothing is copied: only where each file is is kept. A gestoría with finances access
+  reads. Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) section 18.
 - Invoices: what suppliers invoice (and the sales invoices sent), each tied to its supplier from Stock
   and to its file, with what's to pay, overdue and paid, notes, and totals by supplier. Invoices come
   in from the connected Gmail or Outlook (once reading it is allowed), by upload, or typed in; a
@@ -60,7 +65,7 @@ built-in **AI connector** so owners can run it by talking to Claude.
   Menu costing works out what each drink or dish costs from the stock in it (with variants such as oat
   milk or an extra shot, and a waste allowance) and its margin against the menu price; the Waste log
   takes what's thrown away and why off the stock, with its cost for admins.
-  Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) sections 7-17.
+  Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) sections 7-18.
 
 See [docs/PLAN.md](docs/PLAN.md) for decisions, architecture and phases.
 

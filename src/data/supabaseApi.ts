@@ -5,6 +5,7 @@ import type { InstagramMention } from '../../shared/mentions'
 import type { FilingRecord, TaxDocument, TaxSettings } from '../../shared/tax'
 import type { Invoice } from '../../shared/invoices'
 import type { Licence } from '../../shared/licences'
+import type { LegalDocument, LegalSource, StorageListing } from '../../shared/legalDocs'
 import { DEFAULT_VAT_RATE, type PnlLine, type PnlSettings } from '../../shared/pnl'
 import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
 import type { StockItem, StockMovement, Supplier } from '../../shared/stock'
@@ -373,6 +374,26 @@ export function createSupabaseApi(url: string, key: string): Api {
       return (check(await sb.from('licences').insert(row).select('id').single()) as { id: string }).id
     },
     async deleteLicence(id) { check(await sb.from('licences').delete().eq('id', id)) },
+    async legalDocuments() {
+      const rows = check(await sb.from('legal_documents').select('*').order('title')) as LegalDocument[]
+      return rows.map(d => ({ ...d, size: d.size === null ? null : Number(d.size) }))
+    },
+    async legalSources() { return (await worker<{ sources: LegalSource[] }>('/api/legal/sources')).sources },
+    legalPicker: () => worker('/api/legal/google/picker'),
+    async browseLegalStorage(storage, folder) {
+      if (storage !== 'onedrive') throw new Error('Google Drive files are chosen in Google’s own picker')
+      return worker<StorageListing>(`/api/legal/onedrive/browse${folder ? `?folder=${encodeURIComponent(folder)}` : ''}`)
+    },
+    addLegalDocuments: (storage, ids) => worker('/api/legal/documents', { method: 'POST', body: JSON.stringify({ storage, ids }) }),
+    async updateLegalDocument(id, patch) { check(await sb.from('legal_documents').update(patch).eq('id', id)) },
+    async removeLegalDocument(id) { check(await sb.from('legal_documents').delete().eq('id', id)) },
+    async legalFile(id) {
+      // Not worker(): the answer is the file itself, not JSON.
+      const token = (await sb.auth.getSession()).data.session?.access_token
+      const res = await fetch(`/api/legal/documents/${encodeURIComponent(id)}/file`, { headers: { authorization: `Bearer ${token}` } })
+      if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? `Request failed (${res.status})`)
+      return res.blob()
+    },
     async invoices() {
       const rows = check(await sb.from('invoices').select('*, document:tax_documents(name, link)').order('issued_on', { ascending: false, nullsFirst: true })
         .order('created_at', { ascending: false })) as (Invoice & { document: { name: string; link: string | null } | null })[]

@@ -8,6 +8,7 @@ import type { InstagramMention } from '../../shared/mentions'
 import type { FilingRecord, Quarter, TaxDocKind, TaxDocument, TaxSettings } from '../../shared/tax'
 import type { InboxInvoice, InboxState as InvoiceInbox, Invoice, InvoiceInput } from '../../shared/invoices'
 import type { Licence, LicenceInput } from '../../shared/licences'
+import type { LegalDocument, LegalDocumentPatch, LegalSource, LegalStorage, StorageListing } from '../../shared/legalDocs'
 import type { PnlLine, PnlLineInput, PnlSettings } from '../../shared/pnl'
 import type { GrantApplication, GrantApplicationInput, GrantProfile } from '../../shared/grants'
 import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
@@ -152,6 +153,23 @@ export interface Api {
   /** Add a licence (no id) or change one; returns its id. */
   saveLicence(l: LicenceInput): Promise<string>
   deleteLicence(id: string): Promise<void>
+
+  // Legal page (admins; finance partners read): legal documents that stay where they are in the café's
+  // Google Drive or OneDrive. Only where each one is, is kept; the file is shown from there.
+  legalDocuments(): Promise<LegalDocument[]>
+  /** The storages documents can be picked from: each one, connected or not, and how it's picked. Admins. */
+  legalSources(): Promise<LegalSource[]>
+  /** What Google's file picker needs: a short-lived Drive token, the key and the project number. Admins. */
+  legalPicker(): Promise<{ token: string; key: string; app_id: string }>
+  /** A folder of a storage that's browsed in the app (OneDrive), null for the top. Admins. */
+  browseLegalStorage(storage: LegalStorage, folder: string | null): Promise<StorageListing>
+  /** Add files picked in a storage. Ones already added, folders and ones that can't be opened come back skipped, with why. */
+  addLegalDocuments(storage: LegalStorage, ids: string[]): Promise<{ added: LegalDocument[]; skipped: { id: string; name: string | null; why: string }[] }>
+  updateLegalDocument(id: string, patch: LegalDocumentPatch): Promise<void>
+  /** Take a document off the Legal page (the file stays where it is). */
+  removeLegalDocument(id: string): Promise<void>
+  /** The file, fetched from its storage now, to show in the page (a PDF or a picture). */
+  legalFile(id: string): Promise<Blob>
 
   // Invoices (admins with pay access; finance partners read): received and sent, each with its supplier and file.
   invoices(): Promise<Invoice[]>

@@ -62,7 +62,7 @@ const SumUpLogo = () => (
   </Mark>
 )
 
-const LOGO: Record<OptionId, ReactNode> = {
+export const LOGO: Record<OptionId, ReactNode> = {
   whatsapp: <Brand icon={siWhatsapp} />,
   slack: <SlackLogo />,
   sms: <SmsIcon sx={{ color: '#F22F46' }} />,
@@ -192,8 +192,8 @@ export function useConnectResult(after?: () => void) {
 interface OptionState { o: ConnectionOption; row?: Integration; configured: boolean; status: Integration['status']; current?: ConnectionOption }
 
 /**
- * The business's apps, like an AI's connector directory: one tile per app, in groups. In each group
- * the business picks ONE (Gmail or Outlook, Google Drive or OneDrive…). An app shows "Connected"
+ * The business's apps, like an AI's connector directory: one tile per app, in groups. In most groups
+ * the business picks ONE (Gmail or Outlook, Spotify or YouTube Music…). An app shows "Connected"
  * only once it has really worked. `back`: where the sign-in sends you afterwards.
  */
 export function ServiceConnections({ back = 'connections', groups = GROUPS.map(g => g.key) }: { back?: 'setup' | 'connections'; groups?: ConnectionGroup[] }) {

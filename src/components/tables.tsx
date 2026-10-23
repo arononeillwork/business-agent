@@ -12,6 +12,7 @@ import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { copyTsv, csvContent, exportCsv, exportXlsx, printPdf, type ExportTable } from '../lib/export'
 import { formatMoney } from '../../shared/time'
+import { savingStorage } from '../../shared/connections'
 import { t } from '../i18n'
 
 // ---------------------------------------------------------------------------------------------
@@ -71,7 +72,7 @@ export function ExportButton({ table, disabled, folder }: { table: () => ExportT
   const run = useAction()
   const [anchor, setAnchor] = useState<HTMLElement | null>(null)
   const links = useAsync('integrations', () => (isAdmin ? api.integrations() : Promise.resolve(null)), [])
-  const storage = folder ? links.data?.integrations.find(i => (i.provider === 'google_drive' || i.provider === 'onedrive') && i.status === 'connected') : undefined
+  const storage = folder ? savingStorage(links.data?.integrations) : undefined
   const where = storage?.provider === 'onedrive' ? 'OneDrive' : 'Google Drive'
   const pick = (f: () => void | Promise<void>, done?: string) => { setAnchor(null); void run(async () => { await f() }, done) }
   const item = (icon: ReactNode, label: string, hint: string, onClick: () => void) => (

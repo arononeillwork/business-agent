@@ -21,6 +21,7 @@ import { addToCalendarUrl, cleanWebsite, groupOf } from '../../shared/connection
 import { mergeSales } from '../../shared/sales'
 import { dueFrom, emailId, matchSupplier, numberFromName, type InboxInvoice, type Invoice } from '../../shared/invoices'
 import type { Licence } from '../../shared/licences'
+import { LEGAL_STORAGES, MAX_PICK, SKIPPED, guessKind, previewOf, storageName, titleOf, type LegalDocument, type LegalStorage, type StorageItem } from '../../shared/legalDocs'
 import { DEFAULT_TAX_SETTINGS, cleanFolderName, cleanFolderPath, taxFileProblem, type FilingRecord, type TaxDocument, type TaxSettings } from '../../shared/tax'
 import { DEFAULT_VAT_RATE, type PnlLine } from '../../shared/pnl'
 import { cleanAnswers, isDone, type GrantApplication, type GrantProfile } from '../../shared/grants'
@@ -302,6 +303,63 @@ export function createDemoApi(): Api {
       expires_on: '2026-10-15', renew_every_months: 12, cost: 312 }),
     licence({ name: 'Revisión de extintores', category: 'safety', issuer: 'Extintores Costa', expires_on: '2026-09-01', renew_every_months: 12, cost: 65 }),
   ]
+
+  // Legal page: what's in the café's Google Drive and OneDrive (the demo browses both; the real app
+  // uses Google's own picker for Drive), and two documents already picked from the Drive's Legal folder.
+  type DemoFile = { id: string; name: string; parent: string | null; folder?: boolean; type?: string; size?: number; modified?: string }
+  const PDF = 'application/pdf', GDOC = 'application/vnd.google-apps.document'
+  const DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  const demoStorage: Record<LegalStorage, { top: string; files: DemoFile[] }> = {
+    google_drive: { top: 'My Drive', files: [
+      { id: 'gd-legal', name: 'Legal', parent: null, folder: true },
+      { id: 'gd-docs', name: 'Documents', parent: null, folder: true },
+      { id: 'gd-lease', name: 'Contrato de arrendamiento del local.pdf', parent: 'gd-legal', type: PDF, size: 248_695, modified: '2026-03-02T10:12:00Z' },
+      { id: 'gd-deeds', name: 'Escritura de constitución Easy Beans SL.pdf', parent: 'gd-legal', type: PDF, size: 3_262_521, modified: '2026-02-11T09:20:00Z' },
+      { id: 'gd-036', name: 'Modelo 036 alta censal.pdf', parent: 'gd-legal', type: PDF, size: 248_100, modified: '2026-03-05T12:00:00Z' },
+      { id: 'gd-privacy', name: 'Política de privacidad', parent: 'gd-legal', type: GDOC, modified: '2026-09-30T16:40:00Z' },
+      { id: 'gd-rc', name: 'Póliza responsabilidad civil Mapfre.pdf', parent: 'gd-docs', type: PDF, size: 402_118, modified: '2025-10-15T08:00:00Z' },
+      { id: 'gd-manual', name: 'EasyBeans Manual EN', parent: 'gd-docs', type: GDOC, modified: '2026-08-18T23:03:00Z' },
+    ] },
+    onedrive: { top: 'OneDrive', files: [
+      { id: 'od-contracts', name: 'Contratos', parent: null, folder: true },
+      { id: 'od-coffee', name: 'Contrato mantenimiento cafetera.docx', parent: 'od-contracts', type: DOCX, size: 61_877, modified: '2026-04-20T11:00:00Z' },
+      { id: 'od-milk', name: 'Acuerdo proveedor leche.pdf', parent: 'od-contracts', type: PDF, size: 96_512, modified: '2026-05-02T09:00:00Z' },
+      { id: 'od-julio', name: 'Contrato de trabajo Julio.pdf', parent: 'od-contracts', type: PDF, size: 184_220, modified: '2026-04-01T09:00:00Z' },
+    ] },
+  }
+  /** The folder a file is in, as OneDrive says it ("Contratos"); Google's picker doesn't say, so Drive has none. */
+  const demoLocation = (s: LegalStorage, f: DemoFile) => {
+    const names: string[] = []
+    for (let p = f.parent; p; p = demoStorage[s].files.find(x => x.id === p)!.parent) names.unshift(demoStorage[s].files.find(x => x.id === p)!.name)
+    return s === 'onedrive' && names.length ? names.join('/') : null
+  }
+  const legalDoc = (s: LegalStorage, f: DemoFile, at: string): LegalDocument => ({ id: uid(), title: titleOf(f.name), kind: guessKind(f.name), storage: s, file_id: f.id,
+    file_name: f.name, mime_type: f.type ?? null, size: f.size ?? null, modified_at: f.modified ?? null,
+    link: s === 'google_drive' ? `https://drive.google.com/file/d/${f.id}/view` : `https://onedrive.live.com/?id=${f.id}`, location: demoLocation(s, f), notes: null, added_by: null, added_at: at })
+  const legalDocs: LegalDocument[] = [
+    { ...legalDoc('google_drive', demoStorage.google_drive.files.find(f => f.id === 'gd-lease')!, '2026-10-12T10:00:00Z'), notes: '5 years from March 2026, renewable' },
+    legalDoc('google_drive', demoStorage.google_drive.files.find(f => f.id === 'gd-deeds')!, '2026-10-12T10:00:00Z'),
+  ]
+  const legalStorageOn = (s: LegalStorage) => {
+    if (!integ.integrations.some(i => i.provider === s && i.status === 'connected')) {
+      throw new Error(`${storageName(s)} isn’t connected. Connect it on the Connections page to use the documents kept there.`)
+    }
+  }
+  /** A one-page PDF with the document's name, standing in for the file in the demo (plain ASCII, so its length is its size in bytes). */
+  const demoPdf = (title: string, lines: string[]) => {
+    const ascii = (x: string) => x.normalize('NFD').replace(/[^\x20-\x7e]/g, '').replace(/[\\()]/g, m => `\\${m}`)
+    const text = [title, '', ...lines].map((l, i) => `BT /F1 ${i ? 11 : 18} Tf 56 ${780 - i * 20} Td (${ascii(l)}) Tj ET`).join('\n')
+    const objects = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+      '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+      '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>', `<< /Length ${text.length} >>\nstream\n${text}\nendstream`]
+    let pdf = '%PDF-1.4\n'
+    const at: number[] = []
+    objects.forEach((o, i) => { at.push(pdf.length); pdf += `${i + 1} 0 obj\n${o}\nendobj\n` })
+    const xref = pdf.length
+    pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${at.map(n => `${String(n).padStart(10, '0')} 00000 n \n`).join('')}`
+    pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`
+    return new Blob([pdf], { type: 'application/pdf' })
+  }
 
   // Invoices: a few from the café's suppliers, and three waiting in the mailbox once reading it is allowed.
   const invoice = (p: Partial<Invoice>): Invoice => ({ id: uid(), direction: 'in', supplier_id: null, party_name: null, party_email: null, party_tax_id: null, number: null,
@@ -1413,6 +1471,71 @@ export function createDemoApi(): Api {
       requireAdmin()
       const i = licenceList.findIndex(x => x.id === id)
       if (i >= 0) licenceList.splice(i, 1)
+    },
+    async legalDocuments() {
+      if (!isAdmin() && !partnerCan('finances')) return []
+      return clone(legalDocs).sort((a, b) => a.title.localeCompare(b.title))
+    },
+    async legalSources() {
+      requireAdmin()
+      return LEGAL_STORAGES.map(({ id }) => {
+        const row = integ.integrations.find(i => i.provider === id)!
+        const connected = row.status === 'connected'
+        return { storage: id, connected, account: connected ? row.account_label : null, how: 'browse' as const, problem: null }
+      })
+    },
+    async legalPicker() { throw new Error('The demo has no Google picker: its Drive is looked through here instead') },
+    async browseLegalStorage(storage, folder) {
+      requireAdmin()
+      legalStorageOn(storage)
+      const tree = demoStorage[storage]
+      const here = folder ? tree.files.find(f => f.id === folder && f.folder) : undefined
+      if (folder && !here) throw new Error(`That folder isn’t in ${storageName(storage)} any more`)
+      const items: StorageItem[] = tree.files.filter(f => f.parent === (here?.id ?? null)).map(f => ({ id: f.id, name: f.name, folder: !!f.folder,
+        size: f.folder ? null : f.size ?? null, modified: f.modified ?? null, type: f.type ?? null,
+        added_id: legalDocs.find(d => d.storage === storage && d.file_id === f.id)?.id ?? null }))
+        .sort((a, b) => Number(b.folder) - Number(a.folder) || a.name.localeCompare(b.name))
+      return { storage, folder: { id: here?.id ?? null, name: here?.name ?? tree.top }, items }
+    },
+    async addLegalDocuments(storage, ids) {
+      requireAdmin()
+      if (!ids.length) throw new Error('Choose at least one file')
+      if (ids.length > MAX_PICK) throw new Error(`Choose up to ${MAX_PICK} files at a time`)
+      legalStorageOn(storage)
+      const added: LegalDocument[] = []
+      const skipped: { id: string; name: string | null; why: string }[] = []
+      for (const id of new Set(ids)) {
+        const f = demoStorage[storage].files.find(x => x.id === id)
+        if (legalDocs.some(d => d.storage === storage && d.file_id === id)) skipped.push({ id, name: f?.name ?? null, why: SKIPPED.already })
+        else if (!f) skipped.push({ id, name: null, why: SKIPPED.gone })
+        else if (f.folder) skipped.push({ id, name: f.name, why: SKIPPED.folder })
+        else {
+          const d = { ...legalDoc(storage, f, nowIso()), added_by: me()?.id ?? null }
+          legalDocs.push(d)
+          added.push(clone(d))
+        }
+      }
+      return { added, skipped }
+    },
+    async updateLegalDocument(id, patch) {
+      requireAdmin()
+      const d = legalDocs.find(x => x.id === id)
+      if (!d) throw new Error('That document isn’t on the Legal page')
+      if (patch.title !== undefined && !patch.title.trim()) throw new Error('Give it a name')
+      Object.assign(d, patch, patch.title !== undefined ? { title: patch.title.trim() } : {}, patch.notes !== undefined ? { notes: patch.notes?.trim() || null } : {})
+    },
+    async removeLegalDocument(id) {
+      requireAdmin()
+      const i = legalDocs.findIndex(x => x.id === id)
+      if (i >= 0) legalDocs.splice(i, 1)
+    },
+    async legalFile(id) {
+      const d = (await api.legalDocuments()).find(x => x.id === id)
+      if (!d) throw new Error('That document isn’t on the Legal page')
+      if (!previewOf(d)) throw new Error(`This kind of file opens in ${storageName(d.storage)}`)
+      legalStorageOn(d.storage)
+      return demoPdf(d.title, [`Demo copy: the real file stays in ${storageName(d.storage)}${d.location ? ` (${d.location})` : ''}.`,
+        'Business Agent only keeps where it is, and shows it from there.'])
     },
     async invoices() {
       if (!readTax()) return []

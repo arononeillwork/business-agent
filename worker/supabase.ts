@@ -17,6 +17,7 @@ export interface Env {
   INTEGRATION_KEY?: string            // encrypts stored tokens, signs OAuth state
   GOOGLE_CLIENT_ID?: string
   GOOGLE_CLIENT_SECRET?: string
+  GOOGLE_PICKER_API_KEY?: string      // optional: Google's file picker on the Legal page (a browser key for the same Google Cloud project)
   META_ACCESS_TOKEN?: string          // Meta system-user token (WhatsApp)
   META_APP_ID?: string                // Meta app: Facebook Page connections (Facebook Login)
   META_APP_SECRET?: string            // verifies WhatsApp webhooks; Facebook Login
