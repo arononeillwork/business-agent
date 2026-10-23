@@ -15,7 +15,9 @@ import { ads } from './ads'
 import { authorizeGet, authorizePost, mcpApiHandler, tokenExchangeCallback, type GrantProps, type OAuthEnv } from './mcp'
 import { apiKeys, isAccessKey, resolveKey } from './apiKeys'
 import { authEmail } from './authEmail'
-import { billing, planBlocksInvite, syncBilling } from './billing'
+import { billing, chargePendingAiMusic, planBlocksInvite, syncBilling } from './billing'
+import { fillStarterPack, socialMusic } from './socialMusic'
+import { businessConfig } from '../shared/business.config'
 import { referrals } from './referrals'
 import { tax } from './tax'
 import { invoices } from './invoices'
@@ -208,6 +210,9 @@ app.route('/', website)
 // Business Agent's own subscription (Stripe Billing): plans, checkout, portal, webhook.
 app.route('/', billing)
 
+// Music on stories and reels: AI tracks (ElevenLabs, paid per use) and putting music into files.
+app.route('/', socialMusic)
+
 // REST API for scripts, n8n, Zapier (same tools and rules as the AI connector).
 app.route('/api/v1', rest)
 
@@ -262,6 +267,8 @@ export default {
         await purgeWhatsApp(db).catch(e => console.error('whatsapp purge failed', e))
         // The subscription, straight from Stripe (in case a webhook was missed).
         await syncBilling(env).catch(e => console.error('billing sync failed', e))
+        // AI music tracks made while Stripe didn't answer go on the bill now.
+        await chargePendingAiMusic(env).catch(e => console.error('ai music charges failed', e))
         // Prove every connection still works; admins get a notification when one stops working.
         await checkAll(env, db).catch(e => console.error('connection checks failed', e))
         // Hours both ways first (an edit made on Google comes in, not overwritten), then re-send
@@ -302,6 +309,10 @@ export default {
       }
       // Sports only while it's switched on (Sports page).
       if (await sportsOn(db)) await refreshStaleSports(db).catch(e => console.error('sports failed', e))
+      // Every 5 minutes: the next track of the music starter pack, until the business has them all.
+      if (Math.floor(event.scheduledTime / 60_000) % 5 === 2) {
+        await fillStarterPack(env, new URL(businessConfig.appUrl).origin).catch(e => console.error('music starter pack failed', e))
+      }
     })())
   },
 } satisfies ExportedHandler<Env>

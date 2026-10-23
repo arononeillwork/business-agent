@@ -48,6 +48,12 @@ export interface Env {
   GOOGLE_ADS_API_VERSION?: string     // var, e.g. v21 (default in providers/googleAds.ts)
   MS_CLIENT_ID?: string               // Microsoft app (Outlook email, OneDrive files); set by the Microsoft setup workflow
   MS_CLIENT_SECRET?: string
+  // Music on social posts (docs/SOCIAL_MUSIC_PLAN.md).
+  ELEVENLABS_API_KEY?: string         // Business Agent's ElevenLabs account: AI tracks (paid per use) and the starter pack
+  ELEVENLABS_MUSIC_MODEL?: string     // var: music_v1 (default), music_v2 or music_v2_5 (Actions → Music check compares them)
+  RENDER_URL?: string                 // the render service (render/), set by Actions → Deploy render service
+  RENDER_KEY?: string                 // its key, set by the same workflow
+  MUSIC_STARTER?: string              // var: 'off' to not make the starter pack
 }
 
 export type Via = 'app' | 'api' | 'ai'

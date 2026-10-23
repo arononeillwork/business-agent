@@ -294,6 +294,11 @@ export class FakeProviders {
     /** Photos and voice notes people sent, by media id (Meta keeps them for a while, then they're gone). */
     media: new Map<string, { type: string; bytes: Uint8Array }>(),
   }
+  /** ElevenLabs Music (key "el-key"): what it was asked for, and switches to refuse a prompt or fail. */
+  elevenlabs = { asked: [] as Json[], refuse: false, down: false }
+  /** The render service (render/, at https://render.test, key "render-key"): the jobs it got, and a switch to refuse one. */
+  render = { jobs: [] as Json[], refuse: null as string | null }
+
   /** Every call, as "METHOD host/path". */
   calls: string[] = []
   private nextId = 1
@@ -304,6 +309,27 @@ export class FakeProviders {
     this.calls.push(`${method} ${url.host}${url.pathname}`)
     const form = () => new URLSearchParams(String(init.body ?? ''))
     const body = () => JSON.parse(String(init.body ?? '{}')) as Json
+
+    // ---- ElevenLabs Music: an MP3 per call (a few bytes standing in) ----
+    if (url.host === 'api.elevenlabs.io' && url.pathname === '/v1/music' && method === 'POST') {
+      if (new Headers(init.headers).get('xi-api-key') !== 'el-key') return json({ detail: { status: 'invalid_api_key', message: 'Invalid API key' } }, 401)
+      this.elevenlabs.asked.push(body())
+      if (this.elevenlabs.refuse) {
+        return json({ detail: { status: 'bad_prompt', message: 'The prompt includes copyrighted material.', data: { prompt_suggestion: 'Bright upbeat pop with handclaps' } } }, 400)
+      }
+      if (this.elevenlabs.down) return json({ detail: { message: 'Service temporarily unavailable' } }, 503)
+      const n = this.nextId++
+      return new Response(new Uint8Array(2048).fill(n % 251), { headers: { 'content-type': 'audio/mpeg', 'song-id': `song-${n}` } })
+    }
+
+    // ---- The render service: the MP4 with the music in ----
+    if (url.host === 'render.test') {
+      if (new Headers(init.headers).get('authorization') !== 'Bearer render-key') return json({ error: 'Not allowed' }, 401)
+      this.render.jobs.push(body())
+      if (this.render.refuse) return json({ error: this.render.refuse }, 400)
+      const bytes = new Uint8Array(4096).fill(7)
+      return new Response(bytes, { headers: { 'content-type': 'video/mp4', 'content-length': String(bytes.length), 'x-render-ms': '8400' } })
+    }
 
     // ---- Google ----
     if (url.href === 'https://oauth2.googleapis.com/token') {

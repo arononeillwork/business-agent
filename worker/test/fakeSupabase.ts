@@ -60,6 +60,8 @@ export class FakeSupabase {
   /** The plan in force (public.plan_status / plan_check_connect, migration 36): everything unless a test says otherwise. */
   plan: { plan: string; people: number | null; features: string[] } = {
     plan: 'business', people: null, features: ['google_maps', 'apps', 'whatsapp', 'takings', 'sports', 'music', 'kiosk', 'partners'] }
+  /** AI music (migration 62): free uses left this month, the price of the rest, and why the next can't be made (null: it can). */
+  music = { freeLeft: 1, unitCents: 99, reason: null as string | null }
   /** Bearer token → signed-in person. */
   people = new Map<string, { id: string; role: 'admin' | 'employee' }>()
   /** Sign-ins made by the Worker for access keys (one-time links used, sessions refreshed). */
@@ -167,6 +169,34 @@ export class FakeSupabase {
         const a = JSON.parse(String(init.body)) as { p_id: number; p_ok: boolean; p_error?: string; p_external_id?: string | null }
         const j = this.table('outbox').find(x => x.id === a.p_id)!
         Object.assign(j, a.p_ok ? { status: 'sent', external_id: a.p_external_id ?? null, last_error: null } : { status: 'failed', last_error: a.p_error })
+        return json(null)
+      }
+      // Migration 62: AI music uses, reserved before ElevenLabs is asked and settled after.
+      if (rpc[1] === 'ai_music_start') {
+        if (who?.role !== 'admin') return json({ message: 'Only an admin can make AI music' }, 400)
+        if (this.music.reason) return json({ message: this.music.reason, code: 'P0402' }, 400)
+        const a = JSON.parse(String(init.body)) as { p_prompt: string; p_seconds: number; p_post: string | null }
+        const uses = Math.max(1, Math.ceil(Math.max(3, a.p_seconds) / 60))
+        const free = Math.min(uses, this.music.freeLeft)
+        this.music.freeLeft -= free
+        const row = { id: `gen-${this.nextId++}`, prompt: a.p_prompt, seconds: a.p_seconds, uses, free, price_cents: (uses - free) * this.music.unitCents,
+          status: 'working', post_id: a.p_post, track_ids: [], charged_at: null, stripe_invoice_item: null, created_at: new Date().toISOString() }
+        this.table('music_generations').push(row)
+        return json({ allowed: true, uses, free, price_cents: row.price_cents, unit_cents: this.music.unitCents, reason: null, id: row.id })
+      }
+      if (rpc[1] === 'ai_music_finish') {
+        const a = JSON.parse(String(init.body)) as { p_id: string; p_status: string; p_track_ids: string[]; p_model: string | null; p_error: string | null }
+        const g = this.table('music_generations').find(r => r.id === a.p_id && r.status === 'working')
+        if (g) {
+          Object.assign(g, { status: a.p_status, track_ids: a.p_track_ids, model: a.p_model, error: a.p_error })
+          if (a.p_status !== 'done') { this.music.freeLeft += Number(g.free); Object.assign(g, { free: 0, price_cents: 0 }) }
+        }
+        return json(null)
+      }
+      if (rpc[1] === 'ai_music_charged') {
+        const a = JSON.parse(String(init.body)) as { p_id: string; p_invoice_item: string }
+        const g = this.table('music_generations').find(r => r.id === a.p_id && r.status === 'done' && Number(r.price_cents) > 0 && !r.charged_at)
+        if (g) Object.assign(g, { stripe_invoice_item: a.p_invoice_item, charged_at: new Date().toISOString() })
         return json(null)
       }
       // Migration 47: delete WhatsApp messages older than the chosen time, returning their files.
