@@ -1579,6 +1579,13 @@ test('pricing: four plans, a simple feature table, Enterprise at the foot, and "
   const table = page.getByRole('table', { name: 'Plan comparison' })
   await expect(table.getByRole('row', { name: /Custom MCP connection/ }).getByLabel('Included')).toHaveCount(4)
   await expect(table.getByRole('row', { name: /Scheduled posts per month/ }).getByRole('cell')).toHaveText(['Scheduled posts per month', '1', '12', '60', 'Unlimited'])
+  // Pay per use: its own section of the table, on each paid plan's card, and spelled out under the cards.
+  await expect(table.getByRole('row', { name: /AI music tracks/ }).getByRole('cell'))
+    .toHaveText(['AI music tracks for stories and reels', '—', '€0.99 per track', '€0.99 per track', '1 free a month, then €0.99 per track'])
+  await expect(page.getByRole('article', { name: 'Free plan' }).getByRole('list', { name: 'Pay per use' })).toHaveCount(0)
+  await expect(pro.getByRole('list', { name: 'Pay per use' })).toHaveText('AI music tracks: €0.99 per track')
+  await expect(page.getByRole('article', { name: 'Business plan' }).getByRole('list', { name: 'Pay per use' })).toHaveText('AI music tracks: 1 free a month, then €0.99 per track')
+  await expect(page.getByRole('note', { name: 'Pay per use' })).toContainText('Business includes 1 free every month.')
   // Enterprise is the last section before the closing banner, and only on this page.
   const sections = await page.locator('main > *').evaluateAll(els => els.map(e => (e.querySelector('[aria-label="Enterprise plan"]') ? 'enterprise' : e.textContent?.includes('Give your') ? 'closing' : 'other')))
   expect(sections.slice(-2)).toEqual(['enterprise', 'closing'])

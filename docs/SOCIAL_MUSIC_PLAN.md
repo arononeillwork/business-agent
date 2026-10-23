@@ -3,10 +3,22 @@
 Goal: when an admin plans a story or reel in **Social planner**, the composer offers music the way
 Instagram does: suggested tracks pop up, you pick one, choose the part of the song, set the
 volume, preview it on the photo or video, and it goes out with the post. Alongside that, the
-business can **make its own tracks with AI**, shaped by its brand and the post.
+business can **make its own tracks with AI** (ElevenLabs), paid per use.
 
 Written 23 Oct 2026 against the live branch (`claude/easy-beans-architecture-plan-dknqka`).
-Nothing here is built yet.
+The pricing page already shows the prices (`PAY_PER_USE` in `shared/plans.ts`); nothing else here is
+built yet.
+
+## Decisions (23 Oct 2026)
+
+| Topic | Decision |
+|---|---|
+| AI music | **ElevenLabs Music API** |
+| How it's paid for | **Pay per use**: €0.99 a track (up to 60 seconds, two versions to choose from), on any paid plan, billed monthly with the plan |
+| Free uses | **Business** (the top plan) includes **1 free AI track every month**. Starter and Pro pay for each one. Free can't make AI tracks. |
+| Free option | Music on stories and reels from the starter pack, the business's own uploads or Instagram's library (by reminder), with suggestions, choosing the part and mixing. On **every plan** at no charge. |
+| Putting music into the file | A **Cloudflare Container** running ffmpeg (the recommended way, below) |
+| Stock catalogue (Epidemic Sound, Artlist…) | Not now. AI tracks and the business's own uploads cover it; revisit only if customers ask |
 
 ## Where we start
 
@@ -24,8 +36,8 @@ Nothing here is built yet.
 - `src/lib/media.ts`: photos are made ready in the browser (JPEG, 1440 px, feed crop) before upload.
 - The Music page (Spotify, YouTube Music) plays music **in the venue**. Those tracks can't be used
   in posts (see Licensing).
-- No AI model is called from the Worker today. Claude reaches the app through the MCP connector
-  (`worker/mcp.ts`, `worker/tools.ts`).
+- Billing (`docs/billing.md`, `worker/billing.ts`): one Stripe subscription per business, monthly
+  or yearly. Nothing is charged per use yet.
 
 ## What the platforms allow
 
@@ -76,12 +88,13 @@ When the post is a story or a reel and a photo or video has been added, a strip 
 media, like Instagram's suggested music bar:
 
 ```
-♫ Add music?   [▶ Sunday Morning · chill]  [▶ Café Terraza · acoustic]  [▶ Golden Hour · latin]   More…   ✨ Make one
+♫ Add music?   [▶ Sunday Morning · chill]  [▶ Café Terraza · acoustic]  [▶ Golden Hour · latin]   More…   ✨ Make one · €0.99
 ```
 
 - Each chip plays a preview of its best part, over the post's photo or video.
 - **More…** opens the Music sheet. **✨ Make one** opens it on *Create with AI*, filled in from
-  the post.
+  the post. The chip shows what it costs: *Free this month* on Business while the free one is
+  unused, otherwise *€0.99*. On Free it says *Paid plans* and leads to Billing.
 - Closing the strip leaves the post without music. Nothing is added on its own.
 - For a post or carousel the strip says *"Instagram adds music to photos only in its app"* and
   offers **Add it in Instagram** (switches to Remind me) or, from Phase 3, **Make it a reel**.
@@ -94,12 +107,12 @@ Full screen on phones (like the composer). It has a search box and these tabs:
 |---|---|
 | For you | The ranked suggestions (below) |
 | Browse | Moods (Chill, Upbeat, Acoustic, Lo-fi, Jazz, Latin, Summer, Festive…) and genres |
-| Saved | Tracks the business starred |
-| Create with AI | Make a track for this post |
+| Saved | Tracks the business starred, its uploads and the AI tracks it kept |
+| Create with AI | Make a track for this post (pay per use) |
 | In Instagram | Type the song and the start time, to add it in the app (reminders) |
 
 Each track row shows its cover, title, artist (or *Made with AI*), length, ▶ preview, ☆ save, and
-**Use**.
+**Use**. Using a track that's already in the library never costs anything, AI-made ones included.
 
 ### Choosing the part
 
@@ -125,7 +138,7 @@ If music is mixed in and the file doesn't match the current choices yet, **Save*
 original photo or video is kept in `music.source_media`, so a later change re-renders from the
 original and the music is never mixed in twice. What you previewed is what gets posted.
 
-## Making tracks with AI
+## Making tracks with AI (ElevenLabs, pay per use)
 
 On the *Create with AI* tab:
 
@@ -135,39 +148,87 @@ On the *Create with AI* tab:
 - **Describe it** (optional), pre-filled from the caption, the kind of post and the time, e.g. *"Warm
   acoustic morning music for a specialty café in Marbella, coffee being poured"*.
 - Length: the clip's length plus two seconds for the fade.
-- **Make 2 versions**, preview them over the post, then **Keep** (saved to the library and used)
-  or **Try again**. A counter shows the monthly allowance: *7 of 30 this month*.
+- The button says what it costs before anything happens: **Make 2 versions · Free (1 left this
+  month)** on Business, otherwise **Make 2 versions · €0.99**.
+- Preview both over the post, then **Keep** (saved to the library and used) or **Try again** (a
+  new use, priced the same way).
 - Artist names are refused with *"Describe the feel instead: AI music can't copy a real artist"*
-  (the providers refuse these too).
+  (ElevenLabs refuses these too). A refused prompt isn't charged.
 
-The prompt is built by a plain function in `shared/music.ts` from the brand, post and choices,
-so it costs nothing and is tested. The owner's own Claude can do more through the MCP tools
-(Phase 3).
+The prompt is built by a plain function in `shared/music.ts` from the brand, post and choices, so
+it costs nothing and is tested. The owner's own Claude can do more through the MCP tools (Phase 3).
 
-**Provider.** Write it behind one interface (`worker/providers/musicAi.ts`:
-`generate({ prompt, seconds, instrumental }) → audio bytes`), and choose in Phase 0 from:
+**ElevenLabs** (`worker/providers/elevenlabs.ts`):
 
-| | Why | Watch |
-|---|---|---|
-| ElevenLabs Music (`POST /v1/music`) | One API key. Exact lengths from 3 s to 10 min. Commercial use on paid plans. | Music API needs a paid plan; confirm the v2 model terms |
-| Google Lyria 3 (Vertex AI / Gemini API) | 30-second clips, about $0.04 each on Vertex; instrumental mode | Needs a Google Cloud project and billing; check output rights |
-| Stable Audio 2.5 | Trained on licensed music | Check per-generation price and terms |
+- `POST https://api.elevenlabs.io/v1/music` with the prompt and `music_length_ms` (3 s to 10 min).
+  Two calls per use, one for each version. MP3 back, stored in `Business Agent/Social/Music`.
+- Our ElevenLabs account must be on a paid plan (Starter or above: the Music API and commercial
+  use need one), with usage-based billing switched on so it doesn't stop at the plan's allowance.
+- The key is a GitHub secret, `ELEVENLABS_API_KEY`, copied to the Worker by
+  `scripts/ops/worker-secrets.mjs` like the others. One ElevenLabs account serves every business;
+  the business never sees it.
+- Each kept track records its licence: ElevenLabs, model, prompt, the terms' address and date,
+  and who made it. If a post is ever claimed, that record is the proof.
 
-Each track keeps its licence record: provider, model, prompt, terms link and date, and who made
-it. If a post is ever claimed, that record is the proof.
+## Pricing and margin
+
+ElevenLabs charges **$0.15 per minute** of music (API price page, Oct 2026). A use makes two
+versions, each the clip's length plus two seconds. At about $1.16 to the euro:
+
+| Clip | Audio made | ElevenLabs | Stripe (on the monthly invoice) | Our cost | Price | Margin |
+|---|---|---|---|---|---|---|
+| 15 s story | 34 s | €0.07 | ~€0.02 | ~€0.09 | €0.99 | **~91%** |
+| 30 s reel | 64 s | €0.14 | ~€0.02 | ~€0.16 | €0.99 | **~84%** |
+| 60 s story or reel | 124 s | €0.27 | ~€0.02 | ~€0.29 | €0.99 | **~71%** |
+
+- **One use = one track up to 60 seconds.** A longer reel counts one use per started minute, so the
+  margin never drops below ~71%. The composer shows the price before you press the button.
+- Rendering in the container costs about a tenth of a cent a post and isn't charged.
+- Business's free track costs us at most €0.29 a month, about 0.2% of its €129.
+- **Why €0.99**: under a euro feels like a small extra rather than a purchase, and it is less than
+  a single stock-music licence usually costs, with nothing monthly. It still clears ~70–90% after
+  ElevenLabs and Stripe.
+- Prices exclude VAT, like the plans. The price lives in `PAY_PER_USE` (`shared/plans.ts`): change
+  it there and the pricing page, the composer and the charge all follow.
+
+## Charging per use (Stripe)
+
+Recommended: **Stripe invoice items on the business's existing subscription**. Every paid
+business already has a Stripe customer and subscription, so nothing new is needed at checkout.
+
+- **When a use succeeds** (both versions came back), the Worker adds an invoice item:
+  `POST /v1/invoiceitems { customer, currency: 'eur', amount: 99, description: 'AI music track: Sunday Morning', metadata: { generation_id } }`,
+  with the generation's id as the **idempotency key**, so a retry never charges twice. Failed or
+  refused generations are never charged.
+- Stripe adds pending invoice items to the next invoice by itself. **Yearly subscribers** would wait
+  a year, so their subscription gets `pending_invoice_item_interval: { interval: 'month' }`: the
+  uses go on a small invoice each month. That is what "billed monthly with your plan" on the
+  pricing page means.
+- **Free uses first**: the month's included use (Business: 1) is taken before anything is charged,
+  counted per calendar month in the business's time zone.
+- **Monthly spending limit**: €25 by default, changed by admins on the Billing page. At the limit,
+  *Create with AI* says so and links there. Nobody gets a surprise bill.
+- **Billing page**: *This month: 3 AI music tracks · 1 free · €1.98 so far*, with the list.
+- **Free plan**: no subscription to charge, so *Create with AI* shows the price and **Upgrade**.
+  Library tracks, uploads, mixing and Instagram reminders still work.
+- **Complimentary accounts** (Founding account, Friends & family, no Stripe subscription): they get
+  Business's free track each month. Beyond that, *Create with AI* says the month's free track is
+  used, unless we raise their allowance by hand (`grant_ai_music(n)`, service role).
+- **Payment problems**: when a paid plan isn't in force (`paymentProblem`), making AI tracks
+  pauses like the other paid features. Tracks already made stay usable.
+- **Why not the alternatives**: charging the card each time costs Stripe's fixed fee (~€0.25) on
+  every €0.99. Stripe meters need an extra subscription item and the same billing interval as the
+  plan. Prepaid credit packs add a top-up step. Invoice items ride on the invoice the business
+  already pays.
 
 ## Where tracks come from
 
-1. **Made with AI** (above): the business has the rights under the provider's paid terms.
-2. **Starter pack**: about 40 short tracks across the moods, made by us with the chosen AI provider
-   under our own commercial account and shipped with the app, so *For you* isn't empty on day
-   one.
-3. **Uploaded** by the business (MP3 or M4A, up to 20 MB), with a required tick: *"We have the
-   right to use this on social media"*. The tick is saved with the track.
-4. **Stock catalogue** (Phase 3, only after a commercial agreement): Epidemic Sound, Artlist or
-   Soundstripe behind the same `MusicSource` interface. Ordinary "royalty-free" licences usually
-   don't cover handing tracks to *our* customers inside an app, so this needs a partner deal.
-5. **Instagram's library**: by name for reminders (way 2), or through the API later (way 3).
+| Source | Cost to the business | Plans |
+|---|---|---|
+| **Starter pack**: about 40 short tracks across the moods, made by us with ElevenLabs under our own commercial account and shipped with the app, so *For you* isn't empty on day one | Free | All |
+| **Uploaded** by the business (MP3 or M4A, up to 20 MB), with a required tick: *"We have the right to use this on social media"*, saved with the track | Free | All |
+| **Instagram's library**, by name for reminders (way 2), or through the API later (way 3) | Free | All |
+| **Made with AI** (ElevenLabs) | €0.99 a use; Business 1 free a month | Starter, Pro, Business |
 
 Never from Spotify or YouTube Music: a streaming licence covers listening, not using the song in a
 video.
@@ -183,17 +244,17 @@ video.
   calendar.
 - **Time**: mornings calmer, evenings livelier (from `scheduled_at` in the café's time zone).
 - **Fit**: the track is at least as long as the clip.
-- **Starred**: saved tracks get a lift.
+- **Starred and kept**: saved tracks and the business's own AI tracks get a lift.
 - **What worked** (Phase 3): tracks on posts with the most reach, from Instagram insights.
 - **Fresh**: a track used in the last five posts goes down the list.
 
 If fewer than three tracks score well, the strip's last chip becomes **✨ Make one for this post**.
 
-## Rendering (putting the music into the file)
+## Rendering: putting the music into the file
 
-The Worker can't run ffmpeg, so a small **Cloudflare Container** does. Containers are generally
-available on the Workers Paid plan since April 2026. The rest of the flow stays as it is: the
-result is stored with `storeMedia()` and served from `/media/…` like any upload.
+**Decided: a Cloudflare Container running ffmpeg.** The Worker can't run ffmpeg itself.
+Containers are generally available on the Workers Paid plan since April 2026. The rest of the flow
+stays as it is: the result is stored with `storeMedia()` and served from `/media/…` like any upload.
 
 ```
 composer ──POST /api/social/render──▶ Worker ──▶ RENDER container (ffmpeg)
@@ -208,36 +269,38 @@ composer ──POST /api/social/render──▶ Worker ──▶ RENDER containe
   mixed at the chosen volumes (just the music if the video is silent), AAC, cut to the video's length.
 - Same limits as today: 100 MB, stories up to 60 s, reels 3 s to 15 min.
 
-Doing this in the browser instead with WebCodecs (the `mediabunny` library) would avoid the
-container. But AAC encoding isn't available in every browser, and a long reel is slow on a phone.
-Keep it as a later option for short photo stories.
+Why not in the browser (WebCodecs, the `mediabunny` library)? It would avoid the container, but
+AAC encoding (which Instagram needs) isn't available in every browser, and a long reel is slow on
+a phone. Every post would come out the same on the container, from any device.
 
 ## Changes, file by file
 
 | Where | Change |
 |---|---|
-| `supabase/migrations/<next>_social_music.sql` | `music_tracks` (source, title, artist, `url`, `duration_s`, bpm, energy, moods, genre, vocals, `highlight_s`, waveform peaks, cover, licence, saved, hidden). `music_generations` (prompt, provider, model, seconds, status, track ids, error, who, when) for the allowance and audit. `social_posts.music jsonb`. `social_post_rules()`: mixed-in music only on reels and stories; *in Instagram* only with Remind me; a scheduled automatic post with music must have its rendered file. `queue_due_social_posts` puts `audio_name` in the Instagram payload. Allowance checked in SQL like posts per month. RLS: admins. |
-| `shared/types.ts` | `MusicTrack`, `PostMusic` (`mode: 'mixed' \| 'in_instagram'`, track, start, seconds, volumes, fades, `audio_name`, `source_media`, `rendered_for`), `SocialPost.music`. |
-| `shared/social.ts` | `postProblem()` gets the same music rules as the trigger, with the same wording. |
-| `shared/music.ts` (new) | Moods, occasion words (en/es), `suggest()`, `aiPrompt()`, part-window clamping, `renderKey()` (the hash of the choices). |
-| `shared/plans.ts` + migration | `aiTracksPerMonth` (suggested Free 0, Starter 5, Pro 30, Business 100). `plans.test.ts` keeps them matched. |
-| `worker/media.ts` | Audio types (`audio/mpeg`, `audio/mp4`), a `Music` folder, `mp3`/`m4a` in `CONTENT_TYPE`. |
-| `worker/music.ts` or new `worker/socialMusic.ts` | Routes: list, search, star, upload, generate, render. |
-| `worker/providers/musicAi.ts` (new) | The chosen AI provider. Its key becomes a GitHub secret copied by `scripts/ops/worker-secrets.mjs`. |
-| `render/` (new) + `wrangler.jsonc` | Container image (ffmpeg and a small HTTP handler) and its binding. |
-| `worker/providers/instagram.ts` | `publish()` passes `audio_name` for reels. |
-| `src/pages/SocialPlannerPage.tsx` | Suggestion strip, music row, ♫ badge in list and calendar, music line on reminders. Split the Music sheet and part picker into `src/components/MusicPicker.tsx`. |
-| `src/lib/media.ts` | Waveform peaks and highlight from an audio file (Web Audio), worked out once when a track is saved. |
-| `src/pages/BrandPage.tsx` | *Our sound*: moods, moods to avoid. |
-| `src/data/api.ts`, `supabaseApi.ts`, `demoApi.ts` | New calls. Demo mode gets six sample tracks and a fake render. |
-| `src/i18n/es/…` | Spanish for every new string. |
-| `worker/tools.ts` | MCP tools (Phase 3): `suggest_music`, `make_music`, `set_post_music`. |
-| `docs/INTEGRATIONS.md` | Setting up the AI music key and the render container. |
+| `shared/plans.ts` | **Done**: `PAY_PER_USE` (AI music, €0.99, Business 1 free a month), `perUsePrice()`, its rows in the comparison |
+| `src/pages/marketing/plans.tsx`, `PricingPage.tsx` | **Done**: *Pay per use* on each paid plan's card (landing page and `/pricing`), a note under the cards, a *Pay per use* section in the comparison, a FAQ answer |
+| `supabase/migrations/<next>_social_music.sql` | `music_tracks` (source, title, artist, `url`, `duration_s`, bpm, energy, moods, genre, vocals, `highlight_s`, waveform peaks, cover, licence, saved, hidden). `music_generations` (prompt, seconds, status, track ids, error, who, when, `free`, `price_cents`, `stripe_invoice_item`). `billing.ai_music_spend_limit_cents` (default 2500) and `billing.ai_music_extra_free` (comped allowance). `ai_music_quote()`: free left, price, room under the limit. `social_posts.music jsonb`. `social_post_rules()`: mixed-in music only on reels and stories; *in Instagram* only with Remind me; a scheduled automatic post with music must have its rendered file. `queue_due_social_posts` puts `audio_name` in the Instagram payload. RLS: admins. |
+| `shared/types.ts` | `MusicTrack`, `PostMusic` (`mode: 'mixed' \| 'in_instagram'`, track, start, seconds, volumes, fades, `audio_name`, `source_media`, `rendered_for`), `SocialPost.music`, `AiMusicQuote` |
+| `shared/social.ts` | `postProblem()` gets the same music rules as the trigger, with the same wording |
+| `shared/music.ts` (new) | Moods, occasion words (en/es), `suggest()`, `aiPrompt()`, part-window clamping, `usesFor(seconds)` (one per started minute), `renderKey()` |
+| `worker/media.ts` | Audio types (`audio/mpeg`, `audio/mp4`), a `Music` folder, `mp3`/`m4a` in `CONTENT_TYPE` |
+| `worker/socialMusic.ts` (new) | Routes: list, search, star, upload, quote, generate, render |
+| `worker/providers/elevenlabs.ts` (new) | `compose(prompt, ms)` → MP3 bytes |
+| `worker/billing.ts` | `chargeUse()`: the Stripe invoice item (idempotent), `pending_invoice_item_interval` set on yearly subscriptions at checkout and in the nightly copy |
+| `render/` (new) + `wrangler.jsonc` | Container image (ffmpeg and a small HTTP handler) and its binding |
+| `worker/providers/instagram.ts` | `publish()` passes `audio_name` for reels |
+| `src/pages/SocialPlannerPage.tsx` | Suggestion strip, music row, ♫ badge in list and calendar, music line on reminders. The Music sheet and part picker go in `src/components/MusicPicker.tsx`. |
+| `src/pages/BillingPage.tsx` | This month's AI tracks and cost, the spending limit, *Pay per use* lines on the plan cards |
+| `src/lib/media.ts` | Waveform peaks and highlight from an audio file (Web Audio), worked out once when a track is saved |
+| `src/pages/BrandPage.tsx` | *Our sound*: moods, moods to avoid |
+| `src/data/api.ts`, `supabaseApi.ts`, `demoApi.ts` | New calls. Demo mode gets six sample tracks, a fake render and a fake quote. |
+| `src/i18n/es/…` | Spanish for every new string |
+| `worker/tools.ts` | MCP tools (Phase 3): `suggest_music`, `make_music` (same quote and charge), `set_post_music` |
+| `docs/INTEGRATIONS.md`, `docs/billing.md` | Setting up ElevenLabs and the render container; how pay per use is charged |
 
 ## Licensing rules (built into the app)
 
-- Only tracks with a licence record can be used: AI-made, starter pack, uploaded with the tick, or
-  a stock catalogue with an agreement.
+- Only tracks with a licence record can be used: AI-made, starter pack, or uploaded with the tick.
 - The Music page's Spotify and YouTube Music connections are never offered as post music.
 - AI prompts can't name artists.
 - Uploads keep who confirmed the rights, and when.
@@ -248,31 +311,34 @@ Keep it as a later option for short photo stories.
 
 | Phase | Ships | Size |
 |---|---|---|
-| 0 Checks | (a) ffmpeg in a Container: a photo story and a video reel with music, posted to the test Instagram account with today's `publish()`. (b) AI bake-off: the same 10 café prompts on ElevenLabs and Lyria 3; quality, time, price, terms. (c) Meta and TikTok: look for official docs and App Review permissions for attaching library audio through the API. | 2–3 days |
-| 1 Library and AI | Tables, audio storage, upload with rights tick, AI generation with allowance, waveform and highlight, Brand *Our sound*, starter pack, a Sounds tab on Social planner | ~1 week |
+| 0 Checks | (a) ffmpeg in a Container: a photo story and a video reel with music, posted to the test Instagram account with today's `publish()`. (b) ElevenLabs: the same 10 café prompts for quality and time, and the current model's commercial terms. (c) Stripe: an invoice item on a test subscription, monthly and yearly, lands on the next monthly invoice. (d) Meta and TikTok: official docs and App Review permissions for attaching library audio through the API. | 2–3 days |
+| 1 Library, AI and charging | Tables, audio storage, upload with rights tick, ElevenLabs generation, quote and charge, spending limit, Billing page usage, waveform and highlight, Brand *Our sound*, starter pack, a Sounds tab on Social planner | ~1–1.5 weeks |
 | 2 Music in the composer | Suggestion strip, Music sheet, part picker, mix, preview, render on save, *in Instagram* for reminders, `audio_name`, badges, reminder line | 1–1.5 weeks |
-| 3 Extras | Photos or a carousel made into a reel cut to the beat; suggestions that learn from reach; a "now playing" label on photo stories; MCP tools; a stock catalogue | per item |
-| 4 Platform music through the API | Instagram reels with library audio (needs a Facebook Login connection next to today's Instagram Login), TikTok Commercial Music Library once TikTok video posting exists. Only if 0(c) confirms them. | ~1 week each |
+| 3 Extras | Photos or a carousel made into a reel cut to the beat; suggestions that learn from reach; a "now playing" label on photo stories; MCP tools | per item |
+| 4 Platform music through the API | Instagram reels with library audio (needs a Facebook Login connection next to today's Instagram Login), TikTok Commercial Music Library once TikTok video posting exists. Only if 0(d) confirms them. | ~1 week each |
+
+The pricing page lists AI music and music on stories and reels now. Merge it to the live branch
+together with Phases 1 and 2, not before, so the site doesn't sell what isn't there yet.
 
 ## Tests
 
-- `shared/music.test.ts`: ranking, occasion words in both languages, part windows, prompt builder
-  refusing artist names, `postProblem()` music rules.
-- `supabase/tests/zz_social_music.test.sql`: trigger rules and the monthly AI allowance.
-- Worker: render route with a fake container, the AI provider with a fake `fetch`,
-  `instagram.publish()` sending `audio_name`.
-- Browser (demo mode): Story → add a photo → the strip appears → pick a track → move the part →
-  save → ♫ in the list.
-
-## Open questions
-
-1. AI provider: ElevenLabs (simplest) or Google Lyria (cheapest)? Monthly budget?
-2. OK to add a Cloudflare Container (Workers Paid plan) for rendering?
-3. Which plans get AI tracks, and how many a month?
-4. Worth a paid stock catalogue agreement, or are AI tracks plus the business's own uploads enough?
+- `src/data/plans.test.ts` (**done**): pay per use is on every paid plan and not Free (the page says
+  "any paid plan"), Business gets 1 free a month, the comparison rows match.
+- `e2e/demo.spec.ts` pricing test (**done**): the table row, each card's *Pay per use* line, the note.
+- `shared/music.test.ts`: ranking, occasion words in both languages, part windows, uses per
+  started minute, prompt builder refusing artist names, `postProblem()` music rules.
+- `supabase/tests/zz_social_music.test.sql`: trigger rules, free use first, spending limit,
+  complimentary allowance.
+- Worker: ElevenLabs with a fake `fetch`, the charge sent once per generation (idempotency) and
+  never on failure, render route with a fake container, `instagram.publish()` sending `audio_name`.
+- Browser (demo mode): Story → add a photo → the strip appears with prices → pick a track → move the
+  part → save → ♫ in the list.
 
 ## Sources (checked 23 Oct 2026)
 
+- ElevenLabs API pricing (Music $0.15 a minute; commercial use from Starter):
+  <https://elevenlabs.io/pricing/api>
+- ElevenLabs Music API: <https://elevenlabs.io/docs/api-reference/music/compose>
 - Meta, IG User Media reference (`audio_name`; music tagging for original audio only; story and
   reel limits): <https://developers.facebook.com/docs/instagram-platform/instagram-graph-api/reference/ig-user/media/>
 - Reported Instagram audio through the API, unconfirmed by Meta:
@@ -281,8 +347,5 @@ Keep it as a later option for short photo stories.
 - TikTok Commercial Music Library through the API, unconfirmed by TikTok:
   <https://bundle.social/tiktok-commercial-music-library>,
   <https://zernio.com/blog/tiktok-developer-api>
-- ElevenLabs Music API: <https://elevenlabs.io/docs/api-reference/music/compose>
-- Google Lyria: <https://ai.google.dev/gemini-api/docs/music-generation>,
-  <https://cloud.google.com/vertex-ai/generative-ai/pricing>
 - Cloudflare Containers GA: <https://developers.cloudflare.com/changelog/post/2026-04-13-containers-sandbox-ga/>
 - Mediabunny: <https://mediabunny.dev/guide/introduction>

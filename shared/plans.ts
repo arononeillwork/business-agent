@@ -121,17 +121,51 @@ export const CONNECTION_FEATURE: Record<string, Feature> = {
 export const SOCIAL_CONNECTIONS = ['instagram', 'facebook', 'tiktok', 'linkedin']
 
 // ---------------------------------------------------------------------------------------------
+// Pay per use: extras charged each time they're used, on top of the plan price, and billed
+// monthly with it (docs/SOCIAL_MUSIC_PLAN.md). Everything else is in the plan price.
+// ---------------------------------------------------------------------------------------------
+export type PayPerUseId = 'ai_music'
+
+export interface PayPerUse {
+  id: PayPerUseId
+  label: string
+  /** For the plan cards. */
+  short: string
+  /** Euros each time, VAT not included. */
+  price: number
+  /** The price with its unit; {price} is filled in. */
+  each: string
+  explain: string
+  /** Uses each plan gets free every calendar month. A plan left out can't use it. */
+  included: Partial<Record<PlanId, number>>
+}
+
+export const PAY_PER_USE: PayPerUse[] = [
+  {
+    id: 'ai_music', label: msg('AI music tracks for stories and reels'), short: msg('AI music tracks'), price: 0.99, each: msg('{price} per track'),
+    explain: msg('A track made for your post with ElevenLabs, up to 60 seconds: hear two versions and keep one, cleared for your social media.'),
+    included: { starter: 0, pro: 0, business: 1 },
+  },
+]
+export const payPerUse = (id: PayPerUseId) => PAY_PER_USE.find(u => u.id === id)!
+
+// ---------------------------------------------------------------------------------------------
 // Line-by-line comparison (pricing page). Values: true/false, or text for limits.
 // ---------------------------------------------------------------------------------------------
 const lim = (n: number | null, unit = '') => (n === null ? msg('Unlimited') : `${n}${unit}`)
 type Cell = boolean | string
-/** One line of the comparison: what it is in plain words (`explain`), and each plan's value. */
-export interface CompareRow { label: string; values: Record<PlanId, Cell>; note?: string; explain?: string }
+/**
+ * One line of the comparison: what it is in plain words (`explain`), and each plan's value.
+ * `perUse`: a pay-per-use extra, where `values` says which plans can use it and the page shows its price.
+ */
+export interface CompareRow { label: string; values: Record<PlanId, Cell>; note?: string; explain?: string; perUse?: PayPerUseId }
 const every = (v: Cell = true): Record<PlanId, Cell> => ({ free: v, starter: v, pro: v, business: v })
 const byFeature = (f: Feature): Record<PlanId, Cell> =>
   Object.fromEntries(PLANS.map(p => [p.id, p.features.includes(f)])) as Record<PlanId, Cell>
 const byLimit = (pick: (l: PlanLimits) => string): Record<PlanId, Cell> =>
   Object.fromEntries(PLANS.map(p => [p.id, pick(p.limits)])) as Record<PlanId, Cell>
+const perUseRow = (u: PayPerUse): CompareRow => ({ label: u.label, explain: u.explain, perUse: u.id,
+  values: Object.fromEntries(PLANS.map(p => [p.id, u.included[p.id] !== undefined])) as Record<PlanId, Cell> })
 
 export const COMPARE: { group: string; rows: CompareRow[] }[] = [
   { group: msg('Team'), rows: [
@@ -157,6 +191,8 @@ export const COMPARE: { group: string; rows: CompareRow[] }[] = [
       explain: msg('Posts planned for a date. Reminders to post yourself count too.') },
     { label: msg('Posts, carousels, reels and stories'), values: every(),
       explain: msg('Plan every kind of post on a calendar, list or table.') },
+    { label: msg('Music on stories and reels: suggested tracks, choose the part, mix'), values: every(),
+      explain: msg('Pick a suggested track or one of your own, choose the part and the volume; it goes out with the post.') },
     { label: msg('Photos and videos kept in your Google Drive or OneDrive'), values: byFeature('apps'),
       explain: msg('Needed to post automatically: the files wait there for Instagram to collect.') },
     { label: msg('Instagram messages inbox'), values: every(),
@@ -190,6 +226,7 @@ export const COMPARE: { group: string; rows: CompareRow[] }[] = [
     { label: msg('REST API and personal access keys'), values: every(),
       explain: msg('Connect your own tools and automations.') },
   ] },
+  { group: msg('Pay per use'), rows: PAY_PER_USE.map(perUseRow) },
   { group: msg('Support'), rows: [
     { label: msg('Help'), values: Object.fromEntries(PLANS.map(p => [p.id, p.support])) as Record<PlanId, Cell>,
       explain: msg('How to reach us, and how quickly we reply.') },
@@ -219,6 +256,21 @@ export function planHighlights(p: Plan, say: Say = english): string[] {
   }
   return [...base, ...extra[p.id].map(x => say(x))]
 }
+
+/**
+ * A pay-per-use extra's price on a plan, in words: "€0.99 per track", or "1 free a month, then
+ * €0.99 per track" where the plan includes some. null: the plan can't use it.
+ */
+export function perUsePrice(u: PayPerUse, p: PlanId, say: Say = english, euro: (n: number) => string = n => `€${n.toFixed(2)}`): string | null {
+  const free = u.included[p]
+  if (free === undefined) return null
+  const each = say(u.each, { price: euro(u.price) })
+  return free ? say(msg('{n} free a month, then {each}'), { n: free, each }) : each
+}
+
+/** The plan with the most free uses of an extra each month (the one to point to). */
+export const mostIncluded = (u: PayPerUse): Plan | undefined =>
+  [...PLANS].reverse().find(p => (u.included[p.id] ?? 0) > 0)
 
 // ---------------------------------------------------------------------------------------------
 // Subscription state → the plan the business can use right now.

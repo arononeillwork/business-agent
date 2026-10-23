@@ -1,6 +1,6 @@
 import sql from '../../supabase/migrations/20261019000036_billing_plans.sql?raw'
 import { describe, expect, it } from 'vitest'
-import { COMPARE, PLANS, effectivePlan, paymentProblem, type Billing } from '../../shared/plans'
+import { COMPARE, PAY_PER_USE, PLANS, effectivePlan, mostIncluded, payPerUse, paymentProblem, perUsePrice, type Billing } from '../../shared/plans'
 
 describe('plans', () => {
   it('match the limits the database enforces (migration 36)', () => {
@@ -22,6 +22,30 @@ describe('plans', () => {
     for (const g of COMPARE) for (const r of g.rows) expect(Object.keys(r.values).sort()).toEqual(PLANS.map(p => p.id).sort())
     const mcp = COMPARE.flatMap(g => g.rows).find(r => /MCP/.test(r.label))!
     expect(Object.values(mcp.values).every(Boolean)).toBe(true)
+  })
+})
+
+describe('pay per use', () => {
+  it('is on every paid plan and not on Free (the pricing page says "any paid plan")', () => {
+    for (const u of PAY_PER_USE) {
+      for (const p of PLANS) expect(u.included[p.id] !== undefined, `${u.id} on ${p.id}`).toBe(p.monthly > 0)
+      expect(u.price).toBeGreaterThan(0)
+    }
+  })
+
+  it('gives the top plan 1 AI music track free a month, and charges per track on the others', () => {
+    const music = payPerUse('ai_music')
+    expect(mostIncluded(music)?.id).toBe('business')
+    expect(perUsePrice(music, 'business')).toBe('1 free a month, then €0.99 per track')
+    expect(perUsePrice(music, 'pro')).toBe('€0.99 per track')
+    expect(perUsePrice(music, 'starter')).toBe('€0.99 per track')
+    expect(perUsePrice(music, 'free')).toBeNull()
+  })
+
+  it('has its own rows in the comparison, which say which plans can use it', () => {
+    const rows = COMPARE.flatMap(g => g.rows).filter(r => r.perUse)
+    expect(rows.map(r => r.perUse)).toEqual(PAY_PER_USE.map(u => u.id))
+    expect(rows[0].values).toEqual({ free: false, starter: true, pro: true, business: true })
   })
 })
 

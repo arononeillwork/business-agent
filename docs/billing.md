@@ -64,6 +64,18 @@ select plan, status, complimentary, complimentary_note, complimentary_since from
 Free-trial businesses are separate: they are on Business with Stripe status `trialing` until the
 trial ends, then paying (`active`) or back on Free.
 
+## Pay per use
+
+A few extras are charged each time they're used, on top of the plan, and billed monthly with it.
+They are listed in `PAY_PER_USE` (`shared/plans.ts`), which the pricing page reads:
+
+| Extra | Price (excl. VAT) | Free each month | Plans |
+|---|---|---|---|
+| AI music track for a story or reel (ElevenLabs, up to 60 s) | €0.99 | Business: 1 | Starter, Pro, Business |
+
+Only the prices are in place so far. How uses will be charged (Stripe invoice items on the
+subscription, a monthly spending limit) is in docs/SOCIAL_MUSIC_PLAN.md.
+
 ## Referral months as credit
 
 Give a month, get a month (Referrals page): each referred business that finishes set-up earns this
