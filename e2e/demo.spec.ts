@@ -4066,7 +4066,7 @@ test.describe('roles and rules', () => {
     await page.getByRole('button', { name: 'Complaints', exact: true }).click()
     await page.getByRole('button', { name: 'Move Complaints up' }).click()
     const sections = page.getByRole('region', { name: 'Rules' }).getByRole('heading', { level: 2 })
-    await expect(sections.nth(7)).toHaveText(/^Complaints/)
+    await expect(sections.nth(8)).toHaveText(/^Complaints/)
     await expect(who).toContainText('1 of 3 employees')
 
     await page.getByRole('button', { name: 'Edit Complaints' }).click()

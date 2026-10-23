@@ -1,7 +1,8 @@
 // Easy Beans Coffee's own roles and staff rules, as the owners wrote them: the roles from
 // "Easy_Beans_Roles_and_Responsibilities.pdf" (Google Drive, 15 Oct 2026) and the rules from the
 // staff-facing parts of "EasyBeans Manual EN" (Operations Manual v1.0, August 2026: 3.7, 4.1, 4.3–4.5,
-// 5.1–5.3, 6.1–6.2, 7.1–7.5, 7.7, 8.5–8.6 and the wet floor and accident rules in 1.1 and 1.5).
+// 5.1–5.3, 6.1–6.2, 7.1–7.5, 7.7, 8.5–8.6 and the wet floor and accident rules in 1.1 and 1.5), with
+// clocking in and out added by the owners now the app does it (7.6 said "coming soon").
 // The demo shows them, and supabase/seed/easy_beans.sql puts the same into the café's database
 // (shared/handbookSeed.test.ts checks the two agree). Business data, not translated: the manual is in
 // English, with a Spanish edition to come.
@@ -99,6 +100,9 @@ export const EASY_BEANS_RULES: HandbookSection[] = [
   { title: 'Holiday & time off', rules: [
     'We are small and just starting out, so cover is tight. Please give 3–4 weeks notice for holidays. We hope to reduce this as we grow.',
     'Ask Mark or Aron directly.',
+  ] },
+  { title: 'Clocking in & out', rules: [
+    'Clock in when you start and out when you finish, on the café tablet or your phone.',
   ] },
   { title: 'Service standards', rules: [
     'Greet every customer before they reach the counter. Eye contact and a hello is enough.',
