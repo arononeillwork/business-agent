@@ -27,6 +27,8 @@ import LeftIcon from '@mui/icons-material/ArrowBackRounded'
 import RightIcon from '@mui/icons-material/ArrowForwardRounded'
 import CloseIcon from '@mui/icons-material/CloseRounded'
 import AutoIcon from '@mui/icons-material/BoltOutlined'
+import MusicIcon from '@mui/icons-material/MusicNoteOutlined'
+import { MusicLibraryDialog } from '../components/MusicLibrary'
 import { siFacebook, siGooglemaps, siInstagram, siTiktok, type SimpleIcon } from 'simple-icons'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
@@ -111,6 +113,7 @@ export function SocialPlannerPage() {
   const [kind, setKind] = useState<'all' | PostKind>(() => remembered<'all' | PostKind>('planner-kind', 'all'))
   const [media, setMedia] = useState<MediaFilter>('all')
   const [view, setView] = useState<View>(() => remembered<View>('planner-view', 'list'))
+  const [library, setLibrary] = useState(false)
   const connected = (p: IntegrationProvider) => integ.data?.integrations.find(i => i.provider === p && i.status === 'connected')
   const storage = integ.data?.media_storage ?? null
 
@@ -126,7 +129,12 @@ export function SocialPlannerPage() {
   return (
     <>
       <PageHeader eyebrow={t('Business')} title={t('Social planner')}
-        actions={<Button variant="contained" startIcon={<AddIcon />} onClick={() => newPost()}>{t('New post')}</Button>} />
+        actions={(
+          <Stack direction="row" spacing={1}>
+            <Button variant="outlined" startIcon={<MusicIcon />} onClick={() => setLibrary(true)}>{t('Music')}</Button>
+            <Button variant="contained" startIcon={<AddIcon />} onClick={() => newPost()}>{t('New post')}</Button>
+          </Stack>
+        )} />
       <ErrorBox error={posts.error} />
 
       <Stack spacing={2.5}>
@@ -162,6 +170,7 @@ export function SocialPlannerPage() {
       </Stack>
 
       {editing && <Composer post={editing} storage={storage} isConnected={p => !!connected(p)} onClose={() => setEditing(null)} onSaved={posts.reload} />}
+      {library && <MusicLibraryDialog onClose={() => setLibrary(false)} />}
     </>
   )
 }

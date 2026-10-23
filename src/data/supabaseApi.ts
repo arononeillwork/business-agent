@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { SOCIAL_PROVIDERS, type Api, type BillingInfo, type PlanStatus, type SignInMethods, type SocialProvider } from './api'
+import { PromptError, SOCIAL_PROVIDERS, type AiTrackResult, type Api, type BillingInfo, type MusicStatus, type PlanStatus, type SignInMethods, type SocialProvider } from './api'
 import type { ApiKey, AppNotification, Brand, Business, Customer, SocialPost, EventAlert, Expense, Integration, MusicPlaylist, OutboxItem, Profile, Settings, TimeEntry, TimeOff, Todo, TodoCategory, CafeTrack, MusicPlayerState } from '../../shared/types'
+import type { AiMusicQuote, MusicGeneration, MusicTrack } from '../../shared/types'
 import type { InstagramMention } from '../../shared/mentions'
 import type { FilingRecord, TaxDocument, TaxSettings } from '../../shared/tax'
 import type { Invoice } from '../../shared/invoices'
@@ -20,7 +21,9 @@ const PROFILE_COLUMNS = 'id, full_name, email, role, can_see_pay, colour, active
 
 const GRANT_APPLICATION_COLUMNS = 'id, grant_id, grant_name, stage, submitted_on, expediente, amount_requested, amount_awarded, amount_received, deadline, deadline_label, notes, docs_done, obligations_done, created_at, updated_at'
 
-const CUSTOMER_COLUMNS = 'id, kind, first_name, last_name, email, phone, company, source, instagram, birthday, tags, notes, marketing_consent, consent_at, last_contacted_at, created_at, updated_at'
+const TRACK_COLUMNS = 'id, source, title, artist, url, duration_s, bpm, energy, moods, genre, vocals, highlight_s, waveform, licence, saved, hidden, created_at'
+
+const CUSTOMER_COLUMNS ='id, kind, first_name, last_name, email, phone, company, source, instagram, birthday, tags, notes, marketing_consent, consent_at, last_contacted_at, created_at, updated_at'
 
 /** Postgres numeric can come back as text: a number, or null. */
 const num = (v: unknown) => (v == null ? null : Number(v))
@@ -590,13 +593,14 @@ export function createSupabaseApi(url: string, key: string): Api {
     },
     async saveAdSettings(patch) { check(await sb.from('ad_settings').update(patch).eq('id', 1)) },
     async socialPosts() {
-      return check(await sb.from('social_posts').select('id, kind, caption, image_url, media, targets, scheduled_at, auto, status, results, created_at, published_at')
+      return check(await sb.from('social_posts').select('id, kind, caption, image_url, media, targets, scheduled_at, auto, status, results, music, insights, created_at, published_at')
         .order('scheduled_at', { ascending: false, nullsFirst: true }).order('created_at', { ascending: false }).limit(200)) as SocialPost[]
     },
     async saveSocialPost(p) {
       // The cover (image_url) follows the media in the database.
       const row = { kind: p.kind ?? 'post', caption: p.caption, media: p.media ?? (p.image_url ? [{ url: p.image_url, type: 'image' }] : []),
-        targets: p.targets, status: p.status, scheduled_at: p.scheduled_at ?? null, auto: p.auto ?? true }
+        targets: p.targets, status: p.status, scheduled_at: p.scheduled_at ?? null, auto: p.auto ?? true,
+        ...(p.music !== undefined ? { music: p.music } : {}) }
       if (p.id) { check(await sb.from('social_posts').update(row).eq('id', p.id)); return p.id }
       return (check(await sb.from('social_posts').insert(row).select('id').single()) as { id: string }).id
     },
@@ -615,6 +619,37 @@ export function createSupabaseApi(url: string, key: string): Api {
         method: 'POST', body: file, headers: { 'content-type': file.type } })
       return { url, type }
     },
+    async musicTracks() {
+      return check(await sb.from('music_tracks').select(TRACK_COLUMNS).eq('hidden', false).order('created_at', { ascending: false }).limit(500)) as MusicTrack[]
+    },
+    musicStatus: () => worker<MusicStatus>('/api/social/music/status'),
+    async uploadTrack(file, t) {
+      // Browsers name the same files differently: the two the Worker takes.
+      const type = /\.m4a$/i.test(file.name) || /mp4|m4a/.test(file.type) ? 'audio/mp4' : 'audio/mpeg'
+      const { url } = await worker<{ url: string }>('/api/integrations/media?folder=Music', { method: 'POST', body: file, headers: { 'content-type': type } })
+      return check(await sb.from('music_tracks').insert({
+        source: 'upload', title: t.title, artist: t.artist ?? null, url, duration_s: t.duration_s, moods: t.moods, waveform: t.waveform,
+        highlight_s: t.highlight_s, bpm: t.bpm, licence: { confirmed: t.confirmed },
+      }).select(TRACK_COLUMNS).single()) as MusicTrack
+    },
+    async saveTrack(id, patch) { check(await sb.from('music_tracks').update(patch).eq('id', id)) },
+    async deleteTrack(id) { check(await sb.from('music_tracks').delete().eq('id', id)) },
+    async aiMusicQuote(seconds) { return check(await sb.rpc('ai_music_quote', { p_seconds: seconds })) as AiMusicQuote },
+    async makeAiTrack(req) {
+      // Not worker(): a refused prompt comes with ElevenLabs' own rewording to offer.
+      const token = (await sb.auth.getSession()).data.session?.access_token
+      const res = await fetch('/api/social/music/generate', { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify(req) })
+      const json = await res.json().catch(() => ({})) as AiTrackResult & { error?: string; suggestion?: string | null }
+      if (!res.ok) throw new PromptError(json.error ?? `Request failed (${res.status})`, json.suggestion ?? undefined)
+      return json
+    },
+    async keepAiTrack(generationId, trackId) { check(await sb.rpc('ai_music_keep', { p_id: generationId, p_track: trackId })) },
+    async aiMusicUses() {
+      return check(await sb.from('music_generations').select('id, prompt, seconds, uses, status, free, price_cents, kept_id, error, charged_at, created_at')
+        .gte('created_at', new Date(Date.now() - 62 * 86_400_000).toISOString()).order('created_at', { ascending: false }).limit(200)) as MusicGeneration[]
+    },
+    async setPayPerUseLimit(euros) { check(await sb.rpc('set_ai_music_limit', { p_cents: Math.round(euros * 100) })) },
+    renderPostMusic: req => worker('/api/social/render', { method: 'POST', body: JSON.stringify(req) }),
     async connectInstagram(back) {
       const { url } = await worker<{ url: string }>('/api/integrations/instagram/start', { method: 'POST', body: JSON.stringify({ back }) })
       location.assign(url)
@@ -687,7 +722,7 @@ export function createSupabaseApi(url: string, key: string): Api {
       await worker('/api/integrations/music/playlist', { method: 'POST', body: JSON.stringify({ playlist }) })
     },
     async brand() {
-      return check(await sb.from('brand').select('logo, logo_mark, colours, heading_font, body_font, notes, updated_at').eq('id', 1).single()) as Brand
+      return check(await sb.from('brand').select('logo, logo_mark, colours, heading_font, body_font, notes, sound_moods, sound_avoid, updated_at').eq('id', 1).single()) as Brand
     },
     async saveBrand(patch) {
       check(await sb.from('brand').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', 1))

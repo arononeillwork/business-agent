@@ -1835,6 +1835,26 @@ test.describe('connections for email, files and music', () => {
     expect(colours.x).toBeGreaterThan(logo.x + logo.width - 2)
     expect(Math.abs(colours.y - logo.y)).toBeLessThan(4)
   })
+
+  test('our sound: the moods the brand’s music has, and never has; staff see them', async ({ page }) => {
+    await open(page, '/brand')
+    const sound = page.getByRole('region', { name: 'Our sound' })
+    const like = sound.getByRole('group', { name: 'Sounds like', exact: true })
+    const never = sound.getByRole('group', { name: 'Never sounds like' })
+    await expect(like.getByRole('button', { name: 'Latin' })).toHaveAttribute('aria-pressed', 'true')
+    await never.getByRole('button', { name: 'Latin' }).click()
+    // A mood is in one list or the other.
+    await expect(never.getByRole('button', { name: 'Latin' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(like.getByRole('button', { name: 'Latin' })).toHaveAttribute('aria-pressed', 'false')
+    for (const m of ['Jazz', 'Summer', 'Festive']) await like.getByRole('button', { name: m }).click()
+    await like.getByRole('button', { name: 'Elegant' }).click()
+    await toast(page, 'Up to 5 moods in each list')
+    await signInAs(page, 'julio@example.com')
+    await page.getByRole('link', { name: 'Brand' }).first().click()
+    const seen = page.getByRole('region', { name: 'Our sound' })
+    await expect(seen.getByRole('group', { name: 'Never sounds like' })).toContainText('Latin')
+    await expect(seen.getByRole('button', { name: 'Latin' })).toHaveCount(0) // looking only
+  })
 })
 
 test.describe('social planner', () => {
@@ -1894,6 +1914,91 @@ test.describe('social planner', () => {
     await expect(sent).toContainText('Posted')
     await expect(sent.getByRole('list', { name: 'Where it went' })).toContainText('Facebook: posted')
     await expect(sent.getByRole('list', { name: 'Where it went' })).toContainText('Google Maps: posted')
+  })
+
+  test('music: the starter pack, a track of your own with the rights tick, and Create with AI, free first then paid per use', async ({ page }) => {
+    await open(page, '/connections')
+    await connectDrive(page)
+    await page.getByRole('button', { name: 'Music', exact: true }).click()
+    const library = page.getByRole('dialog', { name: 'Music' })
+    const tracks = library.getByRole('list', { name: 'Tracks' })
+    await expect(tracks.getByRole('listitem')).toHaveCount(6)
+    await expect(tracks.getByRole('listitem', { name: 'Morning Light' })).toContainText('Starter pack · 0:20')
+    // Search by mood, in the person's words; save one.
+    await library.getByRole('textbox', { name: 'Search the music' }).fill('lo-fi')
+    await expect(tracks.getByRole('listitem')).toHaveText([/Rainy Window/])
+    await library.getByRole('textbox', { name: 'Search the music' }).fill('')
+    await tracks.getByRole('button', { name: 'Save Espresso Jazz' }).click()
+    await library.getByRole('group', { name: 'Which tracks' }).getByRole('button', { name: 'Saved' }).click()
+    await expect(tracks.getByRole('listitem')).toHaveText([/Espresso Jazz/])
+    await library.getByRole('group', { name: 'Which tracks' }).getByRole('button', { name: 'All' }).click()
+
+    // Your own track: read in the browser (its length and shape), and only with the rights tick.
+    await library.getByRole('button', { name: 'Upload a track' }).click()
+    const upload = page.getByRole('dialog', { name: 'Upload a track' })
+    await upload.getByLabel('Track file').setInputFiles({ name: 'our-jingle.mp3', mimeType: 'audio/mpeg', buffer: readFileSync('public/demo/music/fresh-start.mp3') })
+    await expect(upload.getByLabel('Name')).toHaveValue('our jingle')
+    await expect(upload).toContainText('0:20 long')
+    await expect(upload.getByRole('button', { name: 'Add to my music' })).toBeDisabled()
+    await upload.getByRole('checkbox', { name: /We have the right to use this music/ }).check()
+    await upload.getByRole('group', { name: 'Moods' }).getByRole('button', { name: 'Upbeat' }).click()
+    await upload.getByRole('button', { name: 'Add to my music' }).click()
+    await toast(page, 'Added to your music')
+    await expect(tracks.getByRole('listitem', { name: 'our jingle' })).toContainText('Yours · 0:20')
+
+    // Create with AI: the brand's moods to start; the price before anything is made (the founding account's free one).
+    await library.getByRole('button', { name: 'Create with AI' }).click()
+    const ai = page.getByRole('dialog', { name: 'Create with AI' })
+    await expect(ai.getByRole('group', { name: 'Mood' }).getByRole('button', { name: 'Acoustic' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(ai.getByLabel('Price')).toHaveText('Free (the last free one this month)')
+    await ai.getByLabel('Describe it (optional)').fill('in the style of Rosalía')
+    await expect(ai.getByRole('button', { name: /Make 2 versions/ })).toBeDisabled()
+    await expect(ai).toContainText('AI music can’t copy a real artist or song')
+    await ai.getByLabel('Describe it (optional)').fill('a sunny morning, coffee being poured')
+    await expect(ai.getByLabel('What ElevenLabs is asked')).toContainText('a sunny morning, coffee being poured')
+    await ai.getByLabel('Name').fill('Sunny Pour')
+    await ai.getByRole('button', { name: 'Make 2 versions · Free' }).click()
+    await expect(ai).toContainText('This one was free.')
+    await ai.getByRole('list', { name: 'The two versions' }).getByRole('listitem', { name: 'Sunny Pour (2)' }).getByRole('button', { name: 'Keep this one' }).click()
+    await expect(tracks.getByRole('listitem', { name: 'Sunny Pour (2)' })).toContainText('Made with AI')
+    await expect(tracks.getByRole('listitem', { name: 'Sunny Pour', exact: true })).toHaveCount(0)
+    // The month's free one is used, and the founding account has no bill to add more to.
+    await library.getByRole('button', { name: 'Create with AI' }).click()
+    await expect(page.getByRole('dialog', { name: 'Create with AI' })).toContainText('This month\'s free AI track is used. More next month.')
+    await page.getByRole('dialog', { name: 'Create with AI' }).getByRole('button', { name: 'Cancel' }).click()
+    await library.getByRole('button', { name: 'Close' }).click()
+
+    // Billing: this month's AI track, free.
+    await fromAccountMenu(page, 'Billing')
+    const ppu = page.getByRole('region', { name: 'Pay per use' })
+    await expect(ppu).toContainText('1 AI track')
+    await expect(ppu).toContainText('1 of 1 free used · €0.00 so far')
+    await expect(ppu.getByRole('list', { name: 'AI tracks this month' })).toContainText('Free')
+  })
+
+  test('a paid plan pays per AI track, within the monthly limit', async ({ page }) => {
+    await open(page, '/connections?plan=pro')
+    await connectDrive(page)
+    await page.getByRole('button', { name: 'Music', exact: true }).click()
+    await page.getByRole('dialog', { name: 'Music' }).getByRole('button', { name: 'Create with AI' }).click()
+    const ai = page.getByRole('dialog', { name: 'Create with AI' })
+    await expect(ai.getByLabel('Price')).toHaveText('€0.99, added to your monthly bill')
+    await ai.getByRole('button', { name: 'Make 2 versions · €0.99' }).click()
+    await expect(ai).toContainText('€0.99 added to your monthly bill.')
+    await ai.getByRole('button', { name: 'Keep this one' }).first().click()
+    await page.getByRole('dialog', { name: 'Music' }).getByRole('button', { name: 'Close' }).click()
+    await fromAccountMenu(page, 'Billing')
+    const ppu = page.getByRole('region', { name: 'Pay per use' })
+    await expect(ppu).toContainText('€0.99 so far')
+    // A €1 limit: the next one would go over it.
+    await ppu.getByRole('button', { name: 'Change the limit' }).click()
+    await ppu.getByLabel('Limit (€ a month)').fill('1')
+    await ppu.getByRole('button', { name: 'Save' }).click()
+    await toast(page, 'Limit saved')
+    await page.getByRole('link', { name: 'Social planner' }).first().click()
+    await page.getByRole('button', { name: 'Music', exact: true }).click()
+    await page.getByRole('dialog', { name: 'Music' }).getByRole('button', { name: 'Create with AI' }).click()
+    await expect(page.getByRole('dialog', { name: 'Create with AI' })).toContainText('over this month\'s limit of €1.00')
   })
 
   test('without storage, posts are reminders: it’s your turn, copy the caption, mark it posted', async ({ page }) => {
