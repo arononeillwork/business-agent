@@ -13,6 +13,8 @@ import { TIME_OFF_AFTER_THE_FACT } from '../../shared/types'
 import { mentionTitle, mentionsIn, type InstagramMention } from '../../shared/mentions'
 import { demoSports } from './demoSports'
 import { demoInbox, demoMessenger, demoWhatsApp } from './demoMessages'
+import { DEMO_CAFE_AT, DEMO_PLACES, demoCompetitors } from './demoCompetitors'
+import { cleanInstagram, distanceM, suggestedThreat, type Competitor, type NearbyPlace } from '../../shared/localCompetitors'
 import { DEFAULT_WHATSAPP_RETENTION, isRetention, replyWindow } from '../../shared/messages'
 import { cleanCode } from '../../shared/referrals'
 import { postProblem } from '../../shared/social'
@@ -709,6 +711,17 @@ export function createDemoApi(): Api {
     recipe({ name: 'Croissant', category: 'Bakery', sell_price: 1.8, target_margin: 60, wastage_pct: 10, lines: [line('Butter croissants', 1, 'unit')] }),
     recipe({ name: 'Pain au chocolat', category: 'Bakery', sell_price: 2, target_margin: 60, wastage_pct: 10, lines: [line('Pain au chocolat', 1, 'unit')] }),
   ]
+  // Competitors: five places around the café, what they charge and offer, their Google ratings and notes (demoCompetitors).
+  const rivals = demoCompetitors(today(), recipes, business)
+  const competitorRow = (id: string) => {
+    const c = rivals.competitors.find(x => x.id === id)
+    if (!c) throw new Error('No such competitor')
+    return c
+  }
+  const snapshotNow = (c: Competitor) => {
+    rivals.snapshots = rivals.snapshots.filter(x => !(x.competitor_id === c.id && x.taken_on === today()))
+    rivals.snapshots.push({ competitor_id: c.id, taken_on: today(), rating: c.google_rating, review_count: c.google_count })
+  }
   const expenses: Expense[] = ([
     ['Rent', 1530, 'Premises'], ['Staff wages', 4300, 'People'], ['Electricity', 200, 'Utilities'], ['Insurance', 100, 'Premises'],
     ['Council tax', 50, 'Premises'], ['Broadband', 20, 'Utilities'], ['Accountant', 100, 'Services'], ['Water', 50, 'Utilities'],
@@ -2160,6 +2173,145 @@ export function createDemoApi(): Api {
         vitals: { lcp_ms: mobile ? 3400 : 1600, cls: 0.04, inp_ms: mobile ? 240 : 110, field: mobile },
         opportunities: ['Serve images in modern formats', 'Properly size images', 'Eliminate render-blocking resources'] }
       return clone(demoPageSpeed[strategy]!)
+    },
+    async competitors() {
+      requireAdmin()
+      const self = rivals.competitors.find(c => c.is_self)!
+      self.name = business.name
+      return clone(rivals)
+    },
+    async saveCompetitor({ id, ...c }) {
+      requireAdmin()
+      const patch = { ...c }
+      if (patch.name !== undefined && !patch.name.trim()) throw new Error('Give it a name')
+      if (patch.instagram !== undefined) {
+        const handle = cleanInstagram(patch.instagram)
+        if (handle === undefined) throw new Error('An Instagram handle has letters, numbers, dots and underscores only')
+        patch.instagram = handle
+      }
+      if (patch.website && !/^https?:\/\/\S+$/i.test(patch.website)) throw new Error('A website starts with https://')
+      const existing = id ? competitorRow(id) : undefined
+      if (existing) {
+        Object.assign(existing, patch, patch.name ? { name: patch.name.trim() } : {}, existing.is_self ? { threat: null, active: true } : {})
+        return existing.id
+      }
+      const made: Competitor = { id: uid(), is_self: false, kind: 'cafe', threat: 'medium', address: null, distance_m: null, lat: null, lng: null, place_id: null,
+        website: null, instagram: null, maps_url: null, price_level: null, hours: null, google_hours: null, features: {}, google_features: {}, google_rating: null,
+        google_count: null, google_status: null, google_checked_at: null, strengths: null, weaknesses: null, notes: null, active: true, created_at: nowIso(),
+        ...patch, name: patch.name.trim() }
+      rivals.competitors.push(made)
+      return made.id
+    },
+    async deleteCompetitor(id) {
+      requireAdmin()
+      if (competitorRow(id).is_self) throw new Error('The business itself can’t be removed from Competitors')
+      rivals.competitors = rivals.competitors.filter(c => c.id !== id)
+      rivals.prices = rivals.prices.filter(p => p.competitor_id !== id)
+      rivals.notes = rivals.notes.filter(n => n.competitor_id !== id)
+      rivals.snapshots = rivals.snapshots.filter(x => x.competitor_id !== id)
+    },
+    async savePriceItem({ id, ...i }) {
+      requireAdmin()
+      const name = i.name.trim()
+      if (!name) throw new Error('Give it a name')
+      if (rivals.items.some(x => x.id !== id && x.name.toLowerCase() === name.toLowerCase())) throw new Error('That’s already on the basket')
+      const existing = id ? rivals.items.find(x => x.id === id) : undefined
+      if (existing) { Object.assign(existing, i, { name }); return existing.id }
+      const made = { id: uid(), recipe_id: null, sort: Math.max(0, ...rivals.items.map(x => x.sort)) + 1, ...i, name }
+      rivals.items.push(made)
+      return made.id
+    },
+    async deletePriceItem(id) {
+      requireAdmin()
+      rivals.items = rivals.items.filter(i => i.id !== id)
+      rivals.prices = rivals.prices.filter(p => p.item_id !== id)
+    },
+    async recordPrice(p) {
+      requireAdmin()
+      if (!(p.price >= 0 && p.price < 1000)) throw new Error('Enter the price in euros')
+      if (p.observed_on > addDays(today(), 1)) throw new Error('A price can’t be seen in the future')
+      competitorRow(p.competitor_id)
+      rivals.prices.unshift({ ...p, note: p.note?.trim() || null, id: uid(), created_at: nowIso() })
+    },
+    async deletePrice(id) {
+      requireAdmin()
+      rivals.prices = rivals.prices.filter(p => p.id !== id)
+    },
+    async saveCompetitorNote({ id, ...n }) {
+      requireAdmin()
+      const text = n.text.trim()
+      if (!text) throw new Error('Write the note first')
+      const row = { ...n, text, status: n.kind === 'idea' ? n.status ?? 'new' : null }
+      const existing = id ? rivals.notes.find(x => x.id === id) : undefined
+      if (existing) { Object.assign(existing, row); return existing.id }
+      const made = { ...row, id: uid(), created_at: nowIso() }
+      rivals.notes.unshift(made)
+      return made.id
+    },
+    async deleteCompetitorNote(id) {
+      requireAdmin()
+      rivals.notes = rivals.notes.filter(n => n.id !== id)
+    },
+    async dismissNearby(placeId, dismissed) {
+      requireAdmin()
+      const p = rivals.nearby.find(x => x.place_id === placeId)
+      if (p) p.dismissed = dismissed
+    },
+    async saveCompetitorSettings(next) {
+      requireAdmin()
+      Object.assign(rivals.settings, next)
+    },
+    async competitorGoogle() {
+      requireAdmin()
+      return { places: true, own_place: true }
+    },
+    async lookAround(radius) {
+      requireAdmin()
+      const around = DEMO_PLACES.filter(p => p.seen !== null && p.distance_m !== null && p.distance_m <= radius)
+      for (const p of around) {
+        if (rivals.nearby.some(x => x.place_id === p.place_id)) continue
+        rivals.nearby.push({ place_id: p.place_id, name: p.name, address: p.address, distance_m: p.distance_m, rating: p.rating, review_count: p.review_count,
+          price_level: p.price_level, primary_type: p.primary_type, maps_url: p.maps_url, first_seen: nowIso(), dismissed: false })
+      }
+      Object.assign(rivals.settings, { radius_m: radius, scanned_at: nowIso() })
+      return { found: around.length, fresh: 0 }
+    },
+    async findPlaces(query) {
+      requireAdmin()
+      const words = query.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').split(/\s+/).filter(w => w.length > 1)
+      if (!words.length) throw new Error('Type at least two letters')
+      const plain = (s: string) => s.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '')
+      return DEMO_PLACES.filter(p => words.some(w => plain(p.name).includes(w))).map((p): NearbyPlace => ({ place_id: p.place_id, name: p.name, address: p.address,
+        distance_m: p.distance_m, rating: p.rating, review_count: p.review_count, price_level: p.price_level, primary_type: p.primary_type, maps_url: p.maps_url,
+        first_seen: nowIso(), dismissed: false }))
+    },
+    async followPlace(placeId, id) {
+      requireAdmin()
+      const p = DEMO_PLACES.find(x => x.place_id === placeId)
+      if (!p) throw new Error('Google Places: Not found')
+      const same = rivals.competitors.find(c => c.place_id === placeId)
+      if (same && id && same.id !== id) throw new Error(`${same.name} is already followed with that Google listing`)
+      const google = { place_id: p.place_id, google_rating: p.rating, google_count: p.review_count, google_status: 'open' as const, google_features: { ...p.features },
+        google_hours: p.hours, google_checked_at: nowIso(), maps_url: p.maps_url, lat: p.lat, lng: p.lng, price_level: p.price_level,
+        distance_m: distanceM(DEMO_CAFE_AT, { lat: p.lat, lng: p.lng }) }
+      const row = same ?? (id ? competitorRow(id) : undefined)
+      if (row) {
+        Object.assign(row, google, { active: true, address: row.address ?? p.address, website: row.website ?? p.website })
+        snapshotNow(row)
+        return row.id
+      }
+      const madeId = await this.saveCompetitor({ name: p.name, kind: p.kind, threat: suggestedThreat(p.kind, google.distance_m), address: p.address, website: p.website })
+      const made = competitorRow(madeId)
+      Object.assign(made, google)
+      snapshotNow(made)
+      return made.id
+    },
+    async refreshCompetitor(id) {
+      requireAdmin()
+      const c = competitorRow(id)
+      if (!c.place_id) throw new Error('Find it on Google first')
+      c.google_checked_at = nowIso()
+      snapshotNow(c)
     },
     async searchConsole(from, to) {
       requireAdmin()

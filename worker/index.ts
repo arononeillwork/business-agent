@@ -24,6 +24,7 @@ import { loyaltyRoutes } from './loyalty'
 import { refreshReviews, reviews, reviewsConfigured } from './reviews'
 import { clearOldCache } from './cache'
 import { website } from './website'
+import { competitors, watchCompetitors } from './competitors'
 
 const NIGHTLY = '15 1 * * *' // 03:15 Madrid in summer, 02:15 in winter
 
@@ -208,6 +209,8 @@ app.route('/', loyaltyRoutes)
 // Reviews (Google) and Website & SEO (Marketing).
 app.route('/', reviews)
 app.route('/', website)
+// Competitors: cafés nearby and the ones followed, from Google (Marketing).
+app.route('/', competitors)
 
 // Business Agent's own subscription (Stripe Billing): plans, checkout, portal, webhook.
 app.route('/', billing)
@@ -251,7 +254,8 @@ export default {
   // send planned social posts, deliver the outbox, refresh sports; every 15 minutes, opening hours
   // with Google Maps and Instagram mentions; every hour, new Square customers and new Google reviews
   // (every 3 hours from Places). How often each service is read: shared/refresh.ts.
-  // Nightly: fill yesterday's missing timecards from the rota, check every connection still works.
+  // Nightly: fill yesterday's missing timecards from the rota, check every connection still works,
+  // and look at the competitors due their weekly check on Google.
   async scheduled(event, env, ctx) {
     if (!env.SUPABASE_SERVICE_ROLE_KEY) return
     const db = serviceClient(env)
@@ -278,6 +282,8 @@ export default {
         }
         // Crests for new teams (flags straight away; a few club look-ups, the GitHub sync does the rest).
         if (await sportsOn(db)) await syncCrests(db, 8).catch(e => console.error('crests failed', e))
+        // Competitors: each followed place's weekly check on Google, and the weekly look around for new places.
+        await watchCompetitors(env, db).catch(e => console.error('competitors failed', e))
         // Outside services' answers kept over two days (provider_cache).
         await clearOldCache(db).catch(e => console.error('cache clear failed', e))
       })())

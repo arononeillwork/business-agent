@@ -168,3 +168,175 @@ export function ShareBars({ rows, format, label }: { rows: { name: string; value
     </Stack>
   )
 }
+
+export interface MapPoint {
+  id: string
+  /** Its name, at the top of the tooltip. */
+  label: string
+  x: number
+  y: number
+  /** Drawn bigger the more it has (e.g. reviews). */
+  size?: number
+  /** The business itself: its own colour, and named beside its dot before any other. */
+  you?: boolean
+  /** More lines for the tooltip. */
+  details?: string[]
+}
+
+/** A round step for an axis between lo and hi (1, 2, 2.5 or 5 times a power of ten), about `count` of them. */
+function niceStep(lo: number, hi: number, count: number) {
+  const raw = (hi - lo) / Math.max(1, count)
+  const p = 10 ** Math.floor(Math.log10(raw || 1))
+  return ([1, 2, 2.5, 5, 10].find(m => m * p >= raw) ?? 10) * p
+}
+const ticksOf = (lo: number, hi: number, step: number) => {
+  const out: number[] = []
+  for (let v = lo; v <= hi + step / 1000; v += step) out.push(Math.round(v * 1000) / 1000)
+  return out
+}
+
+/**
+ * Places on two measures (price against the area, Google rating), with dashed guides at the
+ * averages. The business is drawn in its own colour; the rest share one, with a legend; each is named
+ * beside its dot where the name fits. Hover, tap or use the arrow keys for each one's figures (the
+ * page has the same as a table).
+ */
+export function ScatterChart({ points, xFormat, yFormat, xLabel, yLabel, xGuide, yGuide, label, legend, height = 300 }: {
+  points: MapPoint[]
+  xFormat: (n: number) => string
+  yFormat: (n: number) => string
+  /** What each axis measures. */
+  xLabel: string
+  yLabel: string
+  /** Dashed lines across, e.g. at the average, with what they are. */
+  xGuide?: { value: number; label: string }
+  yGuide?: { value: number; label: string }
+  /** What the chart shows, for screen readers. */
+  label: string
+  legend: { them: string; you: string; size?: string }
+  height?: number
+}) {
+  const [ref, width] = useWidth<HTMLDivElement>()
+  const [hover, setHover] = useState<number | null>(null)
+  const top = 22, bottom = 40, right = 16
+  const xs = [...points.map(p => p.x), ...(xGuide ? [xGuide.value] : [])], ys = [...points.map(p => p.y), ...(yGuide ? [yGuide.value] : [])]
+  // Each axis padded a little past its points and guides, then out to round steps.
+  const pad = (lo: number, hi: number, min: number) => { const r = Math.max(min, hi - lo); return [lo - r * 0.12, hi + r * 0.12] as const }
+  const [xa, xb] = xs.length ? pad(Math.min(...xs), Math.max(...xs), 20) : [80, 120]
+  const [ya, yb] = ys.length ? pad(Math.min(...ys), Math.max(...ys), 0.6) : [3.5, 5]
+  const xStep = niceStep(xa, xb, Math.max(2, Math.floor((width || 300) / 90))), yStep = niceStep(ya, yb, 4)
+  const x0 = Math.floor(xa / xStep) * xStep, x1 = Math.ceil(xb / xStep) * xStep
+  const y0 = Math.max(0, Math.floor(ya / yStep) * yStep), y1 = Math.max(y0 + yStep, Math.ceil(yb / yStep) * yStep)
+  const yTicks = ticksOf(y0, y1, yStep), xTicks = ticksOf(x0, x1, xStep)
+  const left = Math.max(32, ...yTicks.map(v => yFormat(v).length * 6.4 + 12))
+  const plotW = Math.max(0, width - left - right), plotH = height - top - bottom
+  const px = (v: number) => left + ((v - x0) / (x1 - x0 || 1)) * plotW
+  const py = (v: number) => top + plotH - ((v - y0) / (y1 - y0 || 1)) * plotH
+  const most = Math.max(1, ...points.map(p => p.size ?? 0))
+  const radius = (p: MapPoint) => (p.size === undefined ? 6 : 5 + 6 * Math.sqrt(Math.max(0, p.size) / most))
+  // Big dots first so small ones stay on top; the business last of all.
+  const order = points.map((_, i) => i).sort((a, b) => Number(!!points[a].you) - Number(!!points[b].you) || radius(points[b]) - radius(points[a]))
+  const byX = points.map((_, i) => i).sort((a, b) => points[a].x - points[b].x)
+  const pick = (e: PointerEvent<SVGRectElement>) => {
+    const box = e.currentTarget.getBoundingClientRect()
+    const mx = left + e.clientX - box.left, my = top + e.clientY - box.top
+    let best: number | null = null, dist = 32
+    points.forEach((p, i) => { const d = Math.hypot(px(p.x) - mx, py(p.y) - my); if (d < dist) { dist = d; best = i } })
+    setHover(best)
+  }
+  const keys = (e: KeyboardEvent) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+    e.preventDefault()
+    const at = hover === null ? -1 : byX.indexOf(hover)
+    const next = e.key === 'ArrowRight' ? Math.min(byX.length - 1, at + 1) : Math.max(0, at === -1 ? byX.length - 1 : at - 1)
+    setHover(byX[next] ?? null)
+  }
+  // Names beside the dots where they fit: the business first, then the biggest; one that would sit on
+  // another name or dot goes without (its tooltip and the table beside the chart still have it).
+  const labels: { i: number; x: number; y: number; anchor: 'start' | 'end' | 'middle' }[] = []
+  if (width > 0) {
+    const boxes: [number, number, number, number][] = points.map(p => {
+      const r = radius(p)
+      return [px(p.x) - r, py(p.y) - r, px(p.x) + r, py(p.y) + r]
+    })
+    const hits = (b: [number, number, number, number], own: number) => b[0] < left || b[2] > left + plotW || b[1] < top || b[3] > top + plotH
+      || boxes.some((o, k) => k !== own && b[0] < o[2] && b[2] > o[0] && b[1] < o[3] && b[3] > o[1])
+    const byImportance = points.map((_, i) => i).sort((a, b) => Number(!!points[b].you) - Number(!!points[a].you) || radius(points[b]) - radius(points[a]))
+    for (const i of byImportance) {
+      const p = points[i], r = radius(p), cx = px(p.x), cy = py(p.y), w = p.label.length * (p.you ? 7.2 : 6.4) + 2
+      const tries: [typeof labels[number], [number, number, number, number]][] = [
+        [{ i, x: cx + r + 5, y: cy + 4, anchor: 'start' }, [cx + r + 5, cy - 9, cx + r + 5 + w, cy + 5]],
+        [{ i, x: cx - r - 5, y: cy + 4, anchor: 'end' }, [cx - r - 5 - w, cy - 9, cx - r - 5, cy + 5]],
+        [{ i, x: cx, y: cy - r - 6, anchor: 'middle' }, [cx - w / 2, cy - r - 19, cx + w / 2, cy - r - 5]],
+      ]
+      const fit = tries.find(([, b]) => !hits(b, i))
+      if (fit) { labels.push(fit[0]); boxes.push(fit[1]) }
+    }
+  }
+  const at = hover !== null ? points[hover] : null
+  const tipW = 210
+  const swatch = (colour: string) => <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: colour, flexShrink: 0 }} />
+  return (
+    <Box>
+      <Stack direction="row" spacing={2} useFlexGap sx={{ mb: 1, flexWrap: 'wrap' }} aria-hidden>
+        <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>{swatch(tokens.chartYou)}<Typography variant="caption" sx={{ color: 'text.secondary' }}>{legend.you}</Typography></Stack>
+        <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>{swatch(tokens.chartThem)}<Typography variant="caption" sx={{ color: 'text.secondary' }}>{legend.them}</Typography></Stack>
+        {legend.size && <Typography variant="caption" sx={{ color: 'text.secondary' }}>{legend.size}</Typography>}
+      </Stack>
+      <Box ref={ref} sx={{ position: 'relative', width: '100%' }}>
+        {width > 0 && (
+          <Box component="svg" width={width} height={height} role="img" tabIndex={0} onKeyDown={keys} onBlur={() => setHover(null)} aria-label={label}
+            sx={{ display: 'block', outline: 'none', '&:focus-visible': { outline: `2px solid ${tokens.rose}`, borderRadius: '8px' } }}>
+            {yTicks.map(v => (
+              <g key={`y${v}`}>
+                <line x1={left} x2={left + plotW} y1={py(v)} y2={py(v)} stroke={tokens.line} strokeWidth={1} />
+                <text x={left - 8} y={py(v) + 4} textAnchor="end" fontSize={11} fill={tokens.inkFaint}>{yFormat(v)}</text>
+              </g>
+            ))}
+            {xTicks.map(v => (
+              <text key={`x${v}`} x={px(v)} y={top + plotH + 16} textAnchor="middle" fontSize={11} fill={tokens.inkFaint}>{xFormat(v)}</text>
+            ))}
+            <text x={left + plotW} y={height - 4} textAnchor="end" fontSize={11} fill={tokens.inkSoft}>{xLabel}</text>
+            <text x={left} y={11} textAnchor="start" fontSize={11} fill={tokens.inkSoft}>{yLabel}</text>
+            {xGuide && (
+              <g>
+                <line x1={px(xGuide.value)} x2={px(xGuide.value)} y1={top} y2={top + plotH} stroke={tokens.inkFaint} strokeWidth={1} strokeDasharray="4 3" />
+                <text x={px(xGuide.value) + 4} y={top + 10} fontSize={10} fill={tokens.inkFaint}>{xGuide.label}</text>
+              </g>
+            )}
+            {yGuide && (
+              <g>
+                <line x1={left} x2={left + plotW} y1={py(yGuide.value)} y2={py(yGuide.value)} stroke={tokens.inkFaint} strokeWidth={1} strokeDasharray="4 3" />
+                <text x={left + plotW} y={py(yGuide.value) - 4} textAnchor="end" fontSize={10} fill={tokens.inkFaint}>{yGuide.label}</text>
+              </g>
+            )}
+            {order.map(i => {
+              const p = points[i]
+              return <circle key={p.id} cx={px(p.x)} cy={py(p.y)} r={radius(p) + (hover === i ? 1.5 : 0)} fill={p.you ? tokens.chartYou : tokens.chartThem}
+                fillOpacity={hover === null || hover === i ? 1 : 0.55} stroke={tokens.surface} strokeWidth={2} />
+            })}
+            {labels.map(l => (
+              <text key={`name-${points[l.i].id}`} x={l.x} y={l.y} textAnchor={l.anchor} pointerEvents="none"
+                fontSize={points[l.i].you ? 12 : 11} fontWeight={points[l.i].you ? 600 : 400} fill={points[l.i].you ? tokens.ink : tokens.inkSoft}>{points[l.i].label}</text>
+            ))}
+            <rect x={left} y={top} width={plotW} height={plotH} fill="transparent"
+              onPointerMove={pick} onPointerDown={pick} onPointerLeave={() => setHover(null)} />
+          </Box>
+        )}
+        {at && width > 0 && (
+          <Box role="status" sx={{ position: 'absolute', top: Math.max(0, py(at.y) - 96), left: Math.min(Math.max(0, px(at.x) - tipW / 2), width - tipW), width: tipW,
+            pointerEvents: 'none', bgcolor: tokens.surface, border: `1px solid ${tokens.line}`, borderRadius: '10px', boxShadow: `0 8px 24px -12px ${tokens.shadow}`, p: 1.25 }}>
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+              {swatch(at.you ? tokens.chartYou : tokens.chartThem)}
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>{at.label}</Typography>
+            </Stack>
+            <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', fontVariantNumeric: 'tabular-nums' }}>
+              {xLabel}: {xFormat(at.x)} · {yLabel}: {yFormat(at.y)}
+            </Typography>
+            {at.details?.map(d => <Typography key={d} variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>{d}</Typography>)}
+          </Box>
+        )}
+      </Box>
+    </Box>
+  )
+}
