@@ -27,6 +27,7 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'hours', files: [/(Timecards|Kiosk|Today|Registro)Page/, /ClockRules/, /CafeSpeaker/], tests: String.raw`clock|timecard|registro|correction|hours|Today` },
   { name: 'calendar', files: [/CalendarPage/, /CalendarFeed/], tests: String.raw`calendar|event` },
   { name: 'time off', files: [/TimeOffPage/], tests: String.raw`time off|holiday` },
+  { name: 'staff benefits', files: [/BenefitsPage/, /shared\/benefits/], tests: String.raw`staff benefits|allocation` },
   { name: 'business', files: [/(Business|Brand|OpeningHours)Page/, /shared\/(taxId|brand)/], tests: String.raw`business|brand|opening hours|currency|colour|logo` },
   { name: 'team', files: [/TeamPage/, /TempPassword/, /ContactMethod/, /ShareDialog/], tests: String.raw`team|invite|contact|account` },
   { name: 'connections', files: [/(Connections|SocialPlanner)Page/, /components\/Connect/, /shared\/connections/],

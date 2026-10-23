@@ -573,7 +573,7 @@ come from section 13.
 The Legal page (Business section) lists the business's legal documents (the lease, the company's
 deeds, insurance, contracts, licences, its own policies) without copying them: an admin picks each
 file where it already is, in the connected **Google Drive** or **OneDrive**, and the database keeps
-only where it is (`legal_documents`, migration 64). The page shows a PDF or picture by asking its
+only where it is (`legal_documents`, migration 65). The page shows a PDF or picture by asking its
 storage for it at that moment (`GET /api/legal/documents/:id/file`; Google Docs and Word, Excel or
 PowerPoint files in OneDrive come as PDFs the storage makes), and opens anything else there.
 

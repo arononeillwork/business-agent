@@ -33,18 +33,20 @@ export function TimeOffPage() {
   const [asking, setAsking] = useState(false)
   const [deciding, setDeciding] = useState<TimeOff | null>(null)
   const data = useAsync('time-off', async () => {
-    const [list, used] = await Promise.all([
+    const [list, used, own] = await Promise.all([
       api.timeOff(`${year}-01-01`, `${year + 1}-12-31`),
       api.vacationDaysUsed(me!.id, year),
+      api.leaveAllowances(year),
     ])
-    return { list, used }
+    return { list, used, own: own.find(a => a.profile_id === me?.id)?.holiday_days }
   }, [year, me?.id])
 
   const list = data.data?.list ?? []
   const mine = list.filter(r => r.profile_id === me?.id)
   const pending = list.filter(r => r.status === 'pending' && r.profile_id !== me?.id)
   const upcoming = list.filter(r => r.status === 'approved' && r.ends_on >= today())
-  const allowance = settings?.vacation_days_per_year ?? 30
+  // Their own holiday for the year when an admin set one (Staff benefits), else the business's.
+  const allowance = data.data?.own ?? settings?.vacation_days_per_year ?? 30
   const used = data.data?.used ?? 0
   const person = (id: string) => profiles.find(p => p.id === id)
 

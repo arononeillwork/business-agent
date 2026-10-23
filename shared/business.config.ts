@@ -9,6 +9,8 @@ export const businessConfig = {
   /** Where this business's app is deployed (the demo shows it in the AI set-up steps). */
   appUrl: 'https://business-agent.arononeillwork.workers.dev',
   timezone: 'Europe/Madrid',
+  /** ISO 3166 country: whose employment law Staff benefits shows (shared/benefits.ts). */
+  country: 'ES' as const,
   locale: 'es-ES',
   currency: 'EUR',
   weekStartsOn: 1 as const, // Monday

@@ -6,6 +6,7 @@ import type { FilingRecord, TaxDocument, TaxSettings } from '../../shared/tax'
 import type { Invoice } from '../../shared/invoices'
 import type { Licence } from '../../shared/licences'
 import type { LegalDocument, LegalSource, StorageListing } from '../../shared/legalDocs'
+import type { Benefit, LeaveAllowance } from '../../shared/benefits'
 import { DEFAULT_VAT_RATE, type PnlLine, type PnlSettings } from '../../shared/pnl'
 import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
 import type { StockItem, StockMovement, Supplier } from '../../shared/stock'
@@ -339,6 +340,27 @@ export function createSupabaseApi(url: string, key: string): Api {
     async cancelTimeOff(id) { check(await sb.rpc('cancel_time_off', { p_id: id })) },
     async decideTimeOff(id, approve, note, releaseShifts = true) {
       return check(await sb.rpc('decide_time_off', { p_id: id, p_approve: approve, p_note: note ?? null, p_release_shifts: releaseShifts })) as number
+    },
+    async recordTimeOff(profileId, startsOn, endsOn, kind, note) {
+      return check(await sb.rpc('record_time_off', { p_profile_id: profileId, p_starts_on: startsOn, p_ends_on: endsOn, p_kind: kind, p_note: note || null })) as number
+    },
+
+    async benefits() {
+      const rows = check(await sb.from('benefits').select('id, law_key, name, amount, details, sort').order('sort').order('created_at')) as Benefit[]
+      return rows.map(b => ({ ...b, amount: b.amount === null ? null : Number(b.amount) }))
+    },
+    async saveBenefit({ id, ...b }) {
+      if (id) check(await sb.from('benefits').update(b).eq('id', id))
+      else check(await sb.from('benefits').insert(b))
+    },
+    async deleteBenefit(id) { check(await sb.from('benefits').delete().eq('id', id)) },
+    async leaveAllowances(year) {
+      const rows = check(await sb.from('leave_allowances').select('profile_id, year, holiday_days, note').eq('year', year)) as LeaveAllowance[]
+      return rows.map(a => ({ ...a, holiday_days: Number(a.holiday_days) }))
+    },
+    async saveLeaveAllowance({ profile_id, year, holiday_days, note }) {
+      if (holiday_days === null) check(await sb.from('leave_allowances').delete().eq('profile_id', profile_id).eq('year', year))
+      else check(await sb.from('leave_allowances').upsert({ profile_id, year, holiday_days, note: note?.trim() || null }))
     },
 
     signInWith: oauth,

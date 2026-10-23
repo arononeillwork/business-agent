@@ -29,6 +29,7 @@ const BusinessPage = page(() => import('./pages/BusinessPage'), 'BusinessPage')
 const AccountPage = page(() => import('./pages/AccountPage'), 'AccountPage')
 const KioskPage = page(() => import('./pages/KioskPage'), 'KioskPage')
 const TimeOffPage = page(() => import('./pages/TimeOffPage'), 'TimeOffPage')
+const BenefitsPage = page(() => import('./pages/BenefitsPage'), 'BenefitsPage')
 const FinancesPage = page(() => import('./pages/FinancesPage'), 'FinancesPage')
 const GrantsPage = page(() => import('./pages/GrantsPage'), 'GrantsPage')
 const SalesPage = page(() => import('./pages/SalesPage'), 'SalesPage')
@@ -99,6 +100,7 @@ function Routed() {
           <Route path="brand" element={<BrandPage />} />
           {(partnerCan('rota') || partnerCan('payroll')) && <Route path="rota" element={<RotaPage />} />}
           {partnerCan('payroll') && <Route path="timecards" element={<TimecardsPage />} />}
+          {partnerCan('payroll') && <Route path="benefits" element={<BenefitsPage />} />}
           {partnerCan('calendar') && <Route path="calendar" element={<CalendarPage />} />}
           {partnerCan('finances') && <Route path="finances" element={<FinancesPage />} />}
           {partnerCan('finances') && <Route path="tax" element={<TaxPage />} />}
@@ -128,6 +130,7 @@ function Routed() {
         <Route path="timecards" element={<TimecardsPage />} />
         <Route path="calendar" element={<CalendarPage />} />
         <Route path="time-off" element={<TimeOffPage />} />
+        <Route path="benefits" element={<BenefitsPage />} />
         <Route path="sports" element={<PlanGate feature="sports"><SportsPage /></PlanGate>} />
         <Route path="music" element={<PlanGate feature="music"><MusicPage /></PlanGate>} />
         <Route path="team" element={<TeamPage />} />
