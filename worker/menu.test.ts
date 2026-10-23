@@ -6,8 +6,8 @@
 //   - failures say why in plain words; a key Higgsfield stops taking turns the connection red
 //   - a screen's link loads only its own slides, and never with a wrong link
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { unseal } from './crypto'
-import { checkWaitingImages, menu } from './menu'
+import { seal, unseal } from './crypto'
+import { checkWaitingImages, menu, syncSquareMenuIfChosen } from './menu'
 import { screens } from './screens'
 import { serviceClient, type Env } from './supabase'
 import { FakeSupabase, type Row } from './test/fakeSupabase'
@@ -24,6 +24,8 @@ let sent: { method: string; url: URL; headers: Headers; body: Record<string, unk
 /** Higgsfield's answers: the status of each request, and whether it takes the key. */
 let hf: { keyOk: boolean; status: Record<string, Row>; submit: (url: URL) => Response | null }
 let waits: Promise<unknown>[]
+/** Square's item library: its pages, whether the token may read it, and how often it was asked. */
+let sq: { pages: Row[][]; scopes: boolean; asked: number }
 const ctx = () => ({ waitUntil(p: Promise<unknown>) { waits.push(p) }, passThroughOnException() {}, props: {} }) as unknown as ExecutionContext
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
@@ -44,6 +46,7 @@ beforeEach(() => {
     },
   } as unknown as Env
   hf = { keyOk: true, status: {}, submit: () => null }
+  sq = { pages: [], scopes: true, asked: 0 }
   db.tables.brand = [{ id: 1, colours: [{ name: 'Rose', hex: '#F79BA4', role: 'primary' }] }]
   db.tables.menu_designs = [{ id: 'd1', name: 'Counter menu', format: 'physical', size: 'a4_portrait', mode: 'background', categories: [], title: null, subtitle: null,
     footer: 'Prices include IVA', image_id: null }]
@@ -56,6 +59,14 @@ beforeEach(() => {
     const fromDb = db.handle(url.href, init)
     if (fromDb) return fromDb
     if (url.origin === CDN) return new Response(PNG, { headers: { 'content-type': 'image/png' } })
+    if (url.origin === 'https://connect.squareup.com' && url.pathname === '/v2/catalog/list') {
+      sq.asked++
+      if (new Headers(init.headers).get('authorization') !== 'Bearer sq-token') return json({ errors: [{ code: 'UNAUTHORIZED' }] }, 401)
+      if (!sq.scopes) return json({ errors: [{ code: 'INSUFFICIENT_SCOPES', detail: 'The merchant has not given your application sufficient permissions' }] }, 403)
+      expect(url.searchParams.get('types')).toBe('ITEM,CATEGORY,MODIFIER_LIST,IMAGE')
+      const page = Number(url.searchParams.get('cursor') ?? 0)
+      return json({ objects: sq.pages[page], ...(page + 1 < sq.pages.length ? { cursor: String(page + 1) } : {}) })
+    }
     if (url.origin !== HF) throw new Error(`Unexpected request: ${init.method ?? 'GET'} ${url}`)
     const headers = new Headers(init.headers)
     sent.push({ method: init.method ?? 'GET', url, headers, body: init.body ? JSON.parse(String(init.body)) : null })
@@ -235,5 +246,65 @@ describe('A screen’s link', () => {
     expect(await res.json()).toMatchObject({ screen: { name: 'Counter TV' } })
     expect((await open('0123456789abcdef0123456789abcdef')).status).toBe(404)
     expect((await open('not-a-token')).status).toBe(404)
+  })
+})
+
+describe('The menu from Square', () => {
+  let sent: unknown = null
+  beforeEach(async () => {
+    env = { ...env, SQUARE_APP_ID: 'sq-app', SQUARE_APP_SECRET: 'sq-secret' } as Env
+    db.tables.settings = [{ id: 1, menu_source: 'custom', menu_sync_error: null }]
+    sent = null
+    db.rpcs.sync_square_menu = ({ p }) => { sent = p; return { added: 2, changed: 1, off: 0 } }
+    sq.pages = [
+      [{ type: 'CATEGORY', id: 'c1', category_data: { name: 'Classics' } },
+        { type: 'ITEM', id: 'i-fw', item_data: { name: 'Flat White', categories: [{ id: 'c1' }], variations: [
+          { id: 'a', item_variation_data: { name: 'Hot', ordinal: 0, price_money: { amount: 380 } } },
+          { id: 'b', item_variation_data: { name: 'Iced', ordinal: 1, price_money: { amount: 480 } } }] } }],
+      [{ type: 'ITEM', id: 'i-esp', item_data: { name: 'Espresso', categories: [{ id: 'c1' }], variations: [{ id: 'c', item_variation_data: { name: 'Regular', price_money: { amount: 200 } } }] } }],
+    ]
+  })
+  const connectSquare = async () => {
+    Object.assign(db.integration('square'), { status: 'connected', external: { locations: [{ id: 'L1', name: 'Easy Beans' }] } })
+    db.table('integration_secrets').push({ provider: 'square', ciphertext: await seal(env.INTEGRATION_KEY!, { access_token: 'sq-token', refresh_token: 'r', expires_at: '2099-01-01T00:00:00Z' }) })
+  }
+  const sync = () => post('/api/menu/square/sync', {})
+
+  it('needs Square connected', async () => {
+    const res = await sync()
+    expect(res.status).toBe(409)
+    expect((await res.json() as { error: string }).error).toMatch(/Connect Square on the Connections page first/)
+    expect(sq.asked).toBe(0)
+  })
+
+  it('reads every page of the item library into the menu', async () => {
+    await connectSquare()
+    const res = await sync()
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ added: 2, changed: 1, off: 0, items: 2 })
+    expect(sq.asked).toBe(2)
+    expect(sent).toMatchObject({ sections: ['Classics'], items: [
+      { square_id: 'i-fw', name: 'Flat White', category: 'Classics', sell_price: 3.8, price_label: 'Hot', variants: [{ name: 'Iced', price_change: 1 }] },
+      { square_id: 'i-esp', name: 'Espresso', sell_price: 2, price_label: null }] })
+  })
+
+  it('a connection made before the app read items is asked to connect again, and the page is told', async () => {
+    await connectSquare()
+    sq.scopes = false
+    const res = await sync()
+    expect(res.status).toBe(409)
+    expect((await res.json() as { error: string }).error).toMatch(/Connect Square again/)
+    expect(db.table('settings')[0].menu_sync_error).toMatch(/Connect Square again/)
+    expect(sent).toBeNull()
+  })
+
+  it('the hourly read happens only while the menu comes from Square', async () => {
+    await connectSquare()
+    await syncSquareMenuIfChosen(env, serviceClient(env))
+    expect(sq.asked).toBe(0)
+    db.table('settings')[0].menu_source = 'square'
+    await syncSquareMenuIfChosen(env, serviceClient(env))
+    expect(sq.asked).toBe(2)
+    expect(sent).not.toBeNull()
   })
 })

@@ -200,4 +200,60 @@ export default {
   'Secret': 'Secreto',
   'The secret is kept encrypted and only ever sent to Higgsfield. Disconnect any time on the Connections page.':
     'El secreto se guarda cifrado y solo se envía a Higgsfield. Desconéctalo cuando quieras en Conexiones.',
+  // Where the menu comes from (Custom or Square), and the printed menus to start from
+  'Menu from': 'Carta desde',
+  'Custom': 'Propia',
+  'Square': 'Square',
+  'Kept here: add and change items on this page.': 'Se lleva aquí: añade y cambia los productos en esta página.',
+  'Read from your Square item library every hour: names, sections, prices, descriptions and photos follow the till.':
+    'Se lee de tu biblioteca de artículos de Square cada hora: nombres, secciones, precios, descripciones y fotos siguen a la caja.',
+  'Read from Square now': 'Leer de Square ahora',
+  'Read from Square': 'Leer de Square',
+  'Read {n} item from Square.': 'Leído {n} producto de Square.',
+  'Read {n} items from Square.': 'Leídos {n} productos de Square.',
+  'Last read from Square {when}.': 'Leída de Square por última vez {when}.',
+  'Not read from Square yet.': 'Aún no se ha leído de Square.',
+  'Allergens, vegan or gluten free, photos and what’s featured are set here.': 'Los alérgenos, si es vegano o sin gluten, las fotos y lo destacado se ponen aquí.',
+  'The menu is kept here again. Items read from Square stay on it.': 'La carta vuelve a llevarse aquí. Los productos leídos de Square se quedan en ella.',
+  'Read the menu from Square?': '¿Leer la carta de Square?',
+  'Names, sections, prices (hot and iced as Square has them), descriptions and photos come from your Square item library, now and every hour. The milks, syrups and other modifiers go in an Extras section.':
+    'Los nombres, secciones, precios (caliente y con hielo, como los tenga Square), descripciones y fotos salen de tu biblioteca de artículos de Square, ahora y cada hora. Las leches, siropes y demás modificadores van en una sección de extras.',
+  'Items already here are matched by name and keep their allergens and photos. Items that aren’t in Square are hidden while the menu comes from Square, and come back if you switch to Custom.':
+    'Los productos que ya están aquí se emparejan por nombre y conservan sus alérgenos y fotos. Los que no están en Square se ocultan mientras la carta salga de Square, y vuelven si cambias a Propia.',
+  'Connect Square on the Connections page first.': 'Conecta Square primero en Conexiones.',
+  'Nothing read from Square yet': 'Aún no se ha leído nada de Square',
+  'Read your item library with the button above. Items without a price in Square aren’t on the menu.':
+    'Lee tu biblioteca de artículos con el botón de arriba. Los artículos sin precio en Square no salen en la carta.',
+  'Its name, section, price and description come from Square: change them there and the menu follows within the hour. What’s in it, its photo and whether it’s on the menu are kept here.':
+    'Su nombre, sección, precio y descripción salen de Square: cámbialos allí y la carta se actualiza en menos de una hora. Lo que lleva, su foto y si está en la carta se guardan aquí.',
+  'Other ways it’s sold, from Square: {list}.': 'Otras formas de venderlo, de Square: {list}.',
+  'Start from your printed menus': 'Empieza con tus cartas impresas',
+  'Add what’s on your printed menus': 'Añade lo de tus cartas impresas',
+  '{n} item on your printed menus isn’t on this menu.': '{n} producto de tus cartas impresas no está en esta carta.',
+  '{n} items on your printed menus aren’t on this menu.': '{n} productos de tus cartas impresas no están en esta carta.',
+  'Added {n} item from your printed menus.': 'Añadido {n} producto de tus cartas impresas.',
+  'Added {n} items from your printed menus.': 'Añadidos {n} productos de tus cartas impresas.',
+  'The printed menus are on the Design tab.': 'Las cartas impresas están en la pestaña Diseño.',
+  'Move the {section} section up': 'Subir la sección {section}',
+  'Move the {section} section down': 'Bajar la sección {section}',
+  'Price is for': 'El precio es para',
+  'e.g. Hot (optional)': 'p. ej. Caliente (opcional)',
+  'With Iced as a variant, menus show hot and iced prices side by side.': 'Con «Iced» como variante, las cartas muestran los precios caliente y con hielo uno al lado del otro.',
+  'free': 'gratis',
+  // The boxed layout, like the printed menus
+  'Layout': 'Diseño de la página',
+  'Boxed, like your printed menus': 'En recuadros, como tus cartas impresas',
+  'Classic: one list over the image': 'Clásica: una lista sobre la imagen',
+  'Each section in a box, hot and iced prices side by side, and the image as a strip of illustrations along the bottom.':
+    'Cada sección en un recuadro, los precios caliente y con hielo uno al lado del otro, y la imagen como una tira de ilustraciones abajo.',
+  'Allergen letters and key': 'Letras de alérgenos y leyenda',
+  'Illustrations for the strip along the bottom. The one in use shows in the preview.': 'Ilustraciones para la tira de abajo. La que está en uso sale en la vista previa.',
+  'The illustrations are made without words, as a wide strip for the bottom of the menu: the app writes your menu above them.':
+    'Las ilustraciones se hacen sin palabras, como una tira ancha para la parte de abajo de la carta: la app escribe tu carta encima.',
+  'A row of hand-drawn takeaway cups and iced drinks with straws, soft pastel colours, on a plain cream background':
+    'Una fila de vasos para llevar y bebidas con hielo y pajita dibujados a mano, colores pastel suaves, sobre un fondo crema liso',
+  'A croissant and an açaí bowl drawn as flat illustrations, thick outlines, on a plain cream background':
+    'Un cruasán y un bol de açaí como ilustraciones planas, con contornos gruesos, sobre un fondo crema liso',
+  'Smoothies in tall glasses with fruit, flat cartoon illustration, plain cream background':
+    'Batidos en vasos altos con fruta, ilustración plana tipo dibujo, fondo crema liso',
 }

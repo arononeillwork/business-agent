@@ -1,6 +1,6 @@
 import { Box, Typography } from '@mui/material'
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { MenuBoard } from './MenuBoard'
+import { MenuBoard, boardBrand } from './MenuBoard'
 import { useTick } from '../app/hooks'
 import { sizeOf } from '../../shared/menu'
 import { musicEmbedUrl, musicKind, playOrder, playUrl, slideSeconds, type DisplayFeed, type Slide } from '../../shared/screens'
@@ -64,14 +64,13 @@ export function ScreenPlayer({ feed, preview = false, onBlocked }: { feed: Displ
     if (coming?.kind === 'image' && coming.url && !coming.live) new Image().src = coming.url
   }, [current, order])
 
-  const brandAccent = feed.business.colours?.find(c => c.role === 'primary')?.hex ?? null
   const videoWithSound = current?.kind === 'video' && s.video_sound
   return (
     <Box sx={{ position: 'absolute', inset: 0, overflow: 'hidden', bgcolor: '#000', color: '#fff', containerType: 'size' }}>
       {!s.active ? <Holding feed={feed} /> : !order.length ? <Holding feed={feed} note={t('No slides yet: add them on the Screens page.')} /> : layers.map(l => (
         <Box key={l.key} data-slide={l.slide.id} aria-hidden={l.phase === 'exit'}
           sx={{ position: 'absolute', inset: 0, transition: `opacity ${ms}ms ease, transform ${ms}ms ease`, ...looks[s.transition][l.phase] }}>
-          <SlideView slide={l.slide} feed={feed} accent={brandAccent} sound={s.video_sound && !preview} onEnded={l.phase === 'shown' && order.length > 1 ? next : undefined} />
+          <SlideView slide={l.slide} feed={feed} sound={s.video_sound && !preview} onEnded={l.phase === 'shown' && order.length > 1 ? next : undefined} />
         </Box>
       ))}
       {s.active && s.show_clock && <Clock />}
@@ -94,7 +93,7 @@ function Holding({ feed, note }: { feed: DisplayFeed; note?: string }) {
   )
 }
 
-function SlideView({ slide, feed, accent, sound, onEnded }: { slide: Slide; feed: DisplayFeed; accent: string | null; sound: boolean; onEnded?: () => void }) {
+function SlideView({ slide, feed, sound, onEnded }: { slide: Slide; feed: DisplayFeed; sound: boolean; onEnded?: () => void }) {
   const fit = feed.screen.fit
   // A fresh address each time a live slide comes round (worked out once per showing).
   const src = useMemo(() => playUrl(slide, { sound }), [slide, sound])
@@ -106,8 +105,7 @@ function SlideView({ slide, feed, accent, sound, onEnded }: { slide: Slide; feed
     return (
       <Box sx={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center' }}>
         <Box sx={{ width: `min(100cqw, calc(100cqh * ${z.width / z.height}))` }}>
-          <MenuBoard design={m.design} items={m.items} image={m.design.image_url}
-            brand={{ name: feed.business.name, heading_font: feed.business.heading_font, body_font: feed.business.body_font, accent }} />
+          <MenuBoard design={m.design} items={m.items} image={m.design.image_url} brand={boardBrand(feed.business.name, feed.business)} order={feed.sections} />
         </Box>
       </Box>
     )

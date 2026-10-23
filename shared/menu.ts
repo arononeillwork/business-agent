@@ -34,6 +34,17 @@ export const ALLERGENS: { id: Allergen; label: string }[] = [
   { id: 'lupin', label: msg('Lupin') },
   { id: 'molluscs', label: msg('Molluscs') },
 ]
+/**
+ * Each allergen's letters and colour, as the café's printed menus mark them (G gluten, L dairy, H egg,
+ * F nuts, S soy: the Spanish initials), for menus that show allergens as coloured letters.
+ */
+export const ALLERGEN_MARKS: Record<Allergen, { code: string; colour: string }> = {
+  gluten: { code: 'G', colour: '#D9822B' }, crustaceans: { code: 'CR', colour: '#E06C75' }, eggs: { code: 'H', colour: '#E3B23C' },
+  fish: { code: 'P', colour: '#4A90A4' }, peanuts: { code: 'CA', colour: '#B5651D' }, soy: { code: 'S', colour: '#4E8B3A' },
+  milk: { code: 'L', colour: '#7A4A2A' }, nuts: { code: 'F', colour: '#C0392B' }, celery: { code: 'AP', colour: '#8BAE4A' },
+  mustard: { code: 'MO', colour: '#D4A017' }, sesame: { code: 'SE', colour: '#B8956A' }, sulphites: { code: 'SU', colour: '#8E6BBF' },
+  lupin: { code: 'AL', colour: '#5B7DB1' }, molluscs: { code: 'ML', colour: '#3B8686' },
+}
 /** An allergen's number on the menu (1–14, the Annex's order). */
 export const allergenNumber = (a: Allergen) => ALLERGENS.findIndex(x => x.id === a) + 1
 /** Allergens in the Annex's order, without repeats or unknown ones. */
@@ -66,6 +77,8 @@ export interface MenuItem {
   category: string | null
   /** The price, IVA included (null: not priced yet). */
   sell_price: number | null
+  /** What that price is for when the item is sold more than one way (Hot, Iced, Regular); null: just its price. */
+  price_label: string | null
   vat_rate: number
   description: string | null
   photo_url: string | null
@@ -77,10 +90,57 @@ export interface MenuItem {
   on_menu: boolean
   /** Its place in its section (then A–Z). */
   menu_sort: number
-  /** From Menu costing (oat milk +0.40): shown with the item, changed there. */
+  /** The other ways it's sold, from Menu costing or Square (Iced +1.00, Oat milk): shown with the item. */
   variants: MenuVariant[]
+  /** Its Square item (or modifier list), when the menu comes from Square: those fields follow Square. */
+  square_id: string | null
 }
-export type MenuItemInput = Omit<MenuItem, 'id' | 'variants' | 'menu_sort'> & { id?: string }
+export type MenuItemInput = Omit<MenuItem, 'id' | 'variants' | 'menu_sort' | 'square_id'> & { id?: string }
+
+/**
+ * Where the menu's items come from. custom (the default): kept here, on this page. square: read from
+ * the Square item library (names, sections, prices and how each is sold, descriptions, photos, and the
+ * modifiers as extras), every hour and on demand; what Square doesn't have (allergens, vegan or gluten
+ * free, featured, off the menu) is still set here.
+ */
+export type MenuSource = 'custom' | 'square'
+export const MENU_SOURCES: { id: MenuSource; label: string; does: string }[] = [
+  { id: 'custom', label: msg('Custom'), does: msg('Kept here: add and change items on this page.') },
+  { id: 'square', label: msg('Square'), does: msg('Read from your Square item library every hour: names, sections, prices, descriptions and photos follow the till.') },
+]
+
+/** Every price an item has, by what it's for: its own (its label, or '' when it has none) and each variant's. */
+export function pricesOf(i: Pick<MenuItem, 'sell_price' | 'price_label' | 'variants'>): { label: string; price: number }[] {
+  if (i.sell_price === null) return []
+  const round = (n: number) => Math.round(n * 100) / 100
+  return [{ label: i.price_label ?? '', price: i.sell_price }, ...i.variants.map(v => ({ label: v.name, price: round(i.sell_price! + v.price_change) }))]
+}
+
+/**
+ * A section's price columns (hot, iced): ways of selling that at least two items have, that come
+ * together on one item, and that cost differently somewhere. Empty: one price per item (Sit in and
+ * Takeaway at the same price aren't columns; nor is a Regular that's never next to the others).
+ */
+export function priceColumns(items: Pick<MenuItem, 'sell_price' | 'price_label' | 'variants'>[]): string[] {
+  const priced = items.map(pricesOf)
+  const count = new Map<string, number>()
+  for (const ps of priced) for (const l of new Set(ps.map(p => p.label).filter(Boolean))) count.set(l, (count.get(l) ?? 0) + 1)
+  const candidates = [...count].filter(([, n]) => n >= 2).map(([l]) => l)
+  const together = candidates.filter(l => priced.some(ps => ps.some(p => p.label === l) && ps.some(p => p.label !== l && candidates.includes(p.label))))
+  const differ = priced.some(ps => new Set(ps.filter(p => together.includes(p.label)).map(p => p.price)).size > 1)
+  return together.length >= 2 && differ ? together.slice(0, 3) : []
+}
+
+/** An item's price in one of its section's columns (null: not sold that way). One with a single price that isn't a column's goes in the first. */
+export function priceIn(i: Pick<MenuItem, 'sell_price' | 'price_label' | 'variants'>, column: string, columns: string[]): number | null {
+  const ps = pricesOf(i)
+  const own = ps.find(p => p.label === column)
+  if (own) return own.price
+  return column === columns[0] && ps.length && !ps.some(p => columns.includes(p.label)) ? ps[0].price : null
+}
+
+/** The variants still to show next to an item: the ones that aren't its section's columns. */
+export const otherVariants = (i: Pick<MenuItem, 'variants'>, columns: string[]) => i.variants.filter(v => !columns.includes(v.name))
 
 export const MAX_DESCRIPTION = 300
 
@@ -94,12 +154,26 @@ export function menuItemProblem(i: Pick<MenuItemInput, 'name' | 'sell_price' | '
   return null
 }
 
-/** Sections in menu order: the usual ones first (Coffee, Tea & matcha…), then any others A–Z; items without one last. */
-export function categoryOrder(categories: (string | null)[]): (string | null)[] {
-  const usual: readonly string[] = RECIPE_CATEGORIES
-  const known = usual.filter(c => categories.includes(c))
-  const other = [...new Set(categories.filter((c): c is string => !!c && !usual.includes(c)))].sort((a, b) => a.localeCompare(b))
+/**
+ * Sections in menu order: the business's own order first (Settings: menu_sections, set by its printed
+ * menus, Square or by moving sections on the Menu page), then the usual ones (Coffee, Tea & matcha…),
+ * then any others A–Z; items without one last.
+ */
+export function categoryOrder(categories: (string | null)[], own: readonly string[] = []): (string | null)[] {
+  const ordered = [...own, ...RECIPE_CATEGORIES.filter(c => !own.includes(c))]
+  const known = ordered.filter(c => categories.includes(c))
+  const other = [...new Set(categories.filter((c): c is string => !!c && !ordered.includes(c)))].sort((a, b) => a.localeCompare(b))
   return [...known, ...other, ...(categories.includes(null) ? [null] : [])]
+}
+
+/** The business's section order after moving one section up or down. */
+export function moveSection(shown: (string | null)[], category: string, by: -1 | 1): string[] | null {
+  const list = shown.filter((c): c is string => !!c)
+  const at = list.indexOf(category)
+  const to = at + by
+  if (at < 0 || to < 0 || to >= list.length) return null
+  ;[list[at], list[to]] = [list[to], list[at]]
+  return list
 }
 
 const bySort = (a: MenuItem, b: MenuItem) => a.menu_sort - b.menu_sort || a.name.localeCompare(b.name)
@@ -110,9 +184,9 @@ export interface MenuSection { category: string | null; items: MenuItem[] }
  * The menu in sections, each in its order. `only`: just these categories (a design's); `all`: the
  * items that are off the menu too (the Menu page shows them, the menus themselves don't).
  */
-export function menuSections(items: MenuItem[], { only = [], all = false }: { only?: string[]; all?: boolean } = {}): MenuSection[] {
+export function menuSections(items: MenuItem[], { only = [], all = false, order = [] }: { only?: string[]; all?: boolean; order?: readonly string[] } = {}): MenuSection[] {
   const shown = items.filter(i => (all || i.on_menu) && (!only.length || (i.category !== null && only.includes(i.category))))
-  return categoryOrder(shown.map(i => i.category))
+  return categoryOrder(shown.map(i => i.category), order)
     .map(category => ({ category, items: shown.filter(i => i.category === category).sort(bySort) }))
     .filter(s => s.items.length)
 }
@@ -155,6 +229,16 @@ export const isPortrait = (id: MenuSize | string) => sizeOf(id).height > sizeOf(
  * or a menu designed elsewhere and uploaded); it doesn't change when the menu does.
  */
 export type MenuMode = 'background' | 'full'
+/**
+ * How the app writes the menu. classic: one flowing list over the image. boxed: like the café's own
+ * printed menus: its logo in a circle, a big heading, each section in a rounded box, hot and iced
+ * prices side by side, allergens as coloured letters, and the image as a strip of illustrations.
+ */
+export type MenuStyle = 'classic' | 'boxed'
+export const MENU_STYLES: { id: MenuStyle; label: string }[] = [
+  { id: 'boxed', label: msg('Boxed, like your printed menus') },
+  { id: 'classic', label: msg('Classic: one list over the image') },
+]
 /** Dark writing (for light images) or light writing (for dark ones). */
 export type TextTone = 'dark' | 'light'
 
@@ -198,6 +282,7 @@ export interface MenuDesign {
   format: MenuFormat
   size: MenuSize
   mode: MenuMode
+  style: MenuStyle
   /** Sections on it, in menu order; empty: every section. */
   categories: string[]
   /** The heading (the business's name when empty), a line under it and one at the bottom. */
@@ -218,9 +303,14 @@ export interface MenuDesign {
 export type MenuDesignInput = Omit<MenuDesign, 'id' | 'images' | 'updated_at'> & { id?: string }
 
 export const newDesign = (format: MenuFormat, name: string): MenuDesignInput => ({
-  name, format, size: format === 'physical' ? 'a4_portrait' : 'screen_landscape', mode: 'background', categories: [], title: null, subtitle: null,
+  name, format, size: format === 'physical' ? 'a4_portrait' : 'screen_landscape', mode: 'background', style: 'boxed', categories: [], title: null, subtitle: null,
   footer: msg('Prices include IVA. Ask us about allergens.'), text_tone: 'dark', panel: true, show_descriptions: true, show_allergens: true, image_id: null,
 })
+
+/** A boxed menu's image is a strip of illustrations along the bottom, not the whole page. */
+export const isStrip = (d: Pick<MenuDesign, 'mode' | 'style'>) => d.mode === 'background' && d.style === 'boxed'
+/** The shape an image for a design is made in: the page's, or a wide strip. */
+export const imageShape = (d: Pick<MenuDesign, 'mode' | 'style' | 'size'>) => (isStrip(d) ? { width: 4, height: 1 } : sizeOf(d.size))
 
 /** The image a design shows (its chosen one, if ready). */
 export const imageOf = (d: Pick<MenuDesign, 'image_id' | 'images'>) => d.images.find(i => i.id === d.image_id && i.status === 'ready' && i.url) ?? null
@@ -270,7 +360,13 @@ export function closestRatio(width: number, height: number, ratios: string[]): s
 export const MAX_PROMPT = 1500
 
 /** Ideas to start from, per kind of image (shown as chips; the person's words are what's sent). */
-export const PROMPT_IDEAS: Record<MenuMode, string[]> = {
+export const PROMPT_IDEAS: Record<MenuMode | 'strip', string[]> = {
+  // A boxed menu's strip of illustrations along the bottom.
+  strip: [
+    msg('A row of hand-drawn takeaway cups and iced drinks with straws, soft pastel colours, on a plain cream background'),
+    msg('A croissant and an açaí bowl drawn as flat illustrations, thick outlines, on a plain cream background'),
+    msg('Smoothies in tall glasses with fruit, flat cartoon illustration, plain cream background'),
+  ],
   background: [
     msg('Warm Mediterranean café, terracotta and cream, olive branches and coffee beans at the edges'),
     msg('Hand-drawn chalkboard with coffee cups and croissants sketched around the border'),
@@ -286,6 +382,7 @@ export const PROMPT_IDEAS: Record<MenuMode, string[]> = {
 
 export interface PromptInput {
   mode: MenuMode
+  style?: MenuStyle
   format: MenuFormat
   size: MenuSize
   /** The heading (the business's name when the design has none). */
@@ -315,6 +412,10 @@ export function buildPrompt(style: string, d: PromptInput): string {
   // The person's words as a sentence of their own.
   const typed = style.trim().replace(/\s+/g, ' ')
   const words = typed && !/[.!?]$/.test(typed) ? `${typed}.` : typed
+  if (isStrip({ mode: d.mode, style: d.style ?? 'classic' })) {
+    return [words, `A wide strip of illustrations for the bottom of ${where}, side by side in one row, on a plain light background.`,
+      'No text, no letters, no words, no numbers, no logos.'].filter(Boolean).join(' ')
+  }
   if (d.mode === 'background') {
     return [words, `Background artwork for ${where}, ${shape}.`, 'Keep the middle calm and plain, with room for the menu to be written over it.',
       'No text, no letters, no words, no numbers, no logos.'].filter(Boolean).join(' ')

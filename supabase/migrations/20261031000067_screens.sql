@@ -126,6 +126,7 @@ begin
     'business', jsonb_build_object('name', (select name from public.business where id = 1))
                 || coalesce((select jsonb_build_object('logo', coalesce(b.logo_mark, b.logo), 'heading_font', b.heading_font, 'body_font', b.body_font, 'colours', b.colours)
                                from public.brand b where b.id = 1), '{"logo": null}'::jsonb),
+    'sections', (select to_jsonb(menu_sections) from public.settings where id = 1),
     'menus', coalesce((
       select jsonb_object_agg(d.id, jsonb_build_object(
                'design', to_jsonb(d) - 'updated_by' - 'created_at'

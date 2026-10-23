@@ -18,13 +18,13 @@ import { useApp } from '../../app/AppContext'
 import { useAsync } from '../../app/hooks'
 import { useAction } from '../../app/Notify'
 import { Empty, Tag } from '../../components/common'
-import { MenuBoard, type BoardBrand } from '../../components/MenuBoard'
+import { MenuBoard, boardBrand, type BoardBrand } from '../../components/MenuBoard'
 import { HiggsfieldKeyDialog, useAiImages } from '../../components/AiImages'
 import { ago } from '../../components/Freshness'
 import { PhotoUpload } from './PhotoUpload'
 import {
-  AI_MODELS, MAX_PROMPT, PROMPT_IDEAS, categoryOrder, designProblem, imageOf, isPortrait, modelOf, newDesign, sizeOf, sizesFor, type AiModel, type MenuDesign,
-  type MenuDesignInput, type MenuFormat, type MenuImage, type MenuItem as Item,
+  AI_MODELS, MAX_PROMPT, MENU_STYLES, PROMPT_IDEAS, categoryOrder, designProblem, imageOf, isPortrait, isStrip, modelOf, newDesign, sizeOf, sizesFor, type AiModel,
+  type MenuDesign, type MenuDesignInput, type MenuFormat, type MenuImage, type MenuItem as Item,
 } from '../../../shared/menu'
 import type { Brand } from '../../../shared/types'
 import { tokens } from '../../theme'
@@ -40,7 +40,7 @@ const waitingOf = (i: MenuImage) => i.status === 'queued' || i.status === 'worki
  * the items and prices over it) or is the whole menu.
  */
 export function DesignView({ items, brand }: { items: Item[]; brand: Brand | null }) {
-  const { api, business } = useApp()
+  const { api, business, settings } = useApp()
   const designs = useAsync('menu-designs', () => api.menuDesigns(), [])
   const ai = useAiImages()
   const [format, setFormat] = useState<MenuFormat>(() => (new URLSearchParams(location.search).get('format') === 'digital' ? 'digital' : 'physical'))
@@ -50,8 +50,8 @@ export function DesignView({ items, brand }: { items: Item[]; brand: Brand | nul
   const all = designs.data ?? []
   const list = all.filter(d => d.format === format)
   const current = list.find(d => d.id === selected) ?? list[0] ?? null
-  const board: BoardBrand = { name: business?.name ?? '', heading_font: brand?.heading_font, body_font: brand?.body_font,
-    accent: brand?.colours.find(c => c.role === 'primary')?.hex ?? null }
+  const board = boardBrand(business?.name ?? '', brand)
+  const order = settings?.menu_sections ?? []
 
   // While images are being made: ask Higgsfield how they're going every few seconds (the webhook
   // usually gets there first), then show what changed.
@@ -79,7 +79,7 @@ export function DesignView({ items, brand }: { items: Item[]; brand: Brand | nul
             {format === 'physical' ? t('Printed menus: for the counter, the tables or the window.') : t('Menus for your screens: played on a TV or tablet from the Screens page.')}
           </Typography>
           <Stack spacing={1}>
-            {list.map(d => <DesignCard key={d.id} design={d} items={items} brand={board} selected={d.id === current?.id} onClick={() => setSelected(d.id)} />)}
+            {list.map(d => <DesignCard key={d.id} design={d} items={items} brand={board} order={order} selected={d.id === current?.id} onClick={() => setSelected(d.id)} />)}
             <Button variant="outlined" startIcon={<AddIcon />} onClick={() => setCreating(true)}>
               {format === 'physical' ? t('New printed menu') : t('New screen menu')}
             </Button>
@@ -87,7 +87,7 @@ export function DesignView({ items, brand }: { items: Item[]; brand: Brand | nul
         </Box>
         <Box sx={{ flex: 1, minWidth: 0, width: '100%' }}>
           {current
-            ? <DesignEditor key={current.id} design={current} items={items} brand={board} ai={ai} onConnect={() => setConnecting(true)} />
+            ? <DesignEditor key={current.id} design={current} items={items} brand={board} order={order} ai={ai} onConnect={() => setConnecting(true)} />
             : designs.data && (
               <Empty>
                 <Typography sx={{ fontWeight: 500, color: 'text.primary', mb: 0.5 }}>
@@ -123,13 +123,15 @@ function AiStatus({ ai, onConnect }: { ai: Ai; onConnect: () => void }) {
   return null
 }
 
-function DesignCard({ design: d, items, brand, selected, onClick }: { design: MenuDesign; items: Item[]; brand: BoardBrand; selected: boolean; onClick: () => void }) {
+function DesignCard({ design: d, items, brand, order, selected, onClick }: {
+  design: MenuDesign; items: Item[]; brand: BoardBrand; order: string[]; selected: boolean; onClick: () => void
+}) {
   const making = d.images.filter(waitingOf).length
   return (
     <Card variant="outlined" sx={{ ...(selected ? { borderColor: tokens.rose, boxShadow: `0 0 0 1px ${tokens.rose}` } : {}) }}>
       <CardActionArea onClick={onClick} aria-pressed={selected} aria-label={d.name} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 1.5, p: 1 }}>
         <Box sx={{ width: isPortrait(d.size) ? 52 : 84, flexShrink: 0, borderRadius: 1, overflow: 'hidden', border: `1px solid ${tokens.line}` }}>
-          <MenuBoard design={d} items={items} image={imageOf(d)?.url ?? null} brand={brand} />
+          <MenuBoard design={d} items={items} image={imageOf(d)?.url ?? null} brand={brand} order={order} />
         </Box>
         <Box sx={{ minWidth: 0 }}>
           <Typography sx={{ fontWeight: 500 }} noWrap>{d.name}</Typography>
@@ -142,7 +144,7 @@ function DesignCard({ design: d, items, brand, selected, onClick }: { design: Me
 }
 
 /** One design: its preview (on paper or on a TV), its settings and its images. */
-function DesignEditor({ design, items, brand, ai, onConnect }: { design: MenuDesign; items: Item[]; brand: BoardBrand; ai: Ai; onConnect: () => void }) {
+function DesignEditor({ design, items, brand, order, ai, onConnect }: { design: MenuDesign; items: Item[]; brand: BoardBrand; order: string[]; ai: Ai; onConnect: () => void }) {
   const { api } = useApp()
   const run = useAction()
   const navigate = useNavigate()
@@ -160,7 +162,8 @@ function DesignEditor({ design, items, brand, ai, onConnect }: { design: MenuDes
   const z = sizeOf(d.size)
   const portrait = isPortrait(d.size)
   const physical = design.format === 'physical'
-  const categories = categoryOrder(items.map(i => i.category)).filter((c): c is string => !!c)
+  const categories = categoryOrder(items.map(i => i.category), order).filter((c): c is string => !!c)
+  const strip = isStrip(d)
 
   const save = () => run(async () => {
     const problem = designProblem(d)
@@ -174,7 +177,7 @@ function DesignEditor({ design, items, brand, ai, onConnect }: { design: MenuDes
     t('Asked Higgsfield again'))
   const ask = (edit: MenuImage | null) => (ai.connected ? setAsking({ edit }) : onConnect())
 
-  const preview = <MenuBoard design={d} items={items} image={image?.url ?? null} brand={brand} />
+  const preview = <MenuBoard design={d} items={items} image={image?.url ?? null} brand={brand} order={order} />
   return (
     <Stack spacing={2.5}>
       <Card>
@@ -249,13 +252,17 @@ function DesignEditor({ design, items, brand, ai, onConnect }: { design: MenuDes
             <TextField label={t('Line under the heading')} value={d.subtitle ?? ''} onChange={e => set({ subtitle: e.target.value || null })} slotProps={{ htmlInput: { maxLength: 120 } }} />
             <TextField label={t('Line at the bottom')} value={d.footer ?? ''} onChange={e => set({ footer: e.target.value || null })} multiline slotProps={{ htmlInput: { maxLength: 300 } }} />
             {d.mode === 'background' && <>
+              <TextField select label={t('Layout')} value={d.style} onChange={e => set({ style: e.target.value as MenuDesignInput['style'] })}
+                helperText={d.style === 'boxed' ? t('Each section in a box, hot and iced prices side by side, and the image as a strip of illustrations along the bottom.') : undefined}>
+                {MENU_STYLES.map(s => <MenuItem key={s.id} value={s.id}>{t(s.label)}</MenuItem>)}
+              </TextField>
               <ToggleButtonGroup exclusive size="small" value={d.text_tone} onChange={(_, v: MenuDesignInput['text_tone'] | null) => v && set({ text_tone: v })} aria-label={t('Writing')}>
                 <ToggleButton value="dark">{t('Dark writing')}</ToggleButton>
                 <ToggleButton value="light">{t('Light writing')}</ToggleButton>
               </ToggleButtonGroup>
-              <FormControlLabel control={<Switch checked={d.panel} onChange={e => set({ panel: e.target.checked })} />} label={t('A soft panel behind the writing')} />
+              {d.style === 'classic' && <FormControlLabel control={<Switch checked={d.panel} onChange={e => set({ panel: e.target.checked })} />} label={t('A soft panel behind the writing')} />}
               <FormControlLabel control={<Switch checked={d.show_descriptions} onChange={e => set({ show_descriptions: e.target.checked })} />} label={t('Descriptions')} />
-              <FormControlLabel control={<Switch checked={d.show_allergens} onChange={e => set({ show_allergens: e.target.checked })} />} label={t('Allergen numbers and key')} />
+              <FormControlLabel control={<Switch checked={d.show_allergens} onChange={e => set({ show_allergens: e.target.checked })} />} label={d.style === 'boxed' ? t('Allergen letters and key') : t('Allergen numbers and key')} />
             </>}
             <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
               <Button variant="contained" disabled={!dirty} onClick={save}>{t('Save changes')}</Button>
@@ -274,7 +281,8 @@ function DesignEditor({ design, items, brand, ai, onConnect }: { design: MenuDes
             <Box sx={{ flex: 1, minWidth: 160 }}>
               <Typography variant="h6" component="h3">{t('Images')}</Typography>
               <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                {d.mode === 'background' ? t('Artwork for behind the menu. The one in use shows in the preview.') : t('Pictures of the whole menu. The one in use is the menu.')}
+                {strip ? t('Illustrations for the strip along the bottom. The one in use shows in the preview.')
+                  : d.mode === 'background' ? t('Artwork for behind the menu. The one in use shows in the preview.') : t('Pictures of the whole menu. The one in use is the menu.')}
               </Typography>
             </Box>
             <Button variant="contained" startIcon={<AiIcon />} onClick={() => ask(null)}>{t('Create with AI')}</Button>
@@ -286,7 +294,7 @@ function DesignEditor({ design, items, brand, ai, onConnect }: { design: MenuDes
           ) : (
             <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(3, minmax(0, 1fr))' } }}>
               {design.images.map(img => (
-                <ImageTile key={img.id} image={img} ratio={`${z.width} / ${z.height}`} inUse={img.id === design.image_id} canEdit={ai.connected}
+                <ImageTile key={img.id} image={img} ratio={strip ? '4 / 1' : `${z.width} / ${z.height}`} inUse={img.id === design.image_id} canEdit={ai.connected}
                   onUse={() => use(img)} onEdit={() => ask(img)} onRetry={() => retry(img)} onDelete={() => removeImage(img)} />
               ))}
             </Box>
@@ -308,7 +316,7 @@ function ImageTile({ image: img, ratio, inUse, canEdit, onUse, onEdit, onRetry, 
   return (
     <Card variant="outlined" component="article" aria-label={img.prompt ?? source} sx={{ display: 'flex', flexDirection: 'column', ...(inUse ? { borderColor: tokens.matcha } : {}) }}>
       <Box sx={{ position: 'relative', aspectRatio: ratio, bgcolor: tokens.surfaceAlt, overflow: 'hidden' }}>
-        {img.url && <Box component="img" src={img.url} alt="" sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />}
+        {img.url && <Box component="img" src={img.url} alt="" sx={{ width: '100%', height: '100%', objectFit: ratio === '4 / 1' ? 'contain' : 'cover', display: 'block' }} />}
         {waitingOf(img) && (
           <Stack sx={{ position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center', gap: 1, p: 1, textAlign: 'center', color: tokens.inkSoft }}>
             <CircularProgress size={22} />
@@ -375,14 +383,15 @@ function AiDialog({ design, edit, onClose }: { design: MenuDesignInput & { id: s
             helperText={`${prompt.length}/${MAX_PROMPT}`} slotProps={{ htmlInput: { maxLength: MAX_PROMPT } }} />
           {!edit && (
             <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
-              {PROMPT_IDEAS[design.mode].map(idea => <Chip key={idea} size="small" label={t(idea)} onClick={() => setPrompt(t(idea))} />)}
+              {PROMPT_IDEAS[isStrip(design) ? 'strip' : design.mode].map(idea => <Chip key={idea} size="small" label={t(idea)} onClick={() => setPrompt(t(idea))} />)}
             </Box>
           )}
           <Alert severity={design.mode === 'full' && !edit ? 'warning' : 'info'}>
             {edit ? t('The change is made to a copy: the image you have stays as it is.')
               : design.mode === 'full'
                 ? t('Your heading, every section’s items and their prices go to the AI with your words. AI can still misspell: check every name and price before you print it or show it.')
-                : t('The artwork is made without words, with room in the middle: the app writes your menu over it, so names and prices are always right.')}
+                : isStrip(design) ? t('The illustrations are made without words, as a wide strip for the bottom of the menu: the app writes your menu above them.')
+                  : t('The artwork is made without words, with room in the middle: the app writes your menu over it, so names and prices are always right.')}
           </Alert>
         </Stack>
       </DialogContent>

@@ -24,7 +24,7 @@ import { loyaltyRoutes } from './loyalty'
 import { refreshReviews, reviews, reviewsConfigured } from './reviews'
 import { clearOldCache } from './cache'
 import { website } from './website'
-import { checkWaitingImages, menu } from './menu'
+import { checkWaitingImages, menu, syncSquareMenuIfChosen } from './menu'
 import { screens } from './screens'
 
 const NIGHTLY = '15 1 * * *' // 03:15 Madrid in summer, 02:15 in winter
@@ -311,6 +311,8 @@ export default {
       if (Math.floor(event.scheduledTime / 60_000) % 60 === 0) {
         await syncSquareCustomers(env, db).catch(e => console.error('square customers failed', e))
       }
+      // Every hour (a quarter past): the menu from the Square item library, when that's where it comes from.
+      if (Math.floor(event.scheduledTime / 60_000) % 60 === 15) await syncSquareMenuIfChosen(env, db)
       // Every hour (on the half hour, away from Square's): new Google reviews, for admins to read and reply to;
       // from Places only every third hour (refreshReviews knows which).
       if (Math.floor(event.scheduledTime / 60_000) % 60 === 30 && await reviewsConfigured(env, db)) {

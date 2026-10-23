@@ -69,6 +69,13 @@ export interface Settings {
   hidden_pages?: string[]
   /** Data retention: how many days saved WhatsApp chats are kept (30, 90, 180, 365 or 730; 90 unless changed). */
   whatsapp_retention_days?: number
+  /** Menu page: where the menu comes from (custom: kept here, the default; square: the Square item library). */
+  menu_source?: 'custom' | 'square'
+  /** The menu's sections in order (the printed menus', Square's, or as moved on the Menu page). */
+  menu_sections?: string[]
+  /** When the menu was last read from Square, and why that failed when it did. */
+  menu_synced_at?: string | null
+  menu_sync_error?: string | null
 }
 
 export interface Expense {

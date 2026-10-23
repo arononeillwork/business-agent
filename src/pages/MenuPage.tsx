@@ -1,6 +1,6 @@
 import {
   Alert, Autocomplete, Box, Button, Card, CardActionArea, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton,
-  InputAdornment, MenuItem, Stack, Switch, Tab, Tabs, TextField, Tooltip, Typography, useMediaQuery, useTheme,
+  InputAdornment, MenuItem, Stack, Switch, Tab, Tabs, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography, useMediaQuery, useTheme,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import DeleteIcon from '@mui/icons-material/DeleteOutlined'
@@ -17,19 +17,24 @@ import ShopIcon from '@mui/icons-material/ShoppingBagOutlined'
 import LinkIcon from '@mui/icons-material/LinkRounded'
 import AiIcon from '@mui/icons-material/AutoAwesomeOutlined'
 import WarningIcon from '@mui/icons-material/WarningAmberRounded'
+import SyncIcon from '@mui/icons-material/SyncRounded'
+import PrintedIcon from '@mui/icons-material/MenuBookOutlined'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
-import { useAction } from '../app/Notify'
+import { FEATURES } from '../app/features'
+import { useAction, useNotify } from '../app/Notify'
 import { Empty, ErrorBox, PageHeader, StatGrid, StatTile, Tag } from '../components/common'
 import { ExportButton, toEnter } from '../components/tables'
 import { HiggsfieldKeyDialog, useAiImages } from '../components/AiImages'
+import { ago } from '../components/Freshness'
 import type { ExportTable } from '../lib/export'
 import {
-  ALLERGENS, DIETARY, MAX_DESCRIPTION, allergenNumber, categoryOrder, dietaryClash, menuItemProblem, menuSections, moveInSection, type Allergen, type Dietary,
-  type MenuImage, type MenuItem as Item, type MenuItemInput,
+  ALLERGENS, DIETARY, MAX_DESCRIPTION, MENU_SOURCES, allergenNumber, categoryOrder, dietaryClash, menuItemProblem, menuSections, moveInSection, moveSection, pricesOf,
+  type Allergen, type Dietary, type MenuImage, type MenuItem as Item, type MenuItemInput, type MenuSource,
 } from '../../shared/menu'
+import { missingFrom } from '../../shared/menuTemplate'
 import { RECIPE_CATEGORIES } from '../../shared/recipes'
 import { formatMoney, today } from '../../shared/time'
 import { DesignView } from './menu/DesignView'
@@ -39,6 +44,9 @@ import { t, tn } from '../i18n'
 
 const ICONS: Record<string, ReactNode> = {
   Coffee: <CoffeeIcon />, 'Tea & matcha': <TeaIcon />, 'Cold drinks': <ColdIcon />, Bakery: <BakeryIcon />, Food: <FoodIcon />, Shop: <ShopIcon />,
+  // The printed menus' sections.
+  Classics: <CoffeeIcon />, Speciality: <TeaIcon />, 'Make it yours': <CoffeeIcon />, Extras: <CoffeeIcon />, 'Sweet things': <BakeryIcon />,
+  Smoothies: <ColdIcon />, 'Soft drinks': <ColdIcon />, 'Juices & water': <ColdIcon />, Beers: <ColdIcon />,
 }
 
 /** An item's photo, or its section's icon while it has none. */
@@ -56,7 +64,7 @@ export function ItemPhoto({ item, size = 72 }: { item: Pick<Item, 'name' | 'phot
  * the Design tab.
  */
 export function MenuPage() {
-  const { isAdmin, isPartner } = useApp()
+  const { isAdmin, isPartner, settings } = useApp()
   const { pathname } = useLocation()
   const navigate = useNavigate()
   const admin = isAdmin && !isPartner
@@ -65,13 +73,15 @@ export function MenuPage() {
   const items = useAsync('menu-items', () => api.menuItems(), [])
   const brand = useAsync('brand', () => api.brand(), [])
   const [open, setOpen] = useState<Item | 'new' | null>(null)
+  const source: MenuSource = settings?.menu_source ?? 'custom'
+  const order = settings?.menu_sections ?? []
   return (
     <>
       <PageHeader eyebrow={t('Menu')} title={view === 'design' ? t('Menu design') : t('Menu')}
         actions={view === 'items' && admin ? <>
-          <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpen('new')}>{t('Add menu item')}</Button>
+          {source === 'custom' && <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpen('new')}>{t('Add menu item')}</Button>}
           <Button variant="outlined" component={RouterLink} to="/recipes">{t('Menu costing')}</Button>
-          <ExportButton table={() => allergenTable(items.data ?? [])} disabled={!items.data?.length} folder="Menu" />
+          <ExportButton table={() => allergenTable(items.data ?? [], order)} disabled={!items.data?.length} folder="Menu" />
         </> : undefined} />
       {admin && (
         <Tabs value={view} onChange={(_, v: string) => navigate(v === 'design' ? '/menu/design' : '/menu')} sx={{ mb: 2.5, borderBottom: `1px solid ${tokens.line}` }}>
@@ -81,16 +91,17 @@ export function MenuPage() {
       )}
       <ErrorBox error={items.error} />
       {view === 'items'
-        ? <Items items={items.data} admin={admin} onOpen={setOpen} />
+        ? <Items items={items.data} admin={admin} source={source} order={order} onOpen={setOpen} />
         : <DesignView items={items.data ?? []} brand={brand.data} />}
-      {open && <ItemDialog item={open === 'new' ? null : open} items={items.data ?? []} onClose={() => setOpen(null)} />}
+      {open && <ItemDialog item={open === 'new' ? null : open} items={items.data ?? []} fromSquare={source === 'square' && open !== 'new' && !!open.square_id}
+        onClose={() => setOpen(null)} />}
     </>
   )
 }
 
 /** The allergen chart: every item with what's in it, for the counter or an inspector. */
-function allergenTable(items: Item[]): ExportTable {
-  const rows = menuSections(items, { all: true }).flatMap(s => s.items)
+function allergenTable(items: Item[], order: string[]): ExportTable {
+  const rows = menuSections(items, { all: true, order }).flatMap(s => s.items)
   return {
     title: t('Menu and allergens'),
     filename: `menu-allergens-${today()}`,
@@ -101,9 +112,10 @@ function allergenTable(items: Item[]): ExportTable {
   }
 }
 
-function Items({ items, admin, onOpen }: { items: Item[] | null; admin: boolean; onOpen: (i: Item) => void }) {
+function Items({ items, admin, source, order, onOpen }: { items: Item[] | null; admin: boolean; source: MenuSource; order: string[]; onOpen: (i: Item) => void }) {
   const { api } = useApp()
   const run = useAction()
+  const notify = useNotify()
   const [category, setCategory] = useState('')
   const [freeFrom, setFreeFrom] = useState<Allergen[]>([])
   const [offOnly, setOffOnly] = useState(false)
@@ -113,16 +125,28 @@ function Items({ items, admin, onOpen }: { items: Item[] | null; admin: boolean;
   const off = all.filter(i => !i.on_menu)
   const priced = on.filter(i => i.sell_price !== null)
   const noPhoto = on.filter(i => !i.photo_url)
-  const categories = categoryOrder(all.map(i => i.category)).filter((c): c is string => !!c)
+  const shownOrder = categoryOrder(all.map(i => i.category), order)
+  const categories = shownOrder.filter((c): c is string => !!c)
   const words = q.trim().toLowerCase()
   const shown = all.filter(i => (!category || i.category === category) && (!offOnly || !i.on_menu) && !freeFrom.some(a => i.allergens.includes(a))
     && (!words || i.name.toLowerCase().includes(words) || (i.description ?? '').toLowerCase().includes(words)))
-  const sections = menuSections(shown, { all: true })
+  const sections = menuSections(shown, { all: true, order })
+  const arranging = !words && !category && !offOnly && !freeFrom.length
   const used = ALLERGENS.filter(a => all.some(i => i.allergens.includes(a.id)))
   const move = (i: Item, by: -1 | 1) => run(async () => {
     const ids = moveInSection(all, i.id, by)
     if (ids) await api.reorderMenu(ids)
   })
+  const moveSectionBy = (c: string, by: -1 | 1) => run(async () => {
+    const list = moveSection(shownOrder, c, by)
+    if (list) await api.updateSettings({ menu_sections: list })
+  })
+  const loadTemplate = async () => {
+    let r = { added: 0, designs: 0 }
+    if (await run(async () => { r = await api.loadMenuTemplate() })) {
+      notify(`${tn(r.added, 'Added {n} item from your printed menus.', 'Added {n} items from your printed menus.')}${r.designs ? ` ${t('The printed menus are on the Design tab.')}` : ''}`, 'success')
+    }
+  }
 
   return (
     <>
@@ -133,10 +157,16 @@ function Items({ items, admin, onOpen }: { items: Item[] | null; admin: boolean;
         <StatTile label={t('Without a photo')} value={items ? noPhoto.length : '–'} note={noPhoto.length ? noPhoto.slice(0, 2).map(i => i.name).join(', ') : t('Every item has one')} />
       </StatGrid>
 
+      {admin && items && <MenuFrom source={source} items={all} onTemplate={loadTemplate} />}
+
       {items && !all.length ? (
         <Empty>
-          <Typography sx={{ fontWeight: 500, color: 'text.primary', mb: 0.5 }}>{t('Put your menu together')}</Typography>
-          {t('Add each drink and dish with its price, a line about it, a photo and its allergens. The printed menu and the menu on your screens are made from it.')}
+          <Typography sx={{ fontWeight: 500, color: 'text.primary', mb: 0.5 }}>{source === 'square' ? t('Nothing read from Square yet') : t('Put your menu together')}</Typography>
+          {source === 'square' ? t('Read your item library with the button above. Items without a price in Square aren’t on the menu.')
+            : t('Add each drink and dish with its price, a line about it, a photo and its allergens. The printed menu and the menu on your screens are made from it.')}
+          {admin && source === 'custom' && (
+            <Box sx={{ mt: 2 }}><Button variant="contained" startIcon={<PrintedIcon />} onClick={loadTemplate}>{t('Start from your printed menus')}</Button></Box>
+          )}
         </Empty>
       ) : <>
         <Stack direction="row" sx={{ gap: 1, alignItems: 'center', flexWrap: 'wrap', mb: 2 }}>
@@ -155,12 +185,20 @@ function Items({ items, admin, onOpen }: { items: Item[] | null; admin: boolean;
             slotProps={{ htmlInput: { 'aria-label': t('Search the menu') }, input: { startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> } }} />
         </Stack>
         {items && !sections.length && <Empty>{t('Nothing matches that.')}</Empty>}
-        {sections.map(s => (
+        {sections.map((s, at) => (
           <Box key={s.category ?? '-'} component="section" aria-label={s.category ? t(s.category) : t('More')} sx={{ mb: 3 }}>
-            <Typography variant="overline" component="h2" sx={{ display: 'block', color: tokens.roseDeep, mb: 1 }}>{s.category ? t(s.category) : t('More')}</Typography>
+            <Stack direction="row" sx={{ alignItems: 'center', gap: 0.5, mb: 1 }}>
+              <Typography variant="overline" component="h2" sx={{ display: 'block', color: tokens.roseDeep }}>{s.category ? t(s.category) : t('More')}</Typography>
+              {admin && arranging && s.category && <>
+                <IconButton size="small" aria-label={t('Move the {section} section up', { section: t(s.category) })} disabled={at === 0}
+                  onClick={() => moveSectionBy(s.category!, -1)}><UpIcon fontSize="small" /></IconButton>
+                <IconButton size="small" aria-label={t('Move the {section} section down', { section: t(s.category) })} disabled={at === sections.length - 1 || !sections[at + 1].category}
+                  onClick={() => moveSectionBy(s.category!, 1)}><DownIcon fontSize="small" /></IconButton>
+              </>}
+            </Stack>
             <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(3, minmax(0, 1fr))' } }}>
               {s.items.map((i, n) => <ItemCard key={i.id} item={i} admin={admin} onOpen={() => onOpen(i)}
-                move={!words && !category && !offOnly && !freeFrom.length ? { up: n > 0 ? () => move(i, -1) : null, down: n < s.items.length - 1 ? () => move(i, 1) : null } : null} />)}
+                move={arranging ? { up: n > 0 ? () => move(i, -1) : null, down: n < s.items.length - 1 ? () => move(i, 1) : null } : null} />)}
             </Box>
           </Box>
         ))}
@@ -171,6 +209,93 @@ function Items({ items, admin, onOpen }: { items: Item[] | null; admin: boolean;
         )}
       </>}
     </>
+  )
+}
+
+/**
+ * Where the menu comes from (admins): kept here (Custom, the default) or read from Square's item
+ * library. Custom offers the café's printed menus to start from; Square shows when it was last read.
+ */
+function MenuFrom({ source, items, onTemplate }: { source: MenuSource; items: Item[]; onTemplate: () => void }) {
+  const { api, settings } = useApp()
+  const run = useAction()
+  const notify = useNotify()
+  const integ = useAsync('integrations', () => api.integrations(), [])
+  const [asking, setAsking] = useState(false)
+  const squareOn = integ.data?.integrations.some(i => i.provider === 'square' && i.status === 'connected') ?? false
+  const missing = source === 'custom' && items.length ? missingFrom(items.map(i => i.name)).length : 0
+  const read = async (then?: () => Promise<void>) => {
+    let n = 0
+    if (await run(async () => { n = (await api.syncMenuFromSquare()).items; await then?.() })) {
+      notify(tn(n, 'Read {n} item from Square.', 'Read {n} items from Square.'), 'success')
+      return true
+    }
+    return false
+  }
+  const choose = (v: MenuSource) => {
+    if (v === 'square') setAsking(true)
+    else void run(() => api.updateSettings({ menu_source: 'custom' }), t('The menu is kept here again. Items read from Square stay on it.'))
+  }
+  return (
+    <Card variant="outlined" sx={{ p: 2, mb: 2.5 }}>
+      <Stack direction={{ xs: 'column', md: 'row' }} spacing={{ xs: 1.5, md: 2.5 }} sx={{ alignItems: { md: 'center' } }}>
+        <Box>
+          <Typography variant="overline" component="h2" sx={{ display: 'block', color: 'text.secondary', lineHeight: 1.8 }}>{t('Menu from')}</Typography>
+          <ToggleButtonGroup exclusive size="small" value={source} onChange={(_, v: MenuSource | null) => v && v !== source && choose(v)} aria-label={t('Menu from')}>
+            {MENU_SOURCES.filter(s => s.id !== 'square' || FEATURES.square || source === 'square').map(s => <ToggleButton key={s.id} value={s.id} sx={{ px: 2 }}>{t(s.label)}</ToggleButton>)}
+          </ToggleButtonGroup>
+        </Box>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography variant="body2">{t(MENU_SOURCES.find(s => s.id === source)!.does)}</Typography>
+          {source === 'square' && (
+            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+              {settings?.menu_synced_at ? t('Last read from Square {when}.', { when: ago(settings.menu_synced_at) }) : t('Not read from Square yet.')}
+              {` ${t('Allergens, vegan or gluten free, photos and what’s featured are set here.')}`}
+            </Typography>
+          )}
+          {missing > 0 && (
+            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+              {tn(missing, '{n} item on your printed menus isn’t on this menu.', '{n} items on your printed menus aren’t on this menu.')}
+            </Typography>
+          )}
+        </Box>
+        {source === 'square'
+          ? <Button variant="outlined" startIcon={<SyncIcon />} onClick={() => void read()}>{t('Read from Square now')}</Button>
+          : missing > 0 && <Button variant="outlined" startIcon={<PrintedIcon />} onClick={onTemplate}>{t('Add what’s on your printed menus')}</Button>}
+      </Stack>
+      {source === 'square' && settings?.menu_sync_error && (
+        <Alert severity="error" sx={{ mt: 1.5 }} action={<Button component={RouterLink} to="/connections" color="inherit" size="small">{t('Connections')}</Button>}>
+          {settings.menu_sync_error}
+        </Alert>
+      )}
+      {asking && (
+        <Dialog open onClose={() => setAsking(false)} fullWidth maxWidth="sm">
+          <DialogTitle>{t('Read the menu from Square?')}</DialogTitle>
+          <DialogContent>
+            <Stack spacing={1.5}>
+              <Typography variant="body2">
+                {t('Names, sections, prices (hot and iced as Square has them), descriptions and photos come from your Square item library, now and every hour. The milks, syrups and other modifiers go in an Extras section.')}
+              </Typography>
+              <Typography variant="body2">
+                {t('Items already here are matched by name and keep their allergens and photos. Items that aren’t in Square are hidden while the menu comes from Square, and come back if you switch to Custom.')}
+              </Typography>
+              {integ.data && !squareOn && (
+                <Alert severity="warning" action={<Button component={RouterLink} to="/connections" color="inherit" size="small">{t('Connections')}</Button>}>
+                  {t('Connect Square on the Connections page first.')}
+                </Alert>
+              )}
+            </Stack>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setAsking(false)}>{t('Cancel')}</Button>
+            <Button variant="contained" startIcon={<SyncIcon />} disabled={!squareOn}
+              onClick={async () => { if (await read(() => api.updateSettings({ menu_source: 'square' }))) setAsking(false) }}>
+              {t('Read from Square')}
+            </Button>
+          </DialogActions>
+        </Dialog>
+      )}
+    </Card>
   )
 }
 
@@ -185,15 +310,16 @@ function ItemCard({ item: i, admin, onOpen, move }: { item: Item; admin: boolean
             {i.name}
           </Typography>
           <Typography sx={{ fontVariantNumeric: 'tabular-nums', fontWeight: 500, whiteSpace: 'nowrap', px: 0.5, borderRadius: 1, ...(i.sell_price === null && toEnter) }}>
-            {i.sell_price === null ? '—' : formatMoney(i.sell_price)}
+            {i.sell_price === null ? '—' : i.sell_price === 0 ? t('free') : formatMoney(i.sell_price)}
           </Typography>
         </Stack>
         {i.description && (
           <Typography variant="body2" sx={{ color: 'text.secondary', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{i.description}</Typography>
         )}
-        {i.variants.length > 0 && (
+        {(i.price_label || i.variants.length > 0) && (
           <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>
-            {i.variants.map(v => (v.price_change ? `${v.name} +${formatMoney(v.price_change)}` : v.name)).join(' · ')}
+            {!i.variants.length ? i.price_label : i.sell_price === null ? i.variants.map(v => v.name).join(' · ')
+              : pricesOf(i).map(p => (p.label ? `${p.label} ${formatMoney(p.price)}` : formatMoney(p.price))).join(' · ')}
           </Typography>
         )}
         <Stack direction="row" sx={{ gap: 0.5, flexWrap: 'wrap', mt: 0.75 }}>
@@ -217,15 +343,15 @@ function ItemCard({ item: i, admin, onOpen, move }: { item: Item; admin: boolean
   )
 }
 
-const blank = (): MenuItemInput => ({ name: '', category: 'Coffee', sell_price: null, vat_rate: 10, description: null, photo_url: null, allergens: [], dietary: [],
-  featured: false, on_menu: true })
+const blank = (): MenuItemInput => ({ name: '', category: 'Coffee', sell_price: null, price_label: null, vat_rate: 10, description: null, photo_url: null, allergens: [],
+  dietary: [], featured: false, on_menu: true })
 
 /** Add or change a menu item: what customers read, its photo, and what's in it. */
-function ItemDialog({ item, items, onClose }: { item: Item | null; items: Item[]; onClose: () => void }) {
+function ItemDialog({ item, items, fromSquare, onClose }: { item: Item | null; items: Item[]; fromSquare: boolean; onClose: () => void }) {
   const { api } = useApp()
   const run = useAction()
   const phone = useMediaQuery(useTheme().breakpoints.down('sm'))
-  const [m, setM] = useState<MenuItemInput>(() => (item ? (({ variants: _v, menu_sort: _s, ...rest }) => structuredClone(rest))(item) : blank()))
+  const [m, setM] = useState<MenuItemInput>(() => (item ? (({ variants: _v, menu_sort: _s, square_id: _q, ...rest }) => structuredClone(rest))(item) : blank()))
   const [price, setPrice] = useState(item?.sell_price == null ? '' : String(item.sell_price).replace('.', ','))
   const [deleting, setDeleting] = useState(false)
   const [linking, setLinking] = useState(false)
@@ -236,7 +362,7 @@ function ItemDialog({ item, items, onClose }: { item: Item | null; items: Item[]
   const save = () => run(async () => {
     const typed = price.trim().replace(',', '.')
     // Not a number: the check below says how to write it.
-    const ready = { ...m, sell_price: typed === '' ? null : Number(typed) }
+    const ready = { ...m, sell_price: typed === '' ? null : Number(typed), price_label: m.price_label?.trim() || null }
     const problem = menuItemProblem(ready)
     if (problem) throw new Error(t(problem))
     await api.saveMenuItem({ ...ready, name: ready.name.trim() })
@@ -249,21 +375,30 @@ function ItemDialog({ item, items, onClose }: { item: Item | null; items: Item[]
       <DialogTitle>{item ? item.name : t('Add a menu item')}</DialogTitle>
       <DialogContent>
         <Stack spacing={2.25} sx={{ pt: 1 }}>
+          {fromSquare && (
+            <Alert severity="info" icon={<SyncIcon />}>
+              {t('Its name, section, price and description come from Square: change them there and the menu follows within the hour. What’s in it, its photo and whether it’s on the menu are kept here.')}
+            </Alert>
+          )}
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-            <TextField fullWidth label={t('Name')} value={m.name} onChange={e => set({ name: e.target.value })} autoFocus={!item} slotProps={{ htmlInput: { maxLength: 120 } }} />
-            <Autocomplete freeSolo fullWidth options={categories} value={m.category ?? ''} getOptionLabel={c => t(c)}
+            <TextField fullWidth label={t('Name')} value={m.name} onChange={e => set({ name: e.target.value })} autoFocus={!item} disabled={fromSquare}
+              slotProps={{ htmlInput: { maxLength: 120 } }} />
+            <Autocomplete freeSolo fullWidth disabled={fromSquare} options={categories} value={m.category ?? ''} getOptionLabel={c => t(c)}
               onInputChange={(_, v, reason) => { if (reason !== 'reset') set({ category: v.trim() || null }) }} onChange={(_, v) => set({ category: v || null })}
               renderInput={p => <TextField {...p} label={t('Section')} />} />
           </Stack>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-            <TextField fullWidth label={t('Price, with IVA')} value={price} inputMode="decimal" onChange={e => setPrice(e.target.value)}
+            <TextField fullWidth label={t('Price, with IVA')} value={price} inputMode="decimal" onChange={e => setPrice(e.target.value)} disabled={fromSquare}
               slotProps={{ input: { startAdornment: <InputAdornment position="start">{'€'}</InputAdornment> } }} />
+            <TextField fullWidth label={t('Price is for')} placeholder={t('e.g. Hot (optional)')} value={m.price_label ?? ''} disabled={fromSquare}
+              onChange={e => set({ price_label: e.target.value || null })} slotProps={{ htmlInput: { maxLength: 40 } }}
+              helperText={t('With Iced as a variant, menus show hot and iced prices side by side.')} />
             <TextField select fullWidth label={t('IVA')} value={m.vat_rate} onChange={e => set({ vat_rate: Number(e.target.value) })}>
               {[0, 4, 10, 21].map(v => <MenuItem key={v} value={v}>{`${v}%`}</MenuItem>)}
             </TextField>
           </Stack>
           <TextField label={t('Description')} placeholder={t('One line customers read, e.g. Double ristretto with silky steamed milk')} value={m.description ?? ''} multiline minRows={2}
-            onChange={e => set({ description: e.target.value || null })} slotProps={{ htmlInput: { maxLength: MAX_DESCRIPTION } }}
+            onChange={e => set({ description: e.target.value || null })} slotProps={{ htmlInput: { maxLength: MAX_DESCRIPTION } }} disabled={fromSquare}
             helperText={`${(m.description ?? '').length}/${MAX_DESCRIPTION}`} />
 
           <Box>
@@ -312,13 +447,14 @@ function ItemDialog({ item, items, onClose }: { item: Item | null; items: Item[]
           </Stack>
           {item && item.variants.length > 0 && (
             <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-              {t('Variants: {list}. Change them, and what goes in each, on Menu costing.', { list: item.variants.map(v => v.name).join(', ') })}
+              {fromSquare ? t('Other ways it’s sold, from Square: {list}.', { list: item.variants.map(v => v.name).join(', ') })
+                : t('Variants: {list}. Change them, and what goes in each, on Menu costing.', { list: item.variants.map(v => v.name).join(', ') })}
             </Typography>
           )}
         </Stack>
       </DialogContent>
       <DialogActions sx={{ flexWrap: 'wrap', gap: 1 }}>
-        {item && (deleting ? (
+        {item && !fromSquare && (deleting ? (
           <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mr: 'auto' }}>
             <Typography variant="body2">{t('Delete {name}? Its costing goes too.', { name: item.name })}</Typography>
             <Button size="small" color="error" variant="contained" onClick={remove}>{t('Delete')}</Button>

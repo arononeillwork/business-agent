@@ -60,11 +60,17 @@ built-in **AI connector** so owners can run it by talking to Claude.
 - Menu (its own section): the menu as customers see it, by section, with each item's photo, price,
   description, variants, the 14 EU allergens (Regulation 1169/2011) and vegetarian, vegan, gluten or
   dairy free; everyone on the team reads it ("free from milk" finds what's safe), admins add, arrange
-  and take items off the menu. The items are Menu costing's own (one list, two views), and the allergen
-  chart exports like every table. **Design** (admins) makes the **physical** menus (A4, A3, A5, printed
+  and take items off the menu, and move items and whole sections up and down. The items are Menu
+  costing's own (one list, two views), and the allergen chart exports like every table. Where the menu
+  comes from is a choice: **Custom** (the default: kept on this page, starting from the café's printed
+  Drinks, Food and The Fridge menus, hot and iced prices and allergens included) or **Square** (read
+  from the Square item library every hour and on demand, its modifiers as extras; allergens, photos,
+  featured and off the menu are still set here). **Design** (admins) makes the **physical** menus (A4, A3, A5, printed
   or saved as PDF at their paper size) and the **digital** ones (16:9 or 9:16, for the screens), each
-  previewed on paper or on a TV: an image goes behind the menu, which the app writes from the items
-  (names and prices always right, the writing sized to fit), or the image is the whole menu. Images
+  previewed on paper or on a TV: the app writes the menu from the items (names and prices always
+  right, the writing sized to fit), **boxed** like the printed menus (logo, each section in a rounded
+  box, hot and iced side by side, allergens as coloured letters, an illustration strip at the bottom) or
+  as one **classic** list over an image; or an image is the whole menu. Images
   are made with AI through **Higgsfield** (the business's own API key: Ideogram, Recraft in the brand's
   colours, Qwen for photos and changes), uploaded or linked, kept in the café's Drive or OneDrive;
   items' photos can be made with AI too. Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) section 19.

@@ -5,14 +5,14 @@ import { Link as RouterLink, useParams } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { Loading } from '../components/common'
-import { MenuBoard } from '../components/MenuBoard'
+import { MenuBoard, boardBrand } from '../components/MenuBoard'
 import { imageOf, sizeOf } from '../../shared/menu'
 import { t } from '../i18n'
 
 /** A printed menu on its own page, at its paper size (no menu around it): print it, or save it as a PDF. */
 export function MenuPrintPage() {
   const { id } = useParams()
-  const { api, business } = useApp()
+  const { api, business, settings } = useApp()
   const designs = useAsync('menu-designs', () => api.menuDesigns(), [])
   const items = useAsync('menu-items', () => api.menuItems(), [])
   const brand = useAsync('brand', () => api.brand(), [])
@@ -38,8 +38,7 @@ export function MenuPrintPage() {
       </Stack>
       <Box sx={{ width: `${z.width}mm`, maxWidth: '100%', mx: 'auto', my: 3, boxShadow: '0 12px 34px rgba(60,40,30,0.22)', printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact',
         '@media print': { my: 0, maxWidth: 'none', boxShadow: 'none' } }}>
-        <MenuBoard design={d} items={items.data} image={imageOf(d)?.url ?? null}
-          brand={{ name: business?.name ?? '', heading_font: brand.data?.heading_font, body_font: brand.data?.body_font, accent: brand.data?.colours.find(c => c.role === 'primary')?.hex }} />
+        <MenuBoard design={d} items={items.data} image={imageOf(d)?.url ?? null} brand={boardBrand(business?.name ?? '', brand.data)} order={settings?.menu_sections} />
       </Box>
     </Box>
   )

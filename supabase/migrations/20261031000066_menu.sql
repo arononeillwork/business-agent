@@ -3,6 +3,8 @@
 -- Menu items are the recipes of Menu costing: one list of what the café sells, seen two ways. The
 -- menu adds what customers read (a description, a photo, the 14 allergens, vegan or gluten free),
 -- whether it's on the menus for now, and its place in its section. Costs stay in Menu costing.
+-- Where the menu comes from is a choice (settings.menu_source): kept here (custom, the default), or
+-- read from the Square item library by the Worker (sync_square_menu()), every hour and on demand.
 -- Who: everyone on the team reads the menu (menu_items(): no costs or margins); admins change it and
 -- make the designs. The Worker (service role) makes the AI images and keeps them in the café's storage.
 
@@ -19,7 +21,20 @@ alter table public.recipes
   -- On the printed and digital menus (off: kept, but not offered for now).
   add column on_menu boolean not null default true,
   -- Its place in its section (then A–Z).
-  add column menu_sort int not null default 0;
+  add column menu_sort int not null default 0,
+  -- What its price is for when it's sold more than one way (Hot, with Iced as a variant); null: just its price.
+  add column price_label text check (char_length(price_label) between 1 and 40),
+  -- Its Square item (or modifier list) when the menu comes from Square.
+  add column square_id text unique check (char_length(square_id) between 1 and 64);
+
+-- Where the menu comes from, and its sections' order (menu_list() reads the first).
+alter table public.settings
+  add column menu_source text not null default 'custom' check (menu_source in ('custom', 'square')),
+  -- The sections in menu order (the printed menus', Square's, or as moved on the Menu page).
+  add column menu_sections text[] not null default '{}' check (cardinality(menu_sections) <= 60),
+  -- The last read from Square, and why it failed when it did.
+  add column menu_synced_at timestamptz,
+  add column menu_sync_error text check (char_length(menu_sync_error) <= 500);
 
 create or replace function public.recipe_rules() returns trigger
 language plpgsql set search_path = ''
@@ -31,6 +46,7 @@ begin
   new.notes := nullif(btrim(new.notes), '');
   new.description := nullif(btrim(new.description), '');
   new.photo_url := nullif(btrim(new.photo_url), '');
+  new.price_label := nullif(btrim(new.price_label), '');
   -- Each allergen and mark once.
   new.allergens := array(select distinct a from unnest(new.allergens) a order by a);
   new.dietary := array(select distinct d from unnest(new.dietary) d order by d);
@@ -45,18 +61,20 @@ begin
 end $$;
 
 -- The menu as customers see it (no costs): every active item with its variants' names and price
--- changes. menu_list() is for the functions here (a screen's feed); menu_items() is what the team calls.
+-- changes; with Square as the source, only the items from Square. menu_list() is for the functions here (a screen's feed); menu_items() is what the team calls.
 create or replace function public.menu_list() returns jsonb
 language sql stable security definer set search_path = ''
 as $$
   select coalesce(jsonb_agg(jsonb_build_object(
-    'id', r.id, 'name', r.name, 'category', r.category, 'sell_price', r.sell_price, 'vat_rate', r.vat_rate, 'description', r.description,
-    'photo_url', r.photo_url, 'allergens', to_jsonb(r.allergens), 'dietary', to_jsonb(r.dietary), 'featured', r.featured, 'on_menu', r.on_menu,
-    'menu_sort', r.menu_sort,
+    'id', r.id, 'name', r.name, 'category', r.category, 'sell_price', r.sell_price, 'price_label', r.price_label, 'vat_rate', r.vat_rate,
+    'description', r.description, 'photo_url', r.photo_url, 'allergens', to_jsonb(r.allergens), 'dietary', to_jsonb(r.dietary), 'featured', r.featured,
+    'on_menu', r.on_menu, 'menu_sort', r.menu_sort, 'square_id', r.square_id,
     'variants', coalesce((select jsonb_agg(jsonb_build_object('id', v.id, 'name', v.name, 'price_change', v.price_change) order by v.sort)
                             from public.recipe_variants v where v.recipe_id = r.id), '[]'::jsonb)
   ) order by r.menu_sort, r.name), '[]'::jsonb)
-  from public.recipes r where r.active;
+  from public.recipes r
+  -- With Square as the source, the menu is what's in Square; the items kept here wait for Custom again.
+  where r.active and (r.square_id is not null or coalesce((select menu_source from public.settings where id = 1), 'custom') = 'custom');
 $$;
 revoke execute on function public.menu_list() from public, anon, authenticated;
 
@@ -85,6 +103,8 @@ create table public.menu_designs (
   format             text not null check (format in ('physical', 'digital')),
   size               text not null check (size in ('a4_portrait', 'a4_landscape', 'a3_portrait', 'a5_portrait', 'screen_landscape', 'screen_portrait')),
   mode               text not null default 'background' check (mode in ('background', 'full')),
+  -- How the app writes it: boxed (like the café's printed menus) or classic (one list over the image).
+  style              text not null default 'boxed' check (style in ('classic', 'boxed')),
   -- Sections on it; empty: every section.
   categories         text[] not null default '{}' check (cardinality(categories) <= 30),
   title              text check (char_length(title) <= 80),
@@ -213,3 +233,58 @@ alter table public.integrations add constraint integrations_provider_check check
   'google_calendar', 'outlook_calendar', 'youtube_music', 'facebook', 'tiktok', 'square', 'stripe',
   'sumup', 'linkedin', 'search_console', 'meta_ads', 'google_ads', 'higgsfield'));
 insert into public.integrations (provider) values ('higgsfield') on conflict do nothing;
+
+-- 5. The menu read from Square (the Worker, with the service key): { items: [{ square_id, name, category,
+-- sell_price, price_label, variants: [{ name, price_change }], description, photo_url, menu_sort }],
+-- sections: [...] }. Each item is found by its Square id (or, the first time, an item here with the
+-- same name, so switching to Square doesn't make doubles) and gets Square's name, section, price, how
+-- it's sold, description and photo (its own photo stays when Square has none); its variants are
+-- matched by name, so what goes in each (Menu costing) stays. What Square doesn't have stays as set
+-- here: allergens, vegan or gluten free, featured, on the menu, its place. An item gone from Square
+-- comes off the menu (it's kept, with its costing). Sections keep the order they were given here; new
+-- ones go after, in Square's order. Returns how many were added, changed and taken off.
+create or replace function public.sync_square_menu(p jsonb) returns jsonb
+language plpgsql security definer set search_path = ''
+as $$
+declare
+  it jsonb; v_id uuid; v_new boolean; n_added int := 0; n_changed int := 0; n_off int := 0;
+  v_ids text[] := array(select x->>'square_id' from jsonb_array_elements(coalesce(p->'items', '[]')) x);
+  v_sections text[] := array(select jsonb_array_elements_text(coalesce(p->'sections', '[]')));
+  v_order text[];
+begin
+  for it in select * from jsonb_array_elements(coalesce(p->'items', '[]')) loop
+    select id into v_id from public.recipes where square_id = it->>'square_id';
+    if v_id is null then
+      select id into v_id from public.recipes where square_id is null and lower(name) = lower(it->>'name') order by active desc, created_at limit 1;
+    end if;
+    v_new := v_id is null;
+    if v_new then
+      insert into public.recipes (name, square_id, category, on_menu, menu_sort)
+      values (it->>'name', it->>'square_id', it->>'category', true, coalesce((it->>'menu_sort')::int, 0))
+      returning id into v_id;
+      n_added := n_added + 1;
+    else
+      n_changed := n_changed + 1;
+    end if;
+    update public.recipes r set name = it->>'name', square_id = it->>'square_id', category = it->>'category',
+      sell_price = (it->>'sell_price')::numeric, price_label = it->>'price_label', description = it->>'description',
+      photo_url = coalesce(it->>'photo_url', r.photo_url), active = true
+     where r.id = v_id;
+    -- Variants by name: changed in place (what goes in each stays), new ones added, gone ones removed.
+    delete from public.recipe_variants v where v.recipe_id = v_id
+       and not exists (select 1 from jsonb_array_elements(coalesce(it->'variants', '[]')) x where x->>'name' = v.name);
+    insert into public.recipe_variants (recipe_id, name, price_change, sort)
+    select v_id, x->>'name', coalesce((x->>'price_change')::numeric, 0), i::int
+      from jsonb_array_elements(coalesce(it->'variants', '[]')) with ordinality y(x, i)
+    on conflict (recipe_id, name) do update set price_change = excluded.price_change, sort = excluded.sort;
+  end loop;
+  update public.recipes set on_menu = false where square_id is not null and not (square_id = any(v_ids)) and on_menu;
+  get diagnostics n_off = row_count;
+  select menu_sections into v_order from public.settings where id = 1;
+  v_order := array(select x from unnest(v_order) with ordinality u(x, i) where x = any(v_sections) order by i)
+          || array(select x from unnest(v_sections) with ordinality u(x, i) where not (x = any(v_order)) order by i);
+  update public.settings set menu_synced_at = now(), menu_sync_error = null, menu_sections = v_order where id = 1;
+  return jsonb_build_object('added', n_added, 'changed', n_changed, 'off', n_off);
+end $$;
+revoke execute on function public.sync_square_menu(jsonb) from public, anon, authenticated;
+grant execute on function public.sync_square_menu(jsonb) to service_role;

@@ -133,7 +133,7 @@ function ScreenCard({ screen: s, selected, onClick }: { screen: Screen; selected
 
 /** One screen: its link, a live preview of the changes, its slides and how it plays them. */
 function ScreenEditor({ screen, designs, items, brand }: { screen: Screen; designs: MenuDesign[]; items: Item[]; brand: Brand | null }) {
-  const { api, business } = useApp()
+  const { api, business, settings } = useApp()
   const run = useAction()
   const notify = useNotify()
   const saved = inputOf(screen)
@@ -155,9 +155,10 @@ function ScreenEditor({ screen, designs, items, brand }: { screen: Screen; desig
   // The preview plays what's on the page now, saved or not, with the digital menus as they are.
   const feed = useMemo<DisplayFeed>(() => ({
     screen: { ...s, id: screen.id, updated_at: screen.updated_at },
+    sections: settings?.menu_sections ?? [],
     business: { name: business?.name ?? '', logo: brand?.logo_mark ?? brand?.logo ?? null, heading_font: brand?.heading_font, body_font: brand?.body_font, colours: brand?.colours },
     menus: Object.fromEntries(designs.map(({ images: _images, ...d }) => [d.id, { design: { ...d, image_url: imageOf({ image_id: d.image_id, images: _images })?.url ?? null }, items }])),
-  }), [s, screen.id, screen.updated_at, business?.name, brand, designs, items])
+  }), [s, screen.id, screen.updated_at, settings?.menu_sections, business?.name, brand, designs, items])
 
   const addAddress = () => {
     const url = cleanUrl(address)

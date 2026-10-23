@@ -12,6 +12,7 @@ import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
 import type { StockItem, StockMovement, Supplier } from '../../shared/stock'
 import type { Recipe } from '../../shared/recipes'
 import type { MenuDesign, MenuImage, MenuItem } from '../../shared/menu'
+import { missingFrom, templateDesigns, templateSections } from '../../shared/menuTemplate'
 import type { DisplayFeed, Screen } from '../../shared/screens'
 import type { AdSettings } from '../../shared/ads'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
@@ -543,6 +544,22 @@ export function createSupabaseApi(url: string, key: string): Api {
       return (check(await sb.from('recipes').insert(item).select('id').single()) as { id: string }).id
     },
     async reorderMenu(ids) { check(await sb.rpc('reorder_menu', { p_ids: ids })) },
+    async loadMenuTemplate() {
+      const add = missingFrom((check(await sb.rpc('menu_items')) as MenuItem[]).map(i => i.name))
+      if (add.length) {
+        const made = check(await sb.from('recipes').insert(add.map(({ variants: _v, ...r }) => r)).select('id, name')) as { id: string; name: string }[]
+        const variants = add.flatMap(a => a.variants.map((v, sort) => ({ ...v, sort, recipe_id: made.find(m => m.name === a.name)!.id })))
+        if (variants.length) check(await sb.from('recipe_variants').insert(variants))
+      }
+      // The printed menus' sections first, then any others there were.
+      const { menu_sections: had } = check(await sb.from('settings').select('menu_sections').eq('id', 1).single()) as { menu_sections: string[] | null }
+      check(await sb.from('settings').update({ menu_sections: [...new Set([...templateSections(), ...(had ?? [])])] }).eq('id', 1))
+      const names = (check(await sb.from('menu_designs').select('name')) as { name: string }[]).map(d => d.name)
+      const designs = templateDesigns().filter(d => !names.includes(d.name))
+      if (designs.length) check(await sb.from('menu_designs').insert(designs))
+      return { added: add.length, designs: designs.length }
+    },
+    syncMenuFromSquare: () => worker('/api/menu/square/sync', { method: 'POST' }),
     async uploadMenuPicture(file) {
       return (await worker<{ url: string }>('/api/integrations/media?folder=Menu', { method: 'POST', body: file, headers: { 'content-type': file.type } })).url
     },

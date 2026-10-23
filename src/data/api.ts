@@ -267,6 +267,13 @@ export interface Api {
   saveMenuItem(item: MenuItemInput): Promise<string>
   /** A section's new order: its items' ids, in order. */
   reorderMenu(ids: string[]): Promise<void>
+  /**
+   * Start from the café's printed menus (Drinks, Food, The fridge): adds the items that aren't on the
+   * menu yet, puts the sections in the printed menus' order, and makes the three printed menus.
+   */
+  loadMenuTemplate(): Promise<{ added: number; designs: number }>
+  /** Read the Square item library into the menu now (when the menu comes from Square). */
+  syncMenuFromSquare(): Promise<{ added: number; changed: number; off: number; items: number }>
   /** Keep a picture for the menu (a photo, a design) in the café's storage, Business Agent/Menu; returns its address. */
   uploadMenuPicture(file: File): Promise<string>
   // Menu designs (admins): printed (physical) and on screens (digital), each with its images.

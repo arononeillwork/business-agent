@@ -326,7 +326,8 @@ the hour; with it, within seconds.
 
 Permissions asked for: `MERCHANT_PROFILE_READ` (business name and locations), `PAYMENTS_READ`
 (takings, tips, refunds, card/cash), `ORDERS_READ` (what was sold, for best sellers),
-`CUSTOMERS_READ` (the customer directory, for Customers), `LOYALTY_READ` and `GIFTCARDS_READ` (the
+`CUSTOMERS_READ` (the customer directory, for Customers), `ITEMS_READ` (the item library, for a menu
+read from Square), `LOYALTY_READ` and `GIFTCARDS_READ` (the
 loyalty programme and gift cards, for Loyalty & gift cards) and `LOYALTY_WRITE` and
 `GIFTCARDS_WRITE` for the only two changes the app makes in Square: goodwill points for a member
 (with a reason Square keeps) and selling a digital gift card an admin confirms. Both send an
@@ -362,6 +363,15 @@ What shows where (admins who can see pay only; Pro plan and up):
   still owed on them, what was sold and spent, and "Sell a gift card" (a digital card, activated at
   the first location for an amount taken at the till). Card numbers only ever show their last 4 digits.
   No programme yet: the page explains how to make one in Square (the app doesn't create programmes).
+- **Menu → Items → Menu from: Square** (admins; Custom is the default): the menu read from the Square
+  item library (Items → Item library) straight away and every hour at :15. Each item's category is its
+  section, its first priced variation its price (Hot and Iced variations become hot and iced prices
+  side by side; Sit In and Takeaway at one price are one price), and its description and photo come
+  too; the modifier lists the items use (milks, syrups, an extra shot) become an **Extras** section.
+  Items already on the menu are matched by name the first time, so their allergens, photos, featured
+  and off-the-menu stay; deleted or archived items come off the menu. While Square is chosen, items
+  that aren't in Square are hidden (Custom brings them back) and an item's name, section, price and
+  description can only be changed in Square. "Read from Square now" reads it on demand.
 
 Access lasts 30 days and is renewed a week before it runs out; if it stops working, admins get a
 notification. A business connected **before best sellers were added** keeps its takings, and the
@@ -369,7 +379,9 @@ Best sellers card asks for one reconnect (Connections → Square → Connect Squ
 `ORDERS_READ`. The same goes for customers: a connection made before they were added needs one
 reconnect to allow `CUSTOMERS_READ`; until then takings carry on and no customers come in. And for
 loyalty and gift cards: until a reconnect allows the four `LOYALTY_*`/`GIFTCARDS_*` permissions, that
-page says "Reconnect Square to allow loyalty and gift cards" with the button to do it.
+page says "Reconnect Square to allow loyalty and gift cards" with the button to do it. And for the
+menu: a connection made before it could be read from Square needs one reconnect to allow `ITEMS_READ`;
+until then the Menu page says so and the menu stays as it is.
 
 ## 10. Stripe (online payments, on top of the till)
 
@@ -594,8 +606,9 @@ other); the admin chooses which to pick from with **Add documents**. Where the a
 
 ## 19. Higgsfield (AI images for the Menu page) and Screens
 
-**Higgsfield** makes the Menu page's images with AI: artwork for behind a printed or screen menu,
-a whole menu with its words in, a change to an image, and photos of the dishes. It runs on the
+**Higgsfield** makes the Menu page's images with AI: artwork for behind a printed or screen menu
+(or, for a boxed menu laid out like the café's printed ones, a wide strip of illustrations for the
+bottom), a whole menu with its words in, a change to an image, and photos of the dishes. It runs on the
 **business's own Higgsfield account**, so the images use its Higgsfield credits (failed ones aren't
 charged); nothing is set up in the deploy.
 

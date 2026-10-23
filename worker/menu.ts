@@ -3,16 +3,20 @@
 // webhook below when it's done (the page also asks while it's open, and the minute cron picks up
 // any whose webhook was lost). Each finished image is copied into the café's own storage ("Business
 // Agent/Menu" in Drive or OneDrive, or R2), since Higgsfield keeps it only a week. Admins only.
+// And the menu itself from Square, when that's where it comes from (settings.menu_source): its item
+// library read on demand and every hour, into the menu items (sync_square_menu()).
 import { Hono } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { bearer, serviceClient, userClient, type Env } from './supabase'
-import { higgsfieldKey, markBroken, setIntegration } from './connections'
+import { higgsfieldKey, markBroken, setIntegration, squareSession } from './connections'
 import { hmacHex, safeEqual, seal } from './crypto'
 import { storeMedia } from './media'
 import * as higgsfield from './providers/higgsfield'
+import * as square from './providers/square'
+import { fromSquareCatalog } from '../shared/menuSquare'
 import { businessConfig } from '../shared/business.config'
 import {
-  MAX_PROMPT, aiRequest, buildPrompt, menuSections, modelOf, photoPrompt, readAiResult, sizeOf, type AiModel, type AiResult, type MenuDesign, type MenuImage, type MenuItem,
+  MAX_PROMPT, aiRequest, buildPrompt, menuSections, modelOf, photoPrompt, readAiResult, imageShape, type AiModel, type AiResult, type MenuDesign, type MenuImage, type MenuItem,
 } from '../shared/menu'
 import type { BrandColour } from '../shared/types'
 
@@ -39,7 +43,7 @@ menu.use('/api/menu/*', async (c, next) => {
   if (!token) return c.json({ error: 'Not signed in' }, 401)
   const sb = userClient(c.env, token, 'app')
   const [{ data: user }, { data: isAdmin }] = await Promise.all([sb.auth.getUser(token), sb.rpc('is_admin')])
-  if (!user.user || !isAdmin) return c.json({ error: 'Only admins make menu images' }, 403)
+  if (!user.user || !isAdmin) return c.json({ error: 'Only admins change the menu and its images' }, 403)
   c.set('userId', user.user.id)
   await next()
 })
@@ -119,6 +123,46 @@ menu.post('/api/hooks/higgsfield/:id/:sig', async c => {
   return c.json({ ok: true })
 })
 
+// The menu from Square: read its item library now (the Menu page's "Read from Square now", and right
+// after Square is chosen as where the menu comes from).
+menu.post('/api/menu/square/sync', async c => {
+  try {
+    return c.json(await syncSquareMenu(c.env, serviceClient(c.env)))
+  } catch (e) {
+    return c.json({ error: message(e) }, status(e))
+  }
+})
+
+/**
+ * Read the Square item library into the menu. A connection made before the app asked to read items
+ * is told to connect again; any failure is kept for the Menu page to show.
+ */
+export async function syncSquareMenu(env: Env, db: SupabaseClient) {
+  const { data: row } = await db.from('integrations').select('status').eq('provider', 'square').maybeSingle()
+  if (row?.status !== 'connected') throw new MenuError('Connect Square on the Connections page first: the menu is read from its item library.', 409)
+  let objects
+  try {
+    const s = await squareSession(env, db)
+    objects = await square.catalog(s.sandbox, s.token)
+  } catch (e) {
+    const scopes = e instanceof square.SquareError && e.code === 'INSUFFICIENT_SCOPES'
+    const why = scopes ? 'Connect Square again on the Connections page so the app can read your item library (it asks for that permission now).' : message(e)
+    await db.from('settings').update({ menu_sync_error: why.slice(0, 500) }).eq('id', 1)
+    throw scopes ? new MenuError(why, 409) : new Error(why)
+  }
+  const read = fromSquareCatalog(objects)
+  const { data, error } = await db.rpc('sync_square_menu', { p: read })
+  if (error) throw new Error(error.message)
+  return { ...(data as { added: number; changed: number; off: number }), items: read.items.length }
+}
+
+/** Every hour (the cron), while the menu comes from Square. */
+export async function syncSquareMenuIfChosen(env: Env, db: SupabaseClient) {
+  const { data } = await db.from('settings').select('menu_source').eq('id', 1).maybeSingle()
+  if (data?.menu_source !== 'square') return
+  await syncSquareMenu(env, db).catch(e => console.error('square menu failed', message(e)))
+}
+
 interface GenerateInput { design_id?: string; item_id?: string; prompt?: string; model?: AiModel; edit_of?: string }
 
 async function generate(env: Env, db: SupabaseClient, origin: string, userId: string, p: GenerateInput): Promise<MenuImage> {
@@ -146,14 +190,15 @@ async function generate(env: Env, db: SupabaseClient, origin: string, userId: st
   if (p.design_id) {
     const { data: d } = await db.from('menu_designs').select('*').eq('id', p.design_id).maybeSingle() as { data: Omit<MenuDesign, 'images'> | null }
     if (!d) throw new MenuError('That design has gone', 404)
-    shape = sizeOf(d.size)
+    shape = imageShape(d)
     if (edit) prompt = words
     else {
       if (!words && d.mode === 'background') throw new MenuError('Describe the look you want: colours, style, what’s in it')
-      const [{ data: business }, { data: items }] = await Promise.all([db.from('business').select('name').eq('id', 1).maybeSingle(), db.rpc('menu_list')])
+      const [{ data: business }, { data: items }, { data: settings }] = await Promise.all([db.from('business').select('name').eq('id', 1).maybeSingle(), db.rpc('menu_list'),
+        db.from('settings').select('menu_sections').eq('id', 1).maybeSingle()])
       const money = new Intl.NumberFormat('es-ES', { style: 'currency', currency: businessConfig.currency })
-      prompt = buildPrompt(words, { mode: d.mode, format: d.format, size: d.size, title: d.title ?? business?.name ?? businessConfig.name, subtitle: d.subtitle,
-        footer: d.footer, sections: menuSections((items ?? []) as MenuItem[], { only: d.categories }), money: n => money.format(n) })
+      prompt = buildPrompt(words, { mode: d.mode, style: d.style, format: d.format, size: d.size, title: d.title ?? business?.name ?? businessConfig.name, subtitle: d.subtitle,
+        footer: d.footer, sections: menuSections((items ?? []) as MenuItem[], { only: d.categories, order: settings?.menu_sections ?? [] }), money: n => money.format(n) })
     }
   } else if (p.item_id) {
     const { data: item } = await db.from('recipes').select('name, description, category').eq('id', p.item_id).maybeSingle()

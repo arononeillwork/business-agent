@@ -117,6 +117,38 @@ do $$ begin
 exception when check_violation then null;
 end $$;
 
+-- 2b. The menu from Square: an item here with the same name is taken over (its allergens, featured
+-- and what goes in its variants stay), new ones come in, gone ones come off the menu; sections keep the
+-- order given here. Only the Worker runs it.
+select pg_temp.act_as('maria@test');
+do $$ declare v uuid; begin
+  insert into public.recipes (name, sell_price, allergens, featured) values ('Sync flat white', 3.2, array['milk'], true) returning id into v;
+  insert into public.recipe_variants (recipe_id, name, price_change) values (v, 'Iced', 0.9);
+end $$;
+select pg_temp.expect_error($q$select public.sync_square_menu('{}')$q$, 'permission denied');
+reset role;
+select set_config('request.jwt.claim.sub', '', false);
+do $$ declare r jsonb; v_iced uuid := (select v.id from public.recipe_variants v join public.recipes x on x.id = v.recipe_id where x.name = 'Sync flat white');
+begin
+  r := public.sync_square_menu('{"items": [
+      {"square_id": "sq-fw", "name": "Sync Flat White", "category": "Classics", "sell_price": 3.8, "price_label": "Hot", "variants": [{"name": "Iced", "price_change": 1}], "photo_url": null},
+      {"square_id": "sq-new", "name": "Sync smoothie", "category": "Smoothies", "sell_price": 6.5, "variants": [], "menu_sort": 1}],
+    "sections": ["Classics", "Smoothies"]}');
+  assert r = '{"added": 1, "changed": 1, "off": 0}'::jsonb, format('counts: %s', r);
+  assert (select square_id = 'sq-fw' and name = 'Sync Flat White' and sell_price = 3.8 and price_label = 'Hot' and category = 'Classics'
+            and allergens = array['milk'] and featured from public.recipes where square_id = 'sq-fw'), 'taken over by name, what Square lacks kept';
+  assert (select id = v_iced and price_change = 1 from public.recipe_variants where name = 'Iced' and recipe_id = (select id from public.recipes where square_id = 'sq-fw')),
+    'the variant changed in place (its costing stays)';
+  assert (select on_menu and category = 'Smoothies' from public.recipes where square_id = 'sq-new'), 'a new one is on the menu';
+  assert (select menu_sections = array['Classics', 'Smoothies'] and menu_synced_at is not null from public.settings), 'sections and when';
+  update public.settings set menu_sections = array['Smoothies', 'Classics'];
+  r := public.sync_square_menu('{"items": [{"square_id": "sq-fw", "name": "Sync Flat White", "category": "Classics", "sell_price": 3.9, "variants": []},
+      {"square_id": "sq-x", "name": "Syrup", "category": "Extras", "sell_price": 0.5, "variants": []}], "sections": ["Classics", "Smoothies", "Extras"]}');
+  assert (r->>'off')::int = 1 and not (select on_menu from public.recipes where square_id = 'sq-new'), 'gone from Square: off the menu, kept';
+  assert not exists (select 1 from public.recipe_variants where recipe_id = (select id from public.recipes where square_id = 'sq-fw')), 'a variant Square dropped goes';
+  assert (select menu_sections from public.settings) = array['Smoothies', 'Classics', 'Extras'], format('order kept, new after: %s', (select menu_sections from public.settings));
+end $$;
+
 -- 3. Screens.
 select pg_temp.act_as('maria@test');
 do $$ declare s uuid; v_token text; v_design uuid := (select id from public.menu_designs where name = 'TV menu'); begin

@@ -233,6 +233,8 @@ export function musicEmbedUrl(url: string): string | null {
 /** What the screen's link loads (no sign-in): its settings, slides, and the menus it shows with their items. */
 export interface DisplayFeed {
   screen: Omit<Screen, 'token' | 'last_seen_at'>
+  /** The menu's sections in order (Settings: menu_sections). */
+  sections: string[]
   /** The business's name, and its brand (Brand page) for the menus: logo, fonts and colours. */
   business: { name: string; logo: string | null; heading_font?: string; body_font?: string; colours?: BrandColour[] }
   /** The digital menus on its slides, by design id. */
