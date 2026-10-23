@@ -307,6 +307,9 @@ test.describe('admin', () => {
   })
 
   test('switches an alert off and back on', async ({ page }) => {
+    // Sign-in, two saves each waiting on its toast, and the last check's wait for the page to go quiet
+    // (up to 10 s while a live connection stays open) together ran past 30 s on a slow day.
+    test.setTimeout(60_000)
     await signIn(page, 'admin')
     await nav(page).getByRole('link', { name: 'Notifications', exact: true }).click()
     await expect(page.getByRole('heading', { name: 'Notifications', exact: true })).toBeVisible(NET)

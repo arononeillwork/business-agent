@@ -260,7 +260,8 @@ export interface Api {
 
   // To Do List (the team; admins manage categories)
   todos(): Promise<{ categories: TodoCategory[]; todos: Todo[] }>
-  addTodo(todo: { title: string; category_id: string | null; position: number }): Promise<Todo>
+  /** Add a job; on the board it can go straight to someone, or into Doing. */
+  addTodo(todo: { title: string; category_id: string | null; position: number; assignee_id?: string | null; status?: Todo['status'] }): Promise<Todo>
   updateTodo(id: string, patch: TodoPatch): Promise<void>
   deleteTodo(id: string): Promise<void>
   saveTodoCategory(category: Partial<TodoCategory> & { name: string }): Promise<void>

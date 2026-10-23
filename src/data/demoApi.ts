@@ -22,6 +22,7 @@ import { addToCalendarUrl, cleanWebsite, groupOf } from '../../shared/connection
 import { mergeSales } from '../../shared/sales'
 import { dueFrom, emailId, matchSupplier, numberFromName, type InboxInvoice, type Invoice } from '../../shared/invoices'
 import type { Licence } from '../../shared/licences'
+import { inStep } from '../../shared/todo'
 import { LEGAL_STORAGES, MAX_PICK, SKIPPED, guessKind, previewOf, storageName, titleOf, type LegalDocument, type LegalStorage, type StorageItem } from '../../shared/legalDocs'
 import type { Benefit, LeaveAllowance } from '../../shared/benefits'
 import { DEFAULT_TAX_SETTINGS, cleanFolderName, cleanFolderPath, taxFileProblem, type FilingRecord, type TaxDocument, type TaxSettings } from '../../shared/tax'
@@ -739,6 +740,8 @@ export function createDemoApi(): Api {
     ['Marketing', 'Events, collabs, outreach', '#B23C78'], ['Future ideas', 'New business ideas for later', '#6E7D1A'],
   ] as const).map(([name, hint, colour], i) => ({ id: `tc-${i + 1}`, name, hint, colour, sort: i + 1 }))
   const cat = (name: string) => todoCategories.find(c => c.name === name)!.id
+  // Being done now (the board's Doing column).
+  const DOING_NOW = new Set<string>(['Set up the card reader on the terrace', 'Write the closing checklist'])
   const todos: Todo[] = ([
     ['Get the AC serviced before summer', 'Shop', null, 'p-mark', false, false, false],
     ['Buy bowls and plates', 'Buying', null, null, true, false, false],
@@ -754,7 +757,8 @@ export function createDemoApi(): Api {
     ['Clean the outside terrace', 'Shop', null, 'p-cleaner', false, true, false],
     ['Order more oat milk', 'Buying', null, null, true, false, false],
   ] as const).map(([title, c, section, assignee, starred, done, pinned], i) => ({ id: `td-${i + 1}`, title, category_id: cat(c), section,
-    assignee_id: assignee, done, done_at: done ? nowIso() : null, starred, pinned, position: i + 1, created_at: nowIso() }))
+    assignee_id: assignee, done, status: done ? 'done' as const : DOING_NOW.has(title) ? 'doing' as const : 'todo' as const,
+    done_at: done ? nowIso() : null, starred, pinned, position: i + 1, created_at: nowIso() }))
   // Customers and leads: regulars, people who asked about something, and a few businesses to win over.
   const person = (c: Partial<Customer> & { days: number }): Customer => {
     const { days, ...rest } = c
@@ -1932,8 +1936,9 @@ export function createDemoApi(): Api {
     async addTodo(t) {
       if (!staffOnly(me()!)) throw new Error('Only the team can add jobs')
       if (!t.title.trim()) throw new Error('Write the job first')
-      const todo: Todo = { id: uid(), title: t.title.trim(), category_id: t.category_id, section: null, assignee_id: null, done: false,
-        done_at: null, starred: false, pinned: false, position: t.position, created_at: nowIso() }
+      const status = t.status ?? 'todo'
+      const todo: Todo = { id: uid(), title: t.title.trim(), category_id: t.category_id, section: null, assignee_id: t.assignee_id ?? null,
+        done: status === 'done', status, done_at: status === 'done' ? nowIso() : null, starred: false, pinned: false, position: t.position, created_at: nowIso() }
       todos.push(todo)
       return clone(todo)
     },
@@ -1942,6 +1947,8 @@ export function createDemoApi(): Api {
       const t = todos.find(x => x.id === id)
       if (!t) throw new Error('That job has gone')
       if (patch.title !== undefined && !patch.title.trim()) throw new Error('A job needs a name')
+      // Like the database: the column and the tick stay in step.
+      patch = inStep(t, patch)
       Object.assign(t, patch, patch.title !== undefined ? { title: patch.title.trim() } : {},
         patch.section !== undefined ? { section: patch.section?.trim() || null } : {},
         patch.done !== undefined ? { done_at: patch.done ? (t.done_at ?? nowIso()) : null } : {})
