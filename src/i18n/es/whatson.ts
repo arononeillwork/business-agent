@@ -157,12 +157,12 @@ export default {
   '{n} days ago': 'hace {n} días',
   "What's on TV": 'Qué echan en la tele',
   'Sports is off': 'Deportes está desactivado',
-  'Football, rugby, UFC and boxing fixtures, live scores and big nights on Today are hidden, and nothing is fetched.': 'Los partidos de fútbol, rugby, UFC y boxeo, los resultados en directo y las noches grandes en Hoy están ocultos, y no se descarga nada.',
+  'Football, rugby, UFC and boxing fixtures and big nights on Today are hidden, and nothing is fetched.': 'Los partidos de fútbol, rugby, UFC y boxeo y las noches grandes en Hoy están ocultos, y no se descarga nada.',
   'Turn it back on with the switch above.': 'Vuelve a activarlo con el interruptor de arriba.',
   'An admin can turn it back on.': 'Un administrador puede volver a activarlo.',
   'Sports is on': 'Deportes está activado',
   'Turn on Sports?': '¿Activar Deportes?',
-  'Shows upcoming football, rugby, UFC and boxing with live scores, and big nights on Today, for the whole team. Fixtures update automatically every few hours.': 'Muestra los próximos partidos de fútbol, rugby, UFC y boxeo con resultados en directo, y las noches grandes en Hoy, para todo el equipo. Los partidos se actualizan solos cada pocas horas.',
+  'Shows upcoming football, rugby, UFC and boxing, and big nights on Today, for the whole team. Fixtures update automatically every 6 hours.': 'Muestra los próximos partidos de fútbol, rugby, UFC y boxeo, y las noches grandes en Hoy, para todo el equipo. Los partidos se actualizan solos cada 6 horas.',
   'On match days': 'Los días de partido',
   "During LaLiga matches, Movistar, Vodafone, Orange, DIGI and Masmovil block large parts of Cloudflare, where this app runs, so the app may not load on those connections while a match is on. That happens whether Sports is on or off. If it won't load, use the free 1.1.1.1 app (WARP) or mobile data from another provider.": 'Durante los partidos de LaLiga, Movistar, Vodafone, Orange, DIGI y Masmovil bloquean gran parte de Cloudflare, donde funciona esta app, así que puede que no cargue con esas conexiones mientras hay partido. Pasa tanto si Deportes está activado como si no. Si no carga, usa la app gratuita 1.1.1.1 (WARP) o datos móviles de otro operador.',
   'Turn on': 'Activar',
@@ -202,7 +202,7 @@ export default {
   'Following {name}': 'Siguiendo {name}',
   'Stopped following {name}': 'Has dejado de seguir {name}',
   'Competitions to follow': 'Competiciones que seguir',
-  'Fixtures for these appear on the Sports page and refresh every few hours.': 'Sus partidos aparecen en la página de Deportes y se actualizan cada pocas horas.',
+  'Fixtures for these appear on the Sports page and refresh every 6 hours.': 'Sus partidos aparecen en la página de Deportes y se actualizan cada 6 horas.',
 
   // Music
   'Your playlists, played here or on your phone and speakers (Premium plays on your devices).': 'Tus listas, en esta página o en tu móvil y altavoces (con Premium suenan en tus dispositivos).',

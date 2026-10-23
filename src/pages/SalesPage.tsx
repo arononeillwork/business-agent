@@ -12,6 +12,7 @@ import { useAsync } from '../app/hooks'
 import { BarChart, ShareBars, type BarPoint } from '../components/charts'
 import { Empty, ErrorBox, Loading, PageHeader, SectionTitle, StatGrid, StatTile, Tag } from '../components/common'
 import { ExportButton, SortCell, useSort } from '../components/tables'
+import { Freshness } from '../components/Freshness'
 import type { ExportTable } from '../lib/export'
 import { addDays, currencySymbol, formatLocal, formatMoney, formatNumber, today, weekStart } from '../../shared/time'
 import type { PayMethod, SalesDay, SalesItems, SalesProvider } from '../../shared/types'
@@ -136,6 +137,7 @@ export function SalesPage() {
       <Tag>{t('From {name}', { name })}</Tag>
       {picker}
     </>} />
+    {on && sales.data && <Box sx={{ mt: -2, mb: 2 }}><Freshness id="takings" at={sales.data.fetched_at} /></Box>}
   </>
   if (!integ.data) return <>{header}<ErrorBox error={integ.error} /><Loading /></>
   if (!tills.length) return <>{header}<ConnectFirst /></>

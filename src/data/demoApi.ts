@@ -2346,5 +2346,10 @@ export function createDemoApi(): Api {
       return { action, at: nowIso(), full_name: p.full_name, summary }
     },
   }
+  // Outside services' answers say when they were read, as the Worker's do (in the demo, just now).
+  for (const k of ['sales', 'salesItems', 'adsReport', 'loyalty', 'giftCards', 'searchConsole', 'reviews', 'invoiceInbox'] as const) {
+    const read = api[k] as (...args: never[]) => Promise<object>
+    api[k] = (async (...args: never[]) => ({ ...await read(...args), fetched_at: nowIso() })) as unknown as never
+  }
   return api
 }

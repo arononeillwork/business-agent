@@ -41,6 +41,8 @@ export interface LoyaltyState {
   program: LoyaltyProgram | null
   members: LoyaltyMember[]
   events: LoyaltyEvent[]
+  /** When the service was last asked (the Worker keeps its answer a while: shared/refresh.ts). */
+  fetched_at?: string
 }
 
 export type GiftCardState = 'ACTIVE' | 'PENDING' | 'DEACTIVATED' | 'BLOCKED'
@@ -63,6 +65,8 @@ export interface GiftCards {
   currency: string
   cards: GiftCard[]
   activities: GiftCardActivity[]
+  /** When the service was last asked (the Worker keeps its answer a while: shared/refresh.ts). */
+  fetched_at?: string
 }
 
 /** A card number as shown anywhere: its last 4 digits. */

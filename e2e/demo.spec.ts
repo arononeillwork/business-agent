@@ -2147,6 +2147,8 @@ test('Sales page: its own menu section; connect Square, then sales, charts and b
   await expect(page.getByRole('region', { name: 'Payments and sales' }).getByRole('article', { name: 'Square' })).toContainText('Connected')
   await salesNav.getByRole('link', { name: 'Sales' }).click()
   await expect(page.getByText('From Square')).toBeVisible()
+  // How fresh the figures are, and how often Square is read (the Worker keeps them a while).
+  await expect(page.getByText('Updated just now · today’s every 15 minutes, earlier days once a day')).toBeVisible()
   const tiles = page.getByRole('list', { name: 'At a glance' })
   for (const label of ['Gross sales', 'Net sales', 'Transactions', 'Average sale']) await expect(tiles).toContainText(label)
   await expect(tiles).toContainText(/vs last week|nothing last week to compare/)
@@ -2168,6 +2170,16 @@ test('Sales page: its own menu section; connect Square, then sales, charts and b
   await accounts.getByRole('link', { name: 'Finances' }).click()
   await page.getByRole('region', { name: 'Takings' }).getByRole('link', { name: 'See sales' }).click()
   await expect(page.getByRole('heading', { name: 'Sales', level: 1 })).toBeVisible()
+})
+
+test('connections: how often each outside service is read, and why, all in one list', async ({ page }) => {
+  await open(page, '/connections')
+  const list = page.getByRole('table', { name: 'How often things update' })
+  await expect(list.getByRole('row').filter({ hasText: 'Takings and best sellers' })).toContainText('today’s every 15 minutes, earlier days once a day')
+  await expect(list.getByRole('row').filter({ hasText: 'Google reviews' }))
+    .toContainText('every hour (every 3 hours without Business Profile)')
+  await expect(list.getByRole('row').filter({ hasText: 'Google Search' })).toContainText('every 6 hours')
+  await expect(list.getByRole('row').filter({ hasText: 'Sports fixtures' })).toContainText('every 6 hours')
 })
 
 test('Sales page: employees don’t get it', async ({ page }) => {

@@ -42,6 +42,8 @@ export interface AdsReport {
   platforms: PlatformReport[]
   /** A platform that couldn't be read just now (the others still show). */
   failed?: { platform: AdPlatform; error: string }[]
+  /** When the service was last asked (the Worker keeps its answer a while: shared/refresh.ts). */
+  fetched_at?: string
 }
 
 /** The monthly limits the business set itself (the platforms' own budgets still decide what's spent). */

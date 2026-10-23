@@ -44,6 +44,12 @@ built-in **AI connector** so owners can run it by talking to Claude.
   and AGEDI/AIE for the music, the terrace permit, insurance, extinguisher and electrical checks, staff
   food handler certificates), each with its number, when it runs out, how often it renews, its cost
   and its document; one press marks it renewed, and admins are reminded in the bell beforehand.
+- How often things update: what the app reads from Square, SumUp, Stripe, Google and Meta (takings, ads,
+  Search Console, loyalty, email invoices, reviews) is kept a while (`provider_cache`), so opening a page
+  doesn't ask them again each time: today's takings every 15 minutes and finished days once a day, ads
+  hourly, Search Console every 6 hours, reviews hourly (every 3 hours from Places, which Google charges
+  for past 1,000 look-ups a month). Each page says when its figures were updated and how often, and
+  Connections lists every service; the intervals live in `shared/refresh.ts`.
 - Invoices: what suppliers invoice (and the sales invoices sent), each tied to its supplier from Stock
   and to its file, with what's to pay, overdue and paid, notes, and totals by supplier. Invoices come
   in from the connected Gmail or Outlook (once reading it is allowed), by upload, or typed in; a

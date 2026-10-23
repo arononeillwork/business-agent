@@ -2,15 +2,17 @@
 // it, on the Invoices page) for emails with files that could be invoices, each matched to its
 // supplier; bringing one in keeps the file as a tax document (Tax/<year>/Q<n>/Purchase invoices in
 // the café's Drive or OneDrive) and adds the invoice, with what a Facturae e-invoice says filled in.
-// Admins with pay access only, as Tax.
+// Admins with pay access only, as Tax. What the mailbox holds is kept 15 minutes (provider_cache).
 import { Hono } from 'hono'
 import { bearer, serviceClient, userClient, type Env } from './supabase'
 import { connectedOf, connectorGrant, explain, lasting, markBroken } from './connections'
+import { cached } from './cache'
 import * as google from './providers/google'
 import * as ms from './providers/microsoft'
 import { keepTaxFile, TaxError } from './tax'
 import { autoFolder, guessPeriod, safeFileName, taxFileType, MAX_TAX_FILE_BYTES, quarterOf } from '../shared/tax'
 import { dueFrom, emailId, matchSupplier, numberFromName, readFacturae, type InboxInvoice, type InboxState } from '../shared/invoices'
+import { MINUTES } from '../shared/refresh'
 
 export const invoices = new Hono<{ Bindings: Env; Variables: { token: string } }>()
 
@@ -52,8 +54,10 @@ invoices.get('/api/invoices/inbox', async c => {
   if (!box || !box.canRead) return c.json({ mailbox: box?.provider ?? null, can_read: false, messages: [] } satisfies InboxState)
   const days = Math.min(Math.max(Number(c.req.query('days')) || 60, 1), 365)
   try {
-    const { token } = await connectorGrant(c.env, db, box.provider)
-    const found = box.provider === 'gmail' ? await google.gmailWithAttachments(token, days) : await ms.outlookWithAttachments(token, days)
+    const { data: found, fetched_at } = await cached(db, `mail:${box.provider}:${days}`, MINUTES.mailInvoices, async () => {
+      const { token } = await connectorGrant(c.env, db, box.provider)
+      return box.provider === 'gmail' ? await google.gmailWithAttachments(token, days) : await ms.outlookWithAttachments(token, days)
+    })
     const [{ data: suppliers }, { data: done }] = await Promise.all([
       asPerson.from('suppliers').select('id, email, website, active, tax_id'),
       asPerson.from('invoices').select('email_id').eq('source', 'email'),
@@ -68,7 +72,7 @@ invoices.get('/api/invoices/inbox', async c => {
         supplier_id: matchSupplier((suppliers ?? []) as never[], { email: from.email }),
       }
     }).filter(m => m.attachments.length)
-    return c.json({ mailbox: box.provider, can_read: true, messages } satisfies InboxState)
+    return c.json({ mailbox: box.provider, can_read: true, messages, fetched_at } satisfies InboxState)
   } catch (e) {
     const err = await broken(db, box.provider, e)
     return c.json({ error: err.message }, 502)

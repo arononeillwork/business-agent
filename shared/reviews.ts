@@ -34,6 +34,8 @@ export interface ReviewsState {
   reviews: Review[]
   /** Why reviews can't be read right now, in words an admin can act on. */
   problem: string | null
+  /** When the service was last asked (the Worker keeps its answer a while: shared/refresh.ts). */
+  fetched_at?: string
 }
 
 /** Google gives stars as words on the business profile. */

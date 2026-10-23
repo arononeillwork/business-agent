@@ -69,7 +69,7 @@ function SportsOff() {
         <CardContent>
           <Typography variant="h6" component="h2" sx={{ mb: 0.5 }}>{t('Sports is off')}</Typography>
           <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-            {t('Football, rugby, UFC and boxing fixtures, live scores and big nights on Today are hidden, and nothing is fetched.')}
+            {t('Football, rugby, UFC and boxing fixtures and big nights on Today are hidden, and nothing is fetched.')}
             {' '}{isAdmin ? t('Turn it back on with the switch above.') : t('An admin can turn it back on.')}
           </Typography>
         </CardContent>
@@ -97,7 +97,7 @@ function SportsSwitch({ on }: { on: boolean }) {
         <DialogTitle>{t('Turn on Sports?')}</DialogTitle>
         <DialogContent>
           <Typography variant="body2" sx={{ mb: 2 }}>
-            {t('Shows upcoming football, rugby, UFC and boxing with live scores, and big nights on Today, for the whole team. Fixtures update automatically every few hours.')}
+            {t('Shows upcoming football, rugby, UFC and boxing, and big nights on Today, for the whole team. Fixtures update automatically every 6 hours.')}
           </Typography>
           <Alert severity="warning">
             <AlertTitle>{t('On match days')}</AlertTitle>
@@ -471,7 +471,7 @@ function CompetitionsDialog({ competitions, onClose }: { competitions: SportsCom
       <DialogTitle>{t('Competitions to follow')}</DialogTitle>
       <DialogContent>
         <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
-          {t('Fixtures for these appear on the Sports page and refresh every few hours.')}
+          {t('Fixtures for these appear on the Sports page and refresh every 6 hours.')}
         </Typography>
         <Box sx={{ display: 'grid', gap: 2.5 }}>
           {groups.map(g => (

@@ -471,11 +471,17 @@ export interface Sales {
   days: SalesDay[]
   /** Payment systems that couldn't be read just now (the others' takings are still shown). */
   failed?: { provider: SalesProvider; error: string }[]
+  /** When the service was last asked (the Worker keeps its answer a while: shared/refresh.ts). */
+  fetched_at?: string
 }
 /** One item on the Sales page's best sellers (Square orders): units sold and their sales before discounts. */
 export interface SalesItem { name: string; quantity: number; gross: number }
 /** Best sellers, or why there are none: Stripe and SumUp send no items, or Square was connected before items were asked for. */
-export interface SalesItems { items: SalesItem[] | null; reason?: 'stripe' | 'sumup' | 'reconnect'; /** Square's items, with Stripe's online sales not among them. */ partial?: 'stripe' }
+export interface SalesItems {
+  items: SalesItem[] | null; reason?: 'stripe' | 'sumup' | 'reconnect'; /** Square's items, with Stripe's online sales not among them. */ partial?: 'stripe'
+  /** When the service was last asked (the Worker keeps its answer a while: shared/refresh.ts). */
+  fetched_at?: string
+}
 
 /** Search Console (Google): how the website did in Google Search. Figures lag Google by 2–3 days. */
 export interface SearchRow { clicks: number; impressions: number; /** 0–1 */ ctr: number; /** average position, 1 = top */ position: number }
@@ -487,6 +493,8 @@ export interface SearchReport {
   pages: (SearchRow & { page: string })[]
   devices: (SearchRow & { device: 'DESKTOP' | 'MOBILE' | 'TABLET' })[]
   countries: (SearchRow & { country: string })[]  // ISO 3166 alpha-3 lower-case as Google returns it
+  /** When the service was last asked (the Worker keeps its answer a while: shared/refresh.ts). */
+  fetched_at?: string
 }
 
 /** To Do List: a category the admins manage (jobs are grouped by these). */

@@ -15,6 +15,7 @@ import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { Empty, ErrorBox, PageHeader, SectionTitle, StatGrid, StatTile, Tag } from '../components/common'
 import { ExportButton } from '../components/tables'
+import { Freshness } from '../components/Freshness'
 import type { ExportTable } from '../lib/export'
 import { formatLocal, formatMoney, today } from '../../shared/time'
 import {
@@ -249,6 +250,7 @@ function FromEmail({ suppliers }: { suppliers: Supplier[] }) {
         <SectionTitle action={inbox.data?.can_read && waiting.some(m => supplierOf(m)) && (
           <Button startIcon={<MailIcon />} onClick={() => void bringMatched()}>{t('Bring in all from known suppliers')}</Button>
         )}>{t('From email')}</SectionTitle>
+        {inbox.data?.can_read && <Box sx={{ mt: -1, mb: 1.5 }}><Freshness id="mail" at={inbox.data.fetched_at} /></Box>}
         <ErrorBox error={inbox.error} />
         {inbox.data && !box && (
           <Alert severity="info" action={<Button component={RouterLink} to="/connections" color="inherit">{t('Connections')}</Button>}>

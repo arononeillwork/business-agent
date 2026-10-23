@@ -60,6 +60,8 @@ export interface InboxState {
   /** The mailbox was connected without permission to read it (only to send). */
   can_read: boolean
   messages: InboxInvoice[]
+  /** When the service was last asked (the Worker keeps its answer a while: shared/refresh.ts). */
+  fetched_at?: string
 }
 
 /** The id an attachment is brought in under, so each one comes in once. */
