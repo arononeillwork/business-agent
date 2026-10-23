@@ -12,7 +12,11 @@ import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { copyTsv, csvContent, exportCsv, exportXlsx, printPdf, type ExportTable } from '../lib/export'
 import { formatMoney } from '../../shared/time'
+import { tokens } from '../theme'
 import { t } from '../i18n'
+
+/** A cell still to be entered (a price or a cost nobody has filled in yet): lightly shaded, as pending things are elsewhere. */
+export const toEnter = { bgcolor: tokens.warnBg } as const
 
 // ---------------------------------------------------------------------------------------------
 // Sorting: click a column heading to sort by it, click again to reverse.

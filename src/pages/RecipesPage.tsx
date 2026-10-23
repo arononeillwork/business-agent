@@ -12,10 +12,10 @@ import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { Empty, ErrorBox, PageHeader, StatGrid, StatTile, Tag } from '../components/common'
-import { ExportButton, SortCell, useSort } from '../components/tables'
+import { ExportButton, SortCell, toEnter, useSort } from '../components/tables'
 import type { ExportTable } from '../lib/export'
 import {
-  DEFAULT_TARGET_MARGIN, RECIPE_CATEGORIES, costing, lineCost, priceForTarget, unitsFor, type Recipe, type RecipeInput, type RecipeLine, type RecipeVariant,
+  DEFAULT_TARGET_MARGIN, RECIPE_CATEGORIES, costing, lineCost, linesFor, priceForTarget, unitsFor, type Recipe, type RecipeInput, type RecipeLine, type RecipeVariant,
 } from '../../shared/recipes'
 import { unitLabel, type StockItem } from '../../shared/stock'
 import { addDays, formatMoney, formatNumber, today } from '../../shared/time'
@@ -23,9 +23,15 @@ import { tokens } from '../theme'
 import { t, tc, tn } from '../i18n'
 
 const pct = (n: number | null) => (n === null ? '—' : `${formatNumber(n)}%`)
-type Row = Recipe & { c: ReturnType<typeof costing> }
+/** empty: nothing entered for what goes in, so no cost or margin yet. pending: empty, or an ingredient without a cost. */
+type Row = Recipe & { c: ReturnType<typeof costing>; empty: boolean; pending: boolean }
 const SORT_BY: Record<string, (r: Row) => string | number | null> = {
-  name: r => r.name, category: r => r.category, price: r => r.sell_price, cost: r => r.c.cost, margin: r => r.c.margin, pct: r => r.c.marginPct,
+  name: r => r.name, category: r => r.category, price: r => r.sell_price, cost: r => (r.empty ? null : r.c.cost), margin: r => r.c.margin, pct: r => r.c.marginPct,
+}
+const row = (r: Recipe, items: StockItem[]): Row => {
+  const c = costing(r, items)
+  const empty = linesFor(r).length === 0
+  return { ...r, c: empty ? { ...c, margin: null, marginPct: null, below: false } : c, empty, pending: empty || c.missing.length > 0 }
 }
 
 /** Admins: what each drink and dish costs to make, from the stock items in it, and the margin it makes. */
@@ -39,7 +45,7 @@ export function RecipesPage() {
   const [belowOnly, setBelowOnly] = useState(false)
   const [q, setQ] = useState('')
   const items = useMemo(() => stock.data ?? [], [stock.data])
-  const all: Row[] = (data.data ?? []).filter(r => r.active).map(r => ({ ...r, c: costing(r, items) }))
+  const all: Row[] = (data.data ?? []).filter(r => r.active).map(r => row(r, items))
   const below = all.filter(r => r.c.below)
   const shown = all.filter(r => (!category || r.category === category) && (!belowOnly || r.c.below) && (!q.trim() || r.name.toLowerCase().includes(q.trim().toLowerCase())))
   const { rows, sort } = useSort(shown, SORT_BY, { by: 'pct', dir: 'asc' })
@@ -52,7 +58,7 @@ export function RecipesPage() {
     filename: `menu-costing-${today()}`,
     columns: [t('Item'), t('Variant'), t('Category'), t('Price with IVA'), t('Price without IVA'), t('Cost'), t('Margin'), t('Margin %'), t('Target %')],
     rows: rows.flatMap(r => [
-      [r.name, '', r.category ? t(r.category) : '', r.c.price, r.c.net === null ? null : Math.round(r.c.net * 100) / 100, Math.round(r.c.cost * 100) / 100,
+      [r.name, '', r.category ? t(r.category) : '', r.c.price, r.c.net === null ? null : Math.round(r.c.net * 100) / 100, r.empty ? null : Math.round(r.c.cost * 100) / 100,
         r.c.margin === null ? null : Math.round(r.c.margin * 100) / 100, r.c.marginPct, r.target_margin],
       ...r.variants.map(v => {
         const c = costing(r, items, v.id)
@@ -117,20 +123,20 @@ export function RecipesPage() {
                     onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(r) } }}>
                     <TableCell sx={cell}>
                       <Typography sx={{ fontWeight: 500 }}>{r.name}</Typography>
-                      {(r.variants.length > 0 || r.c.missing.length > 0) && (
-                        <Typography variant="body2" sx={{ color: r.c.missing.length ? tokens.badFg : 'text.secondary' }}>
-                          {r.c.missing.length ? t('No cost for: {items}', { items: r.c.missing.join(', ') }) : r.variants.map(v => v.name).join(' · ')}
+                      {(r.variants.length > 0 || r.pending) && (
+                        <Typography variant="body2" sx={{ color: r.pending ? tokens.badFg : 'text.secondary' }}>
+                          {r.empty ? t('No ingredients yet') : r.c.missing.length ? t('No cost for: {items}', { items: r.c.missing.join(', ') }) : r.variants.map(v => v.name).join(' · ')}
                         </Typography>
                       )}
                     </TableCell>
                     <TableCell sx={{ ...cell, ...hide('lg'), color: 'text.secondary' }}>{r.category ? t(r.category) : '—'}</TableCell>
-                    <TableCell align="right" sx={{ ...cell, whiteSpace: 'nowrap' }}>
+                    <TableCell align="right" sx={{ ...cell, whiteSpace: 'nowrap', ...(r.c.price === null && toEnter) }}>
                       {r.c.price === null ? '—' : formatMoney(r.c.price)}
                       {r.c.net !== null && <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('{amount} net', { amount: formatMoney(r.c.net) })}</Typography>}
                     </TableCell>
-                    <TableCell align="right" sx={{ ...cell, ...hide('sm') }}>{formatMoney(r.c.cost)}</TableCell>
-                    <TableCell align="right" sx={{ ...cell, ...hide('md') }}>{r.c.margin === null ? '—' : formatMoney(r.c.margin)}</TableCell>
-                    <TableCell align="right" sx={{ ...cell, whiteSpace: 'nowrap' }}>
+                    <TableCell align="right" sx={{ ...cell, ...hide('sm'), ...(r.pending && toEnter) }}>{r.empty ? '—' : formatMoney(r.c.cost)}</TableCell>
+                    <TableCell align="right" sx={{ ...cell, ...hide('md'), ...((r.pending || r.c.price === null) && toEnter) }}>{r.c.margin === null ? '—' : formatMoney(r.c.margin)}</TableCell>
+                    <TableCell align="right" sx={{ ...cell, whiteSpace: 'nowrap', ...((r.pending || r.c.price === null) && toEnter) }}>
                       {r.c.below && <Tooltip title={t('Below the {target}% aimed for', { target: formatNumber(r.target_margin) })}><WarningIcon sx={{ fontSize: 16, color: tokens.badFg, mr: 0.5, verticalAlign: 'text-bottom' }} /></Tooltip>}
                       <Box component="span" sx={{ fontWeight: 500, color: r.c.below ? tokens.badFg : 'inherit' }}>{pct(r.c.marginPct)}</Box>
                     </TableCell>
@@ -141,7 +147,13 @@ export function RecipesPage() {
             </Table>
           </Box>
         </Card>
-        <Typography variant="body2" sx={{ color: 'text.secondary', mt: 2 }}>
+        <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mt: 2 }}>
+          <Box sx={{ ...toEnter, width: 14, height: 14, borderRadius: 0.5, border: `1px solid ${tokens.line}`, flexShrink: 0 }} />
+          <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+            {t('Shaded: still to be entered (the menu price, what goes in, or an ingredient’s cost on the Stock page).')}
+          </Typography>
+        </Stack>
+        <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1 }}>
           {t('Margin: the menu price without IVA, less what goes in (with its waste allowance), as a share of that price. Costs come from Stock: change a supplier’s price there and every recipe follows.')}
         </Typography>
       </>}
@@ -202,7 +214,9 @@ function RecipeDialog({ recipe, items, readOnly, onClose }: { recipe: Recipe | n
                 {r.lines.filter(x => x.variant_id === null).map(x => <MenuItem key={x.item_id} value={x.item_id}>{items.find(it => it.id === x.item_id)?.name ?? '?'}</MenuItem>)}
               </TextField>
             )}
-            <Typography variant="body2" sx={{ width: 64, textAlign: 'right', color: c === null ? tokens.badFg : 'text.secondary' }}>{c === null ? t('No cost') : formatMoney(c)}</Typography>
+            <Typography variant="body2" sx={{ width: 64, textAlign: 'right', color: c === null ? tokens.badFg : 'text.secondary', ...(c === null && { ...toEnter, borderRadius: 1, px: 0.5 }) }}>
+              {c === null ? t('No cost') : formatMoney(c)}
+            </Typography>
             {!readOnly && <IconButton size="small" aria-label={t('Remove {name}', { name: item?.name ?? '' })} onClick={() => set({ lines: r.lines.filter((_, j) => j !== i) })}><CloseIcon fontSize="small" /></IconButton>}
           </Stack>
         )

@@ -21,7 +21,7 @@ import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction, useNotify } from '../app/Notify'
 import { Empty, ErrorBox, PageHeader, StatGrid, StatTile, Tag } from '../components/common'
-import { ExportButton, SortCell, useSort } from '../components/tables'
+import { ExportButton, SortCell, toEnter, useSort } from '../components/tables'
 import type { ExportTable } from '../lib/export'
 import {
   CATEGORIES, LOCATIONS, REASONS, UNITS, emailLink, isLow, nextOrderDay, orderList, orderMessage, readStockCsv, reasonLabel, retailMargin,
@@ -196,7 +196,7 @@ export function StockPage() {
                       </TableCell>
                       <TableCell align="right" sx={{ ...cell, ...hide('sm'), color: 'text.secondary' }}>{i.reorder_at === null ? '—' : formatNumber(i.reorder_at)}</TableCell>
                       <TableCell align="right" sx={{ ...cell, ...hide('lg'), color: 'text.secondary' }}>{i.par_level === null ? '—' : formatNumber(i.par_level)}</TableCell>
-                      <TableCell align="right" sx={{ ...cell, ...hide('md'), whiteSpace: 'nowrap' }}>
+                      <TableCell align="right" sx={{ ...cell, ...hide('md'), whiteSpace: 'nowrap', ...(i.cost_per_unit === null && toEnter) }}>
                         {i.cost_per_unit === null ? '—' : t('{price} / {unit}', { price: formatMoney(i.cost_per_unit), unit: t(unitLabel(i.unit)) })}
                       </TableCell>
                       <TableCell sx={{ ...cell, ...hide('xl'), color: 'text.secondary' }}>{i.location ? t(i.location) : '—'}</TableCell>

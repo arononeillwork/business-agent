@@ -3393,6 +3393,31 @@ test.describe('recipes and waste', () => {
     await expect(page.getByRole('table', { name: 'Menu costing' }).getByRole('row', { name: 'Cortado' })).toContainText('Extra shot')
   })
 
+  test('a menu item with nothing in it yet has no cost or margin, shaded as still to be entered', async ({ page }) => {
+    await open(page, '/recipes')
+    const average = page.getByRole('list', { name: 'At a glance' }).getByRole('listitem').filter({ hasText: 'Average margin' })
+    await expect(average).toContainText('%')
+    const before = await average.textContent()
+    await page.getByRole('button', { name: 'Add menu item' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Add a menu item' })
+    await dialog.getByRole('textbox', { name: 'Name' }).fill('Bacon sandwich')
+    await dialog.getByRole('textbox', { name: 'Menu price, with IVA' }).fill('5,50')
+    await dialog.getByRole('button', { name: 'Add', exact: true }).click()
+    await toast(page, 'Added Bacon sandwich')
+    const row = page.getByRole('table', { name: 'Menu costing' }).getByRole('row', { name: 'Bacon sandwich' })
+    await expect(row).toContainText('No ingredients yet')
+    // Item, category, price, cost, margin, margin %: the price is in, the rest is still to be entered.
+    const cells = row.getByRole('cell')
+    await expect(cells.nth(2)).toContainText('5,50')
+    await expect(cells.nth(2)).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+    for (const i of [3, 4, 5]) {
+      await expect(cells.nth(i)).toHaveText('—')
+      await expect(cells.nth(i)).toHaveCSS('background-color', 'rgb(255, 241, 234)')
+    }
+    // Nor counted in the average as a 100% margin.
+    await expect(average).toHaveText(before!)
+  })
+
   test('the team logs waste and it comes off the stock; only admins with pay access see what it cost', async ({ page }) => {
     await open(page, '/waste')
     const tiles = page.getByRole('list', { name: 'At a glance' })

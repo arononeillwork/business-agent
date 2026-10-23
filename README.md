@@ -59,7 +59,8 @@ built-in **AI connector** so owners can run it by talking to Claude.
   ready for WhatsApp or email. Suppliers keep their contact details, website, order page and order days.
   Menu costing works out what each drink or dish costs from the stock in it (with variants such as oat
   milk or an extra shot, and a waste allowance) and its margin against the menu price; the Waste log
-  takes what's thrown away and why off the stock, with its cost for admins.
+  takes what's thrown away and why off the stock, with its cost for admins. Anything still to be entered
+  (a menu price, what goes in, an item's cost) is shaded, and a dish with nothing in it has no margin yet.
   Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) sections 7-17.
 
 See [docs/PLAN.md](docs/PLAN.md) for decisions, architecture and phases.
