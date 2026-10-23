@@ -18,9 +18,11 @@ describe('What each kind of post holds, and where it goes', () => {
     expect(post({ kind: 'carousel', media: img(1) })).toBe('A carousel needs at least 2 photos or videos')
     expect(post({ kind: 'carousel', media: img(11) })).toBe('A post can have up to 10 photos or videos')
   })
-  it('a reel is one video; a story one photo or video', () => {
+  it('a reel is one video (photos become one with music); a story one photo or video', () => {
     expect(post({ kind: 'reel', media: vid() })).toBeNull()
-    expect(post({ kind: 'reel', media: img() })).toBe('A reel is one video')
+    expect(post({ kind: 'reel', media: vid(2) })).toBe('A reel is one video')
+    expect(post({ kind: 'reel', media: [...img(), ...vid()] })).toBe('A reel is one video')
+    expect(post({ kind: 'reel', media: img(3) })).toBe('Photos make a reel with music: choose the music')
     expect(post({ kind: 'reel' })).toBe('Add the reel’s video')
     expect(post({ kind: 'story', media: vid() })).toBeNull()
     expect(post({ kind: 'story' })).toBe('Add the story’s photo or video')

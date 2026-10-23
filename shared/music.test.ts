@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { STARTER, aiPrompt, aiSeconds, audioName, beatCuts, clampStart, formatTime, namesArtist, occasionsIn, parseTime, renderKey, suggest, usesFor, type Rankable, type SuggestContext } from './music'
+import { STARTER, aiPrompt, aiSeconds, audioName, beatCuts, clampStart, engagementByTrack, formatTime, namesArtist, occasionsIn, parseTime, recentTracks, renderKey, suggest, usesFor, type Rankable, type SuggestContext } from './music'
+import type { MixedMusic } from './types'
 
 const track = (id: string, moods: string[], patch: Partial<Rankable> = {}): Rankable =>
   ({ id, title: id, duration_s: 40, moods, energy: 3, vocals: false, saved: false, source: 'starter', ...patch })
@@ -46,6 +47,19 @@ describe('suggestions', () => {
   it('prefer a track long enough for the clip', () => {
     expect(suggest([track('short', ['jazz'], { duration_s: 10 }), track('long', ['jazz'])], ctx({ seconds: 30 }))[0].track.id).toBe('long')
   })
+
+  it('know the planner\'s recent tracks and what each did on Instagram', () => {
+    const mixed = (track_id: string) => ({ mode: 'mixed', track_id } as MixedMusic)
+    const posts = [
+      { music: mixed('a'), insights: { likes: 10, comments: 2 }, scheduled_at: null, published_at: '2026-10-01T09:00:00Z' },
+      { music: mixed('b'), insights: null, scheduled_at: '2026-10-20T09:00:00Z', published_at: null },
+      { music: mixed('a'), insights: { likes: 20, comments: 0 }, scheduled_at: null, published_at: '2026-10-05T09:00:00Z' },
+      { music: { mode: 'in_instagram', song: 'x', start: 0 } as const, insights: { likes: 99, comments: 9 }, scheduled_at: null, published_at: '2026-10-21T09:00:00Z' },
+      { music: null, insights: null, scheduled_at: null, published_at: null },
+    ]
+    expect(recentTracks(posts)).toEqual(['b', 'a', 'a'])
+    expect(engagementByTrack(posts)).toEqual({ a: 17 })
+  })
 })
 
 describe('AI prompts', () => {
@@ -68,6 +82,9 @@ describe('AI prompts', () => {
     expect(aiSeconds(15)).toBe(17)
     expect(aiSeconds(1)).toBe(3)
     expect(aiSeconds(900)).toBe(600)
+    // The fade's two seconds never make it another paid minute.
+    expect([aiSeconds(59), aiSeconds(60), aiSeconds(61)]).toEqual([60, 60, 63])
+    expect(usesFor(aiSeconds(60))).toBe(1)
     expect([usesFor(17), usesFor(60), usesFor(61), usesFor(125)]).toEqual([1, 1, 2, 3])
   })
 })

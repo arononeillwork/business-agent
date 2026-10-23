@@ -2,7 +2,7 @@
 // tracks are tagged with, the starter pack every business gets, how an AI prompt is written, how
 // "For you" ranks the library for a post, and the small sums (parts, lengths, uses).
 import { msg } from './i18n'
-import type { PostKind } from './types'
+import type { MixedMusic, PostKind, PostMusic } from './types'
 
 /** Uploaded tracks: MP3 or M4A up to 20 MB. */
 export const MAX_AUDIO_BYTES = 20 * 1024 * 1024
@@ -130,8 +130,14 @@ export function aiPrompt(c: PromptChoice): string {
 
 const joinAnd = (xs: string[]) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`)
 
-/** How long an AI track should be for a clip: two seconds more for the fade, within ElevenLabs' limits. */
-export const aiSeconds = (clip: number) => Math.min(AI_MAX_SECONDS, Math.max(AI_MIN_SECONDS, Math.ceil(clip) + 2))
+/**
+ * How long an AI track should be for a clip: two seconds more for the fade, but never into another
+ * paid minute (a 60 s story is one use), within ElevenLabs' limits.
+ */
+export function aiSeconds(clip: number) {
+  const c = Math.ceil(clip)
+  return Math.min(AI_MAX_SECONDS, Math.max(AI_MIN_SECONDS, Math.min(c + 2, Math.max(c, Math.ceil(c / 60) * 60))))
+}
 /** Pay-per-use uses: one per started minute. */
 export const usesFor = (seconds: number) => Math.max(1, Math.ceil(Math.max(seconds, AI_MIN_SECONDS) / 60))
 
@@ -264,6 +270,33 @@ export function beatCuts(bpm: number | null | undefined, photos: number, seconds
   const cuts = Array.from({ length: photos }, (_, i) => Math.round(i * per * beat * 100) / 100)
   // Too many photos for the length at that pace: share it evenly instead.
   return cuts[cuts.length - 1] < seconds - 0.5 ? cuts : Array.from({ length: photos }, (_, i) => Math.round(i * even * 100) / 100)
+}
+
+/** A reel made from photos: where each one starts, on the track's beat (one photo needs none). */
+export const photoCuts = (m: { bpm?: number | null; seconds: number }, photos: number) =>
+  (photos > 1 ? beatCuts(m.bpm, photos, m.seconds) : undefined)
+
+/** What suggestions need from the planner's posts (any post shape with music and Instagram's counts). */
+interface PostLike { music?: PostMusic | null; insights?: { likes: number; comments: number } | null; scheduled_at: string | null; published_at: string | null }
+
+/** Tracks on the last five posts with music in them, newest first (suggested less often for a while). */
+export function recentTracks(posts: PostLike[]): string[] {
+  return posts.filter(p => p.music?.mode === 'mixed')
+    .sort((a, b) => (b.published_at ?? b.scheduled_at ?? '').localeCompare(a.published_at ?? a.scheduled_at ?? ''))
+    .slice(0, 5).map(p => (p.music as MixedMusic).track_id)
+}
+
+/** How well each track did on Instagram: likes plus twice the comments, averaged over its posts. */
+export function engagementByTrack(posts: PostLike[]): Record<string, number> {
+  const sums = new Map<string, { total: number; n: number }>()
+  for (const p of posts) {
+    if (p.music?.mode !== 'mixed' || !p.insights) continue
+    const s = sums.get(p.music.track_id) ?? { total: 0, n: 0 }
+    s.total += p.insights.likes + 2 * p.insights.comments
+    s.n++
+    sums.set(p.music.track_id, s)
+  }
+  return Object.fromEntries([...sums].map(([id, s]) => [id, Math.round((s.total / s.n) * 10) / 10]))
 }
 
 /** The sound's name on a reel: "Easy Beans · Sunday Morning" (Instagram allows one change, at most 100 characters here). */

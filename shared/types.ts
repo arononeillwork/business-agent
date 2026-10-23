@@ -481,6 +481,8 @@ export interface MixedMusic {
   source_media: PostMedia[]
   /** A reel from photos: where each photo starts. */
   cuts?: number[]
+  /** The track's tempo, so a reel's photos change on the beat. */
+  bpm?: number | null
   /** The file with the music in (the post's media), and the choices it was made with. */
   rendered_url: string | null
   rendered_for: string | null

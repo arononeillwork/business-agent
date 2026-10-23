@@ -39,6 +39,8 @@ export interface Player {
   stop: () => void
   /** Where it is now, in seconds (for following along on a waveform). */
   time: () => number
+  /** How loud, 0 to 1 (the preview follows the music volume). */
+  setVolume: (v: number) => void
 }
 
 export function usePlayer(): Player {
@@ -56,6 +58,7 @@ export function usePlayer(): Player {
     a.pause()
     a.src = url
     a.preload = 'auto'
+    a.volume = 1
     const seek = () => { try { a.currentTime = from } catch { /* not seekable yet */ } }
     a.onloadedmetadata = seek
     a.ontimeupdate = () => { if (to !== undefined && a.currentTime >= to) a.currentTime = from }
@@ -66,7 +69,10 @@ export function usePlayer(): Player {
     a.play().catch(() => { if (current.current === key) stop() })
   }, [stop])
   useEffect(() => () => { audio.current?.pause() }, [])
-  return { playing, play, stop, time: () => audio.current?.currentTime ?? 0 }
+  return {
+    playing, play, stop, time: () => audio.current?.currentTime ?? 0,
+    setVolume: (v: number) => { if (audio.current) audio.current.volume = Math.min(1, Math.max(0, v)) },
+  }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -101,6 +107,7 @@ export function Waveform({ peaks, duration, part, onMove, height = 56, label }: 
         'aria-valuetext': t('From {from} to {to}', { from: formatTime(part.start), to: formatTime(part.start + part.seconds) }),
         onKeyDown: (e: KeyboardEvent) => {
           if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); move(part.start + (e.key === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? 5 : 1)) }
+          if (e.key === 'Home' || e.key === 'End') { e.preventDefault(); move(e.key === 'Home' ? 0 : duration) }
         },
       } : {})}
       onPointerDown={down} onPointerMove={e => { if (drag.current) move(timeAt(e.clientX) - drag.current.offset) }}
@@ -263,17 +270,18 @@ export const matchesSearch = (tr: MusicTrack, q: string) => {
   return [tr.title, tr.artist ?? '', tr.genre ?? '', ...tr.moods.filter(isMood).flatMap(m => [m, t(MOODS[m].label)])].some(x => x.toLowerCase().includes(s))
 }
 
-export function SearchAndFilter({ search, onSearch, filter, onFilter }: { search: string; onSearch: (s: string) => void; filter: Filter; onFilter: (f: Filter) => void }) {
+/** Search by name or mood, and (in the library) which tracks to show. */
+export function SearchAndFilter({ search, onSearch, filter, onFilter }: { search: string; onSearch: (s: string) => void; filter?: Filter; onFilter?: (f: Filter) => void }) {
   return (
     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ alignItems: { sm: 'center' } }}>
       <TextField size="small" value={search} onChange={e => onSearch(e.target.value)} placeholder={t('Search by name or mood')}
         slotProps={{ htmlInput: { 'aria-label': t('Search the music') }, input: { startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> } }} sx={{ flex: 1 }} />
-      <ToggleButtonGroup exclusive size="small" value={filter} onChange={(_, v: Filter | null) => v && onFilter(v)} aria-label={t('Which tracks')}>
+      {filter && onFilter && <ToggleButtonGroup exclusive size="small" value={filter} onChange={(_, v: Filter | null) => v && onFilter(v)} aria-label={t('Which tracks')}>
         <ToggleButton value="all" sx={{ px: 1.25 }}>{t('All')}</ToggleButton>
         <ToggleButton value="saved" sx={{ px: 1.25 }}>{t('Saved')}</ToggleButton>
         <ToggleButton value="yours" sx={{ px: 1.25 }}>{t('Yours')}</ToggleButton>
         <ToggleButton value="starter" sx={{ px: 1.25 }}>{t('Starter pack')}</ToggleButton>
-      </ToggleButtonGroup>
+      </ToggleButtonGroup>}
     </Stack>
   )
 }

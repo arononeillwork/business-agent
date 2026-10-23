@@ -65,6 +65,8 @@ export function postProblem(p: Pick<SocialPost, 'kind' | 'caption' | 'media' | '
   if (n > 10) return msg('A post can have up to 10 photos or videos')
   if (p.kind === 'post' && videos > 0) return msg('Videos go out as reels: choose Reel')
   if (p.kind === 'post' && n > 1) return msg('A post has one photo. Choose Carousel for more')
+  // Photos make a reel once music goes in (the composer checks it as the video it will be).
+  if (p.kind === 'reel' && n > 0 && !videos && p.music?.mode !== 'mixed') return msg('Photos make a reel with music: choose the music')
   if (p.kind === 'reel' && (n > 1 || videos !== n)) return msg('A reel is one video')
   if (p.kind === 'story' && n > 1) return msg('A story is one photo or video')
   const other = p.targets.find(t => !info.networks.includes(t))
