@@ -52,6 +52,8 @@ const as = (who: 'admin' | 'staff') => ({ authorization: `Bearer ${who}-token`, 
 const post = (path: string, body: unknown = {}, who: 'admin' | 'staff' = 'admin') =>
   integrations.request(`${APP}${path}`, { method: 'POST', headers: as(who), body: JSON.stringify(body) }, env, ctx())
 const get = (path: string, who: 'admin' | 'staff' = 'admin') => integrations.request(`${APP}${path}`, { headers: as(who) }, env, ctx())
+/** The minutes outside services' answers are kept (shared/refresh.ts) have passed. */
+const later = () => { db.tables.provider_cache = [] }
 
 /** Press Connect, come back from Google/Microsoft with a code, and return where the app lands. */
 async function connect(provider: string, back: 'connections' | 'setup' = 'connections') {
@@ -682,8 +684,9 @@ describe('Facebook, TikTok and Square: one click, connected once they really wor
     expect(await res.json()).toEqual({ items: [
       { name: 'Flat White', quantity: 3, gross: 9.6 },
       { name: 'Croissant · Pistachio', quantity: 1, gross: 4.2 },
-    ] })
+    ], fetched_at: expect.any(String) })
     apis.square.ordersScope = false
+    later()
     expect(await (await get('/api/integrations/payments/items?from=2026-09-28&to=2026-09-29')).json()).toEqual({ items: null, reason: 'reconnect' })
     expect(status('square')).toBe('connected') // takings keep working meanwhile
     db.table('profiles').find(p => p.id === 'admin-1')!.can_see_pay = false
@@ -810,6 +813,7 @@ describe('Facebook, TikTok and Square: one click, connected once they really wor
       .toMatchObject({ partial: 'stripe', items: [{ name: 'Flat White' }, { name: 'Croissant · Pistachio' }] })
     // One that can't be read just now leaves the other's takings showing.
     apis.stripe.revoked = true
+    later()
     const some = await (await get('/api/integrations/payments/sales?from=2026-09-28&to=2026-09-29')).json() as { providers: string[]; failed: { provider: string }[]; days: { gross: number }[] }
     expect(some.providers).toEqual(['square'])
     expect(some.failed).toEqual([expect.objectContaining({ provider: 'stripe' })])

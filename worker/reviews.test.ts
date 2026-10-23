@@ -2,11 +2,12 @@
 // Google (Business Profile, Places, PageSpeed) and the business's website. What must never break:
 //   - reviews come from the business's own profile when connected (with replies), else Places
 //   - each new review is noticed once; admins hear about recent ones, low stars flagged
+//   - Places (charged past 1,000 look-ups a month) is asked at most every 3 hours, however often the page opens
 //   - only admins read reviews, reply or check the website
 //   - the website check finds what's wrong and says how to fix it; PageSpeed's quota is explained
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { integrations } from './integrations'
-import { checkReviews, reviews } from './reviews'
+import { checkReviews, refreshReviews, reviews } from './reviews'
 import { website } from './website'
 import { serviceClient, type Env } from './supabase'
 import { FakeSupabase } from './test/fakeSupabase'
@@ -122,6 +123,50 @@ describe('Reviews', () => {
     expect(s.reviews[0]).toMatchObject({ id: 'places/ChIJeasybeans/reviews/p1', language: 'es', url: 'https://maps.google.com/?r=p1' })
     const res = await call(reviews, '/api/reviews/reply', { method: 'PUT', headers: admin, body: JSON.stringify({ id: 'places/ChIJeasybeans/reviews/p1', text: 'Gracias' }) }, withPlaces)
     expect(res.status).toBe(400)
+  })
+
+  it('Places is asked at most every 3 hours (about 240 a month), however often the page is opened', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      const start = Date.parse('2026-10-01T10:30:00Z')
+      vi.setSystemTime(start)
+      const open = async () => (await call(reviews, '/api/reviews', { headers: admin }, withPlaces)).json() as Promise<{ feed: string; fetched_at: string }>
+      expect(await open()).toMatchObject({ feed: 'places', fetched_at: new Date(start).toISOString() })
+      await open()
+      await open()
+      expect(apis.places.calls).toBe(1)
+      // A day of the hourly check (a few seconds past the half hour), with the page opened after each.
+      for (let hour = 1; hour <= 24; hour++) {
+        vi.setSystemTime(start + hour * 3_600_000 + 2_000)
+        await refreshReviews(withPlaces, serviceClient(withPlaces), 5)
+        await open()
+      }
+      expect(apis.places.calls).toBe(1 + 8)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('from the business’s own profile, every hour; connecting it ends the 3-hour wait for Places straight away', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      const start = Date.parse('2026-10-01T10:30:00Z')
+      vi.setSystemTime(start)
+      expect(await (await call(reviews, '/api/reviews', { headers: admin }, withPlaces)).json()).toMatchObject({ feed: 'places' })
+      await connectMaps()
+      vi.setSystemTime(start + 60_000)
+      expect(await (await call(reviews, '/api/reviews', { headers: admin }, withPlaces)).json()).toMatchObject({ feed: 'business_profile' })
+      const profileReads = () => apis.calls.filter(c => c.startsWith('GET mybusiness.googleapis.com') && c.endsWith('/reviews')).length
+      const asked = profileReads()
+      vi.setSystemTime(start + 30 * 60_000)
+      await call(reviews, '/api/reviews', { headers: admin }, withPlaces)
+      expect(profileReads()).toBe(asked)
+      vi.setSystemTime(start + 3_600_000 + 2_000)
+      await refreshReviews(withPlaces, serviceClient(withPlaces), 5)
+      expect(profileReads()).toBe(asked + 1)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 

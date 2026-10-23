@@ -49,6 +49,12 @@ built-in **AI connector** so owners can run it by talking to Claude.
   be connected; the admin chooses which), grouped by kind, shown in the page straight from the storage
   and opened there. Nothing is copied: only where each file is is kept. A gestoría with finances access
   reads. Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) section 18.
+- How often things update: what the app reads from Square, SumUp, Stripe, Google and Meta (takings, ads,
+  Search Console, loyalty, email invoices, reviews) is kept a while (`provider_cache`), so opening a page
+  doesn't ask them again each time: today's takings every 15 minutes and finished days once a day, ads
+  hourly, Search Console every 6 hours, reviews hourly (every 3 hours from Places, which Google charges
+  for past 1,000 look-ups a month). Each page says when its figures were updated and how often, and
+  Connections lists every service; the intervals live in `shared/refresh.ts`.
 - Invoices: what suppliers invoice (and the sales invoices sent), each tied to its supplier from Stock
   and to its file, with what's to pay, overdue and paid, notes, and totals by supplier. Invoices come
   in from the connected Gmail or Outlook (once reading it is allowed), by upload, or typed in; a
@@ -61,10 +67,12 @@ built-in **AI connector** so owners can run it by talking to Claude.
 - Stock: every wholesale item (beans, milk, cups, pastries) and the shop's own products, each with its
   supplier, link, cost and reorder level. The team records deliveries, counts and waste (or a whole
   stocktake at once); the order list groups what's low by supplier, with the order day and a message
-  ready for WhatsApp or email. Suppliers keep their contact details, website, order page and order days.
+  ready for WhatsApp or email. Suppliers keep their contact details, website, order page and order days;
+  admins star the ones they rely on, and the page shows the active ones, the whole catalogue or the starred.
   Menu costing works out what each drink or dish costs from the stock in it (with variants such as oat
   milk or an extra shot, and a waste allowance) and its margin against the menu price; the Waste log
-  takes what's thrown away and why off the stock, with its cost for admins.
+  takes what's thrown away and why off the stock, with its cost for admins. Anything still to be entered
+  (a menu price, what goes in, an item's cost) is shaded, and a dish with nothing in it has no margin yet.
   Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) sections 7-18.
 
 See [docs/PLAN.md](docs/PLAN.md) for decisions, architecture and phases.

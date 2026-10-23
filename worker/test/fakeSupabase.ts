@@ -16,7 +16,7 @@ export const GROUP: Record<string, string> = {
 /** Primary keys, for upserts. Tables not listed get a numeric id. */
 const KEYS: Record<string, string[]> = {
   integrations: ['provider'], integration_secrets: ['provider'], calendar_feeds: ['profile_id', 'scope'], profiles: ['id'], business: ['id'], api_keys: ['id'], referrals: ['email'],
-  whatsapp_messages: ['wa_message_id'], settings: ['id'],
+  whatsapp_messages: ['wa_message_id'], settings: ['id'], provider_cache: ['key'],
 }
 /** Keyed tables that still get a numeric id of their own (an identity column beside the unique key). */
 const AUTO_ID = new Set(['whatsapp_messages'])
@@ -44,6 +44,17 @@ function matcher(params: URLSearchParams) {
     else if (op === 'gt') tests.push(r => v(r) !== null && v(r)! > arg)
     else if (op === 'lte') tests.push(r => v(r) !== null && v(r)! <= arg)
     else if (op === 'lt') tests.push(r => v(r) !== null && v(r)! < arg)
+    else if (op === 'like') {
+      // PostgREST's like: * or % for any run of characters, _ for one, \ before one to take it as it is.
+      let re = ''
+      const plain = (ch: string) => ch.replace(/[.*+?^$()|[\]\\{}]/g, '\\$&')
+      for (let i = 0; i < arg.length; i++) {
+        const ch = arg[i]
+        re += ch === '\\' && i + 1 < arg.length ? plain(arg[++i]) : ch === '*' || ch === '%' ? '.*' : ch === '_' ? '.' : plain(ch)
+      }
+      const pattern = new RegExp(`^${re}$`, 's')
+      tests.push(r => v(r) !== null && pattern.test(v(r)!))
+    }
     else throw new Error(`fake Supabase: unsupported filter ${key}=${raw}`)
   }
   return (r: Row) => tests.every(t => t(r))

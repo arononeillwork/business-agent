@@ -2147,6 +2147,8 @@ test('Sales page: its own menu section; connect Square, then sales, charts and b
   await expect(page.getByRole('region', { name: 'Payments and sales' }).getByRole('article', { name: 'Square' })).toContainText('Connected')
   await salesNav.getByRole('link', { name: 'Sales' }).click()
   await expect(page.getByText('From Square')).toBeVisible()
+  // How fresh the figures are, and how often Square is read (the Worker keeps them a while).
+  await expect(page.getByText('Updated just now · today’s every 15 minutes, earlier days once a day')).toBeVisible()
   const tiles = page.getByRole('list', { name: 'At a glance' })
   for (const label of ['Gross sales', 'Net sales', 'Transactions', 'Average sale']) await expect(tiles).toContainText(label)
   await expect(tiles).toContainText(/vs last week|nothing last week to compare/)
@@ -2168,6 +2170,16 @@ test('Sales page: its own menu section; connect Square, then sales, charts and b
   await accounts.getByRole('link', { name: 'Finances' }).click()
   await page.getByRole('region', { name: 'Takings' }).getByRole('link', { name: 'See sales' }).click()
   await expect(page.getByRole('heading', { name: 'Sales', level: 1 })).toBeVisible()
+})
+
+test('connections: how often each outside service is read, and why, all in one list', async ({ page }) => {
+  await open(page, '/connections')
+  const list = page.getByRole('table', { name: 'How often things update' })
+  await expect(list.getByRole('row').filter({ hasText: 'Takings and best sellers' })).toContainText('today’s every 15 minutes, earlier days once a day')
+  await expect(list.getByRole('row').filter({ hasText: 'Google reviews' }))
+    .toContainText('every hour (every 3 hours without Business Profile)')
+  await expect(list.getByRole('row').filter({ hasText: 'Google Search' })).toContainText('every 6 hours')
+  await expect(list.getByRole('row').filter({ hasText: 'Sports fixtures' })).toContainText('every 6 hours')
 })
 
 test('Sales page: employees don’t get it', async ({ page }) => {
@@ -3321,6 +3333,32 @@ test.describe('stock and suppliers', () => {
     await expect(row.getByRole('link', { name: 'Oranges on the supplier’s website' })).toHaveAttribute('href', 'https://frutas.example/naranjas')
   })
 
+  test('suppliers: the active ones first, the whole catalogue, and the starred ones', async ({ page }) => {
+    await open(page, '/suppliers')
+    const cards = page.getByRole('article')
+    await expect(page.getByRole('button', { name: 'Active 6' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(cards).toHaveCount(6)
+
+    await page.getByRole('button', { name: 'Starred 1' }).click()
+    await expect(cards).toHaveCount(1)
+    await expect(cards.first()).toHaveAccessibleName('Tostadores del Sur')
+
+    await page.getByRole('button', { name: 'Active 6' }).click()
+    const eric = page.getByRole('article', { name: 'By Eric' })
+    await eric.getByRole('button', { name: 'Star' }).click()
+    await expect(eric.getByRole('button', { name: 'Star' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.getByRole('button', { name: 'Starred 2' })).toBeVisible()
+
+    // Archived: out of Active, still in the Catalogue (marked).
+    await page.getByRole('button', { name: 'Edit Cash & Carry Marbella' }).click()
+    await page.getByRole('dialog').getByRole('button', { name: 'Archive' }).click()
+    await toast(page, 'Archived Cash & Carry Marbella')
+    await expect(cards).toHaveCount(5)
+    await page.getByRole('button', { name: 'Catalogue 6' }).click()
+    await expect(cards).toHaveCount(6)
+    await expect(page.getByRole('article', { name: 'Cash & Carry Marbella' })).toContainText('Archived')
+  })
+
   test('an employee can count but not see Suppliers or change prices', async ({ page }) => {
     await open(page, '/stock', 'maria@example.com')
     await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Stock' })).toBeVisible()
@@ -3391,6 +3429,31 @@ test.describe('recipes and waste', () => {
     await dialog.getByRole('button', { name: 'Add', exact: true }).click()
     await toast(page, 'Added Cortado')
     await expect(page.getByRole('table', { name: 'Menu costing' }).getByRole('row', { name: 'Cortado' })).toContainText('Extra shot')
+  })
+
+  test('a menu item with nothing in it yet has no cost or margin, shaded as still to be entered', async ({ page }) => {
+    await open(page, '/recipes')
+    const average = page.getByRole('list', { name: 'At a glance' }).getByRole('listitem').filter({ hasText: 'Average margin' })
+    await expect(average).toContainText('%')
+    const before = await average.textContent()
+    await page.getByRole('button', { name: 'Add menu item' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Add a menu item' })
+    await dialog.getByRole('textbox', { name: 'Name' }).fill('Bacon sandwich')
+    await dialog.getByRole('textbox', { name: 'Menu price, with IVA' }).fill('5,50')
+    await dialog.getByRole('button', { name: 'Add', exact: true }).click()
+    await toast(page, 'Added Bacon sandwich')
+    const row = page.getByRole('table', { name: 'Menu costing' }).getByRole('row', { name: 'Bacon sandwich' })
+    await expect(row).toContainText('No ingredients yet')
+    // Item, category, price, cost, margin, margin %: the price is in, the rest is still to be entered.
+    const cells = row.getByRole('cell')
+    await expect(cells.nth(2)).toContainText('5,50')
+    await expect(cells.nth(2)).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+    for (const i of [3, 4, 5]) {
+      await expect(cells.nth(i)).toHaveText('—')
+      await expect(cells.nth(i)).toHaveCSS('background-color', 'rgb(255, 241, 234)')
+    }
+    // Nor counted in the average as a 100% margin.
+    await expect(average).toHaveText(before!)
   })
 
   test('the team logs waste and it comes off the stock; only admins with pay access see what it cost', async ({ page }) => {

@@ -17,6 +17,7 @@ import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { Empty, ErrorBox, PageHeader } from '../components/common'
 import { Brand, CAN, LinkedInLogo, DOES, KEYS_NEEDED, ago, useConnectResult } from '../components/Connectors'
+import { Freshness } from '../components/Freshness'
 import {
   INBOX_FILTERS, initials, matchesFilter, matchesSearch, needsReply, preview, replyWindow,
   type InboxConversation, type InboxFilter, type InboxMessage, type MessagePlatform, type TaggedPost,
@@ -64,6 +65,7 @@ export function MessagesPage() {
   return (
     <>
       <PageHeader eyebrow={t('Business')} title={t('Messages')} />
+      {any && <Box sx={{ mt: -2, mb: 2 }}><Freshness id="messages" /></Box>}
       <Stack direction="row" role="group" aria-label={t('Apps')} sx={{ gap: 1, flexWrap: 'wrap', mb: 2.5 }}>
         {/* All: every app's chats together, newest first (the default). */}
         <Chip label={t('All')} clickable onClick={() => setApp('all')} aria-pressed={app === 'all'}

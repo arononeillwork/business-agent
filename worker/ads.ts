@@ -1,13 +1,15 @@
-// The Ads page: Meta Ads and Google Ads read live (nothing is stored but the chosen ad account),
+// The Ads page: Meta Ads and Google Ads, each platform's figures kept an hour (provider_cache) and
 // added up by the app. Admins with pay access only, as ad spend is money. Pausing, resuming and
-// daily budgets change the campaign on the platform itself, straight away.
+// daily budgets change the campaign on the platform itself, straight away (and what's kept is forgotten).
 import { Hono } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { bearer, serviceClient, userClient, type Env } from './supabase'
 import { explain, googleAdsSession, lasting, markBroken, metaAdsSession, setIntegration, type AdsExternal } from './connections'
+import { cached, forget, oldest } from './cache'
 import * as googleAds from './providers/googleAds'
 import * as metaAds from './providers/metaAds'
 import { AD_PLATFORMS, PLATFORM_NAMES, sumDays, type AdPlatform, type CampaignPatch, type PlatformReport } from '../shared/ads'
+import { MINUTES } from '../shared/refresh'
 
 export const ads = new Hono<{ Bindings: Env; Variables: { userId: string } }>()
 
@@ -58,13 +60,16 @@ ads.get('/api/ads/report', async c => {
   const on = AD_PLATFORMS.filter(p => rows?.some(r => r.provider === p && (r.status === 'connected' || r.status === 'error')))
   if (!on.length) return c.json({ error: 'Connect Meta Ads or Google Ads on the Connections page to see your ads' }, 400)
   const origin = new URL(c.req.url).origin
-  const read = await Promise.all(on.map(p => platformReport(c.env, db, p, from, to, origin)
-    .then(report => ({ report }), async (e: unknown) => ({ platform: p, error: await failed(db, p, e) }))))
+  const read = await Promise.all(on.map(p => cached(db, `ads:${p}:${from}:${to}`, MINUTES.ads, async () => {
+    const report = await platformReport(c.env, db, p, from, to, origin)
+    await setIntegration(db, p, { last_sync_at: new Date().toISOString() })
+    return report
+  }).then(({ data: report, fetched_at }) => ({ report, fetched_at }), async (e: unknown) => ({ platform: p, error: await failed(db, p, e) }))))
   const platforms = read.flatMap(x => ('report' in x ? [x.report] : []))
   const failures = read.flatMap(x => ('error' in x ? [{ platform: x.platform, error: x.error }] : []))
   if (!platforms.length) return c.json({ error: failures[0].error }, 400)
-  await Promise.all(platforms.map(p => setIntegration(db, p.platform, { last_sync_at: new Date().toISOString() })))
-  return c.json({ from, to, platforms, ...(failures.length ? { failed: failures } : {}) })
+  return c.json({ from, to, platforms, ...(failures.length ? { failed: failures } : {}),
+    fetched_at: oldest(read.flatMap(x => ('fetched_at' in x ? [x.fetched_at] : []))) })
 })
 
 // Pause or resume a campaign, or change its daily budget, on the platform.
@@ -90,6 +95,7 @@ ads.post('/api/ads/:platform/campaigns/:id', async c => {
       if (patch.status) await googleAds.setStatus(s.cfg, s.token, s.account, id, patch.status)
       if (patch.daily_budget !== undefined) await googleAds.setDailyBudget(s.cfg, s.token, s.account, id, patch.daily_budget)
     }
+    await forget(db, `ads:${p}:`)
     return c.json({ ok: true })
   } catch (e) {
     return c.json({ error: await failed(db, p, e) }, 400)
@@ -108,6 +114,7 @@ ads.post('/api/ads/:platform/account', async c => {
   const account = ext.accounts?.find(a => a.id === id)
   if (!account) return c.json({ error: 'That ad account isn’t one this sign-in can use' }, 400)
   await setIntegration(db, p, { external: { ...ext, account_id: account.id, account_name: account.name, currency: account.currency } })
+  await forget(db, `ads:${p}:`)
   try {
     const day = new Date().toISOString().slice(0, 10)
     await platformReport(c.env, db, p, day, day, new URL(c.req.url).origin)

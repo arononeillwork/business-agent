@@ -22,7 +22,7 @@ import { useAction, useNotify } from '../app/Notify'
 import { FEATURES } from '../app/features'
 import { GROUPS, optionName, type ConnectionGroup, type ConnectionGroupInfo, type ConnectionOption } from '../../shared/connections'
 import type { CalendarApp, ConnectorProvider, Integration, IntegrationProvider, IntegrationsState } from '../../shared/types'
-import { formatLocal } from '../../shared/time'
+import { ago } from './Freshness'
 import { tokens } from '../theme'
 import { msg, t, tn, tr, tc } from '../i18n'
 
@@ -160,14 +160,7 @@ const isConnector = (p: string): p is ConnectorProvider => ['gmail', 'outlook', 
 const isAds = (p: string): p is 'meta_ads' | 'google_ads' => p === 'meta_ads' || p === 'google_ads'
 const active = (i?: Integration) => !!i && ['connected', 'pending', 'error'].includes(i.status)
 
-/** "just now", "5 min ago", "3 h ago", else the date. */
-export function ago(iso: string) {
-  const min = Math.round((Date.now() - Date.parse(iso)) / 60_000)
-  if (min < 1) return t('just now')
-  if (min < 60) return t('{n} min ago', { n: min })
-  if (min < 24 * 60) return t('{n} h ago', { n: Math.round(min / 60) })
-  return formatLocal(iso, 'd MMM, HH:mm')
-}
+export { ago }
 
 /** The toast after Google / Microsoft / Instagram / Spotify send people back with ?connected=…. */
 export function connectedMessage(p: string) {

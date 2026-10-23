@@ -4,6 +4,7 @@ import { PageHeader } from '../components/common'
 import { GoogleMapsCard } from '../components/Connections'
 import { CheckAllButton, ServiceConnections, useConnectResult } from '../components/Connectors'
 import { CalendarFeedCard } from '../components/CalendarFeed'
+import { RefreshSchedule } from '../components/Freshness'
 import { t, tr } from '../i18n'
 
 /** Admins: the business's own apps, like an AI's connectors. Each person's own connections live on My account. */
@@ -24,6 +25,7 @@ export function ConnectionsPage() {
           <GoogleMapsCard />
         </Stack>
       </Box>
+      <RefreshSchedule />
     </>
   )
 }

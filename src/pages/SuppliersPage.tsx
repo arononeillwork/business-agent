@@ -1,6 +1,6 @@
 import {
-  Box, Button, Card, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, InputAdornment, Link, MenuItem, Stack,
-  TextField, ToggleButton, ToggleButtonGroup, Typography, useMediaQuery, useTheme,
+  Box, Button, Card, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, InputAdornment, Link, MenuItem, Stack,
+  TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography, useMediaQuery, useTheme,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import PhoneIcon from '@mui/icons-material/PhoneOutlined'
@@ -9,6 +9,8 @@ import EmailIcon from '@mui/icons-material/EmailOutlined'
 import WebIcon from '@mui/icons-material/LanguageOutlined'
 import OrderIcon from '@mui/icons-material/ShoppingCartOutlined'
 import DeleteIcon from '@mui/icons-material/DeleteOutlined'
+import StarIcon from '@mui/icons-material/Star'
+import StarOutlineIcon from '@mui/icons-material/StarBorder'
 import { useState } from 'react'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
@@ -22,13 +24,18 @@ import { SUPPLIER_KINDS, nextOrderDay, sortDays, type Supplier, type SupplierInp
 import { DAY_KEYS, type DayKey } from '../../shared/types'
 import { formatLocal, formatMoney, today } from '../../shared/time'
 import { tokens } from '../theme'
-import { msg, t, tn } from '../i18n'
+import { msg, t, tc, tn } from '../i18n'
 
 const DAY_LABELS: Record<DayKey, string> = {
   mon: msg('Monday'), tue: msg('Tuesday'), wed: msg('Wednesday'), thu: msg('Thursday'), fri: msg('Friday'), sat: msg('Saturday'), sun: msg('Sunday'),
 }
 const short = (d: DayKey) => t(DAY_LABELS[d]).slice(0, 3)
 const days = (s: Pick<Supplier, 'order_days'>) => (s.order_days.length === 7 ? t('Every day') : s.order_days.map(short).join(', '))
+// The star's gold, as on the To Do list.
+const STAR = '#C98A1E'
+// Active: the ones bought from now. Catalogue: every supplier on file, archived ones too. Starred: the ones the café relies on.
+type Filter = 'active' | 'catalogue' | 'starred'
+const FILTERS: Record<Filter, (s: Supplier) => boolean> = { active: s => s.active, catalogue: () => true, starred: s => s.starred }
 
 /** The businesses the café buys from: how to reach them, when they take orders, what they supply. Admins manage; finance partners read. */
 export function SuppliersPage() {
@@ -36,11 +43,13 @@ export function SuppliersPage() {
   const data = useAsync('suppliers', () => api.suppliers(), [])
   const items = useAsync('stock', () => api.stockItems(), [])
   const moves = useAsync('stock-movements', () => api.stockMovements(), [])
+  const run = useAction()
   const [open, setOpen] = useState<Supplier | 'new' | null>(null)
-  const [archived, setArchived] = useState(false)
+  const [filter, setFilter] = useState<Filter>('active')
 
   const all = data.data ?? []
-  const shown = all.filter(s => s.active !== archived)
+  const shown = all.filter(FILTERS[filter])
+  const star = (s: Supplier) => run(() => api.saveSupplier({ ...s, starred: !s.starred }))
   const itemsOf = (s: Supplier) => (items.data ?? []).filter(i => i.supplier_id === s.id && i.active)
   const lastDelivery = (s: Supplier) => {
     const ids = new Set(itemsOf(s).map(i => i.id))
@@ -65,14 +74,16 @@ export function SuppliersPage() {
         </>} />
       <ErrorBox error={data.error} />
       <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
-        <Chip size="small" clickable label={`${t('Current')} ${all.filter(s => s.active).length}`} aria-pressed={!archived} onClick={() => setArchived(false)}
-          variant={!archived ? 'filled' : 'outlined'} color={!archived ? 'primary' : 'default'} />
-        <Chip size="small" clickable label={`${t('Archived')} ${all.filter(s => !s.active).length}`} aria-pressed={archived} onClick={() => setArchived(true)}
-          variant={archived ? 'filled' : 'outlined'} color={archived ? 'primary' : 'default'} />
+        {([['active', tc('suppliers', 'Active')], ['catalogue', t('Catalogue')], ['starred', tc('suppliers', 'Starred')]] as const).map(([id, label]) => (
+          <Chip key={id} size="small" clickable label={`${label} ${all.filter(FILTERS[id]).length}`} aria-pressed={filter === id} onClick={() => setFilter(id)}
+            icon={id === 'starred' ? <StarIcon sx={{ fontSize: 16, color: `${filter === id ? 'inherit' : STAR} !important` }} /> : undefined}
+            variant={filter === id ? 'filled' : 'outlined'} color={filter === id ? 'primary' : 'default'} />
+        ))}
       </Stack>
 
       {data.data && !shown.length ? (
-        <Empty>{archived ? t('No archived suppliers.') : t('Add the businesses you buy from, with their phone, email, website and order days.')}</Empty>
+        <Empty>{filter === 'starred' ? t('Nothing starred. Star the suppliers you rely on most to find them here.')
+          : t('Add the businesses you buy from, with their phone, email, website and order days.')}</Empty>
       ) : (
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(3, minmax(0, 1fr))' }, gap: 2 }}>
           {shown.map(s => {
@@ -85,7 +96,17 @@ export function SuppliersPage() {
                     <Typography variant="h6" component="h2" noWrap>{s.name}</Typography>
                     <Typography variant="body2" sx={{ color: 'text.secondary' }}>{[s.kind && t(s.kind), s.contact_name].filter(Boolean).join(' · ') || '—'}</Typography>
                   </Box>
-                  <Tag>{tn(itemsOf(s).length, '{n} item', '{n} items')}</Tag>
+                  <Stack direction="row" sx={{ alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
+                    {!s.active && <Tag>{tc('supplier', 'Archived')}</Tag>}
+                    <Tag>{tn(itemsOf(s).length, '{n} item', '{n} items')}</Tag>
+                    {isAdmin ? (
+                      <Tooltip title={s.starred ? t('Remove star') : t('Star')}>
+                        <IconButton size="small" onClick={() => star(s)} aria-label={t('Star')} aria-pressed={s.starred} sx={{ color: s.starred ? STAR : tokens.inkFaint }}>
+                          {s.starred ? <StarIcon sx={{ fontSize: 20 }} /> : <StarOutlineIcon sx={{ fontSize: 20 }} />}
+                        </IconButton>
+                      </Tooltip>
+                    ) : s.starred && <StarIcon role="img" aria-label={tc('supplier', 'Starred')} sx={{ fontSize: 20, color: STAR }} />}
+                  </Stack>
                 </Stack>
                 <Stack direction="row" sx={{ gap: 0.75, flexWrap: 'wrap' }}>
                   {s.phone && <Button size="small" variant="outlined" startIcon={<PhoneIcon />} href={`tel:${s.phone.replace(/\s/g, '')}`}>{s.phone}</Button>}

@@ -14,6 +14,7 @@ import { BarChart } from '../components/charts'
 import { Empty, ErrorBox, Loading, PageHeader, SectionTitle, StatGrid, StatTile, Tag } from '../components/common'
 import { ExportButton } from '../components/tables'
 import { tillsOf } from '../components/till'
+import { Freshness } from '../components/Freshness'
 import type { ExportTable } from '../lib/export'
 import { buildPnl, COST_OF_SALES, monthsBetween, PEOPLE, yearBefore, type Pnl, type PnlLine, type PnlRow } from '../../shared/pnl'
 import { addDays, currencySymbol, formatLocal, formatMoney, today, zonedIso } from '../../shared/time'
@@ -134,6 +135,7 @@ export function ProfitLossPage() {
   return (
     <>
       <PageHeader eyebrow={t('Accounts')} title={t('Profit & loss')} actions={<>{picker}{!canEdit && <Tag>{t('Read-only')}</Tag>}</>} />
+      {sales.data && <Box sx={{ mt: -2, mb: 2 }}><Freshness id="takings" at={sales.data.fetched_at} /></Box>}
       <ErrorBox error={expenses.error ?? team.error ?? pnlSettings.error ?? lines.error} />
       {sales.error && <Alert severity="warning" sx={{ mb: 2 }}>{t('Takings couldn’t be read: {error}', { error: sales.error })}</Alert>}
       {integ.data && !till && (

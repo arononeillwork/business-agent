@@ -12,6 +12,7 @@ import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { ErrorBox, PageHeader, SectionTitle, StatGrid, StatTile, Tag } from '../components/common'
 import { ExportButton } from '../components/tables'
+import { Freshness } from '../components/Freshness'
 import type { ExportTable } from '../lib/export'
 import { addDays, formatLocal, formatNumber, today } from '../../shared/time'
 import {
@@ -235,6 +236,7 @@ function OnGoogle() {
             <Link component={RouterLink} to="/connections">{t('Connections')}</Link>
           </Typography>
         ) : !report.data ? <ErrorBox error={report.error} /> : <>
+          <Freshness id="search" at={report.data.fetched_at} sx={{ mb: 1 }} />
           <Typography variant="body2" sx={{ mb: 1.5 }}>
             {t('Last 28 days: {clicks} clicks from {impressions} times shown, average position {position}.', {
               clicks: formatNumber(report.data.totals.clicks), impressions: formatNumber(report.data.totals.impressions), position: formatNumber(report.data.totals.position) })}

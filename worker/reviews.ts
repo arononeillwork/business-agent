@@ -1,14 +1,18 @@
 // Reviews page: Google reviews read from the business's own profile (the Google Maps connection:
 // all of them, and replies), or until Google approves that, from the public listing (Places API:
 // the 5 newest, no replies). Every review seen is kept (public.reviews), so each new one is noticed
-// once: the Worker looks every hour and admins get a notification, a low rating flagged.
+// once: the Worker looks every hour (every 3 hours on Places, which Google charges for past 1,000
+// look-ups a month: shared/refresh.ts) and admins get a notification, a low rating flagged. Opening
+// the page shows what's kept; it only asks Google when that's due.
 import { Hono } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { bearer, serviceClient, userClient, type Env } from './supabase'
 import { explain, googleSession, lasting, markBroken } from './connections'
+import { cached } from './cache'
 import * as google from './providers/google'
 import { placeReviews } from './providers/places'
 import { CONNECT_MAPS, guessLanguage, isLow, starsOf, MAX_REPLY, type Review, type ReviewFeed, type ReviewsState } from '../shared/reviews'
+import { MINUTES } from '../shared/refresh'
 
 export const reviews = new Hono<{ Bindings: Env }>()
 
@@ -107,19 +111,38 @@ export async function checkReviews(env: Env, db: SupabaseClient): Promise<{ feed
 /** Is there anything to read reviews from (the cron skips the work otherwise)? */
 export const reviewsConfigured = async (env: Env, db: SupabaseClient) => placesOn(env) || await isConnected(db)
 
-async function state(db: SupabaseClient, feed: Feed): Promise<ReviewsState> {
+type FeedInfo = Omit<Feed, 'list'>
+
+/**
+ * Google's reviews checked (checkReviews) when that's due for where they came from last time: every
+ * hour from the business's own profile, every 3 hours from Places, and straight away once the profile
+ * is connected in place of Places or nothing could be read. `early` lets the hourly cron run a few
+ * minutes before the hour is quite up.
+ */
+export async function refreshReviews(env: Env, db: SupabaseClient, early = 0) {
+  return cached<FeedInfo>(db, 'reviews', async kept => {
+    if (kept.feed === 'business_profile') return MINUTES.reviewsProfile - early
+    if (kept.feed === 'places' && !await isConnected(db)) return MINUTES.reviewsPlaces - early
+    return 0
+  }, async () => {
+    const { feed: { list: _list, ...info } } = await checkReviews(env, db)
+    return info
+  })
+}
+
+async function state(db: SupabaseClient, feed: FeedInfo): Promise<ReviewsState> {
   const { data } = await db.from('reviews').select('id, source, rating, text, reviewer, created_at, reply, replied_at, language, url')
     .order('created_at', { ascending: false }).limit(1000)
   return { feed: feed.feed, can_reply: feed.feed === 'business_profile', google_rating: feed.google_rating, google_count: feed.google_count,
     reviews: (data ?? []) as Review[], problem: feed.problem }
 }
 
-// The reviews: read from Google now (new ones noticed), then everything kept.
+// The reviews kept, checked with Google first when that's due (new ones noticed).
 reviews.get('/api/reviews', async c => {
   const db = serviceClient(c.env)
   try {
-    const { feed } = await checkReviews(c.env, db)
-    return c.json(await state(db, feed))
+    const { data: feed, fetched_at } = await refreshReviews(c.env, db)
+    return c.json({ ...await state(db, feed), fetched_at })
   } catch (e) {
     return c.json({ error: e instanceof Error ? e.message : String(e) }, 502)
   }
