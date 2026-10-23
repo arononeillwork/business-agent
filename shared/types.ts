@@ -280,7 +280,7 @@ export interface KioskPerson {
   has_pin: boolean
 }
 
-export type TimeOffKind = 'vacation' | 'personal' | 'sick' | 'other'
+export type TimeOffKind = 'vacation' | 'personal' | 'sick' | 'birth' | 'parental' | 'marriage' | 'family' | 'bereavement' | 'moving' | 'urgent' | 'other'
 
 export interface TimeOff {
   id: string
@@ -295,8 +295,13 @@ export interface TimeOff {
 }
 
 export const TIME_OFF_LABELS: Record<TimeOffKind, string> = {
-  vacation: msg('Holiday'), personal: msg('Personal day'), sick: msg('Sick'), other: msg('Other'),
+  vacation: msg('Holiday'), personal: msg('Personal day'), sick: msg('Sick'), birth: msg('Birth and childcare'),
+  parental: msg('Parental leave'), marriage: msg('Marriage'), family: msg('A relative in hospital or seriously ill'),
+  bereavement: msg('Bereavement'), moving: msg('Moving house'), urgent: msg('Urgent family reason'), other: msg('Other'),
 }
+export const TIME_OFF_KINDS = Object.keys(TIME_OFF_LABELS) as TimeOffKind[]
+/** Leave nobody books ahead: it can be recorded for days already gone (the SQL rule is the same). */
+export const TIME_OFF_AFTER_THE_FACT: TimeOffKind[] = ['sick', 'birth', 'family', 'bereavement', 'urgent']
 
 export type IntegrationProvider = 'google_business' | 'whatsapp' | 'instagram' | 'facebook' | 'tiktok' | 'linkedin' | 'spotify' | 'square' | 'stripe' | 'sumup' | 'meta_ads' | ConnectorProvider | CalendarApp
 /** Connections made with one sign-in with Google or Microsoft (email, files, café YouTube Music, Search Console, Google Ads). */

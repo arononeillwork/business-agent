@@ -8,6 +8,7 @@ import type { InstagramMention } from '../../shared/mentions'
 import type { FilingRecord, Quarter, TaxDocKind, TaxDocument, TaxSettings } from '../../shared/tax'
 import type { InboxInvoice, InboxState as InvoiceInbox, Invoice, InvoiceInput } from '../../shared/invoices'
 import type { Licence, LicenceInput } from '../../shared/licences'
+import type { Benefit, BenefitInput, LeaveAllowance } from '../../shared/benefits'
 import type { PnlLine, PnlLineInput, PnlSettings } from '../../shared/pnl'
 import type { GrantApplication, GrantApplicationInput, GrantProfile } from '../../shared/grants'
 import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
@@ -128,6 +129,19 @@ export interface Api {
   requestTimeOff(startsOn: string, endsOn: string, kind: TimeOffKind, note: string): Promise<void>
   cancelTimeOff(id: string): Promise<void>
   decideTimeOff(id: string, approve: boolean, note?: string, releaseShifts?: boolean): Promise<number>
+  /** Admins: leave for someone (a sick note, birth leave), approved already; returns the shifts opened up. */
+  recordTimeOff(profileId: string, startsOn: string, endsOn: string, kind: TimeOffKind, note: string): Promise<number>
+
+  // Staff benefits: the business's own amounts over the law's and its own benefits (the team reads,
+  // admins change), and each person's holiday for a year when it isn't the business's.
+  benefits(): Promise<Benefit[]>
+  /** Add one (no id) or change one. */
+  saveBenefit(b: BenefitInput): Promise<void>
+  deleteBenefit(id: string): Promise<void>
+  /** Admins see everyone's; others their own. */
+  leaveAllowances(year: number): Promise<LeaveAllowance[]>
+  /** Admins. No holiday_days: back to the business's allowance. */
+  saveLeaveAllowance(a: Omit<LeaveAllowance, 'holiday_days'> & { holiday_days: number | null }): Promise<void>
 
   // Business Agent subscription (Stripe Billing). planStatus: everyone; the rest: admins.
   planStatus(): Promise<PlanStatus>
