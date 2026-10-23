@@ -1,4 +1,5 @@
 import sql from '../../supabase/migrations/20261019000036_billing_plans.sql?raw'
+import musicSql from '../../supabase/migrations/20261029000062_social_music.sql?raw'
 import { describe, expect, it } from 'vitest'
 import { COMPARE, PAY_PER_USE, PLANS, effectivePlan, mostIncluded, payPerUse, paymentProblem, perUsePrice, type Billing } from '../../shared/plans'
 
@@ -40,6 +41,12 @@ describe('pay per use', () => {
     expect(perUsePrice(music, 'pro')).toBe('€0.99 per track')
     expect(perUsePrice(music, 'starter')).toBe('€0.99 per track')
     expect(perUsePrice(music, 'free')).toBeNull()
+  })
+
+  it('match the prices and free uses the database charges by (migration 62)', () => {
+    const rows = [...musicSql.matchAll(/\('(\w+)',\s+(\d+),\s+'(\{[^']*\})'\)/g)]
+    const db = Object.fromEntries(rows.map(([, id, cents, included]) => [id, { cents: Number(cents), included: JSON.parse(included) }]))
+    expect(db).toEqual(Object.fromEntries(PAY_PER_USE.map(u => [u.id, { cents: Math.round(u.price * 100), included: u.included }])))
   })
 
   it('has its own rows in the comparison, which say which plans can use it', () => {
