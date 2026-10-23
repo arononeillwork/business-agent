@@ -56,7 +56,8 @@ built-in **AI connector** so owners can run it by talking to Claude.
 - Stock: every wholesale item (beans, milk, cups, pastries) and the shop's own products, each with its
   supplier, link, cost and reorder level. The team records deliveries, counts and waste (or a whole
   stocktake at once); the order list groups what's low by supplier, with the order day and a message
-  ready for WhatsApp or email. Suppliers keep their contact details, website, order page and order days.
+  ready for WhatsApp or email. Suppliers keep their contact details, website, order page and order days;
+  admins star the ones they rely on, and the page shows the active ones, the whole catalogue or the starred.
   Menu costing works out what each drink or dish costs from the stock in it (with variants such as oat
   milk or an extra shot, and a waste allowance) and its margin against the menu price; the Waste log
   takes what's thrown away and why off the stock, with its cost for admins. Anything still to be entered

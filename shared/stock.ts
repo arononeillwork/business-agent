@@ -32,6 +32,8 @@ export interface Supplier {
   tax_id?: string | null
   notes: string | null
   active: boolean
+  /** Starred by an admin: one the café relies on. */
+  starred: boolean
 }
 export type SupplierInput = Partial<Omit<Supplier, 'id'>> & { id?: string; name: string }
 

@@ -3321,6 +3321,32 @@ test.describe('stock and suppliers', () => {
     await expect(row.getByRole('link', { name: 'Oranges on the supplier’s website' })).toHaveAttribute('href', 'https://frutas.example/naranjas')
   })
 
+  test('suppliers: the active ones first, the whole catalogue, and the starred ones', async ({ page }) => {
+    await open(page, '/suppliers')
+    const cards = page.getByRole('article')
+    await expect(page.getByRole('button', { name: 'Active 6' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(cards).toHaveCount(6)
+
+    await page.getByRole('button', { name: 'Starred 1' }).click()
+    await expect(cards).toHaveCount(1)
+    await expect(cards.first()).toHaveAccessibleName('Tostadores del Sur')
+
+    await page.getByRole('button', { name: 'Active 6' }).click()
+    const eric = page.getByRole('article', { name: 'By Eric' })
+    await eric.getByRole('button', { name: 'Star' }).click()
+    await expect(eric.getByRole('button', { name: 'Star' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.getByRole('button', { name: 'Starred 2' })).toBeVisible()
+
+    // Archived: out of Active, still in the Catalogue (marked).
+    await page.getByRole('button', { name: 'Edit Cash & Carry Marbella' }).click()
+    await page.getByRole('dialog').getByRole('button', { name: 'Archive' }).click()
+    await toast(page, 'Archived Cash & Carry Marbella')
+    await expect(cards).toHaveCount(5)
+    await page.getByRole('button', { name: 'Catalogue 6' }).click()
+    await expect(cards).toHaveCount(6)
+    await expect(page.getByRole('article', { name: 'Cash & Carry Marbella' })).toContainText('Archived')
+  })
+
   test('an employee can count but not see Suppliers or change prices', async ({ page }) => {
     await open(page, '/stock', 'maria@example.com')
     await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Stock' })).toBeVisible()

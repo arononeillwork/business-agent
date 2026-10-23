@@ -555,13 +555,13 @@ export function createDemoApi(): Api {
   // Stock: the café's wholesale suppliers and what it buys from each (By Eric is the bakery from the business details).
   const supplier = (s: Partial<Supplier> & { id: string; name: string }): Supplier => ({ kind: null, contact_name: null, email: null, phone: null,
     whatsapp: false, website: null, order_url: null, address: null, account_number: null, order_days: [], cutoff: null, lead_days: 1,
-    minimum_order: null, payment_terms: null, notes: null, active: true, ...s })
+    minimum_order: null, payment_terms: null, notes: null, active: true, starred: false, ...s })
   const suppliers: Supplier[] = [
     supplier({ id: 'sup-eric', name: 'By Eric', kind: 'Bakery', contact_name: 'Eric', phone: '+34 683 16 94 37', whatsapp: true, email: 'info@by-eric.es',
       order_days: ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'], cutoff: '17:00', lead_days: 1, notes: 'Croissants daily, pastries every 2 days' }),
     supplier({ id: 'sup-roaster', name: 'Tostadores del Sur', kind: 'Coffee roaster', contact_name: 'Lucía', phone: '+34 952 77 41 10', whatsapp: true,
       email: 'pedidos@tostadoresdelsur.example', website: 'https://tostadoresdelsur.example', order_url: 'https://tostadoresdelsur.example/trade',
-      account_number: 'EB-2041', order_days: ['mon', 'thu'], cutoff: '12:00', lead_days: 2, minimum_order: 80, payment_terms: '30 days' }),
+      account_number: 'EB-2041', order_days: ['mon', 'thu'], cutoff: '12:00', lead_days: 2, minimum_order: 80, payment_terms: '30 days', starred: true }),
     supplier({ id: 'sup-dairy', name: 'Lácteos Costa del Sol', kind: 'Dairy', contact_name: 'Paco', phone: '+34 611 48 20 93', whatsapp: true,
       email: 'pedidos@lacteoscosta.example', website: 'https://lacteoscosta.example', order_days: ['mon', 'wed', 'fri'], cutoff: '12:00', lead_days: 1,
       minimum_order: 60, payment_terms: 'Direct debit, monthly' }),
