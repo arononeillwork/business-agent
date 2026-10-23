@@ -7,6 +7,8 @@ import type { Invoice } from '../../shared/invoices'
 import type { Licence } from '../../shared/licences'
 import type { LegalDocument, LegalSource, StorageListing } from '../../shared/legalDocs'
 import type { Benefit, LeaveAllowance } from '../../shared/benefits'
+import type { JobRole } from '../../shared/roles'
+import type { RuleSection, RulesRead } from '../../shared/staffRules'
 import { DEFAULT_VAT_RATE, type PnlLine, type PnlSettings } from '../../shared/pnl'
 import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
 import type { StockItem, StockMovement, Supplier } from '../../shared/stock'
@@ -362,6 +364,26 @@ export function createSupabaseApi(url: string, key: string): Api {
       if (holiday_days === null) check(await sb.from('leave_allowances').delete().eq('profile_id', profile_id).eq('year', year))
       else check(await sb.from('leave_allowances').upsert({ profile_id, year, holiday_days, note: note?.trim() || null }))
     },
+
+    async jobRoles() {
+      return check(await sb.from('job_roles').select('id, name, summary, position_id, reports_to, people, duties, sort, updated_at')
+        .order('sort').order('name')) as JobRole[]
+    },
+    async saveJobRole({ id, ...r }) {
+      if (id) check(await sb.from('job_roles').update(r).eq('id', id))
+      else check(await sb.from('job_roles').insert(r))
+    },
+    async deleteJobRole(id) { check(await sb.from('job_roles').delete().eq('id', id)) },
+    async ruleSections() {
+      return check(await sb.from('staff_rules').select('id, title, intro, rules, sort, updated_at').order('sort').order('title')) as RuleSection[]
+    },
+    async saveRuleSection({ id, ...s }) {
+      if (id) check(await sb.from('staff_rules').update(s).eq('id', id))
+      else check(await sb.from('staff_rules').insert(s))
+    },
+    async deleteRuleSection(id) { check(await sb.from('staff_rules').delete().eq('id', id)) },
+    async rulesRead() { return check(await sb.from('staff_rules_read').select('profile_id, read_at')) as RulesRead[] },
+    async readRules() { check(await sb.rpc('read_staff_rules')) },
 
     signInWith: oauth,
 

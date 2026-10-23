@@ -172,9 +172,9 @@ test.describe('admin', () => {
     const pages: { link: string; path: string; check: (p: Page) => Promise<void> }[] = [
       { link: 'Business', path: '/business', check: p => expect(p.getByRole('heading', { level: 1, name: business.name })).toBeVisible(NET) },
       { link: 'Home: Today', path: '/', check: p => expect(p.getByRole('heading', { name: 'Hola, Ana' })).toBeVisible(NET) },
-      ...['Customers', 'To Do List', 'Rota', 'Time off', 'Timecards', 'Team', 'Opening hours', 'Brand', 'Ads', 'Analytics', 'Calendar', 'Sports', 'Music', 'Messages', 'Finances', 'Notifications', 'Connections'].map(name => ({
+      ...['Customers', 'To Do List', 'Rota', 'Time off', 'Timecards', 'Team', 'Roles & responsibilities', 'Staff rules', 'Opening hours', 'Brand', 'Ads', 'Analytics', 'Calendar', 'Sports', 'Music', 'Messages', 'Finances', 'Notifications', 'Connections'].map(name => ({
         link: name,
-        path: { 'Time off': '/time-off', 'Opening hours': '/opening-hours', 'To Do List': '/todo' }[name] ?? `/${name.toLowerCase()}`,
+        path: { 'Time off': '/time-off', 'Opening hours': '/opening-hours', 'To Do List': '/todo', 'Roles & responsibilities': '/roles', 'Staff rules': '/rules' }[name] ?? `/${name.toLowerCase()}`,
         check: (p: Page) => expect(p.getByRole('heading', { level: 1, name: { Connections: 'Business connections' }[name] ?? name, exact: true })).toBeVisible(NET),
       })),
     ]
