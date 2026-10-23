@@ -895,7 +895,7 @@ test.describe('sports', () => {
     await expect(page.getByRole('region', { name: 'Sports is off' })).toBeVisible()
     await page.getByRole('switch', { name: 'Sports' }).click()
     await page.getByRole('dialog', { name: 'Turn on Sports?' }).getByRole('button', { name: 'Turn on' }).click()
-    await toast(page, 'Sports is on')
+    await toast(page, /^Sports is on$/) // not the closing dialog's note, which says "whether Sports is on or off"
     await expect(page.getByRole('article', { name: /Barcelona vs Real Madrid/ })).toBeVisible()
     await expect(page.getByRole('switch', { name: 'Sports' })).toBeChecked()
   })
