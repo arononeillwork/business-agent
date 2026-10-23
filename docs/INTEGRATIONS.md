@@ -576,6 +576,25 @@ queues due posts (`queue_due_social_posts`), one outbox job per network, and eac
 outcome, with a link to the post, shows under **Sent → Where it went**. A post that fails on one
 network but not others is marked *partly sent*; failures retry like every other outbox job.
 
+### Music on stories and reels (ElevenLabs and the render service)
+
+The plan and how it works: docs/SOCIAL_MUSIC_PLAN.md; how AI tracks are charged: docs/billing.md.
+Without any of this, the composer still offers music from Instagram's own library (by reminder).
+
+1. **AI music and the starter pack (ElevenLabs).** On elevenlabs.io, a Starter plan or higher
+   (commercial use) → *Developers → API keys* → a key with Music access → repo secret
+   `ELEVENLABS_API_KEY`, then redeploy. **Actions → Music check** makes the same three café prompts
+   on each model (about $0.30) to listen to; to use another model than `music_v1`, set the repo
+   variable `ELEVENLABS_MUSIC_MODEL` (e.g. `music_v2_5`) and redeploy. With the key, the 12-track
+   starter pack is made by itself, one track every few minutes, once Instagram and Google Drive or
+   OneDrive are connected (about $1.20, on our account); the repo variable `MUSIC_STARTER=off` stops it.
+2. **Putting music into the files (the render service).** Needs Cloudflare's Workers Paid plan
+   (Containers). Run **Actions → Deploy render service** once: it deploys `business-agent-render`
+   (`render/`, ffmpeg in a container) and gives it and the app's Worker the same `RENDER_KEY`, and
+   the app's Worker its `RENDER_URL`. Run it again after changing anything in `render/`.
+3. Nightly, the Worker reads likes and comments on reels and posts that went out with music
+   (Instagram's `like_count` and `comments_count`, no extra permission), so suggestions learn.
+
 ## Sign-in emails from the business's own mailbox
 
 Invites, sign-up confirmations, sign-in codes and password resets are sent by Supabase Auth. Once

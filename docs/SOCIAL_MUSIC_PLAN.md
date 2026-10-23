@@ -6,8 +6,21 @@ volume, preview it on the photo or video, and it goes out with the post. Alongsi
 business can **make its own tracks with AI** (ElevenLabs), paid per use.
 
 Written 23 Oct 2026 against the live branch (`claude/easy-beans-architecture-plan-dknqka`).
-The pricing page already shows the prices (`PAY_PER_USE` in `shared/plans.ts`); nothing else here is
-built yet.
+
+**Status (23 Oct 2026): Phases 0–3 are built** on `claude/awesome-pasteur-vciu2c`, tested in unit,
+database and browser (demo) tests. Phase 4 is not built: neither Instagram nor TikTok documents a
+way to add their library music through the API (Phase 0 (d)). To switch it on for real:
+
+1. Add the `ELEVENLABS_API_KEY` repository secret (an ElevenLabs Starter plan or higher, for
+   commercial use), then run **Actions → Music check** once to hear the models and, if wanted, set
+   `ELEVENLABS_MUSIC_MODEL`. With the key, the starter pack is made by itself once Instagram and
+   Google Drive/OneDrive are connected (`MUSIC_STARTER=off` stops it).
+2. Run **Actions → Deploy render service** once (needs Cloudflare Workers Paid, for Containers). It
+   deploys `business-agent-render` and gives both Workers `RENDER_URL` and `RENDER_KEY`. Until then
+   the composer offers *Add it in Instagram* instead of putting music into files.
+3. Merge to the live branch: migration 62 runs on deploy, and the pricing page goes live with it.
+4. On the first real paid track, check the invoice item on Stripe's dashboard (tested only against a
+   fake Stripe so far).
 
 ## Decisions (23 Oct 2026)
 
@@ -254,10 +267,14 @@ video.
 - **Time**: mornings calmer, evenings livelier (from `scheduled_at` in the café's time zone).
 - **Fit**: the track is at least as long as the clip.
 - **Starred and kept**: saved tracks and the business's own AI tracks get a lift.
-- **What worked** (Phase 3): tracks on posts with the most reach, from Instagram insights.
+- **What worked** (Phase 3, built): tracks on reels and posts with the most likes and comments
+  (comments count twice), read from Instagram nightly into `social_posts.insights`
+  (`syncMusicInsights` in `worker/socialMusic.ts`). Stories have no likes or comments Instagram
+  shares, and their reach needs the `instagram_business_manage_insights` permission, which the app
+  doesn't ask for, so stories don't count yet.
 - **Fresh**: a track used in the last five posts goes down the list.
 
-If fewer than three tracks score well, the strip's last chip becomes **✨ Make one for this post**.
+The strip always ends with **More music…**, **✨ Make one with AI** and **Add it in Instagram**.
 
 ## Rendering: putting the music into the file
 
@@ -283,6 +300,14 @@ AAC encoding (which Instagram needs) isn't available in every browser, and a lon
 a phone. Every post would come out the same on the container, from any device.
 
 ## Changes, file by file
+
+All built as listed, with these differences: the library is read and changed by the app straight
+through Supabase (RLS and migration 62's rules), so `worker/socialMusic.ts` only has `status`,
+`generate` and `render`, plus the starter pack and the nightly insights; the charge is
+`chargeAiMusic()` / `chargePendingAiMusic()`; the render service is its own Worker
+(`render/wrangler.jsonc`, `business-agent-render`); the library opens from a **Music** button on
+Social planner rather than a tab; the MCP tools need the Worker's settings, so `ToolContext` carries
+`env` and `origin`.
 
 | Where | Change |
 |---|---|
@@ -318,13 +343,13 @@ a phone. Every post would come out the same on the container, from any device.
 
 ## Phases
 
-| Phase | Ships | Size |
+| Phase | Ships | Status |
 |---|---|---|
-| 0 Checks | (a) ffmpeg in a Container: a photo story and a video reel with music, posted to the test Instagram account with today's `publish()`. (b) ElevenLabs: the same 10 café prompts for quality and time, and the current model's commercial terms. (c) Stripe: an invoice item on a test subscription, monthly and yearly, lands on the next monthly invoice. (d) Meta and TikTok: official docs and App Review permissions for attaching library audio through the API. | 2–3 days |
-| 1 Library, AI and charging | Tables, audio storage, upload with rights tick, ElevenLabs generation, quote and charge, spending limit, Billing page usage, waveform and highlight, Brand *Our sound*, starter pack, a Sounds tab on Social planner | ~1–1.5 weeks |
-| 2 Music in the composer | Suggestion strip, Music sheet, part picker, mix, preview, render on save, *in Instagram* for reminders, `audio_name`, badges, reminder line | 1–1.5 weeks |
-| 3 Extras | Photos or a carousel made into a reel cut to the beat; suggestions that learn from reach; a "now playing" label on photo stories; MCP tools | per item |
-| 4 Platform music through the API | Instagram reels with library audio (needs a Facebook Login connection next to today's Instagram Login), TikTok Commercial Music Library once TikTok video posting exists. Only if 0(d) confirms them. | ~1 week each |
+| 0 Checks | (a) ffmpeg in a Container: a photo story and a video reel with music, posted to the test Instagram account with today's `publish()`. (b) ElevenLabs: the same 10 café prompts for quality and time, and the current model's commercial terms. (c) Stripe: an invoice item on a test subscription, monthly and yearly, lands on the next monthly invoice. (d) Meta and TikTok: official docs and App Review permissions for attaching library audio through the API. | Done (results above; listening and the real post need the keys) |
+| 1 Library, AI and charging | Tables, audio storage, upload with rights tick, ElevenLabs generation, quote and charge, spending limit, Billing page usage, waveform and highlight, Brand *Our sound*, starter pack, a Music button on Social planner | Built |
+| 2 Music in the composer | Suggestion strip, Music sheet, part picker, mix, preview, render on save, *in Instagram* for reminders, `audio_name`, badges, reminder line | Built |
+| 3 Extras | Photos or a carousel made into a reel cut to the beat (*Make it a reel*); suggestions that learn from likes and comments; a "now playing" label on photo stories (*Show the song on the photo*); MCP tools `suggest_music`, `make_music`, `set_post_music` | Built |
+| 4 Platform music through the API | Instagram reels with library audio (needs a Facebook Login connection next to today's Instagram Login), TikTok Commercial Music Library once TikTok video posting exists. Only if 0(d) confirms them. | Not built: not documented by either platform (23 Oct 2026) |
 
 The pricing page lists AI music and music on stories and reels now. Merge it to the live branch
 together with Phases 1 and 2, not before, so the site doesn't sell what isn't there yet.
@@ -334,14 +359,18 @@ together with Phases 1 and 2, not before, so the site doesn't sell what isn't th
 - `src/data/plans.test.ts` (**done**): pay per use is on every paid plan and not Free (the page says
   "any paid plan"), Business gets 1 free a month, the comparison rows match.
 - `e2e/demo.spec.ts` pricing test (**done**): the table row, each card's *Pay per use* line, the note.
-- `shared/music.test.ts`: ranking, occasion words in both languages, part windows, uses per
-  started minute, prompt builder refusing artist names, `postProblem()` music rules.
-- `supabase/tests/zz_social_music.test.sql`: trigger rules, free use first, spending limit,
-  complimentary allowance.
-- Worker: ElevenLabs with a fake `fetch`, the charge sent once per generation (idempotency) and
-  never on failure, render route with a fake container, `instagram.publish()` sending `audio_name`.
-- Browser (demo mode): Story → add a photo → the strip appears with prices → pick a track → move the
-  part → save → ♫ in the list.
+- `shared/music.test.ts` (**done**): ranking, occasion words in both languages, part windows, uses
+  per started minute (a 60 s clip stays one use), prompt builder refusing artist names, beat cuts,
+  recent tracks and engagement; `shared/social.test.ts`: `postProblem()` music and photo-reel rules.
+- `supabase/tests/zz_social_music.test.sql` (**done**): trigger rules, free use first, spending
+  limit, complimentary allowance.
+- `worker/socialMusic.test.ts` (**done**): ElevenLabs with a fake `fetch`, the charge sent once per
+  generation (idempotency) and never on failure, the render route with a fake container,
+  `instagram.publish()` sending `audio_name`, the starter pack, the nightly insights, and the three
+  MCP tools. `render/ffmpeg.test.ts` (**done**): the recipes, and real ffmpeg when it's installed.
+- Browser, demo mode (**done**): our sound; the starter pack and Create with AI; pay per use on a
+  paid plan; Story → add a photo → suggestions → choose the part → schedule → edit again; a song
+  from Instagram's library becoming a reminder; a carousel made into a reel on the beat.
 
 ## Sources (checked 23 Oct 2026)
 
