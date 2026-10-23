@@ -9,6 +9,7 @@ import type {
   BreakType, Business, CalendarEvent, CorrectionRequest, PayRate, Position, Profile, Settings,
   Shift, TimeEntry, TimeEntryChange, Todo, TodoCategory, CafeTrack, MusicPlayerState,
 } from '../../shared/types'
+import { TIME_OFF_AFTER_THE_FACT } from '../../shared/types'
 import { mentionTitle, mentionsIn, type InstagramMention } from '../../shared/mentions'
 import { demoSports } from './demoSports'
 import { demoInbox, demoMessenger, demoWhatsApp } from './demoMessages'
@@ -21,6 +22,7 @@ import { addToCalendarUrl, cleanWebsite, groupOf } from '../../shared/connection
 import { mergeSales } from '../../shared/sales'
 import { dueFrom, emailId, matchSupplier, numberFromName, type InboxInvoice, type Invoice } from '../../shared/invoices'
 import type { Licence } from '../../shared/licences'
+import type { Benefit, LeaveAllowance } from '../../shared/benefits'
 import { DEFAULT_TAX_SETTINGS, cleanFolderName, cleanFolderPath, taxFileProblem, type FilingRecord, type TaxDocument, type TaxSettings } from '../../shared/tax'
 import { DEFAULT_VAT_RATE, type PnlLine } from '../../shared/pnl'
 import { cleanAnswers, isDone, type GrantApplication, type GrantProfile } from '../../shared/grants'
@@ -820,7 +822,40 @@ export function createDemoApi(): Api {
       note: 'Family wedding in Sevilla', status: 'pending', created_at: nowIso(), decision_note: null },
     { id: uid(), profile_id: P.julio, starts_on: addDays(today(), 30), ends_on: addDays(today(), 36), kind: 'vacation',
       note: null, status: 'approved', created_at: nowIso(), decision_note: 'Enjoy!' },
+    // Earlier in the year, for Staff benefits: holiday taken, a sick note, a move.
+    { id: uid(), profile_id: P.maria, starts_on: addDays(today(), -60), ends_on: addDays(today(), -54), kind: 'vacation',
+      note: null, status: 'approved', created_at: nowIso(), decision_note: null },
+    { id: uid(), profile_id: P.julio, starts_on: addDays(today(), -40), ends_on: addDays(today(), -38), kind: 'sick',
+      note: 'Flu', status: 'approved', created_at: nowIso(), decision_note: null },
+    { id: uid(), profile_id: P.cleaner, starts_on: addDays(today(), -20), ends_on: addDays(today(), -20), kind: 'moving',
+      note: null, status: 'approved', created_at: nowIso(), decision_note: null },
   ]
+  // Staff benefits: a note on holidays, and the café's own on top of the law.
+  const benefit = (b: Partial<Benefit>): Benefit => ({ id: uid(), law_key: null, name: null, amount: null, details: null, sort: 0, ...b })
+  const benefitList: Benefit[] = [
+    benefit({ law_key: 'holidays', details: 'Booked under Time off. Summer is busy: holidays from June to September are agreed by May.' }),
+    benefit({ name: 'A staff meal on every shift', details: 'Anything from the menu, before or after the shift.', sort: 1 }),
+    benefit({ name: 'Free coffee and drinks on shift', sort: 2 }),
+  ]
+  // The cleaner started in August: their share of the year's holiday.
+  const allowances: LeaveAllowance[] = [
+    { profile_id: P.cleaner, year: Number(today().slice(0, 4)), holiday_days: 13, note: 'Started on 1 August' },
+  ]
+  const holidayAllowance = (profileId: string, year: number) =>
+    allowances.find(a => a.profile_id === profileId && a.year === year)?.holiday_days ?? settings.vacation_days_per_year
+  /** That person's shifts in the period become open shifts (approved time off). */
+  const openUpShifts = (t: TimeOff) => {
+    const name = profiles.find(p => p.id === t.profile_id)?.full_name
+    let n = 0
+    for (const s of shifts) {
+      if (s.profile_id === t.profile_id && localDate(s.starts_at) >= t.starts_on && localDate(s.starts_at) <= t.ends_on) {
+        s.profile_id = null
+        s.note = `${s.note ? `${s.note} · ` : ''}Released: ${name} off`
+        n++
+      }
+    }
+    return n
+  }
   const corrections: CorrectionRequest[] = []
   const firstMaria = entries.find(e => e.profile_id === P.maria && !e.approved_at)
   if (firstMaria?.clock_out) {
@@ -1306,13 +1341,14 @@ export function createDemoApi(): Api {
     async requestTimeOff(startsOn, endsOn, kind, note) {
       if (isPartner()) throw new Error('Not allowed')
       if (endsOn < startsOn) throw new Error('The last day must be on or after the first day')
-      if (kind !== 'sick' && startsOn < today()) throw new Error('Holiday requests must be for today or later')
+      if (!TIME_OFF_AFTER_THE_FACT.includes(kind) && startsOn < today()) throw new Error('Holiday requests must be for today or later')
       if (timeOff.some(t => t.profile_id === currentUser && ['pending', 'approved'].includes(t.status) && t.starts_on <= endsOn && t.ends_on >= startsOn)) {
         throw new Error('You already have time off requested for some of those days')
       }
       const days = (Date.parse(endsOn) - Date.parse(startsOn)) / 86400000 + 1
-      if (kind === 'vacation' && (await api.vacationDaysUsed(currentUser!, Number(startsOn.slice(0, 4)))) + days > settings.vacation_days_per_year) {
-        throw new Error(`That is more than your ${settings.vacation_days_per_year} holiday days for the year`)
+      const allow = holidayAllowance(currentUser!, Number(startsOn.slice(0, 4)))
+      if (kind === 'vacation' && (await api.vacationDaysUsed(currentUser!, Number(startsOn.slice(0, 4)))) + days > allow) {
+        throw new Error(`That is more than your ${allow} holiday days for the year`)
       }
       timeOff.push({ id: uid(), profile_id: currentUser!, starts_on: startsOn, ends_on: endsOn, kind, note: note || null,
         status: 'pending', created_at: nowIso(), decision_note: null })
@@ -1329,18 +1365,56 @@ export function createDemoApi(): Api {
       if (!t || t.status !== 'pending') throw new Error('This request is no longer pending')
       t.status = approve ? 'approved' : 'declined'
       t.decision_note = note ?? null
-      let n = 0
-      if (approve && releaseShifts) {
-        const name = profiles.find(p => p.id === t.profile_id)?.full_name
-        for (const s of shifts) {
-          if (s.profile_id === t.profile_id && localDate(s.starts_at) >= t.starts_on && localDate(s.starts_at) <= t.ends_on) {
-            s.profile_id = null
-            s.note = `${s.note ? `${s.note} · ` : ''}Released: ${name} off`
-            n++
-          }
-        }
+      return approve && releaseShifts ? openUpShifts(t) : 0
+    },
+    async recordTimeOff(profileId, startsOn, endsOn, kind, note) {
+      requireAdmin()
+      const p = profiles.find(x => x.id === profileId && staffOnly(x))
+      if (!p) throw new Error('Person not found')
+      if (endsOn < startsOn) throw new Error('The last day must be on or after the first day')
+      if (timeOff.some(t => t.profile_id === profileId && ['pending', 'approved'].includes(t.status) && t.starts_on <= endsOn && t.ends_on >= startsOn)) {
+        throw new Error(`${p.full_name} already has time off on some of those days`)
       }
-      return n
+      const year = Number(startsOn.slice(0, 4))
+      const days = (Date.parse(endsOn) - Date.parse(startsOn)) / 86400000 + 1
+      if (kind === 'vacation' && (await api.vacationDaysUsed(profileId, year)) + days > holidayAllowance(profileId, year)) {
+        throw new Error(`That is more than their ${holidayAllowance(profileId, year)} holiday days for the year`)
+      }
+      const t: TimeOff = { id: uid(), profile_id: profileId, starts_on: startsOn, ends_on: endsOn, kind, note: note.trim() || null,
+        status: 'approved', created_at: nowIso(), decision_note: null }
+      timeOff.push(t)
+      return openUpShifts(t)
+    },
+
+    async benefits() {
+      if (!isStaff() && !partnerCan('payroll')) return []
+      return clone(benefitList).sort((a, b) => a.sort - b.sort)
+    },
+    async saveBenefit({ id, ...b }) {
+      requireAdmin()
+      const tidy = { ...b, ...('name' in b ? { name: b.name?.trim() || null } : {}), ...('details' in b ? { details: b.details?.trim() || null } : {}) }
+      if (tidy.amount != null && !(tidy.amount >= 0 && tidy.amount <= 999)) throw new Error('Give an amount from 0 to 999')
+      const existing = id ? benefitList.find(x => x.id === id) : undefined
+      if (existing) { Object.assign(existing, tidy); return }
+      if (!tidy.law_key && !tidy.name) throw new Error('Give it a name')
+      if (tidy.law_key && benefitList.some(x => x.law_key === tidy.law_key)) throw new Error('duplicate key value violates unique constraint "benefits_law_key_key"')
+      benefitList.push(benefit(tidy))
+    },
+    async deleteBenefit(id) {
+      requireAdmin()
+      const i = benefitList.findIndex(x => x.id === id)
+      if (i >= 0) benefitList.splice(i, 1)
+    },
+    async leaveAllowances(year) {
+      return clone(allowances.filter(a => a.year === year && (isAdmin() || partnerCan('payroll') || a.profile_id === currentUser)))
+    },
+    async saveLeaveAllowance({ profile_id, year, holiday_days, note }) {
+      requireAdmin()
+      const i = allowances.findIndex(a => a.profile_id === profile_id && a.year === year)
+      if (i >= 0) allowances.splice(i, 1)
+      if (holiday_days === null) return
+      if (!(holiday_days >= 0 && holiday_days <= 366)) throw new Error('Give a number of days from 0 to 366')
+      allowances.push({ profile_id, year, holiday_days, note: note?.trim() || null })
     },
 
     async planStatus() {

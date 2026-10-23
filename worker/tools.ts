@@ -5,7 +5,9 @@ import { z } from 'zod'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { shiftPaidMinutes, shiftWarnings } from '../shared/rules'
 import { addDays, localDate, localTime, today, weekStart, zonedIso, formatLocal } from '../shared/time'
-import type { Business, CalendarEvent, Customer, PartnerArea, PayRate, Position, Profile, Settings, Shift } from '../shared/types'
+import { TIME_OFF_KINDS, type Business, type CalendarEvent, type Customer, type PartnerArea, type PayRate, type Position, type Profile, type Settings, type Shift, type TimeOff, type TimeOffKind } from '../shared/types'
+import { COUNTRY_NAME, ENTITLEMENTS, LAW_CHECKED, PAYER_LABEL, leaveYear, type Benefit, type LeaveAllowance } from '../shared/benefits'
+import { businessConfig } from '../shared/business.config'
 import { cleanPhone, matchesSearch } from '../shared/customers'
 import { cleanWebsite } from '../shared/connections'
 
@@ -32,6 +34,7 @@ const tool = <S extends z.ZodType>(def: ToolDef<S>) => def as unknown as ToolDef
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD')
 const time = z.string().regex(/^\d{2}:\d{2}$/, 'Use HH:mm (24-hour)')
 const category = z.enum(['national', 'regional', 'local', 'area', 'event', 'sports', 'business', 'staff'])
+const leaveKind = z.enum(TIME_OFF_KINDS as [TimeOffKind, ...TimeOffKind[]])
 
 function check<T>(res: { data: T; error: { message: string } | null }): NonNullable<T> {
   if (res.error) throw new Error(res.error.message)
@@ -446,8 +449,8 @@ export const TOOLS: ToolDef[] = [
   tool({
     name: 'request_time_off',
     title: 'Request time off',
-    description: 'Ask for holiday or a day off for yourself. Kinds: vacation, personal, sick, other. An admin approves it.',
-    input: z.object({ from: date, to: date, kind: z.enum(['vacation', 'personal', 'sick', 'other']).default('vacation'), note: z.string().optional() }),
+    description: `Ask for holiday or other leave for yourself. Kinds: ${TIME_OFF_KINDS.join(', ')} (family: a relative's accident, serious illness or hospital stay; urgent: an urgent family reason). Sick, birth, family, bereavement and urgent can be for days already gone. An admin approves it.`,
+    input: z.object({ from: date, to: date, kind: leaveKind.default('vacation'), note: z.string().optional() }),
     async run({ sb }, a) {
       check(await sb.rpc('request_time_off', { p_starts_on: a.from, p_ends_on: a.to, p_kind: a.kind, p_note: a.note ?? null }))
       return { ok: true, message: 'Request sent to the admins' }
@@ -462,6 +465,59 @@ export const TOOLS: ToolDef[] = [
     async run({ sb }, a) {
       const n = check(await sb.rpc('decide_time_off', { p_id: a.request_id, p_approve: a.approve, p_note: a.note ?? null, p_release_shifts: a.release_shifts }))
       return { ok: true, shifts_released: n }
+    },
+  }),
+  tool({
+    name: 'record_time_off',
+    title: 'Record leave for someone',
+    description: `Admins: record leave for a team member, approved straight away (a sick note, birth leave, a bereavement). Kinds: ${TIME_OFF_KINDS.join(', ')}. With release_shifts (default true), their shifts in the period become open shifts.`,
+    admin: true,
+    input: z.object({ person: z.string().describe('Name of the team member'), from: date, to: date, kind: leaveKind, note: z.string().optional(),
+      release_shifts: z.boolean().default(true) }),
+    async run({ sb }, a) {
+      const p = await resolvePerson(sb, a.person)
+      const n = check(await sb.rpc('record_time_off', { p_profile_id: p.id, p_starts_on: a.from, p_ends_on: a.to, p_kind: a.kind,
+        p_note: a.note ?? null, p_release_shifts: a.release_shifts }))
+      return { ok: true, person: p.full_name, shifts_released: n }
+    },
+  }),
+  tool({
+    name: 'staff_benefits',
+    title: 'Staff benefits',
+    description: "What the team is entitled to by law in the business's country (holidays, public holidays, sick pay, birth leave, marriage, bereavement…), what the business gives on top, and each person's allocation for a year: holiday allowance, taken, booked and left, and the days of each other kind of leave. Employees get their own; admins and payroll partners everyone.",
+    partner: ['payroll'],
+    readOnly: true,
+    input: z.object({ year: z.number().int().min(2000).max(2100).optional() }),
+    async run({ sb, me }, a) {
+      const year = a.year ?? Number(today().slice(0, 4))
+      const [own, allowances, settings, off, people] = await Promise.all([
+        sb.from('benefits').select('id, law_key, name, amount, details, sort').order('sort').then(rowsAs<Benefit[]>()),
+        sb.from('leave_allowances').select('profile_id, year, holiday_days, note').eq('year', year).then(rowsAs<LeaveAllowance[]>()),
+        sb.from('settings').select('vacation_days_per_year').eq('id', 1).single().then(rowsAs<Pick<Settings, 'vacation_days_per_year'>>()),
+        sb.from('time_off').select('*').lte('starts_on', `${year}-12-31`).gte('ends_on', `${year}-01-01`).then(rowsAs<TimeOff[]>()),
+        team(sb),
+      ])
+      const country = businessConfig.country
+      const amountOf = (key: string, law: number | null) => key === 'holidays' ? settings.vacation_days_per_year : own.find(b => b.law_key === key)?.amount ?? law
+      const who = me.role === 'employee' ? [me] : people.filter(p => p.active && (p.role === 'admin' || p.role === 'employee'))
+      return {
+        country: COUNTRY_NAME[country], law: LAW_CHECKED[country].source, law_checked_on: LAW_CHECKED[country].on,
+        entitlements: ENTITLEMENTS[country].map(e => {
+          const amount = amountOf(e.key, e.amount)
+          return { name: e.name, in_law: e.term, article: e.law, allowance: e.allowance.replace('{n}', String(amount)), legal_minimum: e.amount,
+            business_gives_more: amount !== e.amount, paid_by: PAYER_LABEL[e.payer], pay: e.pay, detail: e.detail,
+            business_note: own.find(b => b.law_key === e.key)?.details ?? null }
+        }),
+        business_own_benefits: own.filter(b => !b.law_key).map(b => ({ name: b.name, details: b.details })),
+        year,
+        people: who.map(p => {
+          const used = leaveYear(off, p.id, year, today())
+          const allowance = allowances.find(x => x.profile_id === p.id)
+          const holidays = allowance?.holiday_days ?? settings.vacation_days_per_year
+          return { person: p.full_name, holiday_allowance: holidays, allowance_note: allowance?.note ?? null, holiday_taken: used.holidayTaken,
+            holiday_booked: used.holidayBooked, holiday_left: holidays - used.holidayTaken - used.holidayBooked, other_leave_days: used.days }
+        }),
+      }
     },
   }),
   tool({

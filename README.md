@@ -40,6 +40,14 @@ built-in **AI connector** so owners can run it by talking to Claude.
   limits, and pause, resume or daily budget changes sent straight to the platform. **Reviews** reads the
   Google reviews (new ones in the bell, replies from templates in the review's language) and **Website &
   SEO** checks the website (SEO, Google PageSpeed, the same details as the app and Google Maps).
+- Staff benefits (Team section): what everyone is entitled to in the business's country (`country` in
+  `shared/business.config.ts`; Spain: 30 calendar days' holiday, 14 public holidays, sick pay from day 4,
+  19 weeks' birth leave for each parent, nursing time, parental leave, and the Estatuto's paid leave for a
+  wedding, a relative in hospital, a bereavement, a move…), each with who pays and its article, checked
+  against the BOE on a stated date. Admins raise any amount (never below the law), add the business's own
+  extras, give someone their own holiday for a year (their share when they start part-way, which Time off
+  then holds requests to) and record leave for them. Everyone sees their own allocation (holiday taken,
+  booked and left, sick days and other leave); admins and a payroll gestoría see the whole team.
 - Licences & renewals (Business section): everything the business keeps open (licencia de apertura, SGAE
   and AGEDI/AIE for the music, the terrace permit, insurance, extinguisher and electrical checks, staff
   food handler certificates), each with its number, when it runs out, how often it renews, its cost
