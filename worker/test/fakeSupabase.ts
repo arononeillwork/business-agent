@@ -7,7 +7,7 @@ import { CONNECTION_FEATURE } from '../../shared/plans'
 
 export type Row = Record<string, unknown>
 
-/** integration_group() (migrations 28, 34, 40, 45 and 62: Google Drive and OneDrive no longer exclude each other). */
+/** integration_group() (migrations 28, 34, 40, 45 and 64: Google Drive and OneDrive no longer exclude each other). */
 export const GROUP: Record<string, string> = {
   gmail: 'email', outlook: 'email',
   google_calendar: 'calendar', outlook_calendar: 'calendar', spotify: 'music', youtube_music: 'music', whatsapp: 'communication', square: 'payments', sumup: 'payments',

@@ -1,4 +1,4 @@
--- Legal page (migration 62): documents that stay in the café's Drive or OneDrive, kept here only as
+-- Legal page (migration 64): documents that stay in the café's Drive or OneDrive, kept here only as
 -- where each one is. Tidied, each file once, where it is fixed once added; admins only (a gestoría with
 -- finances access reads). And Google Drive and OneDrive can now be connected at the same time.
 -- People from the tests before it: maria (admin), julio (employee), tax-partner and rota-partner (zz_tax).

@@ -1,6 +1,6 @@
 // Legal page: the business's legal documents (the lease, the company's deeds, insurance, contracts,
 // licences, its own policies). Each is a file that stays where it is in the café's own Google Drive or
-// OneDrive; the database keeps only where it is and what it is (legal_documents, migration 62).
+// OneDrive; the database keeps only where it is and what it is (legal_documents, migration 64).
 // Shared by the Worker (which checks and adds picked files, and streams them to the page) and the app.
 // (shared/legal.ts is something else: who runs Business Agent, for its own privacy policy and terms.)
 import { msg } from './i18n'
