@@ -57,6 +57,24 @@ built-in **AI connector** so owners can run it by talking to Claude.
   be connected; the admin chooses which), grouped by kind, shown in the page straight from the storage
   and opened there. Nothing is copied: only where each file is is kept. A gestoría with finances access
   reads. Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) section 18.
+- Menu (its own section): the menu as customers see it, by section, with each item's photo, price,
+  description, variants, the 14 EU allergens (Regulation 1169/2011) and vegetarian, vegan, gluten or
+  dairy free; everyone on the team reads it ("free from milk" finds what's safe), admins add, arrange
+  and take items off the menu. The items are Menu costing's own (one list, two views), and the allergen
+  chart exports like every table. **Design** (admins) makes the **physical** menus (A4, A3, A5, printed
+  or saved as PDF at their paper size) and the **digital** ones (16:9 or 9:16, for the screens), each
+  previewed on paper or on a TV: an image goes behind the menu, which the app writes from the items
+  (names and prices always right, the writing sized to fit), or the image is the whole menu. Images
+  are made with AI through **Higgsfield** (the business's own API key: Ideogram, Recraft in the brand's
+  colours, Qwen for photos and changes), uploaded or linked, kept in the café's Drive or OneDrive;
+  items' photos can be made with AI too. Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) section 19.
+- Screens (Menu section, admins): the café's TVs and tablets as slideshows. Each has a secret link
+  opened once on the screen (no sign-in), and slides added by address: pictures, MP4 videos, YouTube,
+  Vimeo, Instagram posts, web pages, live pictures reloaded each time (a webcam), and the digital
+  menus. Settings: how long each slide shows (or its own time; videos to their end), the change effect
+  and its speed, shuffle, fill or fit, music (an MP3, a radio stream or YouTube) with its volume, videos'
+  own sound, the time and a running line. The page previews the changes as they're made; the screen
+  picks them up within a minute, keeps playing offline and stays awake.
 - How often things update: what the app reads from Square, SumUp, Stripe, Google and Meta (takings, ads,
   Search Console, loyalty, email invoices, reviews) is kept a while (`provider_cache`), so opening a page
   doesn't ask them again each time: today's takings every 15 minutes and finished days once a day, ads

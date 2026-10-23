@@ -276,6 +276,8 @@ integrations.get('/api/integrations', async c => {
     // Calendars need no keys of their own: the calendar app subscribes to the team calendar link.
     google_calendar: !!c.env.INTEGRATION_KEY,
     outlook_calendar: !!c.env.INTEGRATION_KEY,
+    // AI images: the business pastes its own Higgsfield key; it only has to be kept encrypted.
+    higgsfield: !!c.env.INTEGRATION_KEY,
   }
   const { data: queue } = await db.from('outbox').select('kind, status').in('status', ['pending', 'failed', 'dead'])
   return c.json({ integrations: data, configured: setup, queue, media_storage: await mediaStorage(c.env, db) })
@@ -1319,7 +1321,7 @@ integrations.post('/api/integrations/media', async c => {
   const type = (c.req.header('content-type') ?? '').split(';')[0].trim().toLowerCase()
   const declared = Number(c.req.header('content-length') ?? '') || null
   try {
-    checkFile(type, declared)
+    checkFile(type, declared, c.req.query('folder'))
     // A known size streams straight through to storage; otherwise it's read first (up to 100 MB).
     const Fixed = (globalThis as { FixedLengthStream?: new (n: number) => TransformStream }).FixedLengthStream
     const body = declared && c.req.raw.body && Fixed ? c.req.raw.body.pipeThrough(new Fixed(declared)) : await c.req.arrayBuffer()

@@ -5,12 +5,12 @@ import { MAX_PHOTO_BYTES, MAX_VIDEO_BYTES, feedCrop } from '../../shared/social'
 
 const VIDEO = /^video\/(mp4|quicktime)$/
 
-/** A photo as a JPEG ready to post; `crop`: fit Instagram's feed shapes (posts and carousels). */
-export async function readyPhoto(file: File, crop: boolean): Promise<File> {
+/** A photo as a JPEG ready to post; `crop`: fit Instagram's feed shapes (posts and carousels). `maxWidth`: bigger for printing (a menu). */
+export async function readyPhoto(file: File, crop: boolean, maxWidth = 1440): Promise<File> {
   if (!file.type.startsWith('image/')) throw new Error('That isn’t a photo')
   const img = await createImageBitmap(file).catch(() => { throw new Error('That photo can’t be read here. Use a JPEG or PNG.') })
   const area = crop ? feedCrop(img.width, img.height) : { width: img.width, height: img.height }
-  const scale = Math.min(1, 1440 / area.width)
+  const scale = Math.min(1, maxWidth / area.width)
   const canvas = document.createElement('canvas')
   canvas.width = Math.round(area.width * scale)
   canvas.height = Math.round(area.height * scale)

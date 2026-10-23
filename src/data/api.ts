@@ -15,6 +15,8 @@ import type { GrantApplication, GrantApplicationInput, GrantProfile } from '../.
 import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
 import type { MovementInput, StockItem, StockItemInput, StockMovement, Supplier, SupplierInput } from '../../shared/stock'
 import type { Recipe, RecipeInput } from '../../shared/recipes'
+import type { MenuDesign, MenuDesignInput, MenuImage, MenuImageRequest, MenuItem, MenuItemInput } from '../../shared/menu'
+import type { DisplayFeed, Screen, ScreenInput } from '../../shared/screens'
 import type { AdPlatform, AdSettings, AdsReport, CampaignPatch } from '../../shared/ads'
 import type { ReviewsState } from '../../shared/reviews'
 import type { PageSpeed, Strategy, WebsiteReport, WebsiteState } from '../../shared/seo'
@@ -257,6 +259,40 @@ export interface Api {
   /** Save a recipe with its variants and lines (they replace the ones there were); returns its id. */
   saveRecipe(recipe: RecipeInput): Promise<string>
   deleteRecipe(id: string): Promise<void>
+
+  // Menu (everyone on the team reads; admins change): what customers read about each item. The same
+  // items as Menu costing, without their costs.
+  menuItems(): Promise<MenuItem[]>
+  /** Add a menu item (no id) or change what customers read about it; returns its id. Its costing stays as it is. */
+  saveMenuItem(item: MenuItemInput): Promise<string>
+  /** A section's new order: its items' ids, in order. */
+  reorderMenu(ids: string[]): Promise<void>
+  /** Keep a picture for the menu (a photo, a design) in the café's storage, Business Agent/Menu; returns its address. */
+  uploadMenuPicture(file: File): Promise<string>
+  // Menu designs (admins): printed (physical) and on screens (digital), each with its images.
+  menuDesigns(): Promise<MenuDesign[]>
+  /** Add a design (no id) or change one; returns its id. */
+  saveMenuDesign(design: MenuDesignInput): Promise<string>
+  deleteMenuDesign(id: string): Promise<void>
+  /** An uploaded picture or a link as one of a design's images; it becomes the one in use. Returns its id. */
+  addMenuImage(designId: string, url: string, source: 'upload' | 'link'): Promise<string>
+  deleteMenuImage(id: string): Promise<void>
+  /** Connect Higgsfield (AI images) with its API key; Higgsfield must accept it first. */
+  connectHiggsfield(keyId: string, secret: string): Promise<void>
+  /** Ask Higgsfield for an image (or a change to one); it comes back queued. */
+  generateMenuImage(request: MenuImageRequest): Promise<MenuImage>
+  /** How an AI image is going. */
+  checkMenuImage(id: string): Promise<MenuImage>
+
+  // Screens (admins): the café's TVs and tablets, each playing its slides.
+  screens(): Promise<Screen[]>
+  /** Add a screen (no id) or change one; returns its id. */
+  saveScreen(screen: ScreenInput): Promise<string>
+  deleteScreen(id: string): Promise<void>
+  /** A new secret link for a screen (the old one stops working); returns its token. */
+  newScreenLink(id: string): Promise<string>
+  /** What a screen's link plays (no sign-in needed). */
+  display(token: string): Promise<DisplayFeed>
 
   // To Do List (the team; admins manage categories)
   todos(): Promise<{ categories: TodoCategory[]; todos: Todo[] }>

@@ -55,6 +55,10 @@ const LoyaltyPage = page(() => import('./pages/LoyaltyPage'), 'LoyaltyPage')
 const StockPage = page(() => import('./pages/StockPage'), 'StockPage')
 const SuppliersPage = page(() => import('./pages/SuppliersPage'), 'SuppliersPage')
 const RecipesPage = page(() => import('./pages/RecipesPage'), 'RecipesPage')
+const MenuPage = page(() => import('./pages/MenuPage'), 'MenuPage')
+const MenuPrintPage = page(() => import('./pages/MenuPrintPage'), 'MenuPrintPage')
+const ScreensPage = page(() => import('./pages/ScreensPage'), 'ScreensPage')
+const DisplayPage = page(() => import('./pages/DisplayPage'), 'DisplayPage')
 const WastePage = page(() => import('./pages/WastePage'), 'WastePage')
 const RegistroPage = page(() => import('./pages/RegistroPage'), 'RegistroPage')
 const OpeningHoursPage = page(() => import('./pages/OpeningHoursPage'), 'OpeningHoursPage')
@@ -82,6 +86,8 @@ function Routed() {
   if (pathname === '/data-deletion') return <DataDeletionPage />
   if (pathname === '/pricing') return <PricingPage />
   if (pathname === '/compare') return <ComparePage />
+  // A café screen's own link: no sign-in, the link itself is the screen's secret (Screens page).
+  if (pathname.startsWith('/display/')) return <DisplayPage />
   if (loading) return <Loading />
   if (!me) return <LoginPage />
   if (!me.active) return <NotActive />
@@ -112,6 +118,7 @@ function Routed() {
           {partnerCan('finances') && <Route path="stock" element={<StockPage />} />}
           {partnerCan('finances') && <Route path="suppliers" element={<SuppliersPage />} />}
           {partnerCan('finances') && <Route path="recipes" element={<RecipesPage />} />}
+          {partnerCan('finances') && <Route path="menu" element={<MenuPage />} />}
           {partnerCan('finances') && <Route path="waste" element={<WastePage />} />}
           <Route path="*" element={<Navigate to="/business" />} />
         </Route>
@@ -124,6 +131,8 @@ function Routed() {
       <Route path="/kiosk" element={isAdmin && FEATURES.kiosk ? <PlanGate feature="kiosk"><KioskPage /></PlanGate> : <Navigate to="/" />} />
       {/* Printable monthly hours record (no menu around it). */}
       <Route path="/registro" element={<RegistroPage />} />
+      {/* A printed menu at its paper size (no menu around it). */}
+      <Route path="/menu/print/:id" element={isAdmin ? <MenuPrintPage /> : <Navigate to="/menu" />} />
       <Route element={<AppShell />}>
         <Route index element={<TodayPage />} />
         <Route path="rota" element={<RotaPage />} />
@@ -141,6 +150,9 @@ function Routed() {
         <Route path="stock" element={<StockPage />} />
         <Route path="suppliers" element={isAdmin ? <SuppliersPage /> : <Navigate to="/" />} />
         <Route path="recipes" element={isAdmin ? <RecipesPage /> : <Navigate to="/" />} />
+        <Route path="menu" element={<MenuPage />} />
+        <Route path="menu/design" element={isAdmin ? <MenuPage /> : <Navigate to="/menu" />} />
+        <Route path="screens" element={isAdmin ? <ScreensPage /> : <Navigate to="/" />} />
         <Route path="waste" element={<WastePage />} />
         <Route path="todo" element={<TodoPage />} />
         <Route path="opening-hours" element={<OpeningHoursPage />} />

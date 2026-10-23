@@ -23,6 +23,7 @@ import { FEATURES } from '../app/features'
 import { GROUPS, optionName, type ConnectionGroup, type ConnectionGroupInfo, type ConnectionOption } from '../../shared/connections'
 import type { CalendarApp, ConnectorProvider, Integration, IntegrationProvider, IntegrationsState } from '../../shared/types'
 import { ago } from './Freshness'
+import { HiggsfieldKeyDialog, HiggsfieldLogo } from './AiImages'
 import { tokens } from '../theme'
 import { msg, t, tn, tr, tc } from '../i18n'
 
@@ -88,6 +89,7 @@ export const LOGO: Record<OptionId, ReactNode> = {
   search_console: <Brand icon={siGooglesearchconsole} />,
   meta_ads: <Brand icon={siMeta} />,
   google_ads: <Brand icon={siGoogleads} />,
+  higgsfield: <HiggsfieldLogo />,
 }
 
 export const DOES: Partial<Record<OptionId, string>> = {
@@ -116,6 +118,7 @@ export const DOES: Partial<Record<OptionId, string>> = {
   google_ads: msg('Your Google search and Maps ads on the Ads page: what they cost and brought in, with pause and budgets.'),
   spotify: msg('The approved playlist; staff play or pause it on the café speaker.'),
   youtube_music: msg('The approved playlist; staff open it on the café device.'),
+  higgsfield: msg('Images for your menus and screens made with AI from a few words: artwork, whole menus and photos of your dishes (Menu page).'),
 }
 
 /** What the connection can do once allowed (shown before connecting, like an AI connector). */
@@ -143,6 +146,7 @@ export const CAN: Partial<Record<OptionId, string[]>> = {
   google_ads: [msg('See your ad accounts, campaigns and what they spent and brought in'), msg('Pause or resume a campaign, or change its daily budget, when you ask it to here')],
   spotify: [msg('See your playlists'), msg('Play and pause the approved playlist on the café speaker (Premium)')],
   youtube_music: [msg('See your playlists (read-only)')],
+  higgsfield: [msg('Make the images you ask for on the Menu page, with your Higgsfield credits'), msg('It can’t see anything else in your Higgsfield account')],
 }
 
 export const KEYS_NEEDED: Partial<Record<OptionId, string>> = {
@@ -264,11 +268,13 @@ const Logo = ({ id, size = 44 }: { id: OptionId; size?: number }) => (
 )
 
 /** How to connect each app: sign in with it (most), subscribe (calendars) or send a test (WhatsApp). */
-function useConnect(s: OptionState, back: 'setup' | 'connections', reload: () => Promise<void>) {
+function useConnect(s: OptionState, back: 'setup' | 'connections', reload: () => Promise<void>, pasteKey?: () => void) {
   const { api } = useApp()
   const run = useAction()
   const p = s.o.id as IntegrationProvider
   return () => run(async () => {
+    // Higgsfield: no sign-in, the admin pastes the account's API key.
+    if (p === 'higgsfield') return pasteKey?.()
     if (isConnector(p)) return api.connectService(p, back)
     if (p === 'spotify') return api.connectSpotify()
     if (p === 'instagram') return api.connectInstagram(back)
@@ -287,7 +293,8 @@ function useConnect(s: OptionState, back: 'setup' | 'connections', reload: () =>
 
 /** One app as a row in its group's card: logo, name, what it does (or its account), status and one action. */
 function Tile({ s, back, reload, onOpen, loading }: { s: OptionState; back: 'setup' | 'connections'; reload: () => Promise<void>; onOpen: () => void; loading: boolean }) {
-  const connect = useConnect(s, back, reload)
+  const [pasting, setPasting] = useState(false)
+  const connect = useConnect(s, back, reload, () => setPasting(true))
   const [confirm, setConfirm] = useState(false)
   const { o, status, row } = s
   const oneClick = s.configured && o.id !== 'whatsapp' && status === 'disconnected'
@@ -323,6 +330,7 @@ function Tile({ s, back, reload, onOpen, loading }: { s: OptionState; back: 'set
         </Stack>
       )}
       <SwitchDialog open={confirm} s={s} onClose={() => setConfirm(false)} onConfirm={() => { setConfirm(false); void connect() }} />
+      {pasting && <HiggsfieldKeyDialog onClose={() => setPasting(false)} onDone={reload} />}
     </Box>
   )
 }
@@ -350,7 +358,8 @@ function SwitchDialog({ open, s, onClose, onConfirm }: { open: boolean; s: Optio
 function ConnectorDialog({ s, back, reload, onClose }: { s: OptionState; back: 'setup' | 'connections'; reload: () => Promise<void>; onClose: () => void }) {
   const { api } = useApp()
   const run = useAction()
-  const connect = useConnect(s, back, reload)
+  const [pasting, setPasting] = useState(false)
+  const connect = useConnect(s, back, reload, () => setPasting(true))
   const [confirm, setConfirm] = useState(false)
   const [testing, setTesting] = useState(false)
   const { o, row, status } = s
@@ -464,6 +473,7 @@ function ConnectorDialog({ s, back, reload, onClose }: { s: OptionState; back: '
       </DialogActions>
       <SwitchDialog open={confirm} s={s} onClose={() => setConfirm(false)} onConfirm={() => { setConfirm(false); void connect() }} />
       {testing && <TestEmailDialog onClose={() => setTesting(false)} />}
+      {pasting && <HiggsfieldKeyDialog onClose={() => setPasting(false)} onDone={reload} />}
     </Dialog>
   )
 }

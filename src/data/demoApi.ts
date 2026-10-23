@@ -30,10 +30,15 @@ import { cleanAnswers, isDone, type GrantApplication, type GrantProfile } from '
 import { adjustProblem, giftCardAmountProblem, type GiftCard, type GiftCardActivity, type LoyaltyEvent, type LoyaltyMember, type LoyaltyProgram } from '../../shared/loyalty'
 import type { MovementInput, StockItem, StockMovement, Supplier } from '../../shared/stock'
 import type { Recipe } from '../../shared/recipes'
+import {
+  MAX_PROMPT, cleanAllergens, cleanDietary, designProblem, menuItemProblem, menuSections, modelOf, sizeOf, type MenuDesign, type MenuImage, type MenuItem,
+} from '../../shared/menu'
+import { screenProblem, type DisplayFeed, type Screen } from '../../shared/screens'
+import { demoArtwork, demoMenuPicture, demoPhoto } from './demoMenu'
 import { AD_PLATFORMS, NO_METRICS, PLATFORM_NAMES, addMetrics, sumDays, type AdCampaign, type AdDay, type AdMetrics, type AdPlatform, type AdSettings, type AdsReport } from '../../shared/ads'
 import { CONNECT_MAPS, MAX_REPLY, type Review } from '../../shared/reviews'
 import { checkSite, parsePage, scoreOf, type PageSpeed, type WebsiteReport } from '../../shared/seo'
-import { addDays, localDate, minutesBetween, today, weekDates, weekStart, zonedIso } from '../../shared/time'
+import { addDays, formatMoney, localDate, minutesBetween, today, weekDates, weekStart, zonedIso } from '../../shared/time'
 
 interface RawEntry {
   id: string; profile_id: string; position_id: number | null; shift_id: string | null
@@ -112,7 +117,7 @@ export function createDemoApi(): Api {
   const integ: IntegrationsState = {
     configured: { google_business: true, whatsapp: true, instagram: true, spotify: true, gmail: true, outlook: true, google_drive: true, onedrive: true,
       youtube_music: true, google_calendar: true, outlook_calendar: true, facebook: true, tiktok: true, square: true, stripe: true,
-      sumup: true, linkedin: true, search_console: true, meta_ads: true, google_ads: true },
+      sumup: true, linkedin: true, search_console: true, meta_ads: true, google_ads: true, higgsfield: true },
     queue: [],
     integrations: [
       { provider: 'google_business', status: 'connected', account_label: 'Easy Beans Coffee',
@@ -138,7 +143,7 @@ export function createDemoApi(): Api {
       { provider: 'google_ads', status: 'connected', account_label: 'Easy Beans Coffee',
         external: { accounts: [{ id: '4471230098', name: 'Easy Beans Coffee', currency: 'EUR' }], account_id: '4471230098', account_name: 'Easy Beans Coffee' },
         connected_at: nowIso(), last_sync_at: nowIso(), last_error: null, last_checked_at: nowIso() },
-      ...(['gmail', 'outlook', 'google_drive', 'onedrive', 'youtube_music', 'google_calendar', 'outlook_calendar', 'facebook', 'tiktok', 'square', 'stripe', 'sumup'] as const).map(provider => ({
+      ...(['gmail', 'outlook', 'google_drive', 'onedrive', 'youtube_music', 'google_calendar', 'outlook_calendar', 'facebook', 'tiktok', 'square', 'stripe', 'sumup', 'higgsfield'] as const).map(provider => ({
         provider, status: 'disconnected' as const, account_label: null, external: {}, connected_at: null, last_sync_at: null, last_error: null, last_checked_at: null })),
     ],
   }
@@ -693,22 +698,108 @@ export function createDemoApi(): Api {
   const line = (name: string, quantity: number, unit: StockItem['unit'], variant_id: string | null = null, replaces?: string) =>
     ({ item_id: byName(name), quantity, unit, variant_id, replaces_item_id: replaces ? byName(replaces) : null })
   const cupAndLid = [line('Cups 8 oz', 1, 'unit'), line('Lids 8 oz', 1, 'unit')]
-  const recipe = (r: Partial<Recipe> & { name: string }): Recipe => ({ id: uid(), category: 'Coffee', square_item: null, sell_price: null, vat_rate: 10,
-    target_margin: 70, wastage_pct: 3, notes: null, active: true, variants: [], lines: [], ...r })
-  const recipes: Recipe[] = [
+  // What customers read about each one, for the Menu page (the same rows, as in the database).
+  type MenuExtras = Pick<MenuItem, 'description' | 'photo_url' | 'allergens' | 'dietary' | 'featured' | 'on_menu' | 'menu_sort'>
+  const recipe = (r: Partial<Recipe & MenuExtras> & { name: string }): Recipe & MenuExtras => ({ id: uid(), category: 'Coffee', square_item: null, sell_price: null, vat_rate: 10,
+    target_margin: 70, wastage_pct: 3, notes: null, active: true, variants: [], lines: [],
+    description: null, photo_url: null, allergens: [], dietary: [], featured: false, on_menu: true, menu_sort: 0, ...r })
+  const recipes: (Recipe & MenuExtras)[] = [
     recipe({ name: 'Flat white', sell_price: 3.2, square_item: 'Flat white', variants: [{ id: 'v-fw-oat', name: 'Oat milk', price_change: 0.4 }, { id: 'v-fw-shot', name: 'Extra shot', price_change: 0.5 }],
       lines: [line('House espresso blend', 18, 'g'), line('Whole milk', 150, 'ml'), ...cupAndLid,
-        line('Oat milk (barista)', 150, 'ml', 'v-fw-oat', 'Whole milk'), line('House espresso blend', 9, 'g', 'v-fw-shot')] }),
+        line('Oat milk (barista)', 150, 'ml', 'v-fw-oat', 'Whole milk'), line('House espresso blend', 9, 'g', 'v-fw-shot')],
+      description: 'Double ristretto with silky steamed milk', allergens: ['milk'], dietary: ['vegetarian', 'gluten_free'], featured: true, menu_sort: 1 }),
     recipe({ name: 'Cappuccino', sell_price: 2.9, variants: [{ id: 'v-cap-oat', name: 'Oat milk', price_change: 0.4 }],
-      lines: [line('House espresso blend', 18, 'g'), line('Whole milk', 180, 'ml'), ...cupAndLid, line('Oat milk (barista)', 180, 'ml', 'v-cap-oat', 'Whole milk')] }),
-    recipe({ name: 'Espresso', sell_price: 1.6, lines: [line('House espresso blend', 18, 'g')] }),
+      lines: [line('House espresso blend', 18, 'g'), line('Whole milk', 180, 'ml'), ...cupAndLid, line('Oat milk (barista)', 180, 'ml', 'v-cap-oat', 'Whole milk')],
+      description: 'Espresso, steamed milk and a deep cap of foam', allergens: ['milk'], dietary: ['vegetarian', 'gluten_free'], menu_sort: 2 }),
+    recipe({ name: 'Espresso', sell_price: 1.6, lines: [line('House espresso blend', 18, 'g')],
+      description: 'Our house blend: chocolate and hazelnut', dietary: ['vegan', 'gluten_free', 'dairy_free'], menu_sort: 3 }),
     recipe({ name: 'Iced matcha latte', category: 'Tea & matcha', sell_price: 4.5, target_margin: 70,
-      lines: [line('Ceremonial matcha', 0.04, 'unit'), line('Oat milk (barista)', 250, 'ml'), ...cupAndLid] }),
-    recipe({ name: 'Chai latte', category: 'Tea & matcha', sell_price: 3.8, lines: [line('Chai concentrate', 0.06, 'bottle'), line('Whole milk', 200, 'ml'), ...cupAndLid] }),
-    recipe({ name: 'Caramel latte', sell_price: 3.6, lines: [line('House espresso blend', 18, 'g'), line('Whole milk', 220, 'ml'), line('Caramel syrup', 0.03, 'bottle'), ...cupAndLid] }),
-    recipe({ name: 'Croissant', category: 'Bakery', sell_price: 1.8, target_margin: 60, wastage_pct: 10, lines: [line('Butter croissants', 1, 'unit')] }),
-    recipe({ name: 'Pain au chocolat', category: 'Bakery', sell_price: 2, target_margin: 60, wastage_pct: 10, lines: [line('Pain au chocolat', 1, 'unit')] }),
+      lines: [line('Ceremonial matcha', 0.04, 'unit'), line('Oat milk (barista)', 250, 'ml'), ...cupAndLid],
+      description: 'Ceremonial matcha over ice with oat milk', allergens: ['gluten'], dietary: ['vegan', 'dairy_free'], featured: true, menu_sort: 1 }),
+    recipe({ name: 'Chai latte', category: 'Tea & matcha', sell_price: 3.8, lines: [line('Chai concentrate', 0.06, 'bottle'), line('Whole milk', 200, 'ml'), ...cupAndLid],
+      description: 'Warm spiced chai with steamed milk', allergens: ['milk'], dietary: ['vegetarian'], menu_sort: 2 }),
+    recipe({ name: 'Caramel latte', sell_price: 3.6, lines: [line('House espresso blend', 18, 'g'), line('Whole milk', 220, 'ml'), line('Caramel syrup', 0.03, 'bottle'), ...cupAndLid],
+      description: 'Latte with house caramel', allergens: ['milk'], dietary: ['vegetarian', 'gluten_free'], menu_sort: 4 }),
+    recipe({ name: 'Croissant', category: 'Bakery', sell_price: 1.8, target_margin: 60, wastage_pct: 10, lines: [line('Butter croissants', 1, 'unit')],
+      description: 'All butter, from By Eric every morning', allergens: ['gluten', 'milk', 'eggs'], dietary: ['vegetarian'], menu_sort: 1 }),
+    recipe({ name: 'Pain au chocolat', category: 'Bakery', sell_price: 2, target_margin: 60, wastage_pct: 10, lines: [line('Pain au chocolat', 1, 'unit')],
+      allergens: ['gluten', 'milk', 'eggs', 'soy'], dietary: ['vegetarian'], menu_sort: 2 }),
   ]
+  const menuItemOf = (r: Recipe & MenuExtras): MenuItem => ({ id: r.id, name: r.name, category: r.category, sell_price: r.sell_price, vat_rate: r.vat_rate,
+    description: r.description, photo_url: r.photo_url, allergens: [...r.allergens], dietary: [...r.dietary], featured: r.featured, on_menu: r.on_menu,
+    menu_sort: r.menu_sort, variants: r.variants.map(v => ({ ...v })) })
+  const menuList = () => recipes.filter(r => r.active).map(menuItemOf).sort((a, b) => a.menu_sort - b.menu_sort || a.name.localeCompare(b.name))
+  /** A new item goes last in its section (as the database does). */
+  const lastInSection = (category: string | null) => Math.max(0, ...recipes.filter(r => r.category === category).map(r => r.menu_sort)) + 1
+
+  // Menu designs: a printed A4 for the counter and the TV's menu board, each with an AI image ready;
+  // their images (and items' AI photos) in one list, newest first. A demo AI image is "made" a couple
+  // of seconds after it's asked for, drawn from the words asked (src/data/demoMenu.ts).
+  type DemoImage = MenuImage & { readyAt?: number }
+  type DemoDesign = Omit<MenuDesign, 'images'>
+  /** A design's size in drawing units (mm × 4 for paper, half a screen's pixels). */
+  const drawSize = (size: MenuDesign['size']) => { const z = sizeOf(size); return z.unit === 'mm' ? { w: z.width * 4, h: z.height * 4 } : { w: z.width / 2, h: z.height / 2 } }
+  const brandHex = () => brand.colours.map(c => c.hex)
+  const COUNTER_ART = 'Warm Mediterranean café, terracotta and cream, olive branches and coffee beans at the edges'
+  const TV_ART = 'Hand-drawn chalkboard with coffee cups and croissants sketched around the border'
+  const menuDesignList: DemoDesign[] = [
+    { id: 'd-counter', name: 'Counter menu', format: 'physical', size: 'a4_portrait', mode: 'background', categories: [], title: null,
+      subtitle: 'Specialty coffee · San Pedro de Alcántara', footer: 'Prices include IVA. Ask us about allergens.', text_tone: 'dark', panel: true,
+      show_descriptions: true, show_allergens: true, image_id: 'img-counter', updated_at: daysAgo(3) },
+    { id: 'd-tv', name: 'TV menu board', format: 'digital', size: 'screen_landscape', mode: 'background', categories: ['Coffee', 'Tea & matcha'], title: null,
+      subtitle: null, footer: 'Oat milk at no extra charge on Mondays', text_tone: 'light', panel: false, show_descriptions: false, show_allergens: false,
+      image_id: 'img-tv', updated_at: daysAgo(2) },
+  ]
+  const menuImages: DemoImage[] = [
+    { id: 'img-tv', design_id: 'd-tv', item_id: null, url: null, source: 'ai', model: 'ideogram', prompt: TV_ART, edit_of: null, status: 'ready', error: null, stored: true, created_at: daysAgo(2) },
+    { id: 'img-counter', design_id: 'd-counter', item_id: null, url: null, source: 'ai', model: 'recraft', prompt: COUNTER_ART, edit_of: null, status: 'ready', error: null, stored: true, created_at: daysAgo(3) },
+  ]
+  // Drawn when first needed (the brand's colours are set just above).
+  const seedImage = (i: DemoImage) => {
+    if (i.url || i.status !== 'ready' || !i.design_id) return
+    const d = menuDesignList.find(x => x.id === i.design_id)!
+    const { w, h } = drawSize(d.size)
+    i.url = demoArtwork(i.prompt ?? '', w, h, brandHex())
+  }
+  /** Mirrors the Worker and the database: a demo AI image is queued, then being made, then ready (the design shows it, an item gets its photo). */
+  const progressImage = (i: DemoImage) => {
+    seedImage(i)
+    if ((i.status !== 'queued' && i.status !== 'working') || !i.readyAt) return
+    if (Date.now() < i.readyAt) { if (Date.now() >= i.readyAt - 1500) i.status = 'working'; return }
+    const words = i.prompt ?? ''
+    const from = i.edit_of ? menuImages.find(x => x.id === i.edit_of) : undefined
+    if (i.design_id) {
+      const d = menuDesignList.find(x => x.id === i.design_id)
+      if (!d) return
+      const { w, h } = drawSize(d.size)
+      i.url = d.mode === 'full' && !from
+        ? demoMenuPicture(words, w, h, brandHex(), { title: d.title ?? business.name, footer: d.footer, money: formatMoney, sections: menuSections(menuList(), { only: d.categories }) })
+        : demoArtwork(from ? `${from.prompt ?? ''} ${words}` : words, w, h, brandHex())
+      if (!d.image_id || d.image_id === i.edit_of || d.updated_at <= i.created_at) d.image_id = i.id
+    } else {
+      const item = recipes.find(r => r.id === i.item_id)
+      if (!item) return
+      i.url = demoPhoto(`${item.name} ${words}`, item.category === 'Food' || item.category === 'Bakery')
+      item.photo_url = i.url
+    }
+    Object.assign(i, { status: 'ready', stored: !!mediaStorage(), readyAt: undefined })
+  }
+  const publicImage = ({ readyAt: _readyAt, ...i }: DemoImage): MenuImage => ({ ...i })
+
+  // Screens: the counter TV plays the menu board, a photo and the website, with the clock and a running line.
+  const newToken = () => crypto.randomUUID().replace(/-/g, '')
+  const screenList: Screen[] = [{
+    id: 's-counter', name: 'Counter TV', token: 'c0ffee00beef00c0ffee00beef00cafe', orientation: 'landscape', seconds: 10,
+    transition: 'fade', transition_ms: 800, shuffle: false, fit: 'cover', music_url: null, music_volume: 40, video_sound: false, show_clock: true,
+    ticker: 'Today’s special: pumpkin spice latte · Free Wi-Fi: EasyBeans', active: true, last_seen_at: new Date(Date.now() - 40_000).toISOString(), updated_at: daysAgo(1),
+    slides: [
+      { id: 'sl-menu', kind: 'menu', url: null, design_id: 'd-tv', title: null, seconds: 20, live: false, active: true },
+      // The demo's own drawing (a data address: the database takes https only).
+      { id: 'sl-photo', kind: 'image', url: demoPhoto('Flat white morning', false), design_id: null, title: 'Flat white', seconds: null, live: false, active: true },
+      { id: 'sl-web', kind: 'web', url: 'https://www.easybeanscoffee.com/', design_id: null, title: 'Our website', seconds: 15, live: false, active: true },
+      { id: 'sl-yt', kind: 'youtube', url: 'https://www.youtube.com/watch?v=jfKfPfyJRdk', design_id: null, title: 'Lo-fi live', seconds: 60, live: false, active: false },
+    ],
+  }]
   const expenses: Expense[] = ([
     ['Rent', 1530, 'Premises'], ['Staff wages', 4300, 'People'], ['Electricity', 200, 'Utilities'], ['Insurance', 100, 'Premises'],
     ['Council tax', 50, 'Premises'], ['Broadband', 20, 'Utilities'], ['Accountant', 100, 'Services'], ['Water', 50, 'Utilities'],
@@ -1840,6 +1931,156 @@ export function createDemoApi(): Api {
       requireAdmin()
       const i = recipes.findIndex(x => x.id === id)
       if (i >= 0) recipes.splice(i, 1)
+    },
+    async menuItems() { return isStaff() || partnerCan('finances') ? menuList() : [] },
+    async saveMenuItem({ id, ...item }) {
+      requireAdmin()
+      const problem = menuItemProblem(item)
+      if (problem) throw new Error(problem)
+      const patch = { ...item, name: item.name.trim(), description: item.description?.trim() || null, photo_url: item.photo_url?.trim() || null,
+        allergens: cleanAllergens(item.allergens), dietary: cleanDietary(item.dietary) }
+      const existing = id ? recipes.find(r => r.id === id) : undefined
+      if (existing) { Object.assign(existing, patch); return existing.id }
+      const made = recipe({ ...patch, menu_sort: lastInSection(patch.category) })
+      recipes.push(made)
+      return made.id
+    },
+    async reorderMenu(ids) {
+      requireAdmin()
+      ids.forEach((id, i) => { const r = recipes.find(x => x.id === id); if (r) r.menu_sort = i + 1 })
+    },
+    async uploadMenuPicture(file) {
+      requireAdmin()
+      if (!mediaStorage()) throw new Error('Connect Google Drive or OneDrive on the Connections page to add pictures. They’re kept in its Business Agent folder.')
+      if (!file.type.startsWith('image/')) throw new Error('Use a JPEG, PNG or WebP picture')
+      return URL.createObjectURL(file)
+    },
+    async menuDesigns() {
+      if (!isAdmin()) return []
+      menuImages.forEach(progressImage)
+      return menuDesignList.map(d => ({ ...clone(d), images: menuImages.filter(i => i.design_id === d.id).map(publicImage) }))
+    },
+    async saveMenuDesign({ id, ...d }) {
+      requireAdmin()
+      const problem = designProblem(d)
+      if (problem) throw new Error(problem)
+      if (d.image_id && !menuImages.some(i => i.id === d.image_id && i.design_id === id && i.status === 'ready')) throw new Error('That image isn’t one of this design’s, or isn’t ready yet')
+      const tidy = { ...d, name: d.name.trim(), title: d.title?.trim() || null, subtitle: d.subtitle?.trim() || null, footer: d.footer?.trim() || null,
+        categories: [...new Set(d.categories.map(c => c.trim()).filter(Boolean))], updated_at: nowIso() }
+      const existing = id ? menuDesignList.find(x => x.id === id) : undefined
+      if (existing) { Object.assign(existing, tidy); return existing.id }
+      const made = { ...tidy, id: uid() }
+      menuDesignList.push(made)
+      return made.id
+    },
+    async deleteMenuDesign(id) {
+      requireAdmin()
+      const d = menuDesignList.find(x => x.id === id)
+      if (!d) return
+      const onScreen = screenList.find(s => s.slides.some(x => x.design_id === id))
+      if (onScreen) throw new Error(`${d.name} is on the screen “${onScreen.name}”. Take it off that screen first.`)
+      menuDesignList.splice(menuDesignList.indexOf(d), 1)
+      for (let i = menuImages.length - 1; i >= 0; i--) if (menuImages[i].design_id === id) menuImages.splice(i, 1)
+    },
+    async addMenuImage(designId, url, source) {
+      requireAdmin()
+      const d = menuDesignList.find(x => x.id === designId)
+      if (!d) throw new Error('That design has gone')
+      // The demo's uploads are kept in the browser (blob: addresses); the database takes https only.
+      if (!/^https:\/\/\S+$/i.test(url) && !url.startsWith('blob:')) throw new Error('The picture’s address should start with https://')
+      const img: DemoImage = { id: uid(), design_id: designId, item_id: null, url, source, model: null, prompt: null, edit_of: null, status: 'ready', error: null,
+        stored: source === 'upload', created_at: nowIso() }
+      menuImages.unshift(img)
+      Object.assign(d, { image_id: img.id, updated_at: nowIso() })
+      return img.id
+    },
+    async deleteMenuImage(id) {
+      requireAdmin()
+      const i = menuImages.findIndex(x => x.id === id)
+      if (i < 0) return
+      menuImages.splice(i, 1)
+      for (const d of menuDesignList) if (d.image_id === id) d.image_id = null
+    },
+    async connectHiggsfield(keyId, secret) {
+      requireAdmin()
+      if (!keyId.trim() || !secret.trim()) throw new Error('Paste both the key ID and the secret')
+      if (/wrong|invalid/i.test(secret)) throw new Error('Higgsfield didn’t accept the API key. Check the key ID and secret on the Connections page.')
+      const id = keyId.trim()
+      setConnection('higgsfield', { status: 'connected', account_label: `Key ${id.slice(0, 4)}…${id.slice(-4)}`, connected_at: nowIso(), last_checked_at: nowIso(), last_error: null, external: {} })
+    },
+    async generateMenuImage(req) {
+      requireAdmin()
+      if (integ.integrations.find(i => i.provider === 'higgsfield')?.status !== 'connected') throw new Error('Connect Higgsfield first (Connections → AI images) to make images with AI.')
+      const words = req.prompt.trim()
+      if (words.length > MAX_PROMPT) throw new Error('Keep the description under 1,500 characters')
+      menuImages.forEach(progressImage)
+      if (menuImages.filter(i => i.status === 'queued' || i.status === 'working').length >= 4) throw new Error('Four images are being made already. Wait for one to finish, then try again.')
+      if (req.edit_of) {
+        const from = menuImages.find(x => x.id === req.edit_of)
+        if (!from?.url || from.status !== 'ready' || from.design_id !== (req.design_id ?? null) || from.item_id !== (req.item_id ?? null)) {
+          throw new Error('That image can’t be changed: pick one of this design’s finished images')
+        }
+        if (!words) throw new Error('Say what to change')
+      }
+      if (req.design_id) {
+        const d = menuDesignList.find(x => x.id === req.design_id)
+        if (!d) throw new Error('That design has gone')
+        if (!words && !req.edit_of && d.mode === 'background') throw new Error('Describe the look you want: colours, style, what’s in it')
+      } else if (!req.item_id || !recipes.some(r => r.id === req.item_id)) throw new Error('Say which design or menu item the image is for')
+      const img: DemoImage = { id: uid(), design_id: req.design_id ?? null, item_id: req.design_id ? null : req.item_id ?? null, url: null, source: 'ai',
+        model: modelOf(req.model).id, prompt: words || null, edit_of: req.edit_of ?? null, status: 'queued', error: null, stored: false, created_at: nowIso(),
+        readyAt: Date.now() + 2500 }
+      menuImages.unshift(img)
+      return publicImage(img)
+    },
+    async checkMenuImage(id) {
+      requireAdmin()
+      const img = menuImages.find(x => x.id === id)
+      if (!img) throw new Error('That image has gone')
+      progressImage(img)
+      return publicImage(img)
+    },
+    async screens() { return isAdmin() ? clone(screenList) : [] },
+    async saveScreen({ id, ...s }) {
+      requireAdmin()
+      const problem = screenProblem(s)
+      if (problem) throw new Error(problem)
+      if (s.slides.some(x => x.kind === 'menu' && !menuDesignList.some(d => d.id === x.design_id && d.format === 'digital'))) {
+        throw new Error('Pick one of the digital menus for a menu slide')
+      }
+      const tidy = { ...s, name: s.name.trim(), ticker: s.ticker?.trim() || null, music_url: s.music_url?.trim() || null, updated_at: nowIso() }
+      const existing = id ? screenList.find(x => x.id === id) : undefined
+      if (existing) { Object.assign(existing, tidy); return existing.id }
+      const made: Screen = { ...tidy, id: uid(), token: newToken(), last_seen_at: null }
+      screenList.push(made)
+      return made.id
+    },
+    async deleteScreen(id) {
+      requireAdmin()
+      const i = screenList.findIndex(x => x.id === id)
+      if (i >= 0) screenList.splice(i, 1)
+    },
+    async newScreenLink(id) {
+      requireAdmin()
+      const s = screenList.find(x => x.id === id)
+      if (!s) throw new Error('No such screen')
+      s.token = newToken()
+      return s.token
+    },
+    async display(token) {
+      const s = screenList.find(x => x.token === token)
+      if (!s) throw new Error('This screen’s link has changed or the screen was removed. Open the new link from the Screens page.')
+      s.last_seen_at = nowIso()
+      menuImages.forEach(progressImage)
+      const { token: _token, last_seen_at: _seen, ...screen } = clone(s)
+      const menus: DisplayFeed['menus'] = {}
+      if (s.active) {
+        for (const sl of s.slides) {
+          const d = sl.kind === 'menu' ? menuDesignList.find(x => x.id === sl.design_id && x.format === 'digital') : undefined
+          if (d) menus[d.id] = { design: { ...clone(d), image_url: menuImages.find(i => i.id === d.image_id && i.status === 'ready')?.url ?? null }, items: menuList() }
+        }
+      }
+      return { screen, business: { name: business.name, logo: brand.logo_mark ?? brand.logo, heading_font: brand.heading_font, body_font: brand.body_font, colours: clone(brand.colours) }, menus }
     },
     async recordStock(moves: MovementInput[]) {
       if (!isStaff()) throw new Error('Only the team records stock')

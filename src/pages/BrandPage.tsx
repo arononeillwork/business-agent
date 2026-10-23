@@ -7,7 +7,7 @@ import CopyIcon from '@mui/icons-material/ContentCopy'
 import EditIcon from '@mui/icons-material/EditOutlined'
 import AddIcon from '@mui/icons-material/Add'
 import DownloadIcon from '@mui/icons-material/FileDownloadOutlined'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction, useNotify } from '../app/Notify'
@@ -17,23 +17,13 @@ import logoUrl from '../assets/logo.png'
 import { formatNumber } from '../../shared/time'
 import { tokens } from '../theme'
 import { msg, t } from '../i18n'
+import { useGoogleFont } from '../lib/googleFont'
 
 const ROLES: Record<BrandColour['role'], string> = { primary: msg('Primary'), secondary: msg('Secondary'), accent: msg('Accent'), base: msg('Background') }
 const CATEGORIES = ['all', 'sans-serif', 'serif', 'display', 'handwriting', 'monospace'] as const
 /** Google's font categories, lower case as Google writes them (capitalised on the filter chips). */
 const CATEGORY_NAMES: Record<string, string> = {
   'sans-serif': msg('sans-serif'), serif: msg('serif'), display: msg('display'), handwriting: msg('handwriting'), monospace: msg('monospace'),
-}
-
-/** Loads a Google font into the page (once). `text` limits it to those letters for quick previews. */
-function useGoogleFont(family: string | null | undefined, text?: string) {
-  useEffect(() => {
-    if (!family) return
-    const id = `gf-${family}-${text ? 'preview' : 'full'}`.replace(/\W+/g, '-')
-    if (document.getElementById(id)) return
-    const params = `family=${encodeURIComponent(family).replace(/%20/g, '+')}${text ? '' : ':wght@400;600'}&display=swap${text ? `&text=${encodeURIComponent(text)}` : ''}`
-    document.head.appendChild(Object.assign(document.createElement('link'), { id, rel: 'stylesheet', href: `https://fonts.googleapis.com/css2?${params}` }))
-  }, [family, text])
 }
 
 /** Readable text colour on a swatch. */

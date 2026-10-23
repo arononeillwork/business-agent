@@ -24,6 +24,8 @@ import { loyaltyRoutes } from './loyalty'
 import { refreshReviews, reviews, reviewsConfigured } from './reviews'
 import { clearOldCache } from './cache'
 import { website } from './website'
+import { checkWaitingImages, menu } from './menu'
+import { screens } from './screens'
 
 const NIGHTLY = '15 1 * * *' // 03:15 Madrid in summer, 02:15 in winter
 
@@ -209,6 +211,10 @@ app.route('/', loyaltyRoutes)
 app.route('/', reviews)
 app.route('/', website)
 
+// Menu page: AI images through Higgsfield, kept in the café's storage; Screens: each screen's link.
+app.route('/', menu)
+app.route('/', screens)
+
 // Business Agent's own subscription (Stripe Billing): plans, checkout, portal, webhook.
 app.route('/', billing)
 
@@ -290,6 +296,8 @@ export default {
       // Social planner: posts that are due become one outbox job per network (sent just below).
       await Promise.resolve(db.rpc('queue_due_social_posts')).then(log('queue_due_social_posts'))
       await drainOutbox(env).catch(e => console.error('outbox failed', e))
+      // Menu images whose webhook from Higgsfield hasn't come (asked about, or given up on after 3 hours).
+      await checkWaitingImages(env, db).catch(e => console.error('menu images failed', e))
       // Every 15 minutes: opening hours both ways with Google Maps (after the outbox, so a change
       // made in the app has already gone to Google).
       if (Math.floor(event.scheduledTime / 60_000) % 15 === 0 && await googleConnected(db)) {
