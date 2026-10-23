@@ -63,6 +63,8 @@ jobs:
       GOOGLE_PAGESPEED_API_KEY: ${{ secrets.GOOGLE_PAGESPEED_API_KEY }}
       SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
       SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
+      # AI music for stories and reels (docs/SOCIAL_MUSIC_PLAN.md): Business Agent's own ElevenLabs account.
+      ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
     steps:
       - name: Check the Cloudflare token is set
         id: gate

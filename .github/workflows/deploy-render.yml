@@ -1,0 +1,76 @@
+name: Deploy render service
+# The music render service (render/): ffmpeg in a Cloudflare Container that puts the chosen music
+# into stories and reels (docs/SOCIAL_MUSIC_PLAN.md). Separate from the app's deploy because
+# Containers need the Workers Paid plan; until it's deployed the app still works, it just can't
+# mix music into files. Run it once from the Actions tab; after that, pushes that change render/
+# on the live branch deploy it again.
+# Each run makes a fresh key and gives it to both Workers (RENDER_KEY), with the service's address
+# (RENDER_URL) for the app, so there is nothing to copy by hand.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, claude/easy-beans-architecture-plan-dknqka]
+    paths: ['render/**', '.github/workflows/deploy-render.yml']
+
+concurrency:
+  group: deploy-render
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check the Cloudflare token is set
+        id: gate
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::warning::Add the CLOUDFLARE_API_TOKEN repo secret to deploy."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.ready == 'true'
+      - uses: actions/setup-node@v4
+        if: steps.gate.outputs.ready == 'true'
+        with:
+          node-version: 22
+          cache: npm
+      - if: steps.gate.outputs.ready == 'true'
+        run: npm ci
+      - name: Check the Cloudflare token works
+        if: steps.gate.outputs.ready == 'true'
+        env:
+          CF_TOKEN_SECRET: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT_SECRET: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node scripts/ops/cloudflare-token.mjs
+      - name: Test the recipes with ffmpeg
+        if: steps.gate.outputs.ready == 'true'
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null
+          npx vitest run render
+      - name: Deploy (Docker builds the container image)
+        id: deploy
+        if: steps.gate.outputs.ready == 'true'
+        run: |
+          set -o pipefail
+          npx wrangler deploy -c render/wrangler.jsonc 2>&1 | tee deploy.log
+          url=$(grep -oE 'https://[a-zA-Z0-9.-]+\.workers\.dev' deploy.log | head -1)
+          if [ -z "$url" ]; then echo "::error::No workers.dev address in the deploy output"; exit 1; fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "### Render service at $url" >> "$GITHUB_STEP_SUMMARY"
+      - name: Share a fresh key and the address with the app
+        if: steps.gate.outputs.ready == 'true'
+        run: |
+          key=$(openssl rand -base64 33 | tr '+/' '-_' | tr -d '=\n')
+          printf '%s' "$key" | npx wrangler secret put RENDER_KEY -c render/wrangler.jsonc
+          printf '%s' "$key" | npx wrangler secret put RENDER_KEY --name business-agent
+          printf '%s' "${{ steps.deploy.outputs.url }}" | npx wrangler secret put RENDER_URL --name business-agent
+      - name: Check it answers
+        if: steps.gate.outputs.ready == 'true'
+        run: |
+          sleep 5
+          curl -fsS "${{ steps.deploy.outputs.url }}/health" | tee -a "$GITHUB_STEP_SUMMARY"

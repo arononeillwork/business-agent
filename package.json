@@ -16,6 +16,7 @@
     "test:e2e:live": "NODE_USE_ENV_PROXY=1 E2E_LIVE=1 playwright test e2e/live.spec.ts --project desktop"
   },
   "dependencies": {
+    "@cloudflare/containers": "^0.3.7",
     "@cloudflare/workers-oauth-provider": "^1.1.0",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",

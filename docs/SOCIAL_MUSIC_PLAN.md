@@ -20,6 +20,15 @@ built yet.
 | Putting music into the file | A **Cloudflare Container** running ffmpeg (the recommended way, below) |
 | Stock catalogue (Epidemic Sound, Artlist…) | Not now. AI tracks and the business's own uploads cover it; revisit only if customers ask |
 
+## Phase 0 results (23 Oct 2026)
+
+| Check | Result |
+|---|---|
+| (a) Putting music into the file | **Works.** `render/` is the service: `ffmpeg.ts` (the recipes, unit-tested), `server.ts` (the container), `worker.ts` (the Cloudflare Worker in front, with the key). The container image was built and run here at half a CPU (`--cpus 0.5`, like `standard-1`): a 15 s photo story in 8 s, a 60 s one in 12 s, music mixed into a 12 s H.264 reel in 1.7 s, an iPhone HEVC video in 1.2 s (copied, tagged `hvc1`), a 4-photo 30 s reel cut to the beat in 25 s. Every file is 1080×1920 (or the video's own size), H.264/HEVC + AAC 44.1 kHz stereo, `faststart`, exactly the length asked (a 60 s story is 1,800 frames, never longer). A photo is encoded once as a 1-second clip and then copied, which made a 60 s story 9× faster than encoding every frame. Posting a rendered file to the test Instagram account happens on the first real use, after **Actions → Deploy render service**. |
+| (b) ElevenLabs | **API confirmed** from the reference: `POST /v1/music?output_format=mp3_44100_128`, `xi-api-key` header, `prompt`, `music_length_ms` (3,000–600,000), `model_id` (`music_v1` default, `music_v2`, `music_v2_5`), `force_instrumental`. `worker/providers/elevenlabs.ts` calls it; refused prompts are never charged. Listening to it needs our key: **Actions → Music check** makes the same three café prompts on two models (about $0.30) for choosing `ELEVENLABS_MUSIC_MODEL`. |
+| (c) Stripe | **Confirmed** from the reference: an invoice item with `customer`, `amount`, `currency` (our pinned API version, 2024-06-20) goes on the subscription's next invoice by itself; `pending_invoice_item_interval: {interval: month}` (set on the subscription) bills pending items monthly for yearly subscribers. Tested with a fake Stripe in `worker/socialMusic.test.ts`; no test charge was made from here. |
+| (d) Platform music through the API | **Not confirmed.** Meta's Content Publishing guide and IG User Media reference, and TikTok's Direct Post reference, have no way to attach library music (checked 23 Oct 2026). Phase 4 is not built; revisit when either platform documents it. |
+
 ## Where we start
 
 - `shared/social.ts`: four kinds of post (post, carousel, reel, story). Reels and stories go to

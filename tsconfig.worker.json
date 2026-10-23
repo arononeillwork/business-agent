@@ -14,5 +14,5 @@
     "verbatimModuleSyntax": true,
     "types": ["@cloudflare/workers-types"]
   },
-  "include": ["worker", "shared"]
+  "include": ["worker", "shared", "render/worker.ts", "render/ffmpeg.ts"]
 }
