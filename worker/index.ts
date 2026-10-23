@@ -18,6 +18,7 @@ import { authEmail } from './authEmail'
 import { billing, planBlocksInvite, syncBilling } from './billing'
 import { referrals } from './referrals'
 import { tax } from './tax'
+import { legal } from './legal'
 import { invoices } from './invoices'
 import { loyaltyRoutes } from './loyalty'
 import { refreshReviews, reviews, reviewsConfigured } from './reviews'
@@ -198,6 +199,8 @@ app.route('/', referrals)
 
 // Tax documents into the café's Drive or OneDrive (Tax page).
 app.route('/', tax)
+// Legal documents picked where they are in the café's Drive or OneDrive, and shown from there (Legal page).
+app.route('/', legal)
 // Invoices that come by email, into the café's Drive or OneDrive (Invoices page).
 app.route('/', invoices)
 // Square loyalty (the stamp card) and gift cards, for the Loyalty page.

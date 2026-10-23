@@ -52,6 +52,11 @@ built-in **AI connector** so owners can run it by talking to Claude.
   and AGEDI/AIE for the music, the terrace permit, insurance, extinguisher and electrical checks, staff
   food handler certificates), each with its number, when it runs out, how often it renews, its cost
   and its document; one press marks it renewed, and admins are reminded in the bell beforehand.
+- Legal (Business section): the business's legal documents (lease, company deeds, insurance, contracts,
+  licences, policies) picked where they already are in the connected Google Drive or OneDrive (both can
+  be connected; the admin chooses which), grouped by kind, shown in the page straight from the storage
+  and opened there. Nothing is copied: only where each file is is kept. A gestoría with finances access
+  reads. Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) section 18.
 - How often things update: what the app reads from Square, SumUp, Stripe, Google and Meta (takings, ads,
   Search Console, loyalty, email invoices, reviews) is kept a while (`provider_cache`), so opening a page
   doesn't ask them again each time: today's takings every 15 minutes and finished days once a day, ads
@@ -76,7 +81,7 @@ built-in **AI connector** so owners can run it by talking to Claude.
   milk or an extra shot, and a waste allowance) and its margin against the menu price; the Waste log
   takes what's thrown away and why off the stock, with its cost for admins. Anything still to be entered
   (a menu price, what goes in, an item's cost) is shaded, and a dish with nothing in it has no margin yet.
-  Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) sections 7-17.
+  Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) sections 7-18.
 
 See [docs/PLAN.md](docs/PLAN.md) for decisions, architecture and phases.
 

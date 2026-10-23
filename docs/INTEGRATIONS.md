@@ -568,6 +568,30 @@ works without a key on a small shared allowance; when it says the allowance is u
 restricted to it → repo secret `GOOGLE_PAGESPEED_API_KEY`. The Search Console figures on the page
 come from section 13.
 
+## 18. Legal page (documents picked in Google Drive or OneDrive)
+
+The Legal page (Business section) lists the business's legal documents (the lease, the company's
+deeds, insurance, contracts, licences, its own policies) without copying them: an admin picks each
+file where it already is, in the connected **Google Drive** or **OneDrive**, and the database keeps
+only where it is (`legal_documents`, migration 65). The page shows a PDF or picture by asking its
+storage for it at that moment (`GET /api/legal/documents/:id/file`; Google Docs and Word, Excel or
+PowerPoint files in OneDrive come as PDFs the storage makes), and opens anything else there.
+
+Google Drive and OneDrive can now be connected **at the same time** (they used to replace each
+other); the admin chooses which to pick from with **Add documents**. Where the app saves new files
+(Tax documents, exports, photos for posts) it uses Google Drive when both are connected.
+
+- **OneDrive**: nothing more to set up. The app can read the whole OneDrive (`Files.ReadWrite`),
+  so its folders are browsed inside the page.
+- **Google Drive**: the app only has `drive.file` (files it made, and files the café chooses for
+  it), so files are chosen in **Google's own file picker**. It needs a browser API key from the
+  same Google Cloud project as `GOOGLE_CLIENT_ID`: *APIs & Services → Library* → **Google Picker
+  API** → Enable; *Credentials → Create credentials → API key*, restricted to the **Google Picker
+  API** and, under *Website restrictions*, to the app's addresses (e.g. `https://businesssagent.com/*`
+  and the `workers.dev` one) → repo secret **`GOOGLE_PICKER_API_KEY`**. The project number the
+  picker also needs is the start of `GOOGLE_CLIENT_ID`. Until the key is there, the page says that
+  choosing from Google Drive isn't switched on yet and OneDrive works meanwhile.
+
 ## Social planner
 
 Admins plan posts on **Social planner** (left menu): write once, pick Instagram, Facebook,

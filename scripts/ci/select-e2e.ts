@@ -38,6 +38,7 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'tax', files: [/TaxPage/, /shared\/tax/], tests: String.raw`tax|upload` },
   { name: 'pages', files: [/PagesPage/], tests: String.raw`pages|hide` },
   { name: 'licences', files: [/LicencesPage/, /shared\/licences/], tests: String.raw`licences|renew` },
+  { name: 'legal', files: [/LegalDocumentsPage/, /shared\/legalDocs/, /lib\/googlePicker/], tests: String.raw`legal documents|gestoría reads them` },
   { name: 'invoices', files: [/InvoicesPage/, /shared\/invoices/], tests: String.raw`invoices|from email` },
   { name: 'grants', files: [/GrantsPage/, /shared\/grant/], tests: String.raw`grants|applications` },
   { name: 'sales', files: [/SalesPage/, /components\/charts/], tests: String.raw`Sales page|best sellers` },

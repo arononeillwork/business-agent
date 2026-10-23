@@ -3755,6 +3755,86 @@ test.describe('licences and renewals', () => {
   })
 })
 
+test.describe('legal documents', () => {
+  test('picked where they are in Google Drive and OneDrive (both connected), shown in the page and opened there', async ({ page }) => {
+    await open(page, '/legal')
+    await expect(page.getByRole('heading', { name: 'Legal', level: 1 })).toBeVisible()
+    // Two already on the page, from the Drive's Legal folder, by kind.
+    const lease = page.getByRole('region', { name: 'Lease and premises' }).getByRole('article', { name: 'Contrato de arrendamiento del local' })
+    await expect(lease).toContainText('Google Drive')
+    await expect(lease).toContainText('5 years from March 2026')
+    await expect(page.getByRole('region', { name: 'Company and registrations' })).toContainText('Escritura de constitución Easy Beans SL')
+    // With no storage connected, the page says to connect one, and a document can't be shown.
+    await expect(page.getByRole('alert').filter({ hasText: 'Connect Google Drive or OneDrive (or both)' })).toBeVisible()
+    await lease.getByRole('button', { name: 'View Contrato de arrendamiento del local' }).click()
+    const viewer = page.getByRole('dialog', { name: 'Contrato de arrendamiento del local' })
+    await expect(viewer).toContainText('Google Drive isn’t connected')
+    await viewer.getByRole('button', { name: 'Close' }).click()
+
+    // Google Drive and OneDrive, connected at the same time (moving round the app: a reload starts the demo afresh).
+    await page.getByRole('alert').filter({ hasText: 'Connect Google Drive or OneDrive (or both)' }).getByRole('link', { name: 'Connections' }).click()
+    const files = page.getByRole('region', { name: 'Files and storage' })
+    await files.getByRole('button', { name: 'Connect Google Drive' }).click()
+    await expect(files.getByRole('article', { name: 'Google Drive' })).toContainText('Connected')
+    await files.getByRole('button', { name: 'Connect OneDrive' }).click()
+    await expect(files.getByRole('article', { name: 'OneDrive' })).toContainText('Connected')
+    await expect(files.getByRole('article', { name: 'Google Drive' })).toContainText('Connected')
+
+    // Choose which storage to pick from: OneDrive, two contracts from its Contratos folder.
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Legal', exact: true }).click()
+    await page.getByRole('button', { name: 'Add documents' }).click()
+    await expect(page.getByRole('menuitem', { name: /From Google Drive/ })).toContainText('easybeanscafe@gmail.com')
+    await page.getByRole('menuitem', { name: /From OneDrive/ }).click()
+    const onedrive = page.getByRole('dialog', { name: 'Choose from OneDrive' })
+    await onedrive.getByRole('button', { name: 'Open the folder Contratos' }).click()
+    await onedrive.getByRole('checkbox', { name: 'Contrato mantenimiento cafetera.docx' }).check()
+    await onedrive.getByRole('checkbox', { name: 'Acuerdo proveedor leche.pdf' }).check()
+    await onedrive.getByRole('button', { name: 'Add 2 documents' }).click()
+    await toast(page, 'Added 2 documents from OneDrive')
+    const contracts = page.getByRole('region', { name: 'Contracts and agreements' })
+    await expect(contracts.getByRole('article', { name: 'Acuerdo proveedor leche' })).toContainText('OneDrive › Contratos')
+
+    // Then Google Drive: in its Legal folder the lease is already on the page; the rest go in one tick.
+    await page.getByRole('button', { name: 'Add documents' }).click()
+    await page.getByRole('menuitem', { name: /From Google Drive/ }).click()
+    const drive = page.getByRole('dialog', { name: 'Choose from Google Drive' })
+    await drive.getByRole('button', { name: 'Open the folder Legal' }).click()
+    await expect(drive.getByRole('checkbox', { name: 'Contrato de arrendamiento del local.pdf' })).toBeDisabled()
+    await drive.getByRole('button', { name: 'Tick the 2 files here' }).click()
+    await drive.getByRole('button', { name: 'Add 2 documents' }).click()
+    await toast(page, 'Added 2 documents from Google Drive')
+    await expect(page.getByRole('region', { name: 'Policies and terms' })).toContainText('Política de privacidad')
+
+    // Shown in the page straight from Google Drive, with a way to open it there.
+    await lease.getByRole('button', { name: 'View Contrato de arrendamiento del local' }).click()
+    await expect(viewer.locator('iframe')).toHaveAttribute('src', /^blob:/)
+    await expect(viewer).toContainText('Shown straight from Google Drive')
+    await expect(viewer.getByRole('link', { name: 'Open in Google Drive' })).toHaveAttribute('href', /^https:\/\/drive\.google\.com\//)
+    await viewer.getByRole('button', { name: 'Close' }).click()
+
+    // Taken off the list (the file stays in OneDrive), and the search.
+    const milk = contracts.getByRole('article', { name: 'Acuerdo proveedor leche' })
+    await milk.getByRole('button', { name: 'Edit Acuerdo proveedor leche' }).click()
+    await page.getByRole('dialog', { name: 'Acuerdo proveedor leche' }).getByRole('button', { name: 'Take off the list' }).click()
+    await toast(page, 'Taken off the Legal page. The file is still in OneDrive.')
+    await expect(milk).toHaveCount(0)
+    await page.getByRole('textbox', { name: 'Search the documents' }).fill('escritura')
+    await expect(page.getByRole('main').getByRole('article')).toHaveCount(1)
+  })
+
+  test('the gestoría reads them; employees don’t get the page', async ({ page }) => {
+    await open(page, '/legal', 'laura@gestoria.example')
+    await expect(page.getByRole('heading', { name: 'Legal', level: 1 })).toBeVisible()
+    await expect(page.getByRole('article', { name: 'Contrato de arrendamiento del local' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Add documents' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /^Edit / })).toHaveCount(0)
+    await signInAs(page, 'maria@example.com')
+    await expect(page.getByRole('link', { name: 'Legal' })).toHaveCount(0)
+    await page.goto('/legal?demo')
+    await expect(page.getByRole('heading', { name: 'Legal', level: 1 })).toHaveCount(0)
+  })
+})
+
 test.describe('staff benefits', () => {
   test('Spain’s entitlements and each person’s allocation; the business gives more, never less', async ({ page }) => {
     await open(page, '/')

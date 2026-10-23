@@ -194,14 +194,19 @@ describe('Connecting an app: "Connected" only once it has really worked', () => 
     expect(apis.google.uploads).toEqual([{ parent: sub[0], name: 'week 40.csv' }])
   })
 
-  it('OneDrive replaces Google Drive, and exports then go to OneDrive', async () => {
+  it('OneDrive joins Google Drive (both stay connected); exports go to Google Drive, or to OneDrive once it’s the only one', async () => {
     await connect('google_drive')
     await connect('onedrive')
-    expect(status('google_drive')).toBe('disconnected')
+    expect(status('google_drive')).toBe('connected')
+    expect(db.secret('google_drive')).toBeDefined()
     expect(db.integration('onedrive')).toMatchObject({ status: 'connected', external: { folder_id: apis.microsoft.folderId } })
     await post('/api/integrations/files/save', { folder: 'Timecards', name: 'week.csv', content: 'x' })
-    expect(apis.microsoft.files).toEqual(['Business Agent/Timecards/week.csv'])
-    expect(apis.google.uploads).toEqual([])
+    expect(apis.google.uploads.map(u => u.name)).toEqual(['week.csv'])
+    expect(apis.microsoft.files).toEqual([])
+
+    await post('/api/integrations/google_drive/disconnect')
+    await post('/api/integrations/files/save', { folder: 'Timecards', name: 'week 2.csv', content: 'x' })
+    expect(apis.microsoft.files).toEqual(['Business Agent/Timecards/week 2.csv'])
   })
 
   it('a cancelled sign-in changes nothing and isn’t shown as a problem', async () => {

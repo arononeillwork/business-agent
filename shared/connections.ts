@@ -1,6 +1,7 @@
 // The apps a business can connect, in groups. In most groups the business picks ONE (Gmail or
-// Outlook, Google Drive or OneDrive…); connecting another replaces it. Social media is the
-// exception: connect as many as you use. Shared by the Worker (which verifies a connection before
+// Outlook, Spotify or YouTube Music…); connecting another replaces it. Social media and file
+// storage are the exceptions: connect as many as you use (the Legal page picks documents from
+// whichever storage you choose). Shared by the Worker (which verifies a connection before
 // calling it connected) and the app (which shows the choices).
 import type { IntegrationProvider } from './types'
 import { msg } from './i18n'
@@ -37,7 +38,7 @@ export const GROUPS: ConnectionGroupInfo[] = [
     { id: 'google_calendar', name: 'Google Calendar', by: 'Google', proves: msg('Google Calendar has fetched the team calendar.') },
     { id: 'outlook_calendar', name: 'Outlook Calendar', by: 'Microsoft', proves: msg('Outlook has fetched the team calendar.') },
   ] },
-  { key: 'files', title: msg('Files and storage'), pickOne: true, options: [
+  { key: 'files', title: msg('Files and storage'), pickOne: false, options: [
     { id: 'google_drive', name: 'Google Drive', by: 'Google', proves: msg('The “Business Agent” folder was created in this Drive.') },
     { id: 'onedrive', name: 'OneDrive', by: 'Microsoft', proves: msg('The “Business Agent” folder was created in this OneDrive.') },
     { id: 'sharepoint', name: 'SharePoint', by: 'Microsoft', soon: true },
@@ -80,6 +81,18 @@ export const GROUPS: ConnectionGroupInfo[] = [
 /** The choose-one group a provider belongs to (only one per group can be connected); null when any number can be. */
 export function groupOf(provider: string): ConnectionGroup | null {
   return GROUPS.find(g => g.pickOne && g.options.some(o => o.id === provider))?.key ?? null
+}
+
+/**
+ * The storage new files go to (Tax documents, exports, photos for posts) when Google Drive and OneDrive are
+ * both connected: Google Drive first, as the Worker does (worker/connections.ts connectedOf).
+ */
+export function savingStorage<T extends { provider: string; status: string }>(rows: T[] | undefined | null): T | undefined {
+  for (const p of ['google_drive', 'onedrive']) {
+    const row = rows?.find(i => i.provider === p && i.status === 'connected')
+    if (row) return row
+  }
+  return undefined
 }
 
 export const optionName = (provider: string) =>
