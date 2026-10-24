@@ -84,6 +84,7 @@ select pg_temp.expect_error($q$insert into public.competitor_prices (competitor_
 select pg_temp.expect_error($q$update public.competitor_settings set scanned_at = now()$q$, 'permission denied');
 select pg_temp.expect_error($q$insert into public.competitor_snapshots (competitor_id, rating) select id, 4.5 from public.competitors limit 1$q$, 'permission denied');
 select pg_temp.expect_error($q$insert into public.competitor_radar (place_id, name) values ('p1', 'Sneaky')$q$, 'permission denied');
+select pg_temp.expect_error($q$select public.competitor_self_name()$q$, 'permission denied');
 
 -- Google's side, as the Worker writes it.
 reset role;

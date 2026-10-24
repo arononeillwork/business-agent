@@ -94,6 +94,7 @@ begin
   update public.competitors set name = left(new.name, 120) where is_self and name is distinct from left(new.name, 120);
   return new;
 end $$;
+revoke execute on function public.competitor_self_name() from public, anon, authenticated;
 create trigger business_competitor_name after insert or update of name on public.business for each row execute function public.competitor_self_name();
 insert into public.competitors (is_self, name) values (true, coalesce(left((select name from public.business where id = 1), 120), 'Your business'));
 
