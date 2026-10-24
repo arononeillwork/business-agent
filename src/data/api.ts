@@ -23,6 +23,14 @@ import type { Recipe, RecipeInput } from '../../shared/recipes'
 import type { AdPlatform, AdSettings, AdsReport, CampaignPatch } from '../../shared/ads'
 import type { ReviewsState } from '../../shared/reviews'
 import type { PageSpeed, Strategy, WebsiteReport, WebsiteState } from '../../shared/seo'
+import type { Enquiry, EnquiryInput, NewLead } from '../../shared/leads'
+import type { Quote, QuoteInput } from '../../shared/quotes'
+import type { ClaimInput, ExpenseClaim } from '../../shared/claims'
+import type { Campaign, CampaignInput } from '../../shared/campaigns'
+import type { Applicant, ApplicantInput, JobOpening, OpeningInput } from '../../shared/hiring'
+import type { CheckInput, PointInput, SafetyCheck, SafetyPoint } from '../../shared/foodSafety'
+import type { Allergen, MenuAllergens } from '../../shared/allergens'
+import type { TipPool, TipPoolInput, TipShare } from '../../shared/tips'
 import type { CompetitorData, CompetitorInput, CompetitorNoteInput, CompetitorPrice, CompetitorSettings, NearbyPlace, PriceItem } from '../../shared/localCompetitors'
 
 export type ShiftInput = Omit<Shift, 'id' | 'status'> & { id?: string; status?: Shift['status'] }
@@ -227,6 +235,13 @@ export interface Api {
   /** Bring one attachment in as an invoice, its file kept with the tax documents. */
   importInvoice(message: InboxInvoice, attachmentId: string, supplierId?: string | null): Promise<Invoice>
 
+  // Expenses & mileage: everyone sends their own (and changes them while they wait); admins with pay
+  // access see and decide all of them; finance partners read.
+  expenseClaims(): Promise<ExpenseClaim[]>
+  /** Send a claim (no id) or change one; returns its id. */
+  saveClaim(c: ClaimInput): Promise<string>
+  deleteClaim(id: string): Promise<void>
+
   // Tax (admins with pay access; finance partners read). The files are in the café's Drive or OneDrive.
   taxSettings(): Promise<TaxSettings>
   saveTaxSettings(patch: Partial<TaxSettings>): Promise<void>
@@ -260,6 +275,26 @@ export interface Api {
   deleteCustomer(id: string): Promise<void>
   /** Add many at once (a CSV file); returns how many were added. */
   importCustomers(rows: CustomerInput[]): Promise<number>
+
+  // Leads & enquiries (admins): what people asked for, each belonging to someone on Customers.
+  enquiries(): Promise<Enquiry[]>
+  /** Add an enquiry (no id; with `lead`, for someone new, added to Customers as a lead) or change one; returns its id. */
+  saveEnquiry(e: EnquiryInput, lead?: NewLead): Promise<string>
+  deleteEnquiry(id: string): Promise<void>
+
+  // Quotes & estimates (admins): numbered by the database; an accepted one can go to Invoices.
+  quotes(): Promise<Quote[]>
+  /** Add a quote (no id) or change one; returns its id. */
+  saveQuote(q: QuoteInput): Promise<string>
+  deleteQuote(id: string): Promise<void>
+  /** An accepted quote added to Invoices as a sales invoice to issue (admins with pay access); returns the invoice's id. */
+  invoiceQuote(id: string): Promise<string>
+
+  // Campaigns (admins): one message to the customers and leads who said yes to marketing.
+  campaigns(): Promise<Campaign[]>
+  /** Add a campaign (no id) or change one; returns its id. */
+  saveCampaign(c: CampaignInput): Promise<string>
+  deleteCampaign(id: string): Promise<void>
 
   // Sales reps & rewards: the team sees every rep and customers' credit, adds customers, logs
   // rewards and lets customers spend credit at the till; admins manage reps and the list, approve
@@ -327,6 +362,37 @@ export interface Api {
   /** Save a recipe with its variants and lines (they replace the ones there were); returns its id. */
   saveRecipe(recipe: RecipeInput): Promise<string>
   deleteRecipe(id: string): Promise<void>
+  /** The menu's allergens: active dishes and the items in them, without costs (the team and finance partners). */
+  menuAllergens(): Promise<MenuAllergens>
+  /** What an item contains (null: not known yet) and may contain (admins). */
+  saveItemAllergens(itemId: string, allergens: Allergen[] | null, mayContain: Allergen[]): Promise<void>
+
+  // Food safety: the team records checks (kept for good); admins set what's checked.
+  safetyPoints(): Promise<SafetyPoint[]>
+  /** Add something to check (no id) or change one; returns its id. */
+  saveSafetyPoint(p: PointInput): Promise<string>
+  /** Only while it has no checks (otherwise switch it off). */
+  deleteSafetyPoint(id: string): Promise<void>
+  /** The checks done from one local day to another (inclusive), newest first. */
+  safetyChecks(from: string, to: string): Promise<SafetyCheck[]>
+  recordSafetyCheck(c: CheckInput): Promise<void>
+
+  // Hiring (admins): the jobs being filled and who applied.
+  jobOpenings(): Promise<JobOpening[]>
+  /** Add a job (no id) or change one; returns its id. */
+  saveOpening(o: OpeningInput): Promise<string>
+  /** The job and everyone who applied for it. */
+  deleteOpening(id: string): Promise<void>
+  applicants(): Promise<Applicant[]>
+  /** Add an applicant (no id) or change one; returns their id. */
+  saveApplicant(a: ApplicantInput): Promise<string>
+  deleteApplicant(id: string): Promise<void>
+
+  // Tips: admins with pay access share them out; payroll partners read; everyone sees their own share.
+  tipPools(): Promise<TipPool[]>
+  /** Save a pool (no id: a new one) with its shares, which replace the ones it had; returns its id. */
+  saveTipPool(pool: TipPoolInput, shares: TipShare[]): Promise<string>
+  deleteTipPool(id: string): Promise<void>
 
   // To Do List (the team; admins manage categories)
   todos(): Promise<{ categories: TodoCategory[]; todos: Todo[] }>

@@ -99,7 +99,6 @@ export default {
   'Empty: until one side ends it': 'Vacío: hasta que una de las partes lo termine',
   'Say what the job is': 'Di qué servicio es',
   'Choose who does it': 'Elige quién lo hace',
-  'It can’t end before it starts': 'No puede terminar antes de empezar',
   'Add who does it to the catalogue first.': 'Primero añade al catálogo a quien lo hace.',
   'Give them the job': 'Encargarles el servicio',
   '{name} does {job} now': '{name} hace ahora {job}',

@@ -33,7 +33,7 @@ export default {
   'Add it by hand': 'Añadir a mano',
   'Linked to Google': 'Vinculado con Google',
   'Updated from Google': 'Actualizado desde Google',
-  'Removed': 'Eliminado',
+  'Removed': 'Quitado',
 
   // A competitor's details.
   'Your café': 'Tu cafetería',
