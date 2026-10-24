@@ -11,6 +11,8 @@ import type { Licence, LicenceInput } from '../../shared/licences'
 import type { MoneyItem, MoneyItemInput } from '../../shared/creditDebit'
 import type { LegalDocument, LegalDocumentPatch, LegalSource, LegalStorage, StorageListing } from '../../shared/legalDocs'
 import type { Benefit, BenefitInput, LeaveAllowance } from '../../shared/benefits'
+import type { LoggedReward, RepReward, RepSettings, RewardLog, RewardRule, RewardRuleInput, SalesRep, SalesRepInput } from '../../shared/reps'
+import type { KittyEntry, KittyEntryInput, KittyGoal, KittyGoalInput, KittySettings } from '../../shared/kitty'
 import type { JobRole, JobRoleInput } from '../../shared/roles'
 import type { RuleSection, RuleSectionInput, RulesRead } from '../../shared/staffRules'
 import type { PnlLine, PnlLineInput, PnlSettings } from '../../shared/pnl'
@@ -21,6 +23,7 @@ import type { Recipe, RecipeInput } from '../../shared/recipes'
 import type { AdPlatform, AdSettings, AdsReport, CampaignPatch } from '../../shared/ads'
 import type { ReviewsState } from '../../shared/reviews'
 import type { PageSpeed, Strategy, WebsiteReport, WebsiteState } from '../../shared/seo'
+import type { CompetitorData, CompetitorInput, CompetitorNoteInput, CompetitorPrice, CompetitorSettings, NearbyPlace, PriceItem } from '../../shared/localCompetitors'
 
 export type ShiftInput = Omit<Shift, 'id' | 'status'> & { id?: string; status?: Shift['status'] }
 export type EventInput = Omit<CalendarEvent, 'id' | 'source' | 'competition'> & { id?: string; competition?: string | null }
@@ -256,6 +259,44 @@ export interface Api {
   /** Add many at once (a CSV file); returns how many were added. */
   importCustomers(rows: CustomerInput[]): Promise<number>
 
+  // Sales reps & rewards: the team sees every rep and customers' credit, adds customers, logs
+  // rewards and lets customers spend credit at the till; admins manage reps and the list, approve
+  // what waits and pay commission out. Reps on the team see their own commission.
+  salesReps(): Promise<SalesRep[]>
+  /** Add a rep (no id; the team only customers) or change one (admins); returns its id. */
+  saveSalesRep(r: SalesRepInput): Promise<string>
+  deleteSalesRep(id: string): Promise<void>
+  rewardRules(): Promise<RewardRule[]>
+  /** Admins: add a reward to the list (no id) or change one. */
+  saveRewardRule(r: RewardRuleInput): Promise<void>
+  deleteRewardRule(id: string): Promise<void>
+  /** Every reward, spend and payout the person may see, newest first. */
+  repRewards(): Promise<RepReward[]>
+  /** Log a reward from the list: it counts now, or waits for an admin. */
+  logReward(r: RewardLog): Promise<LoggedReward>
+  /** Admins: approve (optionally for another amount) or turn down a reward that's waiting. */
+  decideReward(id: string, approve: boolean, amount?: number): Promise<void>
+  /** A customer spends credit (the team), or a rep is paid commission (admins); returns what's left. */
+  settleReward(repId: string, amount: number, note?: string): Promise<number>
+  /** Admins: take a line off (a mistake). */
+  deleteReward(id: string): Promise<void>
+  repSettings(): Promise<RepSettings>
+  updateRepSettings(patch: Partial<RepSettings>): Promise<void>
+
+  // Staff kitty: the team reads; admins set the share of profit, add goals, put money in and mark goals bought.
+  kittySettings(): Promise<KittySettings>
+  updateKittySettings(patch: Partial<KittySettings>): Promise<void>
+  kittyGoals(): Promise<KittyGoal[]>
+  /** Add a goal (no id) or change one (bought: `spent` and `bought_on`). */
+  saveKittyGoal(g: KittyGoalInput): Promise<void>
+  deleteKittyGoal(id: string): Promise<void>
+  /** The goals in a new order: their ids, the first to fill first. */
+  orderKittyGoals(ids: string[]): Promise<void>
+  /** What's gone in, newest first. */
+  kittyEntries(): Promise<KittyEntry[]>
+  addKittyEntry(e: KittyEntryInput): Promise<void>
+  deleteKittyEntry(id: string): Promise<void>
+
   // Grants (admins with pay access; finance partners read): the answers that decide which fit, and the applications
   /** The answers given so far (what the app works out by itself isn't saved). */
   grantProfile(): Promise<Partial<GrantProfile>>
@@ -330,6 +371,30 @@ export interface Api {
   website(): Promise<WebsiteState>
   checkWebsite(): Promise<WebsiteReport>
   pageSpeed(strategy: Strategy): Promise<PageSpeed>
+  // Competitors (admins): the cafés around, what they charge and offer, followed over time (shared/localCompetitors).
+  competitors(): Promise<CompetitorData>
+  /** Add a competitor by hand (no id) or change one, the business's own row included; returns its id. */
+  saveCompetitor(c: CompetitorInput): Promise<string>
+  /** Remove a competitor with its prices, notes and ratings (to keep its history, switch it off instead). */
+  deleteCompetitor(id: string): Promise<void>
+  /** Add a basket item (no id) or change one; returns its id. */
+  savePriceItem(i: Partial<PriceItem> & { name: string }): Promise<string>
+  deletePriceItem(id: string): Promise<void>
+  /** A price seen on a day (each one is kept). */
+  recordPrice(p: Omit<CompetitorPrice, 'id' | 'created_at'>): Promise<void>
+  deletePrice(id: string): Promise<void>
+  saveCompetitorNote(n: CompetitorNoteInput): Promise<string>
+  deleteCompetitorNote(id: string): Promise<void>
+  /** Put a place Google lists nearby aside, or back. */
+  dismissNearby(placeId: string, dismissed: boolean): Promise<void>
+  saveCompetitorSettings(s: Pick<CompetitorSettings, 'radius_m' | 'scan_weekly'>): Promise<void>
+  /** Google's side (the Worker, Places API): is it set up, look around now, find by name, follow a place, read one again. */
+  competitorGoogle(): Promise<{ places: boolean; own_place: boolean }>
+  lookAround(radius: number): Promise<{ found: number; fresh: number }>
+  findPlaces(query: string): Promise<NearbyPlace[]>
+  /** Follow a place from Google (`id`: the competitor added by hand that it is); returns the competitor's id. */
+  followPlace(placeId: string, id?: string): Promise<string>
+  refreshCompetitor(id: string): Promise<void>
   /** Takings per day from Square, Stripe or SumUp (admins with pay access), from and to inclusive. */
   sales(from: string, to: string): Promise<Sales>
   /** Best sellers from Square's orders, same dates and rules as `sales`. */

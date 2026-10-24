@@ -42,6 +42,17 @@ built-in **AI connector** so owners can run it by talking to Claude.
   limits, and pause, resume or daily budget changes sent straight to the platform. **Reviews** reads the
   Google reviews (new ones in the bell, replies from templates in the review's language) and **Website &
   SEO** checks the website (SEO, Google PageSpeed, the same details as the app and Google Maps).
+- Competitors (Marketing, admins): the cafés around the business, followed over time. What each
+  charges for the same basket (the usual for a café in Spain, café con leche to matcha latte, or
+  your own items; yours from Menu costing), every price kept with the day it was seen so rises
+  show; what it offers (terrace, plant milks, brunch, dogs, delivery apps… thirty things, many read
+  from Google); its hours; its Google rating and new reviews a month, week by week; and where each
+  sits on price against rating. Notes from visits and ideas to borrow, from "to try" to "adopted".
+  The page says what it all means in plain words: your prices against the area, what most nearby
+  offer and you don't, what only you offer, who opens earlier or closes later, who's growing
+  fastest on Google. Google (the Places key Reviews uses) finds the cafés nearby, looks again every
+  week and tells admins in the bell when a new one appears or one closes; the AI connector reads it
+  all and records prices and notes. Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) section 16.
 - Staff benefits (Team section): what everyone is entitled to in the business's country (`country` in
   `shared/business.config.ts`; Spain: 30 calendar days' holiday, 14 public holidays, sick pay from day 4,
   19 weeks' birth leave for each parent, nursing time, parental leave, and the Estatuto's paid leave for a
@@ -50,6 +61,23 @@ built-in **AI connector** so owners can run it by talking to Claude.
   extras, give someone their own holiday for a year (their share when they start part-way, which Time off
   then holds requests to) and record leave for them. Everyone sees their own allocation (holiday taken,
   booked and left, sick days and other leave); admins and a payroll gestoría see the whole team.
+- Sales reps & rewards (Sales section): the people who sell the café for it (someone on the team, an
+  ambassador from outside it such as a hotel concierge or a yoga studio, or a customer who spreads the word),
+  each with a code for their business cards (printable, ten to an A4 sheet, with what the card offers a new
+  customer). The café's own list says what earns a reward and how much: a story reposted, a post with the café
+  tagged, a new customer who shows a rep's card, an event or catering booked (a share of the sale), each with
+  a monthly limit and, where it matters, an admin's approval. Customers earn credit to spend in the café; the
+  team and ambassadors earn commission. The team logs rewards and takes credit off the bill at the till;
+  admins approve what waits and record commission paid out (nobody approves or pays their own). Stories and
+  posts about the café from Instagram are matched to reps by their handle, to reward in one press; a monthly
+  leaderboard shows who sold most. Customers' credit is the whole team's to see, commission the admins' and
+  the rep's own.
+- Staff kitty (Team section): a share of each month's profit (5% to start; a month with a loss puts nothing
+  in) and anything else put in (the tips jar, a bonus), saved up for goals chosen together, like the
+  Christmas party or a pair of Ray-Bans for the café. The goals are jars on a shelf that fill with coffee
+  beans in order, the first until it's full, then the next, each with when it'll be full at the pace money's
+  been going in and whether that's in time for its date. Admins put last month's share in (worked out as
+  Profit & loss does, or typed in), reorder and buy goals (what it cost comes out); the whole team sees it.
 - Roles & responsibilities (Team section): who does what. Each role (owner, shift lead, barista, kitchen,
   cleaner…) opens to what it's for, who it answers to, who's in it, the rota position it's worked as, and its
   duties by when they're done (all the time, opening, during service, closing, every week). Everyone reads it,

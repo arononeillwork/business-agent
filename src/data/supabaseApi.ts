@@ -6,8 +6,11 @@ import type { FilingRecord, TaxDocument, TaxSettings } from '../../shared/tax'
 import type { Invoice } from '../../shared/invoices'
 import type { Licence } from '../../shared/licences'
 import type { MoneyItem } from '../../shared/creditDebit'
+import { DEFAULT_RADIUS, competitorRows, type CompetitorData } from '../../shared/localCompetitors'
 import type { LegalDocument, LegalSource, StorageListing } from '../../shared/legalDocs'
 import type { Benefit, LeaveAllowance } from '../../shared/benefits'
+import type { LoggedReward, RepReward, RewardRule, SalesRep } from '../../shared/reps'
+import type { KittyEntry, KittyGoal } from '../../shared/kitty'
 import type { JobRole } from '../../shared/roles'
 import type { RuleSection, RulesRead } from '../../shared/staffRules'
 import { DEFAULT_VAT_RATE, type PnlLine, type PnlSettings } from '../../shared/pnl'
@@ -26,6 +29,8 @@ const PROFILE_COLUMNS = 'id, full_name, email, role, can_see_pay, colour, active
 const GRANT_APPLICATION_COLUMNS = 'id, grant_id, grant_name, stage, submitted_on, expediente, amount_requested, amount_awarded, amount_received, deadline, deadline_label, notes, docs_done, obligations_done, created_at, updated_at'
 
 const CUSTOMER_COLUMNS = 'id, kind, first_name, last_name, email, phone, company, source, instagram, birthday, tags, notes, marketing_consent, consent_at, last_contacted_at, created_at, updated_at'
+const REP_COLUMNS = 'id, name, kind, profile_id, customer_id, code, instagram, phone, email, notes, active, created_at'
+const REWARD_COLUMNS = 'id, rep_id, kind, rule_id, label, sale_amount, amount, status, proof_url, mention_id, note, occurred_on, logged_by, created_at'
 
 /** Postgres numeric can come back as text: a number, or null. */
 const num = (v: unknown) => (v == null ? null : Number(v))
@@ -598,6 +603,68 @@ export function createSupabaseApi(url: string, key: string): Api {
       return rows.length
     },
 
+    async salesReps() {
+      return check(await sb.from('sales_reps').select(REP_COLUMNS).order('name')) as SalesRep[]
+    },
+    async saveSalesRep({ id, ...r }) {
+      if (id) { check(await sb.from('sales_reps').update(r).eq('id', id)); return id }
+      return (check(await sb.from('sales_reps').insert(r).select('id').single()) as { id: string }).id
+    },
+    async deleteSalesRep(id) { check(await sb.from('sales_reps').delete().eq('id', id)) },
+    async rewardRules() {
+      const rows = check(await sb.from('reward_rules').select('id, name, who, basis, amount, needs_approval, monthly_limit, sort, active').order('sort').order('created_at')) as RewardRule[]
+      return rows.map(r => ({ ...r, amount: Number(r.amount) }))
+    },
+    async saveRewardRule({ id, ...r }) {
+      if (id) check(await sb.from('reward_rules').update(r).eq('id', id))
+      else check(await sb.from('reward_rules').insert(r))
+    },
+    async deleteRewardRule(id) { check(await sb.from('reward_rules').delete().eq('id', id)) },
+    async repRewards() {
+      const rows = check(await sb.from('rep_rewards').select(REWARD_COLUMNS).order('occurred_on', { ascending: false }).order('created_at', { ascending: false }).limit(2000)) as RepReward[]
+      return rows.map(r => ({ ...r, amount: Number(r.amount), sale_amount: r.sale_amount === null ? null : Number(r.sale_amount) }))
+    },
+    async logReward(r) {
+      const out = check(await sb.rpc('log_reward', { p_rep_id: r.rep_id, p_rule_id: r.rule_id, p_sale_amount: r.sale_amount ?? null, p_note: r.note || null,
+        p_proof_url: r.proof_url || null, p_mention_id: r.mention_id ?? null, p_occurred_on: r.occurred_on ?? null })) as LoggedReward
+      return { ...out, amount: Number(out.amount) }
+    },
+    async decideReward(id, approve, amount) {
+      check(await sb.rpc('decide_reward', { p_id: id, p_approve: approve, p_amount: amount ?? null }))
+    },
+    async settleReward(repId, amount, note) {
+      return Number(check(await sb.rpc('settle_reward', { p_rep_id: repId, p_amount: amount, p_note: note || null })))
+    },
+    async deleteReward(id) { check(await sb.from('rep_rewards').delete().eq('id', id)) },
+    async repSettings() {
+      return check(await sb.from('rep_settings').select('welcome_offer').eq('id', 1).single()) as { welcome_offer: string | null }
+    },
+    async updateRepSettings(patch) { check(await sb.from('rep_settings').update(patch).eq('id', 1)) },
+
+    async kittySettings() {
+      const row = check(await sb.from('kitty_settings').select('profit_percent').eq('id', 1).single()) as { profit_percent: number }
+      return { profit_percent: Number(row.profit_percent) }
+    },
+    async updateKittySettings(patch) { check(await sb.from('kitty_settings').update(patch).eq('id', 1)) },
+    async kittyGoals() {
+      const rows = check(await sb.from('kitty_goals').select('id, name, icon, target, due_on, sort, link, notes, spent, bought_on, created_at').order('sort').order('created_at')) as KittyGoal[]
+      return rows.map(g => ({ ...g, target: Number(g.target), spent: g.spent === null ? null : Number(g.spent) }))
+    },
+    async saveKittyGoal({ id, ...g }) {
+      if (id) check(await sb.from('kitty_goals').update(g).eq('id', id))
+      else check(await sb.from('kitty_goals').insert(g))
+    },
+    async deleteKittyGoal(id) { check(await sb.from('kitty_goals').delete().eq('id', id)) },
+    async orderKittyGoals(ids) {
+      for (const [i, id] of ids.entries()) check(await sb.from('kitty_goals').update({ sort: i + 1 }).eq('id', id))
+    },
+    async kittyEntries() {
+      const rows = check(await sb.from('kitty_entries').select('id, kind, month, percent, amount, note, created_at').order('created_at', { ascending: false })) as KittyEntry[]
+      return rows.map(e => ({ ...e, amount: Number(e.amount), percent: e.percent === null ? null : Number(e.percent) }))
+    },
+    async addKittyEntry(e) { check(await sb.from('kitty_entries').insert(e)) },
+    async deleteKittyEntry(id) { check(await sb.from('kitty_entries').delete().eq('id', id)) },
+
     async todos() {
       const [categories, todos] = await Promise.all([
         sb.from('todo_categories').select('id, name, hint, colour, sort').order('sort').order('name'),
@@ -723,6 +790,46 @@ export function createSupabaseApi(url: string, key: string): Api {
     website: () => worker('/api/website'),
     async checkWebsite() { return (await worker<{ report: never }>('/api/website/check', { method: 'POST' })).report },
     async pageSpeed(strategy) { return (await worker<{ pagespeed: never }>('/api/website/pagespeed', { method: 'POST', body: JSON.stringify({ strategy }) })).pagespeed },
+
+    async competitors() {
+      const [competitors, items, prices, notes, snapshots, nearby, settings] = await Promise.all([
+        sb.from('competitors').select('*').order('name'),
+        sb.from('competitor_items').select('*').order('sort').order('name'),
+        sb.from('competitor_prices').select('*').order('observed_on', { ascending: false }),
+        sb.from('competitor_notes').select('*').order('observed_on', { ascending: false }).order('created_at', { ascending: false }),
+        sb.from('competitor_snapshots').select('*').order('taken_on'),
+        sb.from('competitor_radar').select('*').order('distance_m', { nullsFirst: false }),
+        sb.from('competitor_settings').select('radius_m, scan_weekly, scanned_at').eq('id', 1).maybeSingle(),
+      ])
+      return competitorRows({
+        competitors: check(competitors), items: check(items), prices: check(prices), notes: check(notes), snapshots: check(snapshots), nearby: check(nearby),
+        settings: (check(settings) as CompetitorData['settings'] | null) ?? { radius_m: DEFAULT_RADIUS, scan_weekly: true, scanned_at: null },
+      } as CompetitorData)
+    },
+    async saveCompetitor({ id, ...c }) {
+      if (id) { check(await sb.from('competitors').update(c).eq('id', id)); return id }
+      return (check(await sb.from('competitors').insert(c).select('id').single()) as { id: string }).id
+    },
+    async deleteCompetitor(id) { check(await sb.from('competitors').delete().eq('id', id)) },
+    async savePriceItem({ id, ...i }) {
+      if (id) { check(await sb.from('competitor_items').update(i).eq('id', id)); return id }
+      return (check(await sb.from('competitor_items').insert(i).select('id').single()) as { id: string }).id
+    },
+    async deletePriceItem(id) { check(await sb.from('competitor_items').delete().eq('id', id)) },
+    async recordPrice(p) { check(await sb.from('competitor_prices').insert(p)) },
+    async deletePrice(id) { check(await sb.from('competitor_prices').delete().eq('id', id)) },
+    async saveCompetitorNote({ id, ...n }) {
+      if (id) { check(await sb.from('competitor_notes').update(n).eq('id', id)); return id }
+      return (check(await sb.from('competitor_notes').insert(n).select('id').single()) as { id: string }).id
+    },
+    async deleteCompetitorNote(id) { check(await sb.from('competitor_notes').delete().eq('id', id)) },
+    async dismissNearby(placeId, dismissed) { check(await sb.from('competitor_radar').update({ dismissed }).eq('place_id', placeId)) },
+    async saveCompetitorSettings(s) { check(await sb.from('competitor_settings').update(s).eq('id', 1)) },
+    competitorGoogle: () => worker('/api/competitors/google'),
+    lookAround: radius => worker('/api/competitors/look', { method: 'POST', body: JSON.stringify({ radius_m: radius }) }),
+    async findPlaces(query) { return (await worker<{ places: never }>(`/api/competitors/search?q=${encodeURIComponent(query)}`)).places },
+    async followPlace(placeId, id) { return (await worker<{ id: string }>('/api/competitors/follow', { method: 'POST', body: JSON.stringify({ place_id: placeId, id }) })).id },
+    async refreshCompetitor(id) { await worker('/api/competitors/refresh', { method: 'POST', body: JSON.stringify({ id }) }) },
     async whatsappTest(to) { await worker('/api/integrations/whatsapp/test', { method: 'POST', body: JSON.stringify({ to }) }) },
     instagramProfile: () => worker('/api/integrations/instagram/profile'),
     instagramInbox: () => worker('/api/integrations/instagram/inbox'),

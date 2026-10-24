@@ -13,6 +13,8 @@ import { TIME_OFF_AFTER_THE_FACT } from '../../shared/types'
 import { mentionTitle, mentionsIn, type InstagramMention } from '../../shared/mentions'
 import { demoSports } from './demoSports'
 import { demoInbox, demoMessenger, demoWhatsApp } from './demoMessages'
+import { DEMO_CAFE_AT, DEMO_PLACES, demoCompetitors } from './demoCompetitors'
+import { distanceM, instagramHandle, suggestedThreat, type Competitor, type NearbyPlace } from '../../shared/localCompetitors'
 import { DEFAULT_WHATSAPP_RETENTION, isRetention, replyWindow } from '../../shared/messages'
 import { cleanCode } from '../../shared/referrals'
 import { postProblem } from '../../shared/social'
@@ -26,6 +28,8 @@ import { afterPayment, paidSoFar, type MoneyItem, type MoneyPayment } from '../.
 import { inStep } from '../../shared/todo'
 import { LEGAL_STORAGES, MAX_PICK, SKIPPED, guessKind, previewOf, storageName, titleOf, type LegalDocument, type LegalStorage, type StorageItem } from '../../shared/legalDocs'
 import type { Benefit, LeaveAllowance } from '../../shared/benefits'
+import { COMMISSION_PAID, USED_AT_TILL, cleanInstagram, cleanRepCode, codeFor, rewardAmount, type RepReward, type RewardRule, type SalesRep } from '../../shared/reps'
+import { addMonths, kittyBalance, type KittyEntry, type KittyGoal } from '../../shared/kitty'
 import { roleProblem, type JobRole } from '../../shared/roles'
 import { sectionProblem, type RuleSection, type RulesRead } from '../../shared/staffRules'
 import { EASY_BEANS_ROLES, EASY_BEANS_RULES, handbookDuties } from './easyBeansHandbook'
@@ -728,6 +732,17 @@ export function createDemoApi(): Api {
     recipe({ name: 'Croissant', category: 'Bakery', sell_price: 1.8, target_margin: 60, wastage_pct: 10, lines: [line('Butter croissants', 1, 'unit')] }),
     recipe({ name: 'Pain au chocolat', category: 'Bakery', sell_price: 2, target_margin: 60, wastage_pct: 10, lines: [line('Pain au chocolat', 1, 'unit')] }),
   ]
+  // Competitors: five places around the café, what they charge and offer, their Google ratings and notes (demoCompetitors).
+  const rivals = demoCompetitors(today(), recipes, business)
+  const competitorRow = (id: string) => {
+    const c = rivals.competitors.find(x => x.id === id)
+    if (!c) throw new Error('No such competitor')
+    return c
+  }
+  const snapshotNow = (c: Competitor) => {
+    rivals.snapshots = rivals.snapshots.filter(x => !(x.competitor_id === c.id && x.taken_on === today()))
+    rivals.snapshots.push({ competitor_id: c.id, taken_on: today(), rating: c.google_rating, review_count: c.google_count })
+  }
   const expenses: Expense[] = ([
     ['Rent', 1530, 'Premises'], ['Staff wages', 4300, 'People'], ['Electricity', 200, 'Utilities'], ['Insurance', 100, 'Premises'],
     ['Council tax', 50, 'Premises'], ['Broadband', 20, 'Utilities'], ['Accountant', 100, 'Services'], ['Water', 50, 'Utilities'],
@@ -1060,6 +1075,111 @@ export function createDemoApi(): Api {
       title: `Grant deadline: ${a.grant_name}${a.deadline_label ? ` (${a.deadline_label})` : ''}`, source: 'app', confirmed: true, visibility: 'admins' })
   }
   grantApps.forEach(a => grantEvent(a, a.id))
+
+  // Sales reps & rewards: customers who share the café's stories, two ambassadors (a hotel
+  // concierge and a yoga studio) and two of the team, over this month and last.
+  const thisMonth = today().slice(0, 7)
+  const lastMonth = addMonths(thisMonth, -1)
+  /** A day this month (never after today) or in an earlier month. */
+  const dayIn = (month: string, d: number) => `${month}-${String(month === thisMonth ? Math.min(d, Number(today().slice(8, 10))) : d).padStart(2, '0')}`
+  let repSettings = { welcome_offer: '10% off your first drink' as string | null }
+  const rewardRuleList: RewardRule[] = [
+    { id: 'rule-story', name: 'Reposted our story', who: 'customers', basis: 'fixed', amount: 1, needs_approval: false, monthly_limit: 4, sort: 1, active: true },
+    { id: 'rule-post', name: 'Posted about the café and tagged it', who: 'customers', basis: 'fixed', amount: 2, needs_approval: true, monthly_limit: 2, sort: 2, active: true },
+    { id: 'rule-card', name: 'Brought a new customer with their card', who: 'everyone', basis: 'fixed', amount: 3, needs_approval: false, monthly_limit: 10, sort: 3, active: true },
+    { id: 'rule-event', name: 'Booked an event or catering', who: 'reps', basis: 'percent', amount: 10, needs_approval: true, monthly_limit: null, sort: 4, active: true },
+  ]
+  const customerId = (first: string) => customers.find(c => c.first_name === first)?.id ?? null
+  const salesRep = (r: Partial<SalesRep> & Pick<SalesRep, 'id' | 'name' | 'kind' | 'code'>): SalesRep => ({ profile_id: null, customer_id: null,
+    instagram: null, phone: null, email: null, notes: null, active: true, created_at: daysAgo(60), ...r })
+  const repList: SalesRep[] = [
+    salesRep({ id: 'rep-lucia', name: 'Lucía García', kind: 'customer', code: 'LUCIA27', customer_id: customerId('Lucía'), instagram: 'lucia.mbl', phone: '+34 611 204 318' }),
+    salesRep({ id: 'rep-eats', name: 'San Pedro Eats', kind: 'customer', code: 'EATS10', instagram: 'sanpedro.eats', notes: 'Local food blog, 12k followers' }),
+    salesRep({ id: 'rep-sofia', name: 'Sofia Lindqvist', kind: 'customer', code: 'SOFIA14', customer_id: customerId('Sofia'), notes: 'Matcha videos on TikTok' }),
+    salesRep({ id: 'rep-marco', name: 'Marco Bellini', kind: 'ambassador', code: 'MARCO1', customer_id: customerId('Marco'), email: 'concierge@costaserena.example',
+      notes: 'Concierge at Hotel Costa Serena: sends guests for breakfast' }),
+    salesRep({ id: 'rep-ines', name: 'Inés Castillo', kind: 'ambassador', code: 'SHANTI', customer_id: customerId('Inés'), instagram: 'shanti.yoga.sanpedro',
+      notes: 'Estudio Shanti Yoga: cards at the front desk' }),
+    salesRep({ id: 'rep-maria', name: 'Maria', kind: 'team', code: 'MARIA22', profile_id: P.maria }),
+    salesRep({ id: 'rep-julio', name: 'Julio', kind: 'team', code: 'JULIO08', profile_id: P.julio }),
+  ]
+  const ruleName = (id: string) => rewardRuleList.find(r => r.id === id)!.name
+  const repReward = (rep_id: string, rule: string | null, amount: number, occurred_on: string, more: Partial<RepReward> = {}): RepReward => ({
+    id: uid(), rep_id, kind: amount > 0 ? 'earn' : 'redeem', rule_id: rule, label: rule ? ruleName(rule) : USED_AT_TILL, sale_amount: null, amount,
+    status: 'approved', proof_url: null, mention_id: null, note: null, occurred_on, logged_by: P.aron, created_at: `${occurred_on}T11:00:00Z`, ...more })
+  const rewardList: RepReward[] = [
+    repReward('rep-lucia', 'rule-card', 3, dayIn(lastMonth, 12), { note: 'Brought Pablo', logged_by: P.julio }),
+    repReward('rep-lucia', 'rule-story', 1, dayIn(lastMonth, 20), { logged_by: P.maria }),
+    repReward('rep-lucia', 'rule-story', 1, dayIn(thisMonth, 2), { logged_by: P.maria }),
+    repReward('rep-lucia', 'rule-story', 1, dayIn(thisMonth, 5), { logged_by: P.julio }),
+    repReward('rep-lucia', null, -2.5, dayIn(thisMonth, 5), { note: 'Oat flat white', logged_by: P.julio }),
+    repReward('rep-eats', 'rule-post', 2, dayIn(lastMonth, 18), { proof_url: 'https://www.instagram.com/p/demo0/' }),
+    repReward('rep-eats', 'rule-post', 2, dayIn(thisMonth, 28), { mention_id: 'post:t1', proof_url: 'https://www.instagram.com/p/demo1/' }),
+    repReward('rep-sofia', 'rule-post', 2, dayIn(thisMonth, 26), { status: 'pending', note: 'Matcha reel, 3k views', logged_by: P.maria }),
+    repReward('rep-marco', 'rule-event', 38, dayIn(lastMonth, 10), { sale_amount: 380, note: 'Breakfast for a wedding party' }),
+    repReward('rep-marco', null, -38, dayIn(lastMonth, 28), { kind: 'payout', label: COMMISSION_PAID, note: 'Bank transfer' }),
+    repReward('rep-marco', 'rule-card', 3, dayIn(thisMonth, 3), { logged_by: P.maria }),
+    repReward('rep-marco', 'rule-event', 45, dayIn(thisMonth, 29), { sale_amount: 450, status: 'pending', note: 'Coffee and pastries for a hotel meeting', logged_by: P.julio }),
+    ...[4, 11, 19].map(d => repReward('rep-ines', 'rule-card', 3, dayIn(thisMonth, d), { logged_by: d === 11 ? P.julio : P.maria })),
+    ...[8, 21].map(d => repReward('rep-maria', 'rule-card', 3, dayIn(thisMonth, d))),
+    repReward('rep-julio', 'rule-card', 3, dayIn(lastMonth, 6), { logged_by: P.maria }),
+    repReward('rep-julio', null, -3, dayIn(lastMonth, 27), { kind: 'payout', label: COMMISSION_PAID }),
+  ]
+  const repBalance = (repId: string) => round2(rewardList.filter(r => r.rep_id === repId && r.status === 'approved').reduce((a, r) => a + r.amount, 0))
+  /** Mirrors the sales_reps rules in SQL: tidied, a code from the name, a team rep is someone on the team. */
+  function tidyRep(r: SalesRep, before?: SalesRep): SalesRep {
+    const out = { ...r, name: r.name.trim(), phone: r.phone?.trim() || null, email: r.email?.trim().toLowerCase() || null, notes: r.notes?.trim() || null }
+    if (!out.name) throw new Error('Give them a name')
+    if (out.instagram) {
+      const handle = cleanInstagram(out.instagram)
+      if (!handle) throw new Error('new row for relation "sales_reps" violates check constraint "sales_reps_instagram_check"')
+      out.instagram = handle
+    } else out.instagram = null
+    const others = repList.filter(x => x.id !== out.id)
+    if (out.code) {
+      const code = cleanRepCode(out.code)
+      if (!code) throw new Error('new row for relation "sales_reps" violates check constraint "sales_reps_code_check"')
+      out.code = code
+    } else out.code = codeFor(out.name, new Set(others.map(x => x.code)))
+    if (out.profile_id) out.kind = 'team'
+    else if (before?.profile_id && out.kind === 'team') out.kind = 'ambassador'
+    else if (out.kind === 'team') throw new Error('Choose who on the team it is')
+    if (others.some(x => x.code === out.code)) throw new Error('duplicate key value violates unique constraint "sales_reps_code_key"')
+    if (out.instagram && others.some(x => x.instagram === out.instagram)) throw new Error('duplicate key value violates unique constraint "sales_reps_instagram_idx"')
+    if (out.profile_id && others.some(x => x.profile_id === out.profile_id)) throw new Error('duplicate key value violates unique constraint "sales_reps_profile_idx"')
+    return out
+  }
+  /** Mirrors rep_rewards_read: admins everything; the team customers' credit and their own. */
+  const seesReward = (r: RepReward) => {
+    if (isAdmin()) return true
+    if (!isStaff()) return false
+    const rep = repList.find(x => x.id === r.rep_id)
+    return !!rep && (rep.kind === 'customer' || rep.profile_id === currentUser)
+  }
+
+  // Staff kitty: 5% of each month's profit since May and the tips from one month; the summer
+  // barbecue already bought. Last month's share is still to go in.
+  const kittySettings = { profit_percent: 5 }
+  const kittyGoalList: KittyGoal[] = [
+    { id: 'goal-party', name: 'Christmas party', icon: 'party', target: 500, due_on: `${today().slice(0, 4)}-12-18`, sort: 1, link: null,
+      notes: 'Dinner and drinks for the whole team', spent: null, bought_on: null, created_at: daysAgo(90) },
+    { id: 'goal-rayban', name: 'Ray-Ban sunglasses for the café', icon: 'sunglasses', target: 160, due_on: null, sort: 2, link: null,
+      notes: 'A pair of Wayfarers for the terrace', spent: null, bought_on: null, created_at: daysAgo(90) },
+    { id: 'goal-course', name: 'Latte art course', icon: 'equipment', target: 240, due_on: null, sort: 3, link: null,
+      notes: null, spent: null, bought_on: null, created_at: daysAgo(40) },
+    { id: 'goal-bbq', name: 'Summer barbecue', icon: 'party', target: 180, due_on: null, sort: 0, link: null,
+      notes: 'On the beach at Guadalmina', spent: 175, bought_on: dayIn(addMonths(thisMonth, -2), 24), created_at: daysAgo(150) },
+  ]
+  const profitEntry = (back: number, amount: number): KittyEntry => {
+    const month = addMonths(thisMonth, -back)
+    return { id: uid(), kind: 'profit', month: `${month}-01`, percent: 5, amount, note: null, created_at: `${addMonths(month, 1)}-02T09:00:00Z` }
+  }
+  const kittyEntryList: KittyEntry[] = [
+    { id: uid(), kind: 'top_up', month: null, percent: null, amount: 46.5, note: 'Tips jar', created_at: `${addMonths(thisMonth, -2)}-20T18:00:00Z` },
+    profitEntry(2, 215.1), profitEntry(3, 198.65), profitEntry(4, 162.3),
+  ]
+  const kittyLeft = () => kittyBalance(kittyEntryList, kittyGoalList)
+  const kittyEuros = (n: number) => Math.max(0, n).toFixed(2)
 
   /** The customers table's rules (supabase/migrations/…_customers.sql): tidy what's typed, and someone to reach. */
   function tidyCustomer(c: Customer): Customer {
@@ -2024,6 +2144,190 @@ export function createDemoApi(): Api {
       for (const c of added) customers.push({ ...c, consent_at: c.marketing_consent ? nowIso() : null })
       return added.length
     },
+
+    async salesReps() {
+      return isStaff() ? clone(repList).sort((a, b) => a.name.localeCompare(b.name)) : []
+    },
+    async saveSalesRep({ id, ...r }) {
+      if (id) {
+        requireAdmin()
+        const i = repList.findIndex(x => x.id === id)
+        if (i < 0) throw new Error('Rep not found')
+        // A field left out keeps what it was (as an update does).
+        const patch = Object.fromEntries(Object.entries(r).filter(([, v]) => v !== undefined))
+        repList[i] = tidyRep({ ...repList[i], ...patch }, repList[i])
+        return id
+      }
+      if (!isStaff() || (!isAdmin() && ((r.kind ?? 'customer') !== 'customer' || r.profile_id))) {
+        throw new Error('new row violates row-level security policy for table "sales_reps"')
+      }
+      const rep = tidyRep(salesRep({ id: uid(), kind: 'customer', code: '', created_at: nowIso(), ...r }))
+      repList.push(rep)
+      return rep.id
+    },
+    async deleteSalesRep(id) {
+      requireAdmin()
+      const i = repList.findIndex(x => x.id === id)
+      if (i >= 0) repList.splice(i, 1)
+      for (let j = rewardList.length - 1; j >= 0; j--) if (rewardList[j].rep_id === id) rewardList.splice(j, 1)
+    },
+    async rewardRules() {
+      return isStaff() ? clone(rewardRuleList).sort((a, b) => a.sort - b.sort) : []
+    },
+    async saveRewardRule({ id, ...r }) {
+      requireAdmin()
+      const name = r.name.trim()
+      if (!name) throw new Error('Give it a name')
+      if (!(r.amount > 0) || r.amount > 10_000) throw new Error('new row for relation "reward_rules" violates check constraint "reward_rules_amount_check"')
+      if (r.basis === 'percent' && r.amount > 100) throw new Error('new row for relation "reward_rules" violates check constraint "reward_rules_percent"')
+      const existing = id ? rewardRuleList.find(x => x.id === id) : undefined
+      if (existing) Object.assign(existing, { ...r, name })
+      else rewardRuleList.push({ ...r, name, id: uid(), sort: r.sort ?? Math.max(0, ...rewardRuleList.map(x => x.sort)) + 1 })
+    },
+    async deleteRewardRule(id) {
+      requireAdmin()
+      const i = rewardRuleList.findIndex(x => x.id === id)
+      if (i >= 0) rewardRuleList.splice(i, 1)
+      for (const r of rewardList) if (r.rule_id === id) r.rule_id = null
+    },
+    async repRewards() {
+      return clone(rewardList.filter(seesReward)).sort((a, b) => b.occurred_on.localeCompare(a.occurred_on) || b.created_at.localeCompare(a.created_at))
+    },
+    async logReward({ rep_id, rule_id, sale_amount, note, proof_url, mention_id, occurred_on }) {
+      if (!isStaff()) throw new Error('Only the team can log rewards')
+      const rep = repList.find(x => x.id === rep_id)
+      if (!rep) throw new Error('Rep not found')
+      if (!rep.active) throw new Error(`${rep.name} is no longer a rep`)
+      const rule = rewardRuleList.find(x => x.id === rule_id)
+      if (!rule || !rule.active) throw new Error('That reward isn’t on the list')
+      if (rule.who === 'customers' && rep.kind !== 'customer') throw new Error(`${rule.name} is a reward for customers`)
+      if (rule.who === 'reps' && rep.kind === 'customer') throw new Error(`${rule.name} is a reward for reps`)
+      const on = occurred_on || today()
+      if (on > today()) throw new Error('It can’t be for a day still to come')
+      if (rule.basis === 'percent' && !(sale_amount && sale_amount > 0)) throw new Error('Give the amount of the sale')
+      const amount = rewardAmount(rule, sale_amount)
+      if (!(amount > 0)) throw new Error('The sale is too small for a reward')
+      if (rule.monthly_limit !== null) {
+        const used = rewardList.filter(x => x.rep_id === rep_id && x.rule_id === rule_id && x.kind === 'earn' && x.status !== 'rejected' && x.occurred_on.slice(0, 7) === on.slice(0, 7)).length
+        if (used >= rule.monthly_limit) throw new Error(`${rep.name} has had "${rule.name}" ${used} times this month, the most there is`)
+      }
+      if (mention_id && rewardList.some(x => x.mention_id === mention_id)) throw new Error('duplicate key value violates unique constraint "rep_rewards_mention_id_key"')
+      const status = rep.profile_id === currentUser ? 'pending' : isAdmin() || !rule.needs_approval ? 'approved' : 'pending'
+      const reward: RepReward = { id: uid(), rep_id, kind: 'earn', rule_id, label: rule.name, sale_amount: rule.basis === 'percent' ? sale_amount ?? null : null,
+        amount, status, proof_url: proof_url?.trim() || null, mention_id: mention_id ?? null, note: note?.trim() || null, occurred_on: on,
+        logged_by: currentUser, created_at: nowIso() }
+      rewardList.push(reward)
+      if (status === 'pending') {
+        for (const a of profiles.filter(p => p.role === 'admin' && p.active && p.id !== currentUser)) {
+          notes.push({ id: notes.length + 1, profile_id: a.id, title: `${rule.name} for ${rep.name}: €${amount.toFixed(2)} to approve`,
+            body: [me()?.full_name, note?.trim()].filter(Boolean).join(' · ') || null, link: '/sales-reps', created_at: nowIso(), read_at: null })
+        }
+      }
+      return { id: reward.id, status, amount }
+    },
+    async decideReward(id, approve, amount) {
+      if (!isAdmin()) throw new Error('Only an admin can approve rewards')
+      const r = rewardList.find(x => x.id === id)
+      if (!r || r.status !== 'pending') throw new Error('This reward is no longer waiting')
+      if (approve && repList.find(x => x.id === r.rep_id)?.profile_id === currentUser) throw new Error('Someone else approves your own rewards')
+      if (amount !== undefined && !(amount > 0)) throw new Error('Give an amount above 0')
+      r.status = approve ? 'approved' : 'rejected'
+      if (approve && amount !== undefined) r.amount = round2(amount)
+    },
+    async settleReward(repId, amount, note) {
+      if (!isStaff()) throw new Error('Only the team can do that')
+      const rep = repList.find(x => x.id === repId)
+      if (!rep) throw new Error('Rep not found')
+      if (rep.kind !== 'customer' && !isAdmin()) throw new Error('Only an admin can pay commission')
+      if (rep.profile_id === currentUser) throw new Error('Someone else pays out your own commission')
+      if (!(amount > 0)) throw new Error('Give an amount above 0')
+      const balance = repBalance(repId)
+      if (round2(amount) > balance) throw new Error(`${rep.name} has €${balance.toFixed(2)} ${rep.kind === 'customer' ? 'of credit' : 'owed'}`)
+      const credit = rep.kind === 'customer'
+      rewardList.push({ id: uid(), rep_id: repId, kind: credit ? 'redeem' : 'payout', rule_id: null, label: credit ? USED_AT_TILL : COMMISSION_PAID,
+        sale_amount: null, amount: -round2(amount), status: 'approved', proof_url: null, mention_id: null, note: note?.trim() || null,
+        occurred_on: today(), logged_by: currentUser, created_at: nowIso() })
+      return round2(balance - amount)
+    },
+    async deleteReward(id) {
+      requireAdmin()
+      const i = rewardList.findIndex(x => x.id === id)
+      if (i >= 0) rewardList.splice(i, 1)
+    },
+    async repSettings() {
+      if (!isStaff()) throw new Error('Cannot coerce the result to a single JSON object')
+      return clone(repSettings)
+    },
+    async updateRepSettings(patch) {
+      requireAdmin()
+      repSettings = { ...repSettings, ...patch, ...('welcome_offer' in patch ? { welcome_offer: patch.welcome_offer?.trim() || null } : {}) }
+    },
+
+    async kittySettings() {
+      if (!isStaff()) throw new Error('Cannot coerce the result to a single JSON object')
+      return clone(kittySettings)
+    },
+    async updateKittySettings(patch) {
+      requireAdmin()
+      if (patch.profit_percent !== undefined && !(patch.profit_percent >= 0 && patch.profit_percent <= 100)) {
+        throw new Error('new row for relation "kitty_settings" violates check constraint "kitty_settings_profit_percent_check"')
+      }
+      Object.assign(kittySettings, patch)
+    },
+    async kittyGoals() {
+      return isStaff() ? clone(kittyGoalList).sort((a, b) => a.sort - b.sort || a.created_at.localeCompare(b.created_at)) : []
+    },
+    async saveKittyGoal({ id, ...g }) {
+      requireAdmin()
+      const existing = id ? kittyGoalList.find(x => x.id === id) : undefined
+      const next: KittyGoal = { id: id ?? uid(), name: '', icon: 'gift', target: 0, due_on: null, sort: Math.max(0, ...kittyGoalList.map(x => x.sort)) + 1,
+        link: null, notes: null, spent: null, bought_on: null, created_at: nowIso(), ...existing, ...g }
+      next.name = next.name.trim()
+      next.link = next.link?.trim() || null
+      next.notes = next.notes?.trim() || null
+      if (!next.name) throw new Error('new row for relation "kitty_goals" violates check constraint "kitty_goals_name_check"')
+      if (!(next.target > 0 && next.target <= 1_000_000)) throw new Error('new row for relation "kitty_goals" violates check constraint "kitty_goals_target_check"')
+      if ((next.spent === null) !== (next.bought_on === null)) throw new Error('new row for relation "kitty_goals" violates check constraint "kitty_goals_bought"')
+      if (next.spent !== null && next.spent !== (existing?.spent ?? null)) {
+        const left = kittyLeft() + (existing?.spent ?? 0)
+        if (next.spent > left) throw new Error(`The kitty has €${kittyEuros(left)}: put more in first`)
+      }
+      if (existing) Object.assign(existing, next)
+      else kittyGoalList.push(next)
+    },
+    async deleteKittyGoal(id) {
+      requireAdmin()
+      const i = kittyGoalList.findIndex(x => x.id === id)
+      if (i >= 0) kittyGoalList.splice(i, 1)
+    },
+    async orderKittyGoals(ids) {
+      requireAdmin()
+      ids.forEach((id, i) => { const g = kittyGoalList.find(x => x.id === id); if (g) g.sort = i + 1 })
+    },
+    async kittyEntries() {
+      return isStaff() ? clone(kittyEntryList).sort((a, b) => b.created_at.localeCompare(a.created_at)) : []
+    },
+    async addKittyEntry(e) {
+      requireAdmin()
+      const entry: KittyEntry = { ...e, id: uid(), note: e.note?.trim() || null, created_at: nowIso(),
+        ...(e.kind === 'profit' ? {} : { month: null, percent: null }) }
+      if (!entry.amount) throw new Error('new row for relation "kitty_entries" violates check constraint "kitty_entries_amount_check"')
+      if (entry.kind === 'top_up' && entry.amount < 0) throw new Error('new row for relation "kitty_entries" violates check constraint "kitty_entries_top_up"')
+      if (entry.kind === 'profit') {
+        if (!entry.month || entry.percent === null || entry.amount < 0) throw new Error('new row for relation "kitty_entries" violates check constraint "kitty_entries_profit"')
+        if (entry.month.slice(0, 7) >= thisMonth) throw new Error('A month’s profit goes in once the month is over')
+        if (kittyEntryList.some(x => x.kind === 'profit' && x.month === entry.month)) throw new Error('duplicate key value violates unique constraint "kitty_entries_month_idx"')
+      }
+      if (entry.amount < 0 && kittyLeft() + entry.amount < 0) throw new Error(`The kitty has €${kittyEuros(kittyLeft())}`)
+      kittyEntryList.push(entry)
+    },
+    async deleteKittyEntry(id) {
+      requireAdmin()
+      const i = kittyEntryList.findIndex(x => x.id === id)
+      if (i < 0) return
+      if (kittyEntryList[i].amount > 0 && kittyLeft() - kittyEntryList[i].amount < 0) throw new Error(`That money has been spent: the kitty has €${kittyEuros(kittyLeft())}`)
+      kittyEntryList.splice(i, 1)
+    },
     async grantProfile() {
       if (!paysAdmin() && !partnerCan('finances')) return {}
       return clone(grantAnswers)
@@ -2299,6 +2603,145 @@ export function createDemoApi(): Api {
         vitals: { lcp_ms: mobile ? 3400 : 1600, cls: 0.04, inp_ms: mobile ? 240 : 110, field: mobile },
         opportunities: ['Serve images in modern formats', 'Properly size images', 'Eliminate render-blocking resources'] }
       return clone(demoPageSpeed[strategy]!)
+    },
+    async competitors() {
+      requireAdmin()
+      const self = rivals.competitors.find(c => c.is_self)!
+      self.name = business.name
+      return clone(rivals)
+    },
+    async saveCompetitor({ id, ...c }) {
+      requireAdmin()
+      const patch = { ...c }
+      if (patch.name !== undefined && !patch.name.trim()) throw new Error('Give it a name')
+      if (patch.instagram !== undefined) {
+        const handle = instagramHandle(patch.instagram)
+        if (handle === undefined) throw new Error('An Instagram handle has letters, numbers, dots and underscores only')
+        patch.instagram = handle
+      }
+      if (patch.website && !/^https?:\/\/\S+$/i.test(patch.website)) throw new Error('A website starts with https://')
+      const existing = id ? competitorRow(id) : undefined
+      if (existing) {
+        Object.assign(existing, patch, patch.name ? { name: patch.name.trim() } : {}, existing.is_self ? { threat: null, active: true } : {})
+        return existing.id
+      }
+      const made: Competitor = { id: uid(), is_self: false, kind: 'cafe', threat: 'medium', address: null, distance_m: null, lat: null, lng: null, place_id: null,
+        website: null, instagram: null, maps_url: null, price_level: null, hours: null, google_hours: null, features: {}, google_features: {}, google_rating: null,
+        google_count: null, google_status: null, google_checked_at: null, strengths: null, weaknesses: null, notes: null, active: true, created_at: nowIso(),
+        ...patch, name: patch.name.trim() }
+      rivals.competitors.push(made)
+      return made.id
+    },
+    async deleteCompetitor(id) {
+      requireAdmin()
+      if (competitorRow(id).is_self) throw new Error('The business itself can’t be removed from Competitors')
+      rivals.competitors = rivals.competitors.filter(c => c.id !== id)
+      rivals.prices = rivals.prices.filter(p => p.competitor_id !== id)
+      rivals.notes = rivals.notes.filter(n => n.competitor_id !== id)
+      rivals.snapshots = rivals.snapshots.filter(x => x.competitor_id !== id)
+    },
+    async savePriceItem({ id, ...i }) {
+      requireAdmin()
+      const name = i.name.trim()
+      if (!name) throw new Error('Give it a name')
+      if (rivals.items.some(x => x.id !== id && x.name.toLowerCase() === name.toLowerCase())) throw new Error('That’s already on the basket')
+      const existing = id ? rivals.items.find(x => x.id === id) : undefined
+      if (existing) { Object.assign(existing, i, { name }); return existing.id }
+      const made = { id: uid(), recipe_id: null, sort: Math.max(0, ...rivals.items.map(x => x.sort)) + 1, ...i, name }
+      rivals.items.push(made)
+      return made.id
+    },
+    async deletePriceItem(id) {
+      requireAdmin()
+      rivals.items = rivals.items.filter(i => i.id !== id)
+      rivals.prices = rivals.prices.filter(p => p.item_id !== id)
+    },
+    async recordPrice(p) {
+      requireAdmin()
+      if (!(p.price >= 0 && p.price < 1000)) throw new Error('Enter the price in euros')
+      if (p.observed_on > addDays(today(), 1)) throw new Error('A price can’t be seen in the future')
+      competitorRow(p.competitor_id)
+      rivals.prices.unshift({ ...p, note: p.note?.trim() || null, id: uid(), created_at: nowIso() })
+    },
+    async deletePrice(id) {
+      requireAdmin()
+      rivals.prices = rivals.prices.filter(p => p.id !== id)
+    },
+    async saveCompetitorNote({ id, ...n }) {
+      requireAdmin()
+      const text = n.text.trim()
+      if (!text) throw new Error('Write the note first')
+      const row = { ...n, text, status: n.kind === 'idea' ? n.status ?? 'new' : null }
+      const existing = id ? rivals.notes.find(x => x.id === id) : undefined
+      if (existing) { Object.assign(existing, row); return existing.id }
+      const made = { ...row, id: uid(), created_at: nowIso() }
+      rivals.notes.unshift(made)
+      return made.id
+    },
+    async deleteCompetitorNote(id) {
+      requireAdmin()
+      rivals.notes = rivals.notes.filter(n => n.id !== id)
+    },
+    async dismissNearby(placeId, dismissed) {
+      requireAdmin()
+      const p = rivals.nearby.find(x => x.place_id === placeId)
+      if (p) p.dismissed = dismissed
+    },
+    async saveCompetitorSettings(next) {
+      requireAdmin()
+      Object.assign(rivals.settings, next)
+    },
+    async competitorGoogle() {
+      requireAdmin()
+      return { places: true, own_place: true }
+    },
+    async lookAround(radius) {
+      requireAdmin()
+      const around = DEMO_PLACES.filter(p => p.seen !== null && p.distance_m !== null && p.distance_m <= radius)
+      for (const p of around) {
+        if (rivals.nearby.some(x => x.place_id === p.place_id)) continue
+        rivals.nearby.push({ place_id: p.place_id, name: p.name, address: p.address, distance_m: p.distance_m, rating: p.rating, review_count: p.review_count,
+          price_level: p.price_level, primary_type: p.primary_type, maps_url: p.maps_url, first_seen: nowIso(), dismissed: false })
+      }
+      Object.assign(rivals.settings, { radius_m: radius, scanned_at: nowIso() })
+      return { found: around.length, fresh: 0 }
+    },
+    async findPlaces(query) {
+      requireAdmin()
+      const words = query.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').split(/\s+/).filter(w => w.length > 1)
+      if (!words.length) throw new Error('Type at least two letters')
+      const plain = (s: string) => s.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '')
+      return DEMO_PLACES.filter(p => words.some(w => plain(p.name).includes(w))).map((p): NearbyPlace => ({ place_id: p.place_id, name: p.name, address: p.address,
+        distance_m: p.distance_m, rating: p.rating, review_count: p.review_count, price_level: p.price_level, primary_type: p.primary_type, maps_url: p.maps_url,
+        first_seen: nowIso(), dismissed: false }))
+    },
+    async followPlace(placeId, id) {
+      requireAdmin()
+      const p = DEMO_PLACES.find(x => x.place_id === placeId)
+      if (!p) throw new Error('Google Places: Not found')
+      const same = rivals.competitors.find(c => c.place_id === placeId)
+      if (same && id && same.id !== id) throw new Error(`${same.name} is already followed with that Google listing`)
+      const google = { place_id: p.place_id, google_rating: p.rating, google_count: p.review_count, google_status: 'open' as const, google_features: { ...p.features },
+        google_hours: p.hours, google_checked_at: nowIso(), maps_url: p.maps_url, lat: p.lat, lng: p.lng, price_level: p.price_level,
+        distance_m: distanceM(DEMO_CAFE_AT, { lat: p.lat, lng: p.lng }) }
+      const row = same ?? (id ? competitorRow(id) : undefined)
+      if (row) {
+        Object.assign(row, google, { active: true, address: row.address ?? p.address, website: row.website ?? p.website })
+        snapshotNow(row)
+        return row.id
+      }
+      const madeId = await this.saveCompetitor({ name: p.name, kind: p.kind, threat: suggestedThreat(p.kind, google.distance_m), address: p.address, website: p.website })
+      const made = competitorRow(madeId)
+      Object.assign(made, google)
+      snapshotNow(made)
+      return made.id
+    },
+    async refreshCompetitor(id) {
+      requireAdmin()
+      const c = competitorRow(id)
+      if (!c.place_id) throw new Error('Find it on Google first')
+      c.google_checked_at = nowIso()
+      snapshotNow(c)
     },
     async searchConsole(from, to) {
       requireAdmin()

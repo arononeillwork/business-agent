@@ -17,9 +17,12 @@ export const GROUP: Record<string, string> = {
 const KEYS: Record<string, string[]> = {
   integrations: ['provider'], integration_secrets: ['provider'], calendar_feeds: ['profile_id', 'scope'], profiles: ['id'], business: ['id'], api_keys: ['id'], referrals: ['email'],
   whatsapp_messages: ['wa_message_id'], settings: ['id'], provider_cache: ['key'],
+  competitor_radar: ['place_id'], competitor_snapshots: ['competitor_id', 'taken_on'],
 }
 /** Keyed tables that still get a numeric id of their own (an identity column beside the unique key). */
 const AUTO_ID = new Set(['whatsapp_messages'])
+/** Tables whose id is a uuid (the tools check it is one). */
+const UUID_ID = new Set(['competitors', 'competitor_items', 'competitor_prices', 'competitor_notes'])
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 const bearerOf = (h: Headers) => h.get('authorization')?.replace(/^Bearer\s+/i, '') ?? ''
@@ -231,7 +234,7 @@ export class FakeSupabase {
         if (existing && prefer.includes('resolution=ignore-duplicates')) continue
         if (existing && !prefer.includes('resolution=merge-duplicates')) return json({ code: '23505', message: 'duplicate key value violates unique constraint' }, 409)
         if (existing) { Object.assign(existing, item); out.push(existing) } else {
-          const r = { ...(keys && !AUTO_ID.has(name) ? {} : { id: this.nextId++ }), ...item }
+          const r = { ...(keys && !AUTO_ID.has(name) ? {} : { id: UUID_ID.has(name) ? crypto.randomUUID() : this.nextId++ }), ...item }
           rows.push(r)
           out.push(r)
         }

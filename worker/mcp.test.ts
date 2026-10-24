@@ -38,6 +38,10 @@ describe('AI connector tools', () => {
     expect(employee).not.toContain('create_shift')
     expect(employee).not.toContain('update_business_details')
     expect(employee).not.toContain('list_customers')
+    // The till side of rewards and the kitty are the whole team's; approving, paying in and out are the admins'.
+    expect(employee).toEqual(expect.arrayContaining(['list_sales_reps', 'log_reward', 'use_reward_balance', 'staff_kitty']))
+    expect(employee).not.toContain('decide_reward')
+    expect(employee).not.toContain('kitty_put_in')
     expect(toolsFor(person('admin')).length).toBe(TOOLS.length)
   })
 
