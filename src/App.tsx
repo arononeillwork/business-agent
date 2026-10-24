@@ -52,6 +52,9 @@ const PartnersPage = page(() => import('./pages/PartnersPage'), 'PartnersPage')
 const TodoPage = page(() => import('./pages/TodoPage'), 'TodoPage')
 const CustomersPage = page(() => import('./pages/CustomersPage'), 'CustomersPage')
 const LoyaltyPage = page(() => import('./pages/LoyaltyPage'), 'LoyaltyPage')
+const SalesRepsPage = page(() => import('./pages/SalesRepsPage'), 'SalesRepsPage')
+const RepCardsPage = page(() => import('./pages/RepCardsPage'), 'RepCardsPage')
+const KittyPage = page(() => import('./pages/KittyPage'), 'KittyPage')
 const StockPage = page(() => import('./pages/StockPage'), 'StockPage')
 const SuppliersPage = page(() => import('./pages/SuppliersPage'), 'SuppliersPage')
 const RecipesPage = page(() => import('./pages/RecipesPage'), 'RecipesPage')
@@ -124,6 +127,8 @@ function Routed() {
       <Route path="/kiosk" element={isAdmin && FEATURES.kiosk ? <PlanGate feature="kiosk"><KioskPage /></PlanGate> : <Navigate to="/" />} />
       {/* Printable monthly hours record (no menu around it). */}
       <Route path="/registro" element={<RegistroPage />} />
+      {/* Business cards for the sales reps, to print (no menu around them either). */}
+      <Route path="/sales-reps/cards" element={isAdmin ? <RepCardsPage /> : <Navigate to="/sales-reps" />} />
       <Route element={<AppShell />}>
         <Route index element={<TodayPage />} />
         <Route path="rota" element={<RotaPage />} />
@@ -131,6 +136,7 @@ function Routed() {
         <Route path="calendar" element={<CalendarPage />} />
         <Route path="time-off" element={<TimeOffPage />} />
         <Route path="benefits" element={<BenefitsPage />} />
+        <Route path="kitty" element={<KittyPage />} />
         <Route path="sports" element={<PlanGate feature="sports"><SportsPage /></PlanGate>} />
         <Route path="music" element={<PlanGate feature="music"><MusicPage /></PlanGate>} />
         <Route path="team" element={<TeamPage />} />
@@ -138,6 +144,7 @@ function Routed() {
         <Route path="customers" element={isAdmin ? <CustomersPage /> : <Navigate to="/" />} />
         {/* Only while Square is the till: the page itself goes to Connections otherwise. */}
         <Route path="loyalty" element={isAdmin ? <LoyaltyPage /> : <Navigate to="/" />} />
+        <Route path="sales-reps" element={<SalesRepsPage />} />
         <Route path="stock" element={<StockPage />} />
         <Route path="suppliers" element={isAdmin ? <SuppliersPage /> : <Navigate to="/" />} />
         <Route path="recipes" element={isAdmin ? <RecipesPage /> : <Navigate to="/" />} />

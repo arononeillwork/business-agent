@@ -22,6 +22,8 @@ import AppearanceIcon from '@mui/icons-material/PaletteOutlined'
 import KioskIcon from '@mui/icons-material/TabletMacOutlined'
 import TimeOffIcon from '@mui/icons-material/BeachAccessOutlined'
 import BenefitsIcon from '@mui/icons-material/CardGiftcardOutlined'
+import KittyIcon from '@mui/icons-material/SavingsOutlined'
+import RepsIcon from '@mui/icons-material/RecordVoiceOverOutlined'
 import FinanceIcon from '@mui/icons-material/PaymentsOutlined'
 import SalesIcon from '@mui/icons-material/InsightsOutlined'
 import TaxIcon from '@mui/icons-material/ReceiptLongOutlined'
@@ -94,6 +96,7 @@ export const SECTIONS: NavSection[] = [
     { key: 'sales', to: '/sales', label: msg('Sales'), icon: <SalesIcon />, who: 'pay' },
     { key: 'customers', to: '/customers', label: msg('Customers'), icon: <CustomersIcon />, who: 'admin' },
     { key: 'loyalty', to: '/loyalty', label: msg('Loyalty & gift cards'), short: msg('Loyalty'), icon: <LoyaltyIcon />, who: 'admin', needs: 'square' },
+    { key: 'reps', to: '/sales-reps', label: msg('Reps & rewards'), short: msg('Reps'), icon: <RepsIcon /> },
   ] },
   // What's bought wholesale and sold in the shop, and who from. The team counts; admins price and order.
   { key: 'stock', label: msg('Stock'), items: [
@@ -125,6 +128,7 @@ export const SECTIONS: NavSection[] = [
     { key: 'rota', to: '/rota', label: msg('Rota'), icon: <RotaIcon />, partner: ['rota', 'payroll'] },
     { key: 'timeoff', to: '/time-off', label: msg('Time off'), icon: <TimeOffIcon /> },
     { key: 'benefits', to: '/benefits', label: msg('Staff benefits'), short: msg('Benefits'), icon: <BenefitsIcon />, partner: ['payroll'] },
+    { key: 'kitty', to: '/kitty', label: msg('Staff kitty'), short: msg('Kitty'), icon: <KittyIcon /> },
     { key: 'timecards', to: '/timecards', label: msg('Timecards'), short: msg('Hours'), icon: <TimecardIcon />, partner: ['payroll'] },
     { key: 'team', to: '/team', label: msg('Team'), icon: <TeamIcon /> },
   ] },
