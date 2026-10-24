@@ -35,6 +35,14 @@ import GrantsIcon from '@mui/icons-material/VolunteerActivismOutlined'
 import BillingIcon from '@mui/icons-material/CreditCardOutlined'
 import SocialIcon from '@mui/icons-material/CampaignOutlined'
 import AdsIcon from '@mui/icons-material/AdsClickOutlined'
+import CampaignsIcon from '@mui/icons-material/ForwardToInboxOutlined'
+import LeadsIcon from '@mui/icons-material/ContactMailOutlined'
+import QuotesIcon from '@mui/icons-material/RequestPageOutlined'
+import ClaimsIcon from '@mui/icons-material/ReceiptOutlined'
+import HiringIcon from '@mui/icons-material/BadgeOutlined'
+import FoodSafetyIcon from '@mui/icons-material/ThermostatOutlined'
+import AllergensIcon from '@mui/icons-material/NoMealsOutlined'
+import TipsIcon from '@mui/icons-material/SavingsOutlined'
 import MessagesIcon from '@mui/icons-material/ChatBubbleOutlineRounded'
 import ReferralsIcon from '@mui/icons-material/CardGiftcardOutlined'
 import NotificationsIcon from '@mui/icons-material/NotificationsNoneOutlined'
@@ -95,6 +103,8 @@ export const SECTIONS: NavSection[] = [
   { key: 'sales', label: msg('Sales'), items: [
     { key: 'sales', to: '/sales', label: msg('Sales'), icon: <SalesIcon />, who: 'pay' },
     { key: 'customers', to: '/customers', label: msg('Customers'), icon: <CustomersIcon />, who: 'admin' },
+    { key: 'leads', to: '/leads', label: msg('Leads & enquiries'), short: msg('Leads'), icon: <LeadsIcon />, who: 'admin' },
+    { key: 'quotes', to: '/quotes', label: msg('Quotes & estimates'), short: msg('Quotes'), icon: <QuotesIcon />, who: 'admin' },
     { key: 'loyalty', to: '/loyalty', label: msg('Loyalty & gift cards'), short: msg('Loyalty'), icon: <LoyaltyIcon />, who: 'admin', needs: 'square' },
   ] },
   // What's bought wholesale and sold in the shop, and who from. The team counts; admins price and order.
@@ -102,17 +112,21 @@ export const SECTIONS: NavSection[] = [
     { key: 'stock', to: '/stock', label: msg('Stock'), icon: <StockIcon />, partner: ['finances'] },
     { key: 'suppliers', to: '/suppliers', label: msg('Suppliers'), icon: <SuppliersIcon />, who: 'admin', partner: ['finances'] },
     { key: 'recipes', to: '/recipes', label: msg('Menu costing'), icon: <RecipesIcon />, who: 'admin', partner: ['finances'] },
+    { key: 'allergens', to: '/allergens', label: msg('Allergens'), icon: <AllergensIcon />, partner: ['finances'] },
+    { key: 'foodsafety', to: '/food-safety', label: msg('Food safety'), icon: <FoodSafetyIcon /> },
     { key: 'waste', to: '/waste', label: msg('Waste log'), icon: <WasteIcon />, partner: ['finances'] },
   ] },
   { key: 'accounts', label: msg('Accounts'), items: [
     { key: 'finances', to: '/finances', label: msg('Finances'), icon: <FinanceIcon />, who: 'pay', partner: ['finances'] },
     { key: 'pnl', to: '/profit-and-loss', label: msg('Profit & loss'), icon: <ProfitLossIcon />, who: 'pay', partner: ['finances'] },
     { key: 'invoices', to: '/invoices', label: msg('Invoices'), icon: <InvoicesIcon />, who: 'pay', partner: ['finances'] },
+    { key: 'expenses', to: '/expenses', label: msg('Expenses & mileage'), short: msg('Expenses'), icon: <ClaimsIcon />, partner: ['finances'] },
     { key: 'tax', to: '/tax', label: msg('Tax'), icon: <TaxIcon />, who: 'pay', partner: ['finances'] },
     { key: 'grants', to: '/grants', label: msg('Grants'), icon: <GrantsIcon />, who: 'pay', partner: ['finances'] },
   ] },
   { key: 'marketing', label: msg('Marketing'), items: [
     { key: 'social', to: '/social', label: msg('Social planner'), icon: <SocialIcon />, who: 'admin' },
+    { key: 'campaigns', to: '/campaigns', label: msg('Campaigns'), icon: <CampaignsIcon />, who: 'admin' },
     { key: 'ads', to: '/ads', label: msg('Ads'), icon: <AdsIcon />, who: 'admin' },
     { key: 'analytics', to: '/analytics', label: msg('Analytics'), icon: <AnalyticsIcon />, who: 'admin' },
     { key: 'reviews', to: '/reviews', label: msg('Reviews'), icon: <ReviewsIcon />, who: 'admin' },
@@ -128,6 +142,8 @@ export const SECTIONS: NavSection[] = [
     { key: 'timeoff', to: '/time-off', label: msg('Time off'), icon: <TimeOffIcon /> },
     { key: 'benefits', to: '/benefits', label: msg('Staff benefits'), short: msg('Benefits'), icon: <BenefitsIcon />, partner: ['payroll'] },
     { key: 'timecards', to: '/timecards', label: msg('Timecards'), short: msg('Hours'), icon: <TimecardIcon />, partner: ['payroll'] },
+    { key: 'tips', to: '/tips', label: msg('Tips'), icon: <TipsIcon />, partner: ['payroll'] },
+    { key: 'hiring', to: '/hiring', label: msg('Hiring'), icon: <HiringIcon />, who: 'admin' },
     { key: 'team', to: '/team', label: msg('Team'), icon: <TeamIcon /> },
     { key: 'roles', to: '/roles', label: msg('Roles & responsibilities'), short: msg('Roles'), icon: <RolesIcon /> },
     { key: 'rules', to: '/rules', label: msg('Staff rules'), short: msg('Rules'), icon: <RulesIcon /> },

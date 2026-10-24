@@ -19,12 +19,23 @@ import type { ReferralState } from '../../shared/referrals'
 import { readyPhoto } from '../lib/media'
 import { cleanWebsite } from '../../shared/connections'
 import { cleanAnswers, type GrantApplication } from '../../shared/grants'
+import { SOURCE_FOR, type Enquiry } from '../../shared/leads'
+import type { Quote } from '../../shared/quotes'
+import type { ExpenseClaim } from '../../shared/claims'
+import type { Campaign } from '../../shared/campaigns'
+import type { Applicant, JobOpening } from '../../shared/hiring'
+import type { SafetyCheck, SafetyPoint } from '../../shared/foodSafety'
+import type { MenuAllergens } from '../../shared/allergens'
+import type { TipPool } from '../../shared/tips'
+import { customerName } from '../../shared/customers'
+import { addDays, today, zonedIso } from '../../shared/time'
 
 const PROFILE_COLUMNS = 'id, full_name, email, role, can_see_pay, colour, active, phone, birth_date, whatsapp_opt_in, partner_company, partner_access, preferences'
 
 const GRANT_APPLICATION_COLUMNS = 'id, grant_id, grant_name, stage, submitted_on, expediente, amount_requested, amount_awarded, amount_received, deadline, deadline_label, notes, docs_done, obligations_done, created_at, updated_at'
 
 const CUSTOMER_COLUMNS = 'id, kind, first_name, last_name, email, phone, company, source, instagram, birthday, tags, notes, marketing_consent, consent_at, last_contacted_at, created_at, updated_at'
+
 
 /** Postgres numeric can come back as text: a number, or null. */
 const num = (v: unknown) => (v == null ? null : Number(v))
@@ -418,6 +429,18 @@ export function createSupabaseApi(url: string, key: string): Api {
       return (check(await sb.from('licences').insert(row).select('id').single()) as { id: string }).id
     },
     async deleteLicence(id) { check(await sb.from('licences').delete().eq('id', id)) },
+
+    async expenseClaims() {
+      const rows = check(await sb.from('expense_claims').select('*, document:tax_documents(name, link)')
+        .order('spent_on', { ascending: false }).order('created_at', { ascending: false })) as ExpenseClaim[]
+      return rows.map(c => ({ ...c, amount: Number(c.amount), km: num(c.km), rate_per_km: num(c.rate_per_km) }))
+    },
+    async saveClaim({ id, ...c }) {
+      const { document: _doc, ...row } = c as typeof c & { document?: unknown }
+      if (id) { check(await sb.from('expense_claims').update(row).eq('id', id)); return id }
+      return (check(await sb.from('expense_claims').insert(row).select('id').single()) as { id: string }).id
+    },
+    async deleteClaim(id) { check(await sb.from('expense_claims').delete().eq('id', id)) },
     async legalDocuments() {
       const rows = check(await sb.from('legal_documents').select('*').order('title')) as LegalDocument[]
       return rows.map(d => ({ ...d, size: d.size === null ? null : Number(d.size) }))
@@ -551,6 +574,32 @@ export function createSupabaseApi(url: string, key: string): Api {
     // One call, so a recipe is never left half saved.
     async saveRecipe(r) { return check(await sb.rpc('save_recipe', { p: r })) as string },
     async deleteRecipe(id) { check(await sb.from('recipes').delete().eq('id', id)) },
+    async menuAllergens() {
+      const { data, error } = await sb.rpc('menu_allergens')
+      if (error) throw new Error(error.message)
+      // Null for anyone who isn't on the team.
+      return (data as MenuAllergens | null) ?? { dishes: [], items: [] }
+    },
+    async saveItemAllergens(itemId, allergens, mayContain) {
+      check(await sb.from('stock_items').update({ allergens, may_contain: mayContain }).eq('id', itemId))
+    },
+    async safetyPoints() {
+      return (check(await sb.from('food_safety_points').select('*').order('sort').order('name')) as SafetyPoint[])
+        .map(p => ({ ...p, min_temp: num(p.min_temp), max_temp: num(p.max_temp) }))
+    },
+    async saveSafetyPoint({ id, ...p }) {
+      if (id) { check(await sb.from('food_safety_points').update(p).eq('id', id)); return id }
+      return (check(await sb.from('food_safety_points').insert(p).select('id').single()) as { id: string }).id
+    },
+    async deleteSafetyPoint(id) { check(await sb.from('food_safety_points').delete().eq('id', id)) },
+    async safetyChecks(from, to) {
+      return (check(await sb.from('food_safety_checks').select('*')
+        .gte('checked_at', zonedIso(from, '00:00')).lt('checked_at', zonedIso(addDays(to, 1), '00:00')).order('checked_at', { ascending: false })) as SafetyCheck[])
+        .map(c => ({ ...c, reading: num(c.reading) }))
+    },
+    async recordSafetyCheck(c) {
+      check(await sb.from('food_safety_checks').insert({ point_id: c.point_id, reading: c.reading ?? null, action: c.action ?? null, note: c.note ?? null }))
+    },
 
     async customers() {
       return check(await sb.from('customers').select(CUSTOMER_COLUMNS).order('created_at', { ascending: false })) as Customer[]
@@ -582,6 +631,80 @@ export function createSupabaseApi(url: string, key: string): Api {
       return rows.length
     },
 
+    async enquiries() {
+      const rows = check(await sb.from('enquiries').select('*, customer:customers(first_name, last_name, company, email, phone, kind)')
+        .order('received_at', { ascending: false })) as Enquiry[]
+      return rows.map(e => ({ ...e, value: num(e.value) }))
+    },
+    async saveEnquiry({ id, ...e }, lead) {
+      const { customer: _c, closed_at: _closed, ...row } = e as typeof e & { customer?: unknown; closed_at?: unknown }
+      if (id) { check(await sb.from('enquiries').update(row).eq('id', id)); return id }
+      // Someone new: added to Customers as a lead, from where the enquiry came in.
+      const customerId = lead
+        ? (check(await sb.from('customers').insert({ ...lead, kind: 'lead', source: SOURCE_FOR[row.channel ?? 'other'] }).select('id').single()) as { id: string }).id
+        : row.customer_id
+      return (check(await sb.from('enquiries').insert({ ...row, customer_id: customerId }).select('id').single()) as { id: string }).id
+    },
+    async deleteEnquiry(id) { check(await sb.from('enquiries').delete().eq('id', id)) },
+    async quotes() {
+      const rows = check(await sb.from('quotes').select('*, customer:customers(first_name, last_name, company, email, phone)')
+        .order('number', { ascending: false })) as Quote[]
+      return rows.map(q => ({ ...q, discount_pct: Number(q.discount_pct), net: Number(q.net), vat: Number(q.vat), total: Number(q.total) }))
+    },
+    async saveQuote({ id, ...q }) {
+      // The number and the totals are the database's.
+      const { customer: _c, number: _n, net: _net, vat: _vat, total: _t, created_at: _at, ...row } = q as typeof q & Partial<Quote>
+      if (id) { check(await sb.from('quotes').update(row).eq('id', id)); return id }
+      return (check(await sb.from('quotes').insert(row).select('id').single()) as { id: string }).id
+    },
+    async deleteQuote(id) { check(await sb.from('quotes').delete().eq('id', id)) },
+    async invoiceQuote(id) {
+      const q = check(await sb.from('quotes').select('number, title, status, net, vat, total, invoice_id, customer:customers(first_name, last_name, company, email, phone)')
+        .eq('id', id).single()) as Pick<Quote, 'number' | 'title' | 'status' | 'net' | 'vat' | 'total' | 'invoice_id' | 'customer'>
+      if (q.status !== 'accepted') throw new Error('Only an accepted quote goes to Invoices')
+      if (q.invoice_id) throw new Error('This quote is already on Invoices')
+      const invoice = check(await sb.from('invoices').insert({ direction: 'out', party_name: q.customer ? customerName(q.customer) : null,
+        party_email: q.customer?.email ?? null, issued_on: today(), net: q.net, vat: q.vat, total: q.total, status: 'sent',
+        notes: `From quote ${q.number}: ${q.title}` }).select('id').single()) as { id: string }
+      check(await sb.from('quotes').update({ invoice_id: invoice.id }).eq('id', id))
+      return invoice.id
+    },
+    async campaigns() {
+      return check(await sb.from('campaigns').select('*').order('created_at', { ascending: false })) as Campaign[]
+    },
+    async saveCampaign({ id, ...c }) {
+      if (id) { check(await sb.from('campaigns').update(c).eq('id', id)); return id }
+      return (check(await sb.from('campaigns').insert(c).select('id').single()) as { id: string }).id
+    },
+    async deleteCampaign(id) { check(await sb.from('campaigns').delete().eq('id', id)) },
+    async jobOpenings() {
+      return (check(await sb.from('job_openings').select('*').order('opened_on', { ascending: false })) as JobOpening[])
+        .map(o => ({ ...o, hours_per_week: num(o.hours_per_week) }))
+    },
+    async saveOpening({ id, ...o }) {
+      const { created_at: _at, ...row } = o as typeof o & { created_at?: string }
+      if (id) { check(await sb.from('job_openings').update(row).eq('id', id)); return id }
+      return (check(await sb.from('job_openings').insert(row).select('id').single()) as { id: string }).id
+    },
+    async deleteOpening(id) { check(await sb.from('job_openings').delete().eq('id', id)) },
+    async applicants() {
+      return check(await sb.from('applicants').select('*').order('applied_on', { ascending: false })) as Applicant[]
+    },
+    async saveApplicant({ id, ...a }) {
+      // When their details go is the database's (a year from applying).
+      const { keep_until: _k, ...row } = a
+      if (id) { check(await sb.from('applicants').update(row).eq('id', id)); return id }
+      return (check(await sb.from('applicants').insert(row).select('id').single()) as { id: string }).id
+    },
+    async deleteApplicant(id) { check(await sb.from('applicants').delete().eq('id', id)) },
+    async tipPools() {
+      return (check(await sb.from('tip_pools').select('*, shares:tip_shares(profile_id, minutes, amount)').order('starts_on', { ascending: false })) as TipPool[])
+        .map(p => ({ ...p, cash: Number(p.cash), card: Number(p.card), shares: p.shares.map(s => ({ ...s, amount: Number(s.amount) })) }))
+    },
+    async saveTipPool(pool, shares) {
+      return check(await sb.rpc('save_tip_pool', { p_pool: pool, p_shares: shares })) as string
+    },
+    async deleteTipPool(id) { check(await sb.from('tip_pools').delete().eq('id', id)) },
     async todos() {
       const [categories, todos] = await Promise.all([
         sb.from('todo_categories').select('id, name, hint, colour, sort').order('sort').order('name'),
