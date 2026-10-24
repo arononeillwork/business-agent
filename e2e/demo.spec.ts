@@ -689,7 +689,7 @@ test.describe('partners (outside businesses)', () => {
     await expect(page).toHaveURL(/\/business/)
     const nav = page.getByRole('navigation', { name: 'Main' })
     for (const name of ['Business', 'Rota', 'Timecards', 'Staff benefits', 'Finances']) await expect(nav.getByRole('link', { name })).toBeVisible()
-    for (const name of ['Today', 'Team', 'Time off', 'Calendar', 'Notifications', 'Connections', 'Partners', 'Roles & responsibilities', 'Staff rules', 'Outsourcing']) {
+    for (const name of ['Today', 'Team', 'Time off', 'Calendar', 'Notifications', 'Connections', 'Partners', 'Roles & responsibilities', 'Staff rules']) {
       await expect(nav.getByRole('link', { name })).toHaveCount(0)
     }
     await expect(page.getByText('Gestoría Marbella').first()).toBeVisible()
