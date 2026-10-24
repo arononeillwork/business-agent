@@ -585,14 +585,15 @@ export function createSupabaseApi(url: string, key: string): Api {
     async todos() {
       const [categories, todos] = await Promise.all([
         sb.from('todo_categories').select('id, name, hint, colour, sort').order('sort').order('name'),
-        sb.from('todos').select('id, title, category_id, section, assignee_id, done, done_at, starred, pinned, position, created_at')
+        sb.from('todos').select('id, title, category_id, section, assignee_id, done, status, done_at, starred, pinned, position, created_at')
           .order('position').order('created_at'),
       ])
       return { categories: check(categories) as TodoCategory[], todos: check(todos) as Todo[] }
     },
     async addTodo(t) {
-      return check(await sb.from('todos').insert({ title: t.title.trim(), category_id: t.category_id, position: t.position })
-        .select('id, title, category_id, section, assignee_id, done, done_at, starred, pinned, position, created_at').single()) as Todo
+      return check(await sb.from('todos').insert({ title: t.title.trim(), category_id: t.category_id, position: t.position,
+        ...(t.assignee_id ? { assignee_id: t.assignee_id } : {}), ...(t.status ? { status: t.status } : {}) })
+        .select('id, title, category_id, section, assignee_id, done, status, done_at, starred, pinned, position, created_at').single()) as Todo
     },
     async updateTodo(id, patch) { check(await sb.from('todos').update(patch).eq('id', id)) },
     async deleteTodo(id) { check(await sb.from('todos').delete().eq('id', id)) },

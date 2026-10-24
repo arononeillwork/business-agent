@@ -63,6 +63,9 @@ built-in **AI connector** so owners can run it by talking to Claude.
   and AGEDI/AIE for the music, the terrace permit, insurance, extinguisher and electrical checks, staff
   food handler certificates), each with its number, when it runs out, how often it renews, its cost
   and its document; one press marks it renewed, and admins are reminded in the bell beforehand.
+- To Do List (Business section): the team's jobs by category, or as a kanban board (To do, Doing, Done)
+  with jobs dragged across or moved from their menu. The board shows everyone's jobs, one person's (the
+  owner's or an employee's) or nobody's yet, and each of those views keeps its own category filters.
 - Legal (Business section): the business's legal documents (lease, company deeds, insurance, contracts,
   licences, policies) picked where they already are in the connected Google Drive or OneDrive (both can
   be connected; the admin chooses which), grouped by kind, shown in the page straight from the storage

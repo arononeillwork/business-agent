@@ -2293,6 +2293,85 @@ test('every page in the menu shows its title, whatever buttons its header has', 
   }
 })
 
+test.describe('To Do board', () => {
+  test('To do, Doing and Done: a job moves by dragging or from its menu, and the list shows where it is', async ({ page }) => {
+    await open(page, '/todo')
+    await page.getByRole('button', { name: 'Board' }).click()
+    const column = (name: string) => page.getByRole('main').getByRole('region', { name, exact: true })
+    await expect(column('To do').getByRole('article')).toHaveCount(10)
+    await expect(column('Doing')).toContainText('Set up the card reader on the terrace')
+    await expect(column('Done')).toContainText('Clean the outside terrace')
+
+    // From its menu: into Doing, then Done (which is the list's tick).
+    const ac = 'Get the AC serviced before summer'
+    await column('To do').getByRole('button', { name: `More for ${ac}` }).click()
+    await page.getByRole('menuitem', { name: 'Move to Doing' }).click()
+    await expect(column('Doing').getByRole('article', { name: ac })).toBeVisible()
+    const showAs = page.getByRole('group', { name: 'Show as' })
+    await showAs.getByRole('button', { name: 'List' }).click()
+    await expect(page.getByTestId('todo-row').filter({ hasText: ac })).toContainText('Doing')
+    await showAs.getByRole('button', { name: 'Board' }).click()
+    await column('Doing').getByRole('button', { name: `More for ${ac}` }).click()
+    await page.getByRole('menuitem', { name: 'Move to Done' }).click()
+    await expect(column('Done').getByRole('article', { name: ac })).toBeVisible()
+    await expect(page.getByRole('list', { name: 'At a glance' })).toContainText('2done')
+
+    // Dragged across: a To do card dropped on Doing.
+    await column('To do').scrollIntoViewIfNeeded()
+    const card = column('To do').getByRole('article', { name: 'Buy bowls and plates' })
+    const from = (await card.boundingBox())!
+    const to = (await column('Doing').boundingBox())!
+    await page.mouse.move(from.x + 40, from.y + 15)
+    await page.mouse.down()
+    await page.mouse.move(from.x + 60, from.y + 30, { steps: 5 })
+    await page.mouse.move(to.x + to.width / 2, to.y + to.height - 20, { steps: 15 })
+    await page.mouse.up()
+    await expect(column('Doing').getByRole('article', { name: 'Buy bowls and plates' })).toBeVisible()
+    await expect(column('To do').getByRole('article')).toHaveCount(8)
+  })
+
+  test('a board for each person (owner or employee), each with its own filters; a job added there is theirs', async ({ page }) => {
+    await open(page, '/todo')
+    await page.getByRole('button', { name: 'Board' }).click()
+    const whose = page.getByRole('tablist', { name: 'Whose jobs' })
+    await expect(whose.getByRole('tab', { name: 'Everyone' })).toHaveAttribute('aria-selected', 'true') // the owner starts with everyone's
+    const column = (name: string) => page.getByRole('main').getByRole('region', { name, exact: true })
+
+    // Everyone's board, filtered to Buying.
+    await page.getByRole('group', { name: 'Filter Everyone by category' }).getByRole('button', { name: /^Buying/ }).click()
+    await expect(column('To do').getByRole('article')).toHaveCount(3)
+    await expect(column('To do')).toContainText('Rubbish bin for outside')
+    await expect(column('Doing').getByRole('article')).toHaveCount(0)
+
+    // Julio's board has its own filters (none yet), and only his jobs.
+    await whose.getByRole('tab', { name: 'Julio' }).click()
+    await expect(column('Doing').getByRole('article')).toHaveCount(1)
+    await expect(column('Doing')).toContainText('Write the closing checklist')
+    await expect(page.getByRole('group', { name: 'Filter Julio by category' }).getByRole('button', { name: /^All/ })).toHaveAttribute('aria-pressed', 'true')
+    await page.getByRole('textbox', { name: 'New job' }).fill('Restock the napkins')
+    await page.getByRole('button', { name: 'Add', exact: true }).click()
+    const napkins = column('To do').getByRole('article', { name: 'Restock the napkins' })
+    await expect(napkins.getByRole('button', { name: 'Assigned to Julio' })).toBeVisible()
+
+    // Back on everyone's board, Buying is still the filter.
+    await whose.getByRole('tab', { name: 'Everyone' }).click()
+    await expect(page.getByRole('group', { name: 'Filter Everyone by category' }).getByRole('button', { name: /^Buying/ })).toHaveAttribute('aria-pressed', 'true')
+    await expect(column('To do')).not.toContainText('Restock the napkins')
+
+    // Jobs nobody has yet.
+    await whose.getByRole('tab', { name: 'Nobody yet' }).click()
+    await expect(column('To do')).toContainText('Menu board for the counter')
+    await expect(column('To do')).not.toContainText('Get the AC serviced before summer')
+  })
+
+  test('an employee’s board starts on their own jobs', async ({ page }) => {
+    await open(page, '/todo', 'julio@example.com')
+    await page.getByRole('button', { name: 'Board' }).click()
+    await expect(page.getByRole('tablist', { name: 'Whose jobs' }).getByRole('tab', { name: 'Mine' })).toHaveAttribute('aria-selected', 'true')
+    await expect(page.getByRole('main').getByRole('region', { name: 'Doing', exact: true })).toContainText('Write the closing checklist')
+  })
+})
+
 test.describe('To Do List', () => {
   test('groups jobs by category, with no priority headings', async ({ page }) => {
     await open(page, '/todo')
