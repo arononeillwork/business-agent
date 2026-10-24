@@ -107,7 +107,7 @@ test.describe('employee permissions', () => {
     // Business info is readable by everyone, but only admins can edit it or see admin notes.
     await page.getByRole('link', { name: 'Business' }).first().click()
     await expect(page.getByRole('heading', { name: 'Easy Beans Coffee' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Edit' })).toHaveCount(0)
+    await expect(page.getByRole('main').getByRole('button', { name: 'Edit' })).toHaveCount(0)
     await expect(page.getByText('Admin-only notes')).toHaveCount(0)
 
     await page.getByRole('link', { name: 'Rota' }).first().click()
@@ -693,7 +693,8 @@ test.describe('partners (outside businesses)', () => {
       await expect(nav.getByRole('link', { name })).toHaveCount(0)
     }
     await expect(page.getByText('Gestoría Marbella').first()).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Edit' })).toHaveCount(0)
+    // In the page: the menu's own buttons name its pages ("Reorder Credit & debit").
+    await expect(page.getByRole('main').getByRole('button', { name: 'Edit' })).toHaveCount(0)
 
     // Payroll: everyone's holiday and leave, to read.
     await nav.getByRole('link', { name: 'Staff benefits' }).click()
