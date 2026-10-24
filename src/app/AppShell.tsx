@@ -22,6 +22,8 @@ import AppearanceIcon from '@mui/icons-material/PaletteOutlined'
 import KioskIcon from '@mui/icons-material/TabletMacOutlined'
 import TimeOffIcon from '@mui/icons-material/BeachAccessOutlined'
 import BenefitsIcon from '@mui/icons-material/CardGiftcardOutlined'
+import KittyIcon from '@mui/icons-material/SavingsOutlined'
+import RepsIcon from '@mui/icons-material/RecordVoiceOverOutlined'
 import RolesIcon from '@mui/icons-material/AssignmentIndOutlined'
 import RulesIcon from '@mui/icons-material/RuleOutlined'
 import FinanceIcon from '@mui/icons-material/PaymentsOutlined'
@@ -107,6 +109,7 @@ export const SECTIONS: NavSection[] = [
     { key: 'leads', to: '/leads', label: msg('Leads & enquiries'), short: msg('Leads'), icon: <LeadsIcon />, who: 'admin' },
     { key: 'quotes', to: '/quotes', label: msg('Quotes & estimates'), short: msg('Quotes'), icon: <QuotesIcon />, who: 'admin' },
     { key: 'loyalty', to: '/loyalty', label: msg('Loyalty & gift cards'), short: msg('Loyalty'), icon: <LoyaltyIcon />, who: 'admin', needs: 'square' },
+    { key: 'reps', to: '/sales-reps', label: msg('Reps & rewards'), short: msg('Reps'), icon: <RepsIcon /> },
   ] },
   // What's bought wholesale and sold in the shop, and who from. The team counts; admins price and order.
   { key: 'stock', label: msg('Stock'), items: [
@@ -143,8 +146,9 @@ export const SECTIONS: NavSection[] = [
     { key: 'rota', to: '/rota', label: msg('Rota'), icon: <RotaIcon />, partner: ['rota', 'payroll'] },
     { key: 'timeoff', to: '/time-off', label: msg('Time off'), icon: <TimeOffIcon /> },
     { key: 'benefits', to: '/benefits', label: msg('Staff benefits'), short: msg('Benefits'), icon: <BenefitsIcon />, partner: ['payroll'] },
+    { key: 'kitty', to: '/kitty', label: msg('Staff kitty'), short: msg('Kitty'), icon: <KittyIcon /> },
     { key: 'timecards', to: '/timecards', label: msg('Timecards'), short: msg('Hours'), icon: <TimecardIcon />, partner: ['payroll'] },
-    { key: 'tips', to: '/tips', label: msg('Tips'), icon: <TipsIcon />, partner: ['payroll'] },
+    ...(FEATURES.tips ? [{ key: 'tips', to: '/tips', label: msg('Tips'), icon: <TipsIcon />, partner: ['payroll'] as PartnerArea[] }] : []),
     { key: 'hiring', to: '/hiring', label: msg('Hiring'), icon: <HiringIcon />, who: 'admin' },
     { key: 'team', to: '/team', label: msg('Team'), icon: <TeamIcon /> },
     { key: 'roles', to: '/roles', label: msg('Roles & responsibilities'), short: msg('Roles'), icon: <RolesIcon /> },

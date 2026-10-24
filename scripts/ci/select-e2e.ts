@@ -28,6 +28,8 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'calendar', files: [/CalendarPage/, /CalendarFeed/], tests: String.raw`calendar|event` },
   { name: 'time off', files: [/TimeOffPage/], tests: String.raw`time off|holiday` },
   { name: 'staff benefits', files: [/BenefitsPage/, /shared\/benefits/], tests: String.raw`staff benefits|allocation` },
+  { name: 'staff kitty', files: [/KittyPage/, /KittyJar/, /shared\/kitty/, /monthProfit/], tests: String.raw`staff kitty` },
+  { name: 'sales reps', files: [/(SalesReps|RepCards)Page/, /shared\/reps/], tests: String.raw`sales reps` },
   { name: 'roles and rules', files: [/(Roles|StaffRules)Page/, /components\/Expandable/, /shared\/(roles|staffRules)/], tests: String.raw`roles and rules|menu|pages can be dragged` },
   { name: 'business', files: [/(Business|Brand|OpeningHours)Page/, /shared\/(taxId|brand)/], tests: String.raw`business|brand|opening hours|currency|colour|logo` },
   { name: 'team', files: [/TeamPage/, /TempPassword/, /ContactMethod/, /ShareDialog/], tests: String.raw`team|invite|contact|account` },

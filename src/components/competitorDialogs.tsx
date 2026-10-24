@@ -12,7 +12,7 @@ import { useApp } from '../app/AppContext'
 import { useAction } from '../app/Notify'
 import { Empty } from './common'
 import {
-  BASKET, IDEA_STATUSES, KINDS, NOTE_KINDS, PRICE_SOURCES, THREATS, cleanInstagram, matchRecipe, priceHistory, priceKey, priceLevelLabel,
+  BASKET, IDEA_STATUSES, KINDS, NOTE_KINDS, PRICE_SOURCES, THREATS, instagramHandle, matchRecipe, priceHistory, priceKey, priceLevelLabel,
   type Competitor, type CompetitorData, type CompetitorInput, type CompetitorNoteInput, type NearbyPlace, type PriceSource,
 } from '../../shared/localCompetitors'
 import { DAY_KEYS, type DayKey, type OpeningHours } from '../../shared/types'
@@ -133,7 +133,7 @@ export function CompetitorDialog({ competitor, google, onClose }: { competitor: 
     const { google_hours: _gh, google_features: _gf, google_rating: _gr, google_count: _gc, google_status: _gs, google_checked_at: _gk, created_at: _ca, is_self: _s, ...row } = c
     const ok = await run(async () => {
       if (!row.name?.trim()) throw new Error(t('Give it a name'))
-      const instagram = cleanInstagram(row.instagram)
+      const instagram = instagramHandle(row.instagram)
       if (instagram === undefined) throw new Error(t('An Instagram handle has letters, numbers, dots and underscores only'))
       const site = row.website?.trim()
       const website = !site ? null : /^https?:\/\//i.test(site) ? site : `https://${site}`

@@ -7,6 +7,7 @@ import { createSupabaseApi } from '../data/supabaseApi'
 import type { BreakType, Business, PartnerArea, PayRate, Position, Profile, Settings } from '../../shared/types'
 import { setCurrency, setNumberFormat, setOwnTimeZone } from '../../shared/time'
 import { LoadError, StartError } from '../pages/StatusPages'
+import { refreshAll } from './query'
 
 export interface AppData {
   api: Api
@@ -107,7 +108,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return api.onAuthChange(id => { if (id !== loaded.current) client.resetQueries() })
   }, [api, client])
 
-  const refresh = useCallback(async () => { await client.invalidateQueries() }, [client])
+  const refresh = useCallback(() => refreshAll(client), [client])
   const state = shared.data ?? EMPTY
 
   const value = useMemo<AppData | null>(() => {

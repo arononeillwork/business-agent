@@ -304,7 +304,7 @@ export function kindFromGoogle(type: string | null | undefined): CompetitorKind 
 }
 
 /** The Instagram handle from "@handle" or the profile's address, as the database keeps it; null for none, undefined when it can't be one. */
-export function cleanInstagram(s: string | null | undefined): string | null | undefined {
+export function instagramHandle(s: string | null | undefined): string | null | undefined {
   const h = (s ?? '').trim().replace(/^(https?:\/\/)?(www\.)?instagram\.com\//i, '').replace(/[@/]|\?.*$/g, '')
   if (!h) return null
   return /^[A-Za-z0-9._]{1,60}$/.test(h) ? h : undefined

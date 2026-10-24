@@ -1,4 +1,4 @@
-import { QueryClient } from '@tanstack/react-query'
+import { QueryClient, type Query } from '@tanstack/react-query'
 
 // One cache for the whole app. Reads retry with backoff and refresh in the background when the
 // window regains focus or the connection comes back, so a café tablet on flaky wifi recovers
@@ -15,3 +15,15 @@ export const queryClient = new QueryClient({
     mutations: { retry: false },
   },
 })
+
+// The menu badge's inboxes (src/app/unread.ts, shared with the Messages page) ask Instagram, Facebook
+// and WhatsApp through the Worker, and one of them can take ten seconds. They are refreshed with
+// everything else, but a save doesn't wait for them before it says it's done.
+const OUTSIDE_INBOXES = new Set(['instagram-inbox', 'messenger-inbox', 'whatsapp-inbox'])
+const outside = (q: Query) => OUTSIDE_INBOXES.has(String(q.queryKey[0]))
+
+/** After a save: every read is refreshed; resolves once the app's own data (not the inboxes) is back. */
+export async function refreshAll(client: QueryClient) {
+  void client.invalidateQueries({ predicate: outside })
+  await client.invalidateQueries({ predicate: q => !outside(q) })
+}
