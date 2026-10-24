@@ -48,6 +48,17 @@ built-in **AI connector** so owners can run it by talking to Claude.
   extras, give someone their own holiday for a year (their share when they start part-way, which Time off
   then holds requests to) and record leave for them. Everyone sees their own allocation (holiday taken,
   booked and left, sick days and other leave); admins and a payroll gestoría see the whole team.
+- Roles & responsibilities (Team section): who does what. Each role (owner, shift lead, barista, kitchen,
+  cleaner…) opens to what it's for, who it answers to, who's in it, the rota position it's worked as, and its
+  duties by when they're done (all the time, opening, during service, closing, every week). Everyone reads it,
+  with their own roles open and marked; admins add a café's usual roles in one press (in the language they use
+  the app in), change them, put them in order, and see who has no role yet.
+- Staff rules (Team section): the house rules, in sections that open (being on time and clocking in, uniform
+  and hygiene, food safety and allergens, phones, breaks, customers, the till, health and safety, respect).
+  Each employee confirms they've read them and is asked again when a section is added or changed (what's new
+  is open and marked; moving a section asks nobody); admins see who has read them since the last change.
+  Starts from the usual rules for a café in Spain (free tap water, the hoja de quejas y reclamaciones, the
+  14 allergens), to change to how the business works.
 - Licences & renewals (Business section): everything the business keeps open (licencia de apertura, SGAE
   and AGEDI/AIE for the music, the terrace permit, insurance, extinguisher and electrical checks, staff
   food handler certificates), each with its number, when it runs out, how often it renews, its cost

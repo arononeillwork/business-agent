@@ -30,6 +30,8 @@ const AccountPage = page(() => import('./pages/AccountPage'), 'AccountPage')
 const KioskPage = page(() => import('./pages/KioskPage'), 'KioskPage')
 const TimeOffPage = page(() => import('./pages/TimeOffPage'), 'TimeOffPage')
 const BenefitsPage = page(() => import('./pages/BenefitsPage'), 'BenefitsPage')
+const RolesPage = page(() => import('./pages/RolesPage'), 'RolesPage')
+const StaffRulesPage = page(() => import('./pages/StaffRulesPage'), 'StaffRulesPage')
 const FinancesPage = page(() => import('./pages/FinancesPage'), 'FinancesPage')
 const GrantsPage = page(() => import('./pages/GrantsPage'), 'GrantsPage')
 const SalesPage = page(() => import('./pages/SalesPage'), 'SalesPage')
@@ -131,6 +133,8 @@ function Routed() {
         <Route path="calendar" element={<CalendarPage />} />
         <Route path="time-off" element={<TimeOffPage />} />
         <Route path="benefits" element={<BenefitsPage />} />
+        <Route path="roles" element={<RolesPage />} />
+        <Route path="rules" element={<StaffRulesPage />} />
         <Route path="sports" element={<PlanGate feature="sports"><SportsPage /></PlanGate>} />
         <Route path="music" element={<PlanGate feature="music"><MusicPage /></PlanGate>} />
         <Route path="team" element={<TeamPage />} />

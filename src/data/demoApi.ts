@@ -25,6 +25,9 @@ import type { Licence } from '../../shared/licences'
 import { inStep } from '../../shared/todo'
 import { LEGAL_STORAGES, MAX_PICK, SKIPPED, guessKind, previewOf, storageName, titleOf, type LegalDocument, type LegalStorage, type StorageItem } from '../../shared/legalDocs'
 import type { Benefit, LeaveAllowance } from '../../shared/benefits'
+import { roleProblem, type JobRole } from '../../shared/roles'
+import { sectionProblem, type RuleSection, type RulesRead } from '../../shared/staffRules'
+import { EASY_BEANS_ROLES, EASY_BEANS_RULES, handbookDuties } from './easyBeansHandbook'
 import { DEFAULT_TAX_SETTINGS, cleanFolderName, cleanFolderPath, taxFileProblem, type FilingRecord, type TaxDocument, type TaxSettings } from '../../shared/tax'
 import { DEFAULT_VAT_RATE, type PnlLine } from '../../shared/pnl'
 import { cleanAnswers, isDone, type GrantApplication, type GrantProfile } from '../../shared/grants'
@@ -905,6 +908,18 @@ export function createDemoApi(): Api {
   ]
   const holidayAllowance = (profileId: string, year: number) =>
     allowances.find(a => a.profile_id === profileId && a.year === year)?.holiday_days ?? settings.vacation_days_per_year
+  // Roles & responsibilities and Staff rules: Easy Beans' own (easyBeansHandbook.ts). The baristas and
+  // the cleaner are in their roles, the owners haven't picked theirs yet; Maria has read the rules,
+  // Julio read them before Complaints changed, and the cleaner hasn't yet.
+  const rolePeople: Record<string, string[]> = { 'Barista / Bartender': [P.julio, P.maria], Cleaner: [P.cleaner] }
+  const jobRoles: JobRole[] = EASY_BEANS_ROLES.map((r, i) => ({
+    id: uid(), name: r.name, summary: r.summary ?? null, position_id: positions.find(p => p.name === r.position)?.id ?? null,
+    reports_to: null, people: rolePeople[r.name] ?? [], duties: handbookDuties(r), sort: i, updated_at: daysAgo(8),
+  }))
+  const ruleSections: RuleSection[] = EASY_BEANS_RULES.map((r, i) => ({
+    id: uid(), title: r.title, intro: r.intro ?? null, rules: [...r.rules], sort: i, updated_at: daysAgo(r.title === 'Complaints' ? 3 : 10),
+  }))
+  const rulesRead: RulesRead[] = [{ profile_id: P.maria, read_at: daysAgo(2) }, { profile_id: P.julio, read_at: daysAgo(7) }]
   /** That person's shifts in the period become open shifts (approved time off). */
   const openUpShifts = (t: TimeOff) => {
     const name = profiles.find(p => p.id === t.profile_id)?.full_name
@@ -1477,6 +1492,68 @@ export function createDemoApi(): Api {
       if (holiday_days === null) return
       if (!(holiday_days >= 0 && holiday_days <= 366)) throw new Error('Give a number of days from 0 to 366')
       allowances.push({ profile_id, year, holiday_days, note: note?.trim() || null })
+    },
+
+    async jobRoles() { return isStaff() ? clone(jobRoles).sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name)) : [] },
+    async saveJobRole({ id, ...r }) {
+      requireAdmin()
+      const existing = id ? jobRoles.find(x => x.id === id) : undefined
+      if (id && !existing) throw new Error('Role not found')
+      const next: JobRole = { ...(existing ?? { id: uid(), name: '', summary: null, position_id: null, reports_to: null, people: [], duties: [], sort: 0, updated_at: '' }), ...clone(r) }
+      next.name = next.name.trim()
+      next.summary = next.summary?.trim() || null
+      next.duties = next.duties.map(d => ({ when: d.when, text: d.text.trim() })).filter(d => d.text)
+      // As the database: only people on the team can be added; someone who has since left drops out.
+      const onTeam = (id: string) => profiles.some(x => x.id === id && staffOnly(x))
+      if (next.people.some(p => !onTeam(p) && !existing?.people.includes(p))) throw new Error('Only people on the team can be given a role')
+      next.people = [...new Set(next.people)].filter(onTeam)
+      const problem = roleProblem(next)
+      if (problem) throw new Error(problem)
+      if (jobRoles.some(x => x.id !== next.id && x.name.toLowerCase() === next.name.toLowerCase())) {
+        throw new Error('duplicate key value violates unique constraint "job_roles_name_key"')
+      }
+      if (next.reports_to === next.id) throw new Error('A role can’t answer to itself')
+      for (let up = jobRoles.find(x => x.id === next.reports_to), n = 0; up && n < 100; up = jobRoles.find(x => x.id === up!.reports_to), n++) {
+        if (up.reports_to === next.id) throw new Error('A role can’t answer to one that answers to it')
+      }
+      next.updated_at = nowIso()
+      if (existing) Object.assign(existing, next)
+      else jobRoles.push(next)
+    },
+    async deleteJobRole(id) {
+      requireAdmin()
+      const i = jobRoles.findIndex(x => x.id === id)
+      if (i >= 0) jobRoles.splice(i, 1)
+      for (const r of jobRoles) if (r.reports_to === id) r.reports_to = null
+    },
+    async ruleSections() { return isStaff() ? clone(ruleSections).sort((a, b) => a.sort - b.sort || a.title.localeCompare(b.title)) : [] },
+    async saveRuleSection({ id, ...s }) {
+      requireAdmin()
+      const existing = id ? ruleSections.find(x => x.id === id) : undefined
+      if (id && !existing) throw new Error('Section not found')
+      const next: RuleSection = { ...(existing ?? { id: uid(), title: '', intro: null, rules: [], sort: 0, updated_at: '' }), ...clone(s) }
+      next.title = next.title.trim()
+      next.intro = next.intro?.trim() || null
+      next.rules = next.rules.map(x => x.trim()).filter(Boolean)
+      const problem = sectionProblem(next)
+      if (problem) throw new Error(problem)
+      // Only a change to what it says asks everyone to read the rules again (as the database does).
+      const changed = !existing || existing.title !== next.title || existing.intro !== next.intro || JSON.stringify(existing.rules) !== JSON.stringify(next.rules)
+      if (changed) next.updated_at = nowIso()
+      if (existing) Object.assign(existing, next)
+      else ruleSections.push(next)
+    },
+    async deleteRuleSection(id) {
+      requireAdmin()
+      const i = ruleSections.findIndex(x => x.id === id)
+      if (i >= 0) ruleSections.splice(i, 1)
+    },
+    async rulesRead() { return clone(rulesRead.filter(r => isAdmin() || r.profile_id === currentUser)) },
+    async readRules() {
+      if (!isStaff()) throw new Error('Not allowed')
+      const mine = rulesRead.find(r => r.profile_id === currentUser)
+      if (mine) mine.read_at = nowIso()
+      else rulesRead.push({ profile_id: currentUser!, read_at: nowIso() })
     },
 
     async planStatus() {

@@ -8,6 +8,8 @@ import { addDays, localDate, localTime, today, weekStart, zonedIso, formatLocal 
 import { TIME_OFF_KINDS, type Business, type CalendarEvent, type Customer, type PartnerArea, type PayRate, type Position, type Profile, type Settings, type Shift, type TimeOff, type TimeOffKind } from '../shared/types'
 import { COUNTRY_NAME, ENTITLEMENTS, LAW_CHECKED, PAYER_LABEL, leaveYear, type Benefit, type LeaveAllowance } from '../shared/benefits'
 import { businessConfig } from '../shared/business.config'
+import { dutiesByWhen, sortRoles, type JobRole } from '../shared/roles'
+import { readState, rulesChangedAt, sortSections, type RuleSection, type RulesRead } from '../shared/staffRules'
 import { cleanPhone, matchesSearch } from '../shared/customers'
 import { cleanWebsite } from '../shared/connections'
 
@@ -517,6 +519,41 @@ export const TOOLS: ToolDef[] = [
           return { person: p.full_name, holiday_allowance: holidays, allowance_note: allowance?.note ?? null, holiday_taken: used.holidayTaken,
             holiday_booked: used.holidayBooked, holiday_left: holidays - used.holidayTaken - used.holidayBooked, other_leave_days: used.days }
         }),
+      }
+    },
+  }),
+  tool({
+    name: 'roles_and_rules',
+    title: 'Roles & responsibilities and staff rules',
+    description: "Who does what in the business: each role (head barista, shop manager, chef…), what it's for, who it answers to, who's in it, its rota position and its duties, grouped as core responsibilities, also part of the role, or done at a set time (opening, during service, closing, every week). Then the staff rules (the house rules) in sections, when they last changed, and whether the person asking has confirmed reading them since; admins also get which employees have and haven't.",
+    readOnly: true,
+    input: z.object({}),
+    async run({ sb, me }) {
+      const [roles, sections, read, people, places] = await Promise.all([
+        sb.from('job_roles').select('id, name, summary, position_id, reports_to, people, duties, sort, updated_at').then(rowsAs<JobRole[]>()),
+        sb.from('staff_rules').select('id, title, intro, rules, sort, updated_at').then(rowsAs<RuleSection[]>()),
+        sb.from('staff_rules_read').select('profile_id, read_at').then(rowsAs<RulesRead[]>()),
+        team(sb),
+        positions(sb),
+      ])
+      const name = (id: string) => people.find(p => p.id === id)?.full_name ?? null
+      const changed = rulesChangedAt(sections)
+      const mine = read.find(r => r.profile_id === me.id)
+      return {
+        roles: sortRoles(roles).map(r => ({
+          role: r.name, what_its_for: r.summary, answers_to: roles.find(x => x.id === r.reports_to)?.name ?? null,
+          on_the_rota_as: places.find(p => p.id === r.position_id)?.name ?? null, people: r.people.map(name).filter(Boolean),
+          duties: Object.fromEntries(dutiesByWhen(r.duties).map(g => [g.id, g.duties])),
+        })),
+        rules: sortSections(sections).map(s => ({ section: s.title, intro: s.intro, rules: s.rules, last_changed: s.updated_at })),
+        rules_last_changed: changed,
+        you_confirmed_reading_them: { state: readState(mine, changed), on: mine?.read_at ?? null },
+        ...(me.role === 'admin' ? {
+          employees_reading: people.filter(p => p.active && p.role === 'employee').map(p => {
+            const r = read.find(x => x.profile_id === p.id)
+            return { person: p.full_name, state: readState(r, changed), confirmed_on: r?.read_at ?? null }
+          }),
+        } : {}),
       }
     },
   }),

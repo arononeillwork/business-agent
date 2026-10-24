@@ -10,6 +10,8 @@ import type { InboxInvoice, InboxState as InvoiceInbox, Invoice, InvoiceInput } 
 import type { Licence, LicenceInput } from '../../shared/licences'
 import type { LegalDocument, LegalDocumentPatch, LegalSource, LegalStorage, StorageListing } from '../../shared/legalDocs'
 import type { Benefit, BenefitInput, LeaveAllowance } from '../../shared/benefits'
+import type { JobRole, JobRoleInput } from '../../shared/roles'
+import type { RuleSection, RuleSectionInput, RulesRead } from '../../shared/staffRules'
 import type { PnlLine, PnlLineInput, PnlSettings } from '../../shared/pnl'
 import type { GrantApplication, GrantApplicationInput, GrantProfile } from '../../shared/grants'
 import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
@@ -143,6 +145,20 @@ export interface Api {
   leaveAllowances(year: number): Promise<LeaveAllowance[]>
   /** Admins. No holiday_days: back to the business's allowance. */
   saveLeaveAllowance(a: Omit<LeaveAllowance, 'holiday_days'> & { holiday_days: number | null }): Promise<void>
+
+  // Roles & responsibilities and Staff rules: the team reads them, admins write them.
+  jobRoles(): Promise<JobRole[]>
+  /** Add one (no id) or change one. */
+  saveJobRole(r: JobRoleInput): Promise<void>
+  deleteJobRole(id: string): Promise<void>
+  ruleSections(): Promise<RuleSection[]>
+  /** Add one (no id) or change one. */
+  saveRuleSection(s: RuleSectionInput): Promise<void>
+  deleteRuleSection(id: string): Promise<void>
+  /** When people last confirmed they'd read the rules: admins see everyone's, others their own. */
+  rulesRead(): Promise<RulesRead[]>
+  /** "I've read the rules", for the person signed in. */
+  readRules(): Promise<void>
 
   // Business Agent subscription (Stripe Billing). planStatus: everyone; the rest: admins.
   planStatus(): Promise<PlanStatus>

@@ -22,6 +22,8 @@ import AppearanceIcon from '@mui/icons-material/PaletteOutlined'
 import KioskIcon from '@mui/icons-material/TabletMacOutlined'
 import TimeOffIcon from '@mui/icons-material/BeachAccessOutlined'
 import BenefitsIcon from '@mui/icons-material/CardGiftcardOutlined'
+import RolesIcon from '@mui/icons-material/AssignmentIndOutlined'
+import RulesIcon from '@mui/icons-material/RuleOutlined'
 import FinanceIcon from '@mui/icons-material/PaymentsOutlined'
 import SalesIcon from '@mui/icons-material/InsightsOutlined'
 import TaxIcon from '@mui/icons-material/ReceiptLongOutlined'
@@ -127,6 +129,8 @@ export const SECTIONS: NavSection[] = [
     { key: 'benefits', to: '/benefits', label: msg('Staff benefits'), short: msg('Benefits'), icon: <BenefitsIcon />, partner: ['payroll'] },
     { key: 'timecards', to: '/timecards', label: msg('Timecards'), short: msg('Hours'), icon: <TimecardIcon />, partner: ['payroll'] },
     { key: 'team', to: '/team', label: msg('Team'), icon: <TeamIcon /> },
+    { key: 'roles', to: '/roles', label: msg('Roles & responsibilities'), short: msg('Roles'), icon: <RolesIcon /> },
+    { key: 'rules', to: '/rules', label: msg('Staff rules'), short: msg('Rules'), icon: <RulesIcon /> },
   ] },
   { key: 'admin', label: msg('Settings'), items: [
     { key: 'connections', to: '/connections', label: msg('Connections'), icon: <ConnectIcon />, who: 'admin' },
