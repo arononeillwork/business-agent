@@ -169,11 +169,11 @@ end. Run it against the dev project, not production. First-time Playwright setup
 `npx playwright install chromium`.
 
 In CI the browser tests run on 3 machines at once (Playwright shards, in Playwright's own image).
-Branch pushes and pull requests run only the browser tests for the areas a change touches, plus the
+Branch pushes (and pull requests from forks) run only the browser tests for the areas a change touches, plus the
 core ones that always run (sign-in, landing page, permissions, privacy, café tablet PIN, partners):
 see `scripts/ci/select-e2e.ts`, where each area lists its files and test titles. Shared code (app
 shell, data layer, theme, config, the tests themselves) or an unknown file runs everything, and
-deploys always run everything.
+deploys and the merge queue always run everything.
 
 Uptime: `.github/workflows/ci.yml` runs all of the above on every push;
 `.github/workflows/monitor.yml` smoke-tests the live site every 15 minutes (`e2e/smoke.spec.ts`:
@@ -185,8 +185,22 @@ A single-file clickable demo (sample data, no backend) builds with
 
 ## Deploy (Cloudflare)
 
-Automatic: `.github/workflows/deploy.yml` runs every test, then deploys on each push to `main`
-(or the working branch). It sets the Worker's secrets (service key from Supabase, a generated
+Changes reach `main` through pull requests and the **merge queue** (`.github/workflows/merge-queue.yml`,
+rules for sessions in `CLAUDE.md`).
+
+1. Open a pull request into `main` once the branch's own CI is green (not a draft; label it
+   `queue:hold` to keep it out).
+2. The queue merges it with `main` and the other ready ones, settles the conflicts where both sides
+   only added lines, and gives new migrations a free number when theirs is taken.
+3. It runs every test on the result and moves `main` to it.
+
+A pull request it can't settle gets a comment naming the files. The repo secret `QUEUE_TOKEN` (a
+fine-grained token for this repo with Contents and Workflows read and write) lets it
+land pull requests that change workflows too.
+
+Automatic: `.github/workflows/deploy.yml` runs every test (unless the merge queue just did, on the
+same commit), applies new migrations to the live database by name (`scripts/ops/migrate.mjs`), then
+deploys on each push to `main`. It sets the Worker's secrets (service key from Supabase, a generated
 `INTEGRATION_KEY`, and any integration secrets you add), points Supabase sign-in at the live
 URL, and smoke-tests the live site. It needs two repo secrets (Settings → Secrets and variables →
 Actions): `CLOUDFLARE_API_TOKEN` (template "Edit Cloudflare Workers") and `SUPABASE_ACCESS_TOKEN`

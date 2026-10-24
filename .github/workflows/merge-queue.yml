@@ -1,0 +1,100 @@
+name: Merge queue
+# Lands ready pull requests on main by itself, several at a time, so sessions working in parallel
+# never merge by hand or wait on each other. Ready: open, not a draft, from a branch in this repo,
+# its own CI green. The label queue:hold keeps one out. Each round (scripts/ci/merge-queue.ts):
+#  1. main plus every ready pull request, oldest first, merged into one candidate (the merge-queue
+#     branch). Conflicts where both sides only added things (a route, a menu entry, a test) are
+#     settled by keeping both; new migrations whose number is taken get the next free one. One
+#     that still conflicts gets a comment naming the files; a push to its branch brings it back.
+#  2. The whole CI on the candidate, every browser test.
+#  3. Green: main moves to the candidate (the pull requests show as merged, their branches go),
+#     and Deploy runs without testing it all again. Red: with several, each is tried alone next;
+#     alone, it gets a comment with the run.
+# Repo secret QUEUE_TOKEN (optional, recommended): a fine-grained personal access token for this
+# repo with Contents and Workflows read and write, used only to push. With it, pull requests that
+# change a workflow land too, and Deploy starts from the push like any other; without it those
+# wait for a person, and the queue starts Deploy itself.
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, reopened, ready_for_review, synchronize, labeled, unlabeled]
+  # A pull request's own CI finishing is what usually makes it ready.
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+  workflow_dispatch:
+  schedule:
+    - cron: '41 * * * *'
+
+# One round at a time; a round always looks at every pull request, so a newer waiting run
+# replacing an older one loses nothing.
+concurrency:
+  group: merge-queue
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  statuses: write
+  actions: write
+  checks: read
+
+jobs:
+  prepare:
+    # Never on behalf of a fork (pull_request_target runs with this repo's secrets).
+    if: >-
+      (github.event_name != 'pull_request_target' || github.event.pull_request.head.repo.full_name == github.repository)
+      && (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      sha: ${{ steps.queue.outputs.sha }}
+      prs: ${{ steps.queue.outputs.prs }}
+      more: ${{ steps.queue.outputs.more }}
+    steps:
+      # main's copy of the queue, whatever the pull requests change; their code is only merged.
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.QUEUE_TOKEN || github.token }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - id: queue
+        run: node --experimental-strip-types scripts/ci/merge-queue.ts prepare
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HAS_QUEUE_TOKEN: ${{ secrets.QUEUE_TOKEN != '' }}
+
+  test:
+    needs: prepare
+    if: needs.prepare.outputs.sha != ''
+    uses: ./.github/workflows/ci.yml
+    with:
+      full: true
+      ref: ${{ needs.prepare.outputs.sha }}
+
+  finish:
+    needs: [prepare, test]
+    if: ${{ !cancelled() && needs.prepare.outputs.sha != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.QUEUE_TOKEN || github.token }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --experimental-strip-types scripts/ci/merge-queue.ts finish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HAS_QUEUE_TOKEN: ${{ secrets.QUEUE_TOKEN != '' }}
+          RESULT: ${{ needs.test.result }}
+          SHA: ${{ needs.prepare.outputs.sha }}
+          PRS: ${{ needs.prepare.outputs.prs }}
+          MORE: ${{ needs.prepare.outputs.more }}
