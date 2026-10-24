@@ -67,7 +67,15 @@ export class FakeProviders {
     phone: '+34 695 415 335',
   }
   /** Google's public listing (Places API): rating, count and the 5 newest reviews; empty when Google leaves them out. */
-  places = { rating: 4.7, count: 38, reviews: [] as Json[], calls: 0 }
+  places = {
+    rating: 4.7, count: 38, reviews: [] as Json[], calls: 0,
+    /** More of the business's own listing (where it is, for Competitors). */
+    own: {} as Json,
+    /** Other places (Competitors) as Google answers for each, by place id; `nearby`: those around the business, nearest first; `gone`: ids Google no longer finds. */
+    listings: {} as Record<string, Json>, nearby: [] as string[], gone: new Set<string>(),
+    /** Each search asked (nearby or by name): its path, body and field mask. */
+    searches: [] as { path: string; body: Json; fields: string }[],
+  }
   /** PageSpeed Insights: the next answers (a 429 when the free quota is used up). */
   pagespeed = { quotaUsed: false, score: 0.62, calls: [] as { url: string; strategy: string }[] }
   /** Search Console: the websites (properties) the Google account can see, and the queries asked of it. */
@@ -476,8 +484,24 @@ export class FakeProviders {
     }
     if (url.host === 'places.googleapis.com') {
       this.places.calls++
-      if (new Headers(init.headers).get('x-goog-api-key') !== 'places-key') return googleError(403, 'API key not valid. Please pass a valid API key.', 'forbidden')
-      return json({ rating: this.places.rating, userRatingCount: this.places.count, ...(this.places.reviews.length ? { reviews: this.places.reviews } : {}) })
+      const h = new Headers(init.headers)
+      if (h.get('x-goog-api-key') !== 'places-key') return googleError(403, 'API key not valid. Please pass a valid API key.', 'forbidden')
+      if (method === 'POST') {
+        const b = body()
+        this.places.searches.push({ path: url.pathname, body: b, fields: h.get('x-goog-fieldmask') ?? '' })
+        if (url.pathname === '/v1/places:searchNearby') {
+          return json({ places: this.places.nearby.map(id => this.places.listings[id] ?? (id === this.places.own.id ? this.places.own : null)).filter(Boolean) })
+        }
+        if (url.pathname === '/v1/places:searchText') {
+          const words = String(b.textQuery).toLowerCase().split(/\s+/).filter(w => w.length > 2)
+          const name = (p: Json) => String((p.displayName as Json | undefined)?.text ?? '').toLowerCase()
+          return json({ places: Object.values(this.places.listings).filter(p => words.some(w => name(p).includes(w))) })
+        }
+      }
+      const id = decodeURIComponent(url.pathname.replace(/^\/v1\/places\//, ''))
+      if (this.places.gone.has(id)) return googleError(404, 'Not found: places/' + id, 'NOT_FOUND')
+      if (this.places.listings[id]) return json(this.places.listings[id])
+      return json({ rating: this.places.rating, userRatingCount: this.places.count, ...(this.places.reviews.length ? { reviews: this.places.reviews } : {}), ...this.places.own })
     }
     if (url.host === 'www.googleapis.com' && url.pathname === '/pagespeedonline/v5/runPagespeed') {
       this.pagespeed.calls.push({ url: url.searchParams.get('url')!, strategy: url.searchParams.get('strategy')! })

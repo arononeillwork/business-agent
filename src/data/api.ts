@@ -22,6 +22,7 @@ import type { Recipe, RecipeInput } from '../../shared/recipes'
 import type { AdPlatform, AdSettings, AdsReport, CampaignPatch } from '../../shared/ads'
 import type { ReviewsState } from '../../shared/reviews'
 import type { PageSpeed, Strategy, WebsiteReport, WebsiteState } from '../../shared/seo'
+import type { CompetitorData, CompetitorInput, CompetitorNoteInput, CompetitorPrice, CompetitorSettings, NearbyPlace, PriceItem } from '../../shared/localCompetitors'
 
 export type ShiftInput = Omit<Shift, 'id' | 'status'> & { id?: string; status?: Shift['status'] }
 export type EventInput = Omit<CalendarEvent, 'id' | 'source' | 'competition'> & { id?: string; competition?: string | null }
@@ -359,6 +360,30 @@ export interface Api {
   website(): Promise<WebsiteState>
   checkWebsite(): Promise<WebsiteReport>
   pageSpeed(strategy: Strategy): Promise<PageSpeed>
+  // Competitors (admins): the cafés around, what they charge and offer, followed over time (shared/localCompetitors).
+  competitors(): Promise<CompetitorData>
+  /** Add a competitor by hand (no id) or change one, the business's own row included; returns its id. */
+  saveCompetitor(c: CompetitorInput): Promise<string>
+  /** Remove a competitor with its prices, notes and ratings (to keep its history, switch it off instead). */
+  deleteCompetitor(id: string): Promise<void>
+  /** Add a basket item (no id) or change one; returns its id. */
+  savePriceItem(i: Partial<PriceItem> & { name: string }): Promise<string>
+  deletePriceItem(id: string): Promise<void>
+  /** A price seen on a day (each one is kept). */
+  recordPrice(p: Omit<CompetitorPrice, 'id' | 'created_at'>): Promise<void>
+  deletePrice(id: string): Promise<void>
+  saveCompetitorNote(n: CompetitorNoteInput): Promise<string>
+  deleteCompetitorNote(id: string): Promise<void>
+  /** Put a place Google lists nearby aside, or back. */
+  dismissNearby(placeId: string, dismissed: boolean): Promise<void>
+  saveCompetitorSettings(s: Pick<CompetitorSettings, 'radius_m' | 'scan_weekly'>): Promise<void>
+  /** Google's side (the Worker, Places API): is it set up, look around now, find by name, follow a place, read one again. */
+  competitorGoogle(): Promise<{ places: boolean; own_place: boolean }>
+  lookAround(radius: number): Promise<{ found: number; fresh: number }>
+  findPlaces(query: string): Promise<NearbyPlace[]>
+  /** Follow a place from Google (`id`: the competitor added by hand that it is); returns the competitor's id. */
+  followPlace(placeId: string, id?: string): Promise<string>
+  refreshCompetitor(id: string): Promise<void>
   /** Takings per day from Square, Stripe or SumUp (admins with pay access), from and to inclusive. */
   sales(from: string, to: string): Promise<Sales>
   /** Best sellers from Square's orders, same dates and rules as `sales`. */
