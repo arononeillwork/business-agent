@@ -267,6 +267,9 @@ export default {
         await Promise.resolve(db.rpc('auto_fill_timecards')).then(log('auto_fill_timecards'))
         // Licences running out within their reminder days: admins hear about each once (Licences page).
         await Promise.resolve(db.rpc('licence_reminders')).then(log('licence_reminders'))
+        // Enquiries whose follow-up day has come, and campaigns planned for today (Leads & enquiries, Campaigns).
+        await Promise.resolve(db.rpc('enquiry_follow_ups')).then(log('enquiry_follow_ups'))
+        await Promise.resolve(db.rpc('campaign_reminders')).then(log('campaign_reminders'))
         // WhatsApp chats older than Data retention allows, with their photos and voice notes.
         await purgeWhatsApp(db).catch(e => console.error('whatsapp purge failed', e))
         // The subscription, straight from Stripe (in case a webhook was missed).

@@ -6,4 +6,6 @@ export const FEATURES = {
   kiosk: false,
   /** Square as a payment system (next to Stripe): takings on Finances, next to the team's cost. */
   square: true,
+  /** Tips (Team): shares of the tips by hours worked. Waits for its database change (migration 73) on the live database. */
+  tips: false,
 }

@@ -124,6 +124,33 @@ built-in **AI connector** so owners can run it by talking to Claude.
   takes what's thrown away and why off the stock, with its cost for admins. Anything still to be entered
   (a menu price, what goes in, an item's cost) is shaded, and a dish with nothing in it has no margin yet.
   Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) sections 7-18.
+- Leads & enquiries (Sales section): what someone asked for (a party, the terrace, office coffee), where
+  it came in, its value, the day it's for and when to follow it up (a reminder in the bell that day).
+  Each belongs to someone on Customers, added there as a lead when they're new; a won enquiry makes
+  them a customer. **Quotes & estimates** are numbered Q-2026-001 on by the database, line by line with
+  their IVA (21, 10, 4 or 0%) and a discount; one made from an enquiry moves it to Quoted, accepted it
+  wins the enquiry, and an admin with pay access sends it to Invoices as a sales invoice to issue.
+- Expenses & mileage (Accounts section): what someone spent for the business, or drove for it in their
+  own car (kilometres, there and back, times the business's rate: €0.26 a km, what Spain lets it pay
+  back without tax). Everyone sends their own; admins with pay access approve, pay back and add the
+  receipt (Tax › Expenses); a finance gestoría reads. Not the running costs on Finances.
+- Campaigns (Marketing section): one email, text or WhatsApp to the customers and leads who said yes to
+  marketing, picked by type, tag and where they came from, with the count and how it reads for one of
+  them. Planned ones are in the bell on their day. Sending from the app comes with Brevo or Mailchimp
+  (on Connections, coming); until then the audience is exported and the campaign marked sent.
+- Hiring (Team section): the jobs being filled (position, contract, hours, pay, where it's advertised)
+  and who applied, stage by stage; an interview goes on the calendar for admins, and a hire is invited
+  to the team in one step. Applicants not hired are kept a year (GDPR), then flagged to remove.
+  InfoJobs, Indeed and LinkedIn Jobs are on Connections as coming.
+- Tips (Team section): cash and card tips for a period (the till's card tips offered when one is
+  connected) shared out by the hours on the timecards or equally, to the cent; everyone sees their own
+  share once it's shared out and hears in the bell; a payroll gestoría reads.
+- Food safety (Stock section): the APPCC's records. The fridges, freezer and jobs to check today, each
+  recorded by whoever does it at the server's time; a reading out of range needs what was done and
+  tells the admins in the bell. Records are never changed or deleted. **Allergens**: the EU's 14 on
+  each stock item (contains and may contain), so every menu item on Menu costing has its allergens, and
+  a variant what it adds (oat milk: gluten). Anyone serving picks what a customer can't have and sees
+  what suits them; the chart exports for the counter.
 
 See [docs/PLAN.md](docs/PLAN.md) for decisions, architecture and phases.
 
