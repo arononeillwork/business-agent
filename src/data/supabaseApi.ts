@@ -5,6 +5,7 @@ import type { InstagramMention } from '../../shared/mentions'
 import type { FilingRecord, TaxDocument, TaxSettings } from '../../shared/tax'
 import type { Invoice } from '../../shared/invoices'
 import type { Licence } from '../../shared/licences'
+import type { MoneyItem } from '../../shared/creditDebit'
 import type { LegalDocument, LegalSource, StorageListing } from '../../shared/legalDocs'
 import type { Benefit, LeaveAllowance } from '../../shared/benefits'
 import type { JobRole } from '../../shared/roles'
@@ -418,6 +419,21 @@ export function createSupabaseApi(url: string, key: string): Api {
       return (check(await sb.from('licences').insert(row).select('id').single()) as { id: string }).id
     },
     async deleteLicence(id) { check(await sb.from('licences').delete().eq('id', id)) },
+    async creditDebit() {
+      const rows = check(await sb.from('credit_debit_items').select('*, payments:credit_debit_payments(id, item_id, paid_on, amount, note)')
+        .order('next_due', { nullsFirst: false }).order('name')) as MoneyItem[]
+      return rows.map(i => ({ ...i, amount: Number(i.amount), instalment: num(i.instalment),
+        payments: i.payments.map(p => ({ ...p, amount: Number(p.amount) })).sort((a, b) => b.paid_on.localeCompare(a.paid_on)) }))
+    },
+    async saveCreditDebit({ id, ...item }) {
+      const { payments: _payments, ...row } = item as typeof item & { payments?: unknown }
+      if (id) { check(await sb.from('credit_debit_items').update(row).eq('id', id)); return id }
+      return (check(await sb.from('credit_debit_items').insert(row).select('id').single()) as { id: string }).id
+    },
+    async deleteCreditDebit(id) { check(await sb.from('credit_debit_items').delete().eq('id', id)) },
+    // The database moves the item's next date on, and marks it done once it's all paid (credit_debit_payment_made()).
+    async addCreditDebitPayment(p) { check(await sb.from('credit_debit_payments').insert({ ...p, note: p.note?.trim() || null })) },
+    async deleteCreditDebitPayment(id) { check(await sb.from('credit_debit_payments').delete().eq('id', id)) },
     async legalDocuments() {
       const rows = check(await sb.from('legal_documents').select('*').order('title')) as LegalDocument[]
       return rows.map(d => ({ ...d, size: d.size === null ? null : Number(d.size) }))

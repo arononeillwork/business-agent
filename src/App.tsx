@@ -39,6 +39,7 @@ const TaxPage = page(() => import('./pages/TaxPage'), 'TaxPage')
 const LicencesPage = page(() => import('./pages/LicencesPage'), 'LicencesPage')
 const LegalDocumentsPage = page(() => import('./pages/LegalDocumentsPage'), 'LegalDocumentsPage')
 const InvoicesPage = page(() => import('./pages/InvoicesPage'), 'InvoicesPage')
+const CreditDebitPage = page(() => import('./pages/CreditDebitPage'), 'CreditDebitPage')
 const PagesPage = page(() => import('./pages/PagesPage'), 'PagesPage')
 const ProfitLossPage = page(() => import('./pages/ProfitLossPage'), 'ProfitLossPage')
 const AnalyticsPage = page(() => import('./pages/AnalyticsPage'), 'AnalyticsPage')
@@ -109,6 +110,7 @@ function Routed() {
           {partnerCan('finances') && <Route path="licences" element={<LicencesPage />} />}
           {partnerCan('finances') && <Route path="legal" element={<LegalDocumentsPage />} />}
           {partnerCan('finances') && <Route path="invoices" element={<InvoicesPage />} />}
+          {partnerCan('finances') && <Route path="credit-debit" element={<CreditDebitPage />} />}
           {partnerCan('finances') && <Route path="profit-and-loss" element={<ProfitLossPage />} />}
           {partnerCan('finances') && <Route path="grants" element={<GrantsPage />} />}
           {partnerCan('finances') && <Route path="stock" element={<StockPage />} />}
@@ -156,6 +158,7 @@ function Routed() {
         <Route path="licences" element={isAdmin ? <LicencesPage /> : <Navigate to="/" />} />
         <Route path="legal" element={isAdmin ? <LegalDocumentsPage /> : <Navigate to="/" />} />
         <Route path="invoices" element={<InvoicesPage />} />
+        <Route path="credit-debit" element={<CreditDebitPage />} />
         <Route path="profit-and-loss" element={<ProfitLossPage />} />
         <Route path="grants" element={<GrantsPage />} />
         <Route path="sales" element={canSeePay ? <PlanGate feature="takings"><SalesPage /></PlanGate> : <Navigate to="/" />} />

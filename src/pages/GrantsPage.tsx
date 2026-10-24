@@ -11,6 +11,7 @@ import AddIcon from '@mui/icons-material/Add'
 import EditIcon from '@mui/icons-material/EditOutlined'
 import NextIcon from '@mui/icons-material/ArrowForward'
 import { useEffect, useState, type ReactNode } from 'react'
+import { Link as RouterLink, useLocation } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
@@ -25,7 +26,7 @@ import {
   type Question, type Text,
 } from '../../shared/grants'
 import { tokens } from '../theme'
-import { msg, t, tn } from '../i18n'
+import { msg, t, tn, tr } from '../i18n'
 
 const fmtDate = (d: string) => formatLocal(`${d}T12:00:00Z`, 'd MMM yyyy')
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
@@ -72,6 +73,12 @@ export function GrantsPage() {
   const saved = useAsync('grant-profile', () => api.grantProfile(), [])
   const apps = useAsync('grant-applications', () => api.grantApplications(), [])
   const run = useAction()
+  // From Credit & debit (/grants#application-…): go to that application once the list is there.
+  const { hash } = useLocation()
+  const appsLoaded = !!apps.data
+  useEffect(() => {
+    if (appsLoaded && hash.startsWith('#application-')) document.getElementById(hash.slice(1))?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+  }, [appsLoaded, hash])
   // Answers show straight away; each change is saved as it's made.
   const [answers, setAnswers] = useState<Partial<GrantProfile> | null>(null)
   useEffect(() => { if (saved.data && !answers) setAnswers(saved.data) }, [saved.data, answers])
@@ -387,6 +394,12 @@ function Applications({ list, profile, canEdit, loaded, day }: { list: GrantAppl
       <CardContent>
         <SectionTitle action={<ExportButton table={table} disabled={!list.length} folder="Grants" />}>{t('My applications')}</SectionTitle>
         {loaded && !list.length && <Empty>{canEdit ? t('No applications yet. Open a grant above and press Track this grant.') : t('No applications yet.')}</Empty>}
+        {list.length > 0 && (
+          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>
+            {tr('What each one brings in, and what’s still to come, is on {page} too, with the business’s other money owed and owing.', {
+              page: <Link component={RouterLink} to="/credit-debit">{t('Credit & debit')}</Link> })}
+          </Typography>
+        )}
         <Stack spacing={1.5}>
           {ordered.map(a => <ApplicationCard key={a.id} a={a} grant={GRANTS.find(g => g.id === a.grant_id)} entity={profile.entity} canEdit={canEdit} />)}
         </Stack>
@@ -408,7 +421,7 @@ function ApplicationCard({ a, grant, entity, canEdit }: { a: GrantApplication; g
   const moneyRow = [[t('Requested'), a.amount_requested], [t('Awarded'), a.amount_awarded], [t('Received'), a.amount_received]] as const
 
   return (
-    <Card variant="outlined" component="article" aria-label={t(a.grant_name)}>
+    <Card variant="outlined" component="article" aria-label={t(a.grant_name)} id={`application-${a.id}`} sx={{ scrollMarginTop: 80 }}>
       <CardContent>
         <Stack direction={{ xs: 'column', sm: 'row' }} sx={{ gap: 1, justifyContent: 'space-between', alignItems: { sm: 'flex-start' } }}>
           <Box sx={{ minWidth: 0 }}>
