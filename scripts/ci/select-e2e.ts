@@ -30,6 +30,7 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'staff benefits', files: [/BenefitsPage/, /shared\/benefits/], tests: String.raw`staff benefits|allocation` },
   { name: 'staff kitty', files: [/KittyPage/, /KittyJar/, /shared\/kitty/, /monthProfit/], tests: String.raw`staff kitty` },
   { name: 'sales reps', files: [/(SalesReps|RepCards)Page/, /shared\/reps/], tests: String.raw`sales reps` },
+  { name: 'outsourcing', files: [/OutsourcingPage/, /shared\/outsourcing/], tests: String.raw`outsourcing|menu|pages can be dragged` },
   { name: 'roles and rules', files: [/(Roles|StaffRules)Page/, /components\/Expandable/, /shared\/(roles|staffRules)/], tests: String.raw`roles and rules|menu|pages can be dragged` },
   { name: 'business', files: [/(Business|Brand|OpeningHours)Page/, /shared\/(taxId|brand)/], tests: String.raw`business|brand|opening hours|currency|colour|logo` },
   { name: 'team', files: [/TeamPage/, /TempPassword/, /ContactMethod/, /ShareDialog/], tests: String.raw`team|invite|contact|account` },

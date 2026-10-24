@@ -26,6 +26,7 @@ import KittyIcon from '@mui/icons-material/SavingsOutlined'
 import RepsIcon from '@mui/icons-material/RecordVoiceOverOutlined'
 import RolesIcon from '@mui/icons-material/AssignmentIndOutlined'
 import RulesIcon from '@mui/icons-material/RuleOutlined'
+import OutsourcingIcon from '@mui/icons-material/BusinessCenterOutlined'
 import FinanceIcon from '@mui/icons-material/PaymentsOutlined'
 import SalesIcon from '@mui/icons-material/InsightsOutlined'
 import TaxIcon from '@mui/icons-material/ReceiptLongOutlined'
@@ -137,6 +138,7 @@ export const SECTIONS: NavSection[] = [
     { key: 'team', to: '/team', label: msg('Team'), icon: <TeamIcon /> },
     { key: 'roles', to: '/roles', label: msg('Roles & responsibilities'), short: msg('Roles'), icon: <RolesIcon /> },
     { key: 'rules', to: '/rules', label: msg('Staff rules'), short: msg('Rules'), icon: <RulesIcon /> },
+    { key: 'outsourcing', to: '/outsourcing', label: msg('Outsourcing'), icon: <OutsourcingIcon />, who: 'admin', partner: ['finances'] },
   ] },
   { key: 'admin', label: msg('Settings'), items: [
     { key: 'connections', to: '/connections', label: msg('Connections'), icon: <ConnectIcon />, who: 'admin' },

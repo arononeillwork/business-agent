@@ -87,6 +87,18 @@ built-in **AI connector** so owners can run it by talking to Claude.
   is open and marked; moving a section asks nobody); admins see who has read them since the last change.
   Starts from the usual rules for a café in Spain (free tap water, the hoja de quejas y reclamaciones, the
   14 allergens), to change to how the business works.
+- Outsourcing (Team section, admins; a gestoría with finances access reads): the jobs done for the business by
+  people and firms outside the team (social media, the books, cleaning, the windows, the coffee machine's
+  service, pest control…). **Active** shows who does each job, the price agreed and how it's charged (a month,
+  a year, an hour, a day, a visit or once for a project, with how many hours or visits so it adds up to a
+  month), what's included, the contract dates (ending soon or past its end date marked) and how to reach
+  them, with the total a month and a year; the usual jobs nobody does yet list how many options are on file.
+  **Catalogue** is the freelancers, agencies and firms to choose from, grouped by job so the options sit side
+  by side (starred first, then the best rated; the cheapest charged the same way marked, and who does it now),
+  each with their usual rate, the business's own rating, their work and notes. Choosing someone gives them
+  the job and ends it with whoever had it; **Past** keeps who did what. Someone who has done a job is
+  archived, never deleted. Prices without IVA. The AI connector reads it all, adds people to the catalogue
+  and gives or ends jobs.
 - Licences & renewals (Business section): everything the business keeps open (licencia de apertura, SGAE
   and AGEDI/AIE for the music, the terrace permit, insurance, extinguisher and electrical checks, staff
   food handler certificates), each with its number, when it runs out, how often it renews, its cost

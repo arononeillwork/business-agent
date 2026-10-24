@@ -32,6 +32,7 @@ const TimeOffPage = page(() => import('./pages/TimeOffPage'), 'TimeOffPage')
 const BenefitsPage = page(() => import('./pages/BenefitsPage'), 'BenefitsPage')
 const RolesPage = page(() => import('./pages/RolesPage'), 'RolesPage')
 const StaffRulesPage = page(() => import('./pages/StaffRulesPage'), 'StaffRulesPage')
+const OutsourcingPage = page(() => import('./pages/OutsourcingPage'), 'OutsourcingPage')
 const FinancesPage = page(() => import('./pages/FinancesPage'), 'FinancesPage')
 const GrantsPage = page(() => import('./pages/GrantsPage'), 'GrantsPage')
 const SalesPage = page(() => import('./pages/SalesPage'), 'SalesPage')
@@ -117,6 +118,7 @@ function Routed() {
           {partnerCan('finances') && <Route path="grants" element={<GrantsPage />} />}
           {partnerCan('finances') && <Route path="stock" element={<StockPage />} />}
           {partnerCan('finances') && <Route path="suppliers" element={<SuppliersPage />} />}
+          {partnerCan('finances') && <Route path="outsourcing" element={<OutsourcingPage />} />}
           {partnerCan('finances') && <Route path="recipes" element={<RecipesPage />} />}
           {partnerCan('finances') && <Route path="waste" element={<WastePage />} />}
           <Route path="*" element={<Navigate to="/business" />} />
@@ -142,6 +144,7 @@ function Routed() {
         <Route path="kitty" element={<KittyPage />} />
         <Route path="roles" element={<RolesPage />} />
         <Route path="rules" element={<StaffRulesPage />} />
+        <Route path="outsourcing" element={isAdmin ? <OutsourcingPage /> : <Navigate to="/" />} />
         <Route path="sports" element={<PlanGate feature="sports"><SportsPage /></PlanGate>} />
         <Route path="music" element={<PlanGate feature="music"><MusicPage /></PlanGate>} />
         <Route path="team" element={<TeamPage />} />

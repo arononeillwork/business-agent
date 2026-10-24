@@ -12,6 +12,7 @@ import type { LoggedReward, RepReward, RewardRule, SalesRep } from '../../shared
 import type { KittyEntry, KittyGoal } from '../../shared/kitty'
 import type { JobRole } from '../../shared/roles'
 import type { RuleSection, RulesRead } from '../../shared/staffRules'
+import type { Contractor, OutsourcedJob } from '../../shared/outsourcing'
 import { DEFAULT_VAT_RATE, type PnlLine, type PnlSettings } from '../../shared/pnl'
 import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
 import type { StockItem, StockMovement, Supplier } from '../../shared/stock'
@@ -389,6 +390,25 @@ export function createSupabaseApi(url: string, key: string): Api {
     async deleteRuleSection(id) { check(await sb.from('staff_rules').delete().eq('id', id)) },
     async rulesRead() { return check(await sb.from('staff_rules_read').select('profile_id, read_at')) as RulesRead[] },
     async readRules() { check(await sb.rpc('read_staff_rules')) },
+
+    async contractors() {
+      const rows = check(await sb.from('contractors').select('*').order('name')) as Contractor[]
+      return rows.map(c => ({ ...c, rate: num(c.rate) }))
+    },
+    async saveContractor({ id, ...c }) {
+      if (id) { check(await sb.from('contractors').update(c).eq('id', id)); return id }
+      return (check(await sb.from('contractors').insert(c).select('id').single()) as { id: string }).id
+    },
+    async deleteContractor(id) { check(await sb.from('contractors').delete().eq('id', id)) },
+    async outsourcedJobs() {
+      const rows = check(await sb.from('outsourced_jobs').select('*').order('starts_on', { ascending: false, nullsFirst: false }).order('service')) as OutsourcedJob[]
+      return rows.map(j => ({ ...j, price: num(j.price), quantity: num(j.quantity) }))
+    },
+    async saveOutsourcedJob({ id, ...j }) {
+      if (id) { check(await sb.from('outsourced_jobs').update(j).eq('id', id)); return id }
+      return (check(await sb.from('outsourced_jobs').insert(j).select('id').single()) as { id: string }).id
+    },
+    async deleteOutsourcedJob(id) { check(await sb.from('outsourced_jobs').delete().eq('id', id)) },
 
     signInWith: oauth,
 
