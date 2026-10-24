@@ -1,4 +1,4 @@
--- To Do List board (migration 67): each job is to do, doing or done, kept in step with the tick; and
+-- To Do List board (migration 76): each job is to do, doing or done, kept in step with the tick; and
 -- the old "ToDo" board brought in once. Runs after todo.test.sql (which removed Shop): maria (admin), julio (employee).
 
 create function pg_temp.act_as(p_email text) returns void language plpgsql as $$

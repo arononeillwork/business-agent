@@ -72,7 +72,7 @@ export function TodoBoard({ items, categories, team, meId, isAdmin, onChange, on
   const counts = useMemo(() => countByCategory(items, categories, view), [items, categories, view])
   const inView = jobsInView(items, view).length
   const person = team.find(p => p.id === view)
-  const viewName = (v: BoardView) => (v === EVERYONE ? t('Everyone') : v === UNASSIGNED ? t('Nobody yet') : v === meId ? t('Mine') : team.find(p => p.id === v)?.full_name ?? '')
+  const viewName = (v: BoardView) => (v === EVERYONE ? t('Everyone') : v === UNASSIGNED ? tc('board', 'Nobody yet') : v === meId ? t('Mine') : team.find(p => p.id === v)?.full_name ?? '')
   const filtered = filters.categoryIds.length > 0 || filters.starredOnly
 
   const sensors = useSensors(

@@ -24,7 +24,7 @@ begin
   return new;
 end $$;
 
--- The old "ToDo" board (made in the dashboard before the To Do List; migration 66 locked it) brought
+-- The old "ToDo" board (made in the dashboard before the To Do List; migration 75 locked it) brought
 -- into the To Do List: its area becomes the matching category, completed jobs are done, important
 -- ones and open blockers ("block") are starred, "later" ones go under a Later sub-heading, and the
 -- person it names is matched to the team by first name. In its old order, after the jobs already

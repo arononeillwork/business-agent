@@ -10,7 +10,8 @@ export default {
   'Board': 'Tablero',
   'Whose jobs': 'De quién son las tareas',
   'Mine': 'Mías',
-  'Nobody yet': 'Sin asignar',
+  // The jobs nobody has: "unassigned" (Roles & responsibilities' "Nobody yet" is "Aún nadie").
+  'board|Nobody yet': 'Sin asignar',
   'Filter {view} by category': 'Filtrar {view} por categoría',
   'Clear filters': 'Quitar filtros',
   'Each view keeps its own filters.': 'Cada vista guarda sus propios filtros.',
