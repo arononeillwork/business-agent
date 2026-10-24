@@ -48,6 +48,23 @@ built-in **AI connector** so owners can run it by talking to Claude.
   extras, give someone their own holiday for a year (their share when they start part-way, which Time off
   then holds requests to) and record leave for them. Everyone sees their own allocation (holiday taken,
   booked and left, sick days and other leave); admins and a payroll gestoría see the whole team.
+- Sales reps & rewards (Sales section): the people who sell the café for it (someone on the team, an
+  ambassador from outside it such as a hotel concierge or a yoga studio, or a customer who spreads the word),
+  each with a code for their business cards (printable, ten to an A4 sheet, with what the card offers a new
+  customer). The café's own list says what earns a reward and how much: a story reposted, a post with the café
+  tagged, a new customer who shows a rep's card, an event or catering booked (a share of the sale), each with
+  a monthly limit and, where it matters, an admin's approval. Customers earn credit to spend in the café; the
+  team and ambassadors earn commission. The team logs rewards and takes credit off the bill at the till;
+  admins approve what waits and record commission paid out (nobody approves or pays their own). Stories and
+  posts about the café from Instagram are matched to reps by their handle, to reward in one press; a monthly
+  leaderboard shows who sold most. Customers' credit is the whole team's to see, commission the admins' and
+  the rep's own.
+- Staff kitty (Team section): a share of each month's profit (5% to start; a month with a loss puts nothing
+  in) and anything else put in (the tips jar, a bonus), saved up for goals chosen together, like the
+  Christmas party or a pair of Ray-Bans for the café. The goals are jars on a shelf that fill with coffee
+  beans in order, the first until it's full, then the next, each with when it'll be full at the pace money's
+  been going in and whether that's in time for its date. Admins put last month's share in (worked out as
+  Profit & loss does, or typed in), reorder and buy goals (what it cost comes out); the whole team sees it.
 - Roles & responsibilities (Team section): who does what. Each role (owner, shift lead, barista, kitchen,
   cleaner…) opens to what it's for, who it answers to, who's in it, the rota position it's worked as, and its
   duties by when they're done (all the time, opening, during service, closing, every week). Everyone reads it,

@@ -10,6 +10,8 @@ import type { InboxInvoice, InboxState as InvoiceInbox, Invoice, InvoiceInput } 
 import type { Licence, LicenceInput } from '../../shared/licences'
 import type { LegalDocument, LegalDocumentPatch, LegalSource, LegalStorage, StorageListing } from '../../shared/legalDocs'
 import type { Benefit, BenefitInput, LeaveAllowance } from '../../shared/benefits'
+import type { LoggedReward, RepReward, RepSettings, RewardLog, RewardRule, RewardRuleInput, SalesRep, SalesRepInput } from '../../shared/reps'
+import type { KittyEntry, KittyEntryInput, KittyGoal, KittyGoalInput, KittySettings } from '../../shared/kitty'
 import type { JobRole, JobRoleInput } from '../../shared/roles'
 import type { RuleSection, RuleSectionInput, RulesRead } from '../../shared/staffRules'
 import type { PnlLine, PnlLineInput, PnlSettings } from '../../shared/pnl'
@@ -244,6 +246,44 @@ export interface Api {
   deleteCustomer(id: string): Promise<void>
   /** Add many at once (a CSV file); returns how many were added. */
   importCustomers(rows: CustomerInput[]): Promise<number>
+
+  // Sales reps & rewards: the team sees every rep and customers' credit, adds customers, logs
+  // rewards and lets customers spend credit at the till; admins manage reps and the list, approve
+  // what waits and pay commission out. Reps on the team see their own commission.
+  salesReps(): Promise<SalesRep[]>
+  /** Add a rep (no id; the team only customers) or change one (admins); returns its id. */
+  saveSalesRep(r: SalesRepInput): Promise<string>
+  deleteSalesRep(id: string): Promise<void>
+  rewardRules(): Promise<RewardRule[]>
+  /** Admins: add a reward to the list (no id) or change one. */
+  saveRewardRule(r: RewardRuleInput): Promise<void>
+  deleteRewardRule(id: string): Promise<void>
+  /** Every reward, spend and payout the person may see, newest first. */
+  repRewards(): Promise<RepReward[]>
+  /** Log a reward from the list: it counts now, or waits for an admin. */
+  logReward(r: RewardLog): Promise<LoggedReward>
+  /** Admins: approve (optionally for another amount) or turn down a reward that's waiting. */
+  decideReward(id: string, approve: boolean, amount?: number): Promise<void>
+  /** A customer spends credit (the team), or a rep is paid commission (admins); returns what's left. */
+  settleReward(repId: string, amount: number, note?: string): Promise<number>
+  /** Admins: take a line off (a mistake). */
+  deleteReward(id: string): Promise<void>
+  repSettings(): Promise<RepSettings>
+  updateRepSettings(patch: Partial<RepSettings>): Promise<void>
+
+  // Staff kitty: the team reads; admins set the share of profit, add goals, put money in and mark goals bought.
+  kittySettings(): Promise<KittySettings>
+  updateKittySettings(patch: Partial<KittySettings>): Promise<void>
+  kittyGoals(): Promise<KittyGoal[]>
+  /** Add a goal (no id) or change one (bought: `spent` and `bought_on`). */
+  saveKittyGoal(g: KittyGoalInput): Promise<void>
+  deleteKittyGoal(id: string): Promise<void>
+  /** The goals in a new order: their ids, the first to fill first. */
+  orderKittyGoals(ids: string[]): Promise<void>
+  /** What's gone in, newest first. */
+  kittyEntries(): Promise<KittyEntry[]>
+  addKittyEntry(e: KittyEntryInput): Promise<void>
+  deleteKittyEntry(id: string): Promise<void>
 
   // Grants (admins with pay access; finance partners read): the answers that decide which fit, and the applications
   /** The answers given so far (what the app works out by itself isn't saved). */

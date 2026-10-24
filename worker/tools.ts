@@ -12,6 +12,8 @@ import { dutiesByWhen, sortRoles, type JobRole } from '../shared/roles'
 import { readState, rulesChangedAt, sortSections, type RuleSection, type RulesRead } from '../shared/staffRules'
 import { cleanPhone, matchesSearch } from '../shared/customers'
 import { cleanWebsite } from '../shared/connections'
+import { balanceOf, earnsCredit, leaderboard, ruleFits, type RepReward, type RewardRule, type SalesRep } from '../shared/reps'
+import { fillJars, forecast, kittyBalance, monthlyPace, profitShare, type KittyEntry, type KittyGoal } from '../shared/kitty'
 
 export interface ToolContext {
   sb: SupabaseClient
@@ -109,6 +111,20 @@ async function describeShifts(sb: SupabaseClient, from: string, to: string) {
     warnings: shiftWarnings(s, ctx).map(w => w.message),
   }))
 }
+
+/** A rep by their card code or (partial, case-insensitive) name. */
+async function resolveRep(sb: SupabaseClient, who: string): Promise<SalesRep> {
+  const reps = check(await sb.from('sales_reps').select('*').eq('active', true)) as SalesRep[]
+  const q = who.trim().toLowerCase().replace(/^@/, '')
+  const exact = reps.filter(r => r.code.toLowerCase() === q || r.name.toLowerCase() === q || r.instagram === q)
+  const matches = exact.length ? exact : reps.filter(r => r.name.toLowerCase().includes(q))
+  if (matches.length === 1) return matches[0]
+  if (!matches.length) throw new Error(`No rep matches "${who}". Reps: ${reps.map(r => `${r.name} (${r.code})`).join(', ') || 'none yet'}`)
+  throw new Error(`"${who}" matches several reps: ${matches.map(r => `${r.name} (${r.code})`).join(', ')}`)
+}
+
+const worth = (r: Pick<RewardRule, 'basis' | 'amount'>) => (r.basis === 'percent' ? `${r.amount}% of the sale` : `€${r.amount.toFixed(2)}`)
+const monthNow = () => today().slice(0, 7)
 
 export const TOOLS: ToolDef[] = [
   tool({
@@ -874,6 +890,142 @@ export const TOOLS: ToolDef[] = [
       }
       const row = check(await sb.from('customers').insert(patch).select('id').single())
       return { ok: true, customer_id: row.id }
+    },
+  }),
+
+  // ---------------- Sales reps & rewards ----------------
+  tool({
+    name: 'list_sales_reps',
+    title: 'Sales reps & rewards',
+    description: 'The people who sell the café: the team, ambassadors from outside it and customers who spread the word, each with the code on their business cards. Customers earn credit to spend in the café, the team and ambassadors commission. With each rep: their balance (credit to spend, or commission owed; admins see everyone\'s, the team customers\' and their own), and this month\'s rewards. Also the list of what earns a reward and what\'s waiting for an admin.',
+    readOnly: true,
+    input: z.object({ search: z.string().optional().describe('Part of a name, a code or an Instagram handle') }),
+    async run({ sb, me }, a) {
+      const [reps, rules, rewards] = await Promise.all([
+        sb.from('sales_reps').select('*').order('name').then(rowsAs<SalesRep[]>()),
+        sb.from('reward_rules').select('*').order('sort').then(rowsAs<RewardRule[]>()),
+        sb.from('rep_rewards').select('*').order('occurred_on', { ascending: false }).limit(2000).then(rowsAs<RepReward[]>()),
+      ])
+      const ledger = rewards.map(r => ({ ...r, amount: Number(r.amount) }))
+      const q = (a.search ?? '').trim().toLowerCase().replace(/^@/, '')
+      const sees = (r: SalesRep) => me.role === 'admin' || earnsCredit(r.kind) || r.profile_id === me.id
+      const month = monthNow()
+      return {
+        reps: reps.filter(r => !q || [r.name, r.code, r.instagram ?? ''].some(v => v.toLowerCase().includes(q))).map(r => ({
+          name: r.name, kind: r.kind, code: r.code, instagram: r.instagram, active: r.active, earns: earnsCredit(r.kind) ? 'credit' : 'commission',
+          balance: sees(r) ? balanceOf(ledger, r.id) : null, notes: r.notes,
+        })),
+        top_this_month: leaderboard(reps.filter(r => r.active), ledger, month).slice(0, 5).map(s => ({ name: s.rep.name, rewards: s.rewards, earned: sees(s.rep) ? s.earned : null })),
+        rewards_list: rules.filter(r => r.active).map(r => ({ name: r.name, for: r.who, worth: worth({ ...r, amount: Number(r.amount) }),
+          needs_approval: r.needs_approval, monthly_limit: r.monthly_limit })),
+        waiting_for_approval: ledger.filter(r => r.status === 'pending').map(r => ({ reward_id: r.id, rep: reps.find(x => x.id === r.rep_id)?.name, for: r.label,
+          amount: r.amount, sale: r.sale_amount === null ? null : Number(r.sale_amount), note: r.note, on: r.occurred_on })),
+      }
+    },
+  }),
+  tool({
+    name: 'log_reward',
+    title: 'Log a reward',
+    description: 'Give a rep a reward from the café\'s list (see list_sales_reps): e.g. a customer reposted the café\'s story, someone new came in with a rep\'s business card, a rep booked an event (a percentage: give sale_amount). It counts straight away unless the reward needs an admin\'s approval, or it\'s your own; monthly limits apply. Customers get it as credit, reps as commission.',
+    input: z.object({
+      rep: z.string().describe('Their card code, name or Instagram handle'), reward: z.string().describe('What it\'s for: the name (or part of it) of a reward on the list'),
+      sale_amount: z.number().positive().optional().describe('For a reward that\'s a percentage of a sale'), note: z.string().optional(),
+      link: z.string().url().optional().describe('The story or post'), date: date.optional(),
+    }),
+    async run({ sb }, a) {
+      const rep = await resolveRep(sb, a.rep)
+      const rules = (check(await sb.from('reward_rules').select('*').eq('active', true)) as RewardRule[]).map(r => ({ ...r, amount: Number(r.amount) }))
+      const q = a.reward.trim().toLowerCase()
+      const fits = rules.filter(r => ruleFits(r, rep.kind))
+      const matches = fits.filter(r => r.name.toLowerCase() === q).length ? fits.filter(r => r.name.toLowerCase() === q) : fits.filter(r => r.name.toLowerCase().includes(q))
+      if (matches.length !== 1) {
+        throw new Error(`${matches.length ? `"${a.reward}" matches several rewards` : `No reward for ${rep.name} matches "${a.reward}"`}. ${rep.name} can earn: ${fits.map(r => `${r.name} (${worth(r)})`).join('; ') || 'nothing on the list yet'}`)
+      }
+      const rule = matches[0]
+      const out = check(await sb.rpc('log_reward', { p_rep_id: rep.id, p_rule_id: rule.id, p_sale_amount: a.sale_amount ?? null, p_note: a.note ?? null,
+        p_proof_url: a.link ?? null, p_occurred_on: a.date ?? null })) as { status: string; amount: number }
+      return { ok: true, rep: rep.name, reward: rule.name, amount: Number(out.amount), as: earnsCredit(rep.kind) ? 'credit' : 'commission',
+        status: out.status === 'pending' ? 'waiting for an admin to approve it' : 'counted' }
+    },
+  }),
+  tool({
+    name: 'decide_reward',
+    title: 'Approve or turn down a reward',
+    description: 'Admins: approve (optionally for another amount) or turn down a reward that\'s waiting (reward_id from list_sales_reps). Nobody approves their own.',
+    admin: true,
+    input: z.object({ reward_id: z.string().uuid(), approve: z.boolean(), amount: z.number().positive().optional() }),
+    async run({ sb }, a) {
+      check(await sb.rpc('decide_reward', { p_id: a.reward_id, p_approve: a.approve, p_amount: a.amount ?? null }))
+      return { ok: true }
+    },
+  }),
+  tool({
+    name: 'use_reward_balance',
+    title: 'Spend credit or pay commission',
+    description: 'A customer spends their credit in the café (anyone on the team, at the till), or a rep is paid the commission they\'re owed (admins; not their own). Never more than the balance. Returns what\'s left.',
+    input: z.object({ rep: z.string().describe('Their card code, name or Instagram handle'), amount: z.number().positive(), note: z.string().optional() }),
+    async run({ sb }, a) {
+      const rep = await resolveRep(sb, a.rep)
+      const left = Number(check(await sb.rpc('settle_reward', { p_rep_id: rep.id, p_amount: a.amount, p_note: a.note ?? null })))
+      return { ok: true, rep: rep.name, [earnsCredit(rep.kind) ? 'credit_left' : 'still_owed']: left }
+    },
+  }),
+
+  // ---------------- Staff kitty ----------------
+  tool({
+    name: 'staff_kitty',
+    title: 'Staff kitty',
+    description: 'The team\'s kitty: a share of each month\'s profit (and the tips jar or a bonus) saved up for goals chosen together, like the Christmas party or Ray-Bans for the café. What\'s in it, the share of profit, how much goes in a month lately, each goal still to buy with what\'s in its jar (they fill in order) and when it\'s likely to be full, what\'s been bought, and the latest money in.',
+    readOnly: true,
+    input: z.object({}),
+    async run({ sb }) {
+      const [settings, goalRows, entryRows] = await Promise.all([
+        sb.from('kitty_settings').select('profit_percent').eq('id', 1).single().then(rowsAs<{ profit_percent: number }>()),
+        sb.from('kitty_goals').select('*').order('sort').then(rowsAs<KittyGoal[]>()),
+        sb.from('kitty_entries').select('*').order('created_at', { ascending: false }).then(rowsAs<KittyEntry[]>()),
+      ])
+      const goals = goalRows.map(g => ({ ...g, target: Number(g.target), spent: g.spent === null ? null : Number(g.spent) }))
+      const entries = entryRows.map(e => ({ ...e, amount: Number(e.amount) }))
+      const balance = kittyBalance(entries, goals)
+      const jars = fillJars(goals, balance)
+      const pace = monthlyPace(entries, today())
+      const plan = forecast(jars, pace, today())
+      return {
+        in_the_kitty: balance, share_of_profit_percent: Number(settings.profit_percent), going_in_a_month_lately: pace,
+        saving_for: jars.filter(j => !j.bought).map(j => {
+          const f = plan.get(j.goal.id)!
+          return { goal: j.goal.name, target: j.goal.target, saved: j.saved, percent_full: Math.floor(j.share * 100), ready_to_buy: j.full,
+            wanted_by: j.goal.due_on, full_by_month: f.by, in_time: f.inTime, needs_a_month_for_its_date: f.perMonth, notes: j.goal.notes }
+        }),
+        bought: jars.filter(j => j.bought).map(j => ({ goal: j.goal.name, spent: j.goal.spent, on: j.goal.bought_on })),
+        latest_money_in: entries.slice(0, 12).map(e => ({ kind: e.kind, month: e.month?.slice(0, 7) ?? null, percent: e.percent === null ? null : Number(e.percent),
+          amount: e.amount, note: e.note, on: localDate(e.created_at) })),
+      }
+    },
+  }),
+  tool({
+    name: 'kitty_put_in',
+    title: 'Put money in the staff kitty',
+    description: 'Admins: put money in the staff kitty. kind "profit" is a month\'s share of profit, once per month and only once the month is over: give the month (YYYY-MM) and either the month\'s operating profit (the share is worked out at the kitty\'s percentage; a loss puts nothing in) or the amount. "top_up" is anything else (the tips jar, a bonus); "take_out" corrects a mistake.',
+    admin: true,
+    input: z.object({
+      kind: z.enum(['profit', 'top_up', 'take_out']), month: z.string().regex(/^\d{4}-\d{2}$/, 'Use YYYY-MM').optional(),
+      profit: z.number().optional().describe('The month\'s operating profit, for kind "profit"'), amount: z.number().positive().optional(), note: z.string().optional(),
+    }),
+    async run({ sb }, a) {
+      if (a.kind === 'profit') {
+        if (!a.month) throw new Error('Give the month the profit is from (YYYY-MM)')
+        const { profit_percent } = check(await sb.from('kitty_settings').select('profit_percent').eq('id', 1).single()) as { profit_percent: number }
+        const percent = Number(profit_percent)
+        const amount = a.amount ?? (a.profit !== undefined ? profitShare(a.profit, percent) : undefined)
+        if (amount === undefined) throw new Error('Give the month\'s profit or the amount to put in')
+        if (!(amount > 0)) return { ok: true, put_in: 0, message: 'That month made a loss: nothing goes in' }
+        check(await sb.from('kitty_entries').insert({ kind: 'profit', month: `${a.month}-01`, percent, amount, note: a.note ?? null }))
+        return { ok: true, put_in: amount, percent }
+      }
+      if (!a.amount) throw new Error('Give the amount')
+      check(await sb.from('kitty_entries').insert({ kind: a.kind === 'top_up' ? 'top_up' : 'adjust', amount: a.kind === 'top_up' ? a.amount : -a.amount, note: a.note ?? null }))
+      return { ok: true, [a.kind === 'top_up' ? 'put_in' : 'taken_out']: a.amount }
     },
   }),
 ]

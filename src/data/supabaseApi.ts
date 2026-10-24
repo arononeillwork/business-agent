@@ -7,6 +7,8 @@ import type { Invoice } from '../../shared/invoices'
 import type { Licence } from '../../shared/licences'
 import type { LegalDocument, LegalSource, StorageListing } from '../../shared/legalDocs'
 import type { Benefit, LeaveAllowance } from '../../shared/benefits'
+import type { LoggedReward, RepReward, RewardRule, SalesRep } from '../../shared/reps'
+import type { KittyEntry, KittyGoal } from '../../shared/kitty'
 import type { JobRole } from '../../shared/roles'
 import type { RuleSection, RulesRead } from '../../shared/staffRules'
 import { DEFAULT_VAT_RATE, type PnlLine, type PnlSettings } from '../../shared/pnl'
@@ -25,6 +27,8 @@ const PROFILE_COLUMNS = 'id, full_name, email, role, can_see_pay, colour, active
 const GRANT_APPLICATION_COLUMNS = 'id, grant_id, grant_name, stage, submitted_on, expediente, amount_requested, amount_awarded, amount_received, deadline, deadline_label, notes, docs_done, obligations_done, created_at, updated_at'
 
 const CUSTOMER_COLUMNS = 'id, kind, first_name, last_name, email, phone, company, source, instagram, birthday, tags, notes, marketing_consent, consent_at, last_contacted_at, created_at, updated_at'
+const REP_COLUMNS = 'id, name, kind, profile_id, customer_id, code, instagram, phone, email, notes, active, created_at'
+const REWARD_COLUMNS = 'id, rep_id, kind, rule_id, label, sale_amount, amount, status, proof_url, mention_id, note, occurred_on, logged_by, created_at'
 
 /** Postgres numeric can come back as text: a number, or null. */
 const num = (v: unknown) => (v == null ? null : Number(v))
@@ -581,6 +585,68 @@ export function createSupabaseApi(url: string, key: string): Api {
       for (let i = 0; i < rows.length; i += 500) check(await sb.from('customers').insert(rows.slice(i, i + 500), { defaultToNull: false }))
       return rows.length
     },
+
+    async salesReps() {
+      return check(await sb.from('sales_reps').select(REP_COLUMNS).order('name')) as SalesRep[]
+    },
+    async saveSalesRep({ id, ...r }) {
+      if (id) { check(await sb.from('sales_reps').update(r).eq('id', id)); return id }
+      return (check(await sb.from('sales_reps').insert(r).select('id').single()) as { id: string }).id
+    },
+    async deleteSalesRep(id) { check(await sb.from('sales_reps').delete().eq('id', id)) },
+    async rewardRules() {
+      const rows = check(await sb.from('reward_rules').select('id, name, who, basis, amount, needs_approval, monthly_limit, sort, active').order('sort').order('created_at')) as RewardRule[]
+      return rows.map(r => ({ ...r, amount: Number(r.amount) }))
+    },
+    async saveRewardRule({ id, ...r }) {
+      if (id) check(await sb.from('reward_rules').update(r).eq('id', id))
+      else check(await sb.from('reward_rules').insert(r))
+    },
+    async deleteRewardRule(id) { check(await sb.from('reward_rules').delete().eq('id', id)) },
+    async repRewards() {
+      const rows = check(await sb.from('rep_rewards').select(REWARD_COLUMNS).order('occurred_on', { ascending: false }).order('created_at', { ascending: false }).limit(2000)) as RepReward[]
+      return rows.map(r => ({ ...r, amount: Number(r.amount), sale_amount: r.sale_amount === null ? null : Number(r.sale_amount) }))
+    },
+    async logReward(r) {
+      const out = check(await sb.rpc('log_reward', { p_rep_id: r.rep_id, p_rule_id: r.rule_id, p_sale_amount: r.sale_amount ?? null, p_note: r.note || null,
+        p_proof_url: r.proof_url || null, p_mention_id: r.mention_id ?? null, p_occurred_on: r.occurred_on ?? null })) as LoggedReward
+      return { ...out, amount: Number(out.amount) }
+    },
+    async decideReward(id, approve, amount) {
+      check(await sb.rpc('decide_reward', { p_id: id, p_approve: approve, p_amount: amount ?? null }))
+    },
+    async settleReward(repId, amount, note) {
+      return Number(check(await sb.rpc('settle_reward', { p_rep_id: repId, p_amount: amount, p_note: note || null })))
+    },
+    async deleteReward(id) { check(await sb.from('rep_rewards').delete().eq('id', id)) },
+    async repSettings() {
+      return check(await sb.from('rep_settings').select('welcome_offer').eq('id', 1).single()) as { welcome_offer: string | null }
+    },
+    async updateRepSettings(patch) { check(await sb.from('rep_settings').update(patch).eq('id', 1)) },
+
+    async kittySettings() {
+      const row = check(await sb.from('kitty_settings').select('profit_percent').eq('id', 1).single()) as { profit_percent: number }
+      return { profit_percent: Number(row.profit_percent) }
+    },
+    async updateKittySettings(patch) { check(await sb.from('kitty_settings').update(patch).eq('id', 1)) },
+    async kittyGoals() {
+      const rows = check(await sb.from('kitty_goals').select('id, name, icon, target, due_on, sort, link, notes, spent, bought_on, created_at').order('sort').order('created_at')) as KittyGoal[]
+      return rows.map(g => ({ ...g, target: Number(g.target), spent: g.spent === null ? null : Number(g.spent) }))
+    },
+    async saveKittyGoal({ id, ...g }) {
+      if (id) check(await sb.from('kitty_goals').update(g).eq('id', id))
+      else check(await sb.from('kitty_goals').insert(g))
+    },
+    async deleteKittyGoal(id) { check(await sb.from('kitty_goals').delete().eq('id', id)) },
+    async orderKittyGoals(ids) {
+      for (const [i, id] of ids.entries()) check(await sb.from('kitty_goals').update({ sort: i + 1 }).eq('id', id))
+    },
+    async kittyEntries() {
+      const rows = check(await sb.from('kitty_entries').select('id, kind, month, percent, amount, note, created_at').order('created_at', { ascending: false })) as KittyEntry[]
+      return rows.map(e => ({ ...e, amount: Number(e.amount), percent: e.percent === null ? null : Number(e.percent) }))
+    },
+    async addKittyEntry(e) { check(await sb.from('kitty_entries').insert(e)) },
+    async deleteKittyEntry(id) { check(await sb.from('kitty_entries').delete().eq('id', id)) },
 
     async todos() {
       const [categories, todos] = await Promise.all([
