@@ -12,6 +12,8 @@ import type { LegalDocument, LegalDocumentPatch, LegalSource, LegalStorage, Stor
 import type { Benefit, BenefitInput, LeaveAllowance } from '../../shared/benefits'
 import type { LoggedReward, RepReward, RepSettings, RewardLog, RewardRule, RewardRuleInput, SalesRep, SalesRepInput } from '../../shared/reps'
 import type { KittyEntry, KittyEntryInput, KittyGoal, KittyGoalInput, KittySettings } from '../../shared/kitty'
+import type { JobRole, JobRoleInput } from '../../shared/roles'
+import type { RuleSection, RuleSectionInput, RulesRead } from '../../shared/staffRules'
 import type { PnlLine, PnlLineInput, PnlSettings } from '../../shared/pnl'
 import type { GrantApplication, GrantApplicationInput, GrantProfile } from '../../shared/grants'
 import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
@@ -145,6 +147,20 @@ export interface Api {
   leaveAllowances(year: number): Promise<LeaveAllowance[]>
   /** Admins. No holiday_days: back to the business's allowance. */
   saveLeaveAllowance(a: Omit<LeaveAllowance, 'holiday_days'> & { holiday_days: number | null }): Promise<void>
+
+  // Roles & responsibilities and Staff rules: the team reads them, admins write them.
+  jobRoles(): Promise<JobRole[]>
+  /** Add one (no id) or change one. */
+  saveJobRole(r: JobRoleInput): Promise<void>
+  deleteJobRole(id: string): Promise<void>
+  ruleSections(): Promise<RuleSection[]>
+  /** Add one (no id) or change one. */
+  saveRuleSection(s: RuleSectionInput): Promise<void>
+  deleteRuleSection(id: string): Promise<void>
+  /** When people last confirmed they'd read the rules: admins see everyone's, others their own. */
+  rulesRead(): Promise<RulesRead[]>
+  /** "I've read the rules", for the person signed in. */
+  readRules(): Promise<void>
 
   // Business Agent subscription (Stripe Billing). planStatus: everyone; the rest: admins.
   planStatus(): Promise<PlanStatus>
@@ -300,7 +316,8 @@ export interface Api {
 
   // To Do List (the team; admins manage categories)
   todos(): Promise<{ categories: TodoCategory[]; todos: Todo[] }>
-  addTodo(todo: { title: string; category_id: string | null; position: number }): Promise<Todo>
+  /** Add a job; on the board it can go straight to someone, or into Doing. */
+  addTodo(todo: { title: string; category_id: string | null; position: number; assignee_id?: string | null; status?: Todo['status'] }): Promise<Todo>
   updateTodo(id: string, patch: TodoPatch): Promise<void>
   deleteTodo(id: string): Promise<void>
   saveTodoCategory(category: Partial<TodoCategory> & { name: string }): Promise<void>

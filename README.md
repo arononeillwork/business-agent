@@ -65,10 +65,24 @@ built-in **AI connector** so owners can run it by talking to Claude.
   beans in order, the first until it's full, then the next, each with when it'll be full at the pace money's
   been going in and whether that's in time for its date. Admins put last month's share in (worked out as
   Profit & loss does, or typed in), reorder and buy goals (what it cost comes out); the whole team sees it.
+- Roles & responsibilities (Team section): who does what. Each role (owner, shift lead, barista, kitchen,
+  cleaner…) opens to what it's for, who it answers to, who's in it, the rota position it's worked as, and its
+  duties by when they're done (all the time, opening, during service, closing, every week). Everyone reads it,
+  with their own roles open and marked; admins add a café's usual roles in one press (in the language they use
+  the app in), change them, put them in order, and see who has no role yet.
+- Staff rules (Team section): the house rules, in sections that open (being on time and clocking in, uniform
+  and hygiene, food safety and allergens, phones, breaks, customers, the till, health and safety, respect).
+  Each employee confirms they've read them and is asked again when a section is added or changed (what's new
+  is open and marked; moving a section asks nobody); admins see who has read them since the last change.
+  Starts from the usual rules for a café in Spain (free tap water, the hoja de quejas y reclamaciones, the
+  14 allergens), to change to how the business works.
 - Licences & renewals (Business section): everything the business keeps open (licencia de apertura, SGAE
   and AGEDI/AIE for the music, the terrace permit, insurance, extinguisher and electrical checks, staff
   food handler certificates), each with its number, when it runs out, how often it renews, its cost
   and its document; one press marks it renewed, and admins are reminded in the bell beforehand.
+- To Do List (Business section): the team's jobs by category, or as a kanban board (To do, Doing, Done)
+  with jobs dragged across or moved from their menu. The board shows everyone's jobs, one person's (the
+  owner's or an employee's) or nobody's yet, and each of those views keeps its own category filters.
 - Legal (Business section): the business's legal documents (lease, company deeds, insurance, contracts,
   licences, policies) picked where they already are in the connected Google Drive or OneDrive (both can
   be connected; the admin chooses which), grouped by kind, shown in the page straight from the storage

@@ -1,7 +1,9 @@
 import {
   Alert, Box, Button, Card, CardContent, Checkbox, Chip, FormControlLabel, IconButton, ListItemIcon, Menu, MenuItem, Snackbar, Stack,
-  Switch, TextField, Tooltip, Typography,
+  Switch, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography,
 } from '@mui/material'
+import ListViewIcon from '@mui/icons-material/ViewListOutlined'
+import BoardViewIcon from '@mui/icons-material/ViewKanbanOutlined'
 import AddIcon from '@mui/icons-material/Add'
 import CheckIcon from '@mui/icons-material/Check'
 import CloseIcon from '@mui/icons-material/Close'
@@ -26,12 +28,19 @@ import { useAsync } from '../app/hooks'
 import { useAction, useNotify } from '../app/Notify'
 import { Empty, ErrorBox, PageHeader, PersonAvatar, SectionTitle } from '../components/common'
 import { restrictToVerticalAxis } from '../components/dnd'
-import { NO_CATEGORY, buildBoard, flatten, resolveMove, toPlainText, topPosition, visible, type TodoFilters } from '../../shared/todo'
+import { NO_CATEGORY, buildBoard, flatten, inStep, resolveMove, toPlainText, topPosition, visible, type TodoFilters } from '../../shared/todo'
+import { TodoBoard } from '../components/TodoBoard'
 import type { Profile, Todo, TodoCategory, TodoPatch } from '../../shared/types'
 import { fonts, tokens } from '../theme'
 import { t, tn } from '../i18n'
 
 const VIEW_KEY = 'todo-view'
+// The list (by category) or the board (To do, Doing, Done), remembered on this device.
+const MODE_KEY = 'todo-mode'
+type Mode = 'list' | 'board'
+function readMode(): Mode {
+  try { return localStorage.getItem(MODE_KEY) === 'board' ? 'board' : 'list' } catch { return 'list' }
+}
 const DEFAULT_VIEW: TodoFilters = { categoryId: null, starredOnly: false, showDone: false }
 const STAR = '#C98A1E'
 const PIN = '#7C63A8'
@@ -42,14 +51,20 @@ function readView(): TodoFilters {
   try { return { ...DEFAULT_VIEW, ...JSON.parse(localStorage.getItem(VIEW_KEY) ?? '{}') } } catch { return DEFAULT_VIEW }
 }
 
-/** The team's to-do list, grouped by categories the admins add and remove. */
+/** The team's to-do list, grouped by categories the admins add and remove; or the same jobs as a kanban board. */
 export function TodoPage() {
-  const { api, isAdmin, profiles, business } = useApp()
+  const { api, isAdmin, profiles, business, me } = useApp()
   const notify = useNotify()
   const run = useAction()
   const data = useAsync('todos', () => api.todos(), [])
   const [items, setItems] = useState<Todo[]>([])
   const [view, setView] = useState<TodoFilters>(readView)
+  const [mode, setMode] = useState<Mode>(readMode)
+  const chooseMode = (m: Mode | null) => {
+    if (!m) return
+    setMode(m)
+    try { localStorage.setItem(MODE_KEY, m) } catch { /* storage unavailable */ }
+  }
   const [managing, setManaging] = useState(false)
   const [undo, setUndo] = useState<Todo | null>(null)
   useEffect(() => { if (data.data) setItems(data.data.todos) }, [data.data])
@@ -79,17 +94,19 @@ export function TodoPage() {
     try { localStorage.setItem(VIEW_KEY, JSON.stringify(next)) } catch { /* storage unavailable */ }
   }
 
-  /** Change a job on screen straight away, then save it; put it back if the save fails. */
-  const change = async (id: string, patch: TodoPatch) => {
+  /** Change a job on screen straight away, then save it; put it back if the save fails. Its column and tick stay in step. */
+  const change = async (id: string, asked: TodoPatch) => {
+    const job = items.find(t => t.id === id)
+    const patch = job ? inStep(job, asked) : asked
     setItems(list => list.map(t => (t.id === id ? { ...t, ...patch } : t)))
     try { await api.updateTodo(id, patch) } catch (e) {
       notify(e instanceof Error ? e.message : String(e), 'error')
       await data.reload()
     }
   }
-  const add = async (title: string, categoryId: string | null) => {
+  const add = async (title: string, categoryId: string | null, more: { assignee_id?: string | null; position?: number } = {}) => {
     try {
-      const created = await api.addTodo({ title, category_id: categoryId, position: topPosition(items) })
+      const created = await api.addTodo({ title, category_id: categoryId, position: more.position ?? topPosition(items), assignee_id: more.assignee_id ?? null })
       setItems(list => [...list, created])
       return true
     } catch (e) {
@@ -113,7 +130,7 @@ export function TodoPage() {
     if (!job) return
     try {
       const back = await api.addTodo({ title: job.title, category_id: job.category_id, position: job.position })
-      const rest = { section: job.section, assignee_id: job.assignee_id, done: job.done, starred: job.starred, pinned: job.pinned }
+      const rest = { section: job.section, assignee_id: job.assignee_id, done: job.done, status: job.status, starred: job.starred, pinned: job.pinned }
       await api.updateTodo(back.id, rest)
       setItems(list => [...list, { ...back, ...rest }])
     } catch (e) {
@@ -145,6 +162,10 @@ export function TodoPage() {
     <>
       <PageHeader eyebrow={t('Business')} title={t('To Do List')}
         actions={<>
+          <ToggleButtonGroup size="small" exclusive value={mode} onChange={(_, m: Mode | null) => chooseMode(m)} aria-label={t('Show as')}>
+            <ToggleButton value="list" aria-label={t('List')} sx={{ gap: 0.75, px: 1.5, textTransform: 'none' }}><ListViewIcon fontSize="small" />{t('List')}</ToggleButton>
+            <ToggleButton value="board" aria-label={t('Board')} sx={{ gap: 0.75, px: 1.5, textTransform: 'none' }}><BoardViewIcon fontSize="small" />{t('Board')}</ToggleButton>
+          </ToggleButtonGroup>
           <Button variant="outlined" startIcon={<CopyIcon />} onClick={copy} disabled={!items.length}>{t('Copy as text')}</Button>
           {isAdmin && (
             <Button variant={managing ? 'contained' : 'outlined'} startIcon={<TuneIcon />} onClick={() => setManaging(m => !m)}
@@ -179,64 +200,70 @@ export function TodoPage() {
             onDelete={c => run(() => api.deleteTodoCategory(c.id), t('Removed {name}', { name: c.name }))} />
         )}
 
-        <Card component="section" aria-label={t('Add a job')}>
-          <CardContent>
-            <AddJob categories={categories} filter={filters.categoryId} onAdd={add} />
-            <Stack direction="row" useFlexGap sx={{ flexWrap: 'wrap', gap: 0.75, mt: 2 }} role="group" aria-label={t('Filter by category')}>
-              <FilterChip label={t('All')} count={counts.all ?? 0} selected={!filters.categoryId} onClick={() => setFilters({ categoryId: null })} />
-              {categories.map(c => (
-                <FilterChip key={c.id} label={c.name} colour={c.colour} count={counts[c.id] ?? 0} selected={filters.categoryId === c.id}
-                  onClick={() => setFilters({ categoryId: filters.categoryId === c.id ? null : c.id })} />
+        {mode === 'board' ? (
+          <TodoBoard items={items} categories={categories} team={team} meId={me?.id ?? null} isAdmin={isAdmin}
+            onChange={(id, p) => void change(id, p)} onDelete={job => void remove(job)}
+            onAdd={j => add(j.title, j.category_id, { assignee_id: j.assignee_id, position: j.position })} />
+        ) : <>
+          <Card component="section" aria-label={t('Add a job')}>
+            <CardContent>
+              <AddJob categories={categories} filter={filters.categoryId} onAdd={add} />
+              <Stack direction="row" useFlexGap sx={{ flexWrap: 'wrap', gap: 0.75, mt: 2 }} role="group" aria-label={t('Filter by category')}>
+                <FilterChip label={t('All')} count={counts.all ?? 0} selected={!filters.categoryId} onClick={() => setFilters({ categoryId: null })} />
+                {categories.map(c => (
+                  <FilterChip key={c.id} label={c.name} colour={c.colour} count={counts[c.id] ?? 0} selected={filters.categoryId === c.id}
+                    onClick={() => setFilters({ categoryId: filters.categoryId === c.id ? null : c.id })} />
+                ))}
+                {(counts[NO_CATEGORY] ?? 0) > 0 && (
+                  <FilterChip label={t('No category')} count={counts[NO_CATEGORY]} selected={filters.categoryId === NO_CATEGORY}
+                    onClick={() => setFilters({ categoryId: filters.categoryId === NO_CATEGORY ? null : NO_CATEGORY })} />
+                )}
+              </Stack>
+              <Stack direction="row" spacing={1} sx={{ mt: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
+                <Chip icon={<StarIcon sx={{ fontSize: 18, color: `${STAR} !important` }} />} label={t('Starred')} variant={filters.starredOnly ? 'filled' : 'outlined'}
+                  onClick={() => setFilters({ starredOnly: !filters.starredOnly })} aria-pressed={filters.starredOnly} />
+                <FormControlLabel sx={{ ml: 'auto' }} label={t('Show done')}
+                  control={<Switch size="small" checked={filters.showDone} onChange={e => setFilters({ showDone: e.target.checked })} />} />
+              </Stack>
+            </CardContent>
+          </Card>
+
+          {data.data && groups.length === 0 && (
+            <Card><CardContent>
+              <Empty>{filters.starredOnly ? t('Nothing starred. Star a job to see it here.')
+                : filters.categoryId ? t('Nothing in this category. Switch back to All, or add a job above.')
+                : t('All clear. Add a job above and it goes to the top.')}</Empty>
+            </CardContent></Card>
+          )}
+
+          <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToVerticalAxis]} onDragEnd={onDragEnd}>
+            <SortableContext items={order.map(t => t.id)} strategy={verticalListSortingStrategy}>
+              {groups.map(g => (
+                <Card key={g.key} component="section" aria-label={groupLabel(g)}
+                  sx={{ bgcolor: wash(g.colour, 7), borderTop: `3px solid ${g.colour}` }}>
+                  <CardContent>
+                    <Stack direction="row" spacing={1.25} sx={{ alignItems: 'baseline', mb: 1.5 }}>
+                      <Typography variant="h6" component="h2">{groupLabel(g)}</Typography>
+                      <Box component="span" sx={{ fontSize: 13, fontWeight: 600, px: 1, borderRadius: 999, bgcolor: wash(g.colour, 22), color: 'text.primary' }}>
+                        {g.count}
+                      </Box>
+                      {g.hint && <Typography variant="body2" sx={{ ml: 'auto !important', color: 'text.secondary', display: { xs: 'none', sm: 'block' } }}>{g.key === NO_CATEGORY ? t(g.hint) : g.hint}</Typography>}
+                    </Stack>
+                    {g.sections.map(s => (
+                      <Fragment key={s.key}>
+                        {s.label && <Typography variant="overline" component="h3" sx={{ display: 'block', color: 'text.secondary', mt: 1.5, mb: 0.5 }}>{s.label}</Typography>}
+                        {s.items.map(job => (
+                          <JobRow key={job.id} todo={job} colour={g.colour} categories={categories} team={team}
+                            onChange={p => change(job.id, p)} onDelete={() => remove(job)} />
+                        ))}
+                      </Fragment>
+                    ))}
+                  </CardContent>
+                </Card>
               ))}
-              {(counts[NO_CATEGORY] ?? 0) > 0 && (
-                <FilterChip label={t('No category')} count={counts[NO_CATEGORY]} selected={filters.categoryId === NO_CATEGORY}
-                  onClick={() => setFilters({ categoryId: filters.categoryId === NO_CATEGORY ? null : NO_CATEGORY })} />
-              )}
-            </Stack>
-            <Stack direction="row" spacing={1} sx={{ mt: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
-              <Chip icon={<StarIcon sx={{ fontSize: 18, color: `${STAR} !important` }} />} label={t('Starred')} variant={filters.starredOnly ? 'filled' : 'outlined'}
-                onClick={() => setFilters({ starredOnly: !filters.starredOnly })} aria-pressed={filters.starredOnly} />
-              <FormControlLabel sx={{ ml: 'auto' }} label={t('Show done')}
-                control={<Switch size="small" checked={filters.showDone} onChange={e => setFilters({ showDone: e.target.checked })} />} />
-            </Stack>
-          </CardContent>
-        </Card>
-
-        {data.data && groups.length === 0 && (
-          <Card><CardContent>
-            <Empty>{filters.starredOnly ? t('Nothing starred. Star a job to see it here.')
-              : filters.categoryId ? t('Nothing in this category. Switch back to All, or add a job above.')
-              : t('All clear. Add a job above and it goes to the top.')}</Empty>
-          </CardContent></Card>
-        )}
-
-        <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToVerticalAxis]} onDragEnd={onDragEnd}>
-          <SortableContext items={order.map(t => t.id)} strategy={verticalListSortingStrategy}>
-            {groups.map(g => (
-              <Card key={g.key} component="section" aria-label={groupLabel(g)}
-                sx={{ bgcolor: wash(g.colour, 7), borderTop: `3px solid ${g.colour}` }}>
-                <CardContent>
-                  <Stack direction="row" spacing={1.25} sx={{ alignItems: 'baseline', mb: 1.5 }}>
-                    <Typography variant="h6" component="h2">{groupLabel(g)}</Typography>
-                    <Box component="span" sx={{ fontSize: 13, fontWeight: 600, px: 1, borderRadius: 999, bgcolor: wash(g.colour, 22), color: 'text.primary' }}>
-                      {g.count}
-                    </Box>
-                    {g.hint && <Typography variant="body2" sx={{ ml: 'auto !important', color: 'text.secondary', display: { xs: 'none', sm: 'block' } }}>{g.key === NO_CATEGORY ? t(g.hint) : g.hint}</Typography>}
-                  </Stack>
-                  {g.sections.map(s => (
-                    <Fragment key={s.key}>
-                      {s.label && <Typography variant="overline" component="h3" sx={{ display: 'block', color: 'text.secondary', mt: 1.5, mb: 0.5 }}>{s.label}</Typography>}
-                      {s.items.map(job => (
-                        <JobRow key={job.id} todo={job} colour={g.colour} categories={categories} team={team}
-                          onChange={p => change(job.id, p)} onDelete={() => remove(job)} />
-                      ))}
-                    </Fragment>
-                  ))}
-                </CardContent>
-              </Card>
-            ))}
-          </SortableContext>
-        </DndContext>
+            </SortableContext>
+          </DndContext>
+        </>}
       </Stack>
 
       <Snackbar open={!!undo} autoHideDuration={6000} onClose={() => setUndo(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
@@ -358,6 +385,11 @@ function JobRow({ todo: job, colour, categories, team, onChange, onDelete }: {
             {job.section && (
               <Box component="span" sx={{ fontSize: 12.5, px: 1.25, py: 0.4, borderRadius: 999, border: 1, borderColor: 'divider', color: 'text.secondary' }}>
                 {job.section}
+              </Box>
+            )}
+            {job.status === 'doing' && (
+              <Box component="span" sx={{ fontSize: 12.5, fontWeight: 600, px: 1.25, py: 0.4, borderRadius: 999, bgcolor: wash(STAR, 18), color: 'text.primary' }}>
+                {t('Doing')}
               </Box>
             )}
             <Box sx={{ display: 'flex', alignItems: 'center', ml: 'auto' }}>
