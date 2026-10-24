@@ -5,6 +5,7 @@ import type { InstagramMention } from '../../shared/mentions'
 import type { FilingRecord, TaxDocument, TaxSettings } from '../../shared/tax'
 import type { Invoice } from '../../shared/invoices'
 import type { Licence } from '../../shared/licences'
+import { DEFAULT_RADIUS, competitorRows, type CompetitorData } from '../../shared/localCompetitors'
 import type { LegalDocument, LegalSource, StorageListing } from '../../shared/legalDocs'
 import type { Benefit, LeaveAllowance } from '../../shared/benefits'
 import type { JobRole } from '../../shared/roles'
@@ -830,6 +831,46 @@ export function createSupabaseApi(url: string, key: string): Api {
     website: () => worker('/api/website'),
     async checkWebsite() { return (await worker<{ report: never }>('/api/website/check', { method: 'POST' })).report },
     async pageSpeed(strategy) { return (await worker<{ pagespeed: never }>('/api/website/pagespeed', { method: 'POST', body: JSON.stringify({ strategy }) })).pagespeed },
+
+    async competitors() {
+      const [competitors, items, prices, notes, snapshots, nearby, settings] = await Promise.all([
+        sb.from('competitors').select('*').order('name'),
+        sb.from('competitor_items').select('*').order('sort').order('name'),
+        sb.from('competitor_prices').select('*').order('observed_on', { ascending: false }),
+        sb.from('competitor_notes').select('*').order('observed_on', { ascending: false }).order('created_at', { ascending: false }),
+        sb.from('competitor_snapshots').select('*').order('taken_on'),
+        sb.from('competitor_radar').select('*').order('distance_m', { nullsFirst: false }),
+        sb.from('competitor_settings').select('radius_m, scan_weekly, scanned_at').eq('id', 1).maybeSingle(),
+      ])
+      return competitorRows({
+        competitors: check(competitors), items: check(items), prices: check(prices), notes: check(notes), snapshots: check(snapshots), nearby: check(nearby),
+        settings: (check(settings) as CompetitorData['settings'] | null) ?? { radius_m: DEFAULT_RADIUS, scan_weekly: true, scanned_at: null },
+      } as CompetitorData)
+    },
+    async saveCompetitor({ id, ...c }) {
+      if (id) { check(await sb.from('competitors').update(c).eq('id', id)); return id }
+      return (check(await sb.from('competitors').insert(c).select('id').single()) as { id: string }).id
+    },
+    async deleteCompetitor(id) { check(await sb.from('competitors').delete().eq('id', id)) },
+    async savePriceItem({ id, ...i }) {
+      if (id) { check(await sb.from('competitor_items').update(i).eq('id', id)); return id }
+      return (check(await sb.from('competitor_items').insert(i).select('id').single()) as { id: string }).id
+    },
+    async deletePriceItem(id) { check(await sb.from('competitor_items').delete().eq('id', id)) },
+    async recordPrice(p) { check(await sb.from('competitor_prices').insert(p)) },
+    async deletePrice(id) { check(await sb.from('competitor_prices').delete().eq('id', id)) },
+    async saveCompetitorNote({ id, ...n }) {
+      if (id) { check(await sb.from('competitor_notes').update(n).eq('id', id)); return id }
+      return (check(await sb.from('competitor_notes').insert(n).select('id').single()) as { id: string }).id
+    },
+    async deleteCompetitorNote(id) { check(await sb.from('competitor_notes').delete().eq('id', id)) },
+    async dismissNearby(placeId, dismissed) { check(await sb.from('competitor_radar').update({ dismissed }).eq('place_id', placeId)) },
+    async saveCompetitorSettings(s) { check(await sb.from('competitor_settings').update(s).eq('id', 1)) },
+    competitorGoogle: () => worker('/api/competitors/google'),
+    lookAround: radius => worker('/api/competitors/look', { method: 'POST', body: JSON.stringify({ radius_m: radius }) }),
+    async findPlaces(query) { return (await worker<{ places: never }>(`/api/competitors/search?q=${encodeURIComponent(query)}`)).places },
+    async followPlace(placeId, id) { return (await worker<{ id: string }>('/api/competitors/follow', { method: 'POST', body: JSON.stringify({ place_id: placeId, id }) })).id },
+    async refreshCompetitor(id) { await worker('/api/competitors/refresh', { method: 'POST', body: JSON.stringify({ id }) }) },
     async whatsappTest(to) { await worker('/api/integrations/whatsapp/test', { method: 'POST', body: JSON.stringify({ to }) }) },
     instagramProfile: () => worker('/api/integrations/instagram/profile'),
     instagramInbox: () => worker('/api/integrations/instagram/inbox'),

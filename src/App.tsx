@@ -44,6 +44,7 @@ const ProfitLossPage = page(() => import('./pages/ProfitLossPage'), 'ProfitLossP
 const AnalyticsPage = page(() => import('./pages/AnalyticsPage'), 'AnalyticsPage')
 const ReviewsPage = page(() => import('./pages/ReviewsPage'), 'ReviewsPage')
 const WebsitePage = page(() => import('./pages/WebsitePage'), 'WebsitePage')
+const CompetitorsPage = page(() => import('./pages/CompetitorsPage'), 'CompetitorsPage')
 const NotificationsPage = page(() => import('./pages/NotificationsPage'), 'NotificationsPage')
 const SportsPage = page(() => import('./pages/SportsPage'), 'SportsPage')
 const MusicPage = page(() => import('./pages/MusicPage'), 'MusicPage')
@@ -183,6 +184,7 @@ function Routed() {
         <Route path="analytics" element={isAdmin ? <AnalyticsPage /> : <Navigate to="/" />} />
         <Route path="reviews" element={isAdmin ? <ReviewsPage /> : <Navigate to="/" />} />
         <Route path="website" element={isAdmin ? <WebsitePage /> : <Navigate to="/" />} />
+        <Route path="competitors" element={isAdmin ? <CompetitorsPage /> : <Navigate to="/" />} />
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="pages" element={<PagesPage />} />
         {/* Alerts became part of Notifications. */}

@@ -40,6 +40,17 @@ built-in **AI connector** so owners can run it by talking to Claude.
   limits, and pause, resume or daily budget changes sent straight to the platform. **Reviews** reads the
   Google reviews (new ones in the bell, replies from templates in the review's language) and **Website &
   SEO** checks the website (SEO, Google PageSpeed, the same details as the app and Google Maps).
+- Competitors (Marketing, admins): the cafés around the business, followed over time. What each
+  charges for the same basket (the usual for a café in Spain, café con leche to matcha latte, or
+  your own items; yours from Menu costing), every price kept with the day it was seen so rises
+  show; what it offers (terrace, plant milks, brunch, dogs, delivery apps… thirty things, many read
+  from Google); its hours; its Google rating and new reviews a month, week by week; and where each
+  sits on price against rating. Notes from visits and ideas to borrow, from "to try" to "adopted".
+  The page says what it all means in plain words: your prices against the area, what most nearby
+  offer and you don't, what only you offer, who opens earlier or closes later, who's growing
+  fastest on Google. Google (the Places key Reviews uses) finds the cafés nearby, looks again every
+  week and tells admins in the bell when a new one appears or one closes; the AI connector reads it
+  all and records prices and notes. Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) section 16.
 - Staff benefits (Team section): what everyone is entitled to in the business's country (`country` in
   `shared/business.config.ts`; Spain: 30 calendar days' holiday, 14 public holidays, sick pay from day 4,
   19 weeks' birth leave for each parent, nursing time, parental leave, and the Estatuto's paid leave for a

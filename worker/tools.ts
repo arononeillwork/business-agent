@@ -12,6 +12,10 @@ import { dutiesByWhen, sortRoles, type JobRole } from '../shared/roles'
 import { readState, rulesChangedAt, sortSections, type RuleSection, type RulesRead } from '../shared/staffRules'
 import { cleanPhone, matchesSearch } from '../shared/customers'
 import { cleanWebsite } from '../shared/connections'
+import {
+  FEATURES, IDEA_STATUSES, KINDS, NOTE_KINDS, PRICE_SOURCES, THREATS, analyse, competitorRows, featuresOf, hoursOf, insightText, insights, matchRecipe,
+  priceKey, priceLevelLabel, type Competitor, type CompetitorData, type CompetitorKind, type IdeaStatus, type NoteKind, type PriceSource, type Threat,
+} from '../shared/localCompetitors'
 
 export interface ToolContext {
   sb: SupabaseClient
@@ -47,6 +51,38 @@ function check<T>(res: { data: T; error: { message: string } | null }): NonNulla
 const rowsAs = <T,>() => (res: { data: unknown; error: { message: string } | null }) => check(res) as T
 
 const PROFILE_COLUMNS = 'id, full_name, email, role, can_see_pay, colour, active, phone, birth_date, partner_company, partner_access'
+
+/** Everything on the Competitors page, with the menu prices and opening hours it's compared with. */
+async function competitorData(sb: SupabaseClient) {
+  const [competitors, items, prices, notes, snapshots, nearby, settings, recipes, business] = await Promise.all([
+    sb.from('competitors').select('*').then(rowsAs<CompetitorData['competitors']>()),
+    sb.from('competitor_items').select('*').then(rowsAs<CompetitorData['items']>()),
+    sb.from('competitor_prices').select('*').then(rowsAs<CompetitorData['prices']>()),
+    sb.from('competitor_notes').select('*').order('observed_on', { ascending: false }).then(rowsAs<CompetitorData['notes']>()),
+    sb.from('competitor_snapshots').select('*').then(rowsAs<CompetitorData['snapshots']>()),
+    sb.from('competitor_radar').select('*').then(rowsAs<CompetitorData['nearby']>()),
+    sb.from('competitor_settings').select('*').eq('id', 1).single().then(rowsAs<CompetitorData['settings']>()),
+    sb.from('recipes').select('id, name, sell_price, active').then(rowsAs<{ id: string; name: string; sell_price: number | null; active: boolean }[]>()),
+    sb.from('business').select('name, opening_hours').eq('id', 1).single().then(rowsAs<Pick<Business, 'name' | 'opening_hours'>>()),
+  ])
+  return { data: competitorRows({ competitors, items, prices, notes, snapshots, nearby, settings }),
+    recipes: recipes.map(r => ({ ...r, sell_price: r.sell_price === null ? null : Number(r.sell_price) })), business }
+}
+
+/** Find a competitor (or the business itself) by id or (partial, case-insensitive) name. */
+async function resolveCompetitor(sb: SupabaseClient, who: string): Promise<Pick<Competitor, 'id' | 'name' | 'is_self' | 'active' | 'features'>> {
+  const rows = check(await sb.from('competitors').select('id, name, is_self, active, features')) as Pick<Competitor, 'id' | 'name' | 'is_self' | 'active' | 'features'>[]
+  const q = who.trim().toLowerCase()
+  const exact = rows.filter(c => c.id === who || c.name.toLowerCase() === q)
+  const matches = exact.length ? exact : rows.filter(c => c.name.toLowerCase().includes(q))
+  if (matches.length === 1) return matches[0]
+  const followed = rows.filter(c => !c.is_self && c.active).map(c => c.name).join(', ') || 'none yet'
+  if (!matches.length) throw new Error(`No competitor matches "${who}". Followed: ${followed}`)
+  throw new Error(`"${who}" matches several: ${matches.map(c => c.name).join(', ')}`)
+}
+
+const enumOf = <T extends string>(list: { id: T }[]) => z.enum(list.map(x => x.id) as [T, ...T[]])
+const FEATURE_KEYS = FEATURES.map(f => `${f.key} (${f.label})`).join(', ')
 
 const partnerCan = (me: Profile, area: PartnerArea) => me.role === 'partner' && !!me.partner_access?.includes(area)
 /** Pay rates and labour cost: admins with pay access, or payroll partners (read-only). */
@@ -874,6 +910,122 @@ export const TOOLS: ToolDef[] = [
       }
       const row = check(await sb.from('customers').insert(patch).select('id').single())
       return { ok: true, customer_id: row.id }
+    },
+  }),
+  // ---------------- Competitors ----------------
+  tool({
+    name: 'list_competitors',
+    title: 'Competitors',
+    description: 'Admins: the cafés around the business followed on the Competitors page and how the business compares. Each competitor\'s kind, distance, how much it competes (threat), Google rating, reviews and new reviews a month, price level, what it offers and doesn\'t, opening hours, strengths, weaknesses and its latest prices; the basket item by item (the business\'s own price from Menu costing against the area\'s average and range); a price index (100 = the area average); recent price changes; the findings in plain words; notes and ideas to borrow; and places Google lists nearby that aren\'t followed. Prices in euros, IVA included.',
+    admin: true,
+    readOnly: true,
+    input: z.object({ include_notes: z.boolean().default(true) }),
+    async run({ sb }, a) {
+      const { data, recipes, business } = await competitorData(sb)
+      const now = today()
+      const an = analyse(data, recipes, business.opening_hours, now)
+      const offers = (c: Competitor, has: boolean) => FEATURES.filter(f => featuresOf(c)[f.key] === has).map(f => f.label)
+      const rating = (c: Competitor) => an.ratings.find(r => r.competitor.id === c.id)
+      const nameOf = (id: string | null) => (id ? data.competitors.find(c => c.id === id)?.name ?? '' : 'the area')
+      const itemName = (id: string) => data.items.find(i => i.id === id)?.name ?? ''
+      return {
+        business: an.self && {
+          name: business.name, google_rating: an.self.google_rating, google_reviews: an.self.google_count, reviews_per_month: rating(an.self)?.perMonth ?? null,
+          price_level: priceLevelLabel(an.self.price_level), offers: offers(an.self, true), price_index: an.ourIndex.index,
+        },
+        competitors: an.rivals.map(c => ({
+          competitor_id: c.id, name: c.name, kind: KINDS.find(k => k.id === c.kind)?.label, threat: c.threat, distance_m: c.distance_m, address: c.address,
+          website: c.website, instagram: c.instagram ? `@${c.instagram}` : null, google_rating: c.google_rating, google_reviews: c.google_count,
+          reviews_per_month: rating(c)?.perMonth ?? null, google_status: c.google_status, price_level: priceLevelLabel(c.price_level),
+          price_index: an.rivalIndex.get(c.id)?.index ?? null, offers: offers(c, true), doesnt_offer: offers(c, false), opening_hours: hoursOf(c),
+          strengths: c.strengths, weaknesses: c.weaknesses, notes: c.notes,
+          latest_prices: data.items.flatMap(i => {
+            const [last, before] = an.history.get(priceKey(c.id, i.id)) ?? []
+            return last ? [{ item: i.name, price_eur: last.price, seen_on: last.observed_on, before_eur: before?.price ?? null }] : []
+          }),
+        })),
+        basket: an.rows.map(r => ({ item: r.item.name, yours_eur: r.ours?.price ?? null, yours_from: r.ours ? (r.ours.from === 'menu' ? 'Menu costing' : 'typed in') : null,
+          area_average_eur: r.avg, cheapest_eur: r.min, dearest_eur: r.max, places_with_a_price: r.n })),
+        price_index: { yours: an.ourIndex.index, on_items: an.ourIndex.items, meaning: '100 is the area average; 110 is 10% dearer' },
+        recent_price_changes: an.changes.slice(0, 20).map(ch => ({ competitor: nameOf(ch.competitor_id), item: itemName(ch.item_id), from_eur: ch.from, to_eur: ch.to, seen_on: ch.on })),
+        findings: insights(an, { money: n => `€${n.toFixed(2)}`, rating: n => n.toFixed(1), label: l => l }).map(insightText),
+        notes: a.include_notes ? data.notes.slice(0, 40).map(n => ({ note_id: n.id, about: nameOf(n.competitor_id), kind: n.kind, text: n.text, seen_on: n.observed_on,
+          idea_status: n.status })) : undefined,
+        nearby_not_followed: an.untracked.slice(0, 20).map(p => ({ name: p.name, distance_m: p.distance_m, google_rating: p.rating, google_reviews: p.review_count })),
+      }
+    },
+  }),
+  tool({
+    name: 'save_competitor',
+    title: 'Add/change competitor',
+    description: `Admins: add a competitor by hand (name needed), or change one (pass competitor_id, or name to find it). Kinds: ${KINDS.map(k => k.id).join(', ')}. threat: how much it competes (${THREATS.map(t => t.id).join(', ')}). price_level 0-4 (Google's €-€€€€). offers sets what it offers or doesn't, by key: ${FEATURE_KEYS}. active: false stops following it (its history stays). Places on Google are best followed from the Competitors page (Find on Google): their rating, hours and what they offer then come from Google every week.`,
+    admin: true,
+    input: z.object({
+      competitor_id: z.string().uuid().optional(), name: z.string().min(1).max(120).optional(), kind: enumOf(KINDS).optional(), threat: enumOf(THREATS).optional(),
+      address: z.string().max(200).optional(), website: z.string().optional(), instagram: z.string().max(80).optional(), distance_m: z.number().int().min(0).optional(),
+      price_level: z.number().int().min(0).max(4).optional(), strengths: z.string().max(2000).optional(), weaknesses: z.string().max(2000).optional(),
+      notes: z.string().max(4000).optional(), offers: z.record(z.string(), z.boolean()).optional(), active: z.boolean().optional(),
+    }),
+    async run({ sb }, { competitor_id, offers, website, ...rest }) {
+      const unknown = Object.keys(offers ?? {}).filter(k => !FEATURES.some(f => f.key === k))
+      if (unknown.length) throw new Error(`Unknown offers: ${unknown.join(', ')}. Keys: ${FEATURES.map(f => f.key).join(', ')}`)
+      const patch: Record<string, unknown> = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined))
+      if (website !== undefined) patch.website = website ? cleanWebsite(website) ?? website : null
+      // By id, or by its exact name: a name that only looks like another's ("Café") is a new one.
+      const found = competitor_id ? await resolveCompetitor(sb, competitor_id)
+        : (check(await sb.from('competitors').select('id, name, is_self, active, features')) as Pick<Competitor, 'id' | 'name' | 'is_self' | 'active' | 'features'>[])
+          .find(c => c.name.toLowerCase() === rest.name?.trim().toLowerCase()) ?? null
+      if (found) {
+        if (offers) patch.features = { ...found.features, ...offers }
+        if (found.is_self) delete patch.threat
+        check(await sb.from('competitors').update(patch).eq('id', found.id))
+        return { ok: true, competitor_id: found.id }
+      }
+      if (competitor_id || !rest.name) throw new Error('A new competitor needs a name')
+      const row = check(await sb.from('competitors').insert({ threat: 'medium' satisfies Threat, kind: 'cafe' satisfies CompetitorKind, ...patch, features: offers ?? {} })
+        .select('id').single())
+      return { ok: true, competitor_id: row.id, added: true }
+    },
+  }),
+  tool({
+    name: 'record_competitor_price',
+    title: 'Record a competitor\'s price',
+    description: `Admins: a price seen at a competitor (or typed in for the business itself, for an item not on Menu costing), kept with the day so prices can be followed over time. The item is matched to the basket by name; a new one is added to the basket (and linked to the business's own menu item of the same name). Sources: ${PRICE_SOURCES.map(x => x.id).join(', ')}. Euros, IVA included.`,
+    admin: true,
+    input: z.object({
+      competitor: z.string().describe('Name (or id) of the competitor'), item: z.string().min(1).max(80).describe('e.g. "Flat white"'), price_eur: z.number().min(0).max(999),
+      seen_on: date.optional(), source: enumOf(PRICE_SOURCES).default('visit' satisfies PriceSource), note: z.string().max(300).optional(),
+    }),
+    async run({ sb }, a) {
+      const c = await resolveCompetitor(sb, a.competitor)
+      const items = check(await sb.from('competitor_items').select('id, name, sort')) as { id: string; name: string; sort: number }[]
+      let item = items.find(i => i.name.toLowerCase() === a.item.trim().toLowerCase())
+      let added = false
+      if (!item) {
+        const recipes = check(await sb.from('recipes').select('id, name, active')) as { id: string; name: string; active: boolean }[]
+        item = check(await sb.from('competitor_items').insert({ name: a.item.trim(), recipe_id: matchRecipe(a.item, recipes)?.id ?? null,
+          sort: Math.max(0, ...items.map(i => i.sort)) + 1 }).select('id, name, sort').single()) as { id: string; name: string; sort: number }
+        added = true
+      }
+      check(await sb.from('competitor_prices').insert({ competitor_id: c.id, item_id: item.id, price: a.price_eur, observed_on: a.seen_on ?? today(),
+        source: a.source, note: a.note ?? null }))
+      return { ok: true, competitor: c.name, item: item.name, added_to_basket: added }
+    },
+  }),
+  tool({
+    name: 'add_competitor_note',
+    title: 'Note about a competitor',
+    description: `Admins: something seen or heard about a competitor (or the area as a whole: leave competitor out), kept on its timeline. Kinds: ${NOTE_KINDS.map(k => k.id).join(', ')}. An idea worth borrowing is kind "idea", with idea_status (${IDEA_STATUSES.map(s => s.id).join(', ')}; new by default).`,
+    admin: true,
+    input: z.object({
+      competitor: z.string().optional().describe('Name (or id) of the competitor; none for the area'), kind: enumOf(NOTE_KINDS).default('visit' satisfies NoteKind),
+      text: z.string().min(1).max(2000), seen_on: date.optional(), idea_status: enumOf(IDEA_STATUSES).optional(),
+    }),
+    async run({ sb }, a) {
+      const c = a.competitor ? await resolveCompetitor(sb, a.competitor) : null
+      const row = check(await sb.from('competitor_notes').insert({ competitor_id: c?.id ?? null, kind: a.kind, text: a.text, observed_on: a.seen_on ?? today(),
+        status: a.kind === 'idea' ? a.idea_status ?? ('new' satisfies IdeaStatus) : null }).select('id').single())
+      return { ok: true, note_id: row.id, about: c?.name ?? 'the area' }
     },
   }),
 ]
