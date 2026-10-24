@@ -69,6 +69,8 @@ export interface Settings {
   hidden_pages?: string[]
   /** Data retention: how many days saved WhatsApp chats are kept (30, 90, 180, 365 or 730; 90 unless changed). */
   whatsapp_retention_days?: number
+  /** Expenses & mileage: euros paid back a kilometre driven in a private car (0.26 unless changed). */
+  mileage_rate?: number
 }
 
 export interface Expense {
