@@ -172,10 +172,11 @@ test.describe('admin', () => {
     const pages: { link: string; path: string; check: (p: Page) => Promise<void> }[] = [
       { link: 'Business', path: '/business', check: p => expect(p.getByRole('heading', { level: 1, name: business.name })).toBeVisible(NET) },
       { link: 'Home: Today', path: '/', check: p => expect(p.getByRole('heading', { name: 'Hola, Ana' })).toBeVisible(NET) },
-      ...['Customers', 'To Do List', 'Rota', 'Time off', 'Timecards', 'Team', 'Roles & responsibilities', 'Staff rules', 'Opening hours', 'Brand', 'Ads', 'Analytics', 'Calendar', 'Sports', 'Music', 'Messages', 'Finances', 'Notifications', 'Connections'].map(name => ({
+      ...['Customers', 'Reps & rewards', 'To Do List', 'Rota', 'Time off', 'Staff kitty', 'Timecards', 'Team', 'Roles & responsibilities', 'Staff rules', 'Opening hours', 'Brand', 'Ads', 'Analytics', 'Calendar', 'Sports', 'Music', 'Messages', 'Finances', 'Notifications', 'Connections'].map(name => ({
         link: name,
-        path: { 'Time off': '/time-off', 'Opening hours': '/opening-hours', 'To Do List': '/todo', 'Roles & responsibilities': '/roles', 'Staff rules': '/rules' }[name] ?? `/${name.toLowerCase()}`,
-        check: (p: Page) => expect(p.getByRole('heading', { level: 1, name: { Connections: 'Business connections' }[name] ?? name, exact: true })).toBeVisible(NET),
+        path: { 'Time off': '/time-off', 'Opening hours': '/opening-hours', 'To Do List': '/todo', 'Roles & responsibilities': '/roles', 'Staff rules': '/rules',
+          'Reps & rewards': '/sales-reps', 'Staff kitty': '/kitty' }[name] ?? `/${name.toLowerCase()}`,
+        check: (p: Page) => expect(p.getByRole('heading', { level: 1, name: { Connections: 'Business connections', 'Reps & rewards': 'Sales reps & rewards' }[name] ?? name, exact: true })).toBeVisible(NET),
       })),
     ]
     for (const { link, path, check } of pages) {
@@ -404,7 +405,7 @@ test.describe('employee', () => {
   test('has no admin or money pages in the menu, and /finances shows no expenses', async ({ page }) => {
     await signIn(page, 'employee')
     await expect(page.getByRole('heading', { name: 'Hola, Eva' })).toBeVisible(NET)
-    for (const name of ['Business', 'Home: Today', 'Rota', 'Time off', 'Timecards', 'Calendar', 'Team']) {
+    for (const name of ['Business', 'Home: Today', 'Rota', 'Time off', 'Timecards', 'Calendar', 'Team', 'Staff kitty', 'Reps & rewards']) {
       await expect.soft(nav(page).getByRole('link', { name, exact: true })).toBeVisible()
     }
     for (const name of ['Finances', 'Connections', 'Partners', 'Café tablet']) {
@@ -421,6 +422,11 @@ test.describe('employee', () => {
       await page.goto(path)
       await expect(page).toHaveURL(url => new URL(url).pathname === '/', NET)
     }
+    // The staff kitty is everyone's to see; putting money in and buying are the admins'.
+    await page.goto('/kitty')
+    await expect(page.getByRole('heading', { name: 'Staff kitty', exact: true })).toBeVisible(NET)
+    await expect(page.getByRole('region', { name: 'Saving up for' })).toBeVisible(NET)
+    await expect(page.getByRole('button', { name: 'Put money in' })).toHaveCount(0)
     // Notifications is everyone's, but the team alert switches are for admins.
     await page.goto('/notifications')
     await expect(page.getByRole('heading', { name: 'Notifications', exact: true })).toBeVisible(NET)
