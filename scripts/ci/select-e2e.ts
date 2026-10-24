@@ -54,6 +54,7 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'recipes', files: [/(Recipes|Waste)Page/, /shared\/recipes/], tests: String.raw`recipe|margin|waste` },
   { name: 'ads', files: [/AdsPage/, /shared\/ads/], tests: String.raw`ads|campaign|UTM` },
   { name: 'reviews', files: [/(Reviews|Website)Page/, /shared\/(seo|reviews)/], tests: String.raw`review|SEO|website` },
+  { name: 'competitors', files: [/CompetitorsPage/, /competitorDialogs/, /shared\/localCompetitors/, /components\/charts/], tests: String.raw`competitors` },
   { name: 'set-up', files: [/SetupPage/], tests: String.raw`set-up|wizard` },
   { name: 'appearance', files: [/AppearancePage/, /app\/Appearance/], tests: String.raw`theme|text size|decimal|tint|appearance` },
   { name: 'account', files: [/AccountPage/, /StatusPages/], tests: String.raw`My account|account|registered` },
