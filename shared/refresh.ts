@@ -22,6 +22,8 @@ export const MINUTES = {
   reviewsProfile: 60,
   /** Google reviews from Places, which Google charges for past 1,000 look-ups a month: about 240 a month. */
   reviewsPlaces: 3 * 60,
+  /** Competitors on Google (Places): each followed place, and the look around the business, once a week. */
+  competitors: 7 * 24 * 60,
 } as const
 
 /** How long takings for a period ending at `endIso` (exclusive) are kept: once it's over before yesterday, a day. */
@@ -30,6 +32,7 @@ export const takingsMinutes = (endIso: string, now = Date.now()) => (Date.parse(
 /** A service the app reads, for the pages' notes and the list on Connections. */
 export interface RefreshSource {
   id: 'takings' | 'loyalty' | 'customers' | 'reviews' | 'hours' | 'mentions' | 'messages' | 'search' | 'ads' | 'mail' | 'sports' | 'connections' | 'website'
+    | 'competitors'
   /** What it is and where it comes from. */
   what: string
   from: string
@@ -66,6 +69,8 @@ export const SOURCES: RefreshSource[] = [
     why: msg('Fixtures rarely move; the free sports sources ask for gentle use.') },
   { id: 'connections', what: msg('Whether each connection still works'), from: msg('Every connected app'), every: msg('every night'),
     why: msg('Admins get a notification if one stops working.') },
+  { id: 'competitors', what: msg('Competitors on Google'), from: 'Google', every: msg('every week'),
+    why: msg('Ratings and reviews move slowly, and Google’s Places service charges past 1,000 look-ups a month: once a week for each place followed keeps well inside it.') },
   { id: 'website', what: msg('Website and PageSpeed check'), from: 'Google', every: msg('when you ask for a check'),
     why: msg('Each check reads the whole site, so it only runs when asked.') },
 ]
