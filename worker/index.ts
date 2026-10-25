@@ -20,6 +20,7 @@ import { fillStarterPack, socialMusic, syncMusicInsights } from './socialMusic'
 import { businessConfig } from '../shared/business.config'
 import { referrals } from './referrals'
 import { tax } from './tax'
+import { files } from './files'
 import { legal } from './legal'
 import { invoices } from './invoices'
 import { loyaltyRoutes } from './loyalty'
@@ -211,6 +212,8 @@ app.route('/', referrals)
 
 // Tax documents into the café's Drive or OneDrive (Tax page).
 app.route('/', tax)
+// The Documents hub: what's in the café's Business Agent folder, and uploads into its Documents folder.
+app.route('/', files)
 // Legal documents picked where they are in the café's Drive or OneDrive, and shown from there (Legal page).
 app.route('/', legal)
 // Invoices that come by email, into the café's Drive or OneDrive (Invoices page).

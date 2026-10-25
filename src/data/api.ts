@@ -9,6 +9,7 @@ import type { InstagramMention } from '../../shared/mentions'
 import type { FilingRecord, Quarter, TaxDocKind, TaxDocument, TaxSettings } from '../../shared/tax'
 import type { InboxInvoice, InboxState as InvoiceInbox, Invoice, InvoiceInput } from '../../shared/invoices'
 import type { Licence, LicenceInput } from '../../shared/licences'
+import type { KeptDocument, StorageFolder } from '../../shared/documents'
 import type { MoneyItem, MoneyItemInput } from '../../shared/creditDebit'
 import type { LegalDocument, LegalDocumentPatch, LegalSource, LegalStorage, StorageListing } from '../../shared/legalDocs'
 import type { Benefit, BenefitInput, LeaveAllowance } from '../../shared/benefits'
@@ -21,11 +22,12 @@ import type { Contractor, ContractorInput, OutsourcedJob, OutsourcedJobInput } f
 import type { PnlLine, PnlLineInput, PnlSettings } from '../../shared/pnl'
 import type { GrantApplication, GrantApplicationInput, GrantProfile } from '../../shared/grants'
 import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
-import type { MovementInput, StockItem, StockItemInput, StockMovement, Supplier, SupplierInput } from '../../shared/stock'
+import type { MovementInput, StockItem, StockItemInput, StockMovement, Supplier, SupplierInput, StockPrice } from '../../shared/stock'
 import type { Recipe, RecipeInput } from '../../shared/recipes'
 import type { AdPlatform, AdSettings, AdsReport, CampaignPatch } from '../../shared/ads'
 import type { ReviewsState } from '../../shared/reviews'
 import type { PageSpeed, Strategy, WebsiteReport, WebsiteState } from '../../shared/seo'
+import type { Competition, CompetitionEntry, CompetitionInput, EntryInput } from '../../shared/competitions'
 import type { Enquiry, EnquiryInput, NewLead } from '../../shared/leads'
 import type { ClaimInput, ExpenseClaim } from '../../shared/claims'
 import type { Campaign, CampaignInput } from '../../shared/campaigns'
@@ -304,7 +306,7 @@ export interface Api {
   saveTaxFiling(record: FilingRecord): Promise<void>
   /** The documents kept for a tax year, newest first. */
   taxDocuments(year: number): Promise<TaxDocument[]>
-  updateTaxDocument(id: string, patch: Partial<Pick<TaxDocument, 'kind' | 'year' | 'quarter' | 'notes'>>): Promise<void>
+  updateTaxDocument(id: string, patch: Partial<Pick<TaxDocument, 'kind' | 'year' | 'quarter' | 'notes' | 'title' | 'tags' | 'expires_on'>>): Promise<void>
   /** Take a document off the list (the file stays in Drive or OneDrive). */
   removeTaxDocument(id: string): Promise<void>
   /** The folders inside one under Business Agent (["Tax", "2026"]), and a link to open it there. */
@@ -313,6 +315,15 @@ export interface Api {
   makeTaxFolder(path: string[], name: string): Promise<string[]>
   /** Upload one document into a folder under Business Agent/Tax; refused when the same file (sha256) is already kept. */
   uploadTaxDocument(file: Blob, meta: { name: string; kind: TaxDocKind; year: number; quarter: Quarter | null; folder: string[]; sha256: string }): Promise<TaxDocument>
+  // Documents hub (admins with pay access; finance partners read the list): every kept file, and the café's Business Agent folder.
+  /** Every kept document (all years, Tax and Documents), newest first, with the invoices and licences that point at it. */
+  documents(): Promise<KeptDocument[]>
+  /** What's inside a folder under Business Agent ([] is Business Agent itself); nothing is made. */
+  browseFiles(path: string[]): Promise<StorageFolder>
+  /** Make a folder inside Documents; returns its path. */
+  makeDocumentsFolder(path: string[], name: string): Promise<string[]>
+  /** Upload one document into Documents/<folder…>; refused when the same file (sha256) is already kept. */
+  uploadDocument(file: Blob, meta: { name: string; kind: TaxDocKind; year: number; folder: string[]; sha256: string; title?: string | null; tags?: string[]; expires_on?: string | null }): Promise<KeptDocument>
   // Profit & loss (admins with pay access; finance partners read): the IVA rate and one-off lines
   pnlSettings(): Promise<PnlSettings>
   savePnlSettings(patch: Partial<PnlSettings>): Promise<void>
@@ -394,6 +405,8 @@ export interface Api {
   saveSupplier(s: SupplierInput): Promise<void>
   deleteSupplier(id: string): Promise<void>
   stockItems(): Promise<StockItem[]>
+  /** Every wholesale price each item has had (kept by the database when a cost changes), oldest first. */
+  stockPrices(): Promise<StockPrice[]>
   /** Add an item (no id; on_hand is its first count) or change one (on_hand changes only through recordStock). */
   saveStockItem(item: StockItemInput): Promise<void>
   deleteStockItem(id: string): Promise<void>
@@ -540,6 +553,23 @@ export interface Api {
   deleteSocialPost(id: string): Promise<void>
   /** A reminder you posted yourself: mark it posted. */
   markPosted(id: string): Promise<void>
+
+  // Competitions (admins): giveaways and draws, their entries and the draw. The post goes out
+  // through the Social planner (saveSocialPost).
+  /** Every competition, newest first, each with how many entries it has. */
+  competitions(): Promise<Competition[]>
+  /** Add one (no id) or change one; returns its id. */
+  saveCompetition(c: CompetitionInput): Promise<string>
+  /** Delete one and its entries (the people's details go with it). */
+  deleteCompetition(id: string): Promise<void>
+  competitionEntries(id: string): Promise<CompetitionEntry[]>
+  /** Add entries; whoever is already in (the same username or email) is skipped. */
+  addEntries(id: string, rows: EntryInput[]): Promise<{ added: number; skipped: number }>
+  updateEntry(id: string, patch: Pick<Partial<CompetitionEntry>, 'valid' | 'note' | 'name' | 'email' | 'phone'>): Promise<void>
+  /** Pick the winners and then the reserves at random from the valid entries (once). Returns how many were picked. */
+  drawCompetition(id: string): Promise<number>
+  /** The winners have their prizes: a stock prize comes off the stock (one each). */
+  givePrize(id: string): Promise<void>
   /**
    * Keep a photo (JPEG) or video (MP4/MOV) for a post in the connected Google Drive or OneDrive,
    * in Business Agent/Social/<folder>; returns its public address and type.

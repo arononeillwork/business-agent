@@ -38,6 +38,7 @@ const GrantsPage = page(() => import('./pages/GrantsPage'), 'GrantsPage')
 const SalesPage = page(() => import('./pages/SalesPage'), 'SalesPage')
 const TaxPage = page(() => import('./pages/TaxPage'), 'TaxPage')
 const LicencesPage = page(() => import('./pages/LicencesPage'), 'LicencesPage')
+const DocumentsPage = page(() => import('./pages/DocumentsPage'), 'DocumentsPage')
 const LegalDocumentsPage = page(() => import('./pages/LegalDocumentsPage'), 'LegalDocumentsPage')
 const InvoicesPage = page(() => import('./pages/InvoicesPage'), 'InvoicesPage')
 const CreditDebitPage = page(() => import('./pages/CreditDebitPage'), 'CreditDebitPage')
@@ -53,6 +54,7 @@ const MusicPage = page(() => import('./pages/MusicPage'), 'MusicPage')
 const ConnectionsPage = page(() => import('./pages/ConnectionsPage'), 'ConnectionsPage')
 const SocialPlannerPage = page(() => import('./pages/SocialPlannerPage'), 'SocialPlannerPage')
 const AdsPage = page(() => import('./pages/AdsPage'), 'AdsPage')
+const CompetitionsPage = page(() => import('./pages/CompetitionsPage'), 'CompetitionsPage')
 const PartnersPage = page(() => import('./pages/PartnersPage'), 'PartnersPage')
 const TodoPage = page(() => import('./pages/TodoPage'), 'TodoPage')
 const CustomersPage = page(() => import('./pages/CustomersPage'), 'CustomersPage')
@@ -61,6 +63,7 @@ const SalesRepsPage = page(() => import('./pages/SalesRepsPage'), 'SalesRepsPage
 const RepCardsPage = page(() => import('./pages/RepCardsPage'), 'RepCardsPage')
 const KittyPage = page(() => import('./pages/KittyPage'), 'KittyPage')
 const StockPage = page(() => import('./pages/StockPage'), 'StockPage')
+const WholesalePage = page(() => import('./pages/WholesalePage'), 'WholesalePage')
 const SuppliersPage = page(() => import('./pages/SuppliersPage'), 'SuppliersPage')
 const RecipesPage = page(() => import('./pages/RecipesPage'), 'RecipesPage')
 const WastePage = page(() => import('./pages/WastePage'), 'WastePage')
@@ -125,6 +128,7 @@ function Routed() {
           {partnerCan('finances') && <Route path="finances" element={<FinancesPage />} />}
           {partnerCan('finances') && <Route path="tax" element={<TaxPage />} />}
           {partnerCan('finances') && <Route path="licences" element={<LicencesPage />} />}
+          {partnerCan('finances') && <Route path="documents" element={<DocumentsPage />} />}
           {partnerCan('finances') && <Route path="legal" element={<LegalDocumentsPage />} />}
           {partnerCan('finances') && <Route path="invoices" element={<InvoicesPage />} />}
           {partnerCan('finances') && <Route path="credit-debit" element={<CreditDebitPage />} />}
@@ -132,6 +136,7 @@ function Routed() {
           {partnerCan('finances') && <Route path="profit-and-loss" element={<ProfitLossPage />} />}
           {partnerCan('finances') && <Route path="grants" element={<GrantsPage />} />}
           {partnerCan('finances') && <Route path="stock" element={<StockPage />} />}
+          {partnerCan('finances') && <Route path="wholesale" element={<WholesalePage />} />}
           {partnerCan('finances') && <Route path="suppliers" element={<SuppliersPage />} />}
           {partnerCan('finances') && <Route path="outsourcing" element={<OutsourcingPage />} />}
           {partnerCan('finances') && <Route path="recipes" element={<RecipesPage />} />}
@@ -173,6 +178,7 @@ function Routed() {
         <Route path="loyalty" element={isAdmin ? <LoyaltyPage /> : <Navigate to="/" />} />
         <Route path="sales-reps" element={<SalesRepsPage />} />
         <Route path="stock" element={<StockPage />} />
+        <Route path="wholesale" element={isAdmin ? <WholesalePage /> : <Navigate to="/" />} />
         <Route path="suppliers" element={isAdmin ? <SuppliersPage /> : <Navigate to="/" />} />
         <Route path="recipes" element={isAdmin ? <RecipesPage /> : <Navigate to="/" />} />
         <Route path="allergens" element={<AllergensPage />} />
@@ -186,6 +192,7 @@ function Routed() {
         <Route path="finances" element={<FinancesPage />} />
         <Route path="tax" element={<TaxPage />} />
         <Route path="licences" element={isAdmin ? <LicencesPage /> : <Navigate to="/" />} />
+        <Route path="documents" element={<DocumentsPage />} />
         <Route path="legal" element={isAdmin ? <LegalDocumentsPage /> : <Navigate to="/" />} />
         <Route path="invoices" element={<InvoicesPage />} />
         <Route path="credit-debit" element={<CreditDebitPage />} />
@@ -209,6 +216,7 @@ function Routed() {
         <Route path="billing" element={<ToBilling />} />
         <Route path="connections" element={isAdmin ? <ConnectionsPage /> : <Navigate to="/" />} />
         <Route path="social" element={isAdmin ? <SocialPlannerPage /> : <Navigate to="/" />} />
+        <Route path="competitions" element={isAdmin ? <CompetitionsPage /> : <Navigate to="/" />} />
         <Route path="campaigns" element={isAdmin ? <CampaignsPage /> : <Navigate to="/" />} />
         <Route path="ads" element={isAdmin ? <AdsPage /> : <Navigate to="/" />} />
         <Route path="messages" element={isAdmin ? <MessagesPage /> : <Navigate to="/" />} />

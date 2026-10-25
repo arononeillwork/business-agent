@@ -26,7 +26,7 @@ export const MOODS: Record<Mood, { label: string; prompt: string }> = {
   lofi: { label: msg('Lo-fi'), prompt: 'lo-fi beats with soft vinyl crackle' },
   jazz: { label: msg('Jazz'), prompt: 'smooth jazz' },
   latin: { label: msg('Latin'), prompt: 'Latin rhythms' },
-  summer: { label: msg('Summer'), prompt: 'sunny summer feel' },
+  summer: { label: msg('Summery'), prompt: 'sunny summer feel' },
   festive: { label: msg('Festive'), prompt: 'festive and warm, gentle bells' },
   cosy: { label: msg('Cosy'), prompt: 'warm and cosy' },
   elegant: { label: msg('Elegant'), prompt: 'elegant and refined' },

@@ -12,6 +12,7 @@ import CustomersIcon from '@mui/icons-material/ContactsOutlined'
 import LoyaltyIcon from '@mui/icons-material/LoyaltyOutlined'
 import StockIcon from '@mui/icons-material/Inventory2Outlined'
 import SuppliersIcon from '@mui/icons-material/LocalShippingOutlined'
+import WholesaleIcon from '@mui/icons-material/WarehouseOutlined'
 import RecipesIcon from '@mui/icons-material/MenuBookOutlined'
 import WasteIcon from '@mui/icons-material/DeleteSweepOutlined'
 import TodoIcon from '@mui/icons-material/ChecklistRtlOutlined'
@@ -31,6 +32,7 @@ import FinanceIcon from '@mui/icons-material/PaymentsOutlined'
 import SalesIcon from '@mui/icons-material/InsightsOutlined'
 import TaxIcon from '@mui/icons-material/ReceiptLongOutlined'
 import LicencesIcon from '@mui/icons-material/VerifiedOutlined'
+import DocumentsIcon from '@mui/icons-material/FolderOutlined'
 import LegalIcon from '@mui/icons-material/GavelOutlined'
 import InvoicesIcon from '@mui/icons-material/DescriptionOutlined'
 import ProfitLossIcon from '@mui/icons-material/RequestQuoteOutlined'
@@ -39,6 +41,7 @@ import CreditDebitIcon from '@mui/icons-material/CompareArrowsOutlined'
 import BillingIcon from '@mui/icons-material/CreditCardOutlined'
 import SocialIcon from '@mui/icons-material/CampaignOutlined'
 import AdsIcon from '@mui/icons-material/AdsClickOutlined'
+import CompetitionsIcon from '@mui/icons-material/EmojiEventsOutlined'
 import CampaignsIcon from '@mui/icons-material/ForwardToInboxOutlined'
 import LeadsIcon from '@mui/icons-material/ContactMailOutlined'
 import ClaimsIcon from '@mui/icons-material/ReceiptOutlined'
@@ -83,13 +86,17 @@ import { CafeSpeakerProvider } from './CafeSpeaker'
 import { BillingBanner } from './plan'
 import { SearchButton, ThemeToggle } from './QuickActions'
 import { fonts, tokens } from '../theme'
-import { msg, t, tr } from '../i18n'
+import { msg, t, tc, tr } from '../i18n'
 import { LanguageToggle } from '../components/Language'
 
 // `partner`: which partner areas show the item ('any' = every partner). Items without it are staff-only.
 // `children`: sub-pages, shown indented under the item when it's opened (or its arrow is pressed).
 // `needs`: shown only while that app is connected (Loyalty & gift cards: Square).
-export interface NavItem { key: string; to: string; label: string; short?: string; icon: ReactNode; who?: 'admin' | 'pay'; partner?: PartnerArea[] | 'any'; children?: NavItem[]; needs?: 'square' }
+export interface NavItem {
+  key: string; to: string; label: string; short?: string; icon: ReactNode; who?: 'admin' | 'pay'; partner?: PartnerArea[] | 'any'; children?: NavItem[]; needs?: 'square'
+  /** The label's English means something else elsewhere: its Spanish is kept under "context|label" (see tc). */
+  context?: string
+}
 export interface NavSection { key: string; label: string | null; items: NavItem[] }
 
 // The menu, in sections. Today is the landing page: the logo goes there, so it has no menu item.
@@ -99,6 +106,7 @@ export const SECTIONS: NavSection[] = [
     { key: 'todo', to: '/todo', label: msg('To Do List'), short: msg('To do'), icon: <TodoIcon /> },
     { key: 'hours', to: '/opening-hours', label: msg('Opening hours'), icon: <HoursIcon />, partner: 'any' },
     { key: 'licences', to: '/licences', label: msg('Licences'), icon: <LicencesIcon />, who: 'admin', partner: ['finances'] },
+    { key: 'documents', to: '/documents', label: msg('Documents'), icon: <DocumentsIcon />, who: 'pay', partner: ['finances'] },
     { key: 'legal', to: '/legal', label: msg('Legal'), icon: <LegalIcon />, who: 'admin', partner: ['finances'] },
     { key: 'brand', to: '/brand', label: msg('Brand'), icon: <BrandIcon />, partner: 'any' },
     { key: 'messages', to: '/messages', label: msg('Messages'), icon: <MessagesIcon />, who: 'admin' },
@@ -114,7 +122,8 @@ export const SECTIONS: NavSection[] = [
   ] },
   // What's bought wholesale and sold in the shop, and who from. The team counts; admins price and order.
   { key: 'stock', label: msg('Stock'), items: [
-    { key: 'stock', to: '/stock', label: msg('Stock'), icon: <StockIcon />, partner: ['finances'] },
+    { key: 'stock', to: '/stock', label: msg('Current stock'), icon: <StockIcon />, partner: ['finances'] },
+    { key: 'wholesale', to: '/wholesale', label: msg('Wholesale'), icon: <WholesaleIcon />, who: 'admin', partner: ['finances'] },
     { key: 'suppliers', to: '/suppliers', label: msg('Suppliers'), icon: <SuppliersIcon />, who: 'admin', partner: ['finances'] },
     { key: 'recipes', to: '/recipes', label: msg('Menu costing'), icon: <RecipesIcon />, who: 'admin', partner: ['finances'] },
     { key: 'allergens', to: '/allergens', label: msg('Allergens'), icon: <AllergensIcon />, partner: ['finances'] },
@@ -132,6 +141,7 @@ export const SECTIONS: NavSection[] = [
   ] },
   { key: 'marketing', label: msg('Marketing'), items: [
     { key: 'social', to: '/social', label: msg('Social planner'), icon: <SocialIcon />, who: 'admin' },
+    { key: 'competitions', to: '/competitions', label: msg('Competitions'), context: 'marketing', icon: <CompetitionsIcon />, who: 'admin' },
     { key: 'campaigns', to: '/campaigns', label: msg('Campaigns'), icon: <CampaignsIcon />, who: 'admin' },
     { key: 'ads', to: '/ads', label: msg('Ads'), icon: <AdsIcon />, who: 'admin' },
     { key: 'analytics', to: '/analytics', label: msg('Analytics'), icon: <AnalyticsIcon />, who: 'admin' },
@@ -206,7 +216,9 @@ function IconCount({ n, children }: { n?: number; children: ReactNode }) {
 // Phone tabs: the everyday pages first; everything else sits under "More".
 const PHONE_TABS = ['rota', 'timeoff', 'timecards', 'calendar', 'business']
 /** A menu item with its words in the person's language. */
-const inLanguage = (n: NavItem): NavItem => ({ ...n, label: t(n.label), short: n.short && t(n.short), children: n.children?.map(inLanguage) })
+/** A menu item's name in the person's language. */
+export const navLabel = (n: Pick<NavItem, 'label' | 'context'>) => (n.context ? tc(n.context, n.label) : t(n.label))
+const inLanguage = (n: NavItem): NavItem => ({ ...n, label: navLabel(n), short: n.short && t(n.short), children: n.children?.map(inLanguage) })
 /** Every page, sub-pages included. */
 const withChildren = (items: NavItem[]) => items.flatMap(n => [n, ...(n.children ?? [])])
 

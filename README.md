@@ -49,6 +49,10 @@ built-in **AI connector** so owners can run it by talking to Claude.
   limits, and pause, resume or daily budget changes sent straight to the platform. **Reviews** reads the
   Google reviews (new ones in the bell, replies from templates in the review's language) and **Website &
   SEO** checks the website (SEO, Google PageSpeed, the same details as the app and Google Maps).
+  **Competitions** suggests giveaways and draws from the calendar, the quiet days, the big matches and
+  the shop's stock (or one of your own), writes the bases legales in Spanish with Meta's line and the
+  tax note when they apply, warns about what the platforms ban (a review to enter), and runs the
+  entries (pasted Instagram comments, customers who said yes, a CSV) and a one-time random draw.
 - Competitors (Marketing, admins): the cafés around the business, followed over time. What each
   charges for the same basket (the usual for a café in Spain, café con leche to matcha latte, or
   your own items; yours from Menu costing), every price kept with the day it was seen so rises
@@ -120,6 +124,13 @@ built-in **AI connector** so owners can run it by talking to Claude.
   be connected; the admin chooses which), grouped by kind, shown in the page straight from the storage
   and opened there. Nothing is copied: only where each file is is kept. A gestoría with finances access
   reads. Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) section 18.
+- Documents (Business section): every file kept in the café's own Google Drive or OneDrive (the Tax
+  page's, invoices brought in by email, licences' documents, and contracts, insurance policies and
+  certificates kept here), all years in one list with what each belongs to (an invoice, a licence, the
+  Tax page), a title, tags and when it runs out; searched and filtered by kind, year and what it belongs
+  to. Browse storage looks inside the Business Agent folder there (folders and files, kept ones marked,
+  each opened in Drive or OneDrive) and uploads into its Documents folder or a new folder made in it.
+  Admins with pay access; a gestoría with finances access reads the list.
 - How often things update: what the app reads from Square, SumUp, Stripe, Google and Meta (takings, ads,
   Search Console, loyalty, email invoices, reviews) is kept a while (`provider_cache`), so opening a page
   doesn't ask them again each time: today's takings every 15 minutes and finished days once a day, ads
@@ -143,11 +154,14 @@ built-in **AI connector** so owners can run it by talking to Claude.
   their last days, marked to do, with the gestoría or filed; documents (invoices, receipts, payslips,
   statements) uploaded in bulk, a folder at a time, into the connected Google Drive or OneDrive under
   Business Agent/Tax, sorted by year, quarter and kind or into a folder chosen there.
-- Stock: every wholesale item (beans, milk, cups, pastries) and the shop's own products, each with its
-  supplier, link, cost and reorder level. The team records deliveries, counts and waste (or a whole
-  stocktake at once); the order list groups what's low by supplier, with the order day and a message
-  ready for WhatsApp or email. Suppliers keep their contact details, website, order page and order days;
-  admins star the ones they rely on, and the page shows the active ones, the whole catalogue or the starred.
+- Stock: Current stock shows how many of each item are in and where, what's low and its worth. The
+  team records deliveries, counts and waste (or a whole stocktake at once); the order list groups what's
+  low by supplier, with the order day and a message ready for WhatsApp or email. Wholesale lists every
+  item bought (beans, milk, cups, pastries) and the shop's own products by supplier, with the link to
+  order it, its cost with and without IVA, each price change kept over time (what went up, by how much
+  and when) and the shop margin; a supplier's price list imported again updates the prices already
+  there. Suppliers keep their contact details, website, order page and order days; admins star the ones
+  they rely on, and the page shows the active ones, the whole catalogue or the starred.
   Menu costing works out what each drink or dish costs from the stock in it (with variants such as oat
   milk or an extra shot, and a waste allowance) and its margin against the menu price; the Waste log
   takes what's thrown away and why off the stock, with its cost for admins. Anything still to be entered
