@@ -6,7 +6,7 @@
 import type { IntegrationProvider } from './types'
 import { msg } from './i18n'
 
-export type ConnectionGroup = 'communication' | 'email' | 'calendar' | 'files' | 'maps' | 'analytics' | 'social' | 'advertising' | 'payments' | 'online_payments' | 'music' | 'email_marketing' | 'job_boards'
+export type ConnectionGroup = 'communication' | 'email' | 'calendar' | 'files' | 'maps' | 'analytics' | 'social' | 'advertising' | 'payments' | 'online_payments' | 'music' | 'email_marketing' | 'job_boards' | 'ai'
 
 export interface ConnectionOption {
   id: IntegrationProvider | 'slack' | 'sms' | 'sharepoint' | 'dropbox' | 'apple_maps' | 'stripe' | 'brevo' | 'mailchimp' | 'infojobs' | 'indeed' | 'linkedin_jobs'
@@ -71,6 +71,10 @@ export const GROUPS: ConnectionGroupInfo[] = [
   ] },
   { key: 'online_payments', title: msg('Online payments'), pickOne: false, options: [
     { id: 'stripe', name: 'Stripe', by: 'Stripe', proves: msg('The Stripe account was found and its payments can be read.') },
+  ] },
+  // Images made with AI for the menus and screens (Menu page), with the business's own API key.
+  { key: 'ai', title: msg('AI images'), pickOne: false, options: [
+    { id: 'higgsfield', name: 'Higgsfield', by: 'Higgsfield AI', proves: msg('Higgsfield accepted the API key.') },
   ] },
   { key: 'music', title: msg('Café music'), pickOne: true, options: [
     { id: 'spotify', name: 'Spotify', by: 'Spotify', proves: msg('The account signed in and its playlists can be read. Staff can play or pause it on the speaker.') },

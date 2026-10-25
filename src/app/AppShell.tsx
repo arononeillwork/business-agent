@@ -14,6 +14,8 @@ import StockIcon from '@mui/icons-material/Inventory2Outlined'
 import SuppliersIcon from '@mui/icons-material/LocalShippingOutlined'
 import WholesaleIcon from '@mui/icons-material/WarehouseOutlined'
 import RecipesIcon from '@mui/icons-material/MenuBookOutlined'
+import MenuIcon from '@mui/icons-material/RestaurantMenuOutlined'
+import ScreensIcon from '@mui/icons-material/TvOutlined'
 import WasteIcon from '@mui/icons-material/DeleteSweepOutlined'
 import TodoIcon from '@mui/icons-material/ChecklistRtlOutlined'
 import HoursIcon from '@mui/icons-material/ScheduleOutlined'
@@ -127,6 +129,12 @@ export const SECTIONS: NavSection[] = [
     { key: 'leads', to: '/leads', label: msg('Leads & enquiries'), short: msg('Leads'), icon: <LeadsIcon />, who: 'admin' },
     { key: 'loyalty', to: '/loyalty', label: msg('Loyalty & gift cards'), short: msg('Loyalty'), icon: <LoyaltyIcon />, who: 'admin', needs: 'square' },
     { key: 'reps', to: '/sales-reps', label: msg('Reps & rewards'), short: msg('Reps'), icon: <RepsIcon /> },
+  ] },
+  // The menu as customers see it (everyone reads it; admins design the printed and screen menus),
+  // and the café's screens that play it.
+  { key: 'menu', label: msg('Menu'), items: [
+    { key: 'menu', to: '/menu', label: msg('Menu'), icon: <MenuIcon />, partner: ['finances'] },
+    { key: 'screens', to: '/screens', label: msg('Screens'), icon: <ScreensIcon />, who: 'admin' },
   ] },
   // What's bought wholesale and sold in the shop, and who from. The team counts; admins price and order.
   { key: 'stock', label: msg('Stock'), items: [

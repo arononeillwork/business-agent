@@ -27,6 +27,7 @@ import * as linkedin from './providers/linkedin'
 import * as searchConsole from './providers/searchConsole'
 import * as googleAds from './providers/googleAds'
 import * as metaAds from './providers/metaAds'
+import * as higgsfield from './providers/higgsfield'
 import { base64url, mimeMessage } from '../shared/alertText'
 import { calendarAppFromAgent, optionName } from '../shared/connections'
 import type { CalendarApp, IntegrationProvider } from '../shared/types'
@@ -36,7 +37,7 @@ export type Provider = IntegrationProvider
 /** Signed in with Google or Microsoft: one refresh token each. */
 export type Connector = 'gmail' | 'outlook' | 'google_drive' | 'onedrive' | 'youtube_music' | 'search_console' | 'google_ads'
 export const CONNECTORS: Connector[] = ['gmail', 'outlook', 'google_drive', 'onedrive', 'youtube_music', 'search_console', 'google_ads']
-export const PROVIDERS: Provider[] = ['google_business', 'whatsapp', 'instagram', 'facebook', 'tiktok', 'linkedin', 'spotify', 'square', 'stripe', 'sumup', ...CONNECTORS, 'google_calendar', 'outlook_calendar', 'meta_ads']
+export const PROVIDERS: Provider[] = ['google_business', 'whatsapp', 'instagram', 'facebook', 'tiktok', 'linkedin', 'spotify', 'square', 'stripe', 'sumup', ...CONNECTORS, 'google_calendar', 'outlook_calendar', 'meta_ads', 'higgsfield']
 export const isConnector = (p: string): p is Connector => (CONNECTORS as string[]).includes(p)
 export const isGoogle = (p: Connector) => p === 'gmail' || p === 'google_drive' || p === 'youtube_music' || p === 'search_console' || p === 'google_ads'
 export const isCalendarApp = (p: string): p is CalendarApp => p === 'google_calendar' || p === 'outlook_calendar'
@@ -227,7 +228,7 @@ export function explain(p: Provider, e: unknown): string {
 }
 
 /** Failures that trying again won't fix (as opposed to a provider having a bad minute). */
-const LASTING = /invalid_grant|access was removed|access has expired|switched off|without the permission|no Outlook mailbox|no OneDrive|no YouTube channel|not connected|not set up|hasn.t fetched|hasn.t switched on|no Google Maps listing|can.t connect yet|no website in Search Console|no longer in this Google account|didn.t allow posting|hasn.t approved|no Google Ads account|no ad account|can.t use that ad account/i
+const LASTING = /invalid_grant|access was removed|access has expired|switched off|without the permission|no Outlook mailbox|no OneDrive|no YouTube channel|not connected|not set up|hasn.t fetched|hasn.t switched on|no Google Maps listing|can.t connect yet|no website in Search Console|no longer in this Google account|didn.t allow posting|hasn.t approved|no Google Ads account|no ad account|can.t use that ad account|didn.t accept the API key/i
 export const lasting = (p: Provider, e: unknown) => LASTING.test(message(e)) || LASTING.test(explain(p, e))
 
 // ---------------------------------------------------------------------------------------------
@@ -257,6 +258,13 @@ export async function setIntegration(db: SupabaseClient, provider: Provider, pat
   if (error) throw new Error(error.message)
   // Connected again (perhaps to another account or with other permissions), or disconnected: start afresh.
   if ('status' in patch) await Promise.all((KEPT[provider] ?? []).map(key => forget(db, key)))
+}
+
+/** Higgsfield's API key (AI images on the Menu page), as the admin pasted it. */
+export async function higgsfieldKey(env: Env, db: SupabaseClient): Promise<higgsfield.HiggsfieldKey> {
+  const { data: secret } = await db.from('integration_secrets').select('ciphertext').eq('provider', 'higgsfield').maybeSingle()
+  if (!secret) throw new Error('Higgsfield is not connected')
+  return unseal<higgsfield.HiggsfieldKey>(env.INTEGRATION_KEY!, secret.ciphertext)
 }
 
 async function refreshTokenOf(env: Env, db: SupabaseClient, p: Provider) {
@@ -683,6 +691,7 @@ async function stillWorks(env: Env, db: SupabaseClient, row: Row): Promise<Parti
     return last === row.last_sync_at ? {} : { last_sync_at: last }
   }
   switch (p) {
+    case 'higgsfield': await higgsfield.prove(await higgsfieldKey(env, db)); return {}
     case 'spotify': await spotify.me((await spotifySession(env, db)).token); return {}
     case 'whatsapp': {
       const cfg = waConfig(env)

@@ -1306,7 +1306,7 @@ test.describe('menu', () => {
     await open(page, '/')
     const nav = page.getByRole('navigation', { name: 'Main' })
     const headings = await nav.locator('section > button').allTextContents()
-    expect(headings.map(h => h.trim())).toEqual(['Business', 'Insights', 'Sales', 'Stock', 'Accounts', 'Marketing', "What's on", 'Team', 'Settings'])
+    expect(headings.map(h => h.trim())).toEqual(['Business', 'Insights', 'Sales', 'Menu', 'Stock', 'Accounts', 'Marketing', "What's on", 'Team', 'Settings'])
     await expect(nav.getByRole('link', { name: 'Partners' })).toHaveCount(0)
     await expect(nav.getByRole('link', { name: 'Café tablet' })).toHaveCount(0)
     // Today is the landing page: no menu item, the logo takes you there.
@@ -3658,7 +3658,7 @@ test.describe('credit and debit', () => {
 
 test.describe('pages: the order of the menu sections', () => {
   test('each person puts the menu sections in their own order, saved to their account', async ({ page }) => {
-    const usual = ['Business', 'Insights', 'Sales', 'Stock', 'Accounts', 'Marketing', "What's on", 'Team', 'Settings']
+    const usual = ['Business', 'Insights', 'Sales', 'Menu', 'Stock', 'Accounts', 'Marketing', "What's on", 'Team', 'Settings']
     await open(page, '/pages')
     const nav = page.getByRole('navigation', { name: 'Main' })
     const headings = async () => (await nav.locator('section > button').allTextContents()).map(h => h.trim())
@@ -3668,16 +3668,16 @@ test.describe('pages: the order of the menu sections', () => {
     await expect(order.getByRole('button', { name: 'Move Settings down' })).toBeDisabled()
 
     await order.getByRole('button', { name: 'Move Team up' }).click()
-    await expect.poll(headings).toEqual(['Business', 'Insights', 'Sales', 'Stock', 'Accounts', 'Marketing', 'Team', "What's on", 'Settings'])
+    await expect.poll(headings).toEqual(['Business', 'Insights', 'Sales', 'Menu', 'Stock', 'Accounts', 'Marketing', 'Team', "What's on", 'Settings'])
     await order.getByRole('button', { name: 'Move Team up' }).click()
-    await expect.poll(headings).toEqual(['Business', 'Insights', 'Sales', 'Stock', 'Accounts', 'Team', 'Marketing', "What's on", 'Settings'])
+    await expect.poll(headings).toEqual(['Business', 'Insights', 'Sales', 'Menu', 'Stock', 'Accounts', 'Team', 'Marketing', "What's on", 'Settings'])
     // Or with the keyboard: pick up Settings, move it up a place and drop it.
     await order.getByRole('button', { name: 'Reorder Settings' }).focus()
     await page.keyboard.press('Space')
     await page.keyboard.press('ArrowUp')
     await expect(order.getByRole('status')).toContainText('over droppable area whatson')
     await page.keyboard.press('Space')
-    const mine = ['Business', 'Insights', 'Sales', 'Stock', 'Accounts', 'Team', 'Marketing', 'Settings', "What's on"]
+    const mine = ['Business', 'Insights', 'Sales', 'Menu', 'Stock', 'Accounts', 'Team', 'Marketing', 'Settings', "What's on"]
     await expect.poll(headings).toEqual(mine)
     // The page's own lists follow the same order.
     expect(await order.getByRole('listitem').locator('p').allTextContents()).toEqual(mine)
@@ -4038,6 +4038,383 @@ test.describe('recipes and waste', () => {
     await expect(page.getByRole('region', { name: /Wednesday 30 September/ })).toContainText('Spilled or dropped')
     await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Current stock' }).click()
     await expect(page.getByRole('table', { name: 'Stock items' }).getByRole('row', { name: 'Napkins' })).toContainText(/2\s*packs/)
+  })
+})
+
+test.describe('menu, menu design and screens', () => {
+  test.describe.configure({ timeout: 60_000 })
+  const card = (page: Page, name: string) => page.getByRole('main').getByRole('article', { name, exact: true })
+  /** The café's printed menus added beside the demo's costed recipes (Menu page, Items tab). */
+  async function addPrintedMenus(page: Page) {
+    await expect(page.getByRole('main')).toContainText('56 items on your printed menus aren’t on this menu.')
+    await page.getByRole('button', { name: 'Add what’s on your printed menus' }).click()
+    await toast(page, 'Added 56 items from your printed menus.')
+  }
+  /** Connect Higgsfield on the Design tab (the demo takes any key but a "wrong" secret). */
+  async function connectHiggsfield(page: Page) {
+    await page.getByRole('button', { name: 'Connect Higgsfield' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Connect Higgsfield' })
+    await dialog.getByRole('textbox', { name: 'Key ID' }).fill('hf-key-1234')
+    await dialog.getByLabel('Secret').fill('the-secret')
+    await dialog.getByRole('button', { name: 'Connect' }).click()
+    await toast(page, 'Higgsfield is connected')
+  }
+
+  test('the menu lists each item by section with its price, and its allergens and diets from Menu costing; what suits a customer is on Allergens', async ({ page }) => {
+    await open(page, '/menu')
+    await expect(page.getByRole('heading', { name: 'Menu', level: 1 })).toBeVisible()
+    const tiles = page.getByRole('list', { name: 'At a glance' })
+    // The costed coffees, teas and pastries; the café's printed menus (Drinks, Food, The fridge) go beside them.
+    await expect(tiles.getByRole('listitem').filter({ hasText: 'On the menu' })).toContainText('8')
+    await addPrintedMenus(page)
+    await expect(tiles.getByRole('listitem').filter({ hasText: 'On the menu' })).toContainText('64')
+    await expect.poll(() => page.getByRole('main').getByRole('region').evaluateAll(els => els.slice(0, 4).map(e => e.getAttribute('aria-label'))))
+      .toEqual(['Classics', 'Speciality', 'Smoothies', 'Make it yours'])
+    await expect(page.getByRole('region', { name: 'Speciality' })).toContainText('Matcha latte')
+    // Its price and the other ways it's sold; hot and iced, as the printed menu has them.
+    const flatWhite = card(page, 'Flat white')
+    await expect(flatWhite).toContainText('€3,20')
+    await expect(flatWhite).toContainText('Oat milk €3,60')
+    await expect(card(page, 'Latte')).toContainText('Hot €4,00 · Iced €5,00')
+    await expect(card(page, 'Any milk')).toContainText('free')
+    // Allergens and diets from what goes into each (Menu costing) and the ingredients' (Allergens).
+    const croissant = card(page, 'Croissant')
+    await expect(croissant).toContainText('1 · Gluten')
+    await expect(croissant).toContainText('7 · Milk')
+    await expect(croissant).toContainText('Vegetarian')
+    await expect(card(page, 'Espresso')).toContainText('VeganGluten freeDairy free')
+    await expect(card(page, 'Chai latte')).toContainText('Not known yet: Chai concentrate')
+    // Nothing in it on Menu costing yet: no allergens and no diet badges, not "none".
+    const brownie = card(page, 'Gluten-free brownie')
+    await expect(brownie).toContainText('€3,50')
+    await expect(brownie).not.toContainText('·')
+    await expect(brownie).not.toContainText('Gluten free')
+    // Kept here (Custom) unless Square is chosen.
+    await expect(page.getByRole('group', { name: 'Menu from' }).getByRole('button', { name: 'Custom' })).toHaveAttribute('aria-pressed', 'true')
+
+    // What's free from what is the Allergens page's.
+    await page.getByRole('link', { name: 'Free from: on Allergens' }).click()
+    await expect(page.getByRole('heading', { name: 'Allergens', level: 1 })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'The menu' }).getByRole('listitem', { name: 'Croissant', exact: true })).toContainText('Contains Gluten, Eggs, Milk')
+    await page.goBack()
+
+    // The team reads the menu; only admins change it or design it.
+    await signInAs(page, 'maria@example.com')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Menu', exact: true }).click()
+    await expect(card(page, 'Croissant')).toContainText('7 · Milk')
+    await expect(page.getByRole('button', { name: 'Add menu item' })).toHaveCount(0)
+    await expect(page.getByRole('group', { name: 'Menu from' })).toHaveCount(0)
+    await expect(page.getByRole('tab', { name: 'Design' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Edit Croissant' })).toHaveCount(0)
+    await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Screens' })).toHaveCount(0)
+    await page.goto('/screens')
+    await expect(page.getByRole('heading', { name: 'Screens', level: 1 })).toHaveCount(0)
+  })
+
+  test('an admin adds an item: no allergens until what goes into it is on Menu costing, then its ingredients’ show', async ({ page }) => {
+    await open(page, '/menu')
+    await page.getByRole('button', { name: 'Add menu item' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Add a menu item' })
+    await dialog.getByRole('textbox', { name: 'Name' }).fill('Oat cortado')
+    await dialog.getByRole('combobox', { name: 'Section' }).fill('Coffee')
+    await dialog.getByRole('textbox', { name: 'Price, with IVA' }).fill('3,00')
+    await dialog.getByRole('textbox', { name: 'Description' }).fill('Espresso cut with steamed oat milk')
+    await expect(dialog).toContainText('Once it’s added, put what goes into it on Menu costing')
+    await dialog.getByRole('button', { name: 'Add', exact: true }).click()
+    await toast(page, 'Added Oat cortado')
+    const cortado = page.getByRole('region', { name: 'Coffee' }).getByRole('article', { name: 'Oat cortado' })
+    await expect(cortado).toContainText('€3,00')
+    await expect(cortado).not.toContainText('·')
+    await expect(cortado).not.toContainText('Vegan')
+
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Menu costing' }).click()
+    const row = page.getByRole('table', { name: 'Menu costing' }).getByRole('row', { name: 'Oat cortado' })
+    await expect(row).toContainText('No ingredients yet')
+    await row.click()
+    const costing = page.getByRole('dialog', { name: 'Oat cortado' })
+    await costing.getByRole('button', { name: 'Add ingredient' }).click()
+    await costing.getByRole('combobox', { name: 'Ingredient' }).fill('Oat milk')
+    await page.getByRole('option', { name: 'Oat milk (barista)' }).click()
+    await costing.getByRole('textbox', { name: 'Amount' }).fill('120')
+    await costing.getByRole('button', { name: 'Save' }).click()
+    await toast(page, /^Saved$/)
+
+    // The oat milk's gluten, and vegan and dairy free, as the Allergens page has them.
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Menu', exact: true }).click()
+    await expect(cortado).toContainText('1 · Gluten')
+    await expect(cortado).toContainText('VeganDairy free')
+    await page.getByRole('button', { name: 'Edit Oat cortado' }).click()
+    await expect(page.getByRole('dialog', { name: 'Oat cortado' })).toContainText('They come from what goes into it on Menu costing')
+  })
+
+  test('items move up and down in their section, and come off the menu without being deleted', async ({ page }) => {
+    await open(page, '/menu')
+    const bakery = page.getByRole('region', { name: 'Bakery' })
+    const order = () => bakery.getByRole('article').evaluateAll(els => els.map(e => e.getAttribute('aria-label')))
+    await expect.poll(order).toEqual(['Croissant', 'Pain au chocolat'])
+    await bakery.getByRole('button', { name: 'Move Pain au chocolat up' }).click()
+    await expect.poll(order).toEqual(['Pain au chocolat', 'Croissant'])
+
+    await page.getByRole('button', { name: 'Edit Croissant' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Croissant' })
+    await dialog.getByRole('switch', { name: 'On the menu' }).uncheck()
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await toast(page, /^Saved$/)
+    await expect(card(page, 'Croissant')).toContainText('Off the menu')
+    await expect(page.getByRole('list', { name: 'At a glance' }).getByRole('listitem').filter({ hasText: 'On the menu' })).toContainText('1 off the menu')
+    // Not on the menus themselves.
+    await page.getByRole('tab', { name: 'Design' }).click()
+    await page.getByRole('button', { name: 'Food menu' }).click()
+    await expect(page.getByRole('img', { name: 'Preview of the printed menu' })).toContainText('Pain au chocolat')
+    await expect(page.getByRole('img', { name: 'Preview of the printed menu' })).not.toContainText('Croissant')
+  })
+
+  test('sections move up and down, and the menus follow the new order', async ({ page }) => {
+    await open(page, '/menu')
+    const sections = () => page.getByRole('main').getByRole('region').evaluateAll(els => els.slice(0, 4).map(e => e.getAttribute('aria-label')))
+    await addPrintedMenus(page)
+    await expect.poll(sections).toEqual(['Classics', 'Speciality', 'Smoothies', 'Make it yours'])
+    await expect(page.getByRole('button', { name: 'Move the Classics section up' })).toBeDisabled()
+    await page.getByRole('button', { name: 'Move the Smoothies section up' }).click()
+    await expect.poll(sections).toEqual(['Classics', 'Smoothies', 'Speciality', 'Make it yours'])
+    await page.getByRole('tab', { name: 'Design' }).click()
+    const paper = page.getByRole('img', { name: 'Preview of the printed menu' })
+    // The Drinks menu: its sections in the menu's order (the costed coffees and teas come after the printed menus' own).
+    await expect.poll(() => paper.getByRole('heading', { level: 3 }).allTextContents())
+      .toEqual(['Classics', 'Smoothies', 'Speciality', 'Make it yours', 'Coffee', 'Tea & matcha'])
+  })
+
+  test('the menu can come from Square: read from its item library, with what Square doesn’t keep still set here and allergens from Menu costing', async ({ page }) => {
+    await open(page, '/menu')
+    const from = page.getByRole('group', { name: 'Menu from' })
+    // Not connected yet: it says where to connect it, and nothing changes.
+    await from.getByRole('button', { name: 'Square' }).click()
+    const ask = page.getByRole('dialog', { name: 'Read the menu from Square?' })
+    await expect(ask).toContainText('Connect Square on the Connections page first.')
+    await expect(ask.getByRole('button', { name: 'Read from Square' })).toBeDisabled()
+    await ask.getByRole('button', { name: 'Cancel' }).click()
+    await expect(from.getByRole('button', { name: 'Custom' })).toHaveAttribute('aria-pressed', 'true')
+
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Connections' }).click()
+    await page.getByRole('region', { name: 'Payments and sales' }).getByRole('button', { name: 'Connect Square' }).click()
+    await expect(page.getByRole('region', { name: 'Payments and sales' }).getByRole('article', { name: 'Square' })).toContainText('Connected')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Menu', exact: true }).click()
+    await from.getByRole('button', { name: 'Square' }).click()
+    await ask.getByRole('button', { name: 'Read from Square' }).click()
+    await toast(page, 'Read 61 items from Square.')
+    await expect(from.getByRole('button', { name: 'Square' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.getByRole('main')).toContainText('Last read from Square just now.')
+    // Square's names and prices; its modifiers as extras; what's only on the till too. Items not in Square wait for Custom again.
+    await expect(card(page, 'Flat White')).toContainText('Hot €3,80 · Iced €4,80')
+    await expect(page.getByRole('region', { name: 'Extras' }).getByRole('article', { name: 'Syrup' })).toContainText('Vanilla, Caramel, Salted Caramel, Hazelnut')
+    await expect(card(page, 'Cafe Con Leche')).toBeVisible()
+    await expect(card(page, 'Iced matcha latte')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Add menu item' })).toHaveCount(0)
+    // Allergens still come from what goes into it on Menu costing; the rest follows Square.
+    await expect(card(page, 'Croissant')).toContainText('7 · Milk')
+    await page.getByRole('button', { name: 'Edit Croissant' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Croissant' })
+    await expect(dialog).toContainText('come from Square')
+    await expect(dialog).toContainText('7 · Milk')
+    await expect(dialog.getByRole('textbox', { name: 'Name' })).toBeDisabled()
+    await expect(dialog.getByRole('textbox', { name: 'Price, with IVA' })).toBeDisabled()
+    await expect(dialog.getByRole('button', { name: 'Delete' })).toHaveCount(0)
+    await dialog.getByRole('switch', { name: 'Featured (a house favourite)' }).check()
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await toast(page, /^Saved$/)
+    await expect(card(page, 'Croissant').getByRole('img', { name: 'Featured' })).toBeVisible()
+
+    // Back to Custom: everything is kept here again, the Square items with it.
+    await from.getByRole('button', { name: 'Custom' }).click()
+    await toast(page, 'The menu is kept here again. Items read from Square stay on it.')
+    await expect(card(page, 'Iced matcha latte')).toBeVisible()
+    await expect(card(page, 'Flat White')).toBeVisible()
+  })
+
+  test('the printed menus go beside what’s on the menu, and add back what isn’t', async ({ page }) => {
+    await open(page, '/menu')
+    await addPrintedMenus(page)
+    await expect(card(page, 'Corona Zero')).toContainText('€4,00')
+    // One the café already has (its own flat white, costed) isn't doubled.
+    await expect(card(page, 'Flat white')).toHaveCount(1)
+    await expect(card(page, 'Flat white')).toContainText('€3,20')
+    await expect(page.getByRole('button', { name: 'Add what’s on your printed menus' })).toHaveCount(0)
+    await page.getByRole('button', { name: 'Edit Corona Zero' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Corona Zero' })
+    await dialog.getByRole('button', { name: 'Delete' }).click()
+    await dialog.getByRole('button', { name: 'Delete', exact: true }).click()
+    await toast(page, 'Deleted Corona Zero')
+    await expect(page.getByRole('main')).toContainText('1 item on your printed menus isn’t on this menu.')
+    await page.getByRole('button', { name: 'Add what’s on your printed menus' }).click()
+    await toast(page, 'Added 1 item from your printed menus.')
+    await expect(card(page, 'Corona Zero')).toContainText('€4,00')
+    await expect(page.getByRole('button', { name: 'Add what’s on your printed menus' })).toHaveCount(0)
+  })
+
+  test('menu design: a printed A4 and a TV menu, previewed with the menu’s own items and prices', async ({ page }) => {
+    await open(page, '/menu')
+    await addPrintedMenus(page)
+    await page.getByRole('tab', { name: 'Design' }).click()
+    await expect(page.getByRole('heading', { name: 'Menu design', level: 1 })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Physical' })).toHaveAttribute('aria-pressed', 'true')
+    // The café's printed menus: boxed, hot and iced side by side, the allergens (from Menu costing) as coloured letters.
+    await expect(page.getByRole('button', { name: 'Drinks menu' })).toHaveAttribute('aria-pressed', 'true')
+    const paper = page.getByRole('img', { name: 'Preview of the printed menu' })
+    await expect(paper).toContainText('Drinks')
+    await expect(paper).toContainText('Flat white')
+    await expect(paper).toContainText('€3,20')
+    await expect(paper).toContainText('€5,00')
+    await expect(paper).toContainText('@easy.beans.coffee')
+    await expect(page.getByRole('combobox', { name: 'Layout' })).toHaveText('Boxed, like your printed menus')
+    await page.getByRole('button', { name: 'Food menu' }).click()
+    await expect(paper).toContainText('Croissant')
+    // The key: what the croissants and pain au chocolat have (the rest have nothing on Menu costing yet).
+    await expect(paper).toContainText('Milk')
+    await expect(paper).toContainText('Soy')
+    await expect(paper).not.toContainText('Nuts')
+    await expect(paper).not.toContainText('Flat white')
+    // The heading changes as it's typed; printing waits for it to be saved.
+    await page.getByRole('textbox', { name: 'Heading', exact: true }).fill('Easy Beans · Menú')
+    await expect(paper).toContainText('Easy Beans · Menú')
+    await expect(page.getByRole('button', { name: 'Print', exact: true })).toBeDisabled()
+    await page.getByRole('button', { name: 'Save changes' }).click()
+    await toast(page, /^Saved$/)
+    await expect(page.getByRole('button', { name: 'Print', exact: true })).toBeEnabled()
+
+    // Digital: the TV's menu, with only its sections.
+    await page.getByRole('button', { name: 'Digital' }).click()
+    await expect(page.getByRole('button', { name: 'TV menu board' })).toHaveAttribute('aria-pressed', 'true')
+    const tv = page.getByRole('img', { name: 'Preview of the screen menu' })
+    await expect(tv).toContainText('Iced matcha latte')
+    await expect(tv).not.toContainText('Croissant')
+    await expect(page.getByRole('button', { name: 'Show on a screen' })).toBeEnabled()
+
+    // A new one: an A5 card for the tables.
+    await page.getByRole('button', { name: 'Physical' }).click()
+    await page.getByRole('button', { name: 'New printed menu' }).click()
+    const dialog = page.getByRole('dialog', { name: 'New printed menu' })
+    await dialog.getByRole('textbox', { name: 'Name' }).fill('Table card')
+    await dialog.getByRole('combobox', { name: 'Size' }).click()
+    await page.getByRole('option', { name: 'A5 table card' }).click()
+    await dialog.getByRole('button', { name: 'Add' }).click()
+    await toast(page, 'Added Table card')
+    await expect(page.getByRole('button', { name: 'Table card' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.getByRole('main')).toContainText('No images yet')
+  })
+
+  test('Higgsfield: connected with its key, an image is made with AI, changed with AI, swapped and deleted', async ({ page }) => {
+    await open(page, '/menu/design')
+    // A key Higgsfield doesn't take isn't kept.
+    await page.getByRole('button', { name: 'Connect Higgsfield' }).click()
+    const key = page.getByRole('dialog', { name: 'Connect Higgsfield' })
+    await key.getByRole('textbox', { name: 'Key ID' }).fill('hf-key-1234')
+    await key.getByLabel('Secret').fill('wrong')
+    await key.getByRole('button', { name: 'Connect' }).click()
+    await toast(page, /didn’t accept the API key/)
+    await key.getByLabel('Secret').fill('the-secret')
+    await key.getByRole('button', { name: 'Connect' }).click()
+    await toast(page, 'Higgsfield is connected')
+    // No Drive or OneDrive in the demo: images stay at Higgsfield for a week.
+    await expect(page.getByRole('main')).toContainText('Until then they stay at Higgsfield for a week')
+
+    await page.getByRole('button', { name: 'Create with AI' }).click()
+    const ask = page.getByRole('dialog', { name: 'Create an image with AI' })
+    await expect(ask.getByRole('combobox', { name: 'Model' })).toHaveText('Recraft V4.1')
+    await ask.getByRole('textbox', { name: 'Describe the look' }).fill('Sunny terrace with lemons')
+    await ask.getByRole('button', { name: 'Create' }).click()
+    await toast(page, /Higgsfield is making it/)
+    const made = card(page, 'Sunny terrace with lemons')
+    await expect(made).toContainText(/Waiting at Higgsfield|Being made/)
+    await expect(made).toContainText('In use', { timeout: 15_000 })
+    await expect(made).toContainText('At Higgsfield for 7 days')
+
+    // A change is a new image, made from this one.
+    await made.getByRole('button', { name: 'Change with AI' }).click()
+    const change = page.getByRole('dialog', { name: 'Change this image with AI' })
+    await change.getByRole('textbox', { name: 'What to change' }).fill('Add olive branches in the corners')
+    await change.getByRole('button', { name: 'Make the change' }).click()
+    const changed = card(page, 'Add olive branches in the corners')
+    await expect(changed).toContainText('Qwen Image 3 · changed')
+    await expect(changed).toContainText('In use', { timeout: 15_000 })
+
+    // Back to the first artwork, then the change goes.
+    await card(page, 'A row of hand-drawn takeaway cups and iced drinks with straws, soft pastel colours, on a plain cream background').getByRole('button', { name: 'Use this' }).click()
+    await toast(page, 'Now in use')
+    await changed.getByRole('button', { name: 'Delete image' }).click()
+    await changed.getByRole('button', { name: 'Delete', exact: true }).click()
+    await toast(page, 'Image deleted')
+    await expect(changed).toHaveCount(0)
+  })
+
+  test('an item’s photo is made with AI and goes on the item', async ({ page }) => {
+    await open(page, '/menu/design')
+    await connectHiggsfield(page)
+    await page.getByRole('tab', { name: 'Items' }).click()
+    await page.getByRole('button', { name: 'Edit Espresso' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Espresso' })
+    await dialog.getByRole('textbox', { name: 'Style for an AI photo (optional)' }).fill('on a marble table')
+    await dialog.getByRole('button', { name: 'Make a photo with AI' }).click()
+    await expect(dialog).toContainText('Photo made', { timeout: 15_000 })
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await toast(page, /^Saved$/)
+    await expect(card(page, 'Espresso').getByRole('img', { name: 'Espresso' })).toBeVisible()
+  })
+
+  test('screens: the counter TV’s link, slides added by address, and how it plays them, previewed as they change', async ({ page }) => {
+    await open(page, '/screens')
+    await expect(page.getByRole('heading', { name: 'Screens', level: 1 })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Counter TV', exact: true })).toContainText('On now')
+    await expect(page.getByRole('textbox', { name: 'The screen’s link' })).toHaveValue(/\/display\/c0ffee00beef00c0ffee00beef00cafe$/)
+    const preview = page.getByRole('region', { name: 'Preview of the screen' })
+    await expect(preview).toContainText('Flat white') // the menu board comes first
+    await expect(preview).toContainText('Today’s special')
+
+    // A picture over plain http can't be shown on a screen.
+    const address = page.getByRole('textbox', { name: 'Paste an address' })
+    await address.fill('http://insecure.example/promo.jpg')
+    await page.getByRole('button', { name: 'Add slide' }).click()
+    await page.getByRole('button', { name: 'Save changes' }).click()
+    await toast(page, /should start with https:\/\//)
+    await page.getByRole('button', { name: 'Remove http://insecure.example/promo.jpg' }).click()
+
+    await address.fill('cdn.example.com/autumn-promo.mp4')
+    await expect(page.getByText('Kind: Video')).toBeVisible()
+    await page.getByRole('button', { name: 'Add slide' }).click()
+    const slide = page.getByRole('article', { name: 'https://cdn.example.com/autumn-promo.mp4' })
+    await expect(slide).toContainText('Video')
+    await expect(slide.getByRole('combobox', { name: 'Shows for' })).toHaveText('To its end')
+    await page.getByRole('combobox', { name: 'Each slide shows for' }).click()
+    await page.getByRole('option', { name: '15 seconds' }).click()
+    await page.getByRole('combobox', { name: 'Change effect' }).click()
+    await page.getByRole('option', { name: 'Zoom' }).click()
+    await page.getByRole('textbox', { name: 'Music address (optional)' }).fill('https://stream.example.com/jazz.mp3')
+    await expect(page.getByText('Volume: 40%')).toBeVisible()
+    await page.getByRole('button', { name: 'Save changes' }).click()
+    await toast(page, 'Saved. The screen shows the changes within a minute.')
+    await expect(page.getByRole('button', { name: 'Counter TV', exact: true })).toContainText('4 slides')
+  })
+
+  test('a digital menu goes on a screen from Menu design, and a new screen starts with it', async ({ page }) => {
+    await open(page, '/menu/design?format=digital')
+    await page.getByRole('button', { name: 'Show on a screen' }).click()
+    await expect(page).toHaveURL(/\/screens\?menu=d-tv/)
+    await page.getByRole('button', { name: 'A new screen with it' }).click()
+    await toast(page, 'Added Menu screen')
+    await expect(page.getByRole('button', { name: 'Menu screen', exact: true })).toContainText('Not opened on a screen yet')
+    await expect(page.getByRole('article', { name: 'TV menu board' })).toContainText('Digital menu')
+    await expect(page.getByRole('region', { name: 'Preview of the screen' })).toContainText('Iced matcha latte')
+  })
+
+  test('a screen’s own link plays its slides with no sign-in; an old link says so', async ({ page }) => {
+    await page.goto('/display/c0ffee00beef00c0ffee00beef00cafe?demo')
+    await expect(page.getByText('Iced matcha latte')).toBeVisible()
+    // Its diet badges, from what goes into it on Menu costing (vegan, dairy free).
+    await expect(page.locator('body')).toContainText('Iced matcha latteVG DF')
+    await expect(page.getByText('Today’s special: pumpkin spice latte · Free Wi-Fi: EasyBeans')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Sign in' })).toHaveCount(0)
+    await expect(page.getByRole('navigation', { name: 'Main' })).toHaveCount(0)
+    await page.goto('/display/0123456789abcdef0123456789abcdef?demo')
+    await expect(page.getByText('This screen’s link has changed or the screen was removed.')).toBeVisible()
   })
 })
 

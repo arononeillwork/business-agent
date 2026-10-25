@@ -70,6 +70,13 @@ export interface Settings {
   hidden_pages?: string[]
   /** Data retention: how many days saved WhatsApp chats are kept (30, 90, 180, 365 or 730; 90 unless changed). */
   whatsapp_retention_days?: number
+  /** Menu page: where the menu comes from (custom: kept here, the default; square: the Square item library). */
+  menu_source?: 'custom' | 'square'
+  /** The menu's sections in order (the printed menus', Square's, or as moved on the Menu page). */
+  menu_sections?: string[]
+  /** When the menu was last read from Square, and why that failed when it did. */
+  menu_synced_at?: string | null
+  menu_sync_error?: string | null
   /** Expenses: euros paid back a kilometre driven in a private car (0.26 unless changed). */
   mileage_rate?: number
 }
@@ -310,7 +317,7 @@ export const TIME_OFF_KINDS = Object.keys(TIME_OFF_LABELS) as TimeOffKind[]
 /** Leave nobody books ahead: it can be recorded for days already gone (the SQL rule is the same). */
 export const TIME_OFF_AFTER_THE_FACT: TimeOffKind[] = ['sick', 'birth', 'family', 'bereavement', 'urgent']
 
-export type IntegrationProvider = 'google_business' | 'whatsapp' | 'instagram' | 'facebook' | 'tiktok' | 'linkedin' | 'spotify' | 'square' | 'stripe' | 'sumup' | 'meta_ads' | ConnectorProvider | CalendarApp
+export type IntegrationProvider = 'google_business' | 'whatsapp' | 'instagram' | 'facebook' | 'tiktok' | 'linkedin' | 'spotify' | 'square' | 'stripe' | 'sumup' | 'meta_ads' | 'higgsfield' | ConnectorProvider | CalendarApp
 /** Connections made with one sign-in with Google or Microsoft (email, files, café YouTube Music, Search Console, Google Ads). */
 export type ConnectorProvider = 'gmail' | 'outlook' | 'google_drive' | 'onedrive' | 'youtube_music' | 'search_console' | 'google_ads'
 /** Calendar apps that subscribe to the team calendar link. */

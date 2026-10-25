@@ -3,6 +3,8 @@
 // own storage, the connected Google Drive or OneDrive ("Business Agent/Social/<Posts|Carousels|
 // Reels|Stories>"), or in R2 when the deploy has it, and /media/… hands them out. Drive and OneDrive
 // addresses are signed: only ones Business Agent made open anything, never another file there.
+// The Menu page keeps its pictures the same way ("Business Agent/Menu"): menu photos, uploaded
+// designs, and AI images copied from Higgsfield (which keeps them only a week).
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { serviceClient, type Env } from './supabase'
 import { connectorGrant, explain, lasting, markBroken } from './connections'
@@ -12,8 +14,8 @@ import { MAX_PHOTO_BYTES, MAX_VIDEO_BYTES } from '../shared/social'
 import { MAX_AUDIO_BYTES } from '../shared/music'
 
 export type MediaStorage = 'google_drive' | 'onedrive' | 'r2'
-/** Music: the business's tracks for stories and reels (docs/SOCIAL_MUSIC_PLAN.md); only audio goes there. */
-export const FOLDERS = ['Posts', 'Carousels', 'Reels', 'Stories', 'Music'] as const
+/** Music: the business's tracks for stories and reels (docs/SOCIAL_MUSIC_PLAN.md); only audio goes there. Menu: the menu's pictures. */
+export const FOLDERS = ['Posts', 'Carousels', 'Reels', 'Stories', 'Menu', 'Music'] as const
 
 const TYPES: Record<string, { ext: string; type: 'image' | 'video' | 'audio'; max: number }> = {
   'image/jpeg': { ext: 'jpg', type: 'image', max: MAX_PHOTO_BYTES },
@@ -23,7 +25,14 @@ const TYPES: Record<string, { ext: string; type: 'image' | 'video' | 'audio'; ma
   'audio/mp4': { ext: 'm4a', type: 'audio', max: MAX_AUDIO_BYTES },
   'audio/x-m4a': { ext: 'm4a', type: 'audio', max: MAX_AUDIO_BYTES },
 }
-const CONTENT_TYPE: Record<string, string> = { jpg: 'image/jpeg', png: 'image/png', mp4: 'video/mp4', mov: 'video/quicktime', mp3: 'audio/mpeg', m4a: 'audio/mp4' }
+// Menu pictures are kept as they come (AI images are PNG or WebP; photos are made JPEG in the browser), and can be bigger.
+const MENU_MAX_BYTES = 20 * 1024 * 1024
+const MENU_TYPES: Record<string, { ext: string; type: 'image' | 'video' | 'audio'; max: number }> = {
+  'image/jpeg': { ext: 'jpg', type: 'image', max: MENU_MAX_BYTES },
+  'image/png': { ext: 'png', type: 'image', max: MENU_MAX_BYTES },
+  'image/webp': { ext: 'webp', type: 'image', max: MENU_MAX_BYTES },
+}
+const CONTENT_TYPE: Record<string, string> = { jpg: 'image/jpeg', png: 'image/png', webp: 'image/webp', mp4: 'video/mp4', mov: 'video/quicktime', mp3: 'audio/mpeg', m4a: 'audio/mp4' }
 
 /** A problem with the file itself (shown as is), as opposed to storage failing. */
 export class MediaError extends Error {}
@@ -35,10 +44,13 @@ export async function mediaStorage(env: Env, db: SupabaseClient): Promise<MediaS
   return p ?? (env.MEDIA ? 'r2' : null)
 }
 
-/** Check a file before anything is stored: a JPEG photo up to 8 MB, an MP4/MOV video up to 100 MB, or an MP3/M4A track up to 20 MB. */
-export function checkFile(type: string, size: number | null) {
-  const t = TYPES[type]
-  if (!t) throw new MediaError('Use a JPEG photo, an MP4 or MOV video, or an MP3 or M4A track')
+/**
+ * Check a file before anything is stored: a JPEG photo up to 8 MB, an MP4/MOV video up to 100 MB, or an MP3/M4A track up to 20 MB
+ * (the Menu folder: a JPEG, PNG or WebP picture up to 20 MB).
+ */
+export function checkFile(type: string, size: number | null, folder?: string) {
+  const t = (folder === 'Menu' ? MENU_TYPES : TYPES)[type]
+  if (!t) throw new MediaError(folder === 'Menu' ? 'Use a JPEG, PNG or WebP picture' : 'Use a JPEG photo, an MP4 or MOV video, or an MP3 or M4A track')
   if (size === 0) throw new MediaError('That file is empty')
   if (size && size > t.max) throw new MediaError(`${t.type === 'image' ? 'Photos' : t.type === 'video' ? 'Videos' : 'Tracks'} can be up to ${t.max / 1024 / 1024} MB`)
   return t
@@ -57,13 +69,15 @@ export interface StoredMedia { url: string; type: 'image' | 'video' | 'audio'; s
 /** Store a photo, video or track in the folder for its kind; returns the public address. */
 export async function storeMedia(env: Env, db: SupabaseClient, origin: string,
   f: { type: string; size: number; body: ReadableStream | ArrayBuffer; folder: string }): Promise<StoredMedia> {
-  const t = checkFile(f.type, f.size)
   const folder = (FOLDERS as readonly string[]).includes(f.folder) ? f.folder : 'Posts'
+  const t = checkFile(f.type, f.size, folder)
   if ((t.type === 'audio') !== (folder === 'Music')) throw new MediaError(t.type === 'audio' ? 'Tracks go in the music library' : 'The music library takes MP3 or M4A tracks')
+  // Social posts and the music library under Social/<kind>; the menu's pictures in a folder of their own.
+  const path = folder === 'Menu' ? ['Menu'] : ['Social', folder]
   const storage = await mediaStorage(env, db)
   if (!storage) throw new MediaError('Connect Google Drive or OneDrive on the Connections page to add photos and videos. They’re kept in its Business Agent folder.')
   if (storage === 'r2') {
-    const key = `${t.type === 'audio' ? 'music' : 'posts'}/${crypto.randomUUID()}.${t.ext}`
+    const key = `${folder === 'Menu' ? 'menu' : t.type === 'audio' ? 'music' : 'posts'}/${crypto.randomUUID()}.${t.ext}`
     await env.MEDIA!.put(key, f.body, { httpMetadata: { contentType: f.type } })
     return { url: `${origin}/media/${key}`, type: t.type, storage }
   }
@@ -72,8 +86,8 @@ export async function storeMedia(env: Env, db: SupabaseClient, origin: string,
     const { token } = await connectorGrant(env, db, storage)
     remember(storage, token)
     const id = storage === 'google_drive'
-      ? await google.uploadToDrive(token, await google.folderPath(token, ['Social', folder]), name, f.type, f.size, f.body)
-      : await ms.uploadToOneDrive(token, ['Social', folder], name, f.size, f.body)
+      ? await google.uploadToDrive(token, await google.folderPath(token, path), name, f.type, f.size, f.body)
+      : await ms.uploadToOneDrive(token, path, name, f.size, f.body)
     const p = storage === 'google_drive' ? 'g' : 'o'
     return { url: `${origin}/media/${p}/${encodeURIComponent(id)}/${await sign(env, `${p}:${id}`)}.${t.ext}`, type: t.type, storage }
   } catch (e) {

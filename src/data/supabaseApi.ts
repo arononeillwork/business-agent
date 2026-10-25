@@ -21,6 +21,9 @@ import { DEFAULT_VAT_RATE, type PnlLine, type PnlSettings } from '../../shared/p
 import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
 import type { StockItem, StockMovement, Supplier, StockPrice } from '../../shared/stock'
 import type { Recipe } from '../../shared/recipes'
+import type { MenuDesign, MenuImage, MenuItem } from '../../shared/menu'
+import { missingFrom, templateDesigns, templateSections } from '../../shared/menuTemplate'
+import type { DisplayFeed, Screen } from '../../shared/screens'
 import type { AdSettings } from '../../shared/ads'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
 import type { ReferralState } from '../../shared/referrals'
@@ -41,6 +44,7 @@ const PROFILE_COLUMNS = 'id, full_name, email, role, can_see_pay, colour, active
 
 const GRANT_APPLICATION_COLUMNS = 'id, grant_id, grant_name, stage, submitted_on, expediente, amount_requested, amount_awarded, amount_received, deadline, deadline_label, notes, docs_done, obligations_done, created_at, updated_at'
 
+const MENU_IMAGE_COLUMNS = 'id, design_id, item_id, url, source, model, prompt, edit_of, status, error, stored, created_at'
 const TRACK_COLUMNS = 'id, source, title, artist, url, duration_s, bpm, energy, moods, genre, vocals, highlight_s, waveform, licence, saved, hidden, created_at'
 
 const CUSTOMER_COLUMNS = 'id, kind, first_name, last_name, email, phone, company, source, instagram, birthday, tags, notes, marketing_consent, consent_at, last_contacted_at, created_at, updated_at'
@@ -702,6 +706,72 @@ export function createSupabaseApi(url: string, key: string): Api {
     },
     async recordSafetyCheck(c) {
       check(await sb.from('food_safety_checks').insert({ point_id: c.point_id, reading: c.reading ?? null, action: c.action ?? null, note: c.note ?? null }))
+    },
+
+    async menuItems() {
+      const rows = check(await sb.rpc('menu_items')) as MenuItem[]
+      return rows.map(i => ({ ...i, sell_price: num(i.sell_price), vat_rate: Number(i.vat_rate), variants: i.variants.map(v => ({ ...v, price_change: Number(v.price_change) })) }))
+    },
+    async saveMenuItem({ id, ...item }) {
+      if (id) { check(await sb.from('recipes').update(item).eq('id', id)); return id }
+      return (check(await sb.from('recipes').insert(item).select('id').single()) as { id: string }).id
+    },
+    async reorderMenu(ids) { check(await sb.rpc('reorder_menu', { p_ids: ids })) },
+    async loadMenuTemplate() {
+      const add = missingFrom((check(await sb.rpc('menu_items')) as MenuItem[]).map(i => i.name))
+      if (add.length) {
+        const made = check(await sb.from('recipes').insert(add.map(({ variants: _v, ...r }) => r)).select('id, name')) as { id: string; name: string }[]
+        const variants = add.flatMap(a => a.variants.map((v, sort) => ({ ...v, sort, recipe_id: made.find(m => m.name === a.name)!.id })))
+        if (variants.length) check(await sb.from('recipe_variants').insert(variants))
+      }
+      // The printed menus' sections first, then any others there were.
+      const { menu_sections: had } = check(await sb.from('settings').select('menu_sections').eq('id', 1).single()) as { menu_sections: string[] | null }
+      check(await sb.from('settings').update({ menu_sections: [...new Set([...templateSections(), ...(had ?? [])])] }).eq('id', 1))
+      const names = (check(await sb.from('menu_designs').select('name')) as { name: string }[]).map(d => d.name)
+      const designs = templateDesigns().filter(d => !names.includes(d.name))
+      if (designs.length) check(await sb.from('menu_designs').insert(designs))
+      return { added: add.length, designs: designs.length }
+    },
+    syncMenuFromSquare: () => worker('/api/menu/square/sync', { method: 'POST' }),
+    async uploadMenuPicture(file) {
+      return (await worker<{ url: string }>('/api/integrations/media?folder=Menu', { method: 'POST', body: file, headers: { 'content-type': file.type } })).url
+    },
+    async menuDesigns() {
+      // Its own images (menu_images.design_id), not the one it points at (image_id).
+      const rows = check(await sb.from('menu_designs').select(`*, images:menu_images!menu_images_design_id_fkey(${MENU_IMAGE_COLUMNS})`).order('created_at')) as MenuDesign[]
+      return rows.map(d => ({ ...d, images: [...d.images].sort((a, b) => b.created_at.localeCompare(a.created_at)) }))
+    },
+    async saveMenuDesign({ id, ...design }) {
+      if (id) { check(await sb.from('menu_designs').update(design).eq('id', id)); return id }
+      return (check(await sb.from('menu_designs').insert(design).select('id').single()) as { id: string }).id
+    },
+    async deleteMenuDesign(id) { check(await sb.from('menu_designs').delete().eq('id', id)) },
+    async addMenuImage(designId, url, source) {
+      const { id } = check(await sb.from('menu_images').insert({ design_id: designId, url, source }).select('id').single()) as { id: string }
+      check(await sb.from('menu_designs').update({ image_id: id }).eq('id', designId))
+      return id
+    },
+    async deleteMenuImage(id) { check(await sb.from('menu_images').delete().eq('id', id)) },
+    async connectHiggsfield(keyId, secret) { await worker('/api/menu/ai/connect', { method: 'POST', body: JSON.stringify({ key_id: keyId, key_secret: secret }) }) },
+    async generateMenuImage(request) { return (await worker<{ image: MenuImage }>('/api/menu/images', { method: 'POST', body: JSON.stringify(request) })).image },
+    async checkMenuImage(id) { return (await worker<{ image: MenuImage }>(`/api/menu/images/${encodeURIComponent(id)}/check`, { method: 'POST' })).image },
+
+    async screens() {
+      const rows = check(await sb.from('screens').select('*, screen_status(last_seen_at)').order('created_at')) as (Omit<Screen, 'last_seen_at'> & { screen_status: { last_seen_at: string } | null })[]
+      return rows.map(({ screen_status, ...s }) => ({ ...s, last_seen_at: screen_status?.last_seen_at ?? null }))
+    },
+    async saveScreen({ id, ...screen }) {
+      if (id) { check(await sb.from('screens').update(screen).eq('id', id)); return id }
+      return (check(await sb.from('screens').insert(screen).select('id').single()) as { id: string }).id
+    },
+    async deleteScreen(id) { check(await sb.from('screens').delete().eq('id', id)) },
+    async newScreenLink(id) { return check(await sb.rpc('new_screen_link', { p_id: id })) as string },
+    async display(token) {
+      // The screen's own link: no sign-in, the Worker answers for it.
+      const res = await fetch(`/api/display/${encodeURIComponent(token)}`, { cache: 'no-store' })
+      const json = await res.json().catch(() => ({})) as DisplayFeed & { error?: string }
+      if (!res.ok) throw new Error(json.error ?? `The slides couldn’t be loaded (${res.status})`)
+      return json
     },
 
     async customers() {

@@ -328,7 +328,8 @@ the hour; with it, within seconds.
 
 Permissions asked for: `MERCHANT_PROFILE_READ` (business name and locations), `PAYMENTS_READ`
 (takings, tips, refunds, card/cash), `ORDERS_READ` (what was sold, for best sellers),
-`CUSTOMERS_READ` (the customer directory, for Customers), `LOYALTY_READ` and `GIFTCARDS_READ` (the
+`CUSTOMERS_READ` (the customer directory, for Customers), `ITEMS_READ` (the item library, for a menu
+read from Square), `LOYALTY_READ` and `GIFTCARDS_READ` (the
 loyalty programme and gift cards, for Loyalty & gift cards) and `LOYALTY_WRITE` and
 `GIFTCARDS_WRITE` for the only two changes the app makes in Square: goodwill points for a member
 (with a reason Square keeps) and selling a digital gift card an admin confirms. Both send an
@@ -364,6 +365,16 @@ What shows where (admins who can see pay only; Pro plan and up):
   still owed on them, what was sold and spent, and "Sell a gift card" (a digital card, activated at
   the first location for an amount taken at the till). Card numbers only ever show their last 4 digits.
   No programme yet: the page explains how to make one in Square (the app doesn't create programmes).
+- **Menu → Items → Menu from: Square** (admins; Custom is the default): the menu read from the Square
+  item library (Items → Item library) straight away and every hour at :15. Each item's category is its
+  section, its first priced variation its price (Hot and Iced variations become hot and iced prices
+  side by side; Sit In and Takeaway at one price are one price), and its description and photo come
+  too; the modifier lists the items use (milks, syrups, an extra shot) become an **Extras** section.
+  Items already on the menu are matched by name the first time, so their photos, featured, off-the-menu
+  and what goes into them on Menu costing (and so their allergens) stay; deleted or archived items come
+  off the menu. While Square is chosen, items
+  that aren't in Square are hidden (Custom brings them back) and an item's name, section, price and
+  description can only be changed in Square. "Read from Square now" reads it on demand.
 
 Access lasts 30 days and is renewed a week before it runs out; if it stops working, admins get a
 notification. A business connected **before best sellers were added** keeps its takings, and the
@@ -371,7 +382,9 @@ Best sellers card asks for one reconnect (Connections → Square → Connect Squ
 `ORDERS_READ`. The same goes for customers: a connection made before they were added needs one
 reconnect to allow `CUSTOMERS_READ`; until then takings carry on and no customers come in. And for
 loyalty and gift cards: until a reconnect allows the four `LOYALTY_*`/`GIFTCARDS_*` permissions, that
-page says "Reconnect Square to allow loyalty and gift cards" with the button to do it.
+page says "Reconnect Square to allow loyalty and gift cards" with the button to do it. And for the
+menu: a connection made before it could be read from Square needs one reconnect to allow `ITEMS_READ`;
+until then the Menu page says so and the menu stays as it is.
 
 ## 10. Stripe (online payments, on top of the till)
 
@@ -621,6 +634,46 @@ other); the admin chooses which to pick from with **Add documents**. Where the a
   and the `workers.dev` one) → repo secret **`GOOGLE_PICKER_API_KEY`**. The project number the
   picker also needs is the start of `GOOGLE_CLIENT_ID`. Until the key is there, the page says that
   choosing from Google Drive isn't switched on yet and OneDrive works meanwhile.
+
+## 19. Higgsfield (AI images for the Menu page) and Screens
+
+**Higgsfield** makes the Menu page's images with AI: artwork for behind a printed or screen menu
+(or, for a boxed menu laid out like the café's printed ones, a wide strip of illustrations for the
+bottom), a whole menu with its words in, a change to an image, and photos of the dishes. It runs on the
+**business's own Higgsfield account**, so the images use its Higgsfield credits (failed ones aren't
+charged); nothing is set up in the deploy.
+
+1. In the [Higgsfield Console](https://console.higgsfield.ai) → API keys → **Create**: copy the
+   key ID and the secret.
+2. In the app: **Connections → AI images → Higgsfield → Connect** (or **Menu → Design → Connect
+   Higgsfield**) and paste both. The key is kept only once Higgsfield accepts it (checked by asking
+   about a request that doesn't exist, which costs nothing), encrypted in `integration_secrets`
+   like every other connection's access, and checked again every night; admins hear in the bell if
+   Higgsfield stops taking it.
+
+How an image is made (`worker/menu.ts`, `worker/providers/higgsfield.ts`): the Worker sends the
+request to `https://api.higgsfield.ai/<model>` with `Authorization: Key <id>:<secret>`, the image's
+own id as the `Idempotency-Key` (a retry never makes, or charges for, a second one) and a signed
+webhook (`/api/hooks/higgsfield/<image>/<signature>`, `hf_webhook`). Higgsfield calls it when the
+image is done; the page also asks while it's open, and the minute cron asks about any whose webhook
+didn't come (gives up after 3 hours). Each finished image is copied into the café's storage
+(**Business Agent/Menu** in Google Drive or OneDrive, or R2), because Higgsfield keeps outputs for
+only 7 days. With no storage connected, Higgsfield's address is kept and the page says it lasts a
+week. At most 4 images are made at once.
+
+Models (`shared/menu.ts`, `AI_MODELS`): **Ideogram 4.0** (`ideogram/v4.0`, best with words: whole
+menus, headings), **Recraft V4.1** (`recraft/v4.1/text-to-image`, artwork in the brand's colours,
+which it's sent from the Brand page), **Qwen Image 3** (`alibaba/qwen-image-3/text-to-image` and
+`/edit`: photos of food, and changes to an image). Artwork for behind a menu is asked for without
+words: the app writes the items and prices over it from the menu itself, so they're always right.
+
+**Screens** need no outside service. Each screen has a secret link (`/display/<token>`) opened once
+in the TV's or tablet's browser, no sign-in; it asks `GET /api/display/<token>` (`display_feed()`,
+migration 94) every minute, so changes on the Screens page show within a minute, keeps playing the
+last slides it had if the network drops, and keeps the screen awake. **New link** makes the old one
+stop working. Browsers only play sound after a tap, so a screen with music asks for one tap; most
+smart TVs and kiosk browsers can be set to allow autoplay. Some websites don't allow being shown
+inside another page (their own setting): use a picture or video of them instead.
 
 ## Social planner
 

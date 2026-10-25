@@ -1,6 +1,6 @@
 // A stand-in for Supabase (PostgREST, auth and storage) with the tables and files in memory, so the Worker's routes can
 // be run end to end in unit tests. It understands the queries the Worker makes (select with eq/neq/
-// in/is/gte/gt/lte/lt/not, order and limit, single/maybeSingle, insert/upsert/update/delete, rpc is_admin/my_role and the plan checks) and
+// in/is/gte/gt/lte/lt/not, order and limit, single/maybeSingle, counts, insert/upsert/update/delete, rpc is_admin/my_role, the plan checks and any a test adds) and
 // mirrors the one-app-per-group trigger from migration 28 (supabase/tests prove the real one).
 import { PROVIDERS } from '../connections'
 import { CONNECTION_FEATURE } from '../../shared/plans'
@@ -78,6 +78,8 @@ export class FakeSupabase {
   /** The plan in force (public.plan_status / plan_check_connect, migration 36): everything unless a test says otherwise. */
   plan: { plan: string; people: number | null; features: string[] } = {
     plan: 'business', people: null, features: ['google_maps', 'apps', 'whatsapp', 'takings', 'sports', 'music', 'kiosk', 'partners'] }
+  /** Functions a test answers itself (by name, given the call's arguments); any other unknown one is a 404. */
+  rpcs: Record<string, (args: Row) => unknown> = {}
   /** AI music (migration 86): free uses left this month, the price of the rest, and why the next can't be made (null: it can). */
   music = { freeLeft: 1, unitCents: 99, reason: null as string | null }
   /** Bearer token → signed-in person. */
@@ -157,6 +159,7 @@ export class FakeSupabase {
     }
     const rpc = url.pathname.match(/^\/rest\/v1\/rpc\/(\w+)$/)
     if (rpc) {
+      if (this.rpcs[rpc[1]]) return json(this.rpcs[rpc[1]](init.body ? JSON.parse(String(init.body)) as Row : {}))
       const who = this.people.get(bearerOf(headers))
       if (rpc[1] === 'is_admin') return json(who?.role === 'admin')
       if (rpc[1] === 'my_role') return json(who?.role ?? null)
@@ -247,6 +250,11 @@ export class FakeSupabase {
         return data.length === 1 ? json(project(data[0], select), status) : json({ code: 'PGRST116', message: 'JSON object requested, multiple (or no) rows returned' }, 406)
       }
       return json(data.map(r => project(r, select)), status)
+    }
+    // A count only (select … { count: 'exact', head: true }).
+    if (method === 'HEAD') {
+      const n = rows.filter(match).length
+      return new Response(null, { status: 200, headers: { 'content-range': n ? `0-${n - 1}/${n}` : '*/0' } })
     }
     if (method === 'GET') {
       let hit = rows.filter(match)

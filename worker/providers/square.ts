@@ -3,13 +3,15 @@
 // Finances can show takings next to the team's cost, Sales can show what sold and Customers lists
 // the till's customers; and its loyalty programme and gift cards (the Loyalty page), where the only
 // changes the app makes are goodwill points and selling a digital gift card. Access lasts 30 days
-// and is renewed with the refresh token. ORDERS_READ, CUSTOMERS_READ and the loyalty and gift card
-// permissions came later: a connection made before them still works, without those parts.
+// and is renewed with the refresh token. ORDERS_READ, CUSTOMERS_READ, the loyalty and gift card
+// permissions and ITEMS_READ (the item library, for the Menu page) came later: a connection made
+// before them still works, without those parts.
+import type { SquareObject } from '../../shared/menuSquare'
 import type { PayMethod, SalesDay, SalesItem } from '../../shared/types'
 import { hmacBase64, safeEqual } from '../crypto'
 
 export const SQUARE_SCOPES = ['MERCHANT_PROFILE_READ', 'PAYMENTS_READ', 'ORDERS_READ', 'CUSTOMERS_READ',
-  'LOYALTY_READ', 'LOYALTY_WRITE', 'GIFTCARDS_READ', 'GIFTCARDS_WRITE']
+  'LOYALTY_READ', 'LOYALTY_WRITE', 'GIFTCARDS_READ', 'GIFTCARDS_WRITE', 'ITEMS_READ']
 const VERSION = '2025-01-23'
 
 export interface SquareOAuthConfig { appId: string; appSecret: string; redirectUri: string; sandbox: boolean }
@@ -145,6 +147,23 @@ export async function topItems(sandbox: boolean, accessToken: string, locationId
   }
   return [...byName.values()].map(i => ({ ...i, gross: round(i.gross), quantity: Math.round(i.quantity * 100) / 100 }))
     .sort((a, b) => b.gross - a.gross || b.quantity - a.quantity).slice(0, limit)
+}
+
+/**
+ * The item library: items with their variations, categories, modifier lists and images (the Menu page,
+ * when its menu comes from Square). Needs ITEMS_READ: without it Square answers INSUFFICIENT_SCOPES.
+ */
+export async function catalog(sandbox: boolean, accessToken: string): Promise<SquareObject[]> {
+  const objects: SquareObject[] = []
+  let cursor: string | undefined
+  for (let page = 0; page < 30; page++) {
+    const r = await api<{ objects?: SquareObject[]; cursor?: string }>(sandbox, accessToken,
+      `/v2/catalog/list?types=ITEM,CATEGORY,MODIFIER_LIST,IMAGE${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`)
+    objects.push(...(r.objects ?? []))
+    cursor = r.cursor
+    if (!cursor) break
+  }
+  return objects
 }
 
 /** A customer in the seller's Square directory (what we read of it). */

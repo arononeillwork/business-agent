@@ -124,6 +124,33 @@ built-in **AI connector** so owners can run it by talking to Claude.
   be connected; the admin chooses which), grouped by kind, shown in the page straight from the storage
   and opened there. Nothing is copied: only where each file is is kept. A gestoría with finances access
   reads. Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) section 18.
+- Menu (its own section): the menu as customers see it, by section, with each item's photo, price,
+  description and variants; everyone on the team reads it, admins add, arrange and take items off the
+  menu, and move items and whole sections up and down. The items are Menu costing's own (one list, two
+  views). Allergens and diets aren't kept on the menu: each item's come from what goes into it on Menu
+  costing and its ingredients' allergens (the **Allergens** page), so the Menu page, the printed menus
+  and the screens say what the Allergens page says. An item with nothing in it on Menu costing shows
+  no allergens or diet badges until it has; one with an ingredient whose allergens aren't entered yet
+  shows none on the printed and screen menus. Finding what suits a customer, and the allergen chart to
+  print, are on the Allergens page. Where the menu comes from is a choice: **Custom** (the default: kept
+  on this page, starting from the café's printed Drinks, Food and The Fridge menus, hot and iced prices
+  included) or **Square** (read from the Square item library every hour and on demand, its modifiers as
+  extras; photos, featured and off the menu are still set here). **Design** (admins) makes the **physical** menus (A4, A3, A5, printed
+  or saved as PDF at their paper size) and the **digital** ones (16:9 or 9:16, for the screens), each
+  previewed on paper or on a TV: the app writes the menu from the items (names and prices always
+  right, the writing sized to fit), **boxed** like the printed menus (logo, each section in a rounded
+  box, hot and iced side by side, allergens as coloured letters, an illustration strip at the bottom) or
+  as one **classic** list over an image; or an image is the whole menu. Images
+  are made with AI through **Higgsfield** (the business's own API key: Ideogram, Recraft in the brand's
+  colours, Qwen for photos and changes), uploaded or linked, kept in the café's Drive or OneDrive;
+  items' photos can be made with AI too. Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) section 19.
+- Screens (Menu section, admins): the café's TVs and tablets as slideshows. Each has a secret link
+  opened once on the screen (no sign-in), and slides added by address: pictures, MP4 videos, YouTube,
+  Vimeo, Instagram posts, web pages, live pictures reloaded each time (a webcam), and the digital
+  menus. Settings: how long each slide shows (or its own time; videos to their end), the change effect
+  and its speed, shuffle, fill or fit, music (an MP3, a radio stream or YouTube) with its volume, videos'
+  own sound, the time and a running line. The page previews the changes as they're made; the screen
+  picks them up within a minute, keeps playing offline and stays awake.
 - Documents (Business section): every file kept in the café's own Google Drive or OneDrive (the Tax
   page's, invoices brought in by email, licences' documents, and contracts, insurance policies and
   certificates kept here), all years in one list with what each belongs to (an invoice, a licence, the
