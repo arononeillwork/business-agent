@@ -8,10 +8,12 @@ export const PASSWORD = process.env.E2E_PASSWORD ?? `e2e-${Math.random().toStrin
 export const EMPLOYEE_PIN = '2468'
 
 export const USERS = {
-  admin: { email: `e2e-admin@${DOMAIN}`, name: 'Ana Test', role: 'admin', can_see_pay: true },
-  employee: { email: `e2e-employee@${DOMAIN}`, name: 'Eva Test', role: 'employee', can_see_pay: false },
-  other: { email: `e2e-other@${DOMAIN}`, name: 'Omar Test', role: 'employee', can_see_pay: false },
-  kiosk: { email: `e2e-tablet@${DOMAIN}`, name: 'Tablet Test', role: 'kiosk', can_see_pay: false },
+  admin: { email: `e2e-admin@${DOMAIN}`, name: 'Ana Test', role: 'admin', can_see_pay: true, active: true },
+  employee: { email: `e2e-employee@${DOMAIN}`, name: 'Eva Test', role: 'employee', can_see_pay: false, active: true },
+  other: { email: `e2e-other@${DOMAIN}`, name: 'Omar Test', role: 'employee', can_see_pay: false, active: true },
+  kiosk: { email: `e2e-tablet@${DOMAIN}`, name: 'Tablet Test', role: 'kiosk', can_see_pay: false, active: true },
+  // Signed up (or signed in with Google) by herself: nobody has added her to the team yet.
+  newcomer: { email: `e2e-newcomer@${DOMAIN}`, name: 'Nina Test', role: 'employee', can_see_pay: false, active: false },
 } as const
 export type UserKey = keyof typeof USERS
 
@@ -67,7 +69,9 @@ export async function cleanUp(admin: SupabaseClient) {
     must(await admin.from(table).update({ updated_by: null }).in('updated_by', ids))
   }
   await purgeTestAlerts(admin, ids)
-  await Promise.all(ids.map(async id => must(await admin.auth.admin.deleteUser(id))))
+  // One at a time: each deletion reaches a dozen tables, and several at once held the live app's
+  // other requests up for seconds, so the next test's sign-in sat on the loading screen.
+  for (const id of ids) must(await admin.auth.admin.deleteUser(id))
 }
 
 /** Names of rows the tests create (expenses, events) start with this, so clean-up can find them. */
@@ -126,7 +130,7 @@ export async function setUp(cfg: LiveConfig) {
   const ids = await testUserIds(admin)
   await Promise.all(Object.values(USERS).map(async u => {
     const { error } = await admin.from('profiles')
-      .update({ role: u.role, can_see_pay: u.can_see_pay, active: true }).eq('id', ids[u.email])
+      .update({ role: u.role, can_see_pay: u.can_see_pay, active: u.active }).eq('id', ids[u.email])
     if (error) throw error
   }))
   const { error } = await admin.from('pay_rates').insert([

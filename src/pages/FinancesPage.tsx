@@ -1,4 +1,3 @@
-import { FEATURES } from '../app/features'
 import {
   Alert, Box, Button, Card, CardContent, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, IconButton, InputAdornment,
   MenuItem, Stack, Table, TableBody, TableCell, TableFooter, TableHead, TableRow, TextField, Tooltip, Typography,
@@ -18,6 +17,9 @@ import { addDays, currencySymbol, formatMoney, today, weekStart, zonedIso } from
 import { shiftPaidMinutes } from '../../shared/rules'
 import type { Expense } from '../../shared/types'
 import { Link as RouterLink } from 'react-router-dom'
+import { tillNames, tillsOf } from '../components/till'
+import { Freshness } from '../components/Freshness'
+import { msg, t, tc } from '../i18n'
 
 /** Monthly running costs. Admins with pay access edit; finance partners read (enforced in the database too). */
 export function FinancesPage() {
@@ -27,8 +29,8 @@ export function FinancesPage() {
 
   if (!canSeeFinances) {
     return <>
-      <PageHeader eyebrow="Money" title="Finances" />
-      <Alert severity="info">Finances are only visible to admins with pay access.</Alert>
+      <PageHeader eyebrow={t('Accounts')} title={t('Finances')} />
+      <Alert severity="info">{t('Finances are only visible to admins with pay access.')}</Alert>
     </>
   }
 
@@ -42,17 +44,17 @@ export function FinancesPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Money" title="Finances" actions={!canEdit && <Tag>Read-only</Tag>} />
+      <PageHeader eyebrow={t('Accounts')} title={t('Finances')} actions={!canEdit && <Tag>{t('Read-only')}</Tag>} />
       <ErrorBox error={data.error} />
 
       <StatGrid>
-        <StatTile label="Monthly costs" value={data.data ? formatMoney(total) : '–'}
-          note={`${counted.length} items${left ? ` · ${left} not counted` : ''}`} />
-        <StatTile label="A year" value={data.data ? formatMoney(total * 12) : '–'} note="at this rate" />
-        <StatTile label="Per open day" value={data.data ? formatMoney(total / 26) : '–'} note="26 open days a month" />
+        <StatTile label={t('Monthly costs')} value={data.data ? formatMoney(total) : '–'}
+          note={left ? t('{n} items · {left} not counted', { n: counted.length, left }) : t('{n} items', { n: counted.length })} />
+        <StatTile label={t('A year')} value={data.data ? formatMoney(total * 12) : '–'} note={t('at this rate')} />
+        <StatTile label={t('Per open day')} value={data.data ? formatMoney(total / 26) : '–'} note={t('26 open days a month')} />
         {staff > 0
-          ? <StatTile label="Staff share" value={`${Math.round(staff / total * 100)}%`} note={`${formatMoney(staff)} of monthly costs`} />
-          : <StatTile label="Biggest cost" value={biggest?.name ?? '–'} note={biggest && total ? `${formatMoney(biggest.amount)} · ${Math.round(biggest.amount / total * 100)}%` : undefined} />}
+          ? <StatTile label={t('Staff share')} value={`${Math.round(staff / total * 100)}%`} note={t('{amount} of monthly costs', { amount: formatMoney(staff) })} />
+          : <StatTile label={t('Biggest cost')} value={biggest?.name ?? '–'} note={biggest && total ? `${formatMoney(biggest.amount)} · ${Math.round(biggest.amount / total * 100)}%` : undefined} />}
       </StatGrid>
 
       {canEdit && <Takings />}
@@ -65,9 +67,10 @@ export function FinancesPage() {
 type Draft = Partial<Expense> & { key: string; removed?: boolean }
 const blank = (): Draft => ({ key: crypto.randomUUID(), name: '', amount: 0, category: null, notes: null, active: true })
 
-// Offered in the Category list alongside any the business has added itself.
-const CATEGORIES = ['Premises', 'People', 'Utilities', 'Services', 'Supplies', 'Stock', 'Equipment', 'Marketing', 'Software', 'Insurance', 'Finance', 'Taxes & fees', 'Other']
-const NONE = 'Uncategorised'
+// Offered in the Category list alongside any the business has added itself. Saved in English (shown with t()).
+const CATEGORIES = [msg('Premises'), msg('People'), msg('Utilities'), msg('Services'), msg('Supplies'), msg('Stock'), msg('Equipment'),
+  msg('Marketing'), msg('Software'), msg('Insurance'), msg('Finance'), msg('Taxes & fees'), msg('Other')]
+const NONE = msg('Uncategorised')
 const ADD = '\u0000add'
 
 /** The list of expenses. One Edit button turns the whole list into fields; Save keeps every change at once. */
@@ -97,7 +100,7 @@ function Expenses({ list, total, canEdit, loaded }: { list: Expense[]; total: nu
   const save = async () => {
     const rows = drafts!.filter(d => !d.removed)
     const bad = rows.find(d => !d.name?.trim() && (d.id || d.amount))
-    if (bad) { await run(async () => { throw new Error('Every expense needs a name') }); return }
+    if (bad) { await run(async () => { throw new Error(t('Every expense needs a name')) }); return }
     const before = new Map(list.map(e => [e.id, e]))
     const changed = rows.filter(d => d.name?.trim()).filter(d => {
       const o = d.id ? before.get(d.id) : undefined
@@ -110,82 +113,82 @@ function Expenses({ list, total, canEdit, loaded }: { list: Expense[]; total: nu
       for (const { key: _key, removed: _removed, ...d } of changed) {
         await api.saveExpense({ ...d, name: d.name!.trim(), amount: Number(d.amount) || 0, category: d.category?.trim() || null, notes: d.notes?.trim() || null })
       }
-    }, changed.length || removed.length ? 'Expenses saved' : undefined)
+    }, changed.length || removed.length ? t('Expenses saved') : undefined)
     if (ok) setDrafts(null)
   }
 
   const table = (): ExportTable => ({
-    title: active.length ? `Monthly expenses: ${active.join(', ')}` : 'Monthly expenses',
+    title: active.length ? t('Monthly expenses: {categories}', { categories: active.map(c => t(c)).join(', ') }) : t('Monthly expenses'),
     filename: `expenses-${today()}`,
-    columns: ['Expense', 'Category', 'Notes', `Per month (${currencySymbol()})`, 'Counted', 'Share'],
-    rows: rows.map(e => [e.name, e.category ?? '', e.notes ?? '', Number(e.amount), e.active ? 'Yes' : 'No',
+    columns: [t('Expense'), t('Category'), t('Notes'), t('Per month ({currency})', { currency: currencySymbol() }), t('Counted'), tc('portion', 'Share')],
+    rows: rows.map(e => [e.name, e.category ? t(e.category) : '', e.notes ?? '', Number(e.amount), e.active ? t('Yes') : t('No'),
       e.active && total > 0 ? `${Math.round(e.amount / total * 100)}%` : '']),
-    footer: [active.length ? 'Total shown' : 'Total', '', '', shownTotal, '', ''],
+    footer: [active.length ? t('Total shown') : t('Total'), '', '', shownTotal, '', ''],
     money: [3],
   })
 
   const shown = editing ? drafts.filter(d => !d.removed) : rows
   return (
-    <Card component="section" aria-label="Monthly expenses">
+    <Card component="section" aria-label={t('Monthly expenses')}>
       <CardContent>
         <SectionTitle action={editing ? (
           <Stack direction="row" spacing={1}>
-            <Button onClick={() => setDrafts(null)}>Cancel</Button>
-            <Button variant="contained" startIcon={<CheckIcon />} onClick={save}>Save changes</Button>
+            <Button onClick={() => setDrafts(null)}>{t('Cancel')}</Button>
+            <Button variant="contained" startIcon={<CheckIcon />} onClick={save}>{t('Save changes')}</Button>
           </Stack>
         ) : (
           <Stack direction="row" spacing={1}>
             <ExportButton table={table} disabled={!rows.length} folder="Finances" />
             {canEdit && (
-              <Button variant="outlined" startIcon={<EditIcon />} onClick={() => setDrafts(list.map(e => ({ ...e, key: e.id })))} aria-label="Edit expenses">
-                Edit
+              <Button variant="outlined" startIcon={<EditIcon />} onClick={() => setDrafts(list.map(e => ({ ...e, key: e.id })))} aria-label={t('Edit expenses')}>
+                {t('Edit')}
               </Button>
             )}
           </Stack>
         )}>
-          Monthly expenses
+          {t('Monthly expenses')}
         </SectionTitle>
         {editing && (
           <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>
-            Untick “Count” to keep an expense on the list without adding it to the total.
+            {t('Untick “Count” to keep an expense on the list without adding it to the total.')}
           </Typography>
         )}
         {!editing && filters.length > 1 && (
-          <Stack direction="row" role="group" aria-label="Filter by category" sx={{ gap: 0.75, flexWrap: 'wrap', alignItems: 'center', mb: 1.5 }}>
-            <Chip size="small" clickable label={`All ${list.length}`} onClick={() => setPicked([])} aria-pressed={!active.length}
+          <Stack direction="row" role="group" aria-label={t('Filter by category')} sx={{ gap: 0.75, flexWrap: 'wrap', alignItems: 'center', mb: 1.5 }}>
+            <Chip size="small" clickable label={t('All {n}', { n: list.length })} onClick={() => setPicked([])} aria-pressed={!active.length}
               variant={!active.length ? 'filled' : 'outlined'} color={!active.length ? 'primary' : 'default'} />
             {filters.map(c => {
               const on = active.includes(c)
               return (
-                <Chip key={c} size="small" clickable label={`${c} ${counts.get(c)}`} aria-pressed={on}
+                <Chip key={c} size="small" clickable label={`${t(c)} ${counts.get(c)}`} aria-pressed={on}
                   onClick={() => setPicked(on ? active.filter(x => x !== c) : [...active, c])}
                   variant={on ? 'filled' : 'outlined'} color={on ? 'primary' : 'default'} />
               )
             })}
             {active.length > 0 && (
               <Typography variant="body2" sx={{ color: 'text.secondary', ml: 0.5 }}>
-                {rows.length} of {list.length} · {formatMoney(shownTotal)} a month
+                {t('{n} of {total} · {amount} a month', { n: rows.length, total: list.length, amount: formatMoney(shownTotal) })}
               </Typography>
             )}
           </Stack>
         )}
-        {loaded && !editing && list.length === 0 && <Empty>No expenses yet.{canEdit && ' Press Edit to add one.'}</Empty>}
+        {loaded && !editing && list.length === 0 && <Empty>{canEdit ? t('No expenses yet. Press Edit to add one.') : t('No expenses yet.')}</Empty>}
         {(shown.length > 0 || editing) && (
           <Box sx={{ overflowX: 'auto' }}>
-            <Table size="small" aria-label="Expenses" sx={{ minWidth: editing ? 680 : undefined }}>
+            <Table size="small" aria-label={t('Expenses')} sx={{ minWidth: editing ? 680 : undefined }}>
               <TableHead>
                 {editing ? (
                   <TableRow>
-                    <TableCell padding="checkbox">Count</TableCell>
-                    <TableCell>Expense</TableCell><TableCell>Category</TableCell><TableCell>Notes</TableCell>
-                    <TableCell align="right">Per month</TableCell><TableCell />
+                    <TableCell padding="checkbox">{t('Count')}</TableCell>
+                    <TableCell>{t('Expense')}</TableCell><TableCell>{t('Category')}</TableCell><TableCell>{t('Notes')}</TableCell>
+                    <TableCell align="right">{t('Per month')}</TableCell><TableCell />
                   </TableRow>
                 ) : (
                   <TableRow>
-                    <SortCell sort={sort} id="name">Expense</SortCell>
-                    <SortCell sort={sort} id="category">Category</SortCell>
-                    <SortCell sort={sort} id="amount" align="right">Per month</SortCell>
-                    <SortCell sort={sort} id="share" align="right">Share</SortCell>
+                    <SortCell sort={sort} id="name">{t('Expense')}</SortCell>
+                    <SortCell sort={sort} id="category">{t('Category')}</SortCell>
+                    <SortCell sort={sort} id="amount" align="right">{t('Per month')}</SortCell>
+                    <SortCell sort={sort} id="share" align="right">{tc('portion', 'Share')}</SortCell>
                   </TableRow>
                 )}
               </TableHead>
@@ -194,34 +197,34 @@ function Expenses({ list, total, canEdit, loaded }: { list: Expense[]; total: nu
                   <TableRow key={d.key} sx={{ opacity: d.active ? 1 : 0.6, '& td': { verticalAlign: 'top' } }}>
                     <TableCell padding="checkbox">
                       <Checkbox checked={!!d.active} onChange={e => set(d.key, { active: e.target.checked })}
-                        slotProps={{ input: { 'aria-label': `Count ${d.name || 'this expense'} in the total` } }} />
+                        slotProps={{ input: { 'aria-label': t('Count {name} in the total', { name: d.name || t('this expense') }) } }} />
                     </TableCell>
                     <TableCell sx={{ minWidth: 170 }}>
-                      <TextField size="small" fullWidth value={d.name ?? ''} onChange={e => set(d.key, { name: e.target.value })} placeholder="Name"
-                        slotProps={{ htmlInput: { 'aria-label': 'Name' } }} />
+                      <TextField size="small" fullWidth value={d.name ?? ''} onChange={e => set(d.key, { name: e.target.value })} placeholder={t('Name')}
+                        slotProps={{ htmlInput: { 'aria-label': t('Name') } }} />
                     </TableCell>
                     <TableCell sx={{ minWidth: 150 }}>
                       <TextField select size="small" fullWidth value={d.category?.trim() ?? ''}
                         onChange={e => (e.target.value === ADD ? setAdding(d.key) : set(d.key, { category: e.target.value || null }))}
-                        slotProps={{ select: { displayEmpty: true, SelectDisplayProps: { 'aria-label': `Category for ${d.name || 'this expense'}` } } }}>
-                        <MenuItem value=""><Typography component="span" sx={{ color: 'text.secondary' }}>None</Typography></MenuItem>
-                        {categories.map(c => <MenuItem key={c} value={c}>{c}</MenuItem>)}
+                        slotProps={{ select: { displayEmpty: true, SelectDisplayProps: { 'aria-label': t('Category for {name}', { name: d.name || t('this expense') }) } } }}>
+                        <MenuItem value=""><Typography component="span" sx={{ color: 'text.secondary' }}>{t('None')}</Typography></MenuItem>
+                        {categories.map(c => <MenuItem key={c} value={c}>{t(c)}</MenuItem>)}
                         <Divider />
-                        <MenuItem value={ADD} sx={{ color: 'primary.main' }}><AddIcon fontSize="small" sx={{ mr: 1 }} />Add category…</MenuItem>
+                        <MenuItem value={ADD} sx={{ color: 'primary.main' }}><AddIcon fontSize="small" sx={{ mr: 1 }} />{t('Add category…')}</MenuItem>
                       </TextField>
                     </TableCell>
                     <TableCell sx={{ minWidth: 150 }}>
-                      <TextField size="small" fullWidth value={d.notes ?? ''} onChange={e => set(d.key, { notes: e.target.value })} placeholder="Notes"
-                        slotProps={{ htmlInput: { 'aria-label': `Notes for ${d.name || 'this expense'}` } }} />
+                      <TextField size="small" fullWidth value={d.notes ?? ''} onChange={e => set(d.key, { notes: e.target.value })} placeholder={t('Notes')}
+                        slotProps={{ htmlInput: { 'aria-label': t('Notes for {name}', { name: d.name || t('this expense') }) } }} />
                     </TableCell>
                     <TableCell align="right" sx={{ width: 140 }}>
                       <TextField size="small" type="number" value={d.amount ?? 0} onChange={e => set(d.key, { amount: Number(e.target.value) })}
                         slotProps={{ input: { startAdornment: <InputAdornment position="start">{currencySymbol()}</InputAdornment> },
-                          htmlInput: { step: 0.01, min: 0, 'aria-label': `Per month for ${d.name || 'this expense'}`, style: { textAlign: 'right' } } }} />
+                          htmlInput: { step: 0.01, min: 0, 'aria-label': t('Per month for {name}', { name: d.name || t('this expense') }), style: { textAlign: 'right' } } }} />
                     </TableCell>
                     <TableCell align="right" sx={{ width: 48 }}>
-                      <Tooltip title="Remove">
-                        <IconButton size="small" aria-label={`Remove ${d.name || 'this expense'}`} onClick={() => set(d.key, { removed: true })}>
+                      <Tooltip title={t('Remove')}>
+                        <IconButton size="small" aria-label={t('Remove {name}', { name: d.name || t('this expense') })} onClick={() => set(d.key, { removed: true })}>
                           <DeleteIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
@@ -231,10 +234,10 @@ function Expenses({ list, total, canEdit, loaded }: { list: Expense[]; total: nu
                   <TableRow key={e.id} hover sx={{ '& td': { color: e.active ? undefined : 'text.secondary' } }}>
                     <TableCell sx={{ fontWeight: 500 }}>
                       {e.name}
-                      {!e.active && <Box component="span" sx={{ ml: 1 }}><Tag>Not counted</Tag></Box>}
+                      {!e.active && <Box component="span" sx={{ ml: 1 }}><Tag>{t('Not counted')}</Tag></Box>}
                       {e.notes && <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>{e.notes}</Typography>}
                     </TableCell>
-                    <TableCell>{e.category && <Tag>{e.category}</Tag>}</TableCell>
+                    <TableCell>{e.category && <Tag>{t(e.category)}</Tag>}</TableCell>
                     <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums', fontWeight: 500, textDecoration: e.active ? 'none' : 'line-through' }}>
                       {formatMoney(e.amount)}
                     </TableCell>
@@ -254,7 +257,7 @@ function Expenses({ list, total, canEdit, loaded }: { list: Expense[]; total: nu
               {!editing && (
                 <TableFooter>
                   <TableRow>
-                    <TableCell sx={{ fontWeight: 500, color: 'text.primary', fontSize: '0.95rem' }}>{active.length ? 'Total shown' : 'Total'}</TableCell><TableCell />
+                    <TableCell sx={{ fontWeight: 500, color: 'text.primary', fontSize: '0.95rem' }}>{active.length ? t('Total shown') : t('Total')}</TableCell><TableCell />
                     <TableCell align="right" sx={{ fontWeight: 500, color: 'text.primary', fontSize: '0.95rem', fontVariantNumeric: 'tabular-nums' }}>{formatMoney(shownTotal)}</TableCell>
                     <TableCell />
                   </TableRow>
@@ -264,7 +267,7 @@ function Expenses({ list, total, canEdit, loaded }: { list: Expense[]; total: nu
           </Box>
         )}
         {editing && (
-          <Button startIcon={<AddIcon />} sx={{ mt: 1.5 }} onClick={() => setDrafts(d => [...d!, blank()])}>Add expense</Button>
+          <Button startIcon={<AddIcon />} sx={{ mt: 1.5 }} onClick={() => setDrafts(d => [...d!, blank()])}>{t('Add expense')}</Button>
         )}
       </CardContent>
       {adding && (
@@ -288,40 +291,39 @@ const SORT_BY: Record<string, (e: Expense) => string | number | null> = {
 function AddCategory({ existing, onAdd, onClose }: { existing: string[]; onAdd: (name: string) => void; onClose: () => void }) {
   const [name, setName] = useState('')
   const clean = name.trim()
-  const dupe = existing.find(c => c.toLowerCase() === clean.toLowerCase())
+  const dupe = existing.find(c => c.toLowerCase() === clean.toLowerCase() || t(c).toLowerCase() === clean.toLowerCase())
   const submit = () => { if (clean) onAdd(dupe ?? clean) }
   return (
     <Dialog open onClose={onClose} maxWidth="xs" fullWidth>
-      <DialogTitle>Add a category</DialogTitle>
+      <DialogTitle>{t('Add a category')}</DialogTitle>
       <DialogContent>
-        <TextField autoFocus fullWidth label="Category name" value={name} onChange={e => setName(e.target.value)} sx={{ mt: 1 }}
+        <TextField autoFocus fullWidth label={t('Category name')} value={name} onChange={e => setName(e.target.value)} sx={{ mt: 1 }}
           onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); submit() } }}
-          helperText={dupe ? `“${dupe}” is already on the list: it will be used.` : 'For example Coffee beans, Repairs or Delivery'} />
+          helperText={dupe ? t('“{name}” is already on the list: it will be used.', { name: t(dupe) }) : t('For example Coffee beans, Repairs or Delivery')} />
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button variant="contained" disabled={!clean} onClick={submit}>Add</Button>
+        <Button onClick={onClose}>{t('Cancel')}</Button>
+        <Button variant="contained" disabled={!clean} onClick={submit}>{t('Add')}</Button>
       </DialogActions>
     </Dialog>
   )
 }
 
-/** Takings from the payment system (Stripe or Square), and what the team costs as a share of them. */
+/** Takings from the till (Square or SumUp) and Stripe, added up, and what the team costs as a share of them. */
 function Takings() {
   const { api, rates, settings } = useApp()
   const integ = useAsync('integrations', () => api.integrations(), [])
-  // Stripe, or Square when it's switched on: whichever payment system is connected.
-  const till = integ.data?.integrations.find(i => (i.provider === 'stripe' || (FEATURES.square && i.provider === 'square')) && i.status === 'connected')
-  const on = !!till
-  const name = till?.provider === 'square' ? 'Square' : 'Stripe'
+  const tills = tillsOf(integ.data?.integrations)
+  const on = tills.length > 0
+  const name = tillNames(tills)
   const day = today(), monday = weekStart(day)
   const sales = useAsync('payment-sales', () => (on ? api.sales(addDays(day, -29), day) : Promise.resolve(null)), [on, day])
   const shifts = useAsync('takings-shifts', () => (on ? api.shifts(zonedIso(monday, '00:00'), zonedIso(addDays(monday, 7), '00:00')) : Promise.resolve([])), [on, monday])
   if (!integ.data) return null
   if (!on) {
     return (
-      <Alert severity="info" sx={{ mb: 3 }} action={<Button component={RouterLink} to="/connections" size="small">Connect</Button>}>
-        Connect Stripe or Square to see takings here, next to what the team costs.
+      <Alert severity="info" sx={{ mb: 3 }} action={<Button component={RouterLink} to="/connections" size="small">{t('Connect')}</Button>}>
+        {t('Connect Square, SumUp or Stripe to see takings here, next to what the team costs.')}
       </Alert>
     )
   }
@@ -332,15 +334,18 @@ function Takings() {
   const labour = (shifts.data ?? []).filter(s => s.status === 'published' && s.starts_at.slice(0, 10) <= day)
     .reduce((m, s) => m + shiftPaidMinutes(s) / 60 * (s.profile_id ? rates.get(s.profile_id) ?? 0 : 0) * mult, 0)
   return (
-    <Box component="section" aria-label="Takings" sx={{ mb: 3 }}>
-      <SectionTitle>Takings <Typography component="span" variant="body2" sx={{ color: 'text.secondary' }}>· from {name}</Typography></SectionTitle>
+    <Box component="section" aria-label={t('Takings')} sx={{ mb: 3 }}>
+      <SectionTitle action={<Button component={RouterLink} to="/sales" size="small">{t('See sales')}</Button>}>
+        {t('Takings')} <Typography component="span" variant="body2" sx={{ color: 'text.secondary' }}>{t('· from {name}', { name })}</Typography>
+      </SectionTitle>
+      {sales.data && <Box sx={{ mt: -1, mb: 1.5 }}><Freshness id="takings" at={sales.data.fetched_at} /></Box>}
       <ErrorBox error={sales.error} />
       <StatRow>
-        <Stat label="Today" value={sales.data ? formatMoney(sum(day, day)) : '–'} note={`${days.find(d => d.date === day)?.payments ?? 0} payments`} />
-        <Stat label="This week" value={sales.data ? formatMoney(week) : '–'} note={lastWeek ? `${week >= lastWeek ? '+' : ''}${Math.round((week - lastWeek) / lastWeek * 100)}% on last week so far` : 'since Monday'} />
-        <Stat label="Last week" value={sales.data ? formatMoney(lastWeek) : '–'} />
-        <Stat label="Last 30 days" value={sales.data ? formatMoney(sum(addDays(day, -29), day)) : '–'} note={sales.data ? `${formatMoney(sum(addDays(day, -29), day) / 30)} a day on average` : undefined} />
-        {week > 0 && labour > 0 && <Stat label="Team cost this week" value={`${Math.round(labour / week * 100)}%`} note={`${formatMoney(labour)} of shifts so far, as a share of takings`}
+        <Stat label={t('Today')} value={sales.data ? formatMoney(sum(day, day)) : '–'} note={t('{n} payments', { n: days.find(d => d.date === day)?.payments ?? 0 })} />
+        <Stat label={t('This week')} value={sales.data ? formatMoney(week) : '–'} note={lastWeek ? t('{change}% on last week so far', { change: `${week >= lastWeek ? '+' : ''}${Math.round((week - lastWeek) / lastWeek * 100)}` }) : t('since Monday')} />
+        <Stat label={t('Last week')} value={sales.data ? formatMoney(lastWeek) : '–'} />
+        <Stat label={t('Last 30 days')} value={sales.data ? formatMoney(sum(addDays(day, -29), day)) : '–'} note={sales.data ? t('{amount} a day on average', { amount: formatMoney(sum(addDays(day, -29), day) / 30) }) : undefined} />
+        {week > 0 && labour > 0 && <Stat label={t('Team cost this week')} value={`${Math.round(labour / week * 100)}%`} note={t('{amount} of shifts so far, as a share of takings', { amount: formatMoney(labour) })}
           tone={labour / week > 0.35 ? 'warning' : 'good'} />}
       </StatRow>
     </Box>

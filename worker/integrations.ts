@@ -1,5 +1,6 @@
-// Connections to Google Business Profile, WhatsApp, Instagram, email, files, calendars and music,
-// and the outbox worker that delivers everything queued in the database (with retries; see
+// Connections to Google Business Profile, WhatsApp, Instagram, Facebook, TikTok, LinkedIn, the
+// payment systems (Square, Stripe, SumUp), email, files, calendars, music and Search Console, and
+// the outbox worker that delivers everything queued in the database (with retries; see
 // migration 7). Whether a connection really works is decided in connections.ts.
 import { Hono, type Context } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -15,25 +16,39 @@ import * as youtube from './providers/youtube'
 import * as facebook from './providers/facebook'
 import * as tiktok from './providers/tiktok'
 import * as square from './providers/square'
+import { squareCustomerEvent, syncSquareCustomers } from './squareCustomers'
+import { cached, oldest } from './cache'
 import * as stripe from './providers/stripe'
+import * as sumup from './providers/sumup'
+import * as linkedin from './providers/linkedin'
+import * as searchConsole from './providers/searchConsole'
+import * as metaAds from './providers/metaAds'
 import { alertEmail, base64url, mimeMessage } from '../shared/alertText'
 import { addToCalendarUrl, optionName } from '../shared/connections'
 import { replyWindow } from '../shared/messages'
+import { MINUTES, takingsMinutes } from '../shared/refresh'
 import { finishMusicConnect, type MusicState } from './music'
 import { ensureFeed } from './calendarFeed'
-import { MediaError, checkFile, mediaStorage, serveMedia, storeMedia } from './media'
+import { checkMentions, decide, repostMention } from './mentions'
+import * as waInbox from './whatsappInbox'
+import { MediaError, checkFile, mediaBytes, mediaStorage, serveMedia, storeMedia } from './media'
 import {
-  CONNECTORS, PROVIDERS, ROW_COLUMNS, SCOPES, calendarSeen, calendarFetched, checkAll, checkOne, connectedOf, connectorConfigured,
-  connectorGrant, explain, facebookOAuth, facebookSession, googleConfig, googleSession, instagramOAuth, instagramSession, isCalendarApp, isGoogle,
-  lasting, markBroken, msConfig, proveFacebook, proveInstagram, proveNew, proveSpotify, proveSquare, proveStripe, proveTikTok, setIntegration, showInstagramHandle, spotifyConfig,
-  spotifySession, squareOAuth, squareSession, stripeOAuth, stripeSession, tellAdmins, tiktokOAuth, tiktokSession, waConfig, type Connector, type Provider,
+  CONNECTORS, PROVIDERS, READ_MAIL, ROW_COLUMNS, SCOPES, canReadMail, squareWebhookUrl, calendarSeen, calendarFetched, checkAll, checkOne, connectedOf, connectorConfigured,
+  connectorGrant, explain, facebookOAuth, facebookSession, googleAdsConfig, googleConfig, googleSession, instagramOAuth, instagramSession, isCalendarApp, isGoogle,
+  metaAdsOAuth, proveMetaAds,
+  lasting, linkedinOAuth, linkedinSession, markBroken, msConfig, proveFacebook, proveInstagram, proveLinkedIn, proveNew, proveSpotify, proveSquare, proveStripe,
+  proveSumUp, proveTikTok, setIntegration, showInstagramHandle, showMailboxAddress, spotifyConfig, spotifySession, squareOAuth, squareSession, stripeOAuth,
+  stripeSession, sumupOAuth, sumupSession, tellAdmins, tiktokOAuth, tiktokSession, waConfig, type Connector, type LinkedInExternal, type Provider,
 } from './connections'
-import type { Business, CalendarEvent, OpeningHours, PostKind, PostMedia, SpotifyPlaylist } from '../shared/types'
+import type { Business, CalendarEvent, OpeningHours, PostKind, PostMedia, SalesProvider, SpotifyPlaylist } from '../shared/types'
 import { today, zonedIso } from '../shared/time'
+import { mergeSales } from '../shared/sales'
+import { LEGAL } from '../shared/legal'
+import { businessConfig } from '../shared/business.config'
 
 export { waConfig }
 
-interface ConnectorState { uid: string; kind: 'connector'; provider: Connector; back?: 'setup' | 'connections' }
+interface ConnectorState { uid: string; kind: 'connector'; provider: Connector; back?: 'setup' | 'connections' | 'invoices'; read?: boolean }
 
 /** Send an email from the café's connected mailbox (Gmail or Outlook, whichever the business chose). */
 export async function sendEmail(env: Env, db: SupabaseClient, m: { to: string; subject: string; text: string }) {
@@ -156,6 +171,9 @@ export async function drainOutbox(env: Env) {
         if (!cfg) throw new Error('WhatsApp is not set up')
         const p = job.payload as { to: string; template: string; params: string[] }
         externalId = await whatsapp.sendTemplate(cfg, p.to, p.template, p.params ?? [])
+        // Into the chat on the Messages page, as the person received it (it's sent either way).
+        await waInbox.saveOutgoing(db, { id: externalId, to: p.to, text: waInbox.templateText(p.template, p.params ?? []) })
+          .catch(e => console.error('whatsapp chat save failed', e))
       } else if (job.kind === 'google_sync') {
         await syncGoogle(env, db)
       } else if (job.kind === 'google_post') {
@@ -178,6 +196,13 @@ export async function drainOutbox(env: Env) {
       } else if (job.kind === 'tiktok_post') {
         const p = job.payload as { image_url: string; caption: string }
         externalId = await tiktok.publishPhoto(await tiktokSession(env, db), p.caption, p.image_url, tiktokWait)
+      } else if (job.kind === 'linkedin_post') {
+        // Text, and the photo when there is one (LinkedIn takes it as an upload rather than fetching it).
+        const p = job.payload as { image_url?: string | null; caption: string; media?: PostMedia[] }
+        if (p.media?.some(m => m.type === 'video')) throw new Error('LinkedIn posts from the planner take text and one photo; videos aren’t sent to LinkedIn')
+        const s = await linkedinSession(env, db)
+        if (!s.author) throw new Error('Choose whether LinkedIn posts go to your Page or your own profile')
+        externalId = await linkedin.publish(s.cfg.version, s.token, s.author, p.caption, p.image_url ? await mediaBytes(env, p.image_url) : null)
       }
       await db.rpc('complete_outbox', { p_id: job.id, p_ok: true, p_external_id: externalId })
     } catch (e) {
@@ -185,7 +210,7 @@ export async function drainOutbox(env: Env) {
       await db.rpc('complete_outbox', { p_id: job.id, p_ok: false, p_error: message })
       if (job.kind.startsWith('google')) await setIntegration(db, 'google_business', { last_error: message }).catch(() => {})
       // A post failing because the access was removed turns that app red (admins are told once).
-      const app = ({ instagram_post: 'instagram', facebook_post: 'facebook', tiktok_post: 'tiktok' } as Record<string, Provider>)[job.kind]
+      const app = ({ instagram_post: 'instagram', facebook_post: 'facebook', tiktok_post: 'tiktok', linkedin_post: 'linkedin' } as Record<string, Provider>)[job.kind]
       if (app && lasting(app, e)) await markBroken(db, app, explain(app, e)).catch(() => {})
     }
   }
@@ -240,9 +265,12 @@ integrations.get('/api/integrations', async c => {
     whatsapp: !!waConfig(c.env) && !!c.env.META_APP_SECRET && !!c.env.WHATSAPP_VERIFY_TOKEN,
     instagram: !!instagramOAuth(c.env, ''),
     facebook: !!facebookOAuth(c.env, ''),
+    meta_ads: !!metaAdsOAuth(c.env, ''),
     tiktok: !!tiktokOAuth(c.env, ''),
-    square: !!squareOAuth(c.env, ''),
+    linkedin: !!linkedinOAuth(c.env, ''),
+    square: !!squareOAuth(c.env),
     stripe: !!stripeOAuth(c.env, ''),
+    sumup: !!sumupOAuth(c.env, ''),
     spotify: !!spotifyConfig(c.env, ''),
     ...Object.fromEntries(CONNECTORS.map(p => [p, connectorConfigured(c.env, p)])),
     // Calendars need no keys of their own: the calendar app subscribes to the team calendar link.
@@ -263,31 +291,36 @@ integrations.post('/api/integrations/google/start', async c => {
   return c.json({ url: google.authUrl(cfg, state) })
 })
 
-// Email, files and YouTube Music: start (the browser then goes to Google or Microsoft)…
+// Email, files, YouTube Music and Search Console: start (the browser then goes to Google or Microsoft)…
 integrations.post('/api/integrations/connect/:provider/start', async c => {
   const p = c.req.param('provider') as Connector
   if (!CONNECTORS.includes(p)) return c.json({ error: 'Unknown connection' }, 404)
   const origin = new URL(c.req.url).origin
-  const { back } = await c.req.json<{ back?: 'setup' | 'connections' }>().catch(() => ({ back: undefined }))
-  const state = await signState(c.env.INTEGRATION_KEY ?? '', { uid: c.get('userId'), kind: 'connector', provider: p, back } satisfies ConnectorState)
+  // `read`: also allow reading the mailbox (Invoices brings in invoices that come by email).
+  const { back, read } = await c.req.json<{ back?: ConnectorState['back']; read?: boolean }>().catch(() => ({ back: undefined, read: undefined }))
+  const reading = !!read && !!READ_MAIL[p]
+  const state = await signState(c.env.INTEGRATION_KEY ?? '', { uid: c.get('userId'), kind: 'connector', provider: p, back, ...(reading ? { read: true } : {}) } satisfies ConnectorState)
+  const scopes = [...SCOPES[p], ...(reading ? [READ_MAIL[p]!] : [])]
   if (isGoogle(p)) {
     const cfg = googleConfig(c.env, origin)
     if (!cfg) return c.json({ error: `${optionName(p)} needs the Google keys first (GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET; see docs/sign-in-setup.md).` }, 400)
-    return c.json({ url: google.authUrl(cfg, state, [...SCOPES[p]]) })
+    if (p === 'google_ads' && !googleAdsConfig(c.env)) return c.json({ error: 'Google Ads needs Business Agent’s Google Ads developer token first (GOOGLE_ADS_DEVELOPER_TOKEN; see docs/INTEGRATIONS.md).' }, 400)
+    return c.json({ url: google.authUrl(cfg, state, scopes) })
   }
   const cfg = msConfig(c.env, origin)
   if (!cfg) return c.json({ error: `${optionName(p)} needs the Microsoft app first: run the "Set up Microsoft sign-in" workflow (docs/sign-in-setup.md).` }, 400)
-  return c.json({ url: ms.authUrl(cfg, state, SCOPES[p]) })
+  return c.json({ url: ms.authUrl(cfg, state, scopes) })
 })
 
 /**
  * …and finish: use the new connection for real first (send the confirmation email, make the
- * folder, read the playlists). Only if that works is the access kept (encrypted) and the app shown
- * as connected; the other app in its group is then disconnected by the database (migration 28).
+ * folder, read the playlists, find the website). Only if that works is the access kept (encrypted)
+ * and the app shown as connected (Search Console: pending until a website is chosen, when none is
+ * the business's); the other app in its group is then disconnected by the database (migration 28).
  */
 async function finishConnector(c: Context<{ Bindings: Env; Variables: { userId: string } }>, state: ConnectorState) {
   const origin = new URL(c.req.url).origin
-  const back = (q: string) => c.redirect(`${origin}/${state.back === 'setup' ? 'setup' : 'connections'}?${q}`)
+  const back = (q: string) => c.redirect(`${origin}/${state.back === 'setup' ? 'setup' : state.back === 'invoices' ? 'invoices' : 'connections'}?${q}`)
   const p = state.provider
   const db = serviceClient(c.env)
   if (c.req.query('error')) {
@@ -300,12 +333,17 @@ async function finishConnector(c: Context<{ Bindings: Env; Variables: { userId: 
     if (isGoogle(p) ? !gcfg : !mcfg) throw new Error(`${optionName(p)} is not set up`)
     const t = isGoogle(p) ? await google.exchangeCode(gcfg!, code) : await ms.exchangeCode(mcfg!, code)
     if (!t.refresh_token) throw new Error(`${optionName(p)} did not allow offline access. Remove the app from your account's connected apps and connect again.`)
-    const { data: biz } = await db.from('business').select('name').eq('id', 1).maybeSingle()
-    const proven = await proveNew(p, { access_token: t.access_token!, scope: t.scope }, biz?.name ?? 'Business Agent')
+    const { data: biz } = await db.from('business').select('name, website').eq('id', 1).maybeSingle()
+    const proven = await proveNew(p, { access_token: t.access_token!, scope: t.scope }, biz?.name ?? 'Business Agent', biz?.website, googleAdsConfig(c.env))
     const { error } = await db.from('integration_secrets').upsert({ provider: p, ciphertext: await seal(c.env.INTEGRATION_KEY!, { refresh_token: t.refresh_token }), updated_at: new Date().toISOString() })
     if (error) throw new Error(error.message)
     const now = new Date().toISOString()
-    await setIntegration(db, p, { status: 'connected', connected_by: state.uid, connected_at: now, last_checked_at: now, last_error: null, account_label: proven.label, external: proven.external })
+    await setIntegration(db, p, { status: proven.pending ? 'pending' : 'connected', connected_by: state.uid, connected_at: now, last_checked_at: proven.pending ? null : now,
+      last_error: null, account_label: proven.label,
+      // A mailbox: whether it may be read too (Invoices), as allowed on Google's or Microsoft's screen.
+      external: READ_MAIL[p] ? { ...proven.external, reads_mail: !!state.read && canReadMail(p, t.scope) } : proven.external })
+    // The mailbox becomes the business's email address, unless one was typed in.
+    if ((p === 'gmail' || p === 'outlook') && proven.label) await showMailboxAddress(db, proven.label).catch(() => {})
     return back(`connected=${p}`)
   } catch (e) {
     // Not connected. The reason shows on this app's card; whatever was connected before stays.
@@ -677,7 +715,7 @@ integrations.get('/api/integrations/instagram/callback', async c => {
     // Proof first: the profile and posts can be read and posting was allowed. Only then is it kept.
     const proven = await proveInstagram(t, c.env)
     const { error } = await db.from('integration_secrets').upsert({ provider: 'instagram', updated_at: new Date().toISOString(),
-      ciphertext: await seal(c.env.INTEGRATION_KEY!, { access_token: t.access_token, expires_at: t.expires_at, user_id: t.userId }) })
+      ciphertext: await seal(c.env.INTEGRATION_KEY!, { access_token: t.access_token, expires_at: t.expires_at, user_id: String(proven.external.user_id) }) })
     if (error) throw new Error(error.message)
     const now = new Date().toISOString()
     await setIntegration(db, 'instagram', { status: 'connected', connected_by: state.uid, connected_at: now, last_checked_at: now, last_sync_at: now,
@@ -691,20 +729,26 @@ integrations.get('/api/integrations/instagram/callback', async c => {
   }
 })
 
+const LINKEDIN_PAGES_REFUSED = 'LinkedIn hasn’t approved this app for company Pages yet. Until it does, the app can post to personal profiles only (LINKEDIN_PAGES=off; see docs/INTEGRATIONS.md).'
+
 /**
- * The finish of a one-click connection (Facebook, TikTok, Square): check the signed state, handle
+ * The finish of a one-click connection (Facebook, TikTok, LinkedIn, Square, Stripe, SumUp): check the signed state, handle
  * "cancelled", run the proof and keep the access only if it passes; then back to where they started.
  */
 async function appCallback(c: Context<{ Bindings: Env; Variables: { userId: string } }>, provider: Provider,
   finish: (state: { uid: string }, origin: string, db: SupabaseClient) => Promise<void>) {
   const origin = new URL(c.req.url).origin
-  let state: { uid: string; kind?: string; back?: string } | null = null
+  let state: { uid: string; kind?: string; back?: string; from?: string } | null = null
   try { state = await verifyState(c.env.INTEGRATION_KEY ?? '', c.req.query('state') ?? '') } catch { /* expired or forged */ }
-  const back = (q: string) => c.redirect(`${origin}/${state?.back === 'setup' ? 'setup' : 'connections'}?${q}`)
+  // Back to the address they connected from (Square always comes back to the main domain).
+  const home = state?.from && appOrigins(origin).includes(state.from) ? state.from : origin
+  const back = (q: string) => c.redirect(`${home}/${state?.back === 'setup' || state?.back === 'messages' ? state.back : 'connections'}?${q}`)
   if (!state || state.kind !== provider) return back(`connect_error=${encodeURIComponent('That connection link expired. Try again.')}`)
   if (c.req.query('error')) {
-    const cancelled = /access_denied|user_denied|cancel/i.test(`${c.req.query('error')} ${c.req.query('error_reason') ?? ''}`)
-    return back(`connect_error=${encodeURIComponent(cancelled ? `${optionName(provider)} connection was cancelled` : (c.req.query('error_description') ?? c.req.query('error')!))}`)
+    const cancelled = /access_denied|user_denied|user_cancelled|cancel/i.test(`${c.req.query('error')} ${c.req.query('error_reason') ?? ''}`)
+    // LinkedIn refuses Page permissions an app hasn't been approved for (the Community Management API).
+    const said = provider === 'linkedin' && /unauthorized_scope/i.test(c.req.query('error')!) ? LINKEDIN_PAGES_REFUSED : (c.req.query('error_description') ?? c.req.query('error')!)
+    return back(`connect_error=${encodeURIComponent(cancelled ? `${optionName(provider)} connection was cancelled` : said)}`)
   }
   const db = serviceClient(c.env)
   try {
@@ -718,9 +762,12 @@ async function appCallback(c: Context<{ Bindings: Env; Variables: { userId: stri
 }
 
 const startState = async (c: Context<{ Bindings: Env; Variables: { userId: string } }>, kind: Provider) => {
-  const { back } = await c.req.json<{ back?: 'setup' | 'connections' }>().catch(() => ({ back: undefined }))
-  return signState(c.env.INTEGRATION_KEY!, { uid: c.get('userId'), kind, back })
+  const { back } = await c.req.json<{ back?: 'setup' | 'connections' | 'messages' }>().catch(() => ({ back: undefined }))
+  return signState(c.env.INTEGRATION_KEY!, { uid: c.get('userId'), kind, back, from: new URL(c.req.url).origin })
 }
+
+/** The app's own addresses, the only ones a connection sends people back to. */
+const appOrigins = (here: string) => [here, `https://${LEGAL.domain}`, `https://www.${LEGAL.domain}`, new URL(businessConfig.appUrl).origin]
 
 const keep = async (env: Env, db: SupabaseClient, provider: Provider, secret: unknown) => {
   const { error } = await db.from('integration_secrets').upsert({ provider, ciphertext: await seal(env.INTEGRATION_KEY!, secret), updated_at: new Date().toISOString() })
@@ -741,8 +788,10 @@ integrations.get('/api/integrations/facebook/callback', c => appCallback(c, 'fac
   const proven = await proveFacebook(c.env, granted, pages)
   await keep(c.env, db, 'facebook', { pages: Object.fromEntries(pages.map(p => [p.id, p.access_token])) })
   const now = new Date().toISOString()
+  // Messenger (pages_messaging) is optional: posting works without it, the Messages page says to connect again.
   await setIntegration(db, 'facebook', { status: proven.chosen ? 'connected' : 'pending', connected_by: state.uid, connected_at: now,
-    last_checked_at: proven.chosen ? now : null, last_error: null, account_label: proven.label, external: proven.external })
+    last_checked_at: proven.chosen ? now : null, last_error: null, account_label: proven.label,
+    external: { ...proven.external, messenger: granted.includes('pages_messaging') } })
 }))
 
 // Which Page to post to (when the owner manages more than one): connected once that Page answers.
@@ -767,6 +816,25 @@ integrations.post('/api/integrations/facebook/page', async c => {
   }
 })
 
+// Meta Ads: sign in with Facebook, allow reading (and changing) ads, pick the ad account (automatic
+// when there's only one; the Ads page's /api/ads/meta_ads/account otherwise).
+integrations.post('/api/integrations/meta_ads/start', async c => {
+  const cfg = metaAdsOAuth(c.env, new URL(c.req.url).origin)
+  if (!cfg) return c.json({ error: 'Meta Ads needs the Meta app keys first (META_APP_ID and META_APP_SECRET; see docs/INTEGRATIONS.md).' }, 400)
+  return c.json({ url: metaAds.authUrl(cfg, await startState(c, 'meta_ads')) })
+})
+
+integrations.get('/api/integrations/meta_ads/callback', c => appCallback(c, 'meta_ads', async (state, origin, db) => {
+  const cfg = metaAdsOAuth(c.env, origin)
+  if (!cfg) throw new Error('Meta Ads is not set up')
+  const t = await metaAds.exchangeCode(cfg, c.req.query('code') ?? '')
+  const proven = await proveMetaAds(c.env, t)
+  await keep(c.env, db, 'meta_ads', { access_token: t.access_token, expires_at: t.expires_at })
+  const now = new Date().toISOString()
+  await setIntegration(db, 'meta_ads', { status: proven.pending ? 'pending' : 'connected', connected_by: state.uid, connected_at: now,
+    last_checked_at: proven.pending ? null : now, last_error: null, account_label: proven.label, external: proven.external })
+}))
+
 // TikTok: sign in, allow posting; connected once TikTok confirms the account can post.
 integrations.post('/api/integrations/tiktok/start', async c => {
   const cfg = tiktokOAuth(c.env, new URL(c.req.url).origin)
@@ -785,15 +853,102 @@ integrations.get('/api/integrations/tiktok/callback', c => appCallback(c, 'tikto
     account_label: proven.label, external: proven.external })
 }))
 
+// LinkedIn: sign in, allow posting, pick the Page (or their own profile); with no Page, their profile straight away.
+integrations.post('/api/integrations/linkedin/start', async c => {
+  const cfg = linkedinOAuth(c.env, new URL(c.req.url).origin)
+  if (!cfg) return c.json({ error: 'LinkedIn needs the LinkedIn app keys first (LINKEDIN_CLIENT_ID and LINKEDIN_CLIENT_SECRET; see docs/INTEGRATIONS.md).' }, 400)
+  return c.json({ url: linkedin.authUrl(cfg, await startState(c, 'linkedin')) })
+})
+
+integrations.get('/api/integrations/linkedin/callback', c => appCallback(c, 'linkedin', async (state, origin, db) => {
+  const cfg = linkedinOAuth(c.env, origin)
+  if (!cfg) throw new Error('LinkedIn is not set up')
+  const t = await linkedin.exchangeCode(cfg, c.req.query('code') ?? '')
+  const proven = await proveLinkedIn(cfg, t)
+  await keep(c.env, db, 'linkedin', { access_token: t.access_token, expires_at: proven.external.expires_at, ...(t.refresh_token ? { refresh_token: t.refresh_token } : {}) })
+  const now = new Date().toISOString()
+  await setIntegration(db, 'linkedin', { status: proven.pending ? 'pending' : 'connected', connected_by: state.uid, connected_at: now,
+    last_checked_at: proven.pending ? null : now, last_error: null, account_label: proven.label, external: proven.external })
+}))
+
+// Where LinkedIn posts go: one of their Pages, or 'me' (their own profile). Connected once that answers.
+integrations.post('/api/integrations/linkedin/page', async c => {
+  const { page_id } = await c.req.json<{ page_id?: string }>().catch(() => ({ page_id: undefined }))
+  const db = serviceClient(c.env)
+  const { data } = await db.from('integrations').select('status, external').eq('provider', 'linkedin').single()
+  const ext = (data?.external ?? {}) as LinkedInExternal
+  if (!ext.member || data?.status === 'disconnected') return c.json({ error: 'Connect LinkedIn first' }, 400)
+  if (page_id !== 'me' && !ext.pages?.some(p => p.id === page_id)) return c.json({ error: 'That Page isn’t one this account manages' }, 400)
+  try {
+    const s = await linkedinSession(c.env, db)
+    const name = page_id === 'me' ? (await linkedin.member(s.cfg.version, s.token)).name : (await linkedin.page(s.cfg.version, s.token, page_id!)).name
+    const now = new Date().toISOString()
+    await setIntegration(db, 'linkedin', { status: 'connected', last_checked_at: now, last_error: null, account_label: name,
+      external: { ...ext, page_id, page_name: name } })
+    return c.json({ ok: true })
+  } catch (e) {
+    const why = explain('linkedin', e)
+    await setIntegration(db, 'linkedin', { last_error: why })
+    return c.json({ error: why }, 400)
+  }
+})
+
+// Search Console: which website to read, when the account has several and none is the business's.
+integrations.post('/api/integrations/search_console/site', async c => {
+  const { site } = await c.req.json<{ site?: string }>().catch(() => ({ site: undefined }))
+  const db = serviceClient(c.env)
+  const { data } = await db.from('integrations').select('status, external').eq('provider', 'search_console').single()
+  const ext = (data?.external ?? {}) as { sites?: string[] }
+  if (data?.status === 'disconnected') return c.json({ error: 'Connect Search Console first' }, 400)
+  if (!site || !ext.sites?.includes(site)) return c.json({ error: 'That website isn’t in this Google account’s Search Console' }, 400)
+  try {
+    const { token } = await connectorGrant(c.env, db, 'search_console', new URL(c.req.url).origin)
+    await searchConsole.probe(token, site)
+    const now = new Date().toISOString()
+    await setIntegration(db, 'search_console', { status: 'connected', last_checked_at: now, last_error: null, account_label: searchConsole.siteLabel(site),
+      external: { ...ext, site } })
+    return c.json({ ok: true })
+  } catch (e) {
+    const why = explain('search_console', e)
+    await setIntegration(db, 'search_console', { last_error: why })
+    return c.json({ error: why }, 400)
+  }
+})
+
+// How the website did in Google Search (admins): ?from=YYYY-MM-DD&to=YYYY-MM-DD, inclusive. Google is 2–3 days behind,
+// so each answer is kept 6 hours.
+integrations.get('/api/integrations/search_console/report', async c => {
+  const from = c.req.query('from') ?? '', to = c.req.query('to') ?? ''
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || from > to) return c.json({ error: 'Give from and to dates (YYYY-MM-DD)' }, 400)
+  const db = serviceClient(c.env)
+  const { data } = await db.from('integrations').select('status, external').eq('provider', 'search_console').single()
+  const site = (data?.external as { site?: string } | null)?.site
+  if (data?.status !== 'connected' && data?.status !== 'error') return c.json({ error: 'Connect Search Console on the Connections page to see how the website does on Google' }, 400)
+  if (!site) return c.json({ error: 'Choose which website to read on the Connections page' }, 400)
+  try {
+    const { data: report, fetched_at } = await cached(db, `search:${site}:${from}:${to}`, MINUTES.search, async () => {
+      const { token } = await connectorGrant(c.env, db, 'search_console', new URL(c.req.url).origin)
+      const read = await searchConsole.report(token, site, from, to)
+      await setIntegration(db, 'search_console', { last_sync_at: new Date().toISOString() })
+      return read
+    })
+    return c.json({ ...report, fetched_at })
+  } catch (e) {
+    const why = explain('search_console', e)
+    if (lasting('search_console', e)) await markBroken(db, 'search_console', why)
+    return c.json({ error: why }, 400)
+  }
+})
+
 // Square: sign in to the business's Square account (read-only).
 integrations.post('/api/integrations/square/start', async c => {
-  const cfg = squareOAuth(c.env, new URL(c.req.url).origin)
+  const cfg = squareOAuth(c.env)
   if (!cfg) return c.json({ error: 'Square needs the Square app keys first (SQUARE_APP_ID and SQUARE_APP_SECRET; see docs/INTEGRATIONS.md).' }, 400)
   return c.json({ url: square.authUrl(cfg, await startState(c, 'square')) })
 })
 
-integrations.get('/api/integrations/square/callback', c => appCallback(c, 'square', async (state, origin, db) => {
-  const cfg = squareOAuth(c.env, origin)
+integrations.get('/api/integrations/square/callback', c => appCallback(c, 'square', async (state, _origin, db) => {
+  const cfg = squareOAuth(c.env)
   if (!cfg) throw new Error('Square is not set up')
   const t = await square.exchangeCode(cfg, c.req.query('code') ?? '')
   if (!t.refresh_token) throw new Error('Square did not allow lasting access. Connect again.')
@@ -802,6 +957,8 @@ integrations.get('/api/integrations/square/callback', c => appCallback(c, 'squar
   const now = new Date().toISOString()
   await setIntegration(db, 'square', { status: 'connected', connected_by: state.uid, connected_at: now, last_checked_at: now, last_error: null,
     account_label: proven.label, external: proven.external })
+  // The till's customers come into Customers straight away (then every hour, by the cron).
+  c.executionCtx.waitUntil(syncSquareCustomers(c.env, db, true).catch(e => console.error('square customers failed', e)))
 }))
 
 // Stripe: sign in to the business's Stripe account (read-only).
@@ -821,27 +978,98 @@ integrations.get('/api/integrations/stripe/callback', c => appCallback(c, 'strip
     account_label: proven.label, external: proven.external })
 }))
 
-// Takings per day from the payment system (Square or Stripe, admins with pay access): ?from=YYYY-MM-DD&to=YYYY-MM-DD (inclusive).
-integrations.get('/api/integrations/payments/sales', async c => {
-  if (!(await planFeatures(c.env)).has('takings')) return c.json({ error: 'Takings need the Pro plan or higher. Upgrade on the Billing page.' }, 402)
+// SumUp: sign in to the business's SumUp account (read-only).
+integrations.post('/api/integrations/sumup/start', async c => {
+  const cfg = sumupOAuth(c.env, new URL(c.req.url).origin)
+  if (!cfg) return c.json({ error: 'SumUp needs the SumUp app keys first (SUMUP_CLIENT_ID and SUMUP_CLIENT_SECRET; see docs/INTEGRATIONS.md).' }, 400)
+  return c.json({ url: sumup.authUrl(cfg, await startState(c, 'sumup')) })
+})
+
+integrations.get('/api/integrations/sumup/callback', c => appCallback(c, 'sumup', async (state, origin, db) => {
+  const cfg = sumupOAuth(c.env, origin)
+  if (!cfg) throw new Error('SumUp is not set up')
+  const t = await sumup.exchangeCode(cfg, c.req.query('code') ?? '')
+  if (!t.refresh_token) throw new Error('SumUp did not allow lasting access. Connect again.')
+  const proven = await proveSumUp(t.access_token!)
+  await keep(c.env, db, 'sumup', { access_token: t.access_token, refresh_token: t.refresh_token, expires_at: new Date(Date.now() + (t.expires_in ?? 3600) * 1000).toISOString() })
+  const now = new Date().toISOString()
+  await setIntegration(db, 'sumup', { status: 'connected', connected_by: state.uid, connected_at: now, last_checked_at: now, last_error: null,
+    account_label: proven.label, external: proven.external })
+}))
+
+/**
+ * Who may read takings, and for which days: the plan has takings, the person can see pay, from and
+ * to are dates (inclusive) and a payment system is connected. Either an error response, or the range
+ * as instants (local midnight to the midnight after `to`) and the connected payment systems: the
+ * till (Square or SumUp, one at a time) first, then Stripe (online payments, on top of either).
+ */
+async function takingsRequest(c: Context<{ Bindings: Env; Variables: { userId: string } }>) {
+  if (!(await planFeatures(c.env)).has('takings')) return { error: c.json({ error: 'Takings need the Pro plan or higher. Upgrade on the Billing page.' }, 402) }
   const db = serviceClient(c.env)
   const { data: me } = await db.from('profiles').select('can_see_pay').eq('id', c.get('userId')).single()
-  if (!me?.can_see_pay) return c.json({ error: 'Takings are for admins with pay access' }, 403)
+  if (!me?.can_see_pay) return { error: c.json({ error: 'Takings are for admins with pay access' }, 403) }
   const from = c.req.query('from') ?? '', to = c.req.query('to') ?? ''
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || from > to) return c.json({ error: 'Give from and to dates (YYYY-MM-DD)' }, 400)
-  const p = await connectedOf(db, ['square', 'stripe'] as const)
-  if (!p) return c.json({ error: 'Connect Stripe or Square on the Connections page to see takings' }, 400)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || from > to) return { error: c.json({ error: 'Give from and to dates (YYYY-MM-DD)' }, 400) }
+  const { data: rows } = await db.from('integrations').select('provider, status').in('provider', PAYMENT_SYSTEMS)
+  const ps = PAYMENT_SYSTEMS.filter(p => rows?.some(r => r.provider === p && r.status === 'connected'))
+  if (!ps.length) return { error: c.json({ error: 'Connect Square, SumUp or Stripe on the Connections page to see takings' }, 400) }
+  const end = new Date(Date.parse(`${to}T12:00:00Z`) + 86_400_000).toISOString().slice(0, 10)
+  return { db, ps, fromIso: zonedIso(from, '00:00'), toIso: zonedIso(end, '00:00') }
+}
+const PAYMENT_SYSTEMS: SalesProvider[] = ['square', 'sumup', 'stripe']
+
+/** One payment system's takings per day. */
+async function salesOf(env: Env, db: SupabaseClient, p: SalesProvider, fromIso: string, toIso: string) {
+  if (p === 'stripe') {
+    const s = await stripeSession(env, db)
+    return stripe.salesByDay(s.secretKey, s.accountId, fromIso, toIso)
+  }
+  if (p === 'sumup') return sumup.salesByDay(await sumupSession(env, db), fromIso, toIso)
+  const s = await squareSession(env, db)
+  return square.salesByDay(s.sandbox, s.token, s.locationIds, fromIso, toIso)
+}
+
+// Takings per day from the payment systems (the till, Square or SumUp, plus Stripe when that's
+// connected too; admins with pay access): ?from=YYYY-MM-DD&to=YYYY-MM-DD (inclusive). Added up day
+// by day; one that can't be read just now leaves the others' takings showing. Each system's answer
+// is kept 15 minutes, or a day once the period is over (shared/refresh.ts).
+integrations.get('/api/integrations/payments/sales', async c => {
+  const r = await takingsRequest(c)
+  if ('error' in r) return r.error
+  const { db, ps, fromIso, toIso } = r
+  const read = await Promise.all(ps.map(p => cached(db, `sales:${p}:${fromIso}:${toIso}`, takingsMinutes(toIso), () => salesOf(c.env, db, p, fromIso, toIso))
+    .then(({ data: sales, fetched_at }) => ({ provider: p, sales, fetched_at }), async (e: unknown) => {
+      const why = explain(p, e)
+      if (lasting(p, e)) await markBroken(db, p, why)
+      return { provider: p, error: why }
+    })))
+  const ok = read.filter((x): x is { provider: SalesProvider; sales: Awaited<ReturnType<typeof salesOf>>; fetched_at: string } => 'sales' in x)
+  const failed = read.filter((x): x is { provider: SalesProvider; error: string } => 'error' in x)
+  if (!ok.length) return c.json({ error: failed[0].error }, 400)
+  return c.json({ provider: ok[0].provider, providers: ok.map(x => x.provider), ...mergeSales(ok), ...(failed.length ? { failed } : {}),
+    fetched_at: oldest(ok.map(x => x.fetched_at)) })
+})
+
+// Best sellers from Square's orders, same rules and dates as the takings. Stripe and SumUp have no
+// items (SumUp's history only has a one-line summary per sale), so with Square and Stripe both
+// connected the items are Square's (`partial`); a Square connection made before items were asked
+// for (ORDERS_READ) says so, and keeps working.
+integrations.get('/api/integrations/payments/items', async c => {
+  const r = await takingsRequest(c)
+  if ('error' in r) return r.error
+  const { db, ps, fromIso, toIso } = r
+  if (!ps.includes('square')) return c.json({ items: null, reason: ps[0] })
+  const partial = ps.includes('stripe') ? { partial: 'stripe' } : {}
   try {
-    const end = new Date(Date.parse(`${to}T12:00:00Z`) + 86_400_000).toISOString().slice(0, 10)
-    if (p === 'stripe') {
-      const s = await stripeSession(c.env, db)
-      return c.json({ provider: p, ...await stripe.salesByDay(s.secretKey, s.accountId, zonedIso(from, '00:00'), zonedIso(end, '00:00')) })
-    }
-    const s = await squareSession(c.env, db)
-    return c.json({ provider: p, ...await square.salesByDay(s.sandbox, s.token, s.locationIds, zonedIso(from, '00:00'), zonedIso(end, '00:00')) })
+    const { data: items, fetched_at } = await cached(db, `items:${fromIso}:${toIso}`, takingsMinutes(toIso), async () => {
+      const s = await squareSession(c.env, db)
+      return square.topItems(s.sandbox, s.token, s.locationIds, fromIso, toIso)
+    })
+    return c.json({ items, ...partial, fetched_at })
   } catch (e) {
-    const why = explain(p, e)
-    if (lasting(p, e)) await markBroken(db, p, why)
+    if (e instanceof square.SquareError && e.code === 'INSUFFICIENT_SCOPES') return c.json({ items: null, reason: 'reconnect' })
+    const why = explain('square', e)
+    if (lasting('square', e)) await markBroken(db, 'square', why)
     return c.json({ error: why }, 400)
   }
 })
@@ -893,6 +1121,29 @@ integrations.get('/api/integrations/instagram/inbox', async c => {
   }
 })
 
+// Mentions (tagged posts, story mentions): look now, repost one to the business's story, or ignore it.
+integrations.post('/api/integrations/instagram/mentions/check', async c => {
+  try {
+    return c.json({ added: await checkMentions(c.env, serviceClient(c.env)) })
+  } catch (e) {
+    return c.json({ error: inboxError(e) }, 400)
+  }
+})
+
+integrations.post('/api/integrations/instagram/mentions/:id/repost', async c => {
+  try {
+    const url = await repostMention(c.env, serviceClient(c.env), new URL(c.req.url).origin, c.req.param('id'), c.get('userId'))
+    return c.json({ ok: true, url })
+  } catch (e) {
+    return c.json({ error: e instanceof MediaError ? e.message : explain('instagram', e) }, 400)
+  }
+})
+
+integrations.post('/api/integrations/instagram/mentions/:id/ignore', async c => {
+  await decide(serviceClient(c.env), c.req.param('id'), 'ignored', c.get('userId'))
+  return c.json({ ok: true })
+})
+
 integrations.get('/api/integrations/instagram/inbox/:id', async c => {
   try {
     const { cfg, me } = await instagramInbox(c)
@@ -932,6 +1183,135 @@ integrations.post('/api/integrations/instagram/inbox/:id/reply', async c => {
   }
 })
 
+// Messages page: the Facebook Page's Messenger chats (admins), with the Page token of the Facebook
+// connection. Read live each time; nothing is stored. Connected Facebook with no chats yet is an empty inbox.
+const MESSENGER_RECONNECT = 'Facebook hasn’t allowed this app to read Messenger yet. Connect Facebook again and leave “Manage and access Page conversations in Messenger” ticked.'
+
+async function messengerInbox(c: Context<{ Bindings: Env; Variables: { userId: string } }>) {
+  const db = serviceClient(c.env)
+  const { data: row } = await db.from('integrations').select('status, external').eq('provider', 'facebook').single()
+  if (row?.status !== 'connected') throw new Error('Facebook is not connected')
+  // Connected without Messenger allowed: no need to ask Facebook to know the answer.
+  if ((row.external as { messenger?: boolean } | null)?.messenger === false) throw new facebook.FacebookError(MESSENGER_RECONNECT, 200)
+  return facebookSession(c.env, db)
+}
+
+/** Facebook's errors, in words for the Messages page. A missing permission means connecting again, never a broken connection. */
+function messengerError(e: unknown) {
+  const raw = e instanceof Error ? e.message : String(e)
+  if ((e instanceof facebook.FacebookError && [3, 10, 200, 230].includes(e.code ?? 0)) || /pages_messaging|permission|\(#10\)|\(#200\)|\(#230\)/i.test(raw)) return MESSENGER_RECONNECT
+  if (/24 hour|outside of allowed window|window/i.test(raw)) return 'Messenger only allows replies within 24 hours of their last message (7 days as a personal reply). Reply in Meta Business Suite instead.'
+  return explain('facebook', e)
+}
+
+integrations.get('/api/integrations/facebook/inbox', async c => {
+  try {
+    return c.json({ conversations: await facebook.conversations(await messengerInbox(c)) })
+  } catch (e) {
+    return c.json({ error: messengerError(e) }, 400)
+  }
+})
+
+integrations.get('/api/integrations/facebook/inbox/:id', async c => {
+  try {
+    return c.json(await facebook.conversation(await messengerInbox(c), c.req.param('id')))
+  } catch (e) {
+    return c.json({ error: messengerError(e) }, 400)
+  }
+})
+
+integrations.post('/api/integrations/facebook/inbox/:id/reply', async c => {
+  const { text } = await c.req.json<{ text?: string }>().catch(() => ({ text: undefined }))
+  const said = (text ?? '').trim()
+  if (!said) return c.json({ error: 'Write a message first' }, 400)
+  if (new TextEncoder().encode(said).length > 2000) return c.json({ error: 'Messenger messages can be up to 2000 characters' }, 400)
+  try {
+    const s = await messengerInbox(c)
+    // Reply to the person in this chat (never to an id the browser chose), within Messenger's window.
+    const { conversation, messages } = await facebook.conversation(s, c.req.param('id'))
+    if (!conversation.with.id) throw new Error('Couldn’t find who this chat is with')
+    const can = replyWindow(messages)
+    if (can.mode === 'closed') return c.json({ error: 'Messenger allows replies up to 7 days after their last message. Reply in Meta Business Suite instead.' }, 400)
+    if (can.mode === 'human_agent') {
+      try {
+        return c.json({ ok: true, id: await facebook.sendText(s, conversation.with.id, said, 'HUMAN_AGENT'), human_agent: true })
+      } catch (e) {
+        if (/permission|capabilit|human.?agent|tag|window|\(#3\)|\(#10\)|\(#200\)|\(#100\)/i.test(String(e))) {
+          return c.json({ error: 'Messenger didn’t accept a reply after 24 hours. Add the Human Agent feature to the Meta app (App Dashboard → Messenger → Permissions and features → Human Agent), or reply in Meta Business Suite.' }, 400)
+        }
+        throw e
+      }
+    }
+    return c.json({ ok: true, id: await facebook.sendText(s, conversation.with.id, said) })
+  } catch (e) {
+    return c.json({ error: messengerError(e) }, 400)
+  }
+})
+
+// Messages page: the café's WhatsApp chats (admins). WhatsApp can't be read back from Meta, so these
+// are the messages the webhook and the app saved (worker/whatsappInbox.ts), for as long as Data retention says.
+/** WhatsApp's errors, in words for the Messages page. */
+function whatsappError(e: unknown) {
+  const raw = e instanceof Error ? e.message : String(e)
+  if (/131047|re-?engagement|24 hours|outside.*window/i.test(raw)) return 'WhatsApp only allows replies within 24 hours of their last message. After that, the café can only send approved templates.'
+  return explain('whatsapp', e)
+}
+
+integrations.get('/api/integrations/whatsapp/inbox', async c => {
+  try {
+    return c.json({ conversations: await waInbox.conversations(serviceClient(c.env)) })
+  } catch (e) {
+    return c.json({ error: whatsappError(e) }, 400)
+  }
+})
+
+integrations.get('/api/integrations/whatsapp/inbox/:id', async c => {
+  const waId = c.req.param('id')
+  if (!/^[0-9]{6,20}$/.test(waId)) return c.json({ error: 'No such chat' }, 404)
+  try {
+    return c.json(await waInbox.thread(serviceClient(c.env), waId))
+  } catch (e) {
+    return c.json({ error: whatsappError(e) }, 400)
+  }
+})
+
+integrations.post('/api/integrations/whatsapp/inbox/:id/reply', async c => {
+  const waId = c.req.param('id')
+  if (!/^[0-9]{6,20}$/.test(waId)) return c.json({ error: 'No such chat' }, 404)
+  const { text } = await c.req.json<{ text?: string }>().catch(() => ({ text: undefined }))
+  const said = (text ?? '').trim()
+  if (!said) return c.json({ error: 'Write a message first' }, 400)
+  if (said.length > 4096) return c.json({ error: 'WhatsApp messages can be up to 4096 characters' }, 400)
+  const cfg = waConfig(c.env)
+  if (!cfg) return c.json({ error: 'WhatsApp is not set up yet. Add META_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID.' }, 400)
+  const db = serviceClient(c.env)
+  try {
+    // Only to someone who wrote in the last 24 hours (WhatsApp refuses anything else but templates).
+    const { messages } = await waInbox.thread(db, waId)
+    if (replyWindow(messages, Date.now(), 'whatsapp').mode === 'closed') {
+      return c.json({ error: 'WhatsApp only allows replies within 24 hours of their last message. After that, the café can only send approved templates.' }, 400)
+    }
+    const id = await whatsapp.sendText(cfg, waId, said)
+    // It's sent: a failed save mustn't look like a failed send (and get sent twice).
+    await waInbox.saveOutgoing(db, { id, to: waId, text: said }).catch(e => console.error('whatsapp chat save failed', e))
+    return c.json({ ok: true, id })
+  } catch (e) {
+    return c.json({ error: whatsappError(e) }, 400)
+  }
+})
+
+// Data retention (My account): how long WhatsApp chats are kept. Shortening it deletes what's now
+// too old straight away, photos and voice notes included.
+integrations.post('/api/integrations/whatsapp/retention', async c => {
+  const { days } = await c.req.json<{ days?: number }>().catch(() => ({ days: undefined }))
+  try {
+    const asAdmin = userClient(c.env, bearer(c.req.header('authorization'))!, 'app')
+    return c.json(await waInbox.setRetention(asAdmin, serviceClient(c.env), Number(days)))
+  } catch (e) {
+    return c.json({ error: e instanceof Error ? e.message : String(e) }, 400)
+  }
+})
+
 // Photos and videos for posts: kept in the café's Drive or OneDrive (or R2), in the folder for the
 // kind of post (?folder=Posts|Carousels|Reels|Stories), and handed out publicly at /media/… so the
 // networks can fetch them (worker/media.ts).
@@ -958,6 +1338,20 @@ integrations.get('/media/*', async c => {
   return new Response(obj.body, { headers: { 'content-type': obj.httpMetadata?.contentType ?? 'image/jpeg', 'cache-control': 'public, max-age=31536000, immutable' } })
 })
 
+// Square webhook: a customer added or changed in Square comes into Customers straight away.
+// Signed with the subscription's signature key over the notification URL as registered in Square.
+integrations.post('/api/webhooks/square', async c => {
+  const raw = await c.req.text()
+  const key = c.env.SQUARE_WEBHOOK_SIGNATURE_KEY
+  if (!key || !(await square.verifyWebhook(key, squareWebhookUrl(c.env), raw, c.req.header('x-square-hmacsha256-signature')))) {
+    return c.text('Invalid signature', 401)
+  }
+  const event = JSON.parse(raw) as square.SquareCustomerEvent
+  // Answer Square at once (it retries anything slow); the customer is saved just after.
+  c.executionCtx.waitUntil(squareCustomerEvent(serviceClient(c.env), event).catch(e => console.error('square customer webhook failed', e)))
+  return c.text('ok')
+})
+
 // WhatsApp webhook: verification handshake, delivery receipts and replies (STOP opts out).
 integrations.get('/api/webhooks/whatsapp', c => {
   if (c.req.query('hub.mode') === 'subscribe' && c.env.WHATSAPP_VERIFY_TOKEN && c.req.query('hub.verify_token') === c.env.WHATSAPP_VERIFY_TOKEN) {
@@ -976,6 +1370,10 @@ integrations.post('/api/webhooks/whatsapp', async c => {
   for (const s of events.statuses) {
     await db.from('outbox').update({ delivery: s.status, ...(s.error ? { last_error: s.error } : {}) }).eq('external_id', s.id)
   }
+  // Messages page: keep every message (WhatsApp can't be read back later), then copy photos, voice
+  // notes and files from Meta after answering, so Meta isn't kept waiting.
+  const withMedia = await waInbox.saveInbound(db, events).catch(e => { console.error('whatsapp chat save failed', e); return [] })
+  if (withMedia.length) c.executionCtx.waitUntil(Promise.all(withMedia.map(r => waInbox.saveMedia(c.env, db, r))))
   for (const m of events.messages) {
     if (/^\s*(stop|baja|parar)\s*$/i.test(m.text)) {
       // Opt the sender out: match on digits of their stored number.

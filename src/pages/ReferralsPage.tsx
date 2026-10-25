@@ -13,6 +13,7 @@ import { Empty, ErrorBox, PageHeader, SectionTitle, Tag } from '../components/co
 import { MAX_FREE_MONTHS, freeMonths, progression, referralLink, stageOf, type Referral, type ReferralWeek } from '../../shared/referrals'
 import { formatLocal } from '../../shared/time'
 import { tokens } from '../theme'
+import { locale, t, tn } from '../i18n'
 
 /**
  * Referrals (account menu, admins): share the link; when a business you referred finishes set-up,
@@ -28,44 +29,43 @@ export function ReferralsPage() {
 
   return (
     <>
-      <PageHeader eyebrow="You" title="Referrals" />
+      <PageHeader eyebrow={t('You')} title={t('Referrals')} />
       <ErrorBox error={data.error} />
-      <Card component="section" aria-label="Your referral link" sx={{ mb: 3, overflow: 'hidden' }}>
+      <Card component="section" aria-label={t('Your referral link')} sx={{ mb: 3, overflow: 'hidden' }}>
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1.3fr 1fr' } }}>
           <CardContent sx={{ p: { xs: 2.5, md: 3.5 } }}>
             <Stack direction="row" spacing={1} sx={{ alignItems: 'center', color: tokens.roseDeep, mb: 1 }}>
               <GiftIcon fontSize="small" />
-              <Typography variant="overline" sx={{ lineHeight: 1.4 }}>Give a month, get a month</Typography>
+              <Typography variant="overline" sx={{ lineHeight: 1.4 }}>{t('Give a month, get a month')}</Typography>
             </Stack>
-            <Typography variant="h5" component="h2" sx={{ mb: 1 }}>Invite a business. You both get a month free.</Typography>
+            <Typography variant="h5" component="h2" sx={{ mb: 1 }}>{t('Invite a business. You both get a month free.')}</Typography>
             <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2.5 }}>
-              Share your link with another café, shop or small team. When they finish setting up Business Agent,
-              you each get a month free. It stacks: up to {MAX_FREE_MONTHS} months for you.
+              {t('Share your link with another café, shop or small team. When they finish setting up Business Agent, you each get a month free. It stacks: up to {max} months for you.', { max: MAX_FREE_MONTHS })}
             </Typography>
-            {data.data && <ShareLink link={link} from={business?.name ?? 'us'} />}
+            {data.data && <ShareLink link={link} from={business?.name ?? t('us')} />}
           </CardContent>
           <MonthsEarned months={months} />
         </Box>
       </Card>
 
       {data.data && (
-        <Box component="section" aria-label="How your link is doing" sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: { xs: 1, sm: 2 }, mb: 3 }}>
-          <Stat label="Link opened" value={data.data.opens} note="times" />
-          <Stat label="Joined" value={list.length} note={list.length === 1 ? 'business' : 'businesses'} />
-          <Stat label="Set up" value={setUp} note={`= ${months} free month${months === 1 ? '' : 's'}`} strong />
+        <Box component="section" aria-label={t('How your link is doing')} sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: { xs: 1, sm: 2 }, mb: 3 }}>
+          <Stat label={t('Link opened')} value={data.data.opens} note={t('times')} />
+          <Stat label={t('Joined')} value={list.length} note={list.length === 1 ? t('business') : t('businesses')} />
+          <Stat label={t('Set up')} value={setUp} note={tn(months, '= {n} free month', '= {n} free months')} strong />
         </Box>
       )}
 
       {data.data && <Progression referrals={list} />}
 
-      <Card component="section" aria-label="How it works" sx={{ mb: 3 }}>
+      <Card component="section" aria-label={t('How it works')} sx={{ mb: 3 }}>
         <CardContent>
-          <SectionTitle>How it works</SectionTitle>
+          <SectionTitle>{t('How it works')}</SectionTitle>
           <Box component="ol" sx={{ m: 0, p: 0, listStyle: 'none', display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' }, gap: 2 }}>
             {[
-              { icon: <ShareIcon />, title: 'Share your link', text: 'By WhatsApp, email or anywhere. It opens Business Agent with your invite.' },
-              { icon: <GoIcon />, title: 'They set up', text: 'They join, then finish setting up their business. Opening the link or joining doesn’t count yet.' },
-              { icon: <GiftIcon />, title: 'You both get a month', text: `A free month each, every time. Up to ${MAX_FREE_MONTHS} months for you.` },
+              { icon: <ShareIcon />, title: t('Share your link'), text: t('By WhatsApp, email or anywhere. It opens Business Agent with your invite.') },
+              { icon: <GoIcon />, title: t('They set up'), text: t('They join, then finish setting up their business. Opening the link or joining doesn’t count yet.') },
+              { icon: <GiftIcon />, title: t('You both get a month'), text: t('A free month each, every time. Up to {max} months for you.', { max: MAX_FREE_MONTHS }) },
             ].map((s, i) => (
               <Stack component="li" key={s.title} direction="row" spacing={1.5}>
                 <Box sx={{ width: 40, height: 40, flexShrink: 0, borderRadius: '12px', display: 'grid', placeItems: 'center', bgcolor: tokens.roseSoft, color: tokens.roseDeep }}>{s.icon}</Box>
@@ -79,17 +79,15 @@ export function ReferralsPage() {
         </CardContent>
       </Card>
 
-      <Card component="section" aria-label="Businesses you referred">
+      <Card component="section" aria-label={t('Businesses you referred')}>
         <CardContent>
-          <SectionTitle>Businesses you referred</SectionTitle>
-          {data.data && list.length === 0 && <Empty>No referrals yet. Share your link and they’ll show up here.</Empty>}
+          <SectionTitle>{t('Businesses you referred')}</SectionTitle>
+          {data.data && list.length === 0 && <Empty>{t('No referrals yet. Share your link and they’ll show up here.')}</Empty>}
           <Stack component="ul" sx={{ m: 0, p: 0, listStyle: 'none' }} divider={<Box sx={{ borderTop: `1px solid ${tokens.line}` }} />}>
             {list.map(r => <ReferralRow key={r.id} r={r} />)}
           </Stack>
           <Typography variant="caption" component="p" sx={{ color: 'text.secondary', mt: 2 }}>
-            Each free month goes on your bill as credit (one month of your plan) and is taken off your next payments
-            automatically; see Billing. Sign-up for new businesses opens soon; until then your link takes them to the
-            waitlist, and they count once they finish setting up.
+            {t('Each free month goes on your bill as credit (one month of your plan) and is taken off your next payments automatically; see Billing. Sign-up for new businesses opens soon; until then your link takes them to the waitlist, and they count once they finish setting up.')}
           </Typography>
         </CardContent>
       </Card>
@@ -100,19 +98,19 @@ export function ReferralsPage() {
 /** The link, with copy and the two ways cafés actually share things. */
 function ShareLink({ link, from }: { link: string; from: string }) {
   const notify = useNotify()
-  const text = `I use Business Agent for our rota, hours and team messages. Join with my link and we both get a month free: ${link}`
+  const text = t('I use Business Agent for our rota, hours and team messages. Join with my link and we both get a month free: {link}', { link })
   const copy = async () => {
-    try { await navigator.clipboard.writeText(link); notify('Link copied', 'success') } catch { notify('Couldn’t copy: select the link and copy it', 'error') }
+    try { await navigator.clipboard.writeText(link); notify(t('Link copied'), 'success') } catch { notify(t('Couldn’t copy: select the link and copy it'), 'error') }
   }
   return (
     <>
-      <TextField label="Your link" value={link} fullWidth size="small" slotProps={{ htmlInput: { readOnly: true, onFocus: (e: { target: HTMLInputElement }) => e.target.select() } }} />
+      <TextField label={t('Your link')} value={link} fullWidth size="small" slotProps={{ htmlInput: { readOnly: true, onFocus: (e: { target: HTMLInputElement }) => e.target.select() } }} />
       <Stack direction="row" sx={{ gap: 1, mt: 1.5, flexWrap: 'wrap' }}>
-        <Button variant="contained" startIcon={<CopyIcon />} onClick={() => void copy()}>Copy link</Button>
+        <Button variant="contained" startIcon={<CopyIcon />} onClick={() => void copy()}>{t('Copy link')}</Button>
         <Button variant="outlined" startIcon={<Box component="svg" viewBox="0 0 24 24" aria-hidden sx={{ width: 18, height: 18 }}><path d={siWhatsapp.path} fill={`#${siWhatsapp.hex}`} /></Box>}
-          href={`https://wa.me/?text=${encodeURIComponent(text)}`} target="_blank" rel="noreferrer">WhatsApp</Button>
+          href={`https://wa.me/?text=${encodeURIComponent(text)}`} target="_blank" rel="noreferrer">{'WhatsApp'}</Button>
         <Button variant="outlined" startIcon={<MailIcon />}
-          href={`mailto:?subject=${encodeURIComponent(`A month of Business Agent free, from ${from}`)}&body=${encodeURIComponent(text)}`}>Email</Button>
+          href={`mailto:?subject=${encodeURIComponent(t('A month of Business Agent free, from {from}', { from }))}&body=${encodeURIComponent(text)}`}>{t('Email')}</Button>
       </Stack>
     </>
   )
@@ -121,14 +119,14 @@ function ShareLink({ link, from }: { link: string; from: string }) {
 /** The headline: free months banked, as a hero figure over a 12-step meter that fills in. */
 function MonthsEarned({ months }: { months: number }) {
   const [shown, setShown] = useState(0)
-  useEffect(() => { const t = setTimeout(() => setShown(months), 120); return () => clearTimeout(t) }, [months])
+  useEffect(() => { const timer = setTimeout(() => setShown(months), 120); return () => clearTimeout(timer) }, [months])
   return (
-    <Box component="figure" aria-label={`${months} of ${MAX_FREE_MONTHS} free months earned`}
+    <Box component="figure" aria-label={t('{months} of {max} free months earned', { months, max: MAX_FREE_MONTHS })}
       sx={{ m: 0, p: { xs: 2.5, md: 3.5 }, bgcolor: tokens.roseWash, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-      <Typography variant="overline" sx={{ color: 'text.secondary' }}>Free months earned</Typography>
+      <Typography variant="overline" sx={{ color: 'text.secondary' }}>{t('Free months earned')}</Typography>
       <Stack direction="row" spacing={1} sx={{ alignItems: 'baseline', mb: 2 }}>
         <Typography component="span" sx={{ fontSize: { xs: 48, md: 64 }, fontWeight: 600, lineHeight: 1, color: 'text.primary' }}>{months}</Typography>
-        <Typography component="span" sx={{ color: 'text.secondary' }}>of {MAX_FREE_MONTHS}</Typography>
+        <Typography component="span" sx={{ color: 'text.secondary' }}>{t('of {max}', { max: MAX_FREE_MONTHS })}</Typography>
       </Stack>
       <Box role="presentation" sx={{ display: 'grid', gridTemplateColumns: `repeat(${MAX_FREE_MONTHS}, 1fr)`, gap: '2px' }}>
         {Array.from({ length: MAX_FREE_MONTHS }, (_, i) => (
@@ -139,9 +137,9 @@ function MonthsEarned({ months }: { months: number }) {
         ))}
       </Box>
       <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1.5 }}>
-        {months >= MAX_FREE_MONTHS ? 'You’ve earned the full year. Thank you!'
-          : months === 0 ? 'Your first month comes when a business you referred finishes set-up.'
-          : `${MAX_FREE_MONTHS - months} more to a full free year.`}
+        {months >= MAX_FREE_MONTHS ? t('You’ve earned the full year. Thank you!')
+          : months === 0 ? t('Your first month comes when a business you referred finishes set-up.')
+          : t('{n} more to a full free year.', { n: MAX_FREE_MONTHS - months })}
       </Typography>
     </Box>
   )
@@ -152,7 +150,7 @@ function Stat({ label, value, note, strong }: { label: string; value: number; no
     <Card sx={{ height: '100%' }}>
       <CardContent sx={{ p: { xs: 1.5, sm: 2 } }}>
         <Typography variant="body2" sx={{ color: 'text.secondary' }}>{label}</Typography>
-        <Typography sx={{ fontSize: { xs: 26, sm: 32 }, fontWeight: 600, lineHeight: 1.2, color: strong ? tokens.roseDeep : 'text.primary' }}>{value.toLocaleString('en-GB')}</Typography>
+        <Typography sx={{ fontSize: { xs: 26, sm: 32 }, fontWeight: 600, lineHeight: 1.2, color: strong ? tokens.roseDeep : 'text.primary' }}>{value.toLocaleString(locale())}</Typography>
         <Typography variant="caption" sx={{ color: 'text.secondary' }}>{note}</Typography>
       </CardContent>
     </Card>
@@ -166,10 +164,12 @@ function ReferralRow({ r }: { r: Referral }) {
       <Box sx={{ minWidth: 0, flex: 1 }}>
         <Typography sx={{ fontWeight: 500 }} noWrap>{r.business_name}</Typography>
         <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-          Joined {formatLocal(r.joined_at, 'd MMM yyyy')}{r.set_up_at ? ` · set up ${formatLocal(r.set_up_at, 'd MMM yyyy')}` : ''}
+          {r.set_up_at
+            ? t('Joined {joined} · set up {setUp}', { joined: formatLocal(r.joined_at, 'd MMM yyyy'), setUp: formatLocal(r.set_up_at, 'd MMM yyyy') })
+            : t('Joined {joined}', { joined: formatLocal(r.joined_at, 'd MMM yyyy') })}
         </Typography>
       </Box>
-      {done ? <Tag fg={tokens.goodFg} bg={tokens.goodBg}>Set up · +1 month</Tag> : <Tag>Joined · setting up</Tag>}
+      {done ? <Tag fg={tokens.goodFg} bg={tokens.goodBg}>{t('Set up · +1 month')}</Tag> : <Tag>{t('Joined · setting up')}</Tag>}
     </Stack>
   )
 }
@@ -179,13 +179,13 @@ function Progression({ referrals }: { referrals: Referral[] }) {
   const weeks = useMemo(() => progression(referrals), [referrals])
   const [table, setTable] = useState(false)
   return (
-    <Card component="section" aria-label="Free months over time" sx={{ mb: 3 }}>
+    <Card component="section" aria-label={t('Free months over time')} sx={{ mb: 3 }}>
       <CardContent>
-        <SectionTitle action={<Button size="small" onClick={() => setTable(t => !t)} aria-pressed={table}>{table ? 'Show chart' : 'Show as table'}</Button>}>
-          Free months over time
+        <SectionTitle action={<Button size="small" onClick={() => setTable(on => !on)} aria-pressed={table}>{table ? t('Show chart') : t('Show as table')}</Button>}>
+          {t('Free months over time')}
         </SectionTitle>
         <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
-          Each step up is a business you referred finishing set-up. Hover or use the arrow keys for each week.
+          {t('Each step up is a business you referred finishing set-up. Hover or use the arrow keys for each week.')}
         </Typography>
         {table ? <WeeksTable weeks={weeks} /> : <StepChart weeks={weeks} />}
       </CardContent>
@@ -193,14 +193,14 @@ function Progression({ referrals }: { referrals: Referral[] }) {
   )
 }
 
-const weekLabel = (w: ReferralWeek) => `Week of ${formatLocal(`${w.week}T12:00:00Z`, 'd MMM')}`
+const weekLabel = (w: ReferralWeek) => t('Week of {date}', { date: formatLocal(`${w.week}T12:00:00Z`, 'd MMM') })
 
 function WeeksTable({ weeks }: { weeks: ReferralWeek[] }) {
   return (
     <Box component="table" sx={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', fontVariantNumeric: 'tabular-nums',
       '& th, & td': { py: 0.75, px: 1, borderBottom: `1px solid ${tokens.line}`, textAlign: 'right' }, '& th:first-of-type, & td:first-of-type': { textAlign: 'left' },
       '& th': { color: 'text.secondary', fontWeight: 500 } }}>
-      <thead><tr><th>Week</th><th>Joined</th><th>Set up</th><th>Free months</th></tr></thead>
+      <thead><tr><th>{t('Week')}</th><th>{t('Joined')}</th><th>{t('Set up')}</th><th>{t('Free months')}</th></tr></thead>
       <tbody>{[...weeks].reverse().map(w => <tr key={w.week}><td>{weekLabel(w)}</td><td>{w.joined}</td><td>{w.setUp}</td><td>{w.months}</td></tr>)}</tbody>
     </Box>
   )
@@ -248,7 +248,7 @@ function StepChart({ weeks }: { weeks: ReferralWeek[] }) {
     <Box ref={ref} sx={{ position: 'relative', width: '100%' }}>
       {width > 0 && (
         <Box component="svg" width={width} height={H} role="img" tabIndex={0} onKeyDown={keys} onBlur={() => setHover(null)}
-          aria-label={`Free months earned, week by week: ${last.months} of ${MAX_FREE_MONTHS} now`}
+          aria-label={t('Free months earned, week by week: {months} of {max} now', { months: last.months, max: MAX_FREE_MONTHS })}
           sx={{ display: 'block', outline: 'none', '&:focus-visible': { outline: `2px solid ${tokens.rose}`, borderRadius: '8px' } }}>
           {[0, 3, 6, 9, 12].map(v => (
             <g key={v}>
@@ -256,7 +256,7 @@ function StepChart({ weeks }: { weeks: ReferralWeek[] }) {
               <text x={left - 8} y={y(v) + 4} textAnchor="end" fontSize={11} fill={tokens.inkFaint}>{v}</text>
             </g>
           ))}
-          <text x={left + plotW} y={y(MAX_FREE_MONTHS) - 5} textAnchor="end" fontSize={11} fill={tokens.inkFaint}>A full free year</text>
+          <text x={left + plotW} y={y(MAX_FREE_MONTHS) - 5} textAnchor="end" fontSize={11} fill={tokens.inkFaint}>{t('A full free year')}</text>
           <path d={area} fill={tokens.chart} fillOpacity={0.1} />
           <path d={path} fill="none" stroke={tokens.chart} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
           {weeks.map((w, i) => i % tickEvery === 0 || i === n - 1 ? (
@@ -266,7 +266,7 @@ function StepChart({ weeks }: { weeks: ReferralWeek[] }) {
           ) : null)}
           <circle cx={x(n - 1)} cy={y(last.months)} r={5} fill={tokens.chart} stroke={tokens.surface} strokeWidth={2} />
           <text x={x(n - 1) + 10} y={y(last.months) + 4} fontSize={12} fontWeight={600} fill={tokens.ink}>
-            {last.months} {last.months === 1 ? 'month' : 'months'}
+            {tn(last.months, '{n} month', '{n} months')}
           </text>
           {at !== null && (
             <g pointerEvents="none">
@@ -284,9 +284,9 @@ function StepChart({ weeks }: { weeks: ReferralWeek[] }) {
           <Typography variant="caption" sx={{ color: 'text.secondary' }}>{weekLabel(weeks[at])}</Typography>
           <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
             <Box sx={{ width: 12, height: 2, bgcolor: tokens.chart, borderRadius: 1 }} />
-            <Typography sx={{ fontWeight: 600 }}>{weeks[at].months} free {weeks[at].months === 1 ? 'month' : 'months'}</Typography>
+            <Typography sx={{ fontWeight: 600 }}>{tn(weeks[at].months, '{n} free month', '{n} free months')}</Typography>
           </Stack>
-          <Typography variant="caption" sx={{ color: 'text.secondary' }}>{weeks[at].joined} joined · {weeks[at].setUp} set up</Typography>
+          <Typography variant="caption" sx={{ color: 'text.secondary' }}>{t('{joined} joined · {setUp} set up', { joined: weeks[at].joined, setUp: weeks[at].setUp })}</Typography>
         </Box>
       )}
     </Box>

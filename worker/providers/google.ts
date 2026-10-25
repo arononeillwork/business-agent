@@ -153,6 +153,49 @@ export async function createPost(token: string, account: string, location: strin
     { method: 'POST', body: JSON.stringify(body) })
 }
 
+// Reviews on the business's own profile. Still on the v4 host: Google moved the rest of this API to
+// v1 and left reviews behind. Needs the same business.manage permission as hours and posts.
+export interface GoogleReview {
+  name: string; reviewId?: string; starRating?: string; comment?: string; createTime?: string; updateTime?: string
+  reviewer?: { displayName?: string; isAnonymous?: boolean }
+  reviewReply?: { comment?: string; updateTime?: string }
+}
+
+/** Every review of the listing, newest first (up to `max`, 50 a page). */
+export async function listReviews(token: string, account: string, location: string, max = 500): Promise<GoogleReview[]> {
+  const locationId = location.split('/').pop()
+  const out: GoogleReview[] = []
+  let page: string | undefined
+  do {
+    const q = new URLSearchParams({ pageSize: '50', orderBy: 'updateTime desc', ...(page ? { pageToken: page } : {}) })
+    const r = await gfetch<{ reviews?: GoogleReview[]; nextPageToken?: string }>(token,
+      `https://mybusiness.googleapis.com/v4/${account}/locations/${locationId}/reviews?${q}`)
+    out.push(...(r.reviews ?? []))
+    page = r.nextPageToken
+  } while (page && out.length < max)
+  return out
+}
+
+/** Reply to a review (or change the reply): `name` is the review's accounts/…/locations/…/reviews/… path. */
+export const replyToReview = (token: string, name: string, comment: string) =>
+  gfetch<{ comment?: string; updateTime?: string }>(token, `https://mybusiness.googleapis.com/v4/${name}/reply`, { method: 'PUT', body: JSON.stringify({ comment }) })
+
+export const deleteReviewReply = (token: string, name: string) =>
+  gfetch(token, `https://mybusiness.googleapis.com/v4/${name}/reply`, { method: 'DELETE' })
+
+/** The listing's name, phone, address and hours, to compare with the app and the website. */
+export async function listingFacts(token: string, location: string) {
+  const l = await gfetch<{ title?: string; phoneNumbers?: { primaryPhone?: string }; regularHours?: { periods?: GPeriod[] }
+    storefrontAddress?: { addressLines?: string[]; postalCode?: string; locality?: string } }>(token,
+    `https://mybusinessbusinessinformation.googleapis.com/v1/${location}?readMask=title,phoneNumbers,storefrontAddress,regularHours`)
+  const a = l.storefrontAddress
+  return {
+    name: l.title ?? null, phone: l.phoneNumbers?.primaryPhone ?? null,
+    address: a ? [...(a.addressLines ?? []), [a.postalCode, a.locality].filter(Boolean).join(' ')].filter(Boolean).join(', ') : null,
+    hours: l.regularHours ? fromGoogleHours(l.regularHours) : null,
+  }
+}
+
 // ---------------------------------------------------------------------------------------------
 // Gmail and Google Drive: the café's mailbox sends alerts; exports are saved to its Drive.
 // ---------------------------------------------------------------------------------------------
@@ -235,9 +278,77 @@ export async function uploadToDrive(token: string, parent: string, name: string,
   return json.id
 }
 
+/** The folders this app made inside a Drive folder, by name (drive.file sees only those). */
+export async function listFolders(token: string, parent: string) {
+  const q = `mimeType = 'application/vnd.google-apps.folder' and '${parent}' in parents and trashed = false`
+  const found = await drive<{ files: { id: string; name: string }[] }>(token,
+    `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&orderBy=name&pageSize=200`)
+  return found.files.map(f => f.name)
+}
+
+/** Drive's own page for a file or folder. */
+export const fileLink = (id: string) => `https://drive.google.com/file/d/${encodeURIComponent(id)}/view`
+export const folderLink = (id: string) => `https://drive.google.com/drive/folders/${encodeURIComponent(id)}`
+
 /** A file's content from Drive (a Range asked for by a video player is passed on). */
 export const driveDownload = (token: string, id: string, range?: string | null) =>
   fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?alt=media`, { headers: { authorization: `Bearer ${token}`, ...(range ? { range } : {}) } })
+
+// Legal page: files the café chose in Google's picker. drive.file lets the app open those (and the
+// ones it made), never the rest of the Drive.
+export interface DriveFile { id: string; name: string; mimeType: string; size?: string; modifiedTime?: string; webViewLink?: string; trashed?: boolean }
+
+/** A file's details, or null when the app can't see it (never picked, deleted, or no longer shared with the app). */
+export async function fileInfo(token: string, id: string): Promise<DriveFile | null> {
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?fields=id,name,mimeType,size,modifiedTime,webViewLink,trashed&supportsAllDrives=true`,
+    { headers: { authorization: `Bearer ${token}` } })
+  if (res.status === 404) return null
+  const json = await res.json() as DriveFile & { error?: { message?: string } }
+  if (!res.ok) throw new Error(`Google Drive: ${json.error?.message ?? res.status}`)
+  return json
+}
+
+/** One of Google's own documents (Docs, Sheets, Slides, Drawings) as a PDF. */
+export const driveExportPdf = (token: string, id: string) =>
+  fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}/export?mimeType=application%2Fpdf`, { headers: { authorization: `Bearer ${token}` } })
+
+// Gmail, read (Invoices): emails with files attached that could be invoices. Needs gmail.readonly.
+interface GmailPart { filename?: string; mimeType?: string; body?: { attachmentId?: string; size?: number }; parts?: GmailPart[] }
+interface GmailMessage { id: string; internalDate?: string; payload?: GmailPart & { headers?: { name: string; value: string }[] } }
+
+async function gmail<T>(token: string, path: string): Promise<T> {
+  const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/${path}`, { headers: { authorization: `Bearer ${token}` } })
+  const json = await res.json() as T & { error?: { message?: string } }
+  if (!res.ok) throw new Error(`Gmail: ${json.error?.message ?? res.status}`)
+  return json
+}
+
+/** Emails from the last `days` with attachments, newest first, each with who sent it and its files. */
+export async function gmailWithAttachments(token: string, days: number, max = 40) {
+  const q = `has:attachment newer_than:${days}d -in:sent -in:chats`
+  const list = await gmail<{ messages?: { id: string }[] }>(token, `messages?q=${encodeURIComponent(q)}&maxResults=${max}`)
+  const out = []
+  for (const { id } of list.messages ?? []) {
+    const m = await gmail<GmailMessage>(token, `messages/${encodeURIComponent(id)}?format=full`)
+    const header = (n: string) => m.payload?.headers?.find(h => h.name.toLowerCase() === n)?.value ?? ''
+    const files: { id: string; name: string; size: number; type: string }[] = []
+    const walk = (p?: GmailPart) => {
+      if (!p) return
+      if (p.filename && p.body?.attachmentId) files.push({ id: p.body.attachmentId, name: p.filename, size: p.body.size ?? 0, type: p.mimeType ?? '' })
+      p.parts?.forEach(walk)
+    }
+    walk(m.payload)
+    out.push({ id, from: header('from'), subject: header('subject'), at: new Date(Number(m.internalDate ?? Date.now())).toISOString(), files })
+  }
+  return out
+}
+
+/** An attachment's bytes. */
+export async function gmailAttachment(token: string, message: string, attachment: string) {
+  const a = await gmail<{ data: string }>(token, `messages/${encodeURIComponent(message)}/attachments/${encodeURIComponent(attachment)}`)
+  const bin = atob(a.data.replace(/-/g, '+').replace(/_/g, '/'))
+  return Uint8Array.from(bin, c => c.charCodeAt(0))
+}
 
 /** Save a file into "Business Agent/<sub>" in the café's Drive; returns its web link. */
 export async function saveToDrive(token: string, sub: string, name: string, content: string, type: string) {

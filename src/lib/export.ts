@@ -1,5 +1,6 @@
 // Tables out of the app: CSV, Excel (.xlsx), a printable page (save it as PDF) and tab-separated
 // text for pasting into Google Sheets or Numbers. No library: an .xlsx is a few XML files in a zip.
+import { currentLanguage } from '../i18n'
 
 export type Cell = string | number | null | undefined
 export interface ExportTable {
@@ -13,6 +14,8 @@ export interface ExportTable {
   footer?: Cell[]
   /** Columns (by position) holding money: the PDF shows them with the currency. */
   money?: number[]
+  /** Rows (by position in `rows`) shown in bold: section headings and subtotals (Profit & loss). */
+  bold?: number[]
 }
 
 const text = (c: Cell) => (c === null || c === undefined ? '' : String(c))
@@ -58,11 +61,11 @@ export function printPdf(t: ExportTable, money: (n: number) => string = n => n.t
     body{font:12px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#2b2522;margin:24px}
     h1{font-size:18px;margin:0 0 4px}p{color:#6b625d;margin:0 0 16px}
     table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #e6dfda}
-    th{font-weight:600;background:#f6f2ef}.n{text-align:right;font-variant-numeric:tabular-nums}tfoot td{font-weight:600;border-top:2px solid #2b2522}
+    th{font-weight:600;background:#f6f2ef}.n{text-align:right;font-variant-numeric:tabular-nums}tfoot td,tr.b td{font-weight:600}tfoot td{border-top:2px solid #2b2522}
     @page{margin:14mm}</style></head><body>
-    <h1>${esc(t.title)}</h1><p>${esc(new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' }))}</p>
+    <h1>${esc(t.title)}</h1><p>${esc(new Date().toLocaleDateString(currentLanguage() === 'es' ? 'es-ES' : undefined, { day: 'numeric', month: 'long', year: 'numeric' }))}</p>
     <table><thead><tr>${t.columns.map((c, i) => cell(c, 'th', i)).join('')}</tr></thead>
-    <tbody>${t.rows.map(r => `<tr>${r.map((c, i) => cell(c, 'td', i)).join('')}</tr>`).join('')}</tbody>
+    <tbody>${t.rows.map((r, ri) => `<tr${t.bold?.includes(ri) ? ' class="b"' : ''}>${r.map((c, i) => cell(c, 'td', i)).join('')}</tr>`).join('')}</tbody>
     ${t.footer ? `<tfoot><tr>${t.footer.map((c, i) => cell(c, 'td', i)).join('')}</tr></tfoot>` : ''}</table></body></html>`
   const frame = Object.assign(document.createElement('iframe'), { title: t.title })
   frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0'
@@ -85,7 +88,7 @@ const xml = (s: string) => esc(s).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u00
 
 export function xlsxSheet(t: ExportTable) {
   const rows = allRows(t)
-  const bold = (r: number) => r === 0 || (!!t.footer && r === rows.length - 1)
+  const bold = (r: number) => r === 0 || (!!t.footer && r === rows.length - 1) || !!t.bold?.includes(r - 1)
   const body = rows.map((r, ri) => `<row r="${ri + 1}">${r.map((c, ci) => {
     const ref = `${colName(ci)}${ri + 1}`
     if (typeof c === 'number' && Number.isFinite(c)) return `<c r="${ref}" s="${bold(ri) ? 3 : 2}"><v>${c}</v></c>`

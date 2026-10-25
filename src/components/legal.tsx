@@ -2,6 +2,7 @@ import { Box, Link, Typography } from '@mui/material'
 import type { ReactNode } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { LEGAL } from '../../shared/legal'
+import { currentLanguage, t } from '../i18n'
 import { formatLocal } from '../../shared/time'
 import { tokens } from '../theme'
 
@@ -28,12 +29,14 @@ export function LegalPage({ title, updated, children }: { title: string; updated
       <Box component="main" sx={{ maxWidth: 760, mx: 'auto', px: { xs: 2, sm: 3 }, py: { xs: 4, sm: 6 } }}>
         <Link component={RouterLink} to="/" underline="hover" sx={{ fontSize: 14 }}>← {LEGAL.service}</Link>
         <Typography variant="h3" component="h1" sx={{ mt: 2 }}>{title}</Typography>
-        <Typography sx={{ color: 'text.secondary', mt: 1 }}>Last updated {formatLocal(`${updated}T12:00:00Z`, 'd MMMM yyyy')}</Typography>
+        <Typography sx={{ color: 'text.secondary', mt: 1 }}>
+          {t('Last updated {date}', { date: formatLocal(`${updated}T12:00:00Z`, currentLanguage() === 'es' ? "d 'de' MMMM 'de' yyyy" : 'd MMMM yyyy') })}
+        </Typography>
         {children}
         <Box component="footer" sx={{ mt: 6, pt: 2, borderTop: 1, borderColor: 'divider', display: 'flex', gap: 2, flexWrap: 'wrap' }}>
           <Typography variant="caption" sx={{ color: tokens.inkFaint }}>© {LEGAL.service}</Typography>
-          <Link component={RouterLink} to="/privacy" variant="caption" underline="hover">Privacy policy</Link>
-          <Link component={RouterLink} to="/terms" variant="caption" underline="hover">Terms of service</Link>
+          <Link component={RouterLink} to="/privacy" variant="caption" underline="hover">{t('Privacy policy')}</Link>
+          <Link component={RouterLink} to="/terms" variant="caption" underline="hover">{t('Terms of service')}</Link>
         </Box>
       </Box>
     </Box>

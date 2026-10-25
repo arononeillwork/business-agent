@@ -12,6 +12,7 @@ import { TEXT_SIZES, applyPreferences } from '../app/Appearance'
 import { formatMoneyAs } from '../../shared/time'
 import type { Preferences } from '../../shared/types'
 import { fonts, tokens } from '../theme'
+import { t } from '../i18n'
 
 /** Each person's own look: theme, text size and accessibility options. Saved to their account. */
 export function AppearancePage() {
@@ -24,89 +25,89 @@ export function AppearancePage() {
   const backgrounds = (brand.data?.colours ?? []).filter(c => /^#[0-9a-f]{6}$/i.test(c.hex) && !['#ffffff', '#fbf8f4'].includes(c.hex.toLowerCase()))
   if (!me) return null
   const save = (patch: Preferences, note?: string) => {
-    // The menu order is changed from the sidebar, so always take the latest saved one.
-    const next = { ...prefs, ...patch, navOrder: me.preferences?.navOrder }
+    // The menu order and pins are changed from the sidebar, so always take the latest saved ones.
+    const next = { ...prefs, ...patch, navOrder: me.preferences?.navOrder, navPins: me.preferences?.navPins }
     setPrefs(next)
     applyPreferences(next) // feel it straight away
-    run(async () => { await api.updateProfile(me.id, { preferences: next }); await refresh() }, note ?? 'Saved')
+    run(async () => { await api.updateProfile(me.id, { preferences: next }); await refresh() }, note ?? t('Saved'))
   }
 
   return (
     <>
-      <PageHeader eyebrow="You" title="Appearance" />
+      <PageHeader eyebrow={t('You')} title={t('Appearance')} />
       <Stack spacing={2.5} sx={{ maxWidth: 860 }}>
-        <Card component="section" aria-label="Theme">
+        <Card component="section" aria-label={t('Theme')}>
           <CardContent>
-            <SectionTitle>Theme</SectionTitle>
-            <Box role="radiogroup" aria-label="Theme" sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' } }}>
-              <Choice selected={(prefs.theme ?? 'system') === 'system'} onClick={() => save({ theme: 'system' }, 'Theme: match this device')}
-                icon={<AutoIcon />} label="Match my device" preview={<Preview split />} />
-              <Choice selected={prefs.theme === 'light'} onClick={() => save({ theme: 'light' }, 'Theme: light')}
-                icon={<LightIcon />} label="Light" preview={<Preview />} />
-              <Choice selected={prefs.theme === 'dark'} onClick={() => save({ theme: 'dark' }, 'Theme: dark')}
-                icon={<DarkIcon />} label="Dark" preview={<Preview dark />} />
+            <SectionTitle>{t('Theme')}</SectionTitle>
+            <Box role="radiogroup" aria-label={t('Theme')} sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' } }}>
+              <Choice selected={(prefs.theme ?? 'system') === 'system'} onClick={() => save({ theme: 'system' }, t('Theme: match this device'))}
+                icon={<AutoIcon />} label={t('Match my device')} preview={<Preview split />} />
+              <Choice selected={prefs.theme === 'light'} onClick={() => save({ theme: 'light' }, t('Theme: light'))}
+                icon={<LightIcon />} label={t('Light')} preview={<Preview />} />
+              <Choice selected={prefs.theme === 'dark'} onClick={() => save({ theme: 'dark' }, t('Theme: dark'))}
+                icon={<DarkIcon />} label={t('Dark')} preview={<Preview dark />} />
             </Box>
           </CardContent>
         </Card>
 
-        <Card component="section" aria-label="Background">
+        <Card component="section" aria-label={t('Background')}>
           <CardContent>
-            <SectionTitle>Background</SectionTitle>
-            <Box role="radiogroup" aria-label="Background" sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' } }}>
-              <Choice selected={!prefs.background} onClick={() => save({ background: undefined }, 'Background: cream')}
-                label="Cream (default)" preview={<BackdropSample />} />
+            <SectionTitle>{t('Background')}</SectionTitle>
+            <Box role="radiogroup" aria-label={t('Background')} sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' } }}>
+              <Choice selected={!prefs.background} onClick={() => save({ background: undefined }, t('Background: cream'))}
+                label={t('Cream (default)')} preview={<BackdropSample />} />
               {backgrounds.map(c => (
                 <Choice key={c.hex} selected={prefs.background?.toLowerCase() === c.hex.toLowerCase()}
-                  onClick={() => save({ background: c.hex }, `Background: ${c.name}`)} label={c.name} preview={<BackdropSample tint={c.hex} />} />
+                  onClick={() => save({ background: c.hex }, t('Background: {name}', { name: c.name }))} label={c.name} preview={<BackdropSample tint={c.hex} />} />
               ))}
             </Box>
             <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1.5 }}>
-              A soft wash of a brand colour behind every page, in light and dark mode. The colours come from the Brand page.
+              {t('A soft wash of a brand colour behind every page, in light and dark mode. The colours come from the Brand page.')}
             </Typography>
           </CardContent>
         </Card>
 
-        <Card component="section" aria-label="Text size">
+        <Card component="section" aria-label={t('Text size')}>
           <CardContent>
-            <SectionTitle>Text size</SectionTitle>
-            <Box role="radiogroup" aria-label="Text size" sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' } }}>
+            <SectionTitle>{t('Text size')}</SectionTitle>
+            <Box role="radiogroup" aria-label={t('Text size')} sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' } }}>
               {(Object.keys(TEXT_SIZES) as (keyof typeof TEXT_SIZES)[]).map(k => (
-                <Choice key={k} selected={(prefs.textSize ?? 'default') === k} onClick={() => save({ textSize: k }, `Text size: ${TEXT_SIZES[k].label.toLowerCase()}`)}
-                  label={TEXT_SIZES[k].label}
-                  preview={<Typography aria-hidden sx={{ fontFamily: fonts.display, fontWeight: 500, fontSize: `calc(1.6rem * ${parseFloat(TEXT_SIZES[k].scale) / 100})`, lineHeight: 1 }}>Aa</Typography>} />
+                <Choice key={k} selected={(prefs.textSize ?? 'default') === k} onClick={() => save({ textSize: k }, t('Text size: {size}', { size: t(TEXT_SIZES[k].label).toLowerCase() }))}
+                  label={t(TEXT_SIZES[k].label)}
+                  preview={<Typography aria-hidden sx={{ fontFamily: fonts.display, fontWeight: 500, fontSize: `calc(1.6rem * ${parseFloat(TEXT_SIZES[k].scale) / 100})`, lineHeight: 1 }}>{'Aa'}</Typography>} />
               ))}
             </Box>
             <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1.5 }}>
-              Makes all text and buttons bigger or smaller across the app.
+              {t('Makes all text and buttons bigger or smaller across the app.')}
             </Typography>
           </CardContent>
         </Card>
 
-        <Card component="section" aria-label="Numbers">
+        <Card component="section" aria-label={t('Numbers')}>
           <CardContent>
-            <SectionTitle>Numbers</SectionTitle>
-            <Box role="radiogroup" aria-label="Decimal mark" sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' } }}>
-              <Choice selected={(prefs.numberFormat ?? 'comma') === 'comma'} onClick={() => save({ numberFormat: 'comma' }, 'Numbers: decimal comma')}
-                label="Decimal comma" preview={<NumberSample text={formatMoneyAs(1234.5, 'comma')} />} />
-              <Choice selected={prefs.numberFormat === 'point'} onClick={() => save({ numberFormat: 'point' }, 'Numbers: decimal point')}
-                label="Decimal point" preview={<NumberSample text={formatMoneyAs(1234.5, 'point')} />} />
+            <SectionTitle>{t('Numbers')}</SectionTitle>
+            <Box role="radiogroup" aria-label={t('Decimal mark')} sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' } }}>
+              <Choice selected={(prefs.numberFormat ?? 'comma') === 'comma'} onClick={() => save({ numberFormat: 'comma' }, t('Numbers: decimal comma'))}
+                label={t('Decimal comma')} preview={<NumberSample text={formatMoneyAs(1234.5, 'comma')} />} />
+              <Choice selected={prefs.numberFormat === 'point'} onClick={() => save({ numberFormat: 'point' }, t('Numbers: decimal point'))}
+                label={t('Decimal point')} preview={<NumberSample text={formatMoneyAs(1234.5, 'point')} />} />
             </Box>
             <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1.5 }}>
-              How pay, costs and totals are shown to you. Payroll exports for the gestoría always use the Spanish comma.
+              {t('How pay, costs and totals are shown to you. Payroll exports for the gestoría always use the Spanish comma.')}
             </Typography>
           </CardContent>
         </Card>
 
-        <Card component="section" aria-label="Accessibility">
+        <Card component="section" aria-label={t('Accessibility')}>
           <CardContent>
-            <SectionTitle>Accessibility</SectionTitle>
+            <SectionTitle>{t('Accessibility')}</SectionTitle>
             <Stack spacing={1.5}>
-              <Toggle checked={prefs.contrast === 'high'} onChange={on => save({ contrast: on ? 'high' : 'normal' }, on ? 'Higher contrast on' : 'Higher contrast off')}
-                label="Higher contrast" detail="Darker text and firmer lines, easier to read in bright light." />
-              <Toggle checked={prefs.font === 'readable'} onChange={on => save({ font: on ? 'readable' : 'default' }, on ? 'Easy-read font on' : 'Easy-read font off')}
-                label="Easy-read font" detail="Atkinson Hyperlegible: letters that are harder to mix up (I l 1, O 0). Helps with low vision and dyslexia." />
-              <Toggle checked={prefs.motion === 'reduce'} onChange={on => save({ motion: on ? 'reduce' : 'system' }, on ? 'Less motion on' : 'Less motion off')}
-                label="Less motion" detail="Turns off animations and slides. (Already off if your device asks for reduced motion.)" />
+              <Toggle checked={prefs.contrast === 'high'} onChange={on => save({ contrast: on ? 'high' : 'normal' }, on ? t('Higher contrast on') : t('Higher contrast off'))}
+                label={t('Higher contrast')} detail={t('Darker text and firmer lines, easier to read in bright light.')} />
+              <Toggle checked={prefs.font === 'readable'} onChange={on => save({ font: on ? 'readable' : 'default' }, on ? t('Easy-read font on') : t('Easy-read font off'))}
+                label={t('Easy-read font')} detail={t('Atkinson Hyperlegible: letters that are harder to mix up (I l 1, O 0). Helps with low vision and dyslexia.')} />
+              <Toggle checked={prefs.motion === 'reduce'} onChange={on => save({ motion: on ? 'reduce' : 'system' }, on ? t('Less motion on') : t('Less motion off'))}
+                label={t('Less motion')} detail={t('Turns off animations and slides. (Already off if your device asks for reduced motion.)')} />
             </Stack>
           </CardContent>
         </Card>

@@ -2,6 +2,8 @@
 //   Gmail, Outlook            a confirmation email went from the mailbox to itself
 //   Google Drive, OneDrive    the "Business Agent" folder is there
 //   Spotify, YouTube Music    the account signed in and its playlists could be read
+//   Search Console            the account can read the website's search data (the business's website is picked)
+//   Google Ads, Meta Ads      the ad accounts could be read (the admin picks one when there are several)
 //   WhatsApp                  a test message was accepted from the café's number
 //   Google/Outlook Calendar   that app fetched the team calendar (calendarFeed.ts reports it)
 // Every night, and on "Check now", each connection is checked again. When one stops working its
@@ -9,6 +11,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Env } from './supabase'
 import { seal, unseal } from './crypto'
+import { forget } from './cache'
 import * as google from './providers/google'
 import * as ms from './providers/microsoft'
 import * as spotify from './providers/spotify'
@@ -19,17 +22,23 @@ import * as facebook from './providers/facebook'
 import * as tiktok from './providers/tiktok'
 import * as square from './providers/square'
 import * as stripe from './providers/stripe'
+import * as sumup from './providers/sumup'
+import * as linkedin from './providers/linkedin'
+import * as searchConsole from './providers/searchConsole'
+import * as googleAds from './providers/googleAds'
+import * as metaAds from './providers/metaAds'
 import { base64url, mimeMessage } from '../shared/alertText'
 import { calendarAppFromAgent, optionName } from '../shared/connections'
 import type { CalendarApp, IntegrationProvider } from '../shared/types'
+import { businessConfig } from '../shared/business.config'
 
 export type Provider = IntegrationProvider
 /** Signed in with Google or Microsoft: one refresh token each. */
-export type Connector = 'gmail' | 'outlook' | 'google_drive' | 'onedrive' | 'youtube_music'
-export const CONNECTORS: Connector[] = ['gmail', 'outlook', 'google_drive', 'onedrive', 'youtube_music']
-export const PROVIDERS: Provider[] = ['google_business', 'whatsapp', 'instagram', 'facebook', 'tiktok', 'spotify', 'square', 'stripe', ...CONNECTORS, 'google_calendar', 'outlook_calendar']
+export type Connector = 'gmail' | 'outlook' | 'google_drive' | 'onedrive' | 'youtube_music' | 'search_console' | 'google_ads'
+export const CONNECTORS: Connector[] = ['gmail', 'outlook', 'google_drive', 'onedrive', 'youtube_music', 'search_console', 'google_ads']
+export const PROVIDERS: Provider[] = ['google_business', 'whatsapp', 'instagram', 'facebook', 'tiktok', 'linkedin', 'spotify', 'square', 'stripe', 'sumup', ...CONNECTORS, 'google_calendar', 'outlook_calendar', 'meta_ads']
 export const isConnector = (p: string): p is Connector => (CONNECTORS as string[]).includes(p)
-export const isGoogle = (p: Connector) => p === 'gmail' || p === 'google_drive' || p === 'youtube_music'
+export const isGoogle = (p: Connector) => p === 'gmail' || p === 'google_drive' || p === 'youtube_music' || p === 'search_console' || p === 'google_ads'
 export const isCalendarApp = (p: string): p is CalendarApp => p === 'google_calendar' || p === 'outlook_calendar'
 
 // ---------------------------------------------------------------------------------------------
@@ -62,6 +71,16 @@ export const facebookOAuth = (env: Env, origin: string): facebook.FacebookOAuthC
     ? { appId: env.META_APP_ID, appSecret: env.META_APP_SECRET, redirectUri: `${origin}/api/integrations/facebook/callback`, graphVersion: graphVersion(env) }
     : null
 
+/** Meta Ads: the same Meta app as the Facebook Page connection, its own sign-in (ads permissions) and return address. */
+export const metaAdsOAuth = (env: Env, origin: string): metaAds.MetaAdsOAuthConfig | null =>
+  env.META_APP_ID && env.META_APP_SECRET && env.INTEGRATION_KEY
+    ? { appId: env.META_APP_ID, appSecret: env.META_APP_SECRET, redirectUri: `${origin}/api/integrations/meta_ads/callback`, graphVersion: graphVersion(env) }
+    : null
+
+/** Google Ads: the developer token from Business Agent's Google Ads manager account (API Center). */
+export const googleAdsConfig = (env: Env): googleAds.GoogleAdsConfig | null =>
+  env.GOOGLE_ADS_DEVELOPER_TOKEN ? { developerToken: env.GOOGLE_ADS_DEVELOPER_TOKEN, version: env.GOOGLE_ADS_API_VERSION ?? googleAds.GOOGLE_ADS_VERSION } : null
+
 export const tiktokOAuth = (env: Env, origin: string): tiktok.TikTokOAuthConfig | null =>
   env.TIKTOK_CLIENT_KEY && env.TIKTOK_CLIENT_SECRET && env.INTEGRATION_KEY
     ? { clientKey: env.TIKTOK_CLIENT_KEY, clientSecret: env.TIKTOK_CLIENT_SECRET, redirectUri: `${origin}/api/integrations/tiktok/callback` }
@@ -71,9 +90,28 @@ export const stripeOAuth = (env: Env, origin: string): stripe.StripeOAuthConfig 
   env.STRIPE_CLIENT_ID && env.STRIPE_SECRET_KEY && env.INTEGRATION_KEY
     ? { clientId: env.STRIPE_CLIENT_ID, secretKey: env.STRIPE_SECRET_KEY, redirectUri: `${origin}/api/integrations/stripe/callback` }
     : null
-export const squareOAuth = (env: Env, origin: string): square.SquareOAuthConfig | null =>
+/**
+ * Square takes one Redirect URL per app, so Square always comes back to the app's own address (the
+ * workers.dev one), whichever address the admin connected from (that or businesssagent.com); from
+ * there they're sent back to where they started (the signed state carries it).
+ */
+/** Where Square sends its customer webhook: exactly the URL registered in the Square app (the signature covers it). */
+export const squareWebhookUrl = (env: Env) => env.SQUARE_WEBHOOK_URL || `${businessConfig.appUrl}/api/webhooks/square`
+export const squareRedirect = (env: Env) => env.SQUARE_REDIRECT_URL || `${businessConfig.appUrl}/api/integrations/square/callback`
+export const squareOAuth = (env: Env): square.SquareOAuthConfig | null =>
   env.SQUARE_APP_ID && env.SQUARE_APP_SECRET && env.INTEGRATION_KEY
-    ? { appId: env.SQUARE_APP_ID, appSecret: env.SQUARE_APP_SECRET, redirectUri: `${origin}/api/integrations/square/callback`, sandbox: env.SQUARE_ENVIRONMENT === 'sandbox' }
+    ? { appId: env.SQUARE_APP_ID, appSecret: env.SQUARE_APP_SECRET, redirectUri: squareRedirect(env), sandbox: env.SQUARE_ENVIRONMENT === 'sandbox' }
+    : null
+export const sumupOAuth = (env: Env, origin: string): sumup.SumUpOAuthConfig | null =>
+  env.SUMUP_CLIENT_ID && env.SUMUP_CLIENT_SECRET && env.INTEGRATION_KEY
+    ? { clientId: env.SUMUP_CLIENT_ID, clientSecret: env.SUMUP_CLIENT_SECRET, redirectUri: `${origin}/api/integrations/sumup/callback` }
+    : null
+
+/** LinkedIn. LINKEDIN_PAGES=off: people only, until LinkedIn approves the app for company Pages. */
+export const linkedinOAuth = (env: Env, origin: string): linkedin.LinkedInOAuthConfig | null =>
+  env.LINKEDIN_CLIENT_ID && env.LINKEDIN_CLIENT_SECRET && env.INTEGRATION_KEY
+    ? { clientId: env.LINKEDIN_CLIENT_ID, clientSecret: env.LINKEDIN_CLIENT_SECRET, redirectUri: `${origin}/api/integrations/linkedin/callback`,
+        pages: !/^(off|false|0|no)$/i.test(env.LINKEDIN_PAGES ?? ''), version: env.LINKEDIN_VERSION ?? '202509' }
     : null
 
 export const spotifyConfig = (env: Env, origin: string): spotify.SpotifyOAuthConfig | null =>
@@ -81,12 +119,14 @@ export const spotifyConfig = (env: Env, origin: string): spotify.SpotifyOAuthCon
     ? { clientId: env.SPOTIFY_CLIENT_ID, clientSecret: env.SPOTIFY_CLIENT_SECRET, redirectUri: `${origin}/api/integrations/spotify/callback` }
     : null
 
-export const connectorConfigured = (env: Env, p: Connector) => isGoogle(p) ? !!googleConfig(env, '') : !!msConfig(env, '')
+export const connectorConfigured = (env: Env, p: Connector) =>
+  isGoogle(p) ? !!googleConfig(env, '') && (p !== 'google_ads' || !!googleAdsConfig(env)) : !!msConfig(env, '')
 
 /** What each connection asks for on the Google / Microsoft consent screen. */
 export const SCOPES: Record<Connector, readonly string[]> = {
   gmail: google.GMAIL_SCOPES, google_drive: google.DRIVE_SCOPES, youtube_music: youtube.YOUTUBE_SCOPES,
-  outlook: ms.MS_SCOPES.outlook, onedrive: ms.MS_SCOPES.onedrive,
+  search_console: searchConsole.SEARCH_CONSOLE_SCOPES, outlook: ms.MS_SCOPES.outlook, onedrive: ms.MS_SCOPES.onedrive,
+  google_ads: googleAds.GOOGLE_ADS_SCOPES,
 }
 
 /** The one permission each connection can't work without (people can untick it when they sign in). */
@@ -94,8 +134,23 @@ const NEEDS: Record<Connector, string> = {
   gmail: 'https://www.googleapis.com/auth/gmail.send',
   google_drive: 'https://www.googleapis.com/auth/drive.file',
   youtube_music: 'https://www.googleapis.com/auth/youtube.readonly',
+  search_console: 'https://www.googleapis.com/auth/webmasters.readonly',
+  google_ads: 'https://www.googleapis.com/auth/adwords',
   outlook: 'Mail.Send',
   onedrive: 'Files.ReadWrite',
+}
+
+/** Reading the mailbox (Invoices: invoices that come by email), asked for only when the admin allows it. */
+export const READ_MAIL: Partial<Record<Connector, string>> = { gmail: 'https://www.googleapis.com/auth/gmail.readonly', outlook: 'Mail.Read' }
+
+/** Was reading the mailbox allowed? (Not reported: assume not; the Invoices page offers to ask again.) */
+export function canReadMail(p: Connector, granted: string | undefined) {
+  const need = READ_MAIL[p]?.toLowerCase()
+  if (!need || granted === undefined) return false
+  return granted.split(/\s+/).some(s => {
+    const g = s.toLowerCase().replace(/^https:\/\/graph\.microsoft\.com\//, '')
+    return g === need || g === `${need}.all` || (p === 'gmail' && (g === 'https://mail.google.com/' || g === 'https://www.googleapis.com/auth/gmail.modify'))
+  })
 }
 
 /** Was that permission granted? Microsoft may answer with full URIs or another case; `.All` covers it too. */
@@ -113,6 +168,7 @@ export function hasScope(p: Connector, granted: string | undefined) {
 // ---------------------------------------------------------------------------------------------
 const API_NAME: Partial<Record<Provider, string>> = {
   gmail: 'Gmail API', google_drive: 'Google Drive API', youtube_music: 'YouTube Data API v3', google_business: 'Business Profile APIs',
+  search_console: 'Google Search Console API', google_ads: 'Google Ads API',
 }
 /**
  * The Google Cloud APIs that connecting Google Maps and syncing hours call (worker/providers/google.ts).
@@ -132,6 +188,22 @@ export function explain(p: Provider, e: unknown): string {
     return `${name} access was removed or has expired. Connect it again.`
   }
   if (p === 'tiktok' && /access_token_invalid|scope_not_authorized/i.test(raw)) return /scope/i.test(raw) ? missingPermission(p) : `${name} access was removed or has expired. Connect it again.`
+  if (p === 'linkedin' && /Not enough permissions|ACCESS_DENIED/i.test(raw)) {
+    return 'LinkedIn didn’t allow posting there. Check you’re still an admin of the Page (or choose your own profile), then connect again.'
+  }
+  if (p === 'google_ads' && /DEVELOPER_TOKEN_NOT_APPROVED|DEVELOPER_TOKEN_PROHIBITED|only approved for use with test accounts/i.test(raw)) {
+    return 'Google hasn’t approved Business Agent’s Google Ads access for real ad accounts yet (the developer token is for test accounts only). Once Google approves it, connect again.'
+  }
+  if (p === 'google_ads' && /NOT_ADS_USER/i.test(raw)) return 'This Google account has no Google Ads account. Sign in with the account that runs the café’s ads.'
+  if (p === 'google_ads' && /USER_PERMISSION_DENIED|CUSTOMER_NOT_ENABLED/i.test(raw)) {
+    return 'This Google account can’t use that ad account any more (it was closed, or the account was taken off it). Choose another ad account or connect again.'
+  }
+  if (p === 'meta_ads' && /Error validating access token|has not authorized application|Session has expired|Invalid OAuth access token/i.test(raw)) {
+    return 'Meta Ads access was removed or has expired. Connect it again.'
+  }
+  if (p === 'meta_ads' && /\(#(?:10|200|294)\)|requires ads_|Ads API access|Advanced Access/i.test(raw)) {
+    return 'Meta hasn’t approved this app for ads yet: until it passes Meta’s App Review (Advanced Access for ads_read and ads_management), only people with a role in the Meta app can connect their ad accounts.'
+  }
   if (p === 'instagram' && /Insufficient Developer Role|not.*tester/i.test(raw)) {
     return 'This Instagram account can’t connect yet: until the app passes Meta’s review, only accounts added as Instagram testers in the Meta app can connect.'
   }
@@ -155,7 +227,7 @@ export function explain(p: Provider, e: unknown): string {
 }
 
 /** Failures that trying again won't fix (as opposed to a provider having a bad minute). */
-const LASTING = /invalid_grant|access was removed|switched off|without the permission|no Outlook mailbox|no OneDrive|no YouTube channel|not connected|not set up|hasn.t fetched|hasn.t switched on|no Google Maps listing|can.t connect yet/i
+const LASTING = /invalid_grant|access was removed|access has expired|switched off|without the permission|no Outlook mailbox|no OneDrive|no YouTube channel|not connected|not set up|hasn.t fetched|hasn.t switched on|no Google Maps listing|can.t connect yet|no website in Search Console|no longer in this Google account|didn.t allow posting|hasn.t approved|no Google Ads account|no ad account|can.t use that ad account/i
 export const lasting = (p: Provider, e: unknown) => LASTING.test(message(e)) || LASTING.test(explain(p, e))
 
 // ---------------------------------------------------------------------------------------------
@@ -173,9 +245,18 @@ export interface Row {
 }
 export const ROW_COLUMNS = 'provider, status, account_label, external, connected_at, last_sync_at, last_error, last_checked_at'
 
+/** What's kept from each service (provider_cache, worker/cache.ts), by key: forgotten when its connection changes. */
+const KEPT: Partial<Record<Provider, string[]>> = {
+  square: ['sales:square:', 'items:', 'loyalty:', 'giftcards:'], sumup: ['sales:sumup:'], stripe: ['sales:stripe:'],
+  search_console: ['search:'], meta_ads: ['ads:meta_ads:'], google_ads: ['ads:google_ads:'],
+  gmail: ['mail:gmail:'], outlook: ['mail:outlook:'], google_business: ['reviews'],
+}
+
 export async function setIntegration(db: SupabaseClient, provider: Provider, patch: Record<string, unknown>) {
   const { error } = await db.from('integrations').update({ ...patch, updated_at: new Date().toISOString() }).eq('provider', provider)
   if (error) throw new Error(error.message)
+  // Connected again (perhaps to another account or with other permissions), or disconnected: start afresh.
+  if ('status' in patch) await Promise.all((KEPT[provider] ?? []).map(key => forget(db, key)))
 }
 
 async function refreshTokenOf(env: Env, db: SupabaseClient, p: Provider) {
@@ -244,7 +325,7 @@ export async function proveInstagram(t: { access_token: string; userId: string; 
   const p = await instagram.profile({ token: t.access_token, userId: t.userId, graphVersion: graphVersion(env) })
   // Messages and tagged posts are optional extras: noted here so the Messages page can say what's missing.
   const allowed = (perm: string) => (t.permissions === undefined ? undefined : t.permissions.includes(perm))
-  return { label: `@${p.username}`, external: { user_id: t.userId, username: p.username, followers: p.followers_count,
+  return { label: `@${p.username}`, external: { user_id: p.user_id ? String(p.user_id) : t.userId, username: p.username, followers: p.followers_count,
     can_message: allowed('instagram_business_manage_messages'), can_see_tags: allowed('instagram_business_manage_comments') } }
 }
 
@@ -260,10 +341,10 @@ export async function showInstagramHandle(db: SupabaseClient, username: string, 
   await db.from('business').update({ instagram: `@${username}` }).eq('id', 1)
 }
 
-/** Tokens that run out (TikTok: a day, Square: 30 days) are renewed with the refresh token when needed. */
+/** Tokens that run out (TikTok: a day, Square: 30 days, SumUp: an hour) are renewed with the refresh token when needed. */
 interface RenewableSecret { access_token: string; refresh_token: string; expires_at: string }
 
-async function renewable(env: Env, db: SupabaseClient, p: 'tiktok' | 'square', renewWithinMs: number,
+async function renewable(env: Env, db: SupabaseClient, p: 'tiktok' | 'square' | 'sumup', renewWithinMs: number,
   refresh: (refreshToken: string) => Promise<{ access_token?: string; refresh_token?: string; expires_at?: string; expires_in?: number }>) {
   const { data: secret } = await db.from('integration_secrets').select('ciphertext').eq('provider', p).maybeSingle()
   if (!secret) throw new Error(`${optionName(p)} is not connected`)
@@ -283,7 +364,7 @@ export async function tiktokSession(env: Env, db: SupabaseClient) {
 }
 
 export async function squareSession(env: Env, db: SupabaseClient) {
-  const cfg = squareOAuth(env, '')
+  const cfg = squareOAuth(env)
   if (!cfg) throw new Error('Square is not set up')
   const [token, { data: row }] = await Promise.all([
     renewable(env, db, 'square', 7 * 86_400_000, r => square.refreshAccess(cfg, r)),
@@ -291,6 +372,38 @@ export async function squareSession(env: Env, db: SupabaseClient) {
   ])
   const ext = (row?.external ?? {}) as { locations?: square.SquareLocation[] }
   return { token, sandbox: cfg.sandbox, locationIds: (ext.locations ?? []).map(l => l.id) }
+}
+
+export async function sumupSession(env: Env, db: SupabaseClient) {
+  const cfg = sumupOAuth(env, '')
+  if (!cfg) throw new Error('SumUp is not set up')
+  return renewable(env, db, 'sumup', 5 * 60_000, r => sumup.refreshAccess(cfg, r))
+}
+
+/** LinkedIn's access: 60 days, then connect again (apps LinkedIn approved for it get a refresh token instead). */
+export interface LinkedInSecret { access_token: string; expires_at: string; refresh_token?: string }
+export interface LinkedInExternal { member?: linkedin.LinkedInMember; pages?: linkedin.LinkedInPage[]; page_id?: string; page_name?: string; expires_at?: string; expiry_warned?: boolean }
+const LINKEDIN_WARN_MS = 7 * 86_400_000
+
+/** The LinkedIn access and who posts (the chosen Page, or 'me'). With `renew`, a refreshable token close to running out is renewed. */
+export async function linkedinSession(env: Env, db: SupabaseClient, renew = false) {
+  const cfg = linkedinOAuth(env, '')
+  if (!cfg) throw new Error('LinkedIn is not set up')
+  const [{ data: secret }, { data: row }] = await Promise.all([
+    db.from('integration_secrets').select('ciphertext').eq('provider', 'linkedin').maybeSingle(),
+    db.from('integrations').select('external').eq('provider', 'linkedin').single(),
+  ])
+  if (!secret) throw new Error('LinkedIn is not connected')
+  let s = await unseal<LinkedInSecret>(env.INTEGRATION_KEY!, secret.ciphertext)
+  const left = Date.parse(s.expires_at) - Date.now()
+  if (renew && s.refresh_token && left < LINKEDIN_WARN_MS) {
+    const t = await linkedin.refreshAccess(cfg, s.refresh_token)
+    s = { access_token: t.access_token!, refresh_token: t.refresh_token ?? s.refresh_token, expires_at: new Date(Date.now() + (t.expires_in ?? 5_184_000) * 1000).toISOString() }
+    await db.from('integration_secrets').update({ ciphertext: await seal(env.INTEGRATION_KEY!, s), updated_at: new Date().toISOString() }).eq('provider', 'linkedin')
+  } else if (left <= 0) throw new Error('LinkedIn access has expired. Connect it again.')
+  const ext = (row?.external ?? {}) as LinkedInExternal
+  return { cfg, token: s.access_token, expiresAt: s.expires_at, refreshable: !!s.refresh_token, external: ext,
+    author: ext.page_id && ext.member ? linkedin.authorUrn(ext.page_id, ext.member.id) : null }
 }
 
 /** The connected Stripe account, read with the platform key. */
@@ -314,6 +427,51 @@ export async function facebookSession(env: Env, db: SupabaseClient) {
   const pageId = (row?.external as { page_id?: string } | undefined)?.page_id
   if (!pageId || !pages[pageId]) throw new Error('Choose which Facebook Page to post to')
   return { pageId, token: pages[pageId], graphVersion: graphVersion(env) }
+}
+
+/** Meta Ads and Google Ads keep the chosen ad account (and the ones to choose from) in `external`. */
+export interface AdsExternal {
+  accounts?: googleAds.GoogleAdsAccount[]; account_id?: string; account_name?: string; currency?: string
+  /** Meta: allowed to pause, resume and change budgets (ads_management). */
+  can_manage?: boolean; expires_at?: string; expiry_warned?: boolean; email?: string
+}
+const ADS_WARN_MS = 7 * 86_400_000
+
+/** The chosen Meta ad account and the 60-day sign-in to read it with. */
+export async function metaAdsSession(env: Env, db: SupabaseClient) {
+  const [{ data: secret }, { data: row }] = await Promise.all([
+    db.from('integration_secrets').select('ciphertext').eq('provider', 'meta_ads').maybeSingle(),
+    db.from('integrations').select('external').eq('provider', 'meta_ads').single(),
+  ])
+  if (!secret) throw new Error('Meta Ads is not connected')
+  const s = await unseal<{ access_token: string; expires_at: string }>(env.INTEGRATION_KEY!, secret.ciphertext)
+  if (Date.parse(s.expires_at) <= Date.now()) throw new Error('Meta Ads access has expired. Connect it again.')
+  const ext = (row?.external ?? {}) as AdsExternal
+  return { token: s.access_token, expiresAt: s.expires_at, graphVersion: graphVersion(env), external: ext, account: ext.accounts?.find(a => a.id === ext.account_id) ?? null }
+}
+
+/** The chosen Google Ads account, a fresh access token and the developer token. */
+export async function googleAdsSession(env: Env, db: SupabaseClient, origin = '') {
+  const cfg = googleAdsConfig(env)
+  if (!cfg) throw new Error('Google Ads is not set up')
+  const [{ token }, { data: row }] = await Promise.all([connectorGrant(env, db, 'google_ads', origin), db.from('integrations').select('external').eq('provider', 'google_ads').single()])
+  const ext = (row?.external ?? {}) as AdsExternal
+  return { cfg, token, external: ext, account: ext.accounts?.find(a => a.id === ext.account_id) ?? null }
+}
+
+/** One ad account is used straight away; with several, the admin picks (pending until then). */
+function chooseAccount(accounts: googleAds.GoogleAdsAccount[], extra: Record<string, unknown>): Proven {
+  if (accounts.length !== 1) return { label: null, external: { accounts, ...extra }, pending: true }
+  const a = accounts[0]
+  return { label: a.name, external: { accounts, account_id: a.id, account_name: a.name, currency: a.currency, ...extra } }
+}
+
+/** Meta Ads: reading ads was allowed and the person has an ad account. Changes need ads_management, which can be left out. */
+export async function proveMetaAds(env: Env, t: { access_token: string; expires_at: string; granted: string[] }): Promise<Proven> {
+  if (!t.granted.includes('ads_read') && !t.granted.includes('ads_management')) throw new Error(missingPermission('meta_ads'))
+  const accounts = await metaAds.adAccounts(graphVersion(env), t.access_token)
+  if (!accounts.length) throw new Error('This Facebook account has no ad account. Sign in with the account that runs the café’s ads in Meta Ads Manager.')
+  return chooseAccount(accounts, { can_manage: t.granted.includes('ads_management'), expires_at: t.expires_at })
 }
 
 /** Facebook: posting was allowed and the owner manages a Page (one is picked straight away). */
@@ -341,6 +499,30 @@ export async function proveSquare(sandbox: boolean, token: string): Promise<Prov
   return { label: m.business_name ?? locs[0].name, external: { merchant_id: m.id, currency: m.currency ?? locs[0].currency, locations: locs.map(l => ({ id: l.id, name: l.name })) } }
 }
 
+/** SumUp: the merchant account was found and its transactions can be read. */
+export async function proveSumUp(token: string): Promise<Proven> {
+  const [m, last] = await Promise.all([sumup.merchant(token), sumup.latest(token)])
+  return { label: m.name, external: { merchant_code: m.merchant_code, currency: m.currency ?? last?.currency ?? 'EUR' } }
+}
+
+/**
+ * LinkedIn: posting was allowed and the person could be read. With company Pages they administer
+ * (and Pages allowed), it waits for the admin to pick a Page or their own profile ('me'); without,
+ * it posts as the person straight away.
+ */
+export async function proveLinkedIn(cfg: linkedin.LinkedInOAuthConfig, t: linkedin.LinkedInToken): Promise<Proven> {
+  const scopes = linkedin.granted(t.scope)
+  if (scopes && !scopes.includes('w_member_social')) throw new Error(missingPermission('linkedin'))
+  const token = t.access_token!
+  const member = await linkedin.member(cfg.version, token)
+  // An app without the Community Management API (or Pages unticked) has the person only.
+  const canPages = cfg.pages && (!scopes || (scopes.includes('r_organization_admin') && scopes.includes('w_organization_social')))
+  const pages = canPages ? await linkedin.pages(cfg.version, token).catch(() => []) : []
+  const external = { member, pages, expires_at: new Date(Date.now() + (t.expires_in ?? 5_184_000) * 1000).toISOString() }
+  if (pages.length) return { label: null, external, pending: true }
+  return { label: member.name, external: { ...external, page_id: 'me', page_name: member.name } }
+}
+
 /** Stripe: the account can be read (and takes payments). */
 export async function proveStripe(secretKey: string, accountId: string): Promise<Proven> {
   const a = await stripe.account(secretKey, accountId)
@@ -366,7 +548,11 @@ export async function connectedOf<P extends Provider>(db: SupabaseClient, option
 // ---------------------------------------------------------------------------------------------
 // Proof on connect: nothing is stored until this passes
 // ---------------------------------------------------------------------------------------------
-export interface Proven { label: string | null; external: Record<string, unknown> }
+export interface Proven {
+  label: string | null; external: Record<string, unknown>
+  /** Signed in and allowed, but the admin still has to choose (a LinkedIn Page, a Search Console website). */
+  pending?: boolean
+}
 
 const confirmation = (p: 'gmail' | 'outlook', email: string, business: string) => ({
   to: email,
@@ -375,8 +561,12 @@ const confirmation = (p: 'gmail' | 'outlook', email: string, business: string) =
     'Team alerts for people who prefer email will come from this address. You can disconnect it any time on the Connections page.',
 })
 
-/** Use a new Google/Microsoft connection for real. Throws, in plain words, if it can't do its job. */
-export async function proveNew(p: Connector, t: { access_token: string; scope?: string }, business: string): Promise<Proven> {
+/**
+ * Use a new Google/Microsoft connection for real. Throws, in plain words, if it can't do its job.
+ * `website`: the business's own, so Search Console can pick it.
+ */
+export async function proveNew(p: Connector, t: { access_token: string; scope?: string }, business: string, website?: string | null,
+  ads?: googleAds.GoogleAdsConfig | null): Promise<Proven> {
   if (!hasScope(p, t.scope)) throw new Error(missingPermission(p))
   const token = t.access_token
   switch (p) {
@@ -406,7 +596,28 @@ export async function proveNew(p: Connector, t: { access_token: string; scope?: 
       if (!channel) throw new Error('This Google account has no YouTube channel, so it has no playlists. Open YouTube Music with it, make a playlist, then connect again.')
       return { label: channel, external: { playlists: (await youtube.playlists(token)).length } }
     }
+    case 'search_console': {
+      const [email, sites] = await Promise.all([google.accountEmail(token), searchConsole.sites(token)])
+      if (!sites.length) throw new Error('This Google account has no website in Search Console. Add and verify the website at search.google.com/search-console, then connect again.')
+      const site = searchConsole.pickSite(sites, website)
+      if (!site) return { label: email ?? null, external: { sites, email }, pending: true }
+      await searchConsole.probe(token, site)
+      return { label: searchConsole.siteLabel(site), external: { sites, site, email } }
+    }
+    case 'google_ads': {
+      if (!ads) throw new Error('Google Ads is not set up')
+      const [email, accounts] = await Promise.all([google.accountEmail(token), googleAds.accounts(ads, token)])
+      if (!accounts.length) throw new Error('This Google account has no Google Ads account. Sign in with the account that runs the café’s ads.')
+      return chooseAccount(accounts, { email })
+    }
   }
+}
+
+/** Business details show the connected mailbox as the business's email when none was typed (one typed by hand is never replaced). */
+export async function showMailboxAddress(db: SupabaseClient, email: string) {
+  const { data } = await db.from('business').select('email').eq('id', 1).maybeSingle()
+  if (!data || String(data.email ?? '').trim()) return
+  await db.from('business').update({ email }).eq('id', 1)
 }
 
 /** Spotify: the account signed in and its playlists can be read. */
@@ -441,6 +652,17 @@ async function stillWorks(env: Env, db: SupabaseClient, row: Row): Promise<Parti
     if (!hasScope(p, scope)) throw new Error(missingPermission(p))
     if (p === 'outlook') await ms.me(token)
     if (p === 'youtube_music') await youtube.channel(token)
+    if (p === 'search_console') {
+      const sites = await searchConsole.sites(token)
+      const site = row.external.site as string | undefined
+      if (site && !sites.includes(site)) throw new Error(`${searchConsole.siteLabel(site)} is no longer in this Google account’s Search Console. Choose another website or connect again.`)
+      return { external: { ...row.external, sites } }
+    }
+    if (p === 'google_ads') {
+      const cfg = googleAdsConfig(env)
+      if (!cfg) throw new Error('Google Ads is not set up')
+      return { external: { ...row.external, accounts: stillThere(await googleAds.accounts(cfg, token), row.external as AdsExternal) } }
+    }
     if (p === 'google_drive') {
       const id = row.external.folder_id as string | undefined
       // Someone deleted the folder: make it again (exports keep working), still a pass.
@@ -492,6 +714,33 @@ async function stillWorks(env: Env, db: SupabaseClient, row: Row): Promise<Parti
       const proven = await proveStripe(s.secretKey, s.accountId)
       return { account_label: proven.label, external: { ...row.external, ...proven.external } }
     }
+    case 'sumup': {
+      const proven = await proveSumUp(await sumupSession(env, db))
+      return { account_label: proven.label, external: { ...row.external, ...proven.external } }
+    }
+    case 'linkedin': {
+      const s = await linkedinSession(env, db, true)
+      const member = await linkedin.member(s.cfg.version, s.token)
+      const pageId = s.external.page_id ?? 'me'
+      const name = pageId === 'me' ? member.name : (await linkedin.page(s.cfg.version, s.token, pageId)).name
+      const external: LinkedInExternal = { ...s.external, member, page_name: name, expires_at: s.expiresAt }
+      // No silent renewal for most apps: admins hear a week before the 60 days are up (once).
+      if (!s.refreshable && Date.parse(s.expiresAt) - Date.now() < LINKEDIN_WARN_MS && !s.external.expiry_warned) {
+        await tellAdmins(db, 'LinkedIn needs connecting again soon', `LinkedIn only allows access for 60 days. Connect it again before ${day(s.expiresAt)} to keep posting.`)
+        external.expiry_warned = true
+      }
+      return { account_label: name, external: external as Record<string, unknown> }
+    }
+    case 'meta_ads': {
+      const s = await metaAdsSession(env, db)
+      const external: AdsExternal = { ...s.external, accounts: stillThere(await metaAds.adAccounts(s.graphVersion, s.token), s.external) }
+      // Meta gives no refresh: admins hear a week before the 60 days are up (once).
+      if (Date.parse(s.expiresAt) - Date.now() < ADS_WARN_MS && !s.external.expiry_warned) {
+        await tellAdmins(db, 'Meta Ads needs connecting again soon', `Meta only allows access for 60 days. Connect Meta Ads again before ${day(s.expiresAt)} to keep seeing your ads.`)
+        external.expiry_warned = true
+      }
+      return { external: external as Record<string, unknown> }
+    }
     case 'google_business': {
       const s = await googleSession(env, db)
       if (s.location) await google.getLocationHours(s.token, s.location)
@@ -500,6 +749,15 @@ async function stillWorks(env: Env, db: SupabaseClient, row: Row): Promise<Parti
     }
   }
   return {}
+}
+
+/** The ad accounts, as long as the chosen one is still among them. */
+function stillThere(accounts: googleAds.GoogleAdsAccount[], ext: AdsExternal) {
+  if (!accounts.length) throw new Error('This account has no ad account any more. Connect again with the account that runs the café’s ads.')
+  if (ext.account_id && !accounts.some(a => a.id === ext.account_id)) {
+    throw new Error(`This account can’t use that ad account (${ext.account_name ?? ext.account_id}) any more. Choose another ad account or connect again.`)
+  }
+  return accounts
 }
 
 /** Every active admin gets a notification (the bell), linking to the Connections page. */

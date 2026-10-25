@@ -22,6 +22,11 @@ describe('Messages rules', () => {
     expect(replyWindow([m(1, true)], NOW)).toEqual({ mode: 'closed', until: null }) // they never wrote
   })
 
+  it('WhatsApp: 24 hours, then closed (no personal-reply extension)', () => {
+    expect(replyWindow([m(2, false)], NOW, 'whatsapp')).toEqual({ mode: 'normal', until: new Date(NOW + 22 * 3_600_000).toISOString() })
+    expect(replyWindow([m(30, false)], NOW, 'whatsapp')).toEqual({ mode: 'closed', until: null })
+  })
+
   it('initials when there’s no profile photo', () => {
     expect(initials({ username: 'lucia.marbella', name: 'Lucía García' })).toBe('LG')
     expect(initials({ username: 'tom_runs', name: 'Tom' })).toBe('T')

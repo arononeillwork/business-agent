@@ -2,6 +2,7 @@
 // (migration 39): what each kind of post holds, where it can go, and what posting it needs.
 import type { PostKind, PostMedia, SocialNetwork, SocialPost } from './types'
 import { addDays } from './time'
+import { msg } from './i18n'
 
 export interface KindInfo {
   kind: PostKind
@@ -19,13 +20,13 @@ export interface KindInfo {
 }
 
 export const KINDS: KindInfo[] = [
-  { kind: 'post', label: 'Post', plural: 'Posts', hint: 'One photo in your feed. Facebook and Google Maps can also take text only.',
-    folder: 'Posts', accepts: ['image'], min: 0, max: 1, networks: ['instagram', 'facebook', 'tiktok', 'google'] },
-  { kind: 'carousel', label: 'Carousel', plural: 'Carousels', hint: '2 to 10 photos or videos people swipe through. Instagram crops them all to the first one’s shape.',
+  { kind: 'post', label: msg('Post'), plural: msg('Posts'), hint: msg('One photo in your feed. Facebook, LinkedIn and Google Maps can also take text only.'),
+    folder: 'Posts', accepts: ['image'], min: 0, max: 1, networks: ['instagram', 'facebook', 'tiktok', 'google', 'linkedin'] },
+  { kind: 'carousel', label: msg('Carousel'), plural: msg('Carousels'), hint: msg('2 to 10 photos or videos people swipe through. Instagram crops them all to the first one’s shape.'),
     folder: 'Carousels', accepts: ['image', 'video'], min: 2, max: 10, networks: ['instagram'] },
-  { kind: 'reel', label: 'Reel', plural: 'Reels', hint: 'One video, 3 seconds to 15 minutes. Upright (9:16) looks best.',
+  { kind: 'reel', label: msg('Reel'), plural: msg('Reels'), hint: msg('One video, 3 seconds to 15 minutes. Upright (9:16) looks best.'),
     folder: 'Reels', accepts: ['video'], min: 1, max: 1, networks: ['instagram'] },
-  { kind: 'story', label: 'Story', plural: 'Stories', hint: 'One photo or video (up to 60 seconds), shown for 24 hours. Stickers and links are added in the Instagram app.',
+  { kind: 'story', label: msg('Story'), plural: msg('Stories'), hint: msg('One photo or video (up to 60 seconds), shown for 24 hours. Stickers and links are added in the Instagram app.'),
     folder: 'Stories', accepts: ['image', 'video'], min: 1, max: 1, networks: ['instagram'] },
 ]
 export const kindInfo = (k: PostKind) => KINDS.find(x => x.kind === k)!
@@ -47,6 +48,12 @@ export const matchesMedia = (p: Pick<SocialPost, 'media'>, f: MediaFilter) => {
   return m === f || m === 'mixed'
 }
 
+/** "<Plural> go to Instagram only for now", as whole sentences so each can be translated. */
+const INSTAGRAM_ONLY: Record<PostKind, string> = {
+  post: msg('Posts go to Instagram only for now'), carousel: msg('Carousels go to Instagram only for now'),
+  reel: msg('Reels go to Instagram only for now'), story: msg('Stories go to Instagram only for now'),
+}
+
 /**
  * What stops this post being saved as asked, in plain words (null: fine). The same rules as the
  * database's; checked in the app first so the composer can say so before anything is sent.
@@ -55,24 +62,24 @@ export function postProblem(p: Pick<SocialPost, 'kind' | 'caption' | 'media' | '
   const info = kindInfo(p.kind)
   const n = p.media.length
   const videos = p.media.filter(m => m.type === 'video').length
-  if (n > 10) return 'A post can have up to 10 photos or videos'
-  if (p.kind === 'post' && videos > 0) return 'Videos go out as reels: choose Reel'
-  if (p.kind === 'post' && n > 1) return 'A post has one photo. Choose Carousel for more'
-  if (p.kind === 'reel' && (n > 1 || videos !== n)) return 'A reel is one video'
-  if (p.kind === 'story' && n > 1) return 'A story is one photo or video'
+  if (n > 10) return msg('A post can have up to 10 photos or videos')
+  if (p.kind === 'post' && videos > 0) return msg('Videos go out as reels: choose Reel')
+  if (p.kind === 'post' && n > 1) return msg('A post has one photo. Choose Carousel for more')
+  if (p.kind === 'reel' && (n > 1 || videos !== n)) return msg('A reel is one video')
+  if (p.kind === 'story' && n > 1) return msg('A story is one photo or video')
   const other = p.targets.find(t => !info.networks.includes(t))
-  if (other) return `${info.plural} go to Instagram only for now`
+  if (other) return INSTAGRAM_ONLY[p.kind]
   if (p.status !== 'scheduled') return null
-  if (!p.targets.length) return 'Pick at least one network'
+  if (!p.targets.length) return msg('Pick at least one network')
   // Posting by itself: the networks need the photos and videos (a reminder doesn't).
-  if (p.auto && p.kind === 'carousel' && n < 2) return 'A carousel needs at least 2 photos or videos'
-  if (p.auto && p.kind === 'reel' && n < 1) return 'Add the reel’s video'
-  if (p.auto && p.kind === 'story' && n < 1) return 'Add the story’s photo or video'
-  if (!p.caption.trim() && !n) return p.kind === 'story' ? 'Add the photo or video for the story' : 'Write a caption or add a photo'
+  if (p.auto && p.kind === 'carousel' && n < 2) return msg('A carousel needs at least 2 photos or videos')
+  if (p.auto && p.kind === 'reel' && n < 1) return msg('Add the reel’s video')
+  if (p.auto && p.kind === 'story' && n < 1) return msg('Add the story’s photo or video')
+  if (!p.caption.trim() && !n) return p.kind === 'story' ? msg('Add the photo or video for the story') : msg('Write a caption or add a photo')
   if (!p.auto) return null
-  if (!n && (p.targets.includes('instagram') || p.targets.includes('tiktok'))) return 'Instagram and TikTok posts need a photo'
-  if (p.targets.includes('tiktok') && p.media.some(m => m.type !== 'image' || !/\.jpe?g(\?|$)/i.test(m.url))) return 'TikTok only takes JPEG photos'
-  if (p.targets.includes('google') && p.caption.length > 1500) return 'Google Maps posts are limited to 1500 characters'
+  if (!n && (p.targets.includes('instagram') || p.targets.includes('tiktok'))) return msg('Instagram and TikTok posts need a photo')
+  if (p.targets.includes('tiktok') && p.media.some(m => m.type !== 'image' || !/\.jpe?g(\?|$)/i.test(m.url))) return msg('TikTok only takes JPEG photos')
+  if (p.targets.includes('google') && p.caption.length > 1500) return msg('Google Maps posts are limited to 1500 characters')
   return null
 }
 

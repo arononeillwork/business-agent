@@ -1,22 +1,28 @@
-// A stand-in for Supabase (PostgREST and auth) with the tables in memory, so the Worker's routes can
+// A stand-in for Supabase (PostgREST, auth and storage) with the tables and files in memory, so the Worker's routes can
 // be run end to end in unit tests. It understands the queries the Worker makes (select with eq/neq/
-// in/is/gte/gt/lte/lt, single/maybeSingle, insert/upsert/update/delete, rpc is_admin/my_role and the plan checks) and
+// in/is/gte/gt/lte/lt, order and limit, single/maybeSingle, insert/upsert/update/delete, rpc is_admin/my_role and the plan checks) and
 // mirrors the one-app-per-group trigger from migration 28 (supabase/tests prove the real one).
 import { PROVIDERS } from '../connections'
 import { CONNECTION_FEATURE } from '../../shared/plans'
 
 export type Row = Record<string, unknown>
 
-/** integration_group() in migration 28. */
+/** integration_group() (migrations 28, 34, 40, 45 and 65: Google Drive and OneDrive no longer exclude each other). */
 export const GROUP: Record<string, string> = {
-  gmail: 'email', outlook: 'email', google_drive: 'files', onedrive: 'files',
-  google_calendar: 'calendar', outlook_calendar: 'calendar', spotify: 'music', youtube_music: 'music', whatsapp: 'communication', square: 'payments', stripe: 'payments',
+  gmail: 'email', outlook: 'email',
+  google_calendar: 'calendar', outlook_calendar: 'calendar', spotify: 'music', youtube_music: 'music', whatsapp: 'communication', square: 'payments', sumup: 'payments',
 }
 
 /** Primary keys, for upserts. Tables not listed get a numeric id. */
 const KEYS: Record<string, string[]> = {
   integrations: ['provider'], integration_secrets: ['provider'], calendar_feeds: ['profile_id', 'scope'], profiles: ['id'], business: ['id'], api_keys: ['id'], referrals: ['email'],
+  whatsapp_messages: ['wa_message_id'], settings: ['id'], provider_cache: ['key'],
+  competitor_radar: ['place_id'], competitor_snapshots: ['competitor_id', 'taken_on'],
 }
+/** Keyed tables that still get a numeric id of their own (an identity column beside the unique key). */
+const AUTO_ID = new Set(['whatsapp_messages'])
+/** Tables whose id is a uuid (the tools check it is one). */
+const UUID_ID = new Set(['competitors', 'competitor_items', 'competitor_prices', 'competitor_notes'])
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 const bearerOf = (h: Headers) => h.get('authorization')?.replace(/^Bearer\s+/i, '') ?? ''
@@ -27,7 +33,10 @@ function matcher(params: URLSearchParams) {
     if (['select', 'order', 'limit', 'offset', 'on_conflict', 'columns'].includes(key)) continue
     const dot = raw.indexOf('.')
     const op = raw.slice(0, dot), arg = raw.slice(dot + 1)
-    const v = (r: Row) => r[key] == null ? null : String(r[key])
+    // A field inside a json column ("data->>review") or the column itself.
+    const [col, inner] = key.split('->>')
+    const at = (r: Row) => (inner ? (r[col] as Row | null | undefined)?.[inner] : r[key])
+    const v = (r: Row) => at(r) == null ? null : String(at(r))
     if (op === 'eq') tests.push(r => v(r) === arg)
     else if (op === 'neq') tests.push(r => v(r) !== arg)
     else if (op === 'is') tests.push(r => arg === 'null' ? r[key] == null : v(r) === arg)
@@ -38,6 +47,17 @@ function matcher(params: URLSearchParams) {
     else if (op === 'gt') tests.push(r => v(r) !== null && v(r)! > arg)
     else if (op === 'lte') tests.push(r => v(r) !== null && v(r)! <= arg)
     else if (op === 'lt') tests.push(r => v(r) !== null && v(r)! < arg)
+    else if (op === 'like') {
+      // PostgREST's like: * or % for any run of characters, _ for one, \ before one to take it as it is.
+      let re = ''
+      const plain = (ch: string) => ch.replace(/[.*+?^$()|[\]\\{}]/g, '\\$&')
+      for (let i = 0; i < arg.length; i++) {
+        const ch = arg[i]
+        re += ch === '\\' && i + 1 < arg.length ? plain(arg[++i]) : ch === '*' || ch === '%' ? '.*' : ch === '_' ? '.' : plain(ch)
+      }
+      const pattern = new RegExp(`^${re}$`, 's')
+      tests.push(r => v(r) !== null && pattern.test(v(r)!))
+    }
     else throw new Error(`fake Supabase: unsupported filter ${key}=${raw}`)
   }
   return (r: Row) => tests.every(t => t(r))
@@ -58,6 +78,9 @@ export class FakeSupabase {
   people = new Map<string, { id: string; role: 'admin' | 'employee' }>()
   /** Sign-ins made by the Worker for access keys (one-time links used, sessions refreshed). */
   auth = { links: 0, refreshes: 0 }
+  /** Storage: the buckets made, and each file by "bucket/path". */
+  buckets = new Set<string>()
+  files = new Map<string, { bytes: Uint8Array; type: string }>()
   private links = new Map<string, string>()
   private refreshTokens = new Map<string, string>()
   private nextId = 1
@@ -79,6 +102,7 @@ export class FakeSupabase {
     this.tables.outbox = []
     this.tables.notifications = []
     this.tables.calendar_feeds = []
+    this.tables.settings = [{ id: 1, whatsapp_retention_days: 90 }]
     this.people.set('admin-token', { id: 'admin-1', role: 'admin' })
     this.people.set('staff-token', { id: 'staff-1', role: 'employee' })
   }
@@ -118,6 +142,7 @@ export class FakeSupabase {
       this.auth.refreshes++
       return json(this.session(uid))
     }
+    if (url.pathname.startsWith('/storage/v1/')) return this.storage(url, method, init)
     if (url.pathname === '/auth/v1/user') {
       const who = this.people.get(bearerOf(headers))
       return who
@@ -129,6 +154,7 @@ export class FakeSupabase {
       const who = this.people.get(bearerOf(headers))
       if (rpc[1] === 'is_admin') return json(who?.role === 'admin')
       if (rpc[1] === 'my_role') return json(who?.role ?? null)
+      if (rpc[1] === 'can_see_pay') return json(who?.role === 'admin' && this.table('profiles').some(p => p.id === who.id && p.can_see_pay === true))
       if (rpc[1] === 'plan_status') {
         const people = this.table('profiles').filter(p => p.active !== false && ['admin', 'employee'].includes(p.role as string)).length
         return json({ plan: this.plan.plan, limits: { people: this.plan.people, features: this.plan.features }, usage: { people } })
@@ -157,6 +183,14 @@ export class FakeSupabase {
         Object.assign(j, a.p_ok ? { status: 'sent', external_id: a.p_external_id ?? null, last_error: null } : { status: 'failed', last_error: a.p_error })
         return json(null)
       }
+      // Migration 47: delete WhatsApp messages older than the chosen time, returning their files.
+      if (rpc[1] === 'purge_whatsapp_messages') {
+        const days = Number(this.table('settings')[0]?.whatsapp_retention_days ?? 90)
+        const cutoff = new Date(Date.now() - days * 86_400_000).toISOString()
+        const gone = this.table('whatsapp_messages').filter(r => String(r.at) < cutoff)
+        this.tables.whatsapp_messages = this.table('whatsapp_messages').filter(r => !gone.includes(r))
+        return json(gone.map(r => r.media_path ?? null))
+      }
       return json({ message: `fake Supabase: no rpc ${rpc[1]}` }, 404)
     }
     const m = url.pathname.match(/^\/rest\/v1\/(\w+)$/)
@@ -173,7 +207,16 @@ export class FakeSupabase {
       }
       return json(data.map(r => project(r, select)), status)
     }
-    if (method === 'GET') return respond(rows.filter(match))
+    if (method === 'GET') {
+      let hit = rows.filter(match)
+      const order = url.searchParams.get('order')
+      if (order) {
+        const [col, dir] = order.split('.')
+        hit = [...hit].sort((a, b) => String(a[col] ?? '').localeCompare(String(b[col] ?? '')) * (dir === 'desc' ? -1 : 1))
+      }
+      const limit = Number(url.searchParams.get('limit') ?? '') || null
+      return respond(limit ? hit.slice(0, limit) : hit)
+    }
     if (method === 'PATCH') {
       const hit = rows.filter(match)
       for (const r of hit) {
@@ -188,9 +231,10 @@ export class FakeSupabase {
       const out: Row[] = []
       for (const item of (Array.isArray(body) ? body : [body!])) {
         const existing = keys && rows.find(r => keys.every(k => r[k] === item[k]))
+        if (existing && prefer.includes('resolution=ignore-duplicates')) continue
         if (existing && !prefer.includes('resolution=merge-duplicates')) return json({ code: '23505', message: 'duplicate key value violates unique constraint' }, 409)
         if (existing) { Object.assign(existing, item); out.push(existing) } else {
-          const r = { ...(keys ? {} : { id: this.nextId++ }), ...item }
+          const r = { ...(keys && !AUTO_ID.has(name) ? {} : { id: UUID_ID.has(name) ? crypto.randomUUID() : this.nextId++ }), ...item }
           rows.push(r)
           out.push(r)
         }
@@ -202,6 +246,40 @@ export class FakeSupabase {
       return new Response(null, { status: 204 })
     }
     return json({ message: `fake Supabase: ${method} not supported` }, 405)
+  }
+
+  /** Supabase Storage: make a bucket, upload, sign links, remove (an upload to a missing bucket fails as the real one does). */
+  private storage(url: URL, method: string, init: RequestInit) {
+    const path = decodeURIComponent(url.pathname.replace(/^\/storage\/v1/, ''))
+    const body = () => JSON.parse(String(init.body)) as Record<string, unknown>
+    if (method === 'POST' && path === '/bucket') {
+      const { name, id } = body() as { name?: string; id?: string }
+      this.buckets.add(String(id ?? name))
+      return json({ name: id ?? name })
+    }
+    const sign = path.match(/^\/object\/sign\/([^/]+)$/)
+    if (method === 'POST' && sign) {
+      const { paths } = body() as { paths: string[] }
+      return json(paths.map(p => (this.files.has(`${sign[1]}/${p}`)
+        ? { path: p, signedURL: `/object/sign/${sign[1]}/${p}?token=signed`, error: null }
+        : { path: p, signedURL: null, error: 'Object not found' })))
+    }
+    const object = path.match(/^\/object\/([^/]+)(?:\/(.+))?$/)
+    if (!object) return json({ message: 'not found' }, 404)
+    const [, bucket, key] = object
+    if (method === 'POST' && key) {
+      if (!this.buckets.has(bucket)) return json({ statusCode: '404', error: 'Bucket not found', message: 'Bucket not found' }, 400)
+      const raw = init.body
+      const bytes = raw instanceof Uint8Array ? raw : raw instanceof ArrayBuffer ? new Uint8Array(raw) : new TextEncoder().encode(String(raw ?? ''))
+      this.files.set(`${bucket}/${key}`, { bytes, type: new Headers(init.headers).get('content-type') ?? '' })
+      return json({ Key: `${bucket}/${key}`, Id: key })
+    }
+    if (method === 'DELETE' && !key) {
+      const { prefixes } = body() as { prefixes: string[] }
+      const gone = prefixes.filter(p => this.files.delete(`${bucket}/${p}`))
+      return json(gone.map(name => ({ name, bucket_id: bucket })))
+    }
+    return json({ message: `fake Supabase storage: ${method} ${path} not supported` }, 405)
   }
 
   /** A new session for this person (access tokens work with /auth/v1/user; refresh tokens rotate). */

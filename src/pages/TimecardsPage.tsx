@@ -17,6 +17,7 @@ import type { ExportTable } from '../lib/export'
 import { ErrorBox, Flags, Loading, PageHeader, PersonAvatar, SectionTitle, Stat, StatRow, Tag, WeekNav } from '../components/common'
 import { addDays, currencySymbol, formatDuration, formatLocal, formatMoney, localDate, localTime, today, weekStart, zonedIso } from '../../shared/time'
 import type { CorrectionRequest, Shift, TimeEntry } from '../../shared/types'
+import { t, tn } from '../i18n'
 
 /** yyyy-MM-ddTHH:mm in business time, for datetime-local inputs. */
 const toInput = (iso: string | null) => (iso ? formatLocal(iso, "yyyy-MM-dd'T'HH:mm") : '')
@@ -61,42 +62,42 @@ export function TimecardsPage() {
       })
     const hours = Math.round(entries.reduce((s, e) => s + e.paid_minutes, 0) / 60 * 100) / 100
     return {
-      title: `Timecards, week of ${formatLocal(`${monday}T12:00:00Z`, 'd MMMM yyyy')}${person !== 'all' ? `: ${name(person)}` : ''}`,
+      title: `${t('Timecards, week of {date}', { date: formatLocal(`${monday}T12:00:00Z`, 'd MMMM yyyy') })}${person !== 'all' ? `: ${name(person)}` : ''}`,
       filename: `timecards-${monday}${person !== 'all' ? `-${name(person).toLowerCase().replace(/[^a-z0-9]+/g, '-')}` : ''}`,
-      columns: ['Employee', 'Date', 'Position', 'Clock in', 'Clock out', 'Break (min)', 'Paid hours', 'Holiday', 'Flags', 'Approved',
-        ...(canSeePay ? [`Rate ${currencySymbol()}/h`, `Gross ${currencySymbol()}`] : [])],
+      columns: [t('Employee'), t('Date'), t('Position'), t('Clock in'), t('Clock out'), t('Break (min)'), t('Paid hours'), t('Holiday'), t('Flags'), t('Approved'),
+        ...(canSeePay ? [t('Rate {currency}/h', { currency: currencySymbol() }), t('Gross {currency}', { currency: currencySymbol() })] : [])],
       rows,
-      footer: ['Total', '', '', '', '', '', hours, '', '', '', ...(canSeePay ? ['', Math.round(rows.reduce((s, r) => s + Number(r[11]), 0) * 100) / 100] : [])],
+      footer: [t('Total'), '', '', '', '', '', hours, '', '', '', ...(canSeePay ? ['', Math.round(rows.reduce((s, r) => s + Number(r[11]), 0) * 100) / 100] : [])],
       money: canSeePay ? [10, 11] : [],
     }
   }
 
   return (
     <>
-      <PageHeader eyebrow="Registro de jornada" title="Timecards"
+      <PageHeader eyebrow={'Registro de jornada'} title={t('Timecards')}
         actions={<>
-          {isPartner && <Tag>Read-only</Tag>}
+          {isPartner && <Tag>{t('Read-only')}</Tag>}
           <WeekNav monday={monday} onChange={setMonday} />
           {(isAdmin || isPartner) && (
-            <TextField select size="small" label="Person" value={person} onChange={e => setPerson(e.target.value)} sx={{ width: 150 }}>
-              <MenuItem value="all">Everyone</MenuItem>
+            <TextField select size="small" label={t('Person')} value={person} onChange={e => setPerson(e.target.value)} sx={{ width: 150 }}>
+              <MenuItem value="all">{t('Everyone')}</MenuItem>
               {profiles.filter(p => p.role !== 'kiosk').map(p => <MenuItem key={p.id} value={p.id}>{p.full_name}</MenuItem>)}
             </TextField>
           )}
           <ExportButton table={table} disabled={!entries.length} folder="Timecards" />
           <Button startIcon={<PrintIcon />} variant="outlined" component={RouterLink} to={`/registro?month=${monday.slice(0, 7)}${person !== 'all' ? `&person=${person}` : ''}`}>
-            Monthly record
+            {t('Monthly record')}
           </Button>
-          {isAdmin && <Button variant="outlined" onClick={() => setAdding(true)}>Add timecard</Button>}
+          {isAdmin && <Button variant="outlined" onClick={() => setAdding(true)}>{t('Add timecard')}</Button>}
           {isAdmin && <Button variant="outlined" onClick={() => run(async () => {
             const n = await api.fillFromRota(monday); await data.reload()
-            if (!n) throw new Error('Nothing to fill: everyone on the rota has a timecard')
-          }, 'Missing timecards filled from the rota')}>Fill from rota</Button>}
+            if (!n) throw new Error(t('Nothing to fill: everyone on the rota has a timecard'))
+          }, t('Missing timecards filled from the rota'))}>{t('Fill from rota')}</Button>}
           {isAdmin && (
             <Button variant="contained" disabled={allApproved || !entries.length} startIcon={allApproved ? <LockIcon /> : undefined}
               onClick={() => run(async () => { const n = await api.approveWeek(monday); await data.reload(); return n },
-                'Week approved and locked')}>
-              {allApproved ? 'Approved' : 'Approve week'}
+                t('Week approved and locked'))}>
+              {allApproved ? t('Approved') : t('Approve week')}
             </Button>
           )}
         </>} />
@@ -110,12 +111,12 @@ export function TimecardsPage() {
         const gross = entries.reduce((m, e) => m + e.paid_minutes / 60 * (rates.get(e.profile_id) ?? 0), 0)
         return (
           <StatRow>
-            <Stat label="Paid hours" value={formatDuration(paid)} note={`${entries.length} timecard${entries.length === 1 ? '' : 's'}`} />
-            {canSeePay && <Stat label="Labour cost" value={formatMoney(gross * mult)} note={mult !== 1 ? `incl. ×${mult} employer cost` : 'gross pay'} />}
-            <Stat label="On holidays" value={formatDuration(holidayMin)} note="paid extra or time off" />
-            <Stat label="Needs a look" value={flagged} tone={flagged ? 'warning' : 'good'} note={flagged ? 'missed breaks, auto clock-outs…' : 'all clean'} />
-            <Stat label="Week status" value={allApproved ? 'Approved' : 'Open'} tone={allApproved ? 'good' : undefined}
-              note={allApproved ? 'locked for the gestor' : pending.length ? `${pending.length} request${pending.length > 1 ? 's' : ''} pending` : 'ready to approve'} />
+            <Stat label={t('Paid hours')} value={formatDuration(paid)} note={tn(entries.length, '{n} timecard', '{n} timecards')} />
+            {canSeePay && <Stat label={t('Labour cost')} value={formatMoney(gross * mult)} note={mult !== 1 ? t('incl. ×{mult} employer cost', { mult }) : t('gross pay')} />}
+            <Stat label={t('On holidays')} value={formatDuration(holidayMin)} note={t('paid extra or time off')} />
+            <Stat label={t('Needs a look')} value={flagged} tone={flagged ? 'warning' : 'good'} note={flagged ? t('missed breaks, auto clock-outs…') : t('all clean')} />
+            <Stat label={t('Week status')} value={allApproved ? t('Approved') : t('Open')} tone={allApproved ? 'good' : undefined}
+              note={allApproved ? t('locked for the gestor') : pending.length ? tn(pending.length, '{n} request pending', '{n} requests pending') : t('ready to approve')} />
           </StatRow>
         )
       })()}
@@ -123,7 +124,7 @@ export function TimecardsPage() {
       {pending.length > 0 && (
         <Card sx={{ mb: 2, borderColor: 'warning.main' }}>
           <CardContent>
-            <SectionTitle>{isAdmin ? 'Correction requests' : 'My pending requests'}</SectionTitle>
+            <SectionTitle>{isAdmin ? t('Correction requests') : t('My pending requests')}</SectionTitle>
             <List dense disablePadding>
               {pending.map(c => <CorrectionRow key={c.id} c={c} name={name(c.profile_id)} onDone={data.reload} />)}
             </List>
@@ -132,7 +133,7 @@ export function TimecardsPage() {
       )}
 
       {data.loading && !data.data && <Loading />}
-      {data.data && entries.length === 0 && <Alert severity="info">No timecards this week.</Alert>}
+      {data.data && entries.length === 0 && <Alert severity="info">{t('No timecards this week.')}</Alert>}
 
       {[...byPerson.entries()].map(([pid, list]) => {
         const p = profiles.find(x => x.id === pid)
@@ -146,10 +147,10 @@ export function TimecardsPage() {
               <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 1, flexWrap: 'wrap' }}>
                 {p && <PersonAvatar name={p.full_name} colour={p.colour} />}
                 <Typography variant="h6" sx={{ flex: 1 }}>{name(pid)}</Typography>
-                <Chip label={`${formatDuration(paid)} paid`} color={overWeek ? 'error' : 'default'} />
-                {holiday > 0 && <Chip label={`${formatDuration(holiday)} on holidays`} color="secondary" />}
+                <Chip label={t('{duration} paid', { duration: formatDuration(paid) })} color={overWeek ? 'error' : 'default'} />
+                {holiday > 0 && <Chip label={t('{duration} on holidays', { duration: formatDuration(holiday) })} color="secondary" />}
                 {rate !== undefined && (canSeePay || pid === me?.id) && (
-                  <Chip variant="outlined" label={`${canSeePay ? '' : 'Est. '}${formatMoney(paid / 60 * rate * (canSeePay ? mult : 1))}`} />
+                  <Chip variant="outlined" label={canSeePay ? formatMoney(paid / 60 * rate * mult) : t('Est. {amount}', { amount: formatMoney(paid / 60 * rate) })} />
                 )}
               </Stack>
               <TimecardTable list={list} shiftOf={shiftOf} onEdit={setEditing} />
@@ -175,10 +176,10 @@ function TimecardTable({ list, shiftOf, onEdit }: { list: TimeEntry[]; shiftOf: 
     <Table size="small">
       <TableHead>
         <TableRow>
-          <SortCell sort={sort} id="day">Day</SortCell><SortCell sort={sort} id="scheduled">Scheduled</SortCell>
-          <SortCell sort={sort} id="in">In</SortCell><SortCell sort={sort} id="out">Out</SortCell>
-          <SortCell sort={sort} id="breaks">Breaks</SortCell><SortCell sort={sort} id="paid">Paid</SortCell>
-          <SortCell sort={sort} id="flags">Flags</SortCell><TableCell />
+          <SortCell sort={sort} id="day">{t('Day')}</SortCell><SortCell sort={sort} id="scheduled">{t('Scheduled')}</SortCell>
+          <SortCell sort={sort} id="in">{t('In')}</SortCell><SortCell sort={sort} id="out">{t('Out')}</SortCell>
+          <SortCell sort={sort} id="breaks">{t('Breaks')}</SortCell><SortCell sort={sort} id="paid">{t('Paid')}</SortCell>
+          <SortCell sort={sort} id="flags">{t('Flags')}</SortCell><TableCell />
         </TableRow>
       </TableHead>
       <TableBody>
@@ -187,18 +188,18 @@ function TimecardTable({ list, shiftOf, onEdit }: { list: TimeEntry[]; shiftOf: 
           return (
             <TableRow key={e.id} hover>
               <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                {formatLocal(e.clock_in, 'EEE d')}{e.on_holiday && <Chip size="small" label="Holiday" color="error" sx={{ ml: 0.5 }} />}
+                {formatLocal(e.clock_in, 'EEE d')}{e.on_holiday && <Chip size="small" label={t('Holiday')} color="error" sx={{ ml: 0.5 }} />}
               </TableCell>
               <TableCell sx={{ color: 'text.secondary', whiteSpace: 'nowrap' }}>{s ? `${localTime(s.starts_at)}–${localTime(s.ends_at)}` : '—'}</TableCell>
               <TableCell>{localTime(e.clock_in)}</TableCell>
-              <TableCell>{e.clock_out ? localTime(e.clock_out) : <Chip size="small" color="success" label="On shift" />}</TableCell>
-              <TableCell>{e.break_minutes ? `${e.break_minutes}m` : '—'}</TableCell>
+              <TableCell>{e.clock_out ? localTime(e.clock_out) : <Chip size="small" color="success" label={t('On shift')} />}</TableCell>
+              <TableCell>{e.break_minutes ? t('{n}m', { n: e.break_minutes }) : '—'}</TableCell>
               <TableCell sx={{ fontWeight: 500 }}>{formatDuration(e.paid_minutes)}</TableCell>
               <TableCell><Flags flags={e.flags} /></TableCell>
               <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                {e.approved_at && <Tooltip title="Approved"><LockIcon fontSize="small" color="action" sx={{ verticalAlign: 'middle' }} /></Tooltip>}
+                {e.approved_at && <Tooltip title={t('Approved')}><LockIcon fontSize="small" color="action" sx={{ verticalAlign: 'middle' }} /></Tooltip>}
                 {(isAdmin || (e.profile_id === me?.id && e.clock_out)) && (
-                  <IconButton size="small" aria-label={isAdmin ? 'Edit' : 'Request correction'} onClick={() => onEdit(e)}>
+                  <IconButton size="small" aria-label={isAdmin ? t('Edit') : t('Request correction')} onClick={() => onEdit(e)}>
                     <EditIcon fontSize="small" />
                   </IconButton>
                 )}
@@ -214,17 +215,17 @@ function TimecardTable({ list, shiftOf, onEdit }: { list: TimeEntry[]; shiftOf: 
 function CorrectionRow({ c, name, onDone }: { c: CorrectionRequest; name: string; onDone: () => void }) {
   const { api, isAdmin } = useApp()
   const run = useAction()
-  const what = [c.requested_clock_in && `in → ${formatLocal(c.requested_clock_in, 'EEE d HH:mm')}`,
-    c.requested_clock_out && `out → ${formatLocal(c.requested_clock_out, 'EEE d HH:mm')}`].filter(Boolean).join(', ')
+  const what = [c.requested_clock_in && t('in → {time}', { time: formatLocal(c.requested_clock_in, 'EEE d HH:mm') }),
+    c.requested_clock_out && t('out → {time}', { time: formatLocal(c.requested_clock_out, 'EEE d HH:mm') })].filter(Boolean).join(', ')
   return (
     <ListItem disableGutters secondaryAction={isAdmin && (
       <Stack direction="row" spacing={1}>
-        <Button size="small" color="error" onClick={() => run(async () => { await api.decideCorrection(c.id, false); onDone() }, 'Declined')}>Decline</Button>
-        <Button size="small" variant="contained" onClick={() => run(async () => { await api.decideCorrection(c.id, true); onDone() }, 'Approved and applied')}>Approve</Button>
+        <Button size="small" color="error" onClick={() => run(async () => { await api.decideCorrection(c.id, false); onDone() }, t('Declined'))}>{t('Decline')}</Button>
+        <Button size="small" variant="contained" onClick={() => run(async () => { await api.decideCorrection(c.id, true); onDone() }, t('Approved and applied'))}>{t('Approve')}</Button>
       </Stack>
     )}>
       <ListItemText sx={{ pr: isAdmin ? 22 : 0 }} primary={`${name}: ${what}`}
-        secondary={`“${c.note}” · expires ${formatLocal(c.expires_at, 'd MMM')}`} />
+        secondary={t('“{note}” · expires {date}', { note: c.note, date: formatLocal(c.expires_at, 'd MMM') })} />
     </ListItem>
   )
 }
@@ -240,35 +241,35 @@ function EditDialog({ entry, onClose, onSaved }: { entry: TimeEntry; onClose: ()
   const save = () => run(async () => {
     const ci = clockIn !== toInput(entry.clock_in) ? fromInput(clockIn) : null
     const co = clockOut !== toInput(entry.clock_out) ? fromInput(clockOut) : null
-    if (!ci && !co) throw new Error('Change a time first')
+    if (!ci && !co) throw new Error(t('Change a time first'))
     if (isAdmin) await api.editEntry(entry.id, ci, co, reason)
     else await api.requestCorrection(entry.id, ci, co, reason)
     onClose()
     onSaved()
-  }, isAdmin ? 'Timecard updated' : 'Correction requested')
+  }, isAdmin ? t('Timecard updated') : t('Correction requested'))
 
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="xs">
-      <DialogTitle>{isAdmin ? 'Edit timecard' : 'Request a correction'}</DialogTitle>
+      <DialogTitle>{isAdmin ? t('Edit timecard') : t('Request a correction')}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ pt: 1 }}>
-          {entry.approved_at && isAdmin && <Alert severity="warning">This week is approved. Your change will be logged.</Alert>}
-          <TextField type="datetime-local" label="Clock in" value={clockIn} onChange={e => setClockIn(e.target.value)}
+          {entry.approved_at && isAdmin && <Alert severity="warning">{t('This week is approved. Your change will be logged.')}</Alert>}
+          <TextField type="datetime-local" label={t('Clock in')} value={clockIn} onChange={e => setClockIn(e.target.value)}
             slotProps={{ inputLabel: { shrink: true } }} />
-          <TextField type="datetime-local" label="Clock out" value={clockOut} onChange={e => setClockOut(e.target.value)}
+          <TextField type="datetime-local" label={t('Clock out')} value={clockOut} onChange={e => setClockOut(e.target.value)}
             slotProps={{ inputLabel: { shrink: true } }} />
-          <TextField label={isAdmin ? 'Reason (required)' : 'What happened? (required)'} value={reason}
+          <TextField label={isAdmin ? t('Reason (required)') : t('What happened? (required)')} value={reason}
             onChange={e => setReason(e.target.value)} multiline minRows={2} />
           {(history.data?.length ?? 0) > 0 && (
             <Box>
-              <Typography variant="subtitle2">History</Typography>
+              <Typography variant="subtitle2">{t('History')}</Typography>
               {history.data!.map(h => (
                 <Typography key={h.id} variant="caption" component="div" color="text.secondary">
-                  {formatLocal(h.changed_at, 'd MMM HH:mm')} via {h.via}: {h.reason}
+                  {t('{when} via {via}: {reason}', { when: formatLocal(h.changed_at, 'd MMM HH:mm'), via: h.via, reason: h.reason })}
                   {h.old_values?.clock_out !== h.new_values?.clock_out && h.new_values?.clock_out &&
-                    ` (out ${h.old_values?.clock_out ? localTime(h.old_values.clock_out) : '—'} → ${localTime(h.new_values.clock_out)})`}
+                    t(' (out {from} → {to})', { from: h.old_values?.clock_out ? localTime(h.old_values.clock_out) : '—', to: localTime(h.new_values.clock_out) })}
                   {h.old_values?.clock_in !== h.new_values?.clock_in && h.new_values?.clock_in &&
-                    ` (in ${h.old_values?.clock_in ? localTime(h.old_values.clock_in) : '—'} → ${localTime(h.new_values.clock_in)})`}
+                    t(' (in {from} → {to})', { from: h.old_values?.clock_in ? localTime(h.old_values.clock_in) : '—', to: localTime(h.new_values.clock_in) })}
                 </Typography>
               ))}
             </Box>
@@ -276,8 +277,8 @@ function EditDialog({ entry, onClose, onSaved }: { entry: TimeEntry; onClose: ()
         </Stack>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button variant="contained" onClick={save}>{isAdmin ? 'Save' : 'Send request'}</Button>
+        <Button onClick={onClose}>{t('Cancel')}</Button>
+        <Button variant="contained" onClick={save}>{isAdmin ? t('Save') : t('Send request')}</Button>
       </DialogActions>
     </Dialog>
   )
@@ -294,28 +295,28 @@ function AddDialog({ monday, onClose, onSaved }: { monday: string; onClose: () =
   const [reason, setReason] = useState('')
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="xs">
-      <DialogTitle>Add a missing timecard</DialogTitle>
+      <DialogTitle>{t('Add a missing timecard')}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ pt: 1 }}>
-          <TextField select label="Team member" value={pid} onChange={e => setPid(e.target.value)}>
+          <TextField select label={t('Team member')} value={pid} onChange={e => setPid(e.target.value)}>
             {profiles.filter(p => p.role !== 'kiosk').map(p => <MenuItem key={p.id} value={p.id}>{p.full_name}</MenuItem>)}
           </TextField>
-          <TextField select label="Position" value={pos} onChange={e => setPos(Number(e.target.value))}>
+          <TextField select label={t('Position')} value={pos} onChange={e => setPos(Number(e.target.value))}>
             {positions.map(p => <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>)}
           </TextField>
-          <TextField type="datetime-local" label="Clock in" value={clockIn} onChange={e => setClockIn(e.target.value)}
+          <TextField type="datetime-local" label={t('Clock in')} value={clockIn} onChange={e => setClockIn(e.target.value)}
             slotProps={{ inputLabel: { shrink: true } }} />
-          <TextField type="datetime-local" label="Clock out" value={clockOut} onChange={e => setClockOut(e.target.value)}
+          <TextField type="datetime-local" label={t('Clock out')} value={clockOut} onChange={e => setClockOut(e.target.value)}
             slotProps={{ inputLabel: { shrink: true } }} />
-          <TextField label="Reason (required)" value={reason} onChange={e => setReason(e.target.value)} />
+          <TextField label={t('Reason (required)')} value={reason} onChange={e => setReason(e.target.value)} />
         </Stack>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={onClose}>{t('Cancel')}</Button>
         <Button variant="contained" onClick={() => run(async () => {
           await api.addEntry(pid, fromInput(clockIn)!, fromInput(clockOut)!, reason, pos || null)
           onClose(); onSaved()
-        }, 'Timecard added')}>Add</Button>
+        }, t('Timecard added'))}>{t('Add')}</Button>
       </DialogActions>
     </Dialog>
   )

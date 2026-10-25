@@ -91,6 +91,61 @@ end $$;
 select pg_temp.expect_error($q$update public.social_posts set caption = 'again' where caption = 'Poll: oat or almond?'$q$, 'already gone out');
 select pg_temp.expect_error($q$insert into public.social_posts (caption, targets, status) values ('x', '{facebook}', 'due')$q$, 'draft or schedule');
 
+-- 4. LinkedIn: posts only (text, or one photo), one 'linkedin_post' job each; reminders name it ------
+select pg_temp.expect_error($q$insert into public.social_posts (kind, caption, targets, media) values ('carousel', 'x', '{instagram,linkedin}',
+  '[{"url": "https://x.test/a.jpg", "type": "image"}, {"url": "https://x.test/b.jpg", "type": "image"}]')$q$, 'Carousels go to Instagram only');
+select pg_temp.expect_error($q$insert into public.social_posts (kind, caption, targets) values ('reel', 'x', '{linkedin}')$q$, 'Reels go to Instagram only');
+select pg_temp.expect_error($q$insert into public.social_posts (caption, targets) values ('x', '{mastodon}')$q$, 'social_posts_targets_check');
+insert into public.social_posts (caption, targets, status, scheduled_at) values ('We are hiring a barista', '{linkedin}', 'scheduled', now() - interval '1 minute');
+insert into public.social_posts (caption, targets, media, status, scheduled_at)
+  values ('Meet the team', '{facebook,linkedin}', '[{"url": "https://x.test/team.jpg", "type": "image"}]', 'scheduled', now() - interval '1 minute');
+insert into public.social_posts (caption, targets, status, scheduled_at, auto) values ('Post the job ad yourself', '{linkedin}', 'scheduled', now() - interval '1 minute', false);
+reset role;
+do $$ begin
+  assert public.queue_due_social_posts() = 3, 'one job per network';
+  assert (select count(*) from public.outbox where kind = 'linkedin_post') = 2, 'LinkedIn jobs queued';
+  assert (select payload->>'image_url' from public.outbox where kind = 'linkedin_post' and payload->>'caption' = 'Meet the team') = 'https://x.test/team.jpg', 'with its photo';
+  assert exists (select 1 from public.notifications where title = 'Time to post your post on LinkedIn'), 'the reminder says LinkedIn';
+end $$;
+
+-- 5. A post that didn't go out anywhere: fixed, posted again, and it really goes again ---------------
+reset role;
+delete from public.outbox where payload ? 'post_id';
+delete from public.social_posts;
+select pg_temp.act_as('maria@test');
+insert into public.social_posts (caption, targets, media, status, scheduled_at)
+  values ('Acai bowls', '{instagram}', '[{"url": "https://x.test/acai.jpg", "type": "image"}]', 'scheduled', now() - interval '1 minute');
+reset role;
+do $$ begin
+  assert public.queue_due_social_posts() = 1, 'queued';
+  assert (select dedupe_key from public.outbox where payload->>'caption' = 'Acai bowls') like 'social:%:instagram', 'first job keeps its key';
+end $$;
+-- Instagram refuses it every time: the job gives up and the post didn't go out.
+update public.outbox set attempts = 6, status = 'sending' where payload->>'caption' = 'Acai bowls';
+select public.complete_outbox((select id from public.outbox where payload->>'caption' = 'Acai bowls'), false, 'Object with ID does not exist');
+do $$ begin
+  assert (select status from public.social_posts where caption = 'Acai bowls') = 'failed', 'not posted';
+end $$;
+-- Fixed in the planner (new caption, Facebook too) and posted again.
+select pg_temp.act_as('maria@test');
+update public.social_posts set caption = 'Acai bowls, all week', targets = '{facebook,instagram}', status = 'scheduled', scheduled_at = now() - interval '1 minute'
+ where caption = 'Acai bowls';
+reset role;
+do $$ begin
+  assert public.queue_due_social_posts() = 2, 'both networks queued again';
+  assert (select count(*) from public.outbox where payload->>'caption' = 'Acai bowls, all week' and status = 'pending') = 2, 'new jobs, with the new caption';
+  assert exists (select 1 from public.outbox where dedupe_key like 'social:%:instagram:2'), 'the second Instagram attempt is numbered';
+  assert (select results->'instagram'->>'status' from public.social_posts where caption = 'Acai bowls, all week') = 'queued', 'shows as sending again';
+end $$;
+-- Once it went out, it can't be changed again.
+update public.outbox set status = 'sending' where payload->>'caption' = 'Acai bowls, all week';
+select public.complete_outbox(id, true, null, 'https://instagram.test/p/1') from public.outbox where payload->>'caption' = 'Acai bowls, all week';
+do $$ begin
+  assert (select status from public.social_posts where caption = 'Acai bowls, all week') = 'published', 'posted';
+end $$;
+select pg_temp.act_as('maria@test');
+select pg_temp.expect_error($q$update public.social_posts set caption = 'again' where caption = 'Acai bowls, all week'$q$, 'already gone out');
+
 reset role;
 delete from public.outbox where payload ? 'post_id';
 delete from public.social_posts;

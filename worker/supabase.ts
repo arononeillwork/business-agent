@@ -11,9 +11,13 @@ export interface Env {
   MEDIA?: R2Bucket
   // Integrations (secrets unless noted). Anything missing shows as "needs setup" in the app.
   GOOGLE_FONTS_API_KEY?: string       // optional: official Google Fonts list (brand page)
+  GOOGLE_PLACES_API_KEY?: string      // optional: Google reviews from the public listing until Business Profile access is approved; cafés nearby on Competitors
+  GOOGLE_PLACE_ID?: string            // the café's Google Maps place id, for the above (where the business is, and its own rating)
+  GOOGLE_PAGESPEED_API_KEY?: string   // optional: PageSpeed Insights beyond its small keyless quota (Website & SEO)
   INTEGRATION_KEY?: string            // encrypts stored tokens, signs OAuth state
   GOOGLE_CLIENT_ID?: string
   GOOGLE_CLIENT_SECRET?: string
+  GOOGLE_PICKER_API_KEY?: string      // optional: Google's file picker on the Legal page (a browser key for the same Google Cloud project)
   META_ACCESS_TOKEN?: string          // Meta system-user token (WhatsApp)
   META_APP_ID?: string                // Meta app: Facebook Page connections (Facebook Login)
   META_APP_SECRET?: string            // verifies WhatsApp webhooks; Facebook Login
@@ -32,6 +36,17 @@ export interface Env {
   SQUARE_APP_ID?: string              // Square app (OAuth): takings on the Finances page
   SQUARE_APP_SECRET?: string
   SQUARE_ENVIRONMENT?: string         // var: 'production' (default) or 'sandbox'
+  SQUARE_WEBHOOK_SIGNATURE_KEY?: string // the Square app's webhook subscription signature key (customers sync instantly)
+  SQUARE_WEBHOOK_URL?: string          // the notification URL registered for it; default the app's workers.dev address + /api/webhooks/square
+  SQUARE_REDIRECT_URL?: string        // the Redirect URL set in the Square app; default the app's workers.dev address + /api/integrations/square/callback
+  SUMUP_CLIENT_ID?: string            // SumUp app (OAuth, read-only): takings on the Finances page
+  SUMUP_CLIENT_SECRET?: string
+  LINKEDIN_CLIENT_ID?: string         // LinkedIn app (Sign In with OpenID Connect, Share on LinkedIn, Community Management API)
+  LINKEDIN_CLIENT_SECRET?: string
+  LINKEDIN_PAGES?: string             // 'off': post as the person only (the app has no Community Management API yet)
+  LINKEDIN_VERSION?: string           // var: Posts API version, YYYYMM (default in connections.ts)
+  GOOGLE_ADS_DEVELOPER_TOKEN?: string // Google Ads API developer token (Google Ads manager account → API Center): the Ads page
+  GOOGLE_ADS_API_VERSION?: string     // var, e.g. v21 (default in providers/googleAds.ts)
   MS_CLIENT_ID?: string               // Microsoft app (Outlook email, OneDrive files); set by the Microsoft setup workflow
   MS_CLIENT_SECRET?: string
 }

@@ -1,9 +1,9 @@
 // Sports fixtures: what the café may show on TV and which nights may be busy.
-// Sources (all free, no key): fixturedownload.com (whole seasons of the big leagues and the
-// Champions League), TheSportsDB (other leagues, cups, national teams, boxing; the free tier only
-// gives a few events per call) and Wikipedia's list of scheduled UFC events.
+// Sources (all free, no key of our own): fixturedownload.com (whole seasons of the big leagues and
+// the Champions League), TheSportsDB (other leagues, cups, national teams, rugby, boxing; its free
+// test key only gives a few events per call) and Wikipedia's list of scheduled UFC events.
 
-export type Sport = 'football' | 'ufc' | 'boxing'
+export type Sport = 'football' | 'rugby' | 'ufc' | 'boxing'
 
 export type SportsSource = 'fixturedownload' | 'thesportsdb' | 'wikipedia'
 
@@ -90,6 +90,8 @@ export function isBigEvent(e: Pick<SportsEvent, 'sport' | 'title' | 'home' | 'aw
   if (e.sport === 'ufc') return /\bUFC \d{3}\b/.test(e.title)                                     // numbered pay-per-views
   if (e.sport === 'boxing') return /title|championship|world|undisputed|vs/i.test(e.title) && !/prelim/i.test(e.title)
   if (c.kind === 'national') return has(e.home, HOME_NATIONS) || has(e.away, HOME_NATIONS)
+  // Club rugby fills the bar for the knock-outs only.
+  if (e.sport === 'rugby') return /final/i.test(e.round ?? '')
   const bothBig = has(e.home, BIG_CLUBS) && has(e.away, BIG_CLUBS)
   if (bothBig) return true
   if (c.kind === 'cup' && (c.code.startsWith('uefa-') || /final/i.test(e.round ?? ''))) return has(e.home, BIG_CLUBS) || has(e.away, BIG_CLUBS)

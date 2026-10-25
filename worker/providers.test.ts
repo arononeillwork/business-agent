@@ -4,6 +4,8 @@ import { parseWebhook, sendTemplate, templateBody, verifySignature } from './pro
 import { publishPhoto } from './providers/instagram'
 import { musicPlaylists, search } from './providers/youtube'
 import { salesByDay } from './providers/stripe'
+import { pickSite, siteLabel } from './providers/searchConsole'
+import { littleText } from './providers/linkedin'
 import { hmacHex, seal, signState, unseal, verifyState } from './crypto'
 import type { CalendarEvent, OpeningHours } from '../shared/types'
 
@@ -81,15 +83,18 @@ describe('WhatsApp', () => {
 describe('Instagram', () => {
   it('publishes a photo: container, ready, publish', async () => {
     const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ user_id: '17841', id: '2932' })))
       .mockResolvedValueOnce(new Response(JSON.stringify({ id: 'container' })))
       .mockResolvedValueOnce(new Response(JSON.stringify({ status_code: 'FINISHED' })))
       .mockResolvedValueOnce(new Response(JSON.stringify({ id: 'media-1' })))
     vi.stubGlobal('fetch', fetchMock)
-    expect(await publishPhoto({ token: 't', userId: '17841', graphVersion: 'v23.0' }, 'https://x/a.jpg', 'Feria!')).toBe('media-1')
-    expect(String(fetchMock.mock.calls[0][0])).toContain('/17841/media')
-    expect(String(fetchMock.mock.calls[1][0])).toContain('/container?fields=status_code')
-    expect(String(fetchMock.mock.calls[2][0])).toContain('/17841/media_publish')
-    expect(String(fetchMock.mock.calls[2][1].body)).toContain('creation_id=container')
+    // The id kept from sign-in is only a fallback: posting goes to the one /me says.
+    expect(await publishPhoto({ token: 't', userId: '2932', graphVersion: 'v23.0' }, 'https://x/a.jpg', 'Feria!')).toBe('media-1')
+    expect(String(fetchMock.mock.calls[0][0])).toContain('/me?fields=user_id')
+    expect(String(fetchMock.mock.calls[1][0])).toContain('/17841/media')
+    expect(String(fetchMock.mock.calls[2][0])).toContain('/container?fields=status_code')
+    expect(String(fetchMock.mock.calls[3][0])).toContain('/17841/media_publish')
+    expect(String(fetchMock.mock.calls[3][1].body)).toContain('creation_id=container')
   })
 })
 
@@ -183,8 +188,40 @@ describe('Stripe', () => {
     ] })))
     vi.stubGlobal('fetch', fetchMock)
     expect(await salesByDay('sk_test', 'acct_1', '2026-10-05T22:00:00Z', '2026-10-06T22:00:00Z')).toEqual({
-      currency: 'EUR', days: [{ date: '2026-10-06', gross: 16.5, tips: 0, refunds: 4.5, payments: 2 }],
+      currency: 'EUR', days: [{ date: '2026-10-06', gross: 16.5, tips: 0, refunds: 4.5, payments: 2,
+        hours: Array.from({ length: 24 }, (_, h) => (h === 0 ? 4.5 : h === 12 ? 12 : 0)) }], // 00:30 and 12:00 Madrid time
     })
     expect(fetchMock.mock.calls[0][1].headers['Stripe-Account']).toBe('acct_1')
+  })
+})
+
+describe('Search Console', () => {
+  const site = 'https://www.easybeanscoffee.com/'
+  it('picks the only website, or the one that is the business’s: a domain property first, then the same address', () => {
+    expect(pickSite(['https://anything.example/'], null)).toBe('https://anything.example/')
+    expect(pickSite([site, 'https://other.es/'], null)).toBeNull()
+    expect(pickSite([site, 'https://other.es/'], 'https://www.easybeanscoffee.com/')).toBe(site)
+    // Typed without https://, or without www: still the café's.
+    expect(pickSite([site, 'https://other.es/'], 'easybeanscoffee.com')).toBe(site)
+    expect(pickSite(['https://easybeanscoffee.com/', 'https://other.es/'], 'https://www.easybeanscoffee.com')).toBe('https://easybeanscoffee.com/')
+    // A domain property covers www, other subdomains, http and https.
+    expect(pickSite([site, 'sc-domain:easybeanscoffee.com'], 'https://www.easybeanscoffee.com/')).toBe('sc-domain:easybeanscoffee.com')
+    expect(pickSite(['sc-domain:easybeanscoffee.com', 'sc-domain:other.es'], 'https://shop.easybeanscoffee.com')).toBe('sc-domain:easybeanscoffee.com')
+    expect(pickSite(['sc-domain:beanscoffee.com', 'https://other.es/'], 'https://www.easybeanscoffee.com')).toBeNull() // not a subdomain of it
+    // The same protocol and the whole site rather than a folder of it.
+    expect(pickSite(['http://www.easybeanscoffee.com/', site, 'https://www.easybeanscoffee.com/blog/'], site)).toBe(site)
+    expect(pickSite(['https://www.easybeanscoffee.com/blog/', 'http://www.easybeanscoffee.com/'], site)).toBe('http://www.easybeanscoffee.com/')
+  })
+  it('names a website the way people say it', () => {
+    expect(siteLabel('sc-domain:easybeanscoffee.com')).toBe('easybeanscoffee.com')
+    expect(siteLabel(site)).toBe('www.easybeanscoffee.com')
+  })
+})
+
+describe('LinkedIn', () => {
+  it('writes post text in LinkedIn’s format: reserved characters escaped, hashtags made real', () => {
+    expect(littleText('Brunch (10–14h) @ Easy Beans_ #brunch #SanPedro')).toBe('Brunch \\(10–14h\\) \\@ Easy Beans\\_ {hashtag|\\#|brunch} {hashtag|\\#|SanPedro}')
+    expect(littleText('Plain text, nothing to change.')).toBe('Plain text, nothing to change.')
+    expect(littleText('#café')).toBe('{hashtag|\\#|café}')
   })
 })

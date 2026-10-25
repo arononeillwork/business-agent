@@ -11,9 +11,10 @@ import { businessConfig } from '../../shared/business.config'
 import { formatDuration, formatLocal, localTime, minutesBetween } from '../../shared/time'
 import type { KioskPerson } from '../../shared/types'
 import { Logo } from '../components/Logo'
+import { msg, t, tr } from '../i18n'
 
 type Action = KioskResult['action']
-const ACTION_LABEL: Record<Action, string> = { in: 'Clock in', out: 'Clock out', break_start: 'Start break', break_end: 'End break' }
+const ACTION_LABEL: Record<Action, string> = { in: msg('Clock in'), out: msg('Clock out'), break_start: msg('Start break'), break_end: msg('End break') }
 
 export function KioskPage() {
   const { api, me, breakTypes } = useApp()
@@ -29,8 +30,8 @@ export function KioskPage() {
 
   useEffect(() => {
     if (!done) return
-    const t = setTimeout(() => setDone(null), 5000)
-    return () => clearTimeout(t)
+    const timer = setTimeout(() => setDone(null), 5000)
+    return () => clearTimeout(timer)
   }, [done])
 
   useEffect(() => {
@@ -42,11 +43,11 @@ export function KioskPage() {
   }, [pin])
 
   const choices = (p: KioskPerson): { action: Action; breakTypeId?: number; label: string }[] =>
-    p.status === 'out' ? [{ action: 'in', label: 'Clock in' }]
-      : p.status === 'break' ? [{ action: 'break_end', label: 'End break' }]
-      : [...breakTypes.map(t => ({ action: 'break_start' as Action, breakTypeId: t.id, label: `Break: ${t.name}` })),
-        ...(breakTypes.length ? [] : [{ action: 'break_start' as Action, label: 'Start break' }]),
-        { action: 'out' as Action, label: 'Clock out' }]
+    p.status === 'out' ? [{ action: 'in', label: t('Clock in') }]
+      : p.status === 'break' ? [{ action: 'break_end', label: t('End break') }]
+      : [...breakTypes.map(b => ({ action: 'break_start' as Action, breakTypeId: b.id, label: t('Break: {name}', { name: b.name }) })),
+        ...(breakTypes.length ? [] : [{ action: 'break_start' as Action, label: t('Start break') }]),
+        { action: 'out' as Action, label: t('Clock out') }]
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', color: 'text.primary', p: { xs: 2, md: 4 } }}>
@@ -59,12 +60,12 @@ export function KioskPage() {
         <Typography variant="h3" sx={{ fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{formatLocal(new Date(), 'HH:mm')}</Typography>
       </Stack>
       {me?.role === 'admin' && (
-        <Alert severity="info" sx={{ mb: 2 }} action={<Button component={Link} to="/" color="inherit">Exit</Button>}>
-          Preview. On the café tablet, sign in with the kiosk account so it only shows this screen.
+        <Alert severity="info" sx={{ mb: 2 }} action={<Button component={Link} to="/" color="inherit">{t('Exit')}</Button>}>
+          {t('Preview. On the café tablet, sign in with the kiosk account so it only shows this screen.')}
         </Alert>
       )}
       {roster.error && <Alert severity="error">{roster.error}</Alert>}
-      <Typography variant="h6" sx={{ mb: 2 }}>Tap your name</Typography>
+      <Typography variant="h6" sx={{ mb: 2 }}>{t('Tap your name')}</Typography>
       <Grid container spacing={2}>
         {(roster.data ?? []).map(p => (
           <Grid key={p.id} size={{ xs: 6, sm: 4, md: 3 }}>
@@ -76,8 +77,8 @@ export function KioskPage() {
               <PersonAvatar name={p.full_name} colour={p.colour} size={64} />
               <Typography variant="h6">{p.full_name.split(' ')[0]}</Typography>
               <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                {p.status === 'in' && p.since ? `In since ${localTime(p.since)}` : p.status === 'break' && p.since
-                  ? `On break · ${formatDuration(minutesBetween(p.since, new Date().toISOString()))}` : 'Not in'}
+                {p.status === 'in' && p.since ? t('In since {time}', { time: localTime(p.since) }) : p.status === 'break' && p.since
+                  ? t('On break · {duration}', { duration: formatDuration(minutesBetween(p.since, new Date().toISOString())) }) : t('Not in')}
               </Typography>
             </ButtonBase>
           </Grid>
@@ -89,7 +90,7 @@ export function KioskPage() {
           <Box sx={{ p: 3, textAlign: 'center' }}>
             <Box sx={{ display: 'flex', justifyContent: 'center' }}><PersonAvatar name={person.full_name} colour={person.colour} size={56} /></Box>
             <Typography variant="h5" sx={{ mt: 1 }}>{person.full_name}</Typography>
-            {!person.has_pin && <Alert severity="warning" sx={{ mt: 2 }}>No PIN set yet. Set one in the app under My account, or ask an admin.</Alert>}
+            {!person.has_pin && <Alert severity="warning" sx={{ mt: 2 }}>{t('No PIN set yet. Set one in the app under My account, or ask an admin.')}</Alert>}
             {!action && (
               <Stack spacing={1.5} sx={{ mt: 2 }}>
                 {choices(person).map(c => (
@@ -100,7 +101,7 @@ export function KioskPage() {
             )}
             {action && (
               <>
-                <Typography sx={{ mt: 1 }} color="text.secondary">{ACTION_LABEL[action.action]}: enter your PIN</Typography>
+                <Typography sx={{ mt: 1 }} color="text.secondary">{t('{action}: enter your PIN', { action: t(ACTION_LABEL[action.action]) })}</Typography>
                 <Stack direction="row" spacing={1.5} sx={{ justifyContent: 'center', my: 2 }}>
                   {[0, 1, 2, 3].map(i => (
                     <Box key={i} sx={{ width: 18, height: 18, borderRadius: '50%', border: 2, borderColor: 'primary.main',
@@ -111,7 +112,7 @@ export function KioskPage() {
                 <Grid container spacing={1}>
                   {['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', '⌫'].map(k => (
                     <Grid key={k} size={4}>
-                      <Button fullWidth variant="outlined" sx={{ py: 2, fontSize: 24, height: 76 }} aria-label={k === '⌫' ? 'Delete' : k === 'C' ? 'Clear' : k}
+                      <Button fullWidth variant="outlined" sx={{ py: 2, fontSize: 24, height: 76 }} aria-label={k === '⌫' ? t('Delete') : k === 'C' ? t('Clear') : k}
                         onClick={() => {
                           setError(null)
                           if (k === 'C') setPin('')
@@ -125,7 +126,7 @@ export function KioskPage() {
                 </Grid>
               </>
             )}
-            <Button sx={{ mt: 2 }} onClick={reset}>Cancel</Button>
+            <Button sx={{ mt: 2 }} onClick={reset}>{t('Cancel')}</Button>
           </Box>
         )}
       </Dialog>
@@ -134,16 +135,18 @@ export function KioskPage() {
         {done && (
           <Box sx={{ p: 4, textAlign: 'center' }}>
             <CheckIcon color="success" sx={{ fontSize: 72 }} />
-            <Typography variant="h5">{ACTION_LABEL[done.action]}</Typography>
+            <Typography variant="h5">{t(ACTION_LABEL[done.action])}</Typography>
             <Typography variant="h6" color="text.secondary">{done.full_name} · {localTime(done.at)}</Typography>
             {done.summary && (
               <Typography sx={{ mt: 2 }}>
-                Today: {localTime(done.summary.clock_in)}–{done.summary.clock_out ? localTime(done.summary.clock_out) : ''} ·{' '}
-                <b>{formatDuration(done.summary.paid_minutes)} paid</b>
-                {done.summary.flags.includes('missed_break') && <Alert severity="warning" sx={{ mt: 1 }}>No 15-min break recorded</Alert>}
+                {tr('Today: {from}–{to} · {paid}', {
+                  from: localTime(done.summary.clock_in), to: done.summary.clock_out ? localTime(done.summary.clock_out) : '',
+                  paid: <b>{t('{duration} paid', { duration: formatDuration(done.summary.paid_minutes) })}</b>,
+                })}
+                {done.summary.flags.includes('missed_break') && <Alert severity="warning" sx={{ mt: 1 }}>{t('No 15-min break recorded')}</Alert>}
               </Typography>
             )}
-            <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 2 }}>Closing in 5 seconds</Typography>
+            <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 2 }}>{t('Closing in 5 seconds')}</Typography>
           </Box>
         )}
       </Dialog>

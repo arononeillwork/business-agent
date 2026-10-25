@@ -36,6 +36,11 @@ export async function hmacHex(secret: string, body: string) {
   return [...new Uint8Array(sig)].map(b => b.toString(16).padStart(2, '0')).join('')
 }
 
+export async function hmacBase64(secret: string, body: string) {
+  const sig = await crypto.subtle.sign('HMAC', await hmacKey(secret), enc.encode(body))
+  return btoa(String.fromCharCode(...new Uint8Array(sig)))
+}
+
 /** Constant-time string comparison. */
 export function safeEqual(a: string, b: string) {
   if (a.length !== b.length) return false

@@ -1,22 +1,48 @@
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
-import { addDays as addDaysFns, parseISO } from 'date-fns'
+import { addDays as addDaysFns, parseISO, type Locale } from 'date-fns'
 import { businessConfig } from './business.config'
 import type { DayKey } from './types'
 import { DAY_KEYS } from './types'
 
 export const TZ = businessConfig.timezone
 
-/** yyyy-MM-dd of an instant, in business time. */
-export const localDate = (iso: string | Date) => formatInTimeZone(iso, TZ, 'yyyy-MM-dd')
+/** yyyy-MM-dd of an instant, in business time (or the time zone given). */
+export const localDate = (iso: string | Date, tz = TZ) => formatInTimeZone(iso, tz, 'yyyy-MM-dd')
 
-/** HH:mm of an instant, in business time (24-hour, as used in Spain). */
-export const localTime = (iso: string | Date) => formatInTimeZone(iso, TZ, 'HH:mm')
+/** HH:mm of an instant, in business time (24-hour, as used in Spain), or the time zone given. */
+export const localTime = (iso: string | Date, tz = TZ) => formatInTimeZone(iso, tz, 'HH:mm')
 
-export const formatLocal = (iso: string | Date, pattern: string) => formatInTimeZone(iso, TZ, pattern)
+// Month and day names follow the person's language (set by the app; the Worker always writes English).
+let dateLocale: Locale | undefined
+export function setDateLocale(locale: Locale | undefined) { dateLocale = locale }
 
-/** Instant (ISO, UTC) for a business-local date and HH:mm. */
-export const zonedIso = (date: string, time: string) =>
-  fromZonedTime(`${date}T${time}:00`, TZ).toISOString()
+export const formatLocal = (iso: string | Date, pattern: string, tz = TZ) => formatInTimeZone(iso, tz, pattern, { locale: dateLocale })
+
+/** Instant (ISO, UTC) for a local date and HH:mm, in business time or the time zone given. */
+export const zonedIso = (date: string, time: string, tz = TZ) =>
+  fromZonedTime(`${date}T${time}:00`, tz).toISOString()
+
+/** Whether this runtime knows the time zone (an IANA name such as "Europe/London"). */
+export function isTimeZone(tz: unknown): tz is string {
+  if (typeof tz !== 'string' || !tz) return false
+  try { new Intl.DateTimeFormat('en', { timeZone: tz }); return true } catch { return false }
+}
+
+// The person's own time zone (My account → Time zone): the Social planner plans and shows posts in it.
+// Shifts, timecards and the rest stay in the café's time.
+let ownTz: string = TZ
+/** Set from the signed-in person's preferences; unknown or unset falls back to the business's time zone. */
+export function setOwnTimeZone(tz?: string | null, fallback: string = TZ) {
+  ownTz = isTimeZone(tz) ? tz : isTimeZone(fallback) ? fallback : TZ
+}
+export const ownTimeZone = () => ownTz
+
+/** "Madrid" for Europe/Madrid, "New York" for America/New_York. */
+export const zoneCity = (tz: string) => (tz.split('/').pop() ?? tz).replace(/_/g, ' ')
+
+/** "GMT+2" for Europe/Madrid in summer: the zone's offset from UTC at that instant. */
+export const zoneOffset = (tz: string, at: Date = new Date()) =>
+  new Intl.DateTimeFormat('en-GB', { timeZone: tz, timeZoneName: 'shortOffset' }).formatToParts(at).find(p => p.type === 'timeZoneName')?.value ?? ''
 
 export const addDays = (date: string, days: number) =>
   formatInTimeZone(addDaysFns(parseISO(`${date}T12:00:00Z`), days), 'UTC', 'yyyy-MM-dd')
@@ -27,7 +53,7 @@ export const weekStart = (date: string) => {
   return addDays(date, -((dow + 6) % 7))
 }
 
-export const today = () => localDate(new Date())
+export const today = (tz = TZ) => localDate(new Date(), tz)
 
 export const dayKey = (date: string): DayKey =>
   DAY_KEYS[(new Date(`${date}T12:00:00Z`).getUTCDay() + 6) % 7]
@@ -52,11 +78,22 @@ export const formatDuration = (minutes: number) => {
   return r === 0 ? `${sign}${h}h` : `${sign}${h}h ${String(r).padStart(2, '0')}m`
 }
 
-/** How each person likes decimals shown: "843,44 €" (comma, the Spanish way) or "€843.44" (point). */
+/** How each person likes decimals shown: "€843,44" (comma, the Spanish way) or "€843.44" (point). */
 export type NumberFormat = 'comma' | 'point'
 const LOCALES: Record<NumberFormat, string> = { comma: businessConfig.locale, point: 'en-IE' }
 let currency: string = businessConfig.currency
-const money = (f: NumberFormat) => new Intl.NumberFormat(LOCALES[f], { style: 'currency', currency, currencyDisplay: 'narrowSymbol', useGrouping: 'always' })
+/** The currency symbol always goes in front of the amount ("€843,44", "-€12,50"), whichever decimal mark is used. */
+const money = (f: NumberFormat) => {
+  const nf = new Intl.NumberFormat(LOCALES[f], { style: 'currency', currency, currencyDisplay: 'narrowSymbol', useGrouping: 'always' })
+  return { format: (n: number) => {
+    const parts = nf.formatToParts(n)
+    const symbol = parts.find(p => p.type === 'currency')?.value ?? ''
+    const sign = parts.filter(p => p.type === 'minusSign' || p.type === 'plusSign').map(p => p.value).join('')
+    const digits = parts.filter(p => !['currency', 'literal', 'minusSign', 'plusSign'].includes(p.type)).map(p => p.value).join('')
+    // A code rather than a sign (CHF, kr) keeps a space before the number.
+    return `${sign}${symbol}${/\p{L}$/u.test(symbol) ? '\u00a0' : ''}${digits}`
+  } }
+}
 let eur = money('comma')
 let decimal = new Intl.NumberFormat(LOCALES.comma, { maximumFractionDigits: 2, useGrouping: 'always' })
 let current: NumberFormat = 'comma'

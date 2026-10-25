@@ -1,4 +1,5 @@
-// Sample Instagram inbox for the demo café: every kind of message the Messages page shows.
+// Sample Instagram inbox for the demo café: every kind of message the Messages page shows. And its
+// Facebook Page's Messenger chats (shown once Facebook is connected).
 import type { InboxConversation, InboxMessage, TaggedPost } from '../../shared/messages'
 
 const PIC = (bg: string, fg: string, word: string) => `data:image/svg+xml,${encodeURIComponent(
@@ -58,5 +59,86 @@ export function demoInbox() {
       return { conversation: toConversation(c), messages: [...c.messages] }
     },
     reply: (id: string, text: string) => chats.find(x => x.id === id)!.messages.push(msg(0, true, text)),
+  }
+}
+
+/** The Facebook Page's Messenger chats: names, not @handles. */
+export function demoMessenger() {
+  const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString()
+  let n = 0
+  const msg = (min: number, fromMe: boolean, text: string): InboxMessage => ({ id: `fm${++n}`, at: ago(min), fromMe, text, kind: 'text' })
+  const chats = [
+    { id: 't_1', name: 'Carmen Ruiz', messages: [msg(70, false, 'Hola! Do you take bookings for 8 people on Saturday?')] },
+    { id: 't_2', name: 'Hotel Puente Romano', messages: [
+      msg(2 * 24 * 60, false, 'Could you send us a price for coffee for 40 guests?'),
+      msg(2 * 24 * 60 - 30, true, 'Of course! I’ll email you the menu today.'),
+    ] },
+  ]
+  const toConversation = (c: (typeof chats)[number]): InboxConversation => ({
+    id: c.id, platform: 'messenger', with: { id: `psid-${c.id}`, username: c.name, name: c.name },
+    updatedAt: c.messages[c.messages.length - 1].at, recent: [...c.messages].reverse().slice(0, 5),
+  })
+  return {
+    state: () => ({ conversations: chats.map(toConversation).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)) }),
+    thread: (id: string) => {
+      const c = chats.find(x => x.id === id)
+      if (!c) throw new Error('That chat is no longer on Messenger')
+      return { conversation: toConversation(c), messages: [...c.messages] }
+    },
+    reply: (id: string, text: string) => chats.find(x => x.id === id)!.messages.push(msg(0, true, text)),
+  }
+}
+
+/**
+ * The café's WhatsApp chats, as the app saved them (WhatsApp can't be read back): a customer, a
+ * supplier and a team member who got the café's alerts. `purge` keeps only the last `days`.
+ */
+export function demoWhatsApp() {
+  const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString()
+  const DAY = 24 * 60
+  let n = 0
+  const msg = (min: number, fromMe: boolean, text: string, extra: Partial<InboxMessage> = {}): InboxMessage =>
+    ({ id: `wa${++n}`, at: ago(min), fromMe, text, kind: 'text', ...(fromMe ? { status: 'read' as const } : {}), ...extra })
+  const chats = [
+    { id: '34611222333', name: 'Sofía Martín', messages: [
+      msg(45 * DAY, false, '¿Tenéis leche de avena?'),
+      msg(45 * DAY - 20, true, '¡Sí! Avena, almendra y coco.'),
+      msg(40, false, 'Hola! Is the terrace open this afternoon?'),
+      msg(38, false, '', { kind: 'image', mediaUrl: PIC('#E9DCCB', '#8A6A4F', 'Terrace') }),
+    ] },
+    { id: '34622333444', name: 'By Eric', messages: [
+      msg(3 * DAY, true, 'Buenos días Eric, ¿mañana 40 croissants en vez de 30?'),
+      msg(3 * DAY - 15, false, 'Perfecto, apuntado 👍', { reactions: ['❤️'] }),
+      msg(3 * DAY - 14, false, 'Calle Mayor 1, San Pedro', { kind: 'location', link: 'https://www.google.com/maps/search/?api=1&query=36.4869,-5.0076' }),
+    ] },
+    { id: '34600111222', name: 'Julio', messages: [
+      msg(60 * DAY, true, 'Hola Julio, tus turnos de la semana del 4 ago: lun 08:00–14:00, mié 08:00–14:00'),
+      msg(2 * DAY, true, 'Hola Julio, tu turno empieza a las 08:00 (Barista). ¡Hasta ahora!', { status: 'delivered' }),
+      msg(2 * DAY - 5, false, '', { kind: 'audio' }),
+    ] },
+  ]
+  const toConversation = (c: (typeof chats)[number]): InboxConversation => ({
+    id: c.id, platform: 'whatsapp', with: { id: c.id, username: `+${c.id}`, name: c.name },
+    updatedAt: c.messages[c.messages.length - 1].at, recent: [...c.messages].reverse().slice(0, 5),
+  })
+  return {
+    state: () => ({ conversations: chats.filter(c => c.messages.length).map(toConversation).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)) }),
+    thread: (id: string) => {
+      const c = chats.find(x => x.id === id && x.messages.length)
+      if (!c) throw new Error('That chat has been deleted (Data retention)')
+      return { conversation: toConversation(c), messages: [...c.messages] }
+    },
+    reply: (id: string, text: string) => chats.find(x => x.id === id)!.messages.push(msg(0, true, text, { status: 'sent' })),
+    /** Delete messages older than `days`; returns how many went. */
+    purge: (days: number) => {
+      const cutoff = Date.now() - days * DAY * 60_000
+      let gone = 0
+      for (const c of chats) {
+        const keep = c.messages.filter(m => Date.parse(m.at) >= cutoff)
+        gone += c.messages.length - keep.length
+        c.messages = keep
+      }
+      return gone
+    },
   }
 }

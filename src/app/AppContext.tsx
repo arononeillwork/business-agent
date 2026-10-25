@@ -5,8 +5,9 @@ import { currentRates } from '../data/api'
 import { createDemoApi } from '../data/demoApi'
 import { createSupabaseApi } from '../data/supabaseApi'
 import type { BreakType, Business, PartnerArea, PayRate, Position, Profile, Settings } from '../../shared/types'
-import { setCurrency, setNumberFormat } from '../../shared/time'
-import { StartError } from '../pages/StatusPages'
+import { setCurrency, setNumberFormat, setOwnTimeZone } from '../../shared/time'
+import { LoadError, StartError } from '../pages/StatusPages'
+import { refreshAll } from './query'
 
 export interface AppData {
   api: Api
@@ -86,7 +87,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     enabled: !!api,
     queryFn: async (): Promise<Shared> => {
       const me = await api!.me().catch(() => null)
-      if (!me || me.role === 'kiosk') return { ...EMPTY, me }
+      // Someone not on the team yet (a new Google sign-in nobody added) or switched off can read
+      // only their own profile: the business is hidden from them, so there is nothing more to load.
+      if (!me || me.role === 'kiosk' || !me.active) return { ...EMPTY, me }
       const [business, settings, profiles, positions, breakTypes, payRates] = await Promise.all([
         api!.business(), api!.settings(), api!.profiles(), api!.positions(), api!.breakTypes(), api!.payRates(),
       ])
@@ -105,7 +108,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return api.onAuthChange(id => { if (id !== loaded.current) client.resetQueries() })
   }, [api, client])
 
-  const refresh = useCallback(async () => { await client.invalidateQueries() }, [client])
+  const refresh = useCallback(() => refreshAll(client), [client])
   const state = shared.data ?? EMPTY
 
   const value = useMemo<AppData | null>(() => {
@@ -114,6 +117,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // Set before any page renders, so every amount on screen uses this person's decimal mark.
     setNumberFormat(me?.preferences?.numberFormat)
     setCurrency(state.business?.currency)
+    setOwnTimeZone(me?.preferences?.timeZone, state.business?.timezone)
     const isPartner = me?.role === 'partner'
     const partnerCan = (area: PartnerArea) => !!(isPartner && me?.partner_access?.includes(area))
     const adminPay = me?.role === 'admin' && !!me?.can_see_pay
@@ -133,5 +137,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   if (startError) return <StartError message={startError} />
   if (!value) return null
+  // Signed in, but the café's details didn't load (after the retries): say so and offer to try
+  // again, rather than showing the sign-in page as if signed out. A later background refresh that
+  // fails keeps what's on screen.
+  if (shared.isLoadingError) return <Ctx.Provider value={value}><LoadError message={String(shared.error?.message ?? shared.error)} retry={() => void shared.refetch()} /></Ctx.Provider>
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

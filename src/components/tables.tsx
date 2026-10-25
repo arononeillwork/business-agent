@@ -12,6 +12,12 @@ import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { copyTsv, csvContent, exportCsv, exportXlsx, printPdf, type ExportTable } from '../lib/export'
 import { formatMoney } from '../../shared/time'
+import { savingStorage } from '../../shared/connections'
+import { tokens } from '../theme'
+import { t } from '../i18n'
+
+/** A cell still to be entered (a price or a cost nobody has filled in yet): lightly shaded, as pending things are elsewhere. */
+export const toEnter = { bgcolor: tokens.warnBg } as const
 
 // ---------------------------------------------------------------------------------------------
 // Sorting: click a column heading to sort by it, click again to reverse.
@@ -70,7 +76,7 @@ export function ExportButton({ table, disabled, folder }: { table: () => ExportT
   const run = useAction()
   const [anchor, setAnchor] = useState<HTMLElement | null>(null)
   const links = useAsync('integrations', () => (isAdmin ? api.integrations() : Promise.resolve(null)), [])
-  const storage = folder ? links.data?.integrations.find(i => (i.provider === 'google_drive' || i.provider === 'onedrive') && i.status === 'connected') : undefined
+  const storage = folder ? savingStorage(links.data?.integrations) : undefined
   const where = storage?.provider === 'onedrive' ? 'OneDrive' : 'Google Drive'
   const pick = (f: () => void | Promise<void>, done?: string) => { setAnchor(null); void run(async () => { await f() }, done) }
   const item = (icon: ReactNode, label: string, hint: string, onClick: () => void) => (
@@ -83,20 +89,20 @@ export function ExportButton({ table, disabled, folder }: { table: () => ExportT
     <>
       <Button variant="outlined" startIcon={<DownloadIcon />} endIcon={<ExpandIcon />} disabled={disabled}
         onClick={e => setAnchor(e.currentTarget)} aria-haspopup="menu" aria-expanded={!!anchor}>
-        Export
+        {t('Export')}
       </Button>
       <Menu anchorEl={anchor} open={!!anchor} onClose={() => setAnchor(null)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         slotProps={{ paper: { sx: { minWidth: 240, borderRadius: '14px' } } }}>
-        {item(<ExcelIcon fontSize="small" />, 'Excel', '.xlsx spreadsheet', () => pick(() => exportXlsx(table())))}
-        {item(<CsvIcon fontSize="small" />, 'CSV', 'For any spreadsheet or accounts app', () => pick(() => exportCsv(table())))}
-        {item(<PdfIcon fontSize="small" />, 'PDF', 'Print, or save as PDF', () => pick(() => printPdf(table(), formatMoney)))}
-        {item(<CopyIcon fontSize="small" />, 'Copy', 'Paste into Google Sheets or Numbers', () => pick(() => copyTsv(table()), 'Copied: paste it into a spreadsheet'))}
-        {storage && item(<CloudUploadIcon fontSize="small" />, `Save to ${storage.provider === 'onedrive' ? 'OneDrive' : 'Drive'}`, 'As a CSV file', () => pick(async () => {
-          const t = table()
-          const r = await api.saveFile({ folder: folder!, name: `${t.filename}.csv`, content: csvContent(t), type: 'text/csv;charset=utf-8' })
+        {item(<ExcelIcon fontSize="small" />, 'Excel', t('.xlsx spreadsheet'), () => pick(() => exportXlsx(table())))}
+        {item(<CsvIcon fontSize="small" />, 'CSV', t('For any spreadsheet or accounts app'), () => pick(() => exportCsv(table())))}
+        {item(<PdfIcon fontSize="small" />, 'PDF', t('Print, or save as PDF'), () => pick(() => printPdf(table(), formatMoney)))}
+        {item(<CopyIcon fontSize="small" />, t('Copy'), t('Paste into Google Sheets or Numbers'), () => pick(() => copyTsv(table()), t('Copied: paste it into a spreadsheet')))}
+        {storage && item(<CloudUploadIcon fontSize="small" />, t('Save to {where}', { where: storage.provider === 'onedrive' ? 'OneDrive' : 'Drive' }), t('As a CSV file'), () => pick(async () => {
+          const data = table()
+          const r = await api.saveFile({ folder: folder!, name: `${data.filename}.csv`, content: csvContent(data), type: 'text/csv;charset=utf-8' })
           window.open(r.link, '_blank', 'noopener')
-        }, `Saved to ${where} › Business Agent › ${folder}`))}
+        }, t('Saved to {where} › Business Agent › {folder}', { where, folder: folder! })))}
       </Menu>
     </>
   )

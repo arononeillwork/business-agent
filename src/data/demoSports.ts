@@ -1,4 +1,4 @@
-// Sample fixtures for the demo: the next three weeks of football, UFC and boxing around today.
+// Sample fixtures for the demo: the next three weeks of football, rugby, UFC and boxing around today.
 import type { SportsCompetition, SportsEvent } from '../../shared/sports'
 import { isBigEvent } from '../../shared/sports'
 import { addDays, zonedIso } from '../../shared/time'
@@ -19,6 +19,9 @@ export function demoSports(from: string): { competitions: SportsCompetition[]; e
     comp('nl-eredivisie', 'Eredivisie', 'football', 'Netherlands', 'league', 40),
     comp('uefa-cl', 'Champions League', 'football', 'Europe', 'cup', 60),
     comp('uefa-nations', 'Nations League', 'football', 'National teams', 'national', 80),
+    comp('rugby-six-nations', 'Six Nations', 'rugby', 'National teams', 'national', 70),
+    comp('rugby-premiership', 'Premiership Rugby', 'rugby', 'England', 'league', 73),
+    comp('rugby-champions-cup', 'Champions Cup', 'rugby', 'Europe', 'cup', 76),
     comp('ufc', 'UFC', 'ufc', 'Fights', 'fight', 90),
     comp('boxing', 'Boxing', 'boxing', 'Fights', 'fight', 91),
   ]
@@ -40,6 +43,7 @@ export function demoSports(from: string): { competitions: SportsCompetition[]; e
     ev('ufc', 0, '04:00', null, null, { title: 'UFC Fight Night: Perth', venue: 'RAC Arena', city: 'Perth', country: 'Australia' }),
     ev('en-premier', 1, '17:30', 'Liverpool', 'Manchester United', { round: '7', venue: 'Anfield', city: 'Liverpool' }),
     ev('nl-eredivisie', 1, '14:30', 'Ajax', 'AZ Alkmaar', { round: '8', venue: 'Johan Cruijff ArenA', city: 'Amsterdam' }),
+    ev('rugby-premiership', 1, '15:00', 'Gloucester', 'Bath Rugby', { round: '4', venue: 'Kingsholm', city: 'Gloucester' }),
     ev('uefa-cl', 3, '21:00', 'Real Madrid', 'Manchester City', { round: '3', venue: 'Santiago Bernabéu', city: 'Madrid' }),
     ev('uefa-cl', 4, '21:00', 'Celtic', 'Barcelona', { round: '3', venue: 'Celtic Park', city: 'Glasgow' }),
     ev('boxing', 6, '22:00', null, null, { title: 'Undisputed heavyweight title: Usyk vs Dubois III', city: 'London', country: 'England' }),
@@ -47,6 +51,8 @@ export function demoSports(from: string): { competitions: SportsCompetition[]; e
     ev('es-laliga', 7, '21:00', 'Atlético Madrid', 'Real Madrid', { round: '9', venue: 'Metropolitano', city: 'Madrid' }),
     ev('ufc', 7, '22:00', null, null, { time_tbc: true, title: 'UFC 322: Makhachev vs Topuria', venue: 'T-Mobile Arena', city: 'Las Vegas', country: 'USA' }),
     ev('en-premier', 8, '15:00', 'Chelsea', 'Tottenham', { round: '8', venue: 'Stamford Bridge', city: 'London' }),
+    ev('rugby-champions-cup', 9, '14:00', 'Leinster', 'Toulouse', { round: '1', venue: 'Aviva Stadium', city: 'Dublin' }),
+    ev('rugby-six-nations', 13, '17:40', 'Ireland', 'England', { round: '1', venue: 'Aviva Stadium', city: 'Dublin' }),
     ev('uefa-nations', 11, '20:45', 'Spain', 'Netherlands', { round: '5', city: 'Seville' }),
     ev('uefa-nations', 12, '20:45', 'England', 'Scotland', { round: '5', venue: 'Wembley Stadium', city: 'London' }),
     ev('es-laliga', 14, '18:30', 'Barcelona', 'Real Madrid', { round: '10', venue: 'Spotify Camp Nou', city: 'Barcelona' }),

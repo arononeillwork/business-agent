@@ -1,12 +1,14 @@
+import { msg } from './i18n'
+
 export type Role = 'admin' | 'employee' | 'kiosk' | 'partner'
 
 /** What an outside business (partner) can be given read-only access to. */
 export type PartnerArea = 'calendar' | 'rota' | 'payroll' | 'finances'
 export const PARTNER_AREAS: { key: PartnerArea; label: string; detail: string }[] = [
-  { key: 'rota', label: 'Rota', detail: 'Published shifts and approved time off' },
-  { key: 'payroll', label: 'Payroll', detail: 'Timecards, hours and pay rates' },
-  { key: 'finances', label: 'Finances', detail: 'Monthly expenses' },
-  { key: 'calendar', label: 'Calendar', detail: 'Holidays and events' },
+  { key: 'rota', label: msg('Rota'), detail: msg('Published shifts and approved time off') },
+  { key: 'payroll', label: msg('Payroll'), detail: msg('Timecards, hours and pay rates') },
+  { key: 'finances', label: msg('Finances'), detail: msg('Monthly expenses') },
+  { key: 'calendar', label: msg('Calendar'), detail: msg('Holidays and events') },
 ]
 
 export type DayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'
@@ -21,6 +23,8 @@ export interface Business {
   phone: string | null
   email: string | null
   instagram: string | null
+  /** The business's website (https://…), when it has one. Search Console is matched to it. */
+  website?: string | null
   timezone: string
   /** ISO 4217 code, e.g. EUR. Money everywhere is shown in it. */
   currency: string
@@ -59,6 +63,14 @@ export interface Settings {
   alert_missed_clock_in: boolean
   alert_rota: boolean
   alert_time_off: boolean
+  /** Admins are told when someone tags the business on Instagram or mentions it in their story. */
+  alert_instagram_mentions?: boolean
+  /** Pages the admins hid from everyone's menu (Settings → Pages), by page key. */
+  hidden_pages?: string[]
+  /** Data retention: how many days saved WhatsApp chats are kept (30, 90, 180, 365 or 730; 90 unless changed). */
+  whatsapp_retention_days?: number
+  /** Expenses: euros paid back a kilometre driven in a private car (0.26 unless changed). */
+  mileage_rate?: number
 }
 
 export interface Expense {
@@ -72,6 +84,35 @@ export interface Expense {
   source: 'sheet' | 'app' | 'ai'
   updated_at: string
 }
+
+/** Customers page: people who buy (customers) and people who might (leads). Admins only. */
+export type CustomerKind = 'customer' | 'lead'
+/** square: brought in from Square's customer directory, by itself. */
+export type CustomerSource = 'walk_in' | 'instagram' | 'facebook' | 'tiktok' | 'website' | 'google' | 'referral' | 'event' | 'square' | 'other'
+export interface Customer {
+  id: string
+  kind: CustomerKind
+  first_name: string | null
+  last_name: string | null
+  email: string | null
+  /** "+34 600 000 000", as on profiles. */
+  phone: string | null
+  company: string | null
+  source: CustomerSource
+  /** Instagram handle without the @. */
+  instagram: string | null
+  birthday: string | null
+  tags: string[]
+  notes: string | null
+  /** They agreed to receive marketing (GDPR); consent_at is when, set by the database. */
+  marketing_consent: boolean
+  consent_at: string | null
+  last_contacted_at: string | null
+  created_at: string
+  updated_at: string
+}
+/** What the app writes: everything but what the database keeps itself. */
+export type CustomerInput = Partial<Omit<Customer, 'consent_at' | 'created_at' | 'updated_at'>>
 
 /** A message or update the app has sent (or is sending) to an outside service. */
 export interface OutboxItem {
@@ -114,12 +155,22 @@ export interface Preferences {
   contrast?: 'normal' | 'high'
   font?: 'default' | 'readable'
   motion?: 'system' | 'reduce'
-  /** Decimal mark for money and numbers: 1.234,50 € (comma) or €1,234.50 (point). */
+  /** Decimal mark for money and numbers: €1.234,50 (comma) or €1,234.50 (point). */
   numberFormat?: 'comma' | 'point'
   /** Page background tint: a brand colour (#RRGGBB). Unset = the house cream. */
   background?: string
   /** Their own order of pages within each menu section: section key → page keys. */
   navOrder?: Record<string, string[]>
+  /** Pages they pinned to the top of their menu section (page keys). */
+  navPins?: string[]
+  /** Pages they hid from their own menu (Settings → Pages), by page key. */
+  navHidden?: string[]
+  /** The languages they use the app in (My account → Language). With both, flags at the top switch between them. */
+  languages?: ('en' | 'es')[]
+  /** The one shown now. */
+  language?: 'en' | 'es'
+  /** Their own time zone (IANA, e.g. "Europe/London"): social posts are planned and shown in it. Unset = the café's. */
+  timeZone?: string
 }
 
 export interface Position {
@@ -231,7 +282,7 @@ export interface KioskPerson {
   has_pin: boolean
 }
 
-export type TimeOffKind = 'vacation' | 'personal' | 'sick' | 'other'
+export type TimeOffKind = 'vacation' | 'personal' | 'sick' | 'birth' | 'parental' | 'marriage' | 'family' | 'bereavement' | 'moving' | 'urgent' | 'other'
 
 export interface TimeOff {
   id: string
@@ -246,12 +297,17 @@ export interface TimeOff {
 }
 
 export const TIME_OFF_LABELS: Record<TimeOffKind, string> = {
-  vacation: 'Holiday', personal: 'Personal day', sick: 'Sick', other: 'Other',
+  vacation: msg('Holiday'), personal: msg('Personal day'), sick: msg('Sick'), birth: msg('Birth and childcare'),
+  parental: msg('Parental leave'), marriage: msg('Marriage'), family: msg('A relative in hospital or seriously ill'),
+  bereavement: msg('Bereavement'), moving: msg('Moving house'), urgent: msg('Urgent family reason'), other: msg('Other'),
 }
+export const TIME_OFF_KINDS = Object.keys(TIME_OFF_LABELS) as TimeOffKind[]
+/** Leave nobody books ahead: it can be recorded for days already gone (the SQL rule is the same). */
+export const TIME_OFF_AFTER_THE_FACT: TimeOffKind[] = ['sick', 'birth', 'family', 'bereavement', 'urgent']
 
-export type IntegrationProvider = 'google_business' | 'whatsapp' | 'instagram' | 'facebook' | 'tiktok' | 'spotify' | 'square' | 'stripe' | ConnectorProvider | CalendarApp
-/** Connections made with one sign-in with Google or Microsoft (email, files, café YouTube Music). */
-export type ConnectorProvider = 'gmail' | 'outlook' | 'google_drive' | 'onedrive' | 'youtube_music'
+export type IntegrationProvider = 'google_business' | 'whatsapp' | 'instagram' | 'facebook' | 'tiktok' | 'linkedin' | 'spotify' | 'square' | 'stripe' | 'sumup' | 'meta_ads' | ConnectorProvider | CalendarApp
+/** Connections made with one sign-in with Google or Microsoft (email, files, café YouTube Music, Search Console, Google Ads). */
+export type ConnectorProvider = 'gmail' | 'outlook' | 'google_drive' | 'onedrive' | 'youtube_music' | 'search_console' | 'google_ads'
 /** Calendar apps that subscribe to the team calendar link. */
 export type CalendarApp = 'google_calendar' | 'outlook_calendar'
 
@@ -283,14 +339,26 @@ export interface Integration {
   account_label: string | null
   external: {
     locations?: { name: string; title: string; address?: string }[]; location?: string; closed_on_holidays?: boolean; playlist?: SpotifyPlaylist
-    /** Facebook: the Pages the account manages, and the chosen one. */
-    pages?: { id: string; name: string }[]; page_id?: string
+    /** Facebook and LinkedIn: the Pages the account manages, and the chosen one (LinkedIn: 'me' = the person's own profile). */
+    pages?: { id: string; name: string }[]; page_id?: string; page_name?: string
+    /** LinkedIn: who signed in, and when the 60-day access runs out. */
+    member?: { id: string; name: string }; expires_at?: string
+    /** Gmail or Outlook: it may also be read, for invoices that come by email (allowed from Invoices). */
+    reads_mail?: boolean
+    /** Search Console: the websites the account can read, and the chosen one (`https://…/` or `sc-domain:…`). */
+    sites?: string[]; site?: string
+    /** SumUp: the merchant account and its currency. */
+    merchant_code?: string; currency?: string
     /** TikTok: posts stay private until TikTok audits the app. */
     private_only?: boolean
     /** Instagram: whether the account allowed reading and answering messages, and seeing posts it's tagged in. */
     can_message?: boolean; can_see_tags?: boolean
     /** Instagram: the connected account's username (without the @). */
     username?: string
+    /** Meta Ads and Google Ads: the ad accounts the person can use, and the chosen one. */
+    accounts?: { id: string; name: string; currency: string }[]; account_id?: string; account_name?: string
+    /** Meta Ads: allowed to pause, resume and change budgets (not only read). */
+    can_manage?: boolean
   }
   connected_at: string | null
   last_sync_at: string | null
@@ -318,28 +386,33 @@ export interface InstagramProfile {
 }
 
 export const CATEGORY_META: Record<EventCategory, { label: string; colour: string }> = {
-  national: { label: 'National holiday', colour: '#c62828' },
-  regional: { label: 'Andalucía holiday', colour: '#2e7d32' },
-  local:    { label: 'Local holiday', colour: '#6a1b9a' },
-  area:     { label: 'Nearby town holiday', colour: '#8d6e63' },
-  event:    { label: 'Local event / feria', colour: '#ef6c00' },
-  sports:   { label: 'Football', colour: '#1565c0' },
-  business: { label: 'Business', colour: '#37474f' },
-  staff:    { label: 'Staff', colour: '#00838f' },
+  national: { label: msg('National holiday'), colour: '#c62828' },
+  regional: { label: msg('Andalucía holiday'), colour: '#2e7d32' },
+  local:    { label: msg('Local holiday'), colour: '#6a1b9a' },
+  area:     { label: msg('Nearby town holiday'), colour: '#8d6e63' },
+  event:    { label: msg('Local event / feria'), colour: '#ef6c00' },
+  sports:   { label: msg('Football'), colour: '#1565c0' },
+  business: { label: msg('Business'), colour: '#37474f' },
+  staff:    { label: msg('Staff'), colour: '#00838f' },
 }
 
 export const FLAG_LABELS: Record<string, string> = {
-  missed_break: 'Missed break',
-  over_daily_limit: 'Over 9h',
-  unscheduled: 'Unscheduled',
-  auto_clock_out: 'Auto clock-out',
-  edited: 'Edited',
-  early_override: 'Early (override)',
-  from_rota: 'From rota',
+  missed_break: msg('Missed break'),
+  over_daily_limit: msg('Over 9h'),
+  unscheduled: msg('Unscheduled'),
+  auto_clock_out: msg('Auto clock-out'),
+  edited: msg('Edited'),
+  early_override: msg('Early (override)'),
+  from_rota: msg('From rota'),
 }
 
 /** In-app notification (the bell). */
-export interface AppNotification { id: number; title: string; body: string | null; link: string | null; created_at: string; read_at: string | null }
+export interface AppNotification {
+  id: number; title: string; body: string | null; link: string | null; created_at: string; read_at: string | null
+  /** One with buttons: an Instagram mention (Repost / Ignore), data.mention its id. */
+  kind?: 'instagram_mention' | null
+  data?: { mention?: string }
+}
 
 /** A bell switched on for a calendar event or sports fixture: admins are reminded before it. */
 export interface EventAlert { kind: 'calendar' | 'sports'; ref_id: string; remind_at: string; sent_at: string | null }
@@ -360,7 +433,7 @@ export interface Brand {
 export interface ApiKey { id: string; name: string; prefix: string; created_at: string; last_used_at: string | null }
 
 /** Social planner: one post, sent to each chosen network at the planned time. */
-export type SocialNetwork = 'instagram' | 'facebook' | 'tiktok' | 'google'
+export type SocialNetwork = 'instagram' | 'facebook' | 'tiktok' | 'google' | 'linkedin'
 /** What kind of post: a feed post (one photo), a carousel (2–10 photos/videos), a reel (one video) or a story. */
 export type PostKind = 'post' | 'carousel' | 'reel' | 'story'
 /** A photo or video of a post, at a public address the networks fetch it from. */
@@ -383,11 +456,58 @@ export interface SocialPost {
   published_at: string | null
 }
 
-/** Takings from the payment system (Square), per day in the business's time zone. */
-export interface Sales { /** Which payment system the takings come from. */ provider?: 'square' | 'stripe'; currency: string; days: { date: string; gross: number; tips: number; refunds: number; payments: number }[] }
+/** Takings from the payment system (Square, Stripe or SumUp), per day in the business's time zone. */
+/** How a payment was paid: card, cash, a phone wallet (Apple Pay, Google Pay) or anything else (gift card, bank, external). */
+export type PayMethod = 'card' | 'cash' | 'wallet' | 'other'
+/**
+ * One local day of takings. `gross` excludes tips. `hours` (24 values, sales by local hour) and
+ * `methods` (sales by how people paid) come from Square and SumUp; Stripe sends hours only.
+ */
+/** Where takings come from: the till (Square or SumUp) and/or Stripe (online payments), which can be added to either. */
+export type SalesProvider = 'square' | 'stripe' | 'sumup'
+export interface SalesDay {
+  date: string; gross: number; tips: number; refunds: number; payments: number; hours?: number[]; methods?: Partial<Record<PayMethod, number>>
+  /** Gross sales by payment system, when more than one is connected. */
+  sources?: Partial<Record<SalesProvider, number>>
+}
+export interface Sales {
+  /** The first payment system the takings come from (the till before Stripe); `providers` lists them all. */
+  provider?: SalesProvider
+  providers?: SalesProvider[]
+  currency: string
+  days: SalesDay[]
+  /** Payment systems that couldn't be read just now (the others' takings are still shown). */
+  failed?: { provider: SalesProvider; error: string }[]
+  /** When the service was last asked (the Worker keeps its answer a while: shared/refresh.ts). */
+  fetched_at?: string
+}
+/** One item on the Sales page's best sellers (Square orders): units sold and their sales before discounts. */
+export interface SalesItem { name: string; quantity: number; gross: number }
+/** Best sellers, or why there are none: Stripe and SumUp send no items, or Square was connected before items were asked for. */
+export interface SalesItems {
+  items: SalesItem[] | null; reason?: 'stripe' | 'sumup' | 'reconnect'; /** Square's items, with Stripe's online sales not among them. */ partial?: 'stripe'
+  /** When the service was last asked (the Worker keeps its answer a while: shared/refresh.ts). */
+  fetched_at?: string
+}
+
+/** Search Console (Google): how the website did in Google Search. Figures lag Google by 2–3 days. */
+export interface SearchRow { clicks: number; impressions: number; /** 0–1 */ ctr: number; /** average position, 1 = top */ position: number }
+export interface SearchReport {
+  site: string; from: string; to: string
+  totals: SearchRow
+  days: (SearchRow & { date: string })[]
+  queries: (SearchRow & { query: string })[]
+  pages: (SearchRow & { page: string })[]
+  devices: (SearchRow & { device: 'DESKTOP' | 'MOBILE' | 'TABLET' })[]
+  countries: (SearchRow & { country: string })[]  // ISO 3166 alpha-3 lower-case as Google returns it
+  /** When the service was last asked (the Worker keeps its answer a while: shared/refresh.ts). */
+  fetched_at?: string
+}
 
 /** To Do List: a category the admins manage (jobs are grouped by these). */
 export interface TodoCategory { id: string; name: string; hint: string | null; colour: string; sort: number }
+/** Where a job is on the board: to do, being done, or done (done is also the list's tick). */
+export type TodoStatus = 'todo' | 'doing' | 'done'
 /** One job on the To Do List. `category_id` is null after its category was removed. */
 export interface Todo {
   id: string
@@ -396,13 +516,14 @@ export interface Todo {
   section: string | null
   assignee_id: string | null
   done: boolean
+  status: TodoStatus
   done_at: string | null
   starred: boolean
   pinned: boolean
   position: number
   created_at: string
 }
-export type TodoPatch = Partial<Pick<Todo, 'title' | 'category_id' | 'section' | 'assignee_id' | 'done' | 'starred' | 'pinned' | 'position'>>
+export type TodoPatch = Partial<Pick<Todo, 'title' | 'category_id' | 'section' | 'assignee_id' | 'done' | 'status' | 'starred' | 'pinned' | 'position'>>
 
 /** Café music (Music page): the café account's playlists, whichever service is connected. */
 export interface CafeMusicLibrary { provider: 'youtube' | 'spotify' | null; account: string | null; playlists: SpotifyPlaylist[]; approved: SpotifyPlaylist | null; /** YouTube playlists that aren't music (hidden unless asked for). */ other_playlists?: SpotifyPlaylist[]; /** Sample songs (demo): played by a pretend player. */ demo?: boolean }

@@ -10,6 +10,7 @@ import { useApp } from '../app/AppContext'
 import { useAction } from '../app/Notify'
 import { SectionTitle } from './common'
 import type { Settings } from '../../shared/types'
+import { t, tr } from '../i18n'
 
 /** The house rules for clocking in, in plain sentences; admins can edit them. */
 export function ClockRulesCard() {
@@ -22,30 +23,30 @@ export function ClockRulesCard() {
       <CardContent>
         <SectionTitle action={
           <Stack direction="row" spacing={1}>
-            {isAdmin && <Button size="small" startIcon={<EditIcon fontSize="small" />} onClick={() => setEditing(true)}>Edit rules</Button>}
+            {isAdmin && <Button size="small" startIcon={<EditIcon fontSize="small" />} onClick={() => setEditing(true)}>{t('Edit rules')}</Button>}
             <Button size="small" endIcon={<ExpandIcon sx={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }} />}
-              onClick={() => setOpen(o => !o)} aria-expanded={open}>{open ? 'Hide' : 'Show'}</Button>
+              onClick={() => setOpen(o => !o)} aria-expanded={open}>{open ? t('Hide') : t('Show')}</Button>
           </Stack>
-        }>Clock-in rules</SectionTitle>
+        }>{t('Clock-in rules')}</SectionTitle>
         <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-          Clock in up to {s.early_clock_in_minutes} min early · break of {s.min_break_minutes} min after {s.break_after_hours}h ·
-          max {s.max_daily_hours}h a day
+          {t('Clock in up to {early} min early · break of {brk} min after {after}h · max {daily}h a day', {
+            early: s.early_clock_in_minutes, brk: s.min_break_minutes, after: s.break_after_hours, daily: s.max_daily_hours })}
         </Typography>
         <Collapse in={open}>
           <Box component="ul" sx={{ m: 0, mt: 1.5, pl: 2.5, '& li': { mb: 1 }, maxWidth: 760 }}>
-            <li>You can clock in up to <b>{s.early_clock_in_minutes} minutes</b> before your shift.</li>
-            <li>Clocking in without a shift is <b>{s.unscheduled_clock_in === 'flag' ? 'allowed, and flagged for the manager' : 'blocked'}</b>.</li>
-            <li>Forgot to clock out? You're clocked out automatically <b>{s.auto_clock_out_minutes} minutes</b> after your shift ends, and the manager reviews it.</li>
+            <li>{tr('You can clock in up to {minutes} before your shift.', { minutes: <b>{t('{n} minutes', { n: s.early_clock_in_minutes })}</b> })}</li>
+            <li>{tr('Clocking in without a shift is {how}.', { how: <b>{s.unscheduled_clock_in === 'flag' ? t('allowed, and flagged for the manager') : t('blocked')}</b> })}</li>
+            <li>{tr("Forgot to clock out? You're clocked out automatically {minutes} after your shift ends, and the manager reviews it.", { minutes: <b>{t('{n} minutes', { n: s.auto_clock_out_minutes })}</b> })}</li>
             <li>{s.auto_timecards_from_rota
-              ? <>If someone on the rota doesn't clock in, their timecard is <b>filled from the rota overnight</b> and marked for a manager to check.</>
-              : <>Missing clock-ins are <b>not</b> filled in automatically; the manager adds them by hand.</>}</li>
-            <li>Clocking in from your phone is <b>{s.phone_clock_in === 'off' ? 'off: use the café tablet' : s.phone_clock_in === 'near_cafe' ? 'allowed near the café' : 'allowed'}</b>.</li>
-            <li>Shifts over <b>{s.break_after_hours} hours</b> need a break of at least <b>{s.min_break_minutes} minutes</b>.</li>
-            <li>Holiday allowance: <b>{s.vacation_days_per_year} calendar days a year</b>. Request it under Time off.</li>
-            <li>Limits: <b>{s.max_daily_hours}h a day</b>, <b>{s.max_weekly_hours}h a week</b>, and <b>{s.min_rest_hours}h rest</b> between shifts.</li>
+              ? tr("If someone on the rota doesn't clock in, their timecard is {filled} and marked for a manager to check.", { filled: <b>{t('filled from the rota overnight')}</b> })
+              : tr('Missing clock-ins are {not} filled in automatically; the manager adds them by hand.', { not: <b>{t('not')}</b> })}</li>
+            <li>{tr('Clocking in from your phone is {how}.', { how: <b>{s.phone_clock_in === 'off' ? t('off: use the café tablet') : s.phone_clock_in === 'near_cafe' ? t('allowed near the café') : t('allowed')}</b> })}</li>
+            <li>{tr('Shifts over {hours} need a break of at least {minutes}.', { hours: <b>{t('{n} hours', { n: s.break_after_hours })}</b>, minutes: <b>{t('{n} minutes', { n: s.min_break_minutes })}</b> })}</li>
+            <li>{tr('Holiday allowance: {days}. Request it under Time off.', { days: <b>{t('{n} calendar days a year', { n: s.vacation_days_per_year })}</b> })}</li>
+            <li>{tr('Limits: {daily}, {weekly}, and {rest} between shifts.', { daily: <b>{t('{n}h a day', { n: s.max_daily_hours })}</b>, weekly: <b>{t('{n}h a week', { n: s.max_weekly_hours })}</b>, rest: <b>{t('{n}h rest', { n: s.min_rest_hours })}</b> })}</li>
           </Box>
           <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1 }}>
-            Spanish defaults (Estatuto de los Trabajadores). Your convenio can be stricter; check with the gestor.
+            {t('Spanish defaults (Estatuto de los Trabajadores). Your convenio can be stricter; check with the gestor.')}
           </Typography>
         </Collapse>
       </CardContent>
@@ -58,11 +59,11 @@ function RulesEditDialog({ onClose, onSave, children }: { onClose: () => void; o
   const run = useAction()
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle>Clock-in rules</DialogTitle>
+      <DialogTitle>{t('Clock-in rules')}</DialogTitle>
       <DialogContent><Stack spacing={2} sx={{ pt: 1 }}>{children}</Stack></DialogContent>
       <DialogActions sx={{ px: 3, pb: 2.5 }}>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button variant="contained" onClick={async () => { if (await run(onSave, 'Saved')) onClose() }}>Save</Button>
+        <Button onClick={onClose}>{t('Cancel')}</Button>
+        <Button variant="contained" onClick={async () => { if (await run(onSave, t('Saved'))) onClose() }}>{t('Save')}</Button>
       </DialogActions>
     </Dialog>
   )
@@ -77,32 +78,32 @@ function RulesDialog({ onClose }: { onClose: () => void }) {
   )
   return (
     <RulesEditDialog onClose={onClose} onSave={async () => { await api.updateSettings(s); await refresh() }}>
-      {num('early_clock_in_minutes', 'Earliest clock-in before shift', 'min')}
-      <TextField select label="Clock-in without a shift" value={s.unscheduled_clock_in}
+      {num('early_clock_in_minutes', t('Earliest clock-in before shift'), t('min'))}
+      <TextField select label={t('Clock-in without a shift')} value={s.unscheduled_clock_in}
         onChange={e => setS({ ...s, unscheduled_clock_in: e.target.value as Settings['unscheduled_clock_in'] })}>
-        <MenuItem value="flag">Allow, flag on timecard</MenuItem>
-        <MenuItem value="block">Block</MenuItem>
+        <MenuItem value="flag">{t('Allow, flag on timecard')}</MenuItem>
+        <MenuItem value="block">{t('Block')}</MenuItem>
       </TextField>
-      {num('auto_clock_out_minutes', 'Auto clock-out after shift end', 'min')}
-      {num('forgot_clock_out_grace_minutes', 'No shift: close after closing time +', 'min')}
-      <TextField select label="Clock in from phones" value={s.phone_clock_in}
+      {num('auto_clock_out_minutes', t('Auto clock-out after shift end'), t('min'))}
+      {num('forgot_clock_out_grace_minutes', t('No shift: close after closing time +'), t('min'))}
+      <TextField select label={t('Clock in from phones')} value={s.phone_clock_in}
         onChange={e => setS({ ...s, phone_clock_in: e.target.value as Settings['phone_clock_in'] })}>
-        <MenuItem value="anywhere">Allowed</MenuItem>
-        <MenuItem value="near_cafe">Only near the café (coming later)</MenuItem>
-        {(FEATURES.kiosk || s.phone_clock_in === 'off') && <MenuItem value="off">Off: tablet only</MenuItem>}
+        <MenuItem value="anywhere">{t('Allowed')}</MenuItem>
+        <MenuItem value="near_cafe">{t('Only near the café (coming later)')}</MenuItem>
+        {(FEATURES.kiosk || s.phone_clock_in === 'off') && <MenuItem value="off">{t('Off: tablet only')}</MenuItem>}
       </TextField>
       <FormControlLabel control={<Checkbox checked={s.auto_timecards_from_rota}
         onChange={e => setS({ ...s, auto_timecards_from_rota: e.target.checked })} />}
-        label="Fill missing timecards from the rota every night (marked for review)" />
-      <Alert severity="info">Spanish defaults. Check your convenio with the gestor; it can be stricter.</Alert>
+        label={t('Fill missing timecards from the rota every night (marked for review)')} />
+      <Alert severity="info">{t('Spanish defaults. Check your convenio with the gestor; it can be stricter.')}</Alert>
       <Grid container spacing={2}>
-        <Grid size={12}>{num('break_after_hours', 'Break needed after', 'h')}</Grid>
-        <Grid size={12}>{num('min_break_minutes', 'Minimum break', 'min')}</Grid>
-        <Grid size={12}>{num('max_daily_hours', 'Max per day', 'h')}</Grid>
-        <Grid size={12}>{num('max_weekly_hours', 'Max per week', 'h')}</Grid>
-        <Grid size={12}>{num('min_rest_hours', 'Rest between shifts', 'h')}</Grid>
-        <Grid size={12}>{num('employer_cost_multiplier', 'Employer cost', '×')}</Grid>
-        <Grid size={12}>{num('vacation_days_per_year', 'Holiday per year', 'days')}</Grid>
+        <Grid size={12}>{num('break_after_hours', t('Break needed after'), t('h'))}</Grid>
+        <Grid size={12}>{num('min_break_minutes', t('Minimum break'), t('min'))}</Grid>
+        <Grid size={12}>{num('max_daily_hours', t('Max per day'), t('h'))}</Grid>
+        <Grid size={12}>{num('max_weekly_hours', t('Max per week'), t('h'))}</Grid>
+        <Grid size={12}>{num('min_rest_hours', t('Rest between shifts'), t('h'))}</Grid>
+        <Grid size={12}>{num('employer_cost_multiplier', t('Employer cost'), '×')}</Grid>
+        <Grid size={12}>{num('vacation_days_per_year', t('Holiday per year'), t('days'))}</Grid>
       </Grid>
     </RulesEditDialog>
   )

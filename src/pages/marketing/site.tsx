@@ -3,6 +3,8 @@ import { Box, Button, Container, Link, Stack, Typography } from '@mui/material'
 import type { ReactNode } from 'react'
 import iconUrl from '../../assets/icon.png'
 import { ENTERPRISE } from '../../../shared/plans'
+import { t } from '../../i18n'
+import { LanguageToggle } from '../../components/Language'
 
 // Business Agent: the product. Signed-out visitors see its own look (not any one business's
 // brand); once someone signs in, they see their business's branded app. The palette is natural
@@ -44,7 +46,7 @@ export function Wordmark({ size = '1.6rem', light }: { size?: string; light?: bo
   return (
     <Typography component="span" sx={{ fontFamily: display, fontWeight: 500, fontSize: size, letterSpacing: '-0.01em', lineHeight: 1,
       color: light ? '#fff' : BA.ink, whiteSpace: 'nowrap' }}>
-      Business <Box component="em" sx={{ fontStyle: 'italic', color: light ? BA.rose : BA.roseDeep }}>Agent</Box>
+      {'Business '}<Box component="em" sx={{ fontStyle: 'italic', color: light ? BA.rose : BA.roseDeep }}>{'Agent'}</Box>
     </Typography>
   )
 }
@@ -93,21 +95,23 @@ function SiteHeader() {
     <Box component="header" sx={{ position: 'sticky', top: 0, zIndex: 10, bgcolor: 'rgba(251,248,244,0.84)',
       backdropFilter: 'saturate(160%) blur(14px)', borderBottom: `1px solid ${BA.lineSoft}` }}>
       <Container maxWidth="lg" sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1.5, md: 4 }, py: 1.5 }}>
-        <Stack component={RouterLink} to="/" direction="row" spacing={1.25} aria-label="Business Agent home"
+        <Stack component={RouterLink} to="/" direction="row" spacing={1.25} aria-label={t('Business Agent home')}
           sx={{ alignItems: 'center', color: 'inherit', textDecoration: 'none' }}>
           <AgentMark size={34} />
           <Wordmark size="1.55rem" />
         </Stack>
-        <Stack component="nav" aria-label="Site" direction="row" spacing={3.5} sx={{ display: { xs: 'none', md: 'flex' }, flex: 1, justifyContent: 'center' }}>
-          <Link component={RouterLink} to="/#features" sx={navLink}>Features</Link>
-          <Link component={RouterLink} to="/pricing" sx={navLink}>Pricing</Link>
-          <Link component={RouterLink} to="/pricing#enterprise" sx={navLink}>Enterprise</Link>
-          <Link component={RouterLink} to="/compare" sx={navLink}>Compare</Link>
-          <Link component={RouterLink} to="/#faq" sx={navLink}>FAQ</Link>
+        <Stack component="nav" aria-label={t('Site')} direction="row" spacing={3.5} sx={{ display: { xs: 'none', md: 'flex' }, flex: 1, justifyContent: 'center' }}>
+          <Link component={RouterLink} to="/#features" sx={navLink}>{t('Features')}</Link>
+          <Link component={RouterLink} to="/pricing" sx={navLink}>{t('Pricing')}</Link>
+          <Link component={RouterLink} to="/pricing#enterprise" sx={navLink}>{ENTERPRISE.name}</Link>
+          <Link component={RouterLink} to="/compare" sx={navLink}>{t('Compare')}</Link>
+          <Link component={RouterLink} to="/#faq" sx={navLink}>{t('FAQ')}</Link>
         </Stack>
         <Box sx={{ flex: { xs: 1, md: 0 } }} />
-        <Link component={RouterLink} to="/#account" sx={{ ...navLink, display: { xs: 'none', sm: 'inline' }, whiteSpace: 'nowrap' }}>Log in</Link>
-        <Button component={RouterLink} to="/#start" variant="contained" sx={{ ...primaryBtn, whiteSpace: 'nowrap', px: 2.25 }}>Start free trial</Button>
+        {/* No room on a phone: the flags are in the footer there. */}
+        <Box sx={{ display: { xs: 'none', sm: 'block' } }}><LanguageToggle always /></Box>
+        <Link component={RouterLink} to="/#account" sx={{ ...navLink, display: { xs: 'none', sm: 'inline' }, whiteSpace: 'nowrap' }}>{t('Log in')}</Link>
+        <Button component={RouterLink} to="/#start" variant="contained" sx={{ ...primaryBtn, whiteSpace: 'nowrap', px: 2.25 }}>{t('Start free trial')}</Button>
       </Container>
     </Box>
   )
@@ -133,16 +137,17 @@ function SiteFooter() {
             <Wordmark size="1.45rem" />
           </Stack>
           <Typography variant="body2" sx={{ color: BA.soft, maxWidth: 300, lineHeight: 1.7 }}>
-            The team app for cafés, shops and small businesses. Made in Marbella, data stored in the EU.
+            {t('The team app for cafés, shops and small businesses. Made in Marbella, data stored in the EU.')}
           </Typography>
+          <Box><LanguageToggle always /></Box>
         </Stack>
-        {col('Product', [['Features', '/#features'], ['Pricing', '/pricing'], ['Enterprise', '/pricing#enterprise'], ['Compare with Square', '/compare'], ['Compare with GoHighLevel', '/compare?vs=gohighlevel']])}
-        {col('Account', [['Log in', '/#account'], ['Start free trial', '/#start']])}
-        {col('Contact', [[CONTACT.hello, `mailto:${CONTACT.hello}`], [CONTACT.sales, `mailto:${CONTACT.sales}`], [CONTACT.support, `mailto:${CONTACT.support}`]])}
-        {col('Legal', [['Privacy policy', '/privacy'], ['Terms of service', '/terms']])}
+        {col(t('Product'), [[t('Features'), '/#features'], [t('Pricing'), '/pricing'], [ENTERPRISE.name, '/pricing#enterprise'], [t('Compare with Square'), '/compare'], [t('Compare with GoHighLevel'), '/compare?vs=gohighlevel']])}
+        {col(t('Account'), [[t('Log in'), '/#account'], [t('Start free trial'), '/#start']])}
+        {col(t('Contact'), [[CONTACT.hello, `mailto:${CONTACT.hello}`], [CONTACT.sales, `mailto:${CONTACT.sales}`], [CONTACT.support, `mailto:${CONTACT.support}`]])}
+        {col(t('Legal'), [[t('Privacy policy'), '/privacy'], [t('Terms of service'), '/terms']])}
       </Container>
       <Container maxWidth="lg" sx={{ py: 2.5, borderTop: `1px solid ${BA.line}` }}>
-        <Typography variant="caption" sx={{ color: BA.faint }}>© {new Date().getFullYear()} Business Agent. All rights reserved.</Typography>
+        <Typography variant="caption" sx={{ color: BA.faint }}>{t('© {year} Business Agent. All rights reserved.', { year: new Date().getFullYear() })}</Typography>
       </Container>
     </Box>
   )

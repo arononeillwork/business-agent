@@ -43,10 +43,15 @@ select pg_temp.expect_error($q$select public.grant_complimentary('cousin')$q$, '
 
 -- 2. Free: limits on people, social accounts, posts and paid apps --------------------------
 update public.billing set plan = 'free', status = 'none';
-update public.integrations set status = 'disconnected' where provider in ('instagram', 'facebook', 'tiktok', 'whatsapp');
+update public.integrations set status = 'disconnected' where provider in ('instagram', 'facebook', 'tiktok', 'linkedin', 'whatsapp', 'sumup');
 select pg_temp.expect_error($q$update public.integrations set status = 'connected' where provider = 'whatsapp'$q$, 'Pro plan');
+select pg_temp.expect_error($q$update public.integrations set status = 'connected' where provider = 'sumup'$q$, 'Pro plan');
 update public.integrations set status = 'connected' where provider = 'instagram';
 select pg_temp.expect_error($q$update public.integrations set status = 'connected' where provider = 'facebook'$q$, '1 social account');
+select pg_temp.expect_error($q$update public.integrations set status = 'connected' where provider = 'linkedin'$q$, '1 social account');
+do $$ begin
+  assert (public.plan_status() -> 'usage' ->> 'social_accounts')::int = 1, 'LinkedIn counts as a social account';
+end $$;
 -- Already connected: saving it again is fine.
 update public.integrations set status = 'connected', account_label = 'cafe' where provider = 'instagram';
 

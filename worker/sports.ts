@@ -1,4 +1,4 @@
-// Keeps sports_events fresh: each followed competition is refreshed every 6 hours from its free
+// Keeps sports_events fresh (football, rugby, UFC and boxing): each followed competition is refreshed every 6 hours from its free
 // source, a couple per cron minute. TheSportsDB's free key is shared and answers 429 when called
 // quickly, so its calls are spaced out and only one of its competitions is done per run.
 // Past events are dropped two days after.
@@ -10,7 +10,8 @@ import {
 import { addDays, today } from '../shared/time'
 import { COUNTRY_FLAGS, findCrest, flagUrl, searchNamesFor, type TsdbTeam } from '../shared/crests'
 
-const TSDB = 'https://www.thesportsdb.com/api/v1/json/3'
+// The free test key (the old "3" was switched off by TheSportsDB).
+const TSDB = 'https://www.thesportsdb.com/api/v1/json/123'
 const STALE_HOURS = 6
 const ROUNDS_AHEAD = 4
 const FIGHT_DAYS = 8
@@ -68,7 +69,7 @@ export async function fetchCompetition(c: SportsCompetition, day = today()): Pro
   const raw = new Map(next.map(e => [e.idEvent, e]))
   const first = next[0]
   const round = Number(first?.intRound)
-  if (c.sport === 'football' && first && round > 0 && round < 100) {
+  if ((c.sport === 'football' || c.sport === 'rugby') && first && round > 0 && round < 100) {
     const season = first.strSeason || seasonFor(c.season_style, day)
     for (let r = round; r < round + ROUNDS_AHEAD; r++) {
       const res = await tsdb<{ events: SportsDbEvent[] | null }>(`eventsround.php?id=${c.source_id}&r=${r}&s=${season}`)
@@ -76,7 +77,7 @@ export async function fetchCompetition(c: SportsCompetition, day = today()): Pro
     }
   }
   // Fights: the day listing (league filter) for the next eight days.
-  if (c.sport !== 'football') {
+  if (c.kind === 'fight') {
     for (let d = 0; d < FIGHT_DAYS; d++) {
       const res = await tsdb<{ events: SportsDbEvent[] | null }>(`eventsday.php?d=${addDays(day, d)}&l=${c.source_id}`)
       for (const e of res.events ?? []) raw.set(e.idEvent, e)

@@ -172,10 +172,11 @@ test.describe('admin', () => {
     const pages: { link: string; path: string; check: (p: Page) => Promise<void> }[] = [
       { link: 'Business', path: '/business', check: p => expect(p.getByRole('heading', { level: 1, name: business.name })).toBeVisible(NET) },
       { link: 'Home: Today', path: '/', check: p => expect(p.getByRole('heading', { name: 'Hola, Ana' })).toBeVisible(NET) },
-      ...['To Do List', 'Rota', 'Time off', 'Timecards', 'Team', 'Opening hours', 'Brand', 'Calendar', 'Sports', 'Music', 'Messages', 'Finances', 'Alerts', 'Connections', 'My account', 'Appearance'].map(name => ({
+      ...['Customers', 'Reps & rewards', 'To Do List', 'Rota', 'Time off', 'Staff kitty', 'Timecards', 'Team', 'Roles & responsibilities', 'Staff rules', 'Opening hours', 'Brand', 'Ads', 'Analytics', 'Calendar', 'Sports', 'Music', 'Messages', 'Finances', 'Notifications', 'Connections'].map(name => ({
         link: name,
-        path: { 'Time off': '/time-off', 'My account': '/account', 'Opening hours': '/opening-hours', 'To Do List': '/todo' }[name] ?? `/${name.toLowerCase()}`,
-        check: (p: Page) => expect(p.getByRole('heading', { level: 1, name: { Connections: 'Business connections' }[name] ?? name, exact: true })).toBeVisible(NET),
+        path: { 'Time off': '/time-off', 'Opening hours': '/opening-hours', 'To Do List': '/todo', 'Roles & responsibilities': '/roles', 'Staff rules': '/rules',
+          'Reps & rewards': '/sales-reps', 'Staff kitty': '/kitty' }[name] ?? `/${name.toLowerCase()}`,
+        check: (p: Page) => expect(p.getByRole('heading', { level: 1, name: { Connections: 'Business connections', 'Reps & rewards': 'Sales reps & rewards' }[name] ?? name, exact: true })).toBeVisible(NET),
       })),
     ]
     for (const { link, path, check } of pages) {
@@ -184,6 +185,16 @@ test.describe('admin', () => {
         await expect(page).toHaveURL(url => new URL(url).pathname === path, NET)
         await check(page)
         await expectNoErrorShown(page, link)
+      })
+    }
+    // Your own pages open from the account menu (your name at the bottom left), not the sidebar.
+    for (const [item, path] of [['My account', '/account'], ['Appearance', '/appearance']] as const) {
+      await test.step(item, async () => {
+        await page.getByRole('button', { name: /^Account menu/ }).first().click()
+        await page.getByRole('menuitem', { name: item }).click()
+        await expect(page).toHaveURL(url => new URL(url).pathname === path, NET)
+        await expect(page.getByRole('heading', { level: 1, name: item, exact: true })).toBeVisible(NET)
+        await expectNoErrorShown(page, item)
       })
     }
     if (FEATURES.kiosk) await test.step('Café tablet', async () => {
@@ -202,7 +213,8 @@ test.describe('admin', () => {
     try {
       const contact = page.getByRole('region', { name: 'Contact' })
       await contact.getByRole('button', { name: 'Edit', exact: true }).click()
-      await contact.getByRole('textbox', { name: 'Phone', exact: true }).fill(phone)
+      // The +34 is picked from the country list (Spain by default); the rest is typed.
+      await contact.getByRole('textbox', { name: 'Phone', exact: true }).fill(phone.replace(/^\+34 /, ''))
       await contact.getByRole('button', { name: 'Save' }).click()
       await toast(page, /^Saved$/)
       await expect(page.getByText(phone)).toBeVisible(NET)
@@ -296,9 +308,12 @@ test.describe('admin', () => {
   })
 
   test('switches an alert off and back on', async ({ page }) => {
+    // Sign-in, two saves each waiting on its toast, and the last check's wait for the page to go quiet
+    // (up to 10 s while a live connection stays open) together ran past 30 s on a slow day.
+    test.setTimeout(60_000)
     await signIn(page, 'admin')
-    await nav(page).getByRole('link', { name: 'Alerts', exact: true }).click()
-    await expect(page.getByRole('heading', { name: 'Alerts', exact: true })).toBeVisible(NET)
+    await nav(page).getByRole('link', { name: 'Notifications', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'Notifications', exact: true })).toBeVisible(NET)
     const reminders = page.getByRole('switch', { name: 'Shift reminders' }).or(page.getByLabel('Shift reminders'))
     await expect(reminders).toBeVisible(NET)
     const was = await reminders.isChecked()
@@ -314,7 +329,7 @@ test.describe('admin', () => {
     }
     const { data } = await service(cfg).from('settings').select('alert_shift_reminders').eq('id', 1).single()
     expect(data?.alert_shift_reminders).toBe(shiftReminders)
-    await expectNoErrorShown(page, 'Alerts')
+    await expectNoErrorShown(page, 'Notifications')
   })
 
   test('partners (and the café tablet, when off) have no menu item, and their pages send admins home', async ({ page }) => {
@@ -390,10 +405,10 @@ test.describe('employee', () => {
   test('has no admin or money pages in the menu, and /finances shows no expenses', async ({ page }) => {
     await signIn(page, 'employee')
     await expect(page.getByRole('heading', { name: 'Hola, Eva' })).toBeVisible(NET)
-    for (const name of ['Business', 'Home: Today', 'Rota', 'Time off', 'Timecards', 'Calendar', 'Team', 'My account']) {
+    for (const name of ['Business', 'Home: Today', 'Rota', 'Time off', 'Timecards', 'Calendar', 'Team', 'Staff kitty', 'Reps & rewards']) {
       await expect.soft(nav(page).getByRole('link', { name, exact: true })).toBeVisible()
     }
-    for (const name of ['Finances', 'Alerts', 'Connections', 'Partners', 'Café tablet']) {
+    for (const name of ['Finances', 'Connections', 'Partners', 'Café tablet']) {
       await expect.soft(nav(page).getByRole('link', { name, exact: true })).toHaveCount(0)
     }
     await expectNoErrorShown(page, 'Today')
@@ -403,10 +418,19 @@ test.describe('employee', () => {
     await expect(page.getByText('only visible to admins')).toBeVisible(NET)
     await expect(page.getByText(PARTNER_EXPENSE)).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Add expense' })).toHaveCount(0)
-    for (const path of ['/alerts', '/connections', '/partners']) {
+    for (const path of ['/connections', '/partners']) {
       await page.goto(path)
       await expect(page).toHaveURL(url => new URL(url).pathname === '/', NET)
     }
+    // The staff kitty is everyone's to see; putting money in and buying are the admins'.
+    await page.goto('/kitty')
+    await expect(page.getByRole('heading', { name: 'Staff kitty', exact: true })).toBeVisible(NET)
+    await expect(page.getByRole('region', { name: 'Saving up for' })).toBeVisible(NET)
+    await expect(page.getByRole('button', { name: 'Put money in' })).toHaveCount(0)
+    // Notifications is everyone's, but the team alert switches are for admins.
+    await page.goto('/notifications')
+    await expect(page.getByRole('heading', { name: 'Notifications', exact: true })).toBeVisible(NET)
+    await expect(page.getByLabel('Shift reminders')).toHaveCount(0)
   })
 
   test('clocks in and out on Today', async ({ page }) => {
@@ -456,22 +480,25 @@ test.describe('employee', () => {
 // Partner (outside business, read-only payroll + finances)
 // ---------------------------------------------------------------------------------------------
 test.describe('partner', () => {
-  test('lands on Business and only sees Business, Rota, Timecards, Finances and My account', async ({ page }) => {
+  test('lands on Business and only sees Business, Rota, Timecards and Finances, with My account in the account menu', async ({ page }) => {
     await signInUi(page, PARTNER.email)
     await expect(page).toHaveURL(url => new URL(url).pathname === '/business', NET)
     await expect(page.getByRole('heading', { level: 1, name: business.name })).toBeVisible(NET)
     await expect(page.getByRole('button', { name: 'Edit' })).toHaveCount(0)
-    for (const name of ['Business', 'Rota', 'Timecards', 'Finances', 'My account']) {
+    for (const name of ['Business', 'Rota', 'Timecards', 'Finances']) {
       await expect.soft(nav(page).getByRole('link', { name, exact: true })).toBeVisible()
     }
-    for (const name of ['Today', 'Time off', 'Calendar', 'Team', 'Partners', 'Alerts', 'Connections', 'Café tablet']) {
+    for (const name of ['Today', 'Time off', 'Calendar', 'Team', 'Partners', 'Notifications', 'Connections', 'Café tablet']) {
       await expect.soft(nav(page).getByRole('link', { name, exact: true })).toHaveCount(0)
     }
     await expectNoErrorShown(page, 'Business (partner)')
 
     for (const [link, path] of [['Rota', '/rota'], ['Timecards', '/timecards'], ['My account', '/account']] as const) {
       await test.step(link, async () => {
-        await nav(page).getByRole('link', { name: link, exact: true }).click()
+        if (link === 'My account') {
+          await page.getByRole('button', { name: /^Account menu/ }).first().click()
+          await page.getByRole('menuitem', { name: link }).click()
+        } else await nav(page).getByRole('link', { name: link, exact: true }).click()
         await expect(page).toHaveURL(url => new URL(url).pathname === path, NET)
         await expect(page.getByRole('heading', { level: 1, name: link, exact: true })).toBeVisible(NET)
         if (link === 'Rota') await expect(page.getByRole('button', { name: 'Add shift' })).toHaveCount(0)

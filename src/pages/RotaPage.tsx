@@ -17,6 +17,7 @@ import {
   addDays, formatDuration, formatLocal, formatMoney, localDate, localTime, today, weekDates, weekStart, zonedIso,
 } from '../../shared/time'
 import type { Shift } from '../../shared/types'
+import { t, tn, tr, tc } from '../i18n'
 
 const OPEN = '__open__'
 
@@ -124,7 +125,7 @@ export function RotaPage() {
       <Box role={clickable ? 'button' : undefined} tabIndex={clickable ? 0 : undefined}
         onKeyDown={e => { if (clickable && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); (e.currentTarget as HTMLElement).click() } }}
         onClick={e => { e.stopPropagation(); if (isAdmin) openDraft(s.profile_id, localDate(s.starts_at), s)
-          else if (!s.profile_id && !isPartner) run(async () => { await api.takeOpenShift(s.id); await data.reload() }, 'Shift is yours') }}
+          else if (!s.profile_id && !isPartner) run(async () => { await api.takeOpenShift(s.id); await data.reload() }, t('Shift is yours')) }}
         sx={{
           position: 'relative', borderRadius: '10px', pl: 1.25, pr: 0.75, py: 0.6, mb: 0.6, cursor: clickable ? 'pointer' : 'default',
           bgcolor: s.profile_id ? `${colour}1F` : 'transparent', border: s.profile_id ? '1px solid transparent' : `1px dashed ${colour}`,
@@ -139,25 +140,25 @@ export function RotaPage() {
             {localTime(s.starts_at)}–{localTime(s.ends_at)}
           </Typography>
           {warnings.length > 0 && (
-            <Tooltip title={<>{warnings.map(w => <div key={w.code}>• {w.message}</div>)}</>} arrow>
-              <WarningIcon sx={{ fontSize: 16, color: serious ? tokens.warning : tokens.inkFaint }} aria-label={`${warnings.length} warning${warnings.length > 1 ? 's' : ''}`} />
+            <Tooltip title={<>{warnings.map(w => <div key={w.code}>• {t(w.text, w.vars)}</div>)}</>} arrow>
+              <WarningIcon sx={{ fontSize: 16, color: serious ? tokens.warning : tokens.inkFaint }} aria-label={tn(warnings.length, '{n} warning', '{n} warnings')} />
             </Tooltip>
           )}
         </Stack>
         <Typography variant="caption" component="div" sx={{ color: 'text.secondary', lineHeight: 1.3, pl: 0.5 }} noWrap>
-          {pos?.name}{s.break_minutes ? ` · ${s.break_minutes}m break` : ''}{mine ? ' · You' : ''}
+          {pos?.name}{s.break_minutes ? ` · ${t('{n}m break', { n: s.break_minutes })}` : ''}{mine ? ` · ${t('You')}` : ''}
         </Typography>
-        {!s.profile_id && !isAdmin && !isPartner && <Typography variant="caption" sx={{ color: tokens.roseDeep, fontWeight: 500, pl: 0.5 }}>Tap to take</Typography>}
+        {!s.profile_id && !isAdmin && !isPartner && <Typography variant="caption" sx={{ color: tokens.roseDeep, fontWeight: 500, pl: 0.5 }}>{t('Tap to take')}</Typography>}
         {s.note && <Typography variant="caption" component="div" sx={{ fontStyle: 'italic', color: 'text.secondary', pl: 0.5 }} noWrap>{s.note}</Typography>}
       </Box>
     )
   }
 
   const rows: { id: string | null; name: string; colour: string }[] = [
-    { id: null, name: 'Open shifts', colour: '#B5ADA6' },
+    { id: null, name: t('Open shifts'), colour: '#B5ADA6' },
     ...people.map(p => ({ id: p.id, name: p.full_name, colour: p.colour })),
   ]
-  const onLeave = (pid: string | null, date: string) => !!pid && (data.data?.timeOff ?? []).some(t => t.profile_id === pid && t.status === 'approved' && date >= t.starts_on && date <= t.ends_on)
+  const onLeave = (pid: string | null, date: string) => !!pid && (data.data?.timeOff ?? []).some(x => x.profile_id === pid && x.status === 'approved' && date >= x.starts_on && date <= x.ends_on)
 
   const NAME_W = 190
   const line = `1px solid ${tokens.line}`
@@ -181,19 +182,19 @@ export function RotaPage() {
             <Typography sx={{ fontWeight: 500, fontSize: '1.05rem', fontVariantNumeric: 'tabular-nums' }}>{formatLocal(`${date}T12:00:00Z`, 'd')}</Typography>
           </Box>
           <Typography sx={{ fontSize: '0.72rem', fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase', color: isToday ? tokens.roseDeep : 'text.secondary' }}>
-            {formatLocal(`${date}T12:00:00Z`, 'EEE')}{isToday ? ' · Today' : ''}
+            {formatLocal(`${date}T12:00:00Z`, 'EEE')}{isToday ? ` · ${t('Today')}` : ''}
           </Typography>
         </Stack>
         <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', lineHeight: 1.35, mt: 0.5 }}>
-          {open ? `${open.open}–${open.close}` : 'Closed'}
+          {open ? `${open.open}–${open.close}` : t('Closed')}
           <br />{formatDuration(mins(dayShifts.filter(s => s.profile_id)))}{canSeePay ? ` · ${formatMoney(cost(dayShifts))}` : ''}
         </Typography>
         {holiday && <Chip size="small" label={holiday.title} sx={{ mt: 0.75, maxWidth: '100%', bgcolor: tokens.badBg, color: tokens.badFg }} />}
         {coverage.length > 0 && (
           <Tooltip arrow title={<>{coverage.filter(c => c.level !== 'ok').map(c =>
-            <div key={c.from}>{c.from}–{c.to}: {c.staff === 0 ? 'nobody on' : 'only 1 person at peak'}</div>)}
-            {coverage.every(c => c.level === 'ok') && 'Fully covered'}</>}>
-            <Stack direction="row" aria-label="Coverage" sx={{ mt: 1, height: 4, borderRadius: 2, overflow: 'hidden', gap: '2px' }}>
+            <div key={c.from}>{c.from}–{c.to}: {c.staff === 0 ? t('nobody on') : t('only 1 person at peak')}</div>)}
+            {coverage.every(c => c.level === 'ok') && t('Fully covered')}</>}>
+            <Stack direction="row" aria-label={t('Coverage')} sx={{ mt: 1, height: 4, borderRadius: 2, overflow: 'hidden', gap: '2px' }}>
               {coverage.map(c => {
                 const len = (Number(c.to.slice(0, 2)) * 60 + Number(c.to.slice(3))) - (Number(c.from.slice(0, 2)) * 60 + Number(c.from.slice(3)))
                 return <Box key={c.from} sx={{ flex: len, bgcolor: c.level === 'none' ? tokens.danger : c.level === 'thin' ? tokens.warning : tokens.matcha, opacity: 0.85 }} />
@@ -205,7 +206,7 @@ export function RotaPage() {
     )
   }
 
-  const hm = (iso: string) => { const t = localTime(iso); return Number(t.slice(0, 2)) * 60 + Number(t.slice(3)) }
+  const hm = (iso: string) => { const time = localTime(iso); return Number(time.slice(0, 2)) * 60 + Number(time.slice(3)) }
   const DayView = () => {
     const key = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'][Math.max(0, days.indexOf(day))] as 'mon'
     const open = openingHours[key]
@@ -218,36 +219,36 @@ export function RotaPage() {
     const away = people.filter(p => onLeave(p.id, day))
     return (
       <Card sx={{ p: { xs: 1.5, md: 2 } }}>
-        <Stack direction="row" sx={{ gap: 0.75, mb: 2, overflowX: 'auto', pb: 0.5 }} role="tablist" aria-label="Day">
+        <Stack direction="row" sx={{ gap: 0.75, mb: 2, overflowX: 'auto', pb: 0.5 }} role="tablist" aria-label={t('Day')}>
           {days.map(date => (
             <Chip key={date} role="tab" aria-selected={date === day} clickable onClick={() => setDay(date)}
-              label={`${formatLocal(`${date}T12:00:00Z`, 'EEE d')}${date === today() ? ' · today' : ''}`}
+              label={`${formatLocal(`${date}T12:00:00Z`, 'EEE d')}${date === today() ? ` · ${t('today')}` : ''}`}
               variant={date === day ? 'filled' : 'outlined'} color={date === day ? 'primary' : 'default'} />
           ))}
         </Stack>
         <DayHead date={day} compact />
         {open && (
           <Box sx={{ position: 'relative', height: 18, ml: { xs: 0, sm: '150px' }, mb: 0.5 }}>
-            {ticks.map(t => (
-              <Typography key={t} variant="caption" sx={{ position: 'absolute', left: pct(t), transform: 'translateX(-50%)', color: 'text.secondary', fontVariantNumeric: 'tabular-nums' }}>
-                {String(t / 60).padStart(2, '0')}
+            {ticks.map(tick => (
+              <Typography key={tick} variant="caption" sx={{ position: 'absolute', left: pct(tick), transform: 'translateX(-50%)', color: 'text.secondary', fontVariantNumeric: 'tabular-nums' }}>
+                {String(tick / 60).padStart(2, '0')}
               </Typography>
             ))}
           </Box>
         )}
         <Stack spacing={1}>
-          {dayShifts.length === 0 && <Typography sx={{ color: 'text.secondary', py: 2 }}>Nobody on the rota this day.</Typography>}
+          {dayShifts.length === 0 && <Typography sx={{ color: 'text.secondary', py: 2 }}>{t('Nobody on the rota this day.')}</Typography>}
           {dayShifts.map(x => {
             const p = profiles.find(pp => pp.id === x.profile_id)
             const endM = hm(x.ends_at) < hm(x.starts_at) ? 24 * 60 : hm(x.ends_at)
             return (
               <Stack key={x.id} direction={{ xs: 'column', sm: 'row' }} sx={{ gap: { xs: 0.5, sm: 0 }, alignItems: { sm: 'center' } }}>
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center', width: { sm: 150 }, flexShrink: 0 }}>
-                  <PersonAvatar name={p?.full_name ?? 'Open'} colour={p?.colour ?? '#B5ADA6'} size={26} />
-                  <Typography variant="body2" sx={{ fontWeight: 500 }} noWrap>{p?.full_name ?? 'Open shift'}</Typography>
+                  <PersonAvatar name={p?.full_name ?? t('Open')} colour={p?.colour ?? '#B5ADA6'} size={26} />
+                  <Typography variant="body2" sx={{ fontWeight: 500 }} noWrap>{p?.full_name ?? t('Open shift')}</Typography>
                 </Stack>
                 <Box sx={{ position: 'relative', flex: 1, minHeight: 50, borderRadius: '10px', bgcolor: tokens.surfaceAlt,
-                  backgroundImage: ticks.map(t => `linear-gradient(to right, transparent calc(${pct(t)} - 0.5px), ${tokens.line} calc(${pct(t)} - 0.5px), ${tokens.line} calc(${pct(t)} + 0.5px), transparent calc(${pct(t)} + 0.5px))`).join(',') }}>
+                  backgroundImage: ticks.map(tick => `linear-gradient(to right, transparent calc(${pct(tick)} - 0.5px), ${tokens.line} calc(${pct(tick)} - 0.5px), ${tokens.line} calc(${pct(tick)} + 0.5px), transparent calc(${pct(tick)} + 0.5px))`).join(',') }}>
                   <Box sx={{ position: 'absolute', top: 3, left: pct(hm(x.starts_at)), width: `calc(${pct(endM)} - ${pct(hm(x.starts_at))})`, minWidth: 110 }}>
                     <ShiftBlock s={x} />
                   </Box>
@@ -257,38 +258,38 @@ export function RotaPage() {
           })}
         </Stack>
         {away.length > 0 && (
-          <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1.5 }}>Time off: {away.map(p => p.full_name).join(', ')}</Typography>
+          <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1.5 }}>{t('Time off: {names}', { names: away.map(p => p.full_name).join(', ') })}</Typography>
         )}
-        {isAdmin && <Button startIcon={<AddIcon />} sx={{ mt: 1.5 }} onClick={() => openDraft(null, day)}>Add a shift on {formatLocal(`${day}T12:00:00Z`, 'EEEE')}</Button>}
+        {isAdmin && <Button startIcon={<AddIcon />} sx={{ mt: 1.5 }} onClick={() => openDraft(null, day)}>{t('Add a shift on {day}', { day: formatLocal(`${day}T12:00:00Z`, 'EEEE') })}</Button>}
       </Card>
     )
   }
 
   return (
     <>
-      <PageHeader eyebrow="Team" title="Rota"
+      <PageHeader eyebrow={t('Team')} title={t('Rota')}
         actions={isAdmin && <>
           <Button startIcon={<CopyIcon />} variant="outlined" onClick={() => run(async () => {
-            const n = await copyLastWeek(); await data.reload(); if (!n) throw new Error('Nothing new to copy from last week')
-          }, 'Copied last week')}>Copy last week</Button>
+            const n = await copyLastWeek(); await data.reload(); if (!n) throw new Error(t('Nothing new to copy from last week'))
+          }, t('Copied last week'))}>{t('Copy last week')}</Button>
           <Button variant="outlined" onClick={() => run(async () => {
             const n = await api.sendRota(monday)
-            if (!n) throw new Error('Nobody to send to: staff turn on WhatsApp under My account')
-          }, 'Rota sent on WhatsApp')}>Send on WhatsApp</Button>
-          <Button startIcon={<AddIcon />} variant="contained" onClick={() => openDraft(null, view === 'day' ? day : days[0])}>Add shift</Button>
+            if (!n) throw new Error(t('Nobody to send to: staff turn on WhatsApp under My account'))
+          }, t('Rota sent on WhatsApp'))}>{t('Send on WhatsApp')}</Button>
+          <Button startIcon={<AddIcon />} variant="contained" onClick={() => openDraft(null, view === 'day' ? day : days[0])}>{t('Add shift')}</Button>
         </>} />
       <ErrorBox error={data.error} />
 
       {/* Toolbar: week, view, positions */}
       <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center', flexWrap: 'wrap', mb: 2 }}>
         <WeekNav monday={monday} onChange={m => { setMonday(m); setDay(weekDates(m).includes(today()) ? today() : m) }} />
-        <ToggleButtonGroup exclusive size="small" value={view} onChange={(_, v) => v && setView(v)} aria-label="View"
+        <ToggleButtonGroup exclusive size="small" value={view} onChange={(_, v) => v && setView(v)} aria-label={tc('noun', 'View')}
           sx={{ '& .MuiToggleButton-root': { px: 1.75, borderRadius: '999px', textTransform: 'none', fontWeight: 500 }, '& .MuiToggleButtonGroup-grouped:not(:first-of-type)': { ml: 0.5, borderLeft: `1px solid ${tokens.lineStrong}` } }}>
-          <ToggleButton value="week">Week</ToggleButton>
-          <ToggleButton value="day">Day</ToggleButton>
+          <ToggleButton value="week">{t('Week')}</ToggleButton>
+          <ToggleButton value="day">{t('Day')}</ToggleButton>
         </ToggleButtonGroup>
-        <Stack direction="row" sx={{ gap: 0.75, flexWrap: 'wrap' }} role="group" aria-label="Position">
-          {[{ id: 'all' as const, name: 'All', colour: '' }, ...positions].map(p => (
+        <Stack direction="row" sx={{ gap: 0.75, flexWrap: 'wrap' }} role="group" aria-label={t('Position')}>
+          {[{ id: 'all' as const, name: t('All'), colour: '' }, ...positions].map(p => (
             <Chip key={p.id} size="small" clickable label={p.name} onClick={() => setPositionFilter(p.id)} aria-pressed={positionFilter === p.id}
               icon={p.colour ? <Box component="span" sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: p.colour, ml: '8px !important' }} /> : undefined}
               variant={positionFilter === p.id ? 'filled' : 'outlined'} color={positionFilter === p.id ? 'primary' : 'default'} />
@@ -300,13 +301,13 @@ export function RotaPage() {
       <Card sx={{ mb: 2, px: 2, py: 1.25 }}>
         <Stack direction="row" sx={{ gap: { xs: 2, md: 3.5 }, flexWrap: 'wrap', alignItems: 'center' }}>
           {canSeePay || isPartner ? <>
-            <Figure label="Scheduled" value={formatDuration(mins(visible.filter(s => s.profile_id)))} />
-            {canSeePay && <Figure label="Labour cost" value={formatMoney(cost(visible))} note={mult !== 1 ? `incl. ×${mult} employer cost` : undefined} />}
-          </> : <Figure label="Your hours" value={formatDuration(mins(visible.filter(s => s.profile_id === me?.id)))} />}
-          <Figure label="Open shifts" value={String(openCount)} tone={openCount ? 'warn' : 'good'} />
+            <Figure label={t('Scheduled')} value={formatDuration(mins(visible.filter(s => s.profile_id)))} />
+            {canSeePay && <Figure label={t('Labour cost')} value={formatMoney(cost(visible))} note={mult !== 1 ? t('incl. ×{mult} employer cost', { mult }) : undefined} />}
+          </> : <Figure label={t('Your hours')} value={formatDuration(mins(visible.filter(s => s.profile_id === me?.id)))} />}
+          <Figure label={t('Open shifts')} value={String(openCount)} tone={openCount ? 'warn' : 'good'} />
           {isAdmin && <>
-            <Figure label="Warnings" value={String(flagged)} tone={flagged ? 'bad' : 'good'} />
-            <Figure label="Days with gaps" value={String(gapDays)} tone={gapDays ? 'warn' : 'good'} />
+            <Figure label={t('Warnings')} value={String(flagged)} tone={flagged ? 'bad' : 'good'} />
+            <Figure label={t('Days with gaps')} value={String(gapDays)} tone={gapDays ? 'warn' : 'good'} />
           </>}
         </Stack>
       </Card>
@@ -335,19 +336,19 @@ export function RotaPage() {
                         </Typography>
                       </Box>
                     </Stack>
-                    {week?.warnings.map(w => (
-                      <Typography key={w} variant="caption" component="div" sx={{ color: tokens.warning, mt: 0.5, lineHeight: 1.3 }}>⚠ {w}</Typography>
+                    {week?.notes.map(w => (
+                      <Typography key={w.text} variant="caption" component="div" sx={{ color: tokens.warning, mt: 0.5, lineHeight: 1.3 }}>⚠ {t(w.text, w.vars)}</Typography>
                     ))}
                   </Box>,
                   ...days.map(date => (
                     <Box key={`${row.id}-${date}`} onClick={() => isAdmin && openDraft(row.id, date)}
-                      aria-label={isAdmin ? `Add a shift for ${row.name} on ${formatLocal(`${date}T12:00:00Z`, 'EEEE d')}` : undefined}
+                      aria-label={isAdmin ? t('Add a shift for {name} on {day}', { name: row.name, day: formatLocal(`${date}T12:00:00Z`, 'EEEE d') }) : undefined}
                       sx={{ position: 'relative', borderBottom: line, p: 0.75, minHeight: 72, cursor: isAdmin ? 'pointer' : 'default',
                         bgcolor: date === today() ? tokens.today : undefined,
                         '& .add-hint': { opacity: 0 }, '&:hover .add-hint': { opacity: isAdmin ? 1 : 0 } }}>
                       {onLeave(row.id, date) && (
                         <Box sx={{ px: 1, py: 0.6, mb: 0.6, borderRadius: '10px', fontSize: '0.78rem', fontWeight: 500, color: tokens.infoFg, bgcolor: tokens.infoBg }}>
-                          Time off
+                          {t('Time off')}
                         </Box>
                       )}
                       {rowShifts.filter(s => localDate(s.starts_at) === date).map(s => <ShiftBlock key={s.id} s={s} />)}
@@ -368,52 +369,54 @@ export function RotaPage() {
 
       <Stack direction="row" spacing={2} sx={{ mt: 1.5, flexWrap: 'wrap', rowGap: 0.5 }}>
         <Typography variant="caption" color="text.secondary">
-          Coverage line under each day: <Box component="span" sx={{ color: tokens.danger }}>red</Box> = open with nobody on,{' '}
-          <Box component="span" sx={{ color: tokens.warning }}>amber</Box> = one person at the busiest time
+          {tr('Coverage line under each day: {red} = open with nobody on, {amber} = one person at the busiest time', {
+            red: <Box component="span" sx={{ color: tokens.danger }}>{t('red')}</Box>,
+            amber: <Box component="span" sx={{ color: tokens.warning }}>{t('amber')}</Box>,
+          })}
         </Typography>
       </Stack>
 
       <Dialog open={!!draft} onClose={() => setDraft(null)} fullWidth maxWidth="xs">
-        <DialogTitle>{draft?.id ? 'Edit shift' : 'Add shift'}</DialogTitle>
+        <DialogTitle>{draft?.id ? t('Edit shift') : t('Add shift')}</DialogTitle>
         {draft && (
           <DialogContent>
             <Stack spacing={2} sx={{ pt: 1 }}>
-              <TextField select label="Team member" value={draft.profile_id} onChange={e => setDraft({ ...draft, profile_id: e.target.value })}>
-                <MenuItem value={OPEN}>Open shift (anyone can take it)</MenuItem>
+              <TextField select label={t('Team member')} value={draft.profile_id} onChange={e => setDraft({ ...draft, profile_id: e.target.value })}>
+                <MenuItem value={OPEN}>{t('Open shift (anyone can take it)')}</MenuItem>
                 {people.map(p => <MenuItem key={p.id} value={p.id}>{p.full_name}</MenuItem>)}
               </TextField>
-              <TextField select label="Position" value={draft.position_id} onChange={e => setDraft({ ...draft, position_id: Number(e.target.value) })}>
+              <TextField select label={t('Position')} value={draft.position_id} onChange={e => setDraft({ ...draft, position_id: Number(e.target.value) })}>
                 {positions.map(p => <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>)}
               </TextField>
-              <TextField type="date" label="Date" value={draft.date} onChange={e => setDraft({ ...draft, date: e.target.value })}
+              <TextField type="date" label={t('Date')} value={draft.date} onChange={e => setDraft({ ...draft, date: e.target.value })}
                 slotProps={{ inputLabel: { shrink: true } }} />
               <Stack direction="row" spacing={1}>
-                <TextField type="time" label="Start" value={draft.from} onChange={e => setDraft({ ...draft, from: e.target.value })}
+                <TextField type="time" label={t('Start')} value={draft.from} onChange={e => setDraft({ ...draft, from: e.target.value })}
                   slotProps={{ inputLabel: { shrink: true }, htmlInput: { step: 900 } }} />
-                <TextField type="time" label="End" value={draft.to} onChange={e => setDraft({ ...draft, to: e.target.value })}
+                <TextField type="time" label={t('End')} value={draft.to} onChange={e => setDraft({ ...draft, to: e.target.value })}
                   slotProps={{ inputLabel: { shrink: true }, htmlInput: { step: 900 } }} />
               </Stack>
-              <TextField type="number" label="Break (minutes)" value={draft.break_minutes}
+              <TextField type="number" label={t('Break (minutes)')} value={draft.break_minutes}
                 onChange={e => setDraft({ ...draft, break_minutes: Math.max(0, Number(e.target.value)) })} />
-              <TextField label="Note" value={draft.note} onChange={e => setDraft({ ...draft, note: e.target.value })} />
+              <TextField label={t('Note')} value={draft.note} onChange={e => setDraft({ ...draft, note: e.target.value })} />
               {d && (
                 <Typography variant="body2" color="text.secondary">
-                  {formatDuration(shiftPaidMinutes(d))} paid
+                  {t('{duration} paid', { duration: formatDuration(shiftPaidMinutes(d)) })}
                   {canSeePay && d.profile_id && ` · ${formatMoney(shiftPaidMinutes(d) / 60 * rate(d.profile_id) * mult)}`}
                 </Typography>
               )}
-              {draftWarnings.map(w => <Alert key={w.code} severity={w.code === 'holiday' ? 'info' : 'warning'}>{w.message}</Alert>)}
+              {draftWarnings.map(w => <Alert key={w.code} severity={w.code === 'holiday' ? 'info' : 'warning'}>{t(w.text, w.vars)}</Alert>)}
             </Stack>
           </DialogContent>
         )}
         <DialogActions>
           {draft?.id && <Button color="error" sx={{ mr: 'auto' }} onClick={() => run(async () => {
             await api.deleteShift(draft.id!); setDraft(null); await data.reload()
-          }, 'Shift removed')}>Delete</Button>}
-          <Button onClick={() => setDraft(null)}>Cancel</Button>
+          }, t('Shift removed'))}>{t('Delete')}</Button>}
+          <Button onClick={() => setDraft(null)}>{t('Cancel')}</Button>
           <Button variant="contained" onClick={() => draft && run(async () => {
             await api.saveShift(draftShift(draft)); setDraft(null); await data.reload()
-          }, 'Shift saved')}>Save</Button>
+          }, t('Shift saved'))}>{t('Save')}</Button>
         </DialogActions>
       </Dialog>
     </>

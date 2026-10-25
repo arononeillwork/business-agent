@@ -1,11 +1,47 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { SOCIAL_PROVIDERS, type Api, type BillingInfo, type PlanStatus, type SignInMethods, type SocialProvider } from './api'
-import type { ApiKey, AppNotification, Brand, Business, SocialPost, EventAlert, Expense, Integration, MusicPlaylist, OutboxItem, Profile, Settings, TimeEntry, TimeOff, Todo, TodoCategory, CafeTrack, MusicPlayerState } from '../../shared/types'
+import type { ApiKey, AppNotification, Brand, Business, Customer, SocialPost, EventAlert, Expense, Integration, MusicPlaylist, OutboxItem, Profile, Settings, TimeEntry, TimeOff, Todo, TodoCategory, CafeTrack, MusicPlayerState } from '../../shared/types'
+import type { InstagramMention } from '../../shared/mentions'
+import type { FilingRecord, TaxDocument, TaxSettings } from '../../shared/tax'
+import type { Invoice } from '../../shared/invoices'
+import type { Licence } from '../../shared/licences'
+import { DEFAULT_RADIUS, competitorRows, type CompetitorData } from '../../shared/localCompetitors'
+import type { LegalDocument, LegalSource, StorageListing } from '../../shared/legalDocs'
+import type { Benefit, LeaveAllowance } from '../../shared/benefits'
+import type { LoggedReward, RepReward, RewardRule, SalesRep } from '../../shared/reps'
+import type { KittyEntry, KittyGoal } from '../../shared/kitty'
+import type { JobRole } from '../../shared/roles'
+import type { RuleSection, RulesRead } from '../../shared/staffRules'
+import { DEFAULT_VAT_RATE, type PnlLine, type PnlSettings } from '../../shared/pnl'
+import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
+import type { StockItem, StockMovement, Supplier } from '../../shared/stock'
+import type { Recipe } from '../../shared/recipes'
+import type { AdSettings } from '../../shared/ads'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
 import type { ReferralState } from '../../shared/referrals'
 import { readyPhoto } from '../lib/media'
+import { cleanWebsite } from '../../shared/connections'
+import { cleanAnswers, type GrantApplication } from '../../shared/grants'
+import { SOURCE_FOR, type Enquiry } from '../../shared/leads'
+import type { ExpenseClaim } from '../../shared/claims'
+import type { Campaign } from '../../shared/campaigns'
+import type { Applicant, JobOpening } from '../../shared/hiring'
+import type { SafetyCheck, SafetyPoint } from '../../shared/foodSafety'
+import type { MenuAllergens } from '../../shared/allergens'
+import type { TipPool } from '../../shared/tips'
+import { addDays, zonedIso } from '../../shared/time'
 
 const PROFILE_COLUMNS = 'id, full_name, email, role, can_see_pay, colour, active, phone, birth_date, whatsapp_opt_in, partner_company, partner_access, preferences'
+
+const GRANT_APPLICATION_COLUMNS = 'id, grant_id, grant_name, stage, submitted_on, expediente, amount_requested, amount_awarded, amount_received, deadline, deadline_label, notes, docs_done, obligations_done, created_at, updated_at'
+
+const CUSTOMER_COLUMNS = 'id, kind, first_name, last_name, email, phone, company, source, instagram, birthday, tags, notes, marketing_consent, consent_at, last_contacted_at, created_at, updated_at'
+const REP_COLUMNS = 'id, name, kind, profile_id, customer_id, code, instagram, phone, email, notes, active, created_at'
+const REWARD_COLUMNS = 'id, rep_id, kind, rule_id, label, sale_amount, amount, status, proof_url, mention_id, note, occurred_on, logged_by, created_at'
+
+
+/** Postgres numeric can come back as text: a number, or null. */
+const num = (v: unknown) => (v == null ? null : Number(v))
 
 /** Throw the Postgres error message (our SQL functions raise human-readable ones). */
 function check<T>(res: { data: T; error: { message: string } | null }): NonNullable<T> {
@@ -268,7 +304,8 @@ export function createSupabaseApi(url: string, key: string): Api {
     },
 
     async updateBusiness(patch) {
-      check(await sb.from('business').update(patch).eq('id', 1))
+      // A website typed without https:// gets it (the database takes http(s) addresses only).
+      check(await sb.from('business').update('website' in patch ? { ...patch, website: cleanWebsite(patch.website) } : patch).eq('id', 1))
     },
     async updateAdminNotes(notes) {
       check(await sb.from('business_admin_notes').update({ notes }).eq('id', 1))
@@ -320,6 +357,47 @@ export function createSupabaseApi(url: string, key: string): Api {
     async decideTimeOff(id, approve, note, releaseShifts = true) {
       return check(await sb.rpc('decide_time_off', { p_id: id, p_approve: approve, p_note: note ?? null, p_release_shifts: releaseShifts })) as number
     },
+    async recordTimeOff(profileId, startsOn, endsOn, kind, note) {
+      return check(await sb.rpc('record_time_off', { p_profile_id: profileId, p_starts_on: startsOn, p_ends_on: endsOn, p_kind: kind, p_note: note || null })) as number
+    },
+
+    async benefits() {
+      const rows = check(await sb.from('benefits').select('id, law_key, name, amount, details, sort').order('sort').order('created_at')) as Benefit[]
+      return rows.map(b => ({ ...b, amount: b.amount === null ? null : Number(b.amount) }))
+    },
+    async saveBenefit({ id, ...b }) {
+      if (id) check(await sb.from('benefits').update(b).eq('id', id))
+      else check(await sb.from('benefits').insert(b))
+    },
+    async deleteBenefit(id) { check(await sb.from('benefits').delete().eq('id', id)) },
+    async leaveAllowances(year) {
+      const rows = check(await sb.from('leave_allowances').select('profile_id, year, holiday_days, note').eq('year', year)) as LeaveAllowance[]
+      return rows.map(a => ({ ...a, holiday_days: Number(a.holiday_days) }))
+    },
+    async saveLeaveAllowance({ profile_id, year, holiday_days, note }) {
+      if (holiday_days === null) check(await sb.from('leave_allowances').delete().eq('profile_id', profile_id).eq('year', year))
+      else check(await sb.from('leave_allowances').upsert({ profile_id, year, holiday_days, note: note?.trim() || null }))
+    },
+
+    async jobRoles() {
+      return check(await sb.from('job_roles').select('id, name, summary, position_id, reports_to, people, duties, sort, updated_at')
+        .order('sort').order('name')) as JobRole[]
+    },
+    async saveJobRole({ id, ...r }) {
+      if (id) check(await sb.from('job_roles').update(r).eq('id', id))
+      else check(await sb.from('job_roles').insert(r))
+    },
+    async deleteJobRole(id) { check(await sb.from('job_roles').delete().eq('id', id)) },
+    async ruleSections() {
+      return check(await sb.from('staff_rules').select('id, title, intro, rules, sort, updated_at').order('sort').order('title')) as RuleSection[]
+    },
+    async saveRuleSection({ id, ...s }) {
+      if (id) check(await sb.from('staff_rules').update(s).eq('id', id))
+      else check(await sb.from('staff_rules').insert(s))
+    },
+    async deleteRuleSection(id) { check(await sb.from('staff_rules').delete().eq('id', id)) },
+    async rulesRead() { return check(await sb.from('staff_rules_read').select('profile_id, read_at')) as RulesRead[] },
+    async readRules() { check(await sb.rpc('read_staff_rules')) },
 
     signInWith: oauth,
 
@@ -344,17 +422,343 @@ export function createSupabaseApi(url: string, key: string): Api {
     },
     async deleteExpense(id) { check(await sb.from('expenses').delete().eq('id', id)) },
 
+    async licences() {
+      const rows = check(await sb.from('licences').select('*, document:tax_documents(name, link)').order('expires_on', { nullsFirst: false }).order('name')) as Licence[]
+      return rows.map(l => ({ ...l, cost: l.cost === null ? null : Number(l.cost) }))
+    },
+    async saveLicence({ id, ...l }) {
+      const { document: _doc, ...row } = l as typeof l & { document?: unknown }
+      if (id) { check(await sb.from('licences').update(row).eq('id', id)); return id }
+      return (check(await sb.from('licences').insert(row).select('id').single()) as { id: string }).id
+    },
+    async deleteLicence(id) { check(await sb.from('licences').delete().eq('id', id)) },
+
+    async expenseClaims() {
+      const rows = check(await sb.from('expense_claims').select('*, document:tax_documents(name, link)')
+        .order('spent_on', { ascending: false }).order('created_at', { ascending: false })) as ExpenseClaim[]
+      return rows.map(c => ({ ...c, amount: Number(c.amount), km: num(c.km), rate_per_km: num(c.rate_per_km) }))
+    },
+    async saveClaim({ id, ...c }) {
+      const { document: _doc, ...row } = c as typeof c & { document?: unknown }
+      if (id) { check(await sb.from('expense_claims').update(row).eq('id', id)); return id }
+      return (check(await sb.from('expense_claims').insert(row).select('id').single()) as { id: string }).id
+    },
+    async deleteClaim(id) { check(await sb.from('expense_claims').delete().eq('id', id)) },
+    async legalDocuments() {
+      const rows = check(await sb.from('legal_documents').select('*').order('title')) as LegalDocument[]
+      return rows.map(d => ({ ...d, size: d.size === null ? null : Number(d.size) }))
+    },
+    async legalSources() { return (await worker<{ sources: LegalSource[] }>('/api/legal/sources')).sources },
+    legalPicker: () => worker('/api/legal/google/picker'),
+    async browseLegalStorage(storage, folder) {
+      if (storage !== 'onedrive') throw new Error('Google Drive files are chosen in Google’s own picker')
+      return worker<StorageListing>(`/api/legal/onedrive/browse${folder ? `?folder=${encodeURIComponent(folder)}` : ''}`)
+    },
+    addLegalDocuments: (storage, ids) => worker('/api/legal/documents', { method: 'POST', body: JSON.stringify({ storage, ids }) }),
+    async updateLegalDocument(id, patch) { check(await sb.from('legal_documents').update(patch).eq('id', id)) },
+    async removeLegalDocument(id) { check(await sb.from('legal_documents').delete().eq('id', id)) },
+    async legalFile(id) {
+      // Not worker(): the answer is the file itself, not JSON.
+      const token = (await sb.auth.getSession()).data.session?.access_token
+      const res = await fetch(`/api/legal/documents/${encodeURIComponent(id)}/file`, { headers: { authorization: `Bearer ${token}` } })
+      if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? `Request failed (${res.status})`)
+      return res.blob()
+    },
+    async invoices() {
+      const rows = check(await sb.from('invoices').select('*, document:tax_documents(name, link)').order('issued_on', { ascending: false, nullsFirst: true })
+        .order('created_at', { ascending: false })) as (Invoice & { document: { name: string; link: string | null } | null })[]
+      const n = (v: unknown) => (v === null || v === undefined ? null : Number(v))
+      return rows.map(r => ({ ...r, net: n(r.net), vat: n(r.vat), total: n(r.total) }))
+    },
+    async saveInvoice({ id, ...i }) {
+      const { document: _doc, created_at: _at, ...row } = i as typeof i & { document?: unknown; created_at?: unknown }
+      if (id) { check(await sb.from('invoices').update(row).eq('id', id)); return id }
+      return (check(await sb.from('invoices').insert(row).select('id').single()) as { id: string }).id
+    },
+    async deleteInvoice(id) { check(await sb.from('invoices').delete().eq('id', id)) },
+    invoiceInbox: days => worker(`/api/invoices/inbox${days ? `?days=${days}` : ''}`),
+    async importInvoice(m, attachment, supplierId) {
+      const a = m.attachments.find(x => x.id === attachment)!
+      return (await worker<{ invoice: Invoice }>('/api/invoices/import', { method: 'POST', body: JSON.stringify({
+        message: m.id, attachment, name: a.name, at: m.at, from: m.from_name ? `${m.from_name} <${m.from}>` : m.from, from_name: m.from_name, subject: m.subject,
+        supplier_id: supplierId ?? m.supplier_id }) })).invoice
+    },
+    async taxSettings() {
+      return check(await sb.from('tax_settings').select('withholding, rent, intra_eu, instalments, gestor_email').eq('id', 1).single()) as TaxSettings
+    },
+    async saveTaxSettings(patch) { check(await sb.from('tax_settings').update(patch).eq('id', 1)) },
+    async taxFilings(year) {
+      return (check(await sb.from('tax_filings').select('id, model, year, period, status, amount, filed_on, reference, notes').eq('year', year)) as FilingRecord[])
+        .map(r => ({ ...r, amount: r.amount === null ? null : Number(r.amount) }))
+    },
+    async saveTaxFiling({ id: _id, ...r }) {
+      check(await sb.from('tax_filings').upsert(r, { onConflict: 'model,year,period' }))
+    },
+    async taxDocuments(year) {
+      return check(await sb.from('tax_documents').select('*').eq('year', year).order('uploaded_at', { ascending: false })) as TaxDocument[]
+    },
+    async updateTaxDocument(id, patch) { check(await sb.from('tax_documents').update(patch).eq('id', id)) },
+    async removeTaxDocument(id) { check(await sb.from('tax_documents').delete().eq('id', id)) },
+    taxFolders: path => worker(`/api/tax/folders?path=${encodeURIComponent(path.join('/'))}`),
+    async makeTaxFolder(path, name) {
+      return (await worker<{ path: string[] }>('/api/tax/folders', { method: 'POST', body: JSON.stringify({ path, name }) })).path
+    },
+    async uploadTaxDocument(file, m) {
+      const q = new URLSearchParams({ name: m.name, kind: m.kind, year: String(m.year), quarter: m.quarter ? String(m.quarter) : '', folder: m.folder.join('/'), sha256: m.sha256 })
+      return (await worker<{ document: TaxDocument }>(`/api/tax/upload?${q}`, { method: 'POST', body: file, headers: { 'content-type': 'application/octet-stream' } })).document
+    },
+    async pnlSettings() {
+      const { data, error } = await sb.from('pnl_settings').select('vat_rate').eq('id', 1).maybeSingle()
+      if (error) throw new Error(error.message)
+      return { vat_rate: Number((data as PnlSettings | null)?.vat_rate ?? DEFAULT_VAT_RATE) }
+    },
+    async savePnlSettings(patch) { check(await sb.from('pnl_settings').upsert({ id: 1, ...patch })) },
+    async pnlLines(from, to) {
+      const rows = check(await sb.from('pnl_lines').select('id, month, kind, category, label, amount, notes')
+        .gte('month', `${from}-01`).lte('month', `${to}-01`).order('month').order('label')) as PnlLine[]
+      return rows.map(l => ({ ...l, amount: Number(l.amount) }))
+    },
+    async savePnlLine({ id, ...l }) {
+      const row = { month: `${l.month.slice(0, 7)}-01`, kind: l.kind, category: l.category ?? null, label: l.label.trim(), amount: l.amount, notes: l.notes ?? null }
+      if (id) check(await sb.from('pnl_lines').update(row).eq('id', id))
+      else check(await sb.from('pnl_lines').insert(row))
+    },
+    async deletePnlLine(id) { check(await sb.from('pnl_lines').delete().eq('id', id)) },
+    async suppliers() {
+      return (check(await sb.from('suppliers').select('*').order('name')) as Supplier[])
+        .map(s => ({ ...s, cutoff: s.cutoff?.slice(0, 5) ?? null, minimum_order: s.minimum_order === null ? null : Number(s.minimum_order) }))
+    },
+    async saveSupplier({ id, ...s }) {
+      if (id) check(await sb.from('suppliers').update(s).eq('id', id))
+      else check(await sb.from('suppliers').insert(s))
+    },
+    async deleteSupplier(id) { check(await sb.from('suppliers').delete().eq('id', id)) },
+    async stockItems() {
+      const num = (v: unknown) => (v === null || v === undefined ? null : Number(v))
+      return (check(await sb.from('stock_items').select('*').order('name')) as StockItem[]).map(i => ({
+        ...i, on_hand: Number(i.on_hand), order_multiple: Number(i.order_multiple), vat_rate: Number(i.vat_rate), cost_per_unit: num(i.cost_per_unit),
+        sell_price: num(i.sell_price), par_level: num(i.par_level), reorder_at: num(i.reorder_at),
+      }))
+    },
+    async saveStockItem({ id, updated_at: _u, ...i }: Parameters<Api['saveStockItem']>[0] & { updated_at?: string }) {
+      if (id) { const { on_hand: _o, ...rest } = i; check(await sb.from('stock_items').update(rest).eq('id', id)) }
+      else check(await sb.from('stock_items').insert(i))
+    },
+    async deleteStockItem(id) { check(await sb.from('stock_items').delete().eq('id', id)) },
+    async importStockItems(rows) {
+      if (!rows.length) return 0
+      check(await sb.from('stock_items').insert(rows))
+      return rows.length
+    },
+    async stockMovements(itemId) {
+      let q = sb.from('stock_movements').select('*').order('at', { ascending: false }).limit(200)
+      if (itemId) q = q.eq('item_id', itemId)
+      return (check(await q) as StockMovement[]).map(m => ({ ...m, change: Number(m.change), on_hand_after: Number(m.on_hand_after),
+        counted: m.counted === null ? null : Number(m.counted) }))
+    },
+    async recordStock(moves) {
+      if (!moves.length) return
+      // A count only needs the figure; the database works out the change.
+      check(await sb.from('stock_movements').insert(moves.map(m => ({ item_id: m.item_id, reason: m.reason, note: m.note ?? null,
+        ...(m.reason === 'waste' && m.waste_reason ? { waste_reason: m.waste_reason } : {}),
+        ...(m.reason === 'count' ? { counted: m.counted, change: 0 } : { change: m.change }) }))))
+    },
+    async recipes() {
+      type Row = Omit<Recipe, 'variants' | 'lines'> & { recipe_variants: (Recipe['variants'][number] & { sort: number })[]; recipe_lines: (Recipe['lines'][number] & { sort: number })[] }
+      const rows = check(await sb.from('recipes').select('*, recipe_variants(*), recipe_lines(*)').order('name')) as Row[]
+      return rows.map(({ recipe_variants, recipe_lines, ...r }) => ({
+        ...r, sell_price: r.sell_price === null ? null : Number(r.sell_price), vat_rate: Number(r.vat_rate), target_margin: Number(r.target_margin),
+        wastage_pct: Number(r.wastage_pct),
+        variants: [...recipe_variants].sort((a, b) => a.sort - b.sort).map(v => ({ id: v.id, name: v.name, price_change: Number(v.price_change) })),
+        lines: [...recipe_lines].sort((a, b) => a.sort - b.sort).map(l => ({ item_id: l.item_id, quantity: Number(l.quantity), unit: l.unit,
+          variant_id: l.variant_id, replaces_item_id: l.replaces_item_id })),
+      }))
+    },
+    // One call, so a recipe is never left half saved.
+    async saveRecipe(r) { return check(await sb.rpc('save_recipe', { p: r })) as string },
+    async deleteRecipe(id) { check(await sb.from('recipes').delete().eq('id', id)) },
+    async menuAllergens() {
+      const { data, error } = await sb.rpc('menu_allergens')
+      if (error) throw new Error(error.message)
+      // Null for anyone who isn't on the team.
+      return (data as MenuAllergens | null) ?? { dishes: [], items: [] }
+    },
+    async saveItemAllergens(itemId, allergens, mayContain, diet) {
+      check(await sb.from('stock_items').update({ allergens, may_contain: mayContain, diet }).eq('id', itemId))
+    },
+    async safetyPoints() {
+      return (check(await sb.from('food_safety_points').select('*').order('sort').order('name')) as SafetyPoint[])
+        .map(p => ({ ...p, min_temp: num(p.min_temp), max_temp: num(p.max_temp) }))
+    },
+    async saveSafetyPoint({ id, ...p }) {
+      if (id) { check(await sb.from('food_safety_points').update(p).eq('id', id)); return id }
+      return (check(await sb.from('food_safety_points').insert(p).select('id').single()) as { id: string }).id
+    },
+    async deleteSafetyPoint(id) { check(await sb.from('food_safety_points').delete().eq('id', id)) },
+    async safetyChecks(from, to) {
+      return (check(await sb.from('food_safety_checks').select('*')
+        .gte('checked_at', zonedIso(from, '00:00')).lt('checked_at', zonedIso(addDays(to, 1), '00:00')).order('checked_at', { ascending: false })) as SafetyCheck[])
+        .map(c => ({ ...c, reading: num(c.reading) }))
+    },
+    async recordSafetyCheck(c) {
+      check(await sb.from('food_safety_checks').insert({ point_id: c.point_id, reading: c.reading ?? null, action: c.action ?? null, note: c.note ?? null }))
+    },
+
+    async customers() {
+      return check(await sb.from('customers').select(CUSTOMER_COLUMNS).order('created_at', { ascending: false })) as Customer[]
+    },
+    async saveCustomer({ id, ...patch }) {
+      if (id) check(await sb.from('customers').update(patch).eq('id', id))
+      else check(await sb.from('customers').insert(patch))
+    },
+    async deleteCustomer(id) { check(await sb.from('customers').delete().eq('id', id)) },
+
+    async grantProfile() {
+      const { data, error } = await sb.from('grant_profile').select('answers').maybeSingle()
+      if (error) throw new Error(error.message)
+      return cleanAnswers(data?.answers)
+    },
+    async saveGrantProfile(answers) { check(await sb.from('grant_profile').update({ answers: cleanAnswers(answers) }).eq('id', true)) },
+    async grantApplications() {
+      return (check(await sb.from('grant_applications').select(GRANT_APPLICATION_COLUMNS).order('created_at')) as GrantApplication[])
+        .map(a => ({ ...a, amount_requested: num(a.amount_requested), amount_awarded: num(a.amount_awarded), amount_received: num(a.amount_received) }))
+    },
+    async saveGrantApplication({ id, ...patch }) {
+      if (id) { check(await sb.from('grant_applications').update(patch).eq('id', id)); return id }
+      return (check(await sb.from('grant_applications').insert(patch).select('id').single()) as { id: string }).id
+    },
+    async deleteGrantApplication(id) { check(await sb.from('grant_applications').delete().eq('id', id)) },
+    async importCustomers(rows) {
+      // In batches, so a long list doesn't make one huge request. A field a row leaves out takes the column's default.
+      for (let i = 0; i < rows.length; i += 500) check(await sb.from('customers').insert(rows.slice(i, i + 500), { defaultToNull: false }))
+      return rows.length
+    },
+
+    async enquiries() {
+      const rows = check(await sb.from('enquiries').select('*, customer:customers(first_name, last_name, company, email, phone, kind)')
+        .order('received_at', { ascending: false })) as Enquiry[]
+      return rows.map(e => ({ ...e, value: num(e.value) }))
+    },
+    async saveEnquiry({ id, ...e }, lead) {
+      const { customer: _c, closed_at: _closed, ...row } = e as typeof e & { customer?: unknown; closed_at?: unknown }
+      if (id) { check(await sb.from('enquiries').update(row).eq('id', id)); return id }
+      // Someone new: added to Customers as a lead, from where the enquiry came in.
+      const customerId = lead
+        ? (check(await sb.from('customers').insert({ ...lead, kind: 'lead', source: SOURCE_FOR[row.channel ?? 'other'] }).select('id').single()) as { id: string }).id
+        : row.customer_id
+      return (check(await sb.from('enquiries').insert({ ...row, customer_id: customerId }).select('id').single()) as { id: string }).id
+    },
+    async deleteEnquiry(id) { check(await sb.from('enquiries').delete().eq('id', id)) },
+    async campaigns() {
+      return check(await sb.from('campaigns').select('*').order('created_at', { ascending: false })) as Campaign[]
+    },
+    async saveCampaign({ id, ...c }) {
+      if (id) { check(await sb.from('campaigns').update(c).eq('id', id)); return id }
+      return (check(await sb.from('campaigns').insert(c).select('id').single()) as { id: string }).id
+    },
+    async deleteCampaign(id) { check(await sb.from('campaigns').delete().eq('id', id)) },
+    async jobOpenings() {
+      return (check(await sb.from('job_openings').select('*').order('opened_on', { ascending: false })) as JobOpening[])
+        .map(o => ({ ...o, hours_per_week: num(o.hours_per_week) }))
+    },
+    async saveOpening({ id, ...o }) {
+      const { created_at: _at, ...row } = o as typeof o & { created_at?: string }
+      if (id) { check(await sb.from('job_openings').update(row).eq('id', id)); return id }
+      return (check(await sb.from('job_openings').insert(row).select('id').single()) as { id: string }).id
+    },
+    async deleteOpening(id) { check(await sb.from('job_openings').delete().eq('id', id)) },
+    async applicants() {
+      return check(await sb.from('applicants').select('*').order('applied_on', { ascending: false })) as Applicant[]
+    },
+    async saveApplicant({ id, ...a }) {
+      // When their details go is the database's (a year from applying).
+      const { keep_until: _k, ...row } = a
+      if (id) { check(await sb.from('applicants').update(row).eq('id', id)); return id }
+      return (check(await sb.from('applicants').insert(row).select('id').single()) as { id: string }).id
+    },
+    async deleteApplicant(id) { check(await sb.from('applicants').delete().eq('id', id)) },
+    async tipPools() {
+      return (check(await sb.from('tip_pools').select('*, shares:tip_shares(profile_id, minutes, amount)').order('starts_on', { ascending: false })) as TipPool[])
+        .map(p => ({ ...p, cash: Number(p.cash), card: Number(p.card), shares: p.shares.map(s => ({ ...s, amount: Number(s.amount) })) }))
+    },
+    async saveTipPool(pool, shares) {
+      return check(await sb.rpc('save_tip_pool', { p_pool: pool, p_shares: shares })) as string
+    },
+    async deleteTipPool(id) { check(await sb.from('tip_pools').delete().eq('id', id)) },
+    async salesReps() {
+      return check(await sb.from('sales_reps').select(REP_COLUMNS).order('name')) as SalesRep[]
+    },
+    async saveSalesRep({ id, ...r }) {
+      if (id) { check(await sb.from('sales_reps').update(r).eq('id', id)); return id }
+      return (check(await sb.from('sales_reps').insert(r).select('id').single()) as { id: string }).id
+    },
+    async deleteSalesRep(id) { check(await sb.from('sales_reps').delete().eq('id', id)) },
+    async rewardRules() {
+      const rows = check(await sb.from('reward_rules').select('id, name, who, basis, amount, needs_approval, monthly_limit, sort, active').order('sort').order('created_at')) as RewardRule[]
+      return rows.map(r => ({ ...r, amount: Number(r.amount) }))
+    },
+    async saveRewardRule({ id, ...r }) {
+      if (id) check(await sb.from('reward_rules').update(r).eq('id', id))
+      else check(await sb.from('reward_rules').insert(r))
+    },
+    async deleteRewardRule(id) { check(await sb.from('reward_rules').delete().eq('id', id)) },
+    async repRewards() {
+      const rows = check(await sb.from('rep_rewards').select(REWARD_COLUMNS).order('occurred_on', { ascending: false }).order('created_at', { ascending: false }).limit(2000)) as RepReward[]
+      return rows.map(r => ({ ...r, amount: Number(r.amount), sale_amount: r.sale_amount === null ? null : Number(r.sale_amount) }))
+    },
+    async logReward(r) {
+      const out = check(await sb.rpc('log_reward', { p_rep_id: r.rep_id, p_rule_id: r.rule_id, p_sale_amount: r.sale_amount ?? null, p_note: r.note || null,
+        p_proof_url: r.proof_url || null, p_mention_id: r.mention_id ?? null, p_occurred_on: r.occurred_on ?? null })) as LoggedReward
+      return { ...out, amount: Number(out.amount) }
+    },
+    async decideReward(id, approve, amount) {
+      check(await sb.rpc('decide_reward', { p_id: id, p_approve: approve, p_amount: amount ?? null }))
+    },
+    async settleReward(repId, amount, note) {
+      return Number(check(await sb.rpc('settle_reward', { p_rep_id: repId, p_amount: amount, p_note: note || null })))
+    },
+    async deleteReward(id) { check(await sb.from('rep_rewards').delete().eq('id', id)) },
+    async repSettings() {
+      return check(await sb.from('rep_settings').select('welcome_offer').eq('id', 1).single()) as { welcome_offer: string | null }
+    },
+    async updateRepSettings(patch) { check(await sb.from('rep_settings').update(patch).eq('id', 1)) },
+
+    async kittySettings() {
+      const row = check(await sb.from('kitty_settings').select('profit_percent').eq('id', 1).single()) as { profit_percent: number }
+      return { profit_percent: Number(row.profit_percent) }
+    },
+    async updateKittySettings(patch) { check(await sb.from('kitty_settings').update(patch).eq('id', 1)) },
+    async kittyGoals() {
+      const rows = check(await sb.from('kitty_goals').select('id, name, icon, target, due_on, sort, link, notes, spent, bought_on, created_at').order('sort').order('created_at')) as KittyGoal[]
+      return rows.map(g => ({ ...g, target: Number(g.target), spent: g.spent === null ? null : Number(g.spent) }))
+    },
+    async saveKittyGoal({ id, ...g }) {
+      if (id) check(await sb.from('kitty_goals').update(g).eq('id', id))
+      else check(await sb.from('kitty_goals').insert(g))
+    },
+    async deleteKittyGoal(id) { check(await sb.from('kitty_goals').delete().eq('id', id)) },
+    async orderKittyGoals(ids) {
+      for (const [i, id] of ids.entries()) check(await sb.from('kitty_goals').update({ sort: i + 1 }).eq('id', id))
+    },
+    async kittyEntries() {
+      const rows = check(await sb.from('kitty_entries').select('id, kind, month, percent, amount, note, created_at').order('created_at', { ascending: false })) as KittyEntry[]
+      return rows.map(e => ({ ...e, amount: Number(e.amount), percent: e.percent === null ? null : Number(e.percent) }))
+    },
+    async addKittyEntry(e) { check(await sb.from('kitty_entries').insert(e)) },
+    async deleteKittyEntry(id) { check(await sb.from('kitty_entries').delete().eq('id', id)) },
+
     async todos() {
       const [categories, todos] = await Promise.all([
         sb.from('todo_categories').select('id, name, hint, colour, sort').order('sort').order('name'),
-        sb.from('todos').select('id, title, category_id, section, assignee_id, done, done_at, starred, pinned, position, created_at')
+        sb.from('todos').select('id, title, category_id, section, assignee_id, done, status, done_at, starred, pinned, position, created_at')
           .order('position').order('created_at'),
       ])
       return { categories: check(categories) as TodoCategory[], todos: check(todos) as Todo[] }
     },
     async addTodo(t) {
-      return check(await sb.from('todos').insert({ title: t.title.trim(), category_id: t.category_id, position: t.position })
-        .select('id, title, category_id, section, assignee_id, done, done_at, starred, pinned, position, created_at').single()) as Todo
+      return check(await sb.from('todos').insert({ title: t.title.trim(), category_id: t.category_id, position: t.position,
+        ...(t.assignee_id ? { assignee_id: t.assignee_id } : {}), ...(t.status ? { status: t.status } : {}) })
+        .select('id, title, category_id, section, assignee_id, done, status, done_at, starred, pinned, position, created_at').single()) as Todo
     },
     async updateTodo(id, patch) { check(await sb.from('todos').update(patch).eq('id', id)) },
     async deleteTodo(id) { check(await sb.from('todos').delete().eq('id', id)) },
@@ -401,7 +805,21 @@ export function createSupabaseApi(url: string, key: string): Api {
       location.assign(url)
     },
     async chooseFacebookPage(pageId) { await worker('/api/integrations/facebook/page', { method: 'POST', body: JSON.stringify({ page_id: pageId }) }) },
+    async chooseLinkedInPage(pageId) { await worker('/api/integrations/linkedin/page', { method: 'POST', body: JSON.stringify({ page_id: pageId }) }) },
+    async chooseSearchConsoleSite(site) { await worker('/api/integrations/search_console/site', { method: 'POST', body: JSON.stringify({ site }) }) },
+    searchConsole: (from, to) => worker(`/api/integrations/search_console/report?from=${from}&to=${to}`),
     sales: (from, to) => worker(`/api/integrations/payments/sales?from=${from}&to=${to}`),
+    salesItems: (from, to) => worker(`/api/integrations/payments/items?from=${from}&to=${to}`),
+    adsReport: (from, to) => worker(`/api/ads/report?from=${from}&to=${to}`),
+    async setAdCampaign(platform, id, patch) { await worker(`/api/ads/${platform}/campaigns/${encodeURIComponent(id)}`, { method: 'POST', body: JSON.stringify(patch) }) },
+    async chooseAdAccount(platform, id) { await worker(`/api/ads/${platform}/account`, { method: 'POST', body: JSON.stringify({ id }) }) },
+    async adSettings() {
+      const row = check(await sb.from('ad_settings').select('meta_ads_monthly_cap, google_ads_monthly_cap, alert_at_percent').eq('id', 1).single()) as AdSettings
+      // Money columns (numeric) can arrive as text: keep them numbers.
+      return { ...row, meta_ads_monthly_cap: row.meta_ads_monthly_cap === null ? null : Number(row.meta_ads_monthly_cap),
+        google_ads_monthly_cap: row.google_ads_monthly_cap === null ? null : Number(row.google_ads_monthly_cap) }
+    },
+    async saveAdSettings(patch) { check(await sb.from('ad_settings').update(patch).eq('id', 1)) },
     async socialPosts() {
       return check(await sb.from('social_posts').select('id, kind, caption, image_url, media, targets, scheduled_at, auto, status, results, created_at, published_at')
         .order('scheduled_at', { ascending: false, nullsFirst: true }).order('created_at', { ascending: false }).limit(200)) as SocialPost[]
@@ -415,6 +833,14 @@ export function createSupabaseApi(url: string, key: string): Api {
     },
     async deleteSocialPost(id) { check(await sb.from('social_posts').delete().eq('id', id)) },
     async markPosted(id) { check(await sb.from('social_posts').update({ status: 'published' }).eq('id', id)) },
+    loyalty: (from, to) => worker<LoyaltyState>(`/api/loyalty?from=${from}&to=${to}`),
+    async adjustLoyalty(accountId, points, reason, key) {
+      await worker('/api/loyalty/adjust', { method: 'POST', body: JSON.stringify({ account_id: accountId, points, reason, key }) })
+    },
+    giftCards: (from, to) => worker<GiftCards>(`/api/giftcards?from=${from}&to=${to}`),
+    async sellGiftCard(amount, customerId, key) {
+      return (await worker<{ card: GiftCard }>('/api/giftcards', { method: 'POST', body: JSON.stringify({ amount, customer_id: customerId, key }) })).card
+    },
     async uploadMedia(file, folder) {
       const { url, type } = await worker<{ url: string; type: 'image' | 'video' }>(`/api/integrations/media?folder=${folder}`, {
         method: 'POST', body: file, headers: { 'content-type': file.type } })
@@ -431,8 +857,8 @@ export function createSupabaseApi(url: string, key: string): Api {
     async syncGoogleNow() { await worker('/api/integrations/google/sync', { method: 'POST' }) },
     async googleHours() { return (await worker<{ opening_hours: never }>('/api/integrations/google/hours')).opening_hours },
     async disconnect(provider) { await worker(`/api/integrations/${provider}/disconnect`, { method: 'POST' }) },
-    async connectService(provider, back) {
-      const { url } = await worker<{ url: string }>(`/api/integrations/connect/${provider}/start`, { method: 'POST', body: JSON.stringify({ back }) })
+    async connectService(provider, back, opts) {
+      const { url } = await worker<{ url: string }>(`/api/integrations/connect/${provider}/start`, { method: 'POST', body: JSON.stringify({ back, read: opts?.read }) })
       location.assign(url)
     },
     checkConnection: provider => worker(`/api/integrations/${provider}/check`, { method: 'POST' }),
@@ -440,6 +866,52 @@ export function createSupabaseApi(url: string, key: string): Api {
     chooseCalendar: app => worker(`/api/integrations/calendar/${app}/choose`, { method: 'POST' }),
     async sendTestEmail(to) { await worker('/api/integrations/email/test', { method: 'POST', body: JSON.stringify({ to }) }) },
     saveFile: f => worker('/api/integrations/files/save', { method: 'POST', body: JSON.stringify(f) }),
+    reviews: () => worker('/api/reviews'),
+    async replyReview(id, text) { await worker('/api/reviews/reply', { method: 'PUT', body: JSON.stringify({ id, text }) }) },
+    async deleteReviewReply(id) { await worker('/api/reviews/reply', { method: 'DELETE', body: JSON.stringify({ id }) }) },
+    website: () => worker('/api/website'),
+    async checkWebsite() { return (await worker<{ report: never }>('/api/website/check', { method: 'POST' })).report },
+    async pageSpeed(strategy) { return (await worker<{ pagespeed: never }>('/api/website/pagespeed', { method: 'POST', body: JSON.stringify({ strategy }) })).pagespeed },
+
+    async competitors() {
+      const [competitors, items, prices, notes, snapshots, nearby, settings] = await Promise.all([
+        sb.from('competitors').select('*').order('name'),
+        sb.from('competitor_items').select('*').order('sort').order('name'),
+        sb.from('competitor_prices').select('*').order('observed_on', { ascending: false }),
+        sb.from('competitor_notes').select('*').order('observed_on', { ascending: false }).order('created_at', { ascending: false }),
+        sb.from('competitor_snapshots').select('*').order('taken_on'),
+        sb.from('competitor_radar').select('*').order('distance_m', { nullsFirst: false }),
+        sb.from('competitor_settings').select('radius_m, scan_weekly, scanned_at').eq('id', 1).maybeSingle(),
+      ])
+      return competitorRows({
+        competitors: check(competitors), items: check(items), prices: check(prices), notes: check(notes), snapshots: check(snapshots), nearby: check(nearby),
+        settings: (check(settings) as CompetitorData['settings'] | null) ?? { radius_m: DEFAULT_RADIUS, scan_weekly: true, scanned_at: null },
+      } as CompetitorData)
+    },
+    async saveCompetitor({ id, ...c }) {
+      if (id) { check(await sb.from('competitors').update(c).eq('id', id)); return id }
+      return (check(await sb.from('competitors').insert(c).select('id').single()) as { id: string }).id
+    },
+    async deleteCompetitor(id) { check(await sb.from('competitors').delete().eq('id', id)) },
+    async savePriceItem({ id, ...i }) {
+      if (id) { check(await sb.from('competitor_items').update(i).eq('id', id)); return id }
+      return (check(await sb.from('competitor_items').insert(i).select('id').single()) as { id: string }).id
+    },
+    async deletePriceItem(id) { check(await sb.from('competitor_items').delete().eq('id', id)) },
+    async recordPrice(p) { check(await sb.from('competitor_prices').insert(p)) },
+    async deletePrice(id) { check(await sb.from('competitor_prices').delete().eq('id', id)) },
+    async saveCompetitorNote({ id, ...n }) {
+      if (id) { check(await sb.from('competitor_notes').update(n).eq('id', id)); return id }
+      return (check(await sb.from('competitor_notes').insert(n).select('id').single()) as { id: string }).id
+    },
+    async deleteCompetitorNote(id) { check(await sb.from('competitor_notes').delete().eq('id', id)) },
+    async dismissNearby(placeId, dismissed) { check(await sb.from('competitor_radar').update({ dismissed }).eq('place_id', placeId)) },
+    async saveCompetitorSettings(s) { check(await sb.from('competitor_settings').update(s).eq('id', 1)) },
+    competitorGoogle: () => worker('/api/competitors/google'),
+    lookAround: radius => worker('/api/competitors/look', { method: 'POST', body: JSON.stringify({ radius_m: radius }) }),
+    async findPlaces(query) { return (await worker<{ places: never }>(`/api/competitors/search?q=${encodeURIComponent(query)}`)).places },
+    async followPlace(placeId, id) { return (await worker<{ id: string }>('/api/competitors/follow', { method: 'POST', body: JSON.stringify({ place_id: placeId, id }) })).id },
+    async refreshCompetitor(id) { await worker('/api/competitors/refresh', { method: 'POST', body: JSON.stringify({ id }) }) },
     async whatsappTest(to) { await worker('/api/integrations/whatsapp/test', { method: 'POST', body: JSON.stringify({ to }) }) },
     instagramProfile: () => worker('/api/integrations/instagram/profile'),
     instagramInbox: () => worker('/api/integrations/instagram/inbox'),
@@ -457,6 +929,17 @@ export function createSupabaseApi(url: string, key: string): Api {
     async replyInstagram(id, text) {
       await worker(`/api/integrations/instagram/inbox/${encodeURIComponent(id)}/reply`, { method: 'POST', body: JSON.stringify({ text }) })
     },
+    messengerInbox: () => worker('/api/integrations/facebook/inbox'),
+    messengerThread: id => worker(`/api/integrations/facebook/inbox/${encodeURIComponent(id)}`),
+    async replyMessenger(id, text) {
+      await worker(`/api/integrations/facebook/inbox/${encodeURIComponent(id)}/reply`, { method: 'POST', body: JSON.stringify({ text }) })
+    },
+    whatsappInbox: () => worker('/api/integrations/whatsapp/inbox'),
+    whatsappThread: id => worker(`/api/integrations/whatsapp/inbox/${encodeURIComponent(id)}`),
+    async replyWhatsApp(id, text) {
+      await worker(`/api/integrations/whatsapp/inbox/${encodeURIComponent(id)}/reply`, { method: 'POST', body: JSON.stringify({ text }) })
+    },
+    setWhatsappRetention: days => worker('/api/integrations/whatsapp/retention', { method: 'POST', body: JSON.stringify({ days }) }),
     async uploadPhoto(file) {
       const jpeg = await readyPhoto(file, false)
       return (await worker<{ url: string }>('/api/integrations/media?folder=Posts', { method: 'POST', body: jpeg,
@@ -488,6 +971,12 @@ export function createSupabaseApi(url: string, key: string): Api {
     async notifications() {
       return check(await sb.from('notifications').select('*').order('created_at', { ascending: false }).limit(30)) as AppNotification[]
     },
+    async instagramMentions() {
+      return check(await sb.from('instagram_mentions').select('*').order('mentioned_at', { ascending: false }).limit(50)) as InstagramMention[]
+    },
+    async repostMention(id) { await worker(`/api/integrations/instagram/mentions/${encodeURIComponent(id)}/repost`, { method: 'POST' }) },
+    async ignoreMention(id) { await worker(`/api/integrations/instagram/mentions/${encodeURIComponent(id)}/ignore`, { method: 'POST' }) },
+    async checkMentions() { return (await worker<{ added: number }>('/api/integrations/instagram/mentions/check', { method: 'POST' })).added },
     async markNotificationsRead() {
       check(await sb.from('notifications').update({ read_at: new Date().toISOString() }).is('read_at', null))
     },

@@ -1,6 +1,7 @@
 name: Deploy
-# Push to this branch or main → run every test → deploy the Worker to Cloudflare → sync its
-# secrets → point Supabase sign-in at the live URL → smoke-test the live site.
+# Push to main → run every test (unless the merge queue just ran them on this exact commit) →
+# apply new database migrations → deploy the Worker to Cloudflare → sync its secrets → point
+# Supabase sign-in at the live URL → smoke-test the live site.
 # Repo secrets (Settings → Secrets and variables → Actions):
 #   CLOUDFLARE_API_TOKEN   required ("Edit Cloudflare Workers" template)
 #   CLOUDFLARE_ACCOUNT_ID  only if the token can see more than one account
@@ -9,15 +10,40 @@ name: Deploy
 # "Log in with Facebook" is on; repo variable FACEBOOK_SIGN_IN=off switches it off (docs/sign-in-setup.md).
 on:
   push:
-    branches: [main, claude/easy-beans-architecture-plan-dknqka]
+    branches: [main]
   workflow_dispatch:
 
 jobs:
+  # A commit the merge queue landed passed every test minutes ago, as this very commit.
+  tested:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      statuses: read
+    outputs:
+      skip: ${{ steps.status.outputs.skip }}
+    steps:
+      - id: status
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          state=$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/statuses" \
+            --jq '[.[] | select(.context == "merge-queue")][0].state // ""' 2>/dev/null || true)
+          if [ "$state" = success ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Every test already passed on this commit in the merge queue, so they don't run again." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
   test:
+    needs: tested
+    if: needs.tested.outputs.skip != 'true'
     uses: ./.github/workflows/ci.yml
 
   deploy:
-    needs: test
+    needs: [tested, test]
+    if: ${{ !cancelled() && needs.tested.result == 'success' && (needs.test.result == 'success' || needs.test.result == 'skipped') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     # Only the deploy itself waits its turn, not the live tests after the previous one (they have
@@ -48,7 +74,20 @@ jobs:
       SQUARE_APP_ID: ${{ secrets.SQUARE_APP_ID }}
       SQUARE_APP_SECRET: ${{ secrets.SQUARE_APP_SECRET }}
       SQUARE_ENVIRONMENT: ${{ secrets.SQUARE_ENVIRONMENT }}
+      SQUARE_REDIRECT_URL: ${{ secrets.SQUARE_REDIRECT_URL }}
+      SQUARE_WEBHOOK_SIGNATURE_KEY: ${{ secrets.SQUARE_WEBHOOK_SIGNATURE_KEY }}
+      SQUARE_WEBHOOK_URL: ${{ secrets.SQUARE_WEBHOOK_URL }}
+      SUMUP_CLIENT_ID: ${{ secrets.SUMUP_CLIENT_ID }}
+      SUMUP_CLIENT_SECRET: ${{ secrets.SUMUP_CLIENT_SECRET }}
+      LINKEDIN_CLIENT_ID: ${{ secrets.LINKEDIN_CLIENT_ID }}
+      LINKEDIN_CLIENT_SECRET: ${{ secrets.LINKEDIN_CLIENT_SECRET }}
+      LINKEDIN_PAGES: ${{ vars.LINKEDIN_PAGES }}
       GOOGLE_FONTS_API_KEY: ${{ secrets.GOOGLE_FONTS_API_KEY }}
+      GOOGLE_ADS_DEVELOPER_TOKEN: ${{ secrets.GOOGLE_ADS_DEVELOPER_TOKEN }}
+      GOOGLE_PLACES_API_KEY: ${{ secrets.GOOGLE_PLACES_API_KEY }}
+      GOOGLE_PLACE_ID: ${{ secrets.GOOGLE_PLACE_ID }}
+      GOOGLE_PAGESPEED_API_KEY: ${{ secrets.GOOGLE_PAGESPEED_API_KEY }}
+      GOOGLE_PICKER_API_KEY: ${{ secrets.GOOGLE_PICKER_API_KEY }}
       SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
       SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
     steps:
@@ -85,6 +124,13 @@ jobs:
       - name: Build
         if: steps.gate.outputs.ready == 'true'
         run: npm run build
+      # New files in supabase/migrations go into the live database before the Worker that needs
+      # them goes out; a failure stops the deploy here (scripts/ops/migrate.mjs).
+      - name: Database migrations
+        if: steps.gate.outputs.ready == 'true'
+        run: |
+          set -o pipefail
+          node scripts/ops/migrate.mjs | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Deploy the Worker
         id: deploy
         if: steps.gate.outputs.ready == 'true'
@@ -115,13 +161,19 @@ jobs:
         if: steps.gate.outputs.ready == 'true' && steps.deploy.outputs.url != ''
         # The custom domain once it's live; the workers.dev URL goes along so it stays in the
         # sign-in redirect allow list (sign-ins started on workers.dev must come back to it).
-        run: node scripts/ops/supabase-auth.mjs "${{ steps.domain.outputs.site || steps.deploy.outputs.url }}" "${{ steps.deploy.outputs.url }}" | tee -a "$GITHUB_STEP_SUMMARY"
+        run: |
+          set -o pipefail
+          node scripts/ops/supabase-auth.mjs "${{ steps.domain.outputs.site || steps.deploy.outputs.url }}" "${{ steps.deploy.outputs.url }}" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Stripe billing webhook
         if: steps.gate.outputs.ready == 'true' && steps.deploy.outputs.url != ''
-        run: node scripts/ops/stripe-billing.mjs "${{ steps.domain.outputs.site || steps.deploy.outputs.url }}" | tee -a "$GITHUB_STEP_SUMMARY"
+        run: |
+          set -o pipefail
+          node scripts/ops/stripe-billing.mjs "${{ steps.domain.outputs.site || steps.deploy.outputs.url }}" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Stripe prices (match shared/plans.ts, archive old ones)
         if: steps.gate.outputs.ready == 'true' && steps.deploy.outputs.url != ''
-        run: node --experimental-strip-types scripts/ops/stripe-prices.ts | tee -a "$GITHUB_STEP_SUMMARY"
+        run: |
+          set -o pipefail
+          node --experimental-strip-types scripts/ops/stripe-prices.ts | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Smoke-test the live site
         if: steps.gate.outputs.ready == 'true' && steps.deploy.outputs.url != ''
         run: |
@@ -137,12 +189,14 @@ jobs:
   # Boxing, friendlies and cups (TheSportsDB) from GitHub's servers; see sports-sync.yml.
   sports:
     needs: deploy
+    if: ${{ !cancelled() && needs.deploy.result == 'success' }}
     uses: ./.github/workflows/sports-sync.yml
     secrets: inherit
 
   # The whole app, every role, against the version just deployed.
   live:
     needs: deploy
+    if: ${{ !cancelled() && needs.deploy.result == 'success' }}
     uses: ./.github/workflows/live-e2e.yml
     with:
       url: https://business-agent.arononeillwork.workers.dev

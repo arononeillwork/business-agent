@@ -4,6 +4,7 @@
 //   - only addresses Business Agent signed open a file (never anything else in that Drive)
 //   - posts, carousels, reels and stories reach Instagram with every photo and video
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { seal, unseal } from './crypto'
 import { drainOutbox, integrations, setInstagramWait } from './integrations'
 import { forgetMediaTokens } from './media'
 import type { Env } from './supabase'
@@ -156,6 +157,20 @@ describe('Instagram: posts, carousels, reels and stories go out with every photo
     expect(story.params).toEqual({ media_type: 'STORIES', image_url: 'https://app.test/media/g/5/s.jpg' }) // stories have no caption
     expect(old.params).toEqual({ image_url: 'https://app.test/media/posts/old.jpg', caption: 'Old one' })
     expect(db.table('outbox')[2].external_id).toBe(`https://www.instagram.com/p/${reel.id}/`)
+  })
+
+  it('posts as the professional account, also on a connection that kept the id from sign-in', async () => {
+    await connectInstagram()
+    const kept = await unseal<{ user_id: string }>(env.INTEGRATION_KEY!, String(db.table('integration_secrets')[0].ciphertext))
+    expect(kept.user_id).toBe('17841400000000001')
+    expect(db.table('integrations').find(r => r.provider === 'instagram')?.external).toMatchObject({ user_id: '17841400000000001' })
+
+    // Connected before this was fixed: the sign-in id, which Instagram refuses to post to.
+    db.table('integration_secrets')[0].ciphertext = await seal(env.INTEGRATION_KEY!, { ...kept, user_id: apis.instagram.loginId })
+    job({ post_id: 'p1', kind: 'post', caption: 'Acai bowls', media: [{ url: 'https://app.test/media/g/1/s.jpg', type: 'image' }] })
+    await drainOutbox(env)
+    expect(db.table('outbox')[0]).toMatchObject({ status: 'sent', last_error: null })
+    expect(apis.instagram.published).toHaveLength(1)
   })
 
   it('a video Instagram can’t use fails with a reason; one still processing is tried again later', async () => {

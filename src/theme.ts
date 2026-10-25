@@ -29,8 +29,12 @@ const light = {
   danger: '#B3404F', dangerSoft: '#F9DDE0', warning: '#9A6A12', info: '#5B4A86',
   goodFg: '#4A6536', goodBg: '#EEF4E8', warnFg: '#8A4336', warnBg: '#FFF1EA',
   badFg: '#8E2B3A', badBg: '#F9DDE0', neutralFg: '#5F5852', neutralBg: '#F2EDE9', infoFg: '#5B4A86', infoBg: '#F4F0FB',
-  // Chart accent: a rose step that passes the chart checks on this surface (dataviz validator).
-  chart: '#A85A68',
+  // Charts: the brand's light Rose Pink for bars and shares, a step deeper for the one pointed at.
+  // Values are always written next to them (labels, tooltip), so the light pink needn't carry them alone.
+  chart: brand.rosePink, chartHover: '#EE7D8A',
+  // Two series that must be told apart (Competitors' map: them and you): a deeper rose and the ube's deep
+  // step, each in the lightness band, apart for colour-blind eyes (checked with the dataviz palette validator).
+  chartThem: '#D9677A', chartYou: '#5B48B0',
   today: '#FEF6F6', hover: '#FAF4F1', glow: 'rgba(247,155,164,0.16)', shadow: 'rgba(120,72,60,0.18)',
   // The sidebar: white and calm in light mode, deep plum in dark mode.
   navBg: '#FFFFFF', navText: '#4E4742', navFaint: '#9A928B', navHover: '#F8F1EE', navBright: '#2B2522', navPanel: '#F8F4F1', navLine: '#EFE9E4',
@@ -55,7 +59,8 @@ const dark: Palette = {
   danger: '#F38E9A', dangerSoft: '#3A1D26', warning: '#EDC27A', info: '#D2C4F0',
   goodFg: '#B9D6A1', goodBg: '#1F2A1E', warnFg: '#F5C2AE', warnBg: '#33231F',
   badFg: '#F7A7B1', badBg: '#3A1D26', neutralFg: '#CBC1CA', neutralBg: '#26212D', infoFg: '#D2C4F0', infoBg: '#282238',
-  chart: '#D86F7D',
+  chart: brand.rosePink, chartHover: '#FAB0B7',
+  chartThem: '#D9667A', chartYou: '#8670D9',
   today: '#2A1B25', hover: '#241F2B', glow: 'rgba(247,155,164,0.14)', shadow: 'rgba(0,0,0,0.65)',
   navBg: '#15111A', navText: 'rgba(246,241,244,0.74)', navFaint: 'rgba(246,241,244,0.40)', navHover: 'rgba(246,241,244,0.06)',
   navBright: '#FFFFFF', navPanel: 'rgba(246,241,244,0.05)', navLine: 'rgba(246,241,244,0.07)',

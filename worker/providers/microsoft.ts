@@ -54,6 +54,32 @@ export async function sendMail(token: string, m: { to: string; subject: string; 
   })
 }
 
+// Outlook, read (Invoices): emails with files attached that could be invoices. Needs Mail.Read.
+/** Emails from the last `days` with attachments, newest first, each with who sent it and its files. */
+export async function outlookWithAttachments(token: string, days: number, max = 40) {
+  const since = new Date(Date.now() - days * 86_400_000).toISOString()
+  const filter = encodeURIComponent(`hasAttachments eq true and receivedDateTime ge ${since}`)
+  const list = await graph<{ value: { id: string; subject?: string; receivedDateTime: string; from?: { emailAddress?: { name?: string; address?: string } } }[] }>(token,
+    `/me/messages?$filter=${filter}&$orderby=receivedDateTime desc&$top=${max}&$select=id,subject,receivedDateTime,from`)
+  const out = []
+  for (const m of list.value) {
+    const files = await graph<{ value: { id: string; name: string; size: number; contentType?: string; '@odata.type'?: string }[] }>(token,
+      `/me/messages/${encodeURIComponent(m.id)}/attachments?$select=id,name,size,contentType`)
+    const a = m.from?.emailAddress
+    out.push({ id: m.id, from: a?.name ? `${a.name} <${a.address ?? ''}>` : a?.address ?? '', subject: m.subject ?? '', at: m.receivedDateTime,
+      files: files.value.filter(f => !f['@odata.type'] || f['@odata.type'] === '#microsoft.graph.fileAttachment')
+        .map(f => ({ id: f.id, name: f.name, size: f.size, type: f.contentType ?? '' })) })
+  }
+  return out
+}
+
+/** An attachment's bytes. */
+export async function outlookAttachment(token: string, message: string, attachment: string) {
+  const res = await fetch(`${GRAPH}/me/messages/${encodeURIComponent(message)}/attachments/${encodeURIComponent(attachment)}/$value`, { headers: { authorization: `Bearer ${token}` } })
+  if (!res.ok) throw new Error(`Microsoft: the attachment couldn’t be read (${res.status})`)
+  return new Uint8Array(await res.arrayBuffer())
+}
+
 /** The app's "Business Agent" folder in OneDrive (created if missing); returns its id. */
 export async function ensureFolder(token: string) {
   const res = await fetch(`${GRAPH}/me/drive/root:/Business%20Agent`, { headers: { authorization: `Bearer ${token}` } })
@@ -94,8 +120,8 @@ export async function* pieces(body: ReadableStream<Uint8Array> | ArrayBuffer, si
   if (buf.length) yield buf
 }
 
-/** "Business Agent/<path…>" in OneDrive, each folder made if missing. */
-async function ensurePath(token: string, path: string[]) {
+/** "Business Agent/<path…>" in OneDrive, each folder made if missing; returns the last one's id. */
+export async function ensurePath(token: string, path: string[]) {
   let parent = await ensureFolder(token)
   let at = 'Business Agent'
   for (const name of path) {
@@ -107,10 +133,27 @@ async function ensurePath(token: string, path: string[]) {
       body: JSON.stringify({ name, folder: {}, '@microsoft.graph.conflictBehavior': 'replace' }),
     })).id
   }
+  return parent
+}
+
+const pathOf = (path: string[]) => ['Business Agent', ...path].map(encodeURIComponent).join('/')
+
+/** The folders inside "Business Agent/<path…>" (made if missing), by name, and OneDrive's page for it. */
+export async function listFolders(token: string, path: string[]) {
+  await ensurePath(token, path)
+  const [children, self] = await Promise.all([
+    graph<{ value: { name: string; folder?: unknown }[] }>(token, `/me/drive/root:/${pathOf(path)}:/children?$select=name,folder&$top=200`),
+    graph<{ webUrl?: string }>(token, `/me/drive/root:/${pathOf(path)}`),
+  ])
+  return { folders: children.value.filter(i => i.folder).map(i => i.name).sort((a, b) => a.localeCompare(b)), link: self.webUrl ?? null }
 }
 
 /** Upload a photo or video into "Business Agent/<path…>" in OneDrive (any size, in pieces); returns its id. */
-export async function uploadToOneDrive(token: string, path: string[], name: string, size: number, body: ReadableStream | ArrayBuffer) {
+export const uploadToOneDrive = async (token: string, path: string[], name: string, size: number, body: ReadableStream | ArrayBuffer) =>
+  (await uploadItem(token, path, name, size, body)).id
+
+/** The same, returning OneDrive's page for the file too. */
+export async function uploadItem(token: string, path: string[], name: string, size: number, body: ReadableStream | ArrayBuffer) {
   await ensurePath(token, path)
   const at = ['Business Agent', ...path, name].map(encodeURIComponent).join('/')
   const { uploadUrl } = await graph<{ uploadUrl: string }>(token, `/me/drive/root:/${at}:/createUploadSession`, {
@@ -118,7 +161,7 @@ export async function uploadToOneDrive(token: string, path: string[], name: stri
     body: JSON.stringify({ item: { '@microsoft.graph.conflictBehavior': 'rename' } }),
   })
   let offset = 0
-  let item: { id?: string } = {}
+  let item: { id?: string; webUrl?: string } = {}
   for await (const piece of pieces(body)) {
     // The upload address carries its own permission: no sign-in header (OneDrive refuses one).
     const res = await fetch(uploadUrl, { method: 'PUT', headers: { 'content-range': `bytes ${offset}-${offset + piece.byteLength - 1}/${size}` }, body: piece })
@@ -127,10 +170,10 @@ export async function uploadToOneDrive(token: string, path: string[], name: stri
       throw new Error(`Microsoft: ${err.error?.message ?? res.status}`)
     }
     offset += piece.byteLength
-    if (res.status === 200 || res.status === 201) item = await res.json() as { id?: string }
+    if (res.status === 200 || res.status === 201) item = await res.json() as { id?: string; webUrl?: string }
   }
   if (!item.id) throw new Error('Microsoft: the upload didn’t finish')
-  return item.id
+  return { id: item.id, webUrl: item.webUrl ?? null }
 }
 
 /** A file's content from OneDrive: it answers with a ready-signed download address, fetched without our sign-in. */
@@ -139,6 +182,52 @@ export async function oneDriveDownload(token: string, id: string, range?: string
   const to = res.headers.get('location')
   if (res.status >= 300 && res.status < 400 && to) return fetch(to, { headers: range ? { range } : {} })
   return res
+}
+
+// Legal page: the café's OneDrive, looked through folder by folder (Files.ReadWrite reads all of it),
+// and the files picked there.
+export interface DriveItem {
+  id: string; name: string; size?: number; webUrl?: string; lastModifiedDateTime?: string
+  folder?: { childCount?: number }; file?: { mimeType?: string }; parentReference?: { id?: string; path?: string }
+}
+const ITEM_FIELDS = 'id,name,size,webUrl,lastModifiedDateTime,folder,file,parentReference'
+const itemPath = (id: string) => (id === 'root' ? '/me/drive/root' : `/me/drive/items/${encodeURIComponent(id)}`)
+
+/** A file or folder by its id ('root': the top of the OneDrive); null when it isn't there. */
+export async function item(token: string, id: string): Promise<DriveItem | null> {
+  const res = await fetch(`${GRAPH}${itemPath(id)}?$select=${ITEM_FIELDS}`, { headers: { authorization: `Bearer ${token}` } })
+  if (res.status === 404) return null
+  const json = await res.json().catch(() => ({})) as DriveItem & { error?: { message?: string } }
+  if (!res.ok) throw new Error(`Microsoft: ${json.error?.message ?? res.status}`)
+  return json
+}
+
+/** What's in a folder ('root': the top), page by page, up to 1,000 things. */
+export async function children(token: string, id: string) {
+  const out: DriveItem[] = []
+  let next: string | undefined = `${GRAPH}${itemPath(id)}/children?$select=${ITEM_FIELDS}&$top=200`
+  while (next && out.length < 1000) {
+    const res = await fetch(next, { headers: { authorization: `Bearer ${token}` } })
+    const page = await res.json().catch(() => ({})) as { value?: DriveItem[]; '@odata.nextLink'?: string; error?: { message?: string } }
+    if (!res.ok) throw new Error(`Microsoft: ${page.error?.message ?? res.status}`)
+    out.push(...page.value ?? [])
+    next = page['@odata.nextLink']
+  }
+  return out
+}
+
+/** The folder an item is in, by names from the top ("/drive/root:/Documents/Legal" → "Documents/Legal"; "" at the top). */
+export function folderOf(i: DriveItem): string | null {
+  const path = i.parentReference?.path
+  const at = path?.indexOf('root:') ?? -1
+  return path && at >= 0 ? decodeURIComponent(path.slice(at + 'root:'.length).replace(/^\//, '')) : null
+}
+
+/** A Word, Excel or PowerPoint file (and others OneDrive can convert) as a PDF, fetched like oneDriveDownload. */
+export async function oneDrivePdf(token: string, id: string) {
+  const res = await fetch(`${GRAPH}/me/drive/items/${encodeURIComponent(id)}/content?format=pdf`, { headers: { authorization: `Bearer ${token}` }, redirect: 'manual' })
+  const to = res.headers.get('location')
+  return res.status >= 300 && res.status < 400 && to ? fetch(to) : res
 }
 
 /** Save a small file (under 4 MB) into "Business Agent/<folder>" in OneDrive; returns its web link. */

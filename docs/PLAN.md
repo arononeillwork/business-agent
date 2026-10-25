@@ -118,7 +118,7 @@ Not done yet / next:
 - Phase 2: football fixture sync (football-data.org key), alerts (WhatsApp/Slack/SMS), personal
   API keys for n8n, kiosk device account setup screen.
 - Performance: code-split the app bundle (930 kB).
-- Supabase migration history on the dev project was applied through the connector, so its version numbers differ from the files here; run `supabase migration repair` before using `supabase db push` against it.
+- Supabase migration history on the dev project was applied through the connector, so its version numbers differ from the files here; run `supabase migration repair` before using `supabase db push` against it. (Since 24 Oct 2026 deploys apply new migrations by name instead, `scripts/ops/migrate.mjs`, so `db push` isn't needed.)
 
 ## Update (26 Sep 2026, later)
 
@@ -132,3 +132,19 @@ Not done yet / next:
   closures, phone and posts kept in sync; WhatsApp alerts (Meta Cloud API) for shift reminders,
   missed clock-ins, rota, time off; Instagram profile, stats and posting. All built and tested
   with mocks; each needs its account keys to go live.
+
+## Grants (20 Oct 2026)
+
+- Accounts → **Grants**: the grants catalogue and eligibility rules are Solicita's (repo
+  `grant-finder`: `supabase/seed` and `site/index.html` RULES), copied into
+  `shared/grantCatalogue.ts` and `shared/grants.ts`. Only verified grants are included (official
+  source and check date on each); copy changes from Solicita's seed so both apps agree.
+- Questions are adaptive: the business type, place, sector and staff come from the Business page
+  and the team; a question is shown only while it can still change a grant's result.
+- The database keeps only what the business says and does: `grant_profile` (one row of answers)
+  and `grant_applications` (stage, dates, expediente, amounts, ticked documents and obligations).
+  A deadline becomes an admins-only calendar event. Admins with pay access edit; finance partners
+  read.
+- Not built: uploading the documents themselves (the checklists are ticks for now), and
+  submitting applications (Spanish portals need the representative's certificate signature).
+
