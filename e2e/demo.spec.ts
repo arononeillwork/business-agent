@@ -1301,11 +1301,11 @@ test('the contact preference label sits above the field, never on top of “No p
 })
 
 test.describe('menu', () => {
-  test('business first, then accounts, what\'s on and the team; partners and the café tablet are switched off', async ({ page }) => {
+  test('business first, then insights, accounts, what\'s on and the team; partners and the café tablet are switched off', async ({ page }) => {
     await open(page, '/')
     const nav = page.getByRole('navigation', { name: 'Main' })
     const headings = await nav.locator('section > button').allTextContents()
-    expect(headings.map(h => h.trim())).toEqual(['Business', 'Sales', 'Stock', 'Accounts', 'Marketing', "What's on", 'Team', 'Settings'])
+    expect(headings.map(h => h.trim())).toEqual(['Business', 'Insights', 'Sales', 'Stock', 'Accounts', 'Marketing', "What's on", 'Team', 'Settings'])
     await expect(nav.getByRole('link', { name: 'Partners' })).toHaveCount(0)
     await expect(nav.getByRole('link', { name: 'Café tablet' })).toHaveCount(0)
     // Today is the landing page: no menu item, the logo takes you there.
