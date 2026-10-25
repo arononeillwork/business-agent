@@ -147,14 +147,14 @@ async function creditReferralMonths(env: Env, customer: string, id: PlanId, inte
 // ---------------------------------------------------------------------------------------------
 export const billing = new Hono<{ Bindings: Env; Variables: { userId: string; email: string } }>()
 
-/** Admins only (except the webhook, which Stripe calls). */
+/** Bosses only: admins with pay access (shared/teamRoles.ts). Not the webhook, which Stripe calls. */
 billing.use('/api/billing/*', async (c, next) => {
   if (c.req.path === '/api/billing/webhook') return next()
   const token = bearer(c.req.header('authorization'))
   if (!token) return c.json({ error: 'Not signed in' }, 401)
   const sb = userClient(c.env, token, 'app')
-  const [{ data: user }, { data: isAdmin }] = await Promise.all([sb.auth.getUser(token), sb.rpc('is_admin')])
-  if (!user.user || !isAdmin) return c.json({ error: 'Only an admin can manage billing' }, 403)
+  const [{ data: user }, { data: isBoss }] = await Promise.all([sb.auth.getUser(token), sb.rpc('can_see_pay')])
+  if (!user.user || !isBoss) return c.json({ error: 'Only a boss can manage billing' }, 403)
   c.set('userId', user.user.id)
   c.set('email', user.user.email ?? '')
   await next()

@@ -1226,6 +1226,7 @@ export function createDemoApi(): Api {
   }]
   const paysAdmin = () => !!(me()?.role === 'admin' && me()?.can_see_pay)
   const requirePay = () => { if (!paysAdmin()) throw new Error('Only admins with pay access can change grants') }
+  const requireBoss = () => { if (!paysAdmin()) throw new Error('Only a boss can manage billing') }
   /** Mirrors grant_deadline_event() in SQL: the deadline as an admins-only calendar event while the application is open. */
   function grantEvent(a: GrantApplication | undefined, id: string) {
     const i = events.findIndex(e => e.id === `grant:${id}`)
@@ -2064,9 +2065,10 @@ export function createDemoApi(): Api {
         },
       }
     },
-    async billing() { return { ...demoBilling } },
-    async syncBilling() { return { ...demoBilling } },
+    async billing() { requireBoss(); return { ...demoBilling } },
+    async syncBilling() { requireBoss(); return { ...demoBilling } },
     async choosePlan(plan, interval) {
+      requireBoss()
       // The live app goes to Stripe Checkout here; the demo pretends the card went through.
       const trial = planById(plan).trial && !demoBilling.trial_used
       if (demoBilling.status === 'comped') throw new Error('This business already has the top plan, free. Nothing to pay.')
