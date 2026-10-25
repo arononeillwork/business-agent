@@ -52,6 +52,10 @@ Before opening the pull request, and after resolving a conflict: `npm run typech
   - add tables and columns freely;
   - remove or rename one only in a later change, once nothing uses it.
 - In comments, name the migration you mean ("the `customers` migration") rather than its number.
+- **A feature that's built but mustn't reach the live database yet** keeps its migration in
+  `supabase/pending/`, with the feature switched off in `src/app/features.ts`. CI still tests it;
+  deploys don't apply it. To switch it on, move the file into `supabase/migrations` and turn the
+  feature on, in one pull request (`supabase/pending/README.md`).
 
 ## Keeping conflicts small
 

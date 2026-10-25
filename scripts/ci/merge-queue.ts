@@ -93,10 +93,12 @@ async function add(pr: Pull, main: string, bodies: string[], state: { deferred: 
   // Production has every migration on main already, and matches them by name: a changed one, or a
   // second one with a name that's taken, would never run there.
   const base = git('merge-base', main, head)
-  const edited = lines(git('diff', '--name-only', '--diff-filter=MDR', base, head, '--', MIGRATIONS))
+  // Without rename pairing: one moved in from supabase/pending is an addition; one renamed or moved
+  // away is a deletion (production would run it again under its new name).
+  const edited = lines(git('diff', '--name-only', '--no-renames', '--diff-filter=MD', base, head, '--', MIGRATIONS))
   const onMain = migrationsAt(main)
   const names = new Set(onMain.map(f => parseMigration(f)?.name))
-  const twice = lines(git('diff', '--name-only', '--diff-filter=A', base, head, '--', MIGRATIONS))
+  const twice = lines(git('diff', '--name-only', '--no-renames', '--diff-filter=A', base, head, '--', MIGRATIONS))
     .map(f => parseMigration(f.slice(MIGRATIONS.length + 1))).filter(m => m && names.has(m.name)).map(m => m!.file)
   if (edited.length || twice.length) {
     return block([
