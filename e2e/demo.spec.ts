@@ -1672,7 +1672,7 @@ test.describe('billing', () => {
     await nav.getByRole('region', { name: 'Sales' }).getByRole('link', { name: 'Sales' }).click()
     await expect(page).toHaveURL(/\/sales$/)
     await expect(page.getByRole('heading', { name: 'Sales', level: 1 })).toBeVisible()
-    await expect(nav.getByRole('region', { name: 'Sales' }).getByRole('link')).toHaveText(['Sales', 'Customers', 'Leads & enquiries', ...(FEATURES.quotes ? ['Quotes & estimates'] : []), 'Reps & rewards'])
+    await expect(nav.getByRole('region', { name: 'Sales' }).getByRole('link')).toHaveText(['Sales', 'Customers', 'Leads & enquiries', 'Reps & rewards'])
     await expect(nav.getByRole('region', { name: 'Marketing' }).getByRole('link')).toHaveText(['Social planner', 'Campaigns', 'Ads', 'Analytics', 'Reviews', 'Website & SEO', 'Competitors'])
     await nav.getByRole('region', { name: 'Marketing' }).getByRole('link', { name: 'Analytics' }).click()
     await expect(page.getByRole('heading', { name: 'Analytics', level: 1 })).toBeVisible()
@@ -4538,8 +4538,8 @@ test.describe('competitors', () => {
   })
 })
 
-test.describe('leads and quotes', () => {
-  test('an enquiry from someone new: they’re a lead on Customers, and a quote for it moves it to Quoted', async ({ page }) => {
+test.describe('leads and enquiries', () => {
+  test('an enquiry from someone new: they’re a lead on Customers until it’s won', async ({ page }) => {
     await open(page, '/leads')
     await expect(page.getByRole('heading', { name: 'Leads & enquiries', level: 1 })).toBeVisible()
     await expect(page.getByRole('alert').filter({ hasText: /^To follow up:/ })).toContainText('Hannah Becker')
@@ -4558,58 +4558,20 @@ test.describe('leads and quotes', () => {
     await expect(row).toContainText('Rocío Paredes · +34 644 221 908')
     await expect(row.getByRole('combobox', { name: 'Stage of Coffee cart for a wedding, 80 guests' })).toHaveText('New')
 
-    if (!FEATURES.quotes) await expect(row.getByRole('button', { name: /^Make a quote/ })).toHaveCount(0)
-    if (FEATURES.quotes) await test.step('a quote for it moves it to Quoted', async () => {
-      await row.getByRole('button', { name: 'Make a quote for Coffee cart for a wedding, 80 guests' }).click()
-      await expect(page).toHaveURL(/\/quotes$/)
-      const quote = page.getByRole('dialog', { name: 'New quote' })
-      await expect(quote.getByRole('textbox', { name: 'Title' })).toHaveValue('Coffee cart for a wedding, 80 guests')
-      await quote.getByRole('textbox', { name: 'Description of line 1' }).fill('Coffee cart, 4 hours')
-      await quote.getByRole('spinbutton', { name: 'Price of line 1' }).fill('600')
-      await quote.getByRole('button', { name: 'Add a line' }).click()
-      await quote.getByRole('textbox', { name: 'Description of line 2' }).fill('Barista hire')
-      await quote.getByRole('spinbutton', { name: 'Quantity of line 2' }).fill('2')
-      await quote.getByRole('spinbutton', { name: 'Price of line 2' }).fill('80')
-      await quote.getByRole('combobox', { name: 'IVA of line 2' }).click()
-      await page.getByRole('option', { name: '21%' }).click()
-      // 600 at 10% and 160 at 21%: 760 + 60 + 33.60.
-      await expect(quote.getByRole('list', { name: 'Totals' })).toContainText('853,60')
-      await quote.getByRole('button', { name: 'Save' }).click()
-      await toast(page, /^Saved$/)
-      await expect(page.getByRole('region', { name: 'Quotes' }).getByRole('row').filter({ hasText: 'Coffee cart for a wedding' })).toContainText('Q-2026-004')
-
-      await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Leads & enquiries' }).click()
-      await expect(page.getByRole('combobox', { name: 'Stage of Coffee cart for a wedding, 80 guests' })).toHaveText('Quoted')
-    })
-    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Customers', exact: true }).click()
+    const nav = page.getByRole('navigation', { name: 'Main' })
+    await nav.getByRole('link', { name: 'Customers', exact: true }).click()
     await expect(page.getByRole('main').getByRole('row').filter({ hasText: 'Rocío' })).toContainText('Lead')
+    await nav.getByRole('link', { name: 'Leads & enquiries' }).click()
+    await page.getByRole('combobox', { name: 'Stage of Coffee cart for a wedding, 80 guests' }).click()
+    await page.getByRole('option', { name: 'Won' }).click()
+    await toast(page, 'Moved to Won')
+    await nav.getByRole('link', { name: 'Customers', exact: true }).click()
+    await expect(page.getByRole('main').getByRole('row').filter({ hasText: 'Rocío' })).toContainText('Customer')
   })
 
-  test('an accepted quote goes to Invoices as a sales invoice, and wins its enquiry', async ({ page }) => {
-    test.skip(!FEATURES.quotes, 'Quotes is switched off for now')
-    await open(page, '/quotes')
-    const row = page.getByRole('region', { name: 'Quotes' }).getByRole('row').filter({ hasText: 'Q-2026-002' })
-    await row.getByRole('button', { name: 'Edit Q-2026-002' }).click()
-    const dialog = page.getByRole('dialog', { name: /Q-2026-002/ })
-    await dialog.getByRole('combobox', { name: 'Status' }).click()
-    await page.getByRole('option', { name: 'Accepted' }).click()
-    await dialog.getByRole('button', { name: 'Save' }).click()
-    await toast(page, /^Saved$/)
-    await row.getByRole('button', { name: 'Add Q-2026-002 to Invoices' }).click()
-    await toast(page, 'Added to Invoices as a sales invoice to issue')
-    await expect(row.getByRole('link', { name: 'On Invoices' })).toBeVisible()
-
-    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Leads & enquiries' }).click()
-    await page.getByRole('combobox', { name: 'Show', exact: true }).click()
-    await page.getByRole('option', { name: /^Won/ }).click()
-    await expect(page.getByRole('region', { name: 'Enquiries' })).toContainText('Coffee for 30 desks, twice a week')
-  })
-
-  test('employees don’t get leads, quotes or campaigns', async ({ page }) => {
+  test('employees don’t get leads or campaigns', async ({ page }) => {
     await open(page, '/', 'maria@example.com')
-    for (const name of ['Leads & enquiries', 'Quotes & estimates', 'Campaigns', 'Hiring']) await expect(page.getByRole('link', { name })).toHaveCount(0)
-    await page.goto('/quotes?demo')
-    await expect(page.getByRole('heading', { name: 'Quotes & estimates' })).toHaveCount(0)
+    for (const name of ['Leads & enquiries', 'Campaigns', 'Hiring']) await expect(page.getByRole('link', { name })).toHaveCount(0)
   })
 })
 

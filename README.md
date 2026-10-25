@@ -127,10 +127,7 @@ built-in **AI connector** so owners can run it by talking to Claude.
 - Leads & enquiries (Sales section): what someone asked for (a party, the terrace, office coffee), where
   it came in, its value, the day it's for and when to follow it up (a reminder in the bell that day).
   Each belongs to someone on Customers, added there as a lead when they're new; a won enquiry makes
-  them a customer. **Quotes & estimates** are numbered Q-2026-001 on by the database, line by line with
-  their IVA (21, 10, 4 or 0%) and a discount; one made from an enquiry moves it to Quoted, accepted it
-  wins the enquiry, and an admin with pay access sends it to Invoices as a sales invoice to issue.
-  Quotes are switched off for now (`quotes` in `src/app/features.ts`): no menu item, page or button.
+  them a customer.
 - Expenses (Accounts section): what someone spent for the business, or drove for it in their
   own car (kilometres, there and back, times the business's rate: €0.26 a km, what Spain lets it pay
   back without tax). Everyone sends their own; admins with pay access approve, pay back and add the

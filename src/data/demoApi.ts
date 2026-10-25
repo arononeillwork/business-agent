@@ -43,8 +43,6 @@ import { CONNECT_MAPS, MAX_REPLY, type Review } from '../../shared/reviews'
 import { checkSite, parsePage, scoreOf, type PageSpeed, type WebsiteReport } from '../../shared/seo'
 import { addDays, localDate, minutesBetween, today, weekDates, weekStart, zonedIso } from '../../shared/time'
 import { SOURCE_FOR, type Enquiry } from '../../shared/leads'
-import { customerName } from '../../shared/customers'
-import { DEFAULT_VALID_DAYS, lineProblem, totals as quoteTotals, type Quote, type QuoteTotals } from '../../shared/quotes'
 import { DEFAULT_MILEAGE_RATE, mileageAmount, type ExpenseClaim } from '../../shared/claims'
 import { EVERYONE, type Campaign } from '../../shared/campaigns'
 import { keepUntil, type Applicant, type JobOpening } from '../../shared/hiring'
@@ -1086,30 +1084,6 @@ export function createDemoApi(): Api {
       received_at: daysAgo(24), closed_at: daysAgo(18) }),
     enquiry({ customer_id: customerNamed('Inés'), title: 'Coffee after class for the studio’s members, 10% off', channel: 'instagram', stage: 'lost', value: 300,
       lost_reason: 'Went with the juice bar next door', received_at: daysAgo(9), closed_at: daysAgo(4) }),
-  ]
-  const enquiryById = (id: string | null | undefined) => (id ? enquiryList.find(e => e.id === id) : undefined)
-  /** Won (enquiry_rules(), enquiry_won()): closed now, and the person is a customer. */
-  const winEnquiry = (e: Enquiry) => {
-    Object.assign(e, { stage: 'won', closed_at: nowIso(), lost_reason: null })
-    const c = customers.find(x => x.id === e.customer_id)
-    if (c?.kind === 'lead') c.kind = 'customer'
-  }
-
-  // Quotes: one accepted (the latte art class), one sent to the coworking space, one draft (database: quote_rules()).
-  const quote = (q: Partial<Quote> & { title: string }, n: number): Quote => {
-    const made: Quote = { id: uid(), number: `Q-${today().slice(0, 4)}-${String(n).padStart(3, '0')}`, customer_id: null, enquiry_id: null, status: 'draft',
-      issued_on: null, valid_until: null, lines: [], discount_pct: 0, terms: null, notes: null, net: 0, vat: 0, total: 0, invoice_id: null, created_at: nowIso(), ...q }
-    return { ...made, ...quoteTotals(made.lines, made.discount_pct) }
-  }
-  const quoteList: Quote[] = [
-    quote({ title: 'Latte art class for 6', customer_id: customerNamed('Liam'), enquiry_id: enquiryList[4].id, status: 'accepted', issued_on: addDays(today(), -20),
-      valid_until: addDays(today(), 10), created_at: daysAgo(20), terms: 'Two hours on a Saturday after closing. A 50% deposit books the date.',
-      lines: [{ description: 'Latte art class (2 hours)', quantity: 6, unit_price: 20, vat_rate: 21 }, { description: 'Coffee and pastries', quantity: 6, unit_price: 4.5, vat_rate: 10 }] }, 1),
-    quote({ title: 'Office coffee, twice a week', customer_id: customerNamed('Elena'), enquiry_id: enquiryList[2].id, status: 'sent', issued_on: addDays(today(), -5),
-      valid_until: addDays(today(), 25), created_at: daysAgo(5), terms: 'Monthly, invoiced at the start of each month. Cancel with a month’s notice.',
-      lines: [{ description: 'Coffee service, 2 visits a week (a month)', quantity: 1, unit_price: 520, vat_rate: 10 }, { description: 'Cups, lids and stirrers (a month)', quantity: 1, unit_price: 60, vat_rate: 21 }] }, 2),
-    quote({ title: 'Christmas coffee hampers (20)', created_at: daysAgo(2), notes: 'For the gestoría’s clients, if they want them',
-      lines: [{ description: 'Hamper: house blend 250 g and biscotti', quantity: 20, unit_price: 16, vat_rate: 10 }, { description: 'Easy Beans mug', quantity: 20, unit_price: 6, vat_rate: 21 }] }, 3),
   ]
 
   // Expenses: a trip waiting to be approved, one to pay back, some paid back, one turned down (database: claim_rules()).
@@ -2413,60 +2387,6 @@ export function createDemoApi(): Api {
       requireAdmin()
       const i = enquiryList.findIndex(x => x.id === id)
       if (i >= 0) enquiryList.splice(i, 1)
-      for (const q of quoteList) if (q.enquiry_id === id) q.enquiry_id = null
-    },
-    async quotes() {
-      if (!isAdmin()) return []
-      return clone(quoteList).map(q => {
-        const c = customers.find(x => x.id === q.customer_id)
-        return { ...q, customer: c ? { first_name: c.first_name, last_name: c.last_name, company: c.company, email: c.email, phone: c.phone } : null }
-      }).sort((a, b) => b.number.localeCompare(a.number))
-    },
-    async saveQuote({ id, ...q }) {
-      requireAdmin()
-      const { customer: _c, ...patch } = q as typeof q & { customer?: unknown }
-      if (!patch.title?.trim()) throw new Error('Give the quote a title')
-      for (const l of patch.lines ?? []) {
-        if (lineProblem(l)) throw new Error('Every line needs a description, a quantity above 0, a price of 0 or more and one of the IVA rates (21, 10, 4 or 0)')
-      }
-      const existing = id ? quoteList.find(x => x.id === id) : undefined
-      if (id && !existing) throw new Error('That quote has gone')
-      // The database's rules (quote_rules()): the totals, the date once sent, 30 days unless said, the enquiry's person, the next number.
-      const year = (patch.issued_on ?? existing?.issued_on ?? today()).slice(0, 4)
-      const next: Quote = existing ? { ...existing, ...patch } : quote({ ...patch, title: patch.title },
-        1 + Math.max(0, ...quoteList.filter(x => x.number.split('-')[1] === year).map(x => Number(x.number.split('-')[2]))))
-      if (!existing) next.number = `Q-${year}-${next.number.split('-')[2]}`
-      Object.assign(next, { title: next.title.trim(), terms: next.terms?.trim() || null, notes: next.notes?.trim() || null, ...quoteTotals(next.lines, next.discount_pct) })
-      if (next.status !== 'draft') next.issued_on ??= today()
-      if (next.status === 'sent') next.valid_until ??= addDays(next.issued_on!, DEFAULT_VALID_DAYS)
-      if (next.issued_on && next.valid_until && next.valid_until < next.issued_on) throw new Error('It can’t run out before it’s dated')
-      if (!next.customer_id && next.enquiry_id) next.customer_id = enquiryById(next.enquiry_id)?.customer_id ?? null
-      delete (next as Partial<QuoteTotals>).byRate
-      if (existing) Object.assign(existing, next)
-      else quoteList.push(next)
-      // quote_moves_enquiry(): quoted once a quote is made, won when one is accepted.
-      const e = enquiryById(next.enquiry_id)
-      if (e && next.status === 'accepted' && e.stage !== 'won') winEnquiry(e)
-      else if (e && (!existing || existing.enquiry_id !== next.enquiry_id) && (e.stage === 'new' || e.stage === 'contacted')) e.stage = 'quoted'
-      return next.id
-    },
-    async deleteQuote(id) {
-      requireAdmin()
-      const i = quoteList.findIndex(x => x.id === id)
-      if (i >= 0) quoteList.splice(i, 1)
-    },
-    async invoiceQuote(id) {
-      if (!canTax()) throw new Error('Only admins with pay access add invoices')
-      const q = quoteList.find(x => x.id === id)
-      if (!q) throw new Error('That quote has gone')
-      if (q.status !== 'accepted') throw new Error('Only an accepted quote goes to Invoices')
-      if (q.invoice_id && invoiceList.some(i => i.id === q.invoice_id)) throw new Error('This quote is already on Invoices')
-      const c = customers.find(x => x.id === q.customer_id)
-      const made = invoice({ direction: 'out', party_name: c ? customerName(c) : null, party_email: c?.email ?? null, issued_on: today(), net: q.net, vat: q.vat,
-        total: q.total, status: 'sent', notes: `From quote ${q.number}: ${q.title}` })
-      invoiceList.push(made)
-      q.invoice_id = made.id
-      return made.id
     },
     async campaigns() {
       if (!isAdmin()) return []

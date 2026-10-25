@@ -23,15 +23,13 @@ import { readyPhoto } from '../lib/media'
 import { cleanWebsite } from '../../shared/connections'
 import { cleanAnswers, type GrantApplication } from '../../shared/grants'
 import { SOURCE_FOR, type Enquiry } from '../../shared/leads'
-import type { Quote } from '../../shared/quotes'
 import type { ExpenseClaim } from '../../shared/claims'
 import type { Campaign } from '../../shared/campaigns'
 import type { Applicant, JobOpening } from '../../shared/hiring'
 import type { SafetyCheck, SafetyPoint } from '../../shared/foodSafety'
 import type { MenuAllergens } from '../../shared/allergens'
 import type { TipPool } from '../../shared/tips'
-import { customerName } from '../../shared/customers'
-import { addDays, today, zonedIso } from '../../shared/time'
+import { addDays, zonedIso } from '../../shared/time'
 
 const PROFILE_COLUMNS = 'id, full_name, email, role, can_see_pay, colour, active, phone, birth_date, whatsapp_opt_in, partner_company, partner_access, preferences'
 
@@ -651,29 +649,6 @@ export function createSupabaseApi(url: string, key: string): Api {
       return (check(await sb.from('enquiries').insert({ ...row, customer_id: customerId }).select('id').single()) as { id: string }).id
     },
     async deleteEnquiry(id) { check(await sb.from('enquiries').delete().eq('id', id)) },
-    async quotes() {
-      const rows = check(await sb.from('quotes').select('*, customer:customers(first_name, last_name, company, email, phone)')
-        .order('number', { ascending: false })) as Quote[]
-      return rows.map(q => ({ ...q, discount_pct: Number(q.discount_pct), net: Number(q.net), vat: Number(q.vat), total: Number(q.total) }))
-    },
-    async saveQuote({ id, ...q }) {
-      // The number and the totals are the database's.
-      const { customer: _c, number: _n, net: _net, vat: _vat, total: _t, created_at: _at, ...row } = q as typeof q & Partial<Quote>
-      if (id) { check(await sb.from('quotes').update(row).eq('id', id)); return id }
-      return (check(await sb.from('quotes').insert(row).select('id').single()) as { id: string }).id
-    },
-    async deleteQuote(id) { check(await sb.from('quotes').delete().eq('id', id)) },
-    async invoiceQuote(id) {
-      const q = check(await sb.from('quotes').select('number, title, status, net, vat, total, invoice_id, customer:customers(first_name, last_name, company, email, phone)')
-        .eq('id', id).single()) as Pick<Quote, 'number' | 'title' | 'status' | 'net' | 'vat' | 'total' | 'invoice_id' | 'customer'>
-      if (q.status !== 'accepted') throw new Error('Only an accepted quote goes to Invoices')
-      if (q.invoice_id) throw new Error('This quote is already on Invoices')
-      const invoice = check(await sb.from('invoices').insert({ direction: 'out', party_name: q.customer ? customerName(q.customer) : null,
-        party_email: q.customer?.email ?? null, issued_on: today(), net: q.net, vat: q.vat, total: q.total, status: 'sent',
-        notes: `From quote ${q.number}: ${q.title}` }).select('id').single()) as { id: string }
-      check(await sb.from('quotes').update({ invoice_id: invoice.id }).eq('id', id))
-      return invoice.id
-    },
     async campaigns() {
       return check(await sb.from('campaigns').select('*').order('created_at', { ascending: false })) as Campaign[]
     },

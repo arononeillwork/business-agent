@@ -23,7 +23,6 @@ import type { AdPlatform, AdSettings, AdsReport, CampaignPatch } from '../../sha
 import type { ReviewsState } from '../../shared/reviews'
 import type { PageSpeed, Strategy, WebsiteReport, WebsiteState } from '../../shared/seo'
 import type { Enquiry, EnquiryInput, NewLead } from '../../shared/leads'
-import type { Quote, QuoteInput } from '../../shared/quotes'
 import type { ClaimInput, ExpenseClaim } from '../../shared/claims'
 import type { Campaign, CampaignInput } from '../../shared/campaigns'
 import type { Applicant, ApplicantInput, JobOpening, OpeningInput } from '../../shared/hiring'
@@ -268,14 +267,6 @@ export interface Api {
   /** Add an enquiry (no id; with `lead`, for someone new, added to Customers as a lead) or change one; returns its id. */
   saveEnquiry(e: EnquiryInput, lead?: NewLead): Promise<string>
   deleteEnquiry(id: string): Promise<void>
-
-  // Quotes & estimates (admins): numbered by the database; an accepted one can go to Invoices.
-  quotes(): Promise<Quote[]>
-  /** Add a quote (no id) or change one; returns its id. */
-  saveQuote(q: QuoteInput): Promise<string>
-  deleteQuote(id: string): Promise<void>
-  /** An accepted quote added to Invoices as a sales invoice to issue (admins with pay access); returns the invoice's id. */
-  invoiceQuote(id: string): Promise<string>
 
   // Campaigns (admins): one message to the customers and leads who said yes to marketing.
   campaigns(): Promise<Campaign[]>
