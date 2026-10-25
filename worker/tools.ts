@@ -301,7 +301,7 @@ export const ALL_TOOLS: ToolDef[] = [
   tool({
     name: 'set_team_role',
     title: 'Change someone’s role',
-    description: 'Admins: give a team member one of the three roles. employee: their own shifts, clock-ins and time off. manager (shop manager): runs the shop (rota, timecards, time off, stock, the team) without pay, takings or finances. boss (the CEO or owner): everything, with pay, takings and finances. Only a boss makes someone a boss or changes a boss; nobody changes their own role.',
+    description: 'Admins: give a team member one of the three roles. employee: their own shifts, clock-ins and time off. manager (shop manager): runs the shop (rota, timecards, time off, stock, the team) without pay, takings, finances or billing. boss (the CEO or owner): everything, with pay, takings, finances and billing. Only a boss makes someone a boss or changes a boss; nobody changes their own role.',
     admin: true,
     input: z.object({
       person: z.string().describe('Name or id'),

@@ -152,8 +152,12 @@ describe('choosing a plan', () => {
     expect(row()).toMatchObject({ plan: 'business', status: 'comped' })
   })
 
-  it('admins only; Free is not something to check out', async () => {
+  it('bosses only, not a shop manager; Free is not something to check out', async () => {
     expect((await post('/api/billing/checkout', { plan: 'business' }, 'staff')).status).toBe(403)
+    db.people.set('manager-token', { id: 'admin-2', role: 'admin' }) // Maria: an admin without pay access
+    const manager = await billing.request(`${APP}/api/billing`, { headers: { authorization: 'Bearer manager-token' } }, env)
+    expect(manager.status).toBe(403)
+    expect(await manager.json()).toEqual({ error: 'Only a boss can manage billing' })
     expect((await post('/api/billing/checkout', { plan: 'free' })).status).toBe(400)
   })
 

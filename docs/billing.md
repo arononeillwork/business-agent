@@ -22,6 +22,11 @@ GoHighLevel: `/compare` (numbers and sources in `shared/competitors.ts`, checked
 
 - Admins choose a plan on **Settings → Billing**. A new subscriber goes to **Stripe Checkout**;
   someone already paying moves plan straight away (prorated).
+- **Billing is the boss's.** Only a boss (an admin with pay access, the top of the three team roles)
+  sees Billing, chooses a plan, opens Stripe's page and gets the **Fix billing** banner. The Worker's
+  `/api/billing/*` routes check `can_see_pay()`, and the `billing_boss_only` migration lets only
+  bosses read `public.billing`. A shop manager who meets a paid feature is told to ask a boss;
+  everyone still sees the plan in force (`plan_status()`), which the feature locks need.
 - **Business starts with a 2-month free trial**, once per business. Checkout takes the card up
   front (`payment_method_collection=always`), so Stripe charges it by itself when the trial ends.
 - **No payment, no paid plan.** `public.current_plan()` gives the chosen plan only while Stripe says
