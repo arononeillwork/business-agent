@@ -26,6 +26,7 @@ import KittyIcon from '@mui/icons-material/SavingsOutlined'
 import RepsIcon from '@mui/icons-material/RecordVoiceOverOutlined'
 import RolesIcon from '@mui/icons-material/AssignmentIndOutlined'
 import RulesIcon from '@mui/icons-material/RuleOutlined'
+import OutsourcingIcon from '@mui/icons-material/BusinessCenterOutlined'
 import FinanceIcon from '@mui/icons-material/PaymentsOutlined'
 import SalesIcon from '@mui/icons-material/InsightsOutlined'
 import TaxIcon from '@mui/icons-material/ReceiptLongOutlined'
@@ -74,6 +75,7 @@ import { FEATURES } from './features'
 import { useUnreadMessages } from './unread'
 import { useConnected } from './connected'
 import type { PartnerArea } from '../../shared/types'
+import { teamRoleLabel } from '../../shared/teamRoles'
 import { BrandLogo } from '../components/Logo'
 import { Loading, PersonAvatar } from '../components/common'
 import { NotificationBell } from '../components/NotificationBell'
@@ -153,6 +155,7 @@ export const SECTIONS: NavSection[] = [
     { key: 'team', to: '/team', label: msg('Team'), icon: <TeamIcon /> },
     { key: 'roles', to: '/roles', label: msg('Roles & responsibilities'), short: msg('Roles'), icon: <RolesIcon /> },
     { key: 'rules', to: '/rules', label: msg('Staff rules'), short: msg('Rules'), icon: <RulesIcon /> },
+    { key: 'outsourcing', to: '/outsourcing', label: msg('Outsourcing'), icon: <OutsourcingIcon />, who: 'admin', partner: ['finances'] },
   ] },
   { key: 'admin', label: msg('Settings'), items: [
     { key: 'connections', to: '/connections', label: msg('Connections'), icon: <ConnectIcon />, who: 'admin' },
@@ -631,7 +634,7 @@ export function AppShell() {
               {me && <PersonAvatar name={me.full_name} colour={me.colour} size={34} />}
               {!mini && <Box sx={{ minWidth: 0, flex: 1, textAlign: 'left' }}>
                 <Typography sx={{ fontWeight: 500, fontSize: '0.88rem', color: SIDEBAR.bright }} noWrap>{me?.full_name}</Typography>
-                <Typography variant="caption" sx={{ color: SIDEBAR.faint }}>{me?.role === 'admin' ? t('Admin') : me?.role === 'partner' ? me.partner_company ?? t('Partner') : t('Employee')}</Typography>
+                <Typography variant="caption" sx={{ color: SIDEBAR.faint }}>{me?.role === 'partner' ? me.partner_company ?? t('Partner') : t((me && teamRoleLabel(me)) || 'Employee')}</Typography>
               </Box>}
             </AccountMenu>
             <Tooltip title={t('Sign out')}>

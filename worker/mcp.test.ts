@@ -13,7 +13,7 @@ const person = (role: Profile['role']): Profile => ({
 /** Minimal stand-in for a Supabase query builder that resolves to fixed data. */
 const fakeSb = (data: unknown) => {
   const builder: Record<string, unknown> = {}
-  for (const m of ['select', 'eq', 'neq', 'single', 'maybeSingle', 'order', 'gte', 'lt', 'lte']) builder[m] = () => builder
+  for (const m of ['select', 'eq', 'neq', 'not', 'update', 'single', 'maybeSingle', 'order', 'gte', 'lt', 'lte']) builder[m] = () => builder
   builder.then = (resolve: (v: unknown) => void) => resolve({ data, error: null })
   return { from: () => builder } as unknown as SupabaseClient
 }
@@ -78,6 +78,23 @@ describe('AI connector tools', () => {
     await expect(runTool(t, { sb: fakeSb(null), me: person('employee') }, {})).rejects.toThrow('Only admins')
   })
 
+  it('gives team roles: only a boss makes or changes a boss, and nobody their own', async () => {
+    const aron = person('admin') // a boss: an admin with pay access
+    const mark: Profile = { ...person('admin'), id: 'u2', full_name: 'Mark', can_see_pay: false }
+    const julio: Profile = { ...person('employee'), id: 'u3', full_name: 'Julio' }
+    const t = TOOLS.find(x => x.name === 'set_team_role')!
+    const as = (me: Profile, args: unknown) => runTool(t, { sb: fakeSb([aron, mark, julio]), me }, args)
+    await expect(as(aron, { person: 'Julio', role: 'manager' })).resolves.toEqual({ ok: true, name: 'Julio', team_role: 'manager' })
+    await expect(as(aron, { person: 'Mark', role: 'boss' })).resolves.toMatchObject({ team_role: 'boss' })
+    await expect(as(mark, { person: 'Julio', role: 'manager' })).resolves.toMatchObject({ team_role: 'manager' })
+    await expect(as(mark, { person: 'Julio', role: 'boss' })).rejects.toThrow('Only a boss')
+    await expect(as(mark, { person: 'Aron', role: 'employee' })).rejects.toThrow('Only a boss')
+    await expect(as(mark, { person: 'Mark', role: 'employee' })).rejects.toThrow('your own role')
+    await expect(as(aron, { person: 'Julio', role: 'owner' })).rejects.toThrow('role')
+    await expect(as(julio, { person: 'Julio', role: 'boss' })).rejects.toThrow('Only admins')
+    expect(toolsFor(julio).map(x => x.name)).not.toContain('set_team_role')
+  })
+
   it('validates input and requires confirmation for deletes', async () => {
     const t = TOOLS.find(x => x.name === 'delete_shift')!
     await expect(runTool(t, { sb: fakeSb(null), me: person('admin') },
@@ -136,6 +153,6 @@ describe('AI connector tools', () => {
 
     const call = await rpc(handler, 3, 'tools/call', { name: 'whoami', arguments: {} })
     const out = JSON.parse(call.result.content[0].text)
-    expect(out).toMatchObject({ name: 'Aron', role: 'employee', business: 'Test Café' })
+    expect(out).toMatchObject({ name: 'Aron', role: 'employee', team_role: 'employee', business: 'Test Café' })
   })
 })

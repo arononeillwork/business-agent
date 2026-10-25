@@ -10,6 +10,7 @@ import { applyPreferences } from './Appearance'
 import { PersonAvatar } from '../components/common'
 import { tokens } from '../theme'
 import { t } from '../i18n'
+import { teamRoleLabel } from '../../shared/teamRoles'
 
 // The two buttons at the top right: search (Ctrl/⌘ K) and the light/dark switch.
 
@@ -104,7 +105,7 @@ function SearchDialog({ pages, onClose }: { pages: SearchPage[]; onClose: () => 
       .filter(p => p.active && p.role !== 'kiosk' && p.role !== 'partner' && words.length > 0 && hit(p.full_name, p.email))
       .slice(0, 6)
       .map(p => ({
-        id: `person:${p.id}`, group: 'People', label: p.id === me?.id ? t('{name} (you)', { name: p.full_name }) : p.full_name, hint: p.role === 'admin' ? t('Admin') : t('Team'),
+        id: `person:${p.id}`, group: 'People', label: p.id === me?.id ? t('{name} (you)', { name: p.full_name }) : p.full_name, hint: t(teamRoleLabel(p) ?? 'Team'),
         icon: <PersonAvatar name={p.full_name} colour={p.colour} size={26} />,
         to: `/team?q=${encodeURIComponent(p.full_name)}${isAdmin ? `&person=${p.id}` : ''}`,
       }))

@@ -172,7 +172,7 @@ test.describe('admin', () => {
     const pages: { link: string; path: string; check: (p: Page) => Promise<void> }[] = [
       { link: 'Business', path: '/business', check: p => expect(p.getByRole('heading', { level: 1, name: business.name })).toBeVisible(NET) },
       { link: 'Home: Today', path: '/', check: p => expect(p.getByRole('heading', { name: 'Hola, Ana' })).toBeVisible(NET) },
-      ...['Customers', 'Reps & rewards', 'To Do List', 'Rota', 'Time off', 'Staff kitty', 'Timecards', 'Team', 'Roles & responsibilities', 'Staff rules', 'Opening hours', 'Brand', 'Ads', 'Analytics', 'Calendar', 'Sports', 'Music', 'Messages', 'Finances', 'Notifications', 'Connections'].map(name => ({
+      ...['Customers', 'Reps & rewards', 'To Do List', 'Rota', 'Time off', 'Staff kitty', 'Timecards', 'Team', 'Roles & responsibilities', 'Staff rules', 'Outsourcing', 'Opening hours', 'Brand', 'Ads', 'Analytics', 'Calendar', 'Sports', 'Music', 'Messages', 'Finances', 'Notifications', 'Connections'].map(name => ({
         link: name,
         path: { 'Time off': '/time-off', 'Opening hours': '/opening-hours', 'To Do List': '/todo', 'Roles & responsibilities': '/roles', 'Staff rules': '/rules',
           'Reps & rewards': '/sales-reps', 'Staff kitty': '/kitty' }[name] ?? `/${name.toLowerCase()}`,
