@@ -123,7 +123,7 @@ export async function syncBilling(env: Env): Promise<void> {
 // ---------------------------------------------------------------------------------------------
 // Pay per use (PAY_PER_USE in shared/plans.ts): an AI music track that isn't one of the plan's
 // free ones goes on the subscription's next invoice as an invoice item, exactly once (its own
-// idempotency key), and the use is marked charged (migration 62).
+// idempotency key), and the use is marked charged (migration 85).
 // ---------------------------------------------------------------------------------------------
 export interface AiMusicCharge { id: string; price_cents: number; uses: number }
 

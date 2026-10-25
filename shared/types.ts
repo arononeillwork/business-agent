@@ -444,7 +444,7 @@ export type PostKind = 'post' | 'carousel' | 'reel' | 'story'
 /** A photo or video of a post, at a public address the networks fetch it from. */
 export interface PostMedia { url: string; type: 'image' | 'video' }
 
-/** A track in the business's music library (migration 62). */
+/** A track in the business's music library (migration 85). */
 export interface MusicTrack {
   id: string
   /** starter: Business Agent's pack; ai: made for this business with ElevenLabs; upload: its own file. */

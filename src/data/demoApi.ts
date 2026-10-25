@@ -1077,7 +1077,7 @@ export function createDemoApi(): Api {
   }
 
   // Music on stories and reels: the sample café's library (six short tracks made for the demo, in
-  // public/demo/music), its AI tracks and pay per use, as migration 62 has them. The demo can't
+  // public/demo/music), its AI tracks and pay per use, as migration 85 has them. The demo can't
   // call ElevenLabs or the render service: sample tracks stand in, and files keep their picture.
   const DEMO_MUSIC: [string, string, Mood[], number, number][] = [
     ['morning-light', 'Morning Light', ['acoustic', 'chill', 'cosy'], 2, 88],
@@ -1095,7 +1095,7 @@ export function createDemoApi(): Api {
   const musicUses: MusicGeneration[] = []
   let payPerUseLimitCents = 2500
   const monthStart = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString() }
-  // public.ai_music_quote (migration 62).
+  // public.ai_music_quote (migration 85).
   const quoteMusic = (seconds: number): AiMusicQuote => {
     const plan = effectivePlan(demoBilling)
     const ppu = payPerUse('ai_music')

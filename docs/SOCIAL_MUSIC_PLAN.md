@@ -18,7 +18,7 @@ way to add their library music through the API (Phase 0 (d)). To switch it on fo
 2. Run **Actions → Deploy render service** once (needs Cloudflare Workers Paid, for Containers). It
    deploys `business-agent-render` and gives both Workers `RENDER_URL` and `RENDER_KEY`. Until then
    the composer offers *Add it in Instagram* instead of putting music into files.
-3. Merge to the live branch: migration 62 runs on deploy, and the pricing page goes live with it.
+3. Merge to the live branch: migration 85 runs on deploy, and the pricing page goes live with it.
 4. On the first real paid track, check the invoice item on Stripe's dashboard (tested only against a
    fake Stripe so far).
 
@@ -302,7 +302,7 @@ a phone. Every post would come out the same on the container, from any device.
 ## Changes, file by file
 
 All built as listed, with these differences: the library is read and changed by the app straight
-through Supabase (RLS and migration 62's rules), so `worker/socialMusic.ts` only has `status`,
+through Supabase (RLS and migration 85's rules), so `worker/socialMusic.ts` only has `status`,
 `generate` and `render`, plus the starter pack and the nightly insights; the charge is
 `chargeAiMusic()` / `chargePendingAiMusic()`; the render service is its own Worker
 (`render/wrangler.jsonc`, `business-agent-render`); the library opens from a **Music** button on

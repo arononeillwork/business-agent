@@ -5,7 +5,7 @@
 //   - Render: put the chosen part of a track into a story or reel (the render service, render/).
 //   - The starter pack: a dozen tracks made once by Business Agent for every business that posts.
 //   - Nightly, Instagram's likes and comments on posts with music, so suggestions learn.
-// The library itself is read and changed by the app through Supabase (migration 62's rules).
+// The library itself is read and changed by the app through Supabase (migration 85's rules).
 import { Hono } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { bearer, serviceClient, userClient, type Env } from './supabase'
@@ -79,7 +79,7 @@ async function keep(env: Env, db: SupabaseClient, origin: string, bytes: ArrayBu
 /**
  * Create with AI, as the admin `sb` is signed in as: one use (or one per started minute), two
  * versions, both added to Music. The use is reserved first (the plan, the free ones, the limit:
- * migration 62) and settled after; a failed or refused one is never charged.
+ * migration 85) and settled after; a failed or refused one is never charged.
  */
 export async function makeAiMusic(env: Env, sb: SupabaseClient, userId: string, origin: string, body: MakeRequest): Promise<MadeMusic> {
   const prompt = (body.prompt ?? '').trim()

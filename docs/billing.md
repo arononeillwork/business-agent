@@ -73,7 +73,7 @@ They are listed in `PAY_PER_USE` (`shared/plans.ts`), which the pricing page rea
 |---|---|---|---|
 | AI music track for a story or reel (ElevenLabs, up to 60 s) | €0.99 | Business: 1 | Starter, Pro, Business |
 
-How a use is charged (migration 62, `worker/socialMusic.ts`, `worker/billing.ts`):
+How a use is charged (migration 85, `worker/socialMusic.ts`, `worker/billing.ts`):
 
 - **Reserved first.** `ai_music_start()` locks the billing row, takes the month's free uses first
   (`pay_per_use.included` for the plan, plus `billing.ai_music_extra_free` for a complimentary

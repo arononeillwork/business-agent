@@ -71,7 +71,7 @@ export function postProblem(p: Pick<SocialPost, 'kind' | 'caption' | 'media' | '
   if (p.kind === 'story' && n > 1) return msg('A story is one photo or video')
   const other = p.targets.find(t => !info.networks.includes(t))
   if (other) return INSTAGRAM_ONLY[p.kind]
-  // Music (migration 62): mixed into stories and reels; Instagram's own songs only on reminders.
+  // Music (migration 85): mixed into stories and reels; Instagram's own songs only on reminders.
   const music = p.music ?? null
   if (music?.mode === 'mixed' && p.kind !== 'story' && p.kind !== 'reel') return msg('Music goes into stories and reels. Choose Story or Reel.')
   if (music?.mode === 'mixed' && !music.url) return msg('Choose a track for the music')
