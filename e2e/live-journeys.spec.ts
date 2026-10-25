@@ -172,7 +172,7 @@ test.describe('admin', () => {
     const pages: { link: string; path: string; check: (p: Page) => Promise<void> }[] = [
       { link: 'Business', path: '/business', check: p => expect(p.getByRole('heading', { level: 1, name: business.name })).toBeVisible(NET) },
       { link: 'Home: Today', path: '/', check: p => expect(p.getByRole('heading', { name: 'Hola, Ana' })).toBeVisible(NET) },
-      ...['Customers', 'Reps & rewards', 'To Do List', 'Rota', 'Time off', 'Staff kitty', 'Timecards', 'Team', 'Roles & responsibilities', 'Staff rules', 'Opening hours', 'Brand', 'Ads', 'Analytics', 'Calendar', 'Sports', 'Music', 'Messages', 'Finances', 'Notifications', 'Connections'].map(name => ({
+      ...['Customers', 'Reps & rewards', 'To Do List', 'Rota', 'Time off', 'Staff kitty', 'Timecards', 'Team', 'Roles & responsibilities', 'Staff rules', 'Outsourcing', 'Opening hours', 'Brand', 'Ads', 'Analytics', 'Calendar', 'Sports', 'Music', 'Messages', 'Finances', 'Notifications', 'Connections'].map(name => ({
         link: name,
         path: { 'Time off': '/time-off', 'Opening hours': '/opening-hours', 'To Do List': '/todo', 'Roles & responsibilities': '/roles', 'Staff rules': '/rules',
           'Reps & rewards': '/sales-reps', 'Staff kitty': '/kitty' }[name] ?? `/${name.toLowerCase()}`,
@@ -484,7 +484,7 @@ test.describe('partner', () => {
     await signInUi(page, PARTNER.email)
     await expect(page).toHaveURL(url => new URL(url).pathname === '/business', NET)
     await expect(page.getByRole('heading', { level: 1, name: business.name })).toBeVisible(NET)
-    await expect(page.getByRole('button', { name: 'Edit' })).toHaveCount(0)
+    await expect(page.getByRole('main').getByRole('button', { name: 'Edit' })).toHaveCount(0)
     for (const name of ['Business', 'Rota', 'Timecards', 'Finances']) {
       await expect.soft(nav(page).getByRole('link', { name, exact: true })).toBeVisible()
     }

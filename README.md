@@ -5,6 +5,8 @@ Square-style rota and time tracking, Spanish holidays and registro de jornada ru
 built-in **AI connector** so owners can run it by talking to Claude.
 
 - Web app: installable on phones (Add to Home Screen) and the café tablet (kiosk with PINs)
+- Menu: each person puts its sections in their own order and hides pages they don't use (Settings → Pages),
+  and drags or pins pages within a section; admins can also hide a page for the whole team
 - AI: MCP server at `/mcp` for Claude, ChatGPT, Cursor and any MCP client (sign-in or personal access
   keys), plus a REST API at `/api/v1` with an OpenAPI description for GPT actions, n8n and Zapier
 - Hosting: one Cloudflare Worker. Data and login: Supabase (EU): email/password or code, Google, Apple,
@@ -16,6 +18,13 @@ built-in **AI connector** so owners can run it by talking to Claude.
   database ([docs/billing.md](docs/billing.md))
 - Partners: outside businesses (gestoría, suppliers) get a read-only login to the areas an admin
   picks (rota, payroll, finances, calendar). Enforced by database row security and in the AI tools.
+- Team roles: everyone on the team is an **employee**, a **shop manager** or the **boss / CEO**, picked
+  on the Team page when inviting them or later, or by asking Claude (`set_team_role`). Employees see
+  their own shifts, clock-ins, time off and expenses; a shop manager runs the shop (rota, timecards,
+  time off, stock, the team, settings) without pay, takings or finances; a boss does all of it with
+  pay and finances. They're stored as the access the database already checks (a boss is an admin
+  with pay access), and only a boss makes someone a boss or changes a boss
+  (`shared/teamRoles.ts`, the `team_roles` migration).
 - Sports: the next 3 weeks of football (Spanish, English, Scottish, Dutch and other leagues, cups,
   European nights, national teams), rugby (Six Nations, Premiership, Champions Cup and more), UFC and
   boxing, with "big nights" flagged. The Worker refreshes
@@ -91,6 +100,18 @@ built-in **AI connector** so owners can run it by talking to Claude.
   is open and marked; moving a section asks nobody); admins see who has read them since the last change.
   Starts from the usual rules for a café in Spain (free tap water, the hoja de quejas y reclamaciones, the
   14 allergens), to change to how the business works.
+- Outsourcing (Team section, admins; a gestoría with finances access reads): the jobs done for the business by
+  people and firms outside the team (social media, the books, cleaning, the windows, the coffee machine's
+  service, pest control…). **Active** shows who does each job, the price agreed and how it's charged (a month,
+  a year, an hour, a day, a visit or once for a project, with how many hours or visits so it adds up to a
+  month), what's included, the contract dates (ending soon or past its end date marked) and how to reach
+  them, with the total a month and a year; the usual jobs nobody does yet list how many options are on file.
+  **Catalogue** is the freelancers, agencies and firms to choose from, grouped by job so the options sit side
+  by side (starred first, then the best rated; the cheapest charged the same way marked, and who does it now),
+  each with their usual rate, the business's own rating, their work and notes. Choosing someone gives them
+  the job and ends it with whoever had it; **Past** keeps who did what. Someone who has done a job is
+  archived, never deleted. Prices without IVA. The AI connector reads it all, adds people to the catalogue
+  and gives or ends jobs.
 - Licences (Business section): everything the business keeps open (licencia de apertura, SGAE
   and AGEDI/AIE for the music, the terrace permit, insurance, extinguisher and electrical checks, staff
   food handler certificates), each with its number, when it runs out, how often it renews, its cost
@@ -121,6 +142,14 @@ built-in **AI connector** so owners can run it by talking to Claude.
   in from the connected Gmail or Outlook (once reading it is allowed), by upload, or typed in; a
   Facturae e-invoice fills in its number, days and amounts by itself. The app records invoices, it
   doesn't issue them (that needs invoicing software that meets Verifactu).
+- Credit & debit (Accounts section): money the business still has to pay back (a loan from someone, a
+  machine bought on finance) and money still to come in or that could be raised (something to sell, like
+  the old coffee machine, a deposit, money it's owed), each with its regular payment and next date. Each
+  payment made or received is recorded as it goes: a repeating one moves on to its next date and what's
+  paid off is settled. The grants from Grants show here too (what was asked for while applying, what was
+  awarded once it is, less what's come in), each opening at its application; money received on a grant
+  is recorded from either page. AI connector: `credit_and_debit`, `record_credit_debit_payment`,
+  `save_credit_debit`. A gestoría with finances access reads.
 - Tax: the returns an SL files (303, 111, 115, 202, 390, 190, 180, 347, 200 and the annual accounts) with
   their last days, marked to do, with the gestoría or filed; documents (invoices, receipts, payslips,
   statements) uploaded in bulk, a folder at a time, into the connected Google Drive or OneDrive under

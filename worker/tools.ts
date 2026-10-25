@@ -10,14 +10,21 @@ import { COUNTRY_NAME, ENTITLEMENTS, LAW_CHECKED, PAYER_LABEL, leaveYear, type B
 import { businessConfig } from '../shared/business.config'
 import { dutiesByWhen, sortRoles, type JobRole } from '../shared/roles'
 import { readState, rulesChangedAt, sortSections, type RuleSection, type RulesRead } from '../shared/staffRules'
+import { TEAM_ROLE_IDS, roleBlock, roleChange, teamRole, type TeamRole } from '../shared/teamRoles'
 import { cleanPhone, matchesSearch } from '../shared/customers'
 import { cleanWebsite } from '../shared/connections'
+import { moneyLines, statusOf, totals, type MoneyItem } from '../shared/creditDebit'
+import type { GrantApplication } from '../shared/grants'
 import {
   FEATURES, IDEA_STATUSES, KINDS, NOTE_KINDS, PRICE_SOURCES, THREATS, analyse, competitorRows, featuresOf, hoursOf, insightText, insights, matchRecipe,
   priceKey, priceLevelLabel, type Competitor, type CompetitorData, type CompetitorKind, type IdeaStatus, type NoteKind, type PriceSource, type Threat,
 } from '../shared/localCompetitors'
 import { balanceOf, earnsCredit, leaderboard, ruleFits, type RepReward, type RewardRule, type SalesRep } from '../shared/reps'
 import { fillJars, forecast, kittyBalance, monthlyPace, profitShare, type KittyEntry, type KittyGoal } from '../shared/kitty'
+import {
+  CONTRACTOR_KINDS, COUNTED, QUANTITY_PERS, RATE_UNITS, SERVICES, compareServices, contractState, monthlyCost, optionsFor, outsourcingTotals, presetOf,
+  sameJob, sortServices, type Contractor, type OutsourcedJob, type QuantityPer, type RateUnit,
+} from '../shared/outsourcing'
 
 export interface ToolContext {
   sb: SupabaseClient
@@ -70,6 +77,41 @@ async function competitorData(sb: SupabaseClient) {
   return { data: competitorRows({ competitors, items, prices, notes, snapshots, nearby, settings }),
     recipes: recipes.map(r => ({ ...r, sell_price: r.sell_price === null ? null : Number(r.sell_price) })), business }
 }
+
+/** The catalogue and the jobs, with prices as numbers. */
+async function outsourcingData(sb: SupabaseClient) {
+  const [contractors, jobs] = await Promise.all([
+    sb.from('contractors').select('*').order('name').then(rowsAs<Contractor[]>()),
+    sb.from('outsourced_jobs').select('*').order('starts_on', { ascending: false }).then(rowsAs<OutsourcedJob[]>()),
+  ])
+  const n = (v: unknown) => (v == null ? null : Number(v))
+  return {
+    contractors: contractors.map(c => ({ ...c, rate: n(c.rate) })),
+    jobs: jobs.map(j => ({ ...j, price: n(j.price), quantity: n(j.quantity) })),
+  }
+}
+
+/** Find someone in the outsourcing catalogue by id or (partial, case-insensitive) name. */
+function resolveContractor(contractors: Contractor[], who: string): Contractor {
+  const q = who.trim().toLowerCase()
+  const exact = contractors.filter(c => c.id === who || c.name.toLowerCase() === q)
+  const matches = exact.length ? exact : contractors.filter(c => c.name.toLowerCase().includes(q))
+  if (matches.length === 1) return matches[0]
+  const all = contractors.filter(c => c.active).map(c => c.name).join(', ') || 'nobody yet'
+  if (!matches.length) throw new Error(`Nobody in the outsourcing catalogue matches "${who}". In it: ${all}`)
+  throw new Error(`"${who}" matches several: ${matches.map(c => c.name).join(', ')}`)
+}
+
+/** "a month", "an hour", "for the project". */
+const chargedText = (u: RateUnit) => RATE_UNITS.find(x => x.id === u)!.price.replace('{price} ', '')
+/** "2 visits a month", "6 hours a week". */
+function howManyText(j: Pick<OutsourcedJob, 'price_unit' | 'quantity' | 'quantity_per'>) {
+  if (j.quantity == null || !j.quantity_per || !COUNTED.includes(j.price_unit)) return null
+  return `${j.quantity} ${j.price_unit}${j.quantity === 1 ? '' : 's'} ${QUANTITY_PERS.find(p => p.id === j.quantity_per)!.label}`
+}
+const reachOf = (c: Contractor | undefined) => (c ? { phone: c.phone, whatsapp: c.whatsapp, email: c.email, website: c.website, their_work: c.portfolio_url } : null)
+const RATE_UNIT_IDS = RATE_UNITS.map(u => u.id) as [RateUnit, ...RateUnit[]]
+const usualJobs = SERVICES.map(s => s.name).join(', ')
 
 /** Find a competitor (or the business itself) by id or (partial, case-insensitive) name. */
 async function resolveCompetitor(sb: SupabaseClient, who: string): Promise<Pick<Competitor, 'id' | 'name' | 'is_self' | 'active' | 'features'>> {
@@ -166,13 +208,13 @@ export const TOOLS: ToolDef[] = [
   tool({
     name: 'whoami',
     title: 'Who am I',
-    description: 'The signed-in person, their role (admin, employee, or partner = an outside business with read-only access to some areas) and the business name. Call this first.',
+    description: 'The signed-in person, their role (admin, employee, or partner = an outside business with read-only access to some areas), their team role (boss, manager = shop manager, or employee) and the business name. Call this first.',
     partner: 'any',
     input: z.object({}),
     readOnly: true,
     async run({ sb, me }) {
       const b = check(await sb.from('business').select('name, timezone').eq('id', 1).single())
-      return { name: me.full_name, email: me.email, role: me.role, can_see_pay: me.can_see_pay, business: b.name,
+      return { name: me.full_name, email: me.email, role: me.role, ...(teamRole(me) ? { team_role: teamRole(me) } : {}), can_see_pay: me.can_see_pay, business: b.name,
         ...(me.role === 'partner' ? { partner_company: me.partner_company, partner_can_see: ['business details', ...(me.partner_access ?? [])],
           partner_note: 'Read-only: you can look but not change anything.' } : {}),
         timezone: b.timezone, today: today(), note: 'Dates are YYYY-MM-DD, times are 24-hour local (Europe/Madrid).' }
@@ -229,7 +271,7 @@ export const TOOLS: ToolDef[] = [
   tool({
     name: 'list_team',
     title: 'Team',
-    description: 'Team members with roles. Hourly pay rates are included only for admins with pay access.',
+    description: 'Team members with roles (team_role: boss, manager = shop manager, or employee). Hourly pay rates are included only for admins with pay access.',
     partner: ['rota', 'payroll'],
     input: z.object({}),
     readOnly: true,
@@ -238,8 +280,27 @@ export const TOOLS: ToolDef[] = [
         sb.from('pay_rates').select('*').then(rowsAs<PayRate[]>())])
       const latest = new Map<string, number>()
       for (const r of rates.sort((a, b) => a.effective_from.localeCompare(b.effective_from))) latest.set(r.profile_id, Number(r.hourly_rate))
-      return people.map(p => ({ name: p.full_name, role: p.role, active: p.active, email: p.email,
+      return people.map(p => ({ name: p.full_name, role: p.role, team_role: teamRole(p), active: p.active, email: p.email,
         ...(seesPay(me) ? { hourly_rate_eur: latest.get(p.id) ?? null } : {}) }))
+    },
+  }),
+  tool({
+    name: 'set_team_role',
+    title: 'Change someone’s role',
+    description: 'Admins: give a team member one of the three roles. employee: their own shifts, clock-ins and time off. manager (shop manager): runs the shop (rota, timecards, time off, stock, the team) without pay, takings or finances. boss (the CEO or owner): everything, with pay, takings and finances. Only a boss makes someone a boss or changes a boss; nobody changes their own role.',
+    admin: true,
+    input: z.object({
+      person: z.string().describe('Name or id'),
+      role: z.enum(TEAM_ROLE_IDS as [TeamRole, ...TeamRole[]]),
+    }),
+    async run({ sb, me }, a) {
+      const p = await resolvePerson(sb, a.person)
+      if (p.id === me.id) throw new Error('Another admin can change your own role')
+      const why = roleBlock(me, p, a.role, await team(sb))
+      if (why) throw new Error(why)
+      const patch = roleChange(p, a.role)
+      if (Object.keys(patch).length) check(await sb.from('profiles').update(patch).eq('id', p.id))
+      return { ok: true, name: p.full_name, team_role: a.role }
     },
   }),
 
@@ -609,6 +670,131 @@ export const TOOLS: ToolDef[] = [
       }
     },
   }),
+  // ---------------- Outsourcing ----------------
+  tool({
+    name: 'outsourcing',
+    title: 'Outsourcing',
+    description: 'The jobs done for the business by people and firms outside the team (social media, the books, cleaning, the coffee machine\'s service…): who does each, the price agreed and how it\'s charged, roughly what it costs a month, what\'s included, the contract dates and whether one needs a look, and how to reach them. Then the catalogue: the people and firms on file to choose from for each job, with their usual rate, the business\'s own rating (1-5), whether they\'re starred and notes; the usual jobs nobody does yet; and past jobs. Prices are euros without IVA.',
+    admin: true,
+    partner: ['finances'],
+    readOnly: true,
+    input: z.object({}),
+    async run({ sb }) {
+      const { contractors, jobs } = await outsourcingData(sb)
+      const now = today()
+      const who = (id: string) => contractors.find(c => c.id === id)
+      const totals = outsourcingTotals(jobs)
+      const active = jobs.filter(j => j.active).sort((a, b) => compareServices(a.service, b.service))
+      const current = contractors.filter(c => c.active)
+      return {
+        jobs_outsourced: active.map(j => ({
+          job: j.service, who: who(j.contractor_id)?.name ?? null, kind: who(j.contractor_id)?.kind ?? null, price_eur: j.price, charged: chargedText(j.price_unit),
+          how_many: howManyText(j), about_eur_a_month: monthlyCost(j), whats_included: j.scope, starts_on: j.starts_on, contract_ends_on: j.ends_on,
+          contract: { running: 'running', ending: 'ends within 30 days', overdue: 'its end date has passed: renew or end it', upcoming: 'starts later', ended: 'ended' }[contractState(j, now)],
+          notes: j.notes, reach: reachOf(who(j.contractor_id)), job_id: j.id,
+        })),
+        cost_eur_a_month: totals.monthly, one_off_projects_eur: totals.oneOff, jobs_without_a_monthly_cost: totals.unknown,
+        catalogue: sortServices(current.flatMap(c => c.services)).map(service => ({
+          job: service,
+          options: optionsFor(service, current).map(c => ({
+            name: c.name, kind: c.kind, location: c.location, rate_eur: c.rate, charged: chargedText(c.rate_unit), rating: c.rating, starred: c.starred,
+            does_it_now: active.some(j => j.contractor_id === c.id && sameJob(j.service, service)), notes: c.notes, reach: reachOf(c),
+          })),
+        })),
+        in_the_catalogue_without_a_job: current.filter(c => !c.services.length).map(c => c.name),
+        archived: contractors.filter(c => !c.active).map(c => c.name),
+        usual_jobs_nobody_does_yet: SERVICES.filter(s => !active.some(j => sameJob(j.service, s.name))).map(s => s.name),
+        past_jobs: jobs.filter(j => !j.active).map(j => ({ job: j.service, who: who(j.contractor_id)?.name ?? null, price_eur: j.price,
+          charged: chargedText(j.price_unit), from: j.starts_on, to: j.ends_on, whats_included: j.scope })),
+      }
+    },
+  }),
+  tool({
+    name: 'save_contractor',
+    title: 'Add/change someone in the outsourcing catalogue',
+    description: `Admins: add a person or firm to the outsourcing catalogue (name needed), or change one (pass contractor_id, or their name to find them). jobs replaces the jobs they do; add_jobs adds to them. The usual jobs: ${usualJobs}; any other is fine in the business's own words. rate_eur is their usual rate without IVA, charged ${RATE_UNIT_IDS.join(', ')}. rating: the business's own score, 1-5. active: false archives them (someone who has done a job is never deleted).`,
+    admin: true,
+    input: z.object({
+      contractor_id: z.string().optional(), name: z.string().min(1).max(120).optional(), kind: enumOf(CONTRACTOR_KINDS).optional(),
+      jobs: z.array(z.string().min(1).max(80)).max(20).optional(), add_jobs: z.array(z.string().min(1).max(80)).max(20).optional(),
+      contact_name: z.string().max(100).optional(), email: z.string().max(254).optional(), phone: z.string().max(40).optional(), whatsapp: z.boolean().optional(),
+      website: z.string().max(300).optional(), their_work: z.string().max(300).optional().describe('Instagram, Behance or portfolio link'),
+      location: z.string().max(120).optional(), rate_eur: z.number().min(0).max(1_000_000).optional(), charged: z.enum(RATE_UNIT_IDS).optional(),
+      rating: z.number().int().min(1).max(5).optional(), notes: z.string().max(2000).optional(), starred: z.boolean().optional(), active: z.boolean().optional(),
+    }),
+    async run({ sb }, { contractor_id, jobs, add_jobs, phone, website, their_work, rate_eur, charged, ...rest }) {
+      const all = (await outsourcingData(sb)).contractors
+      // By id, or by their exact name: a name that only looks like another's is someone new.
+      const found = contractor_id ? resolveContractor(all, contractor_id) : all.find(c => c.name.toLowerCase() === rest.name?.trim().toLowerCase()) ?? null
+      const named = (list: string[]) => list.map(j => presetOf(j)?.name ?? j.trim())
+      const patch: Record<string, unknown> = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined))
+      if (jobs || add_jobs) patch.services = [...named(jobs ?? found?.services ?? []), ...named(add_jobs ?? [])]
+      if (phone !== undefined) {
+        patch.phone = phone.trim() ? cleanPhone(phone) : null
+        if (phone.trim() && !patch.phone) throw new Error(`"${phone}" isn't a phone number: write it with its country code, like +34 600 000 000`)
+      }
+      if (website !== undefined) patch.website = cleanWebsite(website)
+      if (their_work !== undefined) patch.portfolio_url = cleanWebsite(their_work)
+      if (rate_eur !== undefined) patch.rate = rate_eur
+      if (charged !== undefined) patch.rate_unit = charged
+      if (found) {
+        // Found by their name: it stays as it was written (only a change by id renames them).
+        if (!contractor_id) delete patch.name
+        check(await sb.from('contractors').update(patch).eq('id', found.id))
+        return { ok: true, contractor_id: found.id }
+      }
+      if (contractor_id || !rest.name) throw new Error('Someone new needs a name')
+      const row = check(await sb.from('contractors').insert(patch).select('id').single()) as { id: string }
+      return { ok: true, contractor_id: row.id, added: true }
+    },
+  }),
+  tool({
+    name: 'outsource_job',
+    title: 'Give someone a job (outsourcing)',
+    description: `Admins: give a job to someone in the outsourcing catalogue (who: their name or id; add them first with save_contractor), on the terms agreed: price_eur without IVA, charged ${RATE_UNIT_IDS.join(', ')}, and for a price an hour, day or visit how_many of them per week, month or year (so the monthly cost can be worked out). Whoever did that job until now has theirs ended today, unless end_current is false. Or change a job (job_id from the outsourcing tool), or end it with active: false. The usual jobs: ${usualJobs}.`,
+    admin: true,
+    input: z.object({
+      job_id: z.string().optional(), job: z.string().min(1).max(80).optional().describe('e.g. "Social media management"'), who: z.string().optional(),
+      price_eur: z.number().min(0).max(1_000_000).optional(), charged: z.enum(RATE_UNIT_IDS).optional(),
+      how_many: z.number().positive().max(9999).optional(), per: z.enum(['week', 'month', 'year']).optional(),
+      whats_included: z.string().max(1000).optional(), starts_on: date.optional(), contract_ends_on: date.optional(), notes: z.string().max(2000).optional(),
+      active: z.boolean().optional(), end_current: z.boolean().default(true),
+    }),
+    async run({ sb }, a) {
+      const { contractors, jobs } = await outsourcingData(sb)
+      const now = today()
+      const patch: Record<string, unknown> = {}
+      if (a.job !== undefined) patch.service = presetOf(a.job)?.name ?? a.job.trim()
+      if (a.who !== undefined) patch.contractor_id = resolveContractor(contractors, a.who).id
+      if (a.price_eur !== undefined) patch.price = a.price_eur
+      if (a.charged !== undefined) patch.price_unit = a.charged
+      if (a.how_many !== undefined) { patch.quantity = a.how_many; patch.quantity_per = a.per ?? ('month' satisfies QuantityPer) }
+      else if (a.per !== undefined) throw new Error('Say how_many with per')
+      if (a.whats_included !== undefined) patch.scope = a.whats_included
+      if (a.starts_on !== undefined) patch.starts_on = a.starts_on
+      if (a.contract_ends_on !== undefined) patch.ends_on = a.contract_ends_on
+      if (a.notes !== undefined) patch.notes = a.notes
+      if (a.active !== undefined) patch.active = a.active
+      if (a.job_id) {
+        const job = jobs.find(j => j.id === a.job_id)
+        if (!job) throw new Error(`No outsourced job with id ${a.job_id}`)
+        // Ending it: on its end date if that's passed, otherwise today.
+        if (a.active === false && a.contract_ends_on === undefined) patch.ends_on = job.ends_on && job.ends_on < now ? job.ends_on : now
+        check(await sb.from('outsourced_jobs').update(patch).eq('id', job.id))
+        return { ok: true, job_id: job.id }
+      }
+      if (!patch.service || !patch.contractor_id) throw new Error('Say the job and who does it (or pass job_id to change one)')
+      const ended: string[] = []
+      if (a.end_current) {
+        for (const j of jobs.filter(j => j.active && sameJob(j.service, patch.service as string) && j.contractor_id !== patch.contractor_id)) {
+          check(await sb.from('outsourced_jobs').update({ active: false, ends_on: j.ends_on && j.ends_on < now ? j.ends_on : now }).eq('id', j.id))
+          ended.push(contractors.find(c => c.id === j.contractor_id)?.name ?? j.contractor_id)
+        }
+      }
+      const row = check(await sb.from('outsourced_jobs').insert({ starts_on: now, ...patch }).select('id').single()) as { id: string }
+      return { ok: true, job_id: row.id, ...(ended.length ? { ended_with: ended } : {}) }
+    },
+  }),
   tool({
     name: 'send_rota_on_whatsapp',
     title: 'Send rota on WhatsApp',
@@ -885,6 +1071,90 @@ export const TOOLS: ToolDef[] = [
       if (!me.can_see_pay) throw new Error('You need pay access to change finances')
       check(await sb.from('expenses').delete().eq('id', expense_id))
       return { ok: true }
+    },
+  }),
+
+  // ---------------- Credit & debit ----------------
+  tool({
+    name: 'credit_and_debit',
+    title: 'Credit & debit',
+    description: 'Admins with pay access (a gestoría with finances access reads): money the business still has to pay back (a loan from someone, something bought on finance) and money still to come in or that could be raised (something to sell, a deposit, money owed to it, and its grants from the Grants page). Each line has the whole amount, what has been paid or received, what is left, the regular payment and how often, the next date due and its status; possible: true is money not agreed yet. Totals in euros. Settled lines only with include_settled.',
+    admin: true,
+    readOnly: true,
+    partner: ['finances'],
+    input: z.object({ include_settled: z.boolean().optional() }),
+    async run({ sb, me }, { include_settled }) {
+      if (!(me.role === 'admin' && me.can_see_pay) && !partnerCan(me, 'finances')) throw new Error('You need pay access to see credit and debit')
+      const [items, grants] = await Promise.all([
+        sb.from('credit_debit_items').select('*, payments:credit_debit_payments(id, item_id, paid_on, amount, note)').then(rowsAs<MoneyItem[]>()),
+        sb.from('grant_applications').select('id, grant_id, grant_name, stage, amount_requested, amount_awarded, amount_received, deadline, deadline_label, notes')
+          .then(rowsAs<GrantApplication[]>()),
+      ])
+      const num = (v: unknown) => (v == null ? null : Number(v))
+      const lines = moneyLines(
+        items.map(i => ({ ...i, amount: Number(i.amount), instalment: num(i.instalment), payments: i.payments.map(p => ({ ...p, amount: Number(p.amount) })) })),
+        grants.map(g => ({ ...g, amount_requested: num(g.amount_requested), amount_awarded: num(g.amount_awarded), amount_received: num(g.amount_received) })),
+      )
+      const day = today()
+      const sum = totals(lines)
+      return {
+        totals_eur: { to_pay_back: sum.toPay, paid_out_a_month: sum.monthly, coming_in: sum.comingIn, could_raise: sum.couldRaise },
+        lines: lines.filter(l => include_settled || !l.done).map(l => ({
+          item_id: l.item?.id ?? null, grant_application_id: l.grant?.id ?? null,
+          direction: l.direction === 'debit' ? 'to pay back' : 'coming in', kind: l.kind, name: l.name, who: l.party,
+          amount_eur: l.amount, paid_or_received_eur: l.settled, left_eur: l.left, each_payment_eur: l.instalment, every_months: l.every_months,
+          next_due: l.next_due, possible: l.possible, status: statusOf(l, day), grant_stage: l.grant?.stage ?? null, notes: l.item?.notes ?? null,
+          payments: l.item?.payments.map(p => ({ paid_on: p.paid_on, amount_eur: p.amount, note: p.note })) ?? [],
+        })),
+      }
+    },
+  }),
+  tool({
+    name: 'record_credit_debit_payment',
+    title: 'Record a payment made or received',
+    description: 'Admins with pay access: record money paid towards something on Credit & debit (say €100 paid back to Jeremy) or received (the old coffee machine sold). A repeating one moves on to its next date, and once everything is paid or received it is settled. For a grant, pass grant_application_id instead: the amount is added to what has been received on it (also on the Grants page). Ids come from credit_and_debit.',
+    admin: true,
+    input: z.object({
+      item_id: z.string().uuid().optional(), grant_application_id: z.string().uuid().optional(), amount_eur: z.number().positive(),
+      paid_on: date.optional(), note: z.string().max(500).optional(),
+    }),
+    async run({ sb, me }, { item_id, grant_application_id, amount_eur, paid_on, note }) {
+      if (!me.can_see_pay) throw new Error('You need pay access to change credit and debit')
+      if (!item_id === !grant_application_id) throw new Error('Pass item_id or grant_application_id (one of them)')
+      if (grant_application_id) {
+        const g = check(await sb.from('grant_applications').select('amount_received').eq('id', grant_application_id).single()) as { amount_received: number | null }
+        const received = Math.round((Number(g.amount_received ?? 0) + amount_eur) * 100) / 100
+        check(await sb.from('grant_applications').update({ amount_received: received }).eq('id', grant_application_id))
+        return { ok: true, grant_application_id, received_eur: received }
+      }
+      check(await sb.from('credit_debit_payments').insert({ item_id, amount: amount_eur, paid_on: paid_on ?? today(), note: note?.trim() || null }))
+      const item = check(await sb.from('credit_debit_items').select('next_due, done').eq('id', item_id!).single()) as { next_due: string | null; done: boolean }
+      return { ok: true, item_id, next_due: item.next_due, settled: item.done }
+    },
+  }),
+  tool({
+    name: 'save_credit_debit',
+    title: 'Add/change credit or debit',
+    description: 'Admins with pay access: add something to Credit & debit, or change one (pass item_id). direction "debit" is money the business pays out (a loan to pay back, something bought on finance); "credit" is money coming in (something to sell, a deposit, money owed to it). amount_eur is the whole amount (or the asking price); each_payment_eur and every_months for regular payments; next_due the next date. possible: true for money not agreed yet (credits only); settled: true once it is done with. Grants are tracked on the Grants page, not here.',
+    admin: true,
+    input: z.object({
+      item_id: z.string().uuid().optional(), direction: z.enum(['debit', 'credit']).optional(),
+      kind: z.enum(['loan', 'finance', 'sale', 'deposit', 'other']).optional(), name: z.string().min(1).max(120).optional(), who: z.string().max(120).nullable().optional(),
+      amount_eur: z.number().positive().optional(), each_payment_eur: z.number().positive().nullable().optional(),
+      every_months: z.number().int().min(1).max(24).nullable().optional(), next_due: date.nullable().optional(),
+      possible: z.boolean().optional(), settled: z.boolean().optional(), notes: z.string().max(2000).nullable().optional(),
+    }),
+    async run({ sb, me }, { item_id, who, amount_eur, each_payment_eur, settled, ...rest }) {
+      if (!me.can_see_pay) throw new Error('You need pay access to change credit and debit')
+      const patch: Record<string, unknown> = Object.fromEntries(Object.entries({ ...rest, party: who, amount: amount_eur, instalment: each_payment_eur, done: settled })
+        .filter(([, v]) => v !== undefined))
+      if (item_id) {
+        check(await sb.from('credit_debit_items').update(patch).eq('id', item_id))
+        return { ok: true, item_id }
+      }
+      if (!patch.name || !patch.direction || patch.amount === undefined) throw new Error('Something new needs a name, a direction and amount_eur')
+      const row = check(await sb.from('credit_debit_items').insert(patch).select('id').single())
+      return { ok: true, item_id: row.id }
     },
   }),
 

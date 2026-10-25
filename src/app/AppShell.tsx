@@ -27,6 +27,7 @@ import KittyIcon from '@mui/icons-material/SavingsOutlined'
 import RepsIcon from '@mui/icons-material/RecordVoiceOverOutlined'
 import RolesIcon from '@mui/icons-material/AssignmentIndOutlined'
 import RulesIcon from '@mui/icons-material/RuleOutlined'
+import OutsourcingIcon from '@mui/icons-material/BusinessCenterOutlined'
 import FinanceIcon from '@mui/icons-material/PaymentsOutlined'
 import SalesIcon from '@mui/icons-material/InsightsOutlined'
 import TaxIcon from '@mui/icons-material/ReceiptLongOutlined'
@@ -36,6 +37,7 @@ import LegalIcon from '@mui/icons-material/GavelOutlined'
 import InvoicesIcon from '@mui/icons-material/DescriptionOutlined'
 import ProfitLossIcon from '@mui/icons-material/RequestQuoteOutlined'
 import GrantsIcon from '@mui/icons-material/VolunteerActivismOutlined'
+import CreditDebitIcon from '@mui/icons-material/CompareArrowsOutlined'
 import BillingIcon from '@mui/icons-material/CreditCardOutlined'
 import SocialIcon from '@mui/icons-material/CampaignOutlined'
 import AdsIcon from '@mui/icons-material/AdsClickOutlined'
@@ -76,6 +78,7 @@ import { FEATURES } from './features'
 import { useUnreadMessages } from './unread'
 import { useConnected } from './connected'
 import type { PartnerArea } from '../../shared/types'
+import { teamRoleLabel } from '../../shared/teamRoles'
 import { BrandLogo } from '../components/Logo'
 import { Loading, PersonAvatar } from '../components/common'
 import { NotificationBell } from '../components/NotificationBell'
@@ -131,6 +134,7 @@ export const SECTIONS: NavSection[] = [
     { key: 'finances', to: '/finances', label: msg('Finances'), icon: <FinanceIcon />, who: 'pay', partner: ['finances'] },
     { key: 'pnl', to: '/profit-and-loss', label: msg('Profit & loss'), icon: <ProfitLossIcon />, who: 'pay', partner: ['finances'] },
     { key: 'invoices', to: '/invoices', label: msg('Invoices'), icon: <InvoicesIcon />, who: 'pay', partner: ['finances'] },
+    { key: 'credit', to: '/credit-debit', label: msg('Credit & debit'), icon: <CreditDebitIcon />, who: 'pay', partner: ['finances'] },
     { key: 'expenses', to: '/expenses', label: msg('Expenses'), icon: <ClaimsIcon />, partner: ['finances'] },
     { key: 'tax', to: '/tax', label: msg('Tax'), icon: <TaxIcon />, who: 'pay', partner: ['finances'] },
     { key: 'grants', to: '/grants', label: msg('Grants'), icon: <GrantsIcon />, who: 'pay', partner: ['finances'] },
@@ -161,6 +165,7 @@ export const SECTIONS: NavSection[] = [
     { key: 'team', to: '/team', label: msg('Team'), icon: <TeamIcon /> },
     { key: 'roles', to: '/roles', label: msg('Roles & responsibilities'), short: msg('Roles'), icon: <RolesIcon /> },
     { key: 'rules', to: '/rules', label: msg('Staff rules'), short: msg('Rules'), icon: <RulesIcon /> },
+    { key: 'outsourcing', to: '/outsourcing', label: msg('Outsourcing'), icon: <OutsourcingIcon />, who: 'admin', partner: ['finances'] },
   ] },
   { key: 'admin', label: msg('Settings'), items: [
     { key: 'connections', to: '/connections', label: msg('Connections'), icon: <ConnectIcon />, who: 'admin' },
@@ -519,6 +524,16 @@ const restrictTo = (list: { current: HTMLElement | null }): Modifier => ({ trans
   return { ...t, y: Math.min(Math.max(t.y, minY), maxY) }
 }
 
+/**
+ * Sections in the person's own order (Settings → Pages, saved to their account). Sections they haven't
+ * placed (a new one, or one they couldn't see when they ordered them) follow, in their usual order.
+ */
+export function sortSections<S extends { key: string }>(sections: S[], order: string[] | undefined): S[] {
+  const o = order ?? []
+  const rank = (k: string) => { const i = o.indexOf(k); return i < 0 ? o.length + SECTIONS.findIndex(s => s.key === k) : i }
+  return [...sections].sort((a, b) => rank(a.key) - rank(b.key))
+}
+
 /** The person's own order of pages within each section (saved to their account), pinned pages first. */
 function orderSections(sections: NavSection[], order: Record<string, string[]> | undefined, pins: string[] = []): NavSection[] {
   return sections.map(s => {
@@ -574,7 +589,7 @@ export function AppShell() {
     setNavPins(next)
     if (me) api.updateProfile(me.id, { preferences: { ...me.preferences, navPins: next } }).then(refresh).catch(() => { /* kept on screen; saves next time */ })
   }
-  const sections = orderSections(SECTIONS.map(s => ({ ...s, label: s.label && t(s.label), items: s.items.filter(allowed).map(n => (n.children ? { ...n, children: n.children.filter(allowed) } : n)).map(inLanguage) }))
+  const sections = orderSections(sortSections(SECTIONS, me?.preferences?.navSections).map(s => ({ ...s, label: s.label && t(s.label), items: s.items.filter(allowed).map(n => (n.children ? { ...n, children: n.children.filter(allowed) } : n)).map(inLanguage) }))
     .filter(s => s.items.length), navOrder, navPins)
   // The most specific match wins, so /account/billing is Billing, not My account.
   const all = [...SECTIONS.flatMap(s => withChildren(s.items)), ...YOU].sort((a, b) => b.to.length - a.to.length)
@@ -631,7 +646,7 @@ export function AppShell() {
               {me && <PersonAvatar name={me.full_name} colour={me.colour} size={34} />}
               {!mini && <Box sx={{ minWidth: 0, flex: 1, textAlign: 'left' }}>
                 <Typography sx={{ fontWeight: 500, fontSize: '0.88rem', color: SIDEBAR.bright }} noWrap>{me?.full_name}</Typography>
-                <Typography variant="caption" sx={{ color: SIDEBAR.faint }}>{me?.role === 'admin' ? t('Admin') : me?.role === 'partner' ? me.partner_company ?? t('Partner') : t('Employee')}</Typography>
+                <Typography variant="caption" sx={{ color: SIDEBAR.faint }}>{me?.role === 'partner' ? me.partner_company ?? t('Partner') : t((me && teamRoleLabel(me)) || 'Employee')}</Typography>
               </Box>}
             </AccountMenu>
             <Tooltip title={t('Sign out')}>

@@ -23,12 +23,16 @@ import { FEATURES } from '../app/features'
 import { ContactMethodField, contactMethod } from '../components/ContactMethod'
 import { tokens } from '../theme'
 import { PasswordToShare, SignInSetupFields, generatePassword, useSignInSetup } from '../components/TempPassword'
+import { TEAM_ROLES, roleBlock, roleChange, teamRole, teamRoleLabel, type TeamRole } from '../../shared/teamRoles'
 import { msg, t, tn, tr } from '../i18n'
 
-type Filter = 'all' | 'admin' | 'employee' | 'off'
+type Filter = 'all' | TeamRole | 'off'
 const FILTERS: { key: Filter; label: string }[] = [
-  { key: 'all', label: msg('All') }, { key: 'admin', label: msg('Admins') }, { key: 'employee', label: msg('Employees') }, { key: 'off', label: msg('Switched off') },
+  { key: 'all', label: msg('All') }, ...[...TEAM_ROLES].reverse().map(r => ({ key: r.id, label: r.plural })), { key: 'off', label: msg('Switched off') },
 ]
+/** Bosses first when sorted by role. */
+const roleRank = (p: Profile) => -TEAM_ROLES.findIndex(r => r.id === teamRole(p))
+const roleText = (p: Profile) => t(teamRoleLabel(p) ?? '')
 
 /** The team as a clean list (like an admin console): search, filter, and details in a side panel. */
 export function TeamPage() {
@@ -46,11 +50,11 @@ export function TeamPage() {
   const people = profiles.filter(p => p.role !== 'kiosk' && p.role !== 'partner')
   const term = q.trim().toLowerCase()
   const shown = people
-    .filter(p => filter === 'all' ? true : filter === 'off' ? !p.active : p.role === filter && p.active)
+    .filter(p => filter === 'all' ? true : filter === 'off' ? !p.active : teamRole(p) === filter && p.active)
     .filter(p => !term || p.full_name.toLowerCase().includes(term) || (p.email ?? '').toLowerCase().includes(term))
     .sort((x, y) => Number(y.active) - Number(x.active) || x.full_name.localeCompare(y.full_name))
   const { rows, sort } = useSort(shown, {
-    name: p => p.full_name, role: p => p.role, status: p => (p.active ? 0 : 1), phone: p => p.phone,
+    name: p => p.full_name, role: roleRank, status: p => (p.active ? 0 : 1), phone: p => p.phone,
     rate: p => (rates.has(p.id) ? rates.get(p.id)! : null),
   }, undefined, ['rate'])
   const named = (p: Profile) => (p.id === me?.id ? t('{name} (you)', { name: p.full_name }) : p.full_name)
@@ -58,7 +62,7 @@ export function TeamPage() {
     title: filter === 'all' ? t('Team') : t('Team: {filter}', { filter: t(FILTERS.find(f => f.key === filter)!.label) }),
     filename: `team-${today()}`,
     columns: [t('Name'), t('Email'), t('Role'), ...(isAdmin ? [t('Status'), t('Prefers'), t('Phone')] : []), ...(canSeePay ? [t('Hourly rate ({currency})', { currency: currencySymbol() })] : [])],
-    rows: rows.map(p => [p.full_name, p.email ?? '', p.role === 'admin' ? t('Admin') : t('Employee'),
+    rows: rows.map(p => [p.full_name, p.email ?? '', roleText(p),
       ...(isAdmin ? [p.active ? t('Active') : t('Switched off'), t(contactMethod(p.contact_method)?.label ?? ''), p.phone ?? ''] : []),
       ...(canSeePay ? [rates.has(p.id) ? rates.get(p.id)! : null] : [])]),
     money: canSeePay ? [isAdmin ? 6 : 3] : [],
@@ -117,7 +121,7 @@ export function TeamPage() {
                       </Box>
                     </Stack>
                   </TableCell>
-                  <TableCell sx={cell}>{p.role === 'admin' ? t('Admin') : t('Employee')}{p.role === 'admin' && p.can_see_pay && isAdmin ? <Typography component="span" variant="caption" sx={{ color: 'text.secondary' }}>{` · ${t('sees pay')}`}</Typography> : null}</TableCell>
+                  <TableCell sx={cell}>{roleText(p)}</TableCell>
                   {isAdmin && (
                     <TableCell sx={cell}>
                       <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
@@ -174,7 +178,7 @@ function Preference({ person, integrations }: { person: Profile; integrations: R
 
 /** The side panel with everything an admin can change about one person. */
 function PersonPanel({ person: p, onClose }: { person: Profile; onClose: () => void }) {
-  const { api, canSeePay, rates, me, refresh } = useApp()
+  const { api, canSeePay, rates, me, profiles, refresh } = useApp()
   const run = useAction()
   const [pinFor, setPinFor] = useState<Profile | null>(null)
   const [passwordFor, setPasswordFor] = useState<Profile | null>(null)
@@ -182,6 +186,11 @@ function PersonPanel({ person: p, onClose }: { person: Profile; onClose: () => v
   const reach = integrations ? howReached(p, integrations) : null
   const update = (patch: Partial<Profile>, toast = t('Saved')) => run(async () => { await api.updateProfile(p.id, patch); await refresh() }, toast)
   const self = p.id === me?.id
+  const role = teamRole(p) ?? 'employee'
+  const blocked = (r: TeamRole) => (me ? roleBlock(me, p, r, profiles) : null)
+  // A boss's role is a boss's to change; your own, someone else's (so you can't lock yourself out).
+  const locked = role === 'boss' ? blocked('manager') : null
+  const why = self ? t('Another admin can change this') : locked ? t(locked) : null
   return (
     <Drawer anchor="right" open onClose={onClose}
       slotProps={{ paper: { role: 'dialog', 'aria-label': self ? t('{name} (you)', { name: p.full_name }) : p.full_name, sx: { width: { xs: '100%', sm: 420 }, p: 3, borderLeft: `1px solid ${tokens.line}` } } as never }}>
@@ -197,19 +206,15 @@ function PersonPanel({ person: p, onClose }: { person: Profile; onClose: () => v
         <Box>
           <Typography variant="overline" sx={{ color: 'text.secondary' }}>{t('Access')}</Typography>
           <Stack spacing={1.5} sx={{ mt: 0.5 }}>
-            <TextField select label={t('Role')} value={p.role} disabled={self}
-              helperText={self ? t('Another admin can change this') : undefined}
-              onChange={e => update({ role: e.target.value as Profile['role'] }, t('Role updated'))}>
-              <MenuItem value="admin">{t('Admin')}</MenuItem>
-              <MenuItem value="employee">{t('Employee')}</MenuItem>
+            <TextField select label={t('Role')} value={role} disabled={self || !!locked}
+              helperText={why ?? t(TEAM_ROLES.find(x => x.id === role)!.summary)}
+              onChange={e => update(roleChange(p, e.target.value as TeamRole), t('Role updated'))}>
+              {TEAM_ROLES.map(x => <MenuItem key={x.id} value={x.id} disabled={x.id !== role && !!blocked(x.id)}>{t(x.label)}</MenuItem>)}
             </TextField>
             {/* Switching yourself off would lock you out immediately. */}
             <FormControlLabel disabled={self} label={t('Active (can sign in)')}
               control={<Switch checked={p.active} slotProps={{ input: { 'aria-label': t('Active') } }}
                 onChange={e => update({ active: e.target.checked }, e.target.checked ? t('Access restored') : t('{name} can no longer sign in', { name: p.full_name }))} />} />
-            {p.role === 'admin' && canSeePay && (
-              <FormControlLabel label={t('Sees pay and finances')} control={<Switch checked={p.can_see_pay} onChange={e => update({ can_see_pay: e.target.checked })} />} />
-            )}
           </Stack>
         </Box>
         {canSeePay && (
@@ -250,11 +255,13 @@ function PersonPanel({ person: p, onClose }: { person: Profile; onClose: () => v
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 
 export function InviteDialog({ onClose }: { onClose: () => void }) {
-  const { api, refresh } = useApp()
+  const { api, me, refresh } = useApp()
   const run = useAction()
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
-  const [role, setRole] = useState<'admin' | 'employee' | 'kiosk'>('employee')
+  const [role, setRole] = useState<TeamRole | 'kiosk'>('employee')
+  const chosen = TEAM_ROLES.find(r => r.id === role)
+  const boss = !!me && teamRole(me) === 'boss'
   const [phone, setPhone] = useState('')
   const [method, setMethod] = useState<ContactMethod | null>(null)
   const [setup, setSetup] = useSignInSetup()
@@ -266,9 +273,11 @@ export function InviteDialog({ onClose }: { onClose: () => void }) {
         <Stack spacing={2} sx={{ pt: 1 }}>
           <TextField label={t('Full name')} value={name} onChange={e => setName(e.target.value)} autoFocus />
           <TextField label={t('Email')} type="email" value={email} onChange={e => setEmail(e.target.value)} />
-          <TextField select label={t('Role')} value={role} onChange={e => setRole(e.target.value as typeof role)}>
-            <MenuItem value="employee">{t('Employee')}</MenuItem>
-            <MenuItem value="admin">{t('Admin')}</MenuItem>
+          <TextField select label={t('Role')} value={role} onChange={e => setRole(e.target.value as typeof role)}
+            helperText={chosen ? t(chosen.summary) : undefined}>
+            {TEAM_ROLES.map(r => (
+              <MenuItem key={r.id} value={r.id} disabled={r.id === 'boss' && !boss}>{t(r.label)}</MenuItem>
+            ))}
             {FEATURES.kiosk && <MenuItem value="kiosk">{t('Kiosk (café tablet)')}</MenuItem>}
           </TextField>
           {role !== 'kiosk' && <>

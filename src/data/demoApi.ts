@@ -26,6 +26,7 @@ import { dueFrom, emailId, matchSupplier, numberFromName, type InboxInvoice, typ
 import type { Licence } from '../../shared/licences'
 import { DEFAULT_RULES, draw, newEntries, type Competition, type CompetitionEntry } from '../../shared/competitions'
 import { cleanTags, sortEntries, type KeptDocument, type StorageEntry } from '../../shared/documents'
+import { afterPayment, paidSoFar, type MoneyItem, type MoneyPayment } from '../../shared/creditDebit'
 import { inStep } from '../../shared/todo'
 import { LEGAL_STORAGES, MAX_PICK, SKIPPED, guessKind, previewOf, storageName, titleOf, type LegalDocument, type LegalStorage, type StorageItem } from '../../shared/legalDocs'
 import type { Benefit, LeaveAllowance } from '../../shared/benefits'
@@ -33,6 +34,7 @@ import { COMMISSION_PAID, USED_AT_TILL, cleanInstagram, cleanRepCode, codeFor, r
 import { addMonths, kittyBalance, type KittyEntry, type KittyGoal } from '../../shared/kitty'
 import { roleProblem, type JobRole } from '../../shared/roles'
 import { sectionProblem, type RuleSection, type RulesRead } from '../../shared/staffRules'
+import { COUNTED, type Contractor, type OutsourcedJob } from '../../shared/outsourcing'
 import { EASY_BEANS_ROLES, EASY_BEANS_RULES, handbookDuties } from './easyBeansHandbook'
 import { DEFAULT_TAX_SETTINGS, cleanFolderName, cleanFolderPath, taxFileProblem, taxFileType, type FilingRecord, type TaxDocument, type TaxSettings } from '../../shared/tax'
 import { DEFAULT_VAT_RATE, type PnlLine } from '../../shared/pnl'
@@ -51,6 +53,7 @@ import { keepUntil, type Applicant, type JobOpening } from '../../shared/hiring'
 import { CAFE_POINTS, inRange as inLimits, type SafetyCheck, type SafetyPoint } from '../../shared/foodSafety'
 import { dietsFor, type Allergen } from '../../shared/allergens'
 import { minutesWorked, splitTips, type TipPool } from '../../shared/tips'
+import { accessOf } from '../../shared/teamRoles'
 
 interface RawEntry {
   id: string; profile_id: string; position_id: number | null; shift_id: string | null
@@ -343,6 +346,20 @@ export function createDemoApi(): Api {
       expires_on: '2026-10-15', renew_every_months: 12, cost: 312, document_id: insurancePolicy.id }),
     licence({ name: 'Revisión de extintores', category: 'safety', issuer: 'Extintores Costa', expires_on: '2026-09-01', renew_every_months: 12, cost: 65 }),
   ]
+
+  // Credit & debit: Jeremy's loan being paid back monthly, the espresso machine on finance, and the old
+  // coffee machine to sell (the grant being applied for comes from the grant applications).
+  const moneyItem = (p: Partial<MoneyItem> & { name: string; direction: MoneyItem['direction']; amount: number }): MoneyItem => ({ id: uid(), kind: 'other', party: null,
+    instalment: null, every_months: null, next_due: null, possible: false, done: false, notes: null, payments: [], ...p })
+  const moneyPayment = (amount: number, paid_on: string, note: string | null = null): MoneyPayment => ({ id: uid(), item_id: '', paid_on, amount, note })
+  const moneyItems: MoneyItem[] = [
+    moneyItem({ direction: 'debit', kind: 'loan', name: 'Loan from Jeremy', party: 'Jeremy', amount: 1000, instalment: 100, every_months: 1, next_due: '2026-10-01',
+      notes: 'Lent to cover the opening stock. No interest.', payments: [moneyPayment(100, '2026-09-01')] }),
+    moneyItem({ direction: 'debit', kind: 'finance', name: 'Espresso machine on finance', party: 'Maquinaria Costa SL', amount: 4800, instalment: 200, every_months: 1,
+      next_due: '2026-10-05', payments: [moneyPayment(200, '2026-08-05'), moneyPayment(200, '2026-09-05')] }),
+    moneyItem({ direction: 'credit', kind: 'sale', name: 'Old coffee machine', amount: 1200, possible: true, notes: 'Two-group, works. Asking €1,200.' }),
+  ]
+  moneyItems.forEach(i => i.payments.forEach(p => { p.item_id = i.id }))
 
   // Legal page: what's in the café's Google Drive and OneDrive (the demo browses both; the real app
   // uses Google's own picker for Drive), and two documents already picked from the Drive's Legal folder.
@@ -672,6 +689,49 @@ export function createDemoApi(): Api {
       lead_days: 3, minimum_order: 50 }),
     supplier({ id: 'sup-cash', name: 'Cash & Carry Marbella', kind: 'Cash & carry', phone: '+34 952 82 33 00', address: 'Pol. Ind. La Ermita, Marbella',
       account_number: '7781-332', notes: 'Card needed at the door. Syrups, napkins and cleaning when short.' }),
+  ]
+  // Outsourcing: the jobs done from outside (social media, the windows, the coffee machine, and the books
+  // at the gestoría the partner account works at), the opening photos as a past one, and the people and
+  // firms on file to choose from.
+  const contractor = (c: Partial<Contractor> & { id: string; name: string }): Contractor => ({ kind: 'freelancer', services: [], contact_name: null,
+    email: null, phone: null, whatsapp: false, website: null, portfolio_url: null, location: null, rate: null, rate_unit: 'month', rating: null,
+    notes: null, starred: false, active: true, ...c })
+  const contractors: Contractor[] = [
+    contractor({ id: 'con-lucia', name: 'Lucía Marín', services: ['Social media management', 'Photography & video'], location: 'San Pedro de Alcántara',
+      phone: '+34 622 41 87 30', whatsapp: true, email: 'hola@luciamarin.example', portfolio_url: 'https://luciamarin.example/work', rate: 350,
+      rating: 5, starred: true, notes: 'Also does two cafés in Estepona. Shoots her own photos for the posts.' }),
+    contractor({ id: 'con-costa', name: 'Costa Social Studio', kind: 'agency', services: ['Social media management', 'Ads management', 'Graphic design'],
+      location: 'Marbella', contact_name: 'Marta', email: 'hello@costasocial.example', website: 'https://costasocial.example', rate: 690, rating: 4,
+      notes: 'Quote from July: social media and ads together, 6 months minimum.' }),
+    contractor({ id: 'con-nacho', name: 'Nacho Vega', services: ['Social media management'], location: 'Remote', email: 'nacho.vega@mail.example',
+      portfolio_url: 'https://nachovega.example', rate: 240, notes: 'Marketing student. Sample posts look good; no café clients yet.' }),
+    contractor({ id: 'con-pablo', name: 'Pablo Ríos', services: ['Photography & video'], location: 'Marbella', phone: '+34 655 20 14 77', whatsapp: true,
+      portfolio_url: 'https://pabloriosfoto.example', rate: 450, rate_unit: 'project', rating: 5 }),
+    contractor({ id: 'con-brillo', name: 'Brillo Limpiezas', kind: 'company', services: ['Cleaning', 'Window cleaning'], location: 'San Pedro de Alcántara',
+      phone: '+34 952 78 90 12', email: 'info@brillolimpiezas.example', rate: 16, rate_unit: 'hour', rating: 4 }),
+    contractor({ id: 'con-cristales', name: 'Cristales Costa', kind: 'company', services: ['Window cleaning'], location: 'Marbella', contact_name: 'José',
+      phone: '+34 611 30 45 98', whatsapp: true, rate: 35, rate_unit: 'visit', rating: 4 }),
+    contractor({ id: 'con-espresso', name: 'Técnico Espresso Sur', kind: 'company', services: ['Coffee machine servicing'], location: 'Málaga',
+      phone: '+34 952 44 61 03', email: 'servicio@espressosur.example', website: 'https://espressosur.example', rate: 95, rate_unit: 'visit',
+      rating: 5, starred: true, notes: 'Same-day call-out for a breakdown: €60 plus parts.' }),
+    contractor({ id: 'con-plagas', name: 'Sanidad Ambiental Costa', kind: 'company', services: ['Pest control'], location: 'Marbella',
+      email: 'info@sanidadcosta.example', rate: 70, rate_unit: 'visit' }),
+    contractor({ id: 'con-gestoria', name: 'Gestoría Marbella', kind: 'company', services: ['Bookkeeping & payroll'], location: 'Marbella',
+      contact_name: 'Laura', email: 'laura@gestoria.example', rate: 150, rating: 4 }),
+  ]
+  const outsourced = (j: Partial<OutsourcedJob> & { service: string; contractor_id: string }): OutsourcedJob => ({ id: uid(), scope: null, price: null,
+    price_unit: 'month', quantity: null, quantity_per: null, starts_on: null, ends_on: null, notes: null, active: true, ...j })
+  const outsourcedJobs: OutsourcedJob[] = [
+    outsourced({ service: 'Social media management', contractor_id: 'con-lucia', price: 350, starts_on: '2026-04-01', ends_on: '2027-03-31',
+      scope: '3 posts and 5 stories a week on Instagram and Facebook, replies to comments and messages, a report each month.' }),
+    outsourced({ service: 'Window cleaning', contractor_id: 'con-cristales', price: 35, price_unit: 'visit', quantity: 2, quantity_per: 'month',
+      starts_on: '2026-04-15', scope: 'The shop front and the terrace screens, inside and out.' }),
+    outsourced({ service: 'Coffee machine servicing', contractor_id: 'con-espresso', price: 95, price_unit: 'visit', quantity: 4, quantity_per: 'year',
+      starts_on: '2026-04-01', ends_on: addDays(today(), 20), scope: 'Servicing every three months: gaskets, descaling, the grinders’ burrs checked.' }),
+    outsourced({ service: 'Bookkeeping & payroll', contractor_id: 'con-gestoria', price: 150, starts_on: '2026-03-01',
+      scope: 'The books, payslips and Social Security for up to 6 people, and the quarterly and yearly returns.' }),
+    outsourced({ service: 'Photography & video', contractor_id: 'con-pablo', price: 450, price_unit: 'project', starts_on: '2026-04-02', ends_on: '2026-04-10',
+      active: false, scope: 'The opening photos: drinks, food and the café, 40 edited photos and 3 short videos.' }),
   ]
   const stockItem = (i: Partial<StockItem> & { name: string }): StockItem => ({ id: uid(), category: null, supplier_id: null, supplier_sku: null,
     product_url: null, unit: 'unit', pack_size: null, order_multiple: 1, cost_per_unit: null, vat_rate: 10, sell_price: null, on_hand: 0,
@@ -1696,6 +1756,12 @@ export function createDemoApi(): Api {
         throw new Error('Only an admin can change role, pay access or status')
       }
       const p = profiles.find(x => x.id === id)
+      // Like guard_profile_update(): only a boss makes someone a boss or changes a boss, while there is one.
+      const changes = (k: 'role' | 'can_see_pay' | 'active') => !!p && k in patch && patch[k] !== p[k]
+      if (p && !paysAdmin() && profiles.some(x => x.role === 'admin' && x.can_see_pay && x.active) &&
+        (changes('can_see_pay') || (p.role === 'admin' && p.can_see_pay && (changes('role') || changes('active'))))) {
+        throw new Error('Only a boss can make someone a boss or change a boss\'s role')
+      }
       if (patch.role && patch.role !== 'admin' && p?.role === 'admin' &&
         profiles.filter(x => x.role === 'admin' && x.active).length === 1) {
         throw new Error('At least one admin must remain')
@@ -1723,7 +1789,8 @@ export function createDemoApi(): Api {
       requireAdmin()
       if (password !== undefined && password.length < 8) throw new Error('The temporary password needs at least 8 characters')
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) throw new Error('Enter a full email address, like name@example.com')
-      profiles.push({ id: uid(), full_name: fullName, email, role, can_see_pay: false, colour: '#8d6e63',
+      if (role === 'boss' && !paysAdmin()) throw new Error('Only a boss can invite another boss')
+      profiles.push({ id: uid(), full_name: fullName, email, ...(role === 'kiosk' ? { role, can_see_pay: false } : accessOf(role)), colour: '#8d6e63',
         active: true, phone: contact?.phone ?? null, birth_date: null, contact_method: contact?.contact_method ?? null })
     },
     async partners() {
@@ -1897,6 +1964,56 @@ export function createDemoApi(): Api {
       const mine = rulesRead.find(r => r.profile_id === currentUser)
       if (mine) mine.read_at = nowIso()
       else rulesRead.push({ profile_id: currentUser!, read_at: nowIso() })
+    },
+
+    async contractors() {
+      if (!isAdmin() && !partnerCan('finances')) return []
+      return clone(contractors).sort((a, b) => a.name.localeCompare(b.name))
+    },
+    async saveContractor({ id, ...patch }) {
+      requireAdmin()
+      const name = patch.name?.trim()
+      if (!name) throw new Error('Give them a name')
+      // As the database: one of each name, each job once, WhatsApp only with a phone.
+      if (contractors.some(c => c.id !== id && c.name.toLowerCase() === name.toLowerCase())) throw new Error(`There’s already someone called ${name} in the catalogue`)
+      const services = patch.services?.map(x => x.trim()).filter((x, i, all) => x && all.findIndex(y => y.toLowerCase() === x.toLowerCase()) === i)
+      const existing = id ? contractors.find(c => c.id === id) : undefined
+      if (id && !existing) throw new Error('Not found')
+      const next = contractor({ ...(existing ?? { id: uid() }), ...clone(patch), name, ...(services ? { services } : {}) })
+      next.whatsapp = next.whatsapp && !!next.phone
+      if (existing) Object.assign(existing, next)
+      else contractors.push(next)
+      return next.id
+    },
+    async deleteContractor(id) {
+      requireAdmin()
+      const c = contractors.find(x => x.id === id)
+      if (c && outsourcedJobs.some(j => j.contractor_id === id)) throw new Error(`${c.name} has done jobs for the business: archive them instead`)
+      const i = contractors.findIndex(x => x.id === id)
+      if (i >= 0) contractors.splice(i, 1)
+    },
+    async outsourcedJobs() {
+      if (!isAdmin() && !partnerCan('finances')) return []
+      return clone(outsourcedJobs).sort((a, b) => (b.starts_on ?? '').localeCompare(a.starts_on ?? '') || a.service.localeCompare(b.service))
+    },
+    async saveOutsourcedJob({ id, ...patch }) {
+      requireAdmin()
+      const existing = id ? outsourcedJobs.find(j => j.id === id) : undefined
+      if (id && !existing) throw new Error('Not found')
+      const next = outsourced({ ...(existing ?? { id: uid() }), ...clone(patch) })
+      next.service = next.service.trim()
+      if (!next.service) throw new Error('Say what the job is')
+      if (!contractors.some(c => c.id === next.contractor_id)) throw new Error('Choose who does it')
+      if (next.starts_on && next.ends_on && next.ends_on < next.starts_on) throw new Error('It can’t end before it starts')
+      if (!COUNTED.includes(next.price_unit)) Object.assign(next, { quantity: null, quantity_per: null })
+      if (existing) Object.assign(existing, next)
+      else outsourcedJobs.push(next)
+      return next.id
+    },
+    async deleteOutsourcedJob(id) {
+      requireAdmin()
+      const i = outsourcedJobs.findIndex(j => j.id === id)
+      if (i >= 0) outsourcedJobs.splice(i, 1)
     },
 
     async planStatus() {
@@ -2086,6 +2203,46 @@ export function createDemoApi(): Api {
         await api.recordStock([{ item_id: c.prize_item_id, reason: 'used', change: -c.winners, note: `Prize: ${c.name}` }])
       }
       c.prize_given_at = nowIso()
+    },
+    async creditDebit() {
+      if (!paysAdmin() && !partnerCan('finances')) return []
+      return clone(moneyItems).map(i => ({ ...i, payments: i.payments.sort((a, b) => b.paid_on.localeCompare(a.paid_on)) }))
+        .sort((a, b) => (a.next_due ?? '9999').localeCompare(b.next_due ?? '9999') || a.name.localeCompare(b.name))
+    },
+    async saveCreditDebit({ id, ...item }) {
+      if (!paysAdmin()) throw new Error('Only admins with pay access can change credit and debit')
+      const { payments: _payments, ...patch } = item as typeof item & { payments?: unknown }
+      const existing = id ? moneyItems.find(x => x.id === id) : undefined
+      if (id && !existing) throw new Error('That has gone')
+      const next = { ...(existing ?? moneyItem({ name: '', direction: 'debit', amount: 0 })), ...patch }
+      // The database's rules: a name, an amount, tidy text, and only money coming in can be "possible".
+      next.name = next.name.trim()
+      if (!next.name) throw new Error('Give it a name')
+      if (!(next.amount > 0)) throw new Error('The amount must be more than 0')
+      if (next.instalment != null && !(next.instalment > 0)) throw new Error('Each payment must be more than 0')
+      Object.assign(next, { party: next.party?.trim() || null, notes: next.notes?.trim() || null, possible: next.direction === 'credit' && next.possible })
+      if (existing) Object.assign(existing, next)
+      else moneyItems.push(next)
+      return next.id
+    },
+    async deleteCreditDebit(id) {
+      if (!paysAdmin()) throw new Error('Only admins with pay access can change credit and debit')
+      const i = moneyItems.findIndex(x => x.id === id)
+      if (i >= 0) moneyItems.splice(i, 1)
+    },
+    async addCreditDebitPayment({ item_id, amount, paid_on, note }) {
+      if (!paysAdmin()) throw new Error('Only admins with pay access can change credit and debit')
+      const item = moneyItems.find(x => x.id === item_id)
+      if (!item) throw new Error('That has gone')
+      if (!(amount > 0)) throw new Error('The amount must be more than 0')
+      item.payments.push(moneyPayment(amount, paid_on, note?.trim() || null))
+      item.payments[item.payments.length - 1].item_id = item.id
+      // Mirrors credit_debit_payment_made() in the database.
+      Object.assign(item, afterPayment(item, paidSoFar(item.payments), paid_on))
+    },
+    async deleteCreditDebitPayment(id) {
+      if (!paysAdmin()) throw new Error('Only admins with pay access can change credit and debit')
+      for (const i of moneyItems) i.payments = i.payments.filter(p => p.id !== id)
     },
     async legalDocuments() {
       if (!isAdmin() && !partnerCan('finances')) return []

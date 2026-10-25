@@ -9,12 +9,15 @@ import type { FilingRecord, Quarter, TaxDocKind, TaxDocument, TaxSettings } from
 import type { InboxInvoice, InboxState as InvoiceInbox, Invoice, InvoiceInput } from '../../shared/invoices'
 import type { Licence, LicenceInput } from '../../shared/licences'
 import type { KeptDocument, StorageFolder } from '../../shared/documents'
+import type { MoneyItem, MoneyItemInput } from '../../shared/creditDebit'
 import type { LegalDocument, LegalDocumentPatch, LegalSource, LegalStorage, StorageListing } from '../../shared/legalDocs'
 import type { Benefit, BenefitInput, LeaveAllowance } from '../../shared/benefits'
 import type { LoggedReward, RepReward, RepSettings, RewardLog, RewardRule, RewardRuleInput, SalesRep, SalesRepInput } from '../../shared/reps'
 import type { KittyEntry, KittyEntryInput, KittyGoal, KittyGoalInput, KittySettings } from '../../shared/kitty'
 import type { JobRole, JobRoleInput } from '../../shared/roles'
+import type { TeamRole } from '../../shared/teamRoles'
 import type { RuleSection, RuleSectionInput, RulesRead } from '../../shared/staffRules'
+import type { Contractor, ContractorInput, OutsourcedJob, OutsourcedJobInput } from '../../shared/outsourcing'
 import type { PnlLine, PnlLineInput, PnlSettings } from '../../shared/pnl'
 import type { GrantApplication, GrantApplicationInput, GrantProfile } from '../../shared/grants'
 import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
@@ -129,7 +132,7 @@ export interface Api {
   setPin(pin: string, profileId?: string): Promise<void>
   setPayRate(profileId: string, hourlyRate: number): Promise<void>
   /** Email an invite, or (with a temporary password) create the account straight away. */
-  invite(email: string, fullName: string, role: 'admin' | 'employee' | 'kiosk', password?: string, contact?: { phone?: string | null; contact_method?: ContactMethod | null }): Promise<void>
+  invite(email: string, fullName: string, role: TeamRole | 'kiosk', password?: string, contact?: { phone?: string | null; contact_method?: ContactMethod | null }): Promise<void>
   /** Admins: give someone (not an admin) a new temporary password to sign in with. */
   setTemporaryPassword(userId: string, password: string): Promise<void>
 
@@ -172,6 +175,18 @@ export interface Api {
   /** "I've read the rules", for the person signed in. */
   readRules(): Promise<void>
 
+  // Outsourcing (admins; finance partners read): the jobs done by people and firms outside the team,
+  // and the catalogue to choose them from.
+  contractors(): Promise<Contractor[]>
+  /** Add someone to the catalogue (no id) or change them; returns their id. */
+  saveContractor(c: ContractorInput): Promise<string>
+  /** Only someone who has never done a job for the business: archive the others. */
+  deleteContractor(id: string): Promise<void>
+  outsourcedJobs(): Promise<OutsourcedJob[]>
+  /** Give someone a job (no id) or change one; returns its id. */
+  saveOutsourcedJob(j: OutsourcedJobInput): Promise<string>
+  deleteOutsourcedJob(id: string): Promise<void>
+
   // Business Agent subscription (Stripe Billing). planStatus: everyone; the rest: admins.
   planStatus(): Promise<PlanStatus>
   billing(): Promise<BillingInfo>
@@ -195,6 +210,16 @@ export interface Api {
   /** Add a licence (no id) or change one; returns its id. */
   saveLicence(l: LicenceInput): Promise<string>
   deleteLicence(id: string): Promise<void>
+
+  // Credit & debit (admins with pay access; finance partners read): money still to pay back and money still to
+  // come in or that could be raised, each with the payments towards it. Grants come from grantApplications().
+  creditDebit(): Promise<MoneyItem[]>
+  /** Add an item (no id) or change one; returns its id. */
+  saveCreditDebit(item: MoneyItemInput): Promise<string>
+  deleteCreditDebit(id: string): Promise<void>
+  /** A payment made or received towards an item: a repeating one moves on to its next date, and once it's all paid it's done. */
+  addCreditDebitPayment(p: { item_id: string; amount: number; paid_on: string; note?: string | null }): Promise<void>
+  deleteCreditDebitPayment(id: string): Promise<void>
 
   // Legal page (admins; finance partners read): legal documents that stay where they are in the café's
   // Google Drive or OneDrive. Only where each one is, is kept; the file is shown from there.
