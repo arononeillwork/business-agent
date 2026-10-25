@@ -45,6 +45,7 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'legal', files: [/LegalDocumentsPage/, /shared\/legalDocs/, /lib\/googlePicker/], tests: String.raw`legal documents|gestoría reads them` },
   { name: 'invoices', files: [/InvoicesPage/, /shared\/invoices/], tests: String.raw`invoices|from email` },
   { name: 'grants', files: [/GrantsPage/, /shared\/grant/], tests: String.raw`grants|applications` },
+  { name: 'credit and debit', files: [/CreditDebitPage/, /shared\/creditDebit/, /GrantsPage/], tests: String.raw`credit and debit` },
   { name: 'sales', files: [/SalesPage/, /components\/charts/], tests: String.raw`Sales page|best sellers` },
   { name: 'profit and loss', files: [/ProfitLossPage/, /shared\/pnl/], tests: String.raw`profit and loss|P&L` },
   { name: 'alerts', files: [/AlertsPage/, /NotificationBell/], tests: String.raw`alert|notification|bell` },

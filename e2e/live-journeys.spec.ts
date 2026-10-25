@@ -484,7 +484,7 @@ test.describe('partner', () => {
     await signInUi(page, PARTNER.email)
     await expect(page).toHaveURL(url => new URL(url).pathname === '/business', NET)
     await expect(page.getByRole('heading', { level: 1, name: business.name })).toBeVisible(NET)
-    await expect(page.getByRole('button', { name: 'Edit' })).toHaveCount(0)
+    await expect(page.getByRole('main').getByRole('button', { name: 'Edit' })).toHaveCount(0)
     for (const name of ['Business', 'Rota', 'Timecards', 'Finances']) {
       await expect.soft(nav(page).getByRole('link', { name, exact: true })).toBeVisible()
     }

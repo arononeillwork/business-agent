@@ -8,6 +8,7 @@ import type { InstagramMention } from '../../shared/mentions'
 import type { FilingRecord, Quarter, TaxDocKind, TaxDocument, TaxSettings } from '../../shared/tax'
 import type { InboxInvoice, InboxState as InvoiceInbox, Invoice, InvoiceInput } from '../../shared/invoices'
 import type { Licence, LicenceInput } from '../../shared/licences'
+import type { MoneyItem, MoneyItemInput } from '../../shared/creditDebit'
 import type { LegalDocument, LegalDocumentPatch, LegalSource, LegalStorage, StorageListing } from '../../shared/legalDocs'
 import type { Benefit, BenefitInput, LeaveAllowance } from '../../shared/benefits'
 import type { LoggedReward, RepReward, RepSettings, RewardLog, RewardRule, RewardRuleInput, SalesRep, SalesRepInput } from '../../shared/reps'
@@ -207,6 +208,16 @@ export interface Api {
   /** Add a licence (no id) or change one; returns its id. */
   saveLicence(l: LicenceInput): Promise<string>
   deleteLicence(id: string): Promise<void>
+
+  // Credit & debit (admins with pay access; finance partners read): money still to pay back and money still to
+  // come in or that could be raised, each with the payments towards it. Grants come from grantApplications().
+  creditDebit(): Promise<MoneyItem[]>
+  /** Add an item (no id) or change one; returns its id. */
+  saveCreditDebit(item: MoneyItemInput): Promise<string>
+  deleteCreditDebit(id: string): Promise<void>
+  /** A payment made or received towards an item: a repeating one moves on to its next date, and once it's all paid it's done. */
+  addCreditDebitPayment(p: { item_id: string; amount: number; paid_on: string; note?: string | null }): Promise<void>
+  deleteCreditDebitPayment(id: string): Promise<void>
 
   // Legal page (admins; finance partners read): legal documents that stay where they are in the café's
   // Google Drive or OneDrive. Only where each one is, is kept; the file is shown from there.

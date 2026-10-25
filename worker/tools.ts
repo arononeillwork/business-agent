@@ -13,6 +13,8 @@ import { readState, rulesChangedAt, sortSections, type RuleSection, type RulesRe
 import { TEAM_ROLE_IDS, roleBlock, roleChange, teamRole, type TeamRole } from '../shared/teamRoles'
 import { cleanPhone, matchesSearch } from '../shared/customers'
 import { cleanWebsite } from '../shared/connections'
+import { moneyLines, statusOf, totals, type MoneyItem } from '../shared/creditDebit'
+import type { GrantApplication } from '../shared/grants'
 import {
   FEATURES, IDEA_STATUSES, KINDS, NOTE_KINDS, PRICE_SOURCES, THREATS, analyse, competitorRows, featuresOf, hoursOf, insightText, insights, matchRecipe,
   priceKey, priceLevelLabel, type Competitor, type CompetitorData, type CompetitorKind, type IdeaStatus, type NoteKind, type PriceSource, type Threat,
@@ -1069,6 +1071,90 @@ export const TOOLS: ToolDef[] = [
       if (!me.can_see_pay) throw new Error('You need pay access to change finances')
       check(await sb.from('expenses').delete().eq('id', expense_id))
       return { ok: true }
+    },
+  }),
+
+  // ---------------- Credit & debit ----------------
+  tool({
+    name: 'credit_and_debit',
+    title: 'Credit & debit',
+    description: 'Admins with pay access (a gestoría with finances access reads): money the business still has to pay back (a loan from someone, something bought on finance) and money still to come in or that could be raised (something to sell, a deposit, money owed to it, and its grants from the Grants page). Each line has the whole amount, what has been paid or received, what is left, the regular payment and how often, the next date due and its status; possible: true is money not agreed yet. Totals in euros. Settled lines only with include_settled.',
+    admin: true,
+    readOnly: true,
+    partner: ['finances'],
+    input: z.object({ include_settled: z.boolean().optional() }),
+    async run({ sb, me }, { include_settled }) {
+      if (!(me.role === 'admin' && me.can_see_pay) && !partnerCan(me, 'finances')) throw new Error('You need pay access to see credit and debit')
+      const [items, grants] = await Promise.all([
+        sb.from('credit_debit_items').select('*, payments:credit_debit_payments(id, item_id, paid_on, amount, note)').then(rowsAs<MoneyItem[]>()),
+        sb.from('grant_applications').select('id, grant_id, grant_name, stage, amount_requested, amount_awarded, amount_received, deadline, deadline_label, notes')
+          .then(rowsAs<GrantApplication[]>()),
+      ])
+      const num = (v: unknown) => (v == null ? null : Number(v))
+      const lines = moneyLines(
+        items.map(i => ({ ...i, amount: Number(i.amount), instalment: num(i.instalment), payments: i.payments.map(p => ({ ...p, amount: Number(p.amount) })) })),
+        grants.map(g => ({ ...g, amount_requested: num(g.amount_requested), amount_awarded: num(g.amount_awarded), amount_received: num(g.amount_received) })),
+      )
+      const day = today()
+      const sum = totals(lines)
+      return {
+        totals_eur: { to_pay_back: sum.toPay, paid_out_a_month: sum.monthly, coming_in: sum.comingIn, could_raise: sum.couldRaise },
+        lines: lines.filter(l => include_settled || !l.done).map(l => ({
+          item_id: l.item?.id ?? null, grant_application_id: l.grant?.id ?? null,
+          direction: l.direction === 'debit' ? 'to pay back' : 'coming in', kind: l.kind, name: l.name, who: l.party,
+          amount_eur: l.amount, paid_or_received_eur: l.settled, left_eur: l.left, each_payment_eur: l.instalment, every_months: l.every_months,
+          next_due: l.next_due, possible: l.possible, status: statusOf(l, day), grant_stage: l.grant?.stage ?? null, notes: l.item?.notes ?? null,
+          payments: l.item?.payments.map(p => ({ paid_on: p.paid_on, amount_eur: p.amount, note: p.note })) ?? [],
+        })),
+      }
+    },
+  }),
+  tool({
+    name: 'record_credit_debit_payment',
+    title: 'Record a payment made or received',
+    description: 'Admins with pay access: record money paid towards something on Credit & debit (say €100 paid back to Jeremy) or received (the old coffee machine sold). A repeating one moves on to its next date, and once everything is paid or received it is settled. For a grant, pass grant_application_id instead: the amount is added to what has been received on it (also on the Grants page). Ids come from credit_and_debit.',
+    admin: true,
+    input: z.object({
+      item_id: z.string().uuid().optional(), grant_application_id: z.string().uuid().optional(), amount_eur: z.number().positive(),
+      paid_on: date.optional(), note: z.string().max(500).optional(),
+    }),
+    async run({ sb, me }, { item_id, grant_application_id, amount_eur, paid_on, note }) {
+      if (!me.can_see_pay) throw new Error('You need pay access to change credit and debit')
+      if (!item_id === !grant_application_id) throw new Error('Pass item_id or grant_application_id (one of them)')
+      if (grant_application_id) {
+        const g = check(await sb.from('grant_applications').select('amount_received').eq('id', grant_application_id).single()) as { amount_received: number | null }
+        const received = Math.round((Number(g.amount_received ?? 0) + amount_eur) * 100) / 100
+        check(await sb.from('grant_applications').update({ amount_received: received }).eq('id', grant_application_id))
+        return { ok: true, grant_application_id, received_eur: received }
+      }
+      check(await sb.from('credit_debit_payments').insert({ item_id, amount: amount_eur, paid_on: paid_on ?? today(), note: note?.trim() || null }))
+      const item = check(await sb.from('credit_debit_items').select('next_due, done').eq('id', item_id!).single()) as { next_due: string | null; done: boolean }
+      return { ok: true, item_id, next_due: item.next_due, settled: item.done }
+    },
+  }),
+  tool({
+    name: 'save_credit_debit',
+    title: 'Add/change credit or debit',
+    description: 'Admins with pay access: add something to Credit & debit, or change one (pass item_id). direction "debit" is money the business pays out (a loan to pay back, something bought on finance); "credit" is money coming in (something to sell, a deposit, money owed to it). amount_eur is the whole amount (or the asking price); each_payment_eur and every_months for regular payments; next_due the next date. possible: true for money not agreed yet (credits only); settled: true once it is done with. Grants are tracked on the Grants page, not here.',
+    admin: true,
+    input: z.object({
+      item_id: z.string().uuid().optional(), direction: z.enum(['debit', 'credit']).optional(),
+      kind: z.enum(['loan', 'finance', 'sale', 'deposit', 'other']).optional(), name: z.string().min(1).max(120).optional(), who: z.string().max(120).nullable().optional(),
+      amount_eur: z.number().positive().optional(), each_payment_eur: z.number().positive().nullable().optional(),
+      every_months: z.number().int().min(1).max(24).nullable().optional(), next_due: date.nullable().optional(),
+      possible: z.boolean().optional(), settled: z.boolean().optional(), notes: z.string().max(2000).nullable().optional(),
+    }),
+    async run({ sb, me }, { item_id, who, amount_eur, each_payment_eur, settled, ...rest }) {
+      if (!me.can_see_pay) throw new Error('You need pay access to change credit and debit')
+      const patch: Record<string, unknown> = Object.fromEntries(Object.entries({ ...rest, party: who, amount: amount_eur, instalment: each_payment_eur, done: settled })
+        .filter(([, v]) => v !== undefined))
+      if (item_id) {
+        check(await sb.from('credit_debit_items').update(patch).eq('id', item_id))
+        return { ok: true, item_id }
+      }
+      if (!patch.name || !patch.direction || patch.amount === undefined) throw new Error('Something new needs a name, a direction and amount_eur')
+      const row = check(await sb.from('credit_debit_items').insert(patch).select('id').single())
+      return { ok: true, item_id: row.id }
     },
   }),
 
