@@ -35,6 +35,7 @@ import { Link as RouterLink } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction, useNotify } from '../app/Notify'
+import { FEATURES } from '../app/features'
 import { Empty, ErrorBox, PageHeader, SectionTitle, Tag } from '../components/common'
 import { SortCell, useSort } from '../components/tables'
 import { formatLocal as formatIn, localDate as dateIn, localTime as timeIn, ownTimeZone, today as todayIn, zoneCity, zonedIso as isoIn } from '../../shared/time'
@@ -133,7 +134,7 @@ export function SocialPlannerPage() {
       <PageHeader eyebrow={t('Business')} title={t('Social planner')}
         actions={(
           <Stack direction="row" spacing={1}>
-            <Button variant="outlined" startIcon={<MusicIcon />} onClick={() => setLibrary(true)}>{t('Music')}</Button>
+            {FEATURES.music && <Button variant="outlined" startIcon={<MusicIcon />} onClick={() => setLibrary(true)}>{t('Music')}</Button>}
             <Button variant="contained" startIcon={<AddIcon />} onClick={() => newPost()}>{t('New post')}</Button>
           </Stack>
         )} />
@@ -652,7 +653,7 @@ function Composer({ post, storage, isConnected, onClose, onSaved, recent, engage
   const [media, setMedia] = useState<PostMedia[]>(post.music?.mode === 'mixed' ? post.music.source_media : post.media ?? [])
   const [music, setMusic] = useState<PostMusic | null>(post.music ?? null)
   const [rendering, setRendering] = useState(false)
-  const musicStatus = useAsync('music-status', () => api.musicStatus(), [])
+  const musicStatus = useAsync('music-status', () => (FEATURES.music ? api.musicStatus() : Promise.resolve(null)), [])
   const videoLength = useVideoLength(media)
   const [targets, setTargets] = useState<SocialNetwork[]>(post.targets?.length ? post.targets
     : NETWORKS.filter(n => isConnected(n.provider) && kindInfo(post.kind ?? 'post').networks.includes(n.id)).map(n => n.id))
@@ -852,7 +853,7 @@ function Composer({ post, storage, isConnected, onClose, onSaved, recent, engage
             )}
           </Box>
 
-          {(storage || music) && (
+          {FEATURES.music && (storage || music) && (
             <MusicStrip context={context} music={music} onChange={setMusic} canRender={canRender}
               onRemind={() => { chose.current = true; setAuto(false) }} onMakeReel={() => changeKind('reel')} />
           )}
@@ -865,7 +866,7 @@ function Composer({ post, storage, isConnected, onClose, onSaved, recent, engage
 
           <TextField label={kind === 'story' ? t('Note (for you: stories have no caption)') : t('Caption')} multiline minRows={kind === 'story' ? 2 : 4} value={caption}
             onChange={e => setCaption(e.target.value)} error={caption.length > limit}
-            helperText={kind === 'story' ? t('Add stickers or a link in the Instagram app (choose Remind me).')
+            helperText={kind === 'story' ? (FEATURES.music ? t('Add stickers or a link in the Instagram app (choose Remind me).') : t('Add stickers, music or a link in the Instagram app (choose Remind me).'))
               : chosen.some(n => n.id === 'google') ? t('{n} / {limit} (Google Maps allows 1500)', { n: caption.length, limit }) : `${caption.length} / ${limit}`} />
 
           <Box role="group" aria-label={t('Post to')}>

@@ -30,6 +30,7 @@ import {
 } from '../shared/music'
 import { MusicError, makeAiMusic, renderMusic } from './socialMusic'
 import type { Env } from './supabase'
+import { shows, type FEATURES as APP_PARTS } from '../src/app/features'
 
 export interface ToolContext {
   sb: SupabaseClient
@@ -49,6 +50,8 @@ export interface ToolDef<S extends z.ZodType = z.ZodType> {
   partner?: PartnerArea[] | 'any'
   readOnly?: boolean
   destructive?: boolean
+  /** The part of the app it belongs to: not offered while that part is switched off (FEATURES in src/app/features.ts). */
+  onlyWith?: keyof typeof APP_PARTS
   run: (ctx: ToolContext, args: z.infer<S>) => Promise<unknown>
 }
 
@@ -213,7 +216,7 @@ async function resolveRep(sb: SupabaseClient, who: string): Promise<SalesRep> {
 const worth = (r: Pick<RewardRule, 'basis' | 'amount'>) => (r.basis === 'percent' ? `${r.amount}% of the sale` : `€${r.amount.toFixed(2)}`)
 const monthNow = () => today().slice(0, 7)
 
-export const TOOLS: ToolDef[] = [
+export const ALL_TOOLS: ToolDef[] = [
   tool({
     name: 'whoami',
     title: 'Who am I',
@@ -1384,6 +1387,7 @@ export const TOOLS: ToolDef[] = [
     description: 'Admins: tracks from the Social planner\'s music library that suit a story or reel, best first, and why (the brand\'s sound, the caption, the time of day, what did well on Instagram). Also says whether AI music can be made now and what it would cost. Put one on a post with set_post_music.',
     admin: true,
     readOnly: true,
+    onlyWith: 'music',
     input: z.object({
       kind: z.enum(['story', 'reel']).default('story'),
       caption: z.string().max(2200).default('').describe('The caption, or what the post is about'),
@@ -1421,6 +1425,7 @@ export const TOOLS: ToolDef[] = [
     title: 'Make music with AI',
     description: 'Admins: make an instrumental track with AI (ElevenLabs) for a story or reel. Two versions are added to the music library. Pay per use: €0.99 a track of up to a minute on Starter and Pro, added to the monthly bill within the limit set on Billing; Business includes one a month; not on Free. Check the cost with suggest_music and confirm it with the user first. Describe the feel, never a real artist or song.',
     admin: true,
+    onlyWith: 'music',
     input: z.object({
       description: z.string().min(3).max(400).describe('The feel in a few words, e.g. "warm acoustic guitar for a slow Sunday brunch"'),
       moods: z.array(z.enum(MOOD_IDS as [Mood, ...Mood[]])).max(4).default([]),
@@ -1456,6 +1461,7 @@ export const TOOLS: ToolDef[] = [
     title: 'Music on a post',
     description: 'Admins: music on a planned story or reel in the Social planner (not one that already went out). Pass one of: track_id (from suggest_music or make_music) to put that track into the photo or video now, from its best part unless start is given (a reel of photos changes photo on the beat); instagram_song for a song from Instagram\'s own library, which can only be added in the Instagram app, so the post becomes a reminder that names it; or remove: true.',
     admin: true,
+    onlyWith: 'music',
     input: z.object({
       post_id: z.string().uuid(),
       track_id: z.string().uuid().optional(),
@@ -1527,6 +1533,9 @@ export const TOOLS: ToolDef[] = [
     },
   }),
 ]
+
+/** The tools on offer (MCP, the REST API and its OpenAPI): not those of a part of the app that's switched off (src/app/features.ts), which stay built and tested. */
+export const TOOLS = ALL_TOOLS.filter(shows)
 
 /** Tools available to this person: employees don't see admin tools; partners only get read-only tools for their areas. */
 export const toolsFor = (me: Profile) => me.role === 'partner'

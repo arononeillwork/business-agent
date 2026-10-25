@@ -1648,12 +1648,21 @@ test('pricing: four plans, a simple feature table, Enterprise at the foot, and "
   await expect(table.getByRole('row', { name: /Custom MCP connection/ }).getByLabel('Included')).toHaveCount(4)
   await expect(table.getByRole('row', { name: /Scheduled posts per month/ }).getByRole('cell')).toHaveText(['Scheduled posts per month', '1', '12', '60', 'Unlimited'])
   // Pay per use: its own section of the table, on each paid plan's card, and spelled out under the cards.
-  await expect(table.getByRole('row', { name: /AI music tracks/ }).getByRole('cell'))
-    .toHaveText(['AI music tracks for stories and reels', '—', '€0.99 per track', '€0.99 per track', '1 free a month, then €0.99 per track'])
-  await expect(page.getByRole('article', { name: 'Free plan' }).getByRole('list', { name: 'Pay per use' })).toHaveCount(0)
-  await expect(pro.getByRole('list', { name: 'Pay per use' })).toHaveText('AI music tracks: €0.99 per track')
-  await expect(page.getByRole('article', { name: 'Business plan' }).getByRole('list', { name: 'Pay per use' })).toHaveText('AI music tracks: 1 free a month, then €0.99 per track')
-  await expect(page.getByRole('note', { name: 'Pay per use' })).toContainText('Business includes 1 free every month.')
+  // It's only AI music so far: none of it while Music is switched off.
+  if (FEATURES.music) {
+    await expect(table.getByRole('row', { name: /AI music tracks/ }).getByRole('cell'))
+      .toHaveText(['AI music tracks for stories and reels', '—', '€0.99 per track', '€0.99 per track', '1 free a month, then €0.99 per track'])
+    await expect(page.getByRole('article', { name: 'Free plan' }).getByRole('list', { name: 'Pay per use' })).toHaveCount(0)
+    await expect(pro.getByRole('list', { name: 'Pay per use' })).toHaveText('AI music tracks: €0.99 per track')
+    await expect(page.getByRole('article', { name: 'Business plan' }).getByRole('list', { name: 'Pay per use' })).toHaveText('AI music tracks: 1 free a month, then €0.99 per track')
+    await expect(page.getByRole('note', { name: 'Pay per use' })).toContainText('Business includes 1 free every month.')
+  } else {
+    await expect(table.getByRole('row', { name: /AI music tracks|Music on stories and reels/ })).toHaveCount(0)
+    await expect(table.getByRole('row', { name: /^Pay per use$/ })).toHaveCount(0)
+    await expect(page.getByRole('list', { name: 'Pay per use' })).toHaveCount(0)
+    await expect(page.getByRole('note', { name: 'Pay per use' })).toHaveCount(0)
+    await expect(page.getByText('What is pay per use?')).toHaveCount(0)
+  }
   // Enterprise is the last section before the closing banner, and only on this page.
   const sections = await page.locator('main > *').evaluateAll(els => els.map(e => (e.querySelector('[aria-label="Enterprise plan"]') ? 'enterprise' : e.textContent?.includes('Give your') ? 'closing' : 'other')))
   expect(sections.slice(-2)).toEqual(['enterprise', 'closing'])
@@ -1905,6 +1914,7 @@ test.describe('connections for email, files and music', () => {
   })
 
   test('our sound: the moods the brand’s music has, and never has; staff see them', async ({ page }) => {
+    test.skip(!FEATURES.music, 'Music is switched off for now')
     await open(page, '/brand')
     const sound = page.getByRole('region', { name: 'Our sound' })
     const like = sound.getByRole('group', { name: 'Sounds like', exact: true })
@@ -1985,6 +1995,7 @@ test.describe('social planner', () => {
   })
 
   test('music: the starter pack, a track of your own with the rights tick, and Create with AI, free first then paid per use', async ({ page }) => {
+    test.skip(!FEATURES.music, 'Music is switched off for now')
     await open(page, '/connections')
     await connectDrive(page)
     await page.getByRole('button', { name: 'Music', exact: true }).click()
@@ -2045,6 +2056,7 @@ test.describe('social planner', () => {
   })
 
   test('music on a story: suggestions pop up, choose the part, and it goes out with the post', async ({ page }) => {
+    test.skip(!FEATURES.music, 'Music is switched off for now')
     await open(page, '/connections')
     await connectDrive(page)
     await page.getByRole('button', { name: 'New post' }).click()
@@ -2089,6 +2101,7 @@ test.describe('social planner', () => {
   })
 
   test('a song from Instagram\'s library: the post becomes a reminder that names the song', async ({ page }) => {
+    test.skip(!FEATURES.music, 'Music is switched off for now')
     await open(page, '/connections')
     await connectDrive(page)
     await page.getByRole('button', { name: 'New post' }).click()
@@ -2116,6 +2129,7 @@ test.describe('social planner', () => {
   })
 
   test('a carousel\'s photos become a reel with music, changing on the beat', async ({ page }) => {
+    test.skip(!FEATURES.music, 'Music is switched off for now')
     await open(page, '/connections')
     await connectDrive(page)
     await page.getByRole('button', { name: 'New post' }).click()
@@ -2143,7 +2157,31 @@ test.describe('social planner', () => {
     await expect(page.getByRole('article').filter({ hasText: 'Weekend brunch' }).first()).toContainText('Morning Light')
   })
 
+  test('music switched off: no Music button or music in the composer, no sound on Brand, no pay per use on Billing', async ({ page }) => {
+    test.skip(FEATURES.music, 'Music is switched on')
+    await open(page, '/connections?plan=pro')
+    await connectDrive(page)
+    await expect(page.getByRole('button', { name: 'Music', exact: true })).toHaveCount(0)
+    await page.getByRole('button', { name: 'New post' }).click()
+    const dialog = page.getByRole('dialog', { name: 'New post' })
+    await dialog.getByRole('button', { name: 'Story' }).click()
+    await expect(dialog.getByRole('group', { name: 'Music' })).toHaveCount(0)
+    await expect(dialog).toContainText('Add stickers, music or a link in the Instagram app (choose Remind me).')
+    // A reel is a video, as before: photos only become a reel with music.
+    await dialog.getByRole('button', { name: 'Reel' }).click()
+    await expect(dialog.getByRole('group', { name: 'Photos and videos' })).toContainText('Video')
+    await expect(dialog.getByRole('group', { name: 'Photos and videos' })).not.toContainText('photos')
+    await dialog.getByRole('button', { name: 'Cancel' }).click()
+    await page.getByRole('link', { name: 'Brand' }).first().click()
+    await expect(page.getByRole('heading', { name: 'Brand' }).first()).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Our sound' })).toHaveCount(0)
+    await fromAccountMenu(page, 'Billing')
+    await expect(page.getByRole('heading', { name: 'Billing' }).first()).toBeVisible()
+    await expect(page.getByText(/Pay per use|AI music/)).toHaveCount(0)
+  })
+
   test('a paid plan pays per AI track, within the monthly limit', async ({ page }) => {
+    test.skip(!FEATURES.music, 'Music is switched off for now')
     await open(page, '/connections?plan=pro')
     await connectDrive(page)
     await page.getByRole('button', { name: 'Music', exact: true }).click()

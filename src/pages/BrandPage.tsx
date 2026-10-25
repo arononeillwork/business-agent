@@ -11,6 +11,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction, useNotify } from '../app/Notify'
+import { FEATURES } from '../app/features'
 import { ErrorBox, PageHeader, SectionTitle } from '../components/common'
 import type { BrandColour } from '../../shared/types'
 import { MOODS, MOOD_IDS } from '../../shared/music'
@@ -123,7 +124,7 @@ export function BrandPage() {
                 </CardContent>
               </Card>
 
-              <SoundCard moods={b.sound_moods ?? []} avoid={b.sound_avoid ?? []} canEdit={isAdmin} onSave={patch => save(patch, t('Saved'))} />
+              {FEATURES.music && <SoundCard moods={b.sound_moods ?? []} avoid={b.sound_avoid ?? []} canEdit={isAdmin} onSave={patch => save(patch, t('Saved'))} />}
 
               <Card component="section" aria-label={t('How to use the brand')}>
                 <CardContent>

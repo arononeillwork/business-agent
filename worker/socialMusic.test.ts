@@ -10,7 +10,8 @@ import { forgetMediaTokens } from './media'
 import { seal } from './crypto'
 import * as instagram from './providers/instagram'
 import { userClient, type Env } from './supabase'
-import { TOOLS, runTool } from './tools'
+import { ALL_TOOLS, TOOLS, runTool } from './tools'
+import { FEATURES } from '../src/app/features'
 import { FakeSupabase, type Row } from './test/fakeSupabase'
 import { FakeProviders } from './test/fakeProviders'
 import { STARTER, photoCuts, renderKey } from '../shared/music'
@@ -219,8 +220,15 @@ describe('the starter pack', () => {
 
 describe('the AI assistant\'s music tools (MCP and the API)', () => {
   const me = { id: 'admin-1', full_name: 'Aron', role: 'admin', active: true } as Profile
+  // Built and tested while Music is switched off (src/app/features.ts); only offered once it's on.
   const call = (name: string, args: unknown, e: Env | null = env) =>
-    runTool(TOOLS.find(t => t.name === name)!, { sb: userClient(env, 'admin-token', 'ai'), me, env: e ?? undefined, origin: APP }, args)
+    runTool(ALL_TOOLS.find(t => t.name === name)!, { sb: userClient(env, 'admin-token', 'ai'), me, env: e ?? undefined, origin: APP }, args)
+
+  it('are offered only while Music is switched on', () => {
+    const music = ['suggest_music', 'make_music', 'set_post_music']
+    expect(ALL_TOOLS.filter(t => t.onlyWith === 'music').map(t => t.name)).toEqual(music)
+    for (const name of music) expect(TOOLS.some(t => t.name === name)).toBe(FEATURES.music)
+  })
   const POST = '00000000-0000-4000-8000-000000000001'
   const TRACK = '00000000-0000-4000-8000-0000000000a1'
   const ROCK = '00000000-0000-4000-8000-0000000000a2'
@@ -306,7 +314,7 @@ describe('the AI assistant\'s music tools (MCP and the API)', () => {
     await expect(call('set_post_music', { post_id: POST, track_id: TRACK })).rejects.toThrow('Music goes into stories and reels')
     Object.assign(thePost(), { kind: 'story', status: 'published' })
     await expect(call('set_post_music', { post_id: POST, remove: true })).rejects.toThrow('went out already')
-    await expect(runTool(TOOLS.find(t => t.name === 'set_post_music')!, { sb: userClient(env, 'staff-token', 'ai'), me: { ...me, role: 'employee' } }, { post_id: POST, remove: true }))
+    await expect(runTool(ALL_TOOLS.find(t => t.name === 'set_post_music')!, { sb: userClient(env, 'staff-token', 'ai'), me: { ...me, role: 'employee' } }, { post_id: POST, remove: true }))
       .rejects.toThrow('Only admins can do that')
     expect(apis.render.jobs).toHaveLength(0)
   })

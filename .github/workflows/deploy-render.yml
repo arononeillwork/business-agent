@@ -2,14 +2,14 @@ name: Deploy render service
 # The music render service (render/): ffmpeg in a Cloudflare Container that puts the chosen music
 # into stories and reels (docs/SOCIAL_MUSIC_PLAN.md). Separate from the app's deploy because
 # Containers need the Workers Paid plan; until it's deployed the app still works, it just can't
-# mix music into files. Run it once from the Actions tab; after that, pushes that change render/
-# on the live branch deploy it again.
+# mix music into files. Once MUSIC_RENDER is on (below), run it from the Actions tab; after that,
+# pushes to main that change render/ deploy it again.
 # Each run makes a fresh key and gives it to both Workers (RENDER_KEY), with the service's address
 # (RENDER_URL) for the app, so there is nothing to copy by hand.
 on:
   workflow_dispatch:
   push:
-    branches: [main, claude/easy-beans-architecture-plan-dknqka]
+    branches: [main]
     paths: ['render/**', '.github/workflows/deploy-render.yml']
 
 concurrency:
@@ -18,6 +18,11 @@ concurrency:
 
 jobs:
   deploy:
+    # Off until the repo variable MUSIC_RENDER is "on" (Settings → Secrets and variables → Actions →
+    # Variables). Before setting it: the Cloudflare account on the Workers Paid plan (Containers),
+    # and CLOUDFLARE_API_TOKEN allowed to edit Containers as well as Workers; without them every run
+    # fails at the deploy step. Music itself stays hidden until FEATURES.music (src/app/features.ts).
+    if: vars.MUSIC_RENDER == 'on'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

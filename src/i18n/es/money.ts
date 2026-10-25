@@ -243,6 +243,7 @@ export default {
   'Saved in {where}. Photos are sent as JPEG, cropped to a shape Instagram takes.': 'Se guarda en {where}. Las fotos se envían en JPEG, recortadas a un formato que admite Instagram.',
   'Saved in {where}. Photos are sent as JPEG.': 'Se guarda en {where}. Las fotos se envían en JPEG.',
   'Note (for you: stories have no caption)': 'Nota (para ti: las historias no llevan texto)',
+  'Add stickers, music or a link in the Instagram app (choose Remind me).': 'Añade stickers, música o un enlace en la app de Instagram (elige Recuérdame).',
   'Add stickers or a link in the Instagram app (choose Remind me).': 'Añade stickers o un enlace en la app de Instagram (elige Recuérdame).',
   '{n} / {limit} (Google Maps allows 1500)': '{n} / {limit} (Google Maps admite 1500)',
   'Post to': 'Publicar en',

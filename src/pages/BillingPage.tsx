@@ -5,6 +5,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction, useNotify } from '../app/Notify'
+import { FEATURES, shows } from '../app/features'
 import { planName, usePlan } from '../app/plan'
 import { PageHeader, SectionTitle } from '../components/common'
 import { COMPLIMENTARY_LABEL, ENTERPRISE, PAY_PER_USE, PLANS, TRIAL_MONTHS, effectivePlan, payPerUse, paymentProblem, perUsePrice, plan as planById, planHighlights, type Billing, type Interval, type PlanId } from '../../shared/plans'
@@ -208,7 +209,7 @@ export function BillingPage() {
           </CardContent>
         </Card>
 
-        <PayPerUseCard />
+        {FEATURES.music && <PayPerUseCard />}
 
         <Box>
           <SectionTitle action={
@@ -238,7 +239,7 @@ export function BillingPage() {
                         </Stack>
                       ))}
                     </Stack>
-                    {PAY_PER_USE.map(u => {
+                    {PAY_PER_USE.filter(shows).map(u => {
                       const price = perUsePrice(u, p.id, t, n => `€${n.toFixed(2)}`)
                       return price && (
                         <Typography key={u.id} variant="caption" color="text.secondary" sx={{ mt: 1.5, display: 'block' }}>

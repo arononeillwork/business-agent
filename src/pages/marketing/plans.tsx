@@ -6,6 +6,7 @@ import PerUseIcon from '@mui/icons-material/AddRounded'
 import { useState } from 'react'
 import { ENTERPRISE, PAY_PER_USE, PLANS, TRIAL_MONTHS, mostIncluded, perUsePrice, planHighlights, type Interval, type Plan } from '../../../shared/plans'
 import { euro as money } from '../../../shared/competitors'
+import { shows } from '../../app/features'
 import { BA, Eyebrow, display, figures, outlineBtn, primaryBtn, roseBtn } from './site'
 import { locale, t, tr } from '../../i18n'
 
@@ -85,7 +86,7 @@ export function PricingCards() {
 
 /** A plan card's pay-per-use extras, kept apart from what the price includes (at the card's foot). */
 function PerUse({ plan: p, dark }: { plan: Plan; dark: boolean }) {
-  const lines = PAY_PER_USE.flatMap(u => {
+  const lines = PAY_PER_USE.filter(shows).flatMap(u => {
     const price = perUsePrice(u, p.id, t, n => money(n, locale()))
     return price ? [{ id: u.id, text: t('{what}: {price}', { what: t(u.short), price }) }] : []
   })
@@ -111,11 +112,13 @@ function PerUse({ plan: p, dark }: { plan: Plan; dark: boolean }) {
 
 /** Under the plan cards: what is charged per use, and what the top plan includes free. */
 function PerUseNote() {
+  const extras = PAY_PER_USE.filter(shows)
+  if (!extras.length) return null
   return (
     <Box role="note" aria-label={t('Pay per use')} sx={{ mt: 3, mx: 'auto', maxWidth: 780, px: { xs: 2.5, sm: 3 }, py: 1.75, borderRadius: '18px', bgcolor: BA.tint, textAlign: 'center' }}>
       <Typography sx={{ fontSize: '0.95rem', lineHeight: 1.6 }}>
         <b>{t('Pay per use:')}</b>{' '}
-        {PAY_PER_USE.map(u => {
+        {extras.map(u => {
           const top = mostIncluded(u)
           return (
             <span key={u.id}>

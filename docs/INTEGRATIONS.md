@@ -643,11 +643,16 @@ Without any of this, the composer still offers music from Instagram's own librar
    starter pack is made by itself, one track every few minutes, once Instagram and Google Drive or
    OneDrive are connected (about $1.20, on our account); the repo variable `MUSIC_STARTER=off` stops it.
 2. **Putting music into the files (the render service).** Needs Cloudflare's Workers Paid plan
-   (Containers). Run **Actions → Deploy render service** once: it deploys `business-agent-render`
+   (Containers), and `CLOUDFLARE_API_TOKEN` allowed to edit Containers. Set the repo variable
+   `MUSIC_RENDER=on` (the workflow does nothing until then), then run **Actions → Deploy render
+   service** once: it deploys `business-agent-render`
    (`render/`, ffmpeg in a container) and gives it and the app's Worker the same `RENDER_KEY`, and
    the app's Worker its `RENDER_URL`. Run it again after changing anything in `render/`.
 3. Nightly, the Worker reads likes and comments on reels and posts that went out with music
    (Instagram's `like_count` and `comments_count`, no extra permission), so suggestions learn.
+4. **Switching it on.** Music is built but switched off (`music: false` in `src/app/features.ts`):
+   the app, the Pricing and Billing pages and the assistant show nothing of it, though its database
+   tables are live. Once 1 and 2 are done, set `music: true` in one pull request.
 
 ## Sign-in emails from the business's own mailbox
 

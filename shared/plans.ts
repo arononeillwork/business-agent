@@ -138,13 +138,15 @@ export interface PayPerUse {
   explain: string
   /** Uses each plan gets free every calendar month. A plan left out can't use it. */
   included: Partial<Record<PlanId, number>>
+  /** The part of the app it belongs to: the app leaves it out while that part is switched off (FEATURES in src/app/features.ts). */
+  onlyWith?: 'music'
 }
 
 export const PAY_PER_USE: PayPerUse[] = [
   {
     id: 'ai_music', label: msg('AI music tracks for stories and reels'), short: msg('AI music tracks'), price: 0.99, each: msg('{price} per track'),
     explain: msg('A track made for your post with ElevenLabs, up to 60 seconds: hear two versions and keep one, cleared for your social media.'),
-    included: { starter: 0, pro: 0, business: 1 },
+    included: { starter: 0, pro: 0, business: 1 }, onlyWith: 'music',
   },
 ]
 export const payPerUse = (id: PayPerUseId) => PAY_PER_USE.find(u => u.id === id)!
@@ -157,14 +159,15 @@ type Cell = boolean | string
 /**
  * One line of the comparison: what it is in plain words (`explain`), and each plan's value.
  * `perUse`: a pay-per-use extra, where `values` says which plans can use it and the page shows its price.
+ * `onlyWith`: the part of the app it belongs to; the page leaves the row out while that's switched off (src/app/features.ts).
  */
-export interface CompareRow { label: string; values: Record<PlanId, Cell>; note?: string; explain?: string; perUse?: PayPerUseId }
+export interface CompareRow { label: string; values: Record<PlanId, Cell>; note?: string; explain?: string; perUse?: PayPerUseId; onlyWith?: 'music' }
 const every = (v: Cell = true): Record<PlanId, Cell> => ({ free: v, starter: v, pro: v, business: v })
 const byFeature = (f: Feature): Record<PlanId, Cell> =>
   Object.fromEntries(PLANS.map(p => [p.id, p.features.includes(f)])) as Record<PlanId, Cell>
 const byLimit = (pick: (l: PlanLimits) => string): Record<PlanId, Cell> =>
   Object.fromEntries(PLANS.map(p => [p.id, pick(p.limits)])) as Record<PlanId, Cell>
-const perUseRow = (u: PayPerUse): CompareRow => ({ label: u.label, explain: u.explain, perUse: u.id,
+const perUseRow = (u: PayPerUse): CompareRow => ({ label: u.label, explain: u.explain, perUse: u.id, onlyWith: u.onlyWith,
   values: Object.fromEntries(PLANS.map(p => [p.id, u.included[p.id] !== undefined])) as Record<PlanId, Cell> })
 
 export const COMPARE: { group: string; rows: CompareRow[] }[] = [
@@ -191,7 +194,7 @@ export const COMPARE: { group: string; rows: CompareRow[] }[] = [
       explain: msg('Posts planned for a date. Reminders to post yourself count too.') },
     { label: msg('Posts, carousels, reels and stories'), values: every(),
       explain: msg('Plan every kind of post on a calendar, list or table.') },
-    { label: msg('Music on stories and reels: suggested tracks, choose the part, mix'), values: every(),
+    { label: msg('Music on stories and reels: suggested tracks, choose the part, mix'), values: every(), onlyWith: 'music',
       explain: msg('Pick a suggested track or one of your own, choose the part and the volume; it goes out with the post.') },
     { label: msg('Photos and videos kept in your Google Drive or OneDrive'), values: byFeature('apps'),
       explain: msg('Needed to post automatically: the files wait there for Instagram to collect.') },
