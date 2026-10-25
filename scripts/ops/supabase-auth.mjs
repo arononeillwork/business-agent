@@ -16,6 +16,9 @@ const site = process.argv[2]?.replace(/\/$/, '')
 // comes back to workers.dev: sent back to another origin, the sign-in can't finish (the code
 // verifier lives in the browser storage of the origin that started it).
 const dev = process.argv[3]?.replace(/\/$/, '')
+// The backup address on Vercel (ops/vercel-backup), for when Spanish providers block Cloudflare's
+// addresses during football matches. Same reason: a sign-in started there has to come back there.
+const backup = 'https://businesssagent.vercel.app'
 
 const api = async (method, body) => {
   const res = await fetch(`https://api.supabase.com/v1/projects/${REF}/config/auth`, {
@@ -33,6 +36,7 @@ if (site) {
   const allow = new Set((current.uri_allow_list ?? '').split(',').map(s => s.trim()).filter(Boolean))
   allow.add(`${site}/**`); allow.add('http://localhost:5173/**')
   if (dev && dev !== site) allow.add(`${dev}/**`)
+  allow.add(`${backup}/**`)
   patch.uri_allow_list = [...allow].join(',')
 }
 // Sign-in emails carry a 6-digit code (typed into the app), not just a link: links expire, get

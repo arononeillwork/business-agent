@@ -251,6 +251,14 @@ Worker to a domain whose DNS it runs. Each deploy attaches the domain to the Wor
 what's missing if it can't. Every app's redirect URI can use either address, e.g.
 `https://businesssagent.com/api/integrations/<app>/callback`.
 
+On football match days Spanish internet providers block many Cloudflare addresses (LaLiga's
+court orders), and both addresses above can stop opening from Spain until the match ends. The
+backup address <https://businesssagent.vercel.app> is the same app through Vercel: a project
+(`business-agent`) holding only `ops/vercel-backup/vercel.json`, which passes every request to
+the Worker. Nothing is deployed twice; each deploy shows on it straight away. Sign-ins started
+there come back there (`scripts/ops/supabase-auth.mjs`). Links the Worker builds (invite emails,
+connection and billing returns) still use the workers.dev address.
+
 ## Use it from any AI
 
 The app is an MCP server at `https://<worker-url>/mcp`. Each person connects their own AI and it
