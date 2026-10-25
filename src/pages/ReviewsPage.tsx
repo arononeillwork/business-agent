@@ -8,6 +8,7 @@ import { useAction } from '../app/Notify'
 import { BarChart, ShareBars } from '../components/charts'
 import { Empty, ErrorBox, Loading, PageHeader, SectionTitle, StatGrid, StatTile, Tag } from '../components/common'
 import { ExportButton } from '../components/tables'
+import { Freshness } from '../components/Freshness'
 import type { ExportTable } from '../lib/export'
 import { formatLocal, formatNumber, today } from '../../shared/time'
 import { REVIEW_FILTERS, filterReviews, isLow, suggestedReply, summarise, MAX_REPLY, type Review, type ReviewFilter } from '../../shared/reviews'
@@ -40,6 +41,7 @@ export function ReviewsPage() {
   return (
     <>
       <PageHeader eyebrow={t('Marketing')} title={t('Reviews')} actions={<ExportButton table={table} disabled={!shown.length} folder="Marketing" />} />
+      {s?.feed && <Box sx={{ mt: -2, mb: 2 }}><Freshness id="reviews" at={s.fetched_at} /></Box>}
       <ErrorBox error={data.error} />
       {!s && !data.error && <Loading />}
       {s?.feed === 'places' && (

@@ -1,4 +1,4 @@
-// Licences & renewals: what the business needs to keep open and up to date, when each one runs out,
+// Licences: what the business needs to keep open and up to date, when each one runs out,
 // and the ones a café in Spain usually has (to add in one click). The presets are a starting point:
 // what applies, and how often, depends on the town hall and the business, so each one says to check.
 import { msg } from './i18n'

@@ -11,6 +11,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Env } from './supabase'
 import { seal, unseal } from './crypto'
+import { forget } from './cache'
 import * as google from './providers/google'
 import * as ms from './providers/microsoft'
 import * as spotify from './providers/spotify'
@@ -244,9 +245,18 @@ export interface Row {
 }
 export const ROW_COLUMNS = 'provider, status, account_label, external, connected_at, last_sync_at, last_error, last_checked_at'
 
+/** What's kept from each service (provider_cache, worker/cache.ts), by key: forgotten when its connection changes. */
+const KEPT: Partial<Record<Provider, string[]>> = {
+  square: ['sales:square:', 'items:', 'loyalty:', 'giftcards:'], sumup: ['sales:sumup:'], stripe: ['sales:stripe:'],
+  search_console: ['search:'], meta_ads: ['ads:meta_ads:'], google_ads: ['ads:google_ads:'],
+  gmail: ['mail:gmail:'], outlook: ['mail:outlook:'], google_business: ['reviews'],
+}
+
 export async function setIntegration(db: SupabaseClient, provider: Provider, patch: Record<string, unknown>) {
   const { error } = await db.from('integrations').update({ ...patch, updated_at: new Date().toISOString() }).eq('provider', provider)
   if (error) throw new Error(error.message)
+  // Connected again (perhaps to another account or with other permissions), or disconnected: start afresh.
+  if ('status' in patch) await Promise.all((KEPT[provider] ?? []).map(key => forget(db, key)))
 }
 
 async function refreshTokenOf(env: Env, db: SupabaseClient, p: Provider) {

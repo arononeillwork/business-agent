@@ -3,7 +3,7 @@
 // The limits and features are enforced by the database (migration 36, `plan_limits` and
 // `plan_features`); plans.test.ts checks that migration still matches this file.
 // Display text is marked with msg() and translated where it's shown (t() in the app).
-import { msg } from './i18n'
+import { msg } from './i18n.ts'
 
 export type PlanId = 'free' | 'starter' | 'pro' | 'business'
 export type Interval = 'month' | 'year'

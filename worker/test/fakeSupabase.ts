@@ -7,19 +7,22 @@ import { CONNECTION_FEATURE } from '../../shared/plans'
 
 export type Row = Record<string, unknown>
 
-/** integration_group() (migrations 28, 34, 40 and 45). */
+/** integration_group() (migrations 28, 34, 40, 45 and 65: Google Drive and OneDrive no longer exclude each other). */
 export const GROUP: Record<string, string> = {
-  gmail: 'email', outlook: 'email', google_drive: 'files', onedrive: 'files',
+  gmail: 'email', outlook: 'email',
   google_calendar: 'calendar', outlook_calendar: 'calendar', spotify: 'music', youtube_music: 'music', whatsapp: 'communication', square: 'payments', sumup: 'payments',
 }
 
 /** Primary keys, for upserts. Tables not listed get a numeric id. */
 const KEYS: Record<string, string[]> = {
   integrations: ['provider'], integration_secrets: ['provider'], calendar_feeds: ['profile_id', 'scope'], profiles: ['id'], business: ['id'], api_keys: ['id'], referrals: ['email'],
-  whatsapp_messages: ['wa_message_id'], settings: ['id'],
+  whatsapp_messages: ['wa_message_id'], settings: ['id'], provider_cache: ['key'],
+  competitor_radar: ['place_id'], competitor_snapshots: ['competitor_id', 'taken_on'],
 }
 /** Keyed tables that still get a numeric id of their own (an identity column beside the unique key). */
 const AUTO_ID = new Set(['whatsapp_messages'])
+/** Tables whose id is a uuid (the tools check it is one). */
+const UUID_ID = new Set(['competitors', 'competitor_items', 'competitor_prices', 'competitor_notes'])
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 const bearerOf = (h: Headers) => h.get('authorization')?.replace(/^Bearer\s+/i, '') ?? ''
@@ -44,6 +47,17 @@ function matcher(params: URLSearchParams) {
     else if (op === 'gt') tests.push(r => v(r) !== null && v(r)! > arg)
     else if (op === 'lte') tests.push(r => v(r) !== null && v(r)! <= arg)
     else if (op === 'lt') tests.push(r => v(r) !== null && v(r)! < arg)
+    else if (op === 'like') {
+      // PostgREST's like: * or % for any run of characters, _ for one, \ before one to take it as it is.
+      let re = ''
+      const plain = (ch: string) => ch.replace(/[.*+?^$()|[\]\\{}]/g, '\\$&')
+      for (let i = 0; i < arg.length; i++) {
+        const ch = arg[i]
+        re += ch === '\\' && i + 1 < arg.length ? plain(arg[++i]) : ch === '*' || ch === '%' ? '.*' : ch === '_' ? '.' : plain(ch)
+      }
+      const pattern = new RegExp(`^${re}$`, 's')
+      tests.push(r => v(r) !== null && pattern.test(v(r)!))
+    }
     else throw new Error(`fake Supabase: unsupported filter ${key}=${raw}`)
   }
   return (r: Row) => tests.every(t => t(r))
@@ -220,7 +234,7 @@ export class FakeSupabase {
         if (existing && prefer.includes('resolution=ignore-duplicates')) continue
         if (existing && !prefer.includes('resolution=merge-duplicates')) return json({ code: '23505', message: 'duplicate key value violates unique constraint' }, 409)
         if (existing) { Object.assign(existing, item); out.push(existing) } else {
-          const r = { ...(keys && !AUTO_ID.has(name) ? {} : { id: this.nextId++ }), ...item }
+          const r = { ...(keys && !AUTO_ID.has(name) ? {} : { id: UUID_ID.has(name) ? crypto.randomUUID() : this.nextId++ }), ...item }
           rows.push(r)
           out.push(r)
         }

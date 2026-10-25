@@ -199,6 +199,52 @@ export async function oneDriveDownload(token: string, id: string, range?: string
   return res
 }
 
+// Legal page: the café's OneDrive, looked through folder by folder (Files.ReadWrite reads all of it),
+// and the files picked there.
+export interface DriveItem {
+  id: string; name: string; size?: number; webUrl?: string; lastModifiedDateTime?: string
+  folder?: { childCount?: number }; file?: { mimeType?: string }; parentReference?: { id?: string; path?: string }
+}
+const ITEM_FIELDS = 'id,name,size,webUrl,lastModifiedDateTime,folder,file,parentReference'
+const itemPath = (id: string) => (id === 'root' ? '/me/drive/root' : `/me/drive/items/${encodeURIComponent(id)}`)
+
+/** A file or folder by its id ('root': the top of the OneDrive); null when it isn't there. */
+export async function item(token: string, id: string): Promise<DriveItem | null> {
+  const res = await fetch(`${GRAPH}${itemPath(id)}?$select=${ITEM_FIELDS}`, { headers: { authorization: `Bearer ${token}` } })
+  if (res.status === 404) return null
+  const json = await res.json().catch(() => ({})) as DriveItem & { error?: { message?: string } }
+  if (!res.ok) throw new Error(`Microsoft: ${json.error?.message ?? res.status}`)
+  return json
+}
+
+/** What's in a folder ('root': the top), page by page, up to 1,000 things. */
+export async function children(token: string, id: string) {
+  const out: DriveItem[] = []
+  let next: string | undefined = `${GRAPH}${itemPath(id)}/children?$select=${ITEM_FIELDS}&$top=200`
+  while (next && out.length < 1000) {
+    const res = await fetch(next, { headers: { authorization: `Bearer ${token}` } })
+    const page = await res.json().catch(() => ({})) as { value?: DriveItem[]; '@odata.nextLink'?: string; error?: { message?: string } }
+    if (!res.ok) throw new Error(`Microsoft: ${page.error?.message ?? res.status}`)
+    out.push(...page.value ?? [])
+    next = page['@odata.nextLink']
+  }
+  return out
+}
+
+/** The folder an item is in, by names from the top ("/drive/root:/Documents/Legal" → "Documents/Legal"; "" at the top). */
+export function folderOf(i: DriveItem): string | null {
+  const path = i.parentReference?.path
+  const at = path?.indexOf('root:') ?? -1
+  return path && at >= 0 ? decodeURIComponent(path.slice(at + 'root:'.length).replace(/^\//, '')) : null
+}
+
+/** A Word, Excel or PowerPoint file (and others OneDrive can convert) as a PDF, fetched like oneDriveDownload. */
+export async function oneDrivePdf(token: string, id: string) {
+  const res = await fetch(`${GRAPH}/me/drive/items/${encodeURIComponent(id)}/content?format=pdf`, { headers: { authorization: `Bearer ${token}` }, redirect: 'manual' })
+  const to = res.headers.get('location')
+  return res.status >= 300 && res.status < 400 && to ? fetch(to) : res
+}
+
 /** Save a small file (under 4 MB) into "Business Agent/<folder>" in OneDrive; returns its web link. */
 export async function saveFile(token: string, folder: string, name: string, content: string, type: string) {
   // "Marketing/Competitions": a folder in a folder.

@@ -10,6 +10,7 @@ import { useAsync } from '../app/hooks'
 import { BarChart, ShareBars, type BarPoint } from '../components/charts'
 import { Empty, ErrorBox, Loading, PageHeader, SectionTitle, StatGrid, StatTile, Tag } from '../components/common'
 import { ExportButton, SortCell, useSort } from '../components/tables'
+import { Freshness } from '../components/Freshness'
 import { locale, msg, t, tc } from '../i18n'
 import type { ExportTable } from '../lib/export'
 import { addDays, formatLocal, formatNumber, today } from '../../shared/time'
@@ -127,6 +128,7 @@ export function AnalyticsPage() {
             <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mt: 1 }}>
               {t('Google shares search data a few days late: this runs to {date}.', { date: formatLocal(`${to}T12:00:00Z`, 'd MMMM') })}
             </Typography>
+            <Freshness id="search" at={r.fetched_at} sx={{ mt: 0.5 }} />
           </CardContent>
         </Card>
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))' }, alignItems: 'start', gap: 2, mb: 3 }}>

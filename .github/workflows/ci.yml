@@ -3,11 +3,13 @@ name: CI
 # browser tests against the demo. A red run means don't deploy.
 # The browser tests run on 3 machines at once (Playwright shards) in Playwright's own image, so
 # no browser install. Branch pushes and pull requests run the tests for what changed plus the core
-# ones (sign-in, permissions, privacy: scripts/ci/select-e2e.ts); deploys run all of them.
+# ones (sign-in, permissions, privacy: scripts/ci/select-e2e.ts); deploys and the merge queue run
+# all of them.
 on:
   push:
-    # These branches run the same checks inside deploy.yml before deploying.
-    branches-ignore: [main, claude/easy-beans-architecture-plan-dknqka]
+    # main is tested in deploy.yml before deploying, the merge-queue branch by the merge queue.
+    branches-ignore: [main, merge-queue]
+  # Only pull requests from forks: a branch here is already tested by its push.
   pull_request:
   workflow_call:
     inputs:
@@ -15,9 +17,14 @@ on:
         description: Run every browser test (deploys do)
         type: boolean
         default: true
+      ref:
+        description: Commit to test (the merge queue's candidate); empty for the one that started the run
+        type: string
+        default: ''
 
 jobs:
   checks:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 15
     services:
@@ -30,6 +37,8 @@ jobs:
           --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -49,6 +58,7 @@ jobs:
 
   # Which browser tests this change needs ("all", or a --grep pattern).
   plan:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -56,6 +66,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.ref }}
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
@@ -84,6 +95,8 @@ jobs:
     name: browser (${{ matrix.shard }}/3)
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22

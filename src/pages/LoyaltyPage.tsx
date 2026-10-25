@@ -14,6 +14,7 @@ import { useConnected } from '../app/connected'
 import { Empty, ErrorBox, Loading, PageHeader, SectionTitle, StatGrid, StatTile, Tag } from '../components/common'
 import { ExportButton } from '../components/tables'
 import { BarChart } from '../components/charts'
+import { Freshness } from '../components/Freshness'
 import type { ExportTable } from '../lib/export'
 import { addDays, formatLocal, formatMoney, today } from '../../shared/time'
 import {
@@ -59,6 +60,9 @@ export function LoyaltyPage() {
           {([30, 60, 90] as Days[]).map(d => <MenuItem key={d} value={d}>{t('Last {n} days', { n: d })}</MenuItem>)}
         </TextField>
       } />
+      {(program.data || cards.data) && <Box sx={{ mt: -2, mb: 2 }}>
+        <Freshness id="loyalty" at={[program.data?.fetched_at, cards.data?.fetched_at].filter((x): x is string => !!x).sort()[0]} />
+      </Box>}
       <ErrorBox error={program.error ?? cards.error} />
       {reconnect && <Reconnect />}
 

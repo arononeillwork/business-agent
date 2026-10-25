@@ -52,6 +52,8 @@ const as = (who: 'admin' | 'staff') => ({ authorization: `Bearer ${who}-token`, 
 const post = (path: string, body: unknown = {}, who: 'admin' | 'staff' = 'admin') =>
   integrations.request(`${APP}${path}`, { method: 'POST', headers: as(who), body: JSON.stringify(body) }, env, ctx())
 const get = (path: string, who: 'admin' | 'staff' = 'admin') => integrations.request(`${APP}${path}`, { headers: as(who) }, env, ctx())
+/** The minutes outside services' answers are kept (shared/refresh.ts) have passed. */
+const later = () => { db.tables.provider_cache = [] }
 
 /** Press Connect, come back from Google/Microsoft with a code, and return where the app lands. */
 async function connect(provider: string, back: 'connections' | 'setup' = 'connections') {
@@ -192,14 +194,19 @@ describe('Connecting an app: "Connected" only once it has really worked', () => 
     expect(apis.google.uploads).toEqual([{ parent: sub[0], name: 'week 40.csv' }])
   })
 
-  it('OneDrive replaces Google Drive, and exports then go to OneDrive', async () => {
+  it('OneDrive joins Google Drive (both stay connected); exports go to Google Drive, or to OneDrive once it’s the only one', async () => {
     await connect('google_drive')
     await connect('onedrive')
-    expect(status('google_drive')).toBe('disconnected')
+    expect(status('google_drive')).toBe('connected')
+    expect(db.secret('google_drive')).toBeDefined()
     expect(db.integration('onedrive')).toMatchObject({ status: 'connected', external: { folder_id: apis.microsoft.folderId } })
     await post('/api/integrations/files/save', { folder: 'Timecards', name: 'week.csv', content: 'x' })
-    expect(apis.microsoft.files).toEqual(['Business Agent/Timecards/week.csv'])
-    expect(apis.google.uploads).toEqual([])
+    expect(apis.google.uploads.map(u => u.name)).toEqual(['week.csv'])
+    expect(apis.microsoft.files).toEqual([])
+
+    await post('/api/integrations/google_drive/disconnect')
+    await post('/api/integrations/files/save', { folder: 'Timecards', name: 'week 2.csv', content: 'x' })
+    expect(apis.microsoft.files).toEqual(['Business Agent/Timecards/week 2.csv'])
   })
 
   it('a cancelled sign-in changes nothing and isn’t shown as a problem', async () => {
@@ -677,8 +684,9 @@ describe('Facebook, TikTok and Square: one click, connected once they really wor
     expect(await res.json()).toEqual({ items: [
       { name: 'Flat White', quantity: 3, gross: 9.6 },
       { name: 'Croissant · Pistachio', quantity: 1, gross: 4.2 },
-    ] })
+    ], fetched_at: expect.any(String) })
     apis.square.ordersScope = false
+    later()
     expect(await (await get('/api/integrations/payments/items?from=2026-09-28&to=2026-09-29')).json()).toEqual({ items: null, reason: 'reconnect' })
     expect(status('square')).toBe('connected') // takings keep working meanwhile
     db.table('profiles').find(p => p.id === 'admin-1')!.can_see_pay = false
@@ -805,6 +813,7 @@ describe('Facebook, TikTok and Square: one click, connected once they really wor
       .toMatchObject({ partial: 'stripe', items: [{ name: 'Flat White' }, { name: 'Croissant · Pistachio' }] })
     // One that can't be read just now leaves the other's takings showing.
     apis.stripe.revoked = true
+    later()
     const some = await (await get('/api/integrations/payments/sales?from=2026-09-28&to=2026-09-29')).json() as { providers: string[]; failed: { provider: string }[]; days: { gross: number }[] }
     expect(some.providers).toEqual(['square'])
     expect(some.failed).toEqual([expect.objectContaining({ provider: 'stripe' })])

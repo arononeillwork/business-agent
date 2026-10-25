@@ -554,6 +554,34 @@ the review's language, edited before it's sent. No AI writes the replies.
 
 TripAdvisor and TheFork are listed as coming soon (neither offers an API to small businesses for this).
 
+### Competitors: the same key
+
+The Competitors page (Marketing) uses the same `GOOGLE_PLACES_API_KEY`, and `GOOGLE_PLACE_ID` for
+where the business is and its own rating (without the place id, the business's address is looked
+up instead). Nothing else to switch on. Without the key the page still works by hand: prices, what
+each place offers, hours, notes and ideas; it says what Google would add.
+
+- **Look around**: Places *Nearby Search*, the nearest 20 cafés, coffee shops, bakeries, brunch and
+  juice places within the distance chosen, asking only for what a list shows. Kept in
+  `competitor_radar`, so opening the page asks Google nothing. Once an admin has looked once, the
+  Worker looks again every week (the nightly job) and tells admins in the bell about places that
+  weren't there before and have fewer than 50 reviews: new ones, not ones that were just outside
+  the last look.
+- **Find by name**: *Text Search*, biased to the business's surroundings.
+- **Follow** a place, and its **weekly check**: *Place Details* with the rating, review count,
+  price level, hours, whether it's open, and what it offers (`outdoorSeating`, `allowsDogs`,
+  `servesBreakfast`, `takeout`, `delivery`…, mapped to the page's list in
+  `shared/localCompetitors.ts`). Each check keeps a snapshot of the rating and review count
+  (`competitor_snapshots`) for the trend and the reviews-a-month figure; admins hear once when
+  Google shows a place as closed. An admin's own answer for what a place offers wins over Google's.
+- **Cost**: Google bills each request by the most detailed field asked for. Following 15 places is
+  about 65 detail look-ups a month, plus 4 or 5 looks around; with the Reviews page's ~240 that's
+  about 300 of the 1,000 a month Google gives free for this kind of look-up (`shared/refresh.ts`).
+
+The AI connector gets `list_competitors` (everything on the page, with the findings in plain
+words), `save_competitor`, `record_competitor_price` ("Molino charges €3.20 for a flat white now")
+and `add_competitor_note`, for admins.
+
 ## 17. Website & SEO (the website check and Google PageSpeed)
 
 The Website & SEO page checks the website on the Business page: the Worker fetches the homepage,
@@ -567,6 +595,30 @@ works without a key on a small shared allowance; when it says the allowance is u
 *APIs & Services → Library* → **PageSpeed Insights API** → Enable; *Credentials* → API key
 restricted to it → repo secret `GOOGLE_PAGESPEED_API_KEY`. The Search Console figures on the page
 come from section 13.
+
+## 18. Legal page (documents picked in Google Drive or OneDrive)
+
+The Legal page (Business section) lists the business's legal documents (the lease, the company's
+deeds, insurance, contracts, licences, its own policies) without copying them: an admin picks each
+file where it already is, in the connected **Google Drive** or **OneDrive**, and the database keeps
+only where it is (`legal_documents`, migration 65). The page shows a PDF or picture by asking its
+storage for it at that moment (`GET /api/legal/documents/:id/file`; Google Docs and Word, Excel or
+PowerPoint files in OneDrive come as PDFs the storage makes), and opens anything else there.
+
+Google Drive and OneDrive can now be connected **at the same time** (they used to replace each
+other); the admin chooses which to pick from with **Add documents**. Where the app saves new files
+(Tax documents, exports, photos for posts) it uses Google Drive when both are connected.
+
+- **OneDrive**: nothing more to set up. The app can read the whole OneDrive (`Files.ReadWrite`),
+  so its folders are browsed inside the page.
+- **Google Drive**: the app only has `drive.file` (files it made, and files the café chooses for
+  it), so files are chosen in **Google's own file picker**. It needs a browser API key from the
+  same Google Cloud project as `GOOGLE_CLIENT_ID`: *APIs & Services → Library* → **Google Picker
+  API** → Enable; *Credentials → Create credentials → API key*, restricted to the **Google Picker
+  API** and, under *Website restrictions*, to the app's addresses (e.g. `https://businesssagent.com/*`
+  and the `workers.dev` one) → repo secret **`GOOGLE_PICKER_API_KEY`**. The project number the
+  picker also needs is the start of `GOOGLE_CLIENT_ID`. Until the key is there, the page says that
+  choosing from Google Drive isn't switched on yet and OneDrive works meanwhile.
 
 ## Social planner
 

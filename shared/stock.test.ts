@@ -8,7 +8,7 @@ import {
 const supplier = (s: Partial<Supplier> = {}): Supplier => ({
   id: 'dairy', name: 'Lácteos Costa', kind: 'Dairy', contact_name: 'Paco', email: 'pedidos@lacteos.test', phone: '+34 611 222 333', whatsapp: true,
   website: null, order_url: null, address: null, account_number: null, order_days: ['mon', 'wed', 'fri'], cutoff: '12:00', lead_days: 1,
-  minimum_order: 60, payment_terms: null, notes: null, active: true, ...s,
+  minimum_order: 60, payment_terms: null, notes: null, active: true, starred: false, ...s,
 })
 const item = (i: Partial<StockItem> = {}): StockItem => ({
   id: 'oat', name: 'Oat milk', category: 'Milk & dairy', supplier_id: 'dairy', supplier_sku: 'AV-1L', product_url: null, unit: 'l', pack_size: '6 × 1 l',

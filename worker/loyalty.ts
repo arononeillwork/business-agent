@@ -1,14 +1,17 @@
 // Loyalty page: the Square loyalty programme (the café's stamp card when it gives points per visit)
-// and gift cards, read live from Square. Admins only, and only while Square is the connected till.
+// and gift cards, read from Square and kept 30 minutes (provider_cache; forgotten after a change made
+// here). Admins only, and only while Square is the connected till.
 // A Square connection made before the loyalty and gift card permissions were asked for answers
 // `status: 'reconnect'` (reads) or a plain "Reconnect Square…" (changes), never Square's own error.
 import { Hono, type MiddlewareHandler } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { bearer, serviceClient, userClient, type Env } from './supabase'
 import { connectedOf, explain, lasting, markBroken, squareSession } from './connections'
+import { cached, forget } from './cache'
 import { SquareError } from './providers/square'
 import * as loyalty from './providers/squareLoyalty'
 import { adjustProblem, giftCardAmountProblem, type GiftCards, type LoyaltyState } from '../shared/loyalty'
+import { MINUTES } from '../shared/refresh'
 import { addDays, today, zonedIso } from '../shared/time'
 
 export const loyaltyRoutes = new Hono<{ Bindings: Env }>()
@@ -64,18 +67,21 @@ loyaltyRoutes.get('/api/loyalty', async c => {
   const db = serviceClient(c.env)
   try {
     const { fromIso, toIso } = range(k => c.req.query(k))
-    const s = await squareSession(c.env, db)
-    const program = await loyalty.program(s.sandbox, s.token)
-    if (!program) return c.json({ status: 'no_program', program: null, members: [], events: [] } satisfies LoyaltyState)
-    const [accounts, events] = await Promise.all([loyalty.accounts(s.sandbox, s.token), loyalty.events(s.sandbox, s.token, fromIso, toIso)])
-    const who = await names(db, accounts.map(a => a.customer_id).filter((x): x is string => !!x))
-    const lastEarn = new Map<string, string>()
-    for (const e of events) if (e.kind === 'earn' && !lastEarn.has(e.account_id)) lastEarn.set(e.account_id, e.at)
-    const members = accounts.map(a => ({
-      id: a.id, customer_id: a.customer_id ?? null, name: (a.customer_id && who.get(a.customer_id)) || null,
-      balance: a.balance ?? 0, lifetime: a.lifetime_points ?? 0, enrolled_at: a.enrolled_at ?? a.created_at ?? null, last_visit: lastEarn.get(a.id) ?? null,
-    })).sort((a, b) => b.balance - a.balance || b.lifetime - a.lifetime)
-    return c.json({ status: 'ok', program, members, events } satisfies LoyaltyState)
+    const { data, fetched_at } = await cached(db, `loyalty:${fromIso}:${toIso}`, MINUTES.loyalty, async (): Promise<LoyaltyState> => {
+      const s = await squareSession(c.env, db)
+      const program = await loyalty.program(s.sandbox, s.token)
+      if (!program) return { status: 'no_program', program: null, members: [], events: [] }
+      const [accounts, events] = await Promise.all([loyalty.accounts(s.sandbox, s.token), loyalty.events(s.sandbox, s.token, fromIso, toIso)])
+      const who = await names(db, accounts.map(a => a.customer_id).filter((x): x is string => !!x))
+      const lastEarn = new Map<string, string>()
+      for (const e of events) if (e.kind === 'earn' && !lastEarn.has(e.account_id)) lastEarn.set(e.account_id, e.at)
+      const members = accounts.map(a => ({
+        id: a.id, customer_id: a.customer_id ?? null, name: (a.customer_id && who.get(a.customer_id)) || null,
+        balance: a.balance ?? 0, lifetime: a.lifetime_points ?? 0, enrolled_at: a.enrolled_at ?? a.created_at ?? null, last_visit: lastEarn.get(a.id) ?? null,
+      })).sort((a, b) => b.balance - a.balance || b.lifetime - a.lifetime)
+      return { status: 'ok', program, members, events }
+    })
+    return c.json({ ...data, fetched_at } satisfies LoyaltyState)
   } catch (e) {
     if (missingScope(e)) return c.json({ status: 'reconnect', program: null, members: [], events: [] } satisfies LoyaltyState)
     return c.json({ error: await failure(db, e) }, 400)
@@ -96,6 +102,7 @@ loyaltyRoutes.post('/api/loyalty/adjust', async c => {
     if (!b.key || !/^[\w-]{8,64}$/.test(b.key)) throw new LoyaltyError('Try again')
     const s = await squareSession(c.env, db)
     await loyalty.adjust(s.sandbox, s.token, b.account_id, points, reason, `adjust:${b.key}`)
+    await forget(db, 'loyalty:')
     return c.json({ ok: true })
   } catch (e) {
     return c.json({ error: await failure(db, e) }, 400)
@@ -107,10 +114,13 @@ loyaltyRoutes.get('/api/giftcards', async c => {
   const db = serviceClient(c.env)
   try {
     const { fromIso, toIso } = range(k => c.req.query(k))
-    const s = await squareSession(c.env, db)
-    const [{ currency, cards }, activities] = await Promise.all([loyalty.giftCards(s.sandbox, s.token), loyalty.giftCardActivities(s.sandbox, s.token, fromIso, toIso)])
-    const who = await names(db, cards.map(g => g.customer_id).filter((x): x is string => !!x))
-    return c.json({ status: 'ok', currency, cards: cards.map(g => ({ ...g, customer: (g.customer_id && who.get(g.customer_id)) || null })), activities } satisfies GiftCards)
+    const { data, fetched_at } = await cached(db, `giftcards:${fromIso}:${toIso}`, MINUTES.loyalty, async (): Promise<GiftCards> => {
+      const s = await squareSession(c.env, db)
+      const [{ currency, cards }, activities] = await Promise.all([loyalty.giftCards(s.sandbox, s.token), loyalty.giftCardActivities(s.sandbox, s.token, fromIso, toIso)])
+      const who = await names(db, cards.map(g => g.customer_id).filter((x): x is string => !!x))
+      return { status: 'ok', currency, cards: cards.map(g => ({ ...g, customer: (g.customer_id && who.get(g.customer_id)) || null })), activities }
+    })
+    return c.json({ ...data, fetched_at } satisfies GiftCards)
   } catch (e) {
     if (missingScope(e)) return c.json({ status: 'reconnect', currency: 'EUR', cards: [], activities: [] } satisfies GiftCards)
     return c.json({ error: await failure(db, e) }, 400)
@@ -134,6 +144,7 @@ loyaltyRoutes.post('/api/giftcards', async c => {
     const currency = ((row?.external ?? {}) as { currency?: string }).currency ?? 'EUR'
     const card = await loyalty.sellGiftCard(s.sandbox, s.token, { locationId: location, amount, currency, customerId: b.customer_id ?? null, key: `giftcard:${b.key}` })
     const who = await names(db, card.customer_id ? [card.customer_id] : [])
+    await forget(db, 'giftcards:')
     return c.json({ card: { ...card, customer: (card.customer_id && who.get(card.customer_id)) || null } })
   } catch (e) {
     return c.json({ error: await failure(db, e) }, 400)

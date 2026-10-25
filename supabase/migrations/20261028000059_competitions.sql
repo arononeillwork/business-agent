@@ -167,3 +167,10 @@ begin
 end $$;
 revoke execute on function public.draw_competition(uuid) from public, anon;
 grant execute on function public.draw_competition(uuid) to authenticated;
+
+-- An index on each foreign key, as the foreign_key_indexes migration has for every other table, so
+-- deleting an account (or a stock item) doesn't read these tables in full.
+create index if not exists competitions_prize_item_id_idx on public.competitions (prize_item_id);
+create index if not exists competitions_drawn_by_idx on public.competitions (drawn_by);
+create index if not exists competitions_updated_by_idx on public.competitions (updated_by);
+create index if not exists competition_entries_created_by_idx on public.competition_entries (created_by);

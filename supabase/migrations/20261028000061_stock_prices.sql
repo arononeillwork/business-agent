@@ -33,3 +33,7 @@ revoke all on public.stock_item_prices from anon;
 revoke insert, update, delete on public.stock_item_prices from authenticated;
 create policy stock_item_prices_read on public.stock_item_prices for select to authenticated
   using ((select public.is_staff()) or (select public.partner_can('finances')));
+
+-- An index on the foreign key to auth.users, as the foreign_key_indexes migration has for every other
+-- table, so deleting an account doesn't read the price history in full.
+create index if not exists stock_item_prices_changed_by_idx on public.stock_item_prices (changed_by);

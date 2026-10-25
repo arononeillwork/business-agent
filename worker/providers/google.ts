@@ -318,6 +318,24 @@ export const folderLink = (id: string) => `https://drive.google.com/drive/folder
 export const driveDownload = (token: string, id: string, range?: string | null) =>
   fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?alt=media`, { headers: { authorization: `Bearer ${token}`, ...(range ? { range } : {}) } })
 
+// Legal page: files the café chose in Google's picker. drive.file lets the app open those (and the
+// ones it made), never the rest of the Drive.
+export interface DriveFile { id: string; name: string; mimeType: string; size?: string; modifiedTime?: string; webViewLink?: string; trashed?: boolean }
+
+/** A file's details, or null when the app can't see it (never picked, deleted, or no longer shared with the app). */
+export async function fileInfo(token: string, id: string): Promise<DriveFile | null> {
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?fields=id,name,mimeType,size,modifiedTime,webViewLink,trashed&supportsAllDrives=true`,
+    { headers: { authorization: `Bearer ${token}` } })
+  if (res.status === 404) return null
+  const json = await res.json() as DriveFile & { error?: { message?: string } }
+  if (!res.ok) throw new Error(`Google Drive: ${json.error?.message ?? res.status}`)
+  return json
+}
+
+/** One of Google's own documents (Docs, Sheets, Slides, Drawings) as a PDF. */
+export const driveExportPdf = (token: string, id: string) =>
+  fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}/export?mimeType=application%2Fpdf`, { headers: { authorization: `Bearer ${token}` } })
+
 // Gmail, read (Invoices): emails with files attached that could be invoices. Needs gmail.readonly.
 interface GmailPart { filename?: string; mimeType?: string; body?: { attachmentId?: string; size?: number }; parts?: GmailPart[] }
 interface GmailMessage { id: string; internalDate?: string; payload?: GmailPart & { headers?: { name: string; value: string }[] } }

@@ -13,6 +13,7 @@ import { BarChart, type BarPoint } from '../components/charts'
 import { Empty, ErrorBox, Loading, PageHeader, SectionTitle, StatGrid, StatTile, Tag } from '../components/common'
 import { SortCell, useSort } from '../components/tables'
 import { tillsOf } from '../components/till'
+import { Freshness } from '../components/Freshness'
 import {
   AD_PLATFORMS, CREATE_CAMPAIGN_URL, PLATFORM_NAMES, allCampaigns, costPerResult, ctr, mergeDays, pacing, totalsOf, utmLink,
   type AdCampaign, type AdPlatform, type AdSettings, type CampaignPatch,
@@ -85,6 +86,7 @@ export function AdsPage() {
       </TextField>
     )} />
   )
+  const fresh = report.data && <Box sx={{ mt: -2, mb: 2 }}><Freshness id="ads" at={report.data.fetched_at} /></Box>
   if (!integ.data) return <>{header}<ErrorBox error={integ.error} /><Loading /></>
   const waiting = AD_PLATFORMS.filter((_, i) => rows[i]?.status === 'pending')
   const notYet = AD_PLATFORMS.filter((_, i) => !rows[i] || ['disconnected', 'needs_setup'].includes(rows[i]!.status))
@@ -103,6 +105,7 @@ export function AdsPage() {
   return (
     <>
       {header}
+      {fresh}
       <ErrorBox error={report.error} />
       {r?.failed?.map(f => (
         <Alert key={f.platform} severity="warning" sx={{ mb: 2 }}>{t('{app} couldn’t be read just now, so its ads aren’t included: {reason}', { app: PLATFORM_NAMES[f.platform], reason: f.error })}</Alert>

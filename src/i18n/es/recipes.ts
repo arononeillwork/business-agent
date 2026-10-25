@@ -27,6 +27,9 @@ export default {
   'Price': 'Precio',
   'No cost for: {items}': 'Sin coste: {items}',
   'No cost for: {items}. Add their cost on the Stock page.': 'Sin coste: {items}. Añade su coste en Existencias.',
+  'No ingredients yet': 'Aún sin ingredientes',
+  'Shaded: still to be entered (the menu price, what goes in, or an ingredient’s cost on the Stock page).':
+    'Sombreado: falta por introducir (el precio de la carta, lo que lleva o el coste de un ingrediente en Existencias).',
   '{amount} net': '{amount} sin IVA',
   'Below the {target}% aimed for': 'Bajo el {target} % de objetivo',
   'Below the {target}% aimed for. At {price} with IVA it would be on target.': 'Bajo el {target} % de objetivo. A {price} con IVA estaría en el objetivo.',

@@ -1,14 +1,15 @@
 // The apps a business can connect, in groups. In most groups the business picks ONE (Gmail or
-// Outlook, Google Drive or OneDrive…); connecting another replaces it. Social media is the
-// exception: connect as many as you use. Shared by the Worker (which verifies a connection before
+// Outlook, Spotify or YouTube Music…); connecting another replaces it. Social media and file
+// storage are the exceptions: connect as many as you use (the Legal page picks documents from
+// whichever storage you choose). Shared by the Worker (which verifies a connection before
 // calling it connected) and the app (which shows the choices).
 import type { IntegrationProvider } from './types'
 import { msg } from './i18n'
 
-export type ConnectionGroup = 'communication' | 'email' | 'calendar' | 'files' | 'maps' | 'analytics' | 'social' | 'advertising' | 'payments' | 'online_payments' | 'music'
+export type ConnectionGroup = 'communication' | 'email' | 'calendar' | 'files' | 'maps' | 'analytics' | 'social' | 'advertising' | 'payments' | 'online_payments' | 'music' | 'email_marketing' | 'job_boards'
 
 export interface ConnectionOption {
-  id: IntegrationProvider | 'slack' | 'sms' | 'sharepoint' | 'dropbox' | 'apple_maps' | 'stripe'
+  id: IntegrationProvider | 'slack' | 'sms' | 'sharepoint' | 'dropbox' | 'apple_maps' | 'stripe' | 'brevo' | 'mailchimp' | 'infojobs' | 'indeed' | 'linkedin_jobs'
   name: string
   by: string
   /** Shown but not selectable yet. */
@@ -37,7 +38,7 @@ export const GROUPS: ConnectionGroupInfo[] = [
     { id: 'google_calendar', name: 'Google Calendar', by: 'Google', proves: msg('Google Calendar has fetched the team calendar.') },
     { id: 'outlook_calendar', name: 'Outlook Calendar', by: 'Microsoft', proves: msg('Outlook has fetched the team calendar.') },
   ] },
-  { key: 'files', title: msg('Files and storage'), pickOne: true, options: [
+  { key: 'files', title: msg('Files and storage'), pickOne: false, options: [
     { id: 'google_drive', name: 'Google Drive', by: 'Google', proves: msg('The “Business Agent” folder was created in this Drive.') },
     { id: 'onedrive', name: 'OneDrive', by: 'Microsoft', proves: msg('The “Business Agent” folder was created in this OneDrive.') },
     { id: 'sharepoint', name: 'SharePoint', by: 'Microsoft', soon: true },
@@ -75,11 +76,34 @@ export const GROUPS: ConnectionGroupInfo[] = [
     { id: 'spotify', name: 'Spotify', by: 'Spotify', proves: msg('The account signed in and its playlists can be read. Staff can play or pause it on the speaker.') },
     { id: 'youtube_music', name: 'YouTube Music', by: 'Google', proves: msg('The account signed in and its playlists can be read. Staff open the playlist on the café device.') },
   ] },
+  // Campaigns: send to the customers who said yes to marketing, with unsubscribe links handled there.
+  { key: 'email_marketing', title: msg('Email campaigns'), pickOne: true, options: [
+    { id: 'brevo', name: 'Brevo', by: 'Brevo', soon: true },
+    { id: 'mailchimp', name: 'Mailchimp', by: 'Intuit', soon: true },
+  ] },
+  // Hiring: post a job and bring the applicants in.
+  { key: 'job_boards', title: msg('Job boards'), pickOne: false, options: [
+    { id: 'infojobs', name: 'InfoJobs', by: 'InfoJobs', soon: true },
+    { id: 'indeed', name: 'Indeed', by: 'Indeed', soon: true },
+    { id: 'linkedin_jobs', name: 'LinkedIn Jobs', by: 'Microsoft', soon: true },
+  ] },
 ]
 
 /** The choose-one group a provider belongs to (only one per group can be connected); null when any number can be. */
 export function groupOf(provider: string): ConnectionGroup | null {
   return GROUPS.find(g => g.pickOne && g.options.some(o => o.id === provider))?.key ?? null
+}
+
+/**
+ * The storage new files go to (Tax documents, exports, photos for posts) when Google Drive and OneDrive are
+ * both connected: Google Drive first, as the Worker does (worker/connections.ts connectedOf).
+ */
+export function savingStorage<T extends { provider: string; status: string }>(rows: T[] | undefined | null): T | undefined {
+  for (const p of ['google_drive', 'onedrive']) {
+    const row = rows?.find(i => i.provider === p && i.status === 'connected')
+    if (row) return row
+  }
+  return undefined
 }
 
 export const optionName = (provider: string) =>

@@ -70,7 +70,9 @@ describe('Loyalty and gift cards, from Square', () => {
     await connectSquare()
     apis.square.program = null
     expect(await (await get('/api/loyalty')).json()).toMatchObject({ status: 'no_program', members: [] })
+    // Square connected again, without loyalty access: what was kept from before is forgotten.
     apis.square.loyaltyScope = false
+    await connectSquare()
     expect(await (await get('/api/loyalty')).json()).toMatchObject({ status: 'reconnect' })
     expect(await (await get('/api/giftcards')).json()).toMatchObject({ status: 'reconnect', cards: [] })
     const adjust = await post('/api/loyalty/adjust', { account_id: 'LA1', points: 1, reason: 'Sorry for the wait', key: 'k-12345678' })

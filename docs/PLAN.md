@@ -118,7 +118,7 @@ Not done yet / next:
 - Phase 2: football fixture sync (football-data.org key), alerts (WhatsApp/Slack/SMS), personal
   API keys for n8n, kiosk device account setup screen.
 - Performance: code-split the app bundle (930 kB).
-- Supabase migration history on the dev project was applied through the connector, so its version numbers differ from the files here; run `supabase migration repair` before using `supabase db push` against it.
+- Supabase migration history on the dev project was applied through the connector, so its version numbers differ from the files here; run `supabase migration repair` before using `supabase db push` against it. (Since 24 Oct 2026 deploys apply new migrations by name instead, `scripts/ops/migrate.mjs`, so `db push` isn't needed.)
 
 ## Update (26 Sep 2026, later)
 
