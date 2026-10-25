@@ -66,7 +66,7 @@ import ExpandIcon from '@mui/icons-material/ExpandMore'
 import DragIcon from '@mui/icons-material/DragIndicator'
 import PinIcon from '@mui/icons-material/PushPin'
 import PinOutlineIcon from '@mui/icons-material/PushPinOutlined'
-import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent, type Modifier } from '@dnd-kit/core'
+import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent, type Modifier } from '@dnd-kit/core'
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import ChevronIcon from '@mui/icons-material/ChevronLeftRounded'
@@ -80,6 +80,7 @@ import type { PartnerArea } from '../../shared/types'
 import { teamRoleLabel } from '../../shared/teamRoles'
 import { BrandLogo } from '../components/Logo'
 import { Loading, PersonAvatar, TitleSlot } from '../components/common'
+import { KeyboardSensorNow } from '../components/dnd'
 import { NotificationBell } from '../components/NotificationBell'
 import { CafeSpeakerProvider } from './CafeSpeaker'
 import { BillingBanner } from './plan'
@@ -459,7 +460,7 @@ function SidebarSection({ section, current, folded, onToggle, mini, onReorder, b
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    useSensor(KeyboardSensorNow, { coordinateGetter: sortableKeyboardCoordinates }),
   )
   const keys = section.items.map(n => n.key)
   const listRef = useRef<HTMLUListElement>(null)

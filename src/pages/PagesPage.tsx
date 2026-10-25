@@ -2,7 +2,7 @@ import { Box, Button, Card, CardContent, IconButton, List, ListItem, Stack, Swit
 import UpIcon from '@mui/icons-material/KeyboardArrowUp'
 import DownIcon from '@mui/icons-material/KeyboardArrowDown'
 import DragIcon from '@mui/icons-material/DragIndicator'
-import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
+import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useEffect, useState } from 'react'
@@ -10,7 +10,7 @@ import { useApp } from '../app/AppContext'
 import { useAction } from '../app/Notify'
 import { ALWAYS_SHOWN, SECTIONS, canOpen, sortSections, type NavItem, type NavSection } from '../app/AppShell'
 import { PageHeader, SectionTitle } from '../components/common'
-import { restrictToVerticalAxis } from '../components/dnd'
+import { KeyboardSensorNow, restrictToVerticalAxis } from '../components/dnd'
 import type { Preferences } from '../../shared/types'
 import { tokens } from '../theme'
 import { t, tn } from '../i18n'
@@ -130,7 +130,7 @@ export function PagesPage() {
 function SectionOrder({ sections, custom, onReorder }: { sections: NavSection[]; custom: boolean; onReorder: (keys: string[] | undefined) => void }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    useSensor(KeyboardSensorNow, { coordinateGetter: sortableKeyboardCoordinates }),
   )
   const keys = sections.map(s => s.key)
   const move = (from: number, to: number) => onReorder(arrayMove(keys, from, to))
