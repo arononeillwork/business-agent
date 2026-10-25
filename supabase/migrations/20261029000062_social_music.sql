@@ -51,6 +51,8 @@ create table public.music_tracks (
   created_at   timestamptz not null default now()
 );
 create index music_tracks_list_idx on public.music_tracks (hidden, created_at desc);
+-- Every foreign key has an index (the `foreign_key_indexes` migration): deleting an account doesn't scan this table.
+create index music_tracks_created_by_idx on public.music_tracks (created_by);
 alter table public.music_tracks enable row level security;
 revoke all on public.music_tracks from anon;
 create policy music_tracks_admin on public.music_tracks for all to authenticated
@@ -106,6 +108,9 @@ create table public.music_generations (
   finished_at          timestamptz
 );
 create index music_generations_month_idx on public.music_generations (created_at desc);
+create index music_generations_kept_id_idx on public.music_generations (kept_id);
+create index music_generations_post_id_idx on public.music_generations (post_id);
+create index music_generations_created_by_idx on public.music_generations (created_by);
 alter table public.music_generations enable row level security;
 revoke all on public.music_generations from anon, authenticated;
 grant select on public.music_generations to authenticated;

@@ -77,7 +77,9 @@ export async function feedEvents(db: SupabaseClient, scope: FeedScope, profileId
       description: [x.break_minutes ? `Break: ${x.break_minutes} min` : '', x.note ?? ''].filter(Boolean).join('\n') || undefined,
     })
   }
-  const kinds: Record<string, string> = { vacation: 'Holiday', personal: 'Day off', sick: 'Sick leave', other: 'Time off' }
+  // Family reasons stay vague: the whole team (and their calendar apps) can see the business feed.
+  const kinds: Record<string, string> = { vacation: 'Holiday', personal: 'Day off', sick: 'Sick leave', birth: 'Birth leave', parental: 'Parental leave',
+    marriage: 'Wedding leave', family: 'Family leave', bereavement: 'Family leave', urgent: 'Family leave', moving: 'Day off', other: 'Time off' }
   for (const x of o.data ?? []) {
     const label = kinds[x.kind as string] ?? 'Time off'
     events.push({ uid: `off-${x.id}@${host}`, day: x.starts_on, lastDay: x.ends_on,

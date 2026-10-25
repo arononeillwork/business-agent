@@ -19,6 +19,7 @@ import { Empty, ErrorBox, PageHeader, SectionTitle, StatGrid, StatTile, Tag } fr
 import { ExportButton } from '../components/tables'
 import type { ExportTable } from '../lib/export'
 import { formatLocal, formatMoney, today } from '../../shared/time'
+import { savingStorage } from '../../shared/connections'
 import {
   DEFAULT_TAX_SETTINGS, DOC_KINDS, FILING_STATUSES, autoFolder, daysBetween, filingKey, filingsFor, guessKind, guessPeriod, kindInfo, overdue,
   quarterOf, taxFileProblem, upcoming, type Filing, type FilingRecord, type FilingStatus, type Quarter, type TaxDocKind, type TaxDocument, type TaxSettings,
@@ -63,7 +64,7 @@ export function TaxPage() {
   const now = today()
   const next = upcoming(filings, done, now)[0]
   const late = overdue(filings, done, now)
-  const storage = links.data?.integrations.find(i => (i.provider === 'google_drive' || i.provider === 'onedrive') && i.status === 'connected')
+  const storage = savingStorage(links.data?.integrations)
   const storageName = storage?.provider === 'onedrive' ? 'OneDrive' : 'Google Drive'
   const thisQuarter = Number(now.slice(0, 4)) === year ? quarterOf(now) : null
   const all = docs.data ?? []

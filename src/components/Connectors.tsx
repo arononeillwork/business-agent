@@ -11,8 +11,8 @@ import CalendarIcon from '@mui/icons-material/CalendarMonthOutlined'
 import CloseIcon from '@mui/icons-material/CloseRounded'
 import DotIcon from '@mui/icons-material/FiberManualRecord'
 import {
-  siApple, siDropbox, siFacebook, siGmail, siGoogleads, siGooglecalendar, siGoogledrive, siGooglemaps, siGooglesearchconsole, siInstagram, siMeta, siSpotify, siSquare, siStripe, siTiktok,
-  siWhatsapp, siYoutubemusic,
+  siApple, siBrevo, siDropbox, siFacebook, siGmail, siGoogleads, siGooglecalendar, siGoogledrive, siGooglemaps, siGooglesearchconsole, siIndeed, siInstagram, siMailchimp,
+  siMeta, siSpotify, siSquare, siStripe, siTiktok, siWhatsapp, siYoutubemusic,
   type SimpleIcon,
 } from 'simple-icons'
 import { useEffect, useState, type ReactNode } from 'react'
@@ -22,7 +22,7 @@ import { useAction, useNotify } from '../app/Notify'
 import { FEATURES } from '../app/features'
 import { GROUPS, optionName, type ConnectionGroup, type ConnectionGroupInfo, type ConnectionOption } from '../../shared/connections'
 import type { CalendarApp, ConnectorProvider, Integration, IntegrationProvider, IntegrationsState } from '../../shared/types'
-import { formatLocal } from '../../shared/time'
+import { ago } from './Freshness'
 import { tokens } from '../theme'
 import { msg, t, tn, tr, tc } from '../i18n'
 
@@ -55,6 +55,12 @@ export const LinkedInLogo = () => (
     <path fill="#fff" d="M5.4 9.6h3v9.4h-3zM10.3 9.6h2.85v1.3c.4-.75 1.4-1.55 2.9-1.55 3.05 0 3.6 2 3.6 4.6V19h-3v-4.4c0-1.05-.02-2.4-1.47-2.4-1.47 0-1.7 1.15-1.7 2.33V19h-3.18z" />
   </Mark>
 )
+const InfoJobsLogo = () => (
+  <Mark>
+    <rect width="24" height="24" rx="5" fill="#167DB7" />
+    <path fill="#fff" d="M6.2 7h2.6v10H6.2zM11 7h6.8v2.3H13.6v1.6h3.8v2.2h-3.8V17H11z" />
+  </Mark>
+)
 const SumUpLogo = () => (
   <Mark>
     <rect width="24" height="24" rx="5" fill="#1A1A1A" />
@@ -62,7 +68,7 @@ const SumUpLogo = () => (
   </Mark>
 )
 
-const LOGO: Record<OptionId, ReactNode> = {
+export const LOGO: Record<OptionId, ReactNode> = {
   whatsapp: <Brand icon={siWhatsapp} />,
   slack: <SlackLogo />,
   sms: <SmsIcon sx={{ color: '#F22F46' }} />,
@@ -88,6 +94,11 @@ const LOGO: Record<OptionId, ReactNode> = {
   search_console: <Brand icon={siGooglesearchconsole} />,
   meta_ads: <Brand icon={siMeta} />,
   google_ads: <Brand icon={siGoogleads} />,
+  brevo: <Brand icon={siBrevo} />,
+  mailchimp: <Brand icon={siMailchimp} />,
+  infojobs: <InfoJobsLogo />,
+  indeed: <Brand icon={siIndeed} />,
+  linkedin_jobs: <LinkedInLogo />,
 }
 
 export const DOES: Partial<Record<OptionId, string>> = {
@@ -116,6 +127,11 @@ export const DOES: Partial<Record<OptionId, string>> = {
   google_ads: msg('Your Google search and Maps ads on the Ads page: what they cost and brought in, with pause and budgets.'),
   spotify: msg('The approved playlist; staff play or pause it on the café speaker.'),
   youtube_music: msg('The approved playlist; staff open it on the café device.'),
+  brevo: msg('Send Campaigns to the customers who said yes to marketing, with the unsubscribe link handled there.'),
+  mailchimp: msg('Send Campaigns to the customers who said yes to marketing, with the unsubscribe link handled there.'),
+  infojobs: msg('Post jobs from Hiring and bring the people who apply straight in.'),
+  indeed: msg('Post jobs from Hiring and bring the people who apply straight in.'),
+  linkedin_jobs: msg('Post jobs from Hiring to your company Page.'),
 }
 
 /** What the connection can do once allowed (shown before connecting, like an AI connector). */
@@ -160,14 +176,7 @@ const isConnector = (p: string): p is ConnectorProvider => ['gmail', 'outlook', 
 const isAds = (p: string): p is 'meta_ads' | 'google_ads' => p === 'meta_ads' || p === 'google_ads'
 const active = (i?: Integration) => !!i && ['connected', 'pending', 'error'].includes(i.status)
 
-/** "just now", "5 min ago", "3 h ago", else the date. */
-export function ago(iso: string) {
-  const min = Math.round((Date.now() - Date.parse(iso)) / 60_000)
-  if (min < 1) return t('just now')
-  if (min < 60) return t('{n} min ago', { n: min })
-  if (min < 24 * 60) return t('{n} h ago', { n: Math.round(min / 60) })
-  return formatLocal(iso, 'd MMM, HH:mm')
-}
+export { ago }
 
 /** The toast after Google / Microsoft / Instagram / Spotify send people back with ?connected=…. */
 export function connectedMessage(p: string) {
@@ -192,8 +201,8 @@ export function useConnectResult(after?: () => void) {
 interface OptionState { o: ConnectionOption; row?: Integration; configured: boolean; status: Integration['status']; current?: ConnectionOption }
 
 /**
- * The business's apps, like an AI's connector directory: one tile per app, in groups. In each group
- * the business picks ONE (Gmail or Outlook, Google Drive or OneDrive…). An app shows "Connected"
+ * The business's apps, like an AI's connector directory: one tile per app, in groups. In most groups
+ * the business picks ONE (Gmail or Outlook, Spotify or YouTube Music…). An app shows "Connected"
  * only once it has really worked. `back`: where the sign-in sends you afterwards.
  */
 export function ServiceConnections({ back = 'connections', groups = GROUPS.map(g => g.key) }: { back?: 'setup' | 'connections'; groups?: ConnectionGroup[] }) {

@@ -1,0 +1,42 @@
+name: Feature board
+# Keeps the owner's feature board current: after every CI, merge queue and Deploy run starts or
+# finishes, works out which features are in development, in review and the merge queue, deploying
+# or live and checked (scripts/ops/dev-board.mjs), and saves it to ops.dev_board in Supabase for
+# the dashboard. workflow_run, schedule and delete only fire from the default branch (main).
+on:
+  workflow_run:
+    workflows: [CI, Merge queue, Deploy, Live end-to-end tests]
+    types: [requested, completed]
+  # Catches the steps inside a deploy (deployed → live checks) that no run event marks.
+  schedule:
+    - cron: '*/20 * * * *'
+  delete:
+  # No push trigger: on a branch it would save that branch's version of the board, and a newer run
+  # cancelling it left a cancelled check on the pull request, which the merge queue counts as red.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+
+# Each run reads everything afresh, so only the newest one matters.
+concurrency:
+  group: dev-board
+  cancel-in-progress: true
+
+jobs:
+  board:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/ops/dev-board.mjs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}

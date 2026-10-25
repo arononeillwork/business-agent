@@ -69,6 +69,8 @@ export interface Settings {
   hidden_pages?: string[]
   /** Data retention: how many days saved WhatsApp chats are kept (30, 90, 180, 365 or 730; 90 unless changed). */
   whatsapp_retention_days?: number
+  /** Expenses: euros paid back a kilometre driven in a private car (0.26 unless changed). */
+  mileage_rate?: number
 }
 
 export interface Expense {
@@ -280,7 +282,7 @@ export interface KioskPerson {
   has_pin: boolean
 }
 
-export type TimeOffKind = 'vacation' | 'personal' | 'sick' | 'other'
+export type TimeOffKind = 'vacation' | 'personal' | 'sick' | 'birth' | 'parental' | 'marriage' | 'family' | 'bereavement' | 'moving' | 'urgent' | 'other'
 
 export interface TimeOff {
   id: string
@@ -295,8 +297,13 @@ export interface TimeOff {
 }
 
 export const TIME_OFF_LABELS: Record<TimeOffKind, string> = {
-  vacation: msg('Holiday'), personal: msg('Personal day'), sick: msg('Sick'), other: msg('Other'),
+  vacation: msg('Holiday'), personal: msg('Personal day'), sick: msg('Sick'), birth: msg('Birth and childcare'),
+  parental: msg('Parental leave'), marriage: msg('Marriage'), family: msg('A relative in hospital or seriously ill'),
+  bereavement: msg('Bereavement'), moving: msg('Moving house'), urgent: msg('Urgent family reason'), other: msg('Other'),
 }
+export const TIME_OFF_KINDS = Object.keys(TIME_OFF_LABELS) as TimeOffKind[]
+/** Leave nobody books ahead: it can be recorded for days already gone (the SQL rule is the same). */
+export const TIME_OFF_AFTER_THE_FACT: TimeOffKind[] = ['sick', 'birth', 'family', 'bereavement', 'urgent']
 
 export type IntegrationProvider = 'google_business' | 'whatsapp' | 'instagram' | 'facebook' | 'tiktok' | 'linkedin' | 'spotify' | 'square' | 'stripe' | 'sumup' | 'meta_ads' | ConnectorProvider | CalendarApp
 /** Connections made with one sign-in with Google or Microsoft (email, files, café YouTube Music, Search Console, Google Ads). */
@@ -562,11 +569,17 @@ export interface Sales {
   days: SalesDay[]
   /** Payment systems that couldn't be read just now (the others' takings are still shown). */
   failed?: { provider: SalesProvider; error: string }[]
+  /** When the service was last asked (the Worker keeps its answer a while: shared/refresh.ts). */
+  fetched_at?: string
 }
 /** One item on the Sales page's best sellers (Square orders): units sold and their sales before discounts. */
 export interface SalesItem { name: string; quantity: number; gross: number }
 /** Best sellers, or why there are none: Stripe and SumUp send no items, or Square was connected before items were asked for. */
-export interface SalesItems { items: SalesItem[] | null; reason?: 'stripe' | 'sumup' | 'reconnect'; /** Square's items, with Stripe's online sales not among them. */ partial?: 'stripe' }
+export interface SalesItems {
+  items: SalesItem[] | null; reason?: 'stripe' | 'sumup' | 'reconnect'; /** Square's items, with Stripe's online sales not among them. */ partial?: 'stripe'
+  /** When the service was last asked (the Worker keeps its answer a while: shared/refresh.ts). */
+  fetched_at?: string
+}
 
 /** Search Console (Google): how the website did in Google Search. Figures lag Google by 2–3 days. */
 export interface SearchRow { clicks: number; impressions: number; /** 0–1 */ ctr: number; /** average position, 1 = top */ position: number }
@@ -578,10 +591,14 @@ export interface SearchReport {
   pages: (SearchRow & { page: string })[]
   devices: (SearchRow & { device: 'DESKTOP' | 'MOBILE' | 'TABLET' })[]
   countries: (SearchRow & { country: string })[]  // ISO 3166 alpha-3 lower-case as Google returns it
+  /** When the service was last asked (the Worker keeps its answer a while: shared/refresh.ts). */
+  fetched_at?: string
 }
 
 /** To Do List: a category the admins manage (jobs are grouped by these). */
 export interface TodoCategory { id: string; name: string; hint: string | null; colour: string; sort: number }
+/** Where a job is on the board: to do, being done, or done (done is also the list's tick). */
+export type TodoStatus = 'todo' | 'doing' | 'done'
 /** One job on the To Do List. `category_id` is null after its category was removed. */
 export interface Todo {
   id: string
@@ -590,13 +607,14 @@ export interface Todo {
   section: string | null
   assignee_id: string | null
   done: boolean
+  status: TodoStatus
   done_at: string | null
   starred: boolean
   pinned: boolean
   position: number
   created_at: string
 }
-export type TodoPatch = Partial<Pick<Todo, 'title' | 'category_id' | 'section' | 'assignee_id' | 'done' | 'starred' | 'pinned' | 'position'>>
+export type TodoPatch = Partial<Pick<Todo, 'title' | 'category_id' | 'section' | 'assignee_id' | 'done' | 'status' | 'starred' | 'pinned' | 'position'>>
 
 /** Café music (Music page): the café account's playlists, whichever service is connected. */
 export interface CafeMusicLibrary { provider: 'youtube' | 'spotify' | null; account: string | null; playlists: SpotifyPlaylist[]; approved: SpotifyPlaylist | null; /** YouTube playlists that aren't music (hidden unless asked for). */ other_playlists?: SpotifyPlaylist[]; /** Sample songs (demo): played by a pretend player. */ demo?: boolean }

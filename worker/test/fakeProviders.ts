@@ -41,8 +41,10 @@ export class FakeProviders {
     sent: [] as string[],
     folders: new Map<string, { name: string; parent: string; trashed: boolean }>(),
     uploads: [] as { parent: string; name: string }[],
-    /** Photos and videos stored by resumable upload, by file id. */
+    /** Photos and videos stored by resumable upload, by file id (and files the café keeps there, for the Legal page). */
     blobs: new Map<string, { name: string; parent: string; type: string; bytes: Uint8Array }>(),
+    /** Files in the Drive that the app can't open (drive.file: never picked in Google's picker, nor made by the app). */
+    unshared: new Set<string>(),
     sessions: new Map<string, { name: string; parent: string; type: string }>(),
     channel: 'Easy Beans' as string | null,
     playlists: [{ id: 'PL1', snippet: { title: 'Morning café', channelTitle: 'Easy Beans', thumbnails: {} }, contentDetails: { itemCount: 42 } }],
@@ -65,7 +67,15 @@ export class FakeProviders {
     phone: '+34 695 415 335',
   }
   /** Google's public listing (Places API): rating, count and the 5 newest reviews; empty when Google leaves them out. */
-  places = { rating: 4.7, count: 38, reviews: [] as Json[], calls: 0 }
+  places = {
+    rating: 4.7, count: 38, reviews: [] as Json[], calls: 0,
+    /** More of the business's own listing (where it is, for Competitors). */
+    own: {} as Json,
+    /** Other places (Competitors) as Google answers for each, by place id; `nearby`: those around the business, nearest first; `gone`: ids Google no longer finds. */
+    listings: {} as Record<string, Json>, nearby: [] as string[], gone: new Set<string>(),
+    /** Each search asked (nearby or by name): its path, body and field mask. */
+    searches: [] as { path: string; body: Json; fields: string }[],
+  }
   /** PageSpeed Insights: the next answers (a 429 when the free quota is used up). */
   pagespeed = { quotaUsed: false, score: 0.62, calls: [] as { url: string; strategy: string }[] }
   /** Search Console: the websites (properties) the Google account can see, and the queries asked of it. */
@@ -171,6 +181,8 @@ export class FakeProviders {
     /** Upload sessions in progress, and the stored photos and videos by item id. */
     sessions: new Map<string, { path: string; got: Uint8Array[]; size: number }>(),
     blobs: new Map<string, { path: string; bytes: Uint8Array }>(),
+    /** The café's own files and folders in its OneDrive (the Legal page browses them), by id; `parent` 'root' is the top. */
+    items: new Map<string, { name: string; parent: string; folder?: boolean; type?: string; bytes?: Uint8Array }>(),
   }
   spotify = { premium: true, revoked: false }
   facebook = {
@@ -369,14 +381,28 @@ export class FakeProviders {
     if (url.host === 'www.googleapis.com' && url.pathname.startsWith('/drive/v3/')) {
       if (this.google.disabled.has('drive')) return googleError(403, 'Google Drive API has not been used in project 1234 before or it is disabled.', 'accessNotConfigured')
       if (this.google.driveHiccups > 0) { this.google.driveHiccups--; return googleError(500, 'Backend Error', 'backendError') }
+      const seen = (id: string) => (this.google.unshared.has(id) ? undefined : this.google.blobs.get(id))
+      // Google's own documents (Docs, Sheets…) as a PDF; anything else can't be exported.
+      const exported = url.pathname.match(/\/drive\/v3\/files\/([^/]+)\/export$/)
+      if (exported) {
+        const f = seen(decodeURIComponent(exported[1]))
+        if (!f) return googleError(404, `File not found: ${exported[1]}.`, 'notFound')
+        if (!f.type.startsWith('application/vnd.google-apps.')) return googleError(403, 'Export only supports Docs Editors files.', 'fileNotExportable')
+        return bytesResponse(new TextEncoder().encode(`%PDF-1.7 ${f.name}`), url.searchParams.get('mimeType') ?? '', null)
+      }
       const byId = url.pathname.match(/\/drive\/v3\/files\/([^/]+)$/)
       if (byId && url.searchParams.get('alt') === 'media') {
-        const f = this.google.blobs.get(decodeURIComponent(byId[1]))
+        const f = seen(decodeURIComponent(byId[1]))
         return f ? bytesResponse(f.bytes, f.type, new Headers(init.headers).get('range')) : googleError(404, `File not found: ${byId[1]}.`, 'notFound')
       }
       if (byId) {
-        const f = this.google.folders.get(decodeURIComponent(byId[1]))
-        return f ? json({ id: byId[1], trashed: f.trashed }) : googleError(404, `File not found: ${byId[1]}.`, 'notFound')
+        const id = decodeURIComponent(byId[1])
+        const f = this.google.folders.get(id)
+        if (f) return json({ id, name: f.name, mimeType: 'application/vnd.google-apps.folder', trashed: f.trashed })
+        const b = seen(id)
+        return b ? json({ id, name: b.name, mimeType: b.type, ...(b.type.startsWith('application/vnd.google-apps.') ? {} : { size: String(b.bytes.length) }),
+          modifiedTime: '2026-10-20T09:30:00.000Z', webViewLink: `https://drive.google.com/file/d/${id}/view`, trashed: false })
+          : googleError(404, `File not found: ${byId[1]}.`, 'notFound')
       }
       if (method === 'GET') {
         const q = url.searchParams.get('q') ?? ''
@@ -489,8 +515,24 @@ export class FakeProviders {
     }
     if (url.host === 'places.googleapis.com') {
       this.places.calls++
-      if (new Headers(init.headers).get('x-goog-api-key') !== 'places-key') return googleError(403, 'API key not valid. Please pass a valid API key.', 'forbidden')
-      return json({ rating: this.places.rating, userRatingCount: this.places.count, ...(this.places.reviews.length ? { reviews: this.places.reviews } : {}) })
+      const h = new Headers(init.headers)
+      if (h.get('x-goog-api-key') !== 'places-key') return googleError(403, 'API key not valid. Please pass a valid API key.', 'forbidden')
+      if (method === 'POST') {
+        const b = body()
+        this.places.searches.push({ path: url.pathname, body: b, fields: h.get('x-goog-fieldmask') ?? '' })
+        if (url.pathname === '/v1/places:searchNearby') {
+          return json({ places: this.places.nearby.map(id => this.places.listings[id] ?? (id === this.places.own.id ? this.places.own : null)).filter(Boolean) })
+        }
+        if (url.pathname === '/v1/places:searchText') {
+          const words = String(b.textQuery).toLowerCase().split(/\s+/).filter(w => w.length > 2)
+          const name = (p: Json) => String((p.displayName as Json | undefined)?.text ?? '').toLowerCase()
+          return json({ places: Object.values(this.places.listings).filter(p => words.some(w => name(p).includes(w))) })
+        }
+      }
+      const id = decodeURIComponent(url.pathname.replace(/^\/v1\/places\//, ''))
+      if (this.places.gone.has(id)) return googleError(404, 'Not found: places/' + id, 'NOT_FOUND')
+      if (this.places.listings[id]) return json(this.places.listings[id])
+      return json({ rating: this.places.rating, userRatingCount: this.places.count, ...(this.places.reviews.length ? { reviews: this.places.reviews } : {}), ...this.places.own })
     }
     if (url.host === 'www.googleapis.com' && url.pathname === '/pagespeedonline/v5/runPagespeed') {
       this.pagespeed.calls.push({ url: url.searchParams.get('url')!, strategy: url.searchParams.get('strategy')! })
@@ -615,6 +657,22 @@ export class FakeProviders {
         this.microsoft.sent.push({ to: m.message.toRecipients[0].emailAddress.address, subject: m.message.subject })
         return new Response(null, { status: 202 })
       }
+      // The café's own OneDrive, item by item (the Legal page): the top, a file or folder, a folder's contents.
+      const msItem = (id: string) => {
+        const i = this.microsoft.items.get(id)!
+        const names = (p: string): string[] => (p === 'root' ? [] : [...names(this.microsoft.items.get(p)!.parent), this.microsoft.items.get(p)!.name])
+        return { id, name: i.name, webUrl: `https://onedrive.live.com/?id=${id}`, lastModifiedDateTime: '2026-10-21T08:00:00Z',
+          parentReference: { id: i.parent, path: `/drive/root:${names(i.parent).map(n => `/${encodeURIComponent(n)}`).join('')}` },
+          ...(i.folder ? { folder: { childCount: [...this.microsoft.items.values()].filter(x => x.parent === id).length } } : { size: i.bytes?.length ?? 0, file: { mimeType: i.type } }) }
+      }
+      const kids = (parent: string) => json({ value: [...this.microsoft.items].filter(([, i]) => i.parent === parent).map(([id]) => msItem(id)) })
+      if (path === '/me/drive/root' && method === 'GET') return json({ id: 'ms-root', name: 'root', folder: {}, webUrl: 'https://onedrive.live.com/' })
+      if (path === '/me/drive/root/children' && method === 'GET') return kids('root')
+      const oneItem = path.match(/^\/me\/drive\/items\/([^/]+)(\/children)?$/)
+      if (oneItem && method === 'GET' && this.microsoft.items.has(decodeURIComponent(oneItem[1]))) {
+        return oneItem[2] ? kids(decodeURIComponent(oneItem[1])) : json(msItem(decodeURIComponent(oneItem[1])))
+      }
+      if (oneItem && method === 'GET' && !this.microsoft.blobs.has(oneItem[1])) return json({ error: { code: 'itemNotFound', message: 'The resource could not be found.' } }, 404)
       if (path === '/me/drive/root:/Business%20Agent' || path === '/me/drive/root:/Business Agent') {
         return this.microsoft.folderId ? json({ id: this.microsoft.folderId, name: 'Business Agent', folder: {} }) : json({ error: { code: 'itemNotFound', message: 'The resource could not be found.' } }, 404)
       }
@@ -650,7 +708,9 @@ export class FakeProviders {
       const content = path.match(/^\/me\/drive\/items\/([^/]+)\/content$/)
       if (content) {
         if (new Headers(init.headers).get('authorization') === null) return json({ error: { code: 'unauthenticated' } }, 401)
-        return this.microsoft.blobs.has(content[1]) ? new Response(null, { status: 302, headers: { location: `https://download.onedrive.test/${content[1]}` } })
+        const pdf = url.searchParams.get('format') === 'pdf' ? '?format=pdf' : ''
+        return this.microsoft.blobs.has(content[1]) || this.microsoft.items.get(content[1])?.bytes
+          ? new Response(null, { status: 302, headers: { location: `https://download.onedrive.test/${content[1]}${pdf}` } })
           : json({ error: { code: 'itemNotFound', message: 'The resource could not be found.' } }, 404)
       }
       if (path.startsWith('/me/drive/root:/') && path.endsWith(':/content') && method === 'PUT') {
@@ -676,6 +736,12 @@ export class FakeProviders {
     }
     if (url.host === 'download.onedrive.test') {
       if (new Headers(init.headers).get('authorization')) return json({ error: 'pre-authenticated: no sign-in header' }, 401)
+      const own = this.microsoft.items.get(url.pathname.slice(1))
+      if (own?.bytes) {
+        return url.searchParams.get('format') === 'pdf'
+          ? bytesResponse(new TextEncoder().encode(`%PDF-1.7 converted ${own.name}`), 'application/pdf', null)
+          : bytesResponse(own.bytes, own.type ?? 'application/octet-stream', new Headers(init.headers).get('range'))
+      }
       const f = this.microsoft.blobs.get(url.pathname.slice(1))
       return f ? bytesResponse(f.bytes, 'application/octet-stream', new Headers(init.headers).get('range')) : new Response('Not found', { status: 404 })
     }

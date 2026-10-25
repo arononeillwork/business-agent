@@ -24,7 +24,7 @@ import {
 import type { InstagramMusic, MixedMusic, MusicTrack, PostKind, PostMedia, PostMusic } from '../../shared/types'
 import { tokens } from '../theme'
 import { formatNumber } from '../../shared/time'
-import { t } from '../i18n'
+import { t, tc } from '../i18n'
 
 /** What the composer knows about the post, for suggestions and the preview. */
 export interface PostContext {
@@ -164,7 +164,7 @@ export function MusicStrip({ context, music, onChange, onRemind, onMakeReel, can
                   <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {s.track.title}
                     <Box component="span" sx={{ color: 'text.secondary', ml: 0.75, fontSize: '0.8em' }}>
-                      {s.occasion ? t(s.occasion) : s.reasons[0] ? t(REASON_LABEL[s.reasons[0]]) : s.track.moods.filter(isMood).slice(0, 1).map(m => t(MOODS[m].label)).join('')}
+                      {s.occasion ? t(s.occasion) : s.reasons[0] ? tc('music', REASON_LABEL[s.reasons[0]]) : s.track.moods.filter(isMood).slice(0, 1).map(m => t(MOODS[m].label)).join('')}
                     </Box>
                   </Box>
                 </Button>

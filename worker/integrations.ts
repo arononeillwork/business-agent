@@ -17,6 +17,7 @@ import * as facebook from './providers/facebook'
 import * as tiktok from './providers/tiktok'
 import * as square from './providers/square'
 import { squareCustomerEvent, syncSquareCustomers } from './squareCustomers'
+import { cached, oldest } from './cache'
 import * as stripe from './providers/stripe'
 import * as sumup from './providers/sumup'
 import * as linkedin from './providers/linkedin'
@@ -25,6 +26,7 @@ import * as metaAds from './providers/metaAds'
 import { alertEmail, base64url, mimeMessage } from '../shared/alertText'
 import { addToCalendarUrl, optionName } from '../shared/connections'
 import { replyWindow } from '../shared/messages'
+import { MINUTES, takingsMinutes } from '../shared/refresh'
 import { finishMusicConnect, type MusicState } from './music'
 import { ensureFeed } from './calendarFeed'
 import { checkMentions, decide, repostMention } from './mentions'
@@ -914,7 +916,8 @@ integrations.post('/api/integrations/search_console/site', async c => {
   }
 })
 
-// How the website did in Google Search (admins): ?from=YYYY-MM-DD&to=YYYY-MM-DD, inclusive. Google is 2–3 days behind.
+// How the website did in Google Search (admins): ?from=YYYY-MM-DD&to=YYYY-MM-DD, inclusive. Google is 2–3 days behind,
+// so each answer is kept 6 hours.
 integrations.get('/api/integrations/search_console/report', async c => {
   const from = c.req.query('from') ?? '', to = c.req.query('to') ?? ''
   if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || from > to) return c.json({ error: 'Give from and to dates (YYYY-MM-DD)' }, 400)
@@ -924,10 +927,13 @@ integrations.get('/api/integrations/search_console/report', async c => {
   if (data?.status !== 'connected' && data?.status !== 'error') return c.json({ error: 'Connect Search Console on the Connections page to see how the website does on Google' }, 400)
   if (!site) return c.json({ error: 'Choose which website to read on the Connections page' }, 400)
   try {
-    const { token } = await connectorGrant(c.env, db, 'search_console', new URL(c.req.url).origin)
-    const report = await searchConsole.report(token, site, from, to)
-    await setIntegration(db, 'search_console', { last_sync_at: new Date().toISOString() })
-    return c.json(report)
+    const { data: report, fetched_at } = await cached(db, `search:${site}:${from}:${to}`, MINUTES.search, async () => {
+      const { token } = await connectorGrant(c.env, db, 'search_console', new URL(c.req.url).origin)
+      const read = await searchConsole.report(token, site, from, to)
+      await setIntegration(db, 'search_console', { last_sync_at: new Date().toISOString() })
+      return read
+    })
+    return c.json({ ...report, fetched_at })
   } catch (e) {
     const why = explain('search_console', e)
     if (lasting('search_console', e)) await markBroken(db, 'search_console', why)
@@ -1026,20 +1032,23 @@ async function salesOf(env: Env, db: SupabaseClient, p: SalesProvider, fromIso: 
 
 // Takings per day from the payment systems (the till, Square or SumUp, plus Stripe when that's
 // connected too; admins with pay access): ?from=YYYY-MM-DD&to=YYYY-MM-DD (inclusive). Added up day
-// by day; one that can't be read just now leaves the others' takings showing.
+// by day; one that can't be read just now leaves the others' takings showing. Each system's answer
+// is kept 15 minutes, or a day once the period is over (shared/refresh.ts).
 integrations.get('/api/integrations/payments/sales', async c => {
   const r = await takingsRequest(c)
   if ('error' in r) return r.error
   const { db, ps, fromIso, toIso } = r
-  const read = await Promise.all(ps.map(p => salesOf(c.env, db, p, fromIso, toIso).then(sales => ({ provider: p, sales }), async (e: unknown) => {
-    const why = explain(p, e)
-    if (lasting(p, e)) await markBroken(db, p, why)
-    return { provider: p, error: why }
-  })))
-  const ok = read.filter((x): x is { provider: SalesProvider; sales: Awaited<ReturnType<typeof salesOf>> } => 'sales' in x)
+  const read = await Promise.all(ps.map(p => cached(db, `sales:${p}:${fromIso}:${toIso}`, takingsMinutes(toIso), () => salesOf(c.env, db, p, fromIso, toIso))
+    .then(({ data: sales, fetched_at }) => ({ provider: p, sales, fetched_at }), async (e: unknown) => {
+      const why = explain(p, e)
+      if (lasting(p, e)) await markBroken(db, p, why)
+      return { provider: p, error: why }
+    })))
+  const ok = read.filter((x): x is { provider: SalesProvider; sales: Awaited<ReturnType<typeof salesOf>>; fetched_at: string } => 'sales' in x)
   const failed = read.filter((x): x is { provider: SalesProvider; error: string } => 'error' in x)
   if (!ok.length) return c.json({ error: failed[0].error }, 400)
-  return c.json({ provider: ok[0].provider, providers: ok.map(x => x.provider), ...mergeSales(ok), ...(failed.length ? { failed } : {}) })
+  return c.json({ provider: ok[0].provider, providers: ok.map(x => x.provider), ...mergeSales(ok), ...(failed.length ? { failed } : {}),
+    fetched_at: oldest(ok.map(x => x.fetched_at)) })
 })
 
 // Best sellers from Square's orders, same rules and dates as the takings. Stripe and SumUp have no
@@ -1053,8 +1062,11 @@ integrations.get('/api/integrations/payments/items', async c => {
   if (!ps.includes('square')) return c.json({ items: null, reason: ps[0] })
   const partial = ps.includes('stripe') ? { partial: 'stripe' } : {}
   try {
-    const s = await squareSession(c.env, db)
-    return c.json({ items: await square.topItems(s.sandbox, s.token, s.locationIds, fromIso, toIso), ...partial })
+    const { data: items, fetched_at } = await cached(db, `items:${fromIso}:${toIso}`, takingsMinutes(toIso), async () => {
+      const s = await squareSession(c.env, db)
+      return square.topItems(s.sandbox, s.token, s.locationIds, fromIso, toIso)
+    })
+    return c.json({ items, ...partial, fetched_at })
   } catch (e) {
     if (e instanceof square.SquareError && e.code === 'INSUFFICIENT_SCOPES') return c.json({ items: null, reason: 'reconnect' })
     const why = explain('square', e)

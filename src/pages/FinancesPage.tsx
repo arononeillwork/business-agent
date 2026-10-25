@@ -18,6 +18,7 @@ import { shiftPaidMinutes } from '../../shared/rules'
 import type { Expense } from '../../shared/types'
 import { Link as RouterLink } from 'react-router-dom'
 import { tillNames, tillsOf } from '../components/till'
+import { Freshness } from '../components/Freshness'
 import { msg, t, tc } from '../i18n'
 
 /** Monthly running costs. Admins with pay access edit; finance partners read (enforced in the database too). */
@@ -337,6 +338,7 @@ function Takings() {
       <SectionTitle action={<Button component={RouterLink} to="/sales" size="small">{t('See sales')}</Button>}>
         {t('Takings')} <Typography component="span" variant="body2" sx={{ color: 'text.secondary' }}>{t('· from {name}', { name })}</Typography>
       </SectionTitle>
+      {sales.data && <Box sx={{ mt: -1, mb: 1.5 }}><Freshness id="takings" at={sales.data.fetched_at} /></Box>}
       <ErrorBox error={sales.error} />
       <StatRow>
         <Stat label={t('Today')} value={sales.data ? formatMoney(sum(day, day)) : '–'} note={t('{n} payments', { n: days.find(d => d.date === day)?.payments ?? 0 })} />

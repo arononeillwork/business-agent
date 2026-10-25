@@ -40,7 +40,7 @@ export default {
   'Your sound': 'Tu sonido',
   'Fits the caption': 'Encaja con el texto',
   'Fits the time': 'Encaja con la hora',
-  'Yours': 'Tuya',
+  'music|Yours': 'Tuya',
   'Did well before': 'Funcionó antes',
   // shared/social.ts: music on posts (the same rules as the database)
   'Music goes into stories and reels. Choose Story or Reel.': 'La música va en historias y reels. Elige Historia o Reel.',

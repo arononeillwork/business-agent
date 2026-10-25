@@ -20,10 +20,13 @@ import { fillStarterPack, socialMusic, syncMusicInsights } from './socialMusic'
 import { businessConfig } from '../shared/business.config'
 import { referrals } from './referrals'
 import { tax } from './tax'
+import { legal } from './legal'
 import { invoices } from './invoices'
 import { loyaltyRoutes } from './loyalty'
-import { checkReviews, reviews, reviewsConfigured } from './reviews'
+import { refreshReviews, reviews, reviewsConfigured } from './reviews'
+import { clearOldCache } from './cache'
 import { website } from './website'
+import { competitors, watchCompetitors } from './competitors'
 
 const NIGHTLY = '15 1 * * *' // 03:15 Madrid in summer, 02:15 in winter
 
@@ -199,6 +202,8 @@ app.route('/', referrals)
 
 // Tax documents into the café's Drive or OneDrive (Tax page).
 app.route('/', tax)
+// Legal documents picked where they are in the café's Drive or OneDrive, and shown from there (Legal page).
+app.route('/', legal)
 // Invoices that come by email, into the café's Drive or OneDrive (Invoices page).
 app.route('/', invoices)
 // Square loyalty (the stamp card) and gift cards, for the Loyalty page.
@@ -206,6 +211,8 @@ app.route('/', loyaltyRoutes)
 // Reviews (Google) and Website & SEO (Marketing).
 app.route('/', reviews)
 app.route('/', website)
+// Competitors: cafés nearby and the ones followed, from Google (Marketing).
+app.route('/', competitors)
 
 // Business Agent's own subscription (Stripe Billing): plans, checkout, portal, webhook.
 app.route('/', billing)
@@ -219,6 +226,21 @@ app.route('/api/v1', rest)
 // OAuth sign-in page for AI connectors.
 app.get('/authorize', c => authorizeGet(c.req.raw, c.env))
 app.post('/authorize', c => authorizePost(c.req.raw, c.env))
+
+// The app's code files. Cloudflare answers a file it doesn't have with the app's page, and
+// browsers keep /assets/* for a year without asking again (public/_headers): a code file asked of
+// a version that doesn't have it (a tab from before a deploy, a server mid-deploy) was kept as that
+// page, and the app never started in that browser again. A missing one is now a 404 nobody keeps.
+app.get('/assets/*', async c => {
+  const res = await c.env.ASSETS.fetch(c.req.raw)
+  if (res.status === 304) return res
+  if (!res.ok || res.headers.get('content-type')?.startsWith('text/html')) {
+    return c.text('Not found', 404, { 'cache-control': 'no-store' })
+  }
+  const file = new Response(res.body, res)
+  file.headers.set('cache-control', 'public, max-age=31536000, immutable')
+  return file
+})
 
 app.notFound(c => c.json({ error: 'Not found' }, 404))
 app.onError((err, c) => c.json({ error: err.message }, 500))
@@ -249,9 +271,11 @@ const provider = (env: Env, origin: string) => new OAuthProvider<Env>({
 export default {
   fetch: (request, env, ctx) => provider(env, new URL(request.url).origin).fetch(request, env, ctx),
   // Every minute: close forgotten timecards, queue shift alerts, remind admins about events,
-  // send planned social posts, deliver the outbox, refresh sports; every 15 minutes, Instagram
-  // mentions; every hour, new Square customers and new Google reviews.
-  // Nightly: fill yesterday's missing timecards from the rota, check every connection still works.
+  // send planned social posts, deliver the outbox, refresh sports; every 15 minutes, opening hours
+  // with Google Maps and Instagram mentions; every hour, new Square customers and new Google reviews
+  // (every 3 hours from Places). How often each service is read: shared/refresh.ts.
+  // Nightly: fill yesterday's missing timecards from the rota, check every connection still works,
+  // and look at the competitors due their weekly check on Google.
   async scheduled(event, env, ctx) {
     if (!env.SUPABASE_SERVICE_ROLE_KEY) return
     const db = serviceClient(env)
@@ -263,6 +287,9 @@ export default {
         await Promise.resolve(db.rpc('auto_fill_timecards')).then(log('auto_fill_timecards'))
         // Licences running out within their reminder days: admins hear about each once (Licences page).
         await Promise.resolve(db.rpc('licence_reminders')).then(log('licence_reminders'))
+        // Enquiries whose follow-up day has come, and campaigns planned for today (Leads & enquiries, Campaigns).
+        await Promise.resolve(db.rpc('enquiry_follow_ups')).then(log('enquiry_follow_ups'))
+        await Promise.resolve(db.rpc('campaign_reminders')).then(log('campaign_reminders'))
         // WhatsApp chats older than Data retention allows, with their photos and voice notes.
         await purgeWhatsApp(db).catch(e => console.error('whatsapp purge failed', e))
         // The subscription, straight from Stripe (in case a webhook was missed).
@@ -282,6 +309,10 @@ export default {
         }
         // Crests for new teams (flags straight away; a few club look-ups, the GitHub sync does the rest).
         if (await sportsOn(db)) await syncCrests(db, 8).catch(e => console.error('crests failed', e))
+        // Competitors: each followed place's weekly check on Google, and the weekly look around for new places.
+        await watchCompetitors(env, db).catch(e => console.error('competitors failed', e))
+        // Outside services' answers kept over two days (provider_cache).
+        await clearOldCache(db).catch(e => console.error('cache clear failed', e))
       })())
       return
     }
@@ -305,9 +336,10 @@ export default {
       if (Math.floor(event.scheduledTime / 60_000) % 60 === 0) {
         await syncSquareCustomers(env, db).catch(e => console.error('square customers failed', e))
       }
-      // Every hour (on the half hour, away from Square's): new Google reviews, for admins to read and reply to.
+      // Every hour (on the half hour, away from Square's): new Google reviews, for admins to read and reply to;
+      // from Places only every third hour (refreshReviews knows which).
       if (Math.floor(event.scheduledTime / 60_000) % 60 === 30 && await reviewsConfigured(env, db)) {
-        await checkReviews(env, db).catch(e => console.error('reviews failed', e))
+        await refreshReviews(env, db, 5).catch(e => console.error('reviews failed', e))
       }
       // Sports only while it's switched on (Sports page).
       if (await sportsOn(db)) await refreshStaleSports(db).catch(e => console.error('sports failed', e))

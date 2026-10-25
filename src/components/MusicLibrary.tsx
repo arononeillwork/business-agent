@@ -26,7 +26,7 @@ import { INSTRUMENTS, MAX_AUDIO_BYTES, MOODS, MOOD_IDS, aiPrompt, aiSeconds, ene
 import type { MusicTrack, PostKind } from '../../shared/types'
 import { formatLocal, ownTimeZone } from '../../shared/time'
 import { tokens } from '../theme'
-import { msg, t, tn } from '../i18n'
+import { msg, t, tc, tn } from '../i18n'
 
 // ---------------------------------------------------------------------------------------------
 // Playing a track (one at a time on the page)
@@ -130,7 +130,7 @@ export function Waveform({ peaks, duration, part, onMove, height = 56, label }: 
 // Tracks
 // ---------------------------------------------------------------------------------------------
 const SOURCE_LABEL: Record<MusicTrack['source'], string> = { starter: msg('Starter pack'), ai: msg('Made with AI'), upload: msg('Yours') }
-export const sourceLabel = (s: MusicTrack['source']) => t(SOURCE_LABEL[s])
+export const sourceLabel = (s: MusicTrack['source']) => tc('music', SOURCE_LABEL[s])
 
 /** A track in a list: play, its name and moods, its length; star, and more (rename, remove) for admins. */
 export function TrackRow({ track, player, onStar, onRename, onRemove, action, part }: {
@@ -279,7 +279,7 @@ export function SearchAndFilter({ search, onSearch, filter, onFilter }: { search
       {filter && onFilter && <ToggleButtonGroup exclusive size="small" value={filter} onChange={(_, v: Filter | null) => v && onFilter(v)} aria-label={t('Which tracks')}>
         <ToggleButton value="all" sx={{ px: 1.25 }}>{t('All')}</ToggleButton>
         <ToggleButton value="saved" sx={{ px: 1.25 }}>{t('Saved')}</ToggleButton>
-        <ToggleButton value="yours" sx={{ px: 1.25 }}>{t('Yours')}</ToggleButton>
+        <ToggleButton value="yours" sx={{ px: 1.25 }}>{tc('music', 'Yours')}</ToggleButton>
         <ToggleButton value="starter" sx={{ px: 1.25 }}>{t('Starter pack')}</ToggleButton>
       </ToggleButtonGroup>}
     </Stack>
