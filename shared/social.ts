@@ -1,6 +1,6 @@
 // Social planner rules, shared by the app (composer, demo) and mirrored by the database trigger
 // (migration 39): what each kind of post holds, where it can go, and what posting it needs.
-import type { PostKind, PostMedia, SocialNetwork, SocialPost } from './types'
+import type { PostKind, PostMedia, PostMusic, SocialNetwork, SocialPost } from './types'
 import { addDays } from './time'
 import { msg } from './i18n'
 
@@ -58,18 +58,27 @@ const INSTAGRAM_ONLY: Record<PostKind, string> = {
  * What stops this post being saved as asked, in plain words (null: fine). The same rules as the
  * database's; checked in the app first so the composer can say so before anything is sent.
  */
-export function postProblem(p: Pick<SocialPost, 'kind' | 'caption' | 'media' | 'targets' | 'auto'> & { status: 'draft' | 'scheduled' }): string | null {
+export function postProblem(p: Pick<SocialPost, 'kind' | 'caption' | 'media' | 'targets' | 'auto'> & { status: 'draft' | 'scheduled'; music?: PostMusic | null }): string | null {
   const info = kindInfo(p.kind)
   const n = p.media.length
   const videos = p.media.filter(m => m.type === 'video').length
   if (n > 10) return msg('A post can have up to 10 photos or videos')
   if (p.kind === 'post' && videos > 0) return msg('Videos go out as reels: choose Reel')
   if (p.kind === 'post' && n > 1) return msg('A post has one photo. Choose Carousel for more')
+  // Photos make a reel once music goes in (the composer checks it as the video it will be).
+  if (p.kind === 'reel' && n > 0 && !videos && p.music?.mode !== 'mixed') return msg('Photos make a reel with music: choose the music')
   if (p.kind === 'reel' && (n > 1 || videos !== n)) return msg('A reel is one video')
   if (p.kind === 'story' && n > 1) return msg('A story is one photo or video')
   const other = p.targets.find(t => !info.networks.includes(t))
   if (other) return INSTAGRAM_ONLY[p.kind]
+  // Music (migration 86): mixed into stories and reels; Instagram's own songs only on reminders.
+  const music = p.music ?? null
+  if (music?.mode === 'mixed' && p.kind !== 'story' && p.kind !== 'reel') return msg('Music goes into stories and reels. Choose Story or Reel.')
+  if (music?.mode === 'mixed' && !music.url) return msg('Choose a track for the music')
+  if (music?.mode === 'in_instagram' && !(music.song.trim().length >= 1 && music.song.trim().length <= 120)) return msg('Write the song to add in Instagram')
   if (p.status !== 'scheduled') return null
+  if (music?.mode === 'in_instagram' && p.auto) return msg('Songs from Instagram’s library are added in the Instagram app: choose Remind me')
+  if (music?.mode === 'mixed' && (n !== 1 || p.media[0].url !== music.rendered_url)) return msg('The music isn’t in the file yet. Save it again to add it.')
   if (!p.targets.length) return msg('Pick at least one network')
   // Posting by itself: the networks need the photos and videos (a reminder doesn't).
   if (p.auto && p.kind === 'carousel' && n < 2) return msg('A carousel needs at least 2 photos or videos')

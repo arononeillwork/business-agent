@@ -17,7 +17,8 @@ const env = {
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 type Sub = { id: string; status: string; customer: string; trial_end: number | null; current_period_end: number; cancel_at_period_end: boolean; created: number;
-  items: { data: { id: string; price: { id: string; unit_amount: number; lookup_key: string; recurring: { interval: string } } }[] } }
+  items: { data: { id: string; price: { id: string; unit_amount: number; lookup_key: string; recurring: { interval: string } } }[] }
+  pending_invoice_item_interval?: { interval: string } | null }
 
 /** Just enough of Stripe: prices by lookup key, products, customers, Checkout, subscriptions, events. */
 class FakeStripe {
@@ -28,6 +29,12 @@ class FakeStripe {
   events = new Map<string, { type: string; data: { object: { customer: string } } }>()
   /** Customer balance credits, by idempotency key (a repeated key is the same transaction, as on Stripe). */
   credits = new Map<string, { customer: string; amount: number; description: string }>()
+  /** Pay-per-use invoice items, by idempotency key (the same: once per key). */
+  items = new Map<string, { id: string; customer: string; subscription: string | null; amount: number; currency: string; description: string; tax_behavior: string | null }>()
+  /** Subscription changes other than the plan (pending_invoice_item_interval). */
+  updates: URLSearchParams[] = []
+  /** Stripe not answering (pay per use waits for the nightly retry). */
+  down = false
   handle(url: string, init?: RequestInit): Response | null {
     const u = new URL(url)
     if (u.host !== 'api.stripe.com') return null
@@ -51,9 +58,13 @@ class FakeStripe {
     const sub = /^\/subscriptions\/(\w+)$/.exec(path)
     if (sub) {
       const s = this.subs.find(x => x.id === sub[1])!
-      if (method === 'POST') {
+      if (method === 'POST' && body.has('items[0][price]')) {
         const price = this.prices.find(p => p.id === body.get('items[0][price]'))!
         s.items.data[0].price = { id: price.id, unit_amount: price.unit_amount, lookup_key: price.lookup_key, recurring: price.recurring }
+      }
+      if (method === 'POST' && body.has('pending_invoice_item_interval[interval]')) {
+        s.pending_invoice_item_interval = { interval: body.get('pending_invoice_item_interval[interval]')! }
+        this.updates.push(body)
       }
       return json(s)
     }
@@ -66,6 +77,15 @@ class FakeStripe {
       return json({ id: `cbtxn_${this.credits.size}`, ...this.credits.get(key) })
     }
     if (path === '/billing_portal/sessions') return json({ url: 'https://billing.stripe.com/p/session/1' })
+    if (path === '/invoiceitems' && method === 'POST') {
+      if (this.down) return json({ error: { message: 'Stripe is having a moment' } }, 500)
+      const key = new Headers(init?.headers).get('idempotency-key') ?? `no-key-${this.items.size}`
+      if (!this.items.has(key)) {
+        this.items.set(key, { id: `ii_${this.items.size + 1}`, customer: body.get('customer')!, subscription: body.get('subscription'), amount: Number(body.get('amount')),
+          currency: body.get('currency')!, description: body.get('description')!, tax_behavior: body.get('tax_behavior') })
+      }
+      return json(this.items.get(key))
+    }
     return json({ error: { message: `fake Stripe: ${method} ${path}` } }, 404)
   }
   /** Stripe's side of a finished Checkout for a plan. */
@@ -225,6 +245,22 @@ describe('referral months as Stripe credit', () => {
     await syncBilling(env)
     expect(stripe.credits.size).toBe(1)
     expect(row().referral_months_applied).toBe(1)
+  })
+})
+
+describe('pay per use on the bill', () => {
+  it('a yearly subscription bills pending items (AI music tracks) every month; a monthly one with its renewal', async () => {
+    await post('/api/billing/checkout', { plan: 'pro', interval: 'year' })
+    stripe.subscribe('business_agent_pro_year', 'active', null)
+    await syncBilling(env)
+    expect(stripe.updates.map(u => u.get('pending_invoice_item_interval[interval]'))).toEqual(['month'])
+    await syncBilling(env)
+    expect(stripe.updates).toHaveLength(1) // already set
+    stripe.updates = []
+    await post('/api/billing/checkout', { plan: 'pro', interval: 'month' })
+    stripe.subscribe('business_agent_pro_month', 'active', null)
+    await syncBilling(env)
+    expect(stripe.updates).toHaveLength(0)
   })
 })
 

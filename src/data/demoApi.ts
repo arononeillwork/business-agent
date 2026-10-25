@@ -1,8 +1,10 @@
 // In-memory demo of the app with Easy Beans sample data. Used for previews, sales demos and
 // when no Supabase project is configured. Mirrors the SQL rules closely but is not the source
 // of truth: the database functions are.
-import type { Api, BillingInfo, ShiftInput } from './api'
-import { PLANS, SOCIAL_CONNECTIONS, TRIAL_DAYS, effectivePlan, plan as planById, type PlanId } from '../../shared/plans'
+import { PromptError, type Api, type BillingInfo, type ShiftInput } from './api'
+import { PLANS, SOCIAL_CONNECTIONS, TRIAL_DAYS, effectivePlan, payPerUse, plan as planById, type PlanId } from '../../shared/plans'
+import { isMood, namesArtist, usesFor, type Mood } from '../../shared/music'
+import type { AiMusicQuote, MusicGeneration, MusicTrack } from '../../shared/types'
 import type {
   ApiKey, AppNotification, Brand, Customer, EventAlert, Sales, SalesItem, SearchReport, SearchRow, SocialNetwork, SocialPost, MusicAccount, MusicPlaylist, MusicProvider, MyNowPlaying,
   Expense, Integration, IntegrationProvider, IntegrationsState, OutboxItem, PartnerArea, TimeOff,
@@ -632,6 +634,7 @@ export function createDemoApi(): Api {
   const alerts: EventAlert[] = []
   const brand: Brand = {
     logo: null, logo_mark: null, heading_font: 'Poppins', body_font: 'Figtree', updated_at: nowIso(),
+    sound_moods: ['acoustic', 'chill', 'latin'], sound_avoid: [],
     notes: 'Rose Pink leads; one accent at a time. Never recolour, stretch or redraw the logo.',
     colours: [
       { name: 'Rose Pink', hex: '#F79BA4', role: 'primary', use: 'Buttons, highlights, the logo circle' },
@@ -1179,6 +1182,45 @@ export function createDemoApi(): Api {
     cancel_at_period_end: false, trial_used: false, has_customer: demoPlan !== 'business' && demoPlan !== 'free', ready: true,
     complimentary: demoPlan === 'business' ? 'founder' : null, complimentary_note: demoPlan === 'business' ? 'Easy Beans Coffee' : null,
     referral_months_applied: 0, referred_by: null,
+  }
+
+  // Music on stories and reels: the sample café's library (six short tracks made for the demo, in
+  // public/demo/music), its AI tracks and pay per use, as migration 86 has them. The demo can't
+  // call ElevenLabs or the render service: sample tracks stand in, and files keep their picture.
+  const DEMO_MUSIC: [string, string, Mood[], number, number][] = [
+    ['morning-light', 'Morning Light', ['acoustic', 'chill', 'cosy'], 2, 88],
+    ['terraza-nights', 'Terraza Nights', ['latin', 'summer', 'upbeat'], 4, 118],
+    ['rainy-window', 'Rainy Window', ['lofi', 'cosy', 'chill'], 1, 74],
+    ['espresso-jazz', 'Espresso Jazz', ['jazz', 'elegant'], 3, 94],
+    ['fresh-start', 'Fresh Start', ['upbeat', 'energetic'], 4, 120],
+    ['winter-lights', 'Winter Lights', ['festive', 'cosy'], 2, 96],
+  ]
+  const DEMO_SECONDS = 20
+  const musicLibrary: MusicTrack[] = DEMO_MUSIC.map(([key, title, moods, energy, bpm], i) => ({
+    id: `track-${key}`, source: 'starter', title, artist: 'Business Agent', url: `/demo/music/${key}.mp3`, duration_s: DEMO_SECONDS, bpm, energy, moods,
+    genre: null, vocals: false, highlight_s: 0, waveform: null, licence: { kind: 'starter', provider: 'elevenlabs' }, saved: false, hidden: false,
+    created_at: new Date(Date.now() - (i + 1) * 86_400_000).toISOString() }))
+  const musicUses: MusicGeneration[] = []
+  let payPerUseLimitCents = 2500
+  const monthStart = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString() }
+  // public.ai_music_quote (migration 86).
+  const quoteMusic = (seconds: number): AiMusicQuote => {
+    const plan = effectivePlan(demoBilling)
+    const ppu = payPerUse('ai_music')
+    const included = ppu.included[plan]
+    const month = musicUses.filter(g => g.created_at >= monthStart() && g.status === 'done')
+    const freeLeft = Math.max(0, (included ?? 0) - month.reduce((n, g) => n + g.free, 0))
+    const uses = usesFor(seconds)
+    const free = Math.min(uses, freeLeft)
+    const unit = Math.round(ppu.price * 100)
+    const price = (uses - free) * unit
+    const spent = month.reduce((n, g) => n + g.price_cents, 0)
+    const reason = included === undefined ? 'AI music tracks need a paid plan. Choose one on the Billing page.'
+      : price > 0 && demoBilling.status === 'comped' ? 'This month\'s free AI track is used. More next month.'
+      : price > 0 && spent + price > payPerUseLimitCents ? `That would go over this month's limit of €${(payPerUseLimitCents / 100).toFixed(2)} for pay per use. Raise it on the Billing page.`
+      : null
+    return { allowed: included !== undefined, plan, uses, free, free_left: freeLeft, included: included ?? 0, unit_cents: unit, price_cents: price,
+      spent_cents: spent, limit_cents: payPerUseLimitCents, reason }
   }
 
   // Who is signed in survives a page reload within the tab (the demo data itself does not).
@@ -3621,14 +3663,15 @@ export function createDemoApi(): Api {
       const kind = p.kind ?? 'post'
       const media = p.media ?? (p.image_url ? [{ url: p.image_url, type: 'image' as const }] : [])
       const auto = p.auto ?? true
+      const existing = p.id ? posts.find(x => x.id === p.id) : undefined
+      const music = p.music !== undefined ? p.music : existing?.music ?? null
       // The database's rules (shared/social.ts mirrors them).
-      const problem = postProblem({ kind, caption: p.caption, media, targets, auto, status: p.status })
+      const problem = postProblem({ kind, caption: p.caption, media, targets, auto, status: p.status, music })
       if (problem) throw new Error(problem)
       if (p.status === 'scheduled' && !p.scheduled_at) throw new Error('Pick when to post')
-      const existing = p.id ? posts.find(x => x.id === p.id) : undefined
       if (existing && ['publishing', 'published', 'partly'].includes(existing.status)) throw new Error('This post has already gone out. Make a new post instead.')
       const row: SocialPost = { id: existing?.id ?? uid(), kind, caption: p.caption, image_url: media[0]?.url ?? null, media, targets, scheduled_at: p.scheduled_at ?? null,
-        auto, status: p.status, results: {}, created_at: existing?.created_at ?? nowIso(), published_at: null }
+        auto, status: p.status, results: {}, music, insights: existing?.insights ?? null, created_at: existing?.created_at ?? nowIso(), published_at: null }
       if (existing) Object.assign(existing, row); else posts.unshift(row)
       publishDue()
       return row.id
@@ -3650,6 +3693,82 @@ export function createDemoApi(): Api {
       if (!mediaStorage()) throw new Error('Connect Google Drive or OneDrive on the Connections page to add photos and videos. They’re kept in its Business Agent folder.')
       void folder
       return { url: URL.createObjectURL(file), type: file.type.startsWith('video/') ? 'video' : 'image' }
+    },
+    async musicTracks() {
+      requireAdmin()
+      return clone(musicLibrary.filter(t => !t.hidden))
+    },
+    async musicStatus() {
+      requireAdmin()
+      return { ai: true, render: true, storage: mediaStorage(), starter: { made: DEMO_MUSIC.length, of: 12, on: true } }
+    },
+    async uploadTrack(file, t) {
+      requireAdmin()
+      if (!mediaStorage()) throw new Error('Connect Google Drive or OneDrive on the Connections page to add photos and videos. They’re kept in its Business Agent folder.')
+      if (!t.confirmed) throw new Error('Tick that you have the right to use this music on social media')
+      const track: MusicTrack = { id: uid(), source: 'upload', title: t.title.trim().slice(0, 80) || file.name, artist: t.artist ?? null, url: URL.createObjectURL(file),
+        duration_s: t.duration_s, bpm: t.bpm, energy: null, moods: t.moods, genre: null, vocals: false, highlight_s: t.highlight_s, waveform: t.waveform,
+        licence: { kind: 'upload', confirmed: true, confirmed_by: currentUser, at: nowIso() }, saved: false, hidden: false, created_at: nowIso() }
+      musicLibrary.unshift(track)
+      return clone(track)
+    },
+    async saveTrack(id, patch) {
+      requireAdmin()
+      const t = musicLibrary.find(x => x.id === id)
+      if (!t) throw new Error('That track isn’t in your music library')
+      Object.assign(t, patch)
+    },
+    async deleteTrack(id) {
+      requireAdmin()
+      const i = musicLibrary.findIndex(x => x.id === id)
+      if (i >= 0) musicLibrary.splice(i, 1)
+    },
+    async aiMusicQuote(seconds) {
+      requireAdmin()
+      return quoteMusic(seconds)
+    },
+    async makeAiTrack(req) {
+      requireAdmin()
+      if (namesArtist(req.prompt)) throw new PromptError('Describe the feel instead: AI music can’t copy a real artist or song.')
+      if (!mediaStorage()) throw new Error('Connect Google Drive or OneDrive on the Connections page first: that’s where your tracks are kept.')
+      const q = quoteMusic(req.seconds)
+      if (q.reason) throw new Error(q.reason)
+      await new Promise(r => setTimeout(r, 700))
+      // Two sample tracks closest to the moods asked for stand in for ElevenLabs.
+      const near = [...DEMO_MUSIC].sort((a, b) => b[2].filter(m => req.moods.includes(m)).length - a[2].filter(m => req.moods.includes(m)).length)
+      const g: MusicGeneration = { id: uid(), prompt: req.prompt, seconds: req.seconds, uses: q.uses, status: 'done', free: q.free, price_cents: q.price_cents,
+        kept_id: null, error: null, charged_at: q.price_cents ? nowIso() : null, created_at: nowIso() }
+      musicUses.unshift(g)
+      const tracks: MusicTrack[] = near.slice(0, 2).map(([key], i) => ({ id: uid(), source: 'ai', title: i ? `${req.title} (2)` : req.title, artist: null,
+        url: `/demo/music/${key}.mp3`, duration_s: DEMO_SECONDS, bpm: req.bpm, energy: req.energy, moods: req.moods.filter(isMood), genre: req.genre ?? null, vocals: false,
+        highlight_s: 0, waveform: null, licence: { kind: 'ai', provider: 'elevenlabs', prompt: req.prompt, generation: g.id }, saved: false, hidden: false, created_at: nowIso() }))
+      musicLibrary.unshift(...tracks)
+      return { generation: { id: g.id, uses: g.uses, free: g.free, price_cents: g.price_cents }, tracks: clone(tracks) }
+    },
+    async keepAiTrack(generationId, trackId) {
+      requireAdmin()
+      const g = musicUses.find(x => x.id === generationId)
+      if (!g) throw new Error('That track isn’t from this one')
+      g.kept_id = trackId
+      for (const t of musicLibrary) {
+        if (t.source === 'ai' && t.licence.generation === generationId) Object.assign(t, { hidden: t.id !== trackId, saved: t.id === trackId || t.saved })
+      }
+    },
+    async aiMusicUses() {
+      requireAdmin()
+      return clone(musicUses)
+    },
+    async setPayPerUseLimit(euros) {
+      requireAdmin()
+      if (!(euros >= 0 && euros <= 1000)) throw new Error('The limit must be between €0 and €1,000')
+      payPerUseLimitCents = Math.round(euros * 100)
+    },
+    async renderPostMusic(req) {
+      requireAdmin()
+      if (!musicLibrary.some(t => t.id === req.track_id)) throw new Error('That track isn’t in your music library')
+      await new Promise(r => setTimeout(r, 400))
+      // The demo has no render service: the picture stays as it is, with the music noted on the post.
+      return { media: req.sources.length > 1 ? { url: '/demo/music/reel.mp4', type: 'video' } : req.sources[0], ms: null }
     },
     async referrals() {
       requireAdmin()

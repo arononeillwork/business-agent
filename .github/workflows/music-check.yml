@@ -1,0 +1,30 @@
+name: Music check
+# Before switching AI music on: makes the same three café prompts on each ElevenLabs model, 20
+# seconds each, so they can be listened to (download "music-check" from the run) and the faster or
+# better model chosen (ELEVENLABS_MUSIC_MODEL). Needs the ELEVENLABS_API_KEY repo secret; costs
+# about $0.30 of ElevenLabs credit. Start it from the Actions tab.
+on:
+  workflow_dispatch:
+    inputs:
+      models:
+        description: Models to compare, comma-separated
+        default: music_v1,music_v2_5
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Make the samples
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          MODELS: ${{ inputs.models }}
+        run: node --experimental-strip-types scripts/ops/music-check.ts music-check | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: music-check
+          path: music-check/*.mp3

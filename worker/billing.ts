@@ -45,6 +45,8 @@ interface Price { id: string; unit_amount: number; lookup_key: string | null; re
 interface Subscription {
   id: string; status: string; customer: string; trial_end: number | null; current_period_end: number | null; cancel_at_period_end: boolean
   created: number; items: { data: { id: string; price: Price }[] }
+  /** How often pending invoice items (pay per use) are billed; null: with the next renewal. */
+  pending_invoice_item_interval?: { interval: Interval } | null
 }
 interface BillingRow { plan: PlanId; status: string; stripe_customer_id: string | null; stripe_subscription_id: string | null; trial_used: boolean; complimentary?: string | null }
 
@@ -110,6 +112,49 @@ export async function syncBilling(env: Env): Promise<void> {
   }).eq('id', 1)
   if (error) throw new Error(error.message)
   if (['active', 'trialing'].includes(sub.status) && chosen) await creditReferralMonths(env, row.stripe_customer_id, chosen.plan, chosen.interval)
+  // Pay per use is billed monthly: a yearly subscription bills its pending items every month
+  // instead of waiting for the renewal.
+  const interval = chosen?.interval ?? item?.price.recurring?.interval
+  if (['active', 'trialing'].includes(sub.status) && interval === 'year' && sub.pending_invoice_item_interval?.interval !== 'month') {
+    await stripe(env, 'POST', `/subscriptions/${sub.id}`, { pending_invoice_item_interval: { interval: 'month' } })
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Pay per use (PAY_PER_USE in shared/plans.ts): an AI music track that isn't one of the plan's
+// free ones goes on the subscription's next invoice as an invoice item, exactly once (its own
+// idempotency key), and the use is marked charged (migration 86).
+// ---------------------------------------------------------------------------------------------
+export interface AiMusicCharge { id: string; price_cents: number; uses: number }
+
+export async function chargeAiMusic(env: Env, g: AiMusicCharge): Promise<string | null> {
+  if (g.price_cents <= 0) return null
+  const db = serviceClient(env)
+  const { data: b } = await db.from('billing').select('stripe_customer_id, stripe_subscription_id').eq('id', 1)
+    .single<{ stripe_customer_id: string | null; stripe_subscription_id: string | null }>()
+  if (!b?.stripe_customer_id) throw new Error('There is no Stripe customer to charge')
+  const item = await stripe<{ id: string }>(env, 'POST', '/invoiceitems', {
+    customer: b.stripe_customer_id, subscription: b.stripe_subscription_id ?? undefined,
+    amount: g.price_cents, currency: 'eur', tax_behavior: 'exclusive',
+    description: g.uses > 1 ? `AI music track for social media (${g.uses} minutes)` : 'AI music track for social media',
+    metadata: { business_agent_ai_music: g.id },
+  }, `business-agent-ai-music-${g.id}`)
+  const { error } = await db.rpc('ai_music_charged', { p_id: g.id, p_invoice_item: item.id })
+  if (error) throw new Error(error.message)
+  return item.id
+}
+
+/** Nightly: uses made but not yet on the bill (Stripe didn't answer at the time). */
+export async function chargePendingAiMusic(env: Env): Promise<number> {
+  if (!env.STRIPE_SECRET_KEY || !env.SUPABASE_SERVICE_ROLE_KEY) return 0
+  const { data } = await serviceClient(env).from('music_generations').select('id, price_cents, uses, charged_at')
+    .eq('status', 'done').gt('price_cents', 0).is('charged_at', null)
+  let n = 0
+  for (const g of (data ?? []) as AiMusicCharge[]) {
+    await chargeAiMusic(env, g)
+    n++
+  }
+  return n
 }
 
 /** One month of a plan, in cents, at the rate the business pays (a twelfth of the year on yearly). */

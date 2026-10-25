@@ -186,9 +186,10 @@ export async function drainOutbox(env: Env) {
         externalId = await sendEmail(env, db, { to: p.to, ...alertEmail(p.template, p.params ?? [], biz?.name ?? 'Business Agent') })
       } else if (job.kind === 'instagram_post') {
         // Post, carousel, reel or story, with every photo and video (older jobs: just image_url).
-        const p = job.payload as { image_url: string; caption: string; kind?: PostKind; media?: PostMedia[] }
+        // A reel with music put in by Business Agent names its sound (migration 86).
+        const p = job.payload as { image_url: string; caption: string; kind?: PostKind; media?: PostMedia[]; audio_name?: string }
         const media = p.media?.length ? p.media : [{ url: p.image_url, type: 'image' as const }]
-        externalId = await instagram.publish(await instagramSession(env, db), { kind: p.kind ?? 'post', media, caption: p.caption }, instagramWait)
+        externalId = await instagram.publish(await instagramSession(env, db), { kind: p.kind ?? 'post', media, caption: p.caption, audioName: p.audio_name }, instagramWait)
       } else if (job.kind === 'facebook_post') {
         const p = job.payload as { image_url?: string | null; caption: string }
         const s = await facebookSession(env, db)

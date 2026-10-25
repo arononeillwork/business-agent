@@ -1,6 +1,6 @@
 // A stand-in for Supabase (PostgREST, auth and storage) with the tables and files in memory, so the Worker's routes can
 // be run end to end in unit tests. It understands the queries the Worker makes (select with eq/neq/
-// in/is/gte/gt/lte/lt, order and limit, single/maybeSingle, counts, insert/upsert/update/delete, rpc is_admin/my_role, the plan checks and any a test adds) and
+// in/is/gte/gt/lte/lt/not, order and limit, single/maybeSingle, counts, insert/upsert/update/delete, rpc is_admin/my_role, the plan checks and any a test adds) and
 // mirrors the one-app-per-group trigger from migration 28 (supabase/tests prove the real one).
 import { PROVIDERS } from '../connections'
 import { CONNECTION_FEATURE } from '../../shared/plans'
@@ -58,6 +58,10 @@ function matcher(params: URLSearchParams) {
       const pattern = new RegExp(`^${re}$`, 's')
       tests.push(r => v(r) !== null && pattern.test(v(r)!))
     }
+    else if (op === 'not') {
+      const inner = matcher(new URLSearchParams([[key, arg]]))
+      tests.push(r => !inner(r))
+    }
     else throw new Error(`fake Supabase: unsupported filter ${key}=${raw}`)
   }
   return (r: Row) => tests.every(t => t(r))
@@ -76,6 +80,8 @@ export class FakeSupabase {
     plan: 'business', people: null, features: ['google_maps', 'apps', 'whatsapp', 'takings', 'sports', 'music', 'kiosk', 'partners'] }
   /** Functions a test answers itself (by name, given the call's arguments); any other unknown one is a 404. */
   rpcs: Record<string, (args: Row) => unknown> = {}
+  /** AI music (migration 86): free uses left this month, the price of the rest, and why the next can't be made (null: it can). */
+  music = { freeLeft: 1, unitCents: 99, reason: null as string | null }
   /** Bearer token → signed-in person. */
   people = new Map<string, { id: string; role: 'admin' | 'employee' }>()
   /** Sign-ins made by the Worker for access keys (one-time links used, sessions refreshed). */
@@ -184,6 +190,41 @@ export class FakeSupabase {
         const a = JSON.parse(String(init.body)) as { p_id: number; p_ok: boolean; p_error?: string; p_external_id?: string | null }
         const j = this.table('outbox').find(x => x.id === a.p_id)!
         Object.assign(j, a.p_ok ? { status: 'sent', external_id: a.p_external_id ?? null, last_error: null } : { status: 'failed', last_error: a.p_error })
+        return json(null)
+      }
+      // Migration 86: AI music uses, quoted, reserved before ElevenLabs is asked and settled after.
+      if (rpc[1] === 'ai_music_quote') {
+        const { p_seconds } = JSON.parse(String(init.body)) as { p_seconds: number }
+        const uses = Math.max(1, Math.ceil(Math.max(3, p_seconds) / 60))
+        const free = Math.min(uses, this.music.freeLeft)
+        return json({ allowed: !this.music.reason, plan: 'business', uses, free, free_left: this.music.freeLeft, included: 1, unit_cents: this.music.unitCents,
+          price_cents: (uses - free) * this.music.unitCents, spent_cents: 0, limit_cents: 2500, reason: this.music.reason })
+      }
+      if (rpc[1] === 'ai_music_start') {
+        if (who?.role !== 'admin') return json({ message: 'Only an admin can make AI music' }, 400)
+        if (this.music.reason) return json({ message: this.music.reason, code: 'P0402' }, 400)
+        const a = JSON.parse(String(init.body)) as { p_prompt: string; p_seconds: number; p_post: string | null }
+        const uses = Math.max(1, Math.ceil(Math.max(3, a.p_seconds) / 60))
+        const free = Math.min(uses, this.music.freeLeft)
+        this.music.freeLeft -= free
+        const row = { id: `gen-${this.nextId++}`, prompt: a.p_prompt, seconds: a.p_seconds, uses, free, price_cents: (uses - free) * this.music.unitCents,
+          status: 'working', post_id: a.p_post, track_ids: [], charged_at: null, stripe_invoice_item: null, created_at: new Date().toISOString() }
+        this.table('music_generations').push(row)
+        return json({ allowed: true, uses, free, price_cents: row.price_cents, unit_cents: this.music.unitCents, reason: null, id: row.id })
+      }
+      if (rpc[1] === 'ai_music_finish') {
+        const a = JSON.parse(String(init.body)) as { p_id: string; p_status: string; p_track_ids: string[]; p_model: string | null; p_error: string | null }
+        const g = this.table('music_generations').find(r => r.id === a.p_id && r.status === 'working')
+        if (g) {
+          Object.assign(g, { status: a.p_status, track_ids: a.p_track_ids, model: a.p_model, error: a.p_error })
+          if (a.p_status !== 'done') { this.music.freeLeft += Number(g.free); Object.assign(g, { free: 0, price_cents: 0 }) }
+        }
+        return json(null)
+      }
+      if (rpc[1] === 'ai_music_charged') {
+        const a = JSON.parse(String(init.body)) as { p_id: string; p_invoice_item: string }
+        const g = this.table('music_generations').find(r => r.id === a.p_id && r.status === 'done' && Number(r.price_cents) > 0 && !r.charged_at)
+        if (g) Object.assign(g, { stripe_invoice_item: a.p_invoice_item, charged_at: new Date().toISOString() })
         return json(null)
       }
       // Migration 47: delete WhatsApp messages older than the chosen time, returning their files.

@@ -11,8 +11,10 @@ import { useMemo, useRef, useState } from 'react'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction, useNotify } from '../app/Notify'
+import { FEATURES } from '../app/features'
 import { ErrorBox, PageHeader, SectionTitle } from '../components/common'
 import type { BrandColour } from '../../shared/types'
+import { MOODS, MOOD_IDS } from '../../shared/music'
 import logoUrl from '../assets/logo.png'
 import { formatNumber } from '../../shared/time'
 import { tokens } from '../theme'
@@ -112,6 +114,8 @@ export function BrandPage() {
                 </CardContent>
               </Card>
 
+              {FEATURES.music && <SoundCard moods={b.sound_moods ?? []} avoid={b.sound_avoid ?? []} canEdit={isAdmin} onSave={patch => save(patch, t('Saved'))} />}
+
               <Card component="section" aria-label={t('How to use the brand')}>
                 <CardContent>
                   <SectionTitle action={isAdmin && notes === null && <Button size="small" startIcon={<EditIcon fontSize="small" />} onClick={() => setNotes(b.notes ?? '')}>{t('Edit')}</Button>}>{t('How to use it')}</SectionTitle>
@@ -145,6 +149,54 @@ export function BrandPage() {
           onPick={async family => { if (await save({ [picking]: family }, picking === 'heading_font' ? t('Heading font: {family}', { family }) : t('Body font: {family}', { family }))) setPicking(null) }} />
       )}
     </>
+  )
+}
+
+/** At most this many moods in each list (the database's limit too). */
+const MAX_SOUND = 5
+
+/**
+ * The brand's sound: the moods its music has, and the ones it never has. Music suggestions on
+ * stories and reels and AI tracks start from it. Tapping a mood moves it in or out (admins).
+ */
+function SoundCard({ moods, avoid, canEdit, onSave }: {
+  moods: string[]; avoid: string[]; canEdit: boolean; onSave: (patch: { sound_moods?: string[]; sound_avoid?: string[] }) => unknown
+}) {
+  const notify = useNotify()
+  const toggle = (list: 'sound_moods' | 'sound_avoid', mood: string) => {
+    const [mine, other] = list === 'sound_moods' ? [moods, avoid] : [avoid, moods]
+    if (mine.includes(mood)) return onSave({ [list]: mine.filter(m => m !== mood) })
+    if (mine.length >= MAX_SOUND) return notify(t('Up to {n} moods in each list', { n: MAX_SOUND }), 'error')
+    // A mood is in one list or the other, never both.
+    return onSave({ [list]: [...mine, mood], [list === 'sound_moods' ? 'sound_avoid' : 'sound_moods']: other.filter(m => m !== mood) })
+  }
+  const row = (list: 'sound_moods' | 'sound_avoid', label: string, chosen: string[]) => (
+    <Box role="group" aria-label={label}>
+      <Typography variant="overline" sx={{ color: 'text.secondary' }}>{label}</Typography>
+      <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 0.75, mt: 0.5 }}>
+        {(canEdit ? MOOD_IDS : MOOD_IDS.filter(m => chosen.includes(m))).map(m => (
+          <Chip key={m} label={t(MOODS[m].label)} disabled={!canEdit} onClick={canEdit ? () => toggle(list, m) : undefined}
+            color={chosen.includes(m) ? (list === 'sound_moods' ? 'primary' : 'default') : 'default'}
+            variant={chosen.includes(m) ? 'filled' : 'outlined'} aria-pressed={canEdit ? chosen.includes(m) : undefined}
+            sx={list === 'sound_avoid' && chosen.includes(m) ? { textDecoration: 'line-through' } : undefined} />
+        ))}
+        {!canEdit && !chosen.length && <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('None yet.')}</Typography>}
+      </Stack>
+    </Box>
+  )
+  return (
+    <Card component="section" aria-label={t('Our sound')}>
+      <CardContent>
+        <SectionTitle>{t('Our sound')}</SectionTitle>
+        <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>
+          {t('The feel of the music on your stories and reels. Suggested tracks and AI music start from it.')}
+        </Typography>
+        <Stack spacing={1.5}>
+          {row('sound_moods', t('Sounds like'), moods)}
+          {row('sound_avoid', t('Never sounds like'), avoid)}
+        </Stack>
+      </CardContent>
+    </Card>
   )
 }
 
