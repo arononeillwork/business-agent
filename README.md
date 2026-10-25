@@ -16,6 +16,13 @@ built-in **AI connector** so owners can run it by talking to Claude.
   database ([docs/billing.md](docs/billing.md))
 - Partners: outside businesses (gestoría, suppliers) get a read-only login to the areas an admin
   picks (rota, payroll, finances, calendar). Enforced by database row security and in the AI tools.
+- Team roles: everyone on the team is an **employee**, a **shop manager** or the **boss / CEO**, picked
+  on the Team page when inviting them or later, or by asking Claude (`set_team_role`). Employees see
+  their own shifts, clock-ins, time off and expenses; a shop manager runs the shop (rota, timecards,
+  time off, stock, the team, settings) without pay, takings or finances; a boss does all of it with
+  pay and finances. They're stored as the access the database already checks (a boss is an admin
+  with pay access), and only a boss makes someone a boss or changes a boss
+  (`shared/teamRoles.ts`, the `team_roles` migration).
 - Sports: the next 3 weeks of football (Spanish, English, Scottish, Dutch and other leagues, cups,
   European nights, national teams), rugby (Six Nations, Premiership, Champions Cup and more), UFC and
   boxing, with "big nights" flagged. The Worker refreshes
@@ -87,6 +94,18 @@ built-in **AI connector** so owners can run it by talking to Claude.
   is open and marked; moving a section asks nobody); admins see who has read them since the last change.
   Starts from the usual rules for a café in Spain (free tap water, the hoja de quejas y reclamaciones, the
   14 allergens), to change to how the business works.
+- Outsourcing (Team section, admins; a gestoría with finances access reads): the jobs done for the business by
+  people and firms outside the team (social media, the books, cleaning, the windows, the coffee machine's
+  service, pest control…). **Active** shows who does each job, the price agreed and how it's charged (a month,
+  a year, an hour, a day, a visit or once for a project, with how many hours or visits so it adds up to a
+  month), what's included, the contract dates (ending soon or past its end date marked) and how to reach
+  them, with the total a month and a year; the usual jobs nobody does yet list how many options are on file.
+  **Catalogue** is the freelancers, agencies and firms to choose from, grouped by job so the options sit side
+  by side (starred first, then the best rated; the cheapest charged the same way marked, and who does it now),
+  each with their usual rate, the business's own rating, their work and notes. Choosing someone gives them
+  the job and ends it with whoever had it; **Past** keeps who did what. Someone who has done a job is
+  archived, never deleted. Prices without IVA. The AI connector reads it all, adds people to the catalogue
+  and gives or ends jobs.
 - Licences (Business section): everything the business keeps open (licencia de apertura, SGAE
   and AGEDI/AIE for the music, the terrace permit, insurance, extinguisher and electrical checks, staff
   food handler certificates), each with its number, when it runs out, how often it renews, its cost

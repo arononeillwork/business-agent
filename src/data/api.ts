@@ -14,7 +14,9 @@ import type { Benefit, BenefitInput, LeaveAllowance } from '../../shared/benefit
 import type { LoggedReward, RepReward, RepSettings, RewardLog, RewardRule, RewardRuleInput, SalesRep, SalesRepInput } from '../../shared/reps'
 import type { KittyEntry, KittyEntryInput, KittyGoal, KittyGoalInput, KittySettings } from '../../shared/kitty'
 import type { JobRole, JobRoleInput } from '../../shared/roles'
+import type { TeamRole } from '../../shared/teamRoles'
 import type { RuleSection, RuleSectionInput, RulesRead } from '../../shared/staffRules'
+import type { Contractor, ContractorInput, OutsourcedJob, OutsourcedJobInput } from '../../shared/outsourcing'
 import type { PnlLine, PnlLineInput, PnlSettings } from '../../shared/pnl'
 import type { GrantApplication, GrantApplicationInput, GrantProfile } from '../../shared/grants'
 import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
@@ -170,7 +172,7 @@ export interface Api {
   setPin(pin: string, profileId?: string): Promise<void>
   setPayRate(profileId: string, hourlyRate: number): Promise<void>
   /** Email an invite, or (with a temporary password) create the account straight away. */
-  invite(email: string, fullName: string, role: 'admin' | 'employee' | 'kiosk', password?: string, contact?: { phone?: string | null; contact_method?: ContactMethod | null }): Promise<void>
+  invite(email: string, fullName: string, role: TeamRole | 'kiosk', password?: string, contact?: { phone?: string | null; contact_method?: ContactMethod | null }): Promise<void>
   /** Admins: give someone (not an admin) a new temporary password to sign in with. */
   setTemporaryPassword(userId: string, password: string): Promise<void>
 
@@ -212,6 +214,18 @@ export interface Api {
   rulesRead(): Promise<RulesRead[]>
   /** "I've read the rules", for the person signed in. */
   readRules(): Promise<void>
+
+  // Outsourcing (admins; finance partners read): the jobs done by people and firms outside the team,
+  // and the catalogue to choose them from.
+  contractors(): Promise<Contractor[]>
+  /** Add someone to the catalogue (no id) or change them; returns their id. */
+  saveContractor(c: ContractorInput): Promise<string>
+  /** Only someone who has never done a job for the business: archive the others. */
+  deleteContractor(id: string): Promise<void>
+  outsourcedJobs(): Promise<OutsourcedJob[]>
+  /** Give someone a job (no id) or change one; returns its id. */
+  saveOutsourcedJob(j: OutsourcedJobInput): Promise<string>
+  deleteOutsourcedJob(id: string): Promise<void>
 
   // Business Agent subscription (Stripe Billing). planStatus: everyone; the rest: admins.
   planStatus(): Promise<PlanStatus>
