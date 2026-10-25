@@ -42,10 +42,11 @@ permissions:
 
 jobs:
   prepare:
-    # Never on behalf of a fork (pull_request_target runs with this repo's secrets).
-    if: >-
-      (github.event_name != 'pull_request_target' || github.event.pull_request.head.repo.full_name == github.repository)
-      && (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
+    # Never on behalf of a fork (pull_request_target runs with this repo's secrets). Every CI run
+    # that finishes starts a round, passed or not: a run skipped here would still take the place of
+    # a round waiting its turn (see concurrency), and that round would be lost until the next one.
+    # (A pull request from this repo has its pull_request CI run skipped, so opening one did that.)
+    if: github.event_name != 'pull_request_target' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:
