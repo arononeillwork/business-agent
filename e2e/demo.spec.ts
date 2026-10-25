@@ -1930,7 +1930,7 @@ test.describe('connections for email, files and music', () => {
     // A mood is in one list or the other.
     await expect(never.getByRole('button', { name: 'Latin' })).toHaveAttribute('aria-pressed', 'true')
     await expect(like.getByRole('button', { name: 'Latin' })).toHaveAttribute('aria-pressed', 'false')
-    for (const m of ['Jazz', 'Summer', 'Festive']) await like.getByRole('button', { name: m }).click()
+    for (const m of ['Jazz', 'Summery', 'Festive']) await like.getByRole('button', { name: m }).click()
     await like.getByRole('button', { name: 'Elegant' }).click()
     await toast(page, 'Up to 5 moods in each list')
     await signInAs(page, 'julio@example.com')
