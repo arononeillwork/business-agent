@@ -102,6 +102,7 @@ function SiteHeader() {
         </Stack>
         <Stack component="nav" aria-label={t('Site')} direction="row" spacing={3.5} sx={{ display: { xs: 'none', md: 'flex' }, flex: 1, justifyContent: 'center' }}>
           <Link component={RouterLink} to="/#features" sx={navLink}>{t('Features')}</Link>
+          <Link component={RouterLink} to="/#everything" sx={navLink}>{t('Everything')}</Link>
           <Link component={RouterLink} to="/pricing" sx={navLink}>{t('Pricing')}</Link>
           <Link component={RouterLink} to="/pricing#enterprise" sx={navLink}>{ENTERPRISE.name}</Link>
           <Link component={RouterLink} to="/compare" sx={navLink}>{t('Compare')}</Link>

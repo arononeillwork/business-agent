@@ -1,5 +1,5 @@
 import {
-  Alert, Box, Button, Card, CardContent, FormControlLabel, IconButton, Link, List, Menu, MenuItem, Stack, Switch, Tab, Table, TableBody, TableCell, TableHead,
+  Alert, Box, Button, Card, CardContent, Chip, FormControlLabel, IconButton, Link, List, Menu, MenuItem, Stack, Switch, Tab, Table, TableBody, TableCell, TableHead,
   TableRow, Tabs, TextField, Tooltip, Typography,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
@@ -269,6 +269,68 @@ function PlacesView({ a, d, ownHours, onEdit, onAdd, onNearby }: {
   )
 }
 
+/**
+ * One item at every place (a cappuccino across all the cafés): each one's latest price as a bar,
+ * cheapest first, yours marked, and the area's average as a line. Your menu items come first.
+ */
+function ItemCompare({ a }: { a: Analysis }) {
+  const rows = a.rows.filter(r => r.n > 0).sort((x, y) => Number(!!y.ours) - Number(!!x.ours))
+  const [picked, setPicked] = useState<string | null>(null)
+  const row = rows.find(r => r.item.id === picked) ?? rows.find(r => /cappuccino|capuchino/i.test(r.item.name)) ?? rows[0]
+  const bars = [
+    ...a.rivals.flatMap(c => (row.cells[c.id] ? [{ id: c.id, name: c.name, price: row.cells[c.id].price, you: false, seen: row.cells[c.id].observed_on }] : [])),
+    ...(row.ours ? [{ id: 'you', name: a.self?.name ?? t('You'), price: row.ours.price, you: true, seen: null as string | null }] : []),
+  ].sort((x, y) => x.price - y.price || Number(y.you) - Number(x.you))
+  const max = Math.max(...bars.map(b => b.price)) * 1.08
+  const avgAt = row.avg !== null ? row.avg / max * 100 : null
+  return (
+    <Card component="section" aria-label={t('Compare one item')} sx={{ mb: 3 }}>
+      <CardContent>
+        <SectionTitle>{t('Compare one item')}</SectionTitle>
+        <Stack direction="row" useFlexGap spacing={0.75} sx={{ flexWrap: 'wrap', mb: 2 }} role="group" aria-label={t('Item')}>
+          {rows.map(r => (
+            <Chip key={r.item.id} size="small" label={r.item.name} onClick={() => setPicked(r.item.id)} aria-pressed={r.item.id === row.item.id}
+              color={r.item.id === row.item.id ? 'primary' : 'default'} variant={r.item.id === row.item.id ? 'filled' : 'outlined'}
+              title={r.ours ? t('On your menu') : undefined} />
+          ))}
+        </Stack>
+        <Typography sx={{ mb: 1.5 }}>
+          {row.ours && row.avg !== null
+            ? row.ours.price === row.avg
+              ? t('Your {item} is {price}, the same as the area’s average.', { item: row.item.name, price: formatMoney(row.ours.price) })
+              : t('Your {item} is {price}: {diff} {way} than the area’s average of {avg}. {cheaper} of {n} charge less.', {
+                item: row.item.name, price: formatMoney(row.ours.price), diff: formatMoney(Math.abs(row.ours.price - row.avg)),
+                way: row.ours.price > row.avg ? t('dearer') : t('cheaper'), avg: formatMoney(row.avg), cheaper: row.cheaper, n: row.n })
+            : t('{item}: from {min} to {max} nearby, {avg} on average. Add your price to see where you sit.', {
+              item: row.item.name, min: formatMoney(row.min ?? 0), max: formatMoney(row.max ?? 0), avg: formatMoney(row.avg ?? 0) })}
+        </Typography>
+        <Box component="ul" aria-label={t('{item} at each place', { item: row.item.name })} sx={{ listStyle: 'none', m: 0, p: 0, position: 'relative' }}>
+          {bars.map(b => (
+            <Box component="li" key={b.id} aria-label={`${b.you ? t('You') : b.name}: ${formatMoney(b.price)}`}
+              sx={{ display: 'grid', gridTemplateColumns: { xs: '110px 1fr 64px', sm: '200px 1fr 72px' }, alignItems: 'center', gap: 1.5, py: 0.6 }}>
+              <Typography variant="body2" noWrap title={b.name} sx={{ fontWeight: b.you ? 600 : 400 }}>
+                {b.you ? t('{name} (you)', { name: b.name }) : b.name}
+              </Typography>
+              <Tooltip title={b.seen ? t('Seen {date}', { date: day(b.seen) }) : t('Your price')}>
+                <Box sx={{ position: 'relative', height: 14 }}>
+                  <Box sx={{ height: '100%', width: `${Math.max(2, b.price / max * 100)}%`, borderRadius: '0 4px 4px 0', bgcolor: b.you ? tokens.chartYou : tokens.chart }} />
+                  {avgAt !== null && <Box aria-hidden sx={{ position: 'absolute', top: -4, bottom: -4, left: `${avgAt}%`, borderLeft: `2px dashed ${tokens.inkSoft}` }} />}
+                </Box>
+              </Tooltip>
+              <Typography variant="body2" sx={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: b.you ? 600 : 400 }}>{formatMoney(b.price)}</Typography>
+            </Box>
+          ))}
+        </Box>
+        {row.avg !== null && (
+          <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mt: 1 }}>
+            {t('Dashed line: the area’s average, {avg}. Your bar is in purple.', { avg: formatMoney(row.avg) })}
+          </Typography>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 /** The basket item by item: your price, each place's latest, the area's average and range; and what's moved lately. */
 function PricesView({ a, d, onRecord, onBasket, onUsual }: {
   a: Analysis; d: CompetitorData; onRecord: (s: { competitor_id?: string; item_id?: string }) => void; onBasket: () => void; onUsual: () => void
@@ -278,6 +340,7 @@ function PricesView({ a, d, onRecord, onBasket, onUsual }: {
   const num = { fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' } as const
   return (
     <>
+      {a.rows.some(r => r.n > 0) && <ItemCompare a={a} />}
       <Card component="section" aria-label={t('Prices')} sx={{ mb: 3 }}>
         <CardContent>
           <SectionTitle action={<Stack direction="row" spacing={1}>

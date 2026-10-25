@@ -1,7 +1,9 @@
 import {
-  Autocomplete, Box, Button, Card, InputAdornment, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, ToggleButton,
-  ToggleButtonGroup, Typography,
+  Autocomplete, Box, Button, Card, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, InputAdornment, MenuItem, Stack, Table, TableBody,
+  TableCell, TableHead, TableRow, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography,
 } from '@mui/material'
+import EditIcon from '@mui/icons-material/EditOutlined'
+import DeleteIcon from '@mui/icons-material/DeleteOutlined'
 import { useMemo, useState } from 'react'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
@@ -10,7 +12,8 @@ import { Empty, ErrorBox, PageHeader, SectionTitle, StatGrid, StatTile, Tag } fr
 import { ExportButton } from '../components/tables'
 import type { ExportTable } from '../lib/export'
 import { WASTE_REASONS, wasteReasonLabel, wasteSummary, type WasteReason } from '../../shared/recipes'
-import { unitLabel, type StockItem } from '../../shared/stock'
+import { unitLabel, type StockItem, type StockMovement } from '../../shared/stock'
+import { tokens } from '../theme'
 import { addDays, formatLocal, formatMoney, formatNumber, localDate, today, weekStart } from '../../shared/time'
 import { t, tn } from '../i18n'
 
@@ -18,14 +21,20 @@ type Period = 'today' | 'week' | 'month'
 
 /** The waste log: the team writes down what's thrown away and why; admins with pay access see what it cost. */
 export function WastePage() {
-  const { api, canSeePay, isPartner, profiles } = useApp()
+  const { api, canSeePay, isPartner, isAdmin, profiles, me } = useApp()
+  const run = useAction()
+  const [editing, setEditing] = useState<StockMovement | null>(null)
+  const [removing, setRemoving] = useState<StockMovement | null>(null)
   const stock = useAsync('stock', () => api.stockItems(), [])
   const moves = useAsync('stock-movements', () => api.stockMovements(), [])
   const [period, setPeriod] = useState<Period>('week')
   const items = useMemo(() => (stock.data ?? []).filter(i => i.active), [stock.data])
   const showCost = canSeePay
   const from = period === 'today' ? today() : period === 'week' ? weekStart(today()) : `${today().slice(0, 7)}-01`
-  const inPeriod = (moves.data ?? []).filter(m => localDate(m.at) >= from)
+  // Entries taken off the log (or changed, and logged again) aren't waste any more.
+  const inPeriod = (moves.data ?? []).filter(m => localDate(m.at) >= from && !m.undone_at)
+  // Whoever logged it, or an admin, can change it or take it off.
+  const canChange = (m: StockMovement) => !isPartner && (isAdmin || (!!me && m.by === me.id))
   const waste = inPeriod.filter(m => m.reason === 'waste')
   const summary = wasteSummary(inPeriod, items)
   const itemOf = (id: string) => items.find(i => i.id === id)
@@ -93,6 +102,7 @@ export function WastePage() {
                   <TableHead><TableRow>
                     <TableCell>{t('Item')}</TableCell><TableCell align="right">{t('Quantity')}</TableCell><TableCell>{t('Why')}</TableCell>
                     <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{t('Who')}</TableCell>{showCost && <TableCell align="right">{t('Cost')}</TableCell>}
+                    {!isPartner && <TableCell sx={{ width: '1%' }}><Box component="span" sx={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>{t('Change')}</Box></TableCell>}
                   </TableRow></TableHead>
                   <TableBody>
                     {list.map(m => {
@@ -104,6 +114,19 @@ export function WastePage() {
                           <TableCell><Tag>{t(wasteReasonLabel(m.waste_reason))}</Tag></TableCell>
                           <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' }, color: 'text.secondary' }}>{nameOf(m.by)}</TableCell>
                           {showCost && <TableCell align="right">{formatMoney(costOf(m.item_id, m.change))}</TableCell>}
+                          {!isPartner && (
+                            <TableCell align="right" sx={{ whiteSpace: 'nowrap', py: 0.25 }}>
+                              {canChange(m) && <>
+                                <Tooltip title={t('Change')}>
+                                  <IconButton size="small" aria-label={t('Change {name}', { name: item?.name ?? '' })} onClick={() => setEditing(m)}><EditIcon fontSize="small" /></IconButton>
+                                </Tooltip>
+                                <Tooltip title={t('Take off the waste log')}>
+                                  <IconButton size="small" aria-label={t('Take {name} off the waste log', { name: item?.name ?? '' })} onClick={() => setRemoving(m)}
+                                    sx={{ '&:hover': { color: tokens.danger } }}><DeleteIcon fontSize="small" /></IconButton>
+                                </Tooltip>
+                              </>}
+                            </TableCell>
+                          )}
                         </TableRow>
                       )
                     })}
@@ -114,7 +137,71 @@ export function WastePage() {
           )
         })}
       </>}
+      {editing && <EditWaste move={editing} items={items} onClose={() => setEditing(null)} />}
+      {removing && (
+        <Dialog open onClose={() => setRemoving(null)} maxWidth="xs" fullWidth>
+          <DialogTitle>{t('Take this off the waste log?')}</DialogTitle>
+          <DialogContent>
+            <Typography>
+              {t('{qty} {name} go back into stock. The stock history keeps a note of it.', {
+                qty: `${formatNumber(Math.abs(removing.change))} ${itemOf(removing.item_id) ? t(unitLabel(itemOf(removing.item_id)!.unit)) : ''}`.trim(),
+                name: itemOf(removing.item_id)?.name ?? '' })}
+            </Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setRemoving(null)}>{t('Keep')}</Button>
+            <Button color="error" variant="contained" onClick={async () => {
+              if (await run(() => api.undoWaste(removing.id), t('Taken off the waste log'))) setRemoving(null)
+            }}>{t('Take it off')}</Button>
+          </DialogActions>
+        </Dialog>
+      )}
     </>
+  )
+}
+
+/** Change a waste entry: what, how many, why, the note. It stays on the day it was logged. */
+function EditWaste({ move, items, onClose }: { move: StockMovement; items: StockItem[]; onClose: () => void }) {
+  const { api } = useApp()
+  const run = useAction()
+  const [item, setItem] = useState<StockItem | null>(items.find(i => i.id === move.item_id) ?? null)
+  const [n, setN] = useState(String(Math.abs(move.change)))
+  const [why, setWhy] = useState<WasteReason>(move.waste_reason ?? 'other')
+  const [note, setNote] = useState(move.note ?? '')
+  const save = async () => {
+    const quantity = Number(n.replace(',', '.'))
+    const ok = await run(async () => {
+      if (!item) throw new Error(t('Choose what was thrown away'))
+      if (!(quantity > 0)) throw new Error(t('Enter how many'))
+      await api.editWaste(move.id, { item_id: item.id, quantity, waste_reason: why, note: note.trim() || null })
+    }, t('Saved'))
+    if (ok) onClose()
+  }
+  return (
+    <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle>{t('Change waste')}</DialogTitle>
+      <DialogContent>
+        <Stack spacing={2} sx={{ pt: 1 }}>
+          <Autocomplete options={items} value={item} onChange={(_, v) => setItem(v)} getOptionLabel={o => o.name}
+            isOptionEqualToValue={(a, b) => a.id === b.id} renderInput={p => <TextField {...p} label={t('What')} />} />
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+            <TextField fullWidth label={t('How many')} value={n} onChange={e => setN(e.target.value)} inputMode="decimal"
+              slotProps={{ input: { endAdornment: item ? <InputAdornment position="end">{t(unitLabel(item.unit))}</InputAdornment> : undefined } }} />
+            <TextField select fullWidth label={t('Why')} value={why} onChange={e => setWhy(e.target.value as WasteReason)}>
+              {WASTE_REASONS.map(r => <MenuItem key={r.id} value={r.id}>{t(r.label)}</MenuItem>)}
+            </TextField>
+          </Stack>
+          <TextField label={t('Note (optional)')} value={note} onChange={e => setNote(e.target.value)} slotProps={{ htmlInput: { maxLength: 300 } }} />
+          <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+            {t('Logged {when}. The stock is put right by itself.', { when: formatLocal(move.at, 'EEE d MMM, HH:mm') })}
+          </Typography>
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>{t('Cancel')}</Button>
+        <Button variant="contained" onClick={save}>{t('Save')}</Button>
+      </DialogActions>
+    </Dialog>
   )
 }
 

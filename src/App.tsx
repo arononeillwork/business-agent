@@ -62,6 +62,8 @@ const LoyaltyPage = page(() => import('./pages/LoyaltyPage'), 'LoyaltyPage')
 const SalesRepsPage = page(() => import('./pages/SalesRepsPage'), 'SalesRepsPage')
 const RepCardsPage = page(() => import('./pages/RepCardsPage'), 'RepCardsPage')
 const KittyPage = page(() => import('./pages/KittyPage'), 'KittyPage')
+const DashboardsPage = page(() => import('./pages/DashboardsPage'), 'DashboardsPage')
+const AdvisorPage = page(() => import('./pages/AdvisorPage'), 'AdvisorPage')
 const StockPage = page(() => import('./pages/StockPage'), 'StockPage')
 const WholesalePage = page(() => import('./pages/WholesalePage'), 'WholesalePage')
 const SuppliersPage = page(() => import('./pages/SuppliersPage'), 'SuppliersPage')
@@ -207,6 +209,8 @@ function Routed() {
         <Route path="reviews" element={isAdmin ? <ReviewsPage /> : <Navigate to="/" />} />
         <Route path="website" element={isAdmin ? <WebsitePage /> : <Navigate to="/" />} />
         <Route path="competitors" element={isAdmin ? <CompetitorsPage /> : <Navigate to="/" />} />
+        <Route path="dashboards" element={<DashboardsPage />} />
+        <Route path="advisor" element={isAdmin ? <AdvisorPage /> : <Navigate to="/" />} />
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="pages" element={<PagesPage />} />
         {/* Alerts became part of Notifications. */}

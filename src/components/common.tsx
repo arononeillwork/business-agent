@@ -1,16 +1,24 @@
 import { Alert, Avatar, Box, Button, Card, CircularProgress, IconButton, Stack, Tooltip, Typography } from '@mui/material'
 import ChevronLeft from '@mui/icons-material/ChevronLeft'
 import ChevronRight from '@mui/icons-material/ChevronRight'
-import type { ReactNode } from 'react'
+import { createContext, useContext, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { FLAG_LABELS } from '../../shared/types'
 import { addDays, formatLocal, today, weekStart } from '../../shared/time'
 import { fonts, tokens } from '../theme'
 import { t } from '../i18n'
 
+/**
+ * Where a page's title goes on a computer: the top row of the app, level with the round buttons at
+ * the top right (the app shell provides it). Elsewhere (phones, public pages) the title stays in the page.
+ */
+export const TitleSlot = createContext<HTMLElement | null>(null)
+
 export function PageHeader({ eyebrow, title, actions }: { eyebrow?: string; title: string; actions?: ReactNode }) {
-  return (
-    <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}
-      sx={{ mb: 3, alignItems: { md: 'flex-start' }, justifyContent: 'space-between' }}>
+  const slot = useContext(TitleSlot)
+  const header = (
+    <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} data-eyebrow={eyebrow ? '' : undefined}
+      sx={{ mb: slot ? 0 : 3, alignItems: { md: 'flex-start' }, justifyContent: 'space-between' }}>
       {/* The title keeps its room; a page with many buttons wraps them instead of squeezing it. */}
       <Box sx={{ minWidth: { md: 280 }, flex: { md: '1 1 auto' } }}>
         {eyebrow && <Typography variant="overline" sx={{ color: tokens.roseDeep }}>{eyebrow}</Typography>}
@@ -23,6 +31,7 @@ export function PageHeader({ eyebrow, title, actions }: { eyebrow?: string; titl
       )}
     </Stack>
   )
+  return slot ? createPortal(header, slot) : header
 }
 
 /** A small headline figure: label, value and an optional note. */

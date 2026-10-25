@@ -63,11 +63,13 @@ import AnalyticsIcon from '@mui/icons-material/QueryStatsOutlined'
 import ReviewsIcon from '@mui/icons-material/StarOutlineRounded'
 import WebsiteIcon from '@mui/icons-material/LanguageOutlined'
 import CompetitorsIcon from '@mui/icons-material/StorefrontOutlined'
+import DashboardsIcon from '@mui/icons-material/SpaceDashboardOutlined'
+import AdvisorIcon from '@mui/icons-material/TipsAndUpdatesOutlined'
 import ExpandIcon from '@mui/icons-material/ExpandMore'
 import DragIcon from '@mui/icons-material/DragIndicator'
 import PinIcon from '@mui/icons-material/PushPin'
 import PinOutlineIcon from '@mui/icons-material/PushPinOutlined'
-import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent, type Modifier } from '@dnd-kit/core'
+import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent, type Modifier } from '@dnd-kit/core'
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import ChevronIcon from '@mui/icons-material/ChevronLeftRounded'
@@ -80,7 +82,8 @@ import { useConnected } from './connected'
 import type { PartnerArea } from '../../shared/types'
 import { teamRoleLabel } from '../../shared/teamRoles'
 import { BrandLogo } from '../components/Logo'
-import { Loading, PersonAvatar } from '../components/common'
+import { Loading, PersonAvatar, TitleSlot } from '../components/common'
+import { KeyboardSensorNow } from '../components/dnd'
 import { NotificationBell } from '../components/NotificationBell'
 import { CafeSpeakerProvider } from './CafeSpeaker'
 import { BillingBanner } from './plan'
@@ -110,6 +113,11 @@ export const SECTIONS: NavSection[] = [
     { key: 'legal', to: '/legal', label: msg('Legal'), icon: <LegalIcon />, who: 'admin', partner: ['finances'] },
     { key: 'brand', to: '/brand', label: msg('Brand'), icon: <BrandIcon />, partner: 'any' },
     { key: 'messages', to: '/messages', label: msg('Messages'), icon: <MessagesIcon />, who: 'admin' },
+  ] },
+  // What the figures say: each person's own dashboards, and the Business advisor's findings.
+  { key: 'insights', label: msg('Insights'), items: [
+    { key: 'dashboards', to: '/dashboards', label: msg('Dashboards'), icon: <DashboardsIcon /> },
+    { key: 'advisor', to: '/advisor', label: msg('Business advisor'), short: msg('Advisor'), icon: <AdvisorIcon />, who: 'admin' },
   ] },
   // Takings from the till (Square, SumUp or Stripe) and the people who buy; the running costs; then
   // marketing (the social planner and how the website does): a section each.
@@ -464,7 +472,7 @@ function SidebarSection({ section, current, folded, onToggle, mini, onReorder, b
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    useSensor(KeyboardSensorNow, { coordinateGetter: sortableKeyboardCoordinates }),
   )
   const keys = section.items.map(n => n.key)
   const listRef = useRef<HTMLUListElement>(null)
@@ -566,6 +574,8 @@ export function AppShell() {
   const { pathname } = useLocation()
   const [folded, toggleFolded] = useFolded()
   const [mini, toggleMini] = useMini()
+  // The top row's place for the page's title (computer only).
+  const [titleSlot, setTitleSlot] = useState<HTMLElement | null>(null)
   // Chats waiting on a reply, as a small count on Messages (sidebar, icons-only menu and phone alike).
   const unread = useUnreadMessages()
   const badges: NavBadges = unread > 0 ? { messages: unread } : {}
@@ -671,19 +681,26 @@ export function AppShell() {
             </Toolbar>
           </AppBar>
         )}
-        {desktop && (
-          <Box sx={{ position: 'sticky', top: 0, zIndex: 5, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 1,
-            px: 4, height: 60, backdropFilter: 'blur(12px)', background: `color-mix(in srgb, ${tokens.bg} 78%, transparent)` }}>
-            {!isPartner && <NotificationBell />}
-            <SearchButton pages={searchPages} />
-            <ThemeToggle />
-            <LanguageToggle />
-          </Box>
-        )}
         <DemoBanner />
         <BillingBanner />
-        <Box component="main" sx={{ px: { xs: 2, md: 4 }, pt: { xs: 2.5, md: 1.5 }, pb: { xs: 2.5, md: 4 }, maxWidth: 1360, mx: 'auto' }}>
-          <CafeSpeakerProvider><Suspense fallback={<Loading />}><Outlet /></Suspense></CafeSpeakerProvider>
+        <Box component="main" sx={{ px: { xs: 2, md: 4 }, pt: { xs: 2.5, md: 3 }, pb: { xs: 2.5, md: 4 }, maxWidth: 1360, mx: 'auto' }}>
+          {/* Computer: the page's title (and its buttons) on the left of the top row, the round buttons on the right;
+              on the page's own background, so there's no band across the top. */}
+          {desktop && (
+            // The round buttons sit level with the page's own buttons (below its small eyebrow line, when it has one).
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 3, '&:has([data-eyebrow]) > .eb-top-icons': { pt: 3.25 } }}>
+              <Box ref={setTitleSlot} sx={{ flex: 1, minWidth: 0 }} />
+              <Stack className="eb-top-icons" direction="row" spacing={1} sx={{ alignItems: 'center', flexShrink: 0, ml: 'auto', pt: 0.25 }}>
+                {!isPartner && <NotificationBell />}
+                <SearchButton pages={searchPages} />
+                <ThemeToggle />
+                <LanguageToggle />
+              </Stack>
+            </Box>
+          )}
+          <TitleSlot.Provider value={desktop ? titleSlot : null}>
+            <CafeSpeakerProvider><Suspense fallback={<Loading />}><Outlet /></Suspense></CafeSpeakerProvider>
+          </TitleSlot.Provider>
         </Box>
       </Box>
       {!desktop && <PhoneNav sections={sections} current={current} badges={badges} />}

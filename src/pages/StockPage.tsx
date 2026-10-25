@@ -37,7 +37,7 @@ const LOW_TAG = { fg: tokens.badFg, bg: tokens.badBg }
 
 const SORT_BY: Record<string, (i: StockItem) => string | number | null> = {
   name: i => i.name, supplier: i => i.supplier_id, on_hand: i => i.on_hand, reorder: i => i.reorder_at, par: i => i.par_level,
-  value: i => (i.cost_per_unit === null ? null : stockValue([i])), location: i => i.location, category: i => i.category,
+  value: i => (i.cost_per_unit === null ? null : stockValue([i])), location: i => i.location, category: i => i.category, unit: i => t(unitLabel(i.unit)),
 }
 const qty = (n: number, unit: StockItem['unit']) => `${formatNumber(n)} ${t(unitLabel(unit))}`
 
@@ -92,6 +92,7 @@ export function StockPage() {
   })
 
   const cell = { py: 1, borderColor: tokens.line } as const
+  const wide = useMediaQuery(useTheme().breakpoints.up('lg'))
   const hide = (from: 'sm' | 'md' | 'lg' | 'xl') => ({ display: { xs: 'none', [from]: 'table-cell' } })
   return (
     <>
@@ -152,12 +153,14 @@ export function StockPage() {
         </Typography>
         <Card sx={{ overflow: 'hidden' }}>
           <Box sx={{ overflowX: 'auto' }}>
-            <Table size="small" aria-label={t('Stock items')}>
+            <Table size="small" aria-label={t('Stock items')} sx={{ '& th, & td': { px: 1.25 }, '& th:first-of-type, & td:first-of-type': { pl: 2 } }}>
               <TableHead>
-                <TableRow>
+                {/* Headings on one line each. */}
+                <TableRow sx={{ '& th': { whiteSpace: 'nowrap' } }}>
                   <SortCell sort={sort} id="name">{t('Item')}</SortCell>
-                  <SortCell sort={sort} id="supplier" sx={hide('md')}>{t('Supplier')}</SortCell>
+                  <SortCell sort={sort} id="supplier" sx={hide('lg')}>{t('Supplier')}</SortCell>
                   <SortCell sort={sort} id="on_hand" align="right">{t('On hand')}</SortCell>
+                  <SortCell sort={sort} id="unit">{t('Unit')}</SortCell>
                   <SortCell sort={sort} id="reorder" align="right" sx={hide('sm')}>{t('Reorder at')}</SortCell>
                   <SortCell sort={sort} id="par" align="right" sx={hide('lg')}>{t('Par level')}</SortCell>
                   <SortCell sort={sort} id="value" align="right" sx={hide('md')}>{t('Worth')}</SortCell>
@@ -170,7 +173,8 @@ export function StockPage() {
                   const s = supplierOf(i)
                   return (
                     <TableRow key={i.id} hover aria-label={i.name} sx={{ '&:last-child td': { borderBottom: 0 } }}>
-                      <TableCell sx={{ ...cell, maxWidth: 260 }}>
+                      {/* Takes the room the other columns leave (no wider), so the table never needs a scrollbar. */}
+                      <TableCell sx={{ ...cell, width: '100%', maxWidth: 0 }}>
                         <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
                           <Link component="button" underline="hover" onClick={() => setEditing(i)} sx={{ fontWeight: 500, textAlign: 'left', color: 'text.primary' }}>{i.name}</Link>
                           {i.product_url && (
@@ -182,17 +186,20 @@ export function StockPage() {
                           )}
                           {i.retail && <Tag>{t('Shop')}</Tag>}
                         </Stack>
+                        {/* Cut short rather than widening the table past the page. */}
                         <Typography variant="body2" noWrap sx={{ color: 'text.secondary' }}>
-                          {[i.pack_size, i.supplier_sku, s && `${s.name}`].filter(Boolean).join(' · ') || (i.category ? t(i.category) : '')}
+                          {/* The supplier has its own column on a wide screen. */}
+                          {[i.pack_size, i.supplier_sku, !wide && s && `${s.name}`].filter(Boolean).join(' · ') || (i.category ? t(i.category) : '')}
                         </Typography>
                       </TableCell>
-                      <TableCell sx={{ ...cell, ...hide('md') }}>
-                        {s ? (isAdmin ? <Link component={RouterLink} to="/suppliers" underline="hover">{s.name}</Link> : s.name) : '—'}
+                      <TableCell sx={{ ...cell, ...hide('lg'), maxWidth: 170, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {s ? (isAdmin ? <Link component={RouterLink} to="/suppliers" underline="hover" title={s.name}>{s.name}</Link> : s.name) : '—'}
                       </TableCell>
                       <TableCell align="right" sx={{ ...cell, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
                         {isLow(i) && <Box component="span" sx={{ mr: 1 }}><Tag {...LOW_TAG}>{t('Low')}</Tag></Box>}
-                        {qty(i.on_hand, i.unit)}
+                        {formatNumber(i.on_hand)}
                       </TableCell>
+                      <TableCell sx={{ ...cell, whiteSpace: 'nowrap', color: 'text.secondary' }}>{t(unitLabel(i.unit))}</TableCell>
                       <TableCell align="right" sx={{ ...cell, ...hide('sm'), color: 'text.secondary' }}>{i.reorder_at === null ? '—' : formatNumber(i.reorder_at)}</TableCell>
                       <TableCell align="right" sx={{ ...cell, ...hide('lg'), color: 'text.secondary' }}>{i.par_level === null ? '—' : formatNumber(i.par_level)}</TableCell>
                       <TableCell align="right" sx={{ ...cell, ...hide('md'), whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', ...(i.cost_per_unit === null && toEnter) }}>
@@ -200,7 +207,7 @@ export function StockPage() {
                       </TableCell>
                       <TableCell sx={{ ...cell, ...hide('xl'), color: 'text.secondary' }}>{i.location ? t(i.location) : '—'}</TableCell>
                       {canRecord && (
-                        <TableCell sx={{ ...cell, whiteSpace: 'nowrap', py: 0.25 }}>
+                        <TableCell sx={{ ...cell, whiteSpace: 'nowrap', py: 0.25, '& .MuiIconButton-root': { p: 0.6 } }}>
                           <Tooltip title={t('Delivery')}><IconButton size="small" aria-label={t('Delivery of {name}', { name: i.name })} onClick={() => setMoving({ item: i, reason: 'delivery' })}><InIcon fontSize="small" /></IconButton></Tooltip>
                           <Tooltip title={t('Used or wasted')}><IconButton size="small" aria-label={t('Used or wasted: {name}', { name: i.name })} onClick={() => setMoving({ item: i, reason: 'used' })}><OutIcon fontSize="small" /></IconButton></Tooltip>
                           <Tooltip title={t('Count')}><IconButton size="small" aria-label={t('Count {name}', { name: i.name })} onClick={() => setMoving({ item: i, reason: 'count' })}><CountIcon fontSize="small" /></IconButton></Tooltip>
@@ -210,7 +217,7 @@ export function StockPage() {
                   )
                 })}
                 {items.data && rows.length === 0 && (
-                  <TableRow><TableCell colSpan={8} sx={{ py: 4, textAlign: 'center', color: 'text.secondary' }}>{t('Nothing matches that.')}</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={9} sx={{ py: 4, textAlign: 'center', color: 'text.secondary' }}>{t('Nothing matches that.')}</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>
@@ -432,7 +439,10 @@ function MovementTable({ moves, itemOf, nameOf }: { moves: StockMovement[]; item
           <TableRow key={m.id}>
             <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatLocal(m.at, 'd MMM, HH:mm')}</TableCell>
             {itemOf && <TableCell>{itemOf(m.item_id)?.name ?? '—'}</TableCell>}
-            <TableCell>{t(reasonLabel(m.reason))}{m.note && <Typography component="span" variant="body2" sx={{ color: 'text.secondary' }}>{` · ${m.note}`}</Typography>}</TableCell>
+            <TableCell>
+              {t(reasonLabel(m.reason))}{m.note && <Typography component="span" variant="body2" sx={{ color: 'text.secondary' }}>{` · ${m.note}`}</Typography>}
+              {m.undone_at && <Box component="span" sx={{ ml: 1 }}><Tag>{t('Taken off the waste log')}</Tag></Box>}
+            </TableCell>
             <TableCell align="right" sx={{ color: m.change < 0 ? tokens.badFg : m.change > 0 ? tokens.goodFg : 'text.secondary', fontVariantNumeric: 'tabular-nums' }}>
               {m.change > 0 ? `+${formatNumber(m.change)}` : formatNumber(m.change)}
             </TableCell>

@@ -30,7 +30,8 @@ const CHANNEL: Record<string, string> = { whatsapp: 'WhatsApp', slack: 'Slack', 
 function InfoRow({ icon, label, children }: { icon: ReactNode; label: string; children: ReactNode }) {
   return (
     <Stack direction="row" spacing={1.5} sx={{ py: 1.25, borderBottom: 1, borderColor: 'divider', '&:last-of-type': { borderBottom: 0 } }}>
-      <Box title={label} sx={{ color: tokens.inkFaint, pt: 0.25, display: 'flex' }}>{icon}</Box>
+      {/* As tall as one line of the text beside it, so every icon sits level with the first line. */}
+      <Box title={label} sx={{ color: tokens.inkFaint, height: '1.65em', width: 20, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{icon}</Box>
       <Box sx={{ minWidth: 0 }}>
         <Box component="span" sx={visuallyHidden}>{label}: </Box>
         <Box sx={{ fontWeight: 500, wordBreak: 'break-word' }}>{children}</Box>
@@ -136,7 +137,9 @@ export function BusinessPage() {
             <InfoRow icon={<PlaceIcon fontSize="small" />} label={t('Address')}>
               {b.address ? <Link href={`https://maps.google.com/?q=${encodeURIComponent(b.address)}`} target="_blank" rel="noreferrer" underline="hover" color="inherit">{b.address}</Link> : '—'}
             </InfoRow>
-            <InfoRow icon={<PhoneIcon fontSize="small" />} label={t('Phone')}>{b.phone ?? '—'}</InfoRow>
+            <InfoRow icon={<PhoneIcon fontSize="small" />} label={t('Phone')}>
+              {b.phone ? <Link href={`tel:${b.phone.replace(/[^\d+]/g, '')}`} underline="hover" color="inherit">{b.phone}</Link> : '—'}
+            </InfoRow>
             <InfoRow icon={<MailIcon fontSize="small" />} label={t('Email')}>
               {email ? <Link href={`mailto:${email}`} underline="hover" color="inherit">{email}</Link> : '—'}
               {mailbox && email?.toLowerCase() === mailbox.toLowerCase() && <Aside>{t('connected to {app}', { app: mailApp })}</Aside>}
@@ -214,7 +217,8 @@ export function BusinessPage() {
               slotProps={{ select: { native: true } }}>
               {CURRENCIES.map(([code]) => <option key={code} value={code}>{currencyLabel(code)}</option>)}
             </TextField>
-            <TextField select label={t('Team alerts go to')} value={d.team_channel ?? ''} slotProps={{ select: { native: true } }}
+            {/* The label stays above: "Not set" is a choice shown in the box, not an empty one. */}
+            <TextField select label={t('Team alerts go to')} value={d.team_channel ?? ''} slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
               onChange={e => set({ team_channel: (e.target.value || null) as Business['team_channel'] })}>
               <option value="">{t('Not set')}</option>
               <option value="whatsapp">{'WhatsApp'}</option>

@@ -35,6 +35,8 @@ export interface Supplier {
   active: boolean
   /** Starred by an admin: one the café relies on. */
   starred: boolean
+  /** What they supply, for the filters on Suppliers (an admin's choice); empty: worked out from their type, name and items. */
+  supplies?: SupplyGroup[]
 }
 export type SupplierInput = Partial<Omit<Supplier, 'id'>> & { id?: string; name: string }
 
@@ -51,6 +53,52 @@ export const CATEGORIES = [msg('Coffee'), msg('Milk & dairy'), msg('Tea & matcha
   msg('Packaging'), msg('Cleaning'), msg('Shop')]
 export const LOCATIONS = [msg('Bar'), msg('Storeroom'), msg('Fridge'), msg('Shop shelf')]
 export const SUPPLIER_KINDS = [msg('Coffee roaster'), msg('Bakery'), msg('Dairy'), msg('Packaging'), msg('Cash & carry'), msg('Drinks'), msg('Cleaning')]
+
+/** What a supplier supplies, the filters on Suppliers (saved as the ids; suppliers_supplies in the database). */
+export type SupplyGroup = 'drinks' | 'food' | 'coffee' | 'fruit_veg' | 'groceries'
+export const SUPPLY_GROUPS: { id: SupplyGroup; label: string }[] = [
+  { id: 'drinks', label: msg('Drinks') }, { id: 'food', label: msg('Food') }, { id: 'coffee', label: msg('Coffee') },
+  { id: 'fruit_veg', label: msg('Fruit & veg') }, { id: 'groceries', label: msg('Groceries') },
+]
+export const isSupplyGroup = (g: unknown): g is SupplyGroup => SUPPLY_GROUPS.some(x => x.id === g)
+
+// Words that say what something is, in English and Spanish (accents taken off first).
+const SUPPLY_WORDS: Record<SupplyGroup, { supplier: RegExp; item: RegExp; categories: string[] }> = {
+  coffee: { supplier: /coffee|cafe|roast|tostad|espresso/, item: /coffee|cafe\b|espresso|decaf|beans|grano/, categories: ['Coffee'] },
+  drinks: { supplier: /drink|bebida|beverage|juice|zumo|water|agua|soda|\btea\b|\bte\b|matcha|chai|dairy|lacteo|milk|leche|syrup|sirope|kombucha/,
+    item: /milk|leche|juice|zumo|water|agua|soda|cola|tonic|\btea\b|matcha|chai|syrup|sirope|kombucha|lemonade|limonada|drink|bebida/,
+    categories: ['Milk & dairy', 'Tea & matcha', 'Syrups & sauces'] },
+  food: { supplier: /bak|bread|\bpan\b|panader|pasteler|patiss|boulang|food|comida|cake|deli|charcut|queso|cheese/,
+    item: /croissant|pain au|cake|tarta|bread|\bpan\b|brownie|cookie|galleta|\btart|bagel|sandwich|bocadillo|toast|muffin|scone|quiche|cheese|queso|ham|jamon|egg|huevo/,
+    categories: ['Bakery', 'Food'] },
+  fruit_veg: { supplier: /fruit|fruta|\bveg|verdur|produce|berry|berries|huerta|hortaliz|organic|ecologic/,
+    item: /banana|platano|strawberr|fresa|blueberr|arandano|raspberr|frambuesa|berry|berries|acai|mango|avocado|aguacate|lemon|limon|\blime\b|\blima\b|orange|naranja|apple|manzana|\bmint\b|menta|spinach|espinaca|kale|tomato|tomate|cucumber|pepino|ginger|jengibre|pineapple|pina\b|kiwi|passion fruit|maracuya|coconut|\bcoco\b|lettuce|lechuga|basil|albahaca|carrot|zanahoria|beetroot|remolacha|pomegranate|granada|peach|melocoton|melon|watermelon|sandia|grape|\buva|\bpear\b|\bpera\b|\bfig\b|higo|pitaya|dragon fruit|fruit|fruta/,
+    categories: [] },
+  groceries: { supplier: /cash|carry|grocer|supermarket|supermercado|wholesale|mayorista|makro|mercadona|alcampo|carrefour|lidl|costco|\bmetro\b|\bdia\b|ultramarinos|abarrotes/,
+    item: /sugar|azucar|honey|\bmiel|\boats?\b|avena|flour|harina|cocoa|cacao|chocolate|\bsalt\b|\bsal\b|spice|cinnamon|canela|vanilla|vainilla|\brice\b|arroz|pasta|olive oil|aceite|vinegar|vinagre|seeds?\b|semillas?|chia|granola|\bjam\b|mermelada|peanut butter|crema de cacahuete|almonds?\b|almendras?\b|walnut|nuez|nueces|hazelnut|avellana|cashew|anacardo|dates|datiles|coconut flakes/,
+    categories: [] },
+}
+const unaccented = (s: string | null | undefined) => (s ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
+
+/**
+ * What a supplier supplies: the admin's choice when there is one, otherwise worked out from its type
+ * and name and from the items bought from it (a cash & carry is groceries, the açaí comes from fruit & veg).
+ */
+export function suppliesOf(s: Pick<Supplier, 'name' | 'kind' | 'supplies'>, items: Pick<StockItem, 'name' | 'category'>[] = []): SupplyGroup[] {
+  if (s.supplies?.length) return SUPPLY_GROUPS.map(g => g.id).filter(g => s.supplies!.includes(g))
+  const own = `${unaccented(s.kind)} ${unaccented(s.name)}`
+  return SUPPLY_GROUPS.map(g => g.id).filter(g => {
+    const w = SUPPLY_WORDS[g]
+    if (w.supplier.test(own)) return true
+    return items.some(i => {
+      if (i.category && w.categories.includes(i.category)) return true
+      const name = unaccented(i.name)
+      // A pantry word in a drink's name (almond milk) doesn't make it groceries.
+      if (g === 'groceries' && SUPPLY_WORDS.drinks.item.test(name)) return false
+      return w.item.test(name)
+    })
+  })
+}
 
 export interface StockItem {
   id: string
@@ -110,9 +158,13 @@ export interface StockMovement {
   by: string | null
   /** Waste only: why. */
   waste_reason: WasteReason | null
+  /** Waste taken off the log (or changed, and logged again): when. A correction put its stock back. */
+  undone_at?: string | null
 }
 /** A delivery, waste… (change: how many in or out) or a count (counted: the figure). */
 export type MovementInput = { item_id: string; reason: MovementReason; change?: number; counted?: number; note?: string | null; waste_reason?: WasteReason }
+/** A waste log entry as changed: what, how many (thrown away, so more than 0), why and the note. */
+export interface WasteEdit { item_id: string; quantity: number; waste_reason: WasteReason; note: string | null }
 
 const round2 = (n: number) => Math.round(n * 100) / 100
 

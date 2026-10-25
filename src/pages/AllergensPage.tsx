@@ -3,6 +3,7 @@ import {
   FormLabel, IconButton, InputAdornment, Radio, RadioGroup, Stack, Switch, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
 } from '@mui/material'
 import EditIcon from '@mui/icons-material/EditOutlined'
+import AutoIcon from '@mui/icons-material/AutoFixHighOutlined'
 import SearchIcon from '@mui/icons-material/Search'
 import MoreIcon from '@mui/icons-material/ExpandMore'
 import LessIcon from '@mui/icons-material/ExpandLess'
@@ -19,6 +20,7 @@ import {
   ALLERGENS, DIETS, MENU_FILTERS, OTHER_ALLERGENS, allergenLabel, asked, bestServing, dietLabel, dietsFor, dishAllergens, tagsOf, variantChanges,
   type Allergen, type Diet, type DishAllergens, type ItemAllergens, type MenuFilter, type Suitability,
 } from '../../shared/allergens'
+import { isFoodItem, suggestAllergens, type AllergenSuggestion } from '../../shared/allergenGuide'
 import { tokens } from '../theme'
 import { msg, t, tn } from '../i18n'
 
@@ -49,7 +51,11 @@ export function AllergensPage() {
   const [category, setCategory] = useState<string | null>(null)
   const [q, setQ] = useState('')
   const [editing, setEditing] = useState<ItemAllergens | null>(null)
+  const [suggesting, setSuggesting] = useState(false)
+  const [toEnterOnly, setToEnterOnly] = useState(false)
   const canEdit = isAdmin && !isPartner
+  // Admins: every food and drink in stock, not just what's in the menu yet, so it's all tagged by the time it is.
+  const stock = useAsync('stock', () => api.stockItems(), [])
 
   const dishes = menu.data?.dishes ?? []
   const items = menu.data?.items ?? []
@@ -66,6 +72,15 @@ export function AllergensPage() {
   // Each category in the menu's order; while filtering, what suits them for sure first.
   const groups = categories.map(c => ({ category: c, rows: shown.filter(r => (r.dish.category ?? '') === c)
     .sort((a, b) => ORDER.indexOf(a.fit?.suits ?? 'safe') - ORDER.indexOf(b.fit?.suits ?? 'safe')) })).filter(g => g.rows.length)
+  const inMenu = new Set(items.map(i => i.id))
+  const food = (stock.data ?? []).filter(i => i.active && !inMenu.has(i.id) && isFoodItem(i))
+  const ingredients: ItemAllergens[] = [...items, ...food.map(i => ({ id: i.id, name: i.name, allergens: i.allergens ?? null, may_contain: i.may_contain ?? [], diet: i.diet ?? null }))]
+    .sort((a, b) => a.name.localeCompare(b.name))
+  const missing = (i: ItemAllergens) => i.allergens === null || i.diet === null
+  const categoryOf = new Map((stock.data ?? []).map(i => [i.id, i.category]))
+  // What each item still to enter usually has, from its name (the menu's and the rest).
+  const suggestions = ingredients.filter(missing)
+    .map(i => ({ item: i, usual: suggestAllergens({ name: i.name, category: categoryOf.get(i.id) ?? null }) }))
   const notEntered = items.filter(i => i.allergens === null)
   const noDiet = items.filter(i => i.allergens !== null && i.diet === null)
   const flip = <T,>(list: T[], x: T) => (list.includes(x) ? list.filter(y => y !== x) : [...list, x])
@@ -197,12 +212,18 @@ export function AllergensPage() {
       {canEdit && (
         <Card component="section" aria-label={t('Ingredients')} sx={{ mb: 3 }}>
           <CardContent>
-            <SectionTitle>{t('Ingredients')}</SectionTitle>
+            <SectionTitle action={suggestions.some(x => x.usual) && (
+              <Button size="small" variant="outlined" startIcon={<AutoIcon />} onClick={() => setSuggesting(true)}>{t('Fill in the usual allergens')}</Button>
+            )}>{t('Ingredients')}</SectionTitle>
             <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>
-              {t('The stock items in the menu, from the label or the supplier’s sheet. What goes in each menu item is on Menu costing.')}{' '}
+              {t('Every food and drink in stock, from the label or the supplier’s sheet. What goes in each menu item is on Menu costing.')}{' '}
               <RouterLink to="/recipes">{t('Open Menu costing')}</RouterLink>
             </Typography>
-            {items.length === 0 ? <Empty>{t('No ingredients in the menu yet.')}</Empty>
+            {ingredients.some(missing) && (
+              <Chip size="small" sx={{ mb: 1.5 }} label={t('To enter ({n})', { n: ingredients.filter(missing).length })} onClick={() => setToEnterOnly(x => !x)}
+                aria-pressed={toEnterOnly} color={toEnterOnly ? 'primary' : 'default'} variant={toEnterOnly ? 'filled' : 'outlined'} />
+            )}
+            {ingredients.length === 0 ? <Empty>{t('No ingredients in the menu yet.')}</Empty>
               : <Box sx={{ overflowX: 'auto' }}>
                   <Table size="small">
                     <TableHead><TableRow>
@@ -210,9 +231,12 @@ export function AllergensPage() {
                       <TableCell>{t('Vegan or vegetarian')}</TableCell><TableCell />
                     </TableRow></TableHead>
                     <TableBody>
-                      {items.map(i => (
+                      {ingredients.filter(i => !toEnterOnly || missing(i)).map(i => (
                         <TableRow key={i.id} hover>
-                          <TableCell sx={{ minWidth: 180 }}>{i.name}</TableCell>
+                          <TableCell sx={{ minWidth: 180 }}>
+                            {i.name}
+                            {!inMenu.has(i.id) && <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>{t('Not in a menu item yet')}</Typography>}
+                          </TableCell>
                           <TableCell sx={i.allergens === null ? toEnter : undefined}>{i.allergens === null ? t('To enter') : i.allergens.length ? names(i.allergens) : t('None of the 14')}</TableCell>
                           <TableCell>{names(i.may_contain)}</TableCell>
                           <TableCell sx={i.diet === null ? toEnter : undefined}>{i.diet === null ? t('To enter') : t(dietLabel(i.diet))}</TableCell>
@@ -229,7 +253,77 @@ export function AllergensPage() {
       )}
 
       {editing && <ItemDialog item={editing} onClose={() => setEditing(null)} />}
+      {suggesting && <SuggestDialog suggestions={suggestions} onClose={() => setSuggesting(false)} />}
     </>
+  )
+}
+
+/**
+ * The usual allergens of every item still to enter, worked out from its name (a croissant is wheat
+ * flour, butter and eggs). Ticked ones are saved as they are; each can be changed after, as ever.
+ */
+function SuggestDialog({ suggestions, onClose }: { suggestions: { item: ItemAllergens; usual: AllergenSuggestion | null }[]; onClose: () => void }) {
+  const { api } = useApp()
+  const run = useAction()
+  const known = suggestions.filter((x): x is { item: ItemAllergens; usual: AllergenSuggestion } => !!x.usual)
+  const unknown = suggestions.filter(x => !x.usual)
+  const [picked, setPicked] = useState<string[]>(known.map(x => x.item.id))
+  const apply = async () => {
+    const chosen = known.filter(x => picked.includes(x.item.id))
+    const ok = await run(async () => {
+      // Each item's own entry where it has one (allergens entered, diet not yet): only what's missing is filled in.
+      for (const { item, usual } of chosen) {
+        const has = item.allergens ?? usual.contains
+        const diet = item.diet ?? (dietsFor(has).includes(usual.diet) ? usual.diet : dietsFor(has)[0])
+        await api.saveItemAllergens(item.id, has, item.allergens === null ? usual.may : item.may_contain, diet)
+      }
+    }, tn(chosen.length, '{n} item filled in', '{n} items filled in'))
+    if (ok) onClose()
+  }
+  return (
+    <Dialog open onClose={onClose} fullWidth maxWidth="md" aria-labelledby="suggest-title">
+      <DialogTitle id="suggest-title">{t('Fill in the usual allergens')}</DialogTitle>
+      <DialogContent>
+        <Alert severity="info" sx={{ mb: 2 }}>
+          {t('From what each one is usually made of. Recipes differ between makers: check the label or the supplier’s sheet, and change any of them after.')}
+        </Alert>
+        <Table size="small" aria-label={t('Usual allergens')}>
+          <TableHead><TableRow>
+            <TableCell padding="checkbox">
+              <Checkbox checked={picked.length === known.length} indeterminate={picked.length > 0 && picked.length < known.length}
+                onChange={e => setPicked(e.target.checked ? known.map(x => x.item.id) : [])} slotProps={{ input: { 'aria-label': t('All') } }} />
+            </TableCell>
+            <TableCell>{t('Item')}</TableCell><TableCell>{t('Contains')}</TableCell><TableCell>{t('May contain')}</TableCell><TableCell>{t('Vegan or vegetarian')}</TableCell>
+          </TableRow></TableHead>
+          <TableBody>
+            {known.map(({ item, usual }) => (
+              <TableRow key={item.id} hover>
+                <TableCell padding="checkbox">
+                  <Checkbox checked={picked.includes(item.id)} onChange={e => setPicked(x => (e.target.checked ? [...x, item.id] : x.filter(y => y !== item.id)))}
+                    slotProps={{ input: { 'aria-label': item.name } }} />
+                </TableCell>
+                <TableCell>
+                  {item.name}
+                  <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>{t('Usually: {what}', { what: t(usual.usually) })}</Typography>
+                </TableCell>
+                <TableCell>{item.allergens !== null ? names(item.allergens) || t('None of the 14') : usual.contains.length ? names(usual.contains) : t('None of the 14')}</TableCell>
+                <TableCell sx={{ color: tokens.warnFg }}>{names(item.allergens === null ? usual.may : item.may_contain)}</TableCell>
+                <TableCell>{t(dietLabel(item.diet ?? usual.diet))}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+        {unknown.length > 0 && (
+          <Typography variant="body2" sx={{ color: 'text.secondary', mt: 2 }}>
+            {t('Nothing to go on for {list}: enter them from the label.', { list: unknown.map(x => x.item.name).join(', ') })}
+          </Typography>
+        )}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>{t('Cancel')}</Button>
+        <Button variant="contained" disabled={!picked.length} onClick={() => void apply()}>{tn(picked.length, 'Fill in {n} item', 'Fill in {n} items')}</Button>
+      </DialogActions>
+    </Dialog>
   )
 }
 

@@ -22,7 +22,7 @@ import type { Contractor, ContractorInput, OutsourcedJob, OutsourcedJobInput } f
 import type { PnlLine, PnlLineInput, PnlSettings } from '../../shared/pnl'
 import type { GrantApplication, GrantApplicationInput, GrantProfile } from '../../shared/grants'
 import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
-import type { MovementInput, StockItem, StockItemInput, StockMovement, Supplier, SupplierInput, StockPrice } from '../../shared/stock'
+import type { MovementInput, StockItem, StockItemInput, StockMovement, Supplier, SupplierInput, StockPrice, WasteEdit } from '../../shared/stock'
 import type { Recipe, RecipeInput } from '../../shared/recipes'
 import type { AdPlatform, AdSettings, AdsReport, CampaignPatch } from '../../shared/ads'
 import type { ReviewsState } from '../../shared/reviews'
@@ -34,6 +34,7 @@ import type { Campaign, CampaignInput } from '../../shared/campaigns'
 import type { Applicant, ApplicantInput, JobOpening, OpeningInput } from '../../shared/hiring'
 import type { CheckInput, PointInput, SafetyCheck, SafetyPoint } from '../../shared/foodSafety'
 import type { Allergen, Diet, MenuAllergens } from '../../shared/allergens'
+import type { BrandDocument } from '../../shared/brandDocs'
 import type { TipPool, TipPoolInput, TipShare } from '../../shared/tips'
 import type { CompetitorData, CompetitorInput, CompetitorNoteInput, CompetitorPrice, CompetitorSettings, NearbyPlace, PriceItem } from '../../shared/localCompetitors'
 
@@ -272,7 +273,7 @@ export interface Api {
   /** What Google's file picker needs: a short-lived Drive token, the key and the project number. Admins. */
   legalPicker(): Promise<{ token: string; key: string; app_id: string }>
   /** A folder of a storage that's browsed in the app (OneDrive), null for the top. Admins. */
-  browseLegalStorage(storage: LegalStorage, folder: string | null): Promise<StorageListing>
+  browseLegalStorage(storage: LegalStorage, folder: string | null, page?: 'legal' | 'brand'): Promise<StorageListing>
   /** Add files picked in a storage. Ones already added, folders and ones that can't be opened come back skipped, with why. */
   addLegalDocuments(storage: LegalStorage, ids: string[]): Promise<{ added: LegalDocument[]; skipped: { id: string; name: string | null; why: string }[] }>
   updateLegalDocument(id: string, patch: LegalDocumentPatch): Promise<void>
@@ -280,6 +281,18 @@ export interface Api {
   removeLegalDocument(id: string): Promise<void>
   /** The file, fetched from its storage now, to show in the page (a PDF or a picture). */
   legalFile(id: string): Promise<Blob>
+
+  // Brand page documents (the guidelines PDF, logo packs…): uploaded here and kept in the database, or
+  // picked in the connected Google Drive or OneDrive (the Legal page's pickers) and shown from there.
+  // Everyone reads; admins add, rename and remove.
+  brandDocuments(): Promise<BrandDocument[]>
+  uploadBrandDocument(file: File): Promise<BrandDocument>
+  addBrandDocuments(storage: LegalStorage, ids: string[]): Promise<{ added: BrandDocument[]; skipped: { id: string; name: string | null; why: string }[] }>
+  renameBrandDocument(id: string, title: string): Promise<void>
+  /** Take it off the Brand page (a picked file stays where it is; an upload goes). */
+  removeBrandDocument(id: string): Promise<void>
+  /** The file itself: an upload from the database, a picked one from its storage now. */
+  brandFile(id: string): Promise<Blob>
 
   // Invoices (admins with pay access; finance partners read): received and sent, each with its supplier and file.
   invoices(): Promise<Invoice[]>
@@ -416,6 +429,10 @@ export interface Api {
   stockMovements(itemId?: string): Promise<StockMovement[]>
   /** Record deliveries, counts, waste… (a stocktake sends many at once). */
   recordStock(moves: MovementInput[]): Promise<void>
+  /** Waste log: change an entry (whoever logged it, or an admin); it stays on its day. */
+  editWaste(id: string, w: WasteEdit): Promise<void>
+  /** Take an entry off the waste log; its stock comes back. */
+  undoWaste(id: string): Promise<void>
   /** Menu items and what goes in them (admins; finance partners read). */
   recipes(): Promise<Recipe[]>
   /** Save a recipe with its variants and lines (they replace the ones there were); returns its id. */

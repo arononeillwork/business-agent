@@ -31,6 +31,7 @@ import { cleanTags, sortEntries, type KeptDocument, type StorageEntry } from '..
 import { afterPayment, paidSoFar, type MoneyItem, type MoneyPayment } from '../../shared/creditDebit'
 import { inStep } from '../../shared/todo'
 import { LEGAL_STORAGES, MAX_PICK, SKIPPED, guessKind, previewOf, storageName, titleOf, type LegalDocument, type LegalStorage, type StorageItem } from '../../shared/legalDocs'
+import { ALREADY_ON_BRAND, brandTitleOf, uploadProblem, type BrandDocument } from '../../shared/brandDocs'
 import type { Benefit, LeaveAllowance } from '../../shared/benefits'
 import { COMMISSION_PAID, USED_AT_TILL, cleanInstagram, cleanRepCode, codeFor, rewardAmount, type RepReward, type RewardRule, type SalesRep } from '../../shared/reps'
 import { addMonths, kittyBalance, type KittyEntry, type KittyGoal } from '../../shared/kitty'
@@ -42,7 +43,7 @@ import { DEFAULT_TAX_SETTINGS, cleanFolderName, cleanFolderPath, taxFileProblem,
 import { DEFAULT_VAT_RATE, type PnlLine } from '../../shared/pnl'
 import { cleanAnswers, isDone, type GrantApplication, type GrantProfile } from '../../shared/grants'
 import { adjustProblem, giftCardAmountProblem, type GiftCard, type GiftCardActivity, type LoyaltyEvent, type LoyaltyMember, type LoyaltyProgram } from '../../shared/loyalty'
-import type { MovementInput, StockItem, StockMovement, StockPrice, Supplier } from '../../shared/stock'
+import { isSupplyGroup, type MovementInput, type StockItem, type StockMovement, type StockPrice, type Supplier } from '../../shared/stock'
 import type { Recipe } from '../../shared/recipes'
 import { AD_PLATFORMS, NO_METRICS, PLATFORM_NAMES, addMetrics, sumDays, type AdCampaign, type AdDay, type AdMetrics, type AdPlatform, type AdSettings, type AdsReport } from '../../shared/ads'
 import { CONNECT_MAPS, MAX_REPLY, type Review } from '../../shared/reviews'
@@ -378,6 +379,9 @@ export function createDemoApi(): Api {
       { id: 'gd-privacy', name: 'Política de privacidad', parent: 'gd-legal', type: GDOC, modified: '2026-09-30T16:40:00Z' },
       { id: 'gd-rc', name: 'Póliza responsabilidad civil Mapfre.pdf', parent: 'gd-docs', type: PDF, size: 402_118, modified: '2025-10-15T08:00:00Z' },
       { id: 'gd-manual', name: 'EasyBeans Manual EN', parent: 'gd-docs', type: GDOC, modified: '2026-08-18T23:03:00Z' },
+      { id: 'gd-brand', name: 'Brand', parent: null, folder: true },
+      { id: 'gd-brand-pdf', name: 'EB_Brand_Guidelines.pdf', parent: 'gd-brand', type: PDF, size: 884_660, modified: '2026-04-09T18:58:00Z' },
+      { id: 'gd-logo-pack', name: 'Easy Beans logo pack.pdf', parent: 'gd-brand', type: PDF, size: 1_204_331, modified: '2026-04-02T10:00:00Z' },
     ] },
     onedrive: { top: 'OneDrive', files: [
       { id: 'od-contracts', name: 'Contratos', parent: null, folder: true },
@@ -399,6 +403,12 @@ export function createDemoApi(): Api {
     { ...legalDoc('google_drive', demoStorage.google_drive.files.find(f => f.id === 'gd-lease')!, '2026-10-12T10:00:00Z'), notes: '5 years from March 2026, renewable' },
     legalDoc('google_drive', demoStorage.google_drive.files.find(f => f.id === 'gd-deeds')!, '2026-10-12T10:00:00Z'),
   ]
+  // Brand page: picked ones as on the Legal page; uploads keep their file. The guidelines were uploaded
+  // (a stand-in made below: the real PDF is the café's own).
+  const brandDoc = (s: LegalStorage, f: DemoFile, at: string): BrandDocument => ({ id: uid(), title: brandTitleOf(f.name), storage: s, file_id: f.id,
+    file_name: f.name, mime_type: f.type ?? null, size: f.size ?? null, modified_at: f.modified ?? null,
+    link: s === 'google_drive' ? `https://drive.google.com/file/d/${f.id}/view` : `https://onedrive.live.com/?id=${f.id}`, location: demoLocation(s, f), added_by: null, added_at: at })
+  const brandDocs: (BrandDocument & { blob?: Blob })[] = []
   const legalStorageOn = (s: LegalStorage) => {
     if (!integ.integrations.some(i => i.provider === s && i.status === 'connected')) {
       throw new Error(`${storageName(s)} isn’t connected. Connect it on the Connections page to use the documents kept there.`)
@@ -418,6 +428,13 @@ export function createDemoApi(): Api {
     pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${at.map(n => `${String(n).padStart(10, '0')} 00000 n \n`).join('')}`
     pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`
     return new Blob([pdf], { type: 'application/pdf' })
+  }
+  {
+    const blob = demoPdf('Easy Beans Coffee: Brand guidelines', ['Edition 01, April 2026', '', 'Good people, good energy, good coffee.',
+      'Rose Pink leads; Grey Limewash holds it together; one accent at a time.', 'Poppins for display, Figtree for text.',
+      'Never recolour, stretch or redraw the logo.', '', 'Demo copy: the real guidelines are uploaded by the café.'])
+    brandDocs.push({ id: uid(), title: 'EB Brand Guidelines', storage: 'upload', file_id: null, file_name: 'EB_Brand_Guidelines.pdf', mime_type: 'application/pdf',
+      size: blob.size, modified_at: '2026-04-09T18:58:00Z', link: null, location: null, added_by: null, added_at: '2026-10-20T09:00:00Z', blob })
   }
 
   // Invoices: a few from the café's suppliers, and three waiting in the mailbox once reading it is allowed.
@@ -674,7 +691,7 @@ export function createDemoApi(): Api {
   // Stock: the café's wholesale suppliers and what it buys from each (By Eric is the bakery from the business details).
   const supplier = (s: Partial<Supplier> & { id: string; name: string }): Supplier => ({ kind: null, contact_name: null, email: null, phone: null,
     whatsapp: false, website: null, order_url: null, address: null, account_number: null, order_days: [], cutoff: null, lead_days: 1,
-    minimum_order: null, payment_terms: null, notes: null, active: true, starred: false, ...s })
+    minimum_order: null, payment_terms: null, notes: null, active: true, starred: false, supplies: [], ...s })
   const suppliers: Supplier[] = [
     supplier({ id: 'sup-eric', name: 'By Eric', kind: 'Bakery', contact_name: 'Eric', phone: '+34 683 16 94 37', whatsapp: true, email: 'info@by-eric.es',
       order_days: ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'], cutoff: '17:00', lead_days: 1, notes: 'Croissants daily, pastries every 2 days' }),
@@ -2301,15 +2318,16 @@ export function createDemoApi(): Api {
       })
     },
     async legalPicker() { throw new Error('The demo has no Google picker: its Drive is looked through here instead') },
-    async browseLegalStorage(storage, folder) {
+    async browseLegalStorage(storage, folder, page = 'legal') {
       requireAdmin()
       legalStorageOn(storage)
       const tree = demoStorage[storage]
       const here = folder ? tree.files.find(f => f.id === folder && f.folder) : undefined
       if (folder && !here) throw new Error(`That folder isn’t in ${storageName(storage)} any more`)
+      const kept: { storage: string; file_id: string | null; id: string }[] = page === 'brand' ? brandDocs : legalDocs
       const items: StorageItem[] = tree.files.filter(f => f.parent === (here?.id ?? null)).map(f => ({ id: f.id, name: f.name, folder: !!f.folder,
         size: f.folder ? null : f.size ?? null, modified: f.modified ?? null, type: f.type ?? null,
-        added_id: legalDocs.find(d => d.storage === storage && d.file_id === f.id)?.id ?? null }))
+        added_id: kept.find(d => d.storage === storage && d.file_id === f.id)?.id ?? null }))
         .sort((a, b) => Number(b.folder) - Number(a.folder) || a.name.localeCompare(b.name))
       return { storage, folder: { id: here?.id ?? null, name: here?.name ?? tree.top }, items }
     },
@@ -2352,6 +2370,57 @@ export function createDemoApi(): Api {
       legalStorageOn(d.storage)
       return demoPdf(d.title, [`Demo copy: the real file stays in ${storageName(d.storage)}${d.location ? ` (${d.location})` : ''}.`,
         'Business Agent only keeps where it is, and shows it from there.'])
+    },
+    async brandDocuments() {
+      if (!isStaff() && !isPartner()) return []
+      return brandDocs.map(({ blob: _b, ...d }) => clone(d)).sort((a, b) => a.title.localeCompare(b.title))
+    },
+    async uploadBrandDocument(file) {
+      requireAdmin()
+      const problem = uploadProblem(file)
+      if (problem) throw new Error(problem)
+      const d = { id: uid(), title: brandTitleOf(file.name), storage: 'upload' as const, file_id: null, file_name: file.name, mime_type: file.type || null,
+        size: file.size, modified_at: new Date(file.lastModified || Date.now()).toISOString(), link: null, location: null, added_by: me()?.id ?? null, added_at: nowIso() }
+      brandDocs.push({ ...d, blob: file })
+      return clone(d)
+    },
+    async addBrandDocuments(storage, ids) {
+      requireAdmin()
+      if (!ids.length) throw new Error('Choose at least one file')
+      legalStorageOn(storage)
+      const added: BrandDocument[] = []
+      const skipped: { id: string; name: string | null; why: string }[] = []
+      for (const id of new Set(ids)) {
+        const f = demoStorage[storage].files.find(x => x.id === id)
+        if (brandDocs.some(d => d.storage === storage && d.file_id === id)) skipped.push({ id, name: f?.name ?? null, why: ALREADY_ON_BRAND })
+        else if (!f) skipped.push({ id, name: null, why: SKIPPED.gone })
+        else if (f.folder) skipped.push({ id, name: f.name, why: SKIPPED.folder })
+        else {
+          const d = { ...brandDoc(storage, f, nowIso()), added_by: me()?.id ?? null }
+          brandDocs.push(d)
+          added.push(clone(d))
+        }
+      }
+      return { added, skipped }
+    },
+    async renameBrandDocument(id, title) {
+      requireAdmin()
+      const d = brandDocs.find(x => x.id === id)
+      if (!d) throw new Error('That document isn’t on the Brand page')
+      if (!title.trim()) throw new Error('Give it a name')
+      d.title = title.trim()
+    },
+    async removeBrandDocument(id) {
+      requireAdmin()
+      const i = brandDocs.findIndex(x => x.id === id)
+      if (i >= 0) brandDocs.splice(i, 1)
+    },
+    async brandFile(id) {
+      const d = brandDocs.find(x => x.id === id)
+      if (!d || (!isStaff() && !isPartner())) throw new Error('That document isn’t on the Brand page')
+      if (d.blob) return d.blob
+      legalStorageOn(d.storage as LegalStorage)
+      return demoPdf(d.title, [`Demo copy: the real file stays in ${storageName(d.storage as LegalStorage)}.`, 'Business Agent shows it from there.'])
     },
     async invoices() {
       if (!readTax()) return []
@@ -2583,6 +2652,7 @@ export function createDemoApi(): Api {
     async saveSupplier({ id, ...patch }) {
       requireAdmin()
       if (!patch.name?.trim()) throw new Error('Give the supplier a name')
+      if (patch.supplies?.some(g => !isSupplyGroup(g))) throw new Error('Pick what they supply from the list')
       const row = { ...patch, name: patch.name.trim(), whatsapp: !!patch.phone && !!(patch.whatsapp ?? false) }
       const existing = id ? suppliers.find(x => x.id === id) : undefined
       if (existing) Object.assign(existing, row)
@@ -2744,6 +2814,24 @@ export function createDemoApi(): Api {
         movements.push({ id: uid(), item_id: item.id, at: nowIso(), reason: m.reason, change, counted: m.reason === 'count' ? m.counted! : null,
           on_hand_after: item.on_hand, note: m.note?.trim() || null, by: me()?.id ?? null, waste_reason: m.reason === 'waste' ? m.waste_reason ?? 'other' : null })
       }
+    },
+    async undoWaste(id) {
+      if (!isStaff()) throw new Error('Only the team changes the waste log')
+      const m = movements.find(x => x.id === id && x.reason === 'waste')
+      if (!m) throw new Error('That isn’t on the waste log')
+      if (m.by !== me()?.id && !isAdmin()) throw new Error('Only an admin or whoever logged it can change it')
+      if (m.undone_at) throw new Error('That’s already off the waste log')
+      m.undone_at = nowIso()
+      await api.recordStock([{ item_id: m.item_id, reason: 'correction', change: -m.change, note: 'Taken off the waste log' }])
+    },
+    async editWaste(id, w) {
+      if (!(w.quantity > 0)) throw new Error('Enter how many')
+      if (!stock.some(i => i.id === w.item_id)) throw new Error('No such stock item')
+      const m = movements.find(x => x.id === id)
+      await api.undoWaste(id)
+      await api.recordStock([{ item_id: w.item_id, reason: 'waste', change: -w.quantity, waste_reason: w.waste_reason, note: w.note }])
+      // Still on the day it was logged, by whoever logged it.
+      Object.assign(movements[movements.length - 1], { at: m!.at, by: m!.by })
     },
     async customers() {
       if (!isAdmin()) return []

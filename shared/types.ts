@@ -1,4 +1,5 @@
 import { msg } from './i18n'
+import type { SavedDashboards } from './dashboards'
 
 export type Role = 'admin' | 'employee' | 'kiosk' | 'partner'
 
@@ -173,6 +174,8 @@ export interface Preferences {
   language?: 'en' | 'es'
   /** Their own time zone (IANA, e.g. "Europe/London"): social posts are planned and shown in it. Unset = the café's. */
   timeZone?: string
+  /** Their own dashboards (Insights › Dashboards): the widgets on each, and the one open. */
+  dashboards?: SavedDashboards
 }
 
 export interface Position {

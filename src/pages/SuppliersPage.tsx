@@ -20,7 +20,7 @@ import { PhoneField } from '../components/PhoneField'
 import { ExportButton } from '../components/tables'
 import type { ExportTable } from '../lib/export'
 import { EMAIL } from '../../shared/customers'
-import { SUPPLIER_KINDS, nextOrderDay, sortDays, type Supplier, type SupplierInput } from '../../shared/stock'
+import { SUPPLIER_KINDS, SUPPLY_GROUPS, nextOrderDay, sortDays, suppliesOf, type Supplier, type SupplierInput, type SupplyGroup } from '../../shared/stock'
 import { DAY_KEYS, type DayKey } from '../../shared/types'
 import { formatLocal, formatMoney, today } from '../../shared/time'
 import { tokens } from '../theme'
@@ -46,11 +46,14 @@ export function SuppliersPage() {
   const run = useAction()
   const [open, setOpen] = useState<Supplier | 'new' | null>(null)
   const [filter, setFilter] = useState<Filter>('active')
+  const [group, setGroup] = useState<SupplyGroup | null>(null)
 
   const all = data.data ?? []
-  const shown = all.filter(FILTERS[filter])
-  const star = (s: Supplier) => run(() => api.saveSupplier({ ...s, starred: !s.starred }))
   const itemsOf = (s: Supplier) => (items.data ?? []).filter(i => i.supplier_id === s.id && i.active)
+  const groupsOf = (s: Supplier) => suppliesOf(s, (items.data ?? []).filter(i => i.supplier_id === s.id))
+  const listed = all.filter(FILTERS[filter])
+  const shown = group ? listed.filter(s => groupsOf(s).includes(group)) : listed
+  const star = (s: Supplier) => run(() => api.saveSupplier({ ...s, starred: !s.starred }))
   const lastDelivery = (s: Supplier) => {
     const ids = new Set(itemsOf(s).map(i => i.id))
     return (moves.data ?? []).find(m => m.reason === 'delivery' && ids.has(m.item_id))?.at ?? null
@@ -80,9 +83,19 @@ export function SuppliersPage() {
             variant={filter === id ? 'filled' : 'outlined'} color={filter === id ? 'primary' : 'default'} />
         ))}
       </Stack>
+      {/* What they supply: one press shows only those (again: everyone). */}
+      <Stack direction="row" useFlexGap spacing={1} sx={{ mb: 2, flexWrap: 'wrap' }} role="group" aria-label={t('What they supply')}>
+        <Chip size="small" clickable label={t('All types')} aria-pressed={!group} onClick={() => setGroup(null)}
+          variant={!group ? 'filled' : 'outlined'} color={!group ? 'secondary' : 'default'} />
+        {SUPPLY_GROUPS.map(g => (
+          <Chip key={g.id} size="small" clickable label={`${t(g.label)} ${listed.filter(x => groupsOf(x).includes(g.id)).length}`} aria-pressed={group === g.id}
+            onClick={() => setGroup(group === g.id ? null : g.id)} variant={group === g.id ? 'filled' : 'outlined'} color={group === g.id ? 'secondary' : 'default'} />
+        ))}
+      </Stack>
 
       {data.data && !shown.length ? (
-        <Empty>{filter === 'starred' ? t('Nothing starred. Star the suppliers you rely on most to find them here.')
+        <Empty>{group && listed.length ? t('None of these supply {what}. Tick what a supplier supplies when you edit it.', { what: t(SUPPLY_GROUPS.find(g => g.id === group)!.label).toLowerCase() })
+          : filter === 'starred' ? t('Nothing starred. Star the suppliers you rely on most to find them here.')
           : t('Add the businesses you buy from, with their phone, email, website and order days.')}</Empty>
       ) : (
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(3, minmax(0, 1fr))' }, gap: 2 }}>
@@ -95,6 +108,11 @@ export function SuppliersPage() {
                   <Box sx={{ minWidth: 0 }}>
                     <Typography variant="h6" component="h2" noWrap>{s.name}</Typography>
                     <Typography variant="body2" sx={{ color: 'text.secondary' }}>{[s.kind && t(s.kind), s.contact_name].filter(Boolean).join(' · ') || '—'}</Typography>
+                    {groupsOf(s).length > 0 && (
+                      <Stack direction="row" useFlexGap spacing={0.5} sx={{ flexWrap: 'wrap', mt: 0.5 }} aria-label={t('What they supply')}>
+                        {groupsOf(s).map(g => <Tag key={g} fg={tokens.matchaDeep} bg={tokens.matchaSoft}>{t(SUPPLY_GROUPS.find(x => x.id === g)!.label)}</Tag>)}
+                      </Stack>
+                    )}
                   </Box>
                   <Stack direction="row" sx={{ alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
                     {!s.active && <Tag>{tc('supplier', 'Archived')}</Tag>}
@@ -140,13 +158,17 @@ export function SuppliersPage() {
 }
 
 const blank = (): SupplierInput => ({ name: '', kind: null, contact_name: null, email: null, phone: null, whatsapp: false, website: null, order_url: null,
-  address: null, account_number: null, order_days: [], cutoff: null, lead_days: 1, minimum_order: null, payment_terms: null, notes: null, active: true })
+  address: null, account_number: null, order_days: [], cutoff: null, lead_days: 1, minimum_order: null, payment_terms: null, notes: null, active: true, supplies: [] })
 
 function SupplierDialog({ supplier, onClose }: { supplier: Supplier | null; onClose: () => void }) {
   const { api } = useApp()
   const run = useAction()
   const phone = useMediaQuery(useTheme().breakpoints.down('sm'))
+  const { data: stockItems } = useAsync('stock', () => api.stockItems(), [])
+  // What they supply: ticked as worked out until an admin says otherwise (saved as ticked).
   const [s, setS] = useState<SupplierInput>(() => (supplier ? { ...supplier } : blank()))
+  const [picked, setPicked] = useState<SupplyGroup[] | null>(supplier?.supplies?.length ? supplier.supplies : null)
+  const supplies = picked ?? (supplier ? suppliesOf(supplier, (stockItems ?? []).filter(i => i.supplier_id === supplier.id)) : [])
   const [deleting, setDeleting] = useState(false)
   const set = (patch: Partial<SupplierInput>) => setS(x => ({ ...x, ...patch }))
   const text = (v: string | null | undefined) => v?.trim() || null
@@ -160,7 +182,7 @@ function SupplierDialog({ supplier, onClose }: { supplier: Supplier | null; onCl
     if (s.minimum_order !== null && s.minimum_order !== undefined && !(s.minimum_order >= 0)) throw new Error(t('Enter numbers like 12 or 1,45'))
     await api.saveSupplier({ ...s, name: s.name.trim(), email, website: text(s.website), order_url: text(s.order_url), phone: text(s.phone),
       contact_name: text(s.contact_name), kind: text(s.kind), address: text(s.address), account_number: text(s.account_number),
-      payment_terms: text(s.payment_terms), notes: text(s.notes), order_days: sortDays(s.order_days ?? []), whatsapp: !!text(s.phone) && !!s.whatsapp })
+      payment_terms: text(s.payment_terms), notes: text(s.notes), order_days: sortDays(s.order_days ?? []), whatsapp: !!text(s.phone) && !!s.whatsapp, supplies })
     onClose()
   }, supplier ? t('Saved') : t('Added {name}', { name: s.name.trim() }))
   const archive = () => run(async () => { await api.saveSupplier({ ...supplier!, active: !supplier!.active }); onClose() },
@@ -179,6 +201,12 @@ function SupplierDialog({ supplier, onClose }: { supplier: Supplier | null; onCl
               {[...new Set([...SUPPLIER_KINDS, ...(s.kind ? [s.kind] : [])])].map(k => <MenuItem key={k} value={k}>{t(k)}</MenuItem>)}
             </TextField>
           </Stack>
+          <Box>
+            <Typography variant="body2" sx={{ mb: 0.75 }}>{t('What they supply')}</Typography>
+            <ToggleButtonGroup size="small" value={supplies} onChange={(_, v: SupplyGroup[]) => setPicked(v)} aria-label={t('What they supply')} sx={{ flexWrap: 'wrap' }}>
+              {SUPPLY_GROUPS.map(g => <ToggleButton key={g.id} value={g.id}>{t(g.label)}</ToggleButton>)}
+            </ToggleButtonGroup>
+          </Box>
           <TextField label={t('Who to talk to')} value={field('contact_name')} onChange={e => set({ contact_name: e.target.value })} slotProps={{ htmlInput: { maxLength: 100 } }} />
           <PhoneField label={t('Phone')} value={field('phone')} onChange={v => set({ phone: v })} />
           <FormControlLabel label={t('They take orders on WhatsApp')} control={<Checkbox checked={!!s.whatsapp} onChange={e => set({ whatsapp: e.target.checked })} />} />
