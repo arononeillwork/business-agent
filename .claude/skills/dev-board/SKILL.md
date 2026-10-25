@@ -8,15 +8,16 @@ description: Opens the Feature board, the owner's kanban of every feature from d
 The board is a claude.ai dashboard: https://claude.ai/artifact/GRDA4CrD6doezGej8dS6Pg
 
 It shows every feature branch in four columns (In development, Review & merge, Deploying,
-Deployed) and three lanes (Needs you, On track, Parked), named after the Claude session that
-built it. Its pipeline data is one row, `ops.dev_board`, in the BusinessAgent Supabase project
+Deployed) and three lanes (Needs you, On track, Parked), named from its commits. Its data is
+one row, `ops.dev_board`, in the BusinessAgent Supabase project
 (`lhakrmmoxaareykglmtx`), written by `.github/workflows/dev-board.yml` (`scripts/ops/dev-board.mjs`)
 after every CI and Deploy run starts or finishes, and every 20 minutes.
 
 1. Open it: the Artifact tool with `action: "open"` and the link above. Without that tool, give
    the link.
 2. Read the latest board with the Supabase connector's `execute_sql` on project
-   `lhakrmmoxaareykglmtx`:
+   `lhakrmmoxaareykglmtx`. Without that connector, or without access to the project, stop
+   here: the board itself shows everything, once its owner has shared it with you.
 
    ```sql
    select d.data->>'generatedAt' as board_at, b->>'stage' as stage, b->>'title' as title,
