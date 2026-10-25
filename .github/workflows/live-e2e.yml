@@ -1,0 +1,64 @@
+name: Live end-to-end tests
+# Drives the deployed app in a real browser against the real Supabase project: every page for
+# admin, employee and partner, sign-in buttons, clocking, time off, finances, the AI connector.
+# Test accounts use @business-agent.test and are deleted afterwards (with their data).
+# Runs after each successful deploy (called from deploy.yml), or by hand.
+on:
+  workflow_call:
+    inputs:
+      url:
+        type: string
+        required: true
+  # Daily as well (scheduled runs only start once this is on the default branch).
+  schedule:
+    - cron: '17 5 * * *'
+  workflow_dispatch:
+    inputs:
+      url:
+        description: App address
+        default: https://business-agent.arononeillwork.workers.dev
+
+concurrency:
+  group: live-e2e
+  cancel-in-progress: false
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      E2E_BASE_URL: ${{ inputs.url || 'https://business-agent.arononeillwork.workers.dev' }}
+      E2E_LIVE: '1'
+      CI: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Get the service key
+        run: node scripts/ops/service-key.mjs
+      # One file at a time: both set up and remove the same test accounts.
+      - name: Every page, every role
+        run: npx playwright test e2e/live-journeys.spec.ts --project desktop --workers 1 --output test-results/journeys
+      - name: Sign-in, clocking, pay privacy, kiosk, AI connector
+        if: success() || failure()
+        run: npx playwright test e2e/live.spec.ts --project desktop --workers 1 --output test-results/core
+      # What the page showed when a test failed (first attempts too), right in the log.
+      - name: Page at each failure
+        if: always()
+        run: |
+          find test-results -name error-context.md 2>/dev/null | while read -r f; do
+            echo "::group::$f"; sed -n '/^# Error details/,/^# Test source/p' "$f" | head -150; echo "::endgroup::"
+          done
+      # Also when a retry passed: the first attempt's trace explains flaky tests.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: live-traces
+          if-no-files-found: ignore
+          path: test-results/
+          retention-days: 7

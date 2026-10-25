@@ -1,0 +1,123 @@
+name: CI
+# Every push and pull request: typecheck, unit tests, database rules on a real Postgres, and the
+# browser tests against the demo. A red run means don't deploy.
+# The browser tests run on 3 machines at once (Playwright shards) in Playwright's own image, so
+# no browser install. Branch pushes and pull requests run the tests for what changed plus the core
+# ones (sign-in, permissions, privacy: scripts/ci/select-e2e.ts); deploys and the merge queue run
+# all of them.
+on:
+  push:
+    # main is tested in deploy.yml before deploying, the merge-queue branch by the merge queue.
+    branches-ignore: [main, merge-queue]
+  # Only pull requests from forks: a branch here is already tested by its push.
+  pull_request:
+  workflow_call:
+    inputs:
+      full:
+        description: Run every browser test (deploys do)
+        type: boolean
+        default: true
+      ref:
+        description: Commit to test (the merge queue's candidate); empty for the one that started the run
+        type: string
+        default: ''
+
+jobs:
+  checks:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm test
+      - name: Database tests
+        run: npm run test:db
+        env:
+          PGHOST: localhost
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: postgres
+
+  # Which browser tests this change needs ("all", or a --grep pattern).
+  plan:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      grep: ${{ steps.pick.outputs.grep }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - id: pick
+        env:
+          FULL: ${{ inputs.full }}
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ "$FULL" = "true" ]; then grep=all; else grep=$(node --experimental-strip-types scripts/ci/select-e2e.ts "$BASE" HEAD); fi
+          echo "grep=$grep" >> "$GITHUB_OUTPUT"
+          if [ "$grep" = "all" ]; then echo "Browser tests: all" >> "$GITHUB_STEP_SUMMARY"
+          else echo "Browser tests: the core ones plus the areas this change touches" >> "$GITHUB_STEP_SUMMARY"; fi
+
+  browser:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Keep the version the same as @playwright/test in package-lock.json (the install step below
+    # downloads the right browser if they ever differ, it's just slower).
+    container: mcr.microsoft.com/playwright:v1.63.0-noble
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    name: browser (${{ matrix.shard }}/3)
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Browser (already in the image)
+        run: npx playwright install chromium
+      - name: Browser tests (demo)
+        env:
+          CI: true
+          HOME: /root
+          GREP: ${{ needs.plan.outputs.grep }}
+        run: |
+          if [ "$GREP" = "all" ]; then
+            npx playwright test e2e/demo.spec.ts --shard=${{ matrix.shard }}/3
+          else
+            npx playwright test e2e/demo.spec.ts --shard=${{ matrix.shard }}/3 --grep "$GREP" --pass-with-no-tests
+          fi
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces-${{ matrix.shard }}
+          path: test-results/
+          retention-days: 7

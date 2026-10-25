@@ -1,0 +1,32 @@
+name: Probe sports sources
+# Fetches sample responses from sports data sources so parsers are built and tested against
+# real data (this container can't reach them). Runs when this file changes.
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/probe-sports.yml]
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - shell: bash
+        run: |
+          set +e +o pipefail
+          B=https://www.thesportsdb.com/api/v1/json/123
+          j() { curl -s -m 25 -A 'EasyBeans/1.0 (cafe app)' "$1"; sleep 2.2; }
+          echo "=== fixturedownload slugs"
+          for f in championship-2026 efl-championship-2026 europa-league-2026 conference-league-2026 scottish-premiership-2026 primeira-liga-2026 la-liga-2-2026 segunda-division-2026 laliga2-2026 nations-league-2026 uefa-nations-league-2026 fa-cup-2026 copa-del-rey-2026; do
+            printf "%s " "$f"; curl -s -m 25 "https://fixturedownload.com/feed/json/$f" | jq -c 'if type=="array" then {n: length, last: .[-1].DateUtc} else . end' 2>&1 | head -c 200; echo
+          done
+          echo "=== CL upcoming sample"
+          curl -s -m 25 "https://fixturedownload.com/feed/json/champions-league-2026" | jq -c '[.[] | select(.DateUtc > "2026-09-27")][0:3]'
+          echo "=== tsdb next national/boxing"
+          for id in 4490 4562 4445 4329; do j "$B/eventsnextleague.php?id=$id" | jq -c '[.events[]? | {strEvent, strTimestamp, intRound, strSeason}]'; done
+          echo "=== tsdb eventsday with league filter"
+          for d in 1 2 3 4 5 6 7 8; do day=$(date -u -d "+$d days" +%F); printf "%s " $day; j "$B/eventsday.php?d=$day&l=4445" | jq -c '[.events[]? | {strEvent, strLeague}]'; done
+          j "$B/eventsday.php?d=$(date -u -d '+1 days' +%F)&l=Boxing" | jq -c '[.events[]? | {strEvent, strLeague}]'
+          echo "=== wikipedia UFC scheduled section"
+          curl -s -m 25 -A 'EasyBeans/1.0 (cafe app)' "https://en.wikipedia.org/w/api.php?action=parse&page=List_of_UFC_events&section=3&prop=wikitext&format=json&formatversion=2" | jq -r '.parse.wikitext' | head -90
+          echo "=== wikipedia boxing"
+          curl -s -m 25 -A 'EasyBeans/1.0 (cafe app)' "https://en.wikipedia.org/w/api.php?action=parse&page=2026_in_boxing&prop=sections&format=json&formatversion=2" | jq -c '[.parse.sections[]? | {index, line}]' | head -c 1500; echo
