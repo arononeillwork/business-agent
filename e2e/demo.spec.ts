@@ -2296,7 +2296,7 @@ test('every page in the menu shows its title, whatever buttons its header has', 
 test.describe('To Do board', () => {
   test('To do, Doing and Done: a job moves by dragging or from its menu, and the list shows where it is', async ({ page }) => {
     await open(page, '/todo')
-    await page.getByRole('button', { name: 'Board' }).click()
+    await page.getByRole('button', { name: 'Board', exact: true }).click()
     const column = (name: string) => page.getByRole('main').getByRole('region', { name, exact: true })
     await expect(column('To do').getByRole('article')).toHaveCount(10)
     await expect(column('Doing')).toContainText('Set up the card reader on the terrace')
@@ -2332,7 +2332,7 @@ test.describe('To Do board', () => {
 
   test('a board for each person (owner or employee), each with its own filters; a job added there is theirs', async ({ page }) => {
     await open(page, '/todo')
-    await page.getByRole('button', { name: 'Board' }).click()
+    await page.getByRole('button', { name: 'Board', exact: true }).click()
     const whose = page.getByRole('tablist', { name: 'Whose jobs' })
     await expect(whose.getByRole('tab', { name: 'Everyone' })).toHaveAttribute('aria-selected', 'true') // the owner starts with everyone's
     const column = (name: string) => page.getByRole('main').getByRole('region', { name, exact: true })
@@ -2366,7 +2366,7 @@ test.describe('To Do board', () => {
 
   test('an employee’s board starts on their own jobs', async ({ page }) => {
     await open(page, '/todo', 'julio@example.com')
-    await page.getByRole('button', { name: 'Board' }).click()
+    await page.getByRole('button', { name: 'Board', exact: true }).click()
     await expect(page.getByRole('tablist', { name: 'Whose jobs' }).getByRole('tab', { name: 'Mine' })).toHaveAttribute('aria-selected', 'true')
     await expect(page.getByRole('main').getByRole('region', { name: 'Doing', exact: true })).toContainText('Write the closing checklist')
   })
