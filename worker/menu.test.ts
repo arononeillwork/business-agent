@@ -52,8 +52,8 @@ beforeEach(() => {
     footer: 'Prices include IVA', image_id: null }]
   db.tables.recipes = [{ id: 'r1', name: 'Flat white', description: 'Silky', category: 'Coffee' }]
   db.tables.menu_images = []
-  db.rpcs.menu_list = () => [{ id: 'r1', name: 'Flat white', category: 'Coffee', sell_price: 3.2, vat_rate: 10, description: 'Silky', photo_url: null, allergens: ['milk'],
-    dietary: [], featured: false, on_menu: true, menu_sort: 1, variants: [] }]
+  db.rpcs.menu_list = () => [{ id: 'r1', name: 'Flat white', category: 'Coffee', sell_price: 3.2, vat_rate: 10, description: 'Silky', photo_url: null,
+    featured: false, on_menu: true, menu_sort: 1, variants: [] }]
   vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request, init: RequestInit = {}) => {
     const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url)
     const fromDb = db.handle(url.href, init)

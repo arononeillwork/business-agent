@@ -1,11 +1,12 @@
-// Spanish for the Menu page (items, allergens, designs printed and on screens) and AI images (Higgsfield).
+// Spanish for the Menu page (items, designs printed and on screens) and AI images (Higgsfield). The
+// allergens and diets are the Allergens page's (es/allergens.ts).
 export default {
   // The menu and its items
   'Menu': 'Carta',
   'Menu design': 'Diseño de la carta',
   'Design': 'Diseño',
-  'Menu and allergens': 'Carta y alérgenos',
-  'Section': 'Sección',
+  // A section of the menu (Staff rules' 'Section' is a part of the rules).
+  'menu|Section': 'Sección',
   'Sections': 'Secciones',
   'Every section': 'Todas las secciones',
   'On the menu': 'En la carta',
@@ -16,11 +17,18 @@ export default {
   'Without a photo': 'Sin foto',
   'Every item has one': 'Todos tienen foto',
   'Put your menu together': 'Monta tu carta',
-  'Add each drink and dish with its price, a line about it, a photo and its allergens. The printed menu and the menu on your screens are made from it.':
-    'Añade cada bebida y plato con su precio, una línea que lo describa, una foto y sus alérgenos. La carta impresa y la de tus pantallas salen de aquí.',
-  'Free from': 'Sin',
-  'e.g. Gluten, Milk': 'p. ej. gluten, leche',
-  'Allergens': 'Alérgenos',
+  'Add each drink and dish with its price, a line about it and a photo. The printed menu and the menu on your screens are made from it.':
+    'Añade cada bebida y plato con su precio, una línea que lo describa y una foto. La carta impresa y la de tus pantallas salen de aquí.',
+  // Allergens and diets come from the ingredients on Menu costing (the Allergens page).
+  'Free from: on Allergens': 'Sin…: en Alérgenos',
+  'Open Allergens': 'Abrir Alérgenos',
+  'Allergens and diets': 'Alérgenos y dietas',
+  'Allergens and diets come from what goes into each item on Menu costing and its ingredients’ allergens. An item with nothing in it there shows none.':
+    'Los alérgenos y las dietas salen de lo que lleva cada producto en Escandallos y de los alérgenos de sus ingredientes. Un producto que aún no lleva nada allí no muestra ninguno.',
+  'They come from what goes into it on Menu costing and each ingredient’s allergens on the Allergens page; the menus show them from there.':
+    'Salen de lo que lleva en Escandallos y de los alérgenos de cada ingrediente en Alérgenos; las cartas los muestran desde ahí.',
+  'Once it’s added, put what goes into it on Menu costing: its allergens and diets follow from its ingredients.':
+    'Una vez añadido, pon lo que lleva en Escandallos: sus alérgenos y dietas salen de sus ingredientes.',
   'Featured': 'Destacado',
   'Featured (a house favourite)': 'Destacado (un favorito de la casa)',
   'Move {name} up': 'Subir {name}',
@@ -30,10 +38,6 @@ export default {
   'Remove photo': 'Quitar foto',
   'Photo address': 'Dirección de la foto',
   'Once it’s added, you can make its photo with AI.': 'Una vez añadido, puedes hacer su foto con IA.',
-  'Contains': 'Contiene',
-  'Tick each of the 14 allergens it has, even in traces you know of: they show on the menus.':
-    'Marca cada uno de los 14 alérgenos que lleva, también las trazas que conozcas: salen en las cartas.',
-  'Suitable for': 'Apto para',
   'Delete {name}? Its costing goes too.': '¿Eliminar {name}? Su escandallo también se elimina.',
   'Variants: {list}. Change them, and what goes in each, on Menu costing.': 'Variantes: {list}. Cámbialas, y lo que lleva cada una, en Escandallos.',
   'Make it with AI: connect Higgsfield': 'Hazla con IA: conecta Higgsfield',
@@ -46,28 +50,6 @@ export default {
   'It couldn’t be made.': 'No se pudo hacer.',
   'It’s on the item now; Save keeps the rest of your changes.': 'Ya está en el producto; Guardar conserva el resto de tus cambios.',
   'Photo made': 'Foto hecha',
-  // Allergens (EU Regulation 1169/2011) and dietary marks
-  'Gluten': 'Gluten',
-  'Crustaceans': 'Crustáceos',
-  'Eggs': 'Huevos',
-  'Fish': 'Pescado',
-  'Peanuts': 'Cacahuetes',
-  'Soy': 'Soja',
-  'Milk': 'Leche',
-  'Nuts': 'Frutos de cáscara',
-  'Celery': 'Apio',
-  'Mustard': 'Mostaza',
-  'Sesame': 'Sésamo',
-  'Sulphites': 'Sulfitos',
-  'Lupin': 'Altramuces',
-  'Molluscs': 'Moluscos',
-  'Vegetarian': 'Vegetariano',
-  'Vegan': 'Vegano',
-  'Gluten free': 'Sin gluten',
-  'Dairy free': 'Sin lácteos',
-  'It says gluten free, but gluten is ticked as an allergen.': 'Dice sin gluten, pero el gluten está marcado como alérgeno.',
-  'It says vegan, but an animal allergen (milk, eggs, fish or shellfish) is ticked.': 'Dice vegano, pero hay un alérgeno animal marcado (leche, huevos, pescado o marisco).',
-  'It says dairy free, but milk is ticked as an allergen.': 'Dice sin lácteos, pero la leche está marcada como alérgeno.',
   'Enter the price like 3,20': 'Escribe el precio así: 3,20',
   'Keep the description under 300 characters': 'La descripción, de menos de 300 caracteres',
   'The photo’s address should start with https://': 'La dirección de la foto debe empezar por https://',
@@ -213,19 +195,19 @@ export default {
   'Read {n} items from Square.': 'Leídos {n} productos de Square.',
   'Last read from Square {when}.': 'Leída de Square por última vez {when}.',
   'Not read from Square yet.': 'Aún no se ha leído de Square.',
-  'Allergens, vegan or gluten free, photos and what’s featured are set here.': 'Los alérgenos, si es vegano o sin gluten, las fotos y lo destacado se ponen aquí.',
+  'Photos and what’s featured are set here; allergens come from Menu costing.': 'Las fotos y lo destacado se ponen aquí; los alérgenos salen de Escandallos.',
   'The menu is kept here again. Items read from Square stay on it.': 'La carta vuelve a llevarse aquí. Los productos leídos de Square se quedan en ella.',
   'Read the menu from Square?': '¿Leer la carta de Square?',
   'Names, sections, prices (hot and iced as Square has them), descriptions and photos come from your Square item library, now and every hour. The milks, syrups and other modifiers go in an Extras section.':
     'Los nombres, secciones, precios (caliente y con hielo, como los tenga Square), descripciones y fotos salen de tu biblioteca de artículos de Square, ahora y cada hora. Las leches, siropes y demás modificadores van en una sección de extras.',
-  'Items already here are matched by name and keep their allergens and photos. Items that aren’t in Square are hidden while the menu comes from Square, and come back if you switch to Custom.':
-    'Los productos que ya están aquí se emparejan por nombre y conservan sus alérgenos y fotos. Los que no están en Square se ocultan mientras la carta salga de Square, y vuelven si cambias a Propia.',
+  'Items already here are matched by name and keep their photos and what goes into them on Menu costing. Items that aren’t in Square are hidden while the menu comes from Square, and come back if you switch to Custom.':
+    'Los productos que ya están aquí se emparejan por nombre y conservan sus fotos y lo que llevan en Escandallos. Los que no están en Square se ocultan mientras la carta salga de Square, y vuelven si cambias a Propia.',
   'Connect Square on the Connections page first.': 'Conecta Square primero en Conexiones.',
   'Nothing read from Square yet': 'Aún no se ha leído nada de Square',
   'Read your item library with the button above. Items without a price in Square aren’t on the menu.':
     'Lee tu biblioteca de artículos con el botón de arriba. Los artículos sin precio en Square no salen en la carta.',
-  'Its name, section, price and description come from Square: change them there and the menu follows within the hour. What’s in it, its photo and whether it’s on the menu are kept here.':
-    'Su nombre, sección, precio y descripción salen de Square: cámbialos allí y la carta se actualiza en menos de una hora. Lo que lleva, su foto y si está en la carta se guardan aquí.',
+  'Its name, section, price and description come from Square: change them there and the menu follows within the hour. Its photo and whether it’s on the menu are kept here, and what goes in it on Menu costing.':
+    'Su nombre, sección, precio y descripción salen de Square: cámbialos allí y la carta se actualiza en menos de una hora. Su foto y si está en la carta se guardan aquí, y lo que lleva en Escandallos.',
   'Other ways it’s sold, from Square: {list}.': 'Otras formas de venderlo, de Square: {list}.',
   'Start from your printed menus': 'Empieza con tus cartas impresas',
   'Add what’s on your printed menus': 'Añade lo de tus cartas impresas',

@@ -29,9 +29,10 @@ import {
   SECONDS_CHOICES, TRANSITIONS, cleanUrl, isOnline, kindLabel, kindOf, loopSeconds, newScreen, screenProblem, type DisplayFeed, type Screen, type ScreenInput, type Slide,
   type SlideKind,
 } from '../../shared/screens'
+import type { MenuAllergens } from '../../shared/allergens'
 import type { Brand } from '../../shared/types'
 import { tokens } from '../theme'
-import { t, tn } from '../i18n'
+import { t, tc, tn } from '../i18n'
 
 const inputOf = ({ id, token: _token, last_seen_at: _seen, updated_at: _updated, ...s }: Screen): ScreenInput => ({ ...s, id })
 const ICON: Record<SlideKind, ReactNode> = {
@@ -56,6 +57,7 @@ export function ScreensPage() {
   const screens = useAsync('screens', () => api.screens(), [], { refetchInterval: 60_000 })
   const designs = useAsync('menu-designs', () => api.menuDesigns(), [])
   const items = useAsync('menu-items', () => api.menuItems(), [])
+  const allergens = useAsync('menu-allergens', () => api.menuAllergens(), [])
   const brand = useAsync('brand', () => api.brand(), [])
   const [params, setParams] = useSearchParams()
   const [selected, setSelected] = useState<string | null>(null)
@@ -102,7 +104,7 @@ export function ScreensPage() {
             {list.map(s => <ScreenCard key={s.id} screen={s} selected={s.id === current?.id} onClick={() => setSelected(s.id)} />)}
           </Stack>
           <Box sx={{ flex: 1, minWidth: 0, width: '100%' }}>
-            {current && <ScreenEditor key={current.id} screen={current} designs={digital} items={items.data ?? []} brand={brand.data} />}
+            {current && <ScreenEditor key={current.id} screen={current} designs={digital} items={items.data ?? []} allergens={allergens.data} brand={brand.data} />}
           </Box>
         </Stack>
       )}
@@ -132,7 +134,9 @@ function ScreenCard({ screen: s, selected, onClick }: { screen: Screen; selected
 }
 
 /** One screen: its link, a live preview of the changes, its slides and how it plays them. */
-function ScreenEditor({ screen, designs, items, brand }: { screen: Screen; designs: MenuDesign[]; items: Item[]; brand: Brand | null }) {
+function ScreenEditor({ screen, designs, items, allergens, brand }: {
+  screen: Screen; designs: MenuDesign[]; items: Item[]; allergens: MenuAllergens | null; brand: Brand | null
+}) {
   const { api, business, settings } = useApp()
   const run = useAction()
   const notify = useNotify()
@@ -158,7 +162,8 @@ function ScreenEditor({ screen, designs, items, brand }: { screen: Screen; desig
     sections: settings?.menu_sections ?? [],
     business: { name: business?.name ?? '', logo: brand?.logo_mark ?? brand?.logo ?? null, heading_font: brand?.heading_font, body_font: brand?.body_font, colours: brand?.colours },
     menus: Object.fromEntries(designs.map(({ images: _images, ...d }) => [d.id, { design: { ...d, image_url: imageOf({ image_id: d.image_id, images: _images })?.url ?? null }, items }])),
-  }), [s, screen.id, screen.updated_at, settings?.menu_sections, business?.name, brand, designs, items])
+    allergens,
+  }), [s, screen.id, screen.updated_at, settings?.menu_sections, business?.name, brand, designs, items, allergens])
 
   const addAddress = () => {
     const url = cleanUrl(address)
@@ -223,7 +228,7 @@ function ScreenEditor({ screen, designs, items, brand }: { screen: Screen; desig
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 2 }}>
           <TextField size="small" sx={{ flex: 1 }} label={t('Paste an address')} placeholder={'https://…'} value={address} onChange={e => setAddress(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') addAddress() }}
-            helperText={address.trim() ? t('Kind: {kind}', { kind: t(kindLabel(kindOf(cleanUrl(address) ?? ''))) }) : ' '} />
+            helperText={address.trim() ? t('Kind: {kind}', { kind: tc('slide', kindLabel(kindOf(cleanUrl(address) ?? ''))) }) : ' '} />
           <Button variant="outlined" startIcon={<AddIcon />} onClick={addAddress} disabled={!address.trim()} sx={{ alignSelf: { sm: 'flex-start' }, mt: { sm: 0.25 } }}>{t('Add slide')}</Button>
         </Stack>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 1 }}>
@@ -346,7 +351,7 @@ function SlideRow({ slide: sl, index, count, screenSeconds, designs, onChange, o
         <TextField variant="standard" fullWidth size="small" value={sl.title ?? ''} placeholder={design?.name ?? t('Name (optional)')} onChange={e => onChange({ title: e.target.value || null })}
           slotProps={{ htmlInput: { 'aria-label': t('Slide name'), maxLength: 120 } }} />
         <Stack direction="row" sx={{ gap: 0.75, alignItems: 'center', mt: 0.25, minWidth: 0 }}>
-          <Chip size="small" label={t(kindLabel(sl.kind))} sx={{ height: 20, fontSize: '0.7rem' }} />
+          <Chip size="small" label={tc('slide', kindLabel(sl.kind))} sx={{ height: 20, fontSize: '0.7rem' }} />
           {sl.kind === 'menu' && !design && <Tag fg={tokens.badFg} bg={tokens.badBg}>{t('That menu was deleted')}</Tag>}
           {sl.url && <Typography variant="caption" noWrap sx={{ color: 'text.secondary', minWidth: 0 }} title={sl.url}>{sl.url.startsWith('data:') ? t('A drawn picture') : sl.url}</Typography>}
         </Stack>

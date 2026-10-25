@@ -109,9 +109,37 @@ end $$;
 revoke execute on function public.new_screen_link(uuid) from public, anon;
 grant execute on function public.new_screen_link(uuid) to authenticated;
 
+-- The menu's allergens for a screen, where nobody is signed in: what goes into each active item and
+-- its ingredients' allergens and diets, as menu_allergens() gives the team (the menu_diets migration),
+-- but without the ingredients' names. The menus work out each item's allergens and diets from it
+-- (shared/allergens.ts), so a screen says the same as the Allergens page. plpgsql, so it's only
+-- checked when it runs: on a fresh database the allergens migrations may come after this one.
+create or replace function public.display_menu_allergens() returns jsonb
+language plpgsql stable security definer set search_path = ''
+as $$
+begin
+  return jsonb_build_object(
+    'dishes', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'id', r.id, 'name', r.name, 'category', r.category,
+               'variants', coalesce((select jsonb_agg(jsonb_build_object('id', v.id, 'name', v.name, 'price_change', 0) order by v.sort, v.name)
+                                       from public.recipe_variants v where v.recipe_id = r.id), '[]'::jsonb),
+               'lines', coalesce((select jsonb_agg(jsonb_build_object('item_id', l.item_id, 'quantity', 1, 'unit', l.unit, 'variant_id', l.variant_id,
+                                                                      'replaces_item_id', l.replaces_item_id) order by l.sort)
+                                    from public.recipe_lines l where l.recipe_id = r.id), '[]'::jsonb))
+             order by r.category nulls last, r.name)
+        from public.recipes r where r.active), '[]'::jsonb),
+    'items', coalesce((
+      select jsonb_agg(jsonb_build_object('id', i.id, 'name', '', 'allergens', to_jsonb(i.allergens), 'may_contain', to_jsonb(i.may_contain), 'diet', i.diet)
+                       order by i.id)
+        from public.stock_items i
+       where exists (select 1 from public.recipe_lines l join public.recipes r on r.id = l.recipe_id and r.active where l.item_id = i.id)), '[]'::jsonb));
+end $$;
+revoke execute on function public.display_menu_allergens() from public, anon, authenticated;
+
 -- What a screen's link loads (the Worker, for anyone with the link): the screen's settings and
--- slides (not its link), the business's name, logo, fonts and colours, and each digital menu on it with the menu's
--- items. Notes when the screen was last seen (at most once a minute). Null: no such link.
+-- slides (not its link), the business's name, logo, fonts and colours, each digital menu on it with the menu's
+-- items, and the menu's allergens. Notes when the screen was last seen (at most once a minute). Null: no such link.
 create or replace function public.display_feed(p_token text) returns jsonb
 language plpgsql security definer set search_path = ''
 as $$
@@ -134,7 +162,8 @@ begin
                'items', public.menu_list()))
         from public.menu_designs d
        where d.format = 'digital' and v.active
-         and exists (select 1 from jsonb_array_elements(v.slides) s where s->>'design_id' = d.id::text)), '{}'::jsonb));
+         and exists (select 1 from jsonb_array_elements(v.slides) s where s->>'design_id' = d.id::text)), '{}'::jsonb),
+    'allergens', case when v.active then public.display_menu_allergens() end);
 end $$;
 revoke execute on function public.display_feed(text) from public, anon, authenticated;
 grant execute on function public.display_feed(text) to service_role;

@@ -16,7 +16,7 @@ import FoodIcon from '@mui/icons-material/RestaurantOutlined'
 import ShopIcon from '@mui/icons-material/ShoppingBagOutlined'
 import LinkIcon from '@mui/icons-material/LinkRounded'
 import AiIcon from '@mui/icons-material/AutoAwesomeOutlined'
-import WarningIcon from '@mui/icons-material/WarningAmberRounded'
+import AllergensIcon from '@mui/icons-material/NoMealsOutlined'
 import SyncIcon from '@mui/icons-material/SyncRounded'
 import PrintedIcon from '@mui/icons-material/MenuBookOutlined'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
@@ -26,21 +26,21 @@ import { useAsync } from '../app/hooks'
 import { FEATURES } from '../app/features'
 import { useAction, useNotify } from '../app/Notify'
 import { Empty, ErrorBox, PageHeader, StatGrid, StatTile, Tag } from '../components/common'
-import { ExportButton, toEnter } from '../components/tables'
+import { toEnter } from '../components/tables'
 import { HiggsfieldKeyDialog, useAiImages } from '../components/AiImages'
 import { ago } from '../components/Freshness'
-import type { ExportTable } from '../lib/export'
 import {
-  ALLERGENS, DIETARY, MAX_DESCRIPTION, MENU_SOURCES, allergenNumber, categoryOrder, dietaryClash, menuItemProblem, menuSections, moveInSection, moveSection, pricesOf,
-  type Allergen, type Dietary, type MenuImage, type MenuItem as Item, type MenuItemInput, type MenuSource,
+  MAX_DESCRIPTION, MENU_SOURCES, allergenNumber, categoryOrder, marksOf, menuItemProblem, menuSections, moveInSection, moveSection, pricesOf, type ItemMarks,
+  type MenuImage, type MenuItem as Item, type MenuItemInput, type MenuSource,
 } from '../../shared/menu'
+import { ALLERGENS, MENU_FILTERS, type Allergen, type MenuAllergens } from '../../shared/allergens'
 import { missingFrom } from '../../shared/menuTemplate'
 import { RECIPE_CATEGORIES } from '../../shared/recipes'
-import { formatMoney, today } from '../../shared/time'
+import { formatMoney } from '../../shared/time'
 import { DesignView } from './menu/DesignView'
 import { PhotoUpload } from './menu/PhotoUpload'
 import { tokens } from '../theme'
-import { t, tn } from '../i18n'
+import { t, tc, tn } from '../i18n'
 
 const ICONS: Record<string, ReactNode> = {
   Coffee: <CoffeeIcon />, 'Tea & matcha': <TeaIcon />, 'Cold drinks': <ColdIcon />, Bakery: <BakeryIcon />, Food: <FoodIcon />, Shop: <ShopIcon />,
@@ -57,11 +57,15 @@ export function ItemPhoto({ item, size = 72 }: { item: Pick<Item, 'name' | 'phot
         '& svg': { fontSize: size * 0.42 } }}>{ICONS[item.category ?? ''] ?? <FoodIcon />}</Box>
 }
 
+/** An allergen as the Menu page lists it: numbered, in the Annex's order. */
+const allergenText = (a: Allergen) => `${allergenNumber(a)} · ${t(ALLERGENS.find(x => x.id === a)!.label)}`
+
 /**
- * The menu as customers see it: every drink and dish by section, with its photo, price, what's in it
- * (the 14 allergens) and whether it's vegan or gluten free. Everyone on the team reads it (handy when
- * a customer asks); admins add, change and arrange items, and make the printed and screen menus on
- * the Design tab.
+ * The menu as customers see it: every drink and dish by section, with its photo, price, and its
+ * allergens and diets as the Allergens page works them out from what goes into it (Menu costing).
+ * Everyone on the team reads it (handy when a customer asks; the Allergens page narrows the menu down
+ * to what suits them); admins add, change and arrange items, and make the printed and screen menus
+ * on the Design tab.
  */
 export function MenuPage() {
   const { isAdmin, isPartner, settings } = useApp()
@@ -71,6 +75,8 @@ export function MenuPage() {
   const view = admin && pathname.startsWith('/menu/design') ? 'design' : 'items'
   const { api } = useApp()
   const items = useAsync('menu-items', () => api.menuItems(), [])
+  // What goes into each item (Menu costing) and its ingredients' allergens: the same as the Allergens page.
+  const allergens = useAsync('menu-allergens', () => api.menuAllergens(), [])
   const brand = useAsync('brand', () => api.brand(), [])
   const [open, setOpen] = useState<Item | 'new' | null>(null)
   const source: MenuSource = settings?.menu_source ?? 'custom'
@@ -78,10 +84,11 @@ export function MenuPage() {
   return (
     <>
       <PageHeader eyebrow={t('Menu')} title={view === 'design' ? t('Menu design') : t('Menu')}
-        actions={view === 'items' && admin ? <>
-          {source === 'custom' && <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpen('new')}>{t('Add menu item')}</Button>}
-          <Button variant="outlined" component={RouterLink} to="/recipes">{t('Menu costing')}</Button>
-          <ExportButton table={() => allergenTable(items.data ?? [], order)} disabled={!items.data?.length} folder="Menu" />
+        actions={view === 'items' ? <>
+          {admin && source === 'custom' && <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpen('new')}>{t('Add menu item')}</Button>}
+          {admin && <Button variant="outlined" component={RouterLink} to="/recipes">{t('Menu costing')}</Button>}
+          {/* The allergen chart to print or export is the Allergens page's. */}
+          <Button variant="outlined" startIcon={<AllergensIcon />} component={RouterLink} to="/allergens">{t('Allergens')}</Button>
         </> : undefined} />
       {admin && (
         <Tabs value={view} onChange={(_, v: string) => navigate(v === 'design' ? '/menu/design' : '/menu')} sx={{ mb: 2.5, borderBottom: `1px solid ${tokens.line}` }}>
@@ -91,33 +98,21 @@ export function MenuPage() {
       )}
       <ErrorBox error={items.error} />
       {view === 'items'
-        ? <Items items={items.data} admin={admin} source={source} order={order} onOpen={setOpen} />
-        : <DesignView items={items.data ?? []} brand={brand.data} />}
-      {open && <ItemDialog item={open === 'new' ? null : open} items={items.data ?? []} fromSquare={source === 'square' && open !== 'new' && !!open.square_id}
-        onClose={() => setOpen(null)} />}
+        ? <Items items={items.data} allergens={allergens.data} admin={admin} source={source} order={order} onOpen={setOpen} />
+        : <DesignView items={items.data ?? []} allergens={allergens.data} brand={brand.data} />}
+      {open && <ItemDialog item={open === 'new' ? null : open} items={items.data ?? []} marks={open === 'new' ? null : marksOf(open.id, allergens.data)}
+        fromSquare={source === 'square' && open !== 'new' && !!open.square_id} onClose={() => setOpen(null)} />}
     </>
   )
 }
 
-/** The allergen chart: every item with what's in it, for the counter or an inspector. */
-function allergenTable(items: Item[], order: string[]): ExportTable {
-  const rows = menuSections(items, { all: true, order }).flatMap(s => s.items)
-  return {
-    title: t('Menu and allergens'),
-    filename: `menu-allergens-${today()}`,
-    columns: [t('Item'), t('Section'), t('Price with IVA'), ...ALLERGENS.map(a => t(a.label)), t('Suitable for'), t('On the menu'), t('Description')],
-    rows: rows.map(i => [i.name, i.category ? t(i.category) : '', i.sell_price, ...ALLERGENS.map(a => (i.allergens.includes(a.id) ? '✓' : '')),
-      i.dietary.map(d => t(DIETARY.find(x => x.id === d)!.label)).join(', '), i.on_menu ? t('Yes') : t('No'), i.description ?? '']),
-    money: [2],
-  }
-}
-
-function Items({ items, admin, source, order, onOpen }: { items: Item[] | null; admin: boolean; source: MenuSource; order: string[]; onOpen: (i: Item) => void }) {
+function Items({ items, allergens, admin, source, order, onOpen }: {
+  items: Item[] | null; allergens: MenuAllergens | null | undefined; admin: boolean; source: MenuSource; order: string[]; onOpen: (i: Item) => void
+}) {
   const { api } = useApp()
   const run = useAction()
   const notify = useNotify()
   const [category, setCategory] = useState('')
-  const [freeFrom, setFreeFrom] = useState<Allergen[]>([])
   const [offOnly, setOffOnly] = useState(false)
   const [q, setQ] = useState('')
   const all = items ?? []
@@ -128,11 +123,10 @@ function Items({ items, admin, source, order, onOpen }: { items: Item[] | null; 
   const shownOrder = categoryOrder(all.map(i => i.category), order)
   const categories = shownOrder.filter((c): c is string => !!c)
   const words = q.trim().toLowerCase()
-  const shown = all.filter(i => (!category || i.category === category) && (!offOnly || !i.on_menu) && !freeFrom.some(a => i.allergens.includes(a))
+  const shown = all.filter(i => (!category || i.category === category) && (!offOnly || !i.on_menu)
     && (!words || i.name.toLowerCase().includes(words) || (i.description ?? '').toLowerCase().includes(words)))
   const sections = menuSections(shown, { all: true, order })
-  const arranging = !words && !category && !offOnly && !freeFrom.length
-  const used = ALLERGENS.filter(a => all.some(i => i.allergens.includes(a.id)))
+  const arranging = !words && !category && !offOnly
   const move = (i: Item, by: -1 | 1) => run(async () => {
     const ids = moveInSection(all, i.id, by)
     if (ids) await api.reorderMenu(ids)
@@ -163,7 +157,7 @@ function Items({ items, admin, source, order, onOpen }: { items: Item[] | null; 
         <Empty>
           <Typography sx={{ fontWeight: 500, color: 'text.primary', mb: 0.5 }}>{source === 'square' ? t('Nothing read from Square yet') : t('Put your menu together')}</Typography>
           {source === 'square' ? t('Read your item library with the button above. Items without a price in Square aren’t on the menu.')
-            : t('Add each drink and dish with its price, a line about it, a photo and its allergens. The printed menu and the menu on your screens are made from it.')}
+            : t('Add each drink and dish with its price, a line about it and a photo. The printed menu and the menu on your screens are made from it.')}
           {admin && source === 'custom' && (
             <Box sx={{ mt: 2 }}><Button variant="contained" startIcon={<PrintedIcon />} onClick={loadTemplate}>{t('Start from your printed menus')}</Button></Box>
           )}
@@ -173,11 +167,10 @@ function Items({ items, admin, source, order, onOpen }: { items: Item[] | null; 
           {off.length > 0 && <Chip size="small" clickable label={`${t('Off the menu')} ${off.length}`} onClick={() => setOffOnly(v => !v)} aria-pressed={offOnly}
             variant={offOnly ? 'filled' : 'outlined'} color={offOnly ? 'warning' : 'default'} />}
           <Box sx={{ flex: 1 }} />
-          <Autocomplete multiple size="small" options={ALLERGENS.map(a => a.id)} value={freeFrom} onChange={(_, v) => setFreeFrom(v)} sx={{ width: { xs: '100%', sm: 260 } }}
-            getOptionLabel={a => `${allergenNumber(a)} · ${t(ALLERGENS.find(x => x.id === a)!.label)}`} disableCloseOnSelect limitTags={2}
-            renderInput={p => <TextField {...p} label={t('Free from')} placeholder={freeFrom.length ? '' : t('e.g. Gluten, Milk')} />} />
+          {/* What suits a customer (gluten free, vegan, without nuts…) is the Allergens page's. */}
+          <Button size="small" startIcon={<AllergensIcon />} component={RouterLink} to="/allergens">{t('Free from: on Allergens')}</Button>
           <TextField select size="small" value={category} onChange={e => setCategory(e.target.value)} sx={{ width: { xs: '100%', sm: 180 } }}
-            slotProps={{ select: { displayEmpty: true, SelectDisplayProps: { 'aria-label': t('Section') } } }}>
+            slotProps={{ select: { displayEmpty: true, SelectDisplayProps: { 'aria-label': tc('menu', 'Section') } } }}>
             <MenuItem value="">{t('Every section')}</MenuItem>
             {categories.map(c => <MenuItem key={c} value={c}>{t(c)}</MenuItem>)}
           </TextField>
@@ -197,16 +190,15 @@ function Items({ items, admin, source, order, onOpen }: { items: Item[] | null; 
               </>}
             </Stack>
             <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(3, minmax(0, 1fr))' } }}>
-              {s.items.map((i, n) => <ItemCard key={i.id} item={i} admin={admin} onOpen={() => onOpen(i)}
+              {s.items.map((i, n) => <ItemCard key={i.id} item={i} marks={marksOf(i.id, allergens)} admin={admin} onOpen={() => onOpen(i)}
                 move={arranging ? { up: n > 0 ? () => move(i, -1) : null, down: n < s.items.length - 1 ? () => move(i, 1) : null } : null} />)}
             </Box>
           </Box>
         ))}
-        {used.length > 0 && (
-          <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1 }}>
-            {`${t('Allergens')}: ${used.map(a => `${allergenNumber(a.id)} ${t(a.label)}`).join(' · ')}`}
-          </Typography>
-        )}
+        <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1 }}>
+          {t('Allergens and diets come from what goes into each item on Menu costing and its ingredients’ allergens. An item with nothing in it there shows none.')}{' '}
+          <RouterLink to="/allergens">{t('Open Allergens')}</RouterLink>
+        </Typography>
       </>}
     </>
   )
@@ -250,7 +242,7 @@ function MenuFrom({ source, items, onTemplate }: { source: MenuSource; items: It
           {source === 'square' && (
             <Typography variant="caption" sx={{ color: 'text.secondary' }}>
               {settings?.menu_synced_at ? t('Last read from Square {when}.', { when: ago(settings.menu_synced_at) }) : t('Not read from Square yet.')}
-              {` ${t('Allergens, vegan or gluten free, photos and what’s featured are set here.')}`}
+              {` ${t('Photos and what’s featured are set here; allergens come from Menu costing.')}`}
             </Typography>
           )}
           {missing > 0 && (
@@ -277,7 +269,7 @@ function MenuFrom({ source, items, onTemplate }: { source: MenuSource; items: It
                 {t('Names, sections, prices (hot and iced as Square has them), descriptions and photos come from your Square item library, now and every hour. The milks, syrups and other modifiers go in an Extras section.')}
               </Typography>
               <Typography variant="body2">
-                {t('Items already here are matched by name and keep their allergens and photos. Items that aren’t in Square are hidden while the menu comes from Square, and come back if you switch to Custom.')}
+                {t('Items already here are matched by name and keep their photos and what goes into them on Menu costing. Items that aren’t in Square are hidden while the menu comes from Square, and come back if you switch to Custom.')}
               </Typography>
               {integ.data && !squareOn && (
                 <Alert severity="warning" action={<Button component={RouterLink} to="/connections" color="inherit" size="small">{t('Connections')}</Button>}>
@@ -299,7 +291,9 @@ function MenuFrom({ source, items, onTemplate }: { source: MenuSource; items: It
   )
 }
 
-function ItemCard({ item: i, admin, onOpen, move }: { item: Item; admin: boolean; onOpen: () => void; move: { up: (() => void) | null; down: (() => void) | null } | null }) {
+function ItemCard({ item: i, marks, admin, onOpen, move }: {
+  item: Item; marks: ItemMarks; admin: boolean; onOpen: () => void; move: { up: (() => void) | null; down: (() => void) | null } | null
+}) {
   const body = (
     <Stack direction="row" spacing={1.5} sx={{ p: 1.5, width: '100%', alignItems: 'flex-start', opacity: i.on_menu ? 1 : 0.62 }}>
       <ItemPhoto item={i} />
@@ -324,9 +318,11 @@ function ItemCard({ item: i, admin, onOpen, move }: { item: Item; admin: boolean
         )}
         <Stack direction="row" sx={{ gap: 0.5, flexWrap: 'wrap', mt: 0.75 }}>
           {!i.on_menu && <Tag fg={tokens.warnFg} bg={tokens.warnBg}>{t('Off the menu')}</Tag>}
-          {i.dietary.map(d => <Tag key={d} fg={tokens.goodFg} bg={tokens.goodBg}>{t(DIETARY.find(x => x.id === d)!.label)}</Tag>)}
-          {i.allergens.map(a => <Tag key={a}>{`${allergenNumber(a)} · ${t(ALLERGENS.find(x => x.id === a)!.label)}`}</Tag>)}
+          <MarkTags marks={marks} />
         </Stack>
+        {marks.unknown.length > 0 && (
+          <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 0.5 }}>{t('Not known yet: {list}', { list: marks.unknown.join(', ') })}</Typography>
+        )}
       </Box>
     </Stack>
   )
@@ -343,11 +339,19 @@ function ItemCard({ item: i, admin, onOpen, move }: { item: Item; admin: boolean
   )
 }
 
-const blank = (): MenuItemInput => ({ name: '', category: 'Coffee', sell_price: null, price_label: null, vat_rate: 10, description: null, photo_url: null, allergens: [],
-  dietary: [], featured: false, on_menu: true })
+/** Its diet badges and allergens, from its ingredients (nothing while it has none on Menu costing). */
+function MarkTags({ marks }: { marks: ItemMarks }) {
+  return <>
+    {marks.tags.map(d => <Tag key={d} fg={tokens.goodFg} bg={tokens.goodBg}>{t(MENU_FILTERS.find(x => x.id === d)!.label)}</Tag>)}
+    {marks.contains.map(a => <Tag key={a}>{allergenText(a)}</Tag>)}
+  </>
+}
+
+const blank = (): MenuItemInput => ({ name: '', category: 'Coffee', sell_price: null, price_label: null, vat_rate: 10, description: null, photo_url: null,
+  featured: false, on_menu: true })
 
 /** Add or change a menu item: what customers read, its photo, and what's in it. */
-function ItemDialog({ item, items, fromSquare, onClose }: { item: Item | null; items: Item[]; fromSquare: boolean; onClose: () => void }) {
+function ItemDialog({ item, items, marks, fromSquare, onClose }: { item: Item | null; items: Item[]; marks: ItemMarks | null; fromSquare: boolean; onClose: () => void }) {
   const { api } = useApp()
   const run = useAction()
   const phone = useMediaQuery(useTheme().breakpoints.down('sm'))
@@ -356,9 +360,7 @@ function ItemDialog({ item, items, fromSquare, onClose }: { item: Item | null; i
   const [deleting, setDeleting] = useState(false)
   const [linking, setLinking] = useState(false)
   const set = (patch: Partial<MenuItemInput>) => setM(x => ({ ...x, ...patch }))
-  const toggle = <T,>(list: T[], v: T) => (list.includes(v) ? list.filter(x => x !== v) : [...list, v])
   const categories = [...new Set([...RECIPE_CATEGORIES, ...items.map(i => i.category).filter((c): c is string => !!c), ...(m.category ? [m.category] : [])])]
-  const clash = dietaryClash(m)
   const save = () => run(async () => {
     const typed = price.trim().replace(',', '.')
     // Not a number: the check below says how to write it.
@@ -377,7 +379,7 @@ function ItemDialog({ item, items, fromSquare, onClose }: { item: Item | null; i
         <Stack spacing={2.25} sx={{ pt: 1 }}>
           {fromSquare && (
             <Alert severity="info" icon={<SyncIcon />}>
-              {t('Its name, section, price and description come from Square: change them there and the menu follows within the hour. What’s in it, its photo and whether it’s on the menu are kept here.')}
+              {t('Its name, section, price and description come from Square: change them there and the menu follows within the hour. Its photo and whether it’s on the menu are kept here, and what goes in it on Menu costing.')}
             </Alert>
           )}
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
@@ -385,7 +387,7 @@ function ItemDialog({ item, items, fromSquare, onClose }: { item: Item | null; i
               slotProps={{ htmlInput: { maxLength: 120 } }} />
             <Autocomplete freeSolo fullWidth disabled={fromSquare} options={categories} value={m.category ?? ''} getOptionLabel={c => t(c)}
               onInputChange={(_, v, reason) => { if (reason !== 'reset') set({ category: v.trim() || null }) }} onChange={(_, v) => set({ category: v || null })}
-              renderInput={p => <TextField {...p} label={t('Section')} />} />
+              renderInput={p => <TextField {...p} label={tc('menu', 'Section')} />} />
           </Stack>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField fullWidth label={t('Price, with IVA')} value={price} inputMode="decimal" onChange={e => setPrice(e.target.value)} disabled={fromSquare}
@@ -420,26 +422,21 @@ function ItemDialog({ item, items, fromSquare, onClose }: { item: Item | null; i
           </Box>
 
           <Box>
-            <Typography variant="overline" component="h3" sx={{ color: 'text.secondary' }}>{t('Contains')}</Typography>
-            <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1 }}>{t('Tick each of the 14 allergens it has, even in traces you know of: they show on the menus.')}</Typography>
-            <Box role="group" aria-label={t('Allergens')} sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
-              {ALLERGENS.map(a => {
-                const has = m.allergens.includes(a.id)
-                return <Chip key={a.id} label={`${allergenNumber(a.id)} · ${t(a.label)}`} clickable aria-pressed={has} onClick={() => set({ allergens: toggle(m.allergens, a.id) })}
-                  variant={has ? 'filled' : 'outlined'} sx={has ? { bgcolor: tokens.warnBg, color: tokens.warnFg, borderColor: 'transparent' } : undefined} />
-              })}
-            </Box>
-          </Box>
-          <Box>
-            <Typography variant="overline" component="h3" sx={{ color: 'text.secondary' }}>{t('Suitable for')}</Typography>
-            <Box role="group" aria-label={t('Suitable for')} sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
-              {DIETARY.map(d => {
-                const has = m.dietary.includes(d.id)
-                return <Chip key={d.id} label={t(d.label)} clickable aria-pressed={has} onClick={() => set({ dietary: toggle<Dietary>(m.dietary, d.id) })}
-                  variant={has ? 'filled' : 'outlined'} sx={has ? { bgcolor: tokens.goodBg, color: tokens.goodFg, borderColor: 'transparent' } : undefined} />
-              })}
-            </Box>
-            {clash && <Alert severity="warning" icon={<WarningIcon />} sx={{ mt: 1.5 }}>{t(clash)}</Alert>}
+            <Typography variant="overline" component="h3" sx={{ color: 'text.secondary' }}>{t('Allergens and diets')}</Typography>
+            {marks && (marks.tags.length > 0 || marks.contains.length > 0) && (
+              <Stack direction="row" sx={{ gap: 0.5, flexWrap: 'wrap', mb: 1 }}><MarkTags marks={marks} /></Stack>
+            )}
+            {marks && marks.unknown.length > 0 && (
+              <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1 }}>{t('Not known yet: {list}', { list: marks.unknown.join(', ') })}</Typography>
+            )}
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+              {item ? t('They come from what goes into it on Menu costing and each ingredient’s allergens on the Allergens page; the menus show them from there.')
+                : t('Once it’s added, put what goes into it on Menu costing: its allergens and diets follow from its ingredients.')}
+            </Typography>
+            <Stack direction="row" sx={{ gap: 1, mt: 1, flexWrap: 'wrap' }}>
+              <Button size="small" component={RouterLink} to="/recipes">{t('Open Menu costing')}</Button>
+              <Button size="small" component={RouterLink} to="/allergens">{t('Open Allergens')}</Button>
+            </Stack>
           </Box>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0, sm: 3 }}>
             <FormControlLabel control={<Switch checked={m.on_menu} onChange={e => set({ on_menu: e.target.checked })} />} label={t('On the menu')} />

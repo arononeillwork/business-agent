@@ -121,14 +121,17 @@ built-in **AI connector** so owners can run it by talking to Claude.
   and opened there. Nothing is copied: only where each file is is kept. A gestoría with finances access
   reads. Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) section 18.
 - Menu (its own section): the menu as customers see it, by section, with each item's photo, price,
-  description, variants, the 14 EU allergens (Regulation 1169/2011) and vegetarian, vegan, gluten or
-  dairy free; everyone on the team reads it ("free from milk" finds what's safe), admins add, arrange
-  and take items off the menu, and move items and whole sections up and down. The items are Menu
-  costing's own (one list, two views), and the allergen chart exports like every table. Where the menu
-  comes from is a choice: **Custom** (the default: kept on this page, starting from the café's printed
-  Drinks, Food and The Fridge menus, hot and iced prices and allergens included) or **Square** (read
-  from the Square item library every hour and on demand, its modifiers as extras; allergens, photos,
-  featured and off the menu are still set here). **Design** (admins) makes the **physical** menus (A4, A3, A5, printed
+  description and variants; everyone on the team reads it, admins add, arrange and take items off the
+  menu, and move items and whole sections up and down. The items are Menu costing's own (one list, two
+  views). Allergens and diets aren't kept on the menu: each item's come from what goes into it on Menu
+  costing and its ingredients' allergens (the **Allergens** page), so the Menu page, the printed menus
+  and the screens say what the Allergens page says. An item with nothing in it on Menu costing shows
+  no allergens or diet badges until it has; one with an ingredient whose allergens aren't entered yet
+  shows none on the printed and screen menus. Finding what suits a customer, and the allergen chart to
+  print, are on the Allergens page. Where the menu comes from is a choice: **Custom** (the default: kept
+  on this page, starting from the café's printed Drinks, Food and The Fridge menus, hot and iced prices
+  included) or **Square** (read from the Square item library every hour and on demand, its modifiers as
+  extras; photos, featured and off the menu are still set here). **Design** (admins) makes the **physical** menus (A4, A3, A5, printed
   or saved as PDF at their paper size) and the **digital** ones (16:9 or 9:16, for the screens), each
   previewed on paper or on a TV: the app writes the menu from the items (names and prices always
   right, the writing sized to fit), **boxed** like the printed menus (logo, each section in a rounded

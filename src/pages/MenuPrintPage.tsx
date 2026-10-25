@@ -15,6 +15,8 @@ export function MenuPrintPage() {
   const { api, business, settings } = useApp()
   const designs = useAsync('menu-designs', () => api.menuDesigns(), [])
   const items = useAsync('menu-items', () => api.menuItems(), [])
+  // Each item's allergens, from what goes into it on Menu costing (the Allergens page).
+  const allergens = useAsync('menu-allergens', () => api.menuAllergens(), [])
   const brand = useAsync('brand', () => api.brand(), [])
   const d = designs.data?.find(x => x.id === id)
   if (designs.data && !d) {
@@ -25,7 +27,7 @@ export function MenuPrintPage() {
       </Box>
     )
   }
-  if (!d || !items.data) return <Loading />
+  if (!d || !items.data || (!allergens.data && !allergens.error)) return <Loading />
   const z = sizeOf(d.size)
   return (
     <Box sx={{ bgcolor: '#E9E4DE', minHeight: '100vh', '@media print': { bgcolor: '#fff', minHeight: 0 } }}>
@@ -38,7 +40,7 @@ export function MenuPrintPage() {
       </Stack>
       <Box sx={{ width: `${z.width}mm`, maxWidth: '100%', mx: 'auto', my: 3, boxShadow: '0 12px 34px rgba(60,40,30,0.22)', printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact',
         '@media print': { my: 0, maxWidth: 'none', boxShadow: 'none' } }}>
-        <MenuBoard design={d} items={items.data} image={imageOf(d)?.url ?? null} brand={boardBrand(business?.name ?? '', brand.data)} order={settings?.menu_sections} />
+        <MenuBoard design={d} items={items.data} allergens={allergens.data} image={imageOf(d)?.url ?? null} brand={boardBrand(business?.name ?? '', brand.data)} order={settings?.menu_sections} />
       </Box>
     </Box>
   )

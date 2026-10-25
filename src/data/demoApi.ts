@@ -41,13 +41,13 @@ import { adjustProblem, giftCardAmountProblem, type GiftCard, type GiftCardActiv
 import type { MovementInput, StockItem, StockMovement, Supplier } from '../../shared/stock'
 import type { Recipe } from '../../shared/recipes'
 import {
-  MAX_PROMPT, PROMPT_IDEAS, cleanAllergens, cleanDietary, designProblem, menuItemProblem, menuSections, modelOf, sizeOf, type MenuDesign, type MenuImage, type MenuItem,
+  MAX_PROMPT, PROMPT_IDEAS, designProblem, menuItemProblem, menuSections, modelOf, sizeOf, type MenuDesign, type MenuImage, type MenuItem,
 } from '../../shared/menu'
 import { screenProblem, type DisplayFeed, type Screen } from '../../shared/screens'
 import { demoArtwork, demoMenuPicture, demoPhoto, demoStrip } from './demoMenu'
 import { demoSquareCatalog } from './demoSquareMenu'
 import { fromSquareCatalog } from '../../shared/menuSquare'
-import { missingFrom, templateDesigns, templateItems, templateSections } from '../../shared/menuTemplate'
+import { missingFrom, templateDesigns, templateSections } from '../../shared/menuTemplate'
 import { AD_PLATFORMS, NO_METRICS, PLATFORM_NAMES, addMetrics, sumDays, type AdCampaign, type AdDay, type AdMetrics, type AdPlatform, type AdSettings, type AdsReport } from '../../shared/ads'
 import { CONNECT_MAPS, MAX_REPLY, type Review } from '../../shared/reviews'
 import { checkSite, parsePage, scoreOf, type PageSpeed, type WebsiteReport } from '../../shared/seo'
@@ -57,7 +57,7 @@ import { DEFAULT_MILEAGE_RATE, mileageAmount, type ExpenseClaim } from '../../sh
 import { EVERYONE, type Campaign } from '../../shared/campaigns'
 import { keepUntil, type Applicant, type JobOpening } from '../../shared/hiring'
 import { CAFE_POINTS, inRange as inLimits, type SafetyCheck, type SafetyPoint } from '../../shared/foodSafety'
-import { dietsFor, type Allergen } from '../../shared/allergens'
+import { dietsFor, type Allergen, type MenuAllergens } from '../../shared/allergens'
 import { minutesWorked, splitTips, type TipPool } from '../../shared/tips'
 import { accessOf } from '../../shared/teamRoles'
 
@@ -777,29 +777,26 @@ export function createDemoApi(): Api {
     ({ item_id: byName(name), quantity, unit, variant_id, replaces_item_id: replaces ? byName(replaces) : null })
   const cupAndLid = [line('Cups 8 oz', 1, 'unit'), line('Lids 8 oz', 1, 'unit')]
   // What customers read about each one, for the Menu page (the same rows, as in the database).
-  type MenuExtras = Pick<MenuItem, 'description' | 'photo_url' | 'allergens' | 'dietary' | 'featured' | 'on_menu' | 'menu_sort' | 'price_label' | 'square_id'>
+  type MenuExtras = Pick<MenuItem, 'description' | 'photo_url' | 'featured' | 'on_menu' | 'menu_sort' | 'price_label' | 'square_id'>
   const recipe = (r: Partial<Recipe & MenuExtras> & { name: string }): Recipe & MenuExtras => ({ id: uid(), category: 'Coffee', square_item: null, sell_price: null, vat_rate: 10,
     target_margin: 70, wastage_pct: 3, notes: null, active: true, variants: [], lines: [],
-    description: null, photo_url: null, allergens: [], dietary: [], featured: false, on_menu: true, menu_sort: 0, price_label: null, square_id: null, ...r })
-  // The menu is the café's own printed menus (Drinks, Food, The fridge: shared/menuTemplate.ts). The
-  // coffees, matcha, chai and croissant are costed from the stock in them; two more costed recipes
-  // aren't on the menu now.
-  const costed: Record<string, Partial<Recipe>> = {
-    'Flat white': { square_item: 'Flat white', lines: [line('House espresso blend', 18, 'g'), line('Whole milk', 150, 'ml'), ...cupAndLid] },
-    'Cappuccino': { lines: [line('House espresso blend', 18, 'g'), line('Whole milk', 180, 'ml'), ...cupAndLid] },
-    'Espresso': { lines: [line('House espresso blend', 18, 'g')] },
-    'Matcha latte': { lines: [line('Ceremonial matcha', 0.04, 'unit'), line('Oat milk (barista)', 250, 'ml'), ...cupAndLid] },
-    'Chai latte': { lines: [line('Chai concentrate', 0.06, 'bottle'), line('Whole milk', 200, 'ml'), ...cupAndLid] },
-    'Croissant': { target_margin: 60, wastage_pct: 10, lines: [line('Butter croissants', 1, 'unit')] },
-  }
+    description: null, photo_url: null, featured: false, on_menu: true, menu_sort: 0, price_label: null, square_id: null, ...r })
   const recipes: (Recipe & MenuExtras)[] = [
-    ...templateItems().map(({ variants, ...t }) => recipe({ ...t, variants: variants.map(v => ({ ...v, id: `v-${t.name}-${v.name}` })), ...costed[t.name] })),
-    recipe({ name: 'Caramel latte', category: 'Classics', sell_price: 3.6, on_menu: false, menu_sort: 20,
-      lines: [line('House espresso blend', 18, 'g'), line('Whole milk', 220, 'ml'), line('Caramel syrup', 0.03, 'bottle'), ...cupAndLid] }),
-    recipe({ name: 'Pain au chocolat', category: 'Bakery', sell_price: 2, target_margin: 60, wastage_pct: 10, on_menu: false, menu_sort: 20, lines: [line('Pain au chocolat', 1, 'unit')] }),
+    recipe({ name: 'Flat white', sell_price: 3.2, square_item: 'Flat white', variants: [{ id: 'v-fw-oat', name: 'Oat milk', price_change: 0.4 }, { id: 'v-fw-shot', name: 'Extra shot', price_change: 0.5 }],
+      lines: [line('House espresso blend', 18, 'g'), line('Whole milk', 150, 'ml'), ...cupAndLid,
+        line('Oat milk (barista)', 150, 'ml', 'v-fw-oat', 'Whole milk'), line('House espresso blend', 9, 'g', 'v-fw-shot')] }),
+    recipe({ name: 'Cappuccino', sell_price: 2.9, variants: [{ id: 'v-cap-oat', name: 'Oat milk', price_change: 0.4 }],
+      lines: [line('House espresso blend', 18, 'g'), line('Whole milk', 180, 'ml'), ...cupAndLid, line('Oat milk (barista)', 180, 'ml', 'v-cap-oat', 'Whole milk')] }),
+    recipe({ name: 'Espresso', sell_price: 1.6, lines: [line('House espresso blend', 18, 'g')] }),
+    recipe({ name: 'Iced matcha latte', category: 'Tea & matcha', sell_price: 4.5, target_margin: 70,
+      lines: [line('Ceremonial matcha', 0.04, 'unit'), line('Oat milk (barista)', 250, 'ml'), ...cupAndLid] }),
+    recipe({ name: 'Chai latte', category: 'Tea & matcha', sell_price: 3.8, lines: [line('Chai concentrate', 0.06, 'bottle'), line('Whole milk', 200, 'ml'), ...cupAndLid] }),
+    recipe({ name: 'Caramel latte', sell_price: 3.6, lines: [line('House espresso blend', 18, 'g'), line('Whole milk', 220, 'ml'), line('Caramel syrup', 0.03, 'bottle'), ...cupAndLid] }),
+    recipe({ name: 'Croissant', category: 'Bakery', sell_price: 1.8, target_margin: 60, wastage_pct: 10, lines: [line('Butter croissants', 1, 'unit')] }),
+    recipe({ name: 'Pain au chocolat', category: 'Bakery', sell_price: 2, target_margin: 60, wastage_pct: 10, lines: [line('Pain au chocolat', 1, 'unit')] }),
   ]
   const menuItemOf = (r: Recipe & MenuExtras): MenuItem => ({ id: r.id, name: r.name, category: r.category, sell_price: r.sell_price, price_label: r.price_label,
-    vat_rate: r.vat_rate, description: r.description, photo_url: r.photo_url, allergens: [...r.allergens], dietary: [...r.dietary], featured: r.featured,
+    vat_rate: r.vat_rate, description: r.description, photo_url: r.photo_url, featured: r.featured,
     on_menu: r.on_menu, menu_sort: r.menu_sort, variants: r.variants.map(v => ({ ...v })), square_id: r.square_id })
   /** As menu_list(): with Square as the source, only what's in Square (the rest waits for Custom again). */
   const menuList = () => recipes.filter(r => r.active && (settings.menu_source !== 'square' || r.square_id)).map(menuItemOf)
@@ -819,10 +816,10 @@ export function createDemoApi(): Api {
   const TV_ART = 'Hand-drawn chalkboard with coffee cups and croissants sketched around the border'
   const [drinksMenu, foodMenu, fridgeMenu] = templateDesigns()
   const menuDesignList: DemoDesign[] = [
-    { ...drinksMenu, id: 'd-drinks', image_id: 'img-drinks', updated_at: daysAgo(3) },
+    { ...drinksMenu, id: 'd-drinks', image_id: 'img-drinks', categories: ['Coffee', 'Tea & matcha', ...drinksMenu.categories], updated_at: daysAgo(3) },
     { ...foodMenu, id: 'd-food', image_id: 'img-food', updated_at: daysAgo(3) },
     { ...fridgeMenu, id: 'd-fridge', updated_at: daysAgo(3) },
-    { id: 'd-tv', name: 'TV menu board', format: 'digital', size: 'screen_landscape', mode: 'background', style: 'classic', categories: ['Classics', 'Speciality'],
+    { id: 'd-tv', name: 'TV menu board', format: 'digital', size: 'screen_landscape', mode: 'background', style: 'classic', categories: ['Coffee', 'Tea & matcha'],
       title: null, subtitle: null, footer: 'Any milk at no extra charge', text_tone: 'light', panel: false, show_descriptions: false, show_allergens: false,
       image_id: 'img-tv', updated_at: daysAgo(2) },
   ]
@@ -868,6 +865,15 @@ export function createDemoApi(): Api {
     Object.assign(i, { status: 'ready', stored: !!mediaStorage(), readyAt: undefined })
   }
   const publicImage = ({ readyAt: _readyAt, ...i }: DemoImage): MenuImage => ({ ...i })
+  /** As display_menu_allergens(): what goes into each item and its ingredients' allergens, without their names, for a screen. */
+  const displayAllergens = (): MenuAllergens => {
+    const live = recipes.filter(r => r.active)
+    const used = new Set(live.flatMap(r => r.lines.map(l => l.item_id)))
+    return clone({
+      dishes: live.map(r => ({ id: r.id, name: r.name, category: r.category, variants: r.variants.map(v => ({ ...v, price_change: 0 })), lines: r.lines.map(l => ({ ...l, quantity: 1 })) })),
+      items: stock.filter(i => used.has(i.id)).map(i => ({ id: i.id, name: '', allergens: i.allergens ?? null, may_contain: i.may_contain ?? [], diet: i.diet ?? null })),
+    })
+  }
 
   // Screens: the counter TV plays the menu board, a photo and the website, with the clock and a running line.
   const newToken = () => crypto.randomUUID().replace(/-/g, '')
@@ -988,8 +994,9 @@ export function createDemoApi(): Api {
     approval_weekday: 1, employer_cost_multiplier: 1.3, auto_timecards_from_rota: true, vacation_days_per_year: 30,
     alert_shift_reminders: true, alert_missed_clock_in: true, alert_rota: true, alert_time_off: true,
     whatsapp_retention_days: DEFAULT_WHATSAPP_RETENTION, hidden_pages: [], mileage_rate: DEFAULT_MILEAGE_RATE,
-    // The menu is kept here (Custom), in the printed menus' order of sections.
-    menu_source: 'custom', menu_sections: templateSections(), menu_synced_at: null, menu_sync_error: null,
+    // The menu is kept here (Custom), its sections not arranged yet. "Add what's on your printed menus"
+    // (Menu page) adds the café's printed menus beside the costed recipes, in their order of sections.
+    menu_source: 'custom', menu_sections: [], menu_synced_at: null, menu_sync_error: null,
   }
 
   const P = { aron: 'p-aron', mark: 'p-mark', julio: 'p-julio', maria: 'p-maria', cleaner: 'p-cleaner' }
@@ -2496,8 +2503,7 @@ export function createDemoApi(): Api {
       requireAdmin()
       const problem = menuItemProblem(item)
       if (problem) throw new Error(problem)
-      const patch = { ...item, name: item.name.trim(), description: item.description?.trim() || null, photo_url: item.photo_url?.trim() || null,
-        allergens: cleanAllergens(item.allergens), dietary: cleanDietary(item.dietary) }
+      const patch = { ...item, name: item.name.trim(), description: item.description?.trim() || null, photo_url: item.photo_url?.trim() || null }
       const existing = id ? recipes.find(r => r.id === id) : undefined
       if (existing) { Object.assign(existing, patch); return existing.id }
       const made = recipe({ ...patch, menu_sort: lastInSection(patch.category) })
@@ -2673,7 +2679,8 @@ export function createDemoApi(): Api {
         }
       }
       return { screen, sections: [...(settings.menu_sections ?? [])],
-        business: { name: business.name, logo: brand.logo_mark ?? brand.logo, heading_font: brand.heading_font, body_font: brand.body_font, colours: clone(brand.colours) }, menus }
+        business: { name: business.name, logo: brand.logo_mark ?? brand.logo, heading_font: brand.heading_font, body_font: brand.body_font, colours: clone(brand.colours) }, menus,
+        allergens: s.active ? displayAllergens() : null }
     },
     async menuAllergens() {
       if (!readStock()) return { dishes: [], items: [] }

@@ -1,8 +1,10 @@
 -- Menu page: the menu as customers see it, and the menus made from it, printed (physical) and on
 -- screens (digital), with images made by AI through Higgsfield, uploaded or linked.
 -- Menu items are the recipes of Menu costing: one list of what the café sells, seen two ways. The
--- menu adds what customers read (a description, a photo, the 14 allergens, vegan or gluten free),
--- whether it's on the menus for now, and its place in its section. Costs stay in Menu costing.
+-- menu adds what customers read (a description, a photo), whether it's on the menus for now, and its
+-- place in its section. Costs stay in Menu costing. Its allergens and diets aren't kept here: they
+-- come from what goes into it on Menu costing and its ingredients' allergens (the allergens and
+-- menu_diets migrations, the Allergens page), so the menus and the Allergens page always agree.
 -- Where the menu comes from is a choice (settings.menu_source): kept here (custom, the default), or
 -- read from the Square item library by the Worker (sync_square_menu()), every hour and on demand.
 -- Who: everyone on the team reads the menu (menu_items(): no costs or margins); admins change it and
@@ -12,10 +14,6 @@
 alter table public.recipes
   add column description text check (char_length(description) <= 300),
   add column photo_url text check (photo_url ~* '^https?://\S+$' and char_length(photo_url) <= 2000),
-  -- EU Regulation 1169/2011, Annex II.
-  add column allergens text[] not null default '{}' check (allergens <@ array['gluten', 'crustaceans', 'eggs', 'fish', 'peanuts', 'soy', 'milk', 'nuts',
-    'celery', 'mustard', 'sesame', 'sulphites', 'lupin', 'molluscs']::text[]),
-  add column dietary text[] not null default '{}' check (dietary <@ array['vegetarian', 'vegan', 'gluten_free', 'dairy_free']::text[]),
   -- Picked out on the menus (a house favourite).
   add column featured boolean not null default false,
   -- On the printed and digital menus (off: kept, but not offered for now).
@@ -47,9 +45,6 @@ begin
   new.description := nullif(btrim(new.description), '');
   new.photo_url := nullif(btrim(new.photo_url), '');
   new.price_label := nullif(btrim(new.price_label), '');
-  -- Each allergen and mark once.
-  new.allergens := array(select distinct a from unnest(new.allergens) a order by a);
-  new.dietary := array(select distinct d from unnest(new.dietary) d order by d);
   -- A new item goes last in its section.
   if tg_op = 'INSERT' and new.menu_sort = 0 then
     new.menu_sort := coalesce((select max(r.menu_sort) from public.recipes r where r.category is not distinct from new.category), 0) + 1;
@@ -67,7 +62,7 @@ language sql stable security definer set search_path = ''
 as $$
   select coalesce(jsonb_agg(jsonb_build_object(
     'id', r.id, 'name', r.name, 'category', r.category, 'sell_price', r.sell_price, 'price_label', r.price_label, 'vat_rate', r.vat_rate,
-    'description', r.description, 'photo_url', r.photo_url, 'allergens', to_jsonb(r.allergens), 'dietary', to_jsonb(r.dietary), 'featured', r.featured,
+    'description', r.description, 'photo_url', r.photo_url, 'featured', r.featured,
     'on_menu', r.on_menu, 'menu_sort', r.menu_sort, 'square_id', r.square_id,
     'variants', coalesce((select jsonb_agg(jsonb_build_object('id', v.id, 'name', v.name, 'price_change', v.price_change) order by v.sort)
                             from public.recipe_variants v where v.recipe_id = r.id), '[]'::jsonb)
@@ -239,8 +234,8 @@ insert into public.integrations (provider) values ('higgsfield') on conflict do 
 -- sections: [...] }. Each item is found by its Square id (or, the first time, an item here with the
 -- same name, so switching to Square doesn't make doubles) and gets Square's name, section, price, how
 -- it's sold, description and photo (its own photo stays when Square has none); its variants are
--- matched by name, so what goes in each (Menu costing) stays. What Square doesn't have stays as set
--- here: allergens, vegan or gluten free, featured, on the menu, its place. An item gone from Square
+-- matched by name, so what goes in each (Menu costing) stays, and with it the item's allergens. What
+-- Square doesn't have stays as set here: featured, on the menu, its place. An item gone from Square
 -- comes off the menu (it's kept, with its costing). Sections keep the order they were given here; new
 -- ones go after, in Square's order. Returns how many were added, changed and taken off.
 create or replace function public.sync_square_menu(p jsonb) returns jsonb

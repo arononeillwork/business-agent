@@ -2,9 +2,10 @@ import { Box, type SxProps, type Theme } from '@mui/material'
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import logoUrl from '../assets/logo.png'
 import {
-  ALLERGENS, ALLERGEN_MARKS, DIETARY, allergenNumber, menuSections, otherVariants, priceColumns, priceIn, sizeOf, type Allergen, type MenuDesign, type MenuItem,
-  type MenuSection,
+  ALLERGEN_MARKS, MENU_TAGS, allergenNumber, marksOf, menuSections, otherVariants, priceColumns, priceIn, shownAllergens, sizeOf, type ItemMarks, type MenuDesign,
+  type MenuItem, type MenuSection,
 } from '../../shared/menu'
+import { ALLERGENS, type Allergen, type MenuAllergens } from '../../shared/allergens'
 import type { BrandColour } from '../../shared/types'
 import { formatMoney } from '../../shared/time'
 import { useGoogleFont } from '../lib/googleFont'
@@ -16,7 +17,9 @@ import { t } from '../i18n'
 // names and prices are always right. Classic writes one list over the image; boxed is laid out like
 // the café's printed menus (its logo in a circle, a big heading, each section in a rounded box, hot
 // and iced prices side by side, allergens as coloured letters, the image as a strip of illustrations
-// at the bottom). Everything is sized from the board's own box (container units), so it looks the
+// at the bottom). Allergens and diet badges come from what goes into each item on Menu costing (the
+// Allergens page): an item shows its allergens once every ingredient's are entered, and nothing while
+// it has no ingredients there. Everything is sized from the board's own box (container units), so it looks the
 // same as a thumbnail, a printed A3 or a TV; the more there is on it, the smaller the writing and
 // the more columns. It starts generous and, once drawn, shrinks the writing until every item fits:
 // nothing is ever cut off a menu.
@@ -63,8 +66,9 @@ interface Look {
   fit: number
 }
 
-export function MenuBoard({ design, items, image, brand, order, sx }: {
-  design: BoardDesign; items: MenuItem[]; image: string | null; brand: BoardBrand; order?: readonly string[]; sx?: SxProps<Theme>
+export function MenuBoard({ design, items, allergens, image, brand, order, sx }: {
+  design: BoardDesign; items: MenuItem[]; allergens: MenuAllergens | null | undefined; image: string | null; brand: BoardBrand; order?: readonly string[]
+  sx?: SxProps<Theme>
 }) {
   useGoogleFont(brand.heading_font)
   useGoogleFont(brand.body_font)
@@ -78,7 +82,7 @@ export function MenuBoard({ design, items, image, brand, order, sx }: {
     return () => document.fonts?.removeEventListener?.('loadingdone', loaded)
   }, [])
   // Something new to write: start from the generous size again…
-  const content = JSON.stringify([design, items, order, image, fonts_])
+  const content = JSON.stringify([design, items, allergens, order, image, fonts_])
   useLayoutEffect(() => setFit(1), [content])
   // …and shrink it a step at a time while it overflows (down, or into extra columns across).
   useLayoutEffect(() => {
@@ -111,22 +115,30 @@ export function MenuBoard({ design, items, image, brand, order, sx }: {
   }
 
   const sections = menuSections(items, { only: design.categories, order })
+  const marks = new Map(items.map(i => [i.id, marksOf(i.id, allergens)]))
+  const markOf = (i: MenuItem) => marks.get(i.id)!
   const look = (size: number): Look => ({ portrait, light, ink, accent, second: brand.second ?? '#6B8E4E', heading, fit, u: k => `${(size * fit * k).toFixed(3)}cqh` })
   if (design.style === 'boxed') {
     return (
       <Box sx={[base, ...own]}>
-        <Boxed design={design} sections={sections} image={image} brand={brand} look={look} writing={writing} />
+        <Boxed design={design} sections={sections} markOf={markOf} image={image} brand={brand} look={look} writing={writing} />
       </Box>
     )
   }
   return (
     <Box sx={[base, image ? { backgroundImage: `url("${image.replace(/"/g, '%22')}")`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}, ...own]}>
-      <Classic design={design} sections={sections} brand={brand} look={look} writing={writing} />
+      <Classic design={design} sections={sections} markOf={markOf} brand={brand} look={look} writing={writing} />
     </Box>
   )
 }
 
-interface BodyProps { design: BoardDesign; sections: MenuSection[]; brand: BoardBrand; look: (size: number) => Look; writing: RefObject<HTMLDivElement | null> }
+interface BodyProps {
+  design: BoardDesign; sections: MenuSection[]; markOf: (i: MenuItem) => ItemMarks; brand: BoardBrand; look: (size: number) => Look; writing: RefObject<HTMLDivElement | null>
+}
+
+/** The allergens on the menu, in the Annex's order, for its key. */
+const usedOn = (sections: MenuSection[], markOf: (i: MenuItem) => ItemMarks) =>
+  ALLERGENS.filter(a => sections.some(s => s.items.some(i => shownAllergens(markOf(i)).includes(a.id))))
 
 /** The prices on an item's line: one, or one in each of its section's columns (— where it isn't sold that way). */
 function Prices({ item: i, columns }: { item: MenuItem; columns: string[] }) {
@@ -148,10 +160,10 @@ function ColumnHeads({ columns, gap, lower }: { columns: string[]; gap: string; 
   )
 }
 
-function Classic({ design, sections, brand, look, writing }: BodyProps) {
+function Classic({ design, sections, markOf, brand, look, writing }: BodyProps) {
   const z = sizeOf(design.size)
   const portrait = z.height > z.width
-  const used = ALLERGENS.filter(a => sections.some(s => s.items.some(i => i.allergens.includes(a.id))))
+  const used = usedOn(sections, markOf)
   const columnsOf = new Map(sections.map(s => [s, priceColumns(s.items)]))
   // How much there is to write, in lines: each section's heading, each item, and its smaller lines.
   const lines = sections.reduce((n, s) => n + 1.7 + (columnsOf.get(s)!.length ? 0.7 : 0)
@@ -193,10 +205,10 @@ function Classic({ design, sections, brand, look, writing }: BodyProps) {
                       <Box component="span" sx={{ fontWeight: 600 }}>
                         {i.featured && <Box component="span" sx={{ color: accent, mr: u(0.3) }}>{'★'}</Box>}
                         {i.name}
-                        {design.show_allergens && i.allergens.length > 0 && (
-                          <Box component="sup" sx={{ fontWeight: 400, fontSize: '0.62em', ml: '0.25em', opacity: 0.75 }}>{i.allergens.map(allergenNumber).join('·')}</Box>
+                        {design.show_allergens && shownAllergens(markOf(i)).length > 0 && (
+                          <Box component="sup" sx={{ fontWeight: 400, fontSize: '0.62em', ml: '0.25em', opacity: 0.75 }}>{shownAllergens(markOf(i)).map(allergenNumber).join('·')}</Box>
                         )}
-                        <Dietary item={i} colour={accent} />
+                        <Dietary marks={markOf(i)} colour={accent} />
                       </Box>
                       <Box sx={{ flex: 1, minWidth: '2cqw', borderBottom: `0.2cqmin dotted currentColor`, opacity: 0.35, transform: 'translateY(-0.25em)' }} />
                       <Prices item={i} columns={cols} />
@@ -222,11 +234,12 @@ function Classic({ design, sections, brand, look, writing }: BodyProps) {
   )
 }
 
-function Dietary({ item: i, colour }: { item: MenuItem; colour: string }) {
-  if (!i.dietary.length) return null
+/** Its diet badges (V, VG, GF, DF), only what its ingredients say it is. */
+function Dietary({ marks, colour }: { marks: ItemMarks; colour: string }) {
+  if (!marks.tags.length) return null
   return (
     <Box component="span" sx={{ fontWeight: 500, fontSize: '0.62em', ml: '0.45em', color: colour, letterSpacing: '0.04em', whiteSpace: 'nowrap', textTransform: 'none' }}>
-      {i.dietary.map(d => DIETARY.find(x => x.id === d)!.short).join(' ')}
+      {marks.tags.map(d => MENU_TAGS.find(x => x.id === d)!.short).join(' ')}
     </Box>
   )
 }
@@ -244,10 +257,10 @@ function Mark({ allergen: a }: { allergen: Allergen }) {
 }
 
 /** Like the café's printed menus: logo, big heading, each section in a rounded box, the image as a strip along the bottom. */
-function Boxed({ design, sections, image, brand, look, writing }: BodyProps & { image: string | null }) {
+function Boxed({ design, sections, markOf, image, brand, look, writing }: BodyProps & { image: string | null }) {
   const z = sizeOf(design.size)
   const portrait = z.height > z.width
-  const used = ALLERGENS.filter(a => sections.some(s => s.items.some(i => i.allergens.includes(a.id))))
+  const used = usedOn(sections, markOf)
   const key = design.show_allergens && used.length > 0
   const columnsOf = new Map(sections.map(s => [s, priceColumns(s.items)]))
   // How much there is to write, in units of the writing size: each section's heading and box, each item and its smaller lines.
@@ -299,8 +312,8 @@ function Boxed({ design, sections, image, brand, look, writing }: BodyProps & { 
                         <Box sx={{ flex: 1, minWidth: 0, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                           {i.featured && <Box component="span" sx={{ color: deep(accent), mr: '0.3em' }}>{'★'}</Box>}
                           {i.name}
-                          {design.show_allergens && i.allergens.map(a => <Mark key={a} allergen={a} />)}
-                          <Dietary item={i} colour={deep(second)} />
+                          {design.show_allergens && shownAllergens(markOf(i)).map(a => <Mark key={a} allergen={a} />)}
+                          <Dietary marks={markOf(i)} colour={deep(second)} />
                         </Box>
                         <Prices item={i} columns={cols} />
                       </Box>

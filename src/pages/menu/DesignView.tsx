@@ -27,6 +27,7 @@ import {
   type MenuDesign, type MenuDesignInput, type MenuFormat, type MenuImage, type MenuItem as Item,
 } from '../../../shared/menu'
 import type { Brand } from '../../../shared/types'
+import type { MenuAllergens } from '../../../shared/allergens'
 import { tokens } from '../../theme'
 import { t, tn } from '../../i18n'
 
@@ -39,7 +40,7 @@ const waitingOf = (i: MenuImage) => i.status === 'queued' || i.status === 'worki
  * with AI through Higgsfield, uploaded or linked; the one in use goes behind the menu (the app writes
  * the items and prices over it) or is the whole menu.
  */
-export function DesignView({ items, brand }: { items: Item[]; brand: Brand | null }) {
+export function DesignView({ items, allergens, brand }: { items: Item[]; allergens: MenuAllergens | null | undefined; brand: Brand | null }) {
   const { api, business, settings } = useApp()
   const designs = useAsync('menu-designs', () => api.menuDesigns(), [])
   const ai = useAiImages()
@@ -79,7 +80,8 @@ export function DesignView({ items, brand }: { items: Item[]; brand: Brand | nul
             {format === 'physical' ? t('Printed menus: for the counter, the tables or the window.') : t('Menus for your screens: played on a TV or tablet from the Screens page.')}
           </Typography>
           <Stack spacing={1}>
-            {list.map(d => <DesignCard key={d.id} design={d} items={items} brand={board} order={order} selected={d.id === current?.id} onClick={() => setSelected(d.id)} />)}
+            {list.map(d => <DesignCard key={d.id} design={d} items={items} allergens={allergens} brand={board} order={order} selected={d.id === current?.id}
+              onClick={() => setSelected(d.id)} />)}
             <Button variant="outlined" startIcon={<AddIcon />} onClick={() => setCreating(true)}>
               {format === 'physical' ? t('New printed menu') : t('New screen menu')}
             </Button>
@@ -87,7 +89,7 @@ export function DesignView({ items, brand }: { items: Item[]; brand: Brand | nul
         </Box>
         <Box sx={{ flex: 1, minWidth: 0, width: '100%' }}>
           {current
-            ? <DesignEditor key={current.id} design={current} items={items} brand={board} order={order} ai={ai} onConnect={() => setConnecting(true)} />
+            ? <DesignEditor key={current.id} design={current} items={items} allergens={allergens} brand={board} order={order} ai={ai} onConnect={() => setConnecting(true)} />
             : designs.data && (
               <Empty>
                 <Typography sx={{ fontWeight: 500, color: 'text.primary', mb: 0.5 }}>
@@ -123,15 +125,15 @@ function AiStatus({ ai, onConnect }: { ai: Ai; onConnect: () => void }) {
   return null
 }
 
-function DesignCard({ design: d, items, brand, order, selected, onClick }: {
-  design: MenuDesign; items: Item[]; brand: BoardBrand; order: string[]; selected: boolean; onClick: () => void
+function DesignCard({ design: d, items, allergens, brand, order, selected, onClick }: {
+  design: MenuDesign; items: Item[]; allergens: MenuAllergens | null | undefined; brand: BoardBrand; order: string[]; selected: boolean; onClick: () => void
 }) {
   const making = d.images.filter(waitingOf).length
   return (
     <Card variant="outlined" sx={{ ...(selected ? { borderColor: tokens.rose, boxShadow: `0 0 0 1px ${tokens.rose}` } : {}) }}>
       <CardActionArea onClick={onClick} aria-pressed={selected} aria-label={d.name} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 1.5, p: 1 }}>
         <Box sx={{ width: isPortrait(d.size) ? 52 : 84, flexShrink: 0, borderRadius: 1, overflow: 'hidden', border: `1px solid ${tokens.line}` }}>
-          <MenuBoard design={d} items={items} image={imageOf(d)?.url ?? null} brand={brand} order={order} />
+          <MenuBoard design={d} items={items} allergens={allergens} image={imageOf(d)?.url ?? null} brand={brand} order={order} />
         </Box>
         <Box sx={{ minWidth: 0 }}>
           <Typography sx={{ fontWeight: 500 }} noWrap>{d.name}</Typography>
@@ -144,7 +146,9 @@ function DesignCard({ design: d, items, brand, order, selected, onClick }: {
 }
 
 /** One design: its preview (on paper or on a TV), its settings and its images. */
-function DesignEditor({ design, items, brand, order, ai, onConnect }: { design: MenuDesign; items: Item[]; brand: BoardBrand; order: string[]; ai: Ai; onConnect: () => void }) {
+function DesignEditor({ design, items, allergens, brand, order, ai, onConnect }: {
+  design: MenuDesign; items: Item[]; allergens: MenuAllergens | null | undefined; brand: BoardBrand; order: string[]; ai: Ai; onConnect: () => void
+}) {
   const { api } = useApp()
   const run = useAction()
   const navigate = useNavigate()
@@ -177,7 +181,7 @@ function DesignEditor({ design, items, brand, order, ai, onConnect }: { design: 
     t('Asked Higgsfield again'))
   const ask = (edit: MenuImage | null) => (ai.connected ? setAsking({ edit }) : onConnect())
 
-  const preview = <MenuBoard design={d} items={items} image={image?.url ?? null} brand={brand} order={order} />
+  const preview = <MenuBoard design={d} items={items} allergens={allergens} image={image?.url ?? null} brand={brand} order={order} />
   return (
     <Stack spacing={2.5}>
       <Card>

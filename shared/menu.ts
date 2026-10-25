@@ -1,10 +1,13 @@
 // The menu as customers see it, and the menus made from it: printed (physical) and on screens
 // (digital). Menu items are the same rows as Menu costing (recipes): the menu adds what customers
-// read (a description, a photo, the allergens, vegan or gluten free), whether it shows on the menus
-// and its place in its section. A design lays the items out over an image (the app writes every name
-// and price itself, so they're always right), or uses an image that is the whole menu; images are
-// made with AI through Higgsfield, uploaded, or linked. Shared by the app and the Worker.
+// read (a description and a photo), whether it shows on the menus and its place in its section. Its
+// allergens and diets aren't kept here: they come from what goes into it on Menu costing and each
+// ingredient's allergens (the Allergens page, shared/allergens.ts), so the menus and the Allergens
+// page always agree. A design lays the items out over an image (the app writes every name and price
+// itself, so they're always right), or uses an image that is the whole menu; images are made with AI
+// through Higgsfield, uploaded, or linked. Shared by the app and the Worker.
 import { msg } from './i18n'
+import { ALLERGENS, dishAllergens, tagsOf, type Allergen, type MenuAllergens, type MenuFilter } from './allergens'
 import { RECIPE_CATEGORIES } from './recipes'
 import type { BrandColour } from './types'
 
@@ -12,28 +15,6 @@ import type { BrandColour } from './types'
 // Menu items
 // ---------------------------------------------------------------------------------------------
 
-/**
- * The 14 allergens a café in the EU must tell customers about (Regulation 1169/2011, Annex II), in
- * the Annex's order: menus often show them by number, with the key at the bottom.
- */
-export type Allergen = 'gluten' | 'crustaceans' | 'eggs' | 'fish' | 'peanuts' | 'soy' | 'milk' | 'nuts' | 'celery' | 'mustard' | 'sesame'
-  | 'sulphites' | 'lupin' | 'molluscs'
-export const ALLERGENS: { id: Allergen; label: string }[] = [
-  { id: 'gluten', label: msg('Gluten') },
-  { id: 'crustaceans', label: msg('Crustaceans') },
-  { id: 'eggs', label: msg('Eggs') },
-  { id: 'fish', label: msg('Fish') },
-  { id: 'peanuts', label: msg('Peanuts') },
-  { id: 'soy', label: msg('Soy') },
-  { id: 'milk', label: msg('Milk') },
-  { id: 'nuts', label: msg('Nuts') },
-  { id: 'celery', label: msg('Celery') },
-  { id: 'mustard', label: msg('Mustard') },
-  { id: 'sesame', label: msg('Sesame') },
-  { id: 'sulphites', label: msg('Sulphites') },
-  { id: 'lupin', label: msg('Lupin') },
-  { id: 'molluscs', label: msg('Molluscs') },
-]
 /**
  * Each allergen's letters and colour, as the café's printed menus mark them (G gluten, L dairy, H egg,
  * F nuts, S soy: the Spanish initials), for menus that show allergens as coloured letters.
@@ -45,30 +26,43 @@ export const ALLERGEN_MARKS: Record<Allergen, { code: string; colour: string }> 
   mustard: { code: 'MO', colour: '#D4A017' }, sesame: { code: 'SE', colour: '#B8956A' }, sulphites: { code: 'SU', colour: '#8E6BBF' },
   lupin: { code: 'AL', colour: '#5B7DB1' }, molluscs: { code: 'ML', colour: '#3B8686' },
 }
-/** An allergen's number on the menu (1–14, the Annex's order). */
+/** An allergen's number on the menu (1–14, the Annex's order, as the Allergens page lists them). */
 export const allergenNumber = (a: Allergen) => ALLERGENS.findIndex(x => x.id === a) + 1
-/** Allergens in the Annex's order, without repeats or unknown ones. */
-export const cleanAllergens = (list: readonly string[]): Allergen[] => ALLERGENS.map(a => a.id).filter(a => list.includes(a))
 
-export type Dietary = 'vegetarian' | 'vegan' | 'gluten_free' | 'dairy_free'
-export const DIETARY: { id: Dietary; label: string; short: string }[] = [
-  { id: 'vegetarian', label: msg('Vegetarian'), short: 'V' },
-  { id: 'vegan', label: msg('Vegan'), short: 'VG' },
-  { id: 'gluten_free', label: msg('Gluten free'), short: 'GF' },
-  { id: 'dairy_free', label: msg('Dairy free'), short: 'DF' },
+/** The diet badges the menus show (four of the Allergens page's tags), with their short marks. */
+export const MENU_TAGS: { id: MenuFilter; short: string }[] = [
+  { id: 'vegetarian', short: 'V' },
+  { id: 'vegan', short: 'VG' },
+  { id: 'gluten_free', short: 'GF' },
+  { id: 'dairy_free', short: 'DF' },
 ]
-export const cleanDietary = (list: readonly string[]): Dietary[] => DIETARY.map(d => d.id).filter(d => list.includes(d))
 
-/** Something said "gluten free" while its allergens include gluten (or "vegan" with milk or eggs): worth a second look. */
-export function dietaryClash(i: Pick<MenuItem, 'allergens' | 'dietary'>): string | null {
-  const has = (a: Allergen) => i.allergens.includes(a)
-  if (i.dietary.includes('gluten_free') && has('gluten')) return msg('It says gluten free, but gluten is ticked as an allergen.')
-  if (i.dietary.includes('vegan') && (has('milk') || has('eggs') || has('fish') || has('crustaceans') || has('molluscs'))) {
-    return msg('It says vegan, but an animal allergen (milk, eggs, fish or shellfish) is ticked.')
-  }
-  if (i.dietary.includes('dairy_free') && has('milk')) return msg('It says dairy free, but milk is ticked as an allergen.')
-  return null
+/** What the menus say about an item's allergens and diets, worked out from its ingredients (the Allergens page). */
+export interface ItemMarks {
+  /** The allergens it contains, as far as its ingredients' are entered. */
+  contains: Allergen[]
+  /** Its ingredients whose allergens aren't entered yet (the printed and screen menus then show none of its allergens). */
+  unknown: string[]
+  /** Vegetarian, vegan, gluten free, dairy free: only what it's known to be. */
+  tags: MenuFilter[]
 }
+const NO_MARKS: ItemMarks = { contains: [], unknown: [], tags: [] }
+
+/**
+ * An item's marks, from the menu's ingredients (menu_allergens()). An item with nothing in it on Menu
+ * costing has none: no allergens and no diet badges (that's not known, which isn't the same as none).
+ */
+export function marksOf(itemId: string, data: MenuAllergens | null | undefined): ItemMarks {
+  const dish = data?.dishes.find(d => d.id === itemId)
+  if (!data || !dish) return NO_MARKS
+  const has = dishAllergens(dish, data.items)
+  if (has.empty) return NO_MARKS
+  const tags = tagsOf(has)
+  return { contains: has.contains, unknown: has.unknown, tags: MENU_TAGS.map(m => m.id).filter(id => tags.includes(id)) }
+}
+
+/** The allergens a printed or screen menu shows for an item: all it contains, or none while some of its ingredients' aren't entered. */
+export const shownAllergens = (m: ItemMarks): Allergen[] => (m.unknown.length ? [] : m.contains)
 
 export interface MenuVariant { id: string; name: string; price_change: number }
 export interface MenuItem {
@@ -82,8 +76,6 @@ export interface MenuItem {
   vat_rate: number
   description: string | null
   photo_url: string | null
-  allergens: Allergen[]
-  dietary: Dietary[]
   /** Picked out on the menus (a house favourite). */
   featured: boolean
   /** Shown on the printed and digital menus (off: kept, but not offered for now). */
@@ -100,8 +92,8 @@ export type MenuItemInput = Omit<MenuItem, 'id' | 'variants' | 'menu_sort' | 'sq
 /**
  * Where the menu's items come from. custom (the default): kept here, on this page. square: read from
  * the Square item library (names, sections, prices and how each is sold, descriptions, photos, and the
- * modifiers as extras), every hour and on demand; what Square doesn't have (allergens, vegan or gluten
- * free, featured, off the menu) is still set here.
+ * modifiers as extras), every hour and on demand; what Square doesn't have (featured, off the menu) is
+ * still set here, and allergens and diets come from Menu costing either way.
  */
 export type MenuSource = 'custom' | 'square'
 export const MENU_SOURCES: { id: MenuSource; label: string; does: string }[] = [

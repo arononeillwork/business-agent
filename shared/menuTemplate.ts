@@ -1,15 +1,15 @@
 // The café's own printed menus, as a menu to start from: Drinks, Food and The Fridge (Google Drive,
 // "New": Easy-Beans-Drinks-Menu.pdf, Easy-Beans-Food-Menu.pdf, Easy-Beans-The-Fridge-Menu.pdf, with
 // Bebidas, Comida and La Nevera in Spanish). Every item with its section, price (hot and iced where
-// the menu has both), the line under it and the allergens the menu marks (G gluten, L dairy, H egg,
-// F nuts, S soy). Loading it adds what isn't on the menu yet and makes the three printed menus.
-import type { Allergen, Dietary, MenuDesignInput, MenuItemInput, MenuVariant } from './menu'
+// the menu has both) and the line under it. The allergens printed on them aren't copied: a menu item's
+// allergens come from what goes into it on Menu costing (the Allergens page). Loading it adds what
+// isn't on the menu yet and makes the three printed menus.
+import type { MenuDesignInput, MenuItemInput, MenuVariant } from './menu'
 
-interface Line { name: string; price?: number; iced?: number; description?: string; allergens?: Allergen[]; dietary?: Dietary[] }
+interface Line { name: string; price?: number; iced?: number; description?: string }
 interface Section { name: string; hotIced?: boolean; items: Line[] }
 export interface PrintedMenu { title: string; subtitle: string; sections: Section[] }
 
-const G: Allergen = 'gluten', L: Allergen = 'milk', H: Allergen = 'eggs', F: Allergen = 'nuts', S: Allergen = 'soy'
 
 export const PRINTED_MENUS: PrintedMenu[] = [
   { title: 'Drinks', subtitle: 'hot, iced or canned — made your way', sections: [
@@ -37,21 +37,21 @@ export const PRINTED_MENUS: PrintedMenu[] = [
   ] },
   { title: 'Food', subtitle: 'fresh, natural & made to feel good', sections: [
     { name: 'Bakery', items: [
-      { name: 'Croissant', price: 2.7, allergens: [G, L, H] }, { name: 'Ham + cheese croissant', price: 4.2, allergens: [G, L, H] },
-      { name: 'Almond croissant', price: 3.4, allergens: [G, L, H, F] }, { name: 'Cinnamon swirl', price: 3.3, allergens: [G, L, H] },
+      { name: 'Croissant', price: 2.7 }, { name: 'Ham + cheese croissant', price: 4.2 },
+      { name: 'Almond croissant', price: 3.4 }, { name: 'Cinnamon swirl', price: 3.3 },
     ] },
     { name: 'Toasts & more', items: [
-      { name: 'Toast, olive oil + tomato', price: 3.5, allergens: [G] }, { name: 'Toast, butter + jam', price: 3, allergens: [G, L] },
-      { name: 'Ham + cheese sandwich', price: 4.5, allergens: [G, L] }, { name: 'Bacon sandwich', price: 5.5, allergens: [G] },
-      { name: 'Eggs + toast', price: 6, allergens: [G, H], description: 'Fried or scrambled — your call.' },
+      { name: 'Toast, olive oil + tomato', price: 3.5 }, { name: 'Toast, butter + jam', price: 3 },
+      { name: 'Ham + cheese sandwich', price: 4.5 }, { name: 'Bacon sandwich', price: 5.5 },
+      { name: 'Eggs + toast', price: 6, description: 'Fried or scrambled — your call.' },
     ] },
     { name: 'Sweet things', items: [
-      { name: 'Gluten-free brownie', price: 3.5, allergens: [L, H], dietary: ['gluten_free'] }, { name: 'Biscoff cheesecake', price: 4.5, allergens: [G, L, S] },
-      { name: 'Pistachio cheesecake', price: 6.5, allergens: [G, L, F] }, { name: 'Fresh fruit cup', price: 5 },
+      { name: 'Gluten-free brownie', price: 3.5 }, { name: 'Biscoff cheesecake', price: 4.5 },
+      { name: 'Pistachio cheesecake', price: 6.5 }, { name: 'Fresh fruit cup', price: 5 },
     ] },
     { name: 'Açaí bowls', items: [
-      { name: 'Açaí bowl', price: 11, allergens: [G, F], description: 'Blended açaí, loaded with granola, berries, banana and coconut flakes.' },
-      { name: 'Gluten-free açaí bowl', price: 11, allergens: [F], dietary: ['gluten_free'] },
+      { name: 'Açaí bowl', price: 11, description: 'Blended açaí, loaded with granola, berries, banana and coconut flakes.' },
+      { name: 'Gluten-free açaí bowl', price: 11 },
       { name: '+ Extra sauce', price: 1, description: 'Biscoff or pistachio.' }, { name: '+ Extra toppings', price: 1, description: 'Peanut butter, granola or fruit.' },
     ] },
     { name: 'Chia puddings', items: [{ name: 'Mango chia pudding', price: 4.5 }, { name: 'Strawberry chia pudding', price: 4.5 }] },
@@ -85,7 +85,7 @@ export function templateItems(): TemplateItem[] {
     const label = s.hotIced ? (l.price !== undefined ? 'Hot' : 'Iced') : null
     return {
       name: l.name, category: s.name, sell_price: base, price_label: label, vat_rate: 10, description: l.description ?? null, photo_url: null,
-      allergens: l.allergens ?? [], dietary: l.dietary ?? [], featured: false, on_menu: true, menu_sort: n + 1,
+      featured: false, on_menu: true, menu_sort: n + 1,
       variants: l.price !== undefined && l.iced !== undefined ? [{ name: 'Iced', price_change: Math.round((l.iced - l.price) * 100) / 100 }] : [],
     }
   })))

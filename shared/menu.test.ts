@@ -1,29 +1,46 @@
 import { describe, expect, it } from 'vitest'
 import {
-  aiErrorText, aiRequest, allergenNumber, buildPrompt, categoryOrder, cleanAllergens, closestRatio, designProblem, dietaryClash, imageOf, menuItemProblem,
-  imageShape, isStrip, menuSections, moveInSection, moveSection, newDesign, otherVariants, photoPrompt, priceColumns, priceIn, readAiResult, sizeOf, type MenuImage,
-  type MenuItem,
+  aiErrorText, aiRequest, allergenNumber, buildPrompt, categoryOrder, closestRatio, designProblem, imageOf, marksOf, menuItemProblem,
+  imageShape, isStrip, menuSections, moveInSection, moveSection, newDesign, otherVariants, photoPrompt, priceColumns, priceIn, readAiResult, shownAllergens, sizeOf,
+  type MenuImage, type MenuItem,
 } from './menu'
+import type { ItemAllergens, MenuAllergens } from './allergens'
 import { missingFrom, templateDesigns, templateItems, templateSections } from './menuTemplate'
 import { EXTRAS_SECTION, fromSquareCatalog, type SquareObject } from './menuSquare'
 
 const item = (p: Partial<MenuItem> & { name: string }): MenuItem => ({ id: p.name, category: 'Coffee', sell_price: 3, price_label: null, vat_rate: 10, description: null,
-  photo_url: null, allergens: [], dietary: [], featured: false, on_menu: true, menu_sort: 0, variants: [], square_id: null, ...p })
+  photo_url: null, featured: false, on_menu: true, menu_sort: 0, variants: [], square_id: null, ...p })
 const iced = (change: number) => [{ id: 'v', name: 'Iced', price_change: change }]
 
 describe('menu items', () => {
-  it('numbers the 14 allergens in the regulation’s order, and keeps only known ones', () => {
+  it('numbers the 14 allergens in the regulation’s order', () => {
     expect(allergenNumber('gluten')).toBe(1)
     expect(allergenNumber('milk')).toBe(7)
     expect(allergenNumber('molluscs')).toBe(14)
-    expect(cleanAllergens(['milk', 'gluten', 'milk', 'chocolate'])).toEqual(['gluten', 'milk'])
   })
 
-  it('flags a dietary mark that its allergens contradict', () => {
-    expect(dietaryClash({ dietary: ['gluten_free'], allergens: ['gluten'] })).toMatch(/gluten free/)
-    expect(dietaryClash({ dietary: ['vegan'], allergens: ['milk'] })).toMatch(/vegan/)
-    expect(dietaryClash({ dietary: ['dairy_free'], allergens: ['milk'] })).toMatch(/dairy free/)
-    expect(dietaryClash({ dietary: ['vegan', 'gluten_free'], allergens: ['soy', 'nuts'] })).toBeNull()
+  it('takes allergens and diets from the ingredients on Menu costing, and shows nothing for an item with none', () => {
+    const ing = (id: string, allergens: ItemAllergens['allergens'], diet: ItemAllergens['diet'] = null): ItemAllergens => ({ id, name: id, allergens, may_contain: [], diet })
+    const line = (item_id: string) => ({ item_id, quantity: 1, unit: 'unit' as const, variant_id: null, replaces_item_id: null })
+    const data: MenuAllergens = {
+      dishes: [
+        { id: 'espresso', name: 'Espresso', category: 'Coffee', variants: [], lines: [line('beans')] },
+        { id: 'croissant', name: 'Croissant', category: 'Bakery', variants: [], lines: [line('croissants')] },
+        { id: 'chai', name: 'Chai latte', category: 'Coffee', variants: [], lines: [line('chai'), line('milk')] },
+        { id: 'new', name: 'Avocado toast', category: 'Food', variants: [], lines: [] },
+      ],
+      items: [ing('beans', [], 'vegan'), ing('croissants', ['gluten', 'milk', 'eggs'], 'vegetarian'), ing('chai', null), ing('milk', ['milk'], 'vegetarian')],
+    }
+    expect(marksOf('espresso', data)).toEqual({ contains: [], unknown: [], tags: ['vegan', 'gluten_free', 'dairy_free'] })
+    expect(marksOf('croissant', data)).toEqual({ contains: ['gluten', 'eggs', 'milk'], unknown: [], tags: ['vegetarian'] })
+    expect(shownAllergens(marksOf('croissant', data))).toEqual(['gluten', 'eggs', 'milk'])
+    // An ingredient not entered yet: what's known, but the menus show none of it until it is.
+    expect(marksOf('chai', data)).toMatchObject({ contains: ['milk'], unknown: ['chai'], tags: [] })
+    expect(shownAllergens(marksOf('chai', data))).toEqual([])
+    // Nothing in it on Menu costing, or not on it at all: no allergens and no diet badges.
+    expect(marksOf('new', data)).toEqual({ contains: [], unknown: [], tags: [] })
+    expect(marksOf('elsewhere', data)).toEqual({ contains: [], unknown: [], tags: [] })
+    expect(marksOf('espresso', null)).toEqual({ contains: [], unknown: [], tags: [] })
   })
 
   it('checks a menu item before saving', () => {
@@ -85,14 +102,13 @@ describe('the café’s printed menus as a template', () => {
     expect(templateItems()).toHaveLength(61) // 26 drinks, 19 food, 16 in the fridge
   })
 
-  it('keeps hot and iced prices, the lines under items and the marked allergens', () => {
+  it('keeps hot and iced prices and the lines under items (allergens come from Menu costing)', () => {
     const byName = (n: string) => templateItems().find(i => i.name === n)!
     expect(byName('Flat white')).toMatchObject({ category: 'Classics', sell_price: 3.8, price_label: 'Hot', variants: [{ name: 'Iced', price_change: 1 }] })
     expect(byName('Espresso')).toMatchObject({ sell_price: 2.4, price_label: 'Hot', variants: [] })
     expect(byName('Bumble coffee')).toMatchObject({ sell_price: 6, price_label: 'Iced', variants: [] })
     expect(byName('Gym nut')).toMatchObject({ sell_price: 6.5, price_label: null, description: 'Banana, peanut butter, oats and honey.' })
-    expect(byName('Almond croissant').allergens).toEqual(['gluten', 'milk', 'eggs', 'nuts'])
-    expect(byName('Gluten-free brownie')).toMatchObject({ allergens: ['milk', 'eggs'], dietary: ['gluten_free'] })
+    expect(byName('Gluten-free brownie')).not.toHaveProperty('allergens')
     expect(byName('Any milk').sell_price).toBe(0)
     expect(priceColumns(templateItems().filter(i => i.category === 'Classics').map(i => ({ ...i, variants: i.variants.map(v => ({ ...v, id: v.name })) })))).toEqual(['Hot', 'Iced'])
   })

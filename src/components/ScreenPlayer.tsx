@@ -105,7 +105,7 @@ function SlideView({ slide, feed, sound, onEnded }: { slide: Slide; feed: Displa
     return (
       <Box sx={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center' }}>
         <Box sx={{ width: `min(100cqw, calc(100cqh * ${z.width / z.height}))` }}>
-          <MenuBoard design={m.design} items={m.items} image={m.design.image_url} brand={boardBrand(feed.business.name, feed.business)} order={feed.sections} />
+          <MenuBoard design={m.design} items={m.items} allergens={feed.allergens} image={m.design.image_url} brand={boardBrand(feed.business.name, feed.business)} order={feed.sections} />
         </Box>
       </Box>
     )

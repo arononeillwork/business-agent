@@ -84,7 +84,8 @@ export default {
   'Play {name}': 'Mostrar {name}',
   'e.g. Counter TV': 'p. ej. Tele de la barra',
   // Slides and how they change
-  'Picture': 'Imagen',
+  // A picture slide (the Staff kitty's 'Picture' is a goal's drawing).
+  'slide|Picture': 'Imagen',
   'YouTube': 'YouTube',
   'Vimeo': 'Vimeo',
   'Web page': 'Página web',

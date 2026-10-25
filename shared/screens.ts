@@ -4,6 +4,7 @@
 // each slide shows, how it changes to the next, and the music. Shared by the app and the Worker.
 import { msg } from './i18n'
 import type { MenuDesign, MenuItem } from './menu'
+import type { MenuAllergens } from './allergens'
 import type { BrandColour } from './types'
 
 export type SlideKind = 'image' | 'video' | 'youtube' | 'vimeo' | 'instagram' | 'web' | 'menu'
@@ -239,4 +240,6 @@ export interface DisplayFeed {
   business: { name: string; logo: string | null; heading_font?: string; body_font?: string; colours?: BrandColour[] }
   /** The digital menus on its slides, by design id. */
   menus: Record<string, { design: Omit<MenuDesign, 'images'> & { image_url: string | null }; items: MenuItem[] }>
+  /** What goes into each menu item and its ingredients' allergens (as the Allergens page has them, without the ingredients' names), for its allergens and diets. */
+  allergens?: MenuAllergens | null
 }

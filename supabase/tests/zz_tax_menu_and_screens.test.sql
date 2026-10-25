@@ -1,7 +1,8 @@
 -- Menu, menu designs and screens: the team reads the menu (no costs), admins change it; images and
 -- designs are admins'; AI images come only from the Worker and the design shows each once it's
 -- ready; a screen's slides are checked; its link loads only through display_feed(), which notes the
--- screen as seen without filling the audit log.
+-- screen as seen without filling the audit log, and carries the ingredients' allergens (not their
+-- names) for the menus' allergens and diets. The menu keeps no allergens of its own.
 -- Named after zz_tax so its gestoría exists. People from the tests before it: maria (admin),
 -- julio (employee), tax-partner (zz_tax, finances access).
 
@@ -22,23 +23,26 @@ end $$;
 
 -- 1. Menu items: what customers read, tidied; the team sees the menu without costs.
 select pg_temp.act_as('maria@test');
-do $$ declare v_id uuid; begin
-  insert into public.recipes (name, category, sell_price, target_margin, description, allergens, dietary, featured)
-    values ('Menu flat white', 'Coffee', 3.2, 72, '  Double ristretto, silky milk  ', array['milk', 'milk'], array['vegetarian'], true) returning id into v_id;
+do $$ declare v_id uuid; v_milk uuid; begin
+  insert into public.recipes (name, category, sell_price, target_margin, description, featured)
+    values ('Menu flat white', 'Coffee', 3.2, 72, '  Double ristretto, silky milk  ', true) returning id into v_id;
   insert into public.recipe_variants (recipe_id, name, price_change) values (v_id, 'Oat milk', 0.4);
+  -- Its allergens come from what goes into it: the milk (the allergens migration).
+  insert into public.stock_items (name, unit, allergens, diet) values ('Menu whole milk', 'l', array['milk'], 'vegetarian') returning id into v_milk;
+  insert into public.recipe_lines (recipe_id, item_id, quantity, unit) values (v_id, v_milk, 0.15, 'l');
   insert into public.recipes (name, category, sell_price, on_menu) values ('Menu espresso', 'Coffee', 1.6, true), ('Menu old cake', 'Bakery', 2, false);
-  assert (select description = 'Double ristretto, silky milk' and allergens = array['milk'] from public.recipes where id = v_id), 'tidied, each allergen once';
+  assert (select description = 'Double ristretto, silky milk' from public.recipes where id = v_id), 'tidied';
+  assert not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'recipes' and column_name in ('allergens', 'dietary')),
+    'the menu keeps no allergens of its own';
   perform public.reorder_menu(array[(select id from public.recipes where name = 'Menu espresso'), v_id]);
   assert (select menu_sort from public.recipes where name = 'Menu espresso') = 1 and (select menu_sort from public.recipes where id = v_id) = 2, 'reordered';
 end $$;
-select pg_temp.expect_error($q$insert into public.recipes (name, allergens) values ('X', array['chocolate'])$q$, 'check constraint');
-select pg_temp.expect_error($q$insert into public.recipes (name, dietary) values ('X', array['keto'])$q$, 'check constraint');
 
 select pg_temp.act_as('julio@test');
 do $$ declare v jsonb; n int; begin
   select e into v from jsonb_array_elements(public.menu_items()) e where e->>'name' = 'Menu flat white';
   assert v is not null, 'employees read the menu';
-  assert (v->>'sell_price')::numeric = 3.2 and v->'allergens' = '["milk"]'::jsonb and (v->'variants'->0->>'name') = 'Oat milk', 'with price, allergens and variants';
+  assert (v->>'sell_price')::numeric = 3.2 and (v->'variants'->0->>'name') = 'Oat milk' and not (v ? 'allergens'), 'with price and variants (allergens: menu_allergens())';
   assert not (v ? 'target_margin') and not (v ? 'wastage_pct') and not (v ? 'notes'), 'and nothing about costs';
   assert exists (select 1 from jsonb_array_elements(public.menu_items()) e where e->>'name' = 'Menu old cake' and (e->>'on_menu')::boolean = false), 'off-menu items are listed, marked off';
   update public.recipes set sell_price = 0; get diagnostics n = row_count;
@@ -117,12 +121,13 @@ do $$ begin
 exception when check_violation then null;
 end $$;
 
--- 2b. The menu from Square: an item here with the same name is taken over (its allergens, featured
--- and what goes in its variants stay), new ones come in, gone ones come off the menu; sections keep the
--- order given here. Only the Worker runs it.
+-- 2b. The menu from Square: an item here with the same name is taken over (featured, and what goes
+-- in it and its variants, so its allergens, stay), new ones come in, gone ones come off the menu;
+-- sections keep the order given here. Only the Worker runs it.
 select pg_temp.act_as('maria@test');
 do $$ declare v uuid; begin
-  insert into public.recipes (name, sell_price, allergens, featured) values ('Sync flat white', 3.2, array['milk'], true) returning id into v;
+  insert into public.recipes (name, sell_price, featured) values ('Sync flat white', 3.2, true) returning id into v;
+  insert into public.recipe_lines (recipe_id, item_id, quantity, unit) values (v, (select id from public.stock_items where name = 'Menu whole milk'), 0.15, 'l');
   insert into public.recipe_variants (recipe_id, name, price_change) values (v, 'Iced', 0.9);
 end $$;
 select pg_temp.expect_error($q$select public.sync_square_menu('{}')$q$, 'permission denied');
@@ -136,7 +141,8 @@ begin
     "sections": ["Classics", "Smoothies"]}');
   assert r = '{"added": 1, "changed": 1, "off": 0}'::jsonb, format('counts: %s', r);
   assert (select square_id = 'sq-fw' and name = 'Sync Flat White' and sell_price = 3.8 and price_label = 'Hot' and category = 'Classics'
-            and allergens = array['milk'] and featured from public.recipes where square_id = 'sq-fw'), 'taken over by name, what Square lacks kept';
+            and featured from public.recipes where square_id = 'sq-fw'), 'taken over by name, what Square lacks kept';
+  assert exists (select 1 from public.recipe_lines l join public.recipes x on x.id = l.recipe_id where x.square_id = 'sq-fw'), 'and what goes in it';
   assert (select id = v_iced and price_change = 1 from public.recipe_variants where name = 'Iced' and recipe_id = (select id from public.recipes where square_id = 'sq-fw')),
     'the variant changed in place (its costing stays)';
   assert (select on_menu and category = 'Smoothies' from public.recipes where square_id = 'sq-new'), 'a new one is on the menu';
@@ -184,7 +190,10 @@ begin
   assert f->'menus' ? v_design::text, 'the digital menu on it';
   assert exists (select 1 from jsonb_array_elements(f->'menus'->(v_design::text)->'items') e where e->>'name' = 'Menu flat white'), 'with the menu’s items';
   assert not (f->'menus'->(v_design::text)->'items'->0 ? 'target_margin'), 'and no costs';
-  assert (select last_seen_at is not null from public.screen_status where screen_id = (select id from public.screens where token = v_token)), 'seen';
+  assert exists (select 1 from jsonb_array_elements(f->'allergens'->'dishes') d where d->>'name' = 'Menu flat white' and jsonb_array_length(d->'lines') = 1),
+    'what goes into each item';
+  assert exists (select 1 from jsonb_array_elements(f->'allergens'->'items') i where i->'allergens' = '["milk"]'::jsonb and i->>'diet' = 'vegetarian' and i->>'name' = ''),
+    'and its ingredients’ allergens, without their names';  assert (select last_seen_at is not null from public.screen_status where screen_id = (select id from public.screens where token = v_token)), 'seen';
   perform public.display_feed(v_token);
   assert (select count(*) from public.audit_log where table_name = 'screens') = n_audit, 'being seen isn’t a change to the screen';
   assert public.display_feed('0123456789abcdef0123456789abcdef') is null, 'an unknown link loads nothing';

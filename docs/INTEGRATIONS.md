@@ -370,8 +370,9 @@ What shows where (admins who can see pay only; Pro plan and up):
   section, its first priced variation its price (Hot and Iced variations become hot and iced prices
   side by side; Sit In and Takeaway at one price are one price), and its description and photo come
   too; the modifier lists the items use (milks, syrups, an extra shot) become an **Extras** section.
-  Items already on the menu are matched by name the first time, so their allergens, photos, featured
-  and off-the-menu stay; deleted or archived items come off the menu. While Square is chosen, items
+  Items already on the menu are matched by name the first time, so their photos, featured, off-the-menu
+  and what goes into them on Menu costing (and so their allergens) stay; deleted or archived items come
+  off the menu. While Square is chosen, items
   that aren't in Square are hidden (Custom brings them back) and an item's name, section, price and
   description can only be changed in Square. "Read from Square now" reads it on demand.
 
