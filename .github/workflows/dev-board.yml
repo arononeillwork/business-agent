@@ -1,11 +1,11 @@
 name: Feature board
-# Keeps the owner's feature board current: after every CI and Deploy run starts or finishes, works
-# out which branches are in development, waiting to be merged, deploying or live and checked
-# (scripts/ops/dev-board.mjs), and saves it to ops.dev_board in Supabase for the dashboard.
-# workflow_run, schedule and delete only fire from the default branch (main).
+# Keeps the owner's feature board current: after every CI, merge queue and Deploy run starts or
+# finishes, works out which features are in development, in review and the merge queue, deploying
+# or live and checked (scripts/ops/dev-board.mjs), and saves it to ops.dev_board in Supabase for
+# the dashboard. workflow_run, schedule and delete only fire from the default branch (main).
 on:
   workflow_run:
-    workflows: [CI, Deploy, Live end-to-end tests]
+    workflows: [CI, Merge queue, Deploy, Live end-to-end tests]
     types: [requested, completed]
   # Catches the steps inside a deploy (deployed → live checks) that no run event marks.
   schedule:
