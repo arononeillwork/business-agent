@@ -1444,6 +1444,11 @@ test('team roles: employee, shop manager and boss; only a boss makes or changes 
   // Maria runs the team now (her menu says so), without pay, and can't make a boss or change one.
   await signInAs(page, 'maria@example.com')
   await expect(page.getByRole('navigation', { name: 'Main' }).getByText('Shop manager')).toBeVisible()
+  // Billing is the boss's: not in a shop manager's account menu.
+  await page.getByRole('button', { name: /^Account menu/ }).first().click()
+  await expect(page.getByRole('menuitem', { name: 'My account' })).toBeVisible()
+  await expect(page.getByRole('menuitem', { name: 'Billing' })).toHaveCount(0)
+  await page.keyboard.press('Escape')
   await page.getByRole('link', { name: 'Team', exact: true }).first().click()
   await expect(page.getByRole('columnheader', { name: 'Hourly rate' })).toHaveCount(0)
   await page.getByRole('row', { name: /Julio/ }).click()
