@@ -28,7 +28,7 @@ export default {
   'Logged by {name}': 'Registrada por {name}',
   'See it': 'Verla',
   'Turn down': 'Rechazar',
-  'Turned down': 'Rechazada',
+  'Turned down': 'Rechazado',
   'Approved: {amount} for {name}': 'Aprobada: {amount} para {name}',
   'Someone else approves your own rewards': 'Tus propias recompensas las aprueba otra persona',
   'Stories and posts about the café': 'Historias y publicaciones sobre la cafetería',
@@ -42,7 +42,7 @@ export default {
   'No rewards yet this month.': 'Aún no hay recompensas este mes.',
   '{place}. {name}': '{place}. {name}',
   'Ambassadors': 'Embajadores',
-  'On the team': 'Del equipo',
+  'On the team': 'En el equipo',
   'Nobody yet. Add the people who tell others about the café: regulars, a friend with a hotel, someone on the team.':
     'Aún no hay nadie. Añade a quienes hablan de la cafetería: clientes habituales, un amigo con un hotel, alguien del equipo.',
   'Not a rep now': 'Ya no es comercial',

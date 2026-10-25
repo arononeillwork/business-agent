@@ -89,7 +89,7 @@ built-in **AI connector** so owners can run it by talking to Claude.
   is open and marked; moving a section asks nobody); admins see who has read them since the last change.
   Starts from the usual rules for a café in Spain (free tap water, the hoja de quejas y reclamaciones, the
   14 allergens), to change to how the business works.
-- Licences & renewals (Business section): everything the business keeps open (licencia de apertura, SGAE
+- Licences (Business section): everything the business keeps open (licencia de apertura, SGAE
   and AGEDI/AIE for the music, the terrace permit, insurance, extinguisher and electrical checks, staff
   food handler certificates), each with its number, when it runs out, how often it renews, its cost
   and its document; one press marks it renewed, and admins are reminded in the bell beforehand.
@@ -134,6 +134,35 @@ built-in **AI connector** so owners can run it by talking to Claude.
   takes what's thrown away and why off the stock, with its cost for admins. Anything still to be entered
   (a menu price, what goes in, an item's cost) is shaded, and a dish with nothing in it has no margin yet.
   Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) sections 7-18.
+- Leads & enquiries (Sales section): what someone asked for (a party, the terrace, office coffee), where
+  it came in, its value, the day it's for and when to follow it up (a reminder in the bell that day).
+  Each belongs to someone on Customers, added there as a lead when they're new; a won enquiry makes
+  them a customer.
+- Expenses (Accounts section): what someone spent for the business, or drove for it in their
+  own car (kilometres, there and back, times the business's rate: €0.26 a km, what Spain lets it pay
+  back without tax). Everyone sends their own; admins with pay access approve, pay back and add the
+  receipt (Tax › Expenses); a finance gestoría reads. Not the running costs on Finances.
+- Campaigns (Marketing section): one email, text or WhatsApp to the customers and leads who said yes to
+  marketing, picked by type, tag and where they came from, with the count and how it reads for one of
+  them. Planned ones are in the bell on their day. Sending from the app comes with Brevo or Mailchimp
+  (on Connections, coming); until then the audience is exported and the campaign marked sent.
+- Hiring (Team section): the jobs being filled (position, contract, hours, pay, where it's advertised)
+  and who applied, stage by stage; an interview goes on the calendar for admins, and a hire is invited
+  to the team in one step. Applicants not hired are kept a year (GDPR), then flagged to remove.
+  InfoJobs, Indeed and LinkedIn Jobs are on Connections as coming.
+- Tips (Team section): cash and card tips for a period (the till's card tips offered when one is
+  connected) shared out by the hours on the timecards or equally, to the cent; everyone sees their own
+  share once it's shared out and hears in the bell; a payroll gestoría reads.
+- Food safety (Stock section): the APPCC's records. The fridges, freezer and jobs to check today, each
+  recorded by whoever does it at the server's time; a reading out of range needs what was done and
+  tells the admins in the bell. Records are never changed or deleted. **Allergens**: the EU's 14 on
+  each stock item (contains and may contain), so every menu item on Menu costing has its allergens, and
+  a variant what it adds (oat milk: gluten). Anyone serving picks what a customer can't have and sees
+  what suits them; the chart exports for the counter.
+  The menu shows as cards tagged with what each item suits (vegan, vegetarian, gluten, dairy, nut and
+  egg free), with a filter for each, the other allergens one by one, a category and a search; a variant
+  that suits counts (a flat white with oat milk). Each stock item also says whether it's vegan,
+  vegetarian or neither, which the database checks against what it contains.
 
 See [docs/PLAN.md](docs/PLAN.md) for decisions, architecture and phases.
 
@@ -179,11 +208,11 @@ end. Run it against the dev project, not production. First-time Playwright setup
 `npx playwright install chromium`.
 
 In CI the browser tests run on 3 machines at once (Playwright shards, in Playwright's own image).
-Branch pushes and pull requests run only the browser tests for the areas a change touches, plus the
+Branch pushes (and pull requests from forks) run only the browser tests for the areas a change touches, plus the
 core ones that always run (sign-in, landing page, permissions, privacy, café tablet PIN, partners):
 see `scripts/ci/select-e2e.ts`, where each area lists its files and test titles. Shared code (app
 shell, data layer, theme, config, the tests themselves) or an unknown file runs everything, and
-deploys always run everything.
+deploys and the merge queue always run everything.
 
 Uptime: `.github/workflows/ci.yml` runs all of the above on every push;
 `.github/workflows/monitor.yml` smoke-tests the live site every 15 minutes (`e2e/smoke.spec.ts`:
@@ -195,8 +224,22 @@ A single-file clickable demo (sample data, no backend) builds with
 
 ## Deploy (Cloudflare)
 
-Automatic: `.github/workflows/deploy.yml` runs every test, then deploys on each push to `main`
-(or the working branch). It sets the Worker's secrets (service key from Supabase, a generated
+Changes reach `main` through pull requests and the **merge queue** (`.github/workflows/merge-queue.yml`,
+rules for sessions in `CLAUDE.md`).
+
+1. Open a pull request into `main` once the branch's own CI is green (not a draft; label it
+   `queue:hold` to keep it out).
+2. The queue merges it with `main` and the other ready ones, settles the conflicts where both sides
+   only added lines, and gives new migrations a free number when theirs is taken.
+3. It runs every test on the result and moves `main` to it.
+
+A pull request it can't settle gets a comment naming the files. The repo secret `QUEUE_TOKEN` (a
+fine-grained token for this repo with Contents and Workflows read and write) lets it
+land pull requests that change workflows too.
+
+Automatic: `.github/workflows/deploy.yml` runs every test (unless the merge queue just did, on the
+same commit), applies new migrations to the live database by name (`scripts/ops/migrate.mjs`), then
+deploys on each push to `main`. It sets the Worker's secrets (service key from Supabase, a generated
 `INTEGRATION_KEY`, and any integration secrets you add), points Supabase sign-in at the live
 URL, and smoke-tests the live site. It needs two repo secrets (Settings → Secrets and variables →
 Actions): `CLOUDFLARE_API_TOKEN` (template "Edit Cloudflare Workers") and `SUPABASE_ACCESS_TOKEN`
@@ -217,6 +260,14 @@ Worker to a domain whose DNS it runs. Each deploy attaches the domain to the Wor
 (`scripts/ops/custom-domain.mjs`) and points Supabase sign-in at it; the deploy summary says
 what's missing if it can't. Every app's redirect URI can use either address, e.g.
 `https://businesssagent.com/api/integrations/<app>/callback`.
+
+On football match days Spanish internet providers block many Cloudflare addresses (LaLiga's
+court orders), and both addresses above can stop opening from Spain until the match ends. The
+backup address <https://businesssagent.vercel.app> is the same app through Vercel: a project
+(`business-agent`) holding only `ops/vercel-backup/vercel.json`, which passes every request to
+the Worker. Nothing is deployed twice; each deploy shows on it straight away. Sign-ins started
+there come back there (`scripts/ops/supabase-auth.mjs`). Links the Worker builds (invite emails,
+connection and billing returns) still use the workers.dev address.
 
 ## Use it from any AI
 

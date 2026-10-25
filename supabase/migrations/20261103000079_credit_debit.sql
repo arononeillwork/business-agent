@@ -29,6 +29,8 @@ create table public.credit_debit_items (
   updated_by    uuid references auth.users on delete set null default auth.uid()
 );
 create index credit_debit_items_open_idx on public.credit_debit_items (next_due) where not done;
+-- Every foreign key has an index (see the `foreign_key_indexes` migration): deleting an account doesn't read these tables in full.
+create index credit_debit_items_updated_by_idx on public.credit_debit_items (updated_by);
 
 -- Each payment made or received, towards one item.
 create table public.credit_debit_payments (
@@ -41,6 +43,7 @@ create table public.credit_debit_payments (
   created_by  uuid references auth.users on delete set null default auth.uid()
 );
 create index credit_debit_payments_item_idx on public.credit_debit_payments (item_id, paid_on);
+create index credit_debit_payments_created_by_idx on public.credit_debit_payments (created_by);
 
 -- Tidy what's typed and keep who changed it; only money coming in can be "possible".
 create or replace function public.credit_debit_item_rules() returns trigger

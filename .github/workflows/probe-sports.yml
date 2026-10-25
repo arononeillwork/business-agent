@@ -3,7 +3,7 @@ name: Probe sports sources
 # real data (this container can't reach them). Runs when this file changes.
 on:
   push:
-    branches: [claude/easy-beans-architecture-plan-dknqka]
+    branches: [main]
     paths: [.github/workflows/probe-sports.yml]
   workflow_dispatch:
 jobs:

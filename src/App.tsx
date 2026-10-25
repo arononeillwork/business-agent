@@ -73,6 +73,13 @@ const DataDeletionPage = page(() => import('./pages/DataDeletionPage'), 'DataDel
 const BillingPage = page(() => import('./pages/BillingPage'), 'BillingPage')
 const ComparePage = page(() => import('./pages/ComparePage'), 'ComparePage')
 const PricingPage = page(() => import('./pages/PricingPage'), 'PricingPage')
+const LeadsPage = page(() => import('./pages/LeadsPage'), 'LeadsPage')
+const ExpensesPage = page(() => import('./pages/ExpensesPage'), 'ExpensesPage')
+const CampaignsPage = page(() => import('./pages/CampaignsPage'), 'CampaignsPage')
+const HiringPage = page(() => import('./pages/HiringPage'), 'HiringPage')
+const FoodSafetyPage = page(() => import('./pages/FoodSafetyPage'), 'FoodSafetyPage')
+const AllergensPage = page(() => import('./pages/AllergensPage'), 'AllergensPage')
+const TipsPage = page(() => import('./pages/TipsPage'), 'TipsPage')
 
 /** /billing → /account/billing, keeping ?checkout=… from Stripe. */
 function ToBilling() {
@@ -108,6 +115,7 @@ function Routed() {
           {(partnerCan('rota') || partnerCan('payroll')) && <Route path="rota" element={<RotaPage />} />}
           {partnerCan('payroll') && <Route path="timecards" element={<TimecardsPage />} />}
           {partnerCan('payroll') && <Route path="benefits" element={<BenefitsPage />} />}
+          {FEATURES.tips && partnerCan('payroll') && <Route path="tips" element={<TipsPage />} />}
           {partnerCan('calendar') && <Route path="calendar" element={<CalendarPage />} />}
           {partnerCan('finances') && <Route path="finances" element={<FinancesPage />} />}
           {partnerCan('finances') && <Route path="tax" element={<TaxPage />} />}
@@ -115,11 +123,13 @@ function Routed() {
           {partnerCan('finances') && <Route path="legal" element={<LegalDocumentsPage />} />}
           {partnerCan('finances') && <Route path="invoices" element={<InvoicesPage />} />}
           {partnerCan('finances') && <Route path="credit-debit" element={<CreditDebitPage />} />}
+          {partnerCan('finances') && <Route path="expenses" element={<ExpensesPage />} />}
           {partnerCan('finances') && <Route path="profit-and-loss" element={<ProfitLossPage />} />}
           {partnerCan('finances') && <Route path="grants" element={<GrantsPage />} />}
           {partnerCan('finances') && <Route path="stock" element={<StockPage />} />}
           {partnerCan('finances') && <Route path="suppliers" element={<SuppliersPage />} />}
           {partnerCan('finances') && <Route path="recipes" element={<RecipesPage />} />}
+          {partnerCan('finances') && <Route path="allergens" element={<AllergensPage />} />}
           {partnerCan('finances') && <Route path="waste" element={<WastePage />} />}
           <Route path="*" element={<Navigate to="/business" />} />
         </Route>
@@ -144,17 +154,22 @@ function Routed() {
         <Route path="kitty" element={<KittyPage />} />
         <Route path="roles" element={<RolesPage />} />
         <Route path="rules" element={<StaffRulesPage />} />
+        <Route path="tips" element={FEATURES.tips ? <TipsPage /> : <Navigate to="/" />} />
+        <Route path="hiring" element={isAdmin ? <HiringPage /> : <Navigate to="/" />} />
         <Route path="sports" element={<PlanGate feature="sports"><SportsPage /></PlanGate>} />
         <Route path="music" element={<PlanGate feature="music"><MusicPage /></PlanGate>} />
         <Route path="team" element={<TeamPage />} />
         <Route path="business" element={<BusinessPage />} />
         <Route path="customers" element={isAdmin ? <CustomersPage /> : <Navigate to="/" />} />
+        <Route path="leads" element={isAdmin ? <LeadsPage /> : <Navigate to="/" />} />
         {/* Only while Square is the till: the page itself goes to Connections otherwise. */}
         <Route path="loyalty" element={isAdmin ? <LoyaltyPage /> : <Navigate to="/" />} />
         <Route path="sales-reps" element={<SalesRepsPage />} />
         <Route path="stock" element={<StockPage />} />
         <Route path="suppliers" element={isAdmin ? <SuppliersPage /> : <Navigate to="/" />} />
         <Route path="recipes" element={isAdmin ? <RecipesPage /> : <Navigate to="/" />} />
+        <Route path="allergens" element={<AllergensPage />} />
+        <Route path="food-safety" element={<FoodSafetyPage />} />
         <Route path="waste" element={<WastePage />} />
         <Route path="todo" element={<TodoPage />} />
         <Route path="opening-hours" element={<OpeningHoursPage />} />
@@ -167,6 +182,7 @@ function Routed() {
         <Route path="legal" element={isAdmin ? <LegalDocumentsPage /> : <Navigate to="/" />} />
         <Route path="invoices" element={<InvoicesPage />} />
         <Route path="credit-debit" element={<CreditDebitPage />} />
+        <Route path="expenses" element={<ExpensesPage />} />
         <Route path="profit-and-loss" element={<ProfitLossPage />} />
         <Route path="grants" element={<GrantsPage />} />
         <Route path="sales" element={canSeePay ? <PlanGate feature="takings"><SalesPage /></PlanGate> : <Navigate to="/" />} />
@@ -186,6 +202,7 @@ function Routed() {
         <Route path="billing" element={<ToBilling />} />
         <Route path="connections" element={isAdmin ? <ConnectionsPage /> : <Navigate to="/" />} />
         <Route path="social" element={isAdmin ? <SocialPlannerPage /> : <Navigate to="/" />} />
+        <Route path="campaigns" element={isAdmin ? <CampaignsPage /> : <Navigate to="/" />} />
         <Route path="ads" element={isAdmin ? <AdsPage /> : <Navigate to="/" />} />
         <Route path="messages" element={isAdmin ? <MessagesPage /> : <Navigate to="/" />} />
         <Route path="referrals" element={isAdmin ? <ReferralsPage /> : <Navigate to="/" />} />

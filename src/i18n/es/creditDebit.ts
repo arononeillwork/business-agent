@@ -40,7 +40,7 @@ export default {
   'Date received': 'Fecha de cobro',
   'The next payment then moves on to its following date.': 'El próximo pago pasa entonces a su siguiente fecha.',
   'Each payment must be more than 0': 'Cada pago tiene que ser mayor que 0',
-  'Removed': 'Eliminado',
+  'Removed': 'Quitado',
   'Payment removed': 'Pago eliminado',
   'Loan from Jeremy': 'Préstamo de Jeremy',
   'Old coffee machine': 'Cafetera antigua',
