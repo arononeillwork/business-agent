@@ -105,10 +105,12 @@ const deployState = (sha, mergedAt) => {
   return run.tests === 'running' ? 'testing' : 'deploying'
 }
 
-// CI on each branch's latest commit, and the pull requests into main.
+// CI on each branch's latest commit, and the pull requests into main. A pull request from this
+// repo gets a pull_request run that's skipped (its push run tests it), so that one doesn't count.
+const tested = r => r.conclusion !== 'skipped'
 const { workflow_runs: ciRuns } = await gh('/actions/workflows/ci.yml/runs?per_page=100')
 const ciBySha = new Map()
-for (const r of ciRuns) if (!ciBySha.has(r.head_sha)) ciBySha.set(r.head_sha, r)
+for (const r of ciRuns.filter(tested)) if (!ciBySha.has(r.head_sha)) ciBySha.set(r.head_sha, r)
 const ciState = r => !r ? 'none' : r.status !== 'completed' ? 'running' : r.conclusion === 'success' ? 'passed' : r.conclusion === 'failure' || r.conclusion === 'timed_out' ? 'failed' : r.conclusion
 const openPulls = await gh('/pulls?state=open&base=main&per_page=100')
 const closedPulls = await gh('/pulls?state=closed&base=main&sort=updated&direction=desc&per_page=50')
@@ -194,7 +196,7 @@ for (const line of lines(git('for-each-ref', 'refs/remotes/origin', '--format=%(
     b.commits = own.slice(-6).reverse().map(sha => commit(sha).subject)
     b.title = pr?.title ?? (own.length ? commit(own[0]).subject : tip.subject)
     let ci = ciBySha.get(head)
-    if (!ci) ci = (await gh(`/actions/workflows/ci.yml/runs?head_sha=${head}&per_page=1`)).workflow_runs[0]
+    if (!ci) ci = (await gh(`/actions/workflows/ci.yml/runs?head_sha=${head}&per_page=5`)).workflow_runs.find(tested)
     b.ci = { state: ciState(ci), url: ci?.html_url ?? null }
     if (pr) b.pr = { number: pr.number, title: pr.title, draft: pr.draft, url: pr.html_url, ...(!pr.draft && await queueState(pr)) }
     b.stale = Date.now() - Date.parse(tip.date) > 7 * DAY

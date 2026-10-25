@@ -11,8 +11,8 @@ on:
   schedule:
     - cron: '*/20 * * * *'
   delete:
-  push:
-    paths: [scripts/ops/dev-board.mjs, .github/workflows/dev-board.yml]
+  # No push trigger: on a branch it would save that branch's version of the board, and a newer run
+  # cancelling it left a cancelled check on the pull request, which the merge queue counts as red.
   workflow_dispatch:
 
 permissions:
