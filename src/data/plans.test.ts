@@ -1,5 +1,5 @@
 import sql from '../../supabase/migrations/20261019000036_billing_plans.sql?raw'
-import musicSql from '../../supabase/migrations/20261104000085_social_music.sql?raw'
+import musicSql from '../../supabase/migrations/20261104000086_social_music.sql?raw'
 import { describe, expect, it } from 'vitest'
 import { COMPARE, PAY_PER_USE, PLANS, effectivePlan, mostIncluded, payPerUse, paymentProblem, perUsePrice, type Billing } from '../../shared/plans'
 
@@ -43,7 +43,7 @@ describe('pay per use', () => {
     expect(perUsePrice(music, 'free')).toBeNull()
   })
 
-  it('match the prices and free uses the database charges by (migration 85)', () => {
+  it('match the prices and free uses the database charges by (migration 86)', () => {
     const rows = [...musicSql.matchAll(/\('(\w+)',\s+(\d+),\s+'(\{[^']*\})'\)/g)]
     const db = Object.fromEntries(rows.map(([, id, cents, included]) => [id, { cents: Number(cents), included: JSON.parse(included) }]))
     expect(db).toEqual(Object.fromEntries(PAY_PER_USE.map(u => [u.id, { cents: Math.round(u.price * 100), included: u.included }])))

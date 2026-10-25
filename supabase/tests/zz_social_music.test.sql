@@ -1,4 +1,4 @@
--- Music on social posts (migration 85): the library, AI tracks paid per use (free ones first, the
+-- Music on social posts (migration 86): the library, AI tracks paid per use (free ones first, the
 -- spending limit, nothing charged when it fails), music on posts and reminders. Reuses
 -- time_tracking.test.sql's people: maria (admin), julio (employee). Starts as the founding account.
 

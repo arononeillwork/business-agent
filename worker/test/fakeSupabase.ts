@@ -78,7 +78,7 @@ export class FakeSupabase {
   /** The plan in force (public.plan_status / plan_check_connect, migration 36): everything unless a test says otherwise. */
   plan: { plan: string; people: number | null; features: string[] } = {
     plan: 'business', people: null, features: ['google_maps', 'apps', 'whatsapp', 'takings', 'sports', 'music', 'kiosk', 'partners'] }
-  /** AI music (migration 85): free uses left this month, the price of the rest, and why the next can't be made (null: it can). */
+  /** AI music (migration 86): free uses left this month, the price of the rest, and why the next can't be made (null: it can). */
   music = { freeLeft: 1, unitCents: 99, reason: null as string | null }
   /** Bearer token → signed-in person. */
   people = new Map<string, { id: string; role: 'admin' | 'employee' }>()
@@ -189,7 +189,7 @@ export class FakeSupabase {
         Object.assign(j, a.p_ok ? { status: 'sent', external_id: a.p_external_id ?? null, last_error: null } : { status: 'failed', last_error: a.p_error })
         return json(null)
       }
-      // Migration 85: AI music uses, quoted, reserved before ElevenLabs is asked and settled after.
+      // Migration 86: AI music uses, quoted, reserved before ElevenLabs is asked and settled after.
       if (rpc[1] === 'ai_music_quote') {
         const { p_seconds } = JSON.parse(String(init.body)) as { p_seconds: number }
         const uses = Math.max(1, Math.ceil(Math.max(3, p_seconds) / 60))
