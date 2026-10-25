@@ -242,11 +242,17 @@ const res = await fetch(`https://api.supabase.com/v1/projects/${REF}/database/qu
   method: 'POST',
   headers: { authorization: `Bearer ${process.env.SUPABASE_ACCESS_TOKEN}`, 'content-type': 'application/json' },
   body: JSON.stringify({
-    query: `create schema if not exists ops;
-revoke all on schema ops from public, anon, authenticated;
-create table if not exists ops.dev_board (id int primary key, data jsonb not null, updated_at timestamptz not null default now());
-alter table ops.dev_board enable row level security;
-comment on table ops.dev_board is 'Feature board for the owner''s dashboard, written by .github/workflows/dev-board.yml. Not part of the app.';
+    // The table is made once: any DDL makes the app's API (PostgREST) reload its schema, which
+    // stalls its requests for a few seconds, so an ordinary save is only the insert.
+    query: `do $$ begin
+  if to_regclass('ops.dev_board') is null then
+    create schema if not exists ops;
+    revoke all on schema ops from public, anon, authenticated;
+    create table ops.dev_board (id int primary key, data jsonb not null, updated_at timestamptz not null default now());
+    alter table ops.dev_board enable row level security;
+    comment on table ops.dev_board is 'Feature board for the owner''s dashboard, written by .github/workflows/dev-board.yml. Not part of the app.';
+  end if;
+end $$;
 insert into ops.dev_board (id, data, updated_at) values (1, $${tag}$${json}$${tag}$::jsonb, now())
   on conflict (id) do update set data = excluded.data, updated_at = excluded.updated_at;`,
   }),
