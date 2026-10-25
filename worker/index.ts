@@ -222,6 +222,21 @@ app.route('/api/v1', rest)
 app.get('/authorize', c => authorizeGet(c.req.raw, c.env))
 app.post('/authorize', c => authorizePost(c.req.raw, c.env))
 
+// The app's code files. Cloudflare answers a file it doesn't have with the app's page, and
+// browsers keep /assets/* for a year without asking again (public/_headers): a code file asked of
+// a version that doesn't have it (a tab from before a deploy, a server mid-deploy) was kept as that
+// page, and the app never started in that browser again. A missing one is now a 404 nobody keeps.
+app.get('/assets/*', async c => {
+  const res = await c.env.ASSETS.fetch(c.req.raw)
+  if (res.status === 304) return res
+  if (!res.ok || res.headers.get('content-type')?.startsWith('text/html')) {
+    return c.text('Not found', 404, { 'cache-control': 'no-store' })
+  }
+  const file = new Response(res.body, res)
+  file.headers.set('cache-control', 'public, max-age=31536000, immutable')
+  return file
+})
+
 app.notFound(c => c.json({ error: 'Not found' }, 404))
 app.onError((err, c) => c.json({ error: err.message }, 500))
 
