@@ -32,7 +32,7 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'sales reps', files: [/(SalesReps|RepCards)Page/, /shared\/reps/], tests: String.raw`sales reps` },
   { name: 'roles and rules', files: [/(Roles|StaffRules)Page/, /components\/Expandable/, /shared\/(roles|staffRules)/], tests: String.raw`roles and rules|menu|pages can be dragged` },
   { name: 'business', files: [/(Business|Brand|OpeningHours)Page/, /shared\/(taxId|brand)/], tests: String.raw`business|brand|opening hours|currency|colour|logo` },
-  { name: 'team', files: [/TeamPage/, /TempPassword/, /ContactMethod/, /ShareDialog/], tests: String.raw`team|invite|contact|account` },
+  { name: 'team', files: [/TeamPage/, /TempPassword/, /ContactMethod/, /ShareDialog/, /shared\/teamRoles/], tests: String.raw`team|invite|contact|account` },
   { name: 'connections', files: [/(Connections|SocialPlanner)Page/, /components\/Connect/, /shared\/connections/],
     tests: String.raw`connect|Square|Stripe|TikTok|Instagram|Google|WhatsApp|Spotify|YouTube|social|post` },
   { name: 'music', files: [/MusicPage/, /MusicCard/, /CafeSpeaker/], tests: String.raw`music|playlist|song` },
