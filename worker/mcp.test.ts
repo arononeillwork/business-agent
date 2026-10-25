@@ -13,7 +13,7 @@ const person = (role: Profile['role']): Profile => ({
 /** Minimal stand-in for a Supabase query builder that resolves to fixed data. */
 const fakeSb = (data: unknown) => {
   const builder: Record<string, unknown> = {}
-  for (const m of ['select', 'eq', 'neq', 'single', 'maybeSingle', 'order', 'gte', 'lt', 'lte']) builder[m] = () => builder
+  for (const m of ['select', 'eq', 'neq', 'not', 'update', 'single', 'maybeSingle', 'order', 'gte', 'lt', 'lte']) builder[m] = () => builder
   builder.then = (resolve: (v: unknown) => void) => resolve({ data, error: null })
   return { from: () => builder } as unknown as SupabaseClient
 }
@@ -38,6 +38,10 @@ describe('AI connector tools', () => {
     expect(employee).not.toContain('create_shift')
     expect(employee).not.toContain('update_business_details')
     expect(employee).not.toContain('list_customers')
+    // The till side of rewards and the kitty are the whole team's; approving, paying in and out are the admins'.
+    expect(employee).toEqual(expect.arrayContaining(['list_sales_reps', 'log_reward', 'use_reward_balance', 'staff_kitty']))
+    expect(employee).not.toContain('decide_reward')
+    expect(employee).not.toContain('kitty_put_in')
     expect(toolsFor(person('admin')).length).toBe(TOOLS.length)
   })
 
@@ -49,6 +53,8 @@ describe('AI connector tools', () => {
     expect(names).not.toContain('clock')
     expect(names).not.toContain('request_time_off')
     expect(names).not.toContain('save_expense')
+    expect(names).toContain('credit_and_debit')
+    expect(names).not.toContain('record_credit_debit_payment')
     expect(names).not.toContain('list_customers')
     expect(toolsFor(gestoria).every(t => t.readOnly)).toBe(true)
 
@@ -72,10 +78,61 @@ describe('AI connector tools', () => {
     await expect(runTool(t, { sb: fakeSb(null), me: person('employee') }, {})).rejects.toThrow('Only admins')
   })
 
+  it('gives team roles: only a boss makes or changes a boss, and nobody their own', async () => {
+    const aron = person('admin') // a boss: an admin with pay access
+    const mark: Profile = { ...person('admin'), id: 'u2', full_name: 'Mark', can_see_pay: false }
+    const julio: Profile = { ...person('employee'), id: 'u3', full_name: 'Julio' }
+    const t = TOOLS.find(x => x.name === 'set_team_role')!
+    const as = (me: Profile, args: unknown) => runTool(t, { sb: fakeSb([aron, mark, julio]), me }, args)
+    await expect(as(aron, { person: 'Julio', role: 'manager' })).resolves.toEqual({ ok: true, name: 'Julio', team_role: 'manager' })
+    await expect(as(aron, { person: 'Mark', role: 'boss' })).resolves.toMatchObject({ team_role: 'boss' })
+    await expect(as(mark, { person: 'Julio', role: 'manager' })).resolves.toMatchObject({ team_role: 'manager' })
+    await expect(as(mark, { person: 'Julio', role: 'boss' })).rejects.toThrow('Only a boss')
+    await expect(as(mark, { person: 'Aron', role: 'employee' })).rejects.toThrow('Only a boss')
+    await expect(as(mark, { person: 'Mark', role: 'employee' })).rejects.toThrow('your own role')
+    await expect(as(aron, { person: 'Julio', role: 'owner' })).rejects.toThrow('role')
+    await expect(as(julio, { person: 'Julio', role: 'boss' })).rejects.toThrow('Only admins')
+    expect(toolsFor(julio).map(x => x.name)).not.toContain('set_team_role')
+  })
+
   it('validates input and requires confirmation for deletes', async () => {
     const t = TOOLS.find(x => x.name === 'delete_shift')!
     await expect(runTool(t, { sb: fakeSb(null), me: person('admin') },
       { shift_id: '6f1c1f3e-8d2a-4c47-9d61-2b8f3c1e0a11' })).rejects.toThrow('confirm')
+  })
+
+  it('credit_and_debit: what’s left to pay back and to come in, grants included, with the totals', async () => {
+    const rows: Record<string, unknown> = {
+      credit_debit_items: [
+        { id: 'i1', direction: 'debit', kind: 'loan', name: 'Loan from Jeremy', party: 'Jeremy', amount: '1000.00', instalment: '100.00', every_months: 1,
+          next_due: '2099-11-01', possible: false, done: false, notes: null, payments: [{ id: 'p1', item_id: 'i1', paid_on: '2026-10-01', amount: '100.00', note: null }] },
+        { id: 'i2', direction: 'credit', kind: 'sale', name: 'Old coffee machine', party: null, amount: '1200.00', instalment: null, every_months: null,
+          next_due: null, possible: true, done: false, notes: null, payments: [] },
+      ],
+      grant_applications: [
+        { id: 'g1', grant_id: 'talento-joven', grant_name: 'Hiring grant: Talento Joven', stage: 'awarded', amount_requested: '5000.00', amount_awarded: '4000.00',
+          amount_received: '1000.00', deadline: null, deadline_label: null, notes: null },
+        { id: 'g2', grant_id: 'linea-2', grant_name: 'Línea 2', stage: 'rejected', amount_requested: '3000.00', amount_awarded: null, amount_received: null,
+          deadline: null, deadline_label: null, notes: null },
+      ],
+    }
+    const builder = (data: unknown) => {
+      const b: Record<string, unknown> = {}
+      for (const m of ['select', 'eq', 'order']) b[m] = () => b
+      b.then = (resolve: (v: unknown) => void) => resolve({ data, error: null })
+      return b
+    }
+    const sb = { from: (table: string) => builder(rows[table]) } as unknown as SupabaseClient
+    const out = await runTool(TOOLS.find(x => x.name === 'credit_and_debit')!, { sb, me: person('admin') }, {}) as {
+      totals_eur: Record<string, number>; lines: { name: string; left_eur: number; status: string; direction: string }[]
+    }
+    expect(out.totals_eur).toEqual({ to_pay_back: 900, paid_out_a_month: 100, coming_in: 3000, could_raise: 1200 })
+    expect(out.lines.map(l => [l.name, l.direction, l.left_eur, l.status])).toEqual([
+      ['Loan from Jeremy', 'to pay back', 900, 'open'], ['Old coffee machine', 'coming in', 1200, 'possible'], ['Hiring grant: Talento Joven', 'coming in', 3000, 'open'],
+    ])
+    // Without pay access there's nothing to read, and changes need pay access too.
+    await expect(runTool(TOOLS.find(x => x.name === 'credit_and_debit')!, { sb, me: { ...person('admin'), can_see_pay: false } }, {})).rejects.toThrow('pay access')
+    await expect(runTool(TOOLS.find(x => x.name === 'record_credit_debit_payment')!, { sb, me: person('admin') }, { amount_eur: 100 })).rejects.toThrow('one of them')
   })
 
   it('serves tools over MCP and runs them', async () => {
@@ -96,6 +153,6 @@ describe('AI connector tools', () => {
 
     const call = await rpc(handler, 3, 'tools/call', { name: 'whoami', arguments: {} })
     const out = JSON.parse(call.result.content[0].text)
-    expect(out).toMatchObject({ name: 'Aron', role: 'employee', business: 'Test Café' })
+    expect(out).toMatchObject({ name: 'Aron', role: 'employee', team_role: 'employee', business: 'Test Café' })
   })
 })

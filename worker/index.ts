@@ -26,6 +26,8 @@ import { clearOldCache } from './cache'
 import { website } from './website'
 import { checkWaitingImages, menu, syncSquareMenuIfChosen } from './menu'
 import { screens } from './screens'
+import { competitors, watchCompetitors } from './competitors'
+import { TEAM_ROLE_IDS, accessOf } from '../shared/teamRoles'
 
 const NIGHTLY = '15 1 * * *' // 03:15 Madrid in summer, 02:15 in winter
 
@@ -90,7 +92,14 @@ app.post('/api/admin/invite', async c => {
 
   const body = await c.req.json<{ email?: string; full_name?: string; role?: string; partner_company?: string; partner_access?: string[]; password?: string; phone?: string | null; contact_method?: string | null }>()
   const email = body.email?.trim().toLowerCase()
-  const role = ['admin', 'employee', 'kiosk', 'partner'].includes(body.role ?? '') ? body.role : 'employee'
+  // Team members come with their team role (boss, manager or employee; 'admin' is a shop manager),
+  // kept as the access the database checks. Only a boss invites a boss.
+  const member = TEAM_ROLE_IDS.find(r => r === (body.role === 'admin' ? 'manager' : body.role))
+  const role = member ? accessOf(member).role : body.role === 'kiosk' || body.role === 'partner' ? body.role : 'employee'
+  const boss = member === 'boss'
+  if (boss && !(await userClient(c.env, token, 'app').rpc('can_see_pay')).data) {
+    return c.json({ error: 'Only a boss can invite another boss' }, 403)
+  }
   if (!email || !body.full_name?.trim()) return c.json({ error: 'Name and email are required' }, 400)
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return c.json({ error: 'Enter a full email address, like name@example.com' }, 400)
   // Partners: company and read-only areas (the database drops anything unknown too).
@@ -105,7 +114,7 @@ app.post('/api/admin/invite', async c => {
     ...(body.contact_method && ['whatsapp', 'sms', 'email'].includes(body.contact_method) ? { contact_method: body.contact_method } : {}),
   }
 
-  const blocked = await planBlocksInvite(c.env, role!)
+  const blocked = await planBlocksInvite(c.env, role)
   if (blocked) return c.json({ error: blocked }, 402)
 
   // With a temporary password: create the account now, no email needed (Supabase's built-in email
@@ -125,7 +134,7 @@ app.post('/api/admin/invite', async c => {
     // Set the role and switch the account on explicitly: Supabase may store app_metadata after
     // the new-user trigger has already run, which left these accounts inactive.
     const { error: profileError } = await svc.from('profiles').update({
-      full_name: body.full_name.trim(), role, active: true,
+      full_name: body.full_name.trim(), role, active: true, ...(boss ? { can_see_pay: true } : {}),
       ...(role === 'partner' ? partner : contact),
     }).eq('id', created.user.id)
     if (profileError) {
@@ -142,7 +151,8 @@ app.post('/api/admin/invite', async c => {
     redirectTo: `${origin}/account`,
   })
   if (inviteError) return c.json({ error: inviteError.message }, 400)
-  if (invited.user && role !== 'partner' && Object.keys(contact).length) await svc.from('profiles').update(contact).eq('id', invited.user.id)
+  const after = { ...(role === 'partner' ? {} : contact), ...(boss ? { can_see_pay: true } : {}) }
+  if (invited.user && Object.keys(after).length) await svc.from('profiles').update(after).eq('id', invited.user.id)
   return c.json({ ok: true })
 })
 
@@ -210,6 +220,8 @@ app.route('/', loyaltyRoutes)
 // Reviews (Google) and Website & SEO (Marketing).
 app.route('/', reviews)
 app.route('/', website)
+// Competitors: cafés nearby and the ones followed, from Google (Marketing).
+app.route('/', competitors)
 
 // Menu page: AI images through Higgsfield, kept in the café's storage; Screens: each screen's link.
 app.route('/', menu)
@@ -224,6 +236,21 @@ app.route('/api/v1', rest)
 // OAuth sign-in page for AI connectors.
 app.get('/authorize', c => authorizeGet(c.req.raw, c.env))
 app.post('/authorize', c => authorizePost(c.req.raw, c.env))
+
+// The app's code files. Cloudflare answers a file it doesn't have with the app's page, and
+// browsers keep /assets/* for a year without asking again (public/_headers): a code file asked of
+// a version that doesn't have it (a tab from before a deploy, a server mid-deploy) was kept as that
+// page, and the app never started in that browser again. A missing one is now a 404 nobody keeps.
+app.get('/assets/*', async c => {
+  const res = await c.env.ASSETS.fetch(c.req.raw)
+  if (res.status === 304) return res
+  if (!res.ok || res.headers.get('content-type')?.startsWith('text/html')) {
+    return c.text('Not found', 404, { 'cache-control': 'no-store' })
+  }
+  const file = new Response(res.body, res)
+  file.headers.set('cache-control', 'public, max-age=31536000, immutable')
+  return file
+})
 
 app.notFound(c => c.json({ error: 'Not found' }, 404))
 app.onError((err, c) => c.json({ error: err.message }, 500))
@@ -257,7 +284,8 @@ export default {
   // send planned social posts, deliver the outbox, refresh sports; every 15 minutes, opening hours
   // with Google Maps and Instagram mentions; every hour, new Square customers and new Google reviews
   // (every 3 hours from Places). How often each service is read: shared/refresh.ts.
-  // Nightly: fill yesterday's missing timecards from the rota, check every connection still works.
+  // Nightly: fill yesterday's missing timecards from the rota, check every connection still works,
+  // and look at the competitors due their weekly check on Google.
   async scheduled(event, env, ctx) {
     if (!env.SUPABASE_SERVICE_ROLE_KEY) return
     const db = serviceClient(env)
@@ -269,6 +297,9 @@ export default {
         await Promise.resolve(db.rpc('auto_fill_timecards')).then(log('auto_fill_timecards'))
         // Licences running out within their reminder days: admins hear about each once (Licences page).
         await Promise.resolve(db.rpc('licence_reminders')).then(log('licence_reminders'))
+        // Enquiries whose follow-up day has come, and campaigns planned for today (Leads & enquiries, Campaigns).
+        await Promise.resolve(db.rpc('enquiry_follow_ups')).then(log('enquiry_follow_ups'))
+        await Promise.resolve(db.rpc('campaign_reminders')).then(log('campaign_reminders'))
         // WhatsApp chats older than Data retention allows, with their photos and voice notes.
         await purgeWhatsApp(db).catch(e => console.error('whatsapp purge failed', e))
         // The subscription, straight from Stripe (in case a webhook was missed).
@@ -284,6 +315,8 @@ export default {
         }
         // Crests for new teams (flags straight away; a few club look-ups, the GitHub sync does the rest).
         if (await sportsOn(db)) await syncCrests(db, 8).catch(e => console.error('crests failed', e))
+        // Competitors: each followed place's weekly check on Google, and the weekly look around for new places.
+        await watchCompetitors(env, db).catch(e => console.error('competitors failed', e))
         // Outside services' answers kept over two days (provider_cache).
         await clearOldCache(db).catch(e => console.error('cache clear failed', e))
       })())

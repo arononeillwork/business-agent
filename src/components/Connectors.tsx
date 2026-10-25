@@ -11,8 +11,8 @@ import CalendarIcon from '@mui/icons-material/CalendarMonthOutlined'
 import CloseIcon from '@mui/icons-material/CloseRounded'
 import DotIcon from '@mui/icons-material/FiberManualRecord'
 import {
-  siApple, siDropbox, siFacebook, siGmail, siGoogleads, siGooglecalendar, siGoogledrive, siGooglemaps, siGooglesearchconsole, siInstagram, siMeta, siSpotify, siSquare, siStripe, siTiktok,
-  siWhatsapp, siYoutubemusic,
+  siApple, siBrevo, siDropbox, siFacebook, siGmail, siGoogleads, siGooglecalendar, siGoogledrive, siGooglemaps, siGooglesearchconsole, siIndeed, siInstagram, siMailchimp,
+  siMeta, siSpotify, siSquare, siStripe, siTiktok, siWhatsapp, siYoutubemusic,
   type SimpleIcon,
 } from 'simple-icons'
 import { useEffect, useState, type ReactNode } from 'react'
@@ -56,6 +56,12 @@ export const LinkedInLogo = () => (
     <path fill="#fff" d="M5.4 9.6h3v9.4h-3zM10.3 9.6h2.85v1.3c.4-.75 1.4-1.55 2.9-1.55 3.05 0 3.6 2 3.6 4.6V19h-3v-4.4c0-1.05-.02-2.4-1.47-2.4-1.47 0-1.7 1.15-1.7 2.33V19h-3.18z" />
   </Mark>
 )
+const InfoJobsLogo = () => (
+  <Mark>
+    <rect width="24" height="24" rx="5" fill="#167DB7" />
+    <path fill="#fff" d="M6.2 7h2.6v10H6.2zM11 7h6.8v2.3H13.6v1.6h3.8v2.2h-3.8V17H11z" />
+  </Mark>
+)
 const SumUpLogo = () => (
   <Mark>
     <rect width="24" height="24" rx="5" fill="#1A1A1A" />
@@ -90,6 +96,11 @@ export const LOGO: Record<OptionId, ReactNode> = {
   meta_ads: <Brand icon={siMeta} />,
   google_ads: <Brand icon={siGoogleads} />,
   higgsfield: <HiggsfieldLogo />,
+  brevo: <Brand icon={siBrevo} />,
+  mailchimp: <Brand icon={siMailchimp} />,
+  infojobs: <InfoJobsLogo />,
+  indeed: <Brand icon={siIndeed} />,
+  linkedin_jobs: <LinkedInLogo />,
 }
 
 export const DOES: Partial<Record<OptionId, string>> = {
@@ -119,6 +130,11 @@ export const DOES: Partial<Record<OptionId, string>> = {
   spotify: msg('The approved playlist; staff play or pause it on the café speaker.'),
   youtube_music: msg('The approved playlist; staff open it on the café device.'),
   higgsfield: msg('Images for your menus and screens made with AI from a few words: artwork, whole menus and photos of your dishes (Menu page).'),
+  brevo: msg('Send Campaigns to the customers who said yes to marketing, with the unsubscribe link handled there.'),
+  mailchimp: msg('Send Campaigns to the customers who said yes to marketing, with the unsubscribe link handled there.'),
+  infojobs: msg('Post jobs from Hiring and bring the people who apply straight in.'),
+  indeed: msg('Post jobs from Hiring and bring the people who apply straight in.'),
+  linkedin_jobs: msg('Post jobs from Hiring to your company Page.'),
 }
 
 /** What the connection can do once allowed (shown before connecting, like an AI connector). */

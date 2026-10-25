@@ -76,6 +76,8 @@ export interface Settings {
   /** When the menu was last read from Square, and why that failed when it did. */
   menu_synced_at?: string | null
   menu_sync_error?: string | null
+  /** Expenses: euros paid back a kilometre driven in a private car (0.26 unless changed). */
+  mileage_rate?: number
 }
 
 export interface Expense {
@@ -164,6 +166,8 @@ export interface Preferences {
   numberFormat?: 'comma' | 'point'
   /** Page background tint: a brand colour (#RRGGBB). Unset = the house cream. */
   background?: string
+  /** Their own order of the menu's sections (Settings → Pages), by section key. */
+  navSections?: string[]
   /** Their own order of pages within each menu section: section key → page keys. */
   navOrder?: Record<string, string[]>
   /** Pages they pinned to the top of their menu section (page keys). */
@@ -511,6 +515,8 @@ export interface SearchReport {
 
 /** To Do List: a category the admins manage (jobs are grouped by these). */
 export interface TodoCategory { id: string; name: string; hint: string | null; colour: string; sort: number }
+/** Where a job is on the board: to do, being done, or done (done is also the list's tick). */
+export type TodoStatus = 'todo' | 'doing' | 'done'
 /** One job on the To Do List. `category_id` is null after its category was removed. */
 export interface Todo {
   id: string
@@ -519,13 +525,14 @@ export interface Todo {
   section: string | null
   assignee_id: string | null
   done: boolean
+  status: TodoStatus
   done_at: string | null
   starred: boolean
   pinned: boolean
   position: number
   created_at: string
 }
-export type TodoPatch = Partial<Pick<Todo, 'title' | 'category_id' | 'section' | 'assignee_id' | 'done' | 'starred' | 'pinned' | 'position'>>
+export type TodoPatch = Partial<Pick<Todo, 'title' | 'category_id' | 'section' | 'assignee_id' | 'done' | 'status' | 'starred' | 'pinned' | 'position'>>
 
 /** Café music (Music page): the café account's playlists, whichever service is connected. */
 export interface CafeMusicLibrary { provider: 'youtube' | 'spotify' | null; account: string | null; playlists: SpotifyPlaylist[]; approved: SpotifyPlaylist | null; /** YouTube playlists that aren't music (hidden unless asked for). */ other_playlists?: SpotifyPlaylist[]; /** Sample songs (demo): played by a pretend player. */ demo?: boolean }

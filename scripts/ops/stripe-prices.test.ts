@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { describe, expect, it } from 'vitest'
 import { syncPrices, type StripeCall } from './stripe-prices'
 
@@ -82,5 +83,13 @@ describe('Stripe prices follow the plans', () => {
     for (let i = 0; i < 150; i++) s.prices.push({ id: `other_${i}`, active: true, metadata: {} })
     await syncPrices(s.call, PLANS)
     expect(s.prices.filter(p => p.id.startsWith('other_') && !p.active)).toHaveLength(0)
+  })
+
+  // Deploy runs it with plain Node, which (unlike Vite and Vitest) needs every relative import's
+  // extension: without one in shared/plans.ts, the sync failed on every deploy without anyone seeing.
+  it('loads in plain Node, as Deploy runs it', () => {
+    const out = execFileSync(process.execPath, ['--experimental-strip-types', 'scripts/ops/stripe-prices.ts'],
+      { env: { ...process.env, STRIPE_SECRET_KEY: '' }, encoding: 'utf8', stdio: 'pipe' })
+    expect(out).toContain('STRIPE_SECRET_KEY not set')
   })
 })

@@ -33,7 +33,7 @@ const TONE: Record<LicenceStatus, { fg: string; bg: string }> = {
 const RENEWALS = [null, 1, 3, 6, 12, 24, 48, 60]
 
 /**
- * Licences & renewals: everything the business keeps open (licencia de apertura, SGAE, the terrace,
+ * Licences: everything the business keeps open (licencia de apertura, SGAE, the terrace,
  * insurance, safety checks, staff certificates), each with its number, when it runs out, how often
  * it renews and its document. Admins get a reminder in the bell before one runs out.
  * Admins manage it; a gestoría with finances access reads (the database enforces it too).
@@ -47,7 +47,7 @@ export function LicencesPage() {
 
   if (!canEdit && !partnerCan('finances')) {
     return <>
-      <PageHeader eyebrow={t('Business')} title={t('Licences & renewals')} />
+      <PageHeader eyebrow={t('Business')} title={t('Licences')} />
       <Alert severity="info">{t('Licences are only visible to admins.')}</Alert>
     </>
   }
@@ -67,7 +67,7 @@ export function LicencesPage() {
     link: p.link ?? null, notes: null, reminder_days: 30, auto_renews: false, active: true })
 
   const table = (): ExportTable => ({
-    title: t('Licences & renewals'), filename: `licences-${now}`,
+    title: t('Licences'), filename: `licences-${now}`,
     columns: [t('Licence'), t('Kind'), t('Issued by'), t('Number'), t('Holder'), t('From'), t('Runs out'), t('Renews'), t('Cost'), t('Status'), t('Notes'), t('File')],
     rows: active.map(l => [l.name, categoryLabel(l.category), l.issuer ?? '', l.reference ?? '', l.holder ?? '', l.starts_on ?? '', l.expires_on ?? '',
       renewal(l.renew_every_months), l.cost, t(STATUS_LABEL[statusOf(l, now)]), l.notes ?? '', l.document?.link ?? '']),
@@ -77,7 +77,7 @@ export function LicencesPage() {
 
   return (
     <>
-      <PageHeader eyebrow={t('Business')} title={t('Licences & renewals')} actions={<>
+      <PageHeader eyebrow={t('Business')} title={t('Licences')} actions={<>
         {!canEdit && <Tag>{t('Read-only')}</Tag>}
         <ExportButton table={table} disabled={!active.length} folder="Licences" />
         {canEdit && <Button variant="contained" startIcon={<AddIcon />} onClick={() => setEditing({ name: '', category: 'permit', reminder_days: 30, renew_every_months: 12, active: true })}>{t('Add a licence')}</Button>}
@@ -97,9 +97,9 @@ export function LicencesPage() {
         </Alert>
       )}
 
-      <Card component="section" aria-label={t('Licences & renewals')} sx={{ mb: 3 }}>
+      <Card component="section" aria-label={t('Licences')} sx={{ mb: 3 }}>
         <CardContent>
-          <SectionTitle>{t('Licences & renewals')}</SectionTitle>
+          <SectionTitle>{t('Licences')}</SectionTitle>
           {active.length === 0
             ? <Empty>{list.data ? t('No licences yet. Add the café’s below.') : t('Loading…')}</Empty>
             : <Box sx={{ overflowX: 'auto' }}>

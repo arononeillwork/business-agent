@@ -6,10 +6,10 @@
 import type { IntegrationProvider } from './types'
 import { msg } from './i18n'
 
-export type ConnectionGroup = 'communication' | 'email' | 'calendar' | 'files' | 'maps' | 'analytics' | 'social' | 'advertising' | 'payments' | 'online_payments' | 'music' | 'ai'
+export type ConnectionGroup = 'communication' | 'email' | 'calendar' | 'files' | 'maps' | 'analytics' | 'social' | 'advertising' | 'payments' | 'online_payments' | 'music' | 'email_marketing' | 'job_boards' | 'ai'
 
 export interface ConnectionOption {
-  id: IntegrationProvider | 'slack' | 'sms' | 'sharepoint' | 'dropbox' | 'apple_maps' | 'stripe'
+  id: IntegrationProvider | 'slack' | 'sms' | 'sharepoint' | 'dropbox' | 'apple_maps' | 'stripe' | 'brevo' | 'mailchimp' | 'infojobs' | 'indeed' | 'linkedin_jobs'
   name: string
   by: string
   /** Shown but not selectable yet. */
@@ -79,6 +79,17 @@ export const GROUPS: ConnectionGroupInfo[] = [
   { key: 'music', title: msg('Café music'), pickOne: true, options: [
     { id: 'spotify', name: 'Spotify', by: 'Spotify', proves: msg('The account signed in and its playlists can be read. Staff can play or pause it on the speaker.') },
     { id: 'youtube_music', name: 'YouTube Music', by: 'Google', proves: msg('The account signed in and its playlists can be read. Staff open the playlist on the café device.') },
+  ] },
+  // Campaigns: send to the customers who said yes to marketing, with unsubscribe links handled there.
+  { key: 'email_marketing', title: msg('Email campaigns'), pickOne: true, options: [
+    { id: 'brevo', name: 'Brevo', by: 'Brevo', soon: true },
+    { id: 'mailchimp', name: 'Mailchimp', by: 'Intuit', soon: true },
+  ] },
+  // Hiring: post a job and bring the applicants in.
+  { key: 'job_boards', title: msg('Job boards'), pickOne: false, options: [
+    { id: 'infojobs', name: 'InfoJobs', by: 'InfoJobs', soon: true },
+    { id: 'indeed', name: 'Indeed', by: 'Indeed', soon: true },
+    { id: 'linkedin_jobs', name: 'LinkedIn Jobs', by: 'Microsoft', soon: true },
   ] },
 ]
 

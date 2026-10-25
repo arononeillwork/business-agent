@@ -13,6 +13,8 @@ import { TIME_OFF_AFTER_THE_FACT } from '../../shared/types'
 import { mentionTitle, mentionsIn, type InstagramMention } from '../../shared/mentions'
 import { demoSports } from './demoSports'
 import { demoInbox, demoMessenger, demoWhatsApp } from './demoMessages'
+import { DEMO_CAFE_AT, DEMO_PLACES, demoCompetitors } from './demoCompetitors'
+import { distanceM, instagramHandle, suggestedThreat, type Competitor, type NearbyPlace } from '../../shared/localCompetitors'
 import { DEFAULT_WHATSAPP_RETENTION, isRetention, replyWindow } from '../../shared/messages'
 import { cleanCode } from '../../shared/referrals'
 import { postProblem } from '../../shared/social'
@@ -22,8 +24,16 @@ import { addToCalendarUrl, cleanWebsite, groupOf } from '../../shared/connection
 import { mergeSales } from '../../shared/sales'
 import { dueFrom, emailId, matchSupplier, numberFromName, type InboxInvoice, type Invoice } from '../../shared/invoices'
 import type { Licence } from '../../shared/licences'
+import { afterPayment, paidSoFar, type MoneyItem, type MoneyPayment } from '../../shared/creditDebit'
+import { inStep } from '../../shared/todo'
 import { LEGAL_STORAGES, MAX_PICK, SKIPPED, guessKind, previewOf, storageName, titleOf, type LegalDocument, type LegalStorage, type StorageItem } from '../../shared/legalDocs'
 import type { Benefit, LeaveAllowance } from '../../shared/benefits'
+import { COMMISSION_PAID, USED_AT_TILL, cleanInstagram, cleanRepCode, codeFor, rewardAmount, type RepReward, type RewardRule, type SalesRep } from '../../shared/reps'
+import { addMonths, kittyBalance, type KittyEntry, type KittyGoal } from '../../shared/kitty'
+import { roleProblem, type JobRole } from '../../shared/roles'
+import { sectionProblem, type RuleSection, type RulesRead } from '../../shared/staffRules'
+import { COUNTED, type Contractor, type OutsourcedJob } from '../../shared/outsourcing'
+import { EASY_BEANS_ROLES, EASY_BEANS_RULES, handbookDuties } from './easyBeansHandbook'
 import { DEFAULT_TAX_SETTINGS, cleanFolderName, cleanFolderPath, taxFileProblem, type FilingRecord, type TaxDocument, type TaxSettings } from '../../shared/tax'
 import { DEFAULT_VAT_RATE, type PnlLine } from '../../shared/pnl'
 import { cleanAnswers, isDone, type GrantApplication, type GrantProfile } from '../../shared/grants'
@@ -42,6 +52,14 @@ import { AD_PLATFORMS, NO_METRICS, PLATFORM_NAMES, addMetrics, sumDays, type AdC
 import { CONNECT_MAPS, MAX_REPLY, type Review } from '../../shared/reviews'
 import { checkSite, parsePage, scoreOf, type PageSpeed, type WebsiteReport } from '../../shared/seo'
 import { addDays, formatMoney, localDate, minutesBetween, today, weekDates, weekStart, zonedIso } from '../../shared/time'
+import { SOURCE_FOR, type Enquiry } from '../../shared/leads'
+import { DEFAULT_MILEAGE_RATE, mileageAmount, type ExpenseClaim } from '../../shared/claims'
+import { EVERYONE, type Campaign } from '../../shared/campaigns'
+import { keepUntil, type Applicant, type JobOpening } from '../../shared/hiring'
+import { CAFE_POINTS, inRange as inLimits, type SafetyCheck, type SafetyPoint } from '../../shared/foodSafety'
+import { dietsFor, type Allergen } from '../../shared/allergens'
+import { minutesWorked, splitTips, type TipPool } from '../../shared/tips'
+import { accessOf } from '../../shared/teamRoles'
 
 interface RawEntry {
   id: string; profile_id: string; position_id: number | null; shift_id: string | null
@@ -313,6 +331,20 @@ export function createDemoApi(): Api {
       expires_on: '2026-10-15', renew_every_months: 12, cost: 312 }),
     licence({ name: 'Revisión de extintores', category: 'safety', issuer: 'Extintores Costa', expires_on: '2026-09-01', renew_every_months: 12, cost: 65 }),
   ]
+
+  // Credit & debit: Jeremy's loan being paid back monthly, the espresso machine on finance, and the old
+  // coffee machine to sell (the grant being applied for comes from the grant applications).
+  const moneyItem = (p: Partial<MoneyItem> & { name: string; direction: MoneyItem['direction']; amount: number }): MoneyItem => ({ id: uid(), kind: 'other', party: null,
+    instalment: null, every_months: null, next_due: null, possible: false, done: false, notes: null, payments: [], ...p })
+  const moneyPayment = (amount: number, paid_on: string, note: string | null = null): MoneyPayment => ({ id: uid(), item_id: '', paid_on, amount, note })
+  const moneyItems: MoneyItem[] = [
+    moneyItem({ direction: 'debit', kind: 'loan', name: 'Loan from Jeremy', party: 'Jeremy', amount: 1000, instalment: 100, every_months: 1, next_due: '2026-10-01',
+      notes: 'Lent to cover the opening stock. No interest.', payments: [moneyPayment(100, '2026-09-01')] }),
+    moneyItem({ direction: 'debit', kind: 'finance', name: 'Espresso machine on finance', party: 'Maquinaria Costa SL', amount: 4800, instalment: 200, every_months: 1,
+      next_due: '2026-10-05', payments: [moneyPayment(200, '2026-08-05'), moneyPayment(200, '2026-09-05')] }),
+    moneyItem({ direction: 'credit', kind: 'sale', name: 'Old coffee machine', amount: 1200, possible: true, notes: 'Two-group, works. Asking €1,200.' }),
+  ]
+  moneyItems.forEach(i => i.payments.forEach(p => { p.item_id = i.id }))
 
   // Legal page: what's in the café's Google Drive and OneDrive (the demo browses both; the real app
   // uses Google's own picker for Drive), and two documents already picked from the Drive's Legal folder.
@@ -642,6 +674,49 @@ export function createDemoApi(): Api {
     supplier({ id: 'sup-cash', name: 'Cash & Carry Marbella', kind: 'Cash & carry', phone: '+34 952 82 33 00', address: 'Pol. Ind. La Ermita, Marbella',
       account_number: '7781-332', notes: 'Card needed at the door. Syrups, napkins and cleaning when short.' }),
   ]
+  // Outsourcing: the jobs done from outside (social media, the windows, the coffee machine, and the books
+  // at the gestoría the partner account works at), the opening photos as a past one, and the people and
+  // firms on file to choose from.
+  const contractor = (c: Partial<Contractor> & { id: string; name: string }): Contractor => ({ kind: 'freelancer', services: [], contact_name: null,
+    email: null, phone: null, whatsapp: false, website: null, portfolio_url: null, location: null, rate: null, rate_unit: 'month', rating: null,
+    notes: null, starred: false, active: true, ...c })
+  const contractors: Contractor[] = [
+    contractor({ id: 'con-lucia', name: 'Lucía Marín', services: ['Social media management', 'Photography & video'], location: 'San Pedro de Alcántara',
+      phone: '+34 622 41 87 30', whatsapp: true, email: 'hola@luciamarin.example', portfolio_url: 'https://luciamarin.example/work', rate: 350,
+      rating: 5, starred: true, notes: 'Also does two cafés in Estepona. Shoots her own photos for the posts.' }),
+    contractor({ id: 'con-costa', name: 'Costa Social Studio', kind: 'agency', services: ['Social media management', 'Ads management', 'Graphic design'],
+      location: 'Marbella', contact_name: 'Marta', email: 'hello@costasocial.example', website: 'https://costasocial.example', rate: 690, rating: 4,
+      notes: 'Quote from July: social media and ads together, 6 months minimum.' }),
+    contractor({ id: 'con-nacho', name: 'Nacho Vega', services: ['Social media management'], location: 'Remote', email: 'nacho.vega@mail.example',
+      portfolio_url: 'https://nachovega.example', rate: 240, notes: 'Marketing student. Sample posts look good; no café clients yet.' }),
+    contractor({ id: 'con-pablo', name: 'Pablo Ríos', services: ['Photography & video'], location: 'Marbella', phone: '+34 655 20 14 77', whatsapp: true,
+      portfolio_url: 'https://pabloriosfoto.example', rate: 450, rate_unit: 'project', rating: 5 }),
+    contractor({ id: 'con-brillo', name: 'Brillo Limpiezas', kind: 'company', services: ['Cleaning', 'Window cleaning'], location: 'San Pedro de Alcántara',
+      phone: '+34 952 78 90 12', email: 'info@brillolimpiezas.example', rate: 16, rate_unit: 'hour', rating: 4 }),
+    contractor({ id: 'con-cristales', name: 'Cristales Costa', kind: 'company', services: ['Window cleaning'], location: 'Marbella', contact_name: 'José',
+      phone: '+34 611 30 45 98', whatsapp: true, rate: 35, rate_unit: 'visit', rating: 4 }),
+    contractor({ id: 'con-espresso', name: 'Técnico Espresso Sur', kind: 'company', services: ['Coffee machine servicing'], location: 'Málaga',
+      phone: '+34 952 44 61 03', email: 'servicio@espressosur.example', website: 'https://espressosur.example', rate: 95, rate_unit: 'visit',
+      rating: 5, starred: true, notes: 'Same-day call-out for a breakdown: €60 plus parts.' }),
+    contractor({ id: 'con-plagas', name: 'Sanidad Ambiental Costa', kind: 'company', services: ['Pest control'], location: 'Marbella',
+      email: 'info@sanidadcosta.example', rate: 70, rate_unit: 'visit' }),
+    contractor({ id: 'con-gestoria', name: 'Gestoría Marbella', kind: 'company', services: ['Bookkeeping & payroll'], location: 'Marbella',
+      contact_name: 'Laura', email: 'laura@gestoria.example', rate: 150, rating: 4 }),
+  ]
+  const outsourced = (j: Partial<OutsourcedJob> & { service: string; contractor_id: string }): OutsourcedJob => ({ id: uid(), scope: null, price: null,
+    price_unit: 'month', quantity: null, quantity_per: null, starts_on: null, ends_on: null, notes: null, active: true, ...j })
+  const outsourcedJobs: OutsourcedJob[] = [
+    outsourced({ service: 'Social media management', contractor_id: 'con-lucia', price: 350, starts_on: '2026-04-01', ends_on: '2027-03-31',
+      scope: '3 posts and 5 stories a week on Instagram and Facebook, replies to comments and messages, a report each month.' }),
+    outsourced({ service: 'Window cleaning', contractor_id: 'con-cristales', price: 35, price_unit: 'visit', quantity: 2, quantity_per: 'month',
+      starts_on: '2026-04-15', scope: 'The shop front and the terrace screens, inside and out.' }),
+    outsourced({ service: 'Coffee machine servicing', contractor_id: 'con-espresso', price: 95, price_unit: 'visit', quantity: 4, quantity_per: 'year',
+      starts_on: '2026-04-01', ends_on: addDays(today(), 20), scope: 'Servicing every three months: gaskets, descaling, the grinders’ burrs checked.' }),
+    outsourced({ service: 'Bookkeeping & payroll', contractor_id: 'con-gestoria', price: 150, starts_on: '2026-03-01',
+      scope: 'The books, payslips and Social Security for up to 6 people, and the quarterly and yearly returns.' }),
+    outsourced({ service: 'Photography & video', contractor_id: 'con-pablo', price: 450, price_unit: 'project', starts_on: '2026-04-02', ends_on: '2026-04-10',
+      active: false, scope: 'The opening photos: drinks, food and the café, 40 edited photos and 3 short videos.' }),
+  ]
   const stockItem = (i: Partial<StockItem> & { name: string }): StockItem => ({ id: uid(), category: null, supplier_id: null, supplier_sku: null,
     product_url: null, unit: 'unit', pack_size: null, order_multiple: 1, cost_per_unit: null, vat_rate: 10, sell_price: null, on_hand: 0,
     par_level: null, reorder_at: null, location: 'Storeroom', retail: false, notes: null, active: true, updated_at: nowIso(), ...i })
@@ -808,6 +883,17 @@ export function createDemoApi(): Api {
       { id: 'sl-yt', kind: 'youtube', url: 'https://www.youtube.com/watch?v=jfKfPfyJRdk', design_id: null, title: 'Lo-fi live', seconds: 60, live: false, active: false },
     ],
   }]
+  // Competitors: five places around the café, what they charge and offer, their Google ratings and notes (demoCompetitors).
+  const rivals = demoCompetitors(today(), recipes, business)
+  const competitorRow = (id: string) => {
+    const c = rivals.competitors.find(x => x.id === id)
+    if (!c) throw new Error('No such competitor')
+    return c
+  }
+  const snapshotNow = (c: Competitor) => {
+    rivals.snapshots = rivals.snapshots.filter(x => !(x.competitor_id === c.id && x.taken_on === today()))
+    rivals.snapshots.push({ competitor_id: c.id, taken_on: today(), rating: c.google_rating, review_count: c.google_count })
+  }
   const expenses: Expense[] = ([
     ['Rent', 1530, 'Premises'], ['Staff wages', 4300, 'People'], ['Electricity', 200, 'Utilities'], ['Insurance', 100, 'Premises'],
     ['Council tax', 50, 'Premises'], ['Broadband', 20, 'Utilities'], ['Accountant', 100, 'Services'], ['Water', 50, 'Utilities'],
@@ -838,6 +924,8 @@ export function createDemoApi(): Api {
     ['Marketing', 'Events, collabs, outreach', '#B23C78'], ['Future ideas', 'New business ideas for later', '#6E7D1A'],
   ] as const).map(([name, hint, colour], i) => ({ id: `tc-${i + 1}`, name, hint, colour, sort: i + 1 }))
   const cat = (name: string) => todoCategories.find(c => c.name === name)!.id
+  // Being done now (the board's Doing column).
+  const DOING_NOW = new Set<string>(['Set up the card reader on the terrace', 'Write the closing checklist'])
   const todos: Todo[] = ([
     ['Get the AC serviced before summer', 'Shop', null, 'p-mark', false, false, false],
     ['Buy bowls and plates', 'Buying', null, null, true, false, false],
@@ -853,7 +941,8 @@ export function createDemoApi(): Api {
     ['Clean the outside terrace', 'Shop', null, 'p-cleaner', false, true, false],
     ['Order more oat milk', 'Buying', null, null, true, false, false],
   ] as const).map(([title, c, section, assignee, starred, done, pinned], i) => ({ id: `td-${i + 1}`, title, category_id: cat(c), section,
-    assignee_id: assignee, done, done_at: done ? nowIso() : null, starred, pinned, position: i + 1, created_at: nowIso() }))
+    assignee_id: assignee, done, status: done ? 'done' as const : DOING_NOW.has(title) ? 'doing' as const : 'todo' as const,
+    done_at: done ? nowIso() : null, starred, pinned, position: i + 1, created_at: nowIso() }))
   // Customers and leads: regulars, people who asked about something, and a few businesses to win over.
   const person = (c: Partial<Customer> & { days: number }): Customer => {
     const { days, ...rest } = c
@@ -898,7 +987,7 @@ export function createDemoApi(): Api {
     break_after_hours: 6, max_daily_hours: 9, max_weekly_hours: 40, min_rest_hours: 12,
     approval_weekday: 1, employer_cost_multiplier: 1.3, auto_timecards_from_rota: true, vacation_days_per_year: 30,
     alert_shift_reminders: true, alert_missed_clock_in: true, alert_rota: true, alert_time_off: true,
-    whatsapp_retention_days: DEFAULT_WHATSAPP_RETENTION, hidden_pages: [],
+    whatsapp_retention_days: DEFAULT_WHATSAPP_RETENTION, hidden_pages: [], mileage_rate: DEFAULT_MILEAGE_RATE,
     // The menu is kept here (Custom), in the printed menus' order of sections.
     menu_source: 'custom', menu_sections: templateSections(), menu_synced_at: null, menu_sync_error: null,
   }
@@ -1002,6 +1091,18 @@ export function createDemoApi(): Api {
   ]
   const holidayAllowance = (profileId: string, year: number) =>
     allowances.find(a => a.profile_id === profileId && a.year === year)?.holiday_days ?? settings.vacation_days_per_year
+  // Roles & responsibilities and Staff rules: Easy Beans' own (easyBeansHandbook.ts). The baristas and
+  // the cleaner are in their roles, the owners haven't picked theirs yet; Maria has read the rules,
+  // Julio read them before Complaints changed, and the cleaner hasn't yet.
+  const rolePeople: Record<string, string[]> = { 'Barista / Bartender': [P.julio, P.maria], Cleaner: [P.cleaner] }
+  const jobRoles: JobRole[] = EASY_BEANS_ROLES.map((r, i) => ({
+    id: uid(), name: r.name, summary: r.summary ?? null, position_id: positions.find(p => p.name === r.position)?.id ?? null,
+    reports_to: null, people: rolePeople[r.name] ?? [], duties: handbookDuties(r), sort: i, updated_at: daysAgo(8),
+  }))
+  const ruleSections: RuleSection[] = EASY_BEANS_RULES.map((r, i) => ({
+    id: uid(), title: r.title, intro: r.intro ?? null, rules: [...r.rules], sort: i, updated_at: daysAgo(r.title === 'Complaints' ? 3 : 10),
+  }))
+  const rulesRead: RulesRead[] = [{ profile_id: P.maria, read_at: daysAgo(2) }, { profile_id: P.julio, read_at: daysAgo(7) }]
   /** That person's shifts in the period become open shifts (approved time off). */
   const openUpShifts = (t: TimeOff) => {
     const name = profiles.find(p => p.id === t.profile_id)?.full_name
@@ -1127,6 +1228,254 @@ export function createDemoApi(): Api {
       title: `Grant deadline: ${a.grant_name}${a.deadline_label ? ` (${a.deadline_label})` : ''}`, source: 'app', confirmed: true, visibility: 'admins' })
   }
   grantApps.forEach(a => grantEvent(a, a.id))
+
+  // Leads & enquiries: what the café's leads asked for, one won and one lost (the database's rules: enquiry_rules()).
+  const enquiry = (e: Partial<Enquiry> & { customer_id: string; title: string }): Enquiry => ({ id: uid(), channel: 'other', stage: 'new', value: null,
+    wanted_on: null, follow_up_on: null, assigned_to: null, lost_reason: null, notes: null, received_at: nowIso(), closed_at: null, ...e })
+  const customerNamed = (first: string) => customers.find(c => c.first_name === first)!.id
+  const enquiryList: Enquiry[] = [
+    enquiry({ customer_id: customerNamed('Hannah'), title: 'Cakes and coffee for a baby shower, 15 people', channel: 'website', value: 180,
+      wanted_on: addDays(today(), 17), follow_up_on: today(), received_at: daysAgo(3), notes: 'Wants a lemon cake; one guest is vegan' }),
+    enquiry({ customer_id: customerNamed('Diego'), title: 'The terrace for a birthday, Saturday afternoon', channel: 'phone', stage: 'contacted', value: 250,
+      wanted_on: addDays(today(), 10), follow_up_on: addDays(today(), 2), assigned_to: P.mark, received_at: daysAgo(1) }),
+    enquiry({ customer_id: customerNamed('Elena'), title: 'Coffee for 30 desks, twice a week', channel: 'email', stage: 'quoted', value: 640,
+      follow_up_on: addDays(today(), -1), assigned_to: P.aron, received_at: daysAgo(12) }),
+    enquiry({ customer_id: customerNamed('Javier'), title: 'Coffee for a Sunday running club', channel: 'instagram', received_at: daysAgo(6) }),
+    enquiry({ customer_id: customerNamed('Liam'), title: 'Latte art class for 6 friends', channel: 'walk_in', stage: 'won', value: 150,
+      received_at: daysAgo(24), closed_at: daysAgo(18) }),
+    enquiry({ customer_id: customerNamed('Inés'), title: 'Coffee after class for the studio’s members, 10% off', channel: 'instagram', stage: 'lost', value: 300,
+      lost_reason: 'Went with the juice bar next door', received_at: daysAgo(9), closed_at: daysAgo(4) }),
+  ]
+
+  // Expenses: a trip waiting to be approved, one to pay back, some paid back, one turned down (database: claim_rules()).
+  const claim = (c: Partial<ExpenseClaim> & { profile_id: string; description: string }): ExpenseClaim => {
+    const made: ExpenseClaim = { id: uid(), kind: 'expense', spent_on: today(), category: null, amount: 0, km: null, rate_per_km: null, return_trip: false,
+      from_place: null, to_place: null, status: 'submitted', decided_by: null, decided_at: null, decision_note: null, paid_on: null, document_id: null,
+      created_at: nowIso(), ...c }
+    return made.kind === 'mileage' ? { ...made, rate_per_km: made.rate_per_km ?? settings.mileage_rate ?? DEFAULT_MILEAGE_RATE,
+      amount: mileageAmount(made.km ?? 0, made.rate_per_km ?? settings.mileage_rate ?? DEFAULT_MILEAGE_RATE, made.return_trip) } : made
+  }
+  const claimList: ExpenseClaim[] = [
+    claim({ profile_id: P.julio, kind: 'mileage', description: 'Cash & Carry run for milk and cups', category: 'Travel', km: 9.5, return_trip: true,
+      from_place: 'Easy Beans', to_place: 'Cash & Carry Marbella', spent_on: addDays(today(), -3), created_at: daysAgo(3) }),
+    claim({ profile_id: P.maria, description: 'Parking at the Saturday market', category: 'Parking & tolls', amount: 6, spent_on: addDays(today(), -4),
+      status: 'approved', decided_by: P.aron, decided_at: daysAgo(2), created_at: daysAgo(4) }),
+    claim({ profile_id: P.mark, description: 'Ice from the petrol station', category: 'Supplies', amount: 8.4, spent_on: addDays(today(), -10),
+      status: 'paid', decided_by: P.aron, decided_at: daysAgo(8), paid_on: addDays(today(), -2), created_at: daysAgo(10) }),
+    claim({ profile_id: P.aron, kind: 'mileage', description: 'Visit to the roaster in Málaga', category: 'Travel', km: 62, return_trip: true,
+      from_place: 'San Pedro de Alcántara', to_place: 'Málaga', spent_on: addDays(today(), -12), status: 'paid', decided_by: P.mark, decided_at: daysAgo(11),
+      paid_on: addDays(today(), -6), created_at: daysAgo(12) }),
+    claim({ profile_id: P.julio, description: 'Lunch with the bakery', category: 'Meals', amount: 23.5, spent_on: addDays(today(), -15), status: 'rejected',
+      decided_by: P.aron, decided_at: daysAgo(14), decision_note: 'We pay meals only when travelling for the café', created_at: daysAgo(15) }),
+  ]
+
+  // Campaigns: one sent to the regulars, one planned, one draft for businesses (database: campaign_rules()).
+  const campaign = (c: Partial<Campaign> & { name: string }): Campaign => ({ id: uid(), channel: 'email', subject: null, body: '', audience: { ...EVERYONE },
+    status: 'draft', scheduled_at: null, sent_at: null, recipients: null, notes: null, created_at: nowIso(), ...c })
+  const campaignList: Campaign[] = [
+    campaign({ name: 'Oat milk on us this week', subject: 'Oat milk on us all week ☕', audience: { kinds: ['customer'], tags: ['regular'], sources: [] },
+      body: 'Hi [first name],\n\nThis week oat milk is on us in every coffee. See you at the counter!\n\nEasy Beans', status: 'sent',
+      sent_at: daysAgo(6), recipients: 2, created_at: daysAgo(7) }),
+    campaign({ name: 'Pumpkin spice is back', channel: 'sms', body: 'Easy Beans: pumpkin spice lattes are back from Friday. Show this text for 50 cents off your first one.',
+      status: 'scheduled', scheduled_at: zonedIso(addDays(today(), 2), '10:00'), created_at: daysAgo(1) }),
+    campaign({ name: 'Office coffee for businesses', subject: 'Coffee for your team, delivered', audience: { kinds: ['lead'], tags: ['B2B'], sources: [] },
+      body: 'Hi [first name],\n\nWe bring specialty coffee to offices and studios in San Pedro twice a week. Reply and we’ll send prices.\n\nAron, Easy Beans',
+      created_at: daysAgo(2) }),
+  ]
+
+  // Hiring: a weekend barista being filled now, and the opening team hired last year (database: hiring_rules(), applicant_interview_event()).
+  const opening = (o: Partial<JobOpening> & { title: string }): JobOpening => ({ id: uid(), position_id: null, contract: 'part_time', hours_per_week: null,
+    pay: null, description: null, status: 'open', posted_on: [], opened_on: today(), closes_on: null, created_at: nowIso(), ...o })
+  const openings: JobOpening[] = [
+    opening({ title: 'Weekend barista', position_id: 1, hours_per_week: 16, pay: '€9,50 an hour', posted_on: ['infojobs', 'instagram', 'window'],
+      opened_on: addDays(today(), -14), closes_on: addDays(today(), 14), created_at: daysAgo(14),
+      description: 'Saturdays and Sundays, 08:30–16:30. Espresso experience wanted; we train latte art.' }),
+    opening({ title: 'Opening team: baristas', position_id: 1, contract: 'permanent', hours_per_week: 40, status: 'filled', posted_on: ['infojobs', 'referral'],
+      opened_on: '2025-09-01', created_at: '2025-09-01T09:00:00Z' }),
+  ]
+  const applicant = (a: Partial<Applicant> & { opening_id: string; full_name: string }): Applicant => {
+    const made: Applicant = { id: uid(), email: null, phone: null, source: 'other', stage: 'applied', interview_at: null, rating: null, cv_link: null, notes: null,
+      applied_on: today(), keep_until: today(), profile_id: null, ...a }
+    return { ...made, keep_until: keepUntil(made.applied_on) }
+  }
+  const applicantList: Applicant[] = [
+    applicant({ opening_id: openings[0].id, full_name: 'Lucía Romero', email: 'lucia.romero@example.es', phone: '+34 611 908 334', source: 'infojobs', stage: 'interview',
+      interview_at: zonedIso(addDays(today(), 1), '11:00'), rating: 4, applied_on: addDays(today(), -9), cv_link: 'https://www.infojobs.net/candidate/demo-lucia-romero',
+      notes: 'Two years at a specialty café in Málaga' }),
+    applicant({ opening_id: openings[0].id, full_name: 'Sara Gil', phone: '+34 622 117 450', source: 'window', stage: 'trial', rating: 5, applied_on: addDays(today(), -7),
+      notes: 'Trial shift on Saturday with Maria' }),
+    applicant({ opening_id: openings[0].id, full_name: 'Tom Baker', email: 'tom.baker@example.co.uk', source: 'instagram', applied_on: addDays(today(), -2) }),
+    applicant({ opening_id: openings[1].id, full_name: 'Julio', email: 'julio@example.com', source: 'referral', stage: 'hired', applied_on: '2025-09-10', profile_id: P.julio }),
+    applicant({ opening_id: openings[1].id, full_name: 'Ana Torres', email: 'ana.torres@example.es', source: 'infojobs', stage: 'rejected', applied_on: '2025-09-12' }),
+  ]
+  /** Mirrors applicant_interview_event() in SQL: an interview on the calendar, for admins, while they're in the running. */
+  function interviewEvent(a: Applicant | undefined, id: string) {
+    const i = events.findIndex(e => e.id === `interview:${id}`)
+    if (i >= 0) events.splice(i, 1)
+    if (!a?.interview_at || a.stage === 'hired' || a.stage === 'rejected') return
+    const job = openings.find(o => o.id === a.opening_id)?.title
+    events.push({ id: `interview:${id}`, starts_on: localDate(a.interview_at), ends_on: null, starts_at: a.interview_at, category: 'business', town: null,
+      competition: null, title: `Interview: ${a.full_name}${job ? ` (${job})` : ''}`, source: 'app', confirmed: true, visibility: 'admins' })
+  }
+  applicantList.forEach(a => interviewEvent(a, a.id))
+
+  // Food safety: the café's fridges and daily jobs, a week of checks, and one fridge out of range three days ago.
+  const pointList: SafetyPoint[] = CAFE_POINTS.filter(p => p.key !== 'hot').map((p, i) => ({ id: `fs-${p.key}`, name: p.name, kind: p.kind, min_temp: p.min_temp,
+    max_temp: p.max_temp, frequency: p.frequency, area: p.area, instructions: p.instructions, active: true, sort: i + 1 }))
+  const checkList: SafetyCheck[] = []
+  const checked = (point: string, day: string, time: string, by: string, reading: number | null = null, action: string | null = null) => {
+    const p = pointList.find(x => x.id === `fs-${point}`)!
+    checkList.push({ id: uid(), point_id: p.id, checked_at: zonedIso(day, time), reading, ok: reading === null || inLimits(p, reading), action, note: null, by })
+  }
+  for (let n = 1; n <= 7; n++) {
+    const day = addDays(today(), -n)
+    const opener = n % 2 ? P.julio : P.maria
+    checked('fridge', day, '08:05', opener, n === 3 ? 6.5 : 3 + (n % 3) * 0.4, n === 3 ? 'Door left open after the delivery: closed it, 3.5 °C an hour later' : null)
+    checked('fridge', day, '15:30', P.maria, 3.6)
+    checked('milk', day, '08:10', opener, 2.8 + (n % 2) * 0.5)
+    checked('milk', day, '15:35', P.maria, 3.4)
+    checked('display', day, '08:15', opener, 5)
+    checked('freezer', day, '08:20', opener, -19)
+    checked('machine', day, '17:50', P.julio)
+    checked('surfaces', day, '17:45', P.cleaner)
+    checked('dates', day, '08:30', opener)
+  }
+  checked('deep', weekStart(today()), '16:00', P.cleaner)
+  checked('fridge', today(), '08:10', P.julio, 3.2)
+
+  // Allergens on the stock items in the menu: the chai concentrate's not entered yet.
+  const allergensOf: Record<string, [Allergen[] | null, Allergen[]?]> = {
+    'House espresso blend': [[]], 'Decaf beans': [[]], 'Guest filter coffee': [[]], 'Whole milk': [['milk']], 'Oat milk (barista)': [['gluten']],
+    'Almond milk': [['nuts']], 'Ceremonial matcha': [[]], 'Vanilla syrup': [[]], 'Caramel syrup': [[], ['milk']],
+    'Butter croissants': [['eggs', 'gluten', 'milk'], ['nuts', 'sesame', 'soy']], 'Pain au chocolat': [['eggs', 'gluten', 'milk', 'soy'], ['nuts']],
+    'Cups 8 oz': [[]], 'Lids 8 oz': [[]],
+  }
+  // And vegan or vegetarian: milk and the pastries are vegetarian, the rest vegan (the chai's not said either).
+  const vegetarian = ['Whole milk', 'Butter croissants', 'Pain au chocolat']
+  for (const item of stock) {
+    const [has, may] = allergensOf[item.name] ?? [null]
+    item.allergens = has
+    item.may_contain = may ?? []
+    item.diet = has === null ? null : vegetarian.includes(item.name) ? 'vegetarian' : 'vegan'
+  }
+
+  // Tips: last week's, shared out by hours among the team and paid (built the first time they're read, from the timecards).
+  let tipList: TipPool[] | null = null
+  const tipPools = () => {
+    if (!tipList) {
+      const from = addDays(weekStart(today()), -7), to = addDays(weekStart(today()), -1)
+      const worked = minutesWorked(entries.map(totals), from, to)
+      const team = profiles.filter(p => p.role === 'employee' && p.active).map(p => ({ profile_id: p.id, minutes: worked.get(p.id) ?? 0 }))
+      tipList = [{ id: uid(), starts_on: from, ends_on: to, cash: 64.8, card: 38.2, split: 'hours', status: 'paid', notes: 'Counted on Monday morning',
+        shares: splitTips(103, team, 'hours'), created_at: nowIso() }]
+    }
+    return tipList
+  }
+
+  // Sales reps & rewards: customers who share the café's stories, two ambassadors (a hotel
+  // concierge and a yoga studio) and two of the team, over this month and last.
+  const thisMonth = today().slice(0, 7)
+  const lastMonth = addMonths(thisMonth, -1)
+  /** A day this month (never after today) or in an earlier month. */
+  const dayIn = (month: string, d: number) => `${month}-${String(month === thisMonth ? Math.min(d, Number(today().slice(8, 10))) : d).padStart(2, '0')}`
+  let repSettings = { welcome_offer: '10% off your first drink' as string | null }
+  const rewardRuleList: RewardRule[] = [
+    { id: 'rule-story', name: 'Reposted our story', who: 'customers', basis: 'fixed', amount: 1, needs_approval: false, monthly_limit: 4, sort: 1, active: true },
+    { id: 'rule-post', name: 'Posted about the café and tagged it', who: 'customers', basis: 'fixed', amount: 2, needs_approval: true, monthly_limit: 2, sort: 2, active: true },
+    { id: 'rule-card', name: 'Brought a new customer with their card', who: 'everyone', basis: 'fixed', amount: 3, needs_approval: false, monthly_limit: 10, sort: 3, active: true },
+    { id: 'rule-event', name: 'Booked an event or catering', who: 'reps', basis: 'percent', amount: 10, needs_approval: true, monthly_limit: null, sort: 4, active: true },
+  ]
+  const customerId = (first: string) => customers.find(c => c.first_name === first)?.id ?? null
+  const salesRep = (r: Partial<SalesRep> & Pick<SalesRep, 'id' | 'name' | 'kind' | 'code'>): SalesRep => ({ profile_id: null, customer_id: null,
+    instagram: null, phone: null, email: null, notes: null, active: true, created_at: daysAgo(60), ...r })
+  const repList: SalesRep[] = [
+    salesRep({ id: 'rep-lucia', name: 'Lucía García', kind: 'customer', code: 'LUCIA27', customer_id: customerId('Lucía'), instagram: 'lucia.mbl', phone: '+34 611 204 318' }),
+    salesRep({ id: 'rep-eats', name: 'San Pedro Eats', kind: 'customer', code: 'EATS10', instagram: 'sanpedro.eats', notes: 'Local food blog, 12k followers' }),
+    salesRep({ id: 'rep-sofia', name: 'Sofia Lindqvist', kind: 'customer', code: 'SOFIA14', customer_id: customerId('Sofia'), notes: 'Matcha videos on TikTok' }),
+    salesRep({ id: 'rep-marco', name: 'Marco Bellini', kind: 'ambassador', code: 'MARCO1', customer_id: customerId('Marco'), email: 'concierge@costaserena.example',
+      notes: 'Concierge at Hotel Costa Serena: sends guests for breakfast' }),
+    salesRep({ id: 'rep-ines', name: 'Inés Castillo', kind: 'ambassador', code: 'SHANTI', customer_id: customerId('Inés'), instagram: 'shanti.yoga.sanpedro',
+      notes: 'Estudio Shanti Yoga: cards at the front desk' }),
+    salesRep({ id: 'rep-maria', name: 'Maria', kind: 'team', code: 'MARIA22', profile_id: P.maria }),
+    salesRep({ id: 'rep-julio', name: 'Julio', kind: 'team', code: 'JULIO08', profile_id: P.julio }),
+  ]
+  const ruleName = (id: string) => rewardRuleList.find(r => r.id === id)!.name
+  const repReward = (rep_id: string, rule: string | null, amount: number, occurred_on: string, more: Partial<RepReward> = {}): RepReward => ({
+    id: uid(), rep_id, kind: amount > 0 ? 'earn' : 'redeem', rule_id: rule, label: rule ? ruleName(rule) : USED_AT_TILL, sale_amount: null, amount,
+    status: 'approved', proof_url: null, mention_id: null, note: null, occurred_on, logged_by: P.aron, created_at: `${occurred_on}T11:00:00Z`, ...more })
+  const rewardList: RepReward[] = [
+    repReward('rep-lucia', 'rule-card', 3, dayIn(lastMonth, 12), { note: 'Brought Pablo', logged_by: P.julio }),
+    repReward('rep-lucia', 'rule-story', 1, dayIn(lastMonth, 20), { logged_by: P.maria }),
+    repReward('rep-lucia', 'rule-story', 1, dayIn(thisMonth, 2), { logged_by: P.maria }),
+    repReward('rep-lucia', 'rule-story', 1, dayIn(thisMonth, 5), { logged_by: P.julio }),
+    repReward('rep-lucia', null, -2.5, dayIn(thisMonth, 5), { note: 'Oat flat white', logged_by: P.julio }),
+    repReward('rep-eats', 'rule-post', 2, dayIn(lastMonth, 18), { proof_url: 'https://www.instagram.com/p/demo0/' }),
+    repReward('rep-eats', 'rule-post', 2, dayIn(thisMonth, 28), { mention_id: 'post:t1', proof_url: 'https://www.instagram.com/p/demo1/' }),
+    repReward('rep-sofia', 'rule-post', 2, dayIn(thisMonth, 26), { status: 'pending', note: 'Matcha reel, 3k views', logged_by: P.maria }),
+    repReward('rep-marco', 'rule-event', 38, dayIn(lastMonth, 10), { sale_amount: 380, note: 'Breakfast for a wedding party' }),
+    repReward('rep-marco', null, -38, dayIn(lastMonth, 28), { kind: 'payout', label: COMMISSION_PAID, note: 'Bank transfer' }),
+    repReward('rep-marco', 'rule-card', 3, dayIn(thisMonth, 3), { logged_by: P.maria }),
+    repReward('rep-marco', 'rule-event', 45, dayIn(thisMonth, 29), { sale_amount: 450, status: 'pending', note: 'Coffee and pastries for a hotel meeting', logged_by: P.julio }),
+    ...[4, 11, 19].map(d => repReward('rep-ines', 'rule-card', 3, dayIn(thisMonth, d), { logged_by: d === 11 ? P.julio : P.maria })),
+    ...[8, 21].map(d => repReward('rep-maria', 'rule-card', 3, dayIn(thisMonth, d))),
+    repReward('rep-julio', 'rule-card', 3, dayIn(lastMonth, 6), { logged_by: P.maria }),
+    repReward('rep-julio', null, -3, dayIn(lastMonth, 27), { kind: 'payout', label: COMMISSION_PAID }),
+  ]
+  const repBalance = (repId: string) => round2(rewardList.filter(r => r.rep_id === repId && r.status === 'approved').reduce((a, r) => a + r.amount, 0))
+  /** Mirrors the sales_reps rules in SQL: tidied, a code from the name, a team rep is someone on the team. */
+  function tidyRep(r: SalesRep, before?: SalesRep): SalesRep {
+    const out = { ...r, name: r.name.trim(), phone: r.phone?.trim() || null, email: r.email?.trim().toLowerCase() || null, notes: r.notes?.trim() || null }
+    if (!out.name) throw new Error('Give them a name')
+    if (out.instagram) {
+      const handle = cleanInstagram(out.instagram)
+      if (!handle) throw new Error('new row for relation "sales_reps" violates check constraint "sales_reps_instagram_check"')
+      out.instagram = handle
+    } else out.instagram = null
+    const others = repList.filter(x => x.id !== out.id)
+    if (out.code) {
+      const code = cleanRepCode(out.code)
+      if (!code) throw new Error('new row for relation "sales_reps" violates check constraint "sales_reps_code_check"')
+      out.code = code
+    } else out.code = codeFor(out.name, new Set(others.map(x => x.code)))
+    if (out.profile_id) out.kind = 'team'
+    else if (before?.profile_id && out.kind === 'team') out.kind = 'ambassador'
+    else if (out.kind === 'team') throw new Error('Choose who on the team it is')
+    if (others.some(x => x.code === out.code)) throw new Error('duplicate key value violates unique constraint "sales_reps_code_key"')
+    if (out.instagram && others.some(x => x.instagram === out.instagram)) throw new Error('duplicate key value violates unique constraint "sales_reps_instagram_idx"')
+    if (out.profile_id && others.some(x => x.profile_id === out.profile_id)) throw new Error('duplicate key value violates unique constraint "sales_reps_profile_idx"')
+    return out
+  }
+  /** Mirrors rep_rewards_read: admins everything; the team customers' credit and their own. */
+  const seesReward = (r: RepReward) => {
+    if (isAdmin()) return true
+    if (!isStaff()) return false
+    const rep = repList.find(x => x.id === r.rep_id)
+    return !!rep && (rep.kind === 'customer' || rep.profile_id === currentUser)
+  }
+
+  // Staff kitty: 5% of each month's profit since May and the tips from one month; the summer
+  // barbecue already bought. Last month's share is still to go in.
+  const kittySettings = { profit_percent: 5 }
+  const kittyGoalList: KittyGoal[] = [
+    { id: 'goal-party', name: 'Christmas party', icon: 'party', target: 500, due_on: `${today().slice(0, 4)}-12-18`, sort: 1, link: null,
+      notes: 'Dinner and drinks for the whole team', spent: null, bought_on: null, created_at: daysAgo(90) },
+    { id: 'goal-rayban', name: 'Ray-Ban sunglasses for the café', icon: 'sunglasses', target: 160, due_on: null, sort: 2, link: null,
+      notes: 'A pair of Wayfarers for the terrace', spent: null, bought_on: null, created_at: daysAgo(90) },
+    { id: 'goal-course', name: 'Latte art course', icon: 'equipment', target: 240, due_on: null, sort: 3, link: null,
+      notes: null, spent: null, bought_on: null, created_at: daysAgo(40) },
+    { id: 'goal-bbq', name: 'Summer barbecue', icon: 'party', target: 180, due_on: null, sort: 0, link: null,
+      notes: 'On the beach at Guadalmina', spent: 175, bought_on: dayIn(addMonths(thisMonth, -2), 24), created_at: daysAgo(150) },
+  ]
+  const profitEntry = (back: number, amount: number): KittyEntry => {
+    const month = addMonths(thisMonth, -back)
+    return { id: uid(), kind: 'profit', month: `${month}-01`, percent: 5, amount, note: null, created_at: `${addMonths(month, 1)}-02T09:00:00Z` }
+  }
+  const kittyEntryList: KittyEntry[] = [
+    { id: uid(), kind: 'top_up', month: null, percent: null, amount: 46.5, note: 'Tips jar', created_at: `${addMonths(thisMonth, -2)}-20T18:00:00Z` },
+    profitEntry(2, 215.1), profitEntry(3, 198.65), profitEntry(4, 162.3),
+  ]
+  const kittyLeft = () => kittyBalance(kittyEntryList, kittyGoalList)
+  const kittyEuros = (n: number) => Math.max(0, n).toFixed(2)
 
   /** The customers table's rules (supabase/migrations/…_customers.sql): tidy what's typed, and someone to reach. */
   function tidyCustomer(c: Customer): Customer {
@@ -1435,6 +1784,12 @@ export function createDemoApi(): Api {
         throw new Error('Only an admin can change role, pay access or status')
       }
       const p = profiles.find(x => x.id === id)
+      // Like guard_profile_update(): only a boss makes someone a boss or changes a boss, while there is one.
+      const changes = (k: 'role' | 'can_see_pay' | 'active') => !!p && k in patch && patch[k] !== p[k]
+      if (p && !paysAdmin() && profiles.some(x => x.role === 'admin' && x.can_see_pay && x.active) &&
+        (changes('can_see_pay') || (p.role === 'admin' && p.can_see_pay && (changes('role') || changes('active'))))) {
+        throw new Error('Only a boss can make someone a boss or change a boss\'s role')
+      }
       if (patch.role && patch.role !== 'admin' && p?.role === 'admin' &&
         profiles.filter(x => x.role === 'admin' && x.active).length === 1) {
         throw new Error('At least one admin must remain')
@@ -1462,7 +1817,8 @@ export function createDemoApi(): Api {
       requireAdmin()
       if (password !== undefined && password.length < 8) throw new Error('The temporary password needs at least 8 characters')
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) throw new Error('Enter a full email address, like name@example.com')
-      profiles.push({ id: uid(), full_name: fullName, email, role, can_see_pay: false, colour: '#8d6e63',
+      if (role === 'boss' && !paysAdmin()) throw new Error('Only a boss can invite another boss')
+      profiles.push({ id: uid(), full_name: fullName, email, ...(role === 'kiosk' ? { role, can_see_pay: false } : accessOf(role)), colour: '#8d6e63',
         active: true, phone: contact?.phone ?? null, birth_date: null, contact_method: contact?.contact_method ?? null })
     },
     async partners() {
@@ -1576,6 +1932,118 @@ export function createDemoApi(): Api {
       allowances.push({ profile_id, year, holiday_days, note: note?.trim() || null })
     },
 
+    async jobRoles() { return isStaff() ? clone(jobRoles).sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name)) : [] },
+    async saveJobRole({ id, ...r }) {
+      requireAdmin()
+      const existing = id ? jobRoles.find(x => x.id === id) : undefined
+      if (id && !existing) throw new Error('Role not found')
+      const next: JobRole = { ...(existing ?? { id: uid(), name: '', summary: null, position_id: null, reports_to: null, people: [], duties: [], sort: 0, updated_at: '' }), ...clone(r) }
+      next.name = next.name.trim()
+      next.summary = next.summary?.trim() || null
+      next.duties = next.duties.map(d => ({ when: d.when, text: d.text.trim() })).filter(d => d.text)
+      // As the database: only people on the team can be added; someone who has since left drops out.
+      const onTeam = (id: string) => profiles.some(x => x.id === id && staffOnly(x))
+      if (next.people.some(p => !onTeam(p) && !existing?.people.includes(p))) throw new Error('Only people on the team can be given a role')
+      next.people = [...new Set(next.people)].filter(onTeam)
+      const problem = roleProblem(next)
+      if (problem) throw new Error(problem)
+      if (jobRoles.some(x => x.id !== next.id && x.name.toLowerCase() === next.name.toLowerCase())) {
+        throw new Error('duplicate key value violates unique constraint "job_roles_name_key"')
+      }
+      if (next.reports_to === next.id) throw new Error('A role can’t answer to itself')
+      for (let up = jobRoles.find(x => x.id === next.reports_to), n = 0; up && n < 100; up = jobRoles.find(x => x.id === up!.reports_to), n++) {
+        if (up.reports_to === next.id) throw new Error('A role can’t answer to one that answers to it')
+      }
+      next.updated_at = nowIso()
+      if (existing) Object.assign(existing, next)
+      else jobRoles.push(next)
+    },
+    async deleteJobRole(id) {
+      requireAdmin()
+      const i = jobRoles.findIndex(x => x.id === id)
+      if (i >= 0) jobRoles.splice(i, 1)
+      for (const r of jobRoles) if (r.reports_to === id) r.reports_to = null
+    },
+    async ruleSections() { return isStaff() ? clone(ruleSections).sort((a, b) => a.sort - b.sort || a.title.localeCompare(b.title)) : [] },
+    async saveRuleSection({ id, ...s }) {
+      requireAdmin()
+      const existing = id ? ruleSections.find(x => x.id === id) : undefined
+      if (id && !existing) throw new Error('Section not found')
+      const next: RuleSection = { ...(existing ?? { id: uid(), title: '', intro: null, rules: [], sort: 0, updated_at: '' }), ...clone(s) }
+      next.title = next.title.trim()
+      next.intro = next.intro?.trim() || null
+      next.rules = next.rules.map(x => x.trim()).filter(Boolean)
+      const problem = sectionProblem(next)
+      if (problem) throw new Error(problem)
+      // Only a change to what it says asks everyone to read the rules again (as the database does).
+      const changed = !existing || existing.title !== next.title || existing.intro !== next.intro || JSON.stringify(existing.rules) !== JSON.stringify(next.rules)
+      if (changed) next.updated_at = nowIso()
+      if (existing) Object.assign(existing, next)
+      else ruleSections.push(next)
+    },
+    async deleteRuleSection(id) {
+      requireAdmin()
+      const i = ruleSections.findIndex(x => x.id === id)
+      if (i >= 0) ruleSections.splice(i, 1)
+    },
+    async rulesRead() { return clone(rulesRead.filter(r => isAdmin() || r.profile_id === currentUser)) },
+    async readRules() {
+      if (!isStaff()) throw new Error('Not allowed')
+      const mine = rulesRead.find(r => r.profile_id === currentUser)
+      if (mine) mine.read_at = nowIso()
+      else rulesRead.push({ profile_id: currentUser!, read_at: nowIso() })
+    },
+
+    async contractors() {
+      if (!isAdmin() && !partnerCan('finances')) return []
+      return clone(contractors).sort((a, b) => a.name.localeCompare(b.name))
+    },
+    async saveContractor({ id, ...patch }) {
+      requireAdmin()
+      const name = patch.name?.trim()
+      if (!name) throw new Error('Give them a name')
+      // As the database: one of each name, each job once, WhatsApp only with a phone.
+      if (contractors.some(c => c.id !== id && c.name.toLowerCase() === name.toLowerCase())) throw new Error(`There’s already someone called ${name} in the catalogue`)
+      const services = patch.services?.map(x => x.trim()).filter((x, i, all) => x && all.findIndex(y => y.toLowerCase() === x.toLowerCase()) === i)
+      const existing = id ? contractors.find(c => c.id === id) : undefined
+      if (id && !existing) throw new Error('Not found')
+      const next = contractor({ ...(existing ?? { id: uid() }), ...clone(patch), name, ...(services ? { services } : {}) })
+      next.whatsapp = next.whatsapp && !!next.phone
+      if (existing) Object.assign(existing, next)
+      else contractors.push(next)
+      return next.id
+    },
+    async deleteContractor(id) {
+      requireAdmin()
+      const c = contractors.find(x => x.id === id)
+      if (c && outsourcedJobs.some(j => j.contractor_id === id)) throw new Error(`${c.name} has done jobs for the business: archive them instead`)
+      const i = contractors.findIndex(x => x.id === id)
+      if (i >= 0) contractors.splice(i, 1)
+    },
+    async outsourcedJobs() {
+      if (!isAdmin() && !partnerCan('finances')) return []
+      return clone(outsourcedJobs).sort((a, b) => (b.starts_on ?? '').localeCompare(a.starts_on ?? '') || a.service.localeCompare(b.service))
+    },
+    async saveOutsourcedJob({ id, ...patch }) {
+      requireAdmin()
+      const existing = id ? outsourcedJobs.find(j => j.id === id) : undefined
+      if (id && !existing) throw new Error('Not found')
+      const next = outsourced({ ...(existing ?? { id: uid() }), ...clone(patch) })
+      next.service = next.service.trim()
+      if (!next.service) throw new Error('Say what the job is')
+      if (!contractors.some(c => c.id === next.contractor_id)) throw new Error('Choose who does it')
+      if (next.starts_on && next.ends_on && next.ends_on < next.starts_on) throw new Error('It can’t end before it starts')
+      if (!COUNTED.includes(next.price_unit)) Object.assign(next, { quantity: null, quantity_per: null })
+      if (existing) Object.assign(existing, next)
+      else outsourcedJobs.push(next)
+      return next.id
+    },
+    async deleteOutsourcedJob(id) {
+      requireAdmin()
+      const i = outsourcedJobs.findIndex(j => j.id === id)
+      if (i >= 0) outsourcedJobs.splice(i, 1)
+    },
+
     async planStatus() {
       const p = planById(effectivePlan(demoBilling))
       const month = new Date().toISOString().slice(0, 7)
@@ -1624,6 +2092,47 @@ export function createDemoApi(): Api {
       const i = expenses.findIndex(x => x.id === id)
       if (i >= 0) expenses.splice(i, 1)
     },
+    async expenseClaims() {
+      if (!isStaff() && !partnerCan('finances')) return []
+      const mine = (c: ExpenseClaim) => canTax() || partnerCan('finances') || c.profile_id === me()?.id
+      return clone(claimList.filter(mine)).map(c => {
+        const d = c.document_id ? taxDocuments.find(x => x.id === c.document_id) : undefined
+        return { ...c, document: d ? { name: d.name, link: d.link } : null }
+      }).sort((a, b) => b.spent_on.localeCompare(a.spent_on) || b.created_at.localeCompare(a.created_at))
+    },
+    async saveClaim({ id, ...c }) {
+      if (!isStaff()) throw new Error('Only the team sends expenses')
+      const { document: _d, ...patch } = c as typeof c & { document?: unknown }
+      if (!patch.description?.trim()) throw new Error('Say what it was for')
+      const existing = id ? claimList.find(x => x.id === id) : undefined
+      if (id && !existing) throw new Error('That claim has gone')
+      const pay = canTax()
+      if (existing && !pay && (existing.profile_id !== me()!.id)) throw new Error('Only admins with pay access change other people’s claims')
+      // The database's rules (claim_rules()): mileage worked out; without pay access only your own, waiting, and only while it waits.
+      if (existing && !pay && existing.status !== 'submitted') throw new Error('This claim was already decided: ask an admin to change it')
+      const next: ExpenseClaim = { ...(existing ?? claim({ profile_id: me()!.id, description: '' })), ...patch, description: patch.description.trim(),
+        category: patch.category?.trim() || null }
+      if (next.kind === 'mileage') {
+        if (!(next.km && next.km > 0)) throw new Error('Enter the kilometres')
+        next.rate_per_km ??= settings.mileage_rate ?? DEFAULT_MILEAGE_RATE
+        next.amount = mileageAmount(next.km, next.rate_per_km, next.return_trip)
+      } else Object.assign(next, { km: null, rate_per_km: null, return_trip: false, from_place: null, to_place: null })
+      if (!(next.amount >= 0)) throw new Error('Enter what it cost')
+      if (!pay) Object.assign(next, { profile_id: existing?.profile_id ?? me()!.id, status: 'submitted', document_id: existing?.document_id ?? null,
+        decision_note: existing?.decision_note ?? null })
+      if (next.status === 'submitted') Object.assign(next, { decided_by: null, decided_at: null })
+      else if (!existing || (existing.status !== next.status && !(existing.status === 'approved' && next.status === 'paid'))) Object.assign(next, { decided_by: me()!.id, decided_at: nowIso() })
+      next.paid_on = next.status === 'paid' ? next.paid_on ?? today() : null
+      if (existing) Object.assign(existing, next)
+      else claimList.push(next)
+      return next.id
+    },
+    async deleteClaim(id) {
+      const c = claimList.find(x => x.id === id)
+      if (!c) return
+      if (!canTax() && !(c.profile_id === me()?.id && c.status === 'submitted')) throw new Error('Only a claim still waiting can be taken back')
+      claimList.splice(claimList.indexOf(c), 1)
+    },
     async licences() {
       if (!isAdmin() && !partnerCan('finances')) return []
       return clone(licenceList).map(l => {
@@ -1646,6 +2155,46 @@ export function createDemoApi(): Api {
       requireAdmin()
       const i = licenceList.findIndex(x => x.id === id)
       if (i >= 0) licenceList.splice(i, 1)
+    },
+    async creditDebit() {
+      if (!paysAdmin() && !partnerCan('finances')) return []
+      return clone(moneyItems).map(i => ({ ...i, payments: i.payments.sort((a, b) => b.paid_on.localeCompare(a.paid_on)) }))
+        .sort((a, b) => (a.next_due ?? '9999').localeCompare(b.next_due ?? '9999') || a.name.localeCompare(b.name))
+    },
+    async saveCreditDebit({ id, ...item }) {
+      if (!paysAdmin()) throw new Error('Only admins with pay access can change credit and debit')
+      const { payments: _payments, ...patch } = item as typeof item & { payments?: unknown }
+      const existing = id ? moneyItems.find(x => x.id === id) : undefined
+      if (id && !existing) throw new Error('That has gone')
+      const next = { ...(existing ?? moneyItem({ name: '', direction: 'debit', amount: 0 })), ...patch }
+      // The database's rules: a name, an amount, tidy text, and only money coming in can be "possible".
+      next.name = next.name.trim()
+      if (!next.name) throw new Error('Give it a name')
+      if (!(next.amount > 0)) throw new Error('The amount must be more than 0')
+      if (next.instalment != null && !(next.instalment > 0)) throw new Error('Each payment must be more than 0')
+      Object.assign(next, { party: next.party?.trim() || null, notes: next.notes?.trim() || null, possible: next.direction === 'credit' && next.possible })
+      if (existing) Object.assign(existing, next)
+      else moneyItems.push(next)
+      return next.id
+    },
+    async deleteCreditDebit(id) {
+      if (!paysAdmin()) throw new Error('Only admins with pay access can change credit and debit')
+      const i = moneyItems.findIndex(x => x.id === id)
+      if (i >= 0) moneyItems.splice(i, 1)
+    },
+    async addCreditDebitPayment({ item_id, amount, paid_on, note }) {
+      if (!paysAdmin()) throw new Error('Only admins with pay access can change credit and debit')
+      const item = moneyItems.find(x => x.id === item_id)
+      if (!item) throw new Error('That has gone')
+      if (!(amount > 0)) throw new Error('The amount must be more than 0')
+      item.payments.push(moneyPayment(amount, paid_on, note?.trim() || null))
+      item.payments[item.payments.length - 1].item_id = item.id
+      // Mirrors credit_debit_payment_made() in the database.
+      Object.assign(item, afterPayment(item, paidSoFar(item.payments), paid_on))
+    },
+    async deleteCreditDebitPayment(id) {
+      if (!paysAdmin()) throw new Error('Only admins with pay access can change credit and debit')
+      for (const i of moneyItems) i.payments = i.payments.filter(p => p.id !== id)
     },
     async legalDocuments() {
       if (!isAdmin() && !partnerCan('finances')) return []
@@ -2126,6 +2675,78 @@ export function createDemoApi(): Api {
       return { screen, sections: [...(settings.menu_sections ?? [])],
         business: { name: business.name, logo: brand.logo_mark ?? brand.logo, heading_font: brand.heading_font, body_font: brand.body_font, colours: clone(brand.colours) }, menus }
     },
+    async menuAllergens() {
+      if (!readStock()) return { dishes: [], items: [] }
+      const live = recipes.filter(r => r.active)
+      const used = new Set(live.flatMap(r => r.lines.map(l => l.item_id)))
+      return clone({
+        dishes: live.map(r => ({ id: r.id, name: r.name, category: r.category, variants: r.variants.map(v => ({ ...v, price_change: 0 })),
+          lines: r.lines.map(l => ({ ...l, quantity: 1 })) }))
+          .sort((a, b) => (a.category ?? '~').localeCompare(b.category ?? '~') || a.name.localeCompare(b.name)),
+        items: stock.filter(i => used.has(i.id)).map(i => ({ id: i.id, name: i.name, allergens: i.allergens ?? null, may_contain: i.may_contain ?? [], diet: i.diet ?? null }))
+          .sort((a, b) => a.name.localeCompare(b.name)),
+      })
+    },
+    async saveItemAllergens(itemId, allergens, mayContain, diet) {
+      requireAdmin()
+      const item = stock.find(x => x.id === itemId)
+      if (!item) throw new Error('No such stock item')
+      // stock_items_diet_fits: milk or eggs aren't vegan, fish or shellfish not vegetarian.
+      if (diet && !dietsFor(allergens).includes(diet)) throw new Error('Milk or eggs aren’t vegan, and fish or shellfish aren’t vegetarian')
+      // stock_allergen_rules(): each once, in order; a trace of something it contains isn't a trace.
+      item.allergens = allergens === null ? null : [...new Set(allergens)].sort()
+      item.may_contain = [...new Set(mayContain)].filter(a => !item.allergens?.includes(a)).sort()
+      item.diet = diet
+      item.updated_at = nowIso()
+    },
+    async safetyPoints() {
+      if (!isStaff()) return []
+      return clone(pointList).sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name))
+    },
+    async saveSafetyPoint({ id, ...p }) {
+      requireAdmin()
+      if (!p.name?.trim()) throw new Error('Give it a name')
+      const existing = id ? pointList.find(x => x.id === id) : undefined
+      if (id && !existing) throw new Error('That check has gone')
+      const next: SafetyPoint = { ...(existing ?? { id: uid(), kind: 'temperature', min_temp: null, max_temp: null, frequency: 'daily', area: null, instructions: null,
+        active: true, sort: pointList.length + 1 }), ...p, name: p.name.trim(), area: p.area?.trim() || null, instructions: p.instructions?.trim() || null }
+      if (next.kind === 'task') Object.assign(next, { min_temp: null, max_temp: null })
+      if (next.min_temp !== null && next.max_temp !== null && next.min_temp > next.max_temp) throw new Error('The lowest can’t be above the highest')
+      if (existing) Object.assign(existing, next)
+      else pointList.push(next)
+      return next.id
+    },
+    async deleteSafetyPoint(id) {
+      requireAdmin()
+      if (checkList.some(c => c.point_id === id)) throw new Error('It has checks recorded, which are kept: switch it off instead')
+      const i = pointList.findIndex(x => x.id === id)
+      if (i >= 0) pointList.splice(i, 1)
+    },
+    async safetyChecks(from, to) {
+      if (!isStaff()) return []
+      return clone(checkList.filter(c => localDate(c.checked_at) >= from && localDate(c.checked_at) <= to)).sort((a, b) => b.checked_at.localeCompare(a.checked_at))
+    },
+    async recordSafetyCheck(c) {
+      if (!isStaff()) throw new Error('Only the team records checks')
+      // food_safety_check_rules(): the server's time and whoever is signed in; a reading out of range needs what was done.
+      const p = pointList.find(x => x.id === c.point_id)
+      if (!p || !p.active) throw new Error('That check is switched off')
+      const action = c.action?.trim() || null
+      let ok = true
+      if (p.kind === 'temperature') {
+        if (c.reading === null || c.reading === undefined || Number.isNaN(c.reading)) throw new Error('Enter what it read')
+        ok = inLimits(p, c.reading)
+        if (!ok && !action) throw new Error('Out of range: say what was done about it')
+      }
+      checkList.push({ id: uid(), point_id: p.id, checked_at: nowIso(), reading: p.kind === 'temperature' ? c.reading! : null, ok, action, note: c.note?.trim() || null,
+        by: me()!.id })
+      if (!ok) {
+        for (const a of profiles.filter(x => x.role === 'admin' && x.active)) {
+          notes.push({ id: notes.length + 1, profile_id: a.id, title: `Out of range: ${p.name} ${c.reading!.toFixed(1)} °C`, body: action, link: '/food-safety',
+            created_at: nowIso(), read_at: null })
+        }
+      }
+    },
     async recordStock(moves: MovementInput[]) {
       if (!isStaff()) throw new Error('Only the team records stock')
       // Check them all first: the database takes all or none.
@@ -2173,6 +2794,250 @@ export function createDemoApi(): Api {
       for (const c of added) customers.push({ ...c, consent_at: c.marketing_consent ? nowIso() : null })
       return added.length
     },
+    async enquiries() {
+      if (!isAdmin()) return []
+      return clone(enquiryList).map(e => {
+        const c = customers.find(x => x.id === e.customer_id)
+        return { ...e, customer: c ? { first_name: c.first_name, last_name: c.last_name, company: c.company, email: c.email, phone: c.phone, kind: c.kind } : null }
+      }).sort((a, b) => b.received_at.localeCompare(a.received_at))
+    },
+    async saveEnquiry({ id, ...e }, lead) {
+      requireAdmin()
+      const { customer: _c, closed_at: _closed, ...patch } = e as typeof e & { customer?: unknown; closed_at?: unknown }
+      if (!patch.title?.trim()) throw new Error('Say what they asked for')
+      const existing = id ? enquiryList.find(x => x.id === id) : undefined
+      if (id && !existing) throw new Error('That enquiry has gone')
+      let customerId = patch.customer_id ?? existing?.customer_id
+      if (!existing && lead) {
+        const made = tidyCustomer({ ...person({ days: 0, kind: 'lead' }), ...lead, source: SOURCE_FOR[patch.channel ?? 'other'], id: uid() })
+        made.consent_at = made.marketing_consent ? nowIso() : null
+        customers.push(made)
+        customerId = made.id
+      }
+      if (!customerId || !customers.some(c => c.id === customerId)) throw new Error('Pick who it’s from, or add them')
+      // The database's rules: tidy, closed when won or lost, a reason only when lost, won makes them a customer.
+      const next: Enquiry = { ...(existing ?? enquiry({ customer_id: customerId, title: '' })), ...patch, customer_id: customerId, title: patch.title.trim(),
+        notes: patch.notes?.trim() || null }
+      next.closed_at = next.stage === 'won' || next.stage === 'lost' ? (existing?.stage === next.stage ? existing.closed_at : nowIso()) : null
+      next.lost_reason = next.stage === 'lost' ? next.lost_reason?.trim() || null : null
+      if (existing) Object.assign(existing, next)
+      else enquiryList.push(next)
+      if (next.stage === 'won') { const c = customers.find(x => x.id === customerId); if (c?.kind === 'lead') c.kind = 'customer' }
+      return next.id
+    },
+    async deleteEnquiry(id) {
+      requireAdmin()
+      const i = enquiryList.findIndex(x => x.id === id)
+      if (i >= 0) enquiryList.splice(i, 1)
+    },
+    async campaigns() {
+      if (!isAdmin()) return []
+      return clone(campaignList).sort((a, b) => (b.sent_at ?? b.scheduled_at ?? b.created_at).localeCompare(a.sent_at ?? a.scheduled_at ?? a.created_at))
+    },
+    async saveCampaign({ id, ...c }) {
+      requireAdmin()
+      if (!c.name?.trim()) throw new Error('Give the campaign a name')
+      if (c.status === 'scheduled' && !c.scheduled_at) throw new Error('Pick when it’s planned for')
+      const existing = id ? campaignList.find(x => x.id === id) : undefined
+      if (id && !existing) throw new Error('That campaign has gone')
+      // The database's rules (campaign_rules()): a subject only for email; sent keeps when and how many.
+      const next: Campaign = { ...(existing ?? campaign({ name: '' })), ...c, name: c.name.trim() }
+      next.subject = next.channel === 'email' ? next.subject?.trim() || null : null
+      if (next.status === 'sent') next.sent_at ??= nowIso()
+      else { next.sent_at = null; next.recipients = null }
+      if (existing) Object.assign(existing, next)
+      else campaignList.push(next)
+      return next.id
+    },
+    async deleteCampaign(id) {
+      requireAdmin()
+      const i = campaignList.findIndex(x => x.id === id)
+      if (i >= 0) campaignList.splice(i, 1)
+    },
+
+    async salesReps() {
+      return isStaff() ? clone(repList).sort((a, b) => a.name.localeCompare(b.name)) : []
+    },
+    async saveSalesRep({ id, ...r }) {
+      if (id) {
+        requireAdmin()
+        const i = repList.findIndex(x => x.id === id)
+        if (i < 0) throw new Error('Rep not found')
+        // A field left out keeps what it was (as an update does).
+        const patch = Object.fromEntries(Object.entries(r).filter(([, v]) => v !== undefined))
+        repList[i] = tidyRep({ ...repList[i], ...patch }, repList[i])
+        return id
+      }
+      if (!isStaff() || (!isAdmin() && ((r.kind ?? 'customer') !== 'customer' || r.profile_id))) {
+        throw new Error('new row violates row-level security policy for table "sales_reps"')
+      }
+      const rep = tidyRep(salesRep({ id: uid(), kind: 'customer', code: '', created_at: nowIso(), ...r }))
+      repList.push(rep)
+      return rep.id
+    },
+    async deleteSalesRep(id) {
+      requireAdmin()
+      const i = repList.findIndex(x => x.id === id)
+      if (i >= 0) repList.splice(i, 1)
+      for (let j = rewardList.length - 1; j >= 0; j--) if (rewardList[j].rep_id === id) rewardList.splice(j, 1)
+    },
+    async rewardRules() {
+      return isStaff() ? clone(rewardRuleList).sort((a, b) => a.sort - b.sort) : []
+    },
+    async saveRewardRule({ id, ...r }) {
+      requireAdmin()
+      const name = r.name.trim()
+      if (!name) throw new Error('Give it a name')
+      if (!(r.amount > 0) || r.amount > 10_000) throw new Error('new row for relation "reward_rules" violates check constraint "reward_rules_amount_check"')
+      if (r.basis === 'percent' && r.amount > 100) throw new Error('new row for relation "reward_rules" violates check constraint "reward_rules_percent"')
+      const existing = id ? rewardRuleList.find(x => x.id === id) : undefined
+      if (existing) Object.assign(existing, { ...r, name })
+      else rewardRuleList.push({ ...r, name, id: uid(), sort: r.sort ?? Math.max(0, ...rewardRuleList.map(x => x.sort)) + 1 })
+    },
+    async deleteRewardRule(id) {
+      requireAdmin()
+      const i = rewardRuleList.findIndex(x => x.id === id)
+      if (i >= 0) rewardRuleList.splice(i, 1)
+      for (const r of rewardList) if (r.rule_id === id) r.rule_id = null
+    },
+    async repRewards() {
+      return clone(rewardList.filter(seesReward)).sort((a, b) => b.occurred_on.localeCompare(a.occurred_on) || b.created_at.localeCompare(a.created_at))
+    },
+    async logReward({ rep_id, rule_id, sale_amount, note, proof_url, mention_id, occurred_on }) {
+      if (!isStaff()) throw new Error('Only the team can log rewards')
+      const rep = repList.find(x => x.id === rep_id)
+      if (!rep) throw new Error('Rep not found')
+      if (!rep.active) throw new Error(`${rep.name} is no longer a rep`)
+      const rule = rewardRuleList.find(x => x.id === rule_id)
+      if (!rule || !rule.active) throw new Error('That reward isn’t on the list')
+      if (rule.who === 'customers' && rep.kind !== 'customer') throw new Error(`${rule.name} is a reward for customers`)
+      if (rule.who === 'reps' && rep.kind === 'customer') throw new Error(`${rule.name} is a reward for reps`)
+      const on = occurred_on || today()
+      if (on > today()) throw new Error('It can’t be for a day still to come')
+      if (rule.basis === 'percent' && !(sale_amount && sale_amount > 0)) throw new Error('Give the amount of the sale')
+      const amount = rewardAmount(rule, sale_amount)
+      if (!(amount > 0)) throw new Error('The sale is too small for a reward')
+      if (rule.monthly_limit !== null) {
+        const used = rewardList.filter(x => x.rep_id === rep_id && x.rule_id === rule_id && x.kind === 'earn' && x.status !== 'rejected' && x.occurred_on.slice(0, 7) === on.slice(0, 7)).length
+        if (used >= rule.monthly_limit) throw new Error(`${rep.name} has had "${rule.name}" ${used} times this month, the most there is`)
+      }
+      if (mention_id && rewardList.some(x => x.mention_id === mention_id)) throw new Error('duplicate key value violates unique constraint "rep_rewards_mention_id_key"')
+      const status = rep.profile_id === currentUser ? 'pending' : isAdmin() || !rule.needs_approval ? 'approved' : 'pending'
+      const reward: RepReward = { id: uid(), rep_id, kind: 'earn', rule_id, label: rule.name, sale_amount: rule.basis === 'percent' ? sale_amount ?? null : null,
+        amount, status, proof_url: proof_url?.trim() || null, mention_id: mention_id ?? null, note: note?.trim() || null, occurred_on: on,
+        logged_by: currentUser, created_at: nowIso() }
+      rewardList.push(reward)
+      if (status === 'pending') {
+        for (const a of profiles.filter(p => p.role === 'admin' && p.active && p.id !== currentUser)) {
+          notes.push({ id: notes.length + 1, profile_id: a.id, title: `${rule.name} for ${rep.name}: €${amount.toFixed(2)} to approve`,
+            body: [me()?.full_name, note?.trim()].filter(Boolean).join(' · ') || null, link: '/sales-reps', created_at: nowIso(), read_at: null })
+        }
+      }
+      return { id: reward.id, status, amount }
+    },
+    async decideReward(id, approve, amount) {
+      if (!isAdmin()) throw new Error('Only an admin can approve rewards')
+      const r = rewardList.find(x => x.id === id)
+      if (!r || r.status !== 'pending') throw new Error('This reward is no longer waiting')
+      if (approve && repList.find(x => x.id === r.rep_id)?.profile_id === currentUser) throw new Error('Someone else approves your own rewards')
+      if (amount !== undefined && !(amount > 0)) throw new Error('Give an amount above 0')
+      r.status = approve ? 'approved' : 'rejected'
+      if (approve && amount !== undefined) r.amount = round2(amount)
+    },
+    async settleReward(repId, amount, note) {
+      if (!isStaff()) throw new Error('Only the team can do that')
+      const rep = repList.find(x => x.id === repId)
+      if (!rep) throw new Error('Rep not found')
+      if (rep.kind !== 'customer' && !isAdmin()) throw new Error('Only an admin can pay commission')
+      if (rep.profile_id === currentUser) throw new Error('Someone else pays out your own commission')
+      if (!(amount > 0)) throw new Error('Give an amount above 0')
+      const balance = repBalance(repId)
+      if (round2(amount) > balance) throw new Error(`${rep.name} has €${balance.toFixed(2)} ${rep.kind === 'customer' ? 'of credit' : 'owed'}`)
+      const credit = rep.kind === 'customer'
+      rewardList.push({ id: uid(), rep_id: repId, kind: credit ? 'redeem' : 'payout', rule_id: null, label: credit ? USED_AT_TILL : COMMISSION_PAID,
+        sale_amount: null, amount: -round2(amount), status: 'approved', proof_url: null, mention_id: null, note: note?.trim() || null,
+        occurred_on: today(), logged_by: currentUser, created_at: nowIso() })
+      return round2(balance - amount)
+    },
+    async deleteReward(id) {
+      requireAdmin()
+      const i = rewardList.findIndex(x => x.id === id)
+      if (i >= 0) rewardList.splice(i, 1)
+    },
+    async repSettings() {
+      if (!isStaff()) throw new Error('Cannot coerce the result to a single JSON object')
+      return clone(repSettings)
+    },
+    async updateRepSettings(patch) {
+      requireAdmin()
+      repSettings = { ...repSettings, ...patch, ...('welcome_offer' in patch ? { welcome_offer: patch.welcome_offer?.trim() || null } : {}) }
+    },
+
+    async kittySettings() {
+      if (!isStaff()) throw new Error('Cannot coerce the result to a single JSON object')
+      return clone(kittySettings)
+    },
+    async updateKittySettings(patch) {
+      requireAdmin()
+      if (patch.profit_percent !== undefined && !(patch.profit_percent >= 0 && patch.profit_percent <= 100)) {
+        throw new Error('new row for relation "kitty_settings" violates check constraint "kitty_settings_profit_percent_check"')
+      }
+      Object.assign(kittySettings, patch)
+    },
+    async kittyGoals() {
+      return isStaff() ? clone(kittyGoalList).sort((a, b) => a.sort - b.sort || a.created_at.localeCompare(b.created_at)) : []
+    },
+    async saveKittyGoal({ id, ...g }) {
+      requireAdmin()
+      const existing = id ? kittyGoalList.find(x => x.id === id) : undefined
+      const next: KittyGoal = { id: id ?? uid(), name: '', icon: 'gift', target: 0, due_on: null, sort: Math.max(0, ...kittyGoalList.map(x => x.sort)) + 1,
+        link: null, notes: null, spent: null, bought_on: null, created_at: nowIso(), ...existing, ...g }
+      next.name = next.name.trim()
+      next.link = next.link?.trim() || null
+      next.notes = next.notes?.trim() || null
+      if (!next.name) throw new Error('new row for relation "kitty_goals" violates check constraint "kitty_goals_name_check"')
+      if (!(next.target > 0 && next.target <= 1_000_000)) throw new Error('new row for relation "kitty_goals" violates check constraint "kitty_goals_target_check"')
+      if ((next.spent === null) !== (next.bought_on === null)) throw new Error('new row for relation "kitty_goals" violates check constraint "kitty_goals_bought"')
+      if (next.spent !== null && next.spent !== (existing?.spent ?? null)) {
+        const left = kittyLeft() + (existing?.spent ?? 0)
+        if (next.spent > left) throw new Error(`The kitty has €${kittyEuros(left)}: put more in first`)
+      }
+      if (existing) Object.assign(existing, next)
+      else kittyGoalList.push(next)
+    },
+    async deleteKittyGoal(id) {
+      requireAdmin()
+      const i = kittyGoalList.findIndex(x => x.id === id)
+      if (i >= 0) kittyGoalList.splice(i, 1)
+    },
+    async orderKittyGoals(ids) {
+      requireAdmin()
+      ids.forEach((id, i) => { const g = kittyGoalList.find(x => x.id === id); if (g) g.sort = i + 1 })
+    },
+    async kittyEntries() {
+      return isStaff() ? clone(kittyEntryList).sort((a, b) => b.created_at.localeCompare(a.created_at)) : []
+    },
+    async addKittyEntry(e) {
+      requireAdmin()
+      const entry: KittyEntry = { ...e, id: uid(), note: e.note?.trim() || null, created_at: nowIso(),
+        ...(e.kind === 'profit' ? {} : { month: null, percent: null }) }
+      if (!entry.amount) throw new Error('new row for relation "kitty_entries" violates check constraint "kitty_entries_amount_check"')
+      if (entry.kind === 'top_up' && entry.amount < 0) throw new Error('new row for relation "kitty_entries" violates check constraint "kitty_entries_top_up"')
+      if (entry.kind === 'profit') {
+        if (!entry.month || entry.percent === null || entry.amount < 0) throw new Error('new row for relation "kitty_entries" violates check constraint "kitty_entries_profit"')
+        if (entry.month.slice(0, 7) >= thisMonth) throw new Error('A month’s profit goes in once the month is over')
+        if (kittyEntryList.some(x => x.kind === 'profit' && x.month === entry.month)) throw new Error('duplicate key value violates unique constraint "kitty_entries_month_idx"')
+      }
+      if (entry.amount < 0 && kittyLeft() + entry.amount < 0) throw new Error(`The kitty has €${kittyEuros(kittyLeft())}`)
+      kittyEntryList.push(entry)
+    },
+    async deleteKittyEntry(id) {
+      requireAdmin()
+      const i = kittyEntryList.findIndex(x => x.id === id)
+      if (i < 0) return
+      if (kittyEntryList[i].amount > 0 && kittyLeft() - kittyEntryList[i].amount < 0) throw new Error(`That money has been spent: the kitty has €${kittyEuros(kittyLeft())}`)
+      kittyEntryList.splice(i, 1)
+    },
     async grantProfile() {
       if (!paysAdmin() && !partnerCan('finances')) return {}
       return clone(grantAnswers)
@@ -2210,6 +3075,90 @@ export function createDemoApi(): Api {
       if (i >= 0) grantApps.splice(i, 1)
       grantEvent(undefined, id)
     },
+    async jobOpenings() {
+      if (!isAdmin()) return []
+      return clone(openings).sort((a, b) => b.opened_on.localeCompare(a.opened_on))
+    },
+    async saveOpening({ id, ...o }) {
+      requireAdmin()
+      if (!o.title?.trim()) throw new Error('Give the job a title')
+      const existing = id ? openings.find(x => x.id === id) : undefined
+      if (id && !existing) throw new Error('That job has gone')
+      const next: JobOpening = { ...(existing ?? opening({ title: '' })), ...o, title: o.title.trim(), pay: o.pay?.trim() || null,
+        description: o.description?.trim() || null }
+      next.posted_on = [...new Set(next.posted_on)].sort()
+      if (existing) Object.assign(existing, next)
+      else openings.push(next)
+      return next.id
+    },
+    async deleteOpening(id) {
+      requireAdmin()
+      const i = openings.findIndex(x => x.id === id)
+      if (i >= 0) openings.splice(i, 1)
+      for (const a of applicantList.filter(x => x.opening_id === id)) { applicantList.splice(applicantList.indexOf(a), 1); interviewEvent(undefined, a.id) }
+    },
+    async applicants() {
+      if (!isAdmin()) return []
+      return clone(applicantList).sort((a, b) => b.applied_on.localeCompare(a.applied_on))
+    },
+    async saveApplicant({ id, ...a }) {
+      requireAdmin()
+      if (!a.full_name?.trim()) throw new Error('Add their name')
+      if (!openings.some(o => o.id === a.opening_id)) throw new Error('Pick the job they applied for')
+      const existing = id ? applicantList.find(x => x.id === id) : undefined
+      if (id && !existing) throw new Error('That applicant has gone')
+      const next: Applicant = { ...(existing ?? applicant({ opening_id: a.opening_id, full_name: '' })), ...a, full_name: a.full_name.trim(),
+        email: a.email?.trim().toLowerCase() || null, phone: a.phone?.trim().replace(/\s+/g, ' ') || null, cv_link: a.cv_link?.trim() || null, notes: a.notes?.trim() || null }
+      if (next.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(next.email)) throw new Error('That email doesn’t look right')
+      if (next.phone && !/^\+\d[\d ]{4,24}$/.test(next.phone)) throw new Error('That phone number doesn’t look right')
+      if (next.cv_link && !/^https?:\/\/\S+$/i.test(next.cv_link)) throw new Error('The CV link starts with https://')
+      next.keep_until = keepUntil(next.applied_on)
+      if (existing) Object.assign(existing, next)
+      else applicantList.push(next)
+      interviewEvent(next, next.id)
+      return next.id
+    },
+    async deleteApplicant(id) {
+      requireAdmin()
+      const i = applicantList.findIndex(x => x.id === id)
+      if (i >= 0) applicantList.splice(i, 1)
+      interviewEvent(undefined, id)
+    },
+    async tipPools() {
+      const pools = tipPools()
+      if (canTax() || partnerCan('payroll')) return clone(pools)
+      const mine = me()?.id
+      // Everyone else: only the pools shared out with them, and only their own share.
+      return clone(pools.filter(p => p.status !== 'draft' && p.shares.some(s => s.profile_id === mine))).map(p => ({ ...p, shares: p.shares.filter(s => s.profile_id === mine) }))
+    },
+    async saveTipPool({ id, ...pool }, shares) {
+      if (!canTax()) throw new Error('Only admins with pay access share out tips')
+      const pools = tipPools()
+      const existing = id ? pools.find(x => x.id === id) : undefined
+      if (id && !existing) throw new Error('That pool of tips is gone')
+      if (pool.ends_on < pool.starts_on) throw new Error('It can’t end before it starts')
+      // save_tip_pool(): once it's not a draft, the shares add up to the tips, to the cent.
+      const cents = (n: number) => Math.round(n * 100)
+      if (pool.status !== 'draft' && cents(shares.reduce((s, x) => s + x.amount, 0)) !== cents(pool.cash + pool.card)) {
+        throw new Error(`The shares add up to ${shares.reduce((s, x) => s + x.amount, 0).toFixed(2)} but the tips are ${(pool.cash + pool.card).toFixed(2)}`)
+      }
+      const next: TipPool = { ...(existing ?? { id: uid(), created_at: nowIso(), notes: null }), ...pool, notes: pool.notes?.trim() || null, shares: clone(shares) }
+      if (pool.status !== 'draft' && (existing?.status ?? 'draft') === 'draft') {
+        for (const s of shares.filter(x => x.amount > 0)) {
+          notes.push({ id: notes.length + 1, profile_id: s.profile_id, title: `Your tips: ${s.amount.toFixed(2)} €`, body: `${pool.starts_on} – ${pool.ends_on}`,
+            link: '/tips', created_at: nowIso(), read_at: null })
+        }
+      }
+      if (existing) Object.assign(existing, next)
+      else pools.push(next)
+      return next.id
+    },
+    async deleteTipPool(id) {
+      if (!canTax()) throw new Error('Only admins with pay access share out tips')
+      const pools = tipPools()
+      const i = pools.findIndex(x => x.id === id)
+      if (i >= 0) pools.splice(i, 1)
+    },
     async todos() {
       if (!staffOnly(me()!)) return { categories: [], todos: [] }
       return { categories: clone(todoCategories).sort((a, b) => a.sort - b.sort), todos: clone(todos) }
@@ -2217,8 +3166,9 @@ export function createDemoApi(): Api {
     async addTodo(t) {
       if (!staffOnly(me()!)) throw new Error('Only the team can add jobs')
       if (!t.title.trim()) throw new Error('Write the job first')
-      const todo: Todo = { id: uid(), title: t.title.trim(), category_id: t.category_id, section: null, assignee_id: null, done: false,
-        done_at: null, starred: false, pinned: false, position: t.position, created_at: nowIso() }
+      const status = t.status ?? 'todo'
+      const todo: Todo = { id: uid(), title: t.title.trim(), category_id: t.category_id, section: null, assignee_id: t.assignee_id ?? null,
+        done: status === 'done', status, done_at: status === 'done' ? nowIso() : null, starred: false, pinned: false, position: t.position, created_at: nowIso() }
       todos.push(todo)
       return clone(todo)
     },
@@ -2227,6 +3177,8 @@ export function createDemoApi(): Api {
       const t = todos.find(x => x.id === id)
       if (!t) throw new Error('That job has gone')
       if (patch.title !== undefined && !patch.title.trim()) throw new Error('A job needs a name')
+      // Like the database: the column and the tick stay in step.
+      patch = inStep(t, patch)
       Object.assign(t, patch, patch.title !== undefined ? { title: patch.title.trim() } : {},
         patch.section !== undefined ? { section: patch.section?.trim() || null } : {},
         patch.done !== undefined ? { done_at: patch.done ? (t.done_at ?? nowIso()) : null } : {})
@@ -2445,6 +3397,145 @@ export function createDemoApi(): Api {
         vitals: { lcp_ms: mobile ? 3400 : 1600, cls: 0.04, inp_ms: mobile ? 240 : 110, field: mobile },
         opportunities: ['Serve images in modern formats', 'Properly size images', 'Eliminate render-blocking resources'] }
       return clone(demoPageSpeed[strategy]!)
+    },
+    async competitors() {
+      requireAdmin()
+      const self = rivals.competitors.find(c => c.is_self)!
+      self.name = business.name
+      return clone(rivals)
+    },
+    async saveCompetitor({ id, ...c }) {
+      requireAdmin()
+      const patch = { ...c }
+      if (patch.name !== undefined && !patch.name.trim()) throw new Error('Give it a name')
+      if (patch.instagram !== undefined) {
+        const handle = instagramHandle(patch.instagram)
+        if (handle === undefined) throw new Error('An Instagram handle has letters, numbers, dots and underscores only')
+        patch.instagram = handle
+      }
+      if (patch.website && !/^https?:\/\/\S+$/i.test(patch.website)) throw new Error('A website starts with https://')
+      const existing = id ? competitorRow(id) : undefined
+      if (existing) {
+        Object.assign(existing, patch, patch.name ? { name: patch.name.trim() } : {}, existing.is_self ? { threat: null, active: true } : {})
+        return existing.id
+      }
+      const made: Competitor = { id: uid(), is_self: false, kind: 'cafe', threat: 'medium', address: null, distance_m: null, lat: null, lng: null, place_id: null,
+        website: null, instagram: null, maps_url: null, price_level: null, hours: null, google_hours: null, features: {}, google_features: {}, google_rating: null,
+        google_count: null, google_status: null, google_checked_at: null, strengths: null, weaknesses: null, notes: null, active: true, created_at: nowIso(),
+        ...patch, name: patch.name.trim() }
+      rivals.competitors.push(made)
+      return made.id
+    },
+    async deleteCompetitor(id) {
+      requireAdmin()
+      if (competitorRow(id).is_self) throw new Error('The business itself can’t be removed from Competitors')
+      rivals.competitors = rivals.competitors.filter(c => c.id !== id)
+      rivals.prices = rivals.prices.filter(p => p.competitor_id !== id)
+      rivals.notes = rivals.notes.filter(n => n.competitor_id !== id)
+      rivals.snapshots = rivals.snapshots.filter(x => x.competitor_id !== id)
+    },
+    async savePriceItem({ id, ...i }) {
+      requireAdmin()
+      const name = i.name.trim()
+      if (!name) throw new Error('Give it a name')
+      if (rivals.items.some(x => x.id !== id && x.name.toLowerCase() === name.toLowerCase())) throw new Error('That’s already on the basket')
+      const existing = id ? rivals.items.find(x => x.id === id) : undefined
+      if (existing) { Object.assign(existing, i, { name }); return existing.id }
+      const made = { id: uid(), recipe_id: null, sort: Math.max(0, ...rivals.items.map(x => x.sort)) + 1, ...i, name }
+      rivals.items.push(made)
+      return made.id
+    },
+    async deletePriceItem(id) {
+      requireAdmin()
+      rivals.items = rivals.items.filter(i => i.id !== id)
+      rivals.prices = rivals.prices.filter(p => p.item_id !== id)
+    },
+    async recordPrice(p) {
+      requireAdmin()
+      if (!(p.price >= 0 && p.price < 1000)) throw new Error('Enter the price in euros')
+      if (p.observed_on > addDays(today(), 1)) throw new Error('A price can’t be seen in the future')
+      competitorRow(p.competitor_id)
+      rivals.prices.unshift({ ...p, note: p.note?.trim() || null, id: uid(), created_at: nowIso() })
+    },
+    async deletePrice(id) {
+      requireAdmin()
+      rivals.prices = rivals.prices.filter(p => p.id !== id)
+    },
+    async saveCompetitorNote({ id, ...n }) {
+      requireAdmin()
+      const text = n.text.trim()
+      if (!text) throw new Error('Write the note first')
+      const row = { ...n, text, status: n.kind === 'idea' ? n.status ?? 'new' : null }
+      const existing = id ? rivals.notes.find(x => x.id === id) : undefined
+      if (existing) { Object.assign(existing, row); return existing.id }
+      const made = { ...row, id: uid(), created_at: nowIso() }
+      rivals.notes.unshift(made)
+      return made.id
+    },
+    async deleteCompetitorNote(id) {
+      requireAdmin()
+      rivals.notes = rivals.notes.filter(n => n.id !== id)
+    },
+    async dismissNearby(placeId, dismissed) {
+      requireAdmin()
+      const p = rivals.nearby.find(x => x.place_id === placeId)
+      if (p) p.dismissed = dismissed
+    },
+    async saveCompetitorSettings(next) {
+      requireAdmin()
+      Object.assign(rivals.settings, next)
+    },
+    async competitorGoogle() {
+      requireAdmin()
+      return { places: true, own_place: true }
+    },
+    async lookAround(radius) {
+      requireAdmin()
+      const around = DEMO_PLACES.filter(p => p.seen !== null && p.distance_m !== null && p.distance_m <= radius)
+      for (const p of around) {
+        if (rivals.nearby.some(x => x.place_id === p.place_id)) continue
+        rivals.nearby.push({ place_id: p.place_id, name: p.name, address: p.address, distance_m: p.distance_m, rating: p.rating, review_count: p.review_count,
+          price_level: p.price_level, primary_type: p.primary_type, maps_url: p.maps_url, first_seen: nowIso(), dismissed: false })
+      }
+      Object.assign(rivals.settings, { radius_m: radius, scanned_at: nowIso() })
+      return { found: around.length, fresh: 0 }
+    },
+    async findPlaces(query) {
+      requireAdmin()
+      const words = query.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').split(/\s+/).filter(w => w.length > 1)
+      if (!words.length) throw new Error('Type at least two letters')
+      const plain = (s: string) => s.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '')
+      return DEMO_PLACES.filter(p => words.some(w => plain(p.name).includes(w))).map((p): NearbyPlace => ({ place_id: p.place_id, name: p.name, address: p.address,
+        distance_m: p.distance_m, rating: p.rating, review_count: p.review_count, price_level: p.price_level, primary_type: p.primary_type, maps_url: p.maps_url,
+        first_seen: nowIso(), dismissed: false }))
+    },
+    async followPlace(placeId, id) {
+      requireAdmin()
+      const p = DEMO_PLACES.find(x => x.place_id === placeId)
+      if (!p) throw new Error('Google Places: Not found')
+      const same = rivals.competitors.find(c => c.place_id === placeId)
+      if (same && id && same.id !== id) throw new Error(`${same.name} is already followed with that Google listing`)
+      const google = { place_id: p.place_id, google_rating: p.rating, google_count: p.review_count, google_status: 'open' as const, google_features: { ...p.features },
+        google_hours: p.hours, google_checked_at: nowIso(), maps_url: p.maps_url, lat: p.lat, lng: p.lng, price_level: p.price_level,
+        distance_m: distanceM(DEMO_CAFE_AT, { lat: p.lat, lng: p.lng }) }
+      const row = same ?? (id ? competitorRow(id) : undefined)
+      if (row) {
+        Object.assign(row, google, { active: true, address: row.address ?? p.address, website: row.website ?? p.website })
+        snapshotNow(row)
+        return row.id
+      }
+      const madeId = await this.saveCompetitor({ name: p.name, kind: p.kind, threat: suggestedThreat(p.kind, google.distance_m), address: p.address, website: p.website })
+      const made = competitorRow(madeId)
+      Object.assign(made, google)
+      snapshotNow(made)
+      return made.id
+    },
+    async refreshCompetitor(id) {
+      requireAdmin()
+      const c = competitorRow(id)
+      if (!c.place_id) throw new Error('Find it on Google first')
+      c.google_checked_at = nowIso()
+      snapshotNow(c)
     },
     async searchConsole(from, to) {
       requireAdmin()

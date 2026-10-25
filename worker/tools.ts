@@ -8,8 +8,23 @@ import { addDays, localDate, localTime, today, weekStart, zonedIso, formatLocal 
 import { TIME_OFF_KINDS, type Business, type CalendarEvent, type Customer, type PartnerArea, type PayRate, type Position, type Profile, type Settings, type Shift, type TimeOff, type TimeOffKind } from '../shared/types'
 import { COUNTRY_NAME, ENTITLEMENTS, LAW_CHECKED, PAYER_LABEL, leaveYear, type Benefit, type LeaveAllowance } from '../shared/benefits'
 import { businessConfig } from '../shared/business.config'
+import { dutiesByWhen, sortRoles, type JobRole } from '../shared/roles'
+import { readState, rulesChangedAt, sortSections, type RuleSection, type RulesRead } from '../shared/staffRules'
+import { TEAM_ROLE_IDS, roleBlock, roleChange, teamRole, type TeamRole } from '../shared/teamRoles'
 import { cleanPhone, matchesSearch } from '../shared/customers'
 import { cleanWebsite } from '../shared/connections'
+import { moneyLines, statusOf, totals, type MoneyItem } from '../shared/creditDebit'
+import type { GrantApplication } from '../shared/grants'
+import {
+  FEATURES, IDEA_STATUSES, KINDS, NOTE_KINDS, PRICE_SOURCES, THREATS, analyse, competitorRows, featuresOf, hoursOf, insightText, insights, matchRecipe,
+  priceKey, priceLevelLabel, type Competitor, type CompetitorData, type CompetitorKind, type IdeaStatus, type NoteKind, type PriceSource, type Threat,
+} from '../shared/localCompetitors'
+import { balanceOf, earnsCredit, leaderboard, ruleFits, type RepReward, type RewardRule, type SalesRep } from '../shared/reps'
+import { fillJars, forecast, kittyBalance, monthlyPace, profitShare, type KittyEntry, type KittyGoal } from '../shared/kitty'
+import {
+  CONTRACTOR_KINDS, COUNTED, QUANTITY_PERS, RATE_UNITS, SERVICES, compareServices, contractState, monthlyCost, optionsFor, outsourcingTotals, presetOf,
+  sameJob, sortServices, type Contractor, type OutsourcedJob, type QuantityPer, type RateUnit,
+} from '../shared/outsourcing'
 
 export interface ToolContext {
   sb: SupabaseClient
@@ -45,6 +60,73 @@ function check<T>(res: { data: T; error: { message: string } | null }): NonNulla
 const rowsAs = <T,>() => (res: { data: unknown; error: { message: string } | null }) => check(res) as T
 
 const PROFILE_COLUMNS = 'id, full_name, email, role, can_see_pay, colour, active, phone, birth_date, partner_company, partner_access'
+
+/** Everything on the Competitors page, with the menu prices and opening hours it's compared with. */
+async function competitorData(sb: SupabaseClient) {
+  const [competitors, items, prices, notes, snapshots, nearby, settings, recipes, business] = await Promise.all([
+    sb.from('competitors').select('*').then(rowsAs<CompetitorData['competitors']>()),
+    sb.from('competitor_items').select('*').then(rowsAs<CompetitorData['items']>()),
+    sb.from('competitor_prices').select('*').then(rowsAs<CompetitorData['prices']>()),
+    sb.from('competitor_notes').select('*').order('observed_on', { ascending: false }).then(rowsAs<CompetitorData['notes']>()),
+    sb.from('competitor_snapshots').select('*').then(rowsAs<CompetitorData['snapshots']>()),
+    sb.from('competitor_radar').select('*').then(rowsAs<CompetitorData['nearby']>()),
+    sb.from('competitor_settings').select('*').eq('id', 1).single().then(rowsAs<CompetitorData['settings']>()),
+    sb.from('recipes').select('id, name, sell_price, active').then(rowsAs<{ id: string; name: string; sell_price: number | null; active: boolean }[]>()),
+    sb.from('business').select('name, opening_hours').eq('id', 1).single().then(rowsAs<Pick<Business, 'name' | 'opening_hours'>>()),
+  ])
+  return { data: competitorRows({ competitors, items, prices, notes, snapshots, nearby, settings }),
+    recipes: recipes.map(r => ({ ...r, sell_price: r.sell_price === null ? null : Number(r.sell_price) })), business }
+}
+
+/** The catalogue and the jobs, with prices as numbers. */
+async function outsourcingData(sb: SupabaseClient) {
+  const [contractors, jobs] = await Promise.all([
+    sb.from('contractors').select('*').order('name').then(rowsAs<Contractor[]>()),
+    sb.from('outsourced_jobs').select('*').order('starts_on', { ascending: false }).then(rowsAs<OutsourcedJob[]>()),
+  ])
+  const n = (v: unknown) => (v == null ? null : Number(v))
+  return {
+    contractors: contractors.map(c => ({ ...c, rate: n(c.rate) })),
+    jobs: jobs.map(j => ({ ...j, price: n(j.price), quantity: n(j.quantity) })),
+  }
+}
+
+/** Find someone in the outsourcing catalogue by id or (partial, case-insensitive) name. */
+function resolveContractor(contractors: Contractor[], who: string): Contractor {
+  const q = who.trim().toLowerCase()
+  const exact = contractors.filter(c => c.id === who || c.name.toLowerCase() === q)
+  const matches = exact.length ? exact : contractors.filter(c => c.name.toLowerCase().includes(q))
+  if (matches.length === 1) return matches[0]
+  const all = contractors.filter(c => c.active).map(c => c.name).join(', ') || 'nobody yet'
+  if (!matches.length) throw new Error(`Nobody in the outsourcing catalogue matches "${who}". In it: ${all}`)
+  throw new Error(`"${who}" matches several: ${matches.map(c => c.name).join(', ')}`)
+}
+
+/** "a month", "an hour", "for the project". */
+const chargedText = (u: RateUnit) => RATE_UNITS.find(x => x.id === u)!.price.replace('{price} ', '')
+/** "2 visits a month", "6 hours a week". */
+function howManyText(j: Pick<OutsourcedJob, 'price_unit' | 'quantity' | 'quantity_per'>) {
+  if (j.quantity == null || !j.quantity_per || !COUNTED.includes(j.price_unit)) return null
+  return `${j.quantity} ${j.price_unit}${j.quantity === 1 ? '' : 's'} ${QUANTITY_PERS.find(p => p.id === j.quantity_per)!.label}`
+}
+const reachOf = (c: Contractor | undefined) => (c ? { phone: c.phone, whatsapp: c.whatsapp, email: c.email, website: c.website, their_work: c.portfolio_url } : null)
+const RATE_UNIT_IDS = RATE_UNITS.map(u => u.id) as [RateUnit, ...RateUnit[]]
+const usualJobs = SERVICES.map(s => s.name).join(', ')
+
+/** Find a competitor (or the business itself) by id or (partial, case-insensitive) name. */
+async function resolveCompetitor(sb: SupabaseClient, who: string): Promise<Pick<Competitor, 'id' | 'name' | 'is_self' | 'active' | 'features'>> {
+  const rows = check(await sb.from('competitors').select('id, name, is_self, active, features')) as Pick<Competitor, 'id' | 'name' | 'is_self' | 'active' | 'features'>[]
+  const q = who.trim().toLowerCase()
+  const exact = rows.filter(c => c.id === who || c.name.toLowerCase() === q)
+  const matches = exact.length ? exact : rows.filter(c => c.name.toLowerCase().includes(q))
+  if (matches.length === 1) return matches[0]
+  const followed = rows.filter(c => !c.is_self && c.active).map(c => c.name).join(', ') || 'none yet'
+  if (!matches.length) throw new Error(`No competitor matches "${who}". Followed: ${followed}`)
+  throw new Error(`"${who}" matches several: ${matches.map(c => c.name).join(', ')}`)
+}
+
+const enumOf = <T extends string>(list: { id: T }[]) => z.enum(list.map(x => x.id) as [T, ...T[]])
+const FEATURE_KEYS = FEATURES.map(f => `${f.key} (${f.label})`).join(', ')
 
 const partnerCan = (me: Profile, area: PartnerArea) => me.role === 'partner' && !!me.partner_access?.includes(area)
 /** Pay rates and labour cost: admins with pay access, or payroll partners (read-only). */
@@ -108,17 +190,31 @@ async function describeShifts(sb: SupabaseClient, from: string, to: string) {
   }))
 }
 
+/** A rep by their card code or (partial, case-insensitive) name. */
+async function resolveRep(sb: SupabaseClient, who: string): Promise<SalesRep> {
+  const reps = check(await sb.from('sales_reps').select('*').eq('active', true)) as SalesRep[]
+  const q = who.trim().toLowerCase().replace(/^@/, '')
+  const exact = reps.filter(r => r.code.toLowerCase() === q || r.name.toLowerCase() === q || r.instagram === q)
+  const matches = exact.length ? exact : reps.filter(r => r.name.toLowerCase().includes(q))
+  if (matches.length === 1) return matches[0]
+  if (!matches.length) throw new Error(`No rep matches "${who}". Reps: ${reps.map(r => `${r.name} (${r.code})`).join(', ') || 'none yet'}`)
+  throw new Error(`"${who}" matches several reps: ${matches.map(r => `${r.name} (${r.code})`).join(', ')}`)
+}
+
+const worth = (r: Pick<RewardRule, 'basis' | 'amount'>) => (r.basis === 'percent' ? `${r.amount}% of the sale` : `€${r.amount.toFixed(2)}`)
+const monthNow = () => today().slice(0, 7)
+
 export const TOOLS: ToolDef[] = [
   tool({
     name: 'whoami',
     title: 'Who am I',
-    description: 'The signed-in person, their role (admin, employee, or partner = an outside business with read-only access to some areas) and the business name. Call this first.',
+    description: 'The signed-in person, their role (admin, employee, or partner = an outside business with read-only access to some areas), their team role (boss, manager = shop manager, or employee) and the business name. Call this first.',
     partner: 'any',
     input: z.object({}),
     readOnly: true,
     async run({ sb, me }) {
       const b = check(await sb.from('business').select('name, timezone').eq('id', 1).single())
-      return { name: me.full_name, email: me.email, role: me.role, can_see_pay: me.can_see_pay, business: b.name,
+      return { name: me.full_name, email: me.email, role: me.role, ...(teamRole(me) ? { team_role: teamRole(me) } : {}), can_see_pay: me.can_see_pay, business: b.name,
         ...(me.role === 'partner' ? { partner_company: me.partner_company, partner_can_see: ['business details', ...(me.partner_access ?? [])],
           partner_note: 'Read-only: you can look but not change anything.' } : {}),
         timezone: b.timezone, today: today(), note: 'Dates are YYYY-MM-DD, times are 24-hour local (Europe/Madrid).' }
@@ -175,7 +271,7 @@ export const TOOLS: ToolDef[] = [
   tool({
     name: 'list_team',
     title: 'Team',
-    description: 'Team members with roles. Hourly pay rates are included only for admins with pay access.',
+    description: 'Team members with roles (team_role: boss, manager = shop manager, or employee). Hourly pay rates are included only for admins with pay access.',
     partner: ['rota', 'payroll'],
     input: z.object({}),
     readOnly: true,
@@ -184,8 +280,27 @@ export const TOOLS: ToolDef[] = [
         sb.from('pay_rates').select('*').then(rowsAs<PayRate[]>())])
       const latest = new Map<string, number>()
       for (const r of rates.sort((a, b) => a.effective_from.localeCompare(b.effective_from))) latest.set(r.profile_id, Number(r.hourly_rate))
-      return people.map(p => ({ name: p.full_name, role: p.role, active: p.active, email: p.email,
+      return people.map(p => ({ name: p.full_name, role: p.role, team_role: teamRole(p), active: p.active, email: p.email,
         ...(seesPay(me) ? { hourly_rate_eur: latest.get(p.id) ?? null } : {}) }))
+    },
+  }),
+  tool({
+    name: 'set_team_role',
+    title: 'Change someone’s role',
+    description: 'Admins: give a team member one of the three roles. employee: their own shifts, clock-ins and time off. manager (shop manager): runs the shop (rota, timecards, time off, stock, the team) without pay, takings or finances. boss (the CEO or owner): everything, with pay, takings and finances. Only a boss makes someone a boss or changes a boss; nobody changes their own role.',
+    admin: true,
+    input: z.object({
+      person: z.string().describe('Name or id'),
+      role: z.enum(TEAM_ROLE_IDS as [TeamRole, ...TeamRole[]]),
+    }),
+    async run({ sb, me }, a) {
+      const p = await resolvePerson(sb, a.person)
+      if (p.id === me.id) throw new Error('Another admin can change your own role')
+      const why = roleBlock(me, p, a.role, await team(sb))
+      if (why) throw new Error(why)
+      const patch = roleChange(p, a.role)
+      if (Object.keys(patch).length) check(await sb.from('profiles').update(patch).eq('id', p.id))
+      return { ok: true, name: p.full_name, team_role: a.role }
     },
   }),
 
@@ -521,6 +636,166 @@ export const TOOLS: ToolDef[] = [
     },
   }),
   tool({
+    name: 'roles_and_rules',
+    title: 'Roles & responsibilities and staff rules',
+    description: "Who does what in the business: each role (head barista, shop manager, chef…), what it's for, who it answers to, who's in it, its rota position and its duties, grouped as core responsibilities, also part of the role, or done at a set time (opening, during service, closing, every week). Then the staff rules (the house rules) in sections, when they last changed, and whether the person asking has confirmed reading them since; admins also get which employees have and haven't.",
+    readOnly: true,
+    input: z.object({}),
+    async run({ sb, me }) {
+      const [roles, sections, read, people, places] = await Promise.all([
+        sb.from('job_roles').select('id, name, summary, position_id, reports_to, people, duties, sort, updated_at').then(rowsAs<JobRole[]>()),
+        sb.from('staff_rules').select('id, title, intro, rules, sort, updated_at').then(rowsAs<RuleSection[]>()),
+        sb.from('staff_rules_read').select('profile_id, read_at').then(rowsAs<RulesRead[]>()),
+        team(sb),
+        positions(sb),
+      ])
+      const name = (id: string) => people.find(p => p.id === id)?.full_name ?? null
+      const changed = rulesChangedAt(sections)
+      const mine = read.find(r => r.profile_id === me.id)
+      return {
+        roles: sortRoles(roles).map(r => ({
+          role: r.name, what_its_for: r.summary, answers_to: roles.find(x => x.id === r.reports_to)?.name ?? null,
+          on_the_rota_as: places.find(p => p.id === r.position_id)?.name ?? null, people: r.people.map(name).filter(Boolean),
+          duties: Object.fromEntries(dutiesByWhen(r.duties).map(g => [g.id, g.duties])),
+        })),
+        rules: sortSections(sections).map(s => ({ section: s.title, intro: s.intro, rules: s.rules, last_changed: s.updated_at })),
+        rules_last_changed: changed,
+        you_confirmed_reading_them: { state: readState(mine, changed), on: mine?.read_at ?? null },
+        ...(me.role === 'admin' ? {
+          employees_reading: people.filter(p => p.active && p.role === 'employee').map(p => {
+            const r = read.find(x => x.profile_id === p.id)
+            return { person: p.full_name, state: readState(r, changed), confirmed_on: r?.read_at ?? null }
+          }),
+        } : {}),
+      }
+    },
+  }),
+  // ---------------- Outsourcing ----------------
+  tool({
+    name: 'outsourcing',
+    title: 'Outsourcing',
+    description: 'The jobs done for the business by people and firms outside the team (social media, the books, cleaning, the coffee machine\'s service…): who does each, the price agreed and how it\'s charged, roughly what it costs a month, what\'s included, the contract dates and whether one needs a look, and how to reach them. Then the catalogue: the people and firms on file to choose from for each job, with their usual rate, the business\'s own rating (1-5), whether they\'re starred and notes; the usual jobs nobody does yet; and past jobs. Prices are euros without IVA.',
+    admin: true,
+    partner: ['finances'],
+    readOnly: true,
+    input: z.object({}),
+    async run({ sb }) {
+      const { contractors, jobs } = await outsourcingData(sb)
+      const now = today()
+      const who = (id: string) => contractors.find(c => c.id === id)
+      const totals = outsourcingTotals(jobs)
+      const active = jobs.filter(j => j.active).sort((a, b) => compareServices(a.service, b.service))
+      const current = contractors.filter(c => c.active)
+      return {
+        jobs_outsourced: active.map(j => ({
+          job: j.service, who: who(j.contractor_id)?.name ?? null, kind: who(j.contractor_id)?.kind ?? null, price_eur: j.price, charged: chargedText(j.price_unit),
+          how_many: howManyText(j), about_eur_a_month: monthlyCost(j), whats_included: j.scope, starts_on: j.starts_on, contract_ends_on: j.ends_on,
+          contract: { running: 'running', ending: 'ends within 30 days', overdue: 'its end date has passed: renew or end it', upcoming: 'starts later', ended: 'ended' }[contractState(j, now)],
+          notes: j.notes, reach: reachOf(who(j.contractor_id)), job_id: j.id,
+        })),
+        cost_eur_a_month: totals.monthly, one_off_projects_eur: totals.oneOff, jobs_without_a_monthly_cost: totals.unknown,
+        catalogue: sortServices(current.flatMap(c => c.services)).map(service => ({
+          job: service,
+          options: optionsFor(service, current).map(c => ({
+            name: c.name, kind: c.kind, location: c.location, rate_eur: c.rate, charged: chargedText(c.rate_unit), rating: c.rating, starred: c.starred,
+            does_it_now: active.some(j => j.contractor_id === c.id && sameJob(j.service, service)), notes: c.notes, reach: reachOf(c),
+          })),
+        })),
+        in_the_catalogue_without_a_job: current.filter(c => !c.services.length).map(c => c.name),
+        archived: contractors.filter(c => !c.active).map(c => c.name),
+        usual_jobs_nobody_does_yet: SERVICES.filter(s => !active.some(j => sameJob(j.service, s.name))).map(s => s.name),
+        past_jobs: jobs.filter(j => !j.active).map(j => ({ job: j.service, who: who(j.contractor_id)?.name ?? null, price_eur: j.price,
+          charged: chargedText(j.price_unit), from: j.starts_on, to: j.ends_on, whats_included: j.scope })),
+      }
+    },
+  }),
+  tool({
+    name: 'save_contractor',
+    title: 'Add/change someone in the outsourcing catalogue',
+    description: `Admins: add a person or firm to the outsourcing catalogue (name needed), or change one (pass contractor_id, or their name to find them). jobs replaces the jobs they do; add_jobs adds to them. The usual jobs: ${usualJobs}; any other is fine in the business's own words. rate_eur is their usual rate without IVA, charged ${RATE_UNIT_IDS.join(', ')}. rating: the business's own score, 1-5. active: false archives them (someone who has done a job is never deleted).`,
+    admin: true,
+    input: z.object({
+      contractor_id: z.string().optional(), name: z.string().min(1).max(120).optional(), kind: enumOf(CONTRACTOR_KINDS).optional(),
+      jobs: z.array(z.string().min(1).max(80)).max(20).optional(), add_jobs: z.array(z.string().min(1).max(80)).max(20).optional(),
+      contact_name: z.string().max(100).optional(), email: z.string().max(254).optional(), phone: z.string().max(40).optional(), whatsapp: z.boolean().optional(),
+      website: z.string().max(300).optional(), their_work: z.string().max(300).optional().describe('Instagram, Behance or portfolio link'),
+      location: z.string().max(120).optional(), rate_eur: z.number().min(0).max(1_000_000).optional(), charged: z.enum(RATE_UNIT_IDS).optional(),
+      rating: z.number().int().min(1).max(5).optional(), notes: z.string().max(2000).optional(), starred: z.boolean().optional(), active: z.boolean().optional(),
+    }),
+    async run({ sb }, { contractor_id, jobs, add_jobs, phone, website, their_work, rate_eur, charged, ...rest }) {
+      const all = (await outsourcingData(sb)).contractors
+      // By id, or by their exact name: a name that only looks like another's is someone new.
+      const found = contractor_id ? resolveContractor(all, contractor_id) : all.find(c => c.name.toLowerCase() === rest.name?.trim().toLowerCase()) ?? null
+      const named = (list: string[]) => list.map(j => presetOf(j)?.name ?? j.trim())
+      const patch: Record<string, unknown> = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined))
+      if (jobs || add_jobs) patch.services = [...named(jobs ?? found?.services ?? []), ...named(add_jobs ?? [])]
+      if (phone !== undefined) {
+        patch.phone = phone.trim() ? cleanPhone(phone) : null
+        if (phone.trim() && !patch.phone) throw new Error(`"${phone}" isn't a phone number: write it with its country code, like +34 600 000 000`)
+      }
+      if (website !== undefined) patch.website = cleanWebsite(website)
+      if (their_work !== undefined) patch.portfolio_url = cleanWebsite(their_work)
+      if (rate_eur !== undefined) patch.rate = rate_eur
+      if (charged !== undefined) patch.rate_unit = charged
+      if (found) {
+        // Found by their name: it stays as it was written (only a change by id renames them).
+        if (!contractor_id) delete patch.name
+        check(await sb.from('contractors').update(patch).eq('id', found.id))
+        return { ok: true, contractor_id: found.id }
+      }
+      if (contractor_id || !rest.name) throw new Error('Someone new needs a name')
+      const row = check(await sb.from('contractors').insert(patch).select('id').single()) as { id: string }
+      return { ok: true, contractor_id: row.id, added: true }
+    },
+  }),
+  tool({
+    name: 'outsource_job',
+    title: 'Give someone a job (outsourcing)',
+    description: `Admins: give a job to someone in the outsourcing catalogue (who: their name or id; add them first with save_contractor), on the terms agreed: price_eur without IVA, charged ${RATE_UNIT_IDS.join(', ')}, and for a price an hour, day or visit how_many of them per week, month or year (so the monthly cost can be worked out). Whoever did that job until now has theirs ended today, unless end_current is false. Or change a job (job_id from the outsourcing tool), or end it with active: false. The usual jobs: ${usualJobs}.`,
+    admin: true,
+    input: z.object({
+      job_id: z.string().optional(), job: z.string().min(1).max(80).optional().describe('e.g. "Social media management"'), who: z.string().optional(),
+      price_eur: z.number().min(0).max(1_000_000).optional(), charged: z.enum(RATE_UNIT_IDS).optional(),
+      how_many: z.number().positive().max(9999).optional(), per: z.enum(['week', 'month', 'year']).optional(),
+      whats_included: z.string().max(1000).optional(), starts_on: date.optional(), contract_ends_on: date.optional(), notes: z.string().max(2000).optional(),
+      active: z.boolean().optional(), end_current: z.boolean().default(true),
+    }),
+    async run({ sb }, a) {
+      const { contractors, jobs } = await outsourcingData(sb)
+      const now = today()
+      const patch: Record<string, unknown> = {}
+      if (a.job !== undefined) patch.service = presetOf(a.job)?.name ?? a.job.trim()
+      if (a.who !== undefined) patch.contractor_id = resolveContractor(contractors, a.who).id
+      if (a.price_eur !== undefined) patch.price = a.price_eur
+      if (a.charged !== undefined) patch.price_unit = a.charged
+      if (a.how_many !== undefined) { patch.quantity = a.how_many; patch.quantity_per = a.per ?? ('month' satisfies QuantityPer) }
+      else if (a.per !== undefined) throw new Error('Say how_many with per')
+      if (a.whats_included !== undefined) patch.scope = a.whats_included
+      if (a.starts_on !== undefined) patch.starts_on = a.starts_on
+      if (a.contract_ends_on !== undefined) patch.ends_on = a.contract_ends_on
+      if (a.notes !== undefined) patch.notes = a.notes
+      if (a.active !== undefined) patch.active = a.active
+      if (a.job_id) {
+        const job = jobs.find(j => j.id === a.job_id)
+        if (!job) throw new Error(`No outsourced job with id ${a.job_id}`)
+        // Ending it: on its end date if that's passed, otherwise today.
+        if (a.active === false && a.contract_ends_on === undefined) patch.ends_on = job.ends_on && job.ends_on < now ? job.ends_on : now
+        check(await sb.from('outsourced_jobs').update(patch).eq('id', job.id))
+        return { ok: true, job_id: job.id }
+      }
+      if (!patch.service || !patch.contractor_id) throw new Error('Say the job and who does it (or pass job_id to change one)')
+      const ended: string[] = []
+      if (a.end_current) {
+        for (const j of jobs.filter(j => j.active && sameJob(j.service, patch.service as string) && j.contractor_id !== patch.contractor_id)) {
+          check(await sb.from('outsourced_jobs').update({ active: false, ends_on: j.ends_on && j.ends_on < now ? j.ends_on : now }).eq('id', j.id))
+          ended.push(contractors.find(c => c.id === j.contractor_id)?.name ?? j.contractor_id)
+        }
+      }
+      const row = check(await sb.from('outsourced_jobs').insert({ starts_on: now, ...patch }).select('id').single()) as { id: string }
+      return { ok: true, job_id: row.id, ...(ended.length ? { ended_with: ended } : {}) }
+    },
+  }),
+  tool({
     name: 'send_rota_on_whatsapp',
     title: 'Send rota on WhatsApp',
     description: 'Admins: send each person their shifts for a week on WhatsApp (only staff who opted in). Ask the user to confirm first.',
@@ -799,6 +1074,90 @@ export const TOOLS: ToolDef[] = [
     },
   }),
 
+  // ---------------- Credit & debit ----------------
+  tool({
+    name: 'credit_and_debit',
+    title: 'Credit & debit',
+    description: 'Admins with pay access (a gestoría with finances access reads): money the business still has to pay back (a loan from someone, something bought on finance) and money still to come in or that could be raised (something to sell, a deposit, money owed to it, and its grants from the Grants page). Each line has the whole amount, what has been paid or received, what is left, the regular payment and how often, the next date due and its status; possible: true is money not agreed yet. Totals in euros. Settled lines only with include_settled.',
+    admin: true,
+    readOnly: true,
+    partner: ['finances'],
+    input: z.object({ include_settled: z.boolean().optional() }),
+    async run({ sb, me }, { include_settled }) {
+      if (!(me.role === 'admin' && me.can_see_pay) && !partnerCan(me, 'finances')) throw new Error('You need pay access to see credit and debit')
+      const [items, grants] = await Promise.all([
+        sb.from('credit_debit_items').select('*, payments:credit_debit_payments(id, item_id, paid_on, amount, note)').then(rowsAs<MoneyItem[]>()),
+        sb.from('grant_applications').select('id, grant_id, grant_name, stage, amount_requested, amount_awarded, amount_received, deadline, deadline_label, notes')
+          .then(rowsAs<GrantApplication[]>()),
+      ])
+      const num = (v: unknown) => (v == null ? null : Number(v))
+      const lines = moneyLines(
+        items.map(i => ({ ...i, amount: Number(i.amount), instalment: num(i.instalment), payments: i.payments.map(p => ({ ...p, amount: Number(p.amount) })) })),
+        grants.map(g => ({ ...g, amount_requested: num(g.amount_requested), amount_awarded: num(g.amount_awarded), amount_received: num(g.amount_received) })),
+      )
+      const day = today()
+      const sum = totals(lines)
+      return {
+        totals_eur: { to_pay_back: sum.toPay, paid_out_a_month: sum.monthly, coming_in: sum.comingIn, could_raise: sum.couldRaise },
+        lines: lines.filter(l => include_settled || !l.done).map(l => ({
+          item_id: l.item?.id ?? null, grant_application_id: l.grant?.id ?? null,
+          direction: l.direction === 'debit' ? 'to pay back' : 'coming in', kind: l.kind, name: l.name, who: l.party,
+          amount_eur: l.amount, paid_or_received_eur: l.settled, left_eur: l.left, each_payment_eur: l.instalment, every_months: l.every_months,
+          next_due: l.next_due, possible: l.possible, status: statusOf(l, day), grant_stage: l.grant?.stage ?? null, notes: l.item?.notes ?? null,
+          payments: l.item?.payments.map(p => ({ paid_on: p.paid_on, amount_eur: p.amount, note: p.note })) ?? [],
+        })),
+      }
+    },
+  }),
+  tool({
+    name: 'record_credit_debit_payment',
+    title: 'Record a payment made or received',
+    description: 'Admins with pay access: record money paid towards something on Credit & debit (say €100 paid back to Jeremy) or received (the old coffee machine sold). A repeating one moves on to its next date, and once everything is paid or received it is settled. For a grant, pass grant_application_id instead: the amount is added to what has been received on it (also on the Grants page). Ids come from credit_and_debit.',
+    admin: true,
+    input: z.object({
+      item_id: z.string().uuid().optional(), grant_application_id: z.string().uuid().optional(), amount_eur: z.number().positive(),
+      paid_on: date.optional(), note: z.string().max(500).optional(),
+    }),
+    async run({ sb, me }, { item_id, grant_application_id, amount_eur, paid_on, note }) {
+      if (!me.can_see_pay) throw new Error('You need pay access to change credit and debit')
+      if (!item_id === !grant_application_id) throw new Error('Pass item_id or grant_application_id (one of them)')
+      if (grant_application_id) {
+        const g = check(await sb.from('grant_applications').select('amount_received').eq('id', grant_application_id).single()) as { amount_received: number | null }
+        const received = Math.round((Number(g.amount_received ?? 0) + amount_eur) * 100) / 100
+        check(await sb.from('grant_applications').update({ amount_received: received }).eq('id', grant_application_id))
+        return { ok: true, grant_application_id, received_eur: received }
+      }
+      check(await sb.from('credit_debit_payments').insert({ item_id, amount: amount_eur, paid_on: paid_on ?? today(), note: note?.trim() || null }))
+      const item = check(await sb.from('credit_debit_items').select('next_due, done').eq('id', item_id!).single()) as { next_due: string | null; done: boolean }
+      return { ok: true, item_id, next_due: item.next_due, settled: item.done }
+    },
+  }),
+  tool({
+    name: 'save_credit_debit',
+    title: 'Add/change credit or debit',
+    description: 'Admins with pay access: add something to Credit & debit, or change one (pass item_id). direction "debit" is money the business pays out (a loan to pay back, something bought on finance); "credit" is money coming in (something to sell, a deposit, money owed to it). amount_eur is the whole amount (or the asking price); each_payment_eur and every_months for regular payments; next_due the next date. possible: true for money not agreed yet (credits only); settled: true once it is done with. Grants are tracked on the Grants page, not here.',
+    admin: true,
+    input: z.object({
+      item_id: z.string().uuid().optional(), direction: z.enum(['debit', 'credit']).optional(),
+      kind: z.enum(['loan', 'finance', 'sale', 'deposit', 'other']).optional(), name: z.string().min(1).max(120).optional(), who: z.string().max(120).nullable().optional(),
+      amount_eur: z.number().positive().optional(), each_payment_eur: z.number().positive().nullable().optional(),
+      every_months: z.number().int().min(1).max(24).nullable().optional(), next_due: date.nullable().optional(),
+      possible: z.boolean().optional(), settled: z.boolean().optional(), notes: z.string().max(2000).nullable().optional(),
+    }),
+    async run({ sb, me }, { item_id, who, amount_eur, each_payment_eur, settled, ...rest }) {
+      if (!me.can_see_pay) throw new Error('You need pay access to change credit and debit')
+      const patch: Record<string, unknown> = Object.fromEntries(Object.entries({ ...rest, party: who, amount: amount_eur, instalment: each_payment_eur, done: settled })
+        .filter(([, v]) => v !== undefined))
+      if (item_id) {
+        check(await sb.from('credit_debit_items').update(patch).eq('id', item_id))
+        return { ok: true, item_id }
+      }
+      if (!patch.name || !patch.direction || patch.amount === undefined) throw new Error('Something new needs a name, a direction and amount_eur')
+      const row = check(await sb.from('credit_debit_items').insert(patch).select('id').single())
+      return { ok: true, item_id: row.id }
+    },
+  }),
+
   // ---------------- Customers ----------------
   tool({
     name: 'list_customers',
@@ -837,6 +1196,259 @@ export const TOOLS: ToolDef[] = [
       }
       const row = check(await sb.from('customers').insert(patch).select('id').single())
       return { ok: true, customer_id: row.id }
+    },
+  }),
+
+  // ---------------- Sales reps & rewards ----------------
+  tool({
+    name: 'list_sales_reps',
+    title: 'Sales reps & rewards',
+    description: 'The people who sell the café: the team, ambassadors from outside it and customers who spread the word, each with the code on their business cards. Customers earn credit to spend in the café, the team and ambassadors commission. With each rep: their balance (credit to spend, or commission owed; admins see everyone\'s, the team customers\' and their own), and this month\'s rewards. Also the list of what earns a reward and what\'s waiting for an admin.',
+    readOnly: true,
+    input: z.object({ search: z.string().optional().describe('Part of a name, a code or an Instagram handle') }),
+    async run({ sb, me }, a) {
+      const [reps, rules, rewards] = await Promise.all([
+        sb.from('sales_reps').select('*').order('name').then(rowsAs<SalesRep[]>()),
+        sb.from('reward_rules').select('*').order('sort').then(rowsAs<RewardRule[]>()),
+        sb.from('rep_rewards').select('*').order('occurred_on', { ascending: false }).limit(2000).then(rowsAs<RepReward[]>()),
+      ])
+      const ledger = rewards.map(r => ({ ...r, amount: Number(r.amount) }))
+      const q = (a.search ?? '').trim().toLowerCase().replace(/^@/, '')
+      const sees = (r: SalesRep) => me.role === 'admin' || earnsCredit(r.kind) || r.profile_id === me.id
+      const month = monthNow()
+      return {
+        reps: reps.filter(r => !q || [r.name, r.code, r.instagram ?? ''].some(v => v.toLowerCase().includes(q))).map(r => ({
+          name: r.name, kind: r.kind, code: r.code, instagram: r.instagram, active: r.active, earns: earnsCredit(r.kind) ? 'credit' : 'commission',
+          balance: sees(r) ? balanceOf(ledger, r.id) : null, notes: r.notes,
+        })),
+        top_this_month: leaderboard(reps.filter(r => r.active), ledger, month).slice(0, 5).map(s => ({ name: s.rep.name, rewards: s.rewards, earned: sees(s.rep) ? s.earned : null })),
+        rewards_list: rules.filter(r => r.active).map(r => ({ name: r.name, for: r.who, worth: worth({ ...r, amount: Number(r.amount) }),
+          needs_approval: r.needs_approval, monthly_limit: r.monthly_limit })),
+        waiting_for_approval: ledger.filter(r => r.status === 'pending').map(r => ({ reward_id: r.id, rep: reps.find(x => x.id === r.rep_id)?.name, for: r.label,
+          amount: r.amount, sale: r.sale_amount === null ? null : Number(r.sale_amount), note: r.note, on: r.occurred_on })),
+      }
+    },
+  }),
+  tool({
+    name: 'log_reward',
+    title: 'Log a reward',
+    description: 'Give a rep a reward from the café\'s list (see list_sales_reps): e.g. a customer reposted the café\'s story, someone new came in with a rep\'s business card, a rep booked an event (a percentage: give sale_amount). It counts straight away unless the reward needs an admin\'s approval, or it\'s your own; monthly limits apply. Customers get it as credit, reps as commission.',
+    input: z.object({
+      rep: z.string().describe('Their card code, name or Instagram handle'), reward: z.string().describe('What it\'s for: the name (or part of it) of a reward on the list'),
+      sale_amount: z.number().positive().optional().describe('For a reward that\'s a percentage of a sale'), note: z.string().optional(),
+      link: z.string().url().optional().describe('The story or post'), date: date.optional(),
+    }),
+    async run({ sb }, a) {
+      const rep = await resolveRep(sb, a.rep)
+      const rules = (check(await sb.from('reward_rules').select('*').eq('active', true)) as RewardRule[]).map(r => ({ ...r, amount: Number(r.amount) }))
+      const q = a.reward.trim().toLowerCase()
+      const fits = rules.filter(r => ruleFits(r, rep.kind))
+      const matches = fits.filter(r => r.name.toLowerCase() === q).length ? fits.filter(r => r.name.toLowerCase() === q) : fits.filter(r => r.name.toLowerCase().includes(q))
+      if (matches.length !== 1) {
+        throw new Error(`${matches.length ? `"${a.reward}" matches several rewards` : `No reward for ${rep.name} matches "${a.reward}"`}. ${rep.name} can earn: ${fits.map(r => `${r.name} (${worth(r)})`).join('; ') || 'nothing on the list yet'}`)
+      }
+      const rule = matches[0]
+      const out = check(await sb.rpc('log_reward', { p_rep_id: rep.id, p_rule_id: rule.id, p_sale_amount: a.sale_amount ?? null, p_note: a.note ?? null,
+        p_proof_url: a.link ?? null, p_occurred_on: a.date ?? null })) as { status: string; amount: number }
+      return { ok: true, rep: rep.name, reward: rule.name, amount: Number(out.amount), as: earnsCredit(rep.kind) ? 'credit' : 'commission',
+        status: out.status === 'pending' ? 'waiting for an admin to approve it' : 'counted' }
+    },
+  }),
+  tool({
+    name: 'decide_reward',
+    title: 'Approve or turn down a reward',
+    description: 'Admins: approve (optionally for another amount) or turn down a reward that\'s waiting (reward_id from list_sales_reps). Nobody approves their own.',
+    admin: true,
+    input: z.object({ reward_id: z.string().uuid(), approve: z.boolean(), amount: z.number().positive().optional() }),
+    async run({ sb }, a) {
+      check(await sb.rpc('decide_reward', { p_id: a.reward_id, p_approve: a.approve, p_amount: a.amount ?? null }))
+      return { ok: true }
+    },
+  }),
+  tool({
+    name: 'use_reward_balance',
+    title: 'Spend credit or pay commission',
+    description: 'A customer spends their credit in the café (anyone on the team, at the till), or a rep is paid the commission they\'re owed (admins; not their own). Never more than the balance. Returns what\'s left.',
+    input: z.object({ rep: z.string().describe('Their card code, name or Instagram handle'), amount: z.number().positive(), note: z.string().optional() }),
+    async run({ sb }, a) {
+      const rep = await resolveRep(sb, a.rep)
+      const left = Number(check(await sb.rpc('settle_reward', { p_rep_id: rep.id, p_amount: a.amount, p_note: a.note ?? null })))
+      return { ok: true, rep: rep.name, [earnsCredit(rep.kind) ? 'credit_left' : 'still_owed']: left }
+    },
+  }),
+
+  // ---------------- Staff kitty ----------------
+  tool({
+    name: 'staff_kitty',
+    title: 'Staff kitty',
+    description: 'The team\'s kitty: a share of each month\'s profit (and the tips jar or a bonus) saved up for goals chosen together, like the Christmas party or Ray-Bans for the café. What\'s in it, the share of profit, how much goes in a month lately, each goal still to buy with what\'s in its jar (they fill in order) and when it\'s likely to be full, what\'s been bought, and the latest money in.',
+    readOnly: true,
+    input: z.object({}),
+    async run({ sb }) {
+      const [settings, goalRows, entryRows] = await Promise.all([
+        sb.from('kitty_settings').select('profit_percent').eq('id', 1).single().then(rowsAs<{ profit_percent: number }>()),
+        sb.from('kitty_goals').select('*').order('sort').then(rowsAs<KittyGoal[]>()),
+        sb.from('kitty_entries').select('*').order('created_at', { ascending: false }).then(rowsAs<KittyEntry[]>()),
+      ])
+      const goals = goalRows.map(g => ({ ...g, target: Number(g.target), spent: g.spent === null ? null : Number(g.spent) }))
+      const entries = entryRows.map(e => ({ ...e, amount: Number(e.amount) }))
+      const balance = kittyBalance(entries, goals)
+      const jars = fillJars(goals, balance)
+      const pace = monthlyPace(entries, today())
+      const plan = forecast(jars, pace, today())
+      return {
+        in_the_kitty: balance, share_of_profit_percent: Number(settings.profit_percent), going_in_a_month_lately: pace,
+        saving_for: jars.filter(j => !j.bought).map(j => {
+          const f = plan.get(j.goal.id)!
+          return { goal: j.goal.name, target: j.goal.target, saved: j.saved, percent_full: Math.floor(j.share * 100), ready_to_buy: j.full,
+            wanted_by: j.goal.due_on, full_by_month: f.by, in_time: f.inTime, needs_a_month_for_its_date: f.perMonth, notes: j.goal.notes }
+        }),
+        bought: jars.filter(j => j.bought).map(j => ({ goal: j.goal.name, spent: j.goal.spent, on: j.goal.bought_on })),
+        latest_money_in: entries.slice(0, 12).map(e => ({ kind: e.kind, month: e.month?.slice(0, 7) ?? null, percent: e.percent === null ? null : Number(e.percent),
+          amount: e.amount, note: e.note, on: localDate(e.created_at) })),
+      }
+    },
+  }),
+  tool({
+    name: 'kitty_put_in',
+    title: 'Put money in the staff kitty',
+    description: 'Admins: put money in the staff kitty. kind "profit" is a month\'s share of profit, once per month and only once the month is over: give the month (YYYY-MM) and either the month\'s operating profit (the share is worked out at the kitty\'s percentage; a loss puts nothing in) or the amount. "top_up" is anything else (the tips jar, a bonus); "take_out" corrects a mistake.',
+    admin: true,
+    input: z.object({
+      kind: z.enum(['profit', 'top_up', 'take_out']), month: z.string().regex(/^\d{4}-\d{2}$/, 'Use YYYY-MM').optional(),
+      profit: z.number().optional().describe('The month\'s operating profit, for kind "profit"'), amount: z.number().positive().optional(), note: z.string().optional(),
+    }),
+    async run({ sb }, a) {
+      if (a.kind === 'profit') {
+        if (!a.month) throw new Error('Give the month the profit is from (YYYY-MM)')
+        const { profit_percent } = check(await sb.from('kitty_settings').select('profit_percent').eq('id', 1).single()) as { profit_percent: number }
+        const percent = Number(profit_percent)
+        const amount = a.amount ?? (a.profit !== undefined ? profitShare(a.profit, percent) : undefined)
+        if (amount === undefined) throw new Error('Give the month\'s profit or the amount to put in')
+        if (!(amount > 0)) return { ok: true, put_in: 0, message: 'That month made a loss: nothing goes in' }
+        check(await sb.from('kitty_entries').insert({ kind: 'profit', month: `${a.month}-01`, percent, amount, note: a.note ?? null }))
+        return { ok: true, put_in: amount, percent }
+      }
+      if (!a.amount) throw new Error('Give the amount')
+      check(await sb.from('kitty_entries').insert({ kind: a.kind === 'top_up' ? 'top_up' : 'adjust', amount: a.kind === 'top_up' ? a.amount : -a.amount, note: a.note ?? null }))
+      return { ok: true, [a.kind === 'top_up' ? 'put_in' : 'taken_out']: a.amount }
+    },
+  }),
+
+  // ---------------- Competitors ----------------
+  tool({
+    name: 'list_competitors',
+    title: 'Competitors',
+    description: 'Admins: the cafés around the business followed on the Competitors page and how the business compares. Each competitor\'s kind, distance, how much it competes (threat), Google rating, reviews and new reviews a month, price level, what it offers and doesn\'t, opening hours, strengths, weaknesses and its latest prices; the basket item by item (the business\'s own price from Menu costing against the area\'s average and range); a price index (100 = the area average); recent price changes; the findings in plain words; notes and ideas to borrow; and places Google lists nearby that aren\'t followed. Prices in euros, IVA included.',
+    admin: true,
+    readOnly: true,
+    input: z.object({ include_notes: z.boolean().default(true) }),
+    async run({ sb }, a) {
+      const { data, recipes, business } = await competitorData(sb)
+      const now = today()
+      const an = analyse(data, recipes, business.opening_hours, now)
+      const offers = (c: Competitor, has: boolean) => FEATURES.filter(f => featuresOf(c)[f.key] === has).map(f => f.label)
+      const rating = (c: Competitor) => an.ratings.find(r => r.competitor.id === c.id)
+      const nameOf = (id: string | null) => (id ? data.competitors.find(c => c.id === id)?.name ?? '' : 'the area')
+      const itemName = (id: string) => data.items.find(i => i.id === id)?.name ?? ''
+      return {
+        business: an.self && {
+          name: business.name, google_rating: an.self.google_rating, google_reviews: an.self.google_count, reviews_per_month: rating(an.self)?.perMonth ?? null,
+          price_level: priceLevelLabel(an.self.price_level), offers: offers(an.self, true), price_index: an.ourIndex.index,
+        },
+        competitors: an.rivals.map(c => ({
+          competitor_id: c.id, name: c.name, kind: KINDS.find(k => k.id === c.kind)?.label, threat: c.threat, distance_m: c.distance_m, address: c.address,
+          website: c.website, instagram: c.instagram ? `@${c.instagram}` : null, google_rating: c.google_rating, google_reviews: c.google_count,
+          reviews_per_month: rating(c)?.perMonth ?? null, google_status: c.google_status, price_level: priceLevelLabel(c.price_level),
+          price_index: an.rivalIndex.get(c.id)?.index ?? null, offers: offers(c, true), doesnt_offer: offers(c, false), opening_hours: hoursOf(c),
+          strengths: c.strengths, weaknesses: c.weaknesses, notes: c.notes,
+          latest_prices: data.items.flatMap(i => {
+            const [last, before] = an.history.get(priceKey(c.id, i.id)) ?? []
+            return last ? [{ item: i.name, price_eur: last.price, seen_on: last.observed_on, before_eur: before?.price ?? null }] : []
+          }),
+        })),
+        basket: an.rows.map(r => ({ item: r.item.name, yours_eur: r.ours?.price ?? null, yours_from: r.ours ? (r.ours.from === 'menu' ? 'Menu costing' : 'typed in') : null,
+          area_average_eur: r.avg, cheapest_eur: r.min, dearest_eur: r.max, places_with_a_price: r.n })),
+        price_index: { yours: an.ourIndex.index, on_items: an.ourIndex.items, meaning: '100 is the area average; 110 is 10% dearer' },
+        recent_price_changes: an.changes.slice(0, 20).map(ch => ({ competitor: nameOf(ch.competitor_id), item: itemName(ch.item_id), from_eur: ch.from, to_eur: ch.to, seen_on: ch.on })),
+        findings: insights(an, { money: n => `€${n.toFixed(2)}`, rating: n => n.toFixed(1), label: l => l }).map(insightText),
+        notes: a.include_notes ? data.notes.slice(0, 40).map(n => ({ note_id: n.id, about: nameOf(n.competitor_id), kind: n.kind, text: n.text, seen_on: n.observed_on,
+          idea_status: n.status })) : undefined,
+        nearby_not_followed: an.untracked.slice(0, 20).map(p => ({ name: p.name, distance_m: p.distance_m, google_rating: p.rating, google_reviews: p.review_count })),
+      }
+    },
+  }),
+  tool({
+    name: 'save_competitor',
+    title: 'Add/change competitor',
+    description: `Admins: add a competitor by hand (name needed), or change one (pass competitor_id, or name to find it). Kinds: ${KINDS.map(k => k.id).join(', ')}. threat: how much it competes (${THREATS.map(t => t.id).join(', ')}). price_level 0-4 (Google's €-€€€€). offers sets what it offers or doesn't, by key: ${FEATURE_KEYS}. active: false stops following it (its history stays). Places on Google are best followed from the Competitors page (Find on Google): their rating, hours and what they offer then come from Google every week.`,
+    admin: true,
+    input: z.object({
+      competitor_id: z.string().uuid().optional(), name: z.string().min(1).max(120).optional(), kind: enumOf(KINDS).optional(), threat: enumOf(THREATS).optional(),
+      address: z.string().max(200).optional(), website: z.string().optional(), instagram: z.string().max(80).optional(), distance_m: z.number().int().min(0).optional(),
+      price_level: z.number().int().min(0).max(4).optional(), strengths: z.string().max(2000).optional(), weaknesses: z.string().max(2000).optional(),
+      notes: z.string().max(4000).optional(), offers: z.record(z.string(), z.boolean()).optional(), active: z.boolean().optional(),
+    }),
+    async run({ sb }, { competitor_id, offers, website, ...rest }) {
+      const unknown = Object.keys(offers ?? {}).filter(k => !FEATURES.some(f => f.key === k))
+      if (unknown.length) throw new Error(`Unknown offers: ${unknown.join(', ')}. Keys: ${FEATURES.map(f => f.key).join(', ')}`)
+      const patch: Record<string, unknown> = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined))
+      if (website !== undefined) patch.website = website ? cleanWebsite(website) ?? website : null
+      // By id, or by its exact name: a name that only looks like another's ("Café") is a new one.
+      const found = competitor_id ? await resolveCompetitor(sb, competitor_id)
+        : (check(await sb.from('competitors').select('id, name, is_self, active, features')) as Pick<Competitor, 'id' | 'name' | 'is_self' | 'active' | 'features'>[])
+          .find(c => c.name.toLowerCase() === rest.name?.trim().toLowerCase()) ?? null
+      if (found) {
+        if (offers) patch.features = { ...found.features, ...offers }
+        if (found.is_self) delete patch.threat
+        check(await sb.from('competitors').update(patch).eq('id', found.id))
+        return { ok: true, competitor_id: found.id }
+      }
+      if (competitor_id || !rest.name) throw new Error('A new competitor needs a name')
+      const row = check(await sb.from('competitors').insert({ threat: 'medium' satisfies Threat, kind: 'cafe' satisfies CompetitorKind, ...patch, features: offers ?? {} })
+        .select('id').single())
+      return { ok: true, competitor_id: row.id, added: true }
+    },
+  }),
+  tool({
+    name: 'record_competitor_price',
+    title: 'Record a competitor\'s price',
+    description: `Admins: a price seen at a competitor (or typed in for the business itself, for an item not on Menu costing), kept with the day so prices can be followed over time. The item is matched to the basket by name; a new one is added to the basket (and linked to the business's own menu item of the same name). Sources: ${PRICE_SOURCES.map(x => x.id).join(', ')}. Euros, IVA included.`,
+    admin: true,
+    input: z.object({
+      competitor: z.string().describe('Name (or id) of the competitor'), item: z.string().min(1).max(80).describe('e.g. "Flat white"'), price_eur: z.number().min(0).max(999),
+      seen_on: date.optional(), source: enumOf(PRICE_SOURCES).default('visit' satisfies PriceSource), note: z.string().max(300).optional(),
+    }),
+    async run({ sb }, a) {
+      const c = await resolveCompetitor(sb, a.competitor)
+      const items = check(await sb.from('competitor_items').select('id, name, sort')) as { id: string; name: string; sort: number }[]
+      let item = items.find(i => i.name.toLowerCase() === a.item.trim().toLowerCase())
+      let added = false
+      if (!item) {
+        const recipes = check(await sb.from('recipes').select('id, name, active')) as { id: string; name: string; active: boolean }[]
+        item = check(await sb.from('competitor_items').insert({ name: a.item.trim(), recipe_id: matchRecipe(a.item, recipes)?.id ?? null,
+          sort: Math.max(0, ...items.map(i => i.sort)) + 1 }).select('id, name, sort').single()) as { id: string; name: string; sort: number }
+        added = true
+      }
+      check(await sb.from('competitor_prices').insert({ competitor_id: c.id, item_id: item.id, price: a.price_eur, observed_on: a.seen_on ?? today(),
+        source: a.source, note: a.note ?? null }))
+      return { ok: true, competitor: c.name, item: item.name, added_to_basket: added }
+    },
+  }),
+  tool({
+    name: 'add_competitor_note',
+    title: 'Note about a competitor',
+    description: `Admins: something seen or heard about a competitor (or the area as a whole: leave competitor out), kept on its timeline. Kinds: ${NOTE_KINDS.map(k => k.id).join(', ')}. An idea worth borrowing is kind "idea", with idea_status (${IDEA_STATUSES.map(s => s.id).join(', ')}; new by default).`,
+    admin: true,
+    input: z.object({
+      competitor: z.string().optional().describe('Name (or id) of the competitor; none for the area'), kind: enumOf(NOTE_KINDS).default('visit' satisfies NoteKind),
+      text: z.string().min(1).max(2000), seen_on: date.optional(), idea_status: enumOf(IDEA_STATUSES).optional(),
+    }),
+    async run({ sb }, a) {
+      const c = a.competitor ? await resolveCompetitor(sb, a.competitor) : null
+      const row = check(await sb.from('competitor_notes').insert({ competitor_id: c?.id ?? null, kind: a.kind, text: a.text, observed_on: a.seen_on ?? today(),
+        status: a.kind === 'idea' ? a.idea_status ?? ('new' satisfies IdeaStatus) : null }).select('id').single())
+      return { ok: true, note_id: row.id, about: c?.name ?? 'the area' }
     },
   }),
 ]
