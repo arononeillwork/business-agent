@@ -7,13 +7,14 @@
 //   OneDrive      the app can read the whole OneDrive (Files.ReadWrite), so its folders are browsed here.
 // Admins pick and add; whoever can read a document's row (admins, a gestoría with finances access)
 // can see the file.
-import { Hono } from 'hono'
+import { Hono, type Context, type Next } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { bearer, serviceClient, userClient, type Env } from './supabase'
 import { connectorGrant, explain, lasting, markBroken } from './connections'
 import * as google from './providers/google'
 import * as ms from './providers/microsoft'
 import { LEGAL_STORAGES, MAX_PICK, NO_GOOGLE_PICKER, SKIPPED, guessKind, previewOf, storageName, titleOf, type LegalDocument, type LegalSource, type LegalStorage, type StorageItem, type StorageListing } from '../shared/legalDocs'
+import { ALREADY_ON_BRAND, BRAND_COLUMNS, brandTitleOf, type BrandDocument } from '../shared/brandDocs'
 
 export const legal = new Hono<{ Bindings: Env; Variables: { token: string } }>()
 
@@ -22,17 +23,23 @@ class LegalError extends Error {
   constructor(message: string, readonly status: 400 | 403 | 404 | 409 | 415 = 400) { super(message) }
 }
 
-legal.use('/api/legal/*', async (c, next) => {
+const signedIn = async (c: Context<{ Bindings: Env; Variables: { token: string } }>, next: Next) => {
   const token = bearer(c.req.header('authorization'))
   if (!token) return c.json({ error: 'Not signed in' }, 401)
   c.set('token', token)
   await next()
-})
-
-async function needAdmin(env: Env, token: string) {
-  const { data } = await userClient(env, token, 'app').rpc('is_admin')
-  if (!data) throw new LegalError('Only admins add legal documents', 403)
 }
+legal.use('/api/legal/*', signedIn)
+// The Brand page's documents picked in Drive or OneDrive work the same way (brand_documents).
+legal.use('/api/brand/*', signedIn)
+
+async function needAdmin(env: Env, token: string, what = 'legal documents') {
+  const { data } = await userClient(env, token, 'app').rpc('is_admin')
+  if (!data) throw new LegalError(`Only admins add ${what}`, 403)
+}
+
+/** Which page's documents: the Legal page's, or the Brand page's. */
+type Table = 'legal_documents' | 'brand_documents'
 
 const isStorage = (s: unknown): s is LegalStorage => LEGAL_STORAGES.some(x => x.id === s)
 
@@ -97,10 +104,10 @@ legal.get('/api/legal/google/picker', async c => {
 })
 
 /** Which of these files are already on the page (file id → its document), as the person sees them. */
-async function added(asPerson: SupabaseClient, storage: LegalStorage, ids: string[]) {
+async function added(asPerson: SupabaseClient, storage: LegalStorage, ids: string[], table: Table = 'legal_documents') {
   const out = new Map<string, { id: string; title: string }>()
   for (let i = 0; i < ids.length; i += 100) {
-    const { data, error } = await asPerson.from('legal_documents').select('id,file_id,title').eq('storage', storage).in('file_id', ids.slice(i, i + 100))
+    const { data, error } = await asPerson.from(table).select('id,file_id,title').eq('storage', storage).in('file_id', ids.slice(i, i + 100))
     if (error) throw new Error(error.message)
     for (const d of (data ?? []) as { id: string; file_id: string; title: string }[]) out.set(d.file_id, { id: d.id, title: d.title })
   }
@@ -124,7 +131,9 @@ legal.get('/api/legal/onedrive/browse', async c => {
       throw await broken(db, 'onedrive', e)
     }
     if (!folder?.folder) throw new LegalError('That folder isn’t in OneDrive any more', 404)
-    const kept = await added(userClient(c.env, c.get('token'), 'app'), 'onedrive', inside.filter(i => !i.folder).map(i => i.id))
+    // ?for=brand: marked when they're on the Brand page instead.
+    const kept = await added(userClient(c.env, c.get('token'), 'app'), 'onedrive', inside.filter(i => !i.folder).map(i => i.id),
+      c.req.query('for') === 'brand' ? 'brand_documents' : 'legal_documents')
     const items: StorageItem[] = inside.map(i => ({
       id: i.id, name: i.name, folder: !!i.folder, size: i.folder ? null : i.size ?? null, modified: i.lastModifiedDateTime ?? null,
       type: i.file?.mimeType ?? null, added_id: kept.get(i.id)?.id ?? null,
@@ -209,32 +218,95 @@ legal.get('/api/legal/documents/:id/file', async c => {
     const { data } = await userClient(c.env, c.get('token'), 'app').from('legal_documents').select('storage, file_id, file_name, mime_type').eq('id', id).maybeSingle()
     const d = data as Pick<LegalDocument, 'storage' | 'file_id' | 'file_name' | 'mime_type'> | null
     if (!d) throw new LegalError('That document isn’t on the Legal page', 404)
-    const preview = previewOf(d)
-    if (!preview) throw new LegalError(`This kind of file opens in ${storageName(d.storage)}`, 415)
-    const token = await grant(c.env, db, d.storage)
-    let res: Response
-    try {
-      res = d.storage === 'google_drive'
-        ? await (preview.convert ? google.driveExportPdf(token, d.file_id) : google.driveDownload(token, d.file_id))
-        : await (preview.convert ? ms.oneDrivePdf(token, d.file_id) : ms.oneDriveDownload(token, d.file_id))
-    } catch (e) {
-      throw await broken(db, d.storage, e)
+    return await fromStorage(c.env, db, d)
+  } catch (e) {
+    return c.json(fail(e), status(e))
+  }
+})
+
+/** A document's file, asked of its storage now and passed straight through (a PDF, made by the storage when need be, or a picture). */
+async function fromStorage(env: Env, db: SupabaseClient, d: Pick<LegalDocument, 'storage' | 'file_id' | 'file_name' | 'mime_type'>) {
+  const preview = previewOf(d)
+  if (!preview) throw new LegalError(`This kind of file opens in ${storageName(d.storage)}`, 415)
+  const token = await grant(env, db, d.storage)
+  let res: Response
+  try {
+    res = d.storage === 'google_drive'
+      ? await (preview.convert ? google.driveExportPdf(token, d.file_id) : google.driveDownload(token, d.file_id))
+      : await (preview.convert ? ms.oneDrivePdf(token, d.file_id) : ms.oneDriveDownload(token, d.file_id))
+  } catch (e) {
+    throw await broken(db, d.storage, e)
+  }
+  if (res.status === 404 || res.status === 410) throw new LegalError(`It isn’t in ${storageName(d.storage)} any more (or Business Agent can no longer open it)`, 404)
+  if (!res.ok) {
+    const said = await res.json().catch(() => ({})) as { error?: { message?: string } | string }
+    const why = typeof said.error === 'string' ? said.error : said.error?.message ?? String(res.status)
+    throw await broken(db, d.storage, new Error(`${d.storage === 'google_drive' ? 'Google Drive' : 'Microsoft'}: ${why}`))
+  }
+  return new Response(res.body, {
+    headers: {
+      'content-type': preview.as === 'pdf' ? 'application/pdf' : d.mime_type!,
+      'content-disposition': inline(preview.convert ? d.file_name.replace(/\.[^.]+$/, '') + '.pdf' : d.file_name),
+      ...(res.headers.get('content-length') && !preview.convert ? { 'content-length': res.headers.get('content-length')! } : {}),
+      'cache-control': 'private, no-store',
+      'x-content-type-options': 'nosniff',
+    },
+  })
+}
+
+// Brand page: add files picked in a storage, { storage, ids }, as on the Legal page (checked there first;
+// ones already on the page, folders and ones that can't be opened are skipped, with why).
+legal.post('/api/brand/documents', async c => {
+  const db = serviceClient(c.env)
+  const asPerson = userClient(c.env, c.get('token'), 'app')
+  try {
+    await needAdmin(c.env, c.get('token'), 'brand documents')
+    const body = await c.req.json<{ storage?: unknown; ids?: unknown }>().catch(() => ({} as { storage?: unknown; ids?: unknown }))
+    if (!isStorage(body.storage)) throw new LegalError('Choose Google Drive or OneDrive')
+    const storage = body.storage
+    const ids = Array.isArray(body.ids) ? [...new Set(body.ids.filter((i): i is string => typeof i === 'string' && i.length > 0 && i.length <= 200))] : []
+    if (!ids.length) throw new LegalError('Choose at least one file')
+    if (ids.length > MAX_PICK) throw new LegalError(`Choose up to ${MAX_PICK} files at a time`)
+    const token = await grant(c.env, db, storage)
+    const already = await added(asPerson, storage, ids, 'brand_documents')
+    const rows: Omit<BrandDocument, 'id' | 'added_by' | 'added_at'>[] = []
+    const skipped: { id: string; name: string | null; why: string }[] = []
+    for (const id of ids) {
+      const kept = already.get(id)
+      if (kept) { skipped.push({ id, name: kept.title, why: ALREADY_ON_BRAND }); continue }
+      let got: Awaited<ReturnType<typeof describe>>
+      try {
+        got = await describe(storage, token, id)
+      } catch (e) {
+        throw await broken(db, storage, e)
+      }
+      if ('why' in got) { skipped.push({ id, ...got }); continue }
+      rows.push({ title: brandTitleOf(got.file_name), storage, file_id: got.file_id, file_name: got.file_name, mime_type: got.mime_type, size: got.size,
+        modified_at: got.modified_at, link: got.link, location: got.location })
     }
-    if (res.status === 404 || res.status === 410) throw new LegalError(`It isn’t in ${storageName(d.storage)} any more (or Business Agent can no longer open it)`, 404)
-    if (!res.ok) {
-      const said = await res.json().catch(() => ({})) as { error?: { message?: string } | string }
-      const why = typeof said.error === 'string' ? said.error : said.error?.message ?? String(res.status)
-      throw await broken(db, d.storage, new Error(`${d.storage === 'google_drive' ? 'Google Drive' : 'Microsoft'}: ${why}`))
+    let documents: BrandDocument[] = []
+    if (rows.length) {
+      const { data, error } = await asPerson.from('brand_documents').insert(rows).select(BRAND_COLUMNS)
+      if (error) throw new LegalError(/duplicate|unique/i.test(error.message) ? 'One of those files is already on the Brand page' : error.message)
+      documents = (data ?? []) as unknown as BrandDocument[]
     }
-    return new Response(res.body, {
-      headers: {
-        'content-type': preview.as === 'pdf' ? 'application/pdf' : d.mime_type!,
-        'content-disposition': inline(preview.convert ? d.file_name.replace(/\.[^.]+$/, '') + '.pdf' : d.file_name),
-        ...(res.headers.get('content-length') && !preview.convert ? { 'content-length': res.headers.get('content-length')! } : {}),
-        'cache-control': 'private, no-store',
-        'x-content-type-options': 'nosniff',
-      },
-    })
+    return c.json({ added: documents, skipped })
+  } catch (e) {
+    return c.json(fail(e), status(e))
+  }
+})
+
+// A Brand page document kept in Drive or OneDrive, shown from there (an upload is read straight from the database).
+legal.get('/api/brand/documents/:id/file', async c => {
+  const db = serviceClient(c.env)
+  try {
+    const id = c.req.param('id')
+    if (id.length > 64) throw new LegalError('That document isn’t on the Brand page', 404)
+    const { data } = await userClient(c.env, c.get('token'), 'app').from('brand_documents').select('storage, file_id, file_name, mime_type').eq('id', id).maybeSingle()
+    const d = data as Pick<BrandDocument, 'storage' | 'file_id' | 'file_name' | 'mime_type'> | null
+    if (!d) throw new LegalError('That document isn’t on the Brand page', 404)
+    if (d.storage === 'upload' || !d.file_id) throw new LegalError('That one was uploaded: it’s read from the page', 400)
+    return await fromStorage(c.env, db, { ...d, storage: d.storage, file_id: d.file_id })
   } catch (e) {
     return c.json(fail(e), status(e))
   }

@@ -1,22 +1,30 @@
 import {
   Box, Button, ButtonBase, Card, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Grid, IconButton, InputAdornment,
-  MenuItem, Stack, TextField, Tooltip, Typography,
+  Link, MenuItem, Stack, TextField, Tooltip, Typography,
 } from '@mui/material'
 import SearchIcon from '@mui/icons-material/Search'
 import CopyIcon from '@mui/icons-material/ContentCopy'
 import EditIcon from '@mui/icons-material/EditOutlined'
 import AddIcon from '@mui/icons-material/Add'
 import DownloadIcon from '@mui/icons-material/FileDownloadOutlined'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import ViewIcon from '@mui/icons-material/VisibilityOutlined'
+import OpenIcon from '@mui/icons-material/OpenInNew'
+import PdfIcon from '@mui/icons-material/PictureAsPdfOutlined'
+import ImageIcon from '@mui/icons-material/ImageOutlined'
+import FileIcon from '@mui/icons-material/InsertDriveFileOutlined'
+import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction, useNotify } from '../app/Notify'
-import { ErrorBox, PageHeader, SectionTitle } from '../components/common'
+import { Empty, ErrorBox, PageHeader, SectionTitle } from '../components/common'
+import { AddButton, FileViewer, StorageBrowser } from './LegalDocumentsPage'
 import type { BrandColour } from '../../shared/types'
+import { brandPreview, brandSourceName, brandTitleOf, type BrandDocument } from '../../shared/brandDocs'
+import type { LegalStorage } from '../../shared/legalDocs'
 import logoUrl from '../assets/logo.png'
-import { formatNumber } from '../../shared/time'
+import { formatLocal, formatNumber } from '../../shared/time'
 import { tokens } from '../theme'
-import { msg, t } from '../i18n'
+import { msg, t, tn } from '../i18n'
 
 const ROLES: Record<BrandColour['role'], string> = { primary: msg('Primary'), secondary: msg('Secondary'), accent: msg('Accent'), base: msg('Background') }
 const CATEGORIES = ['all', 'sans-serif', 'serif', 'display', 'handwriting', 'monospace'] as const
@@ -99,6 +107,7 @@ export function BrandPage() {
           </Grid>
           <Grid size={12}>
             <Stack spacing={2.5}>
+              <BrandDocuments />
 
               <Card component="section" aria-label={t('Fonts')}>
                 <CardContent>
@@ -155,6 +164,129 @@ export function BrandPage() {
           onPick={async family => { if (await save({ [picking]: family }, picking === 'heading_font' ? t('Heading font: {family}', { family }) : t('Body font: {family}', { family }))) setPicking(null) }} />
       )}
     </>
+  )
+}
+
+const fileSize = (bytes: number | null) => (bytes === null ? '' : bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`)
+
+/**
+ * The brand's documents (the guidelines PDF, logo packs, templates): uploaded here (or dropped on the
+ * card), or chosen where they already are in Google Drive or OneDrive. Everyone opens them; admins add,
+ * rename and remove them.
+ */
+function BrandDocuments() {
+  const { api, isAdmin, isPartner } = useApp()
+  const run = useAction()
+  const notify = useNotify()
+  const canEdit = isAdmin && !isPartner
+  const docs = useAsync('brand-documents', () => api.brandDocuments(), [])
+  const sources = useAsync('legal-sources', () => (canEdit ? api.legalSources() : Promise.resolve(null)), [canEdit])
+  const input = useRef<HTMLInputElement>(null)
+  const [browsing, setBrowsing] = useState<LegalStorage | null>(null)
+  const [viewing, setViewing] = useState<BrandDocument | null>(null)
+  const [editing, setEditing] = useState<BrandDocument | null>(null)
+  const [over, setOver] = useState(false)
+  const upload = (files: File[]) => run(async () => { for (const f of files) await api.uploadBrandDocument(f) },
+    tn(files.length, 'Added {n} document', 'Added {n} documents'))
+  const download = async (d: BrandDocument) => {
+    try {
+      const url = URL.createObjectURL(await api.brandFile(d.id))
+      Object.assign(document.createElement('a'), { href: url, download: d.file_name }).click()
+      setTimeout(() => URL.revokeObjectURL(url), 10_000)
+    } catch (e) { notify(e instanceof Error ? e.message : String(e), 'error') }
+  }
+  const all = docs.data ?? []
+  const drop = canEdit ? {
+    onDragOver: (e: DragEvent) => { e.preventDefault(); setOver(true) },
+    onDragLeave: () => setOver(false),
+    onDrop: (e: DragEvent) => { e.preventDefault(); setOver(false); const f = [...e.dataTransfer.files]; if (f.length) void upload(f) },
+  } : {}
+  return (
+    <Card component="section" aria-label={t('Brand documents')} {...drop}
+      sx={{ outline: over ? `2px dashed ${tokens.rose}` : 'none', outlineOffset: -6, transition: 'outline-color .15s' }}>
+      <CardContent>
+        <SectionTitle action={canEdit && <AddButton page="brand" sources={sources.data} onBrowse={setBrowsing} onUpload={() => input.current?.click()} />}>
+          {t('Brand documents')}
+        </SectionTitle>
+        <ErrorBox error={docs.error} />
+        {docs.data && all.length === 0 && (
+          <Empty>{canEdit
+            ? t('Add the brand guidelines and anything that goes with them (logo packs, templates): upload them or drop them here, or choose them in Google Drive or OneDrive.')
+            : t('No brand documents yet.')}</Empty>
+        )}
+        {all.map(d => {
+          const preview = brandPreview(d)
+          const Icon = preview?.as === 'image' ? ImageIcon : preview?.as === 'pdf' ? PdfIcon : FileIcon
+          const kept = brandSourceName(d.storage)
+          const facts = [kept ? (d.location ? `${kept} › ${d.location.split('/').join(' › ')}` : kept) : t('Uploaded'),
+            brandTitleOf(d.file_name) !== d.title ? d.file_name : null, fileSize(d.size) || null, t('added {date}', { date: formatLocal(d.added_at, 'd MMM yyyy') })]
+          return (
+            <Stack key={d.id} component="article" aria-label={d.title} direction="row" spacing={1.5}
+              sx={{ alignItems: 'center', py: 1.25, borderTop: 1, borderColor: 'divider', '&:first-of-type': { borderTop: 0 } }}>
+              <Icon sx={{ color: 'text.secondary' }} />
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                {preview
+                  ? <Link component="button" variant="body2" onClick={() => setViewing(d)} sx={{ fontWeight: 500, textAlign: 'left' }}>{d.title}</Link>
+                  : <Typography variant="body2" sx={{ fontWeight: 500 }}>{d.title}</Typography>}
+                <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', overflowWrap: 'anywhere' }}>{facts.filter(Boolean).join(' · ')}</Typography>
+              </Box>
+              <Stack direction="row" sx={{ flexShrink: 0 }}>
+                {preview && <IconButton size="small" aria-label={t('View {name}', { name: d.title })} onClick={() => setViewing(d)}><ViewIcon fontSize="small" /></IconButton>}
+                {d.link && kept
+                  ? <IconButton size="small" component="a" href={d.link} target="_blank" rel="noopener" aria-label={t('Open {name} in {where}', { name: d.title, where: kept })}><OpenIcon fontSize="small" /></IconButton>
+                  : <IconButton size="small" aria-label={t('Download {name}', { name: d.title })} onClick={() => void download(d)}><DownloadIcon fontSize="small" /></IconButton>}
+                {canEdit && <IconButton size="small" aria-label={t('Edit {name}', { name: d.title })} onClick={() => setEditing(d)}><EditIcon fontSize="small" /></IconButton>}
+              </Stack>
+            </Stack>
+          )
+        })}
+        {canEdit && (
+          <input ref={input} type="file" hidden multiple aria-label={t('Upload brand documents')}
+            onChange={e => { const f = [...(e.target.files ?? [])]; e.target.value = ''; if (f.length) void upload(f) }} />
+        )}
+      </CardContent>
+      {browsing && <StorageBrowser page="brand" storage={browsing} onClose={() => setBrowsing(null)} />}
+      {viewing && (
+        <FileViewer id={viewing.id} title={viewing.title} link={viewing.link} where={brandSourceName(viewing.storage)} as={brandPreview(viewing)?.as ?? 'pdf'}
+          load={() => api.brandFile(viewing.id)} onClose={() => setViewing(null)}
+          caption={brandSourceName(viewing.storage)
+            ? t('Shown straight from {where}. Business Agent doesn’t keep a copy.', { where: brandSourceName(viewing.storage)! })
+            : t('Uploaded to Business Agent {date}.', { date: formatLocal(viewing.added_at, 'd MMM yyyy') })} />
+      )}
+      {editing && <BrandDocDialog doc={editing} onClose={() => setEditing(null)} />}
+    </Card>
+  )
+}
+
+/** Rename a brand document, or take it off the page (an upload goes; a file in Drive or OneDrive stays there). */
+function BrandDocDialog({ doc, onClose }: { doc: BrandDocument; onClose: () => void }) {
+  const { api } = useApp()
+  const run = useAction()
+  const [title, setTitle] = useState(doc.title)
+  const [removing, setRemoving] = useState(false)
+  const kept = brandSourceName(doc.storage)
+  return (
+    <Dialog open onClose={onClose} fullWidth maxWidth="xs">
+      <DialogTitle>{t('Edit {name}', { name: doc.title })}</DialogTitle>
+      <DialogContent>
+        <Stack spacing={2} sx={{ pt: 1 }}>
+          <TextField label={t('Name')} value={title} onChange={e => setTitle(e.target.value)} autoFocus slotProps={{ htmlInput: { maxLength: 200 } }} />
+          {removing && (
+            <Typography variant="body2" sx={{ color: tokens.badFg }}>
+              {kept ? t('Take it off the Brand page? The file stays in {where}.', { where: kept }) : t('Delete it? The uploaded file goes with it.')}
+            </Typography>
+          )}
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        {removing
+          ? <Button color="error" variant="contained" sx={{ mr: 'auto' }}
+              onClick={async () => { if (await run(() => api.removeBrandDocument(doc.id), t('Removed'))) onClose() }}>{kept ? t('Take it off') : t('Delete')}</Button>
+          : <Button color="error" sx={{ mr: 'auto' }} onClick={() => setRemoving(true)}>{t('Remove')}</Button>}
+        <Button onClick={onClose}>{t('Cancel')}</Button>
+        <Button variant="contained" disabled={!title.trim()} onClick={async () => { if (await run(() => api.renameBrandDocument(doc.id, title.trim()), t('Saved'))) onClose() }}>{t('Save')}</Button>
+      </DialogActions>
+    </Dialog>
   )
 }
 
