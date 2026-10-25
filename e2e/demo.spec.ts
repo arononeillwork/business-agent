@@ -3352,7 +3352,7 @@ test.describe('stock and suppliers', () => {
     await toast(page, 'Recorded')
     await expect(table.getByRole('row', { name: 'Oat milk (barista)' })).toHaveCount(0)
     await page.getByRole('button', { name: /^Low only/ }).click()
-    await expect(table.getByRole('row', { name: 'Oat milk (barista)' })).toContainText('20 l')
+    await expect(table.getByRole('row', { name: 'Oat milk (barista)' })).toContainText(/20\s*l/)
 
     // The order list: by supplier, with what's short of their minimum and the message ready.
     await page.getByRole('tab', { name: /^Order list/ }).click()
@@ -3563,7 +3563,7 @@ test.describe('recipes and waste', () => {
     await expect(tiles.getByRole('listitem').filter({ hasText: 'Times logged' })).toContainText('4')
     await expect(page.getByRole('region', { name: /Wednesday 30 September/ })).toContainText('Spilled or dropped')
     await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Stock', exact: true }).click()
-    await expect(page.getByRole('table', { name: 'Stock items' }).getByRole('row', { name: 'Napkins' })).toContainText('2 packs')
+    await expect(page.getByRole('table', { name: 'Stock items' }).getByRole('row', { name: 'Napkins' })).toContainText(/2\s*packs/)
   })
 })
 
