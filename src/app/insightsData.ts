@@ -2,6 +2,7 @@
 // of best sellers, timecards and rota, the menu's margins, stock and waste, reviews and the area's
 // prices. Each comes from where its own page gets it (the same cache), and only what the person may
 // see is asked for. Advice in the person's language comes from shared/insights.ts.
+import { useMemo } from 'react'
 import { useApp } from './AppContext'
 import { useAsync } from './hooks'
 import { tillsOf } from '../components/till'
@@ -48,48 +49,54 @@ export function useAdviceInput() {
   const area = useAsync('competitors', () => (isAdmin && staff ? api.competitors() : Promise.resolve(null)), [isAdmin && staff])
 
   const waiting = !integ.data && isAdmin ? true : money && !sales.data && !sales.error
-  const names = new Map(profiles.map(p => [p.id, p.full_name.split(' ')[0]]))
-  const stockItems = stock.data ?? []
-  const recent = (moves.data ?? []).filter(m => m.at.slice(0, 10) >= from4 && !m.undone_at)
-  const waste = moves.data && stockItems.length && canSeeFinances ? wasteSummary(recent, stockItems) : null
-  const entries = team.data?.entries ?? null
-  const teamCost = entries && canSeeFinances
-    ? entries.reduce((s, e) => s + e.paid_minutes / 60 * (rates.get(e.profile_id) ?? 0), 0) * (settings?.employer_cost_multiplier ?? 1) : null
-  const r = reviews.data
-  const month = addDays(day, -30)
-  let vsArea: AdviceInput['vsArea'] = null
-  if (area.data && recipes.data) {
-    const a = analyse(area.data, recipes.data, business?.opening_hours ?? null, day)
-    vsArea = a.rows.flatMap(row => (row.ours && row.avg !== null ? [{ name: row.item.name, ours: row.ours.price, avg: row.avg, n: row.n }] : []))
-  }
-  const input: AdviceInput = {
-    today: day,
-    sales: sales.data?.days ?? null,
-    openingHours: business?.opening_hours ?? null,
-    items: items.data?.items ?? null,
-    menu: recipes.data && stockItems.length ? recipes.data.filter(x => x.active && x.sell_price !== null && x.lines.length).flatMap(x => {
-      const c = costing(x, stockItems)
-      return c.marginPct === null || c.missing.length ? [] : [{ name: x.name, marginPct: c.marginPct, target: x.target_margin, priceForTarget: priceForTarget(c.cost, x.target_margin, x.vat_rate) }]
-    }) : null,
-    vsArea,
-    entries,
-    shifts: team.data?.shifts ?? null,
-    names,
-    teamCost: teamCost === null || !money ? null : Math.round(teamCost * 100) / 100,
-    waste: waste ? { cost: waste.cost, ofPurchases: waste.ofPurchases, top: waste.top.slice(0, 3) } : null,
-    lowStock: stock.data ? stockItems.filter(isLow).map(i => i.name) : null,
-    reviews: r && r.feed ? {
-      rating: r.google_rating, count: r.google_count,
-      lastMonth: r.reviews.filter(x => x.created_at.slice(0, 10) >= month).length,
-      low: r.reviews.filter(x => x.created_at.slice(0, 10) >= month && x.rating <= 3).length,
-      unreplied: r.can_reply ? r.reviews.filter(x => !x.reply && x.created_at.slice(0, 10) >= addDays(day, -90)).length : 0,
-    } : null,
-  }
+  // Worked out once per change in what it reads (not on every render while the rest loads).
+  const input = useMemo<AdviceInput>(() => {
+    const names = new Map(profiles.map(p => [p.id, p.full_name.split(' ')[0]]))
+    const stockItems = stock.data ?? []
+    const recent = (moves.data ?? []).filter(m => m.at.slice(0, 10) >= from4 && !m.undone_at)
+    const waste = moves.data && stockItems.length && canSeeFinances ? wasteSummary(recent, stockItems) : null
+    const entries = team.data?.entries ?? null
+    const teamCost = entries && canSeeFinances
+      ? entries.reduce((s, e) => s + e.paid_minutes / 60 * (rates.get(e.profile_id) ?? 0), 0) * (settings?.employer_cost_multiplier ?? 1) : null
+    const r = reviews.data
+    const month = addDays(day, -30)
+    let vsArea: AdviceInput['vsArea'] = null
+    if (area.data && recipes.data) {
+      const a = analyse(area.data, recipes.data, business?.opening_hours ?? null, day)
+      vsArea = a.rows.flatMap(row => (row.ours && row.avg !== null ? [{ name: row.item.name, ours: row.ours.price, avg: row.avg, n: row.n }] : []))
+    }
+    return {
+      today: day,
+      sales: sales.data?.days ?? null,
+      openingHours: business?.opening_hours ?? null,
+      items: items.data?.items ?? null,
+      menu: recipes.data && stockItems.length ? recipes.data.filter(x => x.active && x.sell_price !== null && x.lines.length).flatMap(x => {
+        const c = costing(x, stockItems)
+        return c.marginPct === null || c.missing.length ? [] : [{ name: x.name, marginPct: c.marginPct, target: x.target_margin, priceForTarget: priceForTarget(c.cost, x.target_margin, x.vat_rate) }]
+      }) : null,
+      vsArea,
+      entries,
+      shifts: team.data?.shifts ?? null,
+      names,
+      teamCost: teamCost === null || !money ? null : Math.round(teamCost * 100) / 100,
+      waste: waste ? { cost: waste.cost, ofPurchases: waste.ofPurchases, top: waste.top.slice(0, 3) } : null,
+      lowStock: stock.data ? stockItems.filter(isLow).map(i => i.name) : null,
+      reviews: r && r.feed ? {
+        rating: r.google_rating, count: r.google_count,
+        lastMonth: r.reviews.filter(x => x.created_at.slice(0, 10) >= month).length,
+        low: r.reviews.filter(x => x.created_at.slice(0, 10) >= month && x.rating <= 3).length,
+        unreplied: r.can_reply ? r.reviews.filter(x => !x.reply && x.created_at.slice(0, 10) >= addDays(day, -90)).length : 0,
+      } : null,
+    }
+  }, [day, from4, sales.data, items.data, team.data, stock.data, moves.data, recipes.data, reviews.data, area.data, business, profiles, rates,
+    settings, canSeeFinances, money])
   return { input, loading: waiting, till: tills.length > 0, money, sales: sales.data, items: items.data, error: sales.error }
 }
 
 /** The advice, in the person's language, as it loads. */
 export function useAdvice() {
   const data = useAdviceInput()
-  return { ...data, advice: data.loading ? [] : advise(data.input, adviceFormat()) }
+  const language = currentLanguage()
+  const advice = useMemo(() => (data.loading ? [] : advise(data.input, adviceFormat())), [data.loading, data.input, language])
+  return { ...data, advice }
 }

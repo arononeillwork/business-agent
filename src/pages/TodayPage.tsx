@@ -2,7 +2,7 @@ import {
   Alert, Box, Button, Card, CardContent, Dialog, DialogActions, DialogContent, DialogTitle,
   Grid, Menu, MenuItem, Stack, TextField, Typography,
 } from '@mui/material'
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAsync, useTick } from '../app/hooks'
@@ -187,7 +187,9 @@ function Item({ lead, primary, secondary, action, label }: { lead: ReactNode; pr
 function AtAGlance() {
   const { isAdmin, isPartner } = useApp()
   const { on } = useTakings()
-  const { advice, loading } = useAdvice()
+  // The advisor reads a lot: its card comes once the rest of the page is in.
+  const [later, setLater] = useState(false)
+  useEffect(() => { const id = setTimeout(() => setLater(true), 600); return () => clearTimeout(id) }, [])
   const d = today()
   const tiles: { kind: WidgetKind; title: string; to: string; range: DashRange }[] = [
     ...(on ? [{ kind: 'takings' as const, title: t('Takings today'), to: '/sales', range: dashRange('today', d) },
@@ -208,15 +210,22 @@ function AtAGlance() {
           </Card>
         ))}
       </Box>
-      {isAdmin && !loading && advice.length > 0 && (
-        <Card component="section" aria-label={t('Business advisor')} sx={{ mt: 2, borderLeft: `4px solid ${tokens.rose}` }}>
-          <CardContent>
-            <SectionTitle action={<Button size="small" component={Link} to="/advisor">{t('Everything the advisor found')}</Button>}>{t('Business advisor')}</SectionTitle>
-            {advice.slice(0, 2).map(a => <AdviceCard key={a.id} a={a} />)}
-          </CardContent>
-        </Card>
-      )}
+      {isAdmin && later && <AdvisorGlance />}
     </Box>
+  )
+}
+
+/** The business advisor's first two findings (admins), linking to the rest. */
+function AdvisorGlance() {
+  const { advice, loading } = useAdvice()
+  if (loading || !advice.length) return null
+  return (
+    <Card component="section" aria-label={t('Business advisor')} sx={{ mt: 2, borderLeft: `4px solid ${tokens.rose}` }}>
+      <CardContent>
+        <SectionTitle action={<Button size="small" component={Link} to="/advisor">{t('Everything the advisor found')}</Button>}>{t('Business advisor')}</SectionTitle>
+        {advice.slice(0, 2).map(a => <AdviceCard key={a.id} a={a} />)}
+      </CardContent>
+    </Card>
   )
 }
 
