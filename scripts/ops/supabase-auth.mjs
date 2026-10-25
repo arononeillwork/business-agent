@@ -34,9 +34,10 @@ const patch = {}
 if (site) {
   patch.site_url = site
   const allow = new Set((current.uri_allow_list ?? '').split(',').map(s => s.trim()).filter(Boolean))
-  allow.add(`${site}/**`); allow.add('http://localhost:5173/**')
-  if (dev && dev !== site) allow.add(`${dev}/**`)
-  allow.add(`${backup}/**`)
+  allow.add('http://localhost:5173/**')
+  // Each address bare as well: the app asks to come back to location.origin, with no path, which
+  // "https://x/**" doesn't match, so a sign-in from any address but the site URL went there instead.
+  for (const a of new Set([site, dev, backup].filter(Boolean))) { allow.add(a); allow.add(`${a}/**`) }
   patch.uri_allow_list = [...allow].join(',')
 }
 // Sign-in emails carry a 6-digit code (typed into the app), not just a link: links expire, get
