@@ -40,7 +40,6 @@ import SocialIcon from '@mui/icons-material/CampaignOutlined'
 import AdsIcon from '@mui/icons-material/AdsClickOutlined'
 import CampaignsIcon from '@mui/icons-material/ForwardToInboxOutlined'
 import LeadsIcon from '@mui/icons-material/ContactMailOutlined'
-import QuotesIcon from '@mui/icons-material/RequestPageOutlined'
 import ClaimsIcon from '@mui/icons-material/ReceiptOutlined'
 import HiringIcon from '@mui/icons-material/BadgeOutlined'
 import FoodSafetyIcon from '@mui/icons-material/ThermostatOutlined'
@@ -97,7 +96,7 @@ export const SECTIONS: NavSection[] = [
     { key: 'business', to: '/business', label: msg('Business'), icon: <BusinessIcon />, partner: 'any' },
     { key: 'todo', to: '/todo', label: msg('To Do List'), short: msg('To do'), icon: <TodoIcon /> },
     { key: 'hours', to: '/opening-hours', label: msg('Opening hours'), icon: <HoursIcon />, partner: 'any' },
-    { key: 'licences', to: '/licences', label: msg('Licences & renewals'), short: msg('Licences'), icon: <LicencesIcon />, who: 'admin', partner: ['finances'] },
+    { key: 'licences', to: '/licences', label: msg('Licences'), icon: <LicencesIcon />, who: 'admin', partner: ['finances'] },
     { key: 'legal', to: '/legal', label: msg('Legal'), icon: <LegalIcon />, who: 'admin', partner: ['finances'] },
     { key: 'brand', to: '/brand', label: msg('Brand'), icon: <BrandIcon />, partner: 'any' },
     { key: 'messages', to: '/messages', label: msg('Messages'), icon: <MessagesIcon />, who: 'admin' },
@@ -108,7 +107,6 @@ export const SECTIONS: NavSection[] = [
     { key: 'sales', to: '/sales', label: msg('Sales'), icon: <SalesIcon />, who: 'pay' },
     { key: 'customers', to: '/customers', label: msg('Customers'), icon: <CustomersIcon />, who: 'admin' },
     { key: 'leads', to: '/leads', label: msg('Leads & enquiries'), short: msg('Leads'), icon: <LeadsIcon />, who: 'admin' },
-    { key: 'quotes', to: '/quotes', label: msg('Quotes & estimates'), short: msg('Quotes'), icon: <QuotesIcon />, who: 'admin' },
     { key: 'loyalty', to: '/loyalty', label: msg('Loyalty & gift cards'), short: msg('Loyalty'), icon: <LoyaltyIcon />, who: 'admin', needs: 'square' },
     { key: 'reps', to: '/sales-reps', label: msg('Reps & rewards'), short: msg('Reps'), icon: <RepsIcon /> },
   ] },
@@ -125,7 +123,7 @@ export const SECTIONS: NavSection[] = [
     { key: 'finances', to: '/finances', label: msg('Finances'), icon: <FinanceIcon />, who: 'pay', partner: ['finances'] },
     { key: 'pnl', to: '/profit-and-loss', label: msg('Profit & loss'), icon: <ProfitLossIcon />, who: 'pay', partner: ['finances'] },
     { key: 'invoices', to: '/invoices', label: msg('Invoices'), icon: <InvoicesIcon />, who: 'pay', partner: ['finances'] },
-    { key: 'expenses', to: '/expenses', label: msg('Expenses & mileage'), short: msg('Expenses'), icon: <ClaimsIcon />, partner: ['finances'] },
+    { key: 'expenses', to: '/expenses', label: msg('Expenses'), icon: <ClaimsIcon />, partner: ['finances'] },
     { key: 'tax', to: '/tax', label: msg('Tax'), icon: <TaxIcon />, who: 'pay', partner: ['finances'] },
     { key: 'grants', to: '/grants', label: msg('Grants'), icon: <GrantsIcon />, who: 'pay', partner: ['finances'] },
   ] },

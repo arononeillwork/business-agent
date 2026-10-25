@@ -1,7 +1,6 @@
 // Leads & enquiries: what someone asked for (cakes for a baby shower, the terrace for a birthday,
 // coffee for an office), where it came in, how far it's got and when to follow it up. Each enquiry
-// belongs to a person on the Customers page (a lead until one of theirs is won); a quote made for
-// it moves it to Quoted, and the quote accepted makes it Won (Quotes & estimates).
+// belongs to a person on the Customers page (a lead until one of theirs is won).
 import { msg } from './i18n'
 import type { Customer, CustomerInput, CustomerSource } from './types'
 
@@ -34,7 +33,7 @@ export interface Enquiry {
   title: string
   channel: EnquiryChannel
   stage: EnquiryStage
-  /** What it could be worth, IVA included: a guess until there's a quote. */
+  /** What it could be worth, IVA included: a guess until they've been given a price. */
   value: number | null
   /** The day it's for (the party, the first delivery). */
   wanted_on: string | null

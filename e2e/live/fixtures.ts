@@ -69,7 +69,9 @@ export async function cleanUp(admin: SupabaseClient) {
     must(await admin.from(table).update({ updated_by: null }).in('updated_by', ids))
   }
   await purgeTestAlerts(admin, ids)
-  await Promise.all(ids.map(async id => must(await admin.auth.admin.deleteUser(id))))
+  // One at a time: each deletion reaches a dozen tables, and several at once held the live app's
+  // other requests up for seconds, so the next test's sign-in sat on the loading screen.
+  for (const id of ids) must(await admin.auth.admin.deleteUser(id))
 }
 
 /** Names of rows the tests create (expenses, events) start with this, so clean-up can find them. */

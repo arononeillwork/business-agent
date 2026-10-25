@@ -7,10 +7,13 @@
   "compatibility_date": "2026-09-01",
   "compatibility_flags": ["nodejs_compat"],
   "assets": {
+    "binding": "ASSETS",
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/api/*", "/media/*", "/cal/*", "/mcp", "/mcp/*", "/authorize", "/token", "/register", "/.well-known/*",
       // Self-destructing service worker for browsers that kept one from an earlier site (worker/index.ts).
-      "/sw.js", "/service-worker.js", "/serviceworker.js", "/registerSW.js", "/worker.js"]
+      "/sw.js", "/service-worker.js", "/serviceworker.js", "/registerSW.js", "/worker.js",
+      // Code files: one that isn't there is a 404, never the app's page (worker/index.ts).
+      "/assets/*"]
   },
   "observability": { "enabled": true },
   // OAuth grants/tokens for the AI connector (encrypted by workers-oauth-provider).

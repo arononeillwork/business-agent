@@ -5,7 +5,7 @@ name: Send an invite
 # from a branch before this workflow exists on main.
 on:
   push:
-    branches: [main, claude/easy-beans-architecture-plan-dknqka]
+    branches: [main]
     paths: [ops/invite.txt]
   workflow_dispatch:
     inputs:

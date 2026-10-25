@@ -112,13 +112,13 @@ td.msg { min-width: 180px }
     </div>
   </section>
 
-  <p class="note">Every push to the deploy branch runs the tests, then deploys to Cloudflare. This page reads the live site's version
+  <p class="note">Every push to main (most come from the merge queue) runs the tests, then deploys to Cloudflare. This page reads the live site's version
     and GitHub's deploy runs, refreshing every few seconds while a push is on its way. <span id="ratelimit"></span></p>
 </main>
 
 <script>
 const REPO = 'arononeillwork/business-agent'
-const BRANCH = 'claude/easy-beans-architecture-plan-dknqka'
+const BRANCH = 'main'
 const GH = 'https://api.github.com/repos/' + REPO
 const STAGES = ['Queued', 'Tests', 'Deploying', 'Live', 'Live checks']
 

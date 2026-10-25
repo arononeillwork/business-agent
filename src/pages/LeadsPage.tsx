@@ -4,9 +4,8 @@ import {
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import EditIcon from '@mui/icons-material/EditOutlined'
-import QuoteIcon from '@mui/icons-material/RequestQuoteOutlined'
 import { useMemo, useState } from 'react'
-import { Link as RouterLink, useNavigate } from 'react-router-dom'
+import { Link as RouterLink } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
@@ -34,14 +33,13 @@ const who = (e: Enquiry) => (e.customer ? customerName(e.customer) : '')
 /**
  * Leads & enquiries (Sales): what people asked for (a party, the terrace, office coffee), where it
  * came in, how far it's got and when to follow it up. Each belongs to someone on Customers, added
- * here as a lead when they're new; a quote made for one moves it to Quoted (Quotes & estimates) and
- * a won one makes them a customer. Admins only (the database enforces it too).
+ * here as a lead when they're new; a won one makes them a customer. Admins only (the database
+ * enforces it too).
  */
 export function LeadsPage() {
   const { api, isAdmin } = useApp()
   const list = useAsync('enquiries', () => api.enquiries(), [])
   const run = useAction()
-  const navigate = useNavigate()
   const [show, setShow] = useState<Show>('open')
   const [editing, setEditing] = useState<EnquiryInput | null>(null)
 
@@ -131,10 +129,6 @@ export function LeadsPage() {
                           {e.stage === 'lost' && e.lost_reason && <Typography variant="caption" sx={{ color: 'text.secondary' }}>{e.lost_reason}</Typography>}
                         </TableCell>
                         <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                          {isOpen(e) && (
-                            <IconButton size="small" onClick={() => navigate(`/quotes?enquiry=${e.id}`)} aria-label={t('Make a quote for {name}', { name: e.title })}
-                              title={t('Make a quote')}><QuoteIcon fontSize="small" /></IconButton>
-                          )}
                           <IconButton size="small" aria-label={t('Edit {name}', { name: e.title })} onClick={() => setEditing(e)}><EditIcon fontSize="small" /></IconButton>
                         </TableCell>
                       </TableRow>

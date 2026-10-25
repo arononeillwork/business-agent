@@ -41,6 +41,8 @@ create table public.contractors (
   updated_by     uuid references auth.users on delete set null default auth.uid()
 );
 create unique index contractors_name_key on public.contractors (lower(name));
+-- Every foreign key indexed, so deleting an account doesn't scan the table (the `foreign_key_indexes` migration).
+create index contractors_updated_by_idx on public.contractors (updated_by);
 
 create or replace function public.contractor_rules() returns trigger
 language plpgsql set search_path = ''
@@ -109,6 +111,7 @@ create table public.outsourced_jobs (
   constraint outsourced_jobs_quantity check ((quantity is null) = (quantity_per is null))
 );
 create index outsourced_jobs_contractor_idx on public.outsourced_jobs (contractor_id);
+create index outsourced_jobs_updated_by_idx on public.outsourced_jobs (updated_by);
 
 create or replace function public.outsourced_job_rules() returns trigger
 language plpgsql set search_path = ''
