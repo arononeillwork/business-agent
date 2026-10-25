@@ -5538,7 +5538,7 @@ test.describe('UI round: waste log, allergens, competitors and brand', () => {
     await toast(page, 'Taken off the waste log')
     await expect(page.getByRole('region', { name: /Wednesday 30 September/ })).toHaveCount(0)
     // 18 to start, 4 back and 2 off, then those 2 back.
-    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Stock', exact: true }).click()
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Current stock' }).click()
     await expect(page.getByRole('table', { name: 'Stock items' }).getByRole('row', { name: 'Butter croissants' }).getByRole('cell', { name: '22', exact: true })).toBeVisible()
     await page.getByRole('tab', { name: 'History' }).click()
     await expect(page.getByRole('table', { name: 'Stock history' })).toContainText('Taken off the waste log')
