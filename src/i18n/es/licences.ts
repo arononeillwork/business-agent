@@ -1,4 +1,4 @@
-// Spanish for Licences & renewals. The licences' own names stay in Spanish everywhere (shared/licences.ts).
+// Spanish for Licences. The licences' own names stay in Spanish everywhere (shared/licences.ts).
 export default {
   'A person’s, for a certificate': 'De una persona, para un certificado',
   'Add a licence': 'Añadir una licencia',
@@ -31,7 +31,6 @@ export default {
   'Leave empty if it doesn’t run out': 'Déjalo vacío si no caduca',
   'Licence removed': 'Licencia quitada',
   'Licence': 'Licencia',
-  'Licences & renewals': 'Licencias y renovaciones',
   'Licences are only visible to admins.': 'Las licencias solo las ven los administradores.',
   'Licences': 'Licencias',
   'Next: {name}, {date}': 'Próxima: {name}, {date}',

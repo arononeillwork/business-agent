@@ -1,4 +1,4 @@
-// Expenses & mileage: what someone on the team spent for the business (parking, a supplier run,
+// Expenses: what someone on the team spent for the business (parking, a supplier run,
 // supplies bought in a hurry) or drove for it in their own car, sent for an admin to approve and
 // pay back. Not the running costs (Finances): those are the business's own monthly bills.
 import { msg } from './i18n'

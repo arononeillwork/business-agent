@@ -1,4 +1,4 @@
-// Spanish for Expenses & mileage.
+// Spanish for Expenses.
 export default {
   'A rate a kilometre is between 0 and 5': 'El importe por kilómetro está entre 0 y 5',
   'A trip in my own car': 'Un viaje en mi coche',
@@ -15,7 +15,6 @@ export default {
   'Enter the kilometres': 'Escribe los kilómetros',
   'Enter what it cost': 'Escribe lo que costó',
   'Euros a km': 'Euros por km',
-  'Expenses & mileage': 'Gastos y kilometraje',
   'Fuel': 'Combustible',
   'Keep the receipt and give it to an admin: they add it when they pay you back.': 'Guarda el tique y dáselo a un administrador: lo añade cuando te lo devuelve.',
   'Kept in your Drive or OneDrive, under Tax › Expenses': 'Se guarda en tu Drive u OneDrive, en Tax › Expenses',
