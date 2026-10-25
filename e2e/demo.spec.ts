@@ -107,7 +107,7 @@ test.describe('employee permissions', () => {
     // Business info is readable by everyone, but only admins can edit it or see admin notes.
     await page.getByRole('link', { name: 'Business' }).first().click()
     await expect(page.getByRole('heading', { name: 'Easy Beans Coffee' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Edit' })).toHaveCount(0)
+    await expect(page.getByRole('main').getByRole('button', { name: 'Edit' })).toHaveCount(0)
     await expect(page.getByText('Admin-only notes')).toHaveCount(0)
 
     await page.getByRole('link', { name: 'Rota' }).first().click()
@@ -693,7 +693,8 @@ test.describe('partners (outside businesses)', () => {
       await expect(nav.getByRole('link', { name })).toHaveCount(0)
     }
     await expect(page.getByText('Gestoría Marbella').first()).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Edit' })).toHaveCount(0)
+    // In the page: the menu's own buttons name its pages ("Reorder Credit & debit").
+    await expect(page.getByRole('main').getByRole('button', { name: 'Edit' })).toHaveCount(0)
 
     // Payroll: everyone's holiday and leave, to read.
     await nav.getByRole('link', { name: 'Staff benefits' }).click()
@@ -1753,7 +1754,7 @@ test.describe('billing', () => {
     await expect(nav.getByRole('region', { name: 'Marketing' }).getByRole('link')).toHaveText(['Social planner', 'Campaigns', 'Ads', 'Analytics', 'Reviews', 'Website & SEO', 'Competitors'])
     await nav.getByRole('region', { name: 'Marketing' }).getByRole('link', { name: 'Analytics' }).click()
     await expect(page.getByRole('heading', { name: 'Analytics', level: 1 })).toBeVisible()
-    await expect(nav.getByRole('region', { name: 'Accounts' }).getByRole('link')).toHaveText(['Finances', 'Profit & loss', 'Invoices', 'Expenses', 'Tax', 'Grants'])
+    await expect(nav.getByRole('region', { name: 'Accounts' }).getByRole('link')).toHaveText(['Finances', 'Profit & loss', 'Invoices', 'Credit & debit', 'Expenses', 'Tax', 'Grants'])
     await page.goto('/finances/sales')
     await expect(page).toHaveURL(/\/sales$/)
   })
@@ -3531,6 +3532,160 @@ test.describe('grants', () => {
     await expect(page.getByRole('region', { name: 'My applications' }).getByRole('article', { name: 'Hiring grant: Talento Joven' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Track this grant' })).toHaveCount(0)
     await expect(page.getByRole('button', { name: /^Move to/ })).toHaveCount(0)
+  })
+})
+
+test.describe('credit and debit', () => {
+  test('money to pay back and coming in: a payment moves the next date on, and grants link to their application', async ({ page }) => {
+    await open(page, '/credit-debit')
+    await expect(page.getByRole('heading', { name: 'Credit & debit', level: 1 })).toBeVisible()
+    const tile = (label: string) => page.getByRole('list', { name: 'At a glance' }).getByRole('listitem').filter({ hasText: label })
+    await expect(tile('To pay back')).toContainText('€5.300,00')
+    await expect(tile('Could raise')).toContainText('€6.200,00')
+
+    const debts = page.getByRole('region', { name: 'To pay back' })
+    const jeremy = debts.getByRole('row').filter({ hasText: 'Loan from Jeremy' })
+    await expect(jeremy).toContainText('€100,00 of €1.000,00')
+    await expect(jeremy).toContainText('in 1 day')
+    await jeremy.getByRole('button', { name: 'Record a payment for Loan from Jeremy' }).click()
+    const pay = page.getByRole('dialog', { name: 'Record a payment' })
+    await expect(pay.getByLabel('Amount')).toHaveValue('100') // the usual instalment
+    await pay.getByRole('button', { name: 'Save' }).click()
+    await toast(page, 'Payment recorded')
+    await expect(jeremy).toContainText('€200,00 of €1.000,00')
+    await expect(jeremy).toContainText('€800,00')
+    await expect(jeremy).toContainText('1 Nov 2026') // on to next month's
+    await expect(tile('To pay back')).toContainText('€5.200,00')
+    // The payment is in its history, and can be taken off again.
+    await jeremy.getByRole('button', { name: 'Edit Loan from Jeremy' }).click()
+    const edit = page.getByRole('dialog', { name: 'Loan from Jeremy' })
+    await expect(edit.getByRole('group', { name: 'Payments' })).toContainText('30 Sep 2026')
+    await edit.getByRole('button', { name: 'Cancel' }).click()
+
+    // The grant being applied for is money that could be raised, and opens at its application.
+    const coming = page.getByRole('region', { name: 'Coming in' })
+    const talento = coming.getByRole('row').filter({ hasText: 'Hiring grant: Talento Joven' })
+    await expect(talento).toContainText('Could raise')
+    await expect(talento).toContainText('€5.000,00')
+    await expect(talento.getByRole('button', { name: /^Record money received/ })).toHaveCount(0) // not awarded yet
+    await talento.getByRole('link', { name: 'Open Hiring grant: Talento Joven in Grants' }).click()
+    await expect(page).toHaveURL(/\/grants#application-ga-talento$/)
+    await expect(page.getByRole('region', { name: 'My applications' }).getByRole('article', { name: 'Hiring grant: Talento Joven' })).toBeInViewport()
+  })
+
+  test('a grant awarded on the Grants page is money coming in; what’s received here is saved on the grant', async ({ page }) => {
+    await open(page, '/grants')
+    const app = page.getByRole('region', { name: 'My applications' }).getByRole('article', { name: 'Hiring grant: Talento Joven' })
+    await app.getByRole('button', { name: 'Move to Submitted' }).click()
+    await app.getByRole('button', { name: 'Move to Awarded' }).click()
+    await toast(page, 'Moved to Awarded')
+    await app.getByRole('button', { name: 'Edit' }).click()
+    const edit = page.getByRole('dialog', { name: 'Hiring grant: Talento Joven' })
+    await edit.getByLabel('Awarded (€)').fill('4000')
+    await edit.getByRole('button', { name: 'Save' }).click()
+    await toast(page, 'Application saved')
+
+    await page.getByRole('region', { name: 'My applications' }).getByRole('link', { name: 'Credit & debit' }).click()
+    await expect(page.getByRole('heading', { name: 'Credit & debit', level: 1 })).toBeVisible()
+    const talento = page.getByRole('region', { name: 'Coming in' }).getByRole('row').filter({ hasText: 'Hiring grant: Talento Joven' })
+    await expect(talento).toContainText('€0,00 of €4.000,00')
+    await expect(talento).not.toContainText('Could raise')
+    await expect(page.getByRole('list', { name: 'At a glance' }).getByRole('listitem').filter({ hasText: 'Coming in' })).toContainText('€4.000,00')
+    await talento.getByRole('button', { name: 'Record money received for Hiring grant: Talento Joven' }).click()
+    const pay = page.getByRole('dialog', { name: 'Record money received' })
+    await pay.getByLabel('Amount').fill('1500')
+    await pay.getByRole('button', { name: 'Save' }).click()
+    await toast(page, 'Money received recorded')
+    await expect(talento).toContainText('€1.500,00 of €4.000,00')
+    await expect(talento).toContainText('€2.500,00')
+
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Grants' }).click()
+    await expect(page.getByRole('region', { name: 'My applications' }).getByRole('article', { name: 'Hiring grant: Talento Joven' })).toContainText('Received€1.500,00')
+  })
+
+  test('something to sell: added as money that could be raised, sold for less and settled', async ({ page }) => {
+    await open(page, '/credit-debit')
+    await page.getByRole('button', { name: 'Add money coming in' }).click()
+    const add = page.getByRole('dialog', { name: 'Add money coming in' })
+    await add.getByLabel('Name').fill('Bar stools')
+    await add.getByLabel('Amount').fill('300')
+    await expect(add.getByRole('switch', { name: 'Not agreed yet: money that could be raised' })).toBeChecked()
+    await add.getByRole('button', { name: 'Save' }).click()
+    await toast(page, /^Saved$/)
+    const stools = page.getByRole('region', { name: 'Coming in' }).getByRole('row').filter({ hasText: 'Bar stools' })
+    await expect(stools).toContainText('Something to sell')
+    await expect(stools).toContainText('Could raise')
+    await expect(page.getByRole('list', { name: 'At a glance' }).getByRole('listitem').filter({ hasText: 'Could raise' })).toContainText('€6.500,00')
+
+    await stools.getByRole('button', { name: 'Record money received for Bar stools' }).click()
+    const pay = page.getByRole('dialog', { name: 'Record money received' })
+    await expect(pay.getByLabel('Amount')).toHaveValue('300')
+    await pay.getByLabel('Amount').fill('250')
+    await pay.getByRole('button', { name: 'Save' }).click()
+    await toast(page, 'Money received recorded')
+    await expect(stools).toContainText('€250,00 of €300,00')
+
+    await stools.getByRole('button', { name: 'Edit Bar stools' }).click()
+    const edit = page.getByRole('dialog', { name: 'Bar stools' })
+    await expect(edit.getByRole('group', { name: 'Money received' })).toContainText('€250,00')
+    await edit.getByRole('switch', { name: 'Settled: received, or sold for less' }).check()
+    await edit.getByRole('button', { name: 'Save' }).click()
+    await expect(page.getByRole('region', { name: 'Coming in' }).getByRole('row').filter({ hasText: 'Bar stools' })).toHaveCount(0)
+    await expect(page.getByRole('region', { name: 'Settled' }).getByRole('row').filter({ hasText: 'Bar stools' })).toContainText('Settled')
+  })
+
+  test('employees can’t see credit and debit, and the gestoría reads it without changing anything', async ({ page }) => {
+    await open(page, '/', 'maria@example.com')
+    await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Credit & debit' })).toHaveCount(0)
+    await page.goto('/credit-debit?demo')
+    await expect(page.getByText('Credit & debit is only visible to admins with pay access.')).toBeVisible()
+
+    await signInAs(page, 'laura@gestoria.example')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Credit & debit' }).click()
+    await expect(page.getByRole('main').getByText('Read-only', { exact: true })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'To pay back' })).toContainText('Loan from Jeremy')
+    await expect(page.getByRole('region', { name: 'Coming in' })).toContainText('Hiring grant: Talento Joven')
+    await expect(page.getByRole('button', { name: /^Record/ })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /^Add money/ })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /^Edit/ })).toHaveCount(0)
+  })
+})
+
+test.describe('pages: the order of the menu sections', () => {
+  test('each person puts the menu sections in their own order, saved to their account', async ({ page }) => {
+    const usual = ['Business', 'Sales', 'Stock', 'Accounts', 'Marketing', "What's on", 'Team', 'Settings']
+    await open(page, '/pages')
+    const nav = page.getByRole('navigation', { name: 'Main' })
+    const headings = async () => (await nav.locator('section > button').allTextContents()).map(h => h.trim())
+    const order = page.getByRole('region', { name: 'Menu sections' })
+    expect(await headings()).toEqual(usual)
+    await expect(order.getByRole('button', { name: 'Move Business up' })).toBeDisabled()
+    await expect(order.getByRole('button', { name: 'Move Settings down' })).toBeDisabled()
+
+    await order.getByRole('button', { name: 'Move Team up' }).click()
+    await expect.poll(headings).toEqual(['Business', 'Sales', 'Stock', 'Accounts', 'Marketing', 'Team', "What's on", 'Settings'])
+    await order.getByRole('button', { name: 'Move Team up' }).click()
+    await expect.poll(headings).toEqual(['Business', 'Sales', 'Stock', 'Accounts', 'Team', 'Marketing', "What's on", 'Settings'])
+    // Or with the keyboard: pick up Settings, move it up a place and drop it.
+    await order.getByRole('button', { name: 'Reorder Settings' }).focus()
+    await page.keyboard.press('Space')
+    await page.keyboard.press('ArrowUp')
+    await expect(order.getByRole('status')).toContainText('over droppable area whatson')
+    await page.keyboard.press('Space')
+    const mine = ['Business', 'Sales', 'Stock', 'Accounts', 'Team', 'Marketing', 'Settings', "What's on"]
+    await expect.poll(headings).toEqual(mine)
+    // The page's own lists follow the same order.
+    expect(await order.getByRole('listitem').locator('p').allTextContents()).toEqual(mine)
+
+    // Saved to Aron's account: someone else keeps the usual order.
+    await signInAs(page, 'mark@example.com')
+    await expect.poll(headings).toEqual(usual)
+    await signInAs(page, 'aron@example.com')
+    await expect.poll(headings).toEqual(mine)
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Pages' }).click()
+    await page.getByRole('region', { name: 'Menu sections' }).getByRole('button', { name: 'Usual order' }).click()
+    await toast(page, 'The menu’s sections are in their usual order again')
+    await expect.poll(headings).toEqual(usual)
   })
 })
 

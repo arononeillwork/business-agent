@@ -26,6 +26,7 @@ import { addToCalendarUrl, cleanWebsite, groupOf } from '../../shared/connection
 import { mergeSales } from '../../shared/sales'
 import { dueFrom, emailId, matchSupplier, numberFromName, type InboxInvoice, type Invoice } from '../../shared/invoices'
 import type { Licence } from '../../shared/licences'
+import { afterPayment, paidSoFar, type MoneyItem, type MoneyPayment } from '../../shared/creditDebit'
 import { inStep } from '../../shared/todo'
 import { LEGAL_STORAGES, MAX_PICK, SKIPPED, guessKind, previewOf, storageName, titleOf, type LegalDocument, type LegalStorage, type StorageItem } from '../../shared/legalDocs'
 import type { Benefit, LeaveAllowance } from '../../shared/benefits'
@@ -324,6 +325,20 @@ export function createDemoApi(): Api {
       expires_on: '2026-10-15', renew_every_months: 12, cost: 312 }),
     licence({ name: 'Revisión de extintores', category: 'safety', issuer: 'Extintores Costa', expires_on: '2026-09-01', renew_every_months: 12, cost: 65 }),
   ]
+
+  // Credit & debit: Jeremy's loan being paid back monthly, the espresso machine on finance, and the old
+  // coffee machine to sell (the grant being applied for comes from the grant applications).
+  const moneyItem = (p: Partial<MoneyItem> & { name: string; direction: MoneyItem['direction']; amount: number }): MoneyItem => ({ id: uid(), kind: 'other', party: null,
+    instalment: null, every_months: null, next_due: null, possible: false, done: false, notes: null, payments: [], ...p })
+  const moneyPayment = (amount: number, paid_on: string, note: string | null = null): MoneyPayment => ({ id: uid(), item_id: '', paid_on, amount, note })
+  const moneyItems: MoneyItem[] = [
+    moneyItem({ direction: 'debit', kind: 'loan', name: 'Loan from Jeremy', party: 'Jeremy', amount: 1000, instalment: 100, every_months: 1, next_due: '2026-10-01',
+      notes: 'Lent to cover the opening stock. No interest.', payments: [moneyPayment(100, '2026-09-01')] }),
+    moneyItem({ direction: 'debit', kind: 'finance', name: 'Espresso machine on finance', party: 'Maquinaria Costa SL', amount: 4800, instalment: 200, every_months: 1,
+      next_due: '2026-10-05', payments: [moneyPayment(200, '2026-08-05'), moneyPayment(200, '2026-09-05')] }),
+    moneyItem({ direction: 'credit', kind: 'sale', name: 'Old coffee machine', amount: 1200, possible: true, notes: 'Two-group, works. Asking €1,200.' }),
+  ]
+  moneyItems.forEach(i => i.payments.forEach(p => { p.item_id = i.id }))
 
   // Legal page: what's in the café's Google Drive and OneDrive (the demo browses both; the real app
   // uses Google's own picker for Drive), and two documents already picked from the Drive's Legal folder.
@@ -2081,6 +2096,46 @@ export function createDemoApi(): Api {
       requireAdmin()
       const i = licenceList.findIndex(x => x.id === id)
       if (i >= 0) licenceList.splice(i, 1)
+    },
+    async creditDebit() {
+      if (!paysAdmin() && !partnerCan('finances')) return []
+      return clone(moneyItems).map(i => ({ ...i, payments: i.payments.sort((a, b) => b.paid_on.localeCompare(a.paid_on)) }))
+        .sort((a, b) => (a.next_due ?? '9999').localeCompare(b.next_due ?? '9999') || a.name.localeCompare(b.name))
+    },
+    async saveCreditDebit({ id, ...item }) {
+      if (!paysAdmin()) throw new Error('Only admins with pay access can change credit and debit')
+      const { payments: _payments, ...patch } = item as typeof item & { payments?: unknown }
+      const existing = id ? moneyItems.find(x => x.id === id) : undefined
+      if (id && !existing) throw new Error('That has gone')
+      const next = { ...(existing ?? moneyItem({ name: '', direction: 'debit', amount: 0 })), ...patch }
+      // The database's rules: a name, an amount, tidy text, and only money coming in can be "possible".
+      next.name = next.name.trim()
+      if (!next.name) throw new Error('Give it a name')
+      if (!(next.amount > 0)) throw new Error('The amount must be more than 0')
+      if (next.instalment != null && !(next.instalment > 0)) throw new Error('Each payment must be more than 0')
+      Object.assign(next, { party: next.party?.trim() || null, notes: next.notes?.trim() || null, possible: next.direction === 'credit' && next.possible })
+      if (existing) Object.assign(existing, next)
+      else moneyItems.push(next)
+      return next.id
+    },
+    async deleteCreditDebit(id) {
+      if (!paysAdmin()) throw new Error('Only admins with pay access can change credit and debit')
+      const i = moneyItems.findIndex(x => x.id === id)
+      if (i >= 0) moneyItems.splice(i, 1)
+    },
+    async addCreditDebitPayment({ item_id, amount, paid_on, note }) {
+      if (!paysAdmin()) throw new Error('Only admins with pay access can change credit and debit')
+      const item = moneyItems.find(x => x.id === item_id)
+      if (!item) throw new Error('That has gone')
+      if (!(amount > 0)) throw new Error('The amount must be more than 0')
+      item.payments.push(moneyPayment(amount, paid_on, note?.trim() || null))
+      item.payments[item.payments.length - 1].item_id = item.id
+      // Mirrors credit_debit_payment_made() in the database.
+      Object.assign(item, afterPayment(item, paidSoFar(item.payments), paid_on))
+    },
+    async deleteCreditDebitPayment(id) {
+      if (!paysAdmin()) throw new Error('Only admins with pay access can change credit and debit')
+      for (const i of moneyItems) i.payments = i.payments.filter(p => p.id !== id)
     },
     async legalDocuments() {
       if (!isAdmin() && !partnerCan('finances')) return []
