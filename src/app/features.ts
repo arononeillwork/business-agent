@@ -8,4 +8,9 @@ export const FEATURES = {
   square: true,
   /** Tips (Team): shares of the tips by hours worked. Waits for its database change, held in supabase/pending until then (see the README there). */
   tips: false,
+  /** Music on stories and reels (Social planner), AI tracks paid per use, the brand's sound and the assistant's music tools. Waits for the ElevenLabs key and the render service (docs/SOCIAL_MUSIC_PLAN.md). */
+  music: false,
 }
+
+/** Whether something marked as part of one of these (`onlyWith`, e.g. a row of the pricing table) shows: unless that part is switched off. */
+export const shows = (x: { onlyWith?: keyof typeof FEATURES }) => !x.onlyWith || FEATURES[x.onlyWith]

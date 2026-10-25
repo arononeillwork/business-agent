@@ -133,6 +133,8 @@ export class FakeProviders {
     refreshes: 0,
     /** The long-lived token the Worker should be using now. */
     current: '',
+    /** The account's posts and reels (me/media), newest first. */
+    media: [{ id: 'm1', caption: 'Iced oat latte season', permalink: 'https://instagram.com/p/1', timestamp: '2026-09-27T10:00:00Z' }] as Json[],
     /** Direct messages, as Instagram's Conversations API returns them (newest first). */
     chats: [
       { id: 'conv-1', updated_time: '2026-10-18T10:05:00+0000',
@@ -306,6 +308,11 @@ export class FakeProviders {
     /** Photos and voice notes people sent, by media id (Meta keeps them for a while, then they're gone). */
     media: new Map<string, { type: string; bytes: Uint8Array }>(),
   }
+  /** ElevenLabs Music (key "el-key"): what it was asked for, and switches to refuse a prompt or fail. */
+  elevenlabs = { asked: [] as Json[], refuse: false, down: false }
+  /** The render service (render/, at https://render.test, key "render-key"): the jobs it got, and a switch to refuse one. */
+  render = { jobs: [] as Json[], refuse: null as string | null }
+
   /** Every call, as "METHOD host/path". */
   calls: string[] = []
   private nextId = 1
@@ -316,6 +323,30 @@ export class FakeProviders {
     this.calls.push(`${method} ${url.host}${url.pathname}`)
     const form = () => new URLSearchParams(String(init.body ?? ''))
     const body = () => JSON.parse(String(init.body ?? '{}')) as Json
+
+    // ---- ElevenLabs Music: an MP3 per call (a few bytes standing in) ----
+    if (url.host === 'api.elevenlabs.io' && url.pathname === '/v1/music' && method === 'POST') {
+      if (new Headers(init.headers).get('xi-api-key') !== 'el-key') return json({ detail: { status: 'invalid_api_key', message: 'Invalid API key' } }, 401)
+      this.elevenlabs.asked.push(body())
+      if (this.elevenlabs.refuse) {
+        return json({ detail: { status: 'bad_prompt', message: 'The prompt includes copyrighted material.', data: { prompt_suggestion: 'Bright upbeat pop with handclaps' } } }, 400)
+      }
+      if (this.elevenlabs.down) return json({ detail: { message: 'Service temporarily unavailable' } }, 503)
+      const n = this.nextId++
+      return new Response(new Uint8Array(2048).fill(n % 251), { headers: { 'content-type': 'audio/mpeg', 'song-id': `song-${n}` } })
+    }
+
+    // ---- The render service: the MP4 with the music in ----
+    if (url.host === 'render.test') {
+      if (new Headers(init.headers).get('authorization') !== 'Bearer render-key') return json({ error: 'Not allowed' }, 401)
+      this.render.jobs.push(body())
+      if (this.render.refuse) return json({ error: this.render.refuse }, 400)
+      const bytes = new Uint8Array(4096).fill(7)
+      // A video source is 12.5 s long here; photos last as asked.
+      const job = body() as { seconds: number; source: { type: string } }
+      const seconds = job.source.type === 'video' ? Math.min(12.5, job.seconds) : job.seconds
+      return new Response(bytes, { headers: { 'content-type': 'video/mp4', 'content-length': String(bytes.length), 'x-render-ms': '8400', 'x-render-seconds': String(seconds) } })
+    }
 
     // ---- Google ----
     if (url.href === 'https://oauth2.googleapis.com/token') {
@@ -546,7 +577,7 @@ export class FakeProviders {
         return json({ error: { message: 'Error validating access token: The user has not authorized application 123.', type: 'OAuthException', code: 190 } }, 400)
       }
       if (url.pathname.endsWith('/me')) return json({ user_id: '17841400000000001', username: this.instagram.username, account_type: 'BUSINESS', followers_count: 1284, media_count: 57 })
-      if (url.pathname.endsWith('/me/media')) return json({ data: [{ id: 'm1', caption: 'Iced oat latte season', permalink: 'https://instagram.com/p/1', timestamp: '2026-09-27T10:00:00Z' }] })
+      if (url.pathname.endsWith('/me/media') && method === 'GET') return json({ data: this.instagram.media })
       const noMessages = () => json({ error: { message: '(#3) Application does not have the capability to make this API call.', type: 'OAuthException', code: 3 } }, 400)
       const fieldsOk = () => !this.instagram.plainOnly || !(url.searchParams.get('fields') ?? '').includes('image_data')
       if (url.pathname.endsWith('/me/conversations')) {

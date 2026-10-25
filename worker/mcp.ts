@@ -7,6 +7,7 @@ import { McpServer, createMcpHandler } from '@modelcontextprotocol/server'
 import type { AuthRequest, OAuthHelpers, TokenExchangeCallbackOptions } from '@cloudflare/workers-oauth-provider'
 import { userClient, type Env } from './supabase'
 import { loadMe, runTool, toolsFor, type ToolContext, type ToolDef } from './tools'
+import { FEATURES } from '../src/app/features'
 
 export interface GrantProps {
   userId: string
@@ -21,6 +22,8 @@ const INSTRUCTIONS = `Team app for a café in Spain: rota, clock-ins (registro d
 Call whoami first. Dates are YYYY-MM-DD and times 24-hour Europe/Madrid.
 Before deleting anything or changing many shifts, summarise and ask the user to confirm.
 Timecard edits need a reason. Everything you change is logged as made "via AI" on behalf of the user.`
+  // The music tools are offered only while Music is switched on (src/app/features.ts).
+  + (FEATURES.music ? '\nMusic for stories and reels: suggest_music, then set_post_music. make_music is pay per use: tell the user the cost from suggest_music and get a yes first.' : '')
 
 /** Handles /mcp once the OAuth provider has validated the bearer token. */
 export const mcpApiHandler = {
@@ -29,7 +32,7 @@ export const mcpApiHandler = {
     const sb = userClient(env, props.accessToken, 'ai')
     const me = await loadMe(sb, props.accessToken)
 
-    return createMcpHandler(() => buildMcpServer(toolsFor(me), { sb, me })).fetch(request)
+    return createMcpHandler(() => buildMcpServer(toolsFor(me), { sb, me, env, origin: new URL(request.url).origin })).fetch(request)
   },
 }
 

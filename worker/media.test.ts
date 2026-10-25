@@ -69,7 +69,7 @@ describe('Photos and videos for posts: kept in the café’s Drive or OneDrive',
 
   it('only JPEG photos (up to 8 MB) and MP4/MOV videos (up to 100 MB) are taken', async () => {
     await connectStorage('google_drive')
-    expect((await (await upload(fileOf(10), 'image/png')).json() as { error: string }).error).toBe('Use a JPEG photo, or an MP4 or MOV video')
+    expect((await (await upload(fileOf(10), 'image/png')).json() as { error: string }).error).toBe('Use a JPEG photo, an MP4 or MOV video, or an MP3 or M4A track')
     const big = await call('/api/integrations/media', { method: 'POST', headers: { ...admin, 'content-type': 'image/jpeg', 'content-length': String(9 * 1024 * 1024) }, body: fileOf(10) })
     expect((await big.json() as { error: string }).error).toBe('Photos can be up to 8 MB')
     expect(apis.google.blobs.size).toBe(0)

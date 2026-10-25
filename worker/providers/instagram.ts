@@ -74,6 +74,13 @@ export async function profile(cfg: InstagramConfig): Promise<InstagramProfile> {
   return { ...p, recent: media.data }
 }
 
+/** Likes and comments on the account's latest posts and reels (stories have none Instagram shares). */
+export async function mediaCounts(cfg: InstagramConfig, limit = 100) {
+  const r = await graph<{ data: { id: string; permalink?: string; like_count?: number; comments_count?: number }[] }>(cfg,
+    `me/media?fields=id,permalink,like_count,comments_count&limit=${limit}`)
+  return r.data
+}
+
 /**
  * The professional account's id, as Instagram says it. The id that comes with the token isn't
  * always the one posting takes (and arrives as a number too long for JavaScript to keep exactly):
@@ -108,8 +115,9 @@ async function ready(cfg: InstagramConfig, id: string, wait: PublishWait) {
 /**
  * Publish a post, carousel, reel or story: one container per photo/video (a carousel's go inside
  * its own), wait until Instagram has processed them, then publish. Returns the post's link (or id).
+ * A reel with music put in by Business Agent can name its sound (`audioName`: Instagram allows it once).
  */
-export async function publish(cfg: InstagramConfig, post: { kind: PostKind; media: PostMedia[]; caption: string }, wait: PublishWait = {}) {
+export async function publish(cfg: InstagramConfig, post: { kind: PostKind; media: PostMedia[]; caption: string; audioName?: string }, wait: PublishWait = {}) {
   const form = (o: Record<string, string>) => ({ method: 'POST', body: new URLSearchParams(o) })
   const userId = await accountId(cfg)
   const make = async (o: Record<string, string>) => (await graph<{ id: string }>(cfg, `${userId}/media`, form(o))).id
@@ -124,7 +132,7 @@ export async function publish(cfg: InstagramConfig, post: { kind: PostKind; medi
     for (const id of children) await ready(cfg, id, wait)
     container = await make({ media_type: 'CAROUSEL', children: children.join(','), caption })
   } else if (post.kind === 'reel') {
-    container = await make({ media_type: 'REELS', video_url: first.url, caption, share_to_feed: 'true' })
+    container = await make({ media_type: 'REELS', video_url: first.url, caption, share_to_feed: 'true', ...(post.audioName ? { audio_name: post.audioName.slice(0, 100) } : {}) })
   } else if (post.kind === 'story') {
     container = await make({ media_type: 'STORIES', ...file(first) })
   } else {
