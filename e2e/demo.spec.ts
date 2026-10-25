@@ -3409,7 +3409,7 @@ test.describe('credit and debit', () => {
 
 test.describe('pages: the order of the menu sections', () => {
   test('each person puts the menu sections in their own order, saved to their account', async ({ page }) => {
-    const usual = ['Business', 'Sales', 'Stock', 'Accounts', 'Marketing', "What's on", 'Team', 'Settings']
+    const usual = ['Business', 'Insights', 'Sales', 'Stock', 'Accounts', 'Marketing', "What's on", 'Team', 'Settings']
     await open(page, '/pages')
     const nav = page.getByRole('navigation', { name: 'Main' })
     const headings = async () => (await nav.locator('section > button').allTextContents()).map(h => h.trim())
@@ -3419,16 +3419,16 @@ test.describe('pages: the order of the menu sections', () => {
     await expect(order.getByRole('button', { name: 'Move Settings down' })).toBeDisabled()
 
     await order.getByRole('button', { name: 'Move Team up' }).click()
-    await expect.poll(headings).toEqual(['Business', 'Sales', 'Stock', 'Accounts', 'Marketing', 'Team', "What's on", 'Settings'])
+    await expect.poll(headings).toEqual(['Business', 'Insights', 'Sales', 'Stock', 'Accounts', 'Marketing', 'Team', "What's on", 'Settings'])
     await order.getByRole('button', { name: 'Move Team up' }).click()
-    await expect.poll(headings).toEqual(['Business', 'Sales', 'Stock', 'Accounts', 'Team', 'Marketing', "What's on", 'Settings'])
+    await expect.poll(headings).toEqual(['Business', 'Insights', 'Sales', 'Stock', 'Accounts', 'Team', 'Marketing', "What's on", 'Settings'])
     // Or with the keyboard: pick up Settings, move it up a place and drop it.
     await order.getByRole('button', { name: 'Reorder Settings' }).focus()
     await page.keyboard.press('Space')
     await page.keyboard.press('ArrowUp')
     await expect(order.getByRole('status')).toContainText('over droppable area whatson')
     await page.keyboard.press('Space')
-    const mine = ['Business', 'Sales', 'Stock', 'Accounts', 'Team', 'Marketing', 'Settings', "What's on"]
+    const mine = ['Business', 'Insights', 'Sales', 'Stock', 'Accounts', 'Team', 'Marketing', 'Settings', "What's on"]
     await expect.poll(headings).toEqual(mine)
     // The page's own lists follow the same order.
     expect(await order.getByRole('listitem').locator('p').allTextContents()).toEqual(mine)
@@ -5319,7 +5319,7 @@ test.describe('UI round: dashboards, the business advisor and the landing pages'
     await toast(page, 'Added Shop manager')
     for (const w of ['On today', 'Low on stock', 'Jobs to do', 'Late starts']) await expect(page.getByRole('region', { name: w, exact: true })).toBeVisible()
     await expect(page.getByRole('region', { name: 'Takings', exact: true })).toContainText('Connect Square, SumUp or Stripe')
-    await page.getByRole('button', { name: 'Edit' }).click()
+    await page.getByRole('main').getByRole('button', { name: 'Edit', exact: true }).click()
     await page.getByRole('button', { name: 'Add a widget' }).click()
     await page.getByRole('dialog', { name: 'Add a widget' }).getByRole('button', { name: 'Add Google reviews' }).click()
     await page.getByRole('dialog', { name: 'Add a widget' }).getByRole('button', { name: 'Done' }).click()
