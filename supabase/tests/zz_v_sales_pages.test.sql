@@ -1,6 +1,5 @@
--- Leads & enquiries, Quotes & estimates and Campaigns: tidied, admins only, an enquiry moved on by
--- its quote (quoted, then won, which makes the person a customer), quotes numbered and totalled by
--- the database, and the nightly reminders for follow-ups and planned campaigns.
+-- Leads & enquiries and Campaigns: tidied, admins only, an enquiry won making the person a customer,
+-- and the nightly reminders for follow-ups and planned campaigns.
 -- People from the tests before it: maria (admin with pay access), julio (employee).
 
 create function pg_temp.act_as(p_email text) returns void language plpgsql as $$
@@ -34,30 +33,20 @@ begin
 end $$;
 select pg_temp.expect_error($q$insert into public.enquiries (customer_id, title, stage) values ((select id from public.customers limit 1), 'X', 'maybe')$q$, 'check constraint');
 
--- 2. Quotes: numbered each year, totalled here, moving their enquiry on ----------------------------
+-- 2. Won (by hand, now there are no quotes): closed, and the lead is a customer ---------------------
 do $$
-declare v_e uuid := (select id from public.enquiries where title = 'Cakes for a baby shower'); v_q uuid; v_q2 uuid;
+declare v_e uuid := (select id from public.enquiries where title = 'Cakes for a baby shower');
 begin
-  insert into public.quotes (title, enquiry_id, lines, discount_pct) values ('Baby shower, 15 people', v_e,
-    '[{"description": "Coffee and tea", "quantity": 15, "unit_price": 2.5, "vat_rate": 10},
-      {"description": "Hire of the terrace", "quantity": 1, "unit_price": 100, "vat_rate": 21}]', 10) returning id into v_q;
-  assert (select number = 'Q-' || extract(year from current_date) || '-001' from public.quotes where id = v_q), 'the first number of the year';
-  -- 37.50 and 100 less 10%: 33.75 at 10% (3.38) and 90 at 21% (18.90).
-  assert (select net = 123.75 and vat = 22.28 and total = 146.03 from public.quotes where id = v_q), 'totals worked out here';
-  assert (select customer_id = (select customer_id from public.enquiries where id = v_e) from public.quotes where id = v_q), 'the enquiry’s person';
-  assert (select stage = 'quoted' from public.enquiries where id = v_e), 'a quote moves the enquiry to quoted';
-  update public.quotes set number = 'Q-1999-999', status = 'sent' where id = v_q;
-  assert (select number like 'Q-%-001' and issued_on = current_date and valid_until = current_date + 30 from public.quotes where id = v_q),
-    'the number stays; sent: dated today, good for 30 days';
-  insert into public.quotes (title) values ('Christmas hampers') returning id into v_q2;
-  assert (select number like 'Q-%-002' and total = 0 from public.quotes where id = v_q2), 'the next number, and nothing to total yet';
-  update public.quotes set status = 'accepted' where id = v_q;
-  assert (select stage = 'won' and closed_at is not null from public.enquiries where id = v_e), 'accepted: the enquiry is won';
+  update public.enquiries set stage = 'quoted' where id = v_e;
+  assert (select closed_at is null from public.enquiries where id = v_e), 'quoted: still open';
+  update public.enquiries set stage = 'won' where id = v_e;
+  assert (select stage = 'won' and closed_at is not null from public.enquiries where id = v_e), 'won: closed';
   assert (select kind = 'customer' from public.customers where id = (select customer_id from public.enquiries where id = v_e)), 'and the lead a customer';
 end $$;
-select pg_temp.expect_error($q$insert into public.quotes (title, lines) values ('X', '[{"description": "Cake", "quantity": 1, "unit_price": 20, "vat_rate": 7}]')$q$, 'one of the IVA rates');
-select pg_temp.expect_error($q$insert into public.quotes (title, lines) values ('X', '[{"description": " ", "quantity": 1, "unit_price": 20, "vat_rate": 10}]')$q$, 'needs a description');
-select pg_temp.expect_error($q$insert into public.quotes (title, lines) values ('X', '[{"description": "Cake", "unit_price": 20, "vat_rate": 10}]')$q$, 'a quantity above 0');
+do $$ begin
+  assert to_regclass('public.quotes') is null, 'the quotes table is gone';
+  assert not exists (select 1 from pg_proc where proname in ('quote_rules', 'quote_moves_enquiry')), 'and its functions';
+end $$;
 
 -- 3. Campaigns: a subject only for email, sent keeps when and how many ------------------------------
 do $$
@@ -96,8 +85,8 @@ end $$;
 -- 5. Employees see and change none of it --------------------------------------------------------------
 select pg_temp.act_as('julio@test');
 do $$ declare n int; begin
-  assert (select count(*) from public.enquiries) = 0 and (select count(*) from public.quotes) = 0 and (select count(*) from public.campaigns) = 0, 'employees see none';
-  update public.quotes set total = 0; get diagnostics n = row_count;
+  assert (select count(*) from public.enquiries) = 0 and (select count(*) from public.campaigns) = 0, 'employees see none';
+  update public.enquiries set notes = 'x'; get diagnostics n = row_count;
   assert n = 0, 'and change none';
 end $$;
 select pg_temp.expect_error($q$insert into public.campaigns (name) values ('Sneaky')$q$, 'row-level security');
