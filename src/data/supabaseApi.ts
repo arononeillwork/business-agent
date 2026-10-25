@@ -1,10 +1,12 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { SOCIAL_PROVIDERS, type Api, type BillingInfo, type PlanStatus, type SignInMethods, type SocialProvider } from './api'
+import { PromptError, SOCIAL_PROVIDERS, type AiTrackResult, type Api, type BillingInfo, type MusicStatus, type PlanStatus, type SignInMethods, type SocialProvider } from './api'
 import type { ApiKey, AppNotification, Brand, Business, Customer, SocialPost, EventAlert, Expense, Integration, MusicPlaylist, OutboxItem, Profile, Settings, TimeEntry, TimeOff, Todo, TodoCategory, CafeTrack, MusicPlayerState } from '../../shared/types'
+import type { AiMusicQuote, MusicGeneration, MusicTrack } from '../../shared/types'
 import type { InstagramMention } from '../../shared/mentions'
 import type { FilingRecord, TaxDocument, TaxSettings } from '../../shared/tax'
 import type { Invoice } from '../../shared/invoices'
 import type { Licence } from '../../shared/licences'
+import type { KeptDocument } from '../../shared/documents'
 import type { MoneyItem } from '../../shared/creditDebit'
 import { DEFAULT_RADIUS, competitorRows, type CompetitorData } from '../../shared/localCompetitors'
 import type { LegalDocument, LegalSource, StorageListing } from '../../shared/legalDocs'
@@ -17,11 +19,12 @@ import type { RuleSection, RulesRead } from '../../shared/staffRules'
 import type { Contractor, OutsourcedJob } from '../../shared/outsourcing'
 import { DEFAULT_VAT_RATE, type PnlLine, type PnlSettings } from '../../shared/pnl'
 import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
-import type { StockItem, StockMovement, Supplier } from '../../shared/stock'
+import type { StockItem, StockMovement, Supplier, StockPrice } from '../../shared/stock'
 import type { Recipe } from '../../shared/recipes'
 import type { AdSettings } from '../../shared/ads'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
 import type { ReferralState } from '../../shared/referrals'
+import { newEntries, type Competition, type CompetitionEntry } from '../../shared/competitions'
 import { readyPhoto } from '../lib/media'
 import { cleanWebsite } from '../../shared/connections'
 import { cleanAnswers, type GrantApplication } from '../../shared/grants'
@@ -37,6 +40,8 @@ import { addDays, zonedIso } from '../../shared/time'
 const PROFILE_COLUMNS = 'id, full_name, email, role, can_see_pay, colour, active, phone, birth_date, whatsapp_opt_in, partner_company, partner_access, preferences'
 
 const GRANT_APPLICATION_COLUMNS = 'id, grant_id, grant_name, stage, submitted_on, expediente, amount_requested, amount_awarded, amount_received, deadline, deadline_label, notes, docs_done, obligations_done, created_at, updated_at'
+
+const TRACK_COLUMNS = 'id, source, title, artist, url, duration_s, bpm, energy, moods, genre, vocals, highlight_s, waveform, licence, saved, hidden, created_at'
 
 const CUSTOMER_COLUMNS = 'id, kind, first_name, last_name, email, phone, company, source, instagram, birthday, tags, notes, marketing_consent, consent_at, last_contacted_at, created_at, updated_at'
 const REP_COLUMNS = 'id, name, kind, profile_id, customer_id, code, instagram, phone, email, notes, active, created_at'
@@ -565,7 +570,9 @@ export function createSupabaseApi(url: string, key: string): Api {
       check(await sb.from('tax_filings').upsert(r, { onConflict: 'model,year,period' }))
     },
     async taxDocuments(year) {
-      return check(await sb.from('tax_documents').select('*').eq('year', year).order('uploaded_at', { ascending: false })) as TaxDocument[]
+      // The Tax page's own: those under Business Agent/Tax (the Documents hub's are on its page).
+      return (check(await sb.from('tax_documents').select('*').eq('year', year).order('uploaded_at', { ascending: false })) as TaxDocument[])
+        .filter(d => d.folder[0] === 'Tax')
     },
     async updateTaxDocument(id, patch) { check(await sb.from('tax_documents').update(patch).eq('id', id)) },
     async removeTaxDocument(id) { check(await sb.from('tax_documents').delete().eq('id', id)) },
@@ -576,6 +583,19 @@ export function createSupabaseApi(url: string, key: string): Api {
     async uploadTaxDocument(file, m) {
       const q = new URLSearchParams({ name: m.name, kind: m.kind, year: String(m.year), quarter: m.quarter ? String(m.quarter) : '', folder: m.folder.join('/'), sha256: m.sha256 })
       return (await worker<{ document: TaxDocument }>(`/api/tax/upload?${q}`, { method: 'POST', body: file, headers: { 'content-type': 'application/octet-stream' } })).document
+    },
+    async documents() {
+      return check(await sb.from('tax_documents').select('*, invoices(id, number, party_name, supplier:suppliers(name)), licences(id, name, expires_on)')
+        .order('uploaded_at', { ascending: false })) as KeptDocument[]
+    },
+    browseFiles: path => worker(`/api/files/browse?path=${encodeURIComponent(path.join('/'))}`),
+    async makeDocumentsFolder(path, name) {
+      return (await worker<{ path: string[] }>('/api/files/folders', { method: 'POST', body: JSON.stringify({ path, name }) })).path
+    },
+    async uploadDocument(file, m) {
+      const q = new URLSearchParams({ name: m.name, kind: m.kind, year: String(m.year), folder: m.folder.join('/'), sha256: m.sha256,
+        title: m.title ?? '', tags: (m.tags ?? []).join(','), expires_on: m.expires_on ?? '' })
+      return (await worker<{ document: KeptDocument }>(`/api/files/upload?${q}`, { method: 'POST', body: file, headers: { 'content-type': 'application/octet-stream' } })).document
     },
     async pnlSettings() {
       const { data, error } = await sb.from('pnl_settings').select('vat_rate').eq('id', 1).maybeSingle()
@@ -603,6 +623,12 @@ export function createSupabaseApi(url: string, key: string): Api {
       else check(await sb.from('suppliers').insert(s))
     },
     async deleteSupplier(id) { check(await sb.from('suppliers').delete().eq('id', id)) },
+    async stockPrices() {
+      // Newest first, so that the page limit leaves out the oldest prices, never the latest change.
+      return (check(await sb.from('stock_item_prices').select('item_id, cost_per_unit, changed_at')
+        .order('changed_at', { ascending: false }).order('id', { ascending: false })) as StockPrice[])
+        .map(p => ({ ...p, cost_per_unit: Number(p.cost_per_unit) }))
+    },
     async stockItems() {
       const num = (v: unknown) => (v === null || v === undefined ? null : Number(v))
       return (check(await sb.from('stock_items').select('*').order('name')) as StockItem[]).map(i => ({
@@ -895,18 +921,55 @@ export function createSupabaseApi(url: string, key: string): Api {
     },
     async saveAdSettings(patch) { check(await sb.from('ad_settings').update(patch).eq('id', 1)) },
     async socialPosts() {
-      return check(await sb.from('social_posts').select('id, kind, caption, image_url, media, targets, scheduled_at, auto, status, results, created_at, published_at')
+      return check(await sb.from('social_posts').select('id, kind, caption, image_url, media, targets, scheduled_at, auto, status, results, music, insights, created_at, published_at')
         .order('scheduled_at', { ascending: false, nullsFirst: true }).order('created_at', { ascending: false }).limit(200)) as SocialPost[]
     },
     async saveSocialPost(p) {
       // The cover (image_url) follows the media in the database.
       const row = { kind: p.kind ?? 'post', caption: p.caption, media: p.media ?? (p.image_url ? [{ url: p.image_url, type: 'image' }] : []),
-        targets: p.targets, status: p.status, scheduled_at: p.scheduled_at ?? null, auto: p.auto ?? true }
+        targets: p.targets, status: p.status, scheduled_at: p.scheduled_at ?? null, auto: p.auto ?? true,
+        ...(p.music !== undefined ? { music: p.music } : {}) }
       if (p.id) { check(await sb.from('social_posts').update(row).eq('id', p.id)); return p.id }
       return (check(await sb.from('social_posts').insert(row).select('id').single()) as { id: string }).id
     },
     async deleteSocialPost(id) { check(await sb.from('social_posts').delete().eq('id', id)) },
     async markPosted(id) { check(await sb.from('social_posts').update({ status: 'published' }).eq('id', id)) },
+    async competitions() {
+      type Row = Competition & { competition_entries: { count: number }[] }
+      const rows = check(await sb.from('competitions').select('*, competition_entries(count)').order('created_at', { ascending: false })) as Row[]
+      return rows.map(({ competition_entries, ...c }) => ({ ...c, prize_value: c.prize_value === null ? null : Number(c.prize_value),
+        entries: competition_entries[0]?.count ?? 0 }))
+    },
+    async saveCompetition({ id, ...c }) {
+      const { entries: _e, drawn_at: _d, entry_count: _n, created_at: _c, ...row } = c as typeof c & Partial<Competition>
+      if (id) { check(await sb.from('competitions').update(row).eq('id', id)); return id }
+      return (check(await sb.from('competitions').insert(row).select('id').single()) as { id: string }).id
+    },
+    async deleteCompetition(id) { check(await sb.from('competitions').delete().eq('id', id)) },
+    async competitionEntries(id) {
+      // A page at a time: a big giveaway can have more entries than one read returns.
+      const out: CompetitionEntry[] = []
+      for (let from = 0; ; from += 1000) {
+        const page = check(await sb.from('competition_entries').select('*').eq('competition_id', id)
+          .order('created_at').order('id').range(from, from + 999)) as CompetitionEntry[]
+        out.push(...page)
+        if (page.length < 1000) return out
+      }
+    },
+    async addEntries(id, rows) {
+      const { fresh, skipped } = newEntries(await api.competitionEntries(id), rows)
+      if (fresh.length) check(await sb.from('competition_entries').insert(fresh.map(r => ({ ...r, competition_id: id }))))
+      return { added: fresh.length, skipped }
+    },
+    async updateEntry(id, patch) { check(await sb.from('competition_entries').update(patch).eq('id', id)) },
+    async drawCompetition(id) { return check(await sb.rpc('draw_competition', { p_id: id })) as number },
+    async givePrize(id) {
+      const c = check(await sb.from('competitions').select('name, winners, prize_item_id, prize_given_at').eq('id', id).single()) as
+        Pick<Competition, 'name' | 'winners' | 'prize_item_id' | 'prize_given_at'>
+      if (c.prize_given_at) return
+      check(await sb.from('competitions').update({ prize_given_at: new Date().toISOString() }).eq('id', id))
+      if (c.prize_item_id) await api.recordStock([{ item_id: c.prize_item_id, reason: 'used', change: -c.winners, note: `Prize: ${c.name}`.slice(0, 300) }])
+    },
     loyalty: (from, to) => worker<LoyaltyState>(`/api/loyalty?from=${from}&to=${to}`),
     async adjustLoyalty(accountId, points, reason, key) {
       await worker('/api/loyalty/adjust', { method: 'POST', body: JSON.stringify({ account_id: accountId, points, reason, key }) })
@@ -920,6 +983,37 @@ export function createSupabaseApi(url: string, key: string): Api {
         method: 'POST', body: file, headers: { 'content-type': file.type } })
       return { url, type }
     },
+    async musicTracks() {
+      return check(await sb.from('music_tracks').select(TRACK_COLUMNS).eq('hidden', false).order('created_at', { ascending: false }).limit(500)) as MusicTrack[]
+    },
+    musicStatus: () => worker<MusicStatus>('/api/social/music/status'),
+    async uploadTrack(file, t) {
+      // Browsers name the same files differently: the two the Worker takes.
+      const type = /\.m4a$/i.test(file.name) || /mp4|m4a/.test(file.type) ? 'audio/mp4' : 'audio/mpeg'
+      const { url } = await worker<{ url: string }>('/api/integrations/media?folder=Music', { method: 'POST', body: file, headers: { 'content-type': type } })
+      return check(await sb.from('music_tracks').insert({
+        source: 'upload', title: t.title, artist: t.artist ?? null, url, duration_s: t.duration_s, moods: t.moods, waveform: t.waveform,
+        highlight_s: t.highlight_s, bpm: t.bpm, licence: { confirmed: t.confirmed },
+      }).select(TRACK_COLUMNS).single()) as MusicTrack
+    },
+    async saveTrack(id, patch) { check(await sb.from('music_tracks').update(patch).eq('id', id)) },
+    async deleteTrack(id) { check(await sb.from('music_tracks').delete().eq('id', id)) },
+    async aiMusicQuote(seconds) { return check(await sb.rpc('ai_music_quote', { p_seconds: seconds })) as AiMusicQuote },
+    async makeAiTrack(req) {
+      // Not worker(): a refused prompt comes with ElevenLabs' own rewording to offer.
+      const token = (await sb.auth.getSession()).data.session?.access_token
+      const res = await fetch('/api/social/music/generate', { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify(req) })
+      const json = await res.json().catch(() => ({})) as AiTrackResult & { error?: string; suggestion?: string | null }
+      if (!res.ok) throw new PromptError(json.error ?? `Request failed (${res.status})`, json.suggestion ?? undefined)
+      return json
+    },
+    async keepAiTrack(generationId, trackId) { check(await sb.rpc('ai_music_keep', { p_id: generationId, p_track: trackId })) },
+    async aiMusicUses() {
+      return check(await sb.from('music_generations').select('id, prompt, seconds, uses, status, free, price_cents, kept_id, error, charged_at, created_at')
+        .gte('created_at', new Date(Date.now() - 62 * 86_400_000).toISOString()).order('created_at', { ascending: false }).limit(200)) as MusicGeneration[]
+    },
+    async setPayPerUseLimit(euros) { check(await sb.rpc('set_ai_music_limit', { p_cents: Math.round(euros * 100) })) },
+    renderPostMusic: req => worker('/api/social/render', { method: 'POST', body: JSON.stringify(req) }),
     async connectInstagram(back) {
       const { url } = await worker<{ url: string }>('/api/integrations/instagram/start', { method: 'POST', body: JSON.stringify({ back }) })
       location.assign(url)
@@ -1032,7 +1126,7 @@ export function createSupabaseApi(url: string, key: string): Api {
       await worker('/api/integrations/music/playlist', { method: 'POST', body: JSON.stringify({ playlist }) })
     },
     async brand() {
-      return check(await sb.from('brand').select('logo, logo_mark, colours, heading_font, body_font, notes, updated_at').eq('id', 1).single()) as Brand
+      return check(await sb.from('brand').select('logo, logo_mark, colours, heading_font, body_font, notes, sound_moods, sound_avoid, updated_at').eq('id', 1).single()) as Brand
     },
     async saveBrand(patch) {
       check(await sb.from('brand').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', 1))

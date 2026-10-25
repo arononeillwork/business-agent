@@ -431,6 +431,9 @@ export interface Brand {
   heading_font: string
   body_font: string
   notes: string | null
+  /** The brand's sound (moods its music has, and never has): suggestions and AI music start here. */
+  sound_moods?: string[]
+  sound_avoid?: string[]
   updated_at: string
 }
 
@@ -443,6 +446,90 @@ export type SocialNetwork = 'instagram' | 'facebook' | 'tiktok' | 'google' | 'li
 export type PostKind = 'post' | 'carousel' | 'reel' | 'story'
 /** A photo or video of a post, at a public address the networks fetch it from. */
 export interface PostMedia { url: string; type: 'image' | 'video' }
+
+/** A track in the business's music library (migration 86). */
+export interface MusicTrack {
+  id: string
+  /** starter: Business Agent's pack; ai: made for this business with ElevenLabs; upload: its own file. */
+  source: 'starter' | 'ai' | 'upload'
+  title: string
+  artist: string | null
+  url: string
+  duration_s: number
+  bpm: number | null
+  energy: number | null
+  moods: string[]
+  genre: string | null
+  vocals: boolean
+  /** Where the best part starts, and the shape of the sound (0–1, a few hundred points). */
+  highlight_s: number
+  waveform: number[] | null
+  licence: Record<string, unknown>
+  saved: boolean
+  hidden: boolean
+  created_at: string
+}
+
+/** Music on a post: mixed into the file (stories and reels), or a song to add in Instagram (reminders). */
+export type PostMusic = MixedMusic | InstagramMusic
+export interface MixedMusic {
+  mode: 'mixed'
+  track_id: string
+  title: string
+  artist: string | null
+  /** The track's file, and the part used. */
+  url: string
+  start: number
+  seconds: number
+  music_volume: number
+  original_volume: number
+  fade_in: boolean
+  fade_out: boolean
+  /** Reels: the sound's name on Instagram. */
+  audio_name?: string | null
+  /** Photo stories: "♫ title · artist" drawn on the photo. */
+  label?: boolean
+  /** The photo, video or photos before the music went in (changing the music starts from these). */
+  source_media: PostMedia[]
+  /** A reel from photos: where each photo starts. */
+  cuts?: number[]
+  /** The track's tempo, so a reel's photos change on the beat. */
+  bpm?: number | null
+  /** The file with the music in (the post's media), and the choices it was made with. */
+  rendered_url: string | null
+  rendered_for: string | null
+}
+export interface InstagramMusic { mode: 'in_instagram'; song: string; start: number }
+
+/** What making an AI track would cost now (public.ai_music_quote). */
+export interface AiMusicQuote {
+  allowed: boolean
+  plan: string
+  uses: number
+  free: number
+  free_left: number
+  included: number
+  unit_cents: number
+  price_cents: number
+  spent_cents: number
+  limit_cents: number
+  reason: string | null
+}
+
+/** One "Make with AI" (public.music_generations): for the Billing page's list. */
+export interface MusicGeneration {
+  id: string
+  prompt: string
+  seconds: number
+  uses: number
+  status: 'working' | 'done' | 'failed' | 'refused'
+  free: number
+  price_cents: number
+  kept_id: string | null
+  error: string | null
+  charged_at: string | null
+  created_at: string
+}
 export interface SocialPost {
   id: string
   kind: PostKind
@@ -457,6 +544,10 @@ export interface SocialPost {
   /** due: a reminder whose time has come (post it yourself, then mark it posted). */
   status: 'draft' | 'scheduled' | 'due' | 'publishing' | 'published' | 'partly' | 'failed'
   results: Partial<Record<SocialNetwork, { status: 'queued' | 'retrying' | 'published' | 'failed'; id?: string; url?: string; error?: string; at?: string; manual?: boolean }>>
+  /** Music on it (docs/SOCIAL_MUSIC_PLAN.md); null: none. */
+  music?: PostMusic | null
+  /** Likes and comments Instagram counted, for suggestions that learn what works. */
+  insights?: { likes: number; comments: number; at: string } | null
   created_at: string
   published_at: string | null
 }

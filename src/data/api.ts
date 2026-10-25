@@ -1,3 +1,4 @@
+import type { AiMusicQuote, MusicGeneration, MusicTrack } from '../../shared/types'
 import type { ApiKey, AppNotification, Brand, BreakType, Business, CalendarApp, CalendarEvent, ConnectorProvider, ContactMethod, CorrectionRequest, Customer, CustomerInput, EventAlert, Expense, InstagramProfile, Integration, PostMedia, Sales, SalesItems, SearchReport, SocialNetwork, SocialPost, IntegrationProvider, IntegrationsState, KioskPerson, MusicNow, MusicPlaylist, MusicProvider, MyMusic, MyNowPlaying, OpenBreak, OpeningHours, OutboxItem, PartnerArea, PayRate, Position, Profile, Settings, Shift, SpotifyPlaylist, TimeEntry, TimeEntryChange, TimeOff, TimeOffKind, Todo, TodoCategory, TodoPatch, CafeMusicLibrary, CafeTrack, MusicAction, MusicPlayerReport, MusicPlayerState } from '../../shared/types'
 import type { Billing, Interval, PlanId } from '../../shared/plans'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
@@ -8,6 +9,7 @@ import type { InstagramMention } from '../../shared/mentions'
 import type { FilingRecord, Quarter, TaxDocKind, TaxDocument, TaxSettings } from '../../shared/tax'
 import type { InboxInvoice, InboxState as InvoiceInbox, Invoice, InvoiceInput } from '../../shared/invoices'
 import type { Licence, LicenceInput } from '../../shared/licences'
+import type { KeptDocument, StorageFolder } from '../../shared/documents'
 import type { MoneyItem, MoneyItemInput } from '../../shared/creditDebit'
 import type { LegalDocument, LegalDocumentPatch, LegalSource, LegalStorage, StorageListing } from '../../shared/legalDocs'
 import type { Benefit, BenefitInput, LeaveAllowance } from '../../shared/benefits'
@@ -20,11 +22,12 @@ import type { Contractor, ContractorInput, OutsourcedJob, OutsourcedJobInput } f
 import type { PnlLine, PnlLineInput, PnlSettings } from '../../shared/pnl'
 import type { GrantApplication, GrantApplicationInput, GrantProfile } from '../../shared/grants'
 import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
-import type { MovementInput, StockItem, StockItemInput, StockMovement, Supplier, SupplierInput, WasteEdit } from '../../shared/stock'
+import type { MovementInput, StockItem, StockItemInput, StockMovement, Supplier, SupplierInput, StockPrice, WasteEdit } from '../../shared/stock'
 import type { Recipe, RecipeInput } from '../../shared/recipes'
 import type { AdPlatform, AdSettings, AdsReport, CampaignPatch } from '../../shared/ads'
 import type { ReviewsState } from '../../shared/reviews'
 import type { PageSpeed, Strategy, WebsiteReport, WebsiteState } from '../../shared/seo'
+import type { Competition, CompetitionEntry, CompetitionInput, EntryInput } from '../../shared/competitions'
 import type { Enquiry, EnquiryInput, NewLead } from '../../shared/leads'
 import type { ClaimInput, ExpenseClaim } from '../../shared/claims'
 import type { Campaign, CampaignInput } from '../../shared/campaigns'
@@ -50,6 +53,48 @@ export interface PlanStatus {
   usage: { people: number; social_accounts: number; posts_this_month: number }
 }
 export type BillingInfo = Billing & { ready: boolean }
+
+/** Create with AI turned down (an artist or a song named): ElevenLabs' own rewording, when it gives one. */
+export class PromptError extends Error {
+  suggestion?: string
+  constructor(message: string, suggestion?: string) {
+    super(message)
+    this.suggestion = suggestion
+  }
+}
+
+/** Music on stories and reels: what's switched on (GET /api/social/music/status). */
+export interface MusicStatus {
+  /** AI music (ElevenLabs) can be made. */
+  ai: boolean
+  /** Music can be put into files (the render service). */
+  render: boolean
+  storage: IntegrationsState['media_storage']
+  starter: { made: number; of: number; on: boolean }
+}
+/** A track of the business's own, with what the browser worked out about it. */
+export interface NewTrack {
+  title: string; artist?: string | null; moods: string[]; duration_s: number; waveform: number[] | null; highlight_s: number; bpm: number | null
+  /** The rights tick: "We have the right to use this on social media". */
+  confirmed: boolean
+}
+export type TrackPatch = Partial<Pick<MusicTrack, 'title' | 'artist' | 'moods' | 'saved' | 'hidden' | 'waveform' | 'highlight_s' | 'bpm' | 'energy'>>
+export interface AiTrackRequest { prompt: string; seconds: number; title: string; moods: string[]; energy: number; bpm: number; genre?: string; post_id?: string | null }
+export interface AiTrackResult { generation: { id: string; uses: number; free: number; price_cents: number }; tracks: MusicTrack[] }
+export interface RenderMusicRequest {
+  kind: 'story' | 'reel'
+  /** The photo or video before the music; several photos make a reel cut on `cuts`. */
+  sources: PostMedia[]
+  cuts?: number[]
+  track_id: string
+  start: number
+  seconds: number
+  music_volume: number
+  original_volume: number
+  fade_in: boolean
+  fade_out: boolean
+  label?: boolean
+}
 
 export interface ClockState {
   entry: TimeEntry | null
@@ -274,7 +319,7 @@ export interface Api {
   saveTaxFiling(record: FilingRecord): Promise<void>
   /** The documents kept for a tax year, newest first. */
   taxDocuments(year: number): Promise<TaxDocument[]>
-  updateTaxDocument(id: string, patch: Partial<Pick<TaxDocument, 'kind' | 'year' | 'quarter' | 'notes'>>): Promise<void>
+  updateTaxDocument(id: string, patch: Partial<Pick<TaxDocument, 'kind' | 'year' | 'quarter' | 'notes' | 'title' | 'tags' | 'expires_on'>>): Promise<void>
   /** Take a document off the list (the file stays in Drive or OneDrive). */
   removeTaxDocument(id: string): Promise<void>
   /** The folders inside one under Business Agent (["Tax", "2026"]), and a link to open it there. */
@@ -283,6 +328,15 @@ export interface Api {
   makeTaxFolder(path: string[], name: string): Promise<string[]>
   /** Upload one document into a folder under Business Agent/Tax; refused when the same file (sha256) is already kept. */
   uploadTaxDocument(file: Blob, meta: { name: string; kind: TaxDocKind; year: number; quarter: Quarter | null; folder: string[]; sha256: string }): Promise<TaxDocument>
+  // Documents hub (admins with pay access; finance partners read the list): every kept file, and the café's Business Agent folder.
+  /** Every kept document (all years, Tax and Documents), newest first, with the invoices and licences that point at it. */
+  documents(): Promise<KeptDocument[]>
+  /** What's inside a folder under Business Agent ([] is Business Agent itself); nothing is made. */
+  browseFiles(path: string[]): Promise<StorageFolder>
+  /** Make a folder inside Documents; returns its path. */
+  makeDocumentsFolder(path: string[], name: string): Promise<string[]>
+  /** Upload one document into Documents/<folder…>; refused when the same file (sha256) is already kept. */
+  uploadDocument(file: Blob, meta: { name: string; kind: TaxDocKind; year: number; folder: string[]; sha256: string; title?: string | null; tags?: string[]; expires_on?: string | null }): Promise<KeptDocument>
   // Profit & loss (admins with pay access; finance partners read): the IVA rate and one-off lines
   pnlSettings(): Promise<PnlSettings>
   savePnlSettings(patch: Partial<PnlSettings>): Promise<void>
@@ -364,6 +418,8 @@ export interface Api {
   saveSupplier(s: SupplierInput): Promise<void>
   deleteSupplier(id: string): Promise<void>
   stockItems(): Promise<StockItem[]>
+  /** Every wholesale price each item has had (kept by the database when a cost changes), oldest first. */
+  stockPrices(): Promise<StockPrice[]>
   /** Add an item (no id; on_hand is its first count) or change one (on_hand changes only through recordStock). */
   saveStockItem(item: StockItemInput): Promise<void>
   deleteStockItem(id: string): Promise<void>
@@ -514,11 +570,51 @@ export interface Api {
   deleteSocialPost(id: string): Promise<void>
   /** A reminder you posted yourself: mark it posted. */
   markPosted(id: string): Promise<void>
+
+  // Competitions (admins): giveaways and draws, their entries and the draw. The post goes out
+  // through the Social planner (saveSocialPost).
+  /** Every competition, newest first, each with how many entries it has. */
+  competitions(): Promise<Competition[]>
+  /** Add one (no id) or change one; returns its id. */
+  saveCompetition(c: CompetitionInput): Promise<string>
+  /** Delete one and its entries (the people's details go with it). */
+  deleteCompetition(id: string): Promise<void>
+  competitionEntries(id: string): Promise<CompetitionEntry[]>
+  /** Add entries; whoever is already in (the same username or email) is skipped. */
+  addEntries(id: string, rows: EntryInput[]): Promise<{ added: number; skipped: number }>
+  updateEntry(id: string, patch: Pick<Partial<CompetitionEntry>, 'valid' | 'note' | 'name' | 'email' | 'phone'>): Promise<void>
+  /** Pick the winners and then the reserves at random from the valid entries (once). Returns how many were picked. */
+  drawCompetition(id: string): Promise<number>
+  /** The winners have their prizes: a stock prize comes off the stock (one each). */
+  givePrize(id: string): Promise<void>
   /**
    * Keep a photo (JPEG) or video (MP4/MOV) for a post in the connected Google Drive or OneDrive,
    * in Business Agent/Social/<folder>; returns its public address and type.
    */
   uploadMedia(file: File, folder: KindInfo['folder']): Promise<PostMedia>
+
+  // Music on stories and reels (admins; docs/SOCIAL_MUSIC_PLAN.md)
+  /** The music library, newest first (hidden tracks left out). */
+  musicTracks(): Promise<MusicTrack[]>
+  /** What's switched on: AI music, putting music into files, storage, the starter pack. */
+  musicStatus(): Promise<MusicStatus>
+  /** Keep the business's own MP3/M4A in the library; `confirmed`: the rights tick. */
+  uploadTrack(file: File, t: NewTrack): Promise<MusicTrack>
+  /** A track's name, moods, saved or hidden; or its waveform once worked out. */
+  saveTrack(id: string, patch: TrackPatch): Promise<void>
+  deleteTrack(id: string): Promise<void>
+  /** What making an AI track of this length would cost now (free, or the price; why not). */
+  aiMusicQuote(seconds: number): Promise<AiMusicQuote>
+  /** Create with AI: two versions of a track (pay per use: one use per started minute). */
+  makeAiTrack(req: AiTrackRequest): Promise<AiTrackResult>
+  /** Keep one of the two versions (the other is hidden). */
+  keepAiTrack(generationId: string, trackId: string): Promise<void>
+  /** This month's AI tracks, for the Billing page. */
+  aiMusicUses(): Promise<MusicGeneration[]>
+  /** The monthly limit on pay per use, in euros (Billing page). */
+  setPayPerUseLimit(euros: number): Promise<void>
+  /** Put the music into a story or reel: the file with the music in. */
+  renderPostMusic(req: RenderMusicRequest): Promise<{ media: PostMedia; ms: number | null }>
   chooseGoogleListing(location: string | null, closedOnHolidays?: boolean): Promise<void>
   syncGoogleNow(): Promise<void>
   googleHours(): Promise<OpeningHours>

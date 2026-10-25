@@ -1,8 +1,10 @@
 // In-memory demo of the app with Easy Beans sample data. Used for previews, sales demos and
 // when no Supabase project is configured. Mirrors the SQL rules closely but is not the source
 // of truth: the database functions are.
-import type { Api, BillingInfo, ShiftInput } from './api'
-import { PLANS, SOCIAL_CONNECTIONS, TRIAL_DAYS, effectivePlan, plan as planById, type PlanId } from '../../shared/plans'
+import { PromptError, type Api, type BillingInfo, type ShiftInput } from './api'
+import { PLANS, SOCIAL_CONNECTIONS, TRIAL_DAYS, effectivePlan, payPerUse, plan as planById, type PlanId } from '../../shared/plans'
+import { isMood, namesArtist, usesFor, type Mood } from '../../shared/music'
+import type { AiMusicQuote, MusicGeneration, MusicTrack } from '../../shared/types'
 import type {
   ApiKey, AppNotification, Brand, Customer, EventAlert, Sales, SalesItem, SearchReport, SearchRow, SocialNetwork, SocialPost, MusicAccount, MusicPlaylist, MusicProvider, MyNowPlaying,
   Expense, Integration, IntegrationProvider, IntegrationsState, OutboxItem, PartnerArea, TimeOff,
@@ -24,6 +26,8 @@ import { addToCalendarUrl, cleanWebsite, groupOf } from '../../shared/connection
 import { mergeSales } from '../../shared/sales'
 import { dueFrom, emailId, matchSupplier, numberFromName, type InboxInvoice, type Invoice } from '../../shared/invoices'
 import type { Licence } from '../../shared/licences'
+import { DEFAULT_RULES, draw, newEntries, type Competition, type CompetitionEntry } from '../../shared/competitions'
+import { cleanTags, sortEntries, type KeptDocument, type StorageEntry } from '../../shared/documents'
 import { afterPayment, paidSoFar, type MoneyItem, type MoneyPayment } from '../../shared/creditDebit'
 import { inStep } from '../../shared/todo'
 import { LEGAL_STORAGES, MAX_PICK, SKIPPED, guessKind, previewOf, storageName, titleOf, type LegalDocument, type LegalStorage, type StorageItem } from '../../shared/legalDocs'
@@ -35,11 +39,11 @@ import { roleProblem, type JobRole } from '../../shared/roles'
 import { sectionProblem, type RuleSection, type RulesRead } from '../../shared/staffRules'
 import { COUNTED, type Contractor, type OutsourcedJob } from '../../shared/outsourcing'
 import { EASY_BEANS_ROLES, EASY_BEANS_RULES, handbookDuties } from './easyBeansHandbook'
-import { DEFAULT_TAX_SETTINGS, cleanFolderName, cleanFolderPath, taxFileProblem, type FilingRecord, type TaxDocument, type TaxSettings } from '../../shared/tax'
+import { DEFAULT_TAX_SETTINGS, cleanFolderName, cleanFolderPath, taxFileProblem, taxFileType, type FilingRecord, type TaxDocument, type TaxSettings } from '../../shared/tax'
 import { DEFAULT_VAT_RATE, type PnlLine } from '../../shared/pnl'
 import { cleanAnswers, isDone, type GrantApplication, type GrantProfile } from '../../shared/grants'
 import { adjustProblem, giftCardAmountProblem, type GiftCard, type GiftCardActivity, type LoyaltyEvent, type LoyaltyMember, type LoyaltyProgram } from '../../shared/loyalty'
-import { isSupplyGroup, type MovementInput, type StockItem, type StockMovement, type Supplier } from '../../shared/stock'
+import { isSupplyGroup, type MovementInput, type StockItem, type StockMovement, type StockPrice, type Supplier } from '../../shared/stock'
 import type { Recipe } from '../../shared/recipes'
 import { AD_PLATFORMS, NO_METRICS, PLATFORM_NAMES, addMetrics, sumDays, type AdCampaign, type AdDay, type AdMetrics, type AdPlatform, type AdSettings, type AdsReport } from '../../shared/ads'
 import { CONNECT_MAPS, MAX_REPLY, type Review } from '../../shared/reviews'
@@ -244,18 +248,39 @@ export function createDemoApi(): Api {
     return { id: uid(), name, kind, year: 2026, quarter, size, sha256: null, storage: 'google_drive', file_id: uid(), folder,
       link: `https://drive.google.com/demo/Business Agent/${folder.join('/')}/${name}`, notes: null, uploaded_by: null, uploaded_at: `${day}T10:00:00Z` }
   }
+  const byEricAugust = taxDoc('Factura By Eric agosto.pdf', 'purchase_invoice', 3, '2026-09-02', 184_220)
+  // The Documents hub's own, under Business Agent/Documents: the lease, the insurance policy (the licence's document), a certificate.
+  const hubDoc = (name: string, kind: TaxDocument['kind'], year: number, folder: string, day: string, size: number, more: Partial<TaxDocument> = {}): TaxDocument => ({
+    id: uid(), name, kind, year, quarter: null, size, sha256: null, storage: 'google_drive', file_id: uid(), folder: ['Documents', folder],
+    link: `https://drive.google.com/demo/Business Agent/Documents/${folder}/${name}`, notes: null, title: null, tags: [], expires_on: null,
+    uploaded_by: null, uploaded_at: `${day}T10:00:00Z`, ...more })
+  const insurancePolicy = hubDoc('Póliza RC Mapfre 2025-2026.pdf', 'contract', 2025, 'Insurance', '2025-10-10', 512_330, { tags: ['seguro'] })
   const taxDocuments: TaxDocument[] = [
-    taxDoc('Factura By Eric agosto.pdf', 'purchase_invoice', 3, '2026-09-02', 184_220),
+    byEricAugust,
     taxDoc('Factura Makro 2026-08-21.pdf', 'purchase_invoice', 3, '2026-08-22', 96_512),
     taxDoc('Extracto BBVA agosto.pdf', 'bank_statement', 3, '2026-09-03', 402_118),
     taxDoc('Nómina Julio agosto.pdf', 'payslip', 3, '2026-09-01', 88_004),
     taxDoc('Modelo 303 2T 2026 justificante.pdf', 'tax_return', 2, '2026-07-14', 61_877),
+    hubDoc('Contrato alquiler local.pdf', 'contract', 2026, 'Contracts', '2026-03-15', 1_204_551,
+      { title: 'Lease of the premises', tags: ['local', 'lease'], expires_on: '2031-03-31', notes: 'Five years, rent reviewed each March' }),
+    insurancePolicy,
+    hubDoc('Certificado manipulador alimentos Julio.pdf', 'other', 2026, 'Certificates', '2026-04-02', 98_114, { tags: ['staff'], expires_on: '2026-11-20' }),
   ]
+  // Files in the demo Drive's Business Agent folder that aren't kept on any list (exports, a plan of the premises).
+  const looseFiles = [
+    { path: 'Documents/Contracts/Plano del local.pdf', size: 2_048_000, type: 'application/pdf', modified: '2026-03-15T10:05:00Z' },
+    { path: 'Exports/Rota 2026-09-28.xlsx', size: 18_220, type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', modified: '2026-09-28T18:00:00Z' },
+  ].map(f => ({ ...f, id: uid() }))
   // Folders made in the demo Drive under Business Agent (the sorted ones exist once a document is in them).
-  const taxFolderPaths = new Set<string>(['Tax/2026/Gestoría'])
+  const taxFolderPaths = new Set<string>(['Tax/2026/Gestoría', 'Documents/Seguros'])
   const canTax = () => me()?.role === 'admin' && !!me()?.can_see_pay
   const readTax = () => canTax() || partnerCan('finances')
   const needTax = () => { if (!canTax()) throw new Error('Only admins with pay access manage tax documents') }
+  const docStorage = () => {
+    const store = (['google_drive', 'onedrive'] as const).find(p => integ.integrations.some(i => i.provider === p && i.status === 'connected'))
+    if (!store) throw new Error('Connect Google Drive or OneDrive on the Connections page to keep documents. They go in its Business Agent/Documents folder.')
+    return store
+  }
   const taxStorage = () => {
     const store = (['google_drive', 'onedrive'] as const).find(p => integ.integrations.some(i => i.provider === p && i.status === 'connected'))
     if (!store) throw new Error('Connect Google Drive or OneDrive on the Connections page to keep tax documents. They go in its Business Agent/Tax folder.')
@@ -321,7 +346,7 @@ export function createDemoApi(): Api {
     licence({ name: 'Licencia de terraza (ocupación de vía pública)', issuer: 'Ayuntamiento de Marbella', reference: 'OVP-2026-221', starts_on: '2026-04-01',
       expires_on: '2026-12-31', renew_every_months: 12, cost: 380, notes: '4 tables, 16 chairs' }),
     licence({ name: 'Seguro de responsabilidad civil', category: 'insurance', issuer: 'Mapfre', reference: 'RC-0099-441', starts_on: '2025-10-15',
-      expires_on: '2026-10-15', renew_every_months: 12, cost: 312 }),
+      expires_on: '2026-10-15', renew_every_months: 12, cost: 312, document_id: insurancePolicy.id }),
     licence({ name: 'Revisión de extintores', category: 'safety', issuer: 'Extintores Costa', expires_on: '2026-09-01', renew_every_months: 12, cost: 65 }),
   ]
 
@@ -419,7 +444,8 @@ export function createDemoApi(): Api {
   const invoiceList: Invoice[] = [
     invoice({ supplier_id: 'sup-roaster', number: 'F2026-0119', issued_on: '2026-08-18', due_on: '2026-09-17', net: 336.36, vat: 33.64, total: 370, category: 'Coffee roaster', status: 'paid', paid_on: '2026-09-15', source: 'email' }),
     invoice({ supplier_id: 'sup-roaster', number: 'F2026-0131', issued_on: '2026-09-01', due_on: '2026-10-01', net: 290.91, vat: 29.09, total: 320, category: 'Coffee roaster', status: 'to_pay', source: 'email' }),
-    invoice({ supplier_id: 'sup-eric', number: '2026-0812', issued_on: '2026-08-31', due_on: '2026-09-15', net: 545.45, vat: 54.55, total: 600, category: 'Bakery', status: 'to_pay', source: 'email', notes: 'Croissants and pastries, August' }),
+    invoice({ supplier_id: 'sup-eric', number: '2026-0812', issued_on: '2026-08-31', due_on: '2026-09-15', net: 545.45, vat: 54.55, total: 600, category: 'Bakery', status: 'to_pay', source: 'email', notes: 'Croissants and pastries, August',
+      document_id: byEricAugust.id }),
     invoice({ supplier_id: 'sup-dairy', number: 'LC-4471', issued_on: '2026-09-20', due_on: '2026-10-20', net: 181.82, vat: 18.18, total: 200, category: 'Dairy', status: 'to_check', source: 'upload' }),
     invoice({ direction: 'out', party_name: 'Hotel Puente Romano', number: 'EB-2026-007', issued_on: '2026-09-12', due_on: '2026-10-12', net: 409.09, vat: 40.91, total: 450, category: 'Catering', status: 'sent' }),
   ]
@@ -641,6 +667,7 @@ export function createDemoApi(): Api {
   const alerts: EventAlert[] = []
   const brand: Brand = {
     logo: null, logo_mark: null, heading_font: 'Poppins', body_font: 'Figtree', updated_at: nowIso(),
+    sound_moods: ['acoustic', 'chill', 'latin'], sound_avoid: [],
     notes: 'Rose Pink leads; one accent at a time. Never recolour, stretch or redraw the logo.',
     colours: [
       { name: 'Rose Pink', hex: '#F79BA4', role: 'primary', use: 'Buttons, highlights, the logo circle' },
@@ -729,6 +756,20 @@ export function createDemoApi(): Api {
   const stockItem = (i: Partial<StockItem> & { name: string }): StockItem => ({ id: uid(), category: null, supplier_id: null, supplier_sku: null,
     product_url: null, unit: 'unit', pack_size: null, order_multiple: 1, cost_per_unit: null, vat_rate: 10, sell_price: null, on_hand: 0,
     par_level: null, reorder_at: null, location: 'Storeroom', retail: false, notes: null, active: true, updated_at: nowIso(), ...i })
+  const stockPrices: StockPrice[] = []
+  // Each item's price since opening, a few of them changed since (beans and matcha up, whole milk down).
+  function seedStockPrices() {
+    if (stockPrices.length) return
+    for (const i of stock) if (i.cost_per_unit !== null) stockPrices.push({ item_id: i.id, cost_per_unit: i.cost_per_unit, changed_at: '2026-04-01T08:00:00Z' })
+    const was = (name: string, cost: number, at: string) => {
+      const i = stock.find(x => x.name === name)
+      if (i && i.cost_per_unit !== null) stockPrices.splice(stockPrices.findIndex(p => p.item_id === i.id), 1,
+        { item_id: i.id, cost_per_unit: cost, changed_at: '2026-04-01T08:00:00Z' }, { item_id: i.id, cost_per_unit: i.cost_per_unit, changed_at: at })
+    }
+    was('House espresso blend', 17.2, '2026-09-15T08:00:00Z')
+    was('Ceremonial matcha', 12.5, '2026-08-20T08:00:00Z')
+    was('Whole milk', 1.05, '2026-07-01T08:00:00Z')
+  }
   const stock: StockItem[] = [
     stockItem({ name: 'House espresso blend', category: 'Coffee', supplier_id: 'sup-roaster', supplier_sku: 'ESP-HOUSE-1K', unit: 'kg', pack_size: '1 kg bag',
       product_url: 'https://tostadoresdelsur.example/trade/house-espresso', cost_per_unit: 18.5, on_hand: 6, par_level: 12, reorder_at: 4 }),
@@ -897,6 +938,41 @@ export function createDemoApi(): Api {
       notes: 'Signed up at the Saturday market stall' }),
     person({ days: 1, kind: 'lead', first_name: 'Diego', last_name: 'Fernández', phone: '+34 655 310 862', source: 'google',
       notes: 'Phoned about booking the terrace for a birthday' }),
+  ]
+
+  // Competitions: the monthly draw for signing up, like the website's (live, its entries coming in),
+  // and the opening giveaway, drawn with its prizes given.
+  const makeCompetition = (p: Partial<Competition> & { name: string }): Competition => ({ id: uid(), kind: 'custom', channels: [], status: 'draft',
+    starts_on: null, ends_on: null, draw_on: null, prize: null, prize_value: null, prize_item_id: null, winners: 1, reserves: 2, how_to_enter: [],
+    rules: { ...DEFAULT_RULES }, terms: null, caption: null, caption_es: null, notes: null, drawn_at: null, entry_count: null, prize_given_at: null,
+    created_at: nowIso(), ...p })
+  const makeEntry = (competition_id: string, p: Partial<CompetitionEntry>, at: string): CompetitionEntry => ({ id: uid(), competition_id, name: null, handle: null,
+    email: null, phone: null, source: 'manual', customer_id: null, valid: true, note: null, rank: null, created_at: at, ...p })
+  const drawDay = today().slice(8, 10) < '15' ? `${today().slice(0, 7)}-15` : `${addDays(`${today().slice(0, 7)}-28`, 18).slice(0, 8)}15`
+  const tote = stock.find(i => i.name === 'Easy Beans tote bag')!
+  const monthly = makeCompetition({ name: 'Monthly draw for signing up', kind: 'email_draw', channels: ['instagram', 'in_cafe', 'website'], status: 'live',
+    starts_on: addDays(drawDay, -30), ends_on: addDays(drawDay, -1), draw_on: drawDay, prize: 'A €10 gift card', prize_value: 10, winners: 1, reserves: 2,
+    how_to_enter: ['Sigue a @easy.beans.coffee en Instagram', 'Apúntate a nuestras novedades y ofertas en la web'],
+    rules: { ...DEFAULT_RULES, marketing_signup: true }, created_at: daysAgo(30),
+    caption: '🎁 Every month we draw a €10 gift card. Follow @easy.beans.coffee and sign up for our news to enter.',
+    caption_es: '🎁 Cada mes sorteamos una tarjeta regalo de 10 €. Sigue a @easy.beans.coffee y apúntate a nuestras novedades para participar.' })
+  const openingGiveaway = makeCompetition({ name: 'Opening week giveaway', kind: 'instagram_giveaway', channels: ['instagram'], status: 'drawn',
+    starts_on: '2026-03-25', ends_on: '2026-04-05', draw_on: '2026-04-06', prize: 'An Easy Beans tote bag and a coffee a week for a month', prize_value: 35,
+    prize_item_id: tote.id, winners: 2, reserves: 2, how_to_enter: ['Sigue a @easy.beans.coffee', 'Dale me gusta a la publicación', 'Comenta con quién vendrías'],
+    drawn_at: '2026-04-06T10:12:00.000Z', entry_count: 31, prize_given_at: '2026-04-09T09:30:00.000Z', created_at: '2026-03-24T18:00:00.000Z' })
+  const competitionList: Competition[] = [openingGiveaway, monthly]
+  let entryList: CompetitionEntry[] = [
+    ...['marta.sanpedro', 'javi_runs', 'laura.mbl', 'coffee.tom', 'nuria.yoga', 'ali.surf', 'paco_bike', 'irene.art', 'dani.cocina', 'sara_and_luna', 'mike.costa', 'elena.r']
+      .map((handle, i) => makeEntry(monthly.id, { handle, source: 'instagram_paste' }, daysAgo(28 - i * 2))),
+    ...[['Rocío Martín', 'rocio.martin@example.es'], ['Tom Baker', 'tom.baker@example.co.uk'], ['Inés Vidal', 'ines.vidal@example.es'],
+      ['Hugo Romero', 'hugo.romero@example.es'], ['Emma Jansen', 'emma.jansen@example.nl'], ['Álvaro Gil', 'alvaro.gil@example.es'],
+      ['Claire Dubois', 'claire.dubois@example.fr'], ['Marcos León', 'marcos.leon@example.es']]
+      .map(([name, email], i) => makeEntry(monthly.id, { name, email, source: 'csv' }, daysAgo(25 - i * 3))),
+    ...customers.filter(c => c.marketing_consent).slice(0, 4).map((c, i) => makeEntry(monthly.id, { name: [c.first_name, c.last_name].filter(Boolean).join(' '),
+      email: c.email, phone: c.phone, handle: c.instagram, source: 'customers', customer_id: c.id }, daysAgo(20 - i))),
+    makeEntry(monthly.id, { handle: 'laura.mbl2', source: 'instagram_paste', valid: false, note: 'Second account of laura.mbl' }, daysAgo(6)),
+    ...Array.from({ length: 31 }, (_, i) => makeEntry(openingGiveaway.id, { handle: `${['cafe', 'sol', 'mar', 'luz', 'rio'][i % 5]}.${['lover', 'fan', 'sanpedro', 'mbl', 'costa', 'and.co', 'daily'][i % 7]}${i}`,
+      source: 'instagram_paste', rank: i < 4 ? i + 1 : null }, `2026-03-${String(25 + (i % 7)).padStart(2, '0')}T12:00:00.000Z`)),
   ]
   let adminNotes: string | null = 'Demo: alarm code holder, wifi for the kiosk, landlord and gestor contacts.'
   const settings: Settings = {
@@ -1088,6 +1164,45 @@ export function createDemoApi(): Api {
     cancel_at_period_end: false, trial_used: false, has_customer: demoPlan !== 'business' && demoPlan !== 'free', ready: true,
     complimentary: demoPlan === 'business' ? 'founder' : null, complimentary_note: demoPlan === 'business' ? 'Easy Beans Coffee' : null,
     referral_months_applied: 0, referred_by: null,
+  }
+
+  // Music on stories and reels: the sample café's library (six short tracks made for the demo, in
+  // public/demo/music), its AI tracks and pay per use, as migration 86 has them. The demo can't
+  // call ElevenLabs or the render service: sample tracks stand in, and files keep their picture.
+  const DEMO_MUSIC: [string, string, Mood[], number, number][] = [
+    ['morning-light', 'Morning Light', ['acoustic', 'chill', 'cosy'], 2, 88],
+    ['terraza-nights', 'Terraza Nights', ['latin', 'summer', 'upbeat'], 4, 118],
+    ['rainy-window', 'Rainy Window', ['lofi', 'cosy', 'chill'], 1, 74],
+    ['espresso-jazz', 'Espresso Jazz', ['jazz', 'elegant'], 3, 94],
+    ['fresh-start', 'Fresh Start', ['upbeat', 'energetic'], 4, 120],
+    ['winter-lights', 'Winter Lights', ['festive', 'cosy'], 2, 96],
+  ]
+  const DEMO_SECONDS = 20
+  const musicLibrary: MusicTrack[] = DEMO_MUSIC.map(([key, title, moods, energy, bpm], i) => ({
+    id: `track-${key}`, source: 'starter', title, artist: 'Business Agent', url: `/demo/music/${key}.mp3`, duration_s: DEMO_SECONDS, bpm, energy, moods,
+    genre: null, vocals: false, highlight_s: 0, waveform: null, licence: { kind: 'starter', provider: 'elevenlabs' }, saved: false, hidden: false,
+    created_at: new Date(Date.now() - (i + 1) * 86_400_000).toISOString() }))
+  const musicUses: MusicGeneration[] = []
+  let payPerUseLimitCents = 2500
+  const monthStart = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString() }
+  // public.ai_music_quote (migration 86).
+  const quoteMusic = (seconds: number): AiMusicQuote => {
+    const plan = effectivePlan(demoBilling)
+    const ppu = payPerUse('ai_music')
+    const included = ppu.included[plan]
+    const month = musicUses.filter(g => g.created_at >= monthStart() && g.status === 'done')
+    const freeLeft = Math.max(0, (included ?? 0) - month.reduce((n, g) => n + g.free, 0))
+    const uses = usesFor(seconds)
+    const free = Math.min(uses, freeLeft)
+    const unit = Math.round(ppu.price * 100)
+    const price = (uses - free) * unit
+    const spent = month.reduce((n, g) => n + g.price_cents, 0)
+    const reason = included === undefined ? 'AI music tracks need a paid plan. Choose one on the Billing page.'
+      : price > 0 && demoBilling.status === 'comped' ? 'This month\'s free AI track is used. More next month.'
+      : price > 0 && spent + price > payPerUseLimitCents ? `That would go over this month's limit of €${(payPerUseLimitCents / 100).toFixed(2)} for pay per use. Raise it on the Billing page.`
+      : null
+    return { allowed: included !== undefined, plan, uses, free, free_left: freeLeft, included: included ?? 0, unit_cents: unit, price_cents: price,
+      spent_cents: spent, limit_cents: payPerUseLimitCents, reason }
   }
 
   // Who is signed in survives a page reload within the tab (the demo data itself does not).
@@ -2074,6 +2189,82 @@ export function createDemoApi(): Api {
       const i = licenceList.findIndex(x => x.id === id)
       if (i >= 0) licenceList.splice(i, 1)
     },
+    async competitions() {
+      if (!isAdmin()) return []
+      return clone(competitionList).map(c => ({ ...c, entries: entryList.filter(e => e.competition_id === c.id).length }))
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    },
+    async saveCompetition({ id, ...c }) {
+      requireAdmin()
+      const { entries: _e, drawn_at: _d, entry_count: _n, created_at: _c, ...patch } = c as typeof c & Partial<Competition>
+      if (!patch.name?.trim()) throw new Error('Give it a name')
+      // The database's checks.
+      if (patch.starts_on && patch.ends_on && patch.ends_on < patch.starts_on) throw new Error('It closes before it starts.')
+      if (patch.ends_on && patch.draw_on && patch.draw_on < patch.ends_on) throw new Error('The draw is before entries close.')
+      const existing = id ? competitionList.find(x => x.id === id) : undefined
+      if (patch.status === 'drawn' && !existing?.drawn_at) throw new Error('Draw the winners first')
+      const tidy = { ...patch, name: patch.name.trim(), prize: patch.prize?.trim() || null,
+        how_to_enter: (patch.how_to_enter ?? existing?.how_to_enter ?? []).map(x => x.trim()).filter(Boolean),
+        channels: [...new Set(patch.channels ?? existing?.channels ?? [])].sort(), rules: { ...DEFAULT_RULES, ...existing?.rules, ...patch.rules } }
+      if (existing) {
+        Object.assign(existing, tidy)
+        if (existing.drawn_at && existing.status !== 'drawn' && existing.status !== 'closed') existing.status = 'drawn'
+        return existing.id
+      }
+      const made = makeCompetition({ ...tidy, status: tidy.status ?? 'draft' })
+      competitionList.push(made)
+      return made.id
+    },
+    async deleteCompetition(id) {
+      requireAdmin()
+      const i = competitionList.findIndex(x => x.id === id)
+      if (i >= 0) competitionList.splice(i, 1)
+      entryList = entryList.filter(e => e.competition_id !== id)
+    },
+    async competitionEntries(id) {
+      if (!isAdmin()) return []
+      return clone(entryList.filter(e => e.competition_id === id)).sort((a, b) => a.created_at.localeCompare(b.created_at))
+    },
+    async addEntries(id, rows) {
+      requireAdmin()
+      const c = competitionList.find(x => x.id === id)
+      if (!c) throw new Error('No such competition')
+      if (c.drawn_at) throw new Error('The draw is done: no more entries')
+      const { fresh, skipped } = newEntries(entryList.filter(e => e.competition_id === id), rows)
+      const made = fresh.map(r => {
+        const email = r.email?.trim().toLowerCase() || null
+        if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error(`“${email}” isn’t an email address`)
+        return makeEntry(id, { name: r.name?.trim().replace(/\s+/g, ' ') || null, handle: r.handle ?? null, email, phone: r.phone?.trim() || null,
+          source: r.source ?? 'manual', customer_id: r.customer_id ?? null, valid: r.valid ?? true, note: r.note?.trim() || null }, nowIso())
+      })
+      entryList.push(...made)
+      return { added: made.length, skipped }
+    },
+    async updateEntry(id, patch) {
+      requireAdmin()
+      const e = entryList.find(x => x.id === id)
+      if (e) Object.assign(e, patch, 'note' in patch ? { note: patch.note?.trim() || null } : {})
+    },
+    async drawCompetition(id) {
+      requireAdmin()
+      const c = competitionList.find(x => x.id === id)
+      if (!c) throw new Error('No such competition')
+      if (c.drawn_at) throw new Error('It has already been drawn')
+      const pool = entryList.filter(e => e.competition_id === id && e.valid)
+      if (!pool.length) throw new Error('There are no entries to draw from')
+      for (const p of draw(pool, c.winners, c.reserves)) entryList.find(e => e.id === p.id)!.rank = p.rank
+      Object.assign(c, { drawn_at: nowIso(), entry_count: pool.length, status: 'drawn' })
+      return Math.min(pool.length, c.winners + c.reserves)
+    },
+    async givePrize(id) {
+      requireAdmin()
+      const c = competitionList.find(x => x.id === id)
+      if (!c || c.prize_given_at) return
+      if (c.prize_item_id && stock.some(i => i.id === c.prize_item_id)) {
+        await api.recordStock([{ item_id: c.prize_item_id, reason: 'used', change: -c.winners, note: `Prize: ${c.name}` }])
+      }
+      c.prize_given_at = nowIso()
+    },
     async creditDebit() {
       if (!paysAdmin() && !partnerCan('finances')) return []
       return clone(moneyItems).map(i => ({ ...i, payments: i.payments.sort((a, b) => b.paid_on.localeCompare(a.paid_on)) }))
@@ -2304,12 +2495,13 @@ export function createDemoApi(): Api {
       else taxFilings.push({ ...row, id: uid() })
     },
     async taxDocuments(year) {
-      return readTax() ? clone(taxDocuments.filter(d => d.year === year)).sort((a, b) => b.uploaded_at.localeCompare(a.uploaded_at)) : []
+      return readTax() ? clone(taxDocuments.filter(d => d.year === year && d.folder[0] === 'Tax')).sort((a, b) => b.uploaded_at.localeCompare(a.uploaded_at)) : []
     },
     async updateTaxDocument(id, patch) {
       needTax()
       const d = taxDocuments.find(x => x.id === id)
-      if (d) Object.assign(d, patch, { notes: patch.notes === undefined ? d.notes : patch.notes?.trim() || null })
+      if (d) Object.assign(d, patch, { notes: patch.notes === undefined ? d.notes : patch.notes?.trim() || null,
+        title: patch.title === undefined ? d.title : patch.title?.trim() || null, tags: patch.tags === undefined ? d.tags : cleanTags(patch.tags) })
     },
     async removeTaxDocument(id) {
       needTax()
@@ -2346,6 +2538,57 @@ export function createDemoApi(): Api {
         notes: null, uploaded_by: me()?.id ?? null, uploaded_at: nowIso() }
       taxDocuments.push(doc)
       return clone(doc)
+    },
+    async documents() {
+      if (!readTax()) return []
+      return clone(taxDocuments).map((d): KeptDocument => ({ title: null, tags: [], expires_on: null, ...d,
+        invoices: invoiceList.filter(i => i.document_id === d.id).map(i => ({ id: i.id, number: i.number, party_name: i.party_name,
+          supplier: i.supplier_id ? { name: suppliers.find(x => x.id === i.supplier_id)?.name ?? '' } : null })),
+        licences: licenceList.filter(l => l.document_id === d.id).map(l => ({ id: l.id, name: l.name, expires_on: l.expires_on })),
+      })).sort((a, b) => b.uploaded_at.localeCompare(a.uploaded_at))
+    },
+    async browseFiles(path) {
+      if (!canTax()) throw new Error('Only admins with pay access manage documents')
+      const storage = docStorage()
+      const at = path.join('/')
+      const kept = taxDocuments.filter(d => d.storage === storage)
+      const folders = [...taxFolderPaths, ...kept.map(d => d.folder.join('/')), ...looseFiles.map(f => f.path.split('/').slice(0, -1).join('/'))]
+      const link = (p: string) => `https://${storage === 'google_drive' ? 'drive.google.com' : 'onedrive.live.com'}/demo/Business Agent/${p}`
+      if (at && !folders.some(f => f === at || f.startsWith(`${at}/`))) return { storage, path, link: null, entries: [] }
+      const inside = (p: string) => (at ? p.startsWith(`${at}/`) : true)
+      const names = [...new Set(folders.filter(f => f && inside(f)).map(f => f.slice(at ? at.length + 1 : 0).split('/')[0]))].filter(Boolean)
+      const entries: StorageEntry[] = [
+        ...names.map(n => ({ id: `folder:${at}/${n}`, name: n, folder: true, size: null, modified: null, type: null, link: link(at ? `${at}/${n}` : n), kept_id: null })),
+        ...kept.filter(d => d.folder.join('/') === at).map(d => ({ id: d.file_id, name: d.name, folder: false, size: d.size, modified: d.uploaded_at,
+          type: taxFileType(d.name), link: d.link, kept_id: d.id })),
+        ...looseFiles.filter(f => f.path.split('/').slice(0, -1).join('/') === at).map(f => ({ id: f.id, name: f.path.split('/').pop()!, folder: false,
+          size: f.size, modified: f.modified, type: f.type, link: link(f.path), kept_id: null })),
+      ]
+      return { storage, path, link: link(at), entries: sortEntries(entries) }
+    },
+    async makeDocumentsFolder(path, name) {
+      if (!canTax()) throw new Error('Only admins with pay access manage documents')
+      docStorage()
+      const clean = cleanFolderName(name)
+      if (!clean) throw new Error('Give the folder a name (up to 100 characters)')
+      const made = cleanFolderPath([...path, clean], ['Documents'])
+      if (!made) throw new Error('That folder isn’t in the Documents folder')
+      taxFolderPaths.add(made.join('/'))
+      return made
+    },
+    async uploadDocument(file, m) {
+      if (!canTax()) throw new Error('Only admins with pay access manage documents')
+      const storage = docStorage()
+      if (!cleanFolderPath(m.folder, ['Documents'])) throw new Error('That folder isn’t in the Documents folder')
+      const problem = taxFileProblem(m.name, file.size)
+      if (problem) throw new Error(problem)
+      const kept = taxDocuments.find(d => d.sha256 === m.sha256)
+      if (kept) throw new Error(`Already kept as “${kept.name}”`)
+      const doc: TaxDocument = { id: uid(), name: m.name, kind: m.kind, year: m.year, quarter: null, size: file.size, sha256: m.sha256, storage,
+        file_id: uid(), folder: m.folder, link: `https://${storage === 'google_drive' ? 'drive.google.com' : 'onedrive.live.com'}/demo/Business Agent/${m.folder.join('/')}/${m.name}`,
+        notes: null, title: m.title?.trim() || null, tags: cleanTags(m.tags ?? []), expires_on: m.expires_on || null, uploaded_by: me()?.id ?? null, uploaded_at: nowIso() }
+      taxDocuments.push(doc)
+      return { ...clone(doc), invoices: [], licences: [] }
     },
     async pnlSettings() {
       if (!(me()?.role === 'admin' && me()?.can_see_pay) && !partnerCan('finances')) throw new Error('Profit & loss is only visible to admins with pay access')
@@ -2422,14 +2665,25 @@ export function createDemoApi(): Api {
       for (const item of stock) if (item.supplier_id === id) item.supplier_id = null
     },
     async stockItems() { return readStock() ? clone(stock).sort((a, b) => a.name.localeCompare(b.name)) : [] },
+    async stockPrices() {
+      if (!readStock()) return []
+      seedStockPrices()
+      return clone(stockPrices)
+    },
     async saveStockItem({ id, ...patch }) {
       requireAdmin()
       if (!patch.name?.trim()) throw new Error('Give the item a name')
       if (patch.reorder_at != null && patch.par_level != null && patch.reorder_at > patch.par_level) throw new Error('Reorder at can’t be more than the par level')
       const existing = id ? stock.find(x => x.id === id) : undefined
       // How many are in changes only through a delivery, count…: editing an item keeps it.
+      // Like the database: a new cost is kept with the prices before it.
+      seedStockPrices()
+      const before = existing?.cost_per_unit ?? null
       if (existing) Object.assign(existing, { ...patch, name: patch.name.trim(), on_hand: existing.on_hand, updated_at: nowIso() })
       else stock.push(stockItem({ ...patch, name: patch.name.trim() }))
+      const saved = existing ?? stock[stock.length - 1]
+      if (saved.cost_per_unit !== null && saved.cost_per_unit !== before)
+        stockPrices.push({ item_id: saved.id, cost_per_unit: saved.cost_per_unit, changed_at: nowIso() })
     },
     async deleteStockItem(id) {
       requireAdmin()
@@ -2438,7 +2692,12 @@ export function createDemoApi(): Api {
     },
     async importStockItems(rows) {
       requireAdmin()
-      for (const r of rows) stock.push(stockItem({ ...r, name: r.name.trim() }))
+      seedStockPrices()
+      for (const r of rows) {
+        const added = stockItem({ ...r, name: r.name.trim() })
+        stock.push(added)
+        if (added.cost_per_unit !== null) stockPrices.push({ item_id: added.id, cost_per_unit: added.cost_per_unit, changed_at: nowIso() })
+      }
       return rows.length
     },
     async stockMovements(itemId) {
@@ -3417,14 +3676,15 @@ export function createDemoApi(): Api {
       const kind = p.kind ?? 'post'
       const media = p.media ?? (p.image_url ? [{ url: p.image_url, type: 'image' as const }] : [])
       const auto = p.auto ?? true
+      const existing = p.id ? posts.find(x => x.id === p.id) : undefined
+      const music = p.music !== undefined ? p.music : existing?.music ?? null
       // The database's rules (shared/social.ts mirrors them).
-      const problem = postProblem({ kind, caption: p.caption, media, targets, auto, status: p.status })
+      const problem = postProblem({ kind, caption: p.caption, media, targets, auto, status: p.status, music })
       if (problem) throw new Error(problem)
       if (p.status === 'scheduled' && !p.scheduled_at) throw new Error('Pick when to post')
-      const existing = p.id ? posts.find(x => x.id === p.id) : undefined
       if (existing && ['publishing', 'published', 'partly'].includes(existing.status)) throw new Error('This post has already gone out. Make a new post instead.')
       const row: SocialPost = { id: existing?.id ?? uid(), kind, caption: p.caption, image_url: media[0]?.url ?? null, media, targets, scheduled_at: p.scheduled_at ?? null,
-        auto, status: p.status, results: {}, created_at: existing?.created_at ?? nowIso(), published_at: null }
+        auto, status: p.status, results: {}, music, insights: existing?.insights ?? null, created_at: existing?.created_at ?? nowIso(), published_at: null }
       if (existing) Object.assign(existing, row); else posts.unshift(row)
       publishDue()
       return row.id
@@ -3446,6 +3706,82 @@ export function createDemoApi(): Api {
       if (!mediaStorage()) throw new Error('Connect Google Drive or OneDrive on the Connections page to add photos and videos. They’re kept in its Business Agent folder.')
       void folder
       return { url: URL.createObjectURL(file), type: file.type.startsWith('video/') ? 'video' : 'image' }
+    },
+    async musicTracks() {
+      requireAdmin()
+      return clone(musicLibrary.filter(t => !t.hidden))
+    },
+    async musicStatus() {
+      requireAdmin()
+      return { ai: true, render: true, storage: mediaStorage(), starter: { made: DEMO_MUSIC.length, of: 12, on: true } }
+    },
+    async uploadTrack(file, t) {
+      requireAdmin()
+      if (!mediaStorage()) throw new Error('Connect Google Drive or OneDrive on the Connections page to add photos and videos. They’re kept in its Business Agent folder.')
+      if (!t.confirmed) throw new Error('Tick that you have the right to use this music on social media')
+      const track: MusicTrack = { id: uid(), source: 'upload', title: t.title.trim().slice(0, 80) || file.name, artist: t.artist ?? null, url: URL.createObjectURL(file),
+        duration_s: t.duration_s, bpm: t.bpm, energy: null, moods: t.moods, genre: null, vocals: false, highlight_s: t.highlight_s, waveform: t.waveform,
+        licence: { kind: 'upload', confirmed: true, confirmed_by: currentUser, at: nowIso() }, saved: false, hidden: false, created_at: nowIso() }
+      musicLibrary.unshift(track)
+      return clone(track)
+    },
+    async saveTrack(id, patch) {
+      requireAdmin()
+      const t = musicLibrary.find(x => x.id === id)
+      if (!t) throw new Error('That track isn’t in your music library')
+      Object.assign(t, patch)
+    },
+    async deleteTrack(id) {
+      requireAdmin()
+      const i = musicLibrary.findIndex(x => x.id === id)
+      if (i >= 0) musicLibrary.splice(i, 1)
+    },
+    async aiMusicQuote(seconds) {
+      requireAdmin()
+      return quoteMusic(seconds)
+    },
+    async makeAiTrack(req) {
+      requireAdmin()
+      if (namesArtist(req.prompt)) throw new PromptError('Describe the feel instead: AI music can’t copy a real artist or song.')
+      if (!mediaStorage()) throw new Error('Connect Google Drive or OneDrive on the Connections page first: that’s where your tracks are kept.')
+      const q = quoteMusic(req.seconds)
+      if (q.reason) throw new Error(q.reason)
+      await new Promise(r => setTimeout(r, 700))
+      // Two sample tracks closest to the moods asked for stand in for ElevenLabs.
+      const near = [...DEMO_MUSIC].sort((a, b) => b[2].filter(m => req.moods.includes(m)).length - a[2].filter(m => req.moods.includes(m)).length)
+      const g: MusicGeneration = { id: uid(), prompt: req.prompt, seconds: req.seconds, uses: q.uses, status: 'done', free: q.free, price_cents: q.price_cents,
+        kept_id: null, error: null, charged_at: q.price_cents ? nowIso() : null, created_at: nowIso() }
+      musicUses.unshift(g)
+      const tracks: MusicTrack[] = near.slice(0, 2).map(([key], i) => ({ id: uid(), source: 'ai', title: i ? `${req.title} (2)` : req.title, artist: null,
+        url: `/demo/music/${key}.mp3`, duration_s: DEMO_SECONDS, bpm: req.bpm, energy: req.energy, moods: req.moods.filter(isMood), genre: req.genre ?? null, vocals: false,
+        highlight_s: 0, waveform: null, licence: { kind: 'ai', provider: 'elevenlabs', prompt: req.prompt, generation: g.id }, saved: false, hidden: false, created_at: nowIso() }))
+      musicLibrary.unshift(...tracks)
+      return { generation: { id: g.id, uses: g.uses, free: g.free, price_cents: g.price_cents }, tracks: clone(tracks) }
+    },
+    async keepAiTrack(generationId, trackId) {
+      requireAdmin()
+      const g = musicUses.find(x => x.id === generationId)
+      if (!g) throw new Error('That track isn’t from this one')
+      g.kept_id = trackId
+      for (const t of musicLibrary) {
+        if (t.source === 'ai' && t.licence.generation === generationId) Object.assign(t, { hidden: t.id !== trackId, saved: t.id === trackId || t.saved })
+      }
+    },
+    async aiMusicUses() {
+      requireAdmin()
+      return clone(musicUses)
+    },
+    async setPayPerUseLimit(euros) {
+      requireAdmin()
+      if (!(euros >= 0 && euros <= 1000)) throw new Error('The limit must be between €0 and €1,000')
+      payPerUseLimitCents = Math.round(euros * 100)
+    },
+    async renderPostMusic(req) {
+      requireAdmin()
+      if (!musicLibrary.some(t => t.id === req.track_id)) throw new Error('That track isn’t in your music library')
+      await new Promise(r => setTimeout(r, 400))
+      // The demo has no render service: the picture stays as it is, with the music noted on the post.
+      return { media: req.sources.length > 1 ? { url: '/demo/music/reel.mp4', type: 'video' } : req.sources[0], ms: null }
     },
     async referrals() {
       requireAdmin()

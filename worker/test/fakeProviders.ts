@@ -133,6 +133,8 @@ export class FakeProviders {
     refreshes: 0,
     /** The long-lived token the Worker should be using now. */
     current: '',
+    /** The account's posts and reels (me/media), newest first. */
+    media: [{ id: 'm1', caption: 'Iced oat latte season', permalink: 'https://instagram.com/p/1', timestamp: '2026-09-27T10:00:00Z' }] as Json[],
     /** Direct messages, as Instagram's Conversations API returns them (newest first). */
     chats: [
       { id: 'conv-1', updated_time: '2026-10-18T10:05:00+0000',
@@ -306,6 +308,11 @@ export class FakeProviders {
     /** Photos and voice notes people sent, by media id (Meta keeps them for a while, then they're gone). */
     media: new Map<string, { type: string; bytes: Uint8Array }>(),
   }
+  /** ElevenLabs Music (key "el-key"): what it was asked for, and switches to refuse a prompt or fail. */
+  elevenlabs = { asked: [] as Json[], refuse: false, down: false }
+  /** The render service (render/, at https://render.test, key "render-key"): the jobs it got, and a switch to refuse one. */
+  render = { jobs: [] as Json[], refuse: null as string | null }
+
   /** Every call, as "METHOD host/path". */
   calls: string[] = []
   private nextId = 1
@@ -316,6 +323,30 @@ export class FakeProviders {
     this.calls.push(`${method} ${url.host}${url.pathname}`)
     const form = () => new URLSearchParams(String(init.body ?? ''))
     const body = () => JSON.parse(String(init.body ?? '{}')) as Json
+
+    // ---- ElevenLabs Music: an MP3 per call (a few bytes standing in) ----
+    if (url.host === 'api.elevenlabs.io' && url.pathname === '/v1/music' && method === 'POST') {
+      if (new Headers(init.headers).get('xi-api-key') !== 'el-key') return json({ detail: { status: 'invalid_api_key', message: 'Invalid API key' } }, 401)
+      this.elevenlabs.asked.push(body())
+      if (this.elevenlabs.refuse) {
+        return json({ detail: { status: 'bad_prompt', message: 'The prompt includes copyrighted material.', data: { prompt_suggestion: 'Bright upbeat pop with handclaps' } } }, 400)
+      }
+      if (this.elevenlabs.down) return json({ detail: { message: 'Service temporarily unavailable' } }, 503)
+      const n = this.nextId++
+      return new Response(new Uint8Array(2048).fill(n % 251), { headers: { 'content-type': 'audio/mpeg', 'song-id': `song-${n}` } })
+    }
+
+    // ---- The render service: the MP4 with the music in ----
+    if (url.host === 'render.test') {
+      if (new Headers(init.headers).get('authorization') !== 'Bearer render-key') return json({ error: 'Not allowed' }, 401)
+      this.render.jobs.push(body())
+      if (this.render.refuse) return json({ error: this.render.refuse }, 400)
+      const bytes = new Uint8Array(4096).fill(7)
+      // A video source is 12.5 s long here; photos last as asked.
+      const job = body() as { seconds: number; source: { type: string } }
+      const seconds = job.source.type === 'video' ? Math.min(12.5, job.seconds) : job.seconds
+      return new Response(bytes, { headers: { 'content-type': 'video/mp4', 'content-length': String(bytes.length), 'x-render-ms': '8400', 'x-render-seconds': String(seconds) } })
+    }
 
     // ---- Google ----
     if (url.href === 'https://oauth2.googleapis.com/token') {
@@ -376,10 +407,13 @@ export class FakeProviders {
       if (method === 'GET') {
         const q = url.searchParams.get('q') ?? ''
         const name = q.match(/name = '(.*?)'/)?.[1], parent = q.match(/'([^']+)' in parents/)?.[1]
-        // Without a name: every folder inside the parent (the Tax page's folder list).
-        const files = [...this.google.folders].filter(([, f]) => (name === undefined || f.name === name) && f.parent === parent && !f.trashed)
-          .map(([id, f]) => ({ id, name: f.name })).sort((a, b) => a.name.localeCompare(b.name))
-        return json({ files })
+        // Without a name: every folder inside the parent (the Tax page's folder list), and its files too
+        // when not only folders are asked for (the Documents hub's browser).
+        const folders = [...this.google.folders].filter(([, f]) => (name === undefined || f.name === name) && f.parent === parent && !f.trashed)
+          .map(([id, f]) => ({ id, name: f.name, mimeType: 'application/vnd.google-apps.folder' }))
+        const files = q.includes('mimeType') || name !== undefined ? [] : [...this.google.blobs].filter(([, f]) => f.parent === parent)
+          .map(([id, f]) => ({ id, name: f.name, mimeType: f.type, size: String(f.bytes.length), modifiedTime: '2026-10-20T09:30:00.000Z', webViewLink: `https://drive.google.com/file/d/${id}/view` }))
+        return json({ files: [...folders, ...files].sort((a, b) => a.name.localeCompare(b.name)) })
       }
       const made = body() as { name: string; parents: string[] }
       const id = `folder-${this.nextId++}`
@@ -543,7 +577,7 @@ export class FakeProviders {
         return json({ error: { message: 'Error validating access token: The user has not authorized application 123.', type: 'OAuthException', code: 190 } }, 400)
       }
       if (url.pathname.endsWith('/me')) return json({ user_id: '17841400000000001', username: this.instagram.username, account_type: 'BUSINESS', followers_count: 1284, media_count: 57 })
-      if (url.pathname.endsWith('/me/media')) return json({ data: [{ id: 'm1', caption: 'Iced oat latte season', permalink: 'https://instagram.com/p/1', timestamp: '2026-09-27T10:00:00Z' }] })
+      if (url.pathname.endsWith('/me/media') && method === 'GET') return json({ data: this.instagram.media })
       const noMessages = () => json({ error: { message: '(#3) Application does not have the capability to make this API call.', type: 'OAuthException', code: 3 } }, 400)
       const fieldsOk = () => !this.instagram.plainOnly || !(url.searchParams.get('fields') ?? '').includes('image_data')
       if (url.pathname.endsWith('/me/conversations')) {
@@ -643,7 +677,8 @@ export class FakeProviders {
       }
       if (oneItem && method === 'GET' && !this.microsoft.blobs.has(oneItem[1])) return json({ error: { code: 'itemNotFound', message: 'The resource could not be found.' } }, 404)
       if (path === '/me/drive/root:/Business%20Agent' || path === '/me/drive/root:/Business Agent') {
-        return this.microsoft.folderId ? json({ id: this.microsoft.folderId, name: 'Business Agent', folder: {} }) : json({ error: { code: 'itemNotFound', message: 'The resource could not be found.' } }, 404)
+        return this.microsoft.folderId ? json({ id: this.microsoft.folderId, name: 'Business Agent', folder: {}, webUrl: `https://onedrive.live.com/?id=${this.microsoft.folderId}` })
+          : json({ error: { code: 'itemNotFound', message: 'The resource could not be found.' } }, 404)
       }
       if (path === '/me/drive/root/children' && method === 'POST') {
         this.microsoft.folderId = `ms-folder-${this.nextId++}`
@@ -654,11 +689,17 @@ export class FakeProviders {
         const id = [...this.microsoft.paths].find(([, p]) => p === at)?.[0]
         return id ? json({ id, name: at.split('/').pop(), folder: {}, webUrl: `https://onedrive.live.com/?id=${id}` }) : json({ error: { code: 'itemNotFound', message: 'The resource could not be found.' } }, 404)
       }
-      // A folder's children by path (the Tax page's folder list): the folders made inside it.
+      // A folder's children by path (the Tax page's folder list, the Documents hub's browser): the folders made inside it and the files put there.
       if (path.startsWith('/me/drive/root:/') && path.endsWith(':/children') && method === 'GET') {
         const at = decodeURIComponent(path.slice('/me/drive/root:/'.length, -':/children'.length))
-        const value = [...this.microsoft.paths.values()].filter(p => p.startsWith(`${at}/`) && !p.slice(at.length + 1).includes('/'))
-          .map(p => ({ name: p.split('/').pop(), folder: {} }))
+        const there = at === 'Business Agent' ? !!this.microsoft.folderId : [...this.microsoft.paths.values()].includes(at)
+        if (!there) return json({ error: { code: 'itemNotFound', message: 'The resource could not be found.' } }, 404)
+        const inside = (p: string) => p.startsWith(`${at}/`) && !p.slice(at.length + 1).includes('/')
+        const value = [
+          ...[...this.microsoft.paths].filter(([, p]) => inside(p)).map(([id, p]) => ({ id, name: p.split('/').pop(), folder: {}, webUrl: `https://onedrive.live.com/?id=${id}` })),
+          ...[...this.microsoft.blobs].filter(([, f]) => inside(f.path)).map(([id, f]) => ({ id, name: f.path.split('/').pop(), size: f.bytes.length,
+            file: { mimeType: 'application/pdf' }, lastModifiedDateTime: '2026-10-20T09:30:00Z', webUrl: `https://onedrive.live.com/?id=${id}` })),
+        ]
         return json({ value })
       }
       const children = path.match(/^\/me\/drive\/items\/([^/]+)\/children$/)

@@ -8,7 +8,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { useEffect, useState } from 'react'
 import { useApp } from '../app/AppContext'
 import { useAction } from '../app/Notify'
-import { ALWAYS_SHOWN, SECTIONS, canOpen, sortSections, type NavItem, type NavSection } from '../app/AppShell'
+import { ALWAYS_SHOWN, SECTIONS, canOpen, navLabel, sortSections, type NavItem, type NavSection } from '../app/AppShell'
 import { PageHeader, SectionTitle } from '../components/common'
 import { KeyboardSensorNow, restrictToVerticalAxis } from '../components/dnd'
 import type { Preferences } from '../../shared/types'
@@ -74,19 +74,19 @@ export function PagesPage() {
           <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
             <Box sx={{ color: 'text.secondary', display: 'flex' }}>{n.icon}</Box>
             <Box>
-              <Typography>{t(n.label)}</Typography>
+              <Typography>{navLabel(n)}</Typography>
               {!forTeam && <Typography variant="caption" sx={{ color: tokens.roseDeep }}>{t('Hidden for the team')}</Typography>}
             </Box>
           </Stack>
         </TableCell>
         <TableCell align="center">
           <Switch checked={fixed || !mine.includes(n.key)} disabled={fixed || !forTeam} onChange={e => void setMine(n.key, e.target.checked)}
-            slotProps={{ input: { 'aria-label': t('Show {page} in my menu', { page: t(n.label) }) } }} />
+            slotProps={{ input: { 'aria-label': t('Show {page} in my menu', { page: navLabel(n) }) } }} />
         </TableCell>
         {admin && (
           <TableCell align="center">
             <Switch checked={fixed || forTeam} disabled={fixed} onChange={e => void setTeam(n.key, e.target.checked)}
-              slotProps={{ input: { 'aria-label': t('Show {page} for the team', { page: t(n.label) }) } }} />
+              slotProps={{ input: { 'aria-label': t('Show {page} for the team', { page: navLabel(n) }) } }} />
           </TableCell>
         )}
       </TableRow>
@@ -176,7 +176,7 @@ function SectionRow({ section, first, last, onUp, onDown }: { section: NavSectio
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography sx={{ fontWeight: 500 }}>{label}</Typography>
         <Typography variant="caption" sx={{ color: 'text.secondary' }} noWrap component="div">
-          {section.items.map(n => t(n.label)).join(' · ')}
+          {section.items.map(n => navLabel(n)).join(' · ')}
         </Typography>
       </Box>
       <IconButton size="small" disabled={first} onClick={onUp} aria-label={t('Move {section} up', { section: label })}><UpIcon fontSize="small" /></IconButton>
