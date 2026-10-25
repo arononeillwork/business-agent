@@ -160,6 +160,8 @@ export interface Preferences {
   numberFormat?: 'comma' | 'point'
   /** Page background tint: a brand colour (#RRGGBB). Unset = the house cream. */
   background?: string
+  /** Their own order of the menu's sections (Settings → Pages), by section key. */
+  navSections?: string[]
   /** Their own order of pages within each menu section: section key → page keys. */
   navOrder?: Record<string, string[]>
   /** Pages they pinned to the top of their menu section (page keys). */

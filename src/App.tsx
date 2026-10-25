@@ -32,6 +32,7 @@ const TimeOffPage = page(() => import('./pages/TimeOffPage'), 'TimeOffPage')
 const BenefitsPage = page(() => import('./pages/BenefitsPage'), 'BenefitsPage')
 const RolesPage = page(() => import('./pages/RolesPage'), 'RolesPage')
 const StaffRulesPage = page(() => import('./pages/StaffRulesPage'), 'StaffRulesPage')
+const OutsourcingPage = page(() => import('./pages/OutsourcingPage'), 'OutsourcingPage')
 const FinancesPage = page(() => import('./pages/FinancesPage'), 'FinancesPage')
 const GrantsPage = page(() => import('./pages/GrantsPage'), 'GrantsPage')
 const SalesPage = page(() => import('./pages/SalesPage'), 'SalesPage')
@@ -39,6 +40,7 @@ const TaxPage = page(() => import('./pages/TaxPage'), 'TaxPage')
 const LicencesPage = page(() => import('./pages/LicencesPage'), 'LicencesPage')
 const LegalDocumentsPage = page(() => import('./pages/LegalDocumentsPage'), 'LegalDocumentsPage')
 const InvoicesPage = page(() => import('./pages/InvoicesPage'), 'InvoicesPage')
+const CreditDebitPage = page(() => import('./pages/CreditDebitPage'), 'CreditDebitPage')
 const PagesPage = page(() => import('./pages/PagesPage'), 'PagesPage')
 const ProfitLossPage = page(() => import('./pages/ProfitLossPage'), 'ProfitLossPage')
 const AnalyticsPage = page(() => import('./pages/AnalyticsPage'), 'AnalyticsPage')
@@ -71,6 +73,8 @@ const BrandPage = page(() => import('./pages/BrandPage'), 'BrandPage')
 const PrivacyPage = page(() => import('./pages/PrivacyPage'), 'PrivacyPage')
 const TermsPage = page(() => import('./pages/TermsPage'), 'TermsPage')
 const DataDeletionPage = page(() => import('./pages/DataDeletionPage'), 'DataDeletionPage')
+const TikTokTermsPage = page(() => import('./pages/TikTokTermsPage'), 'TikTokTermsPage')
+const TikTokPrivacyPage = page(() => import('./pages/TikTokPrivacyPage'), 'TikTokPrivacyPage')
 const BillingPage = page(() => import('./pages/BillingPage'), 'BillingPage')
 const ComparePage = page(() => import('./pages/ComparePage'), 'ComparePage')
 const PricingPage = page(() => import('./pages/PricingPage'), 'PricingPage')
@@ -95,6 +99,8 @@ function Routed() {
   if (pathname === '/privacy') return <PrivacyPage />
   if (pathname === '/terms') return <TermsPage />
   if (pathname === '/data-deletion') return <DataDeletionPage />
+  if (pathname === '/tiktok/terms') return <TikTokTermsPage />
+  if (pathname === '/tiktok/privacy') return <TikTokPrivacyPage />
   if (pathname === '/pricing') return <PricingPage />
   if (pathname === '/compare') return <ComparePage />
   if (loading) return <Loading />
@@ -123,11 +129,13 @@ function Routed() {
           {partnerCan('finances') && <Route path="licences" element={<LicencesPage />} />}
           {partnerCan('finances') && <Route path="legal" element={<LegalDocumentsPage />} />}
           {partnerCan('finances') && <Route path="invoices" element={<InvoicesPage />} />}
+          {partnerCan('finances') && <Route path="credit-debit" element={<CreditDebitPage />} />}
           {partnerCan('finances') && <Route path="expenses" element={<ExpensesPage />} />}
           {partnerCan('finances') && <Route path="profit-and-loss" element={<ProfitLossPage />} />}
           {partnerCan('finances') && <Route path="grants" element={<GrantsPage />} />}
           {partnerCan('finances') && <Route path="stock" element={<StockPage />} />}
           {partnerCan('finances') && <Route path="suppliers" element={<SuppliersPage />} />}
+          {partnerCan('finances') && <Route path="outsourcing" element={<OutsourcingPage />} />}
           {partnerCan('finances') && <Route path="recipes" element={<RecipesPage />} />}
           {partnerCan('finances') && <Route path="allergens" element={<AllergensPage />} />}
           {partnerCan('finances') && <Route path="waste" element={<WastePage />} />}
@@ -156,6 +164,7 @@ function Routed() {
         <Route path="rules" element={<StaffRulesPage />} />
         <Route path="tips" element={FEATURES.tips ? <TipsPage /> : <Navigate to="/" />} />
         <Route path="hiring" element={isAdmin ? <HiringPage /> : <Navigate to="/" />} />
+        <Route path="outsourcing" element={isAdmin ? <OutsourcingPage /> : <Navigate to="/" />} />
         <Route path="sports" element={<PlanGate feature="sports"><SportsPage /></PlanGate>} />
         <Route path="music" element={<PlanGate feature="music"><MusicPage /></PlanGate>} />
         <Route path="team" element={<TeamPage />} />
@@ -181,6 +190,7 @@ function Routed() {
         <Route path="licences" element={isAdmin ? <LicencesPage /> : <Navigate to="/" />} />
         <Route path="legal" element={isAdmin ? <LegalDocumentsPage /> : <Navigate to="/" />} />
         <Route path="invoices" element={<InvoicesPage />} />
+        <Route path="credit-debit" element={<CreditDebitPage />} />
         <Route path="expenses" element={<ExpensesPage />} />
         <Route path="profit-and-loss" element={<ProfitLossPage />} />
         <Route path="grants" element={<GrantsPage />} />
@@ -198,7 +208,7 @@ function Routed() {
         <Route path="pages" element={<PagesPage />} />
         {/* Alerts became part of Notifications. */}
         <Route path="alerts" element={<Navigate to="/notifications" replace />} />
-        <Route path="account/billing" element={isAdmin ? <BillingPage /> : <Navigate to="/" />} />
+        <Route path="account/billing" element={isAdmin && canSeePay ? <BillingPage /> : <Navigate to="/" />} />
         {/* Billing used to be under Settings: old links (and Stripe's way back) still land on it. */}
         <Route path="billing" element={<ToBilling />} />
         <Route path="connections" element={isAdmin ? <ConnectionsPage /> : <Navigate to="/" />} />

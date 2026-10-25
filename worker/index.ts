@@ -25,6 +25,7 @@ import { refreshReviews, reviews, reviewsConfigured } from './reviews'
 import { clearOldCache } from './cache'
 import { website } from './website'
 import { competitors, watchCompetitors } from './competitors'
+import { TEAM_ROLE_IDS, accessOf } from '../shared/teamRoles'
 
 const NIGHTLY = '15 1 * * *' // 03:15 Madrid in summer, 02:15 in winter
 
@@ -89,7 +90,14 @@ app.post('/api/admin/invite', async c => {
 
   const body = await c.req.json<{ email?: string; full_name?: string; role?: string; partner_company?: string; partner_access?: string[]; password?: string; phone?: string | null; contact_method?: string | null }>()
   const email = body.email?.trim().toLowerCase()
-  const role = ['admin', 'employee', 'kiosk', 'partner'].includes(body.role ?? '') ? body.role : 'employee'
+  // Team members come with their team role (boss, manager or employee; 'admin' is a shop manager),
+  // kept as the access the database checks. Only a boss invites a boss.
+  const member = TEAM_ROLE_IDS.find(r => r === (body.role === 'admin' ? 'manager' : body.role))
+  const role = member ? accessOf(member).role : body.role === 'kiosk' || body.role === 'partner' ? body.role : 'employee'
+  const boss = member === 'boss'
+  if (boss && !(await userClient(c.env, token, 'app').rpc('can_see_pay')).data) {
+    return c.json({ error: 'Only a boss can invite another boss' }, 403)
+  }
   if (!email || !body.full_name?.trim()) return c.json({ error: 'Name and email are required' }, 400)
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return c.json({ error: 'Enter a full email address, like name@example.com' }, 400)
   // Partners: company and read-only areas (the database drops anything unknown too).
@@ -104,7 +112,7 @@ app.post('/api/admin/invite', async c => {
     ...(body.contact_method && ['whatsapp', 'sms', 'email'].includes(body.contact_method) ? { contact_method: body.contact_method } : {}),
   }
 
-  const blocked = await planBlocksInvite(c.env, role!)
+  const blocked = await planBlocksInvite(c.env, role)
   if (blocked) return c.json({ error: blocked }, 402)
 
   // With a temporary password: create the account now, no email needed (Supabase's built-in email
@@ -124,7 +132,7 @@ app.post('/api/admin/invite', async c => {
     // Set the role and switch the account on explicitly: Supabase may store app_metadata after
     // the new-user trigger has already run, which left these accounts inactive.
     const { error: profileError } = await svc.from('profiles').update({
-      full_name: body.full_name.trim(), role, active: true,
+      full_name: body.full_name.trim(), role, active: true, ...(boss ? { can_see_pay: true } : {}),
       ...(role === 'partner' ? partner : contact),
     }).eq('id', created.user.id)
     if (profileError) {
@@ -141,7 +149,8 @@ app.post('/api/admin/invite', async c => {
     redirectTo: `${origin}/account`,
   })
   if (inviteError) return c.json({ error: inviteError.message }, 400)
-  if (invited.user && role !== 'partner' && Object.keys(contact).length) await svc.from('profiles').update(contact).eq('id', invited.user.id)
+  const after = { ...(role === 'partner' ? {} : contact), ...(boss ? { can_see_pay: true } : {}) }
+  if (invited.user && Object.keys(after).length) await svc.from('profiles').update(after).eq('id', invited.user.id)
   return c.json({ ok: true })
 })
 
