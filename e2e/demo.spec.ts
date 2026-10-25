@@ -3409,7 +3409,7 @@ test.describe('credit and debit', () => {
 
 test.describe('pages: the order of the menu sections', () => {
   test('each person puts the menu sections in their own order, saved to their account', async ({ page }) => {
-    const usual = ['Business', 'Sales', 'Stock', 'Accounts', 'Marketing', "What's on", 'Team', 'Settings']
+    const usual = ['Business', 'Sales', 'Menu', 'Stock', 'Accounts', 'Marketing', "What's on", 'Team', 'Settings']
     await open(page, '/pages')
     const nav = page.getByRole('navigation', { name: 'Main' })
     const headings = async () => (await nav.locator('section > button').allTextContents()).map(h => h.trim())
@@ -3419,16 +3419,16 @@ test.describe('pages: the order of the menu sections', () => {
     await expect(order.getByRole('button', { name: 'Move Settings down' })).toBeDisabled()
 
     await order.getByRole('button', { name: 'Move Team up' }).click()
-    await expect.poll(headings).toEqual(['Business', 'Sales', 'Stock', 'Accounts', 'Marketing', 'Team', "What's on", 'Settings'])
+    await expect.poll(headings).toEqual(['Business', 'Sales', 'Menu', 'Stock', 'Accounts', 'Marketing', 'Team', "What's on", 'Settings'])
     await order.getByRole('button', { name: 'Move Team up' }).click()
-    await expect.poll(headings).toEqual(['Business', 'Sales', 'Stock', 'Accounts', 'Team', 'Marketing', "What's on", 'Settings'])
+    await expect.poll(headings).toEqual(['Business', 'Sales', 'Menu', 'Stock', 'Accounts', 'Team', 'Marketing', "What's on", 'Settings'])
     // Or with the keyboard: pick up Settings, move it up a place and drop it.
     await order.getByRole('button', { name: 'Reorder Settings' }).focus()
     await page.keyboard.press('Space')
     await page.keyboard.press('ArrowUp')
     await expect(order.getByRole('status')).toContainText('over droppable area whatson')
     await page.keyboard.press('Space')
-    const mine = ['Business', 'Sales', 'Stock', 'Accounts', 'Team', 'Marketing', 'Settings', "What's on"]
+    const mine = ['Business', 'Sales', 'Menu', 'Stock', 'Accounts', 'Team', 'Marketing', 'Settings', "What's on"]
     await expect.poll(headings).toEqual(mine)
     // The page's own lists follow the same order.
     expect(await order.getByRole('listitem').locator('p').allTextContents()).toEqual(mine)
@@ -3693,21 +3693,21 @@ test.describe('recipes and waste', () => {
     await open(page, '/recipes')
     await expect(page.getByRole('heading', { name: 'Menu costing', level: 1 })).toBeVisible()
     const tiles = page.getByRole('list', { name: 'At a glance' })
-    await expect(tiles.getByRole('listitem').filter({ hasText: 'Below target' })).toContainText('1')
+    await expect(tiles.getByRole('listitem').filter({ hasText: 'Below target' })).toContainText('2')
     await expect(tiles.getByRole('listitem').filter({ hasText: 'Lowest margin' })).toContainText('42,5%')
     const table = page.getByRole('table', { name: 'Menu costing' })
     // Sorted by margin, lowest first.
     await expect(table.getByRole('row').nth(1)).toHaveAccessibleName('Pain au chocolat')
-    await expect(table.getByRole('row', { name: 'Flat white' })).toContainText('82,2%')
+    await expect(table.getByRole('row', { name: 'Flat white' })).toContainText('78,9%')
 
-    await table.getByRole('row', { name: 'Pain au chocolat' }).click()
-    const dialog = page.getByRole('dialog', { name: 'Pain au chocolat' })
-    await expect(dialog).toContainText('Below the 60% aimed for. At €2,90 with IVA it would be on target.')
-    await dialog.getByRole('textbox', { name: 'Menu price, with IVA' }).fill('2,90')
+    await table.getByRole('row', { name: 'Croissant' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Croissant' })
+    await expect(dialog).toContainText('Below the 60% aimed for. At €2,60 with IVA it would be on target.')
+    await dialog.getByRole('textbox', { name: 'Menu price, with IVA' }).fill('2,60')
     await expect(dialog.getByRole('alert')).toHaveCount(0)
     await dialog.getByRole('button', { name: 'Save' }).click()
     await toast(page, /^Saved$/)
-    await expect(tiles.getByRole('listitem').filter({ hasText: 'Below target' })).toContainText('0')
+    await expect(tiles.getByRole('listitem').filter({ hasText: 'Below target' })).toContainText('1')
 
     await page.getByRole('button', { name: 'Export' }).click()
     await expect(page.getByRole('menuitem', { name: /Excel/ })).toBeVisible()
@@ -3718,7 +3718,7 @@ test.describe('recipes and waste', () => {
     await open(page, '/recipes')
     await page.getByRole('button', { name: 'Add menu item' }).click()
     const dialog = page.getByRole('dialog', { name: 'Add a menu item' })
-    await dialog.getByRole('textbox', { name: 'Name' }).fill('Piccolo')
+    await dialog.getByRole('textbox', { name: 'Name' }).fill('Cortado')
     await dialog.getByRole('textbox', { name: 'Menu price, with IVA' }).fill('2,20')
     await dialog.getByRole('button', { name: 'Add ingredient' }).click()
     await dialog.getByRole('combobox', { name: 'Ingredient' }).fill('House espresso')
@@ -3734,8 +3734,8 @@ test.describe('recipes and waste', () => {
     await dialog.getByRole('textbox', { name: 'Amount' }).nth(1).fill('9')
     await expect(dialog).toContainText('Cost €0,50 · €2,45 without IVA')
     await dialog.getByRole('button', { name: 'Add', exact: true }).click()
-    await toast(page, 'Added Piccolo')
-    await expect(page.getByRole('table', { name: 'Menu costing' }).getByRole('row', { name: 'Piccolo' })).toContainText('Extra shot')
+    await toast(page, 'Added Cortado')
+    await expect(page.getByRole('table', { name: 'Menu costing' }).getByRole('row', { name: 'Cortado' })).toContainText('Extra shot')
   })
 
   test('a menu item with nothing in it yet has no cost or margin, shaded as still to be entered', async ({ page }) => {
@@ -3745,11 +3745,11 @@ test.describe('recipes and waste', () => {
     const before = await average.textContent()
     await page.getByRole('button', { name: 'Add menu item' }).click()
     const dialog = page.getByRole('dialog', { name: 'Add a menu item' })
-    await dialog.getByRole('textbox', { name: 'Name' }).fill('Club sandwich')
+    await dialog.getByRole('textbox', { name: 'Name' }).fill('Bacon sandwich')
     await dialog.getByRole('textbox', { name: 'Menu price, with IVA' }).fill('5,50')
     await dialog.getByRole('button', { name: 'Add', exact: true }).click()
-    await toast(page, 'Added Club sandwich')
-    const row = page.getByRole('table', { name: 'Menu costing' }).getByRole('row', { name: 'Club sandwich' })
+    await toast(page, 'Added Bacon sandwich')
+    const row = page.getByRole('table', { name: 'Menu costing' }).getByRole('row', { name: 'Bacon sandwich' })
     await expect(row).toContainText('No ingredients yet')
     // Item, category, price, cost, margin, margin %: the price is in, the rest is still to be entered.
     const cells = row.getByRole('cell')
