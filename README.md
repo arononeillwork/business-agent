@@ -21,8 +21,8 @@ built-in **AI connector** so owners can run it by talking to Claude.
 - Team roles: everyone on the team is an **employee**, a **shop manager** or the **boss / CEO**, picked
   on the Team page when inviting them or later, or by asking Claude (`set_team_role`). Employees see
   their own shifts, clock-ins, time off and expenses; a shop manager runs the shop (rota, timecards,
-  time off, stock, the team, settings) without pay, takings or finances; a boss does all of it with
-  pay and finances. They're stored as the access the database already checks (a boss is an admin
+  time off, stock, the team, settings) without pay, takings, finances or billing; a boss does all of
+  it with pay, finances and billing. They're stored as the access the database already checks (a boss is an admin
   with pay access), and only a boss makes someone a boss or changes a boss
   (`shared/teamRoles.ts`, the `team_roles` migration).
 - Sports: the next 3 weeks of football (Spanish, English, Scottish, Dutch and other leagues, cups,

@@ -179,7 +179,7 @@ export const SECTIONS: NavSection[] = [
 // opens them), but still found by search and shown as the current page.
 const YOU: NavItem[] = [
   { key: 'account', to: '/account', label: msg('My account'), icon: <AccountIcon />, partner: 'any' },
-  { key: 'billing', to: '/account/billing', label: msg('Billing'), icon: <BillingIcon />, who: 'admin' },
+  { key: 'billing', to: '/account/billing', label: msg('Billing'), icon: <BillingIcon />, who: 'pay' },
   { key: 'referrals', to: '/referrals', label: msg('Referrals'), icon: <ReferralsIcon />, who: 'admin' },
   { key: 'appearance', to: '/appearance', label: msg('Appearance'), icon: <AppearanceIcon />, partner: 'any' },
 ]
@@ -224,7 +224,7 @@ const withChildren = (items: NavItem[]) => items.flatMap(n => [n, ...(n.children
 
 /** You: the account menu, opened from your name at the bottom left (or the account icon on a phone). */
 function AccountMenu({ children, label, sx }: { children: ReactNode; label?: string; sx?: object }) {
-  const { me, isAdmin, isPartner, api } = useApp()
+  const { me, isAdmin, isPartner, canSeePay, api } = useApp()
   const [anchor, setAnchor] = useState<HTMLElement | null>(null)
   const close = () => setAnchor(null)
   const item = (to: string, text: string, icon: ReactNode) => (
@@ -241,7 +241,7 @@ function AccountMenu({ children, label, sx }: { children: ReactNode; label?: str
       <Menu anchorEl={anchor} open={!!anchor} onClose={close} anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
         transformOrigin={{ vertical: 'bottom', horizontal: 'left' }} slotProps={{ paper: { sx: { minWidth: 220, borderRadius: '14px' } } }}>
         {item('/account', t('My account'), <AccountIcon fontSize="small" />)}
-        {isAdmin && !isPartner && item('/account/billing', t('Billing'), <BillingIcon fontSize="small" />)}
+        {isAdmin && canSeePay && item('/account/billing', t('Billing'), <BillingIcon fontSize="small" />)}
         {isAdmin && !isPartner && item('/referrals', t('Referrals'), <ReferralsIcon fontSize="small" />)}
         {item('/appearance', t('Appearance'), <AppearanceIcon fontSize="small" />)}
         <Divider />

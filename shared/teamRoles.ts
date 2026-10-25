@@ -12,9 +12,9 @@ export const TEAM_ROLES: { id: TeamRole; label: string; plural: string; summary:
   { id: 'employee', label: msg('Employee'), plural: msg('Employees'),
     summary: msg('Their own shifts, clock-ins, time off and expenses, and what the whole team shares.') },
   { id: 'manager', label: msg('Shop manager'), plural: msg('Shop managers'),
-    summary: msg('Runs the shop: the rota, timecards, time off, stock, the team and the business’s settings. Doesn’t see pay, takings or finances.') },
+    summary: msg('Runs the shop: the rota, timecards, time off, stock, the team and the business’s settings. Doesn’t see pay, takings, finances or billing.') },
   { id: 'boss', label: msg('Boss / CEO'), plural: msg('Bosses'),
-    summary: msg('Everything a shop manager does, plus pay, takings and finances, and who else is a boss.') },
+    summary: msg('Everything a shop manager does, plus pay, takings, finances and billing, and who else is a boss.') },
 ]
 export const TEAM_ROLE_IDS = TEAM_ROLES.map(r => r.id)
 
