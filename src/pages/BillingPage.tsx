@@ -1,13 +1,14 @@
-import { Alert, Box, Button, Card, CardContent, Chip, LinearProgress, Stack, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material'
+import { Alert, Box, Button, Card, CardContent, Chip, LinearProgress, Stack, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material'
 import CheckIcon from '@mui/icons-material/CheckRounded'
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction, useNotify } from '../app/Notify'
+import { FEATURES, shows } from '../app/features'
 import { planName, usePlan } from '../app/plan'
 import { PageHeader, SectionTitle } from '../components/common'
-import { COMPLIMENTARY_LABEL, ENTERPRISE, PLANS, TRIAL_MONTHS, effectivePlan, paymentProblem, plan as planById, planHighlights, type Billing, type Interval, type PlanId } from '../../shared/plans'
+import { COMPLIMENTARY_LABEL, ENTERPRISE, PAY_PER_USE, PLANS, TRIAL_MONTHS, effectivePlan, payPerUse, paymentProblem, perUsePrice, plan as planById, planHighlights, type Billing, type Interval, type PlanId } from '../../shared/plans'
 import { formatLocal } from '../../shared/time'
 import { t, tn, tr } from '../i18n'
 
@@ -31,6 +32,76 @@ function Meter({ label, used, max }: { label: string; used: number; max: number 
       <LinearProgress variant="determinate" value={max === null ? 4 : Math.min(100, (used / Math.max(1, max)) * 100)} sx={{ mt: 0.75, height: 6, borderRadius: 3 }}
         color={max !== null && used >= max ? 'warning' : 'primary'} />
     </Box>
+  )
+}
+
+const euros = (cents: number) => `€${(cents / 100).toFixed(2)}`
+
+/**
+ * Pay per use (PAY_PER_USE in shared/plans.ts): this month's AI music tracks, the free ones, what
+ * they add to the monthly bill, and the monthly limit so nothing comes as a surprise.
+ */
+function PayPerUseCard() {
+  const { api } = useApp()
+  const run = useAction()
+  const quote = useAsync('ai-music-quote', () => api.aiMusicQuote(30), [30])
+  const uses = useAsync('ai-music-uses', () => api.aiMusicUses(), [])
+  const [limit, setLimit] = useState<string | null>(null)
+  const q = quote.data
+  const music = payPerUse('ai_music')
+  if (!q) return null
+  const start = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
+  const month = (uses.data ?? []).filter(g => g.created_at >= start && g.status === 'done')
+  return (
+    <Card variant="outlined" component="section" aria-label={t('Pay per use')}>
+      <CardContent>
+        <SectionTitle>{t('Pay per use')}</SectionTitle>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          {q.allowed
+            ? t('{what}: {price} each, added to your monthly bill. Only what you make is charged; a track that fails costs nothing.',
+              { what: t(music.label), price: euros(q.unit_cents) })
+            : t('{what} need a paid plan. Choose one below.', { what: t(music.label) })}
+        </Typography>
+        {q.allowed && (
+          <Box sx={{ display: 'grid', gap: 2.5, gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' } }}>
+            <Box>
+              <Typography variant="overline" color="text.secondary">{t('This month')}</Typography>
+              <Typography variant="h6" component="p">{tn(month.length, '{n} AI track', '{n} AI tracks')}</Typography>
+              <Typography variant="body2" color="text.secondary">
+                {q.included ? t('{free} of {included} free used · {spent} so far', { free: q.included - q.free_left, included: q.included, spent: euros(q.spent_cents) })
+                  : t('{spent} so far', { spent: euros(q.spent_cents) })}
+              </Typography>
+            </Box>
+            <Box sx={{ gridColumn: { md: 'span 2' } }}>
+              <Meter label={t('Monthly limit for pay per use')} used={Math.round(q.spent_cents) / 100} max={q.limit_cents / 100} />
+              {limit === null ? (
+                <Button size="small" sx={{ mt: 1 }} onClick={() => setLimit(String(q.limit_cents / 100))}>{t('Change the limit')}</Button>
+              ) : (
+                <Stack direction="row" spacing={1} sx={{ mt: 1.5, alignItems: 'center' }}>
+                  <TextField size="small" type="number" label={t('Limit (€ a month)')} value={limit} onChange={e => setLimit(e.target.value)}
+                    slotProps={{ htmlInput: { min: 0, max: 1000, step: 5 } }} sx={{ width: 160 }} />
+                  <Button variant="contained" size="small" onClick={async () => {
+                    if (await run(() => api.setPayPerUseLimit(Number(limit)), t('Limit saved'))) { setLimit(null); void quote.reload() }
+                  }}>{t('Save')}</Button>
+                  <Button size="small" onClick={() => setLimit(null)}>{t('Cancel')}</Button>
+                </Stack>
+              )}
+            </Box>
+          </Box>
+        )}
+        {month.length > 0 && (
+          <Box component="ul" aria-label={t('AI tracks this month')} sx={{ m: 0, mt: 2, p: 0, listStyle: 'none' }}>
+            {month.map(g => (
+              <Stack key={g.id} component="li" direction="row" spacing={1.5} sx={{ py: 0.75, borderTop: 1, borderColor: 'divider', alignItems: 'baseline' }}>
+                <Typography variant="body2" color="text.secondary" sx={{ width: 64, flexShrink: 0 }}>{formatLocal(g.created_at, 'd MMM')}</Typography>
+                <Typography variant="body2" sx={{ flex: 1, minWidth: 0 }} noWrap title={g.prompt}>{g.prompt}</Typography>
+                <Typography variant="body2" sx={{ flexShrink: 0 }}>{g.price_cents ? euros(g.price_cents) : t('Free')}</Typography>
+              </Stack>
+            ))}
+          </Box>
+        )}
+      </CardContent>
+    </Card>
   )
 }
 
@@ -138,6 +209,8 @@ export function BillingPage() {
           </CardContent>
         </Card>
 
+        {FEATURES.music && <PayPerUseCard />}
+
         <Box>
           <SectionTitle action={
             <ToggleButtonGroup size="small" exclusive value={interval} onChange={(_, v) => v && setInterval(v)} aria-label={t('Billing period')}>
@@ -166,6 +239,14 @@ export function BillingPage() {
                         </Stack>
                       ))}
                     </Stack>
+                    {PAY_PER_USE.filter(shows).map(u => {
+                      const price = perUsePrice(u, p.id, t, n => `€${n.toFixed(2)}`)
+                      return price && (
+                        <Typography key={u.id} variant="caption" color="text.secondary" sx={{ mt: 1.5, display: 'block' }}>
+                          {t('Pay per use:')} {t('{what}: {price}', { what: t(u.short), price })}
+                        </Typography>
+                      )
+                    })}
                     <Box sx={{ mt: 2 }}>
                       {current ? <Button fullWidth disabled variant="outlined">{t('Current plan')}</Button>
                         : p.id === 'free'

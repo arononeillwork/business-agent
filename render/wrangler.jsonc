@@ -1,0 +1,16 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  // The render service: puts music into stories and reels (docs/SOCIAL_MUSIC_PLAN.md).
+  // Deployed by .github/workflows/deploy-render.yml, apart from the app (Containers need Workers Paid).
+  "name": "business-agent-render",
+  "account_id": "c7451083f0bc060b947b1b188291cb4b",
+  "main": "worker.ts",
+  "compatibility_date": "2026-09-01",
+  "observability": { "enabled": true },
+  "containers": [
+    // standard-1: half a CPU and 4 GiB, enough for a 100 MB video; a 60-second photo story takes ~10 s.
+    { "class_name": "Renderer", "image": "./Dockerfile", "max_instances": 3, "instance_type": "standard-1" }
+  ],
+  "durable_objects": { "bindings": [{ "name": "RENDERER", "class_name": "Renderer" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Renderer"] }]
+}

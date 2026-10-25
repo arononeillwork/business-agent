@@ -27,18 +27,23 @@ import LeftIcon from '@mui/icons-material/ArrowBackRounded'
 import RightIcon from '@mui/icons-material/ArrowForwardRounded'
 import CloseIcon from '@mui/icons-material/CloseRounded'
 import AutoIcon from '@mui/icons-material/BoltOutlined'
+import MusicIcon from '@mui/icons-material/MusicNoteOutlined'
+import { MusicLibraryDialog } from '../components/MusicLibrary'
 import { siFacebook, siGooglemaps, siInstagram, siTiktok, type SimpleIcon } from 'simple-icons'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction, useNotify } from '../app/Notify'
+import { FEATURES } from '../app/features'
 import { Empty, ErrorBox, PageHeader, SectionTitle, Tag } from '../components/common'
 import { SortCell, useSort } from '../components/tables'
 import { formatLocal as formatIn, localDate as dateIn, localTime as timeIn, ownTimeZone, today as todayIn, zoneCity, zonedIso as isoIn } from '../../shared/time'
 import { KINDS, kindInfo, matchesMedia, monthWeeks, postProblem, shiftMonth, type MediaFilter } from '../../shared/social'
-import type { IntegrationProvider, IntegrationsState, PostKind, PostMedia, SocialNetwork, SocialPost } from '../../shared/types'
+import type { IntegrationProvider, IntegrationsState, PostKind, PostMedia, PostMusic, SocialNetwork, SocialPost } from '../../shared/types'
 import { readyPhoto, readyVideo, videoSeconds } from '../lib/media'
+import { MusicStrip, musicLabel, type PostContext } from '../components/MusicPicker'
+import { engagementByTrack, formatTime, photoCuts, recentTracks, renderKey } from '../../shared/music'
 import { tokens } from '../theme'
 import { msg, t, tc } from '../i18n'
 
@@ -111,6 +116,7 @@ export function SocialPlannerPage() {
   const [kind, setKind] = useState<'all' | PostKind>(() => remembered<'all' | PostKind>('planner-kind', 'all'))
   const [media, setMedia] = useState<MediaFilter>('all')
   const [view, setView] = useState<View>(() => remembered<View>('planner-view', 'list'))
+  const [library, setLibrary] = useState(false)
   const connected = (p: IntegrationProvider) => integ.data?.integrations.find(i => i.provider === p && i.status === 'connected')
   const storage = integ.data?.media_storage ?? null
 
@@ -126,7 +132,12 @@ export function SocialPlannerPage() {
   return (
     <>
       <PageHeader eyebrow={t('Business')} title={t('Social planner')}
-        actions={<Button variant="contained" startIcon={<AddIcon />} onClick={() => newPost()}>{t('New post')}</Button>} />
+        actions={(
+          <Stack direction="row" spacing={1}>
+            {FEATURES.music && <Button variant="outlined" startIcon={<MusicIcon />} onClick={() => setLibrary(true)}>{t('Music')}</Button>}
+            <Button variant="contained" startIcon={<AddIcon />} onClick={() => newPost()}>{t('New post')}</Button>
+          </Stack>
+        )} />
       <ErrorBox error={posts.error} />
 
       <Stack spacing={2.5}>
@@ -161,7 +172,9 @@ export function SocialPlannerPage() {
         </Box>
       </Stack>
 
-      {editing && <Composer post={editing} storage={storage} isConnected={p => !!connected(p)} onClose={() => setEditing(null)} onSaved={posts.reload} />}
+      {editing && <Composer post={editing} storage={storage} isConnected={p => !!connected(p)} onClose={() => setEditing(null)} onSaved={posts.reload}
+        recent={recentTracks(all)} engagement={engagementByTrack(all)} />}
+      {library && <MusicLibraryDialog onClose={() => setLibrary(false)} />}
     </>
   )
 }
@@ -473,6 +486,7 @@ function PostRow({ p, onEdit, reload }: { p: SocialPost; onEdit?: () => void; re
           <KindTag kind={p.kind} />
           <Tag fg={st.fg} bg={st.bg}>{t(st.label)}</Tag>
           {!p.auto && p.status !== 'published' && <Tag><BellIcon sx={{ fontSize: 13, mr: 0.25 }} />{t('Reminder')}</Tag>}
+          {p.music && <Tag><MusicIcon sx={{ fontSize: 13, mr: 0.25 }} />{musicLabel(p.music)}</Tag>}
           <Stack direction="row" spacing={0.75} sx={{ color: tokens.ink }}>
             {p.targets.map(net => <Tooltip key={net} title={networkOf(net).name}><Box aria-label={networkOf(net).name}><Mark icon={networkOf(net).icon} /></Box></Tooltip>)}
           </Stack>
@@ -559,6 +573,10 @@ function DueRow({ p, onEdit, reload }: { p: SocialPost; onEdit: () => void; relo
   const copy = async () => {
     try { await navigator.clipboard.writeText(p.caption); notify(t('Caption copied')) } catch { notify(t('Couldn’t copy here: select the caption and copy it'), 'error') }
   }
+  const song = p.music?.mode === 'in_instagram' ? p.music : null
+  const copySong = async () => {
+    try { await navigator.clipboard.writeText(song!.song); notify(t('Song name copied')) } catch { notify(t('Couldn’t copy here: select the song and copy it'), 'error') }
+  }
   return (
     <Box component="article" aria-label={t('To post: {caption}', { caption: p.caption.slice(0, 40) || t(kindInfo(p.kind).label) })}
       sx={{ display: 'flex', gap: 1.5, px: { xs: 2, sm: 2.75 }, py: 1.75, borderTop: `1px solid ${tokens.line}`, '&:first-of-type': { borderTop: 0 } }}>
@@ -571,8 +589,16 @@ function DueRow({ p, onEdit, reload }: { p: SocialPost; onEdit: () => void; relo
           </Typography>
         </Stack>
         {p.caption && <Typography sx={{ mt: 0.5, whiteSpace: 'pre-wrap', userSelect: 'text' }}>{p.caption}</Typography>}
+        {p.music && (
+          <Typography variant="body2" sx={{ mt: 0.5, display: 'flex', alignItems: 'center', gap: 0.5, userSelect: 'text' }}>
+            <MusicIcon sx={{ fontSize: 16, color: tokens.roseDeep }} />
+            {song ? (song.start > 0 ? t('Add in Instagram: {song}, from {time}', { song: song.song, time: formatTime(song.start) }) : t('Add in Instagram: {song}', { song: song.song }))
+              : t('{title}: already in the video', { title: (p.music as { title: string }).title })}
+          </Typography>
+        )}
         <Stack direction="row" spacing={1} sx={{ mt: 1.25, flexWrap: 'wrap', rowGap: 1 }}>
           {p.caption && <Button size="small" variant="outlined" startIcon={<CopyIcon />} onClick={copy}>{t('Copy caption')}</Button>}
+          {song && <Button size="small" variant="outlined" startIcon={<CopyIcon />} onClick={copySong}>{t('Copy song name')}</Button>}
           {p.media.map((m, i) => (
             <Button key={m.url} size="small" variant="outlined" startIcon={<DownloadIcon />} component="a" href={m.url} download target="_blank" rel="noreferrer">
               {p.media.length > 1 ? (m.type === 'video' ? t('Video {n}', { n: i + 1 }) : t('Photo {n}', { n: i + 1 })) : m.type === 'video' ? t('Video') : t('Photo')}
@@ -594,10 +620,28 @@ function DueRow({ p, onEdit, reload }: { p: SocialPost; onEdit: () => void; relo
 // ---------------------------------------------------------------------------------------------
 // Composer
 // ---------------------------------------------------------------------------------------------
+/** A post's video length (when it's one video), read from the file; null for photos or until known. */
+function useVideoLength(media: PostMedia[]) {
+  const url = media.length === 1 && media[0].type === 'video' ? media[0].url : null
+  const [seconds, setSeconds] = useState<number | null>(null)
+  useEffect(() => {
+    setSeconds(null)
+    if (!url) return
+    const v = document.createElement('video')
+    v.preload = 'metadata'
+    v.onloadedmetadata = () => setSeconds(Number.isFinite(v.duration) ? Math.round(v.duration * 10) / 10 : null)
+    v.src = url
+    return () => { v.onloadedmetadata = null; v.removeAttribute('src') }
+  }, [url])
+  return seconds
+}
+
 /** Write or edit a post: its kind, photos and videos, caption, accounts, when, and how it goes out. */
-function Composer({ post, storage, isConnected, onClose, onSaved }: {
+function Composer({ post, storage, isConnected, onClose, onSaved, recent, engagement }: {
   post: Partial<SocialPost> & { copied?: boolean }; storage: IntegrationsState['media_storage'] | null; isConnected: (p: IntegrationProvider) => boolean
   onClose: () => void; onSaved: () => Promise<void>
+  /** Tracks on the last few posts, and how well each did (music suggestions). */
+  recent: string[]; engagement: Record<string, number>
 }) {
   const { api } = useApp()
   const run = useAction()
@@ -605,7 +649,12 @@ function Composer({ post, storage, isConnected, onClose, onSaved }: {
   const file = useRef<HTMLInputElement>(null)
   const [kind, setKind] = useState<PostKind>(post.kind ?? 'post')
   const [caption, setCaption] = useState(post.caption ?? '')
-  const [media, setMedia] = useState<PostMedia[]>(post.media ?? [])
+  // With music in the file, the post's media is that file: what's edited is the photo or video from before.
+  const [media, setMedia] = useState<PostMedia[]>(post.music?.mode === 'mixed' ? post.music.source_media : post.media ?? [])
+  const [music, setMusic] = useState<PostMusic | null>(post.music ?? null)
+  const [rendering, setRendering] = useState(false)
+  const musicStatus = useAsync('music-status', () => (FEATURES.music ? api.musicStatus() : Promise.resolve(null)), [])
+  const videoLength = useVideoLength(media)
   const [targets, setTargets] = useState<SocialNetwork[]>(post.targets?.length ? post.targets
     : NETWORKS.filter(n => isConnected(n.provider) && kindInfo(post.kind ?? 'post').networks.includes(n.id)).map(n => n.id))
   // A time still ahead is kept; one that's passed (a post that didn't go out) starts again from now.
@@ -620,15 +669,30 @@ function Composer({ post, storage, isConnected, onClose, onSaved }: {
   useEffect(() => { if (!chose.current) setAuto(post.id ? (post.auto ?? true) && !!storage : !!storage) }, [storage, post.id, post.auto])
   const [uploading, setUploading] = useState<{ done: number; of: number } | null>(null)
   const info = kindInfo(kind)
+  const canRender = !!musicStatus.data?.render
+  // A reel can be photos too, made into a video with the music (cut to its beat).
+  const photoReel = kind === 'reel' && media.length > 0 && media.every(m => m.type === 'image')
   const chosen = NETWORKS.filter(n => targets.includes(n.id))
   // The tightest limit of the networks picked (LinkedIn alone takes 3000).
   const limit = chosen.length ? Math.min(...chosen.map(n => n.limit)) : 2200
-  const problem = postProblem({ kind, caption, media, targets, auto, status: 'scheduled' })
-  const room = info.max - media.length
+  // Music mixed in is put into the file on saving: check the post as it will be then.
+  const mixed = music?.mode === 'mixed' ? music : null
+  const problem = postProblem(mixed
+    ? { kind, caption, media: [{ url: 'pending', type: 'video' }], targets, auto, status: 'scheduled', music: { ...mixed, rendered_url: 'pending' } }
+    : { kind, caption, media, targets, auto, status: 'scheduled', music })
+  const room = (photoReel || (kind === 'reel' && canRender && !media.length) ? 10 : info.max) - media.length
+  // A video's music lasts as long as the video.
+  useEffect(() => {
+    if (videoLength && mixed && Math.abs(mixed.seconds - videoLength) > 0.05) setMusic({ ...mixed, seconds: videoLength, start: Math.max(0, mixed.start) })
+  }, [videoLength, mixed])
+  const hour = when === 'later' ? Number(time.slice(0, 2)) : Number(localTime(new Date()).slice(0, 2))
+  const context: PostContext = { kind, media, caption, hour, videoSeconds: videoLength, recent, engagement }
 
   const changeKind = (k: PostKind | null) => {
     if (!k) return
     setKind(k)
+    // Music goes into stories and reels; Instagram's own songs stay with any kind.
+    if (music?.mode === 'mixed' && k !== 'story' && k !== 'reel') setMusic(null)
     const allowed = kindInfo(k).networks
     const kept = targets.filter(net => allowed.includes(net))
     setTargets(kept.length ? kept : NETWORKS.filter(n => isConnected(n.provider) && allowed.includes(n.id)).map(n => n.id))
@@ -636,6 +700,9 @@ function Composer({ post, storage, isConnected, onClose, onSaved }: {
 
   const add = (files: File[]) => run(async () => {
     const list = files.slice(0, room)
+    if (kind === 'reel' && list.some(f => f.type.startsWith('video/')) && (list.length > 1 || media.length)) {
+      throw new Error(t('A reel is one video, or photos with music'))
+    }
     setUploading({ done: 0, of: list.length })
     try {
       for (const [i, f] of list.entries()) {
@@ -648,7 +715,7 @@ function Composer({ post, storage, isConnected, onClose, onSaved }: {
           if (secs !== null && kind === 'reel' && (secs < 3 || secs > 900)) throw new Error(t('Reels are 3 seconds to 15 minutes long'))
           if (secs !== null && kind === 'carousel' && secs > 60) throw new Error(t('Videos in a carousel can be up to 60 seconds'))
         } else {
-          if (!info.accepts.includes('image')) throw new Error(t('Reels are videos. Choose Post or Story for a photo.'))
+          if (!info.accepts.includes('image') && !(kind === 'reel' && canRender)) throw new Error(t('Reels are videos. Choose Post or Story for a photo.'))
           ready = await readyPhoto(f, kind === 'post' || kind === 'carousel')
         }
         const m = await api.uploadMedia(ready, info.folder)
@@ -656,7 +723,7 @@ function Composer({ post, storage, isConnected, onClose, onSaved }: {
         setUploading({ done: i + 1, of: list.length })
       }
     } finally { setUploading(null) }
-  }, files.length > room ? t('Only {max} fit in a {kind}: the first {n} were added', { max: info.max, kind: t(info.label).toLowerCase(), n: room }) : undefined)
+  }, files.length > room ? t('Only {max} fit in a {kind}: the first {n} were added', { max: room + media.length, kind: t(info.label).toLowerCase(), n: room }) : undefined)
 
   const move = (i: number, by: number) => setMedia(m => {
     const next = [...m]
@@ -665,11 +732,39 @@ function Composer({ post, storage, isConnected, onClose, onSaved }: {
     return next
   })
 
+  /**
+   * The music into the file, unless the file already has it as chosen: a scheduled post goes out
+   * as that file (drafts keep the photo or video, unless a reel of photos needs it to be a video).
+   */
+  const withMusic = async (status: 'draft' | 'scheduled'): Promise<{ media: PostMedia[]; music: PostMusic | null }> => {
+    if (!mixed) return { media, music }
+    const fromVideo = media.length === 1 && media[0].type === 'video'
+    // Photos change on the beat, worked out for the photos as they are now.
+    const cuts = photoReel ? photoCuts(mixed, media.length) : undefined
+    const key = renderKey({ url: mixed.url, start: mixed.start, seconds: mixed.seconds, music_volume: mixed.music_volume, original_volume: mixed.original_volume,
+      fade_in: mixed.fade_in, fade_out: mixed.fade_out, label: mixed.label, sources: media.map(m => m.url), cuts })
+    let file: PostMedia | null = mixed.rendered_for === key && mixed.rendered_url
+      ? { url: mixed.rendered_url, type: post.media?.find(m => m.url === mixed.rendered_url)?.type ?? 'video' } : null
+    const needed = status === 'scheduled' || (kind === 'reel' && media.some(m => m.type === 'image'))
+    if (!file && needed) {
+      if (!media.length) throw new Error(kind === 'reel' ? t('Add the reel’s video') : t('Add the story’s photo or video'))
+      setRendering(true)
+      try {
+        file = (await api.renderPostMusic({ kind: kind as 'story' | 'reel', sources: media, cuts, track_id: mixed.track_id, start: mixed.start,
+          // A video keeps its own length (up to what the kind allows).
+          seconds: fromVideo ? (kind === 'story' ? 60 : 900) : mixed.seconds, music_volume: mixed.music_volume, original_volume: fromVideo ? mixed.original_volume : 0,
+          fade_in: mixed.fade_in, fade_out: mixed.fade_out, label: mixed.label })).media
+      } finally { setRendering(false) }
+    }
+    return { media: file ? [file] : media, music: { ...mixed, cuts, source_media: media, rendered_url: file?.url ?? null, rendered_for: file ? key : null } }
+  }
+
   const save = (status: 'draft' | 'scheduled') => run(async () => {
     const scheduled_at = status === 'draft' ? (when === 'later' ? zonedIso(date, time) : null) : when === 'now' ? new Date().toISOString() : zonedIso(date, time)
     if (status === 'scheduled' && when === 'later' && Date.parse(scheduled_at!) < Date.now() - 60_000) throw new Error(t('That time has passed. Pick a later one, or choose Now.'))
     if (status === 'scheduled' && problem) throw new Error(t(problem))
-    await api.saveSocialPost({ id: post.id, kind, caption, media, targets, status, scheduled_at, auto })
+    const out = await withMusic(status)
+    await api.saveSocialPost({ id: post.id, kind, caption, media: out.media, targets, status, scheduled_at, auto, music: out.music })
     await onSaved()
     onClose()
   }, status === 'draft' ? t('Draft saved')
@@ -678,7 +773,8 @@ function Composer({ post, storage, isConnected, onClose, onSaved }: {
 
   // Where the photos and videos are kept (the folder names are the real ones in the storage app).
   const where = storage ? `${t(STORAGE_NAME[storage])}${storage === 'r2' ? '' : ` › Business Agent › Social › ${info.folder}`}` : ''
-  const accept = info.accepts.map(a => (a === 'image' ? 'image/jpeg,image/png,image/webp' : 'video/mp4,video/quicktime')).join(',')
+  const accepts = photoReel ? ['image'] : kind === 'reel' && canRender ? ['video', 'image'] : info.accepts
+  const accept = accepts.map(a => (a === 'image' ? 'image/jpeg,image/png,image/webp' : 'video/mp4,video/quicktime')).join(',')
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="sm" fullScreen={phone}>
       <DialogTitle>{post.id ? t('Edit post') : post.copied ? t('Post again') : t('New post')}</DialogTitle>
@@ -704,7 +800,8 @@ function Composer({ post, storage, isConnected, onClose, onSaved }: {
 
           <Box role="group" aria-label={t('Photos and videos')}>
             <Typography variant="body2" sx={{ mb: 1 }}>
-              {kind === 'post' ? t('Photo') : kind === 'reel' ? t('Video') : kind === 'story' ? t('Photo or video') : t('Photos and videos ({n} of up to 10)', { n: media.length })}
+              {kind === 'post' ? t('Photo') : photoReel ? t('Photos ({n} of up to 10), made into a video with the music', { n: media.length })
+                : kind === 'reel' ? (canRender ? t('Video, or photos with music') : t('Video')) : kind === 'story' ? t('Photo or video') : t('Photos and videos ({n} of up to 10)', { n: media.length })}
             </Typography>
             {!storage ? (
               <Alert severity="info" action={<Button size="small" component={RouterLink} to="/connections">{t('Connect')}</Button>}>
@@ -720,7 +817,7 @@ function Composer({ post, storage, isConnected, onClose, onSaved }: {
                         sx={{ position: 'absolute', top: 2, right: 2, bgcolor: 'rgba(0,0,0,.55)', color: '#fff', p: 0.25, '&:hover': { bgcolor: 'rgba(0,0,0,.75)' } }}>
                         <CloseIcon sx={{ fontSize: 16 }} />
                       </IconButton>
-                      {kind === 'carousel' && media.length > 1 && (
+                      {(kind === 'carousel' || photoReel) && media.length > 1 && (
                         <Stack direction="row" sx={{ position: 'absolute', bottom: 2, left: 2, right: 2, justifyContent: 'space-between' }}>
                           <IconButton size="small" aria-label={t('Move {n} earlier', { n: i + 1 })} disabled={i === 0} onClick={() => move(i, -1)}
                             sx={{ bgcolor: 'rgba(0,0,0,.55)', color: '#fff', p: 0.25, visibility: i === 0 ? 'hidden' : undefined }}><LeftIcon sx={{ fontSize: 16 }} /></IconButton>
@@ -733,7 +830,8 @@ function Composer({ post, storage, isConnected, onClose, onSaved }: {
                   {room > 0 && (
                     <Button variant="outlined" startIcon={<PhotoIcon />} disabled={!!uploading} onClick={() => file.current?.click()}
                       sx={{ height: media.length ? 88 : undefined }}>
-                      {kind === 'reel' ? t('Add the video') : kind === 'post' ? t('Add a photo') : kind === 'story' ? t('Add a photo or video') : t('Add photos or videos')}
+                      {photoReel ? t('Add photos') : kind === 'reel' ? (canRender ? t('Add the video or photos') : t('Add the video'))
+                        : kind === 'post' ? t('Add a photo') : kind === 'story' ? t('Add a photo or video') : t('Add photos or videos')}
                     </Button>
                   )}
                 </Stack>
@@ -743,7 +841,7 @@ function Composer({ post, storage, isConnected, onClose, onSaved }: {
                     <LinearProgress sx={{ mt: 0.5, borderRadius: 1 }} />
                   </Box>
                 )}
-                <input ref={file} type="file" accept={accept} multiple={kind === 'carousel'} hidden aria-label={t('Photo or video file')} onChange={e => {
+                <input ref={file} type="file" accept={accept} multiple={kind === 'carousel' || (kind === 'reel' && canRender && !media.length) || photoReel} hidden aria-label={t('Photo or video file')} onChange={e => {
                   const files = [...(e.target.files ?? [])]
                   if (files.length) void add(files)
                   e.target.value = ''
@@ -755,9 +853,20 @@ function Composer({ post, storage, isConnected, onClose, onSaved }: {
             )}
           </Box>
 
+          {FEATURES.music && (storage || music) && (
+            <MusicStrip context={context} music={music} onChange={setMusic} canRender={canRender}
+              onRemind={() => { chose.current = true; setAuto(false) }} onMakeReel={() => changeKind('reel')} />
+          )}
+          {rendering && (
+            <Box role="status">
+              <Typography variant="caption" sx={{ color: 'text.secondary' }}>{t('Putting the music in… a few seconds, up to a minute for a long video.')}</Typography>
+              <LinearProgress sx={{ mt: 0.5, borderRadius: 1 }} />
+            </Box>
+          )}
+
           <TextField label={kind === 'story' ? t('Note (for you: stories have no caption)') : t('Caption')} multiline minRows={kind === 'story' ? 2 : 4} value={caption}
             onChange={e => setCaption(e.target.value)} error={caption.length > limit}
-            helperText={kind === 'story' ? t('Add stickers, music or a link in the Instagram app (choose Remind me).')
+            helperText={kind === 'story' ? (FEATURES.music ? t('Add stickers or a link in the Instagram app (choose Remind me).') : t('Add stickers, music or a link in the Instagram app (choose Remind me).'))
               : chosen.some(n => n.id === 'google') ? t('{n} / {limit} (Google Maps allows 1500)', { n: caption.length, limit }) : `${caption.length} / ${limit}`} />
 
           <Box role="group" aria-label={t('Post to')}>
@@ -817,8 +926,8 @@ function Composer({ post, storage, isConnected, onClose, onSaved }: {
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2.5, flexWrap: 'wrap', gap: 1 }}>
         <Button onClick={onClose} sx={{ mr: 'auto' }}>{t('Cancel')}</Button>
-        <Button variant="outlined" disabled={!!uploading} onClick={() => save('draft')}>{t('Save draft')}</Button>
-        <Button variant="contained" disabled={!!uploading} onClick={() => save('scheduled')}>
+        <Button variant="outlined" disabled={!!uploading || rendering} onClick={() => save('draft')}>{t('Save draft')}</Button>
+        <Button variant="contained" disabled={!!uploading || rendering} onClick={() => save('scheduled')}>
           {!auto ? (when === 'now' ? t('Add to my list') : t('Set reminder')) : when === 'now' ? t('Post now') : t('Schedule')}
         </Button>
       </DialogActions>

@@ -2,8 +2,11 @@ import { Link as RouterLink } from 'react-router-dom'
 import { Box, Button, Chip, Stack, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material'
 import CheckIcon from '@mui/icons-material/CheckRounded'
 import MailIcon from '@mui/icons-material/MailOutlineRounded'
+import PerUseIcon from '@mui/icons-material/AddRounded'
 import { useState } from 'react'
-import { ENTERPRISE, PLANS, TRIAL_MONTHS, planHighlights, type Interval, type Plan } from '../../../shared/plans'
+import { ENTERPRISE, PAY_PER_USE, PLANS, TRIAL_MONTHS, mostIncluded, perUsePrice, planHighlights, type Interval, type Plan } from '../../../shared/plans'
+import { euro as money } from '../../../shared/competitors'
+import { shows } from '../../app/features'
 import { BA, Eyebrow, display, figures, outlineBtn, primaryBtn, roseBtn } from './site'
 import { locale, t, tr } from '../../i18n'
 
@@ -68,12 +71,63 @@ export function PricingCards() {
                   </Stack>
                 ))}
               </Stack>
+              <PerUse plan={p} dark={dark} />
             </Box>
           )
         })}
       </Box>
+      <PerUseNote />
       <Typography variant="body2" sx={{ color: BA.faint, textAlign: 'center', mt: 3 }}>
         {t('Prices in euros, excluding VAT. The {n}-month free trial is for the Business plan: add a card to start, nothing is charged until it ends, cancel any time.', { n: TRIAL_MONTHS })}
+      </Typography>
+    </Box>
+  )
+}
+
+/** A plan card's pay-per-use extras, kept apart from what the price includes (at the card's foot). */
+function PerUse({ plan: p, dark }: { plan: Plan; dark: boolean }) {
+  const lines = PAY_PER_USE.filter(shows).flatMap(u => {
+    const price = perUsePrice(u, p.id, t, n => money(n, locale()))
+    return price ? [{ id: u.id, text: t('{what}: {price}', { what: t(u.short), price }) }] : []
+  })
+  if (!lines.length) return null
+  return (
+    <Box sx={{ mt: 'auto', pt: 2.5 }}>
+      <Box sx={{ borderTop: `1px dashed ${dark ? 'rgba(255,255,255,0.22)' : BA.limewash}`, pt: 2 }}>
+        <Typography sx={{ fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.12em', textTransform: 'uppercase', color: dark ? 'rgba(255,255,255,0.6)' : BA.faint }}>
+          {t('Pay per use')}
+        </Typography>
+        <Stack component="ul" aria-label={t('Pay per use')} spacing={1} sx={{ m: 0, p: 0, mt: 1, listStyle: 'none' }}>
+          {lines.map(l => (
+            <Stack component="li" key={l.id} direction="row" spacing={1.25} sx={{ alignItems: 'flex-start', fontSize: '0.88rem', lineHeight: 1.5 }}>
+              <PerUseIcon sx={{ fontSize: 18, mt: '2px', color: dark ? 'rgba(255,255,255,0.6)' : BA.faint }} />
+              <span>{l.text}</span>
+            </Stack>
+          ))}
+        </Stack>
+      </Box>
+    </Box>
+  )
+}
+
+/** Under the plan cards: what is charged per use, and what the top plan includes free. */
+function PerUseNote() {
+  const extras = PAY_PER_USE.filter(shows)
+  if (!extras.length) return null
+  return (
+    <Box role="note" aria-label={t('Pay per use')} sx={{ mt: 3, mx: 'auto', maxWidth: 780, px: { xs: 2.5, sm: 3 }, py: 1.75, borderRadius: '18px', bgcolor: BA.tint, textAlign: 'center' }}>
+      <Typography sx={{ fontSize: '0.95rem', lineHeight: 1.6 }}>
+        <b>{t('Pay per use:')}</b>{' '}
+        {extras.map(u => {
+          const top = mostIncluded(u)
+          return (
+            <span key={u.id}>
+              {t('{what}, {price} each on any paid plan, billed monthly with your plan.', { what: t(u.label), price: money(u.price, locale()) })}{' '}
+              {top && t('{plan} includes {n} free every month.', { plan: planName(top), n: u.included[top.id]! })}{' '}
+            </span>
+          )
+        })}
+        {t('Everything else is in the plan price.')}
       </Typography>
     </Box>
   )

@@ -69,6 +69,32 @@ select plan, status, complimentary, complimentary_note, complimentary_since from
 Free-trial businesses are separate: they are on Business with Stripe status `trialing` until the
 trial ends, then paying (`active`) or back on Free.
 
+## Pay per use
+
+A few extras are charged each time they're used, on top of the plan, and billed monthly with it.
+They are listed in `PAY_PER_USE` (`shared/plans.ts`), which the pricing page reads:
+
+| Extra | Price (excl. VAT) | Free each month | Plans |
+|---|---|---|---|
+| AI music track for a story or reel (ElevenLabs, up to 60 s) | €0.99 | Business: 1 | Starter, Pro, Business |
+
+How a use is charged (migration 86, `worker/socialMusic.ts`, `worker/billing.ts`):
+
+- **Reserved first.** `ai_music_start()` locks the billing row, takes the month's free uses first
+  (`pay_per_use.included` for the plan, plus `billing.ai_music_extra_free` for a complimentary
+  allowance we give with `grant_ai_music()`), and refuses one that would go over the monthly
+  spending limit (`billing.ai_music_limit_cents`, €25 by default, changed on the Billing page). A
+  use is one track of up to a minute: a longer one is one use per started minute. Free can't.
+- **Settled after.** `ai_music_finish()` marks it done, or gives the free use back and charges
+  nothing when ElevenLabs refused or failed. A reservation left over 15 minutes is let go.
+- **On the bill once.** A paid use becomes a Stripe invoice item on the subscription (amount in
+  cents, `tax_behavior: exclusive`, idempotency key `business-agent-ai-music-<id>`), so it lands on
+  the next invoice. Yearly subscriptions get `pending_invoice_item_interval: month`, so their uses
+  are billed monthly too. If Stripe didn't answer, the nightly `chargePendingAiMusic()` puts it on;
+  the key means it's never there twice.
+- The Billing page lists this month's AI tracks, what they cost so far and the limit; the AI
+  assistant's `make_music` tool goes through the same steps.
+
 ## Referral months as credit
 
 Give a month, get a month (Referrals page): each referred business that finishes set-up earns this
