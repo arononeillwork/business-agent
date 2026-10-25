@@ -3383,7 +3383,7 @@ test.describe('stock and suppliers', () => {
     await take.getByRole('textbox', { name: 'Counted: Butter croissants' }).fill('20')
     await take.getByRole('button', { name: 'Save 2 counts' }).click()
     await toast(page, '2 counts saved')
-    await expect(page.getByRole('table', { name: 'Stock items' }).getByRole('row', { name: 'Caramel syrup' })).toContainText('4 bottles')
+    await expect(page.getByRole('table', { name: 'Stock items' }).getByRole('row', { name: 'Caramel syrup' })).toContainText(/4\s*bottles/)
     await page.getByRole('tab', { name: 'History' }).click()
     await expect(page.getByRole('table', { name: 'Stock history' }).getByRole('row').filter({ hasText: 'Caramel syrup' }).first()).toContainText('Stock count')
   })
