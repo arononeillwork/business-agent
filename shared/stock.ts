@@ -308,3 +308,72 @@ export const supplierPhone = (raw: string | null | undefined) => (raw?.trim() ? 
 
 /** The order days in order (Monday first), each once. */
 export const sortDays = (days: string[]) => DAY_KEYS.filter(d => days.includes(d))
+
+// ---------------------------------------------------------------------------------------------
+// Wholesale prices over time (stock_item_prices: kept by the database whenever a cost changes)
+// ---------------------------------------------------------------------------------------------
+
+export interface StockPrice { item_id: string; cost_per_unit: number; changed_at: string }
+export interface PriceChange { item_id: string; from: number; to: number; pct: number; at: string }
+
+/** Each item's last price change (from the price before it to now), newest first. Items whose price never changed have none. */
+export function lastPriceChanges(history: StockPrice[]): PriceChange[] {
+  const byItem = new Map<string, StockPrice[]>()
+  for (const p of history) byItem.set(p.item_id, [...(byItem.get(p.item_id) ?? []), p])
+  const out: PriceChange[] = []
+  for (const [item, prices] of byItem) {
+    const [now, before] = [...prices].sort((a, b) => b.changed_at.localeCompare(a.changed_at))
+    if (!before || Number(before.cost_per_unit) === Number(now.cost_per_unit)) continue
+    const from = Number(before.cost_per_unit), to = Number(now.cost_per_unit)
+    out.push({ item_id: item, from, to, pct: from > 0 ? Math.round((to - from) / from * 1000) / 10 : 0, at: now.changed_at })
+  }
+  return out.sort((a, b) => b.at.localeCompare(a.at))
+}
+
+/** Price rises since a day (YYYY-MM-DD), biggest first. */
+export const risesSince = (changes: PriceChange[], since: string) =>
+  changes.filter(c => c.to > c.from && c.at.slice(0, 10) >= since).sort((a, b) => b.pct - a.pct)
+
+/** An item's cost with IVA on top. */
+export const costWithVat = (i: Pick<StockItem, 'cost_per_unit' | 'vat_rate'>) =>
+  i.cost_per_unit === null ? null : Math.round(i.cost_per_unit * (1 + Number(i.vat_rate) / 100) * 100) / 100
+
+export interface PriceListMatch {
+  /** Items already on the list, with what the file changes on them (its price, reference, link…). */
+  updates: { item: StockItem; patch: Partial<StockItemInput> }[]
+  /** New items, with their supplier matched by name. */
+  added: StockItemInput[]
+  /** Lines for items already on the list that change nothing. */
+  unchanged: number
+}
+
+/**
+ * A supplier's price list against the items there already: a line for an item on the list (the same
+ * supplier reference, or the same name from that supplier) updates it with what the file has
+ * (so its new price is kept with the ones before it); the rest are added.
+ */
+export function matchPriceList(csv: StockCsvImport, items: StockItem[], supplierId: (name?: string | null) => string | null): PriceListMatch {
+  const has = new Set(csv.columns.map(c => c.field))
+  const low = (s?: string | null) => s?.trim().toLowerCase() || null
+  const out: PriceListMatch = { updates: [], added: [], unchanged: 0 }
+  for (const { supplier, ...r } of csv.rows) {
+    const sup = supplierId(supplier)
+    const fits = (i: StockItem) => !sup || !i.supplier_id || i.supplier_id === sup
+    const item = (r.supplier_sku ? items.find(i => fits(i) && low(i.supplier_sku) === low(r.supplier_sku)) : undefined)
+      ?? items.find(i => fits(i) && low(i.name) === low(r.name))
+    if (!item) { out.added.push({ ...r, supplier_id: sup }); continue }
+    const patch: Partial<StockItemInput> = {}
+    if (has.has('cost') && r.cost_per_unit != null) patch.cost_per_unit = r.cost_per_unit
+    if (has.has('vat') && r.vat_rate != null) patch.vat_rate = r.vat_rate
+    if (has.has('price') && r.sell_price != null) patch.sell_price = r.sell_price
+    if (has.has('sku') && r.supplier_sku) patch.supplier_sku = r.supplier_sku
+    if (has.has('url') && r.product_url) patch.product_url = r.product_url
+    if (has.has('pack') && r.pack_size) patch.pack_size = r.pack_size
+    if (has.has('multiple') && r.order_multiple) patch.order_multiple = r.order_multiple
+    if (sup && !item.supplier_id) patch.supplier_id = sup
+    for (const k of Object.keys(patch) as (keyof StockItemInput)[]) if (patch[k] === item[k as keyof StockItem]) delete patch[k]
+    if (Object.keys(patch).length) out.updates.push({ item, patch })
+    else out.unchanged++
+  }
+  return out
+}

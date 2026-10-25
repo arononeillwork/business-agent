@@ -363,7 +363,7 @@ function SlideRow({ slide: sl, index, count, screenSeconds, designs, onChange, o
       </TextField>
       {(sl.kind === 'image' || sl.kind === 'web') && (
         <Tooltip title={t('Loaded fresh each time it shows (a webcam picture, a live page)')}>
-          <FormControlLabel sx={{ mr: 0 }} control={<Switch size="small" checked={sl.live} onChange={e => onChange({ live: e.target.checked })} />} label={t('Live')} />
+          <FormControlLabel sx={{ mr: 0 }} control={<Switch size="small" checked={sl.live} onChange={e => onChange({ live: e.target.checked })} />} label={tc('slide', 'Live')} />
         </Tooltip>
       )}
       <Tooltip title={sl.active ? t('Playing') : t('Skipped')}>

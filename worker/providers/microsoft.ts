@@ -148,6 +148,21 @@ export async function listFolders(token: string, path: string[]) {
   return { folders: children.value.filter(i => i.folder).map(i => i.name).sort((a, b) => a.localeCompare(b)), link: self.webUrl ?? null }
 }
 
+export interface OneDriveItem { id: string; name: string; folder?: unknown; file?: { mimeType?: string }; size?: number; lastModifiedDateTime?: string; webUrl?: string }
+
+/** Everything inside "Business Agent/<path…>" (nothing is made), and OneDrive's page for it; null when it isn't there. */
+export async function listChildren(token: string, path: string[]) {
+  const res = await fetch(`${GRAPH}/me/drive/root:/${pathOf(path)}:/children?$select=id,name,folder,file,size,lastModifiedDateTime,webUrl&$top=500`,
+    { headers: { authorization: `Bearer ${token}` } })
+  if (res.status === 404) return null
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as { error?: { message?: string } }
+    throw new Error(`Microsoft: ${err.error?.message ?? res.status}`)
+  }
+  const self = await graph<{ webUrl?: string }>(token, `/me/drive/root:/${pathOf(path)}`)
+  return { items: ((await res.json()) as { value: OneDriveItem[] }).value, link: self.webUrl ?? null }
+}
+
 /** Upload a photo or video into "Business Agent/<path…>" in OneDrive (any size, in pieces); returns its id. */
 export const uploadToOneDrive = async (token: string, path: string[], name: string, size: number, body: ReadableStream | ArrayBuffer) =>
   (await uploadItem(token, path, name, size, body)).id
@@ -232,7 +247,8 @@ export async function oneDrivePdf(token: string, id: string) {
 
 /** Save a small file (under 4 MB) into "Business Agent/<folder>" in OneDrive; returns its web link. */
 export async function saveFile(token: string, folder: string, name: string, content: string, type: string) {
-  const path = ['Business Agent', folder, name].filter(Boolean).map(encodeURIComponent).join('/')
+  // "Marketing/Competitions": a folder in a folder.
+  const path = ['Business Agent', ...folder.split('/').map(x => x.trim()).filter(x => x && x !== '.' && x !== '..'), name].filter(Boolean).map(encodeURIComponent).join('/')
   const item = await graph<{ webUrl: string }>(token, `/me/drive/root:/${path}:/content`, {
     method: 'PUT', headers: { 'content-type': type }, body: content,
   })

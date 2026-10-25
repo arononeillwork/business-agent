@@ -165,10 +165,14 @@ export interface TaxDocument {
   sha256: string | null
   storage: 'google_drive' | 'onedrive'
   file_id: string
-  /** Where it is under Business Agent, e.g. ["Tax", "2026", "Q4", "Purchase invoices"]. */
+  /** Where it is under Business Agent, e.g. ["Tax", "2026", "Q4", "Purchase invoices"] or ["Documents", "Contracts"]. */
   folder: string[]
   link: string | null
   notes: string | null
+  /** The Documents hub's own: a friendlier name, tags, and when it runs out (a contract, a certificate). */
+  title?: string | null
+  tags?: string[]
+  expires_on?: string | null
   uploaded_by: string | null
   uploaded_at: string
 }
@@ -252,10 +256,13 @@ export function cleanFolderName(name: string): string | null {
   return clean
 }
 
-/** A folder path from the app (under Business Agent): each part tidied, Tax first. Null when any part can't be used. */
-export function cleanFolderPath(parts: unknown): string[] | null {
+/**
+ * A folder path from the app (under Business Agent): each part tidied, starting with one of `roots`
+ * (Tax unless said: the Documents hub also keeps files under Documents). Null when any part can't be used.
+ */
+export function cleanFolderPath(parts: unknown, roots: readonly string[] = ['Tax']): string[] | null {
   if (!Array.isArray(parts) || parts.length === 0 || parts.length > 8) return null
   const clean = parts.map(p => (typeof p === 'string' ? cleanFolderName(p) : null))
-  if (clean.some(p => p === null) || clean[0] !== 'Tax') return null
+  if (clean.some(p => p === null) || !roots.includes(clean[0]!)) return null
   return clean as string[]
 }

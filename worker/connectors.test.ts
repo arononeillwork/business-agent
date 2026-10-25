@@ -64,4 +64,28 @@ describe('Outlook and OneDrive', () => {
     expect(url).toBe('https://graph.microsoft.com/v1.0/me/drive/root:/Business%20Agent/Timecards/week%2040.csv:/content')
     expect(init.method).toBe('PUT')
   })
+
+  it('a folder in a folder ("Marketing/Competitions"), never above Business Agent', async () => {
+    const f = vi.fn(async () => json({ webUrl: 'https://onedrive.live.com/x' }))
+    vi.stubGlobal('fetch', f)
+    await saveFile('tok', 'Marketing/Competitions', 'bases.txt', 'x', 'text/plain')
+    await saveFile('tok', '../Marketing', 'bases.txt', 'x', 'text/plain')
+    expect((f.mock.calls as unknown as [string][]).map(c => c[0])).toEqual([
+      'https://graph.microsoft.com/v1.0/me/drive/root:/Business%20Agent/Marketing/Competitions/bases.txt:/content',
+      'https://graph.microsoft.com/v1.0/me/drive/root:/Business%20Agent/Marketing/bases.txt:/content',
+    ])
+  })
+})
+
+describe('Google Drive folders', () => {
+  it('a folder in a folder ("Marketing/Competitions") is made one inside the other', async () => {
+    const made: { name: string; parents: string[] }[] = []
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.includes('/drive/v3/files?q=')) return json({ files: [] })
+      if (url.includes('/drive/v3/files?fields=id')) { made.push(JSON.parse(String(init!.body))); return json({ id: `id-${made.length}` }) }
+      return json({ webViewLink: 'https://drive.google.com/file/x' })
+    }))
+    await saveToDrive('tok', 'Marketing/Competitions', 'bases.txt', 'x', 'text/plain')
+    expect(made.map(m => [m.name, m.parents[0]])).toEqual([['Business Agent', 'root'], ['Marketing', 'id-1'], ['Competitions', 'id-2']])
+  })
 })

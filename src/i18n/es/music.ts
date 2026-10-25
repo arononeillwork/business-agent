@@ -8,7 +8,7 @@ export default {
   'Lo-fi': 'Lo-fi',
   'Jazz': 'Jazz',
   'Latin': 'Latina',
-  'Summer': 'Veraniega',
+  'Summery': 'Veraniega',
   'Festive': 'Festiva',
   'Cosy': 'Acogedora',
   'Elegant': 'Elegante',

@@ -79,7 +79,8 @@ export default {
   'To its end': 'Hasta el final',
   'The usual ({time})': 'Lo habitual ({time})',
   'Loaded fresh each time it shows (a webcam picture, a live page)': 'Se carga de nuevo cada vez que sale (una webcam, una página en directo)',
-  'Live': 'En directo',
+  // A live picture, fetched afresh each time (a competition's 'Live' is one that's running).
+  'slide|Live': 'En directo',
   'Skipped': 'Se salta',
   'Play {name}': 'Mostrar {name}',
   'e.g. Counter TV': 'p. ej. Tele de la barra',
