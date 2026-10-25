@@ -74,6 +74,17 @@ do $$ begin
   assert public.can_see_pay(), 'so a shop manager could make themselves one';
 end $$;
 
+-- 6. Billing is the boss's (the `billing_boss_only` migration); everyone sees the plan in force ------
+do $$ begin
+  assert (select count(*) from public.billing) = 1, 'a boss reads billing';
+end $$;
+select pg_temp.act_as('tr-manager@test');
+do $$ begin
+  assert public.is_admin() and not public.can_see_pay(), 'tr-manager is a shop manager again';
+  assert (select count(*) from public.billing) = 0, 'a shop manager doesn''t read billing';
+  assert public.plan_status() ->> 'plan' is not null, 'but sees the plan in force';
+end $$;
+
 -- Put everyone back.
 reset role; select set_config('request.jwt.claim.sub', '', false);
 update public.profiles set active = true where id in (select id from other_bosses);

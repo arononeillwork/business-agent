@@ -201,7 +201,7 @@ function Routed() {
         <Route path="pages" element={<PagesPage />} />
         {/* Alerts became part of Notifications. */}
         <Route path="alerts" element={<Navigate to="/notifications" replace />} />
-        <Route path="account/billing" element={isAdmin ? <BillingPage /> : <Navigate to="/" />} />
+        <Route path="account/billing" element={isAdmin && canSeePay ? <BillingPage /> : <Navigate to="/" />} />
         {/* Billing used to be under Settings: old links (and Stripe's way back) still land on it. */}
         <Route path="billing" element={<ToBilling />} />
         <Route path="connections" element={isAdmin ? <ConnectionsPage /> : <Navigate to="/" />} />
