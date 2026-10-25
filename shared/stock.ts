@@ -6,7 +6,7 @@ import { DAY_KEYS, type DayKey } from './types'
 import { addDays, dayKey, localDate, localTime } from './time'
 import { cleanPhone, decodeCsv, parseCsv } from './customers'
 import type { WasteReason } from './recipes'
-import type { Allergen } from './allergens'
+import type { Allergen, Diet } from './allergens'
 
 export interface Supplier {
   id: string
@@ -82,6 +82,8 @@ export interface StockItem {
   allergens?: Allergen[] | null
   /** Traces it may contain. */
   may_contain?: Allergen[]
+  /** Vegan, vegetarian or neither (Allergens page); null: nobody has said yet. */
+  diet?: Diet | null
 }
 export type StockItemInput = Partial<Omit<StockItem, 'id' | 'updated_at'>> & { id?: string; name: string }
 

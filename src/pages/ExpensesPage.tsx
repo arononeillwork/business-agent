@@ -30,7 +30,7 @@ const TONE: Record<ClaimStatus, { fg: string; bg: string }> = {
 type Show = 'all' | ClaimStatus
 
 /**
- * Expenses & mileage (Accounts): what people on the team spent for the business or drove for it in
+ * Expenses (Accounts): what people on the team spent for the business or drove for it in
  * their own car, sent to be approved and paid back. Everyone sends their own and sees them; admins
  * with pay access see everyone's, decide and pay back (with the receipt kept under Tax › Expenses);
  * a gestoría with finances access reads. The database enforces who does what.
@@ -66,7 +66,7 @@ export function ExpensesPage() {
   }, t('Saved'))
 
   const table = (): ExportTable => ({
-    title: t('Expenses & mileage'), filename: `expenses-${now}`,
+    title: t('Expenses'), filename: `expenses-${now}`,
     columns: [t('Date'), t('Who'), t('What'), t('Category'), t('Starting point'), t('Destination'), t('Kilometres'), t('Rate a km'), t('Amount'), t('Status'), t('Paid back'), t('Receipt')],
     rows: shown.map(c => [c.spent_on, nameOf(c.profile_id), c.description, c.category ? t(c.category) : '', c.from_place ?? '', c.to_place ?? '',
       c.kind === 'mileage' ? tripKm(c) : '', c.rate_per_km ?? '', c.amount, t(claimStatusLabel(c.status)), c.paid_on ?? '', c.document?.link ?? '']),
@@ -76,7 +76,7 @@ export function ExpensesPage() {
 
   return (
     <>
-      <PageHeader eyebrow={t('Accounts')} title={t('Expenses & mileage')} actions={<>
+      <PageHeader eyebrow={t('Accounts')} title={t('Expenses')} actions={<>
         <ExportButton table={table} disabled={!shown.length} folder="Expenses" />
         {!isPartner && <>
           <Button variant="outlined" startIcon={<CarIcon />} onClick={() => setEditing({ description: '', kind: 'mileage', spent_on: now, return_trip: true })}>{t('Add a trip')}</Button>

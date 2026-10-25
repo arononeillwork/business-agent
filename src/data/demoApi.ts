@@ -49,7 +49,7 @@ import { DEFAULT_MILEAGE_RATE, mileageAmount, type ExpenseClaim } from '../../sh
 import { EVERYONE, type Campaign } from '../../shared/campaigns'
 import { keepUntil, type Applicant, type JobOpening } from '../../shared/hiring'
 import { CAFE_POINTS, inRange as inLimits, type SafetyCheck, type SafetyPoint } from '../../shared/foodSafety'
-import type { Allergen } from '../../shared/allergens'
+import { dietsFor, type Allergen } from '../../shared/allergens'
 import { minutesWorked, splitTips, type TipPool } from '../../shared/tips'
 
 interface RawEntry {
@@ -1112,7 +1112,7 @@ export function createDemoApi(): Api {
       lines: [{ description: 'Hamper: house blend 250 g and biscotti', quantity: 20, unit_price: 16, vat_rate: 10 }, { description: 'Easy Beans mug', quantity: 20, unit_price: 6, vat_rate: 21 }] }, 3),
   ]
 
-  // Expenses & mileage: a trip waiting to be approved, one to pay back, some paid back, one turned down (database: claim_rules()).
+  // Expenses: a trip waiting to be approved, one to pay back, some paid back, one turned down (database: claim_rules()).
   const claim = (c: Partial<ExpenseClaim> & { profile_id: string; description: string }): ExpenseClaim => {
     const made: ExpenseClaim = { id: uid(), kind: 'expense', spent_on: today(), category: null, amount: 0, km: null, rate_per_km: null, return_trip: false,
       from_place: null, to_place: null, status: 'submitted', decided_by: null, decided_at: null, decision_note: null, paid_on: null, document_id: null,
@@ -1215,10 +1215,13 @@ export function createDemoApi(): Api {
     'Butter croissants': [['eggs', 'gluten', 'milk'], ['nuts', 'sesame', 'soy']], 'Pain au chocolat': [['eggs', 'gluten', 'milk', 'soy'], ['nuts']],
     'Cups 8 oz': [[]], 'Lids 8 oz': [[]],
   }
+  // And vegan or vegetarian: milk and the pastries are vegetarian, the rest vegan (the chai's not said either).
+  const vegetarian = ['Whole milk', 'Butter croissants', 'Pain au chocolat']
   for (const item of stock) {
     const [has, may] = allergensOf[item.name] ?? [null]
     item.allergens = has
     item.may_contain = may ?? []
+    item.diet = has === null ? null : vegetarian.includes(item.name) ? 'vegetarian' : 'vegan'
   }
 
   // Tips: last week's, shared out by hours among the team and paid (built the first time they're read, from the timecards).
@@ -2264,17 +2267,20 @@ export function createDemoApi(): Api {
         dishes: live.map(r => ({ id: r.id, name: r.name, category: r.category, variants: r.variants.map(v => ({ ...v, price_change: 0 })),
           lines: r.lines.map(l => ({ ...l, quantity: 1 })) }))
           .sort((a, b) => (a.category ?? '~').localeCompare(b.category ?? '~') || a.name.localeCompare(b.name)),
-        items: stock.filter(i => used.has(i.id)).map(i => ({ id: i.id, name: i.name, allergens: i.allergens ?? null, may_contain: i.may_contain ?? [] }))
+        items: stock.filter(i => used.has(i.id)).map(i => ({ id: i.id, name: i.name, allergens: i.allergens ?? null, may_contain: i.may_contain ?? [], diet: i.diet ?? null }))
           .sort((a, b) => a.name.localeCompare(b.name)),
       })
     },
-    async saveItemAllergens(itemId, allergens, mayContain) {
+    async saveItemAllergens(itemId, allergens, mayContain, diet) {
       requireAdmin()
       const item = stock.find(x => x.id === itemId)
       if (!item) throw new Error('No such stock item')
+      // stock_items_diet_fits: milk or eggs aren't vegan, fish or shellfish not vegetarian.
+      if (diet && !dietsFor(allergens).includes(diet)) throw new Error('Milk or eggs aren’t vegan, and fish or shellfish aren’t vegetarian')
       // stock_allergen_rules(): each once, in order; a trace of something it contains isn't a trace.
       item.allergens = allergens === null ? null : [...new Set(allergens)].sort()
       item.may_contain = [...new Set(mayContain)].filter(a => !item.allergens?.includes(a)).sort()
+      item.diet = diet
       item.updated_at = nowIso()
     },
     async safetyPoints() {

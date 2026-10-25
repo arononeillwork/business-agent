@@ -161,7 +161,7 @@ function Routed() {
         <Route path="business" element={<BusinessPage />} />
         <Route path="customers" element={isAdmin ? <CustomersPage /> : <Navigate to="/" />} />
         <Route path="leads" element={isAdmin ? <LeadsPage /> : <Navigate to="/" />} />
-        <Route path="quotes" element={isAdmin ? <QuotesPage /> : <Navigate to="/" />} />
+        <Route path="quotes" element={isAdmin && FEATURES.quotes ? <QuotesPage /> : <Navigate to="/" />} />
         {/* Only while Square is the till: the page itself goes to Connections otherwise. */}
         <Route path="loyalty" element={isAdmin ? <LoyaltyPage /> : <Navigate to="/" />} />
         <Route path="sales-reps" element={<SalesRepsPage />} />

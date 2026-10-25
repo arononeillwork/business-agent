@@ -8,4 +8,6 @@ export const FEATURES = {
   square: true,
   /** Tips (Team): shares of the tips by hours worked. Waits for its database change, held in supabase/pending until then (see the README there). */
   tips: false,
+  /** Quotes & estimates (Sales): priced offers made from an enquiry. Taken out of the app; its tables stay in the database. */
+  quotes: false,
 }

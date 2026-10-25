@@ -66,9 +66,9 @@ export default {
   'Removed': 'Quitado',
   'The last {n} days; Export has the whole week.': 'Los últimos {n} días; Exportar tiene la semana entera.',
   'Surfaces and chopping boards sanitised': 'Superficies y tablas de cortar desinfectadas',
-  'The pest control contract, the health registration and food handler certificates are on Licences & renewals.':
-    'El contrato de control de plagas, el registro sanitario y los certificados de manipulador están en Licencias y renovaciones.',
-  'Open Licences & renewals': 'Abrir Licencias y renovaciones',
+  'The pest control contract, the health registration and food handler certificates are on Licences.':
+    'El contrato de control de plagas, el registro sanitario y los certificados de manipulador están en Licencias.',
+  'Open Licences': 'Abrir Licencias',
   'To check now': 'Por controlar ahora',
   'Twice a day': 'Dos veces al día',
   'Use-by dates and labels checked': 'Fechas de caducidad y etiquetas revisadas',

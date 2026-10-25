@@ -87,7 +87,7 @@ built-in **AI connector** so owners can run it by talking to Claude.
   is open and marked; moving a section asks nobody); admins see who has read them since the last change.
   Starts from the usual rules for a café in Spain (free tap water, the hoja de quejas y reclamaciones, the
   14 allergens), to change to how the business works.
-- Licences & renewals (Business section): everything the business keeps open (licencia de apertura, SGAE
+- Licences (Business section): everything the business keeps open (licencia de apertura, SGAE
   and AGEDI/AIE for the music, the terrace permit, insurance, extinguisher and electrical checks, staff
   food handler certificates), each with its number, when it runs out, how often it renews, its cost
   and its document; one press marks it renewed, and admins are reminded in the bell beforehand.
@@ -130,7 +130,8 @@ built-in **AI connector** so owners can run it by talking to Claude.
   them a customer. **Quotes & estimates** are numbered Q-2026-001 on by the database, line by line with
   their IVA (21, 10, 4 or 0%) and a discount; one made from an enquiry moves it to Quoted, accepted it
   wins the enquiry, and an admin with pay access sends it to Invoices as a sales invoice to issue.
-- Expenses & mileage (Accounts section): what someone spent for the business, or drove for it in their
+  Quotes are switched off for now (`quotes` in `src/app/features.ts`): no menu item, page or button.
+- Expenses (Accounts section): what someone spent for the business, or drove for it in their
   own car (kilometres, there and back, times the business's rate: €0.26 a km, what Spain lets it pay
   back without tax). Everyone sends their own; admins with pay access approve, pay back and add the
   receipt (Tax › Expenses); a finance gestoría reads. Not the running costs on Finances.
@@ -151,6 +152,10 @@ built-in **AI connector** so owners can run it by talking to Claude.
   each stock item (contains and may contain), so every menu item on Menu costing has its allergens, and
   a variant what it adds (oat milk: gluten). Anyone serving picks what a customer can't have and sees
   what suits them; the chart exports for the counter.
+  The menu shows as cards tagged with what each item suits (vegan, vegetarian, gluten, dairy, nut and
+  egg free), with a filter for each, the other allergens one by one, a category and a search; a variant
+  that suits counts (a flat white with oat milk). Each stock item also says whether it's vegan,
+  vegetarian or neither, which the database checks against what it contains.
 
 See [docs/PLAN.md](docs/PLAN.md) for decisions, architecture and phases.
 

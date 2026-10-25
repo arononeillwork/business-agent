@@ -28,7 +28,7 @@ import type { ClaimInput, ExpenseClaim } from '../../shared/claims'
 import type { Campaign, CampaignInput } from '../../shared/campaigns'
 import type { Applicant, ApplicantInput, JobOpening, OpeningInput } from '../../shared/hiring'
 import type { CheckInput, PointInput, SafetyCheck, SafetyPoint } from '../../shared/foodSafety'
-import type { Allergen, MenuAllergens } from '../../shared/allergens'
+import type { Allergen, Diet, MenuAllergens } from '../../shared/allergens'
 import type { TipPool, TipPoolInput, TipShare } from '../../shared/tips'
 import type { CompetitorData, CompetitorInput, CompetitorNoteInput, CompetitorPrice, CompetitorSettings, NearbyPlace, PriceItem } from '../../shared/localCompetitors'
 
@@ -189,7 +189,7 @@ export interface Api {
   saveExpense(expense: Partial<Expense> & { name: string; amount: number }): Promise<void>
   deleteExpense(id: string): Promise<void>
 
-  // Licences & renewals (admins; finance partners read): what the business keeps open and when each runs out.
+  // Licences (admins; finance partners read): what the business keeps open and when each runs out.
   licences(): Promise<Licence[]>
   /** Add a licence (no id) or change one; returns its id. */
   saveLicence(l: LicenceInput): Promise<string>
@@ -222,7 +222,7 @@ export interface Api {
   /** Bring one attachment in as an invoice, its file kept with the tax documents. */
   importInvoice(message: InboxInvoice, attachmentId: string, supplierId?: string | null): Promise<Invoice>
 
-  // Expenses & mileage: everyone sends their own (and changes them while they wait); admins with pay
+  // Expenses: everyone sends their own (and changes them while they wait); admins with pay
   // access see and decide all of them; finance partners read.
   expenseClaims(): Promise<ExpenseClaim[]>
   /** Send a claim (no id) or change one; returns its id. */
@@ -351,8 +351,8 @@ export interface Api {
   deleteRecipe(id: string): Promise<void>
   /** The menu's allergens: active dishes and the items in them, without costs (the team and finance partners). */
   menuAllergens(): Promise<MenuAllergens>
-  /** What an item contains (null: not known yet) and may contain (admins). */
-  saveItemAllergens(itemId: string, allergens: Allergen[] | null, mayContain: Allergen[]): Promise<void>
+  /** What an item contains (null: not known yet), may contain, and whether it's vegan or vegetarian (admins). */
+  saveItemAllergens(itemId: string, allergens: Allergen[] | null, mayContain: Allergen[], diet: Diet | null): Promise<void>
 
   // Food safety: the team records checks (kept for good); admins set what's checked.
   safetyPoints(): Promise<SafetyPoint[]>

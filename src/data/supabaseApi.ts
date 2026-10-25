@@ -585,8 +585,8 @@ export function createSupabaseApi(url: string, key: string): Api {
       // Null for anyone who isn't on the team.
       return (data as MenuAllergens | null) ?? { dishes: [], items: [] }
     },
-    async saveItemAllergens(itemId, allergens, mayContain) {
-      check(await sb.from('stock_items').update({ allergens, may_contain: mayContain }).eq('id', itemId))
+    async saveItemAllergens(itemId, allergens, mayContain, diet) {
+      check(await sb.from('stock_items').update({ allergens, may_contain: mayContain, diet }).eq('id', itemId))
     },
     async safetyPoints() {
       return (check(await sb.from('food_safety_points').select('*').order('sort').order('name')) as SafetyPoint[])

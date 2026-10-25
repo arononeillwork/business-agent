@@ -120,8 +120,8 @@ export function FoodSafetyPage() {
           <Typography variant="body2" sx={{ color: 'text.secondary', mt: 2 }}>
             {t('The last {n} days; Export has the whole week.', { n: SHOWN_DAYS })}{' '}
             {t('Records are kept as they were written, for inspections. A mistake is put right with another check.')}{' '}
-            {t('The pest control contract, the health registration and food handler certificates are on Licences & renewals.')}{' '}
-            {isAdmin && <RouterLink to="/licences">{t('Open Licences & renewals')}</RouterLink>}
+            {t('The pest control contract, the health registration and food handler certificates are on Licences.')}{' '}
+            {isAdmin && <RouterLink to="/licences">{t('Open Licences')}</RouterLink>}
           </Typography>
         </CardContent>
       </Card>
