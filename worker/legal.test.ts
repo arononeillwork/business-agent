@@ -205,3 +205,35 @@ describe('Legal page: documents picked where they are in the café’s Google Dr
     expect((await res.json() as { error: string }).error).toMatch(/^Google Drive isn’t connected/)
   })
 })
+
+describe('Brand page: documents picked in Drive or OneDrive the same way, on their own list', () => {
+  const addBrand = (storage: string, ids: string[], headers: Record<string, string> = admin) =>
+    call('/api/brand/documents', { method: 'POST', headers: { ...headers, 'content-type': 'application/json' }, body: JSON.stringify({ storage, ids }) })
+
+  it('only admins add; picked files keep only where they are, titled from their name', async () => {
+    await connectStorage('google_drive')
+    expect((await addBrand('google_drive', ['g-deeds'], { authorization: 'Bearer staff-token' })).status).toBe(403)
+    const res = await addBrand('google_drive', ['g-deeds', 'g-private'])
+    const { added: docs, skipped } = await res.json() as { added: { title: string; storage: string; file_id: string; link: string }[]; skipped: { why: string }[] }
+    expect(docs.map(d => [d.title, d.storage, d.file_id, d.link])).toEqual([['escritura SL', 'google_drive', 'g-deeds', 'https://drive.google.com/file/d/g-deeds/view']])
+    expect(skipped.map(s => s.why)).toEqual([SKIPPED.unshared])
+    // Its own list: the Legal page doesn't have it, and a second pick is a repeat.
+    expect(db.table('legal_documents')).toHaveLength(0)
+    const again = await (await addBrand('google_drive', ['g-deeds'])).json() as { skipped: { why: string }[] }
+    expect(again.skipped.map(s => s.why)).toEqual(['It’s already on the Brand page'])
+    expect(uploads()).toEqual([])
+  })
+
+  it('OneDrive marks what’s on the Brand page when browsing for it, and shows the file from there', async () => {
+    await connectStorage('onedrive')
+    const { added: [ins] } = await (await addBrand('onedrive', ['od-ins'])).json() as { added: { id: string }[] }
+    const forBrand = await get<StorageListing>('/api/legal/onedrive/browse?folder=od-legal&for=brand')
+    expect(forBrand.items.find(i => i.name === 'Póliza Mapfre RC.pdf')!.added_id).toBe(ins.id)
+    const forLegal = await get<StorageListing>('/api/legal/onedrive/browse?folder=od-legal')
+    expect(forLegal.items.find(i => i.name === 'Póliza Mapfre RC.pdf')!.added_id).toBeNull()
+    const res = await call(`/api/brand/documents/${ins.id}/file`, { headers: admin })
+    expect(res.status).toBe(200)
+    expect(await res.text()).toBe('%PDF-1.7 insurance')
+    expect((await call(`/api/brand/documents/${ins.id}/file`)).status).toBe(401)
+  })
+})

@@ -29,7 +29,7 @@ import {
 import type { Brand } from '../../../shared/types'
 import type { MenuAllergens } from '../../../shared/allergens'
 import { tokens } from '../../theme'
-import { t, tn } from '../../i18n'
+import { t, tc, tn } from '../../i18n'
 
 const inputOf = ({ images: _images, updated_at: _updated, ...d }: MenuDesign): MenuDesignInput => d
 const waitingOf = (i: MenuImage) => i.status === 'queued' || i.status === 'working'
@@ -316,7 +316,7 @@ function ImageTile({ image: img, ratio, inUse, canEdit, onUse, onEdit, onRetry, 
 }) {
   const [deleting, setDeleting] = useState(false)
   const ready = img.status === 'ready' && !!img.url
-  const source = img.source === 'ai' ? `${modelOf(img.model).name}${img.edit_of ? ` · ${t('changed')}` : ''}` : img.source === 'upload' ? t('Uploaded') : t('Link')
+  const source = img.source === 'ai' ? `${modelOf(img.model).name}${img.edit_of ? ` · ${t('changed')}` : ''}` : img.source === 'upload' ? tc('image', 'Uploaded') : t('Link')
   return (
     <Card variant="outlined" component="article" aria-label={img.prompt ?? source} sx={{ display: 'flex', flexDirection: 'column', ...(inUse ? { borderColor: tokens.matcha } : {}) }}>
       <Box sx={{ position: 'relative', aspectRatio: ratio, bgcolor: tokens.surfaceAlt, overflow: 'hidden' }}>

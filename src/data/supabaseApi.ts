@@ -10,6 +10,7 @@ import type { KeptDocument } from '../../shared/documents'
 import type { MoneyItem } from '../../shared/creditDebit'
 import { DEFAULT_RADIUS, competitorRows, type CompetitorData } from '../../shared/localCompetitors'
 import type { LegalDocument, LegalSource, StorageListing } from '../../shared/legalDocs'
+import { BRAND_COLUMNS, brandTitleOf, uploadProblem, type BrandDocument } from '../../shared/brandDocs'
 import type { Benefit, LeaveAllowance } from '../../shared/benefits'
 import type { LoggedReward, RepReward, RewardRule, SalesRep } from '../../shared/reps'
 import type { KittyEntry, KittyGoal } from '../../shared/kitty'
@@ -53,6 +54,14 @@ const REWARD_COLUMNS = 'id, rep_id, kind, rule_id, label, sale_amount, amount, s
 
 /** Postgres numeric can come back as text: a number, or null. */
 const num = (v: unknown) => (v == null ? null : Number(v))
+
+/** A file as a data: URL, to keep it in a text column. */
+const dataUrlOf = (file: Blob) => new Promise<string>((resolve, reject) => {
+  const r = new FileReader()
+  r.onload = () => resolve(String(r.result))
+  r.onerror = () => reject(new Error('Could not read that file'))
+  r.readAsDataURL(file)
+})
 
 /** Throw the Postgres error message (our SQL functions raise human-readable ones). */
 function check<T>(res: { data: T; error: { message: string } | null }): NonNullable<T> {
@@ -495,9 +504,10 @@ export function createSupabaseApi(url: string, key: string): Api {
     },
     async legalSources() { return (await worker<{ sources: LegalSource[] }>('/api/legal/sources')).sources },
     legalPicker: () => worker('/api/legal/google/picker'),
-    async browseLegalStorage(storage, folder) {
+    async browseLegalStorage(storage, folder, page = 'legal') {
       if (storage !== 'onedrive') throw new Error('Google Drive files are chosen in Google’s own picker')
-      return worker<StorageListing>(`/api/legal/onedrive/browse${folder ? `?folder=${encodeURIComponent(folder)}` : ''}`)
+      const q = new URLSearchParams({ ...(folder ? { folder } : {}), ...(page === 'brand' ? { for: 'brand' } : {}) }).toString()
+      return worker<StorageListing>(`/api/legal/onedrive/browse${q ? `?${q}` : ''}`)
     },
     addLegalDocuments: (storage, ids) => worker('/api/legal/documents', { method: 'POST', body: JSON.stringify({ storage, ids }) }),
     async updateLegalDocument(id, patch) { check(await sb.from('legal_documents').update(patch).eq('id', id)) },
@@ -506,6 +516,30 @@ export function createSupabaseApi(url: string, key: string): Api {
       // Not worker(): the answer is the file itself, not JSON.
       const token = (await sb.auth.getSession()).data.session?.access_token
       const res = await fetch(`/api/legal/documents/${encodeURIComponent(id)}/file`, { headers: { authorization: `Bearer ${token}` } })
+      if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? `Request failed (${res.status})`)
+      return res.blob()
+    },
+    async brandDocuments() {
+      const rows = check(await sb.from('brand_documents').select(BRAND_COLUMNS).order('title')) as unknown as BrandDocument[]
+      return rows.map(d => ({ ...d, size: d.size === null ? null : Number(d.size) }))
+    },
+    async uploadBrandDocument(file) {
+      const problem = uploadProblem(file)
+      if (problem) throw new Error(problem)
+      const content = await dataUrlOf(file)
+      const row = check(await sb.from('brand_documents').insert({ title: brandTitleOf(file.name), storage: 'upload', file_name: file.name,
+        mime_type: file.type || null, size: file.size, modified_at: new Date(file.lastModified || Date.now()).toISOString(), content })
+        .select(BRAND_COLUMNS).single()) as unknown as BrandDocument
+      return { ...row, size: row.size === null ? null : Number(row.size) }
+    },
+    addBrandDocuments: (storage, ids) => worker('/api/brand/documents', { method: 'POST', body: JSON.stringify({ storage, ids }) }),
+    async renameBrandDocument(id, title) { check(await sb.from('brand_documents').update({ title }).eq('id', id)) },
+    async removeBrandDocument(id) { check(await sb.from('brand_documents').delete().eq('id', id)) },
+    async brandFile(id) {
+      const d = check(await sb.from('brand_documents').select('storage, content').eq('id', id).single()) as { storage: string; content: string | null }
+      if (d.content) return (await fetch(d.content)).blob()
+      const token = (await sb.auth.getSession()).data.session?.access_token
+      const res = await fetch(`/api/brand/documents/${encodeURIComponent(id)}/file`, { headers: { authorization: `Bearer ${token}` } })
       if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? `Request failed (${res.status})`)
       return res.blob()
     },
@@ -629,6 +663,10 @@ export function createSupabaseApi(url: string, key: string): Api {
         ...(m.reason === 'waste' && m.waste_reason ? { waste_reason: m.waste_reason } : {}),
         ...(m.reason === 'count' ? { counted: m.counted, change: 0 } : { change: m.change }) }))))
     },
+    async editWaste(id, w) {
+      check(await sb.rpc('edit_waste', { p_id: id, p_item_id: w.item_id, p_quantity: w.quantity, p_reason: w.waste_reason, p_note: w.note?.trim() || null }))
+    },
+    async undoWaste(id) { check(await sb.rpc('undo_waste', { p_id: id })) },
     async recipes() {
       type Row = Omit<Recipe, 'variants' | 'lines'> & { recipe_variants: (Recipe['variants'][number] & { sort: number })[]; recipe_lines: (Recipe['lines'][number] & { sort: number })[] }
       const rows = check(await sb.from('recipes').select('*, recipe_variants(*), recipe_lines(*)').order('name')) as Row[]

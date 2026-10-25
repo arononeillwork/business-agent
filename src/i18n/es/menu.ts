@@ -118,7 +118,8 @@ export default {
   'Image deleted': 'Imagen eliminada',
   'Asked Higgsfield again': 'Pedida de nuevo a Higgsfield',
   'changed': 'cambiada',
-  'Uploaded': 'Subida',
+  // An image (una imagen subida); a document is 'Subido' (Brand page).
+  'image|Uploaded': 'Subida',
   'Waiting at Higgsfield…': 'Esperando en Higgsfield…',
   'Being made…': 'Haciéndose…',
   'In use': 'En uso',

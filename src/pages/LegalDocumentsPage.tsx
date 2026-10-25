@@ -13,6 +13,7 @@ import FileIcon from '@mui/icons-material/InsertDriveFileOutlined'
 import FolderIcon from '@mui/icons-material/FolderOutlined'
 import SearchIcon from '@mui/icons-material/Search'
 import CloseIcon from '@mui/icons-material/Close'
+import UploadIcon from '@mui/icons-material/UploadFileOutlined'
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
@@ -154,14 +155,17 @@ export function LegalDocumentsPage() {
   )
 }
 
+/** Which page the files go on: the Legal page, or the Brand page (which picks the same way). */
+type DocPage = 'legal' | 'brand'
+
 /** Add picked files, then say what was added and what wasn't (and why). True when anything was added. */
-function useAddDocuments() {
+function useAddDocuments(page: DocPage = 'legal') {
   const { api } = useApp()
   const notify = useNotify()
   const client = useQueryClient()
   return async (storage: LegalStorage, ids: string[]) => {
     try {
-      const { added, skipped } = await api.addLegalDocuments(storage, ids)
+      const { added, skipped } = await (page === 'brand' ? api.addBrandDocuments(storage, ids) : api.addLegalDocuments(storage, ids))
       void client.invalidateQueries()
       const why = skipped.map(s => `${s.name ?? t('a file')}: ${t(s.why)}`).join('; ')
       if (added.length) {
@@ -178,11 +182,13 @@ function useAddDocuments() {
   }
 }
 
-/** "Add documents": choose which connected storage to pick from (or connect one). */
-function AddButton({ sources, onBrowse }: { sources: LegalSource[] | null; onBrowse: (s: LegalStorage) => void }) {
+/** "Add documents": choose which connected storage to pick from (or connect one); on the Brand page, or upload one. */
+export function AddButton({ sources, onBrowse, page = 'legal', onUpload }: {
+  sources: LegalSource[] | null; onBrowse: (s: LegalStorage) => void; page?: DocPage; onUpload?: () => void
+}) {
   const { api } = useApp()
   const notify = useNotify()
-  const add = useAddDocuments()
+  const add = useAddDocuments(page)
   const [anchor, setAnchor] = useState<HTMLElement | null>(null)
   const [busy, setBusy] = useState(false)
   const pick = async (s: LegalSource) => {
@@ -191,7 +197,8 @@ function AddButton({ sources, onBrowse }: { sources: LegalSource[] | null; onBro
     setBusy(true)
     try {
       const p = await api.legalPicker()
-      const ids = await pickFromGoogleDrive({ token: p.token, key: p.key, appId: p.app_id, title: t('Choose the café’s legal documents'), language: currentLanguage() })
+      const ids = await pickFromGoogleDrive({ token: p.token, key: p.key, appId: p.app_id,
+        title: page === 'brand' ? t('Choose the brand’s documents') : t('Choose the café’s legal documents'), language: currentLanguage() })
       if (ids.length) await add(s.storage, ids)
     } catch (e) {
       notify(e instanceof Error ? e.message : String(e), 'error')
@@ -204,6 +211,12 @@ function AddButton({ sources, onBrowse }: { sources: LegalSource[] | null; onBro
       <Button variant="contained" startIcon={busy ? <CircularProgress size={16} color="inherit" /> : <AddIcon />} endIcon={<DownIcon />} disabled={busy || !sources}
         onClick={e => setAnchor(e.currentTarget)} aria-haspopup="menu" aria-expanded={!!anchor}>{t('Add documents')}</Button>
       <Menu anchorEl={anchor} open={!!anchor} onClose={() => setAnchor(null)}>
+        {onUpload && (
+          <MenuItem onClick={() => { setAnchor(null); onUpload() }} sx={{ whiteSpace: 'normal', maxWidth: 360 }}>
+            <ListItemIcon><UploadIcon fontSize="small" /></ListItemIcon>
+            <ListItemText primary={t('Upload from this device')} secondary={t('PDF, pictures or any file up to 10 MB')} />
+          </MenuItem>
+        )}
         {(sources ?? []).map(s => s.connected
           ? (
             <MenuItem key={s.storage} disabled={!!s.problem} onClick={() => void pick(s)} sx={{ whiteSpace: 'normal', maxWidth: 360 }}>
@@ -222,14 +235,14 @@ function AddButton({ sources, onBrowse }: { sources: LegalSource[] | null; onBro
 }
 
 /** Look through a storage folder by folder and tick the files to add (they can come from several folders). */
-function StorageBrowser({ storage, onClose }: { storage: LegalStorage; onClose: () => void }) {
+export function StorageBrowser({ storage, onClose, page = 'legal' }: { storage: LegalStorage; onClose: () => void; page?: DocPage }) {
   const { api } = useApp()
-  const add = useAddDocuments()
+  const add = useAddDocuments(page)
   const phone = useMediaQuery(useTheme().breakpoints.down('sm'))
   // The folders opened, from the top; empty is the top of the storage.
   const [trail, setTrail] = useState<{ id: string; name: string }[]>([])
   const folder = trail.at(-1)?.id ?? null
-  const list = useAsync('legal-browse', () => api.browseLegalStorage(storage, folder), [storage, folder])
+  const list = useAsync('legal-browse', () => api.browseLegalStorage(storage, folder, page), [storage, folder, page])
   const [chosen, setChosen] = useState<Set<string>>(new Set())
   const [saving, setSaving] = useState(false)
   const here = list.data && list.data.folder.id === folder ? list.data : null
@@ -277,7 +290,7 @@ function StorageBrowser({ storage, onClose }: { storage: LegalStorage; onClose: 
                     slotProps={{ input: { 'aria-label': i.name } }} />
                 </ListItemIcon>
                 <ListItemText primary={i.name}
-                  secondary={i.added_id ? t('Already on the Legal page') : [size(i.size), i.modified ? t('changed {date}', { date: day(i.modified) }) : ''].filter(Boolean).join(' · ')} />
+                  secondary={i.added_id ? (page === 'brand' ? t('Already on the Brand page') : t('Already on the Legal page')) : [size(i.size), i.modified ? t('changed {date}', { date: day(i.modified) }) : ''].filter(Boolean).join(' · ')} />
               </ListItemButton>
             ))}
           </List>
@@ -297,39 +310,46 @@ function StorageBrowser({ storage, onClose }: { storage: LegalStorage; onClose: 
 /** A document shown in the page: fetched from its storage now (a PDF or a picture), never kept. */
 function Viewer({ doc, onClose }: { doc: LegalDocument; onClose: () => void }) {
   const { api } = useApp()
+  return <FileViewer id={doc.id} title={doc.title} link={doc.link} where={storageName(doc.storage)} as={previewOf(doc)?.as ?? 'pdf'}
+    load={() => api.legalFile(doc.id)} caption={t('Shown straight from {where}. Business Agent doesn’t keep a copy.', { where: storageName(doc.storage) })} onClose={onClose} />
+}
+
+/** A file shown in the page (a PDF or a picture), with a link to open it where it's kept when there is one. */
+export function FileViewer({ id, title, link, where, as, load, caption, onClose }: {
+  id: string; title: string; link: string | null; where: string | null; as: 'pdf' | 'image'; load: () => Promise<Blob>; caption: string; onClose: () => void
+}) {
   const phone = useMediaQuery(useTheme().breakpoints.down('sm'))
   const [url, setUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const as = previewOf(doc)?.as ?? 'pdf'
+  // Loaded once per file (the function itself is new on every render).
+  const [loader] = useState(() => load)
   useEffect(() => {
     let gone = false
     let made: string | null = null
-    api.legalFile(doc.id).then(blob => {
+    loader().then(blob => {
       if (gone) return
       made = URL.createObjectURL(as === 'pdf' ? new Blob([blob], { type: 'application/pdf' }) : blob)
       setUrl(made)
     }).catch(e => { if (!gone) setError(e instanceof Error ? e.message : String(e)) })
     return () => { gone = true; if (made) URL.revokeObjectURL(made) }
-  }, [api, doc.id, as])
+  }, [loader, id, as])
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="lg" fullScreen={phone} aria-labelledby="legal-view-title"
       slotProps={{ paper: { sx: { height: phone ? '100%' : '90vh' } } }}>
       <DialogTitle id="legal-view-title" sx={{ display: 'flex', alignItems: 'center', gap: 1, pr: 1 }}>
-        <Box component="span" sx={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.title}</Box>
-        {doc.link && <Button size="small" startIcon={<OpenIcon />} href={doc.link} target="_blank" rel="noopener" sx={{ flexShrink: 0 }}>
-          {t('Open in {where}', { where: storageName(doc.storage) })}
+        <Box component="span" sx={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</Box>
+        {link && where && <Button size="small" startIcon={<OpenIcon />} href={link} target="_blank" rel="noopener" sx={{ flexShrink: 0 }}>
+          {t('Open in {where}', { where })}
         </Button>}
         <IconButton aria-label={t('Close')} onClick={onClose}><CloseIcon /></IconButton>
       </DialogTitle>
       <DialogContent dividers sx={{ p: 0, display: 'flex', flexDirection: 'column' }}>
         {error && <Alert severity="error" sx={{ m: 2 }}>{error}</Alert>}
         {!error && !url && <Box sx={{ m: 'auto', p: 4 }}><CircularProgress aria-label={t('Loading…')} /></Box>}
-        {url && as === 'pdf' && <Box component="iframe" src={url} title={doc.title} sx={{ border: 0, width: '100%', flex: 1, minHeight: 400 }} />}
-        {url && as === 'image' && <Box component="img" src={url} alt={doc.title} sx={{ maxWidth: '100%', m: 'auto', display: 'block' }} />}
+        {url && as === 'pdf' && <Box component="iframe" src={url} title={title} sx={{ border: 0, width: '100%', flex: 1, minHeight: 400 }} />}
+        {url && as === 'image' && <Box component="img" src={url} alt={title} sx={{ maxWidth: '100%', m: 'auto', display: 'block' }} />}
       </DialogContent>
-      <Typography variant="caption" sx={{ px: 3, py: 1, color: 'text.secondary' }}>
-        {t('Shown straight from {where}. Business Agent doesn’t keep a copy.', { where: storageName(doc.storage) })}
-      </Typography>
+      <Typography variant="caption" sx={{ px: 3, py: 1, color: 'text.secondary' }}>{caption}</Typography>
     </Dialog>
   )
 }

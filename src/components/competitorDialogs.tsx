@@ -323,6 +323,13 @@ export function BasketDialog({ data, recipes, onClose }: { data: CompetitorData;
     let sort = next()
     for (const b of missing) await api.savePriceItem({ name: b, recipe_id: matchRecipe(b, recipes)?.id ?? null, sort: sort++ })
   }, tn(missing.length, '{n} item added', '{n} items added'))
+  // Your own menu items not compared yet, each linked to itself so your price comes from Menu costing.
+  const linked = new Set(items.map(i => i.recipe_id).filter(Boolean))
+  const notCompared = menu.filter(r => !linked.has(r.id) && !have.has(r.name.toLowerCase()))
+  const addMenu = () => run(async () => {
+    let sort = next()
+    for (const r of notCompared) await api.savePriceItem({ name: r.name, recipe_id: r.id, sort: sort++ })
+  }, tn(notCompared.length, '{n} item added', '{n} items added'))
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="sm" aria-labelledby="basket-title">
       <DialogTitle id="basket-title">{t('Basket')}</DialogTitle>
@@ -348,6 +355,12 @@ export function BasketDialog({ data, recipes, onClose }: { data: CompetitorData;
           <TextField size="small" label={t('Add an item')} value={name} onChange={e => setName(e.target.value)} sx={{ flex: 1 }} placeholder={t('e.g. Pumpkin spice latte')} />
           <Button type="submit" startIcon={<AddIcon />} disabled={!name.trim()}>{t('Add')}</Button>
         </Stack>
+        {notCompared.length > 0 && (
+          <Box sx={{ mt: 2 }}>
+            <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1 }}>{t('On your menu and not compared yet: {list}.', { list: notCompared.map(r => r.name).join(', ') })}</Typography>
+            <Button variant="outlined" size="small" onClick={() => void addMenu()}>{t('Compare my menu items')}</Button>
+          </Box>
+        )}
         {missing.length > 0 && (
           <Box sx={{ mt: 2 }}>
             <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1 }}>{t('Usual for a café in Spain: {list}.', { list: missing.join(', ') })}</Typography>

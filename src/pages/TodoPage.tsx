@@ -1,5 +1,5 @@
 import {
-  Alert, Box, Button, Card, CardContent, Checkbox, Chip, FormControlLabel, IconButton, ListItemIcon, Menu, MenuItem, Snackbar, Stack,
+  Alert, Box, Button, Card, CardContent, Checkbox, Chip, Collapse, FormControlLabel, IconButton, ListItemIcon, Menu, MenuItem, Snackbar, Stack,
   Switch, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography,
 } from '@mui/material'
 import ListViewIcon from '@mui/icons-material/ViewListOutlined'
@@ -7,11 +7,11 @@ import BoardViewIcon from '@mui/icons-material/ViewKanbanOutlined'
 import AddIcon from '@mui/icons-material/Add'
 import CheckIcon from '@mui/icons-material/Check'
 import CloseIcon from '@mui/icons-material/Close'
-import CopyIcon from '@mui/icons-material/ContentCopyOutlined'
 import DeleteIcon from '@mui/icons-material/DeleteOutlined'
 import DoneIcon from '@mui/icons-material/CheckCircle'
 import DragIcon from '@mui/icons-material/DragIndicator'
 import EditIcon from '@mui/icons-material/EditOutlined'
+import ExpandIcon from '@mui/icons-material/ExpandMore'
 import OpenIcon from '@mui/icons-material/RadioButtonUnchecked'
 import PersonAddIcon from '@mui/icons-material/PersonAddAlt1Outlined'
 import PinIcon from '@mui/icons-material/PushPin'
@@ -28,7 +28,7 @@ import { useAsync } from '../app/hooks'
 import { useAction, useNotify } from '../app/Notify'
 import { Empty, ErrorBox, PageHeader, PersonAvatar, SectionTitle } from '../components/common'
 import { restrictToVerticalAxis } from '../components/dnd'
-import { NO_CATEGORY, buildBoard, flatten, inStep, resolveMove, toPlainText, topPosition, visible, type TodoFilters } from '../../shared/todo'
+import { NO_CATEGORY, buildBoard, flatten, inStep, resolveMove, topPosition, visible, type TodoFilters } from '../../shared/todo'
 import { TodoBoard } from '../components/TodoBoard'
 import type { Profile, Todo, TodoCategory, TodoPatch } from '../../shared/types'
 import { fonts, tokens } from '../theme'
@@ -47,13 +47,18 @@ const PIN = '#7C63A8'
 /** A light wash of a category's colour that works on light and dark surfaces. */
 const wash = (colour: string, pct = 10) => `color-mix(in srgb, ${colour} ${pct}%, ${tokens.surface})`
 
+const FOLDED_KEY = 'todo-folded'
+function readFolded(): string[] {
+  try { return JSON.parse(localStorage.getItem(FOLDED_KEY) ?? '[]') as string[] } catch { return [] }
+}
+
 function readView(): TodoFilters {
   try { return { ...DEFAULT_VIEW, ...JSON.parse(localStorage.getItem(VIEW_KEY) ?? '{}') } } catch { return DEFAULT_VIEW }
 }
 
 /** The team's to-do list, grouped by categories the admins add and remove; or the same jobs as a kanban board. */
 export function TodoPage() {
-  const { api, isAdmin, profiles, business, me } = useApp()
+  const { api, isAdmin, profiles, me } = useApp()
   const notify = useNotify()
   const run = useAction()
   const data = useAsync('todos', () => api.todos(), [])
@@ -75,7 +80,6 @@ export function TodoPage() {
     ? { ...view, categoryId: null } : view
   const groups = useMemo(() => buildBoard(items, categories, filters), [items, categories, filters])
   const team = profiles.filter(p => p.active && (p.role === 'admin' || p.role === 'employee'))
-  const names = new Map(profiles.map(p => [p.id, p.full_name]))
   const open = items.filter(t => !t.done)
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: 0 }
@@ -137,13 +141,12 @@ export function TodoPage() {
       notify(e instanceof Error ? e.message : String(e), 'error')
     }
   }
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(toPlainText(items, categories, names, business?.name ?? t('The business'), t))
-      notify(t('Copied the list as text'), 'success')
-    } catch {
-      notify(t('Could not copy: the browser blocked the clipboard'), 'error')
-    }
+  // Category groups folded away on the list, remembered on this device.
+  const [folded, setFolded] = useState<string[]>(readFolded)
+  const fold = (key: string) => {
+    const next = folded.includes(key) ? folded.filter(k => k !== key) : [...folded, key]
+    setFolded(next)
+    try { localStorage.setItem(FOLDED_KEY, JSON.stringify(next)) } catch { /* storage unavailable */ }
   }
 
   const sensors = useSensors(
@@ -166,7 +169,13 @@ export function TodoPage() {
             <ToggleButton value="list" aria-label={t('List')} sx={{ gap: 0.75, px: 1.5, textTransform: 'none' }}><ListViewIcon fontSize="small" />{t('List')}</ToggleButton>
             <ToggleButton value="board" aria-label={t('Board')} sx={{ gap: 0.75, px: 1.5, textTransform: 'none' }}><BoardViewIcon fontSize="small" />{t('Board')}</ToggleButton>
           </ToggleButtonGroup>
-          <Button variant="outlined" startIcon={<CopyIcon />} onClick={copy} disabled={!items.length}>{t('Copy as text')}</Button>
+          {/* The list's own filters, at the top right next to how it's shown. */}
+          {mode === 'list' && <>
+            <Chip icon={<StarIcon sx={{ fontSize: 18, color: `${STAR} !important` }} />} label={t('Starred')} variant={filters.starredOnly ? 'filled' : 'outlined'}
+              onClick={() => setFilters({ starredOnly: !filters.starredOnly })} aria-pressed={filters.starredOnly} sx={{ height: 36, borderRadius: 999 }} />
+            <FormControlLabel sx={{ mx: 0.5, '& .MuiFormControlLabel-label': { fontSize: '0.9rem', fontWeight: 500 } }} label={t('Show done')}
+              control={<Switch size="small" checked={filters.showDone} onChange={e => setFilters({ showDone: e.target.checked })} />} />
+          </>}
           {isAdmin && (
             <Button variant={managing ? 'contained' : 'outlined'} startIcon={<TuneIcon />} onClick={() => setManaging(m => !m)}
               aria-pressed={managing}>
@@ -219,12 +228,6 @@ export function TodoPage() {
                     onClick={() => setFilters({ categoryId: filters.categoryId === NO_CATEGORY ? null : NO_CATEGORY })} />
                 )}
               </Stack>
-              <Stack direction="row" spacing={1} sx={{ mt: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
-                <Chip icon={<StarIcon sx={{ fontSize: 18, color: `${STAR} !important` }} />} label={t('Starred')} variant={filters.starredOnly ? 'filled' : 'outlined'}
-                  onClick={() => setFilters({ starredOnly: !filters.starredOnly })} aria-pressed={filters.starredOnly} />
-                <FormControlLabel sx={{ ml: 'auto' }} label={t('Show done')}
-                  control={<Switch size="small" checked={filters.showDone} onChange={e => setFilters({ showDone: e.target.checked })} />} />
-              </Stack>
             </CardContent>
           </Card>
 
@@ -238,17 +241,28 @@ export function TodoPage() {
 
           <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToVerticalAxis]} onDragEnd={onDragEnd}>
             <SortableContext items={order.map(t => t.id)} strategy={verticalListSortingStrategy}>
-              {groups.map(g => (
+              {groups.map(g => {
+                const shut = folded.includes(g.key)
+                return (
                 <Card key={g.key} component="section" aria-label={groupLabel(g)}
                   sx={{ bgcolor: wash(g.colour, 7), borderTop: `3px solid ${g.colour}` }}>
-                  <CardContent>
-                    <Stack direction="row" spacing={1.25} sx={{ alignItems: 'baseline', mb: 1.5 }}>
-                      <Typography variant="h6" component="h2">{groupLabel(g)}</Typography>
+                  <CardContent sx={shut ? { pb: '16px !important' } : undefined}>
+                    <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', mb: shut ? 0 : 1.5 }}>
+                      {/* Fold the category away (its jobs stay; the count still shows). */}
+                      <Tooltip title={shut ? t('Show {name}', { name: groupLabel(g) }) : t('Minimise {name}', { name: groupLabel(g) })}>
+                        <IconButton size="small" onClick={() => fold(g.key)} aria-expanded={!shut} aria-controls={`todo-group-${g.key}`}
+                          aria-label={shut ? t('Show {name}', { name: groupLabel(g) }) : t('Minimise {name}', { name: groupLabel(g) })}
+                          sx={{ ml: -0.75, color: tokens.inkSoft }}>
+                          <ExpandIcon sx={{ transition: 'transform .2s', transform: shut ? 'rotate(-90deg)' : 'none' }} />
+                        </IconButton>
+                      </Tooltip>
+                      <Typography variant="h6" component="h2" sx={{ ml: '4px !important' }}>{groupLabel(g)}</Typography>
                       <Box component="span" sx={{ fontSize: 13, fontWeight: 600, px: 1, borderRadius: 999, bgcolor: wash(g.colour, 22), color: 'text.primary' }}>
                         {g.count}
                       </Box>
                       {g.hint && <Typography variant="body2" sx={{ ml: 'auto !important', color: 'text.secondary', display: { xs: 'none', sm: 'block' } }}>{g.key === NO_CATEGORY ? t(g.hint) : g.hint}</Typography>}
                     </Stack>
+                    <Collapse in={!shut} id={`todo-group-${g.key}`} unmountOnExit>
                     {g.sections.map(s => (
                       <Fragment key={s.key}>
                         {s.label && <Typography variant="overline" component="h3" sx={{ display: 'block', color: 'text.secondary', mt: 1.5, mb: 0.5 }}>{s.label}</Typography>}
@@ -258,9 +272,11 @@ export function TodoPage() {
                         ))}
                       </Fragment>
                     ))}
+                    </Collapse>
                   </CardContent>
                 </Card>
-              ))}
+                )
+              })}
             </SortableContext>
           </DndContext>
         </>}

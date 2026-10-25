@@ -2,13 +2,17 @@ import {
   Alert, Box, Button, Card, CardContent, Dialog, DialogActions, DialogContent, DialogTitle,
   Grid, Menu, MenuItem, Stack, TextField, Typography,
 } from '@mui/material'
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAsync, useTick } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { ErrorBox, Flags, Loading, PageHeader, PersonAvatar, SectionTitle, Tag } from '../components/common'
 import { MusicCard } from '../components/MusicCard'
+import { WidgetBody, useTakings } from '../components/dashboardWidgets'
+import { AdviceCard } from './AdvisorPage'
+import { useAdvice } from '../app/insightsData'
+import { dashRange, type DashRange, type WidgetKind } from '../../shared/dashboards'
 import { holidayOn } from '../../shared/rules'
 import { addDays, dayKey, formatDuration, formatLocal, localDate, localTime, minutesBetween, today, zonedIso } from '../../shared/time'
 import { fonts, tokens } from '../theme'
@@ -176,6 +180,55 @@ function Item({ lead, primary, secondary, action, label }: { lead: ReactNode; pr
   )
 }
 
+/**
+ * The numbers that matter today, at the top: takings today and this week (admins with a till and
+ * pay access), what's low and the jobs to do; for admins, what the business advisor says first.
+ */
+function AtAGlance() {
+  const { isAdmin, isPartner } = useApp()
+  const { on } = useTakings()
+  // The advisor reads a lot: its card comes once the rest of the page is in.
+  const [later, setLater] = useState(false)
+  useEffect(() => { const id = setTimeout(() => setLater(true), 600); return () => clearTimeout(id) }, [])
+  const d = today()
+  const tiles: { kind: WidgetKind; title: string; to: string; range: DashRange }[] = [
+    ...(on ? [{ kind: 'takings' as const, title: t('Takings today'), to: '/sales', range: dashRange('today', d) },
+      { kind: 'takings' as const, title: t('Takings this week'), to: '/sales', range: dashRange('week', d) }] : []),
+    { kind: 'low_stock', title: t('Low on stock'), to: '/stock', range: dashRange('today', d) },
+    { kind: 'todo', title: t('Jobs to do'), to: '/todo', range: dashRange('today', d) },
+  ]
+  if (isPartner) return null
+  return (
+    <Box component="section" aria-label={t('At a glance')} sx={{ mb: 2.5 }}>
+      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: `repeat(${tiles.length}, minmax(0, 1fr))` } }}>
+        {tiles.map(x => (
+          <Card key={`${x.kind}-${x.title}`} component="section" aria-label={x.title}>
+            <CardContent>
+              <SectionTitle action={<Button size="small" component={Link} to={x.to}>{t('Open page')}</Button>}>{x.title}</SectionTitle>
+              <WidgetBody kind={x.kind} range={x.range} />
+            </CardContent>
+          </Card>
+        ))}
+      </Box>
+      {isAdmin && later && <AdvisorGlance />}
+    </Box>
+  )
+}
+
+/** The business advisor's first two findings (admins), linking to the rest. */
+function AdvisorGlance() {
+  const { advice, loading } = useAdvice()
+  if (loading || !advice.length) return null
+  return (
+    <Card component="section" aria-label={t('Business advisor')} sx={{ mt: 2, borderLeft: `4px solid ${tokens.rose}` }}>
+      <CardContent>
+        <SectionTitle action={<Button size="small" component={Link} to="/advisor">{t('Everything the advisor found')}</Button>}>{t('Business advisor')}</SectionTitle>
+        {advice.slice(0, 2).map(a => <AdviceCard key={a.id} a={a} />)}
+      </CardContent>
+    </Card>
+  )
+}
+
 const Items = ({ children }: { children: ReactNode }) => <Box component="ul" sx={{ m: 0, p: 0, listStyle: 'none' }}>{children}</Box>
 const Quiet = ({ children }: { children: ReactNode }) => <Typography sx={{ color: 'text.secondary' }}>{children}</Typography>
 
@@ -228,6 +281,7 @@ export function TodayPage() {
       )}
 
       <ClockCard onChange={data.reload} />
+      <AtAGlance />
 
       <Grid container spacing={2.5}>
         <Grid size={{ xs: 12, md: 7 }}>

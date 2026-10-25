@@ -223,6 +223,26 @@ built-in **AI connector** so owners can run it by talking to Claude.
   egg free), with a filter for each, the other allergens one by one, a category and a search; a variant
   that suits counts (a flat white with oat milk). Each stock item also says whether it's vegan,
   vegetarian or neither, which the database checks against what it contains.
+- Insights: **Dashboards** are each person's own reports (kept in their preferences), made of widgets
+  over today, this week, this month or the last 30 days, each against the period before: takings,
+  payments, average sale, takings by day, hour and day of the week, best sellers, how people paid,
+  team cost and its share of takings, hours worked, who's on today, late starts, what's low, stock
+  value, waste, the lowest margins, Google reviews, prices against the area, the jobs to do and the
+  advisor's findings. Two templates to start from: Executive and Shop manager. The **Business advisor**
+  (admins) reads the last eight weeks (`shared/insights.ts`) and says what to try: an hour to open
+  later or close earlier, busy first or last hours, weak days, the peak hours, the trend and the
+  average sale, best and slow sellers, prices below the margin aimed for or below the area's, staffing
+  against takings day by day, team cost against takings, late starts and forgotten clock-outs, waste,
+  what's low and reviews waiting for a reply. Today opens with the same figures at a glance.
+- Brand documents (Brand page): the guidelines PDF, logo packs and templates, uploaded (up to 10 MB,
+  kept in the database) or picked where they are in Google Drive or OneDrive like the Legal page's.
+  The team and partners read them; admins add, rename and remove them.
+- Waste log entries can be changed or taken off by whoever logged them or an admin: the entry is
+  marked undone and a correction puts its stock back, so the stock history still adds up.
+- Suppliers are filtered by what they supply (drinks, food, coffee, fruit & veg, groceries), ticked on
+  the supplier or worked out from its type, name and items. Allergens fills in the usual allergens and
+  diet of every food and drink still to enter, from what each one is (`shared/allergenGuide.ts`), for
+  an admin to check against the label. Competitors compares one item at every café, yours marked.
 
 See [docs/PLAN.md](docs/PLAN.md) for decisions, architecture and phases.
 

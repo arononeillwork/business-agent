@@ -1302,11 +1302,11 @@ test('the contact preference label sits above the field, never on top of “No p
 })
 
 test.describe('menu', () => {
-  test('business first, then accounts, what\'s on and the team; partners and the café tablet are switched off', async ({ page }) => {
+  test('business first, then insights, accounts, what\'s on and the team; partners and the café tablet are switched off', async ({ page }) => {
     await open(page, '/')
     const nav = page.getByRole('navigation', { name: 'Main' })
     const headings = await nav.locator('section > button').allTextContents()
-    expect(headings.map(h => h.trim())).toEqual(['Business', 'Sales', 'Menu', 'Stock', 'Accounts', 'Marketing', "What's on", 'Team', 'Settings'])
+    expect(headings.map(h => h.trim())).toEqual(['Business', 'Insights', 'Sales', 'Menu', 'Stock', 'Accounts', 'Marketing', "What's on", 'Team', 'Settings'])
     await expect(nav.getByRole('link', { name: 'Partners' })).toHaveCount(0)
     await expect(nav.getByRole('link', { name: 'Café tablet' })).toHaveCount(0)
     // Today is the landing page: no menu item, the logo takes you there.
@@ -2612,7 +2612,7 @@ test('every page in the menu shows its title, whatever buttons its header has', 
 test.describe('To Do board', () => {
   test('To do, Doing and Done: a job moves by dragging or from its menu, and the list shows where it is', async ({ page }) => {
     await open(page, '/todo')
-    await page.getByRole('button', { name: 'Board' }).click()
+    await page.getByRole('button', { name: 'Board', exact: true }).click()
     const column = (name: string) => page.getByRole('main').getByRole('region', { name, exact: true })
     await expect(column('To do').getByRole('article')).toHaveCount(10)
     await expect(column('Doing')).toContainText('Set up the card reader on the terrace')
@@ -2648,7 +2648,7 @@ test.describe('To Do board', () => {
 
   test('a board for each person (owner or employee), each with its own filters; a job added there is theirs', async ({ page }) => {
     await open(page, '/todo')
-    await page.getByRole('button', { name: 'Board' }).click()
+    await page.getByRole('button', { name: 'Board', exact: true }).click()
     const whose = page.getByRole('tablist', { name: 'Whose jobs' })
     await expect(whose.getByRole('tab', { name: 'Everyone' })).toHaveAttribute('aria-selected', 'true') // the owner starts with everyone's
     const column = (name: string) => page.getByRole('main').getByRole('region', { name, exact: true })
@@ -2682,7 +2682,7 @@ test.describe('To Do board', () => {
 
   test('an employee’s board starts on their own jobs', async ({ page }) => {
     await open(page, '/todo', 'julio@example.com')
-    await page.getByRole('button', { name: 'Board' }).click()
+    await page.getByRole('button', { name: 'Board', exact: true }).click()
     await expect(page.getByRole('tablist', { name: 'Whose jobs' }).getByRole('tab', { name: 'Mine' })).toHaveAttribute('aria-selected', 'true')
     await expect(page.getByRole('main').getByRole('region', { name: 'Doing', exact: true })).toContainText('Write the closing checklist')
   })
@@ -3658,7 +3658,7 @@ test.describe('credit and debit', () => {
 
 test.describe('pages: the order of the menu sections', () => {
   test('each person puts the menu sections in their own order, saved to their account', async ({ page }) => {
-    const usual = ['Business', 'Sales', 'Menu', 'Stock', 'Accounts', 'Marketing', "What's on", 'Team', 'Settings']
+    const usual = ['Business', 'Insights', 'Sales', 'Menu', 'Stock', 'Accounts', 'Marketing', "What's on", 'Team', 'Settings']
     await open(page, '/pages')
     const nav = page.getByRole('navigation', { name: 'Main' })
     const headings = async () => (await nav.locator('section > button').allTextContents()).map(h => h.trim())
@@ -3668,16 +3668,16 @@ test.describe('pages: the order of the menu sections', () => {
     await expect(order.getByRole('button', { name: 'Move Settings down' })).toBeDisabled()
 
     await order.getByRole('button', { name: 'Move Team up' }).click()
-    await expect.poll(headings).toEqual(['Business', 'Sales', 'Menu', 'Stock', 'Accounts', 'Marketing', 'Team', "What's on", 'Settings'])
+    await expect.poll(headings).toEqual(['Business', 'Insights', 'Sales', 'Menu', 'Stock', 'Accounts', 'Marketing', 'Team', "What's on", 'Settings'])
     await order.getByRole('button', { name: 'Move Team up' }).click()
-    await expect.poll(headings).toEqual(['Business', 'Sales', 'Menu', 'Stock', 'Accounts', 'Team', 'Marketing', "What's on", 'Settings'])
+    await expect.poll(headings).toEqual(['Business', 'Insights', 'Sales', 'Menu', 'Stock', 'Accounts', 'Team', 'Marketing', "What's on", 'Settings'])
     // Or with the keyboard: pick up Settings, move it up a place and drop it.
     await order.getByRole('button', { name: 'Reorder Settings' }).focus()
     await page.keyboard.press('Space')
     await page.keyboard.press('ArrowUp')
     await expect(order.getByRole('status')).toContainText('over droppable area whatson')
     await page.keyboard.press('Space')
-    const mine = ['Business', 'Sales', 'Menu', 'Stock', 'Accounts', 'Team', 'Marketing', 'Settings', "What's on"]
+    const mine = ['Business', 'Insights', 'Sales', 'Menu', 'Stock', 'Accounts', 'Team', 'Marketing', 'Settings', "What's on"]
     await expect.poll(headings).toEqual(mine)
     // The page's own lists follow the same order.
     expect(await order.getByRole('listitem').locator('p').allTextContents()).toEqual(mine)
@@ -3822,7 +3822,7 @@ test.describe('stock and suppliers', () => {
     await toast(page, 'Recorded')
     await expect(table.getByRole('row', { name: 'Oat milk (barista)' })).toHaveCount(0)
     await page.getByRole('button', { name: /^Low only/ }).click()
-    await expect(table.getByRole('row', { name: 'Oat milk (barista)' })).toContainText('20 l')
+    await expect(table.getByRole('row', { name: 'Oat milk (barista)' })).toContainText(/20\s*l/)
 
     // The order list: by supplier, with what's short of their minimum and the message ready.
     await page.getByRole('tab', { name: /^Order list/ }).click()
@@ -3853,7 +3853,7 @@ test.describe('stock and suppliers', () => {
     await take.getByRole('textbox', { name: 'Counted: Butter croissants' }).fill('20')
     await take.getByRole('button', { name: 'Save 2 counts' }).click()
     await toast(page, '2 counts saved')
-    await expect(page.getByRole('table', { name: 'Stock items' }).getByRole('row', { name: 'Caramel syrup' })).toContainText('4 bottles')
+    await expect(page.getByRole('table', { name: 'Stock items' }).getByRole('row', { name: 'Caramel syrup' })).toContainText(/4\s*bottles/)
     await page.getByRole('tab', { name: 'History' }).click()
     await expect(page.getByRole('table', { name: 'Stock history' }).getByRole('row').filter({ hasText: 'Caramel syrup' }).first()).toContainText('Stock count')
   })
@@ -4037,7 +4037,7 @@ test.describe('recipes and waste', () => {
     await expect(tiles.getByRole('listitem').filter({ hasText: 'Times logged' })).toContainText('4')
     await expect(page.getByRole('region', { name: /Wednesday 30 September/ })).toContainText('Spilled or dropped')
     await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Current stock' }).click()
-    await expect(page.getByRole('table', { name: 'Stock items' }).getByRole('row', { name: 'Napkins' })).toContainText('2 packs')
+    await expect(page.getByRole('table', { name: 'Stock items' }).getByRole('row', { name: 'Napkins' })).toContainText(/2\s*packs/)
   })
 })
 
@@ -5823,6 +5823,247 @@ test.describe('tips', () => {
     await expect(mine.getByRole('row').filter({ hasText: '€15,00' })).toContainText('Shared out')
     await expect(page.getByRole('button', { name: 'Share out tips' })).toHaveCount(0)
     await expect(mine).not.toContainText('Julio')
+  })
+})
+
+test.describe('UI round: business page, header, to do list, stock and suppliers', () => {
+  test('business page: the phone number rings, the icons sit level, and team alerts keeps its label when not set', async ({ page }) => {
+    await open(page, '/business')
+    const contact = page.getByRole('region', { name: 'Contact' })
+    await expect(contact.getByRole('link', { name: '+34 695 415 335' })).toHaveAttribute('href', 'tel:+34695415335')
+    const company = page.getByRole('region', { name: 'Company' })
+    await company.getByRole('button', { name: 'Edit' }).click()
+    const alerts = company.getByRole('combobox', { name: 'Team alerts go to' })
+    await alerts.selectOption({ label: 'Not set' })
+    // The label stays above the box rather than sitting over "Not set".
+    await expect(company.locator('label', { hasText: 'Team alerts go to' })).toHaveAttribute('data-shrink', 'true')
+  })
+
+  test('the page title sits in the top row with the round buttons, on the page’s own background', async ({ page }) => {
+    await open(page, '/todo')
+    const title = page.getByRole('main').getByRole('heading', { level: 1, name: 'To Do List' })
+    const search = page.getByRole('button', { name: 'Search' })
+    const board = page.getByRole('button', { name: 'Board', exact: true })
+    const [t, s, b] = [await title.boundingBox(), await search.boundingBox(), await board.boundingBox()]
+    // Level with the title, and with the page's own first row of buttons.
+    expect(s!.y + s!.height / 2).toBeGreaterThan(t!.y)
+    expect(s!.y + s!.height / 2).toBeLessThan(t!.y + t!.height)
+    expect(Math.abs((s!.y + s!.height / 2) - (b!.y + b!.height / 2))).toBeLessThan(4)
+  })
+
+  test('To Do List: starred and show done at the top right, a category minimised and opened again, no copy as text', async ({ page }) => {
+    await open(page, '/todo')
+    await expect(page.getByRole('button', { name: 'Copy as text' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Starred' })).toBeVisible()
+    await expect(page.getByLabel('Show done')).toBeVisible()
+    const legal = page.getByRole('region', { name: 'Legal & money' })
+    await expect(legal).toContainText('Renew the terrace licence')
+    await legal.getByRole('button', { name: 'Minimise Legal & money' }).click()
+    await expect(legal).not.toContainText('Renew the terrace licence')
+    await expect(legal).toContainText('1') // the count still shows
+    await legal.getByRole('button', { name: 'Show Legal & money' }).click()
+    await expect(legal).toContainText('Renew the terrace licence')
+  })
+
+  test('stock: the unit has its own column, headings on one line, and the table fits the page', async ({ page }) => {
+    await open(page, '/stock')
+    const table = page.getByRole('table', { name: 'Stock items' })
+    await expect(table.getByRole('columnheader', { name: 'Unit' })).toBeVisible()
+    const oat = table.getByRole('row', { name: 'Oat milk (barista)' })
+    await expect(oat.getByRole('cell', { name: 'l', exact: true })).toBeVisible()
+    const fits = await table.evaluate(t => t.parentElement!.scrollWidth <= t.parentElement!.clientWidth)
+    expect(fits).toBe(true)
+    const heights = await table.locator('th').evaluateAll(ths => ths.filter(th => (th as HTMLElement).offsetParent).map(th => (th as HTMLElement).getBoundingClientRect().height))
+    expect(Math.max(...heights) - Math.min(...heights)).toBeLessThan(2)
+  })
+
+  test('suppliers: filtered by what they supply, worked out until an admin ticks it', async ({ page }) => {
+    await open(page, '/suppliers')
+    const filters = page.getByRole('group', { name: 'What they supply' }).first()
+    await filters.getByRole('button', { name: /^Groceries/ }).click()
+    await expect(page.getByRole('article')).toHaveCount(1)
+    await expect(page.getByRole('article', { name: 'Cash & Carry Marbella' })).toBeVisible()
+    await filters.getByRole('button', { name: /^Coffee/ }).click()
+    await expect(page.getByRole('article', { name: 'Tostadores del Sur' })).toBeVisible()
+    await filters.getByRole('button', { name: /^Fruit & veg/ }).click()
+    await expect(page.getByText('None of these supply fruit & veg')).toBeVisible()
+    // Tick it on a supplier and it's there.
+    await filters.getByRole('button', { name: 'All types' }).click()
+    await page.getByRole('button', { name: 'Edit By Eric' }).click()
+    const dialog = page.getByRole('dialog', { name: 'By Eric' })
+    await expect(dialog.getByRole('button', { name: 'Food' })).toHaveAttribute('aria-pressed', 'true')
+    await dialog.getByRole('button', { name: 'Fruit & veg' }).click()
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await toast(page, /^Saved$/)
+    await filters.getByRole('button', { name: /^Fruit & veg/ }).click()
+    await expect(page.getByRole('article', { name: 'By Eric' })).toBeVisible()
+  })
+})
+
+test.describe('UI round: waste log, allergens, competitors and brand', () => {
+  test('waste log: an entry is changed or taken off, and the stock follows', async ({ page }) => {
+    await open(page, '/waste')
+    const today = page.getByRole('region', { name: /Wednesday 30 September/ })
+    await today.getByRole('button', { name: 'Change Butter croissants' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Change waste' })
+    await dialog.getByRole('textbox', { name: 'How many' }).fill('2')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await toast(page, /^Saved$/)
+    await expect(today.getByRole('row').filter({ hasText: 'Butter croissants' })).toContainText('2 units')
+    await today.getByRole('button', { name: 'Take Butter croissants off the waste log' }).click()
+    await page.getByRole('dialog', { name: 'Take this off the waste log?' }).getByRole('button', { name: 'Take it off' }).click()
+    await toast(page, 'Taken off the waste log')
+    await expect(page.getByRole('region', { name: /Wednesday 30 September/ })).toHaveCount(0)
+    // 18 to start, 4 back and 2 off, then those 2 back.
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Current stock' }).click()
+    await expect(page.getByRole('table', { name: 'Stock items' }).getByRole('row', { name: 'Butter croissants' }).getByRole('cell', { name: '22', exact: true })).toBeVisible()
+    await page.getByRole('tab', { name: 'History' }).click()
+    await expect(page.getByRole('table', { name: 'Stock history' })).toContainText('Taken off the waste log')
+  })
+
+  test('waste log: someone on the team can change their own entries, not anyone else’s', async ({ page }) => {
+    await open(page, '/waste', 'julio@example.com')
+    await expect(page.getByRole('button', { name: /^Change / })).toHaveCount(0) // the sample entries aren't his
+    const log = page.getByRole('region', { name: 'Log waste' })
+    await log.getByRole('combobox', { name: 'What' }).fill('Napkins')
+    await page.getByRole('option', { name: 'Napkins' }).click()
+    await log.getByRole('button', { name: 'Log it' }).click()
+    await toast(page, '1 logged as waste')
+    await expect(page.getByRole('button', { name: 'Change Napkins' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Change Butter croissants' })).toHaveCount(0)
+  })
+
+  test('allergens: the usual allergens fill in what isn’t entered yet, from what each item is', async ({ page }) => {
+    await open(page, '/allergens')
+    const ingredients = page.getByRole('region', { name: 'Ingredients' })
+    await expect(ingredients.getByRole('row', { name: /house blend 250 g/i })).toContainText('Not in a menu item yet')
+    await ingredients.getByRole('button', { name: 'Fill in the usual allergens' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Fill in the usual allergens' })
+    await expect(dialog.getByRole('row').filter({ hasText: 'Chai concentrate' })).toContainText('Usually: Black tea, spices, sugar, sometimes honey')
+    await dialog.getByRole('button', { name: 'Fill in 2 items' }).click()
+    await toast(page, '2 items filled in')
+    const chai = ingredients.getByRole('row').filter({ hasText: 'Chai concentrate' })
+    await expect(chai).toContainText('None of the 14')
+    await expect(chai).toContainText('Vegetarian')
+    await expect(ingredients.getByRole('button', { name: 'Fill in the usual allergens' })).toHaveCount(0)
+  })
+
+  test('competitors: one menu item at every café, yours marked, and your menu added to the basket', async ({ page }) => {
+    await open(page, '/competitors')
+    await page.getByRole('tab', { name: 'Prices' }).click()
+    const one = page.getByRole('region', { name: 'Compare one item' })
+    await expect(one).toContainText('Your Cappuccino is €2,90')
+    await expect(one.getByRole('listitem', { name: 'You: €2,90' })).toBeVisible()
+    await one.getByRole('button', { name: 'Croissant' }).click()
+    await expect(one.getByRole('list', { name: 'Croissant at each place' })).toBeVisible()
+    await page.getByRole('button', { name: 'Basket' }).click()
+    const basket = page.getByRole('dialog', { name: 'Basket' })
+    await expect(basket).toContainText('On your menu and not compared yet')
+    await basket.getByRole('button', { name: 'Compare my menu items' }).click()
+    await toast(page, /items? added/)
+    await expect(basket.getByRole('button', { name: 'Compare my menu items' })).toHaveCount(0)
+  })
+
+  test('brand documents: the guidelines are on the Brand page; an admin uploads, renames and removes one', async ({ page }) => {
+    await open(page, '/brand')
+    const docs = page.getByRole('region', { name: 'Brand documents' })
+    await expect(docs.getByRole('article', { name: 'EB Brand Guidelines' })).toContainText('Uploaded')
+    await docs.getByLabel('Upload brand documents').setInputFiles({ name: 'Menu_board_A5.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 menu board') })
+    await toast(page, 'Added 1 document')
+    await expect(docs.getByRole('article', { name: 'Menu board A5' })).toBeVisible()
+    await docs.getByRole('button', { name: 'Edit Menu board A5' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Edit Menu board A5' })
+    await dialog.getByRole('textbox', { name: 'Name' }).fill('Menu board')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await toast(page, /^Saved$/)
+    await docs.getByRole('button', { name: 'Edit Menu board' }).click()
+    await page.getByRole('dialog', { name: 'Edit Menu board' }).getByRole('button', { name: 'Remove' }).click()
+    await page.getByRole('dialog', { name: 'Edit Menu board' }).getByRole('button', { name: 'Delete' }).click()
+    await toast(page, 'Removed')
+    await expect(docs.getByRole('article', { name: 'Menu board' })).toHaveCount(0)
+    // The team reads them; only admins add.
+    await signInAs(page, 'maria@example.com')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Brand' }).click()
+    await expect(page.getByRole('region', { name: 'Brand documents' }).getByRole('article', { name: 'EB Brand Guidelines' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Add documents' })).toHaveCount(0)
+  })
+})
+
+test.describe('UI round: dashboards, the business advisor and the landing pages', () => {
+  async function connectSquare(page: Page) {
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Connections' }).click()
+    await page.getByRole('region', { name: 'Payments and sales' }).getByRole('button', { name: 'Connect Square' }).click()
+    await expect(page.getByRole('region', { name: 'Payments and sales' }).getByRole('article', { name: 'Square' })).toContainText('Connected')
+  }
+
+  test('dashboards: start from the Shop manager template, add, move and remove widgets', async ({ page }) => {
+    await open(page, '/dashboards')
+    await page.getByRole('button', { name: 'Start from Shop manager' }).click()
+    await toast(page, 'Added Shop manager')
+    for (const w of ['On today', 'Low on stock', 'Jobs to do', 'Late starts']) await expect(page.getByRole('region', { name: w, exact: true })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Takings', exact: true })).toContainText('Connect Square, SumUp or Stripe')
+    await page.getByRole('main').getByRole('button', { name: 'Edit', exact: true }).click()
+    await page.getByRole('button', { name: 'Add a widget' }).click()
+    await page.getByRole('dialog', { name: 'Add a widget' }).getByRole('button', { name: 'Add Google reviews' }).click()
+    await page.getByRole('dialog', { name: 'Add a widget' }).getByRole('button', { name: 'Done' }).click()
+    await expect(page.getByRole('region', { name: 'Google reviews' })).toBeVisible()
+    await page.getByRole('button', { name: 'Remove Late starts' }).click()
+    await expect(page.getByRole('region', { name: 'Late starts' })).toHaveCount(0)
+    await page.getByRole('button', { name: 'Done' }).click()
+    // A second dashboard from the other template, as a tab.
+    await page.getByRole('button', { name: 'New dashboard' }).click()
+    await page.getByRole('menuitem', { name: /Executive template/ }).click()
+    await expect(page.getByRole('tab', { name: 'Shop manager' })).toBeVisible()
+    await expect(page.getByRole('tab', { name: 'Executive' })).toHaveAttribute('aria-selected', 'true')
+    await expect(page.getByRole('region', { name: 'Lowest margins' })).toContainText('Pain au chocolat')
+  })
+
+  test('dashboards: with a till the takings fill in, against the period before', async ({ page }) => {
+    await open(page, '/')
+    await connectSquare(page)
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Dashboards' }).click()
+    await page.getByRole('button', { name: 'Start from Executive' }).click()
+    await expect(page.getByRole('region', { name: 'Takings', exact: true })).toContainText('€')
+    await expect(page.getByRole('region', { name: 'Takings', exact: true })).toContainText('on the period before')
+    await page.getByRole('button', { name: 'This month' }).click()
+    await expect(page.getByRole('region', { name: 'Takings by day' }).getByRole('img')).toBeVisible()
+  })
+
+  test('business advisor: findings from the takings, the menu, the team and the waste; employees can’t open it', async ({ page }) => {
+    await open(page, '/')
+    await connectSquare(page)
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Business advisor' }).click()
+    await expect(page.getByRole('heading', { name: 'Business advisor', level: 1 })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Worth acting on first' })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Sales patterns' })).toContainText('When the takings come in')
+    await expect(page.getByRole('region', { name: 'The menu' })).toContainText('Your best sellers')
+    await page.getByRole('button', { name: /^Stock and waste/ }).click()
+    await expect(page.getByRole('region', { name: 'Sales patterns' })).toHaveCount(0)
+    await signInAs(page, 'maria@example.com')
+    await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Business advisor' })).toHaveCount(0)
+    await page.goto('/advisor?demo')
+    await expect(page.getByRole('heading', { name: 'Business advisor' })).toHaveCount(0)
+  })
+
+  test('Today: the numbers that matter at a glance, and the advisor’s first findings for admins', async ({ page }) => {
+    await open(page, '/')
+    const glance = page.getByRole('region', { name: 'At a glance' })
+    await expect(glance.getByRole('region', { name: 'Low on stock' })).toContainText('Caramel syrup')
+    await expect(glance.getByRole('region', { name: 'Jobs to do' })).toBeVisible()
+    await connectSquare(page)
+    await page.getByRole('link', { name: 'Home: Today' }).first().click()
+    await expect(page.getByRole('region', { name: 'Takings today' })).toContainText('€')
+    await expect(page.getByRole('region', { name: 'At a glance' }).getByRole('region', { name: 'Business advisor' })).toBeVisible()
+  })
+
+  test('signed out: the landing page says what’s inside, by area, and what the figures can tell you', async ({ page }) => {
+    await page.goto('/?demo')
+    await expect(page.getByRole('heading', { name: 'One app instead of ten' })).toBeVisible()
+    for (const area of ['Team', 'Sales and money', 'Stock and menu', 'Marketing', 'Insights', 'AI and connections']) {
+      await expect(page.locator('#everything').getByRole('region', { name: area, exact: true })).toBeVisible()
+    }
+    await expect(page.getByRole('heading', { name: /Know your numbers/ })).toBeVisible()
+    await expect(page.getByText('Easy Beans')).toHaveCount(0)
   })
 })
 
