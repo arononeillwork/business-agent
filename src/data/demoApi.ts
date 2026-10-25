@@ -50,6 +50,7 @@ import { keepUntil, type Applicant, type JobOpening } from '../../shared/hiring'
 import { CAFE_POINTS, inRange as inLimits, type SafetyCheck, type SafetyPoint } from '../../shared/foodSafety'
 import { dietsFor, type Allergen } from '../../shared/allergens'
 import { minutesWorked, splitTips, type TipPool } from '../../shared/tips'
+import { accessOf } from '../../shared/teamRoles'
 
 interface RawEntry {
   id: string; profile_id: string; position_id: number | null; shift_id: string | null
@@ -1667,6 +1668,12 @@ export function createDemoApi(): Api {
         throw new Error('Only an admin can change role, pay access or status')
       }
       const p = profiles.find(x => x.id === id)
+      // Like guard_profile_update(): only a boss makes someone a boss or changes a boss, while there is one.
+      const changes = (k: 'role' | 'can_see_pay' | 'active') => !!p && k in patch && patch[k] !== p[k]
+      if (p && !paysAdmin() && profiles.some(x => x.role === 'admin' && x.can_see_pay && x.active) &&
+        (changes('can_see_pay') || (p.role === 'admin' && p.can_see_pay && (changes('role') || changes('active'))))) {
+        throw new Error('Only a boss can make someone a boss or change a boss\'s role')
+      }
       if (patch.role && patch.role !== 'admin' && p?.role === 'admin' &&
         profiles.filter(x => x.role === 'admin' && x.active).length === 1) {
         throw new Error('At least one admin must remain')
@@ -1694,7 +1701,8 @@ export function createDemoApi(): Api {
       requireAdmin()
       if (password !== undefined && password.length < 8) throw new Error('The temporary password needs at least 8 characters')
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) throw new Error('Enter a full email address, like name@example.com')
-      profiles.push({ id: uid(), full_name: fullName, email, role, can_see_pay: false, colour: '#8d6e63',
+      if (role === 'boss' && !paysAdmin()) throw new Error('Only a boss can invite another boss')
+      profiles.push({ id: uid(), full_name: fullName, email, ...(role === 'kiosk' ? { role, can_see_pay: false } : accessOf(role)), colour: '#8d6e63',
         active: true, phone: contact?.phone ?? null, birth_date: null, contact_method: contact?.contact_method ?? null })
     },
     async partners() {

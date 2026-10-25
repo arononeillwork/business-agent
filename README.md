@@ -16,6 +16,13 @@ built-in **AI connector** so owners can run it by talking to Claude.
   database ([docs/billing.md](docs/billing.md))
 - Partners: outside businesses (gestoría, suppliers) get a read-only login to the areas an admin
   picks (rota, payroll, finances, calendar). Enforced by database row security and in the AI tools.
+- Team roles: everyone on the team is an **employee**, a **shop manager** or the **boss / CEO**, picked
+  on the Team page when inviting them or later, or by asking Claude (`set_team_role`). Employees see
+  their own shifts, clock-ins, time off and expenses; a shop manager runs the shop (rota, timecards,
+  time off, stock, the team, settings) without pay, takings or finances; a boss does all of it with
+  pay and finances. They're stored as the access the database already checks (a boss is an admin
+  with pay access), and only a boss makes someone a boss or changes a boss
+  (`shared/teamRoles.ts`, the `team_roles` migration).
 - Sports: the next 3 weeks of football (Spanish, English, Scottish, Dutch and other leagues, cups,
   European nights, national teams), rugby (Six Nations, Premiership, Champions Cup and more), UFC and
   boxing, with "big nights" flagged. The Worker refreshes

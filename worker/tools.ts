@@ -10,6 +10,7 @@ import { COUNTRY_NAME, ENTITLEMENTS, LAW_CHECKED, PAYER_LABEL, leaveYear, type B
 import { businessConfig } from '../shared/business.config'
 import { dutiesByWhen, sortRoles, type JobRole } from '../shared/roles'
 import { readState, rulesChangedAt, sortSections, type RuleSection, type RulesRead } from '../shared/staffRules'
+import { TEAM_ROLE_IDS, roleBlock, roleChange, teamRole, type TeamRole } from '../shared/teamRoles'
 import { cleanPhone, matchesSearch } from '../shared/customers'
 import { cleanWebsite } from '../shared/connections'
 import {
@@ -205,13 +206,13 @@ export const TOOLS: ToolDef[] = [
   tool({
     name: 'whoami',
     title: 'Who am I',
-    description: 'The signed-in person, their role (admin, employee, or partner = an outside business with read-only access to some areas) and the business name. Call this first.',
+    description: 'The signed-in person, their role (admin, employee, or partner = an outside business with read-only access to some areas), their team role (boss, manager = shop manager, or employee) and the business name. Call this first.',
     partner: 'any',
     input: z.object({}),
     readOnly: true,
     async run({ sb, me }) {
       const b = check(await sb.from('business').select('name, timezone').eq('id', 1).single())
-      return { name: me.full_name, email: me.email, role: me.role, can_see_pay: me.can_see_pay, business: b.name,
+      return { name: me.full_name, email: me.email, role: me.role, ...(teamRole(me) ? { team_role: teamRole(me) } : {}), can_see_pay: me.can_see_pay, business: b.name,
         ...(me.role === 'partner' ? { partner_company: me.partner_company, partner_can_see: ['business details', ...(me.partner_access ?? [])],
           partner_note: 'Read-only: you can look but not change anything.' } : {}),
         timezone: b.timezone, today: today(), note: 'Dates are YYYY-MM-DD, times are 24-hour local (Europe/Madrid).' }
@@ -268,7 +269,7 @@ export const TOOLS: ToolDef[] = [
   tool({
     name: 'list_team',
     title: 'Team',
-    description: 'Team members with roles. Hourly pay rates are included only for admins with pay access.',
+    description: 'Team members with roles (team_role: boss, manager = shop manager, or employee). Hourly pay rates are included only for admins with pay access.',
     partner: ['rota', 'payroll'],
     input: z.object({}),
     readOnly: true,
@@ -277,8 +278,27 @@ export const TOOLS: ToolDef[] = [
         sb.from('pay_rates').select('*').then(rowsAs<PayRate[]>())])
       const latest = new Map<string, number>()
       for (const r of rates.sort((a, b) => a.effective_from.localeCompare(b.effective_from))) latest.set(r.profile_id, Number(r.hourly_rate))
-      return people.map(p => ({ name: p.full_name, role: p.role, active: p.active, email: p.email,
+      return people.map(p => ({ name: p.full_name, role: p.role, team_role: teamRole(p), active: p.active, email: p.email,
         ...(seesPay(me) ? { hourly_rate_eur: latest.get(p.id) ?? null } : {}) }))
+    },
+  }),
+  tool({
+    name: 'set_team_role',
+    title: 'Change someone’s role',
+    description: 'Admins: give a team member one of the three roles. employee: their own shifts, clock-ins and time off. manager (shop manager): runs the shop (rota, timecards, time off, stock, the team) without pay, takings or finances. boss (the CEO or owner): everything, with pay, takings and finances. Only a boss makes someone a boss or changes a boss; nobody changes their own role.',
+    admin: true,
+    input: z.object({
+      person: z.string().describe('Name or id'),
+      role: z.enum(TEAM_ROLE_IDS as [TeamRole, ...TeamRole[]]),
+    }),
+    async run({ sb, me }, a) {
+      const p = await resolvePerson(sb, a.person)
+      if (p.id === me.id) throw new Error('Another admin can change your own role')
+      const why = roleBlock(me, p, a.role, await team(sb))
+      if (why) throw new Error(why)
+      const patch = roleChange(p, a.role)
+      if (Object.keys(patch).length) check(await sb.from('profiles').update(patch).eq('id', p.id))
+      return { ok: true, name: p.full_name, team_role: a.role }
     },
   }),
 
