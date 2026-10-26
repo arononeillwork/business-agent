@@ -364,6 +364,10 @@ assistants** has the steps for each one, with the URL filled in:
 
 Try: *"Who's working on Saturday, and are any shifts still open?"*
 
+The **AI assistants** page (account menu → AI assistants, `/ai-assistants`) shows the connector address
+with a copy button, the steps for Claude, ChatGPT, Claude Code and other AIs, things to ask, and the
+person's access keys (make one, shown once; revoke).
+
 ## REST API
 
 ```

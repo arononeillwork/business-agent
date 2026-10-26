@@ -6307,3 +6307,34 @@ test.describe('documents hub', () => {
     await expect(page.getByRole('region', { name: 'All documents' })).toHaveCount(0)
   })
 })
+
+test.describe('AI assistants', () => {
+  test('AI assistants: the connector address, the steps for each AI, and access keys made once and revoked', async ({ page }) => {
+    await open(page, '/ai-assistants')
+    await expect(page.getByRole('heading', { name: 'AI assistants' })).toBeVisible()
+    const connect = page.getByRole('region', { name: 'Connect your AI' })
+    await expect(connect.getByRole('textbox', { name: 'Connector address' })).toHaveValue(/\/mcp$/)
+    await expect(connect).toContainText('Add custom connector')
+    await connect.getByRole('tab', { name: 'ChatGPT' }).click()
+    await expect(connect).toContainText('Developer mode')
+    await connect.getByRole('tab', { name: 'Claude Code' }).click()
+    await expect(connect.getByRole('textbox', { name: 'Command' })).toHaveValue(/^claude mcp add --transport http easy-beans .*\/mcp$/)
+
+    const keys = page.getByRole('region', { name: 'Access keys' })
+    await keys.getByRole('button', { name: 'Make a key' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Make a key' })
+    await dialog.getByRole('textbox', { name: 'What it’s for' }).fill('n8n')
+    await dialog.getByRole('button', { name: 'Make it' }).click()
+    await expect(keys.getByRole('textbox', { name: 'Access key' })).toHaveValue(/^ba_[A-Za-z0-9]{40}$/)
+    await expect(keys).toContainText('Not used yet')
+    await keys.getByRole('button', { name: 'Revoke' }).click()
+    await toast(page, 'Key revoked')
+  })
+
+  test('AI assistants is in the account menu', async ({ page }) => {
+    await open(page, '/account')
+    await page.getByRole('button', { name: /Account menu/ }).click()
+    await page.getByRole('menuitem', { name: 'AI assistants' }).click()
+    await expect(page).toHaveURL(/\/ai-assistants$/)
+  })
+})
