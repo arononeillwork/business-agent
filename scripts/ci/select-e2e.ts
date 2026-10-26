@@ -64,6 +64,7 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'set-up', files: [/SetupPage/], tests: String.raw`set-up|wizard` },
   { name: 'appearance', files: [/AppearancePage/, /app\/Appearance/], tests: String.raw`theme|text size|decimal|tint|appearance` },
   { name: 'account', files: [/AccountPage/, /StatusPages/], tests: String.raw`My account|account|registered` },
+  { name: 'ai-assistants', files: [/AiAssistantsPage/, /i18n\/es\/aiAssistants/], tests: String.raw`AI assistants` },
   { name: 'messages', files: [/MessagesPage/, /shared\/messages/], tests: String.raw`messages|DMs|chat` },
   { name: 'referrals', files: [/ReferralsPage/, /shared\/referrals/], tests: String.raw`referral|account menu` },
   { name: 'plans', files: [/(Billing|Pricing|Compare|Login)Page/, /pages\/marketing\//, /shared\/(plans|competitors)/, /app\/plan/],

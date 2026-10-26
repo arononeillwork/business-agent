@@ -21,6 +21,7 @@ import TodoIcon from '@mui/icons-material/ChecklistRtlOutlined'
 import HoursIcon from '@mui/icons-material/ScheduleOutlined'
 import BrandIcon from '@mui/icons-material/BrushOutlined'
 import AccountIcon from '@mui/icons-material/AccountCircleOutlined'
+import AiIcon from '@mui/icons-material/SmartToyOutlined'
 import AppearanceIcon from '@mui/icons-material/PaletteOutlined'
 import KioskIcon from '@mui/icons-material/TabletMacOutlined'
 import TimeOffIcon from '@mui/icons-material/BeachAccessOutlined'
@@ -195,6 +196,7 @@ export const SECTIONS: NavSection[] = [
 // opens them), but still found by search and shown as the current page.
 const YOU: NavItem[] = [
   { key: 'account', to: '/account', label: msg('My account'), icon: <AccountIcon />, partner: 'any' },
+  { key: 'ai-assistants', to: '/ai-assistants', label: msg('AI assistants'), icon: <AiIcon />, partner: 'any' },
   { key: 'billing', to: '/account/billing', label: msg('Billing'), icon: <BillingIcon />, who: 'pay' },
   { key: 'referrals', to: '/referrals', label: msg('Referrals'), icon: <ReferralsIcon />, who: 'admin' },
   { key: 'appearance', to: '/appearance', label: msg('Appearance'), icon: <AppearanceIcon />, partner: 'any' },
@@ -257,6 +259,7 @@ function AccountMenu({ children, label, sx }: { children: ReactNode; label?: str
       <Menu anchorEl={anchor} open={!!anchor} onClose={close} anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
         transformOrigin={{ vertical: 'bottom', horizontal: 'left' }} slotProps={{ paper: { sx: { minWidth: 220, borderRadius: '14px' } } }}>
         {item('/account', t('My account'), <AccountIcon fontSize="small" />)}
+        {item('/ai-assistants', t('AI assistants'), <AiIcon fontSize="small" />)}
         {isAdmin && canSeePay && item('/account/billing', t('Billing'), <BillingIcon fontSize="small" />)}
         {isAdmin && !isPartner && item('/referrals', t('Referrals'), <ReferralsIcon fontSize="small" />)}
         {item('/appearance', t('Appearance'), <AppearanceIcon fontSize="small" />)}

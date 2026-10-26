@@ -27,6 +27,7 @@ const CalendarPage = page(() => import('./pages/CalendarPage'), 'CalendarPage')
 const TeamPage = page(() => import('./pages/TeamPage'), 'TeamPage')
 const BusinessPage = page(() => import('./pages/BusinessPage'), 'BusinessPage')
 const AccountPage = page(() => import('./pages/AccountPage'), 'AccountPage')
+const AiAssistantsPage = page(() => import('./pages/AiAssistantsPage'), 'AiAssistantsPage')
 const KioskPage = page(() => import('./pages/KioskPage'), 'KioskPage')
 const TimeOffPage = page(() => import('./pages/TimeOffPage'), 'TimeOffPage')
 const BenefitsPage = page(() => import('./pages/BenefitsPage'), 'BenefitsPage')
@@ -124,6 +125,7 @@ function Routed() {
         <Route element={<AppShell />}>
           <Route path="business" element={<BusinessPage />} />
           <Route path="account" element={<AccountPage />} />
+          <Route path="ai-assistants" element={<AiAssistantsPage />} />
           <Route path="appearance" element={<AppearancePage />} />
           <Route path="pages" element={<PagesPage />} />
           <Route path="opening-hours" element={<OpeningHoursPage />} />
@@ -203,6 +205,7 @@ function Routed() {
         <Route path="brand" element={<BrandPage />} />
         <Route path="appearance" element={<AppearancePage />} />
         <Route path="account" element={<AccountPage />} />
+        <Route path="ai-assistants" element={<AiAssistantsPage />} />
         <Route path="finances" element={<FinancesPage />} />
         <Route path="tax" element={<TaxPage />} />
         <Route path="licences" element={isAdmin ? <LicencesPage /> : <Navigate to="/" />} />

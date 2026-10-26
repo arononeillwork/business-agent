@@ -369,6 +369,10 @@ ones not on file yet), `save_licence` (add one from a preset like `sgae`, point 
 link such as the file in Drive, mark it renewed) and `find_documents` (search the kept documents).
 Uploading a file stays on the Documents and Licences pages: the app only reaches files it put in Drive.
 
+The **AI assistants** page (account menu → AI assistants, `/ai-assistants`) shows the connector address
+with a copy button, the steps for Claude, ChatGPT, Claude Code and other AIs, things to ask, and the
+person's access keys (make one, shown once; revoke).
+
 ## REST API
 
 ```
