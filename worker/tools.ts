@@ -31,6 +31,7 @@ import {
   recentTracks, renderKey, suggest, type Mood,
 } from '../shared/music'
 import { MusicError, makeAiMusic, renderMusic } from './socialMusic'
+import { LICENCE_TOOLS } from './licenceTools'
 import type { Env } from './supabase'
 import { shows, type FEATURES as APP_PARTS } from '../src/app/features'
 
@@ -1618,6 +1619,8 @@ export const ALL_TOOLS: ToolDef[] = [
       return { ok: true, post_id: post.id, music: { title: track.title, part: `${formatTime(from)}–${formatTime(from + seconds)}`, file: rendered.media.url } }
     },
   }),
+  // Licences and kept documents (worker/licenceTools.ts).
+  ...LICENCE_TOOLS,
 ]
 
 /** The tools on offer (MCP, the REST API and its OpenAPI): not those of a part of the app that's switched off (src/app/features.ts), which stay built and tested. */
