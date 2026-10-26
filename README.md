@@ -364,6 +364,11 @@ assistants** has the steps for each one, with the URL filled in:
 
 Try: *"Who's working on Saturday, and are any shifts still open?"*
 
+Licences and documents from the AI: `list_licences` (status, when each runs out, its document, the usual
+ones not on file yet), `save_licence` (add one from a preset like `sgae`, point it at its document with a
+link such as the file in Drive, mark it renewed) and `find_documents` (search the kept documents).
+Uploading a file stays on the Documents and Licences pages: the app only reaches files it put in Drive.
+
 ## REST API
 
 ```
