@@ -202,7 +202,20 @@ export function useConnectResult(after?: () => void) {
   }, [notify, after])
 }
 
-interface OptionState { o: ConnectionOption; row?: Integration; configured: boolean; status: Integration['status']; current?: ConnectionOption }
+export interface OptionState { o: ConnectionOption; row?: Integration; configured: boolean; status: Integration['status']; current?: ConnectionOption }
+
+/** One app's state, for screens that show apps outside their group's card (the set-up guide). */
+export function optionStateOf(o: ConnectionOption, g: ConnectionGroupInfo, data: IntegrationsState | null): OptionState {
+  const find = (id: string) => data?.integrations.find(i => i.provider === id)
+  const row = o.soon ? undefined : find(o.id)
+  return {
+    o, row, configured: !o.soon && !!data?.configured[o.id as IntegrationProvider], status: row?.status ?? 'disconnected',
+    current: g.pickOne ? g.options.find(x => x.id !== o.id && active(find(x.id))) : undefined,
+  }
+}
+
+/** Connects in one click (a sign-in, or adding the calendar); WhatsApp and Higgsfield need their dialog. */
+export const oneClick = (s: OptionState) => s.configured && s.o.id !== 'whatsapp' && s.o.id !== 'higgsfield' && s.status === 'disconnected'
 
 /**
  * The business's apps, like an AI's connector directory: one tile per app, in groups. In most groups
@@ -270,7 +283,7 @@ export function ServiceConnections({ back = 'connections', groups = GROUPS.map(g
   )
 }
 
-function StatusChip({ s }: { s: OptionState }) {
+export function StatusChip({ s }: { s: OptionState }) {
   if (s.o.soon) return <Chip size="small" label={t('Coming soon')} sx={{ bgcolor: tokens.ubeSoft, color: tokens.ubeDeep }} />
   if (s.status === 'connected') return <Chip size="small" icon={<CheckIcon sx={{ color: `${tokens.goodFg} !important` }} />} label={t('Connected')} sx={{ bgcolor: tokens.goodBg, color: tokens.goodFg }} />
   if (s.status === 'pending') return <Chip size="small" label={t('Waiting')} sx={{ bgcolor: tokens.warnBg, color: tokens.warnFg }} />
@@ -279,12 +292,12 @@ function StatusChip({ s }: { s: OptionState }) {
   return null
 }
 
-const Logo = ({ id, size = 44 }: { id: OptionId; size?: number }) => (
+export const Logo = ({ id, size = 44 }: { id: OptionId; size?: number }) => (
   <Box sx={{ width: size, height: size, borderRadius: '12px', display: 'grid', placeItems: 'center', bgcolor: tokens.surfaceAlt, border: `1px solid ${tokens.line}`, flexShrink: 0, color: tokens.ink }}>{LOGO[id]}</Box>
 )
 
 /** How to connect each app: sign in with it (most), subscribe (calendars) or send a test (WhatsApp). */
-function useConnect(s: OptionState, back: 'setup' | 'connections', reload: () => Promise<void>, pasteKey?: () => void) {
+export function useConnect(s: OptionState, back: 'setup' | 'connections', reload: () => Promise<void>, pasteKey?: () => void) {
   const { api } = useApp()
   const run = useAction()
   const p = s.o.id as IntegrationProvider
@@ -371,7 +384,7 @@ function SwitchDialog({ open, s, onClose, onConfirm }: { open: boolean; s: Optio
 }
 
 /** Everything about one app: what it can do, what "connected" proved, its account and checks. */
-function ConnectorDialog({ s, back, reload, onClose }: { s: OptionState; back: 'setup' | 'connections'; reload: () => Promise<void>; onClose: () => void }) {
+export function ConnectorDialog({ s, back, reload, onClose }: { s: OptionState; back: 'setup' | 'connections'; reload: () => Promise<void>; onClose: () => void }) {
   const { api } = useApp()
   const run = useAction()
   const [pasting, setPasting] = useState(false)
