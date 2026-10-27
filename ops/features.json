@@ -1,0 +1,599 @@
+{
+  "features": [
+    {
+      "id": "today",
+      "name": "Today",
+      "area": "Business",
+      "page": "/",
+      "does": "Clock in and see today at a glance",
+      "needs": [
+        { "label": "Till or Stripe", "anyOf": ["square", "sumup", "stripe"], "optional": true },
+        { "label": "Spotify or YouTube", "anyOf": ["spotify", "youtube_music"], "optional": true }
+      ]
+    },
+    {
+      "id": "business",
+      "name": "Business",
+      "area": "Business",
+      "page": "/business",
+      "does": "The café's contact and company details",
+      "needs": []
+    },
+    {
+      "id": "todo",
+      "name": "To Do List",
+      "area": "Business",
+      "page": "/todo",
+      "does": "Jobs to do, shared with the team",
+      "needs": []
+    },
+    {
+      "id": "hours",
+      "name": "Opening hours",
+      "area": "Business",
+      "page": "/opening-hours",
+      "does": "Your opening hours, synced to Google Maps",
+      "needs": [
+        { "label": "Google Maps", "connection": "google_business", "optional": true }
+      ]
+    },
+    {
+      "id": "licences",
+      "name": "Licences",
+      "area": "Business",
+      "page": "/licences",
+      "does": "Licences you hold and when they run out",
+      "needs": [
+        { "label": "Drive or OneDrive", "anyOf": ["google_drive", "onedrive"], "optional": true }
+      ]
+    },
+    {
+      "id": "documents",
+      "name": "Documents",
+      "area": "Business",
+      "page": "/documents",
+      "does": "Your business files, kept in your own storage",
+      "plans": "Any paid plan",
+      "needs": [
+        { "label": "Drive or OneDrive", "anyOf": ["google_drive", "onedrive"] }
+      ]
+    },
+    {
+      "id": "legal",
+      "name": "Legal",
+      "area": "Business",
+      "page": "/legal",
+      "does": "Lease, deeds, insurance and contracts in one place",
+      "plans": "Any paid plan",
+      "needs": [
+        { "label": "Drive or OneDrive", "anyOf": ["google_drive", "onedrive"] },
+        { "label": "Drive picker key", "secret": "GOOGLE_PICKER_API_KEY" }
+      ]
+    },
+    {
+      "id": "brand",
+      "name": "Brand",
+      "area": "Business",
+      "page": "/brand",
+      "does": "Logo, colours and fonts for everyone",
+      "needs": [
+        { "label": "Google Fonts key", "secret": "GOOGLE_FONTS_API_KEY", "optional": true }
+      ]
+    },
+    {
+      "id": "messages",
+      "name": "Messages",
+      "area": "Business",
+      "page": "/messages",
+      "does": "Instagram, Messenger and WhatsApp chats in one place",
+      "needs": [
+        { "label": "A chat app", "anyOf": ["instagram", "facebook", "whatsapp"] }
+      ]
+    },
+    {
+      "id": "dashboards",
+      "name": "Dashboards",
+      "area": "Insights",
+      "page": "/dashboards",
+      "does": "Your own boards of the numbers that matter",
+      "needs": [
+        { "label": "Till or Stripe", "anyOf": ["square", "sumup", "stripe"], "optional": true }
+      ]
+    },
+    {
+      "id": "advisor",
+      "name": "Business advisor",
+      "area": "Insights",
+      "page": "/advisor",
+      "does": "What to fix or act on first",
+      "needs": [
+        { "label": "Till or Stripe", "anyOf": ["square", "sumup", "stripe"], "optional": true }
+      ]
+    },
+    {
+      "id": "sales",
+      "name": "Sales",
+      "area": "Sales",
+      "page": "/sales",
+      "does": "Takings from the till, by day and hour",
+      "plans": "Pro and Business",
+      "needs": [
+        { "label": "Till or Stripe", "anyOf": ["square", "sumup", "stripe"] }
+      ]
+    },
+    {
+      "id": "customers",
+      "name": "Customers",
+      "area": "Sales",
+      "page": "/customers",
+      "does": "Your customers and who agreed to marketing",
+      "needs": [
+        { "label": "Square", "connection": "square", "optional": true }
+      ]
+    },
+    {
+      "id": "leads",
+      "name": "Leads & enquiries",
+      "area": "Sales",
+      "page": "/leads",
+      "does": "Enquiries for parties, events and office coffee",
+      "needs": []
+    },
+    {
+      "id": "loyalty",
+      "name": "Loyalty & gift cards",
+      "area": "Sales",
+      "page": "/loyalty",
+      "does": "Square stamp cards, points and gift cards",
+      "switch": "square",
+      "plans": "Pro and Business",
+      "needs": [
+        { "label": "Square", "connection": "square" }
+      ]
+    },
+    {
+      "id": "reps",
+      "name": "Reps & rewards",
+      "area": "Sales",
+      "page": "/sales-reps",
+      "does": "Rewards for people who bring in customers",
+      "needs": [
+        { "label": "Instagram", "connection": "instagram", "optional": true }
+      ]
+    },
+    {
+      "id": "menu",
+      "name": "Menu",
+      "area": "Menu",
+      "page": "/menu",
+      "does": "The menu customers see, printed or on screen",
+      "needs": [
+        { "label": "Drive or OneDrive", "anyOf": ["google_drive", "onedrive"], "optional": true },
+        { "label": "Square", "connection": "square", "optional": true },
+        { "label": "Higgsfield AI images", "connection": "higgsfield", "optional": true }
+      ]
+    },
+    {
+      "id": "screens",
+      "name": "Screens",
+      "area": "Menu",
+      "page": "/screens",
+      "does": "Menus and slideshows on the café's TVs",
+      "needs": []
+    },
+    {
+      "id": "stock",
+      "name": "Current stock",
+      "area": "Stock",
+      "page": "/stock",
+      "does": "What's in stock and what to reorder",
+      "needs": []
+    },
+    {
+      "id": "wholesale",
+      "name": "Wholesale",
+      "area": "Stock",
+      "page": "/wholesale",
+      "does": "What you buy wholesale, and its prices",
+      "needs": []
+    },
+    {
+      "id": "suppliers",
+      "name": "Suppliers",
+      "area": "Stock",
+      "page": "/suppliers",
+      "does": "Who you buy from and how to order",
+      "needs": []
+    },
+    {
+      "id": "recipes",
+      "name": "Menu costing",
+      "area": "Stock",
+      "page": "/recipes",
+      "does": "What each dish costs and earns",
+      "needs": [
+        { "label": "Square", "connection": "square", "optional": true }
+      ]
+    },
+    {
+      "id": "allergens",
+      "name": "Allergens",
+      "area": "Stock",
+      "page": "/allergens",
+      "does": "Allergens in every dish on the menu",
+      "needs": []
+    },
+    {
+      "id": "foodsafety",
+      "name": "Food safety",
+      "area": "Stock",
+      "page": "/food-safety",
+      "does": "Daily fridge temperatures and cleaning checks",
+      "needs": []
+    },
+    {
+      "id": "waste",
+      "name": "Waste log",
+      "area": "Stock",
+      "page": "/waste",
+      "does": "What gets thrown away, and why",
+      "needs": []
+    },
+    {
+      "id": "finances",
+      "name": "Finances",
+      "area": "Accounts",
+      "page": "/finances",
+      "does": "Monthly running costs, next to takings",
+      "needs": [
+        { "label": "Till or Stripe", "anyOf": ["square", "sumup", "stripe"], "optional": true }
+      ]
+    },
+    {
+      "id": "pnl",
+      "name": "Profit & loss",
+      "area": "Accounts",
+      "page": "/profit-and-loss",
+      "does": "Money in, money out and profit each month",
+      "needs": [
+        { "label": "Till or Stripe", "anyOf": ["square", "sumup", "stripe"], "optional": true }
+      ]
+    },
+    {
+      "id": "invoices",
+      "name": "Invoices",
+      "area": "Accounts",
+      "page": "/invoices",
+      "does": "Supplier invoices, paid and still to pay",
+      "needs": [
+        { "label": "Drive or OneDrive", "anyOf": ["google_drive", "onedrive"], "optional": true },
+        { "label": "Gmail or Outlook", "anyOf": ["gmail", "outlook"], "optional": true }
+      ]
+    },
+    {
+      "id": "credit",
+      "name": "Credit & debit",
+      "area": "Accounts",
+      "page": "/credit-debit",
+      "does": "Loans to repay and money still to come",
+      "needs": []
+    },
+    {
+      "id": "expenses",
+      "name": "Expenses",
+      "area": "Accounts",
+      "page": "/expenses",
+      "does": "Staff expense claims and paying them back",
+      "needs": [
+        { "label": "Drive or OneDrive", "anyOf": ["google_drive", "onedrive"], "optional": true }
+      ]
+    },
+    {
+      "id": "tax",
+      "name": "Tax",
+      "area": "Accounts",
+      "page": "/tax",
+      "does": "Tax returns due and their documents",
+      "needs": [
+        { "label": "Drive or OneDrive", "anyOf": ["google_drive", "onedrive"], "optional": true }
+      ]
+    },
+    {
+      "id": "grants",
+      "name": "Grants",
+      "area": "Accounts",
+      "page": "/grants",
+      "does": "Grants that fit and your applications",
+      "needs": []
+    },
+    {
+      "id": "social",
+      "name": "Social planner",
+      "area": "Marketing",
+      "page": "/social",
+      "does": "Plans posts and publishes them for you",
+      "plans": "Any paid plan",
+      "needs": [
+        { "label": "Instagram", "connection": "instagram" },
+        { "label": "Drive or OneDrive", "anyOf": ["google_drive", "onedrive"] },
+        { "label": "Other networks", "anyOf": ["facebook", "tiktok", "linkedin", "google_business"], "optional": true },
+        { "label": "Music switched on", "switch": "music", "optional": true },
+        { "label": "ElevenLabs key", "secret": "ELEVENLABS_API_KEY", "optional": true }
+      ]
+    },
+    {
+      "id": "competitions",
+      "name": "Competitions",
+      "area": "Marketing",
+      "page": "/competitions",
+      "does": "Giveaways with legal rules and a fair draw",
+      "needs": [
+        { "label": "Instagram", "connection": "instagram", "optional": true }
+      ]
+    },
+    {
+      "id": "campaigns",
+      "name": "Campaigns",
+      "area": "Marketing",
+      "page": "/campaigns",
+      "does": "Messages to customers who said yes",
+      "needs": []
+    },
+    {
+      "id": "ads",
+      "name": "Ads",
+      "area": "Marketing",
+      "page": "/ads",
+      "does": "Meta and Google ads: spend and results",
+      "plans": "Any paid plan",
+      "needs": [
+        { "label": "Ad account", "anyOf": ["meta_ads", "google_ads"] }
+      ]
+    },
+    {
+      "id": "analytics",
+      "name": "Analytics",
+      "area": "Marketing",
+      "page": "/analytics",
+      "does": "How people find your website on Google",
+      "needs": [
+        { "label": "Search Console", "connection": "search_console" }
+      ]
+    },
+    {
+      "id": "reviews",
+      "name": "Reviews",
+      "area": "Marketing",
+      "page": "/reviews",
+      "does": "Read and reply to Google reviews",
+      "plans": "Any paid plan",
+      "needs": [
+        { "label": "Google Maps", "connection": "google_business" },
+        { "label": "Google Places key", "secret": "GOOGLE_PLACES_API_KEY", "optional": true },
+        { "label": "Google place ID", "secret": "GOOGLE_PLACE_ID", "optional": true }
+      ]
+    },
+    {
+      "id": "website",
+      "name": "Website & SEO",
+      "area": "Marketing",
+      "page": "/website",
+      "does": "Checks your website and how fast it is",
+      "needs": [
+        { "label": "Website address", "manual": true },
+        { "label": "PageSpeed key", "secret": "GOOGLE_PAGESPEED_API_KEY", "optional": true },
+        { "label": "Search Console", "connection": "search_console", "optional": true }
+      ]
+    },
+    {
+      "id": "competitors",
+      "name": "Competitors",
+      "area": "Marketing",
+      "page": "/competitors",
+      "does": "Cafés nearby, their prices and ratings",
+      "needs": [
+        { "label": "Google Places key", "secret": "GOOGLE_PLACES_API_KEY" },
+        { "label": "Google place ID", "secret": "GOOGLE_PLACE_ID", "optional": true }
+      ]
+    },
+    {
+      "id": "calendar",
+      "name": "Calendar",
+      "area": "What's on",
+      "page": "/calendar",
+      "does": "Events, closures and holidays for the team",
+      "needs": [
+        { "label": "Calendar app", "anyOf": ["google_calendar", "outlook_calendar"], "optional": true }
+      ]
+    },
+    {
+      "id": "sports",
+      "name": "Sports",
+      "area": "What's on",
+      "page": "/sports",
+      "does": "Big matches and fights to plan around",
+      "plans": "Pro and Business",
+      "needs": []
+    },
+    {
+      "id": "music",
+      "name": "Music",
+      "area": "What's on",
+      "page": "/music",
+      "does": "Café music the whole team can control",
+      "plans": "Pro and Business",
+      "needs": [
+        { "label": "Spotify or YouTube", "anyOf": ["spotify", "youtube_music"] }
+      ]
+    },
+    {
+      "id": "rota",
+      "name": "Rota",
+      "area": "Team",
+      "page": "/rota",
+      "does": "Who works when, and their shifts",
+      "needs": [
+        { "label": "Email or WhatsApp", "anyOf": ["gmail", "outlook", "whatsapp"], "optional": true }
+      ]
+    },
+    {
+      "id": "timeoff",
+      "name": "Time off",
+      "area": "Team",
+      "page": "/time-off",
+      "does": "Holiday and leave requests and approvals",
+      "needs": []
+    },
+    {
+      "id": "benefits",
+      "name": "Staff benefits",
+      "area": "Team",
+      "page": "/benefits",
+      "does": "What staff get, and holiday left",
+      "needs": []
+    },
+    {
+      "id": "kitty",
+      "name": "Staff kitty",
+      "area": "Team",
+      "page": "/kitty",
+      "does": "Profit saved up for team treats",
+      "needs": []
+    },
+    {
+      "id": "timecards",
+      "name": "Timecards",
+      "area": "Team",
+      "page": "/timecards",
+      "does": "Clock-ins, breaks and hours worked",
+      "needs": []
+    },
+    {
+      "id": "tips",
+      "name": "Tips",
+      "area": "Team",
+      "page": "/tips",
+      "does": "Shares out tips by hours worked",
+      "switch": "tips",
+      "needs": [
+        { "label": "Database change", "manual": true, "done": false },
+        { "label": "Till or Stripe", "anyOf": ["square", "sumup", "stripe"], "optional": true }
+      ]
+    },
+    {
+      "id": "hiring",
+      "name": "Hiring",
+      "area": "Team",
+      "page": "/hiring",
+      "does": "Job openings and who applied",
+      "needs": []
+    },
+    {
+      "id": "team",
+      "name": "Team",
+      "area": "Team",
+      "page": "/team",
+      "does": "Everyone on the team, their roles and pay",
+      "needs": []
+    },
+    {
+      "id": "roles",
+      "name": "Roles & responsibilities",
+      "area": "Team",
+      "page": "/roles",
+      "does": "Who does what in each job",
+      "needs": []
+    },
+    {
+      "id": "rules",
+      "name": "Staff rules",
+      "area": "Team",
+      "page": "/rules",
+      "does": "House rules the team reads and confirms",
+      "needs": []
+    },
+    {
+      "id": "outsourcing",
+      "name": "Outsourcing",
+      "area": "Team",
+      "page": "/outsourcing",
+      "does": "Outside help, from cleaning to the books",
+      "needs": []
+    },
+    {
+      "id": "connections",
+      "name": "Connections",
+      "area": "Settings",
+      "page": "/connections",
+      "does": "Links the café's apps and accounts",
+      "needs": []
+    },
+    {
+      "id": "notifications",
+      "name": "Notifications",
+      "area": "Settings",
+      "page": "/notifications",
+      "does": "Your alerts, team alerts and Instagram mentions",
+      "needs": [
+        { "label": "Email or WhatsApp", "anyOf": ["gmail", "outlook", "whatsapp"], "optional": true },
+        { "label": "Instagram", "connection": "instagram", "optional": true }
+      ]
+    },
+    {
+      "id": "pages",
+      "name": "Pages",
+      "area": "Settings",
+      "page": "/pages",
+      "does": "Choose which pages show in the menu",
+      "needs": []
+    },
+    {
+      "id": "partners",
+      "name": "Partners",
+      "area": "Settings",
+      "page": "/partners",
+      "does": "Read-only access for your gestoría",
+      "switch": "partners",
+      "plans": "Business only",
+      "needs": []
+    },
+    {
+      "id": "kiosk",
+      "name": "Café tablet",
+      "area": "Settings",
+      "page": "/kiosk",
+      "does": "Staff clock in on a shared tablet",
+      "switch": "kiosk",
+      "plans": "Pro and Business",
+      "needs": []
+    },
+    {
+      "id": "ai-assistants",
+      "name": "AI assistants",
+      "area": "You",
+      "page": "/ai-assistants",
+      "does": "Connect Claude or ChatGPT to your data",
+      "needs": []
+    },
+    {
+      "id": "billing",
+      "name": "Billing",
+      "area": "You",
+      "page": "/account/billing",
+      "does": "Your plan, payments and invoices",
+      "needs": [
+        { "label": "Stripe key", "secret": "STRIPE_SECRET_KEY" }
+      ]
+    },
+    {
+      "id": "referrals",
+      "name": "Referrals",
+      "area": "You",
+      "page": "/referrals",
+      "does": "Share your link, earn free months",
+      "needs": [
+        { "label": "Stripe key", "secret": "STRIPE_SECRET_KEY", "optional": true }
+      ]
+    }
+  ]
+}
