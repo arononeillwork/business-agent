@@ -13,7 +13,7 @@ import { useNavigate } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
-import { BrandLogo } from '../components/Logo'
+import { AgentMark, Wordmark } from './marketing/site'
 import {
   CAN, ConnectorDialog, DOES, Logo, StatusChip, oneClick, optionStateOf, useConnect, useConnectResult, type OptionState,
 } from '../components/Connectors'
@@ -235,8 +235,9 @@ function Frame({ step, agent, onSkip, children }: { step: Step; agent: string; o
       <Box component="aside" sx={{ width: { md: 300 }, flexShrink: 0, bgcolor: tokens.roseSoft, p: { xs: 2, md: 3 }, display: 'flex', flexDirection: 'column',
         gap: { xs: 1.5, md: 4 }, position: { md: 'sticky' }, top: 0, height: { md: '100vh' }, boxSizing: 'border-box' }}>
         <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
-          <Box sx={{ '& img': { height: { xs: '44px !important', md: '72px !important' } } }}><BrandLogo height={72} /></Box>
-          <Typography sx={{ fontFamily: fonts.display, fontWeight: 500, fontSize: '1.05rem', flex: 1 }}>{'Business Agent'}</Typography>
+          {/* The product's own mark: the guide is Business Agent setting itself up, before any branding of the business. */}
+          <AgentMark size={40} />
+          <Box sx={{ flex: 1 }}><Wordmark size="1.4rem" /></Box>
           <Button size="small" onClick={onSkip} sx={{ display: { md: 'none' } }}>{t('Skip')}</Button>
         </Stack>
         <LinearProgress variant="determinate" value={(at / (STEPS.length - 1)) * 100} aria-label={t('Set-up steps')}
