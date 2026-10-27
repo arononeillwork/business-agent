@@ -1,10 +1,12 @@
 // Works out where every feature is (in development, in review and the merge queue, deploying, or
-// live and checked) and saves it as one JSON row, ops.dev_board, in the Supabase project. The
+// live and checked), and what each of the app's features needs to work and whether it has it
+// (ops/features.json), and saves both as one JSON row, ops.dev_board, in the Supabase project. The
 // owner's feature board reads that row through the Supabase connector.
 // GitHub Actions: .github/workflows/dev-board.yml. Needs a clone with every branch (fetch-depth 0),
-// SUPABASE_ACCESS_TOKEN and GITHUB_TOKEN. DRY_RUN=1 prints the board instead of saving it.
+// SUPABASE_ACCESS_TOKEN and GITHUB_TOKEN, and HAS_<SECRET> (true/false) for the app keys
+// ops/features.json names. DRY_RUN=1 prints the board instead of saving it.
 import { execFileSync } from 'node:child_process'
-import { appendFileSync } from 'node:fs'
+import { appendFileSync, readFileSync } from 'node:fs'
 
 const REF = process.env.SUPABASE_PROJECT_REF ?? 'lhakrmmoxaareykglmtx'
 const REPO = process.env.GITHUB_REPOSITORY ?? 'arononeillwork/business-agent'
@@ -205,6 +207,43 @@ for (const line of lines(git('for-each-ref', 'refs/remotes/origin', '--format=%(
   features.push(b)
 }
 
+// What each feature needs, checked where it can be: a connection against the café's own
+// (public.integrations), an app key by whether its GitHub secret is set (the workflow passes only
+// HAS_<NAME>, true or false, never the secret), a switch in src/app/features.ts. A manual step is
+// as ops/features.json says. null: not known (the database didn't answer, or no HAS_ for that key).
+const sql = async query => {
+  const res = await fetch(`https://api.supabase.com/v1/projects/${REF}/database/query`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${process.env.SUPABASE_ACCESS_TOKEN}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ query }),
+    signal: AbortSignal.timeout(30_000),
+  })
+  if (!res.ok) throw new Error(`${res.status} ${await res.text()}`)
+  return res.json()
+}
+const connections = await sql(`select provider from public.integrations where status = 'connected'`)
+  .then(rows => new Set(rows.map(r => r.provider)))
+  .catch(e => { console.log(`::warning::Couldn't read the connections: ${e.message}`); return null })
+const switches = Object.fromEntries([...readFileSync('src/app/features.ts', 'utf8').matchAll(/^\s+(\w+): (true|false),/gm)].map(m => [m[1], m[2] === 'true']))
+const keySet = name => process.env[`HAS_${name}`] === undefined ? null : process.env[`HAS_${name}`] === 'true'
+const needOf = n => {
+  const kind = n.connection || n.anyOf ? 'connection' : n.secret ? 'key' : n.switch ? 'switch' : 'manual'
+  const met = n.connection ? connections && connections.has(n.connection)
+    : n.anyOf ? connections && n.anyOf.some(p => connections.has(p))
+      : n.secret ? keySet(n.secret)
+        : n.switch ? !!switches[n.switch]
+          : n.done ?? null
+  // ref: what to set up, for the board's list of keys and connections (a GitHub secret's name, the
+  // connection's id or ids, the switch).
+  const ref = n.secret ?? n.connection ?? n.anyOf?.join(' or ') ?? (n.switch && `features.${n.switch}`) ?? null
+  return { label: n.label, kind, ref, met: met ?? null, optional: !!n.optional }
+}
+const catalogue = JSON.parse(readFileSync('ops/features.json', 'utf8')).features.map(f => {
+  const needs = (f.needs ?? []).map(needOf)
+  const status = f.switch && !switches[f.switch] ? 'off' : needs.some(n => !n.optional && n.met === false) ? 'setup' : 'ready'
+  return { id: f.id, name: f.name, area: f.area, page: f.page, does: f.does, plans: f.plans ?? null, status, needs }
+})
+
 const board = {
   generatedAt: new Date().toISOString(),
   repo: REPO, liveBranch: 'main', site: SITE,
@@ -217,9 +256,12 @@ const board = {
   })(),
   deploys: deploys.slice(0, 8),
   branches: features.sort((a, b) => (b.merged?.at ?? b.headDate).localeCompare(a.merged?.at ?? a.headDate)),
+  catalogue,
 }
 
 const counts = Object.fromEntries(['dev', 'review', 'deploying', 'deployed'].map(s => [s, features.filter(b => b.stage === s).length]))
+const by = status => catalogue.filter(f => f.status === status).length
+console.log(`Features: ${by('ready')} working, ${by('setup')} need setting up, ${by('off')} switched off.`)
 console.log(`Board: ${counts.dev} in development, ${counts.review} in review, ${counts.deploying} deploying, ${counts.deployed} deployed. Live: ${liveSha?.slice(0, 7) ?? 'unknown'}${liveVerified ? ' (checked)' : ''}`)
 if (process.env.GITHUB_STEP_SUMMARY) {
   appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
