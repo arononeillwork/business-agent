@@ -93,6 +93,7 @@ const HiringPage = page(() => import('./pages/HiringPage'), 'HiringPage')
 const FoodSafetyPage = page(() => import('./pages/FoodSafetyPage'), 'FoodSafetyPage')
 const AllergensPage = page(() => import('./pages/AllergensPage'), 'AllergensPage')
 const TipsPage = page(() => import('./pages/TipsPage'), 'TipsPage')
+const SetupPage = page(() => import('./pages/SetupPage'), 'SetupPage')
 
 /** /billing → /account/billing, keeping ?checkout=… from Stripe. */
 function ToBilling() {
@@ -168,6 +169,8 @@ function Routed() {
       <Route path="/menu/print/:id" element={isAdmin ? <MenuPrintPage /> : <Navigate to="/menu" />} />
       {/* Business cards for the sales reps, to print (no menu around them either). */}
       <Route path="/sales-reps/cards" element={isAdmin ? <RepCardsPage /> : <Navigate to="/sales-reps" />} />
+      {/* The set-up guide for a new business: its own full page; app sign-ins come back here (?connected=…). */}
+      <Route path="/setup" element={isAdmin ? <SetupPage /> : <Navigate to="/" replace />} />
       <Route element={<AppShell />}>
         <Route index element={<TodayPage />} />
         <Route path="rota" element={<RotaPage />} />
@@ -240,7 +243,6 @@ function Routed() {
         <Route path="ads" element={isAdmin ? <AdsPage /> : <Navigate to="/" />} />
         <Route path="messages" element={isAdmin ? <MessagesPage /> : <Navigate to="/" />} />
         <Route path="referrals" element={isAdmin ? <ReferralsPage /> : <Navigate to="/" />} />
-        <Route path="setup" element={<Navigate to="/" replace />} />
         <Route path="partners" element={isAdmin && FEATURES.partners ? <PlanGate feature="partners"><PartnersPage /></PlanGate> : <Navigate to="/" />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Route>

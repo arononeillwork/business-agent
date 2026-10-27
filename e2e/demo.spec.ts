@@ -6338,3 +6338,63 @@ test.describe('AI assistants', () => {
     await expect(page).toHaveURL(/\/ai-assistants$/)
   })
 })
+
+test.describe('set-up wizard', () => {
+  test('set-up wizard: a café ticks its suggested apps and connects them one after another, skipping one', async ({ page }) => {
+    await open(page, '/setup')
+    await expect(page.getByRole('heading', { name: 'Hi Aron, I’m your Business Agent.' })).toBeVisible()
+    await page.getByRole('button', { name: /^Use a ready-made setup/ }).click()
+    await page.getByRole('button', { name: /^Café & coffee shop/ }).click()
+    await page.getByRole('button', { name: 'Next' }).click()
+    await expect(page.getByRole('heading', { name: 'Your recommended setup' })).toBeVisible()
+    // Instagram and Google Maps are already connected in the demo: shown as such, not connected again.
+    await expect(page.getByRole('article', { name: 'Instagram' })).toContainText('Connected')
+    await page.getByRole('checkbox', { name: 'Choose Gmail' }).uncheck()
+    await page.getByRole('button', { name: 'Connect 4 apps' }).click()
+
+    await expect(page.getByText('Connecting 1 of 4')).toBeVisible()
+    await page.getByRole('button', { name: 'Continue to Square' }).click()
+    await expect(page.getByText('Connecting 2 of 4')).toBeVisible()
+    await page.getByRole('button', { name: 'Skip Facebook' }).click()
+    await page.getByRole('button', { name: 'Continue to TikTok' }).click()
+    await page.getByRole('button', { name: 'Continue to Google Drive' }).click()
+
+    await expect(page.getByRole('heading', { name: /^You’re all set/ })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Connected' })).toContainText('Square')
+    await expect(page.getByRole('region', { name: 'Skipped' })).toContainText('Facebook')
+    await page.getByRole('button', { name: 'Manage connections' }).click()
+    await expect(page.getByRole('heading', { name: 'Business connections' })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Payments and sales' }).getByRole('article', { name: 'Square' })).toContainText('Connected')
+  })
+
+  test('set-up wizard: choose categories, pick one app of a kind, and skip a step', async ({ page }) => {
+    await open(page, '/connections')
+    await page.getByRole('link', { name: 'Set-up guide' }).click()
+    await page.getByRole('button', { name: /^Choose my own apps/ }).click()
+    await page.getByRole('button', { name: /^Email/ }).click()
+    await page.getByRole('button', { name: /^Files and storage/ }).click()
+    await page.getByRole('button', { name: 'Continue' }).click()
+
+    await expect(page.getByRole('heading', { name: 'Email' })).toBeVisible()
+    await expect(page.getByText('Step 1 of 2')).toBeVisible()
+    await page.getByRole('checkbox', { name: 'Choose Gmail' }).check()
+    // Email is choose-one: ticking Outlook unticks Gmail.
+    await page.getByRole('checkbox', { name: 'Choose Outlook' }).check()
+    await expect(page.getByRole('checkbox', { name: 'Choose Gmail' })).not.toBeChecked()
+    await page.getByRole('button', { name: 'Connect 1 selected' }).click()
+    await page.getByRole('button', { name: 'Continue to Outlook' }).click()
+    await expect(page.getByRole('article', { name: 'Outlook' })).toContainText('Connected')
+
+    await page.getByRole('button', { name: 'Next' }).click()
+    await expect(page.getByRole('heading', { name: 'Files and storage' })).toBeVisible()
+    await page.getByRole('button', { name: 'Skip this step' }).click()
+    await expect(page.getByRole('heading', { name: /^You’re all set/ })).toBeVisible()
+  })
+
+  test('set-up wizard is for admins only', async ({ page }) => {
+    await open(page)
+    await signInAs(page, 'maria@example.com')
+    await page.goto('/setup')
+    await expect(page.getByRole('heading', { name: /I’m your Business Agent/ })).toHaveCount(0)
+  })
+})
