@@ -17,9 +17,27 @@
     {
       "title": "Business Agent — Connections Onboarding",
       "url": "https://claude.ai/artifact/XyGbCeYp7eZyjsj1AoShcw",
-      "labels": ["onboarding"],
+      "labels": [
+        "onboarding"
+      ],
       "about": "The set-up guide: welcome, business type, café / restaurant / salon presets, categories, connecting several apps, folder picker, email and calendar, done, Connections settings, and three phone screens.",
       "built": "https://github.com/arononeillwork/business-agent/pull/28"
+    },
+    {
+      "title": "Business Agent — Complete Site",
+      "url": "https://claude.ai/artifact/GMfQ1DRg8LN98vquy4voaU",
+      "labels": [
+        "site"
+      ],
+      "about": "Every page of the app (65), from the real app in demo mode with the Easy Beans sample data. One canvas page per menu section: public site, Today, onboarding, Business, Insights, Sales, Menu, Stock, Accounts, Marketing, What's on, Team, Settings, your account."
+    },
+    {
+      "title": "Business Agent — Café View",
+      "url": "https://claude.ai/artifact/8838RRVaA2BAPbUzsmV5LC",
+      "labels": [
+        "cafe"
+      ],
+      "about": "The app as Easy Beans uses it: the owner's day (Today, rota, takings, posting, reviews, stock), a barista's shift on the phone (clocking in, shifts, allergens, food safety) and what customers see (menu, menu screens)."
     }
   ]
 }
