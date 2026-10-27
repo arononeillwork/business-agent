@@ -20,8 +20,16 @@
       "labels": [
         "onboarding"
       ],
-      "about": "The set-up guide: welcome, business type, café / restaurant / salon presets, categories, connecting several apps, folder picker, email and calendar, done, Connections settings, and three phone screens.",
+      "about": "The mockups the set-up guide was designed from: the set-up guide: welcome, business type, café / restaurant / salon presets, categories, connecting several apps, folder picker, email and calendar, done, Connections settings, and three phone screens.",
       "built": "https://github.com/arononeillwork/business-agent/pull/28"
+    },
+    {
+      "title": "Business Agent — Onboarding View",
+      "url": "https://claude.ai/artifact/HroGCDRjFhHYymNkje1rfw",
+      "labels": [
+        "onboarding"
+      ],
+      "about": "The live set-up guide as built, step by step from the real app: the way in from Connections, the welcome, the café / restaurant / salon presets, connecting several apps in turn, the summary, choosing categories, and the same guide on a phone. The mockups it was built from are the Connections Onboarding canvas."
     },
     {
       "title": "Business Agent — Complete Site",
