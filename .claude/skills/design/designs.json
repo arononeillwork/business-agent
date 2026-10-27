@@ -1,0 +1,25 @@
+{
+  "labels": {
+    "onboarding": {
+      "title": "Onboarding",
+      "about": "What a new business sees first: the set-up guide, connecting apps, presets for each kind of business."
+    },
+    "site": {
+      "title": "Complete view of the site",
+      "about": "Every page of Business Agent in one place, desktop and phone."
+    },
+    "cafe": {
+      "title": "Café view",
+      "about": "The app as a café sees it: Easy Beans' pages, data and branding."
+    }
+  },
+  "designs": [
+    {
+      "title": "Business Agent — Connections Onboarding",
+      "url": "https://claude.ai/artifact/XyGbCeYp7eZyjsj1AoShcw",
+      "labels": ["onboarding"],
+      "about": "The set-up guide: welcome, business type, café / restaurant / salon presets, categories, connecting several apps, folder picker, email and calendar, done, Connections settings, and three phone screens.",
+      "built": "https://github.com/arononeillwork/business-agent/pull/28"
+    }
+  ]
+}
