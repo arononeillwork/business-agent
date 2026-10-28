@@ -390,12 +390,19 @@ owner through a normal session, so the database rules apply exactly as in the ap
 Account menu (your name, bottom left) → **Referrals** (admins): the business's link
 (`/?ref=CODE`), how it's doing, and free months banked. Rules (`shared/referrals.ts`): when a
 business you referred **finishes set-up**, you both get a month free, stacking up to 12, applied
-when paid plans start. Until self-serve sign-up opens, the link shows "Invited by …" on the
-sign-up page and a waitlist form (`worker/referrals.ts`: link opens are counted, joining keeps
-business name, name and email; admins only can read them). When a referred business goes live,
-call `select public.mark_referral_set_up('their@email')` as the service role; that is what counts.
+when paid plans start. The link shows "Invited by …" on the landing page (opens are counted,
+`worker/referrals.ts`) and leads to creating an account; the code is kept until the new business
+is created, which puts it on the referrer's list ("Joined"), and it counts ("Set up") when the new
+business finishes the set-up guide (`create_business()` and `business_set_up()` in the
+`self_serve_sign_up` migration).
 
 ## New business
 
-Copy `shared/business.config.ts`, create a Supabase project (apply `supabase/migrations`, write a
-seed like `supabase/seed/easy_beans.sql`), and deploy a new Worker with its own `wrangler.jsonc` vars.
+Any business signs up for itself: **Create account** on the landing page (email, or one tap with
+Google, Apple, Facebook or Microsoft), then **Create my business** (its name, what kind it is, its
+time zone). Its creator runs it (admin and boss) on the Free plan and goes straight on to the set-up
+guide (`/setup`) to connect its apps. Someone joining an existing team signs up the same way and
+asks their manager to add their email on the Team page.
+
+Every business shares the one database, Worker and app, each seeing only its own data
+(`docs/SEVERAL_BUSINESSES.md`). Easy Beans is business 1.
