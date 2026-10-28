@@ -121,6 +121,19 @@ app.post('/api/admin/invite', async c => {
   const blocked = await planBlocksInvite(c.env, businessId, role)
   if (blocked) return c.json({ error: blocked }, 402)
 
+  // Someone who already has an account and is in no business yet (they signed up on their own): they
+  // join this team as they are, with their own sign-in. Anyone in another business stays there.
+  const { data: account } = await serviceClient(c.env).from('profiles').select('id, business_id').eq('email', email).maybeSingle()
+  if (account) {
+    if (account.business_id === businessId) return c.json({ error: 'They’re already on your team' }, 400)
+    if (account.business_id) return c.json({ error: 'Someone with that email already has an account' }, 400)
+    const joined = await joinBusiness(c.env, account.id as string, businessId, {
+      role, active: true, ...(boss ? { can_see_pay: true } : {}), ...(role === 'partner' ? partner : contact),
+    })
+    if (!joined) return c.json({ error: 'Someone with that email already has an account' }, 400)
+    return c.json({ ok: true, joined: true })
+  }
+
   // With a temporary password: create the account now, no email needed (Supabase's built-in email
   // only reaches the project's own members). app_metadata is service-only, so the role is trusted.
   if (body.password !== undefined) {
@@ -211,7 +224,7 @@ app.route('/', apiKeys)
 
 // Sign-in emails from the business's own Gmail/Outlook (Supabase Auth's send-email hook).
 app.route('/', authEmail)
-// Referral links: count opens, join the waitlist (no sign-in).
+// Referral links: count opens (no sign-in).
 app.route('/', referrals)
 
 // Tax documents into the café's Drive or OneDrive (Tax page).

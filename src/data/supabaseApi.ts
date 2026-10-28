@@ -176,6 +176,9 @@ export function createSupabaseApi(url: string, key: string): Api {
       if (error) throw new Error(/already registered/i.test(error.message) ? 'That email already has an account. Sign in instead.' : error.message)
       return { confirmEmail: !data.session }
     },
+    async createBusiness(b) {
+      return check(await sb.rpc('create_business', { p_name: b.name, p_kind: b.kind, p_timezone: b.timezone, p_referral: b.referral ?? null })) as number
+    },
     async signIn(email, password) {
       checkAuth(await sb.auth.signInWithPassword({ email, password }))
     },
@@ -348,7 +351,7 @@ export function createSupabaseApi(url: string, key: string): Api {
       }))
     },
     async invite(email, fullName, role, password, contact) {
-      await worker('/api/admin/invite', { method: 'POST', body: JSON.stringify({ email, full_name: fullName, role, password, ...contact }) })
+      return worker<{ joined?: boolean }>('/api/admin/invite', { method: 'POST', body: JSON.stringify({ email, full_name: fullName, role, password, ...contact }) })
     },
     async setTemporaryPassword(userId, password) {
       await worker('/api/admin/set-password', { method: 'POST', body: JSON.stringify({ user_id: userId, password }) })
@@ -358,7 +361,7 @@ export function createSupabaseApi(url: string, key: string): Api {
       return check(await sb.from('profiles').select(PROFILE_COLUMNS).eq('role', 'partner').order('full_name')) as Profile[]
     },
     async invitePartner(email, fullName, company, access, password) {
-      await worker('/api/admin/invite', { method: 'POST', body: JSON.stringify({
+      return worker<{ joined?: boolean }>('/api/admin/invite', { method: 'POST', body: JSON.stringify({
         email, full_name: fullName, role: 'partner', partner_company: company, partner_access: access, password }) })
     },
     async setPartnerAccess(id, company, access) {
@@ -1165,7 +1168,6 @@ export function createSupabaseApi(url: string, key: string): Api {
       return { code: (b as { referral_code: string } | null)?.referral_code ?? '', referrals: check(list) as ReferralState['referrals'], opens: opens.count ?? 0 }
     },
     openReferral: (code, count = true) => worker('/api/referrals/open', { method: 'POST', body: JSON.stringify({ code, count }) }),
-    async joinReferral(input) { await worker('/api/referrals/join', { method: 'POST', body: JSON.stringify(input) }) },
     async replyInstagram(id, text) {
       await worker(`/api/integrations/instagram/inbox/${encodeURIComponent(id)}/reply`, { method: 'POST', body: JSON.stringify({ text }) })
     },

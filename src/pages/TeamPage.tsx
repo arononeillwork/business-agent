@@ -11,7 +11,7 @@ import WarnIcon from '@mui/icons-material/ErrorOutlineRounded'
 import { useEffect, useState } from 'react'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
-import { useAction } from '../app/Notify'
+import { useAction, useNotify } from '../app/Notify'
 import { PageHeader, PersonAvatar } from '../components/common'
 import { PhoneField } from '../components/PhoneField'
 import { ExportButton, SortCell, useSort } from '../components/tables'
@@ -257,6 +257,7 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 export function InviteDialog({ onClose }: { onClose: () => void }) {
   const { api, me, refresh } = useApp()
   const run = useAction()
+  const notify = useNotify()
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
   const [role, setRole] = useState<TeamRole | 'kiosk'>('employee')
@@ -293,12 +294,14 @@ export function InviteDialog({ onClose }: { onClose: () => void }) {
           <Button variant="contained" disabled={!email.trim() || !name.trim()} onClick={() => run(async () => {
             if (!EMAIL.test(email.trim())) throw new Error(t('Enter a full email address, like name@example.com'))
             const contact = role === 'kiosk' ? undefined : { phone: phone.trim() || null, contact_method: method }
-            if (setup.how === 'password') {
-              await api.invite(email.trim(), name.trim(), role, setup.password, contact); await refresh(); setDone(setup.password)
-            } else {
-              await api.invite(email.trim(), name.trim(), role, undefined, contact); await refresh(); onClose()
-            }
-          }, setup.how === 'password' ? t('Account created for {name}', { name: name.trim() }) : t('Invite sent to {email}', { email: email.trim() }))}>
+            const { joined } = await api.invite(email.trim(), name.trim(), role, setup.how === 'password' ? setup.password : undefined, contact)
+            await refresh()
+            // Already had an account (signed up on their own): on the team now, with their own password.
+            if (joined) notify(t('{email} already had an account: they’re on the team now', { email: email.trim() }), 'success')
+            else notify(setup.how === 'password' ? t('Account created for {name}', { name: name.trim() }) : t('Invite sent to {email}', { email: email.trim() }), 'success')
+            if (setup.how === 'password' && !joined) setDone(setup.password)
+            else onClose()
+          })}>
             {setup.how === 'password' ? t('Create account') : t('Send invite')}
           </Button>
         </>}

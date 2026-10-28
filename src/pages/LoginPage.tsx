@@ -1,5 +1,5 @@
 import { Link as RouterLink, useLocation } from 'react-router-dom'
-import { Accordion, AccordionDetails, AccordionSummary, Box, Button, Container, Stack, TextField, Typography } from '@mui/material'
+import { Accordion, AccordionDetails, AccordionSummary, Box, Button, Container, Stack, Typography } from '@mui/material'
 import RotaIcon from '@mui/icons-material/CalendarViewWeekOutlined'
 import ClockIcon from '@mui/icons-material/AccessTimeOutlined'
 import MapIcon from '@mui/icons-material/StorefrontOutlined'
@@ -18,8 +18,8 @@ import AdviceIcon from '@mui/icons-material/LightbulbOutlined'
 import WarnIcon from '@mui/icons-material/ErrorOutlineOutlined'
 import { useEffect, useState, type ReactNode } from 'react'
 import { useApp } from '../app/AppContext'
-import { useAction } from '../app/Notify'
 import { cleanCode } from '../../shared/referrals'
+import { keepReferral } from '../app/referral'
 import { AuthCard } from './marketing/AuthCard'
 import { PricingCards, TRIAL_MONTHS } from './marketing/plans'
 import { BA, MarketingFrame, SectionIntro, display, glow, outlineBtn, primaryBtn, roseBtn } from './marketing/site'
@@ -132,7 +132,7 @@ export function LoginPage() {
               </Stack>
             </Box>
             <Box id="account" sx={{ scrollMarginTop: 88 }}>
-              <Invite />
+              <Invite onSignUp={() => setTab('signup')} />
               <AuthCard tab={tab} onTab={setTab} />
             </Box>
           </Container>
@@ -254,28 +254,21 @@ export function LoginPage() {
 }
 
 /**
- * Arrived from another business's referral link (/?ref=CODE): who invited you, and the waitlist.
- * The link is counted once per visit. A wrong code shows nothing.
+ * Arrived from another business's referral link (/?ref=CODE): who invited you, and on to creating an
+ * account. The code is kept until the new business is created (NewBusinessPage), which makes it that
+ * business's referral. The link is counted once per visit. A wrong code shows nothing.
  */
-function Invite() {
+function Invite({ onSignUp }: { onSignUp: () => void }) {
   const { api } = useApp()
-  const run = useAction()
   const [code] = useState(() => cleanCode(new URLSearchParams(location.search).get('ref')))
   const [by, setBy] = useState<string | null>(null)
-  const [form, setForm] = useState({ business_name: '', contact_name: '', email: '' })
-  const [joined, setJoined] = useState(false)
   useEffect(() => {
     if (!code) return
     let seen = false
     try { seen = sessionStorage.getItem(`ref-${code}`) === '1'; sessionStorage.setItem(`ref-${code}`, '1') } catch { /* private mode: count it */ }
-    void api.openReferral(code, !seen).then(r => setBy(r.business), () => {})
+    void api.openReferral(code, !seen).then(r => { setBy(r.business); keepReferral(code) }, () => {})
   }, [api, code])
   if (!code || !by) return null
-  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm(f => ({ ...f, [k]: e.target.value }))
-  const join = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (await run(() => api.joinReferral({ code, ...form }))) setJoined(true)
-  }
   return (
     <Box component="section" aria-label={t('You’re invited')} sx={{ mb: 2.5, p: { xs: 2.5, sm: 3.5 }, borderRadius: '24px', bgcolor: BA.card,
       border: `1px solid ${BA.rose}`, boxShadow: '0 24px 60px -30px rgba(168,90,104,0.45)' }}>
@@ -283,27 +276,11 @@ function Invite() {
         <GiftIcon fontSize="small" />
         <Typography sx={{ fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase', fontSize: '0.75rem' }}>{t('Invited by {name}', { name: by })}</Typography>
       </Stack>
-      {joined ? (
-        <>
-          <Typography variant="h5" component="h2" sx={{ fontFamily: display, fontWeight: 500, fontSize: '2rem' }}>{t('You’re on the list')}</Typography>
-          <Typography sx={{ color: BA.soft, mt: 1 }}>
-            {t('We’ll email you when sign-up opens. When your business finishes setting up, you and {name} each get a month free.', { name: by })}
-          </Typography>
-        </>
-      ) : (
-        <Box component="form" onSubmit={join}>
-          <Typography variant="h5" component="h2" sx={{ fontFamily: display, fontWeight: 500, fontSize: '2rem' }}>{t('Get your first month free')}</Typography>
-          <Typography sx={{ color: BA.soft, mt: 1, mb: 2 }}>
-            {t('Sign-up for new businesses opens soon. Join the waitlist: when your business finishes setting up, you and {name} each get a month free.', { name: by })}
-          </Typography>
-          <Stack spacing={1.75}>
-            <TextField label={t('Business name')} value={form.business_name} onChange={set('business_name')} required slotProps={{ htmlInput: { maxLength: 120 } }} />
-            <TextField label={t('Your name')} autoComplete="name" value={form.contact_name} onChange={set('contact_name')} slotProps={{ htmlInput: { maxLength: 120 } }} />
-            <TextField label={t('Email')} type="email" autoComplete="email" value={form.email} onChange={set('email')} required />
-            <Button type="submit" variant="contained" size="large" sx={primaryBtn}>{t('Join the waitlist')}</Button>
-          </Stack>
-        </Box>
-      )}
+      <Typography variant="h5" component="h2" sx={{ fontFamily: display, fontWeight: 500, fontSize: '2rem' }}>{t('Get your first month free')}</Typography>
+      <Typography sx={{ color: BA.soft, mt: 1, mb: 2 }}>
+        {t('Create your account, then your business: once it’s set up, you and {name} each get a month free.', { name: by })}
+      </Typography>
+      <Button variant="contained" size="large" onClick={onSignUp} sx={primaryBtn}>{t('Create my account')}</Button>
     </Box>
   )
 }

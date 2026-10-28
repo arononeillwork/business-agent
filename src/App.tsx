@@ -94,6 +94,7 @@ const FoodSafetyPage = page(() => import('./pages/FoodSafetyPage'), 'FoodSafetyP
 const AllergensPage = page(() => import('./pages/AllergensPage'), 'AllergensPage')
 const TipsPage = page(() => import('./pages/TipsPage'), 'TipsPage')
 const SetupPage = page(() => import('./pages/SetupPage'), 'SetupPage')
+const NewBusinessPage = page(() => import('./pages/NewBusinessPage'), 'NewBusinessPage')
 
 /** /billing → /account/billing, keeping ?checkout=… from Stripe. */
 function ToBilling() {
@@ -116,7 +117,8 @@ function Routed() {
   if (pathname.startsWith('/display/')) return <DisplayPage />
   if (loading) return <Loading />
   if (!me) return <LoginPage />
-  if (!me.active) return <NotActive />
+  // Signed up on their own and in no business yet: create theirs. Switched off in one: wait to be let back in.
+  if (!me.active) return me.business_id === null ? <NewBusinessPage /> : <NotActive />
   if (me.role === 'kiosk') return <PlanGate feature="kiosk"><KioskPage /></PlanGate>
   if (isPartner) {
     // Outside businesses: read-only, only the areas an admin gave them (the database enforces it too).

@@ -1738,13 +1738,31 @@ export function createDemoApi(): Api {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e)) throw new Error('Enter a full email address')
       if (password.length < 8) throw new Error('Use at least 8 characters for your password')
       if (profiles.some(p => p.email === e)) throw new Error('That email already has an account. Sign in instead.')
-      // Like the real app: a self-registered account waits until an admin adds it to the business.
+      // Like the real app: a self-registered account is in no business until it creates one or an admin adds it.
       const id = `p-${Math.random().toString(36).slice(2, 10)}`
-      profiles.push({ id, full_name: fullName.trim() || e.split('@')[0], email: e, role: 'employee', can_see_pay: false, colour: '#8E877F',
+      profiles.push({ id, business_id: null, full_name: fullName.trim() || e.split('@')[0], email: e, role: 'employee', can_see_pay: false, colour: '#8E877F',
         active: false, phone: null, birth_date: null } as never)
       currentUser = id
       notify()
       return { confirmEmail: false }
+    },
+    // The demo has one business: whoever creates theirs runs it, under their business's name (the
+    // sample café's data stays, as examples), and the set-up guide starts again.
+    async createBusiness(b) {
+      const p = me()
+      if (!p) throw new Error('Sign in first')
+      if (p.business_id !== null) throw new Error('Your account is already in a business')
+      const name = b.name.trim()
+      if (!name || name.length > 120) throw new Error('Give your business a name (up to 120 characters)')
+      Object.assign(p, { business_id: 1, role: 'admin', can_see_pay: true, active: true })
+      // Another business's link: on its list of referrals, joined.
+      if (b.referral && cleanCode(b.referral) === referralDemo.code) {
+        referralDemo.referrals.unshift({ id: uid(), business_name: name, joined_at: nowIso(), set_up_at: null })
+      }
+      Object.assign(business, { name, business_type: ({ cafe: 'Café', restaurant: 'Restaurant & bar', salon: 'Salon & beauty' } as Record<string, string>)[b.kind ?? ''] ?? null,
+        timezone: b.timezone || 'Europe/Madrid', setup_completed_at: null })
+      notify()
+      return 1
     },
     async sendSignInCode(email) {
       if (!profiles.some(p => p.email === email.trim().toLowerCase())) throw new Error('No invited account uses this email. Ask an admin to invite you.')
@@ -1958,8 +1976,18 @@ export function createDemoApi(): Api {
       if (password !== undefined && password.length < 8) throw new Error('The temporary password needs at least 8 characters')
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) throw new Error('Enter a full email address, like name@example.com')
       if (role === 'boss' && !paysAdmin()) throw new Error('Only a boss can invite another boss')
-      profiles.push({ id: uid(), full_name: fullName, email, ...(role === 'kiosk' ? { role, can_see_pay: false } : accessOf(role)), colour: '#8d6e63',
+      const addr = email.trim().toLowerCase()
+      const account = profiles.find(p => p.email === addr)
+      // Signed up on their own and in no business yet: they join the team as they are.
+      if (account && account.business_id === null) {
+        Object.assign(account, { business_id: 1, ...(role === 'kiosk' ? { role, can_see_pay: false } : accessOf(role)), active: true,
+          phone: contact?.phone ?? account.phone, contact_method: contact?.contact_method ?? null })
+        return { joined: true }
+      }
+      if (account) throw new Error('Someone with that email already has an account')
+      profiles.push({ id: uid(), full_name: fullName, email: addr, ...(role === 'kiosk' ? { role, can_see_pay: false } : accessOf(role)), colour: '#8d6e63',
         active: true, phone: contact?.phone ?? null, birth_date: null, contact_method: contact?.contact_method ?? null })
+      return {}
     },
     async partners() {
       requireAdmin()
@@ -1974,6 +2002,7 @@ export function createDemoApi(): Api {
       if (profiles.some(p => p.email === addr)) throw new Error('Someone with that email already has an account')
       profiles.push({ id: uid(), full_name: fullName.trim(), email: addr, role: 'partner', can_see_pay: false, colour: '#6B645E',
         active: true, phone: null, birth_date: null, partner_company: company.trim(), partner_access: [...access] })
+      return {}
     },
     async setPartnerAccess(id, company, access) {
       requireAdmin()
@@ -4083,12 +4112,6 @@ export function createDemoApi(): Api {
       if (cleanCode(code) !== referralDemo.code) throw new Error('That invite link isn’t valid')
       if (count) referralDemo.opens++
       return { business: business.name }
-    },
-    async joinReferral(input) {
-      if (cleanCode(input.code) !== referralDemo.code) throw new Error('That invite link isn’t valid')
-      if (!input.business_name.trim()) throw new Error('Add your business’s name')
-      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(input.email.trim())) throw new Error('Add a valid email address')
-      referralDemo.referrals.unshift({ id: uid(), business_name: input.business_name.trim(), joined_at: nowIso(), set_up_at: null })
     },
     async instagramInbox() {
       requireAdmin()

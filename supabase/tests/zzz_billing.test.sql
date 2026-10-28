@@ -69,15 +69,15 @@ do $$ begin
   assert (select count(*) from public.profiles where active and role in ('admin', 'employee')) >= 3, 'team already at 3';
 end $$;
 select pg_temp.expect_error($q$insert into auth.users (email, raw_user_meta_data, invited_at) values ('fourth@test', '{"full_name":"Fourth"}', now())$q$, 'team is full');
--- Self-registrations wait switched off, so they never hit the limit…
+-- Someone who signs up on their own is in no business, so never hits the limit…
 insert into auth.users (email, raw_user_meta_data) values ('waiting@test', '{"full_name":"Waiting"}');
--- …until an admin switches them on.
-select pg_temp.expect_error($q$update public.profiles set active = true where email = 'waiting@test'$q$, 'team is full');
+-- …until an admin adds them to the team (the Worker puts them in the business, switched on).
+select pg_temp.expect_error($q$update public.profiles set business_id = 1, active = true where email = 'waiting@test'$q$, 'team is full');
 select pg_temp.expect_error($q$update public.business set sports_enabled = true$q$, 'Pro plan');
 
 -- 3. Paid again: the same things work ----------------------------------------------------
 update public.billing set plan = 'business', status = 'active';
-update public.profiles set active = true where email = 'waiting@test';
+update public.profiles set business_id = 1, active = true where email = 'waiting@test';
 update public.integrations set status = 'connected' where provider = 'facebook';
 insert into public.social_posts (caption, targets, scheduled_at, status)
   values ('Second', '{facebook}', date_trunc('month', now()) + interval '21 days', 'scheduled');

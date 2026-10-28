@@ -53,7 +53,7 @@ begin
   select string_agg(p.oid::regprocedure::text, ', ') into v from pg_proc p
    where p.pronamespace = 'public'::regnamespace and p.prosecdef and p.proowner <> 'app_definer'::regrole
      and p.proname not in ('current_business_id', 'my_role', 'is_admin', 'is_staff', 'can_see_pay', 'is_partner',
-                           'partner_can', 'tip_pool_out', 'handle_new_user', 'each_business');
+                           'partner_can', 'tip_pool_out', 'handle_new_user', 'each_business', 'create_business', 'business_set_up');
   assert v is null, 'Security definer functions that would see every business. After creating one: alter function ... owner to app_definer; — ' || v;
 
   -- Unique within a business: a unique index takes in business_id, or a column that's unique by itself
@@ -94,16 +94,16 @@ insert into auth.users (email, raw_user_meta_data, invited_at) values
   ('lola@dos', '{"full_name":"Lola","role":"admin","business_id":"2"}', now()),
   ('pepe@dos', '{"full_name":"Pepe","role":"employee","business_id":"2"}', now());
 insert into auth.users (email, raw_user_meta_data) values
-  ('nadie@test', '{"full_name":"Nadie"}'),
-  ('colado@test', '{"full_name":"Colado","role":"admin","business_id":"1"}');
+  ('nadie@test.es', '{"full_name":"Nadie"}'),
+  ('colado@test.es', '{"full_name":"Colado","role":"admin","business_id":"1"}');
 
 do $$ begin
   assert (select business_id = 2 and role = 'admin' and can_see_pay and active from public.profiles where email = 'lola@dos'),
     'the first person in a business with no admin is its admin';
   assert (select business_id = 2 and role = 'employee' and active from public.profiles where email = 'pepe@dos'), 'invited into Bar Dos';
-  assert (select business_id is null and role = 'employee' and not active from public.profiles where email = 'nadie@test'),
+  assert (select business_id is null and role = 'employee' and not active from public.profiles where email = 'nadie@test.es'),
     'with several businesses, someone nobody invited is in none';
-  assert (select business_id is null and role = 'employee' and not active from public.profiles where email = 'colado@test'),
+  assert (select business_id is null and role = 'employee' and not active from public.profiles where email = 'colado@test.es'),
     'the business in a sign-up''s own details counts for nothing';
 end $$;
 
@@ -157,7 +157,7 @@ do $$ begin
 end $$;
 
 -- Someone in no business has their own profile, and nothing else.
-select pg_temp.act_as('nadie@test');
+select pg_temp.act_as('nadie@test.es');
 do $$ begin
   assert public.current_business_id() is null, 'in no business';
   assert (select count(*) from public.profiles) = 1, 'only their own profile';

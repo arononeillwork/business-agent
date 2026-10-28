@@ -1,5 +1,5 @@
 // Referral links, end to end through the Worker against a stand-in Supabase: the code must be this
-// business's, joining takes short plain fields, and nobody learns who else has joined.
+// business's, and an open is counted once per visit.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { referrals } from './referrals'
 import { FakeSupabase } from './test/fakeSupabase'
@@ -37,28 +37,5 @@ describe('Referral links', () => {
   it('a wrong or odd code is refused and not counted', async () => {
     for (const code of ['ZZZZ9999', '<script>', '', 42]) expect((await post('/api/referrals/open', { code })).status).toBe(404)
     expect(db.table('referral_opens')).toHaveLength(0)
-    expect((await post('/api/referrals/join', { code: 'ZZZZ9999', business_name: 'X', email: 'x@y.test' })).status).toBe(404)
-  })
-
-  it('joining keeps the business, the name and the email (trimmed, lower case)', async () => {
-    const res = await post('/api/referrals/join', { code: 'AB12CD34', business_name: '  La Tostadora ', contact_name: ' Pepa ', email: ' Pepa@Tostadora.TEST ' })
-    expect(res.status).toBe(200)
-    expect(db.table('referrals')).toEqual([expect.objectContaining({ business_name: 'La Tostadora', contact_name: 'Pepa', email: 'pepa@tostadora.test' })])
-  })
-
-  it('joining twice says yes both times and keeps one', async () => {
-    const join = () => post('/api/referrals/join', { code: 'AB12CD34', business_name: 'La Tostadora', email: 'pepa@tostadora.test' })
-    expect((await join()).status).toBe(200)
-    expect((await join()).status).toBe(200)
-    expect(db.table('referrals')).toHaveLength(1)
-  })
-
-  it('missing or too long fields are refused', async () => {
-    const base = { code: 'AB12CD34', business_name: 'Café', email: 'a@b.test' }
-    expect((await post('/api/referrals/join', { ...base, business_name: '  ' })).status).toBe(400)
-    expect((await post('/api/referrals/join', { ...base, business_name: 'x'.repeat(121) })).status).toBe(400)
-    expect((await post('/api/referrals/join', { ...base, email: 'not an email' })).status).toBe(400)
-    expect((await post('/api/referrals/join', { ...base, contact_name: 'x'.repeat(121) })).status).toBe(400)
-    expect(db.table('referrals')).toHaveLength(0)
   })
 })

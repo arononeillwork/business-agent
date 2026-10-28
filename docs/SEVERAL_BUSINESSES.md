@@ -63,6 +63,27 @@ Checks that run with the caller's rights (`plan_profiles_rule`, `claim_rules`…
 security definer function would see every business, or a unique key spans businesses; it also runs
 two businesses side by side.
 
+## A new business signs up
+
+1. **Sign up.** Anyone can create an account on the sign-in page. Someone nobody invited is in no
+   business yet (`handle_new_user()`); the one exception is a brand-new database whose only business
+   has no admin, where the first person to sign up runs it.
+2. **Create my business** (`src/pages/NewBusinessPage.tsx`). Signed in and in no business, the app
+   asks for the business's name, kind and time zone and calls `create_business()`. That makes the
+   business and everything a business starts with (its settings rows, the apps to connect, the sports
+   catalogue, to-do categories, itself on Competitors, positions and a break for its kind), and makes
+   its creator the admin and boss, on the Free plan. It stays with `postgres`: it works across
+   businesses (the new one, and the referrer's list).
+3. **The set-up guide** (`/setup`) opens, preset for the kind of business.
+
+Someone joining a team instead asks their manager to add their email on the Team page: an account
+that exists and is in no business joins straight away (`joinBusiness`).
+
+A referral link (`/?ref=CODE`) is kept in the browser through sign-up. The new business gets its first
+month free and is put down as referred (`business.referred_by`); the referrer's list shows it
+(`referrals.became`), and the referrer's month counts once the new business finishes the set-up
+guide (`business_set_up()`).
+
 ## By hand (SQL editor)
 
 With several businesses, say which one: `select public.grant_complimentary('friends_family', 'Note', 7);`
