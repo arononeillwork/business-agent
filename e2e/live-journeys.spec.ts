@@ -168,6 +168,9 @@ for (const [label, key, hosts] of [
 // ---------------------------------------------------------------------------------------------
 test.describe('admin', () => {
   test('every page in the menu opens without an error', async ({ page }) => {
+    // Some 27 pages, each waiting for the page to go quiet while the shell asks Instagram and
+    // Facebook for unread messages (several seconds each on a slow day): it took 26-27 s of 30.
+    test.setTimeout(60_000)
     await signIn(page, 'admin')
     const pages: { link: string; path: string; check: (p: Page) => Promise<void> }[] = [
       { link: 'Business', path: '/business', check: p => expect(p.getByRole('heading', { level: 1, name: business.name })).toBeVisible(NET) },
