@@ -337,7 +337,7 @@ export default {
   'Give it to them in person or by WhatsApp. They can change it on My account.': 'Dásela en persona o por WhatsApp. Puede cambiarla en Mi cuenta.',
   'New': 'Nueva',
   'Email invites only reach people once an email provider is set up for Supabase. Until then, use a temporary password.': 'Las invitaciones por email solo llegan cuando hay un proveedor de email configurado en Supabase. Hasta entonces, usa una contraseña temporal.',
-  'Easy Beans team app: {url}\nEmail: {email}\nTemporary password: {password}': 'App del equipo de Easy Beans: {url}\nEmail: {email}\nContraseña temporal: {password}',
+  '{business} team app: {url}\nEmail: {email}\nTemporary password: {password}': 'App del equipo de {business}: {url}\nEmail: {email}\nContraseña temporal: {password}',
   'Copied': 'Copiado',
   'Copy': 'Copiar',
   'Account ready. Send them: {email} / {password}': 'Cuenta lista. Envíale: {email} / {password}',

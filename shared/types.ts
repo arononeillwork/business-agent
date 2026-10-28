@@ -18,6 +18,8 @@ export const DAY_KEYS: DayKey[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'su
 export type OpeningHours = Partial<Record<DayKey, { open: string; close: string } | null>>
 
 export interface Business {
+  /** Its number: 1 is Easy Beans, the first business (the several_businesses migration). */
+  id?: number
   name: string
   business_type: string | null
   address: string | null

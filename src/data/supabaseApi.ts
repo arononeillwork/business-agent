@@ -205,7 +205,8 @@ export function createSupabaseApi(url: string, key: string): Api {
       return check(await sb.from('profiles').select(PROFILE_COLUMNS).eq('id', id).maybeSingle())
     },
     async business() {
-      return check(await sb.from('business').select('*').eq('id', 1).single()) as Business
+      // Only the person's own business is there to read (row security).
+      return check(await sb.from('business').select('*').single()) as Business
     },
     async adminNotes() {
       const row = check(await sb.from('business_admin_notes').select('notes').eq('id', 1).maybeSingle())
@@ -325,7 +326,8 @@ export function createSupabaseApi(url: string, key: string): Api {
 
     async updateBusiness(patch) {
       // A website typed without https:// gets it (the database takes http(s) addresses only).
-      check(await sb.from('business').update('website' in patch ? { ...patch, website: cleanWebsite(patch.website) } : patch).eq('id', 1))
+      const { data: business } = await sb.rpc('current_business_id')
+      check(await sb.from('business').update('website' in patch ? { ...patch, website: cleanWebsite(patch.website) } : patch).eq('id', business as number))
     },
     async updateAdminNotes(notes) {
       check(await sb.from('business_admin_notes').update({ notes }).eq('id', 1))
@@ -1156,7 +1158,7 @@ export function createSupabaseApi(url: string, key: string): Api {
     instagramThread: id => worker(`/api/integrations/instagram/inbox/${encodeURIComponent(id)}`),
     async referrals() {
       const [{ data: b }, list, opens] = await Promise.all([
-        sb.from('business').select('referral_code').eq('id', 1).single(),
+        sb.from('business').select('referral_code').single(),
         sb.from('referrals').select('id, business_name, joined_at, set_up_at').order('joined_at', { ascending: false }),
         sb.from('referral_opens').select('id', { count: 'exact', head: true }),
       ])

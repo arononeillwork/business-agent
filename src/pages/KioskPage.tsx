@@ -17,7 +17,7 @@ type Action = KioskResult['action']
 const ACTION_LABEL: Record<Action, string> = { in: msg('Clock in'), out: msg('Clock out'), break_start: msg('Start break'), break_end: msg('End break') }
 
 export function KioskPage() {
-  const { api, me, breakTypes } = useApp()
+  const { api, me, breakTypes, business } = useApp()
   useTick(15000)
   const roster = useAsync('kiosk-roster', () => api.kioskRoster(), [], { refetchInterval: 30_000 })
   const [person, setPerson] = useState<KioskPerson | null>(null)
@@ -54,7 +54,7 @@ export function KioskPage() {
       <Stack direction="row" sx={{ alignItems: 'center', mb: 3 }}>
         <Logo size={80} />
         <Box sx={{ ml: 1.5, flex: 1 }}>
-          <Typography variant="h5">{businessConfig.name}</Typography>
+          <Typography variant="h5">{business?.name ?? businessConfig.name}</Typography>
           <Typography sx={{ color: 'text.secondary', textTransform: 'capitalize' }}>{formatLocal(new Date(), 'EEEE d MMMM')}</Typography>
         </Box>
         <Typography variant="h3" sx={{ fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{formatLocal(new Date(), 'HH:mm')}</Typography>

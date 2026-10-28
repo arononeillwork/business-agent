@@ -39,7 +39,7 @@ function Steps({ steps }: { steps: string[] }) {
 }
 
 export function AiAssistantsPage() {
-  const { api, me, isPartner } = useApp()
+  const { api, me, isPartner, business } = useApp()
   const run = useAction()
   const qc = useQueryClient()
   const [ai, setAi] = useState<AiId>('claude')
@@ -84,7 +84,7 @@ export function AiAssistantsPage() {
             </Tabs>
             {ai === 'claude' && <Steps steps={[
               t('In Claude (web, desktop or phone), open Settings, then Connectors.'),
-              t('Choose Add custom connector, give it a name (Easy Beans) and paste the connector address above.'),
+              t('Choose Add custom connector, give it a name ({business}) and paste the connector address above.', { business: business?.name ?? 'Business Agent' }),
               t('Choose Connect and sign in with your team account. That’s it.'),
               t('In a chat, turn the connector on from the tools menu and ask away. On the phone, tap the mic to ask by voice.'),
             ]} />}

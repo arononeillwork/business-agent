@@ -64,7 +64,7 @@ async function readLogo(file: File): Promise<string> {
 
 /** The brand guidelines: logo, colours and fonts. Everyone sees them; admins change them. */
 export function BrandPage() {
-  const { api, isAdmin } = useApp()
+  const { api, isAdmin, business } = useApp()
   const run = useAction()
   const brand = useAsync('brand', () => api.brand(), [])
   const [editing, setEditing] = useState<{ index: number | null; colour: BrandColour } | null>(null)
@@ -105,7 +105,7 @@ export function BrandPage() {
                 <CardContent>
                   <SectionTitle>{t('Fonts')}</SectionTitle>
                   <Stack spacing={1.5}>
-                    {([['heading_font', t('Headings'), 'Easy Beans Coffee', 600, '2rem'], ['body_font', t('Body text'), t('Specialty coffee, matcha and fresh bakes in San Pedro. Open every day from 8.'), 400, '1.05rem']] as const)
+                    {([['heading_font', t('Headings'), business?.name ?? 'Easy Beans Coffee', 600, '2rem'], ['body_font', t('Body text'), t('Specialty coffee, matcha and fresh bakes in San Pedro. Open every day from 8.'), 400, '1.05rem']] as const)
                       .map(([key, label, sample, weight, size]) => (
                         <Box key={key} sx={{ p: 2, borderRadius: '14px', bgcolor: tokens.surfaceAlt }}>
                           <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>

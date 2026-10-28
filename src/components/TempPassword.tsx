@@ -1,5 +1,6 @@
 import { Alert, Button, FormControlLabel, InputAdornment, Radio, RadioGroup, Stack, TextField, Typography } from '@mui/material'
 import { useState } from 'react'
+import { useApp } from '../app/AppContext'
 import { t, tr } from '../i18n'
 
 const WORDS = ['bean', 'matcha', 'ube', 'chai', 'latte', 'crema', 'mocha', 'oat', 'rose', 'lilac', 'cacao', 'honey']
@@ -41,8 +42,9 @@ export function SignInSetupFields({ value, onChange }: { value: SignInSetup; onC
 
 /** Shown after saving, so the admin can copy the password before closing. */
 export function PasswordToShare({ email, password }: { email: string; password: string }) {
+  const { business } = useApp()
   const [copied, setCopied] = useState(false)
-  const text = t('Easy Beans team app: {url}\nEmail: {email}\nTemporary password: {password}', { url: location.origin, email, password })
+  const text = t('{business} team app: {url}\nEmail: {email}\nTemporary password: {password}', { business: business?.name ?? 'Business Agent', url: location.origin, email, password })
   return (
     <Alert severity="success" action={<Button size="small" onClick={() => navigator.clipboard?.writeText(text).then(() => setCopied(true), () => {})}>
       {copied ? t('Copied') : t('Copy')}</Button>}>

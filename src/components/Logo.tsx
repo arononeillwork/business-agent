@@ -22,11 +22,12 @@ export function Logo({ size = 28 }: { size?: number }) {
  * used top-left in the app instead of a name, so it always matches the uploaded file.
  */
 export function BrandLogo({ height }: { height: number }) {
-  const { api } = useApp()
+  const { api, business } = useApp()
   const brand = useAsync('brand', () => api.brand(), [])
-  const src = brand.data?.logo ?? logoUrl
+  // The bundled lockup is Easy Beans' (the first business); any other business without a logo yet gets the plain cup, Business Agent's mark.
+  const src = brand.data?.logo ?? ((business?.id ?? 1) === 1 ? logoUrl : iconUrl)
   return (
-    <img src={src} alt={businessConfig.name} height={height}
+    <img src={src} alt={business?.name ?? businessConfig.name} height={height}
       style={{ display: 'block', height, width: 'auto', maxWidth: '100%', objectFit: 'contain', borderRadius: 10 }} />
   )
 }
