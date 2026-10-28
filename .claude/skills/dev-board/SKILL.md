@@ -7,11 +7,13 @@ description: Opens the Feature board, the owner's overview of every feature of t
 
 The board is a claude.ai dashboard: https://claude.ai/artifact/GRDA4CrD6doezGej8dS6Pg
 
-Its Features tab shows every feature of the app by area: working, needs setting up or switched
-off, and what each needs (connections, app keys, switches) with a tick where it's in place; at the
-bottom, every key and connection, whether it's set up, and the features that need it. What each
-feature needs is `ops/features.json`. Its Work in progress tab shows what's being built, going
-live, and live this week. Its data is one row, `ops.dev_board`, in the BusinessAgent Supabase
+A toggle at the top switches between two views. Overview: every feature of the app at a glance (a
+tile each, by area), then a card each: working, needs setting up or switched off, and what it needs
+(connections, app keys, switches) with a tick where it's in place; at the bottom, every key and
+connection, whether it's set up, and the features that need it. What each feature needs is
+`ops/features.json`. Development: every branch and change in one of six stages (To do, In
+development, Code review, Deploy ready, Deploying, Live), with what it waits on and what needs the
+owner. Its data is one row, `ops.dev_board`, in the BusinessAgent Supabase
 project (`lhakrmmoxaareykglmtx`), written by `.github/workflows/dev-board.yml`
 (`scripts/ops/dev-board.mjs`) after every CI, merge queue and Deploy run starts or finishes, and
 every day at 9:00 and 18:00 in Spain.
