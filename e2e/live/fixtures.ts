@@ -4,6 +4,13 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { Page, TestInfo } from '@playwright/test'
 
 export const DOMAIN = 'business-agent.test'
+/**
+ * The business the live tests run in: Easy Beans, business 1. Other businesses share the database,
+ * so the service key's reads and writes name it (`where id = 1` on a settings table matches every
+ * business's row). An account made with the service key and no invite is in no business, so the
+ * tests put theirs into this one.
+ */
+export const TEST_BUSINESS = 1
 export const PASSWORD = process.env.E2E_PASSWORD ?? `e2e-${Math.random().toString(36).slice(2)}-Aa1!`
 export const EMPLOYEE_PIN = '2468'
 
@@ -12,7 +19,7 @@ export const USERS = {
   employee: { email: `e2e-employee@${DOMAIN}`, name: 'Eva Test', role: 'employee', can_see_pay: false, active: true },
   other: { email: `e2e-other@${DOMAIN}`, name: 'Omar Test', role: 'employee', can_see_pay: false, active: true },
   kiosk: { email: `e2e-tablet@${DOMAIN}`, name: 'Tablet Test', role: 'kiosk', can_see_pay: false, active: true },
-  // Signed up (or signed in with Google) by herself: nobody has added her to the team yet.
+  // Signed up (or signed in with Google) by herself: in no business yet, nobody has added her.
   newcomer: { email: `e2e-newcomer@${DOMAIN}`, name: 'Nina Test', role: 'employee', can_see_pay: false, active: false },
 } as const
 export type UserKey = keyof typeof USERS
@@ -63,7 +70,7 @@ export async function cleanUp(admin: SupabaseClient) {
   // Rows the journey tests (live-journeys.spec.ts) may leave behind. Columns that point at a
   // test account without "on delete" would otherwise block deleting the account.
   must(await admin.from('time_off').delete().in('profile_id', ids))
-  must(await admin.from('expenses').delete().like('name', `${TEST_ROW_PREFIX}%`))
+  must(await admin.from('expenses').delete().eq('business_id', TEST_BUSINESS).like('name', `${TEST_ROW_PREFIX}%`))
   must(await admin.from('expenses').update({ updated_by: null }).in('updated_by', ids))
   for (const table of ['business', 'business_admin_notes', 'settings']) {
     must(await admin.from(table).update({ updated_by: null }).in('updated_by', ids))
@@ -90,6 +97,7 @@ export async function addPartner(cfg: LiveConfig) {
   })
   if (error) throw error
   const { error: e2 } = await admin.from('profiles').update({
+    business_id: TEST_BUSINESS,
     role: 'partner', can_see_pay: false, active: true, partner_company: PARTNER.company, partner_access: [...PARTNER.access],
   }).eq('id', data.user.id)
   if (e2) throw e2
@@ -129,8 +137,10 @@ export async function setUp(cfg: LiveConfig) {
   }))
   const ids = await testUserIds(admin)
   await Promise.all(Object.values(USERS).map(async u => {
+    // The team joins the business; the newcomer stays in none.
     const { error } = await admin.from('profiles')
-      .update({ role: u.role, can_see_pay: u.can_see_pay, active: u.active }).eq('id', ids[u.email])
+      .update({ role: u.role, can_see_pay: u.can_see_pay, active: u.active, ...(u.active ? { business_id: TEST_BUSINESS } : {}) })
+      .eq('id', ids[u.email])
     if (error) throw error
   }))
   const { error } = await admin.from('pay_rates').insert([

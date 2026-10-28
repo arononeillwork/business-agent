@@ -12,7 +12,7 @@
 import { expect, test as base, type Page } from '@playwright/test'
 import { FEATURES } from '../src/app/features'
 import {
-  PARTNER, PASSWORD, TEST_ROW_PREFIX, USERS, addPartner, cleanUp, liveConfig, purgeTestAlerts, service, setUp,
+  PARTNER, PASSWORD, TEST_BUSINESS, TEST_ROW_PREFIX, USERS, addPartner, cleanUp, liveConfig, purgeTestAlerts, service, setUp,
   type LiveConfig, type UserKey,
   HOOK_TIMEOUT, recordNetwork,
 } from './live/fixtures'
@@ -54,11 +54,11 @@ test.beforeAll(async ({ baseURL }) => {
   const b = await sb.from('business').select('name, phone').eq('id', 1).single()
   if (b.error) throw new Error(b.error.message)
   business = b.data
-  const s = await sb.from('settings').select('alert_shift_reminders').eq('id', 1).single()
+  const s = await sb.from('settings').select('alert_shift_reminders').eq('business_id', TEST_BUSINESS).eq('id', 1).single()
   if (s.error) throw new Error(s.error.message)
   shiftReminders = s.data.alert_shift_reminders
   // One expense that finance partners (read-only) and admins can see; never shown to employees.
-  const e = await sb.from('expenses').insert({ name: PARTNER_EXPENSE, amount: 1.11, category: 'E2E', source: 'app' })
+  const e = await sb.from('expenses').insert({ business_id: TEST_BUSINESS, name: PARTNER_EXPENSE, amount: 1.11, category: 'E2E', source: 'app' })
   if (e.error) throw new Error(e.error.message)
 })
 
@@ -72,9 +72,9 @@ test.afterAll(async () => {
     if (now.data && now.data.phone !== business.phone) await sb.from('business').update({ phone: business.phone }).eq('id', 1)
   }
   if (shiftReminders !== undefined) {
-    const now = await sb.from('settings').select('alert_shift_reminders').eq('id', 1).single()
+    const now = await sb.from('settings').select('alert_shift_reminders').eq('business_id', TEST_BUSINESS).eq('id', 1).single()
     if (now.data && now.data.alert_shift_reminders !== shiftReminders) {
-      await sb.from('settings').update({ alert_shift_reminders: shiftReminders }).eq('id', 1)
+      await sb.from('settings').update({ alert_shift_reminders: shiftReminders }).eq('business_id', TEST_BUSINESS).eq('id', 1)
     }
   }
   await cleanUp(sb)
@@ -325,9 +325,9 @@ test.describe('admin', () => {
       await toast(page, `Shift reminders: switched ${was ? 'on' : 'off'}`)
       await expect(reminders).toBeChecked({ checked: was, ...NET })
     } finally {
-      await service(cfg).from('settings').update({ alert_shift_reminders: shiftReminders }).eq('id', 1)
+      await service(cfg).from('settings').update({ alert_shift_reminders: shiftReminders }).eq('business_id', TEST_BUSINESS).eq('id', 1)
     }
-    const { data } = await service(cfg).from('settings').select('alert_shift_reminders').eq('id', 1).single()
+    const { data } = await service(cfg).from('settings').select('alert_shift_reminders').eq('business_id', TEST_BUSINESS).eq('id', 1).single()
     expect(data?.alert_shift_reminders).toBe(shiftReminders)
     await expectNoErrorShown(page, 'Notifications')
   })

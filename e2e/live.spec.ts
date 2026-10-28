@@ -126,10 +126,12 @@ test.describe('sign-in and time tracking', () => {
     expect(data).toContainEqual({ reason: 'E2E: started an hour earlier', via: 'app', changed_by: ids[USERS.admin.email] })
   })
 
-  test('an account nobody has added yet (a new Google or email sign-up) is told so, not sent back to sign-in', async ({ page }) => {
-    // The business is hidden from her by the database: the app must not take that for signed out.
+  test('an account nobody has added yet (a new Google or email sign-up) is offered to create a business, not sent back to sign-in', async ({ page }) => {
+    // She's in no business, so the database shows her none: the app must not take that for signed out.
+    // (Only looked at: creating one here would add a business to the live database.)
     await signInUi(page, 'newcomer')
-    await expect(page.getByRole('heading', { name: "You're registered, Nina" })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Welcome, Nina. Let’s set up your business.' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Create my business' })).toBeVisible()
     await expect(page.getByText(USERS.newcomer.email).first()).toBeVisible()
     await page.getByRole('button', { name: 'Sign out' }).click()
     await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible()
