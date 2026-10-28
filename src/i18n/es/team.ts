@@ -67,6 +67,7 @@ export default {
   'Enter a full email address, like name@example.com': 'Escribe un email completo, como nombre@ejemplo.com',
   'Account created for {name}': 'Cuenta creada para {name}',
   'Invite sent to {email}': 'Invitación enviada a {email}',
+  '{email} already had an account: they’re on the team now': '{email} ya tenía cuenta: ya está en el equipo',
   'Create account': 'Crear cuenta',
   'Send invite': 'Enviar invitación',
   'Temporary password for {name}': 'Contraseña temporal para {name}',

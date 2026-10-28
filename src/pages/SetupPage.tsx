@@ -48,6 +48,13 @@ function load(): Guide {
   try { return { ...START, ...JSON.parse(sessionStorage.getItem(KEY) ?? '{}') } } catch { return START }
 }
 
+/** A business just created: the guide opens with its kind chosen and that kind's apps ticked (Use a ready-made setup). */
+export function startGuide(kind: BusinessKind | 'other' | null) {
+  const preset = PRESETS.find(p => p.kind === kind)
+  const guide: Guide = { ...START, kind: preset?.kind ?? null, picked: preset ? preset.apps.filter(a => a.on && findApp(a.id)).map(a => a.id) : [] }
+  try { sessionStorage.setItem(KEY, JSON.stringify(guide)) } catch { /* storage unavailable: the guide starts from the top */ }
+}
+
 /** Connected, or chosen and waiting to be proven (a calendar, a Page to pick): done as far as the queue goes. */
 const settled = (data: IntegrationsState | null, id: string) =>
   data?.integrations.some(i => i.provider === id && (i.status === 'connected' || i.status === 'pending')) ?? false

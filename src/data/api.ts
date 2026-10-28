@@ -133,6 +133,11 @@ export interface Api {
   signInMethods(): Promise<SignInMethods>
   /** Register a new account. `confirmEmail`: they must click the link in their email before signing in. */
   signUp(fullName: string, email: string, password: string): Promise<{ confirmEmail: boolean }>
+  /**
+   * Signed in and in no business yet: create mine and run it (admin, first boss, Free plan). `kind`
+   * picks its first positions; `referral` is another business's referral code. Returns its number.
+   */
+  createBusiness(b: { name: string; kind: 'cafe' | 'restaurant' | 'salon' | 'other' | null; timezone: string; referral?: string | null }): Promise<number>
   me(): Promise<Profile | null>
   business(): Promise<Business>
   adminNotes(): Promise<string | null>
@@ -177,14 +182,17 @@ export interface Api {
   updateProfile(id: string, patch: Partial<Profile>): Promise<void>
   setPin(pin: string, profileId?: string): Promise<void>
   setPayRate(profileId: string, hourlyRate: number): Promise<void>
-  /** Email an invite, or (with a temporary password) create the account straight away. */
-  invite(email: string, fullName: string, role: TeamRole | 'kiosk', password?: string, contact?: { phone?: string | null; contact_method?: ContactMethod | null }): Promise<void>
+  /**
+   * Email an invite, or (with a temporary password) create the account straight away. Someone who
+   * already has an account and is in no business yet joins the team as they are (`joined`).
+   */
+  invite(email: string, fullName: string, role: TeamRole | 'kiosk', password?: string, contact?: { phone?: string | null; contact_method?: ContactMethod | null }): Promise<{ joined?: boolean }>
   /** Admins: give someone (not an admin) a new temporary password to sign in with. */
   setTemporaryPassword(userId: string, password: string): Promise<void>
 
   // partners: outside businesses with read-only access to chosen areas (admins manage them)
   partners(): Promise<Profile[]>
-  invitePartner(email: string, fullName: string, company: string, access: PartnerArea[], password?: string): Promise<void>
+  invitePartner(email: string, fullName: string, company: string, access: PartnerArea[], password?: string): Promise<{ joined?: boolean }>
   setPartnerAccess(id: string, company: string, access: PartnerArea[]): Promise<void>
 
   // time off
@@ -696,8 +704,6 @@ export interface Api {
   referrals(): Promise<ReferralState>
   /** Someone opened a referral link (no sign-in): counted, and who invited them. */
   openReferral(code: string, count?: boolean): Promise<{ business: string }>
-  /** A business joins the waitlist from a referral link (no sign-in). */
-  joinReferral(input: { code: string; business_name: string; contact_name?: string; email: string }): Promise<void>
   uploadPhoto(file: File): Promise<string>
   share(caption: string, imageUrl: string | null, targets: ('instagram' | 'google')[], eventId?: string): Promise<number>
   sendRota(monday: string): Promise<number>

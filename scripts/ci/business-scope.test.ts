@@ -12,7 +12,7 @@ describe('the service role over every business is only used to find which busine
     'authEmail.ts': 1,    // the business of whoever the email is for
     'billing.ts': 2,      // the business of a Stripe customer; AI music still to charge, each on its business
     'calendarFeed.ts': 1, // a feed link's owner, by its hash
-    'index.ts': 4,        // accounts (invites, passwords) and the jobs that run for each business
+    'index.ts': 5,        // accounts (invites, passwords, someone's account by email) and the jobs that run for each business
     'integrations.ts': 1, // the business whose Square account a webhook is for
     'menu.ts': 1,         // the business of an AI image Higgsfield finished
     'referrals.ts': 1,    // the business whose referral code it is
