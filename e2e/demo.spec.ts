@@ -3540,7 +3540,8 @@ test.describe('grants', () => {
     await expect(talento).toContainText('Submitted 30 Sep 2026')
     await expect(talento.getByRole('button', { name: 'Move to Awarded' })).toBeVisible()
     const contract = talento.getByRole('checkbox', { name: 'Signed full-time employment contract (6 months or more)' })
-    await contract.check()
+    // Ticked once the save comes back, so click and wait for it rather than check(), which wants it at once.
+    await contract.click()
     await expect(contract).toBeChecked()
     await expect(talento).toContainText('Documents · 3 of 8')
 
