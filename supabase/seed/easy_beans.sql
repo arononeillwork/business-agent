@@ -1,5 +1,7 @@
 -- Easy Beans Coffee: business data. Idempotent; safe to re-run.
 -- People are not seeded: they join through invites (the first sign-up becomes admin).
+-- Easy Beans is business 1. A new database has it already, with a placeholder name (the
+-- several_businesses migration): its details are filled in here only while it still has that name.
 
 insert into public.business (id, name, business_type, address, phone, email, instagram, website, timezone,
   opening_hours, peak_hours, owners, suppliers, towns_followed, notes)
@@ -22,17 +24,21 @@ values (1,
      "notes":"Croissants daily, pastries every 2 days"}]',
   '{"Marbella","Estepona","Benahavís","Málaga"}',
   'Weekday closing time to confirm: 18:00 (plan) vs 15:00 (Square rota).')
-on conflict (id) do nothing;
+on conflict (id) do update set (name, business_type, address, phone, email, instagram, website, timezone,
+  opening_hours, peak_hours, owners, suppliers, towns_followed, notes) = (excluded.name, excluded.business_type,
+  excluded.address, excluded.phone, excluded.email, excluded.instagram, excluded.website, excluded.timezone,
+  excluded.opening_hours, excluded.peak_hours, excluded.owners, excluded.suppliers, excluded.towns_followed, excluded.notes)
+  where public.business.name = 'My business';
 
-insert into public.business_admin_notes (id, notes) values (1, null) on conflict (id) do nothing;
-insert into public.settings (id) values (1) on conflict (id) do nothing;
+insert into public.business_admin_notes (business_id, notes) values (1, null) on conflict (business_id) do nothing;
+insert into public.settings (business_id) values (1) on conflict (business_id) do nothing;
 
 insert into public.positions (name, colour, sort) values
   ('Barista', '#F79BA4', 1),
   ('Kitchen', '#6B8E4E', 2),
   ('Cleaner', '#C6C2BB', 3),
   ('Propietario', '#B7A3D8', 4)
-on conflict (name) do nothing;
+on conflict (business_id, name) do nothing;
 
 insert into public.break_types (name, minutes, paid)
 select * from (values ('Rest 15 min (paid)', 15, true), ('Lunch 30 min (unpaid)', 30, false)) v(name, minutes, paid)
@@ -61,7 +67,7 @@ values
   ('2026-08-19', 'Toma de Málaga', 'area', 'Málaga', 'import', 'malaga-2026-08-19', false),
   ('2026-09-08', 'Virgen de la Victoria', 'area', 'Málaga', 'import', 'malaga-2026-09-08', false),
   ('2026-10-07', 'Fiesta local', 'area', 'Benahavís', 'import', 'benahavis-2026-10-07', false)
-on conflict (source, external_id) where external_id is not null do nothing;
+on conflict (business_id, source, external_id) where external_id is not null do nothing;
 
 -- Sports competitions are seeded by migration 20260926000018_sports.sql.
 

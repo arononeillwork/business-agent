@@ -5,7 +5,7 @@
 // same database rules apply as in the app, and changes are logged as made via the API or AI.
 import { Hono, type MiddlewareHandler } from 'hono'
 import { createClient, type Session, type SupabaseClient } from '@supabase/supabase-js'
-import { bearer, serviceClient, userClient, type Env } from './supabase'
+import { bearer, requestDb, serviceClient, userClient, type Env } from './supabase'
 import { seal, unseal } from './crypto'
 import { loadMe } from './tools'
 
@@ -94,7 +94,7 @@ apiKeys.use('/api/me/api-keys/*', signedIn)
 const KEY_COLUMNS = 'id, name, prefix, created_at, last_used_at'
 
 apiKeys.get('/api/me/api-keys', async c => {
-  const { data, error } = await serviceClient(c.env).from('api_keys').select(KEY_COLUMNS)
+  const { data, error } = await (await requestDb(c)).from('api_keys').select(KEY_COLUMNS)
     .eq('profile_id', c.get('userId')).is('revoked_at', null).order('created_at', { ascending: false })
   if (error) return c.json({ error: error.message }, 500)
   return c.json({ keys: data })
@@ -104,7 +104,7 @@ apiKeys.post('/api/me/api-keys', async c => {
   const { name } = await c.req.json<{ name?: string }>().catch(() => ({ name: undefined }))
   const label = (name ?? '').trim().slice(0, 60)
   if (!label) return c.json({ error: 'Give the key a name, like “ChatGPT” or “n8n”' }, 400)
-  const db = serviceClient(c.env)
+  const db = await requestDb(c)
   const { data: current } = await db.from('api_keys').select('id').eq('profile_id', c.get('userId')).is('revoked_at', null)
   if ((current?.length ?? 0) >= MAX_KEYS) return c.json({ error: `You have ${MAX_KEYS} keys already. Revoke one you no longer use first.` }, 400)
   const key = newKey()
@@ -116,7 +116,7 @@ apiKeys.post('/api/me/api-keys', async c => {
 })
 
 apiKeys.delete('/api/me/api-keys/:id', async c => {
-  const { data } = await serviceClient(c.env).from('api_keys').update({ revoked_at: new Date().toISOString(), session: null })
+  const { data } = await (await requestDb(c)).from('api_keys').update({ revoked_at: new Date().toISOString(), session: null })
     .eq('id', c.req.param('id')).eq('profile_id', c.get('userId')).is('revoked_at', null).select('id')
   if (!data?.length) return c.json({ error: 'No such key' }, 404)
   return c.json({ ok: true })

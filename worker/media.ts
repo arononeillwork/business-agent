@@ -2,11 +2,13 @@
 // apps: each fetches the file from a public address when it posts. So the files live in the café's
 // own storage, the connected Google Drive or OneDrive ("Business Agent/Social/<Posts|Carousels|
 // Reels|Stories>"), or in R2 when the deploy has it, and /media/… hands them out. Drive and OneDrive
-// addresses are signed: only ones Business Agent made open anything, never another file there.
+// addresses are signed and name the business whose storage the file is in (/media/<g|o>/<business>/
+// <id>/<signature>.<ext>): only ones Business Agent made open anything, never another file there.
+// Addresses from before there were several businesses have no business in them: those are the first's.
 // The Menu page keeps its pictures the same way ("Business Agent/Menu"): menu photos, uploaded
 // designs, and AI images copied from Higgsfield (which keeps them only a week).
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { serviceClient, type Env } from './supabase'
+import { businessDb, businessIdOf, type Env } from './supabase'
 import { connectorGrant, explain, lasting, markBroken } from './connections'
 import * as google from './providers/google'
 import * as ms from './providers/microsoft'
@@ -82,48 +84,58 @@ export async function storeMedia(env: Env, db: SupabaseClient, origin: string,
     return { url: `${origin}/media/${key}`, type: t.type, storage }
   }
   const name = `${new Date().toISOString().slice(0, 10)} ${crypto.randomUUID().slice(0, 8)}.${t.ext}`
+  const business = businessIdOf(db)
+  if (!business) throw new Error('Files are kept for a business: none to keep this for')
   try {
     const { token } = await connectorGrant(env, db, storage)
-    remember(storage, token)
+    remember(business, storage, token)
     const id = storage === 'google_drive'
       ? await google.uploadToDrive(token, await google.folderPath(token, path), name, f.type, f.size, f.body)
       : await ms.uploadToOneDrive(token, path, name, f.size, f.body)
     const p = storage === 'google_drive' ? 'g' : 'o'
-    return { url: `${origin}/media/${p}/${encodeURIComponent(id)}/${await sign(env, `${p}:${id}`)}.${t.ext}`, type: t.type, storage }
+    return { url: `${origin}/media/${p}/${business}/${encodeURIComponent(id)}/${await sign(env, `${p}:${business}:${id}`)}.${t.ext}`, type: t.type, storage }
   } catch (e) {
     if (lasting(storage, e)) await markBroken(db, storage, explain(storage, e))
     throw new Error(explain(storage, e))
   }
 }
 
-// Access tokens last an hour: kept for 45 minutes per Worker instance, so the network fetching a
-// carousel's ten files doesn't renew the token ten times.
-const tokens = new Map<MediaStorage, { token: string; until: number }>()
-const remember = (p: MediaStorage, token: string) => tokens.set(p, { token, until: Date.now() + 45 * 60_000 })
-async function accessToken(env: Env, db: SupabaseClient, p: 'google_drive' | 'onedrive') {
-  const kept = tokens.get(p)
+// Access tokens last an hour: kept for 45 minutes per Worker instance (each business's its own), so
+// the network fetching a carousel's ten files doesn't renew the token ten times.
+const tokens = new Map<string, { token: string; until: number }>()
+const remember = (business: number, p: MediaStorage, token: string) => tokens.set(`${business}:${p}`, { token, until: Date.now() + 45 * 60_000 })
+async function accessToken(env: Env, business: number, p: 'google_drive' | 'onedrive') {
+  const kept = tokens.get(`${business}:${p}`)
   if (kept && kept.until > Date.now()) return kept.token
-  const { token } = await connectorGrant(env, db, p)
-  remember(p, token)
+  const { token } = await connectorGrant(env, businessDb(env, business), p)
+  remember(business, p, token)
   return token
 }
 /** Tests: start without kept tokens. */
 export const forgetMediaTokens = () => tokens.clear()
 
-/** GET /media/<g|o>/<id>/<signature>.<ext>: the file, from the café's Drive or OneDrive. */
-export async function serveMedia(env: Env, req: Request, p: string, id: string, file: string): Promise<Response> {
+/** The first business: whose files the addresses without a business in them are. */
+const FIRST_BUSINESS = 1
+
+/**
+ * GET /media/<g|o>/<business>/<id>/<signature>.<ext>: the file, from that business's Drive or
+ * OneDrive (`business` null: an address from before there were several businesses).
+ */
+export async function serveMedia(env: Env, req: Request, p: string, id: string, file: string, business: number | null = null): Promise<Response> {
   const [sig, ext] = file.split('.')
   const storage = p === 'g' ? 'google_drive' : p === 'o' ? 'onedrive' : null
-  if (!storage || !ext || !CONTENT_TYPE[ext] || sig !== await sign(env, `${p}:${id}`)) return new Response('Not found', { status: 404 })
+  const signed = business === null ? `${p}:${id}` : `${p}:${business}:${id}`
+  if (!storage || !ext || !CONTENT_TYPE[ext] || sig !== await sign(env, signed)) return new Response('Not found', { status: 404 })
+  const owner = business ?? FIRST_BUSINESS
   let res: Response
   try {
-    const token = await accessToken(env, serviceClient(env), storage)
+    const token = await accessToken(env, owner, storage)
     const range = req.headers.get('range')
     res = storage === 'google_drive' ? await google.driveDownload(token, id, range) : await ms.oneDriveDownload(token, id, range)
   } catch {
     return new Response('Storage not reachable', { status: 502 })
   }
-  if (res.status === 401) tokens.delete(storage)
+  if (res.status === 401) tokens.delete(`${owner}:${storage}`)
   if (!res.ok) return new Response(res.status === 404 ? 'Not found' : 'Storage not reachable', { status: res.status === 404 ? 404 : 502 })
   const headers = new Headers({ 'content-type': CONTENT_TYPE[ext], 'cache-control': 'public, max-age=86400', 'accept-ranges': 'bytes' })
   for (const h of ['content-length', 'content-range']) {
@@ -140,9 +152,9 @@ export async function serveMedia(env: Env, req: Request, p: string, id: string, 
  */
 export async function mediaBytes(env: Env, url: string): Promise<{ bytes: ArrayBuffer; type: string }> {
   const path = new URL(url).pathname
-  const own = path.match(/^\/media\/([go])\/([^/]+)\/([^/]+)$/)
+  const own = path.match(/^\/media\/([go])\/(?:(\d+)\/)?([^/]+)\/([^/]+)$/)
   let res: Response
-  if (own) res = await serveMedia(env, new Request(url), own[1], decodeURIComponent(own[2]), own[3])
+  if (own) res = await serveMedia(env, new Request(url), own[1], decodeURIComponent(own[3]), own[4], own[2] ? Number(own[2]) : null)
   else if (path.startsWith('/media/') && env.MEDIA) {
     const obj = await env.MEDIA.get(path.slice('/media/'.length))
     res = obj ? new Response(obj.body, { headers: { 'content-type': obj.httpMetadata?.contentType ?? 'image/jpeg' } }) : new Response('Not found', { status: 404 })

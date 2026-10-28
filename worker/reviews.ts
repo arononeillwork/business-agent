@@ -6,7 +6,7 @@
 // the page shows what's kept; it only asks Google when that's due.
 import { Hono } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { bearer, serviceClient, userClient, type Env } from './supabase'
+import { bearer, requestDb, secretPlaceId, userClient, type Env } from './supabase'
 import { explain, googleSession, lasting, markBroken } from './connections'
 import { cached } from './cache'
 import * as google from './providers/google'
@@ -29,7 +29,7 @@ for (const path of ['/api/reviews', '/api/reviews/*']) {
   })
 }
 
-const placesOn = (env: Env) => !!(env.GOOGLE_PLACES_API_KEY && env.GOOGLE_PLACE_ID)
+const placesOn = (env: Env, db: SupabaseClient) => !!(env.GOOGLE_PLACES_API_KEY && secretPlaceId(env, db))
 const isConnected = async (db: SupabaseClient) => {
   const { data } = await db.from('integrations').select('status, external').eq('provider', 'google_business').single()
   const ext = (data?.external ?? {}) as { location?: string; account?: string }
@@ -59,9 +59,9 @@ async function readFeed(env: Env, db: SupabaseClient): Promise<Feed> {
       if (lasting('google_business', e)) await markBroken(db, 'google_business', problem)
     }
   }
-  if (placesOn(env)) {
+  if (placesOn(env, db)) {
     try {
-      const p = await placeReviews(env.GOOGLE_PLACES_API_KEY!, env.GOOGLE_PLACE_ID!)
+      const p = await placeReviews(env.GOOGLE_PLACES_API_KEY!, secretPlaceId(env, db)!)
       const list = p.reviews.flatMap((r): Review[] => {
         const rating = starsOf(r.rating)
         if (!rating || !r.publishTime) return []
@@ -91,7 +91,7 @@ export async function checkReviews(env: Env, db: SupabaseClient): Promise<{ feed
   const fresh = feed.list.filter(r => !seen.has(r.id))
   // Places has no replies: keep the ones made here; the profile's own are the truth.
   const rows = feed.list.map(({ reply, replied_at, ...r }) => (feed.feed === 'business_profile' ? { ...r, reply, replied_at } : r))
-  const { error } = await db.from('reviews').upsert(rows, { onConflict: 'id' })
+  const { error } = await db.from('reviews').upsert(rows, { onConflict: 'business_id,id' })
   if (error) throw new Error(error.message)
   const week = Date.now() - 7 * 86_400_000
   const recent = fresh.filter(r => Date.parse(r.created_at) >= week)
@@ -109,7 +109,7 @@ export async function checkReviews(env: Env, db: SupabaseClient): Promise<{ feed
 }
 
 /** Is there anything to read reviews from (the cron skips the work otherwise)? */
-export const reviewsConfigured = async (env: Env, db: SupabaseClient) => placesOn(env) || await isConnected(db)
+export const reviewsConfigured = async (env: Env, db: SupabaseClient) => placesOn(env, db) || await isConnected(db)
 
 type FeedInfo = Omit<Feed, 'list'>
 
@@ -139,7 +139,7 @@ async function state(db: SupabaseClient, feed: FeedInfo): Promise<ReviewsState> 
 
 // The reviews kept, checked with Google first when that's due (new ones noticed).
 reviews.get('/api/reviews', async c => {
-  const db = serviceClient(c.env)
+  const db = await requestDb(c)
   try {
     const { data: feed, fetched_at } = await refreshReviews(c.env, db)
     return c.json({ ...await state(db, feed), fetched_at })
@@ -150,7 +150,7 @@ reviews.get('/api/reviews', async c => {
 
 // Reply (or change the reply): { id, text }. Only on the business's own profile.
 reviews.put('/api/reviews/reply', async c => {
-  const db = serviceClient(c.env)
+  const db = await requestDb(c)
   const { id, text } = await c.req.json<{ id?: string; text?: string }>().catch(() => ({} as { id?: string; text?: string }))
   const reply = text?.trim() ?? ''
   if (!id || !/^accounts\/[^/]+\/locations\/[^/]+\/reviews\/[^/]+$/.test(id)) return c.json({ error: 'That review can’t be replied to here' }, 400)
@@ -172,7 +172,7 @@ reviews.put('/api/reviews/reply', async c => {
 
 // Take a reply down: { id }.
 reviews.delete('/api/reviews/reply', async c => {
-  const db = serviceClient(c.env)
+  const db = await requestDb(c)
   const { id } = await c.req.json<{ id?: string }>().catch(() => ({} as { id?: string }))
   if (!id || !/^accounts\//.test(id)) return c.json({ error: 'That review can’t be changed here' }, 400)
   try {

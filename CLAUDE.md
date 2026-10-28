@@ -56,6 +56,11 @@ Before opening the pull request, and after resolving a conflict: `npm run typech
   `supabase/pending/`, with the feature switched off in `src/app/features.ts`. CI still tests it;
   deploys don't apply it. To switch it on, move the file into `supabase/migrations` and turn the
   feature on, in one pull request (`supabase/pending/README.md`).
+- **Several businesses share the database** (`docs/SEVERAL_BUSINESSES.md`); each sees only its own rows.
+  In a migration: `select public.add_business_scope('public.<table>');` after creating a table,
+  `business_id` first in its unique keys, `alter function ... owner to app_definer;` for a new
+  security definer function, and seed rows one per business. In the Worker, a business's rows go
+  through `businessDb`/`requestDb`, never `serviceClient`. The tests fail if one is missed.
 
 ## Keeping conflicts small
 

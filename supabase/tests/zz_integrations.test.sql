@@ -450,7 +450,7 @@ end $$;
 reset role;
 update public.integrations set status = 'connected', account_label = 'cafe@gmail.com' where provider = 'gmail';
 insert into public.integration_secrets (provider, ciphertext) values ('gmail', 'sealed-gmail'), ('outlook', 'sealed-outlook')
-  on conflict (provider) do update set ciphertext = excluded.ciphertext;
+  on conflict (business_id, provider) do update set ciphertext = excluded.ciphertext;
 update public.integrations set status = 'connected', account_label = 'cafe@outlook.com' where provider = 'outlook';
 do $$ begin
   assert (select status from public.integrations where provider = 'gmail') = 'disconnected', 'Gmail replaced by Outlook';

@@ -100,3 +100,9 @@ begin
 end $$;
 revoke execute on function public.save_tip_pool(jsonb, jsonb) from public, anon;
 grant execute on function public.save_tip_pool(jsonb, jsonb) to authenticated;
+
+-- Each business's own (the several_businesses migration): its column and policy, and save_tip_pool()
+-- runs within the caller's business. tip_pool_out() stays with postgres: the policies call it.
+select public.add_business_scope('public.tip_pools');
+select public.add_business_scope('public.tip_shares');
+alter function public.save_tip_pool(jsonb, jsonb) owner to app_definer;

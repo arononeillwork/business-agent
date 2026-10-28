@@ -21,7 +21,7 @@ end $$;
 -- 1. Both storages at once: connecting OneDrive no longer disconnects Google Drive (or forgets its access).
 reset role;
 insert into public.integration_secrets (provider, ciphertext) values ('google_drive', 'sealed-drive'), ('onedrive', 'sealed-onedrive')
-  on conflict (provider) do update set ciphertext = excluded.ciphertext;
+  on conflict (business_id, provider) do update set ciphertext = excluded.ciphertext;
 update public.integrations set status = 'connected', account_label = 'cafe@gmail.com' where provider = 'google_drive';
 update public.integrations set status = 'connected', account_label = 'cafe@outlook.com' where provider = 'onedrive';
 do $$ begin

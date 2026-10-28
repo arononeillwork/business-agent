@@ -9,7 +9,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { checkDue, competitors, lookAround, watchCompetitors } from './competitors'
 import { TOOLS, runTool } from './tools'
-import { serviceClient, type Env } from './supabase'
+import { businessDb, serviceClient, type Env } from './supabase'
 import { FakeSupabase, type Row } from './test/fakeSupabase'
 import { FakeProviders, type Json } from './test/fakeProviders'
 import type { Profile } from '../shared/types'
@@ -111,13 +111,13 @@ describe('Competitors: Google', () => {
     apis.places.listings['p-old'] = listing('p-old', 'Horno de Siempre', { latitude: 36.4900, longitude: -4.9960 }, { userRatingCount: 950, primaryType: 'bakery' })
     apis.places.nearby = ['p-nuevo', 'p-molino', 'p-plaza', 'p-old']
     db.table('competitor_settings')[0].scanned_at = daysAgo(7)
-    await watchCompetitors(env, serviceClient(env))
+    await watchCompetitors(env, businessDb(env, 1))
     expect(notified()).toEqual(['u-admin: New on Google nearby: Nuevo Café', 'u-admin2: New on Google nearby: Nuevo Café'])
     expect(db.table('notifications')[0]).toMatchObject({ link: '/competitors' })
     expect(db.table('competitor_radar').map(p => p.place_id)).toEqual(['p-molino', 'p-plaza', 'p-nuevo', 'p-old'])
     // The day after: not due again.
     const before = apis.places.calls
-    await watchCompetitors(env, serviceClient(env))
+    await watchCompetitors(env, businessDb(env, 1))
     expect(apis.places.calls).toBe(before)
     expect(db.table('notifications')).toHaveLength(2)
   })
@@ -151,7 +151,7 @@ describe('Competitors: Google', () => {
     db.table('competitors').push({ id: 'gone', is_self: false, name: 'Old Café', kind: 'cafe', place_id: 'p-gone', active: true, features: {}, google_features: {},
       google_checked_at: daysAgo(30) })
     apis.places.gone.add('p-gone')
-    const dbc = serviceClient(env)
+    const dbc = businessDb(env, 1)
     // Only Old Café is due (the others were just read, the business itself too), and Google no longer finds it.
     expect(await checkDue(env, dbc)).toBe(0)
     for (const c of db.table('competitors')) if (c.id !== 'gone') c.google_checked_at = daysAgo(8)
@@ -179,7 +179,7 @@ describe('Competitors: Google', () => {
   })
 
   it('finds places by name, with their distance, the business left out', async () => {
-    await lookAround(env, serviceClient(env))
+    await lookAround(env, businessDb(env, 1))
     const res = await call('/api/competitors/search?q=molino%20coffee', { headers: admin })
     const { places } = await res.json() as { places: Row[] }
     expect(places.map(p => p.name)).toEqual(['Molino Coffee Lab'])

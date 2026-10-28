@@ -6,7 +6,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { drainOutbox, integrations } from './integrations'
 import { purge, templateText } from './whatsappInbox'
-import { serviceClient, type Env } from './supabase'
+import { businessDb, type Env } from './supabase'
 import { hmacHex } from './crypto'
 import { FakeSupabase } from './test/fakeSupabase'
 import { FakeProviders } from './test/fakeProviders'
@@ -147,7 +147,7 @@ describe('WhatsApp chats', () => {
   it('the café’s alerts from the outbox appear in the team member’s chat as they read it', async () => {
     db.table('profiles').find(p => p.id === 'staff-1')!.phone = '+34 600 111 222'
     db.table('outbox').push({ id: 1, kind: 'whatsapp', status: 'pending', payload: { to: '34600111222', template: 'shift_reminder', params: ['Julio', '08:00', 'Barista'] } })
-    await drainOutbox(env)
+    await drainOutbox(env, 1)
     const [c] = await inbox()
     expect(c).toMatchObject({ id: '34600111222', with: { name: 'Julio' } })
     expect(c.recent[0]).toMatchObject({ fromMe: true, text: 'Hola Julio, tu turno empieza a las 08:00 (Barista). ¡Hasta ahora!', status: 'sent' })
@@ -167,7 +167,7 @@ describe('Data retention', () => {
 
   it('keeps 3 months unless changed; a shorter time deletes what’s now too old at once, photos included', async () => {
     saved(1, 10); saved(2, 45); saved(3, 80)
-    expect(await purge(serviceClient(env))).toBe(0) // all within the default 3 months
+    expect(await purge(businessDb(env, 1))).toBe(0) // all within the default 3 months
 
     const res = await post('/api/integrations/whatsapp/retention', { days: 30 })
     expect(await res.json()).toEqual({ days: 30, deleted: 2 })
@@ -184,7 +184,7 @@ describe('Data retention', () => {
   it('the nightly run deletes by the chosen time', async () => {
     db.table('settings')[0].whatsapp_retention_days = 180
     saved(1, 100); saved(2, 200)
-    expect(await purge(serviceClient(env))).toBe(1)
+    expect(await purge(businessDb(env, 1))).toBe(1)
     expect(db.table('whatsapp_messages').map(r => r.id)).toEqual([1])
   })
 

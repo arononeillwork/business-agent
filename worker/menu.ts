@@ -7,7 +7,7 @@
 // library read on demand and every hour, into the menu items (sync_square_menu()).
 import { Hono } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { bearer, serviceClient, userClient, type Env } from './supabase'
+import { bearer, businessDb, requestDb, serviceClient, userClient, type Env } from './supabase'
 import { higgsfieldKey, markBroken, setIntegration, squareSession } from './connections'
 import { hmacHex, safeEqual, seal } from './crypto'
 import { storeMedia } from './media'
@@ -73,7 +73,7 @@ menu.post('/api/menu/ai/connect', async c => {
   } catch (e) {
     return c.json({ error: message(e) }, status(e))
   }
-  const db = serviceClient(c.env)
+  const db = await requestDb(c)
   const { error } = await db.from('integration_secrets').upsert({ provider: 'higgsfield', ciphertext: await seal(c.env.INTEGRATION_KEY, key), updated_at: new Date().toISOString() })
   if (error) return c.json({ error: error.message }, 500)
   const now = new Date().toISOString()
@@ -88,7 +88,7 @@ menu.post('/api/menu/ai/connect', async c => {
 menu.post('/api/menu/images', async c => {
   const sent = await c.req.json<GenerateInput>().catch(() => ({} as GenerateInput))
   try {
-    return c.json({ image: await generate(c.env, serviceClient(c.env), new URL(c.req.url).origin, c.get('userId'), sent) })
+    return c.json({ image: await generate(c.env, await requestDb(c), new URL(c.req.url).origin, c.get('userId'), sent) })
   } catch (e) {
     return c.json({ error: message(e) }, status(e))
   }
@@ -96,7 +96,7 @@ menu.post('/api/menu/images', async c => {
 
 // How an image is going (the page asks every few seconds while one is being made).
 menu.post('/api/menu/images/:id/check', async c => {
-  const db = serviceClient(c.env)
+  const db = await requestDb(c)
   const { data: row } = await db.from('menu_images').select('id, status, request_id, status_url').eq('id', c.req.param('id')).maybeSingle()
   if (!row) return c.json({ error: 'That image has gone' }, 404)
   try {
@@ -115,7 +115,10 @@ menu.post('/api/hooks/higgsfield/:id/:sig', async c => {
   if (!c.env.INTEGRATION_KEY || !safeEqual(c.req.param('sig'), await sign(c.env, id))) return c.json({ error: 'Not found' }, 404)
   const body = await c.req.json().catch(() => null) as { request_id?: string; status?: string } | null
   if (!body?.request_id || !body.status) return c.json({ error: 'Not a Higgsfield result' }, 400)
-  const db = serviceClient(c.env)
+  // The image's own business (its id is in the signed address).
+  const { data: owner } = await serviceClient(c.env).from('menu_images').select('business_id').eq('id', id).maybeSingle()
+  if (!owner) return c.json({ ok: true })
+  const db = businessDb(c.env, owner.business_id as number)
   const { data: row } = await db.from('menu_images').select('id, status, request_id, status_url').eq('id', id).maybeSingle()
   // Ours, unless it names another request (it can arrive before the request's id is saved).
   if (!row || (row.request_id && row.request_id !== body.request_id)) return c.json({ ok: true })
@@ -127,7 +130,7 @@ menu.post('/api/hooks/higgsfield/:id/:sig', async c => {
 // after Square is chosen as where the menu comes from).
 menu.post('/api/menu/square/sync', async c => {
   try {
-    return c.json(await syncSquareMenu(c.env, serviceClient(c.env)))
+    return c.json(await syncSquareMenu(c.env, await requestDb(c)))
   } catch (e) {
     return c.json({ error: message(e) }, status(e))
   }
@@ -194,7 +197,7 @@ async function generate(env: Env, db: SupabaseClient, origin: string, userId: st
     if (edit) prompt = words
     else {
       if (!words && d.mode === 'background') throw new MenuError('Describe the look you want: colours, style, what’s in it')
-      const [{ data: business }, { data: items }, { data: settings }] = await Promise.all([db.from('business').select('name').eq('id', 1).maybeSingle(), db.rpc('menu_list'),
+      const [{ data: business }, { data: items }, { data: settings }] = await Promise.all([db.from('business').select('name').maybeSingle(), db.rpc('menu_list'),
         db.from('settings').select('menu_sections').eq('id', 1).maybeSingle()])
       const money = new Intl.NumberFormat('es-ES', { style: 'currency', currency: businessConfig.currency })
       prompt = buildPrompt(words, { mode: d.mode, style: d.style, format: d.format, size: d.size, title: d.title ?? business?.name ?? businessConfig.name, subtitle: d.subtitle,

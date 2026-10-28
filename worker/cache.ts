@@ -18,7 +18,7 @@ export async function cached<T>(db: SupabaseClient, key: string, minutes: number
   const data = await read()
   const fetched_at = new Date().toISOString()
   // Not keeping it only means asking again next time.
-  await db.from('provider_cache').upsert({ key, data, fetched_at }, { onConflict: 'key' })
+  await db.from('provider_cache').upsert({ key, data, fetched_at }, { onConflict: 'business_id,key' })
   return { data, fetched_at }
 }
 

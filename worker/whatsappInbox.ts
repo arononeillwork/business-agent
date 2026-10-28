@@ -71,7 +71,7 @@ export async function saveInbound(db: SupabaseClient, events: whatsapp.WebhookEv
   let saved: Row[] = []
   if (rows.length) {
     // Meta can deliver the same message twice: the second copy changes nothing.
-    const { data, error } = await db.from('whatsapp_messages').upsert(rows, { onConflict: 'wa_message_id', ignoreDuplicates: true }).select()
+    const { data, error } = await db.from('whatsapp_messages').upsert(rows, { onConflict: 'business_id,wa_message_id', ignoreDuplicates: true }).select()
     if (error) throw new Error(error.message)
     saved = (data ?? []) as Row[]
   }
@@ -109,7 +109,7 @@ async function upload(db: SupabaseClient, path: string, bytes: ArrayBuffer, type
 
 /** Copy one message's photo, video, voice note or file from Meta into storage (or note why it couldn't). */
 export async function saveMedia(env: Env, db: SupabaseClient, row: Pick<Row, 'id' | 'wa_id' | 'media_id' | 'media_type' | 'at'>) {
-  const cfg = waConfig(env)
+  const cfg = waConfig(env, db)
   if (!cfg || !row.media_id) return
   try {
     const file = await whatsapp.downloadMedia(cfg, row.media_id)
@@ -127,7 +127,7 @@ export async function saveOutgoing(db: SupabaseClient, m: { id: string; to: stri
   if (!/^[0-9]{6,20}$/.test(waId)) return
   const { error } = await db.from('whatsapp_messages').upsert({
     wa_message_id: m.id, wa_id: waId, name: await teamName(db, waId), from_me: true, kind: 'text', body: m.text.slice(0, 4096), status: 'sent', at: new Date().toISOString(),
-  }, { onConflict: 'wa_message_id', ignoreDuplicates: true })
+  }, { onConflict: 'business_id,wa_message_id', ignoreDuplicates: true })
   if (error) throw new Error(error.message)
 }
 

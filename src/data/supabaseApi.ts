@@ -40,7 +40,7 @@ import type { MenuAllergens } from '../../shared/allergens'
 import type { TipPool } from '../../shared/tips'
 import { addDays, zonedIso } from '../../shared/time'
 
-const PROFILE_COLUMNS = 'id, full_name, email, role, can_see_pay, colour, active, phone, birth_date, whatsapp_opt_in, partner_company, partner_access, preferences'
+const PROFILE_COLUMNS = 'id, business_id, full_name, email, role, can_see_pay, colour, active, phone, birth_date, whatsapp_opt_in, partner_company, partner_access, preferences'
 
 const GRANT_APPLICATION_COLUMNS = 'id, grant_id, grant_name, stage, submitted_on, expediente, amount_requested, amount_awarded, amount_received, deadline, deadline_label, notes, docs_done, obligations_done, created_at, updated_at'
 
@@ -205,7 +205,8 @@ export function createSupabaseApi(url: string, key: string): Api {
       return check(await sb.from('profiles').select(PROFILE_COLUMNS).eq('id', id).maybeSingle())
     },
     async business() {
-      return check(await sb.from('business').select('*').eq('id', 1).single()) as Business
+      // Only the person's own business is there to read (row security).
+      return check(await sb.from('business').select('*').single()) as Business
     },
     async adminNotes() {
       const row = check(await sb.from('business_admin_notes').select('notes').eq('id', 1).maybeSingle())
@@ -325,7 +326,8 @@ export function createSupabaseApi(url: string, key: string): Api {
 
     async updateBusiness(patch) {
       // A website typed without https:// gets it (the database takes http(s) addresses only).
-      check(await sb.from('business').update('website' in patch ? { ...patch, website: cleanWebsite(patch.website) } : patch).eq('id', 1))
+      const { data: business } = await sb.rpc('current_business_id')
+      check(await sb.from('business').update('website' in patch ? { ...patch, website: cleanWebsite(patch.website) } : patch).eq('id', business as number))
     },
     async updateAdminNotes(notes) {
       check(await sb.from('business_admin_notes').update({ notes }).eq('id', 1))
@@ -571,7 +573,7 @@ export function createSupabaseApi(url: string, key: string): Api {
         .map(r => ({ ...r, amount: r.amount === null ? null : Number(r.amount) }))
     },
     async saveTaxFiling({ id: _id, ...r }) {
-      check(await sb.from('tax_filings').upsert(r, { onConflict: 'model,year,period' }))
+      check(await sb.from('tax_filings').upsert(r, { onConflict: 'business_id,model,year,period' }))
     },
     async taxDocuments(year) {
       // The Tax page's own: those under Business Agent/Tax (the Documents hub's are on its page).
@@ -1156,7 +1158,7 @@ export function createSupabaseApi(url: string, key: string): Api {
     instagramThread: id => worker(`/api/integrations/instagram/inbox/${encodeURIComponent(id)}`),
     async referrals() {
       const [{ data: b }, list, opens] = await Promise.all([
-        sb.from('business').select('referral_code').eq('id', 1).single(),
+        sb.from('business').select('referral_code').single(),
         sb.from('referrals').select('id, business_name, joined_at, set_up_at').order('joined_at', { ascending: false }),
         sb.from('referral_opens').select('id', { count: 'exact', head: true }),
       ])

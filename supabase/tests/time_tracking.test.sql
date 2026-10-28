@@ -28,11 +28,12 @@ begin
 end $$;
 
 -- Fixtures -----------------------------------------------------------------
-insert into public.business (name, opening_hours) values ('Test Café',
+-- The first business exists from the migrations (several_businesses); this fills it in.
+update public.business set name = 'Test Café', opening_hours =
   '{"mon":{"open":"08:00","close":"18:00"},"tue":{"open":"08:00","close":"18:00"},
     "wed":{"open":"08:00","close":"18:00"},"thu":{"open":"08:00","close":"18:00"},
     "fri":{"open":"08:00","close":"18:00"},"sat":{"open":"09:00","close":"18:00"},
-    "sun":{"open":"09:00","close":"16:00"}}');
+    "sun":{"open":"09:00","close":"16:00"}}' where id = 1;
 insert into public.settings default values;
 insert into public.positions (name) values ('Barista');
 insert into public.break_types (name, minutes, paid) values ('Rest', 15, true);

@@ -72,12 +72,125 @@ export function userClient(env: Env, accessToken: string, via: Via): SupabaseCli
   })
 }
 
-/** Service-role client: only for invites and the cron. Never exposed to users. */
+/**
+ * Service-role client over every business: only for what isn't one business's (accounts, finding
+ * which business a link, webhook or sign-in belongs to, listing the businesses). Anything else goes
+ * through businessDb(). Never exposed to users.
+ */
 export function serviceClient(env: Env): SupabaseClient {
   if (!env.SUPABASE_SERVICE_ROLE_KEY) throw new Error('SUPABASE_SERVICE_ROLE_KEY is not set')
   return createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
   })
+}
+
+/**
+ * The business set up with Business Agent's own accounts in the Worker's secrets: Easy Beans, the
+ * founding business. Its WhatsApp number (WHATSAPP_PHONE_NUMBER_ID) and Google place
+ * (GOOGLE_PLACE_ID) are its own; no other business uses them.
+ */
+export const SECRETS_BUSINESS_ID = 1
+
+/** A client acting for one business (businessDb()), which says which. */
+export type BusinessDb = SupabaseClient & { businessId: number }
+
+/** The business a client acts for (null: one over every business, or a person's own). */
+export const businessIdOf = (db: SupabaseClient) => (db as Partial<BusinessDb>).businessId ?? null
+
+/** Whether the accounts in the Worker's secrets (WhatsApp number, Google place) are this client's business's. */
+export const ownsSecretAccounts = (db: SupabaseClient) => businessIdOf(db) === SECRETS_BUSINESS_ID
+
+/** The café's Google place id (Worker secret GOOGLE_PLACE_ID): only the business it was set for has it. */
+export const secretPlaceId = (env: Env, db: SupabaseClient) => (ownsSecretAccounts(db) ? env.GOOGLE_PLACE_ID : undefined)
+
+/** Tables that are Business Agent's own, the same for every business (the plans and prices). */
+const SHARED_TABLES = new Set(['plan_limits', 'pay_per_use'])
+
+/**
+ * The service role acting for one business (docs/SEVERAL_BUSINESSES.md). The service role skips
+ * row security, so every read, change and delete here is filtered to the business's rows; what it
+ * writes, and what the SQL functions it calls do, are the business's through the x-business-id
+ * header (current_business_id() in the database). `where id = 1` on a settings table still means
+ * this business's row.
+ */
+export function businessDb(env: Env, businessId: number): BusinessDb {
+  if (!env.SUPABASE_SERVICE_ROLE_KEY) throw new Error('SUPABASE_SERVICE_ROLE_KEY is not set')
+  if (!Number.isInteger(businessId) || businessId <= 0) throw new Error('No business to act for')
+  const db = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { headers: { 'x-business-id': String(businessId) } },
+  })
+  const from = db.from.bind(db)
+  db.from = ((table: string) => {
+    const q = from(table)
+    if (SHARED_TABLES.has(table)) return q
+    // The business row is the business itself; every other row says whose it is.
+    const column = table === 'business' ? 'id' : 'business_id'
+    const select = q.select.bind(q)
+    const update = q.update.bind(q)
+    const del = q.delete.bind(q)
+    return Object.assign(q, {
+      select: (...a: Parameters<typeof select>) => select(...a).eq(column, businessId),
+      update: (...a: Parameters<typeof update>) => update(...a).eq(column, businessId),
+      delete: (...a: Parameters<typeof del>) => del(...a).eq(column, businessId),
+    })
+  }) as typeof db.from
+  return Object.assign(db, { businessId })
+}
+
+/**
+ * Put someone into a business (with the rest of `patch`): an account just made for it, or one that
+ * isn't in any business yet. Never moves someone out of another business. Null when nothing changed.
+ */
+export async function joinBusiness(env: Env, userId: string, businessId: number, patch: Record<string, unknown> = {}) {
+  if (!env.SUPABASE_SERVICE_ROLE_KEY) throw new Error('SUPABASE_SERVICE_ROLE_KEY is not set')
+  // The header makes what the change sets off (the audit log, the plan's limits) that business's.
+  const db = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { headers: { 'x-business-id': String(businessId) } },
+  })
+  const { data, error } = await db.from('profiles').update({ ...patch, business_id: businessId })
+    .eq('id', userId).or(`business_id.is.null,business_id.eq.${businessId}`).select('id')
+  if (error) throw new Error(error.message)
+  return data?.length ? userId : null
+}
+
+const requestBusiness = new WeakMap<Request, Promise<number | null>>()
+
+/** The business of whoever signed in to this request (its bearer token): null when they're in none. */
+export function businessOfRequest(c: { env: Env; req: { raw: Request; header: (name: string) => string | undefined } }) {
+  let found = requestBusiness.get(c.req.raw)
+  if (!found) {
+    const token = bearer(c.req.header('authorization'))
+    found = token
+      ? Promise.resolve(userClient(c.env, token, 'app').rpc('current_business_id')).then(({ data }) => (data as number | null) ?? null)
+      : Promise.resolve(null)
+    requestBusiness.set(c.req.raw, found)
+  }
+  return found
+}
+
+/**
+ * The Worker acting for the business of whoever signed in to this request, for routes whose sign-in
+ * check has already passed (someone signed in is always in a business by then).
+ */
+export async function requestDb(c: Parameters<typeof businessOfRequest>[0]) {
+  const id = await businessOfRequest(c)
+  if (!id) throw new Error('You’re not in a business yet')
+  return businessDb(c.env, id)
+}
+
+/** Every business, for the jobs that run for each in turn. */
+export async function businessIds(env: Env): Promise<number[]> {
+  const { data, error } = await serviceClient(env).from('business').select('id').order('id')
+  if (error) throw new Error(error.message)
+  return (data ?? []).map(b => b.id as number)
+}
+
+/** The business someone is in (null: in none yet). */
+export async function businessOf(env: Env, userId: string): Promise<number | null> {
+  const { data } = await serviceClient(env).from('profiles').select('business_id').eq('id', userId).maybeSingle()
+  return (data?.business_id as number | null | undefined) ?? null
 }
 
 export function bearer(header: string | undefined | null) {

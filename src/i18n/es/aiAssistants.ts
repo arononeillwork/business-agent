@@ -17,8 +17,8 @@ export default {
   'Connector address': 'Dirección del conector',
   'Which AI': 'Qué IA',
   'In Claude (web, desktop or phone), open Settings, then Connectors.': 'En Claude (web, escritorio o móvil), abre Ajustes y luego Conectores.',
-  'Choose Add custom connector, give it a name (Easy Beans) and paste the connector address above.':
-    'Elige Añadir conector personalizado, ponle un nombre (Easy Beans) y pega la dirección del conector de arriba.',
+  'Choose Add custom connector, give it a name ({business}) and paste the connector address above.':
+    'Elige Añadir conector personalizado, ponle un nombre ({business}) y pega la dirección del conector de arriba.',
   'Choose Connect and sign in with your team account. That’s it.': 'Elige Conectar e inicia sesión con tu cuenta del equipo. Listo.',
   'In a chat, turn the connector on from the tools menu and ask away. On the phone, tap the mic to ask by voice.':
     'En un chat, activa el conector desde el menú de herramientas y pregunta. En el móvil, toca el micrófono para preguntar por voz.',

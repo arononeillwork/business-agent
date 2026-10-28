@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { OAuthProvider } from '@cloudflare/workers-oauth-provider'
-import { bearer, serviceClient, userClient, type Env } from './supabase'
+import { bearer, businessDb, businessIds, joinBusiness, serviceClient, userClient, type Env } from './supabase'
 import { rest } from './rest'
 import { drainOutbox, integrations, syncGoogle, syncGoogleBothWays } from './integrations'
 import { checkAll } from './connections'
@@ -34,12 +34,12 @@ import { TEAM_ROLE_IDS, accessOf } from '../shared/teamRoles'
 
 const NIGHTLY = '15 1 * * *' // 03:15 Madrid in summer, 02:15 in winter
 
-const googleConnected = async (db: ReturnType<typeof serviceClient>) => {
+const googleConnected = async (db: ReturnType<typeof businessDb>) => {
   const { data } = await db.from('integrations').select('status').eq('provider', 'google_business').maybeSingle()
   // Only while the plan includes it (a lapsed subscription pauses the sync).
   return data?.status === 'connected' && (await db.rpc('plan_allows', { p_feature: 'google_maps' })).data === true
 }
-const sportsOn = async (db: ReturnType<typeof serviceClient>) =>
+const sportsOn = async (db: ReturnType<typeof businessDb>) =>
   await sportsEnabled(db) && (await db.rpc('plan_allows', { p_feature: 'sports' })).data === true
 
 const app = new Hono<{ Bindings: OAuthEnv }>()
@@ -90,8 +90,9 @@ app.get('/api/health', async c => {
 app.post('/api/admin/invite', async c => {
   const token = bearer(c.req.header('authorization'))
   if (!token) return c.json({ error: 'Not signed in' }, 401)
-  const { data: isAdmin, error } = await userClient(c.env, token, 'app').rpc('is_admin')
-  if (error || !isAdmin) return c.json({ error: 'Only an admin can invite people' }, 403)
+  const sb = userClient(c.env, token, 'app')
+  const [{ data: isAdmin, error }, { data: businessId }] = await Promise.all([sb.rpc('is_admin'), sb.rpc('current_business_id')])
+  if (error || !isAdmin || !businessId) return c.json({ error: 'Only an admin can invite people' }, 403)
 
   const body = await c.req.json<{ email?: string; full_name?: string; role?: string; partner_company?: string; partner_access?: string[]; password?: string; phone?: string | null; contact_method?: string | null }>()
   const email = body.email?.trim().toLowerCase()
@@ -100,7 +101,7 @@ app.post('/api/admin/invite', async c => {
   const member = TEAM_ROLE_IDS.find(r => r === (body.role === 'admin' ? 'manager' : body.role))
   const role = member ? accessOf(member).role : body.role === 'kiosk' || body.role === 'partner' ? body.role : 'employee'
   const boss = member === 'boss'
-  if (boss && !(await userClient(c.env, token, 'app').rpc('can_see_pay')).data) {
+  if (boss && !(await sb.rpc('can_see_pay')).data) {
     return c.json({ error: 'Only a boss can invite another boss' }, 403)
   }
   if (!email || !body.full_name?.trim()) return c.json({ error: 'Name and email are required' }, 400)
@@ -117,7 +118,7 @@ app.post('/api/admin/invite', async c => {
     ...(body.contact_method && ['whatsapp', 'sms', 'email'].includes(body.contact_method) ? { contact_method: body.contact_method } : {}),
   }
 
-  const blocked = await planBlocksInvite(c.env, role)
+  const blocked = await planBlocksInvite(c.env, businessId, role)
   if (blocked) return c.json({ error: blocked }, 402)
 
   // With a temporary password: create the account now, no email needed (Supabase's built-in email
@@ -128,21 +129,21 @@ app.post('/api/admin/invite', async c => {
     const { data: created, error: createError } = await svc.auth.admin.createUser({
       email, password: body.password, email_confirm: true,
       user_metadata: { full_name: body.full_name.trim() },
-      app_metadata: { created_by_admin: true, role, ...partner },
+      app_metadata: { created_by_admin: true, role, business_id: businessId, ...partner },
     })
     if (createError || !created.user) {
       return c.json({ error: /already|exists|registered/i.test(createError?.message ?? '')
         ? 'Someone with that email already has an account' : createError?.message ?? 'Could not create the account' }, 400)
     }
-    // Set the role and switch the account on explicitly: Supabase may store app_metadata after
-    // the new-user trigger has already run, which left these accounts inactive.
-    const { error: profileError } = await svc.from('profiles').update({
+    // Set the business and role and switch the account on explicitly: Supabase may store
+    // app_metadata after the new-user trigger has already run, which left these accounts inactive.
+    const joined = await joinBusiness(c.env, created.user.id, businessId, {
       full_name: body.full_name.trim(), role, active: true, ...(boss ? { can_see_pay: true } : {}),
       ...(role === 'partner' ? partner : contact),
-    }).eq('id', created.user.id)
-    if (profileError) {
+    }).catch((e: Error) => e)
+    if (joined === null || joined instanceof Error) {
       await svc.auth.admin.deleteUser(created.user.id)
-      return c.json({ error: `Could not set up the account: ${profileError.message}` }, 500)
+      return c.json({ error: `Could not set up the account: ${joined instanceof Error ? joined.message : 'it is in another business'}` }, 500)
     }
     return c.json({ ok: true, created: true })
   }
@@ -150,12 +151,12 @@ app.post('/api/admin/invite', async c => {
   const origin = new URL(c.req.url).origin
   const svc = serviceClient(c.env)
   const { data: invited, error: inviteError } = await svc.auth.admin.inviteUserByEmail(email, {
-    data: { full_name: body.full_name.trim(), role, ...partner },
+    data: { full_name: body.full_name.trim(), role, business_id: businessId, ...partner },
     redirectTo: `${origin}/account`,
   })
   if (inviteError) return c.json({ error: inviteError.message }, 400)
   const after = { ...(role === 'partner' ? {} : contact), ...(boss ? { can_see_pay: true } : {}) }
-  if (invited.user && Object.keys(after).length) await svc.from('profiles').update(after).eq('id', invited.user.id)
+  if (invited.user) await joinBusiness(c.env, invited.user.id, businessId, after)
   return c.json({ ok: true })
 })
 
@@ -182,9 +183,10 @@ app.post('/api/admin/set-password', async c => {
 app.post('/api/admin/sports/refresh', async c => {
   const token = bearer(c.req.header('authorization'))
   if (!token) return c.json({ error: 'Not signed in' }, 401)
-  const { data: isAdmin, error } = await userClient(c.env, token, 'app').rpc('is_admin')
-  if (error || !isAdmin) return c.json({ error: 'Only an admin can do that' }, 403)
-  const db = serviceClient(c.env)
+  const sb = userClient(c.env, token, 'app')
+  const [{ data: isAdmin, error }, { data: businessId }] = await Promise.all([sb.rpc('is_admin'), sb.rpc('current_business_id')])
+  if (error || !isAdmin || !businessId) return c.json({ error: 'Only an admin can do that' }, 403)
+  const db = businessDb(c.env, businessId)
   if (!await sportsEnabled(db)) return c.json({ error: 'Sports is off. Turn it on on the Sports page first.' }, 409)
   return c.json({ ok: true, events: await refreshAllSports(db) })
 })
@@ -297,78 +299,90 @@ export default {
   async scheduled(event, env, ctx) {
     if (!env.SUPABASE_SERVICE_ROLE_KEY) return
     const db = serviceClient(env)
-    const log = (job: string) => ({ error }: { error: { message: string } | null }) => {
+    // The jobs in SQL go through every business in one call (each_business); one business's failing
+    // doesn't stop the others'.
+    const each = (job: string) => Promise.resolve(db.rpc('each_business', { p_job: job })).then(({ data, error }) => {
       if (error) console.error(`${job} failed`, error.message)
+      else if (data) console.error(`${job} failed for ${data} business(es)`)
+    })
+    // The rest run here, for each business in turn, with that business's own connections.
+    const forEach = async (job: (id: number, b: ReturnType<typeof businessDb>) => Promise<unknown>) => {
+      for (const id of await businessIds(env)) await job(id, businessDb(env, id))
     }
+    const minute = Math.floor(event.scheduledTime / 60_000)
     if (event.cron === NIGHTLY) {
       ctx.waitUntil((async () => {
-        await Promise.resolve(db.rpc('auto_fill_timecards')).then(log('auto_fill_timecards'))
+        await each('auto_fill_timecards')
         // Licences running out within their reminder days: admins hear about each once (Licences page).
-        await Promise.resolve(db.rpc('licence_reminders')).then(log('licence_reminders'))
+        await each('licence_reminders')
         // Enquiries whose follow-up day has come, and campaigns planned for today (Leads & enquiries, Campaigns).
-        await Promise.resolve(db.rpc('enquiry_follow_ups')).then(log('enquiry_follow_ups'))
-        await Promise.resolve(db.rpc('campaign_reminders')).then(log('campaign_reminders'))
-        // WhatsApp chats older than Data retention allows, with their photos and voice notes.
-        await purgeWhatsApp(db).catch(e => console.error('whatsapp purge failed', e))
-        // The subscription, straight from Stripe (in case a webhook was missed).
-        await syncBilling(env).catch(e => console.error('billing sync failed', e))
+        await each('enquiry_follow_ups')
+        await each('campaign_reminders')
         // AI music tracks made while Stripe didn't answer go on the bill now.
         await chargePendingAiMusic(env).catch(e => console.error('ai music charges failed', e))
-        // Instagram's likes and comments on posts with music, so suggestions learn what does well.
-        await syncMusicInsights(env).catch(e => console.error('music insights failed', e))
-        // Prove every connection still works; admins get a notification when one stops working.
-        await checkAll(env, db).catch(e => console.error('connection checks failed', e))
-        // Hours both ways first (an edit made on Google comes in, not overwritten), then re-send
-        // closures and phone to Google Maps, in case a change was missed (changes also sync within a minute).
-        if (await googleConnected(db)) {
-          await syncGoogleBothWays(env, db)
-            .then(done => (done === 'pushed' ? undefined : syncGoogle(env, db)))
-            .catch(e => console.error('nightly google sync failed', e))
-        }
-        // Crests for new teams (flags straight away; a few club look-ups, the GitHub sync does the rest).
-        if (await sportsOn(db)) await syncCrests(db, 8).catch(e => console.error('crests failed', e))
-        // Competitors: each followed place's weekly check on Google, and the weekly look around for new places.
-        await watchCompetitors(env, db).catch(e => console.error('competitors failed', e))
-        // Outside services' answers kept over two days (provider_cache).
-        await clearOldCache(db).catch(e => console.error('cache clear failed', e))
+        await forEach(async (id, b) => {
+          // WhatsApp chats older than Data retention allows, with their photos and voice notes.
+          await purgeWhatsApp(b).catch(e => console.error('whatsapp purge failed', id, e))
+          // The subscription, straight from Stripe (in case a webhook was missed).
+          await syncBilling(env, id).catch(e => console.error('billing sync failed', id, e))
+          // Instagram's likes and comments on posts with music, so suggestions learn what does well.
+          await syncMusicInsights(env, id).catch(e => console.error('music insights failed', id, e))
+          // Prove every connection still works; admins get a notification when one stops working.
+          await checkAll(env, b).catch(e => console.error('connection checks failed', id, e))
+          // Hours both ways first (an edit made on Google comes in, not overwritten), then re-send
+          // closures and phone to Google Maps, in case a change was missed (changes also sync within a minute).
+          if (await googleConnected(b)) {
+            await syncGoogleBothWays(env, b)
+              .then(done => (done === 'pushed' ? undefined : syncGoogle(env, b)))
+              .catch(e => console.error('nightly google sync failed', id, e))
+          }
+          // Crests for new teams (flags straight away; a few club look-ups, the GitHub sync does the rest).
+          if (await sportsOn(b)) await syncCrests(b, 8).catch(e => console.error('crests failed', id, e))
+          // Competitors: each followed place's weekly check on Google, and the weekly look around for new places.
+          await watchCompetitors(env, b).catch(e => console.error('competitors failed', id, e))
+          // Outside services' answers kept over two days (provider_cache).
+          await clearOldCache(b).catch(e => console.error('cache clear failed', id, e))
+        })
       })())
       return
     }
     ctx.waitUntil((async () => {
-      await Promise.resolve(db.rpc('auto_close_entries')).then(log('auto_close_entries'))
-      await Promise.resolve(db.rpc('queue_shift_alerts')).then(log('queue_shift_alerts'))
-      await Promise.resolve(db.rpc('deliver_event_alerts')).then(log('deliver_event_alerts'))
+      await each('auto_close_entries')
+      await each('queue_shift_alerts')
+      await each('deliver_event_alerts')
       // Social planner: posts that are due become one outbox job per network (sent just below).
-      await Promise.resolve(db.rpc('queue_due_social_posts')).then(log('queue_due_social_posts'))
-      await drainOutbox(env).catch(e => console.error('outbox failed', e))
-      // Menu images whose webhook from Higgsfield hasn't come (asked about, or given up on after 3 hours).
-      await checkWaitingImages(env, db).catch(e => console.error('menu images failed', e))
-      // Every 15 minutes: opening hours both ways with Google Maps (after the outbox, so a change
-      // made in the app has already gone to Google).
-      if (Math.floor(event.scheduledTime / 60_000) % 15 === 0 && await googleConnected(db)) {
-        await syncGoogleBothWays(env, db).catch(e => console.error('google hours sync failed', e))
-      }
-      // Every 15 minutes: new Instagram tags and story mentions, for admins to repost or ignore.
-      if (Math.floor(event.scheduledTime / 60_000) % 15 === 0) {
-        await checkMentions(env, db).catch(e => console.error('instagram mentions failed', e))
-      }
-      // Every hour: Square customers added or changed since the last look, into Customers.
-      if (Math.floor(event.scheduledTime / 60_000) % 60 === 0) {
-        await syncSquareCustomers(env, db).catch(e => console.error('square customers failed', e))
-      }
-      // Every hour (a quarter past): the menu from the Square item library, when that's where it comes from.
-      if (Math.floor(event.scheduledTime / 60_000) % 60 === 15) await syncSquareMenuIfChosen(env, db)
-      // Every hour (on the half hour, away from Square's): new Google reviews, for admins to read and reply to;
-      // from Places only every third hour (refreshReviews knows which).
-      if (Math.floor(event.scheduledTime / 60_000) % 60 === 30 && await reviewsConfigured(env, db)) {
-        await refreshReviews(env, db, 5).catch(e => console.error('reviews failed', e))
-      }
-      // Sports only while it's switched on (Sports page).
-      if (await sportsOn(db)) await refreshStaleSports(db).catch(e => console.error('sports failed', e))
-      // Every 5 minutes: the next track of the music starter pack, until the business has them all.
-      if (Math.floor(event.scheduledTime / 60_000) % 5 === 2) {
-        await fillStarterPack(env, new URL(businessConfig.appUrl).origin).catch(e => console.error('music starter pack failed', e))
-      }
+      await each('queue_due_social_posts')
+      await forEach(async (id, b) => {
+        await drainOutbox(env, id).catch(e => console.error('outbox failed', id, e))
+        // Menu images whose webhook from Higgsfield hasn't come (asked about, or given up on after 3 hours).
+        await checkWaitingImages(env, b).catch(e => console.error('menu images failed', id, e))
+        // Every 15 minutes: opening hours both ways with Google Maps (after the outbox, so a change
+        // made in the app has already gone to Google).
+        if (minute % 15 === 0 && await googleConnected(b)) {
+          await syncGoogleBothWays(env, b).catch(e => console.error('google hours sync failed', id, e))
+        }
+        // Every 15 minutes: new Instagram tags and story mentions, for admins to repost or ignore.
+        if (minute % 15 === 0) {
+          await checkMentions(env, b).catch(e => console.error('instagram mentions failed', id, e))
+        }
+        // Every hour: Square customers added or changed since the last look, into Customers.
+        if (minute % 60 === 0) {
+          await syncSquareCustomers(env, b).catch(e => console.error('square customers failed', id, e))
+        }
+        // Every hour (a quarter past): the menu from the Square item library, when that's where it comes from.
+        if (minute % 60 === 15) await syncSquareMenuIfChosen(env, b)
+        // Every hour (on the half hour, away from Square's): new Google reviews, for admins to read and reply to;
+        // from Places only every third hour (refreshReviews knows which).
+        if (minute % 60 === 30 && await reviewsConfigured(env, b)) {
+          await refreshReviews(env, b, 5).catch(e => console.error('reviews failed', id, e))
+        }
+        // Sports only while it's switched on (Sports page).
+        if (await sportsOn(b)) await refreshStaleSports(b).catch(e => console.error('sports failed', id, e))
+        // Every 5 minutes: the next track of the music starter pack, until the business has them all.
+        if (minute % 5 === 2) {
+          await fillStarterPack(env, new URL(businessConfig.appUrl).origin, id).catch(e => console.error('music starter pack failed', id, e))
+        }
+      })
     })())
   },
 } satisfies ExportedHandler<Env>

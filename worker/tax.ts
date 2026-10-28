@@ -5,7 +5,7 @@
 // their path under "Business Agent" on both Drive and OneDrive.
 import { Hono, type Context } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { bearer, serviceClient, userClient, type Env } from './supabase'
+import { bearer, requestDb, userClient, type Env } from './supabase'
 import { connectedOf, connectorGrant, explain, lasting, markBroken, setIntegration } from './connections'
 import * as google from './providers/google'
 import * as ms from './providers/microsoft'
@@ -60,7 +60,7 @@ export function pathParam(raw: string | undefined, root: 'Tax' | 'Documents' = '
 
 // The folders inside one (made if missing), and a link to open it in Drive or OneDrive.
 tax.get('/api/tax/folders', async c => {
-  const db = serviceClient(c.env)
+  const db = await requestDb(c)
   try {
     const path = pathParam(c.req.query('path'))
     const s = await keptStorage(c.env, db)
@@ -80,7 +80,7 @@ tax.get('/api/tax/folders', async c => {
 
 // A new folder inside one: { path: ["Tax", "2026"], name: "Gestoría" } → its path.
 tax.post('/api/tax/folders', async c => {
-  const db = serviceClient(c.env)
+  const db = await requestDb(c)
   try {
     const body = await c.req.json<{ path?: unknown; name?: unknown }>().catch(() => ({} as { path?: unknown; name?: unknown }))
     const parent = cleanFolderPath(body.path ?? ['Tax'])
@@ -108,7 +108,7 @@ tax.post('/api/tax/folders', async c => {
  * refused). Returns the saved tax_documents row.
  */
 tax.post('/api/tax/upload', async c => {
-  const db = serviceClient(c.env)
+  const db = await requestDb(c)
   const asPerson = userClient(c.env, c.get('token'), 'app')
   try {
     const folder = pathParam(c.req.query('folder'))

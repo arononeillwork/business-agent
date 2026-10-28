@@ -66,6 +66,10 @@ select public.end_complimentary();                                              
 select plan, status, complimentary, complimentary_note, complimentary_since from public.billing;  -- check
 ```
 
+With several businesses in the database (docs/SEVERAL_BUSINESSES.md), say which one, by its number:
+`select public.grant_complimentary('friends_family', 'Café Lola', 7);`, `select public.end_complimentary(7);`
+and `select … from public.billing where business_id = 7;`.
+
 Free-trial businesses are separate: they are on Business with Stripe status `trialing` until the
 trial ends, then paying (`active`) or back on Free.
 

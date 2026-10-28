@@ -6,7 +6,7 @@
 // the database then decides what the business can use (public.current_plan(): a trial that ended
 // unpaid or a failed renewal means Free until the payment goes through).
 import { Hono, type Context } from 'hono'
-import { bearer, serviceClient, userClient, type Env } from './supabase'
+import { bearer, businessDb, serviceClient, userClient, type Env } from './supabase'
 import { PLANS, TRIAL_DAYS, plan as planById, type Interval, type PlanId } from '../shared/plans'
 
 // Pinned so the subscription has the shape read below, whatever the account's default version is.
@@ -82,10 +82,10 @@ async function priceFor(env: Env, id: PlanId, interval: Interval): Promise<strin
 
 const iso = (s: number | null | undefined) => (s ? new Date(s * 1000).toISOString() : null)
 
-/** Copy the business's subscription from Stripe into `billing`. Safe to run any time. */
-export async function syncBilling(env: Env): Promise<void> {
+/** Copy a business's subscription from Stripe into `billing`. Safe to run any time. */
+export async function syncBilling(env: Env, businessId: number): Promise<void> {
   if (!env.STRIPE_SECRET_KEY || !env.SUPABASE_SERVICE_ROLE_KEY) return
-  const db = serviceClient(env)
+  const db = businessDb(env, businessId)
   const { data: row } = await db.from('billing').select('plan, status, stripe_customer_id, stripe_subscription_id, trial_used').eq('id', 1).single<BillingRow>()
   // Complimentary accounts are ours to set; Stripe never changes them.
   if (!row?.stripe_customer_id || row.status === 'comped') return
@@ -111,7 +111,7 @@ export async function syncBilling(env: Env): Promise<void> {
     updated_at: new Date().toISOString(),
   }).eq('id', 1)
   if (error) throw new Error(error.message)
-  if (['active', 'trialing'].includes(sub.status) && chosen) await creditReferralMonths(env, row.stripe_customer_id, chosen.plan, chosen.interval)
+  if (['active', 'trialing'].includes(sub.status) && chosen) await creditReferralMonths(env, businessId, row.stripe_customer_id, chosen.plan, chosen.interval)
   // Pay per use is billed monthly: a yearly subscription bills its pending items every month
   // instead of waiting for the renewal.
   const interval = chosen?.interval ?? item?.price.recurring?.interval
@@ -127,9 +127,9 @@ export async function syncBilling(env: Env): Promise<void> {
 // ---------------------------------------------------------------------------------------------
 export interface AiMusicCharge { id: string; price_cents: number; uses: number }
 
-export async function chargeAiMusic(env: Env, g: AiMusicCharge): Promise<string | null> {
+export async function chargeAiMusic(env: Env, businessId: number, g: AiMusicCharge): Promise<string | null> {
   if (g.price_cents <= 0) return null
-  const db = serviceClient(env)
+  const db = businessDb(env, businessId)
   const { data: b } = await db.from('billing').select('stripe_customer_id, stripe_subscription_id').eq('id', 1)
     .single<{ stripe_customer_id: string | null; stripe_subscription_id: string | null }>()
   if (!b?.stripe_customer_id) throw new Error('There is no Stripe customer to charge')
@@ -144,14 +144,14 @@ export async function chargeAiMusic(env: Env, g: AiMusicCharge): Promise<string 
   return item.id
 }
 
-/** Nightly: uses made but not yet on the bill (Stripe didn't answer at the time). */
+/** Nightly: uses made but not yet on the bill (Stripe didn't answer at the time), each on its business's. */
 export async function chargePendingAiMusic(env: Env): Promise<number> {
   if (!env.STRIPE_SECRET_KEY || !env.SUPABASE_SERVICE_ROLE_KEY) return 0
-  const { data } = await serviceClient(env).from('music_generations').select('id, price_cents, uses, charged_at')
+  const { data } = await serviceClient(env).from('music_generations').select('id, business_id, price_cents, uses, charged_at')
     .eq('status', 'done').gt('price_cents', 0).is('charged_at', null)
   let n = 0
-  for (const g of (data ?? []) as AiMusicCharge[]) {
-    await chargeAiMusic(env, g)
+  for (const g of (data ?? []) as (AiMusicCharge & { business_id: number })[]) {
+    await chargeAiMusic(env, g.business_id, g)
     n++
   }
   return n
@@ -166,8 +166,8 @@ export const monthCents = (id: PlanId, interval: Interval) =>
  * off the next invoices by itself (the first one after a trial included). Each month is sent once:
  * its own idempotency key, and the count kept in billing.referral_months_applied.
  */
-async function creditReferralMonths(env: Env, customer: string, id: PlanId, interval: Interval) {
-  const db = serviceClient(env)
+async function creditReferralMonths(env: Env, businessId: number, customer: string, id: PlanId, interval: Interval) {
+  const db = businessDb(env, businessId)
   const [{ data: earned }, { data: b }] = await Promise.all([
     db.rpc('referral_months_earned'),
     db.from('billing').select('referral_months_applied').eq('id', 1).single<{ referral_months_applied: number }>(),
@@ -190,7 +190,7 @@ async function creditReferralMonths(env: Env, customer: string, id: PlanId, inte
 // ---------------------------------------------------------------------------------------------
 // Routes
 // ---------------------------------------------------------------------------------------------
-export const billing = new Hono<{ Bindings: Env; Variables: { userId: string; email: string } }>()
+export const billing = new Hono<{ Bindings: Env; Variables: { userId: string; email: string; businessId: number } }>()
 
 /** Bosses only: admins with pay access (shared/teamRoles.ts). Not the webhook, which Stripe calls. */
 billing.use('/api/billing/*', async (c, next) => {
@@ -198,15 +198,17 @@ billing.use('/api/billing/*', async (c, next) => {
   const token = bearer(c.req.header('authorization'))
   if (!token) return c.json({ error: 'Not signed in' }, 401)
   const sb = userClient(c.env, token, 'app')
-  const [{ data: user }, { data: isBoss }] = await Promise.all([sb.auth.getUser(token), sb.rpc('can_see_pay')])
-  if (!user.user || !isBoss) return c.json({ error: 'Only a boss can manage billing' }, 403)
+  const [{ data: user }, { data: isBoss }, { data: businessId }] = await Promise.all([
+    sb.auth.getUser(token), sb.rpc('can_see_pay'), sb.rpc('current_business_id')])
+  if (!user.user || !isBoss || !businessId) return c.json({ error: 'Only a boss can manage billing' }, 403)
   c.set('userId', user.user.id)
   c.set('email', user.user.email ?? '')
+  c.set('businessId', businessId as number)
   await next()
 })
 
-const row = async (env: Env) => {
-  const { data, error } = await serviceClient(env).from('billing').select('*').eq('id', 1).single()
+const row = async (env: Env, businessId: number) => {
+  const { data, error } = await businessDb(env, businessId).from('billing').select('*').eq('id', 1).single()
   if (error) throw new Error(error.message)
   return data as BillingRow & Record<string, unknown>
 }
@@ -219,21 +221,21 @@ const view = (r: Record<string, unknown>, env: Env) => ({
   referral_months_applied: Number(r.referral_months_applied ?? 0), referred_by: r.referred_by ?? null,
 })
 
-billing.get('/api/billing', async c => c.json(view(await row(c.env), c.env)))
+billing.get('/api/billing', async c => c.json(view(await row(c.env, c.get('businessId')), c.env)))
 
 /** After Checkout (or any time): read Stripe again, then answer like GET. */
 billing.post('/api/billing/sync', async c => {
-  await syncBilling(c.env)
-  return c.json(view(await row(c.env), c.env))
+  await syncBilling(c.env, c.get('businessId'))
+  return c.json(view(await row(c.env, c.get('businessId')), c.env))
 })
 
-async function customerFor(c: Context<{ Bindings: Env; Variables: { userId: string; email: string } }>, r: BillingRow) {
+async function customerFor(c: Context<{ Bindings: Env; Variables: { userId: string; email: string; businessId: number } }>, r: BillingRow) {
   if (r.stripe_customer_id) return r.stripe_customer_id
-  const db = serviceClient(c.env)
-  const { data: biz } = await db.from('business').select('name, email').eq('id', 1).maybeSingle()
+  const db = businessDb(c.env, c.get('businessId'))
+  const { data: biz } = await db.from('business').select('name, email').maybeSingle()
   const customer = await stripe<{ id: string }>(c.env, 'POST', '/customers', {
     name: biz?.name ?? undefined, email: biz?.email || c.get('email') || undefined,
-    metadata: { business_agent_site: new URL(c.req.url).host, business_id: c.env.BUSINESS_ID },
+    metadata: { business_agent_site: new URL(c.req.url).host, business_id: String(c.get('businessId')) },
   })
   await db.from('billing').update({ stripe_customer_id: customer.id, updated_at: new Date().toISOString() }).eq('id', 1)
   return customer.id
@@ -249,7 +251,7 @@ billing.post('/api/billing/checkout', async c => {
   const target = PLANS.find(p => p.id === body.plan && p.id !== 'free')
   const interval: Interval = body.interval === 'year' ? 'year' : 'month'
   if (!target) return c.json({ error: 'Choose a paid plan' }, 400)
-  const r = await row(c.env)
+  const r = await row(c.env, c.get('businessId'))
   if (r.status === 'comped') return c.json({ error: 'This business already has the top plan, free. Nothing to pay.' }, 409)
   const origin = new URL(c.req.url).origin
   const price = await priceFor(c.env, target.id, interval)
@@ -260,7 +262,7 @@ billing.post('/api/billing/checkout', async c => {
       await stripe(c.env, 'POST', `/subscriptions/${sub.id}`, {
         items: [{ id: sub.items.data[0].id, price }], proration_behavior: 'create_prorations', cancel_at_period_end: false,
       })
-      await syncBilling(c.env)
+      await syncBilling(c.env, c.get('businessId'))
       return c.json({ changed: true })
     }
   }
@@ -287,7 +289,7 @@ billing.post('/api/billing/checkout', async c => {
 
 /** Stripe's own page to change the card, see invoices or cancel. */
 billing.post('/api/billing/portal', async c => {
-  const r = await row(c.env)
+  const r = await row(c.env, c.get('businessId'))
   if (!r.stripe_customer_id) return c.json({ error: 'There is no subscription yet. Choose a plan first.' }, 400)
   const return_url = `${new URL(c.req.url).origin}/account/billing`
   const open = () => stripe<{ url: string }>(c.env, 'POST', '/billing_portal/sessions', { customer: r.stripe_customer_id!, return_url })
@@ -318,17 +320,21 @@ billing.post('/api/billing/webhook', async c => {
   const event = await stripe<{ type: string; data: { object: { customer?: string } } }>(c.env, 'GET', `/events/${id}`).catch(() => null)
   if (!event) return c.json({ error: 'Unknown event' }, 400)
   if (!BILLING_EVENTS.includes(event.type)) return c.json({ ok: true, ignored: event.type })
-  const r = await row(c.env)
-  if (!r.stripe_customer_id || event.data.object.customer !== r.stripe_customer_id) return c.json({ ok: true, ignored: 'another customer' })
-  await syncBilling(c.env)
+  // The business whose Stripe customer it is.
+  const customer = event.data.object.customer
+  const { data: b } = customer
+    ? await serviceClient(c.env).from('billing').select('business_id').eq('stripe_customer_id', customer).maybeSingle()
+    : { data: null }
+  if (!b) return c.json({ ok: true, ignored: 'another customer' })
+  await syncBilling(c.env, b.business_id as number)
   return c.json({ ok: true })
 })
 
 interface PlanStatus { plan: PlanId; limits: { people: number | null; features: string[] }; usage: { people: number } }
 
 /** Before adding someone: a plain reason the plan doesn't allow it, or null. (The database checks too.) */
-export async function planBlocksInvite(env: Env, role: string): Promise<string | null> {
-  const { data } = await serviceClient(env).rpc('plan_status')
+export async function planBlocksInvite(env: Env, businessId: number, role: string): Promise<string | null> {
+  const { data } = await businessDb(env, businessId).rpc('plan_status')
   const s = data as PlanStatus | null
   if (!s) return null
   const needs = (f: string) => planById(PLANS.find(p => p.features.includes(f as never))?.id).name
@@ -340,8 +346,8 @@ export async function planBlocksInvite(env: Env, role: string): Promise<string |
   return null
 }
 
-/** The plan features in force right now (for the background jobs). */
-export async function planFeatures(env: Env): Promise<Set<string>> {
-  const { data } = await serviceClient(env).rpc('plan_status')
+/** A business's plan features in force right now (for the background jobs). */
+export async function planFeatures(env: Env, businessId: number): Promise<Set<string>> {
+  const { data } = await businessDb(env, businessId).rpc('plan_status')
   return new Set((data as PlanStatus | null)?.limits.features ?? [])
 }

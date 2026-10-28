@@ -139,7 +139,7 @@ export async function refreshCompetition(db: SupabaseClient, c: SportsCompetitio
     const { events, complete } = await fetchCompetition(c)
     const keep = events.filter(e => Date.parse(e.starts_at) > Date.now() - 2 * 86_400_000)
     if (keep.length) {
-      const { error } = await db.from('sports_events').upsert(keep.map(e => ({ ...e, updated_at: now })), { onConflict: 'id' })
+      const { error } = await db.from('sports_events').upsert(keep.map(e => ({ ...e, updated_at: now })), { onConflict: 'business_id,id' })
       if (error) throw new Error(error.message)
     }
     // A whole-season source is the truth: upcoming rows it no longer has were moved or cancelled.
@@ -186,7 +186,7 @@ export async function refreshStaleSports(db: SupabaseClient, max = 2, sources?: 
 
 /** Sports is a business-wide switch on the Sports page, off until an admin turns it on. */
 export async function sportsEnabled(db: SupabaseClient) {
-  const { data } = await db.from('business').select('sports_enabled').eq('id', 1).maybeSingle()
+  const { data } = await db.from('business').select('sports_enabled').maybeSingle()
   return !!data?.sports_enabled
 }
 
@@ -261,7 +261,7 @@ export async function syncCrests(db: SupabaseClient, maxSearches = 40): Promise<
     if (answered) save(name, badge, 'thesportsdb')
   }
   if (found.length) {
-    const { error: e } = await db.from('sports_teams').upsert(found, { onConflict: 'name' })
+    const { error: e } = await db.from('sports_teams').upsert(found, { onConflict: 'business_id,name' })
     if (e) throw new Error(e.message)
   }
   return { found: found.filter(f => f.badge).length, missing: needed.size + found.filter(f => !f.badge).length, searched }

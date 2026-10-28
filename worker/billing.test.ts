@@ -148,7 +148,7 @@ describe('choosing a plan', () => {
       .toMatchObject({ plan: 'business', status: 'comped', complimentary: 'friends_family' })
     stripe.subs = [{ ...({} as Sub), id: 'sub_old', status: 'canceled', customer: 'cus_1', trial_end: null, current_period_end: 0, cancel_at_period_end: false, created: 1,
       items: { data: [{ id: 'si', price: { id: 'p', unit_amount: 2500, lookup_key: 'business_agent_starter_month', recurring: { interval: 'month' } } }] } }]
-    await syncBilling(env)
+    await syncBilling(env, 1)
     expect(row()).toMatchObject({ plan: 'business', status: 'comped' })
   })
 
@@ -164,7 +164,7 @@ describe('choosing a plan', () => {
   it('already paying: moves the subscription to the new plan instead of a second one', async () => {
     await post('/api/billing/checkout', { plan: 'pro', interval: 'month' })
     stripe.subscribe('business_agent_pro_month', 'active', null)
-    await syncBilling(env)
+    await syncBilling(env, 1)
     expect(row()).toMatchObject({ plan: 'pro', status: 'active' })
     expect(await (await post('/api/billing/checkout', { plan: 'business', interval: 'month' })).json()).toEqual({ changed: true })
     expect(stripe.checkouts).toHaveLength(1)
@@ -211,20 +211,20 @@ describe('referral months as Stripe credit', () => {
 
   it('each month earned goes on the bill once, worth a month of the plan, and only while there is a subscription', async () => {
     setUp(2)
-    await syncBilling(env)
+    await syncBilling(env, 1)
     expect(stripe.credits.size).toBe(0) // nothing to pay yet: kept for later
     stripe.subscribe('business_agent_pro_month', 'trialing', new Date(Date.now() + 86400_000))
-    await syncBilling(env)
+    await syncBilling(env, 1)
     expect([...stripe.credits.values()]).toEqual([
       { customer: 'cus_1', amount: -7900, description: 'Referral: a month of Business Agent Pro free (1)' },
       { customer: 'cus_1', amount: -7900, description: 'Referral: a month of Business Agent Pro free (2)' },
     ])
     expect(row().referral_months_applied).toBe(2)
-    await syncBilling(env)
+    await syncBilling(env, 1)
     expect(stripe.credits.size).toBe(2) // no double credit
     setUp(3)
     Object.assign(row(), { referred_month: true })
-    await syncBilling(env)
+    await syncBilling(env, 1)
     expect(stripe.credits.size).toBe(4)
     expect(row().referral_months_applied).toBe(4)
   })
@@ -233,7 +233,7 @@ describe('referral months as Stripe credit', () => {
     await post('/api/billing/checkout', { plan: 'business', interval: 'year' })
     stripe.subscribe('business_agent_business_year', 'active', null)
     setUp(15)
-    await syncBilling(env)
+    await syncBilling(env, 1)
     expect(stripe.credits.size).toBe(12)
     expect([...stripe.credits.values()][0].amount).toBe(-10750) // €1,290 / 12
   })
@@ -242,7 +242,7 @@ describe('referral months as Stripe credit', () => {
     stripe.subscribe('business_agent_pro_month', 'active', null)
     setUp(1)
     stripe.credits.set('business-agent-referral-cus_1-1', { customer: 'cus_1', amount: -7900, description: 'earlier' })
-    await syncBilling(env)
+    await syncBilling(env, 1)
     expect(stripe.credits.size).toBe(1)
     expect(row().referral_months_applied).toBe(1)
   })
@@ -252,14 +252,14 @@ describe('pay per use on the bill', () => {
   it('a yearly subscription bills pending items (AI music tracks) every month; a monthly one with its renewal', async () => {
     await post('/api/billing/checkout', { plan: 'pro', interval: 'year' })
     stripe.subscribe('business_agent_pro_year', 'active', null)
-    await syncBilling(env)
+    await syncBilling(env, 1)
     expect(stripe.updates.map(u => u.get('pending_invoice_item_interval[interval]'))).toEqual(['month'])
-    await syncBilling(env)
+    await syncBilling(env, 1)
     expect(stripe.updates).toHaveLength(1) // already set
     stripe.updates = []
     await post('/api/billing/checkout', { plan: 'pro', interval: 'month' })
     stripe.subscribe('business_agent_pro_month', 'active', null)
-    await syncBilling(env)
+    await syncBilling(env, 1)
     expect(stripe.updates).toHaveLength(0)
   })
 })

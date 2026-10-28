@@ -202,17 +202,17 @@ describe('putting music into a story or reel', () => {
 
 describe('the starter pack', () => {
   it('is made a track at a time for a business that posts, each once, and never when switched off', async () => {
-    expect(await fillStarterPack(env, APP)).toBeNull() // Instagram isn't connected
+    expect(await fillStarterPack(env, APP, 1)).toBeNull() // Instagram isn't connected
     db.integration('instagram').status = 'connected'
-    expect(await fillStarterPack({ ...env, MUSIC_STARTER: 'off' } as Env, APP)).toBeNull()
-    expect(await fillStarterPack(env, APP)).toBe(STARTER[0].key)
-    expect(await fillStarterPack(env, APP)).toBe(STARTER[1].key)
+    expect(await fillStarterPack({ ...env, MUSIC_STARTER: 'off' } as Env, APP, 1)).toBeNull()
+    expect(await fillStarterPack(env, APP, 1)).toBe(STARTER[0].key)
+    expect(await fillStarterPack(env, APP, 1)).toBe(STARTER[1].key)
     const first = db.table('music_tracks')[0]
     expect(first).toMatchObject({ source: 'starter', starter_key: 'sunday-morning', title: 'Sunday Morning', duration_s: 40, moods: STARTER[0].moods })
     expect(first.licence).toMatchObject({ kind: 'starter', provider: 'elevenlabs', made_by: 'Business Agent' })
     expect(apis.elevenlabs.asked[0]).toMatchObject({ prompt: STARTER[0].prompt, music_length_ms: 40000 })
-    for (let i = 2; i < STARTER.length; i++) await fillStarterPack(env, APP)
-    expect(await fillStarterPack(env, APP)).toBeNull()
+    for (let i = 2; i < STARTER.length; i++) await fillStarterPack(env, APP, 1)
+    expect(await fillStarterPack(env, APP, 1)).toBeNull()
     expect(db.table('music_tracks')).toHaveLength(STARTER.length)
     expect(db.table('music_generations')).toHaveLength(0) // free to the business
   })
@@ -335,12 +335,12 @@ it('nightly: Instagram\'s likes and comments on posts with music, so suggestions
     { id: 'm2', permalink: 'https://instagram.com/p/2', like_count: 12 },
     { id: 'm4', like_count: 99, comments_count: 9 }, { id: 'm5', like_count: 99, comments_count: 9 },
   ]
-  expect(await syncMusicInsights(env)).toBe(0) // Instagram isn't connected
+  expect(await syncMusicInsights(env, 1)).toBe(0) // Instagram isn't connected
   db.integration('instagram').status = 'connected'
   db.tables.integration_secrets.push({ provider: 'instagram', ciphertext: await seal(env.INTEGRATION_KEY!,
     { access_token: 'ig-token', user_id: '17841400000000001', expires_at: new Date(Date.now() + 30 * 86_400_000).toISOString() }) })
   apis.instagram.current = 'ig-token'
-  expect(await syncMusicInsights(env)).toBe(2)
+  expect(await syncMusicInsights(env, 1)).toBe(2)
   const insights = Object.fromEntries(db.table('social_posts').map(p => [p.id, p.insights]))
   expect(insights).toEqual({ p1: { likes: 40, comments: 3, at: expect.any(String) }, p2: { likes: 12, comments: 0, at: expect.any(String) }, p3: null, p4: null, p5: null })
 })

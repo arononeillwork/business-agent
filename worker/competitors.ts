@@ -6,7 +6,7 @@
 // nearby (from the weekly look) and about places Google shows as closed.
 import { Hono } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { bearer, serviceClient, userClient, type Env } from './supabase'
+import { bearer, requestDb, secretPlaceId, userClient, type Env } from './supabase'
 import { findPlaces, nearbyCafes, placeDetails, type PlaceDetails, type PlaceSummary } from './providers/places'
 import {
   DEFAULT_RADIUS, GOOGLE_EVERY_DAYS, NEW_PLACE_MAX_REVIEWS, distanceM, featuresFromGoogle, hoursFromGoogle, kindFromGoogle, priceLevelFromGoogle,
@@ -72,12 +72,13 @@ async function centre(env: Env, db: SupabaseClient): Promise<Point | null> {
   if (self?.lat != null && self.lng != null) return { lat: self.lat, lng: self.lng }
   const key = env.GOOGLE_PLACES_API_KEY
   if (!key) return null
-  if (env.GOOGLE_PLACE_ID) {
-    const d = await placeDetails(key, env.GOOGLE_PLACE_ID)
+  const own = secretPlaceId(env, db)
+  if (own) {
+    const d = await placeDetails(key, own)
     if (self) await keepDetails(db, self, d, null)
     return d.location
   }
-  const { data: b } = await db.from('business').select('name, address').eq('id', 1).maybeSingle()
+  const { data: b } = await db.from('business').select('name, address').maybeSingle()
   if (!b?.address) return null
   const [hit] = await findPlaces(key, `${b.name} ${b.address}`, null)
   if (hit?.location && self) await db.from('competitors').update({ lat: hit.location.lat, lng: hit.location.lng }).eq('id', self.id)
@@ -102,7 +103,7 @@ export async function lookAround(env: Env, db: SupabaseClient, { radius, notify 
   if (!at) throw new Error(NO_CENTRE)
   const { data: settings } = await db.from('competitor_settings').select('radius_m, scanned_at').eq('id', 1).maybeSingle()
   const r = radius ?? settings?.radius_m ?? DEFAULT_RADIUS
-  const found = (await nearbyCafes(key, at, r)).filter(p => p.id !== env.GOOGLE_PLACE_ID)
+  const found = (await nearbyCafes(key, at, r)).filter(p => p.id !== secretPlaceId(env, db))
   const [{ data: seen }, { data: followed }] = await Promise.all([db.from('competitor_radar').select('place_id'), db.from('competitors').select('place_id, is_self')])
   const known = new Set((seen ?? []).map(x => x.place_id as string))
   const ours = new Set((followed ?? []).filter(x => x.is_self).map(x => x.place_id as string | null).filter(Boolean))
@@ -110,7 +111,7 @@ export async function lookAround(env: Env, db: SupabaseClient, { radius, notify 
   const now = new Date().toISOString()
   const rows = found.filter(p => !ours.has(p.id)).map(p => ({ ...nearbyRow(p, at), last_seen: now }))
   if (rows.length) {
-    const { error } = await db.from('competitor_radar').upsert(rows, { onConflict: 'place_id' })
+    const { error } = await db.from('competitor_radar').upsert(rows, { onConflict: 'business_id,place_id' })
     if (error) throw new Error(error.message)
   }
   await db.from('competitor_settings').update({ scanned_at: now, radius_m: r }).eq('id', 1)
@@ -133,7 +134,7 @@ export async function checkDue(env: Env, db: SupabaseClient, limit = 12) {
   const { data } = await db.from('competitors').select('*').eq('active', true)
   const rows = (data ?? []) as Competitor[]
   const self = rows.find(r => r.is_self)
-  if (self && !self.place_id && env.GOOGLE_PLACE_ID) self.place_id = env.GOOGLE_PLACE_ID
+  if (self && !self.place_id && secretPlaceId(env, db)) self.place_id = secretPlaceId(env, db)!
   // An hour's leeway, so the nightly run doesn't slip a day later each week.
   const due = Date.now() - GOOGLE_EVERY_DAYS * 86_400_000 + 3_600_000
   const list = rows.filter(r => r.place_id && (!r.google_checked_at || Date.parse(r.google_checked_at) < due))
@@ -165,14 +166,14 @@ export async function watchCompetitors(env: Env, db: SupabaseClient) {
 }
 
 // Is Google set up: the key (everything), and the business's own place id (its rating on the page).
-competitors.get('/api/competitors/google', c => c.json({ places: !!c.env.GOOGLE_PLACES_API_KEY, own_place: !!c.env.GOOGLE_PLACE_ID }))
+competitors.get('/api/competitors/google', async c => c.json({ places: !!c.env.GOOGLE_PLACES_API_KEY, own_place: !!secretPlaceId(c.env, await requestDb(c)) }))
 
 // Look around the business now: { radius_m? }.
 competitors.post('/api/competitors/look', async c => {
   const { radius_m } = await c.req.json<{ radius_m?: number }>().catch(() => ({} as { radius_m?: number }))
   if (radius_m !== undefined && !(Number.isInteger(radius_m) && radius_m >= 100 && radius_m <= 20000)) return c.json({ error: 'Look between 100 m and 20 km around' }, 400)
   try {
-    return c.json(await lookAround(c.env, serviceClient(c.env), { radius: radius_m }))
+    return c.json(await lookAround(c.env, await requestDb(c), { radius: radius_m }))
   } catch (e) {
     return c.json({ error: problem(e) }, e instanceof Error && (e.message === NO_PLACES || e.message === NO_CENTRE) ? 409 : 502)
   }
@@ -184,11 +185,11 @@ competitors.get('/api/competitors/search', async c => {
   if (q.length < 2) return c.json({ error: 'Type at least two letters' }, 400)
   if (!c.env.GOOGLE_PLACES_API_KEY) return c.json({ error: NO_PLACES }, 409)
   try {
-    const db = serviceClient(c.env)
+    const db = await requestDb(c)
     const at = await centre(c.env, db).catch(() => null)
     const found = await findPlaces(c.env.GOOGLE_PLACES_API_KEY, q.slice(0, 120), at)
     const now = new Date().toISOString()
-    const places: NearbyPlace[] = found.filter(p => p.id !== c.env.GOOGLE_PLACE_ID).map(p => ({ ...nearbyRow(p, at), first_seen: now, dismissed: false }))
+    const places: NearbyPlace[] = found.filter(p => p.id !== secretPlaceId(c.env, db)).map(p => ({ ...nearbyRow(p, at), first_seen: now, dismissed: false }))
     return c.json({ places })
   } catch (e) {
     return c.json({ error: problem(e) }, 502)
@@ -201,8 +202,8 @@ competitors.post('/api/competitors/follow', async c => {
   const { place_id, id } = await c.req.json<{ place_id?: string; id?: string }>().catch(() => ({} as { place_id?: string; id?: string }))
   if (!place_id || place_id.length > 300) return c.json({ error: 'Pick a place from Google' }, 400)
   if (!c.env.GOOGLE_PLACES_API_KEY) return c.json({ error: NO_PLACES }, 409)
-  if (place_id === c.env.GOOGLE_PLACE_ID) return c.json({ error: 'That’s your own business' }, 400)
-  const db = serviceClient(c.env)
+  const db = await requestDb(c)
+  if (place_id === secretPlaceId(c.env, db)) return c.json({ error: 'That’s your own business' }, 400)
   try {
     const d = await placeDetails(c.env.GOOGLE_PLACES_API_KEY, place_id)
     const { data: same } = await db.from('competitors').select('*').eq('place_id', d.id).maybeSingle()
@@ -232,10 +233,10 @@ competitors.post('/api/competitors/follow', async c => {
 competitors.post('/api/competitors/refresh', async c => {
   const { id } = await c.req.json<{ id?: string }>().catch(() => ({} as { id?: string }))
   if (!c.env.GOOGLE_PLACES_API_KEY) return c.json({ error: NO_PLACES }, 409)
-  const db = serviceClient(c.env)
+  const db = await requestDb(c)
   const row = (await db.from('competitors').select('*').eq('id', id ?? '').maybeSingle()).data as Competitor | null
   if (!row) return c.json({ error: 'No such competitor' }, 404)
-  const placeId = row.place_id ?? (row.is_self ? c.env.GOOGLE_PLACE_ID : undefined)
+  const placeId = row.place_id ?? (row.is_self ? secretPlaceId(c.env, db) : undefined)
   if (!placeId) return c.json({ error: 'Find it on Google first' }, 400)
   if (row.google_checked_at && Date.now() - Date.parse(row.google_checked_at) < 10 * 60_000) return c.json({ ok: true, kept: true })
   try {

@@ -2,6 +2,9 @@
 // be run end to end in unit tests. It understands the queries the Worker makes (select with eq/neq/
 // in/is/gte/gt/lte/lt/not, order and limit, single/maybeSingle, counts, insert/upsert/update/delete, rpc is_admin/my_role, the plan checks and any a test adds) and
 // mirrors the one-app-per-group trigger from migration 28 (supabase/tests prove the real one).
+// Several businesses (the several_businesses migration): a row without business_id is business 1's,
+// what the Worker writes is the business its x-business-id header names, and current_business_id()
+// answers like the real one.
 import { PROVIDERS } from '../connections'
 import { CONNECTION_FEATURE } from '../../shared/plans'
 
@@ -24,6 +27,11 @@ const AUTO_ID = new Set(['whatsapp_messages'])
 /** Tables whose id is a uuid (the tools check it is one). */
 const UUID_ID = new Set(['competitors', 'competitor_items', 'competitor_prices', 'competitor_notes'])
 
+/** The business a row is, unless it says (the one business most tests have). */
+export const FIRST_BUSINESS = 1
+/** Tables that aren't any one business's, and the business row itself (its id is the business). */
+const UNSCOPED = new Set(['business', 'plan_limits', 'pay_per_use'])
+
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 const bearerOf = (h: Headers) => h.get('authorization')?.replace(/^Bearer\s+/i, '') ?? ''
 
@@ -35,7 +43,7 @@ function matcher(params: URLSearchParams) {
     const op = raw.slice(0, dot), arg = raw.slice(dot + 1)
     // A field inside a json column ("data->>review") or the column itself.
     const [col, inner] = key.split('->>')
-    const at = (r: Row) => (inner ? (r[col] as Row | null | undefined)?.[inner] : r[key])
+    const at = (r: Row) => (inner ? (r[col] as Row | null | undefined)?.[inner] : key === 'business_id' ? r[key] ?? FIRST_BUSINESS : r[key])
     const v = (r: Row) => at(r) == null ? null : String(at(r))
     if (op === 'eq') tests.push(r => v(r) === arg)
     else if (op === 'neq') tests.push(r => v(r) !== arg)
@@ -67,9 +75,10 @@ function matcher(params: URLSearchParams) {
   return (r: Row) => tests.every(t => t(r))
 }
 
-function project(r: Row, select: string | null) {
-  if (!select || select === '*') return { ...r }
-  return Object.fromEntries(select.split(',').map(s => s.trim()).map(k => [k, r[k] ?? null]))
+function project(r: Row, select: string | null, table = '') {
+  const row = UNSCOPED.has(table) || r.business_id !== undefined ? r : { ...r, business_id: FIRST_BUSINESS }
+  if (!select || select === '*') return { ...row }
+  return Object.fromEntries(select.split(',').map(s => s.trim()).map(k => [k, row[k] ?? null]))
 }
 
 export class FakeSupabase {
@@ -161,6 +170,10 @@ export class FakeSupabase {
     if (rpc) {
       if (this.rpcs[rpc[1]]) return json(this.rpcs[rpc[1]](init.body ? JSON.parse(String(init.body)) as Row : {}))
       const who = this.people.get(bearerOf(headers))
+      if (rpc[1] === 'current_business_id') {
+        if (who) return json(this.table('profiles').find(p => p.id === who.id)?.business_id ?? FIRST_BUSINESS)
+        return json(Number(headers.get('x-business-id')) || null)
+      }
       if (rpc[1] === 'is_admin') return json(who?.role === 'admin')
       if (rpc[1] === 'my_role') return json(who?.role ?? null)
       if (rpc[1] === 'can_see_pay') return json(who?.role === 'admin' && this.table('profiles').some(p => p.id === who.id && p.can_see_pay === true))
@@ -247,9 +260,9 @@ export class FakeSupabase {
     const body = init.body ? JSON.parse(String(init.body)) as Row | Row[] : undefined
     const respond = (data: Row[], status = 200) => {
       if ((headers.get('accept') ?? '').includes('vnd.pgrst.object+json')) {
-        return data.length === 1 ? json(project(data[0], select), status) : json({ code: 'PGRST116', message: 'JSON object requested, multiple (or no) rows returned' }, 406)
+        return data.length === 1 ? json(project(data[0], select, name), status) : json({ code: 'PGRST116', message: 'JSON object requested, multiple (or no) rows returned' }, 406)
       }
-      return json(data.map(r => project(r, select)), status)
+      return json(data.map(r => project(r, select, name)), status)
     }
     // A count only (select … { count: 'exact', head: true }).
     if (method === 'HEAD') {
@@ -278,8 +291,12 @@ export class FakeSupabase {
     if (method === 'POST') {
       const keys = KEYS[name]
       const out: Row[] = []
-      for (const item of (Array.isArray(body) ? body : [body!])) {
-        const existing = keys && rows.find(r => keys.every(k => r[k] === item[k]))
+      // What the Worker writes for a business is that business's (business_id's default in the database).
+      const business = Number(headers.get('x-business-id')) || null
+      const businessOf = (r: Row) => (r.business_id as number | undefined) ?? FIRST_BUSINESS
+      for (const raw of (Array.isArray(body) ? body : [body!])) {
+        const item = business && !UNSCOPED.has(name) && raw.business_id === undefined ? { ...raw, business_id: business } : raw
+        const existing = keys && rows.find(r => keys.every(k => r[k] === item[k]) && (UNSCOPED.has(name) || businessOf(r) === businessOf(item)))
         if (existing && prefer.includes('resolution=ignore-duplicates')) continue
         if (existing && !prefer.includes('resolution=merge-duplicates')) return json({ code: '23505', message: 'duplicate key value violates unique constraint' }, 409)
         if (existing) { Object.assign(existing, item); out.push(existing) } else {

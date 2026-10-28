@@ -83,7 +83,7 @@ describe('Photos and videos for posts: kept in the café’s Drive or OneDrive',
     expect(res.status).toBe(200)
     const stored = await res.json() as { url: string; type: string; storage: string }
     expect(stored).toMatchObject({ type: 'video', storage: 'google_drive' })
-    expect(stored.url).toMatch(/^https:\/\/app\.test\/media\/g\/file-\d+\/[\w-]{24}\.mp4$/)
+    expect(stored.url).toMatch(/^https:\/\/app\.test\/media\/g\/1\/file-\d+\/[\w-]{24}\.mp4$/)
 
     // In the café's Drive: Business Agent / Social / Reels.
     const [file] = [...apis.google.blobs.values()]
@@ -101,10 +101,13 @@ describe('Photos and videos for posts: kept in the café’s Drive or OneDrive',
     expect(part.status).toBe(206)
     expect(part.headers.get('content-range')).toBe('bytes 0-99/5000')
 
-    // A made-up or altered address opens nothing.
-    const [, , , id, sig] = new URL(stored.url).pathname.split('/')
-    expect((await call(`/media/g/${id}/${'A'.repeat(24)}.mp4`)).status).toBe(404)
-    expect((await call(`/media/g/folder-1/${sig}`)).status).toBe(404)
+    // A made-up or altered address opens nothing, nor the same file asked for as another business's.
+    const [, , , business, id, sig] = new URL(stored.url).pathname.split('/')
+    expect(business).toBe('1')
+    expect((await call(`/media/g/1/${id}/${'A'.repeat(24)}.mp4`)).status).toBe(404)
+    expect((await call(`/media/g/1/folder-1/${sig}`)).status).toBe(404)
+    expect((await call(`/media/g/2/${id}/${sig}`)).status).toBe(404)
+    expect((await call(`/media/g/${id}/${sig}`)).status).toBe(404)
   })
 
   it('OneDrive: a big video goes up in pieces into Business Agent/Social/Stories, and comes back whole', async () => {
@@ -113,7 +116,7 @@ describe('Photos and videos for posts: kept in the café’s Drive or OneDrive',
     const res = await upload(video, 'video/quicktime', 'Stories')
     expect(res.status).toBe(200)
     const stored = await res.json() as { url: string }
-    expect(stored.url).toMatch(/\/media\/o\/item-\d+\/[\w-]{24}\.mov$/)
+    expect(stored.url).toMatch(/\/media\/o\/1\/item-\d+\/[\w-]{24}\.mov$/)
     expect(apis.calls.filter(c => c.startsWith('PUT upload.onedrive.test')).length).toBe(3) // 10 MiB + 10 MiB + the rest
     expect([...apis.microsoft.blobs.values()][0].path).toMatch(/^Business Agent\/Social\/Stories\/.+\.mov$/)
     const got = await call(new URL(stored.url).pathname)
@@ -143,7 +146,7 @@ describe('Instagram: posts, carousels, reels and stories go out with every photo
     job({ post_id: 'p4', kind: 'story', caption: 'note to self', media: [{ url: 'https://app.test/media/g/5/s.jpg', type: 'image' }] })
     // A job queued before kinds existed: just image_url.
     job({ post_id: 'p5', caption: 'Old one', image_url: 'https://app.test/media/posts/old.jpg' })
-    await drainOutbox(env)
+    await drainOutbox(env, 1)
 
     expect(db.table('outbox').map(j => j.status)).toEqual(['sent', 'sent', 'sent', 'sent', 'sent'])
     const [post, carousel, reel, story, old] = apis.instagram.published
@@ -168,7 +171,7 @@ describe('Instagram: posts, carousels, reels and stories go out with every photo
     // Connected before this was fixed: the sign-in id, which Instagram refuses to post to.
     db.table('integration_secrets')[0].ciphertext = await seal(env.INTEGRATION_KEY!, { ...kept, user_id: apis.instagram.loginId })
     job({ post_id: 'p1', kind: 'post', caption: 'Acai bowls', media: [{ url: 'https://app.test/media/g/1/s.jpg', type: 'image' }] })
-    await drainOutbox(env)
+    await drainOutbox(env, 1)
     expect(db.table('outbox')[0]).toMatchObject({ status: 'sent', last_error: null })
     expect(apis.instagram.published).toHaveLength(1)
   })
@@ -177,7 +180,7 @@ describe('Instagram: posts, carousels, reels and stories go out with every photo
     await connectInstagram()
     apis.instagram.badVideo = true
     job({ post_id: 'p1', kind: 'reel', caption: 'x', media: [{ url: 'https://app.test/media/g/4/s.mp4', type: 'video' }] })
-    await drainOutbox(env)
+    await drainOutbox(env, 1)
     expect(db.table('outbox')[0]).toMatchObject({ status: 'failed' })
     expect(String(db.table('outbox')[0].last_error)).toMatch(/couldn’t use the photo or video \(Error: 2207026\)/)
 
@@ -186,7 +189,7 @@ describe('Instagram: posts, carousels, reels and stories go out with every photo
     setInstagramWait({ waitMs: 0, tries: 3 })
     db.table('outbox').length = 0
     job({ post_id: 'p2', kind: 'story', media: [{ url: 'https://app.test/media/g/6/s.mp4', type: 'video' }], caption: '' })
-    await drainOutbox(env)
+    await drainOutbox(env, 1)
     expect(db.table('outbox')[0]).toMatchObject({ status: 'failed', last_error: 'Instagram is still processing the video. It will be tried again shortly.' })
     expect(apis.instagram.published).toEqual([])
   })

@@ -4,7 +4,7 @@
 // the café's Drive or OneDrive) and adds the invoice, with what a Facturae e-invoice says filled in.
 // Admins with pay access only, as Tax. What the mailbox holds is kept 15 minutes (provider_cache).
 import { Hono } from 'hono'
-import { bearer, serviceClient, userClient, type Env } from './supabase'
+import { bearer, requestDb, serviceClient, userClient, type Env } from './supabase'
 import { connectedOf, connectorGrant, explain, lasting, markBroken } from './connections'
 import { cached } from './cache'
 import * as google from './providers/google'
@@ -48,7 +48,7 @@ async function broken(db: ReturnType<typeof serviceClient>, p: Mailbox, e: unkno
 
 // Emails from the last ?days (60 by default) with files that could be invoices, each matched to a supplier.
 invoices.get('/api/invoices/inbox', async c => {
-  const db = serviceClient(c.env)
+  const db = await requestDb(c)
   const asPerson = userClient(c.env, c.get('token'), 'app')
   const box = await mailbox(db)
   if (!box || !box.canRead) return c.json({ mailbox: box?.provider ?? null, can_read: false, messages: [] } satisfies InboxState)
@@ -85,7 +85,7 @@ invoices.get('/api/invoices/inbox', async c => {
  * file's name); a file already kept is linked rather than stored twice. Returns the new invoice.
  */
 invoices.post('/api/invoices/import', async c => {
-  const db = serviceClient(c.env)
+  const db = await requestDb(c)
   const asPerson = userClient(c.env, c.get('token'), 'app')
   type Body = { message?: string; attachment?: string; name?: string; at?: string; from?: string; from_name?: string | null; subject?: string; supplier_id?: string | null }
   const b = await c.req.json<Body>().catch(() => ({} as Body))

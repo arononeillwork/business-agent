@@ -5,7 +5,7 @@
 // `status: 'reconnect'` (reads) or a plain "Reconnect Square…" (changes), never Square's own error.
 import { Hono, type MiddlewareHandler } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { bearer, serviceClient, userClient, type Env } from './supabase'
+import { bearer, requestDb, userClient, type Env } from './supabase'
 import { connectedOf, explain, lasting, markBroken, squareSession } from './connections'
 import { cached, forget } from './cache'
 import { SquareError } from './providers/square'
@@ -27,7 +27,7 @@ const admins: MiddlewareHandler<{ Bindings: Env }> = async (c, next) => {
   if (!token) return c.json({ error: 'Not signed in' }, 401)
   const { data: isAdmin } = await userClient(c.env, token, 'app').rpc('is_admin')
   if (!isAdmin) return c.json({ error: 'Only an admin can see loyalty and gift cards' }, 403)
-  if (await connectedOf(serviceClient(c.env), ['square'] as const) !== 'square') return c.json({ error: NOT_CONNECTED }, 409)
+  if (await connectedOf(await requestDb(c), ['square'] as const) !== 'square') return c.json({ error: NOT_CONNECTED }, 409)
   await next()
 }
 
@@ -64,7 +64,7 @@ async function names(db: SupabaseClient, ids: string[]) {
 
 // The programme, its members (most points first) and what happened in the range.
 loyaltyRoutes.get('/api/loyalty', async c => {
-  const db = serviceClient(c.env)
+  const db = await requestDb(c)
   try {
     const { fromIso, toIso } = range(k => c.req.query(k))
     const { data, fetched_at } = await cached(db, `loyalty:${fromIso}:${toIso}`, MINUTES.loyalty, async (): Promise<LoyaltyState> => {
@@ -90,7 +90,7 @@ loyaltyRoutes.get('/api/loyalty', async c => {
 
 // Goodwill points for a member (or taking some back): { account_id, points, reason, key }.
 loyaltyRoutes.post('/api/loyalty/adjust', async c => {
-  const db = serviceClient(c.env)
+  const db = await requestDb(c)
   try {
     const b = await c.req.json<{ account_id?: string; points?: number; reason?: string; key?: string }>().catch(() => ({} as Record<string, undefined>))
     const points = Number(b.points)
@@ -111,7 +111,7 @@ loyaltyRoutes.post('/api/loyalty/adjust', async c => {
 
 // Gift cards (the last 4 digits of each number only) and what happened to them in the range.
 loyaltyRoutes.get('/api/giftcards', async c => {
-  const db = serviceClient(c.env)
+  const db = await requestDb(c)
   try {
     const { fromIso, toIso } = range(k => c.req.query(k))
     const { data, fetched_at } = await cached(db, `giftcards:${fromIso}:${toIso}`, MINUTES.loyalty, async (): Promise<GiftCards> => {
@@ -129,7 +129,7 @@ loyaltyRoutes.get('/api/giftcards', async c => {
 
 // Sell a digital gift card for an amount paid at the till: { amount, customer_id?, key }.
 loyaltyRoutes.post('/api/giftcards', async c => {
-  const db = serviceClient(c.env)
+  const db = await requestDb(c)
   try {
     const b = await c.req.json<{ amount?: number; customer_id?: string | null; key?: string }>().catch(() => ({} as Record<string, undefined>))
     const amount = Number(b.amount)
