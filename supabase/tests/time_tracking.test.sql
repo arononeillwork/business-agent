@@ -64,6 +64,8 @@ do $$ begin
 end $$;
 select pg_temp.expect_error('select public.clock_in()', 'cannot clock in');
 reset role;
+-- Back to setting up as the database (not as the stranger, who is in no business).
+select set_config('request.jwt.claim.sub', '', false);
 
 insert into public.pay_rates (profile_id, hourly_rate)
 select id, 9.50 from public.profiles where email in ('maria@test', 'julio@test');
