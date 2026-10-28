@@ -1,12 +1,14 @@
 // Sign-in emails (invites, sign-up confirmations, sign-in codes, password resets) sent from the
 // business's own connected mailbox, Gmail or Outlook, instead of from Supabase. Supabase Auth calls
 // this through its "send email" hook (switched on by the deploy once a mailbox is connected:
-// scripts/ops/supabase-auth.mjs) and sends nothing itself.
+// scripts/ops/supabase-auth.mjs) and sends nothing itself. Someone in a business hears from that
+// business's mailbox; someone in none yet (just signed up), or whose business has no mailbox, from
+// Business Agent, through the founding business's mailbox.
 //
 // Supabase signs each call (Standard Webhooks). The shared secret is derived from the service key,
 // which both the Worker and the deploy already have, so there is no extra secret to manage.
 import { Hono } from 'hono'
-import { serviceClient, type Env } from './supabase'
+import { SECRETS_BUSINESS_ID, businessDb, serviceClient, type Env } from './supabase'
 import { sendEmail } from './integrations'
 
 const enc = new TextEncoder()
@@ -35,7 +37,7 @@ export async function verifyHook(serviceKey: string, headers: Headers, body: str
 }
 
 interface HookPayload {
-  user: { email: string; user_metadata?: { full_name?: string } }
+  user: { id?: string; email: string; user_metadata?: { full_name?: string } }
   email_data: { token: string; token_hash: string; redirect_to: string; email_action_type: string; site_url: string }
 }
 
@@ -74,8 +76,16 @@ authEmail.post('/api/auth/send-email', async c => {
     return hookError(401, 'Invalid signature')
   }
   const payload = JSON.parse(body) as HookPayload
-  const db = serviceClient(c.env)
-  const { data: biz } = await db.from('business').select('name').eq('id', 1).maybeSingle()
+  const { data: person } = payload.user.id
+    ? await serviceClient(c.env).from('profiles').select('business_id').eq('id', payload.user.id).maybeSingle()
+    : { data: null }
+  const own = (person?.business_id as number | null | undefined) ?? null
+  const ownDb = own ? businessDb(c.env, own) : null
+  const { data: biz } = ownDb ? await ownDb.from('business').select('name').maybeSingle() : { data: null }
+  const { data: box } = ownDb
+    ? await ownDb.from('integrations').select('provider').in('provider', ['gmail', 'outlook']).eq('status', 'connected').limit(1)
+    : { data: [] }
+  const db = ownDb && box?.length ? ownDb : businessDb(c.env, SECRETS_BUSINESS_ID)
   const message = authMessage(c.env, (biz?.name as string | undefined) ?? 'Business Agent', payload)
   if (!message) return hookError(400, `This kind of email isn't supported: ${payload.email_data.email_action_type}`)
   try {

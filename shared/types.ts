@@ -139,6 +139,8 @@ export type ContactMethod = 'sms' | 'email' | 'whatsapp' | 'call' | 'slack' | 't
 
 export interface Profile {
   id: string
+  /** The business they're in; null for someone who signed up and isn't in one yet. */
+  business_id?: number | null
   full_name: string
   email: string | null
   role: Role

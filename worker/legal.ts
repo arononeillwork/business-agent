@@ -9,7 +9,7 @@
 // can see the file.
 import { Hono, type Context, type Next } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { bearer, serviceClient, userClient, type Env } from './supabase'
+import { bearer, requestDb, userClient, type Env } from './supabase'
 import { connectorGrant, explain, lasting, markBroken } from './connections'
 import * as google from './providers/google'
 import * as ms from './providers/microsoft'
@@ -76,7 +76,7 @@ const status = (e: unknown) => (e instanceof LegalError ? e.status : 502)
 legal.get('/api/legal/sources', async c => {
   try {
     await needAdmin(c.env, c.get('token'))
-    const { data } = await serviceClient(c.env).from('integrations').select('provider, status, account_label').in('provider', LEGAL_STORAGES.map(s => s.id))
+    const { data } = await (await requestDb(c)).from('integrations').select('provider, status, account_label').in('provider', LEGAL_STORAGES.map(s => s.id))
     const sources: LegalSource[] = LEGAL_STORAGES.map(({ id }) => {
       const row = data?.find(r => r.provider === id)
       const connected = row?.status === 'connected'
@@ -95,7 +95,7 @@ legal.get('/api/legal/google/picker', async c => {
     await needAdmin(c.env, c.get('token'))
     const setup = pickerSetup(c.env)
     if (!setup) throw new LegalError(NO_GOOGLE_PICKER)
-    const token = await grant(c.env, serviceClient(c.env), 'google_drive')
+    const token = await grant(c.env, await requestDb(c), 'google_drive')
     c.header('cache-control', 'no-store')
     return c.json({ token, key: setup.key, app_id: setup.appId })
   } catch (e) {
@@ -116,7 +116,7 @@ async function added(asPerson: SupabaseClient, storage: LegalStorage, ids: strin
 
 // A folder of the café's OneDrive (?folder=<id>; none: the top), folders first, each file marked when it's already on the page.
 legal.get('/api/legal/onedrive/browse', async c => {
-  const db = serviceClient(c.env)
+  const db = await requestDb(c)
   try {
     await needAdmin(c.env, c.get('token'))
     const id = c.req.query('folder') || 'root'
@@ -167,7 +167,7 @@ async function describe(storage: LegalStorage, token: string, id: string): Promi
 // Add files picked in a storage: { storage, ids }. Each is looked up there first (so only real files the
 // app can open are kept); ones already on the page, folders and ones that can't be opened are skipped.
 legal.post('/api/legal/documents', async c => {
-  const db = serviceClient(c.env)
+  const db = await requestDb(c)
   const asPerson = userClient(c.env, c.get('token'), 'app')
   try {
     await needAdmin(c.env, c.get('token'))
@@ -211,7 +211,7 @@ const inline = (name: string) => `inline; filename="${name.replace(/[^\x20-\x7e]
 // The file itself, for showing in the page: asked of its storage now and passed straight through
 // (a PDF as it is or made by the storage, or a picture). Anyone who can read the document's row.
 legal.get('/api/legal/documents/:id/file', async c => {
-  const db = serviceClient(c.env)
+  const db = await requestDb(c)
   try {
     const id = c.req.param('id')
     if (id.length > 64) throw new LegalError('That document isn’t on the Legal page', 404)
@@ -257,7 +257,7 @@ async function fromStorage(env: Env, db: SupabaseClient, d: Pick<LegalDocument, 
 // Brand page: add files picked in a storage, { storage, ids }, as on the Legal page (checked there first;
 // ones already on the page, folders and ones that can't be opened are skipped, with why).
 legal.post('/api/brand/documents', async c => {
-  const db = serviceClient(c.env)
+  const db = await requestDb(c)
   const asPerson = userClient(c.env, c.get('token'), 'app')
   try {
     await needAdmin(c.env, c.get('token'), 'brand documents')
@@ -298,7 +298,7 @@ legal.post('/api/brand/documents', async c => {
 
 // A Brand page document kept in Drive or OneDrive, shown from there (an upload is read straight from the database).
 legal.get('/api/brand/documents/:id/file', async c => {
-  const db = serviceClient(c.env)
+  const db = await requestDb(c)
   try {
     const id = c.req.param('id')
     if (id.length > 64) throw new LegalError('That document isn’t on the Brand page', 404)

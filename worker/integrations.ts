@@ -5,7 +5,7 @@
 import { Hono, type Context } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { planFeatures } from './billing'
-import { bearer, serviceClient, userClient, type Env } from './supabase'
+import { SECRETS_BUSINESS_ID, bearer, businessDb, businessOf, serviceClient, userClient, type Env } from './supabase'
 import { seal, signState, verifyState } from './crypto'
 import * as google from './providers/google'
 import * as whatsapp from './providers/whatsapp'
@@ -89,7 +89,7 @@ interface HoursMemory { synced_hours?: OpeningHours; google_hours?: OpeningHours
 async function pushGoogle(db: SupabaseClient, s: GoogleSession) {
   if (!s.location) throw new Error('Choose which Google listing to update')
   const [{ data: b }, { data: events }] = await Promise.all([
-    db.from('business').select('opening_hours, phone').eq('id', 1).single(),
+    db.from('business').select('opening_hours, phone').single(),
     db.from('calendar_events').select('*').gte('starts_on', today()),
   ])
   const biz = b as Pick<Business, 'opening_hours' | 'phone'>
@@ -122,7 +122,7 @@ export async function syncGoogleBothWays(env: Env, db: SupabaseClient): Promise<
   const s = await googleSession(env, db)
   if (!s.location) throw new Error('Choose which Google listing to update')
   const [{ data: b }, onGoogle] = await Promise.all([
-    db.from('business').select('opening_hours').eq('id', 1).single(),
+    db.from('business').select('opening_hours').single(),
     google.getLocationHours(s.token, s.location),
   ])
   const app = (b as Pick<Business, 'opening_hours'>).opening_hours
@@ -135,7 +135,7 @@ export async function syncGoogleBothWays(env: Env, db: SupabaseClient): Promise<
   const anyOpen = Object.values(onGoogle).some(Boolean)
   if (anyOpen && memory.google_hours && !google.sameHours(onGoogle, memory.google_hours) && !google.sameHours(onGoogle, app)) {
     // The database then queues a push of these same hours (with closures and phone): harmless.
-    const { error } = await db.from('business').update({ opening_hours: onGoogle }).eq('id', 1)
+    const { error } = await db.from('business').update({ opening_hours: onGoogle })
     if (error) throw new Error(error.message)
     await setIntegration(db, 'google_business', synced(s, { synced_hours: onGoogle, google_hours: onGoogle }))
     await tellAdmins(db, 'Opening hours changed on Google Maps', 'The app now uses the hours from your Google listing.')
@@ -154,12 +154,12 @@ export const setTikTokWait = (w: typeof tiktokWait) => { tiktokWait = w }
 let instagramWait: instagram.PublishWait = {}
 export const setInstagramWait = (w: instagram.PublishWait) => { instagramWait = w }
 
-/** Deliver due outbox jobs. Called by the cron every minute. */
-export async function drainOutbox(env: Env) {
-  const db = serviceClient(env)
+/** Deliver a business's due outbox jobs. Called by the cron every minute, for each business. */
+export async function drainOutbox(env: Env, businessId: number) {
+  const db = businessDb(env, businessId)
   const { data: jobs, error } = await db.rpc('claim_outbox', { p_limit: 25 })
   if (error) throw new Error(error.message)
-  const features = jobs?.length ? await planFeatures(env) : new Set<string>()
+  const features = jobs?.length ? await planFeatures(env, businessId) : new Set<string>()
   for (const job of (jobs ?? []) as { id: number; kind: string; payload: Record<string, unknown> }[]) {
     try {
       let externalId: string | null = null
@@ -167,7 +167,7 @@ export async function drainOutbox(env: Env) {
       const needs = ({ whatsapp: 'whatsapp', google_sync: 'google_maps', google_post: 'google_maps' } as Record<string, string>)[job.kind]
       if (needs && !features.has(needs)) throw new Error('Paused: your plan does not include this. Upgrade on the Billing page.')
       if (job.kind === 'whatsapp') {
-        const cfg = waConfig(env)
+        const cfg = waConfig(env, db)
         if (!cfg) throw new Error('WhatsApp is not set up')
         const p = job.payload as { to: string; template: string; params: string[] }
         externalId = await whatsapp.sendTemplate(cfg, p.to, p.template, p.params ?? [])
@@ -182,7 +182,7 @@ export async function drainOutbox(env: Env) {
         externalId = (await google.createPost(s.token, s.account, s.location, job.payload as never)).name
       } else if (job.kind === 'email') {
         const p = job.payload as { to: string; template: string; params: string[] }
-        const { data: biz } = await db.from('business').select('name').eq('id', 1).single()
+        const { data: biz } = await db.from('business').select('name').single()
         externalId = await sendEmail(env, db, { to: p.to, ...alertEmail(p.template, p.params ?? [], biz?.name ?? 'Business Agent') })
       } else if (job.kind === 'instagram_post') {
         // Post, carousel, reel or story, with every photo and video (older jobs: just image_url).
@@ -221,7 +221,7 @@ export async function drainOutbox(env: Env) {
  * The Google and Spotify callbacks also finish personal Music connections (state kind 'music'),
  * so those use the redirect URLs already registered with each provider. Returns null otherwise.
  */
-async function musicCallback(c: Context<{ Bindings: Env; Variables: { userId: string } }>, provider: 'spotify' | 'youtube') {
+async function musicCallback(c: Ctx, provider: 'spotify' | 'youtube') {
   const origin = new URL(c.req.url).origin
   let state: MusicState | { kind?: undefined }
   try { state = await verifyState<MusicState>(c.env.INTEGRATION_KEY!, c.req.query('state') ?? '') } catch { return null }
@@ -238,7 +238,17 @@ async function musicCallback(c: Context<{ Bindings: Env; Variables: { userId: st
 // ---------------------------------------------------------------------------------------------
 // Routes
 // ---------------------------------------------------------------------------------------------
-export const integrations = new Hono<{ Bindings: Env; Variables: { userId: string } }>()
+/** Who's asking, and for which business (set by the sign-in checks below; callbacks find them from the state). */
+type Vars = { userId: string; businessId: number }
+type Ctx = Context<{ Bindings: Env; Variables: Vars }>
+export const integrations = new Hono<{ Bindings: Env; Variables: Vars }>()
+
+/** The business a connection's callback is for: the business of whoever started it. */
+async function callbackDb(env: Env, uid: string | undefined) {
+  const id = uid ? await businessOf(env, uid) : null
+  if (!id) throw new Error('That connection link expired. Try again.')
+  return businessDb(env, id)
+}
 
 /** Admin-only routes: check the caller's Supabase token and role. */
 integrations.use('/api/integrations/*', async (c, next) => {
@@ -246,9 +256,10 @@ integrations.use('/api/integrations/*', async (c, next) => {
   const token = bearer(c.req.header('authorization'))
   if (!token) return c.json({ error: 'Not signed in' }, 401)
   const sb = userClient(c.env, token, 'app')
-  const [{ data: user }, { data: isAdmin }] = await Promise.all([sb.auth.getUser(token), sb.rpc('is_admin')])
-  if (!user.user || !isAdmin) return c.json({ error: 'Only an admin can manage connections' }, 403)
+  const [{ data: user }, { data: isAdmin }, { data: businessId }] = await Promise.all([sb.auth.getUser(token), sb.rpc('is_admin'), sb.rpc('current_business_id')])
+  if (!user.user || !isAdmin || !businessId) return c.json({ error: 'Only an admin can manage connections' }, 403)
   c.set('userId', user.user.id)
+  c.set('businessId', businessId as number)
   // Starting a connection the plan doesn't include: say so before sending anyone off to sign in.
   const starting = /^\/api\/integrations\/(?:connect\/)?([a-z_]+)\/start$/.exec(c.req.path)?.[1]
   if (starting) {
@@ -259,11 +270,11 @@ integrations.use('/api/integrations/*', async (c, next) => {
 })
 
 integrations.get('/api/integrations', async c => {
-  const db = serviceClient(c.env)
+  const db = businessDb(c.env, c.get('businessId'))
   const { data } = await db.from('integrations').select(ROW_COLUMNS)
   const setup = {
     google_business: !!googleConfig(c.env, ''),
-    whatsapp: !!waConfig(c.env) && !!c.env.META_APP_SECRET && !!c.env.WHATSAPP_VERIFY_TOKEN,
+    whatsapp: !!waConfig(c.env, db) && !!c.env.META_APP_SECRET && !!c.env.WHATSAPP_VERIFY_TOKEN,
     instagram: !!instagramOAuth(c.env, ''),
     facebook: !!facebookOAuth(c.env, ''),
     meta_ads: !!metaAdsOAuth(c.env, ''),
@@ -321,11 +332,12 @@ integrations.post('/api/integrations/connect/:provider/start', async c => {
  * and the app shown as connected (Search Console: pending until a website is chosen, when none is
  * the business's); the other app in its group is then disconnected by the database (migration 28).
  */
-async function finishConnector(c: Context<{ Bindings: Env; Variables: { userId: string } }>, state: ConnectorState) {
+async function finishConnector(c: Ctx, state: ConnectorState) {
   const origin = new URL(c.req.url).origin
   const back = (q: string) => c.redirect(`${origin}/${state.back === 'setup' ? 'setup' : state.back === 'invoices' ? 'invoices' : 'connections'}?${q}`)
   const p = state.provider
-  const db = serviceClient(c.env)
+  const db = await callbackDb(c.env, state.uid).catch(() => null)
+  if (!db) return back(`connect_error=${encodeURIComponent('That connection link expired. Try again.')}`)
   if (c.req.query('error')) {
     const cancelled = /access_denied|consent_required/.test(c.req.query('error')!)
     return back(`connect_error=${encodeURIComponent(cancelled ? `${optionName(p)} connection was cancelled` : (c.req.query('error_description') ?? c.req.query('error')!))}`)
@@ -336,7 +348,7 @@ async function finishConnector(c: Context<{ Bindings: Env; Variables: { userId: 
     if (isGoogle(p) ? !gcfg : !mcfg) throw new Error(`${optionName(p)} is not set up`)
     const t = isGoogle(p) ? await google.exchangeCode(gcfg!, code) : await ms.exchangeCode(mcfg!, code)
     if (!t.refresh_token) throw new Error(`${optionName(p)} did not allow offline access. Remove the app from your account's connected apps and connect again.`)
-    const { data: biz } = await db.from('business').select('name, website').eq('id', 1).maybeSingle()
+    const { data: biz } = await db.from('business').select('name, website').maybeSingle()
     const proven = await proveNew(p, { access_token: t.access_token!, scope: t.scope }, biz?.name ?? 'Business Agent', biz?.website, googleAdsConfig(c.env))
     const { error } = await db.from('integration_secrets').upsert({ provider: p, ciphertext: await seal(c.env.INTEGRATION_KEY!, { refresh_token: t.refresh_token }), updated_at: new Date().toISOString() })
     if (error) throw new Error(error.message)
@@ -358,12 +370,12 @@ async function finishConnector(c: Context<{ Bindings: Env; Variables: { userId: 
 
 // "Check now": prove one connection (or every one) still works, right away.
 integrations.post('/api/integrations/check', async c =>
-  c.json({ integrations: await checkAll(c.env, serviceClient(c.env), { notify: false }) }))
+  c.json({ integrations: await checkAll(c.env, businessDb(c.env, c.get('businessId')), { notify: false }) }))
 
 integrations.post('/api/integrations/:provider/check', async c => {
   const p = c.req.param('provider') as Provider
   if (!PROVIDERS.includes(p)) return c.json({ error: 'Unknown connection' }, 404)
-  return c.json(await checkOne(c.env, serviceClient(c.env), p, { notify: false }))
+  return c.json(await checkOne(c.env, businessDb(c.env, c.get('businessId')), p, { notify: false }))
 })
 
 // Calendar: choose Google Calendar or Outlook Calendar. It shows as connected once that app has
@@ -372,7 +384,7 @@ integrations.post('/api/integrations/calendar/:app/choose', async c => {
   const app = c.req.param('app')
   if (!isCalendarApp(app)) return c.json({ error: 'Unknown calendar app' }, 404)
   if (!c.env.INTEGRATION_KEY) return c.json({ error: 'Calendar links are being set up' }, 503)
-  const db = serviceClient(c.env)
+  const db = businessDb(c.env, c.get('businessId'))
   const feed = await ensureFeed(c.env, db, c.get('userId'), 'business', new URL(c.req.url).origin)
   const { data: row } = await db.from('integrations').select('status').eq('provider', app).maybeSingle()
   if (row?.status !== 'connected') {
@@ -401,7 +413,7 @@ integrations.get('/api/integrations/microsoft/callback', async c => {
 integrations.post('/api/integrations/email/test', async c => {
   const { to } = await c.req.json<{ to: string }>()
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(to ?? '')) return c.json({ error: 'Enter a full email address' }, 400)
-  const db = serviceClient(c.env)
+  const db = businessDb(c.env, c.get('businessId'))
   try {
     await sendEmail(c.env, db, { to, subject: 'Test email from Business Agent', text: 'It works: team alerts for people who prefer email will come from this mailbox.' })
     return c.json({ ok: true })
@@ -416,7 +428,7 @@ integrations.post('/api/integrations/files/save', async c => {
   if (!f.name || typeof f.content !== 'string') return c.json({ error: 'Nothing to save' }, 400)
   if (f.content.length > 3_500_000) return c.json({ error: 'File is too large to save this way' }, 400)
   try {
-    return c.json(await saveFile(c.env, serviceClient(c.env), { folder: f.folder ?? '', name: f.name.replace(/[\\/:*?"<>|]/g, '-'), content: f.content, type: f.type ?? 'text/csv' }))
+    return c.json(await saveFile(c.env, businessDb(c.env, c.get('businessId')), { folder: f.folder ?? '', name: f.name.replace(/[\\/:*?"<>|]/g, '-'), content: f.content, type: f.type ?? 'text/csv' }))
   } catch (e) {
     return c.json({ error: e instanceof Error ? e.message : String(e) }, 400)
   }
@@ -433,7 +445,8 @@ integrations.get('/api/integrations/google/callback', async c => {
   const back = (q: string) => c.redirect(`${origin}/${state?.back === 'setup' ? 'setup' : 'connections'}?${q}`)
   if (!state) return back(`connect_error=${encodeURIComponent('That connection link expired. Try again.')}`)
   if (c.req.query('error')) return back(`connect_error=${encodeURIComponent(c.req.query('error') === 'access_denied' ? 'Google Maps connection was cancelled' : c.req.query('error')!)}`)
-  const db = serviceClient(c.env)
+  const db = await callbackDb(c.env, state.uid).catch(() => null)
+  if (!db) return back(`connect_error=${encodeURIComponent('That connection link expired. Try again.')}`)
   try {
     const cfg = googleConfig(c.env, origin)
     if (!cfg) throw new Error('Google is not set up')
@@ -463,7 +476,7 @@ integrations.get('/api/integrations/google/callback', async c => {
 
 integrations.post('/api/integrations/google/location', async c => {
   const { location, closed_on_holidays } = await c.req.json<{ location?: string; closed_on_holidays?: boolean }>()
-  const db = serviceClient(c.env)
+  const db = businessDb(c.env, c.get('businessId'))
   const { data } = await db.from('integrations').select('external').eq('provider', 'google_business').single()
   const ext = (data?.external ?? {}) as { locations?: google.GoogleLocation[] }
   const chosen = location ? ext.locations?.find(l => l.name === location) : undefined
@@ -477,12 +490,12 @@ integrations.post('/api/integrations/google/location', async c => {
 })
 
 integrations.post('/api/integrations/google/sync', async c => {
-  await syncGoogle(c.env, serviceClient(c.env))
+  await syncGoogle(c.env, businessDb(c.env, c.get('businessId')))
   return c.json({ ok: true })
 })
 
 integrations.get('/api/integrations/google/hours', async c => {
-  const db = serviceClient(c.env)
+  const db = businessDb(c.env, c.get('businessId'))
   const s = await googleSession(c.env, db)
   if (!s.location) return c.json({ error: 'Choose which Google listing to read' }, 400)
   return c.json({ opening_hours: await google.getLocationHours(s.token, s.location) })
@@ -491,7 +504,7 @@ integrations.get('/api/integrations/google/hours', async c => {
 integrations.post('/api/integrations/:provider/disconnect', async c => {
   const provider = c.req.param('provider') as Provider
   if (!PROVIDERS.includes(provider)) return c.json({ error: 'Unknown connection' }, 404)
-  const db = serviceClient(c.env)
+  const db = businessDb(c.env, c.get('businessId'))
   // Stripe: also tell Stripe the app no longer has access to the account.
   if (provider === 'stripe') await stripeSession(c.env, db).then(s => stripe.deauthorize(s.cfg, s.accountId)).catch(() => {})
   await db.from('integration_secrets').delete().eq('provider', provider)
@@ -520,7 +533,7 @@ integrations.get('/api/integrations/spotify/callback', async c => {
     if (!t.refresh_token) throw new Error('Spotify did not allow lasting access. Connect again.')
     // Proof first: the account signs in and its playlists can be read. Only then is it kept.
     const proven = await proveSpotify(t.access_token!)
-    const db = serviceClient(c.env)
+    const db = await callbackDb(c.env, uid)
     const { error } = await db.from('integration_secrets').upsert({ provider: 'spotify', ciphertext: await seal(c.env.INTEGRATION_KEY!, { refresh_token: t.refresh_token }), updated_at: new Date().toISOString() })
     if (error) throw new Error(error.message)
     const now = new Date().toISOString()
@@ -529,7 +542,8 @@ integrations.get('/api/integrations/spotify/callback', async c => {
     return back('connected=spotify')
   } catch (e) {
     const why = explain('spotify', e)
-    await setIntegration(serviceClient(c.env), 'spotify', { last_error: why }).catch(() => {})
+    const uid = await verifyState<{ uid: string }>(c.env.INTEGRATION_KEY!, c.req.query('state') ?? '').then(st => st.uid, () => undefined)
+    await callbackDb(c.env, uid).then(db => setIntegration(db, 'spotify', { last_error: why })).catch(() => {})
     return back(`connect_error=${encodeURIComponent(why)}`)
   }
 })
@@ -552,14 +566,14 @@ async function cafeMusic(env: Env, db: SupabaseClient, origin: string) {
 
 // The approved café playlist: pick one of the connected account's own playlists.
 integrations.get('/api/integrations/music/playlists', async c => {
-  const m = await cafeMusic(c.env, serviceClient(c.env), new URL(c.req.url).origin)
+  const m = await cafeMusic(c.env, businessDb(c.env, c.get('businessId')), new URL(c.req.url).origin)
   if (!m) return c.json({ error: 'Connect Spotify or YouTube Music first' }, 400)
   return c.json({ provider: m.provider, playlists: await m.playlists(), approved: m.approved })
 })
 
 integrations.post('/api/integrations/music/playlist', async c => {
   const { playlist } = await c.req.json<{ playlist: { id: string } }>()
-  const db = serviceClient(c.env)
+  const db = businessDb(c.env, c.get('businessId'))
   const m = await cafeMusic(c.env, db, new URL(c.req.url).origin)
   if (!m) return c.json({ error: 'Connect Spotify or YouTube Music first' }, 400)
   const mine = (await m.playlists()).find(p => p.id === playlist?.id)
@@ -572,8 +586,10 @@ integrations.post('/api/integrations/music/playlist', async c => {
 integrations.use('/api/music/*', async (c, next) => {
   const token = bearer(c.req.header('authorization'))
   if (!token) return c.json({ error: 'Not signed in' }, 401)
-  const { data: role } = await userClient(c.env, token, 'app').rpc('my_role')
-  if (!role) return c.json({ error: 'Not allowed' }, 403)
+  const sb = userClient(c.env, token, 'app')
+  const [{ data: role }, { data: businessId }] = await Promise.all([sb.rpc('my_role'), sb.rpc('current_business_id')])
+  if (!role || !businessId) return c.json({ error: 'Not allowed' }, 403)
+  c.set('businessId', businessId as number)
   await next()
 })
 
@@ -585,7 +601,7 @@ const isTeam = async (c: { env: Env; req: { header: (n: string) => string | unde
 
 integrations.get('/api/music/library', async c => {
   if (!await isTeam(c)) return c.json({ error: 'Music is for the team' }, 403)
-  const db = serviceClient(c.env)
+  const db = businessDb(c.env, c.get('businessId'))
   const m = await cafeMusic(c.env, db, new URL(c.req.url).origin)
   if (!m) return c.json({ provider: null, account: null, playlists: [], approved: null })
   const { data } = await db.from('integrations').select('account_label').eq('provider', m.provider).single()
@@ -615,7 +631,7 @@ integrations.get('/api/music/search', async c => {
   const q = (c.req.query('q') ?? '').trim().slice(0, 100)
   const kind = c.req.query('kind') === 'playlists' ? 'playlists' : 'songs'
   if (q.length < 2) return c.json({ tracks: [], playlists: [] })
-  const db = serviceClient(c.env)
+  const db = businessDb(c.env, c.get('businessId'))
   if (await connectedOf(db, ['youtube_music']) !== 'youtube_music') return c.json({ error: 'Connect YouTube Music first' }, 400)
   const cache = (caches as unknown as { default: Cache }).default
   const key = new Request(`https://music-search.internal/${kind}?q=${encodeURIComponent(q.toLowerCase())}`)
@@ -630,7 +646,7 @@ integrations.get('/api/music/search', async c => {
 // The songs in one of the café account's playlists (YouTube Music), for the queue.
 integrations.get('/api/music/tracks/:playlist', async c => {
   if (!await isTeam(c)) return c.json({ error: 'Music is for the team' }, 403)
-  const db = serviceClient(c.env)
+  const db = businessDb(c.env, c.get('businessId'))
   if (await connectedOf(db, ['youtube_music']) !== 'youtube_music') return c.json({ error: 'Connect YouTube Music first' }, 400)
   const { token } = await connectorGrant(c.env, db, 'youtube_music', new URL(c.req.url).origin)
   // The café account's playlists, or any public one found by searching.
@@ -644,7 +660,7 @@ const YOUTUBE_PLAYS_ON_DEVICE = 'YouTube Music plays on the café device: open t
 // Spotify can be played and paused from the app; YouTube Music has no remote control, so staff
 // open the approved playlist on the café device.
 integrations.get('/api/music/now', async c => {
-  const db = serviceClient(c.env)
+  const db = businessDb(c.env, c.get('businessId'))
   const p = await connectedOf(db, ['spotify', 'youtube_music'] as const)
   if (!p) return c.json({ error: 'No café music connected yet. An admin connects Spotify or YouTube Music on the Connections page.' }, 400)
   if (p === 'youtube_music') {
@@ -656,26 +672,26 @@ integrations.get('/api/music/now', async c => {
 })
 
 integrations.post('/api/music/play', async c => {
-  if (await connectedOf(serviceClient(c.env), ['youtube_music'])) return c.json({ error: YOUTUBE_PLAYS_ON_DEVICE }, 400)
-  const s = await spotifySession(c.env, serviceClient(c.env), new URL(c.req.url).origin)
+  if (await connectedOf(businessDb(c.env, c.get('businessId')), ['youtube_music'])) return c.json({ error: YOUTUBE_PLAYS_ON_DEVICE }, 400)
+  const s = await spotifySession(c.env, businessDb(c.env, c.get('businessId')), new URL(c.req.url).origin)
   if (!s.playlist) return c.json({ error: 'No playlist approved yet. An admin picks one on the Connections page.' }, 400)
   await spotify.playPlaylist(s.token, s.playlist.id)
   return c.json({ ok: true })
 })
 
 integrations.post('/api/music/pause', async c => {
-  if (await connectedOf(serviceClient(c.env), ['youtube_music'])) return c.json({ error: YOUTUBE_PLAYS_ON_DEVICE }, 400)
-  const s = await spotifySession(c.env, serviceClient(c.env), new URL(c.req.url).origin)
+  if (await connectedOf(businessDb(c.env, c.get('businessId')), ['youtube_music'])) return c.json({ error: YOUTUBE_PLAYS_ON_DEVICE }, 400)
+  const s = await spotifySession(c.env, businessDb(c.env, c.get('businessId')), new URL(c.req.url).origin)
   await spotify.pause(s.token)
   return c.json({ ok: true })
 })
 
 // WhatsApp: send a test message to a number (checks token, number id and template).
 integrations.post('/api/integrations/whatsapp/test', async c => {
-  const cfg = waConfig(c.env)
+  const db = businessDb(c.env, c.get('businessId'))
+  const cfg = waConfig(c.env, db)
   if (!cfg) return c.json({ error: 'WhatsApp is not set up yet. Add META_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID.' }, 400)
   const { to } = await c.req.json<{ to: string }>()
-  const db = serviceClient(c.env)
   try {
     // Connected = WhatsApp accepted a message from the café's number (and the number answers).
     // Meta's ready-made "hello_world" template exists only in English, whatever language the alerts use.
@@ -710,7 +726,8 @@ integrations.get('/api/integrations/instagram/callback', async c => {
   if (c.req.query('error')) {
     return back(`connect_error=${encodeURIComponent(c.req.query('error') === 'access_denied' ? 'Instagram connection was cancelled' : (c.req.query('error_description') ?? c.req.query('error')!))}`)
   }
-  const db = serviceClient(c.env)
+  const db = await callbackDb(c.env, state.uid).catch(() => null)
+  if (!db) return back(`connect_error=${encodeURIComponent('That connection link expired. Try again.')}`)
   try {
     const cfg = instagramOAuth(c.env, origin)
     if (!cfg) throw new Error('Instagram is not set up')
@@ -738,7 +755,7 @@ const LINKEDIN_PAGES_REFUSED = 'LinkedIn hasn’t approved this app for company 
  * The finish of a one-click connection (Facebook, TikTok, LinkedIn, Square, Stripe, SumUp): check the signed state, handle
  * "cancelled", run the proof and keep the access only if it passes; then back to where they started.
  */
-async function appCallback(c: Context<{ Bindings: Env; Variables: { userId: string } }>, provider: Provider,
+async function appCallback(c: Ctx, provider: Provider,
   finish: (state: { uid: string }, origin: string, db: SupabaseClient) => Promise<void>) {
   const origin = new URL(c.req.url).origin
   let state: { uid: string; kind?: string; back?: string; from?: string } | null = null
@@ -753,7 +770,8 @@ async function appCallback(c: Context<{ Bindings: Env; Variables: { userId: stri
     const said = provider === 'linkedin' && /unauthorized_scope/i.test(c.req.query('error')!) ? LINKEDIN_PAGES_REFUSED : (c.req.query('error_description') ?? c.req.query('error')!)
     return back(`connect_error=${encodeURIComponent(cancelled ? `${optionName(provider)} connection was cancelled` : said)}`)
   }
-  const db = serviceClient(c.env)
+  const db = await callbackDb(c.env, state.uid).catch(() => null)
+  if (!db) return back(`connect_error=${encodeURIComponent('That connection link expired. Try again.')}`)
   try {
     await finish(state, origin, db)
     return back(`connected=${provider}`)
@@ -764,7 +782,7 @@ async function appCallback(c: Context<{ Bindings: Env; Variables: { userId: stri
   }
 }
 
-const startState = async (c: Context<{ Bindings: Env; Variables: { userId: string } }>, kind: Provider) => {
+const startState = async (c: Ctx, kind: Provider) => {
   const { back } = await c.req.json<{ back?: 'setup' | 'connections' | 'messages' }>().catch(() => ({ back: undefined }))
   return signState(c.env.INTEGRATION_KEY!, { uid: c.get('userId'), kind, back, from: new URL(c.req.url).origin })
 }
@@ -800,7 +818,7 @@ integrations.get('/api/integrations/facebook/callback', c => appCallback(c, 'fac
 // Which Page to post to (when the owner manages more than one): connected once that Page answers.
 integrations.post('/api/integrations/facebook/page', async c => {
   const { page_id } = await c.req.json<{ page_id?: string }>()
-  const db = serviceClient(c.env)
+  const db = businessDb(c.env, c.get('businessId'))
   const { data } = await db.from('integrations').select('external').eq('provider', 'facebook').single()
   const ext = (data?.external ?? {}) as { pages?: { id: string; name: string }[] }
   if (!ext.pages?.some(p => p.id === page_id)) return c.json({ error: 'That Page isn’t one this account manages' }, 400)
@@ -877,7 +895,7 @@ integrations.get('/api/integrations/linkedin/callback', c => appCallback(c, 'lin
 // Where LinkedIn posts go: one of their Pages, or 'me' (their own profile). Connected once that answers.
 integrations.post('/api/integrations/linkedin/page', async c => {
   const { page_id } = await c.req.json<{ page_id?: string }>().catch(() => ({ page_id: undefined }))
-  const db = serviceClient(c.env)
+  const db = businessDb(c.env, c.get('businessId'))
   const { data } = await db.from('integrations').select('status, external').eq('provider', 'linkedin').single()
   const ext = (data?.external ?? {}) as LinkedInExternal
   if (!ext.member || data?.status === 'disconnected') return c.json({ error: 'Connect LinkedIn first' }, 400)
@@ -899,7 +917,7 @@ integrations.post('/api/integrations/linkedin/page', async c => {
 // Search Console: which website to read, when the account has several and none is the business's.
 integrations.post('/api/integrations/search_console/site', async c => {
   const { site } = await c.req.json<{ site?: string }>().catch(() => ({ site: undefined }))
-  const db = serviceClient(c.env)
+  const db = businessDb(c.env, c.get('businessId'))
   const { data } = await db.from('integrations').select('status, external').eq('provider', 'search_console').single()
   const ext = (data?.external ?? {}) as { sites?: string[] }
   if (data?.status === 'disconnected') return c.json({ error: 'Connect Search Console first' }, 400)
@@ -923,7 +941,7 @@ integrations.post('/api/integrations/search_console/site', async c => {
 integrations.get('/api/integrations/search_console/report', async c => {
   const from = c.req.query('from') ?? '', to = c.req.query('to') ?? ''
   if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || from > to) return c.json({ error: 'Give from and to dates (YYYY-MM-DD)' }, 400)
-  const db = serviceClient(c.env)
+  const db = businessDb(c.env, c.get('businessId'))
   const { data } = await db.from('integrations').select('status, external').eq('provider', 'search_console').single()
   const site = (data?.external as { site?: string } | null)?.site
   if (data?.status !== 'connected' && data?.status !== 'error') return c.json({ error: 'Connect Search Console on the Connections page to see how the website does on Google' }, 400)
@@ -1006,9 +1024,9 @@ integrations.get('/api/integrations/sumup/callback', c => appCallback(c, 'sumup'
  * as instants (local midnight to the midnight after `to`) and the connected payment systems: the
  * till (Square or SumUp, one at a time) first, then Stripe (online payments, on top of either).
  */
-async function takingsRequest(c: Context<{ Bindings: Env; Variables: { userId: string } }>) {
-  if (!(await planFeatures(c.env)).has('takings')) return { error: c.json({ error: 'Takings need the Pro plan or higher. Upgrade on the Billing page.' }, 402) }
-  const db = serviceClient(c.env)
+async function takingsRequest(c: Ctx) {
+  if (!(await planFeatures(c.env, c.get('businessId'))).has('takings')) return { error: c.json({ error: 'Takings need the Pro plan or higher. Upgrade on the Billing page.' }, 402) }
+  const db = businessDb(c.env, c.get('businessId'))
   const { data: me } = await db.from('profiles').select('can_see_pay').eq('id', c.get('userId')).single()
   if (!me?.can_see_pay) return { error: c.json({ error: 'Takings are for admins with pay access' }, 403) }
   const from = c.req.query('from') ?? '', to = c.req.query('to') ?? ''
@@ -1079,7 +1097,7 @@ integrations.get('/api/integrations/payments/items', async c => {
 
 // Instagram: profile and recent posts for the Connections page.
 integrations.get('/api/integrations/instagram/profile', async c => {
-  const db = serviceClient(c.env)
+  const db = businessDb(c.env, c.get('businessId'))
   try {
     const p = await instagram.profile(await instagramSession(c.env, db))
     await setIntegration(db, 'instagram', { last_sync_at: new Date().toISOString() })
@@ -1092,8 +1110,8 @@ integrations.get('/api/integrations/instagram/profile', async c => {
 })
 
 // Messages page: the Instagram inbox (admins). Read live from Instagram each time; nothing is stored.
-async function instagramInbox(c: Context<{ Bindings: Env; Variables: { userId: string } }>) {
-  const db = serviceClient(c.env)
+async function instagramInbox(c: Ctx) {
+  const db = businessDb(c.env, c.get('businessId'))
   const { data: row } = await db.from('integrations').select('status, external').eq('provider', 'instagram').single()
   if (row?.status !== 'connected') throw new Error('Instagram is not connected')
   const ext = (row.external ?? {}) as { user_id?: string; username?: string }
@@ -1127,7 +1145,7 @@ integrations.get('/api/integrations/instagram/inbox', async c => {
 // Mentions (tagged posts, story mentions): look now, repost one to the business's story, or ignore it.
 integrations.post('/api/integrations/instagram/mentions/check', async c => {
   try {
-    return c.json({ added: await checkMentions(c.env, serviceClient(c.env)) })
+    return c.json({ added: await checkMentions(c.env, businessDb(c.env, c.get('businessId'))) })
   } catch (e) {
     return c.json({ error: inboxError(e) }, 400)
   }
@@ -1135,7 +1153,7 @@ integrations.post('/api/integrations/instagram/mentions/check', async c => {
 
 integrations.post('/api/integrations/instagram/mentions/:id/repost', async c => {
   try {
-    const url = await repostMention(c.env, serviceClient(c.env), new URL(c.req.url).origin, c.req.param('id'), c.get('userId'))
+    const url = await repostMention(c.env, businessDb(c.env, c.get('businessId')), new URL(c.req.url).origin, c.req.param('id'), c.get('userId'))
     return c.json({ ok: true, url })
   } catch (e) {
     return c.json({ error: e instanceof MediaError ? e.message : explain('instagram', e) }, 400)
@@ -1143,7 +1161,7 @@ integrations.post('/api/integrations/instagram/mentions/:id/repost', async c => 
 })
 
 integrations.post('/api/integrations/instagram/mentions/:id/ignore', async c => {
-  await decide(serviceClient(c.env), c.req.param('id'), 'ignored', c.get('userId'))
+  await decide(businessDb(c.env, c.get('businessId')), c.req.param('id'), 'ignored', c.get('userId'))
   return c.json({ ok: true })
 })
 
@@ -1190,8 +1208,8 @@ integrations.post('/api/integrations/instagram/inbox/:id/reply', async c => {
 // connection. Read live each time; nothing is stored. Connected Facebook with no chats yet is an empty inbox.
 const MESSENGER_RECONNECT = 'Facebook hasn’t allowed this app to read Messenger yet. Connect Facebook again and leave “Manage and access Page conversations in Messenger” ticked.'
 
-async function messengerInbox(c: Context<{ Bindings: Env; Variables: { userId: string } }>) {
-  const db = serviceClient(c.env)
+async function messengerInbox(c: Ctx) {
+  const db = businessDb(c.env, c.get('businessId'))
   const { data: row } = await db.from('integrations').select('status, external').eq('provider', 'facebook').single()
   if (row?.status !== 'connected') throw new Error('Facebook is not connected')
   // Connected without Messenger allowed: no need to ask Facebook to know the answer.
@@ -1262,7 +1280,7 @@ function whatsappError(e: unknown) {
 
 integrations.get('/api/integrations/whatsapp/inbox', async c => {
   try {
-    return c.json({ conversations: await waInbox.conversations(serviceClient(c.env)) })
+    return c.json({ conversations: await waInbox.conversations(businessDb(c.env, c.get('businessId'))) })
   } catch (e) {
     return c.json({ error: whatsappError(e) }, 400)
   }
@@ -1272,7 +1290,7 @@ integrations.get('/api/integrations/whatsapp/inbox/:id', async c => {
   const waId = c.req.param('id')
   if (!/^[0-9]{6,20}$/.test(waId)) return c.json({ error: 'No such chat' }, 404)
   try {
-    return c.json(await waInbox.thread(serviceClient(c.env), waId))
+    return c.json(await waInbox.thread(businessDb(c.env, c.get('businessId')), waId))
   } catch (e) {
     return c.json({ error: whatsappError(e) }, 400)
   }
@@ -1285,9 +1303,9 @@ integrations.post('/api/integrations/whatsapp/inbox/:id/reply', async c => {
   const said = (text ?? '').trim()
   if (!said) return c.json({ error: 'Write a message first' }, 400)
   if (said.length > 4096) return c.json({ error: 'WhatsApp messages can be up to 4096 characters' }, 400)
-  const cfg = waConfig(c.env)
+  const db = businessDb(c.env, c.get('businessId'))
+  const cfg = waConfig(c.env, db)
   if (!cfg) return c.json({ error: 'WhatsApp is not set up yet. Add META_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID.' }, 400)
-  const db = serviceClient(c.env)
   try {
     // Only to someone who wrote in the last 24 hours (WhatsApp refuses anything else but templates).
     const { messages } = await waInbox.thread(db, waId)
@@ -1309,7 +1327,7 @@ integrations.post('/api/integrations/whatsapp/retention', async c => {
   const { days } = await c.req.json<{ days?: number }>().catch(() => ({ days: undefined }))
   try {
     const asAdmin = userClient(c.env, bearer(c.req.header('authorization'))!, 'app')
-    return c.json(await waInbox.setRetention(asAdmin, serviceClient(c.env), Number(days)))
+    return c.json(await waInbox.setRetention(asAdmin, businessDb(c.env, c.get('businessId')), Number(days)))
   } catch (e) {
     return c.json({ error: e instanceof Error ? e.message : String(e) }, 400)
   }
@@ -1327,12 +1345,14 @@ integrations.post('/api/integrations/media', async c => {
     const Fixed = (globalThis as { FixedLengthStream?: new (n: number) => TransformStream }).FixedLengthStream
     const body = declared && c.req.raw.body && Fixed ? c.req.raw.body.pipeThrough(new Fixed(declared)) : await c.req.arrayBuffer()
     const size = body instanceof ArrayBuffer ? body.byteLength : declared!
-    return c.json(await storeMedia(c.env, serviceClient(c.env), new URL(c.req.url).origin, { type, size, body, folder: c.req.query('folder') ?? 'Posts' }))
+    return c.json(await storeMedia(c.env, businessDb(c.env, c.get('businessId')), new URL(c.req.url).origin, { type, size, body, folder: c.req.query('folder') ?? 'Posts' }))
   } catch (e) {
     return c.json({ error: e instanceof Error ? e.message : String(e) }, e instanceof MediaError ? 400 : 502)
   }
 })
 
+integrations.get('/media/:p{[go]}/:business{[0-9]+}/:id/:file', c => serveMedia(c.env, c.req.raw, c.req.param('p'),
+  decodeURIComponent(c.req.param('id')), c.req.param('file'), Number(c.req.param('business'))))
 integrations.get('/media/:p{[go]}/:id/:file', c => serveMedia(c.env, c.req.raw, c.req.param('p'), decodeURIComponent(c.req.param('id')), c.req.param('file')))
 
 integrations.get('/media/*', async c => {
@@ -1351,7 +1371,12 @@ integrations.post('/api/webhooks/square', async c => {
   }
   const event = JSON.parse(raw) as square.SquareCustomerEvent
   // Answer Square at once (it retries anything slow); the customer is saved just after.
-  c.executionCtx.waitUntil(squareCustomerEvent(serviceClient(c.env), event).catch(e => console.error('square customer webhook failed', e)))
+  // Into the Customers of the business whose Square account it is.
+  c.executionCtx.waitUntil((async () => {
+    const { data: rows } = await serviceClient(c.env).from('integrations').select('business_id')
+      .eq('provider', 'square').eq('status', 'connected').eq('external->>merchant_id', event.merchant_id ?? '')
+    for (const r of rows ?? []) await squareCustomerEvent(businessDb(c.env, r.business_id as number), event)
+  })().catch(e => console.error('square customer webhook failed', e)))
   return c.text('ok')
 })
 
@@ -1369,7 +1394,8 @@ integrations.post('/api/webhooks/whatsapp', async c => {
     return c.text('Invalid signature', 401)
   }
   const events = whatsapp.parseWebhook(JSON.parse(raw))
-  const db = serviceClient(c.env)
+  // The WhatsApp number is the one in the Worker's secrets, so the business it was set up for.
+  const db = businessDb(c.env, SECRETS_BUSINESS_ID)
   for (const s of events.statuses) {
     await db.from('outbox').update({ delivery: s.status, ...(s.error ? { last_error: s.error } : {}) }).eq('external_id', s.id)
   }

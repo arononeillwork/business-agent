@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { seal, unseal } from './crypto'
 import { checkWaitingImages, menu, syncSquareMenuIfChosen } from './menu'
 import { screens } from './screens'
-import { serviceClient, type Env } from './supabase'
+import { businessDb, type Env } from './supabase'
 import { FakeSupabase, type Row } from './test/fakeSupabase'
 
 const APP = 'https://app.test'
@@ -227,7 +227,7 @@ describe('Menu images', () => {
       { id: 'lost', design_id: 'd1', status: 'working', status_url: `${HF}/requests/old/status`, created_at: minutesAgo(10) },
       { id: 'fresh', design_id: 'd1', status: 'queued', status_url: `${HF}/requests/new/status`, created_at: minutesAgo(0.5) },
       { id: 'stuck', design_id: 'd1', status: 'queued', status_url: `${HF}/requests/x/status`, created_at: minutesAgo(200) })
-    await checkWaitingImages(env, serviceClient(env))
+    await checkWaitingImages(env, businessDb(env, 1))
     expect(image('lost')).toMatchObject({ status: 'ready', stored: true })
     expect(image('fresh')).toMatchObject({ status: 'queued' })
     expect(image('stuck')).toMatchObject({ status: 'failed' })
@@ -239,6 +239,7 @@ describe('A screen’s link', () => {
 
   it('loads its slides, never cached; a wrong or old link loads nothing', async () => {
     const token = 'c0ffee00beef00c0ffee00beef00cafe'
+    db.tables.screens = [{ id: 'screen-1', token, business_id: 1 }]
     db.rpcs.display_feed = ({ p_token }) => (p_token === token ? { screen: { name: 'Counter TV', slides: [] }, business: { name: 'Easy Beans', logo: null }, menus: {} } : null)
     const res = await open(token)
     expect(res.status).toBe(200)
@@ -300,10 +301,10 @@ describe('The menu from Square', () => {
 
   it('the hourly read happens only while the menu comes from Square', async () => {
     await connectSquare()
-    await syncSquareMenuIfChosen(env, serviceClient(env))
+    await syncSquareMenuIfChosen(env, businessDb(env, 1))
     expect(sq.asked).toBe(0)
     db.table('settings')[0].menu_source = 'square'
-    await syncSquareMenuIfChosen(env, serviceClient(env))
+    await syncSquareMenuIfChosen(env, businessDb(env, 1))
     expect(sq.asked).toBe(2)
     expect(sent).not.toBeNull()
   })

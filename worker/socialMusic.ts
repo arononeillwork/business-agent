@@ -8,7 +8,7 @@
 // The library itself is read and changed by the app through Supabase (migration 86's rules).
 import { Hono } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { bearer, serviceClient, userClient, type Env } from './supabase'
+import { bearer, businessDb, userClient, type Env } from './supabase'
 import { MediaError, mediaStorage, storeMedia } from './media'
 import { chargeAiMusic } from './billing'
 import { instagramSession } from './connections'
@@ -21,7 +21,7 @@ import type { AiMusicQuote, MusicTrack, PostMedia, SocialPost } from '../shared/
 /** ElevenLabs' terms, kept on each AI track's licence record (checked 23 Oct 2026). */
 const TERMS = 'https://elevenlabs.io/terms-of-use'
 
-type Vars = { userId: string; token: string }
+type Vars = { userId: string; token: string; businessId: number }
 export const socialMusic = new Hono<{ Bindings: Env; Variables: Vars }>()
 
 /** Admins only, like the rest of the Social planner. */
@@ -29,10 +29,11 @@ socialMusic.use('/api/social/*', async (c, next) => {
   const token = bearer(c.req.header('authorization'))
   if (!token) return c.json({ error: 'Not signed in' }, 401)
   const sb = userClient(c.env, token, 'app')
-  const [{ data: user }, { data: isAdmin }] = await Promise.all([sb.auth.getUser(token), sb.rpc('is_admin')])
-  if (!user.user || !isAdmin) return c.json({ error: 'Only an admin can do that' }, 403)
+  const [{ data: user }, { data: isAdmin }, { data: businessId }] = await Promise.all([sb.auth.getUser(token), sb.rpc('is_admin'), sb.rpc('current_business_id')])
+  if (!user.user || !isAdmin || !businessId) return c.json({ error: 'Only an admin can do that' }, 403)
   c.set('userId', user.user.id)
   c.set('token', token)
+  c.set('businessId', businessId as number)
   await next()
 })
 
@@ -41,7 +42,7 @@ const elevenlabsConfig = (env: Env): elevenlabs.ElevenLabsConfig | null =>
 
 /** What's switched on: AI music (ElevenLabs), putting music into files (the render service), storage. */
 socialMusic.get('/api/social/music/status', async c => {
-  const db = serviceClient(c.env)
+  const db = businessDb(c.env, c.get('businessId'))
   const { data: starter } = await db.from('music_tracks').select('starter_key').eq('source', 'starter')
   return c.json({
     ai: !!elevenlabsConfig(c.env), render: !!(c.env.RENDER_URL && c.env.RENDER_KEY), storage: await mediaStorage(c.env, db),
@@ -71,6 +72,13 @@ export interface MadeMusic {
 
 const VERSIONS = 2
 
+/** The business of whoever `sb` is signed in as. */
+async function businessOfClient(sb: SupabaseClient): Promise<number> {
+  const { data } = await sb.rpc('current_business_id')
+  if (!data) throw new MusicError('Only someone in a business can do that', 400)
+  return data as number
+}
+
 /** Keep an MP3 in the Music folder; its public address. */
 async function keep(env: Env, db: SupabaseClient, origin: string, bytes: ArrayBuffer) {
   return (await storeMedia(env, db, origin, { type: 'audio/mpeg', size: bytes.byteLength, body: bytes, folder: 'Music' })).url
@@ -90,7 +98,8 @@ export async function makeAiMusic(env: Env, sb: SupabaseClient, userId: string, 
   if (namesArtist(prompt)) throw new MusicError('Describe the feel instead: AI music can’t copy a real artist or song.', 422)
   const cfg = elevenlabsConfig(env)
   if (!cfg) throw new MusicError('AI music isn’t switched on yet (ELEVENLABS_API_KEY).', 503)
-  const db = serviceClient(env)
+  const businessId = await businessOfClient(sb)
+  const db = businessDb(env, businessId)
   if (!await mediaStorage(env, db)) {
     throw new MusicError('Connect Google Drive or OneDrive on the Connections page first: that’s where your tracks are kept.', 400)
   }
@@ -116,7 +125,7 @@ export async function makeAiMusic(env: Env, sb: SupabaseClient, userId: string, 
     await finish('done', (tracks as MusicTrack[]).map(t => t.id), made[0].model)
     // On the bill straight away; if Stripe doesn't answer, the nightly job puts it on.
     if (use.price_cents > 0) {
-      await chargeAiMusic(env, { id: use.id, price_cents: use.price_cents, uses: use.uses })
+      await chargeAiMusic(env, businessId, { id: use.id, price_cents: use.price_cents, uses: use.uses })
         .catch(e => console.error('ai music charge failed (retried tonight)', e))
     }
     return { generation: { id: use.id, uses: use.uses, free: use.free, price_cents: use.price_cents }, tracks: tracks as MusicTrack[] }
@@ -206,7 +215,7 @@ export async function renderMusic(env: Env, sb: SupabaseClient, origin: string, 
   const size = Number(res.headers.get('content-length') ?? '')
   const body = size && res.body ? res.body : await res.arrayBuffer()
   try {
-    const stored = await storeMedia(env, serviceClient(env), origin, {
+    const stored = await storeMedia(env, businessDb(env, await businessOfClient(sb)), origin, {
       type: 'video/mp4', size: body instanceof ArrayBuffer ? body.byteLength : size, body, folder: r.kind === 'story' ? 'Stories' : 'Reels',
     })
     return {
@@ -234,8 +243,8 @@ socialMusic.post('/api/social/render', async c => {
  * Stories have no likes or comments Instagram shares (their reach needs a permission the app
  * doesn't ask for), so they're left out. Answers how many posts it updated.
  */
-export async function syncMusicInsights(env: Env): Promise<number> {
-  const db = serviceClient(env)
+export async function syncMusicInsights(env: Env, businessId: number): Promise<number> {
+  const db = businessDb(env, businessId)
   const { data: ig } = await db.from('integrations').select('status').eq('provider', 'instagram').maybeSingle()
   if (ig?.status !== 'connected') return 0
   const { data } = await db.from('social_posts').select('id, results').not('music', 'is', null).neq('kind', 'story')
@@ -261,10 +270,10 @@ export async function syncMusicInsights(env: Env): Promise<number> {
  * (Instagram connected) and has somewhere to keep files. Made once each, with Business Agent's
  * own ElevenLabs account: free to the business. MUSIC_STARTER=off switches it off.
  */
-export async function fillStarterPack(env: Env, origin: string): Promise<string | null> {
+export async function fillStarterPack(env: Env, origin: string, businessId: number): Promise<string | null> {
   const cfg = elevenlabsConfig(env)
   if (!cfg || env.MUSIC_STARTER === 'off' || !env.SUPABASE_SERVICE_ROLE_KEY) return null
-  const db = serviceClient(env)
+  const db = businessDb(env, businessId)
   const { data: ig } = await db.from('integrations').select('status').eq('provider', 'instagram').maybeSingle()
   if (ig?.status !== 'connected' || !await mediaStorage(env, db)) return null
   const { data: made } = await db.from('music_tracks').select('starter_key').eq('source', 'starter')

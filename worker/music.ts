@@ -3,7 +3,7 @@
 // admin connections, told apart by the signed state ({ kind: 'music' }), so no extra setup.
 import { Hono, type MiddlewareHandler } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { bearer, serviceClient, userClient, type Env } from './supabase'
+import { bearer, businessDb, businessOf, requestDb, userClient, type Env } from './supabase'
 import { seal, signState, unseal } from './crypto'
 import * as google from './providers/google'
 import * as spotify from './providers/spotify'
@@ -26,7 +26,9 @@ const NAMES: Record<MusicProvider, string> = { spotify: 'Spotify', youtube: 'You
 
 /** OAuth callback for a personal connection: store the sealed refresh token for that person. */
 export async function finishMusicConnect(env: Env, state: MusicState, code: string, origin: string) {
-  const db = serviceClient(env)
+  const businessId = await businessOf(env, state.uid)
+  if (!businessId) throw new Error('That connection link expired. Try again.')
+  const db = businessDb(env, businessId)
   let refresh: string | undefined
   let label: string | null
   if (state.provider === 'spotify') {
@@ -88,7 +90,7 @@ music.use('/api/me/music', teamOnly)
 music.use('/api/me/music/*', teamOnly)
 
 music.get('/api/me/music', async c => {
-  const { data, error } = await serviceClient(c.env).from('music_accounts').select('provider, account_label, connected_at')
+  const { data, error } = await (await requestDb(c)).from('music_accounts').select('provider, account_label, connected_at')
     .eq('profile_id', c.get('userId'))
   if (error) return c.json({ error: error.message }, 500)
   return c.json({ configured: { spotify: !!spotifyCfg(c.env, ''), youtube: !!googleCfg(c.env, '') }, accounts: data ?? [] })
@@ -114,14 +116,14 @@ music.post('/api/me/music/:provider/start', async c => {
 music.post('/api/me/music/:provider/disconnect', async c => {
   const provider = providerOf(c.req.param('provider'))
   if (!provider) return c.json({ error: 'Unknown music service' }, 404)
-  await serviceClient(c.env).from('music_accounts').delete().eq('profile_id', c.get('userId')).eq('provider', provider)
+  await (await requestDb(c)).from('music_accounts').delete().eq('profile_id', c.get('userId')).eq('provider', provider)
   return c.json({ ok: true })
 })
 
 music.get('/api/me/music/:provider/playlists', async c => {
   const provider = providerOf(c.req.param('provider'))
   if (!provider) return c.json({ error: 'Unknown music service' }, 404)
-  const token = await session(c.env, serviceClient(c.env), c.get('userId'), provider, new URL(c.req.url).origin)
+  const token = await session(c.env, await requestDb(c), c.get('userId'), provider, new URL(c.req.url).origin)
   const list = provider === 'spotify'
     ? (await spotify.playlists(token)).map(p => ({ ...p, provider }))
     : await youtube.playlists(token)
@@ -130,18 +132,18 @@ music.get('/api/me/music/:provider/playlists', async c => {
 
 // Spotify extras: what's playing on your devices, play a playlist there, pause (Premium only).
 music.get('/api/me/music/spotify/now', async c => {
-  const token = await session(c.env, serviceClient(c.env), c.get('userId'), 'spotify', new URL(c.req.url).origin)
+  const token = await session(c.env, await requestDb(c), c.get('userId'), 'spotify', new URL(c.req.url).origin)
   return c.json(await spotify.myPlayer(token))
 })
 music.post('/api/me/music/spotify/play', async c => {
   const { playlist_id } = await c.req.json<{ playlist_id?: string }>()
   if (!playlist_id || !/^[A-Za-z0-9]+$/.test(playlist_id)) return c.json({ error: 'Pick a playlist' }, 400)
-  const token = await session(c.env, serviceClient(c.env), c.get('userId'), 'spotify', new URL(c.req.url).origin)
+  const token = await session(c.env, await requestDb(c), c.get('userId'), 'spotify', new URL(c.req.url).origin)
   await spotify.playPlaylist(token, playlist_id)
   return c.json({ ok: true })
 })
 music.post('/api/me/music/spotify/pause', async c => {
-  const token = await session(c.env, serviceClient(c.env), c.get('userId'), 'spotify', new URL(c.req.url).origin)
+  const token = await session(c.env, await requestDb(c), c.get('userId'), 'spotify', new URL(c.req.url).origin)
   await spotify.pause(token)
   return c.json({ ok: true })
 })

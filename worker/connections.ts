@@ -9,7 +9,7 @@
 // Every night, and on "Check now", each connection is checked again. When one stops working its
 // card says why and every admin gets a notification; it recovers by itself once a check passes.
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Env } from './supabase'
+import { ownsSecretAccounts, type Env } from './supabase'
 import { seal, unseal } from './crypto'
 import { forget } from './cache'
 import * as google from './providers/google'
@@ -47,8 +47,9 @@ export const isCalendarApp = (p: string): p is CalendarApp => p === 'google_cale
 // ---------------------------------------------------------------------------------------------
 const graphVersion = (env: Env) => env.META_GRAPH_VERSION ?? 'v23.0'
 
-export const waConfig = (env: Env): whatsapp.WhatsAppConfig | null =>
-  env.META_ACCESS_TOKEN && env.WHATSAPP_PHONE_NUMBER_ID
+/** The café's WhatsApp number: Business Agent's own (Worker secrets), so only the business it was set up for. */
+export const waConfig = (env: Env, db: SupabaseClient): whatsapp.WhatsAppConfig | null =>
+  env.META_ACCESS_TOKEN && env.WHATSAPP_PHONE_NUMBER_ID && ownsSecretAccounts(db)
     ? { token: env.META_ACCESS_TOKEN, phoneNumberId: env.WHATSAPP_PHONE_NUMBER_ID, graphVersion: graphVersion(env), language: env.WHATSAPP_TEMPLATE_LANG ?? 'es' }
     : null
 
@@ -342,11 +343,11 @@ export async function proveInstagram(t: { access_token: string; userId: string; 
  * followed when the account is renamed (`previous`), unless an admin typed another handle by hand.
  */
 export async function showInstagramHandle(db: SupabaseClient, username: string, previous?: string) {
-  const { data } = await db.from('business').select('instagram').eq('id', 1).maybeSingle()
+  const { data } = await db.from('business').select('instagram').maybeSingle()
   const now = String(data?.instagram ?? '').replace(/^@+/, '').toLowerCase()
   if (now === username.toLowerCase()) return
   if (previous !== undefined && now && now !== previous.toLowerCase()) return
-  await db.from('business').update({ instagram: `@${username}` }).eq('id', 1)
+  await db.from('business').update({ instagram: `@${username}` })
 }
 
 /** Tokens that run out (TikTok: a day, Square: 30 days, SumUp: an hour) are renewed with the refresh token when needed. */
@@ -623,9 +624,9 @@ export async function proveNew(p: Connector, t: { access_token: string; scope?: 
 
 /** Business details show the connected mailbox as the business's email when none was typed (one typed by hand is never replaced). */
 export async function showMailboxAddress(db: SupabaseClient, email: string) {
-  const { data } = await db.from('business').select('email').eq('id', 1).maybeSingle()
+  const { data } = await db.from('business').select('email').maybeSingle()
   if (!data || String(data.email ?? '').trim()) return
-  await db.from('business').update({ email }).eq('id', 1)
+  await db.from('business').update({ email })
 }
 
 /** Spotify: the account signed in and its playlists can be read. */
@@ -694,7 +695,7 @@ async function stillWorks(env: Env, db: SupabaseClient, row: Row): Promise<Parti
     case 'higgsfield': await higgsfield.prove(await higgsfieldKey(env, db)); return {}
     case 'spotify': await spotify.me((await spotifySession(env, db)).token); return {}
     case 'whatsapp': {
-      const cfg = waConfig(env)
+      const cfg = waConfig(env, db)
       if (!cfg) throw new Error('WhatsApp is not set up')
       return { account_label: await whatsapp.phoneNumber(cfg) }
     }

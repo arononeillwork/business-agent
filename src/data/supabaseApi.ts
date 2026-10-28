@@ -40,7 +40,7 @@ import type { MenuAllergens } from '../../shared/allergens'
 import type { TipPool } from '../../shared/tips'
 import { addDays, zonedIso } from '../../shared/time'
 
-const PROFILE_COLUMNS = 'id, full_name, email, role, can_see_pay, colour, active, phone, birth_date, whatsapp_opt_in, partner_company, partner_access, preferences'
+const PROFILE_COLUMNS = 'id, business_id, full_name, email, role, can_see_pay, colour, active, phone, birth_date, whatsapp_opt_in, partner_company, partner_access, preferences'
 
 const GRANT_APPLICATION_COLUMNS = 'id, grant_id, grant_name, stage, submitted_on, expediente, amount_requested, amount_awarded, amount_received, deadline, deadline_label, notes, docs_done, obligations_done, created_at, updated_at'
 
@@ -571,7 +571,7 @@ export function createSupabaseApi(url: string, key: string): Api {
         .map(r => ({ ...r, amount: r.amount === null ? null : Number(r.amount) }))
     },
     async saveTaxFiling({ id: _id, ...r }) {
-      check(await sb.from('tax_filings').upsert(r, { onConflict: 'model,year,period' }))
+      check(await sb.from('tax_filings').upsert(r, { onConflict: 'business_id,model,year,period' }))
     },
     async taxDocuments(year) {
       // The Tax page's own: those under Business Agent/Tax (the Documents hub's are on its page).

@@ -9,7 +9,7 @@ import { ads } from './ads'
 import { checkAll, explain, lasting } from './connections'
 import { fromMicros, toMicros } from './providers/googleAds'
 import { fromMinor, resultsOf } from './providers/metaAds'
-import { serviceClient, type Env } from './supabase'
+import { businessDb, type Env } from './supabase'
 import { FakeSupabase } from './test/fakeSupabase'
 import { FakeProviders } from './test/fakeProviders'
 import type { AdsReport } from '../shared/ads'
@@ -136,7 +136,7 @@ describe('Connecting ad platforms: "Connected" once the ad accounts were read', 
   it('nightly: the chosen ad account gone turns it red; Meta warns once before its 60 days run out', async () => {
     await connectMetaAds()
     apis.metaAds.accounts = []
-    await checkAll(env, serviceClient(env), { retryAfterMs: 0 })
+    await checkAll(env, businessDb(env, 1), { retryAfterMs: 0 })
     expect(db.integration('meta_ads').status).toBe('error')
     expect(explain('google_ads', new Error('Google Ads: x (NOT_ADS_USER)'))).toMatch(/no Google Ads account/)
   })

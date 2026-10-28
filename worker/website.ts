@@ -5,7 +5,7 @@
 // when an admin asks, and not twice within a couple of minutes.
 import { Hono } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { bearer, serviceClient, userClient, type Env } from './supabase'
+import { bearer, requestDb, userClient, type Env } from './supabase'
 import { googleSession } from './connections'
 import * as google from './providers/google'
 import { cleanWebsite } from '../shared/connections'
@@ -53,7 +53,7 @@ async function optional(url: string, looksRight: (s: string) => boolean) {
 
 /** The business as the app has it, to compare with the website and Google. */
 async function expected(db: SupabaseClient): Promise<{ website: string | null; expected: Expected }> {
-  const { data } = await db.from('business').select('name, phone, address, opening_hours, website').eq('id', 1).single()
+  const { data } = await db.from('business').select('name, phone, address, opening_hours, website').single()
   const b = (data ?? {}) as { name?: string; phone?: string | null; address?: string | null; opening_hours?: OpeningHours; website?: string | null }
   return { website: cleanWebsite(b.website), expected: { name: b.name ?? '', phone: b.phone ?? null, address: b.address ?? null, opening_hours: b.opening_hours ?? {} } }
 }
@@ -146,14 +146,14 @@ const fail = (e: unknown) => ({ error: e instanceof Error ? e.message : String(e
 
 // The last check and PageSpeed results, and the website they're for.
 website.get('/api/website', async c => {
-  const db = serviceClient(c.env)
+  const db = await requestDb(c)
   const [{ data }, { website: url }] = await Promise.all([read(db), expected(db)])
   return c.json({ website: url, report: data?.report ?? null, checked_at: data?.checked_at ?? null, pagespeed: data?.pagespeed ?? {} })
 })
 
 // Check the website now (the one just made, if it's under 2 minutes old and for the same address).
 website.post('/api/website/check', async c => {
-  const db = serviceClient(c.env)
+  const db = await requestDb(c)
   try {
     const [{ data }, { website: url }] = await Promise.all([read(db), expected(db)])
     if (data?.report && data.url === url && data.checked_at && Date.now() - Date.parse(data.checked_at) < FRESH_MS) return c.json({ report: data.report })
@@ -167,7 +167,7 @@ website.post('/api/website/check', async c => {
 
 // PageSpeed now, for a phone or a computer: { strategy }.
 website.post('/api/website/pagespeed', async c => {
-  const db = serviceClient(c.env)
+  const db = await requestDb(c)
   const { strategy } = await c.req.json<{ strategy?: string }>().catch(() => ({} as { strategy?: string }))
   if (strategy !== 'mobile' && strategy !== 'desktop') return c.json({ error: 'Choose phone or computer' }, 400)
   try {

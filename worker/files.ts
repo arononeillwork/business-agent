@@ -4,7 +4,7 @@
 // nothing. Admins with pay access only, as the Tax page; files are kept as tax_documents rows.
 import { Hono } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { bearer, serviceClient, userClient, type Env } from './supabase'
+import { bearer, requestDb, userClient, type Env } from './supabase'
 import { connectedOf } from './connections'
 import * as google from './providers/google'
 import * as ms from './providers/microsoft'
@@ -73,7 +73,7 @@ async function keptAmong(asPerson: SupabaseClient, storage: string, ids: string[
 
 // What's inside a folder under Business Agent: its folders and files (none when it isn't there yet).
 files.get('/api/files/browse', async c => {
-  const db = serviceClient(c.env)
+  const db = await requestDb(c)
   try {
     const path = browsePath(c.req.query('path'))
     const s = await keptStorage(c.env, db, MISSING)
@@ -94,7 +94,7 @@ files.get('/api/files/browse', async c => {
 
 // A new folder inside Documents: { path: ["Documents"], name: "Seguros" } → its path.
 files.post('/api/files/folders', async c => {
-  const db = serviceClient(c.env)
+  const db = await requestDb(c)
   try {
     const body = await c.req.json<{ path?: unknown; name?: unknown }>().catch(() => ({} as { path?: unknown; name?: unknown }))
     const parent = cleanFolderPath(body.path ?? ['Documents'], ['Documents'])
@@ -132,7 +132,7 @@ function details(q: (k: string) => string) {
  * sha256 (a file already kept is refused), title, tags and expires_on. Returns the saved row.
  */
 files.post('/api/files/upload', async c => {
-  const db = serviceClient(c.env)
+  const db = await requestDb(c)
   const asPerson = userClient(c.env, c.get('token'), 'app')
   try {
     const folder = pathParam(c.req.query('folder'), 'Documents')

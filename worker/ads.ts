@@ -3,7 +3,7 @@
 // daily budgets change the campaign on the platform itself, straight away (and what's kept is forgotten).
 import { Hono } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { bearer, serviceClient, userClient, type Env } from './supabase'
+import { bearer, requestDb, userClient, type Env } from './supabase'
 import { explain, googleAdsSession, lasting, markBroken, metaAdsSession, setIntegration, type AdsExternal } from './connections'
 import { cached, forget, oldest } from './cache'
 import * as googleAds from './providers/googleAds'
@@ -19,7 +19,7 @@ ads.use('/api/ads/*', async (c, next) => {
   const sb = userClient(c.env, token, 'app')
   const [{ data: user }, { data: isAdmin }] = await Promise.all([sb.auth.getUser(token), sb.rpc('is_admin')])
   if (!user.user || !isAdmin) return c.json({ error: 'Only an admin can see the ads' }, 403)
-  const { data: me } = await serviceClient(c.env).from('profiles').select('can_see_pay').eq('id', user.user.id).single()
+  const { data: me } = await (await requestDb(c)).from('profiles').select('can_see_pay').eq('id', user.user.id).single()
   if (!me?.can_see_pay) return c.json({ error: 'Ad spend is for admins with pay access' }, 403)
   c.set('userId', user.user.id)
   await next()
@@ -55,7 +55,7 @@ async function failed(db: SupabaseClient, p: AdPlatform, e: unknown) {
 ads.get('/api/ads/report', async c => {
   const from = c.req.query('from') ?? '', to = c.req.query('to') ?? ''
   if (!DATE.test(from) || !DATE.test(to) || from > to) return c.json({ error: 'Give from and to dates (YYYY-MM-DD)' }, 400)
-  const db = serviceClient(c.env)
+  const db = await requestDb(c)
   const { data: rows } = await db.from('integrations').select('provider, status').in('provider', AD_PLATFORMS)
   const on = AD_PLATFORMS.filter(p => rows?.some(r => r.provider === p && (r.status === 'connected' || r.status === 'error')))
   if (!on.length) return c.json({ error: 'Connect Meta Ads or Google Ads on the Connections page to see your ads' }, 400)
@@ -83,7 +83,7 @@ ads.post('/api/ads/:platform/campaigns/:id', async c => {
     return c.json({ error: 'A daily budget is between 1 and 10,000' }, 400)
   }
   if (patch.status === undefined && patch.daily_budget === undefined) return c.json({ error: 'Nothing to change' }, 400)
-  const db = serviceClient(c.env)
+  const db = await requestDb(c)
   try {
     if (p === 'meta_ads') {
       const s = await metaAdsSession(c.env, db)
@@ -107,7 +107,7 @@ ads.post('/api/ads/:platform/account', async c => {
   const p = c.req.param('platform')
   if (!isPlatform(p)) return c.json({ error: 'Unknown ad platform' }, 404)
   const { id } = await c.req.json<{ id?: string }>().catch(() => ({ id: undefined }))
-  const db = serviceClient(c.env)
+  const db = await requestDb(c)
   const { data } = await db.from('integrations').select('status, external').eq('provider', p).single()
   const ext = (data?.external ?? {}) as AdsExternal
   if (!data || data.status === 'disconnected') return c.json({ error: `Connect ${PLATFORM_NAMES[p]} first` }, 400)

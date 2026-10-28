@@ -9,7 +9,7 @@ import { fromGoogleHours, sameHours, toGoogleHours } from './providers/google'
 import type { OpeningHours } from '../shared/types'
 import { calendarFeeds } from './calendarFeed'
 import { checkAll, explain, hasScope, lasting, PROVIDERS } from './connections'
-import { serviceClient, type Env } from './supabase'
+import { businessDb, type Env } from './supabase'
 import { seal, unseal } from './crypto'
 import { FakeSupabase, GROUP } from './test/fakeSupabase'
 import { FakeProviders, readGmail } from './test/fakeProviders'
@@ -79,7 +79,7 @@ async function connectOwn(provider: 'spotify' | 'instagram' | 'google' | 'facebo
 const connectSpotify = () => connectOwn('spotify')
 
 const status = (p: string) => db.integration(p).status
-const nightly = () => checkAll(env, serviceClient(env), { retryAfterMs: 0 })
+const nightly = () => checkAll(env, businessDb(env, 1), { retryAfterMs: 0 })
 
 describe('Connecting an app: "Connected" only once it has really worked', () => {
   it('Gmail sends a confirmation from the mailbox to itself, keeps the access encrypted, then shows Connected', async () => {
@@ -353,7 +353,7 @@ describe('Google Maps opening hours: kept the same both ways', () => {
   const setInApp = (h: OpeningHours) => { db.table('business')[0].opening_hours = h }
   const onGoogle = () => fromGoogleHours(apis.google.hours as never)
   const setOnGoogle = (h: OpeningHours) => { apis.google.hours = toGoogleHours(h) as never }
-  const sync = () => syncGoogleBothWays(env, serviceClient(env))
+  const sync = () => syncGoogleBothWays(env, businessDb(env, 1))
 
   beforeEach(async () => {
     await connectOwn('google')
@@ -712,15 +712,15 @@ describe('Facebook, TikTok and Square: one click, connected once they really wor
     people()[1].notes = 'Oat flat white, extra hot'
     apis.square.customers[1] = { ...apis.square.customers[1], note: 'Changed in Square', updated_at: new Date().toISOString() }
     apis.square.customers.push({ id: 'SQC4', given_name: 'Ana', phone_number: '+44 7700 900123', updated_at: new Date().toISOString() })
-    expect(await syncSquareCustomers(env, serviceClient(env))).toBe(1)
+    expect(await syncSquareCustomers(env, businessDb(env, 1))).toBe(1)
     expect(people()).toHaveLength(3)
     expect(people()[1].notes).toBe('Oat flat white, extra hot')
     expect(people()[2]).toMatchObject({ square_id: 'SQC4', source: 'square', first_name: 'Ana', phone: '+44 7700 900123' })
-    expect(await syncSquareCustomers(env, serviceClient(env))).toBe(0)
+    expect(await syncSquareCustomers(env, businessDb(env, 1))).toBe(0)
 
     // A connection made before customers were asked for: says reconnect, and takings keep working.
     apis.square.customersScope = false
-    expect(await syncSquareCustomers(env, serviceClient(env), true)).toBe('reconnect')
+    expect(await syncSquareCustomers(env, businessDb(env, 1), true)).toBe('reconnect')
     expect(status('square')).toBe('connected')
   })
 
@@ -836,7 +836,7 @@ describe('Facebook, TikTok and Square: one click, connected once they really wor
     job('facebook_post', { post_id: 'p1', target: 'facebook', caption: 'Feria week!', image_url: 'https://app.test/media/posts/a.jpg' })
     job('facebook_post', { post_id: 'p2', target: 'facebook', caption: 'Open late tonight' })
     job('tiktok_post', { post_id: 'p1', target: 'tiktok', caption: 'Feria week!', image_url: 'https://app.test/media/posts/a.jpg' })
-    await drainOutbox(env)
+    await drainOutbox(env, 1)
     expect(apis.facebook.posts).toEqual([
       { page: 'page-1', kind: 'photos', caption: 'Feria week!', url: 'https://app.test/media/posts/a.jpg' },
       { page: 'page-1', kind: 'feed', caption: 'Open late tonight', url: undefined },
@@ -852,7 +852,7 @@ describe('Facebook, TikTok and Square: one click, connected once they really wor
     await connectOwn('tiktok')
     apis.tiktok.failPost = 'picture_size_check_failed'
     job('tiktok_post', { post_id: 'p1', target: 'tiktok', caption: 'x', image_url: 'https://app.test/media/posts/a.jpg' })
-    await drainOutbox(env)
+    await drainOutbox(env, 1)
     expect(db.table('outbox')[0]).toMatchObject({ status: 'failed', last_error: 'TikTok: picture_size_check_failed' })
     expect(status('tiktok')).toBe('connected') // the account still works; only this post failed
   })
@@ -963,7 +963,7 @@ describe('SumUp, LinkedIn and Search Console: connected once they really work', 
     await post('/api/integrations/linkedin/page', { page_id: '101' })
     job('linkedin_post', { post_id: 'p1', target: 'linkedin', caption: 'We’re hiring (barista) #SanPedro #coffee', image_url: 'https://cdn.test/team.jpg', kind: 'post', media: [{ url: 'https://cdn.test/team.jpg', type: 'image' }] })
     job('linkedin_post', { post_id: 'p2', target: 'linkedin', caption: 'Open late tonight', image_url: null, kind: 'post', media: [] })
-    await drainOutbox(env)
+    await drainOutbox(env, 1)
     expect(apis.linkedin.uploads).toEqual([{ owner: 'urn:li:organization:101', type: 'image/jpeg', size: 8, image: expect.stringMatching(/^urn:li:image:/) }])
     expect(apis.linkedin.posts).toEqual([
       expect.objectContaining({ author: 'urn:li:organization:101', visibility: 'PUBLIC', lifecycleState: 'PUBLISHED',
@@ -978,7 +978,7 @@ describe('SumUp, LinkedIn and Search Console: connected once they really work', 
     // As the person: their own profile is the author.
     await post('/api/integrations/linkedin/page', { page_id: 'me' })
     job('linkedin_post', { post_id: 'p3', target: 'linkedin', caption: 'Hello', image_url: null })
-    await drainOutbox(env)
+    await drainOutbox(env, 1)
     expect(apis.linkedin.posts.at(-1)).toMatchObject({ author: 'urn:li:person:mem-1', commentary: 'Hello' })
   })
 
@@ -994,7 +994,7 @@ describe('SumUp, LinkedIn and Search Console: connected once they really work', 
     await nightly()
     expect(db.integration('linkedin')).toMatchObject({ status: 'error', last_error: 'LinkedIn access has expired. Connect it again.' })
     job('linkedin_post', { post_id: 'p1', target: 'linkedin', caption: 'x', image_url: null })
-    await drainOutbox(env)
+    await drainOutbox(env, 1)
     expect(db.table('outbox')[0]).toMatchObject({ status: 'failed', last_error: 'LinkedIn access has expired. Connect it again.' })
 
     await connectOwn('linkedin')
@@ -1089,7 +1089,7 @@ describe('Sign-in emails come from the business’s own Gmail or Outlook (Supaba
     }, env, ctx())
   }
   const email = (type: string, extra = {}) => ({
-    user: { email: 'eva@example.com', user_metadata: { full_name: 'Eva Ruiz' } },
+    user: { id: 'staff-1', email: 'eva@example.com', user_metadata: { full_name: 'Eva Ruiz' } },
     email_data: { token: '123456', token_hash: 'hash-abc', redirect_to: 'https://app.test/account', email_action_type: type, site_url: 'https://app.test', ...extra },
   })
 

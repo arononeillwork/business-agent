@@ -26,7 +26,7 @@ export async function checkMentions(env: Env, db: SupabaseClient): Promise<numbe
   ])
   const found = mentionsIn(chats, tagged)
   if (!found.length) return 0
-  const { data: added, error } = await db.from('instagram_mentions').upsert(found, { onConflict: 'id', ignoreDuplicates: true }).select('id, kind, username, caption')
+  const { data: added, error } = await db.from('instagram_mentions').upsert(found, { onConflict: 'business_id,id', ignoreDuplicates: true }).select('id, kind, username, caption')
   if (error) throw new Error(error.message)
   if (!added?.length) return 0
   const { data: admins } = await db.from('profiles').select('id').eq('role', 'admin').eq('active', true)

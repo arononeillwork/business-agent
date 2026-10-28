@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { integrations } from './integrations'
 import { checkReviews, refreshReviews, reviews } from './reviews'
 import { website } from './website'
-import { serviceClient, type Env } from './supabase'
+import { businessDb, serviceClient, type Env } from './supabase'
 import { FakeSupabase } from './test/fakeSupabase'
 import { FakeProviders } from './test/fakeProviders'
 
@@ -96,7 +96,7 @@ describe('Reviews', () => {
     expect(notes.map(n => [n.profile_id, n.title])).toEqual([['admin-1', 'New 2★ review from Tom: worth a reply'], ['admin-2', 'New 2★ review from Tom: worth a reply']])
     expect(notes[0]).toMatchObject({ link: '/reviews', data: { review: 'accounts/1/locations/1/reviews/new', low: true } })
     // Looking again finds nothing new.
-    expect((await checkReviews(env, serviceClient(env))).added).toBe(0)
+    expect((await checkReviews(env, businessDb(env, 1))).added).toBe(0)
     expect(db.table('notifications').filter(n => n.kind === 'review')).toHaveLength(2)
   })
 

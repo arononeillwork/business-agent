@@ -73,7 +73,7 @@ function check<T>(res: { data: T; error: { message: string } | null }): NonNulla
 /** For `.then(rowsAs<T>())`: check the response and type the rows. */
 const rowsAs = <T,>() => (res: { data: unknown; error: { message: string } | null }) => check(res) as T
 
-const PROFILE_COLUMNS = 'id, full_name, email, role, can_see_pay, colour, active, phone, birth_date, partner_company, partner_access'
+const PROFILE_COLUMNS = 'id, business_id, full_name, email, role, can_see_pay, colour, active, phone, birth_date, partner_company, partner_access'
 const MUSIC_COLUMNS = 'id, source, title, artist, url, duration_s, bpm, energy, moods, genre, vocals, highlight_s, saved'
 
 /** Everything on the Competitors page, with the menu prices and opening hours it's compared with. */
@@ -87,7 +87,7 @@ async function competitorData(sb: SupabaseClient) {
     sb.from('competitor_radar').select('*').then(rowsAs<CompetitorData['nearby']>()),
     sb.from('competitor_settings').select('*').eq('id', 1).single().then(rowsAs<CompetitorData['settings']>()),
     sb.from('recipes').select('id, name, sell_price, active').then(rowsAs<{ id: string; name: string; sell_price: number | null; active: boolean }[]>()),
-    sb.from('business').select('name, opening_hours').eq('id', 1).single().then(rowsAs<Pick<Business, 'name' | 'opening_hours'>>()),
+    sb.from('business').select('name, opening_hours').single().then(rowsAs<Pick<Business, 'name' | 'opening_hours'>>()),
   ])
   return { data: competitorRows({ competitors, items, prices, notes, snapshots, nearby, settings }),
     recipes: recipes.map(r => ({ ...r, sell_price: r.sell_price === null ? null : Number(r.sell_price) })), business }
@@ -185,7 +185,7 @@ async function describeShifts(sb: SupabaseClient, from: string, to: string) {
     sb.from('shifts').select('*').gte('starts_at', zonedIso(addDays(from, -1), '00:00'))
       .lt('starts_at', zonedIso(addDays(to, 1), '00:00')).order('starts_at').then(rowsAs<Shift[]>()),
     team(sb), positions(sb),
-    sb.from('business').select('opening_hours').eq('id', 1).single().then(rowsAs<Pick<Business, 'opening_hours'>>()),
+    sb.from('business').select('opening_hours').single().then(rowsAs<Pick<Business, 'opening_hours'>>()),
     sb.from('calendar_events').select('*').gte('starts_on', from).lte('starts_on', to).then(rowsAs<CalendarEvent[]>()),
   ])
   const ctx = { shifts, openingHours: business.opening_hours, events }
@@ -228,7 +228,7 @@ export const ALL_TOOLS: ToolDef[] = [
     input: z.object({}),
     readOnly: true,
     async run({ sb, me }) {
-      const b = check(await sb.from('business').select('name, timezone').eq('id', 1).single())
+      const b = check(await sb.from('business').select('name, timezone').single())
       return { name: me.full_name, email: me.email, role: me.role, ...(teamRole(me) ? { team_role: teamRole(me) } : {}), can_see_pay: me.can_see_pay, business: b.name,
         ...(me.role === 'partner' ? { partner_company: me.partner_company, partner_can_see: ['business details', ...(me.partner_access ?? [])],
           partner_note: 'Read-only: you can look but not change anything.' } : {}),
@@ -245,7 +245,7 @@ export const ALL_TOOLS: ToolDef[] = [
     input: z.object({}),
     readOnly: true,
     async run({ sb, me }) {
-      const b = check(await sb.from('business').select('*').eq('id', 1).single())
+      const b = check(await sb.from('business').select('*').single())
       const adminNotes = me.role === 'admin'
         ? check(await sb.from('business_admin_notes').select('notes').eq('id', 1).maybeSingle())?.notes ?? null : undefined
       return { ...b, admin_notes: adminNotes }
@@ -270,13 +270,13 @@ export const ALL_TOOLS: ToolDef[] = [
         z.object({ open: time, close: time }).nullable()).optional()
         .describe('Days to change, e.g. {"mon": {"open": "08:00", "close": "15:00"}, "sun": null} (null = closed)'),
     }),
-    async run({ sb }, { admin_notes, opening_hours, ...patch }) {
+    async run({ sb, me }, { admin_notes, opening_hours, ...patch }) {
       if (patch.website !== undefined) patch.website = cleanWebsite(patch.website)
       if (opening_hours) {
-        const cur = check(await sb.from('business').select('opening_hours').eq('id', 1).single())
+        const cur = check(await sb.from('business').select('opening_hours').single())
         Object.assign(patch, { opening_hours: { ...cur.opening_hours, ...opening_hours } })
       }
-      if (Object.keys(patch).length) check(await sb.from('business').update(patch).eq('id', 1))
+      if (Object.keys(patch).length) check(await sb.from('business').update(patch).eq('id', me.business_id!))
       if (admin_notes !== undefined) check(await sb.from('business_admin_notes').update({ notes: admin_notes }).eq('id', 1))
       return { ok: true, updated: [...Object.keys(patch), ...(admin_notes !== undefined ? ['admin_notes'] : [])] }
     },
@@ -1524,7 +1524,7 @@ export const ALL_TOOLS: ToolDef[] = [
     }),
     async run({ sb, me, env, origin }, a) {
       if (!env || !origin) throw new Error('Making music needs the app’s server: use the API or the MCP connection')
-      const b = check(await sb.from('business').select('name, business_type').eq('id', 1).single()) as Pick<Business, 'name' | 'business_type'>
+      const b = check(await sb.from('business').select('name, business_type').single()) as Pick<Business, 'name' | 'business_type'>
       const what = b.business_type?.split(',')[0]?.trim()
       const prompt = aiPrompt({ moods: a.moods, instruments: [], energy: a.energy, describe: a.description, kind: a.kind, business: what ? `a ${what.toLowerCase()}` : undefined })
       try {
@@ -1608,7 +1608,7 @@ export const ALL_TOOLS: ToolDef[] = [
         throw e
       }
       const seconds = video ? rendered.seconds ?? asked : asked
-      const b = check(await sb.from('business').select('name').eq('id', 1).single()) as Pick<Business, 'name'>
+      const b = check(await sb.from('business').select('name').single()) as Pick<Business, 'name'>
       const music: MixedMusic = {
         mode: 'mixed', track_id: track.id, title: track.title, artist: track.artist, ...mix, seconds,
         audio_name: post.kind === 'reel' ? audioName(b.name, track.title) : null, source_media: before, cuts, bpm: track.bpm,
@@ -1642,7 +1642,7 @@ export async function loadMe(sb: SupabaseClient, accessToken: string): Promise<P
 
 export async function runTool(t: ToolDef, ctx: ToolContext, raw: unknown) {
   if (ctx.me.role === 'partner') {
-    if (!toolsFor(ctx.me).includes(t)) throw new Error('Partner access is read-only and limited to the areas Easy Beans gave you')
+    if (!toolsFor(ctx.me).includes(t)) throw new Error('Partner access is read-only and limited to the areas the business gave you')
   } else if (t.admin && ctx.me.role !== 'admin') throw new Error('Only admins can do that')
   const parsed = t.input.safeParse(raw ?? {})
   if (!parsed.success) throw new Error(parsed.error.issues.map(i => `${i.path.join('.') || 'input'}: ${i.message}`).join('; '))
