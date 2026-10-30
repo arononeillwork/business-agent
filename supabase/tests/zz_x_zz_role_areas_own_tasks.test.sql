@@ -70,6 +70,19 @@ do $$ begin
   assert (select count(*) from public.todos where title like 'OT %') = 4, 'all four again';
 end $$;
 
+-- 4. Brand, Expenses and AI assistants are shown or not; the team's languages (the `role_areas_and_team_languages` migration)
+select pg_temp.act_as('ot-admin@test');
+update public.job_roles set permissions = '{"brand": "none", "expenses": "none", "ai": "update", "todo": "own"}' where name = 'OT barista';
+do $$ begin
+  assert (select permissions = '{"brand": "none", "expenses": "none", "ai": "read", "todo": "own"}'::jsonb from public.job_roles where name = 'OT barista'),
+    'Brand and Expenses hide; AI assistants offer no Update';
+end $$;
+-- The team's languages: English, Spanish or both.
+reset role; select set_config('request.jwt.claim.sub', '', false);
+update public.settings set languages = '{en,es}' where id = 1;
+select pg_temp.expect_error($q$update public.settings set languages = '{fr}' where id = 1$q$, 'settings_languages_check');
+update public.settings set languages = '{}' where id = 1;
+
 -- Tidy up.
 reset role; select set_config('request.jwt.claim.sub', '', false);
 delete from public.todos where title like 'OT %';

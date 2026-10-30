@@ -111,6 +111,8 @@ export interface NavSection { key: string; label: string | null; items: NavItem[
 // The menu, in sections. Today is the landing page: the logo goes there, so it has no menu item.
 export const SECTIONS: NavSection[] = [
   { key: 'business', label: msg('Business'), items: [
+    // The team as a hierarchy, each with their roles and pets: first in the menu.
+    { key: 'people', to: '/people', label: msg('People'), icon: <PeopleIcon /> },
     { key: 'business', to: '/business', label: msg('Business'), icon: <BusinessIcon />, partner: 'any' },
     { key: 'todo', to: '/todo', label: msg('To Do List'), short: msg('To do'), icon: <TodoIcon /> },
     { key: 'hours', to: '/opening-hours', label: msg('Opening hours'), icon: <HoursIcon />, partner: 'any' },
@@ -184,7 +186,6 @@ export const SECTIONS: NavSection[] = [
     ...(FEATURES.tips ? [{ key: 'tips', to: '/tips', label: msg('Tips'), icon: <TipsIcon />, partner: ['payroll'] as PartnerArea[] }] : []),
     { key: 'hiring', to: '/hiring', label: msg('Hiring'), icon: <HiringIcon />, who: 'admin' },
     { key: 'team', to: '/team', label: msg('Team'), icon: <TeamIcon /> },
-    { key: 'people', to: '/people', label: msg('People'), icon: <PeopleIcon /> },
     { key: 'roles', to: '/roles', label: msg('Roles & responsibilities'), short: msg('Roles'), icon: <RolesIcon /> },
     { key: 'rules', to: '/rules', label: msg('Staff rules'), short: msg('Rules'), icon: <RulesIcon /> },
     { key: 'outsourcing', to: '/outsourcing', label: msg('Outsourcing'), icon: <OutsourcingIcon />, who: 'admin', partner: ['finances'] },
@@ -247,7 +248,7 @@ const withChildren = (items: NavItem[]) => items.flatMap(n => [n, ...(n.children
 
 /** You: the account menu, opened from your name at the bottom left (or the account icon on a phone). */
 function AccountMenu({ children, label, sx }: { children: ReactNode; label?: string; sx?: object }) {
-  const { me, isAdmin, isPartner, canSeePay, api } = useApp()
+  const { me, isAdmin, isPartner, canSeePay, api, permissions } = useApp()
   const [anchor, setAnchor] = useState<HTMLElement | null>(null)
   const close = () => setAnchor(null)
   const item = (to: string, text: string, icon: ReactNode) => (
@@ -264,7 +265,7 @@ function AccountMenu({ children, label, sx }: { children: ReactNode; label?: str
       <Menu anchorEl={anchor} open={!!anchor} onClose={close} anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
         transformOrigin={{ vertical: 'bottom', horizontal: 'left' }} slotProps={{ paper: { sx: { minWidth: 220, borderRadius: '14px' } } }}>
         {item('/account', t('My account'), <AccountIcon fontSize="small" />)}
-        {item('/ai-assistants', t('AI assistants'), <AiIcon fontSize="small" />)}
+        {permissions.ai !== 'none' && item('/ai-assistants', t('AI assistants'), <AiIcon fontSize="small" />)}
         {isAdmin && canSeePay && item('/account/billing', t('Billing'), <BillingIcon fontSize="small" />)}
         {isAdmin && !isPartner && item('/referrals', t('Referrals'), <ReferralsIcon fontSize="small" />)}
         {item('/appearance', t('Appearance'), <AppearanceIcon fontSize="small" />)}

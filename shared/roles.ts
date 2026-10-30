@@ -83,7 +83,8 @@ export const sortRoles = <R extends Pick<JobRole, 'sort' | 'name'>>(roles: R[]) 
 // owners have the most every area offers. The database checks Update (`can_update()`, the
 // `role_permissions` migration) and Own (`todo_own_only()`, the `role_areas_own_tasks` migration).
 export type RoleLevel = 'none' | 'own' | 'read' | 'update'
-export type RoleArea = 'business' | 'todo' | 'hours' | 'dashboards' | 'stock' | 'foodsafety' | 'waste' | 'calendar' | 'rota' | 'timeoff' | 'timecards'
+export type RoleArea = 'business' | 'todo' | 'hours' | 'brand' | 'dashboards' | 'stock' | 'foodsafety' | 'waste' | 'expenses' | 'calendar' | 'rota' | 'timeoff' | 'timecards'
+  | 'ai'
 export type RolePermissions = Partial<Record<RoleArea, RoleLevel>>
 
 export interface RoleAreaInfo {
@@ -106,6 +107,8 @@ export const ROLE_AREAS: RoleAreaInfo[] = [
     update: msg('Sets up the lists and their categories') },
   { id: 'hours', label: msg('Opening hours'), pages: ['hours'], levels: ['none', 'read'],
     read: msg('Sees the opening hours (admins change them)') },
+  { id: 'brand', label: msg('Brand'), pages: ['brand'], levels: ['none', 'read'],
+    read: msg('Sees the brand: the logo, colours and fonts') },
   { id: 'dashboards', label: msg('Dashboards'), pages: ['dashboards'], levels: ['none', 'read'],
     read: msg('Builds their own dashboards from the figures') },
   { id: 'stock', label: msg('Stock'), pages: ['stock'], levels: ['none', 'read', 'update'],
@@ -114,6 +117,8 @@ export const ROLE_AREAS: RoleAreaInfo[] = [
     read: msg('Logs the checks'), update: msg('Sets up what’s checked and when') },
   { id: 'waste', label: msg('Waste log'), pages: ['waste'], levels: ['none', 'read', 'update'],
     read: msg('Logs what’s thrown out'), update: msg('Changes and removes what’s logged') },
+  { id: 'expenses', label: msg('Expenses'), pages: ['expenses'], levels: ['none', 'read'],
+    read: msg('Claims back what they spent for the business') },
   { id: 'calendar', label: msg('Calendar'), pages: ['calendar'], levels: ['none', 'read', 'update'],
     read: msg('Sees what’s on'), update: msg('Adds and changes events') },
   { id: 'rota', label: msg('Rota'), pages: ['rota'], levels: ['read', 'update'],
@@ -122,6 +127,8 @@ export const ROLE_AREAS: RoleAreaInfo[] = [
     read: msg('Asks for time off and sees who’s away'), update: msg('Approves or declines the team’s time off') },
   { id: 'timecards', label: msg('Timecards'), pages: ['timecards'], levels: ['read', 'update'],
     read: msg('Clocks in and sees their own hours'), update: msg('Sees, fixes and approves the team’s hours') },
+  { id: 'ai', label: msg('AI assistants'), pages: ['ai-assistants'], levels: ['none', 'read'],
+    read: msg('Connects their own AI assistant to the app') },
 ]
 export const ROLE_AREA_IDS = ROLE_AREAS.map(a => a.id)
 export const ROLE_LEVELS: { id: RoleLevel; label: string }[] = [
@@ -140,8 +147,9 @@ export function levelIn(permissions: RolePermissions | undefined, area: RoleArea
 export const levels = (all: RoleLevel, but: RolePermissions = {}): Record<RoleArea, RoleLevel> =>
   Object.fromEntries(ROLE_AREA_IDS.map(a => [a, levelIn({ [a]: but[a] ?? all }, a)])) as Record<RoleArea, RoleLevel>
 
-/** The team on the floor: their own tasks, and not the business's details or the dashboards; then what's different. */
-export const frontLine = (but: RolePermissions = {}) => levels('read', { business: 'none', dashboards: 'none', todo: 'own', ...but })
+/** The team on the floor: their own tasks, and not the business's details, its brand, the dashboards, expenses or AI assistants; then what's different. */
+export const frontLine = (but: RolePermissions = {}) =>
+  levels('read', { business: 'none', brand: 'none', dashboards: 'none', expenses: 'none', ai: 'none', todo: 'own', ...but })
 
 /** The most every area offers: admins, owners and managers. */
 export const fullAccess = (): Record<RoleArea, RoleLevel> =>

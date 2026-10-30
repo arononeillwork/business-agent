@@ -62,6 +62,8 @@ export interface Settings {
   employer_cost_multiplier: number
   auto_timecards_from_rota: boolean
   vacation_days_per_year: number
+  /** The languages the team uses (an admin picks them on My account): with two, everyone gets the flags to switch. */
+  languages?: ('en' | 'es')[]
   alert_shift_reminders: boolean
   alert_missed_clock_in: boolean
   alert_rota: boolean

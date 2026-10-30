@@ -47,6 +47,21 @@ async function signInAs(page: Page, email: string) {
 
 const toast = (page: Page, text: string | RegExp) => expect(page.getByRole('alert').filter({ hasText: text })).toBeVisible()
 
+/**
+ * As the admin: give the demo baristas' role (Julio's and Maria's) a level in an area (Roles & responsibilities →
+ * Permissions). `here`: already signed in as the admin, through the menu, keeping what the test has done so far.
+ */
+async function giveBaristas(page: Page, area: string, level: string, here = false) {
+  if (here) {
+    await page.getByRole('link', { name: 'Roles & responsibilities' }).first().click()
+    await page.getByRole('tab', { name: 'Permissions' }).click()
+  } else await open(page, '/roles?tab=permissions')
+  const cell = page.getByRole('table', { name: 'Each role' }).getByRole('combobox', { name: `Barista / Bartender: ${area}` })
+  await cell.click()
+  await page.getByRole('option', { name: level, exact: true }).click()
+  await expect(cell).toHaveText(level)
+}
+
 /** In a choose-one group on Connections: pick another app from "Also works with", switch to it and close its details. */
 async function switchApp(page: Page, group: Locator, name: string) {
   await group.getByRole('group', { name: /^Other / }).getByRole('button', { name: `Use ${name} instead` }).click()
@@ -1262,6 +1277,7 @@ test.describe('brand', () => {
     await picker.getByRole('option', { name: /Playfair Display/ }).click()
     await toast(page, 'Heading font: Playfair Display')
     await expect(page.getByText('Headings · Playfair Display')).toBeVisible()
+    await giveBaristas(page, 'Brand', 'Read', true) // a barista's role hides the brand
     await signInAs(page, 'maria@example.com')
     await page.getByRole('link', { name: 'Brand' }).first().click()
     await expect(page.getByText('#F08A96')).toBeVisible()
@@ -1343,13 +1359,13 @@ test.describe('menu', () => {
   test('a pin puts a page at the top of its section, on a soft pink; unpinning puts it back', async ({ page }) => {
     await open(page, '/')
     const team = page.getByRole('navigation', { name: 'Main' }).getByRole('region', { name: 'Team' })
-    await expect(team.getByRole('link')).toHaveText(['Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Timecards', 'Hiring', 'Team', 'People', 'Roles & responsibilities', 'Staff rules', 'Outsourcing'])
+    await expect(team.getByRole('link')).toHaveText(['Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Timecards', 'Hiring', 'Team', 'Roles & responsibilities', 'Staff rules', 'Outsourcing'])
     await team.getByRole('link', { name: 'Timecards' }).hover()
     await team.getByRole('button', { name: 'Pin Timecards to the top' }).click()
-    await expect(team.getByRole('link')).toHaveText(['Timecards', 'Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Hiring', 'Team', 'People', 'Roles & responsibilities', 'Staff rules', 'Outsourcing'])
+    await expect(team.getByRole('link')).toHaveText(['Timecards', 'Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Hiring', 'Team', 'Roles & responsibilities', 'Staff rules', 'Outsourcing'])
     await expect(team.getByRole('button', { name: 'Unpin Timecards' })).toHaveAttribute('aria-pressed', 'true')
     await team.getByRole('button', { name: 'Unpin Timecards' }).click()
-    await expect(team.getByRole('link')).toHaveText(['Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Timecards', 'Hiring', 'Team', 'People', 'Roles & responsibilities', 'Staff rules', 'Outsourcing'])
+    await expect(team.getByRole('link')).toHaveText(['Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Timecards', 'Hiring', 'Team', 'Roles & responsibilities', 'Staff rules', 'Outsourcing'])
   })
 
   test('the sidebar folds down to icons and remembers it', async ({ page }) => {
@@ -1656,12 +1672,12 @@ test('pages can be dragged into a new order, but only within their own section',
   await expect(nav.getByRole('link', { name: 'Home: Today' })).toContainText('Easy Beans Coffee')
   const team = nav.locator('section', { has: page.getByRole('button', { name: 'Team', exact: true }) })
   const names = () => team.getByRole('link').allTextContents()
-  expect(await names()).toEqual(['Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Timecards', 'Hiring', 'Team', 'People', 'Roles & responsibilities', 'Staff rules', 'Outsourcing'])
+  expect(await names()).toEqual(['Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Timecards', 'Hiring', 'Team', 'Roles & responsibilities', 'Staff rules', 'Outsourcing'])
   // Keyboard: pick up Team, move it up a place, drop it; twice. Each drop waits for the screen-reader
   // announcement of the move, so a busy machine can't drop it before the move has registered.
   const handle = team.getByRole('button', { name: 'Reorder Team' })
-  for (const [over, order] of [['hiring', ['Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Timecards', 'Team', 'Hiring', 'People', 'Roles & responsibilities', 'Staff rules', 'Outsourcing']],
-    ['timecards', ['Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Team', 'Timecards', 'Hiring', 'People', 'Roles & responsibilities', 'Staff rules', 'Outsourcing']]] as const) {
+  for (const [over, order] of [['hiring', ['Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Timecards', 'Team', 'Hiring', 'Roles & responsibilities', 'Staff rules', 'Outsourcing']],
+    ['timecards', ['Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Team', 'Timecards', 'Hiring', 'Roles & responsibilities', 'Staff rules', 'Outsourcing']]] as const) {
     await handle.focus()
     await page.keyboard.press('Space')
     await page.keyboard.press('ArrowUp')
@@ -1677,14 +1693,14 @@ test('pages can be dragged into a new order, but only within their own section',
   await page.mouse.move(box.x + box.width / 2, box.y + 60, { steps: 5 })
   await page.mouse.move(box.x + box.width / 2, box.y + 600, { steps: 10 })
   await page.mouse.up()
-  await expect.poll(names).toEqual(['Time off', 'Staff benefits', 'Staff kitty', 'Team', 'Timecards', 'Hiring', 'People', 'Roles & responsibilities', 'Staff rules', 'Outsourcing', 'Rota'])
+  await expect.poll(names).toEqual(['Time off', 'Staff benefits', 'Staff kitty', 'Team', 'Timecards', 'Hiring', 'Roles & responsibilities', 'Staff rules', 'Outsourcing', 'Rota'])
   expect(await nav.locator('section', { has: page.getByRole('button', { name: 'Settings', exact: true }) }).getByRole('link').allTextContents())
     .toEqual(['Connections', 'Notifications', 'Pages'])
   // Saved to Aron's account: someone else gets the usual order, and Aron his own when he's back.
   await signInAs(page, 'mark@example.com')
-  await expect.poll(names).toEqual(['Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Timecards', 'Hiring', 'Team', 'People', 'Roles & responsibilities', 'Staff rules', 'Outsourcing'])
+  await expect.poll(names).toEqual(['Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Timecards', 'Hiring', 'Team', 'Roles & responsibilities', 'Staff rules', 'Outsourcing'])
   await signInAs(page, 'aron@example.com')
-  await expect.poll(names).toEqual(['Time off', 'Staff benefits', 'Staff kitty', 'Team', 'Timecards', 'Hiring', 'People', 'Roles & responsibilities', 'Staff rules', 'Outsourcing', 'Rota'])
+  await expect.poll(names).toEqual(['Time off', 'Staff benefits', 'Staff kitty', 'Team', 'Timecards', 'Hiring', 'Roles & responsibilities', 'Staff rules', 'Outsourcing', 'Rota'])
 })
 
 test('signed out: the Business Agent landing page; someone joining a team signs up, is added by email, then sees the café', async ({ page }) => {
@@ -2021,6 +2037,7 @@ test.describe('connections for email, files and music', () => {
       buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64') })
     await toast(page, 'Logo updated')
     await expect(card.getByRole('img', { name: 'Logo' })).toHaveAttribute('src', /^data:image\/png/)
+    await giveBaristas(page, 'Brand', 'Read', true) // a barista's role hides the brand
     await signInAs(page, 'maria@example.com')
     await page.getByRole('link', { name: 'Brand' }).first().click()
     await expect(page.getByRole('region', { name: 'Logo' }).getByRole('img', { name: 'Logo' })).toBeVisible()
@@ -2053,6 +2070,7 @@ test.describe('connections for email, files and music', () => {
     for (const m of ['Jazz', 'Summery', 'Festive']) await like.getByRole('button', { name: m }).click()
     await like.getByRole('button', { name: 'Elegant' }).click()
     await toast(page, 'Up to 5 moods in each list')
+    await giveBaristas(page, 'Brand', 'Read', true) // a barista's role hides the brand
     await signInAs(page, 'julio@example.com')
     await page.getByRole('link', { name: 'Brand' }).first().click()
     const seen = page.getByRole('region', { name: 'Our sound' })
@@ -3142,7 +3160,7 @@ test.describe('language', () => {
     await open(page, '/account')
     // English only to start with: no flags.
     await expect(page.getByRole('group', { name: 'Language' })).toHaveCount(0)
-    await page.getByRole('combobox', { name: 'Languages' }).click()
+    await page.getByRole('combobox', { name: 'Languages', exact: true }).click()
     await page.getByRole('option', { name: 'Español' }).click()
     await page.keyboard.press('Escape')
     const flags = page.getByRole('group', { name: 'Language' })
@@ -3162,7 +3180,7 @@ test.describe('language', () => {
 
   test('with only Spanish picked, the app is in Spanish and there are no flags', async ({ page }) => {
     await open(page, '/account')
-    await page.getByRole('combobox', { name: 'Languages' }).click()
+    await page.getByRole('combobox', { name: 'Languages', exact: true }).click()
     await page.getByRole('option', { name: 'Español' }).click()
     await page.getByRole('option', { name: 'English' }).click()
     await page.keyboard.press('Escape')
@@ -3176,7 +3194,7 @@ test.describe('language', () => {
 
   test('the last language can\'t be unticked, and it says why', async ({ page }) => {
     await open(page, '/account')
-    await page.getByRole('combobox', { name: 'Languages' }).click()
+    await page.getByRole('combobox', { name: 'Languages', exact: true }).click()
     await page.getByRole('option', { name: 'English' }).click()
     await expect(page.getByText('Keep at least one. To change language, tick the other one first, then untick this one.')).toBeVisible()
     await page.getByRole('option', { name: 'Español' }).click()
@@ -4048,10 +4066,7 @@ test.describe('stock and suppliers', () => {
 
   test('an employee can count but not see Suppliers or change prices', async ({ page }) => {
     // A barista's role hides the stock; an admin gives it Read.
-    await open(page, '/roles?tab=permissions')
-    await page.getByRole('table', { name: 'Each role' }).getByRole('combobox', { name: 'Barista / Bartender: Stock' }).click()
-    await page.getByRole('option', { name: 'Read' }).click()
-    await expect(page.getByRole('table', { name: 'Each role' }).getByRole('combobox', { name: 'Barista / Bartender: Stock' })).toHaveText('Read')
+    await giveBaristas(page, 'Stock', 'Read')
     await signInAs(page, 'maria@example.com')
     await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Current stock' }).click()
     await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Current stock' })).toBeVisible()
@@ -5869,7 +5884,10 @@ test.describe('leads and enquiries', () => {
 
 test.describe('expenses and mileage', () => {
   test('a trip is worked out at the rate a km, approved and paid back, and the person sees it', async ({ page }) => {
-    await open(page, '/expenses', 'julio@example.com')
+    // A barista's role hides Expenses; an admin gives it Read.
+    await giveBaristas(page, 'Expenses', 'Read')
+    await signInAs(page, 'julio@example.com')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Expenses', exact: true }).click()
     await expect(page.getByRole('heading', { name: 'Expenses', level: 1 })).toBeVisible()
     await page.getByRole('button', { name: 'Add a trip' }).click()
     const dialog = page.getByRole('dialog', { name: 'Add a trip' })
@@ -5897,7 +5915,10 @@ test.describe('expenses and mileage', () => {
   })
 
   test('an employee can’t approve their own, and has no mileage rate to change', async ({ page }) => {
-    await open(page, '/expenses', 'julio@example.com')
+    await giveBaristas(page, 'Expenses', 'Read')
+    await signInAs(page, 'julio@example.com')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Expenses', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'Expenses', level: 1 })).toBeVisible()
     await expect(page.getByRole('button', { name: /^Approve / })).toHaveCount(0)
     await expect(page.getByRole('region', { name: 'Mileage rate' })).toHaveCount(0)
   })
@@ -6269,7 +6290,8 @@ test.describe('UI round: waste log, allergens, competitors and brand', () => {
     await page.getByRole('dialog', { name: 'Edit Menu board' }).getByRole('button', { name: 'Delete' }).click()
     await toast(page, 'Removed')
     await expect(docs.getByRole('article', { name: 'Menu board' })).toHaveCount(0)
-    // The team reads them; only admins add.
+    // The team reads them; only admins add. (A barista's role hides the brand: Maria's is given it.)
+    await giveBaristas(page, 'Brand', 'Read', true)
     await signInAs(page, 'maria@example.com')
     await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Brand' }).click()
     await expect(page.getByRole('region', { name: 'Brand documents' }).getByRole('article', { name: 'EB Brand Guidelines' })).toBeVisible()
@@ -6801,7 +6823,7 @@ test.describe('role permissions', () => {
     await expect(page.getByRole('option', { name: 'Own' })).toHaveCount(0)
     await page.keyboard.press('Escape')
     await expect(page.getByRole('table', { name: 'Each person' }).getByRole('row', { name: /Maria/ }))
-      .toContainText('Barista / BartenderHiddenOwnReadReadHiddenReadHiddenReadUpdateReadRead')
+      .toContainText('Barista / BartenderHiddenOwnReadHiddenReadHiddenReadHiddenHiddenReadUpdateReadReadHidden')
 
     await signInAs(page, 'maria@example.com')
     const menu = page.getByRole('navigation', { name: 'Main' })
@@ -6835,4 +6857,43 @@ test.describe('role permissions', () => {
     await page.getByRole('button', { name: 'Add', exact: true }).click()
     await expect(page.getByText('Refill the sugar')).toBeVisible()
   })
+})
+
+test('people come first in the Business section; a barista adds her pet from her own card, and has no Expenses or AI assistants', async ({ page }) => {
+  await open(page, '/', 'maria@example.com')
+  const menu = page.getByRole('navigation', { name: 'Main' })
+  await expect(menu.getByRole('link').nth(1)).toHaveText('People') // after the logo
+  await expect(menu.getByRole('link', { name: 'Expenses', exact: true })).toHaveCount(0)
+  await expect(menu.getByRole('link', { name: 'Brand', exact: true })).toHaveCount(0)
+  await page.getByRole('button', { name: /^Account menu/ }).first().click()
+  await expect(page.getByRole('menuitem', { name: 'My account' })).toBeVisible()
+  await expect(page.getByRole('menuitem', { name: 'AI assistants' })).toHaveCount(0)
+  await page.keyboard.press('Escape')
+
+  await menu.getByRole('link', { name: 'People' }).click()
+  await page.getByRole('button', { name: 'Show pets' }).click()
+  await expect(page.getByRole('list', { name: 'Mark Murray’s pets' }).getByRole('listitem')).toHaveText([/Pablo/, /Yoda/])
+  // Her own card says how to add her pet, and opens My account, where its photo goes.
+  const own = page.getByRole('article', { name: 'Maria (you)' })
+  await expect(own).toContainText('Add your pet')
+  await own.getByRole('link').click()
+  await expect(page.getByRole('heading', { name: 'My account', level: 1 })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Pets' }).getByRole('button', { name: 'Add a pet' })).toBeVisible()
+})
+
+test('an admin picks both languages for the team: everyone gets the flags and switches to their own', async ({ page }) => {
+  await open(page, '/account')
+  await page.getByRole('combobox', { name: 'The team’s languages' }).click()
+  await page.getByRole('option', { name: 'English' }).click()
+  await page.getByRole('option', { name: 'Español' }).click()
+  await page.keyboard.press('Escape')
+  await toast(page, /^Saved$/)
+  await signInAs(page, 'maria@example.com')
+  // Maria never picked Spanish herself: the team's languages give her the flags, in English to start.
+  const flags = page.getByRole('group', { name: 'Language' })
+  await expect(flags.getByRole('button', { name: 'English' })).toHaveAttribute('aria-pressed', 'true')
+  await flags.getByRole('button', { name: 'Español' }).click()
+  await expect(page.getByRole('navigation', { name: 'Principal' })).toBeVisible()
+  await page.getByRole('navigation', { name: 'Principal' }).getByRole('link', { name: 'Cuadrante' }).click()
+  await expect(page.getByRole('heading', { name: 'Cuadrante', level: 1 })).toBeVisible()
 })
