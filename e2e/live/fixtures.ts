@@ -34,7 +34,12 @@ export async function liveConfig(baseURL: string): Promise<LiveConfig> {
 export function service(cfg: LiveConfig): SupabaseClient {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!key) throw new Error('Set SUPABASE_SERVICE_ROLE_KEY to run live tests')
-  return createClient(cfg.supabaseUrl, key, { auth: { persistSession: false, autoRefreshToken: false } })
+  // Names the business as the Worker's businessDb() does: with several businesses, the service key
+  // alone is in none, so a row it adds has no business and the plan it's held to is Free.
+  return createClient(cfg.supabaseUrl, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { headers: { 'x-business-id': String(TEST_BUSINESS) } },
+  })
 }
 
 export async function signedIn(cfg: LiveConfig, who: UserKey) {
