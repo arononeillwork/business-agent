@@ -7,6 +7,7 @@ import RotaIcon from '@mui/icons-material/CalendarViewWeekOutlined'
 import TimecardIcon from '@mui/icons-material/AccessTimeOutlined'
 import CalendarIcon from '@mui/icons-material/EventOutlined'
 import TeamIcon from '@mui/icons-material/PeopleAltOutlined'
+import PeopleIcon from '@mui/icons-material/AccountTreeOutlined'
 import BusinessIcon from '@mui/icons-material/StorefrontOutlined'
 import CustomersIcon from '@mui/icons-material/ContactsOutlined'
 import LoyaltyIcon from '@mui/icons-material/LoyaltyOutlined'
@@ -183,6 +184,7 @@ export const SECTIONS: NavSection[] = [
     ...(FEATURES.tips ? [{ key: 'tips', to: '/tips', label: msg('Tips'), icon: <TipsIcon />, partner: ['payroll'] as PartnerArea[] }] : []),
     { key: 'hiring', to: '/hiring', label: msg('Hiring'), icon: <HiringIcon />, who: 'admin' },
     { key: 'team', to: '/team', label: msg('Team'), icon: <TeamIcon /> },
+    { key: 'people', to: '/people', label: msg('People'), icon: <PeopleIcon /> },
     { key: 'roles', to: '/roles', label: msg('Roles & responsibilities'), short: msg('Roles'), icon: <RolesIcon /> },
     { key: 'rules', to: '/rules', label: msg('Staff rules'), short: msg('Rules'), icon: <RulesIcon /> },
     { key: 'outsourcing', to: '/outsourcing', label: msg('Outsourcing'), icon: <OutsourcingIcon />, who: 'admin', partner: ['finances'] },

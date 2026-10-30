@@ -16,6 +16,7 @@ import type { LoggedReward, RepReward, RewardRule, SalesRep } from '../../shared
 import type { KittyEntry, KittyGoal } from '../../shared/kitty'
 import type { JobRole } from '../../shared/roles'
 import type { RuleSection, RulesRead } from '../../shared/staffRules'
+import type { Pet } from '../../shared/pets'
 import type { Contractor, OutsourcedJob } from '../../shared/outsourcing'
 import { DEFAULT_VAT_RATE, type PnlLine, type PnlSettings } from '../../shared/pnl'
 import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
@@ -425,6 +426,14 @@ export function createSupabaseApi(url: string, key: string): Api {
     async deleteRuleSection(id) { check(await sb.from('staff_rules').delete().eq('id', id)) },
     async rulesRead() { return check(await sb.from('staff_rules_read').select('profile_id, read_at')) as RulesRead[] },
     async readRules() { check(await sb.rpc('read_staff_rules')) },
+    async pets() {
+      return check(await sb.from('pets').select('id, profile_id, name, kind, breed, photo, sort, created_at').order('sort').order('name')) as Pet[]
+    },
+    async savePet({ id, profile_id, ...p }) {
+      if (id) { check(await sb.from('pets').update(p).eq('id', id)); return id }
+      return (check(await sb.from('pets').insert({ ...p, profile_id: profile_id ?? await uid() }).select('id').single()) as { id: string }).id
+    },
+    async deletePet(id) { check(await sb.from('pets').delete().eq('id', id)) },
 
     async contractors() {
       const rows = check(await sb.from('contractors').select('*').order('name')) as Contractor[]

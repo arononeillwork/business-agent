@@ -25,6 +25,7 @@ const RotaPage = page(() => import('./pages/RotaPage'), 'RotaPage')
 const TimecardsPage = page(() => import('./pages/TimecardsPage'), 'TimecardsPage')
 const CalendarPage = page(() => import('./pages/CalendarPage'), 'CalendarPage')
 const TeamPage = page(() => import('./pages/TeamPage'), 'TeamPage')
+const PeoplePage = page(() => import('./pages/PeoplePage'), 'PeoplePage')
 const BusinessPage = page(() => import('./pages/BusinessPage'), 'BusinessPage')
 const AccountPage = page(() => import('./pages/AccountPage'), 'AccountPage')
 const AiAssistantsPage = page(() => import('./pages/AiAssistantsPage'), 'AiAssistantsPage')
@@ -190,6 +191,7 @@ function Routed() {
         <Route path="sports" element={<PlanGate feature="sports"><SportsPage /></PlanGate>} />
         <Route path="music" element={<PlanGate feature="music"><MusicPage /></PlanGate>} />
         <Route path="team" element={<TeamPage />} />
+        <Route path="people" element={<PeoplePage />} />
         <Route path="business" element={<BusinessPage />} />
         <Route path="customers" element={isAdmin ? <CustomersPage /> : <Navigate to="/" />} />
         <Route path="leads" element={isAdmin ? <LeadsPage /> : <Navigate to="/" />} />

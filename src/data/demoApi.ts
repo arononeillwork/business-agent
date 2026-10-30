@@ -38,6 +38,7 @@ import { addMonths, kittyBalance, type KittyEntry, type KittyGoal } from '../../
 import { permissionsOf, roleProblem, tidyPermissions, type JobRole, type RoleArea } from '../../shared/roles'
 import { ROLE_TEMPLATES } from '../../shared/roleTemplates'
 import { sectionProblem, type RuleSection, type RulesRead } from '../../shared/staffRules'
+import { PET_LIMITS, petProblem, type Pet } from '../../shared/pets'
 import { COUNTED, type Contractor, type OutsourcedJob } from '../../shared/outsourcing'
 import { EASY_BEANS_ROLES, EASY_BEANS_RULES, handbookDuties } from './easyBeansHandbook'
 import { DEFAULT_TAX_SETTINGS, cleanFolderName, cleanFolderPath, taxFileProblem, taxFileType, type FilingRecord, type TaxDocument, type TaxSettings } from '../../shared/tax'
@@ -1231,6 +1232,11 @@ export function createDemoApi(): Api {
     id: uid(), title: r.title, intro: r.intro ?? null, rules: [...r.rules], sort: i, updated_at: daysAgo(r.title === 'Complaints' ? 3 : 10),
   }))
   const rulesRead: RulesRead[] = [{ profile_id: P.maria, read_at: daysAgo(2) }, { profile_id: P.julio, read_at: daysAgo(7) }]
+  // Aron's dogs, waiting for their photos (the `pets` migration adds them for the real Aron too).
+  const pets: Pet[] = [
+    { id: 'pet-fudge', profile_id: P.aron, name: 'Fudge', kind: 'dog', breed: null, photo: null, sort: 1, created_at: daysAgo(3) },
+    { id: 'pet-cooper', profile_id: P.aron, name: 'Cooper', kind: 'dog', breed: null, photo: null, sort: 2, created_at: daysAgo(3) },
+  ]
   /** That person's shifts in the period become open shifts (approved time off). */
   const openUpShifts = (t: TimeOff) => {
     const name = profiles.find(p => p.id === t.profile_id)?.full_name
@@ -1389,7 +1395,7 @@ export function createDemoApi(): Api {
   }]
   const paysAdmin = () => !!(me()?.role === 'admin' && me()?.can_see_pay)
   const requirePay = () => { if (!paysAdmin()) throw new Error('Only admins with pay access can change grants') }
-  const requireBoss = () => { if (!paysAdmin()) throw new Error('Only a boss can manage billing') }
+  const requireOwner = () => { if (!paysAdmin()) throw new Error('Only an owner can manage billing') }
   /** Mirrors grant_deadline_event() in SQL: the deadline as an admins-only calendar event while the application is open. */
   function grantEvent(a: GrantApplication | undefined, id: string) {
     const i = events.findIndex(e => e.id === `grant:${id}`)
@@ -1977,11 +1983,11 @@ export function createDemoApi(): Api {
         throw new Error('Only an admin can change role, pay access or status')
       }
       const p = profiles.find(x => x.id === id)
-      // Like guard_profile_update(): only a boss makes someone a boss or changes a boss, while there is one.
+      // Like guard_profile_update(): only an owner makes someone an owner or changes an owner, while there is one.
       const changes = (k: 'role' | 'can_see_pay' | 'active') => !!p && k in patch && patch[k] !== p[k]
       if (p && !paysAdmin() && profiles.some(x => x.role === 'admin' && x.can_see_pay && x.active) &&
         (changes('can_see_pay') || (p.role === 'admin' && p.can_see_pay && (changes('role') || changes('active'))))) {
-        throw new Error('Only a boss can make someone a boss or change a boss\'s role')
+        throw new Error('Only an owner can make someone an owner or change an owner\'s role')
       }
       if (patch.role && patch.role !== 'admin' && p?.role === 'admin' &&
         profiles.filter(x => x.role === 'admin' && x.active).length === 1) {
@@ -2010,7 +2016,7 @@ export function createDemoApi(): Api {
       requireAdmin()
       if (password !== undefined && password.length < 8) throw new Error('The temporary password needs at least 8 characters')
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) throw new Error('Enter a full email address, like name@example.com')
-      if (role === 'boss' && !paysAdmin()) throw new Error('Only a boss can invite another boss')
+      if (role === 'owner' && !paysAdmin()) throw new Error('Only an owner can invite another owner')
       const addr = email.trim().toLowerCase()
       const account = profiles.find(p => p.email === addr)
       // Signed up on their own and in no business yet: they join the team as they are.
@@ -2200,6 +2206,30 @@ export function createDemoApi(): Api {
       if (mine) mine.read_at = nowIso()
       else rulesRead.push({ profile_id: currentUser!, read_at: nowIso() })
     },
+    // As the `pets` migration: the team sees everyone's; each person changes their own, admins anyone's.
+    async pets() { return isStaff() && me()?.active ? clone(pets).sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name)) : [] },
+    async savePet({ id, profile_id, ...p }) {
+      const was = id ? pets.find(x => x.id === id) : undefined
+      if (id && !was) throw new Error('That pet isn’t here any more')
+      const whose = was?.profile_id ?? profile_id ?? currentUser!
+      if (!isStaff() || (whose !== currentUser && !isAdmin())) throw new Error('new row violates row-level security policy for table "pets"')
+      const base: Pet = was ?? { id: uid(), profile_id: whose, name: '', kind: 'dog', breed: null, photo: null, sort: 0, created_at: nowIso() }
+      // Only what's sent changes (a new photo keeps the breed).
+      const next: Pet = { ...base, ...p, name: p.name.trim(), breed: 'breed' in p ? p.breed?.trim() || null : base.breed }
+      const problem = petProblem(next)
+      if (problem) throw new Error(problem)
+      if (!was) {
+        const owner = profiles.find(x => x.id === whose)
+        if (!owner || !staffOnly(owner)) throw new Error('Pets belong to someone on the team')
+        if (pets.filter(x => x.profile_id === whose).length >= PET_LIMITS.each) throw new Error('Up to 20 pets each')
+        pets.push(next)
+      } else Object.assign(was, next)
+      return next.id
+    },
+    async deletePet(id) {
+      const i = pets.findIndex(x => x.id === id)
+      if (i >= 0 && isStaff() && (pets[i].profile_id === currentUser || isAdmin())) pets.splice(i, 1)
+    },
 
     async contractors() {
       if (!isAdmin() && !partnerCan('finances')) return []
@@ -2264,10 +2294,10 @@ export function createDemoApi(): Api {
         },
       }
     },
-    async billing() { requireBoss(); return { ...demoBilling } },
-    async syncBilling() { requireBoss(); return { ...demoBilling } },
+    async billing() { requireOwner(); return { ...demoBilling } },
+    async syncBilling() { requireOwner(); return { ...demoBilling } },
     async choosePlan(plan, interval) {
-      requireBoss()
+      requireOwner()
       // The live app goes to Stripe Checkout here; the demo pretends the card went through.
       const trial = planById(plan).trial && !demoBilling.trial_used
       if (demoBilling.status === 'comped') throw new Error('This business already has the top plan, free. Nothing to pay.')

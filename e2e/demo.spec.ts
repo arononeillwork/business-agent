@@ -1438,16 +1438,16 @@ test('an admin sets a new person’s mobile and contact preference when inviting
   await expect(page.getByRole('row', { name: /Lucía/ }).getByRole('cell').nth(3)).toHaveText('WhatsApp')
 })
 
-test('team roles: employee, shop manager and boss; only a boss makes or changes a boss', async ({ page }) => {
+test('team roles: employee, shop manager and owner; only an owner makes or changes an owner', async ({ page }) => {
   await open(page, '/team')
   const role = (name: RegExp) => page.getByRole('row', { name }).getByRole('cell').nth(1)
-  await expect(role(/Aron/)).toHaveText('Boss / CEO')
+  await expect(role(/Aron/)).toHaveText('Owner')
   await expect(role(/Maria/)).toHaveText('Employee')
-  // Aron, a boss, makes Maria shop manager; the panel says what each role can do.
+  // Aron, an owner, makes Maria shop manager; the panel says what each role can do.
   await page.getByRole('row', { name: /Maria/ }).click()
   const maria = page.getByRole('dialog', { name: 'Maria' })
   await expect(maria.getByText(/^Their own shifts, clock-ins/)).toBeVisible()
-  await expect(maria.getByText('Sees pay and finances')).toHaveCount(0) // that's the boss role now
+  await expect(maria.getByText('Sees pay and finances')).toHaveCount(0) // that's the owner role now
   await maria.getByLabel('Role').click()
   await page.getByRole('option', { name: 'Shop manager' }).click()
   await toast(page, 'Role updated')
@@ -1457,14 +1457,14 @@ test('team roles: employee, shop manager and boss; only a boss makes or changes 
   await page.getByRole('button', { name: 'Shop managers' }).click()
   await expect(page.getByRole('row', { name: /Maria/ })).toBeVisible()
   await expect(page.getByRole('row', { name: /Julio/ })).toHaveCount(0)
-  await page.getByRole('button', { name: 'Bosses' }).click()
+  await page.getByRole('button', { name: 'Owners' }).click()
   await expect(page.getByRole('row', { name: /Aron/ })).toBeVisible()
   await expect(page.getByRole('row', { name: /Maria/ })).toHaveCount(0)
 
-  // Maria runs the team now (her menu says so), without pay, and can't make a boss or change one.
+  // Maria runs the team now (her menu says so), without pay, and can't make an owner or change one.
   await signInAs(page, 'maria@example.com')
   await expect(page.getByRole('navigation', { name: 'Main' }).getByText('Shop manager')).toBeVisible()
-  // Billing is the boss's: not in a shop manager's account menu.
+  // Billing is the owner's: not in a shop manager's account menu.
   await page.getByRole('button', { name: /^Account menu/ }).first().click()
   await expect(page.getByRole('menuitem', { name: 'My account' })).toBeVisible()
   await expect(page.getByRole('menuitem', { name: 'Billing' })).toHaveCount(0)
@@ -1474,7 +1474,7 @@ test('team roles: employee, shop manager and boss; only a boss makes or changes 
   await page.getByRole('row', { name: /Julio/ }).click()
   const julio = page.getByRole('dialog', { name: 'Julio' })
   await julio.getByLabel('Role').click()
-  await expect(page.getByRole('option', { name: 'Boss / CEO' })).toHaveAttribute('aria-disabled', 'true')
+  await expect(page.getByRole('option', { name: 'Owner' })).toHaveAttribute('aria-disabled', 'true')
   await page.getByRole('option', { name: 'Shop manager' }).click()
   await toast(page, 'Role updated')
   await julio.getByRole('button', { name: 'Close' }).click()
@@ -1482,26 +1482,99 @@ test('team roles: employee, shop manager and boss; only a boss makes or changes 
   await page.getByRole('row', { name: /Aron/ }).click()
   const aron = page.getByRole('dialog', { name: "Aron O'Neill" })
   await expect(aron.getByLabel('Role')).toHaveAttribute('aria-disabled', 'true')
-  await expect(aron.getByText('Only a boss can make someone a boss or change a boss’s role')).toBeVisible()
+  await expect(aron.getByText('Only an owner can make someone an owner or change an owner’s role')).toBeVisible()
   await aron.getByRole('button', { name: 'Close' }).click()
   await page.getByRole('button', { name: 'Invite' }).click()
   const invite = page.getByRole('dialog', { name: 'Invite to the team' })
   await invite.getByLabel('Role').click()
-  await expect(page.getByRole('option', { name: 'Boss / CEO' })).toHaveAttribute('aria-disabled', 'true')
+  await expect(page.getByRole('option', { name: 'Owner' })).toHaveAttribute('aria-disabled', 'true')
   await page.getByRole('option', { name: 'Employee' }).click()
   await invite.getByRole('button', { name: 'Cancel' }).click()
 
-  // Aron makes Maria a boss: she sees pay.
+  // Aron makes Maria an owner: she sees pay.
   await signInAs(page, 'aron@example.com')
   await page.getByRole('link', { name: 'Team', exact: true }).first().click()
   await page.getByRole('row', { name: /Maria/ }).click()
   await maria.getByLabel('Role').click()
-  await page.getByRole('option', { name: 'Boss / CEO' }).click()
+  await page.getByRole('option', { name: 'Owner' }).click()
   await toast(page, 'Role updated')
   await maria.getByRole('button', { name: 'Close' }).click()
   await signInAs(page, 'maria@example.com')
   await page.getByRole('link', { name: 'Team', exact: true }).first().click()
   await expect(page.getByRole('row', { name: /Julio/ })).toContainText('/h')
+})
+
+test('people: the team as a hierarchy, and everyone’s pets with their photos', async ({ page }) => {
+  // A 1×1 PNG: pet photos are cut square and kept as a small JPEG.
+  const png = { name: 'fudge.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64') }
+  await open(page, '/people')
+  await expect(page.getByRole('heading', { name: 'People' })).toBeVisible()
+  // Owners at the top, then the employees, with the roles they hold.
+  const owners = page.getByRole('region', { name: 'Owners' })
+  await expect(owners.getByRole('article')).toHaveCount(2)
+  await expect(owners.getByRole('article', { name: "Aron O'Neill (you)" })).toBeVisible()
+  await expect(owners.getByRole('article', { name: 'Mark Murray' })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Employees' }).getByRole('article', { name: 'Maria' })).toBeVisible()
+  await expect(page.getByRole('main').getByRole('heading', { level: 2 })).toHaveText(['Owners · 2', 'Employees · 3'])
+
+  // Pets show when asked: Aron's dogs, Fudge and Cooper, with a place for their photos.
+  await expect(page.getByRole('list', { name: /’s pets$/ })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Show pets' }).click()
+  const arons = page.getByRole('list', { name: "Aron O'Neill’s pets" })
+  await expect(arons.getByRole('listitem')).toHaveText([/Fudge/, /Cooper/])
+  await expect(arons.getByLabel('Fudge has no photo yet')).toBeVisible()
+  await expect(page.getByRole('list', { name: 'Maria’s pets' })).toHaveText('No pets')
+  await page.getByRole('button', { name: 'Hide pets' }).click()
+  await expect(arons).toHaveCount(0)
+
+  // On My account, Aron uploads Fudge's photo and adds another pet.
+  await fromAccountMenu(page, 'My account')
+  const pets = page.getByRole('region', { name: 'Pets' })
+  await expect(pets.getByRole('group')).toHaveText([/Fudge.*Dog/, /Cooper.*Dog/])
+  await pets.getByLabel('Photo of Fudge').setInputFiles(png)
+  await toast(page, 'Photo saved')
+  await expect(pets.getByRole('group', { name: 'Fudge' }).getByRole('img', { name: 'Fudge' })).toBeVisible()
+  await pets.getByRole('button', { name: 'Add a pet' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Add a pet' })
+  await dialog.getByLabel('Name').fill('Miso')
+  await dialog.getByLabel('Kind').click()
+  await page.getByRole('option', { name: 'Cat' }).click()
+  await dialog.getByLabel('Breed (optional)').fill('Tabby')
+  await dialog.getByLabel('Pet photo file').setInputFiles({ ...png, name: 'miso.png' })
+  await expect(dialog.getByRole('img', { name: 'Miso' })).toBeVisible()
+  await dialog.getByRole('button', { name: 'Add', exact: true }).click()
+  await toast(page, 'Miso added')
+  await expect(pets.getByRole('group', { name: 'Miso' })).toContainText('Cat · Tabby')
+  // Cooper is given a breed, then Miso goes again.
+  await pets.getByRole('group', { name: 'Cooper' }).getByRole('button', { name: 'Edit' }).click()
+  const cooper = page.getByRole('dialog', { name: 'Cooper' })
+  await cooper.getByLabel('Breed (optional)').fill('Cockapoo')
+  await cooper.getByRole('button', { name: 'Save' }).click()
+  await toast(page, /^Saved$/)
+  await pets.getByLabel('Photo of Cooper').setInputFiles({ ...png, name: 'cooper.png' })
+  await toast(page, 'Photo saved')
+  await expect(pets.getByRole('group', { name: 'Cooper' })).toContainText('Dog · Cockapoo') // a new photo keeps the rest
+  await pets.getByRole('group', { name: 'Miso' }).getByRole('button', { name: 'Edit' }).click()
+  await page.getByRole('dialog', { name: 'Miso' }).getByRole('button', { name: 'Remove', exact: true }).click()
+  await toast(page, 'Miso removed')
+  await expect(pets.getByRole('group')).toHaveCount(2)
+
+  // An employee sees the team's pets and adds their own; nobody else's is theirs to change.
+  await signInAs(page, 'maria@example.com')
+  await page.getByRole('link', { name: 'People', exact: true }).first().click()
+  await page.getByRole('button', { name: 'Show pets' }).click()
+  await expect(arons.getByRole('img', { name: 'Fudge' })).toBeVisible()
+  await expect(arons.getByRole('listitem', { name: 'Cooper' })).toContainText('Dog · Cockapoo')
+  await expect(page.getByRole('article', { name: "Aron O'Neill" }).getByRole('link')).toHaveCount(0)
+  await fromAccountMenu(page, 'My account')
+  await expect(pets).toContainText('No pets yet')
+  await pets.getByRole('button', { name: 'Add a pet' }).click()
+  await page.getByRole('dialog', { name: 'Add a pet' }).getByLabel('Name').fill('Luna')
+  await page.getByRole('dialog', { name: 'Add a pet' }).getByRole('button', { name: 'Add', exact: true }).click()
+  await toast(page, 'Luna added')
+  await page.getByRole('link', { name: 'People', exact: true }).first().click()
+  await page.getByRole('button', { name: 'Show pets' }).click()
+  await expect(page.getByRole('list', { name: 'Maria’s pets' }).getByRole('listitem')).toHaveText([/Luna/])
 })
 
 test.describe('top bar', () => {

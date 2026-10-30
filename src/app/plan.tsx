@@ -39,7 +39,7 @@ export function UpgradeCard({ feature, children }: { feature: Feature; children?
           </Typography>
           {isAdmin && canSeePay
             ? <Button component={RouterLink} to="/account/billing" variant="contained">{t('See plans')}</Button>
-            : <Typography variant="body2" color="text.secondary">{t('Ask a boss to upgrade on the Billing page.')}</Typography>}
+            : <Typography variant="body2" color="text.secondary">{t('Ask an owner to upgrade on the Billing page.')}</Typography>}
         </Stack>
       </CardContent>
     </Card>
@@ -53,11 +53,11 @@ export function PlanGate({ feature, children }: { feature: Feature; children: Re
   return <Box sx={{ p: { xs: 2, md: 4 } }}><UpgradeCard feature={feature} /></Box>
 }
 
-/** Across the top of the app for bosses (billing is theirs): the subscription isn't paid, so paid features are paused. */
+/** Across the top of the app for owners (billing is theirs): the subscription isn't paid, so paid features are paused. */
 export function BillingBanner() {
   const { api, isAdmin, canSeePay } = useApp()
-  const boss = isAdmin && canSeePay
-  const billing = useAsync('billing', () => (boss ? api.billing() : Promise.resolve(null)), [boss])
+  const owner = isAdmin && canSeePay
+  const billing = useAsync('billing', () => (owner ? api.billing() : Promise.resolve(null)), [owner])
   const b = billing.data
   if (!b || !paymentProblem(b)) return null
   const name = planName(planById(b.plan))

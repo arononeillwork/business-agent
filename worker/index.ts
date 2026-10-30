@@ -31,7 +31,7 @@ import { checkWaitingImages, menu, syncSquareMenuIfChosen } from './menu'
 import { screens } from './screens'
 import { cameras, purgeCameraClips } from './cameras'
 import { competitors, watchCompetitors } from './competitors'
-import { TEAM_ROLE_IDS, accessOf } from '../shared/teamRoles'
+import { accessOf, teamRoleOf } from '../shared/teamRoles'
 
 const NIGHTLY = '15 1 * * *' // 03:15 Madrid in summer, 02:15 in winter
 
@@ -97,13 +97,13 @@ app.post('/api/admin/invite', async c => {
 
   const body = await c.req.json<{ email?: string; full_name?: string; role?: string; partner_company?: string; partner_access?: string[]; password?: string; phone?: string | null; contact_method?: string | null }>()
   const email = body.email?.trim().toLowerCase()
-  // Team members come with their team role (boss, manager or employee; 'admin' is a shop manager),
-  // kept as the access the database checks. Only a boss invites a boss.
-  const member = TEAM_ROLE_IDS.find(r => r === (body.role === 'admin' ? 'manager' : body.role))
+  // Team members come with their team role (owner, manager or employee; 'admin' is a shop manager,
+  // 'boss' the owner's old name), kept as the access the database checks. Only an owner invites an owner.
+  const member = teamRoleOf(body.role === 'admin' ? 'manager' : body.role)
   const role = member ? accessOf(member).role : body.role === 'kiosk' || body.role === 'partner' ? body.role : 'employee'
-  const boss = member === 'boss'
-  if (boss && !(await sb.rpc('can_see_pay')).data) {
-    return c.json({ error: 'Only a boss can invite another boss' }, 403)
+  const owner = member === 'owner'
+  if (owner && !(await sb.rpc('can_see_pay')).data) {
+    return c.json({ error: 'Only an owner can invite another owner' }, 403)
   }
   if (!email || !body.full_name?.trim()) return c.json({ error: 'Name and email are required' }, 400)
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return c.json({ error: 'Enter a full email address, like name@example.com' }, 400)
@@ -129,7 +129,7 @@ app.post('/api/admin/invite', async c => {
     if (account.business_id === businessId) return c.json({ error: 'They’re already on your team' }, 400)
     if (account.business_id) return c.json({ error: 'Someone with that email already has an account' }, 400)
     const joined = await joinBusiness(c.env, account.id as string, businessId, {
-      role, active: true, ...(boss ? { can_see_pay: true } : {}), ...(role === 'partner' ? partner : contact),
+      role, active: true, ...(owner ? { can_see_pay: true } : {}), ...(role === 'partner' ? partner : contact),
     })
     if (!joined) return c.json({ error: 'Someone with that email already has an account' }, 400)
     return c.json({ ok: true, joined: true })
@@ -152,7 +152,7 @@ app.post('/api/admin/invite', async c => {
     // Set the business and role and switch the account on explicitly: Supabase may store
     // app_metadata after the new-user trigger has already run, which left these accounts inactive.
     const joined = await joinBusiness(c.env, created.user.id, businessId, {
-      full_name: body.full_name.trim(), role, active: true, ...(boss ? { can_see_pay: true } : {}),
+      full_name: body.full_name.trim(), role, active: true, ...(owner ? { can_see_pay: true } : {}),
       ...(role === 'partner' ? partner : contact),
     }).catch((e: Error) => e)
     if (joined === null || joined instanceof Error) {
@@ -169,7 +169,7 @@ app.post('/api/admin/invite', async c => {
     redirectTo: `${origin}/account`,
   })
   if (inviteError) return c.json({ error: inviteError.message }, 400)
-  const after = { ...(role === 'partner' ? {} : contact), ...(boss ? { can_see_pay: true } : {}) }
+  const after = { ...(role === 'partner' ? {} : contact), ...(owner ? { can_see_pay: true } : {}) }
   if (invited.user) await joinBusiness(c.env, invited.user.id, businessId, after)
   return c.json({ ok: true })
 })

@@ -18,6 +18,7 @@ import type { KittyEntry, KittyEntryInput, KittyGoal, KittyGoalInput, KittySetti
 import type { JobRole, JobRoleInput } from '../../shared/roles'
 import type { TeamRole } from '../../shared/teamRoles'
 import type { RuleSection, RuleSectionInput, RulesRead } from '../../shared/staffRules'
+import type { Pet, PetInput } from '../../shared/pets'
 import type { Contractor, ContractorInput, OutsourcedJob, OutsourcedJobInput } from '../../shared/outsourcing'
 import type { PnlLine, PnlLineInput, PnlSettings } from '../../shared/pnl'
 import type { GrantApplication, GrantApplicationInput, GrantProfile } from '../../shared/grants'
@@ -136,7 +137,7 @@ export interface Api {
   /** Register a new account. `confirmEmail`: they must click the link in their email before signing in. */
   signUp(fullName: string, email: string, password: string): Promise<{ confirmEmail: boolean }>
   /**
-   * Signed in and in no business yet: create mine and run it (admin, first boss, Free plan). `kind`
+   * Signed in and in no business yet: create mine and run it (admin, first owner, Free plan). `kind`
    * picks its first positions; `referral` is another business's referral code. Returns its number.
    */
   createBusiness(b: { name: string; kind: 'cafe' | 'restaurant' | 'salon' | 'other' | null; timezone: string; referral?: string | null }): Promise<number>
@@ -230,6 +231,12 @@ export interface Api {
   rulesRead(): Promise<RulesRead[]>
   /** "I've read the rules", for the person signed in. */
   readRules(): Promise<void>
+
+  // Pets (People page, My account): the team sees everyone's; each person adds their own, admins anyone's.
+  pets(): Promise<Pet[]>
+  /** Add one (no id; for the person signed in unless profile_id says whose) or change one; returns its id. */
+  savePet(p: PetInput): Promise<string>
+  deletePet(id: string): Promise<void>
 
   // Outsourcing (admins; finance partners read): the jobs done by people and firms outside the team,
   // and the catalogue to choose them from.

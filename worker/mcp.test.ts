@@ -78,20 +78,22 @@ describe('AI connector tools', () => {
     await expect(runTool(t, { sb: fakeSb(null), me: person('employee') }, {})).rejects.toThrow('Only admins')
   })
 
-  it('gives team roles: only a boss makes or changes a boss, and nobody their own', async () => {
-    const aron = person('admin') // a boss: an admin with pay access
+  it('gives team roles: only an owner makes or changes an owner, and nobody their own', async () => {
+    const aron = person('admin') // an owner: an admin with pay access
     const mark: Profile = { ...person('admin'), id: 'u2', full_name: 'Mark', can_see_pay: false }
     const julio: Profile = { ...person('employee'), id: 'u3', full_name: 'Julio' }
     const t = TOOLS.find(x => x.name === 'set_team_role')!
     const as = (me: Profile, args: unknown) => runTool(t, { sb: fakeSb([aron, mark, julio]), me }, args)
     await expect(as(aron, { person: 'Julio', role: 'manager' })).resolves.toEqual({ ok: true, name: 'Julio', team_role: 'manager' })
-    await expect(as(aron, { person: 'Mark', role: 'boss' })).resolves.toMatchObject({ team_role: 'boss' })
+    await expect(as(aron, { person: 'Mark', role: 'owner' })).resolves.toMatchObject({ team_role: 'owner' })
+    // "boss", the owner's old name, still means the owner.
+    await expect(as(aron, { person: 'Mark', role: 'boss' })).resolves.toMatchObject({ team_role: 'owner' })
     await expect(as(mark, { person: 'Julio', role: 'manager' })).resolves.toMatchObject({ team_role: 'manager' })
-    await expect(as(mark, { person: 'Julio', role: 'boss' })).rejects.toThrow('Only a boss')
-    await expect(as(mark, { person: 'Aron', role: 'employee' })).rejects.toThrow('Only a boss')
+    await expect(as(mark, { person: 'Julio', role: 'owner' })).rejects.toThrow('Only an owner')
+    await expect(as(mark, { person: 'Aron', role: 'employee' })).rejects.toThrow('Only an owner')
     await expect(as(mark, { person: 'Mark', role: 'employee' })).rejects.toThrow('your own role')
-    await expect(as(aron, { person: 'Julio', role: 'owner' })).rejects.toThrow('role')
-    await expect(as(julio, { person: 'Julio', role: 'boss' })).rejects.toThrow('Only admins')
+    await expect(as(aron, { person: 'Julio', role: 'ceo' })).rejects.toThrow('role')
+    await expect(as(julio, { person: 'Julio', role: 'owner' })).rejects.toThrow('Only admins')
     expect(toolsFor(julio).map(x => x.name)).not.toContain('set_team_role')
   })
 
