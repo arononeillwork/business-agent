@@ -1343,13 +1343,13 @@ test.describe('menu', () => {
   test('a pin puts a page at the top of its section, on a soft pink; unpinning puts it back', async ({ page }) => {
     await open(page, '/')
     const team = page.getByRole('navigation', { name: 'Main' }).getByRole('region', { name: 'Team' })
-    await expect(team.getByRole('link')).toHaveText(['Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Timecards', 'Hiring', 'Team', 'Roles & responsibilities', 'Staff rules', 'Outsourcing'])
+    await expect(team.getByRole('link')).toHaveText(['Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Timecards', 'Hiring', 'Team', 'People', 'Roles & responsibilities', 'Staff rules', 'Outsourcing'])
     await team.getByRole('link', { name: 'Timecards' }).hover()
     await team.getByRole('button', { name: 'Pin Timecards to the top' }).click()
-    await expect(team.getByRole('link')).toHaveText(['Timecards', 'Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Hiring', 'Team', 'Roles & responsibilities', 'Staff rules', 'Outsourcing'])
+    await expect(team.getByRole('link')).toHaveText(['Timecards', 'Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Hiring', 'Team', 'People', 'Roles & responsibilities', 'Staff rules', 'Outsourcing'])
     await expect(team.getByRole('button', { name: 'Unpin Timecards' })).toHaveAttribute('aria-pressed', 'true')
     await team.getByRole('button', { name: 'Unpin Timecards' }).click()
-    await expect(team.getByRole('link')).toHaveText(['Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Timecards', 'Hiring', 'Team', 'Roles & responsibilities', 'Staff rules', 'Outsourcing'])
+    await expect(team.getByRole('link')).toHaveText(['Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Timecards', 'Hiring', 'Team', 'People', 'Roles & responsibilities', 'Staff rules', 'Outsourcing'])
   })
 
   test('the sidebar folds down to icons and remembers it', async ({ page }) => {
@@ -1656,12 +1656,12 @@ test('pages can be dragged into a new order, but only within their own section',
   await expect(nav.getByRole('link', { name: 'Home: Today' })).toContainText('Easy Beans Coffee')
   const team = nav.locator('section', { has: page.getByRole('button', { name: 'Team', exact: true }) })
   const names = () => team.getByRole('link').allTextContents()
-  expect(await names()).toEqual(['Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Timecards', 'Hiring', 'Team', 'Roles & responsibilities', 'Staff rules', 'Outsourcing'])
+  expect(await names()).toEqual(['Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Timecards', 'Hiring', 'Team', 'People', 'Roles & responsibilities', 'Staff rules', 'Outsourcing'])
   // Keyboard: pick up Team, move it up a place, drop it; twice. Each drop waits for the screen-reader
   // announcement of the move, so a busy machine can't drop it before the move has registered.
   const handle = team.getByRole('button', { name: 'Reorder Team' })
-  for (const [over, order] of [['hiring', ['Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Timecards', 'Team', 'Hiring', 'Roles & responsibilities', 'Staff rules', 'Outsourcing']],
-    ['timecards', ['Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Team', 'Timecards', 'Hiring', 'Roles & responsibilities', 'Staff rules', 'Outsourcing']]] as const) {
+  for (const [over, order] of [['hiring', ['Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Timecards', 'Team', 'Hiring', 'People', 'Roles & responsibilities', 'Staff rules', 'Outsourcing']],
+    ['timecards', ['Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Team', 'Timecards', 'Hiring', 'People', 'Roles & responsibilities', 'Staff rules', 'Outsourcing']]] as const) {
     await handle.focus()
     await page.keyboard.press('Space')
     await page.keyboard.press('ArrowUp')
@@ -1677,14 +1677,14 @@ test('pages can be dragged into a new order, but only within their own section',
   await page.mouse.move(box.x + box.width / 2, box.y + 60, { steps: 5 })
   await page.mouse.move(box.x + box.width / 2, box.y + 600, { steps: 10 })
   await page.mouse.up()
-  await expect.poll(names).toEqual(['Time off', 'Staff benefits', 'Staff kitty', 'Team', 'Timecards', 'Hiring', 'Roles & responsibilities', 'Staff rules', 'Outsourcing', 'Rota'])
+  await expect.poll(names).toEqual(['Time off', 'Staff benefits', 'Staff kitty', 'Team', 'Timecards', 'Hiring', 'People', 'Roles & responsibilities', 'Staff rules', 'Outsourcing', 'Rota'])
   expect(await nav.locator('section', { has: page.getByRole('button', { name: 'Settings', exact: true }) }).getByRole('link').allTextContents())
     .toEqual(['Connections', 'Notifications', 'Pages'])
   // Saved to Aron's account: someone else gets the usual order, and Aron his own when he's back.
   await signInAs(page, 'mark@example.com')
-  await expect.poll(names).toEqual(['Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Timecards', 'Hiring', 'Team', 'Roles & responsibilities', 'Staff rules', 'Outsourcing'])
+  await expect.poll(names).toEqual(['Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Timecards', 'Hiring', 'Team', 'People', 'Roles & responsibilities', 'Staff rules', 'Outsourcing'])
   await signInAs(page, 'aron@example.com')
-  await expect.poll(names).toEqual(['Time off', 'Staff benefits', 'Staff kitty', 'Team', 'Timecards', 'Hiring', 'Roles & responsibilities', 'Staff rules', 'Outsourcing', 'Rota'])
+  await expect.poll(names).toEqual(['Time off', 'Staff benefits', 'Staff kitty', 'Team', 'Timecards', 'Hiring', 'People', 'Roles & responsibilities', 'Staff rules', 'Outsourcing', 'Rota'])
 })
 
 test('signed out: the Business Agent landing page; someone joining a team signs up, is added by email, then sees the café', async ({ page }) => {
