@@ -118,6 +118,10 @@ built-in **AI connector** so owners can run it by talking to Claude.
   section; your own card there opens My account, where you add your pets with a photo.
 - The team's languages (My account → Language, admins): with both English and Spanish, everyone gets the
   flags at the top to switch, and each person's own choice is kept on their account.
+- The Menu is a role's area too (shown or not), and so are the Business page's Company details (CIF/NIF,
+  currency, where team alerts go): hidden, the page shows just the contact details. The café's barista
+  template also leaves out the Company details and the Menu, and shows the Business page; Easy Beans'
+  Barista / Bartender role has its contact details but not the Company details, Brand, Dashboards, Menu or Expenses.
 - Staff rules (Team section): the house rules, in sections that open (being on time and clocking in, uniform
   and hygiene, food safety and allergens, phones, breaks, customers, the till, health and safety, respect).
   Each employee confirms they've read them and is asked again when a section is added or changed (what's new

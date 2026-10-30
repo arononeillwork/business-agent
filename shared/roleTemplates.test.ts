@@ -15,6 +15,10 @@ describe('role permissions', () => {
     expect(levelIn({ stock: 'own' }, 'stock')).toBe('read')
     expect(levelIn({ business: 'update', hours: 'update', dashboards: 'none' }, 'hours')).toBe('read')
     expect(fullAccess()).toMatchObject({ business: 'read', hours: 'read', dashboards: 'read', todo: 'update', rota: 'update' })
+    expect(fullAccess()).toMatchObject({ company: 'read', brand: 'read', menu: 'read', expenses: 'read' })
+    expect(levelIn({ company: 'update', brand: 'own', menu: 'none', expenses: 'none' }, 'company')).toBe('read')
+    expect(levelIn({ brand: 'own' }, 'brand')).toBe('read')
+    expect(levelIn({ menu: 'none' }, 'menu')).toBe('none')
     // Own is more than Hidden and less than Read.
     const roles = [{ people: ['a'], permissions: { todo: 'own' as const } }, { people: ['a'], permissions: { todo: 'none' as const } }]
     expect(permissionsOf({ id: 'a', role: 'employee' }, roles).todo).toBe('own')
@@ -59,10 +63,11 @@ describe('role templates', () => {
     }
   })
 
-  it('a barista reads the rota, holidays and hours, their own tasks and no more; owners see everything', () => {
+  it('a barista reads the rota, holidays and hours, the business’s contact details, their own tasks and no more; owners see everything', () => {
     const tpl = (id: string) => tidyPermissions(ROLE_TEMPLATES.find(p => p.id === id)!.permissions)
-    expect(tpl('cafe.barista')).toEqual(levels('read', { business: 'none', brand: 'none', dashboards: 'none', stock: 'none', expenses: 'none', ai: 'none', todo: 'own' }))
-    expect(hiddenByRole(tpl('cafe.barista'))).toEqual(['business', 'brand', 'dashboards', 'stock', 'expenses', 'ai-assistants'])
+    expect(tpl('cafe.barista')).toEqual(levels('read', { company: 'none', brand: 'none', dashboards: 'none', menu: 'none', stock: 'none', expenses: 'none', ai: 'none', todo: 'own' }))
+    // The Company details are part of the Business page, which stays in the menu.
+    expect(hiddenByRole(tpl('cafe.barista'))).toEqual(['brand', 'dashboards', 'menu', 'stock', 'expenses', 'ai-assistants'])
     expect(tpl('cafe.shift-lead')).toMatchObject({ rota: 'update', timecards: 'update', timeoff: 'read' })
     for (const owner of ROLE_TEMPLATES.filter(p => p.id?.endsWith('.owner'))) expect(tpl(owner.id!), owner.id).toEqual(fullAccess())
     expect(tpl('cafe.cleaner')).toMatchObject({ rota: 'read', stock: 'none' })

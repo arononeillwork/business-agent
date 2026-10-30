@@ -46,6 +46,12 @@ export default {
   'Claims back what they spent for the business': 'Pide que le devuelvan lo que gastó para el negocio',
   'Sees the brand: the logo, colours and fonts': 'Ve la marca: el logo, los colores y las fuentes',
   'Connects their own AI assistant to the app': 'Conecta su propio asistente de IA a la app',
+  'Company details': 'Datos de la empresa',
+  'Sees the Business page’s Company details: its CIF/NIF, currency and where team alerts go':
+    'Ve los datos de la empresa en la página Negocio: su CIF/NIF, la moneda y adónde van los avisos al equipo',
+  'Sees what’s on the menu (admins change it)': 'Ve lo que hay en la carta (la cambian los administradores)',
+  'Not shown to them': 'No se le muestra',
+  'Not shown to you': 'No se te muestra',
 
   // The areas: what Read and Update let someone do
   'Sees the published rota and their own shifts': 'Ve el cuadrante publicado y sus propios turnos',
