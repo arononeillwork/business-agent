@@ -107,7 +107,7 @@ function EditableCard({ title, business, canEdit, view, form, onSave }: {
 }
 
 export function BusinessPage() {
-  const { api, business: b, isAdmin, refresh } = useApp()
+  const { api, business: b, isAdmin, refresh, can } = useApp()
   // Admins: the connected Instagram account and mailbox, which fill in the handle and the email
   // (both can still be changed here).
   const integ = useAsync('integrations', () => (isAdmin ? api.integrations() : Promise.resolve(null)), [isAdmin])
@@ -192,7 +192,8 @@ export function BusinessPage() {
             p.instagram = p.instagram ? `@${cleanHandle(p.instagram)}` : null
           })} />
 
-        <EditableCard title={t('Company')} business={b} canEdit={isAdmin}
+        {/* Left out for someone whose roles hide the Company details (Roles & responsibilities). */}
+        {can('company') && <EditableCard title={t('Company')} business={b} canEdit={isAdmin}
           view={<>
             <InfoRow icon={<NameIcon fontSize="small" />} label={t('Business name')}>{b.name}</InfoRow>
             <InfoRow icon={<StoreIcon fontSize="small" />} label={t('Type of business')}>{b.business_type || '—'}</InfoRow>
@@ -235,7 +236,7 @@ export function BusinessPage() {
               if (!tax.ok) throw new Error(t(tax.error))
               p.tax_id = tax.value
             } else p.tax_id = null
-          })} />
+          })} />}
       </Stack>
       <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mt: 3 }}>
         {t('Last updated {when}', { when: formatLocal(b.updated_at, 'd MMM yyyy, HH:mm') })}

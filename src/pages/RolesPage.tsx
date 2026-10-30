@@ -390,9 +390,9 @@ function LevelTag({ level }: { level: RoleLevel }) {
   return <Tag fg={LEVEL_COLOURS[level].fg} bg={LEVEL_COLOURS[level].bg}>{levelLabel(level)}</Tag>
 }
 
-/** What a level lets someone do in an area, in a few words. */
+/** What a level lets someone do in an area, in a few words. Hidden takes a page out of the menu, or a part of one off its page. */
 const levelMeaning = (area: (typeof ROLE_AREAS)[number], level: RoleLevel, you?: boolean) =>
-  level === 'none' ? (you ? t('Not in your menu') : t('Not in their menu'))
+  level === 'none' ? (area.pages.length ? (you ? t('Not in your menu') : t('Not in their menu')) : (you ? t('Not shown to you') : t('Not shown to them')))
     : t((level === 'update' ? area.update : level === 'own' ? area.own : undefined) ?? area.read)
 
 /** Each area of the app, the level a role gives in it and what that means. */

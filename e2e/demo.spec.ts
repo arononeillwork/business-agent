@@ -6801,7 +6801,7 @@ test.describe('role permissions', () => {
     await expect(page.getByRole('option', { name: 'Own' })).toHaveCount(0)
     await page.keyboard.press('Escape')
     await expect(page.getByRole('table', { name: 'Each person' }).getByRole('row', { name: /Maria/ }))
-      .toContainText('Barista / BartenderHiddenOwnReadReadHiddenReadHiddenReadUpdateReadRead')
+      .toContainText('Barista / BartenderHiddenReadOwnReadReadReadReadHiddenReadHiddenReadReadUpdateReadRead')
 
     await signInAs(page, 'maria@example.com')
     const menu = page.getByRole('navigation', { name: 'Main' })
@@ -6824,6 +6824,34 @@ test.describe('role permissions', () => {
     await expect(page.getByRole('textbox', { name: 'Role' })).toHaveValue('Barista / Bartender')
     await expect(page.getByRole('textbox', { name: 'Role' })).toHaveAttribute('readonly', '')
     await expect(page.getByRole('textbox', { name: 'Access' })).toHaveValue('Employee')
+  })
+
+  test('Easy Beans’ barista: the Business page’s contact details but not the company’s, and no Brand, Dashboards, Menu or Expenses', async ({ page }) => {
+    await open(page, '/roles?tab=permissions')
+    const roles = page.getByRole('table', { name: 'Each role' })
+    for (const [area, level] of [['Business', 'Read'], ['Company details', 'Hidden'], ['Brand', 'Hidden'], ['Menu', 'Hidden'], ['Expenses', 'Hidden']]) {
+      await roles.getByRole('combobox', { name: `Barista / Bartender: ${area}`, exact: true }).click()
+      await page.getByRole('option', { name: level, exact: true }).click()
+      await expect(roles.getByRole('combobox', { name: `Barista / Bartender: ${area}`, exact: true })).toHaveText(level)
+    }
+
+    await signInAs(page, 'maria@example.com')
+    const menu = page.getByRole('navigation', { name: 'Main' })
+    await expect(menu.getByRole('link', { name: 'Business', exact: true })).toBeVisible()
+    for (const name of ['Brand', 'Dashboards', 'Menu', 'Expenses']) await expect(menu.getByRole('link', { name, exact: true })).toHaveCount(0)
+    // Nor do they open from a link (in the app: a page load would start the demo afresh).
+    for (const path of ['/brand', '/dashboards', '/menu', '/menu/design', '/expenses']) {
+      await page.evaluate(to => { history.pushState({ usr: null, key: to, idx: 1 }, '', to); dispatchEvent(new PopStateEvent('popstate', { state: history.state })) }, path)
+      await expect(page).toHaveURL(url => new URL(url).pathname === '/')
+      await expect(page.getByRole('heading', { name: /Hola, Maria/ })).toBeVisible()
+    }
+    await menu.getByRole('link', { name: 'Business', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'Easy Beans Coffee', level: 1 })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Contact' })).toContainText('Phone')
+    await expect(page.getByRole('region', { name: 'Company' })).toHaveCount(0)
+    await expect(page.getByText('CIF / NIF')).toHaveCount(0)
+    await menu.getByRole('link', { name: 'Roles & responsibilities' }).click()
+    await expect(page.getByRole('list', { name: 'Barista / Bartender: what you can do' })).toContainText('Company detailsHiddenNot shown to you')
   })
 
   test('a barista’s To Do List has only the jobs given to her, and what she adds is hers', async ({ page }) => {

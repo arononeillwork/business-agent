@@ -77,19 +77,21 @@ export const sortRoles = <R extends Pick<JobRole, 'sort' | 'name'>>(roles: R[]) 
   [...roles].sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name))
 
 // What a role lets its people do, area by area: Hidden (left out of their menu, and the page doesn't
-// open), Own (the To Do List: only the tasks given to them), Read (what the team has always had there)
-// or Update (what an admin does there). Each area offers the levels that mean something there. Someone
-// in several roles gets the most any of them gives; someone in none has Read everywhere; admins and
-// owners have the most every area offers. The database checks Update (`can_update()`, the
-// `role_permissions` migration) and Own (`todo_own_only()`, the `role_areas_own_tasks` migration).
+// open; for a part of a page, not shown), Own (the To Do List: only the tasks given to them), Read (what
+// the team has always had there) or Update (what an admin does there). Each area offers the levels that
+// mean something there. Someone in several roles gets the most any of them gives; someone in none has
+// Read everywhere; admins and owners have the most every area offers. The database checks Update
+// (`can_update()`, the `role_permissions` migration) and Own (`todo_own_only()`, the
+// `role_areas_own_tasks` migration).
 export type RoleLevel = 'none' | 'own' | 'read' | 'update'
-export type RoleArea = 'business' | 'todo' | 'hours' | 'dashboards' | 'stock' | 'foodsafety' | 'waste' | 'calendar' | 'rota' | 'timeoff' | 'timecards'
+export type RoleArea = 'business' | 'company' | 'todo' | 'hours' | 'brand' | 'dashboards' | 'menu' | 'stock' | 'foodsafety' | 'waste' | 'expenses'
+  | 'calendar' | 'rota' | 'timeoff' | 'timecards'
 export type RolePermissions = Partial<Record<RoleArea, RoleLevel>>
 
 export interface RoleAreaInfo {
   id: RoleArea
   label: string
-  /** The menu pages it covers. */
+  /** The menu pages it covers; none for a part of a page (the Business page's Company details). */
   pages: string[]
   /** The levels it offers, least first. Everywhere offers Read; Hidden isn't offered where everyone has their own shifts, holidays and hours. */
   levels: RoleLevel[]
@@ -101,19 +103,27 @@ export interface RoleAreaInfo {
 export const ROLE_AREAS: RoleAreaInfo[] = [
   { id: 'business', label: msg('Business'), pages: ['business'], levels: ['none', 'read'],
     read: msg('Sees the business’s details') },
+  { id: 'company', label: msg('Company details'), pages: [], levels: ['none', 'read'],
+    read: msg('Sees the Business page’s Company details: its CIF/NIF, currency and where team alerts go') },
   { id: 'todo', label: msg('To Do List'), pages: ['todo'], levels: ['none', 'own', 'read', 'update'],
     own: msg('Sees and ticks off only the tasks given to them'), read: msg('Sees the tasks and ticks them off'),
     update: msg('Sets up the lists and their categories') },
   { id: 'hours', label: msg('Opening hours'), pages: ['hours'], levels: ['none', 'read'],
     read: msg('Sees the opening hours (admins change them)') },
+  { id: 'brand', label: msg('Brand'), pages: ['brand'], levels: ['none', 'read'],
+    read: msg('Sees the logo, colours and fonts (admins change them)') },
   { id: 'dashboards', label: msg('Dashboards'), pages: ['dashboards'], levels: ['none', 'read'],
     read: msg('Builds their own dashboards from the figures') },
+  { id: 'menu', label: msg('Menu'), pages: ['menu'], levels: ['none', 'read'],
+    read: msg('Sees what’s on the menu (admins change it)') },
   { id: 'stock', label: msg('Stock'), pages: ['stock'], levels: ['none', 'read', 'update'],
     read: msg('Sees the stock and counts it'), update: msg('Adds items and changes what’s kept') },
   { id: 'foodsafety', label: msg('Food safety'), pages: ['foodsafety'], levels: ['none', 'read', 'update'],
     read: msg('Logs the checks'), update: msg('Sets up what’s checked and when') },
   { id: 'waste', label: msg('Waste log'), pages: ['waste'], levels: ['none', 'read', 'update'],
     read: msg('Logs what’s thrown out'), update: msg('Changes and removes what’s logged') },
+  { id: 'expenses', label: msg('Expenses'), pages: ['expenses'], levels: ['none', 'read'],
+    read: msg('Claims back what they paid for the business') },
   { id: 'calendar', label: msg('Calendar'), pages: ['calendar'], levels: ['none', 'read', 'update'],
     read: msg('Sees what’s on'), update: msg('Adds and changes events') },
   { id: 'rota', label: msg('Rota'), pages: ['rota'], levels: ['read', 'update'],
@@ -160,7 +170,8 @@ export function permissionsOf(person: { id: string; role: string } | null, roles
     mine.map(r => levelIn(r.permissions, area)).reduce((a, b) => (RANK[b] > RANK[a] ? b : a))])) as Record<RoleArea, RoleLevel>
 }
 
-/** The menu pages someone's roles leave out (and that don't open for them). */
+/** The menu pages someone's roles leave out (and that don't open for them). A part of a page they're
+ *  hidden from (the Company details) is left out by the page itself. */
 export const hiddenByRole = (permissions: Record<RoleArea, RoleLevel>) =>
   ROLE_AREAS.filter(a => permissions[a.id] === 'none').flatMap(a => a.pages)
 

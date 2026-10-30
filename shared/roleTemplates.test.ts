@@ -15,6 +15,10 @@ describe('role permissions', () => {
     expect(levelIn({ stock: 'own' }, 'stock')).toBe('read')
     expect(levelIn({ business: 'update', hours: 'update', dashboards: 'none' }, 'hours')).toBe('read')
     expect(fullAccess()).toMatchObject({ business: 'read', hours: 'read', dashboards: 'read', todo: 'update', rota: 'update' })
+    expect(fullAccess()).toMatchObject({ company: 'read', brand: 'read', menu: 'read', expenses: 'read' })
+    expect(levelIn({ company: 'update', brand: 'own', menu: 'none', expenses: 'none' }, 'company')).toBe('read')
+    expect(levelIn({ brand: 'own' }, 'brand')).toBe('read')
+    expect(levelIn({ menu: 'none' }, 'menu')).toBe('none')
     // Own is more than Hidden and less than Read.
     const roles = [{ people: ['a'], permissions: { todo: 'own' as const } }, { people: ['a'], permissions: { todo: 'none' as const } }]
     expect(permissionsOf({ id: 'a', role: 'employee' }, roles).todo).toBe('own')
@@ -63,6 +67,8 @@ describe('role templates', () => {
     const tpl = (id: string) => tidyPermissions(ROLE_TEMPLATES.find(p => p.id === id)!.permissions)
     expect(tpl('cafe.barista')).toEqual(levels('read', { business: 'none', dashboards: 'none', stock: 'none', todo: 'own' }))
     expect(hiddenByRole(tpl('cafe.barista'))).toEqual(['business', 'dashboards', 'stock'])
+    // The Company details are part of the Business page: hiding them leaves the page in the menu.
+    expect(hiddenByRole(levels('read', { company: 'none', brand: 'none', menu: 'none', expenses: 'none' }))).toEqual(['brand', 'menu', 'expenses'])
     expect(tpl('cafe.shift-lead')).toMatchObject({ rota: 'update', timecards: 'update', timeoff: 'read' })
     for (const owner of ROLE_TEMPLATES.filter(p => p.id?.endsWith('.owner'))) expect(tpl(owner.id!), owner.id).toEqual(fullAccess())
     expect(tpl('cafe.cleaner')).toMatchObject({ rota: 'read', stock: 'none' })

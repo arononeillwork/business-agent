@@ -43,6 +43,14 @@ export default {
   'Sees and ticks off only the tasks given to them': 'Ve y marca como hechas solo las tareas que le dan',
   'Sees the opening hours (admins change them)': 'Ve el horario de apertura (lo cambian los administradores)',
   'Builds their own dashboards from the figures': 'Crea sus propios paneles con las cifras',
+  'Company details': 'Datos de la empresa',
+  'Sees the Business page’s Company details: its CIF/NIF, currency and where team alerts go':
+    'Ve los datos de la empresa en la página Negocio: su CIF/NIF, la moneda y adónde van los avisos al equipo',
+  'Sees the logo, colours and fonts (admins change them)': 'Ve el logo, los colores y las tipografías (los cambian los administradores)',
+  'Sees what’s on the menu (admins change it)': 'Ve lo que hay en la carta (la cambian los administradores)',
+  'Claims back what they paid for the business': 'Pide que le devuelvan lo que pagó por el negocio',
+  'Not shown to them': 'No se le muestra',
+  'Not shown to you': 'No se te muestra',
 
   // The areas: what Read and Update let someone do
   'Sees the published rota and their own shifts': 'Ve el cuadrante publicado y sus propios turnos',
