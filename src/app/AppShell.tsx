@@ -44,6 +44,7 @@ import CreditDebitIcon from '@mui/icons-material/CompareArrowsOutlined'
 import BillingIcon from '@mui/icons-material/CreditCardOutlined'
 import SocialIcon from '@mui/icons-material/CampaignOutlined'
 import AdsIcon from '@mui/icons-material/AdsClickOutlined'
+import OffersIcon from '@mui/icons-material/LocalOfferOutlined'
 import CompetitionsIcon from '@mui/icons-material/EmojiEventsOutlined'
 import CampaignsIcon from '@mui/icons-material/ForwardToInboxOutlined'
 import LeadsIcon from '@mui/icons-material/ContactMailOutlined'
@@ -158,6 +159,7 @@ export const SECTIONS: NavSection[] = [
   ] },
   { key: 'marketing', label: msg('Marketing'), items: [
     { key: 'social', to: '/social', label: msg('Social planner'), icon: <SocialIcon />, who: 'admin' },
+    { key: 'offers', to: '/offers', label: msg('Offers & specials'), short: msg('Offers'), icon: <OffersIcon />, who: 'admin' },
     { key: 'competitions', to: '/competitions', label: msg('Competitions'), context: 'marketing', icon: <CompetitionsIcon />, who: 'admin' },
     { key: 'campaigns', to: '/campaigns', label: msg('Campaigns'), icon: <CampaignsIcon />, who: 'admin' },
     { key: 'ads', to: '/ads', label: msg('Ads'), icon: <AdsIcon />, who: 'admin' },

@@ -6,6 +6,7 @@ import { msg } from './i18n'
 import type { MenuDesign, MenuItem } from './menu'
 import type { MenuAllergens } from './allergens'
 import type { BrandColour } from './types'
+import type { ScreenOffer } from './offers'
 
 export type SlideKind = 'image' | 'video' | 'youtube' | 'vimeo' | 'instagram' | 'web' | 'menu'
 export const SLIDE_KINDS: { id: SlideKind; label: string }[] = [
@@ -242,4 +243,6 @@ export interface DisplayFeed {
   menus: Record<string, { design: Omit<MenuDesign, 'images'> & { image_url: string | null }; items: MenuItem[] }>
   /** What goes into each menu item and its ingredients' allergens (as the Allergens page has them, without the ingredients' names), for its allergens and diets. */
   allergens?: MenuAllergens | null
+  /** The offers on its screen that haven't ended (Offers & specials): each shows from its start to its end, by the screen's clock. */
+  offers?: ScreenOffer[]
 }

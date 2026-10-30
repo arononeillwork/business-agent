@@ -16,6 +16,7 @@ import MenuIcon from '@mui/icons-material/RestaurantMenuOutlined'
 import YouTubeIcon from '@mui/icons-material/YouTube'
 import InstagramIcon from '@mui/icons-material/Instagram'
 import MusicIcon from '@mui/icons-material/MusicNoteOutlined'
+import OfferIcon from '@mui/icons-material/LocalOfferOutlined'
 import { useMemo, useState, type ReactNode } from 'react'
 import { Link as RouterLink, useSearchParams } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
@@ -23,6 +24,7 @@ import { useAsync, useTick } from '../app/hooks'
 import { useAction, useNotify } from '../app/Notify'
 import { Empty, ErrorBox, PageHeader, Tag } from '../components/common'
 import { ScreenPlayer } from '../components/ScreenPlayer'
+import { offerWhenText } from '../components/OfferBoard'
 import { ago } from '../components/Freshness'
 import { imageOf, type MenuDesign, type MenuItem as Item } from '../../shared/menu'
 import {
@@ -30,6 +32,7 @@ import {
   type SlideKind,
 } from '../../shared/screens'
 import type { MenuAllergens } from '../../shared/allergens'
+import { offerState, type Offer, type ScreenOffer } from '../../shared/offers'
 import type { Brand } from '../../shared/types'
 import { tokens } from '../theme'
 import { t, tc, tn } from '../i18n'
@@ -59,6 +62,7 @@ export function ScreensPage() {
   const items = useAsync('menu-items', () => api.menuItems(), [])
   const allergens = useAsync('menu-allergens', () => api.menuAllergens(), [])
   const brand = useAsync('brand', () => api.brand(), [])
+  const offers = useAsync('offers', () => api.offers(), [])
   const [params, setParams] = useSearchParams()
   const [selected, setSelected] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
@@ -104,7 +108,8 @@ export function ScreensPage() {
             {list.map(s => <ScreenCard key={s.id} screen={s} selected={s.id === current?.id} onClick={() => setSelected(s.id)} />)}
           </Stack>
           <Box sx={{ flex: 1, minWidth: 0, width: '100%' }}>
-            {current && <ScreenEditor key={current.id} screen={current} designs={digital} items={items.data ?? []} allergens={allergens.data} brand={brand.data} />}
+            {current && <ScreenEditor key={current.id} screen={current} designs={digital} items={items.data ?? []} allergens={allergens.data} brand={brand.data}
+              offers={(offers.data ?? []).filter(o => o.screen_ids.includes(current.id) && ['on', 'coming'].includes(offerState(o)))} />}
           </Box>
         </Stack>
       )}
@@ -134,8 +139,10 @@ function ScreenCard({ screen: s, selected, onClick }: { screen: Screen; selected
 }
 
 /** One screen: its link, a live preview of the changes, its slides and how it plays them. */
-function ScreenEditor({ screen, designs, items, allergens, brand }: {
+function ScreenEditor({ screen, designs, items, allergens, brand, offers }: {
   screen: Screen; designs: MenuDesign[]; items: Item[]; allergens: MenuAllergens | null; brand: Brand | null
+  /** The offers on this screen that are on now or coming up (Offers & specials). */
+  offers: Offer[]
 }) {
   const { api, business, settings } = useApp()
   const run = useAction()
@@ -163,7 +170,9 @@ function ScreenEditor({ screen, designs, items, allergens, brand }: {
     business: { name: business?.name ?? '', logo: brand?.logo_mark ?? brand?.logo ?? null, heading_font: brand?.heading_font, body_font: brand?.body_font, colours: brand?.colours },
     menus: Object.fromEntries(designs.map(({ images: _images, ...d }) => [d.id, { design: { ...d, image_url: imageOf({ image_id: d.image_id, images: _images })?.url ?? null }, items }])),
     allergens,
-  }), [s, screen.id, screen.updated_at, settings?.menu_sections, business?.name, brand, designs, items, allergens])
+    offers: offers.map(({ id, title, details, price, was_price, image_url, starts_at, ends_at, screen_mode, seconds }): ScreenOffer =>
+      ({ id, title, details, price, was_price, image_url, starts_at, ends_at, screen_mode, seconds })),
+  }), [s, screen.id, screen.updated_at, settings?.menu_sections, business?.name, brand, designs, items, allergens, offers])
 
   const addAddress = () => {
     const url = cleanUrl(address)
@@ -243,6 +252,30 @@ function ScreenEditor({ screen, designs, items, allergens, brand }: {
             </Typography>
           )}
         </Stack>
+      </Card>
+
+      <Card component="section" aria-label={t('Offers on this screen')} sx={{ p: 2 }}>
+        <Stack direction="row" sx={{ alignItems: 'center', gap: 1, mb: 0.5 }}>
+          <Typography variant="h6" component="h3" sx={{ flex: 1 }}>{t('Offers on this screen')}</Typography>
+          <Button size="small" startIcon={<OfferIcon />} component={RouterLink} to={`/offers?new=1&screen=${screen.id}`}>{t('New offer')}</Button>
+        </Stack>
+        <Typography variant="body2" sx={{ color: 'text.secondary', mb: offers.length ? 1.5 : 0 }}>
+          {offers.length ? t('Each shows from the minute it starts to the minute it ends, then comes off by itself.')
+            : t('None coming up. An offer or a special from Offers & specials shows here for its time, then comes off by itself.')}
+        </Typography>
+        <Stack spacing={1}>
+          {offers.map(o => (
+            <Stack key={o.id} direction="row" sx={{ alignItems: 'center', gap: 1, flexWrap: 'wrap', p: 1, borderRadius: 2, border: `1px solid ${tokens.line}` }}>
+              <OfferIcon fontSize="small" sx={{ color: tokens.inkSoft }} />
+              <Typography sx={{ fontWeight: 500 }}>{o.title}</Typography>
+              <Typography variant="body2" sx={{ color: 'text.secondary', flex: 1, minWidth: 140 }}>
+                {`${offerWhenText(o)} · ${o.screen_mode === 'only' ? t('on its own') : t('in turn, {time} each time', { time: secondsText(o.seconds) })}`}
+              </Typography>
+              {offerState(o) === 'on' ? <Tag fg={tokens.goodFg} bg={tokens.goodBg}>{t('Showing now')}</Tag> : <Tag>{t('Coming up')}</Tag>}
+            </Stack>
+          ))}
+        </Stack>
+        {offers.length > 0 && <Button size="small" component={RouterLink} to="/offers" sx={{ mt: 1 }}>{t('Change them on Offers & specials')}</Button>}
       </Card>
 
       <Card sx={{ p: 2 }}>

@@ -153,6 +153,14 @@ built-in **AI connector** so owners can run it by talking to Claude.
   and its speed, shuffle, fill or fit, music (an MP3, a radio stream or YouTube) with its volume, videos'
   own sound, the time and a running line. The page previews the changes as they're made; the screen
   picks them up within a minute, keeps playing offline and stays awake.
+- Offers & specials (Marketing section, admins): a special or an offer for a set time (an hour, until
+  the end of the day, 24 hours like a story, a week, or until a time picked), with its price, what it
+  usually costs crossed out, details and a photo. It shows on the screens picked from the minute it
+  starts to the minute it ends, in turn with each screen's slides (for its own seconds) or on its own,
+  the screen showing nothing else; each screen gets its offers two days ahead and puts them on and takes
+  them off by its own clock, offline too. Saving one can make its story (suggested) or post: the Social
+  planner's composer opens with a picture drawn from the offer in the brand's fonts and colour, the offer
+  as its note, going out as the offer starts, and the post is remembered on the offer.
 - Documents (Business section): every file kept in the café's own Google Drive or OneDrive (the Tax
   page's, invoices brought in by email, licences' documents, and contracts, insurance policies and
   certificates kept here), all years in one list with what each belongs to (an invoice, a licence, the

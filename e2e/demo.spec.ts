@@ -1803,7 +1803,7 @@ test.describe('billing', () => {
     await expect(page).toHaveURL(/\/sales$/)
     await expect(page.getByRole('heading', { name: 'Sales', level: 1 })).toBeVisible()
     await expect(nav.getByRole('region', { name: 'Sales' }).getByRole('link')).toHaveText(['Sales', 'Customers', 'Leads & enquiries', 'Reps & rewards'])
-    await expect(nav.getByRole('region', { name: 'Marketing' }).getByRole('link')).toHaveText(['Social planner', 'Competitions', 'Campaigns', 'Ads', 'Analytics', 'Reviews', 'Website & SEO', 'Competitors'])
+    await expect(nav.getByRole('region', { name: 'Marketing' }).getByRole('link')).toHaveText(['Social planner', 'Offers & specials', 'Competitions', 'Campaigns', 'Ads', 'Analytics', 'Reviews', 'Website & SEO', 'Competitors'])
     await nav.getByRole('region', { name: 'Marketing' }).getByRole('link', { name: 'Analytics' }).click()
     await expect(page.getByRole('heading', { name: 'Analytics', level: 1 })).toBeVisible()
     await expect(nav.getByRole('region', { name: 'Accounts' }).getByRole('link')).toHaveText(['Finances', 'Profit & loss', 'Invoices', 'Credit & debit', 'Expenses', 'Tax', 'Grants'])
@@ -4470,6 +4470,89 @@ test.describe('menu, menu design and screens', () => {
     await expect(page.getByRole('navigation', { name: 'Main' })).toHaveCount(0)
     await page.goto('/display/0123456789abcdef0123456789abcdef?demo')
     await expect(page.getByText('This screen’s link has changed or the screen was removed.')).toBeVisible()
+  })
+})
+
+test.describe('offers and specials', () => {
+  test.describe.configure({ timeout: 60_000 })
+
+  test('an offer goes on the counter TV on its own for its set time, then comes off; its story is made from it, ready on the Social planner', async ({ page }) => {
+    await open(page, '/connections')
+    // Storage connected, so the story's picture can be kept for Instagram.
+    await page.getByRole('region', { name: 'Files and storage' }).getByRole('button', { name: 'Connect Google Drive' }).click()
+    await expect(page.getByRole('region', { name: 'Files and storage' }).getByRole('article', { name: 'Google Drive' })).toContainText('Connected')
+    const nav = page.getByRole('navigation', { name: 'Main' })
+    await nav.getByRole('link', { name: 'Offers & specials' }).click()
+    await expect(page.getByRole('heading', { name: 'Offers & specials', level: 1 })).toBeVisible()
+    // The demo's: ube latte week coming up with its story planned; last week's pumpkin spice latte, ended.
+    const ube = page.getByRole('region', { name: 'Coming up' }).getByRole('article', { name: 'Ube latte week' })
+    await expect(ube).toContainText('On Counter TV: in turn, 15 seconds each time')
+    await expect(ube).toContainText('Story: goes out by itself')
+    await expect(page.getByRole('region', { name: 'Ended' })).toContainText('Pumpkin spice latte')
+
+    await page.getByRole('button', { name: 'New offer' }).first().click()
+    const dialog = page.getByRole('dialog', { name: 'New offer' })
+    await dialog.getByRole('textbox', { name: 'Name' }).fill('Happy hour: 2-for-1 iced lattes')
+    await dialog.getByRole('textbox', { name: 'Price (optional)' }).fill('2 for 1')
+    await dialog.getByRole('button', { name: 'Start now' }).click()
+    await dialog.getByRole('combobox', { name: 'How long it runs' }).click()
+    await page.getByRole('option', { name: '3 hours' }).click()
+    await expect(dialog.getByRole('checkbox', { name: 'Counter TV' })).toBeChecked()
+    await dialog.getByRole('radio', { name: /^On its own/ }).check()
+    const preview = dialog.getByRole('region', { name: 'Preview of the offer' })
+    await expect(preview).toContainText('Happy hour: 2-for-1 iced lattes')
+    await expect(preview).toContainText('Until 12:00')
+    await expect(dialog.getByRole('checkbox', { name: 'Make a story for it too (suggested)' })).toBeChecked()
+    await dialog.getByRole('button', { name: 'Save and make the story' }).click()
+
+    // The Social planner's composer, with the story ready: its picture drawn from the offer, the offer as its note, going out now (it's on).
+    const composer = page.getByRole('dialog', { name: 'New post' })
+    await expect(composer.getByRole('button', { name: 'Story', exact: true })).toHaveAttribute('aria-pressed', 'true')
+    await expect(composer.getByRole('textbox', { name: /^Note/ })).toHaveValue(/^Happy hour: 2-for-1 iced lattes · 2 for 1\nUntil 12:00$/)
+    await expect(composer.getByRole('button', { name: 'Remove photo 1' })).toBeVisible()
+    await expect(composer.getByRole('radio', { name: 'Now' })).toBeChecked()
+    await composer.getByRole('button', { name: 'Post now' }).click()
+    await toast(page, 'Posting now')
+    const happy = page.getByRole('region', { name: 'Live now' }).getByRole('article', { name: 'Happy hour: 2-for-1 iced lattes' })
+    await expect(happy).toContainText('On Counter TV: on its own')
+    await expect(happy).toContainText(/Story: (going out now|posted)/)
+
+    // The counter TV shows only the offer until it ends, then its own slides again, by itself.
+    await nav.getByRole('link', { name: 'Screens' }).click()
+    const screen = page.getByRole('region', { name: 'Preview of the screen' })
+    await expect(screen.getByRole('img', { name: 'Happy hour: 2-for-1 iced lattes · 2 for 1' })).toBeVisible()
+    await expect(screen).not.toContainText('Flat white')
+    await expect(page.getByRole('region', { name: 'Offers on this screen' })).toContainText('Showing now')
+    await page.clock.fastForward('03:01:00')
+    await expect(screen).toContainText('Flat white')
+    await expect(screen).not.toContainText('Happy hour')
+  })
+
+  test('a new offer starts from a screen, and ends early', async ({ page }) => {
+    await open(page, '/screens')
+    // Ube latte week is coming up on the counter TV.
+    const onScreen = page.getByRole('region', { name: 'Offers on this screen' })
+    await expect(onScreen).toContainText('Ube latte weekFrom Saturday 3 October, 09:00 to Saturday 10 October, 09:00 · in turn, 15 seconds each timeComing up')
+    await onScreen.getByRole('link', { name: 'New offer' }).click()
+    const dialog = page.getByRole('dialog', { name: 'New offer' })
+    await dialog.getByRole('textbox', { name: 'Name' }).fill('Cake of the day')
+    await dialog.getByRole('button', { name: 'Start now' }).click()
+    await dialog.getByRole('checkbox', { name: 'Make a story for it too (suggested)' }).uncheck()
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click()
+    await toast(page, 'Saved. Screens show it within a minute.')
+    const cake = page.getByRole('region', { name: 'Live now' }).getByRole('article', { name: 'Cake of the day' })
+    await expect(cake).toContainText('On Counter TV: in turn, 15 seconds each time')
+    await expect(cake).toContainText('No story yet')
+    await cake.getByRole('button', { name: 'End now' }).click()
+    await toast(page, 'Cake of the day has ended: it’s off the screens')
+    await expect(page.getByRole('region', { name: 'Ended' }).getByRole('article', { name: 'Cake of the day' })).toBeVisible()
+  })
+
+  test('employees don’t get offers', async ({ page }) => {
+    await open(page, '/', 'maria@example.com')
+    await expect(page.getByRole('link', { name: 'Offers & specials' })).toHaveCount(0)
+    await page.goto('/offers?demo')
+    await expect(page.getByRole('heading', { name: 'Offers & specials' })).toHaveCount(0)
   })
 })
 
