@@ -76,13 +76,14 @@ export function roleProblem(r: Pick<JobRole, 'name' | 'summary' | 'duties'>): st
 export const sortRoles = <R extends Pick<JobRole, 'sort' | 'name'>>(roles: R[]) =>
   [...roles].sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name))
 
-// What a role lets its people do, area by area: Hidden (left out of their menu), Read (what everyone on
-// the team has always had there) or Update (what an admin does there). Someone in several roles gets
-// the most any of them gives; someone in none has Read everywhere; admins have Update everywhere. The
-// database checks Update the same way (`can_update()`, the `role_permissions` migration); Hidden only
-// takes the page out of their menu.
-export type RoleLevel = 'none' | 'read' | 'update'
-export type RoleArea = 'rota' | 'timeoff' | 'timecards' | 'calendar' | 'stock' | 'foodsafety' | 'waste' | 'todo'
+// What a role lets its people do, area by area: Hidden (left out of their menu, and the page doesn't
+// open), Own (the To Do List: only the tasks given to them), Read (what the team has always had there)
+// or Update (what an admin does there). Each area offers the levels that mean something there. Someone
+// in several roles gets the most any of them gives; someone in none has Read everywhere; admins and
+// owners have the most every area offers. The database checks Update (`can_update()`, the
+// `role_permissions` migration) and Own (`todo_own_only()`, the `role_areas_own_tasks` migration).
+export type RoleLevel = 'none' | 'own' | 'read' | 'update'
+export type RoleArea = 'business' | 'todo' | 'hours' | 'dashboards' | 'stock' | 'foodsafety' | 'waste' | 'calendar' | 'rota' | 'timeoff' | 'timecards'
 export type RolePermissions = Partial<Record<RoleArea, RoleLevel>>
 
 export interface RoleAreaInfo {
@@ -90,45 +91,61 @@ export interface RoleAreaInfo {
   label: string
   /** The menu pages it covers. */
   pages: string[]
-  /** What Read and Update let someone do there. */
+  /** The levels it offers, least first. Everywhere offers Read; Hidden isn't offered where everyone has their own shifts, holidays and hours. */
+  levels: RoleLevel[]
+  /** What Read, Own and Update let someone do there. */
   read: string
-  update: string
-  /** Whether it can be hidden: not where everyone has their own shifts, holidays and hours. */
-  hides: boolean
+  own?: string
+  update?: string
 }
 export const ROLE_AREAS: RoleAreaInfo[] = [
-  { id: 'rota', label: msg('Rota'), pages: ['rota'], hides: false,
-    read: msg('Sees the published rota and their own shifts'), update: msg('Adds, changes and publishes shifts') },
-  { id: 'timeoff', label: msg('Time off'), pages: ['timeoff'], hides: false,
-    read: msg('Asks for time off and sees who’s away'), update: msg('Approves or declines the team’s time off') },
-  { id: 'timecards', label: msg('Timecards'), pages: ['timecards'], hides: false,
-    read: msg('Clocks in and sees their own hours'), update: msg('Sees, fixes and approves the team’s hours') },
-  { id: 'calendar', label: msg('Calendar'), pages: ['calendar'], hides: true,
-    read: msg('Sees what’s on'), update: msg('Adds and changes events') },
-  { id: 'stock', label: msg('Stock'), pages: ['stock'], hides: true,
+  { id: 'business', label: msg('Business'), pages: ['business'], levels: ['none', 'read'],
+    read: msg('Sees the business’s details') },
+  { id: 'todo', label: msg('To Do List'), pages: ['todo'], levels: ['none', 'own', 'read', 'update'],
+    own: msg('Sees and ticks off only the tasks given to them'), read: msg('Sees the tasks and ticks them off'),
+    update: msg('Sets up the lists and their categories') },
+  { id: 'hours', label: msg('Opening hours'), pages: ['hours'], levels: ['none', 'read'],
+    read: msg('Sees the opening hours (admins change them)') },
+  { id: 'dashboards', label: msg('Dashboards'), pages: ['dashboards'], levels: ['none', 'read'],
+    read: msg('Builds their own dashboards from the figures') },
+  { id: 'stock', label: msg('Stock'), pages: ['stock'], levels: ['none', 'read', 'update'],
     read: msg('Sees the stock and counts it'), update: msg('Adds items and changes what’s kept') },
-  { id: 'foodsafety', label: msg('Food safety'), pages: ['foodsafety'], hides: true,
+  { id: 'foodsafety', label: msg('Food safety'), pages: ['foodsafety'], levels: ['none', 'read', 'update'],
     read: msg('Logs the checks'), update: msg('Sets up what’s checked and when') },
-  { id: 'waste', label: msg('Waste log'), pages: ['waste'], hides: true,
+  { id: 'waste', label: msg('Waste log'), pages: ['waste'], levels: ['none', 'read', 'update'],
     read: msg('Logs what’s thrown out'), update: msg('Changes and removes what’s logged') },
-  { id: 'todo', label: msg('To Do List'), pages: ['todo'], hides: true,
-    read: msg('Sees the tasks and ticks them off'), update: msg('Sets up the lists and their categories') },
+  { id: 'calendar', label: msg('Calendar'), pages: ['calendar'], levels: ['none', 'read', 'update'],
+    read: msg('Sees what’s on'), update: msg('Adds and changes events') },
+  { id: 'rota', label: msg('Rota'), pages: ['rota'], levels: ['read', 'update'],
+    read: msg('Sees the published rota and their own shifts'), update: msg('Adds, changes and publishes shifts') },
+  { id: 'timeoff', label: msg('Time off'), pages: ['timeoff'], levels: ['read', 'update'],
+    read: msg('Asks for time off and sees who’s away'), update: msg('Approves or declines the team’s time off') },
+  { id: 'timecards', label: msg('Timecards'), pages: ['timecards'], levels: ['read', 'update'],
+    read: msg('Clocks in and sees their own hours'), update: msg('Sees, fixes and approves the team’s hours') },
 ]
 export const ROLE_AREA_IDS = ROLE_AREAS.map(a => a.id)
 export const ROLE_LEVELS: { id: RoleLevel; label: string }[] = [
-  { id: 'none', label: msg('Hidden') }, { id: 'read', label: msg('Read') }, { id: 'update', label: msg('Update') },
+  { id: 'none', label: msg('Hidden') }, { id: 'own', label: msg('Own') }, { id: 'read', label: msg('Read') }, { id: 'update', label: msg('Update') },
 ]
-const RANK: Record<RoleLevel, number> = { none: 0, read: 1, update: 2 }
+const RANK: Record<RoleLevel, number> = { none: 0, own: 1, read: 2, update: 3 }
+const areaOf = (area: RoleArea) => ROLE_AREAS.find(a => a.id === area)!
 
-/** A role's level in an area: Read when it doesn't say, and never Hidden where it can't hide. */
+/** A role's level in an area: Read when it doesn't say or names one the area doesn't offer. */
 export function levelIn(permissions: RolePermissions | undefined, area: RoleArea): RoleLevel {
   const level = permissions?.[area] ?? 'read'
-  return level === 'none' && !ROLE_AREAS.find(a => a.id === area)!.hides ? 'read' : level
+  return areaOf(area).levels.includes(level) ? level : 'read'
 }
 
-/** Every area at one level, then some changed: `levels('read', { rota: 'update' })`. */
+/** Every area at one level, then some changed: `levels('read', { rota: 'update' })`. An area that doesn't offer it gets Read. */
 export const levels = (all: RoleLevel, but: RolePermissions = {}): Record<RoleArea, RoleLevel> =>
-  Object.fromEntries(ROLE_AREA_IDS.map(a => [a, but[a] ?? all])) as Record<RoleArea, RoleLevel>
+  Object.fromEntries(ROLE_AREA_IDS.map(a => [a, levelIn({ [a]: but[a] ?? all }, a)])) as Record<RoleArea, RoleLevel>
+
+/** The team on the floor: their own tasks, and not the business's details or the dashboards; then what's different. */
+export const frontLine = (but: RolePermissions = {}) => levels('read', { business: 'none', dashboards: 'none', todo: 'own', ...but })
+
+/** The most every area offers: admins, owners and managers. */
+export const fullAccess = (): Record<RoleArea, RoleLevel> =>
+  Object.fromEntries(ROLE_AREAS.map(a => [a.id, a.levels[a.levels.length - 1]])) as Record<RoleArea, RoleLevel>
 
 /**
  * What someone can do in each area: admins everything; an employee the most their roles give, or Read
@@ -136,20 +153,24 @@ export const levels = (all: RoleLevel, but: RolePermissions = {}): Record<RoleAr
  * say which pages they open.
  */
 export function permissionsOf(person: { id: string; role: string } | null, roles: Pick<JobRole, 'people' | 'permissions'>[]): Record<RoleArea, RoleLevel> {
-  if (person?.role === 'admin') return levels('update')
+  if (person?.role === 'admin') return fullAccess()
   const mine = person?.role === 'employee' ? roles.filter(r => r.people.includes(person.id)) : []
   if (!mine.length) return levels('read')
   return Object.fromEntries(ROLE_AREA_IDS.map(area => [area,
     mine.map(r => levelIn(r.permissions, area)).reduce((a, b) => (RANK[b] > RANK[a] ? b : a))])) as Record<RoleArea, RoleLevel>
 }
 
-/** The menu pages someone's roles leave out. */
+/** The menu pages someone's roles leave out (and that don't open for them). */
 export const hiddenByRole = (permissions: Record<RoleArea, RoleLevel>) =>
   ROLE_AREAS.filter(a => permissions[a.id] === 'none').flatMap(a => a.pages)
 
-/** Permissions as saved: every area, each a level the area allows. */
+/** Permissions as saved: every area, each a level the area offers. */
 export const tidyPermissions = (permissions: RolePermissions | undefined): Record<RoleArea, RoleLevel> =>
   Object.fromEntries(ROLE_AREA_IDS.map(a => [a, levelIn(permissions, a)])) as Record<RoleArea, RoleLevel>
+
+/** A person's roles by name, in the roles' order ("Barista / Bartender"): what the app calls them. */
+export const roleNamesOf = (personId: string | undefined, roles: Pick<JobRole, 'people' | 'name' | 'sort'>[]) =>
+  sortRoles(roles.filter(r => !!personId && r.people.includes(personId))).map(r => r.name)
 
 export interface RolePreset {
   /** Its template id: the business category, then the role (`cafe.barista`). */
@@ -206,7 +227,7 @@ export const ROLE_PRESETS: RolePreset[] = [
     ],
   },
   {
-    id: 'cafe.barista', permissions: levels('read'),
+    id: 'cafe.barista', permissions: frontLine({ stock: 'none' }),
     name: msg('Barista'), reportsTo: msg('Shift lead'), positions: ['barista'],
     summary: msg('Makes the coffee and looks after the customers: the face of the café.'),
     duties: [
@@ -220,7 +241,7 @@ export const ROLE_PRESETS: RolePreset[] = [
     ],
   },
   {
-    id: 'cafe.kitchen', permissions: levels('read'),
+    id: 'cafe.kitchen', permissions: frontLine(),
     name: msg('Kitchen'), reportsTo: msg('Shift lead'), positions: ['kitchen', 'cocina', 'cook', 'chef', 'cocinero', 'cocinera'],
     summary: msg('Prepares the food: safe, on time and as it is on the menu.'),
     duties: [
@@ -233,7 +254,7 @@ export const ROLE_PRESETS: RolePreset[] = [
     ],
   },
   {
-    id: 'cafe.cleaner', permissions: levels('read', { calendar: 'none', stock: 'none', waste: 'none' }),
+    id: 'cafe.cleaner', permissions: frontLine({ calendar: 'none', stock: 'none', waste: 'none' }),
     name: msg('Cleaner'), reportsTo: msg('Owner'), positions: ['cleaner', 'cleaning', 'limpieza', 'limpiador', 'limpiadora'],
     summary: msg('Keeps the café clean and safe for the customers and the team.'),
     duties: [

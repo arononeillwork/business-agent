@@ -50,7 +50,7 @@ export function RolesPage() {
   const { api, me, isAdmin, profiles, positions, business } = useApp()
   const run = useAction()
   const [params, setParams] = useSearchParams()
-  const tabs: RolesTab[] = isAdmin ? ['active', 'category', 'permissions'] : ['active', 'permissions']
+  const tabs: RolesTab[] = ['active', 'category', 'permissions']
   const tab = tabs.find(x => x === params.get('tab')) ?? 'active'
   const show = (next: RolesTab) => setParams(next === 'active' ? {} : { tab: next }, { replace: true })
   const category = categoryOf(business?.business_type)
@@ -92,6 +92,39 @@ export function RolesPage() {
     }),
   })
 
+  // The team sees just their own role, open, with what it lets them do in the app.
+  if (!isAdmin) {
+    const own = roles.filter(r => mine.has(r.id))
+    return (
+      <>
+        <PageHeader eyebrow={t('Team')} title={t('Roles & responsibilities')} />
+        <ErrorBox error={data.error} />
+        {data.data && !own.length && (
+          <Card component="section" aria-label={t('Your role')} sx={{ mb: 3 }}>
+            <CardContent><Empty>{t('You haven’t been given a role yet: an admin gives you one.')}</Empty></CardContent>
+          </Card>
+        )}
+        {own.map(r => {
+          const position = positionOf(r.position_id)
+          return (
+            <Card key={r.id} component="section" aria-label={r.name} sx={{ mb: 3 }}>
+              <CardContent>
+                <Typography variant="overline" sx={{ color: 'text.secondary' }}>{t('Your role')}</Typography>
+                <Stack direction="row" sx={{ gap: 1, alignItems: 'center', flexWrap: 'wrap', mb: 0.5 }}>
+                  <Typography variant="h5" component="h2">{r.name}</Typography>
+                  {position && <PositionTag position={position} />}
+                </Stack>
+                {r.summary && <Typography sx={{ color: 'text.secondary', whiteSpace: 'pre-line', mb: 2 }}>{r.summary}</Typography>}
+                <RoleDetails role={r} roles={roles} position={position} you
+                  people={r.people.map(id => profiles.find(p => p.id === id)).filter((p): p is Profile => !!p)} />
+              </CardContent>
+            </Card>
+          )
+        })}
+      </>
+    )
+  }
+
   return (
     <>
       <PageHeader eyebrow={t('Team')} title={t('Roles & responsibilities')} actions={tab === 'active' && <>
@@ -107,7 +140,7 @@ export function RolesPage() {
       <Tabs value={tab} onChange={(_, v: RolesTab) => show(v)} variant="scrollable" allowScrollButtonsMobile aria-label={t('Roles & responsibilities')}
         sx={{ mb: 3, borderBottom: `1px solid ${tokens.line}` }}>
         <Tab value="active" label={t('Active ({n})', { n: roles.length })} />
-        {isAdmin && <Tab value="category" label={t('Category')} />}
+        <Tab value="category" label={t('Category')} />
         <Tab value="permissions" label={t('Permissions')} />
       </Tabs>
 
@@ -139,7 +172,6 @@ export function RolesPage() {
           {roles.map((r, i) => {
             const position = positionOf(r.position_id)
             const people = r.people.map(id => profiles.find(p => p.id === id)).filter((p): p is Profile => !!p)
-            const leads = roles.filter(x => x.reports_to === r.id)
             const open = expanded.isOpen(r.id)
             return (
               <ExpandableCard key={r.id} id={r.id} label={r.name} expanded={expanded} summary={
@@ -160,37 +192,7 @@ export function RolesPage() {
                   </Typography>
                 </Box>
               }>
-                {(r.reports_to || leads.length > 0 || position) && (
-                  <Stack direction={{ xs: 'column', sm: 'row' }} sx={{ gap: { xs: 1, sm: 4 }, mb: 2, flexWrap: 'wrap' }}>
-                    {r.reports_to && <Fact label={t('Answers to')}>{roleName(r.reports_to)}</Fact>}
-                    {leads.length > 0 && <Fact label={t('Answering to it')}>{leads.map(x => x.name).join(', ')}</Fact>}
-                    {position && <Fact label={t('On the rota as')}>{position.name}</Fact>}
-                  </Stack>
-                )}
-                <Typography variant="subtitle2" component="h3" sx={{ mb: 0.75 }}>{t('Who’s in it')}</Typography>
-                {people.length
-                  ? <Stack direction="row" sx={{ gap: 0.75, flexWrap: 'wrap', mb: 2 }} aria-label={t('Who’s in it')} role="list">
-                      {people.map(p => (
-                        <Chip key={p.id} role="listitem" variant="outlined" label={p.full_name} avatar={<PersonAvatar name={p.full_name} colour={p.colour} size={24} />} />
-                      ))}
-                    </Stack>
-                  : <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>{t('Nobody yet')}</Typography>}
-                {dutiesByWhen(r.duties).map(g => (
-                  <Box key={g.id} sx={{ mb: 1.5 }}>
-                    <Typography variant="subtitle2" component="h3" sx={{ mb: 0.5 }}>{t(g.label)}</Typography>
-                    <Stack component="ul" spacing={0.5} sx={{ m: 0, p: 0, listStyle: 'none' }} aria-label={t('{role}: {when}', { role: r.name, when: t(g.label) })}>
-                      {g.duties.map(text => (
-                        <Stack key={text} component="li" direction="row" spacing={1} sx={{ alignItems: 'flex-start' }}>
-                          <DoneIcon sx={{ fontSize: 18, mt: '2px', color: tokens.matchaDeep }} aria-hidden />
-                          <Typography variant="body2">{text}</Typography>
-                        </Stack>
-                      ))}
-                    </Stack>
-                  </Box>
-                ))}
-                {!r.duties.length && <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('No duties written yet.')}</Typography>}
-                <Typography variant="subtitle2" component="h3" sx={{ mt: 2, mb: 0.75 }}>{t('What they can do in the app')}</Typography>
-                <PermissionList permissions={r.permissions} label={t('{role}: what they can do', { role: r.name })} />
+                <RoleDetails role={r} roles={roles} people={people} position={position} />
                 {isAdmin && (
                   <Stack direction="row" sx={{ gap: 1, alignItems: 'center', mt: 1.5 }}>
                     <Button size="small" startIcon={<EditIcon />} onClick={() => setEditing(r)} aria-label={t('Edit {name}', { name: r.name })}>{t('Edit')}</Button>
@@ -218,6 +220,48 @@ export function RolesPage() {
       </>}
 
       {editing && <RoleDialog role={editing} roles={roles} team={team} onClose={() => setEditing(null)} />}
+    </>
+  )
+}
+
+/** A role opened: who it answers to, who's in it, its duties, and what it lets its people do in the app (`you`: as they read it about themselves). */
+function RoleDetails({ role: r, roles, people, position, you }: { role: JobRole; roles: JobRole[]; people: Profile[]; position?: Position; you?: boolean }) {
+  const leads = roles.filter(x => x.reports_to === r.id)
+  const roleName = (id: string | null) => roles.find(x => x.id === id)?.name
+  return (
+    <>
+      {(r.reports_to || leads.length > 0 || position) && (
+        <Stack direction={{ xs: 'column', sm: 'row' }} sx={{ gap: { xs: 1, sm: 4 }, mb: 2, flexWrap: 'wrap' }}>
+          {r.reports_to && <Fact label={t('Answers to')}>{roleName(r.reports_to)}</Fact>}
+          {leads.length > 0 && <Fact label={t('Answering to it')}>{leads.map(x => x.name).join(', ')}</Fact>}
+          {position && <Fact label={t('On the rota as')}>{position.name}</Fact>}
+        </Stack>
+      )}
+      <Typography variant="subtitle2" component="h3" sx={{ mb: 0.75 }}>{t('Who’s in it')}</Typography>
+      {people.length
+        ? <Stack direction="row" sx={{ gap: 0.75, flexWrap: 'wrap', mb: 2 }} aria-label={t('Who’s in it')} role="list">
+            {people.map(p => (
+              <Chip key={p.id} role="listitem" variant="outlined" label={p.full_name} avatar={<PersonAvatar name={p.full_name} colour={p.colour} size={24} />} />
+            ))}
+          </Stack>
+        : <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>{t('Nobody yet')}</Typography>}
+      {dutiesByWhen(r.duties).map(g => (
+        <Box key={g.id} sx={{ mb: 1.5 }}>
+          <Typography variant="subtitle2" component="h3" sx={{ mb: 0.5 }}>{t(g.label)}</Typography>
+          <Stack component="ul" spacing={0.5} sx={{ m: 0, p: 0, listStyle: 'none' }} aria-label={t('{role}: {when}', { role: r.name, when: t(g.label) })}>
+            {g.duties.map(text => (
+              <Stack key={text} component="li" direction="row" spacing={1} sx={{ alignItems: 'flex-start' }}>
+                <DoneIcon sx={{ fontSize: 18, mt: '2px', color: tokens.matchaDeep }} aria-hidden />
+                <Typography variant="body2">{text}</Typography>
+              </Stack>
+            ))}
+          </Stack>
+        </Box>
+      ))}
+      {!r.duties.length && <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('No duties written yet.')}</Typography>}
+      <Typography variant="subtitle2" component="h3" sx={{ mt: 2, mb: 0.75 }}>{you ? t('What you can do in the app') : t('What they can do in the app')}</Typography>
+      <PermissionList permissions={r.permissions} you={you}
+        label={you ? t('{role}: what you can do', { role: r.name }) : t('{role}: what they can do', { role: r.name })} />
     </>
   )
 }
@@ -296,7 +340,7 @@ function RoleDialog({ role, roles, team, onClose }: { role: JobRoleInput; roles:
             {ROLE_AREAS.map(a => (
               <TextField key={a.id} select label={t(a.label)} value={permissions[a.id]} helperText={levelMeaning(a, permissions[a.id])}
                 onChange={e => setPermissions(x => ({ ...x, [a.id]: e.target.value as RoleLevel }))}>
-                {ROLE_LEVELS.filter(l => l.id !== 'none' || a.hides).map(l => <MenuItem key={l.id} value={l.id}>{levelLabel(l.id)}</MenuItem>)}
+                {ROLE_LEVELS.filter(l => a.levels.includes(l.id)).map(l => <MenuItem key={l.id} value={l.id}>{levelLabel(l.id)}</MenuItem>)}
               </TextField>
             ))}
           </Box>
@@ -336,7 +380,8 @@ function isUnder(roles: JobRole[], id: string, top: string): boolean {
 }
 
 const LEVEL_COLOURS: Record<RoleLevel, { fg: string; bg: string }> = {
-  none: { fg: tokens.warnFg, bg: tokens.warnBg }, read: { fg: tokens.neutralFg, bg: tokens.neutralBg }, update: { fg: tokens.goodFg, bg: tokens.goodBg },
+  none: { fg: tokens.warnFg, bg: tokens.warnBg }, own: { fg: tokens.infoFg, bg: tokens.infoBg }, read: { fg: tokens.neutralFg, bg: tokens.neutralBg },
+  update: { fg: tokens.goodFg, bg: tokens.goodBg },
 }
 // "Read" and "Update" mean other things elsewhere (a message read, update the app): their Spanish here is under "access|…".
 const levelLabel = (level: RoleLevel) => tc('access', ROLE_LEVELS.find(l => l.id === level)!.label)
@@ -346,11 +391,12 @@ function LevelTag({ level }: { level: RoleLevel }) {
 }
 
 /** What a level lets someone do in an area, in a few words. */
-const levelMeaning = (area: (typeof ROLE_AREAS)[number], level: RoleLevel) =>
-  level === 'none' ? t('Not in their menu') : t(level === 'update' ? area.update : area.read)
+const levelMeaning = (area: (typeof ROLE_AREAS)[number], level: RoleLevel, you?: boolean) =>
+  level === 'none' ? (you ? t('Not in your menu') : t('Not in their menu'))
+    : t((level === 'update' ? area.update : level === 'own' ? area.own : undefined) ?? area.read)
 
 /** Each area of the app, the level a role gives in it and what that means. */
-function PermissionList({ permissions, label }: { permissions: RolePermissions | undefined; label: string }) {
+function PermissionList({ permissions, label, you }: { permissions: RolePermissions | undefined; label: string; you?: boolean }) {
   return (
     <Stack component="ul" spacing={0.75} sx={{ m: 0, p: 0, listStyle: 'none' }} aria-label={label}>
       {ROLE_AREAS.map(a => {
@@ -359,7 +405,7 @@ function PermissionList({ permissions, label }: { permissions: RolePermissions |
           <Stack key={a.id} component="li" direction="row" sx={{ gap: 1, alignItems: 'baseline', flexWrap: 'wrap' }}>
             <Typography variant="body2" sx={{ fontWeight: 500, minWidth: 110 }}>{t(a.label)}</Typography>
             <Box sx={{ minWidth: 64 }}><LevelTag level={level} /></Box>
-            <Typography variant="body2" sx={{ color: 'text.secondary' }}>{levelMeaning(a, level)}</Typography>
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>{levelMeaning(a, level, you)}</Typography>
           </Stack>
         )
       })}
@@ -455,7 +501,7 @@ function PermissionsTab({ roles, team }: { roles: JobRole[]; team: Profile[] }) 
                           ? <TextField select variant="standard" size="small" value={level} onChange={e => void set(r, a.id, e.target.value as RoleLevel)}
                               slotProps={{ htmlInput: { 'aria-label': t('{role}: {area}', { role: r.name, area: t(a.label) }) } }}
                               sx={{ minWidth: 84, '& .MuiInputBase-input': { fontSize: '0.85rem', fontWeight: 500, color: LEVEL_COLOURS[level].fg } }}>
-                              {ROLE_LEVELS.filter(l => l.id !== 'none' || a.hides).map(l => <MenuItem key={l.id} value={l.id}>{levelLabel(l.id)}</MenuItem>)}
+                              {ROLE_LEVELS.filter(l => a.levels.includes(l.id)).map(l => <MenuItem key={l.id} value={l.id}>{levelLabel(l.id)}</MenuItem>)}
                             </TextField>
                           : <LevelTag level={level} />}
                       </TableCell>
@@ -469,7 +515,7 @@ function PermissionsTab({ roles, team }: { roles: JobRole[]; team: Profile[] }) 
               </TableRow>
               <TableRow>
                 <TableCell component="th" scope="row" sx={{ color: 'text.secondary', whiteSpace: 'nowrap' }}>{t('Admins')}</TableCell>
-                {ROLE_AREAS.map(a => <TableCell key={a.id}><LevelTag level="update" /></TableCell>)}
+                {ROLE_AREAS.map(a => <TableCell key={a.id}><LevelTag level={a.levels[a.levels.length - 1]} /></TableCell>)}
               </TableRow>
             </TableBody>
           </Table>

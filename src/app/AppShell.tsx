@@ -78,13 +78,13 @@ import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from '@dnd-kit/utilities'
 import ChevronIcon from '@mui/icons-material/ChevronLeftRounded'
 import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Link, Outlet, useLocation } from 'react-router-dom'
+import { Link, Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useApp } from './AppContext'
 import { FEATURES } from './features'
 import { useUnreadMessages } from './unread'
 import { useConnected } from './connected'
 import type { PartnerArea } from '../../shared/types'
-import { hiddenByRole } from '../../shared/roles'
+import { hiddenByRole, roleNamesOf } from '../../shared/roles'
 import { teamRoleLabel } from '../../shared/teamRoles'
 import { BrandLogo } from '../components/Logo'
 import { Loading, PersonAvatar, TitleSlot } from '../components/common'
@@ -582,7 +582,7 @@ export function hiddenPages(settings: { hidden_pages?: string[] } | null, me: { 
 }
 
 export function AppShell() {
-  const { isAdmin, isPartner, partnerCan, canSeePay, me, api, refresh, business, settings, permissions } = useApp()
+  const { isAdmin, isPartner, partnerCan, canSeePay, me, api, refresh, business, settings, permissions, jobRoles } = useApp()
   const theme = useTheme()
   const desktop = useMediaQuery(theme.breakpoints.up('md'))
   const { pathname } = useLocation()
@@ -619,6 +619,12 @@ export function AppShell() {
   // The most specific match wins, so /account/billing is Billing, not My account.
   const all = [...SECTIONS.flatMap(s => withChildren(s.items)), ...YOU].sort((a, b) => b.to.length - a.to.length)
   const current = all.find(n => n.to !== '/' && pathname.startsWith(n.to))?.key ?? (pathname === '/' ? 'today' : false)
+  // Under their name: their job (Barista / Bartender), after the access an admin has (Shop manager · Barista / Bartender).
+  const jobs = roleNamesOf(me?.id, jobRoles).join(', ')
+  const access = t((me && teamRoleLabel(me)) || 'Employee')
+  const personLabel = me?.role === 'admin' ? [access, jobs].filter(Boolean).join(' · ') : jobs || access
+  // A page their roles hide doesn't open either, from a link or the address bar: back to Today.
+  const blocked = typeof current === 'string' && hiddenByRole(permissions).includes(current)
   const home = isPartner ? '/business' : '/'
   const searchPages = [
     ...(isPartner ? [] : [{ key: 'today', to: '/', label: t('Today'), icon: <TodayIcon />, section: null }]),
@@ -671,7 +677,7 @@ export function AppShell() {
               {me && <PersonAvatar name={me.full_name} colour={me.colour} size={34} />}
               {!mini && <Box sx={{ minWidth: 0, flex: 1, textAlign: 'left' }}>
                 <Typography sx={{ fontWeight: 500, fontSize: '0.88rem', color: SIDEBAR.bright }} noWrap>{me?.full_name}</Typography>
-                <Typography variant="caption" sx={{ color: SIDEBAR.faint }}>{me?.role === 'partner' ? me.partner_company ?? t('Partner') : t((me && teamRoleLabel(me)) || 'Employee')}</Typography>
+                <Typography variant="caption" sx={{ color: SIDEBAR.faint }}>{me?.role === 'partner' ? me.partner_company ?? t('Partner') : personLabel}</Typography>
               </Box>}
             </AccountMenu>
             <Tooltip title={t('Sign out')}>
@@ -714,7 +720,7 @@ export function AppShell() {
             </Box>
           )}
           <TitleSlot.Provider value={desktop ? titleSlot : null}>
-            <CafeSpeakerProvider><Suspense fallback={<Loading />}><Outlet /></Suspense></CafeSpeakerProvider>
+            <CafeSpeakerProvider><Suspense fallback={<Loading />}>{blocked ? <Navigate to="/" replace /> : <Outlet />}</Suspense></CafeSpeakerProvider>
           </TitleSlot.Provider>
         </Box>
       </Box>

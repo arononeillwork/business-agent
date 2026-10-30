@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ROLE_AREA_IDS, hiddenByRole, levelIn, levels, permissionsOf, roleProblem, tidyPermissions } from './roles'
+import { ROLE_AREA_IDS, fullAccess, hiddenByRole, levelIn, levels, permissionsOf, roleNamesOf, roleProblem, tidyPermissions } from './roles'
 import { ROLE_CATEGORIES, ROLE_TEMPLATES, categoryOf } from './roleTemplates'
 
 describe('role permissions', () => {
@@ -10,13 +10,30 @@ describe('role permissions', () => {
     expect(tidyPermissions({ rota: 'none', stock: 'update' })).toEqual(levels('read', { stock: 'update' }))
   })
 
+  it('keeps each area to the levels it offers: Own is the To Do List’s, and the business, its hours and dashboards are shown or not', () => {
+    expect(levelIn({ todo: 'own' }, 'todo')).toBe('own')
+    expect(levelIn({ stock: 'own' }, 'stock')).toBe('read')
+    expect(levelIn({ business: 'update', hours: 'update', dashboards: 'none' }, 'hours')).toBe('read')
+    expect(fullAccess()).toMatchObject({ business: 'read', hours: 'read', dashboards: 'read', todo: 'update', rota: 'update' })
+    // Own is more than Hidden and less than Read.
+    const roles = [{ people: ['a'], permissions: { todo: 'own' as const } }, { people: ['a'], permissions: { todo: 'none' as const } }]
+    expect(permissionsOf({ id: 'a', role: 'employee' }, roles).todo).toBe('own')
+    expect(permissionsOf({ id: 'a', role: 'employee' }, [...roles, { people: ['a'], permissions: {} }]).todo).toBe('read')
+  })
+
+  it('names someone by their roles, in the roles’ order', () => {
+    const roles = [{ name: 'Barista', sort: 2, people: ['m'] }, { name: 'Cleaner', sort: 1, people: ['m', 'c'] }]
+    expect(roleNamesOf('m', roles)).toEqual(['Cleaner', 'Barista'])
+    expect(roleNamesOf('x', roles)).toEqual([])
+  })
+
   it('gives admins everything, someone in no role Read, and the most of several roles', () => {
     const roles = [
       { people: ['lead'], permissions: levels('read', { rota: 'update', stock: 'none' }) },
       { people: ['lead', 'cleaner'], permissions: levels('read', { stock: 'read', calendar: 'none' }) },
       { people: ['cleaner'], permissions: levels('read', { stock: 'none', calendar: 'none', waste: 'none' }) },
     ]
-    expect(permissionsOf({ id: 'boss', role: 'admin' }, [])).toEqual(levels('update'))
+    expect(permissionsOf({ id: 'boss', role: 'admin' }, [])).toEqual(fullAccess())
     expect(permissionsOf({ id: 'new', role: 'employee' }, roles)).toEqual(levels('read'))
     expect(permissionsOf({ id: 'lead', role: 'employee' }, roles)).toEqual(levels('read', { rota: 'update', calendar: 'read' }))
     // The waste log is hidden by one of the cleaner's roles but read in the other: Read.
@@ -42,11 +59,12 @@ describe('role templates', () => {
     }
   })
 
-  it('a barista reads the rota, their holidays and hours; a shift lead runs the rota and the hours', () => {
+  it('a barista reads the rota, holidays and hours, their own tasks and no more; owners see everything', () => {
     const tpl = (id: string) => tidyPermissions(ROLE_TEMPLATES.find(p => p.id === id)!.permissions)
-    expect(tpl('cafe.barista')).toEqual(levels('read'))
+    expect(tpl('cafe.barista')).toEqual(levels('read', { business: 'none', dashboards: 'none', stock: 'none', todo: 'own' }))
+    expect(hiddenByRole(tpl('cafe.barista'))).toEqual(['business', 'dashboards', 'stock'])
     expect(tpl('cafe.shift-lead')).toMatchObject({ rota: 'update', timecards: 'update', timeoff: 'read' })
-    expect(tpl('cafe.owner')).toEqual(levels('update'))
+    for (const owner of ROLE_TEMPLATES.filter(p => p.id?.endsWith('.owner'))) expect(tpl(owner.id!), owner.id).toEqual(fullAccess())
     expect(tpl('cafe.cleaner')).toMatchObject({ rota: 'read', stock: 'none' })
   })
 

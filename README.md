@@ -100,6 +100,12 @@ built-in **AI connector** so owners can run it by talking to Claude.
   (rota, time off, timecards, calendar, stock, food safety, waste log, to-do list) and what that gives each
   person. A role gives Hidden (out of their menu), Read (what the team always had) or Update (what an admin
   does there, never deciding their own time off or timecards); the database checks Update (`can_update()`).
+- What the team sees of their role: a page their roles hide is out of their menu and doesn't open; the
+  Business page, Opening hours and Dashboards are roles' areas too; a To Do List set to Own shows only the
+  jobs given to them (the database keeps the rest from them, `todo_own_only()`). Under their name, and on
+  My account as fixed values, is their role (Barista / Bartender) and their access; their Roles page shows
+  just their own role. The café's front-line templates (barista, kitchen, cleaner…) leave out the Business
+  page and Dashboards and give Own tasks; the barista's also hides the stock; owners have everything.
 - Staff rules (Team section): the house rules, in sections that open (being on time and clocking in, uniform
   and hygiene, food safety and allergens, phones, breaks, customers, the till, health and safety, respect).
   Each employee confirms they've read them and is asked again when a section is added or changed (what's new

@@ -1378,6 +1378,8 @@ export function createDemoApi(): Api {
   /** As the database's can_update(): an admin, or someone on the team in a role with Update in that area. */
   const canUpdate = (area: RoleArea) => permissionsOf(me() ?? null, jobRoles)[area] === 'update'
   const requireUpdate = (area: RoleArea) => { if (!canUpdate(area)) throw new Error('Only an admin can do that') }
+  /** As the database's todo_own_only(): roles that give the To Do List no more than Own see only the jobs given to them. */
+  const ownTasksOnly = () => !isAdmin() && ['none', 'own'].includes(permissionsOf(me() ?? null, jobRoles).todo)
 
   // Grants: some answers given, and Talento Joven being prepared (its deadline is on the calendar).
   let grantAnswers: Partial<GrantProfile> = { debts: 'no', startY: 2026, startM: 4, hiring: 'yes', candidate: 'unsure' }
@@ -3654,11 +3656,12 @@ export function createDemoApi(): Api {
     },
     async todos() {
       if (!staffOnly(me()!)) return { categories: [], todos: [] }
-      return { categories: clone(todoCategories).sort((a, b) => a.sort - b.sort), todos: clone(todos) }
+      return { categories: clone(todoCategories).sort((a, b) => a.sort - b.sort), todos: clone(todos.filter(t => !ownTasksOnly() || t.assignee_id === currentUser)) }
     },
     async addTodo(t) {
       if (!staffOnly(me()!)) throw new Error('Only the team can add jobs')
       if (!t.title.trim()) throw new Error('Write the job first')
+      if (ownTasksOnly() && t.assignee_id !== currentUser) throw new Error('new row violates row-level security policy for table "todos"')
       const status = t.status ?? 'todo'
       const todo: Todo = { id: uid(), title: t.title.trim(), category_id: t.category_id, section: null, assignee_id: t.assignee_id ?? null,
         done: status === 'done', status, done_at: status === 'done' ? nowIso() : null, starred: false, pinned: false, position: t.position, created_at: nowIso() }
@@ -3667,9 +3670,10 @@ export function createDemoApi(): Api {
     },
     async updateTodo(id, patch) {
       if (!staffOnly(me()!)) throw new Error('Only the team can change jobs')
-      const t = todos.find(x => x.id === id)
+      const t = todos.find(x => x.id === id && (!ownTasksOnly() || x.assignee_id === currentUser))
       if (!t) throw new Error('That job has gone')
       if (patch.title !== undefined && !patch.title.trim()) throw new Error('A job needs a name')
+      if (ownTasksOnly() && patch.assignee_id !== undefined && patch.assignee_id !== currentUser) throw new Error('new row violates row-level security policy for table "todos"')
       // Like the database: the column and the tick stay in step.
       patch = inStep(t, patch)
       Object.assign(t, patch, patch.title !== undefined ? { title: patch.title.trim() } : {},
@@ -3678,7 +3682,7 @@ export function createDemoApi(): Api {
     },
     async deleteTodo(id) {
       if (!staffOnly(me()!)) throw new Error('Only the team can delete jobs')
-      const i = todos.findIndex(x => x.id === id)
+      const i = todos.findIndex(x => x.id === id && (!ownTasksOnly() || x.assignee_id === currentUser))
       if (i >= 0) todos.splice(i, 1)
     },
     async saveTodoCategory(c) {

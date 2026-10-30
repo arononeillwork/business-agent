@@ -3,7 +3,7 @@
 // the app. Adding one makes it an active role, to change to how the business works; the café's are
 // also what an empty Roles page offers to start with (ROLE_PRESETS).
 import { msg } from './i18n'
-import { ROLE_PRESETS, levels, type Duty, type DutyWhen, type RolePreset } from './roles'
+import { ROLE_PRESETS, frontLine, levels, type Duty, type DutyWhen, type RolePreset } from './roles'
 
 export type RoleCategory = 'cafe' | 'restaurant' | 'salon' | 'other'
 
@@ -38,7 +38,7 @@ const RESTAURANT: RolePreset[] = [
         msg('Trains the cooks and checks every plate that goes out')),
       ...d('weekly', msg('Plans the kitchen’s shifts on the rota'), msg('Orders the food and checks the deliveries'), msg('Reviews the waste log')),
     ] },
-  { id: 'restaurant.cook', name: msg('Cook'), reportsTo: msg('Head chef'), permissions: levels('read'),
+  { id: 'restaurant.cook', name: msg('Cook'), reportsTo: msg('Head chef'), permissions: frontLine(),
     positions: ['cook', 'kitchen', 'cocina', 'cocinero', 'cocinera'],
     summary: msg('Cooks the food on their section: safe, on time and as it is on the menu.'),
     duties: [
@@ -47,7 +47,7 @@ const RESTAURANT: RolePreset[] = [
       ...d('closing', msg('Labels, dates and puts away what’s left, and logs what’s thrown out in the Waste log'), msg('Cleans down their section')),
     ] },
   { id: 'restaurant.kitchen-porter', name: msg('Kitchen porter'), reportsTo: msg('Head chef'),
-    permissions: levels('read', { calendar: 'none', stock: 'none' }),
+    permissions: frontLine({ calendar: 'none', stock: 'none' }),
     positions: ['kitchen porter', 'porter', 'friegaplatos', 'pinche'],
     summary: msg('Keeps the kitchen running: the washing up, the deliveries and a clean, safe kitchen.'),
     duties: [
@@ -56,7 +56,7 @@ const RESTAURANT: RolePreset[] = [
       ...d('closing', msg('Cleans the kitchen, the equipment and the floor')),
     ] },
   { id: 'restaurant.waiter', name: msg('Waiter'), reportsTo: msg('Restaurant manager'),
-    permissions: levels('read', { stock: 'none', foodsafety: 'none', waste: 'none' }),
+    permissions: frontLine({ stock: 'none', foodsafety: 'none', waste: 'none' }),
     positions: ['waiter', 'waitress', 'server', 'camarero', 'camarera', 'sala'],
     summary: msg('Looks after the guests at their tables, from the welcome to the bill.'),
     duties: [
@@ -66,7 +66,7 @@ const RESTAURANT: RolePreset[] = [
       ...d('closing', msg('Clears and resets the tables'), msg('Hands over the tips and the payments')),
     ] },
   { id: 'restaurant.bartender', name: msg('Bartender'), reportsTo: msg('Restaurant manager'),
-    permissions: levels('read', { foodsafety: 'none' }),
+    permissions: frontLine({ foodsafety: 'none' }),
     positions: ['bartender', 'bar', 'barman', 'barra'],
     summary: msg('Runs the bar: the drinks, the bar’s stock and the guests sitting at it.'),
     duties: [
@@ -97,7 +97,7 @@ const SALON: RolePreset[] = [
         msg('Keeps the product shelves stocked and tells the manager what’s running low')),
     ] },
   { id: 'salon.stylist', name: msg('Stylist'), reportsTo: msg('Salon manager'),
-    permissions: levels('read', { foodsafety: 'none', waste: 'none' }),
+    permissions: frontLine({ foodsafety: 'none', waste: 'none' }),
     positions: ['stylist', 'hairdresser', 'estilista', 'peluquero', 'peluquera'],
     summary: msg('Cuts, colours and styles: the client’s time in the chair is theirs.'),
     duties: [
@@ -106,7 +106,7 @@ const SALON: RolePreset[] = [
       ...d('closing', msg('Cleans their station, the tools and the basins')),
     ] },
   { id: 'salon.beauty-therapist', name: msg('Beauty therapist'), reportsTo: msg('Salon manager'),
-    permissions: levels('read', { foodsafety: 'none', waste: 'none' }),
+    permissions: frontLine({ foodsafety: 'none', waste: 'none' }),
     positions: ['beauty therapist', 'therapist', 'esteticista'],
     summary: msg('Gives the treatments: nails, skin, lashes and brows, safely and to a high standard.'),
     duties: [
@@ -114,7 +114,7 @@ const SALON: RolePreset[] = [
         msg('Sterilises the tools and changes the towels after every client')),
     ] },
   { id: 'salon.receptionist', name: msg('Receptionist'), reportsTo: msg('Salon manager'),
-    permissions: levels('read', { calendar: 'update', todo: 'update', foodsafety: 'none', waste: 'none' }),
+    permissions: levels('read', { calendar: 'update', todo: 'update', dashboards: 'none', foodsafety: 'none', waste: 'none' }),
     positions: ['receptionist', 'reception', 'recepción', 'recepcionista'],
     summary: msg('The first and last face clients see: bookings, payments and a warm welcome.'),
     duties: [
@@ -123,7 +123,7 @@ const SALON: RolePreset[] = [
       ...d('closing', msg('Confirms tomorrow’s appointments')),
     ] },
   { id: 'salon.apprentice', name: msg('Apprentice'), reportsTo: msg('Senior stylist'),
-    permissions: levels('read', { foodsafety: 'none', waste: 'none' }),
+    permissions: frontLine({ foodsafety: 'none', waste: 'none' }),
     positions: ['apprentice', 'junior', 'aprendiz', 'ayudante'],
     summary: msg('Learning the trade: helps the stylists and keeps the salon tidy.'),
     duties: [
@@ -152,14 +152,14 @@ const OTHER: RolePreset[] = [
       ...d('closing', msg('Checks the closing jobs are done before anyone leaves'), msg('Locks up and sets the alarm')),
       ...d('core', msg('Fixes clock-ins that went wrong'), msg('Tells the manager about anything that broke, ran out or went wrong')),
     ] },
-  { id: 'other.team-member', name: msg('Team member'), reportsTo: msg('Supervisor'), permissions: levels('read'),
+  { id: 'other.team-member', name: msg('Team member'), reportsTo: msg('Supervisor'), permissions: frontLine(),
     positions: ['team', 'team member', 'staff', 'equipo'],
     summary: msg('Does the work of the shift and looks after the customers.'),
     duties: [
       ...d('core', msg('Comes in on time for their shifts and clocks in'), msg('Looks after the customers'),
         msg('Does the jobs the supervisor gives them')),
     ] },
-  { id: 'other.cleaner', name: msg('Cleaner'), reportsTo: msg('Manager'), permissions: levels('read', { calendar: 'none', stock: 'none', waste: 'none' }),
+  { id: 'other.cleaner', name: msg('Cleaner'), reportsTo: msg('Manager'), permissions: frontLine({ calendar: 'none', stock: 'none', waste: 'none' }),
     positions: ['cleaner', 'cleaning', 'limpieza', 'limpiador', 'limpiadora'],
     summary: msg('Keeps the place clean and safe for the customers and the team.'),
     duties: [
