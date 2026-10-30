@@ -238,7 +238,8 @@ export const ROLE_PRESETS: RolePreset[] = [
     ],
   },
   {
-    id: 'cafe.barista', permissions: frontLine({ stock: 'none' }),
+    // The Business page's contact details but not the company's; not the brand, the menu, the stock or expenses.
+    id: 'cafe.barista', permissions: frontLine({ business: 'read', company: 'none', brand: 'none', menu: 'none', stock: 'none', expenses: 'none' }),
     name: msg('Barista'), reportsTo: msg('Shift lead'), positions: ['barista'],
     summary: msg('Makes the coffee and looks after the customers: the face of the café.'),
     duties: [

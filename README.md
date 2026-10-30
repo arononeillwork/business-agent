@@ -115,8 +115,8 @@ built-in **AI connector** so owners can run it by talking to Claude.
   page and Dashboards and give Own tasks; the barista's also hides the stock; owners have everything.
 - The Brand, Menu and Expenses pages are roles' areas too (Hidden or Read), and so are the Business page's
   Company details (CIF/NIF, currency, where team alerts go): hidden, the page shows just the contact details.
-  Easy Beans' Barista / Bartender role has the Business page's contact details but not the Company details,
-  the Brand, Dashboards, Menu or Expenses.
+  The café's barista template, and Easy Beans' Barista / Bartender role, have the Business page's contact
+  details but not the Company details, the Brand, Dashboards, Menu, Stock or Expenses.
 - Staff rules (Team section): the house rules, in sections that open (being on time and clocking in, uniform
   and hygiene, food safety and allergens, phones, breaks, customers, the till, health and safety, respect).
   Each employee confirms they've read them and is asked again when a section is added or changed (what's new

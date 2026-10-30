@@ -1123,7 +1123,7 @@ export function createDemoApi(): Api {
     { id: P.mark, full_name: 'Mark Murray', email: 'mark@example.com', role: 'admin', can_see_pay: true, colour: '#5B4A86', active: true, phone: null, birth_date: null, pin: '2222' },
     { id: P.julio, full_name: 'Julio', email: 'julio@example.com', role: 'employee', can_see_pay: false, colour: '#4A6536', active: true, whatsapp_opt_in: true, contact_method: 'whatsapp', phone: '+34 600 111 222', birth_date: null, pin: '1234' },
     { id: P.maria, full_name: 'Maria', email: 'maria@example.com', role: 'employee', can_see_pay: false, colour: '#B3404F', active: true, whatsapp_opt_in: true, phone: '+34 600 333 444', birth_date: null, pin: '4321' },
-    { id: P.cleaner, full_name: 'Cleaner', email: null, role: 'employee', can_see_pay: false, colour: '#6B645E', active: true, phone: null, birth_date: null },
+    { id: P.cleaner, full_name: 'Cleaner', email: 'cleaner@example.com', role: 'employee', can_see_pay: false, colour: '#6B645E', active: true, phone: null, birth_date: null },
     // An outside business: the gestoría that does payroll and the accounts (read-only).
     { id: 'p-laura', full_name: 'Laura Ruiz', email: 'laura@gestoria.example', role: 'partner', can_see_pay: false, colour: '#6B645E',
       active: true, phone: null, birth_date: null, partner_company: 'Gestoría Marbella', partner_access: ['payroll', 'finances'] },
