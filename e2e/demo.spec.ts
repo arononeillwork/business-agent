@@ -1372,7 +1372,8 @@ test.describe('menu', () => {
     await open(page, '/')
     const nav = page.getByRole('navigation', { name: 'Main' })
     await nav.getByRole('button', { name: 'Collapse menu to icons' }).click()
-    expect((await nav.boundingBox())!.width).toBeLessThan(100)
+    // The menu slides shut: its width once it has.
+    await expect.poll(async () => (await nav.boundingBox())!.width).toBeLessThan(100)
     await expect(nav.getByText('Opening hours')).toHaveCount(0)
     // Still every page, by icon (with its name for screen readers and on hover).
     await nav.getByRole('link', { name: 'Rota' }).click()
@@ -1380,7 +1381,7 @@ test.describe('menu', () => {
     await page.reload()
     await expect(nav.getByRole('button', { name: 'Expand menu' })).toBeVisible()
     await nav.getByRole('button', { name: 'Expand menu' }).click()
-    expect((await nav.boundingBox())!.width).toBeGreaterThan(200)
+    await expect.poll(async () => (await nav.boundingBox())!.width).toBeGreaterThan(200)
     await expect(nav.getByText('Opening hours')).toBeVisible()
   })
 })
@@ -1598,11 +1599,14 @@ test.describe('top bar', () => {
     await open(page, '/')
     await page.getByRole('button', { name: 'Search' }).click()
     const box = page.getByRole('combobox', { name: 'Search pages and people' })
+    // The box takes the focus as the dialog opens: typing goes there once it has.
+    await expect(box).toBeFocused()
     await page.keyboard.type('open')
     await expect(box).toHaveValue('open')
     await page.keyboard.press('Enter')
     await expect(page.getByRole('heading', { name: 'Opening hours', level: 1 })).toBeVisible()
     await page.keyboard.press('Control+k')
+    await expect(box).toBeFocused()
     await page.keyboard.type('julio')
     await page.getByRole('option', { name: /Julio/ }).click()
     await expect(page.getByRole('dialog', { name: 'Julio' })).toBeVisible()
