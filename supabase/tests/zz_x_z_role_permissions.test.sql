@@ -38,9 +38,9 @@ do $$ begin
     'the rota can''t be hidden; stock can';
   assert (select permissions = '{}'::jsonb from public.job_roles where name = 'Barista'), 'roles from before have no permissions (Read)';
 end $$;
-select pg_temp.expect_error($q$update public.job_roles set permissions = '{"payroll": "update"}' where name = 'RP barista'$q$, 'Each area is none, read or update');
-select pg_temp.expect_error($q$update public.job_roles set permissions = '{"rota": "admin"}' where name = 'RP barista'$q$, 'Each area is none, read or update');
-select pg_temp.expect_error($q$update public.job_roles set permissions = '{"rota": true}' where name = 'RP barista'$q$, 'Each area is none, read or update');
+select pg_temp.expect_error($q$update public.job_roles set permissions = '{"payroll": "update"}' where name = 'RP barista'$q$, 'Each area is none');
+select pg_temp.expect_error($q$update public.job_roles set permissions = '{"rota": "admin"}' where name = 'RP barista'$q$, 'Each area is none');
+select pg_temp.expect_error($q$update public.job_roles set permissions = '{"rota": true}' where name = 'RP barista'$q$, 'Each area is none');
 select pg_temp.expect_error($q$update public.job_roles set permissions = '["rota"]' where name = 'RP barista'$q$, 'Permissions must be a list of areas');
 
 -- The barista asks for time off; the admin adds a draft shift and an admins-only event.

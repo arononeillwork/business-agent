@@ -11,12 +11,14 @@ import { LanguagePicker } from '../components/Language'
 import { PhoneField } from '../components/PhoneField'
 import { MyPets } from '../components/Pets'
 import { TimeZoneField } from '../components/TimeZoneField'
-import { t, tn } from '../i18n'
+import { t, tc, tn } from '../i18n'
+import { roleNamesOf } from '../../shared/roles'
+import { teamRoleLabel } from '../../shared/teamRoles'
 import type { ContactMethod } from '../../shared/types'
 import { DEFAULT_WHATSAPP_RETENTION, RETENTION_LABEL, WHATSAPP_RETENTION_DAYS, isRetention, type WhatsAppRetention } from '../../shared/messages'
 
 export function AccountPage() {
-  const { api, me, refresh, isPartner, isAdmin, business } = useApp()
+  const { api, me, refresh, isPartner, isAdmin, business, jobRoles } = useApp()
   const run = useAction()
   const [name, setName] = useState(me?.full_name ?? '')
   const [phone, setPhone] = useState(me?.phone ?? '')
@@ -38,6 +40,11 @@ export function AccountPage() {
               <TextField label={t('Email')} value={me.email ?? ''} helperText={t('Used to sign in. Ask an admin if it needs to change.')}
                 slotProps={{ input: { readOnly: true } }} />
               {!isPartner && <>
+                {/* Fixed: an admin gives them (Roles & responsibilities, and the Team page). */}
+                <TextField label={tc('job', 'Role')} value={roleNamesOf(me.id, jobRoles).join(', ') || t('No role yet')}
+                  helperText={t('Given by an admin on Roles & responsibilities.')} slotProps={{ input: { readOnly: true } }} />
+                <TextField label={t('Access')} value={t(teamRoleLabel(me) ?? 'Employee')}
+                  helperText={t('What you can see and change. An admin sets it on the Team page.')} slotProps={{ input: { readOnly: true } }} />
                 <PhoneField label={t('Mobile')} value={phone} onChange={setPhone} helperText={t('For WhatsApp and text alerts')} />
                 <ContactMethodField value={method} onChange={setMethod} />
               </>}

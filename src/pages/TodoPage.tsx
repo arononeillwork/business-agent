@@ -58,9 +58,11 @@ function readView(): TodoFilters {
 
 /** The team's to-do list, grouped by categories the admins add and remove; or the same jobs as a kanban board. */
 export function TodoPage() {
-  const { api, isAdmin, can, profiles, me } = useApp()
+  const { api, isAdmin, can, permissions, profiles, me } = useApp()
   // Admins, and anyone whose role has Update on the To Do List, set up its categories.
   const managesLists = can('todo', 'update')
+  // A role with Own: only the jobs given to them (the database shows no others), and what they add is theirs.
+  const ownOnly = permissions.todo === 'own'
   const notify = useNotify()
   const run = useAction()
   const data = useAsync('todos', () => api.todos(), [])
@@ -81,7 +83,7 @@ export function TodoPage() {
   const filters = view.categoryId && view.categoryId !== NO_CATEGORY && !categories.some(c => c.id === view.categoryId)
     ? { ...view, categoryId: null } : view
   const groups = useMemo(() => buildBoard(items, categories, filters), [items, categories, filters])
-  const team = profiles.filter(p => p.active && (p.role === 'admin' || p.role === 'employee'))
+  const team = profiles.filter(p => p.active && (p.role === 'admin' || p.role === 'employee') && (!ownOnly || p.id === me?.id))
   const open = items.filter(t => !t.done)
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: 0 }
@@ -112,7 +114,8 @@ export function TodoPage() {
   }
   const add = async (title: string, categoryId: string | null, more: { assignee_id?: string | null; position?: number } = {}) => {
     try {
-      const created = await api.addTodo({ title, category_id: categoryId, position: more.position ?? topPosition(items), assignee_id: more.assignee_id ?? null })
+      const created = await api.addTodo({ title, category_id: categoryId, position: more.position ?? topPosition(items),
+        assignee_id: more.assignee_id ?? (ownOnly ? me?.id ?? null : null) })
       setItems(list => [...list, created])
       return true
     } catch (e) {
@@ -135,7 +138,7 @@ export function TodoPage() {
     setUndo(null)
     if (!job) return
     try {
-      const back = await api.addTodo({ title: job.title, category_id: job.category_id, position: job.position })
+      const back = await api.addTodo({ title: job.title, category_id: job.category_id, position: job.position, assignee_id: job.assignee_id })
       const rest = { section: job.section, assignee_id: job.assignee_id, done: job.done, status: job.status, starred: job.starred, pinned: job.pinned }
       await api.updateTodo(back.id, rest)
       setItems(list => [...list, { ...back, ...rest }])
