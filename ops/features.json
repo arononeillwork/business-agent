@@ -91,6 +91,18 @@
       ]
     },
     {
+      "id": "cameras",
+      "name": "Cameras",
+      "area": "Business",
+      "page": "/cameras",
+      "does": "CCTV pictures and clips, kept in your own Drive",
+      "needs": [
+        { "label": "Drive or OneDrive", "anyOf": ["google_drive", "onedrive"] },
+        { "label": "Fly.io token (camera uploads)", "secret": "FLY_API_TOKEN" },
+        { "label": "Actions → Deploy camera uploads", "manual": true }
+      ]
+    },
+    {
       "id": "dashboards",
       "name": "Dashboards",
       "area": "Insights",

@@ -53,6 +53,8 @@ const IDLE_MS = 5 * 60_000
 const DATA_WAIT_MS = 30_000
 const PROXY_WAIT_MS = 5000
 const MAX_LINE = 2048
+/** Connections at once, every camera of every business together. */
+const MAX_SESSIONS = 2000
 /** Commands answered before logging in. */
 const OPEN = new Set(['USER', 'PASS', 'AUTH', 'PBSZ', 'PROT', 'FEAT', 'SYST', 'QUIT', 'NOOP', 'OPTS', 'HELP'])
 
@@ -183,6 +185,7 @@ export class FtpServer {
     socket.on('error', () => {})
     const from = await this.origin(socket)
     if (from === undefined) { socket.destroy(); return }
+    if (this.sessions.size >= MAX_SESSIONS) { socket.end('421 Too busy just now; try again in a minute\r\n'); return }
     const session = new Session(this, socket, from)
     this.sessions.add(session)
     socket.once('close', () => { this.sessions.delete(session); session.closed() })

@@ -141,6 +141,39 @@ describe.skipIf(!hasCurl)('the camera upload server, with curl as the camera', (
     expect((await upload(join(dir, 'x.jpg'), { password: 'wrong' })).code).not.toBe(0)
   })
 
+  it('stops asking the app about an address that keeps getting the password wrong', async () => {
+    const p = start({ appUrl: `http://127.0.0.1:${(app.address() as AddressInfo).port}`, key: KEY, ftpPort: 0, httpPort: 0, passivePorts: [], log: () => {} })
+    await p.ready
+    let asked = 0
+    const counting = (req: IncomingMessage) => { if (req.url === '/api/camera-uploads/login') asked++ }
+    app.prependListener('request', counting)
+    const port = (p.ftp.control.address() as AddressInfo).port
+    /** Log in as the camera with this password, by hand: what the server answered to PASS. */
+    const tryLogin = (password: string) => new Promise<string>(resolve => {
+      const sock = connect(port, '127.0.0.1')
+      let got = ''
+      // The server answers one command at a time, in order: both can go once it has said hello.
+      sock.once('data', () => sock.write(`USER ${USER}\r\nPASS ${password}\r\n`))
+      sock.on('data', d => {
+        got += d
+        const answer = got.match(/^(230|530|421) .*$/m)
+        if (answer) { sock.destroy(); resolve(answer[0]) }
+      })
+      sock.on('close', () => resolve(got))
+    })
+    try {
+      expect(await tryLogin(PASSWORD)).toMatch(/^230 /)
+      for (let i = 0; i < 20; i++) expect(await tryLogin(`wrong${i}`)).toMatch(/^530 /)
+      const before = asked
+      // Even the right password, from the same address, waits its turn now, without asking the app.
+      expect(await tryLogin(PASSWORD)).toMatch(/^530 /)
+      expect(asked).toBe(before)
+    } finally {
+      app.off('request', counting)
+      await p.close()
+    }
+  }, 60_000)
+
   it('keeps the latest picture for the Cameras page, for the key only', async () => {
     writeFileSync(join(dir, 'Counter_00_20261030101500.jpg'), Buffer.from('first picture'))
     expect(await upload(join(dir, 'Counter_00_20261030101500.jpg'))).toMatchObject({ code: 0 })

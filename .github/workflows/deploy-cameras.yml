@@ -71,13 +71,14 @@ jobs:
         id: app
         if: steps.gate.outputs.ready == 'true'
         run: |
-          if ! flyctl status -a "$FLY_APP" > /dev/null 2>&1; then
+          if ! flyctl apps list --json | jq -e --arg a "$FLY_APP" '.[] | select((.Name // .name) == $a)' > /dev/null; then
             flyctl apps create "$FLY_APP" --org "$FLY_ORG"
           fi
-          if ! flyctl ips list -a "$FLY_APP" --json | jq -e '.[] | select(.Type == "v4")' > /dev/null; then
+          v4='[.[] | select((.Type // .type) == "v4")]'
+          if [ "$(flyctl ips list -a "$FLY_APP" --json | jq "$v4 | length")" = 0 ]; then
             flyctl ips allocate-v4 -a "$FLY_APP" --yes
           fi
-          ip=$(flyctl ips list -a "$FLY_APP" --json | jq -r '[.[] | select(.Type == "v4")][0].Address')
+          ip=$(flyctl ips list -a "$FLY_APP" --json | jq -r "$v4[0] | (.Address // .address)")
           if [ -z "$ip" ] || [ "$ip" = null ]; then echo "::error::No IPv4 address for $FLY_APP"; exit 1; fi
           echo "ip=$ip" >> "$GITHUB_OUTPUT"
           echo "### Camera uploads at $FLY_APP.fly.dev ($ip)" >> "$GITHUB_STEP_SUMMARY"
@@ -90,9 +91,10 @@ jobs:
           printf '%s' "$key" | npx wrangler secret put CAMERA_UPLOADS_KEY --name business-agent
           printf '%s' "https://$FLY_APP.fly.dev" | npx wrangler secret put CAMERA_UPLOADS_URL --name business-agent
           printf '%s' "$FLY_APP.fly.dev" | npx wrangler secret put CAMERA_FTP_HOST --name business-agent
-      - name: Deploy (Fly builds the image)
+      - name: Deploy (Fly builds the image from cameras/)
         if: steps.gate.outputs.ready == 'true'
-        run: flyctl deploy -c cameras/fly.toml -a "$FLY_APP" --remote-only --ha=false
+        working-directory: cameras
+        run: flyctl deploy -a "$FLY_APP" --remote-only --ha=false
       - name: Check it answers
         if: steps.gate.outputs.ready == 'true'
         run: |

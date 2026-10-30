@@ -59,6 +59,9 @@ const TELL_MS = 5 * 60_000
 const KEEP_SEEN_MS = 60 * 60_000
 const QUEUE_MAX_BYTES = 2 * 1024 * 1024 * 1024
 const AT_ONCE = 2
+/** Wrong logins from one address before it's turned away for a while (cameras get it right; guessers don't). */
+const MAX_FAILS = 20
+const FAIL_WINDOW_MS = 10 * 60_000
 
 /** Ports from "30000-30015" (or "30000,30001"). */
 export function portList(spec: string): number[] {
@@ -91,7 +94,27 @@ export function start(c: Config) {
   const worker = (path: string, init: RequestInit & { duplex?: 'half' } = {}) =>
     fetch(`${c.appUrl}${path}`, { ...init, headers: { authorization: `Bearer ${c.key}`, ...init.headers } })
 
-  async function login(user: string, password: string): Promise<Login | null> {
+  const fails = new Map<string, { n: number; since: number }>()
+  const turnedAway = (from: string | null) => {
+    const f = from ? fails.get(from) : undefined
+    return !!f && f.n >= MAX_FAILS && Date.now() - f.since < FAIL_WINDOW_MS
+  }
+  const failed = (from: string | null) => {
+    if (!from) return
+    const f = fails.get(from)
+    if (!f || Date.now() - f.since >= FAIL_WINDOW_MS) fails.set(from, { n: 1, since: Date.now() })
+    else f.n++
+    if (fails.size > 10_000) fails.delete(fails.keys().next().value!)
+  }
+
+  async function login(user: string, password: string, from: string | null): Promise<Login | null> {
+    if (turnedAway(from)) return null
+    const who = await check(user, password)
+    if (!who) failed(from)
+    return who
+  }
+
+  async function check(user: string, password: string): Promise<Login | null> {
     if (!/^cam[0-9a-f]{8}$/.test(user) || password.length > 100) return null
     const hash = createHash('sha256').update(password).digest('hex')
     const kept = logins.get(user)
@@ -220,7 +243,7 @@ export function start(c: Config) {
   }
 
   const ftp = new FtpServer({
-    login: (user, password) => login(user, password),
+    login,
     publicIp: () => ip,
     passivePorts: c.passivePorts,
     tls: c.tls,
