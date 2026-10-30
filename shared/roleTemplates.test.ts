@@ -65,9 +65,9 @@ describe('role templates', () => {
 
   it('a barista reads the rota, holidays and hours, the business’s contact details, their own tasks and no more; owners see everything', () => {
     const tpl = (id: string) => tidyPermissions(ROLE_TEMPLATES.find(p => p.id === id)!.permissions)
-    expect(tpl('cafe.barista')).toEqual(levels('read', { company: 'none', brand: 'none', dashboards: 'none', menu: 'none', stock: 'none', expenses: 'none', todo: 'own' }))
+    expect(tpl('cafe.barista')).toEqual(levels('read', { company: 'none', brand: 'none', dashboards: 'none', menu: 'none', stock: 'none', expenses: 'none', ai: 'none', todo: 'own' }))
     // The Company details are part of the Business page, which stays in the menu.
-    expect(hiddenByRole(tpl('cafe.barista'))).toEqual(['brand', 'dashboards', 'menu', 'stock', 'expenses'])
+    expect(hiddenByRole(tpl('cafe.barista'))).toEqual(['brand', 'dashboards', 'menu', 'stock', 'expenses', 'ai-assistants'])
     expect(tpl('cafe.shift-lead')).toMatchObject({ rota: 'update', timecards: 'update', timeoff: 'read' })
     for (const owner of ROLE_TEMPLATES.filter(p => p.id?.endsWith('.owner'))) expect(tpl(owner.id!), owner.id).toEqual(fullAccess())
     expect(tpl('cafe.cleaner')).toMatchObject({ rota: 'read', stock: 'none' })

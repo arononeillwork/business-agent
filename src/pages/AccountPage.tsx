@@ -7,7 +7,7 @@ import { useAction, useNotify } from '../app/Notify'
 import { PageHeader, SectionTitle } from '../components/common'
 import { PinDialog } from './TeamPage'
 import { ContactMethodField } from '../components/ContactMethod'
-import { LanguagePicker } from '../components/Language'
+import { LanguagePicker, TeamLanguages } from '../components/Language'
 import { PhoneField } from '../components/PhoneField'
 import { MyPets } from '../components/Pets'
 import { TimeZoneField } from '../components/TimeZoneField'
@@ -74,7 +74,10 @@ export function AccountPage() {
         <Card component="section" aria-label={t('Language')}>
           <CardContent>
             <SectionTitle>{t('Language')}</SectionTitle>
-            <Box sx={{ maxWidth: 420 }}><LanguagePicker /></Box>
+            <Stack spacing={2} sx={{ maxWidth: 420 }}>
+              <LanguagePicker />
+              {isAdmin && <TeamLanguages />}
+            </Stack>
           </CardContent>
         </Card>
 

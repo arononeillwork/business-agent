@@ -84,8 +84,8 @@ export const sortRoles = <R extends Pick<JobRole, 'sort' | 'name'>>(roles: R[]) 
 // (`can_update()`, the `role_permissions` migration) and Own (`todo_own_only()`, the
 // `role_areas_own_tasks` migration).
 export type RoleLevel = 'none' | 'own' | 'read' | 'update'
-export type RoleArea = 'business' | 'company' | 'todo' | 'hours' | 'brand' | 'dashboards' | 'menu' | 'stock' | 'foodsafety' | 'waste' | 'expenses'
-  | 'calendar' | 'rota' | 'timeoff' | 'timecards'
+export type RoleArea = 'business' | 'todo' | 'hours' | 'brand' | 'dashboards' | 'stock' | 'foodsafety' | 'waste' | 'expenses' | 'calendar' | 'rota' | 'timeoff' | 'timecards'
+  | 'ai' | 'company' | 'menu'
 export type RolePermissions = Partial<Record<RoleArea, RoleLevel>>
 
 export interface RoleAreaInfo {
@@ -111,7 +111,7 @@ export const ROLE_AREAS: RoleAreaInfo[] = [
   { id: 'hours', label: msg('Opening hours'), pages: ['hours'], levels: ['none', 'read'],
     read: msg('Sees the opening hours (admins change them)') },
   { id: 'brand', label: msg('Brand'), pages: ['brand'], levels: ['none', 'read'],
-    read: msg('Sees the logo, colours and fonts (admins change them)') },
+    read: msg('Sees the brand: the logo, colours and fonts') },
   { id: 'dashboards', label: msg('Dashboards'), pages: ['dashboards'], levels: ['none', 'read'],
     read: msg('Builds their own dashboards from the figures') },
   { id: 'menu', label: msg('Menu'), pages: ['menu'], levels: ['none', 'read'],
@@ -123,7 +123,7 @@ export const ROLE_AREAS: RoleAreaInfo[] = [
   { id: 'waste', label: msg('Waste log'), pages: ['waste'], levels: ['none', 'read', 'update'],
     read: msg('Logs what’s thrown out'), update: msg('Changes and removes what’s logged') },
   { id: 'expenses', label: msg('Expenses'), pages: ['expenses'], levels: ['none', 'read'],
-    read: msg('Claims back what they paid for the business') },
+    read: msg('Claims back what they spent for the business') },
   { id: 'calendar', label: msg('Calendar'), pages: ['calendar'], levels: ['none', 'read', 'update'],
     read: msg('Sees what’s on'), update: msg('Adds and changes events') },
   { id: 'rota', label: msg('Rota'), pages: ['rota'], levels: ['read', 'update'],
@@ -132,6 +132,8 @@ export const ROLE_AREAS: RoleAreaInfo[] = [
     read: msg('Asks for time off and sees who’s away'), update: msg('Approves or declines the team’s time off') },
   { id: 'timecards', label: msg('Timecards'), pages: ['timecards'], levels: ['read', 'update'],
     read: msg('Clocks in and sees their own hours'), update: msg('Sees, fixes and approves the team’s hours') },
+  { id: 'ai', label: msg('AI assistants'), pages: ['ai-assistants'], levels: ['none', 'read'],
+    read: msg('Connects their own AI assistant to the app') },
 ]
 export const ROLE_AREA_IDS = ROLE_AREAS.map(a => a.id)
 export const ROLE_LEVELS: { id: RoleLevel; label: string }[] = [
@@ -150,8 +152,9 @@ export function levelIn(permissions: RolePermissions | undefined, area: RoleArea
 export const levels = (all: RoleLevel, but: RolePermissions = {}): Record<RoleArea, RoleLevel> =>
   Object.fromEntries(ROLE_AREA_IDS.map(a => [a, levelIn({ [a]: but[a] ?? all }, a)])) as Record<RoleArea, RoleLevel>
 
-/** The team on the floor: their own tasks, and not the business's details or the dashboards; then what's different. */
-export const frontLine = (but: RolePermissions = {}) => levels('read', { business: 'none', dashboards: 'none', todo: 'own', ...but })
+/** The team on the floor: their own tasks, and not the business's details, its brand, the dashboards, expenses or AI assistants; then what's different. */
+export const frontLine = (but: RolePermissions = {}) =>
+  levels('read', { business: 'none', brand: 'none', dashboards: 'none', expenses: 'none', ai: 'none', todo: 'own', ...but })
 
 /** The most every area offers: admins, owners and managers. */
 export const fullAccess = (): Record<RoleArea, RoleLevel> =>
@@ -238,8 +241,8 @@ export const ROLE_PRESETS: RolePreset[] = [
     ],
   },
   {
-    // The Business page's contact details but not the company's; not the brand, the menu, the stock or expenses.
-    id: 'cafe.barista', permissions: frontLine({ business: 'read', company: 'none', brand: 'none', menu: 'none', stock: 'none', expenses: 'none' }),
+    // The Business page's contact details but not the company's; not the menu or the stock either.
+    id: 'cafe.barista', permissions: frontLine({ business: 'read', company: 'none', menu: 'none', stock: 'none' }),
     name: msg('Barista'), reportsTo: msg('Shift lead'), positions: ['barista'],
     summary: msg('Makes the coffee and looks after the customers: the face of the café.'),
     duties: [

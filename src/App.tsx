@@ -262,9 +262,9 @@ function Routed() {
  * looked up as each page renders). Signed out, it keeps the language last used on this device.
  */
 function InLanguage({ children }: { children: ReactNode }) {
-  const { me } = useApp()
+  const { me, settings } = useApp()
   const language = useLanguage()
-  const wanted = me ? preferredLanguage(me.preferences) : null
+  const wanted = me ? preferredLanguage(me.preferences, settings?.languages) : null
   // Only when what the account asks for changes: a flag pressed a moment ago isn't undone while it saves.
   useEffect(() => { if (wanted) void setLanguage(wanted) }, [wanted])
   return <Fragment key={language}>{children}</Fragment>

@@ -32,4 +32,5 @@ export default {
   'That isn’t a photo': 'Eso no es una foto',
   'That photo is over 25 MB. Try a smaller one.': 'Esa foto pasa de 25 MB. Prueba con una más pequeña.',
   'That photo can’t be read here. Use a JPEG or PNG.': 'Esa foto no se puede leer aquí. Usa un JPEG o PNG.',
+  'Add your pet': 'Añade tu mascota',
 }
