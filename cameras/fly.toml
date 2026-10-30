@@ -1,0 +1,172 @@
+# The camera upload server (cameras/server.ts) on Fly.io, in Madrid. Deployed by
+# .github/workflows/deploy-cameras.yml, which also gives the app its own IPv4 address: FTP needs one
+# (Fly's shared addresses only carry web traffic). Always on: cameras send a picture every few seconds.
+# FTP's passive ports are each listed, so each reaches the same port inside, and every connection
+# starts with a PROXY header (proxy_proto) saying which camera address it's from.
+app = "business-agent-cameras"
+primary_region = "mad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PROXY_PROTOCOL = "1"
+  PASV_PORTS = "30000-30015"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+
+# The app's Worker asks here for each camera's latest picture (with the shared key).
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "30s"
+    method = "GET"
+    path = "/health"
+    timeout = "5s"
+
+# FTP: the cameras log in here.
+[[services]]
+  internal_port = 21
+  protocol = "tcp"
+  auto_stop_machines = "off"
+  min_machines_running = 1
+  [[services.ports]]
+    port = 21
+    handlers = ["proxy_proto"]
+
+# FTP's passive ports, where each upload's data comes in.
+[[services]]
+  internal_port = 30000
+  protocol = "tcp"
+  auto_stop_machines = "off"
+  [[services.ports]]
+    port = 30000
+    handlers = ["proxy_proto"]
+
+[[services]]
+  internal_port = 30001
+  protocol = "tcp"
+  auto_stop_machines = "off"
+  [[services.ports]]
+    port = 30001
+    handlers = ["proxy_proto"]
+
+[[services]]
+  internal_port = 30002
+  protocol = "tcp"
+  auto_stop_machines = "off"
+  [[services.ports]]
+    port = 30002
+    handlers = ["proxy_proto"]
+
+[[services]]
+  internal_port = 30003
+  protocol = "tcp"
+  auto_stop_machines = "off"
+  [[services.ports]]
+    port = 30003
+    handlers = ["proxy_proto"]
+
+[[services]]
+  internal_port = 30004
+  protocol = "tcp"
+  auto_stop_machines = "off"
+  [[services.ports]]
+    port = 30004
+    handlers = ["proxy_proto"]
+
+[[services]]
+  internal_port = 30005
+  protocol = "tcp"
+  auto_stop_machines = "off"
+  [[services.ports]]
+    port = 30005
+    handlers = ["proxy_proto"]
+
+[[services]]
+  internal_port = 30006
+  protocol = "tcp"
+  auto_stop_machines = "off"
+  [[services.ports]]
+    port = 30006
+    handlers = ["proxy_proto"]
+
+[[services]]
+  internal_port = 30007
+  protocol = "tcp"
+  auto_stop_machines = "off"
+  [[services.ports]]
+    port = 30007
+    handlers = ["proxy_proto"]
+
+[[services]]
+  internal_port = 30008
+  protocol = "tcp"
+  auto_stop_machines = "off"
+  [[services.ports]]
+    port = 30008
+    handlers = ["proxy_proto"]
+
+[[services]]
+  internal_port = 30009
+  protocol = "tcp"
+  auto_stop_machines = "off"
+  [[services.ports]]
+    port = 30009
+    handlers = ["proxy_proto"]
+
+[[services]]
+  internal_port = 30010
+  protocol = "tcp"
+  auto_stop_machines = "off"
+  [[services.ports]]
+    port = 30010
+    handlers = ["proxy_proto"]
+
+[[services]]
+  internal_port = 30011
+  protocol = "tcp"
+  auto_stop_machines = "off"
+  [[services.ports]]
+    port = 30011
+    handlers = ["proxy_proto"]
+
+[[services]]
+  internal_port = 30012
+  protocol = "tcp"
+  auto_stop_machines = "off"
+  [[services.ports]]
+    port = 30012
+    handlers = ["proxy_proto"]
+
+[[services]]
+  internal_port = 30013
+  protocol = "tcp"
+  auto_stop_machines = "off"
+  [[services.ports]]
+    port = 30013
+    handlers = ["proxy_proto"]
+
+[[services]]
+  internal_port = 30014
+  protocol = "tcp"
+  auto_stop_machines = "off"
+  [[services.ports]]
+    port = 30014
+    handlers = ["proxy_proto"]
+
+[[services]]
+  internal_port = 30015
+  protocol = "tcp"
+  auto_stop_machines = "off"
+  [[services.ports]]
+    port = 30015
+    handlers = ["proxy_proto"]

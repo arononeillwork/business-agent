@@ -62,7 +62,7 @@ begin
     from pg_index i join pg_class c on c.oid = i.indrelid
    where c.relnamespace = 'public'::regnamespace and i.indisunique
      and c.relname not in ('plan_limits', 'pay_per_use', 'business', 'profiles')
-     and i.indexrelid::regclass::text not in ('api_keys_key_hash_key', 'calendar_feeds_token_hash_key', 'screens_token_key')
+     and i.indexrelid::regclass::text not in ('api_keys_key_hash_key', 'calendar_feeds_token_hash_key', 'screens_token_key', 'cameras_ftp_user_key')
      and not exists (
        select 1 from pg_attribute a
         where a.attrelid = c.oid and a.attnum = any(i.indkey::int2[])
