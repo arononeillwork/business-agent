@@ -58,7 +58,9 @@ function readView(): TodoFilters {
 
 /** The team's to-do list, grouped by categories the admins add and remove; or the same jobs as a kanban board. */
 export function TodoPage() {
-  const { api, isAdmin, profiles, me } = useApp()
+  const { api, isAdmin, can, profiles, me } = useApp()
+  // Admins, and anyone whose role has Update on the To Do List, set up its categories.
+  const managesLists = can('todo', 'update')
   const notify = useNotify()
   const run = useAction()
   const data = useAsync('todos', () => api.todos(), [])
@@ -176,7 +178,7 @@ export function TodoPage() {
             <FormControlLabel sx={{ mx: 0.5, '& .MuiFormControlLabel-label': { fontSize: '0.9rem', fontWeight: 500 } }} label={t('Show done')}
               control={<Switch size="small" checked={filters.showDone} onChange={e => setFilters({ showDone: e.target.checked })} />} />
           </>}
-          {isAdmin && (
+          {managesLists && (
             <Button variant={managing ? 'contained' : 'outlined'} startIcon={<TuneIcon />} onClick={() => setManaging(m => !m)}
               aria-pressed={managing}>
               {t('Categories')}
@@ -203,7 +205,7 @@ export function TodoPage() {
       </Stack>
 
       <Stack spacing={2.5}>
-        {managing && isAdmin && (
+        {managing && managesLists && (
           <CategoryManager categories={categories} items={items}
             onSave={c => run(() => api.saveTodoCategory(c))}
             onDelete={c => run(() => api.deleteTodoCategory(c.id), t('Removed {name}', { name: c.name }))} />

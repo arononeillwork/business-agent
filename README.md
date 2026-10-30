@@ -94,6 +94,12 @@ built-in **AI connector** so owners can run it by talking to Claude.
   duties by when they're done (all the time, opening, during service, closing, every week). Everyone reads it,
   with their own roles open and marked; admins add a café's usual roles in one press (in the language they use
   the app in), change them, put them in order, and see who has no role yet.
+- Role permissions (Roles & responsibilities, three tabs): Active is the business's roles; Category is
+  ready-made roles for a café, a restaurant & bar, a salon & beauty business or any business, each with its
+  duties and what it can do, to add in one press; Permissions is every role against each area of the app
+  (rota, time off, timecards, calendar, stock, food safety, waste log, to-do list) and what that gives each
+  person. A role gives Hidden (out of their menu), Read (what the team always had) or Update (what an admin
+  does there, never deciding their own time off or timecards); the database checks Update (`can_update()`).
 - Staff rules (Team section): the house rules, in sections that open (being on time and clocking in, uniform
   and hygiene, food safety and allergens, phones, breaks, customers, the till, health and safety, respect).
   Each employee confirms they've read them and is asked again when a section is added or changed (what's new

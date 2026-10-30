@@ -35,7 +35,9 @@ const reading = (n: number | null) => (n === null ? '' : `${String(n).replace('-
  * inspections and never changed. The team records; admins set what's checked.
  */
 export function FoodSafetyPage() {
-  const { api, isAdmin, profiles } = useApp()
+  const { api, isAdmin, can, profiles } = useApp()
+  // Admins, and anyone whose role has Update on food safety, set up what's checked; Licences stays the admins'.
+  const canEdit = can('foodsafety', 'update')
   const now = today()
   const from = addDays(now, -(LOG_DAYS - 1))
   const points = useAsync('safety-points', () => api.safetyPoints(), [])
@@ -71,7 +73,7 @@ export function FoodSafetyPage() {
     <>
       <PageHeader eyebrow={t('Stock')} title={t('Food safety')} actions={<>
         <ExportButton table={table} disabled={!log.length} folder="Food safety" />
-        {isAdmin && <Button variant="contained" startIcon={<AddIcon />} onClick={() => setEditing({ name: '', kind: 'temperature', frequency: 'daily', active: true })}>{t('Add a check')}</Button>}
+        {canEdit && <Button variant="contained" startIcon={<AddIcon />} onClick={() => setEditing({ name: '', kind: 'temperature', frequency: 'daily', active: true })}>{t('Add a check')}</Button>}
       </>} />
       <ErrorBox error={points.error ?? checks.error} />
 
@@ -86,7 +88,7 @@ export function FoodSafetyPage() {
         <CardContent>
           <SectionTitle>{t('To check now')}</SectionTitle>
           {!points.data ? <Empty>{t('Loading…')}</Empty>
-            : due.length === 0 ? <Empty>{isAdmin ? t('Nothing to check yet. Add the café’s fridges and jobs below.') : t('Nothing to check yet: an admin sets what’s checked.')}</Empty>
+            : due.length === 0 ? <Empty>{canEdit ? t('Nothing to check yet. Add the café’s fridges and jobs below.') : t('Nothing to check yet: an admin sets what’s checked.')}</Empty>
               : <Stack>{due.map(d => <DueRow key={d.point.id} due={d} />)}</Stack>}
         </CardContent>
       </Card>
@@ -126,7 +128,7 @@ export function FoodSafetyPage() {
         </CardContent>
       </Card>
 
-      {isAdmin && (
+      {canEdit && (
         <Card component="section" aria-label={t('What’s checked')} sx={{ mb: 3 }}>
           <CardContent>
             <SectionTitle>{t('What’s checked')}</SectionTitle>

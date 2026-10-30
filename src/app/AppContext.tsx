@@ -6,6 +6,7 @@ import { createDemoApi } from '../data/demoApi'
 import { createSupabaseApi } from '../data/supabaseApi'
 import type { BreakType, Business, PartnerArea, PayRate, Position, Profile, Settings } from '../../shared/types'
 import { setCurrency, setNumberFormat, setOwnTimeZone } from '../../shared/time'
+import { permissionsOf, type JobRole, type RoleArea, type RoleLevel } from '../../shared/roles'
 import { LoadError, StartError } from '../pages/StatusPages'
 import { refreshAll } from './query'
 
@@ -27,6 +28,11 @@ export interface AppData {
   canSeePay: boolean
   /** Monthly expenses: admins with pay access, or finance partners (read-only). */
   canSeeFinances: boolean
+  /** The business's roles (Roles & responsibilities), and what this person's give them in each area. */
+  jobRoles: JobRole[]
+  permissions: Record<RoleArea, RoleLevel>
+  /** Whether their roles (or being an admin) let them read or update an area: `can('rota', 'update')`. */
+  can: (area: RoleArea, level?: Exclude<RoleLevel, 'none'>) => boolean
   loading: boolean
   refresh: () => Promise<void>
 }
@@ -69,8 +75,8 @@ async function resolveApi(): Promise<Api> {
   return createSupabaseApi(cfg.supabaseUrl, cfg.supabaseKey)
 }
 
-type Shared = Omit<AppData, 'api' | 'refresh' | 'rates' | 'isAdmin' | 'isPartner' | 'partnerCan' | 'canSeePay' | 'canSeeFinances' | 'loading'>
-const EMPTY: Shared = { me: null, business: null, settings: null, profiles: [], positions: [], breakTypes: [], payRates: [] }
+type Shared = Omit<AppData, 'api' | 'refresh' | 'rates' | 'isAdmin' | 'isPartner' | 'partnerCan' | 'canSeePay' | 'canSeeFinances' | 'permissions' | 'can' | 'loading'>
+const EMPTY: Shared = { me: null, business: null, settings: null, profiles: [], positions: [], breakTypes: [], payRates: [], jobRoles: [] }
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [api, setApi] = useState<Api | null>(null)
@@ -90,10 +96,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Someone not on the team yet (a new Google sign-in nobody added) or switched off can read
       // only their own profile: the business is hidden from them, so there is nothing more to load.
       if (!me || me.role === 'kiosk' || !me.active) return { ...EMPTY, me }
-      const [business, settings, profiles, positions, breakTypes, payRates] = await Promise.all([
+      const [business, settings, profiles, positions, breakTypes, payRates, jobRoles] = await Promise.all([
         api!.business(), api!.settings(), api!.profiles(), api!.positions(), api!.breakTypes(), api!.payRates(),
+        me.role === 'partner' ? [] : api!.jobRoles().catch(() => []),
       ])
-      return { me, business, settings, profiles, positions, breakTypes, payRates }
+      return { me, business, settings, profiles, positions, breakTypes, payRates, jobRoles }
     },
   })
 
@@ -121,6 +128,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const isPartner = me?.role === 'partner'
     const partnerCan = (area: PartnerArea) => !!(isPartner && me?.partner_access?.includes(area))
     const adminPay = me?.role === 'admin' && !!me?.can_see_pay
+    const permissions = permissionsOf(me, state.jobRoles)
     return {
       ...state,
       api,
@@ -132,6 +140,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       partnerCan,
       canSeePay: adminPay || partnerCan('payroll'),
       canSeeFinances: adminPay || partnerCan('finances'),
+      permissions,
+      can: (area, level = 'read') => (level === 'update' ? permissions[area] === 'update' : permissions[area] !== 'none'),
     }
   }, [api, state, refresh, shared.isPending])
 

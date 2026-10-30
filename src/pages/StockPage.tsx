@@ -47,7 +47,7 @@ const qty = (n: number, unit: StockItem['unit']) => `${formatNumber(n)} ${t(unit
  * finance partners read.
  */
 export function StockPage() {
-  const { api, isAdmin, isPartner } = useApp()
+  const { api, isAdmin, isPartner, can } = useApp()
   const items = useAsync('stock', () => api.stockItems(), [])
   const suppliers = useAsync('suppliers', () => api.suppliers(), [])
   const [view, setView] = useState<View>('items')
@@ -229,7 +229,7 @@ export function StockPage() {
       {view === 'history' && <History items={items.data ?? []} />}
 
       {editing && <ItemDialog item={editing === 'new' ? null : editing} suppliers={sups} categories={categories} locations={locations}
-        readOnly={!isAdmin} onClose={() => setEditing(null)} />}
+        readOnly={!can('stock', 'update')} onClose={() => setEditing(null)} />}
       {moving && <MoveDialog item={moving.item} reason={moving.reason} onClose={() => setMoving(null)} />}
       {stocktake && <StocktakeDialog items={all} locations={locations} onClose={() => setStocktake(false)} />}
     </>

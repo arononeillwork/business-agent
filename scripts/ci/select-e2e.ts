@@ -32,6 +32,7 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'sales reps', files: [/(SalesReps|RepCards)Page/, /shared\/reps/], tests: String.raw`sales reps` },
   { name: 'outsourcing', files: [/OutsourcingPage/, /shared\/outsourcing/], tests: String.raw`outsourcing|menu|pages can be dragged` },
   { name: 'roles and rules', files: [/(Roles|StaffRules)Page/, /components\/Expandable/, /shared\/(roles|staffRules)/], tests: String.raw`roles and rules|menu|pages can be dragged` },
+  { name: 'role permissions', files: [/shared\/roleTemplates/, /RolesPage/], tests: String.raw`role permissions|roles and rules` },
   { name: 'business', files: [/(Business|Brand|OpeningHours)Page/, /shared\/(taxId|brand)/, /lib\/googleFont/], tests: String.raw`business|brand|opening hours|currency|colour|logo` },
   { name: 'team', files: [/TeamPage/, /TempPassword/, /ContactMethod/, /ShareDialog/, /shared\/teamRoles/], tests: String.raw`team|invite|contact|account` },
   { name: 'connections', files: [/(Connections|SocialPlanner)Page/, /components\/(Connect|AiImages)/, /shared\/connections/],

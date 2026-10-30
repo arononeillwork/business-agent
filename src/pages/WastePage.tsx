@@ -21,7 +21,7 @@ type Period = 'today' | 'week' | 'month'
 
 /** The waste log: the team writes down what's thrown away and why; admins with pay access see what it cost. */
 export function WastePage() {
-  const { api, canSeePay, isPartner, isAdmin, profiles, me } = useApp()
+  const { api, canSeePay, isPartner, can, profiles, me } = useApp()
   const run = useAction()
   const [editing, setEditing] = useState<StockMovement | null>(null)
   const [removing, setRemoving] = useState<StockMovement | null>(null)
@@ -34,7 +34,7 @@ export function WastePage() {
   // Entries taken off the log (or changed, and logged again) aren't waste any more.
   const inPeriod = (moves.data ?? []).filter(m => localDate(m.at) >= from && !m.undone_at)
   // Whoever logged it, or an admin, can change it or take it off.
-  const canChange = (m: StockMovement) => !isPartner && (isAdmin || (!!me && m.by === me.id))
+  const canChange = (m: StockMovement) => !isPartner && (can('waste', 'update') || (!!me && m.by === me.id))
   const waste = inPeriod.filter(m => m.reason === 'waste')
   const summary = wasteSummary(inPeriod, items)
   const itemOf = (id: string) => items.find(i => i.id === id)
