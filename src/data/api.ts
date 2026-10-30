@@ -26,6 +26,7 @@ import type { MovementInput, StockItem, StockItemInput, StockMovement, Supplier,
 import type { Recipe, RecipeInput } from '../../shared/recipes'
 import type { MenuDesign, MenuDesignInput, MenuImage, MenuImageRequest, MenuItem, MenuItemInput } from '../../shared/menu'
 import type { DisplayFeed, Screen, ScreenInput } from '../../shared/screens'
+import type { Camera, CameraClip, CameraInput, CameraLive, CameraService } from '../../shared/cameras'
 import type { AdPlatform, AdSettings, AdsReport, CampaignPatch } from '../../shared/ads'
 import type { ReviewsState } from '../../shared/reviews'
 import type { PageSpeed, Strategy, WebsiteReport, WebsiteState } from '../../shared/seo'
@@ -520,6 +521,30 @@ export interface Api {
   newScreenLink(id: string): Promise<string>
   /** What a screen's link plays (no sign-in needed). */
   display(token: string): Promise<DisplayFeed>
+
+  // Cameras (admins): the CCTV cameras, which upload by FTP to the camera upload server; their
+  // video is kept in the business's Drive or OneDrive.
+  cameras(): Promise<Camera[]>
+  /** Add a camera (no id; it gets its own upload login) or change one; returns its id. */
+  saveCamera(camera: CameraInput): Promise<string>
+  /** Delete a camera and its clips (out of the storage first). */
+  deleteCamera(id: string): Promise<void>
+  /** A new password for a camera's upload login (the old one stops working); returns it. */
+  newCameraPassword(id: string): Promise<string>
+  /** Where cameras send to (ftp null: camera uploads aren't switched on yet). */
+  cameraService(): Promise<CameraService>
+  /** What the upload server has from each camera right now, by camera id. */
+  camerasLive(): Promise<Record<string, CameraLive>>
+  /** A camera's latest picture (null: none yet). */
+  cameraPicture(id: string): Promise<Blob | null>
+  /** A camera's clips, newest first. */
+  cameraClips(cameraId: string): Promise<CameraClip[]>
+  /** Keep a clip for an incident (not deleted when its days are up), or let it go. */
+  keepClip(id: string, kept: boolean, note: string | null): Promise<void>
+  /** An address to play a clip at (null: none, in the demo). */
+  playClip(id: string): Promise<string | null>
+  /** Delete a clip (out of the storage too). */
+  deleteClip(id: string): Promise<void>
 
   // To Do List (the team; admins manage categories)
   todos(): Promise<{ categories: TodoCategory[]; todos: Todo[] }>

@@ -675,6 +675,55 @@ stop working. Browsers only play sound after a tap, so a screen with music asks 
 smart TVs and kiosk browsers can be set to allow autoplay. Some websites don't allow being shown
 inside another page (their own setting): use a picture or video of them instead.
 
+## 20. Cameras (Reolink, video kept in the business's own Drive or OneDrive)
+
+The **Cameras** page (Business section, admins) shows each CCTV camera's picture, refreshed every
+few seconds while the page is open, and its clips by day. The clips are kept in the business's own
+Google Drive or OneDrive, under **Business Agent/Cameras/<camera>/<day>/**, for the days chosen per
+camera (1 to 30: Spain allows a month at most), then deleted by the Worker every hour. A clip kept
+for an incident stays. Live video stays in the camera maker's free app. Nothing is a subscription.
+
+**Which cameras.** Cameras that upload by FTP by themselves. With Reolink: every plug-in (Wi-Fi)
+camera except the E1, E1 Pro 4MP and Lumus, and every PoE camera (Reolink's own list: *Which
+Cameras/NVRs Support FTP Uploading*). Battery and solar ones can't. For Easy Beans: an **E1 Zoom**
+inside and an **E1 Outdoor** (or E1 Outdoor Pro) outside, each with a microSD card that keeps
+recording on the camera as a backup.
+
+**How it works.** Cloudflare can't take FTP, so cameras send to Business Agent's own **camera
+upload server** (`cameras/`: a small FTP and FTPS server, one for every business, on Fly.io in
+Madrid). Each camera has its own username and password from the Cameras page.
+- Pictures: the server keeps only the latest from each camera, in memory; the page asks for it
+  through the Worker (`GET /api/cameras/:id/picture`).
+- Video: passed on to the Worker (`POST /api/camera-uploads/clip`), which uploads it to the
+  business's Drive or OneDrive and adds a `camera_clips` row (the `cameras` migration). With the
+  camera set to keep only movement (the default), the server makes each picture tiny and grey,
+  compares it with the one before, and drops the pieces of video with nothing moving in the
+  pictures around them. A camera that sends no pictures (motion only) has all its video kept.
+- The server and the Worker share a key (`CAMERA_UPLOADS_KEY`); the page plays a clip through an
+  address signed for two hours (`/api/camera-clips/…`).
+
+**Setting up the upload server (once, for every business):**
+1. A [Fly.io](https://fly.io) account with a card on it. It costs about €5 a month: a small
+   always-on machine and the IPv4 address of its own that FTP needs.
+2. Fly.io → **Tokens** → create an organisation token (or `fly tokens create org`) → repo secret
+   **`FLY_API_TOKEN`**.
+3. Repo variable **`CAMERA_UPLOADS`** = `on` (optional: `FLY_ORG`, and `FLY_CAMERAS_APP` when the
+   name `business-agent-cameras` is taken on Fly).
+4. **Actions → Deploy camera uploads → Run workflow.** It makes the app on Fly, gives it its IPv4
+   address, deploys `cameras/`, and gives the app's Worker the key and the addresses
+   (`CAMERA_UPLOADS_KEY`, `CAMERA_UPLOADS_URL`, `CAMERA_FTP_HOST`). Pushes to `main` that change
+   `cameras/` deploy it again.
+
+Until then the Cameras page says camera uploads aren't switched on yet (the cameras and their
+logins can be added already).
+
+**Each camera (the Cameras page's Set up tab has the same steps, with its login filled in):** in the
+Reolink app, sound recording off, then gear icon → More Features → FTP → FTP Upload on → Set Up Now:
+the FTP server, port 21, the user name and password, Anonymous off, Directory empty, Transport Mode
+**Pasv**, **FTPs Only** on (off again if the test can't connect; the server's certificate is its own),
+File Type **Video and picture**, Interval **5 seconds**, Max File Size **20 MB**, and the schedule
+**Timer** for every hour (or **Alarm** only, for a clip only when something moves).
+
 ## Social planner
 
 Admins plan posts on **Social planner** (left menu): write once, pick Instagram, Facebook,

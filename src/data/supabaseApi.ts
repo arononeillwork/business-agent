@@ -24,6 +24,7 @@ import type { Recipe } from '../../shared/recipes'
 import type { MenuDesign, MenuImage, MenuItem } from '../../shared/menu'
 import { missingFrom, templateDesigns, templateSections } from '../../shared/menuTemplate'
 import type { DisplayFeed, Screen } from '../../shared/screens'
+import type { Camera, CameraClip, CameraLive, CameraService } from '../../shared/cameras'
 import type { AdSettings } from '../../shared/ads'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
 import type { ReferralState } from '../../shared/referrals'
@@ -778,6 +779,37 @@ export function createSupabaseApi(url: string, key: string): Api {
       if (!res.ok) throw new Error(json.error ?? `The slides couldn’t be loaded (${res.status})`)
       return json
     },
+
+    async cameras() {
+      const rows = check(await sb.from('cameras').select('*, camera_status(last_seen_at, last_clip_at, last_error)').order('created_at')) as
+        (Omit<Camera, 'last_seen_at' | 'last_clip_at' | 'last_error'> & { camera_status: Pick<Camera, 'last_seen_at' | 'last_clip_at' | 'last_error'> | null })[]
+      return rows.map(({ camera_status, ...c }) => ({ ...c, last_seen_at: camera_status?.last_seen_at ?? null, last_clip_at: camera_status?.last_clip_at ?? null,
+        last_error: camera_status?.last_error ?? null }))
+    },
+    async saveCamera({ id, name, placement, keep_days, keep_video, active }) {
+      const camera = { name, placement, keep_days, keep_video, active }
+      if (id) { check(await sb.from('cameras').update(camera).eq('id', id)); return id }
+      return (check(await sb.from('cameras').insert(camera).select('id').single()) as { id: string }).id
+    },
+    async deleteCamera(id) { await worker(`/api/cameras/${encodeURIComponent(id)}`, { method: 'DELETE' }) },
+    async newCameraPassword(id) { return check(await sb.rpc('new_camera_password', { p_id: id })) as string },
+    cameraService: () => worker<CameraService>('/api/cameras/service'),
+    async camerasLive() { return (await worker<{ cameras: Record<string, CameraLive> }>('/api/cameras/live')).cameras },
+    async cameraPicture(id) {
+      // Not worker(): the answer is the picture itself.
+      const token = (await sb.auth.getSession()).data.session?.access_token
+      const res = await fetch(`/api/cameras/${encodeURIComponent(id)}/picture`, { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' })
+      if (res.status === 404) return null
+      if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? `The picture couldn’t be loaded (${res.status})`)
+      return res.blob()
+    },
+    async cameraClips(cameraId) {
+      return check(await sb.from('camera_clips').select('id, camera_id, started_at, seconds, bytes, storage, file_id, file_name, link, motion, kept, note, created_at')
+        .eq('camera_id', cameraId).order('started_at', { ascending: false }).limit(2000)) as CameraClip[]
+    },
+    async keepClip(id, kept, note) { check(await sb.from('camera_clips').update({ kept, note }).eq('id', id)) },
+    async playClip(id) { return (await worker<{ url: string }>(`/api/cameras/clips/${encodeURIComponent(id)}/play`)).url },
+    async deleteClip(id) { await worker(`/api/cameras/clips/${encodeURIComponent(id)}`, { method: 'DELETE' }) },
 
     async customers() {
       return check(await sb.from('customers').select(CUSTOMER_COLUMNS).order('created_at', { ascending: false })) as Customer[]

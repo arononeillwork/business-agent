@@ -253,6 +253,15 @@ built-in **AI connector** so owners can run it by talking to Claude.
   the supplier or worked out from its type, name and items. Allergens fills in the usual allergens and
   diet of every food and drink still to enter, from what each one is (`shared/allergenGuide.ts`), for
   an admin to check against the label. Competitors compares one item at every café, yours marked.
+- Cameras (Business section, admins): the café's CCTV cameras, with their video in its own Google Drive or
+  OneDrive, no subscription. Reolink cameras that plug in or take a network cable (an E1 Zoom inside, an E1
+  Outdoor outside) send by FTP to Business Agent's camera upload server (`cameras/`, on Fly.io: Cloudflare
+  can't take FTP); the page shows each one's picture every few seconds and whether it's sending, and its
+  clips by day (Business Agent/Cameras/<camera>/<day>/), to play or keep for an incident. Only the video
+  in which something moves is kept unless a camera keeps everything, and it's deleted after the days
+  chosen per camera (1 to 30; Spain allows a month at most). Live video stays in the free Reolink app. The
+  Set up tab has what to type into the camera, and Spain's rules (the sign, telling the team, no sound).
+  Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) section 20.
 
 See [docs/PLAN.md](docs/PLAN.md) for decisions, architecture and phases.
 

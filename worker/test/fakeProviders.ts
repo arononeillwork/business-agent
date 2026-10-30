@@ -391,6 +391,10 @@ export class FakeProviders {
         return bytesResponse(new TextEncoder().encode(`%PDF-1.7 ${f.name}`), url.searchParams.get('mimeType') ?? '', null)
       }
       const byId = url.pathname.match(/\/drive\/v3\/files\/([^/]+)$/)
+      // A file the app made, deleted (a camera's clip whose days are up).
+      if (byId && method === 'DELETE') {
+        return this.google.blobs.delete(decodeURIComponent(byId[1])) ? new Response(null, { status: 204 }) : googleError(404, `File not found: ${byId[1]}.`, 'notFound')
+      }
       if (byId && url.searchParams.get('alt') === 'media') {
         const f = seen(decodeURIComponent(byId[1]))
         return f ? bytesResponse(f.bytes, f.type, new Headers(init.headers).get('range')) : googleError(404, `File not found: ${byId[1]}.`, 'notFound')
@@ -672,6 +676,9 @@ export class FakeProviders {
       if (path === '/me/drive/root' && method === 'GET') return json({ id: 'ms-root', name: 'root', folder: {}, webUrl: 'https://onedrive.live.com/' })
       if (path === '/me/drive/root/children' && method === 'GET') return kids('root')
       const oneItem = path.match(/^\/me\/drive\/items\/([^/]+)(\/children)?$/)
+      if (oneItem && !oneItem[2] && method === 'DELETE') {
+        return this.microsoft.blobs.delete(decodeURIComponent(oneItem[1])) ? new Response(null, { status: 204 }) : json({ error: { code: 'itemNotFound', message: 'The resource could not be found.' } }, 404)
+      }
       if (oneItem && method === 'GET' && this.microsoft.items.has(decodeURIComponent(oneItem[1]))) {
         return oneItem[2] ? kids(decodeURIComponent(oneItem[1])) : json(msItem(decodeURIComponent(oneItem[1])))
       }

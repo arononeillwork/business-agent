@@ -16,6 +16,7 @@ import WholesaleIcon from '@mui/icons-material/WarehouseOutlined'
 import RecipesIcon from '@mui/icons-material/MenuBookOutlined'
 import MenuIcon from '@mui/icons-material/RestaurantMenuOutlined'
 import ScreensIcon from '@mui/icons-material/TvOutlined'
+import CamerasIcon from '@mui/icons-material/VideocamOutlined'
 import WasteIcon from '@mui/icons-material/DeleteSweepOutlined'
 import TodoIcon from '@mui/icons-material/ChecklistRtlOutlined'
 import HoursIcon from '@mui/icons-material/ScheduleOutlined'
@@ -114,6 +115,7 @@ export const SECTIONS: NavSection[] = [
     { key: 'legal', to: '/legal', label: msg('Legal & licences'), short: msg('Legal'), icon: <LegalIcon />, who: 'admin', partner: ['finances'] },
     { key: 'brand', to: '/brand', label: msg('Brand'), icon: <BrandIcon />, partner: 'any' },
     { key: 'messages', to: '/messages', label: msg('Messages'), icon: <MessagesIcon />, who: 'admin' },
+    { key: 'cameras', to: '/cameras', label: msg('Cameras'), icon: <CamerasIcon />, who: 'admin' },
   ] },
   // What the figures say: each person's own dashboards, and the Business advisor's findings.
   { key: 'insights', label: msg('Insights'), items: [

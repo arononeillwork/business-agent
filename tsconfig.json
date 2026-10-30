@@ -12,6 +12,9 @@
     },
     {
       "path": "./tsconfig.render.json"
+    },
+    {
+      "path": "./tsconfig.cameras.json"
     }
   ]
 }
