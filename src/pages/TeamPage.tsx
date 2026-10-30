@@ -127,6 +127,7 @@ export function TeamPage() {
                       <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
                         <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: p.active ? tokens.matcha : tokens.inkFaint }} />
                         <span>{p.active ? t('Active') : t('Switched off')}</span>
+                        {p.active && p.on_rota === false && <Box component="span" sx={{ color: 'text.secondary' }}>{t('· off the rota')}</Box>}
                       </Stack>
                     </TableCell>
                   )}
@@ -215,6 +216,9 @@ function PersonPanel({ person: p, onClose }: { person: Profile; onClose: () => v
             <FormControlLabel disabled={self} label={t('Active (can sign in)')}
               control={<Switch checked={p.active} slotProps={{ input: { 'aria-label': t('Active') } }}
                 onChange={e => update({ active: e.target.checked }, e.target.checked ? t('Access restored') : t('{name} can no longer sign in', { name: p.full_name }))} />} />
+            <FormControlLabel label={t('On the rota')}
+              control={<Switch checked={p.on_rota !== false} slotProps={{ input: { 'aria-label': t('On the rota') } }}
+                onChange={e => update({ on_rota: e.target.checked }, e.target.checked ? t('{name} is back on the rota', { name: p.full_name }) : t('{name} is off the rota: they still sign in', { name: p.full_name }))} />} />
           </Stack>
         </Box>
         {canSeePay && (

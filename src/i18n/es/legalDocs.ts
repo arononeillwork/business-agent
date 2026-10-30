@@ -37,7 +37,9 @@ export default {
   'Add {n} documents': 'Añadir {n} documentos',
 
   // The page
-  'Legal documents are only visible to admins.': 'Los documentos legales solo los ven los administradores.',
+  'Legal & licences': 'Legal y licencias',
+  'Legal documents': 'Documentos legales',
+  'Legal documents are only visible to admins.':'Los documentos legales solo los ven los administradores.',
   'The café’s legal documents, kept where they already are in its Google Drive or OneDrive. Business Agent only remembers where each one is: it shows them here and opens them there, and copies nothing.':
     'Los documentos legales de la cafetería, guardados donde ya están, en su Google Drive o OneDrive. Business Agent solo recuerda dónde está cada uno: los muestra aquí y los abre allí, sin copiar nada.',
   'Connect Google Drive or OneDrive (or both) to pick the café’s legal documents from them.':

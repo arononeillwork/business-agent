@@ -797,6 +797,26 @@ test('admin creates a staff account with a temporary password, and can reset it'
   await expect(page.getByRole('dialog', { name: "Aron O'Neill (you)" }).getByRole('button', { name: 'Temporary password' })).toHaveCount(0)
 })
 
+test('someone taken off the rota still signs in, and gets no row on the rota unless they have a shift', async ({ page }) => {
+  await open(page, '/team')
+  await page.getByRole('row', { name: /Mark Murray/ }).click()
+  const panel = page.getByRole('dialog', { name: 'Mark Murray' })
+  await panel.getByRole('switch', { name: 'On the rota' }).click()
+  await toast(page, 'Mark Murray is off the rota: they still sign in')
+  await expect(panel.getByRole('switch', { name: 'Active' })).toBeChecked()
+  await panel.getByRole('button', { name: 'Close' }).click()
+  await expect(page.getByRole('row', { name: /Mark Murray/ })).toContainText('off the rota')
+
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Rota', exact: true }).first().click()
+  const rota = page.getByRole('main')
+  await expect(rota.getByText('Julio', { exact: true }).first()).toBeVisible()
+  await expect(rota.getByText('Mark Murray', { exact: true }).first()).toBeVisible() // his Saturday shift this week keeps his row
+  await page.getByRole('button', { name: 'Next week' }).click()
+  await page.getByRole('button', { name: 'Next week' }).click()
+  await expect(rota.getByText('Julio', { exact: true }).first()).toBeVisible()
+  await expect(rota.getByText('Mark Murray', { exact: true })).toHaveCount(0)
+})
+
 test('a message never covers the buttons it is about', async ({ page }) => {
   await open(page, '/business')
   const company = page.getByRole('region', { name: 'Company' })
@@ -4730,7 +4750,8 @@ test.describe('reviews and website', () => {
 test.describe('licences and renewals', () => {
   test('what runs out soon or ran out, renewed in one press, and exported', async ({ page }) => {
     await open(page, '/licences')
-    await expect(page.getByRole('heading', { name: 'Licences', level: 1 })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Legal & licences', level: 1 })).toBeVisible()
+    await expect(page.getByRole('tab', { name: 'Licences' })).toHaveAttribute('aria-selected', 'true')
     const list = page.getByRole('main').getByRole('region', { name: 'Licences', exact: true })
     await expect(list.getByRole('row').filter({ hasText: 'Seguro de responsabilidad civil' })).toContainText('in 15 days')
     await expect(list.getByRole('row').filter({ hasText: 'Licencia de apertura' })).toContainText('Doesn’t run out')
@@ -4767,16 +4788,19 @@ test.describe('licences and renewals', () => {
 
   test('employees don’t get licences', async ({ page }) => {
     await open(page, '/', 'maria@example.com')
-    await expect(page.getByRole('link', { name: 'Licences', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('link', { name: 'Legal & licences', exact: true })).toHaveCount(0)
     await page.goto('/licences?demo')
-    await expect(page.getByRole('heading', { name: 'Licences', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('heading', { name: 'Legal & licences', exact: true })).toHaveCount(0)
   })
 })
 
 test.describe('legal documents', () => {
   test('picked where they are in Google Drive and OneDrive (both connected), shown in the page and opened there', async ({ page }) => {
     await open(page, '/legal')
-    await expect(page.getByRole('heading', { name: 'Legal', level: 1 })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Legal & licences', level: 1 })).toBeVisible()
+    // One page with the licences and the legal documents, a tab each.
+    await expect(page.getByRole('main').getByRole('region', { name: 'Licences', exact: true })).toBeVisible()
+    await page.getByRole('tab', { name: 'Legal documents' }).click()
     // Two already on the page, from the Drive's Legal folder, by kind.
     const lease = page.getByRole('region', { name: 'Lease and premises' }).getByRole('article', { name: 'Contrato de arrendamiento del local' })
     await expect(lease).toContainText('Google Drive')
@@ -4799,7 +4823,8 @@ test.describe('legal documents', () => {
     await expect(files.getByRole('article', { name: 'Google Drive' })).toContainText('Connected')
 
     // Choose which storage to pick from: OneDrive, two contracts from its Contratos folder.
-    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Legal', exact: true }).click()
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Legal & licences', exact: true }).click()
+    await page.getByRole('tab', { name: 'Legal documents' }).click()
     await page.getByRole('button', { name: 'Add documents' }).click()
     await expect(page.getByRole('menuitem', { name: /From Google Drive/ })).toContainText('easybeanscafe@gmail.com')
     await page.getByRole('menuitem', { name: /From OneDrive/ }).click()
@@ -4841,15 +4866,15 @@ test.describe('legal documents', () => {
   })
 
   test('the gestoría reads them; employees don’t get the page', async ({ page }) => {
-    await open(page, '/legal', 'laura@gestoria.example')
-    await expect(page.getByRole('heading', { name: 'Legal', level: 1 })).toBeVisible()
+    await open(page, '/legal?tab=documents', 'laura@gestoria.example')
+    await expect(page.getByRole('heading', { name: 'Legal & licences', level: 1 })).toBeVisible()
     await expect(page.getByRole('article', { name: 'Contrato de arrendamiento del local' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Add documents' })).toHaveCount(0)
     await expect(page.getByRole('button', { name: /^Edit / })).toHaveCount(0)
     await signInAs(page, 'maria@example.com')
-    await expect(page.getByRole('link', { name: 'Legal' })).toHaveCount(0)
+    await expect(page.getByRole('link', { name: 'Legal & licences' })).toHaveCount(0)
     await page.goto('/legal?demo')
-    await expect(page.getByRole('heading', { name: 'Legal', level: 1 })).toHaveCount(0)
+    await expect(page.getByRole('heading', { name: 'Legal & licences', level: 1 })).toHaveCount(0)
   })
 })
 
@@ -5729,7 +5754,7 @@ test.describe('campaigns', () => {
 
 test.describe('hiring', () => {
   test('an applicant moves on, their interview is on the calendar, and once hired they join the team', async ({ page }) => {
-    await open(page, '/hiring')
+    await open(page, '/hiring?view=jobs')
     await expect(page.getByRole('heading', { name: 'Hiring', level: 1 })).toBeVisible()
     await expect(page.getByRole('alert').filter({ hasText: /^Kept over a year/ })).toContainText('Ana Torres')
     const job = page.getByRole('region', { name: 'Weekend barista' })
@@ -5749,11 +5774,66 @@ test.describe('hiring', () => {
     await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Team', exact: true }).click()
     await expect(page.getByRole('main').getByText('Sara Gil').first()).toBeVisible()
 
-    // Kept over a year and not hired: removed.
+    // Kept over a year and not hired: removed (from the candidates list).
     await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Hiring' }).click()
+    await page.getByRole('tab', { name: /^Candidates/ }).click()
     await page.getByRole('button', { name: 'Remove the details of Ana Torres' }).click()
     await toast(page, 'Ana Torres’s details removed')
     await expect(page.getByRole('alert').filter({ hasText: /^Kept over a year/ })).toHaveCount(0)
+  })
+
+  test('the board: a swimlane per job, a column per stage, cards moved from their menu or dragged', async ({ page }) => {
+    await open(page, '/hiring')
+    await expect(page.getByRole('tab', { name: 'Board' })).toHaveAttribute('aria-selected', 'true')
+    const lane = page.getByRole('main').getByRole('region', { name: 'Weekend barista' })
+    const stage = (name: string) => lane.getByRole('group', { name, exact: true })
+    await expect(stage('Applied').getByRole('article', { name: 'Tom Baker' })).toBeVisible()
+    await expect(stage('Interview').getByRole('article', { name: 'Lucía Romero' })).toContainText('Interview')
+    await expect(stage('Trial shift').getByRole('article', { name: 'Sara Gil' })).toBeVisible()
+    // The filled job (nobody left in the running) is off the board until asked for.
+    await expect(page.getByRole('main').getByRole('region', { name: 'Opening team: baristas' })).toHaveCount(0)
+    await page.getByRole('button', { name: 'Filled and closed jobs (1)' }).click()
+    await expect(page.getByRole('main').getByRole('region', { name: 'Opening team: baristas' }).getByRole('group', { name: 'Hired' })).toContainText('Julio')
+
+    // Moved from the card's menu.
+    await stage('Applied').getByRole('button', { name: 'More for Tom Baker' }).click()
+    await page.getByRole('menuitem', { name: 'Move to Shortlisted' }).click()
+    await toast(page, 'Moved to Shortlisted')
+    await expect(stage('Shortlisted').getByRole('article', { name: 'Tom Baker' })).toBeVisible()
+
+    // Dragged to the next stage.
+    // In the middle of the screen, away from the edges where the board scrolls by itself.
+    await stage('Offer').evaluate(e => e.scrollIntoView({ block: 'center', inline: 'center' }))
+    const card = stage('Trial shift').getByRole('button', { name: 'Drag Sara Gil' })
+    const from = (await card.boundingBox())!
+    const to = (await stage('Offer').boundingBox())!
+    await page.mouse.move(from.x + 20, from.y + 8)
+    await page.mouse.down()
+    await page.mouse.move(from.x + 40, from.y + 20, { steps: 5 })
+    await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 15 })
+    await page.mouse.up()
+    await toast(page, 'Moved to Offer')
+    await expect(stage('Offer').getByRole('article', { name: 'Sara Gil' })).toBeVisible()
+  })
+
+  test('every candidate in one list, searched and narrowed to a job or a stage', async ({ page }) => {
+    await open(page, '/hiring')
+    await page.getByRole('tab', { name: 'Candidates (5)' }).click()
+    const list = page.getByRole('region', { name: 'Candidates' })
+    const rows = list.getByRole('table', { name: 'Candidates' }).getByRole('row')
+    await expect(rows).toHaveCount(6) // the header and five candidates, newest first
+    await expect(rows.nth(1)).toContainText('Tom Baker')
+    await expect(rows.filter({ hasText: 'Lucía Romero' })).toContainText('Weekend barista')
+    await list.getByRole('textbox', { name: 'Search the candidates' }).fill('611 908')
+    await expect(rows).toHaveCount(2)
+    await expect(rows.nth(1)).toContainText('Lucía Romero')
+    await list.getByRole('textbox', { name: 'Search the candidates' }).fill('')
+    await list.getByRole('combobox', { name: 'Stage', exact: true }).click()
+    await page.getByRole('option', { name: 'Still in the running' }).click()
+    await expect(rows).toHaveCount(4)
+    await list.getByRole('combobox', { name: 'Job', exact: true }).click()
+    await page.getByRole('option', { name: 'Opening team: baristas' }).click()
+    await expect(list).toContainText('No candidates match.')
   })
 })
 
@@ -6235,7 +6315,7 @@ test.describe('documents hub', () => {
     await expect(rows).toHaveCount(2)
 
     await rows.filter({ hasText: 'Póliza RC Mapfre' }).getByRole('link', { name: 'Seguro de responsabilidad civil' }).click()
-    await expect(page.getByRole('heading', { name: 'Licences', level: 1 })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Legal & licences', level: 1 })).toBeVisible()
     await page.getByRole('link', { name: 'Documents', exact: true }).first().click()
     await rows.filter({ hasText: 'Factura By Eric agosto.pdf' }).getByRole('link', { name: 'Invoice 2026-0812' }).click()
     await expect(page.getByRole('heading', { name: 'Invoices', level: 1 })).toBeVisible()

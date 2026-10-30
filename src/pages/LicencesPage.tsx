@@ -7,7 +7,7 @@ import EditIcon from '@mui/icons-material/EditOutlined'
 import OpenIcon from '@mui/icons-material/OpenInNew'
 import RenewIcon from '@mui/icons-material/AutorenewOutlined'
 import AttachIcon from '@mui/icons-material/AttachFileOutlined'
-import { useRef, useState } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
@@ -37,8 +37,9 @@ const RENEWALS = [null, 1, 3, 6, 12, 24, 48, 60]
  * insurance, safety checks, staff certificates), each with its number, when it runs out, how often
  * it renews and its document. Admins get a reminder in the bell before one runs out.
  * Admins manage it; a gestoría with finances access reads (the database enforces it too).
+ * It's the Licences tab of Legal & licences (LegalPage), whose tabs go under the title.
  */
-export function LicencesPage() {
+export function LicencesPage({ tabs }: { tabs?: ReactNode }) {
   const { isAdmin, isPartner, partnerCan, api } = useApp()
   const canEdit = isAdmin && !isPartner
   const list = useAsync('licences', () => api.licences(), [])
@@ -47,7 +48,7 @@ export function LicencesPage() {
 
   if (!canEdit && !partnerCan('finances')) {
     return <>
-      <PageHeader eyebrow={t('Business')} title={t('Licences')} />
+      <PageHeader eyebrow={t('Business')} title={t('Legal & licences')} />
       <Alert severity="info">{t('Licences are only visible to admins.')}</Alert>
     </>
   }
@@ -77,11 +78,12 @@ export function LicencesPage() {
 
   return (
     <>
-      <PageHeader eyebrow={t('Business')} title={t('Licences')} actions={<>
+      <PageHeader eyebrow={t('Business')} title={t('Legal & licences')} actions={<>
         {!canEdit && <Tag>{t('Read-only')}</Tag>}
         <ExportButton table={table} disabled={!active.length} folder="Licences" />
         {canEdit && <Button variant="contained" startIcon={<AddIcon />} onClick={() => setEditing({ name: '', category: 'permit', reminder_days: 30, renew_every_months: 12, active: true })}>{t('Add a licence')}</Button>}
       </>} />
+      {tabs}
       <ErrorBox error={list.error} />
 
       <StatGrid>

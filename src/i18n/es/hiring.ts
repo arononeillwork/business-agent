@@ -78,4 +78,17 @@ export default {
   '{n} still to look at': '{n} por mirar',
   '{name} is on the team: an invite is on its way': '{name} ya está en el equipo: le llega una invitación',
   '{name}’s details removed': 'Datos de {name} quitados',
+  // The board (a swimlane per job) and the candidates list
+  'How to see the applicants': 'Cómo ver a los candidatos',
+  'Candidates': 'Candidatos',
+  'Candidate': 'Candidato',
+  'Jobs': 'Puestos',
+  'Filled and closed jobs ({n})': 'Puestos cubiertos y cerrados ({n})',
+  '{n} applied': '{n} candidaturas',
+  'Interview {when}': 'Entrevista {when}',
+  'Moved to {stage}, for {job}': 'Movido a {stage}, para {job}',
+  'Search the candidates': 'Buscar candidatos',
+  'All jobs': 'Todos los puestos',
+  'Still in the running': 'Aún en proceso',
+  'No candidates match.': 'Ningún candidato coincide.',
 }

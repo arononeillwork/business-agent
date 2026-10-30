@@ -38,9 +38,8 @@ const FinancesPage = page(() => import('./pages/FinancesPage'), 'FinancesPage')
 const GrantsPage = page(() => import('./pages/GrantsPage'), 'GrantsPage')
 const SalesPage = page(() => import('./pages/SalesPage'), 'SalesPage')
 const TaxPage = page(() => import('./pages/TaxPage'), 'TaxPage')
-const LicencesPage = page(() => import('./pages/LicencesPage'), 'LicencesPage')
+const LegalPage = page(() => import('./pages/LegalPage'), 'LegalPage')
 const DocumentsPage = page(() => import('./pages/DocumentsPage'), 'DocumentsPage')
-const LegalDocumentsPage = page(() => import('./pages/LegalDocumentsPage'), 'LegalDocumentsPage')
 const InvoicesPage = page(() => import('./pages/InvoicesPage'), 'InvoicesPage')
 const CreditDebitPage = page(() => import('./pages/CreditDebitPage'), 'CreditDebitPage')
 const PagesPage = page(() => import('./pages/PagesPage'), 'PagesPage')
@@ -140,9 +139,9 @@ function Routed() {
           {partnerCan('calendar') && <Route path="calendar" element={<CalendarPage />} />}
           {partnerCan('finances') && <Route path="finances" element={<FinancesPage />} />}
           {partnerCan('finances') && <Route path="tax" element={<TaxPage />} />}
-          {partnerCan('finances') && <Route path="licences" element={<LicencesPage />} />}
+          {partnerCan('finances') && <Route path="licences" element={<Navigate to="/legal" replace />} />}
           {partnerCan('finances') && <Route path="documents" element={<DocumentsPage />} />}
-          {partnerCan('finances') && <Route path="legal" element={<LegalDocumentsPage />} />}
+          {partnerCan('finances') && <Route path="legal" element={<LegalPage />} />}
           {partnerCan('finances') && <Route path="invoices" element={<InvoicesPage />} />}
           {partnerCan('finances') && <Route path="credit-debit" element={<CreditDebitPage />} />}
           {partnerCan('finances') && <Route path="expenses" element={<ExpensesPage />} />}
@@ -213,9 +212,9 @@ function Routed() {
         <Route path="ai-assistants" element={<AiAssistantsPage />} />
         <Route path="finances" element={<FinancesPage />} />
         <Route path="tax" element={<TaxPage />} />
-        <Route path="licences" element={isAdmin ? <LicencesPage /> : <Navigate to="/" />} />
+        <Route path="licences" element={<Navigate to={isAdmin ? '/legal' : '/'} replace />} />
         <Route path="documents" element={<DocumentsPage />} />
-        <Route path="legal" element={isAdmin ? <LegalDocumentsPage /> : <Navigate to="/" />} />
+        <Route path="legal" element={isAdmin ? <LegalPage /> : <Navigate to="/" />} />
         <Route path="invoices" element={<InvoicesPage />} />
         <Route path="credit-debit" element={<CreditDebitPage />} />
         <Route path="expenses" element={<ExpensesPage />} />

@@ -60,7 +60,8 @@ export function RotaPage() {
   const visible = weekShifts.filter(s => positionFilter === 'all' || s.position_id === positionFilter)
   const events = data.data?.events ?? []
   const openingHours = business?.opening_hours ?? {}
-  const people = profiles.filter(p => p.active && p.role !== 'kiosk')
+  // Someone off the rota (Team) gets no row, unless they have a shift this week already.
+  const people = profiles.filter(p => p.active && p.role !== 'kiosk' && (p.on_rota !== false || weekShifts.some(s => s.profile_id === p.id)))
   const position = (id: number | null) => positions.find(p => p.id === id)
   const rate = (pid: string | null) => (pid ? rates.get(pid) ?? 0 : 0)
   const mult = settings?.employer_cost_multiplier ?? 1

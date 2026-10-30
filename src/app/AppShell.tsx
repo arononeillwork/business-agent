@@ -34,7 +34,6 @@ import OutsourcingIcon from '@mui/icons-material/BusinessCenterOutlined'
 import FinanceIcon from '@mui/icons-material/PaymentsOutlined'
 import SalesIcon from '@mui/icons-material/InsightsOutlined'
 import TaxIcon from '@mui/icons-material/ReceiptLongOutlined'
-import LicencesIcon from '@mui/icons-material/VerifiedOutlined'
 import DocumentsIcon from '@mui/icons-material/FolderOutlined'
 import LegalIcon from '@mui/icons-material/GavelOutlined'
 import InvoicesIcon from '@mui/icons-material/DescriptionOutlined'
@@ -111,9 +110,8 @@ export const SECTIONS: NavSection[] = [
     { key: 'business', to: '/business', label: msg('Business'), icon: <BusinessIcon />, partner: 'any' },
     { key: 'todo', to: '/todo', label: msg('To Do List'), short: msg('To do'), icon: <TodoIcon /> },
     { key: 'hours', to: '/opening-hours', label: msg('Opening hours'), icon: <HoursIcon />, partner: 'any' },
-    { key: 'licences', to: '/licences', label: msg('Licences'), icon: <LicencesIcon />, who: 'admin', partner: ['finances'] },
     { key: 'documents', to: '/documents', label: msg('Documents'), icon: <DocumentsIcon />, who: 'pay', partner: ['finances'] },
-    { key: 'legal', to: '/legal', label: msg('Legal'), icon: <LegalIcon />, who: 'admin', partner: ['finances'] },
+    { key: 'legal', to: '/legal', label: msg('Legal & licences'), short: msg('Legal'), icon: <LegalIcon />, who: 'admin', partner: ['finances'] },
     { key: 'brand', to: '/brand', label: msg('Brand'), icon: <BrandIcon />, partner: 'any' },
     { key: 'messages', to: '/messages', label: msg('Messages'), icon: <MessagesIcon />, who: 'admin' },
   ] },
