@@ -43,6 +43,9 @@ export default {
   'Sees and ticks off only the tasks given to them': 'Ve y marca como hechas solo las tareas que le dan',
   'Sees the opening hours (admins change them)': 'Ve el horario de apertura (lo cambian los administradores)',
   'Builds their own dashboards from the figures': 'Crea sus propios paneles con las cifras',
+  'Claims back what they spent for the business': 'Pide que le devuelvan lo que gastó para el negocio',
+  'Sees the brand: the logo, colours and fonts': 'Ve la marca: el logo, los colores y las fuentes',
+  'Connects their own AI assistant to the app': 'Conecta su propio asistente de IA a la app',
 
   // The areas: what Read and Update let someone do
   'Sees the published rota and their own shifts': 'Ve el cuadrante publicado y sus propios turnos',

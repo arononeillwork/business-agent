@@ -1,5 +1,6 @@
 import { Box, Button, Card, CardActionArea, Stack, Typography } from '@mui/material'
 import PawIcon from '@mui/icons-material/PetsOutlined'
+import AddPhotoIcon from '@mui/icons-material/AddAPhotoOutlined'
 import { Fragment, useState, type ReactNode } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
@@ -47,7 +48,8 @@ export function PeoplePage() {
               <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 1.5 }}>
                 {tier.people.map(p => (
                   <PersonCard key={p.id} person={p} you={p.id === me?.id} roles={rolesOf.get(p.id) ?? []}
-                    pets={showPets ? petsOf.get(p.id) ?? [] : null} link={isAdmin ? `/team?person=${p.id}` : null} />
+                    pets={showPets ? petsOf.get(p.id) ?? [] : null}
+                    link={p.id === me?.id ? '/account' : isAdmin ? `/team?person=${p.id}` : null} />
                 ))}
               </Box>
             </Box>
@@ -75,6 +77,13 @@ function PersonCard({ person: p, you, roles, pets, link }: { person: Profile; yo
           </Stack>
         )}
       </Box>
+      {/* Their own card opens My account, where they add their pets with a photo. */}
+      {you && (
+        <Stack direction="row" sx={{ gap: 0.5, alignItems: 'center', color: tokens.roseDeep }}>
+          <AddPhotoIcon sx={{ fontSize: 18 }} aria-hidden />
+          <Typography variant="body2" sx={{ fontWeight: 500 }}>{t('Add your pet')}</Typography>
+        </Stack>
+      )}
       {pets && (
         <Box role="list" aria-label={t('{name}’s pets', { name: p.full_name })}
           sx={{ width: '100%', pt: 1.25, borderTop: `1px solid ${tokens.line}`, display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 1.5 }}>

@@ -113,6 +113,11 @@ built-in **AI connector** so owners can run it by talking to Claude.
   My account as fixed values, is their role (Barista / Bartender) and their access; their Roles page shows
   just their own role. The café's front-line templates (barista, kitchen, cleaner…) leave out the Business
   page and Dashboards and give Own tasks; the barista's also hides the stock; owners have everything.
+- More of a role's areas: Brand, Expenses and AI assistants (shown or not); the café's front-line templates
+  leave them out, and a hidden AI assistants leaves the account menu too. People is first in the Business
+  section; your own card there opens My account, where you add your pets with a photo.
+- The team's languages (My account → Language, admins): with both English and Spanish, everyone gets the
+  flags at the top to switch, and each person's own choice is kept on their account.
 - Staff rules (Team section): the house rules, in sections that open (being on time and clocking in, uniform
   and hygiene, food safety and allergens, phones, breaks, customers, the till, health and safety, respect).
   Each employee confirms they've read them and is asked again when a section is added or changed (what's new
