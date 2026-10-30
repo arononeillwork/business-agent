@@ -121,7 +121,7 @@ export function FoodSafetyPage() {
             {t('The last {n} days; Export has the whole week.', { n: SHOWN_DAYS })}{' '}
             {t('Records are kept as they were written, for inspections. A mistake is put right with another check.')}{' '}
             {t('The pest control contract, the health registration and food handler certificates are on Licences.')}{' '}
-            {isAdmin && <RouterLink to="/licences">{t('Open Licences')}</RouterLink>}
+            {isAdmin && <RouterLink to="/legal">{t('Open Licences')}</RouterLink>}
           </Typography>
         </CardContent>
       </Card>

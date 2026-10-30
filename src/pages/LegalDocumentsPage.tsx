@@ -15,7 +15,7 @@ import SearchIcon from '@mui/icons-material/Search'
 import CloseIcon from '@mui/icons-material/Close'
 import UploadIcon from '@mui/icons-material/UploadFileOutlined'
 import { useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
@@ -48,8 +48,9 @@ function FileKind({ d }: { d: LegalDocument }) {
  * licences, its policies), kept where they already are in its Google Drive or OneDrive. An admin picks
  * them from whichever storage is connected; the page lists them by kind, shows each one (asked of its
  * storage there and then) and opens it there. Nothing is copied. A gestoría with finances access reads.
+ * It's the Legal documents tab of Legal & licences (LegalPage), whose tabs go under the title.
  */
-export function LegalDocumentsPage() {
+export function LegalDocumentsPage({ tabs }: { tabs?: ReactNode }) {
   const { api, isAdmin, isPartner, partnerCan } = useApp()
   const canEdit = isAdmin && !isPartner
   const docs = useAsync('legal-documents', () => api.legalDocuments(), [])
@@ -61,7 +62,7 @@ export function LegalDocumentsPage() {
 
   if (!canEdit && !partnerCan('finances')) {
     return <>
-      <PageHeader eyebrow={t('Business')} title={t('Legal')} />
+      <PageHeader eyebrow={t('Business')} title={t('Legal & licences')} />
       <Alert severity="info">{t('Legal documents are only visible to admins.')}</Alert>
     </>
   }
@@ -83,11 +84,12 @@ export function LegalDocumentsPage() {
 
   return (
     <>
-      <PageHeader eyebrow={t('Business')} title={t('Legal')} actions={<>
+      <PageHeader eyebrow={t('Business')} title={t('Legal & licences')} actions={<>
         {!canEdit && <Tag>{t('Read-only')}</Tag>}
         <ExportButton table={table} disabled={!all.length} folder="Legal" />
         {canEdit && <AddButton sources={sources.data} onBrowse={setBrowsing} />}
       </>} />
+      {tabs}
       <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2.5, maxWidth: 760 }}>
         {t('The café’s legal documents, kept where they already are in its Google Drive or OneDrive. Business Agent only remembers where each one is: it shows them here and opens them there, and copies nothing.')}
       </Typography>

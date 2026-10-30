@@ -124,6 +124,8 @@ built-in **AI connector** so owners can run it by talking to Claude.
   be connected; the admin chooses which), grouped by kind, shown in the page straight from the storage
   and opened there. Nothing is copied: only where each file is is kept. A gestoría with finances access
   reads. Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) section 18.
+- Legal & licences (Business section): Licences and Legal are one page, a tab each (Licences first;
+  `/legal?tab=documents` opens the documents, and the old `/licences` link opens the page).
 - Menu (its own section): the menu as customers see it, by section, with each item's photo, price,
   description and variants; everyone on the team reads it, admins add, arrange and take items off the
   menu, and move items and whole sections up and down. The items are Menu costing's own (one list, two
@@ -210,6 +212,14 @@ built-in **AI connector** so owners can run it by talking to Claude.
   and who applied, stage by stage; an interview goes on the calendar for admins, and a hire is invited
   to the team in one step. Applicants not hired are kept a year (GDPR), then flagged to remove.
   InfoJobs, Indeed and LinkedIn Jobs are on Connections as coming.
+- Hiring board: the page opens on a board with a swimlane per job and a column per stage; cards are
+  dragged to the next stage (or another job's lane) or moved from their menu, and filled or closed jobs
+  with nobody left in the running are hidden until asked for. **Candidates** lists everyone who applied,
+  whichever job, searched by name, email or phone and narrowed to a job or a stage; **Jobs** is the job
+  by job view.
+- Off the rota (Team): an admin switches someone off the rota on their Team panel (an owner, the
+  business's own login). They still sign in; the rota gives them no row and doesn't offer them for a
+  shift, unless they already have one that week.
 - Tips (Team section): cash and card tips for a period (the till's card tips offered when one is
   connected) shared out by the hours on the timecards or equally, to the cent; everyone sees their own
   share once it's shared out and hears in the bell; a payroll gestoría reads.

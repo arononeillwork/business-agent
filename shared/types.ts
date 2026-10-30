@@ -159,6 +159,8 @@ export interface Profile {
   partner_access?: PartnerArea[]
   /** Appearance and accessibility, chosen by the person (My account → Appearance). */
   preferences?: Preferences
+  /** False: not worked into the rota (an owner, the business's own login); they still sign in. Admins set it on Team. */
+  on_rota?: boolean
 }
 
 export interface Preferences {

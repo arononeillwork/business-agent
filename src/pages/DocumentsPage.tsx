@@ -205,7 +205,7 @@ function BelongsTo({ doc }: { doc: KeptDocument }) {
       </Box>
     ))}</>
   }
-  if (l === 'licence') return <>{doc.licences!.map(x => <Box key={x.id}><Link component={RouterLink} to="/licences">{x.name}</Link></Box>)}</>
+  if (l === 'licence') return <>{doc.licences!.map(x => <Box key={x.id}><Link component={RouterLink} to="/legal">{x.name}</Link></Box>)}</>
   if (l === 'tax') return <Link component={RouterLink} to="/tax">{t('Tax papers')}</Link>
   return caption(t('Nothing else'))
 }

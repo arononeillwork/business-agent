@@ -1938,6 +1938,7 @@ export function createDemoApi(): Api {
       if (id !== currentUser) requireAdmin()
       if (id !== currentUser && 'preferences' in patch) throw new Error('Only the person themselves can change their appearance settings')
       if (id === currentUser && patch.active === false) throw new Error("You can't switch off your own account. Ask another admin.")
+      if (!isAdmin() && 'on_rota' in patch) throw new Error('Only an admin takes someone off the rota or puts them back')
       if (!isAdmin() && ('role' in patch || 'can_see_pay' in patch || 'active' in patch)) {
         throw new Error('Only an admin can change role, pay access or status')
       }

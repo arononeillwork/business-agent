@@ -1,21 +1,24 @@
 import {
-  Alert, Box, Button, Card, CardContent, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, FormGroup, FormLabel, IconButton, Link,
-  MenuItem, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
+  Alert, Box, Button, Card, CardContent, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, FormGroup, FormLabel, IconButton,
+  InputAdornment, Link, MenuItem, Stack, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs, TextField, Typography,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import EditIcon from '@mui/icons-material/EditOutlined'
 import OpenIcon from '@mui/icons-material/OpenInNew'
 import PersonAddIcon from '@mui/icons-material/PersonAddAlt'
-import { useState } from 'react'
-import { Link as RouterLink } from 'react-router-dom'
+import SearchIcon from '@mui/icons-material/Search'
+import { useState, type ReactNode } from 'react'
+import { Link as RouterLink, useSearchParams } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { Empty, ErrorBox, PageHeader, SectionTitle, StatGrid, StatTile, Tag } from '../components/common'
+import { HiringBoard, OPENING_TONE, STAGE_TONE } from '../components/HiringBoard'
 import { addDays, formatLocal, localDate, today, zonedIso } from '../../shared/time'
 import { cleanPhone } from '../../shared/customers'
 import {
-  APPLICANT_STAGES, CONTRACTS, JOB_BOARDS, OPENING_STATUSES, STILL_IN, applicantStageLabel, boardLabel, contractLabel, keepUntil, openingStatusLabel, overdue,
+  APPLICANT_STAGES, CONTRACTS, JOB_BOARDS, OPENING_STATUSES, STILL_IN, applicantStageLabel, boardLabel, boardMove, contractLabel, finishedJob, hiringLanes,
+  keepUntil, matchesCandidate, openingStatusLabel, overdue,
   type Applicant, type ApplicantInput, type ApplicantStage, type JobOpening, type OpeningInput, type OpeningStatus,
 } from '../../shared/hiring'
 import { tokens } from '../theme'
@@ -23,26 +26,25 @@ import { t } from '../i18n'
 
 const day = (d: string | null) => (d ? formatLocal(`${d}T12:00:00Z`, 'd MMM yyyy') : '')
 const when = (iso: string | null) => (iso ? formatLocal(iso, 'EEE d MMM, HH:mm') : '')
-const OPENING_TONE: Record<OpeningStatus, { fg: string; bg: string }> = {
-  open: { fg: tokens.goodFg, bg: tokens.goodBg }, paused: { fg: tokens.warnFg, bg: tokens.warnBg },
-  filled: { fg: tokens.infoFg, bg: tokens.infoBg }, closed: { fg: tokens.neutralFg, bg: tokens.neutralBg },
-}
-const STAGE_TONE: Record<ApplicantStage, { fg: string; bg: string }> = {
-  applied: { fg: tokens.neutralFg, bg: tokens.neutralBg }, screening: { fg: tokens.infoFg, bg: tokens.infoBg }, interview: { fg: tokens.ubeDeep, bg: tokens.ubeSoft },
-  trial: { fg: tokens.warnFg, bg: tokens.warnBg }, offer: { fg: tokens.warnFg, bg: tokens.warnBg }, hired: { fg: tokens.goodFg, bg: tokens.goodBg },
-  rejected: { fg: tokens.neutralFg, bg: tokens.neutralBg },
-}
+type View = 'board' | 'candidates' | 'jobs'
+// The candidates list's stage filter: everyone, those still in the running, or one stage.
+type StageFilter = 'all' | 'running' | ApplicantStage
 
 /**
  * Hiring (Team): the jobs being filled, where each is advertised, and who applied, stage by stage
  * (an interview goes on the calendar for admins) until someone is hired and added to the team.
- * Applicants who weren't hired are kept a year, then their details should go (GDPR). Admins only.
+ * Seen as a board (a swimlane per job, a column per stage, cards dragged along), as one list of every
+ * candidate (searched and filtered), or job by job. Applicants who weren't hired are kept a year,
+ * then their details should go (GDPR). Admins only.
  */
 export function HiringPage() {
   const { api, isAdmin, positions } = useApp()
   const jobs = useAsync('job-openings', () => api.jobOpenings(), [])
   const people = useAsync('applicants', () => api.applicants(), [])
   const run = useAction()
+  const [params, setParams] = useSearchParams()
+  const view: View = params.get('view') === 'candidates' ? 'candidates' : params.get('view') === 'jobs' ? 'jobs' : 'board'
+  const [withFinished, setWithFinished] = useState(false)
   const [opening, setOpening] = useState<OpeningInput | null>(null)
   const [applicant, setApplicant] = useState<ApplicantInput | null>(null)
   const [hiring, setHiring] = useState<Applicant | null>(null)
@@ -67,7 +69,25 @@ export function HiringPage() {
 
   const move = (a: Applicant, stage: ApplicantStage) => run(() => api.saveApplicant({ id: a.id, opening_id: a.opening_id, full_name: a.full_name, stage }),
     t('Moved to {stage}', { stage: t(applicantStageLabel(stage)) }))
+  // Dropped on the board: another stage, or another job's lane.
+  const drop = (a: Applicant, to: { opening_id: string; stage: ApplicantStage }) => {
+    const patch = boardMove(a, to)
+    if (!patch) return
+    const job = openings.find(o => o.id === to.opening_id)
+    void run(() => api.saveApplicant({ id: a.id, opening_id: to.opening_id, full_name: a.full_name, stage: to.stage }),
+      patch.opening_id && job ? t('Moved to {stage}, for {job}', { stage: t(applicantStageLabel(to.stage)), job: job.title }) : t('Moved to {stage}', { stage: t(applicantStageLabel(to.stage)) }))
+  }
   const forget = (a: Applicant) => run(() => api.deleteApplicant(a.id), t('{name}’s details removed', { name: a.full_name }))
+  const lanes = hiringLanes(openings, all, withFinished)
+  const finished = openings.filter(o => finishedJob(o, all)).length
+  const setView = (v: View) => setParams(v === 'board' ? {} : { view: v }, { replace: true })
+  const stageSelect = (a: Applicant) => (
+    <TextField select size="small" variant="standard" value={a.stage} onChange={x => void move(a, x.target.value as ApplicantStage)}
+      slotProps={{ input: { disableUnderline: true }, select: { SelectDisplayProps: { 'aria-label': t('Stage of {name}', { name: a.full_name }) },
+        renderValue: v => <Tag {...STAGE_TONE[v as ApplicantStage]}>{t(applicantStageLabel(v as ApplicantStage))}</Tag> } }}>
+      {APPLICANT_STAGES.map(s => <MenuItem key={s.id} value={s.id}>{t(s.label)}</MenuItem>)}
+    </TextField>
+  )
 
   return (
     <>
@@ -92,7 +112,29 @@ export function HiringPage() {
 
       {openings.length === 0 && <Card sx={{ mb: 3 }}><CardContent><Empty>{jobs.data ? t('No jobs yet. Add the one you’re filling.') : t('Loading…')}</Empty></CardContent></Card>}
 
-      {openings.map(o => {
+      {openings.length > 0 && (
+        <Tabs value={view} onChange={(_, v: View) => setView(v)} variant="scrollable" allowScrollButtonsMobile aria-label={t('How to see the applicants')}
+          sx={{ mb: 2, borderBottom: `1px solid ${tokens.line}` }}>
+          <Tab value="board" label={t('Board')} />
+          <Tab value="candidates" label={`${t('Candidates')} (${all.length})`} />
+          <Tab value="jobs" label={`${t('Jobs')} (${openings.length})`} />
+        </Tabs>
+      )}
+
+      {openings.length > 0 && view === 'board' && <>
+        {finished > 0 && (
+          <Chip clickable onClick={() => setWithFinished(x => !x)} aria-pressed={withFinished} variant={withFinished ? 'filled' : 'outlined'} sx={{ mb: 1.5 }}
+            label={t('Filled and closed jobs ({n})', { n: finished })} />
+        )}
+        <HiringBoard lanes={lanes} today={now} positionName={positionName} onMove={drop} onEdit={setApplicant} onHire={setHiring}
+          onAdd={o => setApplicant(newApplicant(o.id))} />
+      </>}
+
+      {openings.length > 0 && view === 'candidates' && (
+        <CandidatesList applicants={all} openings={openings} today={now} stageSelect={stageSelect} onEdit={setApplicant} onHire={setHiring} onForget={a => void forget(a)} />
+      )}
+
+      {view === 'jobs' && openings.map(o => {
         const theirs = all.filter(a => a.opening_id === o.id)
         return (
           <Card key={o.id} component="section" aria-label={o.title} sx={{ mb: 3 }}>
@@ -125,13 +167,7 @@ export function HiringPage() {
                               <Typography variant="caption" sx={{ color: 'text.secondary' }}>{[t(boardLabel(a.source)), t('applied {date}', { date: day(a.applied_on) }), a.email ?? a.phone].filter(Boolean).join(' · ')}</Typography>
                               {overdue(a, now) && <Box><Tag fg={tokens.warnFg} bg={tokens.warnBg}>{t('Kept until {date}', { date: day(a.keep_until) })}</Tag></Box>}
                             </TableCell>
-                            <TableCell>
-                              <TextField select size="small" variant="standard" value={a.stage} onChange={x => void move(a, x.target.value as ApplicantStage)}
-                                slotProps={{ input: { disableUnderline: true }, select: { SelectDisplayProps: { 'aria-label': t('Stage of {name}', { name: a.full_name }) },
-                                  renderValue: v => <Tag {...STAGE_TONE[v as ApplicantStage]}>{t(applicantStageLabel(v as ApplicantStage))}</Tag> } }}>
-                                {APPLICANT_STAGES.map(s => <MenuItem key={s.id} value={s.id}>{t(s.label)}</MenuItem>)}
-                              </TextField>
-                            </TableCell>
+                            <TableCell>{stageSelect(a)}</TableCell>
                             <TableCell sx={{ whiteSpace: 'nowrap' }}>{STILL_IN.includes(a.stage) ? when(a.interview_at) : ''}</TableCell>
                             <TableCell sx={{ whiteSpace: 'nowrap' }} aria-label={a.rating ? t('{n} out of 5', { n: a.rating }) : undefined}>{a.rating ? '★'.repeat(a.rating) + '☆'.repeat(5 - a.rating) : ''}</TableCell>
                             <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
@@ -161,6 +197,77 @@ export function HiringPage() {
       {applicant && <ApplicantDialog applicant={applicant} openings={openings} onClose={() => setApplicant(null)} />}
       {hiring && <AddToTeamDialog applicant={hiring} onClose={() => setHiring(null)} />}
     </>
+  )
+}
+
+/** Every candidate in one list, whichever job they applied for: searched, and narrowed to a job or a stage. */
+function CandidatesList({ applicants, openings, today, stageSelect, onEdit, onHire, onForget }: {
+  applicants: Applicant[]; openings: JobOpening[]; today: string; stageSelect: (a: Applicant) => ReactNode
+  onEdit: (a: Applicant) => void; onHire: (a: Applicant) => void; onForget: (a: Applicant) => void
+}) {
+  const [query, setQuery] = useState('')
+  const [job, setJob] = useState('all')
+  const [stage, setStage] = useState<StageFilter>('all')
+  const title = (id: string) => openings.find(o => o.id === id)?.title ?? ''
+  const shown = applicants
+    .filter(a => matchesCandidate(a, query) && (job === 'all' || a.opening_id === job)
+      && (stage === 'all' || (stage === 'running' ? STILL_IN.includes(a.stage) : a.stage === stage)))
+    .sort((a, b) => b.applied_on.localeCompare(a.applied_on) || a.full_name.localeCompare(b.full_name))
+  return (
+    <Card component="section" aria-label={t('Candidates')} sx={{ mb: 3 }}>
+      <CardContent>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mb: 2 }}>
+          <TextField size="small" placeholder={t('Search the candidates')} value={query} onChange={e => setQuery(e.target.value)} sx={{ flex: 2 }}
+            slotProps={{ htmlInput: { 'aria-label': t('Search the candidates') }, input: { startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> } }} />
+          <TextField select size="small" label={t('Job')} value={job} onChange={e => setJob(e.target.value)} sx={{ flex: 1, minWidth: 160 }}>
+            <MenuItem value="all">{t('All jobs')}</MenuItem>
+            {openings.map(o => <MenuItem key={o.id} value={o.id}>{o.title}</MenuItem>)}
+          </TextField>
+          <TextField select size="small" label={t('Stage')} value={stage} onChange={e => setStage(e.target.value as StageFilter)} sx={{ flex: 1, minWidth: 160 }}>
+            <MenuItem value="all">{t('Everyone')}</MenuItem>
+            <MenuItem value="running">{t('Still in the running')}</MenuItem>
+            {APPLICANT_STAGES.map(s => <MenuItem key={s.id} value={s.id}>{t(s.label)}</MenuItem>)}
+          </TextField>
+        </Stack>
+        {shown.length === 0
+          ? <Empty>{applicants.length ? t('No candidates match.') : t('Nobody has applied yet.')}</Empty>
+          : <Box sx={{ overflowX: 'auto' }}>
+              <Table size="small" aria-label={t('Candidates')}>
+                <TableHead><TableRow>
+                  <TableCell>{t('Candidate')}</TableCell><TableCell>{t('Job')}</TableCell><TableCell>{t('Stage')}</TableCell>
+                  <TableCell>{t('Came from')}</TableCell><TableCell>{t('Applied on')}</TableCell><TableCell>{t('Interview')}</TableCell>
+                  <TableCell>{t('Rating')}</TableCell><TableCell />
+                </TableRow></TableHead>
+                <TableBody>
+                  {shown.map(a => (
+                    <TableRow key={a.id} hover>
+                      <TableCell sx={{ minWidth: 180 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>{a.full_name}</Typography>
+                        <Typography variant="caption" sx={{ color: 'text.secondary', overflowWrap: 'anywhere' }}>{[a.email, a.phone].filter(Boolean).join(' · ')}</Typography>
+                        {overdue(a, today) && <Box><Tag fg={tokens.warnFg} bg={tokens.warnBg}>{t('Kept until {date}', { date: day(a.keep_until) })}</Tag></Box>}
+                      </TableCell>
+                      <TableCell sx={{ minWidth: 140 }}>{title(a.opening_id)}</TableCell>
+                      <TableCell>{stageSelect(a)}</TableCell>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>{t(boardLabel(a.source))}</TableCell>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>{day(a.applied_on)}</TableCell>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>{STILL_IN.includes(a.stage) ? when(a.interview_at) : ''}</TableCell>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }} aria-label={a.rating ? t('{n} out of 5', { n: a.rating }) : undefined}>{a.rating ? '★'.repeat(a.rating) + '☆'.repeat(5 - a.rating) : ''}</TableCell>
+                      <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                        {a.cv_link && <IconButton size="small" component="a" href={a.cv_link} target="_blank" rel="noopener" aria-label={t('Open the CV of {name}', { name: a.full_name })}><OpenIcon fontSize="small" /></IconButton>}
+                        {(a.stage === 'offer' || a.stage === 'hired') && !a.profile_id && (
+                          <Button size="small" startIcon={<PersonAddIcon />} onClick={() => onHire(a)} aria-label={t('Add {name} to the team', { name: a.full_name })}>{t('Add to the team')}</Button>
+                        )}
+                        {a.profile_id && <Button size="small" component={RouterLink} to="/team">{t('On the team')}</Button>}
+                        {overdue(a, today) && <Button size="small" color="error" onClick={() => onForget(a)} aria-label={t('Remove the details of {name}', { name: a.full_name })}>{t('Remove')}</Button>}
+                        <IconButton size="small" aria-label={t('Edit {name}', { name: a.full_name })} onClick={() => onEdit(a)}><EditIcon fontSize="small" /></IconButton>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Box>}
+      </CardContent>
+    </Card>
   )
 }
 
