@@ -1,19 +1,23 @@
 import { Box, Typography } from '@mui/material'
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { MenuBoard, boardBrand } from './MenuBoard'
+import { OfferBoard } from './OfferBoard'
 import { useTick } from '../app/hooks'
 import { sizeOf } from '../../shared/menu'
 import { musicEmbedUrl, musicKind, playOrder, playUrl, slideSeconds, type DisplayFeed, type Slide } from '../../shared/screens'
+import { liveOffers, nextChange, withOffers, type OfferSlide } from '../../shared/offers'
 import { formatLocal } from '../../shared/time'
 import { t } from '../i18n'
 
 // The slideshow a screen plays: each slide for its time, changing with the screen's effect and
 // speed, over the music, with the clock and a running line if the screen has them. Fills whatever
 // box it's in: the whole TV on the screen's own link, or a small frame on the Screens page, where it
-// previews the changes being made (silently: `preview`).
+// previews the changes being made (silently: `preview`). Offers (Offers & specials) join the
+// slides at the minute they start and leave at the minute they end, by the screen's own clock.
 
 type Phase = 'enter' | 'shown' | 'exit'
-interface Layer { key: number; slide: Slide; phase: Phase }
+type Item = Slide | OfferSlide
+interface Layer { key: number; slide: Item; phase: Phase }
 
 const looks: Record<string, Record<Phase, CSSProperties>> = {
   fade: { enter: { opacity: 0 }, shown: { opacity: 1 }, exit: { opacity: 0 } },
@@ -26,7 +30,21 @@ export function ScreenPlayer({ feed, preview = false, onBlocked }: { feed: Displ
   const s = feed.screen
   // The order changes only when the slides do (a new shuffle each time round would be too).
   const slidesKey = JSON.stringify(s.slides)
-  const order = useMemo(() => playOrder(s.slides, s.shuffle), [slidesKey, s.shuffle])
+  const slides = useMemo(() => playOrder(s.slides, s.shuffle), [slidesKey, s.shuffle])
+  // The offers on now, looked at again the moment the next one starts or ends (at most an hour
+  // apart: a timer can't wait for days, and a TV's clock may have moved).
+  const offers = feed.offers ?? []
+  const offersKey = JSON.stringify(offers)
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const at = nextChange(offers, now)
+    if (at === null) return
+    const id = setTimeout(() => setNow(Date.now()), Math.min(Math.max(at - Date.now(), 0), 3_600_000) + 20)
+    return () => clearTimeout(id)
+  }, [offersKey, now])
+  const live = liveOffers(offers, now)
+  const liveKey = JSON.stringify(live)
+  const order = useMemo<Item[]>(() => withOffers(slides, live), [slides, liveKey])
   const [layers, setLayers] = useState<Layer[]>([])
   const at = useRef(-1)
   const keyRef = useRef(0)
@@ -52,7 +70,7 @@ export function ScreenPlayer({ feed, preview = false, onBlocked }: { feed: Displ
     setLayers(order.length ? [{ key: ++keyRef.current, slide: order[0], phase: 'shown' }] : [])
   }, [order])
   // Each slide's time, then the next (a video without a time of its own says when it has ended).
-  const seconds = current ? slideSeconds(current, s) : null
+  const seconds = !current ? null : current.kind === 'offer' ? current.seconds : slideSeconds(current, s)
   useEffect(() => {
     if (!current || seconds === null || order.length < 2) return
     const id = setTimeout(next, seconds * 1000)
@@ -62,6 +80,7 @@ export function ScreenPlayer({ feed, preview = false, onBlocked }: { feed: Displ
   useEffect(() => {
     const coming = order[(at.current + 1) % Math.max(order.length, 1)]
     if (coming?.kind === 'image' && coming.url && !coming.live) new Image().src = coming.url
+    if (coming?.kind === 'offer' && coming.offer.image_url) new Image().src = coming.offer.image_url
   }, [current, order])
 
   const videoWithSound = current?.kind === 'video' && s.video_sound
@@ -70,7 +89,9 @@ export function ScreenPlayer({ feed, preview = false, onBlocked }: { feed: Displ
       {!s.active ? <Holding feed={feed} /> : !order.length ? <Holding feed={feed} note={t('No slides yet: add them on the Screens page.')} /> : layers.map(l => (
         <Box key={l.key} data-slide={l.slide.id} aria-hidden={l.phase === 'exit'}
           sx={{ position: 'absolute', inset: 0, transition: `opacity ${ms}ms ease, transform ${ms}ms ease`, ...looks[s.transition][l.phase] }}>
-          <SlideView slide={l.slide} feed={feed} sound={s.video_sound && !preview} onEnded={l.phase === 'shown' && order.length > 1 ? next : undefined} />
+          {l.slide.kind === 'offer'
+            ? <OfferBoard offer={l.slide.offer} brand={boardBrand(feed.business.name, feed.business)} now={now} />
+            : <SlideView slide={l.slide} feed={feed} sound={s.video_sound && !preview} onEnded={l.phase === 'shown' && order.length > 1 ? next : undefined} />}
         </Box>
       ))}
       {s.active && s.show_clock && <Clock />}

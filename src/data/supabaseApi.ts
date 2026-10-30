@@ -24,6 +24,7 @@ import type { Recipe } from '../../shared/recipes'
 import type { MenuDesign, MenuImage, MenuItem } from '../../shared/menu'
 import { missingFrom, templateDesigns, templateSections } from '../../shared/menuTemplate'
 import type { DisplayFeed, Screen } from '../../shared/screens'
+import type { Offer } from '../../shared/offers'
 import type { Camera, CameraClip, CameraLive, CameraService } from '../../shared/cameras'
 import type { AdSettings } from '../../shared/ads'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
@@ -779,6 +780,15 @@ export function createSupabaseApi(url: string, key: string): Api {
       if (!res.ok) throw new Error(json.error ?? `The slides couldn’t be loaded (${res.status})`)
       return json
     },
+    async offers() {
+      return check(await sb.from('offers').select('id, title, details, price, was_price, image_url, starts_at, ends_at, screen_ids, screen_mode, seconds, post_id, active, updated_at')
+        .order('starts_at', { ascending: false }).limit(500)) as Offer[]
+    },
+    async saveOffer({ id, ...offer }) {
+      if (id) { check(await sb.from('offers').update(offer).eq('id', id)); return id }
+      return (check(await sb.from('offers').insert(offer).select('id').single()) as { id: string }).id
+    },
+    async deleteOffer(id) { check(await sb.from('offers').delete().eq('id', id)) },
 
     async cameras() {
       const rows = check(await sb.from('cameras').select('*, camera_status(last_seen_at, last_clip_at, last_error)').order('created_at')) as

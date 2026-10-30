@@ -637,9 +637,10 @@ function useVideoLength(media: PostMedia[]) {
 }
 
 /** Write or edit a post: its kind, photos and videos, caption, accounts, when, and how it goes out. */
-function Composer({ post, storage, isConnected, onClose, onSaved, recent, engagement }: {
+/** A new post or a change to one. Also opened from Offers & specials, ready with an offer's story (`onSaved` gets the post's id). */
+export function Composer({ post, storage, isConnected, onClose, onSaved, recent, engagement }: {
   post: Partial<SocialPost> & { copied?: boolean }; storage: IntegrationsState['media_storage'] | null; isConnected: (p: IntegrationProvider) => boolean
-  onClose: () => void; onSaved: () => Promise<void>
+  onClose: () => void; onSaved: (id: string) => Promise<void>
   /** Tracks on the last few posts, and how well each did (music suggestions). */
   recent: string[]; engagement: Record<string, number>
 }) {
@@ -764,8 +765,8 @@ function Composer({ post, storage, isConnected, onClose, onSaved, recent, engage
     if (status === 'scheduled' && when === 'later' && Date.parse(scheduled_at!) < Date.now() - 60_000) throw new Error(t('That time has passed. Pick a later one, or choose Now.'))
     if (status === 'scheduled' && problem) throw new Error(t(problem))
     const out = await withMusic(status)
-    await api.saveSocialPost({ id: post.id, kind, caption, media: out.media, targets, status, scheduled_at, auto, music: out.music })
-    await onSaved()
+    const id = await api.saveSocialPost({ id: post.id, kind, caption, media: out.media, targets, status, scheduled_at, auto, music: out.music })
+    await onSaved(id)
     onClose()
   }, status === 'draft' ? t('Draft saved')
     : !auto ? (when === 'now' ? t('Added to Your turn to post') : t('Reminder set for {when}', { when: formatLocal(zonedIso(date, time), 'EEE d MMM, HH:mm') }))

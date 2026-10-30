@@ -334,6 +334,17 @@
       ]
     },
     {
+      "id": "offers",
+      "name": "Offers & specials",
+      "area": "Marketing",
+      "page": "/offers",
+      "does": "Specials on the screens for a set time, with their story",
+      "needs": [
+        { "label": "Instagram", "connection": "instagram", "optional": true },
+        { "label": "Drive or OneDrive", "anyOf": ["google_drive", "onedrive"], "optional": true }
+      ]
+    },
+    {
       "id": "competitions",
       "name": "Competitions",
       "area": "Marketing",

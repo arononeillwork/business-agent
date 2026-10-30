@@ -49,6 +49,7 @@ import {
   MAX_PROMPT, PROMPT_IDEAS, designProblem, menuItemProblem, menuSections, modelOf, sizeOf, type MenuDesign, type MenuImage, type MenuItem,
 } from '../../shared/menu'
 import { screenProblem, type DisplayFeed, type Screen } from '../../shared/screens'
+import { offerProblem, type Offer, type ScreenOffer } from '../../shared/offers'
 import { cameraProblem, type Camera } from '../../shared/cameras'
 import { demoCameraPicture, demoCameras, demoClips } from './demoCameras'
 import { demoArtwork, demoMenuPicture, demoPhoto, demoStrip } from './demoMenu'
@@ -949,6 +950,21 @@ export function createDemoApi(): Api {
       { id: 'sl-yt', kind: 'youtube', url: 'https://www.youtube.com/watch?v=jfKfPfyJRdk', design_id: null, title: 'Lo-fi live', seconds: 60, live: false, active: false },
     ],
   }]
+  // Offers & specials: ube latte week coming up on the counter TV, with its story planned; last week's pumpkin spice latte, ended.
+  const ubeStory = posts.find(p => p.kind === 'story' && p.status === 'scheduled')
+  const offerList: Offer[] = [
+    { id: 'o-ube', title: 'Ube latte week', details: 'Our purple ube latte, hot or iced, all week long.', price: '€4.20', was_price: '€4.80', image_url: UBE,
+      starts_at: ubeStory?.scheduled_at ?? hoursFromNow(72), ends_at: new Date(Date.parse(ubeStory?.scheduled_at ?? hoursFromNow(72)) + 7 * 86_400_000).toISOString(),
+      screen_ids: ['s-counter'], screen_mode: 'turns', seconds: 15, post_id: ubeStory?.id ?? null, active: true, updated_at: daysAgo(1) },
+    { id: 'o-pumpkin', title: 'Pumpkin spice latte', details: 'Espresso, steamed milk, pumpkin and warm spices.', price: '€3.80', was_price: null,
+      image_url: demoPhoto('Pumpkin spice latte', false), starts_at: daysAgo(8), ends_at: daysAgo(1), screen_ids: ['s-counter'], screen_mode: 'turns', seconds: 15,
+      post_id: null, active: true, updated_at: daysAgo(8) },
+  ]
+  /** As display_feed(): a screen's offers that haven't ended and start within two days. */
+  const screenOffers = (screenId: string): ScreenOffer[] => offerList
+    .filter(o => o.active && o.screen_ids.includes(screenId) && Date.parse(o.ends_at) > Date.now() && Date.parse(o.starts_at) < Date.now() + 2 * 86_400_000)
+    .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
+    .map(({ id, title, details, price, was_price, image_url, starts_at, ends_at, screen_mode, seconds }) => ({ id, title, details, price, was_price, image_url, starts_at, ends_at, screen_mode, seconds }))
   // Cameras: the counter and the terrace, sending a picture every few seconds, with three days of clips (demoCameras).
   const cameraList = demoCameras(Date.now())
   let cameraClipList = demoClips(Date.now(), business.timezone)
@@ -3048,7 +3064,27 @@ export function createDemoApi(): Api {
       }
       return { screen, sections: [...(settings.menu_sections ?? [])],
         business: { name: business.name, logo: brand.logo_mark ?? brand.logo, heading_font: brand.heading_font, body_font: brand.body_font, colours: clone(brand.colours) }, menus,
-        allergens: s.active ? displayAllergens() : null }
+        allergens: s.active ? displayAllergens() : null, offers: s.active ? screenOffers(s.id) : [] }
+    },
+    async offers() { return isAdmin() ? clone(offerList).sort((a, b) => b.starts_at.localeCompare(a.starts_at)) : [] },
+    async saveOffer({ id, ...o }) {
+      requireAdmin()
+      const problem = offerProblem(o)
+      if (problem) throw new Error(problem)
+      if (o.post_id && !posts.some(p => p.id === o.post_id)) throw new Error('That post isn’t on your Social planner')
+      // As the database: tidied, and only screens there are, each once.
+      const tidy = { ...o, title: o.title.trim(), details: o.details?.trim() || null, price: o.price?.trim() || null, was_price: o.was_price?.trim() || null,
+        image_url: o.image_url?.trim() || null, screen_ids: [...new Set(o.screen_ids)].filter(s => screenList.some(x => x.id === s)), updated_at: nowIso() }
+      const existing = id ? offerList.find(x => x.id === id) : undefined
+      if (existing) { Object.assign(existing, tidy); return existing.id }
+      const made: Offer = { ...tidy, id: uid() }
+      offerList.push(made)
+      return made.id
+    },
+    async deleteOffer(id) {
+      requireAdmin()
+      const i = offerList.findIndex(x => x.id === id)
+      if (i >= 0) offerList.splice(i, 1)
     },
     async cameras() { return isAdmin() ? clone(cameraList) : [] },
     async saveCamera({ id, ...c }) {
@@ -4072,6 +4108,8 @@ export function createDemoApi(): Api {
       requireAdmin()
       const i = posts.findIndex(p => p.id === id)
       if (i >= 0) posts.splice(i, 1)
+      // As the database: an offer's post that's deleted is no longer its post.
+      offerList.forEach(o => { if (o.post_id === id) o.post_id = null })
     },
     async markPosted(id) {
       requireAdmin()

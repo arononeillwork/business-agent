@@ -81,6 +81,7 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'brand documents', files: [/shared\/brandDocs/], tests: String.raw`brand` },
   { name: 'usual allergens', files: [/shared\/allergenGuide/], tests: String.raw`allergen` },
   { name: 'cameras', files: [/CamerasPage/, /shared\/cameras/], tests: String.raw`camera` },
+  { name: 'offers', files: [/OffersPage/, /OfferBoard/, /lib\/offerPicture/, /shared\/offers/], tests: String.raw`offer|special|screen` },
 ]
 
 /** The --grep pattern for these changed files, or 'all'. */
