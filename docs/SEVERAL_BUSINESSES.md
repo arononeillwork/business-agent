@@ -34,6 +34,13 @@ the caller's own profile), `current_business_id()`, `handle_new_user()` and `eac
 Checks that run with the caller's rights (`plan_profiles_rule`, `claim_rules`…) filter by
 `new.business_id`, because the Worker skips row security.
 
+Some requests name no business: the service key without the `x-business-id` header, Supabase's
+sign-in service (creating or deleting an account) and the SQL editor. A trigger that needs a
+business's plan or writes a business's rows (`plan_profiles_rule()`, `audit_row()`) acts for the
+row's own business while it does (`set_config('app.business_id', …, true)`), then puts back what was
+set, so it works for those too (the `business_of_the_row` migration). The live tests' service key
+names Easy Beans with the header, as the Worker does.
+
 ## The Worker
 
 - `businessDb(env, id)` (`worker/supabase.ts`) is the service role acting for one business: every
