@@ -295,7 +295,7 @@ test.describe('sports', () => {
     await db.from('business').update({ sports_enabled: false }).eq('id', 1)
     try {
       await signInUi(page, 'admin')
-      // Click through, or go by its address once the menu shows, when Easy Beans has hidden Sports from
+      // Click through, or open it in the app once the menu shows when Easy Beans has hidden Sports from
       // the menu (a page load straight after "Sign in" can beat the session being saved).
       await openFromMenu(page, hidden, 'Sports')
       await expect(page.getByRole('heading', { name: 'Sports is off' })).toBeVisible()
