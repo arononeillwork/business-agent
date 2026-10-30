@@ -113,7 +113,7 @@ export function NewBusinessPage() {
             renderInput={params => <TextField {...params} label={t('Time zone')} helperText={t('Shifts, clock-ins and opening hours use it')} />} />
 
           <Button type="submit" variant="contained" size="large" disabled={!name.trim()} sx={{ ...primaryBtn, py: 1.4 }}>
-            {t('Create my business')}
+            {t('Add my business')}
           </Button>
 
           <Divider />

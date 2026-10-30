@@ -1657,13 +1657,13 @@ test('self-serve: a new business signs up, creates its business and goes on to t
   await page.getByLabel('Password').fill('cafe-con-leche-7')
   await page.getByRole('button', { name: 'Create account' }).click()
   await expect(page.getByRole('heading', { name: 'Welcome, Lola. Let’s set up your business.' })).toBeVisible()
-  const create = page.getByRole('button', { name: 'Create my business' })
-  await expect(create).toBeDisabled()
+  const add = page.getByRole('button', { name: 'Add my business' })
+  await expect(add).toBeDisabled()
   await page.getByRole('textbox', { name: 'Business name' }).fill('Café Lola')
   await page.getByRole('button', { name: 'Café & coffee shop' }).click()
   await expect(page.getByRole('button', { name: 'Café & coffee shop' })).toHaveAttribute('aria-pressed', 'true')
   await expect(page.getByRole('combobox', { name: 'Time zone' })).not.toHaveValue('')
-  await create.click()
+  await add.click()
   // She runs it now: on to the set-up guide, with a café's apps ready to connect.
   await expect(page).toHaveURL(/\/setup/)
   await expect(page.getByRole('heading', { name: 'Hi Lola, I’m your Business Agent.' })).toBeVisible()
@@ -3038,7 +3038,7 @@ test.describe('referrals', () => {
     // The link is remembered until the business is made.
     await expect(page.getByText('Invited by Easy Beans Coffee: your first month is on us')).toBeVisible()
     await page.getByRole('textbox', { name: 'Business name' }).fill('Café Nuevo')
-    await page.getByRole('button', { name: 'Create my business' }).click()
+    await page.getByRole('button', { name: 'Add my business' }).click()
     await expect(page.getByRole('heading', { name: 'Hi Lola, I’m your Business Agent.' })).toBeVisible()
     await page.getByRole('button', { name: 'Skip setup for now' }).click()
 

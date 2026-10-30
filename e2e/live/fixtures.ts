@@ -36,6 +36,9 @@ export function service(cfg: LiveConfig): SupabaseClient {
   if (!key) throw new Error('Set SUPABASE_SERVICE_ROLE_KEY to run live tests')
   // Names the business as the Worker's businessDb() does: with several businesses, the service key
   // alone is in none, so a row it adds has no business and the plan it's held to is Free.
+  // Acting for the test business, like the Worker's businessDb: what these writes set off (the plan's
+  // limits, a new row's business) is Easy Beans'. Without it, once there are several businesses the
+  // database can't tell whose, and holds Easy Beans' team to the Free plan's three people.
   return createClient(cfg.supabaseUrl, key, {
     auth: { persistSession: false, autoRefreshToken: false },
     global: { headers: { 'x-business-id': String(TEST_BUSINESS) } },

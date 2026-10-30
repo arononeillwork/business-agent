@@ -418,7 +418,7 @@ business finishes the set-up guide (`create_business()` and `business_set_up()` 
 ## New business
 
 Any business signs up for itself: **Create account** on the landing page (email, or one tap with
-Google, Apple, Facebook or Microsoft), then **Create my business** (its name, what kind it is, its
+Google, Apple, Facebook or Microsoft), then **Add my business** (its name, what kind it is, its
 time zone). Its creator runs it (admin and boss) on the Free plan and goes straight on to the set-up
 guide (`/setup`) to connect its apps. Someone joining an existing team signs up the same way and
 asks their manager to add their email on the Team page.

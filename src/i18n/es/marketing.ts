@@ -218,15 +218,15 @@ export default {
   'Total with {name}': 'Total con {name}',
   // Status pages
   "You're registered, {name}": 'Ya estás registrado, {name}',
-  // Create my business (NewBusinessPage)
+  // Add my business (NewBusinessPage)
   'Invited by {name}: your first month is on us': 'Te invita {name}: tu primer mes corre de nuestra cuenta',
-  'Welcome, {name}. Let’s set up your business.': 'Hola, {name}. Vamos a crear tu negocio.',
-  'Let’s set up your business.': 'Vamos a crear tu negocio.',
+  'Welcome, {name}. Let’s set up your business.': 'Hola, {name}. Vamos a añadir tu negocio.',
+  'Let’s set up your business.': 'Vamos a añadir tu negocio.',
   'You’ll run it: you can add your team and change everything later. It starts on the Free plan, and Business is free for {n} months whenever you want it.':
     'Lo llevarás tú: podrás añadir a tu equipo y cambiarlo todo después. Empieza con el plan Gratis, y Business es gratis {n} meses cuando lo quieras.',
   'What kind of business is it?': '¿Qué tipo de negocio es?',
   'Shifts, clock-ins and opening hours use it': 'Lo usan los turnos, los fichajes y el horario',
-  'Create my business': 'Crear mi negocio',
+  'Add my business': 'Añadir mi negocio',
   'Joining a team instead?': '¿Vas a unirte a un equipo?',
   "You're registered": 'Ya estás registrado',
   "Your account ({email}) isn't linked to a business yet, or it has been switched off.": 'Tu cuenta ({email}) aún no está vinculada a un negocio, o se ha desactivado.',

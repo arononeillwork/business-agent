@@ -75,7 +75,7 @@ two businesses side by side.
 1. **Sign up.** Anyone can create an account on the sign-in page. Someone nobody invited is in no
    business yet (`handle_new_user()`); the one exception is a brand-new database whose only business
    has no admin, where the first person to sign up runs it.
-2. **Create my business** (`src/pages/NewBusinessPage.tsx`). Signed in and in no business, the app
+2. **Add my business** (`src/pages/NewBusinessPage.tsx`). Signed in and in no business, the app
    asks for the business's name, kind and time zone and calls `create_business()`. That makes the
    business and everything a business starts with (its settings rows, the apps to connect, the sports
    catalogue, to-do categories, itself on Competitors, positions and a break for its kind), and makes
