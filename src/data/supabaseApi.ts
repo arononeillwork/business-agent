@@ -1113,6 +1113,10 @@ export function createSupabaseApi(url: string, key: string): Api {
       return check(await sb.from('music_tracks').select(TRACK_COLUMNS).eq('hidden', false).order('created_at', { ascending: false }).limit(500)) as MusicTrack[]
     },
     musicStatus: () => worker<MusicStatus>('/api/social/music/status'),
+    assistantStatus: () => worker<{ ready: boolean }>('/api/assistant/status'),
+    async askAssistant(messages) {
+      return (await worker<{ reply: string }>('/api/assistant', { method: 'POST', body: JSON.stringify({ messages }) })).reply
+    },
     async uploadTrack(file, t) {
       // Browsers name the same files differently: the two the Worker takes.
       const type = /\.m4a$/i.test(file.name) || /mp4|m4a/.test(file.type) ? 'audio/mp4' : 'audio/mpeg'

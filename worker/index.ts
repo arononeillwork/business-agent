@@ -24,6 +24,7 @@ import { files } from './files'
 import { legal } from './legal'
 import { invoices } from './invoices'
 import { loyaltyRoutes } from './loyalty'
+import { assistant } from './assistant'
 import { refreshReviews, reviews, reviewsConfigured } from './reviews'
 import { clearOldCache } from './cache'
 import { website } from './website'
@@ -238,6 +239,8 @@ app.route('/', legal)
 app.route('/', invoices)
 // Square loyalty (the stamp card) and gift cards, for the Loyalty page.
 app.route('/', loyaltyRoutes)
+// The in-app assistant: questions answered by Claude with the person's own tools.
+app.route('/', assistant)
 // Reviews (Google) and Website & SEO (Marketing).
 app.route('/', reviews)
 app.route('/', website)

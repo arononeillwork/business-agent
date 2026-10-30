@@ -88,6 +88,7 @@ import type { PartnerArea } from '../../shared/types'
 import { hiddenByRole, roleNamesOf } from '../../shared/roles'
 import { teamRoleLabel } from '../../shared/teamRoles'
 import { BrandLogo } from '../components/Logo'
+import { AssistantButton } from '../components/Assistant'
 import { Loading, PersonAvatar, TitleSlot } from '../components/common'
 import { KeyboardSensorNow } from '../components/dnd'
 import { NotificationBell } from '../components/NotificationBell'
@@ -716,7 +717,7 @@ export function AppShell() {
               <Box ref={setTitleSlot} sx={{ flex: 1, minWidth: 0 }} />
               <Stack className="eb-top-icons" direction="row" spacing={1} sx={{ alignItems: 'center', flexShrink: 0, ml: 'auto', pt: 0.25 }}>
                 {!isPartner && <NotificationBell />}
-                <SearchButton pages={searchPages} />
+                <SearchButton pages={searchPages} wide />
                 <ThemeToggle />
                 <LanguageToggle />
               </Stack>
@@ -724,6 +725,7 @@ export function AppShell() {
           )}
           <TitleSlot.Provider value={desktop ? titleSlot : null}>
             <CafeSpeakerProvider><Suspense fallback={<Loading />}>{blocked ? <Navigate to="/" replace /> : <Outlet />}</Suspense></CafeSpeakerProvider>
+            <AssistantButton />
           </TitleSlot.Provider>
         </Box>
       </Box>

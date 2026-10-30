@@ -1,4 +1,4 @@
-import { Box, Dialog, IconButton, InputBase, List, ListItemButton, ListItemIcon, ListItemText, ListSubheader, SvgIcon, Tooltip, Typography, type SvgIconProps } from '@mui/material'
+import { Box, ButtonBase, Dialog, IconButton, InputBase, List, ListItemButton, ListItemIcon, ListItemText, ListSubheader, SvgIcon, Tooltip, Typography, type SvgIconProps } from '@mui/material'
 import { useColorScheme } from '@mui/material/styles'
 import SearchIcon from '@mui/icons-material/SearchRounded'
 import SunIcon from '@mui/icons-material/LightModeOutlined'
@@ -63,8 +63,11 @@ export function ThemeToggle() {
 export interface SearchPage { key: string; to: string; label: string; icon: ReactNode; section: string | null }
 interface Result { id: string; group: 'Pages' | 'People'; label: string; hint?: string; icon: ReactNode; to: string }
 
-/** The search button, and the search box it opens (also Ctrl/⌘ K anywhere). */
-export function SearchButton({ pages }: { pages: SearchPage[] }) {
+/** Ctrl K, or ⌘ K on a Mac. */
+const SHORTCUT = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘ K' : 'Ctrl K'
+
+/** The search button, and the search box it opens (also Ctrl/⌘ K anywhere). `wide`: a box that says so (computer). */
+export function SearchButton({ pages, wide }: { pages: SearchPage[]; wide?: boolean }) {
   const [open, setOpen] = useState(false)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -75,11 +78,21 @@ export function SearchButton({ pages }: { pages: SearchPage[] }) {
   }, [])
   return (
     <>
-      <Tooltip title={t('Search (Ctrl K)')}>
-        <IconButton aria-label={t('Search')} aria-keyshortcuts="Control+K Meta+K" onClick={() => setOpen(true)} sx={roundButton}>
+      {wide ? (
+        <ButtonBase aria-label={t('Search')} aria-keyshortcuts="Control+K Meta+K" onClick={() => setOpen(true)}
+          sx={{ ...roundButton, width: 'auto', borderRadius: '999px', px: 1.5, gap: 1, justifyContent: 'flex-start', minWidth: 200 }}>
           <SearchIcon fontSize="small" />
-        </IconButton>
-      </Tooltip>
+          <Typography variant="body2" component="span" sx={{ flex: 1, textAlign: 'left', color: 'text.secondary' }}>{t('Search…')}</Typography>
+          <Box component="kbd" sx={{ fontFamily: 'inherit', fontSize: '0.72rem', fontWeight: 600, color: tokens.inkSoft, border: `1px solid ${tokens.line}`,
+            borderRadius: '6px', px: 0.75, py: 0.1, bgcolor: tokens.surfaceAlt }}>{SHORTCUT}</Box>
+        </ButtonBase>
+      ) : (
+        <Tooltip title={t('Search (Ctrl K)')}>
+          <IconButton aria-label={t('Search')} aria-keyshortcuts="Control+K Meta+K" onClick={() => setOpen(true)} sx={roundButton}>
+            <SearchIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      )}
       {open && <SearchDialog pages={pages} onClose={() => setOpen(false)} />}
     </>
   )
