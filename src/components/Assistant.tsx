@@ -7,6 +7,7 @@ import CloseIcon from '@mui/icons-material/CloseRounded'
 import SendIcon from '@mui/icons-material/ArrowUpwardRounded'
 import { useEffect, useRef, useState } from 'react'
 import { useApp } from '../app/AppContext'
+import { useCafeMusic } from '../app/CafeSpeaker'
 import { useAsync } from '../app/hooks'
 import { tokens } from '../theme'
 import { t } from '../i18n'
@@ -20,6 +21,8 @@ export function AssistantButton() {
   const status = useAsync('assistant-status', () => api.assistantStatus(), [])
   const [open, setOpen] = useState(false)
   const phone = useMediaQuery(useTheme().breakpoints.down('md'))
+  // The café speaker's player has the corner on the device playing: the assistant sits beside it.
+  const beside = !!useCafeMusic()?.here
   const ready = status.data?.ready ?? false
   if (!me || isPartner || me.role === 'kiosk' || permissions.ai === 'none' || (!ready && !isAdmin)) return null
   return (
@@ -27,17 +30,17 @@ export function AssistantButton() {
       {!open && (
         <Tooltip title={t('Ask the assistant')} placement="left">
           <Fab color="primary" aria-label={t('Ask the assistant')} onClick={() => setOpen(true)}
-            sx={{ position: 'fixed', right: { xs: 16, md: 24 }, bottom: { xs: 88, md: 24 }, zIndex: 1200 }}>
+            sx={{ position: 'fixed', right: beside ? { xs: 240, md: 260 } : { xs: 16, md: 24 }, bottom: { xs: 88, md: 24 }, zIndex: 1200 }}>
             <AssistantIcon />
           </Fab>
         </Tooltip>
       )}
-      {open && <ChatPanel ready={ready} phone={phone} onClose={() => setOpen(false)} />}
+      {open && <ChatPanel ready={ready} phone={phone} right={beside ? 260 : 24} onClose={() => setOpen(false)} />}
     </>
   )
 }
 
-function ChatPanel({ ready, phone, onClose }: { ready: boolean; phone: boolean; onClose: () => void }) {
+function ChatPanel({ ready, phone, right, onClose }: { ready: boolean; phone: boolean; right: number; onClose: () => void }) {
   const { api, me } = useApp()
   const [turns, setTurns] = useState<Turn[]>([])
   const [draft, setDraft] = useState('')
@@ -67,7 +70,7 @@ function ChatPanel({ ready, phone, onClose }: { ready: boolean; phone: boolean; 
   return (
     <Card role="dialog" aria-label={t('Assistant')} elevation={8}
       sx={{ position: 'fixed', zIndex: 1300, display: 'flex', flexDirection: 'column', borderRadius: phone ? 0 : '18px',
-        ...(phone ? { inset: 0 } : { right: 24, bottom: 24, width: 400, height: 560, maxHeight: 'calc(100vh - 48px)' }) }}>
+        ...(phone ? { inset: 0 } : { right, bottom: 24, width: 400, height: 560, maxHeight: 'calc(100vh - 48px)' }) }}>
       <Stack direction="row" sx={{ alignItems: 'center', gap: 1, px: 2, py: 1.25, borderBottom: `1px solid ${tokens.line}` }}>
         <AssistantIcon sx={{ color: tokens.roseDeep }} aria-hidden />
         <Typography component="h2" sx={{ fontWeight: 600, flex: 1 }}>{t('Assistant')}</Typography>

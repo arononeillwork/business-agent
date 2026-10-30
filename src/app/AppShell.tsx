@@ -724,8 +724,10 @@ export function AppShell() {
             </Box>
           )}
           <TitleSlot.Provider value={desktop ? titleSlot : null}>
-            <CafeSpeakerProvider><Suspense fallback={<Loading />}>{blocked ? <Navigate to="/" replace /> : <Outlet />}</Suspense></CafeSpeakerProvider>
-            <AssistantButton />
+            <CafeSpeakerProvider>
+              <Suspense fallback={<Loading />}>{blocked ? <Navigate to="/" replace /> : <Outlet />}</Suspense>
+              <AssistantButton />
+            </CafeSpeakerProvider>
           </TitleSlot.Provider>
         </Box>
       </Box>
