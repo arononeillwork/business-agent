@@ -29,6 +29,7 @@ import { clearOldCache } from './cache'
 import { website } from './website'
 import { checkWaitingImages, menu, syncSquareMenuIfChosen } from './menu'
 import { screens } from './screens'
+import { cameras, purgeCameraClips } from './cameras'
 import { competitors, watchCompetitors } from './competitors'
 import { TEAM_ROLE_IDS, accessOf } from '../shared/teamRoles'
 
@@ -247,6 +248,9 @@ app.route('/', competitors)
 app.route('/', menu)
 app.route('/', screens)
 
+// Cameras: what the camera upload server passes on (video into the business's storage), and the Cameras page.
+app.route('/', cameras)
+
 // Business Agent's own subscription (Stripe Billing): plans, checkout, portal, webhook.
 app.route('/', billing)
 
@@ -391,6 +395,8 @@ export default {
         }
         // Sports only while it's switched on (Sports page).
         if (await sportsOn(b)) await refreshStaleSports(b).catch(e => console.error('sports failed', id, e))
+        // Every hour: the cameras' clips whose days are up, out of the business's storage (Cameras page).
+        if (minute % 60 === 45) await purgeCameraClips(env, b).catch(e => console.error('camera clips purge failed', id, e))
         // Every 5 minutes: the next track of the music starter pack, until the business has them all.
         if (minute % 5 === 2) {
           await fillStarterPack(env, new URL(businessConfig.appUrl).origin, id).catch(e => console.error('music starter pack failed', id, e))

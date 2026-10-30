@@ -254,3 +254,11 @@ export async function saveFile(token: string, folder: string, name: string, cont
   })
   return item.webUrl
 }
+
+/** Delete a file in OneDrive (a camera's clip whose days are up); one already gone counts as deleted. */
+export async function deleteOneDriveItem(token: string, id: string) {
+  const res = await fetch(`${GRAPH}/me/drive/items/${encodeURIComponent(id)}`, { method: 'DELETE', headers: { authorization: `Bearer ${token}` } })
+  if (res.ok || res.status === 404) return
+  const err = await res.json().catch(() => ({})) as { error?: { message?: string } }
+  throw new Error(`Microsoft: ${err.error?.message ?? res.status}`)
+}

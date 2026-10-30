@@ -388,3 +388,11 @@ export async function saveToDrive(token: string, sub: string, name: string, cont
   })
   return file.webViewLink
 }
+
+/** Delete a file the app made (a camera's clip whose days are up); one already gone counts as deleted. */
+export async function deleteDriveFile(token: string, id: string) {
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}`, { method: 'DELETE', headers: { authorization: `Bearer ${token}` } })
+  if (res.ok || res.status === 404) return
+  const json = await res.json().catch(() => ({})) as { error?: { message?: string } }
+  throw new Error(`Google Drive: ${json.error?.message ?? res.status}`)
+}

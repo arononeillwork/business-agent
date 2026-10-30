@@ -21,6 +21,7 @@ const KEYS: Record<string, string[]> = {
   integrations: ['provider'], integration_secrets: ['provider'], calendar_feeds: ['profile_id', 'scope'], profiles: ['id'], business: ['id'], api_keys: ['id'], referrals: ['email'],
   whatsapp_messages: ['wa_message_id'], settings: ['id'], provider_cache: ['key'],
   competitor_radar: ['place_id'], competitor_snapshots: ['competitor_id', 'taken_on'],
+  camera_status: ['camera_id'],
 }
 /** Keyed tables that still get a numeric id of their own (an identity column beside the unique key). */
 const AUTO_ID = new Set(['whatsapp_messages'])

@@ -72,6 +72,7 @@ const RecipesPage = page(() => import('./pages/RecipesPage'), 'RecipesPage')
 const MenuPage = page(() => import('./pages/MenuPage'), 'MenuPage')
 const MenuPrintPage = page(() => import('./pages/MenuPrintPage'), 'MenuPrintPage')
 const ScreensPage = page(() => import('./pages/ScreensPage'), 'ScreensPage')
+const CamerasPage = page(() => import('./pages/CamerasPage'), 'CamerasPage')
 const DisplayPage = page(() => import('./pages/DisplayPage'), 'DisplayPage')
 const WastePage = page(() => import('./pages/WastePage'), 'WastePage')
 const RegistroPage = page(() => import('./pages/RegistroPage'), 'RegistroPage')
@@ -202,6 +203,7 @@ function Routed() {
         <Route path="menu" element={<MenuPage />} />
         <Route path="menu/design" element={isAdmin ? <MenuPage /> : <Navigate to="/menu" />} />
         <Route path="screens" element={isAdmin ? <ScreensPage /> : <Navigate to="/" />} />
+        <Route path="cameras" element={isAdmin ? <CamerasPage /> : <Navigate to="/" />} />
         <Route path="allergens" element={<AllergensPage />} />
         <Route path="food-safety" element={<FoodSafetyPage />} />
         <Route path="waste" element={<WastePage />} />

@@ -49,6 +49,8 @@ import {
   MAX_PROMPT, PROMPT_IDEAS, designProblem, menuItemProblem, menuSections, modelOf, sizeOf, type MenuDesign, type MenuImage, type MenuItem,
 } from '../../shared/menu'
 import { screenProblem, type DisplayFeed, type Screen } from '../../shared/screens'
+import { cameraProblem, type Camera } from '../../shared/cameras'
+import { demoCameraPicture, demoCameras, demoClips } from './demoCameras'
 import { demoArtwork, demoMenuPicture, demoPhoto, demoStrip } from './demoMenu'
 import { demoSquareCatalog } from './demoSquareMenu'
 import { fromSquareCatalog } from '../../shared/menuSquare'
@@ -947,6 +949,11 @@ export function createDemoApi(): Api {
       { id: 'sl-yt', kind: 'youtube', url: 'https://www.youtube.com/watch?v=jfKfPfyJRdk', design_id: null, title: 'Lo-fi live', seconds: 60, live: false, active: false },
     ],
   }]
+  // Cameras: the counter and the terrace, sending a picture every few seconds, with three days of clips (demoCameras).
+  const cameraList = demoCameras(Date.now())
+  let cameraClipList = demoClips(Date.now(), business.timezone)
+  const cameraUser = () => `cam${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`
+  const cameraPassword = () => crypto.randomUUID().replace(/-/g, '').slice(0, 16)
   // Competitors: five places around the café, what they charge and offer, their Google ratings and notes (demoCompetitors).
   const rivals = demoCompetitors(today(), recipes, business)
   const competitorRow = (id: string) => {
@@ -3041,6 +3048,56 @@ export function createDemoApi(): Api {
       return { screen, sections: [...(settings.menu_sections ?? [])],
         business: { name: business.name, logo: brand.logo_mark ?? brand.logo, heading_font: brand.heading_font, body_font: brand.body_font, colours: clone(brand.colours) }, menus,
         allergens: s.active ? displayAllergens() : null }
+    },
+    async cameras() { return isAdmin() ? clone(cameraList) : [] },
+    async saveCamera({ id, ...c }) {
+      requireAdmin()
+      const problem = cameraProblem(c)
+      if (problem) throw new Error(problem)
+      const tidy = { ...c, name: c.name.trim(), updated_at: nowIso() }
+      if (cameraList.some(x => x.id !== id && x.name.toLowerCase() === tidy.name.toLowerCase())) throw new Error(`There’s already a camera called ${tidy.name}`)
+      const existing = id ? cameraList.find(x => x.id === id) : undefined
+      if (existing) { Object.assign(existing, tidy); return existing.id }
+      const made: Camera = { ...tidy, id: uid(), ftp_user: cameraUser(), ftp_password: cameraPassword(), created_at: nowIso(), last_seen_at: null, last_clip_at: null, last_error: null }
+      cameraList.push(made)
+      return made.id
+    },
+    async deleteCamera(id) {
+      requireAdmin()
+      const i = cameraList.findIndex(x => x.id === id)
+      if (i >= 0) cameraList.splice(i, 1)
+      cameraClipList = cameraClipList.filter(c => c.camera_id !== id)
+    },
+    async newCameraPassword(id) {
+      requireAdmin()
+      const c = cameraList.find(x => x.id === id)
+      if (!c) throw new Error('No such camera')
+      c.ftp_password = cameraPassword()
+      return c.ftp_password
+    },
+    async cameraService() { return { ftp: { host: 'cameras.businesssagent.com', port: 21 } } },
+    async camerasLive() {
+      if (!isAdmin()) return {}
+      // The demo's own two send a picture every few seconds; a camera added here hasn't sent anything yet.
+      const at = new Date(Date.now() - 3000).toISOString()
+      return Object.fromEntries(cameraList.filter(c => c.active && c.id.startsWith('cam-')).map(c => [c.id, { picture_at: at, video_at: c.last_clip_at,
+        kept_today: cameraClipList.filter(x => x.camera_id === c.id && localDate(x.started_at) === today()).length, skipped_today: c.id === 'cam-counter' ? 412 : 238 }]))
+    },
+    async cameraPicture(id) {
+      const c = cameraList.find(x => x.id === id)
+      return c && c.active && c.id.startsWith('cam-') ? demoCameraPicture(c.placement, new Date(), business.timezone) : null
+    },
+    async cameraClips(cameraId) { return isAdmin() ? clone(cameraClipList.filter(c => c.camera_id === cameraId).sort((a, b) => b.started_at.localeCompare(a.started_at))) : [] },
+    async keepClip(id, kept, note) {
+      requireAdmin()
+      const c = cameraClipList.find(x => x.id === id)
+      if (!c) throw new Error('No such clip')
+      Object.assign(c, { kept, note: note?.trim() || null })
+    },
+    async playClip() { return null },
+    async deleteClip(id) {
+      requireAdmin()
+      cameraClipList = cameraClipList.filter(c => c.id !== id)
     },
     async menuAllergens() {
       if (!readStock()) return { dishes: [], items: [] }

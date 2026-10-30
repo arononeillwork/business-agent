@@ -55,6 +55,10 @@ export interface Env {
   RENDER_URL?: string                 // the render service (render/), set by Actions → Deploy render service
   RENDER_KEY?: string                 // its key, set by the same workflow
   MUSIC_STARTER?: string              // var: 'off' to not make the starter pack
+  // Cameras (docs/INTEGRATIONS.md section 20): the camera upload server (cameras/), set by Actions → Deploy camera uploads.
+  CAMERA_UPLOADS_URL?: string         // its address for the Worker (the latest pictures)
+  CAMERA_UPLOADS_KEY?: string         // the key it and the Worker share
+  CAMERA_FTP_HOST?: string            // the address cameras send to (its own name when not set)
 }
 
 export type Via = 'app' | 'api' | 'ai'
