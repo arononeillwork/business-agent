@@ -14,7 +14,7 @@ import { FEATURES } from '../src/app/features'
 import {
   PARTNER, PASSWORD, TEST_BUSINESS, TEST_ROW_PREFIX, USERS, addPartner, cleanUp, liveConfig, purgeTestAlerts, service, setUp,
   type LiveConfig, type UserKey,
-  HOOK_TIMEOUT, recordNetwork,
+  HOOK_TIMEOUT, recordNetwork, hiddenPages, inMenu, openFromMenu,
 } from './live/fixtures'
 
 // Every test fails on an uncaught error thrown by the app's own page (not Google's or Microsoft's).
@@ -44,6 +44,8 @@ let cfg: LiveConfig
 let ids: Record<string, string>
 let business: { name: string; phone: string | null }
 let shiftReminders: boolean
+// Pages Easy Beans' admins have hidden from the menu: opened by their address instead (fixtures.ts).
+let hidden: string[] = []
 
 test.beforeAll(async ({ baseURL }) => {
   test.setTimeout(HOOK_TIMEOUT)
@@ -54,6 +56,7 @@ test.beforeAll(async ({ baseURL }) => {
   const b = await sb.from('business').select('name, phone').eq('id', 1).single()
   if (b.error) throw new Error(b.error.message)
   business = b.data
+  hidden = await hiddenPages(cfg)
   const s = await sb.from('settings').select('alert_shift_reminders').eq('business_id', TEST_BUSINESS).eq('id', 1).single()
   if (s.error) throw new Error(s.error.message)
   shiftReminders = s.data.alert_shift_reminders
@@ -184,7 +187,7 @@ test.describe('admin', () => {
     ]
     for (const { link, path, check } of pages) {
       await test.step(link, async () => {
-        await nav(page).getByRole('link', { name: link, exact: true }).click()
+        await openFromMenu(page, hidden, link)
         await expect(page).toHaveURL(url => new URL(url).pathname === path, NET)
         await check(page)
         await expectNoErrorShown(page, link)
@@ -201,7 +204,7 @@ test.describe('admin', () => {
       })
     }
     if (FEATURES.kiosk) await test.step('Café tablet', async () => {
-      await nav(page).getByRole('link', { name: 'Café tablet' }).click()
+      await openFromMenu(page, hidden, 'Café tablet')
       await expect(page).toHaveURL(/\/kiosk$/, NET)
       await expect(page.getByText('Tap your name')).toBeVisible(NET)
       await expectNoErrorShown(page, 'Café tablet')
@@ -233,7 +236,7 @@ test.describe('admin', () => {
 
   test('adds a shift on the rota, sees it, then deletes it', async ({ page }) => {
     await signIn(page, 'admin')
-    await nav(page).getByRole('link', { name: 'Rota', exact: true }).click()
+    await openFromMenu(page, hidden, 'Rota')
     await expect(page.getByRole('heading', { name: 'Rota', exact: true })).toBeVisible(NET)
     // Next week, so the shift is never close enough to "now" to trigger reminders or missed clock-in alerts.
     await page.getByRole('button', { name: 'Next week' }).click()
@@ -262,7 +265,7 @@ test.describe('admin', () => {
   test('adds a calendar event, sees it, then deletes it', async ({ page }) => {
     const title = `${TEST_ROW_PREFIX}event ${tag}`
     await signIn(page, 'admin')
-    await nav(page).getByRole('link', { name: 'Calendar', exact: true }).click()
+    await openFromMenu(page, hidden, 'Calendar')
     await expect(page.getByRole('heading', { name: 'Calendar', exact: true })).toBeVisible(NET)
     await page.getByRole('button', { name: 'Add event' }).click()
     const dialog = page.getByRole('dialog', { name: 'Add event' })
@@ -284,7 +287,7 @@ test.describe('admin', () => {
   test('adds an expense, sees the total change, removes it and the total goes back', async ({ page }) => {
     const name = `${TEST_ROW_PREFIX}expense ${tag}`
     await signIn(page, 'admin')
-    await nav(page).getByRole('link', { name: 'Finances', exact: true }).click()
+    await openFromMenu(page, hidden, 'Finances')
     await expect(page.getByRole('heading', { name: 'Finances', exact: true })).toBeVisible(NET)
     await expect(page.getByText(PARTNER_EXPENSE)).toBeVisible(NET) // list loaded
     const total = page.locator('tfoot tr').first()
@@ -315,7 +318,7 @@ test.describe('admin', () => {
     // (up to 10 s while a live connection stays open) together ran past 30 s on a slow day.
     test.setTimeout(60_000)
     await signIn(page, 'admin')
-    await nav(page).getByRole('link', { name: 'Notifications', exact: true }).click()
+    await openFromMenu(page, hidden, 'Notifications')
     await expect(page.getByRole('heading', { name: 'Notifications', exact: true })).toBeVisible(NET)
     const reminders = page.getByRole('switch', { name: 'Shift reminders' }).or(page.getByLabel('Shift reminders'))
     await expect(reminders).toBeVisible(NET)
@@ -353,7 +356,7 @@ test.describe('admin', () => {
   test('partners page lists the partner, and an invite without a company is refused', async ({ page }) => {
     test.skip(!FEATURES.partners, 'The Partners page is switched off for now')
     await signIn(page, 'admin')
-    await nav(page).getByRole('link', { name: 'Partners', exact: true }).click()
+    await openFromMenu(page, hidden, 'Partners')
     await expect(page.getByRole('heading', { name: 'Partners', exact: true })).toBeVisible(NET)
     const card = page.locator('.MuiCard-root', { hasText: PARTNER.company })
     await expect(card).toBeVisible(NET)
@@ -378,7 +381,7 @@ test.describe('admin', () => {
   test('creates a staff account with a temporary password, and that person can sign in with it', async ({ page, browser }) => {
     const email = `e2e-temp-${tag}@business-agent.test`
     await signIn(page, 'admin')
-    await nav(page).getByRole('link', { name: 'Team', exact: true }).click()
+    await openFromMenu(page, hidden, 'Team')
     await page.getByRole('button', { name: 'Invite' }).click()
     const dialog = page.getByRole('dialog', { name: 'Invite to the team' })
     await dialog.getByLabel('Full name').fill('Temp Test')
@@ -408,7 +411,7 @@ test.describe('employee', () => {
   test('has no admin or money pages in the menu, and /finances shows no expenses', async ({ page }) => {
     await signIn(page, 'employee')
     await expect(page.getByRole('heading', { name: 'Hola, Eva' })).toBeVisible(NET)
-    for (const name of ['Business', 'Home: Today', 'Rota', 'Time off', 'Timecards', 'Calendar', 'Team', 'Staff kitty', 'Reps & rewards']) {
+    for (const name of ['Business', 'Home: Today', 'Rota', 'Time off', 'Timecards', 'Calendar', 'Team', 'Staff kitty', 'Reps & rewards'].filter(n => inMenu(hidden, n))) {
       await expect.soft(nav(page).getByRole('link', { name, exact: true })).toBeVisible()
     }
     for (const name of ['Finances', 'Connections', 'Partners', 'Café tablet']) {
@@ -455,7 +458,7 @@ test.describe('employee', () => {
   test('requests time off and sees it waiting for approval', async ({ page }) => {
     const from = isoDay(200), to = isoDay(201)
     await signIn(page, 'employee')
-    await nav(page).getByRole('link', { name: 'Time off', exact: true }).click()
+    await openFromMenu(page, hidden, 'Time off')
     await expect(page.getByRole('heading', { name: 'Time off', exact: true })).toBeVisible(NET)
     await page.getByRole('button', { name: 'Request time off' }).click()
     const dialog = page.getByRole('dialog', { name: 'Request time off' })
@@ -488,7 +491,7 @@ test.describe('partner', () => {
     await expect(page).toHaveURL(url => new URL(url).pathname === '/business', NET)
     await expect(page.getByRole('heading', { level: 1, name: business.name })).toBeVisible(NET)
     await expect(page.getByRole('main').getByRole('button', { name: 'Edit' })).toHaveCount(0)
-    for (const name of ['Business', 'Rota', 'Timecards', 'Finances']) {
+    for (const name of ['Business', 'Rota', 'Timecards', 'Finances'].filter(n => inMenu(hidden, n))) {
       await expect.soft(nav(page).getByRole('link', { name, exact: true })).toBeVisible()
     }
     for (const name of ['Today', 'Time off', 'Calendar', 'Team', 'Partners', 'Notifications', 'Connections', 'Café tablet']) {
@@ -501,7 +504,7 @@ test.describe('partner', () => {
         if (link === 'My account') {
           await page.getByRole('button', { name: /^Account menu/ }).first().click()
           await page.getByRole('menuitem', { name: link }).click()
-        } else await nav(page).getByRole('link', { name: link, exact: true }).click()
+        } else await openFromMenu(page, hidden, link)
         await expect(page).toHaveURL(url => new URL(url).pathname === path, NET)
         await expect(page.getByRole('heading', { level: 1, name: link, exact: true })).toBeVisible(NET)
         if (link === 'Rota') await expect(page.getByRole('button', { name: 'Add shift' })).toHaveCount(0)
@@ -512,7 +515,7 @@ test.describe('partner', () => {
 
   test('sees finances read-only', async ({ page }) => {
     await signInUi(page, PARTNER.email)
-    await nav(page).getByRole('link', { name: 'Finances', exact: true }).click()
+    await openFromMenu(page, hidden, 'Finances')
     await expect(page.getByRole('heading', { name: 'Finances', exact: true })).toBeVisible(NET)
     await expect(page.getByText(PARTNER_EXPENSE)).toBeVisible(NET)
     await expect(page.getByText('Read-only', { exact: false }).first()).toBeVisible()
