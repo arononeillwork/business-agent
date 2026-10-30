@@ -4179,6 +4179,13 @@ export function createDemoApi(): Api {
       requireAdmin()
       return clone(musicLibrary.filter(t => !t.hidden))
     },
+    async assistantStatus() { return { ready: true } },
+    async askAssistant(messages) {
+      // The demo has no Claude behind it: it says what the real one would do.
+      if (!isStaff()) throw new Error('Not allowed')
+      const last = messages[messages.length - 1].text
+      return `In the demo I can’t ask Claude, so here’s what I’d do: look up “${last.slice(0, 80)}” with your own tools (the rota, time off, the to-do list and the rest of what your role can see) and answer in a sentence or two.`
+    },
     async musicStatus() {
       requireAdmin()
       return { ai: true, render: true, storage: mediaStorage(), starter: { made: DEMO_MUSIC.length, of: 12, on: true } }

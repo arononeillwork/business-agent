@@ -691,6 +691,12 @@ export interface Api {
   musicTracks(): Promise<MusicTrack[]>
   /** What's switched on: AI music, putting music into files, storage, the starter pack. */
   musicStatus(): Promise<MusicStatus>
+
+  // The in-app assistant (worker/assistant.ts): Claude answering with the person's own tools.
+  /** Whether it's set up: the Worker has an Anthropic API key. */
+  assistantStatus(): Promise<{ ready: boolean }>
+  /** The conversation so far, the last turn theirs: Claude's reply. */
+  askAssistant(messages: { role: 'user' | 'assistant'; text: string }[]): Promise<string>
   /** Keep the business's own MP3/M4A in the library; `confirmed`: the rights tick. */
   uploadTrack(file: File, t: NewTrack): Promise<MusicTrack>
   /** A track's name, moods, saved or hidden; or its waveform once worked out. */

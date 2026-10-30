@@ -1372,7 +1372,8 @@ test.describe('menu', () => {
     await open(page, '/')
     const nav = page.getByRole('navigation', { name: 'Main' })
     await nav.getByRole('button', { name: 'Collapse menu to icons' }).click()
-    expect((await nav.boundingBox())!.width).toBeLessThan(100)
+    // The menu slides shut: its width once it has.
+    await expect.poll(async () => (await nav.boundingBox())!.width).toBeLessThan(100)
     await expect(nav.getByText('Opening hours')).toHaveCount(0)
     // Still every page, by icon (with its name for screen readers and on hover).
     await nav.getByRole('link', { name: 'Rota' }).click()
@@ -1380,7 +1381,7 @@ test.describe('menu', () => {
     await page.reload()
     await expect(nav.getByRole('button', { name: 'Expand menu' })).toBeVisible()
     await nav.getByRole('button', { name: 'Expand menu' }).click()
-    expect((await nav.boundingBox())!.width).toBeGreaterThan(200)
+    await expect.poll(async () => (await nav.boundingBox())!.width).toBeGreaterThan(200)
     await expect(nav.getByText('Opening hours')).toBeVisible()
   })
 })
@@ -1598,11 +1599,14 @@ test.describe('top bar', () => {
     await open(page, '/')
     await page.getByRole('button', { name: 'Search' }).click()
     const box = page.getByRole('combobox', { name: 'Search pages and people' })
+    // The box takes the focus as the dialog opens: typing goes there once it has.
+    await expect(box).toBeFocused()
     await page.keyboard.type('open')
     await expect(box).toHaveValue('open')
     await page.keyboard.press('Enter')
     await expect(page.getByRole('heading', { name: 'Opening hours', level: 1 })).toBeVisible()
     await page.keyboard.press('Control+k')
+    await expect(box).toBeFocused()
     await page.keyboard.type('julio')
     await page.getByRole('option', { name: /Julio/ }).click()
     await expect(page.getByRole('dialog', { name: 'Julio' })).toBeVisible()
@@ -6896,4 +6900,28 @@ test('an admin picks both languages for the team: everyone gets the flags and sw
   await expect(page.getByRole('navigation', { name: 'Principal' })).toBeVisible()
   await page.getByRole('navigation', { name: 'Principal' }).getByRole('link', { name: 'Cuadrante' }).click()
   await expect(page.getByRole('heading', { name: 'Cuadrante', level: 1 })).toBeVisible()
+})
+
+test('the assistant: a button at the bottom right opens a chat; Ctrl K opens search; a barista whose role hides AI has no assistant', async ({ page }) => {
+  await open(page)
+  // The search box says its shortcut, and Ctrl K opens it from anywhere.
+  await expect(page.getByRole('button', { name: 'Search' }).first()).toContainText(/(Ctrl|⌘) K/)
+  await page.keyboard.press('Control+k')
+  await expect(page.getByRole('combobox', { name: 'Search pages and people' })).toBeVisible()
+  await page.keyboard.press('Escape')
+
+  await page.getByRole('button', { name: 'Ask the assistant' }).click()
+  const chat = page.getByRole('dialog', { name: 'Assistant' })
+  await expect(chat).toContainText('I can only see and do what you can')
+  await chat.getByRole('textbox', { name: 'Ask a question' }).fill('Who is on today?')
+  await chat.getByRole('button', { name: 'Send' }).click()
+  const log = chat.getByRole('log', { name: 'Conversation' })
+  await expect(log).toContainText('Who is on today?')
+  await expect(log).toContainText('In the demo I can’t ask Claude')
+  await chat.getByRole('button', { name: 'Close' }).click()
+  await expect(chat).toHaveCount(0)
+
+  await signInAs(page, 'maria@example.com')
+  await expect(page.getByRole('heading', { name: /Hola/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Ask the assistant' })).toHaveCount(0)
 })
