@@ -33,7 +33,9 @@ interface Draft {
 }
 
 export function RotaPage() {
-  const { api, profiles, positions, business, isAdmin, isPartner, canSeePay, rates, me, settings } = useApp()
+  const { api, profiles, positions, business, can, isPartner, canSeePay, rates, me, settings } = useApp()
+  // Admins, and anyone whose role has Update on the rota (Roles & responsibilities → Permissions).
+  const canEdit = can('rota', 'update')
   const run = useAction()
   const [monday, setMonday] = useState(weekStart(today()))
   const [positionFilter, setPositionFilter] = useState<number | 'all'>('all')
@@ -119,13 +121,13 @@ export function RotaPage() {
     const warnings = shiftWarnings(s, ctx)
     const pos = position(s.position_id)
     const colour = pos?.colour ?? '#B5ADA6'
-    const clickable = isAdmin || (!s.profile_id && !isPartner)
+    const clickable = canEdit || (!s.profile_id && !isPartner)
     const mine = !!me && s.profile_id === me.id
     const serious = warnings.some(w => w.code !== 'holiday')
     return (
       <Box role={clickable ? 'button' : undefined} tabIndex={clickable ? 0 : undefined}
         onKeyDown={e => { if (clickable && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); (e.currentTarget as HTMLElement).click() } }}
-        onClick={e => { e.stopPropagation(); if (isAdmin) openDraft(s.profile_id, localDate(s.starts_at), s)
+        onClick={e => { e.stopPropagation(); if (canEdit) openDraft(s.profile_id, localDate(s.starts_at), s)
           else if (!s.profile_id && !isPartner) run(async () => { await api.takeOpenShift(s.id); await data.reload() }, t('Shift is yours')) }}
         sx={{
           position: 'relative', borderRadius: '10px', pl: 1.25, pr: 0.75, py: 0.6, mb: 0.6, cursor: clickable ? 'pointer' : 'default',
@@ -149,7 +151,7 @@ export function RotaPage() {
         <Typography variant="caption" component="div" sx={{ color: 'text.secondary', lineHeight: 1.3, pl: 0.5 }} noWrap>
           {pos?.name}{s.break_minutes ? ` · ${t('{n}m break', { n: s.break_minutes })}` : ''}{mine ? ` · ${t('You')}` : ''}
         </Typography>
-        {!s.profile_id && !isAdmin && !isPartner && <Typography variant="caption" sx={{ color: tokens.roseDeep, fontWeight: 500, pl: 0.5 }}>{t('Tap to take')}</Typography>}
+        {!s.profile_id && !canEdit && !isPartner && <Typography variant="caption" sx={{ color: tokens.roseDeep, fontWeight: 500, pl: 0.5 }}>{t('Tap to take')}</Typography>}
         {s.note && <Typography variant="caption" component="div" sx={{ fontStyle: 'italic', color: 'text.secondary', pl: 0.5 }} noWrap>{s.note}</Typography>}
       </Box>
     )
@@ -261,7 +263,7 @@ export function RotaPage() {
         {away.length > 0 && (
           <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1.5 }}>{t('Time off: {names}', { names: away.map(p => p.full_name).join(', ') })}</Typography>
         )}
-        {isAdmin && <Button startIcon={<AddIcon />} sx={{ mt: 1.5 }} onClick={() => openDraft(null, day)}>{t('Add a shift on {day}', { day: formatLocal(`${day}T12:00:00Z`, 'EEEE') })}</Button>}
+        {canEdit && <Button startIcon={<AddIcon />} sx={{ mt: 1.5 }} onClick={() => openDraft(null, day)}>{t('Add a shift on {day}', { day: formatLocal(`${day}T12:00:00Z`, 'EEEE') })}</Button>}
       </Card>
     )
   }
@@ -269,7 +271,7 @@ export function RotaPage() {
   return (
     <>
       <PageHeader eyebrow={t('Team')} title={t('Rota')}
-        actions={isAdmin && <>
+        actions={canEdit && <>
           <Button startIcon={<CopyIcon />} variant="outlined" onClick={() => run(async () => {
             const n = await copyLastWeek(); await data.reload(); if (!n) throw new Error(t('Nothing new to copy from last week'))
           }, t('Copied last week'))}>{t('Copy last week')}</Button>
@@ -306,7 +308,7 @@ export function RotaPage() {
             {canSeePay && <Figure label={t('Labour cost')} value={formatMoney(cost(visible))} note={mult !== 1 ? t('incl. ×{mult} employer cost', { mult }) : undefined} />}
           </> : <Figure label={t('Your hours')} value={formatDuration(mins(visible.filter(s => s.profile_id === me?.id)))} />}
           <Figure label={t('Open shifts')} value={String(openCount)} tone={openCount ? 'warn' : 'good'} />
-          {isAdmin && <>
+          {canEdit && <>
             <Figure label={t('Warnings')} value={String(flagged)} tone={flagged ? 'bad' : 'good'} />
             <Figure label={t('Days with gaps')} value={String(gapDays)} tone={gapDays ? 'warn' : 'good'} />
           </>}
@@ -324,7 +326,7 @@ export function RotaPage() {
               {rows.map(row => {
                 const rowShifts = visible.filter(s => s.profile_id === row.id)
                 const week = row.id ? weeklyCheck(weekShifts.filter(s => s.profile_id === row.id), ctx.limits) : null
-                if (!row.id && rowShifts.length === 0 && !isAdmin) return null
+                if (!row.id && rowShifts.length === 0 && !canEdit) return null
                 return [
                   <Box key={`${row.id}-name`} sx={{ position: 'sticky', left: 0, zIndex: 1, bgcolor: row.id ? tokens.surface : tokens.surfaceAlt,
                     borderBottom: line, borderRight: line, p: 1.25 }}>
@@ -342,11 +344,11 @@ export function RotaPage() {
                     ))}
                   </Box>,
                   ...days.map(date => (
-                    <Box key={`${row.id}-${date}`} onClick={() => isAdmin && openDraft(row.id, date)}
-                      aria-label={isAdmin ? t('Add a shift for {name} on {day}', { name: row.name, day: formatLocal(`${date}T12:00:00Z`, 'EEEE d') }) : undefined}
-                      sx={{ position: 'relative', borderBottom: line, p: 0.75, minHeight: 72, cursor: isAdmin ? 'pointer' : 'default',
+                    <Box key={`${row.id}-${date}`} onClick={() => canEdit && openDraft(row.id, date)}
+                      aria-label={canEdit ? t('Add a shift for {name} on {day}', { name: row.name, day: formatLocal(`${date}T12:00:00Z`, 'EEEE d') }) : undefined}
+                      sx={{ position: 'relative', borderBottom: line, p: 0.75, minHeight: 72, cursor: canEdit ? 'pointer' : 'default',
                         bgcolor: date === today() ? tokens.today : undefined,
-                        '& .add-hint': { opacity: 0 }, '&:hover .add-hint': { opacity: isAdmin ? 1 : 0 } }}>
+                        '& .add-hint': { opacity: 0 }, '&:hover .add-hint': { opacity: canEdit ? 1 : 0 } }}>
                       {onLeave(row.id, date) && (
                         <Box sx={{ px: 1, py: 0.6, mb: 0.6, borderRadius: '10px', fontSize: '0.78rem', fontWeight: 500, color: tokens.infoFg, bgcolor: tokens.infoBg }}>
                           {t('Time off')}

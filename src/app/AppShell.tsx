@@ -84,6 +84,7 @@ import { FEATURES } from './features'
 import { useUnreadMessages } from './unread'
 import { useConnected } from './connected'
 import type { PartnerArea } from '../../shared/types'
+import { hiddenByRole } from '../../shared/roles'
 import { teamRoleLabel } from '../../shared/teamRoles'
 import { BrandLogo } from '../components/Logo'
 import { Loading, PersonAvatar, TitleSlot } from '../components/common'
@@ -581,7 +582,7 @@ export function hiddenPages(settings: { hidden_pages?: string[] } | null, me: { 
 }
 
 export function AppShell() {
-  const { isAdmin, isPartner, partnerCan, canSeePay, me, api, refresh, business, settings } = useApp()
+  const { isAdmin, isPartner, partnerCan, canSeePay, me, api, refresh, business, settings, permissions } = useApp()
   const theme = useTheme()
   const desktop = useMediaQuery(theme.breakpoints.up('md'))
   const { pathname } = useLocation()
@@ -593,7 +594,8 @@ export function AppShell() {
   const unread = useUnreadMessages()
   const badges: NavBadges = unread > 0 ? { messages: unread } : {}
   // Pages they can open, less the ones hidden from their menu (they still open from a link).
-  const hidden = hiddenPages(settings, me)
+  // Their roles can leave some out too (Roles & responsibilities → Permissions).
+  const hidden = new Set([...hiddenPages(settings, me), ...hiddenByRole(permissions)])
   const square = useConnected('square')
   const allowed = (n: NavItem) => (n.needs !== 'square' || square === true) && canOpen(n, { isAdmin, isPartner, canSeePay, partnerCan }) && !hidden.has(n.key)
   // Page order within sections: the person's own, kept locally while it saves.

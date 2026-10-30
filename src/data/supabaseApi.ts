@@ -407,7 +407,7 @@ export function createSupabaseApi(url: string, key: string): Api {
     },
 
     async jobRoles() {
-      return check(await sb.from('job_roles').select('id, name, summary, position_id, reports_to, people, duties, sort, updated_at')
+      return check(await sb.from('job_roles').select('id, name, summary, position_id, reports_to, people, duties, sort, updated_at, permissions, template')
         .order('sort').order('name')) as JobRole[]
     },
     async saveJobRole({ id, ...r }) {

@@ -39,7 +39,9 @@ const isClosure = (e: Pick<CalendarEvent, 'category' | 'title'>) => e.category =
 const DAY_NAMES = [msg('Mon'), msg('Tue'), msg('Wed'), msg('Thu'), msg('Fri'), msg('Sat'), msg('Sun')]
 
 export function CalendarPage() {
-  const { api, isAdmin } = useApp()
+  const { api, can, isAdmin } = useApp()
+  // Admins, and anyone whose role has Update on the calendar; sharing an event stays the admins'.
+  const canEdit = can('calendar', 'update')
   const run = useAction()
   const theme = useTheme()
   const wide = useMediaQuery(theme.breakpoints.up('md'))
@@ -84,12 +86,12 @@ export function CalendarPage() {
     return n
   })
 
-  const newEvent = (d: string) => { if (isAdmin) { setClosure(false); setEditing({ starts_on: d, ends_on: null, starts_at: null, title: '',
+  const newEvent = (d: string) => { if (canEdit) { setClosure(false); setEditing({ starts_on: d, ends_on: null, starts_at: null, title: '',
     category: 'business', town: null, confirmed: true, visibility: 'all' }) } }
   const newClosure = () => { setClosure(true); setEditing({ starts_on: addDays(today(), 1), ends_on: null, starts_at: null, title: t('Closed'),
     category: 'business', town: null, confirmed: true, visibility: 'all' }) }
   const openEvent = (e: CalendarEvent) => {
-    if (!isAdmin) return
+    if (!canEdit) return
     setClosure(false)
     setEditing({
       id: e.id, starts_on: e.starts_on, ends_on: e.ends_on, starts_at: e.starts_at, title: e.title, category: e.category,
@@ -101,7 +103,7 @@ export function CalendarPage() {
     <Box onClick={() => openEvent(e)} title={e.title}
       sx={{ bgcolor: CATEGORY_META[e.category].colour, color: '#fff', borderRadius: 0.75, px: 0.5, mb: 0.25,
         fontSize: 11, lineHeight: 1.6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-        opacity: e.confirmed ? 1 : 0.6, cursor: isAdmin ? 'pointer' : 'default' }}>
+        opacity: e.confirmed ? 1 : 0.6, cursor: canEdit ? 'pointer' : 'default' }}>
       {e.starts_at ? `${localTime(e.starts_at)} ` : ''}{e.title}{e.confirmed ? '' : ` (${t('to confirm')})`}
     </Box>
   )
@@ -110,7 +112,7 @@ export function CalendarPage() {
   const EventBlock = ({ e }: { e: CalendarEvent }) => (
     <Box onClick={() => openEvent(e)}
       sx={{ borderLeft: 3, borderColor: CATEGORY_META[e.category].colour, bgcolor: tokens.surfaceAlt, borderRadius: 1,
-        px: 0.75, py: 0.5, mb: 0.75, opacity: e.confirmed ? 1 : 0.7, cursor: isAdmin ? 'pointer' : 'default' }}>
+        px: 0.75, py: 0.5, mb: 0.75, opacity: e.confirmed ? 1 : 0.7, cursor: canEdit ? 'pointer' : 'default' }}>
       {e.starts_at && <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', lineHeight: 1.3 }}>{localTime(e.starts_at)}</Typography>}
       <Typography variant="body2" sx={{ fontSize: 13, lineHeight: 1.35, wordBreak: 'break-word' }}>{e.title}</Typography>
       <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', lineHeight: 1.3 }}>
@@ -122,7 +124,7 @@ export function CalendarPage() {
   return (
     <>
       <PageHeader eyebrow={t("What's on")} title={t('Calendar')}
-        actions={isAdmin && <>
+        actions={canEdit && <>
           <Button variant="outlined" startIcon={<ClosedIcon />} onClick={newClosure}>{t('Add a closure')}</Button>
           <Button variant="contained" startIcon={<AddIcon />} onClick={() => newEvent(today())}>{t('Add event')}</Button>
         </>} />
@@ -153,7 +155,7 @@ export function CalendarPage() {
 
       {view === 'list' ? (
         <ListView events={events.filter(e => (e.ends_on ?? e.starts_on) >= gridStart && e.starts_on <= gridEnd)} loaded={!!data.data}
-          from={gridStart} onOpen={openEvent} canEdit={isAdmin} />
+          from={gridStart} onOpen={openEvent} canEdit={canEdit} />
       ) : wide ? (
         <Card>
           {/* minmax(0, 1fr): every day the same width, whatever the events in it say. */}
@@ -169,7 +171,7 @@ export function CalendarPage() {
                 sx={{ minHeight: view === 'week' ? 360 : 104, p: 0.75, borderRight: 1, borderBottom: 1, borderColor: 'divider',
                   '&:nth-of-type(7n)': { borderRight: 0 },
                   bgcolor: d === today() ? tokens.today : !inView(d) ? tokens.surfaceAlt : undefined,
-                  cursor: isAdmin ? 'pointer' : 'default' }}>
+                  cursor: canEdit ? 'pointer' : 'default' }}>
                 {view === 'month' && (
                   <Typography variant="caption" sx={{ display: 'block', mb: 0.25, fontWeight: d === today() ? 700 : 400,
                     color: !inView(d) ? 'text.disabled' : 'text.primary' }}>{Number(d.slice(8))}</Typography>
@@ -246,7 +248,7 @@ export function CalendarPage() {
           {editing?.id && <Button color="error" sx={{ mr: 'auto' }} onClick={() => run(async () => {
             await api.deleteEvent(editing.id!); setEditing(null); await data.reload()
           }, t('Event removed'))}>{t('Delete')}</Button>}
-          {editing?.id && <Button onClick={() => {
+          {editing?.id && isAdmin && <Button onClick={() => {
             setSharing((data.data ?? []).find(e => e.id === editing.id) ?? null); setEditing(null)
           }}>{t('Share')}</Button>}
           <Button onClick={() => setEditing(null)}>{t('Cancel')}</Button>
