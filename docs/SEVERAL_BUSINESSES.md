@@ -79,7 +79,7 @@ two businesses side by side.
    asks for the business's name, kind and time zone and calls `create_business()`. That makes the
    business and everything a business starts with (its settings rows, the apps to connect, the sports
    catalogue, to-do categories, itself on Competitors, positions and a break for its kind), and makes
-   its creator the admin and boss, on the Free plan. It stays with `postgres`: it works across
+   its creator the admin and owner, on the Free plan. It stays with `postgres`: it works across
    businesses (the new one, and the referrer's list).
 3. **The set-up guide** (`/setup`) opens, preset for the kind of business.
 

@@ -30,7 +30,7 @@ type Filter = 'all' | TeamRole | 'off'
 const FILTERS: { key: Filter; label: string }[] = [
   { key: 'all', label: msg('All') }, ...[...TEAM_ROLES].reverse().map(r => ({ key: r.id, label: r.plural })), { key: 'off', label: msg('Switched off') },
 ]
-/** Bosses first when sorted by role. */
+/** Owners first when sorted by role. */
 const roleRank = (p: Profile) => -TEAM_ROLES.findIndex(r => r.id === teamRole(p))
 const roleText = (p: Profile) => t(teamRoleLabel(p) ?? '')
 
@@ -189,8 +189,8 @@ function PersonPanel({ person: p, onClose }: { person: Profile; onClose: () => v
   const self = p.id === me?.id
   const role = teamRole(p) ?? 'employee'
   const blocked = (r: TeamRole) => (me ? roleBlock(me, p, r, profiles) : null)
-  // A boss's role is a boss's to change; your own, someone else's (so you can't lock yourself out).
-  const locked = role === 'boss' ? blocked('manager') : null
+  // An owner's role is an owner's to change; your own, someone else's (so you can't lock yourself out).
+  const locked = role === 'owner' ? blocked('manager') : null
   const why = self ? t('Another admin can change this') : locked ? t(locked) : null
   return (
     <Drawer anchor="right" open onClose={onClose}
@@ -266,7 +266,7 @@ export function InviteDialog({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState('')
   const [role, setRole] = useState<TeamRole | 'kiosk'>('employee')
   const chosen = TEAM_ROLES.find(r => r.id === role)
-  const boss = !!me && teamRole(me) === 'boss'
+  const owner = !!me && teamRole(me) === 'owner'
   const [phone, setPhone] = useState('')
   const [method, setMethod] = useState<ContactMethod | null>(null)
   const [setup, setSetup] = useSignInSetup()
@@ -281,7 +281,7 @@ export function InviteDialog({ onClose }: { onClose: () => void }) {
           <TextField select label={t('Role')} value={role} onChange={e => setRole(e.target.value as typeof role)}
             helperText={chosen ? t(chosen.summary) : undefined}>
             {TEAM_ROLES.map(r => (
-              <MenuItem key={r.id} value={r.id} disabled={r.id === 'boss' && !boss}>{t(r.label)}</MenuItem>
+              <MenuItem key={r.id} value={r.id} disabled={r.id === 'owner' && !owner}>{t(r.label)}</MenuItem>
             ))}
             {FEATURES.kiosk && <MenuItem value="kiosk">{t('Kiosk (café tablet)')}</MenuItem>}
           </TextField>

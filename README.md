@@ -18,13 +18,14 @@ built-in **AI connector** so owners can run it by talking to Claude.
   database ([docs/billing.md](docs/billing.md))
 - Partners: outside businesses (gestoría, suppliers) get a read-only login to the areas an admin
   picks (rota, payroll, finances, calendar). Enforced by database row security and in the AI tools.
-- Team roles: everyone on the team is an **employee**, a **shop manager** or the **boss / CEO**, picked
+- Team roles: everyone on the team is an **employee**, a **shop manager** or an **owner**, picked
   on the Team page when inviting them or later, or by asking Claude (`set_team_role`). Employees see
   their own shifts, clock-ins, time off and expenses; a shop manager runs the shop (rota, timecards,
-  time off, stock, the team, settings) without pay, takings, finances or billing; a boss does all of
-  it with pay, finances and billing. They're stored as the access the database already checks (a boss is an admin
-  with pay access), and only a boss makes someone a boss or changes a boss
-  (`shared/teamRoles.ts`, the `team_roles` migration).
+  time off, stock, the team, settings) without pay, takings, finances or billing; an owner does all of
+  it with pay, finances and billing. They're stored as the access the database already checks (an owner is an admin
+  with pay access), and only an owner makes someone an owner or changes an owner
+  (`shared/teamRoles.ts`, the `team_roles` migration). The owner was called the boss / CEO before; the AI
+  connector still takes `boss` for it.
 - Sports: the next 3 weeks of football (Spanish, English, Scottish, Dutch and other leagues, cups,
   European nights, national teams), rugby (Six Nations, Premiership, Champions Cup and more), UFC and
   boxing, with "big nights" flagged. The Worker refreshes
@@ -89,6 +90,12 @@ built-in **AI connector** so owners can run it by talking to Claude.
   beans in order, the first until it's full, then the next, each with when it'll be full at the pace money's
   been going in and whether that's in time for its date. Admins put last month's share in (worked out as
   Profit & loss does, or typed in), reorder and buy goals (what it cost comes out); the whole team sees it.
+- People (Team section): the team as a hierarchy, the owners at the top, then the shop managers, then the
+  employees, each with the roles they hold on Roles & responsibilities (admins open someone on the Team
+  page from there). **Show pets** puts everyone's dogs (and cats) under them with their photos. Each person
+  adds their own pets on My account → Pets, with a photo cut square in the browser and kept in the
+  database (the `pets` migration, which also brings Aron's dogs Fudge and Cooper at Easy Beans); the whole
+  team sees them, each person changes their own and admins anyone's. Partners and the café tablet see none.
 - Roles & responsibilities (Team section): who does what. Each role (owner, shift lead, barista, kitchen,
   cleaner…) opens to what it's for, who it answers to, who's in it, the rota position it's worked as, and its
   duties by when they're done (all the time, opening, during service, closing, every week). Everyone reads it,
@@ -433,7 +440,7 @@ business finishes the set-up guide (`create_business()` and `business_set_up()` 
 
 Any business signs up for itself: **Create account** on the landing page (email, or one tap with
 Google, Apple, Facebook or Microsoft), then **Add my business** (its name, what kind it is, its
-time zone). Its creator runs it (admin and boss) on the Free plan and goes straight on to the set-up
+time zone). Its creator runs it (admin and owner) on the Free plan and goes straight on to the set-up
 guide (`/setup`) to connect its apps. Someone joining an existing team signs up the same way and
 asks their manager to add their email on the Team page.
 

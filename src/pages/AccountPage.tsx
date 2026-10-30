@@ -9,6 +9,7 @@ import { PinDialog } from './TeamPage'
 import { ContactMethodField } from '../components/ContactMethod'
 import { LanguagePicker } from '../components/Language'
 import { PhoneField } from '../components/PhoneField'
+import { MyPets } from '../components/Pets'
 import { TimeZoneField } from '../components/TimeZoneField'
 import { t, tn } from '../i18n'
 import type { ContactMethod } from '../../shared/types'
@@ -59,6 +60,9 @@ export function AccountPage() {
             </Stack>
           </CardContent>
         </Card>
+
+        {/* Your dog (or cat), with a photo: the team meets them on the People page. */}
+        {!isPartner && <MyPets />}
 
         <Card component="section" aria-label={t('Language')}>
           <CardContent>
