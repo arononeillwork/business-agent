@@ -26,6 +26,8 @@ import {
 import { ROLE_CATEGORIES, categoryOf, type RoleCategory } from '../../shared/roleTemplates'
 import { tokens } from '../theme'
 import { t, tc, tn } from '../i18n'
+import { AgentsTab } from './RolesAgentsTab'
+import { OwnershipTab } from './RolesOwnershipTab'
 
 /** A preset in the admin's language, linked to the rota position it's worked as. */
 function fromPreset(p: RolePreset, positions: Position[], roles: JobRole[], sort: number): JobRoleInput {
@@ -36,7 +38,7 @@ function fromPreset(p: RolePreset, positions: Position[], roles: JobRole[], sort
   }
 }
 
-type RolesTab = 'active' | 'category' | 'permissions'
+type RolesTab = 'active' | 'category' | 'permissions' | 'ownership' | 'agents'
 
 /**
  * Roles & responsibilities: who does what. Each role opens to what it's for, who it answers to, who's
@@ -47,10 +49,13 @@ type RolesTab = 'active' | 'category' | 'permissions'
  * to add) and Permissions (what each role, and so each person, can do in each area of the app).
  */
 export function RolesPage() {
-  const { api, me, isAdmin, profiles, positions, business } = useApp()
+  const { api, me, isAdmin, profiles, positions, business, canSeePay } = useApp()
   const run = useAction()
   const [params, setParams] = useSearchParams()
   const tabs: RolesTab[] = ['active', 'category', 'permissions']
+  // Ownership and Agents (owners only): who owns each role, and the ways they see the app (the Agents button at the top).
+  const owner = isAdmin && canSeePay
+  if (owner) tabs.push('ownership', 'agents')
   const tab = tabs.find(x => x === params.get('tab')) ?? 'active'
   const show = (next: RolesTab) => setParams(next === 'active' ? {} : { tab: next }, { replace: true })
   const category = categoryOf(business?.business_type)
@@ -65,6 +70,9 @@ export function RolesPage() {
   const positionOf = (id: number | null) => positions.find(p => p.id === id)
   const businessName = business?.name ?? businessConfig.name
   const roleless = team.filter(p => !roles.some(r => r.people.includes(p.id)))
+  // Who owns each role (the Ownership tab): shown under its name.
+  const owned = useAsync('role-owners', () => api.roleOwners(), [])
+  const ownerName = (id: string) => { const by = owned.data?.find(o => o.id === id)?.owned_by; return by ? profiles.find(p => p.id === by)?.full_name : undefined }
   const nextSort = roles.reduce((n, r) => Math.max(n, r.sort + 1), 0)
 
   const addPresets = (presets: RolePreset[]) => run(async () => {
@@ -114,6 +122,7 @@ export function RolesPage() {
                   <Typography variant="h5" component="h2">{r.name}</Typography>
                   {position && <PositionTag position={position} />}
                 </Stack>
+                {ownerName(r.id) && <Typography variant="body2" sx={{ color: tokens.roseDeep, mb: 0.5 }}>{t('Owned by {name}', { name: ownerName(r.id)! })}</Typography>}
                 {r.summary && <Typography sx={{ color: 'text.secondary', whiteSpace: 'pre-line', mb: 2 }}>{r.summary}</Typography>}
                 <RoleDetails role={r} roles={roles} position={position} you
                   people={r.people.map(id => profiles.find(p => p.id === id)).filter((p): p is Profile => !!p)} />
@@ -142,10 +151,14 @@ export function RolesPage() {
         <Tab value="active" label={t('Active ({n})', { n: roles.length })} />
         <Tab value="category" label={t('Category')} />
         <Tab value="permissions" label={t('Permissions')} />
+        {owner && <Tab value="ownership" label={t('Ownership')} />}
+        {owner && <Tab value="agents" label={t('Agents')} />}
       </Tabs>
 
       {tab === 'category' && <CategoryTab roles={roles} category={category} addPresets={addPresets} />}
       {tab === 'permissions' && <PermissionsTab roles={roles} team={team} />}
+      {tab === 'ownership' && <OwnershipTab roles={roles} team={team} />}
+      {tab === 'agents' && <AgentsTab />}
       {tab === 'active' && <>
         {data.data && roles.length === 0 && (
           <Card component="section" aria-label={t('No roles yet')} sx={{ mb: 3 }}>
@@ -181,6 +194,7 @@ export function RolesPage() {
                     {mine.has(r.id) && <Tag fg={tokens.goodFg} bg={tokens.goodBg}>{t('You')}</Tag>}
                     {position && <PositionTag position={position} />}
                   </Stack>
+                  {ownerName(r.id) && <Typography variant="caption" sx={{ display: 'block', color: tokens.roseDeep }}>{t('Owned by {name}', { name: ownerName(r.id)! })}</Typography>}
                   {r.summary && (
                     <Typography variant="body2" sx={{ color: 'text.secondary', whiteSpace: 'pre-line',
                       ...(open ? {} : { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }) }}>

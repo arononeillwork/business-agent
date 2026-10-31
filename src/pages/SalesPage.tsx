@@ -13,6 +13,8 @@ import { BarChart, ShareBars, type BarPoint } from '../components/charts'
 import { Empty, ErrorBox, Loading, PageHeader, SectionTitle, StatGrid, StatTile, Tag } from '../components/common'
 import { ExportButton, SortCell, useSort } from '../components/tables'
 import { Freshness } from '../components/Freshness'
+import { useDailyCosts } from '../app/dailyCost'
+import type { DayCost } from '../../shared/dailyCost'
 import type { ExportTable } from '../lib/export'
 import { addDays, currencySymbol, formatLocal, formatMoney, formatNumber, today, weekStart } from '../../shared/time'
 import type { PayMethod, SalesDay, SalesItems, SalesProvider } from '../../shared/types'
@@ -114,6 +116,8 @@ export function SalesPage() {
   // One read covers both periods; best sellers are for the period itself.
   const sales = useAsync('sales-page', () => (on ? api.sales(range.prevFrom, range.to) : Promise.resolve(null)), [on, period, day])
   const items = useAsync('sales-items', () => (on ? api.salesItems(range.from, range.to) : Promise.resolve(null)), [on, period, day])
+  // What running the business cost each day (the running costs and the rota that day): the line over the bars.
+  const daily = useDailyCosts(range.from, range.to > day ? day : range.to, on)
 
   if (!canSeePay || isPartner) {
     return <>
@@ -179,8 +183,9 @@ export function SalesPage() {
             {single ? t('Sales by hour') : t('Sales over time')}
           </SectionTitle>
           {!loaded ? <Loading /> : single ? <HourChart today={cur[0]} before={prev[0]} periodName={periodName} vs={vs} /> : (
-            <OverTime cur={cur} prev={prev} metric={metric} periodName={periodName} vs={vs} />
+            <OverTime cur={cur} prev={prev} metric={metric} periodName={periodName} vs={vs} costs={daily.costs} />
           )}
+          {loaded && daily.costs && <CostSummary days={cur} costs={daily.costs} />}
           {loaded && (
             <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mt: 1 }}>
               {t('Tips {tips} on top of sales · refunds {refunds}', { tips: formatMoney(now.tips), refunds: formatMoney(now.refunds) })}
@@ -229,15 +234,53 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 const shortDate = (d: string, many: boolean) => formatLocal(`${d}T12:00:00Z`, many ? 'd MMM' : 'EEE d')
 const longDate = (d: string) => formatLocal(`${d}T12:00:00Z`, 'EEEE d MMMM')
 
-function OverTime({ cur, prev, metric, periodName, vs }: { cur: SalesDay[]; prev: SalesDay[]; metric: Metric; periodName: string; vs: string }) {
+function OverTime({ cur, prev, metric, periodName, vs, costs }: { cur: SalesDay[]; prev: SalesDay[]; metric: Metric; periodName: string; vs: string; costs?: DayCost[] | null }) {
   const value = (d?: SalesDay) => (!d ? undefined : metric === 'sales' ? d.gross : metric === 'payments' ? d.payments : d.payments ? d.gross / d.payments : 0)
   const many = cur.length > 10
-  const points: BarPoint[] = cur.map((d, i) => ({ label: shortDate(d.date, many), title: longDate(d.date), value: value(d)!, prev: value(prev[i]) }))
+  // The cost of running the business that day, over the sales (not over transactions or the average sale).
+  const costOf = new Map((metric === 'sales' ? costs ?? [] : []).map(c => [c.date, c.total]))
+  const points: BarPoint[] = cur.map((d, i) => ({ label: shortDate(d.date, many), title: longDate(d.date), value: value(d)!, prev: value(prev[i]), cost: costOf.get(d.date) }))
   const format = metric === 'payments' ? (n: number) => t('{n} transactions', { n: formatNumber(Math.round(n)) }) : formatMoney
   const axis = metric === 'payments' ? (n: number) => formatNumber(Math.round(n)) : wholeMoney
   const what = metric === 'sales' ? t('Sales') : metric === 'payments' ? t('Transactions') : t('Average sale')
   return <BarChart points={points} format={format} axisFormat={axis} current={periodName} previous={cap(vs)}
-    label={t('{what} per day, {period}, with {previous} as a line', { what, period: periodName.toLowerCase(), previous: vs })} />
+    costName={costOf.size ? t('Cost of running the business') : undefined}
+    label={costOf.size
+      ? t('{what} per day, {period}, with {previous} as a line and the cost of running the business each day as a red line', { what, period: periodName.toLowerCase(), previous: vs })
+      : t('{what} per day, {period}, with {previous} as a line', { what, period: periodName.toLowerCase(), previous: vs })} />
+}
+
+/**
+ * Under the chart: what running the business cost over the period (the running costs on Finances and
+ * the rota day by day), against the sales, and how many days took more than that day cost.
+ */
+function CostSummary({ days, costs }: { days: SalesDay[]; costs: DayCost[] }) {
+  const cost = new Map(costs.map(c => [c.date, c]))
+  const open = days.filter(d => cost.get(d.date)?.open)
+  if (!open.length) return null
+  const total = open.reduce((s, d) => s + (cost.get(d.date)?.total ?? 0), 0)
+  const sales = open.reduce((s, d) => s + d.gross, 0)
+  const above = open.filter(d => d.gross > (cost.get(d.date)?.total ?? 0)).length
+  const estimated = open.some(d => cost.get(d.date)?.teamFrom === 'estimate')
+  const fromRota = open.some(d => cost.get(d.date)?.teamFrom === 'rota')
+  const gap = sales - total
+  return (
+    <Box role="note" aria-label={t('Cost of running the business')} sx={{ mt: 1.5, p: 1.5, borderRadius: '12px', bgcolor: gap >= 0 ? tokens.goodBg : tokens.warnBg }}>
+      <Typography variant="body2" sx={{ fontWeight: 500, color: gap >= 0 ? tokens.goodFg : tokens.warnFg }}>
+        {gap >= 0
+          ? t('Sales {sales} against {cost} to run the business: {gap} over breakeven', { sales: formatMoney(sales), cost: formatMoney(total), gap: formatMoney(gap) })
+          : t('Sales {sales} against {cost} to run the business: {gap} short of breakeven', { sales: formatMoney(sales), cost: formatMoney(total), gap: formatMoney(-gap) })}
+      </Typography>
+      <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
+        {t('{above} of {days} open days took more than they cost · about {perDay} a day: the running costs on Finances spread over the open days, plus the team on the rota that day.', {
+          above: above, days: open.length, perDay: formatMoney(total / open.length) })}
+        {' '}
+        {estimated && (fromRota
+          ? t('Days without a costed rota take the Staff wages estimate on Finances.')
+          : t('The team comes from the Staff wages estimate on Finances until everyone on the rota has a pay rate.'))}
+      </Typography>
+    </Box>
+  )
 }
 
 /** One day by the hour, against the same hours of the day it's compared with. */

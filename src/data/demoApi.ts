@@ -16,6 +16,7 @@ import { TIME_OFF_AFTER_THE_FACT } from '../../shared/types'
 import { mentionTitle, mentionsIn, type InstagramMention } from '../../shared/mentions'
 import { demoSports } from './demoSports'
 import { demoInbox, demoMessenger, demoWhatsApp } from './demoMessages'
+import { demoEmailPage, demoEmails } from './demoEmail'
 import { DEMO_CAFE_AT, DEMO_PLACES, demoCompetitors } from './demoCompetitors'
 import { distanceM, instagramHandle, suggestedThreat, type Competitor, type NearbyPlace } from '../../shared/localCompetitors'
 import { DEFAULT_WHATSAPP_RETENTION, isRetention, replyWindow } from '../../shared/messages'
@@ -40,7 +41,9 @@ import { permissionsOf, roleProblem, tidyPermissions, type JobRole, type RoleAre
 import { ROLE_TEMPLATES } from '../../shared/roleTemplates'
 import { sectionProblem, type RuleSection, type RulesRead } from '../../shared/staffRules'
 import { PET_LIMITS, petProblem, type Pet } from '../../shared/pets'
+import { DEMO_THEME_TRACKS, demoThemeDayApi } from './demoThemeDays'
 import { COUNTED, type Contractor, type OutsourcedJob } from '../../shared/outsourcing'
+import { DEFAULT_CONVENIO, contractProblem, type EmploymentContract } from '../../shared/contracts'
 import { EASY_BEANS_ROLES, EASY_BEANS_RULES, handbookDuties } from './easyBeansHandbook'
 import { DEFAULT_TAX_SETTINGS, cleanFolderName, cleanFolderPath, taxFileProblem, taxFileType, type FilingRecord, type TaxDocument, type TaxSettings } from '../../shared/tax'
 import { DEFAULT_VAT_RATE, type PnlLine } from '../../shared/pnl'
@@ -208,6 +211,8 @@ export function createDemoApi(): Api {
       ['Golden Hour', 'JVKE'], ['Riptide', 'Vance Joy']].map(([title, artist], i) => ({ id: `demo-yt1-${i + 1}`, title, artist })),
     yt2: [['Holocene', 'Bon Iver'], ['Skinny Love', 'Birdy'], ['Ho Hey', 'The Lumineers']].map(([title, artist], i) => ({ id: `demo-yt2-${i + 1}`, title, artist })),
     yt3: [['Day one', 'Easy Beans'], ['Day two', 'Easy Beans']].map(([title, artist], i) => ({ id: `demo-yt3-${i + 1}`, title, artist })),
+    // The theme days' playlists (Calendar), for the café speaker.
+    ...DEMO_THEME_TRACKS,
   }
   const player: MusicPlayerState = { device_id: null, device_name: null, playlist: null, queue: [], queue_version: 0, playlist_order: [], position: 0, playing: false,
     elapsed: 0, duration: 0, volume: 80, command: null, command_seq: 0, heartbeat_at: null, updated_at: nowIso() }
@@ -330,17 +335,23 @@ export function createDemoApi(): Api {
   clubEvents.sort((a, b) => b.at.localeCompare(a.at))
   const gan4 = () => String(1000 + Math.floor(roll() * 9000))
   const cardDay = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString()
-  const giftCardList: GiftCard[] = [
-    [25, 25, 3, 'Lucía García'], [50, 32.4, 9, null], [20, 0, 40, 'Tom Baker'], [30, 30, 12, null],
-    [15, 6.8, 22, 'Carmen Ruiz'], [40, 40, 1, null], [25, 11.2, 30, 'Emma Wilson'], [100, 100, 6, 'Hotel Puente Romano'],
-  ].map(([sold, balance, ago, customer], i) => ({ id: `gc-${i + 1}`, last4: gan4(), type: 'DIGITAL' as const,
-    state: (balance === 0 ? 'DEACTIVATED' : 'ACTIVE') as GiftCard['state'], balance: balance as number, created_at: cardDay(ago as number),
-    customer_id: customer ? `sq-g${i + 1}` : null, customer: customer as string | null, sold: sold as number }))
-    .map(({ sold: _sold, ...c }) => c)
+  /** The whole card numbers, which only Copy number gives out (as the Worker does). */
+  const giftGans = new Map<string, string>()
+  // Eleven cards: seven that can be spent, two used up (one this month), a physical card not sold yet and one switched off (reported lost).
+  const giftCardList: GiftCard[] = ([
+    [25, 25, 3, null, 'ACTIVE', 'DIGITAL', 'Lucía García'], [50, 32.4, 9, 4, 'ACTIVE', 'DIGITAL', null], [20, 0, 40, 38, 'ACTIVE', 'PHYSICAL', 'Tom Baker'],
+    [30, 30, 12, null, 'ACTIVE', 'PHYSICAL', null], [15, 6.8, 22, 10, 'ACTIVE', 'DIGITAL', 'Carmen Ruiz'], [40, 40, 1, null, 'ACTIVE', 'DIGITAL', null],
+    [25, 11.2, 30, 7, 'ACTIVE', 'DIGITAL', 'Emma Wilson'], [100, 100, 6, null, 'ACTIVE', 'DIGITAL', 'Hotel Puente Romano'],
+    [30, 0, 18, 1, 'ACTIVE', 'DIGITAL', 'Javier López'], [null, 0, 45, null, 'PENDING', 'PHYSICAL', null], [50, 18.5, 70, 61, 'DEACTIVATED', 'PHYSICAL', 'Laura Navarro'],
+  ] as [number | null, number, number, number | null, GiftCard['state'], GiftCard['type'], string | null][]).map(([original, balance, ago, used, state, type, customer], i) => {
+    const id = `gc-${i + 1}`, last4 = gan4()
+    giftGans.set(id, `77833200${gan4()}${last4}`)
+    return { id, last4, type, state, balance, created_at: cardDay(ago), customer_id: customer ? `sq-g${i + 1}` : null, customer, original, last_used: used === null ? null : cardDay(used) }
+  })
   const giftActivity: GiftCardActivity[] = giftCardList.flatMap((c, i) => {
-    const sold = [25, 50, 20, 30, 15, 40, 25, 100][i]
-    const out: GiftCardActivity[] = [{ id: `ga-${i}-a`, kind: 'activate', amount: sold, at: c.created_at, last4: c.last4, balance: sold }]
-    if (c.balance < sold) out.push({ id: `ga-${i}-r`, kind: 'redeem', amount: Math.round((sold - c.balance) * 100) / 100, at: new Date(Date.parse(c.created_at) + 2 * 86_400_000).toISOString(), last4: c.last4, balance: c.balance })
+    if (c.original === null) return []
+    const out: GiftCardActivity[] = [{ id: `ga-${i}-a`, kind: 'activate', amount: c.original, at: c.created_at, last4: c.last4, balance: c.original }]
+    if (c.last_used) out.push({ id: `ga-${i}-r`, kind: 'redeem', amount: Math.round((c.original - c.balance) * 100) / 100, at: c.last_used, last4: c.last4, balance: c.balance })
     return out
   }).sort((a, b) => b.at.localeCompare(a.at))
   const squareOn = () => integ.integrations.some(i => i.provider === 'square' && i.status === 'connected')
@@ -1133,6 +1144,8 @@ export function createDemoApi(): Api {
     // The menu is kept here (Custom), its sections not arranged yet. "Add what's on your printed menus"
     // (Menu page) adds the café's printed menus beside the costed recipes, in their order of sections.
     menu_source: 'custom', menu_sections: [], menu_synced_at: null, menu_sync_error: null,
+    // The usual agents (shared/agents.ts) until an owner changes them on Roles & responsibilities → Agents.
+    agent_views: null,
   }
 
   const P = { aron: 'p-aron', mark: 'p-mark', julio: 'p-julio', maria: 'p-maria', cleaner: 'p-cleaner' }
@@ -1246,18 +1259,43 @@ export function createDemoApi(): Api {
     reports_to: null, people: rolePeople[r.name] ?? [], duties: handbookDuties(r), sort: i, updated_at: daysAgo(8),
     template: roleTemplate[r.name] ?? null, permissions: tidyPermissions(ROLE_TEMPLATES.find(x => x.id === roleTemplate[r.name])?.permissions),
   }))
+  // Who owns which role (Roles & responsibilities → Ownership): Aron the team's, Mark the money's; the rest nobody yet.
+  const roleOwnersAtStart: Record<string, [string, number]> = {
+    'Head of People': [P.aron, 0], 'Head Barista': [P.aron, 1], 'Barista / Bartender': [P.aron, 2], Investor: [P.mark, 0], Accountant: [P.mark, 1],
+  }
+  for (const r of jobRoles) Object.assign(r, { owned_by: roleOwnersAtStart[r.name]?.[0] ?? null, owner_sort: roleOwnersAtStart[r.name]?.[1] ?? 0 })
   const ruleSections: RuleSection[] = EASY_BEANS_RULES.map((r, i) => ({
     id: uid(), title: r.title, intro: r.intro ?? null, rules: [...r.rules], sort: i, updated_at: daysAgo(r.title === 'Complaints' ? 3 : 10),
   }))
   const rulesRead: RulesRead[] = [{ profile_id: P.maria, read_at: daysAgo(2) }, { profile_id: P.julio, read_at: daysAgo(7) }]
-  // Aron's dogs, waiting for their photos (the `pets` migration adds them for the real Aron too).
+  // Mark's dogs, waiting for their photos; Aron has none (the `people_page_and_pets` migration moved Yoda and Cooper to Mark).
   const pets: Pet[] = [
-    { id: 'pet-fudge', profile_id: P.aron, name: 'Fudge', kind: 'dog', breed: null, photo: null, sort: 1, created_at: daysAgo(3) },
-    { id: 'pet-cooper', profile_id: P.aron, name: 'Cooper', kind: 'dog', breed: null, photo: null, sort: 2, created_at: daysAgo(3) },
-    // And Mark's, Pablo and Yoda.
     { id: 'pet-pablo', profile_id: P.mark, name: 'Pablo', kind: 'dog', breed: null, photo: null, sort: 1, created_at: daysAgo(1) },
     { id: 'pet-yoda', profile_id: P.mark, name: 'Yoda', kind: 'dog', breed: null, photo: null, sort: 2, created_at: daysAgo(1) },
+    { id: 'pet-cooper', profile_id: P.mark, name: 'Cooper', kind: 'dog', breed: null, photo: null, sort: 3, created_at: daysAgo(3) },
   ]
+  // Employment contracts (Team → Contracts): Julio permanent since the café opened, Maria on her second
+  // summer contract (ending soon), the cleaner new and in her trial period. Aron and Mark own the café.
+  const contract = (c: Partial<EmploymentContract> & Pick<EmploymentContract, 'id' | 'profile_id' | 'kind' | 'starts_on'>): EmploymentContract => ({
+    ends_on: null, trial_ends_on: null, hours_per_week: null, salary: null, salary_per: null, convenio: DEFAULT_CONVENIO, job_title: null,
+    document_url: null, notes: null, created_at: `${c.starts_on}T09:00:00Z`, updated_at: `${c.starts_on}T09:00:00Z`, ...c,
+  })
+  const contracts: EmploymentContract[] = [
+    contract({ id: 'ec-julio', profile_id: P.julio, kind: 'indefinido', starts_on: '2026-04-01', trial_ends_on: '2026-05-31', hours_per_week: 35,
+      salary: 1320, salary_per: 'month', job_title: 'Camarero (barista), grupo II', document_url: 'https://drive.google.com/file/d/demo-contrato-julio/view' }),
+    contract({ id: 'ec-maria-1', profile_id: P.maria, kind: 'temporal_produccion', starts_on: '2026-04-01', ends_on: '2026-06-30', hours_per_week: 30,
+      salary: 8.8, salary_per: 'hour', job_title: 'Camarera (barista), grupo II' }),
+    contract({ id: 'ec-maria-2', profile_id: P.maria, kind: 'temporal_produccion', starts_on: '2026-07-01', ends_on: addDays(today(), 21), hours_per_week: 30,
+      salary: 8.8, salary_per: 'hour', job_title: 'Camarera (barista), grupo II', notes: 'The summer season. Talk to her about a permanent contract.' }),
+    contract({ id: 'ec-cleaner', profile_id: P.cleaner, kind: 'indefinido_parcial', starts_on: addDays(today(), -20), trial_ends_on: addDays(today(), 10),
+      hours_per_week: 6, salary: 9.5, salary_per: 'hour', job_title: 'Limpieza, grupo I' }),
+  ]
+  // Theme days and the weekly routine (Calendar, Coffees page): as the `theme_days` and `weekly_routine` migrations.
+  const themeDayApi = demoThemeDayApi({
+    isStaff: () => isStaff() && !!me()?.active, isAdmin: () => isAdmin() && !!me()?.active, me: () => currentUser,
+    roleId: name => jobRoles.find(r => r.name === name)?.id ?? null,
+    onTeam: id => profiles.some(p => p.id === id && p.active && (p.role === 'admin' || p.role === 'employee')), uid, nowIso,
+  }, P.cleaner)
   /** That person's shifts in the period become open shifts (approved time off). */
   const openUpShifts = (t: TimeOff) => {
     const name = profiles.find(p => p.id === t.profile_id)?.full_name
@@ -1481,6 +1519,10 @@ export function createDemoApi(): Api {
     campaign({ name: 'Office coffee for businesses', subject: 'Coffee for your team, delivered', audience: { kinds: ['lead'], tags: ['B2B'], sources: [] },
       body: 'Hi [first name],\n\nWe bring specialty coffee to offices and studios in San Pedro twice a week. Reply and we’ll send prices.\n\nAron, Easy Beans',
       created_at: daysAgo(2) }),
+    // Switched off after the summer (Inactive), started from a suggestion, so that one isn't offered again yet.
+    campaign({ name: 'Summer iced drinks 2026', channel: 'sms', idea: 'summer_drinks', inactive: true, status: 'sent', recipients: 3,
+      body: 'Easy Beans: iced lattes, cold brew and frappés are back. Come in and cool down!', sent_at: daysAgo(90), created_at: daysAgo(95),
+      notes: 'Goal: iced drinks sold (Sales, best sellers)' }),
   ]
 
   // Hiring: a weekend barista being filled now, and the opening team hired last year (database: hiring_rules(), applicant_interview_event()).
@@ -1655,7 +1697,7 @@ export function createDemoApi(): Api {
 
   // Staff kitty: 5% of each month's profit since May and the tips from one month; the summer
   // barbecue already bought. Last month's share is still to go in.
-  const kittySettings = { profit_percent: 5 }
+  const kittySettings = { profit_percent: 10 }
   const kittyGoalList: KittyGoal[] = [
     { id: 'goal-party', name: 'Christmas party', icon: 'party', target: 500, due_on: `${today().slice(0, 4)}-12-18`, sort: 1, link: null,
       notes: 'Dinner and drinks for the whole team', spent: null, bought_on: null, created_at: daysAgo(90) },
@@ -2002,6 +2044,7 @@ export function createDemoApi(): Api {
       if (id !== currentUser && 'preferences' in patch) throw new Error('Only the person themselves can change their appearance settings')
       if (id === currentUser && patch.active === false) throw new Error("You can't switch off your own account. Ask another admin.")
       if (!isAdmin() && 'on_rota' in patch) throw new Error('Only an admin takes someone off the rota or puts them back')
+      if (!isAdmin() && 'on_people' in patch) throw new Error('Only an admin leaves someone off the People page or puts them back')
       if (!isAdmin() && ('role' in patch || 'can_see_pay' in patch || 'active' in patch)) {
         throw new Error('Only an admin can change role, pay access or status')
       }
@@ -2194,6 +2237,18 @@ export function createDemoApi(): Api {
       if (existing) Object.assign(existing, next)
       else jobRoles.push(next)
     },
+    async roleOwners() { return isStaff() ? jobRoles.map(r => ({ id: r.id, owned_by: r.owned_by ?? null, owner_sort: r.owner_sort ?? 0 })) : [] },
+    async saveRoleOwners(changes) {
+      // As the role_owners migration: only an owner, and only to an active owner.
+      if (!paysAdmin()) throw new Error('Only an owner decides who owns a role')
+      for (const c of changes) {
+        if (!jobRoles.some(r => r.id === c.id)) throw new Error('Role not found')
+        if (c.owned_by && !profiles.some(p => p.id === c.owned_by && p.role === 'admin' && p.can_see_pay && p.active)) {
+          throw new Error('Only an owner of the business can own a role')
+        }
+      }
+      for (const c of changes) Object.assign(jobRoles.find(r => r.id === c.id)!, { owned_by: c.owned_by, owner_sort: c.owner_sort })
+    },
     async deleteJobRole(id) {
       requireAdmin()
       const i = jobRoles.findIndex(x => x.id === id)
@@ -2253,6 +2308,7 @@ export function createDemoApi(): Api {
       const i = pets.findIndex(x => x.id === id)
       if (i >= 0 && isStaff() && (pets[i].profile_id === currentUser || isAdmin())) pets.splice(i, 1)
     },
+    ...themeDayApi,
 
     async contractors() {
       if (!isAdmin() && !partnerCan('finances')) return []
@@ -2302,6 +2358,41 @@ export function createDemoApi(): Api {
       requireAdmin()
       const i = outsourcedJobs.findIndex(j => j.id === id)
       if (i >= 0) outsourcedJobs.splice(i, 1)
+    },
+
+    // As the `employment_contracts` migration: admins and a payroll gestoría read every contract, others
+    // their own; the pay only with pay access (an owner, the gestoría) or on your own.
+    async employmentContracts() {
+      const all = isAdmin() || partnerCan('payroll')
+      if (!me()?.active || (!all && !isStaff())) return []
+      return clone(contracts.filter(c => all || c.profile_id === currentUser))
+        .map(c => (paysAdmin() || partnerCan('payroll') || c.profile_id === currentUser ? c : { ...c, salary: null, salary_per: null }))
+        .sort((a, b) => b.starts_on.localeCompare(a.starts_on))
+    },
+    async saveEmploymentContract({ id, salary, salary_per, ...patch }) {
+      requireAdmin()
+      if (salary !== undefined && !paysAdmin()) throw new Error('new row violates row-level security policy for table "employment_contract_pay"')
+      const was = id ? contracts.find(c => c.id === id) : undefined
+      if (id && !was) throw new Error('That contract isn’t here any more')
+      const text = (v: string | null | undefined) => v?.trim() || null
+      const base = was ?? contract({ id: uid(), profile_id: patch.profile_id ?? '', kind: patch.kind ?? 'indefinido', starts_on: patch.starts_on ?? '',
+        created_at: nowIso(), convenio: null })
+      const next: EmploymentContract = { ...base, ...clone(patch), profile_id: base.profile_id || (patch.profile_id ?? ''), updated_at: nowIso() }
+      Object.assign(next, { convenio: text(next.convenio), job_title: text(next.job_title), document_url: text(next.document_url), notes: text(next.notes) })
+      if (salary !== undefined) Object.assign(next, { salary, salary_per: salary === null ? null : salary_per ?? 'month' })
+      const problem = contractProblem(next)
+      if (problem) throw new Error(problem)
+      if (!was) {
+        const who = profiles.find(p => p.id === next.profile_id)
+        if (!who || !staffOnly(who)) throw new Error('A contract is for someone on the team')
+        contracts.push(next)
+      } else Object.assign(was, next)
+      return next.id
+    },
+    async deleteEmploymentContract(id) {
+      requireAdmin()
+      const i = contracts.findIndex(c => c.id === id)
+      if (i >= 0) contracts.splice(i, 1)
     },
 
     async planStatus() {
@@ -2677,14 +2768,14 @@ export function createDemoApi(): Api {
       const i = invoiceList.findIndex(x => x.id === id)
       if (i >= 0) invoiceList.splice(i, 1)
     },
-    async invoiceInbox() {
+    async invoiceInbox(_days, supplierId) {
       needInvoices()
       const box = (['gmail', 'outlook'] as const).find(p => integ.integrations.some(i => i.provider === p && i.status === 'connected'))
       const row = box && integ.integrations.find(i => i.provider === box)
       if (!box || !(row?.external as { reads_mail?: boolean }).reads_mail) return { mailbox: box ?? null, can_read: false, messages: [] }
       const done = new Set(invoiceList.map(i => i.email_id))
       return { mailbox: box, can_read: true, messages: clone(mailInvoices).map(m => ({ ...m, supplier_id: matchSupplier(suppliers, { email: m.from }),
-        attachments: m.attachments.map(a => ({ ...a, imported: done.has(emailId(box, m.id, a.id)) })) })) }
+        attachments: m.attachments.map(a => ({ ...a, imported: done.has(emailId(box, m.id, a.id)) })) })).filter(m => !supplierId || m.supplier_id === supplierId) }
     },
     async importInvoice(m, attachment, supplierId) {
       needInvoices()
@@ -2705,6 +2796,16 @@ export function createDemoApi(): Api {
         document_id: doc.id, source: 'email', email_id: id, email_from: m.from, email_subject: m.subject, email_at: m.at })
       invoiceList.push(made)
       return clone(made)
+    },
+    async emailMessages(query) {
+      requireAdmin()
+      // Readable once allowed, as on Invoices → From email (the same permission).
+      const row = integ.integrations.find(i => (i.provider === 'gmail' || i.provider === 'outlook') && i.status === 'connected')
+      const box = row?.provider as 'gmail' | 'outlook' | undefined
+      if (!row || !box || !(row.external as { reads_mail?: boolean }).reads_mail) {
+        return { mailbox: box ?? null, account: row?.account_label ?? null, can_read: false, messages: [], next_page: null }
+      }
+      return { mailbox: box, account: row.account_label, can_read: true, ...demoEmailPage(demoEmails(box, row.account_label, suppliers, customers), query), fetched_at: nowIso() }
     },
     async taxSettings() { return readTax() ? clone(taxSettings) : DEFAULT_TAX_SETTINGS },
     async saveTaxSettings(patch) {
@@ -2871,10 +2972,17 @@ export function createDemoApi(): Api {
       if (problem) throw new Error(problem)
       const member = clubMembers.find(m => m.customer_id === customerId)
       const card: GiftCard = { id: uid(), last4: gan4(), type: 'DIGITAL', state: 'ACTIVE', balance: amount, created_at: nowIso(),
-        customer_id: customerId, customer: member?.name ?? null }
+        customer_id: customerId, customer: member?.name ?? null, original: amount, last_used: null }
       giftCardList.push(card)
+      giftGans.set(card.id, `77833200${gan4()}${card.last4}`)
       giftActivity.unshift({ id: uid(), kind: 'activate', amount, at: card.created_at, last4: card.last4, balance: amount })
       return clone(card)
+    },
+    async giftCardNumber(id) {
+      needSquare()
+      const gan = giftGans.get(id)
+      if (!gan) throw new Error('Choose a gift card from the list')
+      return gan
     },
     async suppliers() { return readStock() ? clone(suppliers).sort((a, b) => a.name.localeCompare(b.name)) : [] },
     async saveSupplier({ id, ...patch }) {
@@ -3410,6 +3518,12 @@ export function createDemoApi(): Api {
       requireAdmin()
       const i = campaignList.findIndex(x => x.id === id)
       if (i >= 0) campaignList.splice(i, 1)
+    },
+    async setCampaignInactive(id, inactive) {
+      requireAdmin()
+      const c = campaignList.find(x => x.id === id)
+      if (!c) throw new Error('That campaign has gone')
+      c.inactive = inactive
     },
 
     async salesReps() {
@@ -4502,9 +4616,8 @@ export function createDemoApi(): Api {
       if (!p) return { provider: null, account: null, playlists: [], approved: null }
       const youtube = p.provider === 'youtube_music'
       return { provider: youtube ? 'youtube' : 'spotify', account: p.account_label ?? null,
-        playlists: clone(youtube ? youtubePlaylists : demoPlaylists), approved: clone(p.external.playlist ?? null), demo: true,
-        // A YouTube playlist that isn't music: hidden unless asked for.
-        other_playlists: youtube ? [{ id: 'yt3', name: 'Café refit timelapse', tracks: 4, url: 'https://music.youtube.com/playlist?list=yt3', owner: 'Easy Beans' }] : undefined }
+        // Only music: the café account's plain YouTube playlists (a refit timelapse, shoulder stretches) aren't offered.
+        playlists: clone(youtube ? youtubePlaylists : demoPlaylists), approved: clone(p.external.playlist ?? null), demo: true }
     },
     async cafeTracks(playlistId) {
       if (!staffOnly(me()!)) throw new Error('Music is for the team')

@@ -122,6 +122,17 @@ built-in **AI connector** so owners can run it by talking to Claude.
   currency, where team alerts go): hidden, the page shows just the contact details. The café's barista
   template also leaves out the Company details and the Menu, and shows the Business page; Easy Beans'
   Barista / Bartender role has its contact details but not the Company details, Brand, Dashboards, Menu or Expenses.
+- Agents (owners): the **Agents** button at the top right switches the app to one part of the business's
+  view: the Finance, Marketing, Sales, Operations, People & HR and Stock & purchasing agents, and the Investor.
+  The menu then shows just that agent's pages (and Settings), a line at the top says whose view it is with the
+  way back to everything, and Today leads with the agent's first questions. Each owner's choice is kept on
+  their account; the owners turn agents on or off, rename them, pick their pages and add their own on Roles
+  & responsibilities → Agents (`shared/agents.ts`; only an owner changes them, the `agent_views` migration).
+- Role ownership (Roles & responsibilities → Ownership, owners): a lane for each owner and one for the roles
+  nobody owns yet. Owners drag a role into someone's lane or along it (or move it from its Owner menu, on a
+  phone or with the keyboard), and open it to read what it's for, its duties and who's in it, and change who's
+  in it. The Active tab and each person's own role say who owns it (`shared/roleOwners.ts`; only an owner
+  changes it, and only to an owner of the business: the `role_owners` migration).
 - Staff rules (Team section): the house rules, in sections that open (being on time and clocking in, uniform
   and hygiene, food safety and allergens, phones, breaks, customers, the till, health and safety, respect).
   Each employee confirms they've read them and is asked again when a section is added or changed (what's new
@@ -252,6 +263,13 @@ built-in **AI connector** so owners can run it by talking to Claude.
   marketing, picked by type, tag and where they came from, with the count and how it reads for one of
   them. Planned ones are in the bell on their day. Sending from the app comes with Brevo or Mailchimp
   (on Connections, coming); until then the audience is exported and the campaign marked sent.
+- Suggested campaigns (Campaigns → Suggested): ready-made ideas for a café (brand awareness, loyalty
+  sign-ups, win-back, quiet afternoons, local partnerships, Google reviews asked for without any reward,
+  the autumn, Christmas and summer menus, match nights, English speakers, office catering, a welcome for
+  new sign-ups), each with why it helps, its channels, the effort, what to measure and when to send it,
+  the ones for this time of year first (`shared/campaignIdeas.ts`). One press fills in a new campaign
+  planned for that day; an idea already started isn't offered again. Each campaign's **Inactive** switch
+  moves it to a folded section at the bottom, with no reminder, until it's switched back on.
 - Hiring (Team section): the jobs being filled (position, contract, hours, pay, where it's advertised)
   and who applied, stage by stage; an interview goes on the calendar for admins, and a hire is invited
   to the team in one step. Applicants not hired are kept a year (GDPR), then flagged to remove.
@@ -264,6 +282,14 @@ built-in **AI connector** so owners can run it by talking to Claude.
 - Off the rota (Team): an admin switches someone off the rota on their Team panel (an owner, the
   business's own login). They still sign in; the rota gives them no row and doesn't offer them for a
   shift, unless they already have one that week.
+- Contracts (Team page, a tab of its own: `/team?tab=contracts`): each person's employment contract under
+  Spanish law (indefinido, a tiempo parcial, fijo discontinuo, temporal por circunstancias de la producción
+  or por sustitución, formativo, or autónomo), with its dates, trial period, hours a week, gross salary (an
+  hour, a month or a year), convenio (Hostelería de Málaga to start), job and category, and a link to the
+  signed contract. Contracts ending within 30 days and trial periods ending soon are marked; the top shows
+  who's on a contract, the hours a week and the gross pay a month. Admins add, change and end them; the
+  salary is its own table, so only an owner (or a payroll gestoría) sees pay and a shop manager runs the
+  contracts without it; everyone else sees their own (`shared/contracts.ts`, the `employment_contracts` migration).
 - Tips (Team section): cash and card tips for a period (the till's card tips offered when one is
   connected) shared out by the hours on the timecards or equally, to the cent; everyone sees their own
   share once it's shared out and hears in the bell; a payroll gestoría reads.
@@ -306,6 +332,55 @@ built-in **AI connector** so owners can run it by talking to Claude.
   chosen per camera (1 to 30; Spain allows a month at most). Live video stays in the free Reolink app. The
   Set up tab has what to type into the camera, and Spain's rules (the sign, telling the team, no sound).
   Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) section 20.
+- The cost of running the business each day (`shared/dailyCost.ts`): the running costs on Finances spread
+  over the days the café opens, plus the team on the rota that day (paid hours × pay rate × the
+  employer's multiplier; the Staff wages estimate on Finances stands in where the rota can't be costed,
+  so wages never count twice). **Sales** draws it as a red line over each day's sales, with how many days
+  took more than they cost. On **Finances**, Staff wages opens the rota's hours and cost for this month or
+  next, person by person (a missing pay rate typed in there), the costliest week and day, sets the
+  estimate to the rota's figure in one press, and opens the **Rota** with each day's cost picked out
+  (`/rota?costs=1&week=…`). The **Staff kitty** takes 10% (the owner's share, changeable) of each day's
+  takings above that day's breakeven, shown day by day for this month (the `kitty_over_breakeven`
+  migration; Easy Beans' 5% became 10%).
+- Owners only: Settings → Pages (which pages the menu shows) is the owners'; the rest of the team has the
+  menu the owners set. Staff benefits is the admins' (and a payroll gestoría's). On a big monitor the page
+  grows wider and the top-right buttons grow with it. On the To Do List, "All" is the brand's rose.
+- People: a login that isn't a person (the business's own shared login) is left off People by a switch on
+  its Team panel ("On the People page"; the `people_page_and_pets` migration). At Easy Beans that's
+  "Owner" (easybeanscafe@gmail.com): the owners on People are Aron and Mark. Yoda and Cooper, with their
+  photos, are Mark's.
+- Suppliers: each has an **Invoices** link beside its phone and email, opening Invoices for that supplier
+  (`/invoices?supplier=…`) with its emails that have files, searched over the last year by its email,
+  the addresses or domains its invoices come from (a field on the supplier: G&M Cash & Carry's come from
+  Transgourmet's no-reply@transgourmet.es) or its name. The `supplier_invoice_senders` migration moved By
+  Eric, Leo Foods, Lifestyle Customization, Pan Bendito Bakehouse, Santa Roaster and Yomilook to the
+  catalogue.
+- Music: only YouTube Music's playlists. A YouTube playlist whose name or songs say it isn't music
+  (shoulder stretches, a refit timelapse) isn't offered: not in the café's list, your own or a search.
+- Email (Business section, admins): the business's connected Gmail or Outlook as a list, read only,
+  newest first. One chip at a time narrows it: unread, starred, important, with attachments, invoices &
+  receipts (a file attached and the word invoice, factura, receipt or recibo), from a supplier (matched
+  by the address or company domain on the Suppliers page) and customers & bookings (someone on Customers,
+  or a reserva, booking or enquiry), with Gmail's own search, the last 7, 30 or 90 days or 12 months,
+  and one supplier. Each email shows its sender (and supplier or customer), subject, preview, files and
+  when it came, and opens in Gmail or Outlook. Reading the mailbox is the same permission as Invoices →
+  From email; each list is kept 5 minutes (`worker/email.ts`, `shared/email.ts`).
+- Theme days (Calendar, Menu section): **Coffees** lists the coffees in use, bag by bag (origin with its flag,
+  region or farm, roaster, roast, process, tasting notes, espresso or filter, the bag's price and a photo of it,
+  made small in the browser). Each theme (Colombian day 🇨🇴, Irish day 🇮🇪, Brazilian roast day 🇧🇷…) serves
+  one of them and plays a playlist, and runs on a weekly rotation (none on a day the café is closed) or on a
+  date set apart from it (St Patrick's Day). The Calendar leads with today's theme, its coffee and a button
+  that plays the playlist on the café speaker (or opens it), and colours each day with its theme; admins
+  change a day's theme from the day itself, and the rest on the **Themes** tab. Today and Music show
+  today's too (`shared/themeDays.ts`, the `theme_days` migration, which starts Easy Beans on Irish, then
+  Colombian, then Brazilian roast from Monday).
+- Weekly routine (Calendar): what's done on set days, every week, every few weeks or one week of the month
+  (the stock take and buying list, the wholesale run, the cleaner, the accounts talk with the gestoría, the
+  coffee machine's deep clean, the business meeting…), each with its time, who does it (someone or a role)
+  and a checklist. Each day shows its activities under its theme in their category's colour; each person
+  hides categories, single activities or the whole routine for themselves (kept in their preferences), and
+  ticks things done; admins set the week up on the **Routine** tab and switch an activity off for everyone
+  (`shared/routine.ts`, the `weekly_routine` migration with a café's usual week for Easy Beans).
 
 See [docs/PLAN.md](docs/PLAN.md) for decisions, architecture and phases.
 
@@ -423,6 +498,15 @@ every minute in each person's language (`worker/push.ts`, `shared/pushText.ts`, 
 
 Admins are reminded about each public holiday on the calendar a week ahead and again the day before,
 at 09:00 (on for every business; Notifications → Bank holiday reminders sets how far ahead, which kinds, and leaves any one out).
+
+## Gift cards
+
+Loyalty & gift cards has two tabs: **Loyalty** (the stamp card and its members) and **Gift cards**
+(`/loyalty?tab=gift-cards`). Gift cards lists every Square gift card with its last 4 digits, state,
+balance left, the amount first loaded, when it was issued and last used, and whose it is; it opens on
+the ones that can be spent, with what's still owed on them (a liability) at the top. **Copy number**
+asks Square for that one card's whole number when pressed (`GET /api/giftcards/:id/number`); lists
+and `provider_cache` only ever hold the last 4 digits (`worker/loyalty.ts`, `worker/providers/squareLoyalty.ts`).
 
 ## Use it from any AI
 

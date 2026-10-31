@@ -946,6 +946,11 @@ export class FakeProviders {
           card.customer_ids = [(body() as { customer_id: string }).customer_id]
           return json({ gift_card: card })
         }
+        const one = url.pathname.match(/^\/v2\/gift-cards\/([^/]+)$/)
+        if (one && method === 'GET') {
+          const card = sq.giftCards.find(g => g.id === decodeURIComponent(one[1]))
+          return card ? json({ gift_card: card }) : json({ errors: [{ category: 'INVALID_REQUEST_ERROR', code: 'NOT_FOUND', detail: 'Gift card not found' }] }, 404)
+        }
       }
       if (url.pathname === '/v2/orders/search' && method === 'POST') {
         if (!this.square.ordersScope) return json({ errors: [{ category: 'AUTHENTICATION_ERROR', code: 'INSUFFICIENT_SCOPES', detail: 'The merchant has not granted ORDERS_READ' }] }, 403)

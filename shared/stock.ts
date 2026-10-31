@@ -31,6 +31,8 @@ export interface Supplier {
   payment_terms: string | null
   /** Their CIF/NIF, to recognise their e-invoices (Invoices). */
   tax_id?: string | null
+  /** The addresses or domains their invoices are emailed from, when not their contact email (Invoices → From email). */
+  invoice_from?: string[]
   notes: string | null
   active: boolean
   /** Starred by an admin: one the café relies on. */

@@ -17,6 +17,11 @@ describe('people', () => {
     expect(tiers[0].plural).toBe('Owners')
   })
 
+  it('leaves a shared login off the People page', () => {
+    const tiers = teamTiers([person('Aron', 'admin', true), person('Mark', 'admin', true), { ...person('Owner', 'admin', true), on_people: false }])
+    expect(tiers.map(t => t.people.map(p => p.full_name))).toEqual([['Aron', 'Mark']])
+  })
+
   it('lists the roles each person holds, in the roles’ order', () => {
     const by = jobRolesByPerson([
       { name: 'Barista', sort: 2, people: ['julio', 'maria'] },

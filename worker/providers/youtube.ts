@@ -85,6 +85,36 @@ export async function musicPlaylists(accessToken: string, ids: string[]): Promis
   }))
 }
 
+/**
+ * Playlists whose name says they aren't music, whatever their videos' category: exercise and stretches,
+ * lessons and how-tos, recipes, podcasts and vlogs. The Music page shows YouTube Music, not YouTube.
+ */
+const NOT_MUSIC_NAME = /\b(stretch(es|ing)?|work ?outs?|exercises?|yoga|pilates|physio|mobility|rehab|fitness|training|tutorials?|how[- ]to|lessons?|course|recipes?|cooking|podcasts?|vlogs?|asmr|unboxing|review)\b/i
+export const musicByName = (name: string) => !NOT_MUSIC_NAME.test(name)
+
+/**
+ * Only the playlists of music, each one asked about once a week (kept in Cloudflare's cache by its id
+ * and size): its name doesn't say otherwise and most of its songs are music (musicPlaylists). One
+ * YouTube couldn't be asked about is left out this time.
+ */
+export async function onlyMusic<P extends { id: string; name: string; tracks: number }>(accessToken: string, lists: P[]): Promise<P[]> {
+  const named = lists.filter(p => musicByName(p.name))
+  const cache = (globalThis as unknown as { caches?: { default?: Cache } }).caches?.default
+  const keyOf = (p: P) => new Request(`https://music-kind.internal/${encodeURIComponent(p.id)}?n=${p.tracks}`)
+  const known = new Map<string, boolean>()
+  if (cache) await Promise.all(named.map(async p => { const hit = await cache.match(keyOf(p)).catch(() => undefined); if (hit) known.set(p.id, (await hit.text()) === '1') }))
+  const ask = named.filter(p => !known.has(p.id))
+  if (ask.length) {
+    const found = await musicPlaylists(accessToken, ask.map(p => p.id)).catch(() => ({} as Record<string, boolean>))
+    for (const p of ask) {
+      if (!(p.id in found)) continue
+      known.set(p.id, found[p.id])
+      if (cache) await cache.put(keyOf(p), new Response(found[p.id] ? '1' : '0', { headers: { 'cache-control': 'max-age=604800' } })).catch(() => undefined)
+    }
+  }
+  return named.filter(p => known.get(p.id) === true)
+}
+
 const decode = (t: string) => t.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, '’').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
 
 /** Search all of YouTube: songs (Music category) or playlists. 100 quota units a call, so results are cached. */

@@ -20,6 +20,7 @@ const page = <K extends string>(load: () => Promise<Record<K, ComponentType>>, n
   lazy(() => load().then(m => ({ default: m[name] })))
 const TodayPage = page(() => import('./pages/TodayPage'), 'TodayPage')
 const MessagesPage = page(() => import('./pages/MessagesPage'), 'MessagesPage')
+const EmailPage = page(() => import('./pages/EmailPage'), 'EmailPage')
 const ReferralsPage = page(() => import('./pages/ReferralsPage'), 'ReferralsPage')
 const RotaPage = page(() => import('./pages/RotaPage'), 'RotaPage')
 const TimecardsPage = page(() => import('./pages/TimecardsPage'), 'TimecardsPage')
@@ -71,6 +72,7 @@ const WholesalePage = page(() => import('./pages/WholesalePage'), 'WholesalePage
 const SuppliersPage = page(() => import('./pages/SuppliersPage'), 'SuppliersPage')
 const RecipesPage = page(() => import('./pages/RecipesPage'), 'RecipesPage')
 const MenuPage = page(() => import('./pages/MenuPage'), 'MenuPage')
+const CoffeesPage = page(() => import('./pages/CoffeesPage'), 'CoffeesPage')
 const MenuPrintPage = page(() => import('./pages/MenuPrintPage'), 'MenuPrintPage')
 const ScreensPage = page(() => import('./pages/ScreensPage'), 'ScreensPage')
 const CamerasPage = page(() => import('./pages/CamerasPage'), 'CamerasPage')
@@ -132,7 +134,6 @@ function Routed() {
           <Route path="account" element={<AccountPage />} />
           <Route path="ai-assistants" element={<AiAssistantsPage />} />
           <Route path="appearance" element={<AppearancePage />} />
-          <Route path="pages" element={<PagesPage />} />
           <Route path="opening-hours" element={<OpeningHoursPage />} />
           <Route path="brand" element={<BrandPage />} />
           {(partnerCan('rota') || partnerCan('payroll')) && <Route path="rota" element={<RotaPage />} />}
@@ -181,7 +182,7 @@ function Routed() {
         <Route path="timecards" element={<TimecardsPage />} />
         <Route path="calendar" element={<CalendarPage />} />
         <Route path="time-off" element={<TimeOffPage />} />
-        <Route path="benefits" element={<BenefitsPage />} />
+        <Route path="benefits" element={isAdmin ? <BenefitsPage /> : <Navigate to="/" />} />
         <Route path="kitty" element={<KittyPage />} />
         <Route path="roles" element={<RolesPage />} />
         <Route path="rules" element={<StaffRulesPage />} />
@@ -203,6 +204,7 @@ function Routed() {
         <Route path="suppliers" element={isAdmin ? <SuppliersPage /> : <Navigate to="/" />} />
         <Route path="recipes" element={isAdmin ? <RecipesPage /> : <Navigate to="/" />} />
         <Route path="menu" element={<MenuPage />} />
+        <Route path="coffees" element={<CoffeesPage />} />
         <Route path="menu/design" element={isAdmin ? <MenuPage /> : <Navigate to="/menu" />} />
         <Route path="screens" element={isAdmin ? <ScreensPage /> : <Navigate to="/" />} />
         <Route path="cameras" element={isAdmin ? <CamerasPage /> : <Navigate to="/" />} />
@@ -236,7 +238,8 @@ function Routed() {
         <Route path="dashboards" element={<DashboardsPage />} />
         <Route path="advisor" element={isAdmin ? <AdvisorPage /> : <Navigate to="/" />} />
         <Route path="notifications" element={<NotificationsPage />} />
-        <Route path="pages" element={<PagesPage />} />
+        {/* Which pages the menu shows: the owners' to set. */}
+        <Route path="pages" element={isAdmin && canSeePay ? <PagesPage /> : <Navigate to="/" />} />
         {/* Alerts became part of Notifications. */}
         <Route path="alerts" element={<Navigate to="/notifications" replace />} />
         <Route path="account/billing" element={isAdmin && canSeePay ? <BillingPage /> : <Navigate to="/" />} />
@@ -249,6 +252,7 @@ function Routed() {
         <Route path="campaigns" element={isAdmin ? <CampaignsPage /> : <Navigate to="/" />} />
         <Route path="ads" element={isAdmin ? <AdsPage /> : <Navigate to="/" />} />
         <Route path="messages" element={isAdmin ? <MessagesPage /> : <Navigate to="/" />} />
+        <Route path="email" element={isAdmin ? <EmailPage /> : <Navigate to="/" />} />
         <Route path="referrals" element={isAdmin ? <ReferralsPage /> : <Navigate to="/" />} />
         <Route path="partners" element={isAdmin && FEATURES.partners ? <PlanGate feature="partners"><PartnersPage /></PlanGate> : <Navigate to="/" />} />
         <Route path="*" element={<Navigate to="/" />} />

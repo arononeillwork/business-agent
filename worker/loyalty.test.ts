@@ -2,7 +2,8 @@
 //   - only admins, and only while Square is the connected till
 //   - a connection without the loyalty permissions asks to reconnect, in plain words
 //   - goodwill points and gift cards carry idempotency keys (a retry never gives twice)
-//   - a gift card's number never leaves the Worker: the last 4 digits only
+//   - gift card lists (and what's kept in provider_cache) carry the last 4 digits of a number only; an admin's
+//     Copy number gets one card's whole number, read from Square then and never kept
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { integrations } from './integrations'
 import { loyaltyRoutes, RECONNECT } from './loyalty'
@@ -102,7 +103,39 @@ describe('Loyalty and gift cards, from Square', () => {
     expect(raw).not.toContain('778332000123')
     const g = JSON.parse(raw) as GiftCards
     expect(g.cards.map(c => [c.last4, c.state, c.balance, c.customer])).toEqual([['4567', 'ACTIVE', 25, 'Lucía García'], ['6543', 'DEACTIVATED', 0, null]])
-    expect(g.activities.map(a => [a.kind, a.amount, a.last4])).toEqual([['activate', 30, '4567'], ['redeem', 5, '4567']])
+    expect(g.activities.map(a => [a.kind, a.amount, a.last4])).toEqual([['redeem', 5, '4567'], ['activate', 30, '4567']])
+  })
+
+  it('each gift card’s first load and last use come from its whole history, not just the period asked for', async () => {
+    await connectSquare()
+    // Sold on 10 September for €30, spent with on the 20th: a period from the 15th still knows both.
+    const g = await (await get('/api/giftcards?from=2026-09-15&to=2026-09-30')).json() as GiftCards
+    expect(g.cards.map(c => [c.last4, c.original, c.last_used])).toEqual([['4567', 30, '2026-09-20T10:00:00Z'], ['6543', null, null]])
+    expect(g.activities.map(a => a.kind)).toEqual(['redeem'])
+    // Matched by the card's id when Square gives it, and a later spend moves "last used" on.
+    apis.square.giftActivities.push({ id: 'GA3', type: 'REDEEM', created_at: '2026-09-29T09:00:00Z', gift_card_id: 'GC1', gift_card_gan: '7783320001234567',
+      redeem_activity_details: { amount_money: { amount: 2500, currency: 'EUR' } }, gift_card_balance_money: { amount: 0, currency: 'EUR' } })
+    const later = await (await get('/api/giftcards?from=2026-09-01&to=2026-09-29')).json() as GiftCards
+    expect(later.cards.find(c => c.last4 === '4567')).toMatchObject({ original: 30, last_used: '2026-09-29T09:00:00Z' })
+  })
+
+  it('Copy number: one card’s whole number for an admin, read from Square each time and never kept', async () => {
+    await connectSquare()
+    await get('/api/giftcards')
+    const res = await get('/api/giftcards/GC1/number')
+    expect(res.status).toBe(200)
+    expect(res.headers.get('cache-control')).toBe('no-store')
+    expect(await res.json()).toEqual({ number: '7783320001234567' })
+    expect(JSON.stringify(db.table('provider_cache'))).not.toContain('7783320001234567')
+    // Square's own ids have a colon in them ("gftc:…").
+    apis.square.giftCards.push({ id: 'gftc:5f3a', type: 'DIGITAL', state: 'ACTIVE', gan: '7783 3200 0555 1234', balance_money: { amount: 1000, currency: 'EUR' }, created_at: '2026-09-29T10:00:00Z' })
+    expect(await (await get(`/api/giftcards/${encodeURIComponent('gftc:5f3a')}/number`)).json()).toEqual({ number: '7783320005551234' })
+    expect((await get('/api/giftcards/GC1/number', 'staff')).status).toBe(403)
+    expect(await (await get('/api/giftcards/NOPE/number')).json()).toEqual({ error: expect.stringMatching(/not found/i) })
+    expect(await (await get('/api/giftcards/bad%20id!/number')).json()).toEqual({ error: 'Choose a gift card from the list' })
+    apis.square.loyaltyScope = false
+    await connectSquare()
+    expect(await (await get('/api/giftcards/GC1/number')).json()).toEqual({ error: RECONNECT })
   })
 
   it('selling a digital gift card: created, then activated at the café for the amount, each step with its own key', async () => {

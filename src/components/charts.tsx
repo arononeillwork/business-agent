@@ -30,6 +30,8 @@ export interface BarPoint {
   value: number
   /** The same point in the period it's compared with (drawn as a grey line). */
   prev?: number
+  /** What it cost that day (drawn as a solid line, so the bars above it are clear to see). */
+  cost?: number
 }
 
 /**
@@ -37,7 +39,7 @@ export interface BarPoint {
  * use the arrow keys for each bar's figures. One series is named by the card's title; with an
  * earlier period a legend names both.
  */
-export function BarChart({ points, format, axisFormat = format, label, current, previous, height = 220 }: {
+export function BarChart({ points, format, axisFormat = format, label, current, previous, costName, height = 220 }: {
   points: BarPoint[]
   format: (n: number) => string
   /** Shorter figures for the axis (e.g. no cents). */
@@ -47,14 +49,17 @@ export function BarChart({ points, format, axisFormat = format, label, current, 
   /** Legend names, shown when there's an earlier period. */
   current?: string
   previous?: string
+  /** The legend's name for the cost line (shown when points have a cost). */
+  costName?: string
   height?: number
 }) {
   const [ref, width] = useWidth<HTMLDivElement>()
   const [hover, setHover] = useState<number | null>(null)
   const n = points.length
   const compare = points.some(p => p.prev !== undefined)
+  const costs = points.some(p => p.cost !== undefined)
   const top = 12, bottom = 26
-  const max = niceMax(Math.max(0, ...points.map(p => Math.max(p.value, p.prev ?? 0))))
+  const max = niceMax(Math.max(0, ...points.map(p => Math.max(p.value, p.prev ?? 0, p.cost ?? 0))))
   const ticks = [0, 0.25, 0.5, 0.75, 1].map(f => f * max)
   const left = Math.max(28, ...ticks.map(t => axisFormat(t).length * 6.4 + 10)), right = 8
   const plotW = Math.max(0, width - left - right), plotH = height - top - bottom
@@ -65,6 +70,10 @@ export function BarChart({ points, format, axisFormat = format, label, current, 
   const tickEvery = Math.max(1, Math.ceil(n / Math.max(1, Math.floor(plotW / 56))))
   const prevPath = compare
     ? points.map((p, i) => `${i === 0 ? 'M' : 'L'}${cx(i)},${y(p.prev ?? 0)}`).join('')
+    : ''
+  // The cost line steps across each day's band, so a day's bar reads straight against its own cost.
+  const costPath = costs
+    ? points.map((p, i) => `${i === 0 ? 'M' : 'L'}${cx(i) - band / 2},${y(p.cost ?? 0)}H${cx(i) + band / 2}`).join('')
     : ''
   const pick = (e: PointerEvent<SVGRectElement>) => {
     const box = e.currentTarget.getBoundingClientRect()
@@ -80,16 +89,20 @@ export function BarChart({ points, format, axisFormat = format, label, current, 
   const tipW = 190
   return (
     <Box>
-      {compare && current && previous && (
+      {((compare && current && previous) || (costs && costName)) && (
         <Stack direction="row" spacing={2} sx={{ mb: 1, flexWrap: 'wrap' }} aria-hidden>
-          <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
+          {current && <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
             <Box sx={{ width: 10, height: 10, borderRadius: '3px', bgcolor: tokens.chart }} />
             <Typography variant="caption" sx={{ color: 'text.secondary' }}>{current}</Typography>
-          </Stack>
-          <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
+          </Stack>}
+          {compare && previous && <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
             <Box sx={{ width: 14, height: 0, borderTop: `2px dashed ${tokens.inkSoft}` }} />
             <Typography variant="caption" sx={{ color: 'text.secondary' }}>{previous}</Typography>
-          </Stack>
+          </Stack>}
+          {costs && costName && <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
+            <Box sx={{ width: 14, height: 0, borderTop: `2.5px solid ${tokens.danger}` }} />
+            <Typography variant="caption" sx={{ color: 'text.secondary' }}>{costName}</Typography>
+          </Stack>}
         </Stack>
       )}
       <Box ref={ref} sx={{ position: 'relative', width: '100%' }}>
@@ -110,6 +123,9 @@ export function BarChart({ points, format, axisFormat = format, label, current, 
               const d = h <= 0 ? '' : `M${x0},${y(0)}V${y0 + r}Q${x0},${y0} ${x0 + r},${y0}H${x0 + barW - r}Q${x0 + barW},${y0} ${x0 + barW},${y0 + r}V${y(0)}Z`
               return d ? <path key={i} d={d} fill={hover === i ? tokens.chartHover : tokens.chart} fillOpacity={hover === null || hover === i ? 1 : 0.6} /> : null
             })}
+            {costs && (
+              <path d={costPath} fill="none" stroke={tokens.danger} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" pointerEvents="none" />
+            )}
             {compare && (
               <g pointerEvents="none">
                 <path d={prevPath} fill="none" stroke={tokens.inkSoft} strokeWidth={1.75} strokeLinejoin="round" strokeLinecap="round" strokeDasharray="4 3" />
@@ -135,6 +151,12 @@ export function BarChart({ points, format, axisFormat = format, label, current, 
               <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                 <Box sx={{ width: 10, height: 0, borderTop: `2px dashed ${tokens.inkSoft}`, flexShrink: 0 }} />
                 <Typography variant="body2" sx={{ color: 'text.secondary', fontVariantNumeric: 'tabular-nums' }}>{format(at.prev)}{previous ? ` ${previous.toLowerCase()}` : ''}</Typography>
+              </Stack>
+            )}
+            {at.cost !== undefined && (
+              <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                <Box sx={{ width: 10, height: 0, borderTop: `2.5px solid ${tokens.danger}`, flexShrink: 0 }} />
+                <Typography variant="body2" sx={{ color: 'text.secondary', fontVariantNumeric: 'tabular-nums' }}>{format(at.cost)}{costName ? ` ${costName.toLowerCase()}` : ''}</Typography>
               </Stack>
             )}
           </Box>

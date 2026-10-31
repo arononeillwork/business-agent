@@ -2,7 +2,7 @@ import { describe, expect, it, vi, afterEach } from 'vitest'
 import { fromGoogleHours, toGoogleHours, toSpecialHours } from './providers/google'
 import { parseWebhook, sendTemplate, templateBody, verifySignature } from './providers/whatsapp'
 import { publishPhoto } from './providers/instagram'
-import { musicPlaylists, search } from './providers/youtube'
+import { musicByName, musicPlaylists, onlyMusic, search } from './providers/youtube'
 import { salesByDay } from './providers/stripe'
 import { pickSite, siteLabel } from './providers/searchConsole'
 import { littleText } from './providers/linkedin'
@@ -163,6 +163,18 @@ describe('YouTube Music', () => {
         { id: 'd', snippet: { categoryId: '10' } }, { id: 'e', snippet: { categoryId: '19' } }] })
     }))
     expect(await musicPlaylists('t', ['songs', 'vlog', 'empty', 'broken'])).toEqual({ songs: true, vlog: false, empty: true })
+  })
+  it('offers only music playlists: not stretches or recipes by their name, nor ones of other videos', async () => {
+    expect(musicByName('Shoulder stretches')).toBe(false)
+    expect(musicByName('Morning workout')).toBe(false)
+    expect(musicByName('Colombian café mix')).toBe(true)
+    vi.stubGlobal('fetch', vi.fn(async (input: string) => {
+      const u = new URL(input)
+      if (u.pathname.endsWith('/playlistItems')) return json({ items: u.searchParams.get('playlistId') === 'mix' ? [item('a', 'Bomba Estéreo - Topic')] : [item('c')] })
+      return json({ items: [{ id: 'a', snippet: { categoryId: '10' } }, { id: 'c', snippet: { categoryId: '22' } }] })
+    }))
+    const lists = [{ id: 'mix', name: 'Colombian café mix', tracks: 1 }, { id: 'stretch', name: 'Shoulder stretches', tracks: 1 }, { id: 'refit', name: 'Café refit', tracks: 1 }]
+    expect((await onlyMusic('t', lists)).map(p => p.id)).toEqual(['mix'])
   })
   it('searches songs in the Music category only, and tidies the titles', async () => {
     const fetchMock = vi.fn().mockResolvedValue(json({ items: [

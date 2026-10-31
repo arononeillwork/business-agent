@@ -89,6 +89,8 @@ export interface Settings {
   menu_sync_error?: string | null
   /** Expenses: euros paid back a kilometre driven in a private car (0.26 unless changed). */
   mileage_rate?: number
+  /** The owners' changes to the agents (Roles & responsibilities → Agents, shared/agents.ts); null: the usual ones. Only owners change it. */
+  agent_views?: import('./agents').AgentViews | null
 }
 
 export interface Expense {
@@ -169,6 +171,8 @@ export interface Profile {
   preferences?: Preferences
   /** False: not worked into the rota (an owner, the business's own login); they still sign in. Admins set it on Team. */
   on_rota?: boolean
+  /** False: not a person on People or the owners' lanes on Roles & responsibilities (the business's own shared login); they still sign in. Admins set it on Team. */
+  on_people?: boolean
 }
 
 export interface Preferences {
@@ -199,6 +203,10 @@ export interface Preferences {
   timeZone?: string
   /** Their own dashboards (Insights › Dashboards): the widgets on each, and the one open. */
   dashboards?: SavedDashboards
+  /** Owners: the agent they're viewing the app as (the Agents button at the top, shared/agents.ts); unset or null: everything. */
+  agentView?: string | null
+  /** What their calendar shows: the theme days and the weekly routine, and the routine's categories and activities they hid. */
+  calendarShow?: import('./routine').CalendarShow
 }
 
 export interface Position {
@@ -654,7 +662,7 @@ export interface Todo {
 export type TodoPatch = Partial<Pick<Todo, 'title' | 'category_id' | 'section' | 'assignee_id' | 'done' | 'status' | 'starred' | 'pinned' | 'position'>>
 
 /** Café music (Music page): the café account's playlists, whichever service is connected. */
-export interface CafeMusicLibrary { provider: 'youtube' | 'spotify' | null; account: string | null; playlists: SpotifyPlaylist[]; approved: SpotifyPlaylist | null; /** YouTube playlists that aren't music (hidden unless asked for). */ other_playlists?: SpotifyPlaylist[]; /** Sample songs (demo): played by a pretend player. */ demo?: boolean }
+export interface CafeMusicLibrary { provider: 'youtube' | 'spotify' | null; account: string | null; playlists: SpotifyPlaylist[]; approved: SpotifyPlaylist | null; /** Sample songs (demo): played by a pretend player. */ demo?: boolean }
 /** One song in the café queue (YouTube video id). */
 export interface CafeTrack { id: string; title: string; artist?: string; image?: string }
 export type MusicAction = 'play' | 'pause' | 'next' | 'previous' | 'jump' | 'seek' | 'volume'

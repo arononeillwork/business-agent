@@ -6,6 +6,7 @@ import AddIcon from '@mui/icons-material/Add'
 import CopyIcon from '@mui/icons-material/ContentCopy'
 import WarningIcon from '@mui/icons-material/WarningAmberRounded'
 import { useMemo, useState } from 'react'
+import { Link as RouterLink, useSearchParams } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
@@ -37,7 +38,11 @@ export function RotaPage() {
   // Admins, and anyone whose role has Update on the rota (Roles & responsibilities → Permissions).
   const canEdit = can('rota', 'update')
   const run = useAction()
-  const [monday, setMonday] = useState(weekStart(today()))
+  // From Finances' Staff wages: /rota?costs=1&week=YYYY-MM-DD opens that week with what each day and person costs picked out.
+  const [params] = useSearchParams()
+  const askedWeek = params.get('week')
+  const showCosts = params.get('costs') === '1' && canSeePay
+  const [monday, setMonday] = useState(weekStart(askedWeek && /^\d{4}-\d{2}-\d{2}$/.test(askedWeek) ? askedWeek : today()))
   const [positionFilter, setPositionFilter] = useState<number | 'all'>('all')
   const [draft, setDraft] = useState<Draft | null>(null)
   const days = weekDates(monday)
@@ -80,6 +85,10 @@ export function RotaPage() {
 
   const cost = (list: Shift[]) => list.reduce((sum, s) => sum + shiftPaidMinutes(s) / 60 * rate(s.profile_id) * mult, 0)
   const mins = (list: Shift[]) => list.reduce((sum, s) => sum + shiftPaidMinutes(s), 0)
+  // The day that costs most this week, picked out when the costs are shown.
+  const dayCosts = days.map(date => ({ date, cost: cost(visible.filter(s => localDate(s.starts_at) === date)) }))
+  const costliest = dayCosts.reduce<{ date: string; cost: number } | null>((b, d) => (d.cost > 0 && (!b || d.cost > b.cost) ? d : b), null)
+  const unpriced = showCosts ? [...new Set(visible.filter(s => s.profile_id && !rates.has(s.profile_id)).map(s => s.profile_id!))] : []
 
   const openDraft = (profileId: string | null, date: string, s?: Shift) => {
     if (s) {
@@ -190,8 +199,13 @@ export function RotaPage() {
         </Stack>
         <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', lineHeight: 1.35, mt: 0.5 }}>
           {open ? `${open.open}–${open.close}` : t('Closed')}
-          <br />{formatDuration(mins(dayShifts.filter(s => s.profile_id)))}{canSeePay ? ` · ${formatMoney(cost(dayShifts))}` : ''}
+          <br />{formatDuration(mins(dayShifts.filter(s => s.profile_id)))}{canSeePay && !showCosts ? ` · ${formatMoney(cost(dayShifts))}` : ''}
         </Typography>
+        {showCosts && (
+          <Chip size="small" label={costliest?.date === date ? t('{amount} · costliest', { amount: formatMoney(cost(dayShifts)) }) : formatMoney(cost(dayShifts))}
+            sx={{ mt: 0.75, fontWeight: 600, fontVariantNumeric: 'tabular-nums', bgcolor: costliest?.date === date ? tokens.warnBg : tokens.roseSoft,
+              color: costliest?.date === date ? tokens.warnFg : 'text.primary', border: costliest?.date === date ? `1px solid ${tokens.warnFg}` : undefined }} />
+        )}
         {holiday && <Chip size="small" label={holiday.title} sx={{ mt: 0.75, maxWidth: '100%', bgcolor: tokens.badBg, color: tokens.badFg }} />}
         {coverage.length > 0 && (
           <Tooltip arrow title={<>{coverage.filter(c => c.level !== 'ok').map(c =>
@@ -282,6 +296,12 @@ export function RotaPage() {
           <Button startIcon={<AddIcon />} variant="contained" onClick={() => openDraft(null, view === 'day' ? day : days[0])}>{t('Add shift')}</Button>
         </>} />
       <ErrorBox error={data.error} />
+      {showCosts && (
+        <Alert severity="info" sx={{ mb: 2 }} action={<Button component={RouterLink} to="/finances" size="small">{t('Back to Finances')}</Button>}>
+          {t('What the rota costs: {cost} this week for {hours} of shifts, each day’s cost under its date.', { cost: formatMoney(cost(visible)), hours: formatDuration(mins(visible.filter(s => s.profile_id))) })}
+          {unpriced.length > 0 && ` ${t('{names}: no pay rate yet, so not costed (Team, or Finances → Staff wages).', { names: unpriced.map(id => profiles.find(p => p.id === id)?.full_name ?? '?').join(', ') })}`}
+        </Alert>
+      )}
 
       {/* Toolbar: week, view, positions */}
       <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center', flexWrap: 'wrap', mb: 2 }}>
@@ -305,7 +325,11 @@ export function RotaPage() {
         <Stack direction="row" sx={{ gap: { xs: 2, md: 3.5 }, flexWrap: 'wrap', alignItems: 'center' }}>
           {canSeePay || isPartner ? <>
             <Figure label={t('Scheduled')} value={formatDuration(mins(visible.filter(s => s.profile_id)))} />
-            {canSeePay && <Figure label={t('Labour cost')} value={formatMoney(cost(visible))} note={mult !== 1 ? t('incl. ×{mult} employer cost', { mult }) : undefined} />}
+            {canSeePay && (
+              <Box sx={showCosts ? { px: 1.25, py: 0.5, borderRadius: '10px', bgcolor: tokens.roseSoft, outline: `2px solid ${tokens.rose}` } : undefined}>
+                <Figure label={t('Labour cost')} value={formatMoney(cost(visible))} note={mult !== 1 ? t('incl. ×{mult} employer cost', { mult }) : undefined} />
+              </Box>
+            )}
           </> : <Figure label={t('Your hours')} value={formatDuration(mins(visible.filter(s => s.profile_id === me?.id)))} />}
           <Figure label={t('Open shifts')} value={String(openCount)} tone={openCount ? 'warn' : 'good'} />
           {canEdit && <>

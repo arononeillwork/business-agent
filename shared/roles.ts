@@ -35,6 +35,9 @@ export interface JobRole {
   permissions?: RolePermissions
   /** The template it was started from (roleTemplates.ts), if any. */
   template?: string | null
+  /** The owner who owns it (Roles & responsibilities → Ownership, shared/roleOwners.ts) and its place in their lane. */
+  owned_by?: string | null
+  owner_sort?: number
 }
 export type JobRoleInput = Partial<Omit<JobRole, 'id' | 'updated_at'>> & { id?: string }
 
