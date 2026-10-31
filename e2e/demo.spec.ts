@@ -7796,3 +7796,17 @@ test.describe('theme days and the weekly routine', () => {
     await expect(page.getByRole('button', { name: 'Edit' })).toHaveCount(0)
   })
 })
+
+test('owner pay: an owner turns it off on Staff wages; the owners’ hours stop being wages, and breakeven still counts them', async ({ page }) => {
+  await open(page, '/finances')
+  await page.getByRole('region', { name: 'Monthly expenses' }).getByRole('button', { name: /: open the rota’s hours and cost$/ }).click()
+  const dialog = page.getByRole('dialog', { name: 'Staff wages: the rota’s hours and cost' })
+  const ownerPay = dialog.getByRole('switch', { name: 'Owner pay' })
+  await expect(ownerPay).toBeChecked()
+  await expect(dialog).toContainText('Breakeven always counts them at their rate.')
+  await ownerPay.uncheck()
+  await toast(page, 'Owners’ hours on the rota aren’t wages now (breakeven still counts them)')
+  await expect(ownerPay).not.toBeChecked()
+  await ownerPay.check()
+  await toast(page, 'Owners are paid for their hours on the rota')
+})

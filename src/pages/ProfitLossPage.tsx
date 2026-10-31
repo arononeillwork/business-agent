@@ -8,6 +8,7 @@ import EditIcon from '@mui/icons-material/EditOutlined'
 import { useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
+import { usePayRates } from '../app/dailyCost'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { BarChart } from '../components/charts'
@@ -67,7 +68,8 @@ const percent = (v: number | null) => (v === null ? '–' : `${v.toLocaleString(
  * Admins with pay access edit; finance partners read (enforced in the database too).
  */
 export function ProfitLossPage() {
-  const { canSeeFinances, isPartner, api, rates, settings } = useApp()
+  const { canSeeFinances, isPartner, api, settings } = useApp()
+  const rates = usePayRates()
   const canEdit = canSeeFinances && !isPartner
   const now = today()
   const [period, setPeriod] = useState<Period>('year')

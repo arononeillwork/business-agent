@@ -1,9 +1,9 @@
 import {
-  Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, InputAdornment, Stack, Table, TableBody, TableCell, TableFooter,
+  Alert, Box, Button, Dialog, FormControlLabel, Switch, DialogActions, DialogContent, DialogTitle, InputAdornment, Stack, Table, TableBody, TableCell, TableFooter,
   TableHead, TableRow, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography,
 } from '@mui/material'
 import RotaIcon from '@mui/icons-material/CalendarViewWeekOutlined'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useRotaMonth } from '../app/dailyCost'
@@ -40,7 +40,21 @@ export function WagesHint({ amount }: { amount: number }) {
  * Finances set to the rota's figure in one press. A missing pay rate is typed in here.
  */
 export function StaffWagesDialog({ expense, canEdit, onClose }: { expense: Expense; canEdit: boolean; onClose: () => void }) {
-  const { api, profiles, refresh, settings } = useApp()
+  const { api, profiles, refresh, settings, rates } = useApp()
+  // Owner pay: whether the owners' rota hours are wages. Off, an owner's hours cost nothing here (their
+  // rate stays set, and breakeven still counts it).
+  const saved = settings?.owner_pay !== false
+  // Shown at once while it saves; back as it was if saving fails.
+  const [pending, setPending] = useState<boolean | null>(null)
+  useEffect(() => setPending(null), [saved])
+  const ownerPay = pending ?? saved
+  const isOwner = (id: string) => { const p = profiles.find(x => x.id === id); return !!p && p.role === 'admin' && p.can_see_pay }
+  const setOwnerPay = async (on: boolean) => {
+    setPending(on)
+    const ok = await run(async () => { await api.updateSettings({ owner_pay: on }); await refresh() },
+      on ? t('Owners are paid for their hours on the rota') : t('Owners’ hours on the rota aren’t wages now (breakeven still counts them)'))
+    if (!ok) setPending(null)
+  }
   const run = useAction()
   const [month, setMonth] = useState(monthOf(today()))
   const { month: rota, error } = useRotaMonth(month)
@@ -91,6 +105,16 @@ export function StaffWagesDialog({ expense, canEdit, onClose }: { expense: Expen
               note={rota.complete && Math.abs(diff) >= 1 ? (diff > 0 ? t('{amount} under the rota', { amount: formatMoney(diff) }) : t('{amount} over the rota', { amount: formatMoney(-diff) })) : undefined}
               tone={rota.complete && Math.abs(diff) >= 1 ? 'warning' : undefined} />
           </StatRow>
+          <FormControlLabel sx={{ mt: 1.5 }} disabled={!canEdit}
+            control={<Switch checked={ownerPay} onChange={e => void setOwnerPay(e.target.checked)} slotProps={{ input: { 'aria-label': t('Owner pay') } }} />}
+            label={<Box>
+              <Typography variant="body2" sx={{ fontWeight: 500 }}>{t('Owner pay')}</Typography>
+              <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>
+                {ownerPay ? t('Owners on the rota are paid their rate, here, on the Rota and in Profit & loss.')
+                  : t('Owners’ hours on the rota aren’t counted as wages here, on the Rota or in Profit & loss.')}
+                {' '}{t('Breakeven always counts them at their rate.')}
+              </Typography>
+            </Box>} />
           {rota.unpriced.length > 0 && (
             <Alert severity="warning" sx={{ my: 2 }}>
               {canEdit
@@ -116,16 +140,17 @@ export function StaffWagesDialog({ expense, canEdit, onClose }: { expense: Expen
                         <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                           {who && <PersonAvatar name={who.full_name} colour={who.colour} size={26} />}
                           <span>{who?.full_name ?? '?'}</span>
+                          {isOwner(p.id) && <Typography variant="caption" sx={{ color: 'text.secondary' }}>{ownerPay ? t('owner') : t('owner · not paid')}</Typography>}
                         </Stack>
                       </TableCell>
                       <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{formatDuration(p.minutes)}</TableCell>
                       <TableCell align="right" sx={{ width: 150 }}>
                         {canEdit ? (
-                          <TextField size="small" type="number" defaultValue={p.rate ?? ''} key={`${p.id}:${p.rate}`} placeholder={t('Not set')}
-                            onBlur={e => { if (e.target.value !== String(p.rate ?? '')) setRate(p.id, e.target.value) }}
+                          <TextField size="small" type="number" defaultValue={rates.get(p.id) ?? ''} key={`${p.id}:${rates.get(p.id)}`} placeholder={t('Not set')}
+                            onBlur={e => { if (e.target.value !== String(rates.get(p.id) ?? '')) setRate(p.id, e.target.value) }}
                             slotProps={{ input: { endAdornment: <InputAdornment position="end">{t('{currency}/h', { currency: currencySymbol() })}</InputAdornment> },
                               htmlInput: { step: 0.05, min: 0, 'aria-label': t('Hourly rate for {name}', { name: who?.full_name ?? '' }), style: { textAlign: 'right' } } }} />
-                        ) : p.rate === null ? t('Not set') : `${formatMoney(p.rate)}/h`}
+                        ) : !rates.has(p.id) ? t('Not set') : `${formatMoney(rates.get(p.id)!)}/h`}
                       </TableCell>
                       <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>{p.rate === null ? '–' : formatMoney(p.cost)}</TableCell>
                     </TableRow>

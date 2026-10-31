@@ -8,6 +8,17 @@ import { DAY_KEYS, type Expense, type OpeningHours, type Shift } from './types'
 import { shiftPaidMinutes } from './rules'
 import { addDays, localDate } from './time'
 
+/**
+ * The rates the team is paid at (Rota, Staff wages, Profit & loss, Timecards): with owner pay off, the
+ * owners' hours cost nothing, set or not. Breakeven doesn't use this: it counts everyone at their rate.
+ */
+export function payrollRates(rates: Map<string, number>, people: { id: string; role: string; can_see_pay: boolean }[], ownerPay: boolean) {
+  if (ownerPay) return rates
+  const out = new Map(rates)
+  for (const p of people) if (p.role === 'admin' && p.can_see_pay) out.set(p.id, 0)
+  return out
+}
+
 /** The usual open days in a month when the opening hours don't say (six days a week). */
 export const OPEN_DAYS_PER_MONTH = 26
 const WEEKS_PER_MONTH = 52 / 12

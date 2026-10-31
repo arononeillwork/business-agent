@@ -31,10 +31,10 @@ export default {
   '{percent}% of what was taken above breakeven in {month}': '{percent}% de lo facturado por encima del umbral de rentabilidad en {month}',
   '{share} of everything taken above breakeven goes in': 'Entra el {share} de todo lo facturado por encima del umbral de rentabilidad',
   'Change the share over breakeven': 'Cambiar el porcentaje sobre el umbral de rentabilidad',
-  'Breakeven: about {amount} a day, what it costs to run the café (running costs {fixed} + the team on the rota {team}).':
-    'Umbral de rentabilidad: unos {amount} al día, lo que cuesta abrir el café (gastos fijos {fixed} + el equipo del cuadrante {team}).',
-  'Breakeven: what it costs to run the café each day, the running costs plus the team on the rota.':
-    'Umbral de rentabilidad: lo que cuesta abrir el café cada día, los gastos fijos más el equipo del cuadrante.',
+  'Breakeven: about {amount} a day, what it costs to run the café (running costs {fixed} + the team on the rota, owners’ pay included, {team}).':
+    'Umbral de rentabilidad: unos {amount} al día, lo que cuesta abrir el café (gastos fijos {fixed} + el equipo del cuadrante, con el sueldo de los propietarios, {team}).',
+  'Breakeven: what it costs to run the café each day, the running costs plus the team on the rota, owners’ pay included.':
+    'Umbral de rentabilidad: lo que cuesta abrir el café cada día, los gastos fijos más el equipo del cuadrante, con el sueldo de los propietarios.',
   'Above breakeven this month': 'Por encima del umbral este mes',
   'Days above breakeven': 'Días por encima del umbral',
   '{n} of {days}': '{n} de {days}',
@@ -66,9 +66,17 @@ export default {
     '{what} por día, {period}, con {previous} como línea y el coste de abrir el negocio cada día como línea roja',
   'Sales {sales} against {cost} to run the business: {gap} over breakeven': 'Ventas {sales} frente a {cost} de coste: {gap} por encima del umbral',
   'Sales {sales} against {cost} to run the business: {gap} short of breakeven': 'Ventas {sales} frente a {cost} de coste: faltan {gap} para el umbral',
-  '{above} of {days} open days took more than they cost · about {perDay} a day: the running costs on Finances spread over the open days, plus the team on the rota that day.':
-    '{above} de {days} días abiertos facturaron más de lo que costaron · unos {perDay} al día: los gastos fijos de Finanzas repartidos entre los días abiertos, más el equipo del cuadrante de ese día.',
+  '{above} of {days} open days took more than they cost · about {perDay} a day: the running costs on Finances spread over the open days, plus the team on the rota that day, owners included at their pay rate.':
+    '{above} de {days} días abiertos facturaron más de lo que costaron · unos {perDay} al día: los gastos fijos de Finanzas repartidos entre los días abiertos, más el equipo del cuadrante de ese día, propietarios incluidos a su tarifa.',
   'Days without a costed rota take the Staff wages estimate on Finances.': 'Los días sin cuadrante calculado toman la estimación de Sueldos del personal de Finanzas.',
   'The team comes from the Staff wages estimate on Finances until everyone on the rota has a pay rate.':
     'El equipo sale de la estimación de Sueldos del personal de Finanzas hasta que todos en el cuadrante tengan tarifa por hora.',
+  'Owners are paid for their hours on the rota': 'Los propietarios cobran sus horas del cuadrante',
+  'Owners’ hours on the rota aren’t wages now (breakeven still counts them)': 'Las horas de los propietarios en el cuadrante ya no cuentan como sueldo (el umbral de rentabilidad sí las cuenta)',
+  'owner': 'propietario',
+  'owner · not paid': 'propietario · sin sueldo',
+  'Owner pay': 'Sueldo de los propietarios',
+  'Owners on the rota are paid their rate, here, on the Rota and in Profit & loss.': 'Los propietarios del cuadrante cobran su tarifa, aquí, en el Cuadrante y en Pérdidas y ganancias.',
+  'Owners’ hours on the rota aren’t counted as wages here, on the Rota or in Profit & loss.': 'Las horas de los propietarios en el cuadrante no cuentan como sueldo aquí, en el Cuadrante ni en Pérdidas y ganancias.',
+  'Breakeven always counts them at their rate.': 'El umbral de rentabilidad siempre las cuenta a su tarifa.',
 } satisfies Record<string, string>

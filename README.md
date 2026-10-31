@@ -367,6 +367,12 @@ built-in **AI connector** so owners can run it by talking to Claude.
   Transgourmet's no-reply@transgourmet.es) or its name. The `supplier_invoice_senders` migration moved By
   Eric, Leo Foods, Lifestyle Customization, Pan Bendito Bakehouse, Santa Roaster and Yomilook to the
   catalogue.
+- Owner pay (Finances → Staff wages, owners only): whether the owners' hours on the rota are wages. On, an
+  owner on the rota costs their pay rate on the Rota, Staff wages, Profit & loss and Timecards like anyone
+  else; off, their hours cost nothing there. The breakeven (the cost of running the business each day on
+  Sales, Finances and the staff kitty) always counts the owners' hours at their rate (the `owner_pay_and_rates`
+  migration, which also gives Easy Beans' Mark €10 an hour and Maria €9, and sets Staff wages to what
+  November's rota costs at those rates).
 - Music: only YouTube Music's playlists. A YouTube playlist whose name or songs say it isn't music
   (shoulder stretches, a refit timelapse) isn't offered: not in the café's list, your own or a search.
 - Email (Business section, admins): the business's connected Gmail or Outlook as a list, read only,

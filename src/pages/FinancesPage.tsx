@@ -8,6 +8,7 @@ import DeleteIcon from '@mui/icons-material/DeleteOutlined'
 import EditIcon from '@mui/icons-material/EditOutlined'
 import { useState } from 'react'
 import { useApp } from '../app/AppContext'
+import { usePayRates } from '../app/dailyCost'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { Empty, ErrorBox, PageHeader, SectionTitle, Stat, StatGrid, StatRow, StatTile, Tag } from '../components/common'
@@ -325,7 +326,8 @@ function AddCategory({ existing, onAdd, onClose }: { existing: string[]; onAdd: 
 
 /** Takings from the till (Square or SumUp) and Stripe, added up, and what the team costs as a share of them. */
 function Takings() {
-  const { api, rates, settings } = useApp()
+  const { api, settings } = useApp()
+  const rates = usePayRates()
   const integ = useAsync('integrations', () => api.integrations(), [])
   const tills = tillsOf(integ.data?.integrations)
   const on = tills.length > 0

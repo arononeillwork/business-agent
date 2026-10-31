@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dailyCosts, isWagesExpense, monthlyCosts, openDaysPerMonth, openOn, overBreakeven, rotaMonth } from './dailyCost'
+import { dailyCosts, isWagesExpense, monthlyCosts, openDaysPerMonth, openOn, overBreakeven, payrollRates, rotaMonth } from './dailyCost'
 import type { OpeningHours, Shift } from './types'
 import { zonedIso } from './time'
 
@@ -61,5 +61,20 @@ describe('the cost of running the business each day', () => {
     expect(k.over).toBe(200)
     expect(k.share).toBeCloseTo(20)
     expect(k.daysOver).toBe(1)
+  })
+})
+
+describe('owner pay', () => {
+  const people = [{ id: 'mark', role: 'admin', can_see_pay: true }, { id: 'aron', role: 'admin', can_see_pay: true }, { id: 'maria', role: 'employee', can_see_pay: false }]
+  const rates = new Map([['mark', 10], ['maria', 9]])
+  it('on: everyone at their rate; off: the owners’ hours cost nothing, rate or not', () => {
+    expect(payrollRates(rates, people, true)).toBe(rates)
+    expect([...payrollRates(rates, people, false)]).toEqual([['mark', 0], ['maria', 9], ['aron', 0]])
+  })
+  it('breakeven counts the owner at their rate whatever the payroll says', () => {
+    const shifts = [shift('mark', '2026-11-02'), shift('maria', '2026-11-02')]
+    const [mon] = dailyCosts('2026-11-02', '2026-11-02', { expenses: EXPENSES, shifts, rates, openingHours: MON_SAT })
+    expect(mon.team).toBe(6 * 10 + 6 * 9)
+    expect(rotaMonth('2026-11', { shifts, rates: payrollRates(rates, people, false) }).cost).toBe(6 * 9)
   })
 })

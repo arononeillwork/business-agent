@@ -272,7 +272,7 @@ function CostSummary({ days, costs }: { days: SalesDay[]; costs: DayCost[] }) {
           : t('Sales {sales} against {cost} to run the business: {gap} short of breakeven', { sales: formatMoney(sales), cost: formatMoney(total), gap: formatMoney(-gap) })}
       </Typography>
       <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
-        {t('{above} of {days} open days took more than they cost · about {perDay} a day: the running costs on Finances spread over the open days, plus the team on the rota that day.', {
+        {t('{above} of {days} open days took more than they cost · about {perDay} a day: the running costs on Finances spread over the open days, plus the team on the rota that day, owners included at their pay rate.', {
           above: above, days: open.length, perDay: formatMoney(total / open.length) })}
         {' '}
         {estimated && (fromRota
