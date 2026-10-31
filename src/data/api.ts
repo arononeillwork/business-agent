@@ -647,6 +647,8 @@ export interface Api {
   giftCards(from: string, to: string): Promise<GiftCards>
   /** Sell a digital gift card for an amount paid at the till, optionally for a Square customer. */
   sellGiftCard(amount: number, customerId: string | null, key: string): Promise<GiftCard>
+  /** One gift card's whole number (lists carry the last 4 digits only), for Copy number; read from Square each time. */
+  giftCardNumber(id: string): Promise<string>
   // Ads (admins with pay access): Meta Ads and Google Ads, read and changed live on each platform
   /** Spend, clicks and results per day and campaign, from and to inclusive. */
   adsReport(from: string, to: string): Promise<AdsReport>

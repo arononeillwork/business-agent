@@ -1108,6 +1108,7 @@ export function createSupabaseApi(url: string, key: string): Api {
     async sellGiftCard(amount, customerId, key) {
       return (await worker<{ card: GiftCard }>('/api/giftcards', { method: 'POST', body: JSON.stringify({ amount, customer_id: customerId, key }) })).card
     },
+    giftCardNumber: async id => (await worker<{ number: string }>(`/api/giftcards/${encodeURIComponent(id)}/number`)).number,
     async uploadMedia(file, folder) {
       const { url, type } = await worker<{ url: string; type: 'image' | 'video' }>(`/api/integrations/media?folder=${folder}`, {
         method: 'POST', body: file, headers: { 'content-type': file.type } })
