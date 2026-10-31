@@ -114,9 +114,9 @@ export function KittyPage() {
               </Stack>
               <Typography variant="body2" sx={{ color: 'rgba(251,248,244,0.75)', maxWidth: 420 }}>
                 {breakeven.perDay
-                  ? t('Breakeven: about {amount} a day, what it costs to run the café (running costs {fixed} + the team on the rota {team}).', {
+                  ? t('Breakeven: about {amount} a day, what it costs to run the café (running costs {fixed} + the team on the rota, owners’ pay included, {team}).', {
                     amount: formatMoney(breakeven.perDay.total), fixed: formatMoney(breakeven.perDay.fixed), team: formatMoney(breakeven.perDay.team) })
-                  : t('Breakeven: what it costs to run the café each day, the running costs plus the team on the rota.')}
+                  : t('Breakeven: what it costs to run the café each day, the running costs plus the team on the rota, owners’ pay included.')}
               </Typography>
               <Typography variant="body2" sx={{ color: 'rgba(251,248,244,0.65)' }}>
                 {pace > 0 ? t('About {amount} a month lately', { amount: formatMoney(pace) }) : t('Nothing has gone in yet')}

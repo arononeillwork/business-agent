@@ -2,6 +2,7 @@
 // sales, the team from timecards or the rota, the running costs and one-off lines), for pages that
 // use it outside Profit & loss (the staff kitty's share of profit). Admins with pay access only.
 import { useApp } from './AppContext'
+import { usePayRates } from './dailyCost'
 import { useAsync } from './hooks'
 import { tillsOf } from '../components/till'
 import { buildPnl, monthsBetween } from '../../shared/pnl'
@@ -14,7 +15,8 @@ import { addDays, today, zonedIso } from '../../shared/time'
  * `ready` once everything has loaded.
  */
 export function useMonthlyProfit(months: string[]) {
-  const { api, canSeeFinances, isPartner, rates, settings } = useApp()
+  const { api, canSeeFinances, isPartner, settings } = useApp()
+  const rates = usePayRates()
   const on = canSeeFinances && !isPartner && months.length > 0
   const from = months[0] ?? today().slice(0, 7)
   const to = months[months.length - 1] ?? from

@@ -2159,7 +2159,11 @@ export function createDemoApi(): Api {
       Object.assign(business, patch, 'website' in patch ? { website: cleanWebsite(patch.website) } : {}, { updated_at: nowIso() })
     },
     async updateAdminNotes(notes) { requireAdmin(); adminNotes = notes },
-    async updateSettings(patch) { requireAdmin(); Object.assign(settings, patch) },
+    async updateSettings(patch) {
+      requireAdmin()
+      if ('owner_pay' in patch && !paysAdmin()) throw new Error('Only an owner turns owner pay on or off')
+      Object.assign(settings, patch)
+    },
     async updateProfile(id, patch) {
       if (id !== currentUser) requireAdmin()
       if (id !== currentUser && 'preferences' in patch) throw new Error('Only the person themselves can change their appearance settings')
