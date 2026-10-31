@@ -1,0 +1,12 @@
+{
+  "name": "day-social",
+  "fps": 30,
+  "duration": 11.996,
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "dpr": 1.5,
+  "frames": 418,
+  "events": []
+}
