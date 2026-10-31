@@ -149,7 +149,7 @@ select pg_temp.act_as('julio@test');
 do $$ declare n int; begin
   assert (select string_agg(name, ', ' order by sort) from public.kitty_goals) = 'Christmas party, Ray-Ban sunglasses for the café', 'the first two goals';
   assert (select icon from public.kitty_goals where sort = 2) = 'sunglasses', 'with their pictures';
-  assert (select profit_percent from public.kitty_settings) = 5, '5% of profit';
+  assert (select profit_percent from public.kitty_settings) = 10, '10% of what''s taken above breakeven';
   assert public.kitty_balance() = 0, 'nothing in yet';
   update public.kitty_settings set profit_percent = 50; get diagnostics n = row_count;
   assert n = 0, 'the team can''t change the share';

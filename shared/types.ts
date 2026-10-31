@@ -169,6 +169,8 @@ export interface Profile {
   preferences?: Preferences
   /** False: not worked into the rota (an owner, the business's own login); they still sign in. Admins set it on Team. */
   on_rota?: boolean
+  /** False: not a person on the People page (the business's own shared login); they still sign in. Admins set it on Team. */
+  on_people?: boolean
 }
 
 export interface Preferences {
@@ -652,7 +654,7 @@ export interface Todo {
 export type TodoPatch = Partial<Pick<Todo, 'title' | 'category_id' | 'section' | 'assignee_id' | 'done' | 'status' | 'starred' | 'pinned' | 'position'>>
 
 /** Café music (Music page): the café account's playlists, whichever service is connected. */
-export interface CafeMusicLibrary { provider: 'youtube' | 'spotify' | null; account: string | null; playlists: SpotifyPlaylist[]; approved: SpotifyPlaylist | null; /** YouTube playlists that aren't music (hidden unless asked for). */ other_playlists?: SpotifyPlaylist[]; /** Sample songs (demo): played by a pretend player. */ demo?: boolean }
+export interface CafeMusicLibrary { provider: 'youtube' | 'spotify' | null; account: string | null; playlists: SpotifyPlaylist[]; approved: SpotifyPlaylist | null; /** Sample songs (demo): played by a pretend player. */ demo?: boolean }
 /** One song in the café queue (YouTube video id). */
 export interface CafeTrack { id: string; title: string; artist?: string; image?: string }
 export type MusicAction = 'play' | 'pause' | 'next' | 'previous' | 'jump' | 'seek' | 'volume'

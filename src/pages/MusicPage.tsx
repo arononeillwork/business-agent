@@ -320,12 +320,10 @@ function Thumb({ src }: { src?: string }) {
 function CafePlaylists() {
   const music = useCafeMusic()!
   const run = useAction()
-  const [showOthers, setShowOthers] = useState(false)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }))
   const lib = music.library!
-  const lists = playlistOrder(music.state?.playlist_order ?? [], lib, showOthers)
-  const others = lib.other_playlists?.length ?? 0
-  if (!lists.length && !others) return <Empty>{t('The café’s YouTube Music account has no playlists yet. Make one in YouTube Music and it shows up here.')}</Empty>
+  const lists = playlistOrder(music.state?.playlist_order ?? [], lib)
+  if (!lists.length) return <Empty>{t('The café’s YouTube Music account has no playlists yet. Make one in YouTube Music and it shows up here.')}</Empty>
   const onDragEnd = ({ active, over }: DragEndEvent) => {
     if (!over || active.id === over.id) return
     const ids = lists.map(p => p.id)
@@ -347,13 +345,6 @@ function CafePlaylists() {
           </Box>
         </SortableContext>
       </DndContext>
-      {others > 0 && (
-        <Box sx={{ borderTop: `1px solid ${tokens.line}`, px: 1.5, py: 0.75 }}>
-          <Button size="small" onClick={() => setShowOthers(x => !x)}>
-            {showOthers ? t('Hide other YouTube playlists') : tn(others, 'Show {n} other YouTube playlist (not music)', 'Show {n} other YouTube playlists (not music)')}
-          </Button>
-        </Box>
-      )}
     </Card>
   )
 }

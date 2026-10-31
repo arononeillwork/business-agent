@@ -124,9 +124,10 @@ music.get('/api/me/music/:provider/playlists', async c => {
   const provider = providerOf(c.req.param('provider'))
   if (!provider) return c.json({ error: 'Unknown music service' }, 404)
   const token = await session(c.env, await requestDb(c), c.get('userId'), provider, new URL(c.req.url).origin)
+  // YouTube: only the playlists of music (YouTube Music's), not every YouTube playlist.
   const list = provider === 'spotify'
     ? (await spotify.playlists(token)).map(p => ({ ...p, provider }))
-    : await youtube.playlists(token)
+    : await youtube.onlyMusic(token, await youtube.playlists(token))
   return c.json({ playlists: list })
 })
 

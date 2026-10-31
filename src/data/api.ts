@@ -320,7 +320,8 @@ export interface Api {
   saveInvoice(i: InvoiceInput): Promise<string>
   deleteInvoice(id: string): Promise<void>
   /** Emails from the last `days` with files that could be invoices (once reading the mailbox is allowed). */
-  invoiceInbox(days?: number): Promise<InvoiceInbox>
+  /** Emails with files that could be invoices; `supplierId`: that supplier's only (from its senders, or naming it). */
+  invoiceInbox(days?: number, supplierId?: string): Promise<InvoiceInbox>
   /** Bring one attachment in as an invoice, its file kept with the tax documents. */
   importInvoice(message: InboxInvoice, attachmentId: string, supplierId?: string | null): Promise<Invoice>
 

@@ -6,9 +6,9 @@ import type { Profile } from './types'
 
 export interface Tier { role: TeamRole; label: string; plural: string; people: Profile[] }
 
-/** Who's on the team now, top of the hierarchy first; a level with nobody in it is left out. */
+/** Who's on the team now, top of the hierarchy first; a level with nobody in it is left out, and so is a shared login (off People). */
 export function teamTiers(profiles: Profile[]): Tier[] {
-  const on = profiles.filter(p => p.active && teamRole(p) !== null)
+  const on = profiles.filter(p => p.active && teamRole(p) !== null && p.on_people !== false)
   return [...TEAM_ROLES].reverse().map(r => ({
     role: r.id, label: r.label, plural: r.plural,
     people: on.filter(p => teamRole(p) === r.id).sort((a, b) => a.full_name.localeCompare(b.full_name)),

@@ -219,6 +219,10 @@ function PersonPanel({ person: p, onClose }: { person: Profile; onClose: () => v
             <FormControlLabel label={t('On the rota')}
               control={<Switch checked={p.on_rota !== false} slotProps={{ input: { 'aria-label': t('On the rota') } }}
                 onChange={e => update({ on_rota: e.target.checked }, e.target.checked ? t('{name} is back on the rota', { name: p.full_name }) : t('{name} is off the rota: they still sign in', { name: p.full_name }))} />} />
+            {/* The business's own shared login isn't a person: off People, it still signs in. */}
+            <FormControlLabel label={t('On the People page')}
+              control={<Switch checked={p.on_people !== false} slotProps={{ input: { 'aria-label': t('On the People page') } }}
+                onChange={e => update({ on_people: e.target.checked }, e.target.checked ? t('{name} is back on the People page', { name: p.full_name }) : t('{name} is off the People page: they still sign in', { name: p.full_name }))} />} />
           </Stack>
         </Box>
         {canSeePay && (

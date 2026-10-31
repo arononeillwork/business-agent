@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bySupplier, dueFrom, isOverdue, matchSupplier, numberFromName, readFacturae, termDays, type Invoice } from './invoices'
+import { bySupplier, dueFrom, invoiceSenders, isOverdue, matchSupplier, numberFromName, readFacturae, supplierMailQuery, termDays, type Invoice } from './invoices'
 
 const suppliers = [
   { id: 'roaster', name: 'Tostadores del Sur', kind: 'Coffee roaster', email: 'pedidos@tostadoresdelsur.es', website: 'https://www.tostadoresdelsur.es', active: true, tax_id: 'B29123456' },
@@ -20,6 +20,16 @@ describe('matching an invoice to its supplier', () => {
   it('never by a shared email provider’s domain, nor an archived supplier', () => {
     expect(matchSupplier(suppliers, { email: 'someone.else@gmail.com' })).toBeNull()
     expect(matchSupplier(suppliers, { email: 'facturas@old.es' })).toBeNull()
+  })
+
+  it('by where its invoices are emailed from, when that isn’t its contact email', () => {
+    const gm = { id: 'gm', name: 'G&M Cash n Carry', kind: null, email: null, website: null, active: true, tax_id: null, invoice_from: ['no-reply@transgourmet.es'] }
+    const cdc = { id: 'cdc', name: 'Complementosdelcafe', kind: null, email: null, website: null, active: true, tax_id: null, invoice_from: ['complementosdelcafe.com'] }
+    expect(matchSupplier([...suppliers, gm, cdc], { email: 'No-Reply@transgourmet.es' })).toBe('gm')
+    expect(matchSupplier([...suppliers, gm, cdc], { email: 'contabilidad@complementosdelcafe.com' })).toBe('cdc')
+    expect(invoiceSenders({ email: 'pedidos@x.es', invoice_from: ['x.es', 'gmail.com'] })).toEqual(['pedidos@x.es', 'x.es'])
+    expect(supplierMailQuery({ name: 'G&M Cash n Carry', email: null, invoice_from: ['no-reply@transgourmet.es'] }))
+      .toBe('(from:no-reply@transgourmet.es OR "G&M Cash n Carry")')
   })
 })
 

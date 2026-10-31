@@ -1095,12 +1095,9 @@ test.describe('music', () => {
     await page.getByRole('link', { name: 'Music' }).first().click()
     await expect.poll(order).toEqual(['Sunday slow bar', 'Easy Beans · Café mix'])
 
-    // Plain YouTube playlists (not music) stay hidden unless asked for.
+    // Only YouTube Music's playlists: plain YouTube ones (not music) aren't offered at all.
     await expect(cafe.getByText('Café refit timelapse')).toHaveCount(0)
-    await cafe.getByRole('button', { name: 'Show 1 other YouTube playlist (not music)' }).click()
-    await expect(cafe.getByRole('button', { name: 'Café refit timelapse', exact: true })).toBeVisible()
-    await cafe.getByRole('button', { name: 'Hide other YouTube playlists' }).click()
-    await expect(cafe.getByText('Café refit timelapse')).toHaveCount(0)
+    await expect(cafe.getByRole('button', { name: /other YouTube playlist/ })).toHaveCount(0)
   })
 
   test('partners do not get music', async ({ page }) => {
@@ -1523,7 +1520,7 @@ test('team roles: employee, shop manager and owner; only an owner makes or chang
 
 test('people: the team as a hierarchy, and everyone’s pets with their photos', async ({ page }) => {
   // A 1×1 PNG: pet photos are cut square and kept as a small JPEG.
-  const png = { name: 'fudge.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64') }
+  const png = { name: 'miso.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64') }
   await open(page, '/people')
   await expect(page.getByRole('heading', { name: 'People' })).toBeVisible()
   // Owners at the top, then the employees, with the roles they hold.
@@ -1534,23 +1531,22 @@ test('people: the team as a hierarchy, and everyone’s pets with their photos',
   await expect(page.getByRole('region', { name: 'Employees' }).getByRole('article', { name: 'Maria' })).toBeVisible()
   await expect(page.getByRole('main').getByRole('heading', { level: 2 })).toHaveText(['Owners · 2', 'Employees · 3'])
 
-  // Pets show when asked: Aron's dogs, Fudge and Cooper, with a place for their photos.
+  // Pets show when asked: Mark's dogs, Yoda and Cooper among them, with a place for their photos; Aron has none.
   await expect(page.getByRole('list', { name: /’s pets$/ })).toHaveCount(0)
   await page.getByRole('button', { name: 'Show pets' }).click()
+  const marks = page.getByRole('list', { name: 'Mark Murray’s pets' })
+  await expect(marks.getByRole('listitem')).toHaveText([/Pablo/, /Yoda/, /Cooper/])
+  await expect(marks.getByLabel('Cooper has no photo yet')).toBeVisible()
   const arons = page.getByRole('list', { name: "Aron O'Neill’s pets" })
-  await expect(arons.getByRole('listitem')).toHaveText([/Fudge/, /Cooper/])
-  await expect(arons.getByLabel('Fudge has no photo yet')).toBeVisible()
+  await expect(arons).toHaveText('No pets')
   await expect(page.getByRole('list', { name: 'Maria’s pets' })).toHaveText('No pets')
   await page.getByRole('button', { name: 'Hide pets' }).click()
-  await expect(arons).toHaveCount(0)
+  await expect(marks).toHaveCount(0)
 
-  // On My account, Aron uploads Fudge's photo and adds another pet.
+  // On My account, Aron adds a pet with its photo, gives it a breed and adds another, which goes again.
   await fromAccountMenu(page, 'My account')
   const pets = page.getByRole('region', { name: 'Pets' })
-  await expect(pets.getByRole('group')).toHaveText([/Fudge.*Dog/, /Cooper.*Dog/])
-  await pets.getByLabel('Photo of Fudge').setInputFiles(png)
-  await toast(page, 'Photo saved')
-  await expect(pets.getByRole('group', { name: 'Fudge' }).getByRole('img', { name: 'Fudge' })).toBeVisible()
+  await expect(pets).toContainText('No pets yet')
   await pets.getByRole('button', { name: 'Add a pet' }).click()
   const dialog = page.getByRole('dialog', { name: 'Add a pet' })
   await dialog.getByLabel('Name').fill('Miso')
@@ -1562,26 +1558,30 @@ test('people: the team as a hierarchy, and everyone’s pets with their photos',
   await dialog.getByRole('button', { name: 'Add', exact: true }).click()
   await toast(page, 'Miso added')
   await expect(pets.getByRole('group', { name: 'Miso' })).toContainText('Cat · Tabby')
-  // Cooper is given a breed, then Miso goes again.
-  await pets.getByRole('group', { name: 'Cooper' }).getByRole('button', { name: 'Edit' }).click()
-  const cooper = page.getByRole('dialog', { name: 'Cooper' })
-  await cooper.getByLabel('Breed (optional)').fill('Cockapoo')
-  await cooper.getByRole('button', { name: 'Save' }).click()
-  await toast(page, /^Saved$/)
-  await pets.getByLabel('Photo of Cooper').setInputFiles({ ...png, name: 'cooper.png' })
-  await toast(page, 'Photo saved')
-  await expect(pets.getByRole('group', { name: 'Cooper' })).toContainText('Dog · Cockapoo') // a new photo keeps the rest
   await pets.getByRole('group', { name: 'Miso' }).getByRole('button', { name: 'Edit' }).click()
-  await page.getByRole('dialog', { name: 'Miso' }).getByRole('button', { name: 'Remove', exact: true }).click()
-  await toast(page, 'Miso removed')
-  await expect(pets.getByRole('group')).toHaveCount(2)
+  const miso = page.getByRole('dialog', { name: 'Miso' })
+  await miso.getByLabel('Breed (optional)').fill('Siamese')
+  await miso.getByRole('button', { name: 'Save' }).click()
+  await toast(page, /^Saved$/)
+  await pets.getByLabel('Photo of Miso').setInputFiles({ ...png, name: 'miso2.png' })
+  await toast(page, 'Photo saved')
+  await expect(pets.getByRole('group', { name: 'Miso' })).toContainText('Cat · Siamese') // a new photo keeps the rest
+  await pets.getByRole('button', { name: 'Add a pet' }).click()
+  await dialog.getByLabel('Name').fill('Nori')
+  await dialog.getByRole('button', { name: 'Add', exact: true }).click()
+  await toast(page, 'Nori added')
+  await pets.getByRole('group', { name: 'Nori' }).getByRole('button', { name: 'Edit' }).click()
+  await page.getByRole('dialog', { name: 'Nori' }).getByRole('button', { name: 'Remove', exact: true }).click()
+  await toast(page, 'Nori removed')
+  await expect(pets.getByRole('group')).toHaveCount(1)
 
   // An employee sees the team's pets and adds their own; nobody else's is theirs to change.
   await signInAs(page, 'maria@example.com')
   await page.getByRole('link', { name: 'People', exact: true }).first().click()
   await page.getByRole('button', { name: 'Show pets' }).click()
-  await expect(arons.getByRole('img', { name: 'Fudge' })).toBeVisible()
-  await expect(arons.getByRole('listitem', { name: 'Cooper' })).toContainText('Dog · Cockapoo')
+  await expect(arons.getByRole('img', { name: 'Miso' })).toBeVisible()
+  await expect(arons.getByRole('listitem', { name: 'Miso' })).toContainText('Cat · Siamese')
+  await expect(marks.getByRole('listitem')).toHaveText([/Pablo/, /Yoda/, /Cooper/])
   await expect(page.getByRole('article', { name: "Aron O'Neill" }).getByRole('link')).toHaveCount(0)
   await fromAccountMenu(page, 'My account')
   await expect(pets).toContainText('No pets yet')
@@ -3884,19 +3884,25 @@ test.describe('pages: the order of the menu sections', () => {
 })
 
 test.describe('pages: hide what you don’t use', () => {
-  test('each person hides a page from their own menu, and shows it again', async ({ page }) => {
-    await open(page, '/', 'maria@example.com')
+  test('an owner hides a page from their own menu, and shows it again; the team has no Pages', async ({ page }) => {
+    await open(page, '/')
     const nav = page.getByRole('navigation', { name: 'Main' })
     await expect(nav.getByRole('link', { name: 'Sports' })).toBeVisible()
     await nav.getByRole('link', { name: 'Pages' }).click()
     await expect(page.getByRole('heading', { name: 'Pages', level: 1 })).toBeVisible()
-    await expect(page.getByRole('switch', { name: 'Show Sports for the team' })).toHaveCount(0) // employees: their own menu only
     await page.getByRole('switch', { name: 'Show Sports in my menu' }).uncheck()
     await expect(nav.getByRole('link', { name: 'Sports' })).toHaveCount(0)
     await expect(page.getByRole('switch', { name: 'Show Pages in my menu' })).toBeDisabled() // always there, to come back
     await page.getByRole('button', { name: 'Show 1 hidden page again' }).click()
     await toast(page, 'Every page is in the menu again')
     await expect(nav.getByRole('link', { name: 'Sports' })).toBeVisible()
+    // Which pages show is the owners' to say: employees have no Pages, and its address takes them to Today.
+    await signInAs(page, 'maria@example.com')
+    await expect(nav.getByRole('link', { name: 'Rota' })).toBeVisible()
+    await expect(nav.getByRole('link', { name: 'Pages' })).toHaveCount(0)
+    await page.goto('/pages?demo')
+    await expect(nav.getByRole('link', { name: 'Rota' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Pages', level: 1 })).toHaveCount(0)
   })
 
   test('admins hide a page for the whole team', async ({ page }) => {
@@ -5188,16 +5194,13 @@ test.describe('staff benefits', () => {
     await expect(extras.getByRole('button', { name: 'Their birthday off', exact: true })).toHaveCount(0)
   })
 
-  test('employees see the law and their own allocation, and change nothing', async ({ page }) => {
-    await open(page, '/benefits', 'julio@example.com')
-    await expect(page.getByRole('heading', { name: 'Staff benefits', level: 1 })).toBeVisible()
-    await expect(page.getByRole('listitem').filter({ hasText: 'My holiday left in 2026' })).toContainText('23 days')
-    const allocation = page.getByRole('region', { name: 'Allocation' })
-    await expect(allocation.getByRole('row')).toHaveCount(2) // the header and Julio
-    await expect(allocation).toContainText('Julio')
-    await expect(page.getByRole('button', { name: 'Record leave' })).toHaveCount(0)
-    await expect(page.getByRole('button', { name: /^Change / })).toHaveCount(0)
-    await expect(page.getByRole('region', { name: 'Extras from Easy Beans Coffee' })).toContainText('Free coffee and drinks on shift')
+  test('employees don’t see staff benefits: the page is the admins’', async ({ page }) => {
+    await open(page, '/', 'julio@example.com')
+    await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Rota' })).toBeVisible()
+    await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Staff benefits' })).toHaveCount(0)
+    await page.goto('/benefits?demo')
+    await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Rota' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Staff benefits', level: 1 })).toHaveCount(0)
   })
 })
 
@@ -5333,13 +5336,14 @@ test.describe('sales reps and rewards', () => {
 })
 
 test.describe('staff kitty', () => {
-  test('the jars fill in order; last month’s share of profit tops up the party and the Ray-Bans', async ({ page }) => {
+  test('the jars fill in order; last month’s share over breakeven tops up the party and the Ray-Bans', async ({ page }) => {
     await open(page, '/')
     await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Staff kitty' }).click()
     await expect(page.getByRole('heading', { name: 'Staff kitty', level: 1 })).toBeVisible()
     const kitty = page.getByRole('region', { name: 'In the kitty' })
     await expect(kitty).toContainText('447,55')
-    await expect(kitty).toContainText('5% of each month’s profit goes in')
+    await expect(kitty).toContainText('10% of everything taken above breakeven goes in')
+    await expect(kitty).toContainText(/Breakeven: about .* a day/)
     const jars = page.getByRole('region', { name: 'Saving up for' })
     const party = jars.getByRole('article', { name: 'Christmas party' })
     const rayban = jars.getByRole('article', { name: 'Ray-Ban sunglasses for the café' })
@@ -5348,20 +5352,20 @@ test.describe('staff kitty', () => {
     await expect(rayban).toContainText('0%')
     await expect(page.getByRole('region', { name: 'Bought with the kitty' })).toContainText('Summer barbecue')
 
-    // August's share hasn't gone in: without the till, the profit is typed in.
+    // August's share hasn't gone in: without the till, what was taken above breakeven is typed in.
     const share = page.getByRole('region', { name: 'This month’s share' }).getByRole('group', { name: 'August 2026' })
     await expect(share).toContainText('connect the till')
     await share.getByRole('button', { name: 'Put it in' }).click()
     const dialog = page.getByRole('dialog', { name: 'Put money in' })
-    await dialog.getByRole('textbox', { name: 'The month’s profit' }).fill('4102')
-    await expect(dialog.getByRole('textbox', { name: '5% of it' })).toHaveValue('205.1')
+    await dialog.getByRole('textbox', { name: 'Taken above breakeven' }).fill('2051')
+    await expect(dialog.getByRole('textbox', { name: '10% of it' })).toHaveValue('205.1')
     await dialog.getByRole('button', { name: 'Put it in' }).click()
     await toast(page, 'In it goes! Christmas party is full: time to buy it')
     await expect(kitty).toContainText('652,65')
     await expect(party).toContainText('Ready to buy')
     await expect(rayban).toContainText('95%')
     await expect(page.getByRole('region', { name: 'This month’s share' })).toHaveCount(0)
-    await expect(page.getByRole('table', { name: 'What’s gone in' })).toContainText('5% of the profit in August 2026')
+    await expect(page.getByRole('table', { name: 'What’s gone in' })).toContainText('10% of what was taken above breakeven in August 2026')
 
     await party.getByRole('button', { name: 'Buy Christmas party' }).click()
     const buy = page.getByRole('dialog', { name: 'Buy Christmas party' })
@@ -5373,7 +5377,7 @@ test.describe('staff kitty', () => {
     await expect(jars.getByRole('article', { name: 'Christmas party' })).toHaveCount(0)
   })
 
-  test('admins add a goal from the ideas, fill it sooner and change the share of profit; nothing takes out more than is in', async ({ page }) => {
+  test('admins add a goal from the ideas, fill it sooner and change the share over breakeven; nothing takes out more than is in', async ({ page }) => {
     await open(page, '/kitty')
     const jars = page.getByRole('region', { name: 'Saving up for' })
     await jars.getByRole('button', { name: 'Team dinner' }).click()
@@ -5386,11 +5390,11 @@ test.describe('staff kitty', () => {
     await toast(page, 'Team dinner moved')
     await expect(jars.getByRole('article').nth(2)).toHaveAccessibleName('Team dinner')
 
-    await page.getByRole('button', { name: 'Change the share of profit' }).click()
-    const share = page.getByRole('dialog', { name: 'Share of profit' })
-    await share.getByRole('textbox', { name: 'Percentage' }).fill('10')
+    await page.getByRole('button', { name: 'Change the share over breakeven' }).click()
+    const share = page.getByRole('dialog', { name: 'Share over breakeven' })
+    await share.getByRole('textbox', { name: 'Percentage' }).fill('15')
     await share.getByRole('button', { name: 'Save' }).click()
-    await expect(page.getByRole('region', { name: 'In the kitty' })).toContainText('10% of each month’s profit goes in')
+    await expect(page.getByRole('region', { name: 'In the kitty' })).toContainText('15% of everything taken above breakeven goes in')
 
     await page.getByRole('button', { name: 'Put money in' }).click()
     const money = page.getByRole('dialog', { name: 'Put money in' })
@@ -5410,7 +5414,8 @@ test.describe('staff kitty', () => {
     await open(page, '/kitty', 'julio@example.com')
     await expect(page.getByRole('region', { name: 'In the kitty' })).toContainText('447,55')
     await expect(page.getByRole('region', { name: 'Saving up for' }).getByRole('article', { name: 'Ray-Ban sunglasses for the café' })).toContainText('160,00')
-    for (const name of ['Put money in', 'Add a goal', 'Change the share of profit']) await expect(page.getByRole('button', { name })).toHaveCount(0)
+    for (const name of ['Put money in', 'Add a goal', 'Change the share over breakeven']) await expect(page.getByRole('button', { name })).toHaveCount(0)
+    await expect(page.getByRole('region', { name: 'In the kitty' })).toContainText('10% of everything taken above breakeven goes in')
     await expect(page.getByRole('button', { name: /^(Buy|Fill|Change|Take off) / })).toHaveCount(0)
     await expect(page.getByRole('region', { name: 'This month’s share' })).toHaveCount(0)
   })
@@ -6986,4 +6991,34 @@ test('the assistant: a button at the bottom right opens a chat; Ctrl K opens sea
   await signInAs(page, 'maria@example.com')
   await expect(page.getByRole('heading', { name: /Hola/ })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Ask the assistant' })).toHaveCount(0)
+})
+
+test('suppliers: each one’s invoices beside its phone and email, opened on Invoices for that supplier', async ({ page }) => {
+  await open(page, '/suppliers')
+  const roaster = page.getByRole('article', { name: 'Tostadores del Sur' })
+  await expect(roaster.getByRole('link', { name: 'Invoices from Tostadores del Sur' })).toContainText('Invoices · 2')
+  await roaster.getByRole('link', { name: 'Invoices from Tostadores del Sur' }).click()
+  await expect(page.getByRole('heading', { name: 'Invoices', level: 1 })).toBeVisible()
+  await expect(page).toHaveURL(/supplier=sup-roaster/)
+  const list = page.getByRole('region', { name: 'Invoices', exact: true })
+  await expect(list.getByRole('row')).toHaveCount(3) // the heading row and its two invoices
+  await expect(list).not.toContainText('LC-4471')
+  // Back to every supplier.
+  await page.getByRole('combobox', { name: 'Supplier' }).first().click()
+  await page.getByRole('option', { name: 'Every supplier' }).click()
+  await expect(page).not.toHaveURL(/supplier=/)
+})
+
+test('the cost of running the business: Staff wages opens the rota’s hours and cost, and the rota shows it', async ({ page }) => {
+  await open(page, '/finances')
+  const expenses = page.getByRole('region', { name: 'Monthly expenses' })
+  const wages = expenses.getByRole('button', { name: /: open the rota’s hours and cost$/ })
+  await expect(wages).toHaveCount(1)
+  await wages.click()
+  const dialog = page.getByRole('dialog', { name: 'Staff wages: the rota’s hours and cost' })
+  await expect(dialog).toBeVisible()
+  await dialog.getByRole('link', { name: 'Open the rota with its cost' }).click()
+  await expect(page.getByRole('heading', { name: 'Rota', level: 1 })).toBeVisible()
+  await expect(page).toHaveURL(/costs=1/)
+  await expect(page.getByRole('alert').filter({ hasText: 'What the rota costs' })).toBeVisible()
 })

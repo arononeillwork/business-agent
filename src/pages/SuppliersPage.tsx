@@ -11,6 +11,8 @@ import OrderIcon from '@mui/icons-material/ShoppingCartOutlined'
 import DeleteIcon from '@mui/icons-material/DeleteOutlined'
 import StarIcon from '@mui/icons-material/Star'
 import StarOutlineIcon from '@mui/icons-material/StarBorder'
+import InvoiceIcon from '@mui/icons-material/ReceiptLongOutlined'
+import { Link as RouterLink } from 'react-router-dom'
 import { useState } from 'react'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
@@ -39,8 +41,11 @@ const FILTERS: Record<Filter, (s: Supplier) => boolean> = { active: s => s.activ
 
 /** The businesses the café buys from: how to reach them, when they take orders, what they supply. Admins manage; finance partners read. */
 export function SuppliersPage() {
-  const { api, isAdmin } = useApp()
+  const { api, isAdmin, canSeeFinances } = useApp()
   const data = useAsync('suppliers', () => api.suppliers(), [])
+  // How many invoices each supplier has, for its Invoices link (admins with pay access: Invoices is theirs).
+  const invoices = useAsync('invoices', () => (canSeeFinances ? api.invoices() : Promise.resolve([])), [canSeeFinances])
+  const invoiceCount = (s: Supplier) => (invoices.data ?? []).filter(i => i.supplier_id === s.id && i.direction === 'in').length
   const items = useAsync('stock', () => api.stockItems(), [])
   const moves = useAsync('stock-movements', () => api.stockMovements(), [])
   const run = useAction()
@@ -130,6 +135,12 @@ export function SuppliersPage() {
                   {s.phone && <Button size="small" variant="outlined" startIcon={<PhoneIcon />} href={`tel:${s.phone.replace(/\s/g, '')}`}>{s.phone}</Button>}
                   {s.phone && s.whatsapp && <Button size="small" variant="outlined" startIcon={<WhatsAppIcon />} href={`https://wa.me/${s.phone.replace(/\D/g, '')}`} target="_blank" rel="noopener">{'WhatsApp'}</Button>}
                   {s.email && <Button size="small" variant="outlined" startIcon={<EmailIcon />} href={`mailto:${s.email}`}>{t('Email')}</Button>}
+                  {canSeeFinances && (
+                    <Button size="small" variant="outlined" startIcon={<InvoiceIcon />} component={RouterLink} to={`/invoices?supplier=${s.id}`}
+                      aria-label={t('Invoices from {name}', { name: s.name })}>
+                      {invoiceCount(s) ? t('Invoices · {n}', { n: invoiceCount(s) }) : t('Invoices')}
+                    </Button>
+                  )}
                   {s.website && <Button size="small" variant="outlined" startIcon={<WebIcon />} href={s.website} target="_blank" rel="noopener">{t('Website')}</Button>}
                   {s.order_url && <Button size="small" variant="outlined" startIcon={<OrderIcon />} href={s.order_url} target="_blank" rel="noopener">{t('Order page')}</Button>}
                 </Stack>
@@ -170,6 +181,8 @@ function SupplierDialog({ supplier, onClose }: { supplier: Supplier | null; onCl
   const [picked, setPicked] = useState<SupplyGroup[] | null>(supplier?.supplies?.length ? supplier.supplies : null)
   const supplies = picked ?? (supplier ? suppliesOf(supplier, (stockItems ?? []).filter(i => i.supplier_id === supplier.id)) : [])
   const [deleting, setDeleting] = useState(false)
+  // Where its invoices are emailed from, typed as a list: "no-reply@transgourmet.es, transgourmet.es".
+  const [senders, setSenders] = useState((supplier?.invoice_from ?? []).join(', '))
   const set = (patch: Partial<SupplierInput>) => setS(x => ({ ...x, ...patch }))
   const text = (v: string | null | undefined) => v?.trim() || null
   const field = (k: keyof SupplierInput) => (s[k] === null || s[k] === undefined ? '' : String(s[k]))
@@ -180,7 +193,10 @@ function SupplierDialog({ supplier, onClose }: { supplier: Supplier | null; onCl
     if (email && !EMAIL.test(email)) throw new Error(t('Enter a full email address, like name@example.com'))
     for (const url of [text(s.website), text(s.order_url)]) if (url && !/^https?:\/\/\S+$/i.test(url)) throw new Error(t('The link needs to start with https://'))
     if (s.minimum_order !== null && s.minimum_order !== undefined && !(s.minimum_order >= 0)) throw new Error(t('Enter numbers like 12 or 1,45'))
-    await api.saveSupplier({ ...s, name: s.name.trim(), email, website: text(s.website), order_url: text(s.order_url), phone: text(s.phone),
+    const invoice_from = [...new Set(senders.split(/[\s,;]+/).map(x => x.trim().toLowerCase().replace(/^@/, '')).filter(Boolean))]
+    if (invoice_from.some(x => !/^([^@\s]+@)?[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(x))) throw new Error(t('Invoices come from: give email addresses or domains, like facturas@supplier.es or supplier.es'))
+    if (invoice_from.length > 10) throw new Error(t('Up to 10 addresses or domains'))
+    await api.saveSupplier({ ...s, invoice_from, name: s.name.trim(), email, website: text(s.website), order_url: text(s.order_url), phone: text(s.phone),
       contact_name: text(s.contact_name), kind: text(s.kind), address: text(s.address), account_number: text(s.account_number),
       payment_terms: text(s.payment_terms), notes: text(s.notes), order_days: sortDays(s.order_days ?? []), whatsapp: !!text(s.phone) && !!s.whatsapp, supplies })
     onClose()
@@ -211,6 +227,8 @@ function SupplierDialog({ supplier, onClose }: { supplier: Supplier | null; onCl
           <PhoneField label={t('Phone')} value={field('phone')} onChange={v => set({ phone: v })} />
           <FormControlLabel label={t('They take orders on WhatsApp')} control={<Checkbox checked={!!s.whatsapp} onChange={e => set({ whatsapp: e.target.checked })} />} />
           <TextField label={t('Email')} type="email" value={field('email')} onChange={e => set({ email: e.target.value })} slotProps={{ htmlInput: { maxLength: 254 } }} />
+          <TextField label={t('Invoices come from')} value={senders} onChange={e => setSenders(e.target.value)} placeholder={'facturas@supplier.es, supplier.es'}
+            helperText={t('Email addresses or domains their invoices are sent from, when not their email above. Invoices → From email finds them by these.')} />
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField fullWidth label={t('Website')} type="url" placeholder={'https://'} value={field('website')} onChange={e => set({ website: e.target.value })} />
             <TextField fullWidth label={t('Order page or trade portal')} type="url" placeholder={'https://'} value={field('order_url')} onChange={e => set({ order_url: e.target.value })} />

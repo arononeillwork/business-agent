@@ -298,6 +298,31 @@ built-in **AI connector** so owners can run it by talking to Claude.
   chosen per camera (1 to 30; Spain allows a month at most). Live video stays in the free Reolink app. The
   Set up tab has what to type into the camera, and Spain's rules (the sign, telling the team, no sound).
   Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) section 20.
+- The cost of running the business each day (`shared/dailyCost.ts`): the running costs on Finances spread
+  over the days the café opens, plus the team on the rota that day (paid hours × pay rate × the
+  employer's multiplier; the Staff wages estimate on Finances stands in where the rota can't be costed,
+  so wages never count twice). **Sales** draws it as a red line over each day's sales, with how many days
+  took more than they cost. On **Finances**, Staff wages opens the rota's hours and cost for this month or
+  next, person by person (a missing pay rate typed in there), the costliest week and day, sets the
+  estimate to the rota's figure in one press, and opens the **Rota** with each day's cost picked out
+  (`/rota?costs=1&week=…`). The **Staff kitty** takes 10% (the owner's share, changeable) of each day's
+  takings above that day's breakeven, shown day by day for this month (the `kitty_over_breakeven`
+  migration; Easy Beans' 5% became 10%).
+- Owners only: Settings → Pages (which pages the menu shows) is the owners'; the rest of the team has the
+  menu the owners set. Staff benefits is the admins' (and a payroll gestoría's). On a big monitor the page
+  grows wider and the top-right buttons grow with it. On the To Do List, "All" is the brand's rose.
+- People: a login that isn't a person (the business's own shared login) is left off People by a switch on
+  its Team panel ("On the People page"; the `people_page_and_pets` migration). At Easy Beans that's
+  "Owner" (easybeanscafe@gmail.com): the owners on People are Aron and Mark. Yoda and Cooper, with their
+  photos, are Mark's.
+- Suppliers: each has an **Invoices** link beside its phone and email, opening Invoices for that supplier
+  (`/invoices?supplier=…`) with its emails that have files, searched over the last year by its email,
+  the addresses or domains its invoices come from (a field on the supplier: G&M Cash & Carry's come from
+  Transgourmet's no-reply@transgourmet.es) or its name. The `supplier_invoice_senders` migration moved By
+  Eric, Leo Foods, Lifestyle Customization, Pan Bendito Bakehouse, Santa Roaster and Yomilook to the
+  catalogue.
+- Music: only YouTube Music's playlists. A YouTube playlist whose name or songs say it isn't music
+  (shoulder stretches, a refit timelapse) isn't offered: not in the café's list, your own or a search.
 
 See [docs/PLAN.md](docs/PLAN.md) for decisions, architecture and phases.
 

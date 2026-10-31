@@ -618,10 +618,11 @@ integrations.get('/api/music/library', async c => {
     kinds = Object.fromEntries(playlists.map(p => [p.id, p.id in found ? { n: p.tracks, music: found[p.id] } : known[p.id]]).filter(([, v]) => v))
     await setIntegration(db, 'youtube_music', { external: { ...m.external, music_kinds: kinds } })
   }
-  // The approved playlist always counts, whatever is in it; one not checked yet shows until it is.
-  const isMusic = (p: SpotifyPlaylist) => p.id === m.approved?.id || kinds[p.id]?.music !== false
-  return c.json({ provider: 'youtube', account: data?.account_label ?? null, approved: m.approved,
-    playlists: playlists.filter(isMusic), other_playlists: playlists.filter(p => !isMusic(p)) })
+  // Only music, as YouTube Music lists it: the approved playlist always counts, whatever is in it; any
+  // other only once it's been checked and its name doesn't say otherwise (stretches, recipes, vlogs…).
+  // Plain YouTube playlists aren't offered at all.
+  const isMusic = (p: SpotifyPlaylist) => p.id === m.approved?.id || (kinds[p.id]?.music === true && youtube.musicByName(p.name))
+  return c.json({ provider: 'youtube', account: data?.account_label ?? null, approved: m.approved, playlists: playlists.filter(isMusic) })
 })
 
 // Search all of YouTube for songs or playlists (not only the café account's). A search costs 100
@@ -638,7 +639,9 @@ integrations.get('/api/music/search', async c => {
   const hit = await cache.match(key)
   if (hit) return c.json(await hit.json())
   const { token } = await connectorGrant(c.env, db, 'youtube_music', new URL(c.req.url).origin)
-  const result = await youtube.search(token, q, kind)
+  const found = await youtube.search(token, q, kind)
+  // Playlists found are music ones only (YouTube Music's), not workouts or vlogs.
+  const result = kind === 'playlists' ? { ...found, playlists: await youtube.onlyMusic(token, found.playlists) } : found
   c.executionCtx.waitUntil(cache.put(key, new Response(JSON.stringify(result), { headers: { 'content-type': 'application/json', 'cache-control': 'max-age=86400' } })))
   return c.json(result)
 })

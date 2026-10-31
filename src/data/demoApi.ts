@@ -1237,13 +1237,11 @@ export function createDemoApi(): Api {
     id: uid(), title: r.title, intro: r.intro ?? null, rules: [...r.rules], sort: i, updated_at: daysAgo(r.title === 'Complaints' ? 3 : 10),
   }))
   const rulesRead: RulesRead[] = [{ profile_id: P.maria, read_at: daysAgo(2) }, { profile_id: P.julio, read_at: daysAgo(7) }]
-  // Aron's dogs, waiting for their photos (the `pets` migration adds them for the real Aron too).
+  // Mark's dogs, waiting for their photos; Aron has none (the `people_page_and_pets` migration moved Yoda and Cooper to Mark).
   const pets: Pet[] = [
-    { id: 'pet-fudge', profile_id: P.aron, name: 'Fudge', kind: 'dog', breed: null, photo: null, sort: 1, created_at: daysAgo(3) },
-    { id: 'pet-cooper', profile_id: P.aron, name: 'Cooper', kind: 'dog', breed: null, photo: null, sort: 2, created_at: daysAgo(3) },
-    // And Mark's, Pablo and Yoda.
     { id: 'pet-pablo', profile_id: P.mark, name: 'Pablo', kind: 'dog', breed: null, photo: null, sort: 1, created_at: daysAgo(1) },
     { id: 'pet-yoda', profile_id: P.mark, name: 'Yoda', kind: 'dog', breed: null, photo: null, sort: 2, created_at: daysAgo(1) },
+    { id: 'pet-cooper', profile_id: P.mark, name: 'Cooper', kind: 'dog', breed: null, photo: null, sort: 3, created_at: daysAgo(3) },
   ]
   /** That person's shifts in the period become open shifts (approved time off). */
   const openUpShifts = (t: TimeOff) => {
@@ -1642,7 +1640,7 @@ export function createDemoApi(): Api {
 
   // Staff kitty: 5% of each month's profit since May and the tips from one month; the summer
   // barbecue already bought. Last month's share is still to go in.
-  const kittySettings = { profit_percent: 5 }
+  const kittySettings = { profit_percent: 10 }
   const kittyGoalList: KittyGoal[] = [
     { id: 'goal-party', name: 'Christmas party', icon: 'party', target: 500, due_on: `${today().slice(0, 4)}-12-18`, sort: 1, link: null,
       notes: 'Dinner and drinks for the whole team', spent: null, bought_on: null, created_at: daysAgo(90) },
@@ -1989,6 +1987,7 @@ export function createDemoApi(): Api {
       if (id !== currentUser && 'preferences' in patch) throw new Error('Only the person themselves can change their appearance settings')
       if (id === currentUser && patch.active === false) throw new Error("You can't switch off your own account. Ask another admin.")
       if (!isAdmin() && 'on_rota' in patch) throw new Error('Only an admin takes someone off the rota or puts them back')
+      if (!isAdmin() && 'on_people' in patch) throw new Error('Only an admin leaves someone off the People page or puts them back')
       if (!isAdmin() && ('role' in patch || 'can_see_pay' in patch || 'active' in patch)) {
         throw new Error('Only an admin can change role, pay access or status')
       }
@@ -2664,14 +2663,14 @@ export function createDemoApi(): Api {
       const i = invoiceList.findIndex(x => x.id === id)
       if (i >= 0) invoiceList.splice(i, 1)
     },
-    async invoiceInbox() {
+    async invoiceInbox(_days, supplierId) {
       needInvoices()
       const box = (['gmail', 'outlook'] as const).find(p => integ.integrations.some(i => i.provider === p && i.status === 'connected'))
       const row = box && integ.integrations.find(i => i.provider === box)
       if (!box || !(row?.external as { reads_mail?: boolean }).reads_mail) return { mailbox: box ?? null, can_read: false, messages: [] }
       const done = new Set(invoiceList.map(i => i.email_id))
       return { mailbox: box, can_read: true, messages: clone(mailInvoices).map(m => ({ ...m, supplier_id: matchSupplier(suppliers, { email: m.from }),
-        attachments: m.attachments.map(a => ({ ...a, imported: done.has(emailId(box, m.id, a.id)) })) })) }
+        attachments: m.attachments.map(a => ({ ...a, imported: done.has(emailId(box, m.id, a.id)) })) })).filter(m => !supplierId || m.supplier_id === supplierId) }
     },
     async importInvoice(m, attachment, supplierId) {
       needInvoices()
@@ -4478,9 +4477,8 @@ export function createDemoApi(): Api {
       if (!p) return { provider: null, account: null, playlists: [], approved: null }
       const youtube = p.provider === 'youtube_music'
       return { provider: youtube ? 'youtube' : 'spotify', account: p.account_label ?? null,
-        playlists: clone(youtube ? youtubePlaylists : demoPlaylists), approved: clone(p.external.playlist ?? null), demo: true,
-        // A YouTube playlist that isn't music: hidden unless asked for.
-        other_playlists: youtube ? [{ id: 'yt3', name: 'Café refit timelapse', tracks: 4, url: 'https://music.youtube.com/playlist?list=yt3', owner: 'Easy Beans' }] : undefined }
+        // Only music: the café account's plain YouTube playlists (a refit timelapse, shoulder stretches) aren't offered.
+        playlists: clone(youtube ? youtubePlaylists : demoPlaylists), approved: clone(p.external.playlist ?? null), demo: true }
     },
     async cafeTracks(playlistId) {
       if (!staffOnly(me()!)) throw new Error('Music is for the team')

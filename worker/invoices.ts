@@ -11,7 +11,7 @@ import * as google from './providers/google'
 import * as ms from './providers/microsoft'
 import { keepTaxFile, TaxError } from './tax'
 import { autoFolder, guessPeriod, safeFileName, taxFileType, MAX_TAX_FILE_BYTES, quarterOf } from '../shared/tax'
-import { dueFrom, emailId, matchSupplier, numberFromName, readFacturae, type InboxInvoice, type InboxState } from '../shared/invoices'
+import { dueFrom, emailId, matchSupplier, numberFromName, readFacturae, supplierMailQuery, type InboxInvoice, type InboxState } from '../shared/invoices'
 import { MINUTES } from '../shared/refresh'
 
 export const invoices = new Hono<{ Bindings: Env; Variables: { token: string } }>()
@@ -47,21 +47,26 @@ async function broken(db: ReturnType<typeof serviceClient>, p: Mailbox, e: unkno
 }
 
 // Emails from the last ?days (60 by default) with files that could be invoices, each matched to a supplier.
+// ?supplier=<id>: that supplier's only (from its email or invoice senders, or naming it), over a year by default.
 invoices.get('/api/invoices/inbox', async c => {
   const db = await requestDb(c)
   const asPerson = userClient(c.env, c.get('token'), 'app')
   const box = await mailbox(db)
   if (!box || !box.canRead) return c.json({ mailbox: box?.provider ?? null, can_read: false, messages: [] } satisfies InboxState)
-  const days = Math.min(Math.max(Number(c.req.query('days')) || 60, 1), 365)
+  const only = c.req.query('supplier') || null
+  const days = Math.min(Math.max(Number(c.req.query('days')) || (only ? 365 : 60), 1), 365)
   try {
-    const { data: found, fetched_at } = await cached(db, `mail:${box.provider}:${days}`, MINUTES.mailInvoices, async () => {
-      const { token } = await connectorGrant(c.env, db, box.provider)
-      return box.provider === 'gmail' ? await google.gmailWithAttachments(token, days) : await ms.outlookWithAttachments(token, days)
-    })
     const [{ data: suppliers }, { data: done }] = await Promise.all([
-      asPerson.from('suppliers').select('id, email, website, active, tax_id'),
+      asPerson.from('suppliers').select('id, name, email, website, active, tax_id, invoice_from'),
       asPerson.from('invoices').select('email_id').eq('source', 'email'),
     ])
+    const one = only ? (suppliers ?? []).find(s => (s as { id: string }).id === only) as { id: string; name: string; email: string | null; invoice_from: string[] | null } | undefined : undefined
+    if (only && !one) return c.json({ error: 'That supplier isn’t on file' }, 404)
+    const also = one ? supplierMailQuery(one) : ''
+    const { data: found, fetched_at } = await cached(db, `mail:${box.provider}:${days}${also ? `:${also}` : ''}`, MINUTES.mailInvoices, async () => {
+      const { token } = await connectorGrant(c.env, db, box.provider)
+      return box.provider === 'gmail' ? await google.gmailWithAttachments(token, days, 40, also) : await ms.outlookWithAttachments(token, days)
+    })
     const imported = new Set((done ?? []).map(r => (r as { email_id: string | null }).email_id))
     const messages: InboxInvoice[] = found.map(m => {
       const from = parseFrom(m.from)
@@ -69,9 +74,9 @@ invoices.get('/api/invoices/inbox', async c => {
         id: m.id, from: from.email, from_name: from.name, subject: m.subject, at: m.at,
         attachments: m.files.filter(f => taxFileType(f.name) && f.size <= MAX_TAX_FILE_BYTES)
           .map(f => ({ ...f, imported: imported.has(emailId(box.provider, m.id, f.id)) })),
-        supplier_id: matchSupplier((suppliers ?? []) as never[], { email: from.email }),
+        supplier_id: matchSupplier((suppliers ?? []) as never[], { email: from.email }) ?? (one && box.provider === 'gmail' ? one.id : null),
       }
-    }).filter(m => m.attachments.length)
+    }).filter(m => m.attachments.length && (!one || box.provider === 'gmail' || m.supplier_id === one.id))
     return c.json({ mailbox: box.provider, can_read: true, messages, fetched_at } satisfies InboxState)
   } catch (e) {
     const err = await broken(db, box.provider, e)
@@ -122,7 +127,7 @@ invoices.post('/api/invoices/import', async c => {
       name, kind: 'purchase_invoice', year: period.year, quarter: period.quarter, size: bytes.length, sha256, folder: autoFolder('purchase_invoice', period.year, period.quarter), type, body: bytes,
     })
 
-    const { data: suppliers } = await asPerson.from('suppliers').select('id, email, website, active, tax_id, payment_terms')
+    const { data: suppliers } = await asPerson.from('suppliers').select('id, email, website, active, tax_id, payment_terms, invoice_from')
     const from = parseFrom(b.from ?? '')
     const supplierId = b.supplier_id ?? matchSupplier((suppliers ?? []) as never[], { email: from.email, tax_id: facturae?.seller_tax_id })
     const terms = (suppliers ?? []).find(s => (s as { id: string }).id === supplierId) as { payment_terms?: string | null } | undefined

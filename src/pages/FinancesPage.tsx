@@ -19,6 +19,9 @@ import type { Expense } from '../../shared/types'
 import { Link as RouterLink } from 'react-router-dom'
 import { tillNames, tillsOf } from '../components/till'
 import { Freshness } from '../components/Freshness'
+import { StaffWagesDialog, WagesHint } from '../components/StaffWages'
+import { isWagesExpense } from '../../shared/dailyCost'
+import OpenIcon from '@mui/icons-material/ChevronRightRounded'
 import { msg, t, tc } from '../i18n'
 
 /** Monthly running costs. Admins with pay access edit; finance partners read (enforced in the database too). */
@@ -81,6 +84,8 @@ function Expenses({ list, total, canEdit, loaded }: { list: Expense[]; total: nu
   const [added, setAdded] = useState<string[]>([])
   const [adding, setAdding] = useState<string | null>(null)
   const [picked, setPicked] = useState<string[]>([])
+  // Staff wages opens the rota's hours and cost (Staff wages: the rota's hours and cost).
+  const [wages, setWages] = useState<Expense | null>(null)
   const editing = drafts !== null
   const set = (key: string, patch: Partial<Draft>) => setDrafts(d => d!.map(x => (x.key === key ? { ...x, ...patch } : x)))
 
@@ -231,11 +236,19 @@ function Expenses({ list, total, canEdit, loaded }: { list: Expense[]; total: nu
                     </TableCell>
                   </TableRow>
                 )) : rows.map(e => (
-                  <TableRow key={e.id} hover sx={{ '& td': { color: e.active ? undefined : 'text.secondary' } }}>
+                  <TableRow key={e.id} hover onClick={isWagesExpense(e) ? () => setWages(e) : undefined}
+                    sx={{ '& td': { color: e.active ? undefined : 'text.secondary' }, cursor: isWagesExpense(e) ? 'pointer' : undefined }}>
                     <TableCell sx={{ fontWeight: 500 }}>
-                      {e.name}
+                      {isWagesExpense(e) ? (
+                        <Button variant="text" endIcon={<OpenIcon fontSize="small" />} onClick={ev => { ev.stopPropagation(); setWages(e) }}
+                          aria-label={t('{name}: open the rota’s hours and cost', { name: e.name })}
+                          sx={{ p: 0, minWidth: 0, fontWeight: 500, color: 'inherit', textTransform: 'none', fontSize: 'inherit', '&:hover': { bgcolor: 'transparent', textDecoration: 'underline' } }}>
+                          {e.name}
+                        </Button>
+                      ) : e.name}
                       {!e.active && <Box component="span" sx={{ ml: 1 }}><Tag>{t('Not counted')}</Tag></Box>}
                       {e.notes && <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>{e.notes}</Typography>}
+                      {isWagesExpense(e) && e.active && <WagesHint amount={Number(e.amount)} />}
                     </TableCell>
                     <TableCell>{e.category && <Tag>{t(e.category)}</Tag>}</TableCell>
                     <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums', fontWeight: 500, textDecoration: e.active ? 'none' : 'line-through' }}>
@@ -270,6 +283,7 @@ function Expenses({ list, total, canEdit, loaded }: { list: Expense[]; total: nu
           <Button startIcon={<AddIcon />} sx={{ mt: 1.5 }} onClick={() => setDrafts(d => [...d!, blank()])}>{t('Add expense')}</Button>
         )}
       </CardContent>
+      {wages && <StaffWagesDialog expense={wages} canEdit={canEdit} onClose={() => setWages(null)} />}
       {adding && (
         <AddCategory existing={categories} onClose={() => setAdding(null)} onAdd={name => {
           setAdded(a => [...a, name]); set(adding, { category: name }); setAdding(null)

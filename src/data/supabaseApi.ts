@@ -44,7 +44,7 @@ import type { MenuAllergens } from '../../shared/allergens'
 import type { TipPool } from '../../shared/tips'
 import { addDays, zonedIso } from '../../shared/time'
 
-const PROFILE_COLUMNS = 'id, business_id, full_name, email, role, can_see_pay, colour, active, phone, birth_date, whatsapp_opt_in, partner_company, partner_access, preferences, on_rota'
+const PROFILE_COLUMNS = 'id, business_id, full_name, email, role, can_see_pay, colour, active, phone, birth_date, whatsapp_opt_in, partner_company, partner_access, preferences, on_rota, on_people'
 
 const GRANT_APPLICATION_COLUMNS = 'id, grant_id, grant_name, stage, submitted_on, expediente, amount_requested, amount_awarded, amount_received, deadline, deadline_label, notes, docs_done, obligations_done, created_at, updated_at'
 
@@ -572,7 +572,10 @@ export function createSupabaseApi(url: string, key: string): Api {
       return (check(await sb.from('invoices').insert(row).select('id').single()) as { id: string }).id
     },
     async deleteInvoice(id) { check(await sb.from('invoices').delete().eq('id', id)) },
-    invoiceInbox: days => worker(`/api/invoices/inbox${days ? `?days=${days}` : ''}`),
+    invoiceInbox: (days, supplierId) => {
+      const q = new URLSearchParams({ ...(days ? { days: String(days) } : {}), ...(supplierId ? { supplier: supplierId } : {}) }).toString()
+      return worker(`/api/invoices/inbox${q ? `?${q}` : ''}`)
+    },
     async importInvoice(m, attachment, supplierId) {
       const a = m.attachments.find(x => x.id === attachment)!
       return (await worker<{ invoice: Invoice }>('/api/invoices/import', { method: 'POST', body: JSON.stringify({

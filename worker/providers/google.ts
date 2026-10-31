@@ -347,9 +347,9 @@ async function gmail<T>(token: string, path: string): Promise<T> {
   return json
 }
 
-/** Emails from the last `days` with attachments, newest first, each with who sent it and its files. */
-export async function gmailWithAttachments(token: string, days: number, max = 40) {
-  const q = `has:attachment newer_than:${days}d -in:sent -in:chats`
+/** Emails from the last `days` with attachments, newest first, each with who sent it and its files; `also` narrows the search (one supplier's). */
+export async function gmailWithAttachments(token: string, days: number, max = 40, also = '') {
+  const q = `has:attachment newer_than:${days}d -in:sent -in:chats${also ? ` ${also}` : ''}`
   const list = await gmail<{ messages?: { id: string }[] }>(token, `messages?q=${encodeURIComponent(q)}&maxResults=${max}`)
   const out = []
   for (const { id } of list.messages ?? []) {

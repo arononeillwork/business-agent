@@ -1,0 +1,74 @@
+// The cost of running the business each day: Finances' Staff wages, the rota's costs, Sales' cost line
+// and the staff kitty's share over breakeven.
+export default {
+  'Rota this month: {hours} · {cost}': 'Cuadrante este mes: {hours} · {cost}',
+  'Rota this month: {hours} · add a pay rate for {names} to cost it': 'Cuadrante este mes: {hours} · añade la tarifa de {names} para calcular su coste',
+  'Staff wages set to {amount} from the rota': 'Sueldos del personal: {amount}, según el cuadrante',
+  'Staff wages: the rota’s hours and cost': 'Sueldos del personal: horas y coste del cuadrante',
+  'Nobody is on the published rota in {month} yet. Its hours and cost show here as soon as shifts are published.':
+    'Aún no hay nadie en el cuadrante publicado de {month}. Sus horas y su coste aparecen aquí en cuanto se publiquen turnos.',
+  'Hours on the rota': 'Horas en el cuadrante',
+  'From the rota': 'Según el cuadrante',
+  'needs every pay rate': 'faltan tarifas por hora',
+  'On Finances': 'En Finanzas',
+  '{amount} under the rota': '{amount} por debajo del cuadrante',
+  '{amount} over the rota': '{amount} por encima del cuadrante',
+  '{names}: no pay rate yet, so the rota can’t be costed. Type an hourly rate below (0 for an owner who draws no pay).':
+    '{names}: aún sin tarifa por hora, así que el cuadrante no se puede calcular. Escribe una tarifa por hora abajo (0 para un propietario que no cobra sueldo).',
+  'Someone on the rota has no pay rate yet, so it can’t be costed.': 'Alguien del cuadrante aún no tiene tarifa por hora, así que no se puede calcular su coste.',
+  'Hours and cost by person': 'Horas y coste por persona',
+  'Pay rate': 'Tarifa',
+  'Hourly rate for {name}': 'Tarifa por hora de {name}',
+  'By week': 'Por semana',
+  'Open this week on the rota, with its cost': 'Abrir esta semana en el cuadrante, con su coste',
+  'Open the week of {date} on the rota': 'Abrir la semana del {date} en el cuadrante',
+  'Costliest day: {day}, {amount} for {hours} on the rota.': 'Día más caro: {day}, {amount} por {hours} en el cuadrante.',
+  '{n} person on the rota this month': '{n} persona en el cuadrante este mes',
+  '{n} people on the rota this month': '{n} personas en el cuadrante este mes',
+  'Open the rota with its cost': 'Abrir el cuadrante con su coste',
+  'Use {amount} from the rota': 'Usar {amount} del cuadrante',
+  '{name}: open the rota’s hours and cost': '{name}: abrir las horas y el coste del cuadrante',
+  '{percent}% of what was taken above breakeven in {month}': '{percent}% de lo facturado por encima del umbral de rentabilidad en {month}',
+  '{share} of everything taken above breakeven goes in': 'Entra el {share} de todo lo facturado por encima del umbral de rentabilidad',
+  'Change the share over breakeven': 'Cambiar el porcentaje sobre el umbral de rentabilidad',
+  'Breakeven: about {amount} a day, what it costs to run the café (running costs {fixed} + the team on the rota {team}).':
+    'Umbral de rentabilidad: unos {amount} al día, lo que cuesta abrir el café (gastos fijos {fixed} + el equipo del cuadrante {team}).',
+  'Breakeven: what it costs to run the café each day, the running costs plus the team on the rota.':
+    'Umbral de rentabilidad: lo que cuesta abrir el café cada día, los gastos fijos más el equipo del cuadrante.',
+  'Above breakeven this month': 'Por encima del umbral este mes',
+  'Days above breakeven': 'Días por encima del umbral',
+  '{n} of {days}': '{n} de {days}',
+  'Taken above breakeven': 'Facturado por encima del umbral',
+  '{percent}% for the kitty so far': '{percent}% para el bote hasta ahora',
+  'Each day against its breakeven': 'Cada día frente a su umbral',
+  '{day}: took {takings}, breakeven {breakeven}': '{day}: facturó {takings}, umbral {breakeven}',
+  'below': 'por debajo',
+  'Grey: up to the day’s breakeven (the red mark). Pink: taken above it, of which {percent}% goes in the kitty.':
+    'Gris: hasta el umbral del día (la marca roja). Rosa: lo facturado por encima, del que el {percent}% va al bote.',
+  'Days without a costed rota use the Staff wages estimate on Finances.': 'Los días sin cuadrante calculado usan la estimación de Sueldos del personal de Finanzas.',
+  '{over} taken above breakeven on {days} of {open} days, {percent}%: {share}': '{over} facturados por encima del umbral en {days} de {open} días, {percent}%: {share}',
+  'No day took more than its breakeven: nothing goes in this time': 'Ningún día superó su umbral: esta vez no entra nada',
+  'No takings to count yet: connect the till, or type what was taken above breakeven.': 'Aún no hay ventas que contar: conecta la caja o escribe lo facturado por encima del umbral.',
+  'Working out the takings above breakeven…': 'Calculando lo facturado por encima del umbral…',
+  'Type what was taken above breakeven (admins with pay access see it worked out).': 'Escribe lo facturado por encima del umbral (los administradores con acceso a sueldos lo ven calculado).',
+  'Share over breakeven': 'Porcentaje sobre el umbral',
+  'From the till and each day’s cost to run the café: an estimate. Change it if you have a better figure.':
+    'De la caja y el coste de abrir el café cada día: una estimación. Cámbialo si tienes una cifra mejor.',
+  'Each day’s takings above what it cost to run the café, added up for the month': 'Las ventas de cada día por encima de lo que costó abrir el café, sumadas en el mes',
+  'How much of what the café takes above its breakeven goes in the kitty: each day’s takings over what it cost to run that day (the running costs and the team on the rota). A day below breakeven puts nothing in.':
+    'Cuánto de lo que el café factura por encima de su umbral de rentabilidad va al bote: las ventas de cada día por encima de lo que costó abrir ese día (los gastos fijos y el equipo del cuadrante). Un día por debajo del umbral no aporta nada.',
+  '{amount} · costliest': '{amount} · el más caro',
+  'Back to Finances': 'Volver a Finanzas',
+  'What the rota costs: {cost} this week for {hours} of shifts, each day’s cost under its date.': 'Lo que cuesta el cuadrante: {cost} esta semana por {hours} de turnos; el coste de cada día, bajo su fecha.',
+  '{names}: no pay rate yet, so not costed (Team, or Finances → Staff wages).': '{names}: aún sin tarifa, así que sin coste (Equipo, o Finanzas → Sueldos del personal).',
+  'Cost of running the business': 'Coste de abrir el negocio',
+  '{what} per day, {period}, with {previous} as a line and the cost of running the business each day as a red line':
+    '{what} por día, {period}, con {previous} como línea y el coste de abrir el negocio cada día como línea roja',
+  'Sales {sales} against {cost} to run the business: {gap} over breakeven': 'Ventas {sales} frente a {cost} de coste: {gap} por encima del umbral',
+  'Sales {sales} against {cost} to run the business: {gap} short of breakeven': 'Ventas {sales} frente a {cost} de coste: faltan {gap} para el umbral',
+  '{above} of {days} open days took more than they cost · about {perDay} a day: the running costs on Finances spread over the open days, plus the team on the rota that day.':
+    '{above} de {days} días abiertos facturaron más de lo que costaron · unos {perDay} al día: los gastos fijos de Finanzas repartidos entre los días abiertos, más el equipo del cuadrante de ese día.',
+  'Days without a costed rota take the Staff wages estimate on Finances.': 'Los días sin cuadrante calculado toman la estimación de Sueldos del personal de Finanzas.',
+  'The team comes from the Staff wages estimate on Finances until everyone on the rota has a pay rate.':
+    'El equipo sale de la estimación de Sueldos del personal de Finanzas hasta que todos en el cuadrante tengan tarifa por hora.',
+} satisfies Record<string, string>
