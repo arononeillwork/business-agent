@@ -582,6 +582,8 @@ export function createSupabaseApi(url: string, key: string): Api {
         message: m.id, attachment, name: a.name, at: m.at, from: m.from_name ? `${m.from_name} <${m.from}>` : m.from, from_name: m.from_name, subject: m.subject,
         supplier_id: supplierId ?? m.supplier_id }) })).invoice
     },
+    emailMessages: query => worker(`/api/email/messages?${new URLSearchParams(Object.entries(query)
+      .filter(([, v]) => v !== undefined && v !== null && v !== '').map(([k, v]) => [k, String(v)]))}`),
     async taxSettings() {
       return check(await sb.from('tax_settings').select('withholding, rent, intra_eu, instalments, gestor_email').eq('id', 1).single()) as TaxSettings
     },

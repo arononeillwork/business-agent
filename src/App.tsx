@@ -20,6 +20,7 @@ const page = <K extends string>(load: () => Promise<Record<K, ComponentType>>, n
   lazy(() => load().then(m => ({ default: m[name] })))
 const TodayPage = page(() => import('./pages/TodayPage'), 'TodayPage')
 const MessagesPage = page(() => import('./pages/MessagesPage'), 'MessagesPage')
+const EmailPage = page(() => import('./pages/EmailPage'), 'EmailPage')
 const ReferralsPage = page(() => import('./pages/ReferralsPage'), 'ReferralsPage')
 const RotaPage = page(() => import('./pages/RotaPage'), 'RotaPage')
 const TimecardsPage = page(() => import('./pages/TimecardsPage'), 'TimecardsPage')
@@ -249,6 +250,7 @@ function Routed() {
         <Route path="campaigns" element={isAdmin ? <CampaignsPage /> : <Navigate to="/" />} />
         <Route path="ads" element={isAdmin ? <AdsPage /> : <Navigate to="/" />} />
         <Route path="messages" element={isAdmin ? <MessagesPage /> : <Navigate to="/" />} />
+        <Route path="email" element={isAdmin ? <EmailPage /> : <Navigate to="/" />} />
         <Route path="referrals" element={isAdmin ? <ReferralsPage /> : <Navigate to="/" />} />
         <Route path="partners" element={isAdmin && FEATURES.partners ? <PlanGate feature="partners"><PartnersPage /></PlanGate> : <Navigate to="/" />} />
         <Route path="*" element={<Navigate to="/" />} />

@@ -330,6 +330,14 @@ built-in **AI connector** so owners can run it by talking to Claude.
   catalogue.
 - Music: only YouTube Music's playlists. A YouTube playlist whose name or songs say it isn't music
   (shoulder stretches, a refit timelapse) isn't offered: not in the café's list, your own or a search.
+- Email (Business section, admins): the business's connected Gmail or Outlook as a list, read only,
+  newest first. One chip at a time narrows it: unread, starred, important, with attachments, invoices &
+  receipts (a file attached and the word invoice, factura, receipt or recibo), from a supplier (matched
+  by the address or company domain on the Suppliers page) and customers & bookings (someone on Customers,
+  or a reserva, booking or enquiry), with Gmail's own search, the last 7, 30 or 90 days or 12 months,
+  and one supplier. Each email shows its sender (and supplier or customer), subject, preview, files and
+  when it came, and opens in Gmail or Outlook. Reading the mailbox is the same permission as Invoices →
+  From email; each list is kept 5 minutes (`worker/email.ts`, `shared/email.ts`).
 
 See [docs/PLAN.md](docs/PLAN.md) for decisions, architecture and phases.
 
