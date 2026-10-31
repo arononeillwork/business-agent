@@ -117,7 +117,7 @@ export function Price({ len }: { len: number }) {
     camOn(m, 'row', PRICE, 1.3, 10, { x: 260, y: 0 }),
     camOn(m, 'price', PRICE, 1.4, 8, { x: 330, y: 90 }),
     { ...camOn(m, 'save', PRICE, 1, 6), fx: 720, fy: 450 },
-    camOn(m, 'after', PRICE, 1.35, 6, { x: 330, y: 0 }),
+    camOn(m, 'after', PRICE, 1.22, 6, { x: 0, y: -60 }),
   ]
   return (
     <Chapter n={2} label="Prices" len={len} src="clips/owner-price.mp4" meta={m} segs={PRICE} keys={keys}
