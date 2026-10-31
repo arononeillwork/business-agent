@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dailyCosts, isWagesExpense, monthlyCosts, openDaysPerMonth, openOn, overBreakeven, payrollRates, rotaMonth } from './dailyCost'
+import { dailyCosts, isOwner, isWagesExpense, monthlyCosts, openDaysPerMonth, openOn, overBreakeven, ownersPayOff, payrollRates, rotaMonth } from './dailyCost'
 import type { OpeningHours, Shift } from './types'
 import { zonedIso } from './time'
 
@@ -70,6 +70,14 @@ describe('owner pay', () => {
   it('on: everyone at their rate; off: the owners’ hours cost nothing, rate or not', () => {
     expect(payrollRates(rates, people, true)).toBe(rates)
     expect([...payrollRates(rates, people, false)]).toEqual([['mark', 0], ['maria', 9], ['aron', 0]])
+  })
+  it('off takes the owners’ pay this month off the monthly costs, no more than the wages line holds', () => {
+    expect(ownersPayOff(true, 300, 4000)).toBe(0)
+    expect(ownersPayOff(false, 300.456, 4000)).toBe(300.46)
+    expect(ownersPayOff(false, 5000, 4000)).toBe(4000)
+    expect(ownersPayOff(false, 300, 0)).toBe(0)
+    expect(ownersPayOff(false, 0, 4000)).toBe(0)
+    expect(people.filter(isOwner).map(p => p.id)).toEqual(['mark', 'aron'])
   })
   it('breakeven counts the owner at their rate whatever the payroll says', () => {
     const shifts = [shift('mark', '2026-11-02'), shift('maria', '2026-11-02')]

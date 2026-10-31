@@ -8,7 +8,7 @@ import DeleteIcon from '@mui/icons-material/DeleteOutlined'
 import EditIcon from '@mui/icons-material/EditOutlined'
 import { useState } from 'react'
 import { useApp } from '../app/AppContext'
-import { usePayRates } from '../app/dailyCost'
+import { usePayRates, useRotaMonth } from '../app/dailyCost'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { Empty, ErrorBox, PageHeader, SectionTitle, Stat, StatGrid, StatRow, StatTile, Tag } from '../components/common'
@@ -20,8 +20,8 @@ import type { Expense } from '../../shared/types'
 import { Link as RouterLink } from 'react-router-dom'
 import { tillNames, tillsOf } from '../components/till'
 import { Freshness } from '../components/Freshness'
-import { StaffWagesDialog, WagesHint } from '../components/StaffWages'
-import { isWagesExpense } from '../../shared/dailyCost'
+import { OwnerPaySwitch, StaffWagesDialog, WagesHint, useOwnerPay } from '../components/StaffWages'
+import { isWagesExpense, ownersPayOff } from '../../shared/dailyCost'
 import OpenIcon from '@mui/icons-material/ChevronRightRounded'
 import { msg, t, tc } from '../i18n'
 
@@ -30,6 +30,10 @@ export function FinancesPage() {
   const { canSeeFinances, isPartner, api } = useApp()
   const canEdit = canSeeFinances && !isPartner
   const data = useAsync('expenses', () => api.expenses(), [])
+  // Owner pay off: the owners' pay for their hours on this month's rota comes off the monthly costs (their
+  // rates are needed, so finance partners, who can't see pay, see the costs as listed).
+  const [ownerPay] = useOwnerPay()
+  const { owners } = useRotaMonth(today().slice(0, 7), canEdit)
 
   if (!canSeeFinances) {
     return <>
@@ -41,9 +45,11 @@ export function FinancesPage() {
   const all = data.data ?? []
   // Expenses switched off ("not counted") stay on the list but are left out of every figure.
   const counted = all.filter(e => e.active)
-  const total = counted.reduce((s, e) => s + Number(e.amount), 0)
+  const listed = counted.reduce((s, e) => s + Number(e.amount), 0)
+  const ownersOff = canEdit ? ownersPayOff(ownerPay, owners, counted.filter(isWagesExpense).reduce((s, e) => s + Number(e.amount), 0)) : 0
+  const total = listed - ownersOff
   const biggest = [...counted].sort((a, b) => b.amount - a.amount)[0]
-  const staff = counted.filter(e => /wage|staff/i.test(e.name)).reduce((s, e) => s + Number(e.amount), 0)
+  const staff = Math.max(0, counted.filter(e => /wage|staff/i.test(e.name)).reduce((s, e) => s + Number(e.amount), 0) - ownersOff)
   const left = all.length - counted.length
 
   return (
@@ -63,7 +69,7 @@ export function FinancesPage() {
 
       {canEdit && <Takings />}
 
-      <Expenses list={all} total={total} canEdit={canEdit} loaded={!!data.data} />
+      <Expenses list={all} total={listed} ownersOff={ownersOff} canEdit={canEdit} loaded={!!data.data} />
     </>
   )
 }
@@ -77,8 +83,11 @@ const CATEGORIES = [msg('Premises'), msg('People'), msg('Utilities'), msg('Servi
 const NONE = msg('Uncategorised')
 const ADD = '\u0000add'
 
-/** The list of expenses. One Edit button turns the whole list into fields; Save keeps every change at once. */
-function Expenses({ list, total, canEdit, loaded }: { list: Expense[]; total: number; canEdit: boolean; loaded: boolean }) {
+/**
+ * The list of expenses. One Edit button turns the whole list into fields; Save keeps every change at once.
+ * `total` is what's listed and counted; `ownersOff`, what owner pay off takes off it (the Owner pay switch is here too).
+ */
+function Expenses({ list, total, ownersOff, canEdit, loaded }: { list: Expense[]; total: number; ownersOff: number; canEdit: boolean; loaded: boolean }) {
   const { api } = useApp()
   const run = useAction()
   const [drafts, setDrafts] = useState<Draft[] | null>(null)
@@ -101,7 +110,9 @@ function Expenses({ list, total, canEdit, loaded }: { list: Expense[]; total: nu
   const active = picked.filter(c => counts.has(c))
   const filtered = active.length ? list.filter(e => active.includes(catOf(e))) : list
   const { rows, sort } = useSort(filtered, SORT_BY, undefined, ['amount', 'share'])
-  const shownTotal = rows.filter(e => e.active).reduce((s, e) => s + Number(e.amount), 0)
+  // Owner pay off comes off the total while the wages line is shown.
+  const offShown = rows.some(e => e.active && isWagesExpense(e)) ? ownersOff : 0
+  const shownTotal = rows.filter(e => e.active).reduce((s, e) => s + Number(e.amount), 0) - offShown
 
   const save = async () => {
     const rows = drafts!.filter(d => !d.removed)
@@ -127,8 +138,9 @@ function Expenses({ list, total, canEdit, loaded }: { list: Expense[]; total: nu
     title: active.length ? t('Monthly expenses: {categories}', { categories: active.map(c => t(c)).join(', ') }) : t('Monthly expenses'),
     filename: `expenses-${today()}`,
     columns: [t('Expense'), t('Category'), t('Notes'), t('Per month ({currency})', { currency: currencySymbol() }), t('Counted'), tc('portion', 'Share')],
-    rows: rows.map(e => [e.name, e.category ? t(e.category) : '', e.notes ?? '', Number(e.amount), e.active ? t('Yes') : t('No'),
+    rows: [...rows.map(e => [e.name, e.category ? t(e.category) : '', e.notes ?? '', Number(e.amount), e.active ? t('Yes') : t('No'),
       e.active && total > 0 ? `${Math.round(e.amount / total * 100)}%` : '']),
+    ...(offShown ? [[t('Owner pay off'), t('People'), t('Owners’ hours on this month’s rota'), -offShown, t('Yes'), '']] : [])],
     footer: [active.length ? t('Total shown') : t('Total'), '', '', shownTotal, '', ''],
     money: [3],
   })
@@ -143,7 +155,8 @@ function Expenses({ list, total, canEdit, loaded }: { list: Expense[]; total: nu
             <Button variant="contained" startIcon={<CheckIcon />} onClick={save}>{t('Save changes')}</Button>
           </Stack>
         ) : (
-          <Stack direction="row" spacing={1}>
+          <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 1 }}>
+            {canEdit && <OwnerPaySwitch />}
             <ExportButton table={table} disabled={!rows.length} folder="Finances" />
             {canEdit && (
               <Button variant="outlined" startIcon={<EditIcon />} onClick={() => setDrafts(list.map(e => ({ ...e, key: e.id })))} aria-label={t('Edit expenses')}>
@@ -249,7 +262,7 @@ function Expenses({ list, total, canEdit, loaded }: { list: Expense[]; total: nu
                       ) : e.name}
                       {!e.active && <Box component="span" sx={{ ml: 1 }}><Tag>{t('Not counted')}</Tag></Box>}
                       {e.notes && <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>{e.notes}</Typography>}
-                      {isWagesExpense(e) && e.active && <WagesHint amount={Number(e.amount)} />}
+                      {isWagesExpense(e) && e.active && <WagesHint amount={Number(e.amount) - ownersOff} />}
                     </TableCell>
                     <TableCell>{e.category && <Tag>{t(e.category)}</Tag>}</TableCell>
                     <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums', fontWeight: 500, textDecoration: e.active ? 'none' : 'line-through' }}>
@@ -270,6 +283,17 @@ function Expenses({ list, total, canEdit, loaded }: { list: Expense[]; total: nu
               </TableBody>
               {!editing && (
                 <TableFooter>
+                  {offShown > 0 && (
+                    <TableRow aria-label={t('Owner pay off')}>
+                      <TableCell sx={{ color: 'text.primary' }}>
+                        {t('Owner pay off')}
+                        <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>{t('Owners’ hours on this month’s rota, at their rates, come off Staff wages')}</Typography>
+                      </TableCell>
+                      <TableCell />
+                      <TableCell align="right" sx={{ color: 'text.primary', fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>−{formatMoney(offShown)}</TableCell>
+                      <TableCell />
+                    </TableRow>
+                  )}
                   <TableRow>
                     <TableCell sx={{ fontWeight: 500, color: 'text.primary', fontSize: '0.95rem' }}>{active.length ? t('Total shown') : t('Total')}</TableCell><TableCell />
                     <TableCell align="right" sx={{ fontWeight: 500, color: 'text.primary', fontSize: '0.95rem', fontVariantNumeric: 'tabular-nums' }}>{formatMoney(shownTotal)}</TableCell>
