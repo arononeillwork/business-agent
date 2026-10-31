@@ -72,6 +72,7 @@ const WholesalePage = page(() => import('./pages/WholesalePage'), 'WholesalePage
 const SuppliersPage = page(() => import('./pages/SuppliersPage'), 'SuppliersPage')
 const RecipesPage = page(() => import('./pages/RecipesPage'), 'RecipesPage')
 const MenuPage = page(() => import('./pages/MenuPage'), 'MenuPage')
+const CoffeesPage = page(() => import('./pages/CoffeesPage'), 'CoffeesPage')
 const MenuPrintPage = page(() => import('./pages/MenuPrintPage'), 'MenuPrintPage')
 const ScreensPage = page(() => import('./pages/ScreensPage'), 'ScreensPage')
 const CamerasPage = page(() => import('./pages/CamerasPage'), 'CamerasPage')
@@ -203,6 +204,7 @@ function Routed() {
         <Route path="suppliers" element={isAdmin ? <SuppliersPage /> : <Navigate to="/" />} />
         <Route path="recipes" element={isAdmin ? <RecipesPage /> : <Navigate to="/" />} />
         <Route path="menu" element={<MenuPage />} />
+        <Route path="coffees" element={<CoffeesPage />} />
         <Route path="menu/design" element={isAdmin ? <MenuPage /> : <Navigate to="/menu" />} />
         <Route path="screens" element={isAdmin ? <ScreensPage /> : <Navigate to="/" />} />
         <Route path="cameras" element={isAdmin ? <CamerasPage /> : <Navigate to="/" />} />

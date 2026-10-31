@@ -16,6 +16,7 @@ import SuppliersIcon from '@mui/icons-material/LocalShippingOutlined'
 import WholesaleIcon from '@mui/icons-material/WarehouseOutlined'
 import RecipesIcon from '@mui/icons-material/MenuBookOutlined'
 import MenuIcon from '@mui/icons-material/RestaurantMenuOutlined'
+import CoffeesIcon from '@mui/icons-material/CoffeeOutlined'
 import ScreensIcon from '@mui/icons-material/TvOutlined'
 import CamerasIcon from '@mui/icons-material/VideocamOutlined'
 import WasteIcon from '@mui/icons-material/DeleteSweepOutlined'
@@ -145,6 +146,8 @@ export const SECTIONS: NavSection[] = [
   // and the café's screens that play it.
   { key: 'menu', label: msg('Menu'), items: [
     { key: 'menu', to: '/menu', label: msg('Menu'), icon: <MenuIcon />, partner: ['finances'] },
+    // The coffees in use, bag by bag, with their photos; each theme day on the Calendar serves one.
+    { key: 'coffees', to: '/coffees', label: msg('Coffees'), icon: <CoffeesIcon /> },
     { key: 'screens', to: '/screens', label: msg('Screens'), icon: <ScreensIcon />, who: 'admin' },
   ] },
   // What's bought wholesale and sold in the shop, and who from. The team counts; admins price and order.

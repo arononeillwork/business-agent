@@ -19,6 +19,8 @@ import type { JobRole } from '../../shared/roles'
 import type { RoleOwner } from '../../shared/roleOwners'
 import type { RuleSection, RulesRead } from '../../shared/staffRules'
 import type { Pet } from '../../shared/pets'
+import type { Coffee, DayTheme, ThemeDate } from '../../shared/themeDays'
+import type { RoutineDone, RoutineItem } from '../../shared/routine'
 import type { Contractor, OutsourcedJob } from '../../shared/outsourcing'
 import type { EmploymentContract, SalaryPer } from '../../shared/contracts'
 import { DEFAULT_VAT_RATE, type PnlLine, type PnlSettings } from '../../shared/pnl'
@@ -443,6 +445,61 @@ export function createSupabaseApi(url: string, key: string): Api {
       return (check(await sb.from('pets').insert({ ...p, profile_id: profile_id ?? await uid() }).select('id').single()) as { id: string }).id
     },
     async deletePet(id) { check(await sb.from('pets').delete().eq('id', id)) },
+    async coffees() {
+      const rows = check(await sb.from('coffees')
+        .select('id, name, country, region, roaster, roast, process, tasting_notes, brew, bag_grams, bag_price, active, photo, sort, created_at')
+        .order('sort').order('name')) as Coffee[]
+      return rows.map(c => ({ ...c, bag_price: num(c.bag_price) }))
+    },
+    async saveCoffee({ id, ...c }) {
+      if (id) { check(await sb.from('coffees').update(c).eq('id', id)); return id }
+      return (check(await sb.from('coffees').insert(c).select('id').single()) as { id: string }).id
+    },
+    async deleteCoffee(id) { check(await sb.from('coffees').delete().eq('id', id)) },
+    async themeDays() {
+      const [themes, rotation, dates] = await Promise.all([
+        sb.from('day_themes').select('id, name, emoji, colour, description, coffee_id, playlist, notes, sort').order('sort').order('name'),
+        sb.from('day_theme_schedule').select('weekday, theme_id'),
+        sb.from('day_theme_dates').select('day, theme_id, note').order('day'),
+      ])
+      return {
+        themes: check(themes) as DayTheme[],
+        rotation: Object.fromEntries((check(rotation) as { weekday: number; theme_id: string }[]).map(r => [r.weekday, r.theme_id])),
+        dates: check(dates) as ThemeDate[],
+      }
+    },
+    async saveDayTheme({ id, ...t }) {
+      if (id) { check(await sb.from('day_themes').update(t).eq('id', id)); return id }
+      return (check(await sb.from('day_themes').insert(t).select('id').single()) as { id: string }).id
+    },
+    async deleteDayTheme(id) { check(await sb.from('day_themes').delete().eq('id', id)) },
+    async setThemeRotation(weekday, themeId) {
+      if (themeId) check(await sb.from('day_theme_schedule').upsert({ weekday, theme_id: themeId }, { onConflict: 'business_id,weekday' }))
+      else check(await sb.from('day_theme_schedule').delete().eq('weekday', weekday))
+    },
+    async setThemeDate(day, themeId, note) {
+      if (themeId === undefined) check(await sb.from('day_theme_dates').delete().eq('day', day))
+      else check(await sb.from('day_theme_dates').upsert({ day, theme_id: themeId, note: note ?? null }, { onConflict: 'business_id,day' }))
+    },
+    async routineItems() {
+      const rows = check(await sb.from('routine_items')
+        .select('id, name, category, weekdays, every_weeks, month_week, starts_on, starts_at, ends_at, profile_id, job_role_id, checklist, notes, active, sort')
+        .order('sort').order('name')) as RoutineItem[]
+      // Postgres gives times as 09:00:00.
+      return rows.map(r => ({ ...r, starts_at: r.starts_at?.slice(0, 5) ?? null, ends_at: r.ends_at?.slice(0, 5) ?? null }))
+    },
+    async saveRoutineItem({ id, ...r }) {
+      if (id) { check(await sb.from('routine_items').update(r).eq('id', id)); return id }
+      return (check(await sb.from('routine_items').insert(r).select('id').single()) as { id: string }).id
+    },
+    async deleteRoutineItem(id) { check(await sb.from('routine_items').delete().eq('id', id)) },
+    async routineDone(from, to) {
+      return check(await sb.from('routine_done').select('item_id, day, done_by, done_at').gte('day', from).lte('day', to)) as RoutineDone[]
+    },
+    async setRoutineDone(itemId, day, done) {
+      if (done) check(await sb.from('routine_done').upsert({ item_id: itemId, day }, { onConflict: 'business_id,item_id,day', ignoreDuplicates: true }))
+      else check(await sb.from('routine_done').delete().eq('item_id', itemId).eq('day', day))
+    },
 
     async contractors() {
       const rows = check(await sb.from('contractors').select('*').order('name')) as Contractor[]

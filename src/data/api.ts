@@ -22,6 +22,8 @@ import type { RoleOwner } from '../../shared/roleOwners'
 import type { TeamRole } from '../../shared/teamRoles'
 import type { RuleSection, RuleSectionInput, RulesRead } from '../../shared/staffRules'
 import type { Pet, PetInput } from '../../shared/pets'
+import type { Coffee, CoffeeInput, DayThemeInput, ThemeDays } from '../../shared/themeDays'
+import type { RoutineDone, RoutineItem, RoutineItemInput } from '../../shared/routine'
 import type { Contractor, ContractorInput, OutsourcedJob, OutsourcedJobInput } from '../../shared/outsourcing'
 import type { EmploymentContract, EmploymentContractInput } from '../../shared/contracts'
 import type { PnlLine, PnlLineInput, PnlSettings } from '../../shared/pnl'
@@ -245,6 +247,30 @@ export interface Api {
   /** Add one (no id; for the person signed in unless profile_id says whose) or change one; returns its id. */
   savePet(p: PetInput): Promise<string>
   deletePet(id: string): Promise<void>
+
+  // Theme days (Calendar, Coffees page): the coffees served, the themes for the day with their coffee and
+  // playlist, the weekly rotation and dates set apart from it. The team reads them; admins change them.
+  coffees(): Promise<Coffee[]>
+  /** Add one (no id) or change one; returns its id. */
+  saveCoffee(c: CoffeeInput): Promise<string>
+  deleteCoffee(id: string): Promise<void>
+  themeDays(): Promise<ThemeDays>
+  /** Add a theme (no id) or change one; returns its id. */
+  saveDayTheme(t: DayThemeInput): Promise<string>
+  deleteDayTheme(id: string): Promise<void>
+  /** The weekly rotation: a weekday (1 Monday … 7 Sunday) gets a theme, or none (null). */
+  setThemeRotation(weekday: number, themeId: string | null): Promise<void>
+  /** One date: a theme, or none that day (null); `undefined` puts it back on the weekly rotation. */
+  setThemeDate(day: string, themeId: string | null | undefined, note?: string | null): Promise<void>
+
+  // Weekly routine (Calendar): what's done on set days. The team reads it and ticks things done; admins change it.
+  routineItems(): Promise<RoutineItem[]>
+  /** Add an activity (no id) or change one; returns its id. */
+  saveRoutineItem(r: RoutineItemInput): Promise<string>
+  deleteRoutineItem(id: string): Promise<void>
+  /** What was ticked done between two dates (inclusive). */
+  routineDone(from: string, to: string): Promise<RoutineDone[]>
+  setRoutineDone(itemId: string, day: string, done: boolean): Promise<void>
 
   // Outsourcing (admins; finance partners read): the jobs done by people and firms outside the team,
   // and the catalogue to choose them from.

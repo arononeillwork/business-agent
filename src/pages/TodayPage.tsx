@@ -21,6 +21,7 @@ import { SetupPrompt } from '../components/SetupPrompt'
 import { AgentFocus } from '../components/AgentFocus'
 import { CATEGORY_META, type TimeEntry } from '../../shared/types'
 import { t, tn } from '../i18n'
+import { TodayThemeCard } from '../components/Routine'
 
 function ClockCard({ onChange }: { onChange: () => void }) {
   const { api, positions, breakTypes, settings } = useApp()
@@ -346,6 +347,7 @@ export function TodayPage() {
                 </Items>
               </CardContent>
             </Card>
+            <TodayThemeCard />
             {sportsOn && <Card component="section" aria-label={t('Big nights')}>
               <CardContent>
                 <SectionTitle action={<Button size="small" component={Link} to="/sports">{t('Sports')}</Button>}>{t('Big nights this week')}</SectionTitle>

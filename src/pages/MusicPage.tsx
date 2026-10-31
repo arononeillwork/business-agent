@@ -28,6 +28,7 @@ import { restrictToVerticalAxis } from '../components/dnd'
 import type { CafeTrack, MusicPlaylist, MusicProvider, MyNowPlaying, SpotifyPlaylist } from '../../shared/types'
 import { fonts, tokens } from '../theme'
 import { msg, t, tn, tc } from '../i18n'
+import { ThemeMusicShortcut } from '../components/ThemeDays'
 
 const BRAND: Record<MusicProvider, { name: string; colour: string; soft: string; blurb: string; logo: ReactNode }> = {
   spotify: {
@@ -73,6 +74,7 @@ export function MusicPage() {
       {/* No visible header: the player is the page. The title stays for screen readers. */}
       <Typography variant="h4" component="h1" sx={visuallyHidden}>{t('Music')}</Typography>
       <Stack spacing={3}>
+        <ThemeMusicShortcut />
         <CafeMusicSection />
         <PersonalMusic tab={tab} setTab={setTab} />
       </Stack>

@@ -205,6 +205,8 @@ export interface Preferences {
   dashboards?: SavedDashboards
   /** Owners: the agent they're viewing the app as (the Agents button at the top, shared/agents.ts); unset or null: everything. */
   agentView?: string | null
+  /** What their calendar shows: the theme days and the weekly routine, and the routine's categories and activities they hid. */
+  calendarShow?: import('./routine').CalendarShow
 }
 
 export interface Position {

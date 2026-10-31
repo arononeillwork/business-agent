@@ -18,6 +18,10 @@ import { tokens } from '../theme'
 import { EventAlertButton } from '../components/NotificationBell'
 import { CATEGORY_META, type CalendarEvent, type EventCategory } from '../../shared/types'
 import { msg, t } from '../i18n'
+import { Tab, Tabs } from '@mui/material'
+import { useSearchParams } from 'react-router-dom'
+import { ThemesTab, TodayTheme } from '../components/ThemeDays'
+import { CalendarShowBar, DayRoutine, DayTheme, ExtrasDialogs, RoutineTab, useCalendarExtras } from '../components/Routine'
 
 const monthStart = (d: string) => `${d.slice(0, 7)}-01`
 const addMonths = (first: string, n: number) => {
@@ -61,6 +65,12 @@ export function CalendarPage() {
     : view === 'list' ? addDays(addMonths(month, LIST_MONTHS), -1)
     : addDays(weekStart(addDays(addMonths(month, 1), -1)), 6)
   const data = useAsync('calendar', () => api.events(gridStart, gridEnd), [gridStart, gridEnd])
+  // Theme days and the weekly routine (the team): each day's theme and activities, after this person's filters;
+  // and the Themes and Routine tabs (?tab=themes, ?tab=routine).
+  const extras = useCalendarExtras(gridStart, gridEnd, data.data ?? [])
+  const [params, setParams] = useSearchParams()
+  const tab = extras.staff && ['themes', 'routine'].includes(params.get('tab') ?? '') ? params.get('tab')! : 'calendar'
+  const showTab = (v: string) => setParams(v === 'calendar' ? {} : { tab: v }, { replace: true })
   const events = (data.data ?? []).filter(e => !hidden.has(e.category))
   const on = (date: string) => events.filter(e => date >= e.starts_on && date <= (e.ends_on ?? e.starts_on))
     .sort((a, b) => (a.starts_at ?? '').localeCompare(b.starts_at ?? ''))
@@ -121,6 +131,24 @@ export function CalendarPage() {
     </Box>
   )
 
+  const tabs = extras.staff && (
+    <Tabs value={tab} onChange={(_, v: string) => showTab(v)} variant="scrollable" allowScrollButtonsMobile aria-label={t('Calendar, themes and routine')}
+      sx={{ mb: 2, borderBottom: `1px solid ${tokens.line}` }}>
+      <Tab value="calendar" label={t('Calendar')} />
+      <Tab value="themes" label={t('Themes')} />
+      <Tab value="routine" label={t('Routine')} />
+    </Tabs>
+  )
+  if (tab !== 'calendar') {
+    return (
+      <>
+        <PageHeader eyebrow={t("What's on")} title={t('Calendar')} />
+        {tabs}
+        {tab === 'themes' ? <ThemesTab /> : <RoutineTab />}
+      </>
+    )
+  }
+
   return (
     <>
       <PageHeader eyebrow={t("What's on")} title={t('Calendar')}
@@ -129,6 +157,10 @@ export function CalendarPage() {
           <Button variant="contained" startIcon={<AddIcon />} onClick={() => newEvent(today())}>{t('Add event')}</Button>
         </>} />
       <ErrorBox error={data.error} />
+      {tabs}
+      {extras.staff && extras.show.themes !== false && (
+        <TodayTheme days={extras.days} coffees={extras.coffees} closures={extras.closures} withWeek onSetUp={() => showTab('themes')} />
+      )}
 
       {/* One toolbar: where you are on the left, how you look at it on the right. */}
       <Stack direction="row" role="toolbar" aria-label={t('Calendar')} spacing={1}
@@ -152,6 +184,7 @@ export function CalendarPage() {
               border: 1, borderColor: CATEGORY_META[c].colour }} />
         ))}
       </Stack>
+      <CalendarShowBar x={extras} />
 
       {view === 'list' ? (
         <ListView events={events.filter(e => (e.ends_on ?? e.starts_on) >= gridStart && e.starts_on <= gridEnd)} loaded={!!data.data}
@@ -176,21 +209,24 @@ export function CalendarPage() {
                   <Typography variant="caption" sx={{ display: 'block', mb: 0.25, fontWeight: d === today() ? 700 : 400,
                     color: !inView(d) ? 'text.disabled' : 'text.primary' }}>{Number(d.slice(8))}</Typography>
                 )}
+                <DayTheme x={extras} day={d} />
                 <Box onClick={e => e.stopPropagation()}>
                   {on(d).map(e => view === 'week' ? <EventBlock key={e.id} e={e} /> : <EventPill key={e.id} e={e} />)}
                 </Box>
+                <DayRoutine x={extras} day={d} compact={view === 'month'} />
               </Box>
             ))}
           </Box>
         </Card>
       ) : (
         <Stack spacing={1}>
-          {days.filter(d => inView(d) && (view === 'week' || on(d).length)).map(d => (
+          {days.filter(d => inView(d) && (view === 'week' || on(d).length || extras.routineFor(d).length || extras.themeOn(d)?.theme)).map(d => (
             <Card key={d} sx={{ p: 1.5 }}>
               <Typography variant="subtitle2" sx={{ textTransform: 'capitalize', color: d === today() ? tokens.roseDeep : undefined }}>
                 {formatLocal(`${d}T12:00:00Z`, 'EEEE d MMMM')}
               </Typography>
-              {on(d).length === 0 && <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>{t('Nothing planned')}</Typography>}
+              <Box sx={{ mt: 0.5 }}><DayTheme x={extras} day={d} /></Box>
+              {on(d).length === 0 && !extras.routineFor(d).length && <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>{t('Nothing planned')}</Typography>}
               {on(d).map(e => (
                 <Stack key={e.id} direction="row" spacing={1} sx={{ alignItems: 'center', mt: 0.5 }} onClick={() => openEvent(e)}>
                   <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: CATEGORY_META[e.category].colour, flexShrink: 0 }} />
@@ -203,6 +239,7 @@ export function CalendarPage() {
                   {d >= today() && <EventAlertButton kind="calendar" refId={e.id} title={e.title} />}
                 </Stack>
               ))}
+              <DayRoutine x={extras} day={d} />
             </Card>
           ))}
           {data.data && view === 'month' && !days.some(d => inView(d) && on(d).length) &&
@@ -258,6 +295,7 @@ export function CalendarPage() {
         </DialogActions>
       </Dialog>
       {sharing && <ShareDialog event={sharing} onClose={() => setSharing(null)} />}
+      <ExtrasDialogs x={extras} />
     </>
   )
 }
