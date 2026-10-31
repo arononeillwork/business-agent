@@ -10,7 +10,7 @@ import { Link as RouterLink } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
-import { Empty, ErrorBox, PageHeader, SectionTitle, StatGrid, StatTile, Tag } from '../components/common'
+import { DecimalField, Empty, ErrorBox, PageHeader, SectionTitle, StatGrid, StatTile, Tag } from '../components/common'
 import { ExportButton } from '../components/tables'
 import type { ExportTable } from '../lib/export'
 import { addDays, formatLocal, localDate, today } from '../../shared/time'
@@ -233,7 +233,6 @@ function PointDialog({ point, onClose }: { point: PointInput; onClose: () => voi
   const run = useAction()
   const [p, setP] = useState<PointInput>(point)
   const set = (x: Partial<PointInput>) => setP(y => ({ ...y, ...x }))
-  const temp = (v: string) => (v.trim() === '' ? null : Number(v.replace(',', '.').replace('−', '-')))
   const save = async () => {
     const ok = await run(async () => {
       if (!p.name.trim()) throw new Error(t('Give it a name'))
@@ -259,8 +258,8 @@ function PointDialog({ point, onClose }: { point: PointInput; onClose: () => voi
           </Stack>
           {p.kind !== 'task' && (
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-              <TextField label={t('Lowest (°C)')} value={p.min_temp ?? ''} onChange={e => set({ min_temp: temp(e.target.value) })} helperText={t('Empty: no lowest')} sx={{ flex: 1 }} />
-              <TextField label={t('Highest (°C)')} value={p.max_temp ?? ''} onChange={e => set({ max_temp: temp(e.target.value) })} helperText={t('Empty: no highest')} sx={{ flex: 1 }} />
+              <DecimalField label={t('Lowest (°C)')} value={p.min_temp} onNumber={n => set({ min_temp: n })} inputMode="text" helperText={t('Empty: no lowest')} sx={{ flex: 1 }} />
+              <DecimalField label={t('Highest (°C)')} value={p.max_temp} onNumber={n => set({ max_temp: n })} inputMode="text" helperText={t('Empty: no highest')} sx={{ flex: 1 }} />
             </Stack>
           )}
           <TextField label={t('Area')} value={p.area ?? ''} onChange={e => set({ area: e.target.value })} placeholder={t('Kitchen, Bar…')} />

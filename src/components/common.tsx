@@ -1,7 +1,8 @@
-import { Alert, Avatar, Box, Button, Card, CircularProgress, IconButton, Stack, Tooltip, Typography } from '@mui/material'
+import { Alert, Avatar, Box, Button, Card, CircularProgress, IconButton, Stack, TextField, Tooltip, Typography } from '@mui/material'
+import type { TextFieldProps } from '@mui/material'
 import ChevronLeft from '@mui/icons-material/ChevronLeft'
 import ChevronRight from '@mui/icons-material/ChevronRight'
-import { createContext, useContext, type ReactNode } from 'react'
+import { createContext, useContext, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { FLAG_LABELS } from '../../shared/types'
 import { addDays, formatLocal, today, weekStart } from '../../shared/time'
@@ -173,4 +174,25 @@ export function Flags({ flags }: { flags: string[] }) {
 
 export function Hint({ title, children }: { title: string; children: ReactNode }) {
   return <Tooltip title={title} arrow><span>{children}</span></Tooltip>
+}
+
+/** The number typed in a field ("2,90", "−18"), or null when it's empty. */
+export const typedNumber = (text: string) => (text.trim() === '' ? null : Number(text.replace(',', '.').replace('−', '-')))
+
+/**
+ * A number typed in (a price, an amount, a temperature): what's typed stays as typed while it's the same
+ * number ("2." on the way to "2.90", "2,9", "-" before "-18"), so the decimal point isn't lost as you type
+ * it, as it was when the field showed the stored number back after every key. `onNumber` gets the number
+ * (null when empty); `blank` is the number an empty field stands for, if any, so it stays empty.
+ */
+export function DecimalField({ value, onNumber, blank, ...props }: Omit<TextFieldProps, 'value' | 'onChange'> & {
+  value: number | null | undefined; onNumber: (n: number | null) => void; blank?: number
+}) {
+  const v = value ?? null
+  const [text, setText] = useState(v === null ? '' : String(v))
+  const shown = text.trim() === '' && blank !== undefined && v === blank ? '' : Object.is(typedNumber(text), v) ? text : v === null ? '' : String(v)
+  return (
+    <TextField inputMode="decimal" {...props} value={shown}
+      onChange={e => { setText(e.target.value); onNumber(typedNumber(e.target.value)) }} />
+  )
 }

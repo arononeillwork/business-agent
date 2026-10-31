@@ -21,7 +21,7 @@ import { Link as RouterLink } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction, useNotify } from '../app/Notify'
-import { Empty, ErrorBox, PageHeader, StatGrid, StatTile, Tag } from '../components/common'
+import { DecimalField, Empty, ErrorBox, PageHeader, StatGrid, StatTile, Tag } from '../components/common'
 import { ExportButton, SortCell, toEnter, useSort } from '../components/tables'
 import type { ExportTable } from '../lib/export'
 import {
@@ -497,7 +497,6 @@ export function ItemDialog({ item, suppliers, categories, locations, readOnly, o
   const [typing, setTyping] = useState<'category' | 'location' | null>(null)
   const moves = useAsync('stock-movements', () => (item ? api.stockMovements(item.id) : Promise.resolve([])), [item?.id])
   const set = (patch: Partial<StockItemInput>) => setD(x => ({ ...x, ...patch }))
-  const num = (v: string) => (v.trim() === '' ? null : Number(v.replace(',', '.')))
   const field = (k: keyof StockItemInput) => (d[k] === null || d[k] === undefined ? '' : String(d[k]))
   const margin = retailMargin({ sell_price: d.sell_price ?? null, cost_per_unit: d.cost_per_unit ?? null, vat_rate: d.vat_rate ?? 10 })
 
@@ -551,27 +550,27 @@ export function ItemDialog({ item, suppliers, categories, locations, readOnly, o
             </TextField>
             <TextField fullWidth label={t('How it comes')} value={field('pack_size')} disabled={readOnly} onChange={e => set({ pack_size: e.target.value || null })}
               placeholder={t('e.g. 6 × 1 l')} slotProps={{ htmlInput: { maxLength: 60 } }} />
-            <TextField fullWidth label={t('Order in multiples of')} value={field('order_multiple')} disabled={readOnly} onChange={e => set({ order_multiple: num(e.target.value) ?? 1 })} inputMode="decimal" />
+            <DecimalField fullWidth label={t('Order in multiples of')} value={d.order_multiple} blank={1} disabled={readOnly} onNumber={n => set({ order_multiple: n ?? 1 })} />
           </Stack>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-            <TextField fullWidth label={t('Cost per unit, without IVA')} value={field('cost_per_unit')} disabled={readOnly} onChange={e => set({ cost_per_unit: num(e.target.value) })} inputMode="decimal"
+            <DecimalField fullWidth label={t('Cost per unit, without IVA')} value={d.cost_per_unit} disabled={readOnly} onNumber={n => set({ cost_per_unit: n })}
               slotProps={{ input: { startAdornment: <InputAdornment position="start">{'€'}</InputAdornment> } }} />
             <TextField select fullWidth label={t('IVA')} value={d.vat_rate ?? 10} disabled={readOnly} onChange={e => set({ vat_rate: Number(e.target.value) })}>
               {[0, 4, 10, 21].map(r => <MenuItem key={r} value={r}>{`${r}%`}</MenuItem>)}
             </TextField>
           </Stack>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-            {!item && <TextField fullWidth label={t('In stock now')} value={field('on_hand')} onChange={e => set({ on_hand: num(e.target.value) ?? 0 })} inputMode="decimal" />}
-            <TextField fullWidth label={t('Reorder at')} value={field('reorder_at')} disabled={readOnly} onChange={e => set({ reorder_at: num(e.target.value) })} inputMode="decimal"
+            {!item && <DecimalField fullWidth label={t('In stock now')} value={d.on_hand} blank={0} onNumber={n => set({ on_hand: n ?? 0 })} />}
+            <DecimalField fullWidth label={t('Reorder at')} value={d.reorder_at} disabled={readOnly} onNumber={n => set({ reorder_at: n })}
               helperText={t('Shows as low at this many')} />
-            <TextField fullWidth label={t('Par level')} value={field('par_level')} disabled={readOnly} onChange={e => set({ par_level: num(e.target.value) })} inputMode="decimal"
+            <DecimalField fullWidth label={t('Par level')} value={d.par_level} disabled={readOnly} onNumber={n => set({ par_level: n })}
               helperText={t('Orders top up to this many')} />
           </Stack>
           <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 2, px: 1.5, py: 1 }}>
             <FormControlLabel label={t('Sold in the shop')} disabled={readOnly} control={<Checkbox checked={!!d.retail} onChange={e => set({ retail: e.target.checked })} />} />
             {d.retail && (
               <Stack direction="row" spacing={2} sx={{ alignItems: 'center', mt: 1, mb: 0.5 }}>
-                <TextField size="small" label={t('Shop price, with IVA')} value={field('sell_price')} disabled={readOnly} onChange={e => set({ sell_price: num(e.target.value) })} inputMode="decimal"
+                <DecimalField size="small" label={t('Shop price, with IVA')} value={d.sell_price} disabled={readOnly} onNumber={n => set({ sell_price: n })}
                   slotProps={{ input: { startAdornment: <InputAdornment position="start">{'€'}</InputAdornment> } }} />
                 {margin !== null && <Typography variant="body2" sx={{ color: margin < 50 ? tokens.badFg : 'text.secondary' }}>{t('Margin {pct}%', { pct: formatNumber(margin) })}</Typography>}
               </Stack>
@@ -590,7 +589,7 @@ export function ItemDialog({ item, suppliers, categories, locations, readOnly, o
                 onChange={e => set({ use_by: e.target.value || null })} slotProps={{ inputLabel: { shrink: true } }} />
             </Stack>
             {!d.retail && (d.sell_within_days || d.use_by) && (
-              <TextField size="small" label={t('Usual price, with IVA')} value={field('sell_price')} disabled={readOnly} onChange={e => set({ sell_price: num(e.target.value) })} inputMode="decimal"
+              <DecimalField size="small" label={t('Usual price, with IVA')} value={d.sell_price} disabled={readOnly} onNumber={n => set({ sell_price: n })}
                 sx={{ mt: 2 }} slotProps={{ input: { startAdornment: <InputAdornment position="start">{'€'}</InputAdornment> } }} />
             )}
             <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 1 }}>

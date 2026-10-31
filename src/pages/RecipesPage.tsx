@@ -2,7 +2,6 @@ import {
   Alert, Autocomplete, Box, Button, Card, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, InputAdornment, MenuItem,
   Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Tooltip, Typography, useMediaQuery, useTheme,
 } from '@mui/material'
-import type { TextFieldProps } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import DeleteIcon from '@mui/icons-material/DeleteOutlined'
 import CloseIcon from '@mui/icons-material/Close'
@@ -12,7 +11,7 @@ import { useMemo, useState } from 'react'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
-import { Empty, ErrorBox, PageHeader, StatGrid, StatTile, Tag } from '../components/common'
+import { DecimalField, Empty, ErrorBox, PageHeader, StatGrid, StatTile, Tag } from '../components/common'
 import { ExportButton, SortCell, toEnter, useSort } from '../components/tables'
 import type { ExportTable } from '../lib/export'
 import {
@@ -168,19 +167,6 @@ const blank = (): RecipeInput => ({ name: '', category: 'Coffee', square_item: n
   wastage_pct: 0, notes: null, active: true, variants: [], lines: [] })
 
 /** One menu item: its price, what goes in, its variants, and the cost and margin as you type. */
-/**
- * A number typed in (a price, an amount, a percentage): what's typed stays as typed while it's the same
- * number ("2." on the way to "2.90", or "2,9"), so the decimal point isn't lost as you type it.
- */
-function DecimalField({ value, onNumber, ...props }: Omit<TextFieldProps, 'value' | 'onChange'> & { value: number | null; onNumber: (n: number | null) => void }) {
-  const [text, setText] = useState(value === null ? '' : String(value))
-  const typed = text.trim() === '' ? null : Number(text.replace(',', '.'))
-  return (
-    <TextField {...props} inputMode="decimal" value={Object.is(typed, value) ? text : value === null ? '' : String(value)}
-      onChange={e => { setText(e.target.value); onNumber(e.target.value.trim() === '' ? null : Number(e.target.value.replace(',', '.'))) }} />
-  )
-}
-
 function RecipeDialog({ recipe, items, readOnly, onClose }: { recipe: Recipe | null; items: StockItem[]; readOnly: boolean; onClose: () => void }) {
   const { api } = useApp()
   const run = useAction()
@@ -215,7 +201,7 @@ function RecipeDialog({ recipe, items, readOnly, onClose }: { recipe: Recipe | n
               getOptionLabel={o => o.name} isOptionEqualToValue={(a, b) => a.id === b.id}
               onChange={(_, v) => v && setLine(i, { item_id: v.id, unit: unitsFor(v.unit).includes(l.unit) ? l.unit : unitsFor(v.unit)[0] })}
               renderInput={p => <TextField {...p} label={t('Ingredient')} />} />
-            <DecimalField size="small" sx={{ width: 90 }} label={tc('quantity', 'Amount')} value={l.quantity} disabled={readOnly}
+            <DecimalField size="small" sx={{ width: 90 }} label={tc('quantity', 'Amount')} value={l.quantity} blank={0} disabled={readOnly}
               onNumber={n => setLine(i, { quantity: n ?? 0 })} />
             <TextField select size="small" sx={{ width: 90 }} label={t('Unit')} value={l.unit} disabled={readOnly} onChange={e => setLine(i, { unit: e.target.value as RecipeLine['unit'] })}>
               {unitsFor(item?.unit ?? 'unit').map(u => <MenuItem key={u} value={u}>{t(unitLabel(u))}</MenuItem>)}
@@ -264,9 +250,9 @@ function RecipeDialog({ recipe, items, readOnly, onClose }: { recipe: Recipe | n
             <TextField select fullWidth label={t('IVA')} value={r.vat_rate} disabled={readOnly} onChange={e => set({ vat_rate: Number(e.target.value) })}>
               {[0, 4, 10, 21].map(v => <MenuItem key={v} value={v}>{`${v}%`}</MenuItem>)}
             </TextField>
-            <DecimalField fullWidth label={t('Target margin')} value={r.target_margin} disabled={readOnly} onNumber={n => set({ target_margin: Math.min(99, n ?? 0) })}
+            <DecimalField fullWidth label={t('Target margin')} value={r.target_margin} blank={0} disabled={readOnly} onNumber={n => set({ target_margin: Math.min(99, n ?? 0) })}
               slotProps={{ input: { endAdornment: <InputAdornment position="end">{'%'}</InputAdornment> } }} />
-            <DecimalField fullWidth label={t('Waste allowance')} value={r.wastage_pct} disabled={readOnly} onNumber={n => set({ wastage_pct: Math.min(50, n ?? 0) })}
+            <DecimalField fullWidth label={t('Waste allowance')} value={r.wastage_pct} blank={0} disabled={readOnly} onNumber={n => set({ wastage_pct: Math.min(50, n ?? 0) })}
               slotProps={{ input: { endAdornment: <InputAdornment position="end">{'%'}</InputAdornment> } }} />
           </Stack>
 
@@ -288,7 +274,7 @@ function RecipeDialog({ recipe, items, readOnly, onClose }: { recipe: Recipe | n
                   <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1 }}>
                     <TextField size="small" label={t('Variant')} value={v.name} disabled={readOnly} placeholder={t('e.g. Oat milk, Extra shot, Large')}
                       onChange={e => set({ variants: r.variants.map((x, j) => (j === vi ? { ...x, name: e.target.value } : x)) })} sx={{ flex: 1 }} />
-                    <DecimalField size="small" label={t('Price change')} value={v.price_change} disabled={readOnly} sx={{ width: 130 }}
+                    <DecimalField size="small" label={t('Price change')} value={v.price_change} blank={0} disabled={readOnly} sx={{ width: 130 }}
                       onNumber={n => set({ variants: r.variants.map((x, j) => (j === vi ? { ...x, price_change: n ?? 0 } : x)) })}
                       slotProps={{ input: { startAdornment: <InputAdornment position="start">{'+€'}</InputAdornment> } }} />
                     {!readOnly && <IconButton size="small" aria-label={t('Remove {name}', { name: v.name || t('Variant') })}

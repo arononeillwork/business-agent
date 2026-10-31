@@ -4229,6 +4229,42 @@ test.describe('recipes and waste', () => {
     await expect(table.getByRole('row', { name: 'Pain au chocolat' })).toContainText('€2,90')
   })
 
+  test('decimals typed a key at a time keep their point too: stock costs and prices, a supplier’s minimum order, a food safety check’s temperatures', async ({ page }) => {
+    const type = async (box: Locator, text: string) => {
+      await box.press('ControlOrMeta+a')
+      await box.pressSequentially(text, { delay: 30 })
+      await expect(box).toHaveValue(text)
+    }
+    await open(page, '/wholesale')
+    await page.getByRole('button', { name: 'Add item' }).first().click()
+    const item = page.getByRole('dialog', { name: 'Add an item' })
+    await item.getByRole('textbox', { name: 'Name' }).fill('Lemons')
+    await type(item.getByRole('textbox', { name: 'Cost per unit, without IVA' }), '0.45')
+    await type(item.getByRole('textbox', { name: 'In stock now' }), '1.5')
+    await type(item.getByRole('textbox', { name: 'Reorder at' }), '2,5')
+    await item.getByRole('checkbox', { name: 'Sold in the shop' }).check()
+    await type(item.getByRole('textbox', { name: 'Shop price, with IVA' }), '1.20')
+    await item.getByRole('button', { name: 'Add' }).click()
+    await toast(page, 'Added Lemons')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Current stock' }).click()
+    await page.getByRole('table', { name: 'Stock items' }).getByRole('row', { name: 'Lemons' }).getByRole('button', { name: 'Lemons', exact: true }).click()
+    const saved = page.getByRole('dialog', { name: 'Lemons' })
+    await expect(saved.getByRole('textbox', { name: 'Cost per unit, without IVA' })).toHaveValue('0.45')
+    await expect(saved.getByRole('textbox', { name: 'Shop price, with IVA' })).toHaveValue('1.2')
+    await saved.press('Escape')
+
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Suppliers' }).click()
+    await page.getByRole('button', { name: 'Add supplier' }).click()
+    await type(page.getByRole('dialog', { name: 'Add a supplier' }).getByRole('textbox', { name: 'Minimum order' }), '12.50')
+    await page.getByRole('dialog', { name: 'Add a supplier' }).press('Escape')
+
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Food safety' }).click()
+    await page.getByRole('button', { name: 'Add a check' }).click()
+    const check = page.getByRole('dialog', { name: 'Add a check' })
+    await type(check.getByRole('textbox', { name: 'Lowest (°C)' }), '-18')
+    await type(check.getByRole('textbox', { name: 'Highest (°C)' }), '2.5')
+  })
+
   test('a new recipe costs itself as ingredients and a variant are added', async ({ page }) => {
     await open(page, '/recipes')
     await page.getByRole('button', { name: 'Add menu item' }).click()
