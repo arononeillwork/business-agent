@@ -385,6 +385,8 @@ export interface Api {
   /** Add a campaign (no id) or change one; returns its id. */
   saveCampaign(c: CampaignInput): Promise<string>
   deleteCampaign(id: string): Promise<void>
+  /** Switch a campaign off (into the Inactive section, no reminder) or back on. */
+  setCampaignInactive(id: string, inactive: boolean): Promise<void>
 
   // Sales reps & rewards: the team sees every rep and customers' credit, adds customers, logs
   // rewards and lets customers spend credit at the till; admins manage reps and the list, approve

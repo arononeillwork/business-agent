@@ -884,6 +884,7 @@ export function createSupabaseApi(url: string, key: string): Api {
       return (check(await sb.from('campaigns').insert(c).select('id').single()) as { id: string }).id
     },
     async deleteCampaign(id) { check(await sb.from('campaigns').delete().eq('id', id)) },
+    async setCampaignInactive(id, inactive) { check(await sb.from('campaigns').update({ inactive }).eq('id', id)) },
     async jobOpenings() {
       return (check(await sb.from('job_openings').select('*').order('opened_on', { ascending: false })) as JobOpening[])
         .map(o => ({ ...o, hours_per_week: num(o.hours_per_week) }))

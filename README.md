@@ -244,6 +244,13 @@ built-in **AI connector** so owners can run it by talking to Claude.
   marketing, picked by type, tag and where they came from, with the count and how it reads for one of
   them. Planned ones are in the bell on their day. Sending from the app comes with Brevo or Mailchimp
   (on Connections, coming); until then the audience is exported and the campaign marked sent.
+- Suggested campaigns (Campaigns → Suggested): ready-made ideas for a café (brand awareness, loyalty
+  sign-ups, win-back, quiet afternoons, local partnerships, Google reviews asked for without any reward,
+  the autumn, Christmas and summer menus, match nights, English speakers, office catering, a welcome for
+  new sign-ups), each with why it helps, its channels, the effort, what to measure and when to send it,
+  the ones for this time of year first (`shared/campaignIdeas.ts`). One press fills in a new campaign
+  planned for that day; an idea already started isn't offered again. Each campaign's **Inactive** switch
+  moves it to a folded section at the bottom, with no reminder, until it's switched back on.
 - Hiring (Team section): the jobs being filled (position, contract, hours, pay, where it's advertised)
   and who applied, stage by stage; an interview goes on the calendar for admins, and a hire is invited
   to the team in one step. Applicants not hired are kept a year (GDPR), then flagged to remove.

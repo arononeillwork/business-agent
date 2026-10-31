@@ -1468,6 +1468,10 @@ export function createDemoApi(): Api {
     campaign({ name: 'Office coffee for businesses', subject: 'Coffee for your team, delivered', audience: { kinds: ['lead'], tags: ['B2B'], sources: [] },
       body: 'Hi [first name],\n\nWe bring specialty coffee to offices and studios in San Pedro twice a week. Reply and we’ll send prices.\n\nAron, Easy Beans',
       created_at: daysAgo(2) }),
+    // Switched off after the summer (Inactive), started from a suggestion, so that one isn't offered again yet.
+    campaign({ name: 'Summer iced drinks 2026', channel: 'sms', idea: 'summer_drinks', inactive: true, status: 'sent', recipients: 3,
+      body: 'Easy Beans: iced lattes, cold brew and frappés are back. Come in and cool down!', sent_at: daysAgo(90), created_at: daysAgo(95),
+      notes: 'Goal: iced drinks sold (Sales, best sellers)' }),
   ]
 
   // Hiring: a weekend barista being filled now, and the opening team hired last year (database: hiring_rules(), applicant_interview_event()).
@@ -3386,6 +3390,12 @@ export function createDemoApi(): Api {
       requireAdmin()
       const i = campaignList.findIndex(x => x.id === id)
       if (i >= 0) campaignList.splice(i, 1)
+    },
+    async setCampaignInactive(id, inactive) {
+      requireAdmin()
+      const c = campaignList.find(x => x.id === id)
+      if (!c) throw new Error('That campaign has gone')
+      c.inactive = inactive
     },
 
     async salesReps() {
