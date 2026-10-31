@@ -1,15 +1,27 @@
 import { describe, expect, it } from 'vitest'
-import { afterPayment, grantLine, itemLine, moneyLines, statusOf, suggestedPayment, totals, type MoneyItem } from './creditDebit'
+import { afterPayment, grantLine, isMoneyLink, itemLine, linkSite, moneyLines, statusOf, suggestedPayment, totals, type MoneyItem } from './creditDebit'
 import type { GrantApplication } from './grants'
 
 const item = (p: Partial<MoneyItem>): MoneyItem => ({ id: 'i1', direction: 'debit', kind: 'loan', name: 'Loan from Jeremy', party: 'Jeremy', amount: 1000,
-  instalment: null, every_months: null, next_due: null, possible: false, done: false, notes: null, payments: [], ...p })
+  instalment: null, every_months: null, next_due: null, possible: false, done: false, notes: null, link: null, payments: [], ...p })
 const pay = (amount: number, paid_on = '2026-10-01') => ({ id: crypto.randomUUID(), item_id: 'i1', paid_on, amount, note: null })
 const grant = (p: Partial<GrantApplication>): GrantApplication => ({ id: 'g1', grant_id: 'talento-joven', grant_name: 'Hiring grant: Talento Joven',
   stage: 'gathering', submitted_on: null, expediente: null, amount_requested: 5000, amount_awarded: null, amount_received: null, deadline: null,
   deadline_label: null, notes: null, docs_done: [], obligations_done: [], created_at: '', updated_at: '', ...p })
 
 describe('credit and debit', () => {
+  it('a link is a web address, shown by its site', () => {
+    const listing = 'https://donedealespana.vercel.app/#/item/207afb06-86e1-406a-9db3-9b60ac5ccd36'
+    expect(isMoneyLink(listing)).toBe(true)
+    expect(isMoneyLink('http://www.example.com/agreement.pdf')).toBe(true)
+    expect(isMoneyLink('donedealespana.vercel.app')).toBe(false)
+    expect(isMoneyLink('javascript:alert(1)')).toBe(false)
+    expect(isMoneyLink('https://example.com/a b')).toBe(false)
+    expect(isMoneyLink(`https://example.com/${'x'.repeat(500)}`)).toBe(false)
+    expect(linkSite(listing)).toBe('donedealespana.vercel.app')
+    expect(linkSite('http://www.example.com/agreement.pdf')).toBe('example.com')
+  })
+
   it('a payment for this period moves the date on a period; an old one typed in later leaves it; the last one closes it', () => {
     const loan = { amount: 1000, every_months: 1, next_due: '2026-11-01', done: false, possible: false }
     expect(afterPayment(loan, 100, '2026-10-28')).toEqual({ next_due: '2026-12-01', done: false, possible: false })

@@ -3814,14 +3814,26 @@ test.describe('credit and debit', () => {
 
   test('something to sell: added as money that could be raised, sold for less and settled', async ({ page }) => {
     await open(page, '/credit-debit')
+    // The old coffee machine links to its listing, opened in a new tab.
+    const machine = page.getByRole('region', { name: 'Coming in' }).getByRole('row').filter({ hasText: 'Old coffee machine' })
+    const listing = machine.getByRole('link', { name: 'Open the page for Old coffee machine (donedealespana.vercel.app)' })
+    await expect(listing).toHaveAttribute('href', 'https://donedealespana.vercel.app/#/item/207afb06-86e1-406a-9db3-9b60ac5ccd36')
+    await expect(listing).toHaveAttribute('target', '_blank')
+
     await page.getByRole('button', { name: 'Add money coming in' }).click()
     const add = page.getByRole('dialog', { name: 'Add money coming in' })
     await add.getByLabel('Name').fill('Bar stools')
     await add.getByLabel('Amount').fill('300')
     await expect(add.getByRole('switch', { name: 'Not agreed yet: money that could be raised' })).toBeChecked()
+    // A link has to be a web address.
+    await add.getByLabel('Link').fill('wallapop bar stools')
+    await add.getByRole('button', { name: 'Save' }).click()
+    await toast(page, 'The link must be a web address, starting with https://')
+    await add.getByLabel('Link').fill('https://es.wallapop.com/item/bar-stools-123')
     await add.getByRole('button', { name: 'Save' }).click()
     await toast(page, /^Saved$/)
     const stools = page.getByRole('region', { name: 'Coming in' }).getByRole('row').filter({ hasText: 'Bar stools' })
+    await expect(stools.getByRole('link', { name: 'Open the page for Bar stools (es.wallapop.com)' })).toHaveAttribute('href', 'https://es.wallapop.com/item/bar-stools-123')
     await expect(stools).toContainText('Something to sell')
     await expect(stools).toContainText('Could raise')
     await expect(page.getByRole('list', { name: 'At a glance' }).getByRole('listitem').filter({ hasText: 'Could raise' })).toContainText('€6.500,00')

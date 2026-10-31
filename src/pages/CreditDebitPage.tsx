@@ -1,5 +1,5 @@
 import {
-  Alert, Box, Button, Card, CardContent, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, LinearProgress, MenuItem, Stack,
+  Alert, Box, Button, Card, CardContent, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, LinearProgress, Link, MenuItem, Stack,
   Switch, Table, TableBody, TableCell, TableHead, TableRow, TextField, ToggleButton, ToggleButtonGroup, Typography,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
@@ -7,6 +7,7 @@ import EditIcon from '@mui/icons-material/EditOutlined'
 import DeleteIcon from '@mui/icons-material/DeleteOutlined'
 import PayIcon from '@mui/icons-material/PaymentsOutlined'
 import GrantIcon from '@mui/icons-material/VolunteerActivismOutlined'
+import LinkIcon from '@mui/icons-material/OpenInNewRounded'
 import { useState, type ReactNode } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
@@ -18,7 +19,7 @@ import type { ExportTable } from '../lib/export'
 import { formatLocal, formatMoney, today } from '../../shared/time'
 import { daysUntil } from '../../shared/licences'
 import {
-  KINDS, STATUS_LABEL, everyLabel, moneyLines, statusOf, suggestedPayment, totals,
+  KINDS, STATUS_LABEL, everyLabel, isMoneyLink, linkSite, moneyLines, statusOf, suggestedPayment, totals,
   type MoneyDirection, type MoneyItem, type MoneyItemInput, type MoneyLine, type MoneyStatus,
 } from '../../shared/creditDebit'
 import { stageLabel } from '../../shared/grants'
@@ -166,6 +167,14 @@ function Line({ l, now, canEdit, onEdit, onPay }: { l: MoneyLine; now: string; c
         <Typography variant="caption" sx={{ color: 'text.secondary' }}>
           {[kindLabel(l), l.party, l.grant && t(stageLabel(l.grant.stage))].filter(Boolean).join(' · ')}
         </Typography>
+        {/* Its page (the listing of something for sale, the agreement), in a new tab. */}
+        {l.item?.link && (
+          <Link href={l.item.link} target="_blank" rel="noopener noreferrer" variant="caption" underline="hover"
+            aria-label={t('Open the page for {name} ({site})', { name, site: linkSite(l.item.link) })}
+            sx={{ display: 'flex', alignItems: 'center', gap: 0.5, width: 'fit-content', fontWeight: 500 }}>
+            {linkSite(l.item.link)}<LinkIcon sx={{ fontSize: 14 }} />
+          </Link>
+        )}
       </TableCell>
       <TableCell sx={{ whiteSpace: 'nowrap' }}>
         {l.next_due && day(l.next_due)}
@@ -274,8 +283,10 @@ function ItemDialog({ item, onClose }: { item: MoneyItemInput; onClose: () => vo
       if (!m.name?.trim()) throw new Error(t('Give it a name'))
       if (!(Number(m.amount) > 0)) throw new Error(t('The amount must be more than 0'))
       if (m.instalment != null && !(m.instalment > 0)) throw new Error(t('Each payment must be more than 0'))
+      const link = m.link?.trim() || null
+      if (link && !isMoneyLink(link)) throw new Error(t('The link must be a web address, starting with https://'))
       const { payments: _payments, ...row } = m as MoneyItemInput & { payments?: unknown }
-      await api.saveCreditDebit({ ...row, name: m.name.trim(), every_months: m.instalment ? m.every_months ?? null : null })
+      await api.saveCreditDebit({ ...row, name: m.name.trim(), link, every_months: m.instalment ? m.every_months ?? null : null })
     }, t('Saved'))
     if (ok) onClose()
   }
@@ -322,6 +333,8 @@ function ItemDialog({ item, onClose }: { item: MoneyItemInput; onClose: () => vo
               label={debit ? t('Settled: paid off, or let off the rest') : t('Settled: received, or sold for less')} />
           )}
           <TextField label={t('Notes')} value={m.notes ?? ''} multiline minRows={2} onChange={e => set({ notes: e.target.value })} slotProps={{ htmlInput: { maxLength: 2000 } }} />
+          <TextField label={t('Link')} type="url" value={m.link ?? ''} onChange={e => set({ link: e.target.value })} placeholder={'https://'}
+            helperText={debit ? t('A web page about it, like the agreement') : t('A web page about it, like where it’s for sale')} slotProps={{ htmlInput: { maxLength: 500 } }} />
           {payments.length > 0 && (
             <Box role="group" aria-label={debit ? t('Payments') : t('Money received')}>
               <Typography variant="subtitle2">{debit ? t('Payments') : t('Money received')}</Typography>
