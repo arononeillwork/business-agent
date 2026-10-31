@@ -6944,7 +6944,7 @@ test('people come first in the Business section; a barista adds her pet from her
 
   await menu.getByRole('link', { name: 'People' }).click()
   await page.getByRole('button', { name: 'Show pets' }).click()
-  await expect(page.getByRole('list', { name: 'Mark Murray’s pets' }).getByRole('listitem')).toHaveText([/Pablo/, /Yoda/])
+  await expect(page.getByRole('list', { name: 'Mark Murray’s pets' }).getByRole('listitem')).toHaveText([/Pablo/, /Yoda/, /Cooper/])
   // Her own card says how to add her pet, and opens My account, where its photo goes.
   const own = page.getByRole('article', { name: 'Maria (you)' })
   await expect(own).toContainText('Add your pet')
