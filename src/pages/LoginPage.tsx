@@ -21,6 +21,7 @@ import { useApp } from '../app/AppContext'
 import { cleanCode } from '../../shared/referrals'
 import { keepReferral } from '../app/referral'
 import { AuthCard } from './marketing/AuthCard'
+import { DemoVideo } from './marketing/DemoVideo'
 import { PricingCards, TRIAL_MONTHS } from './marketing/plans'
 import { BA, MarketingFrame, SectionIntro, display, glow, outlineBtn, primaryBtn, roseBtn } from './marketing/site'
 import { msg, t, tr } from '../i18n'
@@ -137,6 +138,9 @@ export function LoginPage() {
             </Box>
           </Container>
         </Box>
+
+        {/* The demo video */}
+        <DemoVideo />
 
         {/* Product preview */}
         <Container maxWidth="lg" sx={{ pb: { xs: 8, md: 12 } }}>

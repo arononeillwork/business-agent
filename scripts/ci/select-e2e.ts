@@ -18,7 +18,7 @@ const EVERYTHING = [
 ]
 
 /** Nothing the demo browser tests run (the Worker, database, docs, ops): the core tests are enough. */
-const NO_UI = [/^worker\//, /^supabase\//, /^docs\//, /^scripts\/(ops|test-db)/, /^README\.md$/, /^ops\//, /^\.github\//, /^wrangler\.jsonc$/,
+const NO_UI = [/^worker\//, /^supabase\//, /^docs\//, /^video\//, /^\.claude\//, /^scripts\/(ops|test-db)/, /^README\.md$/, /^ops\//, /^\.github\//, /^wrangler\.jsonc$/,
   /\.test\.ts$/, /^shared\/(rules|reach|registro|taxId|ics|crests|alertText|connections|legal)\.ts$/]
 
 /** Areas of the app: the files that make them, and the test titles that cover them. */
