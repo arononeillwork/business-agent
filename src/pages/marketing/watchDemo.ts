@@ -1,6 +1,6 @@
-// "View a demo" (the hero) and Demo (the site menu): down to the demo video on the landing page,
-// playing it from the start with its music. Its own file so the menu (site.tsx) can use it without
-// importing the video sections, which import site.tsx themselves.
+// "View a demo" (the hero): down to the demo video on the landing page, playing it from the start with
+// its music; and the same for the Demos page's cards. Its own file so the video sections can take
+// lessMotion from it without an import loop through site.tsx.
 import type { MouseEvent } from 'react'
 
 /** Whether the visitor has asked for less motion: no smooth scrolling, and videos don't start by themselves. */
