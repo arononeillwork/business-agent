@@ -1,10 +1,11 @@
 import { Link as RouterLink } from 'react-router-dom'
 import { Box, Button, Container, Link, Stack, Typography } from '@mui/material'
-import type { ReactNode } from 'react'
+import type { MouseEvent, ReactNode } from 'react'
 import iconUrl from '../../assets/icon.png'
 import { ENTERPRISE } from '../../../shared/plans'
 import { t } from '../../i18n'
 import { LanguageToggle } from '../../components/Language'
+import { FEATURES } from '../../app/features'
 
 // Business Agent: the product. Signed-out visitors see its own look (not any one business's
 // brand); once someone signs in, they see their business's branded app. The palette is natural
@@ -100,6 +101,19 @@ export const fullScreen = {
   display: { md: 'flex' }, flexDirection: 'column', justifyContent: 'center',
 } as const
 
+export const lessMotion = () => !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+
+/** "View a demo" and the navbar's Demo link: scroll down to the demo video (DemoVideo.tsx) and play it from the start, with its music (the click allows the sound; muted if the browser still says no). */
+export function watchDemo(e?: MouseEvent) {
+  e?.preventDefault()
+  document.getElementById('demo')?.scrollIntoView({ behavior: lessMotion() ? 'auto' : 'smooth', block: 'start' })
+  const v = document.querySelector<HTMLVideoElement>('#demo video')
+  if (!v) return
+  v.currentTime = 0
+  v.muted = false
+  void v.play().catch(() => { v.muted = true; void v.play().catch(() => { /* the bar's play button is there */ }) })
+}
+
 const navLink = { color: BA.soft, fontWeight: 500, fontSize: '0.93rem', textDecoration: 'none', '&:hover': { color: BA.ink } }
 
 function SiteHeader() {
@@ -113,6 +127,11 @@ function SiteHeader() {
           <Wordmark size="1.55rem" />
         </Stack>
         <Stack component="nav" aria-label={t('Site')} direction="row" spacing={3.5} sx={{ display: { xs: 'none', md: 'flex' }, flex: 1, justifyContent: 'center' }}>
+          {/* To the demo video, playing from the start with its sound (on the landing page; from another page, the link takes you there). */}
+          {FEATURES.demoVideo && (
+            <Link component={RouterLink} to="/#demo" sx={navLink}
+              onClick={e => { if (location.pathname === '/' && document.getElementById('demo')) watchDemo(e) }}>{t('Demo')}</Link>
+          )}
           <Link component={RouterLink} to="/#features" sx={navLink}>{t('Features')}</Link>
           <Link component={RouterLink} to="/pricing" sx={navLink}>{t('Pricing')}</Link>
           <Link component={RouterLink} to="/pricing#enterprise" sx={navLink}>{ENTERPRISE.name}</Link>

@@ -6732,7 +6732,7 @@ test.describe('UI round: dashboards, the business advisor and the landing pages'
     await expect(page.getByRole('heading', { name: /Know your numbers/ })).toBeVisible()
     await expect(page.getByText('Easy Beans')).toHaveCount(0)
     // The site menu has no Everything or Compare, and /compare is gone: it's the landing page.
-    await expect(page.getByRole('navigation', { name: 'Site' }).getByRole('link')).toHaveText(['Features', 'Pricing', 'Enterprise', 'FAQ'])
+    await expect(page.getByRole('navigation', { name: 'Site' }).getByRole('link')).toHaveText([...(FEATURES.demoVideo ? ['Demo'] : []), 'Features', 'Pricing', 'Enterprise', 'FAQ'])
     await expect(page.getByText(/GoHighLevel/)).toHaveCount(0)
     await page.goto('/compare?demo')
     await expect(page.getByRole('heading', { level: 1, name: /runs your business/ })).toBeVisible()
@@ -7948,12 +7948,67 @@ test('landing page: the demo video with its poster and controls, once it is swit
   await expect(page.getByRole('region', { name: 'Change it in one place. It’s changed everywhere.' })).toBeVisible()
   await expect(video).toHaveAttribute('poster', '/video/business-agent-demo.jpg')
   await expect(video).toHaveAttribute('src', '/video/business-agent-demo.mp4')
-  await expect(video).toHaveAttribute('controls', '')
   expect((await page.request.get('/video/business-agent-demo.mp4')).ok()).toBe(true)
   // "View a demo" in the hero brings the whole video up under the header and plays it, with its music.
   await page.getByRole('link', { name: 'View a demo' }).click()
   await expect(video).toBeInViewport({ ratio: 1 })
   await expect.poll(() => video.evaluate((v: HTMLVideoElement) => !v.paused && !v.muted)).toBe(true)
+
+  // Its own bar along the bottom: the slider goes to any moment in it, and the sound and play buttons work.
+  const demo = page.locator('#demo')
+  const slider = demo.getByRole('slider', { name: 'Position in the video' })
+  await expect(slider).toHaveAttribute('aria-valuetext', /^0:0\d of 1:48$/)
+  const track = (await demo.locator('.MuiSlider-root').boundingBox())!
+  await page.mouse.click(track.x + track.width / 2, track.y + track.height / 2)
+  await expect.poll(() => video.evaluate((v: HTMLVideoElement) => Math.round(v.currentTime))).toBeGreaterThanOrEqual(53)
+  await expect(slider).toHaveAttribute('aria-valuetext', /^0:5\d of 1:48$/)
+  await slider.press('Home')
+  await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.currentTime)).toBeLessThan(2)
+  await demo.getByRole('button', { name: 'Sound off' }).click()
+  await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.muted)).toBe(true)
+  // Muted by the visitor: a click elsewhere on the page leaves it muted.
+  await page.getByRole('heading', { name: 'Change it in one place. It’s changed everywhere.' }).click()
+  await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.muted)).toBe(true)
+  await demo.getByRole('button', { name: 'Sound on' }).click()
+  await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.muted)).toBe(false)
+  await demo.getByRole('button', { name: 'Pause' }).click()
+  await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.paused)).toBe(true)
+
+  // The navbar's Demo link, from further down the page: back to the video, from the start, with its music.
+  await page.locator('#faq').scrollIntoViewIfNeeded()
+  await page.getByRole('navigation', { name: 'Site' }).getByRole('link', { name: 'Demo' }).click()
+  await expect(video).toBeInViewport({ ratio: 1 })
+  await expect.poll(() => video.evaluate((v: HTMLVideoElement) => !v.paused && !v.muted)).toBe(true)
+})
+
+test('landing page: a video plays muted with "Tap for sound" until the visitor first clicks, then with its sound', async ({ page }) => {
+  test.skip(!FEATURES.demoVideo, 'The demo video is switched off')
+  // As browsers do: no sound until the visitor has clicked, tapped or pressed a key on the page.
+  await page.addInitScript(() => {
+    let clicked = false
+    for (const ev of ['pointerdown', 'pointerup', 'keydown']) addEventListener(ev, () => { clicked = true }, true)
+    const play = HTMLMediaElement.prototype.play
+    HTMLMediaElement.prototype.play = function (this: HTMLMediaElement) {
+      if (!this.muted && !clicked) return Promise.reject(new DOMException('No sound before a click', 'NotAllowedError'))
+      return play.call(this)
+    }
+  })
+  await page.goto('/?demo')
+  const video = page.getByLabel('Business Agent demo video')
+  await page.locator('#demo').scrollIntoViewIfNeeded()
+  await expect.poll(() => video.evaluate((v: HTMLVideoElement) => !v.paused && v.muted)).toBe(true)
+  await expect(page.getByRole('button', { name: 'Tap for sound' })).toBeVisible()
+  // The first click anywhere: the video on screen gets its sound.
+  await page.getByRole('heading', { name: 'Change it in one place. It’s changed everywhere.' }).click()
+  await expect.poll(() => video.evaluate((v: HTMLVideoElement) => !v.paused && !v.muted)).toBe(true)
+  await expect(page.getByRole('button', { name: 'Tap for sound' })).toHaveCount(0)
+  // Only the one on screen plays: the day in the life starts, the demo stops.
+  if (FEATURES.dayVideo) {
+    await page.locator('#day').scrollIntoViewIfNeeded()
+    const day = page.getByLabel('A day in the life of a café owner, video')
+    await expect.poll(() => day.evaluate((v: HTMLVideoElement) => !v.paused && !v.muted)).toBe(true)
+    await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.paused)).toBe(true)
+  }
 })
 
 test('owner pay: an owner turns it off on Staff wages; the owners’ hours stop being wages, and breakeven still counts them', async ({ page }) => {
@@ -8016,7 +8071,14 @@ test('landing page: the day-in-the-life video, once it is switched on', async ({
     return
   }
   await expect(page.getByRole('region', { name: 'The same day, without the chaos.' })).toBeVisible()
+  // Straight after the demo video (a white band), on the page's own colour, then Features (a white band again).
+  if (FEATURES.demoVideo) await expect(page.locator('#demo + #day')).toHaveCount(1)
+  await expect(page.locator('#day + #features')).toHaveCount(1)
+  const band = async (id: string) => page.locator(id).evaluate(e => getComputedStyle(e).backgroundColor)
+  if (FEATURES.demoVideo) expect(await band('#demo')).toBe('rgb(255, 255, 255)')
+  expect(await band('#day')).not.toBe('rgb(255, 255, 255)')
+  expect(await band('#features')).toBe('rgb(255, 255, 255)')
   await expect(video).toHaveAttribute('poster', '/video/day-in-the-life.jpg')
   await expect(video).toHaveAttribute('src', '/video/day-in-the-life.mp4')
-  await expect(video).toHaveAttribute('controls', '')
+  await expect(page.locator('#day').getByRole('slider', { name: 'Position in the video' })).toHaveAttribute('aria-valuetext', /of 1:5[12]$/)
 })
