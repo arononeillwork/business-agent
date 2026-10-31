@@ -268,7 +268,7 @@ export default {
   '{name} isn’t a rep': '{name} no es comercial',
   'My page': 'Mi página',
   'Say yes or no below': 'Di sí o no aquí abajo',
-  'The owner or a manager says yes': 'Da el visto bueno el dueño o un encargado',
+  'An owner says yes': 'Da el visto bueno un dueño',
   '{name}: new rep': '{name}: comercial nuevo',
   'Wants to be a rep': 'Quiere ser comercial',
   'Reaches {n} people': 'Llega a {n} personas',
@@ -325,8 +325,8 @@ export default {
   'Instagram: {n} followers': 'Instagram: {n} seguidores',
   'That isn’t a {network} handle': 'Eso no es un usuario de {network}',
   '{name} is waiting for an OK': '{name} espera el visto bueno',
-  'Thanks for bringing someone in. The owner or a manager says yes before they start earning; rewards you log for them wait until then.':
-    'Gracias por traer a alguien. El dueño o un encargado da el visto bueno antes de que empiece a ganar; las recompensas que le apuntes esperan hasta entonces.',
+  'Thanks for bringing someone in. An owner says yes before they start earning; rewards you log for them wait until then.':
+    'Gracias por traer a alguien. Un dueño da el visto bueno antes de que empiece a ganar; las recompensas que le apuntes esperan hasta entonces.',
   'you': 'tú',
   'Their reach': 'Su alcance',
   'Their accounts and roughly how many follow each. Rewards that grow with reach are worth more for people who reach more.':

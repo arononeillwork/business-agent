@@ -5362,7 +5362,7 @@ test.describe('sales reps and rewards', () => {
     // Anyone on the team brings someone in; the owner or a manager says yes first.
     await page.getByRole('button', { name: 'Add someone' }).click()
     const add = page.getByRole('dialog', { name: 'Add someone' })
-    await expect(add).toContainText('The owner or a manager says yes before they start earning')
+    await expect(add).toContainText('An owner says yes before they start earning')
     await add.getByRole('radio', { name: /^Ambassador/ }).click()
     await add.getByRole('textbox', { name: 'Name' }).fill('Coach Rafa')
     await add.getByRole('textbox', { name: 'Instagram' }).fill('@Rafa.Boxing')

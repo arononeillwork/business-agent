@@ -79,6 +79,8 @@ const HOW_KEY = 'eb-reps-how-hidden'
  */
 export function SalesRepsPage() {
   const { api, me, isAdmin, profiles } = useApp()
+  // Only an owner (an admin who sees pay) says yes to a new rep; any admin approves rewards.
+  const isOwner = isAdmin && !!me?.can_see_pay
   const reps = useAsync('sales-reps', () => api.salesReps(), [])
   const rules = useAsync('reward-rules', () => api.rewardRules(), [])
   const rewards = useAsync('rep-rewards', () => api.repRewards(), [])
@@ -171,7 +173,7 @@ export function SalesRepsPage() {
             : <StatTile label={t('Rewards this month')} value={rewards.data ? formatMoney(thisMonth.reduce((a, r) => a + r.amount, 0)) : '–'}
                 note={tn(thisMonth.length, '{n} reward', '{n} rewards')} />}
         <StatTile label={t('Waiting for approval')} value={rewards.data && reps.data ? pending.length + waitingPeople.length : '–'}
-          note={pending.length + waitingPeople.length ? (isAdmin ? t('Say yes or no below') : t('The owner or a manager says yes')) : t('Nothing waiting')} />
+          note={pending.length + waitingPeople.length ? (isAdmin ? t('Say yes or no below') : t('An admin approves them')) : t('Nothing waiting')} />
       </StatGrid>
 
       {isAdmin && (pending.length > 0 || waitingPeople.length > 0) && (
@@ -200,12 +202,14 @@ export function SalesRepsPage() {
                         </Typography>
                       </Box>
                     </Stack>
-                    <Stack direction="row" spacing={1}>
+                    <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                       <IconButton size="small" aria-label={t('Edit {name}', { name: r.name })} onClick={() => setEditing(r)}><EditIcon fontSize="small" /></IconButton>
-                      <Button size="small" onClick={() => void decidePerson(r, false)}>{t('Say no')}</Button>
-                      <Tooltip title={r.profile_id === me?.id ? t('Someone else says yes to you') : ''}>
-                        <span><Button size="small" variant="contained" disabled={r.profile_id === me?.id} onClick={() => void decidePerson(r, true)}>{t('Say yes')}</Button></span>
-                      </Tooltip>
+                      {isOwner ? <>
+                        <Button size="small" onClick={() => void decidePerson(r, false)}>{t('Say no')}</Button>
+                        <Tooltip title={r.profile_id === me?.id ? t('Someone else says yes to you') : ''}>
+                          <span><Button size="small" variant="contained" disabled={r.profile_id === me?.id} onClick={() => void decidePerson(r, true)}>{t('Say yes')}</Button></span>
+                        </Tooltip>
+                      </> : <Typography variant="caption" sx={{ color: 'text.secondary' }}>{t('An owner says yes')}</Typography>}
                     </Stack>
                   </Stack>
                 )
@@ -684,6 +688,7 @@ const asText = (n: number | null | undefined) => (n === null || n === undefined 
  */
 function RepDialog({ rep, reps, crewShare, onClose }: { rep: SalesRepInput; reps: SalesRep[]; crewShare: number; onClose: () => void }) {
   const { api, isAdmin, profiles, me } = useApp()
+  const isOwner = isAdmin && !!me?.can_see_pay
   const run = useAction()
   const notify = useNotify()
   const [r, setR] = useState<SalesRepInput>(rep)
@@ -729,7 +734,7 @@ function RepDialog({ rep, reps, crewShare, onClose }: { rep: SalesRepInput; reps
       if (kind === 'team' && !r.profile_id) throw new Error(t('Choose who on the team it is'))
       await api.saveSalesRep({ ...r, kind, profile_id: kind === 'team' ? r.profile_id : null, instagram: cleanInstagram(r.instagram), tiktok: cleanInstagram(r.tiktok),
         youtube: cleanYoutube(r.youtube), facebook: r.facebook?.trim() || null, ...parsed, code: cleanRepCode(r.code) ?? undefined, leader_id: r.leader_id || null })
-    }, editing ? t('Saved') : isAdmin ? t('{name} is a rep', { name: r.name.trim() }) : t('{name} is waiting for an OK', { name: r.name.trim() }))
+    }, editing ? t('Saved') : isOwner ? t('{name} is a rep', { name: r.name.trim() }) : t('{name} is waiting for an OK', { name: r.name.trim() }))
     if (ok) onClose()
   }
   const remove = async () => { if (r.id && await run(() => api.deleteSalesRep(r.id!), t('Rep removed'))) onClose() }
@@ -743,8 +748,8 @@ function RepDialog({ rep, reps, crewShare, onClose }: { rep: SalesRepInput; reps
       <DialogTitle id="rep-title">{editing ? rep.name : t('Add someone')}</DialogTitle>
       <DialogContent>
         <Stack spacing={2.25} sx={{ pt: 1 }}>
-          {!isAdmin && !editing && (
-            <Alert severity="info" icon={<HeartIcon />}>{t('Thanks for bringing someone in. The owner or a manager says yes before they start earning; rewards you log for them wait until then.')}</Alert>
+          {!isOwner && !editing && (
+            <Alert severity="info" icon={<HeartIcon />}>{t('Thanks for bringing someone in. An owner says yes before they start earning; rewards you log for them wait until then.')}</Alert>
           )}
           {(isAdmin || !editing) && (
             <Box role="radiogroup" aria-label={t('Who they are')} sx={{ display: 'grid', gap: 1, gridTemplateColumns: { xs: '1fr', sm: `repeat(${kinds.length}, minmax(0, 1fr))` } }}>
@@ -843,7 +848,7 @@ function RepDialog({ rep, reps, crewShare, onClose }: { rep: SalesRepInput; reps
       <DialogActions>
         {isAdmin && editing && <Button color="error" onClick={() => void remove()} sx={{ mr: 'auto' }}>{t('Remove')}</Button>}
         <Button onClick={onClose}>{t('Cancel')}</Button>
-        <Button variant="contained" onClick={() => void save()}>{editing || isAdmin ? t('Save') : t('Send for an OK')}</Button>
+        <Button variant="contained" onClick={() => void save()}>{editing || isOwner ? t('Save') : t('Send for an OK')}</Button>
       </DialogActions>
     </Dialog>
   )

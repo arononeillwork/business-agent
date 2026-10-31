@@ -3665,11 +3665,11 @@ export function createDemoApi(): Api {
       if (!isStaff() || (!isAdmin() && r.profile_id && r.profile_id !== currentUser)) {
         throw new Error('new row violates row-level security policy for table "sales_reps"')
       }
-      const rep = tidyRep(salesRep({ kind: 'customer', code: '', ...r, name: input.name, id: uid(), created_at: nowIso(), created_by: currentUser, approved: isAdmin() ? r.approved ?? true : false }))
+      const rep = tidyRep(salesRep({ kind: 'customer', code: '', ...r, name: input.name, id: uid(), created_at: nowIso(), created_by: currentUser, approved: paysAdmin() ? r.approved ?? true : false }))
       repList.push(rep)
       if (!rep.approved) {
         const leader = repList.find(x => x.id === rep.leader_id)
-        for (const a of profiles.filter(p => p.role === 'admin' && p.active && p.id !== currentUser)) {
+        for (const a of profiles.filter(p => p.role === 'admin' && p.can_see_pay && p.active && p.id !== currentUser)) {
           notes.push({ id: notes.length + 1, profile_id: a.id, title: `${me()?.full_name ?? 'Someone'} added ${rep.name} as a rep: waiting for your OK`,
             body: [leader ? `In ${leader.name}’s crew` : null, rep.reach > 0 ? `Reaches ${rep.reach.toLocaleString('en')} people` : null, rep.notes].filter(Boolean).join(' · ') || null,
             link: '/sales-reps', created_at: nowIso(), read_at: null })
@@ -3717,7 +3717,7 @@ export function createDemoApi(): Api {
       return addReward(rep, rule, { sale_amount, note, proof_url, mention_id, occurred_on }, status, currentUser)
     },
     async decideRep(id, approve) {
-      if (!isAdmin()) throw new Error('Only an admin can say yes to a rep')
+      if (!paysAdmin()) throw new Error('Only an owner can say yes to a rep')
       const rep = repList.find(x => x.id === id)
       if (!rep) throw new Error('Rep not found')
       if (rep.approved) throw new Error(`${rep.name} is already a rep`)
@@ -3784,7 +3784,7 @@ export function createDemoApi(): Api {
       if (rep.instagram && repList.some(x => x.instagram === rep.instagram)) throw new Error('Someone with that Instagram is in already.')
       rep.code = codeFor(rep.name, new Set(repList.map(x => x.code)))
       repList.push(rep)
-      for (const a of profiles.filter(x => x.role === 'admin' && x.active)) {
+      for (const a of profiles.filter(x => x.role === 'admin' && x.can_see_pay && x.active)) {
         notes.push({ id: notes.length + 1, profile_id: a.id, title: `${leader.name} added ${rep.name} to their crew: waiting for your OK`,
           body: rep.reach > 0 ? `Reaches ${rep.reach.toLocaleString('en')} people` : null, link: '/sales-reps', created_at: nowIso(), read_at: null })
       }

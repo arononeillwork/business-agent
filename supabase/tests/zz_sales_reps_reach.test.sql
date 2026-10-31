@@ -34,6 +34,10 @@ create function pg_temp.rep(p_name text) returns uuid language sql as $$ select 
 create function pg_temp.rule(p_name text) returns uuid language sql as $$ select id from public.reward_rules where name = p_name $$;
 create function pg_temp.link(p_name text) returns text language sql as $$ select token from public.rep_links where rep_id = pg_temp.rep(p_name) $$;
 
+-- Maria is an owner here (she sees pay): only an owner says yes to a new rep.
+create temp table maria_pay_reach as select can_see_pay from public.profiles where email = 'maria@test';
+update public.profiles set can_see_pay = true where email = 'maria@test';
+
 -- 1. Reach, and what it does to a reward --------------------------------------------------------------
 do $$ begin
   assert public.reach_multiplier(0) = 1 and public.reach_multiplier(999) = 1 and public.reach_multiplier(1000) = 2
@@ -180,4 +184,42 @@ select public.decide_rep(pg_temp.rep('Ana Ruiz'), false);
 do $$ begin assert not exists (select 1 from public.sales_reps where name = 'Ana Ruiz'), 'no: taken off'; end $$;
 -- A new link: the old one stops working.
 update public.rep_links set token = replace(gen_random_uuid()::text, '-', '') where rep_id = pg_temp.rep('Carlos');
+
+-- 4. Only an owner says yes (the rep_owner_ok migration) ----------------------------------------------
+-- A shop manager (an admin who doesn't see pay) adds someone: they wait for an owner, like an employee's.
 reset role;
+select set_config('request.jwt.claim.sub', '', false);
+update public.profiles set can_see_pay = false where email = 'maria@test';
+select pg_temp.act_as('maria@test');
+insert into public.sales_reps (name, kind, instagram, instagram_followers) values ('Coach Rafa', 'ambassador', 'rafa.boxing', 14500);
+do $$ begin
+  assert (select not approved from public.sales_reps where name = 'Coach Rafa'), 'a shop manager''s rep waits for an owner';
+end $$;
+select pg_temp.expect_error($q$select public.decide_rep(pg_temp.rep('Coach Rafa'), true)$q$, 'Only an owner');
+-- Rewards that wait are still any admin's to approve.
+update public.reward_rules set needs_approval = true where name = 'Posted about us';
+select pg_temp.act_as('julio@test');
+select public.log_reward(pg_temp.rep('Lucía García'), pg_temp.rule('Posted about us'), p_note := 'Waits for a manager');
+select pg_temp.act_as('maria@test');
+select public.decide_reward((select id from public.rep_rewards where note = 'Waits for a manager'), true);
+do $$ begin
+  assert (select status from public.rep_rewards where note = 'Waits for a manager') = 'approved', 'a shop manager approves a reward';
+end $$;
+update public.reward_rules set needs_approval = false where name = 'Posted about us';
+-- Only the owners hear about people waiting: Maria, a shop manager now, isn't told about Julio's.
+select pg_temp.act_as('julio@test');
+insert into public.sales_reps (name) values ('Pepe Gym');
+reset role;
+do $$ begin
+  assert not exists (select 1 from public.notifications n join public.profiles p on p.id = n.profile_id
+                      where p.email = 'maria@test' and n.title = 'Julio added Pepe Gym as a rep: waiting for your OK'), 'a shop manager isn''t told';
+end $$;
+select set_config('request.jwt.claim.sub', '', false);
+update public.profiles set can_see_pay = true where email = 'maria@test';
+select pg_temp.act_as('maria@test');
+select public.decide_rep(pg_temp.rep('Coach Rafa'), true);
+do $$ begin assert (select approved from public.sales_reps where name = 'Coach Rafa'), 'an owner says yes'; end $$;
+
+reset role;
+select set_config('request.jwt.claim.sub', '', false);
+update public.profiles set can_see_pay = (select can_see_pay from maria_pay_reach) where email = 'maria@test';

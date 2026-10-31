@@ -1290,7 +1290,7 @@ export const ALL_TOOLS: ToolDef[] = [
   tool({
     name: 'decide_rep',
     title: 'Say yes or no to a new rep',
-    description: 'Admins: someone an employee added as a rep, or a crew\'s leader added to their crew from their own page, waits for an admin (people_waiting_for_ok in list_sales_reps). Yes: they\'re a rep, and what the team logged for them while they waited counts (unless the reward needs approval anyway). No: they\'re taken off.',
+    description: 'Owners only: someone an employee or a shop manager added as a rep, or a crew\'s leader added to their crew from their own page, waits for an owner (people_waiting_for_ok in list_sales_reps). Yes: they\'re a rep, and what the team logged for them while they waited counts (unless the reward needs approval anyway). No: they\'re taken off.',
     admin: true,
     input: z.object({ rep_id: z.string().uuid(), approve: z.boolean() }),
     async run({ sb }, a) {
