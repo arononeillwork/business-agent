@@ -196,7 +196,6 @@ export default {
   '{qty} {name} go back into stock. The stock history keeps a note of it.': '{qty} de {name} vuelven a las existencias. El historial de existencias lo deja anotado.',
   'Change waste': 'Cambiar la merma',
   'Logged {when}. The stock is put right by itself.': 'Registrado el {when}. Las existencias se corrigen solas.',
-  'Everything': 'Todo',
   'Gluten-free oats, water, oil': 'Avena sin gluten, agua, aceite',
   'Oats, water, rapeseed oil': 'Avena, agua, aceite de colza',
   'Almonds, water': 'Almendras, agua',

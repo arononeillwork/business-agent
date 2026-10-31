@@ -1836,22 +1836,6 @@ test('pricing: four plans, a simple feature table, Enterprise at the foot, and "
   await expect(page.getByRole('tab', { name: 'Create account' })).toHaveAttribute('aria-selected', 'true')
 })
 
-test('compare: Square against Pro and GoHighLevel against Business, line by line', async ({ page }) => {
-  await page.goto('/pricing?demo')
-  await page.getByRole('link', { name: /Compare with Square and GoHighLevel/ }).click()
-  const square = page.getByRole('table', { name: 'Square stack' })
-  await expect(square.getByRole('row')).toHaveCount(5) // heading, 3 lines, total
-  await expect(square.getByRole('row', { name: /Total with Square/ })).toContainText('€94')
-  await expect(page.getByLabel('Savings')).toContainText('Business Agent Pro€79/mo')
-  await expect(page.getByLabel('Savings')).toContainText('€15/mo')
-  await expect(page.getByLabel('Savings')).toContainText('€180 a year')
-  await page.getByRole('button', { name: 'vs GoHighLevel' }).click()
-  await expect(page.getByRole('table', { name: 'GoHighLevel stack' }).getByRole('row', { name: /Total with GoHighLevel/ })).toContainText('€169.69')
-  await expect(page.getByLabel('Savings')).toContainText('Business Agent Business€129/mo')
-  await expect(page.getByLabel('Savings')).toContainText('€40.69/mo')
-  await expect(page.getByLabel('Savings')).toContainText('€488.28 a year')
-})
-
 test.describe('team export', () => {
   test('team: admins export the list, sorted and filtered as shown', async ({ page }) => {
     await open(page, '/team')
@@ -6607,6 +6591,11 @@ test.describe('UI round: dashboards, the business advisor and the landing pages'
     }
     await expect(page.getByRole('heading', { name: /Know your numbers/ })).toBeVisible()
     await expect(page.getByText('Easy Beans')).toHaveCount(0)
+    // The site menu has no Everything or Compare, and /compare is gone: it's the landing page.
+    await expect(page.getByRole('navigation', { name: 'Site' }).getByRole('link')).toHaveText(['Features', 'Pricing', 'Enterprise', 'FAQ'])
+    await expect(page.getByText(/GoHighLevel/)).toHaveCount(0)
+    await page.goto('/compare?demo')
+    await expect(page.getByRole('heading', { level: 1, name: /runs your business/ })).toBeVisible()
   })
 })
 
@@ -7807,6 +7796,7 @@ test('landing page: the demo video with its poster and controls, once it is swit
   if (!FEATURES.demoVideo) {
     await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
     await expect(video).toHaveCount(0)
+    await expect(page.getByRole('link', { name: 'View a demo' })).toHaveCount(0)
     return
   }
   await expect(page.getByRole('region', { name: 'Change it in one place. It’s changed everywhere.' })).toBeVisible()
@@ -7814,6 +7804,10 @@ test('landing page: the demo video with its poster and controls, once it is swit
   await expect(video).toHaveAttribute('src', '/video/business-agent-demo.mp4')
   await expect(video).toHaveAttribute('controls', '')
   expect((await page.request.get('/video/business-agent-demo.mp4')).ok()).toBe(true)
+  // "View a demo" in the hero brings the whole video up under the header and plays it, with its music.
+  await page.getByRole('link', { name: 'View a demo' }).click()
+  await expect(video).toBeInViewport({ ratio: 1 })
+  await expect.poll(() => video.evaluate((v: HTMLVideoElement) => !v.paused && !v.muted)).toBe(true)
 })
 
 test('owner pay: an owner turns it off on Staff wages; the owners’ hours stop being wages, and breakeven still counts them', async ({ page }) => {

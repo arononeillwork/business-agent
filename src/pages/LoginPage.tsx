@@ -16,14 +16,16 @@ import StockIcon from '@mui/icons-material/Inventory2Outlined'
 import InsightsIcon from '@mui/icons-material/InsightsOutlined'
 import AdviceIcon from '@mui/icons-material/LightbulbOutlined'
 import WarnIcon from '@mui/icons-material/ErrorOutlineOutlined'
+import ArrowDownIcon from '@mui/icons-material/ArrowDownwardRounded'
 import { useEffect, useState, type ReactNode } from 'react'
 import { useApp } from '../app/AppContext'
 import { cleanCode } from '../../shared/referrals'
 import { keepReferral } from '../app/referral'
 import { AuthCard } from './marketing/AuthCard'
-import { DemoVideo } from './marketing/DemoVideo'
+import { DemoVideo, watchDemo } from './marketing/DemoVideo'
 import { PricingCards, TRIAL_MONTHS } from './marketing/plans'
-import { BA, MarketingFrame, SectionIntro, display, glow, outlineBtn, primaryBtn, roseBtn } from './marketing/site'
+import { BA, MarketingFrame, SectionIntro, display, fullScreen, glow, outlineBtn, primaryBtn, roseBtn } from './marketing/site'
+import { shows } from '../app/features'
 import { msg, t, tr } from '../i18n'
 
 export { AgentMark } from './marketing/site'
@@ -56,7 +58,7 @@ const AREAS: { icon: ReactNode; title: string; items: string[] }[] = [
     msg('Spotify for the music in the café')] },
 ]
 
-// Facts worth knowing before signing up.
+// Facts worth knowing before signing up (under How it works).
 const FACTS: { value: string; label: string }[] = [
   { value: msg('One price'), label: msg('for the whole team, not per person') },
   { value: msg('Spain-ready'), label: msg('registro de jornada, IVA, holidays and allergens') },
@@ -100,8 +102,8 @@ export function LoginPage() {
     <MarketingFrame>
       <Box component="main">
         {/* Hero */}
-        <Box sx={{ position: 'relative', backgroundImage: glow() }}>
-          <Container maxWidth="lg" sx={{ pt: { xs: 4, md: 9 }, pb: { xs: 7, md: 11 }, display: 'grid', gap: { xs: 5, md: 8 },
+        <Box sx={{ ...fullScreen, position: 'relative', backgroundImage: glow(undefined, undefined, false) }}>
+          <Container maxWidth="lg" sx={{ pt: { xs: 4, md: 5 }, pb: { xs: 7, md: 5 }, display: 'grid', gap: { xs: 5, md: 8 },
             gridTemplateColumns: { xs: '1fr', md: '1.15fr 0.85fr' }, alignItems: 'center' }}>
             <Box>
               <Stack direction="row" spacing={1} sx={{ alignItems: 'center', display: 'inline-flex', px: 1.5, py: 0.6, borderRadius: 99,
@@ -120,9 +122,15 @@ export function LoginPage() {
                 <Button component={RouterLink} to="/#start" size="large" variant="contained" sx={{ ...primaryBtn, px: 3.5, py: 1.45 }}>
                   {t('Start your free trial')}
                 </Button>
-                <Button component={RouterLink} to="/pricing" size="large" variant="outlined" sx={{ ...outlineBtn, px: 3.5, py: 1.45 }}>
-                  {t('See pricing')}
-                </Button>
+                {shows({ onlyWith: 'demoVideo' }) ? (
+                  <Button href="#demo" onClick={watchDemo} size="large" variant="outlined" endIcon={<ArrowDownIcon />} sx={{ ...outlineBtn, px: 3.5, py: 1.45 }}>
+                    {t('View a demo')}
+                  </Button>
+                ) : (
+                  <Button component={RouterLink} to="/pricing" size="large" variant="outlined" sx={{ ...outlineBtn, px: 3.5, py: 1.45 }}>
+                    {t('See pricing')}
+                  </Button>
+                )}
               </Stack>
               <Stack direction="row" spacing={{ xs: 2, sm: 3 }} sx={{ mt: 3.5, color: BA.soft, fontSize: '0.9rem', flexWrap: 'wrap', rowGap: 1 }}>
                 {[t('Free plan, no card'), t('Set up in 10 minutes'), t('Cancel any time')].map(x => (
@@ -142,17 +150,12 @@ export function LoginPage() {
         {/* The demo video */}
         <DemoVideo />
 
-        {/* Product preview */}
-        <Container maxWidth="lg" sx={{ pb: { xs: 8, md: 12 } }}>
-          <ProductPreview />
-        </Container>
-
         {/* Features */}
-        <Box id="features" sx={{ scrollMarginTop: 72, bgcolor: '#fff', borderTop: `1px solid ${BA.line}`, borderBottom: `1px solid ${BA.line}` }}>
-          <Container maxWidth="lg" sx={{ py: { xs: 9, md: 13 } }}>
+        <Box id="features" sx={{ ...fullScreen, bgcolor: '#fff', borderTop: `1px solid ${BA.line}`, borderBottom: `1px solid ${BA.line}` }}>
+          <Container maxWidth="lg" sx={{ py: { xs: 9, md: 4 } }}>
             <SectionIntro eyebrow={t('Features')} title={t("Everything the day needs, nothing it doesn't")}
               text={t('One place for the rota, the hours and the jobs that eat your evenings. Each part works on its own, and better together.')} />
-            <Box sx={{ display: 'grid', gap: { xs: 4, md: 6 }, columnGap: 5, gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(3, 1fr)' } }}>
+            <Box sx={{ display: 'grid', gap: 4, columnGap: 5, gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(3, 1fr)' } }}>
               {FEATURES.map(f => (
                 <Box key={f.title}>
                   <Box sx={{ width: 42, height: 42, borderRadius: '12px', display: 'grid', placeItems: 'center', bgcolor: BA.tint, color: BA.ink, mb: 2 }}>{f.icon}</Box>
@@ -165,7 +168,7 @@ export function LoginPage() {
         </Box>
 
         {/* Know your numbers: dashboards and the business advisor */}
-        <Container maxWidth="lg" sx={{ py: { xs: 9, md: 13 } }}>
+        <Container maxWidth="lg" sx={{ ...fullScreen, py: { xs: 9, md: 6 } }}>
           <Box sx={{ display: 'grid', gap: { xs: 5, md: 8 }, gridTemplateColumns: { xs: '1fr', md: '0.9fr 1.1fr' }, alignItems: 'center' }}>
             <Box>
               <Typography sx={{ color: BA.roseDeep, fontWeight: 600, letterSpacing: '0.16em', textTransform: 'uppercase', fontSize: '0.72rem' }}>{t('Insights')}</Typography>
@@ -188,9 +191,9 @@ export function LoginPage() {
         </Container>
 
         {/* Everything, by area */}
-        <Box id="everything" sx={{ scrollMarginTop: 72, bgcolor: '#fff', borderTop: `1px solid ${BA.line}`, borderBottom: `1px solid ${BA.line}` }}>
-          <Container maxWidth="lg" sx={{ py: { xs: 9, md: 13 } }}>
-            <SectionIntro eyebrow={t('Everything in one place')} title={t('One app instead of ten')}
+        <Box id="everything" sx={{ ...fullScreen, bgcolor: '#fff', borderTop: `1px solid ${BA.line}`, borderBottom: `1px solid ${BA.line}` }}>
+          <Container maxWidth="lg" sx={{ py: { xs: 9, md: 4 } }}>
+            <SectionIntro eyebrow={t('Everything in one place')} title={t('One app instead of ten')} compact
               text={t('What a café, shop or small team runs on, each part ready to switch on when you need it.')} />
             <Box sx={{ display: 'grid', gap: 2.5, gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(3, 1fr)' } }}>
               {AREAS.map(a => (
@@ -205,19 +208,11 @@ export function LoginPage() {
                 </Box>
               ))}
             </Box>
-            <Box sx={{ mt: { xs: 5, md: 7 }, display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' } }}>
-              {FACTS.map(f => (
-                <Box key={f.value} sx={{ textAlign: 'center', p: 2 }}>
-                  <Typography sx={{ fontFamily: display, fontWeight: 500, fontSize: { xs: '1.6rem', md: '2rem' }, color: BA.ink }}>{t(f.value)}</Typography>
-                  <Typography variant="body2" sx={{ color: BA.soft, mt: 0.5 }}>{t(f.label)}</Typography>
-                </Box>
-              ))}
-            </Box>
           </Container>
         </Box>
 
         {/* How it works */}
-        <Container maxWidth="lg" sx={{ py: { xs: 9, md: 13 } }}>
+        <Container maxWidth="lg" sx={{ ...fullScreen, py: { xs: 9, md: 6 } }}>
           <SectionIntro eyebrow={t('How it works')} title={t('Up and running before your next shift')} />
           <Box sx={{ display: 'grid', gap: 2.5, gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' } }}>
             {STEPS.map((s, i) => (
@@ -228,25 +223,30 @@ export function LoginPage() {
               </Box>
             ))}
           </Box>
+          <Box sx={{ mt: { xs: 5, md: 7 }, display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' } }}>
+            {FACTS.map(f => (
+              <Box key={f.value} sx={{ textAlign: 'center', p: 2 }}>
+                <Typography sx={{ fontFamily: display, fontWeight: 500, fontSize: { xs: '1.6rem', md: '2rem' }, color: BA.ink }}>{t(f.value)}</Typography>
+                <Typography variant="body2" sx={{ color: BA.soft, mt: 0.5 }}>{t(f.label)}</Typography>
+              </Box>
+            ))}
+          </Box>
         </Container>
 
         {/* Pricing */}
-        <Box sx={{ bgcolor: '#fff', borderTop: `1px solid ${BA.line}`, borderBottom: `1px solid ${BA.line}` }}>
-          <Container maxWidth="lg" sx={{ py: { xs: 9, md: 13 } }}>
-            <SectionIntro eyebrow={t('Pricing')} title={tr('Simple plans. {em}', { em: <em>{t('{n} months on us.', { n: TRIAL_MONTHS })}</em> })}
+        <Box sx={{ ...fullScreen, bgcolor: '#fff', borderTop: `1px solid ${BA.line}`, borderBottom: `1px solid ${BA.line}` }}>
+          <Container maxWidth="lg" sx={{ py: { xs: 9, md: 6 } }}>
+            <SectionIntro eyebrow={t('Pricing')} compact title={tr('Simple plans. {em}', { em: <em>{t('{n} months on us.', { n: TRIAL_MONTHS })}</em> })}
               text={t('One price for the whole team, not per person. Start on Free, or try Business free for 2 months.')} />
             <PricingCards />
             <Box sx={{ textAlign: 'center', mt: 3 }}>
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ justifyContent: 'center' }}>
-                <Button component={RouterLink} to="/pricing" sx={{ color: BA.ink, textTransform: 'none', fontWeight: 500 }}>{t('Every plan side by side →')}</Button>
-                <Button component={RouterLink} to="/compare" sx={{ color: BA.ink, textTransform: 'none', fontWeight: 500 }}>{t('Compare with Square and GoHighLevel →')}</Button>
-              </Stack>
+              <Button component={RouterLink} to="/pricing" sx={{ color: BA.ink, textTransform: 'none', fontWeight: 500 }}>{t('Every plan side by side →')}</Button>
             </Box>
           </Container>
         </Box>
 
         {/* FAQ */}
-        <Container id="faq" maxWidth="md" sx={{ py: { xs: 9, md: 13 }, scrollMarginTop: 72 }}>
+        <Container id="faq" maxWidth="md" sx={{ ...fullScreen, py: { xs: 9, md: 6 } }}>
           <SectionIntro eyebrow={t('FAQ')} title={t('Questions, answered')} />
           <Faq items={FAQ.map(f => ({ q: t(f.q), a: t(f.a, { months: TRIAL_MONTHS }) }))} />
         </Container>
@@ -373,62 +373,6 @@ function InsightsPreview() {
           </Stack>
         ))}
       </Stack>
-    </Box>
-  )
-}
-
-const SHIFTS: { who: string; role: string; days: (string | null)[]; tone: string }[] = [
-  { who: 'Lucía', role: msg('Barista'), days: ['7–15', '7–15', null, '7–15', '7–15'], tone: '#EFE9F8' },
-  { who: 'Marco', role: msg('Kitchen'), days: [null, '10–18', '10–18', '10–18', '12–20'], tone: '#FCEBDD' },
-  { who: 'Sara', role: msg('Floor'), days: ['15–23', null, '15–23', '15–23', '16–24'], tone: '#E2F2EA' },
-  { who: 'Diego', role: msg('Floor'), days: ['9–17', '9–17', '9–17', null, null], tone: '#FCEDEE' },
-]
-
-/** A drawn, illustrative week rota, so visitors see the product without a screenshot to keep current. */
-function ProductPreview() {
-  const days = [t('Mon'), t('Tue'), t('Wed'), t('Thu'), t('Fri')]
-  return (
-    <Box aria-hidden sx={{ borderRadius: '24px', border: `1px solid ${BA.line}`, bgcolor: '#fff', overflow: 'hidden',
-      boxShadow: '0 50px 100px -50px rgba(43,37,34,0.38)' }}>
-      <Stack direction="row" spacing={0.75} sx={{ px: 2.5, py: 1.75, borderBottom: `1px solid ${BA.lineSoft}`, bgcolor: BA.bg }}>
-        {['#F0B1A8', '#F2D59A', '#B5DDB8'].map(c => <Box key={c} sx={{ width: 11, height: 11, borderRadius: '50%', bgcolor: c }} />)}
-      </Stack>
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 300px' } }}>
-        <Box sx={{ p: { xs: 2, md: 3.5 }, overflowX: 'auto' }}>
-          <Stack direction="row" sx={{ alignItems: 'baseline', justifyContent: 'space-between', mb: 2.5 }}>
-            <Typography sx={{ fontFamily: display, fontWeight: 500, fontSize: '1.7rem', lineHeight: 1 }}>{t('This week')}</Typography>
-            <Typography variant="body2" sx={{ color: BA.faint }}>{t('142 h · €1,986')}</Typography>
-          </Stack>
-          <Box sx={{ display: 'grid', gridTemplateColumns: '110px repeat(5, minmax(64px, 1fr))', gap: 1, minWidth: 480, fontSize: '0.85rem' }}>
-            <span />
-            {days.map(d => <Typography key={d} variant="caption" sx={{ color: BA.faint, fontWeight: 500 }}>{d}</Typography>)}
-            {SHIFTS.map(s => [
-              <Box key={s.who} sx={{ py: 0.5 }}>
-                <Typography sx={{ fontWeight: 500, fontSize: '0.9rem' }}>{s.who}</Typography>
-                <Typography variant="caption" sx={{ color: BA.faint }}>{t(s.role)}</Typography>
-              </Box>,
-              ...s.days.map((d, i) => (
-                <Box key={s.who + i} sx={{ borderRadius: '10px', bgcolor: d ? s.tone : 'transparent', border: d ? 0 : `1px dashed ${BA.line}`,
-                  display: 'grid', placeItems: 'center', fontWeight: 500, color: BA.ink, minHeight: 44 }}>{d ?? ''}</Box>
-              )),
-            ])}
-          </Box>
-        </Box>
-        <Stack spacing={1.5} sx={{ p: { xs: 2, md: 3 }, borderLeft: { md: `1px solid ${BA.lineSoft}` }, bgcolor: BA.bg }}>
-          <Typography variant="caption" sx={{ color: BA.faint, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{t('Today')}</Typography>
-          {[
-            [t('Lucía clocked in'), t('06:58 · on time')],
-            [t('Google Maps updated'), t('Open late Friday, 08:00–01:00')],
-            [t('Shift swap approved'), t('Sara ↔ Diego, Thursday')],
-            [t('Big match on Saturday'), 'Real Madrid – Barcelona, 21:00'],
-          ].map(([title, s]) => (
-            <Box key={title} sx={{ p: 1.75, borderRadius: '14px', bgcolor: '#fff', border: `1px solid ${BA.lineSoft}` }}>
-              <Typography sx={{ fontWeight: 500, fontSize: '0.92rem' }}>{title}</Typography>
-              <Typography variant="caption" sx={{ color: BA.soft }}>{s}</Typography>
-            </Box>
-          ))}
-        </Stack>
-      </Box>
     </Box>
   )
 }
