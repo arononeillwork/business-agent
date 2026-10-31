@@ -1,3 +1,4 @@
 out/
 public/clips/*.mp4
 public/stills/
+__pycache__/
