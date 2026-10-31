@@ -176,6 +176,7 @@ export class FakeSupabase {
         return json(Number(headers.get('x-business-id')) || null)
       }
       if (rpc[1] === 'is_admin') return json(who?.role === 'admin')
+      if (rpc[1] === 'is_staff') return json(who?.role === 'admin' || who?.role === 'employee')
       if (rpc[1] === 'my_role') return json(who?.role ?? null)
       if (rpc[1] === 'can_see_pay') return json(who?.role === 'admin' && this.table('profiles').some(p => p.id === who.id && p.can_see_pay === true))
       if (rpc[1] === 'plan_status') {

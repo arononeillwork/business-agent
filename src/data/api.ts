@@ -14,7 +14,7 @@ import type { KeptDocument, StorageFolder } from '../../shared/documents'
 import type { MoneyItem, MoneyItemInput } from '../../shared/creditDebit'
 import type { LegalDocument, LegalDocumentPatch, LegalSource, LegalStorage, StorageListing } from '../../shared/legalDocs'
 import type { Benefit, BenefitInput, LeaveAllowance } from '../../shared/benefits'
-import type { LoggedReward, RepReward, RepSettings, RewardLog, RewardRule, RewardRuleInput, SalesRep, SalesRepInput } from '../../shared/reps'
+import type { CrewSuggestion, LoggedReward, RepClaim, RepPageData, RepReward, RepSettings, RewardLog, RewardRule, RewardRuleInput, SalesRep, SalesRepInput, SocialLookup } from '../../shared/reps'
 import type { KittyEntry, KittyEntryInput, KittyGoal, KittyGoalInput, KittySettings } from '../../shared/kitty'
 import type { JobRole, JobRoleInput } from '../../shared/roles'
 import type { TeamRole } from '../../shared/teamRoles'
@@ -409,6 +409,20 @@ export interface Api {
   deleteReward(id: string): Promise<void>
   repSettings(): Promise<RepSettings>
   updateRepSettings(patch: Partial<RepSettings>): Promise<void>
+  /** Admins: say yes to someone waiting (an employee added them, or a rep to their crew), or no (taken off). */
+  decideRep(id: string, approve: boolean): Promise<void>
+  /** The secret in a rep's own page link (/rep/<token>), made the first time (admins; a team rep their own). */
+  repLink(repId: string): Promise<string>
+  /** Admins: a new link for a rep's page; the old one stops working. */
+  newRepLink(repId: string): Promise<string>
+  /** Followers and photo of an Instagram account, where Instagram shares them (people who've messaged the café). */
+  lookupInstagram(handle: string): Promise<SocialLookup>
+  // A rep's own page (/rep/<token>): no sign-in, the link is the secret.
+  repPage(token: string): Promise<RepPageData>
+  /** From their page: what they shared, waiting for an admin. */
+  claimReward(token: string, claim: RepClaim): Promise<LoggedReward>
+  /** From their page: someone for their crew, waiting for an admin's OK. */
+  suggestCrew(token: string, person: CrewSuggestion): Promise<{ name: string; reach: number; approved: boolean }>
 
   // Staff kitty: the team reads; admins set the share of profit, add goals, put money in and mark goals bought.
   kittySettings(): Promise<KittySettings>

@@ -33,6 +33,7 @@ import { screens } from './screens'
 import { cameras, purgeCameraClips } from './cameras'
 import { competitors, watchCompetitors } from './competitors'
 import { push, pushNotifications } from './push'
+import { repPage } from './repPage'
 import { accessOf, teamRoleOf } from '../shared/teamRoles'
 
 const NIGHTLY = '15 1 * * *' // 03:15 Madrid in summer, 02:15 in winter
@@ -254,6 +255,9 @@ app.route('/', screens)
 
 // Cameras: what the camera upload server passes on (video into the business's storage), and the Cameras page.
 app.route('/', cameras)
+
+// Sales reps: each rep's own page (its link), and looking someone up on Instagram.
+app.route('/', repPage)
 
 // Business Agent's own subscription (Stripe Billing): plans, checkout, portal, webhook.
 app.route('/', billing)

@@ -1,15 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import {
-  REWARD_IDEAS, balanceOf, cleanInstagram, cleanRepCode, codeFor, leaderboard, limitReached, mentionsToReward, outstanding, rewardAmount, ruleFits,
-  type RepReward, type SalesRep,
+  REACH_TIERS, REWARD_IDEAS, balanceOf, bonusFrom, cleanInstagram, cleanRepCode, cleanYoutube, codeFor, crewOf, crewReach, formatReach, leaderboard,
+  limitReached, mentionsToReward, nextTier, outstanding, parseCount, reachMultiplier, reachOf, reachTier, rewardAmount, ruleFits, type RepReward, type SalesRep,
 } from './reps'
 import type { Mention } from './mentions'
 
 const rep = (id: string, kind: SalesRep['kind'], more: Partial<SalesRep> = {}): SalesRep => ({ id, name: id, kind, profile_id: null, customer_id: null,
-  code: id.toUpperCase(), instagram: null, phone: null, email: null, notes: null, active: true, created_at: '2026-09-01T10:00:00Z', ...more })
+  code: id.toUpperCase(), instagram: null, tiktok: null, youtube: null, facebook: null, instagram_followers: null, tiktok_followers: null,
+  youtube_followers: null, facebook_followers: null, community: null, reach: 0, picture_url: null, followers_checked_at: null, leader_id: null,
+  approved: true, phone: null, email: null, notes: null, active: true, created_at: '2026-09-01T10:00:00Z', ...more })
 let n = 0
 const reward = (rep_id: string, amount: number, more: Partial<RepReward> = {}): RepReward => ({ id: `r${++n}`, rep_id, kind: amount > 0 ? 'earn' : 'redeem',
-  rule_id: 'story', label: 'Reposted our story', sale_amount: null, amount, status: 'approved', proof_url: null, mention_id: null, note: null,
+  rule_id: 'story', label: 'Reposted our story', sale_amount: null, amount, status: 'approved', proof_url: null, mention_id: null, bonus_for: null, multiplier: null, note: null,
   occurred_on: '2026-09-20', logged_by: null, created_at: '2026-09-20T10:00:00Z', ...more })
 
 describe('sales reps and rewards', () => {
@@ -25,6 +27,32 @@ describe('sales reps and rewards', () => {
     expect(rewardAmount({ basis: 'fixed', amount: 1 })).toBe(1)
     expect(rewardAmount({ basis: 'percent', amount: 10 }, 245.5)).toBe(24.55)
     expect(rewardAmount({ basis: 'percent', amount: 10 }, null)).toBe(0)
+  })
+
+  it('reach: followers and the people they see, in steps that multiply rewards that grow with it (as the database does)', () => {
+    expect(reachOf({ instagram_followers: 6000, tiktok_followers: 1880, community: 120 })).toBe(8000)
+    expect([0, 999, 1000, 9999, 10_000, 49_999, 50_000, 2_000_000].map(reachMultiplier)).toEqual([1, 1, 2, 2, 3, 3, 5, 5])
+    expect(reachTier(12_000).id).toBe('big')
+    expect(REACH_TIERS.map(t => t.from)).toEqual([0, 1000, 10_000, 50_000])
+    expect(nextTier(8000)).toEqual({ tier: REACH_TIERS[2], more: 2000 })
+    expect(nextTier(60_000)).toBeNull()
+    const story = { basis: 'fixed' as const, amount: 1, scales_with_reach: true }
+    expect(rewardAmount(story, null, 15_000)).toBe(3)
+    expect(rewardAmount(story, null, 15_000, false)).toBe(1) // the café switched it off
+    expect(rewardAmount({ ...story, scales_with_reach: false }, null, 15_000)).toBe(1)
+    expect(rewardAmount({ basis: 'percent', amount: 10, scales_with_reach: true }, 100, 60_000)).toBe(10) // a share of a sale never grows
+    expect([0, 950, 8_120, 12_400, 999_999, 1_250_000].map(formatReach)).toEqual(['0', '950', '8.1k', '12k', '1M', '1.3M'])
+    expect(['', '850', '12,400', '12.400', '12.4k', '1,2M', '3K'].map(parseCount)).toEqual([null, 850, 12_400, 12_400, 12_400, 1_200_000, 3_000])
+    expect(parseCount('lots')).toBeNaN()
+  })
+
+  it('a crew: its leader and the people in it, their reach together; a bonus line names who earned it', () => {
+    const coach = rep('dani', 'ambassador', { reach: 9000 })
+    const reps = [coach, rep('nora', 'customer', { leader_id: 'dani', reach: 26_000 }), rep('toni', 'customer', { leader_id: 'dani', reach: 3000, approved: false }),
+      rep('gone', 'customer', { leader_id: 'dani', reach: 500, active: false }), rep('lucia', 'customer', { reach: 600 })]
+    expect(crewOf(reps, 'dani').map(r => r.id)).toEqual(['nora', 'toni'])
+    expect(crewReach(reps, coach)).toBe(38_000)
+    expect(bonusFrom({ label: 'Crew bonus · Carla “La Roca” Ruiz' })).toBe('Carla “La Roca” Ruiz')
   })
 
   it('a balance is what’s approved: earned, less spent or paid out; waiting and turned-down rewards don’t count', () => {
@@ -54,6 +82,10 @@ describe('sales reps and rewards', () => {
   it('handles and codes are tidied, or turned down', () => {
     expect(cleanInstagram(' @Lucia.MBL ')).toBe('lucia.mbl')
     expect(cleanInstagram('not a handle')).toBeNull()
+    expect(cleanInstagram('https://www.instagram.com/Ortega.MMA/?hl=es')).toBe('ortega.mma')
+    expect(cleanInstagram('https://www.tiktok.com/@laroca.ruiz')).toBe('laroca.ruiz')
+    expect(cleanYoutube('https://www.youtube.com/@Ortega-MMA')).toBe('ortega-mma')
+    expect(cleanYoutube('@no spaces')).toBeNull()
     expect(cleanRepCode(' lucia 27 ')).toBe('LUCIA27')
     expect(cleanRepCode('EB')).toBeNull()
     expect(cleanRepCode('LUCIA-27')).toBeNull()

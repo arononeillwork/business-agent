@@ -84,6 +84,18 @@ built-in **AI connector** so owners can run it by talking to Claude.
   posts about the café from Instagram are matched to reps by their handle, to reward in one press; a monthly
   leaderboard shows who sold most. Customers' credit is the whole team's to see, commission the admins' and
   the rep's own.
+- Reach, crews and each rep's own page (Sales reps & rewards): a rep's Instagram, TikTok, YouTube and Facebook
+  with their followers, and the people they see in person (a gym's members, a studio's clients), add up to
+  their reach. A reward marked "grows with reach" (stories, posts, shout-outs) is worth ×2 from 1,000 people,
+  ×3 from 10,000 and ×5 from 50,000. A crew puts a coach with their fighters, or a studio with its teachers: the
+  leader earns a share (10% to start) of everything the crew earns, as a line of its own. Anyone on the team
+  adds people; someone an employee adds waits for an owner or shop manager to say yes, and what's logged for
+  them meanwhile counts once they do. Each rep has a private link to their own page (`/rep/<link>`, no
+  sign-in): what they've earned, their place this month, their code, their reach and crew; from it they tell
+  the café what they shared and add people to their crew, both waiting for an admin. Instagram gives the
+  followers of people who've messaged the café or mentioned it in a story (looked up when adding someone, and
+  kept up to date every 15 minutes); everything else is typed in (the `rep_reach_and_crews` migration,
+  `worker/repPage.ts`).
 - Staff kitty (Team section): a share of each month's profit (5% to start; a month with a loss puts nothing
   in) and anything else put in (the tips jar, a bonus), saved up for goals chosen together, like the
   Christmas party or a pair of Ray-Bans for the café. The goals are jars on a shelf that fill with coffee

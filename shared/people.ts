@@ -6,9 +6,15 @@ import type { Profile } from './types'
 
 export interface Tier { role: TeamRole; label: string; plural: string; people: Profile[] }
 
+/**
+ * The accounts the live tests make in the real business while they run (Ana, Eva and Omar Test,
+ * e2e/live/fixtures.ts): never part of the team people see.
+ */
+export const isTestAccount = (p: Pick<Profile, 'email'>) => !!p.email?.toLowerCase().endsWith('@business-agent.test')
+
 /** Who's on the team now, top of the hierarchy first; a level with nobody in it is left out. */
 export function teamTiers(profiles: Profile[]): Tier[] {
-  const on = profiles.filter(p => p.active && teamRole(p) !== null)
+  const on = profiles.filter(p => p.active && teamRole(p) !== null && !isTestAccount(p))
   return [...TEAM_ROLES].reverse().map(r => ({
     role: r.id, label: r.label, plural: r.plural,
     people: on.filter(p => teamRole(p) === r.id).sort((a, b) => a.full_name.localeCompare(b.full_name)),

@@ -30,7 +30,7 @@ export function RepCardsPage() {
   const who = params.get('rep') ?? 'all'
   const copies = COPIES.includes(Number(params.get('copies'))) ? Number(params.get('copies')) : 10
   const set = (k: string, v: string) => { const p = new URLSearchParams(params); p.set(k, v); setParams(p, { replace: true }) }
-  const active = (reps.data ?? []).filter(r => r.active).sort((a, b) => a.name.localeCompare(b.name))
+  const active = (reps.data ?? []).filter(r => r.active && r.approved).sort((a, b) => a.name.localeCompare(b.name))
   const chosen = who === 'all' ? active : active.filter(r => r.id === who)
   const cards = chosen.flatMap(r => Array.from({ length: copies }, (_, i) => ({ rep: r, key: `${r.id}-${i}` })))
   const saveOffer = () => {

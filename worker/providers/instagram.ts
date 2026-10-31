@@ -220,8 +220,8 @@ function toConversation(c: RawConversation, me: Me): InboxConversation {
 const detailed = <T>(cfg: InstagramConfig, path: (fields: string) => string) =>
   graph<T>(cfg, path(FIELDS)).catch(e => (/field|param/i.test(String(e)) ? graph<T>(cfg, path(PLAIN_FIELDS)) : Promise.reject(e)))
 
-/** A customer's name and profile photo (Instagram's User Profile API; they must have messaged the business). */
-export interface Person { name?: string; username?: string; picture?: string }
+/** A customer's name, profile photo and followers (Instagram's User Profile API; they must have messaged the business). */
+export interface Person { name?: string; username?: string; picture?: string; followers?: number }
 
 const PERSON_TTL_S = 6 * 3600
 // Workers' cache (absent in tests and local Node): profile photos are links that last a few days, so
@@ -238,8 +238,13 @@ export async function person(cfg: InstagramConfig, igsid: string): Promise<Perso
   let found: Person = {}
   let ttl = PERSON_TTL_S
   try {
-    const p = await graph<{ name?: string; username?: string; profile_pic?: string }>(cfg, `${encodeURIComponent(igsid)}?fields=name,username,profile_pic`)
-    found = { ...(p.name ? { name: p.name } : {}), ...(p.username ? { username: p.username } : {}), ...(p.profile_pic ? { picture: p.profile_pic } : {}) }
+    // Their followers too (a rep's reach, Sales reps & rewards); asked again without it if Instagram refuses the field.
+    type Raw = { name?: string; username?: string; profile_pic?: string; follower_count?: number }
+    const path = (fields: string) => `${encodeURIComponent(igsid)}?fields=${fields}`
+    const p = await graph<Raw>(cfg, path('name,username,profile_pic,follower_count'))
+      .catch(e => (/field|param/i.test(String(e)) && !/can not be found|blocked/i.test(String(e)) ? graph<Raw>(cfg, path('name,username,profile_pic')) : Promise.reject(e)))
+    found = { ...(p.name ? { name: p.name } : {}), ...(p.username ? { username: p.username } : {}), ...(p.profile_pic ? { picture: p.profile_pic } : {}),
+      ...(typeof p.follower_count === 'number' ? { followers: p.follower_count } : {}) }
   } catch {
     ttl = 3600 // blocked us, or Instagram is busy: try again in an hour
   }
@@ -251,7 +256,8 @@ export async function person(cfg: InstagramConfig, igsid: string): Promise<Perso
 async function withPerson(cfg: InstagramConfig, c: InboxConversation): Promise<InboxConversation> {
   const p = await person(cfg, c.with.id)
   const name = p.name ?? c.with.name
-  return { ...c, with: { id: c.with.id, username: p.username ?? c.with.username, ...(name ? { name } : {}), ...(p.picture ? { picture: p.picture } : {}) } }
+  return { ...c, with: { id: c.with.id, username: p.username ?? c.with.username, ...(name ? { name } : {}), ...(p.picture ? { picture: p.picture } : {}),
+    ...(p.followers !== undefined ? { followers: p.followers } : {}) } }
 }
 
 /** The latest chats, newest first, each with its latest few messages. */
