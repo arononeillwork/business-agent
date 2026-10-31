@@ -159,7 +159,7 @@ function SiteFooter() {
           </Typography>
           <Box><LanguageToggle always /></Box>
         </Stack>
-        {col(t('Product'), [[t('Features'), '/#features'], [t('Pricing'), '/pricing'], [ENTERPRISE.name, '/pricing#enterprise']])}
+        {col(t('Product'), [[t('Demos'), '/demos'], [t('Features'), '/#features'], [t('Pricing'), '/pricing'], [ENTERPRISE.name, '/pricing#enterprise']])}
         {col(t('Account'), [[t('Log in'), '/#account'], [t('Start free trial'), '/#start']])}
         {col(t('Contact'), [[CONTACT.hello, `mailto:${CONTACT.hello}`], [CONTACT.sales, `mailto:${CONTACT.sales}`], [CONTACT.support, `mailto:${CONTACT.support}`]])}
         {col(t('Legal'), [[t('Privacy policy'), '/privacy'], [t('Terms of service'), '/terms']])}

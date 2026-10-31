@@ -14,6 +14,8 @@ export const FEATURES = {
   demoVideo: true,
   /** The day-in-the-life video on the landing page (video/). */
   dayVideo: true,
+  /** The owner's morning video, "Run your café from one place", on the Demos page (video/). */
+  ownerVideo: true,
 }
 
 /** Whether something marked as part of one of these (`onlyWith`, e.g. a row of the pricing table) shows: unless that part is switched off. */

@@ -8118,3 +8118,37 @@ test('landing page: the day-in-the-life video, once it is switched on', async ({
   await expect(video).toHaveAttribute('src', '/video/day-in-the-life.mp4')
   await expect(page.locator('#day').getByRole('slider', { name: 'Position in the video' })).toHaveAttribute('aria-valuetext', /of 1:5[12]$/)
 })
+
+test('demos page: every video, the landing page’s two too; a card plays its own; the landing page links to it', async ({ page }) => {
+  for (const file of ['public/video/run-your-cafe.mp4', 'public/video/run-your-cafe.jpg']) {
+    expect(readFileSync(file).length).toBeGreaterThan(10_000)
+  }
+  await page.goto('/?demo')
+  // The landing page keeps its two; the owner's morning is on the Demos page only.
+  await expect(page.getByLabel('Run your café from one place, video')).toHaveCount(0)
+  if (FEATURES.demoVideo || FEATURES.dayVideo) {
+    await page.getByRole('link', { name: 'More films on the Demos page' }).click()
+  } else {
+    await page.getByRole('contentinfo').getByRole('link', { name: 'Demos' }).click()
+  }
+  await expect(page).toHaveURL(/\/demos$/)
+  await expect(page.getByRole('heading', { name: 'See it from every side.', level: 1 })).toBeVisible()
+  await expect(page).toHaveTitle('Demos · Business Agent')
+  const shown = [FEATURES.demoVideo, FEATURES.dayVideo, FEATURES.ownerVideo].filter(Boolean).length
+  const films = page.getByRole('list', { name: 'The films' })
+  await expect(films.getByRole('listitem')).toHaveCount(shown)
+  // Each in its own section with the landing page's player; no link back to itself.
+  await expect(page.getByLabel('Business Agent demo video')).toHaveCount(FEATURES.demoVideo ? 1 : 0)
+  await expect(page.getByLabel('A day in the life of a café owner, video')).toHaveCount(FEATURES.dayVideo ? 1 : 0)
+  await expect(page.getByRole('link', { name: 'More films on the Demos page' })).toHaveCount(0)
+  if (!FEATURES.ownerVideo) return
+  const owner = page.getByLabel('Run your café from one place, video')
+  await expect(owner).toHaveAttribute('src', '/video/run-your-cafe.mp4')
+  await expect(owner).toHaveAttribute('poster', '/video/run-your-cafe.jpg')
+  await expect(page.locator('#owner').getByRole('slider', { name: 'Position in the video' })).toHaveAttribute('aria-valuetext', /of 1:54$/)
+  expect((await page.request.get('/video/run-your-cafe.mp4')).ok()).toBe(true)
+  // Its card brings it up and plays it.
+  await films.getByRole('link', { name: 'Watch Run your café from one place' }).click()
+  await expect(owner).toBeInViewport()
+  await expect.poll(() => owner.evaluate((v: HTMLVideoElement) => !v.paused)).toBe(true)
+})

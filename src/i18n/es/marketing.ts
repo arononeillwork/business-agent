@@ -340,4 +340,30 @@ export default {
   '{at} of {length}': '{at} de {length}',
   'Sound on': 'Activar el sonido',
   'Sound off': 'Silenciar',
+  // The Demos page, and the owner's morning video
+  'Demos · Business Agent': 'Demos · Business Agent',
+  'Demos': 'Demos',
+  'See it {em}': 'Míralo {em}',
+  'from every side.': 'desde todos los ángulos.',
+  'Short films of a real café, Easy Beans Coffee, on Business Agent. Each shows it a different way: pick one, or watch them all.':
+    'Vídeos cortos de una cafetería real, Easy Beans Coffee, con Business Agent. Cada uno lo muestra de una manera: elige uno o míralos todos.',
+  'The films': 'Los vídeos',
+  'Watch {title}': 'Ver «{title}»',
+  'The idea': 'La idea',
+  'Change it in one place': 'Cámbialo en un solo sitio',
+  'A café closes on Sundays, adds Christmas and puts a price up, once each: everywhere it shows follows.':
+    'Una cafetería cierra los domingos, añade la Navidad y sube un precio, una vez cada cosa: todos los sitios donde aparece se actualizan.',
+  'A whole day': 'Un día entero',
+  'A café owner’s day before Business Agent, and the same day with it, from opening to closing.':
+    'El día de quien lleva una cafetería antes de Business Agent, y el mismo día con él, de la apertura al cierre.',
+  'An owner’s morning': 'Una mañana al frente del negocio',
+  'Run your café from one place': 'Lleva tu cafetería desde un solo sitio',
+  'Today and the advisor say what to do; each change is made once, and everywhere it shows follows.':
+    'Hoy y el asesor te dicen qué hacer; cada cambio se hace una vez y todos los sitios donde aparece se actualizan.',
+  'Run your café from one place, video': 'Lleva tu cafetería desde un solo sitio, vídeo',
+  'Run your café {em}': 'Lleva tu cafetería {em}',
+  'from one place.': 'desde un solo sitio.',
+  'Today and the business advisor say what to do. Each change is made once, and Google Maps, the website, the café’s TV, the printed menu and Instagram follow.':
+    'Hoy y el asesor del negocio te dicen qué hacer. Cada cambio se hace una vez, y Google Maps, la web, la tele de la cafetería, la carta impresa e Instagram se actualizan.',
+  'More films on the Demos page': 'Más vídeos en la página de demos',
 } satisfies Record<string, string>
