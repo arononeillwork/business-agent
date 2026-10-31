@@ -13,7 +13,9 @@
       // Self-destructing service worker for browsers that kept one from an earlier site (worker/index.ts).
       "/sw.js", "/service-worker.js", "/serviceworker.js", "/registerSW.js", "/worker.js",
       // Code files: one that isn't there is a 404, never the app's page (worker/index.ts).
-      "/assets/*"]
+      "/assets/*",
+      // The landing page's videos, a part at a time (worker/video.ts).
+      "/video/*"]
   },
   "observability": { "enabled": true },
   // OAuth grants/tokens for the AI connector (encrypted by workers-oauth-provider).

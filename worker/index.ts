@@ -24,6 +24,7 @@ import { files } from './files'
 import { legal } from './legal'
 import { invoices } from './invoices'
 import { email } from './email'
+import { serveVideo } from './video'
 import { loyaltyRoutes } from './loyalty'
 import { assistant } from './assistant'
 import { refreshReviews, reviews, reviewsConfigured } from './reviews'
@@ -292,6 +293,10 @@ app.get('/assets/*', async c => {
   file.headers.set('cache-control', 'public, max-age=31536000, immutable')
   return file
 })
+
+// The landing page's videos, a part at a time when the browser asks (worker/video.ts): the static
+// assets send the whole file whatever is asked, so the video's slider couldn't go ahead.
+app.on(['GET', 'HEAD'], '/video/*', c => serveVideo(c.env.ASSETS, c.req.raw))
 
 app.notFound(c => c.json({ error: 'Not found' }, 404))
 app.onError((err, c) => c.json({ error: err.message }, 500))
