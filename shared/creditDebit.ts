@@ -44,9 +44,17 @@ export interface MoneyItem {
   /** Paid off, received, or settled some other way. */
   done: boolean
   notes: string | null
+  /** A web page about it (the listing of something for sale, the agreement), or null. */
+  link: string | null
   payments: MoneyPayment[]
 }
 export type MoneyItemInput = Partial<Omit<MoneyItem, 'id' | 'payments'>> & { id?: string }
+
+/** A link an item can keep: a web address (http or https), up to 500 characters, as the database checks. */
+export const isMoneyLink = (s: string) => /^https?:\/\/[^\s]+$/i.test(s) && s.length <= 500
+
+/** Where a link goes, to show beside it: its site, without "www.". */
+export const linkSite = (s: string) => { try { return new URL(s).hostname.replace(/^www\./, '') } catch { return s } }
 
 export const paidSoFar = (payments: Pick<MoneyPayment, 'amount'>[]) => Math.round(payments.reduce((s, p) => s + Number(p.amount), 0) * 100) / 100
 

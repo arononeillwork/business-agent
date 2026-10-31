@@ -30,7 +30,7 @@ import { dueFrom, emailId, matchSupplier, numberFromName, type InboxInvoice, typ
 import type { Licence } from '../../shared/licences'
 import { DEFAULT_RULES, draw, newEntries, type Competition, type CompetitionEntry } from '../../shared/competitions'
 import { cleanTags, sortEntries, type KeptDocument, type StorageEntry } from '../../shared/documents'
-import { afterPayment, paidSoFar, type MoneyItem, type MoneyPayment } from '../../shared/creditDebit'
+import { afterPayment, isMoneyLink, paidSoFar, type MoneyItem, type MoneyPayment } from '../../shared/creditDebit'
 import { inStep } from '../../shared/todo'
 import { LEGAL_STORAGES, MAX_PICK, SKIPPED, guessKind, previewOf, storageName, titleOf, type LegalDocument, type LegalStorage, type StorageItem } from '../../shared/legalDocs'
 import { ALREADY_ON_BRAND, brandTitleOf, uploadProblem, type BrandDocument } from '../../shared/brandDocs'
@@ -382,14 +382,15 @@ export function createDemoApi(): Api {
   // Credit & debit: Jeremy's loan being paid back monthly, the espresso machine on finance, and the old
   // coffee machine to sell (the grant being applied for comes from the grant applications).
   const moneyItem = (p: Partial<MoneyItem> & { name: string; direction: MoneyItem['direction']; amount: number }): MoneyItem => ({ id: uid(), kind: 'other', party: null,
-    instalment: null, every_months: null, next_due: null, possible: false, done: false, notes: null, payments: [], ...p })
+    instalment: null, every_months: null, next_due: null, possible: false, done: false, notes: null, link: null, payments: [], ...p })
   const moneyPayment = (amount: number, paid_on: string, note: string | null = null): MoneyPayment => ({ id: uid(), item_id: '', paid_on, amount, note })
   const moneyItems: MoneyItem[] = [
     moneyItem({ direction: 'debit', kind: 'loan', name: 'Loan from Jeremy', party: 'Jeremy', amount: 1000, instalment: 100, every_months: 1, next_due: '2026-10-01',
       notes: 'Lent to cover the opening stock. No interest.', payments: [moneyPayment(100, '2026-09-01')] }),
     moneyItem({ direction: 'debit', kind: 'finance', name: 'Espresso machine on finance', party: 'Maquinaria Costa SL', amount: 4800, instalment: 200, every_months: 1,
       next_due: '2026-10-05', payments: [moneyPayment(200, '2026-08-05'), moneyPayment(200, '2026-09-05')] }),
-    moneyItem({ direction: 'credit', kind: 'sale', name: 'Old coffee machine', amount: 1200, possible: true, notes: 'Two-group, works. Asking €1,200.' }),
+    moneyItem({ direction: 'credit', kind: 'sale', name: 'Old coffee machine', amount: 1200, possible: true, notes: 'Two-group, works. Asking €1,200.',
+      link: 'https://donedealespana.vercel.app/#/item/207afb06-86e1-406a-9db3-9b60ac5ccd36' }),
   ]
   moneyItems.forEach(i => i.payments.forEach(p => { p.item_id = i.id }))
 
@@ -2725,7 +2726,8 @@ export function createDemoApi(): Api {
       if (!next.name) throw new Error('Give it a name')
       if (!(next.amount > 0)) throw new Error('The amount must be more than 0')
       if (next.instalment != null && !(next.instalment > 0)) throw new Error('Each payment must be more than 0')
-      Object.assign(next, { party: next.party?.trim() || null, notes: next.notes?.trim() || null, possible: next.direction === 'credit' && next.possible })
+      Object.assign(next, { party: next.party?.trim() || null, notes: next.notes?.trim() || null, link: next.link?.trim() || null, possible: next.direction === 'credit' && next.possible })
+      if (next.link && !isMoneyLink(next.link)) throw new Error('new row violates check constraint "credit_debit_items_link_check"')
       if (existing) Object.assign(existing, next)
       else moneyItems.push(next)
       return next.id
