@@ -1,10 +1,12 @@
-import { Link as RouterLink } from 'react-router-dom'
+import { Link as RouterLink, useLocation } from 'react-router-dom'
 import { Box, Button, Container, Link, Stack, Typography } from '@mui/material'
 import type { ReactNode } from 'react'
 import iconUrl from '../../assets/icon.png'
 import { ENTERPRISE } from '../../../shared/plans'
 import { t } from '../../i18n'
 import { LanguageToggle } from '../../components/Language'
+import { shows } from '../../app/features'
+import { watchDemo } from './watchDemo'
 
 // Business Agent: the product. Signed-out visitors see its own look (not any one business's
 // brand); once someone signs in, they see their business's branded app. The palette is natural
@@ -103,16 +105,21 @@ export const fullScreen = {
 const navLink = { color: BA.soft, fontWeight: 500, fontSize: '0.93rem', textDecoration: 'none', '&:hover': { color: BA.ink } }
 
 function SiteHeader() {
+  const { pathname } = useLocation()
   return (
     <Box component="header" sx={{ position: 'sticky', top: 0, zIndex: 10, bgcolor: 'rgba(251,248,244,0.84)', height: HEADER_HEIGHT,
       backdropFilter: 'saturate(160%) blur(14px)', borderBottom: `1px solid ${BA.lineSoft}` }}>
-      <Container maxWidth="lg" sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1.5, md: 4 }, height: '100%' }}>
+      <Container maxWidth="lg" sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1.5, md: 2, lg: 4 }, height: '100%' }}>
         <Stack component={RouterLink} to="/" direction="row" spacing={1.25} aria-label={t('Business Agent home')}
           sx={{ alignItems: 'center', color: 'inherit', textDecoration: 'none' }}>
           <AgentMark size={34} />
           <Wordmark size="1.55rem" />
         </Stack>
-        <Stack component="nav" aria-label={t('Site')} direction="row" spacing={3.5} sx={{ display: { xs: 'none', md: 'flex' }, flex: 1, justifyContent: 'center' }}>
+        <Stack component="nav" aria-label={t('Site')} direction="row" spacing={{ md: 2, lg: 3.5 }} sx={{ display: { xs: 'none', md: 'flex' }, flex: 1, justifyContent: 'center' }}>
+          {/* The demo video, the landing page's first: played from the start there, like "View a demo"; from another page, opened at it. */}
+          {shows({ onlyWith: 'demoVideo' }) && (
+            <Link component={RouterLink} to="/#demo" onClick={e => { if (pathname === '/') watchDemo(e) }} sx={navLink}>{t('Demo')}</Link>
+          )}
           <Link component={RouterLink} to="/#features" sx={navLink}>{t('Features')}</Link>
           <Link component={RouterLink} to="/pricing" sx={navLink}>{t('Pricing')}</Link>
           <Link component={RouterLink} to="/pricing#enterprise" sx={navLink}>{ENTERPRISE.name}</Link>
