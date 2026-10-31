@@ -146,4 +146,68 @@ export default {
     'Y otra vez el día antes',
   'Reminders on {first} and {second}':
     'Avisos el {first} y el {second}',
+  'carousel':
+    'carrusel',
+  'reel':
+    'reel',
+  'someone':
+    'alguien',
+  'social media':
+    'redes sociales',
+  ' and ':
+    ' y ',
+  'Time to post your {what} on {where}':
+    'Toca publicar tu {what} en {where}',
+  'Follow up: {name}':
+    'Seguimiento: {name}',
+  'Expense to approve: {who}, {amount} €':
+    'Gasto por aprobar: {who}, {amount} €',
+  'Expense approved: {what}':
+    'Gasto aprobado: {what}',
+  'Expense paid back: {what}':
+    'Gasto reembolsado: {what}',
+  'Expense turned down: {what}':
+    'Gasto rechazado: {what}',
+  'Time to send: {name}':
+    'Toca enviar: {name}',
+  'Out of range: {point} {reading} °C':
+    'Fuera de rango: {point} {reading} °C',
+  '{name} runs out on {date}':
+    '{name} caduca el {date}',
+  '{name} ran out on {date}':
+    '{name} caducó el {date}',
+  'New {stars}★ review from {who}: worth a reply':
+    'Nueva reseña de {stars}★ de {who}: merece respuesta',
+  'New {stars}★ review from {who}':
+    'Nueva reseña de {stars}★ de {who}',
+  '{name} has closed for good, says Google':
+    '{name} ha cerrado definitivamente, según Google',
+  '{name} is closed for now, says Google':
+    '{name} ha cerrado temporalmente, según Google',
+  'New on Google nearby: {name}':
+    'Nuevo en Google cerca: {name}',
+  '{n} new places on Google nearby':
+    '{n} sitios nuevos en Google cerca',
+  '{rule} for {rep}: €{amount} to approve':
+    '{rule} para {rep}: {amount} € por aprobar',
+  '{name} stopped working':
+    '{name} ha dejado de funcionar',
+  'LinkedIn needs connecting again soon':
+    'Pronto hay que volver a conectar LinkedIn',
+  'Meta Ads needs connecting again soon':
+    'Pronto hay que volver a conectar Meta Ads',
+  'Opening hours changed on Google Maps':
+    'El horario ha cambiado en Google Maps',
+  'Coming up {when}. You asked to be reminded.':
+    'Se acerca: {when}. Pediste que te avisáramos.',
+  'It renews by itself: check it went through.':
+    'Se renueva sola: comprueba que se ha hecho.',
+  'LinkedIn only allows access for 60 days. Connect it again before {date} to keep posting.':
+    'LinkedIn solo da acceso durante 60 días. Vuelve a conectarlo antes del {date} para seguir publicando.',
+  'Meta only allows access for 60 days. Connect Meta Ads again before {date} to keep seeing your ads.':
+    'Meta solo da acceso durante 60 días. Vuelve a conectar Meta Ads antes del {date} para seguir viendo tus anuncios.',
+  'The app now uses the hours from your Google listing.':
+    'La app usa ahora el horario de tu ficha de Google.',
+  'Sent in {language}, the language you use the app in. Change it under My account → Language.':
+    'Se envían en {language}, el idioma en que usas la app. Cámbialo en Mi cuenta → Idioma.',
 } satisfies Record<string, string>

@@ -63,6 +63,7 @@ jobs:
           HAS_APPLE_CLIENT_ID: ${{ secrets.APPLE_CLIENT_ID != '' }}
           HAS_ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY != '' }}
           HAS_EMAIL_FORWARD_TO: ${{ secrets.EMAIL_FORWARD_TO != '' }}
+          HAS_FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN != '' }}
           HAS_GOOGLE_ADS_DEVELOPER_TOKEN: ${{ secrets.GOOGLE_ADS_DEVELOPER_TOKEN != '' }}
           HAS_GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID != '' }}
           HAS_GOOGLE_FONTS_API_KEY: ${{ secrets.GOOGLE_FONTS_API_KEY != '' }}

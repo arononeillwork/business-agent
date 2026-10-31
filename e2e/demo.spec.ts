@@ -1541,6 +1541,18 @@ test('people: the team as a hierarchy, and everyone’s pets with their photos',
   await expect(arons.getByRole('listitem')).toHaveText([/Fudge/, /Cooper/])
   await expect(arons.getByLabel('Fudge has no photo yet')).toBeVisible()
   await expect(page.getByRole('list', { name: 'Maria’s pets' })).toHaveText('No pets')
+  // As an owner, Aron changes anyone's pet from here: Mark's Pablo gets a photo and a new name.
+  const marks = page.getByRole('list', { name: 'Mark Murray’s pets' })
+  await marks.getByRole('button', { name: 'Edit Pablo' }).click()
+  const pablo = page.getByRole('dialog', { name: 'Pablo' })
+  await pablo.getByLabel('Pet photo file').setInputFiles({ ...png, name: 'pablo.png' })
+  await expect(pablo.getByRole('img', { name: 'Pablo' })).toBeVisible()
+  await pablo.getByLabel('Name').fill('Pablito')
+  await pablo.getByRole('button', { name: 'Save' }).click()
+  await toast(page, /^Saved$/)
+  await expect(marks.getByRole('listitem')).toHaveText([/Pablito/, /Yoda/])
+  await expect(marks.getByLabel('Pablito has no photo yet')).toHaveCount(0)
+  await expect(marks.getByLabel('Yoda has no photo yet')).toBeVisible()
   await page.getByRole('button', { name: 'Hide pets' }).click()
   await expect(arons).toHaveCount(0)
 
@@ -1583,6 +1595,7 @@ test('people: the team as a hierarchy, and everyone’s pets with their photos',
   await expect(arons.getByRole('img', { name: 'Fudge' })).toBeVisible()
   await expect(arons.getByRole('listitem', { name: 'Cooper' })).toContainText('Dog · Cockapoo')
   await expect(page.getByRole('article', { name: "Aron O'Neill" }).getByRole('link')).toHaveCount(0)
+  await expect(page.getByRole('main').getByRole('button', { name: /^Edit / })).toHaveCount(0)
   await fromAccountMenu(page, 'My account')
   await expect(pets).toContainText('No pets yet')
   await pets.getByRole('button', { name: 'Add a pet' }).click()
@@ -1592,6 +1605,13 @@ test('people: the team as a hierarchy, and everyone’s pets with their photos',
   await page.getByRole('link', { name: 'People', exact: true }).first().click()
   await page.getByRole('button', { name: 'Show pets' }).click()
   await expect(page.getByRole('list', { name: 'Maria’s pets' }).getByRole('listitem')).toHaveText([/Luna/])
+  // Her own she changes from here too.
+  await expect(page.getByRole('main').getByRole('button', { name: /^Edit / })).toHaveText([/Luna/])
+  await page.getByRole('button', { name: 'Edit Luna' }).click()
+  await page.getByRole('dialog', { name: 'Luna' }).getByLabel('Name').fill('Lunita')
+  await page.getByRole('dialog', { name: 'Luna' }).getByRole('button', { name: 'Save' }).click()
+  await toast(page, /^Saved$/)
+  await expect(page.getByRole('list', { name: 'Maria’s pets' }).getByRole('listitem')).toHaveText([/Lunita/])
 })
 
 test.describe('top bar', () => {
