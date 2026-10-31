@@ -29,7 +29,7 @@ describe('sports sources', () => {
 
   it('every call has the limit, 10 s unless changed, and a source that answers in time is read as before', async () => {
     expect(SOURCE_TIMEOUT_MS).toBe(10_000)
-    const fetch = vi.fn(async () => new Response(JSON.stringify([]), { status: 200 }))
+    const fetch = vi.fn(async (_url: string, _init?: RequestInit) => new Response(JSON.stringify([]), { status: 200 }))
     vi.stubGlobal('fetch', fetch)
     await expect(fetchCompetition(laLiga, '2026-10-31')).resolves.toEqual({ events: [], complete: true })
     expect(fetch.mock.calls[0][0]).toBe('https://fixturedownload.com/feed/json/la-liga-2026')
