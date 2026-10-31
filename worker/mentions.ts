@@ -6,6 +6,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Env } from './supabase'
 import * as instagram from './providers/instagram'
 import { instagramSession } from './connections'
+import { syncRepFollowers } from './repPage'
 import { mediaStorage, storeMedia } from './media'
 import { mentionTitle, mentionsIn } from '../shared/mentions'
 import type { TaggedPost } from '../shared/messages'
@@ -24,6 +25,8 @@ export async function checkMentions(env: Env, db: SupabaseClient): Promise<numbe
     instagram.conversations(cfg, { id: ext.user_id ?? '', username: ext.username }),
     instagram.tagged(cfg).catch(() => [] as TaggedPost[]),
   ])
+  // Reps among these people: their followers as Instagram says now (Sales reps & rewards).
+  await syncRepFollowers(db, chats).catch(() => 0)
   const found = mentionsIn(chats, tagged)
   if (!found.length) return 0
   const { data: added, error } = await db.from('instagram_mentions').upsert(found, { onConflict: 'business_id,id', ignoreDuplicates: true }).select('id, kind, username, caption')

@@ -22,6 +22,13 @@ describe('people', () => {
     expect(tiers.map(t => t.people.map(p => p.full_name))).toEqual([['Aron', 'Mark']])
   })
 
+  it('leaves out the accounts the live tests make while they run', () => {
+    const tiers = teamTiers([person('Aron', 'admin', true), person('Maria', 'employee'),
+      { ...person('Ana Test', 'admin', true), email: 'e2e-admin@business-agent.test' }, { ...person('Eva Test', 'employee'), email: 'e2e-employee@business-agent.test' },
+      { ...person('Omar Test', 'employee'), email: 'E2E-other@Business-Agent.test' }])
+    expect(tiers.flatMap(t => t.people.map(p => p.full_name))).toEqual(['Aron', 'Maria'])
+  })
+
   it('lists the roles each person holds, in the roles’ order', () => {
     const by = jobRolesByPerson([
       { name: 'Barista', sort: 2, people: ['julio', 'maria'] },

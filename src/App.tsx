@@ -77,6 +77,7 @@ const MenuPrintPage = page(() => import('./pages/MenuPrintPage'), 'MenuPrintPage
 const ScreensPage = page(() => import('./pages/ScreensPage'), 'ScreensPage')
 const CamerasPage = page(() => import('./pages/CamerasPage'), 'CamerasPage')
 const DisplayPage = page(() => import('./pages/DisplayPage'), 'DisplayPage')
+const RepPage = page(() => import('./pages/RepPage'), 'RepPage')
 const WastePage = page(() => import('./pages/WastePage'), 'WastePage')
 const RegistroPage = page(() => import('./pages/RegistroPage'), 'RegistroPage')
 const OpeningHoursPage = page(() => import('./pages/OpeningHoursPage'), 'OpeningHoursPage')
@@ -119,6 +120,8 @@ function Routed() {
   if (pathname === '/compare') return <ComparePage />
   // A café screen's own link: no sign-in, the link itself is the screen's secret (Screens page).
   if (pathname.startsWith('/display/')) return <DisplayPage />
+  // A sales rep's own page: no sign-in, the link itself is the rep's secret (Sales reps & rewards).
+  if (pathname.startsWith('/rep/')) return <RepPage />
   if (loading) return <Loading />
   if (!me) return <LoginPage />
   // Signed up on their own and in no business yet: create theirs. Switched off in one: wait to be let back in.

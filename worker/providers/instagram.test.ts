@@ -47,12 +47,21 @@ describe('Instagram people and replies', () => {
       match: async (k: string) => store.get(k)?.clone(),
       put: async (k: string, r: Response) => { store.set(k, r.clone()) },
     } })
-    const fetch = answer({ id: 'igsid', name: 'Ana', username: 'ana', profile_pic: 'https://p.jpg' })
+    const fetch = answer({ id: 'igsid', name: 'Ana', username: 'ana', profile_pic: 'https://p.jpg', follower_count: 2300 })
     vi.stubGlobal('fetch', fetch)
-    expect(await person(cfg, 'igsid')).toEqual({ name: 'Ana', username: 'ana', picture: 'https://p.jpg' })
-    expect(await person(cfg, 'igsid')).toEqual({ name: 'Ana', username: 'ana', picture: 'https://p.jpg' })
+    expect(await person(cfg, 'igsid')).toEqual({ name: 'Ana', username: 'ana', picture: 'https://p.jpg', followers: 2300 })
+    expect(await person(cfg, 'igsid')).toEqual({ name: 'Ana', username: 'ana', picture: 'https://p.jpg', followers: 2300 })
     expect(fetch).toHaveBeenCalledTimes(1)
-    expect(String((fetch.mock.calls[0] as unknown[])[0])).toBe('https://graph.instagram.com/v23.0/igsid?fields=name,username,profile_pic')
+    expect(String((fetch.mock.calls[0] as unknown[])[0])).toBe('https://graph.instagram.com/v23.0/igsid?fields=name,username,profile_pic,follower_count')
+  })
+
+  it('asks again without followers when Instagram refuses that field', async () => {
+    const fetch = vi.fn(async (url: string) => (String(url).includes('follower_count')
+      ? new Response(JSON.stringify({ error: { message: '(#100) Tried accessing nonexisting field (follower_count)' } }), { status: 400 })
+      : new Response(JSON.stringify({ id: 'igsid2', name: 'Bea', username: 'bea', profile_pic: 'https://b.jpg' }), { status: 200 })))
+    vi.stubGlobal('fetch', fetch)
+    expect(await person(cfg, 'igsid2')).toEqual({ name: 'Bea', username: 'bea', picture: 'https://b.jpg' })
+    expect(fetch).toHaveBeenCalledTimes(2)
   })
 
   it('a failed lookup is no photo, never an error', async () => {

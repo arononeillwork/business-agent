@@ -19,7 +19,7 @@ import {
   FEATURES, IDEA_STATUSES, KINDS, NOTE_KINDS, PRICE_SOURCES, THREATS, analyse, competitorRows, featuresOf, hoursOf, insightText, insights, matchRecipe,
   priceKey, priceLevelLabel, type Competitor, type CompetitorData, type CompetitorKind, type IdeaStatus, type NoteKind, type PriceSource, type Threat,
 } from '../shared/localCompetitors'
-import { balanceOf, earnsCredit, leaderboard, ruleFits, type RepReward, type RewardRule, type SalesRep } from '../shared/reps'
+import { balanceOf, earnsCredit, leaderboard, reachMultiplier, reachTier, ruleFits, type RepReward, type RewardRule, type SalesRep } from '../shared/reps'
 import { fillJars, forecast, kittyBalance, monthlyPace, profitShare, type KittyEntry, type KittyGoal } from '../shared/kitty'
 import {
   CONTRACTOR_KINDS, COUNTED, QUANTITY_PERS, RATE_UNITS, SERVICES, compareServices, contractState, monthlyCost, optionsFor, outsourcingTotals, presetOf,
@@ -1220,7 +1220,7 @@ export const ALL_TOOLS: ToolDef[] = [
   tool({
     name: 'list_sales_reps',
     title: 'Sales reps & rewards',
-    description: 'The people who sell the café: the team, ambassadors from outside it and customers who spread the word, each with the code on their business cards. Customers earn credit to spend in the café, the team and ambassadors commission. With each rep: their balance (credit to spend, or commission owed; admins see everyone\'s, the team customers\' and their own), and this month\'s rewards. Also the list of what earns a reward and what\'s waiting for an admin.',
+    description: 'The people who sell the café: the team, ambassadors from outside it and customers who spread the word, each with the code on their business cards. Customers earn credit to spend in the café, the team and ambassadors commission. With each rep: their balance (credit to spend, or commission owed; admins see everyone\'s, the team customers\' and their own), their reach (followers on Instagram, TikTok, YouTube and Facebook plus the people they see in person) and its step (rewards that grow with reach are ×2 from 1,000 people, ×3 from 10,000, ×5 from 50,000), the crew they lead or are in (a crew\'s leader earns a share of what the crew earns), and this month\'s rewards. Also the list of what earns a reward, and what\'s waiting for an admin: rewards, and people an employee or a crew\'s leader added.',
     readOnly: true,
     input: z.object({ search: z.string().optional().describe('Part of a name, a code or an Instagram handle') }),
     async run({ sb, me }, a) {
@@ -1234,13 +1234,18 @@ export const ALL_TOOLS: ToolDef[] = [
       const sees = (r: SalesRep) => me.role === 'admin' || earnsCredit(r.kind) || r.profile_id === me.id
       const month = monthNow()
       return {
-        reps: reps.filter(r => !q || [r.name, r.code, r.instagram ?? ''].some(v => v.toLowerCase().includes(q))).map(r => ({
-          name: r.name, kind: r.kind, code: r.code, instagram: r.instagram, active: r.active, earns: earnsCredit(r.kind) ? 'credit' : 'commission',
+        reps: reps.filter(r => !q || [r.name, r.code, r.instagram ?? '', r.tiktok ?? ''].some(v => v.toLowerCase().includes(q))).map(r => ({
+          name: r.name, kind: r.kind, code: r.code, instagram: r.instagram, tiktok: r.tiktok, youtube: r.youtube, facebook: r.facebook, active: r.active,
+          waiting_for_ok: !r.approved, earns: earnsCredit(r.kind) ? 'credit' : 'commission',
+          reach: Number(r.reach ?? 0), reach_step: reachTier(Number(r.reach ?? 0)).label, rewards_that_grow_multiply_by: reachMultiplier(Number(r.reach ?? 0)),
+          in_crew_of: reps.find(x => x.id === r.leader_id)?.name ?? null, crew: reps.filter(x => x.leader_id === r.id && x.active).map(x => x.name),
           balance: sees(r) ? balanceOf(ledger, r.id) : null, notes: r.notes,
         })),
-        top_this_month: leaderboard(reps.filter(r => r.active), ledger, month).slice(0, 5).map(s => ({ name: s.rep.name, rewards: s.rewards, earned: sees(s.rep) ? s.earned : null })),
+        top_this_month: leaderboard(reps.filter(r => r.active && r.approved !== false), ledger, month).slice(0, 5).map(s => ({ name: s.rep.name, rewards: s.rewards, earned: sees(s.rep) ? s.earned : null })),
         rewards_list: rules.filter(r => r.active).map(r => ({ name: r.name, for: r.who, worth: worth({ ...r, amount: Number(r.amount) }),
-          needs_approval: r.needs_approval, monthly_limit: r.monthly_limit })),
+          grows_with_reach: !!r.scales_with_reach, needs_approval: r.needs_approval, monthly_limit: r.monthly_limit })),
+        people_waiting_for_ok: reps.filter(r => !r.approved).map(r => ({ rep_id: r.id, name: r.name, kind: r.kind, reach: Number(r.reach ?? 0),
+          in_crew_of: reps.find(x => x.id === r.leader_id)?.name ?? null, notes: r.notes })),
         waiting_for_approval: ledger.filter(r => r.status === 'pending').map(r => ({ reward_id: r.id, rep: reps.find(x => x.id === r.rep_id)?.name, for: r.label,
           amount: r.amount, sale: r.sale_amount === null ? null : Number(r.sale_amount), note: r.note, on: r.occurred_on })),
       }
@@ -1280,6 +1285,17 @@ export const ALL_TOOLS: ToolDef[] = [
     async run({ sb }, a) {
       check(await sb.rpc('decide_reward', { p_id: a.reward_id, p_approve: a.approve, p_amount: a.amount ?? null }))
       return { ok: true }
+    },
+  }),
+  tool({
+    name: 'decide_rep',
+    title: 'Say yes or no to a new rep',
+    description: 'Admins: someone an employee added as a rep, or a crew\'s leader added to their crew from their own page, waits for an admin (people_waiting_for_ok in list_sales_reps). Yes: they\'re a rep, and what the team logged for them while they waited counts (unless the reward needs approval anyway). No: they\'re taken off.',
+    admin: true,
+    input: z.object({ rep_id: z.string().uuid(), approve: z.boolean() }),
+    async run({ sb }, a) {
+      check(await sb.rpc('decide_rep', { p_id: a.rep_id, p_approve: a.approve }))
+      return { ok: true, approved: a.approve }
     },
   }),
   tool({

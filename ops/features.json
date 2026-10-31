@@ -168,7 +168,7 @@
       "name": "Reps & rewards",
       "area": "Sales",
       "page": "/sales-reps",
-      "does": "Rewards for people who bring in customers",
+      "does": "Rewards for people who bring in customers, bigger for more reach; crews and each rep's own page",
       "needs": [
         { "label": "Instagram", "connection": "instagram", "optional": true }
       ]

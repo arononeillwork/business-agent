@@ -17,6 +17,7 @@ describe('the service role over every business is only used to find which busine
     'integrations.ts': 1, // the business whose Square account a webhook is for
     'menu.ts': 1,         // the business of an AI image Higgsfield finished
     'referrals.ts': 1,    // the business whose referral code it is
+    'repPage.ts': 1,      // a rep's business, by their page's link
     'screens.ts': 1,      // a screen's business, by its link
   }
   it('stays where it is listed', () => {

@@ -13,7 +13,7 @@ import { DEFAULT_RADIUS, competitorRows, type CompetitorData } from '../../share
 import type { LegalDocument, LegalSource, StorageListing } from '../../shared/legalDocs'
 import { BRAND_COLUMNS, brandTitleOf, uploadProblem, type BrandDocument } from '../../shared/brandDocs'
 import type { Benefit, LeaveAllowance } from '../../shared/benefits'
-import type { LoggedReward, RepReward, RewardRule, SalesRep } from '../../shared/reps'
+import type { LoggedReward, RepPageData, RepReward, RepSettings, RewardRule, SalesRep } from '../../shared/reps'
 import type { KittyEntry, KittyGoal } from '../../shared/kitty'
 import type { JobRole } from '../../shared/roles'
 import type { RoleOwner } from '../../shared/roleOwners'
@@ -56,8 +56,9 @@ const MENU_IMAGE_COLUMNS = 'id, design_id, item_id, url, source, model, prompt, 
 const TRACK_COLUMNS = 'id, source, title, artist, url, duration_s, bpm, energy, moods, genre, vocals, highlight_s, waveform, licence, saved, hidden, created_at'
 
 const CUSTOMER_COLUMNS = 'id, kind, first_name, last_name, email, phone, company, source, instagram, birthday, tags, notes, marketing_consent, consent_at, last_contacted_at, created_at, updated_at'
-const REP_COLUMNS = 'id, name, kind, profile_id, customer_id, code, instagram, phone, email, notes, active, created_at'
-const REWARD_COLUMNS = 'id, rep_id, kind, rule_id, label, sale_amount, amount, status, proof_url, mention_id, note, occurred_on, logged_by, created_at'
+const REP_COLUMNS = 'id, name, kind, profile_id, customer_id, code, instagram, phone, email, notes, active, created_at, created_by'
+const REP_REACH_COLUMNS = 'tiktok, youtube, facebook, instagram_followers, tiktok_followers, youtube_followers, facebook_followers, community, reach, picture_url, followers_checked_at, leader_id, approved'
+const REWARD_COLUMNS = 'id, rep_id, kind, rule_id, label, sale_amount, amount, status, proof_url, mention_id, note, occurred_on, logged_by, created_at, bonus_for, multiplier'
 
 
 /** Postgres numeric can come back as text: a number, or null. */
@@ -1006,15 +1007,18 @@ export function createSupabaseApi(url: string, key: string): Api {
     },
     async deleteTipPool(id) { check(await sb.from('tip_pools').delete().eq('id', id)) },
     async salesReps() {
-      return check(await sb.from('sales_reps').select(REP_COLUMNS).order('name')) as SalesRep[]
+      const rows = check(await sb.from('sales_reps').select(`${REP_COLUMNS}, ${REP_REACH_COLUMNS}`).order('name')) as SalesRep[]
+      return rows.map(r => ({ ...r, reach: Number(r.reach ?? 0) }))
     },
-    async saveSalesRep({ id, ...r }) {
+    async saveSalesRep({ id, ...input }) {
+      // What the database works out itself isn't sent back.
+      const { reach: _reach, followers_checked_at: _checked, created_at: _created, created_by: _by, ...r } = input as Partial<SalesRep>
       if (id) { check(await sb.from('sales_reps').update(r).eq('id', id)); return id }
       return (check(await sb.from('sales_reps').insert(r).select('id').single()) as { id: string }).id
     },
     async deleteSalesRep(id) { check(await sb.from('sales_reps').delete().eq('id', id)) },
     async rewardRules() {
-      const rows = check(await sb.from('reward_rules').select('id, name, who, basis, amount, needs_approval, monthly_limit, sort, active').order('sort').order('created_at')) as RewardRule[]
+      const rows = check(await sb.from('reward_rules').select('id, name, who, basis, amount, needs_approval, monthly_limit, scales_with_reach, sort, active').order('sort').order('created_at')) as RewardRule[]
       return rows.map(r => ({ ...r, amount: Number(r.amount) }))
     },
     async saveRewardRule({ id, ...r }) {
@@ -1024,7 +1028,7 @@ export function createSupabaseApi(url: string, key: string): Api {
     async deleteRewardRule(id) { check(await sb.from('reward_rules').delete().eq('id', id)) },
     async repRewards() {
       const rows = check(await sb.from('rep_rewards').select(REWARD_COLUMNS).order('occurred_on', { ascending: false }).order('created_at', { ascending: false }).limit(2000)) as RepReward[]
-      return rows.map(r => ({ ...r, amount: Number(r.amount), sale_amount: r.sale_amount === null ? null : Number(r.sale_amount) }))
+      return rows.map(r => ({ ...r, amount: Number(r.amount), sale_amount: num(r.sale_amount), multiplier: num(r.multiplier) }))
     },
     async logReward(r) {
       const out = check(await sb.rpc('log_reward', { p_rep_id: r.rep_id, p_rule_id: r.rule_id, p_sale_amount: r.sale_amount ?? null, p_note: r.note || null,
@@ -1039,9 +1043,41 @@ export function createSupabaseApi(url: string, key: string): Api {
     },
     async deleteReward(id) { check(await sb.from('rep_rewards').delete().eq('id', id)) },
     async repSettings() {
-      return check(await sb.from('rep_settings').select('welcome_offer').eq('id', 1).single()) as { welcome_offer: string | null }
+      const row = check(await sb.from('rep_settings').select('welcome_offer, crew_share, boost_by_reach, pitch').eq('id', 1).single()) as RepSettings
+      return { ...row, crew_share: Number(row.crew_share) }
     },
     async updateRepSettings(patch) { check(await sb.from('rep_settings').update(patch).eq('id', 1)) },
+    async decideRep(id, approve) { check(await sb.rpc('decide_rep', { p_id: id, p_approve: approve })) },
+    async repLink(repId) {
+      const row = check(await sb.from('rep_links').select('token').eq('rep_id', repId).maybeSingle()) as { token: string } | null
+      if (row) return row.token
+      return (check(await sb.from('rep_links').insert({ rep_id: repId }).select('token').single()) as { token: string }).token
+    },
+    async newRepLink(repId) {
+      const token = crypto.randomUUID().replace(/-/g, '')
+      check(await sb.from('rep_links').upsert({ rep_id: repId, token }, { onConflict: 'rep_id' }))
+      return token
+    },
+    lookupInstagram: handle => worker('/api/reps/instagram', { method: 'POST', body: JSON.stringify({ handle }) }),
+    async repPage(token) {
+      // The rep's own link: no sign-in, the Worker answers for it.
+      const res = await fetch(`/api/rep-page/${encodeURIComponent(token)}`, { cache: 'no-store' })
+      const json = await res.json().catch(() => ({})) as RepPageData & { error?: string }
+      if (!res.ok) throw new Error(json.error ?? `Your page couldn’t be loaded (${res.status})`)
+      return json
+    },
+    async claimReward(token, claim) {
+      const res = await fetch(`/api/rep-page/${encodeURIComponent(token)}/claim`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(claim) })
+      const json = await res.json().catch(() => ({})) as LoggedReward & { error?: string }
+      if (!res.ok) throw new Error(json.error ?? `That couldn’t be sent (${res.status})`)
+      return { ...json, amount: Number(json.amount) }
+    },
+    async suggestCrew(token, person) {
+      const res = await fetch(`/api/rep-page/${encodeURIComponent(token)}/crew`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(person) })
+      const json = await res.json().catch(() => ({})) as { name: string; reach: number; approved: boolean; error?: string }
+      if (!res.ok) throw new Error(json.error ?? `That couldn’t be sent (${res.status})`)
+      return { name: json.name, reach: Number(json.reach), approved: json.approved }
+    },
 
     async kittySettings() {
       const row = check(await sb.from('kitty_settings').select('profit_percent').eq('id', 1).single()) as { profit_percent: number }
