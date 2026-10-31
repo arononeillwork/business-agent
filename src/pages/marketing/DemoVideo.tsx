@@ -3,6 +3,9 @@
 // Business Agent. Each fills the screen as its own section, plays muted while it's on screen (not for
 // people who've asked for less motion), with controls to watch it with its music. "View a demo" in
 // the hero brings the demo up and plays it from the start, with its music.
+// Neither loads until it plays: until then only its poster is fetched. The site serves a video whole
+// (no byte ranges), so loading both up front cost every visitor about 17 MB, and the browser holding
+// those half-read downloads stalled the app's own requests on the same connection after signing in.
 import { Box, Container } from '@mui/material'
 import { useEffect, useRef, type MouseEvent, type ReactNode } from 'react'
 import { FEATURES } from '../../app/features'
@@ -49,7 +52,7 @@ function VideoSection({ id, labelledBy, eyebrow, title, text, src, poster, label
         <Box sx={{ borderRadius: { xs: '16px', md: '24px' }, overflow: 'hidden', border: `1px solid ${BA.line}`, bgcolor: BA.tint,
           boxShadow: '0 50px 100px -50px rgba(43,37,34,0.38)', aspectRatio: '16 / 9', mx: 'auto',
           maxWidth: { md: `calc((100svh - ${HEADER_HEIGHT}px - 320px) * 16 / 9)` } }}>
-          <Box component="video" ref={video} src={src} poster={poster} controls muted loop playsInline preload="metadata"
+          <Box component="video" ref={video} src={src} poster={poster} controls muted loop playsInline preload="none"
             aria-label={label} sx={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }} />
         </Box>
       </Container>

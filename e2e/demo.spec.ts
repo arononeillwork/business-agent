@@ -7937,7 +7937,12 @@ test('landing page: the demo video with its poster and controls, once it is swit
   for (const file of ['public/video/business-agent-demo.mp4', 'public/video/business-agent-demo.jpg']) {
     expect(readFileSync(file).length).toBeGreaterThan(10_000)
   }
+  // Opening the page fetches no video, only posters: a video loads when it plays.
+  const videos: string[] = []
+  page.on('request', r => { if (/\.mp4(\?|$)/.test(r.url())) videos.push(r.url()) })
   await page.goto('/?demo')
+  await page.waitForLoadState('networkidle')
+  expect(videos).toEqual([])
   const video = page.getByLabel('Business Agent demo video')
   if (!FEATURES.demoVideo) {
     await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
@@ -7949,6 +7954,7 @@ test('landing page: the demo video with its poster and controls, once it is swit
   await expect(video).toHaveAttribute('poster', '/video/business-agent-demo.jpg')
   await expect(video).toHaveAttribute('src', '/video/business-agent-demo.mp4')
   await expect(video).toHaveAttribute('controls', '')
+  await expect(video).toHaveAttribute('preload', 'none')
   expect((await page.request.get('/video/business-agent-demo.mp4')).ok()).toBe(true)
   // "View a demo" in the hero brings the whole video up under the header and plays it, with its music.
   await page.getByRole('link', { name: 'View a demo' }).click()
