@@ -77,6 +77,7 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'leads', files: [/LeadsPage/, /shared\/leads/], tests: String.raw`leads and enquiries|enquir` },
   { name: 'expenses', files: [/ExpensesPage/, /shared\/claims/], tests: String.raw`expenses and mileage|trip` },
   { name: 'campaigns', files: [/CampaignsPage/, /shared\/campaigns/], tests: String.raw`campaigns|marketing` },
+  { name: 'suggested campaigns', files: [/shared\/campaignIdeas/], tests: String.raw`campaigns` },
   { name: 'hiring', files: [/HiringPage/, /HiringBoard/, /shared\/hiring/], tests: String.raw`hiring|applicant` },
   { name: 'food safety and allergens', files: [/(FoodSafety|Allergens)Page/, /shared\/(foodSafety|allergens)/], tests: String.raw`food safety|allergen` },
   { name: 'tips', files: [/TipsPage/, /shared\/tips/], tests: String.raw`tips` },

@@ -36,6 +36,10 @@ export interface Campaign {
   recipients: number | null
   notes: string | null
   created_at: string
+  /** Switched off: kept, out of the main list, in the Inactive section; not reminded about. Not set: active. */
+  inactive?: boolean
+  /** The suggested campaign it was started from (shared/campaignIdeas.ts), not suggested again while it's here. */
+  idea?: string | null
 }
 export type CampaignInput = Partial<Omit<Campaign, 'id' | 'created_at'>> & { id?: string; name: string }
 

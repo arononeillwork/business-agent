@@ -1,11 +1,12 @@
 import {
-  Alert, Autocomplete, Box, Button, Card, CardContent, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, FormGroup, FormLabel,
-  IconButton, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
+  Alert, Autocomplete, Box, Button, Card, CardContent, Checkbox, Chip, Collapse, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, FormGroup, FormLabel,
+  IconButton, MenuItem, Stack, Switch, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs, TextField, Typography,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import EditIcon from '@mui/icons-material/EditOutlined'
+import ExpandIcon from '@mui/icons-material/ExpandMore'
 import { useMemo, useState } from 'react'
-import { Link as RouterLink } from 'react-router-dom'
+import { Link as RouterLink, useSearchParams } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
@@ -16,8 +17,10 @@ import { formatLocal, localDate, today, zonedIso } from '../../shared/time'
 import { SOURCES, sourceLabel } from '../../shared/customers'
 import {
   CAMPAIGN_CHANNELS, EVERYONE, FIRST_NAME_TAG, audienceOf, campaignStatusLabel, channelName, personalise, smsParts,
-  type Audience, type CampaignChannel, type CampaignInput, type CampaignStatus,
+  type Audience, type Campaign, type CampaignChannel, type CampaignInput, type CampaignStatus,
 } from '../../shared/campaigns'
+import { campaignFrom, effortLabel, suggestCampaigns, type Effort, type Suggestion } from '../../shared/campaignIdeas'
+import { businessConfig } from '../../shared/business.config'
 import type { Customer, CustomerKind, CustomerSource } from '../../shared/types'
 import { tokens } from '../theme'
 import { msg, t, tn } from '../i18n'
@@ -27,6 +30,10 @@ const TONE: Record<CampaignStatus, { fg: string; bg: string }> = {
   draft: { fg: tokens.neutralFg, bg: tokens.neutralBg }, scheduled: { fg: tokens.infoFg, bg: tokens.infoBg }, sent: { fg: tokens.goodFg, bg: tokens.goodBg },
 }
 const KINDS: { id: CustomerKind; label: string }[] = [{ id: 'customer', label: msg('Customers') }, { id: 'lead', label: msg('Leads') }]
+const EFFORT_TONE: Record<Effort, { fg: string; bg: string }> = {
+  low: { fg: tokens.goodFg, bg: tokens.goodBg }, medium: { fg: tokens.infoFg, bg: tokens.infoBg }, high: { fg: tokens.warnFg, bg: tokens.warnBg },
+}
+type View = 'campaigns' | 'suggested'
 
 /** "Customers tagged regular", in a line. */
 function audienceText(a: Audience) {
@@ -45,10 +52,15 @@ function audienceText(a: Audience) {
  * the business's own email or marketing app, and the campaign marked sent. Admins only.
  */
 export function CampaignsPage() {
-  const { api, isAdmin } = useApp()
+  const { api, isAdmin, business } = useApp()
+  const run = useAction()
   const list = useAsync('campaigns', () => api.campaigns(), [])
   const people = useAsync('customers', () => api.customers(), [])
   const [editing, setEditing] = useState<CampaignInput | null>(null)
+  const [params, setParams] = useSearchParams()
+  const view: View = params.get('tab') === 'suggested' ? 'suggested' : 'campaigns'
+  const show = (v: View) => setParams(v === 'campaigns' ? {} : { tab: v }, { replace: true })
+  const [showInactive, setShowInactive] = useState(false)
 
   if (!isAdmin) {
     return <>
@@ -61,6 +73,15 @@ export function CampaignsPage() {
   const customers = people.data ?? []
   const agreed = customers.filter(c => c.marketing_consent)
   const year = today().slice(0, 4)
+  const active = all.filter(c => !c.inactive)
+  const inactive = all.filter(c => c.inactive)
+  // Suggestions once the campaigns are in, leaving out the ones already started.
+  const ideas = list.data ? suggestCampaigns(today(), all) : []
+  const start = (s: Suggestion) => setEditing(campaignFrom(s, {
+    say: t, business: business?.name ?? businessConfig.name, tags: [...new Set(customers.flatMap(x => x.tags))],
+  }))
+  const setInactive = (c: Campaign, off: boolean) => void run(() => api.setCampaignInactive(c.id, off),
+    off ? t('{name} is inactive', { name: c.name }) : t('{name} is active again', { name: c.name }))
 
   return (
     <>
@@ -83,47 +104,161 @@ export function CampaignsPage() {
         <RouterLink to="/connections">{t('Open Connections')}</RouterLink>
       </Alert>
 
-      <Card component="section" aria-label={t('Campaigns')} sx={{ mb: 3 }}>
-        <CardContent>
-          <SectionTitle>{t('Campaigns')}</SectionTitle>
-          {all.length === 0
-            ? <Empty>{list.data ? t('No campaigns yet.') : t('Loading…')}</Empty>
-            : <Box sx={{ overflowX: 'auto' }}>
-                <Table size="small">
-                  <TableHead><TableRow>
-                    <TableCell>{t('Campaign')}</TableCell><TableCell>{t('Goes to')}</TableCell><TableCell>{t('Status')}</TableCell><TableCell />
-                  </TableRow></TableHead>
-                  <TableBody>
-                    {all.map(c => (
-                      <TableRow key={c.id} hover>
-                        <TableCell sx={{ minWidth: 220 }}>
-                          <Typography variant="body2" sx={{ fontWeight: 500 }}>{c.name}</Typography>
-                          <Typography variant="caption" sx={{ color: 'text.secondary' }}>{[t(channelName(c.channel)), c.subject].filter(Boolean).join(' · ')}</Typography>
-                        </TableCell>
-                        <TableCell sx={{ minWidth: 180 }}>
-                          {audienceText(c.audience)}
-                          <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
-                            {c.status === 'sent' && c.recipients !== null ? tn(c.recipients, 'Sent to {n} person', 'Sent to {n} people')
-                              : tn(audienceOf(customers, c.audience, c.channel).length, '{n} person now', '{n} people now')}
-                          </Typography>
-                        </TableCell>
-                        <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                          <Tag {...TONE[c.status]}>{t(campaignStatusLabel(c.status))}</Tag>
-                          <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>{when(c.status === 'sent' ? c.sent_at : c.scheduled_at)}</Typography>
-                        </TableCell>
-                        <TableCell align="right">
-                          <IconButton size="small" aria-label={t('Edit {name}', { name: c.name })} onClick={() => setEditing(c)}><EditIcon fontSize="small" /></IconButton>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </Box>}
-        </CardContent>
-      </Card>
+      <Tabs value={view} onChange={(_, v: View) => show(v)} variant="scrollable" allowScrollButtonsMobile aria-label={t('Campaigns')}
+        sx={{ mb: 3, borderBottom: `1px solid ${tokens.line}` }}>
+        <Tab value="campaigns" label={t('Campaigns ({n})', { n: active.length })} />
+        <Tab value="suggested" label={t('Suggested ({n})', { n: ideas.length })} />
+      </Tabs>
+
+      {view === 'suggested' && <SuggestedCampaigns ideas={ideas} loading={!list.data} onStart={start} />}
+
+      {view === 'campaigns' && <>
+        <Card component="section" aria-label={t('Campaigns')} sx={{ mb: 3 }}>
+          <CardContent>
+            <SectionTitle>{t('Campaigns')}</SectionTitle>
+            {active.length === 0
+              ? <Empty>
+                  {!list.data ? t('Loading…') : all.length ? t('No active campaigns.') : t('No campaigns yet.')}
+                  {list.data && ideas.length > 0 && (
+                    <Box sx={{ mt: 1.5 }}><Button variant="outlined" onClick={() => show('suggested')}>{t('See suggested campaigns')}</Button></Box>
+                  )}
+                </Empty>
+              : <CampaignTable campaigns={active} customers={customers} onEdit={setEditing} onInactive={setInactive} />}
+          </CardContent>
+        </Card>
+
+        {/* Switched off: at the bottom of the page, folded away until asked for. */}
+        {inactive.length > 0 && (
+          <Card component="section" aria-label={t('Inactive')} sx={{ mb: 3 }}>
+            <CardContent sx={showInactive ? undefined : { pb: '16px !important' }}>
+              <Stack direction={{ xs: 'column', sm: 'row' }} sx={{ gap: { xs: 0.5, sm: 2 }, alignItems: { sm: 'center' } }}>
+                <Button color="inherit" onClick={() => setShowInactive(x => !x)} aria-expanded={showInactive} aria-controls="inactive-campaigns"
+                  startIcon={<ExpandIcon sx={{ transition: 'transform .2s', transform: showInactive ? 'none' : 'rotate(-90deg)' }} />}
+                  sx={{ alignSelf: 'flex-start', fontWeight: 600 }}>
+                  {t('Inactive ({n})', { n: inactive.length })}
+                </Button>
+                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                  {t('Switched off: kept here, with no reminders. Switch one back on to return it to the list.')}
+                </Typography>
+              </Stack>
+              <Collapse in={showInactive} id="inactive-campaigns" unmountOnExit>
+                <Box sx={{ mt: 1.5 }}>
+                  <CampaignTable campaigns={inactive} customers={customers} onEdit={setEditing} onInactive={setInactive} />
+                </Box>
+              </Collapse>
+            </CardContent>
+          </Card>
+        )}
+      </>}
 
       {editing && <CampaignDialog campaign={editing} customers={customers} onClose={() => setEditing(null)} />}
     </>
+  )
+}
+
+/** The campaigns in a table: what each is, who it goes to and where it's at; switched off (Inactive) or on, and opened to change. */
+function CampaignTable({ campaigns, customers, onEdit, onInactive }: {
+  campaigns: Campaign[]; customers: Customer[]; onEdit: (c: Campaign) => void; onInactive: (c: Campaign, inactive: boolean) => void
+}) {
+  return (
+    <Box sx={{ overflowX: 'auto' }}>
+      <Table size="small">
+        <TableHead><TableRow>
+          <TableCell>{t('Campaign')}</TableCell><TableCell>{t('Goes to')}</TableCell><TableCell>{t('Status')}</TableCell><TableCell />
+        </TableRow></TableHead>
+        <TableBody>
+          {campaigns.map(c => (
+            <TableRow key={c.id} hover>
+              <TableCell sx={{ minWidth: 220 }}>
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>{c.name}</Typography>
+                <Typography variant="caption" sx={{ color: 'text.secondary' }}>{[t(channelName(c.channel)), c.subject].filter(Boolean).join(' · ')}</Typography>
+              </TableCell>
+              <TableCell sx={{ minWidth: 180 }}>
+                {audienceText(c.audience)}
+                <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
+                  {c.status === 'sent' && c.recipients !== null ? tn(c.recipients, 'Sent to {n} person', 'Sent to {n} people')
+                    : tn(audienceOf(customers, c.audience, c.channel).length, '{n} person now', '{n} people now')}
+                </Typography>
+              </TableCell>
+              <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                <Tag {...TONE[c.status]}>{t(campaignStatusLabel(c.status))}</Tag>
+                <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>{when(c.status === 'sent' ? c.sent_at : c.scheduled_at)}</Typography>
+              </TableCell>
+              <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                <FormControlLabel label={t('Inactive')} sx={{ mr: 1 }} slotProps={{ typography: { variant: 'body2', sx: { color: 'text.secondary' } } }}
+                  control={<Switch size="small" checked={!!c.inactive} onChange={e => onInactive(c, e.target.checked)}
+                    slotProps={{ input: { 'aria-label': t('Inactive: {name}', { name: c.name }) } }} />} />
+                <IconButton size="small" aria-label={t('Edit {name}', { name: c.name })} onClick={() => onEdit(c)}><EditIcon fontSize="small" /></IconButton>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </Box>
+  )
+}
+
+/** A day of the year, with the year when it isn't this one. */
+const dayOf = (date: string) => formatLocal(zonedIso(date, '12:00'), date.startsWith(today().slice(0, 4)) ? 'd MMM' : 'd MMM yyyy')
+const sendOf = (s: Suggestion) =>
+  formatLocal(zonedIso(s.send_on, s.send_at), s.send_on.startsWith(today().slice(0, 4)) ? 'EEE d MMM, HH:mm' : 'EEE d MMM yyyy, HH:mm')
+/** "Best now, until 15 Nov · Send Thu 5 Nov, 10:00". */
+function timingText(s: Suggestion) {
+  const best = s.phase === 'now' ? t('Best now, until {date}', { date: dayOf(s.to!) })
+    : s.phase === 'soon' ? t('Coming up: best from {date}', { date: dayOf(s.from!) })
+      : s.phase === 'later' ? t('Best from {date}', { date: dayOf(s.from!) }) : t('Any time')
+  return `${best} · ${t('Send {date}', { date: sendOf(s) })}`
+}
+
+/**
+ * Suggested: ready-made campaigns (shared/campaignIdeas.ts), the most useful at this time of year
+ * first and those for later in the year after; each starts a new campaign, filled in, in one press.
+ */
+function SuggestedCampaigns({ ideas, loading, onStart }: { ideas: Suggestion[]; loading: boolean; onStart: (s: Suggestion) => void }) {
+  const now = ideas.filter(s => s.phase !== 'later')
+  const later = ideas.filter(s => s.phase === 'later')
+  const grid = (items: Suggestion[]) => (
+    <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(3, minmax(0, 1fr))' } }}>
+      {items.map(s => {
+        const i = s.idea
+        return (
+          <Box key={i.key} role="article" aria-label={t(i.title)}
+            sx={{ border: 1, borderColor: 'divider', borderRadius: 2, p: 1.75, display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'baseline', justifyContent: 'space-between' }}>
+              <Typography variant="subtitle2" component="h3">{t(i.title)}</Typography>
+              <Tag {...EFFORT_TONE[i.effort]}>{t(effortLabel(i.effort))}</Tag>
+            </Stack>
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t(i.why)}</Typography>
+            <Typography variant="caption">{t('Goal: {goal}', { goal: t(i.goal) })}</Typography>
+            <Typography variant="caption" sx={{ color: 'text.secondary' }}>{timingText(s)}</Typography>
+            <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 0.5 }}>{i.channels.map(c => <Tag key={c}>{t(channelName(c))}</Tag>)}</Stack>
+            <Box sx={{ mt: 'auto', pt: 0.5 }}>
+              <Button size="small" variant="outlined" startIcon={<AddIcon />} onClick={() => onStart(s)}
+                aria-label={t('Start this campaign: {title}', { title: t(i.title) })}>{t('Start this campaign')}</Button>
+            </Box>
+          </Box>
+        )
+      })}
+    </Box>
+  )
+  return (
+    <Card component="section" aria-label={t('Suggested')} sx={{ mb: 3 }}>
+      <CardContent>
+        <SectionTitle>{t('Suggested')}</SectionTitle>
+        <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
+          {t('Ready-made campaigns, the most useful at this time of year first. Start one, change anything, and save it.')}
+        </Typography>
+        {loading ? <Empty>{t('Loading…')}</Empty>
+          : !ideas.length ? <Empty>{t('Every suggestion is already one of your campaigns. New ones come round with the seasons.')}</Empty>
+            : <>
+                {grid(now)}
+                {later.length > 0 && <>
+                  <Typography variant="overline" component="h3" sx={{ display: 'block', color: 'text.secondary', mt: 2.5, mb: 1 }}>{t('Later in the year')}</Typography>
+                  {grid(later)}
+                </>}
+              </>}
+      </CardContent>
+    </Card>
   )
 }
 
