@@ -3,3 +3,7 @@
 # default), so the next load after a deploy always shows the new version.
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
+
+# The push notifications service worker: browsers check it for a new version on every visit.
+/push-sw.js
+  Cache-Control: no-cache

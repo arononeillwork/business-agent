@@ -26,6 +26,7 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'rota', files: [/RotaPage/], tests: String.raw`rota|shift` },
   { name: 'hours', files: [/(Timecards|Kiosk|Today|Registro)Page/, /ClockRules/, /CafeSpeaker/], tests: String.raw`clock|timecard|registro|correction|hours|Today` },
   { name: 'calendar', files: [/CalendarPage/, /CalendarFeed/], tests: String.raw`calendar|event` },
+  { name: 'notifications', files: [/NotificationsPage/, /Notification(Bell|Settings)/, /shared\/notify/, /app\/push/], tests: String.raw`notification|holiday|mention` },
   { name: 'time off', files: [/TimeOffPage/], tests: String.raw`time off|holiday` },
   { name: 'staff benefits', files: [/BenefitsPage/, /shared\/benefits/], tests: String.raw`staff benefits|allocation` },
   { name: 'staff kitty', files: [/KittyPage/, /KittyJar/, /shared\/kitty/, /monthProfit/], tests: String.raw`staff kitty` },
