@@ -2,12 +2,22 @@ name: Restart Supabase
 # Reboots the Supabase project (the dashboard's "Restart project") when its database freezes:
 # sign-ins hang, /api/health?deep=1 times out. Start it from the Actions tab; it waits until
 # the database, auth and REST services report healthy again.
+# The Supabase watchdog (supabase-watchdog.yml) starts it by itself after five minutes frozen.
 on: workflow_dispatch
+
+# One restart at a time: a second one started meanwhile waits, then finds it healthy.
+concurrency:
+  group: restart-supabase
+  cancel-in-progress: false
+
+permissions:
+  actions: write
+  contents: read
 
 jobs:
   restart:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -16,3 +26,8 @@ jobs:
       - run: node scripts/ops/restart-supabase.mjs
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      # A deploy the freeze stopped (its database step or its live checks) goes again.
+      - name: Re-run a deploy the freeze stopped
+        run: node scripts/ops/rerun-deploy.mjs
+        env:
+          GH_TOKEN: ${{ github.token }}
