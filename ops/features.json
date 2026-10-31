@@ -599,6 +599,16 @@
       "needs": []
     },
     {
+      "id": "assistant",
+      "name": "Assistant",
+      "area": "You",
+      "page": "/",
+      "does": "Ask Claude about the business from the button at the bottom right",
+      "needs": [
+        { "label": "Anthropic key", "secret": "ANTHROPIC_API_KEY" }
+      ]
+    },
+    {
       "id": "billing",
       "name": "Billing",
       "area": "You",
