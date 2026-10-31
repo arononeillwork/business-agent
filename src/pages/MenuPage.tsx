@@ -152,6 +152,7 @@ function Items({ items, allergens, admin, source, order, onOpen }: {
       </StatGrid>
 
       {admin && items && <MenuFrom source={source} items={all} onTemplate={loadTemplate} />}
+      {admin && items && <GoogleMenu />}
 
       {items && !all.length ? (
         <Empty>
@@ -201,6 +202,39 @@ function Items({ items, allergens, admin, source, order, onOpen }: {
         </Typography>
       </>}
     </>
+  )
+}
+
+/**
+ * The menu on Google Maps (admins), like Opening hours: with the listing connected, the menu goes
+ * onto it by itself within a minute of a change (here or in Square); when it last went, why Google
+ * refused it, and a button to send it now. Not connected: where to connect it.
+ */
+function GoogleMenu() {
+  const { api } = useApp()
+  const run = useAction()
+  const notify = useNotify()
+  // Asked again every minute, so "last sent" moves on once the Worker has sent a change.
+  const integ = useAsync('menu-google', () => api.integrations(), [], { refetchInterval: 60_000 })
+  if (!integ.data) return null
+  const g = integ.data.integrations.find(i => i.provider === 'google_business')
+  const on = g?.status === 'connected'
+  const sentAt = g?.external.menu_sent_at
+  const send = async () => {
+    let n = 0
+    if (await run(async () => { n = (await api.sendMenuToGoogle()).items; await integ.reload() })) {
+      notify(tn(n, 'Sent {n} item to Google Maps.', 'Sent {n} items to Google Maps.'), 'success')
+    }
+  }
+  return (
+    <Alert severity={on ? (g?.external.menu_error ? 'warning' : 'success') : 'info'} sx={{ mb: 2.5 }} aria-label={t('Menu on Google Maps')}
+      action={on ? <Button color="inherit" size="small" onClick={() => void send()}>{t('Send to Google Maps now')}</Button>
+        : <Button component={RouterLink} to="/connections" color="inherit" size="small">{t('Connections')}</Button>}>
+      {on ? t('Google Maps is kept in step: changes to the menu, here or in Square, reach your listing within a minute.')
+        : t('Connect your Google listing on the Connections page and this menu updates Google Maps by itself.')}
+      {on && ` ${sentAt ? t('Last sent to Google Maps {when}.', { when: ago(sentAt) }) : t('Not sent to Google Maps yet.')}`}
+      {on && g?.external.menu_error && <Box component="span" sx={{ display: 'block', mt: 0.5 }}>{g.external.menu_error}</Box>}
+    </Alert>
   )
 }
 

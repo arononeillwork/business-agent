@@ -2,7 +2,8 @@
 // happened lately; the only changes made are goodwill points (an adjustment, with a reason) and
 // selling a digital gift card (created, then activated at the café's location for the amount paid).
 // Every change carries an idempotency key, so a retried request never gives points or a card twice.
-// Card numbers (GANs) are cut to their last 4 digits here, before anything leaves the Worker.
+// Card numbers (GANs) are cut to their last 4 digits here, before anything leaves the Worker; only
+// giftCardNumber() gives one card's whole number, for an admin's "Copy number".
 import { squareApi, SquareError } from './square'
 import { last4, type GiftCard, type GiftCardActivity, type GiftCardActivityKind, type LoyaltyEvent, type LoyaltyEventKind, type LoyaltyProgram } from '../../shared/loyalty'
 
@@ -94,50 +95,91 @@ export async function adjust(sandbox: boolean, token: string, accountId: string,
 }
 
 interface SquareGiftCard { id: string; type?: string; state?: string; balance_money?: Money; gan?: string; created_at?: string; customer_ids?: string[] }
-const toCard = (g: SquareGiftCard): Omit<GiftCard, 'customer'> => ({
+/** What a card's activities say about it (see giftCardBook). */
+interface CardUse { original: number | null; last_used: string | null }
+const toCard = (g: SquareGiftCard, use: CardUse = { original: null, last_used: null }): Omit<GiftCard, 'customer'> => ({
   id: g.id, last4: last4(g.gan), type: g.type === 'PHYSICAL' ? 'PHYSICAL' : 'DIGITAL',
   state: (['ACTIVE', 'PENDING', 'DEACTIVATED', 'BLOCKED'].includes(g.state ?? '') ? g.state : 'PENDING') as GiftCard['state'],
-  balance: euros(g.balance_money), created_at: g.created_at ?? '', customer_id: g.customer_ids?.[0] ?? null,
+  balance: euros(g.balance_money), created_at: g.created_at ?? '', customer_id: g.customer_ids?.[0] ?? null, ...use,
 })
 
-/** Every gift card (up to 2,000), newest first, with only the last 4 digits of each number. */
-export async function giftCards(sandbox: boolean, token: string) {
-  const out: Omit<GiftCard, 'customer'>[] = []
-  let currency: string | undefined
+/** Every gift card in Square, whatever its state (up to 2,000), as Square gives them. */
+async function listGiftCards(sandbox: boolean, token: string) {
+  const out: SquareGiftCard[] = []
   let cursor: string | undefined
   for (let page = 0; page < 40; page++) {
     const q = new URLSearchParams({ limit: '50', ...(cursor ? { cursor } : {}) })
     const r = await squareApi<{ gift_cards?: SquareGiftCard[]; cursor?: string }>(sandbox, token, `/v2/gift-cards?${q}`)
-    for (const g of r.gift_cards ?? []) { currency ??= g.balance_money?.currency; out.push(toCard(g)) }
+    out.push(...r.gift_cards ?? [])
     cursor = r.cursor
     if (!cursor) break
   }
-  return { currency: currency ?? 'EUR', cards: out.sort((a, b) => b.created_at.localeCompare(a.created_at)) }
+  return out
 }
-
 interface SquareActivity {
-  id: string; type: string; created_at: string; gift_card_gan?: string; gift_card_balance_money?: Money
+  id: string; type: string; created_at: string; gift_card_id?: string; gift_card_gan?: string; gift_card_balance_money?: Money
   activate_activity_details?: { amount_money?: Money }; load_activity_details?: { amount_money?: Money }
   redeem_activity_details?: { amount_money?: Money }; clear_balance_activity_details?: { reason?: string }
 }
 const ACTIVITY: Record<string, GiftCardActivityKind> = { ACTIVATE: 'activate', LOAD: 'load', REDEEM: 'redeem', CLEAR_BALANCE: 'clear' }
 
-/** What happened to gift cards between two instants (up to 2,000 activities), newest first. */
-export async function giftCardActivities(sandbox: boolean, token: string, fromIso: string, toIso: string): Promise<GiftCardActivity[]> {
-  const out: GiftCardActivity[] = []
+/** Gift card activities between two instants, newest first, as Square gives them (up to `pages` × 100). */
+async function listActivities(sandbox: boolean, token: string, fromIso: string, toIso: string, pages: number) {
+  const out: SquareActivity[] = []
   let cursor: string | undefined
-  for (let page = 0; page < 20; page++) {
+  for (let page = 0; page < pages; page++) {
     const q = new URLSearchParams({ begin_time: fromIso, end_time: toIso, limit: '100', sort_order: 'DESC', ...(cursor ? { cursor } : {}) })
     const r = await squareApi<{ gift_card_activities?: SquareActivity[]; cursor?: string }>(sandbox, token, `/v2/gift-cards/activities?${q}`)
-    for (const a of r.gift_card_activities ?? []) {
-      const money = a.activate_activity_details?.amount_money ?? a.load_activity_details?.amount_money ?? a.redeem_activity_details?.amount_money
-      out.push({ id: a.id, kind: ACTIVITY[a.type] ?? 'other', amount: euros(money), at: a.created_at, last4: last4(a.gift_card_gan),
-        balance: a.gift_card_balance_money ? euros(a.gift_card_balance_money) : null })
-    }
+    out.push(...r.gift_card_activities ?? [])
     cursor = r.cursor
     if (!cursor) break
   }
   return out
+}
+
+const toActivity = (a: SquareActivity): GiftCardActivity => {
+  const money = a.activate_activity_details?.amount_money ?? a.load_activity_details?.amount_money ?? a.redeem_activity_details?.amount_money
+  return { id: a.id, kind: ACTIVITY[a.type] ?? 'other', amount: euros(money), at: a.created_at, last4: last4(a.gift_card_gan),
+    balance: a.gift_card_balance_money ? euros(a.gift_card_balance_money) : null }
+}
+
+/**
+ * The Gift cards tab: every card (up to 2,000, newest first) with what its history says (the amount
+ * it was first loaded with, when it was last spent with), and what happened between fromIso and toIso.
+ * Square's card carries neither, so they come from every activity since the oldest card was made (up
+ * to 4,000, newest first; cards older than that leave them unknown). Numbers are cut to their last 4 digits.
+ */
+export async function giftCardBook(sandbox: boolean, token: string, fromIso: string, toIso: string) {
+  const raw = await listGiftCards(sandbox, token)
+  const since = new Date(Math.min(Date.parse(fromIso), ...raw.map(g => Date.parse(g.created_at ?? '')).filter(n => !Number.isNaN(n)))).toISOString()
+  const all = await listActivities(sandbox, token, since, toIso, 40)
+  const from = Date.parse(fromIso), to = Date.parse(toIso)
+  // An activity names its card by id and by number; match on the number when the id isn't there.
+  const byGan = new Map(raw.filter(g => g.gan).map(g => [g.gan!, g.id]))
+  const use = new Map<string, CardUse & { activated?: string }>()
+  for (const a of all) {
+    const id = a.gift_card_id ?? (a.gift_card_gan ? byGan.get(a.gift_card_gan) : undefined)
+    if (!id) continue
+    const u = use.get(id) ?? { original: null, last_used: null }
+    if (a.type === 'ACTIVATE' && (!u.activated || a.created_at < u.activated)) {
+      u.activated = a.created_at
+      u.original = euros(a.activate_activity_details?.amount_money)
+    }
+    if (a.type === 'REDEEM' && (!u.last_used || a.created_at > u.last_used)) u.last_used = a.created_at
+    use.set(id, u)
+  }
+  const cards = raw.map(g => {
+    const u = use.get(g.id)
+    return toCard(g, { original: u?.original ?? null, last_used: u?.last_used ?? null })
+  }).sort((a, b) => b.created_at.localeCompare(a.created_at))
+  const activities = all.filter(a => Date.parse(a.created_at) >= from && Date.parse(a.created_at) < to).map(toActivity).sort((a, b) => b.at.localeCompare(a.at))
+  return { currency: raw.find(g => g.balance_money?.currency)?.balance_money?.currency ?? 'EUR', cards, activities }
+}
+
+/** One card's whole number (GAN), for an admin's "Copy number": asked of Square each time, never kept. */
+export async function giftCardNumber(sandbox: boolean, token: string, id: string) {
+  const { gift_card: card } = await squareApi<{ gift_card?: SquareGiftCard }>(sandbox, token, `/v2/gift-cards/${encodeURIComponent(id)}`)
+  return (card?.gan ?? '').replace(/\s/g, '')
 }
 
 /**
@@ -156,5 +198,6 @@ export async function sellGiftCard(sandbox: boolean, token: string, s: { locatio
       activate_activity_details: { amount_money: { amount: Math.round(s.amount * 100), currency: s.currency }, buyer_payment_instrument_ids: ['IN_PERSON'] } },
   })
   if (s.customerId) await squareApi(sandbox, token, `/v2/gift-cards/${encodeURIComponent(card.id)}/link-customer`, { customer_id: s.customerId })
-  return { ...toCard({ ...card, state: 'ACTIVE', balance_money: { amount: Math.round(s.amount * 100), currency: s.currency }, customer_ids: s.customerId ? [s.customerId] : card.customer_ids }) }
+  return { ...toCard({ ...card, state: 'ACTIVE', balance_money: { amount: Math.round(s.amount * 100), currency: s.currency }, customer_ids: s.customerId ? [s.customerId] : card.customer_ids },
+    { original: s.amount, last_used: null }) }
 }

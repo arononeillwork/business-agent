@@ -9,7 +9,7 @@ import OpenIcon from '@mui/icons-material/OpenInNew'
 import MailIcon from '@mui/icons-material/MailOutlined'
 import NotesIcon from '@mui/icons-material/StickyNote2Outlined'
 import { useState } from 'react'
-import { Link as RouterLink } from 'react-router-dom'
+import { Link as RouterLink, useSearchParams } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
@@ -50,7 +50,13 @@ export function InvoicesPage() {
   const docs = useAsync('tax-documents', () => (canEdit ? api.taxDocuments(Number(today().slice(0, 4))) : Promise.resolve([])), [Number(today().slice(0, 4))])
   const [direction, setDirection] = useState<InvoiceDirection>('in')
   const [status, setStatus] = useState<'all' | 'open' | InvoiceStatus>('all')
-  const [supplier, setSupplier] = useState<string>('all')
+  // From a supplier on Stock → Suppliers (its Invoices link): /invoices?supplier=<id> opens its invoices, and its emails.
+  const [params, setParams] = useSearchParams()
+  const [supplier, setSupplierNow] = useState<string>(params.get('supplier') || 'all')
+  const setSupplier = (id: string) => {
+    setSupplierNow(id)
+    setParams(p => { const n = new URLSearchParams(p); if (id === 'all' || id === 'none') n.delete('supplier'); else n.set('supplier', id); return n }, { replace: true })
+  }
   const [editing, setEditing] = useState<InvoiceInput | null>(null)
   const [uploading, setUploading] = useState(false)
   const run = useAction()
@@ -105,7 +111,7 @@ export function InvoicesPage() {
         <StatTile label={t('Paid this month')} value={list.data ? formatMoney(sum(paidThisMonth)) : '–'} note={tn(paidThisMonth.length, '{n} invoice', '{n} invoices')} />
       </StatGrid>
 
-      {canEdit && <FromEmail suppliers={sups} />}
+      {canEdit && <FromEmail suppliers={sups} only={sups.find(s => s.id === supplier) ?? null} onAll={() => setSupplier('all')} />}
 
       <Card component="section" aria-label={t('Invoices')} sx={{ mb: 3 }}>
         <CardContent>
@@ -229,10 +235,12 @@ function BySupplier({ invoices, suppliers, onPick }: { invoices: Invoice[]; supp
  * each matched to its supplier by who sent it. Reading the mailbox is asked for separately: the
  * connection on its own only sends email.
  */
-function FromEmail({ suppliers }: { suppliers: Supplier[] }) {
+function FromEmail({ suppliers, only, onAll }: { suppliers: Supplier[]; only: Supplier | null; onAll: () => void }) {
   const { api } = useApp()
   const run = useAction()
-  const inbox = useAsync('invoice-inbox', () => api.invoiceInbox(60), [])
+  // One supplier's (from its email or invoice senders, or naming it) over the last year; everyone's over 60 days.
+  const days = only ? 365 : 60
+  const inbox = useAsync('invoice-inbox', () => api.invoiceInbox(days, only?.id), [days, only?.id])
   const [picked, setPicked] = useState<Record<string, string>>({})
   const box = inbox.data?.mailbox
   const boxName = box === 'outlook' ? 'Outlook' : 'Gmail'
@@ -247,9 +255,19 @@ function FromEmail({ suppliers }: { suppliers: Supplier[] }) {
   return (
     <Card component="section" aria-label={t('From email')} sx={{ mb: 3 }}>
       <CardContent>
-        <SectionTitle action={inbox.data?.can_read && waiting.some(m => supplierOf(m)) && (
-          <Button startIcon={<MailIcon />} onClick={() => void bringMatched()}>{t('Bring in all from known suppliers')}</Button>
-        )}>{t('From email')}</SectionTitle>
+        <SectionTitle action={<Stack direction="row" spacing={1}>
+          {only && <Button onClick={onAll}>{t('Every supplier')}</Button>}
+          {inbox.data?.can_read && waiting.some(m => supplierOf(m)) && (
+            <Button startIcon={<MailIcon />} onClick={() => void bringMatched()}>{only ? t('Bring them all in') : t('Bring in all from known suppliers')}</Button>
+          )}
+        </Stack>}>{only ? t('From email: {name}', { name: only.name }) : t('From email')}</SectionTitle>
+        {only && (
+          <Typography variant="body2" sx={{ color: 'text.secondary', mt: -1, mb: 1.5 }}>
+            {(only.invoice_from?.length || only.email)
+              ? t('Emails with files from {senders}, or naming {name}, over the last year.', { senders: [...new Set([only.email, ...(only.invoice_from ?? [])].filter(Boolean))].join(', '), name: only.name })
+              : t('Emails with files naming {name}, over the last year. Add where its invoices come from on Suppliers to find them all.', { name: only.name })}
+          </Typography>
+        )}
         {inbox.data?.can_read && <Box sx={{ mt: -1, mb: 1.5 }}><Freshness id="mail" at={inbox.data.fetched_at} /></Box>}
         <ErrorBox error={inbox.error} />
         {inbox.data && !box && (
@@ -263,7 +281,7 @@ function FromEmail({ suppliers }: { suppliers: Supplier[] }) {
           </Alert>
         )}
         {inbox.data?.can_read && (waiting.length === 0
-          ? <Empty>{t('No new invoices in {mailbox} from the last 60 days.', { mailbox: boxName })}</Empty>
+          ? <Empty>{only ? t('No new invoices from {name} in {mailbox} over the last year.', { name: only.name, mailbox: boxName }) : t('No new invoices in {mailbox} from the last 60 days.', { mailbox: boxName })}</Empty>
           : <Stack spacing={1.5}>
               {waiting.map(m => (
                 <Box key={m.id} role="article" aria-label={m.subject || m.from} sx={{ border: 1, borderColor: 'divider', borderRadius: 2, p: 1.5 }}>

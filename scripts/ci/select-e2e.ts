@@ -61,6 +61,7 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'recipes', files: [/(Recipes|Waste)Page/, /shared\/recipes/], tests: String.raw`recipe|margin|waste` },
   { name: 'menu and screens', files: [/(Menu|MenuPrint|Screens|Display)Page/, /pages\/menu\//, /components\/(MenuBoard|ScreenPlayer|AiImages)/, /lib\/googleFont/,
     /shared\/(menu|screens)/], tests: String.raw`menu|screen|Higgsfield` },
+  { name: 'google maps menu', files: [/MenuPage/], tests: String.raw`Google Maps` },
   { name: 'ads', files: [/AdsPage/, /shared\/ads/], tests: String.raw`ads|campaign|UTM` },
   { name: 'reviews', files: [/(Reviews|Website)Page/, /shared\/(seo|reviews)/], tests: String.raw`review|SEO|website` },
   { name: 'competitors', files: [/CompetitorsPage/, /competitorDialogs/, /shared\/localCompetitors/, /components\/charts/], tests: String.raw`competitors` },
@@ -77,6 +78,7 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'leads', files: [/LeadsPage/, /shared\/leads/], tests: String.raw`leads and enquiries|enquir` },
   { name: 'expenses', files: [/ExpensesPage/, /shared\/claims/], tests: String.raw`expenses and mileage|trip` },
   { name: 'campaigns', files: [/CampaignsPage/, /shared\/campaigns/], tests: String.raw`campaigns|marketing` },
+  { name: 'suggested campaigns', files: [/shared\/campaignIdeas/], tests: String.raw`campaigns` },
   { name: 'hiring', files: [/HiringPage/, /HiringBoard/, /shared\/hiring/], tests: String.raw`hiring|applicant` },
   { name: 'food safety and allergens', files: [/(FoodSafety|Allergens)Page/, /shared\/(foodSafety|allergens)/], tests: String.raw`food safety|allergen` },
   { name: 'tips', files: [/TipsPage/, /shared\/tips/], tests: String.raw`tips` },
@@ -85,6 +87,12 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'usual allergens', files: [/shared\/allergenGuide/], tests: String.raw`allergen` },
   { name: 'cameras', files: [/CamerasPage/, /shared\/cameras/], tests: String.raw`camera` },
   { name: 'offers', files: [/OffersPage/, /OfferBoard/, /lib\/offerPicture/, /shared\/offers/], tests: String.raw`offer|special|screen` },
+  { name: 'email', files: [/EmailPage/, /shared\/email/, /i18n\/es\/email/], tests: String.raw`email` },
+  { name: 'contracts', files: [/TeamContracts/, /shared\/contracts/, /i18n\/es\/contracts/], tests: String.raw`contract` },
+  { name: 'agents', files: [/shared\/agents/, /AgentsMenu/, /AgentFocus/, /RolesAgentsTab/, /i18n\/es\/agents/], tests: String.raw`agent` },
+  { name: 'role ownership', files: [/RolesOwnershipTab/, /shared\/roleOwners/, /i18n\/es\/roleOwners/], tests: String.raw`ownership` },
+  { name: 'theme days and routine', files: [/CoffeesPage/, /components\/(ThemeDays|Routine)\.tsx$/, /shared\/(themeDays|routine)\.ts$/, /i18n\/es\/(themeDays|routine)\.ts$/],
+    tests: String.raw`theme|coffee|routine` },
 ]
 
 /** The --grep pattern for these changed files, or 'all'. */

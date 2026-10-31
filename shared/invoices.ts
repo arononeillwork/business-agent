@@ -76,21 +76,36 @@ const domainOf = (s: string | null | undefined) => {
 const SHARED_DOMAINS = new Set(['gmail.com', 'googlemail.com', 'hotmail.com', 'hotmail.es', 'outlook.com', 'outlook.es', 'live.com', 'yahoo.com', 'yahoo.es', 'icloud.com', 'me.com', 'protonmail.com', 'telefonica.net'])
 
 /**
- * The supplier an email or invoice is from: the same email address first, then the same tax
- * number, then the same company domain (their email's or website's; not gmail.com and the like).
+ * The supplier an email or invoice is from: the same email address first (its contact email, or one
+ * its invoices come from), then the same tax number, then the same company domain (their email's,
+ * website's or invoice senders'; not gmail.com and the like).
  */
-export function matchSupplier(suppliers: Pick<Supplier, 'id' | 'email' | 'website' | 'active' | 'tax_id'>[],
+export function matchSupplier(suppliers: (Pick<Supplier, 'id' | 'email' | 'website' | 'active' | 'tax_id'> & { invoice_from?: string[] | null })[],
   from: { email?: string | null; tax_id?: string | null }): string | null {
   const active = suppliers.filter(s => s.active !== false)
   const email = from.email?.trim().toLowerCase()
-  const byEmail = email && active.find(s => s.email?.toLowerCase() === email)
+  const byEmail = email && active.find(s => s.email?.toLowerCase() === email || (s.invoice_from ?? []).some(x => x.toLowerCase() === email))
   if (byEmail) return byEmail.id
   const tax = from.tax_id?.replace(/[\s.-]/g, '').toUpperCase()
   const byTax = tax && active.find(s => s.tax_id?.replace(/[\s.-]/g, '').toUpperCase() === tax)
   if (byTax) return byTax.id
   const domain = domainOf(email)
   if (!domain || SHARED_DOMAINS.has(domain)) return null
-  return active.find(s => domainOf(s.email) === domain || domainOf(s.website) === domain)?.id ?? null
+  return active.find(s => domainOf(s.email) === domain || domainOf(s.website) === domain
+    || (s.invoice_from ?? []).some(x => !x.includes('@') && domainOf(x) === domain))?.id ?? null
+}
+
+/** The senders to look for a supplier's invoices under: its contact email and invoice senders (shared mail domains left as addresses). */
+export function invoiceSenders(s: Pick<Supplier, 'email'> & { invoice_from?: string[] | null }): string[] {
+  return [...new Set([s.email, ...(s.invoice_from ?? [])].map(x => x?.trim().toLowerCase()).filter((x): x is string => !!x)
+    .filter(x => x.includes('@') || !SHARED_DOMAINS.has(x)))]
+}
+
+/** A Gmail search for one supplier's emails with files: from its senders, or naming it. */
+export function supplierMailQuery(s: Pick<Supplier, 'name' | 'email'> & { invoice_from?: string[] | null }): string {
+  const senders = invoiceSenders(s)
+  const name = s.name.replace(/["()]/g, ' ').replace(/\s+/g, ' ').trim()
+  return `(${[...senders.map(x => `from:${x}`), ...(name ? [`"${name}"`] : [])].join(' OR ')})`
 }
 
 /** Due and not paid: overdue once the due day has passed. */

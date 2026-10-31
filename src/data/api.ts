@@ -9,18 +9,23 @@ import type { KindInfo } from '../../shared/social'
 import type { InstagramMention } from '../../shared/mentions'
 import type { FilingRecord, Quarter, TaxDocKind, TaxDocument, TaxSettings } from '../../shared/tax'
 import type { InboxInvoice, InboxState as InvoiceInbox, Invoice, InvoiceInput } from '../../shared/invoices'
+import type { EmailQuery, EmailState } from '../../shared/email'
 import type { Licence, LicenceInput } from '../../shared/licences'
 import type { KeptDocument, StorageFolder } from '../../shared/documents'
 import type { MoneyItem, MoneyItemInput } from '../../shared/creditDebit'
 import type { LegalDocument, LegalDocumentPatch, LegalSource, LegalStorage, StorageListing } from '../../shared/legalDocs'
 import type { Benefit, BenefitInput, LeaveAllowance } from '../../shared/benefits'
-import type { LoggedReward, RepReward, RepSettings, RewardLog, RewardRule, RewardRuleInput, SalesRep, SalesRepInput } from '../../shared/reps'
+import type { CrewSuggestion, LoggedReward, RepClaim, RepPageData, RepReward, RepSettings, RewardLog, RewardRule, RewardRuleInput, SalesRep, SalesRepInput, SocialLookup } from '../../shared/reps'
 import type { KittyEntry, KittyEntryInput, KittyGoal, KittyGoalInput, KittySettings } from '../../shared/kitty'
 import type { JobRole, JobRoleInput } from '../../shared/roles'
+import type { RoleOwner } from '../../shared/roleOwners'
 import type { TeamRole } from '../../shared/teamRoles'
 import type { RuleSection, RuleSectionInput, RulesRead } from '../../shared/staffRules'
 import type { Pet, PetInput } from '../../shared/pets'
+import type { Coffee, CoffeeInput, DayThemeInput, ThemeDays } from '../../shared/themeDays'
+import type { RoutineDone, RoutineItem, RoutineItemInput } from '../../shared/routine'
 import type { Contractor, ContractorInput, OutsourcedJob, OutsourcedJobInput } from '../../shared/outsourcing'
+import type { EmploymentContract, EmploymentContractInput } from '../../shared/contracts'
 import type { PnlLine, PnlLineInput, PnlSettings } from '../../shared/pnl'
 import type { GrantApplication, GrantApplicationInput, GrantProfile } from '../../shared/grants'
 import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
@@ -224,6 +229,10 @@ export interface Api {
   /** Add one (no id) or change one. */
   saveJobRole(r: JobRoleInput): Promise<void>
   deleteJobRole(id: string): Promise<void>
+  /** Who owns each role and its place in their lane (Roles & responsibilities → Ownership); the team reads it. */
+  roleOwners(): Promise<RoleOwner[]>
+  /** Owners only: the roles whose owner (null: not owned yet) or place changed. */
+  saveRoleOwners(changes: RoleOwner[]): Promise<void>
   ruleSections(): Promise<RuleSection[]>
   /** Add one (no id) or change one. */
   saveRuleSection(s: RuleSectionInput): Promise<void>
@@ -239,6 +248,30 @@ export interface Api {
   savePet(p: PetInput): Promise<string>
   deletePet(id: string): Promise<void>
 
+  // Theme days (Calendar, Coffees page): the coffees served, the themes for the day with their coffee and
+  // playlist, the weekly rotation and dates set apart from it. The team reads them; admins change them.
+  coffees(): Promise<Coffee[]>
+  /** Add one (no id) or change one; returns its id. */
+  saveCoffee(c: CoffeeInput): Promise<string>
+  deleteCoffee(id: string): Promise<void>
+  themeDays(): Promise<ThemeDays>
+  /** Add a theme (no id) or change one; returns its id. */
+  saveDayTheme(t: DayThemeInput): Promise<string>
+  deleteDayTheme(id: string): Promise<void>
+  /** The weekly rotation: a weekday (1 Monday … 7 Sunday) gets a theme, or none (null). */
+  setThemeRotation(weekday: number, themeId: string | null): Promise<void>
+  /** One date: a theme, or none that day (null); `undefined` puts it back on the weekly rotation. */
+  setThemeDate(day: string, themeId: string | null | undefined, note?: string | null): Promise<void>
+
+  // Weekly routine (Calendar): what's done on set days. The team reads it and ticks things done; admins change it.
+  routineItems(): Promise<RoutineItem[]>
+  /** Add an activity (no id) or change one; returns its id. */
+  saveRoutineItem(r: RoutineItemInput): Promise<string>
+  deleteRoutineItem(id: string): Promise<void>
+  /** What was ticked done between two dates (inclusive). */
+  routineDone(from: string, to: string): Promise<RoutineDone[]>
+  setRoutineDone(itemId: string, day: string, done: boolean): Promise<void>
+
   // Outsourcing (admins; finance partners read): the jobs done by people and firms outside the team,
   // and the catalogue to choose them from.
   contractors(): Promise<Contractor[]>
@@ -250,6 +283,13 @@ export interface Api {
   /** Give someone a job (no id) or change one; returns its id. */
   saveOutsourcedJob(j: OutsourcedJobInput): Promise<string>
   deleteOutsourcedJob(id: string): Promise<void>
+
+  // Employment contracts (Team → Contracts): admins see everyone's and change them, a payroll gestoría
+  // reads, everyone else sees their own. The salary only for those who see pay, and on your own.
+  employmentContracts(): Promise<EmploymentContract[]>
+  /** Add one (no id) or change one; returns its id. With `salary` (null: none), sets its pay: admins with pay access. */
+  saveEmploymentContract(c: EmploymentContractInput): Promise<string>
+  deleteEmploymentContract(id: string): Promise<void>
 
   // Business Agent subscription (Stripe Billing). planStatus: everyone; the rest: admins.
   planStatus(): Promise<PlanStatus>
@@ -320,9 +360,14 @@ export interface Api {
   saveInvoice(i: InvoiceInput): Promise<string>
   deleteInvoice(id: string): Promise<void>
   /** Emails from the last `days` with files that could be invoices (once reading the mailbox is allowed). */
-  invoiceInbox(days?: number): Promise<InvoiceInbox>
+  /** Emails with files that could be invoices; `supplierId`: that supplier's only (from its senders, or naming it). */
+  invoiceInbox(days?: number, supplierId?: string): Promise<InvoiceInbox>
   /** Bring one attachment in as an invoice, its file kept with the tax documents. */
   importInvoice(message: InboxInvoice, attachmentId: string, supplierId?: string | null): Promise<Invoice>
+
+  // Email page (admins): the connected Gmail or Outlook as a list, read only, once reading it is allowed.
+  /** A page of emails for a chip, a search, a period and a supplier; `page` is the `next_page` of the one before. */
+  emailMessages(query: EmailQuery): Promise<EmailState>
 
   // Expenses: everyone sends their own (and changes them while they wait); admins with pay
   // access see and decide all of them; finance partners read.
@@ -385,6 +430,8 @@ export interface Api {
   /** Add a campaign (no id) or change one; returns its id. */
   saveCampaign(c: CampaignInput): Promise<string>
   deleteCampaign(id: string): Promise<void>
+  /** Switch a campaign off (into the Inactive section, no reminder) or back on. */
+  setCampaignInactive(id: string, inactive: boolean): Promise<void>
 
   // Sales reps & rewards: the team sees every rep and customers' credit, adds customers, logs
   // rewards and lets customers spend credit at the till; admins manage reps and the list, approve
@@ -409,6 +456,20 @@ export interface Api {
   deleteReward(id: string): Promise<void>
   repSettings(): Promise<RepSettings>
   updateRepSettings(patch: Partial<RepSettings>): Promise<void>
+  /** Admins: say yes to someone waiting (an employee added them, or a rep to their crew), or no (taken off). */
+  decideRep(id: string, approve: boolean): Promise<void>
+  /** The secret in a rep's own page link (/rep/<token>), made the first time (admins; a team rep their own). */
+  repLink(repId: string): Promise<string>
+  /** Admins: a new link for a rep's page; the old one stops working. */
+  newRepLink(repId: string): Promise<string>
+  /** Followers and photo of an Instagram account, where Instagram shares them (people who've messaged the café). */
+  lookupInstagram(handle: string): Promise<SocialLookup>
+  // A rep's own page (/rep/<token>): no sign-in, the link is the secret.
+  repPage(token: string): Promise<RepPageData>
+  /** From their page: what they shared, waiting for an admin. */
+  claimReward(token: string, claim: RepClaim): Promise<LoggedReward>
+  /** From their page: someone for their crew, waiting for an admin's OK. */
+  suggestCrew(token: string, person: CrewSuggestion): Promise<{ name: string; reach: number; approved: boolean }>
 
   // Staff kitty: the team reads; admins set the share of profit, add goals, put money in and mark goals bought.
   kittySettings(): Promise<KittySettings>
@@ -504,6 +565,8 @@ export interface Api {
   loadMenuTemplate(): Promise<{ added: number; designs: number }>
   /** Read the Square item library into the menu now (when the menu comes from Square). */
   syncMenuFromSquare(): Promise<{ added: number; changed: number; off: number; items: number }>
+  /** Send the menu to the Google Maps listing now (it also goes by itself within a minute of a change); how many items went. */
+  sendMenuToGoogle(): Promise<{ status: 'sent' | 'same' | 'empty' | 'paused' | 'not_connected'; items: number }>
   /** Keep a picture for the menu (a photo, a design) in the café's storage, Business Agent/Menu; returns its address. */
   uploadMenuPicture(file: File): Promise<string>
   // Menu designs (admins): printed (physical) and on screens (digital), each with its images.
@@ -646,6 +709,8 @@ export interface Api {
   giftCards(from: string, to: string): Promise<GiftCards>
   /** Sell a digital gift card for an amount paid at the till, optionally for a Square customer. */
   sellGiftCard(amount: number, customerId: string | null, key: string): Promise<GiftCard>
+  /** One gift card's whole number (lists carry the last 4 digits only), for Copy number; read from Square each time. */
+  giftCardNumber(id: string): Promise<string>
   // Ads (admins with pay access): Meta Ads and Google Ads, read and changed live on each platform
   /** Spend, clicks and results per day and campaign, from and to inclusive. */
   adsReport(from: string, to: string): Promise<AdsReport>
@@ -720,7 +785,7 @@ export interface Api {
   googleHours(): Promise<OpeningHours>
   disconnect(provider: string): Promise<void>
   /** Start connecting Gmail, Outlook, Google Drive, OneDrive, YouTube Music or Search Console (goes to Google/Microsoft and back). */
-  connectService(provider: ConnectorProvider, back?: 'setup' | 'connections' | 'invoices', opts?: { read?: boolean }): Promise<void>
+  connectService(provider: ConnectorProvider, back?: 'setup' | 'connections' | 'invoices' | 'email', opts?: { read?: boolean }): Promise<void>
   /** Prove a connection still works, now (the result is also on its card). */
   checkConnection(provider: IntegrationProvider): Promise<Integration | null>
   /** Check every connection that is (or was) working. */

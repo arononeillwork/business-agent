@@ -31,8 +31,8 @@ export interface InboxMessage {
 export interface InboxConversation {
   id: string
   platform: MessagePlatform
-  /** Who the chat is with; `picture` is their profile photo (Instagram's link expires after a few days). */
-  with: { id: string; username: string; name?: string; picture?: string }
+  /** Who the chat is with; `picture` is their profile photo (Instagram's link expires after a few days); `followers` where Instagram says. */
+  with: { id: string; username: string; name?: string; picture?: string; followers?: number }
   updatedAt: string
   /** The latest few messages, newest first (enough for the list and its filters). */
   recent: InboxMessage[]

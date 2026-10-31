@@ -24,6 +24,8 @@ export const MINUTES = {
   reviewsPlaces: 3 * 60,
   /** Competitors on Google (Places): each followed place, and the look around the business, once a week. */
   competitors: 7 * 24 * 60,
+  /** The Email page's list from the connected Gmail or Outlook (each filter and search kept on its own). */
+  email: 5,
 } as const
 
 /** How long takings for a period ending at `endIso` (exclusive) are kept: once it's over before yesterday, a day. */
@@ -33,6 +35,7 @@ export const takingsMinutes = (endIso: string, now = Date.now()) => (Date.parse(
 export interface RefreshSource {
   id: 'takings' | 'loyalty' | 'customers' | 'reviews' | 'hours' | 'mentions' | 'messages' | 'search' | 'ads' | 'mail' | 'sports' | 'connections' | 'website'
     | 'competitors'
+    | 'email'
   /** What it is and where it comes from. */
   what: string
   from: string
@@ -73,6 +76,8 @@ export const SOURCES: RefreshSource[] = [
     why: msg('Ratings and reviews move slowly, and Google’s Places service charges past 1,000 look-ups a month: once a week for each place followed keeps well inside it.') },
   { id: 'website', what: msg('Website and PageSpeed check'), from: 'Google', every: msg('when you ask for a check'),
     why: msg('Each check reads the whole site, so it only runs when asked.') },
+  { id: 'email', what: msg('Your email (Email page)'), from: 'Gmail · Outlook', every: msg('every 5 minutes'),
+    why: msg('Each filter and search is kept 5 minutes, so going back and forth between them doesn’t read the mailbox again each time.') },
 ]
 
 export const source = (id: RefreshSource['id']) => SOURCES.find(s => s.id === id)!

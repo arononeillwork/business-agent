@@ -1,7 +1,8 @@
 -- Sales reps & rewards (who sees and does what, the list's limits, credit spent at the till and
 -- commission paid out, nobody approving their own) and the staff kitty (the team reads, admins put
 -- money in, and nothing takes it below what's been bought).
--- People from the tests before it: maria (admin), julio and aron (employees).
+-- People from the tests before it: maria (admin), julio and aron (employees). Maria is an owner here
+-- (she sees pay): only an owner says yes to a new rep.
 
 create function pg_temp.act_as(p_email text) returns void language plpgsql as $$
 begin
@@ -20,6 +21,9 @@ end $$;
 
 create function pg_temp.rep(p_name text) returns uuid language sql as $$ select id from public.sales_reps where name = p_name $$;
 create function pg_temp.rule(p_name text) returns uuid language sql as $$ select id from public.reward_rules where name = p_name $$;
+
+create temp table maria_pay_reps as select can_see_pay from public.profiles where email = 'maria@test';
+update public.profiles set can_see_pay = true where email = 'maria@test';
 
 -- 1. Admins set up the list and the reps -----------------------------------------------------------
 select pg_temp.act_as('maria@test');
@@ -53,9 +57,30 @@ do $$ declare n int; begin
   update public.rep_settings set welcome_offer = 'Free cake'; get diagnostics n = row_count;
   assert n = 0, 'nor the cards';
 end $$;
+-- Anyone on the team adds someone, a customer or an ambassador; they wait for an admin's OK.
 insert into public.sales_reps (name, instagram) values ('Tom', 'tom_runs');
-select pg_temp.expect_error($q$insert into public.sales_reps (name, kind) values ('Big Seller', 'ambassador')$q$, 'row-level security');
+insert into public.sales_reps (name, kind) values ('Big Seller', 'ambassador');
+do $$ begin
+  assert (select count(*) from public.sales_reps where name in ('Tom', 'Big Seller') and not approved) = 2, 'both wait for an admin';
+end $$;
+select pg_temp.expect_error($q$insert into public.sales_reps (name, profile_id) select 'Not me', id from public.profiles where email = 'maria@test'$q$, 'row-level security');
+select pg_temp.expect_error($q$select public.decide_rep(pg_temp.rep('Tom'), true)$q$, 'Only an owner');
 select pg_temp.expect_error($q$insert into public.reward_rules (name, amount) values ('Everything free', 100)$q$, 'row-level security');
+reset role;
+do $$ begin
+  assert (select count(*) from public.notifications n join public.profiles p on p.id = n.profile_id
+           where p.email = 'maria@test' and n.link = '/sales-reps' and n.title = 'Julio added Tom as a rep: waiting for your OK') = 1, 'admins are told';
+end $$;
+-- An admin says yes to Tom and no to Big Seller (taken off).
+select pg_temp.act_as('maria@test');
+select public.decide_rep(pg_temp.rep('Tom'), true);
+select public.decide_rep(pg_temp.rep('Big Seller'), false);
+do $$ begin
+  assert (select approved from public.sales_reps where name = 'Tom'), 'Tom is a rep';
+  assert not exists (select 1 from public.sales_reps where name = 'Big Seller'), 'Big Seller isn''t';
+end $$;
+select pg_temp.expect_error($q$select public.decide_rep(pg_temp.rep('Tom'), true)$q$, 'already a rep');
+select pg_temp.act_as('julio@test');
 
 -- 3. Logging rewards: from the list, within its limit, for the right kind of rep -----------------
 do $$ declare v uuid; begin
@@ -144,12 +169,15 @@ reset role;
 update public.sales_reps set profile_id = null where name = 'Julio';
 do $$ begin assert (select kind from public.sales_reps where name = 'Julio') = 'ambassador', 'left the team'; end $$;
 
+reset role;
+update public.profiles set can_see_pay = (select can_see_pay from maria_pay_reps) where email = 'maria@test';
+
 -- 5. The staff kitty --------------------------------------------------------------------------------
 select pg_temp.act_as('julio@test');
 do $$ declare n int; begin
   assert (select string_agg(name, ', ' order by sort) from public.kitty_goals) = 'Christmas party, Ray-Ban sunglasses for the café', 'the first two goals';
   assert (select icon from public.kitty_goals where sort = 2) = 'sunglasses', 'with their pictures';
-  assert (select profit_percent from public.kitty_settings) = 5, '5% of profit';
+  assert (select profit_percent from public.kitty_settings) = 10, '10% of what''s taken above breakeven';
   assert public.kitty_balance() = 0, 'nothing in yet';
   update public.kitty_settings set profit_percent = 50; get diagnostics n = row_count;
   assert n = 0, 'the team can''t change the share';

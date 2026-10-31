@@ -16,6 +16,7 @@ import SuppliersIcon from '@mui/icons-material/LocalShippingOutlined'
 import WholesaleIcon from '@mui/icons-material/WarehouseOutlined'
 import RecipesIcon from '@mui/icons-material/MenuBookOutlined'
 import MenuIcon from '@mui/icons-material/RestaurantMenuOutlined'
+import CoffeesIcon from '@mui/icons-material/CoffeeOutlined'
 import ScreensIcon from '@mui/icons-material/TvOutlined'
 import CamerasIcon from '@mui/icons-material/VideocamOutlined'
 import WasteIcon from '@mui/icons-material/DeleteSweepOutlined'
@@ -55,6 +56,7 @@ import FoodSafetyIcon from '@mui/icons-material/ThermostatOutlined'
 import AllergensIcon from '@mui/icons-material/NoMealsOutlined'
 import TipsIcon from '@mui/icons-material/SavingsOutlined'
 import MessagesIcon from '@mui/icons-material/ChatBubbleOutlineRounded'
+import EmailIcon from '@mui/icons-material/MailOutlineRounded'
 import ReferralsIcon from '@mui/icons-material/CardGiftcardOutlined'
 import NotificationsIcon from '@mui/icons-material/NotificationsNoneOutlined'
 import ConnectIcon from '@mui/icons-material/HubOutlined'
@@ -98,6 +100,8 @@ import { SearchButton, ThemeToggle } from './QuickActions'
 import { fonts, tokens } from '../theme'
 import { msg, t, tc, tr } from '../i18n'
 import { LanguageToggle } from '../components/Language'
+import { AgentBanner, AgentsButton, useAgentView } from './AgentsMenu'
+import { hiddenByAgent } from '../../shared/agents'
 
 // `partner`: which partner areas show the item ('any' = every partner). Items without it are staff-only.
 // `children`: sub-pages, shown indented under the item when it's opened (or its arrow is pressed).
@@ -121,6 +125,7 @@ export const SECTIONS: NavSection[] = [
     { key: 'legal', to: '/legal', label: msg('Legal & licences'), short: msg('Legal'), icon: <LegalIcon />, who: 'admin', partner: ['finances'] },
     { key: 'brand', to: '/brand', label: msg('Brand'), icon: <BrandIcon />, partner: 'any' },
     { key: 'messages', to: '/messages', label: msg('Messages'), icon: <MessagesIcon />, who: 'admin' },
+    { key: 'email', to: '/email', label: msg('Email'), icon: <EmailIcon />, who: 'admin' },
     { key: 'cameras', to: '/cameras', label: msg('Cameras'), icon: <CamerasIcon />, who: 'admin' },
   ] },
   // What the figures say: each person's own dashboards, and the Business advisor's findings.
@@ -141,6 +146,8 @@ export const SECTIONS: NavSection[] = [
   // and the café's screens that play it.
   { key: 'menu', label: msg('Menu'), items: [
     { key: 'menu', to: '/menu', label: msg('Menu'), icon: <MenuIcon />, partner: ['finances'] },
+    // The coffees in use, bag by bag, with their photos; each theme day on the Calendar serves one.
+    { key: 'coffees', to: '/coffees', label: msg('Coffees'), icon: <CoffeesIcon /> },
     { key: 'screens', to: '/screens', label: msg('Screens'), icon: <ScreensIcon />, who: 'admin' },
   ] },
   // What's bought wholesale and sold in the shop, and who from. The team counts; admins price and order.
@@ -181,7 +188,7 @@ export const SECTIONS: NavSection[] = [
   { key: 'team', label: msg('Team'), items: [
     { key: 'rota', to: '/rota', label: msg('Rota'), icon: <RotaIcon />, partner: ['rota', 'payroll'] },
     { key: 'timeoff', to: '/time-off', label: msg('Time off'), icon: <TimeOffIcon /> },
-    { key: 'benefits', to: '/benefits', label: msg('Staff benefits'), short: msg('Benefits'), icon: <BenefitsIcon />, partner: ['payroll'] },
+    { key: 'benefits', to: '/benefits', label: msg('Staff benefits'), short: msg('Benefits'), icon: <BenefitsIcon />, who: 'admin', partner: ['payroll'] },
     { key: 'kitty', to: '/kitty', label: msg('Staff kitty'), short: msg('Kitty'), icon: <KittyIcon /> },
     { key: 'timecards', to: '/timecards', label: msg('Timecards'), short: msg('Hours'), icon: <TimecardIcon />, partner: ['payroll'] },
     ...(FEATURES.tips ? [{ key: 'tips', to: '/tips', label: msg('Tips'), icon: <TipsIcon />, partner: ['payroll'] as PartnerArea[] }] : []),
@@ -194,7 +201,7 @@ export const SECTIONS: NavSection[] = [
   { key: 'admin', label: msg('Settings'), items: [
     { key: 'connections', to: '/connections', label: msg('Connections'), icon: <ConnectIcon />, who: 'admin' },
     { key: 'notifications', to: '/notifications', label: msg('Notifications'), icon: <NotificationsIcon /> },
-    { key: 'pages', to: '/pages', label: msg('Pages'), icon: <PagesIcon />, partner: 'any' },
+    { key: 'pages', to: '/pages', label: msg('Pages'), icon: <PagesIcon />, who: 'pay' },
     ...(FEATURES.partners ? [{ key: 'partners', to: '/partners', label: msg('Partners'), icon: <PartnersIcon />, who: 'admin' as const }] : []),
     ...(FEATURES.kiosk ? [{ key: 'kiosk', to: '/kiosk', label: msg('Café tablet'), icon: <KioskIcon />, who: 'admin' as const }] : []),
   ] },
@@ -210,6 +217,9 @@ const YOU: NavItem[] = [
 ]
 const DRAWER = 252
 const MINI = 76
+/** A big monitor (1800 px and wider) and a huge one (2300 px): the page and its top buttons grow to fit. */
+const BIG_SCREEN = '@media (min-width: 1800px)'
+const HUGE_SCREEN = '@media (min-width: 2300px)'
 /** Per-page counts shown in the menu (today just Messages: chats waiting on a reply). */
 type NavBadges = Record<string, number>
 
@@ -580,9 +590,13 @@ export function canOpen(n: NavItem, who: { isAdmin: boolean; isPartner: boolean;
     : !n.who || (n.who === 'admin' ? who.isAdmin : who.canSeePay)
 }
 
-/** Pages hidden from this person's menu: by the admins for everyone, or by themselves (Settings → Pages). */
-export function hiddenPages(settings: { hidden_pages?: string[] } | null, me: { preferences?: { navHidden?: string[] } } | null) {
-  return new Set([...(settings?.hidden_pages ?? []), ...(me?.preferences?.navHidden ?? [])].filter(k => !ALWAYS_SHOWN.includes(k)))
+/**
+ * Pages hidden from this person's menu: by the owners for everyone, or by themselves (Settings → Pages).
+ * Only owners open Settings → Pages, so only an owner's own choices count (`own`); the rest of the team
+ * has the menu the owners set.
+ */
+export function hiddenPages(settings: { hidden_pages?: string[] } | null, me: { preferences?: { navHidden?: string[] } } | null, own = true) {
+  return new Set([...(settings?.hidden_pages ?? []), ...(own ? me?.preferences?.navHidden ?? [] : [])].filter(k => !ALWAYS_SHOWN.includes(k)))
 }
 
 export function AppShell() {
@@ -599,7 +613,10 @@ export function AppShell() {
   const badges: NavBadges = unread > 0 ? { messages: unread } : {}
   // Pages they can open, less the ones hidden from their menu (they still open from a link).
   // Their roles can leave some out too (Roles & responsibilities → Permissions).
-  const hidden = new Set([...hiddenPages(settings, me), ...hiddenByRole(permissions)])
+  const hidden = new Set([...hiddenPages(settings, me, isAdmin && canSeePay), ...hiddenByRole(permissions)])
+  // An owner viewing the app as an agent (the Agents button): just that agent's pages, and Settings.
+  const agent = useAgentView()
+  for (const k of hiddenByAgent(agent, SECTIONS)) hidden.add(k)
   const square = useConnected('square')
   const allowed = (n: NavItem) => (n.needs !== 'square' || square === true) && canOpen(n, { isAdmin, isPartner, canSeePay, partnerCan }) && !hidden.has(n.key)
   // Page order within sections: the person's own, kept locally while it saves.
@@ -698,6 +715,7 @@ export function AppShell() {
                 <BrandLogo height={36} />
                 {business?.name && <Typography component="span" noWrap sx={{ fontFamily: fonts.display, fontWeight: 500, fontSize: '1rem', color: tokens.ink }}>{business.name}</Typography>}
               </ButtonBase>
+              <AgentsButton />
               <LanguageToggle />
               {!isPartner && <NotificationBell />}
               <SearchButton pages={searchPages} />
@@ -708,14 +726,21 @@ export function AppShell() {
         )}
         <DemoBanner />
         <BillingBanner />
-        <Box component="main" sx={{ px: { xs: 2, md: 4 }, pt: { xs: 2.5, md: 3 }, pb: { xs: 2.5, md: 4 }, maxWidth: 1360, mx: 'auto' }}>
+        <AgentBanner />
+        <Box component="main" sx={{ px: { xs: 2, md: 4 }, pt: { xs: 2.5, md: 3 }, pb: { xs: 2.5, md: 4 }, maxWidth: 1360, mx: 'auto',
+          // A big monitor: the page uses more of the screen, so it isn't a narrow strip in the middle.
+          [BIG_SCREEN]: { maxWidth: 1720, px: 5 }, [HUGE_SCREEN]: { maxWidth: 2040, px: 6 } }}>
           {/* Computer: the page's title (and its buttons) on the left of the top row, the round buttons on the right;
               on the page's own background, so there's no band across the top. */}
           {desktop && (
             // The round buttons sit level with the page's own buttons (below its small eyebrow line, when it has one).
-            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 3, '&:has([data-eyebrow]) > .eb-top-icons': { pt: 3.25 } }}>
+            // On a big monitor the round buttons grow with the page (zoom keeps their shapes), still level with its buttons.
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 3, '&:has([data-eyebrow]) > .eb-top-icons': { pt: 3.25 },
+              [BIG_SCREEN]: { gap: 3, '& > .eb-top-icons': { zoom: 1.2, pt: `${2 / 1.2}px` }, '&:has([data-eyebrow]) > .eb-top-icons': { pt: `${26 / 1.2}px` } },
+              [HUGE_SCREEN]: { '& > .eb-top-icons': { zoom: 1.35, pt: `${2 / 1.35}px` }, '&:has([data-eyebrow]) > .eb-top-icons': { pt: `${26 / 1.35}px` } } }}>
               <Box ref={setTitleSlot} sx={{ flex: 1, minWidth: 0 }} />
               <Stack className="eb-top-icons" direction="row" spacing={1} sx={{ alignItems: 'center', flexShrink: 0, ml: 'auto', pt: 0.25 }}>
+                <AgentsButton wide />
                 {!isPartner && <NotificationBell />}
                 <SearchButton pages={searchPages} wide />
                 <ThemeToggle />

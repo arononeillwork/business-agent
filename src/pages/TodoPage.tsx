@@ -307,10 +307,11 @@ function FilterChip({ label, count, selected, onClick, colour }: { label: string
       icon={colour ? <Box component="span" sx={{ width: 9, height: 9, borderRadius: '50%', bgcolor: selected ? '#fff' : colour, ml: '10px !important' }} /> : undefined}
       sx={{
         fontWeight: 500, opacity: count === 0 && !selected ? 0.6 : 1,
-        bgcolor: selected ? (colour ?? tokens.ink) : colour ? wash(colour, 12) : 'transparent',
-        color: selected ? '#fff' : 'text.primary',
+        // "All" (no colour of its own) is the brand's rose with dark writing, readable in light and dark mode alike.
+        bgcolor: selected ? (colour ?? tokens.rose) : colour ? wash(colour, 12) : 'transparent',
+        color: selected ? (colour ? '#fff' : '#2B2522') : 'text.primary',
         border: 1, borderColor: selected ? 'transparent' : colour ? wash(colour, 35) : 'divider',
-        '&:hover': { bgcolor: selected ? (colour ?? tokens.ink) : colour ? wash(colour, 20) : tokens.hover },
+        '&:hover': { bgcolor: selected ? (colour ?? tokens.roseHover) : colour ? wash(colour, 20) : tokens.hover },
       }} />
   )
 }

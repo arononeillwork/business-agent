@@ -65,6 +65,10 @@ export class FakeProviders {
     replies: new Map<string, string>(),
     /** The listing's phone, as Google Maps shows it. */
     phone: '+34 695 415 335',
+    /** Food menus (v4): whether Google allows a menu on the listing, the menus it shows, and each update the app sent (with its updateMask). */
+    canHaveMenu: true,
+    foodMenus: { name: 'accounts/1/locations/1/foodMenus', menus: [] as Json[] } as Json,
+    menuEdits: [] as { path: string; mask: string | null; body: Json }[],
   }
   /** Google's public listing (Places API): rating, count and the 5 newest reviews; empty when Google leaves them out. */
   places = {
@@ -511,6 +515,17 @@ export class FakeProviders {
         return json(rows[dimensions.join(',')]?.length ? { rows: rows[dimensions.join(',')], responseAggregationType: 'byProperty' } : { responseAggregationType: 'byProperty' })
       }
     }
+    if (url.host === 'mybusiness.googleapis.com' && /^\/v4\/accounts\/[^/]+\/locations\/[^/]+\/foodMenus$/.test(url.pathname)) {
+      if (url.pathname !== '/v4/accounts/1/locations/1/foodMenus') return googleError(404, 'Requested entity was not found.', 'NOT_FOUND')
+      if (method === 'PATCH') {
+        if (!this.google.canHaveMenu) return googleError(400, 'Request contains an invalid argument.', 'INVALID_ARGUMENT')
+        const b = body()
+        this.google.menuEdits.push({ path: url.pathname, mask: url.searchParams.get('updateMask'), body: b })
+        this.google.foodMenus = b
+        return json(b)
+      }
+      return json(this.google.foodMenus)
+    }
     if (url.host === 'mybusiness.googleapis.com' && /\/reviews$/.test(url.pathname) && method === 'GET') {
       return json({ reviews: this.google.reviews.map(r => ({ ...r, ...(this.google.replies.has(String(r.name)) ? { reviewReply: { comment: this.google.replies.get(String(r.name)), updateTime: '2026-10-20T10:00:00Z' } } : {}) })) })
     }
@@ -557,6 +572,7 @@ export class FakeProviders {
         if (edit.regularHours && !this.google.slowToShow) this.google.hours = edit.regularHours as Json
         return json({})
       }
+      if (url.searchParams.get('readMask') === 'metadata') return json({ metadata: { canHaveFoodMenus: this.google.canHaveMenu } })
       return json({ ...this.google.listings[0], phoneNumbers: { primaryPhone: this.google.phone }, regularHours: this.google.hours })
     }
 
@@ -929,6 +945,11 @@ export class FakeProviders {
           const card = sq.giftCards.find(g => g.id === link[1])!
           card.customer_ids = [(body() as { customer_id: string }).customer_id]
           return json({ gift_card: card })
+        }
+        const one = url.pathname.match(/^\/v2\/gift-cards\/([^/]+)$/)
+        if (one && method === 'GET') {
+          const card = sq.giftCards.find(g => g.id === decodeURIComponent(one[1]))
+          return card ? json({ gift_card: card }) : json({ errors: [{ category: 'INVALID_REQUEST_ERROR', code: 'NOT_FOUND', detail: 'Gift card not found' }] }, 404)
         }
       }
       if (url.pathname === '/v2/orders/search' && method === 'POST') {

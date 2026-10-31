@@ -94,3 +94,34 @@ select pg_temp.expect_error($q$select public.enquiry_follow_ups()$q$, 'permissio
 
 reset role;
 select set_config('request.jwt.claim.sub', '', false);
+
+-- 6. Inactive campaigns and the suggestion each came from (the `campaign_inactive` migration) ---------
+select pg_temp.act_as('maria@test');
+do $$
+declare v_c uuid;
+begin
+  assert not exists (select 1 from public.campaigns where inactive), 'campaigns start active';
+  insert into public.campaigns (name, status, scheduled_at, idea) values ('Christmas menu', 'scheduled', now() - interval '1 hour', 'christmas') returning id into v_c;
+  assert (select idea = 'christmas' and not inactive from public.campaigns where id = v_c), 'started from a suggestion, active';
+  update public.campaigns set inactive = true where id = v_c;
+  assert (select inactive and status = 'scheduled' from public.campaigns where id = v_c), 'an admin switches it off; it keeps the rest';
+end $$;
+select pg_temp.expect_error($q$insert into public.campaigns (name, idea) values ('X', 'Not a key!')$q$, 'check constraint');
+
+reset role;
+select set_config('request.jwt.claim.sub', '', false);
+do $$ begin
+  assert public.campaign_reminders() = 0, 'no reminder while it''s switched off';
+  update public.campaigns set inactive = false where name = 'Christmas menu';
+  assert public.campaign_reminders() = 1, 'switched back on, its day has come';
+  assert (select count(*) from public.notifications where title = 'Time to send: Christmas menu') = (select count(*) from public.profiles where role = 'admin' and active), 'to every active admin';
+end $$;
+
+select pg_temp.act_as('julio@test');
+do $$ declare n int; begin
+  update public.campaigns set inactive = true; get diagnostics n = row_count;
+  assert n = 0, 'employees switch none off';
+end $$;
+
+reset role;
+select set_config('request.jwt.claim.sub', '', false);

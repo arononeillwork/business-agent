@@ -16,6 +16,7 @@ import { TIME_OFF_AFTER_THE_FACT } from '../../shared/types'
 import { mentionTitle, mentionsIn, type InstagramMention } from '../../shared/mentions'
 import { demoSports } from './demoSports'
 import { demoInbox, demoMessenger, demoWhatsApp } from './demoMessages'
+import { demoEmailPage, demoEmails } from './demoEmail'
 import { DEMO_CAFE_AT, DEMO_PLACES, demoCompetitors } from './demoCompetitors'
 import { distanceM, instagramHandle, suggestedThreat, type Competitor, type NearbyPlace } from '../../shared/localCompetitors'
 import { DEFAULT_WHATSAPP_RETENTION, isRetention, replyWindow } from '../../shared/messages'
@@ -34,13 +35,18 @@ import { inStep } from '../../shared/todo'
 import { LEGAL_STORAGES, MAX_PICK, SKIPPED, guessKind, previewOf, storageName, titleOf, type LegalDocument, type LegalStorage, type StorageItem } from '../../shared/legalDocs'
 import { ALREADY_ON_BRAND, brandTitleOf, uploadProblem, type BrandDocument } from '../../shared/brandDocs'
 import type { Benefit, LeaveAllowance } from '../../shared/benefits'
-import { COMMISSION_PAID, USED_AT_TILL, cleanInstagram, cleanRepCode, codeFor, rewardAmount, type RepReward, type RewardRule, type SalesRep } from '../../shared/reps'
+import {
+  COMMISSION_PAID, USED_AT_TILL, cleanInstagram, cleanRepCode, cleanYoutube, codeFor, reachMultiplier, reachOf, rewardAmount,
+  type RepPageData, type RepReward, type RepSettings, type RewardRule, type SalesRep,
+} from '../../shared/reps'
 import { addMonths, kittyBalance, type KittyEntry, type KittyGoal } from '../../shared/kitty'
 import { permissionsOf, roleProblem, tidyPermissions, type JobRole, type RoleArea } from '../../shared/roles'
 import { ROLE_TEMPLATES } from '../../shared/roleTemplates'
 import { sectionProblem, type RuleSection, type RulesRead } from '../../shared/staffRules'
 import { PET_LIMITS, petProblem, type Pet } from '../../shared/pets'
+import { DEMO_THEME_TRACKS, demoThemeDayApi } from './demoThemeDays'
 import { COUNTED, type Contractor, type OutsourcedJob } from '../../shared/outsourcing'
+import { DEFAULT_CONVENIO, contractProblem, type EmploymentContract } from '../../shared/contracts'
 import { EASY_BEANS_ROLES, EASY_BEANS_RULES, handbookDuties } from './easyBeansHandbook'
 import { DEFAULT_TAX_SETTINGS, cleanFolderName, cleanFolderPath, taxFileProblem, taxFileType, type FilingRecord, type TaxDocument, type TaxSettings } from '../../shared/tax'
 import { DEFAULT_VAT_RATE, type PnlLine } from '../../shared/pnl'
@@ -153,7 +159,8 @@ export function createDemoApi(): Api {
     queue: [],
     integrations: [
       { provider: 'google_business', status: 'connected', account_label: 'Easy Beans Coffee',
-        external: { locations: [{ name: 'locations/1', title: 'Easy Beans Coffee' }], location: 'locations/1', closed_on_holidays: false },
+        external: { locations: [{ name: 'locations/1', title: 'Easy Beans Coffee' }], location: 'locations/1', closed_on_holidays: false,
+          menu_sent_at: new Date(Date.now() - 12 * 60_000).toISOString(), menu_error: null },
         connected_at: nowIso(), last_sync_at: nowIso(), last_error: null, last_checked_at: nowIso() },
       { provider: 'whatsapp', status: 'connected', account_label: '+34 695 415 335', external: {}, connected_at: nowIso(), last_sync_at: null, last_error: null, last_checked_at: nowIso() },
       { provider: 'spotify', status: 'connected', account_label: 'Easy Beans (Premium)',
@@ -207,6 +214,8 @@ export function createDemoApi(): Api {
       ['Golden Hour', 'JVKE'], ['Riptide', 'Vance Joy']].map(([title, artist], i) => ({ id: `demo-yt1-${i + 1}`, title, artist })),
     yt2: [['Holocene', 'Bon Iver'], ['Skinny Love', 'Birdy'], ['Ho Hey', 'The Lumineers']].map(([title, artist], i) => ({ id: `demo-yt2-${i + 1}`, title, artist })),
     yt3: [['Day one', 'Easy Beans'], ['Day two', 'Easy Beans']].map(([title, artist], i) => ({ id: `demo-yt3-${i + 1}`, title, artist })),
+    // The theme days' playlists (Calendar), for the café speaker.
+    ...DEMO_THEME_TRACKS,
   }
   const player: MusicPlayerState = { device_id: null, device_name: null, playlist: null, queue: [], queue_version: 0, playlist_order: [], position: 0, playing: false,
     elapsed: 0, duration: 0, volume: 80, command: null, command_seq: 0, heartbeat_at: null, updated_at: nowIso() }
@@ -329,17 +338,23 @@ export function createDemoApi(): Api {
   clubEvents.sort((a, b) => b.at.localeCompare(a.at))
   const gan4 = () => String(1000 + Math.floor(roll() * 9000))
   const cardDay = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString()
-  const giftCardList: GiftCard[] = [
-    [25, 25, 3, 'Lucía García'], [50, 32.4, 9, null], [20, 0, 40, 'Tom Baker'], [30, 30, 12, null],
-    [15, 6.8, 22, 'Carmen Ruiz'], [40, 40, 1, null], [25, 11.2, 30, 'Emma Wilson'], [100, 100, 6, 'Hotel Puente Romano'],
-  ].map(([sold, balance, ago, customer], i) => ({ id: `gc-${i + 1}`, last4: gan4(), type: 'DIGITAL' as const,
-    state: (balance === 0 ? 'DEACTIVATED' : 'ACTIVE') as GiftCard['state'], balance: balance as number, created_at: cardDay(ago as number),
-    customer_id: customer ? `sq-g${i + 1}` : null, customer: customer as string | null, sold: sold as number }))
-    .map(({ sold: _sold, ...c }) => c)
+  /** The whole card numbers, which only Copy number gives out (as the Worker does). */
+  const giftGans = new Map<string, string>()
+  // Eleven cards: seven that can be spent, two used up (one this month), a physical card not sold yet and one switched off (reported lost).
+  const giftCardList: GiftCard[] = ([
+    [25, 25, 3, null, 'ACTIVE', 'DIGITAL', 'Lucía García'], [50, 32.4, 9, 4, 'ACTIVE', 'DIGITAL', null], [20, 0, 40, 38, 'ACTIVE', 'PHYSICAL', 'Tom Baker'],
+    [30, 30, 12, null, 'ACTIVE', 'PHYSICAL', null], [15, 6.8, 22, 10, 'ACTIVE', 'DIGITAL', 'Carmen Ruiz'], [40, 40, 1, null, 'ACTIVE', 'DIGITAL', null],
+    [25, 11.2, 30, 7, 'ACTIVE', 'DIGITAL', 'Emma Wilson'], [100, 100, 6, null, 'ACTIVE', 'DIGITAL', 'Hotel Puente Romano'],
+    [30, 0, 18, 1, 'ACTIVE', 'DIGITAL', 'Javier López'], [null, 0, 45, null, 'PENDING', 'PHYSICAL', null], [50, 18.5, 70, 61, 'DEACTIVATED', 'PHYSICAL', 'Laura Navarro'],
+  ] as [number | null, number, number, number | null, GiftCard['state'], GiftCard['type'], string | null][]).map(([original, balance, ago, used, state, type, customer], i) => {
+    const id = `gc-${i + 1}`, last4 = gan4()
+    giftGans.set(id, `77833200${gan4()}${last4}`)
+    return { id, last4, type, state, balance, created_at: cardDay(ago), customer_id: customer ? `sq-g${i + 1}` : null, customer, original, last_used: used === null ? null : cardDay(used) }
+  })
   const giftActivity: GiftCardActivity[] = giftCardList.flatMap((c, i) => {
-    const sold = [25, 50, 20, 30, 15, 40, 25, 100][i]
-    const out: GiftCardActivity[] = [{ id: `ga-${i}-a`, kind: 'activate', amount: sold, at: c.created_at, last4: c.last4, balance: sold }]
-    if (c.balance < sold) out.push({ id: `ga-${i}-r`, kind: 'redeem', amount: Math.round((sold - c.balance) * 100) / 100, at: new Date(Date.parse(c.created_at) + 2 * 86_400_000).toISOString(), last4: c.last4, balance: c.balance })
+    if (c.original === null) return []
+    const out: GiftCardActivity[] = [{ id: `ga-${i}-a`, kind: 'activate', amount: c.original, at: c.created_at, last4: c.last4, balance: c.original }]
+    if (c.last_used) out.push({ id: `ga-${i}-r`, kind: 'redeem', amount: Math.round((c.original - c.balance) * 100) / 100, at: c.last_used, last4: c.last4, balance: c.balance })
     return out
   }).sort((a, b) => b.at.localeCompare(a.at))
   const squareOn = () => integ.integrations.some(i => i.provider === 'square' && i.status === 'connected')
@@ -868,6 +883,18 @@ export function createDemoApi(): Api {
   /** As menu_list(): with Square as the source, only what's in Square (the rest waits for Custom again). */
   const menuList = () => recipes.filter(r => r.active && (settings.menu_source !== 'square' || r.square_id)).map(menuItemOf)
     .sort((a, b) => a.menu_sort - b.menu_sort || a.name.localeCompare(b.name))
+  /**
+   * The menu onto the Google Maps listing, as the Worker does within a minute of a change (and after a
+   * Square read that changed something): items on the menu with a price go; returns how many.
+   */
+  const menuToGoogle = () => {
+    const g = integ.integrations.find(i => i.provider === 'google_business')
+    if (g?.status !== 'connected') return 0
+    const n = menuList().filter(i => i.on_menu && i.sell_price !== null).length
+    Object.assign(g.external, { menu_sent_at: nowIso(), menu_items: n, menu_error: null })
+    g.last_sync_at = nowIso()
+    return n
+  }
   /** A new item goes last in its section (as the database does). */
   const lastInSection = (category: string | null) => Math.max(0, ...recipes.filter(r => r.category === category).map(r => r.menu_sort)) + 1
 
@@ -1120,6 +1147,8 @@ export function createDemoApi(): Api {
     // The menu is kept here (Custom), its sections not arranged yet. "Add what's on your printed menus"
     // (Menu page) adds the café's printed menus beside the costed recipes, in their order of sections.
     menu_source: 'custom', menu_sections: [], menu_synced_at: null, menu_sync_error: null,
+    // The usual agents (shared/agents.ts) until an owner changes them on Roles & responsibilities → Agents.
+    agent_views: null,
   }
 
   const P = { aron: 'p-aron', mark: 'p-mark', julio: 'p-julio', maria: 'p-maria', cleaner: 'p-cleaner' }
@@ -1233,18 +1262,43 @@ export function createDemoApi(): Api {
     reports_to: null, people: rolePeople[r.name] ?? [], duties: handbookDuties(r), sort: i, updated_at: daysAgo(8),
     template: roleTemplate[r.name] ?? null, permissions: tidyPermissions(ROLE_TEMPLATES.find(x => x.id === roleTemplate[r.name])?.permissions),
   }))
+  // Who owns which role (Roles & responsibilities → Ownership): Aron the team's, Mark the money's; the rest nobody yet.
+  const roleOwnersAtStart: Record<string, [string, number]> = {
+    'Head of People': [P.aron, 0], 'Head Barista': [P.aron, 1], 'Barista / Bartender': [P.aron, 2], Investor: [P.mark, 0], Accountant: [P.mark, 1],
+  }
+  for (const r of jobRoles) Object.assign(r, { owned_by: roleOwnersAtStart[r.name]?.[0] ?? null, owner_sort: roleOwnersAtStart[r.name]?.[1] ?? 0 })
   const ruleSections: RuleSection[] = EASY_BEANS_RULES.map((r, i) => ({
     id: uid(), title: r.title, intro: r.intro ?? null, rules: [...r.rules], sort: i, updated_at: daysAgo(r.title === 'Complaints' ? 3 : 10),
   }))
   const rulesRead: RulesRead[] = [{ profile_id: P.maria, read_at: daysAgo(2) }, { profile_id: P.julio, read_at: daysAgo(7) }]
-  // Aron's dogs, waiting for their photos (the `pets` migration adds them for the real Aron too).
+  // Mark's dogs, waiting for their photos; Aron has none (the `people_page_and_pets` migration moved Yoda and Cooper to Mark).
   const pets: Pet[] = [
-    { id: 'pet-fudge', profile_id: P.aron, name: 'Fudge', kind: 'dog', breed: null, photo: null, sort: 1, created_at: daysAgo(3) },
-    { id: 'pet-cooper', profile_id: P.aron, name: 'Cooper', kind: 'dog', breed: null, photo: null, sort: 2, created_at: daysAgo(3) },
-    // And Mark's, Pablo and Yoda.
     { id: 'pet-pablo', profile_id: P.mark, name: 'Pablo', kind: 'dog', breed: null, photo: null, sort: 1, created_at: daysAgo(1) },
     { id: 'pet-yoda', profile_id: P.mark, name: 'Yoda', kind: 'dog', breed: null, photo: null, sort: 2, created_at: daysAgo(1) },
+    { id: 'pet-cooper', profile_id: P.mark, name: 'Cooper', kind: 'dog', breed: null, photo: null, sort: 3, created_at: daysAgo(3) },
   ]
+  // Employment contracts (Team → Contracts): Julio permanent since the café opened, Maria on her second
+  // summer contract (ending soon), the cleaner new and in her trial period. Aron and Mark own the café.
+  const contract = (c: Partial<EmploymentContract> & Pick<EmploymentContract, 'id' | 'profile_id' | 'kind' | 'starts_on'>): EmploymentContract => ({
+    ends_on: null, trial_ends_on: null, hours_per_week: null, salary: null, salary_per: null, convenio: DEFAULT_CONVENIO, job_title: null,
+    document_url: null, notes: null, created_at: `${c.starts_on}T09:00:00Z`, updated_at: `${c.starts_on}T09:00:00Z`, ...c,
+  })
+  const contracts: EmploymentContract[] = [
+    contract({ id: 'ec-julio', profile_id: P.julio, kind: 'indefinido', starts_on: '2026-04-01', trial_ends_on: '2026-05-31', hours_per_week: 35,
+      salary: 1320, salary_per: 'month', job_title: 'Camarero (barista), grupo II', document_url: 'https://drive.google.com/file/d/demo-contrato-julio/view' }),
+    contract({ id: 'ec-maria-1', profile_id: P.maria, kind: 'temporal_produccion', starts_on: '2026-04-01', ends_on: '2026-06-30', hours_per_week: 30,
+      salary: 8.8, salary_per: 'hour', job_title: 'Camarera (barista), grupo II' }),
+    contract({ id: 'ec-maria-2', profile_id: P.maria, kind: 'temporal_produccion', starts_on: '2026-07-01', ends_on: addDays(today(), 21), hours_per_week: 30,
+      salary: 8.8, salary_per: 'hour', job_title: 'Camarera (barista), grupo II', notes: 'The summer season. Talk to her about a permanent contract.' }),
+    contract({ id: 'ec-cleaner', profile_id: P.cleaner, kind: 'indefinido_parcial', starts_on: addDays(today(), -20), trial_ends_on: addDays(today(), 10),
+      hours_per_week: 6, salary: 9.5, salary_per: 'hour', job_title: 'Limpieza, grupo I' }),
+  ]
+  // Theme days and the weekly routine (Calendar, Coffees page): as the `theme_days` and `weekly_routine` migrations.
+  const themeDayApi = demoThemeDayApi({
+    isStaff: () => isStaff() && !!me()?.active, isAdmin: () => isAdmin() && !!me()?.active, me: () => currentUser,
+    roleId: name => jobRoles.find(r => r.name === name)?.id ?? null,
+    onTeam: id => profiles.some(p => p.id === id && p.active && (p.role === 'admin' || p.role === 'employee')), uid, nowIso,
+  }, P.cleaner)
   /** That person's shifts in the period become open shifts (approved time off). */
   const openUpShifts = (t: TimeOff) => {
     const name = profiles.find(p => p.id === t.profile_id)?.full_name
@@ -1468,6 +1522,10 @@ export function createDemoApi(): Api {
     campaign({ name: 'Office coffee for businesses', subject: 'Coffee for your team, delivered', audience: { kinds: ['lead'], tags: ['B2B'], sources: [] },
       body: 'Hi [first name],\n\nWe bring specialty coffee to offices and studios in San Pedro twice a week. Reply and we’ll send prices.\n\nAron, Easy Beans',
       created_at: daysAgo(2) }),
+    // Switched off after the summer (Inactive), started from a suggestion, so that one isn't offered again yet.
+    campaign({ name: 'Summer iced drinks 2026', channel: 'sms', idea: 'summer_drinks', inactive: true, status: 'sent', recipients: 3,
+      body: 'Easy Beans: iced lattes, cold brew and frappés are back. Come in and cool down!', sent_at: daysAgo(90), created_at: daysAgo(95),
+      notes: 'Goal: iced drinks sold (Sales, best sellers)' }),
   ]
 
   // Hiring: a weekend barista being filled now, and the opening team hired last year (database: hiring_rules(), applicant_interview_event()).
@@ -1560,36 +1618,67 @@ export function createDemoApi(): Api {
   }
 
   // Sales reps & rewards: customers who share the café's stories, two ambassadors (a hotel
-  // concierge and a yoga studio) and two of the team, over this month and last.
+  // concierge and a yoga studio), a coach with a crew of fighters, and two of the team, over this
+  // month and last. One fighter and one customer Julio added wait for an admin's OK.
   const thisMonth = today().slice(0, 7)
   const lastMonth = addMonths(thisMonth, -1)
   /** A day this month (never after today) or in an earlier month. */
   const dayIn = (month: string, d: number) => `${month}-${String(month === thisMonth ? Math.min(d, Number(today().slice(8, 10))) : d).padStart(2, '0')}`
-  let repSettings = { welcome_offer: '10% off your first drink' as string | null }
+  let repSettings: RepSettings = { welcome_offer: '10% off your first drink', crew_share: 10, boost_by_reach: true, pitch: null }
   const rewardRuleList: RewardRule[] = [
-    { id: 'rule-story', name: 'Reposted our story', who: 'customers', basis: 'fixed', amount: 1, needs_approval: false, monthly_limit: 4, sort: 1, active: true },
-    { id: 'rule-post', name: 'Posted about the café and tagged it', who: 'customers', basis: 'fixed', amount: 2, needs_approval: true, monthly_limit: 2, sort: 2, active: true },
-    { id: 'rule-card', name: 'Brought a new customer with their card', who: 'everyone', basis: 'fixed', amount: 3, needs_approval: false, monthly_limit: 10, sort: 3, active: true },
-    { id: 'rule-event', name: 'Booked an event or catering', who: 'reps', basis: 'percent', amount: 10, needs_approval: true, monthly_limit: null, sort: 4, active: true },
+    { id: 'rule-story', name: 'Reposted our story', who: 'customers', basis: 'fixed', amount: 1, needs_approval: false, monthly_limit: 4, scales_with_reach: true, sort: 1, active: true },
+    { id: 'rule-post', name: 'Posted about the café and tagged it', who: 'customers', basis: 'fixed', amount: 2, needs_approval: true, monthly_limit: 2, scales_with_reach: true, sort: 2, active: true },
+    { id: 'rule-card', name: 'Brought a new customer with their card', who: 'everyone', basis: 'fixed', amount: 3, needs_approval: false, monthly_limit: 10, scales_with_reach: false, sort: 3, active: true },
+    { id: 'rule-event', name: 'Booked an event or catering', who: 'reps', basis: 'percent', amount: 10, needs_approval: true, monthly_limit: null, scales_with_reach: false, sort: 4, active: true },
+    { id: 'rule-shoutout', name: 'Gave the café a shout-out', who: 'reps', basis: 'fixed', amount: 5, needs_approval: true, monthly_limit: 4, scales_with_reach: true, sort: 5, active: true },
   ]
   const customerId = (first: string) => customers.find(c => c.first_name === first)?.id ?? null
-  const salesRep = (r: Partial<SalesRep> & Pick<SalesRep, 'id' | 'name' | 'kind' | 'code'>): SalesRep => ({ profile_id: null, customer_id: null,
-    instagram: null, phone: null, email: null, notes: null, active: true, created_at: daysAgo(60), ...r })
+  const salesRep = (r: Partial<SalesRep> & Pick<SalesRep, 'id' | 'name' | 'kind' | 'code'>): SalesRep => {
+    const out: SalesRep = { profile_id: null, customer_id: null, instagram: null, tiktok: null, youtube: null, facebook: null, instagram_followers: null,
+      tiktok_followers: null, youtube_followers: null, facebook_followers: null, community: null, reach: 0, picture_url: null, followers_checked_at: null,
+      leader_id: null, approved: true, phone: null, email: null, notes: null, active: true, created_at: daysAgo(60), created_by: P.aron, ...r }
+    return { ...out, reach: reachOf(out) }
+  }
+  const fighter = (id: string, name: string, code: string, instagram: string, followers: number, more: Partial<SalesRep> = {}) =>
+    salesRep({ id, name, kind: 'customer', code, instagram, instagram_followers: followers, leader_id: 'rep-dani', followers_checked_at: daysAgo(1), ...more })
   const repList: SalesRep[] = [
-    salesRep({ id: 'rep-lucia', name: 'Lucía García', kind: 'customer', code: 'LUCIA27', customer_id: customerId('Lucía'), instagram: 'lucia.mbl', phone: '+34 611 204 318' }),
-    salesRep({ id: 'rep-eats', name: 'San Pedro Eats', kind: 'customer', code: 'EATS10', instagram: 'sanpedro.eats', notes: 'Local food blog, 12k followers' }),
-    salesRep({ id: 'rep-sofia', name: 'Sofia Lindqvist', kind: 'customer', code: 'SOFIA14', customer_id: customerId('Sofia'), notes: 'Matcha videos on TikTok' }),
+    salesRep({ id: 'rep-lucia', name: 'Lucía García', kind: 'customer', code: 'LUCIA27', customer_id: customerId('Lucía'), instagram: 'lucia.mbl', instagram_followers: 640, phone: '+34 611 204 318' }),
+    salesRep({ id: 'rep-eats', name: 'San Pedro Eats', kind: 'customer', code: 'EATS10', instagram: 'sanpedro.eats', instagram_followers: 12_400, tiktok: 'sanpedroeats', tiktok_followers: 3_100,
+      notes: 'Local food blog', followers_checked_at: daysAgo(0) }),
+    salesRep({ id: 'rep-sofia', name: 'Sofia Lindqvist', kind: 'customer', code: 'SOFIA14', customer_id: customerId('Sofia'), tiktok: 'sofia.matcha', tiktok_followers: 3_400, notes: 'Matcha videos on TikTok' }),
     salesRep({ id: 'rep-marco', name: 'Marco Bellini', kind: 'ambassador', code: 'MARCO1', customer_id: customerId('Marco'), email: 'concierge@costaserena.example',
-      notes: 'Concierge at Hotel Costa Serena: sends guests for breakfast' }),
+      community: 320, notes: 'Concierge at Hotel Costa Serena: sends guests for breakfast' }),
     salesRep({ id: 'rep-ines', name: 'Inés Castillo', kind: 'ambassador', code: 'SHANTI', customer_id: customerId('Inés'), instagram: 'shanti.yoga.sanpedro',
-      notes: 'Estudio Shanti Yoga: cards at the front desk' }),
+      instagram_followers: 2_350, community: 180, notes: 'Estudio Shanti Yoga: cards at the front desk' }),
+    salesRep({ id: 'rep-dani', name: 'Dani Ortega', kind: 'ambassador', code: 'DANI20', instagram: 'ortega.mma', instagram_followers: 9_200, youtube: 'ortegamma', youtube_followers: 1_300,
+      community: 140, phone: '+34 622 908 115', notes: 'Head coach at Ortega MMA: 20 fighters, fight nights at the gym', followers_checked_at: daysAgo(1), created_at: daysAgo(45) }),
+    fighter('rep-nora', 'Nora Kim', 'NORA31', 'nora.kim.mma', 26_800),
+    fighter('rep-carla', 'Carla “La Roca” Ruiz', 'CARLA12', 'carla.laroca', 18_500, { tiktok: 'laroca.ruiz', tiktok_followers: 7_200 }),
+    fighter('rep-javi', 'Javi Moreno', 'JAVI44', 'javi.moreno.bjj', 4_200),
+    fighter('rep-leo', 'Leo Santos', 'LEO07', 'leosantos.fight', 2_100),
+    fighter('rep-ibra', 'Ibra Diallo', 'IBRA90', 'ibra.diallo', 850),
+    fighter('rep-toni', 'Toni Vega', 'TONI55', 'toni.vega.kick', 3_400, { approved: false, created_at: daysAgo(1), created_by: null, followers_checked_at: null, notes: 'Kickboxer, joined the gym in spring' }),
+    salesRep({ id: 'rep-pablo', name: 'Pablo Ruiz', kind: 'customer', code: 'PABLO19', instagram: 'pablo.runs.mbl', instagram_followers: 1_150, approved: false, created_at: daysAgo(0), created_by: P.julio,
+      notes: 'Runs the Sunday running club from the café' }),
     salesRep({ id: 'rep-maria', name: 'Maria', kind: 'team', code: 'MARIA22', profile_id: P.maria }),
     salesRep({ id: 'rep-julio', name: 'Julio', kind: 'team', code: 'JULIO08', profile_id: P.julio }),
   ]
+  /** Each rep's own page link (/rep/<token>); Dani's has been shared already. */
+  const repLinks = new Map<string, string>([['rep-dani', 'da11e0a7c0ac4f1e9a2b3c4d5e6f7a8b']])
   const ruleName = (id: string) => rewardRuleList.find(r => r.id === id)!.name
   const repReward = (rep_id: string, rule: string | null, amount: number, occurred_on: string, more: Partial<RepReward> = {}): RepReward => ({
     id: uid(), rep_id, kind: amount > 0 ? 'earn' : 'redeem', rule_id: rule, label: rule ? ruleName(rule) : USED_AT_TILL, sale_amount: null, amount,
-    status: 'approved', proof_url: null, mention_id: null, note: null, occurred_on, logged_by: P.aron, created_at: `${occurred_on}T11:00:00Z`, ...more })
+    status: 'approved', proof_url: null, mention_id: null, bonus_for: null, multiplier: null, note: null, occurred_on, logged_by: P.aron,
+    created_at: `${occurred_on}T11:00:00Z`, ...more })
+  /** A crew member's reward and their leader's share of it (as pay_crew_bonus() writes it). */
+  const withBonus = (r: RepReward): RepReward[] => {
+    const rep = repList.find(x => x.id === r.rep_id)
+    const leader = rep?.leader_id ? repList.find(x => x.id === rep.leader_id) : undefined
+    if (!leader || r.kind !== 'earn' || r.status !== 'approved' || r.bonus_for) return [r]
+    const amount = round2(r.amount * repSettings.crew_share / 100)
+    return amount > 0 ? [r, repReward(leader.id, null, amount, r.occurred_on, { kind: 'earn', label: `Crew bonus · ${rep!.name}`, rule_id: null, bonus_for: r.id,
+      note: r.label, logged_by: r.logged_by, created_at: r.created_at })] : [r]
+  }
   const rewardList: RepReward[] = [
     repReward('rep-lucia', 'rule-card', 3, dayIn(lastMonth, 12), { note: 'Brought Pablo', logged_by: P.julio }),
     repReward('rep-lucia', 'rule-story', 1, dayIn(lastMonth, 20), { logged_by: P.maria }),
@@ -1607,17 +1696,43 @@ export function createDemoApi(): Api {
     ...[8, 21].map(d => repReward('rep-maria', 'rule-card', 3, dayIn(thisMonth, d))),
     repReward('rep-julio', 'rule-card', 3, dayIn(lastMonth, 6), { logged_by: P.maria }),
     repReward('rep-julio', null, -3, dayIn(lastMonth, 27), { kind: 'payout', label: COMMISSION_PAID }),
+    // Ortega MMA: Dani's own shout-out (×3 for reaching over 10,000 people), and the crew's stories, posts and cards, each with Dani's 10%.
+    repReward('rep-dani', 'rule-shoutout', 15, dayIn(thisMonth, 1), { multiplier: 3, note: 'Story to the gym after fight night', proof_url: 'https://www.instagram.com/stories/ortega.mma/' }),
+    repReward('rep-dani', 'rule-card', 3, dayIn(lastMonth, 22), { logged_by: P.julio }),
+    ...withBonus(repReward('rep-nora', 'rule-post', 6, dayIn(thisMonth, 4), { multiplier: 3, note: 'Reel: post-training matcha', proof_url: 'https://www.instagram.com/reel/demo3/' })),
+    ...withBonus(repReward('rep-nora', 'rule-story', 3, dayIn(thisMonth, 9), { multiplier: 3, logged_by: P.maria })),
+    ...withBonus(repReward('rep-carla', 'rule-story', 3, dayIn(thisMonth, 6), { multiplier: 3, logged_by: P.julio })),
+    ...withBonus(repReward('rep-carla', 'rule-card', 3, dayIn(thisMonth, 7), { logged_by: P.maria, note: 'Brought her sister' })),
+    ...withBonus(repReward('rep-javi', 'rule-story', 2, dayIn(thisMonth, 3), { multiplier: 2, logged_by: P.maria })),
+    ...withBonus(repReward('rep-leo', 'rule-card', 3, dayIn(lastMonth, 25), { logged_by: P.julio })),
+    repReward('rep-ibra', 'rule-story', 1, dayIn(thisMonth, 8), { status: 'pending', note: 'From his own page', logged_by: null }),
+    repReward('rep-pablo', 'rule-card', 3, dayIn(thisMonth, 10), { status: 'pending', note: 'Brought two runners', logged_by: P.julio }),
   ]
   const repBalance = (repId: string) => round2(rewardList.filter(r => r.rep_id === repId && r.status === 'approved').reduce((a, r) => a + r.amount, 0))
   /** Mirrors the sales_reps rules in SQL: tidied, a code from the name, a team rep is someone on the team. */
   function tidyRep(r: SalesRep, before?: SalesRep): SalesRep {
-    const out = { ...r, name: r.name.trim(), phone: r.phone?.trim() || null, email: r.email?.trim().toLowerCase() || null, notes: r.notes?.trim() || null }
+    const out = { ...r, name: r.name.trim(), phone: r.phone?.trim() || null, email: r.email?.trim().toLowerCase() || null, notes: r.notes?.trim() || null,
+      facebook: r.facebook?.trim() || null }
     if (!out.name) throw new Error('Give them a name')
-    if (out.instagram) {
-      const handle = cleanInstagram(out.instagram)
-      if (!handle) throw new Error('new row for relation "sales_reps" violates check constraint "sales_reps_instagram_check"')
-      out.instagram = handle
-    } else out.instagram = null
+    for (const net of ['instagram', 'tiktok', 'youtube'] as const) {
+      if (out[net]) {
+        const handle = net === 'youtube' ? cleanYoutube(out[net]) : cleanInstagram(out[net])
+        if (!handle) throw new Error(`new row for relation "sales_reps" violates check constraint "sales_reps_${net}_check"`)
+        out[net] = handle
+      } else out[net] = null
+    }
+    for (const k of ['instagram_followers', 'tiktok_followers', 'youtube_followers', 'facebook_followers', 'community'] as const) {
+      const v = out[k]
+      if (v !== null && v !== undefined && !(Number.isInteger(v) && v >= 0)) throw new Error(`new row for relation "sales_reps" violates check constraint "sales_reps_${k}_check"`)
+      out[k] = v ?? null
+    }
+    out.reach = reachOf(out)
+    if (out.leader_id) {
+      if (out.leader_id === out.id) throw new Error(`${out.name} can't be in their own crew`)
+      const leader = repList.find(x => x.id === out.leader_id)
+      if (leader?.leader_id) throw new Error(`${leader.name} is in someone else's crew, so they can't lead one`)
+      if (before && repList.some(x => x.leader_id === out.id)) throw new Error(`${out.name} leads a crew, so they can't join one`)
+    } else out.leader_id = null
     const others = repList.filter(x => x.id !== out.id)
     if (out.code) {
       const code = cleanRepCode(out.code)
@@ -1632,6 +1747,67 @@ export function createDemoApi(): Api {
     if (out.profile_id && others.some(x => x.profile_id === out.profile_id)) throw new Error('duplicate key value violates unique constraint "sales_reps_profile_idx"')
     return out
   }
+  /** Mirrors add_reward() in SQL: checks, the reach multiplier, the monthly limit, admins told, the crew's leader paid their share. */
+  function addReward(rep: SalesRep, rule: RewardRule | undefined, r: { sale_amount?: number | null; note?: string | null; proof_url?: string | null;
+    mention_id?: string | null; occurred_on?: string | null }, status: RepReward['status'], by: string | null) {
+    if (!rep.active) throw new Error(`${rep.name} is no longer a rep`)
+    if (!rule || !rule.active) throw new Error('That reward isn’t on the list')
+    if (rule.who === 'customers' && rep.kind !== 'customer') throw new Error(`${rule.name} is a reward for customers`)
+    if (rule.who === 'reps' && rep.kind === 'customer') throw new Error(`${rule.name} is a reward for reps`)
+    const on = r.occurred_on || today()
+    if (on > today()) throw new Error('It can’t be for a day still to come')
+    if (rule.basis === 'percent' && !(r.sale_amount && r.sale_amount > 0)) throw new Error('Give the amount of the sale')
+    const amount = rewardAmount(rule, r.sale_amount, rep.reach, repSettings.boost_by_reach)
+    if (!(amount > 0)) throw new Error('The sale is too small for a reward')
+    const multiplier = rule.basis === 'fixed' && rule.scales_with_reach && repSettings.boost_by_reach && reachMultiplier(rep.reach) > 1 ? reachMultiplier(rep.reach) : null
+    if (rule.monthly_limit !== null) {
+      const used = rewardList.filter(x => x.rep_id === rep.id && x.rule_id === rule.id && x.kind === 'earn' && x.status !== 'rejected' && x.occurred_on.slice(0, 7) === on.slice(0, 7)).length
+      if (used >= rule.monthly_limit) throw new Error(`${rep.name} has had "${rule.name}" ${used} times this month, the most there is`)
+    }
+    if (r.mention_id && rewardList.some(x => x.mention_id === r.mention_id)) throw new Error('duplicate key value violates unique constraint "rep_rewards_mention_id_key"')
+    const reward: RepReward = { id: uid(), rep_id: rep.id, kind: 'earn', rule_id: rule.id, label: rule.name, sale_amount: rule.basis === 'percent' ? r.sale_amount ?? null : null,
+      amount, status, proof_url: r.proof_url?.trim() || null, mention_id: r.mention_id ?? null, bonus_for: null, multiplier, note: r.note?.trim() || null,
+      occurred_on: on, logged_by: by, created_at: nowIso() }
+    rewardList.push(reward)
+    if (status === 'pending') {
+      for (const a of profiles.filter(p => p.role === 'admin' && p.active && p.id !== by)) {
+        notes.push({ id: notes.length + 1, profile_id: a.id, title: `${rule.name} for ${rep.name}: €${amount.toFixed(2)} to approve`,
+          body: [by ? profiles.find(p => p.id === by)?.full_name : 'From their own page', rep.approved ? null : 'They’re waiting for your OK too', r.note?.trim()]
+            .filter(Boolean).join(' · ') || null, link: '/sales-reps', created_at: nowIso(), read_at: null })
+      }
+    } else rewardList.push(...withBonus(reward).slice(1))
+    return { id: reward.id, status, amount }
+  }
+  /** Mirrors rep_page() in SQL: what a rep's own page shows. */
+  function repPageOf(v: SalesRep): RepPageData {
+    const month = today().slice(0, 7)
+    const earnedBy = (id: string) => round2(rewardList.filter(w => w.rep_id === id && w.kind === 'earn' && w.status !== 'rejected' && w.occurred_on.slice(0, 7) === month)
+      .reduce((a, w) => a + w.amount, 0))
+    const totals = repList.filter(r => r.active && r.approved).map(r => ({ id: r.id, total: earnedBy(r.id) }))
+    const mine = earnedBy(v.id)
+    const lines = rewardList.filter(w => w.rep_id === v.id).sort((a, b) => b.occurred_on.localeCompare(a.occurred_on) || b.created_at.localeCompare(a.created_at))
+    return {
+      rep: { id: v.id, name: v.name, kind: v.kind, code: v.code, approved: v.approved, instagram: v.instagram, tiktok: v.tiktok, youtube: v.youtube, facebook: v.facebook,
+        instagram_followers: v.instagram_followers, tiktok_followers: v.tiktok_followers, youtube_followers: v.youtube_followers, facebook_followers: v.facebook_followers,
+        community: v.community, reach: v.reach, picture_url: v.picture_url, leader: repList.find(x => x.id === v.leader_id)?.name ?? null },
+      business: { name: 'Easy Beans Coffee', logo: null },
+      settings: clone(repSettings),
+      balance: round2(lines.filter(w => w.status === 'approved').reduce((a, w) => a + w.amount, 0)),
+      waiting: round2(lines.filter(w => w.status === 'pending').reduce((a, w) => a + w.amount, 0)),
+      month: { earned: mine, rewards: lines.filter(w => w.kind === 'earn' && w.status !== 'rejected' && w.occurred_on.slice(0, 7) === month).length,
+        rank: mine > 0 ? 1 + totals.filter(x => x.total > mine).length : null, people: totals.filter(x => x.total > 0).length },
+      rewards: lines.slice(0, 30).map(w => ({ id: w.id, kind: w.kind, label: w.label, amount: w.amount, status: w.status, occurred_on: w.occurred_on,
+        multiplier: w.multiplier, bonus: !!w.bonus_for })),
+      crew: repList.filter(m => m.leader_id === v.id && m.active).sort((a, b) => Number(b.approved) - Number(a.approved) || b.reach - a.reach || a.name.localeCompare(b.name))
+        .map(m => ({ name: m.name, reach: m.reach, approved: m.approved, instagram: m.instagram, earned_this_month: earnedBy(m.id),
+          bonus_this_month: round2(rewardList.filter(b => b.rep_id === v.id && b.bonus_for && b.status !== 'rejected' && b.occurred_on.slice(0, 7) === month
+            && rewardList.find(w => w.id === b.bonus_for)?.rep_id === m.id).reduce((a, b) => a + b.amount, 0)) })),
+      rules: rewardRuleList.filter(u => u.active && (u.who === 'everyone' || (u.who === 'customers') === (v.kind === 'customer'))).sort((a, b) => a.sort - b.sort)
+        .map(u => ({ id: u.id, name: u.name, who: u.who, basis: u.basis, amount: u.amount, scales_with_reach: u.scales_with_reach, needs_approval: u.needs_approval,
+          monthly_limit: u.monthly_limit, used_this_month: rewardList.filter(w => w.rep_id === v.id && w.rule_id === u.id && w.kind === 'earn' && w.status !== 'rejected'
+            && w.occurred_on.slice(0, 7) === month).length })),
+    }
+  }
   /** Mirrors rep_rewards_read: admins everything; the team customers' credit and their own. */
   const seesReward = (r: RepReward) => {
     if (isAdmin()) return true
@@ -1642,7 +1818,7 @@ export function createDemoApi(): Api {
 
   // Staff kitty: 5% of each month's profit since May and the tips from one month; the summer
   // barbecue already bought. Last month's share is still to go in.
-  const kittySettings = { profit_percent: 5 }
+  const kittySettings = { profit_percent: 10 }
   const kittyGoalList: KittyGoal[] = [
     { id: 'goal-party', name: 'Christmas party', icon: 'party', target: 500, due_on: `${today().slice(0, 4)}-12-18`, sort: 1, link: null,
       notes: 'Dinner and drinks for the whole team', spent: null, bought_on: null, created_at: daysAgo(90) },
@@ -1989,6 +2165,7 @@ export function createDemoApi(): Api {
       if (id !== currentUser && 'preferences' in patch) throw new Error('Only the person themselves can change their appearance settings')
       if (id === currentUser && patch.active === false) throw new Error("You can't switch off your own account. Ask another admin.")
       if (!isAdmin() && 'on_rota' in patch) throw new Error('Only an admin takes someone off the rota or puts them back')
+      if (!isAdmin() && 'on_people' in patch) throw new Error('Only an admin leaves someone off the People page or puts them back')
       if (!isAdmin() && ('role' in patch || 'can_see_pay' in patch || 'active' in patch)) {
         throw new Error('Only an admin can change role, pay access or status')
       }
@@ -2181,6 +2358,18 @@ export function createDemoApi(): Api {
       if (existing) Object.assign(existing, next)
       else jobRoles.push(next)
     },
+    async roleOwners() { return isStaff() ? jobRoles.map(r => ({ id: r.id, owned_by: r.owned_by ?? null, owner_sort: r.owner_sort ?? 0 })) : [] },
+    async saveRoleOwners(changes) {
+      // As the role_owners migration: only an owner, and only to an active owner.
+      if (!paysAdmin()) throw new Error('Only an owner decides who owns a role')
+      for (const c of changes) {
+        if (!jobRoles.some(r => r.id === c.id)) throw new Error('Role not found')
+        if (c.owned_by && !profiles.some(p => p.id === c.owned_by && p.role === 'admin' && p.can_see_pay && p.active)) {
+          throw new Error('Only an owner of the business can own a role')
+        }
+      }
+      for (const c of changes) Object.assign(jobRoles.find(r => r.id === c.id)!, { owned_by: c.owned_by, owner_sort: c.owner_sort })
+    },
     async deleteJobRole(id) {
       requireAdmin()
       const i = jobRoles.findIndex(x => x.id === id)
@@ -2240,6 +2429,7 @@ export function createDemoApi(): Api {
       const i = pets.findIndex(x => x.id === id)
       if (i >= 0 && isStaff() && (pets[i].profile_id === currentUser || isAdmin())) pets.splice(i, 1)
     },
+    ...themeDayApi,
 
     async contractors() {
       if (!isAdmin() && !partnerCan('finances')) return []
@@ -2289,6 +2479,41 @@ export function createDemoApi(): Api {
       requireAdmin()
       const i = outsourcedJobs.findIndex(j => j.id === id)
       if (i >= 0) outsourcedJobs.splice(i, 1)
+    },
+
+    // As the `employment_contracts` migration: admins and a payroll gestoría read every contract, others
+    // their own; the pay only with pay access (an owner, the gestoría) or on your own.
+    async employmentContracts() {
+      const all = isAdmin() || partnerCan('payroll')
+      if (!me()?.active || (!all && !isStaff())) return []
+      return clone(contracts.filter(c => all || c.profile_id === currentUser))
+        .map(c => (paysAdmin() || partnerCan('payroll') || c.profile_id === currentUser ? c : { ...c, salary: null, salary_per: null }))
+        .sort((a, b) => b.starts_on.localeCompare(a.starts_on))
+    },
+    async saveEmploymentContract({ id, salary, salary_per, ...patch }) {
+      requireAdmin()
+      if (salary !== undefined && !paysAdmin()) throw new Error('new row violates row-level security policy for table "employment_contract_pay"')
+      const was = id ? contracts.find(c => c.id === id) : undefined
+      if (id && !was) throw new Error('That contract isn’t here any more')
+      const text = (v: string | null | undefined) => v?.trim() || null
+      const base = was ?? contract({ id: uid(), profile_id: patch.profile_id ?? '', kind: patch.kind ?? 'indefinido', starts_on: patch.starts_on ?? '',
+        created_at: nowIso(), convenio: null })
+      const next: EmploymentContract = { ...base, ...clone(patch), profile_id: base.profile_id || (patch.profile_id ?? ''), updated_at: nowIso() }
+      Object.assign(next, { convenio: text(next.convenio), job_title: text(next.job_title), document_url: text(next.document_url), notes: text(next.notes) })
+      if (salary !== undefined) Object.assign(next, { salary, salary_per: salary === null ? null : salary_per ?? 'month' })
+      const problem = contractProblem(next)
+      if (problem) throw new Error(problem)
+      if (!was) {
+        const who = profiles.find(p => p.id === next.profile_id)
+        if (!who || !staffOnly(who)) throw new Error('A contract is for someone on the team')
+        contracts.push(next)
+      } else Object.assign(was, next)
+      return next.id
+    },
+    async deleteEmploymentContract(id) {
+      requireAdmin()
+      const i = contracts.findIndex(c => c.id === id)
+      if (i >= 0) contracts.splice(i, 1)
     },
 
     async planStatus() {
@@ -2664,14 +2889,14 @@ export function createDemoApi(): Api {
       const i = invoiceList.findIndex(x => x.id === id)
       if (i >= 0) invoiceList.splice(i, 1)
     },
-    async invoiceInbox() {
+    async invoiceInbox(_days, supplierId) {
       needInvoices()
       const box = (['gmail', 'outlook'] as const).find(p => integ.integrations.some(i => i.provider === p && i.status === 'connected'))
       const row = box && integ.integrations.find(i => i.provider === box)
       if (!box || !(row?.external as { reads_mail?: boolean }).reads_mail) return { mailbox: box ?? null, can_read: false, messages: [] }
       const done = new Set(invoiceList.map(i => i.email_id))
       return { mailbox: box, can_read: true, messages: clone(mailInvoices).map(m => ({ ...m, supplier_id: matchSupplier(suppliers, { email: m.from }),
-        attachments: m.attachments.map(a => ({ ...a, imported: done.has(emailId(box, m.id, a.id)) })) })) }
+        attachments: m.attachments.map(a => ({ ...a, imported: done.has(emailId(box, m.id, a.id)) })) })).filter(m => !supplierId || m.supplier_id === supplierId) }
     },
     async importInvoice(m, attachment, supplierId) {
       needInvoices()
@@ -2692,6 +2917,16 @@ export function createDemoApi(): Api {
         document_id: doc.id, source: 'email', email_id: id, email_from: m.from, email_subject: m.subject, email_at: m.at })
       invoiceList.push(made)
       return clone(made)
+    },
+    async emailMessages(query) {
+      requireAdmin()
+      // Readable once allowed, as on Invoices → From email (the same permission).
+      const row = integ.integrations.find(i => (i.provider === 'gmail' || i.provider === 'outlook') && i.status === 'connected')
+      const box = row?.provider as 'gmail' | 'outlook' | undefined
+      if (!row || !box || !(row.external as { reads_mail?: boolean }).reads_mail) {
+        return { mailbox: box ?? null, account: row?.account_label ?? null, can_read: false, messages: [], next_page: null }
+      }
+      return { mailbox: box, account: row.account_label, can_read: true, ...demoEmailPage(demoEmails(box, row.account_label, suppliers, customers), query), fetched_at: nowIso() }
     },
     async taxSettings() { return readTax() ? clone(taxSettings) : DEFAULT_TAX_SETTINGS },
     async saveTaxSettings(patch) {
@@ -2858,10 +3093,17 @@ export function createDemoApi(): Api {
       if (problem) throw new Error(problem)
       const member = clubMembers.find(m => m.customer_id === customerId)
       const card: GiftCard = { id: uid(), last4: gan4(), type: 'DIGITAL', state: 'ACTIVE', balance: amount, created_at: nowIso(),
-        customer_id: customerId, customer: member?.name ?? null }
+        customer_id: customerId, customer: member?.name ?? null, original: amount, last_used: null }
       giftCardList.push(card)
+      giftGans.set(card.id, `77833200${gan4()}${card.last4}`)
       giftActivity.unshift({ id: uid(), kind: 'activate', amount, at: card.created_at, last4: card.last4, balance: amount })
       return clone(card)
+    },
+    async giftCardNumber(id) {
+      needSquare()
+      const gan = giftGans.get(id)
+      if (!gan) throw new Error('Choose a gift card from the list')
+      return gan
     },
     async suppliers() { return readStock() ? clone(suppliers).sort((a, b) => a.name.localeCompare(b.name)) : [] },
     async saveSupplier({ id, ...patch }) {
@@ -2943,14 +3185,23 @@ export function createDemoApi(): Api {
       if (problem) throw new Error(problem)
       const patch = { ...item, name: item.name.trim(), description: item.description?.trim() || null, photo_url: item.photo_url?.trim() || null }
       const existing = id ? recipes.find(r => r.id === id) : undefined
-      if (existing) { Object.assign(existing, patch); return existing.id }
+      if (existing) { Object.assign(existing, patch); menuToGoogle(); return existing.id }
       const made = recipe({ ...patch, menu_sort: lastInSection(patch.category) })
       recipes.push(made)
+      menuToGoogle()
       return made.id
     },
     async reorderMenu(ids) {
       requireAdmin()
       ids.forEach((id, i) => { const r = recipes.find(x => x.id === id); if (r) r.menu_sort = i + 1 })
+      menuToGoogle()
+    },
+    async sendMenuToGoogle() {
+      requireAdmin()
+      if (integ.integrations.find(i => i.provider === 'google_business')?.status !== 'connected') throw new Error('Connect your Google listing on the Connections page first.')
+      const items = menuToGoogle()
+      if (!items) throw new Error('Nothing on the menu has a price yet, so there’s nothing Google can show.')
+      return { status: 'sent' as const, items }
     },
     async loadMenuTemplate() {
       requireAdmin()
@@ -2959,6 +3210,7 @@ export function createDemoApi(): Api {
       settings.menu_sections = [...new Set([...templateSections(), ...(settings.menu_sections ?? [])])]
       const designs = templateDesigns().filter(d => !menuDesignList.some(x => x.name === d.name))
       for (const d of designs) menuDesignList.push({ ...d, id: uid(), updated_at: nowIso() })
+      if (add.length) menuToGoogle()
       return { added: add.length, designs: designs.length }
     },
     async syncMenuFromSquare() {
@@ -2983,6 +3235,7 @@ export function createDemoApi(): Api {
       const had = settings.menu_sections ?? []
       settings.menu_sections = [...had.filter(x => read.sections.includes(x)), ...read.sections.filter(x => !had.includes(x))]
       Object.assign(settings, { menu_synced_at: nowIso(), menu_sync_error: null })
+      if (added || changed || off) menuToGoogle()
       return { added, changed, off, items: read.items.length }
     },
     async uploadMenuPicture(file) {
@@ -3387,11 +3640,18 @@ export function createDemoApi(): Api {
       const i = campaignList.findIndex(x => x.id === id)
       if (i >= 0) campaignList.splice(i, 1)
     },
+    async setCampaignInactive(id, inactive) {
+      requireAdmin()
+      const c = campaignList.find(x => x.id === id)
+      if (!c) throw new Error('That campaign has gone')
+      c.inactive = inactive
+    },
 
     async salesReps() {
       return isStaff() ? clone(repList).sort((a, b) => a.name.localeCompare(b.name)) : []
     },
-    async saveSalesRep({ id, ...r }) {
+    async saveSalesRep({ id, ...input }) {
+      const { reach: _reach, followers_checked_at: _checked, created_at: _created, created_by: _by, ...r } = input as Partial<SalesRep>
       if (id) {
         requireAdmin()
         const i = repList.findIndex(x => x.id === id)
@@ -3401,18 +3661,30 @@ export function createDemoApi(): Api {
         repList[i] = tidyRep({ ...repList[i], ...patch }, repList[i])
         return id
       }
-      if (!isStaff() || (!isAdmin() && ((r.kind ?? 'customer') !== 'customer' || r.profile_id))) {
+      // Mirrors sales_reps_suggest: the team adds anyone but someone else on the team; it waits unless an admin adds them.
+      if (!isStaff() || (!isAdmin() && r.profile_id && r.profile_id !== currentUser)) {
         throw new Error('new row violates row-level security policy for table "sales_reps"')
       }
-      const rep = tidyRep(salesRep({ id: uid(), kind: 'customer', code: '', created_at: nowIso(), ...r }))
+      const rep = tidyRep(salesRep({ kind: 'customer', code: '', ...r, name: input.name, id: uid(), created_at: nowIso(), created_by: currentUser, approved: paysAdmin() ? r.approved ?? true : false }))
       repList.push(rep)
+      if (!rep.approved) {
+        const leader = repList.find(x => x.id === rep.leader_id)
+        for (const a of profiles.filter(p => p.role === 'admin' && p.can_see_pay && p.active && p.id !== currentUser)) {
+          notes.push({ id: notes.length + 1, profile_id: a.id, title: `${me()?.full_name ?? 'Someone'} added ${rep.name} as a rep: waiting for your OK`,
+            body: [leader ? `In ${leader.name}’s crew` : null, rep.reach > 0 ? `Reaches ${rep.reach.toLocaleString('en')} people` : null, rep.notes].filter(Boolean).join(' · ') || null,
+            link: '/sales-reps', created_at: nowIso(), read_at: null })
+        }
+      }
       return rep.id
     },
     async deleteSalesRep(id) {
       requireAdmin()
       const i = repList.findIndex(x => x.id === id)
       if (i >= 0) repList.splice(i, 1)
-      for (let j = rewardList.length - 1; j >= 0; j--) if (rewardList[j].rep_id === id) rewardList.splice(j, 1)
+      for (const x of repList) if (x.leader_id === id) x.leader_id = null
+      repLinks.delete(id)
+      const gone = new Set(rewardList.filter(r => r.rep_id === id).map(r => r.id))
+      for (let j = rewardList.length - 1; j >= 0; j--) if (rewardList[j].rep_id === id || gone.has(rewardList[j].bonus_for ?? '')) rewardList.splice(j, 1)
     },
     async rewardRules() {
       return isStaff() ? clone(rewardRuleList).sort((a, b) => a.sort - b.sort) : []
@@ -3440,33 +3712,83 @@ export function createDemoApi(): Api {
       if (!isStaff()) throw new Error('Only the team can log rewards')
       const rep = repList.find(x => x.id === rep_id)
       if (!rep) throw new Error('Rep not found')
-      if (!rep.active) throw new Error(`${rep.name} is no longer a rep`)
       const rule = rewardRuleList.find(x => x.id === rule_id)
-      if (!rule || !rule.active) throw new Error('That reward isn’t on the list')
-      if (rule.who === 'customers' && rep.kind !== 'customer') throw new Error(`${rule.name} is a reward for customers`)
-      if (rule.who === 'reps' && rep.kind === 'customer') throw new Error(`${rule.name} is a reward for reps`)
-      const on = occurred_on || today()
-      if (on > today()) throw new Error('It can’t be for a day still to come')
-      if (rule.basis === 'percent' && !(sale_amount && sale_amount > 0)) throw new Error('Give the amount of the sale')
-      const amount = rewardAmount(rule, sale_amount)
-      if (!(amount > 0)) throw new Error('The sale is too small for a reward')
-      if (rule.monthly_limit !== null) {
-        const used = rewardList.filter(x => x.rep_id === rep_id && x.rule_id === rule_id && x.kind === 'earn' && x.status !== 'rejected' && x.occurred_on.slice(0, 7) === on.slice(0, 7)).length
-        if (used >= rule.monthly_limit) throw new Error(`${rep.name} has had "${rule.name}" ${used} times this month, the most there is`)
+      const status = rep.profile_id === currentUser || !rep.approved ? 'pending' : isAdmin() || (rule && !rule.needs_approval) ? 'approved' : 'pending'
+      return addReward(rep, rule, { sale_amount, note, proof_url, mention_id, occurred_on }, status, currentUser)
+    },
+    async decideRep(id, approve) {
+      if (!paysAdmin()) throw new Error('Only an owner can say yes to a rep')
+      const rep = repList.find(x => x.id === id)
+      if (!rep) throw new Error('Rep not found')
+      if (rep.approved) throw new Error(`${rep.name} is already a rep`)
+      if (!approve) { await this.deleteSalesRep(id); return }
+      if (rep.profile_id === currentUser) throw new Error('Someone else says yes to you as a rep')
+      rep.approved = true
+      for (const r of rewardList.filter(x => x.rep_id === id && x.kind === 'earn' && x.status === 'pending' && x.logged_by && x.logged_by !== rep.profile_id)) {
+        if (rewardRuleList.find(u => u.id === r.rule_id)?.needs_approval !== false) continue
+        Object.assign(r, { status: 'approved' })
+        rewardList.push(...withBonus(r).slice(1))
       }
-      if (mention_id && rewardList.some(x => x.mention_id === mention_id)) throw new Error('duplicate key value violates unique constraint "rep_rewards_mention_id_key"')
-      const status = rep.profile_id === currentUser ? 'pending' : isAdmin() || !rule.needs_approval ? 'approved' : 'pending'
-      const reward: RepReward = { id: uid(), rep_id, kind: 'earn', rule_id, label: rule.name, sale_amount: rule.basis === 'percent' ? sale_amount ?? null : null,
-        amount, status, proof_url: proof_url?.trim() || null, mention_id: mention_id ?? null, note: note?.trim() || null, occurred_on: on,
-        logged_by: currentUser, created_at: nowIso() }
-      rewardList.push(reward)
-      if (status === 'pending') {
-        for (const a of profiles.filter(p => p.role === 'admin' && p.active && p.id !== currentUser)) {
-          notes.push({ id: notes.length + 1, profile_id: a.id, title: `${rule.name} for ${rep.name}: €${amount.toFixed(2)} to approve`,
-            body: [me()?.full_name, note?.trim()].filter(Boolean).join(' · ') || null, link: '/sales-reps', created_at: nowIso(), read_at: null })
-        }
+    },
+    async repLink(repId) {
+      const rep = repList.find(x => x.id === repId)
+      if (!rep || !(isAdmin() || (rep.profile_id && rep.profile_id === currentUser))) throw new Error('new row violates row-level security policy for table "rep_links"')
+      if (!repLinks.has(repId)) repLinks.set(repId, newToken())
+      return repLinks.get(repId)!
+    },
+    async newRepLink(repId) {
+      requireAdmin()
+      repLinks.set(repId, newToken())
+      return repLinks.get(repId)!
+    },
+    async lookupInstagram(handle) {
+      if (!isStaff()) throw new Error('Only the team can look people up')
+      const h = cleanInstagram(handle)
+      if (!h) throw new Error('That isn’t an Instagram handle')
+      // The demo's Instagram chats, with the followers Instagram shares for them.
+      const followers: Record<string, number> = { 'lucia.marbella': 640, 'sanpedro.eats': 12_400, tom_runs: 1_850, 'marta.g': 430, 'weekend.visitor': 210, 'happy.client': 95, 'old.friend': 1_020 }
+      const chat = inbox.state().conversations.find(c => c.platform === 'instagram' && c.with.username === h)
+      if (!chat || followers[h] === undefined) {
+        return { found: false, reason: 'Instagram only shares followers for people who’ve messaged the café or mentioned it in a story. Ask them to send the café a message, or type the number from their profile.' }
       }
-      return { id: reward.id, status, amount }
+      return { found: true, followers: followers[h], name: chat.with.name, ...(chat.with.picture ? { picture: chat.with.picture } : {}) }
+    },
+    async repPage(token) {
+      const repId = [...repLinks].find(([, t]) => t === token)?.[0]
+      const v = repList.find(x => x.id === repId)
+      if (!v || !v.active) throw new Error('This link has changed. Ask the café for your new one.')
+      return clone(repPageOf(v))
+    },
+    async claimReward(token, claim) {
+      const repId = [...repLinks].find(([, t]) => t === token)?.[0]
+      const rep = repList.find(x => x.id === repId)
+      if (!rep) throw new Error('This link has changed. Ask the café for your new one.')
+      const rule = rewardRuleList.find(x => x.id === claim.rule_id)
+      if (rule && rule.basis !== 'fixed') throw new Error(`The café logs "${rule.name}" for you once it's booked`)
+      if (!claim.note?.trim() && !claim.proof_url?.trim()) throw new Error('Say what you shared, or add its link')
+      if (claim.proof_url?.trim() && !/^https?:\/\/\S+$/i.test(claim.proof_url.trim())) throw new Error('The link has to start with https://')
+      if (rewardList.filter(r => r.rep_id === rep.id && r.status === 'pending' && !r.logged_by && !r.bonus_for).length >= 10) {
+        throw new Error('Ten of yours are waiting for the café already. Once they\'re checked, send more.')
+      }
+      return addReward(rep, rule, { note: claim.note, proof_url: claim.proof_url, occurred_on: claim.occurred_on }, 'pending', null)
+    },
+    async suggestCrew(token, person) {
+      const repId = [...repLinks].find(([, t]) => t === token)?.[0]
+      const leader = repList.find(x => x.id === repId)
+      if (!leader || !leader.active) throw new Error('This link has changed. Ask the café for your new one.')
+      if (leader.leader_id) throw new Error(`You're in ${repList.find(x => x.id === leader.leader_id)?.name}'s crew: they add people to it`)
+      if (!person.name?.trim()) throw new Error('Give their name')
+      if (repList.filter(x => x.leader_id === leader.id && !x.approved).length >= 30) throw new Error('Thirty of your crew are waiting for the café\'s OK already. Once they\'re in, add more.')
+      const { note, ...p } = person
+      const rep = tidyRep(salesRep({ ...p, id: uid(), kind: 'customer', code: '', name: person.name.trim(), leader_id: leader.id, approved: false, notes: note ?? null, created_at: nowIso(), created_by: null }))
+      if (rep.instagram && repList.some(x => x.instagram === rep.instagram)) throw new Error('Someone with that Instagram is in already.')
+      rep.code = codeFor(rep.name, new Set(repList.map(x => x.code)))
+      repList.push(rep)
+      for (const a of profiles.filter(x => x.role === 'admin' && x.can_see_pay && x.active)) {
+        notes.push({ id: notes.length + 1, profile_id: a.id, title: `${leader.name} added ${rep.name} to their crew: waiting for your OK`,
+          body: rep.reach > 0 ? `Reaches ${rep.reach.toLocaleString('en')} people` : null, link: '/sales-reps', created_at: nowIso(), read_at: null })
+      }
+      return { name: rep.name, reach: rep.reach, approved: false }
     },
     async decideReward(id, approve, amount) {
       if (!isAdmin()) throw new Error('Only an admin can approve rewards')
@@ -3476,6 +3798,7 @@ export function createDemoApi(): Api {
       if (amount !== undefined && !(amount > 0)) throw new Error('Give an amount above 0')
       r.status = approve ? 'approved' : 'rejected'
       if (approve && amount !== undefined) r.amount = round2(amount)
+      if (approve) rewardList.push(...withBonus(r).slice(1))
     },
     async settleReward(repId, amount, note) {
       if (!isStaff()) throw new Error('Only the team can do that')
@@ -3488,14 +3811,14 @@ export function createDemoApi(): Api {
       if (round2(amount) > balance) throw new Error(`${rep.name} has €${balance.toFixed(2)} ${rep.kind === 'customer' ? 'of credit' : 'owed'}`)
       const credit = rep.kind === 'customer'
       rewardList.push({ id: uid(), rep_id: repId, kind: credit ? 'redeem' : 'payout', rule_id: null, label: credit ? USED_AT_TILL : COMMISSION_PAID,
-        sale_amount: null, amount: -round2(amount), status: 'approved', proof_url: null, mention_id: null, note: note?.trim() || null,
+        sale_amount: null, amount: -round2(amount), status: 'approved', proof_url: null, mention_id: null, bonus_for: null, multiplier: null, note: note?.trim() || null,
         occurred_on: today(), logged_by: currentUser, created_at: nowIso() })
       return round2(balance - amount)
     },
     async deleteReward(id) {
       requireAdmin()
-      const i = rewardList.findIndex(x => x.id === id)
-      if (i >= 0) rewardList.splice(i, 1)
+      // A crew bonus goes with the reward it's a share of.
+      for (let j = rewardList.length - 1; j >= 0; j--) if (rewardList[j].id === id || rewardList[j].bonus_for === id) rewardList.splice(j, 1)
     },
     async repSettings() {
       if (!isStaff()) throw new Error('Cannot coerce the result to a single JSON object')
@@ -4478,9 +4801,8 @@ export function createDemoApi(): Api {
       if (!p) return { provider: null, account: null, playlists: [], approved: null }
       const youtube = p.provider === 'youtube_music'
       return { provider: youtube ? 'youtube' : 'spotify', account: p.account_label ?? null,
-        playlists: clone(youtube ? youtubePlaylists : demoPlaylists), approved: clone(p.external.playlist ?? null), demo: true,
-        // A YouTube playlist that isn't music: hidden unless asked for.
-        other_playlists: youtube ? [{ id: 'yt3', name: 'Café refit timelapse', tracks: 4, url: 'https://music.youtube.com/playlist?list=yt3', owner: 'Easy Beans' }] : undefined }
+        // Only music: the café account's plain YouTube playlists (a refit timelapse, shoulder stretches) aren't offered.
+        playlists: clone(youtube ? youtubePlaylists : demoPlaylists), approved: clone(p.external.playlist ?? null), demo: true }
     },
     async cafeTracks(playlistId) {
       if (!staffOnly(me()!)) throw new Error('Music is for the team')

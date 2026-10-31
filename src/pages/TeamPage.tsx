@@ -25,6 +25,9 @@ import { tokens } from '../theme'
 import { PasswordToShare, SignInSetupFields, generatePassword, useSignInSetup } from '../components/TempPassword'
 import { TEAM_ROLES, roleBlock, roleChange, teamRole, teamRoleLabel, type TeamRole } from '../../shared/teamRoles'
 import { msg, t, tn, tr } from '../i18n'
+import { Tab, Tabs } from '@mui/material'
+import type { ReactNode } from 'react'
+import { TeamContracts } from './TeamContracts'
 
 type Filter = 'all' | TeamRole | 'off'
 const FILTERS: { key: Filter; label: string }[] = [
@@ -34,8 +37,28 @@ const FILTERS: { key: Filter; label: string }[] = [
 const roleRank = (p: Profile) => -TEAM_ROLES.findIndex(r => r.id === teamRole(p))
 const roleText = (p: Profile) => t(teamRoleLabel(p) ?? '')
 
-/** The team as a clean list (like an admin console): search, filter, and details in a side panel. */
+type TeamTab = 'team' | 'contracts'
+
+/**
+ * Team: the team (Team) and each person's employment contract (Contracts), a tab each. The open tab is in
+ * the address: `/team?tab=contracts` opens the contracts. A payroll gestoría sees just the contracts.
+ */
 export function TeamPage() {
+  const { isPartner } = useApp()
+  const [params, setParams] = useSearchParams()
+  const tab: TeamTab = isPartner || params.get('tab') === 'contracts' ? 'contracts' : 'team'
+  const tabs = isPartner ? null : (
+    <Tabs value={tab} onChange={(_, v: TeamTab) => setParams(v === 'team' ? {} : { tab: v }, { replace: true })}
+      variant="scrollable" allowScrollButtonsMobile sx={{ mb: 2.5, borderBottom: `1px solid ${tokens.line}` }}>
+      <Tab value="team" label={t('Team')} />
+      <Tab value="contracts" label={t('Contracts')} />
+    </Tabs>
+  )
+  return tab === 'contracts' ? <TeamContracts tabs={tabs} /> : <TeamList tabs={tabs} />
+}
+
+/** The team as a clean list (like an admin console): search, filter, and details in a side panel. */
+function TeamList({ tabs }: { tabs: ReactNode }) {
   const { profiles, isAdmin, canSeePay, rates, me, refresh } = useApp()
   const [inviting, setInviting] = useState(false)
   const [params] = useSearchParams()
@@ -74,6 +97,7 @@ export function TeamPage() {
   return (
     <>
       <PageHeader eyebrow={t('Team')} title={t('Team')} />
+      {tabs}
 
       {/* Command bar */}
       <Stack direction="row" sx={{ gap: 1, alignItems: 'center', flexWrap: 'wrap', mb: 1.5, pb: 1.5, borderBottom: `1px solid ${tokens.line}` }}>
@@ -219,6 +243,10 @@ function PersonPanel({ person: p, onClose }: { person: Profile; onClose: () => v
             <FormControlLabel label={t('On the rota')}
               control={<Switch checked={p.on_rota !== false} slotProps={{ input: { 'aria-label': t('On the rota') } }}
                 onChange={e => update({ on_rota: e.target.checked }, e.target.checked ? t('{name} is back on the rota', { name: p.full_name }) : t('{name} is off the rota: they still sign in', { name: p.full_name }))} />} />
+            {/* The business's own shared login isn't a person: off People, it still signs in. */}
+            <FormControlLabel label={t('On the People page')}
+              control={<Switch checked={p.on_people !== false} slotProps={{ input: { 'aria-label': t('On the People page') } }}
+                onChange={e => update({ on_people: e.target.checked }, e.target.checked ? t('{name} is back on the People page', { name: p.full_name }) : t('{name} is off the People page: they still sign in', { name: p.full_name }))} />} />
           </Stack>
         </Box>
         {canSeePay && (

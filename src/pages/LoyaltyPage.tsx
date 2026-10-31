@@ -1,15 +1,17 @@
 import {
-  Alert, Box, Button, Card, CardContent, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, InputAdornment, MenuItem,
-  Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
+  Alert, Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, InputAdornment, MenuItem,
+  Stack, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs, TextField, Typography,
 } from '@mui/material'
 import GiftIcon from '@mui/icons-material/CardGiftcardOutlined'
 import AddIcon from '@mui/icons-material/Add'
 import OpenIcon from '@mui/icons-material/OpenInNew'
+import CopyIcon from '@mui/icons-material/ContentCopyOutlined'
+import SearchIcon from '@mui/icons-material/Search'
 import { useState } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Navigate, useSearchParams } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
-import { useAction } from '../app/Notify'
+import { useAction, useNotify } from '../app/Notify'
 import { useConnected } from '../app/connected'
 import { Empty, ErrorBox, Loading, PageHeader, SectionTitle, StatGrid, StatTile, Tag } from '../components/common'
 import { ExportButton } from '../components/tables'
@@ -18,25 +20,39 @@ import { Freshness } from '../components/Freshness'
 import type { ExportTable } from '../lib/export'
 import { addDays, formatLocal, formatMoney, today } from '../../shared/time'
 import {
-  SQUARE_GIFT_CARDS, SQUARE_LOYALTY_SETUP, adjustProblem, giftCardAmountProblem, giftCardTotals, loyaltyByDay, loyaltyTotals, stampCard, stampsOf,
-  type GiftCard, type GiftCards, type LoyaltyMember, type LoyaltyProgram, type LoyaltyState,
+  SQUARE_GIFT_CARDS, SQUARE_LOYALTY_SETUP, adjustProblem, giftCardAmountProblem, giftCardMatches, giftCardStatus, giftCardTotals, loyaltyByDay, loyaltyTotals,
+  sortGiftCards, stampCard, stampsOf,
+  type GiftCard, type GiftCards, type GiftCardSort, type GiftCardStatus, type LoyaltyMember, type LoyaltyProgram, type LoyaltyState,
 } from '../../shared/loyalty'
 import { tokens } from '../theme'
-import { msg, t, tn } from '../i18n'
+import { msg, t, tc, tn } from '../i18n'
 
 type Days = 30 | 60 | 90
+type LoyaltyTab = 'loyalty' | 'gift-cards'
 const when = (iso: string | null) => (iso ? formatLocal(iso, 'd MMM yyyy') : '–')
 const memberName = (m: LoyaltyMember) => m.name ?? t('Member {id}', { id: m.id.slice(-4) })
-const STATE_LABEL: Record<GiftCard['state'], string> = { ACTIVE: msg('Can be spent'), PENDING: msg('Not activated'), DEACTIVATED: msg('Used up or switched off'), BLOCKED: msg('Blocked') }
+const STATUS_LABEL: Record<GiftCardStatus, string> = { available: msg('Available'), used_up: msg('Used up'), not_activated: msg('Not activated'), deactivated: msg('Deactivated') }
+const STATUS_COLOURS: Partial<Record<GiftCardStatus, { fg: string; bg: string }>> = {
+  available: { fg: tokens.goodFg, bg: tokens.goodBg }, not_activated: { fg: tokens.infoFg, bg: tokens.infoBg }, deactivated: { fg: tokens.badFg, bg: tokens.badBg },
+}
+const statusLabel = (c: GiftCard) => (c.state === 'BLOCKED' ? t('Blocked') : t(STATUS_LABEL[giftCardStatus(c)]))
+const owner = (c: GiftCard) => c.customer ?? (c.customer_id ? t('A Square customer') : '')
+// Gift card columns a phone leaves out, so the balance and Copy number fit without scrolling sideways.
+const WIDE = { display: { xs: 'none', md: 'table-cell' } }
+const NOT_PHONE = { display: { xs: 'none', sm: 'table-cell' } }
 
 /**
- * Loyalty & gift cards, read live from Square (the till): the stamp card (a programme with points per
- * visit) or points, its members and what they did lately, and the gift cards with what's still owed
- * on them. Admins only, and only while Square is connected: otherwise this page sends you to Connections.
+ * Loyalty & gift cards, read live from Square (the till), on two tabs. Loyalty: the stamp card (a
+ * programme with points per visit) or points, its members and what they did lately. Gift cards
+ * (`?tab=gift-cards`): every card with what's left on it, filtered to the ones that can be spent,
+ * what's still owed on them, Copy number to use one, and selling a new one. Admins only, and only
+ * while Square is connected: otherwise this page sends you to Connections.
  */
 export function LoyaltyPage() {
   const { api } = useApp()
   const square = useConnected('square')
+  const [params, setParams] = useSearchParams()
+  const tab: LoyaltyTab = params.get('tab') === 'gift-cards' ? 'gift-cards' : 'loyalty'
   const [days, setDays] = useState<Days>(60)
   const to = today(), from = addDays(to, -(days - 1))
   const program = useAsync('loyalty', () => (square ? api.loyalty(from, to) : Promise.resolve(null)), [square, from, to])
@@ -47,10 +63,7 @@ export function LoyaltyPage() {
 
   const l = program.data, g = cards.data
   const reconnect = l?.status === 'reconnect' || g?.status === 'reconnect'
-  const month = to.slice(0, 7)
-  const lt = l?.status === 'ok' ? loyaltyTotals(l, month) : null
-  const gt = g?.status === 'ok' ? giftCardTotals(g, month) : null
-  const unit = l?.program ? (stampCard(l.program) ? t('Stamps') : t(l.program.other)) : t('Points')
+  const shown = tab === 'loyalty' ? program : cards
 
   return (
     <>
@@ -60,29 +73,39 @@ export function LoyaltyPage() {
           {([30, 60, 90] as Days[]).map(d => <MenuItem key={d} value={d}>{t('Last {n} days', { n: d })}</MenuItem>)}
         </TextField>
       } />
-      {(program.data || cards.data) && <Box sx={{ mt: -2, mb: 2 }}>
-        <Freshness id="loyalty" at={[program.data?.fetched_at, cards.data?.fetched_at].filter((x): x is string => !!x).sort()[0]} />
-      </Box>}
-      <ErrorBox error={program.error ?? cards.error} />
+      <Tabs value={tab} onChange={(_, v: LoyaltyTab) => setParams(v === 'loyalty' ? {} : { tab: v }, { replace: true })} variant="scrollable" allowScrollButtonsMobile
+        aria-label={t('Loyalty & gift cards')} sx={{ mb: 2, borderBottom: `1px solid ${tokens.line}` }}>
+        <Tab value="loyalty" label={t('Loyalty')} />
+        <Tab value="gift-cards" label={t('Gift cards')} />
+      </Tabs>
+      {shown.data?.fetched_at && <Box sx={{ mb: 2 }}><Freshness id="loyalty" at={shown.data.fetched_at} /></Box>}
+      <ErrorBox error={shown.error} />
       {reconnect && <Reconnect />}
+      {tab === 'loyalty'
+        ? <LoyaltyTab state={l} loading={program.loading} from={from} to={to} />
+        : <GiftCardsTab data={g} loading={cards.loading} members={l?.members ?? []} />}
+    </>
+  )
+}
 
+/** The stamp card (or points) and its members. */
+function LoyaltyTab({ state: l, loading, from, to }: { state: LoyaltyState | null; loading: boolean; from: string; to: string }) {
+  const lt = l?.status === 'ok' ? loyaltyTotals(l, to.slice(0, 7)) : null
+  const unit = l?.program ? (stampCard(l.program) ? t('Stamps') : t(l.program.other)) : t('Points')
+  return (
+    <>
       <StatGrid>
         <StatTile label={t('Members')} value={lt ? lt.members : '–'} note={lt ? t('{n} {unit} earned this month', { n: lt.earned_this_month, unit: unit.toLowerCase() }) : undefined} />
         <StatTile label={t('{unit} on cards', { unit })} value={lt ? lt.outstanding : '–'} note={t('Not yet turned into rewards')} />
         <StatTile label={t('Rewards this month')} value={lt ? lt.redeemed_this_month : '–'} note={l?.program?.tiers[0]?.name} />
-        <StatTile label={t('Gift card balance owed')} value={gt ? formatMoney(gt.outstanding) : '–'}
-          note={gt ? tn(gt.active, '{n} active card', '{n} active cards') : undefined} />
       </StatGrid>
-
-      {!l ? (program.loading ? <Loading /> : null)
+      {!l ? (loading ? <Loading /> : null)
         : l.status === 'no_program' ? <NoProgram />
         : l.status === 'ok' && l.program ? <>
             <Programme program={l.program} />
             <Activity state={l} from={from} to={to} />
             <Members state={l} program={l.program} />
           </> : null}
-
-      {g?.status === 'ok' && <GiftCardsSection data={g} members={l?.members ?? []} />}
     </>
   )
 }
@@ -245,44 +268,142 @@ function AdjustDialog({ member, unit, onClose }: { member: LoyaltyMember; unit: 
   )
 }
 
-function GiftCardsSection({ data, members }: { data: GiftCards; members: LoyaltyMember[] }) {
+/** Gift cards: what's available and owed, every card (the ones that can be spent first), and what happened lately. */
+function GiftCardsTab({ data, loading, members }: { data: GiftCards | null; loading: boolean; members: LoyaltyMember[] }) {
+  const ok = data?.status === 'ok' ? data : null
+  const gt = ok ? giftCardTotals(ok, today().slice(0, 7)) : null
+  return (
+    <>
+      <StatGrid>
+        <StatTile label={t('Cards available')} value={gt ? gt.available : '–'} note={ok ? tn(ok.cards.length, '{n} card in all', '{n} cards in all') : undefined} />
+        <StatTile label={t('Still owed')} value={gt ? formatMoney(gt.outstanding) : '–'} note={t('Left to spend on active cards')} />
+        <StatTile label={t('Used up this month')} value={gt ? gt.used_up_this_month : '–'} note={t('Spent down to nothing')} />
+        <StatTile label={t('Sold this month')} value={gt ? formatMoney(gt.sold_this_month) : '–'} note={t('New cards and top-ups')} />
+      </StatGrid>
+      {!ok ? (loading && !data ? <Loading /> : null) : <>
+        <GiftCardList data={ok} members={members} />
+        <RecentActivity data={ok} />
+      </>}
+    </>
+  )
+}
+
+type Show = GiftCardStatus | 'all'
+
+function GiftCardList({ data, members }: { data: GiftCards; members: LoyaltyMember[] }) {
+  const { api } = useApp()
+  const notify = useNotify()
   const [selling, setSelling] = useState(false)
+  const [show, setShow] = useState<Show>('available')
+  const [q, setQ] = useState('')
+  const [sort, setSort] = useState<GiftCardSort>('balance')
+  const [copying, setCopying] = useState<string | null>(null)
+  const chips: [Show, string][] = [['all', tc('gift cards', 'All')], ['available', tc('gift cards', 'Available')], ['used_up', tc('gift cards', 'Used up')],
+    ['not_activated', tc('gift cards', 'Not activated')], ['deactivated', tc('gift cards', 'Deactivated')]]
+  const count = (s: Show) => (s === 'all' ? data.cards.length : data.cards.filter(c => giftCardStatus(c) === s).length)
+  const list = sortGiftCards(data.cards.filter(c => (show === 'all' || giftCardStatus(c) === show) && giftCardMatches(c, q)), sort)
+
+  // The whole number is asked for only now, one card at a time: lists carry the last 4 digits only.
+  const copy = async (c: GiftCard) => {
+    setCopying(c.id)
+    try {
+      const number = await api.giftCardNumber(c.id)
+      try {
+        await navigator.clipboard.writeText(number)
+        notify(t('Number of •••• {last4} copied', { last4: c.last4 }), 'success')
+      } catch {
+        notify(t('Couldn’t copy here. The number is {number}', { number }), 'info')
+      }
+    } catch (e) {
+      notify(e instanceof Error ? e.message : String(e), 'error')
+    } finally {
+      setCopying(null)
+    }
+  }
+
   const table = (): ExportTable => ({
     title: t('Gift cards'), filename: `gift-cards-${today()}`,
-    columns: [t('Card'), t('Balance'), t('State'), t('Sold'), t('Customer')],
-    rows: data.cards.map(c => [`•••• ${c.last4}`, c.balance, t(STATE_LABEL[c.state]), c.created_at.slice(0, 10), c.customer ?? '']),
-    footer: [t('Owed on active cards'), giftCardTotals(data, today().slice(0, 7)).outstanding, '', '', ''],
-    money: [1],
+    columns: [t('Card'), t('State'), t('Balance left'), t('Original amount'), t('Issued'), t('Last used'), t('Customer')],
+    rows: sortGiftCards(data.cards, sort).map(c => [`•••• ${c.last4}`, statusLabel(c), c.balance, c.original ?? '', c.created_at.slice(0, 10), c.last_used?.slice(0, 10) ?? '', owner(c)]),
+    footer: [t('Owed on active cards'), '', giftCardTotals(data, today().slice(0, 7)).outstanding, '', '', '', ''],
+    money: [2, 3],
   })
   return (
     <Card component="section" aria-label={t('Gift cards')} sx={{ mb: 3 }}>
       <CardContent>
-        <SectionTitle action={<Stack direction="row" spacing={1}>
+        <SectionTitle action={<Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <ExportButton table={table} disabled={!data.cards.length} folder="Sales" />
-          <Button variant="contained" startIcon={<AddIcon />} onClick={() => setSelling(true)}>{t('Sell a gift card')}</Button>
+          <Button variant="contained" startIcon={<AddIcon />} onClick={() => setSelling(true)} sx={{ whiteSpace: 'nowrap' }}>{t('Sell a gift card')}</Button>
         </Stack>}>{t('Gift cards')}</SectionTitle>
-        {!data.cards.length ? <Empty>{t('No gift cards yet. Sell one here, or at the till.')}</Empty> : (
-          <Box sx={{ overflowX: 'auto', mb: 3 }}>
-            <Table size="small" aria-label={t('Gift cards')}>
-              <TableHead><TableRow>
-                <TableCell>{t('Card')}</TableCell><TableCell align="right">{t('Balance')}</TableCell><TableCell>{t('State')}</TableCell>
-                <TableCell>{t('Sold')}</TableCell><TableCell>{t('Customer')}</TableCell>
-              </TableRow></TableHead>
-              <TableBody>
-                {data.cards.map(c => (
-                  <TableRow key={c.id}>
-                    <TableCell sx={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>•••• {c.last4}</TableCell>
-                    <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{formatMoney(c.balance)}</TableCell>
-                    <TableCell><Tag {...(c.state === 'ACTIVE' ? { fg: tokens.goodFg, bg: tokens.goodBg } : {})}>{t(STATE_LABEL[c.state])}</Tag></TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{when(c.created_at)}</TableCell>
-                    <TableCell>{c.customer ?? '–'}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+        {!data.cards.length ? <Empty>{t('No gift cards yet. Sell one here, or at the till.')}</Empty> : <>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mb: 1.5, justifyContent: 'space-between' }}>
+            <TextField size="small" placeholder={t('Search by card number')} value={q} onChange={e => setQ(e.target.value)} sx={{ width: { xs: '100%', sm: 280 } }}
+              slotProps={{ htmlInput: { 'aria-label': t('Search by card number'), inputMode: 'numeric' },
+                input: { startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> } }} />
+            <TextField select size="small" label={t('Sort by')} value={sort} onChange={e => setSort(e.target.value as GiftCardSort)} sx={{ width: { xs: '100%', sm: 220 } }}>
+              <MenuItem value="balance">{t('Most money left')}</MenuItem>
+              <MenuItem value="newest">{t('Newest first')}</MenuItem>
+              <MenuItem value="last_used">{t('Last used first')}</MenuItem>
+            </TextField>
+          </Stack>
+          <Stack direction="row" useFlexGap spacing={1} sx={{ flexWrap: 'wrap', mb: 2 }} role="group" aria-label={t('Show')}>
+            {chips.map(([id, label]) => (
+              <Chip key={id} label={`${label} ${count(id)}`} onClick={() => setShow(id)} aria-pressed={show === id}
+                color={show === id ? 'primary' : 'default'} variant={show === id ? 'filled' : 'outlined'} />
+            ))}
+          </Stack>
+          {!list.length ? <Empty>{q.trim() ? t('No card ending in those digits here.') : t('No cards like that.')}</Empty> : (
+            <Box sx={{ overflowX: 'auto' }}>
+              <Table size="small" aria-label={t('Gift cards')} sx={{ '& td, & th': { px: { xs: 1, sm: 2 } } }}>
+                <TableHead><TableRow>
+                  <TableCell>{t('Card')}</TableCell><TableCell>{t('State')}</TableCell><TableCell align="right">{t('Balance left')}</TableCell>
+                  <TableCell align="right" sx={WIDE}>{t('Original amount')}</TableCell><TableCell sx={WIDE}>{t('Issued')}</TableCell><TableCell sx={WIDE}>{t('Last used')}</TableCell>
+                  <TableCell sx={NOT_PHONE}>{t('Customer')}</TableCell><TableCell />
+                </TableRow></TableHead>
+                <TableBody>
+                  {list.map(c => (
+                    <TableRow key={c.id} hover>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                        <Box component="span" sx={{ fontVariantNumeric: 'tabular-nums' }}>•••• {c.last4}</Box>
+                        <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>{c.type === 'PHYSICAL' ? t('Physical card') : t('Digital card')}</Typography>
+                      </TableCell>
+                      <TableCell><Tag {...STATUS_COLOURS[giftCardStatus(c)]}>{statusLabel(c)}</Tag></TableCell>
+                      <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums', fontWeight: giftCardStatus(c) === 'available' ? 600 : undefined }}>{formatMoney(c.balance)}</TableCell>
+                      <TableCell align="right" sx={{ ...WIDE, fontVariantNumeric: 'tabular-nums', color: 'text.secondary' }}>{c.original === null ? '–' : formatMoney(c.original)}</TableCell>
+                      <TableCell sx={{ ...WIDE, whiteSpace: 'nowrap' }}>{when(c.created_at || null)}</TableCell>
+                      <TableCell sx={{ ...WIDE, whiteSpace: 'nowrap' }}>{when(c.last_used)}</TableCell>
+                      <TableCell sx={NOT_PHONE}>{owner(c) || '–'}</TableCell>
+                      <TableCell align="right">
+                        <Button size="small" startIcon={<CopyIcon />} disabled={copying === c.id} onClick={() => void copy(c)}
+                          sx={{ whiteSpace: 'nowrap', minWidth: 0, '& .MuiButton-startIcon': { mx: { xs: 0 }, mr: { sm: 1 } } }}
+                          aria-label={t('Copy the number of •••• {last4}', { last4: c.last4 })}>
+                          <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>{t('Copy number')}</Box>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Box>
+          )}
+        </>}
+        <Alert severity="info" icon={<GiftIcon />} sx={{ mt: 2 }}>
+          {t('New cards: sell a digital one here with Sell a gift card, or at the till in Square Point of Sale (a physical card from the box, or an eGift card by email). Physical cards to order, and eGift cards for your website, are in the Square Dashboard.')}
+          <Box sx={{ mt: 1 }}>
+            <Button color="inherit" size="small" endIcon={<OpenIcon />} href={SQUARE_GIFT_CARDS} target="_blank" rel="noopener" sx={{ ml: -0.5 }}>{t('Gift cards in Square')}</Button>
           </Box>
-        )}
-        <Typography variant="subtitle2" sx={{ mb: 1 }}>{t('Recent gift card activity')}</Typography>
+        </Alert>
+      </CardContent>
+      {selling && <SellDialog members={members} onClose={() => setSelling(false)} />}
+    </Card>
+  )
+}
+
+function RecentActivity({ data }: { data: GiftCards }) {
+  return (
+    <Card component="section" aria-label={t('Recent gift card activity')} sx={{ mb: 3 }}>
+      <CardContent>
+        <SectionTitle>{t('Recent gift card activity')}</SectionTitle>
         {!data.activities.length ? <Empty>{t('Nothing in this period.')}</Empty> : (
           <Stack component="ul" role="list" aria-label={t('Recent gift card activity')} sx={{ listStyle: 'none', p: 0, m: 0 }}>
             {data.activities.slice(0, 15).map(a => (
@@ -298,9 +419,7 @@ function GiftCardsSection({ data, members }: { data: GiftCards; members: Loyalty
             ))}
           </Stack>
         )}
-        <Button size="small" endIcon={<OpenIcon />} href={SQUARE_GIFT_CARDS} target="_blank" rel="noopener" sx={{ mt: 2 }}>{t('Gift cards in Square')}</Button>
       </CardContent>
-      {selling && <SellDialog members={members} onClose={() => setSelling(false)} />}
     </Card>
   )
 }

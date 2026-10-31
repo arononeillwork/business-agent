@@ -14,7 +14,7 @@ import { Link as RouterLink } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction, useNotify } from '../app/Notify'
-import { useMonthlyProfit } from '../app/monthProfit'
+import { useBreakevenMonths } from '../app/kittyShare'
 import { Empty, ErrorBox, PageHeader, SectionTitle, Tag } from '../components/common'
 import { GOAL_ICON, KittyJar, jarStyles } from '../components/KittyJar'
 import {
@@ -23,22 +23,23 @@ import {
 } from '../../shared/kitty'
 import { formatLocal, formatMoney, localDate, today } from '../../shared/time'
 import { fonts, tokens } from '../theme'
-import { t, tn } from '../i18n'
+import { t, tn, tr } from '../i18n'
 
 const monthName = (m: string, pattern = 'MMMM yyyy') => formatLocal(`${m.slice(0, 7)}-15T12:00:00Z`, pattern)
 const dayName = (d: string) => formatLocal(`${d}T12:00:00Z`, 'd MMM yyyy')
 /** Goals added from the ideas or seeded in English show in the person's language; ones typed in show as typed. */
 const goalName = (g: Pick<KittyGoal, 'name'>) => t(g.name)
 const entryLabel = (e: KittyEntry) => e.kind === 'profit'
-  ? t('{percent}% of the profit in {month}', { percent: e.percent ?? 0, month: monthName(e.month!) })
+  ? t('{percent}% of what was taken above breakeven in {month}', { percent: e.percent ?? 0, month: monthName(e.month!) })
   : e.note ?? (e.kind === 'top_up' ? t('Put in') : t('Adjustment'))
 
 /**
- * Staff kitty: a share of each month's profit put aside for the team, saved up for goals chosen
- * together (the Christmas party, a pair of Ray-Bans for the café…). The goals fill in order, like
- * jars on a shelf, and buying one takes what it cost out. The whole team sees it; admins set the
- * share, add goals, put each month's share in (worked out as Profit & loss does) and mark goals
- * bought. The database enforces the same.
+ * Staff kitty: a share (10% to start) of everything the café takes above its breakeven, day by day, put
+ * aside for the team and saved up for goals chosen together (the Christmas party, a pair of Ray-Bans for
+ * the café…). A day's breakeven is what it costs to run the café that day: the running costs on Finances
+ * spread over the open days, plus the team on the rota (shared/dailyCost.ts). The goals fill in order,
+ * like jars on a shelf, and buying one takes what it cost out. The whole team sees it; admins set the
+ * share, add goals, put each month's share in and mark goals bought. The database enforces the same.
  */
 export function KittyPage() {
   const { api, isAdmin } = useApp()
@@ -48,7 +49,7 @@ export function KittyPage() {
   const run = useAction()
   const [editing, setEditing] = useState<KittyGoalInput | null>(null)
   const [buying, setBuying] = useState<Jar | null>(null)
-  const [money, setMoney] = useState<{ month?: string; profit?: number | null } | null>(null)
+  const [money, setMoney] = useState<{ month?: string; over?: number | null } | null>(null)
   const [sharing, setSharing] = useState(false)
 
   const now = today()
@@ -70,7 +71,9 @@ export function KittyPage() {
   const firstShare = ins.filter(e => e.kind === 'profit' && e.month).map(e => e.month!.slice(0, 7)).sort()[0]
   const candidates = [3, 2, 1].map(n => addMonths(thisMonth, -n)).filter(m => m === addMonths(thisMonth, -1) || (firstShare && m >= firstShare))
   const due = isAdmin && entries.data ? monthsNotPaidIn(candidates, ins) : []
-  const profit = useMonthlyProfit(due)
+  // What was taken above breakeven: the months still to put in, and this month so far.
+  const breakeven = useBreakevenMonths([...new Set([...due, thisMonth])].sort())
+  const soFar = breakeven.byMonth.get(thisMonth)
 
   const move = (j: Jar, by: number) => {
     const order = open.map(x => x.goal.id)
@@ -104,9 +107,17 @@ export function KittyPage() {
                 {entries.data && goals.data ? formatMoney(balance) : '–'}
               </Typography>
               <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', mt: 1 }}>
-                <Typography sx={{ color: 'rgba(251,248,244,0.82)' }}>{t('{percent}% of each month’s profit goes in', { percent })}</Typography>
-                {isAdmin && <IconButton size="small" onClick={() => setSharing(true)} aria-label={t('Change the share of profit')} sx={{ color: 'rgba(251,248,244,0.82)' }}><EditIcon fontSize="small" /></IconButton>}
+                <Typography sx={{ color: '#FBF8F4', fontWeight: 600 }}>
+                  {tr('{share} of everything taken above breakeven goes in', { share: <Box component="span" sx={{ color: '#F79BA4', fontSize: '1.15em' }}>{`${percent}%`}</Box> })}
+                </Typography>
+                {isAdmin && <IconButton size="small" onClick={() => setSharing(true)} aria-label={t('Change the share over breakeven')} sx={{ color: 'rgba(251,248,244,0.82)' }}><EditIcon fontSize="small" /></IconButton>}
               </Stack>
+              <Typography variant="body2" sx={{ color: 'rgba(251,248,244,0.75)', maxWidth: 420 }}>
+                {breakeven.perDay
+                  ? t('Breakeven: about {amount} a day, what it costs to run the café (running costs {fixed} + the team on the rota {team}).', {
+                    amount: formatMoney(breakeven.perDay.total), fixed: formatMoney(breakeven.perDay.fixed), team: formatMoney(breakeven.perDay.team) })
+                  : t('Breakeven: what it costs to run the café each day, the running costs plus the team on the rota.')}
+              </Typography>
               <Typography variant="body2" sx={{ color: 'rgba(251,248,244,0.65)' }}>
                 {pace > 0 ? t('About {amount} a month lately', { amount: formatMoney(pace) }) : t('Nothing has gone in yet')}
               </Typography>
@@ -135,13 +146,58 @@ export function KittyPage() {
         </CardContent>
       </Card>
 
+      {breakeven.on && breakeven.ready && breakeven.till && soFar && soFar.rows.length > 0 && (
+        <Card component="section" aria-label={t('Above breakeven this month')} sx={{ mb: 3 }}>
+          <CardContent>
+            <SectionTitle>{t('Above breakeven this month')}</SectionTitle>
+            <Box role="list" aria-label={t('At a glance')} sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(0, 1fr))' }, gap: 1.5, mb: 2 }}>
+              {[
+                { label: t('Days above breakeven'), value: t('{n} of {days}', { n: soFar.daysOver, days: soFar.rows.length }) },
+                { label: t('Taken above breakeven'), value: formatMoney(soFar.over) },
+                { label: t('{percent}% for the kitty so far', { percent }), value: formatMoney(profitShare(soFar.over, percent)), strong: true },
+              ].map(x => (
+                <Box key={x.label} role="listitem" sx={{ p: 1.5, borderRadius: '12px', bgcolor: x.strong ? tokens.roseSoft : tokens.surfaceAlt }}>
+                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>{x.label}</Typography>
+                  <Typography sx={{ fontFamily: fonts.display, fontSize: '1.5rem', fontVariantNumeric: 'tabular-nums', color: x.strong ? tokens.roseDeep : 'text.primary' }}>{x.value}</Typography>
+                </Box>
+              ))}
+            </Box>
+            {/* Each day so far: its takings against its breakeven; the part above goes 10% to the kitty. */}
+            <Stack spacing={0.5} aria-label={t('Each day against its breakeven')} role="list">
+              {soFar.rows.slice(-14).map(r => {
+                const top = Math.max(r.takings, r.breakeven, 1)
+                return (
+                  <Stack key={r.date} role="listitem" direction="row" spacing={1.5} sx={{ alignItems: 'center' }}
+                    aria-label={t('{day}: took {takings}, breakeven {breakeven}', { day: dayName(r.date), takings: formatMoney(r.takings), breakeven: formatMoney(r.breakeven) })}>
+                    <Typography variant="caption" sx={{ width: 74, flexShrink: 0, color: 'text.secondary' }}>{formatLocal(`${r.date}T12:00:00Z`, 'EEE d')}</Typography>
+                    <Box sx={{ position: 'relative', flex: 1, height: 12, borderRadius: 6, bgcolor: 'divider', overflow: 'hidden' }}>
+                      <Box sx={{ position: 'absolute', inset: 0, width: `${Math.min(r.takings, r.breakeven) / top * 100}%`, bgcolor: tokens.inkFaint, opacity: 0.45 }} />
+                      {r.over > 0 && <Box sx={{ position: 'absolute', top: 0, bottom: 0, left: `${r.breakeven / top * 100}%`, width: `${r.over / top * 100}%`, bgcolor: tokens.rose }} />}
+                      <Box sx={{ position: 'absolute', top: -2, bottom: -2, left: `${r.breakeven / top * 100}%`, width: 2, bgcolor: tokens.danger }} />
+                    </Box>
+                    <Typography variant="caption" sx={{ width: 96, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: r.over > 0 ? tokens.roseDeep : 'text.secondary', fontWeight: r.over > 0 ? 600 : 400 }}>
+                      {r.over > 0 ? `+${formatMoney(profitShare(r.over, percent))}` : t('below')}
+                    </Typography>
+                  </Stack>
+                )
+              })}
+            </Stack>
+            <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mt: 1 }}>
+              {t('Grey: up to the day’s breakeven (the red mark). Pink: taken above it, of which {percent}% goes in the kitty.', { percent })}
+              {soFar.estimated ? ` ${t('Days without a costed rota use the Staff wages estimate on Finances.')}` : ''}
+            </Typography>
+          </CardContent>
+        </Card>
+      )}
+
       {due.length > 0 && (
         <Card component="section" aria-label={t('This month’s share')} sx={{ mb: 3, borderLeft: `4px solid ${tokens.rose}` }}>
           <CardContent>
             <SectionTitle>{tn(due.length, 'A month’s share to put in', '{n} months’ shares to put in')}</SectionTitle>
             <Stack spacing={1}>
               {due.map(m => {
-                const p = profit.profit.get(m)
+                const b = breakeven.byMonth.get(m)
+                const p = b && breakeven.till ? b.over : undefined
                 const share = p === undefined ? null : profitShare(p, percent)
                 return (
                   <Stack key={m} direction={{ xs: 'column', sm: 'row' }} spacing={1.5} role="group" aria-label={monthName(m)}
@@ -149,15 +205,15 @@ export function KittyPage() {
                     <Box sx={{ flex: 1, minWidth: 0 }}>
                       <Typography variant="body2" sx={{ fontWeight: 500, textTransform: 'capitalize' }}>{monthName(m)}</Typography>
                       <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                        {p !== undefined
-                          ? (p > 0 ? t('Profit {profit} (Profit & loss), {percent}%: {share}', { profit: formatMoney(p), percent, share: formatMoney(share!) })
-                            : t('A loss of {loss} (Profit & loss): nothing goes in this time', { loss: formatMoney(-p) }))
-                          : profit.on && profit.ready && !profit.till ? t('Profit & loss has no takings to count yet: connect the till, or type the month’s profit.')
-                          : profit.on ? t('Working out the profit…') : t('Type the month’s profit (admins with pay access see it from Profit & loss).')}
+                        {p !== undefined && b
+                          ? (p > 0 ? t('{over} taken above breakeven on {days} of {open} days, {percent}%: {share}', { over: formatMoney(p), days: b.daysOver, open: b.rows.length, percent, share: formatMoney(share!) })
+                            : t('No day took more than its breakeven: nothing goes in this time'))
+                          : breakeven.on && breakeven.ready && !breakeven.till ? t('No takings to count yet: connect the till, or type what was taken above breakeven.')
+                          : breakeven.on ? t('Working out the takings above breakeven…') : t('Type what was taken above breakeven (admins with pay access see it worked out).')}
                       </Typography>
                     </Box>
-                    {profit.on && profit.ready && !profit.till && <Button size="small" component={RouterLink} to="/connections">{t('Connect the till')}</Button>}
-                    <Button size="small" variant="contained" disabled={p !== undefined && p <= 0} onClick={() => setMoney({ month: m, profit: p ?? null })}>
+                    {breakeven.on && breakeven.ready && !breakeven.till && <Button size="small" component={RouterLink} to="/connections">{t('Connect the till')}</Button>}
+                    <Button size="small" variant="contained" disabled={p !== undefined && p <= 0} onClick={() => setMoney({ month: m, over: p ?? null })}>
                       {share ? t('Put {amount} in', { amount: formatMoney(share) }) : t('Put it in')}
                     </Button>
                   </Stack>
@@ -245,7 +301,7 @@ export function KittyPage() {
 
       {editing && <GoalDialog goal={editing} onClose={() => setEditing(null)} />}
       {buying && <BuyDialog jar={buying} balance={balance} onClose={() => setBuying(null)} />}
-      {money && <MoneyDialog month={money.month} profit={money.profit ?? null} percent={percent} balance={balance} goals={allGoals}
+      {money && <MoneyDialog month={money.month} profit={money.over ?? null} percent={percent} balance={balance} goals={allGoals}
         paid={ins.filter(e => e.kind === 'profit' && e.month).map(e => e.month!.slice(0, 7))} onClose={() => setMoney(null)} />}
       {sharing && <ShareDialog percent={percent} onClose={() => setSharing(false)} />}
     </Box>
@@ -391,7 +447,7 @@ function BuyDialog({ jar, balance, onClose }: { jar: Jar; balance: number; onClo
 
 type MoneyKind = 'profit' | 'top_up' | 'adjust'
 
-/** Money in: a month's share of profit, anything else (the tips jar, a bonus), or a correction that takes some out. */
+/** Money in: a month's share of what was taken above breakeven, anything else (the tips jar, a bonus), or a correction that takes some out. */
 function MoneyDialog({ month, profit, percent, balance, goals, paid, onClose }: {
   month?: string; profit: number | null; percent: number; balance: number; goals: KittyGoal[]; paid: string[]; onClose: () => void
 }) {
@@ -426,16 +482,16 @@ function MoneyDialog({ month, profit, percent, balance, goals, paid, onClose }: 
       <DialogContent>
         <Stack spacing={2} sx={{ pt: 1 }}>
           <ToggleButtonGroup exclusive size="small" value={kind} onChange={(_, v: MoneyKind | null) => v && setKind(v)} aria-label={t('What it is')} fullWidth>
-            <ToggleButton value="profit">{t('Share of profit')}</ToggleButton>
+            <ToggleButton value="profit">{t('Share over breakeven')}</ToggleButton>
             <ToggleButton value="top_up">{t('Something else')}</ToggleButton>
             <ToggleButton value="adjust">{t('Take some out')}</ToggleButton>
           </ToggleButtonGroup>
           {kind === 'profit' && <>
             <TextField label={t('Month')} type="month" value={which} onChange={e => e.target.value && setWhich(e.target.value)} disabled={!!month}
               slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: addMonths(today().slice(0, 7), -1) } }} />
-            <TextField label={t('The month’s profit')} value={profitText} inputMode="decimal"
+            <TextField label={t('Taken above breakeven')} value={profitText} inputMode="decimal"
               onChange={e => { setProfitText(e.target.value); setAmountText(String(profitShare(num(e.target.value) || 0, percent))) }}
-              helperText={profit !== null ? t('From Profit & loss: an estimate. Change it to the gestoría’s figure if you have it.') : t('Operating profit, as on Profit & loss')}
+              helperText={profit !== null ? t('From the till and each day’s cost to run the café: an estimate. Change it if you have a better figure.') : t('Each day’s takings above what it cost to run the café, added up for the month')}
               slotProps={{ input: { startAdornment: <InputAdornment position="start">€</InputAdornment> } }} />
           </>}
           <TextField label={kind === 'profit' ? t('{percent}% of it', { percent }) : t('Amount')} value={amountText} onChange={e => setAmountText(e.target.value)} inputMode="decimal"
@@ -453,7 +509,7 @@ function MoneyDialog({ month, profit, percent, balance, goals, paid, onClose }: 
   )
 }
 
-/** The share of each month's profit that goes in. */
+/** The share of what's taken above breakeven that goes in. */
 function ShareDialog({ percent, onClose }: { percent: number; onClose: () => void }) {
   const { api } = useApp()
   const run = useAction()
@@ -468,10 +524,10 @@ function ShareDialog({ percent, onClose }: { percent: number; onClose: () => voi
   }
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="xs" aria-labelledby="share-title">
-      <DialogTitle id="share-title">{t('Share of profit')}</DialogTitle>
+      <DialogTitle id="share-title">{t('Share over breakeven')}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ pt: 1 }}>
-          <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('How much of each month’s operating profit goes in the kitty. A month that made a loss puts nothing in.')}</Typography>
+          <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('How much of what the café takes above its breakeven goes in the kitty: each day’s takings over what it cost to run that day (the running costs and the team on the rota). A day below breakeven puts nothing in.')}</Typography>
           <TextField label={t('Percentage')} value={value} onChange={e => setValue(e.target.value)} inputMode="decimal" autoFocus
             slotProps={{ input: { endAdornment: <InputAdornment position="end">%</InputAdornment> } }} />
         </Stack>

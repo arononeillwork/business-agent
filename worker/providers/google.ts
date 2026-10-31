@@ -138,6 +138,88 @@ export async function updateLocation(token: string, location: string, patch: {
     { method: 'PATCH', body: JSON.stringify(body) })
 }
 
+// ---------------------------------------------------------------------------------------------
+// The menu on the listing (Food menus, still on the v4 host like reviews and posts). Read, changed,
+// written back whole: Google replaces the listing's menus with what's sent. Only listings Google
+// allows a menu on (metadata.canHaveFoodMenus: food and drink places) take one.
+// ---------------------------------------------------------------------------------------------
+/** Google's Money: whole units as a string (int64), the rest in nanos. */
+export interface GMoney { currencyCode: string; units: string; nanos?: number }
+export interface GMenuLabel { displayName: string; description?: string; languageCode?: string }
+export interface GMenuAttributes { price: GMoney; [k: string]: unknown }
+export interface GMenuItem { labels: GMenuLabel[]; attributes: GMenuAttributes; options?: { labels: GMenuLabel[]; attributes: GMenuAttributes }[] }
+export interface GMenuSection { labels: GMenuLabel[]; items: GMenuItem[] }
+export interface GFoodMenu { labels: GMenuLabel[]; sections: GMenuSection[]; sourceUrl?: string; cuisines?: string[] }
+export interface GFoodMenus { name: string; menus?: GFoodMenu[] }
+
+/** What the app's menu gives Google: sections in order, each with its items (on the menu) in order. */
+export interface MenuForGoogle {
+  title: string
+  sections: { category: string | null; items: { name: string; description: string | null; sell_price: number | null; variants: { name: string; price_change: number }[] }[] }[]
+}
+
+/** 3.5 in EUR → { currencyCode: 'EUR', units: '3', nanos: 500000000 }. */
+export function toMoney(amount: number, currencyCode: string): GMoney {
+  const cents = Math.round(Math.max(0, amount) * 100)
+  const units = Math.floor(cents / 100), rest = cents % 100
+  return rest ? { currencyCode, units: String(units), nanos: rest * 10_000_000 } : { currencyCode, units: String(units) }
+}
+
+const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s)
+/** Google's labels: a display name of 140 characters at most, a description of 1,000. */
+const label = (name: string, description?: string | null): GMenuLabel =>
+  ({ displayName: clip(name.trim(), 140), ...(description?.trim() ? { description: clip(description.trim(), 1000) } : {}) })
+
+/**
+ * The app's menu as one Google food menu. Google needs a price on every item and at least one item
+ * in every section, so items without a price yet are left out (as are sections left empty); the
+ * other ways an item is sold (Iced +1.00, Oat milk) are its options, each with its own price.
+ * Items off the menu never reach here (menuSections leaves them out). Photos aren't sent: Google
+ * takes only photos already uploaded to the listing.
+ */
+export function toGoogleMenu(menu: MenuForGoogle, currency: string): GFoodMenu {
+  const sections: GMenuSection[] = []
+  for (const s of menu.sections) {
+    const items: GMenuItem[] = s.items.filter(i => i.sell_price !== null && i.name.trim()).map(i => {
+      const base = i.sell_price!
+      const options = i.variants.filter(v => v.name.trim()).map(v => ({ labels: [label(v.name)], attributes: { price: toMoney(base + v.price_change, currency) } }))
+      return { labels: [label(i.name, i.description)], attributes: { price: toMoney(base, currency) }, ...(options.length ? { options } : {}) }
+    })
+    if (items.length) sections.push({ labels: [label(s.category ?? 'Menu')], items })
+  }
+  return { labels: [label(menu.title)], sections }
+}
+
+/**
+ * The listing's menus with the app's in their place. The app's menu is the listing's menu, so it
+ * replaces what's there; the cuisines and menu link set on Google are kept.
+ */
+export function withAppMenu(current: GFoodMenus, ours: GFoodMenu): GFoodMenus {
+  const was = current.menus?.[0]
+  return { name: current.name, menus: [{ ...ours, ...(was?.cuisines?.length ? { cuisines: was.cuisines } : {}), ...(was?.sourceUrl ? { sourceUrl: was.sourceUrl } : {}) }] }
+}
+
+/** v4's accounts/{a}/locations/{l}/foodMenus for a listing stored as locations/{l}, under accounts/{a}. */
+export const foodMenusName = (account: string, location: string) => `${account}/locations/${location.split('/').pop()}/foodMenus`
+
+/** Whether Google allows a menu on this listing (locations/{l}, Business Information API). */
+export async function canHaveFoodMenus(token: string, location: string) {
+  const l = await gfetch<{ metadata?: { canHaveFoodMenus?: boolean } }>(token,
+    `https://mybusinessbusinessinformation.googleapis.com/v1/${location}?readMask=metadata`)
+  return !!l.metadata?.canHaveFoodMenus
+}
+
+export async function getFoodMenus(token: string, account: string, location: string): Promise<GFoodMenus> {
+  const name = foodMenusName(account, location)
+  const got = await gfetch<Partial<GFoodMenus>>(token, `https://mybusiness.googleapis.com/v4/${name}`)
+  return { ...got, name: got.name ?? name }
+}
+
+export async function updateFoodMenus(token: string, menus: GFoodMenus) {
+  return gfetch<GFoodMenus>(token, `https://mybusiness.googleapis.com/v4/${menus.name}?updateMask=menus`,
+    { method: 'PATCH', body: JSON.stringify(menus) })
+}
+
 /** Google Business post. Events show dates on the listing. */
 export async function createPost(token: string, account: string, location: string, post: {
   caption: string; image_url?: string | null; title?: string | null; starts_on?: string | null; ends_on?: string | null
@@ -347,9 +429,9 @@ async function gmail<T>(token: string, path: string): Promise<T> {
   return json
 }
 
-/** Emails from the last `days` with attachments, newest first, each with who sent it and its files. */
-export async function gmailWithAttachments(token: string, days: number, max = 40) {
-  const q = `has:attachment newer_than:${days}d -in:sent -in:chats`
+/** Emails from the last `days` with attachments, newest first, each with who sent it and its files; `also` narrows the search (one supplier's). */
+export async function gmailWithAttachments(token: string, days: number, max = 40, also = '') {
+  const q = `has:attachment newer_than:${days}d -in:sent -in:chats${also ? ` ${also}` : ''}`
   const list = await gmail<{ messages?: { id: string }[] }>(token, `messages?q=${encodeURIComponent(q)}&maxResults=${max}`)
   const out = []
   for (const { id } of list.messages ?? []) {
@@ -365,6 +447,63 @@ export async function gmailWithAttachments(token: string, days: number, max = 40
     out.push({ id, from: header('from'), subject: header('subject'), at: new Date(Number(m.internalDate ?? Date.now())).toISOString(), files })
   }
   return out
+}
+
+// Gmail, read (Email page): the mailbox as a list, a page at a time. Same gmail.readonly permission.
+type GmailListPart = GmailPart & { headers?: { name: string; value: string }[]; parts?: GmailListPart[] }
+interface GmailListed { id: string; threadId?: string; labelIds?: string[]; snippet?: string; internalDate?: string; payload?: GmailListPart }
+
+/** Only what the list shows: the headers, labels, preview and the files' names, never the bodies. */
+const LIST_PART = 'filename,mimeType,headers,body(size,attachmentId)'
+const LIST_FIELDS = `id,threadId,labelIds,snippet,internalDate,payload(${LIST_PART},parts(${LIST_PART},parts(${LIST_PART},parts(${LIST_PART}))))`
+
+/** Gmail's previews come with HTML entities (&#39;, &amp;). */
+const unescapeHtml = (s: string) => s.replace(/&(#\d+|#x[\da-f]+|amp|lt|gt|quot|apos|nbsp);/gi, (_, e: string) =>
+  e[0] === '#' ? String.fromCodePoint(e[1] === 'x' || e[1] === 'X' ? parseInt(e.slice(2), 16) : Number(e.slice(1)))
+    : ({ amp: '&', lt: '<', gt: '>', quot: '"', apos: '\'', nbsp: ' ' } as Record<string, string>)[e.toLowerCase()])
+
+/** The files attached, leaving out pictures that are part of the email itself (a logo in the signature). */
+function attachmentsOf(p?: GmailListPart, out: { name: string; size: number; type: string }[] = []) {
+  if (!p) return out
+  const embedded = p.mimeType?.startsWith('image/') && p.headers?.some(h => h.name.toLowerCase() === 'content-id')
+  if (p.filename && p.body?.attachmentId && !embedded) out.push({ name: p.filename, size: p.body.size ?? 0, type: p.mimeType ?? '' })
+  p.parts?.forEach(x => attachmentsOf(x, out))
+  return out
+}
+
+/**
+ * A page of emails for a Gmail search (shared/email.ts gmailSearch), newest first: who sent it, the
+ * subject, the preview, read or not, starred, important and the files attached.
+ */
+export async function gmailMessages(token: string, o: { q: string; max?: number; pageToken?: string | null }) {
+  const p = new URLSearchParams({ q: o.q, maxResults: String(o.max ?? 25) })
+  if (o.pageToken) p.set('pageToken', o.pageToken)
+  const list = await gmail<{ messages?: { id: string }[]; nextPageToken?: string }>(token, `messages?${p}`)
+  const ids = (list.messages ?? []).map(m => m.id)
+  const found: GmailListed[] = []
+  // Ten at a time: quick, and well inside Gmail's per-second allowance.
+  for (let i = 0; i < ids.length; i += 10) {
+    found.push(...await Promise.all(ids.slice(i, i + 10).map(id =>
+      gmail<GmailListed>(token, `messages/${encodeURIComponent(id)}?format=full&fields=${encodeURIComponent(LIST_FIELDS)}`))))
+  }
+  return {
+    next_page: list.nextPageToken ?? null,
+    messages: found.map(m => {
+      const header = (n: string) => m.payload?.headers?.find(h => h.name.toLowerCase() === n)?.value ?? ''
+      const labels = m.labelIds ?? []
+      return {
+        id: m.id, thread_id: m.threadId ?? m.id, from: header('from'), to: header('to'), subject: header('subject'), snippet: unescapeHtml(m.snippet ?? ''),
+        at: new Date(Number(m.internalDate ?? Date.now())).toISOString(), unread: labels.includes('UNREAD'), starred: labels.includes('STARRED'),
+        important: labels.includes('IMPORTANT'), labels, attachments: attachmentsOf(m.payload), link: null as string | null,
+      }
+    }),
+  }
+}
+
+/** How many emails a Gmail search finds, up to 500 (one call: the ids alone). */
+export async function gmailCount(token: string, q: string) {
+  const list = await gmail<{ messages?: unknown[] }>(token, `messages?${new URLSearchParams({ q, maxResults: '500', fields: 'messages(id)' })}`)
+  return list.messages?.length ?? 0
 }
 
 /** An attachment's bytes. */

@@ -134,10 +134,10 @@ function demoEngine(host: HTMLElement, ev: EngineEvents): Engine {
  * The order playlists play in: the order the team saved, then any playlists not in it yet (the
  * approved one first). Playlists that aren't music only count once someone put them in the order.
  */
-export function playlistOrder(saved: string[], lib: CafeMusicLibrary, withOthers = false): SpotifyPlaylist[] {
-  const all = [...lib.playlists, ...(lib.other_playlists ?? [])]
-  const listed = saved.map(id => all.find(p => p.id === id)).filter((p): p is SpotifyPlaylist => !!p)
-  const rest = [...lib.playlists, ...(withOthers ? lib.other_playlists ?? [] : [])].filter(p => !saved.includes(p.id))
+export function playlistOrder(saved: string[], lib: CafeMusicLibrary): SpotifyPlaylist[] {
+  // Only music: a plain YouTube playlist saved in the order before isn't played.
+  const listed = saved.map(id => lib.playlists.find(p => p.id === id)).filter((p): p is SpotifyPlaylist => !!p)
+  const rest = lib.playlists.filter(p => !saved.includes(p.id))
     .sort((a, b) => Number(b.id === lib.approved?.id) - Number(a.id === lib.approved?.id))
   return [...listed, ...rest]
 }

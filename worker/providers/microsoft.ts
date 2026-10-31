@@ -73,6 +73,48 @@ export async function outlookWithAttachments(token: string, days: number, max = 
   return out
 }
 
+// Outlook, read (Email page): the inbox as a list, a page at a time. Same Mail.Read permission.
+interface GraphAddress { emailAddress?: { name?: string; address?: string } }
+interface GraphListed {
+  id: string; conversationId?: string; subject?: string; bodyPreview?: string; receivedDateTime: string; isRead?: boolean; importance?: string
+  flag?: { flagStatus?: string }; webLink?: string; categories?: string[]; from?: GraphAddress; toRecipients?: GraphAddress[]
+  attachments?: { name: string; size: number; contentType?: string; isInline?: boolean }[]
+}
+const named = (a?: GraphAddress) => (a?.emailAddress?.name ? `${a.emailAddress.name} <${a.emailAddress.address ?? ''}>` : a?.emailAddress?.address ?? '')
+
+/**
+ * A page of the inbox, newest first: received since `since` and, with `only`, just the unread,
+ * flagged, important or with files. A search (`search`) can't be combined with those in Outlook, so
+ * it looks through the whole inbox and the caller narrows what comes back. `skip`: emails already read.
+ */
+export async function outlookMessages(token: string, o: { since: string; only?: 'unread' | 'starred' | 'important' | 'attachments'; search?: string; top?: number; skip?: number }) {
+  const top = o.top ?? 25
+  const q: Record<string, string> = {
+    $select: 'id,conversationId,subject,bodyPreview,receivedDateTime,isRead,importance,flag,webLink,categories,from,toRecipients',
+    $expand: 'attachments($select=name,size,contentType,isInline)', $top: String(top),
+  }
+  if (o.search) q.$search = `"${o.search.replace(/["\\]/g, ' ')}"`
+  else {
+    // receivedDateTime first: Outlook wants what it sorts by at the start of the filter.
+    q.$filter = [`receivedDateTime ge ${o.since}`, o.only === 'unread' && 'isRead eq false', o.only === 'starred' && 'flag/flagStatus eq \'flagged\'',
+      o.only === 'important' && 'importance eq \'high\'', o.only === 'attachments' && 'hasAttachments eq true'].filter(Boolean).join(' and ')
+    q.$orderby = 'receivedDateTime desc'
+    if (o.skip) q.$skip = String(o.skip)
+  }
+  const list = await graph<{ value: GraphListed[]; '@odata.nextLink'?: string }>(token,
+    `/me/mailFolders/inbox/messages?${Object.entries(q).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&')}`)
+  return {
+    // Outlook can't page through a search by skipping: a search shows its first page only.
+    next_page: list['@odata.nextLink'] && !o.search ? String((o.skip ?? 0) + top) : null,
+    messages: list.value.map(m => ({
+      id: m.id, thread_id: m.conversationId ?? m.id, from: named(m.from), to: (m.toRecipients ?? []).map(named).join(', '), subject: m.subject ?? '',
+      snippet: m.bodyPreview ?? '', at: m.receivedDateTime, unread: m.isRead === false, starred: m.flag?.flagStatus === 'flagged', important: m.importance === 'high',
+      labels: m.categories ?? [], attachments: (m.attachments ?? []).filter(a => !a.isInline).map(a => ({ name: a.name, size: a.size, type: a.contentType ?? '' })),
+      link: m.webLink ?? null,
+    })),
+  }
+}
+
 /** An attachment's bytes. */
 export async function outlookAttachment(token: string, message: string, attachment: string) {
   const res = await fetch(`${GRAPH}/me/messages/${encodeURIComponent(message)}/attachments/${encodeURIComponent(attachment)}/$value`, { headers: { authorization: `Bearer ${token}` } })

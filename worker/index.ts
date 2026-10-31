@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { OAuthProvider } from '@cloudflare/workers-oauth-provider'
 import { bearer, businessDb, businessIds, joinBusiness, serviceClient, userClient, type Env } from './supabase'
 import { rest } from './rest'
-import { drainOutbox, integrations, syncGoogle, syncGoogleBothWays } from './integrations'
+import { drainOutbox, integrations, pushGoogleMenu, syncGoogle, syncGoogleBothWays } from './integrations'
 import { checkAll } from './connections'
 import { checkMentions } from './mentions'
 import { syncSquareCustomers } from './squareCustomers'
@@ -23,6 +23,7 @@ import { tax } from './tax'
 import { files } from './files'
 import { legal } from './legal'
 import { invoices } from './invoices'
+import { email } from './email'
 import { loyaltyRoutes } from './loyalty'
 import { assistant } from './assistant'
 import { refreshReviews, reviews, reviewsConfigured } from './reviews'
@@ -33,6 +34,7 @@ import { screens } from './screens'
 import { cameras, purgeCameraClips } from './cameras'
 import { competitors, watchCompetitors } from './competitors'
 import { push, pushNotifications } from './push'
+import { repPage } from './repPage'
 import { accessOf, teamRoleOf } from '../shared/teamRoles'
 
 const NIGHTLY = '15 1 * * *' // 03:15 Madrid in summer, 02:15 in winter
@@ -238,6 +240,8 @@ app.route('/', files)
 app.route('/', legal)
 // Invoices that come by email, into the café's Drive or OneDrive (Invoices page).
 app.route('/', invoices)
+// The Email page: the connected Gmail or Outlook as a list, with filters (admins).
+app.route('/', email)
 // Square loyalty (the stamp card) and gift cards, for the Loyalty page.
 app.route('/', loyaltyRoutes)
 // The in-app assistant: questions answered by Claude with the person's own tools.
@@ -254,6 +258,9 @@ app.route('/', screens)
 
 // Cameras: what the camera upload server passes on (video into the business's storage), and the Cameras page.
 app.route('/', cameras)
+
+// Sales reps: each rep's own page (its link), and looking someone up on Instagram.
+app.route('/', repPage)
 
 // Business Agent's own subscription (Stripe Billing): plans, checkout, portal, webhook.
 app.route('/', billing)
@@ -389,6 +396,9 @@ export default {
         if (minute % 15 === 0 && await googleConnected(b)) {
           await syncGoogleBothWays(env, b).catch(e => console.error('google hours sync failed', id, e))
         }
+        // Every minute: the menu onto the Google Maps listing, when it changed since it was last sent
+        // (only a fingerprint is compared; Google is called only for a new menu).
+        await pushGoogleMenu(env, b).catch(e => console.error('google menu failed', id, e))
         // Every 15 minutes: new Instagram tags and story mentions, for admins to repost or ignore.
         if (minute % 15 === 0) {
           await checkMentions(env, b).catch(e => console.error('instagram mentions failed', id, e))
