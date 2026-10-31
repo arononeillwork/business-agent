@@ -387,6 +387,9 @@ export default {
       await each('queue_due_social_posts')
       await forEach(async (id, b) => {
         await drainOutbox(env, id).catch(e => console.error('outbox failed', id, e))
+        // Stock on its last day goes on offer by itself, from its rule's time until closing (before the
+        // push just below, so admins hear about it the same minute).
+        await Promise.resolve(b.rpc('start_last_day_offers')).then(({ error }) => { if (error) console.error('last-day offers failed', id, error.message) })
         // New notifications to people's phones and computers, as each person chose.
         await pushNotifications(env, b).catch(e => console.error('push failed', id, e))
         // Menu images whose webhook from Higgsfield hasn't come (asked about, or given up on after 3 hours).

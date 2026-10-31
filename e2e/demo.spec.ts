@@ -1531,15 +1531,24 @@ test('people: the team as a hierarchy, and everyone’s pets with their photos',
   await expect(page.getByRole('region', { name: 'Employees' }).getByRole('article', { name: 'Maria' })).toBeVisible()
   await expect(page.getByRole('main').getByRole('heading', { level: 2 })).toHaveText(['Owners · 2', 'Employees · 3'])
 
-  // Pets show when asked: Mark's dogs, Yoda and Cooper among them, with a place for their photos; Aron has none.
+  // Pets show when asked: Aron's Fudge and Cooper, Mark's Pablo and Yoda, with a place for their photos.
   await expect(page.getByRole('list', { name: /’s pets$/ })).toHaveCount(0)
   await page.getByRole('button', { name: 'Show pets' }).click()
   const marks = page.getByRole('list', { name: 'Mark Murray’s pets' })
-  await expect(marks.getByRole('listitem')).toHaveText([/Pablo/, /Yoda/, /Cooper/])
-  await expect(marks.getByLabel('Cooper has no photo yet')).toBeVisible()
+  await expect(marks.getByRole('listitem')).toHaveText([/Pablo/, /Yoda/])
   const arons = page.getByRole('list', { name: "Aron O'Neill’s pets" })
-  await expect(arons).toHaveText('No pets')
-  await expect(page.getByRole('list', { name: 'Maria’s pets' })).toHaveText('No pets')
+  await expect(arons.getByRole('listitem')).toHaveText([/Fudge/, /Cooper/])
+  await expect(arons.getByLabel('Cooper has no photo yet')).toBeVisible()
+  // As an owner, Aron adds a pet with its photo for anyone on the team, from their card.
+  await expect(page.getByRole('list', { name: 'Julio’s pets' })).toHaveCount(0)
+  await page.getByRole('article', { name: 'Julio' }).getByRole('button', { name: 'Add a pet for Julio' }).click()
+  const forJulio = page.getByRole('dialog', { name: 'Add a pet for Julio' })
+  await forJulio.getByLabel('Name').fill('Rocky')
+  await forJulio.getByLabel('Pet photo file').setInputFiles({ ...png, name: 'rocky.png' })
+  await expect(forJulio.getByRole('img', { name: 'Rocky' })).toBeVisible()
+  await forJulio.getByRole('button', { name: 'Add', exact: true }).click()
+  await toast(page, 'Rocky added')
+  await expect(page.getByRole('list', { name: 'Julio’s pets' }).getByRole('img', { name: 'Rocky' })).toBeVisible()
   // As an owner, Aron changes anyone's pet from here: Mark's Pablo gets a photo and a new name.
   await marks.getByRole('button', { name: 'Edit Pablo' }).click()
   const pablo = page.getByRole('dialog', { name: 'Pablo' })
@@ -1548,7 +1557,7 @@ test('people: the team as a hierarchy, and everyone’s pets with their photos',
   await pablo.getByLabel('Name').fill('Pablito')
   await pablo.getByRole('button', { name: 'Save' }).click()
   await toast(page, /^Saved$/)
-  await expect(marks.getByRole('listitem')).toHaveText([/Pablito/, /Yoda/, /Cooper/])
+  await expect(marks.getByRole('listitem')).toHaveText([/Pablito/, /Yoda/])
   await expect(marks.getByLabel('Pablito has no photo yet')).toHaveCount(0)
   await expect(marks.getByLabel('Yoda has no photo yet')).toBeVisible()
   await page.getByRole('button', { name: 'Hide pets' }).click()
@@ -1557,7 +1566,7 @@ test('people: the team as a hierarchy, and everyone’s pets with their photos',
   // On My account, Aron adds a pet with its photo, gives it a breed and adds another, which goes again.
   await fromAccountMenu(page, 'My account')
   const pets = page.getByRole('region', { name: 'Pets' })
-  await expect(pets).toContainText('No pets yet')
+  await expect(pets.getByRole('group')).toHaveText([/Fudge/, /Cooper/])
   await pets.getByRole('button', { name: 'Add a pet' }).click()
   const dialog = page.getByRole('dialog', { name: 'Add a pet' })
   await dialog.getByLabel('Name').fill('Miso')
@@ -1584,7 +1593,7 @@ test('people: the team as a hierarchy, and everyone’s pets with their photos',
   await pets.getByRole('group', { name: 'Nori' }).getByRole('button', { name: 'Edit' }).click()
   await page.getByRole('dialog', { name: 'Nori' }).getByRole('button', { name: 'Remove', exact: true }).click()
   await toast(page, 'Nori removed')
-  await expect(pets.getByRole('group')).toHaveCount(1)
+  await expect(pets.getByRole('group')).toHaveCount(3)
 
   // An employee sees the team's pets and adds their own; nobody else's is theirs to change.
   await signInAs(page, 'maria@example.com')
@@ -1592,9 +1601,12 @@ test('people: the team as a hierarchy, and everyone’s pets with their photos',
   await page.getByRole('button', { name: 'Show pets' }).click()
   await expect(arons.getByRole('img', { name: 'Miso' })).toBeVisible()
   await expect(arons.getByRole('listitem', { name: 'Miso' })).toContainText('Cat · Siamese')
-  await expect(marks.getByRole('listitem')).toHaveText([/Pablito/, /Yoda/, /Cooper/])
+  await expect(marks.getByRole('listitem')).toHaveText([/Pablito/, /Yoda/])
   await expect(page.getByRole('article', { name: "Aron O'Neill" }).getByRole('link')).toHaveCount(0)
   await expect(page.getByRole('main').getByRole('button', { name: /^Edit / })).toHaveCount(0)
+  // She adds a pet only for herself: no one else's card has the option.
+  await expect(page.getByRole('main').getByRole('button', { name: /^Add a pet/ })).toHaveCount(1)
+  await expect(page.getByRole('article', { name: 'Maria (you)' }).getByRole('button', { name: 'Add a pet' })).toBeVisible()
   await fromAccountMenu(page, 'My account')
   await expect(pets).toContainText('No pets yet')
   await pets.getByRole('button', { name: 'Add a pet' }).click()
@@ -1834,22 +1846,6 @@ test('pricing: four plans, a simple feature table, Enterprise at the foot, and "
   await page.getByRole('article', { name: 'Business plan' }).getByRole('link', { name: 'Try free for 2 months' }).click()
   await expect(page.getByRole('heading', { name: 'Create your account' })).toBeVisible()
   await expect(page.getByRole('tab', { name: 'Create account' })).toHaveAttribute('aria-selected', 'true')
-})
-
-test('compare: Square against Pro and GoHighLevel against Business, line by line', async ({ page }) => {
-  await page.goto('/pricing?demo')
-  await page.getByRole('link', { name: /Compare with Square and GoHighLevel/ }).click()
-  const square = page.getByRole('table', { name: 'Square stack' })
-  await expect(square.getByRole('row')).toHaveCount(5) // heading, 3 lines, total
-  await expect(square.getByRole('row', { name: /Total with Square/ })).toContainText('€94')
-  await expect(page.getByLabel('Savings')).toContainText('Business Agent Pro€79/mo')
-  await expect(page.getByLabel('Savings')).toContainText('€15/mo')
-  await expect(page.getByLabel('Savings')).toContainText('€180 a year')
-  await page.getByRole('button', { name: 'vs GoHighLevel' }).click()
-  await expect(page.getByRole('table', { name: 'GoHighLevel stack' }).getByRole('row', { name: /Total with GoHighLevel/ })).toContainText('€169.69')
-  await expect(page.getByLabel('Savings')).toContainText('Business Agent Business€129/mo')
-  await expect(page.getByLabel('Savings')).toContainText('€40.69/mo')
-  await expect(page.getByLabel('Savings')).toContainText('€488.28 a year')
 })
 
 test.describe('team export', () => {
@@ -4612,6 +4608,9 @@ test.describe('menu, menu design and screens', () => {
     await expect(page.getByRole('button', { name: 'Counter TV', exact: true })).toContainText('On now')
     await expect(page.getByRole('textbox', { name: 'The screen’s link' })).toHaveValue(/\/display\/c0ffee00beef00c0ffee00beef00cafe$/)
     const preview = page.getByRole('region', { name: 'Preview of the screen' })
+    // Today's last-day offer (the butter croissants) comes first, for 15 seconds.
+    await expect(preview).toContainText('Butter croissants')
+    await page.clock.fastForward('00:00:16')
     await expect(preview).toContainText('Flat white') // the menu board comes first
     await expect(preview).toContainText('Today’s special')
 
@@ -4652,7 +4651,11 @@ test.describe('menu, menu design and screens', () => {
   })
 
   test('a screen’s own link plays its slides with no sign-in; an old link says so', async ({ page }) => {
+    await page.clock.install({ time: WED_0900 })
     await page.goto('/display/c0ffee00beef00c0ffee00beef00cafe?demo')
+    // Today's last-day offer first, for 15 seconds, then the slides.
+    await expect(page.getByText('Butter croissants')).toBeVisible()
+    await page.clock.fastForward('00:00:16')
     await expect(page.getByText('Iced matcha latte')).toBeVisible()
     // Its diet badges, from what goes into it on Menu costing (vegan, dairy free).
     await expect(page.locator('body')).toContainText('Iced matcha latteVG DF')
@@ -4715,6 +4718,9 @@ test.describe('offers and specials', () => {
     await expect(screen).not.toContainText('Flat white')
     await expect(page.getByRole('region', { name: 'Offers on this screen' })).toContainText('Showing now')
     await page.clock.fastForward('03:01:00')
+    // Then today's last-day offer, in turn with the slides.
+    await expect(screen).toContainText('Butter croissants')
+    await page.clock.fastForward('00:00:16')
     await expect(screen).toContainText('Flat white')
     await expect(screen).not.toContainText('Happy hour')
   })
@@ -4737,6 +4743,65 @@ test.describe('offers and specials', () => {
     await cake.getByRole('button', { name: 'End now' }).click()
     await toast(page, 'Cake of the day has ended: it’s off the screens')
     await expect(page.getByRole('region', { name: 'Ended' }).getByRole('article', { name: 'Cake of the day' })).toBeVisible()
+  })
+
+  test('last-day offers: today’s croissants go on offer by themselves until closing, on the counter TV, and stop like any offer', async ({ page }) => {
+    await open(page, '/stock')
+    // Stock: the croissants are on their last day (sold the day they come in), with what's left.
+    const last = page.getByRole('status', { name: 'On their last day' })
+    await expect(last).toContainText('Butter croissants (18 left)')
+    const row = page.getByRole('row', { name: 'Butter croissants' })
+    await expect(row).toContainText('Last day')
+    await expect(row).toContainText('Use by today')
+    await expect(page.getByRole('row', { name: 'Pain au chocolat' })).not.toContainText('Last day')
+
+    // The bell says it has started, and that Square isn't changed.
+    await page.getByRole('button', { name: /Notifications, \d+ new/ }).first().click()
+    const bell = page.getByRole('region', { name: 'Notifications' })
+    await expect(bell).toContainText('On offer till closing: Butter croissants')
+    await expect(bell).toContainText('18 left on their last day, €1.68 until 18:00. Square isn’t changed: take the offer price at the till.')
+    await page.keyboard.press('Escape')
+
+    // Offers & specials: live now, labelled as automatic, the usual price crossed out, on the counter TV until closing.
+    await last.getByRole('link', { name: 'Offers & specials' }).click()
+    const offer = page.getByRole('region', { name: 'Live now' }).getByRole('article', { name: 'Butter croissants' })
+    await expect(offer).toContainText('€1.68')
+    await expect(offer.locator('s')).toHaveText('€2.40')
+    await expect(offer).toContainText('Automatic: last day')
+    await expect(offer).toContainText('Today, 08:35–18:00')
+    await expect(offer).toContainText('On Counter TV: in turn, 15 seconds each time')
+    // Its rule, and a new one for sandwiches at a set price.
+    const rules = page.getByRole('region', { name: 'Last-day offers' })
+    const bakes = rules.getByRole('article', { name: 'Today’s bakes' })
+    await expect(bakes).toContainText('30% off')
+    await expect(bakes).toContainText('Bakery')
+    await expect(bakes).toContainText('From 2 hours before closing until closing · Counter TV · story suggested')
+    await expect(rules.getByRole('article', { name: 'Sandwiches' })).toContainText('Switched off')
+    await bakes.getByRole('button', { name: 'Edit' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Edit the rule' })
+    await expect(dialog.getByRole('checkbox', { name: 'Bakery' })).toBeChecked()
+    await expect(dialog).toContainText('Butter croissants: €1.68 instead of €2.40')
+    await dialog.getByRole('textbox', { name: 'Off the usual price' }).fill('50')
+    await expect(dialog).toContainText('Butter croissants: €1.20 instead of €2.40')
+    await expect(dialog).toContainText('Nothing is charged or changed in Square.')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await toast(page, 'Saved. Items on their last day go on offer by themselves.')
+    await expect(bakes).toContainText('50% off')
+
+    // On the counter TV now.
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Screens' }).click()
+    await expect(page.getByRole('region', { name: 'Offers on this screen' })).toContainText('Butter croissants')
+
+    // Stopped like any offer: it ends and isn't put back on.
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Offers & specials' }).click()
+    await page.getByRole('region', { name: 'Live now' }).getByRole('article', { name: 'Butter croissants' }).getByRole('button', { name: 'End now' }).click()
+    await toast(page, 'Butter croissants has ended: it’s off the screens')
+    await expect(page.getByRole('region', { name: 'Ended' }).getByRole('article', { name: 'Butter croissants' })).toBeVisible()
+    await page.clock.fastForward('00:02:00')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Screens' }).click()
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Offers & specials' }).click()
+    await expect(page.getByRole('region', { name: 'Ended' }).getByRole('article', { name: 'Butter croissants' })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Live now' }).getByRole('article', { name: 'Butter croissants' })).toHaveCount(0)
   })
 
   test('employees don’t get offers', async ({ page }) => {
@@ -6607,6 +6672,11 @@ test.describe('UI round: dashboards, the business advisor and the landing pages'
     }
     await expect(page.getByRole('heading', { name: /Know your numbers/ })).toBeVisible()
     await expect(page.getByText('Easy Beans')).toHaveCount(0)
+    // The site menu has no Everything or Compare, and /compare is gone: it's the landing page.
+    await expect(page.getByRole('navigation', { name: 'Site' }).getByRole('link')).toHaveText(['Features', 'Pricing', 'Enterprise', 'FAQ'])
+    await expect(page.getByText(/GoHighLevel/)).toHaveCount(0)
+    await page.goto('/compare?demo')
+    await expect(page.getByRole('heading', { level: 1, name: /runs your business/ })).toBeVisible()
   })
 })
 
@@ -7125,7 +7195,8 @@ test('people come first in the Business section; a barista adds her pet from her
 
   await menu.getByRole('link', { name: 'People' }).click()
   await page.getByRole('button', { name: 'Show pets' }).click()
-  await expect(page.getByRole('list', { name: 'Mark Murray’s pets' }).getByRole('listitem')).toHaveText([/Pablo/, /Yoda/, /Cooper/])
+  await expect(page.getByRole('list', { name: 'Mark Murray’s pets' }).getByRole('listitem')).toHaveText([/Pablo/, /Yoda/])
+  await expect(page.getByRole('list', { name: "Aron O'Neill’s pets" }).getByRole('listitem')).toHaveText([/Fudge/, /Cooper/])
   // Her own card says how to add her pet, and opens My account, where its photo goes.
   const own = page.getByRole('article', { name: 'Maria (you)' })
   await expect(own).toContainText('Add your pet')
@@ -7807,6 +7878,7 @@ test('landing page: the demo video with its poster and controls, once it is swit
   if (!FEATURES.demoVideo) {
     await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
     await expect(video).toHaveCount(0)
+    await expect(page.getByRole('link', { name: 'View a demo' })).toHaveCount(0)
     return
   }
   await expect(page.getByRole('region', { name: 'Change it in one place. It’s changed everywhere.' })).toBeVisible()
@@ -7814,6 +7886,10 @@ test('landing page: the demo video with its poster and controls, once it is swit
   await expect(video).toHaveAttribute('src', '/video/business-agent-demo.mp4')
   await expect(video).toHaveAttribute('controls', '')
   expect((await page.request.get('/video/business-agent-demo.mp4')).ok()).toBe(true)
+  // "View a demo" in the hero brings the whole video up under the header and plays it, with its music.
+  await page.getByRole('link', { name: 'View a demo' }).click()
+  await expect(video).toBeInViewport({ ratio: 1 })
+  await expect.poll(() => video.evaluate((v: HTMLVideoElement) => !v.paused && !v.muted)).toBe(true)
 })
 
 test('owner pay: an owner turns it off on Staff wages; the owners’ hours stop being wages, and breakeven still counts them', async ({ page }) => {

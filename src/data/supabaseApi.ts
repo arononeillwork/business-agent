@@ -31,6 +31,7 @@ import type { MenuDesign, MenuImage, MenuItem } from '../../shared/menu'
 import { missingFrom, templateDesigns, templateSections } from '../../shared/menuTemplate'
 import type { DisplayFeed, Screen } from '../../shared/screens'
 import type { Offer } from '../../shared/offers'
+import type { LastDayRule } from '../../shared/lastDayOffers'
 import type { Camera, CameraClip, CameraLive, CameraService } from '../../shared/cameras'
 import type { AdSettings } from '../../shared/ads'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
@@ -770,6 +771,7 @@ export function createSupabaseApi(url: string, key: string): Api {
       // A count only needs the figure; the database works out the change.
       check(await sb.from('stock_movements').insert(moves.map(m => ({ item_id: m.item_id, reason: m.reason, note: m.note ?? null,
         ...(m.reason === 'waste' && m.waste_reason ? { waste_reason: m.waste_reason } : {}),
+        ...(m.reason === 'delivery' && m.use_by ? { use_by: m.use_by } : {}),
         ...(m.reason === 'count' ? { counted: m.counted, change: 0 } : { change: m.change }) }))))
     },
     async editWaste(id, w) {
@@ -884,7 +886,7 @@ export function createSupabaseApi(url: string, key: string): Api {
       return json
     },
     async offers() {
-      return check(await sb.from('offers').select('id, title, details, price, was_price, image_url, starts_at, ends_at, screen_ids, screen_mode, seconds, post_id, active, updated_at')
+      return check(await sb.from('offers').select('id, title, details, price, was_price, image_url, starts_at, ends_at, screen_ids, screen_mode, seconds, post_id, active, updated_at, stock_item_id, last_day_rule_id, auto_for')
         .order('starts_at', { ascending: false }).limit(500)) as Offer[]
     },
     async saveOffer({ id, ...offer }) {
@@ -892,6 +894,15 @@ export function createSupabaseApi(url: string, key: string): Api {
       return (check(await sb.from('offers').insert(offer).select('id').single()) as { id: string }).id
     },
     async deleteOffer(id) { check(await sb.from('offers').delete().eq('id', id)) },
+    async lastDayRules() {
+      return check(await sb.from('last_day_rules').select('id, name, active, categories, item_ids, discount, percent_off, price, minutes_before_close, screen_ids, screen_mode, story, sort')
+        .order('sort').order('created_at')) as LastDayRule[]
+    },
+    async saveLastDayRule({ id, ...rule }) {
+      if (id) check(await sb.from('last_day_rules').update(rule).eq('id', id))
+      else check(await sb.from('last_day_rules').insert(rule))
+    },
+    async deleteLastDayRule(id) { check(await sb.from('last_day_rules').delete().eq('id', id)) },
 
     async cameras() {
       const rows = check(await sb.from('cameras').select('*, camera_status(last_seen_at, last_clip_at, last_error)').order('created_at')) as

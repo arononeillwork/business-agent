@@ -1,16 +1,13 @@
-import { Box, Button, Container, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material'
-import { Link as RouterLink, useLocation } from 'react-router-dom'
+import { Box, Container, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material'
+import { useLocation } from 'react-router-dom'
 import CheckIcon from '@mui/icons-material/CheckRounded'
 import { useEffect } from 'react'
-import { locale, msg, t, tr, useLanguage } from '../i18n'
+import { msg, t, tr, useLanguage } from '../i18n'
 import { ClosingCta, Faq } from './LoginPage'
-import { EnterprisePlan, PricingCards, planName } from './marketing/plans'
-import { BA, Eyebrow, MarketingFrame, SectionIntro, display, glow, outlineBtn } from './marketing/site'
-import { COMPARE, ENTERPRISE, PAY_PER_USE, PLANS, TRIAL_MONTHS, TRIAL_PLAN, mostIncluded, payPerUse, perUsePrice, plan, type CompareRow, type PlanId } from '../../shared/plans'
+import { EnterprisePlan, PricingCards, money as euro, planName } from './marketing/plans'
+import { BA, Eyebrow, MarketingFrame, SectionIntro, display, glow } from './marketing/site'
+import { COMPARE, ENTERPRISE, PAY_PER_USE, PLANS, TRIAL_MONTHS, TRIAL_PLAN, mostIncluded, payPerUse, perUsePrice, type CompareRow, type PlanId } from '../../shared/plans'
 import { shows } from '../app/features'
-import { COMPETITORS, euro as euroIn, savings } from '../../shared/competitors'
-
-const euro = (n: number) => euroIn(n, locale())
 
 // Answers may use {plan}, {months} and {email}; filled in where they're shown.
 const PRICING_FAQ = [
@@ -51,9 +48,6 @@ export function PricingPage() {
     document.title = t('Pricing · Business Agent')
     return () => { document.title = before }
   }, [lang])
-  // Each stack against the plan that does what it does.
-  const compared = COMPETITORS.map(c => ({ c, p: plan(c.plan), s: savings(c, plan(c.plan).monthly) }))
-  const most = Math.max(...compared.map(x => x.s.month))
   const music = payPerUse('ai_music')
   const freeMusic = mostIncluded(music)
   return (
@@ -61,11 +55,6 @@ export function PricingPage() {
       <Box component="main">
         <Box sx={{ backgroundImage: glow('50%', '-200px') }}>
           <Container maxWidth="lg" sx={{ pt: { xs: 5, md: 8 }, pb: { xs: 8, md: 11 } }}>
-            <Stack sx={{ alignItems: 'center', mb: 4 }}>
-              <Button component={RouterLink} to="/compare" variant="outlined" sx={{ ...outlineBtn, borderRadius: 99, px: 2.25 }}>
-                {t('Compare with Square and GoHighLevel: save up to {amount} a month →', { amount: euro(most) })}
-              </Button>
-            </Stack>
             <Box sx={{ textAlign: 'center', maxWidth: 720, mx: 'auto', mb: { xs: 5, md: 7 } }}>
               <Eyebrow>{t('Pricing')}</Eyebrow>
               <Typography component="h1" sx={{ fontFamily: display, fontWeight: 500, fontSize: { xs: '3rem', md: '4.6rem' }, lineHeight: 0.98, letterSpacing: '-0.02em', mt: 1.75 }}>
@@ -86,9 +75,9 @@ export function PricingPage() {
               <Table size="small" sx={{ minWidth: 640, '& td, & th': { color: BA.ink, py: 1.1 } }} aria-label={t('Plan comparison')}>
                 <TableHead>
                   <TableRow>
-                    <TableCell sx={{ borderColor: BA.line, width: '36%' }} />
+                    <TableCell sx={{ borderColor: BA.line, width: '36%', bgcolor: '#fff' }} />
                     {PLANS.map(p => (
-                      <TableCell key={p.id} align="center" sx={{ borderColor: BA.line, bgcolor: p.trial ? 'rgba(247,155,164,0.07)' : undefined }}>
+                      <TableCell key={p.id} align="center" sx={{ borderColor: BA.line, bgcolor: p.trial ? 'rgba(247,155,164,0.07)' : '#fff' }}>
                         <Typography sx={{ fontWeight: 600, fontSize: '1.05rem' }}>{planName(p)}</Typography>
                         <Typography variant="body2" sx={{ color: BA.soft }}>{t('€{n} / month', { n: p.monthly })}</Typography>
                       </TableCell>
@@ -119,27 +108,6 @@ export function PricingPage() {
             )}
           </Container>
         </Box>
-
-        <Container maxWidth="lg" sx={{ py: { xs: 9, md: 12 } }}>
-          <SectionIntro eyebrow={t('Compare')} title={tr('One app instead of {em}', { em: <em>{t('the add-ons')}</em> })} text={t('What a café with 10 staff pays each month for the same jobs elsewhere, excluding VAT.')} />
-          <Box sx={{ display: 'grid', gap: 2.5, gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' } }}>
-            {compared.map(({ c, p, s }) => (
-              <Box key={c.id} sx={{ p: 3.5, borderRadius: '24px', bgcolor: '#fff', border: `1px solid ${BA.line}` }}>
-                <Typography component="h3" sx={{ fontFamily: display, fontWeight: 500, fontSize: '1.9rem', lineHeight: 1.1 }}>{t('{plan} vs {name}', { plan: planName(p), name: c.name })}</Typography>
-                <Stack spacing={0.75} sx={{ mt: 2, fontVariantNumeric: 'tabular-nums' }}>
-                  <Stack direction="row" sx={{ justifyContent: 'space-between', gap: 2 }}><span>{t(c.tagline)}</span><b>{euro(s.theirs)}</b></Stack>
-                  <Stack direction="row" sx={{ justifyContent: 'space-between', gap: 2 }}><span>{t('Business Agent {plan}', { plan: planName(p) })}</span><b>{euro(s.ours)}</b></Stack>
-                  <Stack direction="row" sx={{ justifyContent: 'space-between', borderTop: `1px solid ${BA.line}`, pt: 1, color: BA.matchaDeep }}>
-                    <b>{t('You save')}</b><b>{t('{month}/mo · {year}/yr', { month: euro(s.month), year: euro(s.year) })}</b>
-                  </Stack>
-                </Stack>
-                <Button component={RouterLink} to={`/compare${c.id === 'gohighlevel' ? '?vs=gohighlevel' : ''}`} sx={{ mt: 2, px: 0, color: BA.ink, textTransform: 'none', fontWeight: 500 }}>
-                  {t('See it line by line →')}
-                </Button>
-              </Box>
-            ))}
-          </Box>
-        </Container>
 
         <Container maxWidth="md" sx={{ pb: { xs: 9, md: 12 } }}>
           <SectionIntro eyebrow={t('FAQ')} title={tr('Pricing {questions}', { questions: <em>{t('questions')}</em> })} />

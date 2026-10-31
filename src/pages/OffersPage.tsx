@@ -12,6 +12,7 @@ import PostIcon from '@mui/icons-material/ImageOutlined'
 import DownloadIcon from '@mui/icons-material/DownloadOutlined'
 import PhotoIcon from '@mui/icons-material/AddPhotoAlternateOutlined'
 import TvIcon from '@mui/icons-material/TvOutlined'
+import AutoIcon from '@mui/icons-material/AutoModeOutlined'
 import { useEffect, useRef, useState } from 'react'
 import { Link as RouterLink, useSearchParams } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
@@ -21,6 +22,7 @@ import { Empty, ErrorBox, PageHeader, SectionTitle, Tag } from '../components/co
 import { boardBrand, type BoardBrand } from '../components/MenuBoard'
 import { OfferBoard, offerWhenText } from '../components/OfferBoard'
 import { Composer } from './SocialPlannerPage'
+import { LastDayRules } from './LastDayRules'
 import { offerPicture } from '../lib/offerPicture'
 import { readyPhoto } from '../lib/media'
 import {
@@ -107,6 +109,14 @@ export function OffersPage() {
     startNew(params.get('screen'))
     setParams({}, { replace: true })
   }, [params, screens.data])
+  // From the bell, when a last-day offer starts: its story, ready on the Social planner's composer.
+  useEffect(() => {
+    const id = params.get('story')
+    const o = id && offers.data?.find(x => x.id === id)
+    if (!o || !integ.data || !brandRow.data) return
+    setParams({}, { replace: true })
+    if (!o.post_id) void makeStory(o)
+  }, [params, offers.data, integ.data, brandRow.data])
 
   /** Its story (or post), ready on the Social planner's composer: the picture drawn from the offer, going out when it starts. */
   const makeStory = (o: Offer, kind: PostKind = 'story') => run(async () => {
@@ -164,6 +174,7 @@ export function OffersPage() {
           </Box>
         </Box>
       ))}
+      {offers.data && <LastDayRules screens={screenList} />}
 
       {editing && <OfferDialog offer={editing} screens={screenList} brand={brand} hasPost={!!editing.post_id && !!posts.data?.some(p => p.id === editing.post_id)}
         onClose={() => setEditing(null)}
@@ -211,7 +222,10 @@ function OfferCard({ offer: o, screens, post, onEdit, onStory, onDownload, onEnd
             {o.was_price && <Typography component="s" variant="body2" sx={{ color: 'text.secondary' }}>{o.was_price}</Typography>}
           </Stack>
           <Typography variant="body2" sx={{ color: 'text.secondary' }}>{span(o)}</Typography>
-          <Box sx={{ mt: 0.75 }}><Tag fg={tone.fg} bg={tone.bg}>{t(tone.label)}</Tag></Box>
+          <Stack direction="row" sx={{ mt: 0.75, gap: 0.75, flexWrap: 'wrap' }}>
+            <Tag fg={tone.fg} bg={tone.bg}>{t(tone.label)}</Tag>
+            {o.auto_for && <Tag fg={tokens.infoFg} bg={tokens.infoBg}><AutoIcon sx={{ fontSize: 14, mr: 0.5, verticalAlign: '-2px' }} />{t('Automatic: last day')}</Tag>}
+          </Stack>
         </Box>
       </Stack>
       <Stack spacing={0.75} sx={{ px: 2, pb: 1.5, flex: 1 }}>

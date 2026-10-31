@@ -210,4 +210,8 @@ export default {
     'La app usa ahora el horario de tu ficha de Google.',
   'Sent in {language}, the language you use the app in. Change it under My account → Language.':
     'Se envían en {language}, el idioma en que usas la app. Cámbialo en Mi cuenta → Idioma.',
+  // Last-day offers (the last_day_offers migration).
+  'On offer till closing: {name}': 'En oferta hasta el cierre: {name}',
+  '{n} left on their last day, {price} until {time}. Square isn’t changed: take the offer price at the till.':
+    'Quedan {n} en su último día, a {price} hasta las {time}. Square no cambia: cóbralo al precio de la oferta.',
 } satisfies Record<string, string>

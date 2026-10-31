@@ -4,7 +4,8 @@ import {
 } from '@mui/material'
 import EditIcon from '@mui/icons-material/EditOutlined'
 import DeleteIcon from '@mui/icons-material/DeleteOutlined'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
@@ -213,6 +214,14 @@ function LogWaste({ items }: { items: StockItem[] }) {
   const [n, setN] = useState('1')
   const [why, setWhy] = useState<WasteReason>('expired')
   const [note, setNote] = useState('')
+  // From Stock (an item past its use-by): that item, what's left of it, as expired.
+  const [params, setParams] = useSearchParams()
+  useEffect(() => {
+    const picked = items.find(i => i.id === params.get('item'))
+    if (!picked) return
+    setItem(picked); setN(String(Math.max(1, picked.on_hand))); setWhy('expired')
+    setParams({}, { replace: true })
+  }, [params, items])
   const log = () => run(async () => {
     const qty = Number(n.replace(',', '.'))
     if (!item) throw new Error(t('Choose what was thrown away'))

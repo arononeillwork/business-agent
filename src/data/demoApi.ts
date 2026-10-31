@@ -59,6 +59,7 @@ import {
 } from '../../shared/menu'
 import { screenProblem, type DisplayFeed, type Screen } from '../../shared/screens'
 import { offerProblem, type Offer, type ScreenOffer } from '../../shared/offers'
+import { closingOn, deliveryUseBy, dueLastDayOffers, lastDayNote, lastDayPrice, lastDayRuleProblem, type LastDayRule } from '../../shared/lastDayOffers'
 import { cameraProblem, type Camera } from '../../shared/cameras'
 import { demoCameraPicture, demoCameras, demoClips } from './demoCameras'
 import { demoArtwork, demoMenuPicture, demoPhoto, demoStrip } from './demoMenu'
@@ -68,7 +69,7 @@ import { missingFrom, templateDesigns, templateSections } from '../../shared/men
 import { AD_PLATFORMS, NO_METRICS, PLATFORM_NAMES, addMetrics, sumDays, type AdCampaign, type AdDay, type AdMetrics, type AdPlatform, type AdSettings, type AdsReport } from '../../shared/ads'
 import { CONNECT_MAPS, MAX_REPLY, type Review } from '../../shared/reviews'
 import { checkSite, parsePage, scoreOf, type PageSpeed, type WebsiteReport } from '../../shared/seo'
-import { addDays, formatMoney, localDate, minutesBetween, today, weekDates, weekStart, zonedIso } from '../../shared/time'
+import { addDays, formatMoney, localDate, localTime, minutesBetween, today, weekDates, weekStart, zonedIso } from '../../shared/time'
 import { SOURCE_FOR, type Enquiry } from '../../shared/leads'
 import { DEFAULT_MILEAGE_RATE, mileageAmount, type ExpenseClaim } from '../../shared/claims'
 import { EVERYONE, type Campaign } from '../../shared/campaigns'
@@ -810,7 +811,7 @@ export function createDemoApi(): Api {
     stockItem({ name: 'Guest filter coffee', category: 'Coffee', supplier_id: 'sup-roaster', supplier_sku: 'GUEST-500', unit: 'kg', pack_size: '500 g bag',
       order_multiple: 0.5, cost_per_unit: 24, on_hand: 0.8, par_level: 3, reorder_at: 1 }),
     stockItem({ name: 'Whole milk', category: 'Milk & dairy', supplier_id: 'sup-dairy', supplier_sku: 'LE-1L', unit: 'l', pack_size: '6 × 1 l', order_multiple: 6,
-      cost_per_unit: 0.95, on_hand: 14, par_level: 36, reorder_at: 12, location: 'Fridge' }),
+      cost_per_unit: 0.95, on_hand: 14, par_level: 36, reorder_at: 12, location: 'Fridge', use_by: addDays(today(), 4) }),
     stockItem({ name: 'Oat milk (barista)', category: 'Milk & dairy', supplier_id: 'sup-dairy', supplier_sku: 'AV-B-1L', unit: 'l', pack_size: '6 × 1 l',
       order_multiple: 6, cost_per_unit: 1.45, on_hand: 8, par_level: 24, reorder_at: 10 }),
     stockItem({ name: 'Almond milk', category: 'Milk & dairy', supplier_id: 'sup-dairy', supplier_sku: 'AL-1L', unit: 'l', pack_size: '6 × 1 l', order_multiple: 6,
@@ -823,10 +824,11 @@ export function createDemoApi(): Api {
       on_hand: 3, par_level: 6, reorder_at: 2, location: 'Bar' }),
     stockItem({ name: 'Caramel syrup', category: 'Syrups & sauces', supplier_id: 'sup-cash', unit: 'bottle', pack_size: '70 cl', cost_per_unit: 6.2,
       on_hand: 1, par_level: 6, reorder_at: 2, location: 'Bar' }),
+    // Baked this morning and sold today: on their last day, so on offer this afternoon (last-day offers).
     stockItem({ name: 'Butter croissants', category: 'Bakery', supplier_id: 'sup-eric', order_multiple: 10, cost_per_unit: 0.85, on_hand: 18, par_level: 40,
-      reorder_at: 12, location: 'Bar' }),
+      reorder_at: 12, location: 'Bar', sell_price: 2.4, sell_within_days: 1, use_by: today() }),
     stockItem({ name: 'Pain au chocolat', category: 'Bakery', supplier_id: 'sup-eric', order_multiple: 6, cost_per_unit: 0.95, on_hand: 6, par_level: 24,
-      reorder_at: 8, location: 'Bar' }),
+      reorder_at: 8, location: 'Bar', sell_price: 2.6, sell_within_days: 2, use_by: addDays(today(), 1) }),
     stockItem({ name: 'Cups 8 oz', category: 'Packaging', supplier_id: 'sup-pack', supplier_sku: 'CUP-8-K', pack_size: '1000 per case', order_multiple: 1000,
       cost_per_unit: 0.08, vat_rate: 21, on_hand: 650, par_level: 2000, reorder_at: 500, product_url: 'https://ecopack.example/shop/cups-8oz-kraft' }),
     stockItem({ name: 'Lids 8 oz', category: 'Packaging', supplier_id: 'sup-pack', supplier_sku: 'LID-8', pack_size: '1000 per case', order_multiple: 1000,
@@ -993,6 +995,41 @@ export function createDemoApi(): Api {
       image_url: demoPhoto('Pumpkin spice latte', false), starts_at: daysAgo(8), ends_at: daysAgo(1), screen_ids: ['s-counter'], screen_mode: 'turns', seconds: 15,
       post_id: null, active: true, updated_at: daysAgo(8) },
   ]
+  // Last-day offers: the rules, and the items put on offer each day (as the database's minute job does,
+  // run here whenever offers are read). Today's butter croissants are on offer on the counter TV.
+  const lastDayRuleList: LastDayRule[] = [
+    { id: 'ldr-bakes', name: 'Today’s bakes', active: true, categories: ['Bakery'], item_ids: [], discount: 'percent', percent_off: 30, price: null,
+      minutes_before_close: 120, screen_ids: ['s-counter'], screen_mode: 'turns', story: true, sort: 0 },
+    { id: 'ldr-food', name: 'Sandwiches', active: false, categories: ['Food'], item_ids: [], discount: 'price', percent_off: 30, price: '2 for €6',
+      minutes_before_close: 60, screen_ids: [], screen_mode: 'turns', story: false, sort: 1 },
+  ]
+  const lastDayMade = new Set<string>()
+  let lastDaySeeded = false
+  const startLastDayOffer = (item: StockItem, rule: LastDayRule, starts: string, ends: string, id: string = uid()) => {
+    const { price, was_price } = lastDayPrice(rule, item.sell_price)
+    const screens = rule.screen_ids.length ? rule.screen_ids : screenList.filter(x => x.active).map(x => x.id)
+    offerList.push({ id, title: item.name.slice(0, 80), details: null, price, was_price, image_url: item.name === 'Butter croissants' ? demoPhoto('Butter croissants', true) : null,
+      starts_at: starts, ends_at: ends, screen_ids: screens, screen_mode: rule.screen_mode, seconds: 15, post_id: null, active: true, updated_at: starts,
+      stock_item_id: item.id, last_day_rule_id: rule.id, auto_for: today() })
+    lastDayMade.add(`${item.id}:${today()}`)
+    const note = lastDayNote(item, price, localTime(ends, business.timezone))
+    for (const a of profiles.filter(p => p.role === 'admin' && p.active)) {
+      notes.push({ id: notes.length + 1, profile_id: a.id, ...note, link: rule.story ? `/offers?story=${id}` : '/offers', created_at: starts, read_at: null,
+        data: { offer: id, item: item.id } })
+    }
+  }
+  const runLastDayOffers = () => {
+    if (!lastDaySeeded) {
+      lastDaySeeded = true
+      // Started a little while ago and on until closing (or, when the demo is opened after hours, for the next two hours).
+      const croissants = stock.find(x => x.name === 'Butter croissants')!
+      const close = closingOn(business.opening_hours, today(), business.timezone)
+      const ends = close && Date.parse(close) - Date.now() >= 45 * 60_000 ? close : hoursFromNow(2)
+      startLastDayOffer(croissants, lastDayRuleList[0], new Date(Math.min(Date.now() - 25 * 60_000, Date.parse(ends) - 120 * 60_000)).toISOString(), ends, 'o-croissants')
+    }
+    const made = new Set([...lastDayMade].filter(k => k.endsWith(`:${today()}`)).map(k => k.split(':')[0]))
+    for (const d of dueLastDayOffers(stock, lastDayRuleList, made, business.opening_hours, Date.now(), business.timezone)) startLastDayOffer(d.item, d.rule, d.starts, d.ends)
+  }
   /** As display_feed(): a screen's offers that haven't ended and start within two days. */
   const screenOffers = (screenId: string): ScreenOffer[] => offerList
     .filter(o => o.active && o.screen_ids.includes(screenId) && Date.parse(o.ends_at) > Date.now() && Date.parse(o.starts_at) < Date.now() + 2 * 86_400_000)
@@ -1271,11 +1308,12 @@ export function createDemoApi(): Api {
     id: uid(), title: r.title, intro: r.intro ?? null, rules: [...r.rules], sort: i, updated_at: daysAgo(r.title === 'Complaints' ? 3 : 10),
   }))
   const rulesRead: RulesRead[] = [{ profile_id: P.maria, read_at: daysAgo(2) }, { profile_id: P.julio, read_at: daysAgo(7) }]
-  // Mark's dogs, waiting for their photos; Aron has none (the `people_page_and_pets` migration moved Yoda and Cooper to Mark).
+  // The owners' dogs, waiting for their photos: Aron's Fudge and Cooper, Mark's Pablo and Yoda (as the `pets_back_to_aron` migration leaves them).
   const pets: Pet[] = [
+    { id: 'pet-fudge', profile_id: P.aron, name: 'Fudge', kind: 'dog', breed: null, photo: null, sort: 1, created_at: daysAgo(3) },
+    { id: 'pet-cooper', profile_id: P.aron, name: 'Cooper', kind: 'dog', breed: null, photo: null, sort: 2, created_at: daysAgo(3) },
     { id: 'pet-pablo', profile_id: P.mark, name: 'Pablo', kind: 'dog', breed: null, photo: null, sort: 1, created_at: daysAgo(1) },
     { id: 'pet-yoda', profile_id: P.mark, name: 'Yoda', kind: 'dog', breed: null, photo: null, sort: 2, created_at: daysAgo(1) },
-    { id: 'pet-cooper', profile_id: P.mark, name: 'Cooper', kind: 'dog', breed: null, photo: null, sort: 3, created_at: daysAgo(3) },
   ]
   // Employment contracts (Team → Contracts): Julio permanent since the café opened, Maria on her second
   // summer contract (ending soon), the cleaner new and in her trial period. Aron and Mark own the café.
@@ -3375,9 +3413,32 @@ export function createDemoApi(): Api {
       }
       return { screen, sections: [...(settings.menu_sections ?? [])],
         business: { name: business.name, logo: brand.logo_mark ?? brand.logo, heading_font: brand.heading_font, body_font: brand.body_font, colours: clone(brand.colours) }, menus,
-        allergens: s.active ? displayAllergens() : null, offers: s.active ? screenOffers(s.id) : [] }
+        allergens: s.active ? displayAllergens() : null, offers: s.active ? (runLastDayOffers(), screenOffers(s.id)) : [] }
     },
-    async offers() { return isAdmin() ? clone(offerList).sort((a, b) => b.starts_at.localeCompare(a.starts_at)) : [] },
+    async offers() {
+      if (!isAdmin()) return []
+      runLastDayOffers()
+      return clone(offerList).sort((a, b) => b.starts_at.localeCompare(a.starts_at))
+    },
+    async lastDayRules() { return isAdmin() ? clone(lastDayRuleList).sort((a, b) => a.sort - b.sort) : [] },
+    async saveLastDayRule({ id, ...r }) {
+      requireAdmin()
+      const problem = lastDayRuleProblem(r)
+      if (problem) throw new Error(problem)
+      // As the database: tidied, only items and screens there are, each once; names are the business's own.
+      const tidy = { ...r, name: r.name.trim(), price: r.price?.trim() || null, categories: [...new Set(r.categories.map(c => c.trim()).filter(Boolean))].sort(),
+        item_ids: [...new Set(r.item_ids)].filter(i => stock.some(x => x.id === i)), screen_ids: [...new Set(r.screen_ids)].filter(x => screenList.some(y => y.id === x)) }
+      if (lastDayRuleList.some(x => x.id !== id && x.name.toLowerCase() === tidy.name.toLowerCase())) throw new Error('There’s already a rule with that name')
+      const existing = id ? lastDayRuleList.find(x => x.id === id) : undefined
+      if (existing) Object.assign(existing, tidy)
+      else lastDayRuleList.push({ ...tidy, id: uid() })
+    },
+    async deleteLastDayRule(id) {
+      requireAdmin()
+      const i = lastDayRuleList.findIndex(x => x.id === id)
+      if (i >= 0) lastDayRuleList.splice(i, 1)
+      for (const o of offerList) if (o.last_day_rule_id === id) o.last_day_rule_id = null
+    },
     async saveOffer({ id, ...o }) {
       requireAdmin()
       const problem = offerProblem(o)
@@ -3537,8 +3598,11 @@ export function createDemoApi(): Api {
       for (const { m, item } of checked) {
         const change = m.reason === 'count' ? m.counted! - item.on_hand : m.change!
         item.on_hand = Math.round((item.on_hand + change) * 100) / 100
+        // A delivery's use-by (the date given, or from the days the item sells for) becomes the item's.
+        const useBy = m.reason === 'delivery' ? deliveryUseBy(item.sell_within_days, today(), m.use_by) : null
+        if (useBy) item.use_by = useBy
         movements.push({ id: uid(), item_id: item.id, at: nowIso(), reason: m.reason, change, counted: m.reason === 'count' ? m.counted! : null,
-          on_hand_after: item.on_hand, note: m.note?.trim() || null, by: me()?.id ?? null, waste_reason: m.reason === 'waste' ? m.waste_reason ?? 'other' : null })
+          on_hand_after: item.on_hand, note: m.note?.trim() || null, by: me()?.id ?? null, waste_reason: m.reason === 'waste' ? m.waste_reason ?? 'other' : null, use_by: useBy })
       }
     },
     async undoWaste(id) {
@@ -4689,6 +4753,7 @@ export function createDemoApi(): Api {
     async fontList() { return { source: 'built-in', fonts: POPULAR_FONTS } },
     async notifications() {
       demoMentions()
+      runLastDayOffers()
       return clone(notes.filter(n => n.profile_id === currentUser).map(({ profile_id: _p, ...n }) => n).reverse())
     },
     async markNotificationsRead() {

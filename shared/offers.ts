@@ -29,6 +29,10 @@ export interface Offer {
   /** Off: kept, but on no screen. */
   active: boolean
   updated_at: string
+  /** A last-day offer (shared/lastDayOffers): the stock item, its rule, and the day it went on by itself (null: added by hand). */
+  stock_item_id?: string | null
+  last_day_rule_id?: string | null
+  auto_for?: string | null
 }
 export type OfferInput = Omit<Offer, 'id' | 'updated_at'> & { id?: string }
 
