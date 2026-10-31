@@ -6,7 +6,7 @@ export const BEFORE = {
 } as const
 export const TURN = [1200, 1320] as const
 export const AFTER = {
-  open: [1320, 1560], messages: [1560, 1740], order: [1740, 1920], offer: [1920, 2100], social: [2100, 2280],
+  open: [1320, 1560], messages: [1560, 1740], order: [1740, 1920], social: [1920, 2100], offer: [2100, 2280],
   accounts: [2280, 2460], licence: [2460, 2640], close: [2640, 2820], home: [2820, 2940],
 } as const
 export const RECAP = [2940, 3180] as const

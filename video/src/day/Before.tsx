@@ -281,7 +281,7 @@ export function LateNight() {
               {Array.from({ length: 11 }, (_, r) => (
                 <div key={r} style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr', borderBottom: '1px solid #E6E6E6' }}>
                   {[0, 1, 2].map(c => <div key={c} style={{ height: 38, borderRight: '1px solid #E6E6E6', fontSize: 15, padding: '9px 6px', color: '#333' }}>
-                    {r > 0 && r < 8 ? (c === 0 ? ['Makro', 'Endesa', 'By Eric', 'Lácteos', 'Tostadores', 'Rent', 'Glovo fees'][r - 1] : c === 1 ? `€${(97 + r * 53).toFixed(2)}` : r === 7 && frame % 30 < 15 ? '|' : '') : r === 0 ? ['Supplier', 'Net', 'IVA'][c] : ''}
+                    {r > 0 && r < 8 ? (c === 0 ? ['Makro', 'Endesa', 'By Eric', 'Lácteos', 'Tostadores', 'Rent', 'Insurance'][r - 1] : c === 1 ? `€${(97 + r * 53).toFixed(2)}` : r === 7 && frame % 30 < 15 ? '|' : '') : r === 0 ? ['Supplier', 'Net', 'IVA'][c] : ''}
                   </div>)}
                 </div>
               ))}

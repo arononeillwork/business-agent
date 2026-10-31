@@ -7829,3 +7829,20 @@ test('owner pay: an owner turns it off on Staff wages; the owners’ hours stop 
   await ownerPay.check()
   await toast(page, 'Owners are paid for their hours on the rota')
 })
+
+test('landing page: the day-in-the-life video, once it is switched on', async ({ page }) => {
+  for (const file of ['public/video/day-in-the-life.mp4', 'public/video/day-in-the-life.jpg']) {
+    expect(readFileSync(file).length).toBeGreaterThan(10_000)
+  }
+  await page.goto('/?demo')
+  const video = page.getByLabel('A day in the life of a café owner, video')
+  if (!FEATURES.dayVideo) {
+    await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
+    await expect(video).toHaveCount(0)
+    return
+  }
+  await expect(page.getByRole('region', { name: 'The same day, without the chaos.' })).toBeVisible()
+  await expect(video).toHaveAttribute('poster', '/video/day-in-the-life.jpg')
+  await expect(video).toHaveAttribute('src', '/video/day-in-the-life.mp4')
+  await expect(video).toHaveAttribute('controls', '')
+})

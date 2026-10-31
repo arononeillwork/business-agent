@@ -108,11 +108,11 @@ export function Order({ len }: { len: number }) {
   )
 }
 
-/** The last-day offer, on the café's TV and the Offers page (recorded once that feature is live). */
+/** The last-day offer: today's croissants on offer by themselves, on the counter TV, and the rule behind it. */
 export function LastDay({ len }: { len: number }) {
-  const s = seg(0.5, 8.0, len - 6)
+  const s = seg(1.2, 12.6, len - 6)
   return (
-    <Desk time="12:00" len={len} url="businesssagent.com/offers" title={<>Last day? <Em>On offer by itself.</Em></>}>
+    <Desk time="13:00" len={len} url="businesssagent.com/offers" title={<>Last day? <Em>On offer by itself.</Em></>}>
       <Clip src="clips/day-offer.mp4" segs={s} />
     </Desk>
   )
@@ -120,7 +120,7 @@ export function LastDay({ len }: { len: number }) {
 
 export function Posts({ len }: { len: number }) {
   return (
-    <Desk time="13:00" len={len} url="businesssagent.com/social" title={<>Posts, <Em>already scheduled.</Em></>}>
+    <Desk time="12:00" len={len} url="businesssagent.com/social" title={<>Posts, <Em>already scheduled.</Em></>}>
       <Clip src="clips/day-social.mp4" segs={seg(0.8, 11.6, len - 6)} />
     </Desk>
   )

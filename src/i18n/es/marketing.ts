@@ -33,6 +33,11 @@ export default {
   'everywhere.': 'en todas partes.',
   'A café sets up, closes on Sundays, adds Christmas and puts a price up, each in one place: Google Maps, its website, its till, its TV and its team follow.': 'Una cafetería se configura, cierra los domingos, añade la Navidad y sube un precio, cada cosa en un solo sitio: Google Maps, su web, su caja, su tele y su equipo se ponen al día.',
   'Business Agent demo video': 'Vídeo de demostración de Business Agent',
+  'A day in the life': 'Un día cualquiera',
+  'The same day, {em}': 'El mismo día, {em}',
+  'without the chaos.': 'sin el caos.',
+  'From opening to closing: the checklists, the messages, the orders, the offers, the bills and the licences, before and with Business Agent.': 'De la apertura al cierre: las listas, los mensajes, los pedidos, las ofertas, las facturas y las licencias, antes y con Business Agent.',
+  'A day in the life of a café owner, video': 'Vídeo: un día en la vida de quien lleva una cafetería',
   // Landing page: FAQ
   'How does the free trial work?': '¿Cómo funciona la prueba gratis?',
   "The Business plan, with everything switched on, is free for {months} months. You add a card to start and nothing is charged until the trial ends; cancel before then and you pay nothing. If the first payment doesn't go through, you move to the Free plan until it does.": 'El plan Business, con todo activado, es gratis durante {months} meses. Añades una tarjeta para empezar y no se cobra nada hasta que termina la prueba; si cancelas antes, no pagas nada. Si el primer pago no se completa, pasas al plan Gratis hasta que se complete.',

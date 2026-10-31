@@ -128,10 +128,32 @@ const SCENES = {
     await ctx.close()
   },
 
-  /** 13:00: the week's posts, already scheduled. */
+  /** 13:00: today's croissants on their last day, on offer by themselves (on the counter TV), and the rule that did it. */
+  async offer() {
+    const ctx = await desktop()
+    const page = await openDemo(ctx, { time: AT('13:05'), path: '/offers' })
+    await page.getByRole('heading', { name: 'Offers & specials' }).waitFor()
+    await page.getByText('Automatic: last day').first().waitFor()
+    await page.mouse.move(1000, 300)
+    await page.waitForTimeout(1500)
+    const r = new Recorder(page, 'day-offer', OUT)
+    r.mouse = { x: 1000, y: 300 }
+    await r.start()
+    await r.pause(900)
+    await r.focus(page.getByText('Automatic: last day').first(), 'automatic', { move: true })
+    await r.pause(1400)
+    await r.scrollBy(560, 1800)
+    await r.pause(400)
+    await r.focus(page.getByText('Today’s bakes').first(), 'rule', { move: true })
+    await r.pause(1800)
+    await r.stop()
+    await ctx.close()
+  },
+
+  /** 12:00: the week's posts, already scheduled. */
   async social() {
     const ctx = await desktop()
-    const page = await openDemo(ctx, { time: AT('13:00'), path: '/social' })
+    const page = await openDemo(ctx, { time: AT('12:00'), path: '/social' })
     await page.getByRole('heading', { name: 'Social planner' }).waitFor()
     await page.mouse.move(1100, 360)
     await page.waitForTimeout(1500)

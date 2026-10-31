@@ -28,8 +28,8 @@ export function DayVideo() {
       <Sequence name="07:00 open up" {...at(AFTER.open)}><OpenUp len={len(AFTER.open)} /></Sequence>
       <Sequence name="09:00 inbox" {...at(AFTER.messages)}><Inbox len={len(AFTER.messages)} /></Sequence>
       <Sequence name="10:30 order" {...at(AFTER.order)}><Order len={len(AFTER.order)} /></Sequence>
-      <Sequence name="12:00 last-day offer" {...at(AFTER.offer)}><LastDay len={len(AFTER.offer)} /></Sequence>
-      <Sequence name="13:00 posts" {...at(AFTER.social)}><Posts len={len(AFTER.social)} /></Sequence>
+      <Sequence name="12:00 posts" {...at(AFTER.social)}><Posts len={len(AFTER.social)} /></Sequence>
+      <Sequence name="13:00 last-day offer" {...at(AFTER.offer)}><LastDay len={len(AFTER.offer)} /></Sequence>
       <Sequence name="14:00 accounts" {...at(AFTER.accounts)}><Accounts len={len(AFTER.accounts)} /></Sequence>
       <Sequence name="14:30 licence" {...at(AFTER.licence)}><Licence len={len(AFTER.licence)} /></Sequence>
       <Sequence name="15:00 close up" {...at(AFTER.close)}><CloseUp len={len(AFTER.close)} /></Sequence>

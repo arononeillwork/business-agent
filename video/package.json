@@ -6,10 +6,14 @@
   "description": "The landing page's demo video: the real app recorded in demo mode, composed with Remotion.",
   "scripts": {
     "capture": "node capture/run.mjs",
+    "capture:day": "node capture/day.mjs",
     "music": "python3 music/compose.py",
+    "music:day": "python3 music/day.py",
     "studio": "remotion studio src/index.ts",
     "render": "remotion render src/index.ts LandingVideo out/landing-master.mp4 --codec=h264 --crf=16 --audio-bitrate=192k",
-    "web": "node web.mjs",
+    "render:day": "remotion render src/index.ts DayVideo out/day-master.mp4 --codec=h264 --crf=16 --audio-bitrate=192k",
+    "web": "node web.mjs landing",
+    "web:day": "node web.mjs day",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
