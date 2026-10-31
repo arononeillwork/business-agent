@@ -1060,7 +1060,9 @@ describe('SumUp, LinkedIn and Search Console: connected once they really work', 
     expect(r.pages).toEqual([{ page: 'https://www.easybeanscoffee.com/', clicks: 50, impressions: 1800, ctr: 0.0278, position: 8.2 }])
     expect(r.devices.map(d => d.device)).toEqual(['MOBILE', 'DESKTOP', 'TABLET'])
     expect(r.countries.map(c => c.country)).toEqual(['esp', 'gbr'])
-    expect(apis.searchConsole.queries.filter(q => q.startDate === '2026-10-01').map(q => q.dimensions.join(',')).sort()).toEqual(['', 'country', 'date', 'device', 'page', 'query'])
+    // The report's own queries (connecting checks the last 30 days too, which can also start on the 1st).
+    expect(apis.searchConsole.queries.filter(q => q.startDate === '2026-10-01' && q.endDate === '2026-10-02').map(q => q.dimensions.join(',')).sort())
+      .toEqual(['', 'country', 'date', 'device', 'page', 'query'])
     expect((await get('/api/integrations/search_console/report?from=2026-10-02&to=2026-10-01')).status).toBe(400)
     expect((await get('/api/integrations/search_console/report?from=2026-10-01&to=2026-10-02', 'staff')).status).toBe(403)
   })
