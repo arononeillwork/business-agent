@@ -1,4 +1,4 @@
-import { Box, Button, Card, CardActionArea, Stack, Typography } from '@mui/material'
+import { Box, Button, ButtonBase, Card, CardActionArea, Stack, Typography } from '@mui/material'
 import PawIcon from '@mui/icons-material/PetsOutlined'
 import AddPhotoIcon from '@mui/icons-material/AddAPhotoOutlined'
 import { Fragment, useState, type ReactNode } from 'react'
@@ -6,7 +6,7 @@ import { Link as RouterLink } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { PageHeader, PersonAvatar, Tag } from '../components/common'
-import { PetPhoto, petLine, usePets } from '../components/Pets'
+import { PetDialog, PetPhoto, petLine, usePets } from '../components/Pets'
 import { tokens } from '../theme'
 import { t, tn } from '../i18n'
 import { jobRolesByPerson, teamTiers } from '../../shared/people'
@@ -16,11 +16,13 @@ import type { Profile } from '../../shared/types'
 /**
  * The team as a hierarchy: the owners at the top, then the shop managers, then the employees, each
  * with the roles they hold on Roles & responsibilities. "Show pets" puts everyone's dogs (and cats)
- * under them, with their photos. Admins open a person on the Team page from here.
+ * under them, with their photos. Admins open a person on the Team page from here, and change anyone's
+ * pet; everyone else changes their own.
  */
 export function PeoplePage() {
   const { api, profiles, me, isAdmin } = useApp()
   const [showPets, setShowPets] = useState(false)
+  const [editing, setEditing] = useState<Pet | null>(null)
   const pets = usePets()
   const roles = useAsync('roles', () => api.jobRoles(), [])
   const tiers = teamTiers(profiles)
@@ -48,7 +50,7 @@ export function PeoplePage() {
               <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 1.5 }}>
                 {tier.people.map(p => (
                   <PersonCard key={p.id} person={p} you={p.id === me?.id} roles={rolesOf.get(p.id) ?? []}
-                    pets={showPets ? petsOf.get(p.id) ?? [] : null}
+                    pets={showPets ? petsOf.get(p.id) ?? [] : null} onPet={isAdmin || p.id === me?.id ? setEditing : null}
                     link={p.id === me?.id ? '/account' : isAdmin ? `/team?person=${p.id}` : null} />
                 ))}
               </Box>
@@ -56,18 +58,24 @@ export function PeoplePage() {
           </Fragment>
         ))}
       </Stack>
+      {editing && <PetDialog pet={editing} onClose={() => setEditing(null)} />}
     </>
   )
 }
 
+/** A pet on a person's card: its photo, then its name and kind. */
+const petColumn = { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5, width: '100%' } as const
+
 /** The line from one level of the hierarchy down to the next. */
 const Connector = () => <Box aria-hidden sx={{ width: 2, height: 28, bgcolor: tokens.lineStrong, my: 1 }} />
 
-/** One person: who they are, their team role and roles, and their pets while they're shown. */
-function PersonCard({ person: p, you, roles, pets, link }: { person: Profile; you: boolean; roles: string[]; pets: Pet[] | null; link: string | null }) {
+/** One person: who they are, their team role and roles, and their pets while they're shown (to change, with `onPet`). */
+function PersonCard({ person: p, you, roles, pets, link, onPet }: {
+  person: Profile; you: boolean; roles: string[]; pets: Pet[] | null; link: string | null; onPet: ((pet: Pet) => void) | null
+}) {
   const name = you ? t('{name} (you)', { name: p.full_name }) : p.full_name
   const body: ReactNode = (
-    <Stack spacing={1.25} sx={{ p: 2, alignItems: 'center', textAlign: 'center', height: '100%' }}>
+    <Stack spacing={1.25} sx={{ p: 2, pb: pets ? 1.25 : 2, alignItems: 'center', textAlign: 'center', height: '100%' }}>
       <PersonAvatar name={p.full_name} colour={p.colour} size={56} />
       <Box sx={{ minWidth: 0, maxWidth: '100%' }}>
         <Typography sx={{ fontWeight: 500 }} noWrap>{name}</Typography>
@@ -84,25 +92,35 @@ function PersonCard({ person: p, you, roles, pets, link }: { person: Profile; yo
           <Typography variant="body2" sx={{ fontWeight: 500 }}>{t('Add your pet')}</Typography>
         </Stack>
       )}
-      {pets && (
-        <Box role="list" aria-label={t('{name}’s pets', { name: p.full_name })}
-          sx={{ width: '100%', pt: 1.25, borderTop: `1px solid ${tokens.line}`, display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 1.5 }}>
-          {pets.length === 0
-            ? <Typography variant="body2" role="listitem" sx={{ color: 'text.secondary' }}>{t('No pets')}</Typography>
-            : pets.map(pet => (
-              <Stack key={pet.id} role="listitem" aria-label={pet.name} spacing={0.5} sx={{ alignItems: 'center', width: 76 }}>
-                <PetPhoto pet={pet} size={64} />
-                <Typography variant="body2" sx={{ fontWeight: 500, maxWidth: '100%' }} noWrap>{pet.name}</Typography>
-                {petLine(pet) && <Typography variant="caption" sx={{ color: 'text.secondary', maxWidth: '100%', mt: '0 !important' }} noWrap>{petLine(pet)}</Typography>}
-              </Stack>
-            ))}
-        </Box>
-      )}
     </Stack>
   )
   return (
-    <Card role="article" aria-label={name} sx={{ width: { xs: '100%', sm: 220 }, outline: you ? `2px solid ${tokens.roseDeep}` : undefined }}>
-      {link ? <CardActionArea component={RouterLink} to={link} sx={{ height: '100%' }}>{body}</CardActionArea> : body}
+    <Card role="article" aria-label={name}
+      sx={{ width: { xs: '100%', sm: 220 }, display: 'flex', flexDirection: 'column', outline: you ? `2px solid ${tokens.roseDeep}` : undefined }}>
+      {link ? <CardActionArea component={RouterLink} to={link} sx={{ flexGrow: 1 }}>{body}</CardActionArea> : body}
+      {pets && (
+        <Box role="list" aria-label={t('{name}’s pets', { name: p.full_name })}
+          sx={{ mx: 2, mb: 2, pt: 1.25, borderTop: `1px solid ${tokens.line}`, display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 1.5 }}>
+          {pets.length === 0
+            ? <Typography variant="body2" role="listitem" sx={{ color: 'text.secondary' }}>{t('No pets')}</Typography>
+            : pets.map(pet => {
+              const inner = (
+                <>
+                  <PetPhoto pet={pet} size={64} />
+                  <Typography variant="body2" sx={{ fontWeight: 500, maxWidth: '100%' }} noWrap>{pet.name}</Typography>
+                  {petLine(pet) && <Typography variant="caption" sx={{ color: 'text.secondary', maxWidth: '100%' }} noWrap>{petLine(pet)}</Typography>}
+                </>
+              )
+              return (
+                <Box key={pet.id} role="listitem" aria-label={pet.name} sx={{ width: 76 }}>
+                  {onPet
+                    ? <ButtonBase onClick={() => onPet(pet)} aria-label={t('Edit {name}', { name: pet.name })} sx={{ ...petColumn, borderRadius: 2 }}>{inner}</ButtonBase>
+                    : <Box sx={petColumn}>{inner}</Box>}
+                </Box>
+              )
+            })}
+        </Box>
+      )}
     </Card>
   )
 }

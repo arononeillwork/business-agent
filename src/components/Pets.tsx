@@ -1,5 +1,6 @@
 // Pets: a pet's photo (a paw while it has none), the dialog to add or change one, and the Pets section
-// of My account where everyone adds their own. The People page shows them beside their person.
+// of My account where everyone adds their own. The People page shows them beside their person; there
+// admins change anyone's, and everyone their own.
 import { Avatar, Box, Button, Card, CardContent, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Stack, TextField, Typography } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import PawIcon from '@mui/icons-material/PetsOutlined'
@@ -65,7 +66,7 @@ function PhotoPicker({ label, inputLabel, onPhoto, variant = 'outlined' }: { lab
   )
 }
 
-/** Add a pet of your own, or change one. */
+/** Add a pet of your own, or change one: yours, or anyone's for an admin. */
 export function PetDialog({ pet, onClose }: { pet?: Pet; onClose: () => void }) {
   const { api } = useApp()
   const run = useAction()
