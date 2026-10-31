@@ -7022,6 +7022,7 @@ test('the cost of running the business: Staff wages opens the rota’s hours and
   await expect(page.getByRole('heading', { name: 'Rota', level: 1 })).toBeVisible()
   await expect(page).toHaveURL(/costs=1/)
   await expect(page.getByRole('alert').filter({ hasText: 'What the rota costs' })).toBeVisible()
+})
 
 test('Loyalty & gift cards: the Gift cards tab shows the cards that can be spent, the used-up ones on their own, and copies a card’s number', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
@@ -7073,6 +7074,7 @@ test('Loyalty & gift cards: the Gift cards tab shows the cards that can be spent
   await page.getByRole('tab', { name: 'Loyalty', exact: true }).click()
   await expect(page).not.toHaveURL(/tab=/)
   await expect(page.getByRole('img', { name: '9 stamps, then Free coffee (the 10th)' })).toBeVisible()
+})
 
 test('campaigns: a suggested one starts in one press; one switched off goes to Inactive at the bottom, and back', async ({ page }) => {
   await open(page, '/campaigns')
