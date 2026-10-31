@@ -1,0 +1,24 @@
+{
+  "name": "webhours",
+  "fps": 30,
+  "duration": 5.752,
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "dpr": 1.5,
+  "frames": 116,
+  "events": [
+    {
+      "t": 3.396,
+      "type": "focus",
+      "box": {
+        "x": 272,
+        "y": 612.65625,
+        "width": 72.48959350585938,
+        "height": 25.59375
+      },
+      "label": "sunday"
+    }
+  ]
+}

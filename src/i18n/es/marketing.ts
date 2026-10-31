@@ -27,6 +27,13 @@ export default {
   'Add your name, logo and opening hours. Connect the apps you already use, or skip for now.': 'Añade tu nombre, logo y horario. Conecta las apps que ya usas, o déjalo para más tarde.',
   'Invite your team': 'Invita a tu equipo',
   'Everyone gets the app on their phone, in your brand. Your first rota can go out today.': 'Todos tienen la app en el móvil, con tu marca. Tu primer cuadrante puede salir hoy.',
+  // Landing page: the demo video
+  'See it in {n} seconds': 'Míralo en {n} segundos',
+  'Change it once. It’s changed {em}': 'Cámbialo una vez. Cambia {em}',
+  'everywhere.': 'en todas partes.',
+  'A café sets up, closes on Sundays, adds Christmas and puts a price up, once each: Google Maps, its website, its menus and its team follow.': 'Una cafetería se configura, cierra los domingos, añade la Navidad y sube un precio, una sola vez cada cosa: Google Maps, su web, sus cartas y su equipo se ponen al día.',
+  'Business Agent demo video': 'Vídeo de demostración de Business Agent',
+  'Easy Beans Coffee, in the app and on its own website. Turn the sound on for the music.': 'Easy Beans Coffee, en la app y en su propia web. Activa el sonido para oír la música.',
   // Landing page: FAQ
   'How does the free trial work?': '¿Cómo funciona la prueba gratis?',
   "The Business plan, with everything switched on, is free for {months} months. You add a card to start and nothing is charged until the trial ends; cancel before then and you pay nothing. If the first payment doesn't go through, you move to the Free plan until it does.": 'El plan Business, con todo activado, es gratis durante {months} meses. Añades una tarjeta para empezar y no se cobra nada hasta que termina la prueba; si cancelas antes, no pagas nada. Si el primer pago no se completa, pasas al plan Gratis hasta que se complete.',

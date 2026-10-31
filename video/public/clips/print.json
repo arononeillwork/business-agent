@@ -1,0 +1,37 @@
+{
+  "name": "print",
+  "fps": 30,
+  "duration": 7.673,
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "dpr": 1.5,
+  "frames": 248,
+  "events": [
+    {
+      "t": 1.92,
+      "type": "click",
+      "x": 419,
+      "y": 138,
+      "box": {
+        "x": 374,
+        "y": 114,
+        "width": 90,
+        "height": 48
+      },
+      "label": "design"
+    },
+    {
+      "t": 3.321,
+      "type": "focus",
+      "box": {
+        "x": 776,
+        "y": 291.8020935058594,
+        "width": 430,
+        "height": 608.1354064941406
+      },
+      "label": "drinks"
+    }
+  ]
+}

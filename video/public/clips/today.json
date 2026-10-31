@@ -1,0 +1,12 @@
+{
+  "name": "today",
+  "fps": 30,
+  "duration": 12.008,
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "dpr": 1.5,
+  "frames": 402,
+  "events": []
+}

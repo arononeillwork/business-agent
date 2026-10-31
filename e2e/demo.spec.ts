@@ -7007,3 +7007,22 @@ test('the assistant: a button at the bottom right opens a chat; Ctrl K opens sea
   await expect(page.getByRole('heading', { name: /Hola/ })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Ask the assistant' })).toHaveCount(0)
 })
+
+test('landing page: the demo video with its poster and controls, once it is switched on', async ({ page }) => {
+  // The video and its poster ship with the site (made in video/, see its README).
+  for (const file of ['public/video/business-agent-demo.mp4', 'public/video/business-agent-demo.jpg']) {
+    expect(readFileSync(file).length).toBeGreaterThan(10_000)
+  }
+  await page.goto('/?demo')
+  const video = page.getByLabel('Business Agent demo video')
+  if (!FEATURES.demoVideo) {
+    await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
+    await expect(video).toHaveCount(0)
+    return
+  }
+  await expect(page.getByRole('region', { name: 'Change it once. It’s changed everywhere.' })).toBeVisible()
+  await expect(video).toHaveAttribute('poster', '/video/business-agent-demo.jpg')
+  await expect(video).toHaveAttribute('src', '/video/business-agent-demo.mp4')
+  await expect(video).toHaveAttribute('controls', '')
+  expect((await page.request.get('/video/business-agent-demo.mp4')).ok()).toBe(true)
+})
