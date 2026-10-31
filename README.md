@@ -128,6 +128,11 @@ built-in **AI connector** so owners can run it by talking to Claude.
   way back to everything, and Today leads with the agent's first questions. Each owner's choice is kept on
   their account; the owners turn agents on or off, rename them, pick their pages and add their own on Roles
   & responsibilities → Agents (`shared/agents.ts`; only an owner changes them, the `agent_views` migration).
+- Role ownership (Roles & responsibilities → Ownership, owners): a lane for each owner and one for the roles
+  nobody owns yet. Owners drag a role into someone's lane or along it (or move it from its Owner menu, on a
+  phone or with the keyboard), and open it to read what it's for, its duties and who's in it, and change who's
+  in it. The Active tab and each person's own role say who owns it (`shared/roleOwners.ts`; only an owner
+  changes it, and only to an owner of the business: the `role_owners` migration).
 - Staff rules (Team section): the house rules, in sections that open (being on time and clocking in, uniform
   and hygiene, food safety and allergens, phones, breaks, customers, the till, health and safety, respect).
   Each employee confirms they've read them and is asked again when a section is added or changed (what's new

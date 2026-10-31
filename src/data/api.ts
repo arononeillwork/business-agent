@@ -17,6 +17,7 @@ import type { Benefit, BenefitInput, LeaveAllowance } from '../../shared/benefit
 import type { LoggedReward, RepReward, RepSettings, RewardLog, RewardRule, RewardRuleInput, SalesRep, SalesRepInput } from '../../shared/reps'
 import type { KittyEntry, KittyEntryInput, KittyGoal, KittyGoalInput, KittySettings } from '../../shared/kitty'
 import type { JobRole, JobRoleInput } from '../../shared/roles'
+import type { RoleOwner } from '../../shared/roleOwners'
 import type { TeamRole } from '../../shared/teamRoles'
 import type { RuleSection, RuleSectionInput, RulesRead } from '../../shared/staffRules'
 import type { Pet, PetInput } from '../../shared/pets'
@@ -224,6 +225,10 @@ export interface Api {
   /** Add one (no id) or change one. */
   saveJobRole(r: JobRoleInput): Promise<void>
   deleteJobRole(id: string): Promise<void>
+  /** Who owns each role and its place in their lane (Roles & responsibilities → Ownership); the team reads it. */
+  roleOwners(): Promise<RoleOwner[]>
+  /** Owners only: the roles whose owner (null: not owned yet) or place changed. */
+  saveRoleOwners(changes: RoleOwner[]): Promise<void>
   ruleSections(): Promise<RuleSection[]>
   /** Add one (no id) or change one. */
   saveRuleSection(s: RuleSectionInput): Promise<void>

@@ -171,6 +171,8 @@ export interface Profile {
   preferences?: Preferences
   /** False: not worked into the rota (an owner, the business's own login); they still sign in. Admins set it on Team. */
   on_rota?: boolean
+  /** False: left off People and the owners' lanes on Roles & responsibilities (a shared login). Unset: on them. */
+  on_people?: boolean
 }
 
 export interface Preferences {

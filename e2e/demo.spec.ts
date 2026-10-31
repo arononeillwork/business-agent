@@ -7095,3 +7095,61 @@ test.describe('agents', () => {
     await expect(page.getByRole('region', { name: 'Agent view' })).toHaveCount(0)
   })
 })
+
+test.describe('role ownership', () => {
+  test('ownership: the owners share the roles out in lanes; a role opens to what it means and moves to Mark’s lane from its Owner menu', async ({ page }) => {
+    await open(page, '/roles?tab=ownership')
+    const tab = page.getByRole('region', { name: 'Ownership', exact: true })
+    const notOwned = tab.getByRole('region', { name: 'Not owned yet' })
+    const aron = tab.getByRole('region', { name: "Aron O'Neill" })
+    const mark = tab.getByRole('region', { name: 'Mark Murray' })
+    await expect(aron.getByRole('article')).toHaveText([/Head of People/, /Head Barista/, /Barista \/ Bartender/])
+    await expect(mark.getByRole('article')).toHaveText([/Investor/, /Accountant/])
+    await expect(notOwned.getByRole('article', { name: 'Chef', exact: true })).toBeVisible()
+
+    // A role opens to what it means: what it's for, the rota position, its duties and who's in it.
+    const barista = aron.getByRole('article', { name: 'Barista / Bartender' })
+    await expect(barista).toContainText('2 people')
+    const what = barista.getByRole('button', { name: 'What Barista / Bartender means' })
+    await expect(what).toHaveAttribute('aria-expanded', 'false')
+    await what.click()
+    await expect(what).toHaveAttribute('aria-expanded', 'true')
+    await expect(barista).toContainText('On the rota as')
+    await expect(barista).toContainText('Making coffee and all drinks')
+    await expect(barista.getByRole('combobox', { name: 'Who’s in it' })).toBeVisible()
+    await expect(barista).toContainText('Julio')
+    await what.click()
+    await expect(what).toHaveAttribute('aria-expanded', 'false')
+
+    // The Owner menu moves a role (on a phone, or without dragging): the chef to Mark.
+    await notOwned.getByRole('button', { name: 'Owner of Chef' }).click()
+    await page.getByRole('menu', { name: 'Owner of Chef' }).getByRole('menuitemradio', { name: 'Mark Murray' }).click()
+    await toast(page, 'Chef is Mark Murray’s now')
+    await expect(mark.getByRole('article')).toHaveText([/Investor/, /Accountant/, /Chef/])
+    await expect(notOwned.getByRole('article', { name: 'Chef', exact: true })).toHaveCount(0)
+
+    // It stays: the Active tab says who owns the chef, and the lanes come back as they were left.
+    await page.getByRole('tab', { name: /^Active/ }).click()
+    await expect(page.getByRole('button', { name: 'Chef', exact: true })).toContainText('Owned by Mark Murray')
+    await page.getByRole('tab', { name: 'Ownership' }).click()
+    await expect(mark.getByRole('article')).toHaveText([/Investor/, /Accountant/, /Chef/])
+  })
+
+  test('ownership: an owner puts a role in order with the keyboard; the team reads who owns their role, with no Ownership tab', async ({ page }) => {
+    await open(page, '/roles?tab=ownership')
+    const mark = page.getByRole('region', { name: 'Ownership', exact: true }).getByRole('region', { name: 'Mark Murray' })
+    await expect(mark.getByRole('article')).toHaveText([/Investor/, /Accountant/])
+    // Pick up the accountant, move it up Mark's lane, drop it.
+    await mark.getByRole('button', { name: 'Drag Accountant' }).focus()
+    await page.keyboard.press('Space')
+    await page.keyboard.press('ArrowUp')
+    await page.keyboard.press('Space')
+    await expect(mark.getByRole('article')).toHaveText([/Accountant/, /Investor/])
+
+    // The team reads who owns their role, and has no Ownership tab.
+    await signInAs(page, 'maria@example.com')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Roles & responsibilities' }).click()
+    await expect(page.getByRole('region', { name: 'Barista / Bartender' })).toContainText('Owned by Aron O')
+    await expect(page.getByRole('tab', { name: 'Ownership' })).toHaveCount(0)
+  })
+})
