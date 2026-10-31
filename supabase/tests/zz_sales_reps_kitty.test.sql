@@ -1,7 +1,8 @@
 -- Sales reps & rewards (who sees and does what, the list's limits, credit spent at the till and
 -- commission paid out, nobody approving their own) and the staff kitty (the team reads, admins put
 -- money in, and nothing takes it below what's been bought).
--- People from the tests before it: maria (admin), julio and aron (employees).
+-- People from the tests before it: maria (admin), julio and aron (employees). Maria is an owner here
+-- (she sees pay): only an owner says yes to a new rep.
 
 create function pg_temp.act_as(p_email text) returns void language plpgsql as $$
 begin
@@ -20,6 +21,9 @@ end $$;
 
 create function pg_temp.rep(p_name text) returns uuid language sql as $$ select id from public.sales_reps where name = p_name $$;
 create function pg_temp.rule(p_name text) returns uuid language sql as $$ select id from public.reward_rules where name = p_name $$;
+
+create temp table maria_pay_reps as select can_see_pay from public.profiles where email = 'maria@test';
+update public.profiles set can_see_pay = true where email = 'maria@test';
 
 -- 1. Admins set up the list and the reps -----------------------------------------------------------
 select pg_temp.act_as('maria@test');
@@ -60,7 +64,7 @@ do $$ begin
   assert (select count(*) from public.sales_reps where name in ('Tom', 'Big Seller') and not approved) = 2, 'both wait for an admin';
 end $$;
 select pg_temp.expect_error($q$insert into public.sales_reps (name, profile_id) select 'Not me', id from public.profiles where email = 'maria@test'$q$, 'row-level security');
-select pg_temp.expect_error($q$select public.decide_rep(pg_temp.rep('Tom'), true)$q$, 'Only an admin');
+select pg_temp.expect_error($q$select public.decide_rep(pg_temp.rep('Tom'), true)$q$, 'Only an owner');
 select pg_temp.expect_error($q$insert into public.reward_rules (name, amount) values ('Everything free', 100)$q$, 'row-level security');
 reset role;
 do $$ begin
@@ -164,6 +168,9 @@ select pg_temp.expect_error($q$select public.log_reward(pg_temp.rep('Tom'), pg_t
 reset role;
 update public.sales_reps set profile_id = null where name = 'Julio';
 do $$ begin assert (select kind from public.sales_reps where name = 'Julio') = 'ambassador', 'left the team'; end $$;
+
+reset role;
+update public.profiles set can_see_pay = (select can_see_pay from maria_pay_reps) where email = 'maria@test';
 
 -- 5. The staff kitty --------------------------------------------------------------------------------
 select pg_temp.act_as('julio@test');
