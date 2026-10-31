@@ -239,4 +239,15 @@ export default {
     'Un cruasán y un bol de açaí como ilustraciones planas, con contornos gruesos, sobre un fondo crema liso',
   'Smoothies in tall glasses with fruit, flat cartoon illustration, plain cream background':
     'Batidos en vasos altos con fruta, ilustración plana tipo dibujo, fondo crema liso',
+  // The menu on Google Maps
+  'Menu on Google Maps': 'Carta en Google Maps',
+  'Send to Google Maps now': 'Enviar a Google Maps ahora',
+  'Sent {n} item to Google Maps.': 'Enviado {n} producto a Google Maps.',
+  'Sent {n} items to Google Maps.': 'Enviados {n} productos a Google Maps.',
+  'Google Maps is kept in step: changes to the menu, here or in Square, reach your listing within a minute.':
+    'Google Maps se mantiene al día: los cambios en la carta, aquí o en Square, llegan a tu ficha en menos de un minuto.',
+  'Connect your Google listing on the Connections page and this menu updates Google Maps by itself.':
+    'Conecta tu ficha de Google en la página Conexiones y esta carta actualizará Google Maps sola.',
+  'Last sent to Google Maps {when}.': 'Enviada a Google Maps por última vez {when}.',
+  'Not sent to Google Maps yet.': 'Aún no se ha enviado a Google Maps.',
 }

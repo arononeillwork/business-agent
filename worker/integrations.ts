@@ -45,6 +45,7 @@ import { today, zonedIso } from '../shared/time'
 import { mergeSales } from '../shared/sales'
 import { LEGAL } from '../shared/legal'
 import { businessConfig } from '../shared/business.config'
+import { menuSections, type MenuItem } from '../shared/menu'
 
 export { waConfig }
 
@@ -145,6 +146,83 @@ export async function syncGoogleBothWays(env: Env, db: SupabaseClient): Promise<
     await setIntegration(db, 'google_business', { external: { ...s.external, google_hours: onGoogle } })
   }
   return 'same'
+}
+
+/**
+ * Kept in `external` next to the listing: the menu Google was last sent (a fingerprint), when, how
+ * many items; and a menu Google refused, so the same one isn't tried again every minute.
+ */
+interface MenuMemory {
+  menu_hash?: string; menu_sent_at?: string; menu_items?: number; menu_error?: string | null
+  menu_failed?: { hash: string; at: string }
+}
+export type GoogleMenuResult = { status: 'sent' | 'same' | 'empty' | 'paused' | 'not_connected'; items: number }
+/** After a refusal, the same menu is tried again this long after. */
+const MENU_RETRY_MS = 60 * 60_000
+
+async function fingerprint(v: unknown) {
+  const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(v)))
+  return [...new Uint8Array(bytes)].map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+/** The app's menu (what's on it, in the Menu page's order) as Google's food menu. */
+export async function appMenuForGoogle(db: SupabaseClient) {
+  const [{ data: items, error }, { data: settings }] = await Promise.all([
+    db.rpc('menu_list'), db.from('settings').select('menu_sections').eq('id', 1).maybeSingle(),
+  ])
+  if (error) throw new Error(error.message)
+  const sections = menuSections((items ?? []) as MenuItem[], { order: (settings?.menu_sections ?? []) as string[] })
+  const menu = google.toGoogleMenu({ title: 'Menu', sections }, businessConfig.currency)
+  return { menu, items: menu.sections.reduce((n, s) => n + s.items.length, 0) }
+}
+
+/**
+ * The menu onto the Google Maps listing, when it changed since it was last sent (`force`: send it
+ * anyway, the Menu page's "Send to Google Maps now"). Asked every minute, after each Square read
+ * that changed something, and on demand; Google is only called when there's something new. Google
+ * replaces the listing's menu with the app's (read first, so its cuisines and menu link stay).
+ */
+export async function pushGoogleMenu(env: Env, db: SupabaseClient, { force = false } = {}): Promise<GoogleMenuResult> {
+  const { data: row } = await db.from('integrations').select('status, external').eq('provider', 'google_business').maybeSingle()
+  if (row?.status !== 'connected') {
+    if (force) throw new Error('Connect your Google listing on the Connections page first.')
+    return { status: 'not_connected', items: 0 }
+  }
+  // Like hours: Google Maps sync is part of the plan.
+  const { data: allowed } = await db.rpc('plan_allows', { p_feature: 'google_maps' })
+  if (allowed !== true) {
+    if (force) throw new Error('Paused: your plan does not include Google Maps. Upgrade on the Billing page.')
+    return { status: 'paused', items: 0 }
+  }
+  const memory = (row.external ?? {}) as MenuMemory
+  const { menu, items } = await appMenuForGoogle(db)
+  const hash = await fingerprint(menu)
+  if (!force && memory.menu_hash === hash) return { status: 'same', items }
+  if (!force && memory.menu_failed?.hash === hash && Date.now() - Date.parse(memory.menu_failed.at) < MENU_RETRY_MS) return { status: 'same', items }
+  // Nothing priced on the menu: the listing's menu is left as it is rather than emptied.
+  if (!items) {
+    if (force) throw new Error('Nothing on the menu has a price yet, so there’s nothing Google can show.')
+    return { status: 'empty', items }
+  }
+  let s: GoogleSession | null = null
+  try {
+    s = await googleSession(env, db)
+    if (!s.location || !s.account) throw new Error('Choose which Google listing to update on the Connections page.')
+    if (!await google.canHaveFoodMenus(s.token, s.location)) {
+      throw new Error('Google doesn’t take a menu on this listing: only food and drink places can show one. Check the listing’s category on Google.')
+    }
+    const current = await google.getFoodMenus(s.token, s.account, s.location)
+    await google.updateFoodMenus(s.token, google.withAppMenu(current, menu))
+  } catch (e) {
+    const why = e instanceof Error ? e.message : String(e)
+    const ext = s?.external ?? (row.external as Record<string, unknown>) ?? {}
+    await setIntegration(db, 'google_business', { last_error: why, external: { ...ext, menu_error: why, menu_failed: { hash, at: new Date().toISOString() } } }).catch(() => {})
+    throw new Error(why)
+  }
+  const now = new Date().toISOString()
+  await setIntegration(db, 'google_business', { last_sync_at: now, last_error: null,
+    external: { ...s.external, menu_hash: hash, menu_sent_at: now, menu_items: items, menu_error: null, menu_failed: null } })
+  return { status: 'sent', items }
 }
 
 /** How long to wait for TikTok to confirm a post (tests set it to nothing). */
@@ -492,6 +570,15 @@ integrations.post('/api/integrations/google/location', async c => {
 integrations.post('/api/integrations/google/sync', async c => {
   await syncGoogle(c.env, businessDb(c.env, c.get('businessId')))
   return c.json({ ok: true })
+})
+
+// The menu onto the Google listing now (the Menu page's "Send to Google Maps now").
+integrations.post('/api/integrations/google/menu', async c => {
+  try {
+    return c.json(await pushGoogleMenu(c.env, businessDb(c.env, c.get('businessId')), { force: true }))
+  } catch (e) {
+    return c.json({ error: e instanceof Error ? e.message : String(e) }, 400)
+  }
 })
 
 integrations.get('/api/integrations/google/hours', async c => {

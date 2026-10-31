@@ -174,6 +174,14 @@ built-in **AI connector** so owners can run it by talking to Claude.
   are made with AI through **Higgsfield** (the business's own API key: Ideogram, Recraft in the brand's
   colours, Qwen for photos and changes), uploaded or linked, kept in the café's Drive or OneDrive;
   items' photos can be made with AI too. Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) section 19.
+
+  The menu on **Google Maps** follows the app's, the way opening hours do: with the listing connected
+  (Connections), what's on the menu with a price goes onto it within a minute of a change, made on the
+  Menu page or read from Square, by section with each item's description, price and the other ways
+  it's sold as options; items off the menu are left out, and photos stay as they are on Google. Google
+  replaces the listing's menu with the app's (its cuisines and menu link are kept), only listings in a
+  food and drink category take one, and it's part of the plans with Google Maps. The Menu page says
+  when it last went, why Google refused it if it did, and has **Send to Google Maps now**.
 - Screens (Menu section, admins): the café's TVs and tablets as slideshows. Each has a secret link
   opened once on the screen (no sign-in), and slides added by address: pictures, MP4 videos, YouTube,
   Vimeo, Instagram posts, web pages, live pictures reloaded each time (a webcam), and the digital

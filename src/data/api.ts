@@ -504,6 +504,8 @@ export interface Api {
   loadMenuTemplate(): Promise<{ added: number; designs: number }>
   /** Read the Square item library into the menu now (when the menu comes from Square). */
   syncMenuFromSquare(): Promise<{ added: number; changed: number; off: number; items: number }>
+  /** Send the menu to the Google Maps listing now (it also goes by itself within a minute of a change); how many items went. */
+  sendMenuToGoogle(): Promise<{ status: 'sent' | 'same' | 'empty' | 'paused' | 'not_connected'; items: number }>
   /** Keep a picture for the menu (a photo, a design) in the café's storage, Business Agent/Menu; returns its address. */
   uploadMenuPicture(file: File): Promise<string>
   // Menu designs (admins): printed (physical) and on screens (digital), each with its images.
