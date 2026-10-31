@@ -7809,7 +7809,7 @@ test('landing page: the demo video with its poster and controls, once it is swit
     await expect(video).toHaveCount(0)
     return
   }
-  await expect(page.getByRole('region', { name: 'Change it once. It’s changed everywhere.' })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Change it in one place. It’s changed everywhere.' })).toBeVisible()
   await expect(video).toHaveAttribute('poster', '/video/business-agent-demo.jpg')
   await expect(video).toHaveAttribute('src', '/video/business-agent-demo.mp4')
   await expect(video).toHaveAttribute('controls', '')

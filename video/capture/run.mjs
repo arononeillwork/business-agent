@@ -226,6 +226,28 @@ const SCENES = {
     await ctx.close()
   },
 
+  /** The Business advisor: what the takings, the team, the menu and the reviews say, and what to try. */
+  async advisor() {
+    const ctx = await desktop()
+    const page = await openDemo(ctx, { time: TIME, path: '/connections' })
+    // Off camera: the till connected, so the advice covers the takings too.
+    await page.getByRole('region', { name: 'Payments and sales' }).getByRole('button', { name: 'Connect Square' }).click()
+    await page.getByRole('region', { name: 'Payments and sales' }).getByRole('article', { name: 'Square' }).filter({ hasText: 'Connected' }).waitFor()
+    await go(page, '/advisor')
+    await page.getByRole('heading', { name: 'Business advisor' }).waitFor()
+    await page.mouse.move(1100, 300)
+    await page.waitForTimeout(2500)
+    const r = new Recorder(page, 'advisor', OUT)
+    r.mouse = { x: 1100, y: 300 }
+    await r.start()
+    await r.pause(1800)
+    await r.glide(760, 360, 1100); await r.pause(1200)
+    await r.scrollBy(520, 2600); await r.pause(1400)
+    await r.scrollBy(520, 2600); await r.pause(1600)
+    await r.stop()
+    await ctx.close()
+  },
+
   /** The café's own website: the opening hours (Sundays closed), as the app has them. */
   async webhours() {
     const ctx = await desktop()

@@ -2,12 +2,13 @@
 // ink, rose and lilac; Fraunces for headlines, Figtree for everything else.
 import { continueRender, delayRender, staticFile } from 'remotion'
 
-// The fonts are kept in public/fonts (both SIL Open Font Licence, from Google Fonts), so a render
+// The fonts are kept in public/fonts (all SIL Open Font Licence, from Google Fonts), so a render
 // needs no network. Variable fonts: one file covers every weight.
 const FACES: [string, string, FontFaceDescriptors][] = [
   ['Fraunces', 'fonts/fraunces-latin.woff2', { style: 'normal', weight: '400 600' }],
   ['Fraunces', 'fonts/fraunces-italic-latin.woff2', { style: 'italic', weight: '400 600' }],
   ['Figtree', 'fonts/figtree-latin.woff2', { style: 'normal', weight: '400 700' }],
+  ['Caveat', 'fonts/caveat-latin.woff2', { style: 'normal', weight: '500 700' }],
 ]
 if (typeof document !== 'undefined') {
   const handle = delayRender('Loading fonts')
@@ -30,6 +31,8 @@ export const BA = {
 
 export const display = '"Fraunces", Georgia, serif'
 export const text = '"Figtree", "Helvetica Neue", Arial, sans-serif'
+/** Handwriting, for the to-do lists on paper. */
+export const hand = '"Caveat", "Comic Sans MS", cursive'
 
 /** Soft glows of the three brand colours, for backgrounds. */
 export const glow = (x = '80%', y = '-160px') =>

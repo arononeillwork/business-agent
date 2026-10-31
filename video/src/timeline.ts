@@ -5,16 +5,16 @@ export const BEAT = 15
 export const BAR = 60
 
 export const SCENES = {
-  cold: { from: 0, to: 300 },        // bars 1-5: 23:47, seven places
-  turn: { from: 300, to: 420 },      // bars 6-7: "What if you changed it once?"
-  setup: { from: 420, to: 1080 },    // bars 8-18: onboarding, taken slowly
-  hours: { from: 1080, to: 1740 },   // bars 19-29: opening hours, the calendar, everywhere
-  menu: { from: 1740, to: 2220 },    // bars 30-37: the till's new price, everywhere
-  team: { from: 2220, to: 2460 },    // bars 38-41
-  close: { from: 2460, to: 2820 },   // bars 42-47
+  cold: { from: 0, to: 300 },        // bars 1-5: 18:00, everything still to do
+  turn: { from: 300, to: 420 },      // bars 6-7: "What if you changed it in one place?"
+  setup: { from: 420, to: 1260 },    // bars 8-21: onboarding, taken slowly
+  hours: { from: 1260, to: 1920 },   // bars 22-32: opening hours, the calendar, everywhere
+  menu: { from: 1920, to: 2280 },    // bars 33-38: the till's new price, everywhere
+  team: { from: 2280, to: 2880 },    // bars 39-48: the team, your day, the advisor
+  close: { from: 2880, to: 3240 },   // bars 49-54
 } as const
 
-export const TOTAL = 2820
+export const TOTAL = 3240
 
 /** Where the app's window sits: the whole page in view, under a one-line headline. */
 export const WIN = { x: 305, y: 180, w: 1310, h: 819 } as const

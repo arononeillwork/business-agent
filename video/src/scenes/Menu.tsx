@@ -1,18 +1,14 @@
-// Prices: Flat White goes up on the till (Square); the menu follows it by itself; and the new price
-// is everywhere it shows: the till, the café's TV, the website's click & collect, Google Maps.
+// Prices: Flat White goes up on the till (Square), and the new price is everywhere it shows: the
+// till, the café's TV, the website's click & collect, Google Maps.
 import type { ReactNode } from 'react'
 import { Sequence, interpolate, useCurrentFrame } from 'remotion'
 import { siSquare } from 'simple-icons'
-import { Browser, Caption, Card, Clip, Cream, Crop, Em, Logo, Phone, Sfx, Tick, Zoomed, easeOut, useEnter, type CamKey } from '../kit'
-import { META, camOn } from '../clips'
+import { Caption, Card, Clip, Cream, Crop, Em, Logo, Phone, Sfx, Tick, easeOut, useEnter } from '../kit'
 import { Arrive, MapsCard, Ring } from '../places'
 import { Till } from '../devices'
 import { BA, text } from '../theme'
-import { WIN, lengthOf, type Segment } from '../timeline'
 
-const MENU: Segment[] = [{ a: 0.6, b: 8.4, rate: 1.6 }]
-const B = 105              // the app
-const C = B + lengthOf(MENU) // everywhere
+const B = 105 // everywhere
 const clamp = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const
 
 function Arrow({ x, y, down }: { x: number; y: number; down: boolean }) {
@@ -81,15 +77,6 @@ function Label({ x, width, at, children }: { x: number; width: number; at: numbe
 const TV_K = 470 / 1141
 
 export function Menu() {
-  const frame = useCurrentFrame()
-  const m = META.menu
-  const keys: CamKey[] = [
-    { f: 0, s: 1, fx: 720, fy: 450 },
-    camOn(m, 'new-price', MENU, 1.3, 10, { x: 120, y: 0 }),
-    camOn(m, 'google', MENU, 1.2, 10),
-  ]
-  const win = useEnter(B, 200)
-  const winOut = interpolate(frame, [C - 10, C], [1, 0], clamp)
   return (
     <Cream>
       <Sequence durationInFrames={B} layout="none">
@@ -99,14 +86,7 @@ export function Menu() {
         <Sfx name="click" at={62} volume={0.28} />
         <Sfx name="ping" at={66} volume={0.15} />
       </Sequence>
-      <Sequence from={B} durationInFrames={C - B} layout="none">
-        <Caption title={<>Your menu <Em>follows it.</Em></>} at={0} out={C - B} />
-        <Browser url="businesssagent.com/menu" width={WIN.w} height={WIN.h}
-          style={{ left: WIN.x, top: WIN.y, opacity: win * winOut, translate: `0 ${interpolate(win, [0, 1], [90, 0])}px` }}>
-          <Zoomed keys={keys} w={WIN.w} h={WIN.h}><Clip src="clips/menu.mp4" segs={MENU} /></Zoomed>
-        </Browser>
-      </Sequence>
-      <Sequence from={C} layout="none">
+      <Sequence from={B} layout="none">
         <Caption title={<>One price. <Em>Everywhere it shows.</Em></>} at={0} />
         <Arrive at={4} x={60} y={290} width={600}><Till width={600} at={14} /></Arrive>
         <Arrive at={14} x={690} y={385} width={470}>
@@ -130,8 +110,7 @@ export function Menu() {
         {[4, 14, 24, 34].map(f => <Sfx key={f} name="pop" at={f} volume={0.3} />)}
         <Sfx name="click" at={24 + 1.5 * 30 / 0.9} volume={0.28} />
       </Sequence>
-      <Sfx name="whoosh" at={B - 8} volume={0.2} />
-      <Sfx name="whoosh" at={C - 10} volume={0.25} />
+      <Sfx name="whoosh" at={B - 8} volume={0.25} />
     </Cream>
   )
 }

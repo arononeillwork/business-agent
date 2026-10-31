@@ -1,4 +1,4 @@
-// The close: home at half past three, not midnight. "How much is your time worth?" Then the brand.
+// The close: home at half past three, not six. "How much is your time worth?" Then the brand.
 import { AbsoluteFill, Img, Sequence, interpolate, staticFile, useCurrentFrame } from 'remotion'
 import { Cream, Sfx, ease, useEnter } from '../kit'
 import { BA, display, text } from '../theme'
@@ -7,8 +7,8 @@ const clamp = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const
 
 function Home() {
   const frame = useCurrentFrame()
-  // 23:47 rolls back to 15:30.
-  const minutes = Math.round(interpolate(frame, [14, 62], [23 * 60 + 47, 15 * 60 + 30], { ...clamp, easing: ease }))
+  // 18:00, when the video began, rolls back to 15:30.
+  const minutes = Math.round(interpolate(frame, [14, 62], [18 * 60, 15 * 60 + 30], { ...clamp, easing: ease }))
   const hh = String(Math.floor(minutes / 60)).padStart(2, '0')
   const mm = String(minutes % 60).padStart(2, '0')
   const warm = interpolate(frame, [14, 62], [0, 1], clamp)
@@ -67,8 +67,8 @@ function Brand() {
             Business <em style={{ color: BA.roseDeep }}>Agent</em>
           </div>
         </div>
-        <div style={{ fontFamily: display, fontSize: 52, color: BA.soft, marginTop: 34, opacity: tag, translate: `0 ${interpolate(tag, [0, 1], [20, 0])}px` }}>
-          Change it once. It’s changed <em style={{ color: BA.roseDeep }}>everywhere.</em>
+        <div style={{ fontFamily: display, fontSize: 54, lineHeight: 1.2, color: BA.ink, marginTop: 38, textAlign: 'center', opacity: tag, translate: `0 ${interpolate(tag, [0, 1], [20, 0])}px` }}>
+          Your entire business in one place.<br /><em style={{ color: BA.roseDeep }}>Less admin, more enjoyment.</em>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 22, marginTop: 56, opacity: cta, translate: `0 ${interpolate(cta, [0, 1], [20, 0])}px` }}>
           <div style={{ padding: '20px 44px', borderRadius: 999, background: BA.ink, color: BA.bg, fontFamily: text, fontWeight: 600, fontSize: 34 }}>Start free</div>

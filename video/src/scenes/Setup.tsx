@@ -1,5 +1,5 @@
-// Onboarding, at a pace you can follow: a ready-made setup, each kind of business looked at, the café
-// picked, its suggested apps, five connected one after another, all set.
+// Onboarding, at a pace you can follow and shown whole: a ready-made setup, each kind of business
+// looked at, the café picked, its suggested apps, five connected one after another, all set.
 import { interpolate, useCurrentFrame } from 'remotion'
 import { Browser, Caption, Clip, Cream, Em, Sfx, Zoomed, useEnter, type CamKey } from '../kit'
 import { META, clicksOf, eventAt } from '../clips'
@@ -10,8 +10,8 @@ const SEGS: Segment[] = [
   { a: 1.0, b: 5.9, rate: 1.5 },   // "Use a ready-made setup"
   { a: 5.9, b: 18.4, rate: 1.6 },  // each kind of business: café, restaurant & bar, salon & beauty, something else
   { a: 18.4, b: 24.6, rate: 1.8 }, // the café, Next, its suggested apps
-  { a: 31.9, b: 34.4, rate: 1.6 }, // "Connect 5 apps"
-  { a: 34.4, b: 44.0, rate: 3.2 }, // Continue, Continue, Continue…
+  { a: 31.9, b: 34.4, rate: 1.2 }, // "Connect 5 apps"
+  { a: 34.4, b: 44.0, rate: 1.2 }, // each app in turn, slowly enough to follow
   { a: 44.0, b: 46.6, rate: 1.0 }, // all set
 ]
 
@@ -19,16 +19,8 @@ export function Setup() {
   const frame = useCurrentFrame()
   const m = META.setup
   const allSet = eventAt(m, 'all-set', SEGS)
-  const kinds = eventAt(m, 'kind-Café & coffee shop', SEGS)
-  const connect = eventAt(m, 'connect-all', SEGS)
-  const keys: CamKey[] = [
-    { f: 0, s: 1, fx: 720, fy: 450 },
-    // The four kinds of business, a touch closer while they're looked at.
-    { f: kinds - 14, s: 1.15, fx: 870, fy: 300 },
-    { f: eventAt(m, 'next', SEGS) + 6, s: 1, fx: 720, fy: 450 },
-    { f: connect + 10, s: 1.15, fx: 765, fy: 300 },
-    { f: allSet - 2, s: 1, fx: 720, fy: 450 },
-  ]
+  // No zoom: the guide's pages are shown whole.
+  const keys: CamKey[] = [{ f: 0, s: 1, fx: 720, fy: 450 }]
   const win = useEnter(4, 200)
   // The stopwatch: start to finish, about three minutes (the guide's own estimate), run fast.
   const secs = Math.round(interpolate(frame, [14, allSet], [0, 180], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }))

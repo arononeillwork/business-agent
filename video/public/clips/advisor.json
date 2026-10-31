@@ -1,0 +1,12 @@
+{
+  "name": "advisor",
+  "fps": 30,
+  "duration": 24.017,
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "dpr": 1.5,
+  "frames": 842,
+  "events": []
+}

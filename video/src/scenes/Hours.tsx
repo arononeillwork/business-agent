@@ -4,7 +4,7 @@
 import { Sequence, interpolate, useCurrentFrame } from 'remotion'
 import { Browser, Caption, Clip, Cream, Em, Sfx, Zoomed, useEnter, type CamKey } from '../kit'
 import { META, camOn, clicksOf, eventAt } from '../clips'
-import { Arrive, CalendarCard, MapsCard, Ring, WebsiteHoursCard } from '../places'
+import { EverywhereHours, Ring } from '../places'
 import { WIN, lengthOf, type Segment } from '../timeline'
 
 const HOURS: Segment[] = [{ a: 1.6, b: 11.0, rate: 1.8 }]
@@ -80,11 +80,9 @@ export function Hours() {
       )}
       <Sequence from={C} layout="none">
         <Caption title={<>It’s changed <Em>everywhere.</Em></>} at={0} />
-        <Arrive at={4} x={110} y={376} width={600}><MapsCard at={4} mode="hours" /></Arrive>
-        <Arrive at={16} x={750} y={250} width={1060}><WebsiteHoursCard at={16} width={1060} /></Arrive>
-        <Arrive at={28} x={750} y={612} width={1060}><CalendarCard at={28} width={1060} /></Arrive>
-        {[4, 16, 28].map(f => <Sfx key={f} name="pop" at={f} volume={0.3} />)}
-        {[14, 26, 38].map(f => <Sfx key={f} name="ping" at={f} volume={0.12} />)}
+        <EverywhereHours at={4} />
+        {[20, 30, 40].map(f => <Sfx key={f} name="pop" at={f} volume={0.3} />)}
+        {[30, 40, 50].map(f => <Sfx key={f} name="ping" at={f} volume={0.12} />)}
       </Sequence>
       {clicksOf(h, HOURS).map((f, i) => <Sfx key={`h${i}`} name="click" at={f} volume={0.28} />)}
       {clicksOf(c, CLOSURE).map((f, i) => <Sfx key={`c${i}`} name="click" at={B + f} volume={0.28} />)}

@@ -1,13 +1,13 @@
 """The landing video's music and sound effects, made from scratch (no samples, no licence needed).
 
 120 bpm, so a bar is 2 s (60 frames at 30 fps) and the video's cuts land on beats:
-  bars 1-5   (0-10 s)   23:47: a quiet clock, once a second, over a soft minor chord
-  bars 6-7   (10-14 s)  "What if you changed it once?": warm chords swell, a riser
-  bars 8-18  (14-36 s)  onboarding: the groove starts (F C Dm Bb)
-  bars 19-37 (36-74 s)  opening hours and the menu: fuller, a bell melody on top
-  bars 38-41 (74-82 s)  the team: lighter
-  bars 42-45 (82-90 s)  "Home by half past" / "How much is your time worth?": drums out, a question
-  bars 46-47 (90-95 s)  the logo: resolves home, rings out
+  bars 1-5   (0-10 s)    18:00, everything still to do: a quiet clock, once a second, over a soft minor chord
+  bars 6-7   (10-14 s)   "What if you changed it in one place?": warm chords swell, a riser
+  bars 8-21  (14-42 s)   onboarding: the groove starts (F C Dm Bb)
+  bars 22-38 (42-76 s)   opening hours and the menu: fuller, a bell melody on top
+  bars 39-48 (76-96 s)   the team, your day, the advisor: lighter
+  bars 49-52 (96-104 s)  "Home by half past" / "How much is your time worth?": drums out, a question
+  bars 53-54 (104-109 s) the logo: resolves home, rings out
 
     python3 video/music/compose.py   ->  video/public/audio/music.mp3 and sfx-*.mp3 (needs numpy, scipy, ffmpeg)
 """
@@ -20,7 +20,7 @@ SR = 44100
 BPM = 120
 BEAT = 60 / BPM
 BAR = 4 * BEAT
-LENGTH = 95.0
+LENGTH = 109.0
 OUT = os.path.join(os.path.dirname(__file__), '..', 'public', 'audio')
 rng = np.random.default_rng(7)
 
@@ -271,44 +271,46 @@ for i, x in enumerate(['E4', 'G4', 'C5']):
     music.add(bar(7) + 0.02 * i, ep(hz(x), 3.0), 0.28)
 music.add(bar(7), riser(BAR), 0.9)
 
-# Bars 8-18: onboarding. The groove.
-for n in range(8, 19):
+# Bars 8-21: onboarding. The groove.
+for n in range(8, 22):
     chord_bar(n, CYCLE[(n - 8) % 4], arp_gain=0.28)
     groove(n, full=n > 8)
 
-# Bars 19-37: opening hours and the menu. Fuller, the bell melody on top.
-for n in range(19, 38):
-    chord_bar(n, CYCLE[(n - 19) % 4], pad_gain=0.55, arp_gain=0.3, ep_on=(n % 4 == 3))
+# Bars 22-38: opening hours and the menu. Fuller, the bell melody on top.
+for n in range(22, 39):
+    chord_bar(n, CYCLE[(n - 22) % 4], pad_gain=0.55, arp_gain=0.3, ep_on=(n % 4 == 2))
     groove(n, full=True)
-for phrase, octave in ((19, 1.0), (23, 1.0), (30, 1.0), (34, 2.0)):
+for phrase, octave in ((22, 1.0), (26, 1.0), (30, 1.0), (34, 2.0)):
     for beat, note, length in MELODY:
         music.add(bar(phrase) + beat * BEAT, bell(hz(note) * octave, length * BEAT + 1.2), 0.42, pan=-0.15)
 
-# Bars 38-41: the team. Lighter.
-for n in range(38, 42):
-    chord_bar(n, CYCLE[(n - 38) % 4], pad_gain=0.5, arp_gain=0.24)
+# Bars 39-48: the team, your day, the advisor. Lighter, the melody once more, softly.
+for n in range(39, 49):
+    chord_bar(n, CYCLE[(n - 39) % 4], pad_gain=0.5, arp_gain=0.24)
     groove(n, full=False, kick_gain=0.7)
+for beat, note, length in MELODY:
+    music.add(bar(43) + beat * BEAT, bell(hz(note), length * BEAT + 1.2), 0.3, pan=-0.15)
 
-# Bars 42-43: "Home by half past." Drums out.
-chord_bar(42, 'Dm', pad_gain=0.55, arp=False, bass_on=False, ep_on=True)
-chord_bar(43, 'Bb', pad_gain=0.55, arp=False, bass_on=False, ep_on=True)
-# Bars 44-45: "How much is your time worth?" A question, left open.
-music.add(bar(44), pad([hz(x) for x in CHORDS['Csus']['pad']], 2 * BAR + 0.5, 1400), 0.42)
+# Bars 49-50: "Home by half past." Drums out.
+chord_bar(49, 'Dm', pad_gain=0.55, arp=False, bass_on=False, ep_on=True)
+chord_bar(50, 'Bb', pad_gain=0.55, arp=False, bass_on=False, ep_on=True)
+# Bars 51-52: "How much is your time worth?" A question, left open.
+music.add(bar(51), pad([hz(x) for x in CHORDS['Csus']['pad']], 2 * BAR + 0.5, 1400), 0.42)
 for i, x in enumerate(['C4', 'F4', 'G4', 'D5']):
-    music.add(bar(44) + 0.05 * i, ep(hz(x), 4.0, 0.7), 0.26)
-music.add(bar(45) + 2 * BEAT, riser(2 * BEAT), 0.35)
-# Bars 46-47: home. The logo.
-music.add(bar(46), pad([hz(x) for x in CHORDS['F']['pad']] + [hz('F4')], 2 * BAR + 1.5, 2600), 0.6)
+    music.add(bar(51) + 0.05 * i, ep(hz(x), 4.0, 0.7), 0.26)
+music.add(bar(52) + 2 * BEAT, riser(2 * BEAT), 0.35)
+# Bars 53-54: home. The logo.
+music.add(bar(53), pad([hz(x) for x in CHORDS['F']['pad']] + [hz('F4')], 2 * BAR + 1.5, 2600), 0.6)
 for i, x in enumerate(['F3', 'C4', 'F4', 'A4', 'C5']):
-    music.add(bar(46) + 0.03 * i, ep(hz(x), 6.0), 0.3)
-music.add(bar(46), bass(hz('F2'), 2.5), 0.9)
-drums.add(bar(46), kick(), 0.8)
+    music.add(bar(53) + 0.03 * i, ep(hz(x), 6.0), 0.3)
+music.add(bar(53), bass(hz('F2'), 2.5), 0.9)
+drums.add(bar(53), kick(), 0.8)
 for i, n in enumerate(['C5', 'A4', 'F4', 'C5', 'F5']):
-    music.add(bar(46) + (0.5 + i * 0.5) * BEAT, bell(hz(n), 2.5), 0.32, pan=0.15)
+    music.add(bar(53) + (0.5 + i * 0.5) * BEAT, bell(hz(n), 2.5), 0.32, pan=0.15)
 
 # Mix: the drums push the chords a little (side-chain), a room around everything but the kick.
 kick_env = np.zeros(len(drums.buf))
-for n in list(range(8, 42)):
+for n in list(range(8, 49)):
     for b in (0, 2):
         i = int((bar(n) + b * BEAT) * SR)
         m = int(0.35 * SR)

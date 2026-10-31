@@ -1,7 +1,7 @@
 // What the café's change looks like where customers see it: its Google Maps listing (hours, or the
 // menu), its own website, and the team's calendar. Shown as cards that tick "Updated".
 import type { ReactNode } from 'react'
-import { interpolate, useCurrentFrame } from 'remotion'
+import { Img, interpolate, staticFile, useCurrentFrame } from 'remotion'
 import { siGooglemaps } from 'simple-icons'
 import { Card, Crop, Logo, Tick, useEnter } from './kit'
 import { BA, text } from './theme'
@@ -48,12 +48,11 @@ const Row = ({ left, right, at }: { left: ReactNode; right: ReactNode; at?: numb
   </div>
 )
 
-/** The café on Google Maps: its hours, or its menu. */
-export function MapsCard({ at, mode, head = true }: { at: number; mode: 'hours' | 'menu'; head?: boolean }) {
+/** What the café's Google Maps listing shows: its hours, or its menu. */
+export function MapsBody({ at, mode, pad = 0 }: { at: number; mode: 'hours' | 'menu'; pad?: number }) {
   return (
-    <Card>
-      {head && <Head icon={<Logo icon={siGooglemaps} size={30} />} name="Google Maps" at={at + 10} />}
-      <div style={{ padding: head ? '0 24px 14px' : '22px 24px 14px' }}>
+    <>
+      <div style={{ padding: `${pad}px 24px 14px` }}>
         <div style={{ fontFamily: text, fontWeight: 600, fontSize: 30, color: BA.ink }}>Easy Beans Coffee</div>
         <div style={{ fontFamily: text, fontSize: 20, color: BA.faint, marginTop: 4 }}>
           4.6 <span style={{ color: '#F4B400' }}>★★★★★</span> (25)
@@ -69,7 +68,7 @@ export function MapsCard({ at, mode, head = true }: { at: number; mode: 'hours' 
         <>
           <Row left="Monday – Saturday" right="09:00–15:00" />
           <Row left="Sunday" right="Closed" at={at + 16} />
-          <Row left="24–26 December" right="Closed · Christmas" at={at + 22} />
+          <Row left="24–26 December" right="Closed" at={at + 22} />
         </>
       ) : (
         <>
@@ -80,7 +79,98 @@ export function MapsCard({ at, mode, head = true }: { at: number; mode: 'hours' 
         </>
       )}
       <div style={{ height: 10 }} />
+    </>
+  )
+}
+
+/** The café on Google Maps, as a card. */
+export function MapsCard({ at, mode, head = true }: { at: number; mode: 'hours' | 'menu'; head?: boolean }) {
+  return (
+    <Card>
+      {head && <Head icon={<Logo icon={siGooglemaps} size={30} />} name="Google Maps" at={at + 10} />}
+      <MapsBody at={at} mode={mode} pad={head ? 0 : 22} />
     </Card>
+  )
+}
+
+/**
+ * "It's changed everywhere", for the opening hours: the change at the top, lines drawn from it to
+ * three cards of the same size (Google Maps, the café's website, the team's calendar), each ticking
+ * "Updated" with what changed marked.
+ */
+export function EverywhereHours({ at = 0 }: { at?: number }) {
+  const frame = useCurrentFrame()
+  const pill = useEnter(at, 200)
+  const CARDS = [
+    { x: 200, icon: <Logo icon={siGooglemaps} size={30} />, name: 'Google Maps', body: (a: number) => <MapsBody at={a} mode="hours" /> },
+    { x: 720, icon: <Globe />, name: 'Your website', body: (a: number) => <WebsiteHours at={a} /> },
+    { x: 1240, icon: <CalendarGlyph />, name: 'Team calendar', body: (a: number) => <ChristmasDays at={a} /> },
+  ]
+  return (
+    <>
+      <div style={{ position: 'absolute', left: 960, top: 196, translate: '-50% 0', display: 'flex', alignItems: 'center', gap: 16, padding: '14px 26px 14px 16px',
+        borderRadius: 999, background: '#fff', boxShadow: '0 16px 40px rgba(60,40,30,0.12), 0 0 0 1px rgba(43,37,34,0.06)', fontFamily: text,
+        opacity: pill, scale: String(interpolate(pill, [0, 1], [0.9, 1])) }}>
+        <Img src={staticFile('brand/icon.png')} style={{ width: 44, height: 44, borderRadius: 13, background: '#fff', padding: 4, border: `1px solid ${BA.line}` }} />
+        <span style={{ fontWeight: 600, fontSize: 28, color: BA.ink }}>Opening hours</span>
+        {['Sundays: closed', '24–26 Dec: closed'].map(c => (
+          <span key={c} style={{ padding: '6px 16px', borderRadius: 999, background: BA.roseSoft, color: BA.roseDeep, fontWeight: 600, fontSize: 23 }}>{c}</span>
+        ))}
+      </div>
+      <svg style={{ position: 'absolute', left: 0, top: 0, overflow: 'visible' }} width={1920} height={1080}>
+        {CARDS.map((c, i) => {
+          const x2 = c.x + 240
+          const d = `M 960 268 C 960 320, ${x2} 300, ${x2} 368`
+          const p = interpolate(frame, [at + 8 + i * 6, at + 26 + i * 6], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })
+          return <path key={i} d={d} fill="none" stroke={BA.rose} strokeWidth={3} strokeLinecap="round" strokeDasharray="700" strokeDashoffset={700 * (1 - p)} />
+        })}
+      </svg>
+      {CARDS.map((c, i) => {
+        const a = at + 16 + i * 10
+        return (
+          <Arrive key={c.name} at={a} x={c.x} y={372} width={480}>
+            <Card style={{ height: 460, display: 'flex', flexDirection: 'column' }}>
+              <Head icon={c.icon} name={c.name} at={a + 10} />
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', borderTop: `1px solid ${BA.lineSoft}` }}>{c.body(a)}</div>
+            </Card>
+          </Arrive>
+        )
+      })}
+    </>
+  )
+}
+
+/** The café's own website (easybeanscoffee.com): the opening hours in its footer, as it is live. */
+function WebsiteHours({ at }: { at: number }) {
+  const w = 432
+  const k = w / 530
+  return (
+    <div style={{ margin: '0 24px', borderRadius: 16, overflow: 'hidden', background: '#F4ECE7', boxShadow: 'inset 0 0 0 1px rgba(43,37,34,0.06)' }}>
+      <div style={{ height: 30, display: 'flex', alignItems: 'center', gap: 6, padding: '0 12px', background: '#EDE3DC' }}>
+        {['#F2766B', '#F4BF4F', '#61C554'].map(c => <div key={c} style={{ width: 9, height: 9, borderRadius: 5, background: c }} />)}
+      </div>
+      <div style={{ position: 'relative', padding: '18px 0' }}>
+        <Crop src="stills/web-hours.png" x={370} y={805} w={530} h={170} width={w} />
+        <Ring at={at + 16} x={(398 - 370) * k} y={18 + (916 - 805) * k} w={232 * k} h={44 * k} />
+      </div>
+    </div>
+  )
+}
+
+/** The team's calendar for Christmas: the three days closed, the bank holiday on Friday. */
+function ChristmasDays({ at }: { at: number }) {
+  const days: [string, number, boolean][] = [['Thu', 24, false], ['Fri', 25, true], ['Sat', 26, false]]
+  return (
+    <div style={{ margin: '0 24px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', borderRadius: 16, overflow: 'hidden', boxShadow: 'inset 0 0 0 1px rgba(43,37,34,0.08)' }}>
+      {days.map(([day, n, holiday], i) => (
+        <div key={n} style={{ padding: '14px 12px 18px', borderLeft: i ? `1px solid ${BA.lineSoft}` : 'none', minHeight: 190, fontFamily: text }}>
+          <div style={{ fontSize: 20, color: BA.faint }}>{day}</div>
+          <div style={{ fontSize: 40, fontWeight: 600, color: BA.ink, marginTop: 2 }}>{n}</div>
+          <div style={{ marginTop: 12 }}><Mark at={at + 16 + i * 3}><span style={{ display: 'inline-block', padding: '5px 12px', borderRadius: 999, background: '#37474F', color: '#fff', fontWeight: 600, fontSize: 19 }}>Closed</span></Mark></div>
+          {holiday && <div style={{ marginTop: 8, display: 'inline-block', padding: '5px 10px', borderRadius: 999, background: '#C62828', color: '#fff', fontWeight: 600, fontSize: 16, whiteSpace: 'nowrap' }}>Bank holiday</div>}
+        </div>
+      ))}
+    </div>
   )
 }
 

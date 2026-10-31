@@ -454,7 +454,7 @@ A single-file clickable demo (sample data, no backend) builds with
 
 The landing page's demo video (`public/video/business-agent-demo.mp4`) is made in `video/`:
 the app recorded in demo mode and the café's own website, put together with Remotion over music
-written in code. `video/README.md` says how to make it again; it shows once `FEATURES.demoVideo` is on.
+written in code. `video/README.md` says how to make it again; it shows while `FEATURES.demoVideo` is on.
 
 ## Deploy (Cloudflare)
 
