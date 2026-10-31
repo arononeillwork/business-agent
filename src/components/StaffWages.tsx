@@ -10,6 +10,7 @@ import { useRotaMonth } from '../app/dailyCost'
 import { useAction } from '../app/Notify'
 import { Loading, PersonAvatar, Stat, StatRow } from './common'
 import { addDays, currencySymbol, formatDuration, formatLocal, formatMoney, today, weekStart } from '../../shared/time'
+import { isOwner as owner, ownersPayOff } from '../../shared/dailyCost'
 import type { Expense } from '../../shared/types'
 import { tokens } from '../theme'
 import { t, tn } from '../i18n'
@@ -35,29 +36,59 @@ export function WagesHint({ amount }: { amount: number }) {
 }
 
 /**
+ * Owner pay: whether the owners' rota hours are wages. Off, an owner's hours cost nothing on the Rota,
+ * Staff wages and Profit & loss (their rate stays set, and breakeven still counts it), and their pay
+ * this month comes off Finances' monthly costs. Shown at once while it saves; back as it was if saving
+ * fails. Only an owner changes it (the database says so too).
+ */
+export function useOwnerPay() {
+  const { api, refresh, settings } = useApp()
+  const run = useAction()
+  const saved = settings?.owner_pay !== false
+  const [pending, setPending] = useState<boolean | null>(null)
+  useEffect(() => setPending(null), [saved])
+  const set = async (on: boolean) => {
+    setPending(on)
+    const ok = await run(async () => { await api.updateSettings({ owner_pay: on }); await refresh() },
+      on ? t('Owners are paid for their hours on the rota') : t('Owners’ hours on the rota aren’t wages now (breakeven still counts them)'))
+    if (!ok) setPending(null)
+  }
+  return [pending ?? saved, set] as const
+}
+
+/** The Owner pay switch, with what it does when `explain` (Staff wages) or as a short label (Finances' Monthly expenses). */
+export function OwnerPaySwitch({ disabled, explain }: { disabled?: boolean; explain?: boolean }) {
+  const [ownerPay, setOwnerPay] = useOwnerPay()
+  return (
+    <FormControlLabel sx={explain ? { mt: 1.5 } : { mr: 0.5, '& .MuiFormControlLabel-label': { whiteSpace: 'nowrap' } }} disabled={disabled}
+      control={<Switch size={explain ? 'medium' : 'small'} checked={ownerPay} onChange={e => void setOwnerPay(e.target.checked)} slotProps={{ input: { 'aria-label': t('Owner pay') } }} />}
+      label={explain ? <Box>
+        <Typography variant="body2" sx={{ fontWeight: 500 }}>{t('Owner pay')}</Typography>
+        <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>
+          {ownerPay ? t('Owners on the rota are paid their rate, here, on the Rota and in Profit & loss.')
+            : t('Owners’ hours on the rota aren’t counted as wages here, on the Rota or in Profit & loss, and their pay comes off the monthly costs.')}
+          {' '}{t('Breakeven always counts them at their rate.')}
+        </Typography>
+      </Box> : <Typography variant="body2" sx={{ fontWeight: 500 }}>{t('Owner pay')}</Typography>} />
+  )
+}
+
+/**
  * Staff wages, opened from Finances: the rota's hours for the month, each person's pay rate and what
  * they cost (with the employer's Social Security), the week that costs most, and the estimate on
  * Finances set to the rota's figure in one press. A missing pay rate is typed in here.
  */
 export function StaffWagesDialog({ expense, canEdit, onClose }: { expense: Expense; canEdit: boolean; onClose: () => void }) {
   const { api, profiles, refresh, settings, rates } = useApp()
-  // Owner pay: whether the owners' rota hours are wages. Off, an owner's hours cost nothing here (their
-  // rate stays set, and breakeven still counts it).
-  const saved = settings?.owner_pay !== false
-  // Shown at once while it saves; back as it was if saving fails.
-  const [pending, setPending] = useState<boolean | null>(null)
-  useEffect(() => setPending(null), [saved])
-  const ownerPay = pending ?? saved
-  const isOwner = (id: string) => { const p = profiles.find(x => x.id === id); return !!p && p.role === 'admin' && p.can_see_pay }
-  const setOwnerPay = async (on: boolean) => {
-    setPending(on)
-    const ok = await run(async () => { await api.updateSettings({ owner_pay: on }); await refresh() },
-      on ? t('Owners are paid for their hours on the rota') : t('Owners’ hours on the rota aren’t wages now (breakeven still counts them)'))
-    if (!ok) setPending(null)
-  }
+  const [ownerPay] = useOwnerPay()
+  const isOwner = (id: string) => { const p = profiles.find(x => x.id === id); return !!p && owner(p) }
   const run = useAction()
   const [month, setMonth] = useState(monthOf(today()))
-  const { month: rota, error } = useRotaMonth(month)
+  const { month: rota, owners, error } = useRotaMonth(month)
+  // The line holds the whole team's pay, owners included; with owner pay off, Finances counts it less the
+  // owners' pay, and the rota's figure goes onto it with the owners' pay added back.
+  const amount = Number(expense.amount)
+  const off = ownersPayOff(ownerPay, owners, amount)
   const mult = settings?.employer_cost_multiplier ?? 1
   const person = (id: string) => profiles.find(p => p.id === id)
   const setRate = (id: string, value: string) => {
@@ -66,7 +97,7 @@ export function StaffWagesDialog({ expense, canEdit, onClose }: { expense: Expen
     void run(async () => { await api.setPayRate(id, v); await refresh() }, t('Pay rate saved'))
   }
   const useRota = () => run(async () => {
-    await api.saveExpense({ ...expense, amount: Math.round(rota!.cost * 100) / 100 })
+    await api.saveExpense({ ...expense, amount: Math.round((rota!.cost + (ownerPay ? 0 : owners)) * 100) / 100 })
     await refresh()
     onClose()
   }, t('Staff wages set to {amount} from the rota', { amount: formatMoney(rota!.cost) }))
@@ -83,7 +114,7 @@ export function StaffWagesDialog({ expense, canEdit, onClose }: { expense: Expen
   const weekRows = [...weeks.entries()].filter(([, w]) => w.hours > 0)
   const top = weekRows.reduce<string | null>((best, [w, v]) => (!best || v.cost > weeks.get(best)!.cost ? w : best), null)
   const busiest = (rota?.days ?? []).reduce<{ date: string; minutes: number; cost: number } | null>((b, d) => (!b || d.cost > b.cost || (d.cost === b.cost && d.minutes > b.minutes) ? d : b), null)
-  const diff = rota ? rota.cost - Number(expense.amount) : 0
+  const diff = rota ? rota.cost - (amount - off) : 0
 
   return (
     <Dialog open onClose={onClose} maxWidth="md" fullWidth aria-labelledby="staff-wages-title">
@@ -101,20 +132,11 @@ export function StaffWagesDialog({ expense, canEdit, onClose }: { expense: Expen
             <Stat label={t('Hours on the rota')} value={formatDuration(Math.round(rota.hours * 60))} />
             <Stat label={t('From the rota')} value={rota.complete ? formatMoney(rota.cost) : '–'}
               note={rota.complete ? (mult !== 1 ? t('incl. ×{mult} employer cost', { mult }) : undefined) : t('needs every pay rate')} tone={rota.complete ? 'good' : 'warning'} />
-            <Stat label={t('On Finances')} value={formatMoney(Number(expense.amount))}
+            <Stat label={t('On Finances')} value={formatMoney(amount - off)}
               note={rota.complete && Math.abs(diff) >= 1 ? (diff > 0 ? t('{amount} under the rota', { amount: formatMoney(diff) }) : t('{amount} over the rota', { amount: formatMoney(-diff) })) : undefined}
               tone={rota.complete && Math.abs(diff) >= 1 ? 'warning' : undefined} />
           </StatRow>
-          <FormControlLabel sx={{ mt: 1.5 }} disabled={!canEdit}
-            control={<Switch checked={ownerPay} onChange={e => void setOwnerPay(e.target.checked)} slotProps={{ input: { 'aria-label': t('Owner pay') } }} />}
-            label={<Box>
-              <Typography variant="body2" sx={{ fontWeight: 500 }}>{t('Owner pay')}</Typography>
-              <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>
-                {ownerPay ? t('Owners on the rota are paid their rate, here, on the Rota and in Profit & loss.')
-                  : t('Owners’ hours on the rota aren’t counted as wages here, on the Rota or in Profit & loss.')}
-                {' '}{t('Breakeven always counts them at their rate.')}
-              </Typography>
-            </Box>} />
+          <OwnerPaySwitch disabled={!canEdit} explain />
           {rota.unpriced.length > 0 && (
             <Alert severity="warning" sx={{ my: 2 }}>
               {canEdit

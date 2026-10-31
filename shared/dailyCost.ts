@@ -15,8 +15,21 @@ import { addDays, localDate } from './time'
 export function payrollRates(rates: Map<string, number>, people: { id: string; role: string; can_see_pay: boolean }[], ownerPay: boolean) {
   if (ownerPay) return rates
   const out = new Map(rates)
-  for (const p of people) if (p.role === 'admin' && p.can_see_pay) out.set(p.id, 0)
+  for (const p of people) if (isOwner(p)) out.set(p.id, 0)
   return out
+}
+
+/** The owners: admins with pay access (whose pay owner pay turns on and off). */
+export const isOwner = (p: { role: string; can_see_pay: boolean }) => p.role === 'admin' && p.can_see_pay
+
+/**
+ * What owner pay off takes off the month's running costs on Finances: the owners' pay for their hours on
+ * the month's rota (`owners`, at their rates), no more than the counted wages line holds. The Staff
+ * wages line holds the whole team's pay, owners included; with owner pay on, nothing comes off.
+ */
+export function ownersPayOff(ownerPay: boolean, owners: number, wages: number) {
+  if (ownerPay) return 0
+  return Math.round(Math.min(Math.max(0, owners), Math.max(0, wages)) * 100) / 100
 }
 
 /** The usual open days in a month when the opening hours don't say (six days a week). */

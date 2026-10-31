@@ -4,7 +4,7 @@
 import { useMemo } from 'react'
 import { useApp } from './AppContext'
 import { useAsync } from './hooks'
-import { dailyCosts, payrollRates, rotaMonth } from '../../shared/dailyCost'
+import { dailyCosts, isOwner, payrollRates, rotaMonth } from '../../shared/dailyCost'
 import { addDays, zonedIso } from '../../shared/time'
 
 /**
@@ -35,13 +35,22 @@ export function useDailyCosts(from: string, to: string, on = true) {
   return { costs, error: data.error, reload: data.reload }
 }
 
-/** The month's rota (YYYY-MM): hours and cost per person, for Finances' Staff wages. */
+/**
+ * The month's rota (YYYY-MM): hours and cost per person, for Finances' Staff wages; and `owners`, what the
+ * owners' hours on it cost at their rates, owner pay on or off (what owner pay off takes off Finances).
+ */
 export function useRotaMonth(month: string, on = true) {
-  const { api, canSeePay, isPartner, settings } = useApp()
+  const { api, canSeePay, isPartner, settings, rates: allRates, profiles } = useApp()
   const rates = usePayRates()
   const enabled = on && canSeePay && !isPartner
   const first = `${month}-01`
   const next = addDays(`${month}-28`, 4).slice(0, 7)
   const data = useAsync('rota-month', () => (enabled ? api.shifts(zonedIso(first, '00:00'), zonedIso(`${next}-01`, '00:00')) : Promise.resolve(null)), [enabled, month])
-  return { month: data.data ? rotaMonth(month, { shifts: data.data, rates, multiplier: settings?.employer_cost_multiplier ?? 1 }) : null, error: data.error }
+  const multiplier = settings?.employer_cost_multiplier ?? 1
+  const owners = useMemo(() => {
+    if (!data.data) return 0
+    const ids = new Set(profiles.filter(isOwner).map(p => p.id))
+    return rotaMonth(month, { shifts: data.data, rates: allRates, multiplier }).people.filter(p => ids.has(p.id)).reduce((s, p) => s + p.cost, 0)
+  }, [data.data, month, allRates, multiplier, profiles])
+  return { month: data.data ? rotaMonth(month, { shifts: data.data, rates, multiplier }) : null, owners, error: data.error }
 }
