@@ -6789,7 +6789,7 @@ test.describe('UI round: dashboards, the business advisor and the landing pages'
     await expect(page.getByText('Easy Beans')).toHaveCount(0)
     // The site menu has no Everything or Compare, and /compare is gone: it's the landing page.
     await expect(page.getByRole('navigation', { name: 'Site' }).getByRole('link'))
-      .toHaveText([...FEATURES.demoVideo ? ['Demo'] : [], 'Features', 'Pricing', 'Enterprise', 'FAQ'])
+      .toHaveText([...FEATURES.demoVideo || FEATURES.dayVideo || FEATURES.ownerVideo ? ['Demos'] : [], 'Features', 'Pricing', 'Enterprise', 'FAQ'])
     await expect(page.getByText(/GoHighLevel/)).toHaveCount(0)
     await page.goto('/compare?demo')
     await expect(page.getByRole('heading', { level: 1, name: /runs your business/ })).toBeVisible()
@@ -8021,17 +8021,6 @@ test('landing page: the demo video with its poster and controls, once it is swit
   await page.getByRole('link', { name: 'View a demo' }).click()
   await expect(video).toBeInViewport({ ratio: 1 })
   await expect.poll(() => video.evaluate((v: HTMLVideoElement) => !v.paused && !v.muted)).toBe(true)
-  // Demo in the site menu does the same from the top of the page, and from another page opens the landing page at it.
-  await video.evaluate((v: HTMLVideoElement) => { v.pause(); window.scrollTo(0, 0) })
-  const menu = page.getByRole('navigation', { name: 'Site' })
-  await menu.getByRole('link', { name: 'Demo' }).click()
-  await expect(video).toBeInViewport({ ratio: 1 })
-  await expect.poll(() => video.evaluate((v: HTMLVideoElement) => !v.paused)).toBe(true)
-  await page.goto('/pricing?demo')
-  await menu.getByRole('link', { name: 'Demo' }).click()
-  await expect(page).toHaveURL(/\/#demo$/)
-  await expect(video).toBeInViewport()
-
   // Its own bar along the bottom: the slider goes to any moment in it, and the sound and play buttons work.
   const demo = page.locator('#demo')
   const slider = demo.getByRole('slider', { name: 'Position in the video' })
@@ -8176,6 +8165,13 @@ test('demos page: every video, the landing page’s two too; a card plays its ow
   await expect(page.getByRole('heading', { name: 'See it from every side.', level: 1 })).toBeVisible()
   await expect(page).toHaveTitle('Demos · Business Agent')
   const shown = [FEATURES.demoVideo, FEATURES.dayVideo, FEATURES.ownerVideo].filter(Boolean).length
+  // Demos in the site menu opens it too, from any page.
+  if (shown > 0) {
+    await page.goto('/pricing?demo')
+    await page.getByRole('navigation', { name: 'Site' }).getByRole('link', { name: 'Demos' }).click()
+    await expect(page).toHaveURL(/\/demos$/)
+    await expect(page.getByRole('heading', { name: 'See it from every side.', level: 1 })).toBeVisible()
+  }
   const films = page.getByRole('list', { name: 'The films' })
   await expect(films.getByRole('listitem')).toHaveCount(shown)
   // Each in its own section with the landing page's player; no link back to itself.

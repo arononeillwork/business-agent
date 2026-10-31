@@ -479,8 +479,8 @@ written in code. `video/README.md` says how to make it again; it shows while `FE
 The **Demos page** (`/demos`, `src/pages/DemosPage.tsx`) has every video, each a different way of seeing the
 app: the demo and a day in the life (also on the landing page), and "Run your café from one place", an
 owner's morning from Today and the advisor (`public/video/run-your-cafe.mp4`, `FEATURES.ownerVideo`). A new
-video goes on the Demos page only: add it to `DEMOS` in `src/pages/marketing/DemoVideo.tsx`. The footer and
-the end of the landing page's videos link to it.
+video goes on the Demos page only: add it to `DEMOS` in `src/pages/marketing/DemoVideo.tsx`. **Demos** in the
+site menu, the footer and the end of the landing page's videos link to it.
 
 ## Deploy (Cloudflare)
 
