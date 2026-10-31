@@ -2,7 +2,8 @@
 // point is called, how it's earned, what it buys) is set up in the Square Dashboard; earning and
 // redeeming happen at the till. A programme that gives points per visit is the café's stamp card:
 // one stamp a visit, the reward at the first tier ("Buy 9, the 10th is free").
-// Gift cards: only the last 4 digits of a card number ever leave the Worker.
+// Gift cards: lists carry only the last 4 digits of a card number. An admin's "Copy number" asks the
+// Worker for one card's whole number at a time, read from Square then and never kept.
 import { msg } from './i18n'
 
 export interface LoyaltyTier { id: string; name: string; points: number }
@@ -56,6 +57,10 @@ export interface GiftCard {
   created_at: string
   customer_id: string | null
   customer: string | null
+  /** What it was first loaded with (its activation), when Square still lists that. */
+  original: number | null
+  /** When it was last spent with at the till, when known. */
+  last_used: string | null
 }
 export type GiftCardActivityKind = 'activate' | 'load' | 'redeem' | 'clear' | 'other'
 export interface GiftCardActivity { id: string; kind: GiftCardActivityKind; amount: number; at: string; last4: string; balance: number | null }
@@ -112,14 +117,48 @@ export function loyaltyByDay(events: LoyaltyEvent[], from: string, to: string) {
   return days
 }
 
-/** Gift cards: how many are live, what's still owed on them (a liability), and what was sold this month. */
+/**
+ * Where a gift card stands for whoever wants to use it: it can be spent (active, money left), it's
+ * used up (active, spent down to nothing; a top-up brings it back), it's not activated yet (a physical
+ * card not sold yet), or it's switched off (deactivated or blocked in Square).
+ */
+export type GiftCardStatus = 'available' | 'used_up' | 'not_activated' | 'deactivated'
+export const GIFT_CARD_STATUSES: GiftCardStatus[] = ['available', 'used_up', 'not_activated', 'deactivated']
+export function giftCardStatus(c: Pick<GiftCard, 'state' | 'balance'>): GiftCardStatus {
+  if (c.state === 'PENDING') return 'not_activated'
+  if (c.state !== 'ACTIVE') return 'deactivated'
+  return c.balance > 0 ? 'available' : 'used_up'
+}
+
+/** A card the search finds: some of its last 4 digits typed, or a whole number (spaces and all) ending in them. */
+export function giftCardMatches(c: Pick<GiftCard, 'last4'>, query: string) {
+  const digits = query.replace(/\D/g, '')
+  if (!digits) return !query.trim()
+  return digits.length > 4 ? digits.endsWith(c.last4) : c.last4.includes(digits)
+}
+
+export type GiftCardSort = 'balance' | 'newest' | 'last_used'
+/** Most money left first, newest first, or most lately used first (never used last). */
+export function sortGiftCards<C extends Pick<GiftCard, 'balance' | 'created_at' | 'last_used'>>(cards: C[], by: GiftCardSort): C[] {
+  const newest = (a: C, b: C) => b.created_at.localeCompare(a.created_at)
+  return [...cards].sort((a, b) => by === 'balance' ? b.balance - a.balance || newest(a, b)
+    : by === 'last_used' ? (b.last_used ?? '').localeCompare(a.last_used ?? '') || newest(a, b)
+      : newest(a, b))
+}
+
+/**
+ * Gift cards: how many are live and how many can be spent, what's still owed on them (a liability),
+ * what was sold this month, and how many were spent down to nothing this month.
+ */
 export function giftCardTotals(g: GiftCards, month: string) {
   const live = g.cards.filter(c => c.state === 'ACTIVE')
   const sold = g.activities.filter(a => (a.kind === 'activate' || a.kind === 'load') && a.at.slice(0, 7) === month)
   return {
     active: live.length,
+    available: g.cards.filter(c => giftCardStatus(c) === 'available').length,
     outstanding: Math.round(live.reduce((n, c) => n + c.balance, 0) * 100) / 100,
     sold_this_month: Math.round(sold.reduce((n, a) => n + a.amount, 0) * 100) / 100,
+    used_up_this_month: g.cards.filter(c => giftCardStatus(c) === 'used_up' && c.last_used?.slice(0, 7) === month).length,
   }
 }
 

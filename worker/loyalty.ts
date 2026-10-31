@@ -109,20 +109,37 @@ loyaltyRoutes.post('/api/loyalty/adjust', async c => {
   }
 })
 
-// Gift cards (the last 4 digits of each number only) and what happened to them in the range.
+// Gift cards (the last 4 digits of each number only), each with the amount it was first loaded with
+// and when it was last spent with, and what happened to them in the range.
 loyaltyRoutes.get('/api/giftcards', async c => {
   const db = await requestDb(c)
   try {
     const { fromIso, toIso } = range(k => c.req.query(k))
-    const { data, fetched_at } = await cached(db, `giftcards:${fromIso}:${toIso}`, MINUTES.loyalty, async (): Promise<GiftCards> => {
+    const { data, fetched_at } = await cached(db, `giftcards:book:${fromIso}:${toIso}`, MINUTES.loyalty, async (): Promise<GiftCards> => {
       const s = await squareSession(c.env, db)
-      const [{ currency, cards }, activities] = await Promise.all([loyalty.giftCards(s.sandbox, s.token), loyalty.giftCardActivities(s.sandbox, s.token, fromIso, toIso)])
+      const { currency, cards, activities } = await loyalty.giftCardBook(s.sandbox, s.token, fromIso, toIso)
       const who = await names(db, cards.map(g => g.customer_id).filter((x): x is string => !!x))
       return { status: 'ok', currency, cards: cards.map(g => ({ ...g, customer: (g.customer_id && who.get(g.customer_id)) || null })), activities }
     })
     return c.json({ ...data, fetched_at } satisfies GiftCards)
   } catch (e) {
     if (missingScope(e)) return c.json({ status: 'reconnect', currency: 'EUR', cards: [], activities: [] } satisfies GiftCards)
+    return c.json({ error: await failure(db, e) }, 400)
+  }
+})
+
+// One gift card's whole number, for "Copy number" on the Gift cards tab (a giveaway, a refund):
+// asked of Square each time and never kept, so lists and provider_cache only ever hold the last 4 digits.
+loyaltyRoutes.get('/api/giftcards/:id/number', async c => {
+  const db = await requestDb(c)
+  try {
+    const id = c.req.param('id')
+    if (!/^[\w:-]{1,100}$/.test(id)) throw new LoyaltyError('Choose a gift card from the list')
+    const s = await squareSession(c.env, db)
+    const number = await loyalty.giftCardNumber(s.sandbox, s.token, id)
+    if (!number) throw new LoyaltyError('Square didn’t give this card’s number: look it up in the Square Dashboard.')
+    return c.json({ number }, 200, { 'cache-control': 'no-store' })
+  } catch (e) {
     return c.json({ error: await failure(db, e) }, 400)
   }
 })

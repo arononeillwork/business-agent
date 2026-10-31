@@ -416,6 +416,15 @@ every minute in each person's language (`worker/push.ts`, `shared/pushText.ts`, 
 Admins are reminded about each public holiday on the calendar a week ahead and again the day before,
 at 09:00 (on for every business; Notifications → Bank holiday reminders sets how far ahead, which kinds, and leaves any one out).
 
+## Gift cards
+
+Loyalty & gift cards has two tabs: **Loyalty** (the stamp card and its members) and **Gift cards**
+(`/loyalty?tab=gift-cards`). Gift cards lists every Square gift card with its last 4 digits, state,
+balance left, the amount first loaded, when it was issued and last used, and whose it is; it opens on
+the ones that can be spent, with what's still owed on them (a liability) at the top. **Copy number**
+asks Square for that one card's whole number when pressed (`GET /api/giftcards/:id/number`); lists
+and `provider_cache` only ever hold the last 4 digits (`worker/loyalty.ts`, `worker/providers/squareLoyalty.ts`).
+
 ## Use it from any AI
 
 The app is an MCP server at `https://<worker-url>/mcp`. Each person connects their own AI and it

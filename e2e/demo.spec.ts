@@ -3952,8 +3952,9 @@ test.describe('loyalty and gift cards', () => {
 
   test('gift cards show only their last 4 digits; selling one asks for confirmation first', async ({ page }) => {
     await openLoyalty(page)
+    await page.getByRole('tab', { name: 'Gift cards' }).click()
     const cards = page.getByRole('table', { name: 'Gift cards' })
-    await expect(cards.getByRole('row')).toHaveCount(9) // the heading row and 8 cards
+    await expect(cards.getByRole('row')).toHaveCount(8) // the heading row and the 7 cards that can be spent
     await expect(cards).toContainText('•••• ')
     await page.getByRole('button', { name: 'Sell a gift card' }).click()
     const dialog = page.getByRole('dialog', { name: 'Sell a digital gift card' })
@@ -3966,7 +3967,7 @@ test.describe('loyalty and gift cards', () => {
     await expect(confirm).toContainText('active straight away')
     await confirm.getByRole('button', { name: /^Sell for/ }).click()
     await toast(page, /Gift card for .*30.* is active/)
-    await expect(cards.getByRole('row')).toHaveCount(10)
+    await expect(cards.getByRole('row')).toHaveCount(9)
   })
 
   test('the menu item goes once Square is disconnected', async ({ page }) => {
@@ -6986,4 +6987,56 @@ test('the assistant: a button at the bottom right opens a chat; Ctrl K opens sea
   await signInAs(page, 'maria@example.com')
   await expect(page.getByRole('heading', { name: /Hola/ })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Ask the assistant' })).toHaveCount(0)
+})
+
+test('Loyalty & gift cards: the Gift cards tab shows the cards that can be spent, the used-up ones on their own, and copies a card’s number', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  await open(page, '/connections')
+  const payments = page.getByRole('region', { name: 'Payments and sales' })
+  await payments.getByRole('button', { name: 'Connect Square' }).click()
+  await expect(payments.getByRole('article', { name: 'Square' })).toContainText('Connected')
+  await expect(async () => {
+    await page.getByRole('link', { name: 'Loyalty & gift cards' }).first().click()
+    await expect(page.getByRole('heading', { name: 'Loyalty & gift cards' })).toBeVisible({ timeout: 2000 })
+  }).toPass()
+  // Opens on Loyalty; the Gift cards tab is kept in the address.
+  await expect(page.getByRole('tab', { name: 'Loyalty', exact: true })).toHaveAttribute('aria-selected', 'true')
+  await page.getByRole('tab', { name: 'Gift cards' }).click()
+  await expect(page).toHaveURL(/[?&]tab=gift-cards/)
+  const glance = page.getByRole('list', { name: 'At a glance' })
+  await expect(glance).toContainText('Cards available7')
+  await expect(glance).toContainText('11 cards in all')
+  await expect(glance).toContainText('Used up this month1')
+
+  // "Available to use" first, most money left at the top.
+  const cards = page.getByRole('table', { name: 'Gift cards' })
+  const show = page.getByRole('group', { name: 'Show' })
+  await expect(show.getByRole('button', { name: /^Available/ })).toHaveAttribute('aria-pressed', 'true')
+  await expect(cards.getByRole('row')).toHaveCount(8)
+  await expect(cards.getByRole('row').nth(1)).toContainText('Hotel Puente Romano')
+  await expect(cards).not.toContainText('Used up')
+
+  await show.getByRole('button', { name: /^Used up/ }).click()
+  await expect(cards.getByRole('row')).toHaveCount(3)
+  await expect(cards.getByRole('row').filter({ hasText: 'Used up' })).toHaveCount(2)
+  await expect(cards).toContainText('Javier López')
+  await expect(cards).toContainText('Tom Baker')
+  await show.getByRole('button', { name: /^Not activated/ }).click()
+  await expect(cards.getByRole('row')).toHaveCount(2)
+  await show.getByRole('button', { name: /^All/ }).click()
+  await expect(cards.getByRole('row')).toHaveCount(12)
+
+  // Search by the number on the card (its last 4 digits are enough), then copy its whole number.
+  const tom = cards.getByRole('row').filter({ hasText: 'Tom Baker' })
+  const last4 = (await tom.getByRole('cell').first().innerText()).match(/\d{4}/)![0]
+  await page.getByRole('textbox', { name: 'Search by card number' }).fill(`7783 3200 1234 ${last4}`)
+  await expect(cards.getByRole('row')).toHaveCount(2)
+  await tom.getByRole('button', { name: `Copy the number of •••• ${last4}` }).click()
+  await toast(page, `Number of •••• ${last4} copied`)
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toMatch(new RegExp(`^\\d{12}${last4}$`))
+
+  await expect(page.getByRole('region', { name: 'Gift cards' })).toContainText('Square Point of Sale')
+  await page.getByRole('tab', { name: 'Loyalty', exact: true }).click()
+  await expect(page).not.toHaveURL(/tab=/)
+  await expect(page.getByRole('img', { name: '9 stamps, then Free coffee (the 10th)' })).toBeVisible()
 })

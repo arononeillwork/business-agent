@@ -329,17 +329,23 @@ export function createDemoApi(): Api {
   clubEvents.sort((a, b) => b.at.localeCompare(a.at))
   const gan4 = () => String(1000 + Math.floor(roll() * 9000))
   const cardDay = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString()
-  const giftCardList: GiftCard[] = [
-    [25, 25, 3, 'Lucía García'], [50, 32.4, 9, null], [20, 0, 40, 'Tom Baker'], [30, 30, 12, null],
-    [15, 6.8, 22, 'Carmen Ruiz'], [40, 40, 1, null], [25, 11.2, 30, 'Emma Wilson'], [100, 100, 6, 'Hotel Puente Romano'],
-  ].map(([sold, balance, ago, customer], i) => ({ id: `gc-${i + 1}`, last4: gan4(), type: 'DIGITAL' as const,
-    state: (balance === 0 ? 'DEACTIVATED' : 'ACTIVE') as GiftCard['state'], balance: balance as number, created_at: cardDay(ago as number),
-    customer_id: customer ? `sq-g${i + 1}` : null, customer: customer as string | null, sold: sold as number }))
-    .map(({ sold: _sold, ...c }) => c)
+  /** The whole card numbers, which only Copy number gives out (as the Worker does). */
+  const giftGans = new Map<string, string>()
+  // Eleven cards: seven that can be spent, two used up (one this month), a physical card not sold yet and one switched off (reported lost).
+  const giftCardList: GiftCard[] = ([
+    [25, 25, 3, null, 'ACTIVE', 'DIGITAL', 'Lucía García'], [50, 32.4, 9, 4, 'ACTIVE', 'DIGITAL', null], [20, 0, 40, 38, 'ACTIVE', 'PHYSICAL', 'Tom Baker'],
+    [30, 30, 12, null, 'ACTIVE', 'PHYSICAL', null], [15, 6.8, 22, 10, 'ACTIVE', 'DIGITAL', 'Carmen Ruiz'], [40, 40, 1, null, 'ACTIVE', 'DIGITAL', null],
+    [25, 11.2, 30, 7, 'ACTIVE', 'DIGITAL', 'Emma Wilson'], [100, 100, 6, null, 'ACTIVE', 'DIGITAL', 'Hotel Puente Romano'],
+    [30, 0, 18, 1, 'ACTIVE', 'DIGITAL', 'Javier López'], [null, 0, 45, null, 'PENDING', 'PHYSICAL', null], [50, 18.5, 70, 61, 'DEACTIVATED', 'PHYSICAL', 'Laura Navarro'],
+  ] as [number | null, number, number, number | null, GiftCard['state'], GiftCard['type'], string | null][]).map(([original, balance, ago, used, state, type, customer], i) => {
+    const id = `gc-${i + 1}`, last4 = gan4()
+    giftGans.set(id, `77833200${gan4()}${last4}`)
+    return { id, last4, type, state, balance, created_at: cardDay(ago), customer_id: customer ? `sq-g${i + 1}` : null, customer, original, last_used: used === null ? null : cardDay(used) }
+  })
   const giftActivity: GiftCardActivity[] = giftCardList.flatMap((c, i) => {
-    const sold = [25, 50, 20, 30, 15, 40, 25, 100][i]
-    const out: GiftCardActivity[] = [{ id: `ga-${i}-a`, kind: 'activate', amount: sold, at: c.created_at, last4: c.last4, balance: sold }]
-    if (c.balance < sold) out.push({ id: `ga-${i}-r`, kind: 'redeem', amount: Math.round((sold - c.balance) * 100) / 100, at: new Date(Date.parse(c.created_at) + 2 * 86_400_000).toISOString(), last4: c.last4, balance: c.balance })
+    if (c.original === null) return []
+    const out: GiftCardActivity[] = [{ id: `ga-${i}-a`, kind: 'activate', amount: c.original, at: c.created_at, last4: c.last4, balance: c.original }]
+    if (c.last_used) out.push({ id: `ga-${i}-r`, kind: 'redeem', amount: Math.round((c.original - c.balance) * 100) / 100, at: c.last_used, last4: c.last4, balance: c.balance })
     return out
   }).sort((a, b) => b.at.localeCompare(a.at))
   const squareOn = () => integ.integrations.some(i => i.provider === 'square' && i.status === 'connected')
@@ -2858,10 +2864,17 @@ export function createDemoApi(): Api {
       if (problem) throw new Error(problem)
       const member = clubMembers.find(m => m.customer_id === customerId)
       const card: GiftCard = { id: uid(), last4: gan4(), type: 'DIGITAL', state: 'ACTIVE', balance: amount, created_at: nowIso(),
-        customer_id: customerId, customer: member?.name ?? null }
+        customer_id: customerId, customer: member?.name ?? null, original: amount, last_used: null }
       giftCardList.push(card)
+      giftGans.set(card.id, `77833200${gan4()}${card.last4}`)
       giftActivity.unshift({ id: uid(), kind: 'activate', amount, at: card.created_at, last4: card.last4, balance: amount })
       return clone(card)
+    },
+    async giftCardNumber(id) {
+      needSquare()
+      const gan = giftGans.get(id)
+      if (!gan) throw new Error('Choose a gift card from the list')
+      return gan
     },
     async suppliers() { return readStock() ? clone(suppliers).sort((a, b) => a.name.localeCompare(b.name)) : [] },
     async saveSupplier({ id, ...patch }) {
