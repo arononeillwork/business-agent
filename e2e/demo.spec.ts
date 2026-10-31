@@ -3814,14 +3814,26 @@ test.describe('credit and debit', () => {
 
   test('something to sell: added as money that could be raised, sold for less and settled', async ({ page }) => {
     await open(page, '/credit-debit')
+    // The old coffee machine links to its listing, opened in a new tab.
+    const machine = page.getByRole('region', { name: 'Coming in' }).getByRole('row').filter({ hasText: 'Old coffee machine' })
+    const listing = machine.getByRole('link', { name: 'Open the page for Old coffee machine (donedealespana.vercel.app)' })
+    await expect(listing).toHaveAttribute('href', 'https://donedealespana.vercel.app/#/item/207afb06-86e1-406a-9db3-9b60ac5ccd36')
+    await expect(listing).toHaveAttribute('target', '_blank')
+
     await page.getByRole('button', { name: 'Add money coming in' }).click()
     const add = page.getByRole('dialog', { name: 'Add money coming in' })
     await add.getByLabel('Name').fill('Bar stools')
     await add.getByLabel('Amount').fill('300')
     await expect(add.getByRole('switch', { name: 'Not agreed yet: money that could be raised' })).toBeChecked()
+    // A link has to be a web address.
+    await add.getByLabel('Link').fill('wallapop bar stools')
+    await add.getByRole('button', { name: 'Save' }).click()
+    await toast(page, 'The link must be a web address, starting with https://')
+    await add.getByLabel('Link').fill('https://es.wallapop.com/item/bar-stools-123')
     await add.getByRole('button', { name: 'Save' }).click()
     await toast(page, /^Saved$/)
     const stools = page.getByRole('region', { name: 'Coming in' }).getByRole('row').filter({ hasText: 'Bar stools' })
+    await expect(stools.getByRole('link', { name: 'Open the page for Bar stools (es.wallapop.com)' })).toHaveAttribute('href', 'https://es.wallapop.com/item/bar-stools-123')
     await expect(stools).toContainText('Something to sell')
     await expect(stools).toContainText('Could raise')
     await expect(page.getByRole('list', { name: 'At a glance' }).getByRole('listitem').filter({ hasText: 'Could raise' })).toContainText('€6.500,00')
@@ -7921,4 +7933,38 @@ test('landing page: the day-in-the-life video, once it is switched on', async ({
   await expect(video).toHaveAttribute('poster', '/video/day-in-the-life.jpg')
   await expect(video).toHaveAttribute('src', '/video/day-in-the-life.mp4')
   await expect(video).toHaveAttribute('controls', '')
+})
+
+test('owner pay: the switch next to Export takes the owners’ pay this month off the monthly costs, and back', async ({ page }) => {
+  await open(page, '/finances')
+  const expenses = page.getByRole('region', { name: 'Monthly expenses' })
+  const monthly = page.getByRole('listitem').filter({ hasText: /^Monthly costs/ })
+  await expect(monthly).toContainText(/7[.,]865[.,]09/)
+  // Mark, an owner, is on September's rota for 5 hours: at €10 an hour with the ×1.3 employer cost, €65.
+  await expenses.getByRole('button', { name: /: open the rota’s hours and cost$/ }).click()
+  const dialog = page.getByRole('dialog', { name: 'Staff wages: the rota’s hours and cost' })
+  await dialog.getByLabel('Hourly rate for Mark Murray').fill('10')
+  await dialog.getByLabel('Hourly rate for Mark Murray').blur()
+  await toast(page, 'Pay rate saved')
+  await dialog.getByRole('button', { name: 'Close' }).click()
+  // Off: a line takes the owners' pay off, and the total, the year and the staff share follow.
+  const ownerPay = expenses.getByRole('switch', { name: 'Owner pay' })
+  await expect(ownerPay).toBeChecked()
+  await expect(expenses.getByRole('row', { name: 'Owner pay off' })).toHaveCount(0)
+  await ownerPay.uncheck()
+  await toast(page, 'Owners’ hours on the rota aren’t wages now (breakeven still counts them)')
+  await expect(expenses.getByRole('row', { name: 'Owner pay off' })).toContainText(/−€65[.,]00/)
+  await expect(monthly).toContainText(/7[.,]800[.,]09/)
+  await expect(expenses.getByRole('row').filter({ hasText: /^Total/ })).toContainText(/7[.,]800[.,]09/)
+  await expect(page.getByRole('listitem').filter({ hasText: /^Staff share/ })).toContainText(/4[.,]235[.,]00/)
+  // Staff wages says the same: its switch is off, and Finances counts the line less the owners' pay.
+  await expenses.getByRole('button', { name: /: open the rota’s hours and cost$/ }).click()
+  await expect(dialog.getByRole('switch', { name: 'Owner pay' })).not.toBeChecked()
+  await expect(dialog.getByRole('listitem').filter({ hasText: /^On Finances/ })).toContainText(/€4[.,]235[.,]00/)
+  await dialog.getByRole('button', { name: 'Close' }).click()
+  // On again: back as listed.
+  await ownerPay.check()
+  await toast(page, 'Owners are paid for their hours on the rota')
+  await expect(expenses.getByRole('row', { name: 'Owner pay off' })).toHaveCount(0)
+  await expect(monthly).toContainText(/7[.,]865[.,]09/)
 })

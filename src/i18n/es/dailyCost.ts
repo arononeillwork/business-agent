@@ -77,6 +77,9 @@ export default {
   'owner · not paid': 'propietario · sin sueldo',
   'Owner pay': 'Sueldo de los propietarios',
   'Owners on the rota are paid their rate, here, on the Rota and in Profit & loss.': 'Los propietarios del cuadrante cobran su tarifa, aquí, en el Cuadrante y en Pérdidas y ganancias.',
-  'Owners’ hours on the rota aren’t counted as wages here, on the Rota or in Profit & loss.': 'Las horas de los propietarios en el cuadrante no cuentan como sueldo aquí, en el Cuadrante ni en Pérdidas y ganancias.',
+  'Owners’ hours on the rota aren’t counted as wages here, on the Rota or in Profit & loss, and their pay comes off the monthly costs.': 'Las horas de los propietarios en el cuadrante no cuentan como sueldo aquí, en el Cuadrante ni en Pérdidas y ganancias, y su sueldo se resta de los gastos mensuales.',
+  'Owner pay off': 'Sin sueldo de los propietarios',
+  'Owners’ hours on this month’s rota': 'Horas de los propietarios en el cuadrante de este mes',
+  'Owners’ hours on this month’s rota, at their rates, come off Staff wages': 'Las horas de los propietarios en el cuadrante de este mes, a su tarifa, se restan de los sueldos',
   'Breakeven always counts them at their rate.': 'El umbral de rentabilidad siempre las cuenta a su tarifa.',
 } satisfies Record<string, string>

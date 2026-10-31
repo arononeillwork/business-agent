@@ -66,4 +66,8 @@ export default {
   'Due soon': 'Vence pronto',
   'Ongoing': 'En curso',
   'In one go': 'De una vez',
+  'Open the page for {name} ({site})': 'Abrir la página de {name} ({site})',
+  'The link must be a web address, starting with https://': 'El enlace debe ser una dirección web que empiece por https://',
+  'A web page about it, like the agreement': 'Una página web sobre esto, como el contrato',
+  'A web page about it, like where it’s for sale': 'Una página web sobre esto, como el anuncio de venta',
 }
