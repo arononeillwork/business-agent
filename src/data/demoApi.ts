@@ -1308,11 +1308,12 @@ export function createDemoApi(): Api {
     id: uid(), title: r.title, intro: r.intro ?? null, rules: [...r.rules], sort: i, updated_at: daysAgo(r.title === 'Complaints' ? 3 : 10),
   }))
   const rulesRead: RulesRead[] = [{ profile_id: P.maria, read_at: daysAgo(2) }, { profile_id: P.julio, read_at: daysAgo(7) }]
-  // Mark's dogs, waiting for their photos; Aron has none (the `people_page_and_pets` migration moved Yoda and Cooper to Mark).
+  // The owners' dogs, waiting for their photos: Aron's Fudge and Cooper, Mark's Pablo and Yoda (as the `pets_back_to_aron` migration leaves them).
   const pets: Pet[] = [
+    { id: 'pet-fudge', profile_id: P.aron, name: 'Fudge', kind: 'dog', breed: null, photo: null, sort: 1, created_at: daysAgo(3) },
+    { id: 'pet-cooper', profile_id: P.aron, name: 'Cooper', kind: 'dog', breed: null, photo: null, sort: 2, created_at: daysAgo(3) },
     { id: 'pet-pablo', profile_id: P.mark, name: 'Pablo', kind: 'dog', breed: null, photo: null, sort: 1, created_at: daysAgo(1) },
     { id: 'pet-yoda', profile_id: P.mark, name: 'Yoda', kind: 'dog', breed: null, photo: null, sort: 2, created_at: daysAgo(1) },
-    { id: 'pet-cooper', profile_id: P.mark, name: 'Cooper', kind: 'dog', breed: null, photo: null, sort: 3, created_at: daysAgo(3) },
   ]
   // Employment contracts (Team → Contracts): Julio permanent since the café opened, Maria on her second
   // summer contract (ending soon), the cleaner new and in her trial period. Aron and Mark own the café.
