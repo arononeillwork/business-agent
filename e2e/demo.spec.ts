@@ -7951,3 +7951,20 @@ test('owner pay: the switch next to Export takes the owners’ pay this month of
   await expect(expenses.getByRole('row', { name: 'Owner pay off' })).toHaveCount(0)
   await expect(monthly).toContainText(/7[.,]865[.,]09/)
 })
+
+test('landing page: the day-in-the-life video, once it is switched on', async ({ page }) => {
+  for (const file of ['public/video/day-in-the-life.mp4', 'public/video/day-in-the-life.jpg']) {
+    expect(readFileSync(file).length).toBeGreaterThan(10_000)
+  }
+  await page.goto('/?demo')
+  const video = page.getByLabel('A day in the life of a café owner, video')
+  if (!FEATURES.dayVideo) {
+    await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
+    await expect(video).toHaveCount(0)
+    return
+  }
+  await expect(page.getByRole('region', { name: 'The same day, without the chaos.' })).toBeVisible()
+  await expect(video).toHaveAttribute('poster', '/video/day-in-the-life.jpg')
+  await expect(video).toHaveAttribute('src', '/video/day-in-the-life.mp4')
+  await expect(video).toHaveAttribute('controls', '')
+})

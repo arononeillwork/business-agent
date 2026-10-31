@@ -14,6 +14,22 @@ and on its own website, each page shown whole:
 | 1:16 | The team | Maria clocks in on her phone; the owner's day at a glance; the Business advisor: "Make data-driven decisions for your business" |
 | 1:36 | The close | 18:00 back to 15:30: "Closed at three. Home by half past." "How much is your time worth?" Your entire business in one place. Less admin, more enjoyment. |
 
+## A day in the life
+
+The second video (`public/video/day-in-the-life.mp4`, 112 seconds, `DayVideo` in `src/day/`), shown on the
+landing page while `FEATURES.dayVideo` is on: a café owner's day before Business Agent, drawn (06:45 to 23:10:
+the phone that never stops, a paper checklist, calls about stock, a chalk sign, a pile of bills, the laptop
+at night, the letter about the terrace licence), the rewind, then the same day in the app (recorded by
+`capture/day.mjs`: the opening checklist and the music on the phone, one inbox, the order written, the
+last-day offer, the week's posts, bills paid and tax filed, the licence renewed in time, the closing
+checklist), the two days side by side, and the brand. Its music is `music/day.py`.
+
+```bash
+npm run capture:day                  # the app's scenes for it (the dev server running)
+npm run music:day
+npm run render:day && npm run web:day
+```
+
 Everything is made here from scratch, so it can be made again whenever the app changes, and in Spanish.
 
 ## How it's made
@@ -24,7 +40,7 @@ Everything is made here from scratch, so it can be made again whenever the app c
    `public/clips/`, each with a JSON log of where every click landed. A cursor is drawn into the page;
    the demo's own banner is hidden. A few stills for the cards are cut from the recordings into
    `public/stills/`. Both folders are made by the capture and aren't kept in git.
-2. **Music and sound** (`music/compose.py`): an original 120 bpm track written in code (numpy), so
+2. **Music and sound** (`music/compose.py`, its instruments in `music/synth.py`): an original 120 bpm track written in code (numpy), so
    there's no licence to buy or keep: a quiet clock, once a second, under 18:00, warm chords on "What if you changed
    it once?", an uplifting groove under the product, drums out for "How much is your time worth?", and
    home on the logo. Plus soft clicks, pings, pops, a whoosh and a chime. Mastered to -17 LUFS.

@@ -1,0 +1,12 @@
+{
+  "name": "day-tax",
+  "fps": 30,
+  "duration": 11.009,
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "dpr": 1.5,
+  "frames": 341,
+  "events": []
+}

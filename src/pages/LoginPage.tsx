@@ -22,7 +22,7 @@ import { useApp } from '../app/AppContext'
 import { cleanCode } from '../../shared/referrals'
 import { keepReferral } from '../app/referral'
 import { AuthCard } from './marketing/AuthCard'
-import { DemoVideo, watchDemo } from './marketing/DemoVideo'
+import { DayVideo, DemoVideo, watchDemo } from './marketing/DemoVideo'
 import { PricingCards, TRIAL_MONTHS } from './marketing/plans'
 import { BA, MarketingFrame, SectionIntro, display, fullScreen, glow, outlineBtn, primaryBtn, roseBtn } from './marketing/site'
 import { shows } from '../app/features'
@@ -210,6 +210,9 @@ export function LoginPage() {
             </Box>
           </Container>
         </Box>
+
+        {/* A day in the life, before and with Business Agent */}
+        <DayVideo />
 
         {/* How it works */}
         <Container maxWidth="lg" sx={{ ...fullScreen, py: { xs: 9, md: 6 } }}>
