@@ -15,25 +15,12 @@ import { MentionActions, useMentions } from './Mentions'
 import { pushText } from '../../shared/pushText'
 
 /**
- * A notification's title in the person's language. The Worker writes them in English; the ones
- * with a known shape (Instagram mentions) are said again from their details.
+ * A notification's title and text in the language shown. The database and the Worker write them in
+ * English; shared/pushText.ts says each kind again in the person's language (as their phone gets it).
  */
-/** A notification's text in the language shown (the holiday reminders and tests are written in English). */
-export const notificationBody = (n: AppNotification) =>
-  n.kind === 'bank_holiday' || n.kind === 'test' ? pushText(n, currentLanguage()).body : n.body
+export const notificationTitle = (n: AppNotification) => pushText(n, currentLanguage()).title
+export const notificationBody = (n: AppNotification) => pushText(n, currentLanguage()).body
 
-export function notificationTitle(n: AppNotification) {
-  if (n.kind === 'bank_holiday' && n.data?.name && typeof n.data.days === 'number') {
-    const name = n.data.name
-    return n.data.days === 0 ? t('Bank holiday today: {name}', { name }) : n.data.days === 1 ? t('Bank holiday tomorrow: {name}', { name })
-      : t('Bank holiday in {n} days: {name}', { n: n.data.days, name })
-  }
-  if (n.kind === 'test') return t('Test notification')
-  const m = /^(@\S+|Someone) (mentioned you in their story|tagged you in a post)$/.exec(n.title)
-  if (n.kind !== 'instagram_mention' || !m) return n.title
-  const who = m[1] === 'Someone' ? t('Someone') : m[1]
-  return m[2].startsWith('mentioned') ? t('{who} mentioned you in their story', { who }) : t('{who} tagged you in a post', { who })
-}
 
 /** The bell: reminders for events you asked to be alerted about, and other news for you. */
 export function NotificationBell() {

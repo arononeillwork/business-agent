@@ -12,13 +12,14 @@ import { NOTIFY_TOPICS, channelFor, type NotifyChannel } from '../../shared/noti
 import { CATEGORY_META, type CalendarEvent, type Settings } from '../../shared/types'
 import { addDays, formatLocal, today } from '../../shared/time'
 import { tokens } from '../theme'
-import { msg, t } from '../i18n'
+import { LANGUAGES, msg, t } from '../i18n'
+import { languageOf } from '../../shared/pushText'
 
 const day = (d: string, pattern = 'EEE d MMM') => formatLocal(`${d}T12:00:00Z`, pattern)
 
 /** Push notifications on this device, and the person's other devices. */
 export function PushDevices() {
-  const { api } = useApp()
+  const { api, me, settings } = useApp()
   const run = useAction()
   const [state, setState] = useState<PushState | null>(null)
   const [here, setHere] = useState<string | null>(null)
@@ -56,6 +57,12 @@ export function PushDevices() {
               }, e.target.checked ? t('Push notifications on for this device') : t('Push notifications off for this device'))} />
           )}
         </Stack>
+        {state === 'on' && (
+          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>
+            {t('Sent in {language}, the language you use the app in. Change it under My account → Language.', {
+              language: LANGUAGES.find(l => l.code === languageOf(me?.preferences, settings?.languages))?.name ?? 'English' })}
+          </Typography>
+        )}
         {state === 'install-first' && (
           <Alert severity="info" sx={{ mb: 1.5 }}>
             {t('On an iPhone or iPad, add the app to your Home Screen first: tap Share, then Add to Home Screen. Open it from there and turn notifications on here.')}
