@@ -7,26 +7,16 @@
 // (no byte ranges), so loading both up front cost every visitor about 17 MB, and the browser holding
 // those half-read downloads stalled the app's own requests on the same connection after signing in.
 import { Box, Container } from '@mui/material'
-import { useEffect, useRef, type MouseEvent, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { FEATURES } from '../../app/features'
 import { BA, HEADER_HEIGHT, SectionIntro, fullScreen } from './site'
+import { lessMotion } from './watchDemo'
 import { t, tr } from '../../i18n'
 
 export const DEMO_VIDEO = { src: '/video/business-agent-demo.mp4', poster: '/video/business-agent-demo.jpg', seconds: 108 }
 export const DAY_VIDEO = { src: '/video/day-in-the-life.mp4', poster: '/video/day-in-the-life.jpg', seconds: 112 }
 
-const lessMotion = () => !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-
-/** "View a demo": scroll down to the video and play it from the start, with its music (the click allows the sound; muted if the browser still says no). */
-export function watchDemo(e?: MouseEvent) {
-  e?.preventDefault()
-  document.getElementById('demo')?.scrollIntoView({ behavior: lessMotion() ? 'auto' : 'smooth', block: 'start' })
-  const v = document.querySelector<HTMLVideoElement>('#demo video')
-  if (!v) return
-  v.currentTime = 0
-  v.muted = false
-  void v.play().catch(() => { v.muted = true; void v.play().catch(() => { /* the controls are there */ }) })
-}
+export { watchDemo } from './watchDemo'
 
 /** A video section that fills the screen: a compact intro, then the video, playing muted while it's on screen. */
 function VideoSection({ id, labelledBy, eyebrow, title, text, src, poster, label, sx }: {
