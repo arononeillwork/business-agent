@@ -73,6 +73,8 @@ export interface Settings {
   /** Admins are reminded before each public holiday (on unless turned off), this many days ahead, for these kinds. */
   holiday_reminders?: boolean
   holiday_reminder_days?: number
+  /** And again the day before (on unless turned off). */
+  holiday_reminder_day_before?: boolean
   holiday_reminder_kinds?: ('national' | 'regional' | 'local' | 'area')[]
   /** Pages the admins hid from everyone's menu (Settings → Pages), by page key. */
   hidden_pages?: string[]
@@ -442,7 +444,7 @@ export interface AppNotification {
 }
 
 /** A holiday an admin left out of the reminders, or one that's been reminded about. */
-export interface HolidayReminder { event_id: string; remind: boolean; sent_for: string | null; sent_at: string | null }
+export interface HolidayReminder { event_id: string; remind: boolean; sent_for: string | null; sent_at: string | null; day_before_for?: string | null }
 
 /** A phone or computer that gets this person's push notifications. */
 export interface PushDevice { id: string; endpoint: string; device: string | null; created_at: string; last_ok_at: string | null }

@@ -3287,13 +3287,14 @@ test.describe('notifications and Instagram mentions', () => {
     await expect(mentions.getByRole('switch', { name: 'Instagram tags and mentions' })).toBeChecked()
   })
 
-  test('bank holiday reminders are on, a week ahead, and any holiday can be left out', async ({ page }) => {
+  test('bank holiday reminders are on, a week ahead and the day before, and any holiday can be left out', async ({ page }) => {
     await open(page, '/notifications')
     const holidays = page.getByRole('region', { name: 'Bank holiday reminders' })
     await expect(holidays.getByRole('switch', { name: 'Bank holiday reminders' })).toBeChecked()
     await expect(holidays.getByLabel('How far ahead')).toContainText('A week before')
     await expect(holidays).toContainText('Fiesta Nacional de España')
-    await expect(holidays).toContainText('Reminder on Mon 5 Oct')
+    await expect(holidays).toContainText('Reminders on Mon 5 Oct and Sun 11 Oct')
+    await expect(holidays.getByRole('checkbox', { name: 'And again the day before' })).toBeChecked()
     await holidays.getByRole('switch', { name: 'Remind about Fiesta Nacional de España' }).click()
     await toast(page, 'Fiesta Nacional de España: left out')
     await expect(holidays).toContainText('Left out')

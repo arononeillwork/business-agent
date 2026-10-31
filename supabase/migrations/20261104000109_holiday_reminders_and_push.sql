@@ -1,8 +1,8 @@
 -- Bank holiday reminders and push notifications to phones.
 --
 -- 1. Bank holiday reminders: a week (or however many days an admin picks) before each public holiday
---    on the calendar, every admin gets a notification. On for every business unless an admin turns it
---    off (Notifications page), and any one holiday can be left out.
+--    on the calendar, and again the day before, every admin gets a notification. On for every business
+--    unless an admin turns it off (Notifications page), and any one holiday can be left out.
 -- 2. Push: each person turns on notifications on their phone or computer (Notifications page), which
 --    saves that device here. Every minute the Worker sends the notifications nobody has pushed yet to
 --    their owner's devices (worker/push.ts), as each person chose: in the app, on the phone, or both
@@ -15,6 +15,8 @@
 alter table public.settings
   add column holiday_reminders boolean not null default true,
   add column holiday_reminder_days int not null default 7 check (holiday_reminder_days between 1 and 60),
+  -- A second reminder the day before.
+  add column holiday_reminder_day_before boolean not null default true,
   add column holiday_reminder_kinds text[] not null default '{national,regional,local}'
     check (holiday_reminder_kinds <@ '{national,regional,local,area}'::text[]);
 
@@ -26,6 +28,8 @@ create table public.holiday_reminders (
   -- The day it was on when admins were reminded (a holiday moved to another day is reminded again).
   sent_for    date,
   sent_at     timestamptz,
+  -- The same for the reminder the day before.
+  day_before_for  date,
   updated_at  timestamptz not null default now(),
   updated_by  uuid references auth.users on delete set null default auth.uid()
 );
@@ -55,7 +59,8 @@ revoke execute on function public.set_holiday_reminder(uuid, boolean) from publi
 grant execute on function public.set_holiday_reminder(uuid, boolean) to authenticated;
 
 -- Every minute (each business): from 09:00 the business's time, remind admins about the holidays
--- coming up within the days set, once each. Nothing earlier, so phones don't buzz at night.
+-- coming up within the days set, once each, and again the day before. Nothing earlier, so phones
+-- don't buzz at night.
 -- p_now: the time to act as (the tests' 09:00); the job passes nothing.
 create or replace function public.bank_holiday_reminders(p_now timestamptz default now())
 returns int
@@ -68,7 +73,8 @@ declare
   v_today date := v_now::date;
   v_days int;
 begin
-  select holiday_reminders, holiday_reminder_days, holiday_reminder_kinds into v_set from public.settings where id = 1;
+  select holiday_reminders, holiday_reminder_days, holiday_reminder_kinds, holiday_reminder_day_before
+    into v_set from public.settings where id = 1;
   if not found or not v_set.holiday_reminders or v_now::time < time '09:00' then return 0; end if;
   for v in
     select e.id, e.title, e.starts_on, e.category, e.town
@@ -76,7 +82,9 @@ begin
       left join public.holiday_reminders r on r.event_id = e.id
      where e.confirmed and e.category = any (v_set.holiday_reminder_kinds)
        and e.starts_on between v_today and v_today + v_set.holiday_reminder_days
-       and coalesce(r.remind, true) and r.sent_for is distinct from e.starts_on
+       and coalesce(r.remind, true)
+       and (r.sent_for is distinct from e.starts_on
+            or (v_set.holiday_reminder_day_before and e.starts_on = v_today + 1 and r.day_before_for is distinct from e.starts_on))
      order by e.starts_on
      limit 20
   loop
@@ -93,8 +101,11 @@ begin
            '/calendar', 'bank_holiday',
            jsonb_build_object('event', v.id, 'date', v.starts_on, 'days', v_days, 'name', v.title, 'category', v.category, 'town', v.town)
       from public.profiles p where p.role = 'admin' and p.active;
-    insert into public.holiday_reminders (event_id, sent_for, sent_at, updated_by) values (v.id, v.starts_on, now(), null)
-      on conflict (business_id, event_id) do update set sent_for = excluded.sent_for, sent_at = excluded.sent_at;
+    -- One a day or less ahead counts as the day-before reminder too.
+    insert into public.holiday_reminders (event_id, sent_for, sent_at, day_before_for, updated_by)
+      values (v.id, v.starts_on, now(), case when v_days <= 1 then v.starts_on end, null)
+      on conflict (business_id, event_id) do update set sent_for = excluded.sent_for, sent_at = excluded.sent_at,
+        day_before_for = coalesce(excluded.day_before_for, public.holiday_reminders.day_before_for);
     n := n + 1;
   end loop;
   return n;

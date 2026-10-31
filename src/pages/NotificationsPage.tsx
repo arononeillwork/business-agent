@@ -10,7 +10,7 @@ import type { OutboxItem, Settings } from '../../shared/types'
 import { tokens } from '../theme'
 import { msg, t, tn, tr } from '../i18n'
 import { MentionActions, MentionRow, useMentions } from '../components/Mentions'
-import { notificationTitle } from '../components/NotificationBell'
+import { notificationBody, notificationTitle } from '../components/NotificationBell'
 import { HolidayReminders, NotificationChoices, PushDevices } from '../components/NotificationSettings'
 
 const KINDS: { key: keyof Settings; title: string; who: string; when: string }[] = [
@@ -83,7 +83,7 @@ function MyNotifications() {
                   <Typography sx={{ fontWeight: 500 }}>
                     {n.link && n.link !== '/notifications' ? <Link to={n.link}>{notificationTitle(n)}</Link> : notificationTitle(n)}
                   </Typography>
-                  {n.body && <Typography variant="body2" sx={{ color: 'text.secondary' }}>{n.body}</Typography>}
+                  {n.body && <Typography variant="body2" sx={{ color: 'text.secondary' }}>{notificationBody(n)}</Typography>}
                   <Typography variant="caption" sx={{ color: 'text.disabled' }}>{formatLocal(n.created_at, 'EEE d MMM, HH:mm')}</Typography>
                   {mention && <Box sx={{ mt: 0.75 }}><MentionActions mention={mention} /></Box>}
                 </Box>
