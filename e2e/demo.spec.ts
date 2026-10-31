@@ -3039,7 +3039,8 @@ test.describe('messages', () => {
     await expect(connect).toContainText('Read and answer your Page’s Messenger messages on the Messages page')
     await connect.getByRole('button', { name: 'Connect Facebook' }).click()
     const chats = page.getByRole('list', { name: 'Chats' })
-    expect(await chats.locator(':scope > li').evaluateAll(els => els.map(e => e.getAttribute('aria-label')))).toEqual(['Carmen Ruiz', 'Hotel Puente Romano'])
+    // The chats load after connecting: wait for them rather than read the list once, still empty on a slow machine.
+    await expect.poll(() => chats.locator(':scope > li').evaluateAll(els => els.map(e => e.getAttribute('aria-label')))).toEqual(['Carmen Ruiz', 'Hotel Puente Romano'])
     await chats.getByRole('listitem', { name: 'Carmen Ruiz' }).getByRole('button').click()
     const chat = page.getByRole('region', { name: 'Chat with Carmen Ruiz' })
     await chat.getByRole('textbox', { name: 'Reply' }).fill('Yes! See you at 11.')
