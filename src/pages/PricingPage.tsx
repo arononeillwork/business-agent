@@ -86,9 +86,9 @@ export function PricingPage() {
               <Table size="small" sx={{ minWidth: 640, '& td, & th': { color: BA.ink, py: 1.1 } }} aria-label={t('Plan comparison')}>
                 <TableHead>
                   <TableRow>
-                    <TableCell sx={{ borderColor: BA.line, width: '36%' }} />
+                    <TableCell sx={{ borderColor: BA.line, width: '36%', bgcolor: '#fff' }} />
                     {PLANS.map(p => (
-                      <TableCell key={p.id} align="center" sx={{ borderColor: BA.line, bgcolor: p.trial ? 'rgba(247,155,164,0.07)' : undefined }}>
+                      <TableCell key={p.id} align="center" sx={{ borderColor: BA.line, bgcolor: p.trial ? 'rgba(247,155,164,0.07)' : '#fff' }}>
                         <Typography sx={{ fontWeight: 600, fontSize: '1.05rem' }}>{planName(p)}</Typography>
                         <Typography variant="body2" sx={{ color: BA.soft }}>{t('€{n} / month', { n: p.monthly })}</Typography>
                       </TableCell>
