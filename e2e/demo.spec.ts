@@ -7228,3 +7228,169 @@ test.describe('team contracts', () => {
     await expect(contractRow(page, 'Julio')).toContainText('38 h')
   })
 })
+
+test.describe('agents', () => {
+  test('an owner views the app as the Finance agent and back; the rest of the team has no agents', async ({ page }) => {
+    await open(page)
+    const menu = page.getByRole('navigation', { name: 'Main' })
+    await expect(menu.getByRole('link', { name: 'Rota', exact: true })).toBeVisible()
+    await page.getByRole('button', { name: 'Agents', exact: true }).click()
+    const agents = page.getByRole('menu', { name: 'Agents' })
+    await expect(agents.getByRole('menuitemradio', { name: /^Owner — everything/ })).toHaveAttribute('aria-checked', 'true')
+    for (const name of ['Marketing agent', 'Sales agent', 'Investor', 'Operations agent', 'People & HR agent', 'Stock & purchasing agent']) {
+      await expect(agents.getByRole('menuitemradio', { name: new RegExp(`^${name}`) })).toBeVisible()
+    }
+    await agents.getByRole('menuitemradio', { name: /^Finance agent/ }).click()
+
+    // The menu has the finance pages (and Settings), the line at the top says whose view it is, and Today leads with its questions.
+    const banner = page.getByRole('region', { name: 'Agent view' })
+    await expect(banner).toContainText('Viewing as Finance agent')
+    await expect(banner).toContainText('What a finance lead needs: takings, costs, P&L, cash')
+    await expect(menu.getByRole('link', { name: 'Finances', exact: true })).toBeVisible()
+    await expect(menu.getByRole('link', { name: 'Profit & loss', exact: true })).toBeVisible()
+    await expect(menu.getByRole('link', { name: 'Pages', exact: true })).toBeVisible()
+    await expect(menu.getByRole('link', { name: 'Rota', exact: true })).toHaveCount(0)
+    await expect(menu.getByRole('link', { name: 'Social planner', exact: true })).toHaveCount(0)
+    const focus = page.getByRole('region', { name: 'Focus: Finance agent' })
+    await expect(focus.getByRole('link', { name: /How much did we take this week\?/ })).toHaveAttribute('href', '/sales')
+    await focus.getByRole('link', { name: /Are we making a profit this month\?/ }).click()
+    await expect(page.getByRole('heading', { name: 'Profit & loss', level: 1 })).toBeVisible()
+    await expect(banner).toBeVisible()
+    await page.getByRole('button', { name: 'Agents', exact: true }).click()
+    await expect(agents.getByRole('menuitemradio', { name: /^Finance agent/ })).toHaveAttribute('aria-checked', 'true')
+    await page.keyboard.press('Escape')
+
+    await banner.getByRole('button', { name: 'Back to everything' }).click()
+    await expect(banner).toHaveCount(0)
+    await expect(menu.getByRole('link', { name: 'Rota', exact: true })).toBeVisible()
+
+    // The rest of the team has no agents: no button, no tab.
+    await signInAs(page, 'maria@example.com')
+    await expect(menu.getByRole('link', { name: 'Roles & responsibilities' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Agents', exact: true })).toHaveCount(0)
+    await menu.getByRole('link', { name: 'Roles & responsibilities' }).click()
+    await expect(page.getByRole('heading', { name: 'Roles & responsibilities', level: 1 })).toBeVisible()
+    await expect(page.getByRole('tab', { name: 'Agents' })).toHaveCount(0)
+  })
+
+  test('Roles & responsibilities → Agents: an owner turns an agent off, adds their own, views the app as it and goes back to the usual agents', async ({ page }) => {
+    await open(page, '/roles?tab=agents')
+    const menu = page.getByRole('navigation', { name: 'Main' })
+    const banner = page.getByRole('region', { name: 'Agent view' })
+    const agents = page.getByRole('menu', { name: 'Agents' })
+    const tab = page.getByRole('region', { name: 'Agents', exact: true })
+    for (const name of ['Finance agent', 'Marketing agent', 'Sales agent', 'Investor', 'Operations agent', 'People & HR agent', 'Stock & purchasing agent']) {
+      await expect(tab.getByRole('region', { name, exact: true })).toBeVisible()
+    }
+    await expect(tab.getByRole('region', { name: 'Finance agent', exact: true })).toContainText('9 pages: ')
+    await tab.getByLabel('Investor in the Agents menu').click()
+    await toast(page, /^Saved$/)
+
+    await tab.getByRole('button', { name: 'Add an agent' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Add an agent' })
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await toast(page, 'Give the agent a name')
+    await dialog.getByRole('textbox', { name: 'Name' }).fill('Coffee buyer')
+    await dialog.getByRole('textbox', { name: 'What it’s for' }).fill('Beans, milk and who we buy them from')
+    await dialog.getByRole('checkbox', { name: 'Current stock' }).check()
+    await dialog.getByRole('checkbox', { name: 'Suppliers' }).check()
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await expect(dialog).toHaveCount(0)
+    const own = tab.getByRole('region', { name: 'Coffee buyer', exact: true })
+    await expect(own).toContainText('Your own')
+    await expect(own).toContainText('2 pages: Current stock · Suppliers')
+
+    await own.getByRole('button', { name: 'View as Coffee buyer' }).click()
+    await expect(banner).toContainText('Viewing as Coffee buyer — Beans, milk and who we buy them from')
+    await expect(menu.getByRole('link', { name: 'Suppliers', exact: true })).toBeVisible()
+    await expect(menu.getByRole('link', { name: 'Finances', exact: true })).toHaveCount(0)
+    await page.getByRole('button', { name: 'Agents', exact: true }).click()
+    await expect(agents.getByRole('menuitemradio', { name: /^Coffee buyer/ })).toHaveAttribute('aria-checked', 'true')
+    await expect(agents.getByRole('menuitemradio', { name: /^Investor/ })).toHaveCount(0)
+    await agents.getByRole('menuitemradio', { name: /^Owner — everything/ }).click()
+    await expect(banner).toHaveCount(0)
+
+    // Back to the usual agents (the Agents menu leads to them): the investor is back and their own one has gone.
+    await page.getByRole('button', { name: 'Agents', exact: true }).click()
+    await agents.getByRole('menuitem', { name: 'Set up the agents' }).click()
+    await expect(page.getByRole('tab', { name: 'Agents' })).toHaveAttribute('aria-selected', 'true')
+    await tab.getByRole('button', { name: 'Back to the usual agents' }).click()
+    await toast(page, 'The agents are the usual ones again')
+    await expect(tab.getByRole('region', { name: 'Coffee buyer', exact: true })).toHaveCount(0)
+    await expect(tab.getByLabel('Investor in the Agents menu')).toBeChecked()
+  })
+
+  test('@phone an owner switches agent from the top bar on a phone', async ({ page }) => {
+    await open(page)
+    await page.getByRole('button', { name: 'Agents', exact: true }).click()
+    await page.getByRole('menuitemradio', { name: /^Operations agent/ }).click()
+    await expect(page.getByRole('region', { name: 'Agent view' })).toContainText('Viewing as Operations agent')
+    const tabs = page.getByRole('navigation', { name: 'Main' })
+    await expect(tabs.getByRole('link', { name: 'Rota' })).toBeVisible()
+    await page.getByRole('button', { name: 'More' }).click()
+    const sheet = page.getByRole('list', { name: 'More pages' })
+    await expect(sheet.getByRole('link', { name: 'Food safety' })).toBeVisible()
+    await expect(sheet.getByRole('link', { name: 'Finances' })).toHaveCount(0)
+    await page.keyboard.press('Escape')
+    await page.getByRole('region', { name: 'Agent view' }).getByRole('button', { name: 'Back to everything' }).click()
+    await expect(page.getByRole('region', { name: 'Agent view' })).toHaveCount(0)
+  })
+})
+
+test.describe('role ownership', () => {
+  test('ownership: the owners share the roles out in lanes; a role opens to what it means and moves to Mark’s lane from its Owner menu', async ({ page }) => {
+    await open(page, '/roles?tab=ownership')
+    const tab = page.getByRole('region', { name: 'Ownership', exact: true })
+    const notOwned = tab.getByRole('region', { name: 'Not owned yet' })
+    const aron = tab.getByRole('region', { name: "Aron O'Neill" })
+    const mark = tab.getByRole('region', { name: 'Mark Murray' })
+    await expect(aron.getByRole('article')).toHaveText([/Head of People/, /Head Barista/, /Barista \/ Bartender/])
+    await expect(mark.getByRole('article')).toHaveText([/Investor/, /Accountant/])
+    await expect(notOwned.getByRole('article', { name: 'Chef', exact: true })).toBeVisible()
+
+    // A role opens to what it means: what it's for, the rota position, its duties and who's in it.
+    const barista = aron.getByRole('article', { name: 'Barista / Bartender' })
+    await expect(barista).toContainText('2 people')
+    const what = barista.getByRole('button', { name: 'What Barista / Bartender means' })
+    await expect(what).toHaveAttribute('aria-expanded', 'false')
+    await what.click()
+    await expect(what).toHaveAttribute('aria-expanded', 'true')
+    await expect(barista).toContainText('On the rota as')
+    await expect(barista).toContainText('Making coffee and all drinks')
+    await expect(barista.getByRole('combobox', { name: 'Who’s in it' })).toBeVisible()
+    await expect(barista).toContainText('Julio')
+    await what.click()
+    await expect(what).toHaveAttribute('aria-expanded', 'false')
+
+    // The Owner menu moves a role (on a phone, or without dragging): the chef to Mark.
+    await notOwned.getByRole('button', { name: 'Owner of Chef' }).click()
+    await page.getByRole('menu', { name: 'Owner of Chef' }).getByRole('menuitemradio', { name: 'Mark Murray' }).click()
+    await toast(page, 'Chef is Mark Murray’s now')
+    await expect(mark.getByRole('article')).toHaveText([/Investor/, /Accountant/, /Chef/])
+    await expect(notOwned.getByRole('article', { name: 'Chef', exact: true })).toHaveCount(0)
+
+    // It stays: the Active tab says who owns the chef, and the lanes come back as they were left.
+    await page.getByRole('tab', { name: /^Active/ }).click()
+    await expect(page.getByRole('button', { name: 'Chef', exact: true })).toContainText('Owned by Mark Murray')
+    await page.getByRole('tab', { name: 'Ownership' }).click()
+    await expect(mark.getByRole('article')).toHaveText([/Investor/, /Accountant/, /Chef/])
+  })
+
+  test('ownership: an owner puts a role in order with the keyboard; the team reads who owns their role, with no Ownership tab', async ({ page }) => {
+    await open(page, '/roles?tab=ownership')
+    const mark = page.getByRole('region', { name: 'Ownership', exact: true }).getByRole('region', { name: 'Mark Murray' })
+    await expect(mark.getByRole('article')).toHaveText([/Investor/, /Accountant/])
+    // Pick up the accountant, move it up Mark's lane, drop it.
+    await mark.getByRole('button', { name: 'Drag Accountant' }).focus()
+    await page.keyboard.press('Space')
+    await page.keyboard.press('ArrowUp')
+    await page.keyboard.press('Space')
+    await expect(mark.getByRole('article')).toHaveText([/Accountant/, /Investor/])
+
+    // The team reads who owns their role, and has no Ownership tab.
+    await signInAs(page, 'maria@example.com')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Roles & responsibilities' }).click()
+    await expect(page.getByRole('region', { name: 'Barista / Bartender' })).toContainText('Owned by Aron O')
+    await expect(page.getByRole('tab', { name: 'Ownership' })).toHaveCount(0)
+  })
+})

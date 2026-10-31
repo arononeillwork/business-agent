@@ -99,6 +99,8 @@ import { SearchButton, ThemeToggle } from './QuickActions'
 import { fonts, tokens } from '../theme'
 import { msg, t, tc, tr } from '../i18n'
 import { LanguageToggle } from '../components/Language'
+import { AgentBanner, AgentsButton, useAgentView } from './AgentsMenu'
+import { hiddenByAgent } from '../../shared/agents'
 
 // `partner`: which partner areas show the item ('any' = every partner). Items without it are staff-only.
 // `children`: sub-pages, shown indented under the item when it's opened (or its arrow is pressed).
@@ -609,6 +611,9 @@ export function AppShell() {
   // Pages they can open, less the ones hidden from their menu (they still open from a link).
   // Their roles can leave some out too (Roles & responsibilities → Permissions).
   const hidden = new Set([...hiddenPages(settings, me, isAdmin && canSeePay), ...hiddenByRole(permissions)])
+  // An owner viewing the app as an agent (the Agents button): just that agent's pages, and Settings.
+  const agent = useAgentView()
+  for (const k of hiddenByAgent(agent, SECTIONS)) hidden.add(k)
   const square = useConnected('square')
   const allowed = (n: NavItem) => (n.needs !== 'square' || square === true) && canOpen(n, { isAdmin, isPartner, canSeePay, partnerCan }) && !hidden.has(n.key)
   // Page order within sections: the person's own, kept locally while it saves.
@@ -707,6 +712,7 @@ export function AppShell() {
                 <BrandLogo height={36} />
                 {business?.name && <Typography component="span" noWrap sx={{ fontFamily: fonts.display, fontWeight: 500, fontSize: '1rem', color: tokens.ink }}>{business.name}</Typography>}
               </ButtonBase>
+              <AgentsButton />
               <LanguageToggle />
               {!isPartner && <NotificationBell />}
               <SearchButton pages={searchPages} />
@@ -717,6 +723,7 @@ export function AppShell() {
         )}
         <DemoBanner />
         <BillingBanner />
+        <AgentBanner />
         <Box component="main" sx={{ px: { xs: 2, md: 4 }, pt: { xs: 2.5, md: 3 }, pb: { xs: 2.5, md: 4 }, maxWidth: 1360, mx: 'auto',
           // A big monitor: the page uses more of the screen, so it isn't a narrow strip in the middle.
           [BIG_SCREEN]: { maxWidth: 1720, px: 5 }, [HUGE_SCREEN]: { maxWidth: 2040, px: 6 } }}>
@@ -730,6 +737,7 @@ export function AppShell() {
               [HUGE_SCREEN]: { '& > .eb-top-icons': { zoom: 1.35, pt: `${2 / 1.35}px` }, '&:has([data-eyebrow]) > .eb-top-icons': { pt: `${26 / 1.35}px` } } }}>
               <Box ref={setTitleSlot} sx={{ flex: 1, minWidth: 0 }} />
               <Stack className="eb-top-icons" direction="row" spacing={1} sx={{ alignItems: 'center', flexShrink: 0, ml: 'auto', pt: 0.25 }}>
+                <AgentsButton wide />
                 {!isPartner && <NotificationBell />}
                 <SearchButton pages={searchPages} wide />
                 <ThemeToggle />

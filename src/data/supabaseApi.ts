@@ -16,6 +16,7 @@ import type { Benefit, LeaveAllowance } from '../../shared/benefits'
 import type { LoggedReward, RepReward, RewardRule, SalesRep } from '../../shared/reps'
 import type { KittyEntry, KittyGoal } from '../../shared/kitty'
 import type { JobRole } from '../../shared/roles'
+import type { RoleOwner } from '../../shared/roleOwners'
 import type { RuleSection, RulesRead } from '../../shared/staffRules'
 import type { Pet } from '../../shared/pets'
 import type { Contractor, OutsourcedJob } from '../../shared/outsourcing'
@@ -418,6 +419,12 @@ export function createSupabaseApi(url: string, key: string): Api {
       else check(await sb.from('job_roles').insert(r))
     },
     async deleteJobRole(id) { check(await sb.from('job_roles').delete().eq('id', id)) },
+    async roleOwners() {
+      return check(await sb.from('job_roles').select('id, owned_by, owner_sort')) as RoleOwner[]
+    },
+    async saveRoleOwners(changes) {
+      for (const c of changes) check(await sb.from('job_roles').update({ owned_by: c.owned_by, owner_sort: c.owner_sort }).eq('id', c.id))
+    },
     async ruleSections() {
       return check(await sb.from('staff_rules').select('id, title, intro, rules, sort, updated_at').order('sort').order('title')) as RuleSection[]
     },

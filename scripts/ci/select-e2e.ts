@@ -88,6 +88,8 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'offers', files: [/OffersPage/, /OfferBoard/, /lib\/offerPicture/, /shared\/offers/], tests: String.raw`offer|special|screen` },
   { name: 'email', files: [/EmailPage/, /shared\/email/, /i18n\/es\/email/], tests: String.raw`email` },
   { name: 'contracts', files: [/TeamContracts/, /shared\/contracts/, /i18n\/es\/contracts/], tests: String.raw`contract` },
+  { name: 'agents', files: [/shared\/agents/, /AgentsMenu/, /AgentFocus/, /RolesAgentsTab/, /i18n\/es\/agents/], tests: String.raw`agent` },
+  { name: 'role ownership', files: [/RolesOwnershipTab/, /shared\/roleOwners/, /i18n\/es\/roleOwners/], tests: String.raw`ownership` },
 ]
 
 /** The --grep pattern for these changed files, or 'all'. */

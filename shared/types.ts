@@ -89,6 +89,8 @@ export interface Settings {
   menu_sync_error?: string | null
   /** Expenses: euros paid back a kilometre driven in a private car (0.26 unless changed). */
   mileage_rate?: number
+  /** The owners' changes to the agents (Roles & responsibilities → Agents, shared/agents.ts); null: the usual ones. Only owners change it. */
+  agent_views?: import('./agents').AgentViews | null
 }
 
 export interface Expense {
@@ -169,7 +171,7 @@ export interface Profile {
   preferences?: Preferences
   /** False: not worked into the rota (an owner, the business's own login); they still sign in. Admins set it on Team. */
   on_rota?: boolean
-  /** False: not a person on the People page (the business's own shared login); they still sign in. Admins set it on Team. */
+  /** False: not a person on People or the owners' lanes on Roles & responsibilities (the business's own shared login); they still sign in. Admins set it on Team. */
   on_people?: boolean
 }
 
@@ -201,6 +203,8 @@ export interface Preferences {
   timeZone?: string
   /** Their own dashboards (Insights › Dashboards): the widgets on each, and the one open. */
   dashboards?: SavedDashboards
+  /** Owners: the agent they're viewing the app as (the Agents button at the top, shared/agents.ts); unset or null: everything. */
+  agentView?: string | null
 }
 
 export interface Position {

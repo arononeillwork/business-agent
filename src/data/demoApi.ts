@@ -1128,6 +1128,8 @@ export function createDemoApi(): Api {
     // The menu is kept here (Custom), its sections not arranged yet. "Add what's on your printed menus"
     // (Menu page) adds the café's printed menus beside the costed recipes, in their order of sections.
     menu_source: 'custom', menu_sections: [], menu_synced_at: null, menu_sync_error: null,
+    // The usual agents (shared/agents.ts) until an owner changes them on Roles & responsibilities → Agents.
+    agent_views: null,
   }
 
   const P = { aron: 'p-aron', mark: 'p-mark', julio: 'p-julio', maria: 'p-maria', cleaner: 'p-cleaner' }
@@ -1241,6 +1243,11 @@ export function createDemoApi(): Api {
     reports_to: null, people: rolePeople[r.name] ?? [], duties: handbookDuties(r), sort: i, updated_at: daysAgo(8),
     template: roleTemplate[r.name] ?? null, permissions: tidyPermissions(ROLE_TEMPLATES.find(x => x.id === roleTemplate[r.name])?.permissions),
   }))
+  // Who owns which role (Roles & responsibilities → Ownership): Aron the team's, Mark the money's; the rest nobody yet.
+  const roleOwnersAtStart: Record<string, [string, number]> = {
+    'Head of People': [P.aron, 0], 'Head Barista': [P.aron, 1], 'Barista / Bartender': [P.aron, 2], Investor: [P.mark, 0], Accountant: [P.mark, 1],
+  }
+  for (const r of jobRoles) Object.assign(r, { owned_by: roleOwnersAtStart[r.name]?.[0] ?? null, owner_sort: roleOwnersAtStart[r.name]?.[1] ?? 0 })
   const ruleSections: RuleSection[] = EASY_BEANS_RULES.map((r, i) => ({
     id: uid(), title: r.title, intro: r.intro ?? null, rules: [...r.rules], sort: i, updated_at: daysAgo(r.title === 'Complaints' ? 3 : 10),
   }))
@@ -2207,6 +2214,18 @@ export function createDemoApi(): Api {
       next.updated_at = nowIso()
       if (existing) Object.assign(existing, next)
       else jobRoles.push(next)
+    },
+    async roleOwners() { return isStaff() ? jobRoles.map(r => ({ id: r.id, owned_by: r.owned_by ?? null, owner_sort: r.owner_sort ?? 0 })) : [] },
+    async saveRoleOwners(changes) {
+      // As the role_owners migration: only an owner, and only to an active owner.
+      if (!paysAdmin()) throw new Error('Only an owner decides who owns a role')
+      for (const c of changes) {
+        if (!jobRoles.some(r => r.id === c.id)) throw new Error('Role not found')
+        if (c.owned_by && !profiles.some(p => p.id === c.owned_by && p.role === 'admin' && p.can_see_pay && p.active)) {
+          throw new Error('Only an owner of the business can own a role')
+        }
+      }
+      for (const c of changes) Object.assign(jobRoles.find(r => r.id === c.id)!, { owned_by: c.owned_by, owner_sort: c.owner_sort })
     },
     async deleteJobRole(id) {
       requireAdmin()
