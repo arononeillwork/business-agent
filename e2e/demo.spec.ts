@@ -6987,3 +6987,28 @@ test('the assistant: a button at the bottom right opens a chat; Ctrl K opens sea
   await expect(page.getByRole('heading', { name: /Hola/ })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Ask the assistant' })).toHaveCount(0)
 })
+
+test.describe('email', () => {
+  test('email: an admin allows reading Gmail, sees the café’s mailbox, and Unread shows only the unread emails', async ({ page }) => {
+    await open(page, '/connections')
+    await page.getByRole('region', { name: 'Email' }).getByRole('button', { name: 'Connect Gmail' }).click()
+    await expect(page.getByRole('region', { name: 'Email' }).getByRole('article', { name: 'Gmail' })).toContainText('Connected')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Email', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'Email', level: 1 })).toBeVisible()
+    await expect(page.getByText('Gmail is connected to send email only.')).toBeVisible()
+    await page.getByRole('button', { name: 'Allow reading' }).click()
+
+    const list = page.getByRole('list', { name: 'Emails' })
+    await expect(list.getByRole('listitem')).toHaveCount(16) // the last 30 days
+    await expect(list.getByRole('listitem', { name: 'Factura F2026-0158' })).toContainText('Tostadores del Sur')
+    await expect(list.getByRole('listitem', { name: /^Booking enquiry/ })).toContainText('Customer') // Hannah, on Customers
+
+    const chips = page.getByRole('group', { name: 'Filter emails' })
+    await chips.getByRole('button', { name: /^Unread/ }).click()
+    await expect(chips.getByRole('button', { name: /^Unread/ })).toHaveAttribute('aria-pressed', 'true')
+    await expect(list.getByRole('listitem')).toHaveCount(5)
+    await expect(list.getByRole('img', { name: 'Unread' })).toHaveCount(5)
+    await expect(list.getByRole('listitem', { name: 'Factura F2026-0158' })).toBeVisible()
+    await expect(list.getByRole('listitem', { name: 'Your receipt from Square Shop' })).toHaveCount(0) // read already
+  })
+})

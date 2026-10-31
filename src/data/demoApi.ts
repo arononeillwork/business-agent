@@ -16,6 +16,7 @@ import { TIME_OFF_AFTER_THE_FACT } from '../../shared/types'
 import { mentionTitle, mentionsIn, type InstagramMention } from '../../shared/mentions'
 import { demoSports } from './demoSports'
 import { demoInbox, demoMessenger, demoWhatsApp } from './demoMessages'
+import { demoEmailPage, demoEmails } from './demoEmail'
 import { DEMO_CAFE_AT, DEMO_PLACES, demoCompetitors } from './demoCompetitors'
 import { distanceM, instagramHandle, suggestedThreat, type Competitor, type NearbyPlace } from '../../shared/localCompetitors'
 import { DEFAULT_WHATSAPP_RETENTION, isRetention, replyWindow } from '../../shared/messages'
@@ -2692,6 +2693,16 @@ export function createDemoApi(): Api {
         document_id: doc.id, source: 'email', email_id: id, email_from: m.from, email_subject: m.subject, email_at: m.at })
       invoiceList.push(made)
       return clone(made)
+    },
+    async emailMessages(query) {
+      requireAdmin()
+      // Readable once allowed, as on Invoices → From email (the same permission).
+      const row = integ.integrations.find(i => (i.provider === 'gmail' || i.provider === 'outlook') && i.status === 'connected')
+      const box = row?.provider as 'gmail' | 'outlook' | undefined
+      if (!row || !box || !(row.external as { reads_mail?: boolean }).reads_mail) {
+        return { mailbox: box ?? null, account: row?.account_label ?? null, can_read: false, messages: [], next_page: null }
+      }
+      return { mailbox: box, account: row.account_label, can_read: true, ...demoEmailPage(demoEmails(box, row.account_label, suppliers, customers), query), fetched_at: nowIso() }
     },
     async taxSettings() { return readTax() ? clone(taxSettings) : DEFAULT_TAX_SETTINGS },
     async saveTaxSettings(patch) {

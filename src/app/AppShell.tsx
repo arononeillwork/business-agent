@@ -55,6 +55,7 @@ import FoodSafetyIcon from '@mui/icons-material/ThermostatOutlined'
 import AllergensIcon from '@mui/icons-material/NoMealsOutlined'
 import TipsIcon from '@mui/icons-material/SavingsOutlined'
 import MessagesIcon from '@mui/icons-material/ChatBubbleOutlineRounded'
+import EmailIcon from '@mui/icons-material/MailOutlineRounded'
 import ReferralsIcon from '@mui/icons-material/CardGiftcardOutlined'
 import NotificationsIcon from '@mui/icons-material/NotificationsNoneOutlined'
 import ConnectIcon from '@mui/icons-material/HubOutlined'
@@ -121,6 +122,7 @@ export const SECTIONS: NavSection[] = [
     { key: 'legal', to: '/legal', label: msg('Legal & licences'), short: msg('Legal'), icon: <LegalIcon />, who: 'admin', partner: ['finances'] },
     { key: 'brand', to: '/brand', label: msg('Brand'), icon: <BrandIcon />, partner: 'any' },
     { key: 'messages', to: '/messages', label: msg('Messages'), icon: <MessagesIcon />, who: 'admin' },
+    { key: 'email', to: '/email', label: msg('Email'), icon: <EmailIcon />, who: 'admin' },
     { key: 'cameras', to: '/cameras', label: msg('Cameras'), icon: <CamerasIcon />, who: 'admin' },
   ] },
   // What the figures say: each person's own dashboards, and the Business advisor's findings.

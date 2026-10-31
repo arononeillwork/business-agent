@@ -9,6 +9,7 @@ import type { KindInfo } from '../../shared/social'
 import type { InstagramMention } from '../../shared/mentions'
 import type { FilingRecord, Quarter, TaxDocKind, TaxDocument, TaxSettings } from '../../shared/tax'
 import type { InboxInvoice, InboxState as InvoiceInbox, Invoice, InvoiceInput } from '../../shared/invoices'
+import type { EmailQuery, EmailState } from '../../shared/email'
 import type { Licence, LicenceInput } from '../../shared/licences'
 import type { KeptDocument, StorageFolder } from '../../shared/documents'
 import type { MoneyItem, MoneyItemInput } from '../../shared/creditDebit'
@@ -323,6 +324,10 @@ export interface Api {
   invoiceInbox(days?: number): Promise<InvoiceInbox>
   /** Bring one attachment in as an invoice, its file kept with the tax documents. */
   importInvoice(message: InboxInvoice, attachmentId: string, supplierId?: string | null): Promise<Invoice>
+
+  // Email page (admins): the connected Gmail or Outlook as a list, read only, once reading it is allowed.
+  /** A page of emails for a chip, a search, a period and a supplier; `page` is the `next_page` of the one before. */
+  emailMessages(query: EmailQuery): Promise<EmailState>
 
   // Expenses: everyone sends their own (and changes them while they wait); admins with pay
   // access see and decide all of them; finance partners read.

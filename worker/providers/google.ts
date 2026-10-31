@@ -367,6 +367,63 @@ export async function gmailWithAttachments(token: string, days: number, max = 40
   return out
 }
 
+// Gmail, read (Email page): the mailbox as a list, a page at a time. Same gmail.readonly permission.
+type GmailListPart = GmailPart & { headers?: { name: string; value: string }[]; parts?: GmailListPart[] }
+interface GmailListed { id: string; threadId?: string; labelIds?: string[]; snippet?: string; internalDate?: string; payload?: GmailListPart }
+
+/** Only what the list shows: the headers, labels, preview and the files' names, never the bodies. */
+const LIST_PART = 'filename,mimeType,headers,body(size,attachmentId)'
+const LIST_FIELDS = `id,threadId,labelIds,snippet,internalDate,payload(${LIST_PART},parts(${LIST_PART},parts(${LIST_PART},parts(${LIST_PART}))))`
+
+/** Gmail's previews come with HTML entities (&#39;, &amp;). */
+const unescapeHtml = (s: string) => s.replace(/&(#\d+|#x[\da-f]+|amp|lt|gt|quot|apos|nbsp);/gi, (_, e: string) =>
+  e[0] === '#' ? String.fromCodePoint(e[1] === 'x' || e[1] === 'X' ? parseInt(e.slice(2), 16) : Number(e.slice(1)))
+    : ({ amp: '&', lt: '<', gt: '>', quot: '"', apos: '\'', nbsp: ' ' } as Record<string, string>)[e.toLowerCase()])
+
+/** The files attached, leaving out pictures that are part of the email itself (a logo in the signature). */
+function attachmentsOf(p?: GmailListPart, out: { name: string; size: number; type: string }[] = []) {
+  if (!p) return out
+  const embedded = p.mimeType?.startsWith('image/') && p.headers?.some(h => h.name.toLowerCase() === 'content-id')
+  if (p.filename && p.body?.attachmentId && !embedded) out.push({ name: p.filename, size: p.body.size ?? 0, type: p.mimeType ?? '' })
+  p.parts?.forEach(x => attachmentsOf(x, out))
+  return out
+}
+
+/**
+ * A page of emails for a Gmail search (shared/email.ts gmailSearch), newest first: who sent it, the
+ * subject, the preview, read or not, starred, important and the files attached.
+ */
+export async function gmailMessages(token: string, o: { q: string; max?: number; pageToken?: string | null }) {
+  const p = new URLSearchParams({ q: o.q, maxResults: String(o.max ?? 25) })
+  if (o.pageToken) p.set('pageToken', o.pageToken)
+  const list = await gmail<{ messages?: { id: string }[]; nextPageToken?: string }>(token, `messages?${p}`)
+  const ids = (list.messages ?? []).map(m => m.id)
+  const found: GmailListed[] = []
+  // Ten at a time: quick, and well inside Gmail's per-second allowance.
+  for (let i = 0; i < ids.length; i += 10) {
+    found.push(...await Promise.all(ids.slice(i, i + 10).map(id =>
+      gmail<GmailListed>(token, `messages/${encodeURIComponent(id)}?format=full&fields=${encodeURIComponent(LIST_FIELDS)}`))))
+  }
+  return {
+    next_page: list.nextPageToken ?? null,
+    messages: found.map(m => {
+      const header = (n: string) => m.payload?.headers?.find(h => h.name.toLowerCase() === n)?.value ?? ''
+      const labels = m.labelIds ?? []
+      return {
+        id: m.id, thread_id: m.threadId ?? m.id, from: header('from'), to: header('to'), subject: header('subject'), snippet: unescapeHtml(m.snippet ?? ''),
+        at: new Date(Number(m.internalDate ?? Date.now())).toISOString(), unread: labels.includes('UNREAD'), starred: labels.includes('STARRED'),
+        important: labels.includes('IMPORTANT'), labels, attachments: attachmentsOf(m.payload), link: null as string | null,
+      }
+    }),
+  }
+}
+
+/** How many emails a Gmail search finds, up to 500 (one call: the ids alone). */
+export async function gmailCount(token: string, q: string) {
+  const list = await gmail<{ messages?: unknown[] }>(token, `messages?${new URLSearchParams({ q, maxResults: '500', fields: 'messages(id)' })}`)
+  return list.messages?.length ?? 0
+}
+
 /** An attachment's bytes. */
 export async function gmailAttachment(token: string, message: string, attachment: string) {
   const a = await gmail<{ data: string }>(token, `messages/${encodeURIComponent(message)}/attachments/${encodeURIComponent(attachment)}`)

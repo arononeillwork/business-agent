@@ -23,6 +23,7 @@ import { tax } from './tax'
 import { files } from './files'
 import { legal } from './legal'
 import { invoices } from './invoices'
+import { email } from './email'
 import { loyaltyRoutes } from './loyalty'
 import { assistant } from './assistant'
 import { refreshReviews, reviews, reviewsConfigured } from './reviews'
@@ -238,6 +239,8 @@ app.route('/', files)
 app.route('/', legal)
 // Invoices that come by email, into the café's Drive or OneDrive (Invoices page).
 app.route('/', invoices)
+// The Email page: the connected Gmail or Outlook as a list, with filters (admins).
+app.route('/', email)
 // Square loyalty (the stamp card) and gift cards, for the Loyalty page.
 app.route('/', loyaltyRoutes)
 // The in-app assistant: questions answered by Claude with the person's own tools.
