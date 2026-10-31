@@ -1,16 +1,16 @@
 {
   "name": "webhours",
   "fps": 30,
-  "duration": 5.752,
+  "duration": 5.921,
   "viewport": {
     "width": 1440,
     "height": 900
   },
   "dpr": 1.5,
-  "frames": 116,
+  "frames": 100,
   "events": [
     {
-      "t": 3.396,
+      "t": 3.542,
       "type": "focus",
       "box": {
         "x": 272,

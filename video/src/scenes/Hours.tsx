@@ -1,32 +1,51 @@
-// Opening hours: closed on Sundays from now on, saved once; Christmas added once in the calendar;
-// then where it shows: Google Maps, the café's website, the team's calendar.
+// Opening hours: closed on Sundays from now on, saved once. The calendar: the bank holidays already
+// in, Christmas added once as a closure, then a closer look at the days off. Then where it shows:
+// Google Maps, the café's website, the team's calendar.
 import { Sequence, interpolate, useCurrentFrame } from 'remotion'
 import { Browser, Caption, Clip, Cream, Em, Sfx, Zoomed, useEnter, type CamKey } from '../kit'
 import { META, camOn, clicksOf, eventAt } from '../clips'
-import { Arrive, CalendarCard, MapsCard, WebsiteHoursCard } from '../places'
-import type { Segment } from '../timeline'
+import { Arrive, CalendarCard, MapsCard, Ring, WebsiteHoursCard } from '../places'
+import { WIN, lengthOf, type Segment } from '../timeline'
 
-const HOURS: Segment[] = [{ a: 0.5, b: 9.2, rate: 1.6 }]
-const CLOSURE: Segment[] = [{ a: 1.5, b: 17.9, rate: 3.0 }]
-const W = 1500
-const H = 938
-const B = 165 // the calendar starts
-const C = 330 // the cards
+const HOURS: Segment[] = [{ a: 1.6, b: 11.0, rate: 1.8 }]
+const CLOSURE: Segment[] = [
+  { a: 0.8, b: 7.8, rate: 1.8 },   // December, the bank holidays already there
+  { a: 9.4, b: 24.2, rate: 3.2 },  // "Add a closure": Closed for Christmas, 24 to 26 December
+  { a: 24.2, b: 29.6, rate: 1.6 }, // the days off, up close
+]
+const B = lengthOf(HOURS)            // the calendar starts
+const HOLIDAYS = lengthOf(CLOSURE.slice(0, 1))
+const C = B + lengthOf(CLOSURE)      // the cards
+
+/** A rose ring round each bank holiday as the cursor reaches it, gone when the closure dialog opens. */
+function HolidayRings({ until }: { until: number }) {
+  const frame = useCurrentFrame()
+  const c = META.closure
+  const k = WIN.w / c.viewport.width
+  const fade = interpolate(frame, [until - 6, until + 2], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })
+  return (
+    <div style={{ position: 'absolute', inset: 0, opacity: fade }}>
+      {c.events.filter(e => e.label?.startsWith('holiday-') && e.box).map(e => (
+        <Ring key={e.label} at={eventAt(c, e.label!, CLOSURE) - 4} x={e.box!.x * k - 4} y={e.box!.y * k - 3} w={e.box!.width * k + 8} h={e.box!.height * k + 6} />
+      ))}
+    </div>
+  )
+}
 
 export function Hours() {
   const frame = useCurrentFrame()
   const h = META.hours
   const c = META.closure
   const hoursKeys: CamKey[] = [
-    { f: 0, s: 1, fx: 720, fy: 420 },
-    camOn(h, 'sunday', HOURS, 1.7, 14, { x: 170, y: -40 }),
-    camOn(h, 'google', HOURS, 1.55, 12),
+    { f: 0, s: 1, fx: 720, fy: 450 },
+    { f: eventAt(h, 'sunday', HOURS) - 14, s: 1.25, fx: 640, fy: 560 },
+    { f: eventAt(h, 'google', HOURS) - 12, s: 1.2, fx: 760, fy: 690 },
   ]
   const closureKeys: CamKey[] = [
-    { f: 0, s: 1, fx: 720, fy: 420 },
-    camOn(c, 'add-closure', CLOSURE, 1.35, 6),
-    { f: eventAt(c, 'title', CLOSURE) - 4, s: 1.6, fx: 720, fy: 400 },
-    camOn(c, 'closed-days', CLOSURE, 1.55, 8),
+    { f: 0, s: 1, fx: 720, fy: 450 },
+    { f: eventAt(c, 'add-closure', CLOSURE) + 4, s: 1.15, fx: 720, fy: 430 },
+    { f: eventAt(c, 'save', CLOSURE) + 8, s: 1, fx: 720, fy: 450 },
+    camOn(c, 'closed-days', CLOSURE, 1.8, 0, { x: 160, y: 0 }),
   ]
   const win = useEnter(2, 200)
   const winOut = interpolate(frame, [C - 10, C], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })
@@ -35,35 +54,40 @@ export function Hours() {
   return (
     <Cream>
       <Sequence durationInFrames={B} layout="none">
-        <Caption eyebrow="Opening hours" title={<>Change it <Em>once.</Em></>} at={0} out={B} />
+        <Caption title={<>Change your hours <Em>once.</Em></>} at={0} out={B} />
       </Sequence>
-      <Sequence from={B} durationInFrames={C - B} layout="none">
-        <Caption eyebrow="Holidays & closures" title={<>Christmas? Add it <Em>once.</Em></>} at={0} out={C - B} />
+      <Sequence from={B} durationInFrames={HOLIDAYS} layout="none">
+        <Caption title={<>Bank holidays, <Em>already in.</Em></>} at={0} out={HOLIDAYS} />
+      </Sequence>
+      <Sequence from={B + HOLIDAYS} durationInFrames={C - B - HOLIDAYS} layout="none">
+        <Caption title={<>Days off? Add them <Em>once.</Em></>} at={0} out={C - B - HOLIDAYS} />
       </Sequence>
       {frame < C && (
-        <Browser url={swap < 0.5 ? 'businesssagent.com/opening-hours' : 'businesssagent.com/calendar'} width={W} height={H}
-          style={{ left: 210, top: 245, opacity: win * winOut, translate: `0 ${interpolate(win, [0, 1], [90, 0]) + interpolate(winOut, [0, 1], [60, 0])}px` }}>
+        <Browser url={swap < 0.5 ? 'businesssagent.com/opening-hours' : 'businesssagent.com/calendar'} width={WIN.w} height={WIN.h}
+          style={{ left: WIN.x, top: WIN.y, opacity: win * winOut, translate: `0 ${interpolate(win, [0, 1], [90, 0]) + interpolate(winOut, [0, 1], [60, 0])}px` }}>
           <div style={{ position: 'absolute', inset: 0, opacity: 1 - swap }}>
-            <Zoomed keys={hoursKeys} w={W} h={H} focusY={0.42}><Clip src="clips/hours.mp4" segs={HOURS} /></Zoomed>
+            <Zoomed keys={hoursKeys} w={WIN.w} h={WIN.h}><Clip src="clips/hours.mp4" segs={HOURS} /></Zoomed>
           </div>
-          <Sequence from={B - 6} layout="none">
+          <Sequence from={B} layout="none">
             <div style={{ position: 'absolute', inset: 0, opacity: swap }}>
-              <Zoomed keys={closureKeys.map(k => ({ ...k, f: k.f }))} w={W} h={H} focusY={0.42}><Clip src="clips/closure.mp4" segs={CLOSURE} /></Zoomed>
+              <Zoomed keys={closureKeys} w={WIN.w} h={WIN.h}>
+                <Clip src="clips/closure.mp4" segs={CLOSURE} />
+                <HolidayRings until={eventAt(c, 'add-closure', CLOSURE)} />
+              </Zoomed>
             </div>
           </Sequence>
         </Browser>
       )}
       <Sequence from={C} layout="none">
-        <Caption eyebrow="Everywhere, by itself" title={<>It’s changed <Em>everywhere.</Em></>}
-          sub="Google Maps within a minute. Your website. Your team’s calendar." at={0} />
-        <Arrive at={4} x={110} y={420} width={600}><MapsCard at={4} mode="hours" /></Arrive>
-        <Arrive at={16} x={750} y={330} width={1060}><WebsiteHoursCard at={16} width={1060} /></Arrive>
-        <Arrive at={28} x={750} y={712} width={1060}><CalendarCard at={28} width={1060} /></Arrive>
+        <Caption title={<>It’s changed <Em>everywhere.</Em></>} at={0} />
+        <Arrive at={4} x={110} y={376} width={600}><MapsCard at={4} mode="hours" /></Arrive>
+        <Arrive at={16} x={750} y={250} width={1060}><WebsiteHoursCard at={16} width={1060} /></Arrive>
+        <Arrive at={28} x={750} y={612} width={1060}><CalendarCard at={28} width={1060} /></Arrive>
         {[4, 16, 28].map(f => <Sfx key={f} name="pop" at={f} volume={0.3} />)}
         {[14, 26, 38].map(f => <Sfx key={f} name="ping" at={f} volume={0.12} />)}
       </Sequence>
-      {clicksOf(h, HOURS).map((f, i) => <Sfx key={`h${i}`} name="click" at={f} volume={0.3} />)}
-      {clicksOf(c, CLOSURE).map((f, i) => <Sfx key={`c${i}`} name="click" at={B - 6 + f} volume={0.3} />)}
+      {clicksOf(h, HOURS).map((f, i) => <Sfx key={`h${i}`} name="click" at={f} volume={0.28} />)}
+      {clicksOf(c, CLOSURE).map((f, i) => <Sfx key={`c${i}`} name="click" at={B + f} volume={0.28} />)}
       <Sfx name="whoosh" at={C - 10} volume={0.25} />
     </Cream>
   )

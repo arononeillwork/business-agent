@@ -7,7 +7,7 @@ import { FEATURES } from '../../app/features'
 import { BA, SectionIntro } from './site'
 import { t, tr } from '../../i18n'
 
-export const DEMO_VIDEO = { src: '/video/business-agent-demo.mp4', poster: '/video/business-agent-demo.jpg', seconds: 76 }
+export const DEMO_VIDEO = { src: '/video/business-agent-demo.mp4', poster: '/video/business-agent-demo.jpg', seconds: 94 }
 
 export function DemoVideo() {
   const video = useRef<HTMLVideoElement>(null)

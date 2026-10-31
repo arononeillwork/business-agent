@@ -10,7 +10,7 @@ export const FEATURES = {
   tips: false,
   /** Music on stories and reels (Social planner), AI tracks paid per use, the brand's sound and the assistant's music tools. Waits for the ElevenLabs key and the render service (docs/SOCIAL_MUSIC_PLAN.md). */
   music: false,
-  /** The demo video on the landing page (video/). It shows the menu reaching Google Maps: on once that's live. */
+  /** The demo video on the landing page (video/): on once the owner has signed the video off. */
   demoVideo: false,
 }
 

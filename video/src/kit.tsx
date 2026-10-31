@@ -25,7 +25,7 @@ export function useExit(end: number, len = 10) {
 }
 
 /** The headline over each scene: small spaced capitals, then the line itself (an <em> is in rose italic). */
-export function Caption({ eyebrow, title, sub, at = 0, out, x = 110, y = 70, width = 1700, size = 78, align = 'left', light }: {
+export function Caption({ eyebrow, title, sub, at = 0, out, x = 305, y = 62, width = 1400, size = 70, align = 'left', light }: {
   eyebrow?: string; title: ReactNode; sub?: ReactNode; at?: number; out?: number; x?: number; y?: number; width?: number; size?: number
   align?: 'left' | 'center'; light?: boolean
 }) {

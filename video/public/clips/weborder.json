@@ -1,16 +1,16 @@
 {
   "name": "weborder",
   "fps": 30,
-  "duration": 4.318,
+  "duration": 4.365,
   "viewport": {
     "width": 393,
     "height": 852
   },
   "dpr": 1.5,
-  "frames": 219,
+  "frames": 191,
   "events": [
     {
-      "t": 1.508,
+      "t": 1.516,
       "type": "focus",
       "box": {
         "x": 138,
@@ -21,7 +21,7 @@
       "label": "add"
     },
     {
-      "t": 1.582,
+      "t": 1.625,
       "type": "click",
       "x": 254.33334350585938,
       "y": 782.0729370117188,

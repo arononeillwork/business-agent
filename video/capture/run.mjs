@@ -38,32 +38,42 @@ async function phone() {
 const toast = (page, text) => page.getByRole('alert').filter({ hasText: text }).first().waitFor()
 
 const SCENES = {
-  /** The set-up guide: a café's ready-made setup, five apps connected one after another, all set. */
+  /** The set-up guide, taken slowly: a ready-made setup, each kind of business looked at, the café's apps, five connected, all set. */
   async setup() {
     const ctx = await desktop()
     const page = await openDemo(ctx, { time: TIME, path: '/setup' })
     await page.getByRole('heading', { name: /I’m your Business Agent/ }).waitFor()
     const r = new Recorder(page, 'setup', OUT)
     await r.start()
-    await r.glide(900, 520, 10); await r.pause(500)
-    await r.click(page.getByRole('button', { name: /^Use a ready-made setup/ }), { label: 'ready-made', after: 700 })
-    await r.click(page.getByRole('button', { name: /^Café & coffee shop/ }), { label: 'cafe', after: 500 })
-    await r.click(page.getByRole('button', { name: 'Next' }), { label: 'next', after: 900 })
+    await r.glide(980, 600, 10); await r.pause(1400)
+    const ready = page.getByRole('button', { name: /^Use a ready-made setup/ })
+    await r.focus(ready, 'ready-made-look', { move: true }); await r.pause(900)
+    await r.click(ready, { label: 'ready-made', after: 1200 })
+    // The business templates, one by one, then the café.
+    for (const kind of ['Café & coffee shop', 'Restaurant & bar', 'Salon & beauty', 'Something else']) {
+      const card = page.getByRole('button', { name: new RegExp(`^${kind.replace(/[&]/g, '\\&')}`) })
+      const b = await r.boxOf(card)
+      await r.glide(b.x + b.width / 2, b.y + b.height * 0.55, 650)
+      r.mark('focus', { box: b, label: `kind-${kind}` })
+      await r.pause(950)
+    }
+    await r.click(page.getByRole('button', { name: /^Café & coffee shop/ }), { label: 'cafe', ms: 900, after: 900 })
+    await r.click(page.getByRole('button', { name: 'Next' }), { label: 'next', ms: 800, after: 1500 })
     r.mark('focus', { label: 'apps', box: await page.getByRole('heading', { name: 'Your recommended setup' }).boundingBox() })
-    await r.glide(1000, 600, 600)
-    await r.scrollBy(420, 1100); await r.pause(400)
-    await r.click(page.getByRole('button', { name: /^Connect \d+ apps?$/ }), { label: 'connect-all', after: 700 })
+    await r.glide(1000, 560, 700); await r.pause(1300)
+    await r.scrollBy(420, 1800); await r.pause(900)
+    await r.click(page.getByRole('button', { name: /^Connect \d+ apps?$/ }), { label: 'connect-all', ms: 800, after: 1100 })
     for (const app of ['Square', 'Facebook', 'TikTok', 'Google Drive', 'Gmail']) {
-      await r.click(page.getByRole('button', { name: `Continue to ${app}` }), { label: `continue-${app}`, ms: 380, after: 520 })
+      await r.click(page.getByRole('button', { name: `Continue to ${app}` }), { label: `continue-${app}`, ms: 450, after: 700 })
     }
     await page.getByRole('heading', { name: /You’re all set/ }).waitFor()
     await r.focus(page.getByRole('heading', { name: /You’re all set/ }), 'all-set')
-    await r.glide(1080, 420, 700); await r.pause(1400)
+    await r.glide(1080, 420, 900); await r.pause(2400)
     await r.stop()
     await ctx.close()
   },
 
-  /** Opening hours: closed on Sundays from now on; saved, and Google Maps kept in step. Then Christmas, from the calendar. */
+  /** Opening hours: closed on Sundays from now on, saved, Google Maps kept in step. Then the calendar: the bank holidays already in, Christmas added as a closure. */
   async hours() {
     const ctx = await desktop()
     const page = await openDemo(ctx, { time: TIME, path: '/opening-hours' })
@@ -77,72 +87,80 @@ const SCENES = {
     await toast(page, 'Opening hours saved')
     await page.getByRole('alert').filter({ hasText: 'Opening hours saved' }).getByRole('button', { name: 'Close' }).click()
     await page.getByRole('alert').filter({ hasText: 'Opening hours saved' }).waitFor({ state: 'detached' })
-    await page.mouse.move(800, 420)
+    await page.mouse.move(820, 300)
     await page.waitForTimeout(600)
     const r = new Recorder(page, 'hours', OUT)
+    r.mouse = { x: 820, y: 300 }
     await r.start()
-    await r.glide(800, 420, 10); await r.pause(400)
+    await r.pause(1300)
     await r.focus(page.getByRole('region', { name: 'Weekly hours' }), 'week')
-    await r.click(page.getByLabel('Open on Sunday'), { label: 'sunday', after: 700 })
-    await r.click(page.getByRole('button', { name: 'Save hours' }), { label: 'save', after: 200 })
+    await r.click(page.getByLabel('Open on Sunday'), { label: 'sunday', ms: 1000, after: 1100 })
+    await r.click(page.getByRole('button', { name: 'Save hours' }), { label: 'save', ms: 800, after: 200 })
     await toast(page, 'Opening hours saved')
-    await r.pause(600)
+    await r.pause(900)
     await r.focus(page.getByText(/Google Maps is kept in step/), 'google', { move: true })
-    await r.pause(1500)
+    await r.pause(2200)
     await r.stop()
 
     await go(page, '/calendar')
     await page.getByRole('heading', { name: 'Calendar' }).waitFor()
-    await page.waitForTimeout(600)
+    // Off camera: just the holidays and the café's own days (theme days, the routine and football hidden).
+    const show = page.getByRole('group', { name: 'Show on the calendar' })
+    for (const name of ['Theme days', 'Routine']) {
+      const chip = show.getByRole('button', { name })
+      if (await chip.count() && (await chip.getAttribute('aria-pressed')) === 'true') await chip.click()
+    }
+    await page.getByRole('button', { name: 'Football', exact: true }).click()
+    await page.mouse.move(r.mouse.x, r.mouse.y)
+    await page.waitForTimeout(800)
     const c = new Recorder(page, 'closure', OUT)
     c.mouse = r.mouse
     await c.start()
-    await c.pause(300)
-    await c.click(page.getByRole('button', { name: 'Add a closure' }), { label: 'add-closure', after: 600 })
-    const dialog = page.getByRole('dialog', { name: 'Add a closure' })
-    await c.type(dialog.getByLabel('Title'), 'Closed for Christmas', { label: 'title', delay: 55 })
-    await c.click(dialog.getByLabel('From'), { label: 'from', after: 150 })
-    await dialog.getByLabel('From').fill('2026-12-24'); await c.pause(350)
-    await c.click(dialog.getByLabel('To (optional)'), { label: 'to', after: 150 })
-    await dialog.getByLabel('To (optional)').fill('2026-12-26'); await c.pause(450)
-    await c.focus(dialog.getByText(/shows as closed on Google Maps/), 'helper')
+    await c.pause(900)
+    // December's bank holidays are already there.
+    for (const day of ['Día de la Constitución', 'Inmaculada Concepción', 'Natividad del Señor']) {
+      await c.focus(page.getByText(day, { exact: false }).first(), `holiday-${day}`, { move: true })
+      await c.pause(750)
+    }
     await c.pause(500)
+    await c.click(page.getByRole('button', { name: 'Add a closure' }), { label: 'add-closure', ms: 900, after: 900 })
+    const dialog = page.getByRole('dialog', { name: 'Add a closure' })
+    await c.type(dialog.getByLabel('Title'), 'Closed for Christmas', { label: 'title', delay: 70 })
+    await c.click(dialog.getByLabel('From'), { label: 'from', after: 200 })
+    await dialog.getByLabel('From').fill('2026-12-24'); await c.pause(600)
+    await c.click(dialog.getByLabel('To (optional)'), { label: 'to', after: 200 })
+    await dialog.getByLabel('To (optional)').fill('2026-12-26'); await c.pause(800)
     await c.click(dialog.getByRole('button', { name: 'Save' }), { label: 'save', after: 200 })
     await toast(page, 'Closure added')
-    await c.pause(500)
-    await c.focus(page.getByText('Closed for Christmas').first(), 'closed-days', { move: true })
-    await c.pause(1500)
+    await page.getByRole('alert').filter({ hasText: 'Closure added' }).getByRole('button', { name: 'Close' }).click().catch(() => {})
+    await c.glide(1500, 860, 900)
+    await c.focus(page.getByText('Closed for Christmas').first(), 'closed-days')
+    await c.pause(3200)
     await c.stop()
     await ctx.close()
   },
 
-  /** The menu follows Square: read from the till, Flat White's new price, the printed menu and the TV with it. */
+  /** The menu follows Square by itself: Flat White's new price on the Menu page, kept in step with Google Maps; the TV board with it. */
   async menu() {
     const ctx = await desktop()
     const page = await openDemo(ctx, { time: TIME, path: '/connections' })
     await page.getByRole('region', { name: 'Payments and sales' }).getByRole('button', { name: 'Connect Square' }).click()
     await page.getByRole('region', { name: 'Payments and sales' }).getByRole('article', { name: 'Square' }).filter({ hasText: 'Connected' }).waitFor()
+    // Off camera: the menu comes from Square (it's read every hour by itself; the buttons that read it
+    // or send it on by hand aren't part of the story, so they're hidden while recording).
     await go(page, '/menu')
     await page.getByRole('heading', { name: 'Menu', exact: true }).waitFor()
-    await page.waitForTimeout(500)
-    const r = new Recorder(page, 'menu', OUT)
-    await r.start()
-    await r.glide(1100, 300, 10); await r.pause(300)
-    await r.focus(page.getByText('Flat white', { exact: true }).first(), 'old-price', { move: true })
-    await r.pause(700)
-    await r.click(page.getByRole('button', { name: 'Square', exact: true }), { label: 'square', after: 700 })
-    const dialog = page.getByRole('dialog', { name: 'Read the menu from Square?' })
-    await r.focus(dialog, 'dialog')
-    await r.click(dialog.getByRole('button', { name: 'Read from Square' }), { label: 'read', after: 200 })
+    await page.getByRole('button', { name: 'Square', exact: true }).click()
+    await page.getByRole('dialog', { name: 'Read the menu from Square?' }).getByRole('button', { name: 'Read from Square' }).click()
     await toast(page, /Read \d+ items from Square/)
-    await r.pause(700)
-    const card = page.getByText('Flat White', { exact: true }).first()
-    await r.focus(card, 'new-price', { move: true })
-    await r.pause(1600)
-    await r.stop()
-
-    // Off camera: the TV menu board showed the old sections (Coffee, Tea & matcha); Square calls them Classics.
     await page.getByRole('alert').filter({ hasText: /Read \d+ items from Square/ }).getByRole('button', { name: 'Close' }).click().catch(() => {})
+    await page.evaluate(() => {
+      const hide = () => document.querySelectorAll('button').forEach(b => {
+        if (/^(Read from Square now|Send to Google Maps now)$/.test((b.textContent || '').trim())) b.style.visibility = 'hidden'
+      })
+      hide(); new MutationObserver(hide).observe(document.body, { childList: true, subtree: true })
+    })
+    // The TV menu board showed the old sections (Coffee, Tea & matcha); Square calls them Classics.
     await page.getByRole('tab', { name: 'Design' }).click()
     await page.getByRole('button', { name: 'Digital', exact: true }).click()
     await page.getByText('TV menu board', { exact: true }).first().click()
@@ -150,30 +168,29 @@ const SCENES = {
     await page.getByRole('button', { name: 'Save changes' }).click()
     await toast(page, 'Saved')
     await page.getByRole('alert').filter({ hasText: 'Saved' }).getByRole('button', { name: 'Close' }).click().catch(() => {})
-    await page.getByRole('button', { name: 'Physical', exact: true }).click()
-    await page.getByText('Drinks menu', { exact: true }).first().click()
     await page.getByRole('tab', { name: 'Items' }).click()
-    await page.waitForTimeout(800)
-    await page.mouse.move(r.mouse.x, r.mouse.y)
+    await page.getByRole('heading', { name: 'Menu', exact: true }).waitFor()
+    await page.mouse.move(1100, 260)
+    await page.waitForTimeout(1500)
 
-    const p = new Recorder(page, 'print', OUT)
-    p.mouse = r.mouse
-    await p.start()
-    await p.click(page.getByRole('tab', { name: 'Design' }), { label: 'design', after: 1200 })
-    await p.focus(page.getByRole('img', { name: 'Preview of the printed menu' }), 'drinks')
-    await p.glide(990, 720, 800)
-    await p.pause(1800)
-    await p.stop()
+    const r = new Recorder(page, 'menu', OUT)
+    r.mouse = { x: 1100, y: 260 }
+    await r.start()
+    await r.pause(1200)
+    await r.focus(page.getByText('Flat White', { exact: true }).first(), 'new-price', { move: true })
+    await r.pause(1600)
+    await r.focus(page.getByLabel('Menu on Google Maps'), 'google', { move: true })
+    await r.pause(2200)
+    await r.stop()
 
-    const tv = new Recorder(page, 'tv', OUT)
-    tv.mouse = p.mouse
-    await tv.start()
-    await tv.click(page.getByRole('button', { name: 'Digital', exact: true }), { label: 'digital', after: 600 })
-    await tv.click(page.getByText('TV menu board', { exact: true }).first(), { label: 'board', after: 900 })
-    await tv.focus(page.getByRole('img', { name: 'Preview of the screen menu' }), 'board')
-    await tv.click(page.getByRole('button', { name: 'Full screen' }), { label: 'fullscreen', after: 300 })
+    await page.getByRole('tab', { name: 'Design' }).click()
+    await page.getByRole('button', { name: 'Digital', exact: true }).click()
+    await page.getByText('TV menu board', { exact: true }).first().click()
     await page.mouse.move(1500, 1000)
-    await tv.pause(3200)
+    await page.waitForTimeout(1500)
+    const tv = new Recorder(page, 'tv', OUT)
+    await tv.start()
+    await tv.pause(2500)
     await tv.stop()
     await ctx.close()
   },
@@ -257,8 +274,9 @@ await browser.close()
 // The stills the "changed everywhere" cards are cut from: a moment of a recording each (the cursor out of the way).
 const STILLS = join(OUT, '..', 'stills')
 mkdirSync(STILLS, { recursive: true })
-for (const [still, clip, at] of [['web-hours', 'webhours', 5.4], ['calendar', 'closure', 15.2], ['print', 'print', 3.0], ['tv', 'tv', 5.9]]) {
-  if (wanted.length && !wanted.some(w => clip.startsWith(w) || (w === 'hours' && clip === 'closure') || (w === 'menu' && ['print', 'tv'].includes(clip)))) continue
-  execFileSync('ffmpeg', ['-v', 'error', '-y', '-ss', String(at), '-i', join(OUT, `${clip}.mp4`), '-frames:v', '1', join(STILLS, `${still}.png`)])
+for (const [still, clip, at] of [['web-hours', 'webhours', 5.4], ['calendar', 'closure', -0.3], ['tv', 'tv', 1.5]]) {
+  if (wanted.length && !wanted.some(w => clip.startsWith(w) || (w === 'hours' && clip === 'closure') || (w === 'menu' && clip === 'tv'))) continue
+  // A negative time counts back from the end of the recording.
+  execFileSync('ffmpeg', ['-v', 'error', '-y', ...(at < 0 ? ['-sseof', String(at)] : ['-ss', String(at)]), '-i', join(OUT, `${clip}.mp4`), '-frames:v', '1', join(STILLS, `${still}.png`)])
 }
 console.log(`Clips in ${OUT}, stills in ${STILLS} (app: ${APP})`)

@@ -49,14 +49,14 @@ const Row = ({ left, right, at }: { left: ReactNode; right: ReactNode; at?: numb
 )
 
 /** The café on Google Maps: its hours, or its menu. */
-export function MapsCard({ at, mode }: { at: number; mode: 'hours' | 'menu' }) {
+export function MapsCard({ at, mode, head = true }: { at: number; mode: 'hours' | 'menu'; head?: boolean }) {
   return (
     <Card>
-      <Head icon={<Logo icon={siGooglemaps} size={30} />} name="Google Maps" at={at + 10} />
-      <div style={{ padding: '0 24px 14px' }}>
+      {head && <Head icon={<Logo icon={siGooglemaps} size={30} />} name="Google Maps" at={at + 10} />}
+      <div style={{ padding: head ? '0 24px 14px' : '22px 24px 14px' }}>
         <div style={{ fontFamily: text, fontWeight: 600, fontSize: 30, color: BA.ink }}>Easy Beans Coffee</div>
         <div style={{ fontFamily: text, fontSize: 20, color: BA.faint, marginTop: 4 }}>
-          4.6 <span style={{ color: '#F4B400' }}>★★★★★</span> (25) · Coffee shop · San Pedro
+          4.6 <span style={{ color: '#F4B400' }}>★★★★★</span> (25)
         </div>
         <div style={{ display: 'flex', gap: 22, marginTop: 16, fontFamily: text, fontWeight: 600, fontSize: 20 }}>
           {['Overview', 'Menu', 'Reviews'].map(tab => {
@@ -90,7 +90,6 @@ export function WebsiteHoursCard({ at, width }: { at: number; width: number }) {
   return (
     <Card>
       <Head icon={<Globe />} name="Your website" at={at + 10} />
-      <div style={{ padding: '0 24px 10px', marginTop: -8, fontFamily: text, fontSize: 19, color: BA.faint }}>easybeanscoffee.com</div>
       <div style={{ position: 'relative', borderTop: `1px solid ${BA.lineSoft}` }}>
         <Crop src="stills/web-hours.png" x={200} y={795} w={700} h={170} width={width} />
         <Ring at={at + 16} x={(398 - 200) * k} y={(916 - 795) * k} w={232 * k} h={44 * k} />
@@ -105,10 +104,9 @@ export function CalendarCard({ at, width }: { at: number; width: number }) {
   return (
     <Card>
       <Head icon={<CalendarGlyph />} name="Team calendar" at={at + 10} />
-      <div style={{ padding: '0 24px 10px', marginTop: -8, fontFamily: text, fontSize: 19, color: BA.faint }}>December 2026</div>
       <div style={{ position: 'relative', borderTop: `1px solid ${BA.lineSoft}` }}>
-        <Crop src="stills/calendar.png" x={1150} y={800} w={710} h={130} width={width} />
-        <Ring at={at + 16} x={(1154 - 1150) * k} y={(865 - 800) * k} w={704 * k} h={34 * k} />
+        <Crop src="stills/calendar.png" x={1150} y={975} w={710} h={105} width={width} />
+        <Ring at={at + 16} x={(1154 - 1150) * k} y={(1008 - 975) * k} w={704 * k} h={34 * k} />
       </div>
     </Card>
   )
