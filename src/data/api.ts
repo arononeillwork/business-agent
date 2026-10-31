@@ -21,6 +21,7 @@ import type { TeamRole } from '../../shared/teamRoles'
 import type { RuleSection, RuleSectionInput, RulesRead } from '../../shared/staffRules'
 import type { Pet, PetInput } from '../../shared/pets'
 import type { Contractor, ContractorInput, OutsourcedJob, OutsourcedJobInput } from '../../shared/outsourcing'
+import type { EmploymentContract, EmploymentContractInput } from '../../shared/contracts'
 import type { PnlLine, PnlLineInput, PnlSettings } from '../../shared/pnl'
 import type { GrantApplication, GrantApplicationInput, GrantProfile } from '../../shared/grants'
 import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
@@ -250,6 +251,13 @@ export interface Api {
   /** Give someone a job (no id) or change one; returns its id. */
   saveOutsourcedJob(j: OutsourcedJobInput): Promise<string>
   deleteOutsourcedJob(id: string): Promise<void>
+
+  // Employment contracts (Team → Contracts): admins see everyone's and change them, a payroll gestoría
+  // reads, everyone else sees their own. The salary only for those who see pay, and on your own.
+  employmentContracts(): Promise<EmploymentContract[]>
+  /** Add one (no id) or change one; returns its id. With `salary` (null: none), sets its pay: admins with pay access. */
+  saveEmploymentContract(c: EmploymentContractInput): Promise<string>
+  deleteEmploymentContract(id: string): Promise<void>
 
   // Business Agent subscription (Stripe Billing). planStatus: everyone; the rest: admins.
   planStatus(): Promise<PlanStatus>

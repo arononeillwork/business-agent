@@ -138,6 +138,7 @@ function Routed() {
           {(partnerCan('rota') || partnerCan('payroll')) && <Route path="rota" element={<RotaPage />} />}
           {partnerCan('payroll') && <Route path="timecards" element={<TimecardsPage />} />}
           {partnerCan('payroll') && <Route path="benefits" element={<BenefitsPage />} />}
+          {partnerCan('payroll') && <Route path="team" element={<TeamPage />} />}
           {FEATURES.tips && partnerCan('payroll') && <Route path="tips" element={<TipsPage />} />}
           {partnerCan('calendar') && <Route path="calendar" element={<CalendarPage />} />}
           {partnerCan('finances') && <Route path="finances" element={<FinancesPage />} />}

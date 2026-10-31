@@ -520,6 +520,14 @@
       "needs": []
     },
     {
+      "id": "contracts",
+      "name": "Contracts",
+      "area": "Team",
+      "page": "/team?tab=contracts",
+      "does": "Each person's employment contract, hours and pay",
+      "needs": []
+    },
+    {
       "id": "roles",
       "name": "Roles & responsibilities",
       "area": "Team",
