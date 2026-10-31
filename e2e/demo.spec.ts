@@ -7185,7 +7185,7 @@ test.describe('role permissions', () => {
     await expect(page.getByRole('option', { name: 'Own' })).toHaveCount(0)
     await page.keyboard.press('Escape')
     await expect(page.getByRole('table', { name: 'Each person' }).getByRole('row', { name: /Maria/ }))
-      .toContainText('Barista / BartenderReadHiddenOwnReadHiddenReadHiddenHiddenReadHiddenHiddenReadUpdateReadReadHidden')
+      .toContainText('Barista / BartenderReadHiddenOwnReadHiddenReadReadHiddenReadHiddenHiddenReadUpdateReadReadHidden')
 
     await signInAs(page, 'maria@example.com')
     const menu = page.getByRole('navigation', { name: 'Main' })
