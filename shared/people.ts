@@ -12,6 +12,13 @@ export interface Tier { role: TeamRole; label: string; plural: string; people: P
  */
 export const isTestAccount = (p: Pick<Profile, 'email'>) => !!p.email?.toLowerCase().endsWith('@business-agent.test')
 
+/**
+ * The team as the app shows it (the rota, timecards, the people to pick): without the live tests'
+ * accounts, unless it's one of them looking (the live tests themselves, which work with each other).
+ */
+export const withoutTestAccounts = <P extends Pick<Profile, 'email'>>(profiles: P[], me: Pick<Profile, 'email'> | null) =>
+  me && isTestAccount(me) ? profiles : profiles.filter(p => !isTestAccount(p))
+
 /** Who's on the team now, top of the hierarchy first; a level with nobody in it is left out, and so is a shared login (off People). */
 export function teamTiers(profiles: Profile[]): Tier[] {
   const on = profiles.filter(p => p.active && teamRole(p) !== null && p.on_people !== false && !isTestAccount(p))

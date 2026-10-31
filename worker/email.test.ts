@@ -3,6 +3,7 @@
 //   - only admins, and only once reading the mailbox was allowed (the Invoices permission)
 //   - each email is matched to its supplier and customer, and opens in the café's own Gmail account
 //   - each chip, the period and a supplier are what Gmail is asked for
+//   - Gmail answering empty or busy is asked again, and never shows as "Unexpected end of JSON input"
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { integrations } from './integrations'
 import { email } from './email'
@@ -10,6 +11,7 @@ import type { Env } from './supabase'
 import type { EmailState } from '../shared/email'
 import { FakeSupabase } from './test/fakeSupabase'
 import { FakeProviders } from './test/fakeProviders'
+import { GMAIL_WAITS } from './providers/google'
 
 const APP = 'https://app.test'
 const env = {
@@ -21,16 +23,29 @@ let db: FakeSupabase
 let apis: FakeProviders
 /** What Gmail was asked to search for (each list of emails). */
 let searches: string[]
+/** Gmail's next answers, each in place of the real one: an empty 200, a busy 503, or none (the real one). */
+let gmailHiccups: ('empty' | 'busy')[]
+/** Gmail's searches that come back empty, every time (the chips' counts: those asking for 500 ids). */
+let countsBroken: boolean
 const ctx = () => ({ waitUntil() {}, passThroughOnException() {}, props: {} }) as unknown as ExecutionContext
 
 beforeEach(() => {
   db = new FakeSupabase()
   apis = new FakeProviders()
   searches = []
+  gmailHiccups = []
+  countsBroken = false
+  GMAIL_WAITS.fill(0)
   vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
     const u = new URL(url)
     if (u.host === 'gmail.googleapis.com' && u.pathname.endsWith('/messages')) searches.push(u.searchParams.get('q') ?? '')
+    if (u.host === 'gmail.googleapis.com') {
+      if (countsBroken && u.searchParams.get('maxResults') === '500') return new Response('', { status: 200 })
+      const hiccup = gmailHiccups.shift()
+      if (hiccup === 'empty') return new Response('', { status: 200, headers: { 'content-type': 'application/json' } })
+      if (hiccup === 'busy') return new Response('', { status: 503 })
+    }
     const res = db.handle(url, init) ?? apis.handle(url, init)
     if (!res) throw new Error(`Unexpected request: ${init?.method ?? 'GET'} ${url}`)
     return res
@@ -100,5 +115,27 @@ describe('Email page', () => {
     await call('/api/email/messages?filter=suppliers&page=next-one')
     expect(searches).toEqual(['newer_than:30d -in:sent -in:drafts -in:chats {from:tostadoresdelsur.es from:by-eric.es}']) // a later page: no counts again
     expect((await call('/api/email/messages?supplier=gone')).status).toBe(400)
+  })
+
+  it('Gmail answering empty or busy is asked again; when it keeps on, a plain message, not "Unexpected end of JSON input"', async () => {
+    await connectGmail(true)
+    gmailHiccups = ['empty', 'busy']
+    const state = await (await call('/api/email/messages')).json() as EmailState
+    expect(state.messages.map(m => m.id)).toEqual(['m1', 'm2'])
+
+    gmailHiccups = Array(20).fill('empty')
+    const res = await call('/api/email/messages?filter=unread')
+    expect(res.status).toBe(502)
+    const { error } = await res.json() as { error: string }
+    expect(error).toBe('Gmail didn’t answer properly just now. Try again in a minute.')
+    expect(error).not.toMatch(/JSON/)
+  })
+
+  it('the list still shows when Gmail won’t count the chips', async () => {
+    await connectGmail(true)
+    countsBroken = true
+    const state = await (await call('/api/email/messages?days=7')).json() as EmailState
+    expect(state.messages.map(m => m.id)).toEqual(['m1', 'm2'])
+    expect(state.counts).toBeUndefined()
   })
 })

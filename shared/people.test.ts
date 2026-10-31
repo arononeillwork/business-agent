@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { jobRolesByPerson, teamTiers } from './people'
+import { jobRolesByPerson, teamTiers, withoutTestAccounts } from './people'
 import { petProblem, petsByPerson, type Pet } from './pets'
 import type { Profile } from './types'
 
@@ -56,5 +56,19 @@ describe('pets', () => {
     expect(petProblem({ name: 'x'.repeat(41) })).toBe('Keep the name to 40 characters')
     expect(petProblem({ name: 'Fudge', breed: 'x'.repeat(61) })).toBe('Keep the breed to 60 characters')
     expect(petProblem({ name: 'Fudge', photo: 'https://example.com/fudge.jpg' })).toBe('That photo can’t be used. Try another.')
+  })
+})
+
+describe('the live tests’ accounts', () => {
+  const at = (id: string, email: string) => ({ id, email })
+  const team = [at('aron', 'aron@gmail.com'), at('maria', 'maria@gmail.com'), at('eva', 'e2e-employee@business-agent.test'), at('ana', 'E2E-admin@Business-Agent.test')]
+
+  it('aren’t in the team the café sees (the rota, timecards, people to pick)', () => {
+    expect(withoutTestAccounts(team, team[0]).map(p => p.id)).toEqual(['aron', 'maria'])
+    expect(withoutTestAccounts(team, null).map(p => p.id)).toEqual(['aron', 'maria'])
+  })
+
+  it('are, for the live tests themselves', () => {
+    expect(withoutTestAccounts(team, team[3]).map(p => p.id)).toEqual(['aron', 'maria', 'eva', 'ana'])
   })
 })

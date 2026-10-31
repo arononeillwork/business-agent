@@ -52,10 +52,46 @@ export async function signedIn(cfg: LiveConfig, who: UserKey) {
   return { sb, session: data.session!, userId: data.user.id }
 }
 
+/** Supabase's answer when an account with that address is there already. */
+const ALREADY = /already (been )?registered|already exists/i
+
+/** Supabase's account API having a bad moment (it answers "AuthRetryableFetchError" or a 5xx): worth asking again. */
+const retryable = (e: unknown) => {
+  const x = e as { name?: string; status?: number; message?: string } | null
+  return !!x && (x.name === 'AuthRetryableFetchError' || (x.status ?? 0) >= 500 || /fetch failed|timed? ?out|ECONNRESET|socket/i.test(x.message ?? ''))
+}
+
+/**
+ * Supabase's account API, asked again (up to 4 times, a little longer apart each time) when it has a
+ * bad moment. A clean-up that gave up on the first "AuthRetryableFetchError" left the test accounts
+ * in Easy Beans until the next run that got through.
+ */
+export async function withRetries<T extends { error: unknown }>(call: () => Promise<T>, waits = [1_000, 3_000, 6_000]): Promise<T> {
+  for (let i = 0; ; i++) {
+    let r: T
+    try { r = await call() } catch (e) {
+      if (i < waits.length && retryable(e)) { await new Promise(res => setTimeout(res, waits[i])); continue }
+      throw e
+    }
+    if (r.error && i < waits.length && retryable(r.error)) { await new Promise(res => setTimeout(res, waits[i])); continue }
+    return r
+  }
+}
+
+/**
+ * The test accounts, by address. Every account has a profile with its address, so one query on
+ * profiles finds them; listing every account in the project (Supabase's account API, 200 a page)
+ * is the fallback, as that grows with every business and is what failed when Supabase was slow.
+ */
 async function testUserIds(admin: SupabaseClient) {
   const ids: Record<string, string> = {}
+  const { data: rows, error: rowsError } = await admin.from('profiles').select('id, email').ilike('email', `%@${DOMAIN}`)
+  if (!rowsError) {
+    for (const r of (rows ?? []) as { id: string; email: string | null }[]) if (r.email?.toLowerCase().endsWith(`@${DOMAIN}`)) ids[r.email.toLowerCase()] = r.id
+    return ids
+  }
   for (let page = 1; page < 20; page++) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 })
+    const { data, error } = await withRetries(() => admin.auth.admin.listUsers({ page, perPage: 200 }))
     if (error) throw error
     for (const u of data.users) if (u.email?.endsWith(`@${DOMAIN}`)) ids[u.email] = u.id
     if (data.users.length < 200) break
@@ -63,7 +99,10 @@ async function testUserIds(admin: SupabaseClient) {
   return ids
 }
 
-/** Remove everything the test accounts created, then the accounts. */
+/**
+ * Remove everything the test accounts created, then the accounts. Each account is removed even when
+ * another can't be; what went wrong is thrown at the end, so a run still shows it.
+ */
 export async function cleanUp(admin: SupabaseClient) {
   const ids = Object.values(await testUserIds(admin))
   if (!ids.length) return
@@ -86,7 +125,13 @@ export async function cleanUp(admin: SupabaseClient) {
   await purgeTestAlerts(admin, ids)
   // One at a time: each deletion reaches a dozen tables, and several at once held the live app's
   // other requests up for seconds, so the next test's sign-in sat on the loading screen.
-  for (const id of ids) must(await admin.auth.admin.deleteUser(id))
+  const failed: string[] = []
+  for (const id of ids) {
+    const { error } = await withRetries(() => admin.auth.admin.deleteUser(id))
+    // Gone already (a run that stopped part way through deleting) is what was wanted.
+    if (error && (error as { status?: number }).status !== 404) failed.push(`${id}: ${error.message}`)
+  }
+  if (failed.length) throw new Error(`Couldn't remove ${failed.length} test account(s): ${failed.join('; ')}`)
 }
 
 /** Names of rows the tests create (expenses, events) start with this, so clean-up can find them. */
@@ -100,9 +145,9 @@ export const PARTNER = {
 /** Create the partner account (after setUp). cleanUp removes it with the other test accounts. */
 export async function addPartner(cfg: LiveConfig) {
   const admin = service(cfg)
-  const { data, error } = await admin.auth.admin.createUser({
+  const { data, error } = await withRetries(() => admin.auth.admin.createUser({
     email: PARTNER.email, password: PASSWORD, email_confirm: true, user_metadata: { full_name: PARTNER.name },
-  })
+  }))
   if (error) throw error
   const { error: e2 } = await admin.from('profiles').update({
     business_id: TEST_BUSINESS,
@@ -187,10 +232,11 @@ export async function setUp(cfg: LiveConfig) {
   await cleanUp(admin)
   // In parallel: Supabase's account API can be slow, and one-by-one ran past the hook timeout.
   await Promise.all(Object.values(USERS).map(async u => {
-    const { error } = await admin.auth.admin.createUser({
+    const { error } = await withRetries(() => admin.auth.admin.createUser({
       email: u.email, password: PASSWORD, email_confirm: true, user_metadata: { full_name: u.name },
-    })
-    if (error) throw error
+    }))
+    // Made already: an earlier try got through even though its answer didn't.
+    if (error && !ALREADY.test(error.message)) throw error
   }))
   const ids = await testUserIds(admin)
   await Promise.all(Object.values(USERS).map(async u => {

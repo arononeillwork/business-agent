@@ -95,11 +95,22 @@ email.get('/api/email/messages', async c => {
       const [list, chips] = await Promise.all([
         cached(db, `${key}:${filter}:${page ?? ''}`, MINUTES.email, async () =>
           wanted === null ? { messages: [], next_page: null } : await google.gmailMessages(await token(), { q: wanted, max: EMAIL_PAGE_SIZE, pageToken: page })),
-        // The chips' counts come with the first page only ("Show more" keeps them).
-        page ? null : cached(db, `${key}:counts`, MINUTES.email, async () => Object.fromEntries(await Promise.all(EMAIL_FILTERS.map(async f => {
-          const s = search(f.id)
-          return [f.id, s === null ? 0 : await google.gmailCount(await token(), s)] as const
-        })))),
+        // The chips' counts come with the first page only ("Show more" keeps them), a few at a time so
+        // Gmail isn't asked too much at once. They're extra: if Gmail won't count, the list still shows.
+        page ? null : cached(db, `${key}:counts`, MINUTES.email, async () => {
+          const out: Partial<Record<EmailFilter, number>> = {}
+          for (let i = 0; i < EMAIL_FILTERS.length; i += 4) {
+            await Promise.all(EMAIL_FILTERS.slice(i, i + 4).map(async f => {
+              const s = search(f.id)
+              out[f.id] = s === null ? 0 : await google.gmailCount(await token(), s)
+            }))
+          }
+          return out
+        }).catch(e => {
+          // A sign-in that's gone is the list's to say (it fails the same way).
+          if (lasting(box.provider, e)) throw e
+          return null
+        }),
       ])
       listed = list.data
       counts = chips?.data

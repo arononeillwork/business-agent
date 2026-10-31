@@ -439,6 +439,22 @@ test('sidebar is grouped into sections that fold away, and the logo goes to Toda
   await expect(page.getByRole('heading', { name: 'Hola, Aron' })).toBeVisible()
 })
 
+test('a page’s header buttons are in line with the round buttons at the top right, on a laptop and a big monitor', async ({ page }) => {
+  const middle = async (l: ReturnType<Page['getByRole']>) => { const b = (await l.boundingBox())!; return { y: b.y + b.height / 2, h: b.height } }
+  await open(page, '/cameras')
+  for (const width of [1280, 1920]) {
+    await page.setViewportSize({ width, height: 900 })
+    await expect(page.getByRole('heading', { name: 'Cameras', level: 1 })).toBeVisible()
+    const top = await middle(page.getByRole('button', { name: 'Search', exact: false }).last())
+    // On a laptop the second wraps under the first (there isn't room beside the title); the first row is in line.
+    for (const name of width < 1600 ? ['Live video: Reolink app'] : ['Live video: Reolink app', 'Add camera']) {
+      const b = await middle(page.getByRole('main').getByRole('button', { name }).or(page.getByRole('main').getByRole('link', { name })).first())
+      expect(Math.abs(b.y - top.y), `${name} at ${width}px`).toBeLessThanOrEqual(1)
+      expect(Math.abs(b.h - top.h), `${name} at ${width}px`).toBeLessThanOrEqual(1)
+    }
+  }
+})
+
 test('missing timecards are filled from the rota and marked for review', async ({ page }) => {
   await open(page, '/rota')
   // Mark is on the rota on Monday but never clocked in.
@@ -4556,6 +4572,37 @@ test.describe('menu, menu design and screens', () => {
     await expect(page.getByRole('main')).toContainText('No images yet')
   })
 
+  test('menu design: the café’s printed PDF menus, narrowed to English or Spanish and to one type', async ({ page }) => {
+    await open(page, '/menu/design')
+    const list = page.getByRole('group', { name: 'Printed menus' })
+    await expect(list.getByRole('button', { name: 'Bebidas' })).toBeVisible()
+    await expect(list.getByRole('button', { name: 'La Nevera' })).toBeVisible()
+    // Spanish: the Spanish PDFs only (the menus the app writes are headed in English).
+    await page.getByRole('group', { name: 'Language' }).getByRole('button', { name: 'Español' }).click()
+    await expect(list.getByRole('button', { name: 'Bebidas' })).toBeVisible()
+    await expect(list.getByRole('button', { name: 'Comida' })).toBeVisible()
+    await expect(list.getByRole('button', { name: 'Drinks', exact: true })).toHaveCount(0)
+    await expect(list.getByRole('button', { name: 'Drinks menu' })).toHaveCount(0)
+    // One type: the fridge's.
+    await page.getByRole('group', { name: 'Type of menu' }).getByRole('button', { name: 'The fridge' }).click()
+    await expect(list.getByRole('button', { name: 'La Nevera' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(list.getByRole('button', { name: 'Bebidas' })).toHaveCount(0)
+    await expect(page.getByRole('img', { name: 'Preview of the printed menu' }).locator('img')).toHaveAttribute('src', '/menus/easy-beans/fridge-es.jpg')
+    // A PDF prints from the PDF itself.
+    await expect(page.getByRole('link', { name: 'Open the PDF to print' })).toHaveAttribute('href', '/menus/easy-beans/fridge-es.pdf')
+    await expect(page.getByRole('button', { name: 'Print', exact: true })).toHaveCount(0)
+    // English, the same type: The Fridge, and the app's own fridge menu.
+    await page.getByRole('group', { name: 'Language' }).getByRole('button', { name: 'English' }).click()
+    await expect(list.getByRole('button', { name: 'The Fridge', exact: true })).toBeVisible()
+    await expect(list.getByRole('button', { name: 'The fridge menu' })).toBeVisible()
+    await expect(list.getByRole('button', { name: 'La Nevera' })).toHaveCount(0)
+    // All again.
+    await page.getByRole('group', { name: 'Type of menu' }).getByRole('button', { name: 'All' }).click()
+    await page.getByRole('group', { name: 'Language' }).getByRole('button', { name: 'All' }).click()
+    await expect(list.getByRole('button', { name: 'Comida' })).toBeVisible()
+    await expect(list.getByRole('button', { name: 'Drinks menu' })).toBeVisible()
+  })
+
   test('Higgsfield: connected with its key, an image is made with AI, changed with AI, swapped and deleted', async ({ page }) => {
     await open(page, '/menu/design')
     // A key Higgsfield doesn't take isn't kept.
@@ -7138,7 +7185,7 @@ test.describe('role permissions', () => {
     await expect(page.getByRole('option', { name: 'Own' })).toHaveCount(0)
     await page.keyboard.press('Escape')
     await expect(page.getByRole('table', { name: 'Each person' }).getByRole('row', { name: /Maria/ }))
-      .toContainText('Barista / BartenderReadHiddenOwnReadHiddenReadHiddenHiddenReadHiddenHiddenReadUpdateReadReadHidden')
+      .toContainText('Barista / BartenderReadHiddenOwnReadHiddenReadReadHiddenReadHiddenHiddenReadUpdateReadReadHidden')
 
     await signInAs(page, 'maria@example.com')
     const menu = page.getByRole('navigation', { name: 'Main' })
@@ -7163,13 +7210,13 @@ test.describe('role permissions', () => {
     await expect(page.getByRole('textbox', { name: 'Access' })).toHaveValue('Employee')
   })
 
-  test('a barista: the Business page’s contact details but not the company’s, and no Brand, Dashboards, Menu or Expenses', async ({ page }) => {
+  test('a barista: the Business page’s contact details but not the company’s, the Menu, and no Brand, Dashboards or Expenses', async ({ page }) => {
     await open(page, '/', 'maria@example.com')
     const menu = page.getByRole('navigation', { name: 'Main' })
     await expect(menu.getByRole('link', { name: 'Business', exact: true })).toBeVisible()
-    for (const name of ['Brand', 'Dashboards', 'Menu', 'Expenses']) await expect(menu.getByRole('link', { name, exact: true })).toHaveCount(0)
+    for (const name of ['Brand', 'Dashboards', 'Expenses']) await expect(menu.getByRole('link', { name, exact: true })).toHaveCount(0)
     // Nor do they open from a link.
-    for (const path of ['/brand', '/dashboards', '/menu', '/menu/design', '/expenses']) {
+    for (const path of ['/brand', '/dashboards', '/expenses']) {
       await page.evaluate(to => { history.pushState({ usr: null, key: to, idx: 1 }, '', to); dispatchEvent(new PopStateEvent('popstate', { state: history.state })) }, path)
       await expect(page).toHaveURL(url => new URL(url).pathname === '/')
       await expect(page.getByRole('heading', { name: /Hola, Maria/ })).toBeVisible()
@@ -7181,6 +7228,11 @@ test.describe('role permissions', () => {
     await expect(page.getByText('CIF / NIF')).toHaveCount(0)
     await menu.getByRole('link', { name: 'Roles & responsibilities' }).click()
     await expect(page.getByRole('list', { name: 'Barista / Bartender: what you can do' })).toContainText('Company detailsHiddenNot shown to you')
+    // The menu, to answer customers: what's on it, but not the design of the printed and screen menus.
+    await menu.getByRole('link', { name: 'Menu', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'Menu', level: 1 })).toBeVisible()
+    await expect(page.getByRole('tab', { name: 'Design' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Add menu item' })).toHaveCount(0)
   })
 
   test('a barista’s To Do List has only the jobs given to her, and what she adds is hers', async ({ page }) => {

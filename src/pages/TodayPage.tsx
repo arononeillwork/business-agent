@@ -256,7 +256,8 @@ export function TodayPage() {
     return { shifts, events, corrections, timeOff, bigNights: sports.filter(e => e.big && followed.has(e.competition)).map(e => ({ ...e, compName: followed.get(e.competition)! })) }
   }, [d, sportsOn])
 
-  const todays = (data.data?.shifts ?? []).filter(s => localDate(s.starts_at) === d)
+  // The team's (not the shifts of anyone the app leaves out, like the live tests' accounts).
+  const todays = (data.data?.shifts ?? []).filter(s => localDate(s.starts_at) === d && (!s.profile_id || profiles.some(p => p.id === s.profile_id)))
   const mine = (data.data?.shifts ?? []).filter(s => s.profile_id === me?.id)
   const openShifts = (data.data?.shifts ?? []).filter(s => !s.profile_id)
   const holiday = holidayOn(d, data.data?.events ?? [])

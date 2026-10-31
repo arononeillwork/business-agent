@@ -81,7 +81,7 @@ async function tokenRequest(body: Record<string, string>) {
     method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(body),
   })
   // `scope`: what the person actually allowed (Google lets them untick boxes on the consent screen).
-  const json = await res.json() as { access_token?: string; refresh_token?: string; expires_in?: number; scope?: string; error_description?: string; error?: string }
+  const json = await res.json().catch(() => ({})) as { access_token?: string; refresh_token?: string; expires_in?: number; scope?: string; error_description?: string; error?: string }
   if (!res.ok || !json.access_token) {
     // Keep the error code: invalid_grant means the access was revoked or expired.
     throw new Error(json.error === 'invalid_grant' ? `invalid_grant: ${json.error_description ?? 'access revoked or expired'}` : (json.error_description ?? json.error ?? 'Google sign-in failed'))
@@ -422,11 +422,33 @@ export const driveExportPdf = (token: string, id: string) =>
 interface GmailPart { filename?: string; mimeType?: string; body?: { attachmentId?: string; size?: number }; parts?: GmailPart[] }
 interface GmailMessage { id: string; internalDate?: string; payload?: GmailPart & { headers?: { name: string; value: string }[] } }
 
+/** Gmail having a bad moment: too many requests at once, its own error, or an answer that came back empty or cut short. */
+const GMAIL_RETRY = new Set([429, 500, 502, 503, 504])
+/** How long to wait before asking again: a moment, then a little longer. */
+export const GMAIL_WAITS = [400, 1200]
+
+/**
+ * A Gmail API call. Gmail sometimes answers a busy mailbox with an empty or cut-off body (which
+ * reading as JSON turns into "Unexpected end of JSON input"), or with a 429 or a 5xx: those are asked
+ * again twice, a moment apart, before giving up with a plain message.
+ */
 async function gmail<T>(token: string, path: string): Promise<T> {
-  const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/${path}`, { headers: { authorization: `Bearer ${token}` } })
-  const json = await res.json() as T & { error?: { message?: string } }
-  if (!res.ok) throw new Error(`Gmail: ${json.error?.message ?? res.status}`)
-  return json
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/${path}`, { headers: { authorization: `Bearer ${token}` } })
+    const text = await res.text().catch(() => '')
+    let json: (T & { error?: { message?: string } }) | null = null
+    try { json = text ? JSON.parse(text) : null } catch { json = null }
+    if (res.ok && json) return json
+    const busy = GMAIL_RETRY.has(res.status) || (res.ok && !json)
+    if (busy && attempt < GMAIL_WAITS.length) {
+      await new Promise(r => setTimeout(r, GMAIL_WAITS[attempt]))
+      continue
+    }
+    if (json?.error?.message) throw new Error(`Gmail: ${json.error.message}`)
+    throw new Error(res.ok || busy
+      ? 'Gmail didn’t answer properly just now. Try again in a minute.'
+      : `Gmail: error ${res.status}`)
+  }
 }
 
 /** Emails from the last `days` with attachments, newest first, each with who sent it and its files; `also` narrows the search (one supplier's). */
@@ -481,11 +503,18 @@ export async function gmailMessages(token: string, o: { q: string; max?: number;
   const list = await gmail<{ messages?: { id: string }[]; nextPageToken?: string }>(token, `messages?${p}`)
   const ids = (list.messages ?? []).map(m => m.id)
   const found: GmailListed[] = []
-  // Ten at a time: quick, and well inside Gmail's per-second allowance.
+  let failed: unknown = null
+  // Ten at a time: quick, and well inside Gmail's per-second allowance. One email that can't be read
+  // (deleted since the list, or Gmail having a bad moment) is left out rather than losing the page.
   for (let i = 0; i < ids.length; i += 10) {
-    found.push(...await Promise.all(ids.slice(i, i + 10).map(id =>
-      gmail<GmailListed>(token, `messages/${encodeURIComponent(id)}?format=full&fields=${encodeURIComponent(LIST_FIELDS)}`))))
+    for (const r of await Promise.allSettled(ids.slice(i, i + 10).map(id =>
+      gmail<GmailListed>(token, `messages/${encodeURIComponent(id)}?format=full&fields=${encodeURIComponent(LIST_FIELDS)}`)))) {
+      if (r.status === 'fulfilled') found.push(r.value)
+      else failed ??= r.reason
+    }
   }
+  // None of them could be read: that's Gmail, not one email.
+  if (ids.length && !found.length && failed) throw failed
   return {
     next_page: list.nextPageToken ?? null,
     messages: found.map(m => {

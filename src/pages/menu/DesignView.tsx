@@ -23,8 +23,9 @@ import { HiggsfieldKeyDialog, useAiImages } from '../../components/AiImages'
 import { ago } from '../../components/Freshness'
 import { PhotoUpload } from './PhotoUpload'
 import {
-  AI_MODELS, MAX_PROMPT, MENU_STYLES, PROMPT_IDEAS, categoryOrder, designProblem, imageOf, isPortrait, isStrip, modelOf, newDesign, sizeOf, sizesFor, type AiModel,
-  type MenuDesign, type MenuDesignInput, type MenuFormat, type MenuImage, type MenuItem as Item,
+  AI_MODELS, MAX_PROMPT, MENU_KINDS, MENU_LANGUAGES, MENU_STYLES, PROMPT_IDEAS, categoryOrder, designFacets, designProblem, filterDesigns, imageOf, isPortrait, isStrip,
+  kindOf, languageOf, modelOf, newDesign, sizeOf, sizesFor, type AiModel, type MenuDesign, type MenuDesignInput, type MenuFormat, type MenuImage, type MenuItem as Item,
+  type MenuKind, type MenuLanguage,
 } from '../../../shared/menu'
 import type { Brand } from '../../../shared/types'
 import type { MenuAllergens } from '../../../shared/allergens'
@@ -48,8 +49,13 @@ export function DesignView({ items, allergens, brand }: { items: Item[]; allerge
   const [selected, setSelected] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [connecting, setConnecting] = useState(false)
+  // Narrowed to one language and one type (the café's English and Spanish menus of drinks, food and the fridge).
+  const [language, setLanguage] = useState<MenuLanguage | 'all'>('all')
+  const [kind, setKind] = useState<MenuKind | 'all'>('all')
   const all = designs.data ?? []
-  const list = all.filter(d => d.format === format)
+  const ofFormat = all.filter(d => d.format === format)
+  const facets = designFacets(ofFormat)
+  const list = filterDesigns(ofFormat, { language: facets.languages.includes(language as MenuLanguage) ? language : 'all', kind: facets.kinds.includes(kind as MenuKind) ? kind : 'all' })
   const current = list.find(d => d.id === selected) ?? list[0] ?? null
   const board = boardBrand(business?.name ?? '', brand)
   const order = settings?.menu_sections ?? []
@@ -79,7 +85,8 @@ export function DesignView({ items, allergens, brand }: { items: Item[]; allerge
           <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1, mb: 1.5 }}>
             {format === 'physical' ? t('Printed menus: for the counter, the tables or the window.') : t('Menus for your screens: played on a TV or tablet from the Screens page.')}
           </Typography>
-          <Stack spacing={1}>
+          <DesignFilters facets={facets} language={language} kind={kind} onLanguage={setLanguage} onKind={setKind} />
+          <Stack spacing={1} role="group" aria-label={format === 'physical' ? t('Printed menus') : t('Screen menus')}>
             {list.map(d => <DesignCard key={d.id} design={d} items={items} allergens={allergens} brand={board} order={order} selected={d.id === current?.id}
               onClick={() => setSelected(d.id)} />)}
             <Button variant="outlined" startIcon={<AddIcon />} onClick={() => setCreating(true)}>
@@ -91,12 +98,14 @@ export function DesignView({ items, allergens, brand }: { items: Item[]; allerge
           {current
             ? <DesignEditor key={current.id} design={current} items={items} allergens={allergens} brand={board} order={order} ai={ai} onConnect={() => setConnecting(true)} />
             : designs.data && (
+              ofFormat.length ? <Empty>{t('No menus in that language and type.')}</Empty> : (
               <Empty>
                 <Typography sx={{ fontWeight: 500, color: 'text.primary', mb: 0.5 }}>
                   {format === 'physical' ? t('Make a menu to print') : t('Make a menu for your screens')}
                 </Typography>
                 {t('Pick a size, then make its image with AI from a few words, upload one, or paste a link. Your items and prices are written on it from the menu, so they’re always right.')}
               </Empty>
+              )
             )}
         </Box>
       </Stack>
@@ -107,6 +116,38 @@ export function DesignView({ items, allergens, brand }: { items: Item[]; allerge
 }
 
 type Ai = ReturnType<typeof useAiImages>
+
+/** A language toggle and a type for each, when the menus are in more than one language or of several types. */
+function DesignFilters({ facets, language, kind, onLanguage, onKind }: {
+  facets: ReturnType<typeof designFacets>; language: MenuLanguage | 'all'; kind: MenuKind | 'all'
+  onLanguage: (l: MenuLanguage | 'all') => void; onKind: (k: MenuKind | 'all') => void
+}) {
+  if (!facets.languages.length && facets.kinds.length < 2) return null
+  const lang = facets.languages.includes(language as MenuLanguage) ? language : 'all'
+  const type = facets.kinds.includes(kind as MenuKind) ? kind : 'all'
+  const chip = (id: MenuKind | 'all', label: string) => (
+    <Chip key={id} size="small" label={label} clickable aria-pressed={type === id} variant={type === id ? 'filled' : 'outlined'} color={type === id ? 'primary' : 'default'}
+      onClick={() => onKind(id)} />
+  )
+  return (
+    <Stack spacing={1} sx={{ mb: 1.5 }}>
+      {facets.languages.length > 0 && (
+        <ToggleButtonGroup exclusive fullWidth size="small" value={lang} onChange={(_, v: MenuLanguage | 'all' | null) => v && onLanguage(v)} aria-label={t('Language')}>
+          <ToggleButton value="all">{t('All')}</ToggleButton>
+          {MENU_LANGUAGES.filter(l => facets.languages.includes(l.id)).map(l => (
+            <ToggleButton key={l.id} value={l.id} lang={l.id}>{l.label}</ToggleButton>
+          ))}
+        </ToggleButtonGroup>
+      )}
+      {facets.kinds.length > 1 && (
+        <Box role="group" aria-label={t('Type of menu')} sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
+          {chip('all', t('All'))}
+          {MENU_KINDS.filter(k => facets.kinds.includes(k.id)).map(k => chip(k.id, t(k.label)))}
+        </Box>
+      )}
+    </Stack>
+  )
+}
 
 /** Higgsfield, connected or not, and where finished images are kept. */
 function AiStatus({ ai, onConnect }: { ai: Ai; onConnect: () => void }) {
@@ -138,6 +179,13 @@ function DesignCard({ design: d, items, allergens, brand, order, selected, onCli
         <Box sx={{ minWidth: 0 }}>
           <Typography sx={{ fontWeight: 500 }} noWrap>{d.name}</Typography>
           <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>{t(sizeOf(d.size).label)}</Typography>
+          {(d.language || d.kind || d.pdf_url) && (
+            <Stack direction="row" sx={{ gap: 0.5, mt: 0.5, flexWrap: 'wrap' }}>
+              {d.language && <Tag>{languageOf(d.language)?.short}</Tag>}
+              {d.kind && <Tag>{t(kindOf(d.kind)?.label ?? '')}</Tag>}
+              {d.pdf_url && <Tag fg={tokens.roseDeep} bg={tokens.roseWash}>{'PDF'}</Tag>}
+            </Stack>
+          )}
           {making > 0 && <Typography variant="caption" sx={{ color: tokens.infoFg }}>{tn(making, '{n} image being made', '{n} images being made')}</Typography>}
         </Box>
       </CardActionArea>
@@ -192,7 +240,10 @@ function DesignEditor({ design, items, allergens, brand, order, ai, onConnect }:
               {physical ? t('Physical menu') : t('Digital menu')}{` · ${t(z.label)}`}{dirty ? ` · ${t('Unsaved changes')}` : ''}
             </Typography>
           </Box>
-          {physical ? (
+          {physical && design.pdf_url ? (
+            // Designed elsewhere: printed from its own PDF, as it is.
+            <Button variant="outlined" startIcon={<PrintIcon />} component="a" href={design.pdf_url} target="_blank" rel="noopener">{t('Open the PDF to print')}</Button>
+          ) : physical ? (
             <Tooltip title={dirty ? t('Save your changes first') : ''}>
               <span>
                 <Button variant="outlined" startIcon={<PrintIcon />} disabled={dirty} onClick={() => window.open(`/menu/print/${design.id}`, '_blank')}>{t('Print')}</Button>
@@ -229,6 +280,23 @@ function DesignEditor({ design, items, allergens, brand, order, ai, onConnect }:
           <Typography variant="h6" component="h3" sx={{ mb: 1.5 }}>{t('Settings')}</Typography>
           <Stack spacing={2}>
             <TextField label={t('Name')} value={d.name} onChange={e => set({ name: e.target.value })} slotProps={{ htmlInput: { maxLength: 120 } }} />
+            <Stack direction="row" spacing={1.5}>
+              <TextField select label={t('Language')} value={d.language ?? ''} onChange={e => set({ language: (e.target.value || null) as MenuLanguage | null })}
+                slotProps={{ select: { displayEmpty: true }, inputLabel: { shrink: true } }}>
+                <MenuItem value="">{t('Any')}</MenuItem>
+                {MENU_LANGUAGES.map(l => <MenuItem key={l.id} value={l.id} lang={l.id}>{l.label}</MenuItem>)}
+              </TextField>
+              <TextField select label={t('Type of menu')} value={d.kind ?? ''} onChange={e => set({ kind: (e.target.value || null) as MenuKind | null })}
+                slotProps={{ select: { displayEmpty: true }, inputLabel: { shrink: true } }}>
+                <MenuItem value="">{t('Not said')}</MenuItem>
+                {MENU_KINDS.map(k => <MenuItem key={k.id} value={k.id}>{t(k.label)}</MenuItem>)}
+              </TextField>
+            </Stack>
+            {design.pdf_url ? (
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                {t('Designed elsewhere as a PDF: the picture above is its page, and it prints from the PDF, as it is.')}
+              </Typography>
+            ) : <>
             <TextField select label={t('Size')} value={d.size} onChange={e => set({ size: e.target.value as MenuDesignInput['size'] })}>
               {sizesFor(design.format).map(s => <MenuItem key={s.id} value={s.id}>{t(s.label)}</MenuItem>)}
             </TextField>
@@ -255,7 +323,8 @@ function DesignEditor({ design, items, allergens, brand, order, ai, onConnect }:
             <TextField label={t('Heading')} placeholder={brand.name} value={d.title ?? ''} onChange={e => set({ title: e.target.value || null })} slotProps={{ htmlInput: { maxLength: 80 } }} />
             <TextField label={t('Line under the heading')} value={d.subtitle ?? ''} onChange={e => set({ subtitle: e.target.value || null })} slotProps={{ htmlInput: { maxLength: 120 } }} />
             <TextField label={t('Line at the bottom')} value={d.footer ?? ''} onChange={e => set({ footer: e.target.value || null })} multiline slotProps={{ htmlInput: { maxLength: 300 } }} />
-            {d.mode === 'background' && <>
+            </>}
+            {d.mode === 'background' && !design.pdf_url && <>
               <TextField select label={t('Layout')} value={d.style} onChange={e => set({ style: e.target.value as MenuDesignInput['style'] })}
                 helperText={d.style === 'boxed' ? t('Each section in a box, hot and iced prices side by side, and the image as a strip of illustrations along the bottom.') : undefined}>
                 {MENU_STYLES.map(s => <MenuItem key={s.id} value={s.id}>{t(s.label)}</MenuItem>)}

@@ -14,6 +14,12 @@ import { t } from '../i18n'
  */
 export const TitleSlot = createContext<HTMLElement | null>(null)
 
+/** The round buttons at the top right of a computer's screen (AppShell's top row) are this tall. */
+const TOP_ROW_HEIGHT = 40
+/** A big monitor and a huge one, where the top row's round buttons grow (as AppShell's BIG_SCREEN and HUGE_SCREEN). */
+const BIG_SCREEN = '@media (min-width: 1800px)'
+const HUGE_SCREEN = '@media (min-width: 2300px)'
+
 export function PageHeader({ eyebrow, title, actions }: { eyebrow?: string; title: string; actions?: ReactNode }) {
   const slot = useContext(TitleSlot)
   const header = (
@@ -26,8 +32,15 @@ export function PageHeader({ eyebrow, title, actions }: { eyebrow?: string; titl
       </Box>
       {actions && (
         // Level with the title (below the small eyebrow line); lines up to the right and wraps when there are many.
+        // On a computer they're in line with the round buttons at the top right (AppShell): the same height and
+        // gap above, and on a big monitor the same zoom, so each row's middle is the round buttons' middle.
         <Stack direction="row" useFlexGap spacing={1} sx={{ flexWrap: 'wrap', justifyContent: { md: 'flex-end' }, alignItems: 'center',
-          minWidth: 0, flex: { md: '0 1 auto' }, pt: { md: eyebrow ? 3.25 : 0.5 } }}>{actions}</Stack>
+          minWidth: 0, flex: { md: '0 1 auto' }, pt: { md: eyebrow ? 3.25 : 0.25 },
+          minHeight: { md: TOP_ROW_HEIGHT }, '& .MuiButton-root:not(.MuiButton-sizeSmall)': { minHeight: { md: TOP_ROW_HEIGHT } },
+          ...(slot ? {
+            [BIG_SCREEN]: { zoom: 1.2, pt: `${(eyebrow ? 26 : 2) / 1.2}px` },
+            [HUGE_SCREEN]: { zoom: 1.35, pt: `${(eyebrow ? 26 : 2) / 1.35}px` },
+          } : {}) }}>{actions}</Stack>
       )}
     </Stack>
   )

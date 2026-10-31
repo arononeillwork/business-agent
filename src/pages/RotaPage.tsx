@@ -64,7 +64,8 @@ export function RotaPage() {
     return { shifts, events, timeOff }
   }, [monday])
 
-  const allShifts = data.data?.shifts ?? []
+  // Open shifts, and the team's (not the shifts of anyone the app leaves out, like the live tests' accounts).
+  const allShifts = (data.data?.shifts ?? []).filter(s => !s.profile_id || profiles.some(p => p.id === s.profile_id))
   const weekShifts = allShifts.filter(s => localDate(s.starts_at) >= monday)
   const visible = weekShifts.filter(s => positionFilter === 'all' || s.position_id === positionFilter)
   const events = data.data?.events ?? []
@@ -116,7 +117,7 @@ export function RotaPage() {
   const copyLastWeek = async () => {
     const prev = await api.shifts(zonedIso(addDays(monday, -7), '00:00'), zonedIso(monday, '00:00'))
     let added = 0
-    for (const s of prev) {
+    for (const s of prev.filter(x => !x.profile_id || profiles.some(p => p.id === x.profile_id))) {
       const starts_at = zonedIso(addDays(localDate(s.starts_at), 7), localTime(s.starts_at))
       if (weekShifts.some(w => w.profile_id === s.profile_id && w.starts_at === starts_at)) continue
       const length = new Date(s.ends_at).getTime() - new Date(s.starts_at).getTime()
