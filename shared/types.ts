@@ -60,6 +60,8 @@ export interface Settings {
   min_rest_hours: number
   approval_weekday: number
   employer_cost_multiplier: number
+  /** Owners' hours on the rota are paid as wages (Rota, Staff wages, Profit & loss). Breakeven counts them either way. */
+  owner_pay?: boolean
   auto_timecards_from_rota: boolean
   vacation_days_per_year: number
   /** The languages the team uses (an admin picks them on My account): with two, everyone gets the flags to switch. */

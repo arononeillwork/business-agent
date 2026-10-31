@@ -8,6 +8,7 @@ import WarningIcon from '@mui/icons-material/WarningAmberRounded'
 import { useMemo, useState } from 'react'
 import { Link as RouterLink, useSearchParams } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
+import { usePayRates } from '../app/dailyCost'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { ErrorBox, PageHeader, PersonAvatar, WeekNav } from '../components/common'
@@ -34,7 +35,8 @@ interface Draft {
 }
 
 export function RotaPage() {
-  const { api, profiles, positions, business, can, isPartner, canSeePay, rates, me, settings } = useApp()
+  const { api, profiles, positions, business, can, isPartner, canSeePay, me, settings } = useApp()
+  const rates = usePayRates()
   // Admins, and anyone whose role has Update on the rota (Roles & responsibilities → Permissions).
   const canEdit = can('rota', 'update')
   const run = useAction()

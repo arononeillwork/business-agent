@@ -4,6 +4,7 @@
 // see is asked for. Advice in the person's language comes from shared/insights.ts.
 import { useMemo } from 'react'
 import { useApp } from './AppContext'
+import { usePayRates } from './dailyCost'
 import { useAsync } from './hooks'
 import { tillsOf } from '../components/till'
 import { analyse } from '../../shared/localCompetitors'
@@ -27,7 +28,8 @@ export function adviceFormat(): AdviceFormat {
 
 /** Everything the advice is worked out from, loading as it comes (`input` is null until the takings are in, when there are any). */
 export function useAdviceInput() {
-  const { api, isAdmin, isPartner, canSeePay, canSeeFinances, business, profiles, rates, settings } = useApp()
+  const { api, isAdmin, isPartner, canSeePay, canSeeFinances, business, profiles, settings } = useApp()
+  const rates = usePayRates()
   const day = today()
   const from8 = addDays(day, -55), from4 = addDays(day, -27)
   const staff = !isPartner

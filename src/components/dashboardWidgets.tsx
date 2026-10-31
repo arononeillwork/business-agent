@@ -8,6 +8,7 @@ import StarIcon from '@mui/icons-material/Star'
 import { Link as RouterLink } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { useApp } from '../app/AppContext'
+import { usePayRates } from '../app/dailyCost'
 import { useAsync } from '../app/hooks'
 import { useAdvice } from '../app/insightsData'
 import { AdviceCard } from '../pages/AdvisorPage'
@@ -172,7 +173,8 @@ function PaymentMethods({ r }: { r: DashRange }) {
 }
 
 function TeamCost({ r, share }: { r: DashRange; share?: boolean }) {
-  const { rates, settings, canSeeFinances } = useApp()
+  const { settings, canSeeFinances } = useApp()
+  const rates = usePayRates()
   const team = useTeam(r)
   const { on } = useTakings()
   const sales = useSales(r)

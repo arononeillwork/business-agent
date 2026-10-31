@@ -1,12 +1,26 @@
 // The cost of running the business each day (shared/dailyCost.ts) for the pages that show it: Sales'
 // cost line, the staff kitty's breakeven and Finances' Staff wages. Admins with pay access only (it
 // needs the pay rates); others get nothing back.
+import { useMemo } from 'react'
 import { useApp } from './AppContext'
 import { useAsync } from './hooks'
-import { dailyCosts, rotaMonth } from '../../shared/dailyCost'
+import { dailyCosts, payrollRates, rotaMonth } from '../../shared/dailyCost'
 import { addDays, zonedIso } from '../../shared/time'
 
-/** Each day's running cost and team from `from` to `to` (YYYY-MM-DD), once loaded; null for those who can't see pay. */
+/**
+ * The rates the team is paid at, for wages (Rota, Staff wages, Profit & loss, Timecards, dashboards): with
+ * owner pay off (Finances → Staff wages), the owners' hours cost nothing. Breakeven uses everyone's rate.
+ */
+export function usePayRates() {
+  const { rates, profiles, settings } = useApp()
+  const ownerPay = settings?.owner_pay !== false
+  return useMemo(() => payrollRates(rates, profiles, ownerPay), [rates, profiles, ownerPay])
+}
+
+/**
+ * Each day's running cost and team from `from` to `to` (YYYY-MM-DD), once loaded; null for those who can't
+ * see pay. This is the breakeven: owners on the rota count at their rate, with owner pay on or off.
+ */
 export function useDailyCosts(from: string, to: string, on = true) {
   const { api, canSeePay, isPartner, rates, settings, business } = useApp()
   const enabled = on && canSeePay && !isPartner && from <= to
@@ -23,7 +37,8 @@ export function useDailyCosts(from: string, to: string, on = true) {
 
 /** The month's rota (YYYY-MM): hours and cost per person, for Finances' Staff wages. */
 export function useRotaMonth(month: string, on = true) {
-  const { api, canSeePay, isPartner, rates, settings } = useApp()
+  const { api, canSeePay, isPartner, settings } = useApp()
+  const rates = usePayRates()
   const enabled = on && canSeePay && !isPartner
   const first = `${month}-01`
   const next = addDays(`${month}-28`, 4).slice(0, 7)

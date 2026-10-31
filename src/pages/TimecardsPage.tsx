@@ -9,6 +9,7 @@ import { useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import PrintIcon from '@mui/icons-material/PrintOutlined'
 import { useApp } from '../app/AppContext'
+import { usePayRates } from '../app/dailyCost'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { ClockRulesCard } from '../components/ClockRules'
@@ -24,7 +25,8 @@ const toInput = (iso: string | null) => (iso ? formatLocal(iso, "yyyy-MM-dd'T'HH
 const fromInput = (v: string) => (v ? zonedIso(v.slice(0, 10), v.slice(11, 16)) : null)
 
 export function TimecardsPage() {
-  const { api, profiles, positions, can, isPartner, canSeePay, rates, me, settings } = useApp()
+  const { api, profiles, positions, can, isPartner, canSeePay, me, settings } = useApp()
+  const rates = usePayRates()
   // Admins, and anyone whose role has Update on timecards: the team's hours (their own through a correction).
   const canEdit = can('timecards', 'update')
   const run = useAction()
