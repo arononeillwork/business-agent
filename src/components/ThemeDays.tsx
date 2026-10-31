@@ -432,7 +432,7 @@ function ThemeDialog({ theme, themes, coffees, onClose }: { theme?: DayTheme; th
   const set = (p: Partial<DayThemeInput>) => setForm(f => ({ ...f, ...p }))
   const lib = music?.library
   const provider = lib?.provider === 'spotify' ? 'spotify' as const : 'youtube' as const
-  const fromLibrary: ThemePlaylist[] = [...(lib?.playlists ?? []), ...(lib?.other_playlists ?? [])]
+  const fromLibrary: ThemePlaylist[] = [...(lib?.playlists ?? [])]
     .map(p => ({ id: p.id, name: p.name, url: p.url, image: p.image, tracks: p.tracks, provider }))
   const options = form.playlist && !fromLibrary.some(p => p.id === form.playlist!.id) ? [form.playlist, ...fromLibrary] : fromLibrary
   const save = () => run(async () => {

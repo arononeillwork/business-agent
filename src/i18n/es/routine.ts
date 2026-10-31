@@ -52,7 +52,7 @@ export default {
   'On the calendar': 'En el calendario',
   '{name} on the calendar': '{name} en el calendario',
   '{name} is back on the calendar': '{name} vuelve a salir en el calendario',
-  'Any time': 'A cualquier hora',
+  'Any time': 'En cualquier momento',
   '{n} thing to check': '{n} cosa que revisar',
   '{n} things to check': '{n} cosas que revisar',
   'Stock take and buying list': 'Recuento de stock y lista de compra',
