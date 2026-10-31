@@ -12,6 +12,10 @@
 // Each has its own bar along the bottom, always there: play or pause, the time, a slider to go to any
 // moment in it, the sound on or off, and full screen.
 //
+// Neither loads until it plays (only its poster is fetched; its length shows from DEMO_VIDEO and
+// DAY_VIDEO until then), and the Worker serves them a part at a time (worker/video.ts), so the
+// slider can go to a moment not downloaded yet.
+//
 // They come one after the other, straight after the hero, and the page's sections take turns between
 // its own colour and a white band: the demo is a white band and the day in the life is on the page's
 // colour (a white band itself when the demo is switched off, so it's still apart from the hero).
@@ -145,7 +149,7 @@ function VideoSection({ id, labelledBy, eyebrow, title, text, src, poster, label
           boxShadow: '0 50px 100px -50px rgba(43,37,34,0.38)', aspectRatio: '16 / 9', mx: 'auto',
           maxWidth: { md: `calc((100svh - ${HEADER_HEIGHT}px - 320px) * 16 / 9)` }, position: 'relative',
           '&:fullscreen': { maxWidth: 'none', borderRadius: 0, border: 0, bgcolor: '#000' } }}>
-          <Box component="video" ref={video} src={src} poster={poster} muted loop playsInline preload="metadata"
+          <Box component="video" ref={video} src={src} poster={poster} muted loop playsInline preload="none"
             onClick={() => (quiet ? soundOn() : playPause())}
             aria-label={label} sx={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer', '*:fullscreen > &': { objectFit: 'contain' } }} />
           {/* Its own bar along the bottom, always there: play or pause, the time, a slider to any moment, the sound and full screen. */}

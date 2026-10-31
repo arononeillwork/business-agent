@@ -7948,7 +7948,13 @@ test('landing page: the demo video with its poster and controls, once it is swit
   await expect(page.getByRole('region', { name: 'Change it in one place. It’s changed everywhere.' })).toBeVisible()
   await expect(video).toHaveAttribute('poster', '/video/business-agent-demo.jpg')
   await expect(video).toHaveAttribute('src', '/video/business-agent-demo.mp4')
+  // It loads when it plays, a part at a time: the Worker answers a range with just that part.
+  await expect(video).toHaveAttribute('preload', 'none')
   expect((await page.request.get('/video/business-agent-demo.mp4')).ok()).toBe(true)
+  const part = await page.request.get('/video/business-agent-demo.mp4', { headers: { range: 'bytes=1000-1999' } })
+  expect(part.status()).toBe(206)
+  expect(part.headers()['content-range']).toMatch(/^bytes 1000-1999\/\d+$/)
+  expect((await part.body()).length).toBe(1000)
   // "View a demo" in the hero brings the whole video up under the header and plays it, with its music.
   await page.getByRole('link', { name: 'View a demo' }).click()
   await expect(video).toBeInViewport({ ratio: 1 })
