@@ -1,6 +1,6 @@
 // Pets: a pet's photo (a paw while it has none), the dialog to add or change one, and the Pets section
 // of My account where everyone adds their own. The People page shows them beside their person; there
-// admins change anyone's, and everyone their own.
+// admins add a pet with its photo for anyone on the team and change anyone's, and everyone their own.
 import { Avatar, Box, Button, Card, CardContent, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Stack, TextField, Typography } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import PawIcon from '@mui/icons-material/PetsOutlined'
@@ -66,8 +66,8 @@ function PhotoPicker({ label, inputLabel, onPhoto, variant = 'outlined' }: { lab
   )
 }
 
-/** Add a pet of your own, or change one: yours, or anyone's for an admin. */
-export function PetDialog({ pet, onClose }: { pet?: Pet; onClose: () => void }) {
+/** Add a pet (your own, or for `owner`, someone on the team, as an admin), or change one: yours, or anyone's for an admin. */
+export function PetDialog({ pet, owner, onClose }: { pet?: Pet; owner?: { id: string; name: string }; onClose: () => void }) {
   const { api } = useApp()
   const run = useAction()
   const [name, setName] = useState(pet?.name ?? '')
@@ -77,12 +77,12 @@ export function PetDialog({ pet, onClose }: { pet?: Pet; onClose: () => void }) 
   const save = () => run(async () => {
     const problem = petProblem({ name, breed, photo })
     if (problem) throw new Error(t(problem))
-    await api.savePet({ id: pet?.id, name: name.trim(), kind, breed: breed.trim() || null, photo })
+    await api.savePet({ id: pet?.id, profile_id: pet ? undefined : owner?.id, name: name.trim(), kind, breed: breed.trim() || null, photo })
     onClose()
   }, pet ? t('Saved') : t('{name} added', { name: name.trim() }))
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="xs">
-      <DialogTitle>{pet ? pet.name : t('Add a pet')}</DialogTitle>
+      <DialogTitle>{pet ? pet.name : owner ? t('Add a pet for {name}', { name: owner.name }) : t('Add a pet')}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ pt: 1 }}>
           <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>

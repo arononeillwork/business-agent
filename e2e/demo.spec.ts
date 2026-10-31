@@ -1531,15 +1531,24 @@ test('people: the team as a hierarchy, and everyone’s pets with their photos',
   await expect(page.getByRole('region', { name: 'Employees' }).getByRole('article', { name: 'Maria' })).toBeVisible()
   await expect(page.getByRole('main').getByRole('heading', { level: 2 })).toHaveText(['Owners · 2', 'Employees · 3'])
 
-  // Pets show when asked: Mark's dogs, Yoda and Cooper among them, with a place for their photos; Aron has none.
+  // Pets show when asked: Aron's Fudge and Cooper, Mark's Pablo and Yoda, with a place for their photos.
   await expect(page.getByRole('list', { name: /’s pets$/ })).toHaveCount(0)
   await page.getByRole('button', { name: 'Show pets' }).click()
   const marks = page.getByRole('list', { name: 'Mark Murray’s pets' })
-  await expect(marks.getByRole('listitem')).toHaveText([/Pablo/, /Yoda/, /Cooper/])
-  await expect(marks.getByLabel('Cooper has no photo yet')).toBeVisible()
+  await expect(marks.getByRole('listitem')).toHaveText([/Pablo/, /Yoda/])
   const arons = page.getByRole('list', { name: "Aron O'Neill’s pets" })
-  await expect(arons).toHaveText('No pets')
-  await expect(page.getByRole('list', { name: 'Maria’s pets' })).toHaveText('No pets')
+  await expect(arons.getByRole('listitem')).toHaveText([/Fudge/, /Cooper/])
+  await expect(arons.getByLabel('Cooper has no photo yet')).toBeVisible()
+  // As an owner, Aron adds a pet with its photo for anyone on the team, from their card.
+  await expect(page.getByRole('list', { name: 'Julio’s pets' })).toHaveCount(0)
+  await page.getByRole('article', { name: 'Julio' }).getByRole('button', { name: 'Add a pet for Julio' }).click()
+  const forJulio = page.getByRole('dialog', { name: 'Add a pet for Julio' })
+  await forJulio.getByLabel('Name').fill('Rocky')
+  await forJulio.getByLabel('Pet photo file').setInputFiles({ ...png, name: 'rocky.png' })
+  await expect(forJulio.getByRole('img', { name: 'Rocky' })).toBeVisible()
+  await forJulio.getByRole('button', { name: 'Add', exact: true }).click()
+  await toast(page, 'Rocky added')
+  await expect(page.getByRole('list', { name: 'Julio’s pets' }).getByRole('img', { name: 'Rocky' })).toBeVisible()
   // As an owner, Aron changes anyone's pet from here: Mark's Pablo gets a photo and a new name.
   await marks.getByRole('button', { name: 'Edit Pablo' }).click()
   const pablo = page.getByRole('dialog', { name: 'Pablo' })
@@ -1548,7 +1557,7 @@ test('people: the team as a hierarchy, and everyone’s pets with their photos',
   await pablo.getByLabel('Name').fill('Pablito')
   await pablo.getByRole('button', { name: 'Save' }).click()
   await toast(page, /^Saved$/)
-  await expect(marks.getByRole('listitem')).toHaveText([/Pablito/, /Yoda/, /Cooper/])
+  await expect(marks.getByRole('listitem')).toHaveText([/Pablito/, /Yoda/])
   await expect(marks.getByLabel('Pablito has no photo yet')).toHaveCount(0)
   await expect(marks.getByLabel('Yoda has no photo yet')).toBeVisible()
   await page.getByRole('button', { name: 'Hide pets' }).click()
@@ -1557,7 +1566,7 @@ test('people: the team as a hierarchy, and everyone’s pets with their photos',
   // On My account, Aron adds a pet with its photo, gives it a breed and adds another, which goes again.
   await fromAccountMenu(page, 'My account')
   const pets = page.getByRole('region', { name: 'Pets' })
-  await expect(pets).toContainText('No pets yet')
+  await expect(pets.getByRole('group')).toHaveText([/Fudge/, /Cooper/])
   await pets.getByRole('button', { name: 'Add a pet' }).click()
   const dialog = page.getByRole('dialog', { name: 'Add a pet' })
   await dialog.getByLabel('Name').fill('Miso')
@@ -1584,7 +1593,7 @@ test('people: the team as a hierarchy, and everyone’s pets with their photos',
   await pets.getByRole('group', { name: 'Nori' }).getByRole('button', { name: 'Edit' }).click()
   await page.getByRole('dialog', { name: 'Nori' }).getByRole('button', { name: 'Remove', exact: true }).click()
   await toast(page, 'Nori removed')
-  await expect(pets.getByRole('group')).toHaveCount(1)
+  await expect(pets.getByRole('group')).toHaveCount(3)
 
   // An employee sees the team's pets and adds their own; nobody else's is theirs to change.
   await signInAs(page, 'maria@example.com')
@@ -1592,9 +1601,12 @@ test('people: the team as a hierarchy, and everyone’s pets with their photos',
   await page.getByRole('button', { name: 'Show pets' }).click()
   await expect(arons.getByRole('img', { name: 'Miso' })).toBeVisible()
   await expect(arons.getByRole('listitem', { name: 'Miso' })).toContainText('Cat · Siamese')
-  await expect(marks.getByRole('listitem')).toHaveText([/Pablito/, /Yoda/, /Cooper/])
+  await expect(marks.getByRole('listitem')).toHaveText([/Pablito/, /Yoda/])
   await expect(page.getByRole('article', { name: "Aron O'Neill" }).getByRole('link')).toHaveCount(0)
   await expect(page.getByRole('main').getByRole('button', { name: /^Edit / })).toHaveCount(0)
+  // She adds a pet only for herself: no one else's card has the option.
+  await expect(page.getByRole('main').getByRole('button', { name: /^Add a pet/ })).toHaveCount(1)
+  await expect(page.getByRole('article', { name: 'Maria (you)' }).getByRole('button', { name: 'Add a pet' })).toBeVisible()
   await fromAccountMenu(page, 'My account')
   await expect(pets).toContainText('No pets yet')
   await pets.getByRole('button', { name: 'Add a pet' }).click()
@@ -7125,7 +7137,8 @@ test('people come first in the Business section; a barista adds her pet from her
 
   await menu.getByRole('link', { name: 'People' }).click()
   await page.getByRole('button', { name: 'Show pets' }).click()
-  await expect(page.getByRole('list', { name: 'Mark Murray’s pets' }).getByRole('listitem')).toHaveText([/Pablo/, /Yoda/, /Cooper/])
+  await expect(page.getByRole('list', { name: 'Mark Murray’s pets' }).getByRole('listitem')).toHaveText([/Pablo/, /Yoda/])
+  await expect(page.getByRole('list', { name: "Aron O'Neill’s pets" }).getByRole('listitem')).toHaveText([/Fudge/, /Cooper/])
   // Her own card says how to add her pet, and opens My account, where its photo goes.
   const own = page.getByRole('article', { name: 'Maria (you)' })
   await expect(own).toContainText('Add your pet')

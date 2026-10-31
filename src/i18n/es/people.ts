@@ -15,6 +15,7 @@ export default {
   'Cat': 'Gato',
   'Other pet': 'Otra mascota',
   'Add a pet': 'Añadir una mascota',
+  'Add a pet for {name}': 'Añadir una mascota de {name}',
   'Your pet': 'Tu mascota',
   'Breed (optional)': 'Raza (opcional)',
   '{name} added': '{name} añadido',
