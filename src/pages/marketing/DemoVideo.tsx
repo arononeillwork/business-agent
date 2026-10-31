@@ -29,11 +29,10 @@ import PauseIcon from '@mui/icons-material/PauseRounded'
 import FullscreenIcon from '@mui/icons-material/FullscreenRounded'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { FEATURES } from '../../app/features'
-import { BA, HEADER_HEIGHT, SectionIntro, fullScreen, lessMotion } from './site'
+import { BA, HEADER_HEIGHT, SectionIntro, fullScreen } from './site'
+import { lessMotion } from './watchDemo'
 import { t, tr } from '../../i18n'
 
-// "View a demo" and the navbar's Demo link live in site.tsx (which this file imports, so it can't import this one).
-export { watchDemo } from './site'
 
 export const DEMO_VIDEO = { src: '/video/business-agent-demo.mp4', poster: '/video/business-agent-demo.jpg', seconds: 108 }
 export const DAY_VIDEO = { src: '/video/day-in-the-life.mp4', poster: '/video/day-in-the-life.jpg', seconds: 112 }
@@ -43,6 +42,8 @@ export const clock = (seconds: number) => {
   const s = Math.max(0, Math.floor(Number.isFinite(seconds) ? seconds : 0))
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 }
+
+export { watchDemo } from './watchDemo'
 
 /** A video section that fills the screen: a compact intro, then the video, playing with its sound while it's on screen. */
 function VideoSection({ id, labelledBy, eyebrow, title, text, src, poster, label, seconds, sx }: {
