@@ -13,8 +13,10 @@
 // moment in it, the sound on or off, and full screen.
 //
 // Neither loads until it plays (only its poster is fetched; its length shows from DEMO_VIDEO and
-// DAY_VIDEO until then), and the Worker serves them a part at a time (worker/video.ts), so the
-// slider can go to a moment not downloaded yet.
+// DAY_VIDEO until then): loading both up front cost every visitor about 17 MB, and the browser holding
+// those half-read downloads stalled the app's own requests on the same connection after signing in.
+// The Worker serves them a part at a time (worker/video.ts), so the slider can go to a moment not
+// downloaded yet.
 //
 // They come one after the other, straight after the hero, and the page's sections take turns between
 // its own colour and a white band: the demo is a white band and the day in the life is on the page's

@@ -465,6 +465,10 @@ Uptime: `.github/workflows/ci.yml` runs all of the above on every push;
 site up, Supabase reachable, email/Google/Microsoft sign-in switched on). Set the repo variable
 `PRODUCTION_URL` to turn it on.
 
+When Supabase freezes (sign-in and the data API stop answering), `.github/workflows/supabase-watchdog.yml`
+restarts it once they've been unanswered for five minutes, then re-runs a deploy the freeze stopped. Why it freezes and
+how to stop it: `docs/supabase-freezes.md`.
+
 A single-file clickable demo (sample data, no backend) builds with
 `node scripts/build-demo-page.mjs` → `dist-demo/easy-beans-demo.html`.
 

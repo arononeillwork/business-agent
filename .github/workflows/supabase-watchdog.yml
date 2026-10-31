@@ -1,0 +1,31 @@
+name: Supabase watchdog
+# Every five minutes: do sign-in and the data API answer? When either stays unanswered for five
+# minutes, the Restart Supabase workflow starts by itself and this run fails, so GitHub emails the
+# owner (scripts/ops/supabase-watchdog.mjs, docs/supabase-freezes.md). A run that finds Supabase
+# answering takes a few seconds.
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+# A run still watching a stall keeps going; the next one waits for it.
+concurrency:
+  group: supabase-watchdog
+  cancel-in-progress: false
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/ops/supabase-watchdog.mjs
+        env:
+          GH_TOKEN: ${{ github.token }}
