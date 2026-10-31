@@ -1,0 +1,27 @@
+{
+  "name": "business-agent-video",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "The landing page's demo video: the real app recorded in demo mode, composed with Remotion.",
+  "scripts": {
+    "capture": "node capture/run.mjs",
+    "music": "python3 music/compose.py",
+    "studio": "remotion studio src/index.ts",
+    "render": "remotion render src/index.ts LandingVideo out/landing-master.mp4 --codec=h264 --crf=16 --audio-bitrate=192k",
+    "web": "node web.mjs",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.539",
+    "@remotion/media": "4.0.539",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "remotion": "4.0.539",
+    "simple-icons": "^16.36.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "typescript": "^5.9.3"
+  }
+}

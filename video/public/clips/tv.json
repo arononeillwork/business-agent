@@ -1,0 +1,12 @@
+{
+  "name": "tv",
+  "fps": 30,
+  "duration": 3.477,
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "dpr": 1.5,
+  "frames": 120,
+  "events": []
+}
