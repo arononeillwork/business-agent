@@ -153,7 +153,8 @@ export function createDemoApi(): Api {
     queue: [],
     integrations: [
       { provider: 'google_business', status: 'connected', account_label: 'Easy Beans Coffee',
-        external: { locations: [{ name: 'locations/1', title: 'Easy Beans Coffee' }], location: 'locations/1', closed_on_holidays: false },
+        external: { locations: [{ name: 'locations/1', title: 'Easy Beans Coffee' }], location: 'locations/1', closed_on_holidays: false,
+          menu_sent_at: new Date(Date.now() - 12 * 60_000).toISOString(), menu_error: null },
         connected_at: nowIso(), last_sync_at: nowIso(), last_error: null, last_checked_at: nowIso() },
       { provider: 'whatsapp', status: 'connected', account_label: '+34 695 415 335', external: {}, connected_at: nowIso(), last_sync_at: null, last_error: null, last_checked_at: nowIso() },
       { provider: 'spotify', status: 'connected', account_label: 'Easy Beans (Premium)',
@@ -868,6 +869,18 @@ export function createDemoApi(): Api {
   /** As menu_list(): with Square as the source, only what's in Square (the rest waits for Custom again). */
   const menuList = () => recipes.filter(r => r.active && (settings.menu_source !== 'square' || r.square_id)).map(menuItemOf)
     .sort((a, b) => a.menu_sort - b.menu_sort || a.name.localeCompare(b.name))
+  /**
+   * The menu onto the Google Maps listing, as the Worker does within a minute of a change (and after a
+   * Square read that changed something): items on the menu with a price go; returns how many.
+   */
+  const menuToGoogle = () => {
+    const g = integ.integrations.find(i => i.provider === 'google_business')
+    if (g?.status !== 'connected') return 0
+    const n = menuList().filter(i => i.on_menu && i.sell_price !== null).length
+    Object.assign(g.external, { menu_sent_at: nowIso(), menu_items: n, menu_error: null })
+    g.last_sync_at = nowIso()
+    return n
+  }
   /** A new item goes last in its section (as the database does). */
   const lastInSection = (category: string | null) => Math.max(0, ...recipes.filter(r => r.category === category).map(r => r.menu_sort)) + 1
 
@@ -2943,14 +2956,23 @@ export function createDemoApi(): Api {
       if (problem) throw new Error(problem)
       const patch = { ...item, name: item.name.trim(), description: item.description?.trim() || null, photo_url: item.photo_url?.trim() || null }
       const existing = id ? recipes.find(r => r.id === id) : undefined
-      if (existing) { Object.assign(existing, patch); return existing.id }
+      if (existing) { Object.assign(existing, patch); menuToGoogle(); return existing.id }
       const made = recipe({ ...patch, menu_sort: lastInSection(patch.category) })
       recipes.push(made)
+      menuToGoogle()
       return made.id
     },
     async reorderMenu(ids) {
       requireAdmin()
       ids.forEach((id, i) => { const r = recipes.find(x => x.id === id); if (r) r.menu_sort = i + 1 })
+      menuToGoogle()
+    },
+    async sendMenuToGoogle() {
+      requireAdmin()
+      if (integ.integrations.find(i => i.provider === 'google_business')?.status !== 'connected') throw new Error('Connect your Google listing on the Connections page first.')
+      const items = menuToGoogle()
+      if (!items) throw new Error('Nothing on the menu has a price yet, so there’s nothing Google can show.')
+      return { status: 'sent' as const, items }
     },
     async loadMenuTemplate() {
       requireAdmin()
@@ -2959,6 +2981,7 @@ export function createDemoApi(): Api {
       settings.menu_sections = [...new Set([...templateSections(), ...(settings.menu_sections ?? [])])]
       const designs = templateDesigns().filter(d => !menuDesignList.some(x => x.name === d.name))
       for (const d of designs) menuDesignList.push({ ...d, id: uid(), updated_at: nowIso() })
+      if (add.length) menuToGoogle()
       return { added: add.length, designs: designs.length }
     },
     async syncMenuFromSquare() {
@@ -2983,6 +3006,7 @@ export function createDemoApi(): Api {
       const had = settings.menu_sections ?? []
       settings.menu_sections = [...had.filter(x => read.sections.includes(x)), ...read.sections.filter(x => !had.includes(x))]
       Object.assign(settings, { menu_synced_at: nowIso(), menu_sync_error: null })
+      if (added || changed || off) menuToGoogle()
       return { added, changed, off, items: read.items.length }
     },
     async uploadMenuPicture(file) {

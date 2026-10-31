@@ -750,6 +750,7 @@ export function createSupabaseApi(url: string, key: string): Api {
       return { added: add.length, designs: designs.length }
     },
     syncMenuFromSquare: () => worker('/api/menu/square/sync', { method: 'POST' }),
+    sendMenuToGoogle: () => worker('/api/integrations/google/menu', { method: 'POST' }),
     async uploadMenuPicture(file) {
       return (await worker<{ url: string }>('/api/integrations/media?folder=Menu', { method: 'POST', body: file, headers: { 'content-type': file.type } })).url
     },

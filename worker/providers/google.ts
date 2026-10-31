@@ -138,6 +138,88 @@ export async function updateLocation(token: string, location: string, patch: {
     { method: 'PATCH', body: JSON.stringify(body) })
 }
 
+// ---------------------------------------------------------------------------------------------
+// The menu on the listing (Food menus, still on the v4 host like reviews and posts). Read, changed,
+// written back whole: Google replaces the listing's menus with what's sent. Only listings Google
+// allows a menu on (metadata.canHaveFoodMenus: food and drink places) take one.
+// ---------------------------------------------------------------------------------------------
+/** Google's Money: whole units as a string (int64), the rest in nanos. */
+export interface GMoney { currencyCode: string; units: string; nanos?: number }
+export interface GMenuLabel { displayName: string; description?: string; languageCode?: string }
+export interface GMenuAttributes { price: GMoney; [k: string]: unknown }
+export interface GMenuItem { labels: GMenuLabel[]; attributes: GMenuAttributes; options?: { labels: GMenuLabel[]; attributes: GMenuAttributes }[] }
+export interface GMenuSection { labels: GMenuLabel[]; items: GMenuItem[] }
+export interface GFoodMenu { labels: GMenuLabel[]; sections: GMenuSection[]; sourceUrl?: string; cuisines?: string[] }
+export interface GFoodMenus { name: string; menus?: GFoodMenu[] }
+
+/** What the app's menu gives Google: sections in order, each with its items (on the menu) in order. */
+export interface MenuForGoogle {
+  title: string
+  sections: { category: string | null; items: { name: string; description: string | null; sell_price: number | null; variants: { name: string; price_change: number }[] }[] }[]
+}
+
+/** 3.5 in EUR → { currencyCode: 'EUR', units: '3', nanos: 500000000 }. */
+export function toMoney(amount: number, currencyCode: string): GMoney {
+  const cents = Math.round(Math.max(0, amount) * 100)
+  const units = Math.floor(cents / 100), rest = cents % 100
+  return rest ? { currencyCode, units: String(units), nanos: rest * 10_000_000 } : { currencyCode, units: String(units) }
+}
+
+const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s)
+/** Google's labels: a display name of 140 characters at most, a description of 1,000. */
+const label = (name: string, description?: string | null): GMenuLabel =>
+  ({ displayName: clip(name.trim(), 140), ...(description?.trim() ? { description: clip(description.trim(), 1000) } : {}) })
+
+/**
+ * The app's menu as one Google food menu. Google needs a price on every item and at least one item
+ * in every section, so items without a price yet are left out (as are sections left empty); the
+ * other ways an item is sold (Iced +1.00, Oat milk) are its options, each with its own price.
+ * Items off the menu never reach here (menuSections leaves them out). Photos aren't sent: Google
+ * takes only photos already uploaded to the listing.
+ */
+export function toGoogleMenu(menu: MenuForGoogle, currency: string): GFoodMenu {
+  const sections: GMenuSection[] = []
+  for (const s of menu.sections) {
+    const items: GMenuItem[] = s.items.filter(i => i.sell_price !== null && i.name.trim()).map(i => {
+      const base = i.sell_price!
+      const options = i.variants.filter(v => v.name.trim()).map(v => ({ labels: [label(v.name)], attributes: { price: toMoney(base + v.price_change, currency) } }))
+      return { labels: [label(i.name, i.description)], attributes: { price: toMoney(base, currency) }, ...(options.length ? { options } : {}) }
+    })
+    if (items.length) sections.push({ labels: [label(s.category ?? 'Menu')], items })
+  }
+  return { labels: [label(menu.title)], sections }
+}
+
+/**
+ * The listing's menus with the app's in their place. The app's menu is the listing's menu, so it
+ * replaces what's there; the cuisines and menu link set on Google are kept.
+ */
+export function withAppMenu(current: GFoodMenus, ours: GFoodMenu): GFoodMenus {
+  const was = current.menus?.[0]
+  return { name: current.name, menus: [{ ...ours, ...(was?.cuisines?.length ? { cuisines: was.cuisines } : {}), ...(was?.sourceUrl ? { sourceUrl: was.sourceUrl } : {}) }] }
+}
+
+/** v4's accounts/{a}/locations/{l}/foodMenus for a listing stored as locations/{l}, under accounts/{a}. */
+export const foodMenusName = (account: string, location: string) => `${account}/locations/${location.split('/').pop()}/foodMenus`
+
+/** Whether Google allows a menu on this listing (locations/{l}, Business Information API). */
+export async function canHaveFoodMenus(token: string, location: string) {
+  const l = await gfetch<{ metadata?: { canHaveFoodMenus?: boolean } }>(token,
+    `https://mybusinessbusinessinformation.googleapis.com/v1/${location}?readMask=metadata`)
+  return !!l.metadata?.canHaveFoodMenus
+}
+
+export async function getFoodMenus(token: string, account: string, location: string): Promise<GFoodMenus> {
+  const name = foodMenusName(account, location)
+  const got = await gfetch<Partial<GFoodMenus>>(token, `https://mybusiness.googleapis.com/v4/${name}`)
+  return { ...got, name: got.name ?? name }
+}
+
+export async function updateFoodMenus(token: string, menus: GFoodMenus) {
+  return gfetch<GFoodMenus>(token, `https://mybusiness.googleapis.com/v4/${menus.name}?updateMask=menus`,
+    { method: 'PATCH', body: JSON.stringify(menus) })
+}
+
 /** Google Business post. Events show dates on the listing. */
 export async function createPost(token: string, account: string, location: string, post: {
   caption: string; image_url?: string | null; title?: string | null; starts_on?: string | null; ends_on?: string | null

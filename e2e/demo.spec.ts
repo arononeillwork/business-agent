@@ -4447,6 +4447,30 @@ test.describe('menu, menu design and screens', () => {
     await expect(card(page, 'Flat White')).toBeVisible()
   })
 
+  test('Google Maps menu: the listing’s menu is kept in step with the app, and sent again on demand', async ({ page }) => {
+    await open(page, '/menu')
+    // The demo's listing is connected, and the menu went to it a while ago.
+    const maps = page.getByRole('alert', { name: 'Menu on Google Maps' })
+    await expect(maps).toContainText('Google Maps is kept in step: changes to the menu, here or in Square, reach your listing within a minute.')
+    await expect(maps).toContainText('Last sent to Google Maps 12 min ago.')
+    // A change on the menu goes to the listing by itself.
+    await page.getByRole('region', { name: 'Bakery' }).getByRole('button', { name: 'Move Pain au chocolat up' }).click()
+    await expect(maps).toContainText('Last sent to Google Maps just now.')
+    // And sent again on demand: what's on the menu with a price.
+    await maps.getByRole('button', { name: 'Send to Google Maps now' }).click()
+    await toast(page, /^Sent \d+ items to Google Maps\.$/)
+    await expect(maps).toContainText('Last sent to Google Maps just now.')
+
+    // Without the listing connected, it says where to connect it.
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Connections' }).click()
+    await page.getByRole('button', { name: 'Manage Google Maps' }).click()
+    await page.getByRole('dialog', { name: 'Google Maps' }).getByRole('button', { name: 'Disconnect' }).click()
+    await toast(page, 'Google Maps disconnected')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Menu', exact: true }).click()
+    await expect(maps).toContainText('Connect your Google listing on the Connections page and this menu updates Google Maps by itself.')
+    await expect(maps.getByRole('button', { name: 'Send to Google Maps now' })).toHaveCount(0)
+  })
+
   test('the printed menus go beside what’s on the menu, and add back what isn’t', async ({ page }) => {
     await open(page, '/menu')
     await addPrintedMenus(page)

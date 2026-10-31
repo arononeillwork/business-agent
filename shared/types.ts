@@ -387,6 +387,8 @@ export interface Integration {
     accounts?: { id: string; name: string; currency: string }[]; account_id?: string; account_name?: string
     /** Meta Ads: allowed to pause, resume and change budgets (not only read). */
     can_manage?: boolean
+    /** Google Maps: when the menu last went onto the listing, how many items, and why Google last refused it. */
+    menu_sent_at?: string; menu_items?: number; menu_error?: string | null
   }
   connected_at: string | null
   last_sync_at: string | null

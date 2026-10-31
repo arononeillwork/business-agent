@@ -11,6 +11,7 @@ import { bearer, businessDb, requestDb, serviceClient, userClient, type Env } fr
 import { higgsfieldKey, markBroken, setIntegration, squareSession } from './connections'
 import { hmacHex, safeEqual, seal } from './crypto'
 import { storeMedia } from './media'
+import { pushGoogleMenu } from './integrations'
 import * as higgsfield from './providers/higgsfield'
 import * as square from './providers/square'
 import { fromSquareCatalog } from '../shared/menuSquare'
@@ -156,7 +157,10 @@ export async function syncSquareMenu(env: Env, db: SupabaseClient) {
   const read = fromSquareCatalog(objects)
   const { data, error } = await db.rpc('sync_square_menu', { p: read })
   if (error) throw new Error(error.message)
-  return { ...(data as { added: number; changed: number; off: number }), items: read.items.length }
+  const done = data as { added: number; changed: number; off: number }
+  // Something changed: the Google Maps listing's menu follows straight away (a refusal shows on the Menu page).
+  if (done.added || done.changed || done.off) await pushGoogleMenu(env, db).catch(e => console.error('google menu failed', message(e)))
+  return { ...done, items: read.items.length }
 }
 
 /** Every hour (the cron), while the menu comes from Square. */

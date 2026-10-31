@@ -61,6 +61,7 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'recipes', files: [/(Recipes|Waste)Page/, /shared\/recipes/], tests: String.raw`recipe|margin|waste` },
   { name: 'menu and screens', files: [/(Menu|MenuPrint|Screens|Display)Page/, /pages\/menu\//, /components\/(MenuBoard|ScreenPlayer|AiImages)/, /lib\/googleFont/,
     /shared\/(menu|screens)/], tests: String.raw`menu|screen|Higgsfield` },
+  { name: 'google maps menu', files: [/MenuPage/], tests: String.raw`Google Maps` },
   { name: 'ads', files: [/AdsPage/, /shared\/ads/], tests: String.raw`ads|campaign|UTM` },
   { name: 'reviews', files: [/(Reviews|Website)Page/, /shared\/(seo|reviews)/], tests: String.raw`review|SEO|website` },
   { name: 'competitors', files: [/CompetitorsPage/, /competitorDialogs/, /shared\/localCompetitors/, /components\/charts/], tests: String.raw`competitors` },

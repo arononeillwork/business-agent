@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { OAuthProvider } from '@cloudflare/workers-oauth-provider'
 import { bearer, businessDb, businessIds, joinBusiness, serviceClient, userClient, type Env } from './supabase'
 import { rest } from './rest'
-import { drainOutbox, integrations, syncGoogle, syncGoogleBothWays } from './integrations'
+import { drainOutbox, integrations, pushGoogleMenu, syncGoogle, syncGoogleBothWays } from './integrations'
 import { checkAll } from './connections'
 import { checkMentions } from './mentions'
 import { syncSquareCustomers } from './squareCustomers'
@@ -389,6 +389,9 @@ export default {
         if (minute % 15 === 0 && await googleConnected(b)) {
           await syncGoogleBothWays(env, b).catch(e => console.error('google hours sync failed', id, e))
         }
+        // Every minute: the menu onto the Google Maps listing, when it changed since it was last sent
+        // (only a fingerprint is compared; Google is called only for a new menu).
+        await pushGoogleMenu(env, b).catch(e => console.error('google menu failed', id, e))
         // Every 15 minutes: new Instagram tags and story mentions, for admins to repost or ignore.
         if (minute % 15 === 0) {
           await checkMentions(env, b).catch(e => console.error('instagram mentions failed', id, e))
