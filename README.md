@@ -220,6 +220,17 @@ built-in **AI connector** so owners can run it by talking to Claude.
   them off by its own clock, offline too. Saving one can make its story (suggested) or post: the Social
   planner's composer opens with a picture drawn from the offer in the brand's fonts and colour, the offer
   as its note, going out as the offer starts, and the post is remembered on the offer.
+- Last-day offers (Offers & specials and Stock, admins): stock on its final day to sell goes on offer
+  by itself. An item says how long it sells for once it comes in ("1 day" for today's pastries), or a
+  delivery gives its use-by date; Stock marks what's on its last day and what's past it (a link to log
+  it on the Waste log as expired). Rules say which categories or items, the discount (a % off the
+  item's usual price, or a set price such as "2 for €3"), from how long before closing, on which
+  screens, and whether to suggest its story. Every minute the Worker runs `start_last_day_offers()`:
+  from the rule's time until closing (by the opening hours; nothing on a closed day), each item on its
+  last day with some left becomes an ordinary offer, labelled automatic, its usual price crossed out,
+  once a day; admins hear about it in the bell. It stops like any offer. Nothing is charged or changed
+  in Square: the team rings it up at the offer price. A café's usual rule (today's bakes, 30% off, two
+  hours before closing) is there for each business, switched off until an admin turns it on.
 - Documents (Business section): every file kept in the café's own Google Drive or OneDrive (the Tax
   page's, invoices brought in by email, licences' documents, and contracts, insurance policies and
   certificates kept here), all years in one list with what each belongs to (an invoice, a licence, the

@@ -15,6 +15,7 @@ import PhoneIcon from '@mui/icons-material/PhoneOutlined'
 import ChecklistIcon from '@mui/icons-material/FactCheckOutlined'
 import WholesaleIcon from '@mui/icons-material/WarehouseOutlined'
 import DeleteIcon from '@mui/icons-material/DeleteOutlined'
+import LastDayIcon from '@mui/icons-material/HourglassBottomOutlined'
 import { useMemo, useRef, useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
@@ -29,6 +30,7 @@ import {
   type MovementReason, type StockCsvImport, type StockItem, type StockItemInput, type StockMovement, type Supplier, type SupplierOrder,
 } from '../../shared/stock'
 import { addDays, formatLocal, formatMoney, formatNumber, today } from '../../shared/time'
+import { deliveryUseBy, isLastDay, isPastUseBy } from '../../shared/lastDayOffers'
 import { tokens } from '../theme'
 import { msg, t, tn } from '../i18n'
 
@@ -40,6 +42,8 @@ const SORT_BY: Record<string, (i: StockItem) => string | number | null> = {
   value: i => (i.cost_per_unit === null ? null : stockValue([i])), location: i => i.location, category: i => i.category, unit: i => t(unitLabel(i.unit)),
 }
 const qty = (n: number, unit: StockItem['unit']) => `${formatNumber(n)} ${t(unitLabel(unit))}`
+const LAST_DAY_TAG = { fg: tokens.warnFg, bg: tokens.warnBg }
+const useByText = (date: string) => t('Use by {date}', { date: date === today() ? t('today') : formatLocal(`${date}T12:00:00Z`, 'EEE d MMM') })
 
 /**
  * Current stock: how many of each item are in and where, what's low, what to order from whom.
@@ -66,6 +70,7 @@ export function StockPage() {
   const sups = suppliers.data ?? []
   const supplierOf = (i: StockItem) => sups.find(s => s.id === i.supplier_id) ?? null
   const low = all.filter(isLow)
+  const lastDay = all.filter(i => isLastDay(i, today()))
   const orders = orderList(all, sups)
   const thisWeek = orders.filter(o => !o.supplier || !o.supplier.order_days.length
     || (nextOrderDay(o.supplier, new Date())?.date ?? '9999') <= addDays(today(), 6))
@@ -129,6 +134,13 @@ export function StockPage() {
           )}
         </Empty>
       ) : <>
+        {lastDay.length > 0 && (
+          <Alert severity="warning" icon={<LastDayIcon />} sx={{ mb: 2 }} role="status" aria-label={t('On their last day')}
+            action={isAdmin ? <Button color="inherit" size="small" component={RouterLink} to="/offers">{t('Offers & specials')}</Button> : undefined}>
+            {t('On their last day today: {items}. They go on offer by themselves before closing, if a last-day rule covers them.',
+              { items: lastDay.map(i => `${i.name} (${t('{n} left', { n: formatNumber(i.on_hand) })})`).join(', ') })}
+          </Alert>
+        )}
         <Stack direction="row" sx={{ gap: 1, alignItems: 'center', flexWrap: 'wrap', mb: 1.5 }}>
           <Chip size="small" clickable label={`${t('Low only')} ${low.length}`} onClick={() => setLowOnly(v => !v)} aria-pressed={lowOnly}
             variant={lowOnly ? 'filled' : 'outlined'} color={lowOnly ? 'error' : 'default'} />
@@ -185,11 +197,17 @@ export function StockPage() {
                             </Tooltip>
                           )}
                           {i.retail && <Tag>{t('Shop')}</Tag>}
+                          {isLastDay(i, today()) && <Tag {...LAST_DAY_TAG}>{t('Last day')}</Tag>}
+                          {isPastUseBy(i, today()) && (
+                            <Link component={RouterLink} to={`/waste?item=${i.id}`} underline="none" aria-label={t('Past its use-by: log {name} as waste', { name: i.name })}>
+                              <Tag {...LOW_TAG}>{t('Past its use-by')}</Tag>
+                            </Link>
+                          )}
                         </Stack>
                         {/* Cut short rather than widening the table past the page. */}
                         <Typography variant="body2" noWrap sx={{ color: 'text.secondary' }}>
                           {/* The supplier has its own column on a wide screen. */}
-                          {[i.pack_size, i.supplier_sku, !wide && s && `${s.name}`].filter(Boolean).join(' · ') || (i.category ? t(i.category) : '')}
+                          {[i.use_by && i.on_hand > 0 && useByText(i.use_by), i.pack_size, i.supplier_sku, !wide && s && `${s.name}`].filter(Boolean).join(' · ') || (i.category ? t(i.category) : '')}
                         </Typography>
                       </TableCell>
                       <TableCell sx={{ ...cell, ...hide('lg'), maxWidth: 170, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -243,6 +261,7 @@ function MoveDialog({ item, reason: start, onClose }: { item: StockItem; reason:
   const [reason, setReason] = useState<MovementReason>(start)
   const [n, setN] = useState(start === 'count' ? String(item.on_hand) : start === 'delivery' ? String(item.order_multiple) : '1')
   const [note, setNote] = useState('')
+  const [useBy, setUseBy] = useState(deliveryUseBy(item.sell_within_days, today()) ?? '')
   const options = start === 'delivery' ? REASONS.filter(r => r.id === 'delivery' || r.id === 'correction')
     : start === 'count' ? REASONS.filter(r => r.id === 'count') : REASONS.filter(r => r.sign < 0 || r.id === 'correction')
   const value = Number(n.replace(',', '.'))
@@ -251,7 +270,8 @@ function MoveDialog({ item, reason: start, onClose }: { item: StockItem; reason:
       throw new Error(reason === 'count' ? t('Enter how many you counted') : t('Enter how many'))
     }
     const sign = REASONS.find(r => r.id === reason)!.sign
-    await api.recordStock([reason === 'count' ? { item_id: item.id, reason, counted: value, note } : { item_id: item.id, reason, change: sign ? sign * value : value, note }])
+    await api.recordStock([reason === 'count' ? { item_id: item.id, reason, counted: value, note }
+      : { item_id: item.id, reason, change: sign ? sign * value : value, note, ...(reason === 'delivery' && /^\d{4}-\d{2}-\d{2}$/.test(useBy) ? { use_by: useBy } : {}) }])
     onClose()
   }, reason === 'count' ? t('Counted: {qty}', { qty: qty(value, item.unit) }) : t('Recorded'))
   return (
@@ -268,6 +288,11 @@ function MoveDialog({ item, reason: start, onClose }: { item: StockItem; reason:
           <TextField autoFocus label={reason === 'count' ? t('How many are there') : reason === 'correction' ? t('Change (+ or −)') : t('How many')}
             value={n} onChange={e => setN(e.target.value)} inputMode="decimal"
             slotProps={{ input: { endAdornment: <InputAdornment position="end">{t(unitLabel(item.unit))}</InputAdornment> } }} />
+          {reason === 'delivery' && (
+            <TextField type="date" label={t('Use by (optional)')} value={useBy} onChange={e => setUseBy(e.target.value)} slotProps={{ inputLabel: { shrink: true } }}
+              helperText={item.sell_within_days ? tn(item.sell_within_days, 'It sells within {n} day: its last day is the day it comes in.', 'It sells within {n} days of coming in.')
+                : t('The date on the pack, for milk, sandwiches… On its last day it can go on offer by itself.')} />
+          )}
           <TextField label={t('Note (optional)')} value={note} onChange={e => setNote(e.target.value)} slotProps={{ htmlInput: { maxLength: 300 } }} />
         </Stack>
       </DialogContent>
@@ -551,6 +576,26 @@ export function ItemDialog({ item, suppliers, categories, locations, readOnly, o
                 {margin !== null && <Typography variant="body2" sx={{ color: margin < 50 ? tokens.badFg : 'text.secondary' }}>{t('Margin {pct}%', { pct: formatNumber(margin) })}</Typography>}
               </Stack>
             )}
+          </Box>
+          <Box role="group" aria-label={t('Use-by')} sx={{ border: 1, borderColor: 'divider', borderRadius: 2, px: 1.5, py: 1.5 }}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+              <TextField select fullWidth size="small" label={t('Sells for')} value={d.sell_within_days ?? ''} disabled={readOnly}
+                onChange={e => set({ sell_within_days: e.target.value === '' ? null : Number(e.target.value) })}>
+                <MenuItem value="">{t('It keeps')}</MenuItem>
+                {[...new Set([1, 2, 3, 4, 5, 7, 10, 14, ...(d.sell_within_days ? [d.sell_within_days] : [])])].sort((a, b) => a - b).map(n => (
+                  <MenuItem key={n} value={n}>{n === 1 ? t('1 day: the day it comes in') : tn(n, '{n} day', '{n} days')}</MenuItem>
+                ))}
+              </TextField>
+              <TextField fullWidth size="small" type="date" label={t('What’s in now: use by')} value={d.use_by ?? ''} disabled={readOnly}
+                onChange={e => set({ use_by: e.target.value || null })} slotProps={{ inputLabel: { shrink: true } }} />
+            </Stack>
+            {!d.retail && (d.sell_within_days || d.use_by) && (
+              <TextField size="small" label={t('Usual price, with IVA')} value={field('sell_price')} disabled={readOnly} onChange={e => set({ sell_price: num(e.target.value) })} inputMode="decimal"
+                sx={{ mt: 2 }} slotProps={{ input: { startAdornment: <InputAdornment position="start">{'€'}</InputAdornment> } }} />
+            )}
+            <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 1 }}>
+              {t('Each delivery sets the use-by. On its last day, a last-day rule (Offers & specials) can put it on offer until closing, its usual price crossed out.')}
+            </Typography>
           </Box>
           <TextField label={t('Notes')} value={field('notes')} disabled={readOnly} onChange={e => set({ notes: e.target.value || null })} multiline minRows={2} slotProps={{ htmlInput: { maxLength: 2000 } }} />
           {item && (

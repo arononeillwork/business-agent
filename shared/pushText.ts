@@ -83,6 +83,7 @@ const TITLES: Phrase[] = [
   [/^LinkedIn needs connecting again soon$/, msg('LinkedIn needs connecting again soon'), () => ({})],
   [/^Meta Ads needs connecting again soon$/, msg('Meta Ads needs connecting again soon'), () => ({})],
   [/^Opening hours changed on Google Maps$/, msg('Opening hours changed on Google Maps'), () => ({})],
+  [/^On offer till closing: (.+)$/, msg('On offer till closing: {name}'), m => ({ name: m[1] })],
 ]
 const BODIES: Phrase[] = [
   [/^Coming up (\w{3}) (\d\d) (\w{3}), (\d\d:\d\d)\. You asked to be reminded\.$/, msg('Coming up {when}. You asked to be reminded.'), (m, l) => ({
@@ -94,6 +95,9 @@ const BODIES: Phrase[] = [
   [/^Meta only allows access for 60 days\. Connect Meta Ads again before (.+) to keep seeing your ads\.$/,
     msg('Meta only allows access for 60 days. Connect Meta Ads again before {date} to keep seeing your ads.'), m => ({ date: m[1] })],
   [/^The app now uses the hours from your Google listing\.$/, msg('The app now uses the hours from your Google listing.'), () => ({})],
+  [/^(\d+(?:\.\d+)?) left on their last day, (.+) until (\d\d:\d\d)\. Square isn’t changed: take the offer price at the till\.$/,
+    msg('{n} left on their last day, {price} until {time}. Square isn’t changed: take the offer price at the till.'),
+    (m, l) => ({ n: amount(l, m[1]), price: m[2], time: m[3] })],
 ]
 
 function phrase(lang: Language, text: string, phrases: Phrase[]) {

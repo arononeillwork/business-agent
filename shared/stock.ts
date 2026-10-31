@@ -134,6 +134,10 @@ export interface StockItem {
   may_contain?: Allergen[]
   /** Vegan, vegetarian or neither (Allergens page); null: nobody has said yet. */
   diet?: Diet | null
+  /** How many days it sells for once it comes in (1: the day it arrives, like today's pastries); null: it keeps. */
+  sell_within_days?: number | null
+  /** The day what's in now has to be sold by (the latest delivery's, or set on the item); its last day for last-day offers. */
+  use_by?: string | null
 }
 export type StockItemInput = Partial<Omit<StockItem, 'id' | 'updated_at'>> & { id?: string; name: string }
 
@@ -162,9 +166,11 @@ export interface StockMovement {
   waste_reason: WasteReason | null
   /** Waste taken off the log (or changed, and logged again): when. A correction put its stock back. */
   undone_at?: string | null
+  /** A delivery: the day it has to be sold by. */
+  use_by?: string | null
 }
-/** A delivery, waste… (change: how many in or out) or a count (counted: the figure). */
-export type MovementInput = { item_id: string; reason: MovementReason; change?: number; counted?: number; note?: string | null; waste_reason?: WasteReason }
+/** A delivery, waste… (change: how many in or out) or a count (counted: the figure). A delivery can say its use-by. */
+export type MovementInput = { item_id: string; reason: MovementReason; change?: number; counted?: number; note?: string | null; waste_reason?: WasteReason; use_by?: string | null }
 /** A waste log entry as changed: what, how many (thrown away, so more than 0), why and the note. */
 export interface WasteEdit { item_id: string; quantity: number; waste_reason: WasteReason; note: string | null }
 

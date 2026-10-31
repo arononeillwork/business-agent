@@ -34,6 +34,7 @@ import type { Recipe, RecipeInput } from '../../shared/recipes'
 import type { MenuDesign, MenuDesignInput, MenuImage, MenuImageRequest, MenuItem, MenuItemInput } from '../../shared/menu'
 import type { DisplayFeed, Screen, ScreenInput } from '../../shared/screens'
 import type { Offer, OfferInput } from '../../shared/offers'
+import type { LastDayRule, LastDayRuleInput } from '../../shared/lastDayOffers'
 import type { Camera, CameraClip, CameraInput, CameraLive, CameraService } from '../../shared/cameras'
 import type { AdPlatform, AdSettings, AdsReport, CampaignPatch } from '../../shared/ads'
 import type { ReviewsState } from '../../shared/reviews'
@@ -602,6 +603,10 @@ export interface Api {
   saveOffer(offer: OfferInput): Promise<string>
   /** Delete one (its post stays on the Social planner). */
   deleteOffer(id: string): Promise<void>
+  /** Last-day offers (admins): the rules that put stock on its last day on offer by itself until closing. */
+  lastDayRules(): Promise<LastDayRule[]>
+  saveLastDayRule(rule: LastDayRuleInput): Promise<void>
+  deleteLastDayRule(id: string): Promise<void>
 
   // Cameras (admins): the CCTV cameras, which upload by FTP to the camera upload server; their
   // video is kept in the business's Drive or OneDrive.
