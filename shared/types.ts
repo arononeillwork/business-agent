@@ -199,6 +199,8 @@ export interface Preferences {
   timeZone?: string
   /** Their own dashboards (Insights › Dashboards): the widgets on each, and the one open. */
   dashboards?: SavedDashboards
+  /** What their calendar shows: the theme days and the weekly routine, and the routine's categories and activities they hid. */
+  calendarShow?: import('./routine').CalendarShow
 }
 
 export interface Position {

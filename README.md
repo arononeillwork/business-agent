@@ -298,6 +298,22 @@ built-in **AI connector** so owners can run it by talking to Claude.
   chosen per camera (1 to 30; Spain allows a month at most). Live video stays in the free Reolink app. The
   Set up tab has what to type into the camera, and Spain's rules (the sign, telling the team, no sound).
   Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) section 20.
+- Theme days (Calendar, Menu section): **Coffees** lists the coffees in use, bag by bag (origin with its flag,
+  region or farm, roaster, roast, process, tasting notes, espresso or filter, the bag's price and a photo of it,
+  made small in the browser). Each theme (Colombian day 🇨🇴, Irish day 🇮🇪, Brazilian roast day 🇧🇷…) serves
+  one of them and plays a playlist, and runs on a weekly rotation (none on a day the café is closed) or on a
+  date set apart from it (St Patrick's Day). The Calendar leads with today's theme, its coffee and a button
+  that plays the playlist on the café speaker (or opens it), and colours each day with its theme; admins
+  change a day's theme from the day itself, and the rest on the **Themes** tab. Today and Music show
+  today's too (`shared/themeDays.ts`, the `theme_days` migration, which starts Easy Beans on Irish, then
+  Colombian, then Brazilian roast from Monday).
+- Weekly routine (Calendar): what's done on set days, every week, every few weeks or one week of the month
+  (the stock take and buying list, the wholesale run, the cleaner, the accounts talk with the gestoría, the
+  coffee machine's deep clean, the business meeting…), each with its time, who does it (someone or a role)
+  and a checklist. Each day shows its activities under its theme in their category's colour; each person
+  hides categories, single activities or the whole routine for themselves (kept in their preferences), and
+  ticks things done; admins set the week up on the **Routine** tab and switch an activity off for everyone
+  (`shared/routine.ts`, the `weekly_routine` migration with a café's usual week for Easy Beans).
 
 See [docs/PLAN.md](docs/PLAN.md) for decisions, architecture and phases.
 

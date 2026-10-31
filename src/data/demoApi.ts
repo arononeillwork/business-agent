@@ -40,6 +40,7 @@ import { permissionsOf, roleProblem, tidyPermissions, type JobRole, type RoleAre
 import { ROLE_TEMPLATES } from '../../shared/roleTemplates'
 import { sectionProblem, type RuleSection, type RulesRead } from '../../shared/staffRules'
 import { PET_LIMITS, petProblem, type Pet } from '../../shared/pets'
+import { DEMO_THEME_TRACKS, demoThemeDayApi } from './demoThemeDays'
 import { COUNTED, type Contractor, type OutsourcedJob } from '../../shared/outsourcing'
 import { EASY_BEANS_ROLES, EASY_BEANS_RULES, handbookDuties } from './easyBeansHandbook'
 import { DEFAULT_TAX_SETTINGS, cleanFolderName, cleanFolderPath, taxFileProblem, taxFileType, type FilingRecord, type TaxDocument, type TaxSettings } from '../../shared/tax'
@@ -207,6 +208,8 @@ export function createDemoApi(): Api {
       ['Golden Hour', 'JVKE'], ['Riptide', 'Vance Joy']].map(([title, artist], i) => ({ id: `demo-yt1-${i + 1}`, title, artist })),
     yt2: [['Holocene', 'Bon Iver'], ['Skinny Love', 'Birdy'], ['Ho Hey', 'The Lumineers']].map(([title, artist], i) => ({ id: `demo-yt2-${i + 1}`, title, artist })),
     yt3: [['Day one', 'Easy Beans'], ['Day two', 'Easy Beans']].map(([title, artist], i) => ({ id: `demo-yt3-${i + 1}`, title, artist })),
+    // The theme days' playlists (Calendar), for the café speaker.
+    ...DEMO_THEME_TRACKS,
   }
   const player: MusicPlayerState = { device_id: null, device_name: null, playlist: null, queue: [], queue_version: 0, playlist_order: [], position: 0, playing: false,
     elapsed: 0, duration: 0, volume: 80, command: null, command_seq: 0, heartbeat_at: null, updated_at: nowIso() }
@@ -1245,6 +1248,12 @@ export function createDemoApi(): Api {
     { id: 'pet-pablo', profile_id: P.mark, name: 'Pablo', kind: 'dog', breed: null, photo: null, sort: 1, created_at: daysAgo(1) },
     { id: 'pet-yoda', profile_id: P.mark, name: 'Yoda', kind: 'dog', breed: null, photo: null, sort: 2, created_at: daysAgo(1) },
   ]
+  // Theme days and the weekly routine (Calendar, Coffees page): as the `theme_days` and `weekly_routine` migrations.
+  const themeDayApi = demoThemeDayApi({
+    isStaff: () => isStaff() && !!me()?.active, isAdmin: () => isAdmin() && !!me()?.active, me: () => currentUser,
+    roleId: name => jobRoles.find(r => r.name === name)?.id ?? null,
+    onTeam: id => profiles.some(p => p.id === id && p.active && (p.role === 'admin' || p.role === 'employee')), uid, nowIso,
+  }, P.cleaner)
   /** That person's shifts in the period become open shifts (approved time off). */
   const openUpShifts = (t: TimeOff) => {
     const name = profiles.find(p => p.id === t.profile_id)?.full_name
@@ -2240,6 +2249,7 @@ export function createDemoApi(): Api {
       const i = pets.findIndex(x => x.id === id)
       if (i >= 0 && isStaff() && (pets[i].profile_id === currentUser || isAdmin())) pets.splice(i, 1)
     },
+    ...themeDayApi,
 
     async contractors() {
       if (!isAdmin() && !partnerCan('finances')) return []
