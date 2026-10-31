@@ -30,6 +30,38 @@ npm run music:day
 npm run render:day && npm run web:day
 ```
 
+## Run your café from one place
+
+The third video (`public/video/run-your-cafe.mp4`, 114 seconds, `OwnerVideo` in `src/owner/`), shown on the
+Demos page while `FEATURES.ownerVideo` is on: how the owner uses the app in the café, one morning, from the two
+places that say what to do. It's made to be easy to follow for any business owner: each of its four chapters is
+made the same way (the advisor's tip, one click to the page, the change made once, then everywhere it shows).
+
+| Time | Scene | What it shows |
+|---|---|---|
+| 0:00 | The title | "Run your café from one place." |
+| 0:04 | The map | Today and the advisor in the middle; Google Maps, the website, Google reviews, the café TV, printed menus and Instagram round them |
+| 0:10 | Today | The first page each morning: what's been taken, what's running low, the jobs, the advisor's first tip |
+| 0:19 | The advisor | Everything it found, by area; then this morning's four things to do, the list the chapters follow |
+| 0:32 | 1 Opening hours | "Closing an hour earlier could pay" → Sunday closes at 15:00 → Google Maps and the website |
+| 0:48 | 2 Prices | "Some prices don't reach your margin" → Pain au chocolat to €2,90 on Menu costing → Google Maps, the café TV's menu board, the printed menu |
+| 1:06 | 3 Offers | Leftover croissants on offer by themselves (the last-day rule), and the story drawn from it → the café TV, Instagram |
+| 1:22 | 4 Reviews | "Reviews waiting for a reply" → a reply drafted in the review's language, posted → Google Maps |
+| 1:38 | The close | Four changes, made once; the rest of the café in the same place; the brand |
+
+The app's scenes are recorded by `capture/owner.mjs` (Square and Google Drive connected off camera, so the
+advisor reads the takings and the story has somewhere to keep its picture); the café's TV is the app's own
+screen link, recorded full screen, with the bakery added to its menu board off camera; the printed menu is the
+app's print page. Google Maps, the website's opening hours and the phone round the story are drawn, as the other
+videos' cards are. The advisor's hours tip comes from the demo's takings, whose last hour on Sundays is quiet.
+Its music is `music/owner.py`.
+
+```bash
+npm run capture:owner                # the app's scenes for it (the dev server running)
+npm run music:owner
+npm run render:owner && npm run web:owner
+```
+
 Everything is made here from scratch, so it can be made again whenever the app changes, and in Spanish.
 
 ## How it's made

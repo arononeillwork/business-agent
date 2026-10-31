@@ -7,13 +7,17 @@
   "scripts": {
     "capture": "node capture/run.mjs",
     "capture:day": "node capture/day.mjs",
+    "capture:owner": "node capture/owner.mjs",
     "music": "python3 music/compose.py",
     "music:day": "python3 music/day.py",
+    "music:owner": "python3 music/owner.py",
     "studio": "remotion studio src/index.ts",
     "render": "remotion render src/index.ts LandingVideo out/landing-master.mp4 --codec=h264 --crf=16 --audio-bitrate=192k",
     "render:day": "remotion render src/index.ts DayVideo out/day-master.mp4 --codec=h264 --crf=16 --audio-bitrate=192k",
+    "render:owner": "remotion render src/index.ts OwnerVideo out/owner-master.mp4 --codec=h264 --crf=16 --audio-bitrate=192k",
     "web": "node web.mjs landing",
     "web:day": "node web.mjs day",
+    "web:owner": "node web.mjs owner",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
