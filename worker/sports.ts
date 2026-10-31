@@ -18,11 +18,33 @@ const FIGHT_DAYS = 8
 const TSDB_GAP_MS = 2100
 const UA = { 'user-agent': 'EasyBeansCafe/1.0 (team app; fixtures for the cafe TV)' }
 
+/**
+ * How long a source has to answer, headers and body. They usually take a second or two; one that's down
+ * (fixturedownload.com once stopped answering at all) then shows as "couldn't update" for its
+ * competitions, instead of leaving "Refresh now" and the background refresh waiting on it.
+ */
+export const SOURCE_TIMEOUT_MS = 10_000
+let sourceTimeoutMs = SOURCE_TIMEOUT_MS
+
+/** Tests (and the slow GitHub sync, if it ever needs longer) change how long a source has to answer. */
+export function configureSportsSources(o: { timeoutMs?: number }) {
+  sourceTimeoutMs = o.timeoutMs ?? sourceTimeoutMs
+}
+
 async function getJson<T>(url: string): Promise<T> {
-  const res = await fetch(url, { headers: UA })
-  if (!res.ok) throw new Error(`${new URL(url).hostname} answered ${res.status}`)
-  const text = await res.text()
-  try { return JSON.parse(text) as T } catch { throw new Error(`${new URL(url).hostname} sent something that isn't JSON`) }
+  const host = new URL(url).hostname
+  let text: string
+  try {
+    const res = await fetch(url, { headers: UA, signal: AbortSignal.timeout(sourceTimeoutMs) })
+    if (!res.ok) throw new Error(`${host} answered ${res.status}`)
+    text = await res.text()
+  } catch (e) {
+    if (e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError')) {
+      throw new Error(`${host} didn't answer within ${sourceTimeoutMs / 1000} s`)
+    }
+    throw e
+  }
+  try { return JSON.parse(text) as T } catch { throw new Error(`${host} sent something that isn't JSON`) }
 }
 
 let lastTsdb = 0
