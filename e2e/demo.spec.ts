@@ -7399,10 +7399,15 @@ test.describe('role ownership', () => {
     await open(page, '/roles?tab=ownership')
     const mark = page.getByRole('region', { name: 'Ownership', exact: true }).getByRole('region', { name: 'Mark Murray' })
     await expect(mark.getByRole('article')).toHaveText([/Investor/, /Accountant/])
-    // Pick up the accountant, move it up Mark's lane, drop it.
+    // Pick up the accountant, move it up Mark's lane, drop it: each step waits for its announcement, so a busy
+    // machine can't drop it before the move has registered.
     await mark.getByRole('button', { name: 'Drag Accountant' }).focus()
     await page.keyboard.press('Space')
+    const live = page.getByRole('status').filter({ hasText: /over droppable area/ })
+    await expect(live).toHaveCount(1)
+    const pickedUp = (await live.textContent()) ?? ''
     await page.keyboard.press('ArrowUp')
+    await expect(live).not.toHaveText(pickedUp)
     await page.keyboard.press('Space')
     await expect(mark.getByRole('article')).toHaveText([/Accountant/, /Investor/])
 

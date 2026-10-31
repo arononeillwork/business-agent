@@ -39,6 +39,20 @@ const ICONS: Record<RoutineCategory, ReactNode> = {
   stock: <StockIcon />, cleaning: <CleaningIcon />, suppliers: <SuppliersIcon />, accounts: <AccountsIcon />,
   meetings: <MeetingsIcon />, maintenance: <MaintenanceIcon />, marketing: <MarketingIcon />, team: <TeamIcon />,
 }
+
+/**
+ * A tick that shows at once while it saves (the list catches up after), and goes back if saving fails.
+ * The saved value wins again as soon as it changes.
+ */
+function useTick(saved: boolean): [boolean, (next: boolean, save: () => Promise<boolean>) => void] {
+  const [pending, setPending] = useState<boolean | null>(null)
+  useEffect(() => setPending(null), [saved])
+  const set = (next: boolean, save: () => Promise<boolean>) => {
+    setPending(next)
+    void save().then(ok => { if (!ok) setPending(null) })
+  }
+  return [pending ?? saved, set]
+}
 /** A category's colour, soft, behind text in the ink colour (light and dark). */
 const soft = (colour: string, n = 16) => `color-mix(in srgb, ${colour} ${n}%, transparent)`
 const onTeam = (me: Profile | null) => !!me?.active && (me.role === 'admin' || me.role === 'employee')
@@ -202,6 +216,7 @@ export function RoutineDayDialog({ item, day, done, show, setShow, onClose }: {
   const label = dateLabel(day)
   const ticker = done?.done_by ? profiles.find(p => p.id === done.done_by)?.full_name : null
   const canUntick = !done || done.done_by === me?.id || isAdmin
+  const [ticked, tick] = useTick(!!done)
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="xs">
       <DialogTitle>{item.name}</DialogTitle>
@@ -224,8 +239,8 @@ export function RoutineDayDialog({ item, day, done, show, setShow, onClose }: {
           {item.notes && <Typography variant="body2" sx={{ whiteSpace: 'pre-line' }}>{item.notes}</Typography>}
           <Box sx={{ p: 1, borderRadius: '12px', bgcolor: tokens.surfaceAlt }}>
             <FormControlLabel label={t('Done for {date}', { date: label })} disabled={!canUntick}
-              control={<Checkbox checked={!!done} onChange={e => run(() => api.setRoutineDone(item.id, day, e.target.checked),
-                e.target.checked ? t('{name} done', { name: item.name }) : t('{name} not done yet', { name: item.name }))} />} />
+              control={<Checkbox checked={ticked} onChange={e => { const on = e.target.checked; tick(on, () => run(() => api.setRoutineDone(item.id, day, on),
+                on ? t('{name} done', { name: item.name }) : t('{name} not done yet', { name: item.name }))) }} />} />
             {done && (
               <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', ml: 4 }}>
                 {ticker ? t('Ticked by {name} at {time}', { name: ticker, time: localTime(done.done_at) }) : t('Ticked at {time}', { time: localTime(done.done_at) })}
@@ -305,19 +320,18 @@ export function TodayThemeCard() {
             </Stack>
             <Box component="ul" sx={{ m: 0, p: 0, listStyle: 'none' }}>
               {list.map(r => {
-                const ticked = (done.data ?? []).some(x => x.item_id === r.id)
+                const saved = (done.data ?? []).some(x => x.item_id === r.id)
                 const who = whoOf(r, profiles, jobRoles)
                 return (
-                  <Stack key={r.id} component="li" aria-label={r.name} direction="row" spacing={1}
-                    sx={{ alignItems: 'center', py: 0.25, borderTop: `1px solid ${tokens.line}`, '&:first-of-type': { borderTop: 0 } }}>
-                    <Checkbox size="small" checked={ticked} slotProps={{ input: { 'aria-label': t('Done: {name}', { name: r.name }) } }}
-                      onChange={e => run(() => api.setRoutineDone(r.id, d, e.target.checked), e.target.checked ? t('{name} done', { name: r.name }) : undefined)} />
-                    <Box sx={{ width: 4, alignSelf: 'stretch', my: 0.75, borderRadius: 1, bgcolor: categoryOf(r.category).colour, flexShrink: 0 }} />
-                    <Box sx={{ minWidth: 0, flex: 1 }}>
-                      <Typography variant="body2" sx={{ textDecoration: ticked ? 'line-through' : 'none', color: ticked ? 'text.secondary' : 'text.primary' }} noWrap>{r.name}</Typography>
-                      <Typography variant="caption" sx={{ color: 'text.secondary' }} noWrap>{[slotOf(r), who].filter(Boolean).join(' · ') || t(categoryOf(r.category).label)}</Typography>
-                    </Box>
-                  </Stack>
+                  <TodayRoutineRow key={r.id} saved={saved} name={r.name} onTick={on => run(() => api.setRoutineDone(r.id, d, on), on ? t('{name} done', { name: r.name }) : undefined)}>
+                    {ticked => <>
+                      <Box sx={{ width: 4, alignSelf: 'stretch', my: 0.75, borderRadius: 1, bgcolor: categoryOf(r.category).colour, flexShrink: 0 }} />
+                      <Box sx={{ minWidth: 0, flex: 1 }}>
+                        <Typography variant="body2" sx={{ textDecoration: ticked ? 'line-through' : 'none', color: ticked ? 'text.secondary' : 'text.primary' }} noWrap>{r.name}</Typography>
+                        <Typography variant="caption" sx={{ color: 'text.secondary' }} noWrap>{[slotOf(r), who].filter(Boolean).join(' · ') || t(categoryOf(r.category).label)}</Typography>
+                      </Box>
+                    </>}
+                  </TodayRoutineRow>
                 )
               })}
             </Box>
@@ -481,5 +495,18 @@ function RoutineDialog({ item, onClose }: { item?: RoutineItem; onClose: () => v
         <Button variant="contained" disabled={!f.name.trim() || !f.weekdays.length} onClick={save}>{item ? t('Save') : t('Add')}</Button>
       </DialogActions>
     </Dialog>
+  )
+}
+
+/** One of today's routine on Today: its tick shows at once while it saves. */
+function TodayRoutineRow({ saved, name, onTick, children }: { saved: boolean; name: string; onTick: (on: boolean) => Promise<boolean>; children: (ticked: boolean) => ReactNode }) {
+  const [ticked, tick] = useTick(saved)
+  return (
+    <Stack component="li" aria-label={name} direction="row" spacing={1}
+      sx={{ alignItems: 'center', py: 0.25, borderTop: `1px solid ${tokens.line}`, '&:first-of-type': { borderTop: 0 } }}>
+      <Checkbox size="small" checked={ticked} slotProps={{ input: { 'aria-label': t('Done: {name}', { name }) } }}
+        onChange={e => { const on = e.target.checked; tick(on, () => onTick(on)) }} />
+      {children(ticked)}
+    </Stack>
   )
 }
