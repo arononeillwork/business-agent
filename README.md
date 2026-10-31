@@ -263,6 +263,14 @@ built-in **AI connector** so owners can run it by talking to Claude.
 - Off the rota (Team): an admin switches someone off the rota on their Team panel (an owner, the
   business's own login). They still sign in; the rota gives them no row and doesn't offer them for a
   shift, unless they already have one that week.
+- Contracts (Team page, a tab of its own: `/team?tab=contracts`): each person's employment contract under
+  Spanish law (indefinido, a tiempo parcial, fijo discontinuo, temporal por circunstancias de la producción
+  or por sustitución, formativo, or autónomo), with its dates, trial period, hours a week, gross salary (an
+  hour, a month or a year), convenio (Hostelería de Málaga to start), job and category, and a link to the
+  signed contract. Contracts ending within 30 days and trial periods ending soon are marked; the top shows
+  who's on a contract, the hours a week and the gross pay a month. Admins add, change and end them; the
+  salary is its own table, so only an owner (or a payroll gestoría) sees pay and a shop manager runs the
+  contracts without it; everyone else sees their own (`shared/contracts.ts`, the `employment_contracts` migration).
 - Tips (Team section): cash and card tips for a period (the till's card tips offered when one is
   connected) shared out by the hours on the timecards or equally, to the cent; everyone sees their own
   share once it's shared out and hears in the bell; a payroll gestoría reads.

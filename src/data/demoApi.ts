@@ -42,6 +42,7 @@ import { ROLE_TEMPLATES } from '../../shared/roleTemplates'
 import { sectionProblem, type RuleSection, type RulesRead } from '../../shared/staffRules'
 import { PET_LIMITS, petProblem, type Pet } from '../../shared/pets'
 import { COUNTED, type Contractor, type OutsourcedJob } from '../../shared/outsourcing'
+import { DEFAULT_CONVENIO, contractProblem, type EmploymentContract } from '../../shared/contracts'
 import { EASY_BEANS_ROLES, EASY_BEANS_RULES, handbookDuties } from './easyBeansHandbook'
 import { DEFAULT_TAX_SETTINGS, cleanFolderName, cleanFolderPath, taxFileProblem, taxFileType, type FilingRecord, type TaxDocument, type TaxSettings } from '../../shared/tax'
 import { DEFAULT_VAT_RATE, type PnlLine } from '../../shared/pnl'
@@ -1250,6 +1251,22 @@ export function createDemoApi(): Api {
     { id: 'pet-yoda', profile_id: P.mark, name: 'Yoda', kind: 'dog', breed: null, photo: null, sort: 2, created_at: daysAgo(1) },
     { id: 'pet-cooper', profile_id: P.mark, name: 'Cooper', kind: 'dog', breed: null, photo: null, sort: 3, created_at: daysAgo(3) },
   ]
+  // Employment contracts (Team → Contracts): Julio permanent since the café opened, Maria on her second
+  // summer contract (ending soon), the cleaner new and in her trial period. Aron and Mark own the café.
+  const contract = (c: Partial<EmploymentContract> & Pick<EmploymentContract, 'id' | 'profile_id' | 'kind' | 'starts_on'>): EmploymentContract => ({
+    ends_on: null, trial_ends_on: null, hours_per_week: null, salary: null, salary_per: null, convenio: DEFAULT_CONVENIO, job_title: null,
+    document_url: null, notes: null, created_at: `${c.starts_on}T09:00:00Z`, updated_at: `${c.starts_on}T09:00:00Z`, ...c,
+  })
+  const contracts: EmploymentContract[] = [
+    contract({ id: 'ec-julio', profile_id: P.julio, kind: 'indefinido', starts_on: '2026-04-01', trial_ends_on: '2026-05-31', hours_per_week: 35,
+      salary: 1320, salary_per: 'month', job_title: 'Camarero (barista), grupo II', document_url: 'https://drive.google.com/file/d/demo-contrato-julio/view' }),
+    contract({ id: 'ec-maria-1', profile_id: P.maria, kind: 'temporal_produccion', starts_on: '2026-04-01', ends_on: '2026-06-30', hours_per_week: 30,
+      salary: 8.8, salary_per: 'hour', job_title: 'Camarera (barista), grupo II' }),
+    contract({ id: 'ec-maria-2', profile_id: P.maria, kind: 'temporal_produccion', starts_on: '2026-07-01', ends_on: addDays(today(), 21), hours_per_week: 30,
+      salary: 8.8, salary_per: 'hour', job_title: 'Camarera (barista), grupo II', notes: 'The summer season. Talk to her about a permanent contract.' }),
+    contract({ id: 'ec-cleaner', profile_id: P.cleaner, kind: 'indefinido_parcial', starts_on: addDays(today(), -20), trial_ends_on: addDays(today(), 10),
+      hours_per_week: 6, salary: 9.5, salary_per: 'hour', job_title: 'Limpieza, grupo I' }),
+  ]
   /** That person's shifts in the period become open shifts (approved time off). */
   const openUpShifts = (t: TimeOff) => {
     const name = profiles.find(p => p.id === t.profile_id)?.full_name
@@ -2299,6 +2316,41 @@ export function createDemoApi(): Api {
       requireAdmin()
       const i = outsourcedJobs.findIndex(j => j.id === id)
       if (i >= 0) outsourcedJobs.splice(i, 1)
+    },
+
+    // As the `employment_contracts` migration: admins and a payroll gestoría read every contract, others
+    // their own; the pay only with pay access (an owner, the gestoría) or on your own.
+    async employmentContracts() {
+      const all = isAdmin() || partnerCan('payroll')
+      if (!me()?.active || (!all && !isStaff())) return []
+      return clone(contracts.filter(c => all || c.profile_id === currentUser))
+        .map(c => (paysAdmin() || partnerCan('payroll') || c.profile_id === currentUser ? c : { ...c, salary: null, salary_per: null }))
+        .sort((a, b) => b.starts_on.localeCompare(a.starts_on))
+    },
+    async saveEmploymentContract({ id, salary, salary_per, ...patch }) {
+      requireAdmin()
+      if (salary !== undefined && !paysAdmin()) throw new Error('new row violates row-level security policy for table "employment_contract_pay"')
+      const was = id ? contracts.find(c => c.id === id) : undefined
+      if (id && !was) throw new Error('That contract isn’t here any more')
+      const text = (v: string | null | undefined) => v?.trim() || null
+      const base = was ?? contract({ id: uid(), profile_id: patch.profile_id ?? '', kind: patch.kind ?? 'indefinido', starts_on: patch.starts_on ?? '',
+        created_at: nowIso(), convenio: null })
+      const next: EmploymentContract = { ...base, ...clone(patch), profile_id: base.profile_id || (patch.profile_id ?? ''), updated_at: nowIso() }
+      Object.assign(next, { convenio: text(next.convenio), job_title: text(next.job_title), document_url: text(next.document_url), notes: text(next.notes) })
+      if (salary !== undefined) Object.assign(next, { salary, salary_per: salary === null ? null : salary_per ?? 'month' })
+      const problem = contractProblem(next)
+      if (problem) throw new Error(problem)
+      if (!was) {
+        const who = profiles.find(p => p.id === next.profile_id)
+        if (!who || !staffOnly(who)) throw new Error('A contract is for someone on the team')
+        contracts.push(next)
+      } else Object.assign(was, next)
+      return next.id
+    },
+    async deleteEmploymentContract(id) {
+      requireAdmin()
+      const i = contracts.findIndex(c => c.id === id)
+      if (i >= 0) contracts.splice(i, 1)
     },
 
     async planStatus() {

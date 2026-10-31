@@ -19,6 +19,7 @@ import type { JobRole } from '../../shared/roles'
 import type { RuleSection, RulesRead } from '../../shared/staffRules'
 import type { Pet } from '../../shared/pets'
 import type { Contractor, OutsourcedJob } from '../../shared/outsourcing'
+import type { EmploymentContract, SalaryPer } from '../../shared/contracts'
 import { DEFAULT_VAT_RATE, type PnlLine, type PnlSettings } from '../../shared/pnl'
 import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
 import type { StockItem, StockMovement, Supplier, StockPrice } from '../../shared/stock'
@@ -454,6 +455,27 @@ export function createSupabaseApi(url: string, key: string): Api {
       return (check(await sb.from('outsourced_jobs').insert(j).select('id').single()) as { id: string }).id
     },
     async deleteOutsourcedJob(id) { check(await sb.from('outsourced_jobs').delete().eq('id', id)) },
+
+    // The pay is its own table: a shop manager's read of it comes back empty (but for their own).
+    async employmentContracts() {
+      const [rows, pay] = await Promise.all([
+        sb.from('employment_contracts').select('id, profile_id, kind, starts_on, ends_on, trial_ends_on, hours_per_week, convenio, job_title, document_url, notes, created_at, updated_at')
+          .order('starts_on', { ascending: false }),
+        sb.from('employment_contract_pay').select('contract_id, salary, salary_per'),
+      ])
+      const pays = new Map((check(pay) as { contract_id: string; salary: number; salary_per: SalaryPer }[]).map(p => [p.contract_id, p]))
+      return (check(rows) as Omit<EmploymentContract, 'salary' | 'salary_per'>[]).map(c => ({
+        ...c, hours_per_week: num(c.hours_per_week), salary: num(pays.get(c.id)?.salary), salary_per: pays.get(c.id)?.salary_per ?? null,
+      }))
+    },
+    async saveEmploymentContract({ id, salary, salary_per, ...c }) {
+      if (id) { if (Object.keys(c).length) check(await sb.from('employment_contracts').update(c).eq('id', id)) }
+      else id = (check(await sb.from('employment_contracts').insert(c).select('id').single()) as { id: string }).id
+      if (salary === null) check(await sb.from('employment_contract_pay').delete().eq('contract_id', id))
+      else if (salary !== undefined) check(await sb.from('employment_contract_pay').upsert({ contract_id: id, salary, salary_per: salary_per ?? 'month' }))
+      return id
+    },
+    async deleteEmploymentContract(id) { check(await sb.from('employment_contracts').delete().eq('id', id)) },
 
     signInWith: oauth,
 
