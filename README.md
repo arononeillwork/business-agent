@@ -404,6 +404,18 @@ the Worker. Nothing is deployed twice; each deploy shows on it straight away. Si
 there come back there (`scripts/ops/supabase-auth.mjs`). Links the Worker builds (invite emails,
 connection and billing returns) still use the workers.dev address.
 
+## Push notifications and bank holiday reminders
+
+Each person can get their notifications on their phone or computer, even with the app closed:
+Notifications → Push notifications → On this device. On an iPhone or iPad it works once the app is
+added to the Home Screen (Share → Add to Home Screen) and opened from there. Under "How you're told"
+each person picks, kind by kind, in the app, on my phone, or both. Nothing to set up: the deploy makes
+the signing key (`VAPID_KEY`, `scripts/ops/worker-secrets.mjs`) once, and the Worker sends what's new
+every minute (`worker/push.ts`, with `public/push-sw.js` on the device).
+
+Admins are reminded about each public holiday on the calendar a week ahead at 09:00 (on for every
+business; Notifications → Bank holiday reminders sets how far ahead, which kinds, and leaves any one out).
+
 ## Use it from any AI
 
 The app is an MCP server at `https://<worker-url>/mcp`. Each person connects their own AI and it

@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { PromptError, SOCIAL_PROVIDERS, type AiTrackResult, type Api, type BillingInfo, type MusicStatus, type PlanStatus, type SignInMethods, type SocialProvider } from './api'
 import type { ApiKey, AppNotification, Brand, Business, Customer, SocialPost, EventAlert, Expense, Integration, MusicPlaylist, OutboxItem, Profile, Settings, TimeEntry, TimeOff, Todo, TodoCategory, CafeTrack, MusicPlayerState } from '../../shared/types'
+import type { HolidayReminder, PushDevice } from '../../shared/types'
 import type { AiMusicQuote, MusicGeneration, MusicTrack } from '../../shared/types'
 import type { InstagramMention } from '../../shared/mentions'
 import type { FilingRecord, TaxDocument, TaxSettings } from '../../shared/tax'
@@ -1282,6 +1283,28 @@ export function createSupabaseApi(url: string, key: string): Api {
     },
     async setEventAlert(kind, refId, on) {
       return check(await sb.rpc('set_event_alert', { p_kind: kind, p_ref_id: refId, p_on: on })) as boolean
+    },
+    async holidayReminders() {
+      return check(await sb.from('holiday_reminders').select('event_id, remind, sent_for, sent_at')) as HolidayReminder[]
+    },
+    async setHolidayReminder(eventId, on) {
+      return check(await sb.rpc('set_holiday_reminder', { p_event_id: eventId, p_on: on })) as boolean
+    },
+    async pushKey() {
+      const res = await fetch('/api/push/key')
+      return res.ok ? ((await res.json()) as { key: string }).key : null
+    },
+    async pushDevices() {
+      return check(await sb.from('push_subscriptions').select('id, endpoint, device, created_at, last_ok_at').order('created_at')) as PushDevice[]
+    },
+    async savePushDevice(s) {
+      check(await sb.rpc('save_push_subscription', { p_endpoint: s.endpoint, p_p256dh: s.p256dh, p_auth: s.auth, p_device: s.device }))
+    },
+    async removePushDevice(endpoint) {
+      check(await sb.from('push_subscriptions').delete().eq('endpoint', endpoint))
+    },
+    async sendTestNotification() {
+      check(await sb.rpc('send_me_test_notification'))
     },
     calendarFeeds: () => worker('/api/me/calendar-feed'),
     async makeCalendarFeed(scope) { return (await worker<{ url: string }>(`/api/me/calendar-feed/${scope}`, { method: 'POST' })).url },

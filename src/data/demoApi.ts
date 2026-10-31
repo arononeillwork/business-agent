@@ -5,6 +5,7 @@ import { PromptError, type Api, type BillingInfo, type ShiftInput } from './api'
 import { PLANS, SOCIAL_CONNECTIONS, TRIAL_DAYS, effectivePlan, payPerUse, plan as planById, type PlanId } from '../../shared/plans'
 import { isMood, namesArtist, usesFor, type Mood } from '../../shared/music'
 import type { AiMusicQuote, MusicGeneration, MusicTrack } from '../../shared/types'
+import type { HolidayReminder, PushDevice } from '../../shared/types'
 import type {
   ApiKey, AppNotification, Brand, Customer, EventAlert, Sales, SalesItem, SearchReport, SearchRow, SocialNetwork, SocialPost, MusicAccount, MusicPlaylist, MusicProvider, MyNowPlaying,
   Expense, Integration, IntegrationProvider, IntegrationsState, OutboxItem, PartnerArea, TimeOff,
@@ -678,6 +679,9 @@ export function createDemoApi(): Api {
   const feeds = new Map<string, Partial<Record<'me' | 'business', string>>>()
   const keys = new Map<string, ApiKey[]>()
   const alerts: EventAlert[] = []
+  // Bank holiday reminders left out or sent, and this demo's push devices (none: the demo can't push).
+  const holidayReminders: HolidayReminder[] = []
+  const pushDevices: PushDevice[] = []
   const brand: Brand = {
     logo: null, logo_mark: null, heading_font: 'Poppins', body_font: 'Figtree', updated_at: nowIso(),
     sound_moods: ['acoustic', 'chill', 'latin'], sound_avoid: [],
@@ -1111,6 +1115,7 @@ export function createDemoApi(): Api {
     break_after_hours: 6, max_daily_hours: 9, max_weekly_hours: 40, min_rest_hours: 12,
     approval_weekday: 1, employer_cost_multiplier: 1.3, auto_timecards_from_rota: true, vacation_days_per_year: 30, languages: [],
     alert_shift_reminders: true, alert_missed_clock_in: true, alert_rota: true, alert_time_off: true,
+    holiday_reminders: true, holiday_reminder_days: 7, holiday_reminder_kinds: ['national', 'regional', 'local'],
     whatsapp_retention_days: DEFAULT_WHATSAPP_RETENTION, hidden_pages: [], mileage_rate: DEFAULT_MILEAGE_RATE,
     // The menu is kept here (Custom), its sections not arranged yet. "Add what's on your printed menus"
     // (Menu page) adds the café's printed menus beside the costed recipes, in their order of sections.
@@ -4380,6 +4385,28 @@ export function createDemoApi(): Api {
       return 0
     },
     async eventAlerts() { return clone(alerts) },
+    async holidayReminders() {
+      requireAdmin()
+      return clone(holidayReminders)
+    },
+    async setHolidayReminder(eventId, on) {
+      requireAdmin()
+      const r = holidayReminders.find(x => x.event_id === eventId)
+      if (r) r.remind = on
+      else holidayReminders.push({ event_id: eventId, remind: on, sent_for: null, sent_at: null })
+      return on
+    },
+    async pushKey() { return null },
+    async pushDevices() { return clone(pushDevices) },
+    async savePushDevice() { throw new Error('Push notifications work in the live app, not the demo') },
+    async removePushDevice(endpoint) {
+      const i = pushDevices.findIndex(d => d.endpoint === endpoint)
+      if (i >= 0) pushDevices.splice(i, 1)
+    },
+    async sendTestNotification() {
+      notes.push({ id: notes.length + 1, profile_id: currentUser!, title: 'Test notification', body: 'Notifications are working on this device.',
+        link: '/notifications', kind: 'test', created_at: nowIso(), read_at: null })
+    },
     async setEventAlert(kind, refId, on) {
       requireAdmin()
       const i = alerts.findIndex(a => a.kind === kind && a.ref_id === refId)

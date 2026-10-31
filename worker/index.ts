@@ -32,6 +32,7 @@ import { checkWaitingImages, menu, syncSquareMenuIfChosen } from './menu'
 import { screens } from './screens'
 import { cameras, purgeCameraClips } from './cameras'
 import { competitors, watchCompetitors } from './competitors'
+import { push, pushNotifications } from './push'
 import { accessOf, teamRoleOf } from '../shared/teamRoles'
 
 const NIGHTLY = '15 1 * * *' // 03:15 Madrid in summer, 02:15 in winter
@@ -260,6 +261,9 @@ app.route('/', billing)
 // Music on stories and reels: AI tracks (ElevenLabs, paid per use) and putting music into files.
 app.route('/', socialMusic)
 
+// Push notifications: the public key phones and computers subscribe with.
+app.route('/', push)
+
 // REST API for scripts, n8n, Zapier (same tools and rules as the AI connector).
 app.route('/api/v1', rest)
 
@@ -370,10 +374,14 @@ export default {
       await each('auto_close_entries')
       await each('queue_shift_alerts')
       await each('deliver_event_alerts')
+      // From 09:00, admins hear about public holidays a week ahead (Notifications page).
+      await each('bank_holiday_reminders')
       // Social planner: posts that are due become one outbox job per network (sent just below).
       await each('queue_due_social_posts')
       await forEach(async (id, b) => {
         await drainOutbox(env, id).catch(e => console.error('outbox failed', id, e))
+        // New notifications to people's phones and computers, as each person chose.
+        await pushNotifications(env, b).catch(e => console.error('push failed', id, e))
         // Menu images whose webhook from Higgsfield hasn't come (asked about, or given up on after 3 hours).
         await checkWaitingImages(env, b).catch(e => console.error('menu images failed', id, e))
         // Every 15 minutes: opening hours both ways with Google Maps (after the outbox, so a change

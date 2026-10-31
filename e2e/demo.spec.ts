@@ -3287,11 +3287,49 @@ test.describe('notifications and Instagram mentions', () => {
     await expect(mentions.getByRole('switch', { name: 'Instagram tags and mentions' })).toBeChecked()
   })
 
+  test('bank holiday reminders are on, a week ahead, and any holiday can be left out', async ({ page }) => {
+    await open(page, '/notifications')
+    const holidays = page.getByRole('region', { name: 'Bank holiday reminders' })
+    await expect(holidays.getByRole('switch', { name: 'Bank holiday reminders' })).toBeChecked()
+    await expect(holidays.getByLabel('How far ahead')).toContainText('A week before')
+    await expect(holidays).toContainText('Fiesta Nacional de España')
+    await expect(holidays).toContainText('Reminder on Mon 5 Oct')
+    await holidays.getByRole('switch', { name: 'Remind about Fiesta Nacional de España' }).click()
+    await toast(page, 'Fiesta Nacional de España: left out')
+    await expect(holidays).toContainText('Left out')
+    await holidays.getByLabel('How far ahead').click()
+    await page.getByRole('option', { name: 'Two weeks before' }).click()
+    await toast(page, /^Saved$/)
+    await expect(holidays.getByLabel('How far ahead')).toContainText('Two weeks before')
+    // Nearby towns' holidays aren't reminded unless ticked.
+    await expect(holidays.getByRole('checkbox', { name: 'Nearby town holiday' })).not.toBeChecked()
+    await holidays.getByRole('switch', { name: 'Bank holiday reminders' }).click()
+    await toast(page, 'Bank holiday reminders: switched off')
+    await expect(holidays.getByLabel('How far ahead')).toHaveCount(0)
+  })
+
+  test('each person chooses how each notification reaches them', async ({ page }) => {
+    await open(page, '/notifications')
+    await expect(page.getByRole('region', { name: 'Push notifications' })).toBeVisible()
+    const choices = page.getByRole('region', { name: 'How you’re told' })
+    const holidays = choices.getByRole('group', { name: 'Bank holidays' })
+    await expect(holidays.getByRole('button', { name: 'Both' })).toHaveAttribute('aria-pressed', 'true')
+    await holidays.getByRole('button', { name: 'On my phone' }).click()
+    await expect(holidays.getByRole('button', { name: 'On my phone' })).toHaveAttribute('aria-pressed', 'true')
+    // Kept: still chosen after going elsewhere and coming back.
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Calendar' }).first().click()
+    await page.goBack()
+    await expect(page.getByRole('region', { name: 'How you’re told' }).getByRole('group', { name: 'Bank holidays' })
+      .getByRole('button', { name: 'On my phone' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
   test('employees get their own notifications, without the admin settings', async ({ page }) => {
     await open(page, '/notifications', 'maria@example.com')
     await expect(page.getByRole('region', { name: 'Your notifications' })).toBeVisible()
     await expect(page.getByRole('region', { name: 'Instagram tags and mentions' })).toHaveCount(0)
     await expect(page.getByLabel('Shift reminders')).toHaveCount(0)
+    await expect(page.getByRole('region', { name: 'Bank holiday reminders' })).toHaveCount(0)
+    await expect(page.getByRole('region', { name: 'How you’re told' }).getByRole('group')).toHaveCount(1)
   })
 
   test('Search Console connects from its Connect button', async ({ page }) => {

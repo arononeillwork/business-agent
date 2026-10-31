@@ -1,6 +1,7 @@
 import type { AiMusicQuote, MusicGeneration, MusicTrack } from '../../shared/types'
 import type { ApiKey, AppNotification, Brand, BreakType, Business, CalendarApp, CalendarEvent, ConnectorProvider, ContactMethod, CorrectionRequest, Customer, CustomerInput, EventAlert, Expense, InstagramProfile, Integration, PostMedia, Sales, SalesItems, SearchReport, SocialNetwork, SocialPost, IntegrationProvider, IntegrationsState, KioskPerson, MusicNow, MusicPlaylist, MusicProvider, MyMusic, MyNowPlaying, OpenBreak, OpeningHours, OutboxItem, PartnerArea, PayRate, Position, Profile, Settings, Shift, SpotifyPlaylist, TimeEntry, TimeEntryChange, TimeOff, TimeOffKind, Todo, TodoCategory, TodoPatch, CafeMusicLibrary, CafeTrack, MusicAction, MusicPlayerReport, MusicPlayerState } from '../../shared/types'
 import type { Billing, Interval, PlanId } from '../../shared/plans'
+import type { HolidayReminder, PushDevice } from '../../shared/types'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
 import type { InboxConversation, InboxState, InboxThread } from '../../shared/messages'
 import type { ReferralState } from '../../shared/referrals'
@@ -777,6 +778,16 @@ export interface Api {
   checkMentions(): Promise<number>
   eventAlerts(): Promise<EventAlert[]>
   setEventAlert(kind: EventAlert['kind'], refId: string, on: boolean): Promise<boolean>
+  /** Bank holiday reminders (admins): the holidays left out, and the ones reminded about. */
+  holidayReminders(): Promise<HolidayReminder[]>
+  setHolidayReminder(eventId: string, on: boolean): Promise<boolean>
+  /** Push notifications: the key browsers subscribe with (null until it's set up), and my devices. */
+  pushKey(): Promise<string | null>
+  pushDevices(): Promise<PushDevice[]>
+  savePushDevice(sub: { endpoint: string; p256dh: string; auth: string; device: string }): Promise<void>
+  removePushDevice(endpoint: string): Promise<void>
+  /** A notification for yourself, which reaches your devices within a minute. */
+  sendTestNotification(): Promise<void>
 
   // Calendar feeds: my shifts (everyone), the whole team (admins). Returns subscribe links.
   calendarFeeds(): Promise<Partial<Record<'me' | 'business', string>>>

@@ -2,8 +2,9 @@
 //   node scripts/ops/worker-secrets.mjs <existing-secret-names.json> <out.json>
 // - SUPABASE_SERVICE_ROLE_KEY: read from the Supabase Management API (needs SUPABASE_ACCESS_TOKEN)
 // - INTEGRATION_KEY: generated once; never replaced (it encrypts stored tokens)
+// - VAPID_KEY: generated once; never replaced (phones subscribed to push notifications with its public half)
 // - Anything else in PASSTHROUGH that is set in the environment (GitHub secrets)
-import { randomBytes } from 'node:crypto'
+import { generateKeyPairSync, randomBytes } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
 
 const REF = process.env.SUPABASE_PROJECT_REF ?? 'lhakrmmoxaareykglmtx'
@@ -29,6 +30,11 @@ if (process.env.SUPABASE_ACCESS_TOKEN) {
   console.log('::warning::SUPABASE_ACCESS_TOKEN not set: invites and the cron jobs need SUPABASE_SERVICE_ROLE_KEY')
 }
 if (!existing.has('INTEGRATION_KEY')) out.INTEGRATION_KEY = randomBytes(32).toString('base64url')
+if (!existing.has('VAPID_KEY')) {
+  const { privateKey } = generateKeyPairSync('ec', { namedCurve: 'P-256' })
+  const { kty, crv, x, y, d } = privateKey.export({ format: 'jwk' })
+  out.VAPID_KEY = JSON.stringify({ kty, crv, x, y, d })
+}
 for (const k of PASSTHROUGH) if (process.env[k]) out[k] = process.env[k]
 
 writeFileSync(process.argv[3], JSON.stringify(out))

@@ -11,6 +11,7 @@ import { tokens } from '../theme'
 import { msg, t, tn, tr } from '../i18n'
 import { MentionActions, MentionRow, useMentions } from '../components/Mentions'
 import { notificationTitle } from '../components/NotificationBell'
+import { HolidayReminders, NotificationChoices, PushDevices } from '../components/NotificationSettings'
 
 const KINDS: { key: keyof Settings; title: string; who: string; when: string }[] = [
   { key: 'alert_shift_reminders', title: msg('Shift reminders'), who: msg('The person on shift'), when: msg('One hour before each shift') },
@@ -37,7 +38,8 @@ const DELIVERY: Record<string, string> = { sent: msg('Sent'), delivered: msg('De
 const deliveryLabel = (d: string) => (DELIVERY[d] ? t(DELIVERY[d]) : d[0].toUpperCase() + d.slice(1))
 
 /**
- * Notifications: everyone's own (the bell's, in full); for admins also Instagram tags and story
+ * Notifications: everyone's own (the bell's, in full), push notifications on their devices and how
+ * each kind reaches them; for admins also the bank holiday reminders, Instagram tags and story
  * mentions to repost or ignore, and the team alerts sent on WhatsApp.
  */
 export function NotificationsPage() {
@@ -47,6 +49,9 @@ export function NotificationsPage() {
       <PageHeader title={t('Notifications')} />
       <Stack spacing={2.5}>
         <MyNotifications />
+        <PushDevices />
+        <NotificationChoices />
+        {isAdmin && <HolidayReminders />}
         {isAdmin && <InstagramMentions />}
         {isAdmin && <TeamAlerts />}
       </Stack>

@@ -18,6 +18,12 @@ import { MentionActions, useMentions } from './Mentions'
  * with a known shape (Instagram mentions) are said again from their details.
  */
 export function notificationTitle(n: AppNotification) {
+  if (n.kind === 'bank_holiday' && n.data?.name && typeof n.data.days === 'number') {
+    const name = n.data.name
+    return n.data.days === 0 ? t('Bank holiday today: {name}', { name }) : n.data.days === 1 ? t('Bank holiday tomorrow: {name}', { name })
+      : t('Bank holiday in {n} days: {name}', { n: n.data.days, name })
+  }
+  if (n.kind === 'test') return t('Test notification')
   const m = /^(@\S+|Someone) (mentioned you in their story|tagged you in a post)$/.exec(n.title)
   if (n.kind !== 'instagram_mention' || !m) return n.title
   const who = m[1] === 'Someone' ? t('Someone') : m[1]

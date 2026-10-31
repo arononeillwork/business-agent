@@ -16,6 +16,7 @@ export interface Env {
   GOOGLE_PLACE_ID?: string            // the café's Google Maps place id, for the above (where the business is, and its own rating)
   GOOGLE_PAGESPEED_API_KEY?: string   // optional: PageSpeed Insights beyond its small keyless quota (Website & SEO)
   INTEGRATION_KEY?: string            // encrypts stored tokens, signs OAuth state
+  VAPID_KEY?: string                  // signs push notifications (a P-256 private key as a JWK; made by the deploy)
   GOOGLE_CLIENT_ID?: string
   GOOGLE_CLIENT_SECRET?: string
   GOOGLE_PICKER_API_KEY?: string      // optional: Google's file picker on the Legal page (a browser key for the same Google Cloud project)
