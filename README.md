@@ -122,6 +122,12 @@ built-in **AI connector** so owners can run it by talking to Claude.
   currency, where team alerts go): hidden, the page shows just the contact details. The café's barista
   template also leaves out the Company details and the Menu, and shows the Business page; Easy Beans'
   Barista / Bartender role has its contact details but not the Company details, Brand, Dashboards, Menu or Expenses.
+- Agents (owners): the **Agents** button at the top right switches the app to one part of the business's
+  view: the Finance, Marketing, Sales, Operations, People & HR and Stock & purchasing agents, and the Investor.
+  The menu then shows just that agent's pages (and Settings), a line at the top says whose view it is with the
+  way back to everything, and Today leads with the agent's first questions. Each owner's choice is kept on
+  their account; the owners turn agents on or off, rename them, pick their pages and add their own on Roles
+  & responsibilities → Agents (`shared/agents.ts`; only an owner changes them, the `agent_views` migration).
 - Staff rules (Team section): the house rules, in sections that open (being on time and clocking in, uniform
   and hygiene, food safety and allergens, phones, breaks, customers, the till, health and safety, respect).
   Each employee confirms they've read them and is asked again when a section is added or changed (what's new

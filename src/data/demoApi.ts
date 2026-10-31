@@ -1120,6 +1120,8 @@ export function createDemoApi(): Api {
     // The menu is kept here (Custom), its sections not arranged yet. "Add what's on your printed menus"
     // (Menu page) adds the café's printed menus beside the costed recipes, in their order of sections.
     menu_source: 'custom', menu_sections: [], menu_synced_at: null, menu_sync_error: null,
+    // The usual agents (shared/agents.ts) until an owner changes them on Roles & responsibilities → Agents.
+    agent_views: null,
   }
 
   const P = { aron: 'p-aron', mark: 'p-mark', julio: 'p-julio', maria: 'p-maria', cleaner: 'p-cleaner' }

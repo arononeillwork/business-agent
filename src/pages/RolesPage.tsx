@@ -26,6 +26,7 @@ import {
 import { ROLE_CATEGORIES, categoryOf, type RoleCategory } from '../../shared/roleTemplates'
 import { tokens } from '../theme'
 import { t, tc, tn } from '../i18n'
+import { AgentsTab } from './RolesAgentsTab'
 
 /** A preset in the admin's language, linked to the rota position it's worked as. */
 function fromPreset(p: RolePreset, positions: Position[], roles: JobRole[], sort: number): JobRoleInput {
@@ -36,7 +37,7 @@ function fromPreset(p: RolePreset, positions: Position[], roles: JobRole[], sort
   }
 }
 
-type RolesTab = 'active' | 'category' | 'permissions'
+type RolesTab = 'active' | 'category' | 'permissions' | 'agents'
 
 /**
  * Roles & responsibilities: who does what. Each role opens to what it's for, who it answers to, who's
@@ -47,10 +48,13 @@ type RolesTab = 'active' | 'category' | 'permissions'
  * to add) and Permissions (what each role, and so each person, can do in each area of the app).
  */
 export function RolesPage() {
-  const { api, me, isAdmin, profiles, positions, business } = useApp()
+  const { api, me, isAdmin, profiles, positions, business, canSeePay } = useApp()
   const run = useAction()
   const [params, setParams] = useSearchParams()
   const tabs: RolesTab[] = ['active', 'category', 'permissions']
+  // Agents (owners only): the ways they see the app, from the Agents button at the top.
+  const owner = isAdmin && canSeePay
+  if (owner) tabs.push('agents')
   const tab = tabs.find(x => x === params.get('tab')) ?? 'active'
   const show = (next: RolesTab) => setParams(next === 'active' ? {} : { tab: next }, { replace: true })
   const category = categoryOf(business?.business_type)
@@ -142,10 +146,12 @@ export function RolesPage() {
         <Tab value="active" label={t('Active ({n})', { n: roles.length })} />
         <Tab value="category" label={t('Category')} />
         <Tab value="permissions" label={t('Permissions')} />
+        {owner && <Tab value="agents" label={t('Agents')} />}
       </Tabs>
 
       {tab === 'category' && <CategoryTab roles={roles} category={category} addPresets={addPresets} />}
       {tab === 'permissions' && <PermissionsTab roles={roles} team={team} />}
+      {tab === 'agents' && <AgentsTab />}
       {tab === 'active' && <>
         {data.data && roles.length === 0 && (
           <Card component="section" aria-label={t('No roles yet')} sx={{ mb: 3 }}>

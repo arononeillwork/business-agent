@@ -89,6 +89,8 @@ export interface Settings {
   menu_sync_error?: string | null
   /** Expenses: euros paid back a kilometre driven in a private car (0.26 unless changed). */
   mileage_rate?: number
+  /** The owners' changes to the agents (Roles & responsibilities → Agents, shared/agents.ts); null: the usual ones. Only owners change it. */
+  agent_views?: import('./agents').AgentViews | null
 }
 
 export interface Expense {
@@ -199,6 +201,8 @@ export interface Preferences {
   timeZone?: string
   /** Their own dashboards (Insights › Dashboards): the widgets on each, and the one open. */
   dashboards?: SavedDashboards
+  /** Owners: the agent they're viewing the app as (the Agents button at the top, shared/agents.ts); unset or null: everything. */
+  agentView?: string | null
 }
 
 export interface Position {

@@ -18,6 +18,7 @@ import { addDays, dayKey, formatDuration, formatLocal, localDate, localTime, min
 import { fonts, tokens } from '../theme'
 import { EventAlertButton } from '../components/NotificationBell'
 import { SetupPrompt } from '../components/SetupPrompt'
+import { AgentFocus } from '../components/AgentFocus'
 import { CATEGORY_META, type TimeEntry } from '../../shared/types'
 import { t, tn } from '../i18n'
 
@@ -282,6 +283,7 @@ export function TodayPage() {
         </Alert>
       )}
 
+      <AgentFocus />
       <ClockCard onChange={data.reload} />
       <AtAGlance />
 
