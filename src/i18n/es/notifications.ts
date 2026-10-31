@@ -127,4 +127,23 @@ export default {
     'Festivo dentro de {n} días: {name}',
   'Test notification':
     'Notificación de prueba',
+  // Also read by the Worker for push notifications (shared/pushText.ts): keep what they say here.
+  'Someone':
+    'Alguien',
+  'National holiday':
+    'Festivo nacional',
+  'Andalucía holiday':
+    'Festivo de Andalucía',
+  'Local holiday':
+    'Festivo local',
+  'Nearby town holiday':
+    'Festivo en un pueblo cercano',
+  '{date} · {kind}. Check the rota and the opening hours.':
+    '{date} · {kind}. Revisa los turnos y el horario.',
+  'Notifications are working on this device.':
+    'Las notificaciones funcionan en este dispositivo.',
+  'And again the day before':
+    'Y otra vez el día antes',
+  'Reminders on {first} and {second}':
+    'Avisos el {first} y el {second}',
 } satisfies Record<string, string>

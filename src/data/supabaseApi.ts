@@ -1285,7 +1285,7 @@ export function createSupabaseApi(url: string, key: string): Api {
       return check(await sb.rpc('set_event_alert', { p_kind: kind, p_ref_id: refId, p_on: on })) as boolean
     },
     async holidayReminders() {
-      return check(await sb.from('holiday_reminders').select('event_id, remind, sent_for, sent_at')) as HolidayReminder[]
+      return check(await sb.from('holiday_reminders').select('event_id, remind, sent_for, sent_at, day_before_for')) as HolidayReminder[]
     },
     async setHolidayReminder(eventId, on) {
       return check(await sb.rpc('set_holiday_reminder', { p_event_id: eventId, p_on: on })) as boolean

@@ -1,6 +1,6 @@
 // The Notifications page's settings: push notifications on this device (and the person's others),
 // how each kind of notification reaches them (in the app, on their phone, or both), and for admins
-// the bank holiday reminders (on by default, a week ahead).
+// the bank holiday reminders (on by default, a week ahead and the day before).
 import { useEffect, useState } from 'react'
 import { Alert, Box, Button, Card, CardContent, Checkbox, FormControlLabel, MenuItem, Stack, Switch, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material'
 import { useApp } from '../app/AppContext'
@@ -144,6 +144,7 @@ export function HolidayReminders() {
   const on = settings.holiday_reminders !== false
   const days = settings.holiday_reminder_days ?? 7
   const kinds = settings.holiday_reminder_kinds ?? ['national', 'regional', 'local']
+  const dayBefore = settings.holiday_reminder_day_before !== false
   const save = (patch: Partial<Settings>, done?: string) => run(async () => { await api.updateSettings(patch); await refresh() }, done)
   const upcoming = (events.data ?? [])
     .filter((e: CalendarEvent) => e.confirmed && (HOLIDAY_KINDS as readonly string[]).includes(e.category) && e.starts_on >= from)
@@ -172,6 +173,11 @@ export function HolidayReminders() {
               onChange={e => save({ holiday_reminder_days: Number(e.target.value) }, t('Saved'))}>
               {LEAD_DAYS.map(n => <MenuItem key={n} value={n}>{n === 7 ? t('A week before') : n === 14 ? t('Two weeks before') : t('{n} days before', { n })}</MenuItem>)}
             </TextField>
+            {days > 1 && (
+              <FormControlLabel label={t('And again the day before')} control={
+                <Checkbox size="small" checked={dayBefore} onChange={e => save({ holiday_reminder_day_before: e.target.checked }, t('Saved'))} />
+              } />
+            )}
             <Stack direction="row" sx={{ flexWrap: 'wrap' }}>
               {HOLIDAY_KINDS.map(k => (
                 <FormControlLabel key={k} label={t(CATEGORY_META[k].label)} control={
@@ -188,6 +194,8 @@ export function HolidayReminders() {
           const included = kinds.includes(e.category as typeof kinds[number])
           const remindOn = addDays(e.starts_on, -days) < from ? from : addDays(e.starts_on, -days)
           const sent = r?.sent_for === e.starts_on
+          const tomorrowOf = addDays(e.starts_on, -1)
+          const second = dayBefore && days > 1 && tomorrowOf >= from && r?.day_before_for !== e.starts_on ? tomorrowOf : null
           return (
             <Stack key={e.id} direction="row" spacing={1.5} sx={{ py: 1, borderTop: `1px solid ${tokens.line}`, alignItems: 'center' }}>
               <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -198,11 +206,12 @@ export function HolidayReminders() {
                 <Typography variant="caption" sx={{ color: 'text.disabled' }}>
                   {!included ? t('Not reminded: this kind of holiday is switched off')
                     : r?.remind === false ? t('Left out')
-                      : sent ? t('Reminded {when}', { when: formatLocal(r!.sent_at!, 'd MMM') })
-                        : t('Reminder on {when}', { when: day(remindOn) })}
+                      : sent ? (second ? t('Reminder on {when}', { when: day(second) }) : t('Reminded {when}', { when: formatLocal(r!.sent_at!, 'd MMM') }))
+                        : second && second !== remindOn ? t('Reminders on {first} and {second}', { first: day(remindOn), second: day(second) })
+                          : t('Reminder on {when}', { when: day(remindOn) })}
                 </Typography>
               </Box>
-              {included && !sent && (
+              {included && (!sent || second) && (
                 <Switch size="small" checked={r?.remind !== false} slotProps={{ input: { 'aria-label': t('Remind about {name}', { name: e.title }) } }}
                   onChange={ev => run(() => api.setHolidayReminder(e.id, ev.target.checked),
                     ev.target.checked ? t('{name}: will be reminded', { name: e.title }) : t('{name}: left out', { name: e.title }))} />

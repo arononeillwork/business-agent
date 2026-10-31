@@ -411,10 +411,10 @@ Notifications → Push notifications → On this device. On an iPhone or iPad it
 added to the Home Screen (Share → Add to Home Screen) and opened from there. Under "How you're told"
 each person picks, kind by kind, in the app, on my phone, or both. Nothing to set up: the deploy makes
 the signing key (`VAPID_KEY`, `scripts/ops/worker-secrets.mjs`) once, and the Worker sends what's new
-every minute (`worker/push.ts`, with `public/push-sw.js` on the device).
+every minute in each person's language (`worker/push.ts`, `shared/pushText.ts`, with `public/push-sw.js` on the device).
 
-Admins are reminded about each public holiday on the calendar a week ahead at 09:00 (on for every
-business; Notifications → Bank holiday reminders sets how far ahead, which kinds, and leaves any one out).
+Admins are reminded about each public holiday on the calendar a week ahead and again the day before,
+at 09:00 (on for every business; Notifications → Bank holiday reminders sets how far ahead, which kinds, and leaves any one out).
 
 ## Use it from any AI
 

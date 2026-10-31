@@ -132,12 +132,13 @@ describe('every minute', () => {
       { id: 'j1', profile_id: 'julio', ...julio.sub, failures: 0, last_ok_at: null },
     ]
     db.tables.profiles = [
-      { id: 'maria', role: 'admin', preferences: { notify: { holidays: 'push', reviews: 'app' } } },
+      { id: 'maria', role: 'admin', preferences: { notify: { holidays: 'push', reviews: 'app' }, languages: ['en', 'es'], language: 'es' } },
       { id: 'julio', role: 'employee', preferences: {} },
       { id: 'ana', role: 'admin', preferences: {} },
     ]
     db.tables.notifications = [
-      note(1, 'maria', { kind: 'bank_holiday', title: 'Bank holiday in 7 days: Inmaculada', link: '/calendar' }),
+      note(1, 'maria', { kind: 'bank_holiday', title: 'Bank holiday in 7 days: Inmaculada', body: 'Tuesday 8 December · National holiday. Check the rota and the opening hours.',
+        link: '/calendar', data: { event: 'e1', date: '2026-12-08', days: 7, name: 'Inmaculada Concepción', category: 'national', town: null } }),
       note(2, 'maria', { kind: 'review', link: '/reviews' }),
       note(3, 'julio', { link: '/todo' }),
       note(4, 'ana'),
@@ -146,8 +147,11 @@ describe('every minute', () => {
     ]
     expect(await pushNotifications(env, businessDb(env, 1))).toBe(2)
     expect(delivered.map(d => d.endpoint).sort()).toEqual(['https://push.test/julio-phone', 'https://push.test/maria-laptop', 'https://push.test/maria-phone'])
-    expect(await maria.open(delivered.find(d => d.endpoint.endsWith('maria-phone'))!.body))
-      .toEqual({ title: 'Bank holiday in 7 days: Inmaculada', body: null, link: '/calendar', tag: 'n1' })
+    // In Spanish: what Maria reads the app in.
+    expect(await maria.open(delivered.find(d => d.endpoint.endsWith('maria-phone'))!.body)).toEqual({
+      title: 'Festivo dentro de 7 días: Inmaculada Concepción', body: 'martes, 8 de diciembre · Festivo nacional. Revisa los turnos y el horario.',
+      link: '/calendar', tag: 'n1' })
+    expect(await julio.open(delivered.find(d => d.endpoint.endsWith('julio-phone'))!.body)).toMatchObject({ title: 'Note 3' })
     const rows = Object.fromEntries(db.tables.notifications.map(n => [n.id, n]))
     // Phone only: read once it's reached the phone, so the bell stays quiet.
     expect(rows[1].read_at).not.toBeNull()
