@@ -8042,7 +8042,7 @@ test('landing page: the demo video with its poster and controls, once it is swit
   await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.paused)).toBe(true)
 })
 
-test('landing page: a video plays muted with "Tap for sound" until the visitor first clicks, then with its sound', async ({ page }) => {
+test('landing page: a video starts with its sound; while the browser won’t allow sound, it waits for one tap and never plays silently', async ({ page }) => {
   test.skip(!FEATURES.demoVideo, 'The demo video is switched off')
   // As browsers do: no sound until the visitor has clicked, tapped or pressed a key on the page.
   await page.addInitScript(() => {
@@ -8056,18 +8056,23 @@ test('landing page: a video plays muted with "Tap for sound" until the visitor f
   })
   await page.goto('/?demo')
   const video = page.getByLabel('Business Agent demo video')
-  await page.locator('#demo').scrollIntoViewIfNeeded()
-  await expect.poll(() => video.evaluate((v: HTMLVideoElement) => !v.paused && v.muted)).toBe(true)
-  await expect(page.getByRole('button', { name: 'Tap for sound' })).toBeVisible()
-  // The first click anywhere: the video on screen gets its sound.
-  await page.getByRole('heading', { name: 'Change it in one place. It’s changed everywhere.' }).click()
+  const demo = page.locator('#demo')
+  await demo.scrollIntoViewIfNeeded()
+  // On screen before any click: on its poster with "Play with sound", not playing, not even muted.
+  await expect(demo.getByRole('button', { name: 'Play with sound' })).toBeVisible()
+  await page.waitForTimeout(500)
+  expect(await video.evaluate((v: HTMLVideoElement) => v.paused)).toBe(true)
+  // One tap: playing, with its sound, and the button's gone.
+  await demo.getByRole('button', { name: 'Play with sound' }).click()
   await expect.poll(() => video.evaluate((v: HTMLVideoElement) => !v.paused && !v.muted)).toBe(true)
-  await expect(page.getByRole('button', { name: 'Tap for sound' })).toHaveCount(0)
-  // Only the one on screen plays: the day in the life starts, the demo stops.
+  await expect(demo.getByRole('button', { name: 'Play with sound' })).toHaveCount(0)
+  // Only the one on screen plays, and now the page has been tapped, the next starts by itself with its sound.
   if (FEATURES.dayVideo) {
-    await page.locator('#day').scrollIntoViewIfNeeded()
-    const day = page.getByLabel('A day in the life of a café owner, video')
-    await expect.poll(() => day.evaluate((v: HTMLVideoElement) => !v.paused && !v.muted)).toBe(true)
+    const day = page.locator('#day')
+    await day.scrollIntoViewIfNeeded()
+    const dayVideo = page.getByLabel('A day in the life of a café owner, video')
+    await expect.poll(() => dayVideo.evaluate((v: HTMLVideoElement) => !v.paused && !v.muted)).toBe(true)
+    await expect(day.getByRole('button', { name: 'Play with sound' })).toHaveCount(0)
     await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.paused)).toBe(true)
   }
 })

@@ -1,13 +1,14 @@
 // The landing page's videos (made in video/, see its README): the demo (a café changes its hours and a
 // price in one place, and everywhere follows) and a day in the life of a café owner, before and with
-// Business Agent. Each fills the screen as its own section, plays muted while it's on screen (not for
-// people who've asked for less motion), with controls to watch it with its music. "View a demo" in
-// the hero brings the demo up and plays it from the start, with its music.
+// Business Agent. Each fills the screen as its own section and plays with its music while it's on
+// screen (not by itself for people who've asked for less motion). "View a demo" in the hero, and Demo
+// in the site menu, bring the demo up and play it from the start, with its music.
 //
 // Sound: each starts with its music on when it comes on screen. Browsers only allow that once the
-// visitor has clicked, tapped or pressed a key on the page (scrolling doesn't count), so until then it
-// plays muted with a "Tap for sound" button, and the first click or tap anywhere turns the sound on.
-// One that the visitor muted stays muted; one scrolled away from pauses, so only one ever plays.
+// visitor has clicked, tapped or pressed a key on the page (scrolling doesn't count, and no site can
+// get round it), so until then it doesn't play silently: it waits on its poster with a big "Play with
+// sound" button, and one tap starts it with its music. One that the visitor muted stays muted; one
+// scrolled away from pauses, so only one ever plays.
 //
 // Each has its own bar along the bottom, always there: play or pause, the time, a slider to go to any
 // moment in it, the sound on or off, and full screen.
@@ -65,55 +66,42 @@ function VideoSection({ id, labelledBy, eyebrow, title, text, src, poster, label
   const [muted, setMuted] = useState(true)
   // While the slider is being dragged: where it's been dragged to (the video follows when it's let go of too).
   const [dragging, setDragging] = useState<number | null>(null)
-  // Playing muted because the browser wouldn't allow sound yet: the "Tap for sound" button shows.
-  const [quiet, setQuiet] = useState(false)
+  // Not started yet (the browser wouldn't let it start with its sound, or the visitor asked for less
+  // motion): it waits on its poster with the big "Play with sound" button.
+  const [started, setStarted] = useState(false)
   // Muted or not as the page last set it: a change it didn't make is the visitor's (the video's own button).
   const set = useRef<boolean>(true)
   const mutedByThem = useRef(false)
   const mute = (v: HTMLVideoElement, m: boolean) => { set.current = m; v.muted = m }
-  /** Play with its sound on; if the browser won't allow sound yet (no click or tap on the page so far), muted. */
+  /** Play with its sound on (muted only if the visitor muted it). If the browser won't allow sound yet (no click or tap on the page so far), it doesn't play: it waits for a tap. */
   const play = (v: HTMLVideoElement) => {
-    if (mutedByThem.current) { mute(v, true); void v.play().catch(() => {}); return }
-    mute(v, false)
-    void v.play().then(() => setQuiet(false), () => {
-      mute(v, true)
-      void v.play().then(() => setQuiet(true), () => { /* the browser wants a tap first: the controls are there */ })
-    })
+    mute(v, mutedByThem.current)
+    void v.play().catch(() => { /* no sound before a tap: the "Play with sound" button is there */ })
   }
   useEffect(() => {
     const v = video.current
     if (!v || typeof IntersectionObserver === 'undefined') return
     const still = lessMotion()
-    let onScreen = false
     const onVolume = () => {
       setMuted(v.muted)
       if (v.muted === set.current) return
       set.current = v.muted
       mutedByThem.current = v.muted
-      if (!v.muted) setQuiet(false)
     }
     const onTime = () => setAt(v.currentTime)
     const onLength = () => { if (Number.isFinite(v.duration) && v.duration > 0) setLength(v.duration) }
-    const onPlay = () => setPlaying(true)
+    const onPlay = () => { setPlaying(true); setStarted(true) }
     const onPause = () => setPlaying(false)
     const events = { volumechange: onVolume, timeupdate: onTime, seeked: onTime, loadedmetadata: onLength, durationchange: onLength, play: onPlay, pause: onPause }
-    // The first click, tap or key anywhere on the page lets the sound on: the video on screen gets it
-    // (on a phone, once the finger lifts). Not the video or its bar: what's pressed there is the visitor's say.
-    const allowed = (e: Event) => {
-      if (frame.current?.contains(e.target as Node) || !onScreen || still || !v.muted || v.paused || mutedByThem.current) return
-      play(v)
-    }
     const seen = new IntersectionObserver(([e]) => {
-      onScreen = e.isIntersecting
-      if (!e.isIntersecting) { v.pause(); setQuiet(false) } else if (!still) play(v)
+      if (!e.isIntersecting) v.pause()
+      else if (!still) play(v)
     }, { threshold: 0.4 })
     seen.observe(v)
     for (const [ev, fn] of Object.entries(events)) v.addEventListener(ev, fn)
-    for (const ev of ['pointerup', 'keydown'] as const) document.addEventListener(ev, allowed, true)
     return () => {
       seen.disconnect()
       for (const [ev, fn] of Object.entries(events)) v.removeEventListener(ev, fn)
-      for (const ev of ['pointerup', 'keydown'] as const) document.removeEventListener(ev, allowed, true)
     }
   }, [])
   const soundOn = () => {
@@ -133,7 +121,7 @@ function VideoSection({ id, labelledBy, eyebrow, title, text, src, poster, label
     const v = video.current
     if (!v) return
     if (v.muted) soundOn()
-    else { mutedByThem.current = true; mute(v, true); setQuiet(false) }
+    else { mutedByThem.current = true; mute(v, true) }
   }
   const goTo = (to: number) => {
     const v = video.current
@@ -160,7 +148,7 @@ function VideoSection({ id, labelledBy, eyebrow, title, text, src, poster, label
           maxWidth: { md: `calc((100svh - ${HEADER_HEIGHT}px - 320px) * 16 / 9)` }, position: 'relative',
           '&:fullscreen': { maxWidth: 'none', borderRadius: 0, border: 0, bgcolor: '#000' } }}>
           <Box component="video" ref={video} src={src} poster={poster} muted loop playsInline preload="none"
-            onClick={() => (quiet ? soundOn() : playPause())}
+            onClick={playPause}
             aria-label={label} sx={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer', '*:fullscreen > &': { objectFit: 'contain' } }} />
           {/* Its own bar along the bottom, always there: play or pause, the time, a slider to any moment, the sound and full screen. */}
           <Stack direction="row" role="group" aria-label={t('Video controls')}
@@ -186,12 +174,21 @@ function VideoSection({ id, labelledBy, eyebrow, title, text, src, poster, label
               <FullscreenIcon />
             </IconButton>
           </Stack>
-          {quiet && (
-            <Button onClick={soundOn} startIcon={<SoundIcon />} variant="contained"
-              sx={{ position: 'absolute', top: { xs: 10, md: 16 }, right: { xs: 10, md: 16 }, borderRadius: 99, px: 2, py: 0.75, textTransform: 'none', fontWeight: 600,
-                bgcolor: 'rgba(43,37,34,0.82)', color: '#fff', boxShadow: '0 8px 24px rgba(0,0,0,0.25)', '&:hover': { bgcolor: 'rgba(43,37,34,0.95)' } }}>
-              {t('Tap for sound')}
-            </Button>
+          {/* Not started: the poster, and one tap starts it with its sound. */}
+          {!started && (
+            <Box sx={{ position: 'absolute', inset: 0, bottom: { xs: 40, sm: 52 }, display: 'grid', placeItems: 'center', pointerEvents: 'none',
+              background: 'radial-gradient(closest-side, rgba(20,16,14,0.28), rgba(20,16,14,0))' }}>
+              <Button onClick={soundOn} variant="contained" aria-label={t('Play with sound')}
+                sx={{ pointerEvents: 'auto', borderRadius: 99, px: { xs: 2.5, sm: 3.5 }, py: { xs: 1.25, sm: 1.75 }, gap: 1.25, textTransform: 'none',
+                  fontWeight: 600, fontSize: { xs: '0.95rem', sm: '1.1rem' }, bgcolor: 'rgba(43,37,34,0.86)', color: '#fff',
+                  boxShadow: '0 18px 40px rgba(0,0,0,0.35)', backdropFilter: 'blur(6px)', '&:hover': { bgcolor: 'rgba(43,37,34,0.96)', transform: 'scale(1.03)' },
+                  transition: 'transform .15s, background-color .15s' }}>
+                <Box component="span" sx={{ width: { xs: 36, sm: 44 }, height: { xs: 36, sm: 44 }, borderRadius: '50%', bgcolor: BA.rose, color: BA.ink,
+                  display: 'grid', placeItems: 'center' }}><PlayIcon sx={{ fontSize: { xs: 26, sm: 32 } }} /></Box>
+                {t('Play with sound')}
+                <SoundIcon sx={{ fontSize: { xs: 20, sm: 22 }, opacity: 0.85 }} />
+              </Button>
+            </Box>
           )}
         </Box>
         {more}
