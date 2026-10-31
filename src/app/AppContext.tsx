@@ -7,6 +7,7 @@ import { createSupabaseApi } from '../data/supabaseApi'
 import type { BreakType, Business, PartnerArea, PayRate, Position, Profile, Settings } from '../../shared/types'
 import { setCurrency, setNumberFormat, setOwnTimeZone } from '../../shared/time'
 import { permissionsOf, type JobRole, type RoleArea, type RoleLevel } from '../../shared/roles'
+import { withoutTestAccounts } from '../../shared/people'
 import { LoadError, StartError } from '../pages/StatusPages'
 import { refreshAll } from './query'
 
@@ -100,7 +101,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         api!.business(), api!.settings(), api!.profiles(), api!.positions(), api!.breakTypes(), api!.payRates(),
         me.role === 'partner' ? [] : api!.jobRoles().catch(() => []),
       ])
-      return { me, business, settings, profiles, positions, breakTypes, payRates, jobRoles }
+      // The live tests' accounts (left behind when a run stops part way) aren't part of the team anyone sees.
+      return { me, business, settings, profiles: withoutTestAccounts(profiles, me), positions, breakTypes, payRates, jobRoles }
     },
   })
 

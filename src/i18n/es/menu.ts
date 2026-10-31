@@ -250,4 +250,14 @@ export default {
     'Conecta tu ficha de Google en la página Conexiones y esta carta actualizará Google Maps sola.',
   'Last sent to Google Maps {when}.': 'Enviada a Google Maps por última vez {when}.',
   'Not sent to Google Maps yet.': 'Aún no se ha enviado a Google Maps.',
+  // Printed menus in more than one language, and as PDFs
+  'Type of menu': 'Tipo de carta',
+  'Printed menus': 'Cartas impresas',
+  'Screen menus': 'Cartas en pantalla',
+  'The fridge': 'La nevera',
+  'Any': 'Cualquiera',
+  'No menus in that language and type.': 'No hay cartas en ese idioma y de ese tipo.',
+  'Open the PDF to print': 'Abrir el PDF para imprimir',
+  'Designed elsewhere as a PDF: the picture above is its page, and it prints from the PDF, as it is.':
+    'Diseñada fuera de la app como PDF: la imagen de arriba es su página, y se imprime desde el PDF, tal cual.',
 }

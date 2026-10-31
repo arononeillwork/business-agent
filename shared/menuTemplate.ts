@@ -96,9 +96,11 @@ export const templateSections = () => PRINTED_MENUS.flatMap(m => m.sections.map(
 
 /** The three printed menus as designs: A4, boxed like the originals, each with its own sections. */
 export function templateDesigns(): MenuDesignInput[] {
-  return PRINTED_MENUS.map(m => ({
+  return PRINTED_MENUS.map((m, i) => ({
     name: `${m.title} menu`, format: 'physical', size: 'a4_portrait', mode: 'background', style: 'boxed', categories: m.sections.map(s => s.name),
     title: m.title, subtitle: m.subtitle, footer: PRINTED_FOOTER, text_tone: 'dark', panel: false, show_descriptions: true, show_allergens: true, image_id: null,
+    // Their headings are in English; Drinks, Food and The fridge, in that order.
+    language: 'en', kind: (['drinks', 'food', 'fridge'] as const)[i] ?? null,
   }))
 }
 

@@ -56,6 +56,7 @@ import { isSupplyGroup, type MovementInput, type StockItem, type StockMovement, 
 import type { Recipe } from '../../shared/recipes'
 import {
   MAX_PROMPT, PROMPT_IDEAS, designProblem, menuItemProblem, menuSections, modelOf, sizeOf, type MenuDesign, type MenuImage, type MenuItem,
+  type MenuKind, type MenuLanguage,
 } from '../../shared/menu'
 import { screenProblem, type DisplayFeed, type Screen } from '../../shared/screens'
 import { offerProblem, type Offer, type ScreenOffer } from '../../shared/offers'
@@ -912,6 +913,11 @@ export function createDemoApi(): Api {
   const brandHex = () => brand.colours.map(c => c.hex)
   const TV_ART = 'Hand-drawn chalkboard with coffee cups and croissants sketched around the border'
   const [drinksMenu, foodMenu, fridgeMenu] = templateDesigns()
+  /** Easy Beans' printed menus as PDFs: name, language, type and file (as the `printed_menu_pdfs` migration adds them). */
+  const PDF_MENUS: [string, MenuLanguage, MenuKind, string][] = [
+    ['Drinks', 'en', 'drinks', 'drinks-en'], ['Bebidas', 'es', 'drinks', 'drinks-es'], ['Comida', 'es', 'food', 'food-es'],
+    ['The Fridge', 'en', 'fridge', 'fridge-en'], ['La Nevera', 'es', 'fridge', 'fridge-es'],
+  ]
   const menuDesignList: DemoDesign[] = [
     { ...drinksMenu, id: 'd-drinks', image_id: 'img-drinks', categories: ['Coffee', 'Tea & matcha', ...drinksMenu.categories], updated_at: daysAgo(3) },
     { ...foodMenu, id: 'd-food', image_id: 'img-food', updated_at: daysAgo(3) },
@@ -919,6 +925,11 @@ export function createDemoApi(): Api {
     { id: 'd-tv', name: 'TV menu board', format: 'digital', size: 'screen_landscape', mode: 'background', style: 'classic', categories: ['Coffee', 'Tea & matcha'],
       title: null, subtitle: null, footer: 'Any milk at no extra charge', text_tone: 'light', panel: false, show_descriptions: false, show_allergens: false,
       image_id: 'img-tv', updated_at: daysAgo(2) },
+    // The café's printed menus as their PDFs, in English and Spanish (served with the app, public/menus/easy-beans).
+    ...PDF_MENUS.map(([name, language, kind, file]): DemoDesign => ({
+      id: `d-pdf-${file}`, name, format: 'physical', size: 'a4_portrait', mode: 'full', style: 'boxed', categories: [], title: null, subtitle: null, footer: null,
+      text_tone: 'dark', panel: false, show_descriptions: false, show_allergens: false, image_id: `img-pdf-${file}`, updated_at: daysAgo(1),
+      language, kind, pdf_url: `/menus/easy-beans/${file}.pdf` })),
   ]
   const menuImages: DemoImage[] = [
     { id: 'img-tv', design_id: 'd-tv', item_id: null, url: null, source: 'ai', model: 'ideogram', prompt: TV_ART, edit_of: null, status: 'ready', error: null, stored: true, created_at: daysAgo(2) },
@@ -926,6 +937,8 @@ export function createDemoApi(): Api {
       stored: true, created_at: daysAgo(3) },
     { id: 'img-food', design_id: 'd-food', item_id: null, url: null, source: 'ai', model: 'recraft', prompt: PROMPT_IDEAS.strip[1], edit_of: null, status: 'ready', error: null,
       stored: true, created_at: daysAgo(3) },
+    ...PDF_MENUS.map(([, , , file]): DemoImage => ({ id: `img-pdf-${file}`, design_id: `d-pdf-${file}`, item_id: null, url: `/menus/easy-beans/${file}.jpg`, source: 'link',
+      model: null, prompt: null, edit_of: null, status: 'ready', error: null, stored: true, created_at: daysAgo(1) })),
   ]
   /** The picture for a design's image: a strip of illustrations for a boxed menu, artwork behind a classic one. */
   const artFor = (d: DemoDesign, words: string) => {

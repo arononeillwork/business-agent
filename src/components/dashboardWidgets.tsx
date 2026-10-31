@@ -205,7 +205,8 @@ function OnToday() {
   const day = today()
   const shifts = useAsync('dash-today-shifts', () => api.shifts(iso(day), iso(addDays(day, 1))), [day])
   if (!shifts.data) return <Note>{shifts.error ?? t('Loading…')}</Note>
-  const on = shifts.data.filter(s => s.status === 'published' && s.profile_id && localDate(s.starts_at) === day).sort((a, b) => a.starts_at.localeCompare(b.starts_at))
+  const on = shifts.data.filter(s => s.status === 'published' && s.profile_id && localDate(s.starts_at) === day && profiles.some(p => p.id === s.profile_id))
+    .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
   if (!on.length) return <Note to="/rota" action={t('Open the rota')}>{t('Nobody is on the rota today.')}</Note>
   return (
     <Stack component="ul" spacing={1} sx={{ listStyle: 'none', m: 0, p: 0 }} aria-label={t('On today')}>

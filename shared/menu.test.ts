@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  aiErrorText, aiRequest, allergenNumber, buildPrompt, categoryOrder, closestRatio, designProblem, imageOf, marksOf, menuItemProblem,
+  aiErrorText, aiRequest, allergenNumber, buildPrompt, categoryOrder, closestRatio, designFacets, designProblem, filterDesigns, imageOf, marksOf, menuItemProblem,
   imageShape, isStrip, menuSections, moveInSection, moveSection, newDesign, otherVariants, photoPrompt, priceColumns, priceIn, readAiResult, shownAllergens, sizeOf,
   type MenuImage, type MenuItem,
 } from './menu'
@@ -263,5 +263,36 @@ describe('AI images', () => {
     expect(aiErrorText(403, {})).toMatch(/credits/)
     expect(aiErrorText(422, { detail: [{ msg: 'prompt too short' }] })).toMatch(/prompt too short/)
     expect(aiErrorText(500, null)).toMatch(/500/)
+  })
+})
+
+describe('printed menus in more than one language', () => {
+  const designs = [
+    { name: 'Drinks menu', language: null, kind: 'drinks' as const },
+    { name: 'Drinks', language: 'en' as const, kind: 'drinks' as const },
+    { name: 'Bebidas', language: 'es' as const, kind: 'drinks' as const },
+    { name: 'Comida', language: 'es' as const, kind: 'food' as const },
+    { name: 'La Nevera', language: 'es' as const, kind: 'fridge' as const },
+    { name: 'Table card', language: null, kind: null },
+  ]
+  const names = (o: Parameters<typeof filterDesigns>[1]) => filterDesigns(designs, o).map(d => d.name)
+
+  it('one language: its own menus and those in no language in particular; one type: only that type', () => {
+    expect(names({ language: 'all', kind: 'all' })).toHaveLength(6)
+    expect(names({ language: 'es', kind: 'all' })).toEqual(['Drinks menu', 'Bebidas', 'Comida', 'La Nevera', 'Table card'])
+    expect(names({ language: 'en', kind: 'drinks' })).toEqual(['Drinks menu', 'Drinks'])
+    expect(names({ language: 'es', kind: 'food' })).toEqual(['Comida'])
+    expect(names({ language: 'en', kind: 'fridge' })).toEqual([])
+  })
+
+  it('offers the languages and types there are, in the usual order', () => {
+    expect(designFacets(designs)).toEqual({ languages: ['en', 'es'], kinds: ['drinks', 'food', 'fridge'] })
+    expect(designFacets([{ language: null, kind: null }])).toEqual({ languages: [], kinds: [] })
+  })
+
+  it('the template’s printed menus are Drinks, Food and The fridge, headed in English', () => {
+    expect(templateDesigns().map(d => [d.name, d.language, d.kind])).toEqual([
+      ['Drinks menu', 'en', 'drinks'], ['Food menu', 'en', 'food'], ['The fridge menu', 'en', 'fridge'],
+    ])
   })
 })

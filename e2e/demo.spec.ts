@@ -4556,6 +4556,37 @@ test.describe('menu, menu design and screens', () => {
     await expect(page.getByRole('main')).toContainText('No images yet')
   })
 
+  test('menu design: the café’s printed PDF menus, narrowed to English or Spanish and to one type', async ({ page }) => {
+    await open(page, '/menu/design')
+    const list = page.getByRole('group', { name: 'Printed menus' })
+    await expect(list.getByRole('button', { name: 'Bebidas' })).toBeVisible()
+    await expect(list.getByRole('button', { name: 'La Nevera' })).toBeVisible()
+    // Spanish: the Spanish PDFs only (the menus the app writes are headed in English).
+    await page.getByRole('group', { name: 'Language' }).getByRole('button', { name: 'Español' }).click()
+    await expect(list.getByRole('button', { name: 'Bebidas' })).toBeVisible()
+    await expect(list.getByRole('button', { name: 'Comida' })).toBeVisible()
+    await expect(list.getByRole('button', { name: 'Drinks', exact: true })).toHaveCount(0)
+    await expect(list.getByRole('button', { name: 'Drinks menu' })).toHaveCount(0)
+    // One type: the fridge's.
+    await page.getByRole('group', { name: 'Type of menu' }).getByRole('button', { name: 'The fridge' }).click()
+    await expect(list.getByRole('button', { name: 'La Nevera' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(list.getByRole('button', { name: 'Bebidas' })).toHaveCount(0)
+    await expect(page.getByRole('img', { name: 'Preview of the printed menu' }).locator('img')).toHaveAttribute('src', '/menus/easy-beans/fridge-es.jpg')
+    // A PDF prints from the PDF itself.
+    await expect(page.getByRole('link', { name: 'Open the PDF to print' })).toHaveAttribute('href', '/menus/easy-beans/fridge-es.pdf')
+    await expect(page.getByRole('button', { name: 'Print', exact: true })).toHaveCount(0)
+    // English, the same type: The Fridge, and the app's own fridge menu.
+    await page.getByRole('group', { name: 'Language' }).getByRole('button', { name: 'English' }).click()
+    await expect(list.getByRole('button', { name: 'The Fridge', exact: true })).toBeVisible()
+    await expect(list.getByRole('button', { name: 'The fridge menu' })).toBeVisible()
+    await expect(list.getByRole('button', { name: 'La Nevera' })).toHaveCount(0)
+    // All again.
+    await page.getByRole('group', { name: 'Type of menu' }).getByRole('button', { name: 'All' }).click()
+    await page.getByRole('group', { name: 'Language' }).getByRole('button', { name: 'All' }).click()
+    await expect(list.getByRole('button', { name: 'Comida' })).toBeVisible()
+    await expect(list.getByRole('button', { name: 'Drinks menu' })).toBeVisible()
+  })
+
   test('Higgsfield: connected with its key, an image is made with AI, changed with AI, swapped and deleted', async ({ page }) => {
     await open(page, '/menu/design')
     // A key Higgsfield doesn't take isn't kept.
@@ -7163,13 +7194,13 @@ test.describe('role permissions', () => {
     await expect(page.getByRole('textbox', { name: 'Access' })).toHaveValue('Employee')
   })
 
-  test('a barista: the Business page’s contact details but not the company’s, and no Brand, Dashboards, Menu or Expenses', async ({ page }) => {
+  test('a barista: the Business page’s contact details but not the company’s, the Menu, and no Brand, Dashboards or Expenses', async ({ page }) => {
     await open(page, '/', 'maria@example.com')
     const menu = page.getByRole('navigation', { name: 'Main' })
     await expect(menu.getByRole('link', { name: 'Business', exact: true })).toBeVisible()
-    for (const name of ['Brand', 'Dashboards', 'Menu', 'Expenses']) await expect(menu.getByRole('link', { name, exact: true })).toHaveCount(0)
+    for (const name of ['Brand', 'Dashboards', 'Expenses']) await expect(menu.getByRole('link', { name, exact: true })).toHaveCount(0)
     // Nor do they open from a link.
-    for (const path of ['/brand', '/dashboards', '/menu', '/menu/design', '/expenses']) {
+    for (const path of ['/brand', '/dashboards', '/expenses']) {
       await page.evaluate(to => { history.pushState({ usr: null, key: to, idx: 1 }, '', to); dispatchEvent(new PopStateEvent('popstate', { state: history.state })) }, path)
       await expect(page).toHaveURL(url => new URL(url).pathname === '/')
       await expect(page.getByRole('heading', { name: /Hola, Maria/ })).toBeVisible()
@@ -7181,6 +7212,11 @@ test.describe('role permissions', () => {
     await expect(page.getByText('CIF / NIF')).toHaveCount(0)
     await menu.getByRole('link', { name: 'Roles & responsibilities' }).click()
     await expect(page.getByRole('list', { name: 'Barista / Bartender: what you can do' })).toContainText('Company detailsHiddenNot shown to you')
+    // The menu, to answer customers: what's on it, but not the design of the printed and screen menus.
+    await menu.getByRole('link', { name: 'Menu', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'Menu', level: 1 })).toBeVisible()
+    await expect(page.getByRole('tab', { name: 'Design' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Add menu item' })).toHaveCount(0)
   })
 
   test('a barista’s To Do List has only the jobs given to her, and what she adds is hers', async ({ page }) => {

@@ -291,8 +291,48 @@ export interface MenuDesign {
   /** Its images, newest first. */
   images: MenuImage[]
   updated_at: string
+  /** The language it's written in, for menus kept in more than one (none: the menu's own words, any language). */
+  language?: MenuLanguage | null
+  /** What it's a menu of: drinks, food or the fridge (none: not said). */
+  kind?: MenuKind | null
+  /** The menu as a PDF, designed elsewhere (the café's printed menus): opened to print it as it is. */
+  pdf_url?: string | null
 }
 export type MenuDesignInput = Omit<MenuDesign, 'id' | 'images' | 'updated_at'> & { id?: string }
+
+/** The languages a menu can be in; each named in its own language. */
+export type MenuLanguage = 'en' | 'es'
+export const MENU_LANGUAGES: { id: MenuLanguage; label: string; short: string }[] = [
+  { id: 'en', label: 'English', short: 'EN' },
+  { id: 'es', label: 'Español', short: 'ES' },
+]
+export const languageOf = (id: string | null | undefined) => MENU_LANGUAGES.find(l => l.id === id) ?? null
+
+/** What a menu is of. */
+export type MenuKind = 'drinks' | 'food' | 'fridge' | 'other'
+export const MENU_KINDS: { id: MenuKind; label: string }[] = [
+  { id: 'drinks', label: msg('Drinks') },
+  { id: 'food', label: msg('Food') },
+  { id: 'fridge', label: msg('The fridge') },
+  { id: 'other', label: msg('Other') },
+]
+export const kindOf = (id: string | null | undefined) => MENU_KINDS.find(k => k.id === id) ?? null
+
+/**
+ * The designs a language and a type narrow the list to. A design in no language in particular (its
+ * words are the menu's own) is in every language; one of no type shows only under All.
+ */
+export function filterDesigns<D extends Pick<MenuDesign, 'language' | 'kind'>>(designs: D[], o: { language: MenuLanguage | 'all'; kind: MenuKind | 'all' }) {
+  return designs.filter(d => (o.language === 'all' || !d.language || d.language === o.language) && (o.kind === 'all' || d.kind === o.kind))
+}
+
+/** The languages and types among some designs, in the usual order: what's worth filtering by. */
+export function designFacets(designs: Pick<MenuDesign, 'language' | 'kind'>[]) {
+  return {
+    languages: MENU_LANGUAGES.filter(l => designs.some(d => d.language === l.id)).map(l => l.id),
+    kinds: MENU_KINDS.filter(k => designs.some(d => d.kind === k.id)).map(k => k.id),
+  }
+}
 
 export const newDesign = (format: MenuFormat, name: string): MenuDesignInput => ({
   name, format, size: format === 'physical' ? 'a4_portrait' : 'screen_landscape', mode: 'background', style: 'boxed', categories: [], title: null, subtitle: null,
