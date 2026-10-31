@@ -730,7 +730,7 @@ export interface Api {
   googleHours(): Promise<OpeningHours>
   disconnect(provider: string): Promise<void>
   /** Start connecting Gmail, Outlook, Google Drive, OneDrive, YouTube Music or Search Console (goes to Google/Microsoft and back). */
-  connectService(provider: ConnectorProvider, back?: 'setup' | 'connections' | 'invoices', opts?: { read?: boolean }): Promise<void>
+  connectService(provider: ConnectorProvider, back?: 'setup' | 'connections' | 'invoices' | 'email', opts?: { read?: boolean }): Promise<void>
   /** Prove a connection still works, now (the result is also on its card). */
   checkConnection(provider: IntegrationProvider): Promise<Integration | null>
   /** Check every connection that is (or was) working. */
