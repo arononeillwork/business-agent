@@ -4210,6 +4210,25 @@ test.describe('recipes and waste', () => {
     await expect(page.getByRole('menuitem', { name: /CSV/ })).toBeVisible()
   })
 
+  test('menu costing: a price typed a key at a time keeps its decimal point (2.90, not 290)', async ({ page }) => {
+    await open(page, '/recipes')
+    const table = page.getByRole('table', { name: 'Menu costing' })
+    await table.getByRole('row', { name: 'Pain au chocolat' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Pain au chocolat' })
+    const price = dialog.getByRole('textbox', { name: 'Menu price, with IVA' })
+    await price.press('ControlOrMeta+a')
+    await price.pressSequentially('2.90', { delay: 30 })
+    await expect(price).toHaveValue('2.90')
+    await expect(dialog).toContainText('margin €1,59 (60,4%)')
+    // A comma for the decimals, as in Spain, too.
+    await price.press('ControlOrMeta+a')
+    await price.pressSequentially('2,9', { delay: 30 })
+    await expect(price).toHaveValue('2,9')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await toast(page, /^Saved$/)
+    await expect(table.getByRole('row', { name: 'Pain au chocolat' })).toContainText('€2,90')
+  })
+
   test('a new recipe costs itself as ingredients and a variant are added', async ({ page }) => {
     await open(page, '/recipes')
     await page.getByRole('button', { name: 'Add menu item' }).click()
