@@ -11,8 +11,7 @@ built-in **AI connector** so owners can run it by talking to Claude.
   keys), plus a REST API at `/api/v1` with an OpenAPI description for GPT actions, n8n and Zapier
 - Hosting: one Cloudflare Worker. Data and login: Supabase (EU): email/password or code, Google, Apple,
   Facebook, Microsoft ([setup](docs/sign-in-setup.md))
-- Public pages: landing page with sign-in at `/`, the four plans at `/pricing`, and the savings
-  against Square and GoHighLevel at `/compare`
+- Public pages: landing page with sign-in at `/` and the four plans at `/pricing`
 - Plans and billing: Free, Starter €39, Pro €79, Business €129 (2 months free), Enterprise by contact with sales, paid through Stripe
   subscriptions; an unpaid trial or failed renewal drops the business to Free, enforced by the
   database ([docs/billing.md](docs/billing.md))

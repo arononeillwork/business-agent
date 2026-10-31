@@ -5,7 +5,6 @@ import MailIcon from '@mui/icons-material/MailOutlineRounded'
 import PerUseIcon from '@mui/icons-material/AddRounded'
 import { useState } from 'react'
 import { ENTERPRISE, PAY_PER_USE, PLANS, TRIAL_MONTHS, mostIncluded, perUsePrice, planHighlights, type Interval, type Plan } from '../../../shared/plans'
-import { euro as money } from '../../../shared/competitors'
 import { shows } from '../../app/features'
 import { BA, Eyebrow, display, figures, outlineBtn, primaryBtn, roseBtn } from './site'
 import { locale, t, tr } from '../../i18n'
@@ -17,6 +16,8 @@ import { planName } from '../../app/plan'
 export { planName }
 
 const euro = (n: number) => `€${Number.isInteger(n) ? n.toLocaleString(locale()) : n.toFixed(2)}`
+/** An amount in euros as the reader writes it: €94, €1,088.28 (€1.088,28 in Spanish). */
+export const money = (n: number) => `€${n.toLocaleString(locale(), { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 })}`
 const perMonth = (p: Plan, interval: Interval) => (interval === 'month' ? p.monthly : Math.round(p.yearly / 12 * 100) / 100)
 const contactSales = () => `mailto:${ENTERPRISE.email}?subject=${encodeURIComponent('Business Agent Enterprise')}&body=${encodeURIComponent(
   t('Hello,\n\nWe’d like to talk about Business Agent Enterprise.\n\nBusiness:\nNumber of venues:\nPeople on the team (roughly):\nBest phone number:\n\nThank you'))}`
@@ -87,7 +88,7 @@ export function PricingCards() {
 /** A plan card's pay-per-use extras, kept apart from what the price includes (at the card's foot). */
 function PerUse({ plan: p, dark }: { plan: Plan; dark: boolean }) {
   const lines = PAY_PER_USE.filter(shows).flatMap(u => {
-    const price = perUsePrice(u, p.id, t, n => money(n, locale()))
+    const price = perUsePrice(u, p.id, t, money)
     return price ? [{ id: u.id, text: t('{what}: {price}', { what: t(u.short), price }) }] : []
   })
   if (!lines.length) return null
@@ -122,7 +123,7 @@ function PerUseNote() {
           const top = mostIncluded(u)
           return (
             <span key={u.id}>
-              {t('{what}, {price} each on any paid plan, billed monthly with your plan.', { what: t(u.label), price: money(u.price, locale()) })}{' '}
+              {t('{what}, {price} each on any paid plan, billed monthly with your plan.', { what: t(u.label), price: money(u.price) })}{' '}
               {top && t('{plan} includes {n} free every month.', { plan: planName(top), n: u.included[top.id]! })}{' '}
             </span>
           )

@@ -15,8 +15,7 @@ Stripe prices follow `shared/plans.ts`: a changed amount gets a new Stripe price
 checks out (looked up by its lookup key); existing subscriptions keep the price they started on.
 
 The custom MCP connection (Claude, ChatGPT, n8n…) and the REST API are on every plan, and so is the
-registro de jornada (Spanish law requires it). Feature by feature: `/pricing`. Against Square and
-GoHighLevel: `/compare` (numbers and sources in `shared/competitors.ts`, checked 18 October 2026).
+registro de jornada (Spanish law requires it). Feature by feature: `/pricing`.
 
 ## How it works
 
