@@ -452,7 +452,7 @@ export interface AppNotification {
   /** One with buttons: an Instagram mention (Repost / Ignore), data.mention its id. A review, a bank
    *  holiday coming up (data.event, data.date, data.days, data.name), or a test from the Notifications page. */
   kind?: 'instagram_mention' | 'review' | 'bank_holiday' | 'test' | null
-  data?: { mention?: string; review?: string; event?: string; date?: string; days?: number; name?: string; category?: string; town?: string | null }
+  data?: { mention?: string; review?: string; event?: string; date?: string; days?: number; name?: string; category?: string; town?: string | null; offer?: string; item?: string }
 }
 
 /** A holiday an admin left out of the reminders, or one that's been reminded about. */

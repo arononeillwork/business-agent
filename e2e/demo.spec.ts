@@ -4612,6 +4612,9 @@ test.describe('menu, menu design and screens', () => {
     await expect(page.getByRole('button', { name: 'Counter TV', exact: true })).toContainText('On now')
     await expect(page.getByRole('textbox', { name: 'The screen’s link' })).toHaveValue(/\/display\/c0ffee00beef00c0ffee00beef00cafe$/)
     const preview = page.getByRole('region', { name: 'Preview of the screen' })
+    // Today's last-day offer (the butter croissants) comes first, for 15 seconds.
+    await expect(preview).toContainText('Butter croissants')
+    await page.clock.fastForward('00:00:16')
     await expect(preview).toContainText('Flat white') // the menu board comes first
     await expect(preview).toContainText('Today’s special')
 
@@ -4652,7 +4655,11 @@ test.describe('menu, menu design and screens', () => {
   })
 
   test('a screen’s own link plays its slides with no sign-in; an old link says so', async ({ page }) => {
+    await page.clock.install({ time: WED_0900 })
     await page.goto('/display/c0ffee00beef00c0ffee00beef00cafe?demo')
+    // Today's last-day offer first, for 15 seconds, then the slides.
+    await expect(page.getByText('Butter croissants')).toBeVisible()
+    await page.clock.fastForward('00:00:16')
     await expect(page.getByText('Iced matcha latte')).toBeVisible()
     // Its diet badges, from what goes into it on Menu costing (vegan, dairy free).
     await expect(page.locator('body')).toContainText('Iced matcha latteVG DF')
@@ -4715,6 +4722,9 @@ test.describe('offers and specials', () => {
     await expect(screen).not.toContainText('Flat white')
     await expect(page.getByRole('region', { name: 'Offers on this screen' })).toContainText('Showing now')
     await page.clock.fastForward('03:01:00')
+    // Then today's last-day offer, in turn with the slides.
+    await expect(screen).toContainText('Butter croissants')
+    await page.clock.fastForward('00:00:16')
     await expect(screen).toContainText('Flat white')
     await expect(screen).not.toContainText('Happy hour')
   })
@@ -4737,6 +4747,65 @@ test.describe('offers and specials', () => {
     await cake.getByRole('button', { name: 'End now' }).click()
     await toast(page, 'Cake of the day has ended: it’s off the screens')
     await expect(page.getByRole('region', { name: 'Ended' }).getByRole('article', { name: 'Cake of the day' })).toBeVisible()
+  })
+
+  test('last-day offers: today’s croissants go on offer by themselves until closing, on the counter TV, and stop like any offer', async ({ page }) => {
+    await open(page, '/stock')
+    // Stock: the croissants are on their last day (sold the day they come in), with what's left.
+    const last = page.getByRole('status', { name: 'On their last day' })
+    await expect(last).toContainText('Butter croissants (18 left)')
+    const row = page.getByRole('row', { name: 'Butter croissants' })
+    await expect(row).toContainText('Last day')
+    await expect(row).toContainText('Use by today')
+    await expect(page.getByRole('row', { name: 'Pain au chocolat' })).not.toContainText('Last day')
+
+    // The bell says it has started, and that Square isn't changed.
+    await page.getByRole('button', { name: /Notifications, \d+ new/ }).first().click()
+    const bell = page.getByRole('region', { name: 'Notifications' })
+    await expect(bell).toContainText('On offer till closing: Butter croissants')
+    await expect(bell).toContainText('18 left on their last day, €1.68 until 18:00. Square isn’t changed: take the offer price at the till.')
+    await page.keyboard.press('Escape')
+
+    // Offers & specials: live now, labelled as automatic, the usual price crossed out, on the counter TV until closing.
+    await last.getByRole('link', { name: 'Offers & specials' }).click()
+    const offer = page.getByRole('region', { name: 'Live now' }).getByRole('article', { name: 'Butter croissants' })
+    await expect(offer).toContainText('€1.68')
+    await expect(offer.locator('s')).toHaveText('€2.40')
+    await expect(offer).toContainText('Automatic: last day')
+    await expect(offer).toContainText('Today, 08:35–18:00')
+    await expect(offer).toContainText('On Counter TV: in turn, 15 seconds each time')
+    // Its rule, and a new one for sandwiches at a set price.
+    const rules = page.getByRole('region', { name: 'Last-day offers' })
+    const bakes = rules.getByRole('article', { name: 'Today’s bakes' })
+    await expect(bakes).toContainText('30% off')
+    await expect(bakes).toContainText('Bakery')
+    await expect(bakes).toContainText('From 2 hours before closing until closing · Counter TV · story suggested')
+    await expect(rules.getByRole('article', { name: 'Sandwiches' })).toContainText('Switched off')
+    await bakes.getByRole('button', { name: 'Edit' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Edit the rule' })
+    await expect(dialog.getByRole('checkbox', { name: 'Bakery' })).toBeChecked()
+    await expect(dialog).toContainText('Butter croissants: €1.68 instead of €2.40')
+    await dialog.getByRole('textbox', { name: 'Off the usual price' }).fill('50')
+    await expect(dialog).toContainText('Butter croissants: €1.20 instead of €2.40')
+    await expect(dialog).toContainText('Nothing is charged or changed in Square.')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await toast(page, 'Saved. Items on their last day go on offer by themselves.')
+    await expect(bakes).toContainText('50% off')
+
+    // On the counter TV now.
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Screens' }).click()
+    await expect(page.getByRole('region', { name: 'Offers on this screen' })).toContainText('Butter croissants')
+
+    // Stopped like any offer: it ends and isn't put back on.
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Offers & specials' }).click()
+    await page.getByRole('region', { name: 'Live now' }).getByRole('article', { name: 'Butter croissants' }).getByRole('button', { name: 'End now' }).click()
+    await toast(page, 'Butter croissants has ended: it’s off the screens')
+    await expect(page.getByRole('region', { name: 'Ended' }).getByRole('article', { name: 'Butter croissants' })).toBeVisible()
+    await page.clock.fastForward('00:02:00')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Screens' }).click()
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Offers & specials' }).click()
+    await expect(page.getByRole('region', { name: 'Ended' }).getByRole('article', { name: 'Butter croissants' })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Live now' }).getByRole('article', { name: 'Butter croissants' })).toHaveCount(0)
   })
 
   test('employees don’t get offers', async ({ page }) => {

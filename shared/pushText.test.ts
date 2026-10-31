@@ -34,6 +34,8 @@ describe('push notifications in each person’s language', () => {
     expect(es('Expense to approve: Julio, 12.50 €').title).toBe('Gasto por aprobar: Julio, 12,50 €')
     expect(es('Expense paid back: Taxi').title).toBe('Gasto reembolsado: Taxi')
     expect(es('Time to send: Black Friday').title).toBe('Toca enviar: Black Friday')
+    expect(es('On offer till closing: Butter croissants', '9 left on their last day, €1.96 until 15:00. Square isn’t changed: take the offer price at the till.'))
+      .toEqual({ title: 'En oferta hasta el cierre: Butter croissants', body: 'Quedan 9 en su último día, a €1.96 hasta las 15:00. Square no cambia: cóbralo al precio de la oferta.' })
     expect(es('Out of range: Nevera 1 8.4 °C').title).toBe('Fuera de rango: Nevera 1 8,4 °C')
     expect(es('SGAE runs out on 01/02/2027', 'It renews by itself: check it went through.'))
       .toEqual({ title: 'SGAE caduca el 01/02/2027', body: 'Se renueva sola: comprueba que se ha hecho.' })
