@@ -24,7 +24,9 @@ const toInput = (iso: string | null) => (iso ? formatLocal(iso, "yyyy-MM-dd'T'HH
 const fromInput = (v: string) => (v ? zonedIso(v.slice(0, 10), v.slice(11, 16)) : null)
 
 export function TimecardsPage() {
-  const { api, profiles, positions, isAdmin, isPartner, canSeePay, rates, me, settings } = useApp()
+  const { api, profiles, positions, can, isPartner, canSeePay, rates, me, settings } = useApp()
+  // Admins, and anyone whose role has Update on timecards: the team's hours (their own through a correction).
+  const canEdit = can('timecards', 'update')
   const run = useAction()
   const [monday, setMonday] = useState(weekStart(today()))
   const [person, setPerson] = useState<string>('all')
@@ -78,7 +80,7 @@ export function TimecardsPage() {
         actions={<>
           {isPartner && <Tag>{t('Read-only')}</Tag>}
           <WeekNav monday={monday} onChange={setMonday} />
-          {(isAdmin || isPartner) && (
+          {(canEdit || isPartner) && (
             <TextField select size="small" label={t('Person')} value={person} onChange={e => setPerson(e.target.value)} sx={{ width: 150 }}>
               <MenuItem value="all">{t('Everyone')}</MenuItem>
               {profiles.filter(p => p.role !== 'kiosk').map(p => <MenuItem key={p.id} value={p.id}>{p.full_name}</MenuItem>)}
@@ -88,12 +90,12 @@ export function TimecardsPage() {
           <Button startIcon={<PrintIcon />} variant="outlined" component={RouterLink} to={`/registro?month=${monday.slice(0, 7)}${person !== 'all' ? `&person=${person}` : ''}`}>
             {t('Monthly record')}
           </Button>
-          {isAdmin && <Button variant="outlined" onClick={() => setAdding(true)}>{t('Add timecard')}</Button>}
-          {isAdmin && <Button variant="outlined" onClick={() => run(async () => {
+          {canEdit && <Button variant="outlined" onClick={() => setAdding(true)}>{t('Add timecard')}</Button>}
+          {canEdit && <Button variant="outlined" onClick={() => run(async () => {
             const n = await api.fillFromRota(monday); await data.reload()
             if (!n) throw new Error(t('Nothing to fill: everyone on the rota has a timecard'))
           }, t('Missing timecards filled from the rota'))}>{t('Fill from rota')}</Button>}
-          {isAdmin && (
+          {canEdit && (
             <Button variant="contained" disabled={allApproved || !entries.length} startIcon={allApproved ? <LockIcon /> : undefined}
               onClick={() => run(async () => { const n = await api.approveWeek(monday); await data.reload(); return n },
                 t('Week approved and locked'))}>
@@ -124,7 +126,7 @@ export function TimecardsPage() {
       {pending.length > 0 && (
         <Card sx={{ mb: 2, borderColor: 'warning.main' }}>
           <CardContent>
-            <SectionTitle>{isAdmin ? t('Correction requests') : t('My pending requests')}</SectionTitle>
+            <SectionTitle>{canEdit ? t('Correction requests') : t('My pending requests')}</SectionTitle>
             <List dense disablePadding>
               {pending.map(c => <CorrectionRow key={c.id} c={c} name={name(c.profile_id)} onDone={data.reload} />)}
             </List>
@@ -167,7 +169,9 @@ export function TimecardsPage() {
 
 /** One person's week, day by day; the headings sort it. */
 function TimecardTable({ list, shiftOf, onEdit }: { list: TimeEntry[]; shiftOf: (e: TimeEntry) => Shift | undefined; onEdit: (e: TimeEntry) => void }) {
-  const { isAdmin, me } = useApp()
+  const { isAdmin, can, me } = useApp()
+  // Edited directly by admins, and by those whose role has Update on timecards when it isn't their own.
+  const manages = (e: TimeEntry) => isAdmin || (can('timecards', 'update') && e.profile_id !== me?.id)
   const { rows, sort } = useSort(list, {
     day: e => e.clock_in, scheduled: e => { const s = shiftOf(e); return s ? localTime(s.starts_at) : null }, in: e => localTime(e.clock_in),
     out: e => (e.clock_out ? localTime(e.clock_out) : null), breaks: e => e.break_minutes, paid: e => e.paid_minutes, flags: e => e.flags.length || null,
@@ -198,8 +202,8 @@ function TimecardTable({ list, shiftOf, onEdit }: { list: TimeEntry[]; shiftOf: 
               <TableCell><Flags flags={e.flags} /></TableCell>
               <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                 {e.approved_at && <Tooltip title={t('Approved')}><LockIcon fontSize="small" color="action" sx={{ verticalAlign: 'middle' }} /></Tooltip>}
-                {(isAdmin || (e.profile_id === me?.id && e.clock_out)) && (
-                  <IconButton size="small" aria-label={isAdmin ? t('Edit') : t('Request correction')} onClick={() => onEdit(e)}>
+                {(manages(e) || (e.profile_id === me?.id && e.clock_out)) && (
+                  <IconButton size="small" aria-label={manages(e) ? t('Edit') : t('Request correction')} onClick={() => onEdit(e)}>
                     <EditIcon fontSize="small" />
                   </IconButton>
                 )}
@@ -213,25 +217,27 @@ function TimecardTable({ list, shiftOf, onEdit }: { list: TimeEntry[]; shiftOf: 
 }
 
 function CorrectionRow({ c, name, onDone }: { c: CorrectionRequest; name: string; onDone: () => void }) {
-  const { api, isAdmin } = useApp()
+  const { api, isAdmin, can, me } = useApp()
+  const decides = isAdmin || (can('timecards', 'update') && c.profile_id !== me?.id)
   const run = useAction()
   const what = [c.requested_clock_in && t('in → {time}', { time: formatLocal(c.requested_clock_in, 'EEE d HH:mm') }),
     c.requested_clock_out && t('out → {time}', { time: formatLocal(c.requested_clock_out, 'EEE d HH:mm') })].filter(Boolean).join(', ')
   return (
-    <ListItem disableGutters secondaryAction={isAdmin && (
+    <ListItem disableGutters secondaryAction={decides && (
       <Stack direction="row" spacing={1}>
         <Button size="small" color="error" onClick={() => run(async () => { await api.decideCorrection(c.id, false); onDone() }, t('Declined'))}>{t('Decline')}</Button>
         <Button size="small" variant="contained" onClick={() => run(async () => { await api.decideCorrection(c.id, true); onDone() }, t('Approved and applied'))}>{t('Approve')}</Button>
       </Stack>
     )}>
-      <ListItemText sx={{ pr: isAdmin ? 22 : 0 }} primary={`${name}: ${what}`}
+      <ListItemText sx={{ pr: decides ? 22 : 0 }} primary={`${name}: ${what}`}
         secondary={t('“{note}” · expires {date}', { note: c.note, date: formatLocal(c.expires_at, 'd MMM') })} />
     </ListItem>
   )
 }
 
 function EditDialog({ entry, onClose, onSaved }: { entry: TimeEntry; onClose: () => void; onSaved: () => void }) {
-  const { api, isAdmin } = useApp()
+  const { api, isAdmin, can, me } = useApp()
+  const manages = isAdmin || (can('timecards', 'update') && entry.profile_id !== me?.id)
   const run = useAction()
   const [clockIn, setClockIn] = useState(toInput(entry.clock_in))
   const [clockOut, setClockOut] = useState(toInput(entry.clock_out))
@@ -242,23 +248,23 @@ function EditDialog({ entry, onClose, onSaved }: { entry: TimeEntry; onClose: ()
     const ci = clockIn !== toInput(entry.clock_in) ? fromInput(clockIn) : null
     const co = clockOut !== toInput(entry.clock_out) ? fromInput(clockOut) : null
     if (!ci && !co) throw new Error(t('Change a time first'))
-    if (isAdmin) await api.editEntry(entry.id, ci, co, reason)
+    if (manages) await api.editEntry(entry.id, ci, co, reason)
     else await api.requestCorrection(entry.id, ci, co, reason)
     onClose()
     onSaved()
-  }, isAdmin ? t('Timecard updated') : t('Correction requested'))
+  }, manages ? t('Timecard updated') : t('Correction requested'))
 
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="xs">
-      <DialogTitle>{isAdmin ? t('Edit timecard') : t('Request a correction')}</DialogTitle>
+      <DialogTitle>{manages ? t('Edit timecard') : t('Request a correction')}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ pt: 1 }}>
-          {entry.approved_at && isAdmin && <Alert severity="warning">{t('This week is approved. Your change will be logged.')}</Alert>}
+          {entry.approved_at && manages && <Alert severity="warning">{t('This week is approved. Your change will be logged.')}</Alert>}
           <TextField type="datetime-local" label={t('Clock in')} value={clockIn} onChange={e => setClockIn(e.target.value)}
             slotProps={{ inputLabel: { shrink: true } }} />
           <TextField type="datetime-local" label={t('Clock out')} value={clockOut} onChange={e => setClockOut(e.target.value)}
             slotProps={{ inputLabel: { shrink: true } }} />
-          <TextField label={isAdmin ? t('Reason (required)') : t('What happened? (required)')} value={reason}
+          <TextField label={manages ? t('Reason (required)') : t('What happened? (required)')} value={reason}
             onChange={e => setReason(e.target.value)} multiline minRows={2} />
           {(history.data?.length ?? 0) > 0 && (
             <Box>
@@ -278,7 +284,7 @@ function EditDialog({ entry, onClose, onSaved }: { entry: TimeEntry; onClose: ()
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>{t('Cancel')}</Button>
-        <Button variant="contained" onClick={save}>{isAdmin ? t('Save') : t('Send request')}</Button>
+        <Button variant="contained" onClick={save}>{manages ? t('Save') : t('Send request')}</Button>
       </DialogActions>
     </Dialog>
   )

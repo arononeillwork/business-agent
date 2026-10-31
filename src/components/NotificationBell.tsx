@@ -8,16 +8,27 @@ import { useAction } from '../app/Notify'
 import { formatLocal } from '../../shared/time'
 import type { AppNotification } from '../../shared/types'
 import { tokens } from '../theme'
-import { t } from '../i18n'
+import { currentLanguage, t } from '../i18n'
 import { roundButton } from '../app/QuickActions'
 import { Link as RouterLink } from 'react-router-dom'
 import { MentionActions, useMentions } from './Mentions'
+import { pushText } from '../../shared/pushText'
 
 /**
  * A notification's title in the person's language. The Worker writes them in English; the ones
  * with a known shape (Instagram mentions) are said again from their details.
  */
+/** A notification's text in the language shown (the holiday reminders and tests are written in English). */
+export const notificationBody = (n: AppNotification) =>
+  n.kind === 'bank_holiday' || n.kind === 'test' ? pushText(n, currentLanguage()).body : n.body
+
 export function notificationTitle(n: AppNotification) {
+  if (n.kind === 'bank_holiday' && n.data?.name && typeof n.data.days === 'number') {
+    const name = n.data.name
+    return n.data.days === 0 ? t('Bank holiday today: {name}', { name }) : n.data.days === 1 ? t('Bank holiday tomorrow: {name}', { name })
+      : t('Bank holiday in {n} days: {name}', { n: n.data.days, name })
+  }
+  if (n.kind === 'test') return t('Test notification')
   const m = /^(@\S+|Someone) (mentioned you in their story|tagged you in a post)$/.exec(n.title)
   if (n.kind !== 'instagram_mention' || !m) return n.title
   const who = m[1] === 'Someone' ? t('Someone') : m[1]
@@ -71,7 +82,7 @@ export function NotificationBell() {
                   <Box aria-hidden sx={{ width: 8, height: 8, mt: 0.9, borderRadius: '50%', flexShrink: 0, bgcolor: n.read_at ? 'transparent' : tokens.rose }} />
                   <Box sx={{ minWidth: 0 }}>
                     <Typography sx={{ fontWeight: 500, fontSize: '0.92rem' }}>{notificationTitle(n)}</Typography>
-                    {n.body && <Typography variant="body2" sx={{ color: 'text.secondary' }}>{n.body}</Typography>}
+                    {n.body && <Typography variant="body2" sx={{ color: 'text.secondary' }}>{notificationBody(n)}</Typography>}
                     <Typography variant="caption" sx={{ color: 'text.disabled' }}>{formatLocal(n.created_at, 'EEE d MMM, HH:mm')}</Typography>
                     {mention && <Box sx={{ mt: 0.75 }}><MentionActions mention={mention} /></Box>}
                   </Box>

@@ -7,7 +7,7 @@
 // Creates @business-agent.test accounts and removes them and their data afterwards.
 import { createHash, randomBytes } from 'node:crypto'
 import { expect as baseExpect, test, type APIRequestContext, type Page } from '@playwright/test'
-import { EMPLOYEE_PIN, HOOK_TIMEOUT, PASSWORD, USERS, cleanUp, liveConfig, recordNetwork, service, setUp, signedIn, type LiveConfig, type UserKey } from './live/fixtures'
+import { EMPLOYEE_PIN, HOOK_TIMEOUT, PASSWORD, USERS, cleanUp, hiddenPages, liveConfig, openFromMenu, recordNetwork, service, setUp, signedIn, type LiveConfig, type UserKey } from './live/fixtures'
 
 // Every step here waits on the real Supabase. Its own logs show its sign-in service taking 2–3 s
 // (and up to 6 s) while these tests create and delete their accounts, so allow 10 s like the
@@ -20,11 +20,14 @@ recordNetwork(test)
 
 let cfg: LiveConfig
 let ids: Record<string, string>
+// Pages Easy Beans' admins have hidden from the menu: opened by their address instead (fixtures.ts).
+let hidden: string[] = []
 
 test.beforeAll(async ({ baseURL }) => {
   test.setTimeout(HOOK_TIMEOUT)
   cfg = await liveConfig(baseURL!)
   ;({ ids } = await setUp(cfg))
+  hidden = await hiddenPages(cfg)
 })
 
 test.afterAll(async () => {
@@ -70,7 +73,7 @@ test.describe('sign-in and time tracking', () => {
     await expect(page.getByRole('dialog', { name: 'Workday summary' })).toBeVisible()
     await page.getByRole('button', { name: 'Done' }).click()
 
-    await page.getByRole('link', { name: 'Timecards' }).first().click()
+    await openFromMenu(page, hidden, 'Timecards')
     await expect(page.getByText('Eva Test')).toBeVisible()
     await expect(page.getByText('Unscheduled').first()).toBeVisible()
   })
@@ -105,7 +108,7 @@ test.describe('sign-in and time tracking', () => {
 
   test('admin sees the timecard, and edits need a reason and are logged', async ({ page }) => {
     await signInUi(page, 'admin')
-    await page.getByRole('link', { name: 'Timecards' }).first().click()
+    await openFromMenu(page, hidden, 'Timecards')
     const card = page.locator('.MuiCard-root', { hasText: 'Eva Test' })
     await card.getByRole('button', { name: 'Edit' }).first().click()
     const dialog = page.getByRole('dialog', { name: 'Edit timecard' })
@@ -292,8 +295,9 @@ test.describe('sports', () => {
     await db.from('business').update({ sports_enabled: false }).eq('id', 1)
     try {
       await signInUi(page, 'admin')
-      // Click through (a page load straight after "Sign in" can beat the session being saved).
-      await page.getByRole('link', { name: 'Sports' }).first().click()
+      // Click through, or open it in the app once the menu shows when Easy Beans has hidden Sports from
+      // the menu (a page load straight after "Sign in" can beat the session being saved).
+      await openFromMenu(page, hidden, 'Sports')
       await expect(page.getByRole('heading', { name: 'Sports is off' })).toBeVisible()
       await page.getByRole('switch', { name: 'Sports' }).click()
       const ask = page.getByRole('dialog', { name: 'Turn on Sports?' })
@@ -368,7 +372,7 @@ test.describe('business connections', () => {
     const state = await (await request.get('/api/integrations', { headers: { authorization: `Bearer ${session.access_token}` } })).json() as
       { integrations: { provider: string; status: string }[]; configured: Record<string, boolean> }
     await signInUi(page, 'admin')
-    await page.getByRole('link', { name: 'Messages', exact: true }).first().click()
+    await openFromMenu(page, hidden, 'Messages')
     await expect(page.getByRole('heading', { level: 1, name: 'Messages' })).toBeVisible()
     const card = page.getByRole('region', { name: 'Connect Instagram' })
     if (state.integrations.find(i => i.provider === 'instagram')?.status === 'connected') {

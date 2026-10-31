@@ -334,6 +334,17 @@
       ]
     },
     {
+      "id": "offers",
+      "name": "Offers & specials",
+      "area": "Marketing",
+      "page": "/offers",
+      "does": "Specials on the screens for a set time, with their story",
+      "needs": [
+        { "label": "Instagram", "connection": "instagram", "optional": true },
+        { "label": "Drive or OneDrive", "anyOf": ["google_drive", "onedrive"], "optional": true }
+      ]
+    },
+    {
       "id": "competitions",
       "name": "Competitions",
       "area": "Marketing",
@@ -586,6 +597,16 @@
       "page": "/ai-assistants",
       "does": "Connect Claude or ChatGPT to your data",
       "needs": []
+    },
+    {
+      "id": "assistant",
+      "name": "Assistant",
+      "area": "You",
+      "page": "/",
+      "does": "Ask Claude about the business from the button at the bottom right",
+      "needs": [
+        { "label": "Anthropic key", "secret": "ANTHROPIC_API_KEY" }
+      ]
     },
     {
       "id": "billing",

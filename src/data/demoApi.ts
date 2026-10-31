@@ -5,6 +5,7 @@ import { PromptError, type Api, type BillingInfo, type ShiftInput } from './api'
 import { PLANS, SOCIAL_CONNECTIONS, TRIAL_DAYS, effectivePlan, payPerUse, plan as planById, type PlanId } from '../../shared/plans'
 import { isMood, namesArtist, usesFor, type Mood } from '../../shared/music'
 import type { AiMusicQuote, MusicGeneration, MusicTrack } from '../../shared/types'
+import type { HolidayReminder, PushDevice } from '../../shared/types'
 import type {
   ApiKey, AppNotification, Brand, Customer, EventAlert, Sales, SalesItem, SearchReport, SearchRow, SocialNetwork, SocialPost, MusicAccount, MusicPlaylist, MusicProvider, MyNowPlaying,
   Expense, Integration, IntegrationProvider, IntegrationsState, OutboxItem, PartnerArea, TimeOff,
@@ -35,8 +36,10 @@ import { ALREADY_ON_BRAND, brandTitleOf, uploadProblem, type BrandDocument } fro
 import type { Benefit, LeaveAllowance } from '../../shared/benefits'
 import { COMMISSION_PAID, USED_AT_TILL, cleanInstagram, cleanRepCode, codeFor, rewardAmount, type RepReward, type RewardRule, type SalesRep } from '../../shared/reps'
 import { addMonths, kittyBalance, type KittyEntry, type KittyGoal } from '../../shared/kitty'
-import { roleProblem, type JobRole } from '../../shared/roles'
+import { permissionsOf, roleProblem, tidyPermissions, type JobRole, type RoleArea } from '../../shared/roles'
+import { ROLE_TEMPLATES } from '../../shared/roleTemplates'
 import { sectionProblem, type RuleSection, type RulesRead } from '../../shared/staffRules'
+import { PET_LIMITS, petProblem, type Pet } from '../../shared/pets'
 import { COUNTED, type Contractor, type OutsourcedJob } from '../../shared/outsourcing'
 import { EASY_BEANS_ROLES, EASY_BEANS_RULES, handbookDuties } from './easyBeansHandbook'
 import { DEFAULT_TAX_SETTINGS, cleanFolderName, cleanFolderPath, taxFileProblem, taxFileType, type FilingRecord, type TaxDocument, type TaxSettings } from '../../shared/tax'
@@ -49,6 +52,7 @@ import {
   MAX_PROMPT, PROMPT_IDEAS, designProblem, menuItemProblem, menuSections, modelOf, sizeOf, type MenuDesign, type MenuImage, type MenuItem,
 } from '../../shared/menu'
 import { screenProblem, type DisplayFeed, type Screen } from '../../shared/screens'
+import { offerProblem, type Offer, type ScreenOffer } from '../../shared/offers'
 import { cameraProblem, type Camera } from '../../shared/cameras'
 import { demoCameraPicture, demoCameras, demoClips } from './demoCameras'
 import { demoArtwork, demoMenuPicture, demoPhoto, demoStrip } from './demoMenu'
@@ -675,6 +679,9 @@ export function createDemoApi(): Api {
   const feeds = new Map<string, Partial<Record<'me' | 'business', string>>>()
   const keys = new Map<string, ApiKey[]>()
   const alerts: EventAlert[] = []
+  // Bank holiday reminders left out or sent, and this demo's push devices (none: the demo can't push).
+  const holidayReminders: HolidayReminder[] = []
+  const pushDevices: PushDevice[] = []
   const brand: Brand = {
     logo: null, logo_mark: null, heading_font: 'Poppins', body_font: 'Figtree', updated_at: nowIso(),
     sound_moods: ['acoustic', 'chill', 'latin'], sound_avoid: [],
@@ -949,6 +956,21 @@ export function createDemoApi(): Api {
       { id: 'sl-yt', kind: 'youtube', url: 'https://www.youtube.com/watch?v=jfKfPfyJRdk', design_id: null, title: 'Lo-fi live', seconds: 60, live: false, active: false },
     ],
   }]
+  // Offers & specials: ube latte week coming up on the counter TV, with its story planned; last week's pumpkin spice latte, ended.
+  const ubeStory = posts.find(p => p.kind === 'story' && p.status === 'scheduled')
+  const offerList: Offer[] = [
+    { id: 'o-ube', title: 'Ube latte week', details: 'Our purple ube latte, hot or iced, all week long.', price: '€4.20', was_price: '€4.80', image_url: UBE,
+      starts_at: ubeStory?.scheduled_at ?? hoursFromNow(72), ends_at: new Date(Date.parse(ubeStory?.scheduled_at ?? hoursFromNow(72)) + 7 * 86_400_000).toISOString(),
+      screen_ids: ['s-counter'], screen_mode: 'turns', seconds: 15, post_id: ubeStory?.id ?? null, active: true, updated_at: daysAgo(1) },
+    { id: 'o-pumpkin', title: 'Pumpkin spice latte', details: 'Espresso, steamed milk, pumpkin and warm spices.', price: '€3.80', was_price: null,
+      image_url: demoPhoto('Pumpkin spice latte', false), starts_at: daysAgo(8), ends_at: daysAgo(1), screen_ids: ['s-counter'], screen_mode: 'turns', seconds: 15,
+      post_id: null, active: true, updated_at: daysAgo(8) },
+  ]
+  /** As display_feed(): a screen's offers that haven't ended and start within two days. */
+  const screenOffers = (screenId: string): ScreenOffer[] => offerList
+    .filter(o => o.active && o.screen_ids.includes(screenId) && Date.parse(o.ends_at) > Date.now() && Date.parse(o.starts_at) < Date.now() + 2 * 86_400_000)
+    .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
+    .map(({ id, title, details, price, was_price, image_url, starts_at, ends_at, screen_mode, seconds }) => ({ id, title, details, price, was_price, image_url, starts_at, ends_at, screen_mode, seconds }))
   // Cameras: the counter and the terrace, sending a picture every few seconds, with three days of clips (demoCameras).
   const cameraList = demoCameras(Date.now())
   let cameraClipList = demoClips(Date.now(), business.timezone)
@@ -1091,8 +1113,9 @@ export function createDemoApi(): Api {
     early_clock_in_minutes: 10, unscheduled_clock_in: 'flag', auto_clock_out_minutes: 60,
     forgot_clock_out_grace_minutes: 30, phone_clock_in: 'anywhere', min_break_minutes: 15,
     break_after_hours: 6, max_daily_hours: 9, max_weekly_hours: 40, min_rest_hours: 12,
-    approval_weekday: 1, employer_cost_multiplier: 1.3, auto_timecards_from_rota: true, vacation_days_per_year: 30,
+    approval_weekday: 1, employer_cost_multiplier: 1.3, auto_timecards_from_rota: true, vacation_days_per_year: 30, languages: [],
     alert_shift_reminders: true, alert_missed_clock_in: true, alert_rota: true, alert_time_off: true,
+    holiday_reminders: true, holiday_reminder_days: 7, holiday_reminder_day_before: true, holiday_reminder_kinds: ['national', 'regional', 'local'],
     whatsapp_retention_days: DEFAULT_WHATSAPP_RETENTION, hidden_pages: [], mileage_rate: DEFAULT_MILEAGE_RATE,
     // The menu is kept here (Custom), its sections not arranged yet. "Add what's on your printed menus"
     // (Menu page) adds the café's printed menus beside the costed recipes, in their order of sections.
@@ -1202,14 +1225,26 @@ export function createDemoApi(): Api {
   // the cleaner are in their roles, the owners haven't picked theirs yet; Maria has read the rules,
   // Julio read them before Complaints changed, and the cleaner hasn't yet.
   const rolePeople: Record<string, string[]> = { 'Barista / Bartender': [P.julio, P.maria], Cleaner: [P.cleaner] }
+  // What each can do, from the café templates: the head barista runs the shift, the baristas read.
+  const roleTemplate: Record<string, string> = { 'Shop Manager': 'cafe.shop-manager', 'Head Barista': 'cafe.shift-lead',
+    Chef: 'cafe.kitchen', 'Barista / Bartender': 'cafe.barista', Cleaner: 'cafe.cleaner' }
   const jobRoles: JobRole[] = EASY_BEANS_ROLES.map((r, i) => ({
     id: uid(), name: r.name, summary: r.summary ?? null, position_id: positions.find(p => p.name === r.position)?.id ?? null,
     reports_to: null, people: rolePeople[r.name] ?? [], duties: handbookDuties(r), sort: i, updated_at: daysAgo(8),
+    template: roleTemplate[r.name] ?? null, permissions: tidyPermissions(ROLE_TEMPLATES.find(x => x.id === roleTemplate[r.name])?.permissions),
   }))
   const ruleSections: RuleSection[] = EASY_BEANS_RULES.map((r, i) => ({
     id: uid(), title: r.title, intro: r.intro ?? null, rules: [...r.rules], sort: i, updated_at: daysAgo(r.title === 'Complaints' ? 3 : 10),
   }))
   const rulesRead: RulesRead[] = [{ profile_id: P.maria, read_at: daysAgo(2) }, { profile_id: P.julio, read_at: daysAgo(7) }]
+  // Aron's dogs, waiting for their photos (the `pets` migration adds them for the real Aron too).
+  const pets: Pet[] = [
+    { id: 'pet-fudge', profile_id: P.aron, name: 'Fudge', kind: 'dog', breed: null, photo: null, sort: 1, created_at: daysAgo(3) },
+    { id: 'pet-cooper', profile_id: P.aron, name: 'Cooper', kind: 'dog', breed: null, photo: null, sort: 2, created_at: daysAgo(3) },
+    // And Mark's, Pablo and Yoda.
+    { id: 'pet-pablo', profile_id: P.mark, name: 'Pablo', kind: 'dog', breed: null, photo: null, sort: 1, created_at: daysAgo(1) },
+    { id: 'pet-yoda', profile_id: P.mark, name: 'Yoda', kind: 'dog', breed: null, photo: null, sort: 2, created_at: daysAgo(1) },
+  ]
   /** That person's shifts in the period become open shifts (approved time off). */
   const openUpShifts = (t: TimeOff) => {
     const name = profiles.find(p => p.id === t.profile_id)?.full_name
@@ -1354,6 +1389,11 @@ export function createDemoApi(): Api {
   const partnerCan = (area: PartnerArea) => !!(isPartner() && me()?.active && me()?.partner_access?.includes(area))
   const staffOnly = (p: Profile) => p.role === 'admin' || p.role === 'employee'
   const requireAdmin = () => { if (!isAdmin()) throw new Error('Only an admin can do that') }
+  /** As the database's can_update(): an admin, or someone on the team in a role with Update in that area. */
+  const canUpdate = (area: RoleArea) => permissionsOf(me() ?? null, jobRoles)[area] === 'update'
+  const requireUpdate = (area: RoleArea) => { if (!canUpdate(area)) throw new Error('Only an admin can do that') }
+  /** As the database's todo_own_only(): roles that give the To Do List no more than Own see only the jobs given to them. */
+  const ownTasksOnly = () => !isAdmin() && ['none', 'own'].includes(permissionsOf(me() ?? null, jobRoles).todo)
 
   // Grants: some answers given, and Talento Joven being prepared (its deadline is on the calendar).
   let grantAnswers: Partial<GrantProfile> = { debts: 'no', startY: 2026, startM: 4, hiring: 'yes', candidate: 'unsure' }
@@ -1365,7 +1405,7 @@ export function createDemoApi(): Api {
   }]
   const paysAdmin = () => !!(me()?.role === 'admin' && me()?.can_see_pay)
   const requirePay = () => { if (!paysAdmin()) throw new Error('Only admins with pay access can change grants') }
-  const requireBoss = () => { if (!paysAdmin()) throw new Error('Only a boss can manage billing') }
+  const requireOwner = () => { if (!paysAdmin()) throw new Error('Only an owner can manage billing') }
   /** Mirrors grant_deadline_event() in SQL: the deadline as an admins-only calendar event while the application is open. */
   function grantEvent(a: GrantApplication | undefined, id: string) {
     const i = events.findIndex(e => e.id === `grant:${id}`)
@@ -1806,7 +1846,7 @@ export function createDemoApi(): Api {
     },
     async timeEntries(fromIso, toIso) {
       return entries.filter(e => e.clock_in >= fromIso && e.clock_in < toIso &&
-        (isAdmin() || partnerCan('payroll') || e.profile_id === currentUser)).map(totals)
+        (canUpdate('timecards') || partnerCan('payroll') || e.profile_id === currentUser)).map(totals)
         .sort((a, b) => a.clock_in.localeCompare(b.clock_in))
     },
     async clockState() {
@@ -1817,10 +1857,10 @@ export function createDemoApi(): Api {
     },
     async events(fromDate, toDate) {
       return clone(events.filter(e => e.starts_on <= toDate && (e.ends_on ?? e.starts_on) >= fromDate &&
-        (e.visibility === 'all' || isAdmin()) && (!isPartner() || partnerCan('calendar')))).sort((a, b) => a.starts_on.localeCompare(b.starts_on))
+        (e.visibility === 'all' || canUpdate('calendar')) && (!isPartner() || partnerCan('calendar')))).sort((a, b) => a.starts_on.localeCompare(b.starts_on))
     },
     async corrections() {
-      return clone(corrections.filter(c => isAdmin() || c.profile_id === currentUser))
+      return clone(corrections.filter(c => canUpdate('timecards') || c.profile_id === currentUser))
     },
     async entryChanges(entryId) { return clone(changes.filter(c => c.time_entry_id === entryId)) },
 
@@ -1829,11 +1869,13 @@ export function createDemoApi(): Api {
     async startBreak(t) { doStartBreak(currentUser!, t) },
     async endBreak() { doEndBreak(currentUser!) },
     async editEntry(id, ci, co, reason) {
-      requireAdmin()
+      requireUpdate('timecards')
+      if (!isAdmin() && entries.find(e => e.id === id)?.profile_id === currentUser) throw new Error('Ask a manager to change your own timecard. Request a correction instead.')
       applyEdit(id, ci, co, reason)
     },
     async addEntry(profileId, clockIn, clockOut, reason, positionId) {
-      requireAdmin()
+      requireUpdate('timecards')
+      if (!isAdmin() && profileId === currentUser) throw new Error('Ask a manager to add your own timecard')
       if (!reason.trim()) throw new Error('A reason is required')
       const e: RawEntry = { id: uid(), profile_id: profileId, position_id: positionId ?? null, shift_id: null,
         clock_in: clockIn, clock_out: clockOut, source: 'manual', clock_out_source: 'manual', flags: ['edited'],
@@ -1852,8 +1894,9 @@ export function createDemoApi(): Api {
         expires_at: new Date(Date.now() + 30 * 86400000).toISOString(), decision_note: null })
     },
     async decideCorrection(id, approve, note) {
-      requireAdmin()
+      requireUpdate('timecards')
       const c = corrections.find(x => x.id === id)
+      if (!isAdmin() && c?.profile_id === currentUser) throw new Error('Ask a manager to decide your own correction')
       if (!c || c.status !== 'pending') throw new Error('This request is no longer pending')
       if (approve && c.time_entry_id) {
         applyEdit(c.time_entry_id, c.requested_clock_in, c.requested_clock_out,
@@ -1863,7 +1906,7 @@ export function createDemoApi(): Api {
       c.decision_note = note ?? null
     },
     async approveWeek(monday) {
-      requireAdmin()
+      requireUpdate('timecards')
       const from = zonedIso(monday, '00:00')
       const to = zonedIso(addDays(monday, 7), '00:00')
       const week = entries.filter(e => e.clock_in >= from && e.clock_in < to)
@@ -1874,7 +1917,7 @@ export function createDemoApi(): Api {
     },
 
     async fillFromRota(monday) {
-      requireAdmin()
+      requireUpdate('timecards')
       const todayStart = zonedIso(today(), '00:00')
       let n = 0
       for (const s of shifts) {
@@ -1896,7 +1939,7 @@ export function createDemoApi(): Api {
     },
 
     async saveShift(input: ShiftInput) {
-      requireAdmin()
+      requireUpdate('rota')
       if (input.ends_at <= input.starts_at) throw new Error('Shift must end after it starts')
       const off = input.profile_id && timeOff.find(t => t.profile_id === input.profile_id && t.status === 'approved' &&
         localDate(input.starts_at) >= t.starts_on && localDate(input.starts_at) <= t.ends_on)
@@ -1909,7 +1952,7 @@ export function createDemoApi(): Api {
       }
     },
     async deleteShift(id) {
-      requireAdmin()
+      requireUpdate('rota')
       const i = shifts.findIndex(s => s.id === id)
       if (i >= 0) shifts.splice(i, 1)
     },
@@ -1924,12 +1967,12 @@ export function createDemoApi(): Api {
     },
 
     async saveEvent(input) {
-      requireAdmin()
+      requireUpdate('calendar')
       if (input.id) Object.assign(events.find(e => e.id === input.id) ?? {}, input)
       else events.push({ competition: null, ...input, id: uid(), source: 'admin' } as CalendarEvent)
     },
     async deleteEvent(id) {
-      requireAdmin()
+      requireUpdate('calendar')
       const i = events.findIndex(e => e.id === id)
       if (i >= 0) events.splice(i, 1)
     },
@@ -1950,11 +1993,11 @@ export function createDemoApi(): Api {
         throw new Error('Only an admin can change role, pay access or status')
       }
       const p = profiles.find(x => x.id === id)
-      // Like guard_profile_update(): only a boss makes someone a boss or changes a boss, while there is one.
+      // Like guard_profile_update(): only an owner makes someone an owner or changes an owner, while there is one.
       const changes = (k: 'role' | 'can_see_pay' | 'active') => !!p && k in patch && patch[k] !== p[k]
       if (p && !paysAdmin() && profiles.some(x => x.role === 'admin' && x.can_see_pay && x.active) &&
         (changes('can_see_pay') || (p.role === 'admin' && p.can_see_pay && (changes('role') || changes('active'))))) {
-        throw new Error('Only a boss can make someone a boss or change a boss\'s role')
+        throw new Error('Only an owner can make someone an owner or change an owner\'s role')
       }
       if (patch.role && patch.role !== 'admin' && p?.role === 'admin' &&
         profiles.filter(x => x.role === 'admin' && x.active).length === 1) {
@@ -1983,7 +2026,7 @@ export function createDemoApi(): Api {
       requireAdmin()
       if (password !== undefined && password.length < 8) throw new Error('The temporary password needs at least 8 characters')
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) throw new Error('Enter a full email address, like name@example.com')
-      if (role === 'boss' && !paysAdmin()) throw new Error('Only a boss can invite another boss')
+      if (role === 'owner' && !paysAdmin()) throw new Error('Only an owner can invite another owner')
       const addr = email.trim().toLowerCase()
       const account = profiles.find(p => p.email === addr)
       // Signed up on their own and in no business yet: they join the team as they are.
@@ -2021,7 +2064,7 @@ export function createDemoApi(): Api {
 
     async timeOff(fromDate, toDate) {
       return clone(timeOff.filter(t => t.starts_on <= toDate && t.ends_on >= fromDate &&
-        (isAdmin() || t.profile_id === currentUser || (t.status === 'approved' && (!isPartner() || partnerCan('rota') || partnerCan('payroll'))))))
+        (canUpdate('timeoff') || t.profile_id === currentUser || (t.status === 'approved' && (!isPartner() || partnerCan('rota') || partnerCan('payroll'))))))
         .sort((a, b) => a.starts_on.localeCompare(b.starts_on))
     },
     async vacationDaysUsed(profileId, year) {
@@ -2052,8 +2095,9 @@ export function createDemoApi(): Api {
       t.status = 'cancelled'
     },
     async decideTimeOff(id, approve, note, releaseShifts = true) {
-      requireAdmin()
+      requireUpdate('timeoff')
       const t = timeOff.find(x => x.id === id)
+      if (!isAdmin() && t?.profile_id === currentUser) throw new Error('Ask a manager to decide your own time off')
       if (!t || t.status !== 'pending') throw new Error('This request is no longer pending')
       t.status = approve ? 'approved' : 'declined'
       t.decision_note = note ?? null
@@ -2098,7 +2142,7 @@ export function createDemoApi(): Api {
       if (i >= 0) benefitList.splice(i, 1)
     },
     async leaveAllowances(year) {
-      return clone(allowances.filter(a => a.year === year && (isAdmin() || partnerCan('payroll') || a.profile_id === currentUser)))
+      return clone(allowances.filter(a => a.year === year && (canUpdate('timeoff') || partnerCan('payroll') || a.profile_id === currentUser)))
     },
     async saveLeaveAllowance({ profile_id, year, holiday_days, note }) {
       requireAdmin()
@@ -2116,6 +2160,8 @@ export function createDemoApi(): Api {
       if (id && !existing) throw new Error('Role not found')
       const next: JobRole = { ...(existing ?? { id: uid(), name: '', summary: null, position_id: null, reports_to: null, people: [], duties: [], sort: 0, updated_at: '' }), ...clone(r) }
       next.name = next.name.trim()
+      next.permissions = tidyPermissions(next.permissions)
+      next.template = next.template ?? null
       next.summary = next.summary?.trim() || null
       next.duties = next.duties.map(d => ({ when: d.when, text: d.text.trim() })).filter(d => d.text)
       // As the database: only people on the team can be added; someone who has since left drops out.
@@ -2169,6 +2215,30 @@ export function createDemoApi(): Api {
       const mine = rulesRead.find(r => r.profile_id === currentUser)
       if (mine) mine.read_at = nowIso()
       else rulesRead.push({ profile_id: currentUser!, read_at: nowIso() })
+    },
+    // As the `pets` migration: the team sees everyone's; each person changes their own, admins anyone's.
+    async pets() { return isStaff() && me()?.active ? clone(pets).sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name)) : [] },
+    async savePet({ id, profile_id, ...p }) {
+      const was = id ? pets.find(x => x.id === id) : undefined
+      if (id && !was) throw new Error('That pet isn’t here any more')
+      const whose = was?.profile_id ?? profile_id ?? currentUser!
+      if (!isStaff() || (whose !== currentUser && !isAdmin())) throw new Error('new row violates row-level security policy for table "pets"')
+      const base: Pet = was ?? { id: uid(), profile_id: whose, name: '', kind: 'dog', breed: null, photo: null, sort: 0, created_at: nowIso() }
+      // Only what's sent changes (a new photo keeps the breed).
+      const next: Pet = { ...base, ...p, name: p.name.trim(), breed: 'breed' in p ? p.breed?.trim() || null : base.breed }
+      const problem = petProblem(next)
+      if (problem) throw new Error(problem)
+      if (!was) {
+        const owner = profiles.find(x => x.id === whose)
+        if (!owner || !staffOnly(owner)) throw new Error('Pets belong to someone on the team')
+        if (pets.filter(x => x.profile_id === whose).length >= PET_LIMITS.each) throw new Error('Up to 20 pets each')
+        pets.push(next)
+      } else Object.assign(was, next)
+      return next.id
+    },
+    async deletePet(id) {
+      const i = pets.findIndex(x => x.id === id)
+      if (i >= 0 && isStaff() && (pets[i].profile_id === currentUser || isAdmin())) pets.splice(i, 1)
     },
 
     async contractors() {
@@ -2234,10 +2304,10 @@ export function createDemoApi(): Api {
         },
       }
     },
-    async billing() { requireBoss(); return { ...demoBilling } },
-    async syncBilling() { requireBoss(); return { ...demoBilling } },
+    async billing() { requireOwner(); return { ...demoBilling } },
+    async syncBilling() { requireOwner(); return { ...demoBilling } },
     async choosePlan(plan, interval) {
-      requireBoss()
+      requireOwner()
       // The live app goes to Stripe Checkout here; the demo pretends the card went through.
       const trial = planById(plan).trial && !demoBilling.trial_used
       if (demoBilling.status === 'comped') throw new Error('This business already has the top plan, free. Nothing to pay.')
@@ -2816,7 +2886,7 @@ export function createDemoApi(): Api {
       return clone(stockPrices)
     },
     async saveStockItem({ id, ...patch }) {
-      requireAdmin()
+      requireUpdate('stock')
       if (!patch.name?.trim()) throw new Error('Give the item a name')
       if (patch.reorder_at != null && patch.par_level != null && patch.reorder_at > patch.par_level) throw new Error('Reorder at can’t be more than the par level')
       const existing = id ? stock.find(x => x.id === id) : undefined
@@ -2831,7 +2901,7 @@ export function createDemoApi(): Api {
         stockPrices.push({ item_id: saved.id, cost_per_unit: saved.cost_per_unit, changed_at: nowIso() })
     },
     async deleteStockItem(id) {
-      requireAdmin()
+      requireUpdate('stock')
       const i = stock.findIndex(x => x.id === id)
       if (i >= 0) stock.splice(i, 1)
     },
@@ -3048,7 +3118,27 @@ export function createDemoApi(): Api {
       }
       return { screen, sections: [...(settings.menu_sections ?? [])],
         business: { name: business.name, logo: brand.logo_mark ?? brand.logo, heading_font: brand.heading_font, body_font: brand.body_font, colours: clone(brand.colours) }, menus,
-        allergens: s.active ? displayAllergens() : null }
+        allergens: s.active ? displayAllergens() : null, offers: s.active ? screenOffers(s.id) : [] }
+    },
+    async offers() { return isAdmin() ? clone(offerList).sort((a, b) => b.starts_at.localeCompare(a.starts_at)) : [] },
+    async saveOffer({ id, ...o }) {
+      requireAdmin()
+      const problem = offerProblem(o)
+      if (problem) throw new Error(problem)
+      if (o.post_id && !posts.some(p => p.id === o.post_id)) throw new Error('That post isn’t on your Social planner')
+      // As the database: tidied, and only screens there are, each once.
+      const tidy = { ...o, title: o.title.trim(), details: o.details?.trim() || null, price: o.price?.trim() || null, was_price: o.was_price?.trim() || null,
+        image_url: o.image_url?.trim() || null, screen_ids: [...new Set(o.screen_ids)].filter(s => screenList.some(x => x.id === s)), updated_at: nowIso() }
+      const existing = id ? offerList.find(x => x.id === id) : undefined
+      if (existing) { Object.assign(existing, tidy); return existing.id }
+      const made: Offer = { ...tidy, id: uid() }
+      offerList.push(made)
+      return made.id
+    },
+    async deleteOffer(id) {
+      requireAdmin()
+      const i = offerList.findIndex(x => x.id === id)
+      if (i >= 0) offerList.splice(i, 1)
     },
     async cameras() { return isAdmin() ? clone(cameraList) : [] },
     async saveCamera({ id, ...c }) {
@@ -3129,7 +3219,7 @@ export function createDemoApi(): Api {
       return clone(pointList).sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name))
     },
     async saveSafetyPoint({ id, ...p }) {
-      requireAdmin()
+      requireUpdate('foodsafety')
       if (!p.name?.trim()) throw new Error('Give it a name')
       const existing = id ? pointList.find(x => x.id === id) : undefined
       if (id && !existing) throw new Error('That check has gone')
@@ -3142,7 +3232,7 @@ export function createDemoApi(): Api {
       return next.id
     },
     async deleteSafetyPoint(id) {
-      requireAdmin()
+      requireUpdate('foodsafety')
       if (checkList.some(c => c.point_id === id)) throw new Error('It has checks recorded, which are kept: switch it off instead')
       const i = pointList.findIndex(x => x.id === id)
       if (i >= 0) pointList.splice(i, 1)
@@ -3198,7 +3288,7 @@ export function createDemoApi(): Api {
       if (!isStaff()) throw new Error('Only the team changes the waste log')
       const m = movements.find(x => x.id === id && x.reason === 'waste')
       if (!m) throw new Error('That isn’t on the waste log')
-      if (m.by !== me()?.id && !isAdmin()) throw new Error('Only an admin or whoever logged it can change it')
+      if (m.by !== me()?.id && !canUpdate('waste')) throw new Error('Only an admin or whoever logged it can change it')
       if (m.undone_at) throw new Error('That’s already off the waste log')
       m.undone_at = nowIso()
       await api.recordStock([{ item_id: m.item_id, reason: 'correction', change: -m.change, note: 'Taken off the waste log' }])
@@ -3604,11 +3694,12 @@ export function createDemoApi(): Api {
     },
     async todos() {
       if (!staffOnly(me()!)) return { categories: [], todos: [] }
-      return { categories: clone(todoCategories).sort((a, b) => a.sort - b.sort), todos: clone(todos) }
+      return { categories: clone(todoCategories).sort((a, b) => a.sort - b.sort), todos: clone(todos.filter(t => !ownTasksOnly() || t.assignee_id === currentUser)) }
     },
     async addTodo(t) {
       if (!staffOnly(me()!)) throw new Error('Only the team can add jobs')
       if (!t.title.trim()) throw new Error('Write the job first')
+      if (ownTasksOnly() && t.assignee_id !== currentUser) throw new Error('new row violates row-level security policy for table "todos"')
       const status = t.status ?? 'todo'
       const todo: Todo = { id: uid(), title: t.title.trim(), category_id: t.category_id, section: null, assignee_id: t.assignee_id ?? null,
         done: status === 'done', status, done_at: status === 'done' ? nowIso() : null, starred: false, pinned: false, position: t.position, created_at: nowIso() }
@@ -3617,9 +3708,10 @@ export function createDemoApi(): Api {
     },
     async updateTodo(id, patch) {
       if (!staffOnly(me()!)) throw new Error('Only the team can change jobs')
-      const t = todos.find(x => x.id === id)
+      const t = todos.find(x => x.id === id && (!ownTasksOnly() || x.assignee_id === currentUser))
       if (!t) throw new Error('That job has gone')
       if (patch.title !== undefined && !patch.title.trim()) throw new Error('A job needs a name')
+      if (ownTasksOnly() && patch.assignee_id !== undefined && patch.assignee_id !== currentUser) throw new Error('new row violates row-level security policy for table "todos"')
       // Like the database: the column and the tick stay in step.
       patch = inStep(t, patch)
       Object.assign(t, patch, patch.title !== undefined ? { title: patch.title.trim() } : {},
@@ -3628,11 +3720,11 @@ export function createDemoApi(): Api {
     },
     async deleteTodo(id) {
       if (!staffOnly(me()!)) throw new Error('Only the team can delete jobs')
-      const i = todos.findIndex(x => x.id === id)
+      const i = todos.findIndex(x => x.id === id && (!ownTasksOnly() || x.assignee_id === currentUser))
       if (i >= 0) todos.splice(i, 1)
     },
     async saveTodoCategory(c) {
-      requireAdmin()
+      requireUpdate('todo')
       const name = c.name.trim()
       if (!name) throw new Error('Give the category a name')
       if (name.length > 40) throw new Error('Keep the name to 40 characters')
@@ -3642,7 +3734,7 @@ export function createDemoApi(): Api {
       else todoCategories.push({ id: uid(), colour: '#8A7E76', sort: Math.max(0, ...todoCategories.map(x => x.sort)) + 1, ...c, name, hint: c.hint?.trim() || null })
     },
     async deleteTodoCategory(id) {
-      requireAdmin()
+      requireUpdate('todo')
       const i = todoCategories.findIndex(x => x.id === id)
       if (i >= 0) todoCategories.splice(i, 1)
       todos.forEach(t => { if (t.category_id === id) t.category_id = null })
@@ -4072,6 +4164,8 @@ export function createDemoApi(): Api {
       requireAdmin()
       const i = posts.findIndex(p => p.id === id)
       if (i >= 0) posts.splice(i, 1)
+      // As the database: an offer's post that's deleted is no longer its post.
+      offerList.forEach(o => { if (o.post_id === id) o.post_id = null })
     },
     async markPosted(id) {
       requireAdmin()
@@ -4089,6 +4183,13 @@ export function createDemoApi(): Api {
     async musicTracks() {
       requireAdmin()
       return clone(musicLibrary.filter(t => !t.hidden))
+    },
+    async assistantStatus() { return { ready: true } },
+    async askAssistant(messages) {
+      // The demo has no Claude behind it: it says what the real one would do.
+      if (!isStaff()) throw new Error('Not allowed')
+      const last = messages[messages.length - 1].text
+      return `In the demo I can’t ask Claude, so here’s what I’d do: look up “${last.slice(0, 80)}” with your own tools (the rota, time off, the to-do list and the rest of what your role can see) and answer in a sentence or two.`
     },
     async musicStatus() {
       requireAdmin()
@@ -4284,6 +4385,28 @@ export function createDemoApi(): Api {
       return 0
     },
     async eventAlerts() { return clone(alerts) },
+    async holidayReminders() {
+      requireAdmin()
+      return clone(holidayReminders)
+    },
+    async setHolidayReminder(eventId, on) {
+      requireAdmin()
+      const r = holidayReminders.find(x => x.event_id === eventId)
+      if (r) r.remind = on
+      else holidayReminders.push({ event_id: eventId, remind: on, sent_for: null, sent_at: null })
+      return on
+    },
+    async pushKey() { return null },
+    async pushDevices() { return clone(pushDevices) },
+    async savePushDevice() { throw new Error('Push notifications work in the live app, not the demo') },
+    async removePushDevice(endpoint) {
+      const i = pushDevices.findIndex(d => d.endpoint === endpoint)
+      if (i >= 0) pushDevices.splice(i, 1)
+    },
+    async sendTestNotification() {
+      notes.push({ id: notes.length + 1, profile_id: currentUser!, title: 'Test notification', body: 'Notifications are working on this device.',
+        link: '/notifications', kind: 'test', created_at: nowIso(), read_at: null })
+    },
     async setEventAlert(kind, refId, on) {
       requireAdmin()
       const i = alerts.findIndex(a => a.kind === kind && a.ref_id === refId)
@@ -4409,7 +4532,7 @@ export function createDemoApi(): Api {
     },
     async musicPause() { music.playing = false },
     async sendRota() {
-      requireAdmin()
+      requireUpdate('rota')
       return profiles.filter(p => p.whatsapp_opt_in && p.phone).length
     },
 

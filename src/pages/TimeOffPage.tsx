@@ -27,7 +27,9 @@ const range = (r: Pick<TimeOff, 'starts_on' | 'ends_on'>) => {
 }
 
 export function TimeOffPage() {
-  const { api, me, isAdmin, profiles, settings } = useApp()
+  const { api, me, can, profiles, settings } = useApp()
+  // Admins, and anyone whose role has Update on time off: they approve the team's requests (never their own).
+  const canEdit = can('timeoff', 'update')
   const run = useAction()
   const year = Number(today().slice(0, 4))
   const [asking, setAsking] = useState(false)
@@ -60,13 +62,13 @@ export function TimeOffPage() {
         <Stat label={t('Holiday left in {year}', { year })} value={t('{n} days', { n: Math.max(0, allowance - used) })}
           tone={allowance - used <= 3 ? 'warning' : 'good'} note={t('{used} of {allowance} used or requested', { used, allowance })} />
         <Stat label={t('My requests waiting')} value={mine.filter(r => r.status === 'pending').length} />
-        {isAdmin && <Stat label={t('To approve')} value={pending.length} tone={pending.length ? 'warning' : 'good'} note={pending.length ? t('from the team') : t('nothing waiting')} />}
+        {canEdit && <Stat label={t('To approve')} value={pending.length} tone={pending.length ? 'warning' : 'good'} note={pending.length ? t('from the team') : t('nothing waiting')} />}
         <Stat label={t('Away in the next 30 days')} value={upcoming.filter(r => r.starts_on <= addDays(today(), 30)).length}
           note={t('approved, whole team')} />
       </StatRow>
 
       <Grid container spacing={2.5}>
-        {isAdmin && (
+        {canEdit && (
           <Grid size={12}>
             <Card>
               <CardContent>

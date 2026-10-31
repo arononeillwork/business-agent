@@ -59,6 +59,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           # Whether each app key in ops/features.json is set: true or false, never the key itself.
+          HAS_ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
           HAS_APPLE_CLIENT_ID: ${{ secrets.APPLE_CLIENT_ID != '' }}
           HAS_ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY != '' }}
           HAS_EMAIL_FORWARD_TO: ${{ secrets.EMAIL_FORWARD_TO != '' }}

@@ -6,7 +6,7 @@
 //   msg('Premises')                             text defined in a list and shown later with t(x)
 // Then add the Spanish to a file in src/i18n/es/. `npm test` lists anything missing.
 import { Fragment, createElement, useSyncExternalStore, type ReactNode } from 'react'
-import type { Language } from '../../shared/i18n'
+import { LANGUAGES, type Language } from '../../shared/i18n'
 import type { Preferences } from '../../shared/types'
 import { setDateLocale } from '../../shared/time'
 
@@ -70,13 +70,19 @@ export const useLanguage = () => useSyncExternalStore(
 
 const CACHE = 'eb-language'
 
-/** The languages someone picked (My account → Language); everyone has at least one. */
-export const chosenLanguages = (p?: Preferences): Language[] =>
-  p?.languages?.filter(l => l === 'en' || l === 'es').length ? p.languages.filter(l => l === 'en' || l === 'es') : [startingLanguage()]
+/**
+ * The languages someone uses: the ones they picked (My account → Language) and the team's (picked by an
+ * admin, `team`), in the usual order; everyone has at least one.
+ */
+export function chosenLanguages(p?: Preferences, team: readonly string[] = []): Language[] {
+  const all = new Set([...(p?.languages ?? []), ...team])
+  const mine = LANGUAGES.map(l => l.code).filter(c => all.has(c))
+  return mine.length ? mine : [startingLanguage()]
+}
 
 /** The language to show a signed-in person: the one they last switched to, if it's still one of theirs. */
-export function preferredLanguage(p?: Preferences): Language {
-  const mine = chosenLanguages(p)
+export function preferredLanguage(p?: Preferences, team: readonly string[] = []): Language {
+  const mine = chosenLanguages(p, team)
   return p?.language && mine.includes(p.language) ? p.language : mine[0]
 }
 

@@ -1,6 +1,7 @@
 import type { AiMusicQuote, MusicGeneration, MusicTrack } from '../../shared/types'
 import type { ApiKey, AppNotification, Brand, BreakType, Business, CalendarApp, CalendarEvent, ConnectorProvider, ContactMethod, CorrectionRequest, Customer, CustomerInput, EventAlert, Expense, InstagramProfile, Integration, PostMedia, Sales, SalesItems, SearchReport, SocialNetwork, SocialPost, IntegrationProvider, IntegrationsState, KioskPerson, MusicNow, MusicPlaylist, MusicProvider, MyMusic, MyNowPlaying, OpenBreak, OpeningHours, OutboxItem, PartnerArea, PayRate, Position, Profile, Settings, Shift, SpotifyPlaylist, TimeEntry, TimeEntryChange, TimeOff, TimeOffKind, Todo, TodoCategory, TodoPatch, CafeMusicLibrary, CafeTrack, MusicAction, MusicPlayerReport, MusicPlayerState } from '../../shared/types'
 import type { Billing, Interval, PlanId } from '../../shared/plans'
+import type { HolidayReminder, PushDevice } from '../../shared/types'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
 import type { InboxConversation, InboxState, InboxThread } from '../../shared/messages'
 import type { ReferralState } from '../../shared/referrals'
@@ -18,6 +19,7 @@ import type { KittyEntry, KittyEntryInput, KittyGoal, KittyGoalInput, KittySetti
 import type { JobRole, JobRoleInput } from '../../shared/roles'
 import type { TeamRole } from '../../shared/teamRoles'
 import type { RuleSection, RuleSectionInput, RulesRead } from '../../shared/staffRules'
+import type { Pet, PetInput } from '../../shared/pets'
 import type { Contractor, ContractorInput, OutsourcedJob, OutsourcedJobInput } from '../../shared/outsourcing'
 import type { PnlLine, PnlLineInput, PnlSettings } from '../../shared/pnl'
 import type { GrantApplication, GrantApplicationInput, GrantProfile } from '../../shared/grants'
@@ -26,6 +28,7 @@ import type { MovementInput, StockItem, StockItemInput, StockMovement, Supplier,
 import type { Recipe, RecipeInput } from '../../shared/recipes'
 import type { MenuDesign, MenuDesignInput, MenuImage, MenuImageRequest, MenuItem, MenuItemInput } from '../../shared/menu'
 import type { DisplayFeed, Screen, ScreenInput } from '../../shared/screens'
+import type { Offer, OfferInput } from '../../shared/offers'
 import type { Camera, CameraClip, CameraInput, CameraLive, CameraService } from '../../shared/cameras'
 import type { AdPlatform, AdSettings, AdsReport, CampaignPatch } from '../../shared/ads'
 import type { ReviewsState } from '../../shared/reviews'
@@ -135,7 +138,7 @@ export interface Api {
   /** Register a new account. `confirmEmail`: they must click the link in their email before signing in. */
   signUp(fullName: string, email: string, password: string): Promise<{ confirmEmail: boolean }>
   /**
-   * Signed in and in no business yet: create mine and run it (admin, first boss, Free plan). `kind`
+   * Signed in and in no business yet: create mine and run it (admin, first owner, Free plan). `kind`
    * picks its first positions; `referral` is another business's referral code. Returns its number.
    */
   createBusiness(b: { name: string; kind: 'cafe' | 'restaurant' | 'salon' | 'other' | null; timezone: string; referral?: string | null }): Promise<number>
@@ -229,6 +232,12 @@ export interface Api {
   rulesRead(): Promise<RulesRead[]>
   /** "I've read the rules", for the person signed in. */
   readRules(): Promise<void>
+
+  // Pets (People page, My account): the team sees everyone's; each person adds their own, admins anyone's.
+  pets(): Promise<Pet[]>
+  /** Add one (no id; for the person signed in unless profile_id says whose) or change one; returns its id. */
+  savePet(p: PetInput): Promise<string>
+  deletePet(id: string): Promise<void>
 
   // Outsourcing (admins; finance partners read): the jobs done by people and firms outside the team,
   // and the catalogue to choose them from.
@@ -522,6 +531,15 @@ export interface Api {
   /** What a screen's link plays (no sign-in needed). */
   display(token: string): Promise<DisplayFeed>
 
+  // Offers & specials (admins): each for a set time, on the screens picked, with its story or post
+  // made on the Social planner (saveSocialPost) and remembered on it.
+  /** Every offer, the latest to start first. */
+  offers(): Promise<Offer[]>
+  /** Add one (no id) or change one; returns its id. */
+  saveOffer(offer: OfferInput): Promise<string>
+  /** Delete one (its post stays on the Social planner). */
+  deleteOffer(id: string): Promise<void>
+
   // Cameras (admins): the CCTV cameras, which upload by FTP to the camera upload server; their
   // video is kept in the business's Drive or OneDrive.
   cameras(): Promise<Camera[]>
@@ -674,6 +692,12 @@ export interface Api {
   musicTracks(): Promise<MusicTrack[]>
   /** What's switched on: AI music, putting music into files, storage, the starter pack. */
   musicStatus(): Promise<MusicStatus>
+
+  // The in-app assistant (worker/assistant.ts): Claude answering with the person's own tools.
+  /** Whether it's set up: the Worker has an Anthropic API key. */
+  assistantStatus(): Promise<{ ready: boolean }>
+  /** The conversation so far, the last turn theirs: Claude's reply. */
+  askAssistant(messages: { role: 'user' | 'assistant'; text: string }[]): Promise<string>
   /** Keep the business's own MP3/M4A in the library; `confirmed`: the rights tick. */
   uploadTrack(file: File, t: NewTrack): Promise<MusicTrack>
   /** A track's name, moods, saved or hidden; or its waveform once worked out. */
@@ -754,6 +778,16 @@ export interface Api {
   checkMentions(): Promise<number>
   eventAlerts(): Promise<EventAlert[]>
   setEventAlert(kind: EventAlert['kind'], refId: string, on: boolean): Promise<boolean>
+  /** Bank holiday reminders (admins): the holidays left out, and the ones reminded about. */
+  holidayReminders(): Promise<HolidayReminder[]>
+  setHolidayReminder(eventId: string, on: boolean): Promise<boolean>
+  /** Push notifications: the key browsers subscribe with (null until it's set up), and my devices. */
+  pushKey(): Promise<string | null>
+  pushDevices(): Promise<PushDevice[]>
+  savePushDevice(sub: { endpoint: string; p256dh: string; auth: string; device: string }): Promise<void>
+  removePushDevice(endpoint: string): Promise<void>
+  /** A notification for yourself, which reaches your devices within a minute. */
+  sendTestNotification(): Promise<void>
 
   // Calendar feeds: my shifts (everyone), the whole team (admins). Returns subscribe links.
   calendarFeeds(): Promise<Partial<Record<'me' | 'business', string>>>

@@ -26,14 +26,17 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'rota', files: [/RotaPage/], tests: String.raw`rota|shift` },
   { name: 'hours', files: [/(Timecards|Kiosk|Today|Registro)Page/, /ClockRules/, /CafeSpeaker/], tests: String.raw`clock|timecard|registro|correction|hours|Today` },
   { name: 'calendar', files: [/CalendarPage/, /CalendarFeed/], tests: String.raw`calendar|event` },
+  { name: 'notifications', files: [/NotificationsPage/, /Notification(Bell|Settings)/, /shared\/notify/, /app\/push/], tests: String.raw`notification|holiday|mention` },
   { name: 'time off', files: [/TimeOffPage/], tests: String.raw`time off|holiday` },
   { name: 'staff benefits', files: [/BenefitsPage/, /shared\/benefits/], tests: String.raw`staff benefits|allocation` },
   { name: 'staff kitty', files: [/KittyPage/, /KittyJar/, /shared\/kitty/, /monthProfit/], tests: String.raw`staff kitty` },
   { name: 'sales reps', files: [/(SalesReps|RepCards)Page/, /shared\/reps/], tests: String.raw`sales reps` },
   { name: 'outsourcing', files: [/OutsourcingPage/, /shared\/outsourcing/], tests: String.raw`outsourcing|menu|pages can be dragged` },
   { name: 'roles and rules', files: [/(Roles|StaffRules)Page/, /components\/Expandable/, /shared\/(roles|staffRules)/], tests: String.raw`roles and rules|menu|pages can be dragged` },
+  { name: 'role permissions', files: [/shared\/roleTemplates/, /RolesPage/], tests: String.raw`role permissions|roles and rules` },
   { name: 'business', files: [/(Business|Brand|OpeningHours)Page/, /shared\/(taxId|brand)/, /lib\/googleFont/], tests: String.raw`business|brand|opening hours|currency|colour|logo` },
   { name: 'team', files: [/TeamPage/, /TempPassword/, /ContactMethod/, /ShareDialog/, /shared\/teamRoles/], tests: String.raw`team|invite|contact|account` },
+  { name: 'people and pets', files: [/PeoplePage/, /components\/Pets/, /shared\/(people|pets)/], tests: String.raw`people|pets` },
   { name: 'connections', files: [/(Connections|SocialPlanner)Page/, /components\/(Connect|AiImages)/, /shared\/connections/],
     tests: String.raw`connect|Square|Stripe|TikTok|Instagram|Google|WhatsApp|Spotify|YouTube|social|post` },
   { name: 'music', files: [/MusicPage/, /MusicCard/, /CafeSpeaker/], tests: String.raw`music|playlist|song` },
@@ -81,6 +84,7 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'brand documents', files: [/shared\/brandDocs/], tests: String.raw`brand` },
   { name: 'usual allergens', files: [/shared\/allergenGuide/], tests: String.raw`allergen` },
   { name: 'cameras', files: [/CamerasPage/, /shared\/cameras/], tests: String.raw`camera` },
+  { name: 'offers', files: [/OffersPage/, /OfferBoard/, /lib\/offerPicture/, /shared\/offers/], tests: String.raw`offer|special|screen` },
 ]
 
 /** The --grep pattern for these changed files, or 'all'. */

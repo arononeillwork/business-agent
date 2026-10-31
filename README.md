@@ -18,13 +18,14 @@ built-in **AI connector** so owners can run it by talking to Claude.
   database ([docs/billing.md](docs/billing.md))
 - Partners: outside businesses (gestoría, suppliers) get a read-only login to the areas an admin
   picks (rota, payroll, finances, calendar). Enforced by database row security and in the AI tools.
-- Team roles: everyone on the team is an **employee**, a **shop manager** or the **boss / CEO**, picked
+- Team roles: everyone on the team is an **employee**, a **shop manager** or an **owner**, picked
   on the Team page when inviting them or later, or by asking Claude (`set_team_role`). Employees see
   their own shifts, clock-ins, time off and expenses; a shop manager runs the shop (rota, timecards,
-  time off, stock, the team, settings) without pay, takings, finances or billing; a boss does all of
-  it with pay, finances and billing. They're stored as the access the database already checks (a boss is an admin
-  with pay access), and only a boss makes someone a boss or changes a boss
-  (`shared/teamRoles.ts`, the `team_roles` migration).
+  time off, stock, the team, settings) without pay, takings, finances or billing; an owner does all of
+  it with pay, finances and billing. They're stored as the access the database already checks (an owner is an admin
+  with pay access), and only an owner makes someone an owner or changes an owner
+  (`shared/teamRoles.ts`, the `team_roles` migration). The owner was called the boss / CEO before; the AI
+  connector still takes `boss` for it.
 - Sports: the next 3 weeks of football (Spanish, English, Scottish, Dutch and other leagues, cups,
   European nights, national teams), rugby (Six Nations, Premiership, Champions Cup and more), UFC and
   boxing, with "big nights" flagged. The Worker refreshes
@@ -89,11 +90,38 @@ built-in **AI connector** so owners can run it by talking to Claude.
   beans in order, the first until it's full, then the next, each with when it'll be full at the pace money's
   been going in and whether that's in time for its date. Admins put last month's share in (worked out as
   Profit & loss does, or typed in), reorder and buy goals (what it cost comes out); the whole team sees it.
+- People (Team section): the team as a hierarchy, the owners at the top, then the shop managers, then the
+  employees, each with the roles they hold on Roles & responsibilities (admins open someone on the Team
+  page from there). **Show pets** puts everyone's dogs (and cats) under them with their photos. Each person
+  adds their own pets on My account → Pets, with a photo cut square in the browser and kept in the
+  database (the `pets` migration, which also brings Aron's dogs Fudge and Cooper at Easy Beans); the whole
+  team sees them, each person changes their own and admins anyone's. Partners and the café tablet see none.
 - Roles & responsibilities (Team section): who does what. Each role (owner, shift lead, barista, kitchen,
   cleaner…) opens to what it's for, who it answers to, who's in it, the rota position it's worked as, and its
   duties by when they're done (all the time, opening, during service, closing, every week). Everyone reads it,
   with their own roles open and marked; admins add a café's usual roles in one press (in the language they use
   the app in), change them, put them in order, and see who has no role yet.
+- Role permissions (Roles & responsibilities, three tabs): Active is the business's roles; Category is
+  ready-made roles for a café, a restaurant & bar, a salon & beauty business or any business, each with its
+  duties and what it can do, to add in one press; Permissions is every role against each area of the app
+  (rota, time off, timecards, calendar, stock, food safety, waste log, to-do list) and what that gives each
+  person. A role gives Hidden (out of their menu), Read (what the team always had) or Update (what an admin
+  does there, never deciding their own time off or timecards); the database checks Update (`can_update()`).
+- What the team sees of their role: a page their roles hide is out of their menu and doesn't open; the
+  Business page, Opening hours and Dashboards are roles' areas too; a To Do List set to Own shows only the
+  jobs given to them (the database keeps the rest from them, `todo_own_only()`). Under their name, and on
+  My account as fixed values, is their role (Barista / Bartender) and their access; their Roles page shows
+  just their own role. The café's front-line templates (barista, kitchen, cleaner…) leave out the Business
+  page and Dashboards and give Own tasks; the barista's also hides the stock; owners have everything.
+- More of a role's areas: Brand, Expenses and AI assistants (shown or not); the café's front-line templates
+  leave them out, and a hidden AI assistants leaves the account menu too. People is first in the Business
+  section; your own card there opens My account, where you add your pets with a photo.
+- The team's languages (My account → Language, admins): with both English and Spanish, everyone gets the
+  flags at the top to switch, and each person's own choice is kept on their account.
+- The Menu is a role's area too (shown or not), and so are the Business page's Company details (CIF/NIF,
+  currency, where team alerts go): hidden, the page shows just the contact details. The café's barista
+  template also leaves out the Company details and the Menu, and shows the Business page; Easy Beans'
+  Barista / Bartender role has its contact details but not the Company details, Brand, Dashboards, Menu or Expenses.
 - Staff rules (Team section): the house rules, in sections that open (being on time and clocking in, uniform
   and hygiene, food safety and allergens, phones, breaks, customers, the till, health and safety, respect).
   Each employee confirms they've read them and is asked again when a section is added or changed (what's new
@@ -153,6 +181,14 @@ built-in **AI connector** so owners can run it by talking to Claude.
   and its speed, shuffle, fill or fit, music (an MP3, a radio stream or YouTube) with its volume, videos'
   own sound, the time and a running line. The page previews the changes as they're made; the screen
   picks them up within a minute, keeps playing offline and stays awake.
+- Offers & specials (Marketing section, admins): a special or an offer for a set time (an hour, until
+  the end of the day, 24 hours like a story, a week, or until a time picked), with its price, what it
+  usually costs crossed out, details and a photo. It shows on the screens picked from the minute it
+  starts to the minute it ends, in turn with each screen's slides (for its own seconds) or on its own,
+  the screen showing nothing else; each screen gets its offers two days ahead and puts them on and takes
+  them off by its own clock, offline too. Saving one can make its story (suggested) or post: the Social
+  planner's composer opens with a picture drawn from the offer in the brand's fonts and colour, the offer
+  as its note, going out as the offer starts, and the post is remembered on the offer.
 - Documents (Business section): every file kept in the café's own Google Drive or OneDrive (the Tax
   page's, invoices brought in by email, licences' documents, and contracts, insurance policies and
   certificates kept here), all years in one list with what each belongs to (an invoice, a licence, the
@@ -368,6 +404,18 @@ the Worker. Nothing is deployed twice; each deploy shows on it straight away. Si
 there come back there (`scripts/ops/supabase-auth.mjs`). Links the Worker builds (invite emails,
 connection and billing returns) still use the workers.dev address.
 
+## Push notifications and bank holiday reminders
+
+Each person can get their notifications on their phone or computer, even with the app closed:
+Notifications → Push notifications → On this device. On an iPhone or iPad it works once the app is
+added to the Home Screen (Share → Add to Home Screen) and opened from there. Under "How you're told"
+each person picks, kind by kind, in the app, on my phone, or both. Nothing to set up: the deploy makes
+the signing key (`VAPID_KEY`, `scripts/ops/worker-secrets.mjs`) once, and the Worker sends what's new
+every minute in each person's language (`worker/push.ts`, `shared/pushText.ts`, with `public/push-sw.js` on the device).
+
+Admins are reminded about each public holiday on the calendar a week ahead and again the day before,
+at 09:00 (on for every business; Notifications → Bank holiday reminders sets how far ahead, which kinds, and leaves any one out).
+
 ## Use it from any AI
 
 The app is an MCP server at `https://<worker-url>/mcp`. Each person connects their own AI and it
@@ -419,7 +467,7 @@ business finishes the set-up guide (`create_business()` and `business_set_up()` 
 
 Any business signs up for itself: **Create account** on the landing page (email, or one tap with
 Google, Apple, Facebook or Microsoft), then **Add my business** (its name, what kind it is, its
-time zone). Its creator runs it (admin and boss) on the Free plan and goes straight on to the set-up
+time zone). Its creator runs it (admin and owner) on the Free plan and goes straight on to the set-up
 guide (`/setup`) to connect its apps. Someone joining an existing team signs up the same way and
 asks their manager to add their email on the Team page.
 

@@ -7,6 +7,7 @@ import RotaIcon from '@mui/icons-material/CalendarViewWeekOutlined'
 import TimecardIcon from '@mui/icons-material/AccessTimeOutlined'
 import CalendarIcon from '@mui/icons-material/EventOutlined'
 import TeamIcon from '@mui/icons-material/PeopleAltOutlined'
+import PeopleIcon from '@mui/icons-material/AccountTreeOutlined'
 import BusinessIcon from '@mui/icons-material/StorefrontOutlined'
 import CustomersIcon from '@mui/icons-material/ContactsOutlined'
 import LoyaltyIcon from '@mui/icons-material/LoyaltyOutlined'
@@ -44,6 +45,7 @@ import CreditDebitIcon from '@mui/icons-material/CompareArrowsOutlined'
 import BillingIcon from '@mui/icons-material/CreditCardOutlined'
 import SocialIcon from '@mui/icons-material/CampaignOutlined'
 import AdsIcon from '@mui/icons-material/AdsClickOutlined'
+import OffersIcon from '@mui/icons-material/LocalOfferOutlined'
 import CompetitionsIcon from '@mui/icons-material/EmojiEventsOutlined'
 import CampaignsIcon from '@mui/icons-material/ForwardToInboxOutlined'
 import LeadsIcon from '@mui/icons-material/ContactMailOutlined'
@@ -77,14 +79,16 @@ import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from '@dnd-kit/utilities'
 import ChevronIcon from '@mui/icons-material/ChevronLeftRounded'
 import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Link, Outlet, useLocation } from 'react-router-dom'
+import { Link, Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useApp } from './AppContext'
 import { FEATURES } from './features'
 import { useUnreadMessages } from './unread'
 import { useConnected } from './connected'
 import type { PartnerArea } from '../../shared/types'
+import { hiddenByRole, roleNamesOf } from '../../shared/roles'
 import { teamRoleLabel } from '../../shared/teamRoles'
 import { BrandLogo } from '../components/Logo'
+import { AssistantButton } from '../components/Assistant'
 import { Loading, PersonAvatar, TitleSlot } from '../components/common'
 import { KeyboardSensorNow } from '../components/dnd'
 import { NotificationBell } from '../components/NotificationBell'
@@ -108,6 +112,8 @@ export interface NavSection { key: string; label: string | null; items: NavItem[
 // The menu, in sections. Today is the landing page: the logo goes there, so it has no menu item.
 export const SECTIONS: NavSection[] = [
   { key: 'business', label: msg('Business'), items: [
+    // The team as a hierarchy, each with their roles and pets: first in the menu.
+    { key: 'people', to: '/people', label: msg('People'), icon: <PeopleIcon /> },
     { key: 'business', to: '/business', label: msg('Business'), icon: <BusinessIcon />, partner: 'any' },
     { key: 'todo', to: '/todo', label: msg('To Do List'), short: msg('To do'), icon: <TodoIcon /> },
     { key: 'hours', to: '/opening-hours', label: msg('Opening hours'), icon: <HoursIcon />, partner: 'any' },
@@ -158,6 +164,7 @@ export const SECTIONS: NavSection[] = [
   ] },
   { key: 'marketing', label: msg('Marketing'), items: [
     { key: 'social', to: '/social', label: msg('Social planner'), icon: <SocialIcon />, who: 'admin' },
+    { key: 'offers', to: '/offers', label: msg('Offers & specials'), short: msg('Offers'), icon: <OffersIcon />, who: 'admin' },
     { key: 'competitions', to: '/competitions', label: msg('Competitions'), context: 'marketing', icon: <CompetitionsIcon />, who: 'admin' },
     { key: 'campaigns', to: '/campaigns', label: msg('Campaigns'), icon: <CampaignsIcon />, who: 'admin' },
     { key: 'ads', to: '/ads', label: msg('Ads'), icon: <AdsIcon />, who: 'admin' },
@@ -242,7 +249,7 @@ const withChildren = (items: NavItem[]) => items.flatMap(n => [n, ...(n.children
 
 /** You: the account menu, opened from your name at the bottom left (or the account icon on a phone). */
 function AccountMenu({ children, label, sx }: { children: ReactNode; label?: string; sx?: object }) {
-  const { me, isAdmin, isPartner, canSeePay, api } = useApp()
+  const { me, isAdmin, isPartner, canSeePay, api, permissions } = useApp()
   const [anchor, setAnchor] = useState<HTMLElement | null>(null)
   const close = () => setAnchor(null)
   const item = (to: string, text: string, icon: ReactNode) => (
@@ -259,7 +266,7 @@ function AccountMenu({ children, label, sx }: { children: ReactNode; label?: str
       <Menu anchorEl={anchor} open={!!anchor} onClose={close} anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
         transformOrigin={{ vertical: 'bottom', horizontal: 'left' }} slotProps={{ paper: { sx: { minWidth: 220, borderRadius: '14px' } } }}>
         {item('/account', t('My account'), <AccountIcon fontSize="small" />)}
-        {item('/ai-assistants', t('AI assistants'), <AiIcon fontSize="small" />)}
+        {permissions.ai !== 'none' && item('/ai-assistants', t('AI assistants'), <AiIcon fontSize="small" />)}
         {isAdmin && canSeePay && item('/account/billing', t('Billing'), <BillingIcon fontSize="small" />)}
         {isAdmin && !isPartner && item('/referrals', t('Referrals'), <ReferralsIcon fontSize="small" />)}
         {item('/appearance', t('Appearance'), <AppearanceIcon fontSize="small" />)}
@@ -579,7 +586,7 @@ export function hiddenPages(settings: { hidden_pages?: string[] } | null, me: { 
 }
 
 export function AppShell() {
-  const { isAdmin, isPartner, partnerCan, canSeePay, me, api, refresh, business, settings } = useApp()
+  const { isAdmin, isPartner, partnerCan, canSeePay, me, api, refresh, business, settings, permissions, jobRoles } = useApp()
   const theme = useTheme()
   const desktop = useMediaQuery(theme.breakpoints.up('md'))
   const { pathname } = useLocation()
@@ -591,7 +598,8 @@ export function AppShell() {
   const unread = useUnreadMessages()
   const badges: NavBadges = unread > 0 ? { messages: unread } : {}
   // Pages they can open, less the ones hidden from their menu (they still open from a link).
-  const hidden = hiddenPages(settings, me)
+  // Their roles can leave some out too (Roles & responsibilities → Permissions).
+  const hidden = new Set([...hiddenPages(settings, me), ...hiddenByRole(permissions)])
   const square = useConnected('square')
   const allowed = (n: NavItem) => (n.needs !== 'square' || square === true) && canOpen(n, { isAdmin, isPartner, canSeePay, partnerCan }) && !hidden.has(n.key)
   // Page order within sections: the person's own, kept locally while it saves.
@@ -615,6 +623,12 @@ export function AppShell() {
   // The most specific match wins, so /account/billing is Billing, not My account.
   const all = [...SECTIONS.flatMap(s => withChildren(s.items)), ...YOU].sort((a, b) => b.to.length - a.to.length)
   const current = all.find(n => n.to !== '/' && pathname.startsWith(n.to))?.key ?? (pathname === '/' ? 'today' : false)
+  // Under their name: their job (Barista / Bartender), after the access an admin has (Shop manager · Barista / Bartender).
+  const jobs = roleNamesOf(me?.id, jobRoles).join(', ')
+  const access = t((me && teamRoleLabel(me)) || 'Employee')
+  const personLabel = me?.role === 'admin' ? [access, jobs].filter(Boolean).join(' · ') : jobs || access
+  // A page their roles hide doesn't open either, from a link or the address bar: back to Today.
+  const blocked = typeof current === 'string' && hiddenByRole(permissions).includes(current)
   const home = isPartner ? '/business' : '/'
   const searchPages = [
     ...(isPartner ? [] : [{ key: 'today', to: '/', label: t('Today'), icon: <TodayIcon />, section: null }]),
@@ -667,7 +681,7 @@ export function AppShell() {
               {me && <PersonAvatar name={me.full_name} colour={me.colour} size={34} />}
               {!mini && <Box sx={{ minWidth: 0, flex: 1, textAlign: 'left' }}>
                 <Typography sx={{ fontWeight: 500, fontSize: '0.88rem', color: SIDEBAR.bright }} noWrap>{me?.full_name}</Typography>
-                <Typography variant="caption" sx={{ color: SIDEBAR.faint }}>{me?.role === 'partner' ? me.partner_company ?? t('Partner') : t((me && teamRoleLabel(me)) || 'Employee')}</Typography>
+                <Typography variant="caption" sx={{ color: SIDEBAR.faint }}>{me?.role === 'partner' ? me.partner_company ?? t('Partner') : personLabel}</Typography>
               </Box>}
             </AccountMenu>
             <Tooltip title={t('Sign out')}>
@@ -703,14 +717,17 @@ export function AppShell() {
               <Box ref={setTitleSlot} sx={{ flex: 1, minWidth: 0 }} />
               <Stack className="eb-top-icons" direction="row" spacing={1} sx={{ alignItems: 'center', flexShrink: 0, ml: 'auto', pt: 0.25 }}>
                 {!isPartner && <NotificationBell />}
-                <SearchButton pages={searchPages} />
+                <SearchButton pages={searchPages} wide />
                 <ThemeToggle />
                 <LanguageToggle />
               </Stack>
             </Box>
           )}
           <TitleSlot.Provider value={desktop ? titleSlot : null}>
-            <CafeSpeakerProvider><Suspense fallback={<Loading />}><Outlet /></Suspense></CafeSpeakerProvider>
+            <CafeSpeakerProvider>
+              <Suspense fallback={<Loading />}>{blocked ? <Navigate to="/" replace /> : <Outlet />}</Suspense>
+              <AssistantButton />
+            </CafeSpeakerProvider>
           </TitleSlot.Provider>
         </Box>
       </Box>

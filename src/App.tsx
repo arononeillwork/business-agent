@@ -25,6 +25,7 @@ const RotaPage = page(() => import('./pages/RotaPage'), 'RotaPage')
 const TimecardsPage = page(() => import('./pages/TimecardsPage'), 'TimecardsPage')
 const CalendarPage = page(() => import('./pages/CalendarPage'), 'CalendarPage')
 const TeamPage = page(() => import('./pages/TeamPage'), 'TeamPage')
+const PeoplePage = page(() => import('./pages/PeoplePage'), 'PeoplePage')
 const BusinessPage = page(() => import('./pages/BusinessPage'), 'BusinessPage')
 const AccountPage = page(() => import('./pages/AccountPage'), 'AccountPage')
 const AiAssistantsPage = page(() => import('./pages/AiAssistantsPage'), 'AiAssistantsPage')
@@ -55,6 +56,7 @@ const ConnectionsPage = page(() => import('./pages/ConnectionsPage'), 'Connectio
 const SocialPlannerPage = page(() => import('./pages/SocialPlannerPage'), 'SocialPlannerPage')
 const AdsPage = page(() => import('./pages/AdsPage'), 'AdsPage')
 const CompetitionsPage = page(() => import('./pages/CompetitionsPage'), 'CompetitionsPage')
+const OffersPage = page(() => import('./pages/OffersPage'), 'OffersPage')
 const PartnersPage = page(() => import('./pages/PartnersPage'), 'PartnersPage')
 const TodoPage = page(() => import('./pages/TodoPage'), 'TodoPage')
 const CustomersPage = page(() => import('./pages/CustomersPage'), 'CustomersPage')
@@ -189,6 +191,7 @@ function Routed() {
         <Route path="sports" element={<PlanGate feature="sports"><SportsPage /></PlanGate>} />
         <Route path="music" element={<PlanGate feature="music"><MusicPage /></PlanGate>} />
         <Route path="team" element={<TeamPage />} />
+        <Route path="people" element={<PeoplePage />} />
         <Route path="business" element={<BusinessPage />} />
         <Route path="customers" element={isAdmin ? <CustomersPage /> : <Navigate to="/" />} />
         <Route path="leads" element={isAdmin ? <LeadsPage /> : <Navigate to="/" />} />
@@ -241,6 +244,7 @@ function Routed() {
         <Route path="billing" element={<ToBilling />} />
         <Route path="connections" element={isAdmin ? <ConnectionsPage /> : <Navigate to="/" />} />
         <Route path="social" element={isAdmin ? <SocialPlannerPage /> : <Navigate to="/" />} />
+        <Route path="offers" element={isAdmin ? <OffersPage /> : <Navigate to="/" />} />
         <Route path="competitions" element={isAdmin ? <CompetitionsPage /> : <Navigate to="/" />} />
         <Route path="campaigns" element={isAdmin ? <CampaignsPage /> : <Navigate to="/" />} />
         <Route path="ads" element={isAdmin ? <AdsPage /> : <Navigate to="/" />} />
@@ -258,9 +262,9 @@ function Routed() {
  * looked up as each page renders). Signed out, it keeps the language last used on this device.
  */
 function InLanguage({ children }: { children: ReactNode }) {
-  const { me } = useApp()
+  const { me, settings } = useApp()
   const language = useLanguage()
-  const wanted = me ? preferredLanguage(me.preferences) : null
+  const wanted = me ? preferredLanguage(me.preferences, settings?.languages) : null
   // Only when what the account asks for changes: a flag pressed a moment ago isn't undone while it saves.
   useEffect(() => { if (wanted) void setLanguage(wanted) }, [wanted])
   return <Fragment key={language}>{children}</Fragment>

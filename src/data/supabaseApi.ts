@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { PromptError, SOCIAL_PROVIDERS, type AiTrackResult, type Api, type BillingInfo, type MusicStatus, type PlanStatus, type SignInMethods, type SocialProvider } from './api'
 import type { ApiKey, AppNotification, Brand, Business, Customer, SocialPost, EventAlert, Expense, Integration, MusicPlaylist, OutboxItem, Profile, Settings, TimeEntry, TimeOff, Todo, TodoCategory, CafeTrack, MusicPlayerState } from '../../shared/types'
+import type { HolidayReminder, PushDevice } from '../../shared/types'
 import type { AiMusicQuote, MusicGeneration, MusicTrack } from '../../shared/types'
 import type { InstagramMention } from '../../shared/mentions'
 import type { FilingRecord, TaxDocument, TaxSettings } from '../../shared/tax'
@@ -16,6 +17,7 @@ import type { LoggedReward, RepReward, RewardRule, SalesRep } from '../../shared
 import type { KittyEntry, KittyGoal } from '../../shared/kitty'
 import type { JobRole } from '../../shared/roles'
 import type { RuleSection, RulesRead } from '../../shared/staffRules'
+import type { Pet } from '../../shared/pets'
 import type { Contractor, OutsourcedJob } from '../../shared/outsourcing'
 import { DEFAULT_VAT_RATE, type PnlLine, type PnlSettings } from '../../shared/pnl'
 import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
@@ -24,6 +26,7 @@ import type { Recipe } from '../../shared/recipes'
 import type { MenuDesign, MenuImage, MenuItem } from '../../shared/menu'
 import { missingFrom, templateDesigns, templateSections } from '../../shared/menuTemplate'
 import type { DisplayFeed, Screen } from '../../shared/screens'
+import type { Offer } from '../../shared/offers'
 import type { Camera, CameraClip, CameraLive, CameraService } from '../../shared/cameras'
 import type { AdSettings } from '../../shared/ads'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
@@ -406,7 +409,7 @@ export function createSupabaseApi(url: string, key: string): Api {
     },
 
     async jobRoles() {
-      return check(await sb.from('job_roles').select('id, name, summary, position_id, reports_to, people, duties, sort, updated_at')
+      return check(await sb.from('job_roles').select('id, name, summary, position_id, reports_to, people, duties, sort, updated_at, permissions, template')
         .order('sort').order('name')) as JobRole[]
     },
     async saveJobRole({ id, ...r }) {
@@ -424,6 +427,14 @@ export function createSupabaseApi(url: string, key: string): Api {
     async deleteRuleSection(id) { check(await sb.from('staff_rules').delete().eq('id', id)) },
     async rulesRead() { return check(await sb.from('staff_rules_read').select('profile_id, read_at')) as RulesRead[] },
     async readRules() { check(await sb.rpc('read_staff_rules')) },
+    async pets() {
+      return check(await sb.from('pets').select('id, profile_id, name, kind, breed, photo, sort, created_at').order('sort').order('name')) as Pet[]
+    },
+    async savePet({ id, profile_id, ...p }) {
+      if (id) { check(await sb.from('pets').update(p).eq('id', id)); return id }
+      return (check(await sb.from('pets').insert({ ...p, profile_id: profile_id ?? await uid() }).select('id').single()) as { id: string }).id
+    },
+    async deletePet(id) { check(await sb.from('pets').delete().eq('id', id)) },
 
     async contractors() {
       const rows = check(await sb.from('contractors').select('*').order('name')) as Contractor[]
@@ -779,6 +790,15 @@ export function createSupabaseApi(url: string, key: string): Api {
       if (!res.ok) throw new Error(json.error ?? `The slides couldn’t be loaded (${res.status})`)
       return json
     },
+    async offers() {
+      return check(await sb.from('offers').select('id, title, details, price, was_price, image_url, starts_at, ends_at, screen_ids, screen_mode, seconds, post_id, active, updated_at')
+        .order('starts_at', { ascending: false }).limit(500)) as Offer[]
+    },
+    async saveOffer({ id, ...offer }) {
+      if (id) { check(await sb.from('offers').update(offer).eq('id', id)); return id }
+      return (check(await sb.from('offers').insert(offer).select('id').single()) as { id: string }).id
+    },
+    async deleteOffer(id) { check(await sb.from('offers').delete().eq('id', id)) },
 
     async cameras() {
       const rows = check(await sb.from('cameras').select('*, camera_status(last_seen_at, last_clip_at, last_error)').order('created_at')) as
@@ -1094,6 +1114,10 @@ export function createSupabaseApi(url: string, key: string): Api {
       return check(await sb.from('music_tracks').select(TRACK_COLUMNS).eq('hidden', false).order('created_at', { ascending: false }).limit(500)) as MusicTrack[]
     },
     musicStatus: () => worker<MusicStatus>('/api/social/music/status'),
+    assistantStatus: () => worker<{ ready: boolean }>('/api/assistant/status'),
+    async askAssistant(messages) {
+      return (await worker<{ reply: string }>('/api/assistant', { method: 'POST', body: JSON.stringify({ messages }) })).reply
+    },
     async uploadTrack(file, t) {
       // Browsers name the same files differently: the two the Worker takes.
       const type = /\.m4a$/i.test(file.name) || /mp4|m4a/.test(file.type) ? 'audio/mp4' : 'audio/mpeg'
@@ -1259,6 +1283,28 @@ export function createSupabaseApi(url: string, key: string): Api {
     },
     async setEventAlert(kind, refId, on) {
       return check(await sb.rpc('set_event_alert', { p_kind: kind, p_ref_id: refId, p_on: on })) as boolean
+    },
+    async holidayReminders() {
+      return check(await sb.from('holiday_reminders').select('event_id, remind, sent_for, sent_at, day_before_for')) as HolidayReminder[]
+    },
+    async setHolidayReminder(eventId, on) {
+      return check(await sb.rpc('set_holiday_reminder', { p_event_id: eventId, p_on: on })) as boolean
+    },
+    async pushKey() {
+      const res = await fetch('/api/push/key')
+      return res.ok ? ((await res.json()) as { key: string }).key : null
+    },
+    async pushDevices() {
+      return check(await sb.from('push_subscriptions').select('id, endpoint, device, created_at, last_ok_at').order('created_at')) as PushDevice[]
+    },
+    async savePushDevice(s) {
+      check(await sb.rpc('save_push_subscription', { p_endpoint: s.endpoint, p_p256dh: s.p256dh, p_auth: s.auth, p_device: s.device }))
+    },
+    async removePushDevice(endpoint) {
+      check(await sb.from('push_subscriptions').delete().eq('endpoint', endpoint))
+    },
+    async sendTestNotification() {
+      check(await sb.rpc('send_me_test_notification'))
     },
     calendarFeeds: () => worker('/api/me/calendar-feed'),
     async makeCalendarFeed(scope) { return (await worker<{ url: string }>(`/api/me/calendar-feed/${scope}`, { method: 'POST' })).url },

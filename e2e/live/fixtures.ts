@@ -1,7 +1,7 @@
 // Test accounts and clean-up for live tests against a real Supabase project.
 // Only ever touches accounts with the @business-agent.test domain.
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import type { Page, TestInfo } from '@playwright/test'
+import { expect, type Page, type TestInfo } from '@playwright/test'
 
 export const DOMAIN = 'business-agent.test'
 /**
@@ -131,6 +131,55 @@ export async function purgeTestAlerts(admin: SupabaseClient, ids: string[] = [])
 
 /** Fresh test accounts with known roles, a pay rate for "other", and a kiosk PIN for "employee". */
 /** Time the set-up and clean-up hooks may take: they create and delete real accounts. */
+/**
+ * The menu pages the live tests open, by the name on their link: their menu key and address. The
+ * tests run in Easy Beans itself, whose admins choose what's in everyone's menu (Settings → Pages);
+ * a page they've hidden still opens from its address.
+ */
+export const MENU: Record<string, { key: string; path: string }> = {
+  'Business': { key: 'business', path: '/business' }, 'To Do List': { key: 'todo', path: '/todo' },
+  'Opening hours': { key: 'hours', path: '/opening-hours' }, 'Brand': { key: 'brand', path: '/brand' },
+  'Messages': { key: 'messages', path: '/messages' }, 'Customers': { key: 'customers', path: '/customers' },
+  'Reps & rewards': { key: 'reps', path: '/sales-reps' }, 'Finances': { key: 'finances', path: '/finances' },
+  'Ads': { key: 'ads', path: '/ads' }, 'Analytics': { key: 'analytics', path: '/analytics' },
+  'Calendar': { key: 'calendar', path: '/calendar' }, 'Sports': { key: 'sports', path: '/sports' }, 'Music': { key: 'music', path: '/music' },
+  'Rota': { key: 'rota', path: '/rota' }, 'Time off': { key: 'timeoff', path: '/time-off' }, 'Staff kitty': { key: 'kitty', path: '/kitty' },
+  'Timecards': { key: 'timecards', path: '/timecards' }, 'Team': { key: 'team', path: '/team' },
+  'Roles & responsibilities': { key: 'roles', path: '/roles' }, 'Staff rules': { key: 'rules', path: '/rules' },
+  'Outsourcing': { key: 'outsourcing', path: '/outsourcing' }, 'Connections': { key: 'connections', path: '/connections' },
+  'Notifications': { key: 'notifications', path: '/notifications' }, 'Partners': { key: 'partners', path: '/partners' },
+  'Café tablet': { key: 'kiosk', path: '/kiosk' },
+}
+
+/** The pages Easy Beans' admins have hidden from everyone's menu (Settings → Pages), by menu key. */
+export async function hiddenPages(cfg: LiveConfig): Promise<string[]> {
+  const { data, error } = await service(cfg).from('settings').select('hidden_pages').eq('business_id', TEST_BUSINESS).eq('id', 1).single()
+  if (error) throw new Error(error.message)
+  return (data as { hidden_pages: string[] | null }).hidden_pages ?? []
+}
+
+/** Whether a page is in everyone's menu: not hidden by the business. Pages not in MENU always are. */
+export const inMenu = (hidden: string[], name: string) => !MENU[name] || !hidden.includes(MENU[name].key)
+
+/**
+ * Opens a page from the menu, or by its address when the business has hidden it from the menu. Any
+ * other page missing from the menu still fails here. A hidden page opens inside the app, as a link to
+ * it does: no page load, so it's as quick as the menu (a reload starts the app again, about 12 s on
+ * the live site) and keeps the sign-in. It waits for the menu first (Pages is never hidden).
+ */
+export async function openFromMenu(page: Page, hidden: string[], name: string) {
+  const nav = page.getByRole('navigation', { name: 'Main' })
+  if (inMenu(hidden, name)) {
+    await nav.getByRole('link', { name, exact: true }).first().click()
+    return
+  }
+  await expect(nav.getByRole('link', { name: 'Pages', exact: true }).first()).toBeVisible({ timeout: 15_000 })
+  await page.evaluate(path => {
+    history.pushState({ usr: null, key: 'e2e', idx: ((history.state as { idx?: number } | null)?.idx ?? 0) + 1 }, '', path)
+    dispatchEvent(new PopStateEvent('popstate', { state: history.state }))
+  }, MENU[name].path)
+}
+
 export const HOOK_TIMEOUT = 120_000
 
 export async function setUp(cfg: LiveConfig) {

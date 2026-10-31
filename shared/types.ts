@@ -62,12 +62,20 @@ export interface Settings {
   employer_cost_multiplier: number
   auto_timecards_from_rota: boolean
   vacation_days_per_year: number
+  /** The languages the team uses (an admin picks them on My account): with two, everyone gets the flags to switch. */
+  languages?: ('en' | 'es')[]
   alert_shift_reminders: boolean
   alert_missed_clock_in: boolean
   alert_rota: boolean
   alert_time_off: boolean
   /** Admins are told when someone tags the business on Instagram or mentions it in their story. */
   alert_instagram_mentions?: boolean
+  /** Admins are reminded before each public holiday (on unless turned off), this many days ahead, for these kinds. */
+  holiday_reminders?: boolean
+  holiday_reminder_days?: number
+  /** And again the day before (on unless turned off). */
+  holiday_reminder_day_before?: boolean
+  holiday_reminder_kinds?: ('national' | 'regional' | 'local' | 'area')[]
   /** Pages the admins hid from everyone's menu (Settings → Pages), by page key. */
   hidden_pages?: string[]
   /** Data retention: how many days saved WhatsApp chats are kept (30, 90, 180, 365 or 730; 90 unless changed). */
@@ -183,6 +191,8 @@ export interface Preferences {
   navHidden?: string[]
   /** The languages they use the app in (My account → Language). With both, flags at the top switch between them. */
   languages?: ('en' | 'es')[]
+  /** How they're told about each kind of notification: in the app, on their devices, or both (shared/notify.ts). */
+  notify?: Partial<Record<import('./notify').NotifyTopic, import('./notify').NotifyChannel>>
   /** The one shown now. */
   language?: 'en' | 'es'
   /** Their own time zone (IANA, e.g. "Europe/London"): social posts are planned and shown in it. Unset = the café's. */
@@ -427,10 +437,17 @@ export const FLAG_LABELS: Record<string, string> = {
 /** In-app notification (the bell). */
 export interface AppNotification {
   id: number; title: string; body: string | null; link: string | null; created_at: string; read_at: string | null
-  /** One with buttons: an Instagram mention (Repost / Ignore), data.mention its id. */
-  kind?: 'instagram_mention' | null
-  data?: { mention?: string }
+  /** One with buttons: an Instagram mention (Repost / Ignore), data.mention its id. A review, a bank
+   *  holiday coming up (data.event, data.date, data.days, data.name), or a test from the Notifications page. */
+  kind?: 'instagram_mention' | 'review' | 'bank_holiday' | 'test' | null
+  data?: { mention?: string; review?: string; event?: string; date?: string; days?: number; name?: string; category?: string; town?: string | null }
 }
+
+/** A holiday an admin left out of the reminders, or one that's been reminded about. */
+export interface HolidayReminder { event_id: string; remind: boolean; sent_for: string | null; sent_at: string | null; day_before_for?: string | null }
+
+/** A phone or computer that gets this person's push notifications. */
+export interface PushDevice { id: string; endpoint: string; device: string | null; created_at: string; last_ok_at: string | null }
 
 /** A bell switched on for a calendar event or sports fixture: admins are reminded before it. */
 export interface EventAlert { kind: 'calendar' | 'sports'; ref_id: string; remind_at: string; sent_at: string | null }

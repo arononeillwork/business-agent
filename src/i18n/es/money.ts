@@ -523,6 +523,13 @@ export default {
   'Costs': 'Costes',
   'Language': 'Idioma',
   'Languages': 'Idiomas',
+  'The team’s languages': 'Los idiomas del equipo',
+  'Each person picks their own': 'Cada persona elige el suyo',
+  'Everyone can switch between them with the flags at the top right; each person’s choice is kept.':
+    'Todos pueden cambiar entre ellos con las banderas de arriba a la derecha; se guarda la elección de cada persona.',
+  'Pick both and everyone gets the flags to switch, each in their own.': 'Elige los dos y todos tendrán las banderas para cambiar, cada uno en el suyo.',
+  'The team uses both: switch between them with the flags at the top right, and the app keeps yours.':
+    'El equipo usa los dos: cambia entre ellos con las banderas de arriba a la derecha y la app guarda el tuyo.',
   'Switch between them with the flags at the top right.': 'Cambia entre ellos con las banderas de arriba a la derecha.',
   'Pick both to switch with a flag at the top right.': 'Elige los dos para cambiar con una bandera arriba a la derecha.',
   'No country found': 'No se encuentra el país',

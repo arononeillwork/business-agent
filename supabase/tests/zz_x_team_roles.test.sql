@@ -1,6 +1,6 @@
--- Team roles: a boss is an admin with pay access, a shop manager an admin without. Only a boss makes
--- someone a boss or changes a boss, and a business with no active boss can still get one. Its own
--- people; everyone else is put back as they were at the end.
+-- Team roles: an owner (a boss, as it was called; tr-boss here) is an admin with pay access, a shop
+-- manager an admin without. Only an owner makes someone an owner or changes an owner, and a business
+-- with no active owner can still get one. Its own people; everyone else is put back as they were at the end.
 
 create function pg_temp.act_as(p_email text) returns void language plpgsql as $$
 begin
@@ -38,11 +38,11 @@ do $$ begin
   update public.profiles set role = 'employee' where email = 'tr-employee@test';
   assert (select role = 'employee' from public.profiles where email = 'tr-employee@test'), 'and back';
 end $$;
-select pg_temp.expect_error($q$update public.profiles set can_see_pay = true where email = 'tr-employee@test'$q$, 'Only a boss');
-select pg_temp.expect_error($q$update public.profiles set can_see_pay = true where id = auth.uid()$q$, 'Only a boss');
-select pg_temp.expect_error($q$update public.profiles set role = 'employee' where email = 'tr-boss@test'$q$, 'Only a boss');
-select pg_temp.expect_error($q$update public.profiles set can_see_pay = false where email = 'tr-boss@test'$q$, 'Only a boss');
-select pg_temp.expect_error($q$update public.profiles set active = false where email = 'tr-boss@test'$q$, 'Only a boss');
+select pg_temp.expect_error($q$update public.profiles set can_see_pay = true where email = 'tr-employee@test'$q$, 'Only an owner');
+select pg_temp.expect_error($q$update public.profiles set can_see_pay = true where id = auth.uid()$q$, 'Only an owner');
+select pg_temp.expect_error($q$update public.profiles set role = 'employee' where email = 'tr-boss@test'$q$, 'Only an owner');
+select pg_temp.expect_error($q$update public.profiles set can_see_pay = false where email = 'tr-boss@test'$q$, 'Only an owner');
+select pg_temp.expect_error($q$update public.profiles set active = false where email = 'tr-boss@test'$q$, 'Only an owner');
 
 -- 2. An employee changes no one's role, as before -----------------------------------------------------
 select pg_temp.act_as('tr-employee@test');
@@ -61,8 +61,8 @@ do $$ begin
 end $$;
 
 -- 4. The new boss can't be undone by the shop manager they replaced ----------------------------------
-select pg_temp.expect_error($q$update public.profiles set can_see_pay = false where email = 'tr-manager@test'$q$, 'Only a boss');
-select pg_temp.expect_error($q$update public.profiles set active = false where email = 'tr-manager@test'$q$, 'Only a boss');
+select pg_temp.expect_error($q$update public.profiles set can_see_pay = false where email = 'tr-manager@test'$q$, 'Only an owner');
+select pg_temp.expect_error($q$update public.profiles set active = false where email = 'tr-manager@test'$q$, 'Only an owner');
 
 -- 5. A business with no active boss can still get one: any admin may make one ------------------------
 select pg_temp.act_as('tr-manager@test');
