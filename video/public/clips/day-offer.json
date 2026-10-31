@@ -1,0 +1,35 @@
+{
+  "name": "day-offer",
+  "fps": 30,
+  "duration": 12.994,
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "dpr": 1.5,
+  "frames": 488,
+  "events": [
+    {
+      "t": 2.571,
+      "type": "focus",
+      "box": {
+        "x": 452.66668701171875,
+        "y": 224.46875,
+        "width": 134.46875,
+        "height": 22.427093505859375
+      },
+      "label": "automatic"
+    },
+    {
+      "t": 10.413,
+      "type": "focus",
+      "box": {
+        "x": 300.66668701171875,
+        "y": 629.1771240234375,
+        "width": 106.8125,
+        "height": 28.28125
+      },
+      "label": "rule"
+    }
+  ]
+}

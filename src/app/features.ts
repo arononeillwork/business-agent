@@ -12,6 +12,8 @@ export const FEATURES = {
   music: false,
   /** The demo video on the landing page (video/). */
   demoVideo: true,
+  /** The day-in-the-life video on the landing page (video/). */
+  dayVideo: true,
 }
 
 /** Whether something marked as part of one of these (`onlyWith`, e.g. a row of the pricing table) shows: unless that part is switched off. */
