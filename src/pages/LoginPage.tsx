@@ -147,8 +147,9 @@ export function LoginPage() {
           </Container>
         </Box>
 
-        {/* The demo video */}
+        {/* The videos, one after the other: the demo (a white band), then a day in the life (the page's colour) */}
         <DemoVideo />
+        <DayVideo />
 
         {/* Features */}
         <Box id="features" sx={{ ...fullScreen, bgcolor: '#fff', borderTop: `1px solid ${BA.line}`, borderBottom: `1px solid ${BA.line}` }}>
@@ -210,9 +211,6 @@ export function LoginPage() {
             </Box>
           </Container>
         </Box>
-
-        {/* A day in the life, before and with Business Agent */}
-        <DayVideo />
 
         {/* How it works */}
         <Container maxWidth="lg" sx={{ ...fullScreen, py: { xs: 9, md: 6 } }}>

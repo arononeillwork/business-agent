@@ -333,4 +333,11 @@ export default {
   'Friends & family': 'Amigos y familia',
   // shared/competitors.ts
   'WhatsApp messages': 'Mensajes de WhatsApp',
+  // The landing page's videos: their sound, and the bar along the bottom
+  'Tap for sound': 'Toca para activar el sonido',
+  'Video controls': 'Controles del vídeo',
+  'Position in the video': 'Momento del vídeo',
+  '{at} of {length}': '{at} de {length}',
+  'Sound on': 'Activar el sonido',
+  'Sound off': 'Silenciar',
 } satisfies Record<string, string>
