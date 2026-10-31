@@ -439,6 +439,22 @@ test('sidebar is grouped into sections that fold away, and the logo goes to Toda
   await expect(page.getByRole('heading', { name: 'Hola, Aron' })).toBeVisible()
 })
 
+test('a page’s header buttons are in line with the round buttons at the top right, on a laptop and a big monitor', async ({ page }) => {
+  const middle = async (l: ReturnType<Page['getByRole']>) => { const b = (await l.boundingBox())!; return { y: b.y + b.height / 2, h: b.height } }
+  await open(page, '/cameras')
+  for (const width of [1280, 1920]) {
+    await page.setViewportSize({ width, height: 900 })
+    await expect(page.getByRole('heading', { name: 'Cameras', level: 1 })).toBeVisible()
+    const top = await middle(page.getByRole('button', { name: 'Search', exact: false }).last())
+    // On a laptop the second wraps under the first (there isn't room beside the title); the first row is in line.
+    for (const name of width < 1600 ? ['Live video: Reolink app'] : ['Live video: Reolink app', 'Add camera']) {
+      const b = await middle(page.getByRole('main').getByRole('button', { name }).or(page.getByRole('main').getByRole('link', { name })).first())
+      expect(Math.abs(b.y - top.y), `${name} at ${width}px`).toBeLessThanOrEqual(1)
+      expect(Math.abs(b.h - top.h), `${name} at ${width}px`).toBeLessThanOrEqual(1)
+    }
+  }
+})
+
 test('missing timecards are filled from the rota and marked for review', async ({ page }) => {
   await open(page, '/rota')
   // Mark is on the rota on Monday but never clocked in.
