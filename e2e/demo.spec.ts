@@ -7795,6 +7795,8 @@ test.describe('theme days and the weekly routine', () => {
     await expect(page.getByRole('button', { name: 'Add a coffee' })).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Edit' })).toHaveCount(0)
   })
+})
+
 test('landing page: the demo video with its poster and controls, once it is switched on', async ({ page }) => {
   // The video and its poster ship with the site (made in video/, see its README).
   for (const file of ['public/video/business-agent-demo.mp4', 'public/video/business-agent-demo.jpg']) {
