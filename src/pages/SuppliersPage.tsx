@@ -17,7 +17,7 @@ import { useState } from 'react'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
-import { Empty, ErrorBox, PageHeader, Tag } from '../components/common'
+import { DecimalField, Empty, ErrorBox, PageHeader, Tag } from '../components/common'
 import { PhoneField } from '../components/PhoneField'
 import { ExportButton } from '../components/tables'
 import type { ExportTable } from '../lib/export'
@@ -244,8 +244,8 @@ function SupplierDialog({ supplier, onClose }: { supplier: Supplier | null; onCl
             <TextField fullWidth type="time" label={t('Order by')} value={field('cutoff')} onChange={e => set({ cutoff: e.target.value || null })} slotProps={{ inputLabel: { shrink: true } }} />
             <TextField fullWidth label={t('Delivery (days)')} value={field('lead_days')} inputMode="numeric"
               onChange={e => set({ lead_days: Math.max(0, Math.min(60, Number(e.target.value.replace(/\D/g, '')) || 0)) })} />
-            <TextField fullWidth label={t('Minimum order')} value={field('minimum_order')} inputMode="decimal"
-              onChange={e => set({ minimum_order: e.target.value.trim() ? Number(e.target.value.replace(',', '.')) : null })}
+            <DecimalField fullWidth label={t('Minimum order')} value={s.minimum_order}
+              onNumber={n => set({ minimum_order: n })}
               slotProps={{ input: { startAdornment: <InputAdornment position="start">{'€'}</InputAdornment> } }} />
           </Stack>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>

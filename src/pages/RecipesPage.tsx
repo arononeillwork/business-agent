@@ -11,7 +11,7 @@ import { useMemo, useState } from 'react'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
-import { Empty, ErrorBox, PageHeader, StatGrid, StatTile, Tag } from '../components/common'
+import { DecimalField, Empty, ErrorBox, PageHeader, StatGrid, StatTile, Tag } from '../components/common'
 import { ExportButton, SortCell, toEnter, useSort } from '../components/tables'
 import type { ExportTable } from '../lib/export'
 import {
@@ -174,7 +174,6 @@ function RecipeDialog({ recipe, items, readOnly, onClose }: { recipe: Recipe | n
   const [r, setR] = useState<RecipeInput>(() => (recipe ? structuredClone(recipe) : blank()))
   const [deleting, setDeleting] = useState(false)
   const set = (patch: Partial<RecipeInput>) => setR(x => ({ ...x, ...patch }))
-  const num = (v: string) => (v.trim() === '' ? null : Number(v.replace(',', '.')))
   const setLine = (i: number, patch: Partial<RecipeLine>) => set({ lines: r.lines.map((l, j) => (j === i ? { ...l, ...patch } : l)) })
   const addLine = (variant_id: string | null) => {
     const first = items[0]
@@ -202,8 +201,8 @@ function RecipeDialog({ recipe, items, readOnly, onClose }: { recipe: Recipe | n
               getOptionLabel={o => o.name} isOptionEqualToValue={(a, b) => a.id === b.id}
               onChange={(_, v) => v && setLine(i, { item_id: v.id, unit: unitsFor(v.unit).includes(l.unit) ? l.unit : unitsFor(v.unit)[0] })}
               renderInput={p => <TextField {...p} label={t('Ingredient')} />} />
-            <TextField size="small" sx={{ width: 90 }} label={tc('quantity', 'Amount')} value={l.quantity || ''} disabled={readOnly} inputMode="decimal"
-              onChange={e => setLine(i, { quantity: num(e.target.value) ?? 0 })} />
+            <DecimalField size="small" sx={{ width: 90 }} label={tc('quantity', 'Amount')} value={l.quantity} blank={0} disabled={readOnly}
+              onNumber={n => setLine(i, { quantity: n ?? 0 })} />
             <TextField select size="small" sx={{ width: 90 }} label={t('Unit')} value={l.unit} disabled={readOnly} onChange={e => setLine(i, { unit: e.target.value as RecipeLine['unit'] })}>
               {unitsFor(item?.unit ?? 'unit').map(u => <MenuItem key={u} value={u}>{t(unitLabel(u))}</MenuItem>)}
             </TextField>
@@ -246,14 +245,14 @@ function RecipeDialog({ recipe, items, readOnly, onClose }: { recipe: Recipe | n
             </TextField>
           </Stack>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-            <TextField fullWidth label={t('Menu price, with IVA')} value={r.sell_price ?? ''} disabled={readOnly} inputMode="decimal" onChange={e => set({ sell_price: num(e.target.value) })}
+            <DecimalField fullWidth label={t('Menu price, with IVA')} value={r.sell_price} disabled={readOnly} onNumber={n => set({ sell_price: n })}
               slotProps={{ input: { startAdornment: <InputAdornment position="start">{'€'}</InputAdornment> } }} />
             <TextField select fullWidth label={t('IVA')} value={r.vat_rate} disabled={readOnly} onChange={e => set({ vat_rate: Number(e.target.value) })}>
               {[0, 4, 10, 21].map(v => <MenuItem key={v} value={v}>{`${v}%`}</MenuItem>)}
             </TextField>
-            <TextField fullWidth label={t('Target margin')} value={r.target_margin} disabled={readOnly} inputMode="decimal" onChange={e => set({ target_margin: Math.min(99, num(e.target.value) ?? 0) })}
+            <DecimalField fullWidth label={t('Target margin')} value={r.target_margin} blank={0} disabled={readOnly} onNumber={n => set({ target_margin: Math.min(99, n ?? 0) })}
               slotProps={{ input: { endAdornment: <InputAdornment position="end">{'%'}</InputAdornment> } }} />
-            <TextField fullWidth label={t('Waste allowance')} value={r.wastage_pct} disabled={readOnly} inputMode="decimal" onChange={e => set({ wastage_pct: Math.min(50, num(e.target.value) ?? 0) })}
+            <DecimalField fullWidth label={t('Waste allowance')} value={r.wastage_pct} blank={0} disabled={readOnly} onNumber={n => set({ wastage_pct: Math.min(50, n ?? 0) })}
               slotProps={{ input: { endAdornment: <InputAdornment position="end">{'%'}</InputAdornment> } }} />
           </Stack>
 
@@ -275,8 +274,8 @@ function RecipeDialog({ recipe, items, readOnly, onClose }: { recipe: Recipe | n
                   <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1 }}>
                     <TextField size="small" label={t('Variant')} value={v.name} disabled={readOnly} placeholder={t('e.g. Oat milk, Extra shot, Large')}
                       onChange={e => set({ variants: r.variants.map((x, j) => (j === vi ? { ...x, name: e.target.value } : x)) })} sx={{ flex: 1 }} />
-                    <TextField size="small" label={t('Price change')} value={v.price_change} disabled={readOnly} inputMode="decimal" sx={{ width: 130 }}
-                      onChange={e => set({ variants: r.variants.map((x, j) => (j === vi ? { ...x, price_change: num(e.target.value) ?? 0 } : x)) })}
+                    <DecimalField size="small" label={t('Price change')} value={v.price_change} blank={0} disabled={readOnly} sx={{ width: 130 }}
+                      onNumber={n => set({ variants: r.variants.map((x, j) => (j === vi ? { ...x, price_change: n ?? 0 } : x)) })}
                       slotProps={{ input: { startAdornment: <InputAdornment position="start">{'+€'}</InputAdornment> } }} />
                     {!readOnly && <IconButton size="small" aria-label={t('Remove {name}', { name: v.name || t('Variant') })}
                       onClick={() => set({ variants: r.variants.filter(x => x.id !== v.id), lines: r.lines.filter(l => l.variant_id !== v.id) })}><DeleteIcon fontSize="small" /></IconButton>}

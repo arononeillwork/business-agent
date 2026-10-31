@@ -562,6 +562,7 @@ export function createDemoApi(): Api {
   /**
    * Demo takings: a believable café week (quieter Mondays, busy weekends), spread over the opening
    * hours with the 11–3 rush, and paid mostly by card. Stripe sends no payment methods.
+   * Sunday's last hour is quiet (the advisor suggests closing an hour earlier on Sundays).
    */
   const round2 = (n: number) => Math.round(n * 100) / 100
   const paymentSystems = () => (['square', 'sumup', 'stripe'] as const).filter(p => integ.integrations.some(i => i.provider === p && i.status === 'connected'))
@@ -575,7 +576,7 @@ export function createDemoApi(): Api {
       const seed = [...d].reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) % 997, 7)
       const gross = round2(([520, 380, 430, 450, 610, 890, 820][dow] + (seed % 90) - 45) * share)
       const [open, close] = dow === 0 ? [9, 16] : dow === 6 ? [9, 18] : [8, 18]
-      const weight = Array.from({ length: 24 }, (_, h) => (h < open || h >= close ? 0 : h >= 11 && h < 15 ? 2.4 + ((seed + h) % 5) / 10 : 1 + ((seed * h) % 4) / 10))
+      const weight = Array.from({ length: 24 }, (_, h) => (h < open || h >= close ? 0 : dow === 0 && h === close - 1 ? 0.45 : h >= 11 && h < 15 ? 2.4 + ((seed + h) % 5) / 10 : 1 + ((seed * h) % 4) / 10))
       const total = weight.reduce((a, b) => a + b, 0)
       const hours = weight.map(w => round2(gross * w / total))
       const methods = provider !== 'stripe' ? { card: round2(gross * 0.71), wallet: round2(gross * 0.19), cash: round2(gross * 0.09), other: round2(gross * 0.01) } : undefined

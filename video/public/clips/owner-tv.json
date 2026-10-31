@@ -1,0 +1,12 @@
+{
+  "name": "owner-tv",
+  "fps": 30,
+  "duration": 38.918,
+  "viewport": {
+    "width": 1600,
+    "height": 900
+  },
+  "dpr": 1.2000000178813934,
+  "frames": 1031,
+  "events": []
+}

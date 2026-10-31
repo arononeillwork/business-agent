@@ -8,9 +8,14 @@ export const lessMotion = () => !!window.matchMedia?.('(prefers-reduced-motion: 
 
 /** Scroll down to the demo video and play it from the start, with its music (the click allows the sound; muted if the browser still says no). */
 export function watchDemo(e?: MouseEvent) {
+  watchVideo('demo', e)
+}
+
+/** The same for any video section on the page (#demo, #day, #owner): the Demos page's cards. */
+export function watchVideo(id: string, e?: MouseEvent) {
   e?.preventDefault()
-  document.getElementById('demo')?.scrollIntoView({ behavior: lessMotion() ? 'auto' : 'smooth', block: 'start' })
-  const v = document.querySelector<HTMLVideoElement>('#demo video')
+  document.getElementById(id)?.scrollIntoView({ behavior: lessMotion() ? 'auto' : 'smooth', block: 'start' })
+  const v = document.querySelector<HTMLVideoElement>(`#${id} video`)
   if (!v) return
   v.currentTime = 0
   v.muted = false

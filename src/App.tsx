@@ -90,6 +90,7 @@ const TikTokTermsPage = page(() => import('./pages/TikTokTermsPage'), 'TikTokTer
 const TikTokPrivacyPage = page(() => import('./pages/TikTokPrivacyPage'), 'TikTokPrivacyPage')
 const BillingPage = page(() => import('./pages/BillingPage'), 'BillingPage')
 const PricingPage = page(() => import('./pages/PricingPage'), 'PricingPage')
+const DemosPage = page(() => import('./pages/DemosPage'), 'DemosPage')
 const LeadsPage = page(() => import('./pages/LeadsPage'), 'LeadsPage')
 const ExpensesPage = page(() => import('./pages/ExpensesPage'), 'ExpensesPage')
 const CampaignsPage = page(() => import('./pages/CampaignsPage'), 'CampaignsPage')
@@ -116,6 +117,7 @@ function Routed() {
   if (pathname === '/tiktok/terms') return <TikTokTermsPage />
   if (pathname === '/tiktok/privacy') return <TikTokPrivacyPage />
   if (pathname === '/pricing') return <PricingPage />
+  if (pathname === '/demos') return <DemosPage />
   // A café screen's own link: no sign-in, the link itself is the screen's secret (Screens page).
   if (pathname.startsWith('/display/')) return <DisplayPage />
   // A sales rep's own page: no sign-in, the link itself is the rep's secret (Sales reps & rewards).

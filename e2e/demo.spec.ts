@@ -4210,6 +4210,61 @@ test.describe('recipes and waste', () => {
     await expect(page.getByRole('menuitem', { name: /CSV/ })).toBeVisible()
   })
 
+  test('menu costing: a price typed a key at a time keeps its decimal point (2.90, not 290)', async ({ page }) => {
+    await open(page, '/recipes')
+    const table = page.getByRole('table', { name: 'Menu costing' })
+    await table.getByRole('row', { name: 'Pain au chocolat' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Pain au chocolat' })
+    const price = dialog.getByRole('textbox', { name: 'Menu price, with IVA' })
+    await price.press('ControlOrMeta+a')
+    await price.pressSequentially('2.90', { delay: 30 })
+    await expect(price).toHaveValue('2.90')
+    await expect(dialog).toContainText('margin €1,59 (60,4%)')
+    // A comma for the decimals, as in Spain, too.
+    await price.press('ControlOrMeta+a')
+    await price.pressSequentially('2,9', { delay: 30 })
+    await expect(price).toHaveValue('2,9')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await toast(page, /^Saved$/)
+    await expect(table.getByRole('row', { name: 'Pain au chocolat' })).toContainText('€2,90')
+  })
+
+  test('decimals typed a key at a time keep their point too: stock costs and prices, a supplier’s minimum order, a food safety check’s temperatures', async ({ page }) => {
+    const type = async (box: Locator, text: string) => {
+      await box.press('ControlOrMeta+a')
+      await box.pressSequentially(text, { delay: 30 })
+      await expect(box).toHaveValue(text)
+    }
+    await open(page, '/wholesale')
+    await page.getByRole('button', { name: 'Add item' }).first().click()
+    const item = page.getByRole('dialog', { name: 'Add an item' })
+    await item.getByRole('textbox', { name: 'Name' }).fill('Lemons')
+    await type(item.getByRole('textbox', { name: 'Cost per unit, without IVA' }), '0.45')
+    await type(item.getByRole('textbox', { name: 'In stock now' }), '1.5')
+    await type(item.getByRole('textbox', { name: 'Reorder at' }), '2,5')
+    await item.getByRole('checkbox', { name: 'Sold in the shop' }).check()
+    await type(item.getByRole('textbox', { name: 'Shop price, with IVA' }), '1.20')
+    await item.getByRole('button', { name: 'Add' }).click()
+    await toast(page, 'Added Lemons')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Current stock' }).click()
+    await page.getByRole('table', { name: 'Stock items' }).getByRole('row', { name: 'Lemons' }).getByRole('button', { name: 'Lemons', exact: true }).click()
+    const saved = page.getByRole('dialog', { name: 'Lemons' })
+    await expect(saved.getByRole('textbox', { name: 'Cost per unit, without IVA' })).toHaveValue('0.45')
+    await expect(saved.getByRole('textbox', { name: 'Shop price, with IVA' })).toHaveValue('1.2')
+    await saved.press('Escape')
+
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Suppliers' }).click()
+    await page.getByRole('button', { name: 'Add supplier' }).click()
+    await type(page.getByRole('dialog', { name: 'Add a supplier' }).getByRole('textbox', { name: 'Minimum order' }), '12.50')
+    await page.getByRole('dialog', { name: 'Add a supplier' }).press('Escape')
+
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Food safety' }).click()
+    await page.getByRole('button', { name: 'Add a check' }).click()
+    const check = page.getByRole('dialog', { name: 'Add a check' })
+    await type(check.getByRole('textbox', { name: 'Lowest (°C)' }), '-18')
+    await type(check.getByRole('textbox', { name: 'Highest (°C)' }), '2.5')
+  })
+
   test('a new recipe costs itself as ingredients and a variant are added', async ({ page }) => {
     await open(page, '/recipes')
     await page.getByRole('button', { name: 'Add menu item' }).click()
@@ -8103,4 +8158,38 @@ test('landing page: the day-in-the-life video, once it is switched on', async ({
   await expect(video).toHaveAttribute('poster', '/video/day-in-the-life.jpg')
   await expect(video).toHaveAttribute('src', '/video/day-in-the-life.mp4')
   await expect(page.locator('#day').getByRole('slider', { name: 'Position in the video' })).toHaveAttribute('aria-valuetext', /of 1:5[12]$/)
+})
+
+test('demos page: every video, the landing page’s two too; a card plays its own; the landing page links to it', async ({ page }) => {
+  for (const file of ['public/video/run-your-cafe.mp4', 'public/video/run-your-cafe.jpg']) {
+    expect(readFileSync(file).length).toBeGreaterThan(10_000)
+  }
+  await page.goto('/?demo')
+  // The landing page keeps its two; the owner's morning is on the Demos page only.
+  await expect(page.getByLabel('Run your café from one place, video')).toHaveCount(0)
+  if (FEATURES.demoVideo || FEATURES.dayVideo) {
+    await page.getByRole('link', { name: 'More films on the Demos page' }).click()
+  } else {
+    await page.getByRole('contentinfo').getByRole('link', { name: 'Demos' }).click()
+  }
+  await expect(page).toHaveURL(/\/demos$/)
+  await expect(page.getByRole('heading', { name: 'See it from every side.', level: 1 })).toBeVisible()
+  await expect(page).toHaveTitle('Demos · Business Agent')
+  const shown = [FEATURES.demoVideo, FEATURES.dayVideo, FEATURES.ownerVideo].filter(Boolean).length
+  const films = page.getByRole('list', { name: 'The films' })
+  await expect(films.getByRole('listitem')).toHaveCount(shown)
+  // Each in its own section with the landing page's player; no link back to itself.
+  await expect(page.getByLabel('Business Agent demo video')).toHaveCount(FEATURES.demoVideo ? 1 : 0)
+  await expect(page.getByLabel('A day in the life of a café owner, video')).toHaveCount(FEATURES.dayVideo ? 1 : 0)
+  await expect(page.getByRole('link', { name: 'More films on the Demos page' })).toHaveCount(0)
+  if (!FEATURES.ownerVideo) return
+  const owner = page.getByLabel('Run your café from one place, video')
+  await expect(owner).toHaveAttribute('src', '/video/run-your-cafe.mp4')
+  await expect(owner).toHaveAttribute('poster', '/video/run-your-cafe.jpg')
+  await expect(page.locator('#owner').getByRole('slider', { name: 'Position in the video' })).toHaveAttribute('aria-valuetext', /of 1:54$/)
+  expect((await page.request.get('/video/run-your-cafe.mp4')).ok()).toBe(true)
+  // Its card brings it up and plays it.
+  await films.getByRole('link', { name: 'Watch Run your café from one place' }).click()
+  await expect(owner).toBeInViewport()
+  await expect.poll(() => owner.evaluate((v: HTMLVideoElement) => !v.paused)).toBe(true)
 })

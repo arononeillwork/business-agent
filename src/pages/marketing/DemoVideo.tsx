@@ -19,6 +19,9 @@
 // The Worker serves them a part at a time (worker/video.ts), so the slider can go to a moment not
 // downloaded yet.
 //
+// The Demos page (/demos) has these two and every other video (DEMOS, at the end of this file): a new
+// one goes there only. Under the landing page's last video, a link to it.
+//
 // They come one after the other, straight after the hero, and the page's sections take turns between
 // its own colour and a white band: the demo is a white band and the day in the life is on the page's
 // colour (a white band itself when the demo is switched off, so it's still apart from the hero).
@@ -28,11 +31,13 @@ import MutedIcon from '@mui/icons-material/VolumeOffRounded'
 import PlayIcon from '@mui/icons-material/PlayArrowRounded'
 import PauseIcon from '@mui/icons-material/PauseRounded'
 import FullscreenIcon from '@mui/icons-material/FullscreenRounded'
+import ArrowIcon from '@mui/icons-material/ArrowForwardRounded'
+import { Link as RouterLink, useLocation } from 'react-router-dom'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { FEATURES } from '../../app/features'
 import { BA, HEADER_HEIGHT, SectionIntro, fullScreen } from './site'
 import { lessMotion } from './watchDemo'
-import { t, tr } from '../../i18n'
+import { msg, t, tr } from '../../i18n'
 
 
 export const DEMO_VIDEO = { src: '/video/business-agent-demo.mp4', poster: '/video/business-agent-demo.jpg', seconds: 108 }
@@ -47,8 +52,10 @@ export const clock = (seconds: number) => {
 export { watchDemo } from './watchDemo'
 
 /** A video section that fills the screen: a compact intro, then the video, playing with its sound while it's on screen. */
-function VideoSection({ id, labelledBy, eyebrow, title, text, src, poster, label, seconds, sx }: {
+function VideoSection({ id, labelledBy, eyebrow, title, text, src, poster, label, seconds, sx, more }: {
   id: string; labelledBy: string; eyebrow: string; title: ReactNode; text: string; src: string; poster: string; label: string; seconds: number; sx?: object
+  /** Under the video: the link to the Demos page, under the landing page's last one. */
+  more?: ReactNode
 }) {
   const video = useRef<HTMLVideoElement>(null)
   const frame = useRef<HTMLDivElement>(null)
@@ -184,6 +191,7 @@ function VideoSection({ id, labelledBy, eyebrow, title, text, src, poster, label
             </Box>
           )}
         </Box>
+        {more}
       </Container>
     </Box>
   )
@@ -196,7 +204,7 @@ export function DemoVideo() {
   if (!FEATURES.demoVideo) return null
   return (
     <VideoSection id="demo" labelledBy="demo-video" eyebrow={t('See it in action')} src={DEMO_VIDEO.src} poster={DEMO_VIDEO.poster}
-      label={t('Business Agent demo video')} seconds={DEMO_VIDEO.seconds} sx={whiteBand}
+      label={t('Business Agent demo video')} seconds={DEMO_VIDEO.seconds} sx={whiteBand} more={!FEATURES.dayVideo && <MoreDemos />}
       title={tr('Change it in one place. It’s changed {em}', { em: <em>{t('everywhere.')}</em> })}
       text={t('A café sets up, closes on Sundays, adds Christmas and puts a price up, each in one place: Google Maps, its website, its till, its TV and its team follow.')} />
   )
@@ -206,8 +214,48 @@ export function DayVideo() {
   if (!FEATURES.dayVideo) return null
   return (
     <VideoSection id="day" labelledBy="day-video" eyebrow={t('A day in the life')} src={DAY_VIDEO.src} poster={DAY_VIDEO.poster}
-      label={t('A day in the life of a café owner, video')} seconds={DAY_VIDEO.seconds} sx={FEATURES.demoVideo ? { pt: { xs: 8, md: 4 } } : whiteBand}
+      label={t('A day in the life of a café owner, video')} seconds={DAY_VIDEO.seconds} sx={FEATURES.demoVideo ? { pt: { xs: 8, md: 4 } } : whiteBand} more={<MoreDemos />}
       title={tr('The same day, {em}', { em: <em>{t('without the chaos.')}</em> })}
       text={t('From opening to closing: the checklists, the messages, the orders, the offers, the bills and the licences, before and with Business Agent.')} />
+  )
+}
+
+export const OWNER_VIDEO = { src: '/video/run-your-cafe.mp4', poster: '/video/run-your-cafe.jpg', seconds: 114 }
+
+/** The owner's morning, on the Demos page: on a white band, or on the page's colour where the one before it is white. */
+export function OwnerVideo({ white = true }: { white?: boolean }) {
+  if (!FEATURES.ownerVideo) return null
+  return (
+    <VideoSection id="owner" labelledBy="owner-video" eyebrow={t('An owner’s morning')} src={OWNER_VIDEO.src} poster={OWNER_VIDEO.poster}
+      label={t('Run your café from one place, video')} seconds={OWNER_VIDEO.seconds} sx={white ? whiteBand : { pt: { xs: 8, md: 4 } }}
+      title={tr('Run your café {em}', { em: <em>{t('from one place.')}</em> })}
+      text={t('Today and the business advisor say what to do. Each change is made once, and Google Maps, the website, the café’s TV, the printed menu and Instagram follow.')} />
+  )
+}
+
+/**
+ * Every video, in the Demos page's order (src/pages/DemosPage.tsx): its section, the way it shows the app,
+ * its title and what it's about, whether it's switched on. The landing page has the first two; a new
+ * video goes here, and on the Demos page only.
+ */
+export const DEMOS = [
+  { id: 'demo', on: FEATURES.demoVideo, video: DEMO_VIDEO, perspective: msg('The idea'), title: msg('Change it in one place'),
+    about: msg('A café closes on Sundays, adds Christmas and puts a price up, once each: everywhere it shows follows.') },
+  { id: 'day', on: FEATURES.dayVideo, video: DAY_VIDEO, perspective: msg('A whole day'), title: msg('A day in the life'),
+    about: msg('A café owner’s day before Business Agent, and the same day with it, from opening to closing.') },
+  { id: 'owner', on: FEATURES.ownerVideo, video: OWNER_VIDEO, perspective: msg('An owner’s morning'), title: msg('Run your café from one place'),
+    about: msg('Today and the advisor say what to do; each change is made once, and everywhere it shows follows.') },
+]
+
+/** Under the landing page's last video: the rest are on the Demos page (not on the Demos page itself). */
+function MoreDemos() {
+  const { pathname } = useLocation()
+  if (pathname !== '/') return null
+  return (
+    <Box sx={{ textAlign: 'center', mt: { xs: 3, md: 2.5 } }}>
+      <Button component={RouterLink} to="/demos" endIcon={<ArrowIcon />} sx={{ color: BA.roseDeep, fontWeight: 600, textTransform: 'none', fontSize: '1rem' }}>
+        {t('More films on the Demos page')}
+      </Button>
+    </Box>
   )
 }
