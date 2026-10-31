@@ -29,8 +29,8 @@ select set_config('request.jwt.claim.sub', '', false);
 do $$
 declare d date := (now() at time zone public.business_tz())::date;
 begin
-  assert (select holiday_reminders and holiday_reminder_days = 7 and holiday_reminder_kinds = '{national,regional,local}' from public.settings where id = 1),
-    'on by default, a week ahead, national, regional and local holidays';
+  assert (select holiday_reminders and holiday_reminder_days = 7 and holiday_reminder_day_before and holiday_reminder_kinds = '{national,regional,local}' from public.settings where id = 1),
+    'on by default, a week ahead and the day before, national, regional and local holidays';
   insert into public.calendar_events (starts_on, title, category, town, confirmed) values
     (d + 7, 'Test Inmaculada', 'national', null, true),
     (d + 3, 'Test Feria local', 'local', 'Marbella', true),
@@ -54,6 +54,24 @@ begin
   -- Moved to another day: reminded again.
   update public.calendar_events set starts_on = starts_on + 1 where title = 'Test Feria local';
   assert public.bank_holiday_reminders(pg_temp.today_at('10:00')) = 1, 'a holiday that moved is reminded again';
+  -- The day before: reminded again, once (a holiday first seen a day ahead gets one, not two).
+  insert into public.calendar_events (starts_on, title, category, confirmed)
+    values ((now() at time zone public.business_tz())::date + 1, 'Test Día de Andalucía', 'regional', true);
+  assert public.bank_holiday_reminders(pg_temp.today_at('10:00')) = 1, 'one first seen a day ahead: one reminder';
+  assert public.bank_holiday_reminders(pg_temp.today_at('10:01')) = 0, 'and not a second the day before';
+  update public.calendar_events set starts_on = (now() at time zone public.business_tz())::date + 1 where title = 'Test Inmaculada';
+  update public.holiday_reminders set sent_for = (now() at time zone public.business_tz())::date + 1
+   where event_id = (select id from public.calendar_events where title = 'Test Inmaculada');
+  assert public.bank_holiday_reminders(pg_temp.today_at('10:02')) = 1, 'reminded a week ahead, then again the day before';
+  assert exists (select 1 from public.notifications where title = 'Bank holiday tomorrow: Test Inmaculada'), 'says tomorrow';
+  assert public.bank_holiday_reminders(pg_temp.today_at('10:03')) = 0, 'the day before once';
+  update public.settings set holiday_reminder_day_before = false where id = 1;
+  update public.calendar_events set starts_on = (now() at time zone public.business_tz())::date + 1 where title = 'Test Feria local';
+  update public.holiday_reminders set sent_for = (now() at time zone public.business_tz())::date + 1, day_before_for = null
+   where event_id = (select id from public.calendar_events where title = 'Test Feria local');
+  assert public.bank_holiday_reminders(pg_temp.today_at('10:04')) = 0, 'no day-before reminder when switched off';
+  update public.settings set holiday_reminder_day_before = true where id = 1;
+  update public.calendar_events set starts_on = (now() at time zone public.business_tz())::date + 8 where title in ('Test Inmaculada', 'Test Feria local');
   -- Switched off: nothing.
   update public.settings set holiday_reminders = false where id = 1;
   update public.calendar_events set starts_on = starts_on + 1 where title = 'Test Inmaculada';
@@ -74,7 +92,8 @@ end $$;
 reset role;
 do $$ begin
   update public.settings set holiday_reminder_days = 30 where id = 1;
-  assert public.bank_holiday_reminders(pg_temp.today_at('11:00')) = 0, 'a holiday left out is not reminded';
+  perform public.bank_holiday_reminders(pg_temp.today_at('11:00'));
+  assert not exists (select 1 from public.notifications where title like '%Test Navidad'), 'a holiday left out is not reminded';
 end $$;
 select pg_temp.act_as('julio@test');
 select pg_temp.expect_error($q$select public.set_holiday_reminder((select id from public.calendar_events limit 1), false)$q$, 'Only an admin');
