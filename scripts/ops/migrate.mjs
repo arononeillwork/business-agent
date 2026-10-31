@@ -18,7 +18,16 @@ const api = (path, init = {}) => fetch(`https://api.supabase.com/v1/projects/${R
   ...init, headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
 })
 
-const res = await api('/migrations')
+// A database that's briefly stalled (Supabase answers 5xx, "connection timeout") gets more tries
+// over three minutes before the deploy stops here; the notes go to the log, not the summary.
+// Only this read is tried again: applying a migration is not repeated.
+let res
+for (let attempt = 1; ; attempt++) {
+  res = await api('/migrations').catch(e => ({ ok: false, status: 0, text: async () => String(e) }))
+  if (res.ok || (res.status > 0 && res.status < 500) || attempt === 7) break
+  console.error(`Couldn't read the database's migrations (${res.status} ${await res.text()}); trying again in 30 seconds.`)
+  await new Promise(r => setTimeout(r, 30_000))
+}
 if (!res.ok) { console.log(`::error::Couldn't read the database's migrations: ${res.status} ${await res.text()}`); process.exit(1) }
 const body = await res.json()
 const applied = new Set((Array.isArray(body) ? body : body.migrations ?? []).map(m => m.name))
