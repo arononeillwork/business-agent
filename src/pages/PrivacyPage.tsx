@@ -16,6 +16,8 @@ const CONNECTIONS: [string, string, string][] = [
   ['Microsoft OneDrive', msg('Read and write files'), msg('Save timecard and hours-record exports.')],
   [msg('Instagram, Facebook Page'), msg('Publish posts; read the profile'), msg('Publish posts the business schedules, and show its latest posts.')],
   ['TikTok', msg('Publish photo posts; basic profile'), msg('Publish posts the business schedules.')],
+  [msg('Instagram, TikTok, LinkedIn Page, Facebook Page'), msg('Read the account’s statistics (read only)'),
+    msg('Show the business’s admins followers, reach and how each post did, on the Analytics page. Kept up to 3 hours, then read again.')],
   ['Spotify', msg('Read playlists; control playback'), msg('Show playlists and play or pause the approved café playlist.')],
   ['WhatsApp (Meta)', msg('Send messages from the business number'), msg('Shift reminders and changes, only to people who switched WhatsApp messages on.')],
 ]

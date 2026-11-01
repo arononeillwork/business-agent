@@ -8,7 +8,7 @@ import { t, tr } from '../i18n'
 // connection reads, keeps and sends (worker/providers/tiktok.ts, proveTikTok in worker/connections.ts).
 // The general privacy policy (/privacy) covers everything else.
 
-const UPDATED = '2026-10-19'
+const UPDATED = '2026-11-01'
 
 export function TikTokPrivacyPage() {
   const L = LEGAL
@@ -30,10 +30,12 @@ export function TikTokPrivacyPage() {
       <P>
         {t('A business’s admin can connect the business’s TikTok account on the Connections page, using TikTok’s own sign-in (Login Kit). {service} then publishes the photo posts the business plans in its Social planner, at the time the business chooses. It does nothing else with the account.', { service })}
       </P>
-      <P>{t('We ask TikTok for two permissions only:')}</P>
+      <P>{t('We ask TikTok for these permissions only:')}</P>
       <Ul items={[
         tr('{scope}: the account’s ID, display name and profile picture, to show which account is connected.', { scope: <b>{'user.info.basic'}</b> }),
         tr('{scope}: to publish the business’s own photo posts directly to its TikTok account.', { scope: <b>{'video.publish'}</b> }),
+        tr('{scope}: the account’s follower, following and like counts and how many videos it has, for the business’s Analytics page.', { scope: <b>{'user.info.stats'}</b> }),
+        tr('{scope}: the account’s own videos with their views, likes, comments and shares, for the business’s Analytics page.', { scope: <b>{'video.list'}</b> }),
       ]} />
 
       <H>{t('Data we receive from TikTok')}</H>
@@ -42,9 +44,10 @@ export function TikTokPrivacyPage() {
         tr('{label} which privacy levels the account may post with, checked before every post as TikTok requires.', { label: <b>{t('Posting settings:')}</b> }),
         tr('{label} an access token (valid for a day) and a refresh token (valid for a year) that let us post for the business.', { label: <b>{t('Access tokens:')}</b> }),
         tr('{label} whether each post was published, and its ID and link on TikTok.', { label: <b>{t('Post results:')}</b> }),
+        tr('{label} the account’s follower, following and like counts, and its own videos (title, cover, link, date) with their view, like, comment and share counts.', { label: <b>{t('Statistics:')}</b> }),
       ]} />
       <P>
-        {t('We do not read the account’s videos, followers, likes, comments, messages, analytics or any other TikTok user’s data.')}
+        {t('We do not read who the followers are, the text of comments, messages, or any other TikTok user’s data.')}
       </P>
 
       <H>{t('Data we send to TikTok')}</H>
@@ -59,6 +62,7 @@ export function TikTokPrivacyPage() {
       <Ul items={[
         t('To show the business which TikTok account is connected, and whether posts can be public yet.'),
         t('To publish the posts the business scheduled, and show the outcome with a link to each post.'),
+        t('To show the business’s admins how the account and its videos are doing, on the Analytics page.'),
         t('To tell the business’s admins if the connection stops working, so they can connect again.'),
       ]} />
       <P>
@@ -74,6 +78,7 @@ export function TikTokPrivacyPage() {
       <Ul items={[
         t('Tokens: until the business disconnects TikTok, which deletes them straight away. If the access is removed on TikTok’s side, the tokens stop working and are replaced or deleted when the business connects again or disconnects.'),
         t('The username and post results: as part of the business’s social planner, until the business deletes the post, disconnects TikTok or closes its account (deleted within 30 days of closing).'),
+        t('Statistics: kept for up to 3 hours so the Analytics page opens quickly, then read from TikTok again; deleted after two days at most, and straight away when the business disconnects TikTok.'),
       ]} />
 
       <H>{t('Disconnecting and deleting your data')}</H>

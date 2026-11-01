@@ -2,7 +2,11 @@
 // posting. Photo posts go through the Content Posting API; TikTok fetches the photo from our own
 // domain (verified once in the TikTok developer portal). Until TikTok audits the app, posts can only
 // be private to the account (docs/INTEGRATIONS.md).
-export const TIKTOK_SCOPES = ['user.info.basic', 'video.publish']
+import type { TikTokUserStats, TikTokVideo } from '../../shared/socialAnalytics'
+
+/** Statistics for the Analytics page (Login Kit / Display API): followers and likes, and each video's counts. */
+export const STATS_SCOPES = ['user.info.stats', 'video.list']
+export const TIKTOK_SCOPES = ['user.info.basic', 'video.publish', ...STATS_SCOPES]
 const API = 'https://open.tiktokapis.com/v2'
 
 export interface TikTokOAuthConfig { clientKey: string; clientSecret: string; redirectUri: string }
@@ -74,4 +78,42 @@ export async function publishPhoto(accessToken: string, caption: string, imageUr
     }
   }
   return publish_id // still processing on TikTok's side; it finishes by itself
+}
+
+// ---- Statistics (Analytics page) ---------------------------------------------------------------
+// TikTok has no history: followers and likes as they stand, and each video's counts so far.
+
+/** Like api(), keeping TikTok's error code in the message ("scope_not_authorized": statistics weren't allowed). */
+async function stats<T>(accessToken: string, path: string, body?: unknown): Promise<T> {
+  const res = await fetch(`${API}${path}`, {
+    method: body === undefined ? 'GET' : 'POST',
+    headers: { authorization: `Bearer ${accessToken}`, ...(body === undefined ? {} : { 'content-type': 'application/json; charset=UTF-8' }) },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  })
+  const json = await res.json().catch(() => ({})) as { data?: T; error?: { code?: string; message?: string } }
+  if (!res.ok || (json.error?.code && json.error.code !== 'ok')) {
+    throw new Error(`TikTok: ${[json.error?.code, json.error?.message].filter(Boolean).join(': ') || res.status}`)
+  }
+  return json.data as T
+}
+
+/** Followers, following, likes on all videos and how many videos (user.info.stats). */
+export const userStats = async (accessToken: string) =>
+  (await stats<{ user: TikTokUserStats }>(accessToken, '/user/info/?fields=open_id,display_name,follower_count,following_count,likes_count,video_count')).user
+
+const VIDEO_FIELDS = 'id,title,video_description,create_time,cover_image_url,share_url,view_count,like_count,comment_count,share_count'
+
+/** The account's videos posted since `since` (Unix seconds), newest first (video.list): up to ten pages of 20. */
+export async function videosSince(accessToken: string, since: number, pages = 10) {
+  const out: TikTokVideo[] = []
+  let cursor: number | undefined
+  for (let i = 0; i < pages; i++) {
+    const r = await stats<{ videos?: TikTokVideo[]; cursor?: number; has_more?: boolean }>(accessToken, `/video/list/?fields=${VIDEO_FIELDS}`,
+      { max_count: 20, ...(cursor !== undefined ? { cursor } : {}) })
+    const videos = r.videos ?? []
+    out.push(...videos)
+    if (!r.has_more || !videos.length || videos[videos.length - 1].create_time < since) break
+    cursor = r.cursor
+  }
+  return out
 }

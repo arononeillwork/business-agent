@@ -1,5 +1,6 @@
 import type { InboxConversation, InboxMessage, MessageKind, TaggedPost } from '../../shared/messages'
 import type { PostKind, PostMedia } from '../../shared/types'
+import { insightTotals, type InstagramStats, type MetaInsight } from '../../shared/socialAnalytics'
 
 // Instagram (professional account), connected by the business itself with one click: "Instagram API
 // with Instagram Login". The owner signs in on instagram.com and allows access; we keep a long-lived
@@ -7,7 +8,9 @@ import type { PostKind, PostMedia } from '../../shared/types'
 // Messages (Messages page) and comments (posts the business is tagged in) are asked for too; posting
 // alone is what "connected" needs, so an account that declines them still connects.
 export const INSTAGRAM_SCOPES = ['instagram_business_basic', 'instagram_business_content_publish',
-  'instagram_business_manage_messages', 'instagram_business_manage_comments']
+  'instagram_business_manage_messages', 'instagram_business_manage_comments',
+  // Statistics (the Analytics page); optional too: without it Analytics asks to connect again.
+  'instagram_business_manage_insights']
 
 export interface InstagramOAuthConfig { appId: string; appSecret: string; redirectUri: string }
 /** A connected account: its token and Instagram user id. */
@@ -292,4 +295,51 @@ export async function tagged(cfg: InstagramConfig): Promise<TaggedPost[]> {
   const res = await graph<{ data: { id: string; username?: string; caption?: string; media_url?: string; thumbnail_url?: string; permalink: string; timestamp: string }[] }>(cfg,
     'me/tags?fields=id,username,caption,media_type,media_url,thumbnail_url,permalink,timestamp&limit=12')
   return res.data.map(p => ({ id: p.id, username: p.username, caption: p.caption, mediaUrl: p.thumbnail_url ?? p.media_url, permalink: p.permalink, at: p.timestamp }))
+}
+
+// ---- Statistics (Analytics page) ---------------------------------------------------------------
+// The account's insights need instagram_business_manage_insights (asked for since Analytics came;
+// an account connected before is asked to connect again). Instagram adds each metric up over at
+// most 30 days at a time, and its figures can be up to two days late.
+
+/** The account's username and followers (no posts). */
+export const statsProfile = (cfg: InstagramConfig) => graph<{ username: string; followers_count?: number }>(cfg, 'me?fields=username,followers_count')
+
+/** Account metrics, each added up over since–until (Unix seconds, at most 30 days apart). */
+export async function accountInsights(cfg: InstagramConfig, metrics: string[], since: number, until: number) {
+  const q = new URLSearchParams({ metric: metrics.join(','), period: 'day', metric_type: 'total_value', since: String(since), until: String(until) })
+  return (await graph<{ data: MetaInsight[] }>(cfg, `me/insights?${q}`)).data
+}
+
+/** One account metric day by day over since–until (at most 30 days apart). follower_count takes no metric_type. */
+export async function accountDays(cfg: InstagramConfig, metric: string, since: number, until: number) {
+  const q = new URLSearchParams({ metric, period: 'day', ...(metric === 'follower_count' ? {} : { metric_type: 'time_series' }), since: String(since), until: String(until) })
+  return (await graph<{ data: MetaInsight[] }>(cfg, `me/insights?${q}`)).data.find(m => m.name === metric)
+}
+
+export type StatsMedia = InstagramStats['media'][number]
+
+/** The account's posts and reels back to `since` (YYYY-MM-DD), newest first: up to four pages of 50. */
+export async function mediaSince(cfg: InstagramConfig, since: string, pages = 4) {
+  const out: StatsMedia[] = []
+  let after: string | undefined
+  for (let i = 0; i < pages; i++) {
+    const q = new URLSearchParams({ fields: 'id,caption,media_type,media_product_type,permalink,timestamp,thumbnail_url,media_url,like_count,comments_count',
+      limit: '50', ...(after ? { after } : {}) })
+    const r = await graph<{ data: StatsMedia[]; paging?: { cursors?: { after?: string }; next?: string } }>(cfg, `me/media?${q}`)
+    out.push(...r.data)
+    after = r.paging?.next ? r.paging.cursors?.after : undefined
+    if (!after || !r.data.length || r.data[r.data.length - 1].timestamp.slice(0, 10) < since) break
+  }
+  return out
+}
+
+/** How one post did (reach, likes, comments, saves, shares, views); empty when Instagram won't say for that kind of post. */
+export async function postInsights(cfg: InstagramConfig, id: string): Promise<Record<string, number>> {
+  try {
+    const r = await graph<{ data: MetaInsight[] }>(cfg, `${encodeURIComponent(id)}/insights?metric=reach,likes,comments,saved,shares,views`)
+    return insightTotals(r.data)
+  } catch {
+    return {}
+  }
 }

@@ -477,6 +477,27 @@ first, then the `https://…/` one); with several and none matching, the card as
 in the account means not connected, with the steps to add it. Google's figures are 2-3 days behind.
 Checked every night (the website must still be in the account); on every plan.
 
+### Instagram, TikTok, LinkedIn and Facebook on Analytics
+
+Search Console covers the website's Google search traffic only. Analytics' **Source** picker also shows
+the business's Instagram, TikTok, LinkedIn Page and Facebook Page, each read from the platform itself
+with the connection the Social planner posts with (`GET /api/analytics/:source`, admins, kept 3 hours;
+`worker/socialAnalytics.ts`). Each connection now also asks for a statistics permission:
+
+| Platform | Permission asked for | What it gives |
+| --- | --- | --- |
+| Instagram | `instagram_business_manage_insights` | reach, views, accounts engaged, likes, comments, saves, link taps; reach per day; each post's reach |
+| TikTok | `user.info.stats`, `video.list` | followers and likes now; each video's views, likes, comments, shares |
+| LinkedIn (Page) | `rw_organization_admin` (Community Management API) | followers and new followers; the Page's posts' impressions, clicks, reactions, comments, reposts per day |
+| Facebook (Page) | `read_insights` | views, viewers, post engagement, Page visits, new follows per day; each post's reactions, comments, shares |
+
+Before connecting again: add `instagram_business_manage_insights` to the Instagram use case (and to
+App Review with the others), `read_insights` to the Facebook Page use case, and `user.info.stats` and
+`video.list` under **Scopes** in the TikTok app (TikTok may refuse the whole sign-in while a scope it
+asks for isn't on the app). LinkedIn's comes with the Community Management API. Meta, TikTok and
+LinkedIn review these like the posting permissions. A connection made before, or with the box
+unticked, keeps posting; Analytics says to connect again to allow statistics.
+
 ## 14. Meta Ads and Google Ads (the Ads page)
 
 The **Ads** page (Marketing section) shows Facebook/Instagram ads and Google ads side by side:

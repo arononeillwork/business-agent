@@ -3,6 +3,8 @@
 // allows posting, then picks the café's Page or their own profile. Posts go through the Posts API.
 // Access lasts 60 days; only apps LinkedIn has approved for it get refresh tokens, so most
 // businesses connect again every two months (the app warns a week before). docs/INTEGRATIONS.md.
+import { linkedinDays, type LinkedInStats } from '../../shared/socialAnalytics'
+
 const OAUTH = 'https://www.linkedin.com/oauth/v2'
 const API = 'https://api.linkedin.com'
 
@@ -10,6 +12,8 @@ const API = 'https://api.linkedin.com'
 export const MEMBER_SCOPES = ['openid', 'profile', 'w_member_social']
 /** Posting to the company Pages they administer (needs the Community Management API on the app). */
 export const PAGE_SCOPES = ['r_organization_admin', 'w_organization_social']
+/** The Page's followers and its posts' statistics (Analytics page; also part of the Community Management API). */
+export const PAGE_STATS_SCOPES = ['rw_organization_admin']
 
 export interface LinkedInOAuthConfig {
   clientId: string; clientSecret: string; redirectUri: string
@@ -19,7 +23,7 @@ export interface LinkedInOAuthConfig {
   version: string
 }
 
-export const scopesOf = (cfg: Pick<LinkedInOAuthConfig, 'pages'>) => [...MEMBER_SCOPES, ...(cfg.pages ? PAGE_SCOPES : [])]
+export const scopesOf = (cfg: Pick<LinkedInOAuthConfig, 'pages'>) => [...MEMBER_SCOPES, ...(cfg.pages ? [...PAGE_SCOPES, ...PAGE_STATS_SCOPES] : [])]
 
 export function authUrl(cfg: LinkedInOAuthConfig, state: string) {
   const p = new URLSearchParams({ response_type: 'code', client_id: cfg.clientId, redirect_uri: cfg.redirectUri, state, scope: scopesOf(cfg).join(' ') })
@@ -120,4 +124,30 @@ export async function publish(version: string, accessToken: string, author: stri
   const urn = res.headers.get('x-restli-id') ?? res.headers.get('x-linkedin-id')
   if (!urn) throw new Error('LinkedIn: the post was accepted but no id came back')
   return `https://www.linkedin.com/feed/update/${urn}`
+}
+
+// ---- Page statistics (Analytics page) ----------------------------------------------------------
+// The Community Management API's reporting (rw_organization_admin), for a Page the person administers.
+// Organic figures only (ads are on the Ads page); LinkedIn keeps the last 12 months.
+
+const orgUrn = (id: string) => encodeURIComponent(`urn:li:organization:${id}`)
+
+/** How many follow the Page now. */
+export async function followerCount(version: string, accessToken: string, pageId: string) {
+  const r = await api<{ firstDegreeSize?: number }>(version, accessToken, `/rest/networkSizes/${orgUrn(pageId)}?edgeType=COMPANY_FOLLOWED_BY_MEMBER`)
+  return typeof r.firstDegreeSize === 'number' ? r.firstDegreeSize : null
+}
+
+/** Followers gained each day from `from` to `to` (LinkedIn has them up to two days ago). */
+export async function followerGains(version: string, accessToken: string, pageId: string, from: string, to: string) {
+  const r = await api<{ elements?: LinkedInStats['follower_gains'] }>(version, accessToken,
+    `/rest/organizationalEntityFollowerStatistics?q=organizationalEntity&organizationalEntity=${orgUrn(pageId)}&timeIntervals=${linkedinDays(from, to)}`)
+  return r.elements ?? []
+}
+
+/** The Page's posts' impressions, clicks, reactions, comments and reposts each day from `from` to `to`. */
+export async function shareStats(version: string, accessToken: string, pageId: string, from: string, to: string) {
+  const r = await api<{ elements?: LinkedInStats['shares'] }>(version, accessToken,
+    `/rest/organizationalEntityShareStatistics?q=organizationalEntity&organizationalEntity=${orgUrn(pageId)}&timeIntervals=${linkedinDays(from, to)}`)
+  return r.elements ?? []
 }

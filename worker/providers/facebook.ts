@@ -5,8 +5,10 @@
 // before it still posts, and the Messages page asks for one reconnect.
 import type { InboxConversation } from '../../shared/messages'
 import { toInboxMessage, type RawMessage } from './instagram'
+import type { FacebookStats, MetaInsight } from '../../shared/socialAnalytics'
 
-export const FACEBOOK_SCOPES = ['pages_show_list', 'pages_manage_posts', 'pages_read_engagement', 'pages_messaging']
+// read_insights (the Page's statistics, on the Analytics page) came later still, and is optional the same way.
+export const FACEBOOK_SCOPES = ['pages_show_list', 'pages_manage_posts', 'pages_read_engagement', 'pages_messaging', 'read_insights']
 
 export interface FacebookOAuthConfig { appId: string; appSecret: string; redirectUri: string; graphVersion: string }
 export interface FacebookPage { id: string; name: string; access_token: string; tasks?: string[] }
@@ -100,4 +102,30 @@ export async function sendText(s: PageAccess, to: string, text: string, tag?: 'H
     body: JSON.stringify({ recipient: { id: to }, messaging_type: tag ? 'MESSAGE_TAG' : 'RESPONSE', ...(tag ? { tag } : {}), message: { text } }),
   })
   return sent.message_id ?? null
+}
+
+// ---------------------------------------------------------------------------------------------
+// Statistics: the Page's insights (read_insights) and its posts in a period, with the Page token (Analytics page).
+// ---------------------------------------------------------------------------------------------
+
+/** The Page's name, link and followers. */
+export async function pageStats(s: PageAccess): Promise<FacebookStats['page']> {
+  const p = await graph<{ id: string; name: string; link?: string; followers_count?: number; fan_count?: number }>(
+    `${GRAPH(s.graphVersion)}/${s.pageId}?fields=id,name,link,followers_count,fan_count`, asPage(s))
+  return { id: p.id, name: p.name, link: p.link ?? null, followers: p.followers_count ?? p.fan_count ?? null }
+}
+
+/** One Page metric day by day over since–until (Unix seconds, at most 93 days apart). */
+export async function pageInsight(s: PageAccess, metric: string, since: number, until: number) {
+  const r = await graph<{ data?: MetaInsight[] }>(`${GRAPH(s.graphVersion)}/${s.pageId}/insights?${new URLSearchParams({
+    metric, period: 'day', since: String(since), until: String(until) })}`, asPage(s))
+  return r.data?.find(m => m.name === metric) ?? null
+}
+
+/** The Page's posts over since–until, with their reactions, comments and shares (up to 50). */
+export async function pagePosts(s: PageAccess, since: number, until: number) {
+  const r = await graph<{ data?: FacebookStats['posts'] }>(`${GRAPH(s.graphVersion)}/${s.pageId}/posts?${new URLSearchParams({
+    fields: 'id,message,created_time,permalink_url,full_picture,shares,reactions.summary(total_count).limit(0),comments.summary(total_count).limit(0)',
+    since: String(since), until: String(until), limit: '50' })}`, asPage(s))
+  return r.data ?? []
 }

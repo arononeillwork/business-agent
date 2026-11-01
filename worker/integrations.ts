@@ -839,7 +839,8 @@ integrations.get('/api/integrations/instagram/callback', async c => {
   }
 })
 
-const LINKEDIN_PAGES_REFUSED = 'LinkedIn hasn’t approved this app for company Pages yet. Until it does, the app can post to personal profiles only (LINKEDIN_PAGES=off; see docs/INTEGRATIONS.md).'
+const TIKTOK_SCOPES_REFUSED = 'TikTok refused the permissions asked for. The TikTok app needs user.info.stats and video.list added under Scopes (for Analytics; see docs/INTEGRATIONS.md), then connect again.'
+const LINKEDIN_PAGES_REFUSED ='LinkedIn hasn’t approved this app for company Pages yet. Until it does, the app can post to personal profiles only (LINKEDIN_PAGES=off; see docs/INTEGRATIONS.md).'
 
 /**
  * The finish of a one-click connection (Facebook, TikTok, LinkedIn, Square, Stripe, SumUp): check the signed state, handle
@@ -858,6 +859,10 @@ async function appCallback(c: Ctx, provider: Provider,
     const cancelled = /access_denied|user_denied|user_cancelled|cancel/i.test(`${c.req.query('error')} ${c.req.query('error_reason') ?? ''}`)
     // LinkedIn refuses Page permissions an app hasn't been approved for (the Community Management API).
     const said = provider === 'linkedin' && /unauthorized_scope/i.test(c.req.query('error')!) ? LINKEDIN_PAGES_REFUSED : (c.req.query('error_description') ?? c.req.query('error')!)
+    // TikTok refuses a sign-in that asks for a scope the TikTok app doesn't have (the statistics ones, until they're added there).
+    if (provider === 'tiktok' && !cancelled && /scope/i.test(`${c.req.query('error')} ${c.req.query('error_description') ?? ''}`)) {
+      return back(`connect_error=${encodeURIComponent(TIKTOK_SCOPES_REFUSED)}`)
+    }
     return back(`connect_error=${encodeURIComponent(cancelled ? `${optionName(provider)} connection was cancelled` : said)}`)
   }
   const db = await callbackDb(c.env, state.uid).catch(() => null)
@@ -902,7 +907,9 @@ integrations.get('/api/integrations/facebook/callback', c => appCallback(c, 'fac
   // Messenger (pages_messaging) is optional: posting works without it, the Messages page says to connect again.
   await setIntegration(db, 'facebook', { status: proven.chosen ? 'connected' : 'pending', connected_by: state.uid, connected_at: now,
     last_checked_at: proven.chosen ? now : null, last_error: null, account_label: proven.label,
-    external: { ...proven.external, messenger: granted.includes('pages_messaging') } })
+    external: { ...proven.external, messenger: granted.includes('pages_messaging'),
+      // The Page's statistics (read_insights, the Analytics page): optional the same way.
+      insights: granted.includes('read_insights') } })
 }))
 
 // Which Page to post to (when the owner manages more than one): connected once that Page answers.

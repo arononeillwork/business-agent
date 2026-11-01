@@ -252,6 +252,7 @@ const KEPT: Partial<Record<Provider, string[]>> = {
   square: ['sales:square:', 'items:', 'loyalty:', 'giftcards:'], sumup: ['sales:sumup:'], stripe: ['sales:stripe:'],
   search_console: ['search:'], meta_ads: ['ads:meta_ads:'], google_ads: ['ads:google_ads:'],
   gmail: ['mail:gmail:'], outlook: ['mail:outlook:'], google_business: ['reviews'],
+  instagram: ['social:instagram:'], tiktok: ['social:tiktok:'], linkedin: ['social:linkedin:'], facebook: ['social:facebook:'],
 }
 
 export async function setIntegration(db: SupabaseClient, provider: Provider, patch: Record<string, unknown>) {
@@ -335,7 +336,9 @@ export async function proveInstagram(t: { access_token: string; userId: string; 
   // Messages and tagged posts are optional extras: noted here so the Messages page can say what's missing.
   const allowed = (perm: string) => (t.permissions === undefined ? undefined : t.permissions.includes(perm))
   return { label: `@${p.username}`, external: { user_id: p.user_id ? String(p.user_id) : t.userId, username: p.username, followers: p.followers_count,
-    can_message: allowed('instagram_business_manage_messages'), can_see_tags: allowed('instagram_business_manage_comments') } }
+    can_message: allowed('instagram_business_manage_messages'), can_see_tags: allowed('instagram_business_manage_comments'),
+    // Statistics (Analytics page), optional the same way.
+    can_see_insights: allowed('instagram_business_manage_insights') } }
 }
 
 /**
@@ -498,7 +501,9 @@ export async function proveTikTok(token: string, scope: string | undefined): Pro
   if (scope !== undefined && !scope.split(/[,\s]+/).includes('video.publish')) throw new Error(missingPermission('tiktok'))
   const [who, info] = await Promise.all([tiktok.user(token), tiktok.creatorInfo(token)])
   const username = info.creator_username ?? who.display_name ?? null
-  return { label: username ? `@${username}` : null, external: { username, private_only: !info.privacy_level_options.includes('PUBLIC_TO_EVERYONE') } }
+  // Statistics (Analytics page) are optional: noted so the page can ask to connect again when they weren't allowed.
+  const stats = scope === undefined ? undefined : tiktok.STATS_SCOPES.every(s => scope.split(/[,\s]+/).includes(s))
+  return { label: username ? `@${username}` : null, external: { username, private_only: !info.privacy_level_options.includes('PUBLIC_TO_EVERYONE'), stats } }
 }
 
 /** Square: the business and at least one open location, whose payments can be read. */
@@ -527,7 +532,9 @@ export async function proveLinkedIn(cfg: linkedin.LinkedInOAuthConfig, t: linked
   // An app without the Community Management API (or Pages unticked) has the person only.
   const canPages = cfg.pages && (!scopes || (scopes.includes('r_organization_admin') && scopes.includes('w_organization_social')))
   const pages = canPages ? await linkedin.pages(cfg.version, token).catch(() => []) : []
-  const external = { member, pages, expires_at: new Date(Date.now() + (t.expires_in ?? 5_184_000) * 1000).toISOString() }
+  const external = { member, pages, expires_at: new Date(Date.now() + (t.expires_in ?? 5_184_000) * 1000).toISOString(),
+    // The Page's statistics (Analytics page), when LinkedIn allowed them.
+    stats: scopes ? linkedin.PAGE_STATS_SCOPES.every(s => scopes.includes(s)) : undefined }
   if (pages.length) return { label: null, external, pending: true }
   return { label: member.name, external: { ...external, page_id: 'me', page_name: member.name } }
 }

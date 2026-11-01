@@ -26,6 +26,8 @@ export const MINUTES = {
   competitors: 7 * 24 * 60,
   /** The Email page's list from the connected Gmail or Outlook (each filter and search kept on its own). */
   email: 5,
+  /** Instagram, TikTok, LinkedIn and Facebook statistics (Analytics): the platforms update them a few times a day. */
+  social: 3 * 60,
 } as const
 
 /** How long takings for a period ending at `endIso` (exclusive) are kept: once it's over before yesterday, a day. */
@@ -36,6 +38,7 @@ export interface RefreshSource {
   id: 'takings' | 'loyalty' | 'customers' | 'reviews' | 'hours' | 'mentions' | 'messages' | 'search' | 'ads' | 'mail' | 'sports' | 'connections' | 'website'
     | 'competitors'
     | 'email'
+    | 'social'
   /** What it is and where it comes from. */
   what: string
   from: string
@@ -78,6 +81,8 @@ export const SOURCES: RefreshSource[] = [
     why: msg('Each check reads the whole site, so it only runs when asked.') },
   { id: 'email', what: msg('Your email (Email page)'), from: 'Gmail · Outlook', every: msg('every 5 minutes'),
     why: msg('Each filter and search is kept 5 minutes, so going back and forth between them doesn’t read the mailbox again each time.') },
+  { id: 'social', what: msg('Social media statistics (Analytics)'), from: 'Instagram · TikTok · LinkedIn · Facebook', every: msg('every 3 hours'),
+    why: msg('The platforms update their statistics a few times a day, and limit how often apps may ask: every 3 hours keeps well inside that.') },
 ]
 
 export const source = (id: RefreshSource['id']) => SOURCES.find(s => s.id === id)!

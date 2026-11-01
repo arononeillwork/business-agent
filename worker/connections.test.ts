@@ -267,7 +267,7 @@ describe('Instagram and Google Maps: one click, connected once they really work'
     const start = await post('/api/integrations/instagram/start')
     const auth = new URL((await start.json() as { url: string }).url)
     expect(auth.origin + auth.pathname).toBe('https://www.instagram.com/oauth/authorize')
-    expect(auth.searchParams.get('scope')).toBe('instagram_business_basic,instagram_business_content_publish,instagram_business_manage_messages,instagram_business_manage_comments')
+    expect(auth.searchParams.get('scope')).toBe('instagram_business_basic,instagram_business_content_publish,instagram_business_manage_messages,instagram_business_manage_comments,instagram_business_manage_insights')
     expect(auth.searchParams.get('redirect_uri')).toBe(`${APP}/api/integrations/instagram/callback`)
 
     expect((await connectOwn('instagram')).searchParams.get('connected')).toBe('instagram')
@@ -570,7 +570,7 @@ describe('Facebook, TikTok and Square: one click, connected once they really wor
   it('Facebook: signs in, finds the one Page it manages, keeps only Page tokens (encrypted)', async () => {
     const start = await post('/api/integrations/facebook/start')
     const auth = new URL((await start.json() as { url: string }).url)
-    expect(auth.searchParams.get('scope')).toBe('pages_show_list,pages_manage_posts,pages_read_engagement,pages_messaging')
+    expect(auth.searchParams.get('scope')).toBe('pages_show_list,pages_manage_posts,pages_read_engagement,pages_messaging,read_insights')
     expect((await connectOwn('facebook')).searchParams.get('connected')).toBe('facebook')
     expect(db.integration('facebook')).toMatchObject({ status: 'connected', account_label: 'Easy Beans Coffee', external: { page_id: 'page-1', followers: 812 } })
     expect(await unseal(env.INTEGRATION_KEY!, String(db.secret('facebook')!.ciphertext))).toEqual({ pages: { 'page-1': 'page-token-1' } })
@@ -917,7 +917,7 @@ describe('SumUp, LinkedIn and Search Console: connected once they really work', 
   it('LinkedIn: asks to post as the person and to their Pages; with a Page it waits for the choice, then checks it', async () => {
     const auth = new URL((await (await post('/api/integrations/linkedin/start')).json() as { url: string }).url)
     expect(`${auth.origin}${auth.pathname}`).toBe('https://www.linkedin.com/oauth/v2/authorization')
-    expect(auth.searchParams.get('scope')).toBe('openid profile w_member_social r_organization_admin w_organization_social')
+    expect(auth.searchParams.get('scope')).toBe('openid profile w_member_social r_organization_admin w_organization_social rw_organization_admin')
     await connectOwn('linkedin')
     const row = db.integration('linkedin')
     expect(row).toMatchObject({ status: 'pending', account_label: null, external: { member: { id: 'mem-1', name: 'Aron O’Neill' }, pages: [{ id: '101', name: 'Easy Beans Coffee' }] } })
