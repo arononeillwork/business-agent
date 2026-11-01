@@ -35,7 +35,9 @@ if (!existing.has('VAPID_KEY')) {
   const { kty, crv, x, y, d } = privateKey.export({ format: 'jwk' })
   out.VAPID_KEY = JSON.stringify({ kty, crv, x, y, d })
 }
-for (const k of PASSTHROUGH) if (process.env[k]) out[k] = process.env[k]
+// Trimmed: a key pasted into GitHub with a stray space or line break is otherwise sent as part of the
+// key, and the provider refuses it (TikTok's sign-in page then says to correct `client_key`).
+for (const k of PASSTHROUGH) if (process.env[k]?.trim()) out[k] = process.env[k].trim()
 
 writeFileSync(process.argv[3], JSON.stringify(out))
 console.log(`Worker secrets to set: ${Object.keys(out).join(', ') || 'none'}`)
