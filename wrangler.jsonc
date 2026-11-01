@@ -21,7 +21,8 @@
   // OAuth grants/tokens for the AI connector (encrypted by workers-oauth-provider).
   "kv_namespaces": [{ "binding": "OAUTH_KV", "id": "0305794e6d204a83b4c49c5ec36a85cd" }],
   // Every minute: auto clock-out, shift alerts, deliver the outbox. Nightly: fill timecards from the rota.
-  "triggers": { "crons": ["* * * * *", "15 1 * * *"] },
+  // Every minute from 02:00 to 03:59 UTC: the night's connection checks, a few at a time (worker/index.ts).
+  "triggers": { "crons": ["* * * * *", "15 1 * * *", "* 2-3 * * *"] },
   // Photos for Instagram / Google posts (served publicly at /media/*). Enable R2 in the
   // Cloudflare dashboard, create the bucket "business-agent-media", then uncomment:
   // "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "business-agent-media" }],

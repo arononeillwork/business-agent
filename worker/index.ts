@@ -3,7 +3,7 @@ import { OAuthProvider } from '@cloudflare/workers-oauth-provider'
 import { bearer, businessDb, businessIds, joinBusiness, serviceClient, userClient, type Env } from './supabase'
 import { rest } from './rest'
 import { drainOutbox, integrations, pushGoogleMenu, syncGoogle, syncGoogleBothWays } from './integrations'
-import { checkAll } from './connections'
+import { checkDue } from './connections'
 import { checkMentions } from './mentions'
 import { syncSquareCustomers } from './squareCustomers'
 import { purge as purgeWhatsApp } from './whatsappInbox'
@@ -40,6 +40,11 @@ import { socialAnalytics } from './socialAnalytics'
 import { accessOf, teamRoleOf } from '../shared/teamRoles'
 
 const NIGHTLY = '15 1 * * *' // 03:15 Madrid in summer, 02:15 in winter
+// Every minute from 02:00 to 03:59 UTC: the night's connection checks, a few a run (checkDue), each
+// run with its own room for outside requests.
+const CHECKS = '* 2-3 * * *'
+/** Connections checked a run: about 6 requests each (twice that when one is retried), well inside 50. */
+const CHECKS_A_RUN = 2
 
 const googleConnected = async (db: ReturnType<typeof businessDb>) => {
   const { data } = await db.from('integrations').select('status').eq('provider', 'google_business').maybeSingle()
@@ -349,6 +354,18 @@ export default {
       for (const id of await businessIds(env)) await job(id, businessDb(env, id))
     }
     const minute = Math.floor(event.scheduledTime / 60_000)
+    // Prove every connection still works; admins get a notification when one stops working. A few
+    // a run, business by business, until this run has checked its share.
+    if (event.cron === CHECKS) {
+      ctx.waitUntil((async () => {
+        let left = CHECKS_A_RUN
+        for (const id of await businessIds(env)) {
+          if (left <= 0) break
+          left -= await checkDue(env, businessDb(env, id), left).catch(e => { console.error('connection checks failed', id, e); return 0 })
+        }
+      })())
+      return
+    }
     if (event.cron === NIGHTLY) {
       ctx.waitUntil((async () => {
         await each('auto_fill_timecards')
@@ -366,8 +383,6 @@ export default {
           await syncBilling(env, id).catch(e => console.error('billing sync failed', id, e))
           // Instagram's likes and comments on posts with music, so suggestions learn what does well.
           await syncMusicInsights(env, id).catch(e => console.error('music insights failed', id, e))
-          // Prove every connection still works; admins get a notification when one stops working.
-          await checkAll(env, b).catch(e => console.error('connection checks failed', id, e))
           // Hours both ways first (an edit made on Google comes in, not overwritten), then re-send
           // closures and phone to Google Maps, in case a change was missed (changes also sync within a minute).
           if (await googleConnected(b)) {
