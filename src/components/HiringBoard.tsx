@@ -4,14 +4,15 @@ import EditIcon from '@mui/icons-material/EditOutlined'
 import MoreIcon from '@mui/icons-material/MoreHoriz'
 import MoveIcon from '@mui/icons-material/ArrowForward'
 import OpenIcon from '@mui/icons-material/OpenInNew'
+import ViewIcon from '@mui/icons-material/VisibilityOutlined'
 import PersonAddIcon from '@mui/icons-material/PersonAddAlt'
 import { DndContext, DragOverlay, PointerSensor, pointerWithin, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { useState, type ReactNode } from 'react'
 import { Tag } from './common'
 import { formatLocal } from '../../shared/time'
 import {
-  APPLICANT_STAGES, applicantStageLabel, boardLabel, contractLabel, openingStatusLabel, overdue,
-  type Applicant, type ApplicantStage, type HiringLane, type JobOpening, type OpeningStatus,
+  APPLICANT_STAGES, applicantStageLabel, boardLabel, contractLabel, cvPreview, openingStatusLabel, overdue,
+  type ApplicantCv, type ApplicantStage, type HiringLane, type JobApplicant, type JobOpening, type OpeningStatus,
 } from '../../shared/hiring'
 import { tokens } from '../theme'
 import { t } from '../i18n'
@@ -34,23 +35,30 @@ const grid = { display: 'grid', gridTemplateColumns: `repeat(${APPLICANT_STAGES.
  * time), a card per applicant. Cards are dragged to another stage, or to another job's lane, or moved
  * from their menu.
  */
-export function HiringBoard({ lanes, today, positionName, onMove, onEdit, onAdd, onHire }: {
+export function HiringBoard({ lanes, today, positionName, onMove, onEdit, onAdd, onHire, cvOf, onCv }: {
   lanes: HiringLane[]; today: string; positionName: (id: number | null) => string | undefined
-  onMove: (a: Applicant, to: { opening_id: string; stage: ApplicantStage }) => void
-  onEdit: (a: Applicant) => void
+  onMove: (a: JobApplicant, to: { opening_id: string; stage: ApplicantStage }) => void
+  onEdit: (a: JobApplicant) => void
   onAdd: (opening: JobOpening) => void
-  onHire: (a: Applicant) => void
+  onHire: (a: JobApplicant) => void
+  /** Their uploaded CV, shown (or downloaded) from the card's menu. */
+  cvOf: (id: string) => ApplicantCv | undefined
+  onCv: (cv: ApplicantCv, a: JobApplicant) => void
 }) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
-  const [dragging, setDragging] = useState<Applicant | null>(null)
+  const [dragging, setDragging] = useState<JobApplicant | null>(null)
   const onDragEnd = ({ active, over }: DragEndEvent) => {
     setDragging(null)
-    const a = active.data.current?.applicant as Applicant | undefined
+    const a = active.data.current?.applicant as JobApplicant | undefined
     const to = over?.data.current as { opening_id: string; stage: ApplicantStage } | undefined
     if (a && to) onMove(a, to)
   }
   const totals = Object.fromEntries(APPLICANT_STAGES.map(s => [s.id, lanes.reduce((n, l) => n + l.byStage[s.id].length, 0)])) as Record<ApplicantStage, number>
-  const card = (a: Applicant) => ({ a, today, onMove: (stage: ApplicantStage) => onMove(a, { opening_id: a.opening_id, stage }), onEdit: () => onEdit(a), onHire: () => onHire(a) })
+  const card = (a: JobApplicant) => {
+    const cv = cvOf(a.id)
+    return { a, today, onMove: (stage: ApplicantStage) => onMove(a, { opening_id: a.opening_id, stage }), onEdit: () => onEdit(a), onHire: () => onHire(a),
+      cv, onCv: cv ? () => onCv(cv, a) : undefined }
+  }
 
   return (
     <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragStart={e => setDragging(e.active.data.current?.applicant ?? null)}
@@ -103,7 +111,10 @@ function Cell({ opening, stage, children }: { opening: JobOpening; stage: Applic
   )
 }
 
-interface CardProps { a: Applicant; today: string; onMove?: (stage: ApplicantStage) => void; onEdit?: () => void; onHire?: () => void; lifted?: boolean }
+interface CardProps {
+  a: JobApplicant; today: string; onMove?: (stage: ApplicantStage) => void; onEdit?: () => void; onHire?: () => void; lifted?: boolean
+  cv?: ApplicantCv; onCv?: () => void
+}
 
 function DraggableCard(props: CardProps) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: props.a.id, data: { applicant: props.a } })
@@ -115,7 +126,7 @@ function DraggableCard(props: CardProps) {
 }
 
 /** An applicant's card: who, where they came from, the interview, how they were rated; moved, edited or hired from its menu. */
-function CardFace({ a, today, onMove, onEdit, onHire, handle, lifted }: CardProps & { handle?: Record<string, unknown> }) {
+function CardFace({ a, today, onMove, onEdit, onHire, cv, onCv, handle, lifted }: CardProps & { handle?: Record<string, unknown> }) {
   const [more, setMore] = useState<HTMLElement | null>(null)
   const stillIn = a.stage !== 'hired' && a.stage !== 'rejected'
   return (
@@ -147,6 +158,12 @@ function CardFace({ a, today, onMove, onEdit, onHire, handle, lifted }: CardProp
             <MenuItem onClick={() => { setMore(null); onEdit?.() }}>
               <ListItemIcon><EditIcon fontSize="small" /></ListItemIcon>{t('Edit {name}', { name: a.full_name })}
             </MenuItem>
+            {cv && onCv && (
+              <MenuItem onClick={() => { setMore(null); onCv() }}>
+                <ListItemIcon><ViewIcon fontSize="small" /></ListItemIcon>
+                {cvPreview(cv) ? t('View the CV of {name}', { name: a.full_name }) : t('Download the CV of {name}', { name: a.full_name })}
+              </MenuItem>
+            )}
             {a.cv_link && (
               <MenuItem component="a" href={a.cv_link} target="_blank" rel="noopener" onClick={() => setMore(null)}>
                 <ListItemIcon><OpenIcon fontSize="small" /></ListItemIcon>{t('Open the CV of {name}', { name: a.full_name })}

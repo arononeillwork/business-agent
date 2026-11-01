@@ -44,6 +44,7 @@ import { SOURCE_FOR, type Enquiry } from '../../shared/leads'
 import type { ExpenseClaim } from '../../shared/claims'
 import type { Campaign } from '../../shared/campaigns'
 import type { Applicant, JobOpening } from '../../shared/hiring'
+import { CV_COLUMNS, cvProblem, type ApplicantCv } from '../../shared/hiring'
 import type { SafetyCheck, SafetyPoint } from '../../shared/foodSafety'
 import type { MenuAllergens } from '../../shared/allergens'
 import type { TipPool } from '../../shared/tips'
@@ -1009,6 +1010,31 @@ export function createSupabaseApi(url: string, key: string): Api {
       return (check(await sb.from('applicants').insert(row).select('id').single()) as { id: string }).id
     },
     async deleteApplicant(id) { check(await sb.from('applicants').delete().eq('id', id)) },
+    async savePoolCandidate({ id, ...c }) {
+      // Only someone in the pool is changed here; when their details go is the database's (a year from being added).
+      const { keep_until: _k, ...row } = c as typeof c & { keep_until?: string }
+      if (id) { check(await sb.from('applicants').update(row).eq('id', id).is('opening_id', null)); return id }
+      return (check(await sb.from('applicants').insert({ ...row, opening_id: null }).select('id').single()) as { id: string }).id
+    },
+    async addToJob(applicantId, openingId) {
+      check(await sb.from('applicants').update({ opening_id: openingId, stage: 'applied' }).eq('id', applicantId).is('opening_id', null))
+    },
+    async applicantCvs() {
+      return (check(await sb.from('applicant_cvs').select(CV_COLUMNS)) as unknown as ApplicantCv[]).map(c => ({ ...c, size: Number(c.size) }))
+    },
+    async uploadApplicantCv(applicantId, file) {
+      const problem = cvProblem(file)
+      if (problem) throw new Error(problem)
+      const content = await dataUrlOf(file)
+      const row = check(await sb.from('applicant_cvs').upsert({ applicant_id: applicantId, file_name: file.name, mime_type: file.type || null, size: file.size, content },
+        { onConflict: 'applicant_id' }).select(CV_COLUMNS).single()) as unknown as ApplicantCv
+      return { ...row, size: Number(row.size) }
+    },
+    async removeApplicantCv(applicantId) { check(await sb.from('applicant_cvs').delete().eq('applicant_id', applicantId)) },
+    async applicantCvFile(applicantId) {
+      const c = check(await sb.from('applicant_cvs').select('content').eq('applicant_id', applicantId).single()) as { content: string }
+      return (await fetch(c.content)).blob()
+    },
     async tipPools() {
       return (check(await sb.from('tip_pools').select('*, shares:tip_shares(profile_id, minutes, amount)').order('starts_on', { ascending: false })) as TipPool[])
         .map(p => ({ ...p, cash: Number(p.cash), card: Number(p.card), shares: p.shares.map(s => ({ ...s, amount: Number(s.amount) })) }))

@@ -44,6 +44,7 @@ import type { Enquiry, EnquiryInput, NewLead } from '../../shared/leads'
 import type { ClaimInput, ExpenseClaim } from '../../shared/claims'
 import type { Campaign, CampaignInput } from '../../shared/campaigns'
 import type { Applicant, ApplicantInput, JobOpening, OpeningInput } from '../../shared/hiring'
+import type { ApplicantCv, PoolInput } from '../../shared/hiring'
 import type { CheckInput, PointInput, SafetyCheck, SafetyPoint } from '../../shared/foodSafety'
 import type { Allergen, Diet, MenuAllergens } from '../../shared/allergens'
 import type { BrandDocument } from '../../shared/brandDocs'
@@ -545,6 +546,18 @@ export interface Api {
   /** Add an applicant (no id) or change one; returns their id. */
   saveApplicant(a: ApplicantInput): Promise<string>
   deleteApplicant(id: string): Promise<void>
+  // The CV pool: applicants() includes them, with no job (opening_id null). Removed with deleteApplicant.
+  /** Add someone to the CV pool (no id) or change them there; returns their id. */
+  savePoolCandidate(c: PoolInput): Promise<string>
+  /** Someone from the CV pool onto a job: on its board at Applied, with their CV. */
+  addToJob(applicantId: string, openingId: string): Promise<void>
+  /** The applicants' uploaded CVs, without the files. */
+  applicantCvs(): Promise<ApplicantCv[]>
+  /** Upload an applicant's CV (a PDF, a Word document or a picture, up to 10 MB); it replaces the one they had. */
+  uploadApplicantCv(applicantId: string, file: File): Promise<ApplicantCv>
+  removeApplicantCv(applicantId: string): Promise<void>
+  /** The CV file itself, to show in the page or download. */
+  applicantCvFile(applicantId: string): Promise<Blob>
 
   // Tips: admins with pay access share them out; payroll partners read; everyone sees their own share.
   tipPools(): Promise<TipPool[]>

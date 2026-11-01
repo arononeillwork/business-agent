@@ -6463,6 +6463,69 @@ test.describe('hiring', () => {
     await page.getByRole('option', { name: 'Opening team: baristas' }).click()
     await expect(list).toContainText('No candidates match.')
   })
+
+  test('the CV pool keeps a CV with no job posted: added, found, opened, and put on a job once there is one', async ({ page }) => {
+    await open(page, '/hiring?view=jobs')
+    // No jobs at all: both are removed (with their applicants); the CV pool stays.
+    for (const job of ['Weekend barista', 'Opening team: baristas']) {
+      await page.getByRole('button', { name: `Edit ${job}` }).click()
+      await page.getByRole('dialog', { name: job }).getByRole('button', { name: 'Remove' }).click()
+      await toast(page, 'Job removed, with its applicants')
+    }
+    const jobs = page.getByRole('region', { name: 'Jobs' })
+    await expect(jobs).toContainText('No jobs yet.')
+    const pool = page.getByRole('region', { name: 'CV pool' })
+    const rows = pool.getByRole('table', { name: 'CV pool' }).getByRole('row')
+    await expect(rows).toHaveCount(4) // the header and the three kept in the demo, newest first
+    await expect(rows.nth(1)).toContainText('Chloé Martin')
+
+    // A CV handed in at the counter, with no job for it.
+    await jobs.getByRole('button', { name: 'Add a CV' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Add a CV' })
+    await dialog.getByRole('textbox', { name: 'Name' }).fill('Pablo Ruiz')
+    await dialog.getByRole('textbox', { name: 'Email' }).fill('pablo.ruiz@example.es')
+    await dialog.getByRole('textbox', { name: 'Phone' }).fill('612 345 678')
+    await dialog.getByRole('combobox', { name: 'Roles they’d suit' }).fill('Barista')
+    await dialog.getByRole('combobox', { name: 'Roles they’d suit' }).press('Enter')
+    await dialog.getByRole('textbox', { name: 'When they can work' }).fill('Weekends')
+    await dialog.getByLabel('CV file').setInputFiles({ name: 'Pablo Ruiz CV.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\n%%EOF\n') })
+    await expect(dialog).toContainText('Pablo Ruiz CV.pdf')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await toast(page, 'Pablo Ruiz is in the CV pool')
+    const pablo = rows.filter({ hasText: 'Pablo Ruiz' })
+    await expect(pablo).toContainText('Barista')
+    await expect(pablo).toContainText('Weekends')
+    await expect(pablo).toContainText('+34 612 345 678')
+
+    // Found by when they can work, and their CV opened in the page.
+    await pool.getByRole('textbox', { name: 'Search the CV pool' }).fill('weekends')
+    await expect(rows).toHaveCount(3)
+    await expect(rows.filter({ hasText: 'Marta Jiménez' })).toBeVisible()
+    await pablo.getByRole('button', { name: 'View the CV of Pablo Ruiz' }).click()
+    const viewer = page.getByRole('dialog', { name: 'Pablo Ruiz CV.pdf' })
+    await expect(viewer.locator('iframe[title="Pablo Ruiz CV.pdf"]')).toBeVisible()
+    await expect(viewer).toContainText('Pablo Ruiz’s CV, uploaded')
+    await viewer.getByRole('button', { name: 'Close' }).click()
+    await expect(pablo.getByRole('button', { name: 'Download the CV of Pablo Ruiz' })).toBeVisible()
+
+    // A job is posted: from the pool onto its board, at Applied, with the CV.
+    await jobs.getByRole('button', { name: 'Add a vacancy' }).click()
+    const vacancy = page.getByRole('dialog', { name: 'Add a vacancy' })
+    await vacancy.getByRole('textbox', { name: 'Job title' }).fill('Summer barista')
+    await vacancy.getByRole('button', { name: 'Save' }).click()
+    await toast(page, /^Saved$/)
+    await page.getByRole('tab', { name: 'CV pool (4)' }).click()
+    await pool.getByRole('button', { name: 'Add Pablo Ruiz to a job' }).click()
+    const placing = page.getByRole('dialog', { name: 'Add Pablo Ruiz to a job' })
+    await expect(placing.getByRole('combobox', { name: 'Which job' })).toHaveText('Summer barista')
+    await placing.getByRole('button', { name: 'Add to the job' }).click()
+    await toast(page, 'Pablo Ruiz is on the board for Summer barista')
+    await expect(page.getByRole('tab', { name: 'CV pool (3)' })).toBeVisible()
+    await page.getByRole('tab', { name: 'Board' }).click()
+    const applied = page.getByRole('main').getByRole('region', { name: 'Summer barista' }).getByRole('group', { name: 'Applied', exact: true })
+    await applied.getByRole('button', { name: 'More for Pablo Ruiz' }).click()
+    await expect(page.getByRole('menuitem', { name: 'View the CV of Pablo Ruiz' })).toBeVisible()
+  })
 })
 
 test.describe('food safety and allergens', () => {

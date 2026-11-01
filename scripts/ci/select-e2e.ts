@@ -80,6 +80,7 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'campaigns', files: [/CampaignsPage/, /shared\/campaigns/], tests: String.raw`campaigns|marketing` },
   { name: 'suggested campaigns', files: [/shared\/campaignIdeas/], tests: String.raw`campaigns` },
   { name: 'hiring', files: [/HiringPage/, /HiringBoard/, /shared\/hiring/], tests: String.raw`hiring|applicant` },
+  { name: 'cv pool', files: [/components\/CvPool/, /i18n\/es\/hiring/], tests: String.raw`hiring|applicant|CV pool` },
   { name: 'food safety and allergens', files: [/(FoodSafety|Allergens)Page/, /shared\/(foodSafety|allergens)/], tests: String.raw`food safety|allergen` },
   { name: 'tips', files: [/TipsPage/, /shared\/tips/], tests: String.raw`tips` },
   { name: 'insights', files: [/(Dashboards|Advisor)Page/, /dashboardWidgets/, /app\/insightsData/, /shared\/(insights|dashboards)/], tests: String.raw`dashboard|advisor|Today` },

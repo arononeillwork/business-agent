@@ -301,6 +301,14 @@ built-in **AI connector** so owners can run it by talking to Claude.
   with nobody left in the running are hidden until asked for. **Candidates** lists everyone who applied,
   whichever job, searched by name, email or phone and narrowed to a job or a stage; **Jobs** is the job
   by job view.
+- Hiring CV pool: CVs kept for a job to come, with no job posted (a CV handed in at the counter, sent
+  by email, passed on). Each person has the roles they'd suit, the day they can start and when they can
+  work, notes, and their CV uploaded (a PDF, a Word document or a picture, up to 10 MB, kept in the
+  database as `applicant_cvs`) or linked; a PDF or a picture opens in the page, any of them downloads.
+  The pool is a tab on Hiring, and the whole page when there are no jobs. It's searched and narrowed to
+  a role or to who can start now, and **Add to a job** puts someone on a job's board at Applied, CV and
+  all. They're applicants with no job (`applicants.opening_id` null), kept a year as everyone who
+  applied. Any applicant's CV can be uploaded the same way.
 - Off the rota (Team): an admin switches someone off the rota on their Team panel (an owner, the
   business's own login). They still sign in; the rota gives them no row and doesn't offer them for a
   shift, unless they already have one that week.
