@@ -198,6 +198,9 @@ export class FakeProviders {
     /** Messenger chats on the Page (newest message first), and replies sent. */
     chats: [] as { id: string; updated_time: string; with: { id: string; name: string }; messages: { id: string; created_time: string; fromPage: boolean; message: string }[] }[],
     replies: [] as { to: string; text: string; messaging_type: string; tag?: string }[],
+    /** What Messenger's User Profile API says about people who messaged the Page (anyone else: not found). */
+    people: { 'psid-1': { first_name: 'Lucía', last_name: 'García', profile_pic: 'https://platform-lookaside.fbsbx.test/psid-1.jpg' } } as Record<string, Json>,
+    profileLookups: 0,
   }
   tiktok = {
     scope: 'user.info.basic,video.publish',
@@ -818,8 +821,17 @@ export class FakeProviders {
       if (c) Object.assign(c, change.status ? { status: change.status, effective_status: change.status } : {}, change.daily_budget ? { daily_budget: change.daily_budget } : {})
       return json({ success: true })
     }
+    // Messenger's User Profile API: a person's name and photo, with the Page token.
+    const psid = url.host === 'graph.facebook.com' && (url.searchParams.get('fields') ?? '').includes('profile_pic') && url.pathname.match(/\/v[\d.]+\/(psid-[\w-]+)$/)
+    if (psid) {
+      const token = new Headers(init.headers).get('authorization')?.replace('Bearer ', '')
+      if (this.facebook.revoked || !this.facebook.pages.some(p => p.access_token === token)) return json({ error: { message: 'Error validating access token: The session has been invalidated.', code: 190 } }, 400)
+      this.facebook.profileLookups++
+      const p = this.facebook.people[psid[1]]
+      return p ? json({ id: psid[1], ...p }) : json({ error: { message: '(#100) No profile available for that user.', code: 100 } }, 400)
+    }
     // Messenger: the Page's chats and replies (pages_messaging), with the Page token.
-    const messenger = url.host === 'graph.facebook.com' && url.pathname.match(/\/v[\d.]+\/(?:(page-[\w-]+)\/(conversations|messages)|(t_[\w-]+))$/)
+    const messenger =url.host === 'graph.facebook.com' && url.pathname.match(/\/v[\d.]+\/(?:(page-[\w-]+)\/(conversations|messages)|(t_[\w-]+))$/)
     if (messenger) {
       const token = new Headers(init.headers).get('authorization')?.replace('Bearer ', '')
       if (this.facebook.revoked || !this.facebook.pages.some(p => p.access_token === token)) return json({ error: { message: 'Error validating access token: The session has been invalidated.', code: 190 } }, 400)

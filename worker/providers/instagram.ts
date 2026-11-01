@@ -228,28 +228,42 @@ const PERSON_TTL_S = 6 * 3600
 // each person is looked up at most every 6 hours rather than on every inbox refresh.
 const edgeCache = () => (globalThis as { caches?: { default?: Cache } }).caches?.default
 
+/**
+ * Someone in a chat (Instagram or Messenger), as `look` describes them, kept in the Workers' cache
+ * for 6 hours (an hour after a failed lookup) and never stored: their photos are signed links that
+ * expire, so they're asked for again as the chat list refreshes. Never throws: no photo is better than no inbox.
+ */
+export async function remembered<T extends object>(key: string, look: () => Promise<T>): Promise<Partial<T>> {
+  const cache = edgeCache()
+  const hit = await cache?.match(key).catch(() => undefined)
+  if (hit) return hit.json() as Promise<Partial<T>>
+  let found: Partial<T> = {}
+  let ttl = PERSON_TTL_S
+  try {
+    found = await look()
+  } catch {
+    ttl = 3600 // blocked us, or Meta is busy: try again in an hour
+  }
+  await cache?.put(key, new Response(JSON.stringify(found), { headers: { 'content-type': 'application/json', 'cache-control': `max-age=${ttl}` } })).catch(() => {})
+  return found
+}
+
+/** A profile photo the page can show: Meta's https links only. */
+export const photo = (url?: string) => (url && /^https:\/\//i.test(url) ? url : undefined)
+
 /** Who an Instagram-scoped id is; never throws (no photo is better than no inbox). */
 export async function person(cfg: InstagramConfig, igsid: string): Promise<Person> {
   if (!igsid) return {}
-  const cache = edgeCache()
-  const key = `https://instagram-person.cache/${encodeURIComponent(cfg.userId)}/${encodeURIComponent(igsid)}`
-  const hit = await cache?.match(key).catch(() => undefined)
-  if (hit) return hit.json() as Promise<Person>
-  let found: Person = {}
-  let ttl = PERSON_TTL_S
-  try {
+  return remembered<Person>(`https://instagram-person.cache/${encodeURIComponent(cfg.userId)}/${encodeURIComponent(igsid)}`, async () => {
     // Their followers too (a rep's reach, Sales reps & rewards); asked again without it if Instagram refuses the field.
     type Raw = { name?: string; username?: string; profile_pic?: string; follower_count?: number }
     const path = (fields: string) => `${encodeURIComponent(igsid)}?fields=${fields}`
     const p = await graph<Raw>(cfg, path('name,username,profile_pic,follower_count'))
       .catch(e => (/field|param/i.test(String(e)) && !/can not be found|blocked/i.test(String(e)) ? graph<Raw>(cfg, path('name,username,profile_pic')) : Promise.reject(e)))
-    found = { ...(p.name ? { name: p.name } : {}), ...(p.username ? { username: p.username } : {}), ...(p.profile_pic ? { picture: p.profile_pic } : {}),
+    const picture = photo(p.profile_pic)
+    return { ...(p.name ? { name: p.name } : {}), ...(p.username ? { username: p.username } : {}), ...(picture ? { picture } : {}),
       ...(typeof p.follower_count === 'number' ? { followers: p.follower_count } : {}) }
-  } catch {
-    ttl = 3600 // blocked us, or Instagram is busy: try again in an hour
-  }
-  await cache?.put(key, new Response(JSON.stringify(found), { headers: { 'content-type': 'application/json', 'cache-control': `max-age=${ttl}` } })).catch(() => {})
-  return found
+  })
 }
 
 /** The chat's other person with their name and photo filled in where Instagram shares them. */

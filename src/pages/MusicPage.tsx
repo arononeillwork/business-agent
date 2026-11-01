@@ -10,6 +10,8 @@ import SearchIcon from '@mui/icons-material/Search'
 import CloseIcon from '@mui/icons-material/CloseRounded'
 import NextUpIcon from '@mui/icons-material/PlaylistPlayRounded'
 import QueueAddIcon from '@mui/icons-material/PlaylistAddRounded'
+import CafeAddIcon from '@mui/icons-material/LibraryAddRounded'
+import CafeAddedIcon from '@mui/icons-material/LibraryAddCheckRounded'
 import SpeakerIcon from '@mui/icons-material/SpeakerOutlined'
 import MusicIcon from '@mui/icons-material/MusicNote'
 import OpenIcon from '@mui/icons-material/OpenInNew'
@@ -19,7 +21,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link as RouterLink, useSearchParams } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
-import { playlistOrder, useCafeMusic, useWatchCafeMusic } from '../app/CafeSpeaker'
+import { CAFE_PLAYLIST_ID, playlistOrder, useCafeMusic, useWatchCafeMusic } from '../app/CafeSpeaker'
 import { useAsync, useTick } from '../app/hooks'
 import { useAction, useNotify } from '../app/Notify'
 import { Empty, ErrorBox, SectionTitle, Tag } from '../components/common'
@@ -135,16 +137,15 @@ function NowPlaying() {
           <Typography sx={{ color: 'text.secondary' }} noWrap>
             {[track?.artist, s?.playlist?.name].filter(Boolean).join(' · ') || `${BRAND.youtube.name}${music.library?.account ? ` · ${music.library.account}` : ''}`}
           </Typography>
-          {live && track && (
-            <Box sx={{ mt: 1.5 }}>
-              <LinearProgress variant="determinate" value={duration ? Math.min(100, (elapsed / duration) * 100) : 0} aria-label={t('Song progress')}
-                sx={{ height: 6, borderRadius: 3, bgcolor: tokens.surfaceAlt, '& .MuiLinearProgress-bar': { bgcolor: BRAND.youtube.colour } }} />
-              <Stack direction="row" sx={{ justifyContent: 'space-between', mt: 0.5 }}>
-                <Typography variant="caption" sx={{ color: 'text.secondary' }}>{mmss(elapsed)}</Typography>
-                <Typography variant="caption" sx={{ color: 'text.secondary' }}>{duration ? mmss(duration) : ''}</Typography>
-              </Stack>
-            </Box>
-          )}
+          {/* Hidden until a song plays, but its room is kept, so starting one doesn't push the search results under the finger. */}
+          <Box sx={{ mt: 1.5, visibility: live && track ? undefined : 'hidden' }}>
+            <LinearProgress variant="determinate" value={duration ? Math.min(100, (elapsed / duration) * 100) : 0} aria-label={t('Song progress')}
+              sx={{ height: 6, borderRadius: 3, bgcolor: tokens.surfaceAlt, '& .MuiLinearProgress-bar': { bgcolor: BRAND.youtube.colour } }} />
+            <Stack direction="row" sx={{ justifyContent: 'space-between', mt: 0.5 }}>
+              <Typography variant="caption" sx={{ color: 'text.secondary' }}>{mmss(elapsed)}</Typography>
+              <Typography variant="caption" sx={{ color: 'text.secondary' }}>{duration ? mmss(duration) : ''}</Typography>
+            </Stack>
+          </Box>
           <Stack direction="row" sx={{ alignItems: 'center', gap: 0.5, mt: 1.5, flexWrap: 'wrap' }}>
             <IconButton aria-label={t('Previous song')} disabled={!live} onClick={() => run(() => music.control('previous'))}><PrevIcon /></IconButton>
             {s?.playing && live
@@ -254,6 +255,15 @@ function FindMusic() {
   const results = useAsync('music-search', () => (asked ? api.cafeSearch(asked.q, asked.kind) : Promise.resolve(null)), [asked?.q, asked?.kind])
   const search = (k = kind) => { if (q.trim().length >= 2) setAsked({ q: q.trim(), kind: k }) }
   const r = asked && results.data
+  const s = music.state
+  /** The song the speaker has on now (playing or paused), if it's this one. */
+  const isOn = (x: CafeTrack) => music.live && s?.queue[s.position]?.id === x.id
+  /** Songs already in the café playlist (each goes in once). */
+  const inCafe = new Set((s?.cafe_playlist ?? []).map(x => x.id))
+  // One press plays it: pause and resume when it's the one on; when it's next in line with nothing playing, this device starts it.
+  const press = (x: CafeTrack) => (isOn(x) ? run(() => music.control(s?.playing ? 'pause' : 'play'))
+    : s?.queue[s.position]?.id === x.id ? run(() => music.claim())
+      : run(() => music.addTracks([x], 'now'), t('Playing {name}', { name: x.title })))
   return (
     <Card component="section" aria-label={t('Find music')}>
       <Box component="form" onSubmit={e => { e.preventDefault(); search() }} sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', p: 2, pb: r ? 1 : 2 }}>
@@ -275,18 +285,33 @@ function FindMusic() {
       {r && r.tracks.length + r.playlists.length === 0 && <Typography variant="body2" sx={{ color: 'text.secondary', px: 2, pb: 2 }}>{t('Nothing found for “{q}”.', { q: asked.q })}</Typography>}
       {r && r.tracks.length > 0 && (
         <Box role="list" aria-label={t('Songs found')} sx={{ maxHeight: 360, overflowY: 'auto' }}>
-          {r.tracks.map(x => (
-            <Stack key={x.id} role="listitem" aria-label={x.title} direction="row" spacing={1.25} sx={{ alignItems: 'center', px: 2, py: 0.75, borderTop: `1px solid ${tokens.line}` }}>
-              <Thumb src={x.image} />
-              <Box sx={{ minWidth: 0, flex: 1 }}>
-                <Typography variant="body2" noWrap>{x.title}</Typography>
-                {x.artist && <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }} noWrap>{x.artist}</Typography>}
-              </Box>
-              <Tooltip title={t('Play now')}><IconButton size="small" aria-label={t('Play {title} now', { title: x.title })} onClick={() => run(() => music.addTracks([x], 'now'), music.live ? t('Playing {name}', { name: x.title }) : t('{name} is up next', { name: x.title }))}><PlayIcon /></IconButton></Tooltip>
-              <Tooltip title={t('Play next')}><IconButton size="small" aria-label={t('Play {title} next', { title: x.title })} onClick={() => run(() => music.addTracks([x], 'next'), t('{title} plays next', { title: x.title }))}><NextUpIcon fontSize="small" /></IconButton></Tooltip>
-              <Tooltip title={t('Add to the end of the queue')}><IconButton size="small" aria-label={t('Add {title} to the queue', { title: x.title })} onClick={() => run(() => music.addTracks([x], 'end'), t('Added {title}', { title: x.title }))}><QueueAddIcon fontSize="small" /></IconButton></Tooltip>
-            </Stack>
-          ))}
+          {r.tracks.map(x => {
+            const on = isOn(x), playing = on && !!s?.playing, added = inCafe.has(x.id)
+            return (
+              <Stack key={x.id} role="listitem" aria-label={x.title} aria-current={on ? 'true' : undefined} direction="row" spacing={1.25}
+                sx={{ alignItems: 'center', px: 2, py: 0.75, borderTop: `1px solid ${tokens.line}`, bgcolor: on ? tokens.roseSoft : undefined }}>
+                <Thumb src={x.image} />
+                <Box sx={{ minWidth: 0, flex: 1 }}>
+                  <Typography variant="body2" sx={{ fontWeight: on ? 600 : undefined }} noWrap>{x.title}</Typography>
+                  {(x.artist || added) && <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }} noWrap>{[x.artist, added && t('In the café playlist')].filter(Boolean).join(' · ')}</Typography>}
+                </Box>
+                <Tooltip title={playing ? t('Pause') : t('Play now')}>
+                  <IconButton size="small" aria-label={playing ? t('Pause {title}', { title: x.title }) : t('Play {title} now', { title: x.title })} onClick={() => press(x)}
+                    sx={on ? { color: BRAND.youtube.colour } : undefined}>{playing ? <PauseIcon /> : <PlayIcon />}</IconButton>
+                </Tooltip>
+                <Tooltip title={added ? t('Remove from the café playlist') : t('Add to the café playlist')}>
+                  <IconButton size="small" aria-pressed={added} sx={added ? { color: tokens.matchaDeep } : undefined}
+                    aria-label={added ? t('Remove {title} from the café playlist', { title: x.title }) : t('Add {title} to the café playlist', { title: x.title })}
+                    onClick={() => (added ? run(() => music.removeFromCafePlaylist(x.id), t('Removed {title} from the café playlist', { title: x.title }))
+                      : run(() => music.addToCafePlaylist(x), t('Added {title} to the café playlist', { title: x.title })))}>
+                    {added ? <CafeAddedIcon fontSize="small" /> : <CafeAddIcon fontSize="small" />}
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title={t('Play next')}><IconButton size="small" aria-label={t('Play {title} next', { title: x.title })} onClick={() => run(() => music.addTracks([x], 'next'), t('{title} plays next', { title: x.title }))}><NextUpIcon fontSize="small" /></IconButton></Tooltip>
+                <Tooltip title={t('Add to the end of the queue')}><IconButton size="small" aria-label={t('Add {title} to the queue', { title: x.title })} onClick={() => run(() => music.addTracks([x], 'end'), t('Added {title}', { title: x.title }))}><QueueAddIcon fontSize="small" /></IconButton></Tooltip>
+              </Stack>
+            )
+          })}
         </Box>
       )}
       {r && r.playlists.length > 0 && (
@@ -366,7 +391,7 @@ function PlaylistRow({ playlist: p, index, approved, playing, onPlay }: { playli
         <Cover playlist={{ ...p, provider: 'youtube' }} size={48} />
         <Box sx={{ minWidth: 0, flex: 1 }}>
           <Typography sx={{ fontWeight: 500 }} noWrap>{p.name}</Typography>
-          <Typography variant="body2" sx={{ color: 'text.secondary' }} noWrap>{tn(p.tracks, '{n} song', '{n} songs')}</Typography>
+          <Typography variant="body2" sx={{ color: 'text.secondary' }} noWrap>{tn(p.tracks, '{n} song', '{n} songs')}{p.id === CAFE_PLAYLIST_ID && p.owner ? ` · ${p.owner}` : ''}</Typography>
         </Box>
         {approved && <Tag>{t('Approved')}</Tag>}
         {playing && <Tag fg={tokens.goodFg} bg={tokens.goodBg}>{t('Playing')}</Tag>}
@@ -392,10 +417,7 @@ function PersonalMusic({ tab, setTab }: { tab: MusicProvider | null; setTab: (p:
             {t('Optional: connect your own Spotify or YouTube Music to play your playlists here. Only you see your account.')}
           </Typography>
           <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
-            {PROVIDERS.map(p => (
-              <Button key={p} variant="outlined" disabled={!mine.data!.configured[p]} onClick={() => run(() => api.connectMyMusic(p))}
-                startIcon={<Box sx={{ width: 18, height: 18 }}>{BRAND[p].logo}</Box>}>{t('Connect {name}', { name: BRAND[p].name })}</Button>
-            ))}
+            {PROVIDERS.map(p => <ConnectButton key={p} provider={p} disabled={!mine.data!.configured[p]} onClick={() => run(() => api.connectMyMusic(p))} />)}
           </Stack>
         </Card>
       ) : (
@@ -403,12 +425,12 @@ function PersonalMusic({ tab, setTab }: { tab: MusicProvider | null; setTab: (p:
           <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', alignItems: 'center', mb: 2.5 }}>
             {mine.data.accounts.map(a => (
               <Chip key={a.provider} variant="outlined"
-                avatar={<Box sx={{ width: 20, height: 20, ml: 0.5 }}>{BRAND[a.provider].logo}</Box>}
+                avatar={<Logo provider={a.provider} />}
                 label={`${BRAND[a.provider].name}${a.account_label ? ` · ${a.account_label}` : ''}`}
                 onDelete={() => run(() => api.disconnectMyMusic(a.provider), t('{name} disconnected', { name: BRAND[a.provider].name }))} />
             ))}
             {PROVIDERS.filter(p => !connected.includes(p) && mine.data!.configured[p]).map(p => (
-              <Button key={p} size="small" onClick={() => run(() => api.connectMyMusic(p))}>{t('Connect {name}', { name: BRAND[p].name })}</Button>
+              <ConnectButton key={p} provider={p} small onClick={() => run(() => api.connectMyMusic(p))} />
             ))}
           </Stack>
           {connected.length > 1 && (
@@ -420,6 +442,21 @@ function PersonalMusic({ tab, setTab }: { tab: MusicProvider | null; setTab: (p:
         </>
       )}
     </Box>
+  )
+}
+
+/** A service's logo at icon size, centred on the text beside it (a block, so it doesn't sit on the text's baseline). */
+function Logo({ provider, size = 20 }: { provider: MusicProvider; size?: number }) {
+  return <Box component="span" sx={{ display: 'flex', width: size, height: size, flexShrink: 0, '& > svg': { display: 'block' } }}>{BRAND[provider].logo}</Box>
+}
+
+/** Connect Spotify / Connect YouTube Music: the same height for both, the logo the same size and in line with the words. */
+function ConnectButton({ provider, small, disabled, onClick }: { provider: MusicProvider; small?: boolean; disabled?: boolean; onClick: () => void }) {
+  return (
+    <Button variant="outlined" size={small ? 'small' : 'medium'} disabled={disabled} onClick={onClick} startIcon={<Logo provider={provider} size={small ? 18 : 20} />}
+      sx={{ height: small ? 32 : 40, gap: 1, '& .MuiButton-startIcon': { display: 'flex', alignItems: 'center', m: 0 } }}>
+      {t('Connect {name}', { name: BRAND[provider].name })}
+    </Button>
   )
 }
 

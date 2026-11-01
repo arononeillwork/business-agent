@@ -1079,6 +1079,76 @@ test.describe('music', () => {
     await expect(find.getByRole('button', { name: 'Clear search' })).toHaveCount(0)
   })
 
+  test('café music: one press of play on a search result plays it straight away, even with nothing playing; another switches to it', async ({ page }) => {
+    await open(page, '/connections')
+    await switchApp(page, page.getByRole('region', { name: 'Café music' }), 'YouTube Music')
+    await page.getByRole('link', { name: 'Music' }).first().click()
+    const now = page.getByRole('region', { name: 'Now playing' })
+    await expect(now).toContainText('Nothing playing')
+
+    const find = page.getByRole('region', { name: 'Find music' })
+    await find.getByLabel('Search music').fill('Lofi')
+    await find.getByRole('button', { name: 'Search', exact: true }).click()
+    const songs = find.getByRole('list', { name: 'Songs found' })
+    // Nothing was playing: this device becomes the speaker and plays it, no "Play on this device" first.
+    await songs.getByRole('button', { name: 'Play Lofi now' }).click()
+    await expect(now).toContainText('Playing on this device')
+    await expect(now.getByRole('heading', { name: 'Lofi', exact: true })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Café speaker' })).toContainText('Lofi')
+    await expect(songs.getByRole('listitem', { name: 'Lofi', exact: true })).toHaveAttribute('aria-current', 'true')
+    await expect(songs.getByRole('button', { name: 'Pause Lofi', exact: true })).toBeVisible()
+
+    // Another result: it plays at once, and the first goes back to a play button.
+    await songs.getByRole('button', { name: 'Play Lofi (Live) now' }).click()
+    await expect(now.getByRole('heading', { name: 'Lofi (Live)' })).toBeVisible()
+    await expect(songs.getByRole('button', { name: 'Pause Lofi (Live)' })).toBeVisible()
+    await expect(songs.getByRole('button', { name: 'Play Lofi now' })).toBeVisible()
+    await expect(songs.getByRole('listitem', { name: 'Lofi', exact: true })).not.toHaveAttribute('aria-current', 'true')
+
+    // Its button pauses it, and plays it again.
+    await songs.getByRole('button', { name: 'Pause Lofi (Live)' }).click()
+    await expect(now.getByRole('button', { name: 'Play', exact: true })).toBeVisible()
+    await songs.getByRole('button', { name: 'Play Lofi (Live) now' }).click()
+    await expect(now.getByRole('button', { name: 'Pause' })).toBeVisible()
+    await expect(now.getByRole('heading', { name: 'Lofi (Live)' })).toBeVisible()
+  })
+
+  test('café music: songs from a search go into the café playlist, each once, and it plays with the café’s playlists', async ({ page }) => {
+    await open(page, '/connections')
+    await switchApp(page, page.getByRole('region', { name: 'Café music' }), 'YouTube Music')
+    await page.getByRole('link', { name: 'Music' }).first().click()
+    const cafe = page.getByRole('region', { name: 'Café playlists' })
+    await expect(cafe.getByRole('listitem', { name: 'Easy Beans · Café mix', exact: true })).toBeVisible()
+    await expect(cafe.getByRole('listitem', { name: 'Café playlist', exact: true })).toHaveCount(0) // none until a song is added
+
+    const find = page.getByRole('region', { name: 'Find music' })
+    await find.getByLabel('Search music').fill('Lofi')
+    await find.getByRole('button', { name: 'Search', exact: true }).click()
+    const songs = find.getByRole('list', { name: 'Songs found' })
+    await songs.getByRole('button', { name: 'Add Lofi (Acoustic) to the café playlist' }).click()
+    await toast(page, 'Added Lofi (Acoustic) to the café playlist')
+    // Marked as added; its button now takes it off instead, so it can't go in twice.
+    await expect(songs.getByRole('listitem', { name: 'Lofi (Acoustic)' })).toContainText('In the café playlist')
+    await expect(songs.getByRole('button', { name: 'Remove Lofi (Acoustic) from the café playlist' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(songs.getByRole('button', { name: 'Add Lofi (Acoustic) to the café playlist' })).toHaveCount(0)
+    await songs.getByRole('button', { name: 'Add Lofi to the café playlist', exact: true }).click()
+    await toast(page, 'Added Lofi to the café playlist')
+
+    // It's one of the café's playlists, with both songs, and plays them.
+    const mine = cafe.getByRole('listitem', { name: 'Café playlist', exact: true })
+    await expect(mine).toContainText('2 songs · Added from Find music')
+    await mine.getByRole('button', { name: 'Café playlist', exact: true }).click()
+    const now = page.getByRole('region', { name: 'Now playing' })
+    await expect(now.getByRole('heading', { name: 'Lofi (Acoustic)' })).toBeVisible()
+    await expect.poll(() => page.getByRole('list', { name: 'Queue' }).getByRole('listitem').evaluateAll(els => els.map(e => e.getAttribute('aria-label'))))
+      .toEqual(['Lofi (Acoustic)', 'Lofi'])
+
+    // Taken off again from the search.
+    await songs.getByRole('button', { name: 'Remove Lofi from the café playlist', exact: true }).click()
+    await toast(page, 'Removed Lofi from the café playlist')
+    await expect(mine).toContainText('1 song')
+  })
+
   test('café music: playlists play one after another, in an order anyone can drag; only music playlists show', async ({ page }) => {
     await open(page, '/connections')
     await switchApp(page, page.getByRole('region', { name: 'Café music' }), 'YouTube Music')
@@ -3027,6 +3097,10 @@ test.describe('messages', () => {
     await expect(lucia.locator('img')).toHaveAttribute('src', /^data:image\/svg/)
     await expect(chats.getByRole('listitem', { name: '@tom_runs' }).locator('.MuiAvatar-root')).toHaveText('T')
     await expect(chats.getByRole('listitem', { name: '@tom_runs' }).locator('img')).toHaveCount(0)
+    // WhatsApp doesn't share profile photos: initials.
+    await expect(chats.getByRole('listitem', { name: 'Sofía Martín' }).locator('img')).toHaveCount(0)
+    // No line of the connected accounts above the search: the chats start straight away.
+    await expect(page.getByText(/@easy\.beans\.coffee ·/)).toHaveCount(0)
 
     const fullWidth = (await chats.boundingBox())!.width
     expect(fullWidth).toBeGreaterThan(600)
@@ -3065,6 +3139,8 @@ test.describe('messages', () => {
     const chats = page.getByRole('list', { name: 'Chats' })
     // The chats load after connecting: wait for them rather than read the list once, still empty on a slow machine.
     await expect.poll(() => chats.locator(':scope > li').evaluateAll(els => els.map(e => e.getAttribute('aria-label')))).toEqual(['Carmen Ruiz', 'Hotel Puente Romano'])
+    // Their Messenger profile photos, as on Instagram.
+    await expect(chats.getByRole('listitem', { name: 'Carmen Ruiz' }).locator('img')).toHaveAttribute('src', /^data:image\/svg/)
     await chats.getByRole('listitem', { name: 'Carmen Ruiz' }).getByRole('button').click()
     const chat = page.getByRole('region', { name: 'Chat with Carmen Ruiz' })
     await chat.getByRole('textbox', { name: 'Reply' }).fill('Yes! See you at 11.')

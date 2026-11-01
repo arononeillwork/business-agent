@@ -5004,6 +5004,15 @@ export function createDemoApi(): Api {
       if (!staffOnly(me()!)) throw new Error('Music is for the team')
       Object.assign(player, { playlist_order: [...ids], updated_at: nowIso() })
     },
+    async musicAddToCafePlaylist(track) {
+      if (!staffOnly(me()!)) throw new Error('Music is for the team')
+      const kept = player.cafe_playlist ?? []
+      if (!kept.some(x => x.id === track.id)) Object.assign(player, { cafe_playlist: [...kept, clone(track)], updated_at: nowIso() })
+    },
+    async musicRemoveFromCafePlaylist(trackId) {
+      if (!staffOnly(me()!)) throw new Error('Music is for the team')
+      Object.assign(player, { cafe_playlist: (player.cafe_playlist ?? []).filter(x => x.id !== trackId), updated_at: nowIso() })
+    },
     async musicPlayer() {
       if (!staffOnly(me()!)) throw new Error('Music is for the team')
       return clone(player)
