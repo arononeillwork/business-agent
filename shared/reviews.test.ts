@@ -19,6 +19,9 @@ describe('reviews', () => {
     expect(guessLanguage('Lovely coffee and really friendly staff')).toBe('en')
     expect(guessLanguage('')).toBe('en')
     expect(guessLanguage(null)).toBe('en')
+    // Words side by side each count; parts of longer words don't.
+    expect(guessLanguage('que la con, the')).toBe('es')
+    expect(guessLanguage('Hotel bella, great')).toBe('en')
   })
 
   it('sums up: average, stars, month by month, reply rate and how fast replies came', () => {

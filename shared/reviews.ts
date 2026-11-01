@@ -45,8 +45,10 @@ export function starsOf(v: unknown): Review['rating'] | null {
   return typeof v === 'string' ? STARS[v.toUpperCase()] ?? null : null
 }
 
-// Whole words only, accented letters included (\b doesn't count "é" as a letter).
-const words = (list: string) => new RegExp(`(?<!\\p{L})(?:${list})(?!\\p{L})`, 'giu')
+// Whole words only, accented letters included (\b doesn't count "é" as a letter). The start of a word is
+// "start of text or a non-letter", not a look-behind: iPhones before iOS 16.4 can't read a look-behind,
+// and since these are made as the app loads, the whole app stayed blank there (src/oldPhones.test.ts).
+const words = (list: string) => new RegExp(`(?:^|[^\\p{L}])(?:${list})(?!\\p{L})`, 'giu')
 const SPANISH = words('el|la|los|las|muy|para|pero|con|por|que|una|está|café|gracias|buen[oa]?|rico|riquísim[oa]|excelente|atención|sitio|lugar|recomiendo|también|mejor|todo|nos|fue|precio|amable|personal')
 const ENGLISH = words('the|and|very|but|with|for|was|were|great|lovely|friendly|staff|place|amazing|coffee|really|recommend|best|nice|good|delicious|definitely|would|again')
 
