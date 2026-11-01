@@ -4,9 +4,9 @@
     <meta charset="UTF-8" />
     <!-- www.<domain> → <domain>, same page (static pages are served before the Worker runs). -->
     <script>if (location.hostname.indexOf('www.') === 0) location.replace(location.href.replace('//www.', '//'))</script>
-    <!-- The app's only service worker is /push-sw.js, for push notifications (it caches nothing). A
-         browser that kept another from an earlier site on this domain would go on serving that old
-         version from its cache, so drop it (and its caches) here. -->
+    <!-- The app's only service worker is /push-sw.js, for push notifications and adding the app to a
+         phone's Home Screen (it caches nothing). A browser that kept another from an earlier site on
+         this domain would go on serving that old version from its cache, so drop it (and its caches) here. -->
     <script>
       if ('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(function (rs) { rs.forEach(function (r) { var w = r.active || r.waiting || r.installing; if (!w || !/\/push-sw\.js$/.test(w.scriptURL)) r.unregister() }) }).catch(function () {})
       if (window.caches) caches.keys().then(function (ks) { ks.forEach(function (k) { caches.delete(k) }) }).catch(function () {})
@@ -14,9 +14,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#FBF8F4" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Easy Beans" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/icon-192.png" type="image/png" />
-    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Fraunces:ital,opsz,wght@0,9..144,400..600;1,9..144,400..600&family=Poppins:wght@500;600;700&display=swap" />

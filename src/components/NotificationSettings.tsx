@@ -7,6 +7,8 @@ import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { pushState, thisDevice, turnOffPush, turnOnPush, type PushState } from '../app/push'
+import { useInstall } from '../app/install'
+import { useAddToHomeScreen } from './InstallApp'
 import { Empty, SectionTitle, Tag } from './common'
 import { NOTIFY_TOPICS, channelFor, type NotifyChannel } from '../../shared/notify'
 import { CATEGORY_META, type CalendarEvent, type Settings } from '../../shared/types'
@@ -24,6 +26,8 @@ export function PushDevices() {
   const [state, setState] = useState<PushState | null>(null)
   const [here, setHere] = useState<string | null>(null)
   const devices = useAsync('push-devices', () => api.pushDevices(), [])
+  const installWay = useInstall().way
+  const addToHomeScreen = useAddToHomeScreen()
   const check = () => Promise.all([pushState(), thisDevice()]).then(([s, e]) => { setState(s); setHere(e) }).catch(() => setState('unsupported'))
   useEffect(() => { void check() }, [])
   const messages = {
@@ -64,7 +68,9 @@ export function PushDevices() {
           </Typography>
         )}
         {state === 'install-first' && (
-          <Alert severity="info" sx={{ mb: 1.5 }}>
+          <Alert severity="info" sx={{ mb: 1.5 }} action={installWay === 'ios' && (
+            <Button color="inherit" size="small" onClick={() => void addToHomeScreen()}>{t('Show me how')}</Button>
+          )}>
             {t('On an iPhone or iPad, add the app to your Home Screen first: tap Share, then Add to Home Screen. Open it from there and turn notifications on here.')}
           </Alert>
         )}

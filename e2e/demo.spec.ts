@@ -8631,3 +8631,64 @@ test.describe('QR codes', () => {
     expect((await png).suggestedFilename()).toBe('competition-qr-code.png')
   })
 })
+
+test.describe('the app on a phone’s Home Screen', () => {
+  /** What Chrome on Android does once the app can be installed (beforeinstallprompt), with the person's answer. */
+  const browserOffers = (page: Page, outcome: 'accepted' | 'dismissed') => page.evaluate(answer => {
+    const offer = Object.assign(new Event('beforeinstallprompt', { cancelable: true }), {
+      prompt: async () => { (window as { prompted?: boolean }).prompted = true },
+      userChoice: Promise.resolve({ outcome: answer }),
+    })
+    window.dispatchEvent(offer)
+  }, outcome)
+
+  test('@phone Android: Add to Home Screen in the account menu opens the browser’s own Install', async ({ page }) => {
+    await open(page)
+    // Nothing to add until the browser says it can (it doesn't once the app is on the phone).
+    await page.getByRole('button', { name: /^Account menu/ }).click()
+    await expect(page.getByRole('menuitem', { name: 'My account' })).toBeVisible()
+    await expect(page.getByRole('menuitem', { name: 'Add to Home Screen' })).toHaveCount(0)
+    await page.keyboard.press('Escape')
+
+    await browserOffers(page, 'accepted')
+    await fromAccountMenu(page, 'Add to Home Screen')
+    expect(await page.evaluate(() => (window as { prompted?: boolean }).prompted)).toBe(true)
+    await toast(page, 'Added: the app is on your Home Screen')
+    // Added: no longer offered.
+    await page.getByRole('button', { name: /^Account menu/ }).click()
+    await expect(page.getByRole('menuitem', { name: 'My account' })).toBeVisible()
+    await expect(page.getByRole('menuitem', { name: 'Add to Home Screen' })).toHaveCount(0)
+  })
+
+  test.describe('on an iPhone', () => {
+    test.use({ userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1' })
+
+    test('@phone Add to Home Screen shows the Share steps', async ({ page }) => {
+      await open(page)
+      await fromAccountMenu(page, 'Add to Home Screen')
+      const steps = page.getByRole('dialog', { name: 'Add to your Home Screen' })
+      await expect(steps.getByRole('listitem')).toHaveText([
+        /Tap Share.*In Safari’s toolbar/, /Choose Add to Home Screen/, /Tap Add.*open it from there/,
+      ])
+      await steps.getByRole('button', { name: 'Got it' }).click()
+      await expect(steps).toHaveCount(0)
+    })
+
+    test('@phone Notifications: Show me how, as notifications need the app on the Home Screen first', async ({ page }) => {
+      // Safari in a tab has no push notifications: only the app added to the Home Screen does.
+      await page.addInitScript(() => { delete (window as { PushManager?: unknown }).PushManager })
+      await open(page, '/notifications')
+      const push = page.getByRole('region', { name: 'Push notifications' })
+      await push.getByRole('button', { name: 'Show me how' }).click()
+      await expect(page.getByRole('dialog', { name: 'Add to your Home Screen' })).toBeVisible()
+    })
+  })
+
+  test('a computer is never offered it, even when the browser could install it', async ({ page }) => {
+    await open(page)
+    await browserOffers(page, 'accepted')
+    await page.getByRole('button', { name: /^Account menu/ }).first().click()
+    await expect(page.getByRole('menuitem', { name: 'My account' })).toBeVisible()
+    await expect(page.getByRole('menuitem', { name: 'Add to Home Screen' })).toHaveCount(0)
+  })
+})
