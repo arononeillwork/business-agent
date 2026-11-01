@@ -4,7 +4,7 @@
 // pages_messaging (the Page's Messenger chats, on the Messages page) came later: a connection made
 // before it still posts, and the Messages page asks for one reconnect.
 import type { InboxConversation } from '../../shared/messages'
-import { toInboxMessage, type RawMessage } from './instagram'
+import { photo, remembered, toInboxMessage, type RawMessage } from './instagram'
 
 export const FACEBOOK_SCOPES = ['pages_show_list', 'pages_manage_posts', 'pages_read_engagement', 'pages_messaging']
 
@@ -67,29 +67,58 @@ interface RawChat { id: string; updated_time: string; participants?: { data?: Ra
 
 const asPage = (s: PageAccess) => ({ headers: { authorization: `Bearer ${s.token}` } })
 
+/** Who a chat is with when Messenger doesn't give a name. */
+const NO_NAME = 'Facebook user'
+
 /** A Messenger chat as the Messages page shows it; Messenger has names, not @handles. */
 function toChat(c: RawChat, s: PageAccess): InboxConversation {
   const people = c.participants?.data ?? []
   const other = people.find(p => p.id !== s.pageId) ?? people[0] ?? {}
-  const name = other.name ?? 'Facebook user'
+  const name = other.name ?? NO_NAME
   return {
     id: c.id, platform: 'messenger', updatedAt: c.updated_time, with: { id: other.id ?? '', username: name, name },
     recent: (c.messages?.data ?? []).map(m => toInboxMessage(m, { id: s.pageId })).sort((a, b) => b.at.localeCompare(a.at)),
   }
 }
 
-/** The Page's latest Messenger chats, newest first, each with its latest few messages (none yet is an empty list). */
+/** A customer's name and profile photo, from Messenger's User Profile API (they must have messaged the Page). */
+export interface Profile { name?: string; picture?: string }
+export interface RawProfile { first_name?: string; last_name?: string; name?: string; profile_pic?: string }
+
+/** What the User Profile API says, as the Messages page shows it: their full name, and their photo when it's a link the page can show. */
+export function toProfile(p: RawProfile): Profile {
+  const name = [p.first_name, p.last_name].filter(Boolean).join(' ') || p.name
+  const picture = photo(p.profile_pic)
+  return { ...(name ? { name } : {}), ...(picture ? { picture } : {}) }
+}
+
+/** Who a Page-scoped id is, with the Page token; looked up at most every few hours, and never throws. */
+export async function profile(s: PageAccess, psid: string): Promise<Profile> {
+  if (!psid) return {}
+  return remembered<Profile>(`https://messenger-person.cache/${encodeURIComponent(s.pageId)}/${encodeURIComponent(psid)}`, async () =>
+    toProfile(await graph<RawProfile>(`${GRAPH(s.graphVersion)}/${encodeURIComponent(psid)}?fields=first_name,last_name,profile_pic`, asPage(s))))
+}
+
+/** The chat's other person with their photo where Messenger shares it (and their name, when the chat had none). */
+export async function withProfile(s: PageAccess, c: InboxConversation): Promise<InboxConversation> {
+  const p = await profile(s, c.with.id)
+  const name = c.with.name === NO_NAME && p.name ? p.name : c.with.name
+  return { ...c, with: { ...c.with, ...(name ? { name, username: name } : {}), ...(p.picture ? { picture: p.picture } : {}) } }
+}
+
+/** The Page's latest Messenger chats, newest first, each with its latest few messages and the person's photo (none yet is an empty list). */
 export async function conversations(s: PageAccess): Promise<InboxConversation[]> {
   const res = await graph<{ data?: RawChat[] }>(`${GRAPH(s.graphVersion)}/${s.pageId}/conversations?${new URLSearchParams({
     platform: 'messenger', limit: '25', fields: `id,updated_time,participants,messages.limit(5){${MESSAGE_FIELDS}}` })}`, asPage(s))
-  return (res.data ?? []).map(c => toChat(c, s)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+  const chats = await Promise.all((res.data ?? []).map(c => withProfile(s, toChat(c, s))))
+  return chats.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
 }
 
 /** One chat with its 20 latest messages, oldest first. */
 export async function conversation(s: PageAccess, id: string) {
   const c = await graph<RawChat>(`${GRAPH(s.graphVersion)}/${encodeURIComponent(id)}?${new URLSearchParams({
     fields: `id,updated_time,participants,messages.limit(20){${MESSAGE_FIELDS}}` })}`, asPage(s))
-  const chat = toChat({ ...c, id }, s)
+  const chat = await withProfile(s, toChat({ ...c, id }, s))
   return { conversation: { ...chat, recent: chat.recent.slice(0, 5) }, messages: [...chat.recent].reverse() }
 }
 

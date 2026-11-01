@@ -267,10 +267,6 @@ function Inbox({ ig, fb, wa, app }: { ig?: Integration; fb?: Integration; wa?: I
       {problems}
       <Card>
         <CardContent sx={{ p: { xs: 1.5, md: 2 } }}>
-          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>
-            {[showsInstagram && ig?.account_label, showsMessenger && fb?.account_label && `${'Messenger'} · ${fb.account_label}`,
-              showsWhatsApp && wa?.account_label && `${'WhatsApp'} · ${wa.account_label}`].filter(Boolean).join(' · ')}
-          </Typography>
           {/* A computer: the chats fill the card until one is open, then chats and chat side by side. A phone: one at a time. */}
           {wide && chosen ? (
             <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 340px) 1fr', gap: 2.5, alignItems: 'start' }}>
@@ -294,7 +290,7 @@ const lastAt = (c: InboxConversation) => Math.max(Date.parse(c.updatedAt) || 0, 
 
 const KIND_TAG: Partial<Record<InboxMessage['kind'], string>> = { story_mention: msg('Story mention'), story_reply: msg('Story reply'), share: msg('Shared post') }
 
-/** Their Instagram profile photo, or their initials (also when the photo's link has expired). */
+/** Their Instagram or Messenger profile photo, or their initials (WhatsApp doesn't share photos; also when the photo's link has expired). */
 function PersonAvatar({ who, size }: { who: InboxConversation['with']; size: number }) {
   return (
     <Avatar src={who.picture} alt="" aria-hidden slotProps={{ img: { referrerPolicy: 'no-referrer', loading: 'lazy' } }}

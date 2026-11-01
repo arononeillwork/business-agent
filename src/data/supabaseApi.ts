@@ -1473,6 +1473,16 @@ export function createSupabaseApi(url: string, key: string): Api {
     async musicSetPlaylistOrder(ids) {
       check(await sb.from('music_player').update({ playlist_order: ids, updated_at: new Date().toISOString() }).eq('id', 1))
     },
+    async musicAddToCafePlaylist(track) {
+      const kept = (check(await sb.from('music_player').select('cafe_playlist').eq('id', 1).single()) as { cafe_playlist: CafeTrack[] }).cafe_playlist
+      if (kept.some(x => x.id === track.id)) return // each song once
+      const song: CafeTrack = { id: track.id, title: track.title, ...(track.artist ? { artist: track.artist } : {}), ...(track.image ? { image: track.image } : {}) }
+      check(await sb.from('music_player').update({ cafe_playlist: [...kept, song], updated_at: new Date().toISOString() }).eq('id', 1))
+    },
+    async musicRemoveFromCafePlaylist(trackId) {
+      const kept = (check(await sb.from('music_player').select('cafe_playlist').eq('id', 1).single()) as { cafe_playlist: CafeTrack[] }).cafe_playlist
+      check(await sb.from('music_player').update({ cafe_playlist: kept.filter(x => x.id !== trackId), updated_at: new Date().toISOString() }).eq('id', 1))
+    },
     async musicPlayer() { return check(await sb.from('music_player').select('*').eq('id', 1).single()) as MusicPlayerState },
     async musicSend(action, value) { check(await sb.rpc('music_send', { p_action: action, p_value: value ?? null })) },
     async musicSetQueue(playlist, queue, position) { check(await sb.rpc('music_set_queue', { p_playlist: playlist, p_queue: queue, p_position: position })) },

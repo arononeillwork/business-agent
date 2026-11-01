@@ -602,6 +602,8 @@ describe('Facebook, TikTok and Square: one click, connected once they really wor
     const inbox = await (await get('/api/integrations/facebook/inbox')).json() as { conversations: { id: string; platform: string; with: { name: string }; recent: { text: string; fromMe: boolean }[] }[] }
     expect(inbox.conversations.map(c => [c.id, c.platform, c.with.name])).toEqual([['t_1', 'messenger', 'Lucía García'], ['t_2', 'messenger', 'Tom']])
     expect(inbox.conversations[0].recent.map(m => [m.text, m.fromMe])).toEqual([['Do you have oat milk?', false], ['Hi Lucía!', true]])
+    // Their profile photo where Messenger shares it; Tom's lookup fails, so his chat shows with his initials.
+    expect(inbox.conversations.map(c => (c.with as { picture?: string }).picture)).toEqual(['https://platform-lookaside.fbsbx.test/psid-1.jpg', undefined])
     const thread = await (await get('/api/integrations/facebook/inbox/t_1')).json() as { messages: { text: string }[] }
     expect(thread.messages.map(m => m.text)).toEqual(['Hi Lucía!', 'Do you have oat milk?']) // oldest first
 

@@ -677,6 +677,8 @@ export interface MusicPlayerState {
   queue_version: number
   /** Playlist ids in the order they play, one after another. */
   playlist_order: string[]
+  /** The café playlist: songs the team added from a search, in the order they were added (the `cafe_playlist` migration). */
+  cafe_playlist?: CafeTrack[]
   position: number
   playing: boolean
   elapsed: number

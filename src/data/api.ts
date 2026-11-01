@@ -891,6 +891,9 @@ export interface Api {
   cafeSearch(q: string, kind: 'songs' | 'playlists'): Promise<{ tracks: CafeTrack[]; playlists: MusicPlaylist[] }>
   /** The order playlists play in, one after another. */
   musicSetPlaylistOrder(ids: string[]): Promise<void>
+  /** The café playlist (songs the team adds from a search): add a song (once), or take one off. */
+  musicAddToCafePlaylist(track: CafeTrack): Promise<void>
+  musicRemoveFromCafePlaylist(trackId: string): Promise<void>
   /** The playing device says what it's doing (and claims the speaker with device_id). With asDevice, only while it still is the speaker. */
   musicReport(report: MusicPlayerReport, asDevice?: string): Promise<void>
 

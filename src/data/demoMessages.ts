@@ -9,6 +9,10 @@ const PIC = (bg: string, fg: string, word: string) => `data:image/svg+xml,${enco
 const FACE = (bg: string, skin: string, hair: string) => `data:image/svg+xml,${encodeURIComponent(
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80"><rect width="80" height="80" fill="${bg}"/><circle cx="40" cy="34" r="17" fill="${skin}"/><path d="M21 32c0-14 9-20 19-20s19 6 19 20c-5-7-12-9-19-9s-14 2-19 9z" fill="${hair}"/><path d="M12 80c3-17 14-25 28-25s25 8 28 25z" fill="${hair}" opacity=".85"/></svg>`)}`
 
+/** A business's profile photo: a building on its colour (the demo's stand-in for a Page's logo). */
+const LOGO = (bg: string, fg: string) => `data:image/svg+xml,${encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80"><rect width="80" height="80" fill="${bg}"/><path d="M20 60V32l20-12 20 12v28z" fill="none" stroke="${fg}" stroke-width="4" stroke-linejoin="round"/><path d="M35 60V46h10v14z" fill="${fg}"/><path d="M14 60h52" stroke="${fg}" stroke-width="4" stroke-linecap="round"/></svg>`)}`
+
 export function demoInbox() {
   const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString()
   let n = 0
@@ -30,17 +34,17 @@ export function demoInbox() {
     ]),
     chat('c4', 'marta.g', 'Marta', [
       msg(600, false, 'Can you make this for my birthday?', { kind: 'share', link: 'https://www.instagram.com/p/demo/', mediaUrl: PIC('#F6E7C8', '#A86B2D', 'cake') }),
-    ]),
+    ], FACE('#F6E7C8', '#D9A07A', '#7A3E2B')),
     chat('c5', 'weekend.visitor', 'Weekend visitor', [
       msg(3 * 24 * 60, false, 'Are you open on Sunday?'),
     ]),
     chat('c6', 'happy.client', 'Happy client', [
       msg(26 * 60, false, 'Thanks for the great coffee yesterday!', { reactions: ['❤️'] }),
       msg(25 * 60, true, 'Thank you! See you soon 😊'),
-    ]),
+    ], FACE('#E3E6F3', '#F0C6A4', '#3B3A4A')),
     chat('c7', 'old.friend', 'Old friend', [
       msg(9 * 24 * 60, false, 'Do you do catering for events?'),
-    ]),
+    ], FACE('#F3E3E8', '#B98568', '#1F1B1A')),
   ]
   const tagged: TaggedPost[] = [
     { id: 't1', username: 'sanpedro.eats', caption: 'Morning stop @easy.beans.coffee', mediaUrl: PIC('#F3DED3', '#8B5E3C', 'tagged'), permalink: 'https://www.instagram.com/p/demo1/', at: ago(2 * 24 * 60) },
@@ -68,14 +72,14 @@ export function demoMessenger() {
   let n = 0
   const msg = (min: number, fromMe: boolean, text: string): InboxMessage => ({ id: `fm${++n}`, at: ago(min), fromMe, text, kind: 'text' })
   const chats = [
-    { id: 't_1', name: 'Carmen Ruiz', messages: [msg(70, false, 'Hola! Do you take bookings for 8 people on Saturday?')] },
-    { id: 't_2', name: 'Hotel Puente Romano', messages: [
+    { id: 't_1', name: 'Carmen Ruiz', picture: FACE('#E6EEF8', '#E2AE8C', '#4A2C22'), messages: [msg(70, false, 'Hola! Do you take bookings for 8 people on Saturday?')] },
+    { id: 't_2', name: 'Hotel Puente Romano', picture: LOGO('#24443A', '#F3E6CF'), messages: [
       msg(2 * 24 * 60, false, 'Could you send us a price for coffee for 40 guests?'),
       msg(2 * 24 * 60 - 30, true, 'Of course! I’ll email you the menu today.'),
     ] },
   ]
   const toConversation = (c: (typeof chats)[number]): InboxConversation => ({
-    id: c.id, platform: 'messenger', with: { id: `psid-${c.id}`, username: c.name, name: c.name },
+    id: c.id, platform: 'messenger', with: { id: `psid-${c.id}`, username: c.name, name: c.name, picture: c.picture },
     updatedAt: c.messages[c.messages.length - 1].at, recent: [...c.messages].reverse().slice(0, 5),
   })
   return {

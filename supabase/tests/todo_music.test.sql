@@ -54,3 +54,17 @@ do $$ begin
   assert (select playlist_order->>0 from public.music_player) = 'PL2', 'the team can reorder the playlists';
 end $$;
 select pg_temp.expect_error($q$update public.music_player set playlist_order = '{"a":1}'$q$, 'playlist_order');
+
+-- The café playlist: songs the team adds from a search, kept on the shared player, team only.
+select pg_temp.act_as('julio@test');
+do $$ begin
+  assert (select cafe_playlist from public.music_player) = '[]'::jsonb, 'the café playlist starts empty';
+  update public.music_player set cafe_playlist = '[{"id":"v1","title":"Lofi","artist":"Search result"}]';
+  assert (select cafe_playlist->0->>'title' from public.music_player) = 'Lofi', 'the team adds a song to the café playlist';
+end $$;
+select pg_temp.expect_error($q$update public.music_player set cafe_playlist = '{"a":1}'$q$, 'cafe_playlist');
+select pg_temp.act_as('outsider@test');
+update public.music_player set cafe_playlist = '[]';
+reset role;
+select set_config('request.jwt.claim.sub', '', false);
+do $$ begin assert (select jsonb_array_length(cafe_playlist) from public.music_player) = 1, 'outsiders can’t change the café playlist'; end $$;
