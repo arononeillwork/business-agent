@@ -525,18 +525,18 @@ test.describe('time off', () => {
 })
 
 test.describe('connections', () => {
-  test('admin sees Google Maps, WhatsApp and Instagram, and compares opening hours with Google', async ({ page }) => {
+  test('admin sees Google Maps, WhatsApp and Instagram; Google Maps hours look after themselves', async ({ page }) => {
     await open(page, '/connections')
     await expect(page.getByRole('region', { name: 'Maps and search' }).getByRole('article', { name: 'Google Maps' })).toContainText('Connected')
     await expect(page.getByRole('region', { name: 'Social media' }).getByRole('article', { name: 'Instagram' })).toContainText('@easy.beans.coffee')
     await expect(page.getByText('followers', { exact: true })).toHaveCount(0) // no Instagram posts section here
 
+    // Nothing to push or compare: the hours keep the listing up to date, public holidays are on Opening hours.
     const maps = page.getByRole('region', { name: 'Google Maps settings' })
-    await maps.getByRole('button', { name: 'Compare with Google' }).click()
-    const compare = page.getByRole('dialog', { name: /app vs Google/ })
-    await expect(compare).toContainText('10:00–15:00')
-    await compare.getByRole('button', { name: 'Put the app’s hours on Google' }).click()
-    await toast(page, 'Google updated')
+    await expect(maps).toContainText('keep this listing up to date by themselves')
+    await expect(maps.getByRole('button', { name: 'Push hours to Google' })).toHaveCount(0)
+    await expect(maps.getByRole('button', { name: 'Compare with Google' })).toHaveCount(0)
+    await expect(maps.getByLabel('We close on public holidays')).toHaveCount(0)
 
     await page.getByRole('button', { name: 'Manage WhatsApp' }).click()
     const wa = page.getByRole('dialog', { name: 'WhatsApp' })
@@ -1338,10 +1338,17 @@ test.describe('opening hours', () => {
     // Holidays and closures moved to the calendar's list view.
     await expect(page.getByRole('region', { name: 'Holidays and closures' })).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Add a closure' })).toHaveCount(0)
+    // Google Maps: kept in step by itself; whether the café closes on public holidays is chosen here.
+    const maps = page.getByRole('region', { name: 'Google Maps' })
+    await expect(maps).toContainText('Kept in step by itself')
+    await maps.getByLabel('We close on public holidays').check()
+    await toast(page, /^Saved$/)
+    await expect(maps.getByLabel('We close on public holidays')).toBeChecked()
     await signInAs(page, 'maria@example.com')
     await page.getByRole('link', { name: 'Opening hours' }).first().click()
     await expect(page.getByRole('region', { name: 'Weekly hours' }).getByText('Closed').last()).toBeVisible()
     await expect(page.getByRole('button', { name: 'Save hours' })).toHaveCount(0)
+    await expect(page.getByRole('region', { name: 'Google Maps' })).toHaveCount(0)
   })
 })
 
