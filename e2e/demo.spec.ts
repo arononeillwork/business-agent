@@ -7492,6 +7492,34 @@ test.describe('role permissions', () => {
     await expect(page.getByRole('tab', { name: /^Inactive/ })).toHaveText('Inactive (2)')
   })
 
+  test('Choose active roles: every role in one list, switched on or off (the whole row switches it), saved in one go', async ({ page }) => {
+    await open(page, '/roles')
+    await page.getByRole('button', { name: 'Active roles', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'Choose active roles' })
+    await expect(dialog.getByRole('switch', { name: 'Active: Chef' })).toBeChecked()
+    await expect(dialog.getByRole('switch', { name: 'Active: Investor' })).not.toBeChecked()
+    await expect(dialog.getByRole('button', { name: 'Save', exact: true })).toBeDisabled()
+    await dialog.getByText('Chef', { exact: true }).click()
+    await expect(dialog.getByRole('switch', { name: 'Active: Chef' })).not.toBeChecked()
+    await dialog.getByRole('switch', { name: 'Active: Investor' }).click()
+    await dialog.getByRole('switch', { name: 'Active: Head Barista' }).click()
+    await dialog.getByRole('button', { name: 'Save 3 changes' }).click()
+    await toast(page, /^Saved$/)
+    await expect(dialog).toHaveCount(0)
+    await expect(page.getByRole('tab', { name: /^Active/ })).toHaveText('Active (9)')
+    const roles = page.getByRole('region', { name: 'Roles' })
+    await expect(roles.getByRole('button', { name: 'Investor', exact: true })).toBeVisible()
+    await expect(roles.getByRole('button', { name: 'Chef', exact: true })).toHaveCount(0)
+
+    // From Inactive too: everything back in use in one press.
+    await page.getByRole('tab', { name: 'Inactive (1)' }).click()
+    await page.getByRole('button', { name: 'Active roles', exact: true }).click()
+    await dialog.getByRole('button', { name: 'All active' }).click()
+    await dialog.getByRole('button', { name: 'Save 1 change' }).click()
+    await toast(page, /^Saved$/)
+    await expect(page.getByRole('tab', { name: /^Inactive/ })).toHaveText('Inactive (0)')
+  })
+
   test('the permissions grid gives a role Update or Hidden, and Maria’s app follows; she sees her role as fixed', async ({ page }) => {
     await open(page, '/roles?tab=permissions')
     const roles = page.getByRole('table', { name: 'Each role' })
