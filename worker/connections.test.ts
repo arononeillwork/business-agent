@@ -8,7 +8,7 @@ import { drainOutbox, integrations, setTikTokWait, syncGoogleBothWays } from './
 import { fromGoogleHours, sameHours, toGoogleHours } from './providers/google'
 import type { OpeningHours } from '../shared/types'
 import { calendarFeeds } from './calendarFeed'
-import { checkAll, explain, hasScope, lasting, PROVIDERS } from './connections'
+import { checkAll, checkDue, explain, hasScope, lasting, PROVIDERS } from './connections'
 import { businessDb, type Env } from './supabase'
 import { seal, unseal } from './crypto'
 import { FakeSupabase, GROUP } from './test/fakeSupabase'
@@ -79,7 +79,12 @@ async function connectOwn(provider: 'spotify' | 'instagram' | 'google' | 'facebo
 const connectSpotify = () => connectOwn('spotify')
 
 const status = (p: string) => db.integration(p).status
-const nightly = () => checkAll(env, businessDb(env, 1), { retryAfterMs: 0 })
+/** A night's checks: a day has passed since the last ones, then runs of two (as worker/index.ts does) until none are due. */
+async function nightly() {
+  for (const r of db.table('integrations')) if (r.last_checked_at) r.last_checked_at = new Date(Date.parse(String(r.last_checked_at)) - 86_400_000).toISOString()
+  for (let run = 0; run < 120; run++) if (!(await checkDue(env, businessDb(env, 1), 2, { retryAfterMs: 0 }))) return
+  throw new Error('the night ended with connections still to check')
+}
 
 describe('Connecting an app: "Connected" only once it has really worked', () => {
   it('Gmail sends a confirmation from the mailbox to itself, keeps the access encrypted, then shows Connected', async () => {
@@ -529,6 +534,69 @@ describe('Checks: a connection that stops working turns red and admins hear abou
     apis.whatsapp.broken = true
     await nightly()
     expect(db.integration('whatsapp')).toMatchObject({ status: 'error', last_error: expect.stringContaining('Session has expired') })
+  })
+})
+
+describe('Checks fit in one Worker run (Workers Free: 50 outside requests a run)', () => {
+  const TOO_MANY = 'Too many subrequests by single Worker invocation. To configure this limit, refer to https://developers.cloudflare.com/workers/wrangler/configuration/#limits'
+  /** Run `fn` as one Worker run that may make `most` outside requests; says how many it made. */
+  async function run<T>(most: number, fn: () => Promise<T>) {
+    const inner = globalThis.fetch
+    let used = 0
+    vi.stubGlobal('fetch', (...a: Parameters<typeof fetch>) => (++used > most ? Promise.reject(new Error(TOO_MANY)) : inner(...a)))
+    try { return { result: await fn(), used } } finally { vi.stubGlobal('fetch', inner) }
+  }
+  async function connectSeven() {
+    for (const p of ['gmail', 'google_drive', 'youtube_music']) await connect(p)
+    for (const p of ['instagram', 'google', 'square'] as const) await connectOwn(p)
+    expect((await post('/api/integrations/whatsapp/test', { to: '+34 600 111 222' })).status).toBe(200)
+    await Promise.all(background)
+  }
+  const working = () => db.table('integrations').filter(r => r.status === 'connected').map(r => r.provider).sort()
+
+  it('a run that runs out of requests leaves the connections it couldn’t check as they were: not broken, nobody told', async () => {
+    await connectSeven()
+    const before = working()
+    expect(before).toHaveLength(7)
+    // Supabase's client asks a failed read again three times, a moment apart: slow, not stuck.
+    const { result: rows } = await run(20, () => checkAll(env, businessDb(env, 1), { retryAfterMs: 0 }))
+    expect(rows.filter(r => r.status === 'error')).toEqual([])
+    expect(working()).toEqual(before)
+    expect(db.table('integrations').map(r => r.last_error).filter(Boolean)).toEqual([])
+    expect(db.table('notifications')).toEqual([])
+  }, 20_000)
+
+  it('the night’s runs each stay well inside the limit and between them check every connection', async () => {
+    await connectSeven()
+    for (const r of db.table('integrations')) if (r.last_checked_at) r.last_checked_at = new Date(Date.now() - 86_400_000).toISOString()
+    const runs: number[] = []
+    for (let i = 0; i < 20; i++) {
+      const { result: checked, used } = await run(50, () => checkDue(env, businessDb(env, 1), 2, { retryAfterMs: 0 }))
+      if (!checked) break
+      runs.push(used)
+    }
+    expect(runs).toHaveLength(4) // 7 connections, two a run
+    expect(Math.max(...runs)).toBeLessThanOrEqual(25)
+    const day = Date.now() - 3_600_000
+    for (const r of db.table('integrations').filter(r => r.status === 'connected')) expect(Date.parse(String(r.last_checked_at)), String(r.provider)).toBeGreaterThan(day)
+    expect(working()).toHaveLength(7)
+  })
+
+  it('a connection checked in the last 20 hours waits for the next night', async () => {
+    await connect('gmail')
+    expect(await checkDue(env, businessDb(env, 1), 2)).toBe(0)
+    db.integration('gmail').last_checked_at = new Date(Date.now() - 21 * 3_600_000).toISOString()
+    expect(await checkDue(env, businessDb(env, 1), 2)).toBe(1)
+    expect(await checkDue(env, businessDb(env, 1), 2)).toBe(0)
+  })
+
+  it('"Check all" on the Connections page checks each app in its own request, each well inside the limit', async () => {
+    await connectSeven()
+    for (const p of working()) {
+      const { result: res, used } = await run(50, async () => post(`/api/integrations/${p}/check`))
+      expect(await res.json(), String(p)).toMatchObject({ provider: p, status: 'connected' })
+      expect(used, String(p)).toBeLessThanOrEqual(15)
+    }
   })
 })
 

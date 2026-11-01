@@ -1302,7 +1302,14 @@ export function createSupabaseApi(url: string, key: string): Api {
       location.assign(url)
     },
     checkConnection: provider => worker(`/api/integrations/${provider}/check`, { method: 'POST' }),
-    async checkConnections() { return (await worker<{ integrations: Integration[] }>('/api/integrations/check', { method: 'POST' })).integrations },
+    // Each app in its own request: one Worker run can only ask so many outside services (50 on
+    // Workers Free), and checking every app in one run ran out, so the last ones looked broken.
+    async checkConnections() {
+      const { integrations } = await worker<{ integrations: Integration[] }>('/api/integrations')
+      const rows = await Promise.all(integrations.filter(i => ['connected', 'error', 'pending'].includes(i.status))
+        .map(i => worker<Integration | null>(`/api/integrations/${i.provider}/check`, { method: 'POST' })))
+      return rows.filter((r): r is Integration => !!r)
+    },
     chooseCalendar: app => worker(`/api/integrations/calendar/${app}/choose`, { method: 'POST' }),
     async sendTestEmail(to) { await worker('/api/integrations/email/test', { method: 'POST', body: JSON.stringify({ to }) }) },
     saveFile: f => worker('/api/integrations/files/save', { method: 'POST', body: JSON.stringify(f) }),

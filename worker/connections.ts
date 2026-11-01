@@ -232,6 +232,12 @@ export function explain(p: Provider, e: unknown): string {
 const LASTING = /invalid_grant|access was removed|access has expired|switched off|without the permission|no Outlook mailbox|no OneDrive|no YouTube channel|not connected|not set up|hasn.t fetched|hasn.t switched on|no Google Maps listing|can.t connect yet|no website in Search Console|no longer in this Google account|didn.t allow posting|hasn.t approved|no Google Ads account|no ad account|can.t use that ad account|didn.t accept the API key/i
 export const lasting = (p: Provider, e: unknown) => LASTING.test(message(e)) || LASTING.test(explain(p, e))
 
+/**
+ * Cloudflare stopped this Worker run from asking anything else ("Too many subrequests": 50 outside
+ * requests a run on Workers Free). Says nothing about the connection: it wasn't checked this time.
+ */
+export const outOfRequests = (e: unknown) => /too many subrequests/i.test(message(e))
+
 // ---------------------------------------------------------------------------------------------
 // Rows and tokens
 // ---------------------------------------------------------------------------------------------
@@ -818,7 +824,7 @@ export async function checkOne(env: Env, db: SupabaseClient, p: Provider, { noti
     try {
       patch = await stillWorks(env, db, row)
     } catch (e) {
-      if (lasting(p, e)) throw e
+      if (lasting(p, e) || outOfRequests(e)) throw e
       await new Promise(r => setTimeout(r, retryAfterMs))
       patch = await stillWorks(env, db, row)
     }
@@ -826,6 +832,12 @@ export async function checkOne(env: Env, db: SupabaseClient, p: Provider, { noti
     await setIntegration(db, p, after)
     return { ...row, ...after }
   } catch (e) {
+    // The run ran out of requests, not the connection: left as it was (no "stopped working", no
+    // notification), and checked again by the next run.
+    if (outOfRequests(e)) {
+      console.error(`check ${p} skipped: this run is out of requests`)
+      return row
+    }
     const why = explain(p, e)
     await markBroken(db, p, why, notify)
     return { ...row, status: 'error', last_error: why, last_checked_at: now }
@@ -833,15 +845,40 @@ export async function checkOne(env: Env, db: SupabaseClient, p: Provider, { noti
 }
 
 /**
- * Check every connection that is (or was) working. The nightly job; admins get notified. The apps
- * are checked at the same time (each has its own access), so "Check all" takes as long as the
- * slowest one rather than all of them added up.
+ * Check every connection that is (or was) working, at the same time (each has its own access), so it
+ * takes as long as the slowest one rather than all of them added up. All in one Worker run, so with
+ * many connections the run can run out of requests: the ones it couldn't check come back as they
+ * were. The Connections page checks each app in its own request instead, and the night's check is
+ * checkDue.
  */
 export async function checkAll(env: Env, db: SupabaseClient, options: CheckOptions = {}) {
   const { data } = await db.from('integrations').select('provider').in('status', ['connected', 'error', 'pending'])
   const rows = await Promise.all(((data ?? []) as { provider: Provider }[]).map(({ provider }) =>
     checkOne(env, db, provider, options).catch(e => { console.error(`check ${provider} failed`, e); return null })))
   return rows.filter((r): r is Row => !!r)
+}
+
+/** How often each working (or broken) connection is proven overnight. */
+const CHECK_EVERY_MS = 20 * 3_600_000
+
+/**
+ * The overnight check, a few connections a run (worker/index.ts runs it every minute for two hours
+ * each night): those not checked in the last 20 hours, longest ago first. One Worker run can only
+ * ask so many outside services (Workers Free: 50 requests), and checking one connection takes about
+ * six, so checking them all at once ran out and the last ones looked broken. Returns how many it
+ * checked, so the run can go on to the next business with what's left.
+ */
+export async function checkDue(env: Env, db: SupabaseClient, most: number, options: CheckOptions = {}) {
+  if (most <= 0) return 0
+  const cutoff = Date.now() - CHECK_EVERY_MS
+  const { data } = await db.from('integrations').select('provider, last_checked_at').in('status', ['connected', 'error'])
+  const due = ((data ?? []) as { provider: Provider; last_checked_at: string | null }[])
+    .filter(r => !r.last_checked_at || Date.parse(r.last_checked_at) < cutoff)
+    .sort((a, b) => (a.last_checked_at ? Date.parse(a.last_checked_at) : 0) - (b.last_checked_at ? Date.parse(b.last_checked_at) : 0))
+    .slice(0, most)
+  await Promise.all(due.map(({ provider }) =>
+    checkOne(env, db, provider, options).catch(e => console.error(`check ${provider} failed`, e))))
+  return due.length
 }
 
 /**

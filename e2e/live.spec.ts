@@ -352,9 +352,13 @@ test.describe('business connections', () => {
       expect(state.integrations.map(i => i.provider), p).toContain(p)
       expect(typeof state.configured[p], p).toBe('boolean')
     }
-    const check = await request.post('/api/integrations/check', { headers: auth })
-    expect(check.status(), await check.text()).toBe(200)
-    const rows = (await check.json() as { integrations: { provider: string; status: string; last_error: string | null }[] }).integrations
+    // Each app in its own request, as "Check all" on the Connections page does (one Worker run has
+    // room for only 50 outside requests on Workers Free; all of them at once ran out).
+    const rows = await Promise.all(state.integrations.filter(i => ['connected', 'error', 'pending'].includes(i.status)).map(async i => {
+      const check = await request.post(`/api/integrations/${i.provider}/check`, { headers: auth })
+      expect(check.status(), await check.text()).toBe(200)
+      return await check.json() as { provider: string; status: string; last_error: string | null }
+    }))
     const broken = rows.filter(r => r.status === 'error').map(r => `${r.provider}: ${r.last_error}`)
     expect(broken, 'Connections that stopped working (fix on the Connections page)').toEqual([])
   })
