@@ -93,6 +93,8 @@ export interface Settings {
   mileage_rate?: number
   /** The owners' changes to the agents (Roles & responsibilities → Agents, shared/agents.ts); null: the usual ones. Only owners change it. */
   agent_views?: import('./agents').AgentViews | null
+  /** The weekly routine on everyone's Calendar and Today (on unless an admin turns it off on Calendar → Routine). */
+  routine_on_calendar?: boolean
 }
 
 export interface Expense {

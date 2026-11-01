@@ -3,7 +3,7 @@
 // filters to hide a category or one activity (kept in each person's preferences), an activity's
 // checklist and a tick for done; and the Calendar's Routine tab, where admins set the week up.
 import {
-  Box, Button, Card, CardContent, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, ListSubheader,
+  Alert, Box, Button, Card, CardContent, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, ListSubheader,
   MenuItem, Stack, Switch, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
@@ -58,6 +58,9 @@ const soft = (colour: string, n = 16) => `color-mix(in srgb, ${colour} ${n}%, tr
 const onTeam = (me: Profile | null) => !!me?.active && (me.role === 'admin' || me.role === 'employee')
 const dateLabel = (day: string) => formatLocal(`${day}T12:00:00Z`, 'EEEE d MMMM')
 
+/** The routine on the team's calendar and Today: on unless an admin switched it off (Calendar → Routine). */
+const routineOnCalendar = (settings: { routine_on_calendar?: boolean } | null) => settings?.routine_on_calendar !== false
+
 /** The routine's activities (none for anyone not on the team). */
 export function useRoutineItems() {
   const { api, me } = useApp()
@@ -106,8 +109,9 @@ const CLOSURE = /closed|cerrad|closure/i
  * has, after this person's filters, and which dialog is open.
  */
 export function useCalendarExtras(from: string, to: string, events: CalendarEvent[]) {
-  const { api, me, business } = useApp()
+  const { api, me, business, settings } = useApp()
   const staff = onTeam(me)
+  const onCalendar = routineOnCalendar(settings)
   const days = useThemeDays()
   const coffees = useCoffees()
   const items = useRoutineItems()
@@ -124,9 +128,11 @@ export function useCalendarExtras(from: string, to: string, events: CalendarEven
     }
     return s
   }, [events])
-  const shown = shownRoutine(items.data ?? [], show)
+  const shown = onCalendar ? shownRoutine(items.data ?? [], show) : []
   return {
-    staff, show, setShow, closures, openDay, setOpenDay, openItem, setOpenItem,
+    staff, show, setShow,
+    /** The routine on the team's calendar (an admin can switch it off for everyone). */
+    onCalendar, closures, openDay, setOpenDay, openItem, setOpenItem,
     days: days.data, coffees: coffees.data ?? [], items: items.data ?? [], error: days.error ?? items.error,
     /** The theme on a date, unless this person hid the themes. */
     themeOn: (day: string) => (staff && show.themes !== false ? themeOn(day, days.data, { hours: business?.opening_hours, closures }) : null),
@@ -265,6 +271,7 @@ export function RoutineDayDialog({ item, day, done, show, setShow, onClose }: {
 
 /** The calendar's filters: theme days and the routine on or off, the routine's categories one by one, and what you hid. */
 export function CalendarShowBar({ x }: { x: CalendarExtras }) {
+  const { isAdmin } = useApp()
   if (!x.staff || (!x.items.length && !x.days?.themes.length)) return null
   const { show, setShow } = x
   const hiddenCats = show.hiddenCategories ?? []
@@ -278,11 +285,14 @@ export function CalendarShowBar({ x }: { x: CalendarExtras }) {
   return (
     <Stack direction="row" role="group" aria-label={t('Show on the calendar')} spacing={0.5} sx={{ mb: 2, mt: -1, flexWrap: 'wrap', rowGap: 0.5, alignItems: 'center' }}>
       {!!x.days?.themes.length && toggle(show.themes !== false, t('Theme days'), <ThemeIcon />, () => setShow({ ...show, themes: show.themes === false }))}
-      {x.items.length > 0 && toggle(show.routine !== false, t('Routine'), <RoutineIcon />, () => setShow({ ...show, routine: show.routine === false }))}
-      {show.routine !== false && used.map(c => toggle(!hiddenCats.includes(c.id), t(c.label), ICONS[c.id], () => setShow({
+      {x.items.length > 0 && x.onCalendar && toggle(show.routine !== false, t('Routine'), <RoutineIcon />, () => setShow({ ...show, routine: show.routine === false }))}
+      {x.items.length > 0 && !x.onCalendar && isAdmin && (
+        <Button size="small" component={Link} to="/calendar?tab=routine" startIcon={<RoutineIcon />}>{t('Routine: off for everyone')}</Button>
+      )}
+      {x.onCalendar && show.routine !== false && used.map(c => toggle(!hiddenCats.includes(c.id), t(c.label), ICONS[c.id], () => setShow({
         ...show, hiddenCategories: hiddenCats.includes(c.id) ? hiddenCats.filter(k => k !== c.id) : [...hiddenCats, c.id],
       }), c.colour))}
-      {show.routine !== false && hiddenItems.length > 0 && (
+      {x.onCalendar && show.routine !== false && hiddenItems.length > 0 && (
         <Button size="small" onClick={() => setShow({ ...show, hiddenItems: [] })}>
           {tn(hiddenItems.length, 'Show the {n} activity you hid', 'Show the {n} activities you hid')}
         </Button>
@@ -297,7 +307,7 @@ export function CalendarShowBar({ x }: { x: CalendarExtras }) {
 
 /** The Today page: today's theme with its coffee and playlist, and today's routine to tick off. */
 export function TodayThemeCard() {
-  const { api, me, profiles, jobRoles } = useApp()
+  const { api, me, profiles, jobRoles, settings } = useApp()
   const run = useAction()
   const staff = onTeam(me)
   const days = useThemeDays()
@@ -306,7 +316,7 @@ export function TodayThemeCard() {
   const [show] = useCalendarShow()
   const d = today()
   const done = useAsync('routine-done', () => (staff ? api.routineDone(d, d) : Promise.resolve([] as RoutineDone[])), [d, d, staff])
-  const list = routineOn(shownRoutine(items.data ?? [], show), d)
+  const list = routineOnCalendar(settings) ? routineOn(shownRoutine(items.data ?? [], show), d) : []
   if (!staff || (!days.data?.themes.length && !list.length)) return null
   return (
     <Box>
@@ -348,11 +358,13 @@ export function TodayThemeCard() {
 
 /** Calendar → Routine: the week day by day, every activity (switched-off ones too). Admins add, change and switch them off. */
 export function RoutineTab() {
-  const { api, business, isAdmin, profiles, jobRoles } = useApp()
+  const { api, business, isAdmin, profiles, jobRoles, settings, refresh } = useApp()
   const run = useAction()
   const items = useRoutineItems()
   const [editing, setEditing] = useState<RoutineItem | 'new' | null>(null)
   const all = items.data ?? []
+  // Shows at once while it saves (useTick), and goes back if saving fails.
+  const [onCalendar, setOnCalendar] = useTick(routineOnCalendar(settings))
   return (
     <Stack spacing={2}>
       <ErrorBox error={items.error} />
@@ -362,6 +374,25 @@ export function RoutineTab() {
         </Typography>
         {isAdmin && <Button variant="contained" startIcon={<AddIcon />} onClick={() => setEditing('new')} sx={{ flexShrink: 0 }}>{t('Add an activity')}</Button>}
       </Stack>
+      {isAdmin ? (
+        <Card component="section" aria-label={t('The routine on the calendar')}>
+          <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+            <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
+              <RoutineIcon sx={{ color: onCalendar ? tokens.roseDeep : 'text.disabled' }} />
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography sx={{ fontWeight: 500 }}>{t('Show the routine on the calendar')}</Typography>
+                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                  {onCalendar ? t('For the whole team: each day’s activities on the Calendar and on Today.')
+                    : t('Off for the whole team. The activities stay here, ready for when it’s back on.')}
+                </Typography>
+              </Box>
+              <Switch checked={onCalendar} slotProps={{ input: { 'aria-label': t('Show the routine on the calendar') } }}
+                onChange={e => { const on = e.target.checked; setOnCalendar(on, () => run(async () => { await api.updateSettings({ routine_on_calendar: on }); await refresh() },
+                  on ? t('The routine is back on the calendar for everyone') : t('The routine is off the calendar for everyone'))) }} />
+            </Stack>
+          </CardContent>
+        </Card>
+      ) : !onCalendar && <Alert severity="info">{t('The routine is switched off for now, so it isn’t on the calendar.')}</Alert>}
       {WEEKDAYS.map(w => {
         const day = t(WEEKDAY_NAMES[w - 1])
         const list = routineOnWeekday(all, w)

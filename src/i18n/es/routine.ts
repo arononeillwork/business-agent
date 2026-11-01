@@ -61,4 +61,13 @@ export default {
   'From (optional)': 'Desde (opcional)',
   'Checklist (optional)': 'Lista de comprobación (opcional)',
   'One thing per line.': 'Una cosa por línea.',
+  // The routine on (or off) the calendar for the whole team.
+  'Routine: off for everyone': 'Rutina: desactivada para todos',
+  'The routine on the calendar': 'La rutina en el calendario',
+  'Show the routine on the calendar': 'Mostrar la rutina en el calendario',
+  'For the whole team: each day’s activities on the Calendar and on Today.': 'Para todo el equipo: las actividades de cada día en el Calendario y en Hoy.',
+  'Off for the whole team. The activities stay here, ready for when it’s back on.': 'Desactivada para todo el equipo. Las actividades se quedan aquí, listas para cuando vuelva a activarse.',
+  'The routine is back on the calendar for everyone': 'La rutina vuelve a estar en el calendario de todos',
+  'The routine is off the calendar for everyone': 'La rutina ya no está en el calendario de nadie',
+  'The routine is switched off for now, so it isn’t on the calendar.': 'La rutina está desactivada por ahora, así que no aparece en el calendario.',
 }
