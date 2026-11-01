@@ -75,6 +75,7 @@ import { SOURCE_FOR, type Enquiry } from '../../shared/leads'
 import { DEFAULT_MILEAGE_RATE, mileageAmount, type ExpenseClaim } from '../../shared/claims'
 import { EVERYONE, type Campaign } from '../../shared/campaigns'
 import { keepUntil, type Applicant, type JobOpening } from '../../shared/hiring'
+import { cleanRoles, cvProblem, type ApplicantCv } from '../../shared/hiring'
 import { CAFE_POINTS, inRange as inLimits, type SafetyCheck, type SafetyPoint } from '../../shared/foodSafety'
 import { dietsFor, type Allergen, type MenuAllergens } from '../../shared/allergens'
 import { minutesWorked, splitTips, type TipPool } from '../../shared/tips'
@@ -1593,6 +1594,7 @@ export function createDemoApi(): Api {
   ]
   const applicant = (a: Partial<Applicant> & { opening_id: string; full_name: string }): Applicant => {
     const made: Applicant = { id: uid(), email: null, phone: null, source: 'other', stage: 'applied', interview_at: null, rating: null, cv_link: null, notes: null,
+      roles: [], available_from: null, availability: null,
       applied_on: today(), keep_until: today(), profile_id: null, ...a }
     return { ...made, keep_until: keepUntil(made.applied_on) }
   }
@@ -1616,6 +1618,27 @@ export function createDemoApi(): Api {
       competition: null, title: `Interview: ${a.full_name}${job ? ` (${job})` : ''}`, source: 'app', confirmed: true, visibility: 'admins' })
   }
   applicantList.forEach(a => interviewEvent(a, a.id))
+  // The CV pool: people kept for a job to come, with no job; two with their CV uploaded (database: the cv_pool migration).
+  const pooled = (a: Partial<Omit<Applicant, 'opening_id'>> & { full_name: string }): Applicant => ({ ...applicant({ ...a, opening_id: '' }), opening_id: null })
+  const cvFiles = new Map<string, ApplicantCv & { blob: Blob }>()
+  const keepCv = (a: Applicant, file_name: string, blob: Blob, added_at: string) =>
+    cvFiles.set(a.id, { applicant_id: a.id, file_name, mime_type: blob.type || null, size: blob.size, added_at, blob })
+  {
+    const marta = pooled({ full_name: 'Marta Jiménez', email: 'marta.jimenez@example.es', phone: '+34 633 120 554', source: 'window', roles: ['Barista', 'Front of house'],
+      available_from: addDays(today(), 21), availability: 'Weekends and afternoons', applied_on: addDays(today(), -12),
+      notes: 'Left her CV at the counter. Three summers at a beach bar in Estepona.' })
+    const daniel = pooled({ full_name: 'Daniel Ortega', email: 'daniel.ortega@example.es', source: 'referral', roles: ['Kitchen'], availability: 'Weekday mornings',
+      applied_on: addDays(today(), -30), notes: 'Maria’s neighbour: two years as a line cook, food handler certificate.' })
+    const chloe = pooled({ full_name: 'Chloé Martin', phone: '+33 6 12 34 56 78', source: 'instagram', roles: ['Barista'], available_from: '2027-06-01',
+      availability: 'The summer', applied_on: addDays(today(), -5), cv_link: 'https://www.linkedin.com/in/demo-chloe-martin', notes: 'Asked on Instagram about summer work.' })
+    applicantList.push(marta, daniel, chloe)
+    keepCv(marta, 'Marta_Jimenez_CV.pdf', demoPdf('Marta Jimenez', ['Barista, front of house', 'marta.jimenez@example.es  +34 633 120 554', '',
+      'Experience', '2023-2025 (summers): barista, Chiringuito La Rada, Estepona', '2022: waitress, Cafe Central, Marbella', '',
+      'Languages: Spanish, English (B2)', 'Food handler certificate (manipulador de alimentos)', '', 'Demo CV: uploaded on the Hiring page.']), daysAgo(12))
+    keepCv(daniel, 'CV Daniel Ortega.pdf', demoPdf('Daniel Ortega', ['Kitchen', 'daniel.ortega@example.es', '', 'Experience',
+      '2024-2026: line cook, Taberna del Puerto, San Pedro de Alcantara', '2023: kitchen porter, Hotel Guadalmina', '', 'Food handler certificate',
+      '', 'Demo CV: uploaded on the Hiring page.']), daysAgo(30))
+  }
 
   // Food safety: the café's fridges and daily jobs, a week of checks, and one fridge out of range three days ago.
   const pointList: SafetyPoint[] = CAFE_POINTS.filter(p => p.key !== 'hot').map((p, i) => ({ id: `fs-${p.key}`, name: p.name, kind: p.kind, min_temp: p.min_temp,
@@ -4063,6 +4086,53 @@ export function createDemoApi(): Api {
       const i = applicantList.findIndex(x => x.id === id)
       if (i >= 0) applicantList.splice(i, 1)
       interviewEvent(undefined, id)
+    },
+    async savePoolCandidate({ id, ...c }) {
+      requireAdmin()
+      if (!c.full_name?.trim()) throw new Error('Add their name')
+      const existing = id ? applicantList.find(x => x.id === id && x.opening_id === null) : undefined
+      if (id && !existing) throw new Error('They’re not in the CV pool any more')
+      const merged: Applicant = { ...(existing ?? pooled({ full_name: '' })), ...c }
+      const next: Applicant = { ...merged, full_name: merged.full_name.trim(), email: merged.email?.trim().toLowerCase() || null,
+        phone: merged.phone?.trim().replace(/\s+/g, ' ') || null, cv_link: merged.cv_link?.trim() || null, notes: merged.notes?.trim() || null,
+        roles: cleanRoles(merged.roles), availability: merged.availability?.trim() || null, available_from: merged.available_from || null }
+      if (next.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(next.email)) throw new Error('That email doesn’t look right')
+      if (next.phone && !/^\+\d[\d ]{4,24}$/.test(next.phone)) throw new Error('That phone number doesn’t look right')
+      if (next.cv_link && !/^https?:\/\/\S+$/i.test(next.cv_link)) throw new Error('The CV link starts with https://')
+      next.keep_until = keepUntil(next.applied_on)
+      if (existing) Object.assign(existing, next)
+      else applicantList.push(next)
+      return next.id
+    },
+    async addToJob(applicantId, openingId) {
+      requireAdmin()
+      const a = applicantList.find(x => x.id === applicantId && x.opening_id === null)
+      if (!a) throw new Error('They’re not in the CV pool any more')
+      if (!openings.some(o => o.id === openingId)) throw new Error('Pick the job they applied for')
+      Object.assign(a, { opening_id: openingId, stage: 'applied' })
+      interviewEvent(a, a.id)
+    },
+    async applicantCvs() {
+      if (!isAdmin()) return []
+      return [...cvFiles.values()].filter(c => applicantList.some(a => a.id === c.applicant_id)).map(({ blob: _b, ...c }) => c)
+    },
+    async uploadApplicantCv(applicantId, file) {
+      requireAdmin()
+      const problem = cvProblem(file)
+      if (problem) throw new Error(problem)
+      if (!applicantList.some(a => a.id === applicantId)) throw new Error('Applicant not found')
+      const { blob: _b, ...cv } = keepCv(applicantList.find(a => a.id === applicantId)!, file.name.trim(), file, nowIso()).get(applicantId)!
+      return cv
+    },
+    async removeApplicantCv(applicantId) {
+      requireAdmin()
+      cvFiles.delete(applicantId)
+    },
+    async applicantCvFile(applicantId) {
+      requireAdmin()
+      const cv = cvFiles.get(applicantId)
+      if (!cv || !applicantList.some(a => a.id === applicantId)) throw new Error('That CV has gone')
+      return cv.blob
     },
     async tipPools() {
       const pools = tipPools()
