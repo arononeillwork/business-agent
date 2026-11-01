@@ -17,6 +17,7 @@ import { mentionTitle, mentionsIn, type InstagramMention } from '../../shared/me
 import { demoSports } from './demoSports'
 import { demoInbox, demoMessenger, demoWhatsApp } from './demoMessages'
 import { demoEmailPage, demoEmails } from './demoEmail'
+import { demoEmailFull, demoFileLines, demoPicture, demoReplies } from './demoEmail'
 import { DEMO_CAFE_AT, DEMO_PLACES, demoCompetitors } from './demoCompetitors'
 import { distanceM, instagramHandle, suggestedThreat, type Competitor, type NearbyPlace } from '../../shared/localCompetitors'
 import { DEFAULT_WHATSAPP_RETENTION, isRetention, replyWindow } from '../../shared/messages'
@@ -2985,6 +2986,25 @@ export function createDemoApi(): Api {
         return { mailbox: box ?? null, account: row?.account_label ?? null, can_read: false, messages: [], next_page: null }
       }
       return { mailbox: box, account: row.account_label, can_read: true, ...demoEmailPage(demoEmails(box, row.account_label, suppliers, customers), query), fetched_at: nowIso() }
+    },
+    async emailMessage(id) {
+      requireAdmin()
+      const row = integ.integrations.find(i => (i.provider === 'gmail' || i.provider === 'outlook') && i.status === 'connected')
+      if (!row || !(row.external as { reads_mail?: boolean }).reads_mail) throw new Error('Allow Business Agent to read the mailbox first, on the Email page.')
+      const m = demoEmails(row.provider as 'gmail' | 'outlook', row.account_label, suppliers, customers).find(x => x.id === id)
+      if (!m) throw new Error('That email isn’t in the mailbox any more')
+      return demoEmailFull(m, row.account_label)
+    },
+    async emailAttachment(messageId, file) {
+      const m = await api.emailMessage(messageId)
+      if (!m.attachments.some(a => a.id === file.id)) throw new Error('That file isn’t on the email any more')
+      return demoPicture(file.name) ?? demoPdf(file.name.replace(/\.pdf$/i, ''), demoFileLines(m, file.name))
+    },
+    async replyEmail(id, text, all) {
+      await api.emailMessage(id)
+      if (!text.trim()) throw new Error('Write your reply first')
+      // Demo: nothing is sent; the reply is kept, as the mailbox's Sent folder would.
+      demoReplies.push({ id, text: text.trim(), all: !!all, at: nowIso() })
     },
     async taxSettings() { return readTax() ? clone(taxSettings) : DEFAULT_TAX_SETTINGS },
     async saveTaxSettings(patch) {

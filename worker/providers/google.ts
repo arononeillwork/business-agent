@@ -291,9 +291,10 @@ export async function accountEmail(token: string): Promise<string | undefined> {
   return res.ok ? ((await res.json()) as { email?: string }).email : undefined
 }
 
-export async function sendGmail(token: string, raw: string) {
+/** Send a raw message (base64url); `threadId`: as a reply in that conversation (the Email page). */
+export async function sendGmail(token: string, raw: string, threadId?: string) {
   const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
-    method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ raw }),
+    method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify(threadId ? { raw, threadId } : { raw }),
   })
   const json = await res.json() as { id?: string; error?: { message?: string } }
   if (!res.ok || !json.id) throw new Error(`Gmail: ${json.error?.message ?? res.status}`)
@@ -540,6 +541,77 @@ export async function gmailAttachment(token: string, message: string, attachment
   const a = await gmail<{ data: string }>(token, `messages/${encodeURIComponent(message)}/attachments/${encodeURIComponent(attachment)}`)
   const bin = atob(a.data.replace(/-/g, '+').replace(/_/g, '/'))
   return Uint8Array.from(bin, c => c.charCodeAt(0))
+}
+
+// Gmail, read (Email page → an email opened in the app): its body, its files and the pictures in it.
+// Same gmail.readonly permission; a reply goes out with gmail.send (sendGmail with the thread's id).
+export interface GmailFullPart {
+  partId?: string; filename?: string; mimeType?: string; headers?: { name: string; value: string }[]
+  body?: { attachmentId?: string; size?: number; data?: string }; parts?: GmailFullPart[]
+}
+interface GmailFull { id: string; threadId?: string; labelIds?: string[]; internalDate?: string; payload?: GmailFullPart }
+/** Where a part's bytes are: in Gmail's answer (base64url), or to fetch as an attachment; and its Content-Type (the charset). */
+export interface GmailBodyRef { data?: string; attachmentId?: string; type: string; size: number }
+
+/**
+ * What an email is made of: its first HTML and plain-text bodies (not files), the files attached
+ * (as on the list: not the pictures inside the email), and those pictures by Content-ID (without <>).
+ */
+export function gmailParts(payload?: GmailFullPart) {
+  let html: GmailBodyRef | null = null
+  let text: GmailBodyRef | null = null
+  const files: { id: string; name: string; size: number; type: string }[] = []
+  const pictures: (GmailBodyRef & { cid: string })[] = []
+  const walk = (p?: GmailFullPart) => {
+    if (!p) return
+    const header = (n: string) => p.headers?.find(h => h.name.toLowerCase() === n)?.value ?? ''
+    const type = (p.mimeType ?? '').toLowerCase()
+    const cid = header('content-id').trim().replace(/^<|>$/g, '')
+    const ref: GmailBodyRef = { data: p.body?.data, attachmentId: p.body?.attachmentId, type: header('content-type') || type, size: p.body?.size ?? 0 }
+    const embedded = type.startsWith('image/') && !!cid
+    if (embedded && (ref.data || ref.attachmentId)) pictures.push({ ...ref, cid })
+    if (p.filename && p.body?.attachmentId && !embedded) files.push({ id: p.body.attachmentId, name: p.filename, size: p.body.size ?? 0, type: p.mimeType ?? '' })
+    else if (!p.filename && !/^\s*attachment/i.test(header('content-disposition')) && (ref.data || ref.attachmentId)) {
+      if (type === 'text/html' && !html) html = ref
+      if (type === 'text/plain' && !text) text = ref
+    }
+    p.parts?.forEach(walk)
+  }
+  walk(payload)
+  return { html: html as GmailBodyRef | null, text: text as GmailBodyRef | null, files, pictures }
+}
+
+const fromBase64Url = (s: string) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0))
+
+/** A body's words in its own character set (UTF-8 when it doesn't say, or the Worker doesn't know that one). */
+export function decodeBody(bytes: Uint8Array, contentType: string) {
+  const charset = contentType.match(/charset\s*=\s*"?([\w.:-]+)"?/i)?.[1]
+  try { return new TextDecoder(charset || 'utf-8').decode(bytes) } catch { return new TextDecoder().decode(bytes) }
+}
+
+/** The pictures inside an email that are worth putting in place: a few, each small (a logo, a signature). */
+export const PICTURES = { max: 10, bytes: 500_000 }
+
+/**
+ * One email, opened: who it's from and to, its HTML and text, its files, and what a reply needs (its
+ * Date, Message-ID and References). The pictures inside the HTML come with it (`pictures: false`:
+ * not fetched, for a reply's quote).
+ */
+export async function gmailMessage(token: string, id: string, o: { pictures?: boolean } = {}) {
+  const m = await gmail<GmailFull>(token, `messages/${encodeURIComponent(id)}?format=full`)
+  const header = (n: string) => m.payload?.headers?.find(h => h.name.toLowerCase() === n)?.value ?? ''
+  const parts = gmailParts(m.payload)
+  const bytes = async (r: GmailBodyRef) => (r.data ? fromBase64Url(r.data) : r.attachmentId ? await gmailAttachment(token, id, r.attachmentId) : new Uint8Array())
+  const html = parts.html ? decodeBody(await bytes(parts.html), parts.html.type) : null
+  const text = parts.text ? decodeBody(await bytes(parts.text), parts.text.type) : null
+  const shown = o.pictures === false || !html ? [] : parts.pictures.filter(p => p.size <= PICTURES.bytes && html.includes(`cid:${p.cid}`)).slice(0, PICTURES.max)
+  const pictures = await Promise.all(shown.map(async p => ({ cid: p.cid, bytes: await bytes(p).catch(() => new Uint8Array()) })))
+  return {
+    id: m.id, thread_id: m.threadId ?? m.id, from: header('from'), to: header('to'), cc: header('cc'), reply_to: header('reply-to') || null,
+    subject: header('subject'), at: new Date(Number(m.internalDate ?? Date.now())).toISOString(), date: header('date'),
+    message_id: header('message-id') || null, references: header('references') || null,
+    html, text, pictures, attachments: parts.files, link: null as string | null,
+  }
 }
 
 /** Save a file into "Business Agent/<sub>" in the café's Drive; returns its web link. */

@@ -1,5 +1,5 @@
 import {
-  Alert, Box, Button, Card, Chip, InputAdornment, LinearProgress, MenuItem, Skeleton, Stack, TextField, Tooltip, Typography,
+  Alert, Box, Button, ButtonBase, Card, Chip, InputAdornment, LinearProgress, MenuItem, Skeleton, Stack, TextField, Tooltip, Typography,
 } from '@mui/material'
 import SearchIcon from '@mui/icons-material/SearchRounded'
 import StarIcon from '@mui/icons-material/StarRounded'
@@ -24,6 +24,7 @@ import type { Supplier } from '../../shared/stock'
 import { addDays, formatLocal, today } from '../../shared/time'
 import { tokens } from '../theme'
 import { t, tc } from '../i18n'
+import { EmailReader } from './EmailReader'
 
 const STAR = '#C98A1E'
 
@@ -45,8 +46,9 @@ const size = (bytes: number) => (bytes >= 1_000_000 ? `${(bytes / 1_000_000).toF
 /**
  * Email (Business section, admins): the business's connected Gmail or Outlook as a list, read only.
  * One chip at a time narrows it (unread, starred, important, with files, invoices & receipts, from a
- * supplier, customers & bookings), with a search (Gmail's own), a period and a supplier; each email
- * opens in Gmail or Outlook. Reading the mailbox is the same permission as Invoices → From email.
+ * supplier, customers & bookings), with a search (Gmail's own), a period and a supplier. Each email
+ * opens in the app (EmailReader: its body, its files, a reply); Gmail or Outlook is a link away.
+ * Reading the mailbox is the same permission as Invoices → From email.
  */
 export function EmailPage() {
   const { api } = useApp()
@@ -56,6 +58,7 @@ export function EmailPage() {
   const [q, setQ] = useState('')
   const [days, setDays] = useState(DEFAULT_EMAIL_DAYS)
   const [supplier, setSupplier] = useState('')
+  const [reading, setReading] = useState<EmailMessage | null>(null)
   // Search a moment after typing stops (Enter searches straight away).
   useEffect(() => {
     const id = setTimeout(() => setQ(typed.trim()), 600)
@@ -101,7 +104,14 @@ export function EmailPage() {
 
       {first && !box && (
         <Alert severity="info" action={<Button component={RouterLink} to="/connections" color="inherit">{t('Connections')}</Button>}>
-          {t('Connect Gmail or Outlook on Connections to see the business’s email here.')}
+          {t('Connect the business’s Gmail or Outlook to see its email here, open each one and reply from the app. Nothing is changed or deleted in the mailbox.')}
+          <Stack direction="row" useFlexGap sx={{ gap: 1, mt: 1.5, flexWrap: 'wrap' }}>
+            {(['gmail', 'outlook'] as const).map(p => (
+              <Button key={p} variant="outlined" size="small" color="inherit" onClick={() => void run(() => api.connectService(p, 'email', { read: true }))}>
+                {t('Connect {app}', { app: p === 'gmail' ? 'Gmail' : 'Outlook' })}
+              </Button>
+            ))}
+          </Stack>
         </Alert>
       )}
       {first && box && !first.can_read && (
@@ -152,7 +162,7 @@ export function EmailPage() {
             </Box>
           ) : (
             <Box component="ul" aria-label={t('Emails')} sx={{ listStyle: 'none', m: 0, p: 0 }}>
-              {messages.map(m => <EmailRow key={m.id} m={m} supplierName={nameOf(m.supplier_id)} boxName={boxName} />)}
+              {messages.map(m => <EmailRow key={m.id} m={m} supplierName={nameOf(m.supplier_id)} onOpen={() => setReading(m)} />)}
             </Box>
           )}
           {mail.hasNextPage && (
@@ -162,6 +172,7 @@ export function EmailPage() {
           )}
         </Card>
       )}
+      {reading && <EmailReader m={reading} boxName={boxName} account={first?.account ?? null} supplierName={nameOf(reading.supplier_id)} onClose={() => setReading(null)} />}
     </>
   )
 }
@@ -209,17 +220,18 @@ function Rows() {
   )
 }
 
-/** One email: who sent it (and the supplier or customer it is), the subject and preview, its files and when; opens in the mailbox. */
-function EmailRow({ m, supplierName, boxName }: { m: EmailMessage; supplierName?: string; boxName: string }) {
+/** One email: who sent it (and the supplier or customer it is), the subject and preview, its files and when; opens in the app. */
+function EmailRow({ m, supplierName, onOpen }: { m: EmailMessage; supplierName?: string; onOpen: () => void }) {
   const who = m.from_name || m.from
   const bold = m.unread ? 600 : 400
   return (
     <Box component="li" aria-label={m.subject || t('(no subject)')} sx={{ borderTop: 1, borderColor: 'divider', '&:first-of-type': { borderTop: 0 } }}>
-      <Box component="a" href={m.link} target="_blank" rel="noopener noreferrer" title={t('Open in {mailbox}', { mailbox: boxName })}
+      <ButtonBase component="div" onClick={onOpen} aria-haspopup="dialog"
         sx={{
           display: 'grid', gridTemplateColumns: '28px minmax(0, 1fr)', columnGap: 1, px: { xs: 1.5, sm: 2 }, py: 1.5, color: 'inherit', textDecoration: 'none',
+          width: '100%', textAlign: 'left', justifyContent: 'stretch', alignItems: 'start',
           bgcolor: m.unread ? 'transparent' : tokens.surfaceAlt, '&:hover': { bgcolor: tokens.hover },
-          '&:focus-visible': { outline: `2px solid ${tokens.rose}`, outlineOffset: -2 },
+          '&.Mui-focusVisible': { outline: `2px solid ${tokens.rose}`, outlineOffset: -2 },
         }}>
         <Stack sx={{ alignItems: 'center', pt: 0.25, gap: 0.5 }}>
           {m.starred
@@ -263,7 +275,7 @@ function EmailRow({ m, supplierName, boxName }: { m: EmailMessage; supplierName?
             </Stack>
           )}
         </Box>
-      </Box>
+      </ButtonBase>
     </Box>
   )
 }
