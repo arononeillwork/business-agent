@@ -22,6 +22,7 @@ import type { RoleOwner } from '../../shared/roleOwners'
 import type { TeamRole } from '../../shared/teamRoles'
 import type { RuleSection, RuleSectionInput, RulesRead } from '../../shared/staffRules'
 import type { Pet, PetInput } from '../../shared/pets'
+import type { QrCode, QrCodeInput } from '../../shared/qrCodes'
 import type { Coffee, CoffeeInput, DayThemeInput, ThemeDays } from '../../shared/themeDays'
 import type { RoutineDone, RoutineItem, RoutineItemInput } from '../../shared/routine'
 import type { Contractor, ContractorInput, OutsourcedJob, OutsourcedJobInput } from '../../shared/outsourcing'
@@ -248,6 +249,15 @@ export interface Api {
   /** Add one (no id; for the person signed in unless profile_id says whose) or change one; returns its id. */
   savePet(p: PetInput): Promise<string>
   deletePet(id: string): Promise<void>
+
+  // QR codes (Business section): the business's codes, each a link, a Wi-Fi network or some text, to
+  // download and print. The team sees them; admins add, change, order and remove them.
+  qrCodes(): Promise<QrCode[]>
+  /** Add one (no id) or change one; returns its id. */
+  saveQrCode(c: QrCodeInput): Promise<string>
+  deleteQrCode(id: string): Promise<void>
+  /** Their order on the page: every code's id, first to last. */
+  orderQrCodes(ids: string[]): Promise<void>
 
   // Theme days (Calendar, Coffees page): the coffees served, the themes for the day with their coffee and
   // playlist, the weekly rotation and dates set apart from it. The team reads them; admins change them.

@@ -1038,6 +1038,27 @@ export const ALL_TOOLS: ToolDef[] = [
     },
   }),
 
+  // ---------------- QR codes ----------------
+  tool({
+    name: 'list_qr_codes',
+    title: 'QR codes',
+    description: 'The business’s QR codes (the owner calls them barcodes), in their order: each a link, a Wi-Fi network (with its name and password) or some text, and where it’s used. They’re downloaded (PNG or SVG) and printed from the QR codes page; one waiting for its link or network can’t be downloaded until it’s added there.',
+    readOnly: true,
+    input: z.object({}),
+    async run({ sb }) {
+      const rows = check(await sb.from('qr_codes').select('name, kind, url, content, wifi_ssid, wifi_password, wifi_security, wifi_hidden, used_where, caption')
+        .order('sort').order('name')) as { name: string; kind: string; url: string | null; content: string | null; wifi_ssid: string | null
+          wifi_password: string | null; wifi_security: string; wifi_hidden: boolean; used_where: string | null; caption: string | null }[]
+      return rows.map(c => ({
+        name: c.name, kind: c.kind, used_where: c.used_where, printed_line: c.caption,
+        ...(c.kind === 'link' ? { link: c.url } : c.kind === 'text' ? { text: c.content }
+          : { network: c.wifi_ssid, password: c.wifi_security === 'nopass' ? null : c.wifi_password, security: c.wifi_security, hidden: c.wifi_hidden }),
+        ready: c.kind === 'link' ? !!c.url : c.kind === 'text' ? !!c.content : !!c.wifi_ssid && (c.wifi_security === 'nopass' || !!c.wifi_password),
+        page: '/qr-codes',
+      }))
+    },
+  }),
+
   // ---------------- Finances ----------------
   tool({
     name: 'list_expenses',

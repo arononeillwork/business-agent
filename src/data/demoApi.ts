@@ -45,6 +45,7 @@ import { ROLE_TEMPLATES } from '../../shared/roleTemplates'
 import { sectionProblem, type RuleSection, type RulesRead } from '../../shared/staffRules'
 import { PET_LIMITS, petProblem, type Pet } from '../../shared/pets'
 import { DEMO_THEME_TRACKS, demoThemeDayApi } from './demoThemeDays'
+import { demoQrCodeApi } from './demoQrCodes'
 import { COUNTED, type Contractor, type OutsourcedJob } from '../../shared/outsourcing'
 import { DEFAULT_CONVENIO, contractProblem, type EmploymentContract } from '../../shared/contracts'
 import { EASY_BEANS_ROLES, EASY_BEANS_RULES, handbookDuties } from './easyBeansHandbook'
@@ -2487,6 +2488,8 @@ export function createDemoApi(): Api {
       if (i >= 0 && isStaff() && (pets[i].profile_id === currentUser || isAdmin())) pets.splice(i, 1)
     },
     ...themeDayApi,
+    // QR codes: Easy Beans' three, as the `qr_codes` migration, with the demo's Wi-Fi filled in.
+    ...demoQrCodeApi({ isStaff: () => isStaff() && !!me()?.active, isAdmin: () => isAdmin() && !!me()?.active, uid, nowIso }),
 
     async contractors() {
       if (!isAdmin() && !partnerCan('finances')) return []

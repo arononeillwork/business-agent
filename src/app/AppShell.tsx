@@ -23,6 +23,7 @@ import WasteIcon from '@mui/icons-material/DeleteSweepOutlined'
 import TodoIcon from '@mui/icons-material/ChecklistRtlOutlined'
 import HoursIcon from '@mui/icons-material/ScheduleOutlined'
 import BrandIcon from '@mui/icons-material/BrushOutlined'
+import QrCodesIcon from '@mui/icons-material/QrCode2Outlined'
 import AccountIcon from '@mui/icons-material/AccountCircleOutlined'
 import AiIcon from '@mui/icons-material/SmartToyOutlined'
 import AppearanceIcon from '@mui/icons-material/PaletteOutlined'
@@ -124,6 +125,8 @@ export const SECTIONS: NavSection[] = [
     { key: 'documents', to: '/documents', label: msg('Documents'), icon: <DocumentsIcon />, who: 'pay', partner: ['finances'] },
     { key: 'legal', to: '/legal', label: msg('Legal & licences'), short: msg('Legal'), icon: <LegalIcon />, who: 'admin', partner: ['finances'] },
     { key: 'brand', to: '/brand', label: msg('Brand'), icon: <BrandIcon />, partner: 'any' },
+    // The business's QR codes (the owner calls them barcodes), to download and print: the team sees them, admins change them.
+    { key: 'qrcodes', to: '/qr-codes', label: msg('QR codes'), icon: <QrCodesIcon /> },
     { key: 'messages', to: '/messages', label: msg('Messages'), icon: <MessagesIcon />, who: 'admin' },
     { key: 'email', to: '/email', label: msg('Email'), icon: <EmailIcon />, who: 'admin' },
     { key: 'cameras', to: '/cameras', label: msg('Cameras'), icon: <CamerasIcon />, who: 'admin' },
