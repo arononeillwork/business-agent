@@ -327,8 +327,22 @@ const provider = (env: Env, origin: string) => new OAuthProvider<Env>({
   resourceMetadata: { resource: `${origin}/mcp`, resource_name: 'Business Agent' },
 })
 
+/** A request over plain http from anywhere but this computer (http://localhost is `wrangler dev`). */
+const overHttp = (url: URL) => url.protocol === 'http:' && !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
+
 export default {
-  fetch: (request, env, ctx) => provider(env, new URL(request.url).origin).fetch(request, env, ctx),
+  fetch: (request, env, ctx) => {
+    const url = new URL(request.url)
+    // The OAuth provider refuses an http address (it threw, Cloudflare error 1101), so plain http
+    // never reaches it. Calendar apps fetch the webcal:// feed links over http (Google Calendar
+    // does): the feeds answer there too. Everything else moves to https.
+    if (overHttp(url)) {
+      if (url.pathname.startsWith('/cal/')) return app.fetch(request, env, ctx)
+      url.protocol = 'https:'
+      return Response.redirect(url.toString(), 308)
+    }
+    return provider(env, url.origin).fetch(request, env, ctx)
+  },
   // Every minute: close forgotten timecards, queue shift alerts, remind admins about events,
   // send planned social posts, deliver the outbox, refresh sports; every 15 minutes, opening hours
   // with Google Maps and Instagram mentions; every hour, new Square customers and new Google reviews

@@ -17,6 +17,7 @@ import { GROUPS, groupOf } from '../shared/connections'
 import { authEmail, hookSecret, verifyHook } from './authEmail'
 import { syncSquareCustomers } from './squareCustomers'
 import { hmacBase64 } from './crypto'
+import worker from './index'
 
 const APP = 'https://app.test'
 const env = {
@@ -441,6 +442,21 @@ describe('Calendar: connected once the calendar app has fetched the team calenda
     await fetchFeed(feed, 'Google-Calendar-Importer')
     expect(db.integration('google_calendar')).toMatchObject({ status: 'connected', last_error: null })
     expect(db.integration('google_calendar').last_sync_at).toBeTruthy()
+  })
+
+  it('Google fetches the webcal:// link over plain http, through the whole Worker; anything else over http moves to https', async () => {
+    const { feed } = await (await post('/api/integrations/calendar/google_calendar/choose')).json() as { feed: string }
+    const overHttp = (url: string, agent = 'Google-Calendar-Importer') =>
+      worker.fetch!(new Request(url, { headers: { 'user-agent': agent } }) as Request<unknown, IncomingRequestCfProperties>, env, ctx())
+    const res = await overHttp(feed.replace(/^https:/, 'http:'))
+    expect(res.status).toBe(200)
+    expect(await res.text()).toContain('BEGIN:VCALENDAR')
+    await Promise.all(background)
+    expect(db.integration('google_calendar')).toMatchObject({ status: 'connected', last_error: null })
+
+    const other = await overHttp(`${APP.replace(/^https:/, 'http:')}/api/integrations?x=1`, 'Mozilla/5.0')
+    expect(other.status).toBe(308)
+    expect(other.headers.get('location')).toBe(`${APP}/api/integrations?x=1`)
   })
 
   it('switching to Outlook Calendar: Google fetching the old subscription no longer counts', async () => {

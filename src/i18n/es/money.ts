@@ -451,7 +451,7 @@ export default {
   '{current} stops counting as the team calendar straight away. You then add the calendar in {app}.': '{current} deja de contar como calendario del equipo al momento. Después añades el calendario en {app}.',
   '{current} stays connected until {app} has signed in and passed its check. Then {current} is disconnected.': '{current} sigue conectado hasta que {app} haya iniciado sesión y superado la comprobación. Entonces se desconecta {current}.',
   '{app} isn’t working': '{app} no funciona',
-  '{app} hasn’t fetched the team calendar yet. Add it there, then check again in a few minutes.': '{app} aún no ha leído el calendario del equipo. Añádelo allí y vuelve a comprobarlo en unos minutos.',
+  '{app} hasn’t fetched the team calendar yet. If it’s already in {app}, it reads it again within a few hours. To hurry it, remove the calendar there and press “Add to {app} again”.': '{app} aún no ha leído el calendario del equipo. Si ya está en {app}, lo vuelve a leer en unas horas. Para acelerarlo, quita el calendario allí y pulsa «Volver a añadir a {app}».',
   'Pick the website first.': 'Elige primero la web.',
   'Pick the Page to post to first.': 'Elige primero la página donde publicar.',
   '{app} works': '{app} funciona',

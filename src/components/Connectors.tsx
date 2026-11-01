@@ -397,7 +397,7 @@ export function ConnectorDialog({ s, back, reload, onClose }: { s: OptionState; 
     const r = await api.checkConnection(p)
     await reload()
     if (r?.status === 'error') throw new Error(r.last_error ?? t('{app} isn’t working', { app: o.name }))
-    if (r?.status === 'pending') throw new Error(isCalendar(p) ? t('{app} hasn’t fetched the team calendar yet. Add it there, then check again in a few minutes.', { app: o.name })
+    if (r?.status === 'pending') throw new Error(isCalendar(p) ? t('{app} hasn’t fetched the team calendar yet. If it’s already in {app}, it reads it again within a few hours. To hurry it, remove the calendar there and press “Add to {app} again”.', { app: o.name })
       : p === 'search_console' ? t('Pick the website first.') : isAds(p) ? t('Pick the ad account first.') : t('Pick the Page to post to first.'))
   }, t('{app} works', { app: o.name }))
   const label = status === 'error' ? t('Connect {app} again', { app: o.name }) : isCalendar(p) ? t('Add to {app}', { app: o.name }) : t('Connect {app}', { app: o.name })
