@@ -1,4 +1,4 @@
-// Spanish for the assistant (the button at the bottom right, src/components/Assistant.tsx) and the search box.
+// Spanish for the search box, and for the assistant's chat (its button is no longer at the bottom right of the pages).
 export default {
   'Ask the assistant': 'Pregunta al asistente',
   'Assistant': 'Asistente',

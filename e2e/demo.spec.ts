@@ -5089,6 +5089,19 @@ test.describe('invoices', () => {
     await expect(page.getByRole('menuitem', { name: /Excel/ })).toBeVisible()
   })
 
+  test('the main suppliers as quick filters: one press shows a supplier’s invoices, again shows everyone’s', async ({ page }) => {
+    await open(page, '/invoices')
+    const chips = page.getByRole('group', { name: 'Main suppliers' })
+    const list = page.getByRole('region', { name: 'Invoices', exact: true })
+    await expect(chips.getByRole('button', { name: 'Every supplier' })).toHaveAttribute('aria-pressed', 'true')
+    await chips.getByRole('button', { name: /^Tostadores del Sur/ }).click()
+    await expect(page).toHaveURL(/supplier=sup-roaster/)
+    await expect(list.getByRole('row')).toHaveCount(3) // the heading row and its two invoices
+    await chips.getByRole('button', { name: /^Tostadores del Sur/ }).click()
+    await expect(page).not.toHaveURL(/supplier=/)
+    await expect(chips.getByRole('button', { name: 'Every supplier' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
   test('from email: allow reading the mailbox, then bring an invoice in, matched to its supplier, with a note', async ({ page }) => {
     await open(page, '/connections')
     await page.getByRole('region', { name: 'Files and storage' }).getByRole('button', { name: 'Connect Google Drive' }).click()
@@ -5169,6 +5182,13 @@ test.describe('reviews and website', () => {
     await open(page, '/website')
     await expect(page.getByRole('heading', { name: 'Website & SEO' })).toBeVisible()
     await expect(page.getByRole('link', { name: 'www.easybeanscoffee.com' })).toBeVisible()
+    // The website itself, inside the page, as a computer or a phone shows it.
+    const preview = page.getByRole('region', { name: 'The website' })
+    await expect(preview.locator('iframe')).toHaveAttribute('src', /easybeanscoffee\.com/)
+    await expect(preview.locator('iframe')).toHaveAttribute('title', 'The website: www.easybeanscoffee.com')
+    await preview.getByRole('button', { name: 'On a phone' }).click()
+    await expect.poll(async () => (await preview.locator('iframe').boundingBox())?.width).toBe(390)
+    await expect(preview.getByRole('link', { name: 'Open in a new tab' })).toHaveAttribute('href', /easybeanscoffee\.com/)
     await page.getByRole('button', { name: 'Check the website' }).click()
     await toast(page, 'Website checked')
     const check = page.getByRole('region', { name: 'SEO check' })
@@ -5705,7 +5725,8 @@ test.describe('staff kitty', () => {
     const kitty = page.getByRole('region', { name: 'In the kitty' })
     await expect(kitty).toContainText('447,55')
     await expect(kitty).toContainText('10% of everything taken above breakeven goes in')
-    await expect(kitty).toContainText(/Breakeven: about .* a day/)
+    await expect(kitty).toContainText(/Breakeven: about .* a day, what it costs to run the café\./)
+    await expect(kitty).not.toContainText('running costs')
     const jars = page.getByRole('region', { name: 'Saving up for' })
     const party = jars.getByRole('article', { name: 'Christmas party' })
     const rayban = jars.getByRole('article', { name: 'Ray-Ban sunglasses for the café' })
@@ -6567,8 +6588,9 @@ test.describe('UI round: business page, header, to do list, stock and suppliers'
     const search = page.getByRole('button', { name: 'Search' })
     const board = page.getByRole('button', { name: 'Board', exact: true })
     const [t, s, b] = [await title.boundingBox(), await search.boundingBox(), await board.boundingBox()]
-    // Level with the title, and with the page's own first row of buttons.
-    expect(s!.y + s!.height / 2).toBeGreaterThan(t!.y)
+    // At the very top, beside the eyebrow and title (not pushed down below the eyebrow), and level with the page's
+    // own first row of buttons.
+    expect(s!.y).toBeLessThan(t!.y)
     expect(s!.y + s!.height / 2).toBeLessThan(t!.y + t!.height)
     expect(Math.abs((s!.y + s!.height / 2) - (b!.y + b!.height / 2))).toBeLessThan(4)
   })
@@ -7206,7 +7228,7 @@ test.describe('role permissions', () => {
 
   test('templates by kind of business: an admin adds one and it’s active with what it can do', async ({ page }) => {
     await open(page, '/roles')
-    await expect(page.getByRole('tab', { name: 'Active (10)' })).toHaveAttribute('aria-selected', 'true')
+    await expect(page.getByRole('tab', { name: 'Active (8)' })).toHaveAttribute('aria-selected', 'true')
     await page.getByRole('tab', { name: 'Category' }).click()
     await expect(page.getByRole('button', { name: 'Café', exact: true })).toHaveAttribute('aria-pressed', 'true')
     const templates = page.getByRole('region', { name: 'Templates' })
@@ -7219,10 +7241,42 @@ test.describe('role permissions', () => {
     await page.getByRole('button', { name: 'Restaurant & bar' }).click()
     await expect(templates.getByRole('region', { name: 'Head chef', exact: true })).toContainText('Runs the kitchen')
 
-    await page.getByRole('tab', { name: 'Active (11)' }).click()
+    await page.getByRole('tab', { name: 'Active (9)' }).click()
     await page.getByRole('button', { name: 'Owner', exact: true }).click()
     await expect(page.getByRole('region', { name: 'Owner', exact: true }).getByRole('list', { name: 'Owner: what they can do' }))
       .toContainText('RotaUpdateAdds, changes and publishes shifts')
+  })
+
+  test('Inactive: the Investor and Head Barista are kept there; a role moves to Inactive and back; the buttons sit on the tabs’ row', async ({ page }) => {
+    await page.setViewportSize({ width: 1500, height: 900 })
+    await open(page, '/roles')
+    await expect(page.getByText('Who does what at')).toHaveCount(0)
+    const roles = page.getByRole('region', { name: 'Roles' })
+    await expect(roles.getByRole('button', { name: 'Investor', exact: true })).toHaveCount(0)
+    await expect(roles.getByRole('button', { name: 'Chef', exact: true })).toBeVisible()
+    // The page's buttons are on the right of the tabs, not up beside the title.
+    const add = page.getByRole('button', { name: 'Add a role' })
+    const tabs = page.getByRole('tablist', { name: 'Roles & responsibilities' })
+    const [a, b] = [await add.boundingBox(), await tabs.boundingBox()]
+    expect(Math.abs((a!.y + a!.height / 2) - (b!.y + b!.height / 2))).toBeLessThan(20)
+    expect(a!.x).toBeGreaterThan(b!.x)
+
+    await page.getByRole('tab', { name: 'Inactive (2)' }).click()
+    const inactive = page.getByRole('region', { name: 'Inactive roles' })
+    await expect(inactive.getByRole('button', { name: /^Investor/ })).toBeVisible()
+    await expect(inactive.getByRole('button', { name: /^Head Barista/ })).toBeVisible()
+
+    await page.getByRole('tab', { name: /^Active/ }).click()
+    await roles.getByRole('button', { name: 'Chef', exact: true }).click()
+    await page.getByRole('button', { name: 'Make Chef inactive' }).click()
+    await toast(page, 'Chef moved to Inactive')
+    await expect(page.getByRole('tab', { name: /^Active/ })).toHaveText('Active (7)')
+    await page.getByRole('tab', { name: 'Inactive (3)' }).click()
+    // Still open, as it was on Active.
+    await expect(inactive.getByRole('button', { name: 'Chef', exact: true })).toHaveAttribute('aria-expanded', 'true')
+    await page.getByRole('button', { name: 'Make Chef active' }).click()
+    await toast(page, 'Chef is active again')
+    await expect(page.getByRole('tab', { name: /^Inactive/ })).toHaveText('Inactive (2)')
   })
 
   test('the permissions grid gives a role Update or Hidden, and Maria’s app follows; she sees her role as fixed', async ({ page }) => {
@@ -7343,27 +7397,13 @@ test('an admin picks both languages for the team: everyone gets the flags and sw
   await expect(page.getByRole('heading', { name: 'Cuadrante', level: 1 })).toBeVisible()
 })
 
-test('the assistant: a button at the bottom right opens a chat; Ctrl K opens search; a barista whose role hides AI has no assistant', async ({ page }) => {
+test('no assistant button at the bottom right; Ctrl K opens search', async ({ page }) => {
   await open(page)
   // The search box says its shortcut, and Ctrl K opens it from anywhere.
   await expect(page.getByRole('button', { name: 'Search' }).first()).toContainText(/(Ctrl|⌘) K/)
   await page.keyboard.press('Control+k')
   await expect(page.getByRole('combobox', { name: 'Search pages and people' })).toBeVisible()
   await page.keyboard.press('Escape')
-
-  await page.getByRole('button', { name: 'Ask the assistant' }).click()
-  const chat = page.getByRole('dialog', { name: 'Assistant' })
-  await expect(chat).toContainText('I can only see and do what you can')
-  await chat.getByRole('textbox', { name: 'Ask a question' }).fill('Who is on today?')
-  await chat.getByRole('button', { name: 'Send' }).click()
-  const log = chat.getByRole('log', { name: 'Conversation' })
-  await expect(log).toContainText('Who is on today?')
-  await expect(log).toContainText('In the demo I can’t ask Claude')
-  await chat.getByRole('button', { name: 'Close' }).click()
-  await expect(chat).toHaveCount(0)
-
-  await signInAs(page, 'maria@example.com')
-  await expect(page.getByRole('heading', { name: /Hola/ })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Ask the assistant' })).toHaveCount(0)
 })
 

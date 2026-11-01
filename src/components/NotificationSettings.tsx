@@ -175,25 +175,31 @@ export function HolidayReminders() {
               e.target.checked ? t('{title}: switched on', { title: t('Bank holiday reminders') }) : t('{title}: switched off', { title: t('Bank holiday reminders') }))} />
         </Stack>
         {on && (
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 2, alignItems: { sm: 'center' } }}>
-            <TextField select size="small" label={t('How far ahead')} value={days} sx={{ minWidth: 160 }}
-              onChange={e => save({ holiday_reminder_days: Number(e.target.value) }, t('Saved'))}>
-              {LEAD_DAYS.map(n => <MenuItem key={n} value={n}>{n === 7 ? t('A week before') : n === 14 ? t('Two weeks before') : t('{n} days before', { n })}</MenuItem>)}
-            </TextField>
-            {days > 1 && (
-              <FormControlLabel label={t('And again the day before')} control={
-                <Checkbox size="small" checked={dayBefore} onChange={e => save({ holiday_reminder_day_before: e.target.checked }, t('Saved'))} />
-              } />
-            )}
-            <Stack direction="row" sx={{ flexWrap: 'wrap' }}>
-              {HOLIDAY_KINDS.map(k => (
-                <FormControlLabel key={k} label={t(CATEGORY_META[k].label)} control={
-                  <Checkbox size="small" checked={kinds.includes(k)}
-                    onChange={e => save({ holiday_reminder_kinds: e.target.checked ? [...kinds, k] : kinds.filter(x => x !== k) }, t('Saved'))} />
+          // How far ahead (a fixed width, with "and again the day before" beside it), then which holidays, in one tidy row.
+          <Box sx={{ display: 'grid', gap: 1.5, mb: 2 }}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} useFlexGap sx={{ alignItems: { sm: 'center' }, columnGap: 3, rowGap: 1 }}>
+              <TextField select size="small" label={t('How far ahead')} value={days} sx={{ width: { xs: '100%', sm: 220 } }}
+                onChange={e => save({ holiday_reminder_days: Number(e.target.value) }, t('Saved'))}>
+                {LEAD_DAYS.map(n => <MenuItem key={n} value={n}>{n === 7 ? t('A week before') : n === 14 ? t('Two weeks before') : t('{n} days before', { n })}</MenuItem>)}
+              </TextField>
+              {days > 1 && (
+                <FormControlLabel label={t('And again the day before')} sx={{ mr: 0, '& .MuiFormControlLabel-label': { whiteSpace: 'nowrap' } }} control={
+                  <Checkbox size="small" checked={dayBefore} onChange={e => save({ holiday_reminder_day_before: e.target.checked }, t('Saved'))} />
                 } />
-              ))}
+              )}
             </Stack>
-          </Stack>
+            <Box component="fieldset" sx={{ border: 0, p: 0, m: 0, minWidth: 0 }}>
+              <Typography component="legend" variant="body2" sx={{ color: 'text.secondary', p: 0, mb: 0.25 }}>{t('Which holidays')}</Typography>
+              <Stack direction="row" useFlexGap sx={{ flexWrap: 'wrap', columnGap: 3, rowGap: 0 }}>
+                {HOLIDAY_KINDS.map(k => (
+                  <FormControlLabel key={k} label={t(CATEGORY_META[k].label)} sx={{ mr: 0, '& .MuiFormControlLabel-label': { whiteSpace: 'nowrap' } }} control={
+                    <Checkbox size="small" checked={kinds.includes(k)}
+                      onChange={e => save({ holiday_reminder_kinds: e.target.checked ? [...kinds, k] : kinds.filter(x => x !== k) }, t('Saved'))} />
+                  } />
+                ))}
+              </Stack>
+            </Box>
+          </Box>
         )}
         {on && events.data && upcoming.length === 0 && <Empty>{t('No public holidays on the calendar in the next four months.')}</Empty>}
         {on && upcoming.map(e => {

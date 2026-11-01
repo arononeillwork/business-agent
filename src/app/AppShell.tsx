@@ -90,7 +90,6 @@ import type { PartnerArea } from '../../shared/types'
 import { hiddenByRole, roleNamesOf } from '../../shared/roles'
 import { teamRoleLabel } from '../../shared/teamRoles'
 import { BrandLogo } from '../components/Logo'
-import { AssistantButton } from '../components/Assistant'
 import { Loading, PersonAvatar, TitleSlot } from '../components/common'
 import { KeyboardSensorNow } from '../components/dnd'
 import { NotificationBell } from '../components/NotificationBell'
@@ -727,17 +726,18 @@ export function AppShell() {
         <DemoBanner />
         <BillingBanner />
         <AgentBanner />
-        <Box component="main" sx={{ px: { xs: 2, md: 4 }, pt: { xs: 2.5, md: 3 }, pb: { xs: 2.5, md: 4 }, maxWidth: 1360, mx: 'auto',
+        <Box component="main" sx={{ px: { xs: 2, md: 4 }, pt: { xs: 2.5, md: 1.75 }, pb: { xs: 2.5, md: 4 }, maxWidth: 1360, mx: 'auto',
           // A big monitor: the page uses more of the screen, so it isn't a narrow strip in the middle.
           [BIG_SCREEN]: { maxWidth: 1720, px: 5 }, [HUGE_SCREEN]: { maxWidth: 2040, px: 6 } }}>
           {/* Computer: the page's title (and its buttons) on the left of the top row, the round buttons on the right;
               on the page's own background, so there's no band across the top. */}
           {desktop && (
-            // The round buttons sit level with the page's own buttons (below its small eyebrow line, when it has one).
-            // On a big monitor the round buttons grow with the page (zoom keeps their shapes), still level with its buttons.
-            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 3, '&:has([data-eyebrow]) > .eb-top-icons': { pt: 3.25 },
-              [BIG_SCREEN]: { gap: 3, '& > .eb-top-icons': { zoom: 1.2, pt: `${2 / 1.2}px` }, '&:has([data-eyebrow]) > .eb-top-icons': { pt: `${26 / 1.2}px` } },
-              [HUGE_SCREEN]: { '& > .eb-top-icons': { zoom: 1.35, pt: `${2 / 1.35}px` }, '&:has([data-eyebrow]) > .eb-top-icons': { pt: `${26 / 1.35}px` } } }}>
+            // The round buttons sit at the very top, level with the page's own buttons (the page's small eyebrow line
+            // and title on the left don't push them down). On a big monitor the round buttons grow with the page (zoom
+            // keeps their shapes), still level with its buttons.
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 3,
+              [BIG_SCREEN]: { gap: 3, '& > .eb-top-icons': { zoom: 1.2, pt: `${2 / 1.2}px` } },
+              [HUGE_SCREEN]: { '& > .eb-top-icons': { zoom: 1.35, pt: `${2 / 1.35}px` } } }}>
               <Box ref={setTitleSlot} sx={{ flex: 1, minWidth: 0 }} />
               <Stack className="eb-top-icons" direction="row" spacing={1} sx={{ alignItems: 'center', flexShrink: 0, ml: 'auto', pt: 0.25 }}>
                 <AgentsButton wide />
@@ -751,7 +751,6 @@ export function AppShell() {
           <TitleSlot.Provider value={desktop ? titleSlot : null}>
             <CafeSpeakerProvider>
               <Suspense fallback={<Loading />}>{blocked ? <Navigate to="/" replace /> : <Outlet />}</Suspense>
-              <AssistantButton />
             </CafeSpeakerProvider>
           </TitleSlot.Provider>
         </Box>

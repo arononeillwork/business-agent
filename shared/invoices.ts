@@ -113,6 +113,24 @@ export const isOpen = (i: Pick<Invoice, 'direction' | 'status'>) => i.status ===
 export const isOverdue = (i: Pick<Invoice, 'direction' | 'status' | 'due_on'>, today: string) => isOpen(i) && !!i.due_on && i.due_on < today
 
 /** Totals per supplier (or per name, when not matched), biggest first: what was invoiced and what's still to pay. */
+/**
+ * The main suppliers, for the quick filters on Invoices: the ones in use with the most invoices received
+ * (cancelled ones left out), then those whose invoices can be found by email (an address or website on
+ * Suppliers), then by name. A supplier no longer in use shows only while it still has invoices.
+ */
+export function mainSuppliers<S extends Pick<Supplier, 'id' | 'name' | 'active' | 'email' | 'website'> & { invoice_from?: string[] }>(
+  suppliers: S[], invoices: Pick<Invoice, 'direction' | 'status' | 'supplier_id'>[], max = 8,
+): { supplier: S; count: number }[] {
+  const count = new Map<string, number>()
+  for (const i of invoices) if (i.direction === 'in' && i.status !== 'cancelled' && i.supplier_id) count.set(i.supplier_id, (count.get(i.supplier_id) ?? 0) + 1)
+  const findable = (s: S) => !!(s.email || s.website || s.invoice_from?.length)
+  return suppliers
+    .filter(s => s.active !== false || (count.get(s.id) ?? 0) > 0)
+    .map(s => ({ supplier: s, count: count.get(s.id) ?? 0 }))
+    .sort((a, b) => b.count - a.count || Number(findable(b.supplier)) - Number(findable(a.supplier)) || a.supplier.name.localeCompare(b.supplier.name))
+    .slice(0, max)
+}
+
 export function bySupplier(invoices: Invoice[], suppliers: Pick<Supplier, 'id' | 'name' | 'kind'>[]) {
   const rows = new Map<string, { key: string; supplier_id: string | null; name: string; kind: string | null; count: number; total: number; open: number }>()
   for (const i of invoices.filter(x => x.direction === 'in' && x.status !== 'cancelled')) {

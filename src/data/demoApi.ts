@@ -1313,6 +1313,8 @@ export function createDemoApi(): Api {
     id: uid(), name: r.name, summary: r.summary ?? null, position_id: positions.find(p => p.name === r.position)?.id ?? null,
     reports_to: null, people: rolePeople[r.name] ?? [], duties: handbookDuties(r), sort: i, updated_at: daysAgo(8),
     template: roleTemplate[r.name] ?? null, permissions: tidyPermissions(ROLE_TEMPLATES.find(x => x.id === roleTemplate[r.name])?.permissions),
+    // Not in use right now, as on the live app (the `inactive_roles` migration).
+    active: !['Investor', 'Head Barista'].includes(r.name),
   }))
   // Who owns which role (Roles & responsibilities → Ownership): Aron the team's, Mark the money's; the rest nobody yet.
   const roleOwnersAtStart: Record<string, [string, number]> = {
@@ -2392,7 +2394,7 @@ export function createDemoApi(): Api {
       requireAdmin()
       const existing = id ? jobRoles.find(x => x.id === id) : undefined
       if (id && !existing) throw new Error('Role not found')
-      const next: JobRole = { ...(existing ?? { id: uid(), name: '', summary: null, position_id: null, reports_to: null, people: [], duties: [], sort: 0, updated_at: '' }), ...clone(r) }
+      const next: JobRole = { ...(existing ?? { id: uid(), name: '', summary: null, position_id: null, reports_to: null, people: [], duties: [], sort: 0, updated_at: '', active: true }), ...clone(r) }
       next.name = next.name.trim()
       next.permissions = tidyPermissions(next.permissions)
       next.template = next.template ?? null

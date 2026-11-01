@@ -1,6 +1,6 @@
 import {
   Alert, Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle,
-  IconButton, List, ListItem, ListItemText, MenuItem, Stack, Table, TableBody, TableCell, TableHead,
+  IconButton, List, ListItem, ListItemText, MenuItem, Stack, Switch, Table, TableBody, TableCell, TableHead,
   TableRow, TextField, Tooltip, Typography,
 } from '@mui/material'
 import LockIcon from '@mui/icons-material/LockOutlined'
@@ -15,10 +15,38 @@ import { useAction } from '../app/Notify'
 import { ClockRulesCard } from '../components/ClockRules'
 import { ExportButton, SortCell, useSort } from '../components/tables'
 import type { ExportTable } from '../lib/export'
-import { ErrorBox, Flags, Loading, PageHeader, PersonAvatar, SectionTitle, Stat, StatRow, Tag, WeekNav } from '../components/common'
+import { ErrorBox, Flags, Loading, PageHeader, PageToolbar, PersonAvatar, SectionTitle, Stat, StatRow, Tag, WeekNav } from '../components/common'
 import { addDays, currencySymbol, formatDuration, formatLocal, formatMoney, localDate, localTime, today, weekStart, zonedIso } from '../../shared/time'
 import type { CorrectionRequest, Shift, TimeEntry } from '../../shared/types'
 import { t, tn } from '../i18n'
+
+/**
+ * Automatic tracking (on to start with): anyone on the published rota who didn't clock in gets their
+ * timecard filled from the rota overnight, marked for a manager to check (the `timecards_from_rota`
+ * migration's nightly job). Admins switch it here; everyone sees whether it's on.
+ */
+function AutoTrackingCard() {
+  const { api, settings, refresh, isAdmin } = useApp()
+  const run = useAction()
+  if (!settings) return null
+  const on = settings.auto_timecards_from_rota
+  const toggle = (next: boolean) => run(async () => { await api.updateSettings({ auto_timecards_from_rota: next }); await refresh() },
+    next ? t('Automatic tracking is on') : t('Automatic tracking is off'))
+  return (
+    <Card component="section" aria-label={t('Automatic tracking')} sx={{ mb: 2.5 }}>
+      <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography sx={{ fontWeight: 500 }}>{t('Automatic tracking')}</Typography>
+          <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+            {on ? t('On: anyone on the rota who doesn’t clock in has their timecard filled from the rota overnight, marked for you to check.')
+              : t('Off: only clock-ins make timecards; missing ones are added by hand or with Fill from rota.')}
+          </Typography>
+        </Box>
+        <Switch checked={on} disabled={!isAdmin} onChange={e => void toggle(e.target.checked)} slotProps={{ input: { 'aria-label': t('Automatic tracking') } }} />
+      </CardContent>
+    </Card>
+  )
+}
 
 /** yyyy-MM-ddTHH:mm in business time, for datetime-local inputs. */
 const toInput = (iso: string | null) => (iso ? formatLocal(iso, "yyyy-MM-dd'T'HH:mm") : '')
@@ -78,16 +106,9 @@ export function TimecardsPage() {
 
   return (
     <>
-      <PageHeader eyebrow={'Registro de jornada'} title={t('Timecards')}
-        actions={<>
-          {isPartner && <Tag>{t('Read-only')}</Tag>}
-          <WeekNav monday={monday} onChange={setMonday} />
-          {(canEdit || isPartner) && (
-            <TextField select size="small" label={t('Person')} value={person} onChange={e => setPerson(e.target.value)} sx={{ width: 150 }}>
-              <MenuItem value="all">{t('Everyone')}</MenuItem>
-              {profiles.filter(p => p.role !== 'kiosk').map(p => <MenuItem key={p.id} value={p.id}>{p.full_name}</MenuItem>)}
-            </TextField>
-          )}
+      <PageHeader eyebrow={'Registro de jornada'} title={t('Timecards')} actions={isPartner && <Tag>{t('Read-only')}</Tag>} />
+      {/* Under the title: the week and the person on the left, the page's buttons on the right. */}
+      <PageToolbar actions={<>
           <ExportButton table={table} disabled={!entries.length} folder="Timecards" />
           <Button startIcon={<PrintIcon />} variant="outlined" component={RouterLink} to={`/registro?month=${monday.slice(0, 7)}${person !== 'all' ? `&person=${person}` : ''}`}>
             {t('Monthly record')}
@@ -104,8 +125,19 @@ export function TimecardsPage() {
               {allApproved ? t('Approved') : t('Approve week')}
             </Button>
           )}
-        </>} />
+        </>}>
+        <Stack direction="row" useFlexGap sx={{ gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
+          <WeekNav monday={monday} onChange={setMonday} />
+          {(canEdit || isPartner) && (
+            <TextField select size="small" label={t('Person')} value={person} onChange={e => setPerson(e.target.value)} sx={{ width: 160 }}>
+              <MenuItem value="all">{t('Everyone')}</MenuItem>
+              {profiles.filter(p => p.role !== 'kiosk').map(p => <MenuItem key={p.id} value={p.id}>{p.full_name}</MenuItem>)}
+            </TextField>
+          )}
+        </Stack>
+      </PageToolbar>
       <ErrorBox error={data.error} />
+      {!isPartner && <AutoTrackingCard />}
       <ClockRulesCard />
 
       {data.data && (() => {

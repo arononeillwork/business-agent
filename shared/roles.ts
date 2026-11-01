@@ -38,6 +38,8 @@ export interface JobRole {
   /** The owner who owns it (Roles & responsibilities → Ownership, shared/roleOwners.ts) and its place in their lane. */
   owned_by?: string | null
   owner_sort?: number
+  /** False: not in use right now (Roles & responsibilities → Inactive), kept with its duties. Missing: in use. */
+  active?: boolean
 }
 export type JobRoleInput = Partial<Omit<JobRole, 'id' | 'updated_at'>> & { id?: string }
 

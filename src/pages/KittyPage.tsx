@@ -113,10 +113,10 @@ export function KittyPage() {
                 {isAdmin && <IconButton size="small" onClick={() => setSharing(true)} aria-label={t('Change the share over breakeven')} sx={{ color: 'rgba(251,248,244,0.82)' }}><EditIcon fontSize="small" /></IconButton>}
               </Stack>
               <Typography variant="body2" sx={{ color: 'rgba(251,248,244,0.75)', maxWidth: 420 }}>
+                {/* What it's made of (the running costs and expenses on Finances, and the team on the rota at their rates) isn't spelt out. */}
                 {breakeven.perDay
-                  ? t('Breakeven: about {amount} a day, what it costs to run the café (running costs {fixed} + the team on the rota, owners’ pay included, {team}).', {
-                    amount: formatMoney(breakeven.perDay.total), fixed: formatMoney(breakeven.perDay.fixed), team: formatMoney(breakeven.perDay.team) })
-                  : t('Breakeven: what it costs to run the café each day, the running costs plus the team on the rota, owners’ pay included.')}
+                  ? t('Breakeven: about {amount} a day, what it costs to run the café.', { amount: formatMoney(breakeven.perDay.total) })
+                  : t('Breakeven: what it costs to run the café each day.')}
               </Typography>
               <Typography variant="body2" sx={{ color: 'rgba(251,248,244,0.65)' }}>
                 {pace > 0 ? t('About {amount} a month lately', { amount: formatMoney(pace) }) : t('Nothing has gone in yet')}

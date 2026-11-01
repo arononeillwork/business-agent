@@ -161,14 +161,15 @@ function DataRetention() {
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
           {t('How long Business Agent keeps what it saves for the business. Anything older is deleted for good, every night.')}
         </Typography>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ alignItems: { sm: 'center' } }}>
-          <Box sx={{ flex: 1 }}>
+        {/* What's kept on the left, taking the room it needs; how long on the right, a fixed width (full width on a phone). */}
+        <Stack direction={{ xs: 'column', sm: 'row' }} useFlexGap spacing={2} sx={{ alignItems: { sm: 'center' }, py: 1.5, borderTop: 1, borderColor: 'divider' }}>
+          <Box sx={{ flex: '1 1 auto', minWidth: 0, maxWidth: 680 }}>
             <Typography variant="subtitle2" component="h3">{t('WhatsApp messages')}</Typography>
             <Typography variant="body2" color="text.secondary">
               {t('The chats on the Messages page, with their photos, voice notes and files. WhatsApp doesn’t let apps read chats back, so Business Agent keeps its own copy.')}
             </Typography>
           </Box>
-          <TextField select size="small" label={t('Keep for')} value={saved} sx={{ minWidth: 180 }}
+          <TextField select size="small" label={t('Keep for')} value={saved} sx={{ flex: '0 0 auto', width: { xs: '100%', sm: 220 }, ml: { sm: 'auto' } }}
             onChange={e => void choose(Number(e.target.value) as WhatsAppRetention)}>
             {WHATSAPP_RETENTION_DAYS.map(d => (
               <MenuItem key={d} value={d}>{d === DEFAULT_WHATSAPP_RETENTION ? t('{time} (default)', { time: t(RETENTION_LABEL[d]) }) : t(RETENTION_LABEL[d])}</MenuItem>

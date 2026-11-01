@@ -10,7 +10,7 @@ import { useApp } from '../app/AppContext'
 import { TILL_NAMES, tillNames, tillsOf } from '../components/till'
 import { useAsync } from '../app/hooks'
 import { BarChart, ShareBars, type BarPoint } from '../components/charts'
-import { Empty, ErrorBox, Loading, PageHeader, SectionTitle, StatGrid, StatTile, Tag } from '../components/common'
+import { Empty, ErrorBox, Loading, PageHeader, PageToolbar, SectionTitle, StatGrid, StatTile } from '../components/common'
 import { ExportButton, SortCell, useSort } from '../components/tables'
 import { Freshness } from '../components/Freshness'
 import { useDailyCosts } from '../app/dailyCost'
@@ -130,18 +130,22 @@ export function SalesPage() {
     try { localStorage.setItem('sales-period', p) } catch { /* storage unavailable */ }
   }
   const picker = (
-    <TextField select size="small" value={period} onChange={e => pick(e.target.value as Period)} sx={{ minWidth: 170 }}
+    <TextField select size="small" fullWidth={false} value={period} onChange={e => pick(e.target.value as Period)} sx={{ minWidth: 190 }}
       slotProps={{ select: { SelectDisplayProps: { 'aria-label': t('Period') } } }}>
       {PERIODS.map(p => <MenuItem key={p.id} value={p.id}>{t(p.label)}</MenuItem>)}
     </TextField>
   )
-  const name = tillNames(tills)
+  // Under the title: which till the takings come from and when they were read, with the period picker on the right.
   const header = <>
-    <PageHeader title={t('Sales')} actions={on && <>
-      <Tag>{t('From {name}', { name })}</Tag>
-      {picker}
-    </>} />
-    {on && sales.data && <Box sx={{ mt: -2, mb: 2 }}><Freshness id="takings" at={sales.data.fetched_at} /></Box>}
+    <PageHeader title={t('Sales')} />
+    {on && (
+      <PageToolbar actions={picker}>
+        <Stack direction="row" useFlexGap sx={{ gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
+          <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('From {name}', { name: tillNames(tills) })}</Typography>
+          {sales.data && <Freshness id="takings" at={sales.data.fetched_at} />}
+        </Stack>
+      </PageToolbar>
+    )}
   </>
   if (!integ.data) return <>{header}<ErrorBox error={integ.error} /><Loading /></>
   if (!tills.length) return <>{header}<ConnectFirst /></>

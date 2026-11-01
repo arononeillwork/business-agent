@@ -1,6 +1,10 @@
 import {
-  Alert, Box, Button, Card, CardContent, CircularProgress, Link, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography,
+  Alert, Box, Button, Card, CardContent, CircularProgress, Link, Stack, Table, TableBody, TableCell, TableHead, TableRow, ToggleButton,
+  ToggleButtonGroup, Tooltip, Typography,
 } from '@mui/material'
+import OpenIcon from '@mui/icons-material/OpenInNewRounded'
+import ComputerIcon from '@mui/icons-material/ComputerOutlined'
+import PhoneIcon from '@mui/icons-material/PhoneIphoneOutlined'
 import PassIcon from '@mui/icons-material/CheckCircleOutlineRounded'
 import WarnIcon from '@mui/icons-material/ErrorOutlineRounded'
 import FailIcon from '@mui/icons-material/HighlightOff'
@@ -89,6 +93,8 @@ export function WebsitePage() {
           {report && <Box component="span" sx={{ color: 'text.secondary' }}> · {t('Checked {when}', { when: formatLocal(report.checked_at, 'd MMM, HH:mm') })}</Box>}
         </Typography>
       )}
+
+      {w?.website && <SitePreview url={w.website} />}
 
       {report && (
         <StatGrid>
@@ -180,6 +186,41 @@ function SpeedCard({ strategy, result, busy, disabled, onTest }: { strategy: Str
         </>}
       </>}
     </Box>
+  )
+}
+
+/**
+ * The website itself, inside the page, as a computer or a phone shows it: to see that a change made in the
+ * app (hours, menu, details) has reached it. Reload fetches it again; a site that won't be shown inside
+ * another one opens in a new tab instead.
+ */
+function SitePreview({ url }: { url: string }) {
+  const [device, setDevice] = useState<'computer' | 'phone'>('computer')
+  const [loads, setLoads] = useState(0)
+  return (
+    <Card component="section" aria-label={t('The website')} sx={{ mb: 3 }}>
+      <CardContent>
+        <SectionTitle action={
+          <Stack direction="row" useFlexGap sx={{ gap: 1, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <ToggleButtonGroup size="small" exclusive value={device} onChange={(_, d: typeof device | null) => d && setDevice(d)} aria-label={t('Show it as')}>
+              <ToggleButton value="computer" aria-label={t('On a computer')}><Tooltip title={t('On a computer')}><ComputerIcon fontSize="small" /></Tooltip></ToggleButton>
+              <ToggleButton value="phone" aria-label={t('On a phone')}><Tooltip title={t('On a phone')}><PhoneIcon fontSize="small" /></Tooltip></ToggleButton>
+            </ToggleButtonGroup>
+            <Button size="small" startIcon={<RefreshIcon />} onClick={() => setLoads(n => n + 1)}>{t('Reload')}</Button>
+            <Button size="small" startIcon={<OpenIcon />} href={url} target="_blank" rel="noopener noreferrer">{t('Open in a new tab')}</Button>
+          </Stack>
+        }>{t('The website')}</SectionTitle>
+        <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>
+          {t('As it is now: check that a change made here (opening hours, the menu, the details) has reached it. If it stays blank, the website doesn’t let itself be shown inside another site: open it in a new tab.')}
+        </Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'center', bgcolor: tokens.surfaceAlt, borderRadius: 2, p: device === 'phone' ? 2 : 0, border: 1, borderColor: 'divider', overflow: 'hidden' }}>
+          <Box component="iframe" key={`${device}-${loads}`} src={url} title={t('The website: {site}', { site: host(url) })} loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+            sx={{ display: 'block', border: 0, bgcolor: '#fff', width: device === 'phone' ? 390 : '100%', maxWidth: '100%', height: { xs: 520, md: device === 'phone' ? 720 : 640 },
+              borderRadius: device === 'phone' ? '24px' : 0, boxShadow: device === 'phone' ? 3 : 'none' }} />
+        </Box>
+      </CardContent>
+    </Card>
   )
 }
 
