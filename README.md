@@ -417,6 +417,17 @@ built-in **AI connector** so owners can run it by talking to Claude.
   hides categories, single activities or the whole routine for themselves (kept in their preferences), and
   ticks things done; admins set the week up on the **Routine** tab and switch an activity off for everyone
   (`shared/routine.ts`, the `weekly_routine` migration with a café's usual week for Easy Beans).
+- QR codes (Business section; the owner calls them barcodes, and `/barcodes` and search find them by it):
+  the business's codes, each a link (the menu on the tables, the competition on the café screen), a Wi-Fi
+  network (`WIFI:T:WPA;S:…;P:…;H:false;;`, so a phone joins without typing the password) or some text,
+  with where it's used, the line printed under it, its colours (the brand's darkest colour that scans
+  well, else black) and the brand's logo in the middle if wanted (then error correction H, else M). Drawn
+  in the browser with `qrcode-generator`; each downloads as a 1024 px PNG or an SVG, or prints on A4, one
+  large or four to cut out. A code waiting for what it says (a Wi-Fi without its network) asks for it and
+  offers no download until it's there. The team sees and downloads them; admins add, change, order and
+  remove them, starting from suggestions (the menu from the website, the competition, the Wi-Fi, a Google
+  review when the business's Google place is known on Competitors) (`shared/qrCodes.ts`, the `qr_codes`
+  migration, which starts Easy Beans with its Menu, Competition and Wi-Fi codes).
 
 See [docs/PLAN.md](docs/PLAN.md) for decisions, architecture and phases.
 

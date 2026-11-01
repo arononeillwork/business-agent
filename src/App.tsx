@@ -83,6 +83,8 @@ const RegistroPage = page(() => import('./pages/RegistroPage'), 'RegistroPage')
 const OpeningHoursPage = page(() => import('./pages/OpeningHoursPage'), 'OpeningHoursPage')
 const AppearancePage = page(() => import('./pages/AppearancePage'), 'AppearancePage')
 const BrandPage = page(() => import('./pages/BrandPage'), 'BrandPage')
+const QrCodesPage = page(() => import('./pages/QrCodesPage'), 'QrCodesPage')
+const QrCodesPrintPage = page(() => import('./pages/QrCodesPrintPage'), 'QrCodesPrintPage')
 const PrivacyPage = page(() => import('./pages/PrivacyPage'), 'PrivacyPage')
 const TermsPage = page(() => import('./pages/TermsPage'), 'TermsPage')
 const DataDeletionPage = page(() => import('./pages/DataDeletionPage'), 'DataDeletionPage')
@@ -177,6 +179,8 @@ function Routed() {
       <Route path="/menu/print/:id" element={isAdmin ? <MenuPrintPage /> : <Navigate to="/menu" />} />
       {/* Business cards for the sales reps, to print (no menu around them either). */}
       <Route path="/sales-reps/cards" element={isAdmin ? <RepCardsPage /> : <Navigate to="/sales-reps" />} />
+      {/* A QR code on A4, to print (no menu around it): the whole team can. */}
+      <Route path="/qr-codes/print/:id" element={<QrCodesPrintPage />} />
       {/* The set-up guide for a new business: its own full page; app sign-ins come back here (?connected=…). */}
       <Route path="/setup" element={isAdmin ? <SetupPage /> : <Navigate to="/" replace />} />
       <Route element={<AppShell />}>
@@ -217,6 +221,9 @@ function Routed() {
         <Route path="todo" element={<TodoPage />} />
         <Route path="opening-hours" element={<OpeningHoursPage />} />
         <Route path="brand" element={<BrandPage />} />
+        <Route path="qr-codes" element={<QrCodesPage />} />
+        {/* The owner calls them barcodes. */}
+        <Route path="barcodes" element={<Navigate to="/qr-codes" replace />} />
         <Route path="appearance" element={<AppearancePage />} />
         <Route path="account" element={<AccountPage />} />
         <Route path="ai-assistants" element={<AiAssistantsPage />} />

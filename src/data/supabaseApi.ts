@@ -19,6 +19,7 @@ import type { JobRole } from '../../shared/roles'
 import type { RoleOwner } from '../../shared/roleOwners'
 import type { RuleSection, RulesRead } from '../../shared/staffRules'
 import type { Pet } from '../../shared/pets'
+import type { QrCode } from '../../shared/qrCodes'
 import type { Coffee, DayTheme, ThemeDate } from '../../shared/themeDays'
 import type { RoutineDone, RoutineItem } from '../../shared/routine'
 import type { Contractor, OutsourcedJob } from '../../shared/outsourcing'
@@ -449,6 +450,19 @@ export function createSupabaseApi(url: string, key: string): Api {
       return (check(await sb.from('pets').insert({ ...p, profile_id: profile_id ?? await uid() }).select('id').single()) as { id: string }).id
     },
     async deletePet(id) { check(await sb.from('pets').delete().eq('id', id)) },
+    async qrCodes() {
+      return check(await sb.from('qr_codes')
+        .select('id, name, kind, url, content, wifi_ssid, wifi_password, wifi_security, wifi_hidden, used_where, caption, dark_colour, light_colour, logo, sort, created_at, updated_at')
+        .order('sort').order('name')) as QrCode[]
+    },
+    async saveQrCode({ id, ...c }) {
+      if (id) { check(await sb.from('qr_codes').update(c).eq('id', id)); return id }
+      return (check(await sb.from('qr_codes').insert(c).select('id').single()) as { id: string }).id
+    },
+    async deleteQrCode(id) { check(await sb.from('qr_codes').delete().eq('id', id)) },
+    async orderQrCodes(ids) {
+      for (const [sort, id] of ids.entries()) check(await sb.from('qr_codes').update({ sort: sort + 1 }).eq('id', id))
+    },
     async coffees() {
       const rows = check(await sb.from('coffees')
         .select('id, name, country, region, roaster, roast, process, tasting_notes, brew, bag_grams, bag_price, active, photo, sort, created_at')
