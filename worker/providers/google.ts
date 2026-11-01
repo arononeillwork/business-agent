@@ -68,10 +68,14 @@ export function toSpecialHours(events: CalendarEvent[], fromDate: string, closed
 
 export interface GoogleOAuthConfig { clientId: string; clientSecret: string; redirectUri: string }
 
+// Each connection asks only for its own permissions, never ones granted before
+// (include_granted_scopes false): Google refuses a request that adds YouTube to others such as
+// Drive's ("This request contains scopes that cannot be requested together", Error 400), so
+// Google Maps couldn't connect once YouTube Music and Google Drive had been.
 export function authUrl(cfg: GoogleOAuthConfig, state: string, scopes = GOOGLE_SCOPES) {
   const p = new URLSearchParams({
     client_id: cfg.clientId, redirect_uri: cfg.redirectUri, response_type: 'code', scope: scopes.join(' '),
-    access_type: 'offline', prompt: 'consent', include_granted_scopes: scopes === GOOGLE_SCOPES ? 'true' : 'false', state,
+    access_type: 'offline', prompt: 'consent', include_granted_scopes: 'false', state,
   })
   return `https://accounts.google.com/o/oauth2/v2/auth?${p}`
 }
