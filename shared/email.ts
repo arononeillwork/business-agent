@@ -191,3 +191,251 @@ export const gmailLink = (threadId: string, account?: string | null) =>
 /** A customer's name as the page shows it: first and last name, else the company. */
 export const customerName = (c: { first_name: string | null; last_name: string | null; company: string | null }) =>
   [c.first_name, c.last_name].filter(Boolean).join(' ') || c.company || null
+
+// ---------------------------------------------------------------------------------------------
+// One email opened in the app (the reader), its files, and replies from the connected mailbox.
+// Reading uses the read permission (gmail.readonly / Mail.Read); replying uses the send one the
+// mailbox was connected with (gmail.send / Mail.Send). Neither can mark an email read, so opening
+// one leaves it as it was in the mailbox.
+// ---------------------------------------------------------------------------------------------
+
+/** A file on an opened email, with the id the mailbox gives it (to fetch its bytes). */
+export interface EmailFile extends EmailAttachment { id: string }
+
+/** One email opened in the app: who it's from and to, its body and its files. */
+export interface EmailFull {
+  id: string
+  thread_id: string
+  from: string
+  from_name: string | null
+  /** Who it went to and who was copied, as the email says ("Ana Ruiz <ana@x.es>, bob@y.com"). */
+  to: string
+  cc: string
+  /** Where replies go, when the email asks for somewhere other than who sent it. */
+  reply_to: string | null
+  subject: string
+  at: string
+  /** The body: HTML (shown in a sandbox: pictures, no scripts) and/or plain text. */
+  html: string | null
+  text: string | null
+  attachments: EmailFile[]
+  /** Opens it in Gmail or Outlook. */
+  link: string
+}
+
+/** A reply from the reader: its words, and whether it goes to everyone the email went to. */
+export interface EmailReply { text: string; all?: boolean }
+/** The longest reply the reader sends (a few pages). */
+export const MAX_REPLY_LENGTH = 20_000
+
+export interface EmailAddress { name: string | null; email: string }
+
+/** "Ana Ruiz <Ana@X.es>, "Ruiz, Bob" <bob@y.com>; c@z.com" → each name and address (lower case). */
+export function parseAddresses(list: string | null | undefined): EmailAddress[] {
+  const pieces: string[] = []
+  let cur = '', quoted = false, angled = false, escaped = false
+  for (const ch of list ?? '') {
+    if (escaped) { cur += ch; escaped = false; continue }
+    if (ch === '\\' && quoted) { cur += ch; escaped = true; continue }
+    if (ch === '"') quoted = !quoted
+    else if (ch === '<' && !quoted) angled = true
+    else if (ch === '>' && !quoted) angled = false
+    else if ((ch === ',' || ch === ';') && !quoted && !angled) { pieces.push(cur); cur = ''; continue }
+    cur += ch
+  }
+  pieces.push(cur)
+  return pieces.flatMap(p => {
+    const m = p.match(/^\s*([\s\S]*?)\s*<([^<>]*)>\s*$/)
+    const email = (m ? m[2] : p).trim().toLowerCase()
+    if (!/^[^\s<>,;"@]+@[^\s<>,;"@]+$/.test(email)) return []
+    const name = m?.[1].replace(/^"([\s\S]*)"$/, '$1').replace(/\\(.)/g, '$1').trim() || null
+    return [{ name: name && name.toLowerCase() !== email ? name : null, email }]
+  })
+}
+
+/** An address as the page shows it: "Ana Ruiz <ana@x.es>", or the address alone. */
+export const showAddress = (a: EmailAddress) => (a.name ? `${a.name} <${a.email}>` : a.email)
+
+/**
+ * Who a reply goes to: the email's Reply-To, else who sent it (and for one the café sent itself,
+ * who it went to). Reply all copies everyone else it went to or was copied to. The café's own
+ * address (`me`) is never on it, and no one is on it twice.
+ */
+export function replyRecipients(m: Pick<EmailFull, 'from' | 'from_name' | 'reply_to' | 'to' | 'cc'>, me: string | null, all = false) {
+  const self = me?.trim().toLowerCase() || null
+  const mine = (a: EmailAddress) => a.email === self
+  const sender = parseAddresses(m.from_name ? `"${m.from_name.replace(/["\\]/g, '\\$&')}" <${m.from}>` : m.from)
+  const replyTo = parseAddresses(m.reply_to)
+  let to = replyTo.length ? replyTo : sender
+  if (to.length && to.every(mine)) {
+    const others = parseAddresses(m.to).filter(a => !mine(a))
+    if (others.length) to = others
+  }
+  const seen = new Set(to.map(a => a.email))
+  const cc: EmailAddress[] = []
+  if (all) {
+    for (const a of [...parseAddresses(m.to), ...parseAddresses(m.cc)]) {
+      if (mine(a) || seen.has(a.email)) continue
+      seen.add(a.email)
+      cc.push(a)
+    }
+  }
+  return { to, cc }
+}
+
+/** "Re: " before the subject, once ("RE:", "AW:" and the like count as already there). */
+export const replySubject = (subject: string) => (/^\s*(re|aw|sv|rv)\s*:/i.test(subject) ? subject.trim() : `Re: ${subject.trim()}`.trim())
+
+/** Bytes as base64, a piece at a time (String.fromCharCode(...all) overflows on a long email). */
+export function toBase64(bytes: Uint8Array) {
+  let bin = ''
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
+  return btoa(bin)
+}
+/** base64url, as Gmail wants a raw message. */
+export const toBase64Url = (bytes: Uint8Array) => toBase64(bytes).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+
+const utf8Base64 = (s: string) => toBase64(new TextEncoder().encode(s))
+const isAscii = (s: string) => /^[\x20-\x7e]*$/.test(s)
+const oneLine = (s: string) => s.replace(/[\r\n]+/g, ' ').trim()
+
+/** Header text: as it is in plain ASCII, else RFC 2047 encoded words of at most 45 bytes each, folded. */
+function headerText(s: string) {
+  if (isAscii(s)) return s
+  const words: string[] = []
+  let cur = ''
+  for (const ch of s) {
+    if (cur && new TextEncoder().encode(cur + ch).length > 45) { words.push(cur); cur = '' }
+    cur += ch
+  }
+  if (cur) words.push(cur)
+  return words.map(w => `=?UTF-8?B?${utf8Base64(w)}?=`).join('\r\n ')
+}
+
+/** An address for a header: Name <a@b>, with the name quoted or encoded when it has to be. */
+export function mimeAddress(a: EmailAddress) {
+  if (!a.name) return a.email
+  const name = oneLine(a.name)
+  const shown = !isAscii(name) ? headerText(name) : /[()<>@,;:\\".[\]]/.test(name) ? `"${name.replace(/[\\"]/g, '\\$&')}"` : name
+  return `${shown} <${a.email}>`
+}
+
+/** A Message-ID as a header wants it (<…@…>), or null when it isn't one. */
+export function messageId(s: string | null | undefined) {
+  const v = oneLine(s ?? '')
+  if (/^<[^<>\s]+>$/.test(v)) return v
+  return /^[^<>\s]+@[^<>\s]+$/.test(v) ? `<${v}>` : null
+}
+
+/**
+ * A plain-text reply as an RFC 2822 message for Gmail's send API: In-Reply-To and References name
+ * the email it answers, so it stays in the same conversation for everyone (Gmail also wants the
+ * thread's id, and the subject as it was with "Re: ").
+ */
+export function replyMime(o: { from?: string | null; to: EmailAddress[]; cc: EmailAddress[]; subject: string; text: string; inReplyTo: string | null; references: string | null }) {
+  const answers = messageId(o.inReplyTo)
+  const refs = [...new Set([...(o.references ?? '').split(/\s+/).map(messageId), answers].filter((x): x is string => !!x))].slice(-20)
+  const lines = [
+    ...(o.from ? [`From: ${oneLine(o.from)}`] : []),
+    `To: ${o.to.map(mimeAddress).join(',\r\n ')}`,
+    ...(o.cc.length ? [`Cc: ${o.cc.map(mimeAddress).join(',\r\n ')}`] : []),
+    `Subject: ${headerText(oneLine(replySubject(o.subject)))}`,
+    ...(answers ? [`In-Reply-To: ${answers}`] : []),
+    ...(refs.length ? [`References: ${refs.join('\r\n ')}`] : []),
+    'MIME-Version: 1.0',
+    'Content-Type: text/plain; charset=UTF-8',
+    'Content-Transfer-Encoding: base64',
+    '',
+    utf8Base64(o.text.replace(/\r?\n/g, '\r\n')).replace(/.{1,76}/g, '$&\r\n').trimEnd(),
+  ]
+  return lines.join('\r\n')
+}
+
+/** The reply's words with the email it answers quoted under them ("On …, Ana <ana@x.es> wrote:"). */
+export function quotedReply(text: string, original: { date: string; from: string; body: string }) {
+  const lines = original.body.replace(/\r\n?/g, '\n').trim().split('\n')
+  const quoted = lines.slice(0, 400).map(l => (l ? `> ${l}` : '>')).join('\n')
+  return original.body.trim() ? `${text.trimEnd()}\n\nOn ${original.date}, ${original.from} wrote:\n${quoted}` : text.trimEnd()
+}
+
+/** A reply's words as the HTML Outlook puts above the email it answers. */
+export const replyHtml = (text: string) =>
+  text.trimEnd().replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!).replace(/\r?\n/g, '<br>')
+
+const ENTITIES: Record<string, string> = {
+  amp: '&', lt: '<', gt: '>', quot: '"', apos: '\'', nbsp: ' ', euro: '€', copy: '©', reg: '®', trade: '™', hellip: '…', ndash: '–', mdash: '—',
+  lsquo: '‘', rsquo: '’', ldquo: '“', rdquo: '”', laquo: '«', raquo: '»', bull: '•', middot: '·', deg: '°', ordm: 'º', ordf: 'ª', iexcl: '¡', iquest: '¿',
+  aacute: 'á', eacute: 'é', iacute: 'í', oacute: 'ó', uacute: 'ú', ntilde: 'ñ', uuml: 'ü', ccedil: 'ç', agrave: 'à', egrave: 'è', ograve: 'ò',
+  Aacute: 'Á', Eacute: 'É', Iacute: 'Í', Oacute: 'Ó', Uacute: 'Ú', Ntilde: 'Ñ', Uuml: 'Ü', Ccedil: 'Ç',
+}
+/** &amp;, &#39;, &aacute; and the like as the characters they stand for. */
+export const decodeEntities = (s: string) => s.replace(/&(#\d+|#x[\da-f]+|[a-z]+);/gi, (all, e: string) => {
+  if (e[0] !== '#') return ENTITIES[e] ?? ENTITIES[e.toLowerCase()] ?? all
+  const n = e[1] === 'x' || e[1] === 'X' ? parseInt(e.slice(2), 16) : Number(e.slice(1))
+  return n > 0 && n <= 0x10ffff ? String.fromCodePoint(n) : all
+})
+
+/** An HTML email's words, a paragraph a line (to quote it in a reply). */
+export function htmlToText(html: string) {
+  return decodeEntities(html
+    .replace(/<(head|style|script|title)\b[\s\S]*?<\/\1\s*>/gi, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|tr|li|h[1-6]|blockquote|table)\s*>/gi, '\n')
+    .replace(/<li\b[^>]*>/gi, '• ')
+    .replace(/<[^>]*>/g, ''))
+    .replace(/[ \t\u00a0]+/g, ' ')
+    .replace(/ *\n */g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+/** What an email's HTML may load in the reader: pictures, styles and fonts from anywhere; never scripts, frames, forms or plugins. */
+export const EMAIL_CSP = 'default-src \'none\'; img-src https: http: data: blob:; style-src \'unsafe-inline\' https: http:; font-src https: http: data:; form-action \'none\''
+const EMAIL_STYLE = 'html{background:#fff;color-scheme:light}body{margin:0;padding:16px;color:#222;font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow-wrap:anywhere}img{max-width:100%;height:auto}pre{white-space:pre-wrap}'
+
+/**
+ * An email's HTML as the page for the reader's frame (srcdoc, sandboxed without scripts): its
+ * scripts, refreshes and base address taken out, links opening in a new tab without saying where
+ * they came from, under EMAIL_CSP.
+ */
+export function emailDocument(html: string) {
+  const body = html
+    .replace(/<script\b[\s\S]*?<\/script\s*>/gi, '')
+    .replace(/<script\b[^>]*>/gi, '')
+    .replace(/<meta\b[^>]*http-equiv\s*=\s*["']?\s*refresh[^>]*>/gi, '')
+    .replace(/<base\b[^>]*>/gi, '')
+  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${EMAIL_CSP}">`
+    + `<meta name="referrer" content="no-referrer"><base target="_blank"><style>${EMAIL_STYLE}</style></head><body>${body}</body></html>`
+}
+
+/** How the reader shows a file: PDFs and pictures (that every browser shows) in the page; anything else is downloaded. */
+export function attachmentView(a: Pick<EmailAttachment, 'name' | 'type'>): 'pdf' | 'image' | null {
+  const type = a.type.toLowerCase().split(';')[0].trim()
+  const ext = a.name.toLowerCase().match(/\.([a-z0-9]+)$/)?.[1] ?? ''
+  if (type === 'application/pdf' || ext === 'pdf') return 'pdf'
+  if (/^image\/(png|jpe?g|gif|webp)$/.test(type) || ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext)) return 'image'
+  return null
+}
+
+/** What a file really is, from its first bytes: a PDF or a picture a browser shows safely; null for anything else. */
+export function sniffType(head: Uint8Array): 'application/pdf' | 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp' | null {
+  const at = (i: number, ...bytes: number[]) => bytes.every((b, j) => head[i + j] === b)
+  if (at(0, 0x25, 0x50, 0x44, 0x46, 0x2d)) return 'application/pdf' // %PDF-
+  if (at(0, 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)) return 'image/png'
+  if (at(0, 0xff, 0xd8, 0xff)) return 'image/jpeg'
+  if (at(0, 0x47, 0x49, 0x46, 0x38)) return 'image/gif' // GIF8
+  if (at(0, 0x52, 0x49, 0x46, 0x46) && at(8, 0x57, 0x45, 0x42, 0x50)) return 'image/webp' // RIFF....WEBP
+  return null
+}
+
+/** The pictures inside an email (cid: links: a logo, a signature) put in place as data: addresses; only real pictures. */
+export function placePictures(html: string, pictures: { cid: string; bytes: Uint8Array }[]) {
+  let out = html
+  for (const p of pictures) {
+    const type = sniffType(p.bytes)
+    if (!p.cid || !type?.startsWith('image/')) continue
+    out = out.split(`cid:${p.cid}`).join(`data:${type};base64,${toBase64(p.bytes)}`)
+  }
+  return out
+}

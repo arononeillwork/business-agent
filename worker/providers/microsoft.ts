@@ -122,6 +122,56 @@ export async function outlookAttachment(token: string, message: string, attachme
   return new Uint8Array(await res.arrayBuffer())
 }
 
+// Outlook, read (Email page → an email opened in the app): its body, its files and the pictures in
+// it. Same Mail.Read permission. A reply (reply / replyAll) needs only Mail.Send, and Outlook puts
+// it in the same conversation with the email quoted under it itself.
+interface GraphAttachment { id: string; name: string; size: number; contentType?: string; isInline?: boolean; '@odata.type'?: string }
+interface GraphFull extends Omit<GraphListed, 'attachments'> {
+  body?: { contentType?: string; content?: string }; ccRecipients?: GraphAddress[]; replyTo?: GraphAddress[]; attachments?: GraphAttachment[]
+}
+
+/** One email, opened: who it's from and to, its HTML or text, its files, and the pictures inside the HTML. */
+export async function outlookMessage(token: string, id: string, o: { pictures: { max: number; bytes: number } }) {
+  const q: Record<string, string> = {
+    $select: 'id,conversationId,subject,body,receivedDateTime,isRead,webLink,from,toRecipients,ccRecipients,replyTo',
+    $expand: 'attachments($select=id,name,size,contentType,isInline)',
+  }
+  const m = await graph<GraphFull>(token, `/me/messages/${encodeURIComponent(id)}?${Object.entries(q).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&')}`)
+  const isHtml = m.body?.contentType?.toLowerCase() === 'html'
+  const html = isHtml ? m.body?.content ?? '' : null
+  const all = (m.attachments ?? []).filter(a => a['@odata.type'] !== '#microsoft.graph.referenceAttachment')
+  // A picture inside the email is an inline image; an inline PDF (Apple Mail sends them so) is still a file.
+  const picture = (a: GraphAttachment) => !!a.isInline && (a.contentType ?? '').toLowerCase().startsWith('image/')
+  const shown = html?.includes('cid:') ? all.filter(a => picture(a) && a.size <= o.pictures.bytes).slice(0, o.pictures.max) : []
+  const pictures = (await Promise.all(shown.map(a => graph<{ contentId?: string; contentBytes?: string }>(token,
+    `/me/messages/${encodeURIComponent(id)}/attachments/${encodeURIComponent(a.id)}`).catch(() => ({} as { contentId?: string; contentBytes?: string })))))
+    .filter(p => p.contentId && p.contentBytes)
+    .map(p => ({ cid: p.contentId!.replace(/^<|>$/g, ''), bytes: Uint8Array.from(atob(p.contentBytes!), c => c.charCodeAt(0)) }))
+  return {
+    id: m.id, thread_id: m.conversationId ?? m.id, from: named(m.from), to: (m.toRecipients ?? []).map(named).join(', '), cc: (m.ccRecipients ?? []).map(named).join(', '),
+    reply_to: (m.replyTo ?? []).map(named).join(', ') || null, subject: m.subject ?? '', at: m.receivedDateTime,
+    html, text: isHtml ? null : m.body?.content ?? '', pictures,
+    attachments: all.filter(a => !picture(a)).map(a => ({ id: a.id, name: a.name, size: a.size, type: a.contentType ?? '' })), link: m.webLink ?? null,
+  }
+}
+
+/** An attachment's bytes as Outlook sends them, to pass on as they come. */
+export async function outlookAttachmentStream(token: string, message: string, attachment: string) {
+  const res = await fetch(`${GRAPH}/me/messages/${encodeURIComponent(message)}/attachments/${encodeURIComponent(attachment)}/$value`, { headers: { authorization: `Bearer ${token}` } })
+  if (!res.ok || !res.body) {
+    const err = await res.json().catch(() => ({})) as { error?: { message?: string } }
+    throw new Error(`Microsoft: ${err.error?.message ?? `the attachment couldn’t be read (${res.status})`}`)
+  }
+  return res.body
+}
+
+/** Reply to an email (`all`: to everyone it went to) from the mailbox, in the same conversation; `html`: the reply's words. */
+export async function outlookReply(token: string, id: string, html: string, all: boolean) {
+  await graph(token, `/me/messages/${encodeURIComponent(id)}/${all ? 'replyAll' : 'reply'}`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ comment: html }),
+  })
+}
+
 /** The app's "Business Agent" folder in OneDrive (created if missing); returns its id. */
 export async function ensureFolder(token: string) {
   const res = await fetch(`${GRAPH}/me/drive/root:/Business%20Agent`, { headers: { authorization: `Bearer ${token}` } })

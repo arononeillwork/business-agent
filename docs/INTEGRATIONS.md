@@ -547,6 +547,14 @@ permission. Nothing in the mailbox is changed or deleted.
 
 Whether reading was allowed is kept on the mailbox's connection (`external.reads_mail`); connecting
 again from Connections (send only) switches reading off until it's allowed again.
+
+The **Email page** uses the same two permissions and asks for nothing more. Opening an email in the
+app (its body, the pictures inside it, its files) and fetching an attachment use the read one
+(`gmail.readonly` / `Mail.Read`); a reply uses the send one the mailbox was connected with:
+Gmail's `messages.send` with the thread's id and In-Reply-To/References (`gmail.send`), Outlook's
+`/me/messages/{id}/reply` or `/replyAll` (`Mail.Send`). Opening an email doesn't mark it read in the
+mailbox: that would need `gmail.modify` / `Mail.ReadWrite`, which aren't asked for. Nothing is kept:
+each email and file is read from the mailbox when it's opened.
 ## 16. Reviews (Google reviews: read, reply, new ones in the bell)
 
 The Reviews page reads the café's Google reviews, every hour looks for new ones (each admin gets a

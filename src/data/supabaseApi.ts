@@ -674,6 +674,18 @@ export function createSupabaseApi(url: string, key: string): Api {
     },
     emailMessages: query => worker(`/api/email/messages?${new URLSearchParams(Object.entries(query)
       .filter(([, v]) => v !== undefined && v !== null && v !== '').map(([k, v]) => [k, String(v)]))}`),
+    emailMessage: id => worker(`/api/email/messages/${encodeURIComponent(id)}`),
+    async emailAttachment(messageId, file) {
+      // Not worker(): the answer is the file itself, not JSON.
+      const token = (await sb.auth.getSession()).data.session?.access_token
+      const res = await fetch(`/api/email/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(file.id)}?${new URLSearchParams({ name: file.name })}`,
+        { headers: { authorization: `Bearer ${token}` } })
+      if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? `Request failed (${res.status})`)
+      return res.blob()
+    },
+    async replyEmail(id, text, all) {
+      await worker(`/api/email/messages/${encodeURIComponent(id)}/reply`, { method: 'POST', body: JSON.stringify({ text, all: !!all }) })
+    },
     async taxSettings() {
       return check(await sb.from('tax_settings').select('withholding, rent, intra_eu, instalments, gestor_email').eq('id', 1).single()) as TaxSettings
     },

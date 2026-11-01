@@ -7619,6 +7619,69 @@ test.describe('email', () => {
     await expect(list.getByRole('listitem', { name: 'Factura F2026-0158' })).toBeVisible()
     await expect(list.getByRole('listitem', { name: 'Your receipt from Square Shop' })).toHaveCount(0) // read already
   })
+
+  test('email: an email opens in the app with its body and files, its PDF shows in the page, and a reply goes from the café’s Gmail', async ({ page }) => {
+    await open(page, '/email')
+    // No mailbox yet: Gmail is connected from here, allowed to read it.
+    await page.getByRole('button', { name: 'Connect Gmail' }).click()
+    const list = page.getByRole('list', { name: 'Emails' })
+    await list.getByRole('listitem', { name: 'Factura F2026-0158' }).click()
+
+    const reader = page.getByRole('dialog', { name: 'Factura F2026-0158', exact: true })
+    await expect(reader).toContainText('Tostadores del Sur')
+    await expect(reader).toContainText('To: easybeanscafe@gmail.com')
+    // The email's HTML, in a frame where nothing in it runs.
+    await expect(reader.locator('iframe[title="The email"]')).toHaveAttribute('sandbox', 'allow-popups allow-popups-to-escape-sandbox')
+    await expect(reader.frameLocator('iframe[title="The email"]').getByText('344,08 €')).toBeVisible()
+    await expect(reader.getByRole('link', { name: 'Open in Gmail' })).toHaveAttribute('href', /^https:\/\/mail\.google\.com\//)
+
+    // The PDF attached opens in the page, with Download.
+    await reader.getByRole('list', { name: 'Attachments' }).getByRole('button', { name: 'View Factura F2026-0158.pdf' }).click()
+    const viewer = page.getByRole('dialog', { name: 'Factura F2026-0158.pdf' })
+    await expect(viewer.locator('iframe')).toHaveAttribute('src', /^blob:/)
+    await expect(viewer.getByRole('button', { name: 'Download' })).toBeEnabled()
+    await viewer.getByRole('button', { name: 'Close' }).click()
+    await expect(viewer).toHaveCount(0)
+
+    // A reply, in the same conversation.
+    await reader.getByRole('button', { name: 'Reply', exact: true }).click()
+    const reply = reader.getByRole('form', { name: 'Reply' })
+    await expect(reply).toContainText('To: Tostadores del Sur <facturacion@tostadoresdelsur.example>')
+    await expect(reply).toContainText('Sent from easybeanscafe@gmail.com, in the same conversation.')
+    await reply.getByRole('textbox', { name: 'Your reply' }).fill('¡Gracias! Recibida, la pagamos a 30 días.')
+    await reply.getByRole('button', { name: 'Send' }).click()
+    await toast(page, 'Sent')
+    await expect(reply).toHaveCount(0)
+    await reader.getByRole('button', { name: 'Close' }).click()
+    await expect(reader).toHaveCount(0)
+  })
+
+  test('email: a picture attached shows in the page, and Reply all copies everyone the email went to', async ({ page }) => {
+    await open(page, '/email')
+    await page.getByRole('button', { name: 'Connect Gmail' }).click()
+    const list = page.getByRole('list', { name: 'Emails' })
+    await list.getByRole('listitem', { name: 'Presupuesto vasos compostables 12 oz' }).click()
+    const reader = page.getByRole('dialog', { name: 'Presupuesto vasos compostables 12 oz', exact: true })
+    await expect(reader).toContainText('una prueba de impresión del vaso') // a plain-text email
+    await reader.getByRole('button', { name: 'View Prueba de impresión vaso 12 oz.png' }).click()
+    const viewer = page.getByRole('dialog', { name: 'Prueba de impresión vaso 12 oz.png' })
+    const picture = viewer.getByRole('img', { name: 'Prueba de impresión vaso 12 oz.png' })
+    await expect(picture).toHaveAttribute('src', /^blob:/)
+    await expect.poll(() => picture.evaluate(i => (i as HTMLImageElement).naturalWidth)).toBe(360)
+    await viewer.getByRole('button', { name: 'Close' }).click()
+    await expect(reader.getByRole('button', { name: 'Reply all' })).toHaveCount(0) // it went to the café alone
+    await reader.getByRole('button', { name: 'Close' }).click()
+
+    await list.getByRole('listitem', { name: 'Re: Office coffee for 30 desks' }).click()
+    const elena = page.getByRole('dialog', { name: 'Re: Office coffee for 30 desks', exact: true })
+    await elena.getByRole('button', { name: 'Reply all' }).click()
+    const reply = elena.getByRole('form', { name: 'Reply all' })
+    await expect(reply).toContainText('To: Elena Vidal <elena@nomadhub.example>')
+    await expect(reply).toContainText('Cc: Marc Puig <marc@nomadhub.example>')
+    await reply.getByRole('textbox', { name: 'Your reply' }).fill('Perfect: Tuesday and Thursday from the 5th.')
+    await reply.getByRole('button', { name: 'Send' }).click()
+    await toast(page, 'Sent')
+  })
 })
 
 test.describe('team contracts', () => {
