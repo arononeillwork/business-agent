@@ -8302,6 +8302,49 @@ test.describe('theme days and the weekly routine', () => {
     await expect(sat).not.toContainText('Fridge temperature log review')
   })
 
+  test('weekly routine: an admin takes the whole routine off the calendar from the Routine tab, for everyone, and puts it back', async ({ page }) => {
+    await open(page, '/calendar?tab=routine')
+    const onCalendar = page.getByRole('region', { name: 'The routine on the calendar' }).getByLabel('Show the routine on the calendar')
+    await expect(onCalendar).toBeChecked()
+    await onCalendar.uncheck()
+    await toast(page, 'The routine is off the calendar for everyone')
+    // The activities stay on the Routine tab, each with its own switch as it was.
+    await expect(page.getByRole('region', { name: 'Monday' })).toContainText('Stock take and buying list')
+    await expect(page.getByRole('region', { name: 'Monday' }).getByLabel('Stock take and buying list on the calendar')).toBeChecked()
+
+    // The calendar has none of it, and no routine filters; the admin has the way back to the switch.
+    await page.getByRole('tab', { name: 'Calendar' }).click()
+    const monday = page.getByRole('grid').getByRole('gridcell', { name: 'Monday 28 September' })
+    await expect(monday).not.toContainText('Stock take and buying list')
+    await expect(monday).not.toContainText('Weekly business meeting')
+    const filters = page.getByRole('group', { name: 'Show on the calendar' })
+    await expect(filters.getByRole('button', { name: 'Theme days' })).toBeVisible()
+    await expect(filters.getByRole('button', { name: 'Routine', exact: true })).toHaveCount(0)
+    await expect(filters.getByRole('button', { name: 'Cleaning' })).toHaveCount(0)
+    // Nor Today.
+    await page.getByRole('link', { name: 'Home: Today' }).click()
+    await expect(page.getByRole('region', { name: 'Today’s theme' })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Today’s routine' })).toHaveCount(0)
+
+    // The rest of the team: no routine on their calendar, and on the Routine tab a note instead of the switch.
+    await signInAs(page, 'maria@example.com')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Calendar' }).first().click()
+    await expect(page.getByRole('grid').getByRole('gridcell', { name: 'Wednesday 30 September' })).not.toContainText('Deep clean (cleaner)')
+    await page.getByRole('tab', { name: 'Routine' }).click()
+    await expect(page.getByText('The routine is switched off for now, so it isn’t on the calendar.')).toBeVisible()
+    await expect(page.getByLabel('Show the routine on the calendar')).toHaveCount(0)
+
+    // Back on, from the calendar's own link to the switch.
+    await signInAs(page, 'aron@example.com')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Calendar' }).first().click()
+    await page.getByRole('group', { name: 'Show on the calendar' }).getByRole('link', { name: 'Routine: off for everyone' }).click()
+    await page.getByLabel('Show the routine on the calendar').check()
+    await toast(page, 'The routine is back on the calendar for everyone')
+    await page.getByRole('tab', { name: 'Calendar' }).click()
+    await expect(page.getByRole('grid').getByRole('gridcell', { name: 'Monday 28 September' })
+      .getByRole('button', { name: '09:00 Stock take and buying list' })).toBeVisible()
+  })
+
   test('theme days and the routine: an employee sees them but can’t change them', async ({ page }) => {
     await open(page, '/calendar', 'maria@example.com')
     await expect(page.getByRole('region', { name: 'Today’s theme' })).toContainText('Brazilian roast day')

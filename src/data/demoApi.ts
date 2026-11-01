@@ -1206,6 +1206,8 @@ export function createDemoApi(): Api {
     menu_source: 'custom', menu_sections: [], menu_synced_at: null, menu_sync_error: null,
     // The usual agents (shared/agents.ts) until an owner changes them on Roles & responsibilities → Agents.
     agent_views: null,
+    // The weekly routine on everyone's calendar (an admin can take it off on Calendar → Routine).
+    routine_on_calendar: true,
   }
 
   const P = { aron: 'p-aron', mark: 'p-mark', julio: 'p-julio', maria: 'p-maria', cleaner: 'p-cleaner' }
