@@ -5925,8 +5925,11 @@ test.describe('roles and rules', () => {
     await chef.click()
     await expect(page.getByRole('region', { name: 'Chef', exact: true })).toContainText('Food hygiene and safety (HACCP)')
     await page.getByRole('button', { name: 'Expand all' }).click()
+    // The Investor isn't in use (Inactive), and opens there too.
+    await page.getByRole('tab', { name: /^Inactive/ }).click()
     await expect(page.getByRole('region', { name: 'Investor', exact: true })).toContainText('Tracking return on investment')
     await expect(page.getByRole('button', { name: 'Investor', exact: true })).toContainText('Phase 4 · Scale')
+    await page.getByRole('tab', { name: /^Active/ }).click()
     await page.getByRole('button', { name: 'Collapse all' }).click()
     await expect(chef).toHaveAttribute('aria-expanded', 'false')
   })
@@ -5952,12 +5955,12 @@ test.describe('roles and rules', () => {
     await expect(details).toContainText('Shop Manager')
     await expect(details.getByRole('list', { name: 'Runner: Core responsibilities' }).getByRole('listitem')).toHaveText(['Takes food to the tables', 'Clears the plates'])
 
-    // Last in the list; one press moves it above the cleaner.
+    // Last in the list (the eight in use, then it); one press moves it above the cleaner.
     const roles = page.getByRole('region', { name: 'Roles' }).getByRole('heading', { level: 2 })
-    await expect(roles).toHaveCount(11)
+    await expect(roles).toHaveCount(9)
     await expect(roles.last()).toHaveText(/^Runner/)
     await details.getByRole('button', { name: 'Move Runner up' }).click()
-    await expect(roles.nth(9)).toHaveText(/^Runner/)
+    await expect(roles.nth(7)).toHaveText(/^Runner/)
     await expect(roles.last()).toHaveText(/^Cleaner/)
 
     // The shop manager can't answer to the runner, who answers to it.
