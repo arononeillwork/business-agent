@@ -1,6 +1,6 @@
 import {
-  Autocomplete, Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, MenuItem, Stack,
-  Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tabs, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography,
+  Autocomplete, Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, MenuItem, Stack,
+  Switch, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tabs, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import EditIcon from '@mui/icons-material/EditOutlined'
@@ -8,6 +8,7 @@ import DeleteIcon from '@mui/icons-material/DeleteOutlined'
 import UpIcon from '@mui/icons-material/ArrowUpward'
 import DownIcon from '@mui/icons-material/ArrowDownward'
 import DoneIcon from '@mui/icons-material/CheckCircleOutlineRounded'
+import ToggleIcon from '@mui/icons-material/ToggleOnOutlined'
 import { useState, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
@@ -60,6 +61,7 @@ export function RolesPage() {
   const show = (next: RolesTab) => setParams(next === 'active' ? {} : { tab: next }, { replace: true })
   const category = categoryOf(business?.business_type)
   const [editing, setEditing] = useState<JobRoleInput | null>(null)
+  const [choosing, setChoosing] = useState(false)
   const data = useAsync('roles', () => api.jobRoles(), [])
   // Every role (for names, templates in use, owners and what people can do), and the ones in use: the Active tab.
   const all = sortRoles(data.data ?? [])
@@ -144,10 +146,11 @@ export function RolesPage() {
       <PageHeader eyebrow={t('Team')} title={t('Roles & responsibilities')} />
       <ErrorBox error={data.error} />
       {/* The tabs, with the page's buttons on the right of their row (not up in the title's). */}
-      <PageToolbar sx={{ mb: 3 }} actions={tab === 'active' && <>
-        <ExpandAllButton expanded={expanded} disabled={!roles.length} />
-        {isAdmin && <ExportButton table={table} disabled={!roles.length} folder="Team" />}
-        {isAdmin && <Button variant="contained" startIcon={<AddIcon />} onClick={() => setEditing({ name: '', sort: nextSort })}>{t('Add a role')}</Button>}
+      <PageToolbar sx={{ mb: 3 }} actions={(tab === 'active' || tab === 'inactive') && <>
+        {tab === 'active' && <ExpandAllButton expanded={expanded} disabled={!roles.length} />}
+        {tab === 'active' && isAdmin && <ExportButton table={table} disabled={!roles.length} folder="Team" />}
+        {isAdmin && all.length > 0 && <Button variant="outlined" startIcon={<ToggleIcon />} onClick={() => setChoosing(true)}>{t('Active roles')}</Button>}
+        {tab === 'active' && isAdmin && <Button variant="contained" startIcon={<AddIcon />} onClick={() => setEditing({ name: '', sort: nextSort })}>{t('Add a role')}</Button>}
       </>}>
         <Tabs value={tab} onChange={(_, v: RolesTab) => show(v)} variant="scrollable" allowScrollButtonsMobile aria-label={t('Roles & responsibilities')}
           sx={{ borderBottom: `1px solid ${tokens.line}` }}>
@@ -273,6 +276,7 @@ export function RolesPage() {
       </>}
 
       {editing && <RoleDialog role={editing} roles={all} team={team} onClose={() => setEditing(null)} />}
+      {choosing && <ActiveRolesDialog roles={all} onClose={() => setChoosing(false)} />}
     </>
   )
 }
@@ -417,6 +421,67 @@ function RoleDialog({ role, roles, team, onClose }: { role: JobRoleInput; roles:
         ))}
         <Button onClick={onClose}>{t('Cancel')}</Button>
         <Button variant="contained" onClick={() => void save()}>{t('Save')}</Button>
+      </DialogActions>
+    </Dialog>
+  )
+}
+
+/**
+ * Admins: every role in one list, each switched on (Active) or off (Inactive), in the order of the
+ * list. Save moves the ones changed; each keeps its duties, people and permissions.
+ */
+function ActiveRolesDialog({ roles, onClose }: { roles: JobRole[]; onClose: () => void }) {
+  const { api, profiles } = useApp()
+  const run = useAction()
+  const [on, setOn] = useState(() => new Set(roles.filter(r => r.active !== false).map(r => r.id)))
+  const changed = roles.filter(r => (r.active !== false) !== on.has(r.id))
+  const set = (id: string, active: boolean) => setOn(s => {
+    const next = new Set(s)
+    if (active) next.add(id)
+    else next.delete(id)
+    return next
+  })
+  const save = async () => {
+    const ok = await run(() => Promise.all(changed.map(r => api.saveJobRole({ id: r.id, active: on.has(r.id) }))), t('Saved'))
+    if (ok) onClose()
+  }
+  return (
+    <Dialog open onClose={onClose} fullWidth maxWidth="sm" aria-labelledby="active-roles-title">
+      <DialogTitle id="active-roles-title">{t('Choose active roles')}</DialogTitle>
+      <DialogContent>
+        <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1 }}>
+          {t('Switch on the roles in use. The ones switched off move to Inactive, keeping their duties, people and permissions.')}
+        </Typography>
+        <Button size="small" disabled={on.size === roles.length} onClick={() => setOn(new Set(roles.map(r => r.id)))} sx={{ mb: 0.5 }}>{t('All active')}</Button>
+        <Stack component="ul" sx={{ m: 0, p: 0, listStyle: 'none' }} aria-label={t('Roles')}>
+          {roles.map(r => {
+            const active = on.has(r.id)
+            const names = r.people.map(id => profiles.find(p => p.id === id)?.full_name).filter(Boolean)
+            return (
+              <Box component="li" key={r.id} sx={{ borderBottom: `1px solid ${tokens.line}`, '&:last-of-type': { borderBottom: 0 } }}>
+                {/* The whole row switches it, not just the switch. */}
+                <FormControlLabel labelPlacement="start" sx={{ m: 0, py: 0.5, width: '100%', gap: 1 }}
+                  control={<Switch checked={active} onChange={e => set(r.id, e.target.checked)} slotProps={{ input: { 'aria-label': t('Active: {name}', { name: r.name }) } }} />}
+                  label={
+                    <Stack direction="row" sx={{ alignItems: 'center', gap: 1 }}>
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography sx={{ fontWeight: 500, color: active ? 'text.primary' : 'text.secondary' }}>{r.name}</Typography>
+                        <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>{names.length ? names.join(', ') : t('Nobody yet')}</Typography>
+                      </Box>
+                      <Typography variant="body2" sx={{ color: active ? tokens.goodFg : 'text.secondary' }}>{active ? t('Active') : tc('roles', 'Inactive')}</Typography>
+                    </Stack>
+                  }
+                  slotProps={{ typography: { component: 'div', sx: { flex: 1, minWidth: 0 } } }} />
+              </Box>
+            )
+          })}
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>{t('Cancel')}</Button>
+        <Button variant="contained" disabled={!changed.length} onClick={() => void save()}>
+          {changed.length ? tn(changed.length, 'Save {n} change', 'Save {n} changes') : t('Save')}
+        </Button>
       </DialogActions>
     </Dialog>
   )
