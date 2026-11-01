@@ -52,6 +52,7 @@ import type { Allergen, Diet, MenuAllergens } from '../../shared/allergens'
 import type { BrandDocument } from '../../shared/brandDocs'
 import type { TipPool, TipPoolInput, TipShare } from '../../shared/tips'
 import type { CompetitorData, CompetitorInput, CompetitorNoteInput, CompetitorPrice, CompetitorSettings, NearbyPlace, PriceItem } from '../../shared/localCompetitors'
+import type { SocialReport, SocialSource } from '../../shared/socialAnalytics'
 
 export type ShiftInput = Omit<Shift, 'id' | 'status'> & { id?: string; status?: Shift['status'] }
 export type EventInput = Omit<CalendarEvent, 'id' | 'source' | 'competition'> & { id?: string; competition?: string | null }
@@ -698,6 +699,8 @@ export interface Api {
   chooseSearchConsoleSite(site: string): Promise<void>
   /** How the website did in Google Search (admins), from and to inclusive. Google is 2–3 days behind. */
   searchConsole(from: string, to: string): Promise<SearchReport>
+  /** How the business's Instagram, TikTok, LinkedIn Page or Facebook Page did (admins), from and to inclusive. */
+  socialAnalytics(source: SocialSource, from: string, to: string): Promise<SocialReport>
   // Reviews (admins): Google reviews, read now from the business's profile (or the public listing until that's approved).
   reviews(): Promise<ReviewsState>
   /** Reply to a review on Google (or change the reply). Only with the business's own profile. */

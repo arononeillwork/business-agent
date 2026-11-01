@@ -63,7 +63,7 @@ export default {
   'What the TikTok connection is for': 'Para qué sirve la conexión con TikTok',
   'A business’s admin can connect the business’s TikTok account on the Connections page, using TikTok’s own sign-in (Login Kit). {service} then publishes the photo posts the business plans in its Social planner, at the time the business chooses. It does nothing else with the account.':
     'Un administrador del negocio puede conectar la cuenta de TikTok del negocio en la página Conexiones, mediante el propio inicio de sesión de TikTok (Login Kit). A partir de ahí, {service} publica las fotos que el negocio planifica en su Planificador social, a la hora que el negocio elija. No hace nada más con la cuenta.',
-  'We ask TikTok for two permissions only:': 'Solo pedimos dos permisos a TikTok:',
+  'We ask TikTok for these permissions only:': 'Solo pedimos estos permisos a TikTok:',
   '{scope}: the account’s ID, display name and profile picture, to show which account is connected.':
     '{scope}: el ID, el nombre visible y la foto de perfil de la cuenta, para mostrar qué cuenta está conectada.',
   '{scope}: to publish the business’s own photo posts directly to its TikTok account.':
@@ -81,8 +81,8 @@ export default {
   'Post results:': 'Resultados de las publicaciones:',
   '{label} whether each post was published, and its ID and link on TikTok.':
     '{label} si cada publicación ha salido, junto con su ID y su enlace en TikTok.',
-  'We do not read the account’s videos, followers, likes, comments, messages, analytics or any other TikTok user’s data.':
-    'No leemos los vídeos, los seguidores, los “Me gusta”, los comentarios, los mensajes ni las estadísticas de la cuenta, ni los datos de ningún otro usuario de TikTok.',
+  'We do not read who the followers are, the text of comments, messages, or any other TikTok user’s data.':
+    'No leemos quiénes son los seguidores, el texto de los comentarios, los mensajes ni los datos de ningún otro usuario de TikTok.',
   'Data we send to TikTok': 'Datos que enviamos a TikTok',
   'Only what the business plans to post, when it is due:': 'Solo lo que el negocio planifica publicar, cuando llega el momento:',
   'The photo, sent as a JPEG. TikTok fetches it from a private, signed link on our domain that opens only that photo.':

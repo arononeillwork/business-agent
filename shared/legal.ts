@@ -13,7 +13,7 @@ export const LEGAL = {
   /** Where everything else goes (questions, account closure). */
   supportEmail: 'support@businesssagent.com',
   /** Date of this version of the privacy policy. */
-  updated: '2026-09-30',
+  updated: '2026-11-01',
   /** Date of this version of the terms of service. */
   termsUpdated: '2026-10-12',
 }

@@ -19,6 +19,8 @@ import { demoInbox, demoMessenger, demoWhatsApp } from './demoMessages'
 import { demoEmailPage, demoEmails } from './demoEmail'
 import { demoEmailFull, demoFileLines, demoPicture, demoReplies } from './demoEmail'
 import { DEMO_CAFE_AT, DEMO_PLACES, demoCompetitors } from './demoCompetitors'
+import { demoSocialReport } from './demoSocialAnalytics'
+import { SOCIAL_NAMES } from '../../shared/socialAnalytics'
 import { distanceM, instagramHandle, suggestedThreat, type Competitor, type NearbyPlace } from '../../shared/localCompetitors'
 import { DEFAULT_WHATSAPP_RETENTION, isRetention, replyWindow } from '../../shared/messages'
 import { cleanCode } from '../../shared/referrals'
@@ -4581,6 +4583,12 @@ export function createDemoApi(): Api {
       const sc = integ.integrations.find(i => i.provider === 'search_console')!
       if (sc.status !== 'connected') throw new Error('Connect Search Console on the Connections page to see how the website does on Google')
       return demoSearch(from, to)
+    },
+    async socialAnalytics(source, from, to) {
+      requireAdmin()
+      const row = integ.integrations.find(i => i.provider === source)!
+      if (row.status !== 'connected') throw new Error(`Connect ${SOCIAL_NAMES[source]} on the Connections page to see its statistics`)
+      return { ...demoSocialReport(source, from, to, today(), row), fetched_at: nowIso() }
     },
     async chooseFacebookPage(pageId) {
       requireAdmin()

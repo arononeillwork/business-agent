@@ -96,6 +96,8 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'theme days and routine', files: [/CoffeesPage/, /components\/(ThemeDays|Routine)\.tsx$/, /shared\/(themeDays|routine)\.ts$/, /i18n\/es\/(themeDays|routine)\.ts$/],
     tests: String.raw`theme|coffee|routine` },
   { name: 'qr codes', files: [/QrCodes(Print)?Page/, /components\/QrCode\.tsx$/, /lib\/qrImage/, /shared\/qrCodes\.ts$/, /i18n\/es\/qrCodes\.ts$/], tests: String.raw`QR code` },
+  { name: 'analytics', files: [/pages\/(AnalyticsPage|SocialAnalytics)\.tsx$/, /shared\/socialAnalytics/, /i18n\/es\/(analytics|socialAnalytics)\.ts$/],
+    tests: String.raw`Analytics` },
 ]
 
 /** The --grep pattern for these changed files, or 'all'. */

@@ -525,6 +525,25 @@ describe('Checks: a connection that stops working turns red and admins hear abou
   })
 })
 
+describe('Statistics permissions (Analytics): asked for at sign-in only once STATS_SCOPES names the platform', () => {
+  const scopeOf = async (path: string) => new URL((await (await post(path)).json() as { url: string }).url).searchParams.get('scope')
+  it('off by default, so a developer app without them still signs in; then each one named, or all', async () => {
+    expect(await scopeOf('/api/integrations/tiktok/start')).toBe('user.info.basic,video.publish')
+    const was = (env as { STATS_SCOPES?: string }).STATS_SCOPES
+    try {
+      ;(env as { STATS_SCOPES?: string }).STATS_SCOPES = 'tiktok, instagram'
+      expect(await scopeOf('/api/integrations/tiktok/start')).toBe('user.info.basic,video.publish,user.info.stats,video.list')
+      expect(await scopeOf('/api/integrations/instagram/start')).toMatch(/,instagram_business_manage_insights$/)
+      expect(await scopeOf('/api/integrations/facebook/start')).not.toMatch(/read_insights/)
+      ;(env as { STATS_SCOPES?: string }).STATS_SCOPES = 'all'
+      expect(await scopeOf('/api/integrations/facebook/start')).toMatch(/,read_insights$/)
+      expect(await scopeOf('/api/integrations/linkedin/start')).toMatch(/ rw_organization_admin$/)
+    } finally {
+      ;(env as { STATS_SCOPES?: string }).STATS_SCOPES = was
+    }
+  })
+})
+
 describe('Groups and permissions', () => {
   it('the app’s groups match the database’s (one app per group)', () => {
     for (const [provider, group] of Object.entries(GROUP)) expect(groupOf(provider)).toBe(group)

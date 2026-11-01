@@ -1,14 +1,14 @@
 import {
-  Alert, Box, Button, Card, CardContent, Link, MenuItem, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
+  Alert, Box, Button, Card, CardContent, Link, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
 } from '@mui/material'
 import UpIcon from '@mui/icons-material/ArrowUpwardRounded'
 import DownIcon from '@mui/icons-material/ArrowDownwardRounded'
 import { useState, type ReactNode } from 'react'
-import { Link as RouterLink } from 'react-router-dom'
+import { Link as RouterLink, useSearchParams } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { BarChart, ShareBars, type BarPoint } from '../components/charts'
-import { Empty, ErrorBox, Loading, PageHeader, SectionTitle, StatGrid, StatTile, Tag } from '../components/common'
+import { Empty, ErrorBox, Loading, PageHeader, PageToolbar, SectionTitle, StatGrid, StatTile } from '../components/common'
 import { ExportButton, SortCell, useSort } from '../components/tables'
 import { Freshness } from '../components/Freshness'
 import { locale, msg, t, tc } from '../i18n'
@@ -16,6 +16,8 @@ import type { ExportTable } from '../lib/export'
 import { addDays, formatLocal, formatNumber, today } from '../../shared/time'
 import type { SearchReport, SearchRow } from '../../shared/types'
 import { tokens } from '../theme'
+import { SOCIAL_NAMES, SOCIAL_SOURCES, type SocialSource } from '../../shared/socialAnalytics'
+import { SocialAnalytics } from './SocialAnalytics'
 
 // Google shares search data two to three days late, so every period ends three days ago.
 const LAG = 3
@@ -27,6 +29,14 @@ const PERIODS: { id: Period; label: string; vs: string }[] = [
 ]
 const remembered = (): Period => {
   try { const p = localStorage.getItem('analytics-period'); return PERIODS.some(x => x.id === p) ? p as Period : '28' } catch { return '28' }
+}
+
+// What to look at: the website (Search Console only covers Google search), or one of the social accounts, each from its own platform.
+type Source = 'website' | SocialSource
+const SOURCES: { id: Source; label: string }[] = [{ id: 'website', label: msg('Website (Google Search)') }, ...SOCIAL_SOURCES.map(id => ({ id, label: SOCIAL_NAMES[id] }))]
+const isSource = (s: string | null): s is Source => SOURCES.some(x => x.id === s)
+const rememberedSource = (): Source => {
+  try { const s = localStorage.getItem('analytics-source'); return isSource(s) ? s : 'website' } catch { return 'website' }
 }
 
 const percent = (n: number) => `${formatNumber(Math.round(n * 1000) / 10)}%`
@@ -48,7 +58,7 @@ function countryName(code: string) {
 const DEVICES: Record<string, string> = { MOBILE: msg('Phones'), DESKTOP: msg('Computers'), TABLET: msg('Tablets') }
 
 /** "▲ 12% vs the 28 days before"; for position, lower is better. */
-function Change({ now, before, vs, lowerIsBetter }: { now: number; before?: number; vs: string; lowerIsBetter?: boolean }) {
+export function Change({ now, before, vs, lowerIsBetter }: { now: number; before?: number; vs: string; lowerIsBetter?: boolean }) {
   if (!before) return <>{t('vs {period}', { period: vs })}</>
   const pct = Math.round((now - before) / before * 100)
   if (pct === 0) return <>{t('same as {period}', { period: vs })}</>
@@ -63,13 +73,21 @@ function Change({ now, before, vs, lowerIsBetter }: { now: number; before?: numb
   )
 }
 
-/** Analytics: how people find the business's website on Google, from Search Console. Admins only. */
+/**
+ * Analytics: how people find the business's website on Google (Search Console), or how its Instagram,
+ * TikTok, LinkedIn Page or Facebook Page are doing (SocialAnalytics). Admins only.
+ */
 export function AnalyticsPage() {
   const { api, business } = useApp()
   const [period, setPeriod] = useState<Period>(remembered)
+  // The source picked here is remembered, and kept in the address (?source=) so a link opens on it.
+  const [params, setParams] = useSearchParams()
+  const [kept, setKept] = useState<Source>(rememberedSource)
+  const asked = params.get('source')
+  const source: Source = isSource(asked) ? asked : kept
   const integ = useAsync('integrations', () => api.integrations(), [])
   const row = integ.data?.integrations.find(i => i.provider === 'search_console')
-  const on = row?.status === 'connected'
+  const on = source === 'website' && row?.status === 'connected'
   const days = Number(period)
   const to = addDays(today(), -LAG), from = addDays(to, -(days - 1))
   const prevTo = addDays(from, -1), prevFrom = addDays(prevTo, -(days - 1))
@@ -79,19 +97,41 @@ export function AnalyticsPage() {
     setPeriod(p)
     try { localStorage.setItem('analytics-period', p) } catch { /* storage unavailable */ }
   }
+  const pickSource = (s: Source) => {
+    setKept(s)
+    try { localStorage.setItem('analytics-source', s) } catch { /* storage unavailable */ }
+    setParams(p => { const next = new URLSearchParams(p); if (s === 'website') next.delete('source'); else next.set('source', s); return next }, { replace: true })
+  }
   const info = PERIODS.find(p => p.id === period)!
   const r = report.data, b = before.data
   const site = r?.site ?? (row?.external.site as string | undefined)
 
-  const header = (
-    <PageHeader title={t('Analytics')} actions={on && <>
-      {site && <Tag>{siteName(site)}</Tag>}
-      <TextField select size="small" value={period} onChange={e => pick(e.target.value as Period)} sx={{ minWidth: 170 }}
-        slotProps={{ select: { SelectDisplayProps: { 'aria-label': t('Period') } } }}>
-        {PERIODS.map(p => <MenuItem key={p.id} value={p.id}>{t(p.label)}</MenuItem>)}
-      </TextField>
-    </>} />
+  const sourcePicker = (
+    <TextField select size="small" fullWidth={false} value={source} onChange={e => pickSource(e.target.value as Source)} sx={{ minWidth: { xs: 0, sm: 220 } }}
+      slotProps={{ select: { SelectDisplayProps: { 'aria-label': t('Source') } } }}>
+      {SOURCES.map(s => <MenuItem key={s.id} value={s.id}>{t(s.label)}</MenuItem>)}
+    </TextField>
   )
+  const periodPicker = (
+    <TextField select size="small" fullWidth={false} value={period} onChange={e => pick(e.target.value as Period)} sx={{ minWidth: { xs: 0, sm: 170 } }}
+      slotProps={{ select: { SelectDisplayProps: { 'aria-label': t('Period') } } }}>
+      {PERIODS.map(p => <MenuItem key={p.id} value={p.id}>{t(p.label)}</MenuItem>)}
+    </TextField>
+  )
+  // Under the title: what's being looked at and when it was read on the left, the source and period on the right.
+  const frame = (left: ReactNode, withPeriod: boolean) => <>
+    <PageHeader title={t('Analytics')} />
+    <PageToolbar actions={<>{sourcePicker}{withPeriod && periodPicker}</>}>{left}</PageToolbar>
+  </>
+  if (source !== 'website') return <SocialAnalytics key={source} source={source} days={days} periodName={t(info.label)} vs={t(info.vs)} frame={frame} />
+
+  const header = frame(on && (
+    <Stack direction="row" useFlexGap sx={{ gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
+      {site && <Link href={site.startsWith('sc-domain:') ? `https://${siteName(site)}` : site} target="_blank" rel="noreferrer" underline="hover" variant="body2"
+        sx={{ fontWeight: 500 }}>{siteName(site)}</Link>}
+      {r && <Freshness id="search" at={r.fetched_at} />}
+    </Stack>
+  ), on)
   if (!integ.data) return <>{header}<ErrorBox error={integ.error} /><Loading /></>
   if (!row || row.status === 'disconnected' || row.status === 'needs_setup') return <>{header}<ConnectFirst website={business?.website ?? null} /></>
   if (row.status === 'pending') {
@@ -128,7 +168,6 @@ export function AnalyticsPage() {
             <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mt: 1 }}>
               {t('Google shares search data a few days late: this runs to {date}.', { date: formatLocal(`${to}T12:00:00Z`, 'd MMMM') })}
             </Typography>
-            <Freshness id="search" at={r.fetched_at} sx={{ mt: 0.5 }} />
           </CardContent>
         </Card>
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))' }, alignItems: 'start', gap: 2, mb: 3 }}>
