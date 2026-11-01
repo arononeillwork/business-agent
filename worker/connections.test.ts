@@ -280,6 +280,13 @@ describe('Instagram and Google Maps: one click, connected once they really work'
     expect(await profile.json()).toMatchObject({ username: 'easy.beans.coffee', recent: [{ caption: 'Iced oat latte season' }] })
   })
 
+  it('Google Maps asks only for the listing, never adding what YouTube Music or Drive were given (Google refuses those together)', async () => {
+    const auth = new URL((await (await post('/api/integrations/google/start')).json() as { url: string }).url)
+    expect(auth.searchParams.get('scope')).toBe('https://www.googleapis.com/auth/business.manage openid email')
+    expect(auth.searchParams.get('include_granted_scopes')).toBe('false')
+    expect(auth.searchParams.get('access_type')).toBe('offline')
+  })
+
   it('Instagram: renews the token at night so it never runs out, and turns red if access is removed', async () => {
     await connectOwn('instagram')
     // A few days later the token is no longer brand new: the nightly check renews it.
