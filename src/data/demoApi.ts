@@ -4072,8 +4072,10 @@ export function createDemoApi(): Api {
       if (!openings.some(o => o.id === a.opening_id)) throw new Error('Pick the job they applied for')
       const existing = id ? applicantList.find(x => x.id === id) : undefined
       if (id && !existing) throw new Error('That applicant has gone')
-      const next: Applicant = { ...(existing ?? applicant({ opening_id: a.opening_id, full_name: '' })), ...a, full_name: a.full_name.trim(),
-        email: a.email?.trim().toLowerCase() || null, phone: a.phone?.trim().replace(/\s+/g, ' ') || null, cv_link: a.cv_link?.trim() || null, notes: a.notes?.trim() || null }
+      // A change of stage alone keeps what's already there (the email, phone, CV link and notes), as the database does.
+      const merged: Applicant = { ...(existing ?? applicant({ opening_id: a.opening_id, full_name: '' })), ...a }
+      const next: Applicant = { ...merged, full_name: a.full_name.trim(),
+        email: merged.email?.trim().toLowerCase() || null, phone: merged.phone?.trim().replace(/\s+/g, ' ') || null, cv_link: merged.cv_link?.trim() || null, notes: merged.notes?.trim() || null }
       if (next.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(next.email)) throw new Error('That email doesn’t look right')
       if (next.phone && !/^\+\d[\d ]{4,24}$/.test(next.phone)) throw new Error('That phone number doesn’t look right')
       if (next.cv_link && !/^https?:\/\/\S+$/i.test(next.cv_link)) throw new Error('The CV link starts with https://')

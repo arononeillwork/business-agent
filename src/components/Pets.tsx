@@ -1,7 +1,7 @@
 // Pets: a pet's photo (a paw while it has none), the dialog to add or change one, and the Pets section
 // of My account where everyone adds their own. The People page shows them beside their person; there
 // admins add a pet with its photo for anyone on the team and change anyone's, and everyone their own.
-import { Avatar, Box, Button, Card, CardContent, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Stack, TextField, Typography } from '@mui/material'
+import { Avatar, Box, Button, Card, CardContent, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Slider, Stack, TextField, Typography } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import PawIcon from '@mui/icons-material/PetsOutlined'
 import PhotoIcon from '@mui/icons-material/AddAPhotoOutlined'
@@ -12,7 +12,7 @@ import { useAction } from '../app/Notify'
 import { SectionTitle } from './common'
 import { tokens } from '../theme'
 import { t } from '../i18n'
-import { PET_KINDS, PET_LIMITS, petProblem, petsByPerson, type Pet, type PetKind } from '../../shared/pets'
+import { PET_KINDS, PET_LIMITS, petPhotoFrame, petProblem, petsByPerson, type Pet, type PetKind } from '../../shared/pets'
 
 /** The team's pets, for the page: everyone's (the database leaves out what someone can't see). */
 export function usePets() {
@@ -20,12 +20,14 @@ export function usePets() {
   return useAsync('pets', () => api.pets(), [])
 }
 
-/** A pet's photo, square, or a paw where its photo goes until there is one. */
-export function PetPhoto({ pet, size = 56 }: { pet: Pick<Pet, 'name' | 'photo'>; size?: number }) {
+/** A pet's photo, square and zoomed in as it was set (its dialog), or a paw where its photo goes until there is one. */
+export function PetPhoto({ pet, size = 56 }: { pet: Pick<Pet, 'name' | 'photo' | 'photo_zoom' | 'photo_x' | 'photo_y'>; size?: number }) {
+  const { zoom, x, y } = petPhotoFrame(pet)
   return (
     <Avatar variant="rounded" src={pet.photo ?? undefined} alt={pet.photo ? pet.name : undefined}
       aria-label={pet.photo ? undefined : t('{name} has no photo yet', { name: pet.name })}
-      sx={{ width: size, height: size, borderRadius: '30%', bgcolor: tokens.neutralBg, color: tokens.inkSoft, border: `1px solid ${tokens.line}` }}>
+      sx={{ width: size, height: size, borderRadius: '30%', bgcolor: tokens.neutralBg, color: tokens.inkSoft, border: `1px solid ${tokens.line}`,
+        '& .MuiAvatar-img': { transform: `scale(${zoom})`, transformOrigin: `${x}% ${y}%` } }}>
       <PawIcon sx={{ fontSize: size * 0.45 }} />
     </Avatar>
   )
@@ -73,11 +75,15 @@ export function PetDialog({ pet, owner, onClose }: { pet?: Pet; owner?: { id: st
   const [name, setName] = useState(pet?.name ?? '')
   const [kind, setKind] = useState<PetKind>(pet?.kind ?? 'dog')
   const [breed, setBreed] = useState(pet?.breed ?? '')
-  const [photo, setPhoto] = useState<string | null>(pet?.photo ?? null)
+  const [photo, setPhotoNow] = useState<string | null>(pet?.photo ?? null)
+  const [frame, setFrame] = useState(petPhotoFrame(pet ?? {}))
+  // A new photo starts as it is, not zoomed.
+  const setPhoto = (url: string | null) => { setPhotoNow(url); setFrame({ zoom: 1, x: 50, y: 50 }) }
   const save = () => run(async () => {
     const problem = petProblem({ name, breed, photo })
     if (problem) throw new Error(t(problem))
-    await api.savePet({ id: pet?.id, profile_id: pet ? undefined : owner?.id, name: name.trim(), kind, breed: breed.trim() || null, photo })
+    await api.savePet({ id: pet?.id, profile_id: pet ? undefined : owner?.id, name: name.trim(), kind, breed: breed.trim() || null, photo,
+      photo_zoom: Math.round(frame.zoom * 100) / 100, photo_x: frame.x, photo_y: frame.y })
     onClose()
   }, pet ? t('Saved') : t('{name} added', { name: name.trim() }))
   return (
@@ -86,12 +92,19 @@ export function PetDialog({ pet, owner, onClose }: { pet?: Pet; owner?: { id: st
       <DialogContent>
         <Stack spacing={2} sx={{ pt: 1 }}>
           <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
-            <PetPhoto pet={{ name: name.trim() || t('Your pet'), photo }} size={96} />
+            <FramedPhoto name={name.trim() || t('Your pet')} photo={photo} frame={frame} onFrame={setFrame} />
             <Stack spacing={1} sx={{ alignItems: 'flex-start' }}>
               <PhotoPicker label={photo ? t('Change photo') : t('Add photo')} inputLabel={t('Pet photo file')} onPhoto={setPhoto} />
               {photo && <Button size="small" onClick={() => setPhoto(null)}>{t('Remove photo')}</Button>}
             </Stack>
           </Stack>
+          {photo && (
+            <Box>
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('Zoom in on your pet (drag the photo to move it)')}</Typography>
+              <Slider aria-label={t('Zoom')} min={1} max={PET_LIMITS.zoom} step={0.05} value={frame.zoom}
+                valueLabelDisplay="auto" valueLabelFormat={v => `${v.toFixed(1)}×`} onChange={(_, v) => setFrame(f => ({ ...f, zoom: v as number }))} />
+            </Box>
+          )}
           <TextField label={t('Name')} value={name} onChange={e => setName(e.target.value)} autoFocus={!pet}
             slotProps={{ htmlInput: { maxLength: PET_LIMITS.name } }} />
           <TextField select label={t('Kind')} value={kind} onChange={e => setKind(e.target.value as PetKind)}>
@@ -109,6 +122,42 @@ export function PetDialog({ pet, owner, onClose }: { pet?: Pet; owner?: { id: st
         <Button variant="contained" disabled={!name.trim()} onClick={save}>{pet ? t('Save') : t('Add')}</Button>
       </DialogActions>
     </Dialog>
+  )
+}
+
+/**
+ * The photo in the pet's dialog, zoomed as set: dragged (or moved with the arrow keys) to choose the point it
+ * zooms in on. Dragging right shows more of the left of the photo, as when moving a photo in a frame.
+ */
+function FramedPhoto({ name, photo, frame, onFrame }: {
+  name: string; photo: string | null; frame: { zoom: number; x: number; y: number }; onFrame: (f: { zoom: number; x: number; y: number }) => void
+}) {
+  const drag = useRef<{ px: number; py: number; x: number; y: number } | null>(null)
+  const clamp = (n: number) => Math.min(Math.max(Math.round(n), 0), 100)
+  const size = 96
+  if (!photo) return <PetPhoto pet={{ name, photo }} size={size} />
+  return (
+    <Box role="group" aria-label={t('Move the photo of {name}', { name })} tabIndex={0}
+      title={t('Drag to move the photo; the arrow keys move it too')}
+      onPointerDown={e => { drag.current = { px: e.clientX, py: e.clientY, x: frame.x, y: frame.y }; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId) }}
+      onPointerMove={e => {
+        const d = drag.current
+        if (!d) return
+        // The further in it's zoomed, the less the point moves for the same drag.
+        const per = 100 / (size * Math.max(frame.zoom - 1, 0.25))
+        onFrame({ ...frame, x: clamp(d.x - (e.clientX - d.px) * per), y: clamp(d.y - (e.clientY - d.py) * per) })
+      }}
+      onPointerUp={() => { drag.current = null }}
+      onKeyDown={e => {
+        const step = { ArrowLeft: [5, 0], ArrowRight: [-5, 0], ArrowUp: [0, 5], ArrowDown: [0, -5] }[e.key]
+        if (!step) return
+        e.preventDefault()
+        onFrame({ ...frame, x: clamp(frame.x + step[0]), y: clamp(frame.y + step[1]) })
+      }}
+      sx={{ flexShrink: 0, cursor: frame.zoom > 1 ? 'grab' : 'default', touchAction: 'none', borderRadius: '30%',
+        '&:focus-visible': { outline: `2px solid ${tokens.rose}`, outlineOffset: 2 } }}>
+      <PetPhoto pet={{ name, photo, photo_zoom: frame.zoom, photo_x: frame.x, photo_y: frame.y }} size={size} />
+    </Box>
   )
 }
 
@@ -137,7 +186,7 @@ export function MyPets() {
                     <Typography variant="body2" color="text.secondary" noWrap>{petLine(p)}</Typography>
                     <Stack direction="row" sx={{ gap: 0.5, mt: 0.5, flexWrap: 'wrap' }}>
                       <PhotoPicker variant="text" label={p.photo ? t('Change photo') : t('Add photo')} inputLabel={t('Photo of {name}', { name: p.name })}
-                        onPhoto={photo => run(() => api.savePet({ id: p.id, name: p.name, photo }), t('Photo saved'))} />
+                        onPhoto={photo => run(() => api.savePet({ id: p.id, name: p.name, photo, photo_zoom: 1, photo_x: 50, photo_y: 50 }), t('Photo saved'))} />
                       <Button size="small" onClick={() => setEditing(p)}>{t('Edit')}</Button>
                     </Stack>
                   </Box>

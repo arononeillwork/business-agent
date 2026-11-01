@@ -441,7 +441,8 @@ export function createSupabaseApi(url: string, key: string): Api {
     async rulesRead() { return check(await sb.from('staff_rules_read').select('profile_id, read_at')) as RulesRead[] },
     async readRules() { check(await sb.rpc('read_staff_rules')) },
     async pets() {
-      return check(await sb.from('pets').select('id, profile_id, name, kind, breed, photo, sort, created_at').order('sort').order('name')) as Pet[]
+      return (check(await sb.from('pets').select('id, profile_id, name, kind, breed, photo, photo_zoom, photo_x, photo_y, sort, created_at').order('sort').order('name')) as Pet[])
+        .map(p => ({ ...p, photo_zoom: Number(p.photo_zoom ?? 1) }))
     },
     async savePet({ id, profile_id, ...p }) {
       if (id) { check(await sb.from('pets').update(p).eq('id', id)); return id }

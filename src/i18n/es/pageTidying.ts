@@ -1,5 +1,5 @@
 // Spanish for the owner's November round: inactive roles, automatic tracking on Timecards, the main suppliers
-// on Invoices, the website shown on Website & SEO, and the bank holiday reminders' choices.
+// on Invoices, the website shown on Website & SEO, pets' photos zoomed in, and the bank holiday reminders' choices.
 export default {
   // Roles & responsibilities → Inactive (a role, a puesto: masculine).
   'roles|Inactive ({n})': 'Inactivos ({n})',
@@ -30,6 +30,11 @@ export default {
   'As it is now: check that a change made here (opening hours, the menu, the details) has reached it. If it stays blank, the website doesn’t let itself be shown inside another site: open it in a new tab.':
     'Tal como está ahora: comprueba que un cambio hecho aquí (el horario, la carta, los datos) ha llegado. Si se queda en blanco, la web no deja mostrarse dentro de otra: ábrela en una pestaña nueva.',
   'The website: {site}': 'La web: {site}',
+  // Pets: a photo zoomed in on the pet.
+  'Zoom in on your pet (drag the photo to move it)': 'Acerca la foto a tu mascota (arrastra la foto para moverla)',
+  'Zoom': 'Zoom',
+  'Move the photo of {name}': 'Mover la foto de {name}',
+  'Drag to move the photo; the arrow keys move it too': 'Arrastra para mover la foto; las flechas también la mueven',
   // Notifications → Bank holiday reminders.
   'Which holidays': 'Qué festivos',
 } satisfies Record<string, string>
