@@ -8,9 +8,9 @@ import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { PageHeader, SectionTitle } from '../components/common'
 import { DAY_KEYS, type DayKey, type OpeningHours } from '../../shared/types'
-import { dayKey, hmToMinutes, today } from '../../shared/time'
+import { dayKey, formatLocal, hmToMinutes, today } from '../../shared/time'
 import { tokens } from '../theme'
-import { msg, t, tc, tr } from '../i18n'
+import { msg, t, tc, tn, tr } from '../i18n'
 
 const DAY_LABELS: Record<DayKey, string> = {
   mon: msg('Monday'), tue: msg('Tuesday'), wed: msg('Wednesday'), thu: msg('Thursday'), fri: msg('Friday'), sat: msg('Saturday'), sun: msg('Sunday'),
@@ -28,6 +28,8 @@ export function OpeningHoursPage() {
   const changed = JSON.stringify(hours) !== JSON.stringify(b.opening_hours)
   const invalid = DAY_KEYS.some(d => hours[d] && hmToMinutes(hours[d]!.close) <= hmToMinutes(hours[d]!.open))
   const g = google.data?.integrations.find(i => i.provider === 'google_business')
+  const waiting = google.data?.queue.filter(q => q.status === 'pending').length ?? 0
+  const failing = google.data?.queue.filter(q => q.status !== 'pending').length ?? 0
   const setDay = (d: DayKey, v: OpeningHours[DayKey]) => setHours({ ...hours, [d]: v })
 
   return (
@@ -84,13 +86,44 @@ export function OpeningHoursPage() {
           </Card>
         </Grid>
 
-        {isAdmin && (
+        {isAdmin && (g?.status === 'connected' || g?.status === 'error') && (
+          // Google Maps looks after itself: nothing to push. Here: how it's going, and public holidays.
           <Grid size={12}>
-            <Alert severity={g?.status === 'connected' ? 'success' : 'info'}>
-              {g?.status === 'connected'
-                ? tr('Google Maps is kept in step: changes here, and closures you add in the {calendar}, reach your listing within a minute.', { calendar: <RouterLink to="/calendar">{t('Calendar')}</RouterLink> })
-                : tr('Connect your Google listing on {connections} and these hours, and closures you add in the {calendar}, update Google Maps by themselves.', {
-                  connections: <RouterLink to="/connections">{t('Connections')}</RouterLink>, calendar: <RouterLink to="/calendar">{t('Calendar')}</RouterLink> })}
+            <Card component="section" aria-label={t('Google Maps')}>
+              <CardContent>
+                <SectionTitle>{'Google Maps'}</SectionTitle>
+                <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1 }}>
+                  {tr('Kept in step by itself: changes here, and closures you add in the {calendar}, reach your listing within a minute; changes made on Google Maps come in within 15 minutes.', {
+                    calendar: <RouterLink to="/calendar">{t('Calendar')}</RouterLink> })}
+                  {g.last_sync_at ? ` ${t('Last sent {when}.', { when: formatLocal(g.last_sync_at, 'd MMM, HH:mm') })}` : ''}
+                </Typography>
+                {!g.external.location && (
+                  <Alert severity="warning" sx={{ mb: 1 }}>
+                    {tr('Choose which of your Google listings is the café’s on {connections}.', { connections: <RouterLink to="/connections">{t('Connections')}</RouterLink> })}
+                  </Alert>
+                )}
+                {g.status === 'error' && g.last_error && <Alert severity="error" sx={{ mb: 1 }}>{g.last_error}</Alert>}
+                {(waiting > 0 || failing > 0) && (
+                  <Alert severity={failing ? 'warning' : 'info'} sx={{ mb: 1 }}>
+                    {waiting > 0 && `${tn(waiting, '{n} update waiting to send.', '{n} updates waiting to send.')} `}
+                    {failing > 0 && t('{n} failed and will be retried automatically.', { n: failing })}
+                  </Alert>
+                )}
+                <FormControlLabel sx={{ ml: 0 }} control={<Checkbox checked={!!g.external.closed_on_holidays}
+                  onChange={e => run(async () => { await api.chooseGoogleListing(null, e.target.checked); await google.reload() }, t('Saved'))} />}
+                  label={t('We close on public holidays')} />
+                <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>
+                  {tr('Google Maps then shows the café closed on the public holidays in the {calendar}.', { calendar: <RouterLink to="/calendar">{t('Calendar')}</RouterLink> })}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        )}
+        {isAdmin && g?.status !== 'connected' && g?.status !== 'error' && (
+          <Grid size={12}>
+            <Alert severity="info">
+              {tr('Connect your Google listing on {connections} and these hours, and closures you add in the {calendar}, update Google Maps by themselves.', {
+                connections: <RouterLink to="/connections">{t('Connections')}</RouterLink>, calendar: <RouterLink to="/calendar">{t('Calendar')}</RouterLink> })}
             </Alert>
           </Grid>
         )}

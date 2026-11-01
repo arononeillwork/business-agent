@@ -414,6 +414,35 @@ describe('Google Maps opening hours: kept the same both ways', () => {
     expect(sameHours(inApp(), week('18:00'))).toBe(true)
   })
 
+  it('ticking “We close on public holidays” (Opening hours page) reaches Google straight away, nothing to push', async () => {
+    await sync()
+    const christmas = `${new Date().getUTCFullYear() + 1}-12-25`
+    db.tables.calendar_events = [{ id: 1, title: 'Navidad', category: 'national', starts_on: christmas, ends_on: null, confirmed: true }]
+    expect((await post('/api/integrations/google/location', { closed_on_holidays: true })).status).toBe(200)
+    await Promise.all(background)
+    expect(db.integration('google_business').external).toMatchObject({ closed_on_holidays: true, location: 'locations/1' })
+    const [year, month, day] = christmas.split('-').map(Number)
+    expect(apis.google.edits.at(-1)).toMatchObject({ specialHours: { specialHourPeriods: [{ startDate: { year, month, day }, closed: true }] } })
+    expect(await sync()).toBe('same')
+  })
+
+  it('choosing another listing sends the app’s hours to it straight away, rather than its hours coming into the app', async () => {
+    await sync(); await sync()
+    db.integration('google_business').external = { ...db.integration('google_business').external as object,
+      locations: [{ name: 'locations/1', title: 'Easy Beans Coffee', account: 'accounts/1' }, { name: 'locations/2', title: 'Easy Beans Coffee', account: 'accounts/1' }] }
+    const before = apis.google.edits.length
+    setOnGoogle(week('15:00')) // the other listing shows other hours
+    expect((await post('/api/integrations/google/location', { location: 'locations/2' })).status).toBe(200)
+    await Promise.all(background)
+    expect(db.integration('google_business').external).toMatchObject({ location: 'locations/2' })
+    // What the old listing showed is forgotten: if that send had failed, the next sync still sends rather than taking this listing's hours.
+    expect(db.integration('google_business').external).not.toHaveProperty('google_hours')
+    expect(apis.google.edits).toHaveLength(before + 1)
+    expect(fromGoogleHours(apis.google.edits.at(-1)!.regularHours as never).mon).toEqual({ open: '08:00', close: '18:00' })
+    expect(await sync()).toBe('same')
+    expect(inApp().mon).toEqual({ open: '08:00', close: '18:00' })
+  })
+
   it('“Push hours to Google” counts as sent, so it isn’t sent again', async () => {
     expect((await post('/api/integrations/google/sync')).status).toBe(200)
     expect(await sync()).toBe('same')

@@ -556,16 +556,26 @@ integrations.post('/api/integrations/google/location', async c => {
   const { location, closed_on_holidays } = await c.req.json<{ location?: string; closed_on_holidays?: boolean }>()
   const db = businessDb(c.env, c.get('businessId'))
   const { data } = await db.from('integrations').select('external').eq('provider', 'google_business').single()
-  const ext = (data?.external ?? {}) as { locations?: google.GoogleLocation[] }
+  const ext = (data?.external ?? {}) as { locations?: google.GoogleLocation[]; location?: string }
   const chosen = location ? ext.locations?.find(l => l.name === location) : undefined
   if (location && !chosen) return c.json({ error: 'Unknown listing' }, 400)
+  // Another listing: what was sent to (and seen on) the old one says nothing about this one, so the
+  // app's hours and menu go to it next rather than its hours coming into the app.
+  const kept: Record<string, unknown> = { ...ext }
+  if (chosen && chosen.name !== ext.location) for (const k of LISTING_MEMORY) delete kept[k]
   await setIntegration(db, 'google_business', {
-    external: { ...ext, ...(chosen ? { location: chosen.name, account: chosen.account } : {}),
+    external: { ...kept, ...(chosen ? { location: chosen.name, account: chosen.account } : {}),
       ...(closed_on_holidays === undefined ? {} : { closed_on_holidays }) },
     ...(chosen ? { account_label: chosen.title } : {}),
   })
+  // Straight to Google (hours, closures, public holidays, phone): nothing to press. If Google doesn't
+  // take it now, the 15-minute hours sync and the nightly re-send put it right.
+  c.executionCtx.waitUntil(syncGoogle(c.env, db).catch(e => console.error('google sync after choosing failed', e)))
   return c.json({ ok: true })
 })
+
+/** What `external` remembers about the chosen listing (HoursMemory, MenuMemory). */
+const LISTING_MEMORY = ['synced_hours', 'google_hours', 'menu_hash', 'menu_sent_at', 'menu_items', 'menu_error', 'menu_failed']
 
 integrations.post('/api/integrations/google/sync', async c => {
   await syncGoogle(c.env, businessDb(c.env, c.get('businessId')))
