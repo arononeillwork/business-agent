@@ -101,6 +101,7 @@ import { fonts, tokens } from '../theme'
 import { msg, t, tc, tr } from '../i18n'
 import { LanguageToggle } from '../components/Language'
 import { AgentBanner, AgentsButton, useAgentView } from './AgentsMenu'
+import { InstallApp, InstallMenuItem } from '../components/InstallApp'
 import { hiddenByAgent } from '../../shared/agents'
 
 // `partner`: which partner areas show the item ('any' = every partner). Items without it are staff-only.
@@ -282,6 +283,7 @@ function AccountMenu({ children, label, sx }: { children: ReactNode; label?: str
         {isAdmin && canSeePay && item('/account/billing', t('Billing'), <BillingIcon fontSize="small" />)}
         {isAdmin && !isPartner && item('/referrals', t('Referrals'), <ReferralsIcon fontSize="small" />)}
         {item('/appearance', t('Appearance'), <AppearanceIcon fontSize="small" />)}
+        <InstallMenuItem onClick={close} />
         <Divider />
         <MenuItem onClick={() => { close(); void api.signOut() }}><ListItemIcon><LogoutIcon fontSize="small" /></ListItemIcon><ListItemText primary={t('Sign out')} /></MenuItem>
       </Menu>
@@ -759,6 +761,7 @@ export function AppShell() {
         </Box>
       </Box>
       {!desktop && <PhoneNav sections={sections} current={current} badges={badges} />}
+      <InstallApp />
     </Box>
   )
 }
