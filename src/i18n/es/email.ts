@@ -21,8 +21,8 @@ export default {
   // The page.
   'Open {mailbox}': 'Abrir {mailbox}',
   'Open in {mailbox}': 'Abrir en {mailbox}',
-  'Connect Gmail or Outlook on Connections to see the business’s email here.':
-    'Conecta Gmail u Outlook en Conexiones para ver aquí el correo del negocio.',
+  'Connect the business’s Gmail or Outlook to see its email here, open each one and reply from the app. Nothing is changed or deleted in the mailbox.':
+    'Conecta el Gmail o el Outlook del negocio para ver aquí su correo, abrir cada uno y responder desde la app. No se cambia ni se borra nada del buzón.',
   '{mailbox} is connected to send email only. Allow Business Agent to read it too, to see the business’s email here. Nothing is changed or deleted in the mailbox.':
     '{mailbox} está conectado solo para enviar correos. Permite que Business Agent también lo lea para ver aquí el correo del negocio. No se cambia ni se borra nada del buzón.',
   'Filter emails': 'Filtrar correos',
@@ -39,4 +39,13 @@ export default {
     '{supplier} no tiene email ni web en la página Proveedores, así que no se pueden encontrar sus correos. Añade uno allí.',
   'Emails are matched to suppliers by the email or website on the Suppliers page. None has one yet.':
     'Los correos se asocian a los proveedores por el email o la web de la página Proveedores. Ninguno tiene uno todavía.',
+
+  // An email opened in the app: its body, its files and a reply.
+  'Reply all': 'Responder a todos',
+  'Cc': 'CC',
+  'Attachments': 'Adjuntos',
+  'The email': 'El correo',
+  'This email has no text.': 'Este correo no tiene texto.',
+  'Sent from {account}, in the same conversation.': 'Se envía desde {account}, en la misma conversación.',
+  'This file can’t be shown here. Download it instead.': 'Este archivo no se puede mostrar aquí. Descárgalo.',
 }

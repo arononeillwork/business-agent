@@ -4,7 +4,6 @@ import {
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import EditIcon from '@mui/icons-material/EditOutlined'
-import OpenIcon from '@mui/icons-material/OpenInNew'
 import PersonAddIcon from '@mui/icons-material/PersonAddAlt'
 import SearchIcon from '@mui/icons-material/Search'
 import { useState, type ReactNode } from 'react'
@@ -14,19 +13,21 @@ import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { Empty, ErrorBox, PageHeader, SectionTitle, StatGrid, StatTile, Tag } from '../components/common'
 import { HiringBoard, OPENING_TONE, STAGE_TONE } from '../components/HiringBoard'
+import { AddToJobDialog, CvActions, CvFileField, CvPool, PoolDialog, applyCvChange, useCvFiles, type CvChange, type CvFiles } from '../components/CvPool'
 import { addDays, formatLocal, localDate, today, zonedIso } from '../../shared/time'
 import { cleanPhone } from '../../shared/customers'
 import {
   APPLICANT_STAGES, CONTRACTS, JOB_BOARDS, OPENING_STATUSES, STILL_IN, applicantStageLabel, boardLabel, boardMove, contractLabel, finishedJob, hiringLanes,
-  keepUntil, matchesCandidate, openingStatusLabel, overdue,
-  type Applicant, type ApplicantInput, type ApplicantStage, type JobOpening, type OpeningInput, type OpeningStatus,
+  keepUntil, matchesCandidate, onAJob, openingStatusLabel, overdue, poolOrder,
+  type Applicant, type ApplicantInput, type ApplicantStage, type JobApplicant, type JobOpening, type OpeningInput, type OpeningStatus,
 } from '../../shared/hiring'
 import { tokens } from '../theme'
 import { t } from '../i18n'
 
 const day = (d: string | null) => (d ? formatLocal(`${d}T12:00:00Z`, 'd MMM yyyy') : '')
 const when = (iso: string | null) => (iso ? formatLocal(iso, 'EEE d MMM, HH:mm') : '')
-type View = 'board' | 'candidates' | 'jobs'
+type View = 'board' | 'candidates' | 'jobs' | 'pool'
+const VIEWS: View[] = ['candidates', 'jobs', 'pool']
 // The candidates list's stage filter: everyone, those still in the running, or one stage.
 type StageFilter = 'all' | 'running' | ApplicantStage
 
@@ -36,18 +37,24 @@ type StageFilter = 'all' | 'running' | ApplicantStage
  * Seen as a board (a swimlane per job, a column per stage, cards dragged along), as one list of every
  * candidate (searched and filtered), or job by job. Applicants who weren't hired are kept a year,
  * then their details should go (GDPR). Admins only.
+ * The CV pool keeps CVs for a job to come, with no job posted (shown even when there are no jobs);
+ * someone in it is added to a job once there's one for them.
  */
 export function HiringPage() {
   const { api, isAdmin, positions } = useApp()
   const jobs = useAsync('job-openings', () => api.jobOpenings(), [])
   const people = useAsync('applicants', () => api.applicants(), [])
+  const files = useCvFiles()
   const run = useAction()
   const [params, setParams] = useSearchParams()
-  const view: View = params.get('view') === 'candidates' ? 'candidates' : params.get('view') === 'jobs' ? 'jobs' : 'board'
+  const view: View = VIEWS.find(v => v === params.get('view')) ?? 'board'
   const [withFinished, setWithFinished] = useState(false)
   const [opening, setOpening] = useState<OpeningInput | null>(null)
   const [applicant, setApplicant] = useState<ApplicantInput | null>(null)
-  const [hiring, setHiring] = useState<Applicant | null>(null)
+  const [hiring, setHiring] = useState<JobApplicant | null>(null)
+  // The CV pool's dialogs: someone added or changed (null: someone new), and someone put on a job.
+  const [pooling, setPooling] = useState<{ person: Applicant | null } | null>(null)
+  const [placing, setPlacing] = useState<Applicant | null>(null)
 
   if (!isAdmin) {
     return <>
@@ -58,19 +65,22 @@ export function HiringPage() {
 
   const now = today()
   const openings = [...(jobs.data ?? [])].sort((a, b) => Number(a.status !== 'open') - Number(b.status !== 'open') || b.opened_on.localeCompare(a.opened_on))
-  const all = people.data ?? []
+  const everyone = people.data ?? []
+  // Those who applied for a job; the CV pool is everyone with no job yet.
+  const all = everyone.filter(onAJob)
+  const pool = poolOrder(everyone.filter(a => !onAJob(a)))
   const running = all.filter(a => STILL_IN.includes(a.stage))
   const week = addDays(now, 7)
   const interviews = all.filter(a => a.interview_at && STILL_IN.includes(a.stage) && localDate(a.interview_at) >= now && localDate(a.interview_at) <= week)
-  const toRemove = all.filter(a => overdue(a, now))
+  const toRemove = everyone.filter(a => overdue(a, now))
   const positionName = (id: number | null) => positions.find(p => p.id === id)?.name
   const newOpening = (): OpeningInput => ({ title: '', contract: 'part_time', status: 'open', posted_on: [], opened_on: now })
   const newApplicant = (openingId: string): ApplicantInput => ({ opening_id: openingId, full_name: '', source: 'other', stage: 'applied', applied_on: now })
 
-  const move = (a: Applicant, stage: ApplicantStage) => run(() => api.saveApplicant({ id: a.id, opening_id: a.opening_id, full_name: a.full_name, stage }),
+  const move = (a: JobApplicant, stage: ApplicantStage) => run(() => api.saveApplicant({ id: a.id, opening_id: a.opening_id, full_name: a.full_name, stage }),
     t('Moved to {stage}', { stage: t(applicantStageLabel(stage)) }))
   // Dropped on the board: another stage, or another job's lane.
-  const drop = (a: Applicant, to: { opening_id: string; stage: ApplicantStage }) => {
+  const drop = (a: JobApplicant, to: { opening_id: string; stage: ApplicantStage }) => {
     const patch = boardMove(a, to)
     if (!patch) return
     const job = openings.find(o => o.id === to.opening_id)
@@ -81,7 +91,7 @@ export function HiringPage() {
   const lanes = hiringLanes(openings, all, withFinished)
   const finished = openings.filter(o => finishedJob(o, all)).length
   const setView = (v: View) => setParams(v === 'board' ? {} : { view: v }, { replace: true })
-  const stageSelect = (a: Applicant) => (
+  const stageSelect = (a: JobApplicant) => (
     <TextField select size="small" variant="standard" value={a.stage} onChange={x => void move(a, x.target.value as ApplicantStage)}
       slotProps={{ input: { disableUnderline: true }, select: { SelectDisplayProps: { 'aria-label': t('Stage of {name}', { name: a.full_name }) },
         renderValue: v => <Tag {...STAGE_TONE[v as ApplicantStage]}>{t(applicantStageLabel(v as ApplicantStage))}</Tag> } }}>
@@ -95,7 +105,7 @@ export function HiringPage() {
         {openings.length > 0 && <Button variant="outlined" startIcon={<AddIcon />} onClick={() => setApplicant(newApplicant(openings[0].id))}>{t('Add an applicant')}</Button>}
         <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpening(newOpening())}>{t('Add a vacancy')}</Button>
       </>} />
-      <ErrorBox error={jobs.error ?? people.error} />
+      <ErrorBox error={jobs.error ?? people.error ?? files.error} />
 
       <StatGrid>
         <StatTile label={t('Open jobs')} value={jobs.data ? openings.filter(o => o.status === 'open').length : '–'} />
@@ -110,7 +120,18 @@ export function HiringPage() {
         </Alert>
       )}
 
-      {openings.length === 0 && <Card sx={{ mb: 3 }}><CardContent><Empty>{jobs.data ? t('No jobs yet. Add the one you’re filling.') : t('Loading…')}</Empty></CardContent></Card>}
+      {openings.length === 0 && (
+        <Card component="section" aria-label={t('Jobs')} sx={{ mb: 3 }}><CardContent><Empty>
+          {jobs.data ? <>
+            {t('No jobs yet. Add the one you’re filling.')}
+            <Typography variant="body2" sx={{ mt: 1 }}>{t('Got a CV and no job for them yet? Keep it in the CV pool for later.')}</Typography>
+            <Stack direction="row" spacing={1} useFlexGap sx={{ justifyContent: 'center', flexWrap: 'wrap', mt: 2 }}>
+              <Button variant="outlined" startIcon={<AddIcon />} onClick={() => setPooling({ person: null })}>{t('Add a CV')}</Button>
+              <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpening(newOpening())}>{t('Add a vacancy')}</Button>
+            </Stack>
+          </> : t('Loading…')}
+        </Empty></CardContent></Card>
+      )}
 
       {openings.length > 0 && (
         <Tabs value={view} onChange={(_, v: View) => setView(v)} variant="scrollable" allowScrollButtonsMobile aria-label={t('How to see the applicants')}
@@ -118,6 +139,7 @@ export function HiringPage() {
           <Tab value="board" label={t('Board')} />
           <Tab value="candidates" label={`${t('Candidates')} (${all.length})`} />
           <Tab value="jobs" label={`${t('Jobs')} (${openings.length})`} />
+          <Tab value="pool" label={`${t('CV pool')} (${pool.length})`} />
         </Tabs>
       )}
 
@@ -127,11 +149,17 @@ export function HiringPage() {
             label={t('Filled and closed jobs ({n})', { n: finished })} />
         )}
         <HiringBoard lanes={lanes} today={now} positionName={positionName} onMove={drop} onEdit={setApplicant} onHire={setHiring}
-          onAdd={o => setApplicant(newApplicant(o.id))} />
+          onAdd={o => setApplicant(newApplicant(o.id))} cvOf={files.cvOf} onCv={(cv, a) => files.view(cv, a.full_name)} />
       </>}
 
       {openings.length > 0 && view === 'candidates' && (
-        <CandidatesList applicants={all} openings={openings} today={now} stageSelect={stageSelect} onEdit={setApplicant} onHire={setHiring} onForget={a => void forget(a)} />
+        <CandidatesList applicants={all} openings={openings} today={now} files={files} stageSelect={stageSelect} onEdit={setApplicant} onHire={setHiring} onForget={a => void forget(a)} />
+      )}
+
+      {/* With no jobs, the CV pool is all there is to see. */}
+      {(view === 'pool' || openings.length === 0) && jobs.data && (
+        <CvPool pool={pool} openings={openings} today={now} files={files} onEdit={a => setPooling({ person: a })} onAddToJob={setPlacing} onForget={a => void forget(a)}
+          onAdd={openings.length ? () => setPooling({ person: null }) : undefined} />
       )}
 
       {view === 'jobs' && openings.map(o => {
@@ -171,7 +199,7 @@ export function HiringPage() {
                             <TableCell sx={{ whiteSpace: 'nowrap' }}>{STILL_IN.includes(a.stage) ? when(a.interview_at) : ''}</TableCell>
                             <TableCell sx={{ whiteSpace: 'nowrap' }} aria-label={a.rating ? t('{n} out of 5', { n: a.rating }) : undefined}>{a.rating ? '★'.repeat(a.rating) + '☆'.repeat(5 - a.rating) : ''}</TableCell>
                             <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                              {a.cv_link && <IconButton size="small" component="a" href={a.cv_link} target="_blank" rel="noopener" aria-label={t('Open the CV of {name}', { name: a.full_name })}><OpenIcon fontSize="small" /></IconButton>}
+                              <CvActions a={a} files={files} />
                               {(a.stage === 'offer' || a.stage === 'hired') && !a.profile_id && (
                                 <Button size="small" startIcon={<PersonAddIcon />} onClick={() => setHiring(a)} aria-label={t('Add {name} to the team', { name: a.full_name })}>{t('Add to the team')}</Button>
                               )}
@@ -194,16 +222,19 @@ export function HiringPage() {
       </Typography>
 
       {opening && <OpeningDialog opening={opening} onClose={() => setOpening(null)} />}
-      {applicant && <ApplicantDialog applicant={applicant} openings={openings} onClose={() => setApplicant(null)} />}
+      {applicant && <ApplicantDialog applicant={applicant} openings={openings} files={files} onClose={() => setApplicant(null)} />}
       {hiring && <AddToTeamDialog applicant={hiring} onClose={() => setHiring(null)} />}
+      {pooling && <PoolDialog person={pooling.person} pool={pool} files={files} onClose={() => setPooling(null)} />}
+      {placing && <AddToJobDialog person={placing} openings={openings} onClose={() => setPlacing(null)} />}
+      {files.viewer}
     </>
   )
 }
 
 /** Every candidate in one list, whichever job they applied for: searched, and narrowed to a job or a stage. */
-function CandidatesList({ applicants, openings, today, stageSelect, onEdit, onHire, onForget }: {
-  applicants: Applicant[]; openings: JobOpening[]; today: string; stageSelect: (a: Applicant) => ReactNode
-  onEdit: (a: Applicant) => void; onHire: (a: Applicant) => void; onForget: (a: Applicant) => void
+function CandidatesList({ applicants, openings, today, files, stageSelect, onEdit, onHire, onForget }: {
+  applicants: JobApplicant[]; openings: JobOpening[]; today: string; files: CvFiles; stageSelect: (a: JobApplicant) => ReactNode
+  onEdit: (a: JobApplicant) => void; onHire: (a: JobApplicant) => void; onForget: (a: JobApplicant) => void
 }) {
   const [query, setQuery] = useState('')
   const [job, setJob] = useState('all')
@@ -253,7 +284,7 @@ function CandidatesList({ applicants, openings, today, stageSelect, onEdit, onHi
                       <TableCell sx={{ whiteSpace: 'nowrap' }}>{STILL_IN.includes(a.stage) ? when(a.interview_at) : ''}</TableCell>
                       <TableCell sx={{ whiteSpace: 'nowrap' }} aria-label={a.rating ? t('{n} out of 5', { n: a.rating }) : undefined}>{a.rating ? '★'.repeat(a.rating) + '☆'.repeat(5 - a.rating) : ''}</TableCell>
                       <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                        {a.cv_link && <IconButton size="small" component="a" href={a.cv_link} target="_blank" rel="noopener" aria-label={t('Open the CV of {name}', { name: a.full_name })}><OpenIcon fontSize="small" /></IconButton>}
+                        <CvActions a={a} files={files} />
                         {(a.stage === 'offer' || a.stage === 'hired') && !a.profile_id && (
                           <Button size="small" startIcon={<PersonAddIcon />} onClick={() => onHire(a)} aria-label={t('Add {name} to the team', { name: a.full_name })}>{t('Add to the team')}</Button>
                         )}
@@ -337,17 +368,22 @@ function OpeningDialog({ opening, onClose }: { opening: OpeningInput; onClose: (
 }
 
 /** Someone who applied: how to reach them, where they came from, how far they've got and the interview. */
-function ApplicantDialog({ applicant, openings, onClose }: { applicant: ApplicantInput; openings: JobOpening[]; onClose: () => void }) {
+function ApplicantDialog({ applicant, openings, files, onClose }: { applicant: ApplicantInput; openings: JobOpening[]; files: CvFiles; onClose: () => void }) {
   const { api } = useApp()
   const run = useAction()
   const [a, setA] = useState<ApplicantInput>(applicant)
+  const [file, setFile] = useState<CvChange>(null)
   const set = (p: Partial<ApplicantInput>) => setA(x => ({ ...x, ...p }))
+  const cv = a.id ? files.cvOf(a.id) : undefined
   const save = async () => {
     const ok = await run(async () => {
       if (!a.full_name.trim()) throw new Error(t('Add their name'))
       const phone = a.phone?.trim() ? cleanPhone(a.phone) : null
       if (a.phone?.trim() && !phone) throw new Error(t('That phone number doesn’t look right'))
-      await api.saveApplicant({ ...a, full_name: a.full_name.trim(), phone, email: a.email?.trim() || null })
+      const id = await api.saveApplicant({ ...a, full_name: a.full_name.trim(), phone, email: a.email?.trim() || null })
+      // Saved: a second try (the CV didn't upload) changes them rather than adding them again.
+      setA(x => ({ ...x, id }))
+      await applyCvChange(api, id, file)
     }, t('Saved'))
     if (ok) onClose()
   }
@@ -383,7 +419,8 @@ function ApplicantDialog({ applicant, openings, onClose }: { applicant: Applican
               {[5, 4, 3, 2, 1].map(n => <MenuItem key={n} value={n}>{t('{n} out of 5', { n })}</MenuItem>)}
             </TextField>
           </Stack>
-          <TextField label={t('CV')} value={a.cv_link ?? ''} onChange={e => set({ cv_link: e.target.value || null })} placeholder={'https://'} helperText={t('A link to it: the job board, Drive or OneDrive')} />
+          <CvFileField cv={cv} change={file} onChange={setFile} onView={cv ? () => files.view(cv, a.full_name) : undefined} />
+          <TextField label={t('Or a link to it')} value={a.cv_link ?? ''} onChange={e => set({ cv_link: e.target.value || null })} placeholder={'https://'} helperText={t('A link to it: the job board, Drive or OneDrive')} />
           <TextField label={t('Notes')} value={a.notes ?? ''} multiline minRows={2} onChange={e => set({ notes: e.target.value })} />
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ alignItems: { sm: 'center' } }}>
             <TextField label={t('Applied on')} type="date" value={a.applied_on ?? ''} onChange={e => set({ applied_on: e.target.value })} slotProps={{ inputLabel: { shrink: true } }} sx={{ flex: 1 }} />
@@ -403,7 +440,7 @@ function ApplicantDialog({ applicant, openings, onClose }: { applicant: Applican
 }
 
 /** Hired: invite them to the app as an employee (as on Team), and mark them hired. */
-function AddToTeamDialog({ applicant, onClose }: { applicant: Applicant; onClose: () => void }) {
+function AddToTeamDialog({ applicant, onClose }: { applicant: JobApplicant; onClose: () => void }) {
   const { api, refresh } = useApp()
   const run = useAction()
   const [email, setEmail] = useState(applicant.email ?? '')

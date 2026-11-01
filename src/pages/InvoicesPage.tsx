@@ -19,7 +19,7 @@ import { Freshness } from '../components/Freshness'
 import type { ExportTable } from '../lib/export'
 import { formatLocal, formatMoney, today } from '../../shared/time'
 import {
-  INVOICE_STATUSES, bySupplier, dueFrom, isOpen, isOverdue, numberFromName,
+  INVOICE_STATUSES, bySupplier, dueFrom, isOpen, isOverdue, mainSuppliers, numberFromName,
   type InboxInvoice, type Invoice, type InvoiceDirection, type InvoiceInput, type InvoiceStatus,
 } from '../../shared/invoices'
 import type { Supplier } from '../../shared/stock'
@@ -111,6 +111,22 @@ export function InvoicesPage() {
         <StatTile label={t('Paid this month')} value={list.data ? formatMoney(sum(paidThisMonth)) : '–'} note={tn(paidThisMonth.length, '{n} invoice', '{n} invoices')} />
       </StatGrid>
 
+      {/* The main suppliers (G&M Cash n Carry…) one press away: their invoices below and their emails under From email. */}
+      {sups.length > 0 && (
+        <Stack direction="row" role="group" aria-label={t('Main suppliers')} useFlexGap
+          sx={{ gap: 0.75, mb: 2.5, alignItems: 'center', flexWrap: { xs: 'nowrap', md: 'wrap' }, overflowX: { xs: 'auto', md: 'visible' }, pb: { xs: 0.5, md: 0 } }}>
+          <Typography variant="body2" sx={{ color: 'text.secondary', mr: 0.5, flexShrink: 0 }}>{t('Supplier')}</Typography>
+          <Chip label={t('Every supplier')} aria-pressed={supplier === 'all'} onClick={() => setSupplier('all')} sx={{ flexShrink: 0 }}
+            color={supplier === 'all' ? 'primary' : 'default'} variant={supplier === 'all' ? 'filled' : 'outlined'} />
+          {mainSuppliers(sups, all).map(({ supplier: s, count }) => (
+            <Chip key={s.id} aria-pressed={supplier === s.id} sx={{ flexShrink: 0 }}
+              label={count ? <>{s.name} <Box component="span" sx={{ opacity: 0.7, ml: 0.25 }}>{count}</Box></> : s.name}
+              color={supplier === s.id ? 'primary' : 'default'} variant={supplier === s.id ? 'filled' : 'outlined'}
+              onClick={() => { setDirection('in'); setSupplier(supplier === s.id ? 'all' : s.id) }} />
+          ))}
+        </Stack>
+      )}
+
       {canEdit && <FromEmail suppliers={sups} only={sups.find(s => s.id === supplier) ?? null} onAll={() => setSupplier('all')} />}
 
       <Card component="section" aria-label={t('Invoices')} sx={{ mb: 3 }}>
@@ -123,13 +139,13 @@ export function InvoicesPage() {
                   aria-pressed={direction === d} onClick={() => { setDirection(d); setStatus('all') }} />
               ))}
             </Stack>
-            <TextField select size="small" label={t('Status')} value={status} onChange={e => setStatus(e.target.value as typeof status)} sx={{ minWidth: 170 }}>
+            <TextField select size="small" fullWidth={false} label={t('Status')} value={status} onChange={e => setStatus(e.target.value as typeof status)} sx={{ minWidth: 170 }}>
               <MenuItem value="all">{t('Any status')}</MenuItem>
               <MenuItem value="open">{t('Not paid yet')}</MenuItem>
               {INVOICE_STATUSES.filter(s => s.for.includes(direction)).map(s => <MenuItem key={s.id} value={s.id}>{t(s.label)}</MenuItem>)}
             </TextField>
             {direction === 'in' && (
-              <TextField select size="small" label={t('Supplier')} value={supplier} onChange={e => setSupplier(e.target.value)} sx={{ minWidth: 200 }}>
+              <TextField select size="small" fullWidth={false} label={t('Supplier')} value={supplier} onChange={e => setSupplier(e.target.value)} sx={{ minWidth: 200 }}>
                 <MenuItem value="all">{t('Every supplier')}</MenuItem>
                 {sups.map(s => <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>)}
                 <MenuItem value="none">{t('Not matched to a supplier')}</MenuItem>

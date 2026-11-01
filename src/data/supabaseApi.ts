@@ -19,6 +19,7 @@ import type { JobRole } from '../../shared/roles'
 import type { RoleOwner } from '../../shared/roleOwners'
 import type { RuleSection, RulesRead } from '../../shared/staffRules'
 import type { Pet } from '../../shared/pets'
+import type { QrCode } from '../../shared/qrCodes'
 import type { Coffee, DayTheme, ThemeDate } from '../../shared/themeDays'
 import type { RoutineDone, RoutineItem } from '../../shared/routine'
 import type { Contractor, OutsourcedJob } from '../../shared/outsourcing'
@@ -44,6 +45,7 @@ import { SOURCE_FOR, type Enquiry } from '../../shared/leads'
 import type { ExpenseClaim } from '../../shared/claims'
 import type { Campaign } from '../../shared/campaigns'
 import type { Applicant, JobOpening } from '../../shared/hiring'
+import { CV_COLUMNS, cvProblem, type ApplicantCv } from '../../shared/hiring'
 import type { SafetyCheck, SafetyPoint } from '../../shared/foodSafety'
 import type { MenuAllergens } from '../../shared/allergens'
 import type { TipPool } from '../../shared/tips'
@@ -415,7 +417,7 @@ export function createSupabaseApi(url: string, key: string): Api {
     },
 
     async jobRoles() {
-      return check(await sb.from('job_roles').select('id, name, summary, position_id, reports_to, people, duties, sort, updated_at, permissions, template')
+      return check(await sb.from('job_roles').select('id, name, summary, position_id, reports_to, people, duties, sort, updated_at, permissions, template, active')
         .order('sort').order('name')) as JobRole[]
     },
     async saveJobRole({ id, ...r }) {
@@ -440,13 +442,27 @@ export function createSupabaseApi(url: string, key: string): Api {
     async rulesRead() { return check(await sb.from('staff_rules_read').select('profile_id, read_at')) as RulesRead[] },
     async readRules() { check(await sb.rpc('read_staff_rules')) },
     async pets() {
-      return check(await sb.from('pets').select('id, profile_id, name, kind, breed, photo, sort, created_at').order('sort').order('name')) as Pet[]
+      return (check(await sb.from('pets').select('id, profile_id, name, kind, breed, photo, photo_zoom, photo_x, photo_y, sort, created_at').order('sort').order('name')) as Pet[])
+        .map(p => ({ ...p, photo_zoom: Number(p.photo_zoom ?? 1) }))
     },
     async savePet({ id, profile_id, ...p }) {
       if (id) { check(await sb.from('pets').update(p).eq('id', id)); return id }
       return (check(await sb.from('pets').insert({ ...p, profile_id: profile_id ?? await uid() }).select('id').single()) as { id: string }).id
     },
     async deletePet(id) { check(await sb.from('pets').delete().eq('id', id)) },
+    async qrCodes() {
+      return check(await sb.from('qr_codes')
+        .select('id, name, kind, url, content, wifi_ssid, wifi_password, wifi_security, wifi_hidden, used_where, caption, dark_colour, light_colour, logo, sort, created_at, updated_at')
+        .order('sort').order('name')) as QrCode[]
+    },
+    async saveQrCode({ id, ...c }) {
+      if (id) { check(await sb.from('qr_codes').update(c).eq('id', id)); return id }
+      return (check(await sb.from('qr_codes').insert(c).select('id').single()) as { id: string }).id
+    },
+    async deleteQrCode(id) { check(await sb.from('qr_codes').delete().eq('id', id)) },
+    async orderQrCodes(ids) {
+      for (const [sort, id] of ids.entries()) check(await sb.from('qr_codes').update({ sort: sort + 1 }).eq('id', id))
+    },
     async coffees() {
       const rows = check(await sb.from('coffees')
         .select('id, name, country, region, roaster, roast, process, tasting_notes, brew, bag_grams, bag_price, active, photo, sort, created_at')
@@ -672,6 +688,18 @@ export function createSupabaseApi(url: string, key: string): Api {
     },
     emailMessages: query => worker(`/api/email/messages?${new URLSearchParams(Object.entries(query)
       .filter(([, v]) => v !== undefined && v !== null && v !== '').map(([k, v]) => [k, String(v)]))}`),
+    emailMessage: id => worker(`/api/email/messages/${encodeURIComponent(id)}`),
+    async emailAttachment(messageId, file) {
+      // Not worker(): the answer is the file itself, not JSON.
+      const token = (await sb.auth.getSession()).data.session?.access_token
+      const res = await fetch(`/api/email/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(file.id)}?${new URLSearchParams({ name: file.name })}`,
+        { headers: { authorization: `Bearer ${token}` } })
+      if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? `Request failed (${res.status})`)
+      return res.blob()
+    },
+    async replyEmail(id, text, all) {
+      await worker(`/api/email/messages/${encodeURIComponent(id)}/reply`, { method: 'POST', body: JSON.stringify({ text, all: !!all }) })
+    },
     async taxSettings() {
       return check(await sb.from('tax_settings').select('withholding, rent, intra_eu, instalments, gestor_email').eq('id', 1).single()) as TaxSettings
     },
@@ -1009,6 +1037,31 @@ export function createSupabaseApi(url: string, key: string): Api {
       return (check(await sb.from('applicants').insert(row).select('id').single()) as { id: string }).id
     },
     async deleteApplicant(id) { check(await sb.from('applicants').delete().eq('id', id)) },
+    async savePoolCandidate({ id, ...c }) {
+      // Only someone in the pool is changed here; when their details go is the database's (a year from being added).
+      const { keep_until: _k, ...row } = c as typeof c & { keep_until?: string }
+      if (id) { check(await sb.from('applicants').update(row).eq('id', id).is('opening_id', null)); return id }
+      return (check(await sb.from('applicants').insert({ ...row, opening_id: null }).select('id').single()) as { id: string }).id
+    },
+    async addToJob(applicantId, openingId) {
+      check(await sb.from('applicants').update({ opening_id: openingId, stage: 'applied' }).eq('id', applicantId).is('opening_id', null))
+    },
+    async applicantCvs() {
+      return (check(await sb.from('applicant_cvs').select(CV_COLUMNS)) as unknown as ApplicantCv[]).map(c => ({ ...c, size: Number(c.size) }))
+    },
+    async uploadApplicantCv(applicantId, file) {
+      const problem = cvProblem(file)
+      if (problem) throw new Error(problem)
+      const content = await dataUrlOf(file)
+      const row = check(await sb.from('applicant_cvs').upsert({ applicant_id: applicantId, file_name: file.name, mime_type: file.type || null, size: file.size, content },
+        { onConflict: 'applicant_id' }).select(CV_COLUMNS).single()) as unknown as ApplicantCv
+      return { ...row, size: Number(row.size) }
+    },
+    async removeApplicantCv(applicantId) { check(await sb.from('applicant_cvs').delete().eq('applicant_id', applicantId)) },
+    async applicantCvFile(applicantId) {
+      const c = check(await sb.from('applicant_cvs').select('content').eq('applicant_id', applicantId).single()) as { content: string }
+      return (await fetch(c.content)).blob()
+    },
     async tipPools() {
       return (check(await sb.from('tip_pools').select('*, shares:tip_shares(profile_id, minutes, amount)').order('starts_on', { ascending: false })) as TipPool[])
         .map(p => ({ ...p, cash: Number(p.cash), card: Number(p.card), shares: p.shares.map(s => ({ ...s, amount: Number(s.amount) })) }))
@@ -1175,6 +1228,7 @@ export function createSupabaseApi(url: string, key: string): Api {
     async chooseLinkedInPage(pageId) { await worker('/api/integrations/linkedin/page', { method: 'POST', body: JSON.stringify({ page_id: pageId }) }) },
     async chooseSearchConsoleSite(site) { await worker('/api/integrations/search_console/site', { method: 'POST', body: JSON.stringify({ site }) }) },
     searchConsole: (from, to) => worker(`/api/integrations/search_console/report?from=${from}&to=${to}`),
+    socialAnalytics: (source, from, to) => worker(`/api/analytics/${source}?from=${from}&to=${to}`),
     sales: (from, to) => worker(`/api/integrations/payments/sales?from=${from}&to=${to}`),
     salesItems: (from, to) => worker(`/api/integrations/payments/items?from=${from}&to=${to}`),
     adsReport: (from, to) => worker(`/api/ads/report?from=${from}&to=${to}`),
@@ -1472,6 +1526,16 @@ export function createSupabaseApi(url: string, key: string): Api {
     },
     async musicSetPlaylistOrder(ids) {
       check(await sb.from('music_player').update({ playlist_order: ids, updated_at: new Date().toISOString() }).eq('id', 1))
+    },
+    async musicAddToCafePlaylist(track) {
+      const kept = (check(await sb.from('music_player').select('cafe_playlist').eq('id', 1).single()) as { cafe_playlist: CafeTrack[] }).cafe_playlist
+      if (kept.some(x => x.id === track.id)) return // each song once
+      const song: CafeTrack = { id: track.id, title: track.title, ...(track.artist ? { artist: track.artist } : {}), ...(track.image ? { image: track.image } : {}) }
+      check(await sb.from('music_player').update({ cafe_playlist: [...kept, song], updated_at: new Date().toISOString() }).eq('id', 1))
+    },
+    async musicRemoveFromCafePlaylist(trackId) {
+      const kept = (check(await sb.from('music_player').select('cafe_playlist').eq('id', 1).single()) as { cafe_playlist: CafeTrack[] }).cafe_playlist
+      check(await sb.from('music_player').update({ cafe_playlist: kept.filter(x => x.id !== trackId), updated_at: new Date().toISOString() }).eq('id', 1))
     },
     async musicPlayer() { return check(await sb.from('music_player').select('*').eq('id', 1).single()) as MusicPlayerState },
     async musicSend(action, value) { check(await sb.rpc('music_send', { p_action: action, p_value: value ?? null })) },

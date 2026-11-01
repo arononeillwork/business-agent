@@ -316,4 +316,14 @@ export default {
   'That playlist has no songs that can play': 'Esa lista no tiene canciones que se puedan reproducir',
   'Café speaker': 'Altavoz del café',
   'Pick a playlist': 'Elige una lista',
+  // The café playlist: songs the team adds from Find music
+  'Café playlist': 'Lista del café',
+  'Added from Find music': 'Añadidas desde Buscar música',
+  'In the café playlist': 'En la lista del café',
+  'Add to the café playlist': 'Añadir a la lista del café',
+  'Remove from the café playlist': 'Quitar de la lista del café',
+  'Add {title} to the café playlist': 'Añadir {title} a la lista del café',
+  'Remove {title} from the café playlist': 'Quitar {title} de la lista del café',
+  'Added {title} to the café playlist': '{title} añadida a la lista del café',
+  'Removed {title} from the café playlist': '{title} quitada de la lista del café',
 } satisfies Record<string, string>

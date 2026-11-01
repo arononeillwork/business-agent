@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bySupplier, dueFrom, invoiceSenders, isOverdue, matchSupplier, numberFromName, readFacturae, supplierMailQuery, termDays, type Invoice } from './invoices'
+import { bySupplier, dueFrom, invoiceSenders, isOverdue, mainSuppliers, matchSupplier, numberFromName, readFacturae, supplierMailQuery, termDays, type Invoice } from './invoices'
 
 const suppliers = [
   { id: 'roaster', name: 'Tostadores del Sur', kind: 'Coffee roaster', email: 'pedidos@tostadoresdelsur.es', website: 'https://www.tostadoresdelsur.es', active: true, tax_id: 'B29123456' },
@@ -87,5 +87,16 @@ describe('totals by supplier', () => {
     ], suppliers)
     expect(rows.map(r => [r.name, r.count, r.total, r.open])).toEqual([['Tostadores del Sur', 2, 575, 300], ['By Eric', 1, 120, 120], ['Makro', 1, 80.5, 80.5]])
     expect(rows[0].kind).toBe('Coffee roaster')
+  })
+})
+
+describe('the main suppliers (the quick filters on Invoices)', () => {
+  const inv = (supplier_id: string | null, p: Partial<Pick<Invoice, 'direction' | 'status'>> = {}) =>
+    ({ supplier_id, direction: 'in' as const, status: 'to_pay' as const, ...p })
+  it('most invoices first, then the ones findable by email, then by name; one no longer in use only while it has invoices', () => {
+    const list = [...suppliers, { id: 'cash', name: 'G&M Cash n Carry', kind: null, email: null, website: null, active: true, tax_id: null }]
+    const rows = mainSuppliers(list, [inv('bakery'), inv('bakery'), inv('dairy'), inv('dairy', { status: 'cancelled' }), inv('roaster', { direction: 'out' }), inv('old')])
+    expect(rows.map(r => [r.supplier.name, r.count])).toEqual([['By Eric', 2], ['Lácteos Ronda', 1], ['Old supplier', 1], ['Tostadores del Sur', 0], ['G&M Cash n Carry', 0]])
+    expect(mainSuppliers(list, [], 2).map(r => r.supplier.id)).toEqual(['bakery', 'dairy'])
   })
 })

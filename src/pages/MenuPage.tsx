@@ -85,10 +85,8 @@ export function MenuPage() {
     <>
       <PageHeader eyebrow={t('Menu')} title={view === 'design' ? t('Menu design') : t('Menu')}
         actions={view === 'items' ? <>
+          {/* Menu costing and Allergens are in the menu on the left (and the "Free from" link below). */}
           {admin && source === 'custom' && <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpen('new')}>{t('Add menu item')}</Button>}
-          {admin && <Button variant="outlined" component={RouterLink} to="/recipes">{t('Menu costing')}</Button>}
-          {/* The allergen chart to print or export is the Allergens page's. */}
-          <Button variant="outlined" startIcon={<AllergensIcon />} component={RouterLink} to="/allergens">{t('Allergens')}</Button>
         </> : undefined} />
       {admin && (
         <Tabs value={view} onChange={(_, v: string) => navigate(v === 'design' ? '/menu/design' : '/menu')} sx={{ mb: 2.5, borderBottom: `1px solid ${tokens.line}` }}>

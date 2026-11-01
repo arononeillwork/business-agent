@@ -532,6 +532,25 @@ describe('Checks: a connection that stops working turns red and admins hear abou
   })
 })
 
+describe('Statistics permissions (Analytics): asked for at sign-in only once STATS_SCOPES names the platform', () => {
+  const scopeOf = async (path: string) => new URL((await (await post(path)).json() as { url: string }).url).searchParams.get('scope')
+  it('off by default, so a developer app without them still signs in; then each one named, or all', async () => {
+    expect(await scopeOf('/api/integrations/tiktok/start')).toBe('user.info.basic,video.publish')
+    const was = (env as { STATS_SCOPES?: string }).STATS_SCOPES
+    try {
+      ;(env as { STATS_SCOPES?: string }).STATS_SCOPES = 'tiktok, instagram'
+      expect(await scopeOf('/api/integrations/tiktok/start')).toBe('user.info.basic,video.publish,user.info.stats,video.list')
+      expect(await scopeOf('/api/integrations/instagram/start')).toMatch(/,instagram_business_manage_insights$/)
+      expect(await scopeOf('/api/integrations/facebook/start')).not.toMatch(/read_insights/)
+      ;(env as { STATS_SCOPES?: string }).STATS_SCOPES = 'all'
+      expect(await scopeOf('/api/integrations/facebook/start')).toMatch(/,read_insights$/)
+      expect(await scopeOf('/api/integrations/linkedin/start')).toMatch(/ rw_organization_admin$/)
+    } finally {
+      ;(env as { STATS_SCOPES?: string }).STATS_SCOPES = was
+    }
+  })
+})
+
 describe('Groups and permissions', () => {
   it('the app’s groups match the database’s (one app per group)', () => {
     for (const [provider, group] of Object.entries(GROUP)) expect(groupOf(provider)).toBe(group)
@@ -609,6 +628,8 @@ describe('Facebook, TikTok and Square: one click, connected once they really wor
     const inbox = await (await get('/api/integrations/facebook/inbox')).json() as { conversations: { id: string; platform: string; with: { name: string }; recent: { text: string; fromMe: boolean }[] }[] }
     expect(inbox.conversations.map(c => [c.id, c.platform, c.with.name])).toEqual([['t_1', 'messenger', 'Lucía García'], ['t_2', 'messenger', 'Tom']])
     expect(inbox.conversations[0].recent.map(m => [m.text, m.fromMe])).toEqual([['Do you have oat milk?', false], ['Hi Lucía!', true]])
+    // Their profile photo where Messenger shares it; Tom's lookup fails, so his chat shows with his initials.
+    expect(inbox.conversations.map(c => (c.with as { picture?: string }).picture)).toEqual(['https://platform-lookaside.fbsbx.test/psid-1.jpg', undefined])
     const thread = await (await get('/api/integrations/facebook/inbox/t_1')).json() as { messages: { text: string }[] }
     expect(thread.messages.map(m => m.text)).toEqual(['Hi Lucía!', 'Do you have oat milk?']) // oldest first
 

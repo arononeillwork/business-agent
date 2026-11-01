@@ -17,7 +17,10 @@ import { mentionTitle, mentionsIn, type InstagramMention } from '../../shared/me
 import { demoSports } from './demoSports'
 import { demoInbox, demoMessenger, demoWhatsApp } from './demoMessages'
 import { demoEmailPage, demoEmails } from './demoEmail'
+import { demoEmailFull, demoFileLines, demoPicture, demoReplies } from './demoEmail'
 import { DEMO_CAFE_AT, DEMO_PLACES, demoCompetitors } from './demoCompetitors'
+import { demoSocialReport } from './demoSocialAnalytics'
+import { SOCIAL_NAMES } from '../../shared/socialAnalytics'
 import { distanceM, instagramHandle, suggestedThreat, type Competitor, type NearbyPlace } from '../../shared/localCompetitors'
 import { DEFAULT_WHATSAPP_RETENTION, isRetention, replyWindow } from '../../shared/messages'
 import { cleanCode } from '../../shared/referrals'
@@ -45,6 +48,7 @@ import { ROLE_TEMPLATES } from '../../shared/roleTemplates'
 import { sectionProblem, type RuleSection, type RulesRead } from '../../shared/staffRules'
 import { PET_LIMITS, petProblem, type Pet } from '../../shared/pets'
 import { DEMO_THEME_TRACKS, demoThemeDayApi } from './demoThemeDays'
+import { demoQrCodeApi } from './demoQrCodes'
 import { COUNTED, type Contractor, type OutsourcedJob } from '../../shared/outsourcing'
 import { DEFAULT_CONVENIO, contractProblem, type EmploymentContract } from '../../shared/contracts'
 import { EASY_BEANS_ROLES, EASY_BEANS_RULES, handbookDuties } from './easyBeansHandbook'
@@ -75,6 +79,7 @@ import { SOURCE_FOR, type Enquiry } from '../../shared/leads'
 import { DEFAULT_MILEAGE_RATE, mileageAmount, type ExpenseClaim } from '../../shared/claims'
 import { EVERYONE, type Campaign } from '../../shared/campaigns'
 import { keepUntil, type Applicant, type JobOpening } from '../../shared/hiring'
+import { cleanRoles, cvProblem, type ApplicantCv } from '../../shared/hiring'
 import { CAFE_POINTS, inRange as inLimits, type SafetyCheck, type SafetyPoint } from '../../shared/foodSafety'
 import { dietsFor, type Allergen, type MenuAllergens } from '../../shared/allergens'
 import { minutesWorked, splitTips, type TipPool } from '../../shared/tips'
@@ -1313,6 +1318,8 @@ export function createDemoApi(): Api {
     id: uid(), name: r.name, summary: r.summary ?? null, position_id: positions.find(p => p.name === r.position)?.id ?? null,
     reports_to: null, people: rolePeople[r.name] ?? [], duties: handbookDuties(r), sort: i, updated_at: daysAgo(8),
     template: roleTemplate[r.name] ?? null, permissions: tidyPermissions(ROLE_TEMPLATES.find(x => x.id === roleTemplate[r.name])?.permissions),
+    // Not in use right now, as on the live app (the `inactive_roles` migration).
+    active: !['Investor', 'Head Barista'].includes(r.name),
   }))
   // Who owns which role (Roles & responsibilities → Ownership): Aron the team's, Mark the money's; the rest nobody yet.
   const roleOwnersAtStart: Record<string, [string, number]> = {
@@ -1593,6 +1600,7 @@ export function createDemoApi(): Api {
   ]
   const applicant = (a: Partial<Applicant> & { opening_id: string; full_name: string }): Applicant => {
     const made: Applicant = { id: uid(), email: null, phone: null, source: 'other', stage: 'applied', interview_at: null, rating: null, cv_link: null, notes: null,
+      roles: [], available_from: null, availability: null,
       applied_on: today(), keep_until: today(), profile_id: null, ...a }
     return { ...made, keep_until: keepUntil(made.applied_on) }
   }
@@ -1616,6 +1624,27 @@ export function createDemoApi(): Api {
       competition: null, title: `Interview: ${a.full_name}${job ? ` (${job})` : ''}`, source: 'app', confirmed: true, visibility: 'admins' })
   }
   applicantList.forEach(a => interviewEvent(a, a.id))
+  // The CV pool: people kept for a job to come, with no job; two with their CV uploaded (database: the cv_pool migration).
+  const pooled = (a: Partial<Omit<Applicant, 'opening_id'>> & { full_name: string }): Applicant => ({ ...applicant({ ...a, opening_id: '' }), opening_id: null })
+  const cvFiles = new Map<string, ApplicantCv & { blob: Blob }>()
+  const keepCv = (a: Applicant, file_name: string, blob: Blob, added_at: string) =>
+    cvFiles.set(a.id, { applicant_id: a.id, file_name, mime_type: blob.type || null, size: blob.size, added_at, blob })
+  {
+    const marta = pooled({ full_name: 'Marta Jiménez', email: 'marta.jimenez@example.es', phone: '+34 633 120 554', source: 'window', roles: ['Barista', 'Front of house'],
+      available_from: addDays(today(), 21), availability: 'Weekends and afternoons', applied_on: addDays(today(), -12),
+      notes: 'Left her CV at the counter. Three summers at a beach bar in Estepona.' })
+    const daniel = pooled({ full_name: 'Daniel Ortega', email: 'daniel.ortega@example.es', source: 'referral', roles: ['Kitchen'], availability: 'Weekday mornings',
+      applied_on: addDays(today(), -30), notes: 'Maria’s neighbour: two years as a line cook, food handler certificate.' })
+    const chloe = pooled({ full_name: 'Chloé Martin', phone: '+33 6 12 34 56 78', source: 'instagram', roles: ['Barista'], available_from: '2027-06-01',
+      availability: 'The summer', applied_on: addDays(today(), -5), cv_link: 'https://www.linkedin.com/in/demo-chloe-martin', notes: 'Asked on Instagram about summer work.' })
+    applicantList.push(marta, daniel, chloe)
+    keepCv(marta, 'Marta_Jimenez_CV.pdf', demoPdf('Marta Jimenez', ['Barista, front of house', 'marta.jimenez@example.es  +34 633 120 554', '',
+      'Experience', '2023-2025 (summers): barista, Chiringuito La Rada, Estepona', '2022: waitress, Cafe Central, Marbella', '',
+      'Languages: Spanish, English (B2)', 'Food handler certificate (manipulador de alimentos)', '', 'Demo CV: uploaded on the Hiring page.']), daysAgo(12))
+    keepCv(daniel, 'CV Daniel Ortega.pdf', demoPdf('Daniel Ortega', ['Kitchen', 'daniel.ortega@example.es', '', 'Experience',
+      '2024-2026: line cook, Taberna del Puerto, San Pedro de Alcantara', '2023: kitchen porter, Hotel Guadalmina', '', 'Food handler certificate',
+      '', 'Demo CV: uploaded on the Hiring page.']), daysAgo(30))
+  }
 
   // Food safety: the café's fridges and daily jobs, a week of checks, and one fridge out of range three days ago.
   const pointList: SafetyPoint[] = CAFE_POINTS.filter(p => p.key !== 'hot').map((p, i) => ({ id: `fs-${p.key}`, name: p.name, kind: p.kind, min_temp: p.min_temp,
@@ -2392,7 +2421,7 @@ export function createDemoApi(): Api {
       requireAdmin()
       const existing = id ? jobRoles.find(x => x.id === id) : undefined
       if (id && !existing) throw new Error('Role not found')
-      const next: JobRole = { ...(existing ?? { id: uid(), name: '', summary: null, position_id: null, reports_to: null, people: [], duties: [], sort: 0, updated_at: '' }), ...clone(r) }
+      const next: JobRole = { ...(existing ?? { id: uid(), name: '', summary: null, position_id: null, reports_to: null, people: [], duties: [], sort: 0, updated_at: '', active: true }), ...clone(r) }
       next.name = next.name.trim()
       next.permissions = tidyPermissions(next.permissions)
       next.template = next.template ?? null
@@ -2487,6 +2516,8 @@ export function createDemoApi(): Api {
       if (i >= 0 && isStaff() && (pets[i].profile_id === currentUser || isAdmin())) pets.splice(i, 1)
     },
     ...themeDayApi,
+    // QR codes: Easy Beans' three, as the `qr_codes` migration, with the demo's Wi-Fi filled in.
+    ...demoQrCodeApi({ isStaff: () => isStaff() && !!me()?.active, isAdmin: () => isAdmin() && !!me()?.active, uid, nowIso }),
 
     async contractors() {
       if (!isAdmin() && !partnerCan('finances')) return []
@@ -2985,6 +3016,25 @@ export function createDemoApi(): Api {
         return { mailbox: box ?? null, account: row?.account_label ?? null, can_read: false, messages: [], next_page: null }
       }
       return { mailbox: box, account: row.account_label, can_read: true, ...demoEmailPage(demoEmails(box, row.account_label, suppliers, customers), query), fetched_at: nowIso() }
+    },
+    async emailMessage(id) {
+      requireAdmin()
+      const row = integ.integrations.find(i => (i.provider === 'gmail' || i.provider === 'outlook') && i.status === 'connected')
+      if (!row || !(row.external as { reads_mail?: boolean }).reads_mail) throw new Error('Allow Business Agent to read the mailbox first, on the Email page.')
+      const m = demoEmails(row.provider as 'gmail' | 'outlook', row.account_label, suppliers, customers).find(x => x.id === id)
+      if (!m) throw new Error('That email isn’t in the mailbox any more')
+      return demoEmailFull(m, row.account_label)
+    },
+    async emailAttachment(messageId, file) {
+      const m = await api.emailMessage(messageId)
+      if (!m.attachments.some(a => a.id === file.id)) throw new Error('That file isn’t on the email any more')
+      return demoPicture(file.name) ?? demoPdf(file.name.replace(/\.pdf$/i, ''), demoFileLines(m, file.name))
+    },
+    async replyEmail(id, text, all) {
+      await api.emailMessage(id)
+      if (!text.trim()) throw new Error('Write your reply first')
+      // Demo: nothing is sent; the reply is kept, as the mailbox's Sent folder would.
+      demoReplies.push({ id, text: text.trim(), all: !!all, at: nowIso() })
     },
     async taxSettings() { return readTax() ? clone(taxSettings) : DEFAULT_TAX_SETTINGS },
     async saveTaxSettings(patch) {
@@ -4047,8 +4097,10 @@ export function createDemoApi(): Api {
       if (!openings.some(o => o.id === a.opening_id)) throw new Error('Pick the job they applied for')
       const existing = id ? applicantList.find(x => x.id === id) : undefined
       if (id && !existing) throw new Error('That applicant has gone')
-      const next: Applicant = { ...(existing ?? applicant({ opening_id: a.opening_id, full_name: '' })), ...a, full_name: a.full_name.trim(),
-        email: a.email?.trim().toLowerCase() || null, phone: a.phone?.trim().replace(/\s+/g, ' ') || null, cv_link: a.cv_link?.trim() || null, notes: a.notes?.trim() || null }
+      // A change of stage alone keeps what's already there (the email, phone, CV link and notes), as the database does.
+      const merged: Applicant = { ...(existing ?? applicant({ opening_id: a.opening_id, full_name: '' })), ...a }
+      const next: Applicant = { ...merged, full_name: a.full_name.trim(),
+        email: merged.email?.trim().toLowerCase() || null, phone: merged.phone?.trim().replace(/\s+/g, ' ') || null, cv_link: merged.cv_link?.trim() || null, notes: merged.notes?.trim() || null }
       if (next.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(next.email)) throw new Error('That email doesn’t look right')
       if (next.phone && !/^\+\d[\d ]{4,24}$/.test(next.phone)) throw new Error('That phone number doesn’t look right')
       if (next.cv_link && !/^https?:\/\/\S+$/i.test(next.cv_link)) throw new Error('The CV link starts with https://')
@@ -4063,6 +4115,53 @@ export function createDemoApi(): Api {
       const i = applicantList.findIndex(x => x.id === id)
       if (i >= 0) applicantList.splice(i, 1)
       interviewEvent(undefined, id)
+    },
+    async savePoolCandidate({ id, ...c }) {
+      requireAdmin()
+      if (!c.full_name?.trim()) throw new Error('Add their name')
+      const existing = id ? applicantList.find(x => x.id === id && x.opening_id === null) : undefined
+      if (id && !existing) throw new Error('They’re not in the CV pool any more')
+      const merged: Applicant = { ...(existing ?? pooled({ full_name: '' })), ...c }
+      const next: Applicant = { ...merged, full_name: merged.full_name.trim(), email: merged.email?.trim().toLowerCase() || null,
+        phone: merged.phone?.trim().replace(/\s+/g, ' ') || null, cv_link: merged.cv_link?.trim() || null, notes: merged.notes?.trim() || null,
+        roles: cleanRoles(merged.roles), availability: merged.availability?.trim() || null, available_from: merged.available_from || null }
+      if (next.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(next.email)) throw new Error('That email doesn’t look right')
+      if (next.phone && !/^\+\d[\d ]{4,24}$/.test(next.phone)) throw new Error('That phone number doesn’t look right')
+      if (next.cv_link && !/^https?:\/\/\S+$/i.test(next.cv_link)) throw new Error('The CV link starts with https://')
+      next.keep_until = keepUntil(next.applied_on)
+      if (existing) Object.assign(existing, next)
+      else applicantList.push(next)
+      return next.id
+    },
+    async addToJob(applicantId, openingId) {
+      requireAdmin()
+      const a = applicantList.find(x => x.id === applicantId && x.opening_id === null)
+      if (!a) throw new Error('They’re not in the CV pool any more')
+      if (!openings.some(o => o.id === openingId)) throw new Error('Pick the job they applied for')
+      Object.assign(a, { opening_id: openingId, stage: 'applied' })
+      interviewEvent(a, a.id)
+    },
+    async applicantCvs() {
+      if (!isAdmin()) return []
+      return [...cvFiles.values()].filter(c => applicantList.some(a => a.id === c.applicant_id)).map(({ blob: _b, ...c }) => c)
+    },
+    async uploadApplicantCv(applicantId, file) {
+      requireAdmin()
+      const problem = cvProblem(file)
+      if (problem) throw new Error(problem)
+      if (!applicantList.some(a => a.id === applicantId)) throw new Error('Applicant not found')
+      const { blob: _b, ...cv } = keepCv(applicantList.find(a => a.id === applicantId)!, file.name.trim(), file, nowIso()).get(applicantId)!
+      return cv
+    },
+    async removeApplicantCv(applicantId) {
+      requireAdmin()
+      cvFiles.delete(applicantId)
+    },
+    async applicantCvFile(applicantId) {
+      requireAdmin()
+      const cv = cvFiles.get(applicantId)
+      if (!cv || !applicantList.some(a => a.id === applicantId)) throw new Error('That CV has gone')
+      return cv.blob
     },
     async tipPools() {
       const pools = tipPools()
@@ -4485,6 +4584,12 @@ export function createDemoApi(): Api {
       if (sc.status !== 'connected') throw new Error('Connect Search Console on the Connections page to see how the website does on Google')
       return demoSearch(from, to)
     },
+    async socialAnalytics(source, from, to) {
+      requireAdmin()
+      const row = integ.integrations.find(i => i.provider === source)!
+      if (row.status !== 'connected') throw new Error(`Connect ${SOCIAL_NAMES[source]} on the Connections page to see its statistics`)
+      return { ...demoSocialReport(source, from, to, today(), row), fetched_at: nowIso() }
+    },
     async chooseFacebookPage(pageId) {
       requireAdmin()
       const fb = integ.integrations.find(i => i.provider === 'facebook')!
@@ -4906,6 +5011,15 @@ export function createDemoApi(): Api {
     async musicSetPlaylistOrder(ids) {
       if (!staffOnly(me()!)) throw new Error('Music is for the team')
       Object.assign(player, { playlist_order: [...ids], updated_at: nowIso() })
+    },
+    async musicAddToCafePlaylist(track) {
+      if (!staffOnly(me()!)) throw new Error('Music is for the team')
+      const kept = player.cafe_playlist ?? []
+      if (!kept.some(x => x.id === track.id)) Object.assign(player, { cafe_playlist: [...kept, clone(track)], updated_at: nowIso() })
+    },
+    async musicRemoveFromCafePlaylist(trackId) {
+      if (!staffOnly(me()!)) throw new Error('Music is for the team')
+      Object.assign(player, { cafe_playlist: (player.cafe_playlist ?? []).filter(x => x.id !== trackId), updated_at: nowIso() })
     },
     async musicPlayer() {
       if (!staffOnly(me()!)) throw new Error('Music is for the team')

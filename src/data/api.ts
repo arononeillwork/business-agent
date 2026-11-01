@@ -10,6 +10,7 @@ import type { InstagramMention } from '../../shared/mentions'
 import type { FilingRecord, Quarter, TaxDocKind, TaxDocument, TaxSettings } from '../../shared/tax'
 import type { InboxInvoice, InboxState as InvoiceInbox, Invoice, InvoiceInput } from '../../shared/invoices'
 import type { EmailQuery, EmailState } from '../../shared/email'
+import type { EmailFile, EmailFull } from '../../shared/email'
 import type { Licence, LicenceInput } from '../../shared/licences'
 import type { KeptDocument, StorageFolder } from '../../shared/documents'
 import type { MoneyItem, MoneyItemInput } from '../../shared/creditDebit'
@@ -22,6 +23,7 @@ import type { RoleOwner } from '../../shared/roleOwners'
 import type { TeamRole } from '../../shared/teamRoles'
 import type { RuleSection, RuleSectionInput, RulesRead } from '../../shared/staffRules'
 import type { Pet, PetInput } from '../../shared/pets'
+import type { QrCode, QrCodeInput } from '../../shared/qrCodes'
 import type { Coffee, CoffeeInput, DayThemeInput, ThemeDays } from '../../shared/themeDays'
 import type { RoutineDone, RoutineItem, RoutineItemInput } from '../../shared/routine'
 import type { Contractor, ContractorInput, OutsourcedJob, OutsourcedJobInput } from '../../shared/outsourcing'
@@ -44,11 +46,13 @@ import type { Enquiry, EnquiryInput, NewLead } from '../../shared/leads'
 import type { ClaimInput, ExpenseClaim } from '../../shared/claims'
 import type { Campaign, CampaignInput } from '../../shared/campaigns'
 import type { Applicant, ApplicantInput, JobOpening, OpeningInput } from '../../shared/hiring'
+import type { ApplicantCv, PoolInput } from '../../shared/hiring'
 import type { CheckInput, PointInput, SafetyCheck, SafetyPoint } from '../../shared/foodSafety'
 import type { Allergen, Diet, MenuAllergens } from '../../shared/allergens'
 import type { BrandDocument } from '../../shared/brandDocs'
 import type { TipPool, TipPoolInput, TipShare } from '../../shared/tips'
 import type { CompetitorData, CompetitorInput, CompetitorNoteInput, CompetitorPrice, CompetitorSettings, NearbyPlace, PriceItem } from '../../shared/localCompetitors'
+import type { SocialReport, SocialSource } from '../../shared/socialAnalytics'
 
 export type ShiftInput = Omit<Shift, 'id' | 'status'> & { id?: string; status?: Shift['status'] }
 export type EventInput = Omit<CalendarEvent, 'id' | 'source' | 'competition'> & { id?: string; competition?: string | null }
@@ -249,6 +253,15 @@ export interface Api {
   savePet(p: PetInput): Promise<string>
   deletePet(id: string): Promise<void>
 
+  // QR codes (Business section): the business's codes, each a link, a Wi-Fi network or some text, to
+  // download and print. The team sees them; admins add, change, order and remove them.
+  qrCodes(): Promise<QrCode[]>
+  /** Add one (no id) or change one; returns its id. */
+  saveQrCode(c: QrCodeInput): Promise<string>
+  deleteQrCode(id: string): Promise<void>
+  /** Their order on the page: every code's id, first to last. */
+  orderQrCodes(ids: string[]): Promise<void>
+
   // Theme days (Calendar, Coffees page): the coffees served, the themes for the day with their coffee and
   // playlist, the weekly rotation and dates set apart from it. The team reads them; admins change them.
   coffees(): Promise<Coffee[]>
@@ -369,6 +382,12 @@ export interface Api {
   // Email page (admins): the connected Gmail or Outlook as a list, read only, once reading it is allowed.
   /** A page of emails for a chip, a search, a period and a supplier; `page` is the `next_page` of the one before. */
   emailMessages(query: EmailQuery): Promise<EmailState>
+  /** One email opened in the app: who it's to, its body (HTML or text) and its files. Opening it doesn't mark it read. */
+  emailMessage(id: string): Promise<EmailFull>
+  /** A file on an email, as its bytes (a PDF or a picture is shown in the page; anything else is downloaded). */
+  emailAttachment(messageId: string, file: EmailFile): Promise<Blob>
+  /** Reply from the connected mailbox, in the email's conversation; `all`: to everyone it went to. */
+  replyEmail(id: string, text: string, all?: boolean): Promise<void>
 
   // Expenses: everyone sends their own (and changes them while they wait); admins with pay
   // access see and decide all of them; finance partners read.
@@ -545,6 +564,18 @@ export interface Api {
   /** Add an applicant (no id) or change one; returns their id. */
   saveApplicant(a: ApplicantInput): Promise<string>
   deleteApplicant(id: string): Promise<void>
+  // The CV pool: applicants() includes them, with no job (opening_id null). Removed with deleteApplicant.
+  /** Add someone to the CV pool (no id) or change them there; returns their id. */
+  savePoolCandidate(c: PoolInput): Promise<string>
+  /** Someone from the CV pool onto a job: on its board at Applied, with their CV. */
+  addToJob(applicantId: string, openingId: string): Promise<void>
+  /** The applicants' uploaded CVs, without the files. */
+  applicantCvs(): Promise<ApplicantCv[]>
+  /** Upload an applicant's CV (a PDF, a Word document or a picture, up to 10 MB); it replaces the one they had. */
+  uploadApplicantCv(applicantId: string, file: File): Promise<ApplicantCv>
+  removeApplicantCv(applicantId: string): Promise<void>
+  /** The CV file itself, to show in the page or download. */
+  applicantCvFile(applicantId: string): Promise<Blob>
 
   // Tips: admins with pay access share them out; payroll partners read; everyone sees their own share.
   tipPools(): Promise<TipPool[]>
@@ -668,6 +699,8 @@ export interface Api {
   chooseSearchConsoleSite(site: string): Promise<void>
   /** How the website did in Google Search (admins), from and to inclusive. Google is 2–3 days behind. */
   searchConsole(from: string, to: string): Promise<SearchReport>
+  /** How the business's Instagram, TikTok, LinkedIn Page or Facebook Page did (admins), from and to inclusive. */
+  socialAnalytics(source: SocialSource, from: string, to: string): Promise<SocialReport>
   // Reviews (admins): Google reviews, read now from the business's profile (or the public listing until that's approved).
   reviews(): Promise<ReviewsState>
   /** Reply to a review on Google (or change the reply). Only with the business's own profile. */
@@ -891,6 +924,9 @@ export interface Api {
   cafeSearch(q: string, kind: 'songs' | 'playlists'): Promise<{ tracks: CafeTrack[]; playlists: MusicPlaylist[] }>
   /** The order playlists play in, one after another. */
   musicSetPlaylistOrder(ids: string[]): Promise<void>
+  /** The café playlist (songs the team adds from a search): add a song (once), or take one off. */
+  musicAddToCafePlaylist(track: CafeTrack): Promise<void>
+  musicRemoveFromCafePlaylist(trackId: string): Promise<void>
   /** The playing device says what it's doing (and claims the speaker with device_id). With asDevice, only while it still is the speaker. */
   musicReport(report: MusicPlayerReport, asDevice?: string): Promise<void>
 

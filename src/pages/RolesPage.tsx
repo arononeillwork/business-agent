@@ -13,12 +13,11 @@ import { useSearchParams } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
-import { Empty, ErrorBox, PageHeader, PersonAvatar, SectionTitle, Tag } from '../components/common'
+import { Empty, ErrorBox, PageHeader, PageToolbar, PersonAvatar, SectionTitle, Tag } from '../components/common'
 import { ExpandAllButton, ExpandableCard, useExpanded } from '../components/Expandable'
 import { ExportButton } from '../components/tables'
 import type { ExportTable } from '../lib/export'
 import type { Position, Profile } from '../../shared/types'
-import { businessConfig } from '../../shared/business.config'
 import {
   DUTY_WHEN, ROLE_AREAS, ROLE_LEVELS, dutiesByWhen, dutiesFromLines, levelIn, linesOf, permissionsOf, presetPosition, roleProblem,
   sortRoles, tidyPermissions, type DutyWhen, type JobRole, type JobRoleInput, type RoleArea, type RoleLevel, type RolePermissions, type RolePreset,
@@ -38,21 +37,22 @@ function fromPreset(p: RolePreset, positions: Position[], roles: JobRole[], sort
   }
 }
 
-type RolesTab = 'active' | 'category' | 'permissions' | 'ownership' | 'agents'
+type RolesTab = 'active' | 'inactive' | 'category' | 'permissions' | 'ownership' | 'agents'
 
 /**
  * Roles & responsibilities: who does what. Each role opens to what it's for, who it answers to, who's
  * in it and its duties, by when they're done (all the time, opening, during service, closing, each
  * week). Everyone reads it, with their own roles open and marked; admins add roles (or a café's usual
  * ones in one press), change them, put them in order and take them away (the database enforces the same).
- * Three tabs: Active (the business's roles), Category (ready-made roles by kind of business, for admins
- * to add) and Permissions (what each role, and so each person, can do in each area of the app).
+ * Tabs: Active (the business's roles), Inactive (roles not in use right now, kept with their duties and
+ * moved back to Active in one press), Category (ready-made roles by kind of business, for admins to add)
+ * and Permissions (what each role, and so each person, can do in each area of the app).
  */
 export function RolesPage() {
   const { api, me, isAdmin, profiles, positions, business, canSeePay } = useApp()
   const run = useAction()
   const [params, setParams] = useSearchParams()
-  const tabs: RolesTab[] = ['active', 'category', 'permissions']
+  const tabs: RolesTab[] = ['active', 'inactive', 'category', 'permissions']
   // Ownership and Agents (owners only): who owns each role, and the ways they see the app (the Agents button at the top).
   const owner = isAdmin && canSeePay
   if (owner) tabs.push('ownership', 'agents')
@@ -61,28 +61,33 @@ export function RolesPage() {
   const category = categoryOf(business?.business_type)
   const [editing, setEditing] = useState<JobRoleInput | null>(null)
   const data = useAsync('roles', () => api.jobRoles(), [])
-  const roles = sortRoles(data.data ?? [])
-  const mine = new Set(roles.filter(r => me && r.people.includes(me.id)).map(r => r.id))
-  const expanded = useExpanded(roles.map(r => r.id), id => mine.has(id))
+  // Every role (for names, templates in use, owners and what people can do), and the ones in use: the Active tab.
+  const all = sortRoles(data.data ?? [])
+  const roles = all.filter(r => r.active !== false)
+  const inactive = all.filter(r => r.active === false)
+  const mine = new Set(all.filter(r => me && r.people.includes(me.id)).map(r => r.id))
+  const expanded = useExpanded(all.map(r => r.id), id => mine.has(id))
   const team = profiles.filter(p => p.active && (p.role === 'admin' || p.role === 'employee'))
   const nameOf = (id: string) => profiles.find(p => p.id === id)?.full_name
-  const roleName = (id: string | null) => roles.find(r => r.id === id)?.name
+  const roleName = (id: string | null) => all.find(r => r.id === id)?.name
   const positionOf = (id: number | null) => positions.find(p => p.id === id)
-  const businessName = business?.name ?? businessConfig.name
   const roleless = team.filter(p => !roles.some(r => r.people.includes(p.id)))
   // Who owns each role (the Ownership tab): shown under its name.
   const owned = useAsync('role-owners', () => api.roleOwners(), [])
   const ownerName = (id: string) => { const by = owned.data?.find(o => o.id === id)?.owned_by; return by ? profiles.find(p => p.id === by)?.full_name : undefined }
-  const nextSort = roles.reduce((n, r) => Math.max(n, r.sort + 1), 0)
+  const nextSort = all.reduce((n, r) => Math.max(n, r.sort + 1), 0)
 
   const addPresets = (presets: RolePreset[]) => run(async () => {
     // One at a time, so a role can answer to one added just before it (the shift lead to the owner).
-    let list = roles
+    let list = all
     for (const p of presets) {
       await api.saveJobRole(fromPreset(p, positions, list, list.reduce((n, r) => Math.max(n, r.sort + 1), 0)))
       list = await api.jobRoles()
     }
   }, presets.length === 1 ? t('Role added') : t('Roles added'))
+  /** Out of use for now (the Inactive tab), or back in use; it keeps its duties, people and permissions. */
+  const setActive = (r: JobRole, active: boolean) =>
+    run(() => api.saveJobRole({ id: r.id, active }), active ? t('{name} is active again', { name: r.name }) : t('{name} moved to Inactive', { name: r.name }))
   /** Swap a role with the one above or below it; every role keeps its place in the list as its number. */
   const move = (i: number, by: -1 | 1) => {
     const order = [...roles]
@@ -102,7 +107,7 @@ export function RolesPage() {
 
   // The team sees just their own role, open, with what it lets them do in the app.
   if (!isAdmin) {
-    const own = roles.filter(r => mine.has(r.id))
+    const own = all.filter(r => mine.has(r.id))
     return (
       <>
         <PageHeader eyebrow={t('Team')} title={t('Roles & responsibilities')} />
@@ -124,7 +129,7 @@ export function RolesPage() {
                 </Stack>
                 {ownerName(r.id) && <Typography variant="body2" sx={{ color: tokens.roseDeep, mb: 0.5 }}>{t('Owned by {name}', { name: ownerName(r.id)! })}</Typography>}
                 {r.summary && <Typography sx={{ color: 'text.secondary', whiteSpace: 'pre-line', mb: 2 }}>{r.summary}</Typography>}
-                <RoleDetails role={r} roles={roles} position={position} you
+                <RoleDetails role={r} roles={all} position={position} you
                   people={r.people.map(id => profiles.find(p => p.id === id)).filter((p): p is Profile => !!p)} />
               </CardContent>
             </Card>
@@ -136,28 +141,61 @@ export function RolesPage() {
 
   return (
     <>
-      <PageHeader eyebrow={t('Team')} title={t('Roles & responsibilities')} actions={tab === 'active' && <>
+      <PageHeader eyebrow={t('Team')} title={t('Roles & responsibilities')} />
+      <ErrorBox error={data.error} />
+      {/* The tabs, with the page's buttons on the right of their row (not up in the title's). */}
+      <PageToolbar sx={{ mb: 3 }} actions={tab === 'active' && <>
         <ExpandAllButton expanded={expanded} disabled={!roles.length} />
         {isAdmin && <ExportButton table={table} disabled={!roles.length} folder="Team" />}
         {isAdmin && <Button variant="contained" startIcon={<AddIcon />} onClick={() => setEditing({ name: '', sort: nextSort })}>{t('Add a role')}</Button>}
-      </>} />
-      <ErrorBox error={data.error} />
-      <Typography sx={{ mb: 2, maxWidth: 760 }}>
-        {t('Who does what at {business}: each role’s core responsibilities and what’s also part of it, and who’s in it. Open a role to see it all.',
-          { business: businessName })}
-      </Typography>
-      <Tabs value={tab} onChange={(_, v: RolesTab) => show(v)} variant="scrollable" allowScrollButtonsMobile aria-label={t('Roles & responsibilities')}
-        sx={{ mb: 3, borderBottom: `1px solid ${tokens.line}` }}>
+      </>}>
+        <Tabs value={tab} onChange={(_, v: RolesTab) => show(v)} variant="scrollable" allowScrollButtonsMobile aria-label={t('Roles & responsibilities')}
+          sx={{ borderBottom: `1px solid ${tokens.line}` }}>
         <Tab value="active" label={t('Active ({n})', { n: roles.length })} />
+        <Tab value="inactive" label={tc('roles', 'Inactive ({n})', { n: inactive.length })} />
         <Tab value="category" label={t('Category')} />
         <Tab value="permissions" label={t('Permissions')} />
         {owner && <Tab value="ownership" label={t('Ownership')} />}
         {owner && <Tab value="agents" label={t('Agents')} />}
-      </Tabs>
+        </Tabs>
+      </PageToolbar>
 
-      {tab === 'category' && <CategoryTab roles={roles} category={category} addPresets={addPresets} />}
-      {tab === 'permissions' && <PermissionsTab roles={roles} team={team} />}
-      {tab === 'ownership' && <OwnershipTab roles={roles} team={team} />}
+      {tab === 'category' && <CategoryTab roles={all} category={category} addPresets={addPresets} />}
+      {tab === 'permissions' && <PermissionsTab roles={all} team={team} />}
+      {tab === 'ownership' && <OwnershipTab roles={all} team={team} />}
+      {tab === 'inactive' && (inactive.length === 0 ? (
+        <Card component="section" aria-label={t('Inactive roles')} sx={{ mb: 3 }}>
+          <CardContent><Empty>{t('No inactive roles. A role that isn’t in use right now moves here from Active, with its duties kept.')}</Empty></CardContent>
+        </Card>
+      ) : (
+        <Box component="section" aria-label={t('Inactive roles')} sx={{ mb: 3 }}>
+          {inactive.map(r => {
+            const people = r.people.map(id => profiles.find(p => p.id === id)).filter((p): p is Profile => !!p)
+            return (
+              <ExpandableCard key={r.id} id={r.id} label={r.name} expanded={expanded} summary={
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Stack direction="row" sx={{ gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <Typography sx={{ fontWeight: 600, color: 'text.secondary' }}>{r.name}</Typography>
+                    <Tag>{tc('roles', 'Inactive')}</Tag>
+                  </Stack>
+                  {r.summary && <Typography variant="body2" sx={{ color: 'text.secondary', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{r.summary}</Typography>}
+                  <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mt: 0.25 }}>
+                    {people.length ? people.map(p => p.full_name).join(', ') : t('Nobody yet')} · {tn(r.duties.length, '{n} duty', '{n} duties')}
+                  </Typography>
+                </Box>
+              }>
+                <RoleDetails role={r} roles={all} people={people} position={positionOf(r.position_id)} />
+                {isAdmin && (
+                  <Stack direction="row" sx={{ gap: 1, alignItems: 'center', mt: 1.5 }}>
+                    <Button size="small" variant="outlined" onClick={() => void setActive(r, true)} aria-label={t('Make {name} active', { name: r.name })}>{t('Make active')}</Button>
+                    <Button size="small" startIcon={<EditIcon />} onClick={() => setEditing(r)} aria-label={t('Edit {name}', { name: r.name })}>{t('Edit')}</Button>
+                  </Stack>
+                )}
+              </ExpandableCard>
+            )
+          })}
+        </Box>
+      ))}
       {tab === 'agents' && <AgentsTab />}
       {tab === 'active' && <>
         {data.data && roles.length === 0 && (
@@ -206,10 +244,11 @@ export function RolesPage() {
                   </Typography>
                 </Box>
               }>
-                <RoleDetails role={r} roles={roles} people={people} position={position} />
+                <RoleDetails role={r} roles={all} people={people} position={position} />
                 {isAdmin && (
                   <Stack direction="row" sx={{ gap: 1, alignItems: 'center', mt: 1.5 }}>
                     <Button size="small" startIcon={<EditIcon />} onClick={() => setEditing(r)} aria-label={t('Edit {name}', { name: r.name })}>{t('Edit')}</Button>
+                    <Button size="small" onClick={() => void setActive(r, false)} aria-label={t('Make {name} inactive', { name: r.name })}>{t('Make inactive')}</Button>
                     <Tooltip title={t('Move up')}><span>
                       <IconButton size="small" disabled={i === 0} onClick={() => move(i, -1)} aria-label={t('Move {name} up', { name: r.name })}><UpIcon fontSize="small" /></IconButton>
                     </span></Tooltip>
@@ -233,7 +272,7 @@ export function RolesPage() {
         )}
       </>}
 
-      {editing && <RoleDialog role={editing} roles={roles} team={team} onClose={() => setEditing(null)} />}
+      {editing && <RoleDialog role={editing} roles={all} team={team} onClose={() => setEditing(null)} />}
     </>
   )
 }

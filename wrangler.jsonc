@@ -36,6 +36,9 @@
     // WHATSAPP_VERIFY_TOKEN, WHATSAPP_PHONE_NUMBER_ID, INSTAGRAM_USER_ID. Same for Google and
     // Spotify. INTEGRATION_KEY and the Supabase service key are made by the deploy itself.
     "META_GRAPH_VERSION": "v23.0",
-    "WHATSAPP_TEMPLATE_LANG": "es"
+    "WHATSAPP_TEMPLATE_LANG": "es",
+    // The platforms whose statistics permissions sign-in asks for (Analytics; docs/INTEGRATIONS.md). Add one only
+    // once its developer app has them: Instagram and TikTok refuse a sign-in asking for a permission the app lacks.
+    "STATS_SCOPES": "instagram,tiktok"
   }
 }

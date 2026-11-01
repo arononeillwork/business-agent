@@ -301,6 +301,14 @@ built-in **AI connector** so owners can run it by talking to Claude.
   with nobody left in the running are hidden until asked for. **Candidates** lists everyone who applied,
   whichever job, searched by name, email or phone and narrowed to a job or a stage; **Jobs** is the job
   by job view.
+- Hiring CV pool: CVs kept for a job to come, with no job posted (a CV handed in at the counter, sent
+  by email, passed on). Each person has the roles they'd suit, the day they can start and when they can
+  work, notes, and their CV uploaded (a PDF, a Word document or a picture, up to 10 MB, kept in the
+  database as `applicant_cvs`) or linked; a PDF or a picture opens in the page, any of them downloads.
+  The pool is a tab on Hiring, and the whole page when there are no jobs. It's searched and narrowed to
+  a role or to who can start now, and **Add to a job** puts someone on a job's board at Applied, CV and
+  all. They're applicants with no job (`applicants.opening_id` null), kept a year as everyone who
+  applied. Any applicant's CV can be uploaded the same way.
 - Off the rota (Team): an admin switches someone off the rota on their Team panel (an owner, the
   business's own login). They still sign in; the rota gives them no row and doesn't offer them for a
   shift, unless they already have one that week.
@@ -409,6 +417,17 @@ built-in **AI connector** so owners can run it by talking to Claude.
   hides categories, single activities or the whole routine for themselves (kept in their preferences), and
   ticks things done; admins set the week up on the **Routine** tab and switch an activity off for everyone
   (`shared/routine.ts`, the `weekly_routine` migration with a café's usual week for Easy Beans).
+- QR codes (Business section; the owner calls them barcodes, and `/barcodes` and search find them by it):
+  the business's codes, each a link (the menu on the tables, the competition on the café screen), a Wi-Fi
+  network (`WIFI:T:WPA;S:…;P:…;H:false;;`, so a phone joins without typing the password) or some text,
+  with where it's used, the line printed under it, its colours (the brand's darkest colour that scans
+  well, else black) and the brand's logo in the middle if wanted (then error correction H, else M). Drawn
+  in the browser with `qrcode-generator`; each downloads as a 1024 px PNG or an SVG, or prints on A4, one
+  large or four to cut out. A code waiting for what it says (a Wi-Fi without its network) asks for it and
+  offers no download until it's there. The team sees and downloads them; admins add, change, order and
+  remove them, starting from suggestions (the menu from the website, the competition, the Wi-Fi, a Google
+  review when the business's Google place is known on Competitors) (`shared/qrCodes.ts`, the `qr_codes`
+  migration, which starts Easy Beans with its Menu, Competition and Wi-Fi codes).
 
 See [docs/PLAN.md](docs/PLAN.md) for decisions, architecture and phases.
 

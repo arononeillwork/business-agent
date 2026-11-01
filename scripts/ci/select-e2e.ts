@@ -80,6 +80,7 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'campaigns', files: [/CampaignsPage/, /shared\/campaigns/], tests: String.raw`campaigns|marketing` },
   { name: 'suggested campaigns', files: [/shared\/campaignIdeas/], tests: String.raw`campaigns` },
   { name: 'hiring', files: [/HiringPage/, /HiringBoard/, /shared\/hiring/], tests: String.raw`hiring|applicant` },
+  { name: 'cv pool', files: [/components\/CvPool/, /i18n\/es\/hiring/], tests: String.raw`hiring|applicant|CV pool` },
   { name: 'food safety and allergens', files: [/(FoodSafety|Allergens)Page/, /shared\/(foodSafety|allergens)/], tests: String.raw`food safety|allergen` },
   { name: 'tips', files: [/TipsPage/, /shared\/tips/], tests: String.raw`tips` },
   { name: 'insights', files: [/(Dashboards|Advisor)Page/, /dashboardWidgets/, /app\/insightsData/, /shared\/(insights|dashboards)/], tests: String.raw`dashboard|advisor|Today` },
@@ -88,12 +89,15 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'cameras', files: [/CamerasPage/, /shared\/cameras/], tests: String.raw`camera` },
   { name: 'offers', files: [/OffersPage/, /OfferBoard/, /lib\/offerPicture/, /shared\/offers/], tests: String.raw`offer|special|screen` },
   { name: 'last-day offers', files: [/LastDayRules/, /shared\/lastDayOffers/, /i18n\/es\/lastDayOffers/, /StockPage/, /WastePage/], tests: String.raw`last-day|offer|stock|waste` },
-  { name: 'email', files: [/EmailPage/, /shared\/email/, /i18n\/es\/email/], tests: String.raw`email` },
+  { name: 'email', files: [/EmailPage/, /shared\/email/, /i18n\/es\/email/, /EmailReader/], tests: String.raw`email` },
   { name: 'contracts', files: [/TeamContracts/, /shared\/contracts/, /i18n\/es\/contracts/], tests: String.raw`contract` },
   { name: 'agents', files: [/shared\/agents/, /AgentsMenu/, /AgentFocus/, /RolesAgentsTab/, /i18n\/es\/agents/], tests: String.raw`agent` },
   { name: 'role ownership', files: [/RolesOwnershipTab/, /shared\/roleOwners/, /i18n\/es\/roleOwners/], tests: String.raw`ownership` },
   { name: 'theme days and routine', files: [/CoffeesPage/, /components\/(ThemeDays|Routine)\.tsx$/, /shared\/(themeDays|routine)\.ts$/, /i18n\/es\/(themeDays|routine)\.ts$/],
     tests: String.raw`theme|coffee|routine` },
+  { name: 'qr codes', files: [/QrCodes(Print)?Page/, /components\/QrCode\.tsx$/, /lib\/qrImage/, /shared\/qrCodes\.ts$/, /i18n\/es\/qrCodes\.ts$/], tests: String.raw`QR code` },
+  { name: 'analytics', files: [/pages\/(AnalyticsPage|SocialAnalytics)\.tsx$/, /shared\/socialAnalytics/, /i18n\/es\/(analytics|socialAnalytics)\.ts$/],
+    tests: String.raw`Analytics` },
 ]
 
 /** The --grep pattern for these changed files, or 'all'. */

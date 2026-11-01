@@ -31,10 +31,8 @@ export default {
   '{percent}% of what was taken above breakeven in {month}': '{percent}% de lo facturado por encima del umbral de rentabilidad en {month}',
   '{share} of everything taken above breakeven goes in': 'Entra el {share} de todo lo facturado por encima del umbral de rentabilidad',
   'Change the share over breakeven': 'Cambiar el porcentaje sobre el umbral de rentabilidad',
-  'Breakeven: about {amount} a day, what it costs to run the café (running costs {fixed} + the team on the rota, owners’ pay included, {team}).':
-    'Umbral de rentabilidad: unos {amount} al día, lo que cuesta abrir el café (gastos fijos {fixed} + el equipo del cuadrante, con el sueldo de los propietarios, {team}).',
-  'Breakeven: what it costs to run the café each day, the running costs plus the team on the rota, owners’ pay included.':
-    'Umbral de rentabilidad: lo que cuesta abrir el café cada día, los gastos fijos más el equipo del cuadrante, con el sueldo de los propietarios.',
+  'Breakeven: about {amount} a day, what it costs to run the café.': 'Umbral de rentabilidad: unos {amount} al día, lo que cuesta abrir el café.',
+  'Breakeven: what it costs to run the café each day.': 'Umbral de rentabilidad: lo que cuesta abrir el café cada día.',
   'Above breakeven this month': 'Por encima del umbral este mes',
   'Days above breakeven': 'Días por encima del umbral',
   '{n} of {days}': '{n} de {days}',

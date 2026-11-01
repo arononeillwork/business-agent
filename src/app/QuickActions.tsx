@@ -9,7 +9,7 @@ import { useApp } from './AppContext'
 import { applyPreferences } from './Appearance'
 import { PersonAvatar } from '../components/common'
 import { tokens } from '../theme'
-import { t } from '../i18n'
+import { msg, t } from '../i18n'
 import { teamRoleLabel } from '../../shared/teamRoles'
 
 // The two buttons at the top right: search (Ctrl/⌘ K) and the light/dark switch.
@@ -100,6 +100,12 @@ export function SearchButton({ pages, wide }: { pages: SearchPage[]; wide?: bool
 
 const norm = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
 
+/** Other words a page is searched for by (in English and the person's language), by its menu key. */
+const ALSO_CALLED: Record<string, string[]> = {
+  qrcodes: [msg('barcodes'), msg('Wi-Fi'), 'wifi'],
+}
+const alsoCalled = (key: string) => (ALSO_CALLED[key] ?? []).flatMap(w => [w, t(w)])
+
 function SearchDialog({ pages, onClose }: { pages: SearchPage[]; onClose: () => void }) {
   const { profiles, isAdmin, isPartner, me } = useApp()
   const navigate = useNavigate()
@@ -111,7 +117,7 @@ function SearchDialog({ pages, onClose }: { pages: SearchPage[]; onClose: () => 
   const results = useMemo<Result[]>(() => {
     const words = norm(q).split(/\s+/).filter(Boolean)
     const hit = (...texts: (string | null | undefined)[]) => { const text = norm(texts.filter(Boolean).join(' ')); return words.every(w => text.includes(w)) }
-    const pageHits: Result[] = pages.filter(p => hit(p.label, p.section)).map(p => ({
+    const pageHits: Result[] = pages.filter(p => hit(p.label, p.section, ...alsoCalled(p.key))).map(p => ({
       id: `page:${p.key}`, group: 'Pages', label: p.label, hint: p.section ?? undefined, icon: p.icon, to: p.to,
     }))
     const people: Result[] = isPartner ? [] : profiles

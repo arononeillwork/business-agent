@@ -130,6 +130,18 @@ function demoEngine(host: HTMLElement, ev: EngineEvents): Engine {
   }
 }
 
+/** The café playlist: the songs the team adds from a search, kept by Business Agent on the shared player (not a YouTube playlist). */
+export const CAFE_PLAYLIST_ID = 'cafe-playlist'
+
+/** The café playlist as one of the café's playlists (none until a song is added). */
+export function cafePlaylist(songs: CafeTrack[] | undefined): SpotifyPlaylist | null {
+  if (!songs?.length) return null
+  const image = songs.find(s => s.image)?.image
+  return { id: CAFE_PLAYLIST_ID, name: t('Café playlist'), tracks: songs.length, owner: t('Added from Find music'), ...(image ? { image } : {}),
+    // Its songs on YouTube (it opens up to 50).
+    url: `https://www.youtube.com/watch_videos?video_ids=${songs.slice(0, 50).map(s => encodeURIComponent(s.id)).join(',')}` }
+}
+
 /**
  * The order playlists play in: the order the team saved, then any playlists not in it yet (the
  * approved one first). Playlists that aren't music only count once someone put them in the order.
@@ -162,9 +174,15 @@ interface CafeMusic {
   control(action: MusicAction, value?: number): Promise<void>
   setQueue(playlist: SpotifyPlaylist | null, queue: CafeTrack[], position: number): Promise<void>
   playPlaylist(playlist: SpotifyPlaylist): Promise<void>
-  /** Songs from a search: play now, play next, or add to the end of the queue. */
+  /**
+   * Songs from a search: play now, play next, or add to the end of the queue. "Now" starts at once on
+   * the speaker (inside the press when it's this device), and makes this device the speaker when nothing plays anywhere.
+   */
   addTracks(tracks: CafeTrack[], where: 'now' | 'next' | 'end'): Promise<void>
   setPlaylistOrder(ids: string[]): Promise<void>
+  /** A song from a search joins the café playlist (once; the queue too while the café playlist plays), or leaves it. */
+  addToCafePlaylist(track: CafeTrack): Promise<void>
+  removeFromCafePlaylist(trackId: string): Promise<void>
   claim(): Promise<void>
   release(): Promise<void>
   /** Pages that show the player call this so it keeps the state fresh while they're open. */
@@ -192,9 +210,15 @@ export function CafeSpeakerProvider({ children }: { children: ReactNode }) {
   /** What the speaker is doing (it is the authority on these while it plays). */
   const local = useRef({ version: -1, seq: -1, queue: [] as CafeTrack[], position: 0, playing: false, volume: 80, errors: 0, autoplay: false })
   const here = !!state && state.device_id === deviceId
+  // The café account's playlists, with the café playlist (the team's songs from a search) first.
+  const songs = state?.cafe_playlist
+  const lib = useMemo(() => {
+    const own = cafePlaylist(songs)
+    return library.data && own && library.data.provider === 'youtube' ? { ...library.data, playlists: [own, ...library.data.playlists] } : library.data ?? null
+  }, [library.data, songs])
   // The latest shared state and library, for the player's callbacks.
-  const latest = useRef({ state, library: library.data })
-  latest.current = { state, library: library.data }
+  const latest = useRef({ state, library: lib })
+  latest.current = { state, library: lib }
   const live = !!state?.device_id && !!state.heartbeat_at && Date.now() - Date.parse(state.heartbeat_at) < STALE_MS
 
   const refresh = useCallback(async () => {
@@ -203,6 +227,10 @@ export function CafeSpeakerProvider({ children }: { children: ReactNode }) {
 
   // Load once, then keep fresh while this device plays or a page shows the player.
   useEffect(() => { if (enabled) void refresh() }, [enabled, refresh])
+  // A page with the player is open: have YouTube's player script ready, so pressing play doesn't wait for it.
+  useEffect(() => {
+    if (enabled && watchers > 0 && library.data && !library.data.demo) loadYouTube().catch(() => {})
+  }, [enabled, watchers, library.data])
   useEffect(() => {
     if (!enabled || (!here && watchers === 0)) return
     const timer = setInterval(() => void refresh(), here ? 1500 : 3000)
@@ -216,6 +244,10 @@ export function CafeSpeakerProvider({ children }: { children: ReactNode }) {
     await api.musicReport({ position: l.position, playing: l.playing, volume: l.volume, elapsed: time.elapsed, duration: time.duration,
       heartbeat_at: new Date().toISOString(), ...extra }, deviceId).catch(() => {})
   }, [api, deviceId])
+
+  /** A playlist's songs: the café playlist's from the shared player, any other's from YouTube. */
+  const tracksOf = useCallback(async (id: string): Promise<CafeTrack[]> =>
+    (id === CAFE_PLAYLIST_ID ? latest.current.state?.cafe_playlist ?? [] : api.cafeTracks(id)), [api])
 
   /**
    * End of the queue: start the next playlist in the team's order (back to the first after the
@@ -231,12 +263,12 @@ export function CafeSpeakerProvider({ children }: { children: ReactNode }) {
     // A song or playlist from a search isn't in the order: carry on from the first playlist.
     if (playlist.id === s?.playlist?.id) return false
     local.current.autoplay = true
-    void api.cafeTracks(playlist.id)
+    void tracksOf(playlist.id)
       .then(tracks => (tracks.length ? api.musicSetQueue(playlist, tracks, 0) : Promise.reject(new Error(t('{name} has no songs that can play', { name: playlist.name })))))
       .then(() => api.musicPlayer()).then(setState)
       .catch(e => setError(e instanceof Error ? e.message : String(e)))
     return true
-  }, [api])
+  }, [api, tracksOf])
 
   /** The next song, or the next playlist after the last song. */
   const forward = useCallback(() => {
@@ -265,6 +297,7 @@ export function CafeSpeakerProvider({ children }: { children: ReactNode }) {
     else if (action === 'jump' && value != null) go(value)
     else if (action === 'seek' && value != null) e.seek(value)
     else if (action === 'volume' && value != null) { l.volume = Math.max(0, Math.min(100, Math.round(value))); e.setVolume(l.volume) }
+    setTick(n => n + 1) // show it now (play ↔ pause), not at the next redraw
     void report()
   }, [go, forward, report])
 
@@ -275,6 +308,7 @@ export function CafeSpeakerProvider({ children }: { children: ReactNode }) {
     const l = local.current
     l.seq = state.command_seq // older button presses were for the previous speaker
     l.version = -1
+    l.queue = [] // a new player has nothing loaded: the song playing now is loaded into it, even if it's the one played here before
     l.volume = state.volume
     const events: EngineEvents = {
       onEnded: () => forward(),
@@ -301,7 +335,8 @@ export function CafeSpeakerProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!here || !state || !engine.current) return
     const l = local.current
-    if (state.queue_version !== l.version) {
+    // Newer only: an answer that was on its way before a change made here doesn't undo it.
+    if (state.queue_version > l.version) {
       const before = l.queue[l.position]?.id
       l.version = state.queue_version
       l.queue = state.queue
@@ -331,8 +366,14 @@ export function CafeSpeakerProvider({ children }: { children: ReactNode }) {
       ? { ...state, queue: l.version === -1 ? state.queue : l.queue, position: l.version === -1 ? state.position : l.position, playing: l.playing,
         volume: l.volume, ...(engine.current ? engine.current.time() : {}) }
       : state
+    /** This device becomes the speaker and plays what's queued, from where it is. */
+    const takeOver = async () => {
+      local.current.autoplay = true
+      local.current.playing = true
+      await api.musicReport({ device_id: deviceId, device_name: deviceName, heartbeat_at: new Date().toISOString() })
+    }
     return {
-      enabled, library: library.data ?? null, state: shown, live: live || here, here, deviceName, error,
+      enabled, library: lib, state: shown, live: live || here, here, deviceName, error,
       elapsed: () => {
         if (!shown) return 0
         if (here || !shown.playing || !shown.heartbeat_at) return shown.elapsed
@@ -347,13 +388,33 @@ export function CafeSpeakerProvider({ children }: { children: ReactNode }) {
         await refresh()
       },
       async playPlaylist(playlist) {
-        const tracks = await api.cafeTracks(playlist.id)
+        const tracks = await tracksOf(playlist.id)
         if (!tracks.length) throw new Error(t('That playlist has no songs that can play'))
         local.current.autoplay = true
         await api.musicSetQueue(playlist, tracks, 0)
         await refresh()
       },
       async addTracks(tracks, where) {
+        const l = local.current, e = engine.current
+        if (where === 'now' && here && e && l.version !== -1 && tracks.length) {
+          // This device is the speaker: the song starts inside the press itself (browsers let sound start
+          // from a tap, not after waiting on the network), then the queue is saved for everyone else.
+          const at = l.queue.length ? l.position : -1
+          const queue = [...l.queue.slice(0, at + 1), ...tracks, ...l.queue.slice(at + 1)]
+          Object.assign(l, { queue, position: at + 1, playing: true })
+          e.load(tracks[0].id, true)
+          setTick(n => n + 1)
+          try {
+            await api.musicSetQueue(shown?.playlist ?? null, queue, at + 1)
+          } catch (err) {
+            l.version = -1 // not saved: back to the shared queue
+            await refresh()
+            throw err
+          }
+          void report()
+          await refresh()
+          return
+        }
         const q = shown?.queue ?? []
         const at = shown?.position ?? 0
         if (!q.length) { local.current.autoplay = true; await api.musicSetQueue(shown?.playlist ?? null, tracks, 0) }
@@ -363,10 +424,24 @@ export function CafeSpeakerProvider({ children }: { children: ReactNode }) {
           if (where === 'now') local.current.autoplay = true
           await api.musicSetQueue(shown!.playlist, [...q.slice(0, at + 1), ...tracks, ...q.slice(at + 1)], where === 'now' ? at + 1 : at)
         }
+        // Nothing playing anywhere: "now" makes this device the speaker, so one press plays it (no second press).
+        if (where === 'now' && !live && !here) await takeOver()
         await refresh()
       },
       async setPlaylistOrder(ids) {
         await api.musicSetPlaylistOrder(ids)
+        await refresh()
+      },
+      async addToCafePlaylist(track) {
+        await api.musicAddToCafePlaylist(track)
+        // The café playlist is the one playing: the song joins the queue too, so it plays this time round.
+        if (shown?.playlist?.id === CAFE_PLAYLIST_ID && !shown.queue.some(x => x.id === track.id)) {
+          await api.musicSetQueue(shown.playlist, [...shown.queue, track], shown.position)
+        }
+        await refresh()
+      },
+      async removeFromCafePlaylist(trackId) {
+        await api.musicRemoveFromCafePlaylist(trackId)
         await refresh()
       },
       async claim() {
@@ -375,9 +450,7 @@ export function CafeSpeakerProvider({ children }: { children: ReactNode }) {
           const first = library.data?.approved ?? library.data?.playlists[0]
           if (first) await api.musicSetQueue(first, await api.cafeTracks(first.id), 0)
         }
-        local.current.autoplay = true
-        local.current.playing = true
-        await api.musicReport({ device_id: deviceId, device_name: deviceName, heartbeat_at: new Date().toISOString() })
+        await takeOver()
         await refresh()
       },
       async release() {
@@ -392,7 +465,7 @@ export function CafeSpeakerProvider({ children }: { children: ReactNode }) {
       },
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, library.data, state, live, here, deviceName, error, api, apply, refresh, deviceId, tick])
+  }, [enabled, library.data, lib, state, live, here, deviceName, error, api, apply, refresh, report, tracksOf, deviceId, tick])
 
   return (
     <Ctx.Provider value={value}>

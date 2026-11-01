@@ -1,5 +1,5 @@
 import { Alert, Avatar, Box, Button, Card, CircularProgress, IconButton, Stack, TextField, Tooltip, Typography } from '@mui/material'
-import type { TextFieldProps } from '@mui/material'
+import type { SxProps, TextFieldProps, Theme } from '@mui/material'
 import ChevronLeft from '@mui/icons-material/ChevronLeft'
 import ChevronRight from '@mui/icons-material/ChevronRight'
 import { createContext, useContext, useState, type ReactNode } from 'react'
@@ -33,19 +33,38 @@ export function PageHeader({ eyebrow, title, actions }: { eyebrow?: string; titl
       </Box>
       {actions && (
         // Level with the title (below the small eyebrow line); lines up to the right and wraps when there are many.
-        // On a computer they're in line with the round buttons at the top right (AppShell): the same height and
-        // gap above, and on a big monitor the same zoom, so each row's middle is the round buttons' middle.
+        // On a computer they're in line with the round buttons at the top right (AppShell), at the very top of the
+        // page even when there's an eyebrow line: the same height and gap above, and on a big monitor the same zoom,
+        // so each row's middle is the round buttons' middle.
         <Stack direction="row" useFlexGap spacing={1} sx={{ flexWrap: 'wrap', justifyContent: { md: 'flex-end' }, alignItems: 'center',
-          minWidth: 0, flex: { md: '0 1 auto' }, pt: { md: eyebrow ? 3.25 : 0.25 },
+          minWidth: 0, flex: { md: '0 1 auto' }, pt: { md: eyebrow && !slot ? 3.25 : 0.25 },
           minHeight: { md: TOP_ROW_HEIGHT }, '& .MuiButton-root:not(.MuiButton-sizeSmall)': { minHeight: { md: TOP_ROW_HEIGHT } },
           ...(slot ? {
-            [BIG_SCREEN]: { zoom: 1.2, pt: `${(eyebrow ? 26 : 2) / 1.2}px` },
-            [HUGE_SCREEN]: { zoom: 1.35, pt: `${(eyebrow ? 26 : 2) / 1.35}px` },
+            [BIG_SCREEN]: { zoom: 1.2, pt: `${2 / 1.2}px` },
+            [HUGE_SCREEN]: { zoom: 1.35, pt: `${2 / 1.35}px` },
           } : {}) }}>{actions}</Stack>
       )}
     </Stack>
   )
   return slot ? createPortal(header, slot) : header
+}
+
+/**
+ * A row under the page's title, for what would crowd the top row: a line or the page's tabs on the left,
+ * its own buttons and pickers on the right (they wrap under it on a phone).
+ */
+export function PageToolbar({ children, actions, label, sx }: { children?: ReactNode; actions?: ReactNode; label?: string; sx?: SxProps<Theme> }) {
+  return (
+    <Box role={label ? 'toolbar' : undefined} aria-label={label} sx={[{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 2, rowGap: 1.25, mb: 2.5 }, ...(Array.isArray(sx) ? sx : [sx])]}>
+      {/* Its own width to start with: when the buttons don't fit beside it, they go under it, on the right. */}
+      <Box sx={{ flex: '1 1 auto', minWidth: 0 }}>{children}</Box>
+      {actions && (
+        <Stack direction="row" useFlexGap spacing={1} sx={{ flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end', ml: 'auto', maxWidth: '100%' }}>
+          {actions}
+        </Stack>
+      )}
+    </Box>
+  )
 }
 
 /** A small headline figure: label, value and an optional note. */

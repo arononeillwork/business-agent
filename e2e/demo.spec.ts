@@ -1079,6 +1079,76 @@ test.describe('music', () => {
     await expect(find.getByRole('button', { name: 'Clear search' })).toHaveCount(0)
   })
 
+  test('café music: one press of play on a search result plays it straight away, even with nothing playing; another switches to it', async ({ page }) => {
+    await open(page, '/connections')
+    await switchApp(page, page.getByRole('region', { name: 'Café music' }), 'YouTube Music')
+    await page.getByRole('link', { name: 'Music' }).first().click()
+    const now = page.getByRole('region', { name: 'Now playing' })
+    await expect(now).toContainText('Nothing playing')
+
+    const find = page.getByRole('region', { name: 'Find music' })
+    await find.getByLabel('Search music').fill('Lofi')
+    await find.getByRole('button', { name: 'Search', exact: true }).click()
+    const songs = find.getByRole('list', { name: 'Songs found' })
+    // Nothing was playing: this device becomes the speaker and plays it, no "Play on this device" first.
+    await songs.getByRole('button', { name: 'Play Lofi now' }).click()
+    await expect(now).toContainText('Playing on this device')
+    await expect(now.getByRole('heading', { name: 'Lofi', exact: true })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Café speaker' })).toContainText('Lofi')
+    await expect(songs.getByRole('listitem', { name: 'Lofi', exact: true })).toHaveAttribute('aria-current', 'true')
+    await expect(songs.getByRole('button', { name: 'Pause Lofi', exact: true })).toBeVisible()
+
+    // Another result: it plays at once, and the first goes back to a play button.
+    await songs.getByRole('button', { name: 'Play Lofi (Live) now' }).click()
+    await expect(now.getByRole('heading', { name: 'Lofi (Live)' })).toBeVisible()
+    await expect(songs.getByRole('button', { name: 'Pause Lofi (Live)' })).toBeVisible()
+    await expect(songs.getByRole('button', { name: 'Play Lofi now' })).toBeVisible()
+    await expect(songs.getByRole('listitem', { name: 'Lofi', exact: true })).not.toHaveAttribute('aria-current', 'true')
+
+    // Its button pauses it, and plays it again.
+    await songs.getByRole('button', { name: 'Pause Lofi (Live)' }).click()
+    await expect(now.getByRole('button', { name: 'Play', exact: true })).toBeVisible()
+    await songs.getByRole('button', { name: 'Play Lofi (Live) now' }).click()
+    await expect(now.getByRole('button', { name: 'Pause' })).toBeVisible()
+    await expect(now.getByRole('heading', { name: 'Lofi (Live)' })).toBeVisible()
+  })
+
+  test('café music: songs from a search go into the café playlist, each once, and it plays with the café’s playlists', async ({ page }) => {
+    await open(page, '/connections')
+    await switchApp(page, page.getByRole('region', { name: 'Café music' }), 'YouTube Music')
+    await page.getByRole('link', { name: 'Music' }).first().click()
+    const cafe = page.getByRole('region', { name: 'Café playlists' })
+    await expect(cafe.getByRole('listitem', { name: 'Easy Beans · Café mix', exact: true })).toBeVisible()
+    await expect(cafe.getByRole('listitem', { name: 'Café playlist', exact: true })).toHaveCount(0) // none until a song is added
+
+    const find = page.getByRole('region', { name: 'Find music' })
+    await find.getByLabel('Search music').fill('Lofi')
+    await find.getByRole('button', { name: 'Search', exact: true }).click()
+    const songs = find.getByRole('list', { name: 'Songs found' })
+    await songs.getByRole('button', { name: 'Add Lofi (Acoustic) to the café playlist' }).click()
+    await toast(page, 'Added Lofi (Acoustic) to the café playlist')
+    // Marked as added; its button now takes it off instead, so it can't go in twice.
+    await expect(songs.getByRole('listitem', { name: 'Lofi (Acoustic)' })).toContainText('In the café playlist')
+    await expect(songs.getByRole('button', { name: 'Remove Lofi (Acoustic) from the café playlist' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(songs.getByRole('button', { name: 'Add Lofi (Acoustic) to the café playlist' })).toHaveCount(0)
+    await songs.getByRole('button', { name: 'Add Lofi to the café playlist', exact: true }).click()
+    await toast(page, 'Added Lofi to the café playlist')
+
+    // It's one of the café's playlists, with both songs, and plays them.
+    const mine = cafe.getByRole('listitem', { name: 'Café playlist', exact: true })
+    await expect(mine).toContainText('2 songs · Added from Find music')
+    await mine.getByRole('button', { name: 'Café playlist', exact: true }).click()
+    const now = page.getByRole('region', { name: 'Now playing' })
+    await expect(now.getByRole('heading', { name: 'Lofi (Acoustic)' })).toBeVisible()
+    await expect.poll(() => page.getByRole('list', { name: 'Queue' }).getByRole('listitem').evaluateAll(els => els.map(e => e.getAttribute('aria-label'))))
+      .toEqual(['Lofi (Acoustic)', 'Lofi'])
+
+    // Taken off again from the search.
+    await songs.getByRole('button', { name: 'Remove Lofi from the café playlist', exact: true }).click()
+    await toast(page, 'Removed Lofi from the café playlist')
+    await expect(mine).toContainText('1 song')
+  })
+
   test('café music: playlists play one after another, in an order anyone can drag; only music playlists show', async ({ page }) => {
     await open(page, '/connections')
     await switchApp(page, page.getByRole('region', { name: 'Café music' }), 'YouTube Music')
@@ -1570,9 +1640,17 @@ test('people: the team as a hierarchy, and everyone’s pets with their photos',
   const pablo = page.getByRole('dialog', { name: 'Pablo' })
   await pablo.getByLabel('Pet photo file').setInputFiles({ ...png, name: 'pablo.png' })
   await expect(pablo.getByRole('img', { name: 'Pablo' })).toBeVisible()
+  // Zoomed right in on the dog, and moved a little with the arrow keys; the photo itself stays as it is.
+  const zoom = pablo.getByRole('slider', { name: 'Zoom' })
+  await zoom.focus()
+  await page.keyboard.press('End')
+  await expect(zoom).toHaveValue('3')
+  await pablo.getByRole('group', { name: 'Move the photo of Pablo' }).press('ArrowLeft')
+  await expect(pablo.getByRole('img', { name: 'Pablo' })).toHaveCSS('transform-origin', /^\d+(\.\d+)?px/)
   await pablo.getByLabel('Name').fill('Pablito')
   await pablo.getByRole('button', { name: 'Save' }).click()
   await toast(page, /^Saved$/)
+  await expect(marks.getByRole('img', { name: 'Pablito' })).toHaveCSS('transform', 'matrix(3, 0, 0, 3, 0, 0)')
   await expect(marks.getByRole('listitem')).toHaveText([/Pablito/, /Yoda/])
   await expect(marks.getByLabel('Pablito has no photo yet')).toHaveCount(0)
   await expect(marks.getByLabel('Yoda has no photo yet')).toBeVisible()
@@ -3019,6 +3097,10 @@ test.describe('messages', () => {
     await expect(lucia.locator('img')).toHaveAttribute('src', /^data:image\/svg/)
     await expect(chats.getByRole('listitem', { name: '@tom_runs' }).locator('.MuiAvatar-root')).toHaveText('T')
     await expect(chats.getByRole('listitem', { name: '@tom_runs' }).locator('img')).toHaveCount(0)
+    // WhatsApp doesn't share profile photos: initials.
+    await expect(chats.getByRole('listitem', { name: 'Sofía Martín' }).locator('img')).toHaveCount(0)
+    // No line of the connected accounts above the search: the chats start straight away.
+    await expect(page.getByText(/@easy\.beans\.coffee ·/)).toHaveCount(0)
 
     const fullWidth = (await chats.boundingBox())!.width
     expect(fullWidth).toBeGreaterThan(600)
@@ -3057,6 +3139,8 @@ test.describe('messages', () => {
     const chats = page.getByRole('list', { name: 'Chats' })
     // The chats load after connecting: wait for them rather than read the list once, still empty on a slow machine.
     await expect.poll(() => chats.locator(':scope > li').evaluateAll(els => els.map(e => e.getAttribute('aria-label')))).toEqual(['Carmen Ruiz', 'Hotel Puente Romano'])
+    // Their Messenger profile photos, as on Instagram.
+    await expect(chats.getByRole('listitem', { name: 'Carmen Ruiz' }).locator('img')).toHaveAttribute('src', /^data:image\/svg/)
     await chats.getByRole('listitem', { name: 'Carmen Ruiz' }).getByRole('button').click()
     const chat = page.getByRole('region', { name: 'Chat with Carmen Ruiz' })
     await chat.getByRole('textbox', { name: 'Reply' }).fill('Yes! See you at 11.')
@@ -3259,6 +3343,69 @@ test.describe('new connections and details', () => {
     await page.getByRole('combobox', { name: 'Period' }).click()
     await page.getByRole('option', { name: 'Last 7 days' }).click()
     await expect(tiles).toContainText('vs the 7 days before')
+  })
+
+  test('Analytics: the source and period pickers sit on the right under the title, and the source picked goes in the address', async ({ page }) => {
+    await open(page, '/analytics')
+    const title = page.getByRole('heading', { name: 'Analytics', level: 1 })
+    const source = page.getByRole('combobox', { name: 'Source' })
+    const period = page.getByRole('combobox', { name: 'Period' })
+    await expect(source).toHaveText('Website (Google Search)')
+    const tiles = page.getByRole('list', { name: 'At a glance' })
+    await expect(tiles).toContainText('Clicks')
+    const [h1, s, p, column] = await Promise.all([title, source, period, tiles].map(async l => (await l.boundingBox())!))
+    // Below the title; the period at the right edge of the page's column, the source just left of it on the same row.
+    expect(p.y).toBeGreaterThanOrEqual(h1.y + h1.height - 1)
+    expect(Math.abs(p.x + p.width - (column.x + column.width))).toBeLessThan(8)
+    expect(s.x + s.width).toBeLessThanOrEqual(p.x)
+    expect(Math.abs(s.y - p.y)).toBeLessThan(4)
+    await source.click()
+    await expect(page.getByRole('option')).toHaveText(['Website (Google Search)', 'Instagram', 'TikTok', 'LinkedIn', 'Facebook'])
+    await page.getByRole('option', { name: 'Instagram' }).click()
+    await expect(page).toHaveURL(/source=instagram/)
+    await expect(tiles).toContainText('Accounts reached')
+  })
+
+  test('Analytics shows Instagram: followers, reach and views against the period before, reach each day and the top posts', async ({ page }) => {
+    await open(page, '/analytics?source=instagram')
+    await expect(page.getByRole('combobox', { name: 'Source' })).toHaveText('Instagram')
+    await expect(page.getByRole('main').getByRole('link', { name: '@easy.beans.coffee' })).toHaveAttribute('href', 'https://www.instagram.com/easy.beans.coffee/')
+    const tiles = page.getByRole('list', { name: 'At a glance' })
+    for (const label of ['Followers', 'Accounts reached', 'Views', 'Accounts engaged', 'Likes', 'Comments', 'Saves', 'Taps on your links']) await expect(tiles).toContainText(label)
+    await expect(tiles).toContainText('vs the 28 days before')
+    await expect(tiles).toContainText('in this period')
+    await expect(page.getByRole('region', { name: 'Accounts reached each day' }).getByRole('img')).toBeVisible()
+    const posts = page.getByRole('region', { name: 'Top posts in this period' })
+    await expect(posts.getByRole('columnheader')).toHaveText(['Post', 'Reach', 'Likes', 'Comments', 'Saves'])
+    await expect(posts.getByRole('link').first()).toHaveAttribute('href', /^https:\/\/www\.instagram\.com\/p\//)
+  })
+
+  test('Analytics shows TikTok once it is connected, and the LinkedIn Page’s statistics', async ({ page }) => {
+    await open(page, '/analytics')
+    const source = page.getByRole('combobox', { name: 'Source' })
+    await source.click()
+    await page.getByRole('option', { name: 'TikTok' }).click()
+    // Not connected in the demo: it says so and links to Connections.
+    const main = page.getByRole('main')
+    await expect(main.getByRole('alert')).toContainText('Connect TikTok on the Connections page')
+    await main.getByRole('link', { name: 'Connections' }).click()
+    const social = page.getByRole('region', { name: 'Social media' })
+    await social.getByRole('button', { name: 'Connect TikTok' }).click()
+    await expect(social.getByRole('article', { name: 'TikTok' })).toContainText('Connected')
+    // Back on Analytics (no ?source=), TikTok is still the one picked.
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('region', { name: 'Marketing' }).getByRole('link', { name: 'Analytics' }).click()
+    await expect(source).toHaveText('TikTok')
+    const tiles = page.getByRole('list', { name: 'At a glance' })
+    for (const label of ['Followers', 'Likes on all your videos', 'Videos posted', 'Views', 'Views per video', 'Shares']) await expect(tiles).toContainText(label)
+    await expect(main).toContainText('TikTok shares today’s counts only')
+    await expect(page.getByRole('region', { name: 'Top videos in this period' }).getByRole('columnheader')).toHaveText(['Video', 'Views', 'Likes', 'Comments', 'Shares'])
+    // LinkedIn: the Page's followers, and its posts' impressions, clicks and engagement.
+    await source.click()
+    await page.getByRole('option', { name: 'LinkedIn' }).click()
+    await expect(page).toHaveURL(/source=linkedin/)
+    for (const label of ['Followers', 'Impressions', 'Clicks', 'Engagement rate']) await expect(tiles).toContainText(label)
+    await expect(tiles).toContainText('vs the 28 days before')
+    await expect(page.getByRole('region', { name: 'Impressions each day' }).getByRole('img')).toBeVisible()
   })
 
   test('Connections offers SumUp, LinkedIn and Search Console, and Slack has its logo', async ({ page }) => {
@@ -5089,6 +5236,19 @@ test.describe('invoices', () => {
     await expect(page.getByRole('menuitem', { name: /Excel/ })).toBeVisible()
   })
 
+  test('the main suppliers as quick filters: one press shows a supplier’s invoices, again shows everyone’s', async ({ page }) => {
+    await open(page, '/invoices')
+    const chips = page.getByRole('group', { name: 'Main suppliers' })
+    const list = page.getByRole('region', { name: 'Invoices', exact: true })
+    await expect(chips.getByRole('button', { name: 'Every supplier' })).toHaveAttribute('aria-pressed', 'true')
+    await chips.getByRole('button', { name: /^Tostadores del Sur/ }).click()
+    await expect(page).toHaveURL(/supplier=sup-roaster/)
+    await expect(list.getByRole('row')).toHaveCount(3) // the heading row and its two invoices
+    await chips.getByRole('button', { name: /^Tostadores del Sur/ }).click()
+    await expect(page).not.toHaveURL(/supplier=/)
+    await expect(chips.getByRole('button', { name: 'Every supplier' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
   test('from email: allow reading the mailbox, then bring an invoice in, matched to its supplier, with a note', async ({ page }) => {
     await open(page, '/connections')
     await page.getByRole('region', { name: 'Files and storage' }).getByRole('button', { name: 'Connect Google Drive' }).click()
@@ -5169,6 +5329,13 @@ test.describe('reviews and website', () => {
     await open(page, '/website')
     await expect(page.getByRole('heading', { name: 'Website & SEO' })).toBeVisible()
     await expect(page.getByRole('link', { name: 'www.easybeanscoffee.com' })).toBeVisible()
+    // The website itself, inside the page, as a computer or a phone shows it.
+    const preview = page.getByRole('region', { name: 'The website' })
+    await expect(preview.locator('iframe')).toHaveAttribute('src', /easybeanscoffee\.com/)
+    await expect(preview.locator('iframe')).toHaveAttribute('title', 'The website: www.easybeanscoffee.com')
+    await preview.getByRole('button', { name: 'On a phone' }).click()
+    await expect.poll(async () => (await preview.locator('iframe').boundingBox())?.width).toBe(390)
+    await expect(preview.getByRole('link', { name: 'Open in a new tab' })).toHaveAttribute('href', /easybeanscoffee\.com/)
     await page.getByRole('button', { name: 'Check the website' }).click()
     await toast(page, 'Website checked')
     const check = page.getByRole('region', { name: 'SEO check' })
@@ -5705,7 +5872,8 @@ test.describe('staff kitty', () => {
     const kitty = page.getByRole('region', { name: 'In the kitty' })
     await expect(kitty).toContainText('447,55')
     await expect(kitty).toContainText('10% of everything taken above breakeven goes in')
-    await expect(kitty).toContainText(/Breakeven: about .* a day/)
+    await expect(kitty).toContainText(/Breakeven: about .* a day, what it costs to run the café\./)
+    await expect(kitty).not.toContainText('running costs')
     const jars = page.getByRole('region', { name: 'Saving up for' })
     const party = jars.getByRole('article', { name: 'Christmas party' })
     const rayban = jars.getByRole('article', { name: 'Ray-Ban sunglasses for the café' })
@@ -5820,8 +5988,11 @@ test.describe('roles and rules', () => {
     await chef.click()
     await expect(page.getByRole('region', { name: 'Chef', exact: true })).toContainText('Food hygiene and safety (HACCP)')
     await page.getByRole('button', { name: 'Expand all' }).click()
+    // The Investor isn't in use (Inactive), and opens there too.
+    await page.getByRole('tab', { name: /^Inactive/ }).click()
     await expect(page.getByRole('region', { name: 'Investor', exact: true })).toContainText('Tracking return on investment')
     await expect(page.getByRole('button', { name: 'Investor', exact: true })).toContainText('Phase 4 · Scale')
+    await page.getByRole('tab', { name: /^Active/ }).click()
     await page.getByRole('button', { name: 'Collapse all' }).click()
     await expect(chef).toHaveAttribute('aria-expanded', 'false')
   })
@@ -5847,12 +6018,12 @@ test.describe('roles and rules', () => {
     await expect(details).toContainText('Shop Manager')
     await expect(details.getByRole('list', { name: 'Runner: Core responsibilities' }).getByRole('listitem')).toHaveText(['Takes food to the tables', 'Clears the plates'])
 
-    // Last in the list; one press moves it above the cleaner.
+    // Last in the list (the eight in use, then it); one press moves it above the cleaner.
     const roles = page.getByRole('region', { name: 'Roles' }).getByRole('heading', { level: 2 })
-    await expect(roles).toHaveCount(11)
+    await expect(roles).toHaveCount(9)
     await expect(roles.last()).toHaveText(/^Runner/)
     await details.getByRole('button', { name: 'Move Runner up' }).click()
-    await expect(roles.nth(9)).toHaveText(/^Runner/)
+    await expect(roles.nth(7)).toHaveText(/^Runner/)
     await expect(roles.last()).toHaveText(/^Cleaner/)
 
     // The shop manager can't answer to the runner, who answers to it.
@@ -6442,6 +6613,69 @@ test.describe('hiring', () => {
     await page.getByRole('option', { name: 'Opening team: baristas' }).click()
     await expect(list).toContainText('No candidates match.')
   })
+
+  test('the CV pool keeps a CV with no job posted: added, found, opened, and put on a job once there is one', async ({ page }) => {
+    await open(page, '/hiring?view=jobs')
+    // No jobs at all: both are removed (with their applicants); the CV pool stays.
+    for (const job of ['Weekend barista', 'Opening team: baristas']) {
+      await page.getByRole('button', { name: `Edit ${job}` }).click()
+      await page.getByRole('dialog', { name: job }).getByRole('button', { name: 'Remove' }).click()
+      await toast(page, 'Job removed, with its applicants')
+    }
+    const jobs = page.getByRole('region', { name: 'Jobs' })
+    await expect(jobs).toContainText('No jobs yet.')
+    const pool = page.getByRole('region', { name: 'CV pool' })
+    const rows = pool.getByRole('table', { name: 'CV pool' }).getByRole('row')
+    await expect(rows).toHaveCount(4) // the header and the three kept in the demo, newest first
+    await expect(rows.nth(1)).toContainText('Chloé Martin')
+
+    // A CV handed in at the counter, with no job for it.
+    await jobs.getByRole('button', { name: 'Add a CV' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Add a CV' })
+    await dialog.getByRole('textbox', { name: 'Name' }).fill('Pablo Ruiz')
+    await dialog.getByRole('textbox', { name: 'Email' }).fill('pablo.ruiz@example.es')
+    await dialog.getByRole('textbox', { name: 'Phone' }).fill('612 345 678')
+    await dialog.getByRole('combobox', { name: 'Roles they’d suit' }).fill('Barista')
+    await dialog.getByRole('combobox', { name: 'Roles they’d suit' }).press('Enter')
+    await dialog.getByRole('textbox', { name: 'When they can work' }).fill('Weekends')
+    await dialog.getByLabel('CV file').setInputFiles({ name: 'Pablo Ruiz CV.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\n%%EOF\n') })
+    await expect(dialog).toContainText('Pablo Ruiz CV.pdf')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await toast(page, 'Pablo Ruiz is in the CV pool')
+    const pablo = rows.filter({ hasText: 'Pablo Ruiz' })
+    await expect(pablo).toContainText('Barista')
+    await expect(pablo).toContainText('Weekends')
+    await expect(pablo).toContainText('+34 612 345 678')
+
+    // Found by when they can work, and their CV opened in the page.
+    await pool.getByRole('textbox', { name: 'Search the CV pool' }).fill('weekends')
+    await expect(rows).toHaveCount(3)
+    await expect(rows.filter({ hasText: 'Marta Jiménez' })).toBeVisible()
+    await pablo.getByRole('button', { name: 'View the CV of Pablo Ruiz' }).click()
+    const viewer = page.getByRole('dialog', { name: 'Pablo Ruiz CV.pdf' })
+    await expect(viewer.locator('iframe[title="Pablo Ruiz CV.pdf"]')).toBeVisible()
+    await expect(viewer).toContainText('Pablo Ruiz’s CV, uploaded')
+    await viewer.getByRole('button', { name: 'Close' }).click()
+    await expect(pablo.getByRole('button', { name: 'Download the CV of Pablo Ruiz' })).toBeVisible()
+
+    // A job is posted: from the pool onto its board, at Applied, with the CV.
+    await jobs.getByRole('button', { name: 'Add a vacancy' }).click()
+    const vacancy = page.getByRole('dialog', { name: 'Add a vacancy' })
+    await vacancy.getByRole('textbox', { name: 'Job title' }).fill('Summer barista')
+    await vacancy.getByRole('button', { name: 'Save' }).click()
+    await toast(page, /^Saved$/)
+    await page.getByRole('tab', { name: 'CV pool (4)' }).click()
+    await pool.getByRole('button', { name: 'Add Pablo Ruiz to a job' }).click()
+    const placing = page.getByRole('dialog', { name: 'Add Pablo Ruiz to a job' })
+    await expect(placing.getByRole('combobox', { name: 'Which job' })).toHaveText('Summer barista')
+    await placing.getByRole('button', { name: 'Add to the job' }).click()
+    await toast(page, 'Pablo Ruiz is on the board for Summer barista')
+    await expect(page.getByRole('tab', { name: 'CV pool (3)' })).toBeVisible()
+    await page.getByRole('tab', { name: 'Board' }).click()
+    const applied = page.getByRole('main').getByRole('region', { name: 'Summer barista' }).getByRole('group', { name: 'Applied', exact: true })
+    await applied.getByRole('button', { name: 'More for Pablo Ruiz' }).click()
+    await expect(page.getByRole('menuitem', { name: 'View the CV of Pablo Ruiz' })).toBeVisible()
+  })
 })
 
 test.describe('food safety and allergens', () => {
@@ -6567,8 +6801,9 @@ test.describe('UI round: business page, header, to do list, stock and suppliers'
     const search = page.getByRole('button', { name: 'Search' })
     const board = page.getByRole('button', { name: 'Board', exact: true })
     const [t, s, b] = [await title.boundingBox(), await search.boundingBox(), await board.boundingBox()]
-    // Level with the title, and with the page's own first row of buttons.
-    expect(s!.y + s!.height / 2).toBeGreaterThan(t!.y)
+    // At the very top, beside the eyebrow and title (not pushed down below the eyebrow), and level with the page's
+    // own first row of buttons.
+    expect(s!.y).toBeLessThan(t!.y)
     expect(s!.y + s!.height / 2).toBeLessThan(t!.y + t!.height)
     expect(Math.abs((s!.y + s!.height / 2) - (b!.y + b!.height / 2))).toBeLessThan(4)
   })
@@ -7206,7 +7441,7 @@ test.describe('role permissions', () => {
 
   test('templates by kind of business: an admin adds one and it’s active with what it can do', async ({ page }) => {
     await open(page, '/roles')
-    await expect(page.getByRole('tab', { name: 'Active (10)' })).toHaveAttribute('aria-selected', 'true')
+    await expect(page.getByRole('tab', { name: 'Active (8)' })).toHaveAttribute('aria-selected', 'true')
     await page.getByRole('tab', { name: 'Category' }).click()
     await expect(page.getByRole('button', { name: 'Café', exact: true })).toHaveAttribute('aria-pressed', 'true')
     const templates = page.getByRole('region', { name: 'Templates' })
@@ -7219,10 +7454,42 @@ test.describe('role permissions', () => {
     await page.getByRole('button', { name: 'Restaurant & bar' }).click()
     await expect(templates.getByRole('region', { name: 'Head chef', exact: true })).toContainText('Runs the kitchen')
 
-    await page.getByRole('tab', { name: 'Active (11)' }).click()
+    await page.getByRole('tab', { name: 'Active (9)' }).click()
     await page.getByRole('button', { name: 'Owner', exact: true }).click()
     await expect(page.getByRole('region', { name: 'Owner', exact: true }).getByRole('list', { name: 'Owner: what they can do' }))
       .toContainText('RotaUpdateAdds, changes and publishes shifts')
+  })
+
+  test('Inactive: the Investor and Head Barista are kept there; a role moves to Inactive and back; the buttons sit on the tabs’ row', async ({ page }) => {
+    await page.setViewportSize({ width: 1500, height: 900 })
+    await open(page, '/roles')
+    await expect(page.getByText('Who does what at')).toHaveCount(0)
+    const roles = page.getByRole('region', { name: 'Roles' })
+    await expect(roles.getByRole('button', { name: 'Investor', exact: true })).toHaveCount(0)
+    await expect(roles.getByRole('button', { name: 'Chef', exact: true })).toBeVisible()
+    // The page's buttons are on the right of the tabs, not up beside the title.
+    const add = page.getByRole('button', { name: 'Add a role' })
+    const tabs = page.getByRole('tablist', { name: 'Roles & responsibilities' })
+    const [a, b] = [await add.boundingBox(), await tabs.boundingBox()]
+    expect(Math.abs((a!.y + a!.height / 2) - (b!.y + b!.height / 2))).toBeLessThan(20)
+    expect(a!.x).toBeGreaterThan(b!.x)
+
+    await page.getByRole('tab', { name: 'Inactive (2)' }).click()
+    const inactive = page.getByRole('region', { name: 'Inactive roles' })
+    await expect(inactive.getByRole('button', { name: /^Investor/ })).toBeVisible()
+    await expect(inactive.getByRole('button', { name: /^Head Barista/ })).toBeVisible()
+
+    await page.getByRole('tab', { name: /^Active/ }).click()
+    await roles.getByRole('button', { name: 'Chef', exact: true }).click()
+    await page.getByRole('button', { name: 'Make Chef inactive' }).click()
+    await toast(page, 'Chef moved to Inactive')
+    await expect(page.getByRole('tab', { name: /^Active/ })).toHaveText('Active (7)')
+    await page.getByRole('tab', { name: 'Inactive (3)' }).click()
+    // Still open, as it was on Active.
+    await expect(inactive.getByRole('button', { name: 'Chef', exact: true })).toHaveAttribute('aria-expanded', 'true')
+    await page.getByRole('button', { name: 'Make Chef active' }).click()
+    await toast(page, 'Chef is active again')
+    await expect(page.getByRole('tab', { name: /^Inactive/ })).toHaveText('Inactive (2)')
   })
 
   test('the permissions grid gives a role Update or Hidden, and Maria’s app follows; she sees her role as fixed', async ({ page }) => {
@@ -7343,27 +7610,13 @@ test('an admin picks both languages for the team: everyone gets the flags and sw
   await expect(page.getByRole('heading', { name: 'Cuadrante', level: 1 })).toBeVisible()
 })
 
-test('the assistant: a button at the bottom right opens a chat; Ctrl K opens search; a barista whose role hides AI has no assistant', async ({ page }) => {
+test('no assistant button at the bottom right; Ctrl K opens search', async ({ page }) => {
   await open(page)
   // The search box says its shortcut, and Ctrl K opens it from anywhere.
   await expect(page.getByRole('button', { name: 'Search' }).first()).toContainText(/(Ctrl|⌘) K/)
   await page.keyboard.press('Control+k')
   await expect(page.getByRole('combobox', { name: 'Search pages and people' })).toBeVisible()
   await page.keyboard.press('Escape')
-
-  await page.getByRole('button', { name: 'Ask the assistant' }).click()
-  const chat = page.getByRole('dialog', { name: 'Assistant' })
-  await expect(chat).toContainText('I can only see and do what you can')
-  await chat.getByRole('textbox', { name: 'Ask a question' }).fill('Who is on today?')
-  await chat.getByRole('button', { name: 'Send' }).click()
-  const log = chat.getByRole('log', { name: 'Conversation' })
-  await expect(log).toContainText('Who is on today?')
-  await expect(log).toContainText('In the demo I can’t ask Claude')
-  await chat.getByRole('button', { name: 'Close' }).click()
-  await expect(chat).toHaveCount(0)
-
-  await signInAs(page, 'maria@example.com')
-  await expect(page.getByRole('heading', { name: /Hola/ })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Ask the assistant' })).toHaveCount(0)
 })
 
@@ -7507,6 +7760,69 @@ test.describe('email', () => {
     await expect(list.getByRole('img', { name: 'Unread' })).toHaveCount(5)
     await expect(list.getByRole('listitem', { name: 'Factura F2026-0158' })).toBeVisible()
     await expect(list.getByRole('listitem', { name: 'Your receipt from Square Shop' })).toHaveCount(0) // read already
+  })
+
+  test('email: an email opens in the app with its body and files, its PDF shows in the page, and a reply goes from the café’s Gmail', async ({ page }) => {
+    await open(page, '/email')
+    // No mailbox yet: Gmail is connected from here, allowed to read it.
+    await page.getByRole('button', { name: 'Connect Gmail' }).click()
+    const list = page.getByRole('list', { name: 'Emails' })
+    await list.getByRole('listitem', { name: 'Factura F2026-0158' }).click()
+
+    const reader = page.getByRole('dialog', { name: 'Factura F2026-0158', exact: true })
+    await expect(reader).toContainText('Tostadores del Sur')
+    await expect(reader).toContainText('To: easybeanscafe@gmail.com')
+    // The email's HTML, in a frame where nothing in it runs.
+    await expect(reader.locator('iframe[title="The email"]')).toHaveAttribute('sandbox', 'allow-popups allow-popups-to-escape-sandbox')
+    await expect(reader.frameLocator('iframe[title="The email"]').getByText('344,08 €')).toBeVisible()
+    await expect(reader.getByRole('link', { name: 'Open in Gmail' })).toHaveAttribute('href', /^https:\/\/mail\.google\.com\//)
+
+    // The PDF attached opens in the page, with Download.
+    await reader.getByRole('list', { name: 'Attachments' }).getByRole('button', { name: 'View Factura F2026-0158.pdf' }).click()
+    const viewer = page.getByRole('dialog', { name: 'Factura F2026-0158.pdf' })
+    await expect(viewer.locator('iframe')).toHaveAttribute('src', /^blob:/)
+    await expect(viewer.getByRole('button', { name: 'Download' })).toBeEnabled()
+    await viewer.getByRole('button', { name: 'Close' }).click()
+    await expect(viewer).toHaveCount(0)
+
+    // A reply, in the same conversation.
+    await reader.getByRole('button', { name: 'Reply', exact: true }).click()
+    const reply = reader.getByRole('form', { name: 'Reply' })
+    await expect(reply).toContainText('To: Tostadores del Sur <facturacion@tostadoresdelsur.example>')
+    await expect(reply).toContainText('Sent from easybeanscafe@gmail.com, in the same conversation.')
+    await reply.getByRole('textbox', { name: 'Your reply' }).fill('¡Gracias! Recibida, la pagamos a 30 días.')
+    await reply.getByRole('button', { name: 'Send' }).click()
+    await toast(page, 'Sent')
+    await expect(reply).toHaveCount(0)
+    await reader.getByRole('button', { name: 'Close' }).click()
+    await expect(reader).toHaveCount(0)
+  })
+
+  test('email: a picture attached shows in the page, and Reply all copies everyone the email went to', async ({ page }) => {
+    await open(page, '/email')
+    await page.getByRole('button', { name: 'Connect Gmail' }).click()
+    const list = page.getByRole('list', { name: 'Emails' })
+    await list.getByRole('listitem', { name: 'Presupuesto vasos compostables 12 oz' }).click()
+    const reader = page.getByRole('dialog', { name: 'Presupuesto vasos compostables 12 oz', exact: true })
+    await expect(reader).toContainText('una prueba de impresión del vaso') // a plain-text email
+    await reader.getByRole('button', { name: 'View Prueba de impresión vaso 12 oz.png' }).click()
+    const viewer = page.getByRole('dialog', { name: 'Prueba de impresión vaso 12 oz.png' })
+    const picture = viewer.getByRole('img', { name: 'Prueba de impresión vaso 12 oz.png' })
+    await expect(picture).toHaveAttribute('src', /^blob:/)
+    await expect.poll(() => picture.evaluate(i => (i as HTMLImageElement).naturalWidth)).toBe(360)
+    await viewer.getByRole('button', { name: 'Close' }).click()
+    await expect(reader.getByRole('button', { name: 'Reply all' })).toHaveCount(0) // it went to the café alone
+    await reader.getByRole('button', { name: 'Close' }).click()
+
+    await list.getByRole('listitem', { name: 'Re: Office coffee for 30 desks' }).click()
+    const elena = page.getByRole('dialog', { name: 'Re: Office coffee for 30 desks', exact: true })
+    await elena.getByRole('button', { name: 'Reply all' }).click()
+    const reply = elena.getByRole('form', { name: 'Reply all' })
+    await expect(reply).toContainText('To: Elena Vidal <elena@nomadhub.example>')
+    await expect(reply).toContainText('Cc: Marc Puig <marc@nomadhub.example>')
+    await reply.getByRole('textbox', { name: 'Your reply' }).fill('Perfect: Tuesday and Thursday from the 5th.')
+    await reply.getByRole('button', { name: 'Send' }).click()
+    await toast(page, 'Sent')
   })
 })
 
@@ -8188,4 +8504,95 @@ test('demos page: every video, the landing page’s two too; a card plays its ow
   await films.getByRole('link', { name: 'Watch Run your café from one place' }).click()
   await expect(owner).toBeInViewport()
   await expect.poll(() => owner.evaluate((v: HTMLVideoElement) => !v.paused)).toBe(true)
+})
+
+test.describe('QR codes', () => {
+  test('QR codes: Easy Beans’ menu, competition and Wi-Fi download as PNG and SVG; a new link code is added, moved and downloaded', async ({ page }) => {
+    test.setTimeout(60_000)
+    // The owner calls them barcodes: the old name lands on the page, and search finds it by it.
+    await open(page, '/barcodes')
+    await expect(page).toHaveURL(/\/qr-codes$/)
+    await expect(page.getByRole('heading', { name: 'QR codes', level: 1 })).toBeVisible()
+    const codes = page.getByRole('list', { name: 'QR codes' })
+    await expect(codes.getByRole('listitem')).toHaveText([/^Menu/, /^Competition/, /^Wi-Fi/])
+    const menu = codes.getByRole('listitem', { name: 'Menu' })
+    await expect(menu).toContainText('Used: On the tables')
+    await expect(menu.getByRole('link', { name: 'easybeanscoffee.com/menu' })).toHaveAttribute('href', 'https://easybeanscoffee.com/menu')
+    await expect(menu.getByRole('img', { name: 'QR code for Menu' }).locator('svg')).toHaveCount(1)
+    await expect(codes.getByRole('listitem', { name: 'Competition' })).toContainText('Used: On the café screen')
+    await expect(codes.getByRole('listitem', { name: 'Wi-Fi' })).toContainText('Network: EasyBeans-Guest')
+
+    // A PNG at print size (1024 px square) and an SVG, named after the code.
+    const png = page.waitForEvent('download')
+    await menu.getByRole('button', { name: 'Download Menu as PNG' }).click()
+    const file = await png
+    expect(file.suggestedFilename()).toBe('menu-qr-code.png')
+    const bytes = readFileSync(await file.path())
+    expect(bytes.subarray(1, 4).toString()).toBe('PNG')
+    expect([bytes.readUInt32BE(16), bytes.readUInt32BE(20)]).toEqual([1024, 1024])
+    const svg = page.waitForEvent('download')
+    await codes.getByRole('button', { name: 'Download Wi-Fi as SVG' }).click()
+    const svgFile = await svg
+    expect(svgFile.suggestedFilename()).toBe('wi-fi-qr-code.svg')
+    expect(readFileSync(await svgFile.path(), 'utf8')).toContain('<svg xmlns="http://www.w3.org/2000/svg"')
+
+    // A Wi-Fi without its network asks for it and offers nothing to download until it has it.
+    await codes.getByRole('button', { name: 'Edit Wi-Fi' }).click()
+    let dialog = page.getByRole('dialog', { name: 'Wi-Fi' })
+    await dialog.getByLabel('Network name').fill('')
+    await dialog.getByLabel('Password').fill('')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    const wifi = codes.getByRole('listitem', { name: 'Wi-Fi' })
+    await expect(wifi.getByRole('alert')).toContainText('Add the network name and password')
+    await expect(wifi.getByRole('button', { name: 'Download Wi-Fi as PNG' })).toHaveCount(0)
+    await wifi.getByRole('button', { name: 'Fill in' }).click()
+    await dialog.getByLabel('Network name').fill('EasyBeans-Guest')
+    await dialog.getByLabel('Password').fill('flatwhite2026')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await expect(wifi.getByRole('button', { name: 'Download Wi-Fi as PNG' })).toBeVisible()
+
+    // A new link code: the https:// is added, it goes last, moves up a place and downloads.
+    await page.getByRole('button', { name: 'Add a QR code' }).click()
+    await page.getByRole('dialog', { name: 'Add a QR code' }).getByLabel('Name').fill('Instagram')
+    dialog = page.getByRole('dialog', { name: 'Add Instagram' })
+    await dialog.getByLabel('Link it opens').fill('instagram.com/easy.beans.coffee')
+    await expect(dialog.getByRole('img', { name: 'Preview of the QR code' }).locator('svg')).toHaveCount(1)
+    await dialog.getByRole('button', { name: 'Add', exact: true }).click()
+    await toast(page, 'Instagram added')
+    await expect(codes.getByRole('listitem')).toHaveText([/^Menu/, /^Competition/, /^Wi-Fi/, /^Instagram/])
+    await expect(codes.getByRole('listitem', { name: 'Instagram' }).getByRole('link', { name: 'instagram.com/easy.beans.coffee' }))
+      .toHaveAttribute('href', 'https://instagram.com/easy.beans.coffee')
+    await codes.getByRole('button', { name: 'Move Instagram up' }).click()
+    await expect(codes.getByRole('listitem')).toHaveText([/^Menu/, /^Competition/, /^Instagram/, /^Wi-Fi/])
+    const instagram = page.waitForEvent('download')
+    await codes.getByRole('button', { name: 'Download Instagram as PNG' }).click()
+    expect((await instagram).suggestedFilename()).toBe('instagram-qr-code.png')
+
+    // The print view: the code large on A4 with its name and the line under it.
+    await menu.getByRole('link', { name: 'Print Menu' }).click()
+    await expect(page).toHaveURL(/\/qr-codes\/print\/qr-menu$/)
+    await expect(page.getByRole('heading', { name: 'Menu' })).toBeVisible()
+    await expect(page.getByText('Scan for the menu')).toBeVisible()
+    await expect(page.getByRole('img', { name: 'QR code for Menu' })).toBeVisible()
+    await page.getByRole('link', { name: 'Back' }).click()
+    await expect(page.getByRole('heading', { name: 'QR codes', level: 1 })).toBeVisible()
+
+    await page.keyboard.press('Control+k')
+    await page.keyboard.type('barcode')
+    await page.getByRole('option', { name: 'QR codes' }).click()
+    await expect(page.getByRole('heading', { name: 'QR codes', level: 1 })).toBeVisible()
+  })
+
+  test('QR codes: the team sees and downloads them; only admins add or change them', async ({ page }) => {
+    await open(page, '/qr-codes', 'julio@example.com')
+    await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'QR codes' })).toBeVisible()
+    const codes = page.getByRole('list', { name: 'QR codes' })
+    await expect(codes.getByRole('listitem')).toHaveCount(3)
+    await expect(page.getByRole('button', { name: 'Add a QR code' })).toHaveCount(0)
+    await expect(codes.getByRole('button', { name: 'Edit Menu' })).toHaveCount(0)
+    await expect(page.getByRole('region', { name: 'Suggestions' })).toHaveCount(0)
+    const png = page.waitForEvent('download')
+    await codes.getByRole('button', { name: 'Download Competition as PNG' }).click()
+    expect((await png).suggestedFilename()).toBe('competition-qr-code.png')
+  })
 })

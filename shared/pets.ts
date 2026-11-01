@@ -18,13 +18,24 @@ export interface Pet {
   breed: string | null
   /** A small square JPEG as a data: URL, or null while it has no photo yet. */
   photo: string | null
+  /** How far the photo is zoomed in (1: as it is, up to 3) and on which point, across and down (0–100%). */
+  photo_zoom?: number
+  photo_x?: number
+  photo_y?: number
   sort: number
   created_at: string
 }
-export type PetInput = Partial<Pick<Pet, 'kind' | 'breed' | 'photo' | 'sort'>> & Pick<Pet, 'name'> & { id?: string; profile_id?: string }
+export type PetInput = Partial<Pick<Pet, 'kind' | 'breed' | 'photo' | 'photo_zoom' | 'photo_x' | 'photo_y' | 'sort'>> & Pick<Pet, 'name'> & { id?: string; profile_id?: string }
 
 /** The same limits as the database's. */
-export const PET_LIMITS = { name: 40, breed: 60, photo: 1_000_000, each: 20 }
+export const PET_LIMITS = { name: 40, breed: 60, photo: 1_000_000, each: 20, zoom: 3 }
+
+/** How a pet's photo is framed: zoomed in on its point (the photo itself isn't changed). */
+export function petPhotoFrame(p: Pick<Pet, 'photo_zoom' | 'photo_x' | 'photo_y'>) {
+  const zoom = Math.min(Math.max(Number(p.photo_zoom ?? 1) || 1, 1), PET_LIMITS.zoom)
+  const at = (n: number | undefined) => Math.min(Math.max(Math.round(n ?? 50), 0), 100)
+  return { zoom, x: at(p.photo_x), y: at(p.photo_y) }
+}
 
 /** What's wrong with a pet before it's saved (the database says the same), or null. */
 export function petProblem(p: Pick<PetInput, 'name' | 'breed' | 'photo'>): string | null {

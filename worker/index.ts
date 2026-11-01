@@ -36,6 +36,7 @@ import { cameras, purgeCameraClips } from './cameras'
 import { competitors, watchCompetitors } from './competitors'
 import { push, pushNotifications } from './push'
 import { repPage } from './repPage'
+import { socialAnalytics } from './socialAnalytics'
 import { accessOf, teamRoleOf } from '../shared/teamRoles'
 
 const NIGHTLY = '15 1 * * *' // 03:15 Madrid in summer, 02:15 in winter
@@ -252,6 +253,8 @@ app.route('/', reviews)
 app.route('/', website)
 // Competitors: cafés nearby and the ones followed, from Google (Marketing).
 app.route('/', competitors)
+// Analytics beyond the website: Instagram, TikTok, LinkedIn and Facebook statistics (Marketing).
+app.route('/', socialAnalytics)
 
 // Menu page: AI images through Higgsfield, kept in the café's storage; Screens: each screen's link.
 app.route('/', menu)

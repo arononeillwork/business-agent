@@ -36,7 +36,7 @@ import {
   CONNECTORS, PROVIDERS, READ_MAIL, ROW_COLUMNS, SCOPES, canReadMail, squareWebhookUrl, calendarSeen, calendarFetched, checkAll, checkOne, connectedOf, connectorConfigured,
   connectorGrant, explain, facebookOAuth, facebookSession, googleAdsConfig, googleConfig, googleSession, instagramOAuth, instagramSession, isCalendarApp, isGoogle,
   metaAdsOAuth, proveMetaAds,
-  lasting, linkedinOAuth, linkedinSession, markBroken, msConfig, proveFacebook, proveInstagram, proveLinkedIn, proveNew, proveSpotify, proveSquare, proveStripe,
+  asksForStats, lasting, linkedinOAuth, linkedinSession, markBroken, msConfig, proveFacebook, proveInstagram, proveLinkedIn, proveNew, proveSpotify, proveSquare, proveStripe,
   proveSumUp, proveTikTok, setIntegration, showInstagramHandle, showMailboxAddress, spotifyConfig, spotifySession, squareOAuth, squareSession, stripeOAuth,
   stripeSession, sumupOAuth, sumupSession, tellAdmins, tiktokOAuth, tiktokSession, waConfig, type Connector, type LinkedInExternal, type Provider,
 } from './connections'
@@ -802,7 +802,7 @@ integrations.post('/api/integrations/instagram/start', async c => {
   const cfg = instagramOAuth(c.env, new URL(c.req.url).origin)
   if (!cfg) return c.json({ error: 'Instagram needs the Instagram app keys first (INSTAGRAM_APP_ID and INSTAGRAM_APP_SECRET; see docs/INTEGRATIONS.md).' }, 400)
   const { back } = await c.req.json<{ back?: 'setup' | 'connections' | 'messages' }>().catch(() => ({ back: undefined }))
-  return c.json({ url: instagram.authUrl(cfg, await signState(c.env.INTEGRATION_KEY!, { uid: c.get('userId'), kind: 'instagram', back })) })
+  return c.json({ url: instagram.authUrl(cfg, await signState(c.env.INTEGRATION_KEY!, { uid: c.get('userId'), kind: 'instagram', back }), asksForStats(c.env, 'instagram')) })
 })
 
 integrations.get('/api/integrations/instagram/callback', async c => {
@@ -839,7 +839,8 @@ integrations.get('/api/integrations/instagram/callback', async c => {
   }
 })
 
-const LINKEDIN_PAGES_REFUSED = 'LinkedIn hasn’t approved this app for company Pages yet. Until it does, the app can post to personal profiles only (LINKEDIN_PAGES=off; see docs/INTEGRATIONS.md).'
+const TIKTOK_SCOPES_REFUSED = 'TikTok refused the permissions asked for. The TikTok app needs user.info.stats and video.list added under Scopes (for Analytics, asked for while STATS_SCOPES includes tiktok; see docs/INTEGRATIONS.md), then connect again.'
+const LINKEDIN_PAGES_REFUSED ='LinkedIn hasn’t approved this app for company Pages yet. Until it does, the app can post to personal profiles only (LINKEDIN_PAGES=off; see docs/INTEGRATIONS.md).'
 
 /**
  * The finish of a one-click connection (Facebook, TikTok, LinkedIn, Square, Stripe, SumUp): check the signed state, handle
@@ -858,6 +859,10 @@ async function appCallback(c: Ctx, provider: Provider,
     const cancelled = /access_denied|user_denied|user_cancelled|cancel/i.test(`${c.req.query('error')} ${c.req.query('error_reason') ?? ''}`)
     // LinkedIn refuses Page permissions an app hasn't been approved for (the Community Management API).
     const said = provider === 'linkedin' && /unauthorized_scope/i.test(c.req.query('error')!) ? LINKEDIN_PAGES_REFUSED : (c.req.query('error_description') ?? c.req.query('error')!)
+    // TikTok refuses a sign-in that asks for a scope the TikTok app doesn't have (the statistics ones, until they're added there).
+    if (provider === 'tiktok' && !cancelled && /scope/i.test(`${c.req.query('error')} ${c.req.query('error_description') ?? ''}`)) {
+      return back(`connect_error=${encodeURIComponent(TIKTOK_SCOPES_REFUSED)}`)
+    }
     return back(`connect_error=${encodeURIComponent(cancelled ? `${optionName(provider)} connection was cancelled` : said)}`)
   }
   const db = await callbackDb(c.env, state.uid).catch(() => null)
@@ -889,7 +894,7 @@ const keep = async (env: Env, db: SupabaseClient, provider: Provider, secret: un
 integrations.post('/api/integrations/facebook/start', async c => {
   const cfg = facebookOAuth(c.env, new URL(c.req.url).origin)
   if (!cfg) return c.json({ error: 'Facebook needs the Meta app keys first (META_APP_ID and META_APP_SECRET; see docs/INTEGRATIONS.md).' }, 400)
-  return c.json({ url: facebook.authUrl(cfg, await startState(c, 'facebook')) })
+  return c.json({ url: facebook.authUrl(cfg, await startState(c, 'facebook'), asksForStats(c.env, 'facebook')) })
 })
 
 integrations.get('/api/integrations/facebook/callback', c => appCallback(c, 'facebook', async (state, origin, db) => {
@@ -902,7 +907,9 @@ integrations.get('/api/integrations/facebook/callback', c => appCallback(c, 'fac
   // Messenger (pages_messaging) is optional: posting works without it, the Messages page says to connect again.
   await setIntegration(db, 'facebook', { status: proven.chosen ? 'connected' : 'pending', connected_by: state.uid, connected_at: now,
     last_checked_at: proven.chosen ? now : null, last_error: null, account_label: proven.label,
-    external: { ...proven.external, messenger: granted.includes('pages_messaging') } })
+    external: { ...proven.external, messenger: granted.includes('pages_messaging'),
+      // The Page's statistics (read_insights, the Analytics page): optional the same way.
+      insights: granted.includes('read_insights') } })
 }))
 
 // Which Page to post to (when the owner manages more than one): connected once that Page answers.
@@ -950,7 +957,7 @@ integrations.get('/api/integrations/meta_ads/callback', c => appCallback(c, 'met
 integrations.post('/api/integrations/tiktok/start', async c => {
   const cfg = tiktokOAuth(c.env, new URL(c.req.url).origin)
   if (!cfg) return c.json({ error: 'TikTok needs the TikTok app keys first (TIKTOK_CLIENT_KEY and TIKTOK_CLIENT_SECRET; see docs/INTEGRATIONS.md).' }, 400)
-  return c.json({ url: tiktok.authUrl(cfg, await startState(c, 'tiktok')) })
+  return c.json({ url: tiktok.authUrl(cfg, await startState(c, 'tiktok'), asksForStats(c.env, 'tiktok')) })
 })
 
 integrations.get('/api/integrations/tiktok/callback', c => appCallback(c, 'tiktok', async (state, origin, db) => {
@@ -968,7 +975,7 @@ integrations.get('/api/integrations/tiktok/callback', c => appCallback(c, 'tikto
 integrations.post('/api/integrations/linkedin/start', async c => {
   const cfg = linkedinOAuth(c.env, new URL(c.req.url).origin)
   if (!cfg) return c.json({ error: 'LinkedIn needs the LinkedIn app keys first (LINKEDIN_CLIENT_ID and LINKEDIN_CLIENT_SECRET; see docs/INTEGRATIONS.md).' }, 400)
-  return c.json({ url: linkedin.authUrl(cfg, await startState(c, 'linkedin')) })
+  return c.json({ url: linkedin.authUrl(cfg, await startState(c, 'linkedin'), asksForStats(c.env, 'linkedin')) })
 })
 
 integrations.get('/api/integrations/linkedin/callback', c => appCallback(c, 'linkedin', async (state, origin, db) => {
