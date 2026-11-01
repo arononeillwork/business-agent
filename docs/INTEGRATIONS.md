@@ -278,6 +278,15 @@ unticked, keeps posting, and the Messages page asks to connect Facebook again.
 TikTok photo posts need a JPEG photo (`.jpg`/`.jpeg`); the planner checks this before scheduling.
 Access lasts a day and is renewed automatically with the 1-year refresh token.
 
+**"We couldn't log in with TikTok … correct the following: client_key".** TikTok doesn't accept the
+key in `TIKTOK_CLIENT_KEY`. An app that TikTok hasn't approved yet has no working production key:
+switch the app page in the developer portal from **Production** to **Sandbox**, create a sandbox, add
+Login Kit (with the same Redirect URI) and Content Posting API to it, add your TikTok account under
+**Target users**, and put the *sandbox's* Client key and Client secret in the two GitHub secrets
+(sandbox keys start with `sb`). Use the **Client key**, not the App ID, and set both from the same
+place (sandbox or production): a key from one with a secret from the other fails after sign-in.
+Deploy again (or wait for the next merge) so the Worker picks up the new keys.
+
 ## 9. Square (Sales and takings)
 
 The till is **Square or SumUp** (one at a time: connecting one replaces the other). **Stripe** is for
