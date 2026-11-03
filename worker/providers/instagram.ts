@@ -78,6 +78,13 @@ export async function profile(cfg: InstagramConfig): Promise<InstagramProfile> {
   return { ...p, recent: media.data }
 }
 
+/** The account's latest posts and reels, newest first, with their captions and photos (a video's cover). */
+export async function recentMedia(cfg: InstagramConfig, limit = 12) {
+  const r = await graph<{ data: { id: string; caption?: string; media_type?: string; media_url?: string; thumbnail_url?: string; permalink?: string; timestamp: string }[] }>(cfg,
+    `me/media?fields=id,caption,media_type,media_url,thumbnail_url,permalink,timestamp&limit=${limit}`)
+  return r.data
+}
+
 /** Likes and comments on the account's latest posts and reels (stories have none Instagram shares). */
 export async function mediaCounts(cfg: InstagramConfig, limit = 100) {
   const r = await graph<{ data: { id: string; permalink?: string; like_count?: number; comments_count?: number }[] }>(cfg,

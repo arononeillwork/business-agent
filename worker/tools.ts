@@ -32,6 +32,7 @@ import {
 } from '../shared/music'
 import { MusicError, makeAiMusic, renderMusic } from './socialMusic'
 import { LICENCE_TOOLS } from './licenceTools'
+import { OFFER_TOOLS } from './offerTools'
 import type { Env } from './supabase'
 import { shows, type FEATURES as APP_PARTS } from '../src/app/features'
 
@@ -1660,6 +1661,8 @@ export const ALL_TOOLS: ToolDef[] = [
   }),
   // Licences and kept documents (worker/licenceTools.ts).
   ...LICENCE_TOOLS,
+  // Offers & specials, the screens, and offers from the business's own latest posts (worker/offerTools.ts).
+  ...OFFER_TOOLS,
 ]
 
 /** The tools on offer (MCP, the REST API and its OpenAPI): not those of a part of the app that's switched off (src/app/features.ts), which stay built and tested. */

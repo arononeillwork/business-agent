@@ -230,6 +230,12 @@ built-in **AI connector** so owners can run it by talking to Claude.
   once a day; admins hear about it in the bell. It stops like any offer. Nothing is charged or changed
   in Square: the team rings it up at the offer price. A café's usual rule (today's bakes, 30% off, two
   hours before closing) is there for each business, switched off until an admin turns it on.
+- Offers from posts (Offers & specials and Screens, admins): **From Instagram** lists the business's latest
+  posts (its Facebook Page's while Instagram isn't connected), the newest with an offer in it marked; picking
+  one fills in a new offer from the caption (its first line as the name, "€3.50 (usually €4.50)", "2x1", "20%
+  off", the rest as details, "today only" or "this weekend" for how long) with the post's photo, copied to
+  the café's storage so it outlasts Instagram's link, on every screen that's on (or the screen it was
+  opened from), to check before saving (`shared/offerFromPost.ts`, `worker/offerPosts.ts`).
 - Documents (Business section): every file kept in the café's own Google Drive or OneDrive (the Tax
   page's, invoices brought in by email, licences' documents, and contracts, insurance policies and
   certificates kept here), all years in one list with what each belongs to (an invoice, a licence, the
@@ -588,6 +594,13 @@ Licences and documents from the AI: `list_licences` (status, when each runs out,
 ones not on file yet), `save_licence` (add one from a preset like `sgae`, point it at its document with a
 link such as the file in Drive, mark it renewed) and `find_documents` (search the kept documents).
 Uploading a file stays on the Documents and Licences pages: the app only reaches files it put in Drive.
+
+Offers and screens from the AI: `latest_social_posts` (the business's own latest posts on Instagram, or its
+Facebook Page while Instagram isn't connected, each with the offer read from its caption, and which is the
+latest with one), `list_screens`, `list_offers` and `save_offer` (typed in, or `from_post: "latest"`: the
+caption gives the name, price, crossed-out price, details and how long it runs, the post's photo is kept in
+the café's storage, and it goes on every screen that's on unless `screens` names some). Try: *"Put the
+special in my last Instagram post on the café TV."*
 
 The **AI assistants** page (account menu → AI assistants, `/ai-assistants`) shows the connector address
 with a copy button, the steps for Claude, ChatGPT, Claude Code and other AIs, things to ask, and the

@@ -13,6 +13,7 @@ import DownloadIcon from '@mui/icons-material/DownloadOutlined'
 import PhotoIcon from '@mui/icons-material/AddPhotoAlternateOutlined'
 import TvIcon from '@mui/icons-material/TvOutlined'
 import AutoIcon from '@mui/icons-material/AutoModeOutlined'
+import InstagramIcon from '@mui/icons-material/Instagram'
 import { useEffect, useRef, useState } from 'react'
 import { Link as RouterLink, useSearchParams } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
@@ -25,6 +26,7 @@ import { Composer } from './SocialPlannerPage'
 import { LastDayRules } from './LastDayRules'
 import { offerPicture } from '../lib/offerPicture'
 import { readyPhoto } from '../lib/media'
+import { latestOfferPost, offerFromCaption, offerFromPost, type SourcePost } from '../../shared/offerFromPost'
 import {
   LENGTHS, OFFER_SECONDS, endFor, lengthOf, newOffer, offerProblem, offerState, type Offer, type OfferInput, type OfferLength, type OfferState,
 } from '../../shared/offers'
@@ -95,6 +97,8 @@ export function OffersPage() {
   const [editing, setEditing] = useState<OfferInput | null>(null)
   const [story, setStory] = useState<{ offer: Offer; post: Partial<SocialPost> } | null>(null)
   const [deleting, setDeleting] = useState<Offer | null>(null)
+  // From Instagram: the latest posts to pick one from, and the screens a new offer from it goes on (all that are on, unless one was picked).
+  const [picking, setPicking] = useState<{ screenId: string | null } | null>(null)
   useTick(30_000)
   const brand = boardBrand(business?.name ?? '', brandRow.data ? { ...brandRow.data, logo: brandRow.data.logo_mark ?? brandRow.data.logo } : null)
   const storage = integ.data?.media_storage ?? null
@@ -109,6 +113,22 @@ export function OffersPage() {
     startNew(params.get('screen'))
     setParams({}, { replace: true })
   }, [params, screens.data])
+  // From Screens → From Instagram: the latest posts, for an offer on that screen.
+  useEffect(() => {
+    if (params.get('from') !== 'instagram') return
+    setPicking({ screenId: params.get('screen') })
+    setParams({}, { replace: true })
+  }, [params])
+  /** The offer in a post, filled in for checking before it's saved: its photo kept in the café's storage first. */
+  const fromPost = async (p: SourcePost, screenId: string | null) => {
+    await run(async () => {
+      const image_url = p.image_url ? await api.keepPostPhoto(p.image_url) : null
+      const { length: _length, found: _found, ...o } = offerFromPost({ ...p, image_url },
+        screenId ? [screenId] : screenList.filter(s => s.active).map(s => s.id), ownTimeZone())
+      setPicking(null)
+      setEditing(o)
+    })
+  }
   // From the bell, when a last-day offer starts: its story, ready on the Social planner's composer.
   useEffect(() => {
     const id = params.get('story')
@@ -154,13 +174,19 @@ export function OffersPage() {
   return (
     <>
       <PageHeader eyebrow={t('Marketing')} title={t('Offers & specials')}
-        actions={<Button variant="contained" startIcon={<AddIcon />} onClick={() => startNew()}>{t('New offer')}</Button>} />
+        actions={<Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+          <Button variant="outlined" startIcon={<InstagramIcon />} onClick={() => setPicking({ screenId: null })}>{t('From Instagram')}</Button>
+          <Button variant="contained" startIcon={<AddIcon />} onClick={() => startNew()}>{t('New offer')}</Button>
+        </Stack>} />
       <ErrorBox error={offers.error} />
       {offers.data && !all.length ? (
         <Empty>
           <Typography sx={{ fontWeight: 500, color: 'text.primary', mb: 0.5 }}>{t('Put a special on your screens and in a story')}</Typography>
           {t('Add an offer for a set time: it shows on the screens you pick from the minute it starts to the minute it ends, and its story is ready on the Social planner to go out as it starts.')}
-          <Box sx={{ mt: 2 }}><Button variant="contained" startIcon={<AddIcon />} onClick={() => startNew()}>{t('New offer')}</Button></Box>
+          <Stack direction="row" sx={{ mt: 2, gap: 1, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <Button variant="contained" startIcon={<AddIcon />} onClick={() => startNew()}>{t('New offer')}</Button>
+            <Button variant="outlined" startIcon={<InstagramIcon />} onClick={() => setPicking({ screenId: null })}>{t('From your last Instagram post')}</Button>
+          </Stack>
         </Empty>
       ) : groups.filter(g => g.list.length).map(g => (
         <Box key={g.state} component="section" aria-label={g.title} sx={{ mb: 3 }}>
@@ -176,6 +202,7 @@ export function OffersPage() {
       ))}
       {offers.data && <LastDayRules screens={screenList} />}
 
+      {picking && <PostPicker onClose={() => setPicking(null)} onPick={p => fromPost(p, picking.screenId)} />}
       {editing && <OfferDialog offer={editing} screens={screenList} brand={brand} hasPost={!!editing.post_id && !!posts.data?.some(p => p.id === editing.post_id)}
         onClose={() => setEditing(null)}
         onSaved={async (o, kind) => { await offers.reload(); setEditing(null); if (kind) await makeStory(o, kind) }} />}
@@ -267,7 +294,8 @@ function OfferDialog({ offer, screens, brand, hasPost, onClose, onSaved }: {
   const [o, setO] = useState<OfferInput>(offer)
   const [startDate, setStartDate] = useState(localDate(offer.starts_at))
   const [startTime, setStartTime] = useState(localTime(offer.starts_at))
-  const [length, setLength] = useState<OfferLength>(offer.id ? lengthOf(offer.starts_at, offer.ends_at, tz) : '2h')
+  // As it comes: a new offer's two hours, or the weekend an Instagram post says (until a time picked: Sunday 23:59).
+  const [length, setLength] = useState<OfferLength>(lengthOf(offer.starts_at, offer.ends_at, tz))
   const [endDate, setEndDate] = useState(localDate(offer.ends_at))
   const [endTime, setEndTime] = useState(localTime(offer.ends_at))
   const [story, setStory] = useState<PostKind | null>(hasPost ? null : 'story')
@@ -415,6 +443,73 @@ function OfferDialog({ offer, screens, brand, hasPost, onClose, onSaved }: {
           {story === 'story' ? t('Save and make the story') : story === 'post' ? t('Save and make the post') : t('Save')}
         </Button>
       </DialogActions>
+    </Dialog>
+  )
+}
+
+/**
+ * From Instagram: the business's latest posts (its Facebook Page's while Instagram isn't connected),
+ * the newest with an offer in it first to hand. Picking one fills in a new offer from its caption and
+ * photo, opened for checking before it goes on the screens.
+ */
+function PostPicker({ onClose, onPick }: { onClose: () => void; onPick: (p: SourcePost) => Promise<void> }) {
+  const { api } = useApp()
+  const read = useAsync('latest-posts', () => api.latestPosts(12), [])
+  const phone = useMediaQuery(useTheme().breakpoints.down('sm'))
+  const [busy, setBusy] = useState<string | null>(null)
+  const list = read.data?.posts ?? []
+  const latest = latestOfferPost(list)
+  const network = read.data?.source === 'facebook' ? 'Facebook' : 'Instagram'
+  const pick = async (p: SourcePost) => {
+    setBusy(p.id)
+    try { await onPick(p) } finally { setBusy(null) }
+  }
+  return (
+    <Dialog open onClose={onClose} fullWidth maxWidth="sm" fullScreen={phone}>
+      <DialogTitle>{t('An offer from your Instagram')}</DialogTitle>
+      <DialogContent>
+        <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
+          {read.data?.source === 'facebook'
+            ? t('Instagram isn’t connected, so these are your Facebook Page’s latest posts. Pick the one with the offer: its name, price and photo fill in the offer, for you to check before it goes on your screens.')
+            : t('Your latest posts. Pick the one with the offer: its name, price and photo fill in the offer, for you to check before it goes on your screens.')}
+        </Typography>
+        {read.error && (
+          <Alert severity="info" action={<Button color="inherit" size="small" component={RouterLink} to="/connections">{t('Connections')}</Button>}>{read.error}</Alert>
+        )}
+        {!read.data && !read.error && <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('Loading your latest posts…')}</Typography>}
+        {read.data && !list.length && <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('No posts yet.')}</Typography>}
+        <Stack spacing={1.5}>
+          {list.map(p => {
+            const idea = offerFromCaption(p.caption)
+            const first = p.id === latest?.id
+            return (
+              <Card key={p.id} component="article" aria-label={idea.title || t('Post')} variant="outlined" sx={{ p: 1.5, display: 'flex', gap: 1.5, borderColor: first ? tokens.roseDeep : undefined }}>
+                <Box sx={{ width: 84, height: 84, flexShrink: 0, borderRadius: 2, overflow: 'hidden', bgcolor: tokens.surfaceAlt, display: 'grid', placeItems: 'center', color: tokens.inkSoft }}>
+                  {p.image_url ? <Box component="img" src={p.image_url} alt="" sx={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <InstagramIcon />}
+                </Box>
+                <Box sx={{ minWidth: 0, flex: 1 }}>
+                  <Stack direction="row" sx={{ gap: 0.75, alignItems: 'center', flexWrap: 'wrap', mb: 0.5 }}>
+                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>{formatLocal(p.posted_at, 'EEE d MMM, HH:mm')}</Typography>
+                    {first && <Tag fg={tokens.goodFg} bg={tokens.goodBg}>{t('Latest offer')}</Tag>}
+                    {idea.price && <Tag fg={tokens.infoFg} bg={tokens.infoBg}>{idea.price}</Tag>}
+                    {idea.was_price && <Typography component="s" variant="caption" sx={{ color: 'text.secondary' }}>{idea.was_price}</Typography>}
+                  </Stack>
+                  <Typography variant="body2" sx={{ whiteSpace: 'pre-line', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                    {p.caption || t('No caption')}
+                  </Typography>
+                  <Stack direction="row" sx={{ gap: 1, mt: 1, flexWrap: 'wrap' }}>
+                    <Button size="small" variant={first ? 'contained' : 'outlined'} disabled={!!busy} onClick={() => void pick(p)}>
+                      {busy === p.id ? t('Bringing it in…') : t('Make it an offer')}
+                    </Button>
+                    {p.permalink && <Button size="small" href={p.permalink} target="_blank" rel="noopener">{t('Open on {network}', { network })}</Button>}
+                  </Stack>
+                </Box>
+              </Card>
+            )
+          })}
+        </Stack>
+      </DialogContent>
+      <DialogActions><Button onClick={onClose}>{t('Cancel')}</Button></DialogActions>
     </Dialog>
   )
 }

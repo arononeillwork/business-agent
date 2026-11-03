@@ -36,6 +36,7 @@ import type { Recipe, RecipeInput } from '../../shared/recipes'
 import type { MenuDesign, MenuDesignInput, MenuImage, MenuImageRequest, MenuItem, MenuItemInput } from '../../shared/menu'
 import type { DisplayFeed, Screen, ScreenInput } from '../../shared/screens'
 import type { Offer, OfferInput } from '../../shared/offers'
+import type { SourcePost } from '../../shared/offerFromPost'
 import type { LastDayRule, LastDayRuleInput } from '../../shared/lastDayOffers'
 import type { Camera, CameraClip, CameraInput, CameraLive, CameraService } from '../../shared/cameras'
 import type { AdPlatform, AdSettings, AdsReport, CampaignPatch } from '../../shared/ads'
@@ -53,6 +54,9 @@ import type { BrandDocument } from '../../shared/brandDocs'
 import type { TipPool, TipPoolInput, TipShare } from '../../shared/tips'
 import type { CompetitorData, CompetitorInput, CompetitorNoteInput, CompetitorPrice, CompetitorSettings, NearbyPlace, PriceItem } from '../../shared/localCompetitors'
 import type { SocialReport, SocialSource } from '../../shared/socialAnalytics'
+
+/** The business's latest posts (Offers & specials → From Instagram). */
+export interface LatestPosts { source: 'instagram' | 'facebook'; account: string | null; posts: SourcePost[] }
 
 export type ShiftInput = Omit<Shift, 'id' | 'status'> & { id?: string; status?: Shift['status'] }
 export type EventInput = Omit<CalendarEvent, 'id' | 'source' | 'competition'> & { id?: string; competition?: string | null }
@@ -634,6 +638,10 @@ export interface Api {
   saveOffer(offer: OfferInput): Promise<string>
   /** Delete one (its post stays on the Social planner). */
   deleteOffer(id: string): Promise<void>
+  /** The business's latest posts on Instagram (else its Facebook Page), newest first, to make an offer from one. */
+  latestPosts(limit?: number): Promise<LatestPosts>
+  /** A post's photo for an offer: copied to the café's storage so it outlasts Instagram's link; its address. */
+  keepPostPhoto(url: string): Promise<string>
   /** Last-day offers (admins): the rules that put stock on its last day on offer by itself until closing. */
   lastDayRules(): Promise<LastDayRule[]>
   saveLastDayRule(rule: LastDayRuleInput): Promise<void>
