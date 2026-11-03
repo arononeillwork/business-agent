@@ -30,6 +30,7 @@ import { MINUTES, takingsMinutes } from '../shared/refresh'
 import { finishMusicConnect, type MusicState } from './music'
 import { ensureFeed } from './calendarFeed'
 import { checkMentions, decide, repostMention } from './mentions'
+import { keepPostPhoto, latestPosts } from './offerPosts'
 import * as waInbox from './whatsappInbox'
 import { MediaError, checkFile, mediaBytes, mediaStorage, serveMedia, storeMedia } from './media'
 import {
@@ -1270,6 +1271,27 @@ integrations.post('/api/integrations/instagram/mentions/:id/repost', async c => 
 integrations.post('/api/integrations/instagram/mentions/:id/ignore', async c => {
   await decide(businessDb(c.env, c.get('businessId')), c.req.param('id'), 'ignored', c.get('userId'))
   return c.json({ ok: true })
+})
+
+// Offers & specials → From Instagram: the business's latest posts (Instagram, else the Facebook Page),
+// and the photo of the one an offer is made from, kept in the café's storage (worker/offerPosts.ts).
+integrations.get('/api/integrations/posts/latest', async c => {
+  try {
+    const limit = Math.min(25, Math.max(1, Number(c.req.query('limit')) || 12))
+    return c.json(await latestPosts(c.env, businessDb(c.env, c.get('businessId')), limit))
+  } catch (e) {
+    return c.json({ error: e instanceof Error ? e.message : String(e) }, 400)
+  }
+})
+
+integrations.post('/api/integrations/posts/photo', async c => {
+  const { url } = await c.req.json<{ url?: string }>().catch(() => ({ url: undefined }))
+  if (!url) return c.json({ error: 'Which photo?' }, 400)
+  try {
+    return c.json(await keepPostPhoto(c.env, businessDb(c.env, c.get('businessId')), new URL(c.req.url).origin, url))
+  } catch (e) {
+    return c.json({ error: e instanceof Error ? e.message : String(e) }, 400)
+  }
 })
 
 integrations.get('/api/integrations/instagram/inbox/:id', async c => {

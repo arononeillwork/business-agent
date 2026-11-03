@@ -32,6 +32,7 @@ import type { MenuDesign, MenuImage, MenuItem } from '../../shared/menu'
 import { missingFrom, templateDesigns, templateSections } from '../../shared/menuTemplate'
 import type { DisplayFeed, Screen } from '../../shared/screens'
 import type { Offer } from '../../shared/offers'
+import type { LatestPosts } from './api'
 import type { LastDayRule } from '../../shared/lastDayOffers'
 import type { Camera, CameraClip, CameraLive, CameraService } from '../../shared/cameras'
 import type { AdSettings } from '../../shared/ads'
@@ -922,6 +923,8 @@ export function createSupabaseApi(url: string, key: string): Api {
       return (check(await sb.from('offers').insert(offer).select('id').single()) as { id: string }).id
     },
     async deleteOffer(id) { check(await sb.from('offers').delete().eq('id', id)) },
+    async latestPosts(limit = 12) { return worker<LatestPosts>(`/api/integrations/posts/latest?limit=${limit}`) },
+    async keepPostPhoto(url) { return (await worker<{ url: string }>('/api/integrations/posts/photo', { method: 'POST', body: JSON.stringify({ url }) })).url },
     async lastDayRules() {
       return check(await sb.from('last_day_rules').select('id, name, active, categories, item_ids, discount, percent_off, price, minutes_before_close, screen_ids, screen_mode, story, sort')
         .order('sort').order('created_at')) as LastDayRule[]

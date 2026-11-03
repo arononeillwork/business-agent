@@ -5014,6 +5014,38 @@ test.describe('offers and specials', () => {
     await expect(page.getByRole('region', { name: 'Ended' }).getByRole('article', { name: 'Cake of the day' })).toBeVisible()
   })
 
+  test('the special in the last Instagram post goes onto Offers & specials and the counter TV, from the Screens page', async ({ page }) => {
+    await open(page, '/screens')
+    await page.getByRole('region', { name: 'Offers on this screen' }).getByRole('link', { name: 'From Instagram' }).click()
+    const picker = page.getByRole('dialog', { name: 'An offer from your Instagram' })
+    // The newest post with an offer in it, not the newest post (a sunny terrace).
+    await expect(picker.getByRole('article').first()).toContainText('Sunny morning on the terrace')
+    await expect(picker.getByRole('article').first()).not.toContainText('Latest offer')
+    const latest = picker.getByRole('article', { name: '2x1 on iced lattes this weekend' })
+    await expect(latest).toContainText('Latest offer')
+    await expect(latest).toContainText('2 for 1')
+    await latest.getByRole('button', { name: 'Make it an offer' }).click()
+
+    // Filled in from the caption and the photo, on the screen it came from, for checking before it's saved.
+    const dialog = page.getByRole('dialog', { name: 'New offer' })
+    await expect(dialog.getByRole('textbox', { name: 'Name' })).toHaveValue('2x1 on iced lattes this weekend')
+    await expect(dialog.getByRole('textbox', { name: 'Price (optional)' })).toHaveValue('2 for 1')
+    // "This weekend": from now until Sunday 23:59.
+    await expect(dialog.getByRole('combobox', { name: 'How long it runs' })).toHaveText('Until a time I pick')
+    await expect(dialog).toContainText('Today, 09:00 – Sun 4 Oct, 23:59')
+    await expect(dialog.getByRole('checkbox', { name: 'Counter TV' })).toBeChecked()
+    await dialog.getByRole('checkbox', { name: 'Make a story for it too (suggested)' }).uncheck()
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click()
+    await toast(page, 'Saved. Screens show it within a minute.')
+    const offer = page.getByRole('region', { name: 'Live now' }).getByRole('article', { name: '2x1 on iced lattes this weekend' })
+    await expect(offer).toContainText('On Counter TV: in turn, 15 seconds each time')
+
+    // On the Screens page under the counter TV, and on the TV in turn with its slides.
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Screens' }).click()
+    await expect(page.getByRole('region', { name: 'Offers on this screen' })).toContainText('2x1 on iced lattes this weekend')
+    await expect(page.getByRole('region', { name: 'Offers on this screen' })).toContainText('Showing now')
+  })
+
   test('last-day offers: today’s croissants go on offer by themselves until closing, on the counter TV, and stop like any offer', async ({ page }) => {
     await open(page, '/stock')
     // Stock: the croissants are on their last day (sold the day they come in), with what's left.

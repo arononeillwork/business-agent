@@ -255,8 +255,9 @@ function ScreenEditor({ screen, designs, items, allergens, brand, offers }: {
       </Card>
 
       <Card component="section" aria-label={t('Offers on this screen')} sx={{ p: 2 }}>
-        <Stack direction="row" sx={{ alignItems: 'center', gap: 1, mb: 0.5 }}>
+        <Stack direction="row" sx={{ alignItems: 'center', gap: 1, mb: 0.5, flexWrap: 'wrap' }}>
           <Typography variant="h6" component="h3" sx={{ flex: 1 }}>{t('Offers on this screen')}</Typography>
+          <Button size="small" startIcon={<InstagramIcon />} component={RouterLink} to={`/offers?from=instagram&screen=${screen.id}`}>{t('From Instagram')}</Button>
           <Button size="small" startIcon={<OfferIcon />} component={RouterLink} to={`/offers?new=1&screen=${screen.id}`}>{t('New offer')}</Button>
         </Stack>
         <Typography variant="body2" sx={{ color: 'text.secondary', mb: offers.length ? 1.5 : 0 }}>

@@ -64,6 +64,7 @@ import {
 } from '../../shared/menu'
 import { screenProblem, type DisplayFeed, type Screen } from '../../shared/screens'
 import { offerProblem, type Offer, type ScreenOffer } from '../../shared/offers'
+import type { LatestPosts } from './api'
 import { closingOn, deliveryUseBy, dueLastDayOffers, lastDayNote, lastDayPrice, lastDayRuleProblem, type LastDayRule } from '../../shared/lastDayOffers'
 import { cameraProblem, type Camera } from '../../shared/cameras'
 import { demoCameraPicture, demoCameras, demoClips } from './demoCameras'
@@ -3526,6 +3527,23 @@ export function createDemoApi(): Api {
       const i = offerList.findIndex(x => x.id === id)
       if (i >= 0) offerList.splice(i, 1)
     },
+    // The café's latest posts on Instagram, the newest with an offer in it the day before yesterday (From Instagram on Offers & specials).
+    async latestPosts(limit = 12) {
+      requireAdmin()
+      if (integ.integrations.find(i => i.provider === 'instagram')!.status !== 'connected') throw new Error('Connect Instagram (or the Facebook Page) on the Connections page to bring in your posts')
+      const at = (hours: number) => new Date(Date.now() - hours * 3_600_000).toISOString()
+      const post = (id: string, hours: number, caption: string, photo: string, food: boolean): LatestPosts['posts'][number] =>
+        ({ id, source: 'instagram', caption, image_url: demoPhoto(photo, food), permalink: `https://www.instagram.com/p/${id}/`, posted_at: at(hours) })
+      const posts = [
+        post('DEMO4terrace', 3, 'Sunny morning on the terrace ☀️ See you soon!\n#sanpedrodealcantara #easybeans', 'Terrace morning', false),
+        post('DEMO3icedlatte', 46, '☕️ 2x1 on iced lattes this weekend! ☕️\nBring a friend: the second one’s on us, any milk, any syrup.\n#easybeans #icedlatte #marbella', 'Iced latte', false),
+        post('DEMO2banana', 5 * 24, 'Banana bread fresh from the oven 🍌 €3.50 (usually €4)\nToday only, while it lasts! #bakery', 'Banana bread', true),
+        post('DEMO1team', 9 * 24, 'Meet the team 💛 Julio has been pouring your flat whites since day one.', 'Flat white morning', false),
+      ]
+      return { source: 'instagram', account: '@easy.beans.coffee', posts: posts.slice(0, limit) }
+    },
+    // The demo keeps the post's photo as it is (no storage to copy it to).
+    async keepPostPhoto(url) { requireAdmin(); return url },
     async cameras() { return isAdmin() ? clone(cameraList) : [] },
     async saveCamera({ id, ...c }) {
       requireAdmin()
