@@ -4,7 +4,7 @@ import { MenuBoard, boardBrand } from './MenuBoard'
 import { OfferBoard } from './OfferBoard'
 import { useTick } from '../app/hooks'
 import { sizeOf } from '../../shared/menu'
-import { musicEmbedUrl, musicKind, playOrder, playUrl, slideSeconds, type DisplayFeed, type Slide } from '../../shared/screens'
+import { musicEmbedUrl, musicKind, playUrl, playedSlides, slideSeconds, type DisplayFeed, type Slide } from '../../shared/screens'
 import { liveOffers, nextChange, withOffers, type OfferSlide } from '../../shared/offers'
 import { formatLocal } from '../../shared/time'
 import { t } from '../i18n'
@@ -14,6 +14,7 @@ import { t } from '../i18n'
 // box it's in: the whole TV on the screen's own link, or a small frame on the Screens page, where it
 // previews the changes being made (silently: `preview`). Offers (Offers & specials) join the
 // slides at the minute they start and leave at the minute they end, by the screen's own clock.
+// A slide with a Spanish version plays in English, then in Spanish (each version that's switched on).
 
 type Phase = 'enter' | 'shown' | 'exit'
 type Item = Slide | OfferSlide
@@ -30,7 +31,7 @@ export function ScreenPlayer({ feed, preview = false, onBlocked }: { feed: Displ
   const s = feed.screen
   // The order changes only when the slides do (a new shuffle each time round would be too).
   const slidesKey = JSON.stringify(s.slides)
-  const slides = useMemo(() => playOrder(s.slides, s.shuffle), [slidesKey, s.shuffle])
+  const slides = useMemo(() => playedSlides(s.slides, s.shuffle), [slidesKey, s.shuffle])
   // The offers on now, looked at again the moment the next one starts or ends (at most an hour
   // apart: a timer can't wait for days, and a TV's clock may have moved).
   const offers = feed.offers ?? []
@@ -132,7 +133,16 @@ function SlideView({ slide, feed, sound, onEnded }: { slide: Slide; feed: Displa
     )
   }
   if (!src) return null
-  if (slide.kind === 'image') return <Box component="img" src={src} alt={slide.title ?? ''} sx={{ ...fill, objectFit: fit }} />
+  if (slide.kind === 'image') {
+    // Fitted inside the screen: the picture's own colours, blurred, fill the borders (a portrait poster on a landscape TV).
+    if (fit === 'contain') {
+      return <>
+        <Box component="img" src={src} alt="" aria-hidden sx={{ ...fill, objectFit: 'cover', filter: 'blur(4cqmin) brightness(0.7)', transform: 'scale(1.15)' }} />
+        <Box component="img" src={src} alt={slide.title ?? ''} sx={{ ...fill, objectFit: 'contain' }} />
+      </>
+    }
+    return <Box component="img" src={src} alt={slide.title ?? ''} sx={{ ...fill, objectFit: fit }} />
+  }
   if (slide.kind === 'video') {
     // Without a time of its own it plays to its end (then the next slide); with one, it loops until then.
     return <Box component="video" src={src} autoPlay muted={!sound} playsInline loop={!onEnded || slide.seconds !== null} onEnded={slide.seconds === null ? onEnded : undefined}

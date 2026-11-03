@@ -4908,6 +4908,34 @@ test.describe('menu, menu design and screens', () => {
     await expect(page.getByRole('button', { name: 'Counter TV', exact: true })).toContainText('4 slides')
   })
 
+  test('a slide in English and Spanish: a tab each, with its own address and its own switch', async ({ page }) => {
+    await open(page, '/screens')
+    const web = page.getByRole('article', { name: 'Our website' })
+    await expect(web.getByRole('tab', { name: /^English/ })).toHaveAttribute('aria-selected', 'true')
+    await expect(web.getByRole('textbox', { name: 'Address in English' })).toHaveValue('https://www.easybeanscoffee.com/')
+    await expect(web).toContainText('Plays in English only')
+    await expect(web.getByRole('tab', { name: /^Spanish/ })).toContainText('None')
+
+    // The Spanish version: its address, then it plays after the English one.
+    await web.getByRole('tab', { name: /^Spanish/ }).click()
+    await expect(web.getByRole('switch', { name: 'Show Our website in Spanish' })).toBeDisabled()
+    await web.getByRole('textbox', { name: 'Address in Spanish' }).fill('www.easybeanscoffee.com/es')
+    await web.getByRole('textbox', { name: 'Address in Spanish' }).press('Enter')
+    await expect(web.getByRole('textbox', { name: 'Address in Spanish' })).toHaveValue('https://www.easybeanscoffee.com/es')
+    await expect(web.getByRole('switch', { name: 'Show Our website in Spanish' })).toBeChecked()
+    await expect(web).toContainText('Plays in English, then in Spanish')
+    await expect(web.getByRole('tab', { name: /^Spanish/ })).toContainText('On')
+
+    // English switched off: Spanish only.
+    await web.getByRole('tab', { name: /^English/ }).click()
+    await web.getByRole('switch', { name: 'Show Our website in English' }).uncheck()
+    await expect(web).toContainText('Plays in Spanish only')
+    await expect(web.getByRole('tab', { name: /^English/ })).toContainText('Off')
+    await page.getByRole('button', { name: 'Save changes' }).click()
+    await toast(page, 'Saved. The screen shows the changes within a minute.')
+    await expect(page.getByText('Unsaved changes')).toHaveCount(0)
+  })
+
   test('a digital menu goes on a screen from Menu design, and a new screen starts with it', async ({ page }) => {
     await open(page, '/menu/design?format=digital')
     await page.getByRole('button', { name: 'Show on a screen' }).click()

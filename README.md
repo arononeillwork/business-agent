@@ -211,6 +211,12 @@ built-in **AI connector** so owners can run it by talking to Claude.
   and its speed, shuffle, fill or fit, music (an MP3, a radio stream or YouTube) with its volume, videos'
   own sound, the time and a running line. The page previews the changes as they're made; the screen
   picks them up within a minute, keeps playing offline and stays awake.
+- Slides in English and Spanish (Screens, admins): each slide has a tab for each language, with its own
+  address (the poster or page in Spanish) or digital menu, and its own switch; the screen plays the English
+  version, then the Spanish one, skipping a version that's off or has nothing to show, and a slide's own
+  switch still turns both off. A picture shown whole ("Show all of it") sits on a blurred copy of itself
+  rather than black borders, so a portrait poster suits a landscape TV (`shared/screens.ts`, the
+  `screen_languages` migration).
 - Offers & specials (Marketing section, admins): a special or an offer for a set time (an hour, until
   the end of the day, 24 hours like a story, a week, or until a time picked), with its price, what it
   usually costs crossed out, details and a photo. It shows on the screens picked from the minute it
