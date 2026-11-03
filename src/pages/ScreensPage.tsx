@@ -35,6 +35,7 @@ import type { MenuAllergens } from '../../shared/allergens'
 import { offerState, type Offer, type ScreenOffer } from '../../shared/offers'
 import type { Brand } from '../../shared/types'
 import { tokens } from '../theme'
+import { SlideVersions } from './ScreenSlideVersions'
 import { t, tc, tn } from '../i18n'
 
 const inputOf = ({ id, token: _token, last_seen_at: _seen, updated_at: _updated, ...s }: Screen): ScreenInput => ({ ...s, id })
@@ -376,7 +377,7 @@ function SlideRow({ slide: sl, index, count, screenSeconds, designs, onChange, o
   const name = sl.title || design?.name || sl.url || t('Slide')
   const own = sl.seconds === null ? '' : String(sl.seconds)
   return (
-    <Box component="article" aria-label={name} sx={{ display: 'flex', alignItems: 'center', gap: 1.25, flexWrap: { xs: 'wrap', sm: 'nowrap' }, p: 1, borderRadius: 2,
+    <Box component="article" aria-label={name} sx={{ display: 'flex', alignItems: 'center', gap: 1.25, flexWrap: 'wrap', p: 1, borderRadius: 2,
       border: `1px solid ${tokens.line}`, opacity: sl.active ? 1 : 0.55 }}>
       <Box sx={{ width: 64, height: 40, flexShrink: 0, borderRadius: 1, overflow: 'hidden', bgcolor: tokens.surfaceAlt, display: 'grid', placeItems: 'center', color: tokens.inkSoft }}>
         {sl.kind === 'image' && sl.url ? <Box component="img" src={sl.url} alt="" sx={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : ICON[sl.kind]}
@@ -408,6 +409,7 @@ function SlideRow({ slide: sl, index, count, screenSeconds, designs, onChange, o
         <IconButton size="small" aria-label={t('Move {name} down', { name })} disabled={index === count - 1} onClick={() => onMove(1)}><DownIcon fontSize="small" /></IconButton>
         <IconButton size="small" aria-label={t('Remove {name}', { name })} onClick={onRemove}><DeleteIcon fontSize="small" /></IconButton>
       </Stack>
+      <SlideVersions slide={sl} name={name} designs={designs} onChange={onChange} />
     </Box>
   )
 }

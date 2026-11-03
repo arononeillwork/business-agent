@@ -35,6 +35,44 @@ export interface Slide {
   live: boolean
   /** Off: kept in the list but skipped. */
   active: boolean
+  /**
+   * Its Spanish version, if it has one: the same kind of slide at another address (a poster in
+   * Spanish, the menu page in Spanish), or another digital menu. The English version is url /
+   * design_id. Slides from before there were versions have neither (and show as they are).
+   */
+  url_es?: string | null
+  design_id_es?: string | null
+  /** Which versions show: English first, then Spanish. Missing: shown (a version with nothing to show is skipped). */
+  show_en?: boolean
+  show_es?: boolean
+}
+
+/** The two versions a slide can have, in the order they show. */
+export type SlideLang = 'en' | 'es'
+export const SLIDE_LANGS: { id: SlideLang; label: string; short: string }[] = [
+  { id: 'en', label: msg('English'), short: 'EN' },
+  { id: 'es', label: msg('Spanish'), short: 'ES' },
+]
+
+/** A slide's version in one language, as it plays: its own id and address. */
+export type PlayedSlide = Slide & { lang: SlideLang; slide_id: string }
+
+/** Whether the slide has something to show in that language. */
+export function hasVersion(s: Pick<Slide, 'kind' | 'url' | 'design_id' | 'url_es' | 'design_id_es'>, lang: SlideLang): boolean {
+  if (s.kind === 'menu') return !!(lang === 'en' ? s.design_id : s.design_id_es)
+  return !!(lang === 'en' ? s.url : s.url_es)
+}
+
+/** Whether that version is switched on (it shows if it also has something to show). */
+export const versionOn = (s: Pick<Slide, 'show_en' | 'show_es'>, lang: SlideLang) => (lang === 'en' ? s.show_en : s.show_es) !== false
+
+/** The versions of a slide that play, English then Spanish: each switched on and with something to show. */
+export function slideVersions(s: Slide): PlayedSlide[] {
+  return SLIDE_LANGS.filter(l => versionOn(s, l.id) && hasVersion(s, l.id)).map(({ id: lang }) => ({
+    ...s, lang, slide_id: s.id, id: `${s.id}:${lang}`,
+    url: lang === 'en' ? s.url : s.url_es ?? null,
+    design_id: lang === 'en' ? s.design_id : s.design_id_es ?? null,
+  }))
 }
 
 export type Transition = 'fade' | 'slide' | 'zoom' | 'none'
@@ -143,13 +181,19 @@ export function cleanUrl(typed: string | null | undefined): string | null {
   return /^https?:\/\//i.test(w) ? w : `https://${w.replace(/^\/+/, '')}`
 }
 
-/** A slide that can't be shown as it is: why (null: fine). */
-export function slideProblem(s: Pick<Slide, 'kind' | 'url' | 'design_id' | 'seconds'>): string | null {
-  if (s.kind === 'menu') return s.design_id ? null : msg('Pick the digital menu to show')
-  if (!s.url) return msg('Paste the address of the picture, video or page')
-  // A drawn picture (the demo's own) is let through here; the database takes https only, and says so.
-  const drawn = s.kind === 'image' && s.url.startsWith('data:image/')
-  if (!drawn && !/^https:\/\/[^\s/]+\.[^\s]+$/i.test(s.url)) return msg('The address should start with https:// (screens can’t show plain http pages)')
+/** A slide that can't be shown as it is: why (null: fine). It needs at least one version; each it has is checked. */
+export function slideProblem(s: Pick<Slide, 'kind' | 'url' | 'design_id' | 'seconds' | 'url_es' | 'design_id_es'>): string | null {
+  if (s.kind === 'menu') {
+    if (!s.design_id && !s.design_id_es) return msg('Pick the digital menu to show')
+  } else {
+    if (!s.url && !s.url_es) return msg('Paste the address of the picture, video or page')
+    for (const url of [s.url, s.url_es]) {
+      if (!url) continue
+      // A drawn picture (the demo's own) is let through here; the database takes https only, and says so.
+      const drawn = s.kind === 'image' && url.startsWith('data:image/')
+      if (!drawn && !/^https:\/\/[^\s/]+\.[^\s]+$/i.test(url)) return msg('The address should start with https:// (screens can’t show plain http pages)')
+    }
+  }
   if (s.seconds !== null && !(s.seconds >= 3 && s.seconds <= 3600)) return msg('Show each slide for between 3 seconds and an hour')
   return null
 }
@@ -213,9 +257,13 @@ export function playOrder<T extends Pick<Slide, 'active'>>(slides: T[], shuffle:
   return out
 }
 
-/** How long one go round the slides takes, in seconds (videos playing to their end count as the screen's seconds). */
+/** What plays, in order: the switched-on slides (shuffled when the screen says), each in its versions, English then Spanish. */
+export const playedSlides = (slides: Slide[], shuffle: boolean, random: () => number = Math.random): PlayedSlide[] =>
+  playOrder(slides, shuffle, random).flatMap(slideVersions)
+
+/** How long one go round the slides takes, in seconds (each version counts; videos playing to their end count as the screen's seconds). */
 export const loopSeconds = (s: Pick<Screen, 'seconds' | 'slides'>) =>
-  s.slides.filter(x => x.active).reduce((sum, x) => sum + (slideSeconds(x, s) ?? s.seconds), 0)
+  playedSlides(s.slides, false).reduce((sum, x) => sum + (slideSeconds(x, s) ?? s.seconds), 0)
 
 /** The screen asks for its slides every minute while it's on: seen in the last 3 minutes means it's on now. */
 export const ONLINE_MINUTES = 3

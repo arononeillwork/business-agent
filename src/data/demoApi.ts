@@ -3377,7 +3377,7 @@ export function createDemoApi(): Api {
       requireAdmin()
       const d = menuDesignList.find(x => x.id === id)
       if (!d) return
-      const onScreen = screenList.find(s => s.slides.some(x => x.design_id === id))
+      const onScreen = screenList.find(s => s.slides.some(x => x.design_id === id || x.design_id_es === id))
       if (onScreen) throw new Error(`${d.name} is on the screen “${onScreen.name}”. Take it off that screen first.`)
       menuDesignList.splice(menuDesignList.indexOf(d), 1)
       for (let i = menuImages.length - 1; i >= 0; i--) if (menuImages[i].design_id === id) menuImages.splice(i, 1)
@@ -3445,7 +3445,8 @@ export function createDemoApi(): Api {
       requireAdmin()
       const problem = screenProblem(s)
       if (problem) throw new Error(problem)
-      if (s.slides.some(x => x.kind === 'menu' && !menuDesignList.some(d => d.id === x.design_id && d.format === 'digital'))) {
+      // As the database: each menu a menu slide shows (in English or Spanish) is one of the digital ones.
+      if (s.slides.some(x => x.kind === 'menu' && [x.design_id, x.design_id_es].some(m => m && !menuDesignList.some(d => d.id === m && d.format === 'digital')))) {
         throw new Error('Pick one of the digital menus for a menu slide')
       }
       const tidy = { ...s, name: s.name.trim(), ticker: s.ticker?.trim() || null, music_url: s.music_url?.trim() || null, updated_at: nowIso() }
@@ -3476,8 +3477,10 @@ export function createDemoApi(): Api {
       const menus: DisplayFeed['menus'] = {}
       if (s.active) {
         for (const sl of s.slides) {
-          const d = sl.kind === 'menu' ? menuDesignList.find(x => x.id === sl.design_id && x.format === 'digital') : undefined
-          if (d) menus[d.id] = { design: { ...clone(d), image_url: menuImages.find(i => i.id === d.image_id && i.status === 'ready')?.url ?? null }, items: menuList() }
+          for (const m of sl.kind === 'menu' ? [sl.design_id, sl.design_id_es] : []) {
+            const d = menuDesignList.find(x => x.id === m && x.format === 'digital')
+            if (d) menus[d.id] = { design: { ...clone(d), image_url: menuImages.find(i => i.id === d.image_id && i.status === 'ready')?.url ?? null }, items: menuList() }
+          }
         }
       }
       return { screen, sections: [...(settings.menu_sections ?? [])],
