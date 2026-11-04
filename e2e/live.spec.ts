@@ -378,6 +378,9 @@ test.describe('business connections', () => {
     await signInUi(page, 'admin')
     await openFromMenu(page, hidden, 'Messages')
     await expect(page.getByRole('heading', { level: 1, name: 'Messages' })).toBeVisible()
+    // Instagram's own tab: "All" shows the chats once any app is connected (Facebook or WhatsApp), not
+    // the cards for the ones that aren't, so the Connect Instagram card is only sure to be there.
+    await page.getByRole('group', { name: 'Apps' }).getByRole('button', { name: 'Instagram', exact: true }).click()
     const card = page.getByRole('region', { name: 'Connect Instagram' })
     if (state.integrations.find(i => i.provider === 'instagram')?.status === 'connected') {
       await expect(card).toHaveCount(0)
