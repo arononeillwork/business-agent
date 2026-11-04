@@ -1239,6 +1239,27 @@ test.describe('business-wide vs personal', () => {
     await expect(page.getByRole('link', { name: 'Connections' })).toHaveCount(0)
   })
 
+  test('a new password on My account is typed twice, and changes only when both match', async ({ page }) => {
+    await open(page, '/account', 'maria@example.com')
+    const card = page.getByRole('region', { name: 'Password' })
+    const change = card.getByRole('button', { name: 'Change' })
+    await card.getByLabel('New password', { exact: true }).fill('coffee-beans-42')
+    await expect(change).toBeDisabled()
+    // Still typing the start of it: no warning yet.
+    await card.getByLabel('Confirm new password').fill('coffee')
+    await expect(card.getByText('The passwords don’t match')).toHaveCount(0)
+    await expect(change).toBeDisabled()
+    await card.getByLabel('Confirm new password').fill('coffee-beans-24')
+    await expect(card.getByText('The passwords don’t match')).toBeVisible()
+    await expect(change).toBeDisabled()
+    await card.getByLabel('Confirm new password').fill('coffee-beans-42')
+    await expect(card.getByText('The passwords don’t match')).toHaveCount(0)
+    await change.click()
+    await toast(page, 'Password changed')
+    await expect(card.getByLabel('New password', { exact: true })).toHaveValue('')
+    await expect(card.getByLabel('Confirm new password')).toHaveValue('')
+  })
+
   test('admins manage the business connections and the team calendar separately', async ({ page }) => {
     await open(page, '/connections')
     await expect(page.getByRole('heading', { level: 1, name: 'Business connections' })).toBeVisible()
