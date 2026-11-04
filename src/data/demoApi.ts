@@ -49,6 +49,7 @@ import { sectionProblem, type RuleSection, type RulesRead } from '../../shared/s
 import { PET_LIMITS, petProblem, type Pet } from '../../shared/pets'
 import { DEMO_THEME_TRACKS, demoThemeDayApi } from './demoThemeDays'
 import { demoChecklistApi } from './demoChecklists'
+import { demoCompanyValuesApi } from './demoCompanyValues'
 import { demoQrCodeApi } from './demoQrCodes'
 import { COUNTED, type Contractor, type OutsourcedJob } from '../../shared/outsourcing'
 import { DEFAULT_CONVENIO, contractProblem, type EmploymentContract } from '../../shared/contracts'
@@ -1367,6 +1368,8 @@ export function createDemoApi(): Api {
   const checklistApi = demoChecklistApi({
     isStaff: () => isStaff() && !!me()?.active, isAdmin: () => isAdmin() && !!me()?.active, me: () => currentUser, uid, nowIso, today: () => today(),
   }, { by: P.julio, at: zonedIso(today(), '08:05') })
+  // Company values (Business): as the `company_values` migration.
+  const valuesApi = demoCompanyValuesApi({ isStaff: () => isStaff() && !!me()?.active, isAdmin: () => isAdmin() && !!me()?.active, uid })
   /** That person's shifts in the period become open shifts (approved time off). */
   const openUpShifts = (t: TimeOff) => {
     const name = profiles.find(p => p.id === t.profile_id)?.full_name
@@ -2538,6 +2541,7 @@ export function createDemoApi(): Api {
     },
     ...themeDayApi,
     ...checklistApi,
+    ...valuesApi,
     // QR codes: Easy Beans' three, as the `qr_codes` migration, with the demo's Wi-Fi filled in.
     ...demoQrCodeApi({ isStaff: () => isStaff() && !!me()?.active, isAdmin: () => isAdmin() && !!me()?.active, uid, nowIso }),
 

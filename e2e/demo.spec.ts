@@ -6103,6 +6103,65 @@ test.describe('staff kitty', () => {
   })
 })
 
+test.describe('company values', () => {
+  test('company values: the team reads the values and the words we don’t say, in their language; an admin changes them', async ({ page }) => {
+    await open(page, '/', 'maria@example.com')
+    // First in the menu, above People.
+    const business = page.getByRole('navigation', { name: 'Main' }).getByRole('region', { name: 'Business' })
+    await expect(business.getByRole('link').first()).toHaveText('Company values')
+    await business.getByRole('link', { name: 'Company values' }).click()
+    await expect(page.getByRole('heading', { name: 'Company values', level: 1 })).toBeVisible()
+    const values = page.getByRole('list', { name: 'Our values' })
+    await expect(values.locator(':scope > li')).toHaveCount(6)
+    await expect(values.locator(':scope > li').first()).toContainText('Good energy in the café only')
+    await expect(values.getByRole('list', { name: 'Points' })).toHaveText('There’s always someone having a worse day than you.')
+    await expect(page.getByRole('list', { name: 'Words we don’t say' }).getByRole('listitem')).toHaveText(['Horrible', 'Stupido'])
+    // The team reads them; only admins change them.
+    await expect(page.getByRole('button', { name: 'Change the values' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Add a value' })).toHaveCount(0)
+
+    await signInAs(page, 'aron@example.com')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Company values' }).click()
+    await page.getByRole('button', { name: 'Add a word' }).click()
+    const add = page.getByRole('dialog', { name: 'Add a word' })
+    await add.getByRole('textbox', { name: 'In English' }).fill('Whatever')
+    await add.getByRole('textbox', { name: 'In Spanish' }).fill('Lo que sea')
+    await add.getByRole('button', { name: 'Add', exact: true }).click()
+    await toast(page, 'Added')
+    await expect(page.getByRole('list', { name: 'Words we don’t say' }).getByRole('listitem')).toHaveText(['Horrible', 'Stupido', 'Whatever'])
+    // Change one: the second value, reworded and moved to the top.
+    await page.getByRole('button', { name: 'Change the values' }).click()
+    const section = page.getByRole('region', { name: 'Our values' })
+    await section.getByRole('button', { name: 'Change “Greet every customer with a smile (even grumpy ones like Aron).”' }).click()
+    const change = page.getByRole('dialog', { name: 'Change it' })
+    await change.getByRole('textbox', { name: 'In English' }).fill('Greet every customer with a smile.')
+    await change.getByRole('button', { name: 'Save' }).click()
+    await toast(page, /^Saved$/)
+    await section.getByRole('button', { name: 'Move “Greet every customer with a smile.” up' }).click()
+    // Taking off a value with a point says the point goes too.
+    await section.getByRole('button', { name: 'Remove “Good energy in the café only: leave bad energy away from the café.”' }).click()
+    const sure = page.getByRole('dialog', { name: 'Remove “Good energy in the café only: leave bad energy away from the café.”?' })
+    await expect(sure).toContainText('Its point goes too.')
+    await sure.getByRole('button', { name: 'Remove' }).click()
+    await toast(page, 'Removed')
+    await page.getByRole('button', { name: 'Done', exact: true }).click()
+    await expect(values.locator(':scope > li')).toHaveCount(5)
+    await expect(values.locator(':scope > li').first()).toHaveText(/^1Greet every customer with a smile\.$/)
+
+    // In Spanish, the Spanish (the reworded one keeps its Spanish until someone changes it).
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Company values' }).click()
+    await fromAccountMenu(page, 'My account')
+    await page.getByRole('combobox', { name: 'Languages', exact: true }).click()
+    await page.getByRole('option', { name: 'Español' }).click()
+    await page.keyboard.press('Escape')
+    await page.getByRole('group', { name: 'Language' }).getByRole('button', { name: 'Español' }).click()
+    await page.getByRole('navigation', { name: 'Principal' }).getByRole('link', { name: 'Valores de la empresa' }).click()
+    await expect(page.getByRole('heading', { name: 'Valores de la empresa', level: 1 })).toBeVisible()
+    await expect(page.getByRole('list', { name: 'Palabras que no decimos' }).getByRole('listitem')).toHaveText(['Horrible', 'Estúpido', 'Lo que sea'])
+    await expect(page.getByRole('list', { name: 'Nuestros valores' })).toContainText('Prohibido decir palabrotas (sobre todo para Aron).')
+  })
+})
+
 test.describe('daily checklists', () => {
   test('daily checklists: the team ticks off the start of the day as they go, and sees who did what', async ({ page }) => {
     await open(page, '/checklists', 'maria@example.com')

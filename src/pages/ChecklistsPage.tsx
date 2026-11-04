@@ -1,12 +1,9 @@
 import {
-  Alert, Box, Button, Card, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton,
-  LinearProgress, Stack, Tab, Tabs, TextField, Tooltip, Typography,
+  Alert, Box, Button, Card, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel,
+  LinearProgress, Stack, Tab, Tabs, Tooltip, Typography,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import EditIcon from '@mui/icons-material/EditOutlined'
-import DeleteIcon from '@mui/icons-material/DeleteOutlined'
-import UpIcon from '@mui/icons-material/ArrowUpward'
-import DownIcon from '@mui/icons-material/ArrowDownward'
 import DoneIcon from '@mui/icons-material/TaskAltRounded'
 import MorningIcon from '@mui/icons-material/WbSunnyOutlined'
 import EveningIcon from '@mui/icons-material/NightsStayOutlined'
@@ -14,8 +11,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAsync, useTick } from '../app/hooks'
-import { useAction, useNotify } from '../app/Notify'
+import { useAction } from '../app/Notify'
 import { Empty, ErrorBox, PageHeader } from '../components/common'
+import { EditRow, TwoLanguageDialog } from '../components/TwoLanguageList'
 import {
   CHECKLISTS, CHECKLIST_TEXT_MAX, checklistFor, checklistItemProblem, checklistProgress, checklistTree, isChecklistList, itemText,
   type ChecklistItem, type ChecklistItemInput, type ChecklistList, type ChecklistNode, type ChecklistTick,
@@ -130,7 +128,8 @@ export function ChecklistsPage() {
                   <EditRow item={n.item} lang={lang} first={i === 0} last={i === tree.length - 1}
                     onUp={() => move(tree.map(x => x.item), i, -1)} onDown={() => move(tree.map(x => x.item), i, 1)}
                     onEdit={() => setForm(n.item)} onRemove={() => setRemoving(n)}
-                    onAddStep={() => setForm({ list, parent_id: n.item.id, sort: nextSort(n.steps) })} />
+                    add={{ tooltip: t('Add a step'), label: t('Add a step to “{text}”', { text: itemText(n.item, lang) }),
+                      onClick: () => setForm({ list, parent_id: n.item.id, sort: nextSort(n.steps) }) }} />
                 ) : n.steps.length ? (
                   // An item with steps: done when they all are; its box ticks (or unticks) them all.
                   <CheckRow text={itemText(n.item, lang)} checked={all} indeterminate={stepsDone > 0 && !all}
@@ -145,7 +144,7 @@ export function ChecklistsPage() {
                     {n.steps.map((s, j) => (
                       <Box key={s.id} role="listitem" aria-label={itemText(s, lang)}>
                         {editing
-                          ? <EditRow item={s} lang={lang} first={j === 0} last={j === n.steps.length - 1}
+                          ? <EditRow item={s} lang={lang} small first={j === 0} last={j === n.steps.length - 1}
                               onUp={() => move(n.steps, j, -1)} onDown={() => move(n.steps, j, 1)} onEdit={() => setForm(s)} onRemove={() => void remove({ item: s, steps: [] })} />
                           : <TickRow item={s} lang={lang} done={isDone(s.id)} tick={saved.get(s.id)} canUntick={canUntick(saved.get(s.id))} small
                               onChange={on => setTicks([s.id], on)} />}
@@ -165,7 +164,13 @@ export function ChecklistsPage() {
         )}
       </Card>
 
-      {form && <ItemDialog item={form} parent={tree.find(n => n.item.id === form.parent_id)?.item ?? null} lang={lang} onClose={() => setForm(null)} />}
+      {form && (() => {
+        const parent = tree.find(n => n.item.id === form.parent_id)?.item
+        return <TwoLanguageDialog item={{ text_en: form.text_en ?? null, text_es: form.text_es ?? null }} lang={lang} max={CHECKLIST_TEXT_MAX} isNew={!form.id}
+          title={form.id ? t('Change it') : parent ? t('Add a step to “{text}”', { text: itemText(parent, lang) }) : t('Add something to do')}
+          problem={checklistItemProblem} onClose={() => setForm(null)}
+          save={words => run(() => api.saveChecklistItem({ ...form, ...words }), form.id ? t('Saved') : t('Added to the checklist'))} />
+      })()}
       {removing && (
         <Dialog open onClose={() => setRemoving(null)} fullWidth maxWidth="xs" aria-labelledby="remove-title">
           <DialogTitle id="remove-title">{t('Take “{text}” off the checklist?', { text: itemText(removing.item, lang) })}</DialogTitle>
@@ -212,67 +217,5 @@ function CheckRow({ text, checked, indeterminate, note, small, disabled, onChang
           {note && <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>{note}</Typography>}
         </Box>
       } />
-  )
-}
-
-/** An item as an admin changes it: both languages, its place, and its steps. */
-function EditRow({ item, lang, first, last, onUp, onDown, onEdit, onRemove, onAddStep }: {
-  item: ChecklistItem; lang: ReturnType<typeof useLanguage>; first: boolean; last: boolean
-  onUp: () => void; onDown: () => void; onEdit: () => void; onRemove: () => void; onAddStep?: () => void
-}) {
-  const other = lang === 'es' ? item.text_en : item.text_es
-  const text = itemText(item, lang)
-  return (
-    <Stack direction="row" sx={{ alignItems: 'center', gap: 0.5, px: 1.5, py: 0.75, flexWrap: { xs: 'wrap', sm: 'nowrap' } }}>
-      <Box sx={{ flex: '1 1 200px', minWidth: 0 }}>
-        <Typography variant={item.parent_id ? 'body2' : 'body1'} sx={{ wordBreak: 'break-word' }}>{text}</Typography>
-        <Typography variant="caption" sx={{ color: other ? 'text.secondary' : tokens.warnFg, display: 'block' }}>
-          {other ?? (lang === 'es' ? t('No English yet') : t('No Spanish yet'))}
-        </Typography>
-      </Box>
-      <Stack direction="row" sx={{ flexShrink: 0 }}>
-        {onAddStep && <Tooltip title={t('Add a step')}><IconButton size="small" aria-label={t('Add a step to “{text}”', { text })} onClick={onAddStep}><AddIcon fontSize="small" /></IconButton></Tooltip>}
-        <Tooltip title={t('Move up')}><span><IconButton size="small" aria-label={t('Move “{text}” up', { text })} disabled={first} onClick={onUp}><UpIcon fontSize="small" /></IconButton></span></Tooltip>
-        <Tooltip title={t('Move down')}><span><IconButton size="small" aria-label={t('Move “{text}” down', { text })} disabled={last} onClick={onDown}><DownIcon fontSize="small" /></IconButton></span></Tooltip>
-        <Tooltip title={t('Change')}><IconButton size="small" aria-label={t('Change “{text}”', { text })} onClick={onEdit}><EditIcon fontSize="small" /></IconButton></Tooltip>
-        <Tooltip title={t('Remove')}><IconButton size="small" aria-label={t('Remove “{text}”', { text })} onClick={onRemove}><DeleteIcon fontSize="small" /></IconButton></Tooltip>
-      </Stack>
-    </Stack>
-  )
-}
-
-/** Add something to do (or a step under one), or change it: in English and Spanish. */
-function ItemDialog({ item, parent, lang, onClose }: { item: ChecklistItemInput; parent: ChecklistItem | null; lang: ReturnType<typeof useLanguage>; onClose: () => void }) {
-  const { api } = useApp()
-  const run = useAction()
-  const notify = useNotify()
-  const [en, setEn] = useState(item.text_en ?? '')
-  const [es, setEs] = useState(item.text_es ?? '')
-  const isNew = !item.id
-  const title = !isNew ? t('Change it') : parent ? t('Add a step to “{text}”', { text: itemText(parent, lang) }) : t('Add something to do')
-  const save = async () => {
-    const problem = checklistItemProblem({ text_en: en, text_es: es })
-    if (problem) return notify(t(problem), 'error')
-    if (await run(() => api.saveChecklistItem({ ...item, text_en: en.trim() || null, text_es: es.trim() || null }), isNew ? t('Added to the checklist') : t('Saved'))) onClose()
-  }
-  const field = { multiline: true, maxRows: 4, slotProps: { htmlInput: { maxLength: CHECKLIST_TEXT_MAX } } }
-  const fields = [
-    <TextField key="en" label={t('In English')} value={en} onChange={e => setEn(e.target.value)} autoFocus={lang === 'en'} {...field} />,
-    <TextField key="es" label={t('In Spanish')} value={es} onChange={e => setEs(e.target.value)} autoFocus={lang === 'es'} {...field} />,
-  ]
-  return (
-    <Dialog open onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle>{title}</DialogTitle>
-      <DialogContent>
-        <Stack spacing={2} sx={{ pt: 1 }}>
-          {lang === 'es' ? fields.reverse() : fields}
-          <Typography variant="body2" color="text.secondary">{t('Everyone reads it in the language they use the app in. Leave one blank and they see the other.')}</Typography>
-        </Stack>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>{t('Cancel')}</Button>
-        <Button variant="contained" disabled={!en.trim() && !es.trim()} onClick={() => void save()}>{isNew ? t('Add') : t('Save')}</Button>
-      </DialogActions>
-    </Dialog>
   )
 }

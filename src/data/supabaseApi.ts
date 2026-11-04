@@ -23,6 +23,7 @@ import type { QrCode } from '../../shared/qrCodes'
 import type { Coffee, DayTheme, ThemeDate } from '../../shared/themeDays'
 import type { RoutineDone, RoutineItem } from '../../shared/routine'
 import type { ChecklistItem, ChecklistTick } from '../../shared/checklists'
+import type { CompanyValue } from '../../shared/companyValues'
 import type { Contractor, OutsourcedJob } from '../../shared/outsourcing'
 import type { EmploymentContract, SalaryPer } from '../../shared/contracts'
 import { DEFAULT_VAT_RATE, type PnlLine, type PnlSettings } from '../../shared/pnl'
@@ -542,6 +543,18 @@ export function createSupabaseApi(url: string, key: string): Api {
       if (!itemIds.length) return
       if (done) check(await sb.from('checklist_ticks').upsert(itemIds.map(item_id => ({ item_id, day })), { onConflict: 'business_id,item_id,day', ignoreDuplicates: true }))
       else check(await sb.from('checklist_ticks').delete().in('item_id', itemIds).eq('day', day))
+    },
+
+    async companyValues() {
+      return check(await sb.from('company_values').select('id, kind, parent_id, text_en, text_es, sort').order('sort')) as CompanyValue[]
+    },
+    async saveCompanyValue({ id, ...v }) {
+      if (id) { check(await sb.from('company_values').update(v).eq('id', id)); return id }
+      return (check(await sb.from('company_values').insert(v).select('id').single()) as { id: string }).id
+    },
+    async deleteCompanyValue(id) { check(await sb.from('company_values').delete().eq('id', id)) },
+    async orderCompanyValues(ids) {
+      for (const r of await Promise.all(ids.map((id, sort) => sb.from('company_values').update({ sort }).eq('id', id)))) check(r)
     },
 
     async contractors() {

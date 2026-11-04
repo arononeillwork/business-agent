@@ -161,6 +161,13 @@ built-in **AI connector** so owners can run it by talking to Claude.
   ticked something, or an admin, unticks it, and each day starts clear. Admins add, change, order and remove
   things and steps. Easy Beans starts with the owners' own "Employee Checklist" (`shared/checklists.ts`, the
   `day_checklists` migration).
+- Company values (Business section, first in the menu): what the business stands for and how the team
+  behaves, a line each with points under some, and the words nobody says in the café, each in English and
+  Spanish and read in the language each person uses the app in. The whole team reads them; admins add,
+  change, order and remove them. Easy Beans starts with the owners' own (`shared/companyValues.ts`, the
+  `company_values` migration).
+- A page's own buttons sit on the right, in a row of their own under the top row; on a computer the page's
+  title is in the top row, beside the round buttons (`PageHeader` in `src/components/common.tsx`).
 - Outsourcing (Team section, admins; a gestoría with finances access reads): the jobs done for the business by
   people and firms outside the team (social media, the books, cleaning, the windows, the coffee machine's
   service, pest control…). **Active** shows who does each job, the price agreed and how it's charged (a month,
