@@ -7106,11 +7106,11 @@ test.describe('UI round: business page, header, to do list, stock and suppliers'
     const search = page.getByRole('button', { name: 'Search' })
     const board = page.getByRole('button', { name: 'Board', exact: true })
     const [t, s, b] = [await title.boundingBox(), await search.boundingBox(), await board.boundingBox()]
-    // At the very top, beside the eyebrow and title (not pushed down below the eyebrow), and level with the page's
-    // own first row of buttons.
+    // At the very top, beside the eyebrow and title (not pushed down below the eyebrow); the page's own buttons
+    // are in a row of their own under it.
     expect(s!.y).toBeLessThan(t!.y)
     expect(s!.y + s!.height / 2).toBeLessThan(t!.y + t!.height)
-    expect(Math.abs((s!.y + s!.height / 2) - (b!.y + b!.height / 2))).toBeLessThan(4)
+    expect(b!.y).toBeGreaterThanOrEqual(s!.y + s!.height)
   })
 
   test('To Do List: starred and show done at the top right, a category minimised and opened again, no copy as text', async ({ page }) => {
