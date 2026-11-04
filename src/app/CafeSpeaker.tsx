@@ -343,6 +343,8 @@ export function CafeSpeakerProvider({ children }: { children: ReactNode }) {
       l.position = Math.min(state.position, Math.max(state.queue.length - 1, 0))
       const now = l.queue[l.position]?.id
       if (now && now !== before) go(l.position, l.autoplay || l.playing || before !== undefined)
+      // The queue was cleared (its last song taken off): the song stops.
+      else if (!now && before !== undefined) { engine.current.pause(); l.playing = false; void report() }
       l.autoplay = false
     }
     if (state.command_seq > l.seq) {
@@ -350,7 +352,7 @@ export function CafeSpeakerProvider({ children }: { children: ReactNode }) {
       if (state.command) apply(state.command.action, state.command.value)
     }
     // tick: also right after the player finishes starting (it sets tick), not just on the next refresh.
-  }, [here, state, go, apply, tick])
+  }, [here, state, go, apply, report, tick])
 
   // While playing here: report every 2 seconds (the heartbeat that says this device is still on), redraw every second.
   useEffect(() => {

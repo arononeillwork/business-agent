@@ -26,6 +26,7 @@ import type { Pet, PetInput } from '../../shared/pets'
 import type { QrCode, QrCodeInput } from '../../shared/qrCodes'
 import type { Coffee, CoffeeInput, DayThemeInput, ThemeDays } from '../../shared/themeDays'
 import type { RoutineDone, RoutineItem, RoutineItemInput } from '../../shared/routine'
+import type { ChecklistItem, ChecklistItemInput, ChecklistTick } from '../../shared/checklists'
 import type { Contractor, ContractorInput, OutsourcedJob, OutsourcedJobInput } from '../../shared/outsourcing'
 import type { EmploymentContract, EmploymentContractInput } from '../../shared/contracts'
 import type { PnlLine, PnlLineInput, PnlSettings } from '../../shared/pnl'
@@ -207,6 +208,8 @@ export interface Api {
   invite(email: string, fullName: string, role: TeamRole | 'kiosk', password?: string, contact?: { phone?: string | null; contact_method?: ContactMethod | null }): Promise<{ joined?: boolean }>
   /** Admins: give someone (not an admin) a new temporary password to sign in with. */
   setTemporaryPassword(userId: string, password: string): Promise<void>
+  /** Owners and shop managers: change the email someone signs in with (only an owner changes an owner's). */
+  setEmail(userId: string, email: string): Promise<void>
 
   // partners: outside businesses with read-only access to chosen areas (admins manage them)
   partners(): Promise<Profile[]>
@@ -289,6 +292,19 @@ export interface Api {
   /** What was ticked done between two dates (inclusive). */
   routineDone(from: string, to: string): Promise<RoutineDone[]>
   setRoutineDone(itemId: string, day: string, done: boolean): Promise<void>
+
+  // Daily checklists: what's done to open at the start of the day and to close at the end, in English and
+  // Spanish. The team reads them and ticks things off for the day; admins change them.
+  checklistItems(): Promise<ChecklistItem[]>
+  /** Add an item or a step (no id) or change one; returns its id. */
+  saveChecklistItem(i: ChecklistItemInput): Promise<string>
+  /** Takes its steps (and the ticks) with it. */
+  deleteChecklistItem(id: string): Promise<void>
+  /** Items (or one item's steps) in this order. */
+  orderChecklistItems(ids: string[]): Promise<void>
+  checklistTicks(day: string): Promise<ChecklistTick[]>
+  /** Tick things off for a day, or untick them (your own, or anyone's for an admin). */
+  setChecklistTicks(itemIds: string[], day: string, done: boolean): Promise<void>
 
   // Outsourcing (admins; finance partners read): the jobs done by people and firms outside the team,
   // and the catalogue to choose them from.

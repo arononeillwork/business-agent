@@ -68,7 +68,7 @@ export const AGENTS: readonly Agent[] = [
       { page: 'competitors', question: msg('How do we compare with the places around us?') },
     ]),
   usual('operations', 'operations', msg('Operations agent'), msg('What runs the shop day to day: the rota, hours, jobs, stock and food safety'),
-    ['rota', 'timecards', 'todo', 'stock', 'wholesale', 'suppliers', 'foodsafety', 'waste', 'hours', 'calendar'], [
+    ['rota', 'timecards', 'todo', 'checklists', 'stock', 'wholesale', 'suppliers', 'foodsafety', 'waste', 'hours', 'calendar'], [
       { page: 'rota', question: msg('Who is working this week?') },
       { page: 'todo', question: msg('What jobs are left to do?') },
       { page: 'stock', question: msg('What is running low?') },

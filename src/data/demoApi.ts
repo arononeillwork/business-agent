@@ -48,6 +48,7 @@ import { ROLE_TEMPLATES } from '../../shared/roleTemplates'
 import { sectionProblem, type RuleSection, type RulesRead } from '../../shared/staffRules'
 import { PET_LIMITS, petProblem, type Pet } from '../../shared/pets'
 import { DEMO_THEME_TRACKS, demoThemeDayApi } from './demoThemeDays'
+import { demoChecklistApi } from './demoChecklists'
 import { demoQrCodeApi } from './demoQrCodes'
 import { COUNTED, type Contractor, type OutsourcedJob } from '../../shared/outsourcing'
 import { DEFAULT_CONVENIO, contractProblem, type EmploymentContract } from '../../shared/contracts'
@@ -84,7 +85,7 @@ import { cleanRoles, cvProblem, type ApplicantCv } from '../../shared/hiring'
 import { CAFE_POINTS, inRange as inLimits, type SafetyCheck, type SafetyPoint } from '../../shared/foodSafety'
 import { dietsFor, type Allergen, type MenuAllergens } from '../../shared/allergens'
 import { minutesWorked, splitTips, type TipPool } from '../../shared/tips'
-import { accessOf } from '../../shared/teamRoles'
+import { EMAIL_ADDRESS, accessOf, emailBlock } from '../../shared/teamRoles'
 
 interface RawEntry {
   id: string; profile_id: string; position_id: number | null; shift_id: string | null
@@ -1362,6 +1363,10 @@ export function createDemoApi(): Api {
     roleId: name => jobRoles.find(r => r.name === name)?.id ?? null,
     onTeam: id => profiles.some(p => p.id === id && p.active && (p.role === 'admin' || p.role === 'employee')), uid, nowIso,
   }, P.cleaner)
+  // Daily checklists (Team): as the `day_checklists` migration; Julio opened up this morning.
+  const checklistApi = demoChecklistApi({
+    isStaff: () => isStaff() && !!me()?.active, isAdmin: () => isAdmin() && !!me()?.active, me: () => currentUser, uid, nowIso, today: () => today(),
+  }, { by: P.julio, at: zonedIso(today(), '08:05') })
   /** That person's shifts in the period become open shifts (approved time off). */
   const openUpShifts = (t: TimeOff) => {
     const name = profiles.find(p => p.id === t.profile_id)?.full_name
@@ -2288,6 +2293,19 @@ export function createDemoApi(): Api {
       if (!p) throw new Error('No such person')
       if (p.role === 'admin') throw new Error('Admins change their own password on My account')
     },
+    async setEmail(userId, email) {
+      // As /api/admin/set-email in the Worker.
+      const who = me()
+      const p = profiles.find(x => x.id === userId)
+      if (!p) throw new Error('No such person')
+      const blocked = who ? emailBlock(who, p) : 'Only an owner or shop manager can change someone’s email'
+      if (blocked) throw new Error(blocked)
+      const addr = email.trim().toLowerCase()
+      if (!EMAIL_ADDRESS.test(addr)) throw new Error('Enter a full email address, like name@example.com')
+      if ((p.email ?? '').toLowerCase() === addr) throw new Error('That’s already their email')
+      if (profiles.some(x => x.id !== p.id && (x.email ?? '').toLowerCase() === addr)) throw new Error('Someone with that email already has an account')
+      p.email = addr
+    },
     async invite(email, fullName, role, password, contact) {
       requireAdmin()
       if (password !== undefined && password.length < 8) throw new Error('The temporary password needs at least 8 characters')
@@ -2519,6 +2537,7 @@ export function createDemoApi(): Api {
       if (i >= 0 && isStaff() && (pets[i].profile_id === currentUser || isAdmin())) pets.splice(i, 1)
     },
     ...themeDayApi,
+    ...checklistApi,
     // QR codes: Easy Beans' three, as the `qr_codes` migration, with the demo's Wi-Fi filled in.
     ...demoQrCodeApi({ isStaff: () => isStaff() && !!me()?.active, isAdmin: () => isAdmin() && !!me()?.active, uid, nowIso }),
 

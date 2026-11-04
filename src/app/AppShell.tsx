@@ -34,6 +34,7 @@ import KittyIcon from '@mui/icons-material/SavingsOutlined'
 import RepsIcon from '@mui/icons-material/RecordVoiceOverOutlined'
 import RolesIcon from '@mui/icons-material/AssignmentIndOutlined'
 import RulesIcon from '@mui/icons-material/RuleOutlined'
+import ChecklistsIcon from '@mui/icons-material/ChecklistRounded'
 import OutsourcingIcon from '@mui/icons-material/BusinessCenterOutlined'
 import FinanceIcon from '@mui/icons-material/PaymentsOutlined'
 import SalesIcon from '@mui/icons-material/InsightsOutlined'
@@ -121,6 +122,8 @@ export const SECTIONS: NavSection[] = [
     { key: 'people', to: '/people', label: msg('People'), icon: <PeopleIcon /> },
     { key: 'business', to: '/business', label: msg('Business'), icon: <BusinessIcon />, partner: 'any' },
     { key: 'todo', to: '/todo', label: msg('To Do List'), short: msg('To do'), icon: <TodoIcon /> },
+    // Opening up at the start of the day and closing at the end: the whole team ticks things off.
+    { key: 'checklists', to: '/checklists', label: msg('Daily checklists'), short: msg('Checklists'), icon: <ChecklistsIcon /> },
     { key: 'hours', to: '/opening-hours', label: msg('Opening hours'), icon: <HoursIcon />, partner: 'any' },
     { key: 'documents', to: '/documents', label: msg('Documents'), icon: <DocumentsIcon />, who: 'pay', partner: ['finances'] },
     { key: 'legal', to: '/legal', label: msg('Legal & licences'), short: msg('Legal'), icon: <LegalIcon />, who: 'admin', partner: ['finances'] },

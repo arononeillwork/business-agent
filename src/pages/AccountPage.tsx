@@ -24,8 +24,12 @@ export function AccountPage() {
   const [phone, setPhone] = useState(me?.phone ?? '')
   const [method, setMethod] = useState<ContactMethod | null>(me?.contact_method ?? null)
   const [password, setPassword] = useState('')
+  // Typed twice, so a slip of the finger can't lock them out.
+  const [again, setAgain] = useState('')
   const [pin, setPin] = useState(false)
   if (!me) return null
+  // Said while typing the second one only once it can't be the start of the first.
+  const mismatch = !!again && !password.startsWith(again)
   const dirty = name !== (me.full_name ?? '') || phone !== (me.phone ?? '') || method !== (me.contact_method ?? null)
   return (
     <>
@@ -102,12 +106,16 @@ export function AccountPage() {
           <Card component="section" aria-label={t('Password')}>
             <CardContent>
               <SectionTitle>{t('Password')}</SectionTitle>
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ alignItems: { sm: 'flex-start' } }}>
+              <Stack spacing={1.5}>
                 <TextField type="password" label={t('New password')} autoComplete="new-password" value={password} onChange={e => setPassword(e.target.value)}
-                  helperText={t('At least 8 characters')} sx={{ flex: 1 }} />
-                <Button variant="outlined" disabled={password.length < 8} sx={{ mt: { sm: 1 } }} onClick={() => run(async () => {
-                  await api.updatePassword(password); setPassword('')
-                }, t('Password changed'))}>{t('Change')}</Button>
+                  helperText={t('At least 8 characters')} />
+                <TextField type="password" label={t('Confirm new password')} autoComplete="new-password" value={again} onChange={e => setAgain(e.target.value)}
+                  error={mismatch} helperText={mismatch ? t('The passwords don’t match') : t('Type it again to be sure')} />
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <Button variant="outlined" disabled={password.length < 8 || again !== password} onClick={() => run(async () => {
+                    await api.updatePassword(password); setPassword(''); setAgain('')
+                  }, t('Password changed'))}>{t('Change')}</Button>
+                </Box>
               </Stack>
             </CardContent>
           </Card>
