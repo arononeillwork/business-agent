@@ -48,6 +48,7 @@ import { ROLE_TEMPLATES } from '../../shared/roleTemplates'
 import { sectionProblem, type RuleSection, type RulesRead } from '../../shared/staffRules'
 import { PET_LIMITS, petProblem, type Pet } from '../../shared/pets'
 import { DEMO_THEME_TRACKS, demoThemeDayApi } from './demoThemeDays'
+import { demoChecklistApi } from './demoChecklists'
 import { demoQrCodeApi } from './demoQrCodes'
 import { COUNTED, type Contractor, type OutsourcedJob } from '../../shared/outsourcing'
 import { DEFAULT_CONVENIO, contractProblem, type EmploymentContract } from '../../shared/contracts'
@@ -1362,6 +1363,10 @@ export function createDemoApi(): Api {
     roleId: name => jobRoles.find(r => r.name === name)?.id ?? null,
     onTeam: id => profiles.some(p => p.id === id && p.active && (p.role === 'admin' || p.role === 'employee')), uid, nowIso,
   }, P.cleaner)
+  // Daily checklists (Team): as the `day_checklists` migration; Julio opened up this morning.
+  const checklistApi = demoChecklistApi({
+    isStaff: () => isStaff() && !!me()?.active, isAdmin: () => isAdmin() && !!me()?.active, me: () => currentUser, uid, nowIso, today: () => today(),
+  }, { by: P.julio, at: zonedIso(today(), '08:05') })
   /** That person's shifts in the period become open shifts (approved time off). */
   const openUpShifts = (t: TimeOff) => {
     const name = profiles.find(p => p.id === t.profile_id)?.full_name
@@ -2532,6 +2537,7 @@ export function createDemoApi(): Api {
       if (i >= 0 && isStaff() && (pets[i].profile_id === currentUser || isAdmin())) pets.splice(i, 1)
     },
     ...themeDayApi,
+    ...checklistApi,
     // QR codes: Easy Beans' three, as the `qr_codes` migration, with the demo's Wi-Fi filled in.
     ...demoQrCodeApi({ isStaff: () => isStaff() && !!me()?.active, isAdmin: () => isAdmin() && !!me()?.active, uid, nowIso }),
 

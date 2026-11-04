@@ -6099,6 +6099,99 @@ test.describe('staff kitty', () => {
   })
 })
 
+test.describe('daily checklists', () => {
+  test('daily checklists: the team ticks off the start of the day as they go, and sees who did what', async ({ page }) => {
+    await open(page, '/checklists', 'maria@example.com')
+    await expect(page.getByRole('heading', { name: 'Daily checklists', level: 1 })).toBeVisible()
+    // Nine in the morning: the start of the day, with what Julio did when he opened up.
+    await expect(page.getByRole('tab', { name: 'Start of the day' })).toHaveAttribute('aria-selected', 'true')
+    const list = page.getByRole('region', { name: 'Start of the day' })
+    await expect(list.getByRole('status')).toHaveText('5 of 34 done')
+    await expect(list.getByRole('checkbox', { name: 'Open the 2 shutters' })).toBeChecked()
+    await expect(list.getByRole('listitem', { name: 'Open the 2 shutters' })).toContainText('Julio · 08:05')
+    // His ticks are his (or an admin's) to take off.
+    await expect(list.getByRole('checkbox', { name: 'Turn off the alarm' })).toBeDisabled()
+
+    await list.getByRole('checkbox', { name: 'Water the plants' }).check()
+    await expect(list.getByRole('status')).toHaveText('6 of 34 done')
+    await expect(list.getByRole('listitem', { name: 'Water the plants' })).toContainText('Maria · 09:00')
+    // An item with steps is done when they all are; its own box ticks them all.
+    const turnOn = list.getByRole('listitem', { name: 'Turn on:' })
+    await expect(turnOn).toContainText('0 of 4 steps')
+    await turnOn.getByRole('checkbox', { name: 'Ice machine' }).check()
+    await expect(turnOn.getByRole('checkbox', { name: 'Turn on:' })).toHaveAttribute('aria-checked', 'mixed')
+    await expect(turnOn).toContainText('1 of 4 steps')
+    await turnOn.getByRole('checkbox', { name: 'Turn on:' }).check()
+    for (const step of ['Coffee machine', 'Ice machine', 'Lights under the counter', 'Till system']) {
+      await expect(turnOn.getByRole('checkbox', { name: step })).toBeChecked()
+    }
+    await expect(list.getByRole('status')).toHaveText('10 of 34 done')
+    // Her own she unticks.
+    await list.getByRole('checkbox', { name: 'Water the plants' }).uncheck()
+    await expect(list.getByRole('status')).toHaveText('9 of 34 done')
+
+    // The end of the day: nothing done yet. Employees don't change the lists.
+    await page.getByRole('tab', { name: 'End of the day' }).click()
+    const closing = page.getByRole('region', { name: 'End of the day' })
+    await expect(closing.getByRole('status')).toHaveText('0 of 16 done')
+    await expect(closing.getByRole('checkbox', { name: 'Turn on the alarm' })).not.toBeChecked()
+    await expect(page.getByRole('button', { name: 'Change the checklists' })).toHaveCount(0)
+  })
+
+  test('daily checklists: an admin changes them in English and Spanish, and each person reads them in their language', async ({ page }) => {
+    await open(page, '/account')
+    await page.getByRole('combobox', { name: 'Languages', exact: true }).click()
+    await page.getByRole('option', { name: 'Español' }).click()
+    await page.keyboard.press('Escape')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Daily checklists' }).click()
+    await page.getByRole('tab', { name: 'End of the day' }).click()
+    const closing = page.getByRole('region', { name: 'End of the day' })
+    const top = closing.getByRole('list', { name: 'End of the day: what to do' }).locator(':scope > [role="listitem"]')
+    await expect(top).toHaveCount(10)
+
+    await page.getByRole('button', { name: 'Change the checklists' }).click()
+    await closing.getByRole('button', { name: 'Add something to do' }).click()
+    const add = page.getByRole('dialog', { name: 'Add something to do' })
+    await add.getByRole('textbox', { name: 'In English' }).fill('Empty the bins')
+    await add.getByRole('textbox', { name: 'In Spanish' }).fill('Vaciar las papeleras')
+    await add.getByRole('button', { name: 'Add', exact: true }).click()
+    await toast(page, 'Added to the checklist')
+    await expect(top.last()).toHaveAccessibleName('Empty the bins')
+    // A step in English only: Spanish readers see the English until someone adds theirs.
+    await closing.getByRole('button', { name: 'Add a step to “Empty the bins”' }).click()
+    const step = page.getByRole('dialog', { name: 'Add a step to “Empty the bins”' })
+    await step.getByRole('textbox', { name: 'In English' }).fill('The glass one too')
+    await step.getByRole('button', { name: 'Add', exact: true }).click()
+    await expect(closing.getByRole('listitem', { name: 'The glass one too' })).toContainText('No Spanish yet')
+    await closing.getByRole('button', { name: 'Move “Empty the bins” up' }).click()
+    await expect(top.last()).toHaveAccessibleName('Turn on the alarm')
+    await expect(top.nth(9)).toHaveAccessibleName('Empty the bins')
+    await page.getByRole('button', { name: 'Done', exact: true }).click()
+
+    // In Spanish: the same list, in Spanish.
+    await page.getByRole('group', { name: 'Language' }).getByRole('button', { name: 'Español' }).click()
+    await expect(page.getByRole('heading', { name: 'Listas diarias', level: 1 })).toBeVisible()
+    await expect(page.getByRole('tab', { name: 'Cierre' })).toHaveAttribute('aria-selected', 'true')
+    const cierre = page.getByRole('region', { name: 'Cierre' })
+    await expect(cierre.getByRole('checkbox', { name: 'Activar la alarma' })).toBeVisible()
+    await expect(cierre.getByRole('checkbox', { name: 'Turn on the alarm' })).toHaveCount(0)
+    await expect(cierre.getByRole('checkbox', { name: 'The glass one too' })).toBeVisible()
+    await cierre.getByRole('checkbox', { name: 'Vaciar las papeleras' }).check()
+    await expect(cierre.getByRole('checkbox', { name: 'The glass one too' })).toBeChecked()
+    await expect(cierre.getByRole('status')).toHaveText('1 de 17 hechas')
+
+    // Taking it off takes its step (and the ticks) with it.
+    await page.getByRole('button', { name: 'Cambiar las listas' }).click()
+    await cierre.getByRole('button', { name: 'Quitar «Vaciar las papeleras»' }).click()
+    const sure = page.getByRole('dialog', { name: '¿Quitar «Vaciar las papeleras» de la lista?' })
+    await expect(sure).toContainText('Su paso también se quita.')
+    await sure.getByRole('button', { name: 'Quitar' }).click()
+    await toast(page, 'Quitada de la lista')
+    await page.getByRole('button', { name: 'Hecho', exact: true }).click()
+    await expect(cierre.getByRole('status')).toHaveText('0 de 16 hechas')
+  })
+})
+
 test.describe('roles and rules', () => {
   // Sections open without the slide, so a button inside one isn't pressed while it's still moving.
   test.use({ reducedMotion: 'reduce' })

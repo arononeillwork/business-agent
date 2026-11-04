@@ -22,6 +22,7 @@ import type { Pet } from '../../shared/pets'
 import type { QrCode } from '../../shared/qrCodes'
 import type { Coffee, DayTheme, ThemeDate } from '../../shared/themeDays'
 import type { RoutineDone, RoutineItem } from '../../shared/routine'
+import type { ChecklistItem, ChecklistTick } from '../../shared/checklists'
 import type { Contractor, OutsourcedJob } from '../../shared/outsourcing'
 import type { EmploymentContract, SalaryPer } from '../../shared/contracts'
 import { DEFAULT_VAT_RATE, type PnlLine, type PnlSettings } from '../../shared/pnl'
@@ -521,6 +522,26 @@ export function createSupabaseApi(url: string, key: string): Api {
     async setRoutineDone(itemId, day, done) {
       if (done) check(await sb.from('routine_done').upsert({ item_id: itemId, day }, { onConflict: 'business_id,item_id,day', ignoreDuplicates: true }))
       else check(await sb.from('routine_done').delete().eq('item_id', itemId).eq('day', day))
+    },
+
+    async checklistItems() {
+      return check(await sb.from('checklist_items').select('id, list, parent_id, text_en, text_es, sort').order('sort')) as ChecklistItem[]
+    },
+    async saveChecklistItem({ id, ...i }) {
+      if (id) { check(await sb.from('checklist_items').update(i).eq('id', id)); return id }
+      return (check(await sb.from('checklist_items').insert(i).select('id').single()) as { id: string }).id
+    },
+    async deleteChecklistItem(id) { check(await sb.from('checklist_items').delete().eq('id', id)) },
+    async orderChecklistItems(ids) {
+      for (const r of await Promise.all(ids.map((id, sort) => sb.from('checklist_items').update({ sort }).eq('id', id)))) check(r)
+    },
+    async checklistTicks(day) {
+      return check(await sb.from('checklist_ticks').select('item_id, day, done_by, done_at').eq('day', day)) as ChecklistTick[]
+    },
+    async setChecklistTicks(itemIds, day, done) {
+      if (!itemIds.length) return
+      if (done) check(await sb.from('checklist_ticks').upsert(itemIds.map(item_id => ({ item_id, day })), { onConflict: 'business_id,item_id,day', ignoreDuplicates: true }))
+      else check(await sb.from('checklist_ticks').delete().in('item_id', itemIds).eq('day', day))
     },
 
     async contractors() {

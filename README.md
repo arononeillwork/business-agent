@@ -153,6 +153,14 @@ built-in **AI connector** so owners can run it by talking to Claude.
   is open and marked; moving a section asks nobody); admins see who has read them since the last change.
   Starts from the usual rules for a café in Spain (free tap water, the hoja de quejas y reclamaciones, the
   14 allergens), to change to how the business works.
+- Daily checklists (Team section): what to do to open the shop at the start of the day and to close it at the
+  end, each thing in English and Spanish, read in the language each person uses the app in (the other one
+  when it has none yet), some with steps under them. It opens on the start of the day until halfway through
+  the day's opening hours, then the end of it. Everyone on the team ticks things off as they go and sees who
+  did each and when (an item with steps is done when they all are, and its box ticks them all); whoever
+  ticked something, or an admin, unticks it, and each day starts clear. Admins add, change, order and remove
+  things and steps. Easy Beans starts with the owners' own "Employee Checklist" (`shared/checklists.ts`, the
+  `day_checklists` migration).
 - Outsourcing (Team section, admins; a gestoría with finances access reads): the jobs done for the business by
   people and firms outside the team (social media, the books, cleaning, the windows, the coffee machine's
   service, pest control…). **Active** shows who does each job, the price agreed and how it's charged (a month,
