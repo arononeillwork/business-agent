@@ -108,14 +108,13 @@ export interface WeeklyCheck {
   notes: { text: string; vars?: Vars }[]
 }
 
-/** Per-person weekly checks: 40h average and 1.5 days' weekly rest. */
+/** Per-person weekly checks: 40h average, and a week with no day off. */
 export function weeklyCheck(shifts: Shift[], limits: RuleLimits = defaultLimits): WeeklyCheck {
   const paidMinutes = shifts.reduce((sum, s) => sum + shiftPaidMinutes(s), 0)
   const days = new Set(shifts.map(s => localDate(s.starts_at)))
   const notes: { text: string; vars?: Vars }[] = []
   if (paidMinutes > limits.maxWeeklyHours * 60) notes.push({ text: msg('Over {hours}h this week'), vars: { hours: limits.maxWeeklyHours } })
   if (days.size >= 7) notes.push({ text: msg('No weekly rest day') })
-  else if (days.size === 6) notes.push({ text: msg('Check weekly rest (1.5 days)') })
   return { paidMinutes, daysWorked: days.size, warnings: notes.map(n => fill(n.text, n.vars)), notes }
 }
 

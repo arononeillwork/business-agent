@@ -83,9 +83,6 @@ export function ChecklistsPage() {
         </Button>
       )} />
       <ErrorBox error={items.error ?? ticks.error} />
-      <Typography sx={{ mb: 2, maxWidth: 760 }}>
-        {t('What to do to open the shop at the start of the day and to close it at the end. Tick things off as you go: everyone on the team sees what’s done, and each day starts clear.')}
-      </Typography>
 
       <Tabs value={list} onChange={(_, v: ChecklistList) => choose(v)} variant="scrollable" allowScrollButtonsMobile
         sx={{ mb: 2, borderBottom: `1px solid ${tokens.line}` }}>
@@ -160,7 +157,8 @@ export function ChecklistsPage() {
             )
           })}
         </Box>
-        {editing && tree.length > 0 && (
+        {/* Admins add to it straight from the list; Change the checklists rewords, reorders and removes. */}
+        {isAdmin && tree.length > 0 && (
           <Box sx={{ p: 1.5, borderTop: `1px solid ${tokens.line}` }}>
             <Button startIcon={<AddIcon />} onClick={() => setForm({ list, parent_id: null, sort: nextSort(tree.map(x => x.item)) })}>{t('Add something to do')}</Button>
           </Box>

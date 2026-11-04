@@ -537,9 +537,7 @@ export default {
 
   // My account
   'Personal details': 'Datos personales',
-  'Used to sign in. Ask an admin if it needs to change.': 'Se usa para iniciar sesión. Pide a un administrador que lo cambie si hace falta.',
   'Mobile': 'Móvil',
-  'For WhatsApp and text alerts': 'Para avisos por WhatsApp y SMS',
   '{company}: read-only partner access. Ask {business} to change what you can see.': '{company}: acceso de colaborador de solo lectura. Pide a {business} que cambie lo que puedes ver.',
   'Send me shift reminders and rota updates on WhatsApp': 'Envíame recordatorios de turnos y cambios del cuadrante por WhatsApp',
   'Add your mobile number so the café can reach you that way.': 'Añade tu móvil para que el café pueda contactarte así.',
@@ -550,7 +548,6 @@ export default {
   'New password': 'Nueva contraseña',
   'Password changed': 'Contraseña cambiada',
   'Confirm new password': 'Confirma la nueva contraseña',
-  'Type it again to be sure': 'Escríbela otra vez para asegurarte',
   'The passwords don’t match': 'Las contraseñas no coinciden',
   'Your data': 'Tus datos',
   'Your access is read-only. Use what you see only for the work agreed with {business}. Data is stored in the EU.': 'Tu acceso es de solo lectura. Usa lo que ves solo para el trabajo acordado con {business}. Los datos se guardan en la UE.',

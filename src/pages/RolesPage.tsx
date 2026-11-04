@@ -281,7 +281,10 @@ export function RolesPage() {
   )
 }
 
-/** A role opened: who it answers to, who's in it, its duties, and what it lets its people do in the app (`you`: as they read it about themselves). */
+/**
+ * A role opened: who it answers to, who's in it, its duties, and (for admins) what it lets its people do in
+ * the app. `you`: someone on the team reading their own role, without the app's permissions.
+ */
 function RoleDetails({ role: r, roles, people, position, you }: { role: JobRole; roles: JobRole[]; people: Profile[]; position?: Position; you?: boolean }) {
   const leads = roles.filter(x => x.reports_to === r.id)
   const roleName = (id: string | null) => roles.find(x => x.id === id)?.name
@@ -316,9 +319,10 @@ function RoleDetails({ role: r, roles, people, position, you }: { role: JobRole;
         </Box>
       ))}
       {!r.duties.length && <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('No duties written yet.')}</Typography>}
-      <Typography variant="subtitle2" component="h3" sx={{ mt: 2, mb: 0.75 }}>{you ? t('What you can do in the app') : t('What they can do in the app')}</Typography>
-      <PermissionList permissions={r.permissions} you={you}
-        label={you ? t('{role}: what you can do', { role: r.name }) : t('{role}: what they can do', { role: r.name })} />
+      {!you && <>
+        <Typography variant="subtitle2" component="h3" sx={{ mt: 2, mb: 0.75 }}>{t('What they can do in the app')}</Typography>
+        <PermissionList permissions={r.permissions} label={t('{role}: what they can do', { role: r.name })} />
+      </>}
     </>
   )
 }
@@ -509,12 +513,12 @@ function LevelTag({ level }: { level: RoleLevel }) {
 }
 
 /** What a level lets someone do in an area, in a few words. Hidden takes a page out of the menu, or a part of one off its page. */
-const levelMeaning = (area: (typeof ROLE_AREAS)[number], level: RoleLevel, you?: boolean) =>
-  level === 'none' ? (area.pages.length ? (you ? t('Not in your menu') : t('Not in their menu')) : (you ? t('Not shown to you') : t('Not shown to them')))
+const levelMeaning = (area: (typeof ROLE_AREAS)[number], level: RoleLevel) =>
+  level === 'none' ? (area.pages.length ? t('Not in their menu') : t('Not shown to them'))
     : t((level === 'update' ? area.update : level === 'own' ? area.own : undefined) ?? area.read)
 
 /** Each area of the app, the level a role gives in it and what that means. */
-function PermissionList({ permissions, label, you }: { permissions: RolePermissions | undefined; label: string; you?: boolean }) {
+function PermissionList({ permissions, label }: { permissions: RolePermissions | undefined; label: string }) {
   return (
     <Stack component="ul" spacing={0.75} sx={{ m: 0, p: 0, listStyle: 'none' }} aria-label={label}>
       {ROLE_AREAS.map(a => {
@@ -523,7 +527,7 @@ function PermissionList({ permissions, label, you }: { permissions: RolePermissi
           <Stack key={a.id} component="li" direction="row" sx={{ gap: 1, alignItems: 'baseline', flexWrap: 'wrap' }}>
             <Typography variant="body2" sx={{ fontWeight: 500, minWidth: 110 }}>{t(a.label)}</Typography>
             <Box sx={{ minWidth: 64 }}><LevelTag level={level} /></Box>
-            <Typography variant="body2" sx={{ color: 'text.secondary' }}>{levelMeaning(a, level, you)}</Typography>
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>{levelMeaning(a, level)}</Typography>
           </Stack>
         )
       })}

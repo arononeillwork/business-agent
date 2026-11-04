@@ -31,10 +31,11 @@ export function demoChecklistApi(w: Who, opened: { by: string; at: string } | nu
       x.steps?.forEach((s, j) => items.push({ id: `${id}-${j + 1}`, list, parent_id: id, text_en: s.en, text_es: s.es, sort: j + 1 }))
     })
   }
-  // This morning: the shutters, the alarm and the tables are done.
+  // This morning: the shutters, the alarm, clocking in and the tables are done.
+  const done = ['Open the 2 shutters', 'Turn off the alarm', 'Clock in on the app', 'Take out and lay out the tables outside']
   const ticks: ChecklistTick[] = opened
-    ? ['check-opening-1', 'check-opening-2', 'check-opening-3-1', 'check-opening-3-2', 'check-opening-3-3']
-      .map(item_id => ({ item_id, day: w.today(), done_by: opened.by, done_at: opened.at }))
+    ? items.filter(i => i.list === 'opening' && done.includes(i.text_en ?? ''))
+      .map(i => ({ item_id: i.id, day: w.today(), done_by: opened.by, done_at: opened.at }))
     : []
 
   const requireAdmin = () => { if (!w.isAdmin()) throw new Error('new row violates row-level security policy for table "checklist_items"') }

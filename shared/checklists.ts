@@ -2,7 +2,8 @@
 // end, each thing in English and Spanish (each person reads it in the language they use the app in),
 // some with steps under them. Everyone on the team reads them and ticks things off for the day; the
 // next day starts clear. Admins change them. Easy Beans starts with the owners' own ("Employee
-// Checklist", Google Drive), put in by the `day_checklists` migration (the test checks the two agree).
+// Checklist", Google Drive): the `day_checklists` migration put in their first version and the
+// `checklist_changes` migration their changes (the tests check the database ends up with this list).
 import { msg, type Language } from './i18n'
 import { DAY_KEYS, type OpeningHours } from './types'
 
@@ -85,31 +86,28 @@ export interface ChecklistPreset { en: string; es: string; steps?: { en: string;
 
 /**
  * Easy Beans' own, from the owners' "Employee Checklist": the English as written (tidied a little) and
- * the Spanish beside it. Clocking in and out was "coming soon" there; the app does it now.
+ * the Spanish beside it. Clocking in and out was "coming soon" there; the app does it now. Since then the
+ * owners took the tables' steps, the ice machine, the light under the counter, the plants and the toilets
+ * off the start of the day, moved clocking in to straight after the alarm, and stock the fridges with milk
+ * and drinks.
  */
 export const EASY_BEANS_CHECKLISTS: Record<ChecklistList, ChecklistPreset[]> = {
   opening: [
     { en: 'Open the 2 shutters', es: 'Abrir las 2 persianas' },
     { en: 'Turn off the alarm', es: 'Apagar la alarma' },
-    { en: 'Take out and lay out the tables outside', es: 'Sacar y colocar las mesas afuera', steps: [
-      { en: 'Make sure the fabric above is tight, but not too tight, as they are not the best', es: 'Asegurarse de que la tela de arriba esté bien tensa, pero no demasiado, ya que no es la mejor' },
-      { en: 'Flower pots and menus on the tables, facing up in Spanish', es: 'Colocar las macetas y los menús en las mesas, en español y hacia arriba' },
-      { en: 'Put one ashtray out the front of the café', es: 'Colocar un cenicero delante de la cafetería' },
-    ] },
+    { en: 'Clock in on the app', es: 'Fichar la entrada en la app' },
+    { en: 'Take out and lay out the tables outside', es: 'Sacar y colocar las mesas afuera' },
     { en: 'Turn on:', es: 'Encender:', steps: [
       { en: 'Coffee machine', es: 'Cafetera' },
-      { en: 'Ice machine', es: 'Máquina de hielo' },
       { en: 'Lights under the counter', es: 'Luces debajo del mostrador' },
       { en: 'Till system', es: 'Sistema de caja' },
     ] },
     { en: 'Set up the awnings outside (front and back)', es: 'Instalar los toldos exteriores (delantero y trasero)' },
-    { en: 'Clock in on the app', es: 'Fichar la entrada en la app' },
     { en: 'Turn on the lights for:', es: 'Encender las luces de:', steps: [
       { en: 'The front 2 fridges', es: 'Los 2 refrigeradores delanteros' },
       { en: 'The back 2 fridges', es: 'Los 2 refrigeradores traseros' },
       { en: 'The outside lights (logo light), from the fuse board (box of electrics)', es: 'Las luces exteriores (luz del logo), desde el cuadro eléctrico' },
       { en: 'The sign in front of the coffee machine', es: 'El letrero frente a la cafetera' },
-      { en: 'Under the counter', es: 'Debajo del mostrador' },
     ] },
     { en: 'Check the stock of bakery items, and bake more if needed', es: 'Revisar el inventario de productos de panadería y hornear más si es necesario', steps: [
       { en: 'Turn the oven on to 175 degrees for 5 minutes', es: 'Precalentar el horno a 175 grados durante 5 minutos' },
@@ -121,17 +119,15 @@ export const EASY_BEANS_CHECKLISTS: Record<ChecklistList, ChecklistPreset[]> = {
     { en: 'Stock the fridges with pastries', es: 'Reponer los refrigeradores con pasteles', steps: [
       { en: 'Make sure the sign words and prices are correct', es: 'Asegurarse de que los letreros y los precios sean correctos' },
     ] },
-    { en: 'Stock check the fridges: soda and milk', es: 'Revisar el inventario de los refrigeradores: refrescos y leche', steps: [
+    { en: 'Stock the fridges with milk and drinks', es: 'Reponer los refrigeradores con leche y bebidas', steps: [
       { en: 'Place an order if needed', es: 'Hacer un pedido si es necesario' },
     ] },
     { en: 'Put music on', es: 'Poner música' },
     { en: 'Stock check and update the system', es: 'Revisar el inventario y actualizar el sistema' },
-    { en: 'Water the plants', es: 'Regar las plantas' },
     { en: 'Put the chalkboard sign out', es: 'Colocar el cartel de pizarra', steps: [
       { en: 'Update the message if needed', es: 'Actualizar el mensaje si es necesario' },
       { en: 'The sign always has to have a Spanish and an English message', es: 'El cartel siempre debe tener un mensaje en español y en inglés' },
     ] },
-    { en: 'Check the toilets are clean, and clean them if needed', es: 'Revisar que los baños estén limpios y limpiarlos si es necesario' },
     { en: 'Check and clean the display fridges', es: 'Revisar y limpiar los refrigeradores de exhibición' },
     { en: 'Fill up the dog bowl and put it outside, on the corner', es: 'Llenar el bebedero del perro y colocarlo afuera, en la esquina' },
     { en: 'Cockroach sweep: kill and remove', es: 'Revisar si hay cucarachas y eliminarlas' },

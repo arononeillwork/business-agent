@@ -3,7 +3,6 @@ import {
   TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography, useMediaQuery, useTheme,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
-import CopyIcon from '@mui/icons-material/ContentCopy'
 import WarningIcon from '@mui/icons-material/WarningAmberRounded'
 import { useMemo, useState } from 'react'
 import { Link as RouterLink, useSearchParams } from 'react-router-dom'
@@ -113,21 +112,6 @@ export function RotaPage() {
     break_minutes: d.break_minutes,
     note: d.note || null,
   })
-
-  const copyLastWeek = async () => {
-    const prev = await api.shifts(zonedIso(addDays(monday, -7), '00:00'), zonedIso(monday, '00:00'))
-    let added = 0
-    for (const s of prev.filter(x => !x.profile_id || profiles.some(p => p.id === x.profile_id))) {
-      const starts_at = zonedIso(addDays(localDate(s.starts_at), 7), localTime(s.starts_at))
-      if (weekShifts.some(w => w.profile_id === s.profile_id && w.starts_at === starts_at)) continue
-      const length = new Date(s.ends_at).getTime() - new Date(s.starts_at).getTime()
-      await api.saveShift({ profile_id: s.profile_id, position_id: s.position_id, starts_at,
-        ends_at: new Date(new Date(starts_at).getTime() + length).toISOString(),
-        break_minutes: s.break_minutes, note: s.note })
-      added++
-    }
-    return added
-  }
 
   const ShiftBlock = ({ s }: { s: Shift }) => {
     const warnings = shiftWarnings(s, ctx)
@@ -289,9 +273,6 @@ export function RotaPage() {
     <>
       <PageHeader eyebrow={t('Team')} title={t('Rota')}
         actions={canEdit && <>
-          <Button startIcon={<CopyIcon />} variant="outlined" onClick={() => run(async () => {
-            const n = await copyLastWeek(); await data.reload(); if (!n) throw new Error(t('Nothing new to copy from last week'))
-          }, t('Copied last week'))}>{t('Copy last week')}</Button>
           <Button variant="outlined" onClick={() => run(async () => {
             const n = await api.sendRota(monday)
             if (!n) throw new Error(t('Nobody to send to: staff turn on WhatsApp under My account'))
