@@ -1083,12 +1083,11 @@ test.describe('music', () => {
     await expect(queue.getByRole('listitem').nth(1)).toHaveAccessibleName('Lofi (Live)')
     await songs.getByRole('button', { name: 'Add Lofi (Acoustic) to the queue' }).click()
     await expect(queue.getByRole('listitem').last()).toHaveAccessibleName('Lofi (Acoustic)')
-    // The X takes a song off the queue; the one playing carries on (and has no X).
+    // The X takes a song off the queue; the one playing carries on.
     await queue.getByRole('button', { name: 'Remove Lofi (Acoustic) from the queue' }).click()
     await toast(page, 'Removed Lofi (Acoustic)')
     await expect(queue.getByRole('listitem', { name: 'Lofi (Acoustic)' })).toHaveCount(0)
     await expect(now.getByRole('heading', { name: 'Sunday Morning' })).toBeVisible()
-    await expect(queue.getByRole('button', { name: 'Remove Sunday Morning from the queue' })).toHaveCount(0)
     await songs.getByRole('button', { name: 'Play Lofi now' }).click()
     await expect(now.getByRole('heading', { name: 'Lofi', exact: true })).toBeVisible()
     await expect(queue.getByRole('listitem', { name: 'Lofi', exact: true })).toHaveAttribute('aria-current', 'true')
@@ -1102,6 +1101,42 @@ test.describe('music', () => {
     await expect(find.getByLabel('Search music')).toHaveValue('')
     await expect(find.getByRole('list', { name: 'Playlists found' })).toHaveCount(0)
     await expect(find.getByRole('button', { name: 'Clear search' })).toHaveCount(0)
+  })
+
+  test('café music: the X clears the song on now, in Now playing or the queue, and the next one plays; Clear empties the queue', async ({ page }) => {
+    await open(page, '/connections')
+    await switchApp(page, page.getByRole('region', { name: 'Café music' }), 'YouTube Music')
+    await page.getByRole('link', { name: 'Music' }).first().click()
+    const now = page.getByRole('region', { name: 'Now playing' })
+    const queue = page.getByRole('list', { name: 'Queue' })
+    // Nothing picked yet: nothing to clear.
+    await expect(now.getByRole('button', { name: /^Clear / })).toHaveCount(0)
+    await now.getByRole('button', { name: 'Play on this device' }).click()
+    await expect(now.getByRole('heading', { name: 'Sunday Morning' })).toBeVisible()
+    const songs = await queue.getByRole('listitem').count()
+
+    await now.getByRole('button', { name: 'Clear Sunday Morning' }).click()
+    await toast(page, 'Removed Sunday Morning')
+    await expect(now.getByRole('heading', { name: 'Coffee' })).toBeVisible()
+    await expect(queue.getByRole('listitem')).toHaveCount(songs - 1)
+    await expect(queue.getByRole('listitem', { name: 'Sunday Morning' })).toHaveCount(0)
+    await expect(queue.getByRole('listitem', { name: 'Coffee' })).toHaveAttribute('aria-current', 'true')
+    // The song on now has its X in the queue too.
+    await queue.getByRole('button', { name: 'Remove Coffee from the queue' }).click()
+    await toast(page, 'Removed Coffee')
+    await expect(now.getByRole('heading', { name: 'Coffee' })).toHaveCount(0)
+    await expect(queue.getByRole('listitem')).toHaveCount(songs - 2)
+    await expect(queue.getByRole('listitem').first()).toHaveAttribute('aria-current', 'true')
+
+    await page.getByRole('region', { name: 'Up next' }).getByRole('button', { name: 'Clear', exact: true }).click()
+    await toast(page, 'Queue cleared')
+    await expect(page.getByRole('region', { name: 'Up next' })).toHaveCount(0)
+    await expect(now.getByRole('heading', { name: 'Pick a playlist below' })).toBeVisible()
+    await expect(now.getByRole('button', { name: /^Clear / })).toHaveCount(0)
+    await expect(page.getByRole('region', { name: 'Café speaker' }).getByRole('button', { name: 'Play', exact: true })).toBeVisible()
+    // A playlist picked again plays as before.
+    await page.getByRole('region', { name: 'Café playlists' }).getByRole('button', { name: 'Sunday slow bar', exact: true }).click()
+    await expect(now.getByRole('heading', { name: 'Holocene' })).toBeVisible()
   })
 
   test('café music: one press of play on a search result plays it straight away, even with nothing playing; another switches to it', async ({ page }) => {

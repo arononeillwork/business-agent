@@ -112,9 +112,27 @@ function CafeMusicSection() {
   )
 }
 
+/**
+ * Takes a song off the queue (its X). The one on now too: the next one plays in its place (the first,
+ * after the last), and taking off the last one left clears the queue, back to picking a playlist.
+ */
+function useRemoveSong() {
+  const music = useCafeMusic()!
+  const run = useAction()
+  return (i: number) => {
+    const s = music.state
+    const track = s?.queue[i]
+    if (!s || !track) return
+    const queue = s.queue.filter((_, j) => j !== i)
+    const position = i < s.position ? s.position - 1 : s.position < queue.length ? s.position : 0
+    return run(() => music.setQueue(queue.length ? s.playlist : null, queue, position), t('Removed {title}', { title: track.title }))
+  }
+}
+
 function NowPlaying() {
   const music = useCafeMusic()!
   const run = useAction()
+  const remove = useRemoveSong()
   const s = music.state
   useTick(1000)
   const track = s?.queue[s.position]
@@ -130,13 +148,25 @@ function NowPlaying() {
           {art ? <Box component="img" src={art} alt="" sx={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <MusicIcon sx={{ color: '#fff', fontSize: 52 }} />}
         </Box>
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography variant="overline" sx={{ color: live ? tokens.matchaDeep : 'text.secondary' }}>
-            {!live ? t('Nothing playing') : music.here ? t('Playing on this device') : t('Playing on {device}', { device: s?.device_name ?? t('another device') })}
-          </Typography>
-          <Typography variant="h5" component="h2" sx={{ lineHeight: 1.25, wordBreak: 'break-word' }}>{track?.title ?? t('Pick a playlist below')}</Typography>
-          <Typography sx={{ color: 'text.secondary' }} noWrap>
-            {[track?.artist, s?.playlist?.name].filter(Boolean).join(' · ') || `${BRAND.youtube.name}${music.library?.account ? ` · ${music.library.account}` : ''}`}
-          </Typography>
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start' }}>
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Typography variant="overline" sx={{ color: live ? tokens.matchaDeep : 'text.secondary' }}>
+                {!live ? t('Nothing playing') : music.here ? t('Playing on this device') : t('Playing on {device}', { device: s?.device_name ?? t('another device') })}
+              </Typography>
+              <Typography variant="h5" component="h2" sx={{ lineHeight: 1.25, wordBreak: 'break-word' }}>{track?.title ?? t('Pick a playlist below')}</Typography>
+              <Typography sx={{ color: 'text.secondary' }} noWrap>
+                {[track?.artist, s?.playlist?.name].filter(Boolean).join(' · ') || `${BRAND.youtube.name}${music.library?.account ? ` · ${music.library.account}` : ''}`}
+              </Typography>
+            </Box>
+            {/* Not this song: off the queue, and the next one plays (or nothing, when it was the last). */}
+            {track && s && (
+              <Tooltip title={t('Clear this song')}>
+                <IconButton aria-label={t('Clear {title}', { title: track.title })} onClick={() => void remove(s.position)} sx={{ color: tokens.inkFaint, mt: 0.5 }}>
+                  <CloseIcon />
+                </IconButton>
+              </Tooltip>
+            )}
+          </Stack>
           {/* Hidden until a song plays, but its room is kept, so starting one doesn't push the search results under the finger. */}
           <Box sx={{ mt: 1.5, visibility: live && track ? undefined : 'hidden' }}>
             <LinearProgress variant="determinate" value={duration ? Math.min(100, (elapsed / duration) * 100) : 0} aria-label={t('Song progress')}
@@ -175,6 +205,7 @@ function NowPlaying() {
 function Queue() {
   const music = useCafeMusic()!
   const run = useAction()
+  const remove = useRemoveSong()
   const s = music.state
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }))
   if (!s?.queue.length) return null
@@ -190,21 +221,19 @@ function Queue() {
     for (let i = rest.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [rest[i], rest[j]] = [rest[j], rest[i]] }
     return run(() => music.setQueue(s.playlist, [current, ...rest], 0), t('Shuffled'))
   }
-  // The song playing now stays where it is; the speaker doesn't restart it.
-  const remove = (i: number) => run(() => music.setQueue(s.playlist, s.queue.filter((_, j) => j !== i), i < s.position ? s.position - 1 : s.position),
-    t('Removed {title}', { title: s.queue[i].title }))
   return (
     <Card component="section" aria-label={t('Up next')}>
       <Stack direction="row" sx={{ alignItems: 'center', px: 2, pt: 1.5, pb: 1 }}>
         <Typography variant="h6" component="h2" sx={{ flex: 1 }}>{t('Up next')} <Typography component="span" sx={{ color: 'text.secondary' }}>· {t('{n} songs', { n: s.queue.length })}</Typography></Typography>
         <Button size="small" startIcon={<ShuffleIcon />} onClick={shuffle}>{t('Shuffle')}</Button>
+        <Button size="small" startIcon={<CloseIcon />} onClick={() => run(() => music.setQueue(null, [], 0), t('Queue cleared'))}>{tc('queue', 'Clear')}</Button>
       </Stack>
       <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToVerticalAxis]} onDragEnd={onDragEnd}>
         <SortableContext items={keys} strategy={verticalListSortingStrategy}>
           <Box role="list" aria-label={t('Queue')} sx={{ maxHeight: 420, overflowY: 'auto' }}>
             {s.queue.map((x, i) => (
               <QueueRow key={keys[i]} id={keys[i]} track={x} index={i} current={i === s.position} playing={i === s.position && s.playing && music.live}
-                onPlay={() => run(() => music.control('jump', i))} onRemove={i === s.position ? undefined : () => remove(i)} />
+                onPlay={() => run(() => music.control('jump', i))} onRemove={() => void remove(i)} />
             ))}
           </Box>
         </SortableContext>
