@@ -313,15 +313,21 @@ export function mentionsToReward(mentions: Mention[], reps: SalesRep[], rewards:
   }))
 }
 
-/** The usual rewards for a café, to add in one press (their names in the person's language). */
+/**
+ * The usual rewards for a café, to add in one press (their names in the person's language). Credit
+ * for customers is kept small (a story is 50 cents, more for a bigger account): the money goes to
+ * the reps who bring people in and reach the most, as commission.
+ */
 export interface RewardIdea extends Omit<RewardRuleInput, 'active'> { key: string; what: string }
 export const REWARD_IDEAS: RewardIdea[] = [
   { key: 'story', name: msg('Reposted our story'), what: msg('A customer shares one of the café’s stories, or puts it in their own'),
-    who: 'customers', basis: 'fixed', amount: 1, needs_approval: false, monthly_limit: 4, scales_with_reach: true },
+    who: 'customers', basis: 'fixed', amount: 0.5, needs_approval: false, monthly_limit: 4, scales_with_reach: true },
   { key: 'post', name: msg('Posted about the café and tagged it'), what: msg('A post or reel of their own, with the café tagged'),
-    who: 'customers', basis: 'fixed', amount: 2, needs_approval: true, monthly_limit: 2, scales_with_reach: true },
+    who: 'customers', basis: 'fixed', amount: 1, needs_approval: true, monthly_limit: 2, scales_with_reach: true },
+  { key: 'friend', name: msg('Brought a friend with their card'), what: msg('A friend they sent shows their card at the till'),
+    who: 'customers', basis: 'fixed', amount: 1, needs_approval: false, monthly_limit: 10, scales_with_reach: false },
   { key: 'card', name: msg('Brought a new customer with their card'), what: msg('Someone new shows their business card at the till'),
-    who: 'everyone', basis: 'fixed', amount: 3, needs_approval: false, monthly_limit: 10, scales_with_reach: false },
+    who: 'reps', basis: 'fixed', amount: 3, needs_approval: false, monthly_limit: 20, scales_with_reach: false },
   { key: 'event', name: msg('Booked an event or catering'), what: msg('A party, a meeting, a cake order: a share of what it comes to'),
     who: 'reps', basis: 'percent', amount: 10, needs_approval: true, monthly_limit: null, scales_with_reach: false },
   { key: 'business', name: msg('Brought in a business customer'), what: msg('An office, a hotel or a gym that orders regularly'),

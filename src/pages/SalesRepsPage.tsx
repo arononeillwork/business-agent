@@ -13,7 +13,7 @@ import PayIcon from '@mui/icons-material/PaymentsOutlined'
 import ShareIcon from '@mui/icons-material/IosShareOutlined'
 import TrophyIcon from '@mui/icons-material/EmojiEventsOutlined'
 import GroupsIcon from '@mui/icons-material/GroupsOutlined'
-import CampaignIcon from '@mui/icons-material/CampaignOutlined'
+import TillIcon from '@mui/icons-material/PointOfSaleOutlined'
 import HeartIcon from '@mui/icons-material/VolunteerActivismOutlined'
 import LinkIcon from '@mui/icons-material/LinkOutlined'
 import SearchIcon from '@mui/icons-material/Search'
@@ -27,7 +27,7 @@ import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction, useNotify } from '../app/Notify'
 import { Brand } from '../components/Connectors'
-import { Empty, ErrorBox, PageHeader, SectionTitle, StatGrid, StatTile, Tag } from '../components/common'
+import { Empty, ErrorBox, PageHeader, PageToolbar, SectionTitle, Tag } from '../components/common'
 import { ExportButton } from '../components/tables'
 import { KIND_TONE, ReachBadge, ReachLadder, RepAvatar, RepCode, worth } from '../components/RepBits'
 import type { ExportTable } from '../lib/export'
@@ -91,7 +91,7 @@ export function SalesRepsPage() {
   const [crew, setCrew] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [editing, setEditing] = useState<SalesRepInput | null>(null)
-  const [logging, setLogging] = useState<{ rep: SalesRep; mention?: Mention } | null>(null)
+  const [logging, setLogging] = useState<{ rep: SalesRep; mention?: Mention; till?: boolean } | null>(null)
   const [settling, setSettling] = useState<SalesRep | null>(null)
   const [rule, setRule] = useState<RewardRuleInput | null>(null)
   const [sharing, setSharing] = useState<SalesRep | null>(null)
@@ -149,9 +149,16 @@ export function SalesRepsPage() {
     money: [4, 5],
   })
 
+  // The money that matters to whoever is looking: what's owed to the reps (admins), or their own commission.
+  const money = isAdmin
+    ? { label: t('Commission owed'), value: rewards.data ? formatMoney(owed.commission) : '–' }
+    : myRep ? { label: t('My commission'), value: formatMoney(balanceOf(ledger, myRep.id)), note: t('Your code: {code}', { code: myRep.code }) } : null
+
   return (
     <>
-      <PageHeader eyebrow={t('Sales')} title={t('Sales reps & rewards')} actions={<>
+      {/* The title on its own, so it stays on one line; the page's buttons in a row under it, Add someone on the right. */}
+      <PageHeader eyebrow={t('Sales')} title={t('Sales reps & rewards')} />
+      <PageToolbar actions={<>
         {isAdmin && <ExportButton table={table} disabled={!ledger.length} folder="Rewards" />}
         {isAdmin && <Button variant="outlined" startIcon={<CardsIcon />} component={RouterLink} to="/sales-reps/cards" disabled={!active.length}>{t('Business cards')}</Button>}
         {myRep && <Button variant="outlined" startIcon={<LinkIcon />} onClick={() => setSharing(myRep)}>{t('My page')}</Button>}
@@ -160,21 +167,11 @@ export function SalesRepsPage() {
       <ErrorBox error={reps.error ?? rules.error ?? rewards.error} />
 
       <Hero pitch={set.pitch} people={reps.data ? active.length : null} reach={reps.data ? totalReach : null}
-        given={rewards.data ? thisMonth.reduce((a, r) => a + r.amount, 0) : null} />
+        given={rewards.data ? thisMonth.reduce((a, r) => a + r.amount, 0) : null} money={money} />
 
-      <HowItWorks crewShare={set.crew_share} boost={set.boost_by_reach} example={growing} />
+      <HowItWorks />
 
-      <StatGrid>
-        <StatTile label={t('Credit to spend')} value={rewards.data ? formatMoney(owed.credit) : '–'} note={t('Customers spend it in the café')} />
-        {isAdmin
-          ? <StatTile label={t('Commission owed')} value={rewards.data ? formatMoney(owed.commission) : '–'} note={t('To pay the team and ambassadors')} />
-          : myRep
-            ? <StatTile label={t('My commission')} value={formatMoney(balanceOf(ledger, myRep.id))} note={t('Your code: {code}', { code: myRep.code })} />
-            : <StatTile label={t('Rewards this month')} value={rewards.data ? formatMoney(thisMonth.reduce((a, r) => a + r.amount, 0)) : '–'}
-                note={tn(thisMonth.length, '{n} reward', '{n} rewards')} />}
-        <StatTile label={t('Waiting for approval')} value={rewards.data && reps.data ? pending.length + waitingPeople.length : '–'}
-          note={pending.length + waitingPeople.length ? (isAdmin ? t('Say yes or no below') : t('An admin approves them')) : t('Nothing waiting')} />
-      </StatGrid>
+      <TillBox reps={allReps} onPick={rep => setLogging({ rep, till: true })} />
 
       {isAdmin && (pending.length > 0 || waitingPeople.length > 0) && (
         <Card component="section" aria-label={t('Waiting for approval')} sx={{ mb: 3, borderLeft: `4px solid ${tokens.rose}` }}>
@@ -316,6 +313,17 @@ export function SalesRepsPage() {
             : <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(3, minmax(0, 1fr))' } }}>
                 {allRules.map(r => <RuleCard key={r.id} rule={r} boost={set.boost_by_reach} onEdit={isAdmin ? () => setRule(r) : undefined} />)}
               </Box>}
+          <Box sx={{ mt: 2.5 }}>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>{t('The bigger their reach, the bigger the reward')}</Typography>
+            <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.25 }}>
+              {set.boost_by_reach
+                ? growing
+                  ? t('A story from someone with 12,000 followers reaches more people than one from someone with 300. Rewards marked “grows with reach” are worth more for them: “{name}” is worth this much at each step.', { name: growing.name })
+                  : t('A story from someone with 12,000 followers reaches more people than one from someone with 300. Rewards marked “grows with reach” are worth more for them.')
+                : t('Rewards don’t grow with reach just now (Crews & reach).')}
+            </Typography>
+            <ReachLadder example={set.boost_by_reach ? growing : undefined} />
+          </Box>
           {isAdmin && ideas.length > 0 && (
             <Box sx={{ mt: 2.5 }}>
               <Typography variant="overline" sx={{ color: 'text.secondary' }}>{t('Usual for a café')}</Typography>
@@ -383,7 +391,7 @@ export function SalesRepsPage() {
       </Card>
 
       {editing && <RepDialog rep={editing} reps={allReps} crewShare={set.crew_share} onClose={() => setEditing(null)} />}
-      {logging && <LogDialog rep={logging.rep} mention={logging.mention} rules={activeRules} ledger={ledger} isAdmin={isAdmin} self={logging.rep.id === myRep?.id}
+      {logging && <LogDialog rep={logging.rep} mention={logging.mention} till={logging.till} rules={activeRules} ledger={ledger} isAdmin={isAdmin} self={logging.rep.id === myRep?.id}
         boost={set.boost_by_reach} onClose={() => setLogging(null)} />}
       {settling && <SettleDialog rep={settling} balance={balanceOf(ledger, settling.id)} onClose={() => setSettling(null)} />}
       {rule && <RuleDialog rule={rule} onClose={() => setRule(null)} />}
@@ -393,17 +401,20 @@ export function SalesRepsPage() {
   )
 }
 
-/** The café's thank-you to the people who talk about it, and what they add up to. */
-function Hero({ pitch, people, reach, given }: { pitch: string | null; people: number | null; reach: number | null; given: number | null }) {
-  const numbers = [
+/** The café's thank-you to the people who talk about it, what they add up to, and (for admins or a rep on the team) the money owed. */
+function Hero({ pitch, people, reach, given, money }: {
+  pitch: string | null; people: number | null; reach: number | null; given: number | null; money: { label: string; value: string; note?: string } | null
+}) {
+  const numbers: { label: string; value: string; note?: string }[] = [
     { label: t('People talking about us'), value: people === null ? '–' : formatNumber(people) },
     { label: t('People they reach'), value: reach === null ? '–' : formatReach(reach) },
     { label: t('Given back this month'), value: given === null ? '–' : formatMoney(given) },
+    ...(money ? [money] : []),
   ]
   return (
     <Box component="section" aria-label={t('Our people')} sx={{ mb: 3, p: { xs: 2.5, md: 3 }, borderRadius: 4, position: 'relative', overflow: 'hidden',
       background: `linear-gradient(135deg, ${tokens.roseSoft} 0%, ${tokens.ubeSoft} 55%, ${tokens.matchaSoft} 100%)` }}>
-      <Stack direction={{ xs: 'column', md: 'row' }} spacing={{ xs: 2.5, md: 4 }} sx={{ alignItems: { md: 'center' } }}>
+      <Stack direction={{ xs: 'column', lg: 'row' }} spacing={{ xs: 2.5, lg: 4 }} sx={{ alignItems: { lg: 'center' } }}>
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1, color: tokens.roseDeep }}>
             <HeartIcon fontSize="small" />
@@ -414,12 +425,15 @@ function Hero({ pitch, people, reach, given }: { pitch: string | null; people: n
           </Typography>
           <Typography variant="body1" sx={{ color: 'text.secondary', maxWidth: 560 }}>{pitch?.trim() || t(DEFAULT_PITCH)}</Typography>
         </Box>
-        <Box component="dl" sx={{ m: 0, display: 'grid', gap: { xs: 1.5, md: 2 }, gridTemplateColumns: { xs: 'repeat(3, minmax(0, 1fr))', md: 'repeat(3, auto)' } }}>
+        <Box component="dl" sx={{ m: 0, display: 'grid', gap: { xs: 1.5, md: 2 },
+          gridTemplateColumns: { xs: `repeat(${numbers.length === 4 ? 2 : 3}, minmax(0, 1fr))`, sm: `repeat(${numbers.length}, minmax(0, 1fr))`,
+            lg: `repeat(${numbers.length === 4 ? 2 : 3}, auto)`, xl: `repeat(${numbers.length}, auto)` } }}>
           {numbers.map(n => (
-            <Box key={n.label} sx={{ p: 1.5, borderRadius: 3, bgcolor: tokens.surface, minWidth: { md: 128 } }}>
+            <Box key={n.label} sx={{ p: 1.5, borderRadius: 3, bgcolor: tokens.surface, minWidth: { lg: 128 } }}>
               <Typography component="dd" sx={{ m: 0, fontFamily: fonts.display, fontWeight: 600, fontSize: { xs: '1.3rem', md: '1.7rem' }, lineHeight: 1.1,
                 fontVariantNumeric: 'tabular-nums' }}>{n.value}</Typography>
-              <Typography component="dt" variant="caption" sx={{ color: 'text.secondary' }}>{n.label}</Typography>
+              <Typography component="dt" variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>{n.label}</Typography>
+              {n.note && <Typography component="dd" variant="caption" sx={{ m: 0, color: 'text.secondary' }}>{n.note}</Typography>}
             </Box>
           ))}
         </Box>
@@ -428,14 +442,14 @@ function Hero({ pitch, people, reach, given }: { pitch: string | null; people: n
   )
 }
 
-/** Three steps, the reach ladder and crews: what anyone needs to know, hidden once read. */
-function HowItWorks({ crewShare, boost, example }: { crewShare: number; boost: boolean; example?: RewardRule }) {
+/** Three steps, in plain words: what anyone on the team needs to know, hidden once read. */
+function HowItWorks() {
   const [hidden, setHidden] = useState(() => { try { return localStorage.getItem(HOW_KEY) === '1' } catch { return false } })
   const toggle = () => setHidden(h => { try { localStorage.setItem(HOW_KEY, h ? '0' : '1') } catch { /* private window: fine */ } return !h })
   const steps = [
-    { icon: <CampaignIcon />, title: t('They talk about us'), text: t('A story, a post with the café tagged, their card handed to a friend, a crew brought along.') },
-    { icon: <StarIcon />, title: t('We see it'), text: t('Their code at the till, Instagram telling us about a story or a tag, or they tell us from their own page.') },
-    { icon: <TrophyIcon />, title: t('They get something back'), text: t('Credit to spend here for customers, commission for ambassadors and the team.') },
+    { icon: <CardsIcon />, title: t('Add them, with a code'), text: t('A regular, a coach, a hotel, someone on the team. Each gets a code for their business cards.') },
+    { icon: <TillIcon />, title: t('Someone uses their code'), text: t('They show the card or say the code when they pay: type it in “At the till” below. Stories that tag the café show up here too.') },
+    { icon: <TrophyIcon />, title: t('They get something back'), text: t('Customers get credit to spend here; ambassadors and the team, commission. The more people they reach, the more a story or shout-out is worth.') },
   ]
   return (
     <Card component="section" aria-label={t('How it works')} sx={{ mb: 3 }}>
@@ -444,9 +458,9 @@ function HowItWorks({ crewShare, boost, example }: { crewShare: number; boost: b
           {t('How it works')}
         </SectionTitle>
         <Collapse in={!hidden}>
-          <Box sx={{ display: 'grid', gap: 1.5, mb: 2.5, gridTemplateColumns: { xs: '1fr', md: 'repeat(3, minmax(0, 1fr))' } }}>
+          <Box component="ol" sx={{ listStyle: 'none', p: 0, m: 0, display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', md: 'repeat(3, minmax(0, 1fr))' } }}>
             {steps.map((s, i) => (
-              <Stack key={s.title} direction="row" spacing={1.5} sx={{ p: 2, borderRadius: 3, bgcolor: i === 0 ? tokens.roseSoft : i === 1 ? tokens.ubeSoft : tokens.matchaSoft, alignItems: 'flex-start' }}>
+              <Stack component="li" key={s.title} direction="row" spacing={1.5} sx={{ p: 2, borderRadius: 3, bgcolor: i === 0 ? tokens.roseSoft : i === 1 ? tokens.ubeSoft : tokens.matchaSoft, alignItems: 'flex-start' }}>
                 <Box sx={{ width: 36, height: 36, borderRadius: '50%', display: 'grid', placeItems: 'center', flexShrink: 0, bgcolor: tokens.surface,
                   color: i === 0 ? tokens.roseDeep : i === 1 ? tokens.ubeDeep : tokens.matchaDeep }}>{s.icon}</Box>
                 <Box>
@@ -456,31 +470,63 @@ function HowItWorks({ crewShare, boost, example }: { crewShare: number; boost: b
               </Stack>
             ))}
           </Box>
-          <Box sx={{ display: 'grid', gap: 2.5, gridTemplateColumns: { xs: '1fr', lg: '2fr 1fr' } }}>
-            <Box>
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>{t('The bigger their reach, the bigger the reward')}</Typography>
-              <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.25 }}>
-                {boost
-                  ? example
-                    ? t('A story from someone with 12,000 followers reaches more people than one from someone with 300. Rewards marked “grows with reach” are worth more for them: “{name}” is worth this much at each step.', { name: example.name })
-                    : t('A story from someone with 12,000 followers reaches more people than one from someone with 300. Rewards marked “grows with reach” are worth more for them.')
-                  : t('Rewards don’t grow with reach just now (Crews & reach).')}
-              </Typography>
-              <ReachLadder example={boost ? example : undefined} />
-            </Box>
-            <Box sx={{ p: 2, borderRadius: 3, border: 1, borderColor: 'divider', alignSelf: 'start' }}>
-              <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 0.75, color: tokens.ubeDeep }}>
-                <GroupsIcon />
-                <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary' }}>{t('Bring your crew')}</Typography>
-              </Stack>
-              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                {crewShare > 0
-                  ? t('A coach and their fighters, a studio and its teachers, a club and its players: whoever brings a crew earns {n}% of everything their crew earns, on top of their own.', { n: formatNumber(crewShare) })
-                  : t('A coach and their fighters, a studio and its teachers: put them in a crew to see their reach together.')}
-              </Typography>
-            </Box>
-          </Box>
         </Collapse>
+      </CardContent>
+    </Card>
+  )
+}
+
+/** A code typed at the till: its letters and digits, in capitals. */
+const asCode = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, '')
+
+/**
+ * At the till: someone new shows a rep's card or says their code as they pay. Typing it (or the
+ * rep's name) finds whose it is, and choosing them opens their reward, the card's one ready. This is
+ * how the café knows who brought whom: the code, said at the till, on the day.
+ */
+function TillBox({ reps, onPick }: { reps: SalesRep[]; onPick: (rep: SalesRep) => void }) {
+  const [text, setText] = useState('')
+  const options = reps.filter(r => r.active)
+  return (
+    <Card component="section" aria-label={t('At the till')} sx={{ mb: 3, borderLeft: `4px solid ${tokens.matcha}` }}>
+      <CardContent>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ alignItems: { md: 'center' } }}>
+          <Stack direction="row" spacing={1.5} sx={{ flex: 1, minWidth: 0, alignItems: 'flex-start' }}>
+            <Box sx={{ width: 40, height: 40, borderRadius: '50%', display: 'grid', placeItems: 'center', flexShrink: 0, bgcolor: tokens.matchaSoft, color: tokens.matchaDeep }}>
+              <TillIcon />
+            </Box>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography component="h2" variant="body1" sx={{ fontWeight: 600 }}>{t('Someone new came in with a code?')}</Typography>
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                {t('When they pay, ask whose card or code brought them and type it here. Whoever it belongs to gets their reward: one for each new person.')}
+              </Typography>
+            </Box>
+          </Stack>
+          <Autocomplete options={options} value={null} inputValue={text} autoHighlight blurOnSelect sx={{ width: { xs: '100%', md: 340 }, flexShrink: 0 }}
+            onInputChange={(_, v, reason) => { if (reason !== 'reset') setText(v) }}
+            onChange={(_, r) => { if (r) { setText(''); onPick(r) } }}
+            getOptionLabel={r => `${r.code} · ${r.name}`} isOptionEqualToValue={(a, b) => a.id === b.id}
+            filterOptions={(opts, { inputValue }) => {
+              const code = asCode(inputValue)
+              const q = inputValue.trim().toLowerCase().replace(/^@/, '')
+              if (!q) return []
+              return opts.filter(r => (code && r.code.startsWith(code)) || r.name.toLowerCase().includes(q) || (r.instagram ?? '').includes(q))
+                .sort((a, b) => Number(b.code === code) - Number(a.code === code) || a.name.localeCompare(b.name)).slice(0, 8)
+            }}
+            noOptionsText={text.trim() ? t('Nobody has that code') : t('Type the code on their card')}
+            renderOption={({ key, ...props }, r) => (
+              <Box component="li" key={key} {...props} sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
+                <RepAvatar rep={r} size={28} />
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 500 }}>{r.name}</Typography>
+                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>{t(kindLabel(r.kind))}</Typography>
+                </Box>
+                <RepCode code={r.code} />
+              </Box>
+            )}
+            renderInput={params => <TextField {...params} label={t('Code or name')} slotProps={{ ...params.slotProps,
+              input: { ...params.slotProps.input, startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> } }} />} />
+        </Stack>
       </CardContent>
     </Card>
   )
@@ -854,22 +900,30 @@ function RepDialog({ rep, reps, crewShare, onClose }: { rep: SalesRepInput; reps
   )
 }
 
-/** The reward on the list that fits a story or a post best (by its name), else the first that fits the rep. */
-function ruleFor(rules: RewardRule[], kind: RepKind, mention?: Mention) {
+/**
+ * The reward on the list that fits best (by its name): a story or a post for one from Instagram, the
+ * card's one at the till (someone new came in with their code); else the first that fits the rep.
+ */
+function ruleFor(rules: RewardRule[], kind: RepKind, mention?: Mention, till = false) {
   const fits = rules.filter(r => ruleFits(r, kind))
-  const words = mention?.kind === 'story' ? /stor|histori/i : mention?.kind === 'post' ? /post|publica|tag|etiquet/i : null
+  const words = mention?.kind === 'story' ? /stor|histori/i : mention?.kind === 'post' ? /post|publica|tag|etiquet/i : till ? /card|tarjeta|c[oó]digo|code/i : null
   return (words && fits.find(r => words.test(r.name))) || fits[0] || null
 }
 
-/** Log a reward for a rep from the list: what it's for, the sale for a percentage, and a link to it. */
-function LogDialog({ rep, mention, rules, ledger, isAdmin, self, boost, onClose }: {
-  rep: SalesRep; mention?: Mention; rules: RewardRule[]; ledger: RepReward[]; isAdmin: boolean; self: boolean; boost: boolean; onClose: () => void
+/**
+ * Log a reward for a rep from the list: what it's for, how many times (a coach who brought ten
+ * people: ten), the sale for a percentage, and a link to it. Each time is its own line, so the
+ * monthly limit and an admin's approval work as for one.
+ */
+function LogDialog({ rep, mention, till, rules, ledger, isAdmin, self, boost, onClose }: {
+  rep: SalesRep; mention?: Mention; till?: boolean; rules: RewardRule[]; ledger: RepReward[]; isAdmin: boolean; self: boolean; boost: boolean; onClose: () => void
 }) {
   const { api } = useApp()
   const run = useAction()
   const notify = useNotify()
   const fits = rules.filter(r => ruleFits(r, rep.kind))
-  const [ruleId, setRuleId] = useState(ruleFor(rules, rep.kind, mention)?.id ?? '')
+  const [ruleId, setRuleId] = useState(ruleFor(rules, rep.kind, mention, till)?.id ?? '')
+  const [times, setTimes] = useState('1')
   const [sale, setSale] = useState('')
   const [note, setNote] = useState('')
   const [proof, setProof] = useState(mention?.permalink ?? '')
@@ -879,19 +933,29 @@ function LogDialog({ rep, mention, rules, ledger, isAdmin, self, boost, onClose 
   const boosted = !!rule && rule.basis === 'fixed' && rule.scales_with_reach && boost && reachMultiplier(rep.reach) > 1
   const full = rule ? limitReached(rule, ledger, rep.id, on) : false
   const waits = !!rule && (self || !rep.approved || (!isAdmin && rule.needs_approval))
+  // A set amount can be logged several times at once (ten people brought in); a story from Instagram once.
+  const several = !!rule && rule.basis === 'fixed' && !mention
+  const count = several ? Number(times) : 1
+  const countOk = Number.isInteger(count) && count >= 1
+  const left = rule && rule.monthly_limit !== null ? Math.max(0, rule.monthly_limit - timesInMonth(ledger, rep.id, rule.id, on)) : null
+  const total = amount * (countOk ? count : 1)
   const save = async () => {
     let waiting = false
     const ok = await run(async () => {
       if (!rule) throw new Error(t('Choose what it’s for'))
       if (rule.basis === 'percent' && !(amount > 0)) throw new Error(t('Give the amount of the sale'))
+      if (!countOk || count > 50) throw new Error(t('How many times: a whole number from 1 to 50'))
+      if (left !== null && count > left) throw new Error(tn(left, 'Only once more this month for {name}', 'Only {n} more this month for {name}', { name: rep.name }))
       if (proof.trim() && !/^https?:\/\/\S+$/i.test(proof.trim())) throw new Error(t('The link has to start with https://'))
-      const out = await api.logReward({ rep_id: rep.id, rule_id: rule.id, sale_amount: rule.basis === 'percent' ? Number(sale.replace(',', '.')) : null,
-        note, proof_url: proof.trim() || null, mention_id: mention?.id ?? null, occurred_on: on })
-      waiting = out.status === 'pending'
+      for (let i = 0; i < count; i++) {
+        const out = await api.logReward({ rep_id: rep.id, rule_id: rule.id, sale_amount: rule.basis === 'percent' ? Number(sale.replace(',', '.')) : null,
+          note, proof_url: proof.trim() || null, mention_id: mention?.id ?? null, occurred_on: on })
+        waiting = out.status === 'pending'
+      }
     })
     if (!ok) return
     onClose()
-    notify(waiting ? t('Logged: an admin approves it') : t('{amount} for {name}', { amount: formatMoney(amount), name: rep.name }), 'success')
+    notify(waiting ? t('Logged: an admin approves it') : t('{amount} for {name}', { amount: formatMoney(total), name: rep.name }), 'success')
   }
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="xs" aria-labelledby="log-title">
@@ -903,17 +967,22 @@ function LogDialog({ rep, mention, rules, ledger, isAdmin, self, boost, onClose 
             : <TextField select label={t('What for')} value={ruleId} onChange={e => setRuleId(e.target.value)}>
                 {fits.map(r => <MenuItem key={r.id} value={r.id}>{r.name} · {r.basis === 'fixed' ? formatMoney(rewardAmount(r, null, rep.reach, boost)) : worth(r)}</MenuItem>)}
               </TextField>}
+          {several && (
+            <TextField label={t('How many times')} value={times} onChange={e => setTimes(e.target.value.replace(/[^\d]/g, ''))} inputMode="numeric"
+              error={!countOk} helperText={t('One for each new person, story or post: a coach who brought ten people, 10')} />
+          )}
           {rule?.basis === 'percent' && (
             <TextField label={t('The sale')} value={sale} onChange={e => setSale(e.target.value)} inputMode="decimal" autoFocus
               helperText={t('What the event or order came to')} slotProps={{ input: { startAdornment: <InputAdornment position="start">€</InputAdornment> } }} />
           )}
           <TextField label={t('Day')} type="date" value={on} onChange={e => e.target.value && setOn(e.target.value)} slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: today() } }} />
           <TextField label={t('Link')} value={proof} onChange={e => setProof(e.target.value)} placeholder={'https://'} helperText={t('The story or post, if there is one')} />
-          <TextField label={t('Notes')} value={note} onChange={e => setNote(e.target.value)} />
+          <TextField label={t('Notes')} value={note} onChange={e => setNote(e.target.value)} placeholder={till ? t('Who came in, so nobody counts twice') : undefined} />
           {rule && (full
             ? <Alert severity="warning">{tn(rule.monthly_limit ?? 0, '{name} has had this once this month, the most there is.', '{name} has had this {n} times this month, the most there is.', { name: rep.name })}</Alert>
             : <Alert severity={waits ? 'info' : 'success'} icon={<StarIcon />}>
-                {amount > 0 ? (earnsCredit(rep.kind) ? t('{amount} credit for {name}', { amount: formatMoney(amount), name: rep.name }) : t('{amount} commission for {name}', { amount: formatMoney(amount), name: rep.name })) : t('Give the amount of the sale')}
+                {amount > 0 ? (earnsCredit(rep.kind) ? t('{amount} credit for {name}', { amount: formatMoney(total), name: rep.name }) : t('{amount} commission for {name}', { amount: formatMoney(total), name: rep.name })) : t('Give the amount of the sale')}
+                {several && countOk && count > 1 && amount > 0 && ` (${count} × ${formatMoney(amount)})`}
                 {rule.monthly_limit !== null && ` · ${t('{used} of {limit} this month', { used: timesInMonth(ledger, rep.id, rule.id, on), limit: rule.monthly_limit })}`}
                 {boosted && <Typography variant="body2">{t('×{x} for reaching {n} people ({tier})', { x: reachMultiplier(rep.reach), n: formatNumber(rep.reach), tier: t(reachTier(rep.reach).label) })}</Typography>}
                 {waits && <Typography variant="body2">{self ? t('Your own reward: someone else approves it.') : !rep.approved ? t('{name} is waiting for an OK: it counts once they’re in.', { name: rep.name }) : t('An admin approves it before it counts.')}</Typography>}

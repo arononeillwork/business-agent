@@ -116,4 +116,15 @@ describe('sales reps and rewards', () => {
     expect([event.who, event.basis, event.needs_approval]).toEqual(['reps', 'percent', true])
     expect(new Set(REWARD_IDEAS.map(i => i.key)).size).toBe(REWARD_IDEAS.length)
   })
+
+  it('the usual rewards keep customers’ credit small, so the money goes to the reps who bring people in and reach the most', () => {
+    const idea = (key: string) => REWARD_IDEAS.find(i => i.key === key)!
+    // Someone new with a card: a friend of a customer, a little credit; a rep's (a coach's), commission worth three times as much.
+    expect([idea('friend').who, idea('friend').amount]).toEqual(['customers', 1])
+    expect([idea('card').who, idea('card').amount]).toEqual(['reps', 3])
+    // A story at the top step of reach is worth a tenth of a rep's shout-out at the same step.
+    expect(rewardAmount(idea('story'), null, 60_000)).toBe(2.5)
+    expect(rewardAmount(idea('shoutout'), null, 60_000)).toBe(25)
+    expect(Math.max(...REWARD_IDEAS.filter(i => i.who === 'customers').map(i => i.amount))).toBeLessThanOrEqual(1)
+  })
 })

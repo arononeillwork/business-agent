@@ -98,6 +98,12 @@ built-in **AI connector** so owners can run it by talking to Claude.
   followers of people who've messaged the café or mentioned it in a story (looked up when adding someone, and
   kept up to date every 15 minutes); everything else is typed in (the `rep_reach_and_crews` migration,
   `worker/repPage.ts`).
+- At the till (Sales reps & rewards): how the café knows who brought whom. Someone new shows a rep's card or
+  says their code as they pay; whoever's at the till types it (or the rep's name) into "At the till", and the
+  reward opens with the card's one ready. "How many times" logs several at once (a coach who brought ten people:
+  10), each its own line, so monthly limits and approvals work as for one; the assistant's `log_reward` takes
+  `times` too. The usual rewards keep customers' credit small (50 cents a story, €1 a post or a friend brought
+  in, more for a bigger reach) and give reps commission (€3 a new customer, up to 20 a month).
 - Staff kitty (Team section): a share of each month's profit (5% to start; a month with a loss puts nothing
   in) and anything else put in (the tips jar, a bonus), saved up for goals chosen together, like the
   Christmas party or a pair of Ray-Bans for the café. The goals are jars on a shelf that fill with coffee
