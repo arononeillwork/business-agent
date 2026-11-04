@@ -22,7 +22,7 @@ export const CONTACT_METHODS: { value: ContactMethod; label: string; icon: React
 export const contactMethod = (v?: ContactMethod | null) => CONTACT_METHODS.find(m => m.value === v)
 
 /** "Preferred contact" picker; coming-soon options are listed but disabled. */
-export function ContactMethodField({ value, onChange, label = t('Preferred contact'), helperText = t('How the café should reach you about shifts and changes') }: {
+export function ContactMethodField({ value, onChange, label = t('Preferred contact'), helperText }: {
   value: ContactMethod | null; onChange: (v: ContactMethod | null) => void; label?: string; helperText?: string
 }) {
   return (

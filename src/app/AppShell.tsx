@@ -35,6 +35,7 @@ import RepsIcon from '@mui/icons-material/RecordVoiceOverOutlined'
 import RolesIcon from '@mui/icons-material/AssignmentIndOutlined'
 import RulesIcon from '@mui/icons-material/RuleOutlined'
 import ChecklistsIcon from '@mui/icons-material/ChecklistRounded'
+import ValuesIcon from '@mui/icons-material/FavoriteBorderRounded'
 import OutsourcingIcon from '@mui/icons-material/BusinessCenterOutlined'
 import FinanceIcon from '@mui/icons-material/PaymentsOutlined'
 import SalesIcon from '@mui/icons-material/InsightsOutlined'
@@ -118,7 +119,9 @@ export interface NavSection { key: string; label: string | null; items: NavItem[
 // The menu, in sections. Today is the landing page: the logo goes there, so it has no menu item.
 export const SECTIONS: NavSection[] = [
   { key: 'business', label: msg('Business'), items: [
-    // The team as a hierarchy, each with their roles and pets: first in the menu.
+    // What the business stands for and the words nobody says: the whole team reads them, first in the menu.
+    { key: 'values', to: '/values', label: msg('Company values'), short: msg('Values'), icon: <ValuesIcon /> },
+    // The team as a hierarchy, each with their roles and pets.
     { key: 'people', to: '/people', label: msg('People'), icon: <PeopleIcon /> },
     { key: 'business', to: '/business', label: msg('Business'), icon: <BusinessIcon />, partner: 'any' },
     { key: 'todo', to: '/todo', label: msg('To Do List'), short: msg('To do'), icon: <TodoIcon /> },

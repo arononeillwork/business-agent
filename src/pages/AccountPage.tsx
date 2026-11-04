@@ -30,6 +30,8 @@ export function AccountPage() {
   if (!me) return null
   // Said while typing the second one only once it can't be the start of the first.
   const mismatch = !!again && !password.startsWith(again)
+  // Too short, once they've moved on to typing it again.
+  const short = !!again && password.length < 8
   const dirty = name !== (me.full_name ?? '') || phone !== (me.phone ?? '') || method !== (me.contact_method ?? null)
   return (
     <>
@@ -41,15 +43,13 @@ export function AccountPage() {
             <SectionTitle>{t('Personal details')}</SectionTitle>
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
               <TextField label={t('Name')} value={name} onChange={e => setName(e.target.value)} />
-              <TextField label={t('Email')} value={me.email ?? ''} helperText={t('Used to sign in. Ask an admin if it needs to change.')}
-                slotProps={{ input: { readOnly: true } }} />
+              <TextField label={t('Email')} value={me.email ?? ''} slotProps={{ input: { readOnly: true } }} />
               {!isPartner && <>
                 {/* Fixed: an admin gives them (Roles & responsibilities, and the Team page). */}
                 <TextField label={tc('job', 'Role')} value={roleNamesOf(me.id, jobRoles).join(', ') || t('No role yet')}
-                  helperText={t('Given by an admin on Roles & responsibilities.')} slotProps={{ input: { readOnly: true } }} />
-                <TextField label={t('Access')} value={t(teamRoleLabel(me) ?? 'Employee')}
-                  helperText={t('What you can see and change. An admin sets it on the Team page.')} slotProps={{ input: { readOnly: true } }} />
-                <PhoneField label={t('Mobile')} value={phone} onChange={setPhone} helperText={t('For WhatsApp and text alerts')} />
+                  slotProps={{ input: { readOnly: true } }} />
+                <TextField label={t('Access')} value={t(teamRoleLabel(me) ?? 'Employee')} slotProps={{ input: { readOnly: true } }} />
+                <PhoneField label={t('Mobile')} value={phone} onChange={setPhone} />
                 <ContactMethodField value={method} onChange={setMethod} />
               </>}
             </Box>
@@ -107,10 +107,11 @@ export function AccountPage() {
             <CardContent>
               <SectionTitle>{t('Password')}</SectionTitle>
               <Stack spacing={1.5}>
+                {/* Said only when something's wrong. */}
                 <TextField type="password" label={t('New password')} autoComplete="new-password" value={password} onChange={e => setPassword(e.target.value)}
-                  helperText={t('At least 8 characters')} />
+                  error={short} helperText={short ? t('At least 8 characters') : undefined} />
                 <TextField type="password" label={t('Confirm new password')} autoComplete="new-password" value={again} onChange={e => setAgain(e.target.value)}
-                  error={mismatch} helperText={mismatch ? t('The passwords don’t match') : t('Type it again to be sure')} />
+                  error={mismatch} helperText={mismatch ? t('The passwords don’t match') : undefined} />
                 <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
                   <Button variant="outlined" disabled={password.length < 8 || again !== password} onClick={() => run(async () => {
                     await api.updatePassword(password); setPassword(''); setAgain('')

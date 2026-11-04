@@ -300,4 +300,6 @@ export default {
   'Edited': 'Editado',
   'Early (override)': 'Antes de hora (autorizado)',
   'From rota': 'Del cuadrante',
+  // The buttons of a page, on the right under the top row
+  'Page actions': 'Acciones de la página',
 } satisfies Record<string, string>

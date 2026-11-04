@@ -1,6 +1,7 @@
 -- Daily checklists: Easy Beans starts with the owners' own, for the start and the end of the day, in
--- English and Spanish; the team reads them and ticks things off for today, whoever ticked something (or
--- an admin) unticks it, admins change the lists, and partners and the café tablet see none.
+-- English and Spanish (their first version, then their changes: the `checklist_changes` migration); the
+-- team reads them and ticks things off for today, whoever ticked something (or an admin) unticks it,
+-- admins change the lists, and partners and the café tablet see none.
 -- People from the tests before it: maria (admin), julio (employee); dc-tablet is new here.
 
 create function pg_temp.act_as(p_email text) returns void language plpgsql as $$
@@ -23,16 +24,30 @@ insert into auth.users (email, raw_user_meta_data, invited_at) values ('dc-table
 update public.profiles set role = 'kiosk' where email = 'dc-tablet@test';
 
 -- 1. Easy Beans' own: the start of the day from the shutters, the end of it to the alarm, with steps,
---    in both languages.
+--    in both languages; the start of the day as the owners changed it (shared/checklists.test.ts checks
+--    the app's copy is the same).
 select pg_temp.act_as('julio@test');
 do $$ begin
-  assert (select count(*) from public.checklist_items where list = 'opening' and parent_id is null) = 20, 'twenty things to open';
+  assert (select array_agg(text_en order by sort) from public.checklist_items where list = 'opening' and parent_id is null) = array[
+    'Open the 2 shutters', 'Turn off the alarm', 'Clock in on the app', 'Take out and lay out the tables outside', 'Turn on:',
+    'Set up the awnings outside (front and back)', 'Turn on the lights for:', 'Check the stock of bakery items, and bake more if needed',
+    'Stock the fridges with pastries', 'Stock the fridges with milk and drinks', 'Put music on', 'Stock check and update the system',
+    'Put the chalkboard sign out', 'Check and clean the display fridges', 'Fill up the dog bowl and put it outside, on the corner',
+    'Cockroach sweep: kill and remove', 'Brush the front of the shop, in front of the shutter', 'Clean and wipe each table'], 'the start of the day, in order';
+  assert not exists (select 1 from public.checklist_items s join public.checklist_items p on p.id = s.parent_id
+                      where p.text_en = 'Take out and lay out the tables outside'), 'the tables without steps';
+  assert (select array_agg(s.text_en order by s.sort) from public.checklist_items s join public.checklist_items p on p.id = s.parent_id
+           where p.list = 'opening' and p.text_en = 'Turn on the lights for:') = array['The front 2 fridges', 'The back 2 fridges',
+           'The outside lights (logo light), from the fuse board (box of electrics)', 'The sign in front of the coffee machine'], 'no light under the counter';
+  assert (select text_es from public.checklist_items where text_en = 'Stock the fridges with milk and drinks') = 'Reponer los refrigeradores con leche y bebidas', 'milk and drinks';
+  assert (select count(*) from public.checklist_items s join public.checklist_items p on p.id = s.parent_id
+           where p.text_en = 'Stock the fridges with milk and drinks') = 1, 'still with its step';
   assert (select count(*) from public.checklist_items where list = 'closing' and parent_id is null) = 10, 'ten to close';
   assert (select text_en = 'Open the 2 shutters' and text_es = 'Abrir las 2 persianas' from public.checklist_items
            where list = 'opening' and parent_id is null order by sort limit 1), 'first, the shutters';
   assert (select text_es from public.checklist_items where list = 'closing' and parent_id is null order by sort desc limit 1) = 'Activar la alarma', 'last, the alarm';
   assert (select array_agg(s.text_en order by s.sort) from public.checklist_items s join public.checklist_items p on p.id = s.parent_id
-           where p.list = 'opening' and p.text_en = 'Turn on:') = array['Coffee machine', 'Ice machine', 'Lights under the counter', 'Till system'], 'with its steps';
+           where p.list = 'opening' and p.text_en = 'Turn on:') = array['Coffee machine', 'Lights under the counter', 'Till system'], 'with its steps, no ice machine';
   assert not exists (select 1 from public.checklist_items where text_en is null or text_es is null), 'both languages';
 end $$;
 
@@ -42,7 +57,7 @@ do $$ begin
   update public.checklist_items set text_en = 'Renamed';
   delete from public.checklist_items;
   assert (select count(*) from public.checklist_items where text_en = 'Renamed') = 0, 'unchanged';
-  assert (select count(*) from public.checklist_items) = 59, 'nothing deleted';
+  assert (select count(*) from public.checklist_items) = 52, 'nothing deleted';
 end $$;
 
 -- 3. He ticks things off for today, as himself: a thing without steps, or a step; not an item with
@@ -57,16 +72,16 @@ begin
 end $$;
 select pg_temp.expect_error($q$insert into public.checklist_ticks (item_id, day) select id, current_date from public.checklist_items where text_en = 'Turn on:'$q$, 'Tick off its steps');
 select pg_temp.expect_error($q$insert into public.checklist_ticks (item_id, day) values (gen_random_uuid(), current_date)$q$, 'isn''t on the checklist');
-select pg_temp.expect_error($q$insert into public.checklist_ticks (item_id, day) select id, current_date - 7 from public.checklist_items where text_en = 'Water the plants'$q$, 'Only today''s');
+select pg_temp.expect_error($q$insert into public.checklist_ticks (item_id, day) select id, current_date - 7 from public.checklist_items where text_en = 'Put music on'$q$, 'Only today''s');
 select pg_temp.expect_error($q$insert into public.checklist_ticks (item_id, day) select id, current_date from public.checklist_items where text_en = 'Open the 2 shutters'$q$, 'checklist_ticks_pkey');
 
 -- 4. Whoever ticked it unticks it; someone else's stays (an admin unticks anyone's).
 select pg_temp.act_as('maria@test');
-insert into public.checklist_ticks (item_id, day) select id, current_date from public.checklist_items where text_en = 'Water the plants';
+insert into public.checklist_ticks (item_id, day) select id, current_date from public.checklist_items where text_en = 'Put music on';
 select pg_temp.act_as('julio@test');
 do $$ begin
-  delete from public.checklist_ticks where item_id = (select id from public.checklist_items where text_en = 'Water the plants');
-  assert exists (select 1 from public.checklist_ticks t join public.checklist_items i on i.id = t.item_id where i.text_en = 'Water the plants'), 'not his to untick';
+  delete from public.checklist_ticks where item_id = (select id from public.checklist_items where text_en = 'Put music on');
+  assert exists (select 1 from public.checklist_ticks t join public.checklist_items i on i.id = t.item_id where i.text_en = 'Put music on'), 'not his to untick';
   delete from public.checklist_ticks where item_id = (select id from public.checklist_items where text_en = 'Open the 2 shutters');
   assert not exists (select 1 from public.checklist_ticks t join public.checklist_items i on i.id = t.item_id where i.text_en = 'Open the 2 shutters'), 'his own he unticks';
 end $$;

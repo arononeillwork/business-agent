@@ -4,8 +4,6 @@ export default {
   'Checklists': 'Listas',
   'Start of the day': 'Apertura',
   'End of the day': 'Cierre',
-  'What to do to open the shop at the start of the day and to close it at the end. Tick things off as you go: everyone on the team sees what’s done, and each day starts clear.':
-    'Lo que hay que hacer para abrir la tienda al empezar el día y para cerrarla al final. Marca cada cosa al hacerla: todo el equipo ve lo que está hecho, y cada día empieza de cero.',
   '{done} of {total} done': '{done} de {total} hechas',
   'How much is done': 'Cuánto está hecho',
   'All done: the shop is ready to open.': 'Todo hecho: la tienda está lista para abrir.',

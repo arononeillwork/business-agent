@@ -10,43 +10,32 @@ import { fonts, tokens } from '../theme'
 import { t } from '../i18n'
 
 /**
- * Where a page's title goes on a computer: the top row of the app, level with the round buttons at
- * the top right (the app shell provides it). Elsewhere (phones, public pages) the title stays in the page.
+ * Where a page's title goes on a computer: the top row of the app, beside the round buttons at the top
+ * right (the app shell provides it). Elsewhere (phones, public pages) the title stays in the page.
  */
 export const TitleSlot = createContext<HTMLElement | null>(null)
 
-/** The round buttons at the top right of a computer's screen (AppShell's top row) are this tall. */
-const TOP_ROW_HEIGHT = 40
-/** A big monitor and a huge one, where the top row's round buttons grow (as AppShell's BIG_SCREEN and HUGE_SCREEN). */
-const BIG_SCREEN = '@media (min-width: 1800px)'
-const HUGE_SCREEN = '@media (min-width: 2300px)'
-
 export function PageHeader({ eyebrow, title, actions }: { eyebrow?: string; title: string; actions?: ReactNode }) {
   const slot = useContext(TitleSlot)
-  const header = (
-    <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} data-eyebrow={eyebrow ? '' : undefined}
-      sx={{ mb: slot ? 0 : 3, alignItems: { md: 'flex-start' }, justifyContent: 'space-between' }}>
-      {/* The title keeps its room; a page with many buttons wraps them instead of squeezing it. */}
-      <Box sx={{ minWidth: { md: 280 }, flex: { md: '1 1 auto' } }}>
-        {eyebrow && <Typography variant="overline" sx={{ color: tokens.roseDeep }}>{eyebrow}</Typography>}
-        <Typography variant="h4" component="h1">{title}</Typography>
-      </Box>
-      {actions && (
-        // Level with the title (below the small eyebrow line); lines up to the right and wraps when there are many.
-        // On a computer they're in line with the round buttons at the top right (AppShell), at the very top of the
-        // page even when there's an eyebrow line: the same height and gap above, and on a big monitor the same zoom,
-        // so each row's middle is the round buttons' middle.
-        <Stack direction="row" useFlexGap spacing={1} sx={{ flexWrap: 'wrap', justifyContent: { md: 'flex-end' }, alignItems: 'center',
-          minWidth: 0, flex: { md: '0 1 auto' }, pt: { md: eyebrow && !slot ? 3.25 : 0.25 },
-          minHeight: { md: TOP_ROW_HEIGHT }, '& .MuiButton-root:not(.MuiButton-sizeSmall)': { minHeight: { md: TOP_ROW_HEIGHT } },
-          ...(slot ? {
-            [BIG_SCREEN]: { zoom: 1.2, pt: `${2 / 1.2}px` },
-            [HUGE_SCREEN]: { zoom: 1.35, pt: `${2 / 1.35}px` },
-          } : {}) }}>{actions}</Stack>
-      )}
+  const heading = (
+    <Box sx={{ minWidth: { md: 280 }, flex: { md: '1 1 auto' } }}>
+      {eyebrow && <Typography variant="overline" sx={{ color: tokens.roseDeep }}>{eyebrow}</Typography>}
+      <Typography variant="h4" component="h1">{title}</Typography>
+    </Box>
+  )
+  // The page's own buttons: on the right, in a row of their own under the top row (not beside the round
+  // buttons at the top right); they wrap when there are many. On a phone, under the title.
+  const buttons = actions && (
+    <Stack direction="row" useFlexGap spacing={1} role="group" aria-label={t('Page actions')}
+      sx={{ flexWrap: 'wrap', alignItems: 'center', justifyContent: { md: 'flex-end' }, minWidth: 0 }}>{actions}</Stack>
+  )
+  if (slot) return <>{createPortal(heading, slot)}{buttons && <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: -1, mb: 2.5 }}>{buttons}</Box>}</>
+  return (
+    <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mb: 3, alignItems: { md: 'flex-start' }, justifyContent: 'space-between' }}>
+      {heading}
+      {buttons && <Box sx={{ pt: { md: eyebrow ? 3.25 : 0.25 } }}>{buttons}</Box>}
     </Stack>
   )
-  return slot ? createPortal(header, slot) : header
 }
 
 /**

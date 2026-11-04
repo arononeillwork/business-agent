@@ -8,6 +8,15 @@ import {
 const item = (id: string, p: Partial<ChecklistItem> = {}): ChecklistItem =>
   ({ id, list: 'opening', parent_id: null, text_en: id, text_es: null, sort: 0, ...p })
 
+/** Easy Beans' start of the day, in order (the database test checks the same). */
+const OPENING = [
+  'Open the 2 shutters', 'Turn off the alarm', 'Clock in on the app', 'Take out and lay out the tables outside', 'Turn on:',
+  'Set up the awnings outside (front and back)', 'Turn on the lights for:', 'Check the stock of bakery items, and bake more if needed',
+  'Stock the fridges with pastries', 'Stock the fridges with milk and drinks', 'Put music on', 'Stock check and update the system',
+  'Put the chalkboard sign out', 'Check and clean the display fridges', 'Fill up the dog bowl and put it outside, on the corner',
+  'Cockroach sweep: kill and remove', 'Brush the front of the shop, in front of the shutter', 'Clean and wipe each table',
+]
+
 describe('daily checklists', () => {
   const items = [
     item('alarm', { sort: 2, text_es: 'Apagar la alarma' }),
@@ -70,11 +79,30 @@ describe('daily checklists', () => {
     expect(EASY_BEANS_CHECKLISTS.closing.at(-1)).toEqual({ en: 'Turn on the alarm', es: 'Activar la alarma' })
   })
 
-  it('puts the same checklists into Easy Beans’ database (the `day_checklists` migration)', () => {
+  it('has the start of the day as the owners changed it (the `checklist_changes` migration does the same to the database)', () => {
+    const open = EASY_BEANS_CHECKLISTS.opening
+    expect(open.map(i => i.en)).toEqual(OPENING)
+    expect(open.find(i => i.en === 'Take out and lay out the tables outside')!.steps).toBeUndefined()
+    expect(open.find(i => i.en === 'Turn on:')!.steps!.map(x => x.en)).toEqual(['Coffee machine', 'Lights under the counter', 'Till system'])
+    expect(open.find(i => i.en === 'Turn on the lights for:')!.steps!.map(x => x.en))
+      .toEqual(['The front 2 fridges', 'The back 2 fridges', 'The outside lights (logo light), from the fuse board (box of electrics)', 'The sign in front of the coffee machine'])
+    expect(open.find(i => i.en === 'Stock the fridges with milk and drinks')).toEqual({ en: 'Stock the fridges with milk and drinks',
+      es: 'Reponer los refrigeradores con leche y bebidas', steps: [{ en: 'Place an order if needed', es: 'Hacer un pedido si es necesario' }] })
+  })
+
+  it('started from the owners’ first version, which the `day_checklists` migration put into the database', () => {
     const dir = join(import.meta.dirname, '../supabase/migrations')
-    const file = readdirSync(dir).find(f => f.endsWith('_day_checklists.sql'))!
-    const sql = readFileSync(join(dir, file), 'utf8')
-    const seed = JSON.parse(sql.split('$json$')[1]) as typeof EASY_BEANS_CHECKLISTS
-    expect(seed).toEqual(EASY_BEANS_CHECKLISTS)
+    const sql = readFileSync(join(dir, readdirSync(dir).find(f => f.endsWith('_day_checklists.sql'))!), 'utf8')
+    const first = JSON.parse(sql.split('$json$')[1]) as typeof EASY_BEANS_CHECKLISTS
+    // The end of the day hasn't changed; the start of the day lost five things and steps, and gained none.
+    expect(first.closing).toEqual(EASY_BEANS_CHECKLISTS.closing)
+    const words = (l: typeof first.opening) => new Set(l.flatMap(i => [i.en, ...(i.steps ?? []).map(x => x.en)]))
+    const before = words(first.opening), after = words(EASY_BEANS_CHECKLISTS.opening)
+    expect([...before].filter(w => !after.has(w)).sort()).toEqual([
+      'Check the toilets are clean, and clean them if needed', 'Flower pots and menus on the tables, facing up in Spanish', 'Ice machine',
+      'Make sure the fabric above is tight, but not too tight, as they are not the best', 'Put one ashtray out the front of the café',
+      'Stock check the fridges: soda and milk', 'Under the counter', 'Water the plants',
+    ])
+    expect([...after].filter(w => !before.has(w))).toEqual(['Stock the fridges with milk and drinks'])
   })
 })

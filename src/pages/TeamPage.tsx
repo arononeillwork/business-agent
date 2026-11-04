@@ -7,6 +7,7 @@ import PersonAddIcon from '@mui/icons-material/PersonAddAlt'
 import RefreshIcon from '@mui/icons-material/Refresh'
 import SearchIcon from '@mui/icons-material/Search'
 import CloseIcon from '@mui/icons-material/Close'
+import EditIcon from '@mui/icons-material/EditOutlined'
 import WarnIcon from '@mui/icons-material/ErrorOutlineRounded'
 import { useEffect, useState } from 'react'
 import { useApp } from '../app/AppContext'
@@ -224,7 +225,17 @@ function PersonPanel({ person: p, onClose }: { person: Profile; onClose: () => v
         <PersonAvatar name={p.full_name} colour={p.colour} size={48} />
         <Box sx={{ minWidth: 0, flex: 1 }}>
           <Typography variant="h6" component="h2" noWrap>{self ? t('{name} (you)', { name: p.full_name }) : p.full_name}</Typography>
-          <Typography variant="body2" sx={{ color: 'text.secondary' }} noWrap>{p.email ?? t('No email')}</Typography>
+          {/* The email they sign in with, and the pencil to change it (owners and shop managers; an owner's, owners). */}
+          <Stack direction="row" sx={{ alignItems: 'center', gap: 0.25, minWidth: 0 }}>
+            <Typography variant="body2" sx={{ color: 'text.secondary', minWidth: 0 }} noWrap>{p.email ?? t('No email')}</Typography>
+            {me && !emailBlock(me, p) && (
+              <Tooltip title={t('Change email')}>
+                <IconButton size="small" aria-label={t('Change email')} onClick={() => setEmailFor(p)} sx={{ color: tokens.inkSoft, flexShrink: 0 }}>
+                  <EditIcon sx={{ fontSize: 16 }} />
+                </IconButton>
+              </Tooltip>
+            )}
+          </Stack>
         </Box>
         <IconButton aria-label={t('Close')} onClick={onClose}><CloseIcon /></IconButton>
       </Stack>
@@ -261,14 +272,15 @@ function PersonPanel({ person: p, onClose }: { person: Profile; onClose: () => v
               }} />
           </Box>
         )}
-        <Box>
-          <Typography variant="overline" sx={{ color: 'text.secondary' }}>{t('Sign-in')}</Typography>
-          <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', mt: 0.5 }}>
-            {FEATURES.kiosk && <Button variant="outlined" onClick={() => setPinFor(p)}>{t('Set kiosk PIN')}</Button>}
-            {p.role !== 'admin' && p.email && <Button variant="outlined" onClick={() => setPasswordFor(p)}>{t('Temporary password')}</Button>}
-            {me && !emailBlock(me, p) && <Button variant="outlined" onClick={() => setEmailFor(p)}>{t('Change email')}</Button>}
-          </Stack>
-        </Box>
+        {(FEATURES.kiosk || (p.role !== 'admin' && p.email)) && (
+          <Box>
+            <Typography variant="overline" sx={{ color: 'text.secondary' }}>{t('Sign-in')}</Typography>
+            <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', mt: 0.5 }}>
+              {FEATURES.kiosk && <Button variant="outlined" onClick={() => setPinFor(p)}>{t('Set kiosk PIN')}</Button>}
+              {p.role !== 'admin' && p.email && <Button variant="outlined" onClick={() => setPasswordFor(p)}>{t('Temporary password')}</Button>}
+            </Stack>
+          </Box>
+        )}
         <Box>
           <Typography variant="overline" sx={{ color: 'text.secondary' }}>{t('Contact')}</Typography>
           <Typography sx={{ mt: 0.5, mb: 1.5 }}>{p.phone ?? t('No phone number')}{p.email ? ` · ${p.email}` : ''}</Typography>

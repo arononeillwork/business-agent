@@ -27,6 +27,7 @@ import type { QrCode, QrCodeInput } from '../../shared/qrCodes'
 import type { Coffee, CoffeeInput, DayThemeInput, ThemeDays } from '../../shared/themeDays'
 import type { RoutineDone, RoutineItem, RoutineItemInput } from '../../shared/routine'
 import type { ChecklistItem, ChecklistItemInput, ChecklistTick } from '../../shared/checklists'
+import type { CompanyValue, CompanyValueInput } from '../../shared/companyValues'
 import type { Contractor, ContractorInput, OutsourcedJob, OutsourcedJobInput } from '../../shared/outsourcing'
 import type { EmploymentContract, EmploymentContractInput } from '../../shared/contracts'
 import type { PnlLine, PnlLineInput, PnlSettings } from '../../shared/pnl'
@@ -305,6 +306,15 @@ export interface Api {
   checklistTicks(day: string): Promise<ChecklistTick[]>
   /** Tick things off for a day, or untick them (your own, or anyone's for an admin). */
   setChecklistTicks(itemIds: string[], day: string, done: boolean): Promise<void>
+
+  // Company values: the values and the words nobody says, in English and Spanish. The team reads them; admins change them.
+  companyValues(): Promise<CompanyValue[]>
+  /** Add a value, a point under one or a word (no id), or change one; returns its id. */
+  saveCompanyValue(v: CompanyValueInput): Promise<string>
+  /** Takes its points with it. */
+  deleteCompanyValue(id: string): Promise<void>
+  /** Values (or one value's points, or the words) in this order. */
+  orderCompanyValues(ids: string[]): Promise<void>
 
   // Outsourcing (admins; finance partners read): the jobs done by people and firms outside the team,
   // and the catalogue to choose them from.

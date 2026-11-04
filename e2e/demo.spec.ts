@@ -439,19 +439,19 @@ test('sidebar is grouped into sections that fold away, and the logo goes to Toda
   await expect(page.getByRole('heading', { name: 'Hola, Aron' })).toBeVisible()
 })
 
-test('a page’s header buttons are in line with the round buttons at the top right, on a laptop and a big monitor', async ({ page }) => {
-  const middle = async (l: ReturnType<Page['getByRole']>) => { const b = (await l.boundingBox())!; return { y: b.y + b.height / 2, h: b.height } }
+test('a page’s header buttons sit on the right under the top row, not beside the round buttons, on a laptop and a big monitor', async ({ page }) => {
   await open(page, '/cameras')
   for (const width of [1280, 1920]) {
     await page.setViewportSize({ width, height: 900 })
     await expect(page.getByRole('heading', { name: 'Cameras', level: 1 })).toBeVisible()
-    const top = await middle(page.getByRole('button', { name: 'Search', exact: false }).last())
-    // On a laptop the second wraps under the first (there isn't room beside the title); the first row is in line.
-    for (const name of width < 1600 ? ['Live video: Reolink app'] : ['Live video: Reolink app', 'Add camera']) {
-      const b = await middle(page.getByRole('main').getByRole('button', { name }).or(page.getByRole('main').getByRole('link', { name })).first())
-      expect(Math.abs(b.y - top.y), `${name} at ${width}px`).toBeLessThanOrEqual(1)
-      expect(Math.abs(b.h - top.h), `${name} at ${width}px`).toBeLessThanOrEqual(1)
-    }
+    const search = (await page.getByRole('button', { name: 'Search', exact: false }).last().boundingBox())!
+    const theme = (await page.getByRole('button', { name: 'Switch to dark mode' }).boundingBox())!
+    const buttons = page.getByRole('main').getByRole('group', { name: 'Page actions' })
+    await expect(buttons.getByRole('button', { name: 'Add camera' })).toBeVisible()
+    const row = (await buttons.boundingBox())!
+    // Below the round buttons, ending at the right edge of the page, where the round buttons end.
+    expect(row.y, `${width}px`).toBeGreaterThanOrEqual(search.y + search.height)
+    expect(Math.abs(row.x + row.width - (theme.x + theme.width)), `${width}px`).toBeLessThan(4)
   }
 })
 
@@ -851,6 +851,10 @@ test('an owner changes the email someone signs in with on the Team page', async 
   await expect(panel).toContainText('julio.ramos@example.com')
   await panel.getByRole('button', { name: 'Close' }).click()
   await expect(page.getByRole('row', { name: /Julio/ })).toContainText('julio.ramos@example.com')
+  // An owner changes another owner's too.
+  await page.getByRole('row', { name: /Mark Murray/ }).click()
+  await page.getByRole('dialog', { name: 'Mark Murray' }).getByRole('button', { name: 'Change email' }).click()
+  await expect(page.getByRole('dialog', { name: 'Change email for Mark Murray' }).getByRole('textbox', { name: 'New email' })).toHaveValue('mark@example.com')
 })
 
 test('someone taken off the rota still signs in, and gets no row on the rota unless they have a shift', async ({ page }) => {
@@ -6148,6 +6152,65 @@ test.describe('staff kitty', () => {
   })
 })
 
+test.describe('company values', () => {
+  test('company values: the team reads the values and the words we don’t say, in their language; an admin changes them', async ({ page }) => {
+    await open(page, '/', 'maria@example.com')
+    // First in the menu, above People.
+    const business = page.getByRole('navigation', { name: 'Main' }).getByRole('region', { name: 'Business' })
+    await expect(business.getByRole('link').first()).toHaveText('Company values')
+    await business.getByRole('link', { name: 'Company values' }).click()
+    await expect(page.getByRole('heading', { name: 'Company values', level: 1 })).toBeVisible()
+    const values = page.getByRole('list', { name: 'Our values' })
+    await expect(values.locator(':scope > li')).toHaveCount(6)
+    await expect(values.locator(':scope > li').first()).toContainText('Good energy in the café only')
+    await expect(values.getByRole('list', { name: 'Points' })).toHaveText('There’s always someone having a worse day than you.')
+    await expect(page.getByRole('list', { name: 'Words we don’t say' }).getByRole('listitem')).toHaveText(['Horrible', 'Stupido'])
+    // The team reads them; only admins change them.
+    await expect(page.getByRole('button', { name: 'Change the values' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Add a value' })).toHaveCount(0)
+
+    await signInAs(page, 'aron@example.com')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Company values' }).click()
+    await page.getByRole('button', { name: 'Add a word' }).click()
+    const add = page.getByRole('dialog', { name: 'Add a word' })
+    await add.getByRole('textbox', { name: 'In English' }).fill('Whatever')
+    await add.getByRole('textbox', { name: 'In Spanish' }).fill('Lo que sea')
+    await add.getByRole('button', { name: 'Add', exact: true }).click()
+    await toast(page, 'Added')
+    await expect(page.getByRole('list', { name: 'Words we don’t say' }).getByRole('listitem')).toHaveText(['Horrible', 'Stupido', 'Whatever'])
+    // Change one: the second value, reworded and moved to the top.
+    await page.getByRole('button', { name: 'Change the values' }).click()
+    const section = page.getByRole('region', { name: 'Our values' })
+    await section.getByRole('button', { name: 'Change “Greet every customer with a smile (even grumpy ones like Aron).”' }).click()
+    const change = page.getByRole('dialog', { name: 'Change it' })
+    await change.getByRole('textbox', { name: 'In English' }).fill('Greet every customer with a smile.')
+    await change.getByRole('button', { name: 'Save' }).click()
+    await toast(page, /^Saved$/)
+    await section.getByRole('button', { name: 'Move “Greet every customer with a smile.” up' }).click()
+    // Taking off a value with a point says the point goes too.
+    await section.getByRole('button', { name: 'Remove “Good energy in the café only: leave bad energy away from the café.”' }).click()
+    const sure = page.getByRole('dialog', { name: 'Remove “Good energy in the café only: leave bad energy away from the café.”?' })
+    await expect(sure).toContainText('Its point goes too.')
+    await sure.getByRole('button', { name: 'Remove' }).click()
+    await toast(page, 'Removed')
+    await page.getByRole('button', { name: 'Done', exact: true }).click()
+    await expect(values.locator(':scope > li')).toHaveCount(5)
+    await expect(values.locator(':scope > li').first()).toHaveText(/^1Greet every customer with a smile\.$/)
+
+    // In Spanish, the Spanish (the reworded one keeps its Spanish until someone changes it).
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Company values' }).click()
+    await fromAccountMenu(page, 'My account')
+    await page.getByRole('combobox', { name: 'Languages', exact: true }).click()
+    await page.getByRole('option', { name: 'Español' }).click()
+    await page.keyboard.press('Escape')
+    await page.getByRole('group', { name: 'Language' }).getByRole('button', { name: 'Español' }).click()
+    await page.getByRole('navigation', { name: 'Principal' }).getByRole('link', { name: 'Valores de la empresa' }).click()
+    await expect(page.getByRole('heading', { name: 'Valores de la empresa', level: 1 })).toBeVisible()
+    await expect(page.getByRole('list', { name: 'Palabras que no decimos' }).getByRole('listitem')).toHaveText(['Horrible', 'Estúpido', 'Lo que sea'])
+    await expect(page.getByRole('list', { name: 'Nuestros valores' })).toContainText('Prohibido decir palabrotas (sobre todo para Aron).')
+  })
+})
+
 test.describe('daily checklists', () => {
   test('daily checklists: the team ticks off the start of the day as they go, and sees who did what', async ({ page }) => {
     await open(page, '/checklists', 'maria@example.com')
@@ -6155,29 +6218,31 @@ test.describe('daily checklists', () => {
     // Nine in the morning: the start of the day, with what Julio did when he opened up.
     await expect(page.getByRole('tab', { name: 'Start of the day' })).toHaveAttribute('aria-selected', 'true')
     const list = page.getByRole('region', { name: 'Start of the day' })
-    await expect(list.getByRole('status')).toHaveText('5 of 34 done')
+    const top = list.getByRole('list', { name: 'Start of the day: what to do' }).locator(':scope > [role="listitem"]')
+    await expect(top.nth(2)).toHaveAccessibleName('Clock in on the app')
+    await expect(list.getByRole('status')).toHaveText('4 of 28 done')
     await expect(list.getByRole('checkbox', { name: 'Open the 2 shutters' })).toBeChecked()
     await expect(list.getByRole('listitem', { name: 'Open the 2 shutters' })).toContainText('Julio · 08:05')
     // His ticks are his (or an admin's) to take off.
     await expect(list.getByRole('checkbox', { name: 'Turn off the alarm' })).toBeDisabled()
 
-    await list.getByRole('checkbox', { name: 'Water the plants' }).check()
-    await expect(list.getByRole('status')).toHaveText('6 of 34 done')
-    await expect(list.getByRole('listitem', { name: 'Water the plants' })).toContainText('Maria · 09:00')
+    await list.getByRole('checkbox', { name: 'Put music on' }).check()
+    await expect(list.getByRole('status')).toHaveText('5 of 28 done')
+    await expect(list.getByRole('listitem', { name: 'Put music on' })).toContainText('Maria · 09:00')
     // An item with steps is done when they all are; its own box ticks them all.
     const turnOn = list.getByRole('listitem', { name: 'Turn on:' })
-    await expect(turnOn).toContainText('0 of 4 steps')
-    await turnOn.getByRole('checkbox', { name: 'Ice machine' }).check()
+    await expect(turnOn).toContainText('0 of 3 steps')
+    await turnOn.getByRole('checkbox', { name: 'Till system' }).check()
     await expect(turnOn.getByRole('checkbox', { name: 'Turn on:' })).toHaveAttribute('aria-checked', 'mixed')
-    await expect(turnOn).toContainText('1 of 4 steps')
+    await expect(turnOn).toContainText('1 of 3 steps')
     await turnOn.getByRole('checkbox', { name: 'Turn on:' }).check()
-    for (const step of ['Coffee machine', 'Ice machine', 'Lights under the counter', 'Till system']) {
+    for (const step of ['Coffee machine', 'Lights under the counter', 'Till system']) {
       await expect(turnOn.getByRole('checkbox', { name: step })).toBeChecked()
     }
-    await expect(list.getByRole('status')).toHaveText('10 of 34 done')
+    await expect(list.getByRole('status')).toHaveText('8 of 28 done')
     // Her own she unticks.
-    await list.getByRole('checkbox', { name: 'Water the plants' }).uncheck()
-    await expect(list.getByRole('status')).toHaveText('9 of 34 done')
+    await list.getByRole('checkbox', { name: 'Put music on' }).uncheck()
+    await expect(list.getByRole('status')).toHaveText('7 of 28 done')
 
     // The end of the day: nothing done yet. Employees don't change the lists.
     await page.getByRole('tab', { name: 'End of the day' }).click()
@@ -6185,6 +6250,7 @@ test.describe('daily checklists', () => {
     await expect(closing.getByRole('status')).toHaveText('0 of 16 done')
     await expect(closing.getByRole('checkbox', { name: 'Turn on the alarm' })).not.toBeChecked()
     await expect(page.getByRole('button', { name: 'Change the checklists' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Add something to do' })).toHaveCount(0)
   })
 
   test('daily checklists: an admin changes them in English and Spanish, and each person reads them in their language', async ({ page }) => {
@@ -6198,7 +6264,7 @@ test.describe('daily checklists', () => {
     const top = closing.getByRole('list', { name: 'End of the day: what to do' }).locator(':scope > [role="listitem"]')
     await expect(top).toHaveCount(10)
 
-    await page.getByRole('button', { name: 'Change the checklists' }).click()
+    // Adding is right there under the list; Change the checklists rewords, reorders and removes.
     await closing.getByRole('button', { name: 'Add something to do' }).click()
     const add = page.getByRole('dialog', { name: 'Add something to do' })
     await add.getByRole('textbox', { name: 'In English' }).fill('Empty the bins')
@@ -6206,6 +6272,7 @@ test.describe('daily checklists', () => {
     await add.getByRole('button', { name: 'Add', exact: true }).click()
     await toast(page, 'Added to the checklist')
     await expect(top.last()).toHaveAccessibleName('Empty the bins')
+    await page.getByRole('button', { name: 'Change the checklists' }).click()
     // A step in English only: Spanish readers see the English until someone adds theirs.
     await closing.getByRole('button', { name: 'Add a step to “Empty the bins”' }).click()
     const step = page.getByRole('dialog', { name: 'Add a step to “Empty the bins”' })
@@ -6257,12 +6324,9 @@ test.describe('roles and rules', () => {
       .toHaveText(['Making coffee and all drinks', 'Customer service at the bar', 'Keeping bar and machines clean'])
     await expect(role.getByRole('list', { name: 'Barista / Bartender: Also part of the role' })).toContainText('Loyalty sign-ups and upselling')
     await expect(role.getByRole('list', { name: 'Who’s in it' }).getByRole('listitem')).toHaveText([/Julio/, /Maria/])
-    const can = role.getByRole('list', { name: 'Barista / Bartender: what you can do' })
-    await expect(can).toContainText('BusinessReadSees the business’s details')
-    await expect(can).toContainText('Company detailsHiddenNot shown to you')
-    await expect(can).toContainText('BrandHiddenNot in your menu')
-    await expect(can).toContainText('To Do ListOwnSees and ticks off only the tasks given to them')
-    await expect(can).toContainText('RotaReadSees the published rota and their own shifts')
+    // What the role lets them do in the app is for admins: the employee's page doesn't list it.
+    await expect(role.getByRole('heading', { name: /can do in the app/ })).toHaveCount(0)
+    await expect(role.getByRole('list', { name: /what (you|they) can do/ })).toHaveCount(0)
     // Only theirs: no other roles, no tabs, nothing to change.
     await expect(page.getByRole('region', { name: 'Chef', exact: true })).toHaveCount(0)
     await expect(page.getByRole('tab')).toHaveCount(0)
@@ -7091,11 +7155,11 @@ test.describe('UI round: business page, header, to do list, stock and suppliers'
     const search = page.getByRole('button', { name: 'Search' })
     const board = page.getByRole('button', { name: 'Board', exact: true })
     const [t, s, b] = [await title.boundingBox(), await search.boundingBox(), await board.boundingBox()]
-    // At the very top, beside the eyebrow and title (not pushed down below the eyebrow), and level with the page's
-    // own first row of buttons.
+    // At the very top, beside the eyebrow and title (not pushed down below the eyebrow); the page's own buttons
+    // are in a row of their own under it.
     expect(s!.y).toBeLessThan(t!.y)
     expect(s!.y + s!.height / 2).toBeLessThan(t!.y + t!.height)
-    expect(Math.abs((s!.y + s!.height / 2) - (b!.y + b!.height / 2))).toBeLessThan(4)
+    expect(b!.y).toBeGreaterThanOrEqual(s!.y + s!.height)
   })
 
   test('To Do List: starred and show done at the top right, a category minimised and opened again, no copy as text', async ({ page }) => {
@@ -7842,7 +7906,8 @@ test.describe('role permissions', () => {
     await toast(page, 'Shift saved')
 
     await menu.getByRole('link', { name: 'Roles & responsibilities' }).click()
-    await expect(page.getByRole('list', { name: 'Barista / Bartender: what you can do' })).toContainText('RotaUpdate')
+    await expect(page.getByRole('heading', { name: 'Barista / Bartender', level: 2 })).toBeVisible()
+    await expect(page.getByRole('list', { name: /what (you|they) can do/ })).toHaveCount(0)
     await expect(page.getByRole('tab')).toHaveCount(0)
 
     // My account: her role and access, fixed.
@@ -7869,7 +7934,8 @@ test.describe('role permissions', () => {
     await expect(page.getByRole('region', { name: 'Company' })).toHaveCount(0)
     await expect(page.getByText('CIF / NIF')).toHaveCount(0)
     await menu.getByRole('link', { name: 'Roles & responsibilities' }).click()
-    await expect(page.getByRole('list', { name: 'Barista / Bartender: what you can do' })).toContainText('Company detailsHiddenNot shown to you')
+    await expect(page.getByRole('heading', { name: 'Barista / Bartender', level: 2 })).toBeVisible()
+    await expect(page.getByRole('list', { name: /what (you|they) can do/ })).toHaveCount(0)
     // The menu, to answer customers: what's on it, but not the design of the printed and screen menus.
     await menu.getByRole('link', { name: 'Menu', exact: true }).click()
     await expect(page.getByRole('heading', { name: 'Menu', level: 1 })).toBeVisible()
@@ -7888,10 +7954,11 @@ test.describe('role permissions', () => {
   })
 })
 
-test('people come first in the Business section; a barista adds her pet from her own card, and has no Expenses or AI assistants', async ({ page }) => {
+test('company values, then people, come first in the Business section; a barista adds her pet from her own card, and has no Expenses or AI assistants', async ({ page }) => {
   await open(page, '/', 'maria@example.com')
   const menu = page.getByRole('navigation', { name: 'Main' })
-  await expect(menu.getByRole('link').nth(1)).toHaveText('People') // after the logo
+  await expect(menu.getByRole('link').nth(1)).toHaveText('Company values') // after the logo
+  await expect(menu.getByRole('link').nth(2)).toHaveText('People')
   await expect(menu.getByRole('link', { name: 'Expenses', exact: true })).toHaveCount(0)
   await expect(menu.getByRole('link', { name: 'Brand', exact: true })).toHaveCount(0)
   await page.getByRole('button', { name: /^Account menu/ }).first().click()
