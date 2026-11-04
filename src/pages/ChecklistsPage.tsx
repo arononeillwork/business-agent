@@ -77,7 +77,7 @@ export function ChecklistsPage() {
 
   return (
     <>
-      <PageHeader eyebrow={t('Team')} title={t('Daily checklists')} actions={isAdmin && (
+      <PageHeader eyebrow={t('Business')} title={t('Daily checklists')} actions={isAdmin && (
         <Button variant={editing ? 'contained' : 'outlined'} startIcon={editing ? undefined : <EditIcon />} onClick={() => setEditing(!editing)}>
           {editing ? t('Done') : t('Change the checklists')}
         </Button>

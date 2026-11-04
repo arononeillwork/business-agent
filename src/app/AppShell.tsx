@@ -122,6 +122,8 @@ export const SECTIONS: NavSection[] = [
     { key: 'people', to: '/people', label: msg('People'), icon: <PeopleIcon /> },
     { key: 'business', to: '/business', label: msg('Business'), icon: <BusinessIcon />, partner: 'any' },
     { key: 'todo', to: '/todo', label: msg('To Do List'), short: msg('To do'), icon: <TodoIcon /> },
+    // Opening up at the start of the day and closing at the end: the whole team ticks things off.
+    { key: 'checklists', to: '/checklists', label: msg('Daily checklists'), short: msg('Checklists'), icon: <ChecklistsIcon /> },
     { key: 'hours', to: '/opening-hours', label: msg('Opening hours'), icon: <HoursIcon />, partner: 'any' },
     { key: 'documents', to: '/documents', label: msg('Documents'), icon: <DocumentsIcon />, who: 'pay', partner: ['finances'] },
     { key: 'legal', to: '/legal', label: msg('Legal & licences'), short: msg('Legal'), icon: <LegalIcon />, who: 'admin', partner: ['finances'] },
@@ -200,8 +202,6 @@ export const SECTIONS: NavSection[] = [
     { key: 'team', to: '/team', label: msg('Team'), icon: <TeamIcon /> },
     { key: 'roles', to: '/roles', label: msg('Roles & responsibilities'), short: msg('Roles'), icon: <RolesIcon /> },
     { key: 'rules', to: '/rules', label: msg('Staff rules'), short: msg('Rules'), icon: <RulesIcon /> },
-    // Opening up at the start of the day and closing at the end: the whole team ticks things off.
-    { key: 'checklists', to: '/checklists', label: msg('Daily checklists'), short: msg('Checklists'), icon: <ChecklistsIcon /> },
     { key: 'outsourcing', to: '/outsourcing', label: msg('Outsourcing'), icon: <OutsourcingIcon />, who: 'admin', partner: ['finances'] },
   ] },
   { key: 'admin', label: msg('Settings'), items: [
