@@ -207,6 +207,8 @@ export interface Api {
   invite(email: string, fullName: string, role: TeamRole | 'kiosk', password?: string, contact?: { phone?: string | null; contact_method?: ContactMethod | null }): Promise<{ joined?: boolean }>
   /** Admins: give someone (not an admin) a new temporary password to sign in with. */
   setTemporaryPassword(userId: string, password: string): Promise<void>
+  /** Owners and shop managers: change the email someone signs in with (only an owner changes an owner's). */
+  setEmail(userId: string, email: string): Promise<void>
 
   // partners: outside businesses with read-only access to chosen areas (admins manage them)
   partners(): Promise<Profile[]>

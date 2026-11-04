@@ -84,7 +84,7 @@ import { cleanRoles, cvProblem, type ApplicantCv } from '../../shared/hiring'
 import { CAFE_POINTS, inRange as inLimits, type SafetyCheck, type SafetyPoint } from '../../shared/foodSafety'
 import { dietsFor, type Allergen, type MenuAllergens } from '../../shared/allergens'
 import { minutesWorked, splitTips, type TipPool } from '../../shared/tips'
-import { accessOf } from '../../shared/teamRoles'
+import { EMAIL_ADDRESS, accessOf, emailBlock } from '../../shared/teamRoles'
 
 interface RawEntry {
   id: string; profile_id: string; position_id: number | null; shift_id: string | null
@@ -2287,6 +2287,19 @@ export function createDemoApi(): Api {
       const p = profiles.find(x => x.id === userId)
       if (!p) throw new Error('No such person')
       if (p.role === 'admin') throw new Error('Admins change their own password on My account')
+    },
+    async setEmail(userId, email) {
+      // As /api/admin/set-email in the Worker.
+      const who = me()
+      const p = profiles.find(x => x.id === userId)
+      if (!p) throw new Error('No such person')
+      const blocked = who ? emailBlock(who, p) : 'Only an owner or shop manager can change someone’s email'
+      if (blocked) throw new Error(blocked)
+      const addr = email.trim().toLowerCase()
+      if (!EMAIL_ADDRESS.test(addr)) throw new Error('Enter a full email address, like name@example.com')
+      if ((p.email ?? '').toLowerCase() === addr) throw new Error('That’s already their email')
+      if (profiles.some(x => x.id !== p.id && (x.email ?? '').toLowerCase() === addr)) throw new Error('Someone with that email already has an account')
+      p.email = addr
     },
     async invite(email, fullName, role, password, contact) {
       requireAdmin()

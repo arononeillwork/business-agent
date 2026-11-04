@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { accessOf, mayMakeOwner, roleBlock, roleChange, teamRole, teamRoleLabel, teamRoleOf } from './teamRoles'
+import { EMAIL_ADDRESS, accessOf, emailBlock, mayMakeOwner, roleBlock, roleChange, teamRole, teamRoleLabel, teamRoleOf } from './teamRoles'
 import type { Profile } from './types'
 
 const person = (id: string, role: Profile['role'], can_see_pay = false, active = true): Profile =>
@@ -58,5 +58,23 @@ describe('team roles', () => {
     expect(roleBlock(owner, owner, 'manager', team)).toBeNull()
     expect(roleBlock(owner, manager, 'employee', team)).toBeNull()
     expect(roleBlock(manager, manager, 'employee', [{ ...owner, active: false }, manager, julio])).toBe('At least one admin must remain')
+  })
+
+  it('lets owners and shop managers change someone’s email, and only an owner change an owner’s', () => {
+    expect(emailBlock(owner, julio)).toBeNull()
+    expect(emailBlock(owner, manager)).toBeNull()
+    expect(emailBlock(owner, owner)).toBeNull()
+    expect(emailBlock(manager, julio)).toBeNull()
+    expect(emailBlock(manager, manager)).toBeNull()
+    expect(emailBlock(manager, owner)).toBe('Only an owner can change an owner’s email')
+    expect(emailBlock(julio, julio)).toBe('Only an owner or shop manager can change someone’s email')
+    expect(emailBlock(person('off', 'admin', true, false), julio)).toBe('Only an owner or shop manager can change someone’s email')
+  })
+
+  it('takes full email addresses only', () => {
+    expect(EMAIL_ADDRESS.test('maria@example.com')).toBe(true)
+    expect(EMAIL_ADDRESS.test('maria@example')).toBe(false)
+    expect(EMAIL_ADDRESS.test('maria example@example.com')).toBe(false)
+    expect(EMAIL_ADDRESS.test('maria')).toBe(false)
   })
 })

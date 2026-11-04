@@ -60,3 +60,17 @@ export function roleBlock(me: Profile, target: Profile, to: TeamRole, team: Prof
   }
   return null
 }
+
+/**
+ * Why `me` can't change `target`'s sign-in email, or null when they can: an owner or shop manager changes
+ * anyone's on their team, and only an owner changes an owner's (whoever has the email has the account).
+ * The Worker checks the same (`/api/admin/set-email`).
+ */
+export function emailBlock(me: Pick<Profile, 'role' | 'can_see_pay' | 'active'>, target: Pick<Profile, 'role' | 'can_see_pay'>): string | null {
+  if (me.role !== 'admin' || !me.active) return msg('Only an owner or shop manager can change someone’s email')
+  if (teamRole(target) === 'owner' && teamRole(me) !== 'owner') return msg('Only an owner can change an owner’s email')
+  return null
+}
+
+/** A full email address, like name@example.com (what invites and email changes accept). */
+export const EMAIL_ADDRESS = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/

@@ -15,4 +15,6 @@ export default {
   'Only an owner can make someone an owner or change an owner’s role': 'Solo un propietario puede hacer propietario a alguien o cambiar el rol de un propietario',
   'At least one admin must remain': 'Tiene que quedar al menos un administrador',
   'Ask an owner to upgrade on the Billing page.': 'Pide a un propietario que cambie de plan en la página Facturación.',
+  'Only an owner or shop manager can change someone’s email': 'Solo un propietario o un encargado puede cambiar el email de alguien',
+  'Only an owner can change an owner’s email': 'Solo un propietario puede cambiar el email de un propietario',
 }

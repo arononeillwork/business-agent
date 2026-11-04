@@ -369,6 +369,9 @@ export function createSupabaseApi(url: string, key: string): Api {
     async setTemporaryPassword(userId, password) {
       await worker('/api/admin/set-password', { method: 'POST', body: JSON.stringify({ user_id: userId, password }) })
     },
+    async setEmail(userId, email) {
+      await worker('/api/admin/set-email', { method: 'POST', body: JSON.stringify({ user_id: userId, email }) })
+    },
 
     async partners() {
       return check(await sb.from('profiles').select(PROFILE_COLUMNS).eq('role', 'partner').order('full_name')) as Profile[]

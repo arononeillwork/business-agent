@@ -23,7 +23,7 @@ import { FEATURES } from '../app/features'
 import { ContactMethodField, contactMethod } from '../components/ContactMethod'
 import { tokens } from '../theme'
 import { PasswordToShare, SignInSetupFields, generatePassword, useSignInSetup } from '../components/TempPassword'
-import { TEAM_ROLES, roleBlock, roleChange, teamRole, teamRoleLabel, type TeamRole } from '../../shared/teamRoles'
+import { EMAIL_ADDRESS, TEAM_ROLES, emailBlock, roleBlock, roleChange, teamRole, teamRoleLabel, type TeamRole } from '../../shared/teamRoles'
 import { msg, t, tn, tr } from '../i18n'
 import { Tab, Tabs } from '@mui/material'
 import type { ReactNode } from 'react'
@@ -207,6 +207,7 @@ function PersonPanel({ person: p, onClose }: { person: Profile; onClose: () => v
   const run = useAction()
   const [pinFor, setPinFor] = useState<Profile | null>(null)
   const [passwordFor, setPasswordFor] = useState<Profile | null>(null)
+  const [emailFor, setEmailFor] = useState<Profile | null>(null)
   const integrations = useReachData(true)
   const reach = integrations ? howReached(p, integrations) : null
   const update = (patch: Partial<Profile>, toast = t('Saved')) => run(async () => { await api.updateProfile(p.id, patch); await refresh() }, toast)
@@ -265,6 +266,7 @@ function PersonPanel({ person: p, onClose }: { person: Profile; onClose: () => v
           <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', mt: 0.5 }}>
             {FEATURES.kiosk && <Button variant="outlined" onClick={() => setPinFor(p)}>{t('Set kiosk PIN')}</Button>}
             {p.role !== 'admin' && p.email && <Button variant="outlined" onClick={() => setPasswordFor(p)}>{t('Temporary password')}</Button>}
+            {me && !emailBlock(me, p) && <Button variant="outlined" onClick={() => setEmailFor(p)}>{t('Change email')}</Button>}
           </Stack>
         </Box>
         <Box>
@@ -280,11 +282,10 @@ function PersonPanel({ person: p, onClose }: { person: Profile; onClose: () => v
       </Stack>
       {pinFor && <PinDialog person={pinFor} onClose={() => setPinFor(null)} />}
       {passwordFor && <TempPasswordDialog person={passwordFor} onClose={() => setPasswordFor(null)} />}
+      {emailFor && <EmailDialog person={emailFor} onClose={() => setEmailFor(null)} />}
     </Drawer>
   )
 }
-
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 
 export function InviteDialog({ onClose }: { onClose: () => void }) {
   const { api, me, refresh } = useApp()
@@ -324,7 +325,7 @@ export function InviteDialog({ onClose }: { onClose: () => void }) {
         {done ? <Button variant="contained" onClick={onClose}>{t('Done')}</Button> : <>
           <Button onClick={onClose}>{t('Cancel')}</Button>
           <Button variant="contained" disabled={!email.trim() || !name.trim()} onClick={() => run(async () => {
-            if (!EMAIL.test(email.trim())) throw new Error(t('Enter a full email address, like name@example.com'))
+            if (!EMAIL_ADDRESS.test(email.trim())) throw new Error(t('Enter a full email address, like name@example.com'))
             const contact = role === 'kiosk' ? undefined : { phone: phone.trim() || null, contact_method: method }
             const { joined } = await api.invite(email.trim(), name.trim(), role, setup.how === 'password' ? setup.password : undefined, contact)
             await refresh()
@@ -337,6 +338,37 @@ export function InviteDialog({ onClose }: { onClose: () => void }) {
             {setup.how === 'password' ? t('Create account') : t('Send invite')}
           </Button>
         </>}
+      </DialogActions>
+    </Dialog>
+  )
+}
+
+/** Change the email someone signs in with (owners and shop managers; only an owner changes an owner's). */
+function EmailDialog({ person, onClose }: { person: Profile; onClose: () => void }) {
+  const { api, refresh } = useApp()
+  const run = useAction()
+  const [email, setEmail] = useState(person.email ?? '')
+  const next = email.trim().toLowerCase()
+  const same = next === (person.email ?? '').toLowerCase()
+  const save = () => run(async () => {
+    if (!EMAIL_ADDRESS.test(next)) throw new Error(t('Enter a full email address, like name@example.com'))
+    await api.setEmail(person.id, next)
+    await refresh()
+    onClose()
+  }, t('{name} signs in with {email} now', { name: person.full_name, email: next }))
+  return (
+    <Dialog open onClose={onClose} fullWidth maxWidth="xs">
+      <DialogTitle>{t('Change email for {name}', { name: person.full_name })}</DialogTitle>
+      <DialogContent>
+        <Stack spacing={2} sx={{ pt: 1 }}>
+          <TextField label={t('New email')} type="email" value={email} autoFocus autoComplete="off"
+            onChange={e => setEmail(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && next && !same) { e.preventDefault(); void save() } }}
+            helperText={t('They sign in with the new address from now on, with the same password. The app’s emails go there too.')} />
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>{t('Cancel')}</Button>
+        <Button variant="contained" disabled={!next || same} onClick={() => void save()}>{t('Save email')}</Button>
       </DialogActions>
     </Dialog>
   )

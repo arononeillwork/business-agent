@@ -25,6 +25,9 @@ built-in **AI connector** so owners can run it by talking to Claude.
   with pay access), and only an owner makes someone an owner or changes an owner
   (`shared/teamRoles.ts`, the `team_roles` migration). The owner was called the boss / CEO before; the AI
   connector still takes `boss` for it.
+- Sign-in emails: an owner or shop manager changes the email someone signs in with on the Team page (their
+  panel → Change email), for a typo or a new address; they sign in with it straight away, with the same
+  password. Only an owner changes an owner's (`emailBlock()` in `shared/teamRoles.ts`, `/api/admin/set-email`).
 - Sports: the next 3 weeks of football (Spanish, English, Scottish, Dutch and other leagues, cups,
   European nights, national teams), rugby (Six Nations, Premiership, Champions Cup and more), UFC and
   boxing, with "big nights" flagged. The Worker refreshes

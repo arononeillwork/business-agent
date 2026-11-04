@@ -828,6 +828,31 @@ test('admin creates a staff account with a temporary password, and can reset it'
   await expect(page.getByRole('dialog', { name: "Aron O'Neill (you)" }).getByRole('button', { name: 'Temporary password' })).toHaveCount(0)
 })
 
+test('an owner changes the email someone signs in with on the Team page', async ({ page }) => {
+  await open(page, '/team')
+  await page.getByRole('row', { name: /Julio/ }).click()
+  const panel = page.getByRole('dialog', { name: 'Julio' })
+  await panel.getByRole('button', { name: 'Change email' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Change email for Julio' })
+  const field = dialog.getByRole('textbox', { name: 'New email' })
+  await expect(field).toHaveValue('julio@example.com')
+  await expect(dialog.getByRole('button', { name: 'Save email' })).toBeDisabled()
+  await field.fill('julio')
+  await dialog.getByRole('button', { name: 'Save email' }).click()
+  await toast(page, 'Enter a full email address')
+  // Someone else's address is theirs.
+  await field.fill('maria@example.com')
+  await dialog.getByRole('button', { name: 'Save email' }).click()
+  await toast(page, 'Someone with that email already has an account')
+  await field.fill('Julio.Ramos@Example.com')
+  await dialog.getByRole('button', { name: 'Save email' }).click()
+  await toast(page, 'Julio signs in with julio.ramos@example.com now')
+  await expect(dialog).toHaveCount(0)
+  await expect(panel).toContainText('julio.ramos@example.com')
+  await panel.getByRole('button', { name: 'Close' }).click()
+  await expect(page.getByRole('row', { name: /Julio/ })).toContainText('julio.ramos@example.com')
+})
+
 test('someone taken off the rota still signs in, and gets no row on the rota unless they have a shift', async ({ page }) => {
   await open(page, '/team')
   await page.getByRole('row', { name: /Mark Murray/ }).click()

@@ -366,4 +366,12 @@ export default {
   'Over {hours}h this week': 'Más de {hours}h esta semana',
   'No weekly rest day': 'Sin día de descanso semanal',
   'Check weekly rest (1.5 days)': 'Revisa el descanso semanal (1,5 días)',
+  // Changing someone's sign-in email
+  'Change email': 'Cambiar email',
+  'Change email for {name}': 'Cambiar el email de {name}',
+  'New email': 'Email nuevo',
+  'They sign in with the new address from now on, with the same password. The app’s emails go there too.':
+    'A partir de ahora entra con la dirección nueva y la misma contraseña. Los emails de la app también le llegan ahí.',
+  'Save email': 'Guardar email',
+  '{name} signs in with {email} now': '{name} entra ahora con {email}',
 } satisfies Record<string, string>

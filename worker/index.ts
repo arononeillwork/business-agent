@@ -37,7 +37,8 @@ import { competitors, watchCompetitors } from './competitors'
 import { push, pushNotifications } from './push'
 import { repPage } from './repPage'
 import { socialAnalytics } from './socialAnalytics'
-import { accessOf, teamRoleOf } from '../shared/teamRoles'
+import { EMAIL_ADDRESS, accessOf, emailBlock, teamRoleOf } from '../shared/teamRoles'
+import type { Profile } from '../shared/types'
 
 const NIGHTLY = '15 1 * * *' // 03:15 Madrid in summer, 02:15 in winter
 // Every minute from 02:00 to 03:59 UTC: the night's connection checks, a few a run (checkDue), each
@@ -201,6 +202,35 @@ app.post('/api/admin/set-password', async c => {
   if (target.role === 'admin') return c.json({ error: 'Admins change their own password on My account' }, 403)
   const { error: updError } = await serviceClient(c.env).auth.admin.updateUserById(body.user_id, { password: body.password })
   if (updError) return c.json({ error: updError.message }, 400)
+  return c.json({ ok: true })
+})
+
+// An owner or shop manager changes someone's sign-in email (a typo, a new address): they sign in with
+// the new one straight away, with the same password. Only an owner changes an owner's (emailBlock()).
+app.post('/api/admin/set-email', async c => {
+  const token = bearer(c.req.header('authorization'))
+  if (!token) return c.json({ error: 'Not signed in' }, 401)
+  const sb = userClient(c.env, token, 'app')
+  const [{ data: isAdmin, error }, { data: businessId }, { data: isOwner }] =
+    await Promise.all([sb.rpc('is_admin'), sb.rpc('current_business_id'), sb.rpc('can_see_pay')])
+  if (error || !isAdmin || !businessId) return c.json({ error: 'Only an owner or shop manager can change someone’s email' }, 403)
+  const body = await c.req.json<{ user_id?: string; email?: string }>()
+  const email = body.email?.trim().toLowerCase()
+  if (!body.user_id || !email) return c.json({ error: 'Enter the new email address' }, 400)
+  if (!EMAIL_ADDRESS.test(email)) return c.json({ error: 'Enter a full email address, like name@example.com' }, 400)
+  // Row security keeps this to the admin's own business.
+  const { data: target } = await sb.from('profiles').select('id, role, can_see_pay, email').eq('id', body.user_id).maybeSingle()
+  if (!target) return c.json({ error: 'No such person' }, 404)
+  const blocked = emailBlock({ role: 'admin', can_see_pay: !!isOwner, active: true }, target as Pick<Profile, 'role' | 'can_see_pay'>)
+  if (blocked) return c.json({ error: blocked }, 403)
+  if ((target.email ?? '').toLowerCase() === email) return c.json({ error: 'That’s already their email' }, 400)
+  // Confirmed at once: Supabase's built-in email only reaches the project's own members.
+  const { error: authError } = await serviceClient(c.env).auth.admin.updateUserById(target.id as string, { email, email_confirm: true })
+  if (authError) {
+    return c.json({ error: /already|exists|registered/i.test(authError.message) ? 'Someone with that email already has an account' : authError.message }, 400)
+  }
+  const { error: profileError } = await businessDb(c.env, businessId as number).from('profiles').update({ email }).eq('id', target.id)
+  if (profileError) return c.json({ error: profileError.message }, 500)
   return c.json({ ok: true })
 })
 
