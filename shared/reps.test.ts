@@ -31,13 +31,13 @@ describe('sales reps and rewards', () => {
 
   it('reach: followers and the people they see, in steps that multiply rewards that grow with it (as the database does)', () => {
     expect(reachOf({ instagram_followers: 6000, tiktok_followers: 1880, community: 120 })).toBe(8000)
-    expect([0, 999, 1000, 9999, 10_000, 49_999, 50_000, 2_000_000].map(reachMultiplier)).toEqual([1, 1, 2, 2, 3, 3, 5, 5])
+    expect([0, 999, 1000, 9999, 10_000, 49_999, 50_000, 2_000_000].map(reachMultiplier)).toEqual([1, 1, 2, 2, 5, 5, 10, 10])
     expect(reachTier(12_000).id).toBe('big')
     expect(REACH_TIERS.map(t => t.from)).toEqual([0, 1000, 10_000, 50_000])
     expect(nextTier(8000)).toEqual({ tier: REACH_TIERS[2], more: 2000 })
     expect(nextTier(60_000)).toBeNull()
     const story = { basis: 'fixed' as const, amount: 1, scales_with_reach: true }
-    expect(rewardAmount(story, null, 15_000)).toBe(3)
+    expect(rewardAmount(story, null, 15_000)).toBe(5)
     expect(rewardAmount(story, null, 15_000, false)).toBe(1) // the café switched it off
     expect(rewardAmount({ ...story, scales_with_reach: false }, null, 15_000)).toBe(1)
     expect(rewardAmount({ basis: 'percent', amount: 10, scales_with_reach: true }, 100, 60_000)).toBe(10) // a share of a sale never grows
@@ -115,5 +115,16 @@ describe('sales reps and rewards', () => {
     const event = REWARD_IDEAS.find(i => i.key === 'event')!
     expect([event.who, event.basis, event.needs_approval]).toEqual(['reps', 'percent', true])
     expect(new Set(REWARD_IDEAS.map(i => i.key)).size).toBe(REWARD_IDEAS.length)
+  })
+
+  it('the usual rewards keep customers’ credit small, so the money goes to the reps who bring people in and reach the most', () => {
+    const idea = (key: string) => REWARD_IDEAS.find(i => i.key === key)!
+    // Someone new with a card: a friend of a customer, a little credit; a rep's (a coach's), commission worth three times as much.
+    expect([idea('friend').who, idea('friend').amount]).toEqual(['customers', 1])
+    expect([idea('card').who, idea('card').amount]).toEqual(['reps', 3])
+    // A story at the top step of reach is worth a tenth of a rep's shout-out at the same step.
+    expect(rewardAmount(idea('story'), null, 60_000)).toBe(5)
+    expect(rewardAmount(idea('shoutout'), null, 60_000)).toBe(50)
+    expect(Math.max(...REWARD_IDEAS.filter(i => i.who === 'customers').map(i => i.amount))).toBeLessThanOrEqual(1)
   })
 })

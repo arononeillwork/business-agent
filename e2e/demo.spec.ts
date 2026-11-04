@@ -5749,12 +5749,16 @@ test.describe('sales reps and rewards', () => {
     await page.getByRole('navigation', { name: 'Main' }).getByRole('region', { name: 'Sales' }).getByRole('link', { name: 'Reps & rewards' }).click()
     await expect(page.getByRole('heading', { name: 'Sales reps & rewards', level: 1 })).toBeVisible()
     await expect(page.getByRole('region', { name: 'Our people' })).toContainText('The people who talk about us')
-    await expect(page.getByRole('region', { name: 'How it works' }).getByRole('list', { name: 'The bigger their reach, the bigger the reward' }).getByRole('listitem'))
+    await expect(page.getByRole('region', { name: 'Our people' })).toContainText('Commission owed')
+    // Three steps, in plain words; the crew's box is gone from them.
+    await expect(page.getByRole('region', { name: 'How it works' }).getByRole('listitem')).toHaveCount(3)
+    await expect(page.getByRole('region', { name: 'How it works' })).not.toContainText('Bring your crew')
+    await expect(page.getByRole('region', { name: 'What earns a reward' }).getByRole('list', { name: 'The bigger their reach, the bigger the reward' }).getByRole('listitem'))
       .toHaveCount(4)
     const top = page.getByRole('region', { name: 'Top sellers this month' })
     await expect(top.getByRole('listitem', { name: '1. Marco Bellini' })).toContainText('48,00')
-    // The coach: his own shout-out (×3 for his reach) and 10% of what his fighters earned.
-    await expect(top.getByRole('listitem', { name: '2. Dani Ortega' })).toContainText('16,70')
+    // The coach: his own shout-out (×5 for his reach) and 10% of what his fighters earned.
+    await expect(top.getByRole('listitem', { name: '2. Dani Ortega' })).toContainText('26,20')
 
     const waiting = page.getByRole('region', { name: 'Waiting for approval' })
     await expect(waiting.getByRole('group')).toHaveCount(6)
@@ -5790,7 +5794,7 @@ test.describe('sales reps and rewards', () => {
     await expect(page.getByRole('table', { name: 'Latest rewards' }).getByRole('row').filter({ hasText: 'Bank transfer' }).first()).toContainText('Commission paid')
   })
 
-  test('a coach and his crew: their reach together, a fighter’s story worth ×3, and the coach’s share of it', async ({ page }) => {
+  test('a coach and his crew: their reach together, a fighter’s story worth ×5, and the coach’s share of it', async ({ page }) => {
     await open(page, '/sales-reps')
     const reps = page.getByRole('region', { name: 'Reps' })
     const dani = reps.getByRole('article', { name: 'Dani Ortega' })
@@ -5805,12 +5809,12 @@ test.describe('sales reps and rewards', () => {
     await expect(nora).toContainText('Big voice')
     await nora.getByRole('button', { name: 'Log a reward for Nora Kim' }).click()
     const log = page.getByRole('dialog', { name: 'Reward Nora Kim' })
-    await expect(log.getByRole('combobox', { name: 'What for' })).toContainText(/Reposted our story · .*3,00/)
-    await expect(log).toContainText(/×3 for reaching 26.800 people \(Big voice\)/)
+    await expect(log.getByRole('combobox', { name: 'What for' })).toContainText(/Reposted our story · .*2,50/)
+    await expect(log).toContainText(/×5 for reaching 26.800 people \(Big voice\)/)
     await log.getByRole('button', { name: 'Log it' }).click()
-    await toast(page, /3,00.* for Nora Kim/)
+    await toast(page, /2,50.* for Nora Kim/)
     const latest = page.getByRole('table', { name: 'Latest rewards' })
-    await expect(latest.getByRole('row').filter({ hasText: 'Crew bonus: Nora Kim' }).first()).toContainText(/\+.*0,30/)
+    await expect(latest.getByRole('row').filter({ hasText: 'Crew bonus: Nora Kim' }).first()).toContainText(/\+.*0,25/)
     await page.getByRole('button', { name: 'Show everyone' }).first().click()
     await expect(reps.getByRole('article', { name: 'Nora Kim' })).toHaveCount(0)
     // Searching finds anyone, in a crew or not.
@@ -5823,21 +5827,22 @@ test.describe('sales reps and rewards', () => {
     await open(page, '/sales-reps', 'maria@example.com')
     const reps = page.getByRole('region', { name: 'Reps' })
     const lucia = reps.getByRole('article', { name: 'Lucía García' })
-    await expect(lucia).toContainText('3,50')
+    await expect(lucia).toContainText('1,00')
     await lucia.getByRole('button', { name: 'Log a reward for Lucía García' }).click()
     const log = page.getByRole('dialog', { name: 'Reward Lucía García' })
     await expect(log.getByRole('combobox', { name: 'What for' })).toContainText('Reposted our story')
     await expect(log).toContainText('2 of 4 this month')
     await log.getByRole('button', { name: 'Log it' }).click()
-    await toast(page, /1,00.* for Lucía García/)
-    await expect(lucia).toContainText('4,50')
+    // Customers' credit is kept small: 50 cents for a story from someone with a few hundred followers.
+    await toast(page, /0,50.* for Lucía García/)
+    await expect(lucia).toContainText('1,50')
 
     await lucia.getByRole('button', { name: 'Use the credit of Lucía García' }).click()
     const spend = page.getByRole('dialog', { name: 'Use the credit of Lucía García' })
-    await spend.getByRole('textbox', { name: 'Amount' }).fill('5')
+    await spend.getByRole('textbox', { name: 'Amount' }).fill('2')
     await spend.getByRole('button', { name: 'Use credit' }).click()
-    await toast(page, /Lucía García has .*4,50.* of credit/)
-    await spend.getByRole('textbox', { name: 'Amount' }).fill('4')
+    await toast(page, /Lucía García has .*1,50.* of credit/)
+    await spend.getByRole('textbox', { name: 'Amount' }).fill('1')
     await spend.getByRole('button', { name: 'Use credit' }).click()
     await toast(page, /Credit used: .*0,50.* left/)
 
@@ -5852,7 +5857,8 @@ test.describe('sales reps and rewards', () => {
     await expect(reps.getByRole('article', { name: 'Marco Bellini' })).not.toContainText('owed')
     await expect(page.getByRole('button', { name: /^Pay / })).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Add a reward' })).toHaveCount(0)
-    await expect(page.getByRole('listitem').filter({ hasText: 'My commission' })).toContainText('MARIA22')
+    await expect(page.getByRole('region', { name: 'Our people' })).toContainText('My commission')
+    await expect(page.getByRole('region', { name: 'Our people' })).toContainText('MARIA22')
 
     // Anyone on the team brings someone in; the owner or a manager says yes first.
     await page.getByRole('button', { name: 'Add someone' }).click()
@@ -5872,6 +5878,45 @@ test.describe('sales reps and rewards', () => {
     await expect(rafa).toContainText('Ambassador')
   })
 
+  test('at the till: a coach’s code brings ten new people in, logged for him in one go; a customer’s friend earns her a little credit', async ({ page }) => {
+    await open(page, '/sales-reps')
+    // The page's buttons sit in a row under the title, Add someone last (on the right).
+    await expect(page.getByRole('button', { name: 'Add someone' })).toBeVisible()
+    const till = page.getByRole('region', { name: 'At the till' })
+    const code = till.getByRole('combobox', { name: 'Code or name' })
+    await code.fill('dani20')
+    await page.getByRole('option', { name: /DANI20/ }).click()
+    const log = page.getByRole('dialog', { name: 'Reward Dani Ortega' })
+    // The card's reward is the one ready: commission for a rep, three times a customer's.
+    await expect(log.getByRole('combobox', { name: 'What for' })).toContainText(/Brought a new customer with their card · .*3,00/)
+    await log.getByRole('textbox', { name: 'How many times' }).fill('10')
+    await expect(log).toContainText(/30,00.* commission for Dani Ortega \(10 × .*3,00/)
+    await log.getByRole('textbox', { name: 'Notes' }).fill('Fighters from Ortega MMA, first visit')
+    await log.getByRole('button', { name: 'Log it' }).click()
+    await toast(page, /30,00.* for Dani Ortega/)
+    await expect(page.getByRole('table', { name: 'Latest rewards' }).getByRole('row').filter({ hasText: 'Fighters from Ortega MMA' })).toHaveCount(10)
+    await expect(code).toHaveValue('')
+
+    // The month's limit holds for ten at once as for one: 20 a month, 10 used.
+    await code.fill('Dani')
+    await code.press('Enter')
+    const more = page.getByRole('dialog', { name: 'Reward Dani Ortega' })
+    await expect(more).toContainText('10 of 20 this month')
+    await more.getByRole('textbox', { name: 'How many times' }).fill('11')
+    await more.getByRole('button', { name: 'Log it' }).click()
+    await toast(page, 'Only 10 more this month for Dani Ortega')
+    await more.getByRole('button', { name: 'Cancel' }).click()
+
+    await code.fill('LUCIA')
+    await page.getByRole('option', { name: /LUCIA27/ }).click()
+    const friend = page.getByRole('dialog', { name: 'Reward Lucía García' })
+    await expect(friend.getByRole('combobox', { name: 'What for' })).toContainText(/Brought a friend with their card · .*1,00/)
+    await friend.getByRole('button', { name: 'Log it' }).click()
+    await toast(page, /1,00.* for Lucía García/)
+    await code.fill('NOBODY1')
+    await expect(page.getByText('Nobody has that code')).toBeVisible()
+  })
+
   test('a story on Instagram is rewarded in one press, worth more for a bigger account; someone new is added as a customer first', async ({ page }) => {
     await open(page, '/sales-reps')
     const stories = page.getByRole('region', { name: 'Stories and posts about the café' })
@@ -5879,7 +5924,7 @@ test.describe('sales reps and rewards', () => {
     const log = page.getByRole('dialog', { name: 'Reward San Pedro Eats' })
     await expect(log.getByRole('combobox', { name: 'What for' })).toContainText('Reposted our story')
     await log.getByRole('button', { name: 'Log it' }).click()
-    await toast(page, /3,00.* for San Pedro Eats/)
+    await toast(page, /2,50.* for San Pedro Eats/)
     await expect(stories.getByRole('article', { name: '@sanpedro.eats' })).toHaveCount(0)
 
     await stories.getByRole('article', { name: '@costa.del.sol.food' }).getByRole('button', { name: 'Add as a customer' }).click()
@@ -5909,7 +5954,8 @@ test.describe('sales reps and rewards', () => {
     await open(page, '/sales-reps')
     const list = page.getByRole('region', { name: 'What earns a reward' })
     await expect(list.getByRole('article', { name: 'Gave the café a shout-out' })).toContainText('Grows with reach')
-    await expect(list.getByRole('article', { name: 'Gave the café a shout-out' })).toContainText('25,00')
+    // Steep at the top: €5 from anyone, €50 from someone who reaches 50,000 people.
+    await expect(list.getByRole('article', { name: 'Gave the café a shout-out' })).toContainText(/5,00 up to .*50,00/)
     await list.getByRole('button', { name: 'Add Brought in a business customer' }).click()
     const dialog = page.getByRole('dialog', { name: 'Add a reward' })
     await expect(dialog.getByRole('textbox', { name: 'What earns it' })).toHaveValue('Brought in a business customer')
@@ -5929,7 +5975,9 @@ test.describe('sales reps and rewards', () => {
     await tune.getByRole('button', { name: 'Save' }).click()
     await toast(page, /^Saved$/)
     await expect(page.getByRole('region', { name: 'Our people' })).toContainText('Thanks for backing a local café')
-    await expect(page.getByRole('region', { name: 'How it works' })).toContainText('earns 15% of everything their crew earns')
+    await page.getByRole('button', { name: 'Add someone' }).click()
+    await expect(page.getByRole('dialog', { name: 'Add someone' })).toContainText('earns 15% of what they earn')
+    await page.getByRole('dialog', { name: 'Add someone' }).getByRole('button', { name: 'Cancel' }).click()
 
     await page.getByRole('link', { name: 'Business cards' }).click()
     await expect(page).toHaveURL(/\/sales-reps\/cards/)
@@ -5950,7 +5998,8 @@ test.describe('sales reps and rewards', () => {
 
   test('someone on the team who is a rep waits for someone else to approve their own reward, and has their own page', async ({ page }) => {
     await open(page, '/sales-reps', 'julio@example.com')
-    await expect(page.getByRole('listitem').filter({ hasText: 'My commission' })).toContainText('JULIO08')
+    await expect(page.getByRole('region', { name: 'Our people' })).toContainText('My commission')
+    await expect(page.getByRole('region', { name: 'Our people' })).toContainText('JULIO08')
     await page.getByRole('button', { name: 'Log a reward for Julio' }).click()
     const log = page.getByRole('dialog', { name: 'Reward Julio' })
     await expect(log).toContainText('Your own reward: someone else approves it.')
@@ -5980,14 +6029,14 @@ test.describe('sales reps and rewards', () => {
     await expect(reach.getByRole('listitem', { name: /^Big voice/ })).toHaveAttribute('aria-current', 'step')
     const crew = page.getByRole('region', { name: 'Your crew' })
     await expect(crew.getByRole('listitem')).toHaveCount(6)
-    await expect(crew.getByRole('listitem').filter({ hasText: 'Nora Kim' })).toContainText(/\+.*0,90 for you/)
+    await expect(crew.getByRole('listitem').filter({ hasText: 'Nora Kim' })).toContainText(/\+.*0,75 for you/)
     await expect(crew.getByRole('listitem').filter({ hasText: 'Toni Vega' })).toContainText('Waiting for the café’s OK')
     // Commission, not credit: Dani is an ambassador. No phone or notes on his page.
     await expect(page.locator('body')).toContainText('Owed to you')
     await expect(page.locator('body')).not.toContainText('+34 622 908 115')
 
     const earn = page.getByRole('region', { name: 'What earns you a reward' })
-    await expect(earn.getByRole('article', { name: 'Gave the café a shout-out' })).toContainText('15,00')
+    await expect(earn.getByRole('article', { name: 'Gave the café a shout-out' })).toContainText('25,00')
     await earn.getByRole('button', { name: 'I did this: Gave the café a shout-out' }).click()
     const claim = page.getByRole('dialog', { name: 'What did you share?' })
     await claim.getByRole('button', { name: 'Send' }).click()

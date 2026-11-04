@@ -1716,11 +1716,13 @@ export function createDemoApi(): Api {
   const dayIn = (month: string, d: number) => `${month}-${String(month === thisMonth ? Math.min(d, Number(today().slice(8, 10))) : d).padStart(2, '0')}`
   let repSettings: RepSettings = { welcome_offer: '10% off your first drink', crew_share: 10, boost_by_reach: true, pitch: null }
   const rewardRuleList: RewardRule[] = [
-    { id: 'rule-story', name: 'Reposted our story', who: 'customers', basis: 'fixed', amount: 1, needs_approval: false, monthly_limit: 4, scales_with_reach: true, sort: 1, active: true },
-    { id: 'rule-post', name: 'Posted about the café and tagged it', who: 'customers', basis: 'fixed', amount: 2, needs_approval: true, monthly_limit: 2, scales_with_reach: true, sort: 2, active: true },
-    { id: 'rule-card', name: 'Brought a new customer with their card', who: 'everyone', basis: 'fixed', amount: 3, needs_approval: false, monthly_limit: 10, scales_with_reach: false, sort: 3, active: true },
-    { id: 'rule-event', name: 'Booked an event or catering', who: 'reps', basis: 'percent', amount: 10, needs_approval: true, monthly_limit: null, scales_with_reach: false, sort: 4, active: true },
-    { id: 'rule-shoutout', name: 'Gave the café a shout-out', who: 'reps', basis: 'fixed', amount: 5, needs_approval: true, monthly_limit: 4, scales_with_reach: true, sort: 5, active: true },
+    // Customers' credit kept small; reps (a coach, a hotel, the team) earn more as commission.
+    { id: 'rule-story', name: 'Reposted our story', who: 'customers', basis: 'fixed', amount: 0.5, needs_approval: false, monthly_limit: 4, scales_with_reach: true, sort: 1, active: true },
+    { id: 'rule-post', name: 'Posted about the café and tagged it', who: 'customers', basis: 'fixed', amount: 1, needs_approval: true, monthly_limit: 2, scales_with_reach: true, sort: 2, active: true },
+    { id: 'rule-friend', name: 'Brought a friend with their card', who: 'customers', basis: 'fixed', amount: 1, needs_approval: false, monthly_limit: 10, scales_with_reach: false, sort: 3, active: true },
+    { id: 'rule-card', name: 'Brought a new customer with their card', who: 'reps', basis: 'fixed', amount: 3, needs_approval: false, monthly_limit: 20, scales_with_reach: false, sort: 4, active: true },
+    { id: 'rule-event', name: 'Booked an event or catering', who: 'reps', basis: 'percent', amount: 10, needs_approval: true, monthly_limit: null, scales_with_reach: false, sort: 5, active: true },
+    { id: 'rule-shoutout', name: 'Gave the café a shout-out', who: 'reps', basis: 'fixed', amount: 5, needs_approval: true, monthly_limit: 4, scales_with_reach: true, sort: 6, active: true },
   ]
   const customerId = (first: string) => customers.find(c => c.first_name === first)?.id ?? null
   const salesRep = (r: Partial<SalesRep> & Pick<SalesRep, 'id' | 'name' | 'kind' | 'code'>): SalesRep => {
@@ -1770,14 +1772,14 @@ export function createDemoApi(): Api {
       note: r.label, logged_by: r.logged_by, created_at: r.created_at })] : [r]
   }
   const rewardList: RepReward[] = [
-    repReward('rep-lucia', 'rule-card', 3, dayIn(lastMonth, 12), { note: 'Brought Pablo', logged_by: P.julio }),
-    repReward('rep-lucia', 'rule-story', 1, dayIn(lastMonth, 20), { logged_by: P.maria }),
-    repReward('rep-lucia', 'rule-story', 1, dayIn(thisMonth, 2), { logged_by: P.maria }),
-    repReward('rep-lucia', 'rule-story', 1, dayIn(thisMonth, 5), { logged_by: P.julio }),
-    repReward('rep-lucia', null, -2.5, dayIn(thisMonth, 5), { note: 'Oat flat white', logged_by: P.julio }),
-    repReward('rep-eats', 'rule-post', 2, dayIn(lastMonth, 18), { proof_url: 'https://www.instagram.com/p/demo0/' }),
-    repReward('rep-eats', 'rule-post', 2, dayIn(thisMonth, 28), { mention_id: 'post:t1', proof_url: 'https://www.instagram.com/p/demo1/' }),
-    repReward('rep-sofia', 'rule-post', 2, dayIn(thisMonth, 26), { status: 'pending', note: 'Matcha reel, 3k views', logged_by: P.maria }),
+    repReward('rep-lucia', 'rule-friend', 1, dayIn(lastMonth, 12), { note: 'Brought Pablo', logged_by: P.julio }),
+    repReward('rep-lucia', 'rule-story', 0.5, dayIn(lastMonth, 20), { logged_by: P.maria }),
+    repReward('rep-lucia', 'rule-story', 0.5, dayIn(thisMonth, 2), { logged_by: P.maria }),
+    repReward('rep-lucia', 'rule-story', 0.5, dayIn(thisMonth, 5), { logged_by: P.julio }),
+    repReward('rep-lucia', null, -1.5, dayIn(thisMonth, 5), { note: 'Off an oat flat white', logged_by: P.julio }),
+    repReward('rep-eats', 'rule-post', 5, dayIn(lastMonth, 18), { multiplier: 5, proof_url: 'https://www.instagram.com/p/demo0/' }),
+    repReward('rep-eats', 'rule-post', 5, dayIn(thisMonth, 28), { multiplier: 5, mention_id: 'post:t1', proof_url: 'https://www.instagram.com/p/demo1/' }),
+    repReward('rep-sofia', 'rule-post', 2, dayIn(thisMonth, 26), { multiplier: 2, status: 'pending', note: 'Matcha reel, 3k views', logged_by: P.maria }),
     repReward('rep-marco', 'rule-event', 38, dayIn(lastMonth, 10), { sale_amount: 380, note: 'Breakfast for a wedding party' }),
     repReward('rep-marco', null, -38, dayIn(lastMonth, 28), { kind: 'payout', label: COMMISSION_PAID, note: 'Bank transfer' }),
     repReward('rep-marco', 'rule-card', 3, dayIn(thisMonth, 3), { logged_by: P.maria }),
@@ -1786,17 +1788,17 @@ export function createDemoApi(): Api {
     ...[8, 21].map(d => repReward('rep-maria', 'rule-card', 3, dayIn(thisMonth, d))),
     repReward('rep-julio', 'rule-card', 3, dayIn(lastMonth, 6), { logged_by: P.maria }),
     repReward('rep-julio', null, -3, dayIn(lastMonth, 27), { kind: 'payout', label: COMMISSION_PAID }),
-    // Ortega MMA: Dani's own shout-out (×3 for reaching over 10,000 people), and the crew's stories, posts and cards, each with Dani's 10%.
-    repReward('rep-dani', 'rule-shoutout', 15, dayIn(thisMonth, 1), { multiplier: 3, note: 'Story to the gym after fight night', proof_url: 'https://www.instagram.com/stories/ortega.mma/' }),
+    // Ortega MMA: Dani's own shout-out (×5 for reaching over 10,000 people), and the crew's stories, posts and cards, each with Dani's 10%.
+    repReward('rep-dani', 'rule-shoutout', 25, dayIn(thisMonth, 1), { multiplier: 5, note: 'Story to the gym after fight night', proof_url: 'https://www.instagram.com/stories/ortega.mma/' }),
     repReward('rep-dani', 'rule-card', 3, dayIn(lastMonth, 22), { logged_by: P.julio }),
-    ...withBonus(repReward('rep-nora', 'rule-post', 6, dayIn(thisMonth, 4), { multiplier: 3, note: 'Reel: post-training matcha', proof_url: 'https://www.instagram.com/reel/demo3/' })),
-    ...withBonus(repReward('rep-nora', 'rule-story', 3, dayIn(thisMonth, 9), { multiplier: 3, logged_by: P.maria })),
-    ...withBonus(repReward('rep-carla', 'rule-story', 3, dayIn(thisMonth, 6), { multiplier: 3, logged_by: P.julio })),
-    ...withBonus(repReward('rep-carla', 'rule-card', 3, dayIn(thisMonth, 7), { logged_by: P.maria, note: 'Brought her sister' })),
-    ...withBonus(repReward('rep-javi', 'rule-story', 2, dayIn(thisMonth, 3), { multiplier: 2, logged_by: P.maria })),
-    ...withBonus(repReward('rep-leo', 'rule-card', 3, dayIn(lastMonth, 25), { logged_by: P.julio })),
-    repReward('rep-ibra', 'rule-story', 1, dayIn(thisMonth, 8), { status: 'pending', note: 'From his own page', logged_by: null }),
-    repReward('rep-pablo', 'rule-card', 3, dayIn(thisMonth, 10), { status: 'pending', note: 'Brought two runners', logged_by: P.julio }),
+    ...withBonus(repReward('rep-nora', 'rule-post', 5, dayIn(thisMonth, 4), { multiplier: 5, note: 'Reel: post-training matcha', proof_url: 'https://www.instagram.com/reel/demo3/' })),
+    ...withBonus(repReward('rep-nora', 'rule-story', 2.5, dayIn(thisMonth, 9), { multiplier: 5, logged_by: P.maria })),
+    ...withBonus(repReward('rep-carla', 'rule-story', 2.5, dayIn(thisMonth, 6), { multiplier: 5, logged_by: P.julio })),
+    ...withBonus(repReward('rep-carla', 'rule-friend', 1, dayIn(thisMonth, 7), { logged_by: P.maria, note: 'Brought her sister' })),
+    ...withBonus(repReward('rep-javi', 'rule-story', 1, dayIn(thisMonth, 3), { multiplier: 2, logged_by: P.maria })),
+    ...withBonus(repReward('rep-leo', 'rule-friend', 1, dayIn(lastMonth, 25), { logged_by: P.julio })),
+    repReward('rep-ibra', 'rule-story', 0.5, dayIn(thisMonth, 8), { status: 'pending', note: 'From his own page', logged_by: null }),
+    repReward('rep-pablo', 'rule-friend', 1, dayIn(thisMonth, 10), { status: 'pending', note: 'Brought a runner from the club', logged_by: P.julio }),
   ]
   const repBalance = (repId: string) => round2(rewardList.filter(r => r.rep_id === repId && r.status === 'approved').reduce((a, r) => a + r.amount, 0))
   /** Mirrors the sales_reps rules in SQL: tidied, a code from the name, a team rep is someone on the team. */

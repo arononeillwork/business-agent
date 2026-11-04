@@ -41,8 +41,8 @@ update public.profiles set can_see_pay = true where email = 'maria@test';
 -- 1. Reach, and what it does to a reward --------------------------------------------------------------
 do $$ begin
   assert public.reach_multiplier(0) = 1 and public.reach_multiplier(999) = 1 and public.reach_multiplier(1000) = 2
-     and public.reach_multiplier(9999) = 2 and public.reach_multiplier(10000) = 3 and public.reach_multiplier(50000) = 5
-     and public.reach_multiplier(null) = 1, 'the steps: ×2 from 1,000, ×3 from 10,000, ×5 from 50,000';
+     and public.reach_multiplier(9999) = 2 and public.reach_multiplier(10000) = 5 and public.reach_multiplier(49999) = 5
+     and public.reach_multiplier(50000) = 10 and public.reach_multiplier(null) = 1, 'the steps: ×2 from 1,000, ×5 from 10,000, ×10 from 50,000';
 end $$;
 
 select pg_temp.act_as('maria@test');
@@ -70,9 +70,9 @@ select pg_temp.act_as('julio@test');
 insert into public.sales_reps (name, instagram, instagram_followers, leader_id) select 'Carlos', 'carlos.ko', 15000, pg_temp.rep('Coach Dani');
 do $$ declare v jsonb; begin
   assert (select not approved and kind = 'customer' from public.sales_reps where name = 'Carlos'), 'Carlos waits';
-  -- What the team logs for him waits with him: ×3 for 15,000 followers.
+  -- What the team logs for him waits with him: ×5 for 15,000 followers.
   v := public.log_reward(pg_temp.rep('Carlos'), pg_temp.rule('Posted about us'), p_note := 'Fight-week story');
-  assert v - 'id' = '{"status": "pending", "amount": 6}'::jsonb, 'waits while Carlos does';
+  assert v - 'id' = '{"status": "pending", "amount": 10}'::jsonb, 'waits while Carlos does';
 end $$;
 reset role;
 do $$ begin
@@ -80,7 +80,7 @@ do $$ begin
            where p.email = 'maria@test' and n.title = 'Julio added Carlos as a rep: waiting for your OK'
              and n.body = 'In Coach Dani’s crew · Reaches 15,000 people') = 1, 'admins are told who and how many people';
   assert (select count(*) from public.notifications n join public.profiles p on p.id = n.profile_id
-           where p.email = 'maria@test' and n.title = 'Posted about us for Carlos: €6.00 to approve'
+           where p.email = 'maria@test' and n.title = 'Posted about us for Carlos: €10.00 to approve'
              and n.body = 'Julio · They''re waiting for your OK too · Fight-week story') = 1, 'and about his reward';
 end $$;
 
@@ -89,7 +89,7 @@ select pg_temp.act_as('maria@test');
 select public.decide_rep(pg_temp.rep('Carlos'), true);
 do $$ declare v uuid := (select id from public.rep_rewards where rep_id = pg_temp.rep('Carlos')); begin
   assert (select status from public.rep_rewards where id = v) = 'approved', 'Carlos''s reward counts now';
-  assert (select amount = 0.60 and status = 'approved' and label = 'Crew bonus · Carlos' and note = 'Posted about us'
+  assert (select amount = 1.00 and status = 'approved' and label = 'Crew bonus · Carlos' and note = 'Posted about us'
             from public.rep_rewards where bonus_for = v), 'Dani''s crew bonus';
 end $$;
 -- Another reward for Carlos, from an admin: Dani's share comes with it. Turned down, there's none.
@@ -137,8 +137,8 @@ select pg_temp.as_worker();
 do $$ declare p jsonb := public.rep_page(pg_temp.link('Coach Dani')); begin
   assert p->'rep'->>'name' = 'Coach Dani' and (p->'rep'->>'reach')::int = 8000 and p->'rep'->>'code' is not null, 'who they are';
   assert not (p->'rep' ? 'phone') and not (p->'rep' ? 'notes') and not (p->'rep' ? 'email'), 'never their phone, email or the café''s notes';
-  assert (p->>'balance')::numeric = 4 + 3 + 0.60 + 0.50 + 0.40, 'what they''re owed: their own and their crew''s share';
-  assert jsonb_array_length(p->'crew') = 1 and p->'crew'->0->>'name' = 'Carlos' and (p->'crew'->0->>'bonus_this_month')::numeric = 1.50, 'their crew';
+  assert (p->>'balance')::numeric = 4 + 3 + 1.00 + 0.50 + 0.40, 'what they''re owed: their own and their crew''s share';
+  assert jsonb_array_length(p->'crew') = 1 and p->'crew'->0->>'name' = 'Carlos' and (p->'crew'->0->>'bonus_this_month')::numeric = 1.90, 'their crew';
   assert (select count(*) from jsonb_array_elements(p->'rules') r where r->>'name' = 'Reposted our story') = 0, 'only what they can earn';
   assert (select (r->>'scales_with_reach')::boolean from jsonb_array_elements(p->'rules') r where r->>'name' = 'Posted about us'), 'with what grows with reach';
   assert (p->'settings'->>'crew_share')::numeric = 10, 'and the crew''s share';

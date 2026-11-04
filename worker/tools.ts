@@ -1242,7 +1242,7 @@ export const ALL_TOOLS: ToolDef[] = [
   tool({
     name: 'list_sales_reps',
     title: 'Sales reps & rewards',
-    description: 'The people who sell the café: the team, ambassadors from outside it and customers who spread the word, each with the code on their business cards. Customers earn credit to spend in the café, the team and ambassadors commission. With each rep: their balance (credit to spend, or commission owed; admins see everyone\'s, the team customers\' and their own), their reach (followers on Instagram, TikTok, YouTube and Facebook plus the people they see in person) and its step (rewards that grow with reach are ×2 from 1,000 people, ×3 from 10,000, ×5 from 50,000), the crew they lead or are in (a crew\'s leader earns a share of what the crew earns), and this month\'s rewards. Also the list of what earns a reward, and what\'s waiting for an admin: rewards, and people an employee or a crew\'s leader added.',
+    description: 'The people who sell the café: the team, ambassadors from outside it and customers who spread the word, each with the code on their business cards. Customers earn credit to spend in the café, the team and ambassadors commission. With each rep: their balance (credit to spend, or commission owed; admins see everyone\'s, the team customers\' and their own), their reach (followers on Instagram, TikTok, YouTube and Facebook plus the people they see in person) and its step (rewards that grow with reach are ×2 from 1,000 people, ×5 from 10,000, ×10 from 50,000), the crew they lead or are in (a crew\'s leader earns a share of what the crew earns), and this month\'s rewards. Also the list of what earns a reward, and what\'s waiting for an admin: rewards, and people an employee or a crew\'s leader added.',
     readOnly: true,
     input: z.object({ search: z.string().optional().describe('Part of a name, a code or an Instagram handle') }),
     async run({ sb, me }, a) {
@@ -1276,11 +1276,12 @@ export const ALL_TOOLS: ToolDef[] = [
   tool({
     name: 'log_reward',
     title: 'Log a reward',
-    description: 'Give a rep a reward from the café\'s list (see list_sales_reps): e.g. a customer reposted the café\'s story, someone new came in with a rep\'s business card, a rep booked an event (a percentage: give sale_amount). It counts straight away unless the reward needs an admin\'s approval, or it\'s your own; monthly limits apply. Customers get it as credit, reps as commission.',
+    description: 'Give a rep a reward from the café\'s list (see list_sales_reps): e.g. a customer reposted the café\'s story, someone new came in with a rep\'s business card, a rep booked an event (a percentage: give sale_amount). times logs a set amount several times at once: a coach whose card brought in 10 new people is 10. It counts straight away unless the reward needs an admin\'s approval, or it\'s your own; monthly limits apply. Customers get it as credit, reps as commission.',
     input: z.object({
       rep: z.string().describe('Their card code, name or Instagram handle'), reward: z.string().describe('What it\'s for: the name (or part of it) of a reward on the list'),
       sale_amount: z.number().positive().optional().describe('For a reward that\'s a percentage of a sale'), note: z.string().optional(),
       link: z.string().url().optional().describe('The story or post'), date: date.optional(),
+      times: z.number().int().min(1).max(50).optional().describe('How many times (a set amount only): one for each new person they brought in'),
     }),
     async run({ sb }, a) {
       const rep = await resolveRep(sb, a.rep)
@@ -1292,10 +1293,16 @@ export const ALL_TOOLS: ToolDef[] = [
         throw new Error(`${matches.length ? `"${a.reward}" matches several rewards` : `No reward for ${rep.name} matches "${a.reward}"`}. ${rep.name} can earn: ${fits.map(r => `${r.name} (${worth(r)})`).join('; ') || 'nothing on the list yet'}`)
       }
       const rule = matches[0]
-      const out = check(await sb.rpc('log_reward', { p_rep_id: rep.id, p_rule_id: rule.id, p_sale_amount: a.sale_amount ?? null, p_note: a.note ?? null,
-        p_proof_url: a.link ?? null, p_occurred_on: a.date ?? null })) as { status: string; amount: number }
-      return { ok: true, rep: rep.name, reward: rule.name, amount: Number(out.amount), as: earnsCredit(rep.kind) ? 'credit' : 'commission',
-        status: out.status === 'pending' ? 'waiting for an admin to approve it' : 'counted' }
+      const times = rule.basis === 'fixed' ? a.times ?? 1 : 1
+      let amount = 0, status = ''
+      for (let i = 0; i < times; i++) {
+        const out = check(await sb.rpc('log_reward', { p_rep_id: rep.id, p_rule_id: rule.id, p_sale_amount: a.sale_amount ?? null, p_note: a.note ?? null,
+          p_proof_url: a.link ?? null, p_occurred_on: a.date ?? null })) as { status: string; amount: number }
+        amount += Number(out.amount)
+        status = out.status
+      }
+      return { ok: true, rep: rep.name, reward: rule.name, times, amount: Math.round(amount * 100) / 100, as: earnsCredit(rep.kind) ? 'credit' : 'commission',
+        status: status === 'pending' ? 'waiting for an admin to approve it' : 'counted' }
     },
   }),
   tool({

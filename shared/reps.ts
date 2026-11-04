@@ -102,7 +102,7 @@ export interface RepReward {
   mention_id: string | null
   /** A crew leader's share of this crew member's reward. */
   bonus_for: string | null
-  /** ×2, ×3 or ×5 for the rep's reach. */
+  /** ×2, ×5 or ×10 for the rep's reach (×3 or ×5 before the steeper_reach migration). */
   multiplier: number | null
   note: string | null
   occurred_on: string
@@ -152,15 +152,20 @@ export const rewardAmount = (rule: Pick<RewardRule, 'basis' | 'amount'> & { scal
 // ---- Reach ------------------------------------------------------------------------------------------
 export type ReachTierId = 'local' | 'rising' | 'big' | 'star'
 export interface ReachTier { id: ReachTierId; from: number; multiplier: number; label: string; what: string }
-/** The steps a reward that grows with reach takes (the database's reach_multiplier() says the same). */
+/**
+ * The steps a reward that grows with reach takes (the database's reach_multiplier() says the same):
+ * steep at the top, so the people who reach the most earn the most.
+ */
 export const REACH_TIERS: ReachTier[] = [
   { id: 'local', from: 0, multiplier: 1, label: msg('Local voice'), what: msg('Friends, family, the regulars') },
   { id: 'rising', from: 1_000, multiplier: 2, label: msg('Rising voice'), what: msg('A thousand people or more') },
-  { id: 'big', from: 10_000, multiplier: 3, label: msg('Big voice'), what: msg('Ten thousand or more: a coach, a club, a local page') },
-  { id: 'star', from: 50_000, multiplier: 5, label: msg('Local star'), what: msg('Fifty thousand or more') },
+  { id: 'big', from: 10_000, multiplier: 5, label: msg('Big voice'), what: msg('Ten thousand or more: a coach, a club, a local page') },
+  { id: 'star', from: 50_000, multiplier: 10, label: msg('Local star'), what: msg('Fifty thousand or more') },
 ]
 export const reachTier = (reach: number | null | undefined) => [...REACH_TIERS].reverse().find(t => (reach ?? 0) >= t.from)!
 export const reachMultiplier = (reach: number | null | undefined) => reachTier(reach).multiplier
+/** The most a reward that grows with reach is multiplied by: the top step's. */
+export const TOP_MULTIPLIER = REACH_TIERS[REACH_TIERS.length - 1].multiplier
 /** The next step up and how many more people it takes; null at the top. */
 export function nextTier(reach: number | null | undefined) {
   const next = REACH_TIERS.find(t => t.from > (reach ?? 0))
@@ -313,15 +318,21 @@ export function mentionsToReward(mentions: Mention[], reps: SalesRep[], rewards:
   }))
 }
 
-/** The usual rewards for a café, to add in one press (their names in the person's language). */
+/**
+ * The usual rewards for a café, to add in one press (their names in the person's language). Credit
+ * for customers is kept small (a story is 50 cents, more for a bigger account): the money goes to
+ * the reps who bring people in and reach the most, as commission.
+ */
 export interface RewardIdea extends Omit<RewardRuleInput, 'active'> { key: string; what: string }
 export const REWARD_IDEAS: RewardIdea[] = [
   { key: 'story', name: msg('Reposted our story'), what: msg('A customer shares one of the café’s stories, or puts it in their own'),
-    who: 'customers', basis: 'fixed', amount: 1, needs_approval: false, monthly_limit: 4, scales_with_reach: true },
+    who: 'customers', basis: 'fixed', amount: 0.5, needs_approval: false, monthly_limit: 4, scales_with_reach: true },
   { key: 'post', name: msg('Posted about the café and tagged it'), what: msg('A post or reel of their own, with the café tagged'),
-    who: 'customers', basis: 'fixed', amount: 2, needs_approval: true, monthly_limit: 2, scales_with_reach: true },
+    who: 'customers', basis: 'fixed', amount: 1, needs_approval: true, monthly_limit: 2, scales_with_reach: true },
+  { key: 'friend', name: msg('Brought a friend with their card'), what: msg('A friend they sent shows their card at the till'),
+    who: 'customers', basis: 'fixed', amount: 1, needs_approval: false, monthly_limit: 10, scales_with_reach: false },
   { key: 'card', name: msg('Brought a new customer with their card'), what: msg('Someone new shows their business card at the till'),
-    who: 'everyone', basis: 'fixed', amount: 3, needs_approval: false, monthly_limit: 10, scales_with_reach: false },
+    who: 'reps', basis: 'fixed', amount: 3, needs_approval: false, monthly_limit: 20, scales_with_reach: false },
   { key: 'event', name: msg('Booked an event or catering'), what: msg('A party, a meeting, a cake order: a share of what it comes to'),
     who: 'reps', basis: 'percent', amount: 10, needs_approval: true, monthly_limit: null, scales_with_reach: false },
   { key: 'business', name: msg('Brought in a business customer'), what: msg('An office, a hotel or a gym that orders regularly'),
