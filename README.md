@@ -89,7 +89,7 @@ built-in **AI connector** so owners can run it by talking to Claude.
 - Reach, crews and each rep's own page (Sales reps & rewards): a rep's Instagram, TikTok, YouTube and Facebook
   with their followers, and the people they see in person (a gym's members, a studio's clients), add up to
   their reach. A reward marked "grows with reach" (stories, posts, shout-outs) is worth ×2 from 1,000 people,
-  ×3 from 10,000 and ×5 from 50,000. A crew puts a coach with their fighters, or a studio with its teachers: the
+  ×5 from 10,000 and ×10 from 50,000 (the `steeper_reach` migration; it was ×3 and ×5). A crew puts a coach with their fighters, or a studio with its teachers: the
   leader earns a share (10% to start) of everything the crew earns, as a line of its own. Anyone on the team
   adds people; someone an employee or a shop manager adds waits for an owner to say yes (only owners do), and
   what's logged for them meanwhile counts once they do. Each rep has a private link to their own page (`/rep/<link>`, no

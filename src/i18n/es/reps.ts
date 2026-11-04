@@ -341,7 +341,7 @@ export default {
   'Of everything their crew earns, on top of their own: a coach of what their fighters earn': 'De todo lo que gana su grupo, además de lo suyo: un entrenador, de lo que ganan sus luchadores',
   'Nothing': 'Nada',
   'Rewards that grow with reach do': 'Las recompensas que crecen con el alcance, crecen',
-  '×2 from 1,000 people, ×3 from 10,000, ×5 from 50,000.': '×2 desde 1.000 personas, ×3 desde 10.000, ×5 desde 50.000.',
+  '×{a} from 1,000 people, ×{b} from 10,000, ×{c} from 50,000.': '×{a} desde 1.000 personas, ×{b} desde 10.000, ×{c} desde 50.000.',
   'Your words to your reps': 'Tus palabras para tus comerciales',
   'At the top of each rep’s own page, and of this one': 'Arriba en la página de cada comercial, y en esta',
   // The page made simpler: the till, how many times, and customers' credit kept small.

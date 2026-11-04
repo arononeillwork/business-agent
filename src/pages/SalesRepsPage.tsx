@@ -32,7 +32,7 @@ import { ExportButton } from '../components/tables'
 import { KIND_TONE, ReachBadge, ReachLadder, RepAvatar, RepCode, worth } from '../components/RepBits'
 import type { ExportTable } from '../lib/export'
 import {
-  DEFAULT_PITCH, REP_KINDS, REWARD_IDEAS, RULE_WHO, SOCIALS, balanceOf, bonusFrom, cleanInstagram, cleanRepCode, cleanYoutube, crewOf, crewReach, earnsCredit,
+  DEFAULT_PITCH, REACH_TIERS, REP_KINDS, REWARD_IDEAS, TOP_MULTIPLIER, RULE_WHO, SOCIALS, balanceOf, bonusFrom, cleanInstagram, cleanRepCode, cleanYoutube, crewOf, crewReach, earnsCredit,
   formatReach, kindLabel, leaderboard, limitReached, mentionsToReward, outstanding, parseCount, reachMultiplier, reachOf, reachTier, rewardAmount, ruleFits,
   timesInMonth, type MentionToReward, type RepKind, type RepReward, type RepSettings, type RewardRule, type RewardRuleInput, type SalesRep, type SalesRepInput,
   type Standing,
@@ -620,11 +620,11 @@ function RuleCard({ rule: r, boost, onEdit }: { rule: RewardRule; boost: boolean
         {onEdit && <IconButton size="small" sx={{ mt: -0.75, mr: -0.75 }} aria-label={t('Change {name}', { name: r.name })} onClick={onEdit}><EditIcon fontSize="small" /></IconButton>}
       </Stack>
       <Typography sx={{ fontFamily: fonts.display, fontSize: '1.3rem', color: tokens.roseDeep, lineHeight: 1.2 }}>
-        {grows ? t('{from} up to {to}', { from: worth(r), to: formatMoney(r.amount * 5) }) : worth(r)}
+        {grows ? t('{from} up to {to}', { from: worth(r), to: formatMoney(r.amount * TOP_MULTIPLIER) }) : worth(r)}
       </Typography>
       {grows && (
         <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-          {[1, 2, 3, 5].map(x => formatMoney(r.amount * x)).join(' · ')}
+          {REACH_TIERS.map(x => formatMoney(r.amount * x.multiplier)).join(' · ')}
         </Typography>
       )}
       <Stack direction="row" spacing={0.5} useFlexGap sx={{ flexWrap: 'wrap' }}>
@@ -1080,7 +1080,8 @@ function RuleDialog({ rule, onClose }: { rule: RewardRuleInput; onClose: () => v
                 label={t('Grows with their reach')} />
               <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>
                 {r.scales_with_reach && value > 0
-                  ? t('Worth {a}, {b} from 1,000 people, {c} from 10,000 and {d} from 50,000.', { a: formatMoney(value), b: formatMoney(value * 2), c: formatMoney(value * 3), d: formatMoney(value * 5) })
+                  ? t('Worth {a}, {b} from 1,000 people, {c} from 10,000 and {d} from 50,000.', {
+                    a: formatMoney(value), b: formatMoney(value * REACH_TIERS[1].multiplier), c: formatMoney(value * REACH_TIERS[2].multiplier), d: formatMoney(value * TOP_MULTIPLIER) })
                   : t('For stories, posts and shout-outs: someone with more followers is worth more to the café.')}
               </Typography>
             </Box>
@@ -1168,7 +1169,7 @@ function SettingsDialog({ settings, onClose }: { settings: RepSettings; onClose:
           <Box>
             <FormControlLabel control={<Switch checked={s.boost_by_reach} onChange={e => setS({ ...s, boost_by_reach: e.target.checked })} />}
               label={t('Rewards that grow with reach do')} />
-            <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>{t('×2 from 1,000 people, ×3 from 10,000, ×5 from 50,000.')}</Typography>
+            <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>{t('×{a} from 1,000 people, ×{b} from 10,000, ×{c} from 50,000.', { a: REACH_TIERS[1].multiplier, b: REACH_TIERS[2].multiplier, c: REACH_TIERS[3].multiplier })}</Typography>
           </Box>
           <TextField label={t('Your words to your reps')} value={s.pitch ?? ''} onChange={e => setS({ ...s, pitch: e.target.value })} multiline minRows={3}
             placeholder={t(DEFAULT_PITCH)} helperText={t('At the top of each rep’s own page, and of this one')} slotProps={{ htmlInput: { maxLength: 600 } }} />

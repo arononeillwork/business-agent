@@ -102,7 +102,7 @@ export interface RepReward {
   mention_id: string | null
   /** A crew leader's share of this crew member's reward. */
   bonus_for: string | null
-  /** ×2, ×3 or ×5 for the rep's reach. */
+  /** ×2, ×5 or ×10 for the rep's reach (×3 or ×5 before the steeper_reach migration). */
   multiplier: number | null
   note: string | null
   occurred_on: string
@@ -152,15 +152,20 @@ export const rewardAmount = (rule: Pick<RewardRule, 'basis' | 'amount'> & { scal
 // ---- Reach ------------------------------------------------------------------------------------------
 export type ReachTierId = 'local' | 'rising' | 'big' | 'star'
 export interface ReachTier { id: ReachTierId; from: number; multiplier: number; label: string; what: string }
-/** The steps a reward that grows with reach takes (the database's reach_multiplier() says the same). */
+/**
+ * The steps a reward that grows with reach takes (the database's reach_multiplier() says the same):
+ * steep at the top, so the people who reach the most earn the most.
+ */
 export const REACH_TIERS: ReachTier[] = [
   { id: 'local', from: 0, multiplier: 1, label: msg('Local voice'), what: msg('Friends, family, the regulars') },
   { id: 'rising', from: 1_000, multiplier: 2, label: msg('Rising voice'), what: msg('A thousand people or more') },
-  { id: 'big', from: 10_000, multiplier: 3, label: msg('Big voice'), what: msg('Ten thousand or more: a coach, a club, a local page') },
-  { id: 'star', from: 50_000, multiplier: 5, label: msg('Local star'), what: msg('Fifty thousand or more') },
+  { id: 'big', from: 10_000, multiplier: 5, label: msg('Big voice'), what: msg('Ten thousand or more: a coach, a club, a local page') },
+  { id: 'star', from: 50_000, multiplier: 10, label: msg('Local star'), what: msg('Fifty thousand or more') },
 ]
 export const reachTier = (reach: number | null | undefined) => [...REACH_TIERS].reverse().find(t => (reach ?? 0) >= t.from)!
 export const reachMultiplier = (reach: number | null | undefined) => reachTier(reach).multiplier
+/** The most a reward that grows with reach is multiplied by: the top step's. */
+export const TOP_MULTIPLIER = REACH_TIERS[REACH_TIERS.length - 1].multiplier
 /** The next step up and how many more people it takes; null at the top. */
 export function nextTier(reach: number | null | undefined) {
   const next = REACH_TIERS.find(t => t.from > (reach ?? 0))
