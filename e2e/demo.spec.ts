@@ -7905,10 +7905,11 @@ test.describe('role permissions', () => {
   })
 })
 
-test('people come first in the Business section; a barista adds her pet from her own card, and has no Expenses or AI assistants', async ({ page }) => {
+test('company values, then people, come first in the Business section; a barista adds her pet from her own card, and has no Expenses or AI assistants', async ({ page }) => {
   await open(page, '/', 'maria@example.com')
   const menu = page.getByRole('navigation', { name: 'Main' })
-  await expect(menu.getByRole('link').nth(1)).toHaveText('People') // after the logo
+  await expect(menu.getByRole('link').nth(1)).toHaveText('Company values') // after the logo
+  await expect(menu.getByRole('link').nth(2)).toHaveText('People')
   await expect(menu.getByRole('link', { name: 'Expenses', exact: true })).toHaveCount(0)
   await expect(menu.getByRole('link', { name: 'Brand', exact: true })).toHaveCount(0)
   await page.getByRole('button', { name: /^Account menu/ }).first().click()
