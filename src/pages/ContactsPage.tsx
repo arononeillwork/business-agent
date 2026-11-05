@@ -1,5 +1,5 @@
 import {
-  Autocomplete, Box, Button, Card, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, InputAdornment, MenuItem, Stack,
+  Autocomplete, Box, Button, Card, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, InputAdornment, Stack,
   TextField, Tooltip, Typography, useMediaQuery, useTheme,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
@@ -8,17 +8,15 @@ import PhoneIcon from '@mui/icons-material/PhoneOutlined'
 import WhatsAppIcon from '@mui/icons-material/WhatsApp'
 import EmailIcon from '@mui/icons-material/EmailOutlined'
 import WebIcon from '@mui/icons-material/LanguageOutlined'
-import LockIcon from '@mui/icons-material/LockOutlined'
 import SearchIcon from '@mui/icons-material/Search'
 import { useState } from 'react'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
-import { Empty, ErrorBox, PageHeader, Tag } from '../components/common'
+import { Empty, ErrorBox, PageHeader } from '../components/common'
 import { PhoneField } from '../components/PhoneField'
 import {
-  CONTACT_LIMITS, SEEN_BY, USUAL_JOBS, contactProblem, jobKey, jobName, matchesContact, siteName, sortContacts, tidyContact,
-  type Contact, type ContactInput, type ContactSeenBy,
+  CONTACT_LIMITS, USUAL_JOBS, contactProblem, jobKey, jobName, matchesContact, siteName, sortContacts, tidyContact, type Contact, type ContactInput,
 } from '../../shared/contacts'
 import { tokens } from '../theme'
 import { t, useLanguage } from '../i18n'
@@ -28,11 +26,11 @@ const SEARCH_FROM = 6
 
 /**
  * Contacts: the people the business calls on (the lawyer, the bank, the plumber…), each with a button to
- * call, WhatsApp, email or open their website. Everyone on the team reads the ones they're allowed to see;
- * admins add and change them, and say who sees each.
+ * call, WhatsApp, email or open their website. Only the owners open it (the menu and the route), and add,
+ * change and delete them.
  */
 export function ContactsPage() {
-  const { api, isAdmin } = useApp()
+  const { api } = useApp()
   useLanguage()
   const data = useAsync('contacts', () => api.contacts(), [])
   const [search, setSearch] = useState('')
@@ -42,9 +40,9 @@ export function ContactsPage() {
 
   return (
     <>
-      <PageHeader eyebrow={t('Business')} title={t('Contacts')} actions={isAdmin && (
-        <Button variant="contained" startIcon={<AddIcon />} onClick={() => setForm({ name: '', seen_by: 'team' })}>{t('Add a contact')}</Button>
-      )} />
+      <PageHeader eyebrow={t('Business')} title={t('Contacts')} actions={
+        <Button variant="contained" startIcon={<AddIcon />} onClick={() => setForm({ name: '' })}>{t('Add a contact')}</Button>
+      } />
       <ErrorBox error={data.error} />
 
       {all.length > SEARCH_FROM && (
@@ -54,13 +52,13 @@ export function ContactsPage() {
       )}
 
       {data.data && !all.length ? (
-        <Empty>{isAdmin ? t('Add the people the business calls on: the lawyer, the bank, the plumber…') : t('No contacts here yet.')}</Empty>
+        <Empty>{t('Add the people the business calls on: the lawyer, the bank, the plumber…')}</Empty>
       ) : data.data && !shown.length ? (
         <Empty>{t('Nobody matches “{text}”.', { text: search.trim() })}</Empty>
       ) : (
         <Box role="list" aria-label={t('Contacts')}
           sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(3, minmax(0, 1fr))' }, gap: 2 }}>
-          {shown.map(c => <ContactCard key={c.id} contact={c} onEdit={isAdmin ? () => setForm(c) : undefined} />)}
+          {shown.map(c => <ContactCard key={c.id} contact={c} onEdit={() => setForm(c)} />)}
         </Box>
       )}
 
@@ -69,10 +67,8 @@ export function ContactsPage() {
   )
 }
 
-const seenByLabel = (s: ContactSeenBy) => t(SEEN_BY.find(x => x.id === s)!.label)
-
 /** One person: what they do, and a button for each way to reach them. */
-function ContactCard({ contact: c, onEdit }: { contact: Contact; onEdit?: () => void }) {
+function ContactCard({ contact: c, onEdit }: { contact: Contact; onEdit: () => void }) {
   const about = [jobName(c.job, t), c.company].filter(Boolean).join(' · ')
   // Long addresses shorten with "…" rather than push the card wider.
   const label = (text: string) => <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{text}</Box>
@@ -83,19 +79,10 @@ function ContactCard({ contact: c, onEdit }: { contact: Contact; onEdit?: () => 
         <Box sx={{ minWidth: 0 }}>
           <Typography variant="h6" component="h2" sx={{ wordBreak: 'break-word' }}>{c.name}</Typography>
           {about && <Typography variant="body2" sx={{ color: 'text.secondary' }}>{about}</Typography>}
-          {c.seen_by !== 'team' && (
-            <Box sx={{ mt: 0.5 }}>
-              <Tag fg={tokens.infoFg} bg={tokens.infoBg}>
-                <LockIcon aria-hidden sx={{ fontSize: 13, mr: 0.5 }} />{seenByLabel(c.seen_by)}
-              </Tag>
-            </Box>
-          )}
         </Box>
-        {onEdit && (
-          <Tooltip title={t('Edit')}>
-            <IconButton size="small" onClick={onEdit} aria-label={t('Edit {name}', { name: c.name })} sx={{ mt: -0.5, mr: -0.5 }}><EditIcon fontSize="small" /></IconButton>
-          </Tooltip>
-        )}
+        <Tooltip title={t('Edit')}>
+          <IconButton size="small" onClick={onEdit} aria-label={t('Edit {name}', { name: c.name })} sx={{ mt: -0.5, mr: -0.5 }}><EditIcon fontSize="small" /></IconButton>
+        </Tooltip>
       </Stack>
       {(c.phone || c.email || c.website) && (
         <Stack direction="row" useFlexGap sx={{ gap: 0.75, flexWrap: 'wrap' }}>
@@ -112,17 +99,15 @@ function ContactCard({ contact: c, onEdit }: { contact: Contact; onEdit?: () => 
   )
 }
 
-/** Add someone, or change or delete them. Only an owner can make one owners-only. */
+/** Add someone, or change or delete them. */
 function ContactDialog({ contact, onClose }: { contact: ContactInput; onClose: () => void }) {
-  const { api, isAdmin, canSeePay } = useApp()
+  const { api } = useApp()
   const run = useAction()
   const phone = useMediaQuery(useTheme().breakpoints.down('sm'))
   // What they do is edited in the person's language, and saved as a usual job's English name when it is one.
   const [c, setC] = useState<ContactInput>({ ...contact, job: jobName(contact.job, t) || null })
   const [deleting, setDeleting] = useState(false)
   const set = (p: Partial<ContactInput>) => setC(x => ({ ...x, ...p }))
-  const owner = isAdmin && canSeePay
-  const choices = SEEN_BY.filter(s => s.id !== 'owners' || owner)
 
   const save = async () => {
     const ok = await run(async () => {
@@ -156,10 +141,6 @@ function ContactDialog({ contact, onClose }: { contact: ContactInput; onClose: (
             slotProps={{ htmlInput: { maxLength: CONTACT_LIMITS.website } }} />
           <TextField label={t('Notes')} value={c.notes ?? ''} onChange={e => set({ notes: e.target.value })} multiline minRows={2}
             placeholder={t('e.g. their office address, when to call, what they did for us')} slotProps={{ htmlInput: { maxLength: CONTACT_LIMITS.notes } }} />
-          <TextField select label={t('Who sees it')} value={c.seen_by ?? 'team'} onChange={e => set({ seen_by: e.target.value as ContactSeenBy })}
-            helperText={owner ? undefined : t('Only an owner can make a contact just for the owners.')}>
-            {choices.map(s => <MenuItem key={s.id} value={s.id}>{t(s.label)}</MenuItem>)}
-          </TextField>
         </Stack>
       </DialogContent>
       <DialogActions sx={{ flexWrap: 'wrap', gap: 1 }}>

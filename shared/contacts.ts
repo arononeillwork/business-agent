@@ -1,20 +1,11 @@
 // Contacts: the people the business calls on (the lawyer, the bank, the plumber…), with their phone,
-// WhatsApp, email and website. Each contact says who on the team sees it: everyone, the owners and shop
-// managers, or only the owners; admins add and change them (the `business_contacts` migration, whose
-// rules the demo and the AI tools follow). Easy Beans starts with its own (the test checks the two agree).
-// What someone does is one of the usual jobs, kept by its English name and shown in each person's
-// language, or the business's own words.
+// WhatsApp, email and website. Only the owners (admins with pay access) see and change them (the
+// `business_contacts` migration, whose rules the demo and the AI tools follow). Easy Beans starts with its
+// own (the test checks the two agree). What someone does is one of the usual jobs, kept by its English
+// name and shown in each person's language, or the business's own words.
 import { msg } from './i18n'
 import { EMAIL, cleanPhone } from './customers'
 import { cleanWebsite } from './connections'
-
-/** Who sees a contact: the whole team, the owners and shop managers (admins), or only the owners (admins with pay access). */
-export type ContactSeenBy = 'team' | 'admins' | 'owners'
-export const SEEN_BY: { id: ContactSeenBy; label: string }[] = [
-  { id: 'team', label: msg('Everyone on the team') },
-  { id: 'admins', label: msg('Owners and shop managers') },
-  { id: 'owners', label: msg('Only the owners') },
-]
 
 export interface Contact {
   id: string
@@ -30,7 +21,6 @@ export interface Contact {
   email: string | null
   website: string | null
   notes: string | null
-  seen_by: ContactSeenBy
 }
 export type ContactInput = Partial<Omit<Contact, 'id'>> & { id?: string; name: string }
 
@@ -65,12 +55,6 @@ export function jobKey(typed: string | null | undefined, translate: (s: string) 
   const v = (typed ?? '').trim()
   if (!v) return null
   return USUAL_JOBS.find(j => fold(j) === fold(v) || fold(translate(j)) === fold(v)) ?? v
-}
-
-/** Can someone with these rights see a contact (the database's read rule)? */
-export function seesContact(seenBy: ContactSeenBy, me: { isStaff: boolean; isAdmin: boolean; canSeePay: boolean }) {
-  if (!me.isStaff) return false
-  return seenBy === 'team' || (seenBy === 'admins' && me.isAdmin) || (seenBy === 'owners' && me.isAdmin && me.canSeePay)
 }
 
 /** A contact as saved: blanks are none, the phone and website written the usual way, WhatsApp only with a phone. */
@@ -116,8 +100,8 @@ export const siteName = (url: string) => url.replace(/^https?:\/\/(www\.)?/i, ''
 
 /** Easy Beans' own, as the owners gave them (the `business_contacts` migration puts the same in its database). */
 export const EASY_BEANS_CONTACTS: Omit<Contact, 'id'>[] = [
-  { name: 'Eduardo Torquino', job: 'Lawyer', company: null, phone: '+34 747 758 327', whatsapp: false, email: null, website: null, notes: null, seen_by: 'admins' },
+  { name: 'Eduardo Torquino', job: 'Lawyer', company: null, phone: '+34 747 758 327', whatsapp: false, email: null, website: null, notes: null },
   { name: 'Daniel Cruz Luna', job: 'Bank advisor', company: 'BBVA', phone: '+34 955 677 963', whatsapp: false, email: 'daniel.cruz.luna@bbva.com',
-    website: 'https://www.bbva.es', notes: null, seen_by: 'owners' },
-  { name: 'Miguel', job: 'Plumber & electrician', company: null, phone: '+34 632 042 132', whatsapp: true, email: null, website: null, notes: null, seen_by: 'team' },
+    website: 'https://www.bbva.es', notes: null },
+  { name: 'Miguel', job: 'Plumber & electrician', company: null, phone: '+34 632 042 132', whatsapp: true, email: null, website: null, notes: null },
 ]

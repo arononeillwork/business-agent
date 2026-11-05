@@ -559,7 +559,7 @@ export function createSupabaseApi(url: string, key: string): Api {
     },
 
     async contacts() {
-      return check(await sb.from('business_contacts').select('id, name, job, company, phone, whatsapp, email, website, notes, seen_by').order('name')) as Contact[]
+      return check(await sb.from('business_contacts').select('id, name, job, company, phone, whatsapp, email, website, notes').order('name')) as Contact[]
     },
     async saveContact({ id, ...c }) {
       if (id) { check(await sb.from('business_contacts').update(c).eq('id', id)); return id }

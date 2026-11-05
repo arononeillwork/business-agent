@@ -200,7 +200,7 @@ function Routed() {
         <Route path="rules" element={<StaffRulesPage />} />
         <Route path="checklists" element={<ChecklistsPage />} />
         <Route path="values" element={<CompanyValuesPage />} />
-        <Route path="contacts" element={<ContactsPage />} />
+        <Route path="contacts" element={isAdmin && canSeePay ? <ContactsPage /> : <Navigate to="/" />} />
         <Route path="tips" element={FEATURES.tips ? <TipsPage /> : <Navigate to="/" />} />
         <Route path="hiring" element={isAdmin ? <HiringPage /> : <Navigate to="/" />} />
         <Route path="outsourcing" element={isAdmin ? <OutsourcingPage /> : <Navigate to="/" />} />

@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
-  EASY_BEANS_CONTACTS, contactProblem, jobKey, jobName, matchesContact, seesContact, siteName, sortContacts, tidyContact, type Contact,
+  EASY_BEANS_CONTACTS, contactProblem, jobKey, jobName, matchesContact, siteName, sortContacts, tidyContact, type Contact,
 } from './contacts'
 
 // A stand-in for the app's t(): Spanish for a few usual jobs.
@@ -11,7 +11,7 @@ const es = (s: string) => SPANISH[s] ?? s
 const en = (s: string) => s
 
 const contact = (name: string, p: Partial<Contact> = {}): Contact =>
-  ({ id: name, name, job: null, company: null, phone: null, whatsapp: false, email: null, website: null, notes: null, seen_by: 'team', ...p })
+  ({ id: name, name, job: null, company: null, phone: null, whatsapp: false, email: null, website: null, notes: null, ...p })
 
 describe('contacts', () => {
   it('keeps a usual job by its English name and shows it in the person’s language; anything else as written', () => {
@@ -24,17 +24,6 @@ describe('contacts', () => {
     expect(jobKey('Asesor Bancário', es)).toBe('Bank advisor')
     expect(jobKey('Window cleaner', es)).toBe('Window cleaner')
     expect(jobKey('  ', es)).toBeNull()
-  })
-
-  it('shows each contact to who it says: the team, owners and shop managers, or only the owners', () => {
-    const owner = { isStaff: true, isAdmin: true, canSeePay: true }
-    const manager = { isStaff: true, isAdmin: true, canSeePay: false }
-    const employee = { isStaff: true, isAdmin: false, canSeePay: false }
-    const partner = { isStaff: false, isAdmin: false, canSeePay: false }
-    expect(['team', 'admins', 'owners'].map(s => seesContact(s as Contact['seen_by'], owner))).toEqual([true, true, true])
-    expect(['team', 'admins', 'owners'].map(s => seesContact(s as Contact['seen_by'], manager))).toEqual([true, true, false])
-    expect(['team', 'admins', 'owners'].map(s => seesContact(s as Contact['seen_by'], employee))).toEqual([true, false, false])
-    expect(['team', 'admins', 'owners'].map(s => seesContact(s as Contact['seen_by'], partner))).toEqual([false, false, false])
   })
 
   it('tidies what’s typed: the phone and website the usual way, blanks as none, WhatsApp only with a phone', () => {
@@ -81,10 +70,10 @@ describe('contacts', () => {
       expect(contactProblem(c)).toBeNull()
       expect(tidyContact(c)).toEqual(c)
     }
-    expect(EASY_BEANS_CONTACTS.map(c => [c.name, c.job, c.phone, c.whatsapp, c.seen_by])).toEqual([
-      ['Eduardo Torquino', 'Lawyer', '+34 747 758 327', false, 'admins'],
-      ['Daniel Cruz Luna', 'Bank advisor', '+34 955 677 963', false, 'owners'],
-      ['Miguel', 'Plumber & electrician', '+34 632 042 132', true, 'team'],
+    expect(EASY_BEANS_CONTACTS.map(c => [c.name, c.job, c.phone, c.whatsapp])).toEqual([
+      ['Eduardo Torquino', 'Lawyer', '+34 747 758 327', false],
+      ['Daniel Cruz Luna', 'Bank advisor', '+34 955 677 963', false],
+      ['Miguel', 'Plumber & electrician', '+34 632 042 132', true],
     ])
   })
 

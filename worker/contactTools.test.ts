@@ -1,5 +1,5 @@
-// The Contacts tools for AI assistants: finding someone to call, and adding or changing a contact. Who sees
-// which contact is the database's rule, proven in supabase/tests/zz_y_business_contacts.test.sql.
+// The Contacts tools for AI assistants: finding someone to call, and adding or changing a contact; the
+// owners' own. The database's rule is proven in supabase/tests/zz_y_business_contacts.test.sql.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TOOLS, runTool, toolsFor } from './tools'
 import { serviceClient, type Env } from './supabase'
@@ -35,8 +35,8 @@ describe('contact tools', () => {
   it('lists the contacts in order of what they do, with how to reach them', async () => {
     const out = await run('list_contacts', {}) as Out
     expect(out.contacts.map(c => c.name)).toEqual(['Daniel Cruz Luna', 'Eduardo Torquino', 'Miguel'])
-    expect(out.contacts[0]).toMatchObject({ what_they_do: 'Bank advisor', company: 'BBVA', phone: '+34 955 677 963', email: 'daniel.cruz.luna@bbva.com',
-      website: 'https://www.bbva.es', who_sees_it: 'only the owners' })
+    expect(out.contacts[0]).toEqual({ id: 'c2', name: 'Daniel Cruz Luna', what_they_do: 'Bank advisor', company: 'BBVA', phone: '+34 955 677 963', whatsapp: false,
+      email: 'daniel.cruz.luna@bbva.com', website: 'https://www.bbva.es', notes: null })
   })
 
   it('finds someone to call by what they do or their number', async () => {
@@ -50,8 +50,8 @@ describe('contact tools', () => {
   it('adds someone, tidied: a usual job by its English name, the phone and website the usual way', async () => {
     const out = await run('save_contact', { name: 'Cerrajería Rápida', what_they_do: 'locksmith', phone: '600123456', whatsapp: true, website: 'cerrajeria.example' }) as { added: Row }
     expect(out.added).toMatchObject({ name: 'Cerrajería Rápida', what_they_do: 'Locksmith', phone: '+34 600 123 456', whatsapp: true,
-      website: 'https://cerrajeria.example', who_sees_it: 'everyone on the team' })
-    expect(row('Cerrajería Rápida')).toMatchObject({ job: 'Locksmith', seen_by: 'team' })
+      website: 'https://cerrajeria.example' })
+    expect(row('Cerrajería Rápida')).toMatchObject({ job: 'Locksmith', phone: '+34 600 123 456' })
     await expect(run('save_contact', { name: 'miguel' })).rejects.toThrow(/already on file/)
     await expect(run('save_contact', { phone: '600' })).rejects.toThrow(/needs a name/)
   })
@@ -67,20 +67,15 @@ describe('contact tools', () => {
     await expect(run('save_contact', { contact: 'Miguel', email: 'miguel@' })).rejects.toThrow(/full email address/)
   })
 
-  it('lets only an owner make a contact just for the owners', async () => {
-    await expect(run('save_contact', { contact: 'Miguel', who_sees_it: 'owners' }, manager)).rejects.toThrow('Only an owner')
-    await run('save_contact', { contact: 'Miguel', who_sees_it: 'admins' }, manager)
-    expect(row('Miguel').seen_by).toBe('admins')
-    await run('save_contact', { contact: 'Miguel', who_sees_it: 'owners' })
-    expect(row('Miguel').seen_by).toBe('owners')
-  })
-
-  it('reads for the team, changes for admins, nothing for partners', async () => {
+  it('is for the owners only: not shop managers, employees or partners', async () => {
     const names = (me: Profile) => toolsFor(me).map(t => t.name).filter(n => ['list_contacts', 'save_contact'].includes(n))
     expect(names(owner)).toEqual(['list_contacts', 'save_contact'])
-    expect(names(manager)).toEqual(['list_contacts', 'save_contact'])
-    expect(names(employee)).toEqual(['list_contacts'])
+    expect(names(employee)).toEqual([])
     expect(names(partner)).toEqual([])
-    await expect(run('save_contact', { name: 'Pepe' }, employee)).rejects.toThrow('Only admins can do that')
+    // A shop manager is an admin without pay access: offered the admins' tools, but turned away.
+    await expect(run('list_contacts', {}, manager)).rejects.toThrow('Only the owners see the contacts')
+    await expect(run('save_contact', { contact: 'Miguel', notes: 'x' }, manager)).rejects.toThrow('Only the owners see the contacts')
+    await expect(run('list_contacts', {}, employee)).rejects.toThrow('Only admins can do that')
+    expect(row('Miguel').notes).toBeNull()
   })
 })

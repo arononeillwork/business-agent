@@ -317,8 +317,7 @@ export interface Api {
   /** Values (or one value's points, or the words) in this order. */
   orderCompanyValues(ids: string[]): Promise<void>
 
-  // Contacts: the people the business calls on (the lawyer, the bank, the plumber). Each says who on the team
-  // sees it; admins change the ones they see (only an owner makes one owners-only).
+  // Contacts: the people the business calls on (the lawyer, the bank, the plumber). Only the owners see and change them.
   contacts(): Promise<Contact[]>
   /** Add one (no id) or change one; returns its id. */
   saveContact(c: ContactInput): Promise<string>

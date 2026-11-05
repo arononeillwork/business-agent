@@ -2,9 +2,6 @@
 export default {
   'Contacts': 'Contactos',
   'Add a contact': 'Añadir un contacto',
-  'Everyone on the team': 'Todo el equipo',
-  'Owners and shop managers': 'Propietarios y encargados de tienda',
-  'Only the owners': 'Solo los propietarios',
   'Lawyer': 'Abogado',
   'Accountant / gestoría': 'Gestoría / contable',
   'Bank advisor': 'Asesor bancario',
@@ -25,12 +22,9 @@ export default {
   'Name, job, company or number': 'Nombre, trabajo, empresa o número',
   'Search contacts': 'Buscar contactos',
   'Add the people the business calls on: the lawyer, the bank, the plumber…': 'Añade a las personas a las que llama el negocio: el abogado, el banco, el fontanero…',
-  'No contacts here yet.': 'Aún no hay contactos aquí.',
   'Nobody matches “{text}”.': 'Nadie coincide con «{text}».',
   'What they do': 'A qué se dedica',
   'e.g. Lawyer': 'p. ej. Abogado',
   'e.g. BBVA': 'p. ej. BBVA',
   'e.g. their office address, when to call, what they did for us': 'p. ej. la dirección de su oficina, cuándo llamar, qué hizo por nosotros',
-  'Who sees it': 'Quién lo ve',
-  'Only an owner can make a contact just for the owners.': 'Solo un propietario puede hacer que un contacto lo vean solo los propietarios.',
 } satisfies Record<string, string>

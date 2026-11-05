@@ -1,8 +1,7 @@
 -- Contacts (Business section): the people the business calls on (the lawyer, the bank, the plumber…),
 -- with their phone, WhatsApp, email and website.
--- Who: each contact says who on the team sees it: everyone, the owners and shop managers (admins), or
--- only the owners (admins with pay access). Admins add, change and remove the ones they see; a shop
--- manager can't make one owners-only. Partners and the café tablet see none.
+-- Who: only the owners (admins with pay access) read and change them. Shop managers, employees,
+-- partners and the café tablet see none.
 
 create table public.business_contacts (
   id          uuid primary key default gen_random_uuid(),
@@ -19,7 +18,6 @@ create table public.business_contacts (
   email       text check (char_length(email) <= 254 and email ~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$'),
   website     text check (char_length(website) <= 300 and website ~* '^https?://[^\s/]+\S*$'),
   notes       text check (char_length(notes) between 1 and 2000),
-  seen_by     text not null default 'team' check (seen_by in ('team', 'admins', 'owners')),
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now(),
   updated_by  uuid references auth.users on delete set null default auth.uid()
@@ -53,16 +51,8 @@ create trigger audit_business_contacts after insert or update or delete on publi
 
 alter table public.business_contacts enable row level security;
 revoke all on public.business_contacts from anon;
-create policy business_contacts_read on public.business_contacts for select to authenticated using (
-  case seen_by when 'team' then (select public.is_staff()) when 'admins' then (select public.is_admin()) else (select public.can_see_pay()) end);
--- Admins change the ones they see, and can't hide one from themselves (owners-only needs an owner).
-create policy business_contacts_add on public.business_contacts for insert to authenticated
-  with check ((select public.is_admin()) and (seen_by <> 'owners' or (select public.can_see_pay())));
-create policy business_contacts_change on public.business_contacts for update to authenticated
-  using ((select public.is_admin()) and (seen_by <> 'owners' or (select public.can_see_pay())))
-  with check ((select public.is_admin()) and (seen_by <> 'owners' or (select public.can_see_pay())));
-create policy business_contacts_remove on public.business_contacts for delete to authenticated
-  using ((select public.is_admin()) and (seen_by <> 'owners' or (select public.can_see_pay())));
+create policy business_contacts_owners on public.business_contacts for all to authenticated
+  using ((select public.can_see_pay())) with check ((select public.can_see_pay()));
 
 -- ---------------------------------------------------------------------------
 -- Easy Beans (business 1): the lawyer, the bank advisor and the plumber & electrician
@@ -73,15 +63,15 @@ do $$
 declare
   v_contacts constant jsonb := $json$
 [
-  {"name": "Eduardo Torquino", "job": "Lawyer", "company": null, "phone": "+34 747 758 327", "whatsapp": false, "email": null, "website": null, "notes": null, "seen_by": "admins"},
-  {"name": "Daniel Cruz Luna", "job": "Bank advisor", "company": "BBVA", "phone": "+34 955 677 963", "whatsapp": false, "email": "daniel.cruz.luna@bbva.com", "website": "https://www.bbva.es", "notes": null, "seen_by": "owners"},
-  {"name": "Miguel", "job": "Plumber & electrician", "company": null, "phone": "+34 632 042 132", "whatsapp": true, "email": null, "website": null, "notes": null, "seen_by": "team"}
+  {"name": "Eduardo Torquino", "job": "Lawyer", "company": null, "phone": "+34 747 758 327", "whatsapp": false, "email": null, "website": null, "notes": null},
+  {"name": "Daniel Cruz Luna", "job": "Bank advisor", "company": "BBVA", "phone": "+34 955 677 963", "whatsapp": false, "email": "daniel.cruz.luna@bbva.com", "website": "https://www.bbva.es", "notes": null},
+  {"name": "Miguel", "job": "Plumber & electrician", "company": null, "phone": "+34 632 042 132", "whatsapp": true, "email": null, "website": null, "notes": null}
 ]
 $json$;
 begin
   if not exists (select 1 from public.business where id = 1) then return; end if;
   if exists (select 1 from public.business_contacts where business_id = 1) then return; end if;
-  insert into public.business_contacts (business_id, name, job, company, phone, whatsapp, email, website, notes, seen_by)
-  select 1, c.name, c.job, c.company, c.phone, c.whatsapp, c.email, c.website, c.notes, c.seen_by
-    from jsonb_to_recordset(v_contacts) as c(name text, job text, company text, phone text, whatsapp boolean, email text, website text, notes text, seen_by text);
+  insert into public.business_contacts (business_id, name, job, company, phone, whatsapp, email, website, notes)
+  select 1, c.name, c.job, c.company, c.phone, c.whatsapp, c.email, c.website, c.notes
+    from jsonb_to_recordset(v_contacts) as c(name text, job text, company text, phone text, whatsapp boolean, email text, website text, notes text);
 end $$;
