@@ -1499,15 +1499,25 @@ test.describe('event alerts', () => {
   })
 })
 
-test('Today is a short overview: who’s on and the hours, what’s coming up, your shifts, big nights and music', async ({ page }) => {
+test('Today is a short overview: a top row of small cards (clock, who’s on, music), what’s coming up, your shifts and big nights', async ({ page }) => {
   await open(page, '/', 'maria@example.com')
   await expect(page.getByRole('heading', { name: 'Hola, Maria' })).toBeVisible()
   await expect(page.getByRole('list', { name: 'At a glance' })).toHaveCount(0) // no counters
   const who = page.getByRole('region', { name: "Who's on today" })
   await expect(who).toContainText(/The café is (open \d\d:\d\d–\d\d:\d\d|closed today)/)
+  await expect(who.getByRole('list', { name: 'On the rota today' }).getByRole('listitem', { name: /^Maria/ })).toContainText('10:00')
   for (const name of ['Coming up', 'My next shifts', 'Big nights']) await expect(page.getByRole('region', { name })).toBeVisible()
-  // Two columns on a computer: your own things on the right.
-  const left = (await who.boundingBox())!, right = (await page.getByRole('region', { name: 'My next shifts' }).boundingBox())!
+  // The top row on a computer: clocking in, who's on and the café music side by side.
+  const clock = (await page.getByRole('region', { name: 'Your clock' }).boundingBox())!, team = (await who.boundingBox())!
+  const music = (await page.getByRole('region', { name: 'Café music' }).boundingBox())!
+  for (const box of [team, music]) expect(Math.abs(box.y - clock.y)).toBeLessThan(2)
+  expect(team.x).toBeGreaterThan(clock.x + clock.width - 2)
+  expect(music.x).toBeGreaterThan(team.x + team.width - 2)
+  // Each card's arrow opens its page.
+  await expect(who.getByRole('link', { name: 'Open the rota' })).toHaveAttribute('href', '/rota')
+  await expect(page.getByRole('region', { name: 'Coming up' }).getByRole('link', { name: 'Open the Calendar' })).toHaveAttribute('href', '/calendar')
+  // Then two columns: your own things on the right.
+  const left = (await page.getByRole('region', { name: 'Coming up' }).boundingBox())!, right = (await page.getByRole('region', { name: 'My next shifts' }).boundingBox())!
   expect(right.x).toBeGreaterThan(left.x + left.width - 2)
   expect(Math.abs(right.y - left.y)).toBeLessThan(4)
 })
@@ -6268,6 +6278,7 @@ test.describe('contacts', () => {
     const eduardo = list.getByRole('listitem', { name: 'Eduardo Torquino' })
     await expect(eduardo).toContainText('Lawyer')
     await expect(eduardo.getByRole('link', { name: '+34 747 758 327' })).toHaveAttribute('href', 'tel:+34747758327')
+    await expect(eduardo.getByRole('link', { name: 'torquino71@gmail.com' })).toHaveAttribute('href', 'mailto:torquino71@gmail.com')
     const miguel = list.getByRole('listitem', { name: 'Miguel' })
     await expect(miguel).toContainText('Plumber & electrician')
     await expect(miguel.getByRole('link', { name: '+34 632 042 132' })).toHaveAttribute('href', 'tel:+34632042132')
@@ -7530,12 +7541,29 @@ test.describe('UI round: dashboards, the business advisor and the landing pages'
   test('Today: the numbers that matter at a glance, and the advisor’s first findings for admins', async ({ page }) => {
     await open(page, '/')
     const glance = page.getByRole('region', { name: 'At a glance' })
-    await expect(glance.getByRole('region', { name: 'Low on stock' })).toContainText('Caramel syrup')
-    await expect(glance.getByRole('region', { name: 'Jobs to do' })).toBeVisible()
+    // Small cards: the three lowest on stock and the first three jobs, each with an arrow to its page (no "Open page" buttons).
+    const low = glance.getByRole('region', { name: 'Low on stock' })
+    await expect(low).toContainText('Caramel syrup')
+    await expect(low).toContainText(/and \d+ more/)
+    const jobs = glance.getByRole('region', { name: 'Jobs to do' })
+    await expect(jobs.getByRole('list', { name: 'Jobs to do first' }).getByRole('listitem')).toHaveCount(3)
+    await expect(glance.getByRole('button', { name: 'Open page' })).toHaveCount(0)
+    await expect(low.getByRole('link', { name: 'Open Stock' })).toHaveAttribute('href', '/stock')
+    // No till yet: no takings, so no breakeven card.
+    await expect(page.getByRole('region', { name: 'Takings today' })).toHaveCount(0)
     await connectSquare(page)
     await page.getByRole('link', { name: 'Home: Today' }).first().click()
-    await expect(page.getByRole('region', { name: 'Takings today' })).toContainText('€')
+    // Today's takings against the day's breakeven: the figure, the bar to the mark, and the day so far as a line.
+    const takings = page.getByRole('region', { name: 'Takings today' })
+    await expect(takings).toContainText(/€[\d.,]+so far, of €[\d.,]+ to break even/)
+    await expect(takings.getByRole('meter', { name: 'Takings towards breakeven' })).toBeVisible()
+    await expect(takings.getByRole('status')).toContainText(/€[\d.,]+ (to go|over breakeven)/)
+    await expect(takings.getByRole('img', { name: /^Takings through the day, €[\d.,]+ so far, against a breakeven of €/ })).toBeVisible()
     await expect(page.getByRole('region', { name: 'At a glance' }).getByRole('region', { name: 'Business advisor' })).toBeVisible()
+    // The advisor's findings open their page from an arrow too.
+    await expect(page.getByRole('region', { name: 'Business advisor' }).getByRole('link', { name: 'Open page' }).first()).toBeVisible()
+    await jobs.getByRole('link', { name: 'Open the To Do List' }).click()
+    await expect(page).toHaveURL(/\/todo/)
   })
 
   test('signed out: the landing page says what’s inside, by area, and what the figures can tell you', async ({ page }) => {

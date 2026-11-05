@@ -77,9 +77,12 @@ describe('contacts', () => {
     ])
   })
 
-  it('puts the same into Easy Beans’ database (the `business_contacts` migration)', () => {
+  it('puts the same into Easy Beans’ database (the `business_contacts` migration, then the `lawyer_email` one)', () => {
     const dir = join(import.meta.dirname, '../supabase/migrations')
-    const sql = readFileSync(join(dir, readdirSync(dir).find(f => f.endsWith('_business_contacts.sql'))!), 'utf8')
-    expect(JSON.parse(sql.split('$json$')[1])).toEqual(EASY_BEANS_CONTACTS)
+    const read = (end: string) => readFileSync(join(dir, readdirSync(dir).find(f => f.endsWith(end))!), 'utf8')
+    const seeded = JSON.parse(read('_business_contacts.sql').split('$json$')[1]) as typeof EASY_BEANS_CONTACTS
+    const email = /set email = '([^']+)'/.exec(read('_lawyer_email.sql'))![1]
+    expect(seeded.map(c => (c.name === 'Eduardo Torquino' ? { ...c, email } : c))).toEqual(EASY_BEANS_CONTACTS)
+    expect(EASY_BEANS_CONTACTS[0].email).toBe('torquino71@gmail.com')
   })
 })

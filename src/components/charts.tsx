@@ -362,3 +362,104 @@ export function ScatterChart({ points, xFormat, yFormat, xLabel, yLabel, xGuide,
     </Box>
   )
 }
+
+export interface RunPoint {
+  /** Along the bottom: hours since midnight (9.5 is half past nine). */
+  at: number
+  total: number
+}
+
+/**
+ * A running total through the day as a line with a soft fill, and a target (breakeven) as a red
+ * line across it, named at its end. Hover, tap or use the arrow keys for the total at each point.
+ */
+export function RunningTotal({ points, from, to, target, targetName, format, axisFormat = format, tipTitle, label, height = 128 }: {
+  points: RunPoint[]
+  /** The span along the bottom, in hours since midnight. */
+  from: number
+  to: number
+  target?: number
+  targetName?: string
+  format: (n: number) => string
+  axisFormat?: (n: number) => string
+  /** The tooltip's heading for a point ("By 11:00"). */
+  tipTitle: (p: RunPoint) => string
+  label: string
+  height?: number
+}) {
+  const [ref, width] = useWidth<HTMLDivElement>()
+  const [hover, setHover] = useState<number | null>(null)
+  const n = points.length
+  const top = 14, bottom = 22
+  const max = niceMax(Math.max(target ?? 0, ...points.map(p => p.total)) * 1.08)
+  const left = Math.max(28, axisFormat(max).length * 6.4 + 10), right = 10
+  const plotW = Math.max(0, width - left - right), plotH = height - top - bottom
+  const x = (h: number) => left + (to > from ? (h - from) / (to - from) : 0) * plotW
+  const y = (v: number) => top + plotH - (v / max) * plotH
+  const line = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(p.at)},${y(p.total)}`).join('')
+  const area = n ? `${line}L${x(points[n - 1].at)},${y(0)}L${x(points[0].at)},${y(0)}Z` : ''
+  // Hour marks: every 2 hours on a narrow card, every hour when there's room.
+  const step = plotW / Math.max(1, to - from) >= 34 ? 1 : plotW / Math.max(1, to - from) >= 17 ? 2 : 3
+  const marks = Array.from({ length: Math.floor((to - from) / step) + 1 }, (_, i) => from + i * step)
+  const pick = (e: PointerEvent<SVGRectElement>) => {
+    if (!n) return
+    const box = e.currentTarget.getBoundingClientRect()
+    const h = from + ((e.clientX - box.left) / Math.max(1, box.width)) * (to - from)
+    let best = 0
+    points.forEach((p, i) => { if (Math.abs(p.at - h) < Math.abs(points[best].at - h)) best = i })
+    setHover(best)
+  }
+  const keys = (e: KeyboardEvent) => {
+    if (n && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+      e.preventDefault()
+      setHover(h => Math.max(0, Math.min(n - 1, (h ?? (e.key === 'ArrowRight' ? -1 : n)) + (e.key === 'ArrowRight' ? 1 : -1))))
+    }
+  }
+  const at = hover !== null && hover < n ? points[hover] : null
+  const last = n ? points[n - 1] : null
+  const tipW = 150
+  return (
+    <Box ref={ref} sx={{ position: 'relative', width: '100%' }}>
+      {width > 0 && (
+        <Box component="svg" width={width} height={height} role="img" tabIndex={0} onKeyDown={keys} onBlur={() => setHover(null)} aria-label={label}
+          sx={{ display: 'block', outline: 'none', '&:focus-visible': { outline: `2px solid ${tokens.rose}`, borderRadius: '8px' } }}>
+          {[0, 0.5, 1].map(f => (
+            <g key={f}>
+              <line x1={left} x2={left + plotW} y1={y(f * max)} y2={y(f * max)} stroke={tokens.line} strokeWidth={1} />
+              <text x={left - 8} y={y(f * max) + 4} textAnchor="end" fontSize={11} fill={tokens.inkFaint}>{axisFormat(f * max)}</text>
+            </g>
+          ))}
+          {marks.map(h => (
+            <text key={h} x={x(h)} y={height - 6} textAnchor={h === from ? 'start' : h === to ? 'end' : 'middle'} fontSize={11} fill={tokens.inkFaint}>
+              {`${String(h % 24).padStart(2, '0')}`}
+            </text>
+          ))}
+          {n > 1 && <path d={area} fill={tokens.chart} fillOpacity={0.16} />}
+          {n > 1 && <path d={line} fill="none" stroke={tokens.chart} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />}
+          {target !== undefined && target > 0 && (
+            <g pointerEvents="none">
+              <line x1={left} x2={left + plotW} y1={y(target)} y2={y(target)} stroke={tokens.danger} strokeWidth={2} strokeLinecap="round" />
+              {targetName && <text x={left + plotW} y={y(target) - 6} textAnchor="end" fontSize={11} fontWeight={600} fill={tokens.inkSoft}>{targetName}</text>}
+            </g>
+          )}
+          {last && <circle cx={x(last.at)} cy={y(last.total)} r={4.5} fill={tokens.chart} stroke={tokens.surface} strokeWidth={2} pointerEvents="none" />}
+          {at && (
+            <g pointerEvents="none">
+              <line x1={x(at.at)} x2={x(at.at)} y1={top} y2={top + plotH} stroke={tokens.lineStrong} strokeWidth={1} />
+              <circle cx={x(at.at)} cy={y(at.total)} r={5} fill={tokens.chartHover} stroke={tokens.surface} strokeWidth={2} />
+            </g>
+          )}
+          <rect x={left} y={top} width={plotW} height={plotH + bottom} fill="transparent"
+            onPointerMove={pick} onPointerDown={pick} onPointerLeave={() => setHover(null)} />
+        </Box>
+      )}
+      {at && width > 0 && (
+        <Box role="status" sx={{ position: 'absolute', top: 0, left: Math.min(Math.max(0, x(at.at) - tipW / 2), width - tipW), width: tipW, pointerEvents: 'none',
+          bgcolor: tokens.surface, border: `1px solid ${tokens.line}`, borderRadius: '10px', boxShadow: `0 8px 24px -12px ${tokens.shadow}`, p: 1 }}>
+          <Typography variant="caption" sx={{ color: 'text.secondary' }}>{tipTitle(at)}</Typography>
+          <Typography sx={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{format(at.total)}</Typography>
+        </Box>
+      )}
+    </Box>
+  )
+}

@@ -34,8 +34,8 @@ do $$ begin
   assert (select array_agg(name order by name) from public.business_contacts) = array['Daniel Cruz Luna', 'Eduardo Torquino', 'Miguel'], 'all three';
   assert (select row(job, company, phone, whatsapp, email, website)::text from public.business_contacts where name = 'Daniel Cruz Luna')
     = row('Bank advisor', 'BBVA', '+34 955 677 963', false, 'daniel.cruz.luna@bbva.com', 'https://www.bbva.es')::text, 'the bank advisor';
-  assert (select row(job, phone, whatsapp)::text from public.business_contacts where name = 'Eduardo Torquino')
-    = row('Lawyer', '+34 747 758 327', false)::text, 'the lawyer';
+  assert (select row(job, phone, whatsapp, email)::text from public.business_contacts where name = 'Eduardo Torquino')
+    = row('Lawyer', '+34 747 758 327', false, 'torquino71@gmail.com')::text, 'the lawyer, with his email';
   assert (select row(job, phone, whatsapp)::text from public.business_contacts where name = 'Miguel')
     = row('Plumber & electrician', '+34 632 042 132', true)::text, 'the plumber, on WhatsApp';
 end $$;
