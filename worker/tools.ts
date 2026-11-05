@@ -21,6 +21,7 @@ import {
 } from '../shared/localCompetitors'
 import { balanceOf, earnsCredit, leaderboard, reachMultiplier, reachTier, ruleFits, type RepReward, type RewardRule, type SalesRep } from '../shared/reps'
 import { fillJars, forecast, kittyBalance, monthlyPace, profitShare, type KittyEntry, type KittyGoal } from '../shared/kitty'
+import { periodRange, standings, type Board, type ClockStats } from '../shared/leaderboard'
 import {
   CONTRACTOR_KINDS, COUNTED, QUANTITY_PERS, RATE_UNITS, SERVICES, compareServices, contractState, monthlyCost, optionsFor, outsourcingTotals, presetOf,
   sameJob, sortServices, type Contractor, type OutsourcedJob, type QuantityPer, type RateUnit,
@@ -1369,6 +1370,31 @@ export const ALL_TOOLS: ToolDef[] = [
         bought: jars.filter(j => j.bought).map(j => ({ goal: j.goal.name, spent: j.goal.spent, on: j.goal.bought_on })),
         latest_money_in: entries.slice(0, 12).map(e => ({ kind: e.kind, month: e.month?.slice(0, 7) ?? null, percent: e.percent === null ? null : Number(e.percent),
           amount: e.amount, note: e.note, on: localDate(e.created_at) })),
+      }
+    },
+  }),
+  // ---------------- Leaderboard ----------------
+  tool({
+    name: 'team_leaderboard',
+    title: 'Team leaderboard',
+    description: 'The team side by side for a period (this week, last week, this month, last month, or from and to dates): who clocks in on time (within 5 minutes of the shift starting), the longest run of on-time starts, hours worked and daily checklist items ticked, each with their place (people level share one). Who sold most at the till comes from Square and is on the Leaderboard page.',
+    readOnly: true,
+    input: z.object({
+      period: z.enum(['week', 'last_week', 'month', 'last_month']).optional().describe('Default: this month'),
+      from: date.optional(), to: date.optional(),
+    }),
+    async run({ sb }, a) {
+      const { from, to } = a.from && a.to ? { from: a.from, to: a.to } : periodRange(a.period ?? 'month', today())
+      const [stats, people] = await Promise.all([
+        sb.rpc('team_leaderboard', { p_from: from, p_to: to }).then(rowsAs<ClockStats[]>()), team(sb)])
+      const name = (id: string) => people.find(p => p.id === id)?.full_name ?? 'Unknown'
+      const board = (b: Board) => standings(b, stats).map(s => ({ place: s.rank, person: name(s.profile_id), value: s.value, ...s.detail }))
+      return {
+        from, to,
+        on_time: board('on_time').map(({ value, ...r }) => ({ ...r, on_time_percent: Math.round(value * 100) })),
+        longest_on_time_streak: board('streak').map(({ value, ...r }) => ({ ...r, shifts_in_a_row: value })),
+        hours_worked: board('hours').map(({ value, ...r }) => ({ ...r, hours: value })),
+        checklist_items_ticked: board('checklists').map(({ value, ...r }) => ({ ...r, items: value })),
       }
     },
   }),

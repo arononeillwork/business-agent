@@ -242,6 +242,15 @@ export class FakeProviders {
       { id: 'SQC2', given_name: 'Tom', email_address: 'tom@example.co.uk', note: 'Oat flat white', updated_at: '2026-09-02T10:00:00Z' },
       { id: 'SQC3', company_name: 'No way to reach them', updated_at: '2026-09-03T10:00:00Z' },
     ] as { id: string; updated_at: string; [k: string]: string }[],
+    /** Team members (each person's own Square login). `teamScope: false` is a connection made before EMPLOYEES_READ and EMPLOYEES_WRITE were asked for. */
+    teamScope: true,
+    teamMembers: [
+      { id: 'TM_aron', given_name: 'Aron', family_name: "O'Neill", email_address: 'aron@example.com', is_owner: true, status: 'ACTIVE' },
+      { id: 'TM_julio', given_name: 'Julio', email_address: 'julio.till@example.com', status: 'ACTIVE' },
+      { id: 'TM_sofia', given_name: 'Sofía', status: 'ACTIVE' },
+    ] as { id: string; [k: string]: unknown }[],
+    /** Team members made by the app, by idempotency key. */
+    teamCreated: new Map<string, { id: string; [k: string]: unknown }>(),
     /** Loyalty and gift cards. `loyaltyScope: false` is a connection made before LOYALTY_READ and GIFTCARDS_READ were asked for. */
     loyaltyScope: true,
     /** The loyalty programme (null: none set up): a stamp card, a stamp a visit, the 10th coffee free. */
@@ -1020,6 +1029,25 @@ export class FakeProviders {
         if (one && method === 'GET') {
           const card = sq.giftCards.find(g => g.id === decodeURIComponent(one[1]))
           return card ? json({ gift_card: card }) : json({ errors: [{ category: 'INVALID_REQUEST_ERROR', code: 'NOT_FOUND', detail: 'Gift card not found' }] }, 404)
+        }
+      }
+      if (url.pathname.startsWith('/v2/team-members')) {
+        const sq = this.square
+        if (!sq.teamScope) return json({ errors: [{ category: 'AUTHENTICATION_ERROR', code: 'INSUFFICIENT_SCOPES', detail: 'The merchant has not granted EMPLOYEES_READ' }] }, 403)
+        if (url.pathname === '/v2/team-members/search' && method === 'POST') return json({ team_members: sq.teamMembers })
+        if (url.pathname === '/v2/team-members' && method === 'POST') {
+          const b = body() as { idempotency_key: string; team_member: Record<string, unknown> }
+          const kept = sq.teamCreated.get(b.idempotency_key)
+          if (kept) return json({ team_member: kept })
+          const m = { ...b.team_member, id: `TM-${this.nextId++}` }
+          sq.teamCreated.set(b.idempotency_key, m)
+          sq.teamMembers.push(m)
+          return json({ team_member: m })
+        }
+        const one = url.pathname.match(/^\/v2\/team-members\/([^/]+)$/)
+        if (one && method === 'GET') {
+          const m = sq.teamMembers.find(x => x.id === decodeURIComponent(one[1]))
+          return m ? json({ team_member: m }) : json({ errors: [{ category: 'INVALID_REQUEST_ERROR', code: 'NOT_FOUND', detail: 'Team member not found' }] }, 404)
         }
       }
       if (url.pathname === '/v2/orders/search' && method === 'POST') {

@@ -18,6 +18,8 @@ import type { LegalDocument, LegalDocumentPatch, LegalSource, LegalStorage, Stor
 import type { Benefit, BenefitInput, LeaveAllowance } from '../../shared/benefits'
 import type { CrewSuggestion, LoggedReward, RepClaim, RepPageData, RepReward, RepSettings, RewardLog, RewardRule, RewardRuleInput, SalesRep, SalesRepInput, SocialLookup } from '../../shared/reps'
 import type { KittyEntry, KittyEntryInput, KittyGoal, KittyGoalInput, KittySettings } from '../../shared/kitty'
+import type { ClockStats, TillBoard } from '../../shared/leaderboard'
+import type { SquareTeam } from '../../shared/squareTeam'
 import type { JobRole, JobRoleInput } from '../../shared/roles'
 import type { RoleOwner } from '../../shared/roleOwners'
 import type { TeamRole } from '../../shared/teamRoles'
@@ -562,6 +564,19 @@ export interface Api {
   kittyEntries(): Promise<KittyEntry[]>
   addKittyEntry(e: KittyEntryInput): Promise<void>
   deleteKittyEntry(id: string): Promise<void>
+
+  // Leaderboard (Team): everyone's clock-ins for a period, added up (the whole team sees them), and who
+  // sold most at the till from Square (amounts for owners only).
+  leaderboard(from: string, to: string): Promise<ClockStats[]>
+  leaderboardTill(from: string, to: string): Promise<TillBoard>
+  // Each person's own Square login (admins, on their Team panel): link them to a Square team member, or add them to Square.
+  squareTeam(): Promise<SquareTeam>
+  /** Link someone to a Square team member (null: unlink them). */
+  linkSquareMember(profileId: string, teamMemberId: string | null): Promise<void>
+  /** Link everyone the app can match by email, then by name; how many it linked. */
+  matchSquareMembers(): Promise<number>
+  /** Add someone to Square as a team member (or link the one with their email already there). */
+  addToSquare(profileId: string): Promise<{ team_member_id: string; existing: boolean }>
 
   // Grants (admins with pay access; finance partners read): the answers that decide which fit, and the applications
   /** The answers given so far (what the app works out by itself isn't saved). */

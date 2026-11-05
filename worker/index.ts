@@ -29,6 +29,7 @@ import { reports } from './reports'
 import { sendDueReports } from './reportSchedules'
 import { serveVideo } from './video'
 import { loyaltyRoutes } from './loyalty'
+import { leaderboard } from './leaderboard'
 import { assistant } from './assistant'
 import { refreshReviews, reviews, reviewsConfigured } from './reviews'
 import { clearOldCache } from './cache'
@@ -287,6 +288,8 @@ app.route('/', email)
 app.route('/', reports)
 // Square loyalty (the stamp card) and gift cards, for the Loyalty page.
 app.route('/', loyaltyRoutes)
+// Leaderboard: who sold most at the till (Square), and each person's own Square login (Team page).
+app.route('/', leaderboard)
 // The in-app assistant: questions answered by Claude with the person's own tools.
 app.route('/', assistant)
 // Reviews (Google) and Website & SEO (Marketing).

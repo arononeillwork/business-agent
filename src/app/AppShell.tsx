@@ -31,6 +31,7 @@ import KioskIcon from '@mui/icons-material/TabletMacOutlined'
 import TimeOffIcon from '@mui/icons-material/BeachAccessOutlined'
 import BenefitsIcon from '@mui/icons-material/CardGiftcardOutlined'
 import KittyIcon from '@mui/icons-material/SavingsOutlined'
+import LeaderboardIcon from '@mui/icons-material/LeaderboardOutlined'
 import RepsIcon from '@mui/icons-material/RecordVoiceOverOutlined'
 import RolesIcon from '@mui/icons-material/AssignmentIndOutlined'
 import RulesIcon from '@mui/icons-material/RuleOutlined'
@@ -205,6 +206,8 @@ export const SECTIONS: NavSection[] = [
     { key: 'timeoff', to: '/time-off', label: msg('Time off'), icon: <TimeOffIcon /> },
     { key: 'benefits', to: '/benefits', label: msg('Staff benefits'), short: msg('Benefits'), icon: <BenefitsIcon />, who: 'admin', partner: ['payroll'] },
     { key: 'kitty', to: '/kitty', label: msg('Staff kitty'), short: msg('Kitty'), icon: <KittyIcon /> },
+    // The team side by side: on time, hours, checklists and who sold most at the till (Square).
+    { key: 'leaderboard', to: '/leaderboard', label: msg('Leaderboard'), icon: <LeaderboardIcon /> },
     { key: 'timecards', to: '/timecards', label: msg('Timecards'), short: msg('Hours'), icon: <TimecardIcon />, partner: ['payroll'] },
     ...(FEATURES.tips ? [{ key: 'tips', to: '/tips', label: msg('Tips'), icon: <TipsIcon />, partner: ['payroll'] as PartnerArea[] }] : []),
     { key: 'hiring', to: '/hiring', label: msg('Hiring'), icon: <HiringIcon />, who: 'admin' },

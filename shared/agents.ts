@@ -75,7 +75,7 @@ export const AGENTS: readonly Agent[] = [
       { page: 'foodsafety', question: msg('Are the food safety checks done?') },
     ]),
   usual('people', 'people', msg('People & HR agent'), msg('What looking after the team needs: the rota, time off, hours, hiring, roles and rules'),
-    ['people', 'team', 'rota', 'timeoff', 'benefits', 'kitty', 'timecards', 'hiring', 'roles', 'rules', 'outsourcing'], [
+    ['people', 'team', 'rota', 'timeoff', 'benefits', 'kitty', 'leaderboard', 'timecards', 'hiring', 'roles', 'rules', 'outsourcing'], [
       { page: 'timeoff', question: msg('Who is off, and who has asked?') },
       { page: 'timecards', question: msg('Are the timecards approved?') },
       { page: 'hiring', question: msg('Who has applied for a job?') },

@@ -51,6 +51,7 @@ import { DEMO_THEME_TRACKS, demoThemeDayApi } from './demoThemeDays'
 import { demoChecklistApi } from './demoChecklists'
 import { demoCompanyValuesApi } from './demoCompanyValues'
 import { demoContactsApi } from './demoContacts'
+import { demoLeaderboardApi } from './demoLeaderboard'
 import { demoContentApi } from './demoContent'
 import { demoFreshApi } from './demoFreshBatches'
 import { reportSendProblem, scheduleProblem, type ReportSchedule } from '../../shared/reports'
@@ -1328,6 +1329,14 @@ export function createDemoApi(): Api {
     }
     e.flags = computeFlags(e)
   }
+  // A few late starts, so Late starts and the Leaderboard have something to show: the cleaner on Mondays
+  // (12 minutes) and Maria on Wednesdays (7 minutes).
+  for (const e of entries) {
+    const s = shifts.find(x => x.id === e.shift_id)!
+    const weekday = new Date(`${localDate(s.starts_at)}T12:00:00Z`).getUTCDay()
+    const late = e.profile_id === P.cleaner && weekday === 1 ? 12 : e.profile_id === P.maria && weekday === 3 ? 7 : 0
+    if (late) e.clock_in = new Date(Date.parse(s.starts_at) + late * 60000).toISOString()
+  }
   // Approve last week.
   const lastMonday = addDays(weekStart(today()), -7)
   for (const e of entries) if (localDate(e.clock_in) < weekStart(today()) && localDate(e.clock_in) >= lastMonday) e.approved_at = nowIso()
@@ -2604,6 +2613,13 @@ export function createDemoApi(): Api {
     ...freshApi,
     // Contacts (Business, owners only): Easy Beans' lawyer, bank advisor and plumber, as the `business_contacts` migration.
     ...demoContactsApi({ isOwner: () => isAdmin() && !!me()?.active && !!me()?.can_see_pay, uid }),
+    // Leaderboard (Team) and each person's Square login: the demo's timecards and till, as the `team_leaderboard` migration and worker/leaderboard.ts.
+    ...demoLeaderboardApi({
+      isStaff: () => isStaff() && !!me()?.active, isAdmin: () => isAdmin() && !!me()?.active, canSeePay: () => isAdmin() && !!me()?.can_see_pay,
+      team: () => profiles, entries: () => entries.map(totals), shifts: () => shifts, ticks: day => checklistApi.checklistTicks(day),
+      squareOn, takingsOnPlan: () => planById(effectivePlan(demoBilling)).features.includes('takings'),
+      sales: (from, to) => demoSales(from, to, 'square').days, today: () => today(), nowIso,
+    }, P),
     // Content (Marketing): a few of Easy Beans' photos and a video; a Google Photos pick brings in more.
     ...demoContentApi({ isAdmin: () => isAdmin() && !!me()?.active, uid, nowIso, storage: () => mediaStorage(),
       photosConnected: () => integ.integrations.some(i => i.provider === 'google_photos' && i.status === 'connected') }),

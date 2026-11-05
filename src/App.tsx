@@ -70,6 +70,7 @@ const LoyaltyPage = page(() => import('./pages/LoyaltyPage'), 'LoyaltyPage')
 const SalesRepsPage = page(() => import('./pages/SalesRepsPage'), 'SalesRepsPage')
 const RepCardsPage = page(() => import('./pages/RepCardsPage'), 'RepCardsPage')
 const KittyPage = page(() => import('./pages/KittyPage'), 'KittyPage')
+const LeaderboardPage = page(() => import('./pages/LeaderboardPage'), 'LeaderboardPage')
 const DashboardsPage = page(() => import('./pages/DashboardsPage'), 'DashboardsPage')
 const AdvisorPage = page(() => import('./pages/AdvisorPage'), 'AdvisorPage')
 const StockPage = page(() => import('./pages/StockPage'), 'StockPage')
@@ -197,6 +198,7 @@ function Routed() {
         <Route path="time-off" element={<TimeOffPage />} />
         <Route path="benefits" element={isAdmin ? <BenefitsPage /> : <Navigate to="/" />} />
         <Route path="kitty" element={<KittyPage />} />
+        <Route path="leaderboard" element={<LeaderboardPage />} />
         <Route path="roles" element={<RolesPage />} />
         <Route path="rules" element={<StaffRulesPage />} />
         <Route path="checklists" element={<ChecklistsPage />} />

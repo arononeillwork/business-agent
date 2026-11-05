@@ -110,6 +110,23 @@ built-in **AI connector** so owners can run it by talking to Claude.
   beans in order, the first until it's full, then the next, each with when it'll be full at the pace money's
   been going in and whether that's in time for its date. Admins put last month's share in (worked out as
   Profit & loss does, or typed in), reorder and buy goals (what it cost comes out); the whole team sees it.
+- Leaderboard (Team section, after the kitty): the team side by side for this week, last week, this month or last
+  month (`/leaderboard?period=last_month`). **On time** is clocking in within 5 minutes of the shift's start, as
+  Late starts on Dashboards counts it (the share, then how many, then the longest run); **On-time streak**, **Hours
+  worked** (finished timecards) and **Checklist items** ticked off come from the app's own records, added up by the
+  database (`team_leaderboard()`, the `team_leaderboard` migration), so everyone sees the board without reading each
+  other's timecards. **Most sales** comes from Square: each payment says which Square team member took it, and each
+  person is linked to theirs. Everyone sees how many sales each person rang up; how much is the owners' (admins with
+  pay access), as with takings, and it needs the takings plan. People level on a board share a place. The AI
+  connector's `team_leaderboard` reads the same (`shared/leaderboard.ts`, `worker/leaderboard.ts`).
+- Square logins (Team page and the Leaderboard, admins): each person's own login at the till is their Square team
+  member. On their Team panel (while Square is connected) an admin picks theirs, or presses **Add to Square** to make
+  them a team member at every location (someone already in Square with their email is linked instead); **Square
+  logins** on the Leaderboard does everyone at once, with **Match by email or name**. Square doesn't let apps set a
+  passcode or permissions: the owner sets their passcode (the PIN for Square Point of Sale) in the Square Dashboard
+  (Staff → Team), and Square then sends them the invitation. Needs Square's `EMPLOYEES_READ` and `EMPLOYEES_WRITE`:
+  a business connected before asks to connect Square again (`shared/squareTeam.ts`). The café tablet's clock-in
+  PINs are separate, and still switched off.
 - People (Team section): the team as a hierarchy, the owners at the top, then the shop managers, then the
   employees, each with the roles they hold on Roles & responsibilities (admins open someone on the Team
   page from there). **Show pets** puts everyone's dogs (and cats) under them with their photos. Each person
