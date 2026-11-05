@@ -5,13 +5,15 @@
 // changes the app makes are goodwill points and selling a digital gift card. Access lasts 30 days
 // and is renewed with the refresh token. ORDERS_READ, CUSTOMERS_READ, the loyalty and gift card
 // permissions and ITEMS_READ (the item library, for the Menu page) came later: a connection made
-// before them still works, without those parts.
+// before them still works, without those parts. So did EMPLOYEES_READ and EMPLOYEES_WRITE: the team
+// members (each person's own Square login, linked on the Team page) and who took each payment
+// (the Leaderboard's sales).
 import type { SquareObject } from '../../shared/menuSquare'
 import type { PayMethod, SalesDay, SalesItem } from '../../shared/types'
 import { hmacBase64, safeEqual } from '../crypto'
 
 export const SQUARE_SCOPES = ['MERCHANT_PROFILE_READ', 'PAYMENTS_READ', 'ORDERS_READ', 'CUSTOMERS_READ',
-  'LOYALTY_READ', 'LOYALTY_WRITE', 'GIFTCARDS_READ', 'GIFTCARDS_WRITE', 'ITEMS_READ']
+  'LOYALTY_READ', 'LOYALTY_WRITE', 'GIFTCARDS_READ', 'GIFTCARDS_WRITE', 'ITEMS_READ', 'EMPLOYEES_READ', 'EMPLOYEES_WRITE']
 const VERSION = '2025-01-23'
 
 export interface SquareOAuthConfig { appId: string; appSecret: string; redirectUri: string; sandbox: boolean }
@@ -211,3 +213,90 @@ export async function verifyWebhook(signatureKey: string, notificationUrl: strin
 
 /** What a customer.created / customer.updated webhook carries (the customer as it is now). */
 export interface SquareCustomerEvent { merchant_id?: string; type?: string; data?: { id?: string; object?: { customer?: SquareCustomer } } }
+
+/** A team member as Square gives one (what we read of it). */
+export interface SquareTeamMember {
+  id: string
+  given_name?: string
+  family_name?: string
+  email_address?: string
+  phone_number?: string
+  is_owner?: boolean
+  status?: 'ACTIVE' | 'INACTIVE'
+}
+
+/**
+ * The seller's team members, active ones first. Needs EMPLOYEES_READ: without it Square answers
+ * INSUFFICIENT_SCOPES (a SquareError with that code), and the business connects Square again.
+ */
+export async function teamMembers(sandbox: boolean, accessToken: string): Promise<SquareTeamMember[]> {
+  const out: SquareTeamMember[] = []
+  let cursor: string | undefined
+  for (let page = 0; page < 20; page++) {
+    const r = await api<{ team_members?: SquareTeamMember[]; cursor?: string }>(sandbox, accessToken, '/v2/team-members/search', { limit: 200, ...(cursor ? { cursor } : {}) })
+    out.push(...r.team_members ?? [])
+    cursor = r.cursor
+    if (!cursor) break
+  }
+  return out.sort((a, b) => Number(b.status !== 'INACTIVE') - Number(a.status !== 'INACTIVE'))
+}
+
+/**
+ * A new team member, working at the given locations, for someone on the team to have their own Square
+ * login. Needs EMPLOYEES_WRITE. Square doesn't let apps set the passcode or permissions: the owner does
+ * that in the Square Dashboard, and Square then sends them the invitation. The idempotency key makes a
+ * retry return the same team member rather than a second one.
+ */
+export async function createTeamMember(sandbox: boolean, accessToken: string, idempotencyKey: string,
+  m: { given_name: string; family_name?: string; email_address?: string | null; phone_number?: string | null; location_ids: string[] }): Promise<SquareTeamMember> {
+  const r = await api<{ team_member: SquareTeamMember }>(sandbox, accessToken, '/v2/team-members', {
+    idempotency_key: idempotencyKey,
+    team_member: {
+      given_name: m.given_name, ...(m.family_name ? { family_name: m.family_name } : {}),
+      ...(m.email_address ? { email_address: m.email_address } : {}), ...(m.phone_number ? { phone_number: m.phone_number } : {}),
+      status: 'ACTIVE', assigned_locations: { assignment_type: 'EXPLICIT_LOCATIONS', location_ids: m.location_ids },
+    },
+  })
+  return r.team_member
+}
+
+/** One team member (null when Square doesn't know the id). */
+export async function teamMember(sandbox: boolean, accessToken: string, id: string): Promise<SquareTeamMember | null> {
+  try {
+    return (await api<{ team_member: SquareTeamMember }>(sandbox, accessToken, `/v2/team-members/${encodeURIComponent(id)}`)).team_member
+  } catch (e) {
+    if (e instanceof SquareError && e.code === 'NOT_FOUND') return null
+    throw e
+  }
+}
+
+/**
+ * Completed payments between two instants, added up by the team member who took each (`team_member_id`;
+ * '' for payments nobody signed in for). Amounts in the currency's main unit, less refunds. The team
+ * members are worth nothing without EMPLOYEES_READ, so the Leaderboard reads them first (teamMembers) and a
+ * connection without it asks to connect again rather than counting every sale as nobody's.
+ */
+export async function salesByTeamMember(sandbox: boolean, accessToken: string, locationIds: string[], fromIso: string, toIso: string) {
+  const by = new Map<string, { sales: number; gross: number }>()
+  let currency: string | undefined
+  for (const location of locationIds) {
+    let cursor: string | undefined
+    for (let page = 0; page < 100; page++) {
+      const q = new URLSearchParams({ begin_time: fromIso, end_time: toIso, location_id: location, limit: '100', ...(cursor ? { cursor } : {}) })
+      const r = await api<{ payments?: { status: string; team_member_id?: string; employee_id?: string; amount_money?: { amount: number; currency: string }; refunded_money?: { amount: number } }[]; cursor?: string }>(
+        sandbox, accessToken, `/v2/payments?${q}`)
+      for (const p of r.payments ?? []) {
+        if (p.status !== 'COMPLETED') continue
+        currency ??= p.amount_money?.currency
+        const who = p.team_member_id ?? p.employee_id ?? ''
+        const row = by.get(who) ?? { sales: 0, gross: 0 }
+        row.sales += 1
+        row.gross += ((p.amount_money?.amount ?? 0) - (p.refunded_money?.amount ?? 0)) / 100
+        by.set(who, row)
+      }
+      cursor = r.cursor
+      if (!cursor) break
+    }
+  }
+  return { currency: currency ?? 'EUR', byMember: Object.fromEntries([...by].map(([k, v]) => [k, { sales: v.sales, gross: round(v.gross) }])) }
+}

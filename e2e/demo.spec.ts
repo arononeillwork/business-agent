@@ -1555,13 +1555,13 @@ test.describe('menu', () => {
   test('a pin puts a page at the top of its section, on a soft pink; unpinning puts it back', async ({ page }) => {
     await open(page, '/')
     const team = page.getByRole('navigation', { name: 'Main' }).getByRole('region', { name: 'Team' })
-    await expect(team.getByRole('link')).toHaveText(['Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Timecards', 'Hiring', 'Team', 'Roles & responsibilities', 'Staff rules', 'Outsourcing'])
+    await expect(team.getByRole('link')).toHaveText(['Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Leaderboard', 'Timecards', 'Hiring', 'Team', 'Roles & responsibilities', 'Staff rules', 'Outsourcing'])
     await team.getByRole('link', { name: 'Timecards' }).hover()
     await team.getByRole('button', { name: 'Pin Timecards to the top' }).click()
-    await expect(team.getByRole('link')).toHaveText(['Timecards', 'Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Hiring', 'Team', 'Roles & responsibilities', 'Staff rules', 'Outsourcing'])
+    await expect(team.getByRole('link')).toHaveText(['Timecards', 'Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Leaderboard', 'Hiring', 'Team', 'Roles & responsibilities', 'Staff rules', 'Outsourcing'])
     await expect(team.getByRole('button', { name: 'Unpin Timecards' })).toHaveAttribute('aria-pressed', 'true')
     await team.getByRole('button', { name: 'Unpin Timecards' }).click()
-    await expect(team.getByRole('link')).toHaveText(['Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Timecards', 'Hiring', 'Team', 'Roles & responsibilities', 'Staff rules', 'Outsourcing'])
+    await expect(team.getByRole('link')).toHaveText(['Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Leaderboard', 'Timecards', 'Hiring', 'Team', 'Roles & responsibilities', 'Staff rules', 'Outsourcing'])
   })
 
   test('the sidebar folds down to icons and remembers it', async ({ page }) => {
@@ -1914,12 +1914,12 @@ test('pages can be dragged into a new order, but only within their own section',
   await expect(nav.getByRole('link', { name: 'Home: Today' })).toContainText('Easy Beans Coffee')
   const team = nav.locator('section', { has: page.getByRole('button', { name: 'Team', exact: true }) })
   const names = () => team.getByRole('link').allTextContents()
-  expect(await names()).toEqual(['Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Timecards', 'Hiring', 'Team', 'Roles & responsibilities', 'Staff rules', 'Outsourcing'])
+  expect(await names()).toEqual(['Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Leaderboard', 'Timecards', 'Hiring', 'Team', 'Roles & responsibilities', 'Staff rules', 'Outsourcing'])
   // Keyboard: pick up Team, move it up a place, drop it; twice. Each drop waits for the screen-reader
   // announcement of the move, so a busy machine can't drop it before the move has registered.
   const handle = team.getByRole('button', { name: 'Reorder Team' })
-  for (const [over, order] of [['hiring', ['Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Timecards', 'Team', 'Hiring', 'Roles & responsibilities', 'Staff rules', 'Outsourcing']],
-    ['timecards', ['Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Team', 'Timecards', 'Hiring', 'Roles & responsibilities', 'Staff rules', 'Outsourcing']]] as const) {
+  for (const [over, order] of [['hiring', ['Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Leaderboard', 'Timecards', 'Team', 'Hiring', 'Roles & responsibilities', 'Staff rules', 'Outsourcing']],
+    ['timecards', ['Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Leaderboard', 'Team', 'Timecards', 'Hiring', 'Roles & responsibilities', 'Staff rules', 'Outsourcing']]] as const) {
     await handle.focus()
     await page.keyboard.press('Space')
     await page.keyboard.press('ArrowUp')
@@ -1935,14 +1935,14 @@ test('pages can be dragged into a new order, but only within their own section',
   await page.mouse.move(box.x + box.width / 2, box.y + 60, { steps: 5 })
   await page.mouse.move(box.x + box.width / 2, box.y + 600, { steps: 10 })
   await page.mouse.up()
-  await expect.poll(names).toEqual(['Time off', 'Staff benefits', 'Staff kitty', 'Team', 'Timecards', 'Hiring', 'Roles & responsibilities', 'Staff rules', 'Outsourcing', 'Rota'])
+  await expect.poll(names).toEqual(['Time off', 'Staff benefits', 'Staff kitty', 'Leaderboard', 'Team', 'Timecards', 'Hiring', 'Roles & responsibilities', 'Staff rules', 'Outsourcing', 'Rota'])
   expect(await nav.locator('section', { has: page.getByRole('button', { name: 'Settings', exact: true }) }).getByRole('link').allTextContents())
     .toEqual(['Connections', 'Notifications', 'Pages'])
   // Saved to Aron's account: someone else gets the usual order, and Aron his own when he's back.
   await signInAs(page, 'mark@example.com')
-  await expect.poll(names).toEqual(['Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Timecards', 'Hiring', 'Team', 'Roles & responsibilities', 'Staff rules', 'Outsourcing'])
+  await expect.poll(names).toEqual(['Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Leaderboard', 'Timecards', 'Hiring', 'Team', 'Roles & responsibilities', 'Staff rules', 'Outsourcing'])
   await signInAs(page, 'aron@example.com')
-  await expect.poll(names).toEqual(['Time off', 'Staff benefits', 'Staff kitty', 'Team', 'Timecards', 'Hiring', 'Roles & responsibilities', 'Staff rules', 'Outsourcing', 'Rota'])
+  await expect.poll(names).toEqual(['Time off', 'Staff benefits', 'Staff kitty', 'Leaderboard', 'Team', 'Timecards', 'Hiring', 'Roles & responsibilities', 'Staff rules', 'Outsourcing', 'Rota'])
 })
 
 test('signed out: the Business Agent landing page; someone joining a team signs up, is added by email, then sees the café', async ({ page }) => {
@@ -6156,6 +6156,91 @@ test.describe('sales reps and rewards', () => {
   })
 })
 
+
+test.describe('leaderboard', () => {
+  test('leaderboard: on time, streaks and hours from the timecards; who sold most from Square, amounts for owners only', async ({ page }) => {
+    await open(page, '/')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Leaderboard' }).click()
+    await expect(page.getByRole('heading', { name: 'Leaderboard', level: 1 })).toBeVisible()
+    await page.getByRole('group', { name: 'Period' }).getByRole('button', { name: 'Last week' }).click()
+    await expect(page).toHaveURL(/period=last_week/)
+    // Last week Julio and Aron started every shift on time; Mark worked one; Maria was 7 minutes late on
+    // Wednesday and the cleaner 12 on Monday.
+    const leaders = page.getByRole('region', { name: 'Leaders' })
+    await expect(leaders.getByRole('article', { name: 'On time' })).toContainText("Julio, Aron O'Neill")
+    const onTime = page.getByRole('table', { name: 'On time' })
+    await expect(onTime.getByRole('row')).toHaveText([/Place/, /1.*Julio.*100%.*5 of 5 on time/, /1.*Aron O'Neill \(you\).*100%/, /3.*Mark Murray.*100%.*1 of 1/,
+      /4.*Maria.*83%.*5 of 6 on time · 1 late/, /5.*Cleaner.*67%.*2 of 3 on time · 1 late/])
+    await expect(page.getByRole('list', { name: 'Your places' })).toContainText('1st for on time')
+    await page.getByRole('tab', { name: 'Hours worked' }).click()
+    await expect(page.getByRole('table', { name: 'Hours worked' }).getByRole('row').nth(1)).toContainText('Julio')
+    await page.getByRole('tab', { name: 'Checklist items' }).click()
+    await expect(page.getByText('Nothing on this board for this period yet.')).toBeVisible()
+
+    // Who sold most: Square says who took each payment, once it's connected.
+    await page.getByRole('tab', { name: 'Most sales' }).click()
+    await expect(page.getByRole('alert').filter({ hasText: 'to see who sold most: each payment in Square says who took it' })).toBeVisible()
+    await page.getByRole('link', { name: 'Connections' }).last().click()
+    const payments = page.getByRole('region', { name: 'Payments and sales' })
+    await payments.getByRole('button', { name: 'Connect Square' }).click()
+    await expect(payments.getByRole('article', { name: 'Square' })).toContainText('Connected')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Leaderboard' }).click()
+    await page.getByRole('group', { name: 'Period' }).getByRole('button', { name: 'Last week' }).click()
+    await page.getByRole('tab', { name: 'Most sales' }).click()
+    // Mark isn't linked yet, nor is Sofía, who works Sundays.
+    const sales = page.getByRole('table', { name: 'Most sales' })
+    await expect(sales.getByRole('row')).toHaveCount(4)
+    for (const name of ['Maria', 'Julio', "Aron O'Neill"]) await expect(sales.getByRole('row').filter({ hasText: name })).toContainText('€')
+    await expect(page.getByText(/sales were taken in Square by someone not linked to anyone here/)).toBeVisible()
+
+    // Square logins: Mark is matched by his email; the cleaner is added to Square, to set a passcode for in the Square Dashboard.
+    await page.getByRole('group', { name: 'Page actions' }).getByRole('button', { name: 'Square logins' }).click()
+    const logins = page.getByRole('dialog', { name: 'Square logins' })
+    await expect(logins).toContainText('set in the Square Dashboard: Staff → Team → their name')
+    await expect(logins.getByRole('combobox', { name: 'Square login for Maria' })).toContainText('María')
+    await logins.getByRole('button', { name: 'Match by email or name' }).click()
+    await toast(page, 'Linked 1 person by their email or name')
+    await expect(logins.getByRole('combobox', { name: 'Square login for Mark Murray' })).toContainText('Mark Murray')
+    await logins.getByRole('button', { name: 'Add to Square' }).click()
+    await toast(page, 'Cleaner is in Square: set their passcode in the Square Dashboard')
+    await expect(logins.getByRole('combobox', { name: 'Square login for Cleaner' })).toContainText('Cleaner')
+    await expect(logins.getByRole('button', { name: 'Add to Square' })).toHaveCount(0)
+    await logins.getByRole('button', { name: 'Done' }).click()
+    await expect(sales.getByRole('row').filter({ hasText: 'Mark Murray' })).toContainText('€')
+
+    // An employee sees the board and how many sales each person made, not how much.
+    await signInAs(page, 'julio@example.com')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Leaderboard' }).click()
+    await expect(page.getByRole('heading', { name: 'Leaderboard', level: 1 })).toBeVisible()
+    await page.getByRole('group', { name: 'Period' }).getByRole('button', { name: 'Last week' }).click()
+    await expect(page.getByRole('button', { name: 'Square logins' })).toHaveCount(0)
+    await page.getByRole('tab', { name: 'Most sales' }).click()
+    await expect(page.getByRole('table', { name: 'Most sales' }).getByRole('row').filter({ hasText: 'Julio (you)' })).toContainText('sales')
+    await expect(page.getByRole('table', { name: 'Most sales' })).not.toContainText('€')
+    await expect(page.getByText('How much each person took is for the owners; everyone sees how many sales.')).toBeVisible()
+  })
+
+  test('Square login on the Team page: an admin links someone to their Square team member', async ({ page }) => {
+    await open(page, '/team')
+    // Nothing about Square while it isn't connected.
+    await page.getByRole('row', { name: /Mark Murray/ }).click()
+    await expect(page.getByRole('dialog', { name: 'Mark Murray' }).getByRole('region', { name: 'Square login' })).toHaveCount(0)
+    await page.getByRole('dialog', { name: 'Mark Murray' }).getByRole('button', { name: 'Close' }).click()
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Connections' }).click()
+    const payments = page.getByRole('region', { name: 'Payments and sales' })
+    await payments.getByRole('button', { name: 'Connect Square' }).click()
+    await expect(payments.getByRole('article', { name: 'Square' })).toContainText('Connected')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Team', exact: true }).click()
+    await page.getByRole('row', { name: /Mark Murray/ }).click()
+    const panel = page.getByRole('dialog', { name: 'Mark Murray' })
+    const login = panel.getByRole('region', { name: 'Square login' })
+    await expect(login).toContainText('Square then sends them an invitation')
+    await login.getByRole('combobox', { name: 'Square login for Mark Murray' }).click()
+    await page.getByRole('option', { name: /Mark Murray · mark@example.com/ }).click()
+    await toast(page, 'Mark Murray linked to their Square login')
+    await expect(login.getByRole('button', { name: 'Add to Square' })).toHaveCount(0)
+  })
+})
 
 test.describe('staff kitty', () => {
   test('the jars fill in order; last month’s share over breakeven tops up the party and the Ray-Bans', async ({ page }) => {

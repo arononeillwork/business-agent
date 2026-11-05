@@ -395,6 +395,16 @@ page says "Reconnect Square to allow loyalty and gift cards" with the button to 
 menu: a connection made before it could be read from Square needs one reconnect to allow `ITEMS_READ`;
 until then the Menu page says so and the menu stays as it is.
 
+Each person's own Square login (the Team page and the Leaderboard) asks for `EMPLOYEES_READ` (the team
+members, and who took each payment, for **Most sales** on the Leaderboard) and `EMPLOYEES_WRITE` (**Add to
+Square**: a new team member at every location, with their name, email and phone). Square's Team API can't set a
+passcode or permissions, so after adding someone the owner opens **Square Dashboard → Staff → Team → their name**,
+gives them a Point of Sale passcode and permissions, and Square then sends them the invitation. A business
+connected before these were asked for keeps everything else; the Leaderboard and the Team panel say "Connect
+Square again to allow team members" until it reconnects (Connections → Square → Connect again). Most sales counts
+a payment for whoever was signed in to Square Point of Sale when it was taken (its `team_member_id`): with team
+management off in Square, every sale is nobody's.
+
 ## 10. Stripe (online payments, on top of the till)
 
 Each business connects its own Stripe account with one click (sign in on Stripe, allow read-only

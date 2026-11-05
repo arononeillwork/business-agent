@@ -25,6 +25,7 @@ import type { RoutineDone, RoutineItem } from '../../shared/routine'
 import type { ChecklistItem, ChecklistTick } from '../../shared/checklists'
 import type { CompanyValue } from '../../shared/companyValues'
 import type { Contact } from '../../shared/contacts'
+import type { ClockStats } from '../../shared/leaderboard'
 import type { Contractor, OutsourcedJob } from '../../shared/outsourcing'
 import type { EmploymentContract, SalaryPer } from '../../shared/contracts'
 import { DEFAULT_VAT_RATE, type PnlLine, type PnlSettings } from '../../shared/pnl'
@@ -1223,6 +1224,19 @@ export function createSupabaseApi(url: string, key: string): Api {
     },
     async addKittyEntry(e) { check(await sb.from('kitty_entries').insert(e)) },
     async deleteKittyEntry(id) { check(await sb.from('kitty_entries').delete().eq('id', id)) },
+
+    async leaderboard(from, to) {
+      return check(await sb.rpc('team_leaderboard', { p_from: from, p_to: to })) as ClockStats[]
+    },
+    leaderboardTill: (from, to) => worker(`/api/leaderboard/till?${new URLSearchParams({ from, to })}`),
+    squareTeam: () => worker('/api/square-team'),
+    async linkSquareMember(profileId, teamMemberId) {
+      await worker('/api/square-team/link', { method: 'POST', body: JSON.stringify({ profile_id: profileId, team_member_id: teamMemberId }) })
+    },
+    async matchSquareMembers() {
+      return (await worker<{ linked: number }>('/api/square-team/match', { method: 'POST', body: '{}' })).linked
+    },
+    addToSquare: profileId => worker('/api/square-team/add', { method: 'POST', body: JSON.stringify({ profile_id: profileId }) }),
 
     async todos() {
       const [categories, todos] = await Promise.all([

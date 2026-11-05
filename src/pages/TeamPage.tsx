@@ -29,6 +29,7 @@ import { msg, t, tn, tr } from '../i18n'
 import { Tab, Tabs } from '@mui/material'
 import type { ReactNode } from 'react'
 import { TeamContracts } from './TeamContracts'
+import { SquareLoginSection } from '../components/SquareLogins'
 
 type Filter = 'all' | TeamRole | 'off'
 const FILTERS: { key: Filter; label: string }[] = [
@@ -281,6 +282,8 @@ function PersonPanel({ person: p, onClose }: { person: Profile; onClose: () => v
             </Stack>
           </Box>
         )}
+        {/* Their own Square login (while Square is connected): who took each payment, for the Leaderboard. */}
+        <SquareLoginSection person={p} />
         <Box>
           <Typography variant="overline" sx={{ color: 'text.secondary' }}>{t('Contact')}</Typography>
           <Typography sx={{ mt: 0.5, mb: 1.5 }}>{p.phone ?? t('No phone number')}{p.email ? ` · ${p.email}` : ''}</Typography>
