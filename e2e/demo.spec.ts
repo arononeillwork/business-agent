@@ -377,6 +377,27 @@ test('@phone layout: bottom navigation and a full-width clock-in button', async 
   await expect(page.getByRole('heading', { name: 'Finances' })).toBeVisible()
 })
 
+test('@phone the top row is the logo on its own, and fits the screen without the page scrolling sideways', async ({ page }) => {
+  await open(page, '/account')
+  // Both languages, so the flags are in the row too: its widest.
+  await page.getByRole('combobox', { name: 'Languages', exact: true }).click()
+  await page.getByRole('option', { name: 'Español' }).click()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('group', { name: 'Language' })).toBeVisible()
+  const home = page.getByRole('banner').getByRole('link', { name: 'Home: Today' })
+  await home.click()
+  await expect(page.getByRole('heading', { name: 'Hola, Aron' })).toBeVisible()
+  // The logo, not the café's name.
+  await expect(home.getByRole('img', { name: 'Easy Beans Coffee' })).toBeVisible()
+  await expect(home).toHaveText('')
+  // A common Android width, and a small one (where the light/dark switch steps out; it's under Appearance).
+  for (const width of [412, 360, 320]) {
+    await page.setViewportSize({ width, height: 915 })
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth), `nothing wider than ${width}px`).toBeLessThanOrEqual(width)
+    await expect(page.getByRole('banner').getByRole('button', { name: /^Account menu/ })).toBeInViewport({ ratio: 1 })
+  }
+})
+
 test('@phone a message never covers the sign-in buttons', async ({ page }) => {
   await page.goto('/?demo')
   const google = (await page.getByRole('button', { name: 'Google' }).boundingBox())!
