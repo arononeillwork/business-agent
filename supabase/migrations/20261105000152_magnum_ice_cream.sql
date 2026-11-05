@@ -2,9 +2,10 @@
 -- Calippo), from the business card of Oscar Gutiérrez Sánchez, their Sales Developer - IC, who answers on
 -- WhatsApp at his mobile. Added on Suppliers, with Oscar as the contact, and on Contacts (the
 -- `business_contacts` migration), so he's found by his name as well as by the company. When the café
--- has added either already, its empty details are filled in (and WhatsApp ticked when it's his number)
--- and nothing else changes. Easy Beans is business 1 when it's named so or Aron is on its team (as in
--- the `coffee_suppliers` migration); anywhere else nothing changes, and running it again changes nothing.
+-- has added either already, its empty details are filled in (WhatsApp ticked when it's his number, and
+-- the supplier made active again if it was archived) and nothing else changes. Easy Beans is business 1
+-- when it's named so or Aron is on its team (as in the `coffee_suppliers` migration); anywhere else
+-- nothing changes, and running it again changes nothing.
 do $$
 declare
   v_name    constant text := 'Magnum Ice Cream Company';
@@ -25,15 +26,15 @@ begin
   -- Named, so the rules and the audit see Easy Beans (a migration runs signed out).
   perform set_config('app.business_id', '1', true);
 
-  -- Suppliers: the company, with Oscar as who to call.
+  -- Suppliers: the company, with Oscar as who to call; active (bought from now), not only in the catalogue.
   select s.id into v_sup
     from public.suppliers s
    where s.business_id = 1 and (s.name ~* '\mmagnum\M' or s.name ~* '\mfrigo\M' or s.email ~* '@magnumicecream\.com$')
    order by s.active desc, s.created_at
    limit 1;
   if v_sup is null then
-    insert into public.suppliers (business_id, name, kind, supplies, contact_name, phone, whatsapp, email, website, notes)
-    values (1, v_name, 'Ice cream', array['food'], v_person, v_phone, true, v_email, v_website,
+    insert into public.suppliers (business_id, name, kind, supplies, contact_name, phone, whatsapp, email, website, active, notes)
+    values (1, v_name, 'Ice cream', array['food'], v_person, v_phone, true, v_email, v_website, true,
             v_brands || ' ' || v_person || ' is their Sales Developer - IC.');
   else
     update public.suppliers
@@ -43,6 +44,7 @@ begin
            whatsapp = whatsapp or regexp_replace(coalesce(phone, v_phone), '\D', '', 'g') = '34629710587',
            email = coalesce(email, v_email),
            website = coalesce(website, v_website),
+           active = true,
            notes = coalesce(notes, v_brands || ' ' || v_person || ' is their Sales Developer - IC.')
      where id = v_sup;
   end if;
