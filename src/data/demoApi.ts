@@ -51,6 +51,7 @@ import { DEMO_THEME_TRACKS, demoThemeDayApi } from './demoThemeDays'
 import { demoChecklistApi } from './demoChecklists'
 import { demoCompanyValuesApi } from './demoCompanyValues'
 import { demoContactsApi } from './demoContacts'
+import { demoContentApi } from './demoContent'
 import { demoQrCodeApi } from './demoQrCodes'
 import { COUNTED, type Contractor, type OutsourcedJob } from '../../shared/outsourcing'
 import { DEFAULT_CONVENIO, contractProblem, type EmploymentContract } from '../../shared/contracts'
@@ -166,7 +167,7 @@ export function createDemoApi(): Api {
   const integ: IntegrationsState = {
     configured: { google_business: true, whatsapp: true, instagram: true, spotify: true, gmail: true, outlook: true, google_drive: true, onedrive: true,
       youtube_music: true, google_calendar: true, outlook_calendar: true, facebook: true, tiktok: true, square: true, stripe: true,
-      sumup: true, linkedin: true, search_console: true, meta_ads: true, google_ads: true, higgsfield: true },
+      sumup: true, linkedin: true, search_console: true, meta_ads: true, google_ads: true, higgsfield: true, google_photos: true },
     queue: [],
     integrations: [
       { provider: 'google_business', status: 'connected', account_label: 'Easy Beans Coffee',
@@ -193,7 +194,7 @@ export function createDemoApi(): Api {
       { provider: 'google_ads', status: 'connected', account_label: 'Easy Beans Coffee',
         external: { accounts: [{ id: '4471230098', name: 'Easy Beans Coffee', currency: 'EUR' }], account_id: '4471230098', account_name: 'Easy Beans Coffee' },
         connected_at: nowIso(), last_sync_at: nowIso(), last_error: null, last_checked_at: nowIso() },
-      ...(['gmail', 'outlook', 'google_drive', 'onedrive', 'youtube_music', 'google_calendar', 'outlook_calendar', 'facebook', 'tiktok', 'square', 'stripe', 'sumup', 'higgsfield'] as const).map(provider => ({
+      ...(['gmail', 'outlook', 'google_drive', 'onedrive', 'youtube_music', 'google_calendar', 'outlook_calendar', 'facebook', 'tiktok', 'square', 'stripe', 'sumup', 'higgsfield', 'google_photos'] as const).map(provider => ({
         provider, status: 'disconnected' as const, account_label: null, external: {}, connected_at: null, last_sync_at: null, last_error: null, last_checked_at: null })),
     ],
   }
@@ -2585,6 +2586,9 @@ export function createDemoApi(): Api {
     ...valuesApi,
     // Contacts (Business, owners only): Easy Beans' lawyer, bank advisor and plumber, as the `business_contacts` migration.
     ...demoContactsApi({ isOwner: () => isAdmin() && !!me()?.active && !!me()?.can_see_pay, uid }),
+    // Content (Marketing): a few of Easy Beans' photos and a video; a Google Photos pick brings in more.
+    ...demoContentApi({ isAdmin: () => isAdmin() && !!me()?.active, uid, nowIso, storage: () => mediaStorage(),
+      photosConnected: () => integ.integrations.some(i => i.provider === 'google_photos' && i.status === 'connected') }),
     // QR codes: Easy Beans' three, as the `qr_codes` migration, with the demo's Wi-Fi filled in.
     ...demoQrCodeApi({ isStaff: () => isStaff() && !!me()?.active, isAdmin: () => isAdmin() && !!me()?.active, uid, nowIso }),
 
@@ -4411,6 +4415,11 @@ export function createDemoApi(): Api {
         const site = 'https://www.easybeanscoffee.com/'
         setConnection(provider, { status: 'connected', account_label: 'www.easybeanscoffee.com', connected_at: nowIso(), last_checked_at: nowIso(), last_error: null,
           external: { sites: [site, 'sc-domain:easybeans.events'], site } })
+        return
+      }
+      // Google Photos: the café's Google account; Google Photos opened its picker for it.
+      if (provider === 'google_photos') {
+        setConnection(provider, { status: 'connected', account_label: 'easybeanscafe@gmail.com', connected_at: nowIso(), last_checked_at: nowIso(), last_error: null, external: {} })
         return
       }
       if (provider === 'google_ads') {

@@ -4,6 +4,7 @@
 //   Spotify, YouTube Music    the account signed in and its playlists could be read
 //   Search Console            the account can read the website's search data (the business's website is picked)
 //   Google Ads, Meta Ads      the ad accounts could be read (the admin picks one when there are several)
+//   Google Photos             Google Photos opened a picker session for the account (Content page)
 //   WhatsApp                  a test message was accepted from the café's number
 //   Google/Outlook Calendar   that app fetched the team calendar (calendarFeed.ts reports it)
 // Every night, and on "Check now", each connection is checked again. When one stops working its
@@ -28,6 +29,7 @@ import * as searchConsole from './providers/searchConsole'
 import * as googleAds from './providers/googleAds'
 import * as metaAds from './providers/metaAds'
 import * as higgsfield from './providers/higgsfield'
+import * as googlePhotos from './providers/googlePhotos'
 import { base64url, mimeMessage } from '../shared/alertText'
 import { calendarAppFromAgent, optionName } from '../shared/connections'
 import type { CalendarApp, IntegrationProvider } from '../shared/types'
@@ -35,11 +37,11 @@ import { businessConfig } from '../shared/business.config'
 
 export type Provider = IntegrationProvider
 /** Signed in with Google or Microsoft: one refresh token each. */
-export type Connector = 'gmail' | 'outlook' | 'google_drive' | 'onedrive' | 'youtube_music' | 'search_console' | 'google_ads'
-export const CONNECTORS: Connector[] = ['gmail', 'outlook', 'google_drive', 'onedrive', 'youtube_music', 'search_console', 'google_ads']
+export type Connector = 'gmail' | 'outlook' | 'google_drive' | 'onedrive' | 'youtube_music' | 'search_console' | 'google_ads' | 'google_photos'
+export const CONNECTORS: Connector[] = ['gmail', 'outlook', 'google_drive', 'onedrive', 'youtube_music', 'search_console', 'google_ads', 'google_photos']
 export const PROVIDERS: Provider[] = ['google_business', 'whatsapp', 'instagram', 'facebook', 'tiktok', 'linkedin', 'spotify', 'square', 'stripe', 'sumup', ...CONNECTORS, 'google_calendar', 'outlook_calendar', 'meta_ads', 'higgsfield']
 export const isConnector = (p: string): p is Connector => (CONNECTORS as string[]).includes(p)
-export const isGoogle = (p: Connector) => p === 'gmail' || p === 'google_drive' || p === 'youtube_music' || p === 'search_console' || p === 'google_ads'
+export const isGoogle = (p: Connector) => p === 'gmail' || p === 'google_drive' || p === 'youtube_music' || p === 'search_console' || p === 'google_ads' || p === 'google_photos'
 export const isCalendarApp = (p: string): p is CalendarApp => p === 'google_calendar' || p === 'outlook_calendar'
 
 // ---------------------------------------------------------------------------------------------
@@ -138,7 +140,7 @@ export const connectorConfigured = (env: Env, p: Connector) =>
 export const SCOPES: Record<Connector, readonly string[]> = {
   gmail: google.GMAIL_SCOPES, google_drive: google.DRIVE_SCOPES, youtube_music: youtube.YOUTUBE_SCOPES,
   search_console: searchConsole.SEARCH_CONSOLE_SCOPES, outlook: ms.MS_SCOPES.outlook, onedrive: ms.MS_SCOPES.onedrive,
-  google_ads: googleAds.GOOGLE_ADS_SCOPES,
+  google_ads: googleAds.GOOGLE_ADS_SCOPES, google_photos: googlePhotos.GOOGLE_PHOTOS_SCOPES,
 }
 
 /** The one permission each connection can't work without (people can untick it when they sign in). */
@@ -148,6 +150,7 @@ const NEEDS: Record<Connector, string> = {
   youtube_music: 'https://www.googleapis.com/auth/youtube.readonly',
   search_console: 'https://www.googleapis.com/auth/webmasters.readonly',
   google_ads: 'https://www.googleapis.com/auth/adwords',
+  google_photos: 'https://www.googleapis.com/auth/photospicker.mediaitems.readonly',
   outlook: 'Mail.Send',
   onedrive: 'Files.ReadWrite',
 }
@@ -180,7 +183,7 @@ export function hasScope(p: Connector, granted: string | undefined) {
 // ---------------------------------------------------------------------------------------------
 const API_NAME: Partial<Record<Provider, string>> = {
   gmail: 'Gmail API', google_drive: 'Google Drive API', youtube_music: 'YouTube Data API v3', google_business: 'Business Profile APIs',
-  search_console: 'Google Search Console API', google_ads: 'Google Ads API',
+  search_console: 'Google Search Console API', google_ads: 'Google Ads API', google_photos: 'Google Photos Picker API',
 }
 /**
  * The Google Cloud APIs that connecting Google Maps and syncing hours call (worker/providers/google.ts).
@@ -206,6 +209,12 @@ export function explain(p: Provider, e: unknown): string {
   if (p === 'google_ads' && /DEVELOPER_TOKEN_NOT_APPROVED|DEVELOPER_TOKEN_PROHIBITED|only approved for use with test accounts/i.test(raw)) {
     return 'Google hasn’t approved Business Agent’s Google Ads access for real ad accounts yet (the developer token is for test accounts only). Once Google approves it, connect again.'
   }
+  // Starting a pick: FAILED_PRECONDITION is an account without Google Photos; RESOURCE_EXHAUSTED, too many picks at once.
+  const photosStatus = e instanceof googlePhotos.PhotosError ? e.status : undefined
+  if (p === 'google_photos' && (photosStatus === 'FAILED_PRECONDITION' || /active Google Photos account/i.test(raw))) {
+    return 'This Google account has no Google Photos yet. Open photos.google.com with it once, then connect again.'
+  }
+  if (p === 'google_photos' && photosStatus === 'RESOURCE_EXHAUSTED') return 'Google Photos is busy with this account’s earlier picks. Try again in a few minutes.'
   if (p === 'google_ads' && /NOT_ADS_USER/i.test(raw)) return 'This Google account has no Google Ads account. Sign in with the account that runs the café’s ads.'
   if (p === 'google_ads' && /USER_PERMISSION_DENIED|CUSTOMER_NOT_ENABLED/i.test(raw)) {
     return 'This Google account can’t use that ad account any more (it was closed, or the account was taken off it). Choose another ad account or connect again.'
@@ -239,7 +248,7 @@ export function explain(p: Provider, e: unknown): string {
 }
 
 /** Failures that trying again won't fix (as opposed to a provider having a bad minute). */
-const LASTING = /invalid_grant|access was removed|access has expired|switched off|without the permission|no Outlook mailbox|no OneDrive|no YouTube channel|not connected|not set up|hasn.t fetched|hasn.t switched on|no Google Maps listing|can.t connect yet|no website in Search Console|no longer in this Google account|didn.t allow posting|hasn.t approved|no Google Ads account|no ad account|can.t use that ad account|didn.t accept the API key/i
+const LASTING = /invalid_grant|access was removed|access has expired|switched off|without the permission|no Outlook mailbox|no OneDrive|no YouTube channel|not connected|not set up|hasn.t fetched|hasn.t switched on|no Google Maps listing|can.t connect yet|no website in Search Console|no longer in this Google account|didn.t allow posting|hasn.t approved|no Google Ads account|no ad account|can.t use that ad account|didn.t accept the API key|has no Google Photos/i
 export const lasting = (p: Provider, e: unknown) => LASTING.test(message(e)) || LASTING.test(explain(p, e))
 
 /**
@@ -636,6 +645,12 @@ export async function proveNew(p: Connector, t: { access_token: string; scope?: 
       await searchConsole.probe(token, site)
       return { label: searchConsole.siteLabel(site), external: { sites, site, email } }
     }
+    case 'google_photos': {
+      // A picker session made and put away again: the API is on and this account has Google Photos.
+      const [email, session] = await Promise.all([google.accountEmail(token), googlePhotos.createSession(token, 1)])
+      await googlePhotos.deleteSession(token, session.id).catch(() => {})
+      return { label: email ?? null, external: { email } }
+    }
     case 'google_ads': {
       if (!ads) throw new Error('Google Ads is not set up')
       const [email, accounts] = await Promise.all([google.accountEmail(token), googleAds.accounts(ads, token)])
@@ -694,6 +709,11 @@ async function stillWorks(env: Env, db: SupabaseClient, row: Row): Promise<Parti
       const cfg = googleAdsConfig(env)
       if (!cfg) throw new Error('Google Ads is not set up')
       return { external: { ...row.external, accounts: stillThere(await googleAds.accounts(cfg, token), row.external as AdsExternal) } }
+    }
+    if (p === 'google_photos') {
+      const session = await googlePhotos.createSession(token, 1)
+      await googlePhotos.deleteSession(token, session.id).catch(() => {})
+      return {}
     }
     if (p === 'google_drive') {
       const id = row.external.folder_id as string | undefined

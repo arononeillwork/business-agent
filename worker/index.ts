@@ -22,6 +22,7 @@ import { referrals } from './referrals'
 import { tax } from './tax'
 import { files } from './files'
 import { legal } from './legal'
+import { content } from './content'
 import { invoices } from './invoices'
 import { email } from './email'
 import { serveVideo } from './video'
@@ -295,6 +296,8 @@ app.route('/', socialAnalytics)
 // Menu page: AI images through Higgsfield, kept in the café's storage; Screens: each screen's link.
 app.route('/', menu)
 app.route('/', screens)
+// Content page: photos and videos picked in Google Photos, copied into the café's storage.
+app.route('/', content)
 
 // The business's own website: its menu, read with no sign-in once the business turns it on (worker/site.ts).
 app.route('/', site)
