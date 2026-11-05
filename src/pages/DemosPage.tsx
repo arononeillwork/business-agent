@@ -2,8 +2,8 @@
 // page shows the first two (the demo and a day in the life); all of them are here, those two included,
 // and a new one goes here (DEMOS in marketing/DemoVideo.tsx). At the top, a card for each (its poster,
 // the way it shows the app, what it's about and how long it is) brings it up and plays it from the start
-// with its sound; then each in its own section with the landing page's player, the sections taking turns
-// between a white band and the page's colour.
+// with its sound (three to a row, or two by two when there are four); then each in its own section with
+// the landing page's player, the sections taking turns between a white band and the page's colour.
 import { Box, ButtonBase, Container, Typography } from '@mui/material'
 import PlayIcon from '@mui/icons-material/PlayArrowRounded'
 import { useEffect } from 'react'
@@ -11,7 +11,7 @@ import { useLocation } from 'react-router-dom'
 import { FEATURES } from '../app/features'
 import { t, tr, useLanguage } from '../i18n'
 import { ClosingCta } from './LoginPage'
-import { DEMOS, DayVideo, DemoVideo, OwnerVideo, clock } from './marketing/DemoVideo'
+import { DEMOS, DayVideo, DemoVideo, OwnerVideo, SayVideo, clock } from './marketing/DemoVideo'
 import { BA, Eyebrow, MarketingFrame, display, glow } from './marketing/site'
 import { watchVideo } from './marketing/watchDemo'
 
@@ -45,7 +45,7 @@ export function DemosPage() {
               </Typography>
             </Box>
             <Box component="ul" aria-label={t('The films')} sx={{ listStyle: 'none', p: 0, m: 0, display: 'grid', gap: { xs: 2.5, md: 3 },
-              gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', md: `repeat(${Math.min(3, shown.length)}, minmax(0, 1fr))` } }}>
+              gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', md: `repeat(${shown.length === 4 ? 2 : Math.min(3, shown.length)}, minmax(0, 1fr))` } }}>
               {shown.map(d => (
                 <Box component="li" key={d.id}>
                   <ButtonBase component="a" href={`#${d.id}`} onClick={e => watchVideo(d.id, e)} aria-label={t('Watch {title}', { title: t(d.title) })}
@@ -78,6 +78,7 @@ export function DemosPage() {
         <DemoVideo />
         <DayVideo />
         <OwnerVideo white={before !== 1} />
+        <SayVideo white={[FEATURES.demoVideo, FEATURES.dayVideo, FEATURES.ownerVideo].filter(Boolean).length % 2 === 0} />
 
         <Box sx={{ pt: { xs: 8, md: 12 } }}><ClosingCta /></Box>
       </Box>

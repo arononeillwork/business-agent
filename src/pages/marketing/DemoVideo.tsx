@@ -233,6 +233,19 @@ export function OwnerVideo({ white = true }: { white?: boolean }) {
   )
 }
 
+export const SAY_VIDEO = { src: '/video/just-say-it.mp4', poster: '/video/just-say-it.jpg', seconds: 106 }
+
+/** "Just say it", on the Demos page: on a white band, or on the page's colour where the one before it is white. */
+export function SayVideo({ white = true }: { white?: boolean }) {
+  if (!FEATURES.sayVideo) return null
+  return (
+    <VideoSection id="say" labelledBy="say-video" eyebrow={t('From your AI')} src={SAY_VIDEO.src} poster={SAY_VIDEO.poster}
+      label={t('Just say it, video')} seconds={SAY_VIDEO.seconds} sx={white ? whiteBand : { pt: { xs: 8, md: 4 } }}
+      title={tr('Just {em}', { em: <em>{t('say it.')}</em> })}
+      text={t('Business Agent in Claude, ChatGPT or any AI that takes connectors: type it at the counter or say it on the phone, and the app and everywhere it shows follow at once.')} />
+  )
+}
+
 /**
  * Every video, in the Demos page's order (src/pages/DemosPage.tsx): its section, the way it shows the app,
  * its title and what it's about, whether it's switched on. The landing page has the first two; a new
@@ -245,6 +258,8 @@ export const DEMOS = [
     about: msg('A café owner’s day before Business Agent, and the same day with it, from opening to closing.') },
   { id: 'owner', on: FEATURES.ownerVideo, video: OWNER_VIDEO, perspective: msg('An owner’s morning'), title: msg('Run your café from one place'),
     about: msg('Today and the advisor say what to do; each change is made once, and everywhere it shows follows.') },
+  { id: 'say', on: FEATURES.sayVideo, video: SAY_VIDEO, perspective: msg('From your AI'), title: msg('Just say it'),
+    about: msg('Typed or said to your own AI, in a sentence: the app, Google Maps, the website and the café TV follow at once.') },
 ]
 
 /** Under the landing page's last video: the rest are on the Demos page (not on the Demos page itself). */

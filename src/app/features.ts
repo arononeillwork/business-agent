@@ -16,6 +16,8 @@ export const FEATURES = {
   dayVideo: true,
   /** The owner's morning video, "Run your café from one place", on the Demos page (video/). */
   ownerVideo: true,
+  /** "Just say it": Business Agent from the owner's own AI (its connector), typed or said, on the Demos page (video/). */
+  sayVideo: true,
 }
 
 /** Whether something marked as part of one of these (`onlyWith`, e.g. a row of the pricing table) shows: unless that part is switched off. */
