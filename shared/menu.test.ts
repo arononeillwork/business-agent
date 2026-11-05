@@ -6,7 +6,7 @@ import {
 } from './menu'
 import type { ItemAllergens, MenuAllergens } from './allergens'
 import { missingFrom, templateDesigns, templateItems, templateSections } from './menuTemplate'
-import { EXTRAS_SECTION, fromSquareCatalog, type SquareObject } from './menuSquare'
+import { EXTRAS_SECTION, fromSquareCatalog, shelfLifeOf, type SquareObject } from './menuSquare'
 
 const item = (p: Partial<MenuItem> & { name: string }): MenuItem => ({ id: p.name, category: 'Coffee', sell_price: 3, price_label: null, vat_rate: 10, description: null,
   photo_url: null, featured: false, on_menu: true, menu_sort: 0, variants: [], square_id: null, ...p })
@@ -162,6 +162,25 @@ describe('the menu from Square', () => {
   it('leaves out deleted and archived items; one without a price comes in to be priced', () => {
     expect(menu.items.find(i => i.square_id === 'i-old' || i.square_id === 'i-arch')).toBeUndefined()
     expect(byId('i-promo')).toMatchObject({ sell_price: null, category: null })
+  })
+
+  it('reads how long an item keeps from its Shelf life custom attribute: days, or hours when it says so', () => {
+    const attr = (name: string, value: { number_value?: string; string_value?: string }) => ({ a: { name, ...value } })
+    expect(shelfLifeOf(attr('Shelf life', { number_value: '5' }))).toBe(120)
+    expect(shelfLifeOf(attr('Shelf life (days)', { string_value: '3 days' }))).toBe(72)
+    expect(shelfLifeOf(attr('Shelf life', { string_value: '36 hours' }))).toBe(36)
+    expect(shelfLifeOf(attr('Shelf life (hours)', { number_value: '8' }))).toBe(8)
+    expect(shelfLifeOf(attr('Caducidad', { string_value: '2 días' }))).toBe(48)
+    expect(shelfLifeOf(attr('Vida útil', { string_value: '1,5' }))).toBe(36)
+    // Not a shelf life, none, or not a length it can keep for.
+    expect(shelfLifeOf(attr('Allergens', { string_value: '5' }))).toBeNull()
+    expect(shelfLifeOf(attr('Shelf life', { string_value: 'ask the baker' }))).toBeNull()
+    expect(shelfLifeOf(attr('Shelf life', { number_value: '45' }))).toBeNull()
+    expect(shelfLifeOf(undefined)).toBeNull()
+    expect(byId('i-fw').shelf_life_hours).toBeNull()
+    const cake = fromSquareCatalog([{ type: 'ITEM', id: 'i-cake', custom_attribute_values: attr('Shelf life', { number_value: '5' }),
+      item_data: { name: 'Biscoff cheesecake', variations: [v('z', 'Regular', 450)] } }]).items[0]
+    expect(cake).toMatchObject({ name: 'Biscoff cheesecake', shelf_life_hours: 120 })
   })
 
   it('lists the modifiers the items use as extras, priced ones only, in their own section last', () => {

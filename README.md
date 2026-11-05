@@ -381,6 +381,12 @@ built-in **AI connector** so owners can run it by talking to Claude.
   crossed out, on the screens; sold out or thrown away first, its offer ends (one still to come goes). The
   offer is tagged Freshly made and links back. The team records batches; finance partners read
   (`shared/freshBatches.ts`, the `fresh_batches` migration).
+- Stock → Freshly made, first of Stock's tabs, opens on what's made here: the menu items with a set shelf
+  life (pastries, yoghurt pots, chia puddings, cheesecakes), how long each keeps, when it was last made and
+  by whom, its offer ("25% off for its last 2 days") and when the batch on the counter goes on it. The shelf
+  life comes from Square when the item has a "Shelf life" custom attribute there (in days, or "36 hours"),
+  read with the menu, or an admin sets it; a batch recorded of one starts from its shelf life and offer
+  (the `fresh_items` migration, `worker/menu.ts`).
 - Leads & enquiries (Sales section): what someone asked for (a party, the terrace, office coffee), where
   it came in, its value, the day it's for and when to follow it up (a reminder in the bell that day).
   Each belongs to someone on Customers, added there as a lead when they're new; a won enquiry makes

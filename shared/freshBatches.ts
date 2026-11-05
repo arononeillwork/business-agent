@@ -131,3 +131,93 @@ export function newFreshBatch(now = new Date()): FreshBatchInput {
     discount: 'percent', percent_off: 30, price: null, cleared: null, notes: null,
   }
 }
+
+// ---------------------------------------------------------------------------------------------
+// The items made here, with a set shelf life (the `fresh_items` migration)
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * A menu item with a set shelf life (a pastry, a chia pudding, a cheesecake): how long it keeps once made
+ * and, if it goes on offer before it has to be gone, from how long before the end and at what discount.
+ * A batch recorded of it starts from these. Read from Square's "Shelf life" custom attribute on the item
+ * (`from_square`), or set in the app.
+ */
+export interface FreshItem {
+  id: string
+  /** The menu item (from Square when that's where the menu comes from). */
+  recipe_id: string
+  shelf_life_hours: number
+  /** Square has its shelf life, and changes it. */
+  from_square: boolean
+  /** Its offer starts this long before it has to be gone (null: no offer). */
+  offer_hours: number | null
+  discount: 'percent' | 'price'
+  percent_off: number
+  price: string | null
+}
+export type FreshItemInput = Omit<FreshItem, 'id' | 'from_square'> & { id?: string }
+
+/** How long before the end its offer starts, as offered on the page (any number of hours below its shelf life is fine). */
+export const OFFER_LEADS: { hours: number; label: string }[] = [
+  { hours: 2, label: msg('Its last 2 hours') }, { hours: 4, label: msg('Its last 4 hours') }, { hours: 8, label: msg('Its last 8 hours') },
+  { hours: 24, label: msg('Its last day') }, { hours: 48, label: msg('Its last 2 days') }, { hours: 72, label: msg('Its last 3 days') },
+]
+
+/** A new one: keeps a day, 30% off for its last 4 hours. */
+export const newFreshItem = (recipeId = ''): FreshItemInput =>
+  ({ recipe_id: recipeId, shelf_life_hours: 24, offer_hours: 4, discount: 'percent', percent_off: 30, price: null })
+
+/** What stops it being saved (null: fine). The database checks the same. */
+export function freshItemProblem(i: Pick<FreshItemInput, 'recipe_id' | 'shelf_life_hours' | 'offer_hours' | 'discount' | 'percent_off' | 'price'>): string | null {
+  if (!i.recipe_id) return msg('Pick an item from the menu')
+  if (!(Number.isInteger(i.shelf_life_hours) && i.shelf_life_hours >= 1 && i.shelf_life_hours <= MAX_SHELF_HOURS)) return msg('Its shelf life is between 1 hour and 30 days')
+  if (i.offer_hours !== null) {
+    if (!(Number.isInteger(i.offer_hours) && i.offer_hours >= 1 && i.offer_hours < i.shelf_life_hours)) return msg('Start the offer before its shelf life ends')
+    if (i.discount === 'percent' && !(Number.isInteger(i.percent_off) && i.percent_off >= 5 && i.percent_off <= 90)) return msg('Take between 5% and 90% off')
+    if (i.discount === 'price' && !i.price?.trim()) return msg('Say the offer price, e.g. 2 for €3')
+  }
+  if ((i.price ?? '').trim().length > 40) return msg('Keep the prices short')
+  return null
+}
+
+/** A batch of it made at `madeAt`: its menu item, its shelf life, and its offer from that long before the end. */
+export function batchFromItem(item: Pick<FreshItem, 'recipe_id' | 'shelf_life_hours' | 'offer_hours' | 'discount' | 'percent_off' | 'price'>, madeAt: string):
+  Pick<FreshBatchInput, 'recipe_id' | 'shelf_life_hours' | 'discount_at' | 'discount' | 'percent_off' | 'price'> {
+  const end = Date.parse(goodUntil(madeAt, item.shelf_life_hours))
+  return {
+    recipe_id: item.recipe_id, shelf_life_hours: item.shelf_life_hours, discount: item.discount, percent_off: item.percent_off, price: item.price,
+    discount_at: item.offer_hours === null ? null : new Date(Math.max(Date.parse(madeAt), end - item.offer_hours * HOUR)).toISOString(),
+  }
+}
+
+/** Its batches, newest first: those of its menu item, or with its name when not linked to one. */
+export function batchesOf(recipe: { id: string; name: string }, batches: FreshBatch[]): FreshBatch[] {
+  const name = recipe.name.trim().toLowerCase()
+  return batches.filter(b => b.recipe_id === recipe.id || (!b.recipe_id && b.name.trim().toLowerCase() === name))
+    .sort((a, b) => b.made_at.localeCompare(a.made_at))
+}
+
+/**
+ * What Square's shelf lives change (its items' "Shelf life" custom attribute, read with the menu): one
+ * set for each menu item that has one (an offer that no longer fits before the end goes), and those
+ * Square no longer has kept as they are, as set in the app from then on. The Worker and the demo do it.
+ */
+export function squareShelfChanges(read: { square_id: string; shelf_life_hours?: number | null }[], recipes: { id: string; square_id: string | null }[],
+  items: Pick<FreshItem, 'id' | 'recipe_id' | 'shelf_life_hours' | 'offer_hours' | 'from_square'>[]) {
+  const bySquare = new Map(recipes.filter(r => r.square_id).map(r => [r.square_id!, r.id]))
+  const add: { recipe_id: string; shelf_life_hours: number; from_square: true }[] = []
+  const change: { id: string; patch: { shelf_life_hours: number; from_square: true; offer_hours?: null } }[] = []
+  const inSquare = new Set<string>()
+  for (const r of read) {
+    const recipe = r.shelf_life_hours ? bySquare.get(r.square_id) : undefined
+    if (!recipe || !r.shelf_life_hours) continue
+    inSquare.add(recipe)
+    const had = items.find(i => i.recipe_id === recipe)
+    if (!had) add.push({ recipe_id: recipe, shelf_life_hours: r.shelf_life_hours, from_square: true })
+    else if (!had.from_square || had.shelf_life_hours !== r.shelf_life_hours) {
+      change.push({ id: had.id, patch: { shelf_life_hours: r.shelf_life_hours, from_square: true, ...(had.offer_hours !== null && had.offer_hours >= r.shelf_life_hours ? { offer_hours: null } : {}) } })
+    }
+  }
+  const release = items.filter(i => i.from_square && !inSquare.has(i.recipe_id)).map(i => i.id)
+  return { add, change, release }
+}

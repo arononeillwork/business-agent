@@ -123,8 +123,8 @@ export function StockPage() {
       </StatGrid>
 
       <Tabs value={view} onChange={(_, v: View) => setView(v)} sx={{ mb: 2, borderBottom: `1px solid ${tokens.line}` }}>
-        <Tab value="items" label={t('Items')} />
         <Tab value="fresh" label={t('Freshly made')} />
+        <Tab value="items" label={t('Items')} />
         <Tab value="order" label={`${t('Order list')}${orders.length ? ` (${orders.length})` : ''}`} />
         <Tab value="history" label={t('History')} />
       </Tabs>

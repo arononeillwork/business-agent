@@ -17,6 +17,8 @@ export interface SquareObject {
     modifier_list_info?: { modifier_list_id: string; enabled?: boolean }[]
   }
   category_data?: { name?: string }
+  /** Values of the seller's own custom attributes on the object, keyed by the attribute: "Shelf life" is read. */
+  custom_attribute_values?: Record<string, { name?: string; type?: string; number_value?: string; string_value?: string }>
   modifier_list_data?: { name?: string; modifiers?: { modifier_data?: { name?: string; price_money?: { amount?: number }; ordinal?: number } }[] }
   image_data?: { url?: string }
 }
@@ -32,6 +34,8 @@ export interface SquareMenuItem {
   photo_url: string | null
   /** Its place in its section, as Square lists it. */
   menu_sort: number
+  /** How long it keeps once made, from the item's "Shelf life" custom attribute (hours); none without one. */
+  shelf_life_hours?: number | null
 }
 export interface SquareMenu { items: SquareMenuItem[]; sections: string[] }
 
@@ -45,6 +49,29 @@ const SERVICE = /^(sit[ -]?in|eat[ -]?in|take[ -]?away|to go|para llevar|en (el 
 const money = (amount: number | undefined) => (typeof amount === 'number' ? Math.round(amount) / 100 : null)
 const round = (n: number) => Math.round(n * 100) / 100
 const tidy = (s: string | undefined) => (s ?? '').replace(/\s+/g, ' ').trim()
+
+/** A custom attribute that says how long an item keeps: "Shelf life", "Shelf life (days)", "Caducidad", "Vida útil", "Keeps". */
+const SHELF = /shelf[\s-]*life|\bkeeps\b|caducidad|vida\s*[úu]til|consumir\s+en/i
+/** The longest shelf life the Freshly made tab takes: 30 days, in hours. */
+const MAX_SHELF_HOURS = 720
+
+/**
+ * How long an item keeps, from its "Shelf life" custom attribute in Square, in hours: a number of days
+ * ("5", "5 days", "5 días"), or of hours when it says so ("36 hours", "8 h", or an attribute named
+ * "Shelf life (hours)"). Null without one, or with one that isn't a length between an hour and 30 days.
+ */
+export function shelfLifeOf(values: SquareObject['custom_attribute_values']): number | null {
+  for (const v of Object.values(values ?? {})) {
+    if (!SHELF.test(v.name ?? '')) continue
+    const m = /(\d+(?:[.,]\d+)?)\s*([a-záéíóú]*)/i.exec(String(v.number_value ?? v.string_value ?? '').trim())
+    if (!m) continue
+    const n = Number(m[1].replace(',', '.'))
+    const unit = m[2] || (/\b(hours?|horas?|hrs?)\b/i.test(v.name ?? '') ? 'h' : 'd')
+    const hours = Math.round(/^(h|hr|hrs|hour|hours|hora|horas)$/i.test(unit) ? n : n * 24)
+    if (hours >= 1 && hours <= MAX_SHELF_HOURS) return hours
+  }
+  return null
+}
 
 export function fromSquareCatalog(objects: SquareObject[]): SquareMenu {
   const live = objects.filter(o => !o.is_deleted)
@@ -83,6 +110,7 @@ export function fromSquareCatalog(objects: SquareObject[]): SquareMenu {
       description: tidy(d.description_plaintext ?? d.description) || null,
       photo_url: url,
       menu_sort: sort,
+      shelf_life_hours: shelfLifeOf(o.custom_attribute_values),
     })
     for (const m of d.modifier_list_info ?? []) if (m.enabled !== false) used.add(m.modifier_list_id)
   }

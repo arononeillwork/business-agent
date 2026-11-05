@@ -1,13 +1,21 @@
 // The demo's Square item library, shaped like the café's own: its printed menu's items as Square
 // keeps them (Title Case names, Hot and Iced as variations with their own prices, sit in and takeaway
 // at one price for the smoothies), a couple that are only on the till, and the milks, syrups and extra
-// shot as modifier lists. Read by the demo when the menu's source is Square.
+// shot as modifier lists; and a "Shelf life (days)" custom attribute on what's made here (pastries, cakes,
+// chia puddings). Read by the demo when the menu's source is Square.
 import { templateItems } from '../../shared/menuTemplate'
 import type { SquareObject } from '../../shared/menuSquare'
 
 const title = (s: string) => s.replace(/(^|[\s(+-])(\p{L})/gu, (_, sep: string, ch: string) => sep + ch.toUpperCase())
 const slug = (s: string) => s.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 const cents = (n: number) => Math.round(n * 100)
+
+/** The café's "Shelf life (days)" custom attribute in Square: what's made here and keeps a day or a few. */
+const SHELF_LIFE: Record<string, number> = {
+  'Croissant': 1, 'Ham + cheese croissant': 1, 'Almond croissant': 1, 'Cinnamon swirl': 1, 'Raisin butter swirl': 1,
+  'Gluten-free brownie': 5, 'Biscoff cheesecake': 5, 'Pistachio cheesecake': 5, 'Fresh fruit cup': 2,
+  'Mango chia pudding': 3, 'Strawberry chia pudding': 3,
+}
 
 export function demoSquareCatalog(): SquareObject[] {
   const items = templateItems().filter(i => i.category !== 'Make it yours')
@@ -22,7 +30,10 @@ export function demoSquareCatalog(): SquareObject[] {
       : i.category === 'Smoothies'
         ? ['Sit In', 'Takeaway'].map((name, n) => ({ id: `v-${slug(i.name)}-${n}`, item_variation_data: { name, ordinal: n, price_money: { amount: cents(i.sell_price ?? 0) } } }))
         : [{ id: `v-${slug(i.name)}-0`, item_variation_data: { name: 'Regular', ordinal: 0, price_money: { amount: cents(i.sell_price ?? 0) } } }]
-    objects.push({ type: 'ITEM', id: `sq-${slug(i.name)}`, item_data: {
+    const keeps = SHELF_LIFE[i.name]
+    objects.push({ type: 'ITEM', id: `sq-${slug(i.name)}`,
+      ...(keeps ? { custom_attribute_values: { 'Square:shelf-life': { name: 'Shelf life (days)', type: 'NUMBER', number_value: String(keeps) } } } : {}),
+      item_data: {
       name: title(i.name), description: i.description ?? undefined, categories: [{ id: `cat-${slug(i.category!)}` }], variations,
       modifier_list_info: coffee.has(i.category!) ? ['mod-milk', 'mod-syrup', 'mod-shot'].map(id => ({ modifier_list_id: id })) : [] } })
   }
