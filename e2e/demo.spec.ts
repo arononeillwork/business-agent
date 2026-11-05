@@ -7712,6 +7712,14 @@ test.describe('UI round: dashboards, the business advisor and the landing pages'
     await expect(page.getByRole('tab', { name: 'Shop manager' })).toBeVisible()
     await expect(page.getByRole('tab', { name: 'Executive' })).toHaveAttribute('aria-selected', 'true')
     await expect(page.getByRole('region', { name: 'Lowest margins' })).toContainText('Pain au chocolat')
+    // One row of tabs: Reports pinned first, then each dashboard.
+    await expect(page.getByRole('main').getByRole('tablist')).toHaveCount(1)
+    await expect(page.getByRole('main').getByRole('tab')).toHaveText(['Reports', 'Shop manager', 'Executive'])
+    await page.getByRole('tab', { name: 'Reports' }).click()
+    await expect(page).toHaveURL(/tab=reports/)
+    await page.getByRole('tab', { name: 'Shop manager' }).click()
+    await expect(page).not.toHaveURL(/tab=reports/)
+    await expect(page.getByRole('region', { name: 'Google reviews' })).toBeVisible()
   })
 
   test('dashboards → reports: pick the reports and who gets them (the team, a contact, any address), see the email, send it from the mailbox', async ({ page }) => {
