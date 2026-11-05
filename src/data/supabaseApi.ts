@@ -37,6 +37,7 @@ import type { DisplayFeed, Screen } from '../../shared/screens'
 import type { Offer } from '../../shared/offers'
 import type { LatestPosts } from './api'
 import type { LastDayRule } from '../../shared/lastDayOffers'
+import type { FreshBatch } from '../../shared/freshBatches'
 import type { Camera, CameraClip, CameraLive, CameraService } from '../../shared/cameras'
 import type { AdSettings } from '../../shared/ads'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
@@ -969,7 +970,7 @@ export function createSupabaseApi(url: string, key: string): Api {
       return json
     },
     async offers() {
-      return check(await sb.from('offers').select('id, title, details, price, was_price, image_url, starts_at, ends_at, screen_ids, screen_mode, seconds, post_id, active, updated_at, stock_item_id, last_day_rule_id, auto_for')
+      return check(await sb.from('offers').select('id, title, details, price, was_price, image_url, starts_at, ends_at, screen_ids, screen_mode, seconds, post_id, active, updated_at, stock_item_id, last_day_rule_id, auto_for, fresh_batch_id')
         .order('starts_at', { ascending: false }).limit(500)) as Offer[]
     },
     async saveOffer({ id, ...offer }) {
@@ -979,6 +980,18 @@ export function createSupabaseApi(url: string, key: string): Api {
     async deleteOffer(id) { check(await sb.from('offers').delete().eq('id', id)) },
     async latestPosts(limit = 12) { return worker<LatestPosts>(`/api/integrations/posts/latest?limit=${limit}`) },
     async keepPostPhoto(url) { return (await worker<{ url: string }>('/api/integrations/posts/photo', { method: 'POST', body: JSON.stringify({ url }) })).url },
+    async freshBatches() {
+      const since = new Date(Date.now() - 14 * 86_400_000).toISOString()
+      const rows = check(await sb.from('fresh_batches')
+        .select('id, name, recipe_id, quantity, made_at, shelf_life_hours, good_until, discount_at, discount, percent_off, price, cleared, cleared_at, notes, made_by')
+        .or(`made_at.gte.${since},good_until.gte.${since}`).order('made_at', { ascending: false }).limit(300)) as FreshBatch[]
+      return rows.map(b => ({ ...b, quantity: num(b.quantity) }))
+    },
+    async saveFreshBatch({ id, ...b }) {
+      if (id) { check(await sb.from('fresh_batches').update(b).eq('id', id)); return id }
+      return (check(await sb.from('fresh_batches').insert(b).select('id').single()) as { id: string }).id
+    },
+    async deleteFreshBatch(id) { check(await sb.from('fresh_batches').delete().eq('id', id)) },
     async lastDayRules() {
       return check(await sb.from('last_day_rules').select('id, name, active, categories, item_ids, discount, percent_off, price, minutes_before_close, screen_ids, screen_mode, story, sort')
         .order('sort').order('created_at')) as LastDayRule[]

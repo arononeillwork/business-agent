@@ -51,6 +51,7 @@ import { DEMO_THEME_TRACKS, demoThemeDayApi } from './demoThemeDays'
 import { demoChecklistApi } from './demoChecklists'
 import { demoCompanyValuesApi } from './demoCompanyValues'
 import { demoContactsApi } from './demoContacts'
+import { demoFreshApi } from './demoFreshBatches'
 import { demoQrCodeApi } from './demoQrCodes'
 import { COUNTED, type Contractor, type OutsourcedJob } from '../../shared/outsourcing'
 import { DEFAULT_CONVENIO, contractProblem, type EmploymentContract } from '../../shared/contracts'
@@ -1409,6 +1410,11 @@ export function createDemoApi(): Api {
   }, { by: P.julio, at: zonedIso(today(), '08:05') })
   // Company values (Business): as the `company_values` migration.
   const valuesApi = demoCompanyValuesApi({ isStaff: () => isStaff() && !!me()?.active, isAdmin: () => isAdmin() && !!me()?.active, uid })
+  // Freshly made (Stock): as the `fresh_batches` migration; a batch's discount puts its offer on Offers & specials.
+  const freshApi = demoFreshApi({
+    isStaff: () => isStaff() && !!me()?.active, isAdmin: () => isAdmin() && !!me()?.active, reads: () => partnerCan('finances'), me: () => currentUser, uid,
+    offers: offerList, screens: () => screenList.filter(x => x.active).map(x => x.id), menu: () => recipes.filter(r => r.active),
+  })
   /** That person's shifts in the period become open shifts (approved time off). */
   const openUpShifts = (t: TimeOff) => {
     const name = profiles.find(p => p.id === t.profile_id)?.full_name
@@ -2583,6 +2589,7 @@ export function createDemoApi(): Api {
     ...themeDayApi,
     ...checklistApi,
     ...valuesApi,
+    ...freshApi,
     // Contacts (Business, owners only): Easy Beans' lawyer, bank advisor and plumber, as the `business_contacts` migration.
     ...demoContactsApi({ isOwner: () => isAdmin() && !!me()?.active && !!me()?.can_see_pay, uid }),
     // QR codes: Easy Beans' three, as the `qr_codes` migration, with the demo's Wi-Fi filled in.
@@ -3557,6 +3564,7 @@ export function createDemoApi(): Api {
     async offers() {
       if (!isAdmin()) return []
       runLastDayOffers()
+      await freshApi.freshBatches() // the freshly made batches' offers, there from the start
       return clone(offerList).sort((a, b) => b.starts_at.localeCompare(a.starts_at))
     },
     async lastDayRules() { return isAdmin() ? clone(lastDayRuleList).sort((a, b) => a.sort - b.sort) : [] },

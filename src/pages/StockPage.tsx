@@ -17,7 +17,7 @@ import WholesaleIcon from '@mui/icons-material/WarehouseOutlined'
 import DeleteIcon from '@mui/icons-material/DeleteOutlined'
 import LastDayIcon from '@mui/icons-material/HourglassBottomOutlined'
 import { useMemo, useRef, useState } from 'react'
-import { Link as RouterLink } from 'react-router-dom'
+import { Link as RouterLink, useSearchParams } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction, useNotify } from '../app/Notify'
@@ -31,10 +31,11 @@ import {
 } from '../../shared/stock'
 import { addDays, formatLocal, formatMoney, formatNumber, today } from '../../shared/time'
 import { deliveryUseBy, isLastDay, isPastUseBy } from '../../shared/lastDayOffers'
+import { FreshlyMade } from './FreshlyMade'
 import { tokens } from '../theme'
 import { msg, t, tn } from '../i18n'
 
-type View = 'items' | 'order' | 'history'
+type View = 'items' | 'fresh' | 'order' | 'history'
 const LOW_TAG = { fg: tokens.badFg, bg: tokens.badBg }
 
 const SORT_BY: Record<string, (i: StockItem) => string | number | null> = {
@@ -54,7 +55,12 @@ export function StockPage() {
   const { api, isAdmin, isPartner, can } = useApp()
   const items = useAsync('stock', () => api.stockItems(), [])
   const suppliers = useAsync('suppliers', () => api.suppliers(), [])
-  const [view, setView] = useState<View>('items')
+  const [params, setParams] = useSearchParams()
+  const [view, setViewState] = useState<View>(() => (params.get('tab') === 'fresh' ? 'fresh' : 'items'))
+  const setView = (v: View) => {
+    setViewState(v)
+    setParams(p => { if (v === 'fresh') p.set('tab', 'fresh'); else p.delete('tab'); return p }, { replace: true })
+  }
   const [q, setQ] = useState('')
   const [lowOnly, setLowOnly] = useState(false)
   const [shopOnly, setShopOnly] = useState(false)
@@ -118,6 +124,7 @@ export function StockPage() {
 
       <Tabs value={view} onChange={(_, v: View) => setView(v)} sx={{ mb: 2, borderBottom: `1px solid ${tokens.line}` }}>
         <Tab value="items" label={t('Items')} />
+        <Tab value="fresh" label={t('Freshly made')} />
         <Tab value="order" label={`${t('Order list')}${orders.length ? ` (${orders.length})` : ''}`} />
         <Tab value="history" label={t('History')} />
       </Tabs>
@@ -243,6 +250,7 @@ export function StockPage() {
         </Card>
       </>)}
 
+      {view === 'fresh' && <FreshlyMade />}
       {view === 'order' && <OrderList orders={orders} />}
       {view === 'history' && <History items={items.data ?? []} />}
 

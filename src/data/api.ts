@@ -41,6 +41,7 @@ import type { DisplayFeed, Screen, ScreenInput } from '../../shared/screens'
 import type { Offer, OfferInput } from '../../shared/offers'
 import type { SourcePost } from '../../shared/offerFromPost'
 import type { LastDayRule, LastDayRuleInput } from '../../shared/lastDayOffers'
+import type { FreshBatch, FreshBatchInput } from '../../shared/freshBatches'
 import type { Camera, CameraClip, CameraInput, CameraLive, CameraService } from '../../shared/cameras'
 import type { AdPlatform, AdSettings, AdsReport, CampaignPatch } from '../../shared/ads'
 import type { ReviewsState } from '../../shared/reviews'
@@ -571,6 +572,16 @@ export interface Api {
   editWaste(id: string, w: WasteEdit): Promise<void>
   /** Take an entry off the waste log; its stock comes back. */
   undoWaste(id: string): Promise<void>
+  /**
+   * Freshly made (Stock): what the team made for the counter, when, how long it keeps and when its discount
+   * starts, the last two weeks', newest first (the team; finance partners read). A batch with a discount puts
+   * itself on Offers & specials until its shelf life ends (shared/freshBatches.ts).
+   */
+  freshBatches(): Promise<FreshBatch[]>
+  /** Record a batch (no id) or change one (sold out or thrown away: `cleared`); returns its id. */
+  saveFreshBatch(batch: FreshBatchInput): Promise<string>
+  /** Delete a batch recorded by mistake (admins, or whoever recorded it); its offer still to come goes too. */
+  deleteFreshBatch(id: string): Promise<void>
   /** Menu items and what goes in them (admins; finance partners read). */
   recipes(): Promise<Recipe[]>
   /** Save a recipe with its variants and lines (they replace the ones there were); returns its id. */

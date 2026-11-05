@@ -4450,6 +4450,58 @@ test.describe('stock and suppliers', () => {
     await expect(details.getByRole('button', { name: 'Save' })).toHaveCount(0)
     await details.getByRole('button', { name: 'Close' }).click()
   })
+
+  test('freshly made: the team records a bake with its shelf life and discount; it goes on Offers & specials, and sold out ends it', async ({ page }) => {
+    // The baristas' role shows the stock (Read: they record what comes in and goes, and what they make).
+    await giveBaristas(page, 'Stock', 'Read')
+    await signInAs(page, 'julio@example.com')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Current stock' }).click()
+    await page.getByRole('tab', { name: 'Freshly made' }).click()
+    await expect(page).toHaveURL(/tab=fresh/)
+    const counter = page.getByRole('list', { name: 'On the counter' })
+    await expect(counter.getByRole('listitem', { name: 'Brownies' })).toContainText('On offer now: 2 for €5')
+    await expect(counter.getByRole('listitem', { name: 'Banana bread' })).toContainText(/30% off from/)
+    await expect(counter.getByRole('listitem', { name: 'Ham & cheese toasties' })).toContainText('Fresh')
+    await expect(page.getByRole('list', { name: 'Earlier batches' }).getByRole('listitem', { name: 'Lemon tart' })).toContainText('Sold out')
+
+    // Julio records 12 croissants (on the menu at €1.80), keeping 8 hours, 30% off for the last 2.
+    await page.getByRole('button', { name: 'Record a batch' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Record a batch' })
+    await dialog.getByRole('combobox', { name: 'What was made' }).fill('Croissant')
+    await dialog.getByRole('spinbutton', { name: 'How many' }).fill('12')
+    await dialog.getByRole('combobox', { name: 'Shelf life' }).click()
+    await page.getByRole('option', { name: '8 hours' }).click()
+    await expect(dialog).toContainText('Good until 17:00')
+    await dialog.getByRole('group', { name: 'Start the discount' }).getByRole('button', { name: '2 hours before' }).click()
+    await expect(dialog.getByRole('status')).toHaveText('On Offers & specials from 15:00 until 17:00: €1.26, was €1.80.')
+    await dialog.getByRole('button', { name: 'Record', exact: true }).click()
+    await toast(page, 'Croissant recorded, with its offer')
+    const croissant = counter.getByRole('listitem', { name: 'Croissant' })
+    await expect(croissant).toContainText('Croissant × 12')
+    await expect(croissant).toContainText('30% off from 15:00')
+    await expect(croissant.getByRole('meter', { name: 'Shelf life used' })).toHaveAttribute('aria-valuetext', '8 hours left, good until 17:00')
+    // The team doesn't open Offers & specials: the tag is just a tag.
+    await expect(croissant.getByRole('link')).toHaveCount(0)
+
+    // The admin sees its offer coming up on Offers & specials, tagged Freshly made, and the tag on Stock leads there.
+    await signInAs(page, 'aron@example.com')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Offers & specials' }).click()
+    const offer = page.getByRole('region', { name: 'Coming up' }).getByRole('article', { name: 'Croissant' })
+    await expect(offer).toContainText('€1.26')
+    await expect(offer).toContainText('€1.80')
+    await offer.getByRole('link', { name: 'Freshly made: see the batch on Stock' }).click()
+    await expect(page.getByRole('tab', { name: 'Freshly made' })).toHaveAttribute('aria-selected', 'true')
+    await expect(counter.getByRole('listitem', { name: 'Croissant' }).getByRole('link', { name: '30% off from 15:00, on Offers & specials' })).toHaveAttribute('href', '/offers')
+
+    // Sold out: off the counter, and its offer still to come goes.
+    await counter.getByRole('listitem', { name: 'Croissant' }).getByRole('button', { name: 'Croissant: sold out' }).click()
+    await toast(page, 'Croissant: sold out')
+    await expect(counter.getByRole('listitem', { name: 'Croissant' })).toHaveCount(0)
+    await expect(page.getByRole('list', { name: 'Earlier batches' }).getByRole('listitem', { name: 'Croissant' })).toContainText('Sold out')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Offers & specials' }).click()
+    await expect(page.getByRole('article', { name: 'Croissant' })).toHaveCount(0)
+    await expect(page.getByRole('region', { name: 'Live now' }).getByRole('article', { name: 'Brownies' })).toContainText('Freshly made')
+  })
 })
 
 test.describe('recipes and waste', () => {
