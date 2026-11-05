@@ -15,7 +15,7 @@ function bytesResponse(bytes: Uint8Array, type: string, range: string | null) {
 const googleError = (status: number, message: string, reason?: string) =>
   json({ error: { code: status, message, ...(reason ? { errors: [{ reason, message }] } : {}) } }, status)
 
-const GOOGLE_SCOPES = 'https://www.googleapis.com/auth/business.manage https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/webmasters.readonly https://www.googleapis.com/auth/adwords openid https://www.googleapis.com/auth/userinfo.email'
+const GOOGLE_SCOPES = 'https://www.googleapis.com/auth/business.manage https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/webmasters.readonly https://www.googleapis.com/auth/adwords https://www.googleapis.com/auth/photospicker.mediaitems.readonly openid https://www.googleapis.com/auth/userinfo.email'
 const MS_SCOPES = 'Mail.Send Files.ReadWrite User.Read openid email profile'
 
 /** Decode a Gmail `raw` message into its To, Subject and text. */
@@ -82,6 +82,20 @@ export class FakeProviders {
   }
   /** PageSpeed Insights: the next answers (a 429 when the free quota is used up). */
   pagespeed = { quotaUsed: false, score: 0.62, calls: [] as { url: string; strategy: string }[] }
+  /**
+   * Google Photos (Picker API): the picker sessions made, and what the admin picks in the next one (`picks`,
+   * set before the session is read; `pick(id)` presses Done). `noLibrary`: the account has no Google Photos.
+   */
+  googlePhotos = {
+    noLibrary: false,
+    sessions: new Map<string, { picked: boolean; deleted: boolean; max: string | undefined }>(),
+    picks: [] as { id: string; type: 'PHOTO' | 'VIDEO'; filename: string; mimeType: string; bytes: Uint8Array; status?: 'PROCESSING' | 'READY'; createTime?: string; width?: number; height?: number }[],
+    /** The files asked for (each address with its size option), and with which token. */
+    downloads: [] as { url: string; auth: string | null }[],
+    /** Answer a file with no content-length (it's read before it's stored). */
+    noLength: false,
+  }
+  pick(id: string) { this.googlePhotos.sessions.get(id)!.picked = true }
   /** Search Console: the websites (properties) the Google account can see, and the queries asked of it. */
   searchConsole = {
     sites: [
@@ -374,6 +388,50 @@ export class FakeProviders {
         ...(f.get('grant_type') === 'authorization_code' ? { refresh_token: 'g-refresh' } : {}) })
     }
     if (url.href === 'https://openidconnect.googleapis.com/v1/userinfo') return json({ email: this.google.email })
+    if (url.host === 'photospicker.googleapis.com') {
+      const g = this.googlePhotos
+      const status = (code: number, st: string, message: string) => json({ error: { code, status: st, message } }, code)
+      if (this.google.revoked) return status(401, 'UNAUTHENTICATED', 'Request had invalid authentication credentials.')
+      if (!this.google.granted.includes('photospicker.mediaitems.readonly')) return status(403, 'PERMISSION_DENIED', 'Request had insufficient authentication scopes.')
+      if (this.google.disabled.has('photos')) return status(403, 'PERMISSION_DENIED', 'Photos Picker API has not been used in project 1234 before or it is disabled.')
+      const session = (id: string) => ({ id, pickerUri: `https://photos.google.com/picker/${id}`, expireTime: '2026-11-06T10:00:00Z',
+        mediaItemsSet: g.sessions.get(id)!.picked, ...(g.sessions.get(id)!.picked ? {} : { pollingConfig: { pollInterval: '4s', timeoutIn: '1800s' } }) })
+      if (url.pathname === '/v1/sessions' && method === 'POST') {
+        if (g.noLibrary) return status(400, 'FAILED_PRECONDITION', 'The user does not have an active Google Photos account.')
+        const id = `ps-${this.nextId++}`
+        g.sessions.set(id, { picked: false, deleted: false, max: (body().pickingConfig as Json | undefined)?.maxItemCount as string | undefined })
+        return json(session(id))
+      }
+      const one = url.pathname.match(/^\/v1\/sessions\/([^/]+)$/)
+      if (one) {
+        const s = g.sessions.get(decodeURIComponent(one[1]))
+        if (!s || s.deleted) return status(404, 'NOT_FOUND', 'Requested entity was not found.')
+        if (method === 'DELETE') { s.deleted = true; return json({}) }
+        return json(session(decodeURIComponent(one[1])))
+      }
+      if (url.pathname === '/v1/mediaItems') {
+        const s = g.sessions.get(url.searchParams.get('sessionId') ?? '')
+        if (!s || s.deleted) return status(404, 'NOT_FOUND', 'Requested entity was not found.')
+        if (!s.picked) return status(400, 'FAILED_PRECONDITION', 'The user has not finished picking media items.')
+        const size = Number(url.searchParams.get('pageSize') ?? 50), from = Number(url.searchParams.get('pageToken') ?? 0)
+        const page = g.picks.slice(from, from + size).map(p => ({ id: p.id, createTime: p.createTime, type: p.type,
+          mediaFile: { baseUrl: `https://lh3.googleusercontent.com/pp/${p.id}`, mimeType: p.mimeType, filename: p.filename,
+            mediaFileMetadata: { width: p.width, height: p.height, ...(p.type === 'VIDEO' ? { videoMetadata: { fps: 30, processingStatus: p.status ?? 'READY' } } : { photoMetadata: {} }) } } }))
+        return json({ mediaItems: page, ...(from + size < g.picks.length ? { nextPageToken: String(from + size) } : {}) })
+      }
+    }
+    // A picked item's file: only with the access token, and only with a size (photos) or =dv (videos).
+    if (url.host === 'lh3.googleusercontent.com' && url.pathname.startsWith('/pp/')) {
+      const g = this.googlePhotos
+      const auth = new Headers(init.headers).get('authorization')
+      g.downloads.push({ url: url.href, auth })
+      if (!auth?.startsWith('Bearer g-access-')) return new Response('Forbidden', { status: 403 })
+      const [id, option] = decodeURIComponent(url.pathname.slice('/pp/'.length)).split('=')
+      const p = g.picks.find(x => x.id === id)
+      if (!p || !option || (p.type === 'VIDEO') !== (option === 'dv')) return new Response('Not found', { status: 404 })
+      return new Response(p.bytes, { headers: { 'content-type': p.type === 'VIDEO' ? 'video/mp4' : p.mimeType === 'image/heic' ? 'image/jpeg' : p.mimeType,
+        ...(g.noLength ? {} : { 'content-length': String(p.bytes.length) }) } })
+    }
     if (url.host === 'gmail.googleapis.com') {
       if (this.google.disabled.has('gmail')) return googleError(403, 'Gmail API has not been used in project 1234 before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/gmail.googleapis.com/overview?project=1234 then retry.', 'accessNotConfigured')
       // Reading the mailbox (Invoices).

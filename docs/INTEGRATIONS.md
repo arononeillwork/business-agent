@@ -782,6 +782,36 @@ the FTP server, port 21, the user name and password, Anonymous off, Directory em
 File Type **Video and picture**, Interval **5 seconds**, Max File Size **20 MB**, and the schedule
 **Timer** for every hour (or **Alarm** only, for a clip only when something moves).
 
+## 21. Google Photos (the Content page)
+
+The **Content** page (Marketing, admins) keeps the business's photos and videos in one place, for posts,
+offers, the menu and the screens. They're picked in Google Photos or uploaded from the device, and kept
+in the business's own Google Drive or OneDrive under **Business Agent/Content** (or R2), each at its own
+`/media/…` address (`worker/content.ts`, the `content_library` migration).
+
+Google Photos is read through Google's **Photos Picker API**: since March 2025 that's the only way an app
+can read someone's Google Photos library. The admin picks in Google Photos' own window (it can't sit
+inside the page; on a phone it may open the Google Photos app), presses Done, and the Worker copies what
+was picked into the storage, five at a time. Google's links to what was picked last an hour, so nothing
+points at Google afterwards. Business Agent can see only what was picked
+(`photospicker.mediaitems.readonly`), never the rest of the library. Photos come as JPEGs up to 2560 px
+on the longest side; videos as MP4 up to 100 MB (one Google is still making is skipped, with why).
+Something picked before isn't brought in twice. It uses the Google app from sections 1-2. Once, in the
+same Google Cloud project:
+
+1. *APIs & Services → Library* → search "Photos" → **Google Photos Picker API** → Enable (not the
+   "Google Picker API", which is Drive's file picker).
+2. *OAuth consent screen* (Google Auth Platform → Data access) → **Add or remove scopes** → add
+   `https://www.googleapis.com/auth/photospicker.mediaitems.readonly` → Save. While the app is in
+   *Testing*, the Google account that connects must be a test user; Google may ask to verify the app
+   for this scope before anyone else can use it.
+
+Each business: **Connections → Photos → Connect Google Photos** (or **Connect Google Photos** on the
+Content page, which comes back there) and sign in with the Google account that has the café's photos.
+It shows as connected once Google has opened a picker for that account (an account without Google
+Photos says so). Google Drive or OneDrive must be connected too, for somewhere to keep the copies.
+Checked every night; on the plans with Gmail and Google Drive (the apps feature).
+
 ## Social planner
 
 Admins plan posts on **Social planner** (left menu): write once, pick Instagram, Facebook,

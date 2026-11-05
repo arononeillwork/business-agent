@@ -11,7 +11,7 @@ import CalendarIcon from '@mui/icons-material/CalendarMonthOutlined'
 import CloseIcon from '@mui/icons-material/CloseRounded'
 import DotIcon from '@mui/icons-material/FiberManualRecord'
 import {
-  siApple, siBrevo, siDropbox, siFacebook, siGmail, siGoogleads, siGooglecalendar, siGoogledrive, siGooglemaps, siGooglesearchconsole, siIndeed, siInstagram, siMailchimp,
+  siApple, siBrevo, siDropbox, siFacebook, siGmail, siGoogleads, siGooglecalendar, siGoogledrive, siGooglemaps, siGooglephotos, siGooglesearchconsole, siIndeed, siInstagram, siMailchimp,
   siMeta, siSpotify, siSquare, siStripe, siTiktok, siWhatsapp, siYoutubemusic,
   type SimpleIcon,
 } from 'simple-icons'
@@ -78,6 +78,7 @@ export const LOGO: Record<OptionId, ReactNode> = {
   google_calendar: <Brand icon={siGooglecalendar} />,
   outlook_calendar: <CalendarIcon sx={{ color: '#0F6CBD' }} />,
   google_drive: <Brand icon={siGoogledrive} />,
+  google_photos: <Brand icon={siGooglephotos} />,
   onedrive: <CloudIcon sx={{ color: '#0364B8' }} />,
   sharepoint: <FolderIcon sx={{ color: '#038387' }} />,
   dropbox: <Brand icon={siDropbox} />,
@@ -112,6 +113,7 @@ export const DOES: Partial<Record<OptionId, string>> = {
   google_calendar: msg('The rota, closures and team events in Google Calendar, kept up to date.'),
   outlook_calendar: msg('The rota, closures and team events in Outlook, kept up to date.'),
   google_drive: msg('Timecard and registro exports, saved in a “Business Agent” folder.'),
+  google_photos: msg('Pick the café’s photos and videos in Google Photos and bring them onto the Content page, ready for posts, offers and the screens.'),
   onedrive: msg('Exports saved in a “Business Agent” folder in OneDrive (personal or work).'),
   sharepoint: msg('Exports saved to a team site’s document library.'),
   dropbox: msg('Exports saved to Dropbox.'),
@@ -145,6 +147,7 @@ export const CAN: Partial<Record<OptionId, string[]>> = {
   google_calendar: [msg('Nothing to sign in to: Google Calendar subscribes to a private link to the team calendar'), msg('Reset the link on this page any time to cut it off')],
   outlook_calendar: [msg('Nothing to sign in to: Outlook subscribes to a private link to the team calendar'), msg('Reset the link on this page any time to cut it off')],
   google_drive: [msg('Create files in a “Business Agent” folder and open the ones it made'), msg('It can’t see anything else in your Drive')],
+  google_photos: [msg('Open Google Photos’ own picker, where you choose photos and videos'), msg('Copy the ones you pick to your Drive or OneDrive'), msg('It can’t see anything else in your Google Photos')],
   onedrive: [msg('Create and update files; it only uses the “Business Agent” folder'), msg('See your name and email address')],
   google_business: [msg('Update opening hours, holiday closures and phone on your listing'), msg('Publish posts to your listing')],
   instagram: [msg('See your profile, follower count and recent posts'), msg('Publish the posts you plan here, at the time you choose'),
@@ -167,6 +170,7 @@ export const CAN: Partial<Record<OptionId, string[]>> = {
 
 export const KEYS_NEEDED: Partial<Record<OptionId, string>> = {
   gmail: msg('the Google keys'), google_drive: msg('the Google keys'), youtube_music: msg('the Google keys'), google_business: msg('the Google keys'),
+  google_photos: msg('the Google keys'),
   outlook: msg('the Microsoft app'), onedrive: msg('the Microsoft app'), spotify: msg('the Spotify keys'), instagram: msg('the Instagram app keys'),
   facebook: msg('the Meta app keys'), tiktok: msg('the TikTok app keys'), square: msg('the Square app keys'), stripe: msg('the Stripe platform keys'),
   sumup: msg('the SumUp app keys'), linkedin: msg('the LinkedIn app keys'), search_console: msg('the Google keys'),
@@ -176,7 +180,7 @@ export const KEYS_NEEDED: Partial<Record<OptionId, string>> = {
 
 const isCalendar = (p: string): p is CalendarApp => p === 'google_calendar' || p === 'outlook_calendar'
 // Signed in with Google or Microsoft (see CONNECTORS in worker/connections.ts).
-const isConnector = (p: string): p is ConnectorProvider => ['gmail', 'outlook', 'google_drive', 'onedrive', 'youtube_music', 'search_console', 'google_ads'].includes(p)
+const isConnector = (p: string): p is ConnectorProvider => ['gmail', 'outlook', 'google_drive', 'onedrive', 'youtube_music', 'search_console', 'google_ads', 'google_photos'].includes(p)
 const isAds = (p: string): p is 'meta_ads' | 'google_ads' => p === 'meta_ads' || p === 'google_ads'
 const active = (i?: Integration) => !!i && ['connected', 'pending', 'error'].includes(i.status)
 

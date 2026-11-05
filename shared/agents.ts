@@ -47,7 +47,7 @@ export const AGENTS: readonly Agent[] = [
       { page: 'tax', question: msg('What tax is due next?') },
     ]),
   usual('marketing', 'marketing', msg('Marketing agent'), msg('What a marketing lead needs: posts, offers, campaigns, ads, reviews'),
-    ['social', 'offers', 'competitions', 'campaigns', 'ads', 'analytics', 'reviews', 'website', 'competitors', 'customers', 'brand'], [
+    ['social', 'content', 'offers', 'competitions', 'campaigns', 'ads', 'analytics', 'reviews', 'website', 'competitors', 'customers', 'brand'], [
       { page: 'social', question: msg('What are we posting this week?') },
       { page: 'reviews', question: msg('What are customers saying about us?') },
       { page: 'campaigns', question: msg('Which campaign goes out next?') },
