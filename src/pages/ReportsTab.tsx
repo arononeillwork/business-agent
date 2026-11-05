@@ -62,15 +62,21 @@ export function ReportsTab({ can }: { can: (needs: WidgetNeeds[]) => boolean }) 
   })
   const problem = !kinds.length ? t('Pick at least one report') : reportSendProblem({ to, subject: mail.subject, text: mail.text })
 
-  // The choice is kept in the person's preferences as it changes (a moment after the last change), on every device.
-  const saving = useRef<ReturnType<typeof setTimeout> | null>(null)
-  useEffect(() => () => { if (saving.current) clearTimeout(saving.current) }, [])
+  // The choice is kept in the person's preferences as it changes (a moment after the last change), on every
+  // device. Leaving the page saves what's waiting straight away rather than dropping it.
+  const pending = useRef<{ timer: ReturnType<typeof setTimeout>; save: () => void } | null>(null)
+  useEffect(() => () => { if (pending.current) { clearTimeout(pending.current.timer); pending.current.save() } }, [])
+  // Saved from another device (or by the save above landing): shown, unless a change here is still waiting.
+  const saved = me?.preferences?.reports
+  useEffect(() => { if (!pending.current && saved) setS(readReports(saved)) }, [saved])
   const set = (patch: Partial<SavedReports>) => setS(x => {
     const next = { ...x, ...patch }
-    if (saving.current) clearTimeout(saving.current)
-    saving.current = setTimeout(() => {
+    if (pending.current) clearTimeout(pending.current.timer)
+    const save = () => {
+      pending.current = null
       if (me) api.updateProfile(me.id, { preferences: { ...me.preferences, reports: next } }).then(refresh).catch(() => { /* kept on screen; saved with the next change */ })
-    }, 600)
+    }
+    pending.current = { timer: setTimeout(save, 600), save }
     return next
   })
   const toggle = <K extends 'kinds' | 'team' | 'contacts'>(key: K, id: SavedReports[K][number]) =>
