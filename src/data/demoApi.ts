@@ -52,6 +52,7 @@ import { demoChecklistApi } from './demoChecklists'
 import { demoCompanyValuesApi } from './demoCompanyValues'
 import { demoContactsApi } from './demoContacts'
 import { demoLeaderboardApi } from './demoLeaderboard'
+import { demoSquarePinsApi } from './demoSquarePins'
 import { demoContentApi } from './demoContent'
 import { demoFreshApi } from './demoFreshBatches'
 import { reportSendProblem, scheduleProblem, type ReportSchedule } from '../../shared/reports'
@@ -2620,6 +2621,9 @@ export function createDemoApi(): Api {
       squareOn, takingsOnPlan: () => planById(effectivePlan(demoBilling)).features.includes('takings'),
       sales: (from, to) => demoSales(from, to, 'square').days, today: () => today(), nowIso,
     }, P),
+    // Square PINs (Leaderboard): Aron's, Julio's and Maria's saved; owners see all, anyone else their own.
+    ...demoSquarePinsApi({ isStaff: () => isStaff() && !!me()?.active, isOwner: () => isAdmin() && !!me()?.active && !!me()?.can_see_pay,
+      me: () => me()?.id ?? null, team: () => profiles, nowIso }, P),
     // Content (Marketing): a few of Easy Beans' photos and a video; a Google Photos pick brings in more.
     ...demoContentApi({ isAdmin: () => isAdmin() && !!me()?.active, uid, nowIso, storage: () => mediaStorage(),
       photosConnected: () => integ.integrations.some(i => i.provider === 'google_photos' && i.status === 'connected') }),

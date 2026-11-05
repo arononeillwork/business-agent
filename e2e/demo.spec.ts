@@ -9813,3 +9813,42 @@ test.describe('content', () => {
     await expect(list.getByRole('listitem', { name: 'Ethiopia Guji beans' })).toHaveCount(0)
   })
 })
+
+test.describe('square pins', () => {
+  test('Square PINs on the Leaderboard: owners see and change everyone’s, everyone else sees only their own', async ({ page }) => {
+    await open(page, '/leaderboard')
+    const pins = page.getByRole('region', { name: 'Square PINs' })
+    const table = pins.getByRole('table', { name: 'Square PINs' })
+    await expect(table.getByRole('row')).toHaveText([/Name.*PIN/, /Aron O'Neill \(you\)••••/, /Mark Murray.*Not saved yet/, /Julio••••/, /Maria••••/, /Cleaner.*Not saved yet/])
+    await expect(pins).toContainText('Square doesn’t let apps read passcodes')
+
+    // Shown when asked, and hidden again.
+    await table.getByRole('button', { name: 'Show the PIN for Julio' }).click()
+    await expect(table.getByRole('row', { name: /Julio/ })).toContainText('5286')
+    await table.getByRole('button', { name: 'Hide the PIN for Julio' }).click()
+    await expect(table.getByRole('row', { name: /Julio/ })).not.toContainText('5286')
+
+    // Mark's, typed in as it is in the Square Dashboard.
+    await table.getByRole('button', { name: 'Add the PIN for Mark Murray' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Square PIN for Mark Murray' })
+    await dialog.getByRole('textbox', { name: 'PIN' }).fill('24')
+    await expect(dialog).toContainText('A Square PIN is 4 digits (up to 6)')
+    await expect(dialog.getByRole('button', { name: 'Save' })).toBeDisabled()
+    await dialog.getByRole('textbox', { name: 'PIN' }).fill('2468')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await toast(page, 'PIN saved')
+    await table.getByRole('button', { name: 'Show the PIN for Mark Murray' }).click()
+    await expect(table.getByRole('row', { name: /Mark Murray/ })).toContainText('2468')
+
+    // Maria, an employee: her own only, nobody else's, and no changes.
+    await signInAs(page, 'maria@example.com')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Leaderboard' }).click()
+    const mine = page.getByRole('region', { name: 'Your Square PIN' })
+    await expect(mine).toContainText('••••')
+    await expect(page.getByRole('region', { name: 'Square PINs' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /PIN for Julio/ })).toHaveCount(0)
+    await mine.getByRole('button', { name: 'Show the PIN for Maria' }).click()
+    await expect(mine).toContainText('7390')
+    await expect(page.getByRole('button', { name: /^(Add|Change) the PIN/ })).toHaveCount(0)
+  })
+})
