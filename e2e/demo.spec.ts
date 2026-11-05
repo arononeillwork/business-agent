@@ -561,7 +561,7 @@ test.describe('connections', () => {
 
     await page.getByRole('button', { name: 'Manage WhatsApp' }).click()
     const wa = page.getByRole('dialog', { name: 'WhatsApp' })
-    await expect(wa).toContainText('Send template messages from the café’s number')
+    await expect(wa).toContainText('Send template messages from the business’s number')
     await wa.getByLabel('Test number').fill('12')
     await wa.getByRole('button', { name: 'Send a test' }).click()
     await toast(page, 'full number with country code')

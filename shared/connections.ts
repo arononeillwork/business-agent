@@ -26,7 +26,7 @@ export interface ConnectionGroupInfo {
 
 export const GROUPS: ConnectionGroupInfo[] = [
   { key: 'communication', title: msg('Team messages'), pickOne: true, options: [
-    { id: 'whatsapp', name: 'WhatsApp', by: 'Meta', proves: msg('A test message was delivered from the café’s number.') },
+    { id: 'whatsapp', name: 'WhatsApp', by: 'Meta', proves: msg('A test message was delivered from the business’s number.') },
     { id: 'slack', name: 'Slack', by: 'Slack', soon: true },
     { id: 'sms', name: 'Text messages', by: 'Twilio', soon: true },
   ] },
@@ -45,7 +45,7 @@ export const GROUPS: ConnectionGroupInfo[] = [
     { id: 'dropbox', name: 'Dropbox', by: 'Dropbox', soon: true },
   ] },
   { key: 'maps', title: msg('Maps and search'), pickOne: false, options: [
-    { id: 'google_business', name: 'Google Maps', by: 'Google', proves: msg('The café’s listing was found and can be updated.') },
+    { id: 'google_business', name: 'Google Maps', by: 'Google', proves: msg('The business’s listing was found and can be updated.') },
     { id: 'apple_maps', name: 'Apple Maps', by: 'Apple', soon: true },
   ] },
   // How the website does: shown on the Analytics page.
@@ -60,8 +60,8 @@ export const GROUPS: ConnectionGroupInfo[] = [
   ] },
   // Paid ads on the Ads page: as many as the business runs.
   { key: 'advertising', title: msg('Advertising'), pickOne: false, options: [
-    { id: 'meta_ads', name: 'Meta Ads', by: 'Meta', proves: msg('The ad accounts could be read and the café’s one was picked.') },
-    { id: 'google_ads', name: 'Google Ads', by: 'Google', proves: msg('The ad accounts could be read and the café’s one was picked.') },
+    { id: 'meta_ads', name: 'Meta Ads', by: 'Meta', proves: msg('The ad accounts could be read and the business’s account was picked.') },
+    { id: 'google_ads', name: 'Google Ads', by: 'Google', proves: msg('The ad accounts could be read and the business’s account was picked.') },
   ] },
   // The till: Square or SumUp, one at a time. Stripe (online payments) can be added to either, and
   // the Sales page adds them up.
@@ -78,7 +78,7 @@ export const GROUPS: ConnectionGroupInfo[] = [
   ] },
   { key: 'music', title: msg('Café music'), pickOne: true, options: [
     { id: 'spotify', name: 'Spotify', by: 'Spotify', proves: msg('The account signed in and its playlists can be read. Staff can play or pause it on the speaker.') },
-    { id: 'youtube_music', name: 'YouTube Music', by: 'Google', proves: msg('The account signed in and its playlists can be read. Staff open the playlist on the café device.') },
+    { id: 'youtube_music', name: 'YouTube Music', by: 'Google', proves: msg('The account signed in and its playlists can be read. Staff open the playlist on the business’s device.') },
   ] },
   // Campaigns: send to the customers who said yes to marketing, with unsubscribe links handled there.
   { key: 'email_marketing', title: msg('Email campaigns'), pickOne: true, options: [

@@ -353,10 +353,10 @@ export default {
   'Instagram post': 'Publicación de Instagram',
 
   // Connections: what each app does, can do and needs (Connectors)
-  'Shift reminders, missed clock-ins and the weekly rota, from the café’s WhatsApp number.': 'Recordatorios de turnos, fichajes olvidados y el cuadrante semanal, desde el número de WhatsApp del café.',
+  'Shift reminders, missed clock-ins and the weekly rota, from the business’s WhatsApp number.': 'Recordatorios de turnos, fichajes olvidados y el cuadrante semanal, desde el número de WhatsApp del negocio.',
   'Rota changes and alerts in a Slack channel.': 'Cambios del cuadrante y avisos en un canal de Slack.',
   'Shift reminders by text for people who prefer SMS.': 'Recordatorios de turnos por SMS para quien lo prefiera.',
-  'Team alerts for people who prefer email come from your café’s Gmail.': 'Los avisos al equipo para quien prefiera el email salen del Gmail de tu café.',
+  'Team alerts for people who prefer email come from your business’s Gmail.': 'Los avisos al equipo para quien prefiera el email salen del Gmail de tu negocio.',
   'Team alerts come from an Outlook.com or Microsoft 365 mailbox.': 'Los avisos al equipo salen de un buzón de Outlook.com o Microsoft 365.',
   'The rota, closures and team events in Google Calendar, kept up to date.': 'El cuadrante, los cierres y los eventos del equipo en Google Calendar, siempre al día.',
   'The rota, closures and team events in Outlook, kept up to date.': 'El cuadrante, los cierres y los eventos del equipo en Outlook, siempre al día.',
@@ -374,9 +374,9 @@ export default {
   'Takings from your SumUp card reader on Finances and Sales, with the team’s cost as a share of sales.': 'Los ingresos de tu datáfono SumUp en Finanzas y Ventas, con el coste del equipo como porcentaje de las ventas.',
   'Plan and publish posts to your LinkedIn company Page (or your own profile).': 'Planifica y publica en tu página de empresa de LinkedIn (o en tu propio perfil).',
   'How people find your website on Google: searches, clicks and top pages, on the Analytics page.': 'Cómo te encuentra la gente en Google: búsquedas, clics y páginas más vistas, en la página de Analítica.',
-  'The approved playlist; staff play or pause it on the café speaker.': 'La lista de reproducción aprobada; el equipo la pone o la pausa en el altavoz del café.',
-  'The approved playlist; staff open it on the café device.': 'La lista de reproducción aprobada; el equipo la abre en el dispositivo del café.',
-  'Send template messages from the café’s number to staff who switched them on': 'Enviar mensajes de plantilla desde el número del café al personal que los ha activado',
+  'The approved playlist; staff play or pause it on the business’s speaker.': 'La lista de reproducción aprobada; el equipo la pone o la pausa en el altavoz del negocio.',
+  'The approved playlist; staff open it on the business’s device.': 'La lista de reproducción aprobada; el equipo la abre en el dispositivo del negocio.',
+  'Send template messages from the business’s number to staff who switched them on': 'Enviar mensajes de plantilla desde el número del negocio al personal que los ha activado',
   'Staff reply STOP to turn them off': 'El personal responde STOP para desactivarlos',
   'Send email from this address: team alerts, and one confirmation to itself': 'Enviar emails desde esta dirección: avisos al equipo y una confirmación a sí misma',
   'It can’t read, delete or search your inbox': 'No puede leer, borrar ni buscar en tu bandeja de entrada',
@@ -410,7 +410,7 @@ export default {
   'See the websites in your Search Console': 'Ver los sitios web de tu Search Console',
   'Read search data for your website (read-only)': 'Leer los datos de búsqueda de tu web (solo lectura)',
   'See your playlists': 'Ver tus listas de reproducción',
-  'Play and pause the approved playlist on the café speaker (Premium)': 'Poner y pausar la lista aprobada en el altavoz del café (Premium)',
+  'Play and pause the approved playlist on the business’s speaker (Premium)': 'Poner y pausar la lista aprobada en el altavoz del negocio (Premium)',
   'See your playlists (read-only)': 'Ver tus listas de reproducción (solo lectura)',
   'the Google keys': 'las claves de Google',
   'the Microsoft app': 'la app de Microsoft',
@@ -494,7 +494,7 @@ export default {
 
   // The connection catalogue (shared/connections.ts)
   'Team messages': 'Mensajes del equipo',
-  'A test message was delivered from the café’s number.': 'Se entregó un mensaje de prueba desde el número del café.',
+  'A test message was delivered from the business’s number.': 'Se entregó un mensaje de prueba desde el número del negocio.',
   'A confirmation email was sent from this mailbox to itself.': 'Se envió un email de confirmación desde este buzón a sí mismo.',
   'Google Calendar has fetched the team calendar.': 'Google Calendar ha leído el calendario del equipo.',
   'Outlook has fetched the team calendar.': 'Outlook ha leído el calendario del equipo.',
@@ -502,7 +502,7 @@ export default {
   'The “Business Agent” folder was created in this Drive.': 'Se creó la carpeta “Business Agent” en este Drive.',
   'The “Business Agent” folder was created in this OneDrive.': 'Se creó la carpeta “Business Agent” en este OneDrive.',
   'Maps and search': 'Mapas y búsqueda',
-  'The café’s listing was found and can be updated.': 'Se encontró la ficha del café y se puede actualizar.',
+  'The business’s listing was found and can be updated.': 'Se encontró la ficha del negocio y se puede actualizar.',
   'Google confirmed this account can read the website’s search data.': 'Google confirmó que esta cuenta puede leer los datos de búsqueda de la web.',
   'The profile and posts could be read, and posting was allowed.': 'Se pudieron leer el perfil y las publicaciones, y se permitió publicar.',
   'The Page was found and posting to it was allowed.': 'Se encontró la página y se permitió publicar en ella.',
@@ -512,7 +512,7 @@ export default {
   'The business and its locations were found and its payments can be read.': 'Se encontraron el negocio y sus locales, y se pueden leer sus pagos.',
   'The SumUp account was found and its sales can be read.': 'Se encontró la cuenta de SumUp y se pueden leer sus ventas.',
   'The account signed in and its playlists can be read. Staff can play or pause it on the speaker.': 'La cuenta inició sesión y se pueden leer sus listas. El equipo puede poner o pausar la música en el altavoz.',
-  'The account signed in and its playlists can be read. Staff open the playlist on the café device.': 'La cuenta inició sesión y se pueden leer sus listas. El equipo abre la lista en el dispositivo del café.',
+  'The account signed in and its playlists can be read. Staff open the playlist on the business’s device.': 'La cuenta inició sesión y se pueden leer sus listas. El equipo abre la lista en el dispositivo del negocio.',
 
   // Connections page, finance tabs, language, phone
   'Business connections': 'Conexiones del negocio',
