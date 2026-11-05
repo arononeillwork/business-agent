@@ -1,7 +1,8 @@
 import {
-  Alert, Box, Button, Card, CardContent, CircularProgress, Link, Stack, Table, TableBody, TableCell, TableHead, TableRow, ToggleButton,
+  Alert, Box, Button, Card, CardContent, CircularProgress, FormControlLabel, Link, Stack, Switch, Table, TableBody, TableCell, TableHead, TableRow, ToggleButton,
   ToggleButtonGroup, Tooltip, Typography,
 } from '@mui/material'
+import CopyIcon from '@mui/icons-material/ContentCopyRounded'
 import OpenIcon from '@mui/icons-material/OpenInNewRounded'
 import ComputerIcon from '@mui/icons-material/ComputerOutlined'
 import PhoneIcon from '@mui/icons-material/PhoneIphoneOutlined'
@@ -13,7 +14,7 @@ import { useState, type ReactNode } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
-import { useAction } from '../app/Notify'
+import { useAction, useNotify } from '../app/Notify'
 import { ErrorBox, PageHeader, SectionTitle, StatGrid, StatTile, Tag } from '../components/common'
 import { ExportButton } from '../components/tables'
 import { Freshness } from '../components/Freshness'
@@ -24,7 +25,7 @@ import {
 } from '../../shared/seo'
 import { DAY_KEYS, type DayKey } from '../../shared/types'
 import { tokens } from '../theme'
-import { msg, t } from '../i18n'
+import { msg, t, tc } from '../i18n'
 
 const LEVEL: Record<CheckLevel, { icon: ReactNode; fg: string; bg: string; label: string }> = {
   pass: { icon: <PassIcon fontSize="small" />, fg: tokens.goodFg, bg: tokens.goodBg, label: msg('Fine') },
@@ -95,6 +96,8 @@ export function WebsitePage() {
       )}
 
       {w?.website && <SitePreview url={w.website} />}
+
+      <MenuOnWebsite />
 
       {report && (
         <StatGrid>
@@ -219,6 +222,44 @@ function SitePreview({ url }: { url: string }) {
             sx={{ display: 'block', border: 0, bgcolor: '#fff', width: device === 'phone' ? 390 : '100%', maxWidth: '100%', height: { xs: 520, md: device === 'phone' ? 720 : 640 },
               borderRadius: device === 'phone' ? '24px' : 0, boxShadow: device === 'phone' ? 3 : 'none' }} />
         </Box>
+      </CardContent>
+    </Card>
+  )
+}
+
+/**
+ * The menu on the website: the website lists the Menu page's items at its prices, read from the app
+ * (worker/site.ts), so the menu is changed in one place. Admins turn it on and give the website its address.
+ */
+function MenuOnWebsite() {
+  const { api, business, settings } = useApp()
+  const run = useAction()
+  const notify = useNotify()
+  const on = settings?.website_menu === true
+  const url = business?.id ? `${window.location.origin}/api/site/${business.id}/menu` : null
+  return (
+    <Card component="section" aria-label={t('The menu on your website')} sx={{ mb: 3 }}>
+      <CardContent>
+        <SectionTitle>{t('The menu on your website')}</SectionTitle>
+        <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>
+          {t('Your website can list the menu from here, with its prices: change it on the Menu page (or in Square, when the menu is read from it) and the website shows it within a few minutes, like Google Maps and the screens.')}
+        </Typography>
+        <FormControlLabel control={<Switch checked={on} onChange={e => void run(() => api.updateSettings({ website_menu: e.target.checked }),
+          e.target.checked ? t('The website can read the menu') : t('The website can no longer read the menu'))} />}
+          label={t('Share the menu with the website')} />
+        {on && url && (
+          <Stack spacing={1} sx={{ mt: 1 }}>
+            <Typography variant="body2">{t('The website reads it from this address (the menu as customers see it: no costs or recipes):')}</Typography>
+            <Box aria-label={t('Menu address for the website')} sx={{ p: 1.25, borderRadius: 2, bgcolor: tokens.surfaceAlt, border: 1, borderColor: 'divider',
+              fontFamily: 'ui-monospace, monospace', fontSize: 12.5, wordBreak: 'break-all' }}>{url}</Box>
+            <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+              <Button startIcon={<CopyIcon fontSize="small" />} onClick={() => {
+                navigator.clipboard?.writeText(url).then(() => notify(t('Link copied'), 'success'), () => notify(t('Copy the link above'), 'info'))
+              }}>{t('Copy link')}</Button>
+              <Button startIcon={<OpenIcon fontSize="small" />} href={url} target="_blank" rel="noopener noreferrer">{tc('verb', 'Open')}</Button>
+            </Stack>
+          </Stack>
+        )}
       </CardContent>
     </Card>
   )
