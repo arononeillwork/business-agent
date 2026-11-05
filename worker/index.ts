@@ -30,6 +30,7 @@ import { sendDueReports } from './reportSchedules'
 import { serveVideo } from './video'
 import { loyaltyRoutes } from './loyalty'
 import { leaderboard } from './leaderboard'
+import { squarePins } from './squarePins'
 import { assistant } from './assistant'
 import { refreshReviews, reviews, reviewsConfigured } from './reviews'
 import { clearOldCache } from './cache'
@@ -290,6 +291,8 @@ app.route('/', reports)
 app.route('/', loyaltyRoutes)
 // Leaderboard: who sold most at the till (Square), and each person's own Square login (Team page).
 app.route('/', leaderboard)
+// Square PINs on the Leaderboard: owners see everyone's, everyone else only their own.
+app.route('/', squarePins)
 // The in-app assistant: questions answered by Claude with the person's own tools.
 app.route('/', assistant)
 // Reviews (Google) and Website & SEO (Marketing).

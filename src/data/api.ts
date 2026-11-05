@@ -20,6 +20,7 @@ import type { CrewSuggestion, LoggedReward, RepClaim, RepPageData, RepReward, Re
 import type { KittyEntry, KittyEntryInput, KittyGoal, KittyGoalInput, KittySettings } from '../../shared/kitty'
 import type { ClockStats, TillBoard } from '../../shared/leaderboard'
 import type { SquareTeam } from '../../shared/squareTeam'
+import type { SquarePins } from '../../shared/squarePins'
 import type { JobRole, JobRoleInput } from '../../shared/roles'
 import type { RoleOwner } from '../../shared/roleOwners'
 import type { TeamRole } from '../../shared/teamRoles'
@@ -577,6 +578,13 @@ export interface Api {
   matchSquareMembers(): Promise<number>
   /** Add someone to Square as a team member (or link the one with their email already there). */
   addToSquare(profileId: string): Promise<{ team_member_id: string; existing: boolean }>
+  // Square PINs (Leaderboard): each person's Square passcode as an owner typed it in. Owners see and change
+  // everyone's; everyone else on the team sees only their own.
+  squarePins(): Promise<SquarePins>
+  /** Someone's PIN, to show (owners: anyone's; anyone else: their own). */
+  showSquarePin(profileId: string): Promise<string>
+  /** Owners: save someone's PIN, or take it away (null). */
+  saveSquarePin(profileId: string, pin: string | null): Promise<void>
 
   // Grants (admins with pay access; finance partners read): the answers that decide which fit, and the applications
   /** The answers given so far (what the app works out by itself isn't saved). */

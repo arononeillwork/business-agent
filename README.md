@@ -127,6 +127,13 @@ built-in **AI connector** so owners can run it by talking to Claude.
   (Staff → Team), and Square then sends them the invitation. Needs Square's `EMPLOYEES_READ` and `EMPLOYEES_WRITE`:
   a business connected before asks to connect Square again (`shared/squareTeam.ts`). The café tablet's clock-in
   PINs are separate, and still switched off.
+- Square PINs (the Leaderboard, under the boards): each person's Square passcode, the PIN they sign in to the till
+  with. Square's API can neither read nor set passcodes, so an owner types each one as it is in the Square Dashboard
+  (Team → their name), and changes it here when it changes there. Owners (admins with pay access) see and change
+  everyone's; everyone else on the team, shop managers included, sees only their own. A PIN stays hidden until
+  **Show**, then hides again after half a minute. Kept encrypted with the Worker's integration key in a table nobody
+  signed in can read (the `square_pins` migration, `worker/squarePins.ts`); each look, change and removal is in the
+  audit log, without the PIN.
 - People (Team section): the team as a hierarchy, the owners at the top, then the shop managers, then the
   employees, each with the roles they hold on Roles & responsibilities (admins open someone on the Team
   page from there). **Show pets** puts everyone's dogs (and cats) under them with their photos. Each person

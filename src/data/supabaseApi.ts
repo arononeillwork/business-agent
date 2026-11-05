@@ -1269,6 +1269,11 @@ export function createSupabaseApi(url: string, key: string): Api {
       return (await worker<{ linked: number }>('/api/square-team/match', { method: 'POST', body: '{}' })).linked
     },
     addToSquare: profileId => worker('/api/square-team/add', { method: 'POST', body: JSON.stringify({ profile_id: profileId }) }),
+    squarePins: () => worker('/api/square-pins'),
+    showSquarePin: async profileId => (await worker<{ pin: string }>(`/api/square-pins/${encodeURIComponent(profileId)}/show`, { method: 'POST', body: '{}' })).pin,
+    async saveSquarePin(profileId, pin) {
+      await worker(`/api/square-pins/${encodeURIComponent(profileId)}`, { method: 'PUT', body: JSON.stringify({ pin }) })
+    },
 
     async todos() {
       const [categories, todos] = await Promise.all([

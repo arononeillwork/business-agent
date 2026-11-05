@@ -23,6 +23,7 @@ const KEYS: Record<string, string[]> = {
   competitor_radar: ['place_id'], competitor_snapshots: ['competitor_id', 'taken_on'],
   camera_status: ['camera_id'],
   square_team_links: ['profile_id'],
+  square_pins: ['profile_id'],
 }
 /** Keyed tables that still get a numeric id of their own (an identity column beside the unique key). */
 const AUTO_ID = new Set(['whatsapp_messages'])
