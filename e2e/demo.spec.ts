@@ -1499,15 +1499,25 @@ test.describe('event alerts', () => {
   })
 })
 
-test('Today is a short overview: who’s on and the hours, what’s coming up, your shifts, big nights and music', async ({ page }) => {
+test('Today is a short overview: a top row of small cards (clock, who’s on, music), what’s coming up, your shifts and big nights', async ({ page }) => {
   await open(page, '/', 'maria@example.com')
   await expect(page.getByRole('heading', { name: 'Hola, Maria' })).toBeVisible()
   await expect(page.getByRole('list', { name: 'At a glance' })).toHaveCount(0) // no counters
   const who = page.getByRole('region', { name: "Who's on today" })
   await expect(who).toContainText(/The café is (open \d\d:\d\d–\d\d:\d\d|closed today)/)
+  await expect(who.getByRole('list', { name: 'On the rota today' }).getByRole('listitem', { name: /^Maria/ })).toContainText('10:00')
   for (const name of ['Coming up', 'My next shifts', 'Big nights']) await expect(page.getByRole('region', { name })).toBeVisible()
-  // Two columns on a computer: your own things on the right.
-  const left = (await who.boundingBox())!, right = (await page.getByRole('region', { name: 'My next shifts' }).boundingBox())!
+  // The top row on a computer: clocking in, who's on and the café music side by side.
+  const clock = (await page.getByRole('region', { name: 'Your clock' }).boundingBox())!, team = (await who.boundingBox())!
+  const music = (await page.getByRole('region', { name: 'Café music' }).boundingBox())!
+  for (const box of [team, music]) expect(Math.abs(box.y - clock.y)).toBeLessThan(2)
+  expect(team.x).toBeGreaterThan(clock.x + clock.width - 2)
+  expect(music.x).toBeGreaterThan(team.x + team.width - 2)
+  // Each card's arrow opens its page.
+  await expect(who.getByRole('link', { name: 'Open the rota' })).toHaveAttribute('href', '/rota')
+  await expect(page.getByRole('region', { name: 'Coming up' }).getByRole('link', { name: 'Open the Calendar' })).toHaveAttribute('href', '/calendar')
+  // Then two columns: your own things on the right.
+  const left = (await page.getByRole('region', { name: 'Coming up' }).boundingBox())!, right = (await page.getByRole('region', { name: 'My next shifts' }).boundingBox())!
   expect(right.x).toBeGreaterThan(left.x + left.width - 2)
   expect(Math.abs(right.y - left.y)).toBeLessThan(4)
 })
@@ -3147,6 +3157,72 @@ test.describe('To Do List', () => {
     await page.getByRole('button', { name: 'Add', exact: true }).click()
     await expect(page.getByText('Restock napkins')).toBeVisible()
   })
+
+  test('calendar: drag jobs from the list onto a day of the month or a time in the week, move them, stretch them, and back off', async ({ page }) => {
+    // Tall enough for the whole month and the week's hours, so the pointer reaches every day.
+    await page.setViewportSize({ width: 1280, height: 1300 })
+    await open(page, '/todo')
+    await page.getByRole('group', { name: 'Show as' }).getByRole('button', { name: 'Calendar', exact: true }).click()
+    const list = page.getByRole('list', { name: 'Jobs to plan' })
+    const job = (name: string) => page.getByRole('button', { name: `${name}: plan it` })
+    // Drag with the pointer the way a person does: pick it up near its top, move a little, then to where it goes.
+    const drag = async (name: string, cell: string, dy: number) => {
+      const from = (await job(name).boundingBox())!, to = (await page.getByRole('gridcell', { name: cell }).boundingBox())!
+      await page.mouse.move(from.x + 20, from.y + 5)
+      await page.mouse.down()
+      await page.mouse.move(from.x + 30, from.y + 12, { steps: 3 })
+      await page.mouse.move(to.x + 30, to.y + dy, { steps: 12 })
+      await page.mouse.up()
+    }
+    // Already planned in the demo: the cold brew test this afternoon, at its time on today's square.
+    const month = page.getByRole('grid', { name: 'Month' })
+    await expect(month.getByRole('gridcell', { name: 'Wednesday 30 September' })).toContainText('15:00Test a cold brew recipe')
+    await expect(list.getByRole('listitem')).toHaveCount(9)
+
+    // The month: onto Friday, some time that day.
+    await drag('Menu board for the counter', 'Friday 2 October', 40)
+    await expect(month.getByRole('gridcell', { name: 'Friday 2 October' })).toContainText('Menu board for the counter')
+    await expect(list.getByRole('listitem')).toHaveCount(8)
+
+    // The week: onto Thursday at 11:00, an hour long; then its bottom edge pulled down to 12:30.
+    await page.getByRole('button', { name: 'Week', exact: true }).click()
+    await expect(page.getByRole('gridcell', { name: 'Friday 2 October, any time' })).toContainText('Menu board for the counter')
+    await drag('Rubbish bin for outside', 'Thursday 1 October, by the hour', 5 * 44 + 5)
+    const thursday = page.getByRole('gridcell', { name: 'Thursday 1 October, by the hour' })
+    await expect(thursday).toContainText('11:00–12:00Rubbish bin for outside')
+    const end = page.getByRole('slider', { name: 'When Rubbish bin for outside ends' })
+    const edge = (await end.boundingBox())!
+    await page.mouse.move(edge.x + edge.width / 2, edge.y + edge.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(edge.x + edge.width / 2, edge.y + edge.height / 2 + 22, { steps: 4 })
+    await page.mouse.up()
+    await expect(end).toHaveAttribute('aria-valuetext', '12:30')
+    await expect(thursday).toContainText('11:00–12:30Rubbish bin for outside')
+    // The keyboard: a quarter hour less with the arrow.
+    await end.press('ArrowUp')
+    await expect(end).toHaveAttribute('aria-valuetext', '12:15')
+
+    // Moved to Tuesday at 09:00: as long as it was.
+    await drag('Rubbish bin for outside', 'Tuesday 29 September, by the hour', 3 * 44 + 5)
+    await expect(page.getByRole('gridcell', { name: 'Tuesday 29 September, by the hour' })).toContainText('09:00–10:15Rubbish bin for outside')
+    await expect(thursday).not.toContainText('Rubbish bin for outside')
+
+    // By hand (a click, for the keyboard and small screens): another time, then off the calendar.
+    await job('Rubbish bin for outside').click()
+    const dialog = page.getByRole('dialog', { name: 'Rubbish bin for outside' })
+    await dialog.getByLabel('From').fill('14:00')
+    await expect(dialog.getByLabel('To')).toHaveValue('15:15')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await expect(page.getByRole('gridcell', { name: 'Tuesday 29 September, by the hour' })).toContainText('14:00–15:15Rubbish bin for outside')
+    await job('Rubbish bin for outside').click()
+    await page.getByRole('dialog', { name: 'Rubbish bin for outside' }).getByRole('button', { name: 'Take off the calendar' }).click()
+    await expect(list.getByRole('button', { name: 'Rubbish bin for outside: plan it' })).toBeVisible()
+
+    // Remembered: back on the list view and to the calendar, it's all where it was left.
+    await page.getByRole('group', { name: 'Show as' }).getByRole('button', { name: 'List', exact: true }).click()
+    await page.getByRole('group', { name: 'Show as' }).getByRole('button', { name: 'Calendar', exact: true }).click()
+    await expect(page.getByRole('gridcell', { name: 'Friday 2 October, any time' })).toContainText('Menu board for the counter')
+  })
 })
 
 test.describe('messages', () => {
@@ -4439,6 +4515,58 @@ test.describe('stock and suppliers', () => {
     await expect(details.getByRole('textbox', { name: 'Cost per unit, without IVA' })).toBeDisabled()
     await expect(details.getByRole('button', { name: 'Save' })).toHaveCount(0)
     await details.getByRole('button', { name: 'Close' }).click()
+  })
+
+  test('freshly made: the team records a bake with its shelf life and discount; it goes on Offers & specials, and sold out ends it', async ({ page }) => {
+    // The baristas' role shows the stock (Read: they record what comes in and goes, and what they make).
+    await giveBaristas(page, 'Stock', 'Read')
+    await signInAs(page, 'julio@example.com')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Current stock' }).click()
+    await page.getByRole('tab', { name: 'Freshly made' }).click()
+    await expect(page).toHaveURL(/tab=fresh/)
+    const counter = page.getByRole('list', { name: 'On the counter' })
+    await expect(counter.getByRole('listitem', { name: 'Brownies' })).toContainText('On offer now: 2 for €5')
+    await expect(counter.getByRole('listitem', { name: 'Banana bread' })).toContainText(/30% off from/)
+    await expect(counter.getByRole('listitem', { name: 'Ham & cheese toasties' })).toContainText('Fresh')
+    await expect(page.getByRole('list', { name: 'Earlier batches' }).getByRole('listitem', { name: 'Lemon tart' })).toContainText('Sold out')
+
+    // Julio records 12 croissants (on the menu at €1.80), keeping 8 hours, 30% off for the last 2.
+    await page.getByRole('button', { name: 'Record a batch' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Record a batch' })
+    await dialog.getByRole('combobox', { name: 'What was made' }).fill('Croissant')
+    await dialog.getByRole('spinbutton', { name: 'How many' }).fill('12')
+    await dialog.getByRole('combobox', { name: 'Shelf life' }).click()
+    await page.getByRole('option', { name: '8 hours' }).click()
+    await expect(dialog).toContainText('Good until 17:00')
+    await dialog.getByRole('group', { name: 'Start the discount' }).getByRole('button', { name: '2 hours before' }).click()
+    await expect(dialog.getByRole('status')).toHaveText('On Offers & specials from 15:00 until 17:00: €1.26, was €1.80.')
+    await dialog.getByRole('button', { name: 'Record', exact: true }).click()
+    await toast(page, 'Croissant recorded, with its offer')
+    const croissant = counter.getByRole('listitem', { name: 'Croissant' })
+    await expect(croissant).toContainText('Croissant × 12')
+    await expect(croissant).toContainText('30% off from 15:00')
+    await expect(croissant.getByRole('meter', { name: 'Shelf life used' })).toHaveAttribute('aria-valuetext', '8 hours left, good until 17:00')
+    // The team doesn't open Offers & specials: the tag is just a tag.
+    await expect(croissant.getByRole('link')).toHaveCount(0)
+
+    // The admin sees its offer coming up on Offers & specials, tagged Freshly made, and the tag on Stock leads there.
+    await signInAs(page, 'aron@example.com')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Offers & specials' }).click()
+    const offer = page.getByRole('region', { name: 'Coming up' }).getByRole('article', { name: 'Croissant' })
+    await expect(offer).toContainText('€1.26')
+    await expect(offer).toContainText('€1.80')
+    await offer.getByRole('link', { name: 'Freshly made: see the batch on Stock' }).click()
+    await expect(page.getByRole('tab', { name: 'Freshly made' })).toHaveAttribute('aria-selected', 'true')
+    await expect(counter.getByRole('listitem', { name: 'Croissant' }).getByRole('link', { name: '30% off from 15:00, on Offers & specials' })).toHaveAttribute('href', '/offers')
+
+    // Sold out: off the counter, and its offer still to come goes.
+    await counter.getByRole('listitem', { name: 'Croissant' }).getByRole('button', { name: 'Croissant: sold out' }).click()
+    await toast(page, 'Croissant: sold out')
+    await expect(counter.getByRole('listitem', { name: 'Croissant' })).toHaveCount(0)
+    await expect(page.getByRole('list', { name: 'Earlier batches' }).getByRole('listitem', { name: 'Croissant' })).toContainText('Sold out')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Offers & specials' }).click()
+    await expect(page.getByRole('article', { name: 'Croissant' })).toHaveCount(0)
+    await expect(page.getByRole('region', { name: 'Live now' }).getByRole('article', { name: 'Brownies' })).toContainText('Freshly made')
   })
 })
 
@@ -6268,6 +6396,7 @@ test.describe('contacts', () => {
     const eduardo = list.getByRole('listitem', { name: 'Eduardo Torquino' })
     await expect(eduardo).toContainText('Lawyer')
     await expect(eduardo.getByRole('link', { name: '+34 747 758 327' })).toHaveAttribute('href', 'tel:+34747758327')
+    await expect(eduardo.getByRole('link', { name: 'torquino71@gmail.com' })).toHaveAttribute('href', 'mailto:torquino71@gmail.com')
     const miguel = list.getByRole('listitem', { name: 'Miguel' })
     await expect(miguel).toContainText('Plumber & electrician')
     await expect(miguel.getByRole('link', { name: '+34 632 042 132' })).toHaveAttribute('href', 'tel:+34632042132')
@@ -7500,6 +7629,109 @@ test.describe('UI round: dashboards, the business advisor and the landing pages'
     await expect(page.getByRole('region', { name: 'Lowest margins' })).toContainText('Pain au chocolat')
   })
 
+  test('dashboards → reports: pick the reports and who gets them (the team, a contact, any address), see the email, send it from the mailbox', async ({ page }) => {
+    await open(page, '/connections')
+    await page.getByRole('region', { name: 'Payments and sales' }).getByRole('button', { name: 'Connect Square' }).click()
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Dashboards' }).click()
+    await page.getByRole('tab', { name: 'Reports' }).click()
+    await expect(page).toHaveURL(/tab=reports/)
+    // No mailbox yet: it says where to connect one, and nothing goes.
+    const email = page.getByRole('region', { name: 'The email' })
+    await expect(email).toContainText('Reports go from the business’s Gmail or Outlook.')
+    await expect(email.getByRole('button', { name: 'Send the report' })).toBeDisabled()
+
+    // The reports: takings and breakeven, low on stock and jobs to start with; this week.
+    const reports = page.getByRole('group', { name: 'Reports' })
+    await expect(reports.getByRole('checkbox', { name: /^Takings and breakeven/ })).toBeChecked()
+    await reports.getByRole('checkbox', { name: /^Freshly made/ }).check()
+    const body = email.getByRole('document', { name: 'What the email says' })
+    await expect(body).toContainText('TAKINGS AND BREAKEVEN')
+    await expect(body).toContainText(/Breakeven: €[\d.,]+ to run the business over \d+ open days/)
+    await expect(body).toContainText('LOW ON STOCK')
+    await expect(body).toContainText(/Caramel syrup: 1 bottles? left/)
+    await expect(body).toContainText('FRESHLY MADE')
+    await expect(body).toContainText('JOBS TO DO')
+    await expect(body).toContainText("Sent by Aron O'Neill from Business Agent.")
+
+    // Who gets it: Maria from the team, Eduardo from the contacts, and the gestoría typed in.
+    await page.getByRole('group', { name: 'The team' }).getByRole('button', { name: 'Maria' }).click()
+    await page.getByRole('group', { name: 'Contacts' }).getByRole('button', { name: 'Eduardo Torquino' }).click()
+    await page.getByRole('textbox', { name: 'Another email address' }).fill('lola@gestoria.es, not-an-address')
+    await page.getByRole('button', { name: 'Add', exact: true }).click()
+    await toast(page, '“not-an-address” isn’t an email address')
+    await page.getByRole('textbox', { name: 'Another email address' }).fill('lola@gestoria.es')
+    await page.getByRole('button', { name: 'Add', exact: true }).click()
+    await expect(page.getByRole('group', { name: 'Other addresses' })).toContainText('lola@gestoria.es')
+    await expect(email).toContainText('To 3 people, one email each')
+
+    // With Gmail connected, it goes: one email each.
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Connections' }).click()
+    await page.getByRole('region', { name: 'Email' }).getByRole('button', { name: 'Connect Gmail' }).click()
+    await expect(page.getByRole('region', { name: 'Email' }).getByRole('article', { name: 'Gmail' })).toContainText('Connected')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Dashboards' }).click()
+    await page.getByRole('tab', { name: 'Reports' }).click()
+    await expect(page.getByRole('region', { name: 'The email' })).toContainText(/To 3 people, one email each · from /)
+    await page.getByRole('button', { name: 'Send the report' }).click()
+    await toast(page, 'Report sent to 3 people')
+    // Remembered for next time.
+    await page.getByRole('tab', { name: 'Dashboards' }).click()
+    await page.getByRole('tab', { name: 'Reports' }).click()
+    await expect(page.getByRole('group', { name: 'Reports' }).getByRole('checkbox', { name: /^Freshly made/ })).toBeChecked()
+    await expect(page.getByRole('group', { name: 'The team' }).getByRole('button', { name: 'Maria' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  test('dashboards → reports on a schedule: the days and time it goes, when it goes next, paused, changed and deleted', async ({ page }) => {
+    await open(page, '/dashboards?tab=reports')
+    const list = page.getByRole('list', { name: 'Scheduled reports' })
+    const owners = list.getByRole('listitem', { name: 'Monday takings for the owners' })
+    await expect(owners).toContainText('Every Monday at 08:00 · Last week · to 2 people')
+    await expect(owners).toContainText('Next: Mon 5 Oct, 08:00')
+    // From the page's own picks (Maria, and its reports), every Tuesday and Thursday at 18:30, covering yesterday.
+    await page.getByRole('group', { name: 'The team' }).getByRole('button', { name: 'Maria' }).click()
+    await page.getByRole('button', { name: 'Send on a schedule…' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Send on a schedule' })
+    await expect(dialog.getByRole('group', { name: 'The team' }).getByRole('button', { name: 'Maria' })).toHaveAttribute('aria-pressed', 'true')
+    await dialog.getByRole('textbox', { name: 'Name' }).fill('Stock for Maria')
+    await dialog.getByRole('combobox', { name: 'Covering' }).click()
+    await page.getByRole('option', { name: 'Yesterday' }).click()
+    const days = dialog.getByRole('group', { name: 'Days of the week' })
+    await days.getByRole('button', { name: 'Monday' }).click()
+    await days.getByRole('button', { name: 'Tuesday' }).click()
+    await days.getByRole('button', { name: 'Thursday' }).click()
+    await dialog.getByRole('textbox', { name: 'Time', exact: true }).fill('18:30')
+    await expect(dialog.getByRole('status')).toHaveText('Every Tuesday and Thursday at 18:30, business time. Next: Thu 1 Oct, 18:30.')
+    await dialog.getByRole('button', { name: 'Schedule it' }).click()
+    await toast(page, 'Stock for Maria is scheduled')
+    const maria = list.getByRole('listitem', { name: 'Stock for Maria' })
+    await expect(maria).toContainText('Every Tuesday and Thursday at 18:30 · Yesterday · to 1 person')
+    await expect(maria).toContainText('Next: Thu 1 Oct, 18:30')
+
+    // Monthly instead: on the 1st.
+    await maria.getByRole('button', { name: 'Edit Stock for Maria' }).click()
+    const edit = page.getByRole('dialog', { name: 'Stock for Maria' })
+    await edit.getByRole('group', { name: 'How often' }).getByRole('button', { name: 'Every month' }).click()
+    await expect(edit.getByRole('status')).toHaveText('On day 1 of every month at 18:30, business time. Next: Thu 1 Oct, 18:30.')
+    await edit.getByRole('button', { name: 'Save' }).click()
+    await toast(page, /^Saved$/)
+    await expect(maria).toContainText('On day 1 of every month at 18:30')
+
+    // Paused, then deleted.
+    await maria.getByRole('switch', { name: 'Stock for Maria on' }).click()
+    await toast(page, 'Stock for Maria is paused')
+    await expect(maria).toContainText('Paused')
+    await maria.getByRole('button', { name: 'Edit Stock for Maria' }).click()
+    await page.getByRole('dialog', { name: 'Stock for Maria' }).getByRole('button', { name: 'Delete' }).click()
+    await page.getByRole('dialog', { name: 'Stock for Maria' }).getByRole('button', { name: 'Delete', exact: true }).last().click()
+    await toast(page, 'Deleted Stock for Maria')
+    await expect(list.getByRole('listitem', { name: 'Stock for Maria' })).toHaveCount(0)
+  })
+
+  test('dashboards → reports are for admins: the team has no Reports tab', async ({ page }) => {
+    await open(page, '/dashboards?tab=reports', 'maria@example.com')
+    await expect(page.getByRole('tab', { name: 'Reports' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Send the report' })).toHaveCount(0)
+  })
+
   test('dashboards: with a till the takings fill in, against the period before', async ({ page }) => {
     await open(page, '/')
     await connectSquare(page)
@@ -7530,12 +7762,29 @@ test.describe('UI round: dashboards, the business advisor and the landing pages'
   test('Today: the numbers that matter at a glance, and the advisor’s first findings for admins', async ({ page }) => {
     await open(page, '/')
     const glance = page.getByRole('region', { name: 'At a glance' })
-    await expect(glance.getByRole('region', { name: 'Low on stock' })).toContainText('Caramel syrup')
-    await expect(glance.getByRole('region', { name: 'Jobs to do' })).toBeVisible()
+    // Small cards: the three lowest on stock and the first three jobs, each with an arrow to its page (no "Open page" buttons).
+    const low = glance.getByRole('region', { name: 'Low on stock' })
+    await expect(low).toContainText('Caramel syrup')
+    await expect(low).toContainText(/and \d+ more/)
+    const jobs = glance.getByRole('region', { name: 'Jobs to do' })
+    await expect(jobs.getByRole('list', { name: 'Jobs to do first' }).getByRole('listitem')).toHaveCount(3)
+    await expect(glance.getByRole('button', { name: 'Open page' })).toHaveCount(0)
+    await expect(low.getByRole('link', { name: 'Open Stock' })).toHaveAttribute('href', '/stock')
+    // No till yet: no takings, so no breakeven card.
+    await expect(page.getByRole('region', { name: 'Takings today' })).toHaveCount(0)
     await connectSquare(page)
     await page.getByRole('link', { name: 'Home: Today' }).first().click()
-    await expect(page.getByRole('region', { name: 'Takings today' })).toContainText('€')
+    // Today's takings against the day's breakeven: the figure, the bar to the mark, and the day so far as a line.
+    const takings = page.getByRole('region', { name: 'Takings today' })
+    await expect(takings).toContainText(/€[\d.,]+so far, of €[\d.,]+ to break even/)
+    await expect(takings.getByRole('meter', { name: 'Takings towards breakeven' })).toBeVisible()
+    await expect(takings.getByRole('status')).toContainText(/€[\d.,]+ (to go|over breakeven)/)
+    await expect(takings.getByRole('img', { name: /^Takings through the day, €[\d.,]+ so far, against a breakeven of €/ })).toBeVisible()
     await expect(page.getByRole('region', { name: 'At a glance' }).getByRole('region', { name: 'Business advisor' })).toBeVisible()
+    // The advisor's findings open their page from an arrow too.
+    await expect(page.getByRole('region', { name: 'Business advisor' }).getByRole('link', { name: 'Open page' }).first()).toBeVisible()
+    await jobs.getByRole('link', { name: 'Open the To Do List' }).click()
+    await expect(page).toHaveURL(/\/todo/)
   })
 
   test('signed out: the landing page says what’s inside, by area, and what the figures can tell you', async ({ page }) => {
@@ -8882,11 +9131,19 @@ test.describe('theme days and the weekly routine', () => {
     // Hide the cleaning: the filter is this person's own, and stays while they move around.
     const wednesday = grid.getByRole('gridcell', { name: 'Wednesday 30 September' })
     await expect(wednesday).toContainText('Deep clean (cleaner)')
+    // They sit under "More", at the end of the category chips, which counts what's hidden.
+    const more = page.getByRole('button', { name: /^More filters/ })
     const filters = page.getByRole('group', { name: 'Show on the calendar' })
+    await expect(filters).toHaveCount(0)
+    await more.click()
     await filters.getByRole('button', { name: 'Cleaning' }).click()
     await expect(wednesday).not.toContainText('Deep clean (cleaner)')
     await expect(wednesday).toContainText('Social content planning')
     await expect(filters.getByRole('button', { name: 'Cleaning' })).toHaveAttribute('aria-pressed', 'false')
+    await filters.getByRole('button', { name: 'Cleaning' }).press('Escape')
+    await expect(filters).toHaveCount(0)
+    await expect(more).toHaveAccessibleName('More filters, 1 hidden')
+    await expect(more).toHaveText('More · 1')
     await page.getByRole('link', { name: 'Home: Today' }).click()
     await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Calendar' }).first().click()
     await expect(page.getByRole('grid').getByRole('gridcell', { name: 'Wednesday 30 September' })).not.toContainText('Deep clean (cleaner)')
@@ -8894,6 +9151,7 @@ test.describe('theme days and the weekly routine', () => {
     await monday.getByRole('button', { name: '15:30 Weekly business meeting' }).click()
     await page.getByRole('dialog', { name: 'Weekly business meeting' }).getByRole('button', { name: 'Hide for me' }).click()
     await expect(monday).not.toContainText('Weekly business meeting')
+    await more.click()
     await filters.getByRole('button', { name: 'Show the 1 activity you hid' }).click()
     await expect(monday).toContainText('Weekly business meeting')
     await filters.getByRole('button', { name: 'Routine', exact: true }).click()
@@ -8930,6 +9188,7 @@ test.describe('theme days and the weekly routine', () => {
     const monday = page.getByRole('grid').getByRole('gridcell', { name: 'Monday 28 September' })
     await expect(monday).not.toContainText('Stock take and buying list')
     await expect(monday).not.toContainText('Weekly business meeting')
+    await page.getByRole('button', { name: 'More filters' }).click()
     const filters = page.getByRole('group', { name: 'Show on the calendar' })
     await expect(filters.getByRole('button', { name: 'Theme days' })).toBeVisible()
     await expect(filters.getByRole('button', { name: 'Routine', exact: true })).toHaveCount(0)
@@ -8950,6 +9209,7 @@ test.describe('theme days and the weekly routine', () => {
     // Back on, from the calendar's own link to the switch.
     await signInAs(page, 'aron@example.com')
     await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Calendar' }).first().click()
+    await page.getByRole('button', { name: 'More filters' }).click()
     await page.getByRole('group', { name: 'Show on the calendar' }).getByRole('link', { name: 'Routine: off for everyone' }).click()
     await page.getByLabel('Show the routine on the calendar').check()
     await toast(page, 'The routine is back on the calendar for everyone')

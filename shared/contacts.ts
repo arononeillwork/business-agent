@@ -98,9 +98,13 @@ export function matchesContact(c: Contact, q: string, translate: (s: string) => 
 /** A website as shown on its button: "bbva.es". */
 export const siteName = (url: string) => url.replace(/^https?:\/\/(www\.)?/i, '').replace(/\/$/, '')
 
-/** Easy Beans' own, as the owners gave them (the `business_contacts` migration puts the same in its database). */
+/**
+ * Easy Beans' own, as the owners gave them (the `business_contacts` migration puts the same in its database, and the
+ * `lawyer_email` migration Eduardo's email).
+ */
 export const EASY_BEANS_CONTACTS: Omit<Contact, 'id'>[] = [
-  { name: 'Eduardo Torquino', job: 'Lawyer', company: null, phone: '+34 747 758 327', whatsapp: false, email: null, website: null, notes: null },
+  { name: 'Eduardo Torquino', job: 'Lawyer', company: null, phone: '+34 747 758 327', whatsapp: false, email: 'torquino71@gmail.com', website: null,
+    notes: null },
   { name: 'Daniel Cruz Luna', job: 'Bank advisor', company: 'BBVA', phone: '+34 955 677 963', whatsapp: false, email: 'daniel.cruz.luna@bbva.com',
     website: 'https://www.bbva.es', notes: null },
   { name: 'Miguel', job: 'Plumber & electrician', company: null, phone: '+34 632 042 132', whatsapp: true, email: null, website: null, notes: null },

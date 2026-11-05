@@ -1,0 +1,35 @@
+// Spanish for the Today page's top row and short cards: today's takings against breakeven, what's low,
+// the first jobs, and the arrows to each page.
+export default {
+  'so far, of {money} to break even': 'hasta ahora, de {money} para cubrir costes',
+  'so far today': 'hoy hasta ahora',
+  '{money} over breakeven': '{money} por encima del umbral',
+  '{money} to go': 'faltan {money}',
+  'Takings towards breakeven': 'Ingresos hacia el umbral de rentabilidad',
+  '{takings} of {breakeven} ({pct}%)': '{takings} de {breakeven} ({pct}%)',
+  'Broke even by {time}': 'Costes cubiertos a las {time}',
+  'Breakeven {money}': 'Umbral {money}',
+  'Breakeven': 'Umbral',
+  'By {time}': 'A las {time}',
+  'Takings through the day, {takings} so far, against a breakeven of {breakeven}':
+    'Ingresos a lo largo del día, {takings} hasta ahora, frente a un umbral de rentabilidad de {breakeven}',
+  'Takings through the day, {takings} so far': 'Ingresos a lo largo del día, {takings} hasta ahora',
+  'Closed today: there’s no breakeven to reach.': 'Hoy está cerrado: no hay umbral que alcanzar.',
+  'Add the running costs on Finances to see the day’s breakeven.': 'Añade los gastos fijos en Finanzas para ver el umbral de rentabilidad del día.',
+  'Breakeven: the running costs on Finances for a day, plus the team on today’s rota.':
+    'Umbral: los gastos fijos de Finanzas de un día, más el equipo del cuadrante de hoy.',
+  'Breakeven: the running costs on Finances for a day, with the team from the Staff wages estimate.':
+    'Umbral: los gastos fijos de Finanzas de un día, con el equipo según la estimación de Sueldos del equipo.',
+  '{n} item to order': '{n} artículo por pedir',
+  '{n} items to order': '{n} artículos por pedir',
+  'Nothing to do. All done!': 'Nada pendiente. ¡Todo hecho!',
+  '{n} open': '{n} pendientes',
+  'Jobs to do first': 'Tareas por hacer primero',
+  'Open Timecards': 'Abrir Fichajes',
+  'Open Sales': 'Abrir Ventas',
+  'Open Stock': 'Abrir Existencias',
+  'On the rota today': 'En el cuadrante hoy',
+  'on now': 'trabajando ahora',
+  'Open the Calendar': 'Abrir el Calendario',
+  'Open Sports': 'Abrir Deportes',
+} satisfies Record<string, string>

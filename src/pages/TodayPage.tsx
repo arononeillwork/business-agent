@@ -1,18 +1,20 @@
 import {
   Alert, Box, Button, Card, CardContent, Dialog, DialogActions, DialogContent, DialogTitle,
-  Grid, Menu, MenuItem, Stack, TextField, Typography,
+  Grid, IconButton, Link as MuiLink, Menu, MenuItem, Stack, TextField, Tooltip, Typography,
 } from '@mui/material'
+import ArrowIcon from '@mui/icons-material/ArrowForwardRounded'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAsync, useTick } from '../app/hooks'
 import { useAction } from '../app/Notify'
-import { ErrorBox, Flags, Loading, PageHeader, PersonAvatar, SectionTitle, Tag } from '../components/common'
+import { ErrorBox, Flags, PageHeader, PersonAvatar, SectionTitle, Tag } from '../components/common'
 import { MusicCard } from '../components/MusicCard'
-import { WidgetBody, useTakings } from '../components/dashboardWidgets'
+import { LowStockTop, TopJobs, WidgetBody, useTakings } from '../components/dashboardWidgets'
+import { BreakevenToday } from '../components/BreakevenToday'
 import { AdviceCard } from './AdvisorPage'
 import { useAdvice } from '../app/insightsData'
-import { dashRange, type DashRange, type WidgetKind } from '../../shared/dashboards'
+import { dashRange } from '../../shared/dashboards'
 import { holidayOn } from '../../shared/rules'
 import { addDays, dayKey, formatDuration, formatLocal, localDate, localTime, minutesBetween, today, zonedIso } from '../../shared/time'
 import { fonts, tokens } from '../theme'
@@ -53,9 +55,10 @@ function ClockCard({ onChange }: { onChange: () => void }) {
 
   const tone = openBreak ? tokens.warning : entry ? tokens.matcha : tokens.inkFaint
   return (
-    <Card component="section" aria-label={t('Your clock')} sx={{ mb: 2.5 }}>
-      <CardContent sx={{ py: '14px !important' }}>
-        <Stack direction={{ xs: 'column', sm: 'row' }} sx={{ gap: 1.5, alignItems: { sm: 'center' } }}>
+    <Card component="section" aria-label={t('Your clock')} sx={{ height: '100%' }}>
+      <CardContent sx={{ py: '12px !important' }}>
+        <SmallTitle to="/timecards" label={t('Open Timecards')}>{t('Your clock')}</SmallTitle>
+        <Stack sx={{ gap: 1.25 }}>
           <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flex: 1, minWidth: 0 }}>
             <Box aria-hidden sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: tone, flexShrink: 0,
               boxShadow: entry ? `0 0 0 4px ${openBreak ? tokens.warnBg : tokens.goodBg}` : 'none' }} />
@@ -78,14 +81,14 @@ function ClockCard({ onChange }: { onChange: () => void }) {
           </Stack>
 
           {!entry && (
-            <Stack direction={{ xs: 'column', sm: 'row' }} sx={{ gap: 1, alignItems: { sm: 'center' }, width: { xs: '100%', sm: 'auto' } }}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} sx={{ gap: 1, alignItems: { sm: 'center' }, width: '100%' }}>
               {positions.length > 1 && (
                 <TextField select size="small" label={t('Position')} value={positionId || shift?.position_id || ''}
-                  onChange={e => setPositionId(Number(e.target.value))} sx={{ width: { xs: '100%', sm: 160 } }}>
+                  onChange={e => setPositionId(Number(e.target.value))} sx={{ width: { xs: '100%', sm: 'auto' }, flex: { sm: 1 }, minWidth: 0 }}>
                   {positions.filter(p => p.active).map(p => <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>)}
                 </TextField>
               )}
-              <Button variant="contained" disabled={busy} sx={{ flex: { xs: 1, sm: 'none' }, minHeight: { xs: 46, sm: 38 } }}
+              <Button variant="contained" disabled={busy} sx={{ flex: { xs: 1, sm: positions.length > 1 ? 'none' : 1 }, minHeight: { xs: 46, sm: 38 } }}
                 onClick={() => act(() => api.clockIn(positionId || shift?.position_id || null), t('Clocked in. Have a good shift!'))}>
                 {t('Clock in')}
               </Button>
@@ -93,8 +96,8 @@ function ClockCard({ onChange }: { onChange: () => void }) {
           )}
           {entry && !openBreak && (
             <Stack direction="row" spacing={1}>
-              <Button variant="outlined" disabled={busy} onClick={e => setBreakMenu(e.currentTarget)}>{t('Start break')}</Button>
-              <Button variant="outlined" color="error" disabled={busy}
+              <Button variant="outlined" disabled={busy} sx={{ flex: 1 }} onClick={e => setBreakMenu(e.currentTarget)}>{t('Start break')}</Button>
+              <Button variant="outlined" color="error" disabled={busy} sx={{ flex: 1 }}
                 onClick={async () => {
                   setBusy(true)
                   try {
@@ -116,7 +119,7 @@ function ClockCard({ onChange }: { onChange: () => void }) {
             </Stack>
           )}
           {openBreak && (
-            <Button variant="contained" disabled={busy} onClick={() => act(() => api.endBreak(), t('Welcome back'))}>{t('End break')}</Button>
+            <Button variant="contained" disabled={busy} fullWidth onClick={() => act(() => api.endBreak(), t('Welcome back'))}>{t('End break')}</Button>
           )}
         </Stack>
         {settings?.phone_clock_in === 'off' && !entry && (
@@ -183,9 +186,31 @@ function Item({ lead, primary, secondary, action, label }: { lead: ReactNode; pr
   )
 }
 
+/** An arrow to the page a card is about, with its name on hover and for screen readers. */
+function ArrowLink({ to, label }: { to: string; label: string }) {
+  return (
+    <Tooltip title={label}>
+      <IconButton size="small" component={Link} to={to} aria-label={label} sx={{ mr: -0.75, my: -0.5, color: 'text.secondary', '&:hover': { color: tokens.roseDeep } }}>
+        <ArrowIcon fontSize="small" />
+      </IconButton>
+    </Tooltip>
+  )
+}
+
+/** A small card's heading, with the arrow to its page. */
+function SmallTitle({ children, to, label }: { children: ReactNode; to?: string; label?: string }) {
+  return (
+    <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 1 }}>
+      <Typography variant="subtitle2" component="h2">{children}</Typography>
+      {to && label && <ArrowLink to={to} label={label} />}
+    </Stack>
+  )
+}
+
 /**
- * The numbers that matter today, at the top: takings today and this week (admins with a till and
- * pay access), what's low and the jobs to do; for admins, what the business advisor says first.
+ * The numbers that matter today, at the top: today's takings against the day's breakeven and this
+ * week's (admins with a till and pay access), what's low and the first jobs to do; for admins, what
+ * the business advisor says first.
  */
 function AtAGlance() {
   const { isAdmin, isPartner } = useApp()
@@ -194,21 +219,31 @@ function AtAGlance() {
   const [later, setLater] = useState(false)
   useEffect(() => { const id = setTimeout(() => setLater(true), 600); return () => clearTimeout(id) }, [])
   const d = today()
-  const tiles: { kind: WidgetKind; title: string; to: string; range: DashRange }[] = [
-    ...(on ? [{ kind: 'takings' as const, title: t('Takings today'), to: '/sales', range: dashRange('today', d) },
-      { kind: 'takings' as const, title: t('Takings this week'), to: '/sales', range: dashRange('week', d) }] : []),
-    { kind: 'low_stock', title: t('Low on stock'), to: '/stock', range: dashRange('today', d) },
-    { kind: 'todo', title: t('Jobs to do'), to: '/todo', range: dashRange('today', d) },
+  const small: { key: string; title: string; to: string; label: string; body: ReactNode }[] = [
+    ...(on ? [{ key: 'week', title: t('Takings this week'), to: '/sales', label: t('Open Sales'), body: <WidgetBody kind="takings" range={dashRange('week', d)} /> }] : []),
+    { key: 'low', title: t('Low on stock'), to: '/stock', label: t('Open Stock'), body: <LowStockTop n={3} /> },
+    { key: 'jobs', title: t('Jobs to do'), to: '/todo', label: t('Open the To Do List'), body: <TopJobs n={3} /> },
   ]
   if (isPartner) return null
   return (
     <Box component="section" aria-label={t('At a glance')} sx={{ mb: 2.5 }}>
-      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: `repeat(${tiles.length}, minmax(0, 1fr))` } }}>
-        {tiles.map(x => (
-          <Card key={`${x.kind}-${x.title}`} component="section" aria-label={x.title}>
+      {/* With the takings, on a computer: today's against breakeven on the left; the week's, then what's low and the jobs, beside it. */}
+      <Box sx={{ display: 'grid', gap: 2, alignItems: 'start', gridTemplateColumns: on
+        ? { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(4, minmax(0, 1fr))' }
+        : { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' } }}>
+        {on && (
+          <Card component="section" aria-label={t('Takings today')} sx={{ gridColumn: { sm: 'span 2' }, gridRow: { lg: 'span 2' }, alignSelf: 'stretch' }}>
             <CardContent>
-              <SectionTitle action={<Button size="small" component={Link} to={x.to}>{t('Open page')}</Button>}>{x.title}</SectionTitle>
-              <WidgetBody kind={x.kind} range={x.range} />
+              <SectionTitle action={<ArrowLink to="/sales" label={t('Open Sales')} />}>{t('Takings today')}</SectionTitle>
+              <BreakevenToday />
+            </CardContent>
+          </Card>
+        )}
+        {small.map(x => (
+          <Card key={x.key} component="section" aria-label={x.title} sx={{ alignSelf: 'stretch', ...(x.key === 'week' ? { gridColumn: { sm: 'span 2' } } : {}) }}>
+            <CardContent sx={{ py: '12px !important' }}>
+              <SmallTitle to={x.to} label={x.label}>{x.title}</SmallTitle>
+              {x.body}
             </CardContent>
           </Card>
         ))}
@@ -225,7 +260,7 @@ function AdvisorGlance() {
   return (
     <Card component="section" aria-label={t('Business advisor')} sx={{ mt: 2, borderLeft: `4px solid ${tokens.rose}` }}>
       <CardContent>
-        <SectionTitle action={<Button size="small" component={Link} to="/advisor">{t('Everything the advisor found')}</Button>}>{t('Business advisor')}</SectionTitle>
+        <SectionTitle action={<ArrowLink to="/advisor" label={t('Everything the advisor found')} />}>{t('Business advisor')}</SectionTitle>
         {advice.slice(0, 2).map(a => <AdviceCard key={a.id} a={a} />)}
       </CardContent>
     </Card>
@@ -236,8 +271,9 @@ const Items = ({ children }: { children: ReactNode }) => <Box component="ul" sx=
 const Quiet = ({ children }: { children: ReactNode }) => <Typography sx={{ color: 'text.secondary' }}>{children}</Typography>
 
 /**
- * The landing page: a short overview of the day. Clock in, who's on and the café's hours, what's
- * coming up, your own next shifts, the week's big matches and the music.
+ * The landing page: a short overview of the day. A top row of small cards (clock in, who's on and the
+ * café's hours, the music), today's takings against breakeven and the numbers to act on, then what's
+ * coming up, your own next shifts and the week's big matches.
  */
 export function TodayPage() {
   const { api, me, profiles, positions, isAdmin, business } = useApp()
@@ -286,40 +322,54 @@ export function TodayPage() {
       )}
 
       <AgentFocus />
-      <ClockCard onChange={data.reload} />
+      {/* The top row: small cards for clocking in, who's on today and the café music. */}
+      <Box sx={{ display: 'grid', gap: 2, mb: 2.5, gridTemplateColumns: { xs: '1fr', md: 'repeat(auto-fit, minmax(260px, 1fr))' } }}>
+        <ClockCard onChange={data.reload} />
+        <Card component="section" aria-label={t("Who's on today")} sx={{ height: '100%' }}>
+          <CardContent sx={{ py: '12px !important' }}>
+            <SmallTitle to="/rota" label={t('Open the rota')}>{t("Who's on today")}</SmallTitle>
+            <Typography variant="caption" component="p" sx={{ color: 'text.secondary', mt: -0.75, mb: 1 }}>
+              {hours ? t('The café is open {open}–{close}', { open: hours.open, close: hours.close }) : t('The café is closed today')}
+            </Typography>
+            {!data.data && <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('Loading…')}</Typography>}
+            {data.data && todays.length === 0 && <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('Nobody is scheduled today.')}</Typography>}
+            <Stack component="ul" direction="row" useFlexGap aria-label={t('On the rota today')} sx={{ m: 0, p: 0, listStyle: 'none', gap: 1.25, flexWrap: 'wrap' }}>
+              {todays.map(s => {
+                const p = person(s.profile_id)
+                const now = s.starts_at <= new Date().toISOString() && new Date().toISOString() < s.ends_at
+                const name = p?.full_name ?? t('Open shift')
+                const when = `${localTime(s.starts_at)}–${localTime(s.ends_at)}`
+                return (
+                  <Tooltip key={s.id} title={[name, when, position(s.position_id)?.name].filter(Boolean).join(' · ')}>
+                    <Stack component="li" aria-label={[name, when, position(s.position_id)?.name, now ? t('on now') : null].filter(Boolean).join(', ')}
+                      sx={{ alignItems: 'center', width: 58, minWidth: 0 }}>
+                      <Box sx={{ borderRadius: '50%', p: '2px', border: `2px solid ${now ? tokens.matcha : 'transparent'}` }}>
+                        <PersonAvatar name={name} colour={p?.colour ?? '#C6C2BB'} size={30} />
+                      </Box>
+                      <Typography variant="caption" noWrap sx={{ maxWidth: '100%', lineHeight: 1.3, fontWeight: 500 }}>{name.split(' ')[0]}</Typography>
+                      <Typography variant="caption" noWrap sx={{ color: 'text.secondary', lineHeight: 1.2, fontSize: '0.7rem', fontVariantNumeric: 'tabular-nums' }}>{localTime(s.starts_at)}</Typography>
+                    </Stack>
+                  </Tooltip>
+                )
+              })}
+            </Stack>
+            {openShifts.length > 0 && (
+              <MuiLink component={Link} to="/rota" variant="body2" sx={{ display: 'inline-block', mt: 1 }}>
+                {tn(openShifts.length, '{n} open shift this week you can pick up', '{n} open shifts this week you can pick up')}
+              </MuiLink>
+            )}
+          </CardContent>
+        </Card>
+        <MusicCard compact />
+      </Box>
       <AtAGlance />
 
       <Grid container spacing={2.5}>
         <Grid size={{ xs: 12, md: 7 }}>
           <Stack spacing={2.5}>
-            <Card component="section" aria-label={t("Who's on today")}>
-              <CardContent>
-                <SectionTitle action={<Button size="small" component={Link} to="/rota">{t('Rota')}</Button>}>{t("Who's on today")}</SectionTitle>
-                <Typography variant="body2" sx={{ color: 'text.secondary', mt: -1, mb: 1.5 }}>
-                  {hours ? t('The café is open {open}–{close}', { open: hours.open, close: hours.close }) : t('The café is closed today')}
-                </Typography>
-                {!data.data && <Loading />}
-                {data.data && todays.length === 0 && <Quiet>{t('Nobody is scheduled today.')}</Quiet>}
-                <Items>
-                  {todays.map(s => {
-                    const p = person(s.profile_id)
-                    return (
-                      <Item key={s.id} lead={<PersonAvatar name={p?.full_name ?? '?'} colour={p?.colour ?? '#C6C2BB'} size={36} />}
-                        primary={p?.full_name ?? t('Open shift')}
-                        secondary={[`${localTime(s.starts_at)}–${localTime(s.ends_at)}`, position(s.position_id)?.name].filter(Boolean).join(' · ')} />
-                    )
-                  })}
-                </Items>
-                {openShifts.length > 0 && (
-                  <Alert severity="info" sx={{ mt: 1.5 }} action={<Button component={Link} to="/rota" color="inherit">{t('View')}</Button>}>
-                    {tn(openShifts.length, '{n} open shift this week you can pick up', '{n} open shifts this week you can pick up')}
-                  </Alert>
-                )}
-              </CardContent>
-            </Card>
             <Card component="section" aria-label={t('Coming up')}>
               <CardContent>
-                <SectionTitle action={<Button size="small" component={Link} to="/calendar">{t('Calendar')}</Button>}>{t('Coming up')}</SectionTitle>
+                <SectionTitle action={<ArrowLink to="/calendar" label={t('Open the Calendar')} />}>{t('Coming up')}</SectionTitle>
                 {data.data && upcoming.length === 0 && <Quiet>{t('Nothing in the next 3 weeks.')}</Quiet>}
                 <Items>
                   {upcoming.slice(0, 6).map(e => (
@@ -351,7 +401,7 @@ export function TodayPage() {
             <TodayThemeCard />
             {sportsOn && <Card component="section" aria-label={t('Big nights')}>
               <CardContent>
-                <SectionTitle action={<Button size="small" component={Link} to="/sports">{t('Sports')}</Button>}>{t('Big nights this week')}</SectionTitle>
+                <SectionTitle action={<ArrowLink to="/sports" label={t('Open Sports')} />}>{t('Big nights this week')}</SectionTitle>
                 {data.data && big.length === 0 && <Quiet>{t('No big matches or fights this week.')}</Quiet>}
                 <Items>
                   {big.slice(0, 4).map(e => (
@@ -363,7 +413,6 @@ export function TodayPage() {
                 </Items>
               </CardContent>
             </Card>}
-            <MusicCard />
           </Stack>
         </Grid>
       </Grid>

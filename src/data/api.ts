@@ -42,6 +42,8 @@ import type { DisplayFeed, Screen, ScreenInput } from '../../shared/screens'
 import type { Offer, OfferInput } from '../../shared/offers'
 import type { SourcePost } from '../../shared/offerFromPost'
 import type { LastDayRule, LastDayRuleInput } from '../../shared/lastDayOffers'
+import type { FreshBatch, FreshBatchInput } from '../../shared/freshBatches'
+import type { ReportSchedule, ReportScheduleInput, ReportSend, ReportSent } from '../../shared/reports'
 import type { Camera, CameraClip, CameraInput, CameraLive, CameraService } from '../../shared/cameras'
 import type { AdPlatform, AdSettings, AdsReport, CampaignPatch } from '../../shared/ads'
 import type { ReviewsState } from '../../shared/reviews'
@@ -590,6 +592,16 @@ export interface Api {
   editWaste(id: string, w: WasteEdit): Promise<void>
   /** Take an entry off the waste log; its stock comes back. */
   undoWaste(id: string): Promise<void>
+  /**
+   * Freshly made (Stock): what the team made for the counter, when, how long it keeps and when its discount
+   * starts, the last two weeks', newest first (the team; finance partners read). A batch with a discount puts
+   * itself on Offers & specials until its shelf life ends (shared/freshBatches.ts).
+   */
+  freshBatches(): Promise<FreshBatch[]>
+  /** Record a batch (no id) or change one (sold out or thrown away: `cleared`); returns its id. */
+  saveFreshBatch(batch: FreshBatchInput): Promise<string>
+  /** Delete a batch recorded by mistake (admins, or whoever recorded it); its offer still to come goes too. */
+  deleteFreshBatch(id: string): Promise<void>
   /** Menu items and what goes in them (admins; finance partners read). */
   recipes(): Promise<Recipe[]>
   /** Save a recipe with its variants and lines (they replace the ones there were); returns its id. */
@@ -894,6 +906,13 @@ export interface Api {
   chooseCalendar(app: CalendarApp): Promise<{ url: string; feed: string }>
   /** Send a test email from the connected mailbox. */
   sendTestEmail(to: string): Promise<void>
+  /** Dashboards → Reports (admins): email a report from the connected Gmail or Outlook, one email to each address. */
+  sendReport(report: ReportSend): Promise<ReportSent>
+  /** Reports that go by themselves (admins): every day, on days of the week or a day of the month, at a time. */
+  reportSchedules(): Promise<ReportSchedule[]>
+  /** Add one (no id) or change one; returns its id. Its figures become what the person saving it can see. */
+  saveReportSchedule(schedule: ReportScheduleInput): Promise<string>
+  deleteReportSchedule(id: string): Promise<void>
   /** Save a file into "Business Agent/<folder>" in the connected Drive/OneDrive; returns a link to it. */
   saveFile(f: { folder: string; name: string; content: string; type?: string }): Promise<{ link: string; provider: ConnectorProvider }>
   whatsappTest(to: string): Promise<void>

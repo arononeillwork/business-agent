@@ -4,6 +4,7 @@ import {
 } from '@mui/material'
 import ListViewIcon from '@mui/icons-material/ViewListOutlined'
 import BoardViewIcon from '@mui/icons-material/ViewKanbanOutlined'
+import CalendarViewIcon from '@mui/icons-material/CalendarMonthOutlined'
 import AddIcon from '@mui/icons-material/Add'
 import CheckIcon from '@mui/icons-material/Check'
 import CloseIcon from '@mui/icons-material/Close'
@@ -30,6 +31,7 @@ import { Empty, ErrorBox, PageHeader, PersonAvatar, SectionTitle } from '../comp
 import { restrictToVerticalAxis } from '../components/dnd'
 import { NO_CATEGORY, buildBoard, flatten, inStep, resolveMove, topPosition, visible, type TodoFilters } from '../../shared/todo'
 import { TodoBoard } from '../components/TodoBoard'
+import { TodoCalendar } from '../components/TodoCalendar'
 import type { Profile, Todo, TodoCategory, TodoPatch } from '../../shared/types'
 import { fonts, tokens } from '../theme'
 import { t, tn } from '../i18n'
@@ -37,9 +39,9 @@ import { t, tn } from '../i18n'
 const VIEW_KEY = 'todo-view'
 // The list (by category) or the board (To do, Doing, Done), remembered on this device.
 const MODE_KEY = 'todo-mode'
-type Mode = 'list' | 'board'
+type Mode = 'list' | 'board' | 'calendar'
 function readMode(): Mode {
-  try { return localStorage.getItem(MODE_KEY) === 'board' ? 'board' : 'list' } catch { return 'list' }
+  try { const m = localStorage.getItem(MODE_KEY); return m === 'board' || m === 'calendar' ? m : 'list' } catch { return 'list' }
 }
 const DEFAULT_VIEW: TodoFilters = { categoryId: null, starredOnly: false, showDone: false }
 const STAR = '#C98A1E'
@@ -56,7 +58,7 @@ function readView(): TodoFilters {
   try { return { ...DEFAULT_VIEW, ...JSON.parse(localStorage.getItem(VIEW_KEY) ?? '{}') } } catch { return DEFAULT_VIEW }
 }
 
-/** The team's to-do list, grouped by categories the admins add and remove; or the same jobs as a kanban board. */
+/** The team's to-do list, grouped by categories the admins add and remove; or the same jobs as a kanban board, or on a calendar. */
 export function TodoPage() {
   const { api, isAdmin, can, permissions, profiles, me } = useApp()
   // Admins, and anyone whose role has Update on the To Do List, set up its categories.
@@ -173,6 +175,7 @@ export function TodoPage() {
           <ToggleButtonGroup size="small" exclusive value={mode} onChange={(_, m: Mode | null) => chooseMode(m)} aria-label={t('Show as')}>
             <ToggleButton value="list" aria-label={t('List')} sx={{ gap: 0.75, px: 1.5, textTransform: 'none' }}><ListViewIcon fontSize="small" />{t('List')}</ToggleButton>
             <ToggleButton value="board" aria-label={t('Board')} sx={{ gap: 0.75, px: 1.5, textTransform: 'none' }}><BoardViewIcon fontSize="small" />{t('Board')}</ToggleButton>
+            <ToggleButton value="calendar" aria-label={t('Calendar')} sx={{ gap: 0.75, px: 1.5, textTransform: 'none' }}><CalendarViewIcon fontSize="small" />{t('Calendar')}</ToggleButton>
           </ToggleButtonGroup>
           {/* The list's own filters, at the top right next to how it's shown. */}
           {mode === 'list' && <>
@@ -214,7 +217,9 @@ export function TodoPage() {
             onDelete={c => run(() => api.deleteTodoCategory(c.id), t('Removed {name}', { name: c.name }))} />
         )}
 
-        {mode === 'board' ? (
+        {mode === 'calendar' ? (
+          <TodoCalendar items={items} categories={categories} onChange={(id, p) => void change(id, p)} onAdd={title => add(title, null)} />
+        ) : mode === 'board' ? (
           <TodoBoard items={items} categories={categories} team={team} meId={me?.id ?? null} isAdmin={isAdmin}
             onChange={(id, p) => void change(id, p)} onDelete={job => void remove(job)}
             onAdd={j => add(j.title, j.category_id, { assignee_id: j.assignee_id, position: j.position })} />

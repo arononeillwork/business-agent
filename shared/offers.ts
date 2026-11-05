@@ -33,6 +33,8 @@ export interface Offer {
   stock_item_id?: string | null
   last_day_rule_id?: string | null
   auto_for?: string | null
+  /** Put on by a freshly made batch's discount (shared/freshBatches), until its shelf life ends. */
+  fresh_batch_id?: string | null
 }
 export type OfferInput = Omit<Offer, 'id' | 'updated_at'> & { id?: string }
 

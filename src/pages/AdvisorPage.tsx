@@ -1,4 +1,4 @@
-import { Alert, Box, Button, Card, CardContent, Chip, Stack, Typography } from '@mui/material'
+import { Alert, Box, Button, Card, CardContent, Chip, IconButton, Stack, Tooltip, Typography } from '@mui/material'
 import GoodIcon from '@mui/icons-material/CheckCircleOutlined'
 import WarnIcon from '@mui/icons-material/ErrorOutlineOutlined'
 import InfoIcon from '@mui/icons-material/LightbulbOutlined'
@@ -29,7 +29,12 @@ export function AdviceCard({ a, compact }: { a: Advice; compact?: boolean }) {
         <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.25 }}>{t(a.text, a.vars)}</Typography>
       </Box>
       {a.to && !compact && (
-        <Button size="small" component={RouterLink} to={a.to} endIcon={<ArrowIcon />} sx={{ flexShrink: 0, alignSelf: 'center' }}>{t('Open page')}</Button>
+        <Tooltip title={t('Open page')}>
+          <IconButton size="small" component={RouterLink} to={a.to} aria-label={t('Open page')}
+            sx={{ flexShrink: 0, alignSelf: 'center', color: tokens.roseDeep, border: `1px solid ${tokens.line}`, '&:hover': { bgcolor: tokens.roseSoft } }}>
+            <ArrowIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
       )}
     </Box>
   )

@@ -5,6 +5,8 @@ import { Box, Button, Stack, Typography } from '@mui/material'
 import UpIcon from '@mui/icons-material/ArrowUpwardRounded'
 import DownIcon from '@mui/icons-material/ArrowDownwardRounded'
 import StarIcon from '@mui/icons-material/Star'
+import PinIcon from '@mui/icons-material/PushPin'
+import DotIcon from '@mui/icons-material/RadioButtonUncheckedRounded'
 import { Link as RouterLink } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { useApp } from '../app/AppContext'
@@ -22,6 +24,7 @@ import { costing } from '../../shared/recipes'
 import { isLow, stockValue, unitLabel } from '../../shared/stock'
 import type { PayMethod, SalesDay } from '../../shared/types'
 import { addDays, currencySymbol, formatLocal, formatMoney, formatNumber, localDate, localTime, today, zonedIso } from '../../shared/time'
+import { lowestFirst, topJobs } from '../../shared/todayGlance'
 import { tokens } from '../theme'
 import { msg, t, tn } from '../i18n'
 
@@ -37,7 +40,7 @@ export function useTakings() {
   return { till: tills.length > 0, on: tills.length > 0 && canSeePay && !isPartner, ready: !isAdmin || !!integ.data }
 }
 
-function useSales(r: DashRange) {
+export function useSales(r: DashRange) {
   const { api } = useApp()
   const { on } = useTakings()
   return useAsync('dash-sales', () => (on ? api.sales(r.prevFrom, r.to) : Promise.resolve(null)), [on, r.prevFrom, r.to])
@@ -393,4 +396,50 @@ export function WidgetBody({ kind, range }: { kind: WidgetKind; range: DashRange
     case 'todo': return <Jobs />
     case 'advice': return <TopAdvice />
   }
+}
+
+/** The Today page's short list of what's low: the first `n`, and how many more. */
+export function LowStockTop({ n = 3 }: { n?: number }) {
+  const stock = useStock()
+  if (!stock.data) return <Note>{stock.error ?? t('Loading…')}</Note>
+  const low = lowestFirst(stock.data.filter(isLow))
+  if (!low.length) return <Note>{t('Nothing is low. Nothing to order.')}</Note>
+  return (
+    <Stack spacing={0.5}>
+      <Typography variant="body2" sx={{ color: 'text.secondary' }}>{tn(low.length, '{n} item to order', '{n} items to order')}</Typography>
+      {low.slice(0, n).map(i => (
+        <Stack key={i.id} direction="row" sx={{ justifyContent: 'space-between', gap: 1 }}>
+          <Typography variant="body2" noWrap>{i.name}</Typography>
+          <Typography variant="body2" sx={{ color: tokens.badFg, whiteSpace: 'nowrap' }}>{`${formatNumber(i.on_hand)} ${t(unitLabel(i.unit))}`}</Typography>
+        </Stack>
+      ))}
+      {low.length > n && <Typography variant="caption" sx={{ color: 'text.secondary' }}>{t('and {n} more', { n: low.length - n })}</Typography>}
+    </Stack>
+  )
+}
+
+/** The Today page's short list of jobs: how many are open, and the first `n` to do (pinned, starred, being done). */
+export function TopJobs({ n = 3 }: { n?: number }) {
+  const { api } = useApp()
+  const data = useAsync('todos', () => api.todos(), [])
+  if (!data.data) return <Note>{data.error ?? t('Loading…')}</Note>
+  const open = data.data.todos.filter(x => !x.done)
+  const top = topJobs(data.data.todos, n)
+  if (!open.length) return <Note>{t('Nothing to do. All done!')}</Note>
+  return (
+    <Stack spacing={0.5}>
+      <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+        {[tn(open.length, '{n} open', '{n} open'), tn(open.filter(x => x.status === 'doing').length, '{n} being done', '{n} being done')].join(' · ')}
+      </Typography>
+      <Stack component="ol" aria-label={t('Jobs to do first')} spacing={0.5} sx={{ listStyle: 'none', m: 0, p: 0 }}>
+        {top.map(x => (
+          <Stack component="li" key={x.id} direction="row" spacing={0.75} sx={{ alignItems: 'center', minWidth: 0 }}>
+            {x.pinned ? <PinIcon sx={{ fontSize: 16, color: tokens.roseDeep }} /> : x.starred ? <StarIcon sx={{ fontSize: 16, color: '#C98A1E' }} />
+              : <DotIcon sx={{ fontSize: 16, color: x.status === 'doing' ? tokens.matcha : tokens.inkFaint }} />}
+            <Typography variant="body2" noWrap>{x.title}</Typography>
+          </Stack>
+        ))}
+      </Stack>
+    </Stack>
+  )
 }

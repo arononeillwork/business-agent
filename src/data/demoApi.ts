@@ -34,7 +34,7 @@ import type { Licence } from '../../shared/licences'
 import { DEFAULT_RULES, draw, newEntries, type Competition, type CompetitionEntry } from '../../shared/competitions'
 import { cleanTags, sortEntries, type KeptDocument, type StorageEntry } from '../../shared/documents'
 import { afterPayment, isMoneyLink, paidSoFar, type MoneyItem, type MoneyPayment } from '../../shared/creditDebit'
-import { inStep } from '../../shared/todo'
+import { inStep, planProblem } from '../../shared/todo'
 import { LEGAL_STORAGES, MAX_PICK, SKIPPED, guessKind, previewOf, storageName, titleOf, type LegalDocument, type LegalStorage, type StorageItem } from '../../shared/legalDocs'
 import { ALREADY_ON_BRAND, brandTitleOf, uploadProblem, type BrandDocument } from '../../shared/brandDocs'
 import type { Benefit, LeaveAllowance } from '../../shared/benefits'
@@ -52,6 +52,8 @@ import { demoChecklistApi } from './demoChecklists'
 import { demoCompanyValuesApi } from './demoCompanyValues'
 import { demoContactsApi } from './demoContacts'
 import { demoContentApi } from './demoContent'
+import { demoFreshApi } from './demoFreshBatches'
+import { reportSendProblem, scheduleProblem, type ReportSchedule } from '../../shared/reports'
 import { demoQrCodeApi } from './demoQrCodes'
 import { COUNTED, type Contractor, type OutsourcedJob } from '../../shared/outsourcing'
 import { DEFAULT_CONVENIO, contractProblem, type EmploymentContract } from '../../shared/contracts'
@@ -1160,7 +1162,11 @@ export function createDemoApi(): Api {
     ['Order more oat milk', 'Buying', null, null, true, false, false],
   ] as const).map(([title, c, section, assignee, starred, done, pinned], i) => ({ id: `td-${i + 1}`, title, category_id: cat(c), section,
     assignee_id: assignee, done, status: done ? 'done' as const : DOING_NOW.has(title) ? 'doing' as const : 'todo' as const,
-    done_at: done ? nowIso() : null, starred, pinned, position: i + 1, created_at: nowIso() }))
+    done_at: done ? nowIso() : null, starred, pinned, position: i + 1, created_at: nowIso(), planned_on: null, planned_from: null, planned_to: null }))
+  // A few already on the To Do List's calendar: a cold brew test this afternoon, the licence tomorrow morning, the AC some time in two days.
+  Object.assign(todos.find(x => x.title === 'Test a cold brew recipe')!, { planned_on: today(), planned_from: '15:00', planned_to: '16:30' })
+  Object.assign(todos.find(x => x.title === 'Renew the terrace licence')!, { planned_on: addDays(today(), 1), planned_from: '10:00', planned_to: '11:00' })
+  Object.assign(todos.find(x => x.title === 'Get the AC serviced before summer')!, { planned_on: addDays(today(), 2) })
   // Customers and leads: regulars, people who asked about something, and a few businesses to win over.
   const person = (c: Partial<Customer> & { days: number }): Customer => {
     const { days, ...rest } = c
@@ -1410,6 +1416,17 @@ export function createDemoApi(): Api {
   }, { by: P.julio, at: zonedIso(today(), '08:05') })
   // Company values (Business): as the `company_values` migration.
   const valuesApi = demoCompanyValuesApi({ isStaff: () => isStaff() && !!me()?.active, isAdmin: () => isAdmin() && !!me()?.active, uid })
+  // Scheduled reports (Dashboards → Reports): the owners' Monday takings, set up by Aron.
+  const reportSchedules: ReportSchedule[] = [{
+    id: 'rs-monday', name: 'Monday takings for the owners', kinds: ['takings', 'best_sellers', 'team'], period: 'last_week', team: [P.aron, P.mark], contacts: [], emails: [],
+    frequency: 'weekly', weekdays: [1], month_day: null, send_at: '08:00', language: 'en', active: true, last_sent_at: null, last_error: null,
+    updated_at: daysAgo(10), updated_by: P.aron,
+  }]
+  // Freshly made (Stock): as the `fresh_batches` migration; a batch's discount puts its offer on Offers & specials.
+  const freshApi = demoFreshApi({
+    isStaff: () => isStaff() && !!me()?.active, isAdmin: () => isAdmin() && !!me()?.active, reads: () => partnerCan('finances'), me: () => currentUser, uid,
+    offers: offerList, screens: () => screenList.filter(x => x.active).map(x => x.id), menu: () => recipes.filter(r => r.active),
+  })
   /** That person's shifts in the period become open shifts (approved time off). */
   const openUpShifts = (t: TimeOff) => {
     const name = profiles.find(p => p.id === t.profile_id)?.full_name
@@ -2584,6 +2601,7 @@ export function createDemoApi(): Api {
     ...themeDayApi,
     ...checklistApi,
     ...valuesApi,
+    ...freshApi,
     // Contacts (Business, owners only): Easy Beans' lawyer, bank advisor and plumber, as the `business_contacts` migration.
     ...demoContactsApi({ isOwner: () => isAdmin() && !!me()?.active && !!me()?.can_see_pay, uid }),
     // Content (Marketing): a few of Easy Beans' photos and a video; a Google Photos pick brings in more.
@@ -3561,6 +3579,7 @@ export function createDemoApi(): Api {
     async offers() {
       if (!isAdmin()) return []
       runLastDayOffers()
+      await freshApi.freshBatches() // the freshly made batches' offers, there from the start
       return clone(offerList).sort((a, b) => b.starts_at.localeCompare(a.starts_at))
     },
     async lastDayRules() { return isAdmin() ? clone(lastDayRuleList).sort((a, b) => a.sort - b.sort) : [] },
@@ -4312,6 +4331,9 @@ export function createDemoApi(): Api {
       if (!t) throw new Error('That job has gone')
       if (patch.title !== undefined && !patch.title.trim()) throw new Error('A job needs a name')
       if (ownTasksOnly() && patch.assignee_id !== undefined && patch.assignee_id !== currentUser) throw new Error('new row violates row-level security policy for table "todos"')
+      // Like the database: a plan has a day for its time, and ends after it starts.
+      const plan = planProblem({ planned_on: t.planned_on ?? null, planned_from: t.planned_from ?? null, planned_to: t.planned_to ?? null, ...patch })
+      if (plan) throw new Error('new row for relation "todos" violates check constraint "todos_planned"')
       // Like the database: the column and the tick stay in step.
       patch = inStep(t, patch)
       Object.assign(t, patch, patch.title !== undefined ? { title: patch.title.trim() } : {},
@@ -4454,6 +4476,35 @@ export function createDemoApi(): Api {
       const feed = feeds.get(currentUser!)?.business ?? await this.makeCalendarFeed('business')
       if (integ.integrations.find(i => i.provider === app)!.status !== 'connected') setConnection(app, { status: 'pending', connected_at: null, last_error: null, account_label: null })
       return { url: addToCalendarUrl(app, feed), feed }
+    },
+    async sendReport(report) {
+      requireAdmin()
+      const problem = reportSendProblem(report)
+      if (problem) throw new Error(problem)
+      if (!integ.integrations.some(i => (i.provider === 'gmail' || i.provider === 'outlook') && i.status === 'connected')) {
+        throw new Error('No mailbox connected. Connect Gmail or Outlook on the Connections page.')
+      }
+      // As the Worker: one email each (the demo sends nothing).
+      return { sent: [...new Set(report.to.map(x => x.trim().toLowerCase()))], failed: [] }
+    },
+    // Scheduled reports (Dashboards → Reports): as the `report_schedules` migration; the demo sends none.
+    async reportSchedules() { return isAdmin() ? clone(reportSchedules) : [] },
+    async saveReportSchedule({ id, ...input }) {
+      requireAdmin()
+      const problem = scheduleProblem(input)
+      if (problem) throw new Error(problem)
+      const was = id ? reportSchedules.find(x => x.id === id) : undefined
+      if (id && !was) throw new Error('That isn’t here any more')
+      const next: ReportSchedule = { ...input, id: was?.id ?? uid(), name: input.name.trim(), emails: [...new Set(input.emails.map(e => e.trim().toLowerCase()))],
+        weekdays: [...new Set(input.weekdays)].sort((a, b) => a - b), last_sent_at: was?.last_sent_at ?? null, last_error: null, updated_at: nowIso(), updated_by: currentUser }
+      if (was) Object.assign(was, next)
+      else reportSchedules.push(next)
+      return next.id
+    },
+    async deleteReportSchedule(id) {
+      requireAdmin()
+      const i = reportSchedules.findIndex(x => x.id === id)
+      if (i >= 0) reportSchedules.splice(i, 1)
     },
     async sendTestEmail(to) {
       requireAdmin()

@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { EVERYONE, NO_CATEGORY, UNASSIGNED, buildBoard, buildColumns, countByCategory, flatten, inStep, resolveBoardMove, resolveMove, toPlainText, topPosition } from './todo'
+import {
+  EVERYONE, NO_CATEGORY, UNASSIGNED, buildBoard, buildColumns, countByCategory, flatten, inStep, moveToDay, placeAt, planDay, planLength, planProblem, plannedOn,
+  resolveBoardMove, resolveMove, stretchTo, toPlainText, topPosition, unplanned,
+} from './todo'
 import type { Todo, TodoCategory } from './types'
 
 const cats: TodoCategory[] = [
@@ -116,5 +119,46 @@ describe('To Do board (kanban)', () => {
   it('the text copy marks jobs being done', () => {
     const text = toPlainText([todo('Order cups', { status: 'doing' })], cats, new Map())
     expect(text).toContain('[~] Order cups')
+  })
+})
+
+describe('the to-do calendar', () => {
+  const job = (x: Partial<Todo> = {}): Todo => ({ id: 'j', title: 'Job', category_id: null, section: null, assignee_id: null, done: false, status: 'todo', done_at: null,
+    starred: false, pinned: false, position: 0, created_at: '2026-09-01T00:00:00Z', planned_on: null, planned_from: null, planned_to: null, ...x })
+
+  it('says what stops a plan being saved', () => {
+    expect(planProblem(planDay('2026-09-30'))).toBeNull()
+    expect(planProblem(unplanned)).toBeNull()
+    expect(planProblem({ planned_on: '2026-09-30', planned_from: '10:00', planned_to: null })).toBe('Give it a start and an end, or neither')
+    expect(planProblem({ planned_on: null, planned_from: '10:00', planned_to: '11:00' })).toBe('Pick a day for it first')
+    expect(planProblem({ planned_on: '2026-09-30', planned_from: '10:00', planned_to: '10:00' })).toBe('It has to end after it starts')
+  })
+
+  it('dropped on the week: at the nearest quarter hour, as long as it was (an hour new), inside the day shown', () => {
+    expect(placeAt(job(), '2026-09-30', 9 * 60 + 53)).toEqual({ planned_on: '2026-09-30', planned_from: '10:00', planned_to: '11:00' })
+    expect(placeAt(job({ planned_on: '2026-09-29', planned_from: '14:00', planned_to: '14:45' }), '2026-10-01', 16 * 60 + 7))
+      .toEqual({ planned_on: '2026-10-01', planned_from: '16:00', planned_to: '16:45' })
+    expect(placeAt(job(), '2026-09-30', 22 * 60 + 55)).toEqual({ planned_on: '2026-09-30', planned_from: '22:45', planned_to: '23:00' })
+    expect(placeAt(job(), '2026-09-30', 3 * 60)).toMatchObject({ planned_from: '06:00' })
+  })
+
+  it('dropped on the month: that day, keeping its time', () => {
+    expect(moveToDay(job({ planned_on: '2026-09-29', planned_from: '14:00', planned_to: '15:00' }), '2026-10-02'))
+      .toEqual({ planned_on: '2026-10-02', planned_from: '14:00', planned_to: '15:00' })
+    expect(moveToDay(job(), '2026-10-02')).toEqual({ planned_on: '2026-10-02', planned_from: null, planned_to: null })
+  })
+
+  it('stretched from the bottom: a new end, at least a quarter hour long', () => {
+    const p = job({ planned_on: '2026-09-30', planned_from: '10:00', planned_to: '11:00' })
+    expect(stretchTo(p, 12 * 60 + 20)).toMatchObject({ planned_to: '12:15' })
+    expect(stretchTo(p, 9 * 60)).toMatchObject({ planned_to: '10:15' })
+    expect(planLength(stretchTo(p, 11 * 60 + 30))).toBe(90)
+    expect(stretchTo(job({ planned_on: '2026-09-30' }), 12 * 60)).toMatchObject({ planned_to: null })
+  })
+
+  it('lists a day’s jobs: with a time first, by time, then the rest in the list’s order', () => {
+    const list = [job({ id: 'a', planned_on: '2026-09-30', position: 2 }), job({ id: 'b', planned_on: '2026-09-30', planned_from: '15:00', planned_to: '16:00' }),
+      job({ id: 'c', planned_on: '2026-09-30', planned_from: '09:00', planned_to: '09:30' }), job({ id: 'd', planned_on: '2026-10-01' }), job({ id: 'e', planned_on: '2026-09-30', position: 1 })]
+    expect(plannedOn(list, '2026-09-30').map(x => x.id)).toEqual(['c', 'b', 'e', 'a'])
   })
 })

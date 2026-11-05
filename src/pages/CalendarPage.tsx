@@ -21,7 +21,7 @@ import { msg, t } from '../i18n'
 import { Tab, Tabs } from '@mui/material'
 import { useSearchParams } from 'react-router-dom'
 import { ThemesTab, TodayTheme } from '../components/ThemeDays'
-import { CalendarShowBar, DayRoutine, DayTheme, ExtrasDialogs, RoutineTab, useCalendarExtras } from '../components/Routine'
+import { CalendarMoreChip, DayRoutine, DayTheme, ExtrasDialogs, RoutineTab, useCalendarExtras } from '../components/Routine'
 
 const monthStart = (d: string) => `${d.slice(0, 7)}-01`
 const addMonths = (first: string, n: number) => {
@@ -177,14 +177,15 @@ export function CalendarPage() {
           <ToggleButton value="list" sx={{ px: 2 }}>{t('List')}</ToggleButton>
         </ToggleButtonGroup>
       </Stack>
+      {/* The event categories, then "More": theme days, the routine and its categories. */}
       <Stack direction="row" spacing={0.5} sx={{ mb: 2, flexWrap: 'wrap', rowGap: 0.5 }}>
         {(Object.keys(CATEGORY_META) as EventCategory[]).map(c => (
           <Chip key={c} size="small" label={t(CATEGORY_META[c].label)} onClick={() => toggle(c)}
             sx={{ bgcolor: hidden.has(c) ? 'transparent' : CATEGORY_META[c].colour, color: hidden.has(c) ? 'text.secondary' : '#fff',
               border: 1, borderColor: CATEGORY_META[c].colour }} />
         ))}
+        <CalendarMoreChip x={extras} />
       </Stack>
-      <CalendarShowBar x={extras} />
 
       {view === 'list' ? (
         <ListView events={events.filter(e => (e.ends_on ?? e.starts_on) >= gridStart && e.starts_on <= gridEnd)} loaded={!!data.data}

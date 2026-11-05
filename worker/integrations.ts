@@ -41,8 +41,8 @@ import {
   proveSumUp, proveTikTok, setIntegration, showInstagramHandle, showMailboxAddress, spotifyConfig, spotifySession, squareOAuth, squareSession, stripeOAuth,
   stripeSession, sumupOAuth, sumupSession, tellAdmins, tiktokOAuth, tiktokSession, waConfig, type Connector, type LinkedInExternal, type Provider,
 } from './connections'
-import type { Business, CalendarEvent, OpeningHours, PostKind, PostMedia, SalesProvider, SpotifyPlaylist } from '../shared/types'
-import { today, zonedIso } from '../shared/time'
+import type { Business, CalendarEvent, OpeningHours, PostKind, PostMedia, SalesDay, SalesItems, SalesProvider, SpotifyPlaylist } from '../shared/types'
+import { addDays, today, zonedIso } from '../shared/time'
 import { mergeSales } from '../shared/sales'
 import { LEGAL } from '../shared/legal'
 import { businessConfig } from '../shared/business.config'
@@ -1146,6 +1146,41 @@ async function takingsRequest(c: Ctx) {
   return { db, ps, fromIso: zonedIso(from, '00:00'), toIso: zonedIso(end, '00:00') }
 }
 const PAYMENT_SYSTEMS: SalesProvider[] = ['square', 'sumup', 'stripe']
+
+/**
+ * The takings per day from `from` to `to` (YYYY-MM-DD, the business's days), every connected till added up,
+ * kept a while like the Sales page's; null: no till connected. For the Worker's own reports (scheduled ones).
+ */
+export async function readTakings(env: Env, db: SupabaseClient, from: string, to: string, tz?: string): Promise<{ days: SalesDay[] } | { error: string } | null> {
+  const { data: rows } = await db.from('integrations').select('provider, status').in('provider', PAYMENT_SYSTEMS)
+  const ps = PAYMENT_SYSTEMS.filter(p => rows?.some(r => r.provider === p && r.status === 'connected'))
+  if (!ps.length) return null
+  const fromIso = zonedIso(from, '00:00', tz), toIso = zonedIso(addDays(to, 1), '00:00', tz)
+  const read = await Promise.all(ps.map(p => cached(db, `sales:${p}:${fromIso}:${toIso}`, takingsMinutes(toIso), () => salesOf(env, db, p, fromIso, toIso))
+    .then(({ data: sales }) => ({ provider: p, sales }), (e: unknown) => ({ provider: p, error: explain(p, e) }))))
+  const ok = read.filter((x): x is { provider: SalesProvider; sales: Awaited<ReturnType<typeof salesOf>> } => 'sales' in x)
+  if (!ok.length) return { error: (read[0] as { error: string }).error }
+  return { days: mergeSales(ok).days }
+}
+
+/** Square's best sellers from `from` to `to`, as on the Sales page; null: no till. */
+export async function readBestSellers(env: Env, db: SupabaseClient, from: string, to: string, tz?: string): Promise<SalesItems | { error: string } | null> {
+  const { data: rows } = await db.from('integrations').select('provider, status').in('provider', PAYMENT_SYSTEMS)
+  const ps = PAYMENT_SYSTEMS.filter(p => rows?.some(r => r.provider === p && r.status === 'connected'))
+  if (!ps.length) return null
+  if (!ps.includes('square')) return { items: null, reason: ps[0] as 'stripe' | 'sumup' }
+  const fromIso = zonedIso(from, '00:00', tz), toIso = zonedIso(addDays(to, 1), '00:00', tz)
+  try {
+    const { data: items } = await cached(db, `items:${fromIso}:${toIso}`, takingsMinutes(toIso), async () => {
+      const s = await squareSession(env, db)
+      return square.topItems(s.sandbox, s.token, s.locationIds, fromIso, toIso)
+    })
+    return { items }
+  } catch (e) {
+    if (e instanceof square.SquareError && e.code === 'INSUFFICIENT_SCOPES') return { items: null, reason: 'reconnect' }
+    return { error: explain('square', e) }
+  }
+}
 
 /** One payment system's takings per day. */
 async function salesOf(env: Env, db: SupabaseClient, p: SalesProvider, fromIso: string, toIso: string) {

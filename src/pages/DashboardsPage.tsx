@@ -13,14 +13,16 @@ import ExecIcon from '@mui/icons-material/InsightsOutlined'
 import ManagerIcon from '@mui/icons-material/StorefrontOutlined'
 import BlankIcon from '@mui/icons-material/DashboardCustomizeOutlined'
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useNotify } from '../app/Notify'
 import { PageHeader, SectionTitle } from '../components/common'
 import { WidgetBody, useTakings } from '../components/dashboardWidgets'
 import {
   DASH_PERIODS, TEMPLATES, WIDGETS, WIDGET_GROUPS, addWidget, dashRange, moveWidget, newDashboard, readSaved, removeWidget, resizeWidget, widgetInfo,
-  type DashPeriod, type DashTemplate, type Dashboard, type SavedDashboards, type Widget, type WidgetKind, type WidgetSize,
+  type DashPeriod, type DashTemplate, type Dashboard, type SavedDashboards, type Widget, type WidgetKind, type WidgetNeeds, type WidgetSize,
 } from '../../shared/dashboards'
+import { ReportsTab } from './ReportsTab'
 import { today } from '../../shared/time'
 import { tokens } from '../theme'
 import { msg, t, tn } from '../i18n'
@@ -38,6 +40,7 @@ const TEMPLATE_ICON = { executive: <ExecIcon />, manager: <ManagerIcon />, blank
  * week, this month, the last 30 days), each against the period before. Start from the Executive or
  * Shop manager template or a blank one, then add, move, resize and remove widgets. Widgets only
  * show what the person may see. Kept in their preferences, on every device they sign in on.
+ * Admins also have Reports: the figures written out and emailed to whoever they pick (ReportsTab).
  */
 export function DashboardsPage() {
   const { api, me, refresh, isAdmin, isPartner, canSeePay } = useApp()
@@ -77,10 +80,16 @@ export function DashboardsPage() {
     setEditing(false)
   }
   const shown = board?.widgets.filter(w => can(w.kind)) ?? []
+  // Reports (admins): reports to email, from the business's mailbox. ?tab=reports opens it.
+  const reportsOn = isAdmin && !isPartner
+  const [params, setParams] = useSearchParams()
+  const tab = reportsOn && params.get('tab') === 'reports' ? 'reports' : 'boards'
+  const showTab = (v: 'boards' | 'reports') => setParams(p => { if (v === 'reports') p.set('tab', 'reports'); else p.delete('tab'); return p }, { replace: true })
+  const canShow = (needs: WidgetNeeds[]) => needs.every(n => (n === 'admin' ? isAdmin && !isPartner : n === 'pay' || n === 'sales' ? canSeePay && !isPartner : !isPartner))
 
   return (
     <>
-      <PageHeader eyebrow={t('Insights')} title={t('Dashboards')} actions={<>
+      <PageHeader eyebrow={t('Insights')} title={t('Dashboards')} actions={tab === 'reports' ? undefined : <>
         {board && (
           <ToggleButtonGroup size="small" exclusive value={period} onChange={(_, p: DashPeriod | null) => p && save({ ...saved, period: p })} aria-label={t('Period')}>
             {DASH_PERIODS.map(p => <ToggleButton key={p.id} value={p.id} sx={{ px: 1.5 }}>{t(p.label)}</ToggleButton>)}
@@ -102,7 +111,13 @@ export function DashboardsPage() {
         </Menu>
       </>} />
 
-      {!board ? <TemplatePicker onPick={create} /> : <>
+      {reportsOn && (
+        <Tabs value={tab} onChange={(_, v: 'boards' | 'reports') => showTab(v)} sx={{ mb: 2.5, borderBottom: `1px solid ${tokens.line}` }}>
+          <Tab value="boards" label={t('Dashboards')} />
+          <Tab value="reports" label={t('Reports')} />
+        </Tabs>
+      )}
+      {tab === 'reports' ? <ReportsTab can={canShow} /> : !board ? <TemplatePicker onPick={create} /> : <>
         {saved.boards.length > 1 && (
           <Tabs value={board.id} onChange={(_, v: string) => save({ ...saved, open: v })} variant="scrollable" sx={{ mb: 2, borderBottom: `1px solid ${tokens.line}` }}>
             {saved.boards.map(b => <Tab key={b.id} value={b.id} label={b.name} />)}
@@ -141,7 +156,7 @@ export function DashboardsPage() {
         </Typography>
       </>}
 
-      {adding && board && <AddWidgetDialog board={board} can={can} onAdd={k => change(addWidget(board, k))} onClose={() => setAdding(false)} />}
+      {tab === 'boards' && adding && board && <AddWidgetDialog board={board} can={can} onAdd={k => change(addWidget(board, k))} onClose={() => setAdding(false)} />}
       {renaming && board && <RenameDialog name={board.name} onSave={name => { change({ ...board, name }); setRenaming(false) }} onClose={() => setRenaming(false)} />}
     </>
   )

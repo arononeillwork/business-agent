@@ -13,6 +13,7 @@ import DownloadIcon from '@mui/icons-material/DownloadOutlined'
 import PhotoIcon from '@mui/icons-material/AddPhotoAlternateOutlined'
 import TvIcon from '@mui/icons-material/TvOutlined'
 import AutoIcon from '@mui/icons-material/AutoModeOutlined'
+import FreshIcon from '@mui/icons-material/BakeryDiningOutlined'
 import InstagramIcon from '@mui/icons-material/Instagram'
 import { useEffect, useRef, useState } from 'react'
 import { Link as RouterLink, useSearchParams } from 'react-router-dom'
@@ -255,6 +256,11 @@ function OfferCard({ offer: o, screens, post, onEdit, onStory, onDownload, onEnd
           <Stack direction="row" sx={{ mt: 1.25, gap: 0.75, flexWrap: 'wrap' }}>
             <Tag fg={tone.fg} bg={tone.bg}>{t(tone.label)}</Tag>
             {o.auto_for && <Tag fg={tokens.infoFg} bg={tokens.infoBg}><AutoIcon sx={{ fontSize: 14, mr: 0.5, verticalAlign: '-2px' }} />{t('Automatic: last day')}</Tag>}
+            {o.fresh_batch_id && (
+              <RouterLink to="/stock?tab=fresh" aria-label={t('Freshly made: see the batch on Stock')} style={{ textDecoration: 'none' }}>
+                <Tag fg={tokens.infoFg} bg={tokens.infoBg}><FreshIcon sx={{ fontSize: 14, mr: 0.5, verticalAlign: '-2px' }} />{t('Freshly made')}</Tag>
+              </RouterLink>
+            )}
           </Stack>
         </Box>
       </Box>

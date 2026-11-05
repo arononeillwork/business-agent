@@ -38,6 +38,8 @@ import type { DisplayFeed, Screen } from '../../shared/screens'
 import type { Offer } from '../../shared/offers'
 import type { LatestPosts } from './api'
 import type { LastDayRule } from '../../shared/lastDayOffers'
+import type { FreshBatch } from '../../shared/freshBatches'
+import type { ReportSchedule, ReportSent } from '../../shared/reports'
 import type { Camera, CameraClip, CameraLive, CameraService } from '../../shared/cameras'
 import type { AdSettings } from '../../shared/ads'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
@@ -987,7 +989,7 @@ export function createSupabaseApi(url: string, key: string): Api {
       return json
     },
     async offers() {
-      return check(await sb.from('offers').select('id, title, details, price, was_price, image_url, starts_at, ends_at, screen_ids, screen_mode, seconds, post_id, active, updated_at, stock_item_id, last_day_rule_id, auto_for')
+      return check(await sb.from('offers').select('id, title, details, price, was_price, image_url, starts_at, ends_at, screen_ids, screen_mode, seconds, post_id, active, updated_at, stock_item_id, last_day_rule_id, auto_for, fresh_batch_id')
         .order('starts_at', { ascending: false }).limit(500)) as Offer[]
     },
     async saveOffer({ id, ...offer }) {
@@ -997,6 +999,18 @@ export function createSupabaseApi(url: string, key: string): Api {
     async deleteOffer(id) { check(await sb.from('offers').delete().eq('id', id)) },
     async latestPosts(limit = 12) { return worker<LatestPosts>(`/api/integrations/posts/latest?limit=${limit}`) },
     async keepPostPhoto(url) { return (await worker<{ url: string }>('/api/integrations/posts/photo', { method: 'POST', body: JSON.stringify({ url }) })).url },
+    async freshBatches() {
+      const since = new Date(Date.now() - 14 * 86_400_000).toISOString()
+      const rows = check(await sb.from('fresh_batches')
+        .select('id, name, recipe_id, quantity, made_at, shelf_life_hours, good_until, discount_at, discount, percent_off, price, cleared, cleared_at, notes, made_by')
+        .or(`made_at.gte.${since},good_until.gte.${since}`).order('made_at', { ascending: false }).limit(300)) as FreshBatch[]
+      return rows.map(b => ({ ...b, quantity: num(b.quantity) }))
+    },
+    async saveFreshBatch({ id, ...b }) {
+      if (id) { check(await sb.from('fresh_batches').update(b).eq('id', id)); return id }
+      return (check(await sb.from('fresh_batches').insert(b).select('id').single()) as { id: string }).id
+    },
+    async deleteFreshBatch(id) { check(await sb.from('fresh_batches').delete().eq('id', id)) },
     async lastDayRules() {
       return check(await sb.from('last_day_rules').select('id, name, active, categories, item_ids, discount, percent_off, price, minutes_before_close, screen_ids, screen_mode, story, sort')
         .order('sort').order('created_at')) as LastDayRule[]
@@ -1245,10 +1259,13 @@ export function createSupabaseApi(url: string, key: string): Api {
     async todos() {
       const [categories, todos] = await Promise.all([
         sb.from('todo_categories').select('id, name, hint, colour, sort').order('sort').order('name'),
-        sb.from('todos').select('id, title, category_id, section, assignee_id, done, status, done_at, starred, pinned, position, created_at')
+        sb.from('todos').select('id, title, category_id, section, assignee_id, done, status, done_at, starred, pinned, position, created_at, planned_on, planned_from, planned_to')
           .order('position').order('created_at'),
       ])
-      return { categories: check(categories) as TodoCategory[], todos: check(todos) as Todo[] }
+      // Times come back as "10:00:00"; the calendar works in "10:00".
+      const hm = (v: string | null | undefined) => (v ? v.slice(0, 5) : null)
+      return { categories: check(categories) as TodoCategory[],
+        todos: (check(todos) as Todo[]).map(x => ({ ...x, planned_from: hm(x.planned_from), planned_to: hm(x.planned_to) })) }
     },
     async addTodo(t) {
       return check(await sb.from('todos').insert({ title: t.title.trim(), category_id: t.category_id, position: t.position,
@@ -1441,6 +1458,19 @@ export function createSupabaseApi(url: string, key: string): Api {
     },
     chooseCalendar: app => worker(`/api/integrations/calendar/${app}/choose`, { method: 'POST' }),
     async sendTestEmail(to) { await worker('/api/integrations/email/test', { method: 'POST', body: JSON.stringify({ to }) }) },
+    async sendReport(report) { return worker<ReportSent>('/api/reports/send', { method: 'POST', body: JSON.stringify(report) }) },
+    async reportSchedules() {
+      const rows = check(await sb.from('report_schedules')
+        .select('id, name, kinds, period, team, contacts, emails, frequency, weekdays, month_day, send_at, language, active, last_sent_at, last_error, updated_at, updated_by')
+        .order('created_at')) as ReportSchedule[]
+      // Times come back as "08:00:00".
+      return rows.map(r => ({ ...r, send_at: r.send_at.slice(0, 5) }))
+    },
+    async saveReportSchedule({ id, ...s }) {
+      if (id) { check(await sb.from('report_schedules').update(s).eq('id', id)); return id }
+      return (check(await sb.from('report_schedules').insert(s).select('id').single()) as { id: string }).id
+    },
+    async deleteReportSchedule(id) { check(await sb.from('report_schedules').delete().eq('id', id)) },
     saveFile: f => worker('/api/integrations/files/save', { method: 'POST', body: JSON.stringify(f) }),
     reviews: () => worker('/api/reviews'),
     async replyReview(id, text) { await worker('/api/reviews/reply', { method: 'PUT', body: JSON.stringify({ id, text }) }) },

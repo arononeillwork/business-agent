@@ -213,6 +213,8 @@ export interface Preferences {
   agentView?: string | null
   /** What their calendar shows: the theme days and the weekly routine, and the routine's categories and activities they hid. */
   calendarShow?: import('./routine').CalendarShow
+  /** Dashboards → Reports: the reports, period and people they last sent a report to. */
+  reports?: import('./reports').SavedReports
 }
 
 export interface Position {
@@ -664,8 +666,13 @@ export interface Todo {
   pinned: boolean
   position: number
   created_at: string
+  /** On the To Do List's calendar: the day it's planned for, and its time that day ("HH:mm"; none: some time that day). */
+  planned_on?: string | null
+  planned_from?: string | null
+  planned_to?: string | null
 }
-export type TodoPatch = Partial<Pick<Todo, 'title' | 'category_id' | 'section' | 'assignee_id' | 'done' | 'status' | 'starred' | 'pinned' | 'position'>>
+export type TodoPatch = Partial<Pick<Todo, 'title' | 'category_id' | 'section' | 'assignee_id' | 'done' | 'status' | 'starred' | 'pinned' | 'position'
+  | 'planned_on' | 'planned_from' | 'planned_to'>>
 
 /** Café music (Music page): the café account's playlists, whichever service is connected. */
 export interface CafeMusicLibrary { provider: 'youtube' | 'spotify' | null; account: string | null; playlists: SpotifyPlaylist[]; approved: SpotifyPlaylist | null; /** Sample songs (demo): played by a pretend player. */ demo?: boolean }

@@ -219,3 +219,63 @@ export function resolveBoardMove(columns: BoardColumn[], activeId: string, over:
     : 0
   return { status: to.id, position }
 }
+
+// ---------------------------------------------------------------------------------------------
+// The calendar (To Do List → Calendar): a job planned for a day, and maybe a time that day
+// (the `todo_calendar` migration). Times are the business's own, "HH:mm".
+// ---------------------------------------------------------------------------------------------
+
+export type TodoPlan = Pick<Todo, 'planned_on' | 'planned_from' | 'planned_to'>
+/** Times on the calendar move in quarter hours; a new slot lasts an hour. */
+export const SLOT_STEP = 15
+export const SLOT_DEFAULT = 60
+/** The hours the week view shows. */
+export const DAY_START = 6 * 60
+export const DAY_END = 23 * 60
+
+const hm = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`
+const mins = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
+/** To the nearest quarter hour, inside the day the calendar shows. */
+export const snap = (minutes: number, step = SLOT_STEP) => Math.min(DAY_END, Math.max(DAY_START, Math.round(minutes / step) * step))
+
+/** What stops the plan being saved (null: fine). The database checks the same. */
+export function planProblem(p: TodoPlan): string | null {
+  if (!!p.planned_from !== !!p.planned_to) return msg('Give it a start and an end, or neither')
+  if (p.planned_from && !p.planned_on) return msg('Pick a day for it first')
+  if (p.planned_from && p.planned_to && mins(p.planned_to) <= mins(p.planned_from)) return msg('It has to end after it starts')
+  return null
+}
+
+/** Planned for a day, some time that day (no time). */
+export const planDay = (day: string): TodoPlan => ({ planned_on: day, planned_from: null, planned_to: null })
+/** Off the calendar. */
+export const unplanned: TodoPlan = { planned_on: null, planned_from: null, planned_to: null }
+
+/** Its length in minutes when it has a time (null: some time that day, or not planned). */
+export const planLength = (p: TodoPlan) => (p.planned_from && p.planned_to ? mins(p.planned_to) - mins(p.planned_from) : null)
+
+/**
+ * Put it at a time on a day (dropped on the week): starting at `start` (snapped to a quarter), as long as it
+ * was (an hour if it had no time), and ending by the end of the calendar's day.
+ */
+export function placeAt(p: TodoPlan, day: string, start: number): TodoPlan {
+  const length = planLength(p) ?? SLOT_DEFAULT
+  const from = Math.min(snap(start), DAY_END - SLOT_STEP)
+  return { planned_on: day, planned_from: hm(from), planned_to: hm(Math.min(DAY_END, from + length)) }
+}
+
+/** Dropped on a day of the month: that day, keeping its time if it had one. */
+export const moveToDay = (p: TodoPlan, day: string): TodoPlan => ({ planned_on: day, planned_from: p.planned_from ?? null, planned_to: p.planned_to ?? null })
+
+/** Stretched from its bottom edge: a new end, at least a quarter hour after it starts. */
+export function stretchTo(p: TodoPlan, end: number): TodoPlan {
+  if (!p.planned_from) return p
+  const from = mins(p.planned_from)
+  return { planned_on: p.planned_on ?? null, planned_from: p.planned_from, planned_to: hm(Math.max(from + SLOT_STEP, snap(end))) }
+}
+
+/** The jobs planned for a day: those with a time first, by time, then the rest by the list's order. */
+export function plannedOn<T extends Todo>(todos: T[], day: string): T[] {
+  return todos.filter(x => x.planned_on === day)
+    .sort((a, b) => (a.planned_from ?? '99').localeCompare(b.planned_from ?? '99') || a.position - b.position)
+}

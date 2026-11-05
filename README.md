@@ -178,6 +178,12 @@ built-in **AI connector** so owners can run it by talking to Claude.
   add, change and delete contacts; shop managers, employees, partners and the café tablet see none. Easy Beans
   starts with its lawyer, its BBVA bank advisor and its plumber & electrician, on WhatsApp
   (`shared/contacts.ts`, the `business_contacts` migration).
+- Today: a top row of small cards (your clock, who's on today with faces and start times, the café music),
+  then today's takings against the day's breakeven for admins with pay access and a till: the figure, a
+  bar that fills to the breakeven mark and goes green past it, and the day so far as a line against the
+  breakeven line (`shared/todayGlance.ts`, the breakeven of `shared/dailyCost.ts`). Beside it this week's
+  takings, the three lowest on stock and the first three jobs (pinned, starred, being done); each card's
+  arrow opens its page. The lawyer's email is on Contacts (the `lawyer_email` migration).
 - A page's own buttons sit on the right, in a row of their own under the top row; on a computer the page's
   title is in the top row, beside the round buttons (`PageHeader` in `src/components/common.tsx`).
 - Content (Marketing section, admins): the business's own photos and videos in one place, ready for
@@ -209,6 +215,11 @@ built-in **AI connector** so owners can run it by talking to Claude.
 - To Do List (Business section): the team's jobs by category, or as a kanban board (To do, Doing, Done)
   with jobs dragged across or moved from their menu. The board shows everyone's jobs, one person's (the
   owner's or an employee's) or nobody's yet, and each of those views keeps its own category filters.
+- To Do List → Calendar: the jobs still to plan on the left, the month or the week on the right. A job
+  dragged onto a day of the month is for some time that day; onto a time in the week, it takes an hour
+  from where it lands (to the quarter hour), is dragged to move it and its bottom edge pulled (or arrowed)
+  to change when it ends; dragged back to the list, it's off the calendar. A click on any job sets its day
+  and times by hand (`shared/todo.ts`, the `todo_calendar` migration).
 - Legal (Business section): the business's legal documents (lease, company deeds, insurance, contracts,
   licences, policies) picked where they already are in the connected Google Drive or OneDrive (both can
   be connected; the admin chooses which), grouped by kind, shown in the page straight from the storage
@@ -340,6 +351,12 @@ built-in **AI connector** so owners can run it by talking to Claude.
   takes what's thrown away and why off the stock, with its cost for admins. Anything still to be entered
   (a menu price, what goes in, an item's cost) is shaded, and a dish with nothing in it has no margin yet.
   Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) sections 7-18.
+- Stock → Freshly made: what the team makes for the counter (a banana bread, the day's sandwiches), how
+  many, when, how long it keeps and when its discount starts (a % off the menu price or a set price). A
+  batch with a discount puts itself on Offers & specials from then until it has to be gone, the menu price
+  crossed out, on the screens; sold out or thrown away first, its offer ends (one still to come goes). The
+  offer is tagged Freshly made and links back. The team records batches; finance partners read
+  (`shared/freshBatches.ts`, the `fresh_batches` migration).
 - Leads & enquiries (Sales section): what someone asked for (a party, the terrace, office coffee), where
   it came in, its value, the day it's for and when to follow it up (a reminder in the bell that day).
   Each belongs to someone on Customers, added there as a lead when they're new; a won enquiry makes
@@ -411,6 +428,17 @@ built-in **AI connector** so owners can run it by talking to Claude.
   average sale, best and slow sellers, prices below the margin aimed for or below the area's, staffing
   against takings day by day, team cost against takings, late starts and forgotten clock-outs, waste,
   what's low and reviews waiting for a reply. Today opens with the same figures at a glance.
+- Dashboards → Reports (admins): pick reports (takings and breakeven, best sellers, team hours, low on
+  stock, waste, freshly made, jobs) and a period, pick who gets them (people on the team, the business's
+  contacts for owners, any address), see the email, and send it from the connected Gmail or Outlook, one
+  email to each person (`shared/reports.ts`, `worker/reports.ts`). The choice is remembered. The Calendar's
+  theme days and routine filters sit under a "More" chip at the end of the category chips.
+- Scheduled reports (Dashboards → Reports): a report set to go by itself every day, on the days of the week
+  picked or on a day of the month (1–28), at a time, in the business's time zone, covering today, yesterday,
+  this or last week, this or last month or the last 30 days. The Worker sends what's due each minute, once
+  (up to six hours late if it was down), written the same way as the page's (`shared/reportSections.ts`) from
+  what whoever last changed the schedule can see, in their language; the page shows when each goes next,
+  when it last went and why it didn't (`worker/reportSchedules.ts`, the `report_schedules` migration).
 - Brand documents (Brand page): the guidelines PDF, logo packs and templates, uploaded (up to 10 MB,
   kept in the database) or picked where they are in Google Drive or OneDrive like the Legal page's.
   The team and partners read them; admins add, rename and remove them.
