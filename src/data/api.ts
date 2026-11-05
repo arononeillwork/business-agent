@@ -28,6 +28,7 @@ import type { Coffee, CoffeeInput, DayThemeInput, ThemeDays } from '../../shared
 import type { RoutineDone, RoutineItem, RoutineItemInput } from '../../shared/routine'
 import type { ChecklistItem, ChecklistItemInput, ChecklistTick } from '../../shared/checklists'
 import type { CompanyValue, CompanyValueInput } from '../../shared/companyValues'
+import type { Contact, ContactInput } from '../../shared/contacts'
 import type { Contractor, ContractorInput, OutsourcedJob, OutsourcedJobInput } from '../../shared/outsourcing'
 import type { EmploymentContract, EmploymentContractInput } from '../../shared/contracts'
 import type { PnlLine, PnlLineInput, PnlSettings } from '../../shared/pnl'
@@ -315,6 +316,13 @@ export interface Api {
   deleteCompanyValue(id: string): Promise<void>
   /** Values (or one value's points, or the words) in this order. */
   orderCompanyValues(ids: string[]): Promise<void>
+
+  // Contacts: the people the business calls on (the lawyer, the bank, the plumber). Each says who on the team
+  // sees it; admins change the ones they see (only an owner makes one owners-only).
+  contacts(): Promise<Contact[]>
+  /** Add one (no id) or change one; returns its id. */
+  saveContact(c: ContactInput): Promise<string>
+  deleteContact(id: string): Promise<void>
 
   // Outsourcing (admins; finance partners read): the jobs done by people and firms outside the team,
   // and the catalogue to choose them from.

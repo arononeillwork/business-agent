@@ -172,6 +172,13 @@ built-in **AI connector** so owners can run it by talking to Claude.
   Spanish and read in the language each person uses the app in. The whole team reads them; admins add,
   change, order and remove them. Easy Beans starts with the owners' own (`shared/companyValues.ts`, the
   `company_values` migration).
+- Contacts (Business section, after Business): the people the business calls on (the lawyer, the bank advisor,
+  the plumber…), each with what they do (the usual jobs shown in each person's language), their company, and a
+  button to call, WhatsApp, email or open their website. Each contact says who sees it: everyone on the team,
+  owners and shop managers, or only the owners (only an owner chooses that). Admins add, change and delete
+  them; partners and the café tablet see none. Easy Beans starts with its lawyer (owners and shop managers),
+  its BBVA bank advisor (only the owners) and its plumber & electrician (everyone) (`shared/contacts.ts`, the
+  `business_contacts` migration).
 - A page's own buttons sit on the right, in a row of their own under the top row; on a computer the page's
   title is in the top row, beside the round buttons (`PageHeader` in `src/components/common.tsx`).
 - Outsourcing (Team section, admins; a gestoría with finances access reads): the jobs done for the business by
@@ -646,6 +653,10 @@ latest with one), `list_screens`, `list_offers` and `save_offer` (typed in, or `
 caption gives the name, price, crossed-out price, details and how long it runs, the post's photo is kept in
 the café's storage, and it goes on every screen that's on unless `screens` names some). Try: *"Put the
 special in my last Instagram post on the café TV."*
+
+Contacts from the AI: `list_contacts` (the people the business calls on that this person may see, found by
+name, what they do, company or a number) and `save_contact` (admins: add someone or change them, and who sees
+them; only an owner makes one owners-only). Try: *"What's the plumber's number?"*
 
 The **AI assistants** page (account menu → AI assistants, `/ai-assistants`) shows the connector address
 with a copy button, the steps for Claude, ChatGPT, Claude Code and other AIs, things to ask, and the

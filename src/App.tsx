@@ -38,6 +38,7 @@ const RolesPage = page(() => import('./pages/RolesPage'), 'RolesPage')
 const StaffRulesPage = page(() => import('./pages/StaffRulesPage'), 'StaffRulesPage')
 const ChecklistsPage = page(() => import('./pages/ChecklistsPage'), 'ChecklistsPage')
 const CompanyValuesPage = page(() => import('./pages/CompanyValuesPage'), 'CompanyValuesPage')
+const ContactsPage = page(() => import('./pages/ContactsPage'), 'ContactsPage')
 const OutsourcingPage = page(() => import('./pages/OutsourcingPage'), 'OutsourcingPage')
 const FinancesPage = page(() => import('./pages/FinancesPage'), 'FinancesPage')
 const GrantsPage = page(() => import('./pages/GrantsPage'), 'GrantsPage')
@@ -199,6 +200,7 @@ function Routed() {
         <Route path="rules" element={<StaffRulesPage />} />
         <Route path="checklists" element={<ChecklistsPage />} />
         <Route path="values" element={<CompanyValuesPage />} />
+        <Route path="contacts" element={<ContactsPage />} />
         <Route path="tips" element={FEATURES.tips ? <TipsPage /> : <Navigate to="/" />} />
         <Route path="hiring" element={isAdmin ? <HiringPage /> : <Navigate to="/" />} />
         <Route path="outsourcing" element={isAdmin ? <OutsourcingPage /> : <Navigate to="/" />} />

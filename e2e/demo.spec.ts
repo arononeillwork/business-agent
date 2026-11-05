@@ -6244,6 +6244,86 @@ test.describe('staff kitty', () => {
   })
 })
 
+test.describe('contacts', () => {
+  test('contacts: the team finds the plumber; the lawyer and the bank are for those they’re meant for; an admin adds, changes and deletes them', async ({ page }) => {
+    await open(page, '/', 'maria@example.com')
+    const nav = page.getByRole('navigation', { name: 'Main' })
+    await nav.getByRole('region', { name: 'Business' }).getByRole('link', { name: 'Contacts' }).click()
+    await expect(page.getByRole('heading', { name: 'Contacts', level: 1 })).toBeVisible()
+    // An employee sees the plumber & electrician only, to call, and changes nothing.
+    const list = page.getByRole('list', { name: 'Contacts' })
+    await expect(list.getByRole('listitem')).toHaveCount(1)
+    const miguel = list.getByRole('listitem', { name: 'Miguel' })
+    await expect(miguel).toContainText('Plumber & electrician')
+    await expect(miguel.getByRole('link', { name: '+34 632 042 132' })).toHaveAttribute('href', 'tel:+34632042132')
+    await expect(page.getByRole('button', { name: 'Add a contact' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Edit Miguel' })).toHaveCount(0)
+
+    // An owner sees all three, in order of what they do, and who each is for.
+    await signInAs(page, 'aron@example.com')
+    await nav.getByRole('link', { name: 'Contacts' }).click()
+    await expect(list.getByRole('listitem')).toHaveText([/^Daniel Cruz Luna/, /^Eduardo Torquino/, /^Miguel/])
+    const daniel = list.getByRole('listitem', { name: 'Daniel Cruz Luna' })
+    await expect(daniel).toContainText('Bank advisor · BBVA')
+    await expect(daniel).toContainText('Only the owners')
+    await expect(daniel.getByRole('link', { name: '+34 955 677 963' })).toHaveAttribute('href', 'tel:+34955677963')
+    await expect(daniel.getByRole('link', { name: 'daniel.cruz.luna@bbva.com' })).toHaveAttribute('href', 'mailto:daniel.cruz.luna@bbva.com')
+    await expect(daniel.getByRole('link', { name: 'bbva.es' })).toHaveAttribute('href', 'https://www.bbva.es')
+    const eduardo = list.getByRole('listitem', { name: 'Eduardo Torquino' })
+    await expect(eduardo).toContainText('Lawyer')
+    await expect(eduardo).toContainText('Owners and shop managers')
+    await expect(eduardo.getByRole('link', { name: '+34 747 758 327' })).toBeVisible()
+
+    // Add a locksmith: a usual job typed in, a number without its country code, and a website without https.
+    await page.getByRole('button', { name: 'Add a contact' }).click()
+    const add = page.getByRole('dialog', { name: 'Add a contact' })
+    await add.getByRole('textbox', { name: 'Name' }).fill('Cerrajería Rápida')
+    await add.getByRole('combobox', { name: 'What they do' }).fill('locksmith')
+    await add.getByRole('textbox', { name: 'Phone' }).fill('600123456')
+    await add.getByRole('checkbox', { name: 'They answer on WhatsApp' }).check()
+    await add.getByRole('textbox', { name: 'Website' }).fill('cerrajeria.example')
+    await add.getByRole('button', { name: 'Add', exact: true }).click()
+    await toast(page, 'Added Cerrajería Rápida')
+    const locksmith = list.getByRole('listitem', { name: 'Cerrajería Rápida' })
+    await expect(locksmith).toContainText('Locksmith')
+    await expect(locksmith.getByRole('link', { name: '+34 600 123 456' })).toBeVisible()
+    await expect(locksmith.getByRole('link', { name: 'WhatsApp' })).toHaveAttribute('href', 'https://wa.me/34600123456')
+    await expect(locksmith.getByRole('link', { name: 'cerrajeria.example' })).toHaveAttribute('href', 'https://cerrajeria.example')
+    await expect(list.getByRole('listitem')).toHaveText([/^Daniel/, /^Eduardo/, /^Cerrajería/, /^Miguel/])
+
+    // Change Miguel: he answers on WhatsApp, with a note.
+    await list.getByRole('button', { name: 'Edit Miguel' }).click()
+    const edit = page.getByRole('dialog', { name: 'Miguel' })
+    await edit.getByRole('checkbox', { name: 'They answer on WhatsApp' }).check()
+    await edit.getByRole('textbox', { name: 'Notes' }).fill('Comes the same day for leaks.')
+    await edit.getByRole('button', { name: 'Save' }).click()
+    await toast(page, /^Saved$/)
+    await expect(miguel).toContainText('Comes the same day for leaks.')
+    await expect(miguel.getByRole('link', { name: 'WhatsApp' })).toHaveAttribute('href', 'https://wa.me/34632042132')
+
+    // Delete the locksmith, asked first.
+    await list.getByRole('button', { name: 'Edit Cerrajería Rápida' }).click()
+    const remove = page.getByRole('dialog', { name: 'Cerrajería Rápida' })
+    await remove.getByRole('button', { name: 'Delete' }).click()
+    await expect(remove).toContainText('Delete Cerrajería Rápida?')
+    await remove.getByRole('button', { name: 'Delete' }).click()
+    await toast(page, 'Deleted Cerrajería Rápida')
+    await expect(list.getByRole('listitem')).toHaveCount(3)
+
+    // In Spanish, what they do in Spanish, in its order.
+    await fromAccountMenu(page, 'My account')
+    await page.getByRole('combobox', { name: 'Languages', exact: true }).click()
+    await page.getByRole('option', { name: 'Español' }).click()
+    await page.keyboard.press('Escape')
+    await page.getByRole('group', { name: 'Language' }).getByRole('button', { name: 'Español' }).click()
+    await page.getByRole('navigation', { name: 'Principal' }).getByRole('link', { name: 'Contactos' }).click()
+    await expect(page.getByRole('heading', { name: 'Contactos', level: 1 })).toBeVisible()
+    const lista = page.getByRole('list', { name: 'Contactos' })
+    await expect(lista.getByRole('listitem')).toHaveText([/^Eduardo TorquinoAbogado/, /^Daniel Cruz LunaAsesor bancario · BBVA/, /^MiguelFontanero y electricista/])
+    await expect(lista.getByRole('listitem', { name: 'Daniel Cruz Luna' })).toContainText('Solo los propietarios')
+  })
+})
+
 test.describe('company values', () => {
   test('company values: the team reads the values and the words we don’t say, in their language; an admin changes them', async ({ page }) => {
     await open(page, '/', 'maria@example.com')

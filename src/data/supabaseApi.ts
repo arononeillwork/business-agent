@@ -24,6 +24,7 @@ import type { Coffee, DayTheme, ThemeDate } from '../../shared/themeDays'
 import type { RoutineDone, RoutineItem } from '../../shared/routine'
 import type { ChecklistItem, ChecklistTick } from '../../shared/checklists'
 import type { CompanyValue } from '../../shared/companyValues'
+import type { Contact } from '../../shared/contacts'
 import type { Contractor, OutsourcedJob } from '../../shared/outsourcing'
 import type { EmploymentContract, SalaryPer } from '../../shared/contracts'
 import { DEFAULT_VAT_RATE, type PnlLine, type PnlSettings } from '../../shared/pnl'
@@ -556,6 +557,15 @@ export function createSupabaseApi(url: string, key: string): Api {
     async orderCompanyValues(ids) {
       for (const r of await Promise.all(ids.map((id, sort) => sb.from('company_values').update({ sort }).eq('id', id)))) check(r)
     },
+
+    async contacts() {
+      return check(await sb.from('business_contacts').select('id, name, job, company, phone, whatsapp, email, website, notes, seen_by').order('name')) as Contact[]
+    },
+    async saveContact({ id, ...c }) {
+      if (id) { check(await sb.from('business_contacts').update(c).eq('id', id)); return id }
+      return (check(await sb.from('business_contacts').insert(c).select('id').single()) as { id: string }).id
+    },
+    async deleteContact(id) { check(await sb.from('business_contacts').delete().eq('id', id)) },
 
     async contractors() {
       const rows = check(await sb.from('contractors').select('*').order('name')) as Contractor[]
