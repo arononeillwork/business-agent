@@ -98,7 +98,7 @@ import { KeyboardSensorNow } from '../components/dnd'
 import { NotificationBell } from '../components/NotificationBell'
 import { CafeSpeakerProvider } from './CafeSpeaker'
 import { BillingBanner } from './plan'
-import { SearchButton, ThemeToggle } from './QuickActions'
+import { SearchButton, ThemeToggle, roundButton } from './QuickActions'
 import { fonts, tokens } from '../theme'
 import { msg, t, tc, tr } from '../i18n'
 import { LanguageToggle } from '../components/Language'
@@ -720,17 +720,19 @@ export function AppShell() {
       <Box sx={{ flex: 1, minWidth: 0, pb: desktop ? 0 : 10 }}>
         {!desktop && (
           <AppBar position="sticky" elevation={0} color="inherit" sx={{ bgcolor: tokens.surface, backdropFilter: 'blur(8px)', borderBottom: 1, borderColor: 'divider' }}>
-            <Toolbar sx={{ gap: 1, minHeight: 56 }}>
-              <ButtonBase component={Link} to={home} aria-label={isPartner ? t('Home') : t('Home: Today')} sx={{ gap: 1.25, flex: 1, justifyContent: 'flex-start', borderRadius: '10px', py: 0.5 }}>
-                <BrandLogo height={36} />
-                {business?.name && <Typography component="span" noWrap sx={{ fontFamily: fonts.display, fontWeight: 500, fontSize: '1rem', color: tokens.ink }}>{business.name}</Typography>}
+            {/* Phone: just the logo on the left (no name), and the round buttons packed close enough that the row
+                fits a 360px-wide phone without the page scrolling sideways. On a smaller one still, the light/dark
+                switch steps out (it's also under Appearance in the account menu). */}
+            <Toolbar disableGutters sx={{ gap: 0.5, minHeight: 56, px: 1.5 }}>
+              <ButtonBase component={Link} to={home} aria-label={isPartner ? t('Home') : t('Home: Today')} sx={{ flexShrink: 0, mr: 'auto', borderRadius: '10px', py: 0.5 }}>
+                <BrandLogo height={40} />
               </ButtonBase>
               <AgentsButton />
               <LanguageToggle />
               {!isPartner && <NotificationBell />}
               <SearchButton pages={searchPages} />
-              <ThemeToggle />
-              <AccountMenu sx={{ p: 1, borderRadius: '50%' }}><AccountIcon /></AccountMenu>
+              <Box sx={{ display: 'flex', '@media (max-width: 359.95px)': { display: 'none' } }}><ThemeToggle /></Box>
+              <AccountMenu sx={{ ...roundButton, justifyContent: 'center' }}><AccountIcon fontSize="small" /></AccountMenu>
             </Toolbar>
           </AppBar>
         )}
