@@ -6,7 +6,8 @@
 // <id>/<signature>.<ext>): only ones Business Agent made open anything, never another file there.
 // Addresses from before there were several businesses have no business in them: those are the first's.
 // The Menu page keeps its pictures the same way ("Business Agent/Menu"): menu photos, uploaded
-// designs, and AI images copied from Higgsfield (which keeps them only a week).
+// designs, and AI images copied from Higgsfield (which keeps them only a week). The Content page keeps the
+// business's photos and videos in "Business Agent/Content" (from Google Photos or the device).
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { businessDb, businessIdOf, type Env } from './supabase'
 import { connectorGrant, explain, lasting, markBroken } from './connections'
@@ -17,7 +18,7 @@ import { MAX_AUDIO_BYTES } from '../shared/music'
 
 export type MediaStorage = 'google_drive' | 'onedrive' | 'r2'
 /** Music: the business's tracks for stories and reels (docs/SOCIAL_MUSIC_PLAN.md); only audio goes there. Menu: the menu's pictures. */
-export const FOLDERS = ['Posts', 'Carousels', 'Reels', 'Stories', 'Menu', 'Music'] as const
+export const FOLDERS = ['Posts', 'Carousels', 'Reels', 'Stories', 'Menu', 'Music', 'Content'] as const
 
 const TYPES: Record<string, { ext: string; type: 'image' | 'video' | 'audio'; max: number }> = {
   'image/jpeg': { ext: 'jpg', type: 'image', max: MAX_PHOTO_BYTES },
@@ -34,6 +35,10 @@ const MENU_TYPES: Record<string, { ext: string; type: 'image' | 'video' | 'audio
   'image/png': { ext: 'png', type: 'image', max: MENU_MAX_BYTES },
   'image/webp': { ext: 'webp', type: 'image', max: MENU_MAX_BYTES },
 }
+// The Content page's photos (JPEG, PNG or WebP, up to 20 MB) and videos (MP4 or MOV, as for posts).
+const CONTENT_TYPES: Record<string, { ext: string; type: 'image' | 'video' | 'audio'; max: number }> = {
+  ...MENU_TYPES, 'video/mp4': TYPES['video/mp4'], 'video/quicktime': TYPES['video/quicktime'],
+}
 const CONTENT_TYPE: Record<string, string> = { jpg: 'image/jpeg', png: 'image/png', webp: 'image/webp', mp4: 'video/mp4', mov: 'video/quicktime', mp3: 'audio/mpeg', m4a: 'audio/mp4' }
 
 /** A problem with the file itself (shown as is), as opposed to storage failing. */
@@ -48,11 +53,14 @@ export async function mediaStorage(env: Env, db: SupabaseClient): Promise<MediaS
 
 /**
  * Check a file before anything is stored: a JPEG photo up to 8 MB, an MP4/MOV video up to 100 MB, or an MP3/M4A track up to 20 MB
- * (the Menu folder: a JPEG, PNG or WebP picture up to 20 MB).
+ * (the Menu folder: a JPEG, PNG or WebP picture up to 20 MB; the Content folder: one of those, or an MP4/MOV video up to 100 MB).
  */
 export function checkFile(type: string, size: number | null, folder?: string) {
-  const t = (folder === 'Menu' ? MENU_TYPES : TYPES)[type]
-  if (!t) throw new MediaError(folder === 'Menu' ? 'Use a JPEG, PNG or WebP picture' : 'Use a JPEG photo, an MP4 or MOV video, or an MP3 or M4A track')
+  const t = (folder === 'Menu' ? MENU_TYPES : folder === 'Content' ? CONTENT_TYPES : TYPES)[type]
+  if (!t) {
+    throw new MediaError(folder === 'Menu' ? 'Use a JPEG, PNG or WebP picture' : folder === 'Content' ? 'Use a JPEG, PNG or WebP photo, or an MP4 or MOV video'
+      : 'Use a JPEG photo, an MP4 or MOV video, or an MP3 or M4A track')
+  }
   if (size === 0) throw new MediaError('That file is empty')
   if (size && size > t.max) throw new MediaError(`${t.type === 'image' ? 'Photos' : t.type === 'video' ? 'Videos' : 'Tracks'} can be up to ${t.max / 1024 / 1024} MB`)
   return t
@@ -75,11 +83,11 @@ export async function storeMedia(env: Env, db: SupabaseClient, origin: string,
   const t = checkFile(f.type, f.size, folder)
   if ((t.type === 'audio') !== (folder === 'Music')) throw new MediaError(t.type === 'audio' ? 'Tracks go in the music library' : 'The music library takes MP3 or M4A tracks')
   // Social posts and the music library under Social/<kind>; the menu's pictures in a folder of their own.
-  const path = folder === 'Menu' ? ['Menu'] : ['Social', folder]
+  const path = folder === 'Menu' || folder === 'Content' ? [folder] : ['Social', folder]
   const storage = await mediaStorage(env, db)
   if (!storage) throw new MediaError('Connect Google Drive or OneDrive on the Connections page to add photos and videos. They’re kept in its Business Agent folder.')
   if (storage === 'r2') {
-    const key = `${folder === 'Menu' ? 'menu' : t.type === 'audio' ? 'music' : 'posts'}/${crypto.randomUUID()}.${t.ext}`
+    const key = `${folder === 'Menu' ? 'menu' : folder === 'Content' ? 'content' : t.type === 'audio' ? 'music' : 'posts'}/${crypto.randomUUID()}.${t.ext}`
     await env.MEDIA!.put(key, f.body, { httpMetadata: { contentType: f.type } })
     return { url: `${origin}/media/${key}`, type: t.type, storage }
   }

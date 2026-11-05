@@ -350,8 +350,8 @@ export const TIME_OFF_KINDS = Object.keys(TIME_OFF_LABELS) as TimeOffKind[]
 export const TIME_OFF_AFTER_THE_FACT: TimeOffKind[] = ['sick', 'birth', 'family', 'bereavement', 'urgent']
 
 export type IntegrationProvider = 'google_business' | 'whatsapp' | 'instagram' | 'facebook' | 'tiktok' | 'linkedin' | 'spotify' | 'square' | 'stripe' | 'sumup' | 'meta_ads' | 'higgsfield' | ConnectorProvider | CalendarApp
-/** Connections made with one sign-in with Google or Microsoft (email, files, café YouTube Music, Search Console, Google Ads). */
-export type ConnectorProvider = 'gmail' | 'outlook' | 'google_drive' | 'onedrive' | 'youtube_music' | 'search_console' | 'google_ads'
+/** Connections made with one sign-in with Google or Microsoft (email, files, café YouTube Music, Search Console, Google Ads, Google Photos). */
+export type ConnectorProvider = 'gmail' | 'outlook' | 'google_drive' | 'onedrive' | 'youtube_music' | 'search_console' | 'google_ads' | 'google_photos'
 /** Calendar apps that subscribe to the team calendar link. */
 export type CalendarApp = 'google_calendar' | 'outlook_calendar'
 

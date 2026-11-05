@@ -25,6 +25,7 @@ import type { RoutineDone, RoutineItem } from '../../shared/routine'
 import type { ChecklistItem, ChecklistTick } from '../../shared/checklists'
 import type { CompanyValue } from '../../shared/companyValues'
 import type { Contact } from '../../shared/contacts'
+import { CONTENT_COLUMNS, type ContentItem, type GooglePhotosImport, type GooglePhotosPick } from '../../shared/content'
 import type { Contractor, OutsourcedJob } from '../../shared/outsourcing'
 import type { EmploymentContract, SalaryPer } from '../../shared/contracts'
 import { DEFAULT_VAT_RATE, type PnlLine, type PnlSettings } from '../../shared/pnl'
@@ -568,6 +569,23 @@ export function createSupabaseApi(url: string, key: string): Api {
       return (check(await sb.from('business_contacts').insert(c).select('id').single()) as { id: string }).id
     },
     async deleteContact(id) { check(await sb.from('business_contacts').delete().eq('id', id)) },
+
+    async contentItems() {
+      return check(await sb.from('content_items').select(CONTENT_COLUMNS).order('created_at', { ascending: false }).limit(2000)) as ContentItem[]
+    },
+    async uploadContent(file, info) {
+      const { url, type } = await worker<{ url: string; type: 'image' | 'video' }>('/api/integrations/media?folder=Content', {
+        method: 'POST', body: file, headers: { 'content-type': file.type } })
+      return check(await sb.from('content_items').insert({ kind: type === 'video' ? 'video' : 'photo', url, title: info.title, source: 'upload',
+        width: info.width, height: info.height, tags: [] }).select(CONTENT_COLUMNS).single()) as ContentItem
+    },
+    async saveContentItem({ id, title, tags }) { check(await sb.from('content_items').update({ title, tags }).eq('id', id)) },
+    async deleteContentItem(id) { check(await sb.from('content_items').delete().eq('id', id)) },
+    startGooglePhotosPick: () => worker<GooglePhotosPick>('/api/content/google-photos/sessions', { method: 'POST' }),
+    googlePhotosPicked: id => worker<{ picked: boolean; poll_ms: number }>(`/api/content/google-photos/sessions/${encodeURIComponent(id)}`),
+    importGooglePhotos: (id, skip) => worker<GooglePhotosImport>(`/api/content/google-photos/sessions/${encodeURIComponent(id)}/import`, {
+      method: 'POST', body: JSON.stringify({ skip }) }),
+    async cancelGooglePhotosPick(id) { await worker(`/api/content/google-photos/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' }) },
 
     async contractors() {
       const rows = check(await sb.from('contractors').select('*').order('name')) as Contractor[]

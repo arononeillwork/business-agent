@@ -6,7 +6,7 @@
 import type { IntegrationProvider } from './types'
 import { msg } from './i18n'
 
-export type ConnectionGroup = 'communication' | 'email' | 'calendar' | 'files' | 'maps' | 'analytics' | 'social' | 'advertising' | 'payments' | 'online_payments' | 'music' | 'email_marketing' | 'job_boards' | 'ai'
+export type ConnectionGroup = 'communication' | 'email' | 'calendar' | 'files' | 'photos' | 'maps' | 'analytics' | 'social' | 'advertising' | 'payments' | 'online_payments' | 'music' | 'email_marketing' | 'job_boards' | 'ai'
 
 export interface ConnectionOption {
   id: IntegrationProvider | 'slack' | 'sms' | 'sharepoint' | 'dropbox' | 'apple_maps' | 'stripe' | 'brevo' | 'mailchimp' | 'infojobs' | 'indeed' | 'linkedin_jobs'
@@ -43,6 +43,10 @@ export const GROUPS: ConnectionGroupInfo[] = [
     { id: 'onedrive', name: 'OneDrive', by: 'Microsoft', proves: msg('The “Business Agent” folder was created in this OneDrive.') },
     { id: 'sharepoint', name: 'SharePoint', by: 'Microsoft', soon: true },
     { id: 'dropbox', name: 'Dropbox', by: 'Dropbox', soon: true },
+  ] },
+  // The business's photos and videos, picked from the library they're already in, for the Content page.
+  { key: 'photos', title: msg('Photos'), pickOne: false, options: [
+    { id: 'google_photos', name: 'Google Photos', by: 'Google', proves: msg('Google Photos opened its picker for this account.') },
   ] },
   { key: 'maps', title: msg('Maps and search'), pickOne: false, options: [
     { id: 'google_business', name: 'Google Maps', by: 'Google', proves: msg('The café’s listing was found and can be updated.') },

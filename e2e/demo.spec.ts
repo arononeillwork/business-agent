@@ -2128,7 +2128,7 @@ test.describe('billing', () => {
     await expect(page).toHaveURL(/\/sales$/)
     await expect(page.getByRole('heading', { name: 'Sales', level: 1 })).toBeVisible()
     await expect(nav.getByRole('region', { name: 'Sales' }).getByRole('link')).toHaveText(['Sales', 'Customers', 'Leads & enquiries', 'Reps & rewards'])
-    await expect(nav.getByRole('region', { name: 'Marketing' }).getByRole('link')).toHaveText(['Social planner', 'Offers & specials', 'Competitions', 'Campaigns', 'Ads', 'Analytics', 'Reviews', 'Website & SEO', 'Competitors'])
+    await expect(nav.getByRole('region', { name: 'Marketing' }).getByRole('link')).toHaveText(['Social planner', 'Content', 'Offers & specials', 'Competitions', 'Campaigns', 'Ads', 'Analytics', 'Reviews', 'Website & SEO', 'Competitors'])
     await nav.getByRole('region', { name: 'Marketing' }).getByRole('link', { name: 'Analytics' }).click()
     await expect(page.getByRole('heading', { name: 'Analytics', level: 1 })).toBeVisible()
     await expect(nav.getByRole('region', { name: 'Accounts' }).getByRole('link')).toHaveText(['Finances', 'Profit & loss', 'Invoices', 'Credit & debit', 'Expenses', 'Tax', 'Grants'])
@@ -9614,5 +9614,94 @@ test.describe('the app on a phone’s Home Screen', () => {
     await page.getByRole('button', { name: /^Account menu/ }).first().click()
     await expect(page.getByRole('menuitem', { name: 'My account' })).toBeVisible()
     await expect(page.getByRole('menuitem', { name: 'Add to Home Screen' })).toHaveCount(0)
+  })
+})
+
+test.describe('content', () => {
+  test('content: photos and videos from Google Photos and the device, with titles and tags, made into a post', async ({ page }) => {
+    // An employee has no Content in the menu, and the page sends them back to Today.
+    await open(page, '/content', 'maria@example.com')
+    const nav = page.getByRole('navigation', { name: 'Main' })
+    await expect(nav.getByRole('link', { name: 'Content' })).toHaveCount(0)
+    await expect(page.getByRole('heading', { name: 'Content', level: 1 })).toHaveCount(0)
+
+    // An admin: the café's own photos and video, and what's needed to bring in more.
+    await signInAs(page, 'aron@example.com')
+    await nav.getByRole('region', { name: 'Marketing' }).getByRole('link', { name: 'Content' }).click()
+    await expect(page.getByRole('heading', { name: 'Content', level: 1 })).toBeVisible()
+    const list = page.getByRole('list', { name: 'Photos and videos' })
+    await expect(list.getByRole('listitem')).toHaveText([/^Iced oat latte/, /^Ethiopia Guji beans/, /^A day at Easy Beans/])
+    await expect(page.getByRole('alert').filter({ hasText: 'Connect Google Drive or OneDrive to keep photos and videos here' })).toBeVisible()
+    await expect(page.getByRole('alert').filter({ hasText: 'Bring in photos and videos from Google Photos' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'From Google Photos' })).toBeDisabled()
+
+    // Google Photos is on Connections, in Photos, with what it can and can't see.
+    await nav.getByRole('link', { name: 'Connections' }).click()
+    await page.getByRole('region', { name: 'Files and storage' }).getByRole('button', { name: 'Connect Google Drive' }).click()
+    await expect(page.getByRole('region', { name: 'Files and storage' }).getByRole('article', { name: 'Google Drive' })).toContainText('Connected')
+    const photos = page.getByRole('region', { name: 'Photos' })
+    await expect(photos.getByRole('article', { name: 'Google Photos' })).toContainText('bring them onto the Content page')
+    await photos.getByRole('button', { name: 'Connect Google Photos' }).click()
+    await expect(photos.getByRole('article', { name: 'Google Photos' })).toContainText('Connected')
+
+    // Pick in Google Photos: three photos come in; a video Google is still making says so.
+    await nav.getByRole('region', { name: 'Marketing' }).getByRole('link', { name: 'Content' }).click()
+    await expect(page.getByRole('alert').filter({ hasText: 'Bring in photos and videos' })).toHaveCount(0)
+    await page.getByRole('button', { name: 'From Google Photos' }).click()
+    const pick = page.getByRole('dialog', { name: 'From Google Photos' })
+    await expect(pick).toContainText('3 photos and videos added.')
+    await expect(pick).toContainText('Pour over.mp4: Google Photos is still getting this video ready. Pick it again in a little while.')
+    await pick.getByRole('button', { name: 'Done' }).click()
+    await expect(list.getByRole('listitem')).toHaveCount(6)
+    await page.getByRole('group', { name: 'Where from' }).getByRole('button', { name: 'Google Photos' }).click()
+    await expect(list.getByRole('listitem')).toHaveText([/^Terrace in the sun/, /^Flat white/, /^Croissants out of the oven/])
+    await expect(list.getByRole('listitem', { name: 'Terrace in the sun' })).toContainText('Google Photos')
+
+    // Picking again adds nothing twice.
+    await page.getByRole('button', { name: 'From Google Photos' }).click()
+    await expect(pick).toContainText('Nothing new was added.')
+    await expect(pick).toContainText('3 were here already.')
+    await pick.getByRole('button', { name: 'Done' }).click()
+    await expect(list.getByRole('listitem')).toHaveCount(3)
+
+    // A title and tags, tidied; the tags become filters.
+    await list.getByRole('button', { name: 'More for Terrace in the sun' }).click()
+    await page.getByRole('menuitem', { name: 'Title and tags' }).click()
+    const edit = page.getByRole('dialog', { name: 'Title and tags' })
+    await edit.getByRole('textbox', { name: 'Title' }).fill('The terrace at 10')
+    await edit.getByRole('textbox', { name: 'Tags' }).fill('Terrace, summer , terrace')
+    await edit.getByRole('button', { name: 'Save' }).click()
+    const terrace = list.getByRole('listitem', { name: 'The terrace at 10' })
+    await expect(terrace).toContainText('terrace')
+    await page.getByRole('group', { name: 'Where from' }).getByRole('button', { name: 'Anywhere' }).click()
+    await page.getByRole('group', { name: 'Tags' }).getByRole('button', { name: 'summer · 2' }).click()
+    await expect(list.getByRole('listitem')).toHaveText([/^The terrace at 10/, /^Iced oat latte/])
+    await page.getByRole('group', { name: 'Tags' }).getByRole('button', { name: 'summer · 2' }).click()
+    await page.getByRole('searchbox', { name: 'Search content' }).fill('croissants')
+    await expect(list.getByRole('listitem')).toHaveText([/^Croissants out of the oven/])
+    await page.getByRole('searchbox', { name: 'Search content' }).fill('')
+
+    // Two photos chosen make a carousel on the Social planner.
+    await list.getByRole('checkbox', { name: 'Choose The terrace at 10' }).check()
+    await list.getByRole('checkbox', { name: 'Choose Flat white' }).check()
+    await expect(page.getByText('2 chosen')).toBeVisible()
+    await page.getByRole('button', { name: 'Make a post' }).click()
+    const post = page.getByRole('dialog', { name: 'New post' })
+    await expect(post.getByRole('group', { name: 'Photos and videos' })).toContainText('Photos and videos (2 of up to 10)')
+    await post.getByRole('button', { name: 'Cancel' }).click()
+
+    // Uploaded from the device: a photo, kept as a JPEG, titled from its file name.
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64')
+    await page.locator('input[type=file]').setInputFiles({ name: 'latte-art.png', mimeType: 'image/png', buffer: png })
+    await toast(page, '1 added')
+    await expect(list.getByRole('listitem').first()).toHaveAccessibleName('latte art')
+
+    // Taken off the page (the file stays in the Drive).
+    await list.getByRole('button', { name: 'More for Ethiopia Guji beans' }).click()
+    await page.getByRole('menuitem', { name: 'Take off the page' }).click()
+    const sure = page.getByRole('dialog', { name: 'Take Ethiopia Guji beans off the page?' })
+    await expect(sure).toContainText('The file stays in your Drive or OneDrive')
+    await sure.getByRole('button', { name: 'Take off' }).click()
+    await expect(list.getByRole('listitem', { name: 'Ethiopia Guji beans' })).toHaveCount(0)
   })
 })
