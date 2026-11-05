@@ -161,7 +161,7 @@ export interface Api {
    * Signed in and in no business yet: create mine and run it (admin, first owner, Free plan). `kind`
    * picks its first positions; `referral` is another business's referral code. Returns its number.
    */
-  createBusiness(b: { name: string; kind: 'cafe' | 'restaurant' | 'salon' | 'other' | null; timezone: string; referral?: string | null }): Promise<number>
+  createBusiness(b: { name: string; kind: 'cafe' | 'restaurant' | 'pub' | 'salon' | 'real_estate' | 'other' | null; timezone: string; referral?: string | null }): Promise<number>
   me(): Promise<Profile | null>
   business(): Promise<Business>
   adminNotes(): Promise<string | null>

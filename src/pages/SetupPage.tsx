@@ -6,6 +6,8 @@ import GridIcon from '@mui/icons-material/DashboardCustomizeOutlined'
 import CafeIcon from '@mui/icons-material/LocalCafeOutlined'
 import RestaurantIcon from '@mui/icons-material/RestaurantOutlined'
 import SalonIcon from '@mui/icons-material/ContentCutOutlined'
+import PubIcon from '@mui/icons-material/SportsBarOutlined'
+import EstateIcon from '@mui/icons-material/RealEstateAgentOutlined'
 import AddIcon from '@mui/icons-material/AddRounded'
 import DotIcon from '@mui/icons-material/FiberManualRecord'
 import { useEffect, useState, type ReactNode } from 'react'
@@ -61,13 +63,15 @@ const settled = (data: IntegrationsState | null, id: string) =>
 
 const STEPS = ['Start', 'Choose apps', 'Connect', 'Done'] as const
 const stepIndex: Record<Step, number> = { welcome: 0, kind: 1, review: 1, categories: 1, apps: 2, connect: 2, done: 3 }
-const KIND_ICON: Record<BusinessKind, ReactNode> = { cafe: <CafeIcon />, restaurant: <RestaurantIcon />, salon: <SalonIcon /> }
+const KIND_ICON: Record<BusinessKind, ReactNode> = {
+  cafe: <CafeIcon />, restaurant: <RestaurantIcon />, pub: <PubIcon />, salon: <SalonIcon />, real_estate: <EstateIcon />,
+}
 // A light, different tint behind each kind and category icon.
 const TINTS = [tokens.roseSoft, tokens.roseWash, tokens.ubeSoft, tokens.matchaSoft, tokens.infoBg, tokens.surfaceAlt]
 
 /**
- * The set-up guide for a new business: pick a ready-made setup (café, restaurant, salon) or choose
- * categories, tick the apps, and connect them one sign-in after another. Every step can be skipped.
+ * The set-up guide for a new business: pick a ready-made setup (café, restaurant, pub, salon, real
+ * estate agency) or choose categories, tick the apps, and connect them one sign-in after another. Every step can be skipped.
  * Connecting is the Connections page's own (useConnect, ConnectorDialog), so it works the same.
  */
 export function SetupPage() {
@@ -125,7 +129,7 @@ export function SetupPage() {
             </Typography>
           </Box>
           <Choice icon={<BoltIcon />} tint={tokens.roseSoft} title={t('Use a ready-made setup')} badge={t('Recommended')} selected
-            text={t('Café, restaurant or salon: pick your type and I’ll suggest the apps. Untick what you don’t use, then connect them all in one go.')}
+            text={t('Café, restaurant, pub, salon or real estate agency: pick your type and I’ll suggest the apps. Untick what you don’t use, then connect them all in one go.')}
             onClick={() => set({ step: 'kind' })} />
           <Choice icon={<GridIcon />} tint={tokens.ubeSoft} title={t('Choose my own apps')}
             text={t('Pick categories such as social media and file storage, then connect only what you need.')}
@@ -149,7 +153,7 @@ export function SetupPage() {
               <Button variant="contained" disabled={!preset} onClick={() => set({ step: 'review' })}>{t('Next')}</Button>
             </Stack>
           </>}>
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(4, minmax(0, 1fr))' }, gap: 2 }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(3, minmax(0, 1fr))' }, gap: 2 }}>
             {PRESETS.map((p, i) => {
               const ticked = p.apps.filter(a => a.on && findApp(a.id)).map(a => a.id)
               return (
@@ -158,7 +162,7 @@ export function SetupPage() {
                   onClick={() => set({ kind: p.kind, picked: ticked })} />
               )
             })}
-            <Choice icon={<AddIcon />} tint={TINTS[3]} title={t('Something else')} text={t('Start from the categories and add apps yourself.')}
+            <Choice icon={<AddIcon />} tint={TINTS[PRESETS.length % TINTS.length]} title={t('Something else')} text={t('Start from the categories and add apps yourself.')}
               onClick={() => set({ step: 'categories', kind: null, groups: [], at: 0 })} />
           </Box>
         </Screen>

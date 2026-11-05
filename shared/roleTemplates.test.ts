@@ -77,6 +77,8 @@ describe('role templates', () => {
     expect(categoryOf('Specialty café, drinks-first, owner-run')).toBe('cafe')
     expect(categoryOf('Restaurant & bar')).toBe('restaurant')
     expect(categoryOf('Salon & beauty')).toBe('salon')
+    expect(categoryOf('Pub')).toBe('restaurant')
+    expect(categoryOf('Real estate agency')).toBe('other')
     expect(categoryOf(null)).toBe('other')
   })
 })

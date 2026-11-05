@@ -6,7 +6,7 @@ import type { IntegrationProvider } from '../../shared/types'
 import { msg } from '../i18n'
 import { FEATURES } from './features'
 
-export type BusinessKind = 'cafe' | 'restaurant' | 'salon'
+export type BusinessKind = 'cafe' | 'restaurant' | 'pub' | 'salon' | 'real_estate'
 
 export interface SetupPreset {
   kind: BusinessKind
@@ -38,12 +38,32 @@ export const PRESETS: SetupPreset[] = [
     ],
   },
   {
+    // Match days and quiz nights fill a pub: Facebook and the calendar matter more than for a café.
+    kind: 'pub', name: msg('Pub'), blurb: msg('Till, match and quiz nights, socials and reviews.'),
+    agent: msg('With these connected I can post tonight’s match or quiz night, keep your Google listing and hours right, answer reviews and message the team.'),
+    apps: [
+      { id: 'square', on: true }, { id: 'google_business', on: true }, { id: 'facebook', on: true }, { id: 'instagram', on: true },
+      { id: 'whatsapp', on: true }, { id: 'google_calendar', on: true }, { id: 'gmail', on: true },
+      { id: 'google_drive', on: false }, { id: 'tiktok', on: false }, { id: 'meta_ads', on: false },
+    ],
+  },
+  {
     kind: 'salon', name: msg('Salon & beauty'), blurb: msg('Socials, reviews, payments and client reminders.'),
     agent: msg('With these connected I can show off your best work on Instagram and TikTok, answer reviews and send reminders on WhatsApp.'),
     apps: [
       { id: 'instagram', on: true }, { id: 'tiktok', on: true }, { id: 'google_business', on: true }, { id: 'whatsapp', on: true },
       { id: 'square', on: true }, { id: 'google_calendar', on: true },
       { id: 'facebook', on: false }, { id: 'google_drive', on: false }, { id: 'gmail', on: false },
+    ],
+  },
+  {
+    // No till: enquiries, viewings and each property's paperwork, and new listings on the socials.
+    kind: 'real_estate', name: msg('Real estate agency'), blurb: msg('Email, viewings, property files, socials and ads.'),
+    agent: msg('With these connected I can answer enquiries, keep viewings in your calendar, file each property’s documents and post new listings.'),
+    apps: [
+      { id: 'gmail', on: true }, { id: 'google_calendar', on: true }, { id: 'google_drive', on: true }, { id: 'whatsapp', on: true },
+      { id: 'google_business', on: true }, { id: 'instagram', on: true }, { id: 'facebook', on: true },
+      { id: 'linkedin', on: false }, { id: 'meta_ads', on: false }, { id: 'google_ads', on: false }, { id: 'search_console', on: false },
     ],
   },
 ]

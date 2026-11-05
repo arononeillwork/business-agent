@@ -561,7 +561,7 @@ test.describe('connections', () => {
 
     await page.getByRole('button', { name: 'Manage WhatsApp' }).click()
     const wa = page.getByRole('dialog', { name: 'WhatsApp' })
-    await expect(wa).toContainText('Send template messages from the café’s number')
+    await expect(wa).toContainText('Send template messages from the business’s number')
     await wa.getByLabel('Test number').fill('12')
     await wa.getByRole('button', { name: 'Send a test' }).click()
     await toast(page, 'full number with country code')
@@ -8126,6 +8126,29 @@ test.describe('set-up wizard', () => {
     await expect(page.getByRole('heading', { name: 'Files and storage' })).toBeVisible()
     await page.getByRole('button', { name: 'Skip this step' }).click()
     await expect(page.getByRole('heading', { name: /^You’re all set/ })).toBeVisible()
+  })
+
+  test('set-up wizard: a pub and a real estate agency each start from the apps they usually connect first', async ({ page }) => {
+    await open(page, '/setup')
+    await page.getByRole('button', { name: /^Use a ready-made setup/ }).click()
+    await page.getByRole('button', { name: /^Pub/ }).click()
+    await page.getByRole('button', { name: 'Next' }).click()
+    await expect(page.getByText('Pub', { exact: true })).toBeVisible()
+    // Match and quiz nights: the till, Facebook and the calendar ticked; TikTok there to add.
+    await expect(page.getByRole('checkbox', { name: 'Choose Square' })).toBeChecked()
+    await expect(page.getByRole('checkbox', { name: 'Choose Facebook' })).toBeChecked()
+    await expect(page.getByRole('checkbox', { name: 'Choose Google Calendar' })).toBeChecked()
+    await expect(page.getByRole('checkbox', { name: 'Choose TikTok' })).not.toBeChecked()
+
+    await page.getByRole('button', { name: 'Back' }).click()
+    await page.getByRole('button', { name: /^Real estate agency/ }).click()
+    await page.getByRole('button', { name: 'Next' }).click()
+    // No till for an agency: email, viewings and each property's files, with LinkedIn and ads there to add.
+    await expect(page.getByRole('checkbox', { name: 'Choose Gmail' })).toBeChecked()
+    await expect(page.getByRole('checkbox', { name: 'Choose Google Drive' })).toBeChecked()
+    await expect(page.getByRole('checkbox', { name: 'Choose LinkedIn' })).not.toBeChecked()
+    await expect(page.getByRole('checkbox', { name: 'Choose Google Ads' })).not.toBeChecked()
+    await expect(page.getByRole('article', { name: 'Square' })).toHaveCount(0)
   })
 
   test('set-up wizard is for admins only', async ({ page }) => {

@@ -100,3 +100,19 @@ insert into auth.users (email, raw_user_meta_data) values ('nuevo@test', '{"full
 do $$ begin
   assert (select business_id is null and not active from public.profiles where email = 'nuevo@test'), 'in none until they create one or are added';
 end $$;
+
+-- 4. A pub and a real estate agency: named for their kind, with their own positions ----------
+insert into auth.users (email, raw_user_meta_data) values ('casas@test', '{"full_name":"Casas"}');
+select pg_temp.act_as('nuevo@test');
+do $$ begin
+  perform public.create_business('The Crown', 'pub', 'Europe/London');
+  assert (select business_type = 'Pub' and timezone = 'Europe/London' from public.business), 'a pub, on London time';
+  assert (select string_agg(name, ', ' order by sort) from public.positions) = 'Bar, Kitchen', 'a pub''s positions';
+end $$;
+select pg_temp.act_as('casas@test');
+do $$ begin
+  perform public.create_business('Casas del Sol', 'real_estate');
+  assert (select business_type from public.business) = 'Real estate agency', 'a real estate agency';
+  assert (select string_agg(name, ', ' order by sort) from public.positions) = 'Agent, Office', 'an agency''s positions';
+end $$;
+select pg_temp.as_editor();

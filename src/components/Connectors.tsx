@@ -105,10 +105,10 @@ export const LOGO: Record<OptionId, ReactNode> = {
 }
 
 export const DOES: Partial<Record<OptionId, string>> = {
-  whatsapp: msg('Shift reminders, missed clock-ins and the weekly rota, from the café’s WhatsApp number.'),
+  whatsapp: msg('Shift reminders, missed clock-ins and the weekly rota, from the business’s WhatsApp number.'),
   slack: msg('Rota changes and alerts in a Slack channel.'),
   sms: msg('Shift reminders by text for people who prefer SMS.'),
-  gmail: msg('Team alerts for people who prefer email come from your café’s Gmail.'),
+  gmail: msg('Team alerts for people who prefer email come from your business’s Gmail.'),
   outlook: msg('Team alerts come from an Outlook.com or Microsoft 365 mailbox.'),
   google_calendar: msg('The rota, closures and team events in Google Calendar, kept up to date.'),
   outlook_calendar: msg('The rota, closures and team events in Outlook, kept up to date.'),
@@ -129,8 +129,8 @@ export const DOES: Partial<Record<OptionId, string>> = {
   search_console: msg('How people find your website on Google: searches, clicks and top pages, on the Analytics page.'),
   meta_ads: msg('Your Facebook and Instagram ads on the Ads page: what they cost and brought in, with pause and budgets.'),
   google_ads: msg('Your Google search and Maps ads on the Ads page: what they cost and brought in, with pause and budgets.'),
-  spotify: msg('The approved playlist; staff play or pause it on the café speaker.'),
-  youtube_music: msg('The approved playlist; staff open it on the café device.'),
+  spotify: msg('The approved playlist; staff play or pause it on the business’s speaker.'),
+  youtube_music: msg('The approved playlist; staff open it on the business’s device.'),
   higgsfield: msg('Images for your menus and screens made with AI from a few words: artwork, whole menus and photos of your dishes (Menu page).'),
   brevo: msg('Send Campaigns to the customers who said yes to marketing, with the unsubscribe link handled there.'),
   mailchimp: msg('Send Campaigns to the customers who said yes to marketing, with the unsubscribe link handled there.'),
@@ -141,7 +141,7 @@ export const DOES: Partial<Record<OptionId, string>> = {
 
 /** What the connection can do once allowed (shown before connecting, like an AI connector). */
 export const CAN: Partial<Record<OptionId, string[]>> = {
-  whatsapp: [msg('Send template messages from the café’s number to staff who switched them on'), msg('Staff reply STOP to turn them off')],
+  whatsapp: [msg('Send template messages from the business’s number to staff who switched them on'), msg('Staff reply STOP to turn them off')],
   gmail: [msg('Send email from this address: team alerts, and one confirmation to itself'), msg('It can’t read, delete or search your inbox')],
   outlook: [msg('Send email from this address: team alerts, and one confirmation to itself'), msg('See your name and email address'), msg('It can’t read your inbox')],
   google_calendar: [msg('Nothing to sign in to: Google Calendar subscribes to a private link to the team calendar'), msg('Reset the link on this page any time to cut it off')],
@@ -163,7 +163,7 @@ export const CAN: Partial<Record<OptionId, string[]>> = {
   search_console: [msg('See the websites in your Search Console'), msg('Read search data for your website (read-only)')],
   meta_ads: [msg('See your ad accounts, campaigns and what they spent and brought in'), msg('Pause or resume a campaign, or change its daily budget, when you ask it to here')],
   google_ads: [msg('See your ad accounts, campaigns and what they spent and brought in'), msg('Pause or resume a campaign, or change its daily budget, when you ask it to here')],
-  spotify: [msg('See your playlists'), msg('Play and pause the approved playlist on the café speaker (Premium)')],
+  spotify: [msg('See your playlists'), msg('Play and pause the approved playlist on the business’s speaker (Premium)')],
   youtube_music: [msg('See your playlists (read-only)')],
   higgsfield: [msg('Make the images you ask for on the Menu page, with your Higgsfield credits'), msg('It can’t see anything else in your Higgsfield account')],
 }
@@ -432,7 +432,7 @@ export function ConnectorDialog({ s, back, reload, onClose }: { s: OptionState; 
         {status === 'pending' && <Alert severity="info" sx={{ mt: 2 }}>
           {isCalendar(p) ? t('Waiting for {app} to fetch the team calendar. Add it in the tab that opened; it usually shows as connected within minutes.', { app: o.name })
             : p === 'search_console' ? t('This Google account has more than one website in Search Console. Pick the one to show below.')
-            : isAds(p) ? t('This sign-in can use more than one ad account. Pick the café’s below.')
+            : isAds(p) ? t('This sign-in can use more than one ad account. Pick the business’s account below.')
             : t('This account manages more than one Page. Pick the one to post to below.')}
         </Alert>}
         {row?.last_error && status !== 'connected' && <Alert severity="error" sx={{ mt: 2 }}>{row.last_error}</Alert>}
