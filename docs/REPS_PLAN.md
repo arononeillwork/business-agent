@@ -202,9 +202,11 @@ until it's switched on.
 - A "Become a rep" page on the website with an application form.
 - Areas (Marbella, Estepona, Málaga…) once there are several reps per category.
 
-## 10. Decisions for you
+## 10. Decisions (5 Nov 2026)
 
-| # | Question | Suggested | Other ways |
+The owner went with the suggestions. Julio's page sets them out for him, in English and Spanish.
+
+| # | Question | Decided | Not chosen |
 |---|---|---|---|
 | 1 | What does the business get? | A month free, and set-up help | A third month of trial on Business; 20% off for 3 months |
 | 2 | What does the rep earn? | €50 at first payment + 20% for 12 paid months | 30% for 12 months, no €50; a flat €100 per paying business |
@@ -213,6 +215,9 @@ until it's switched on.
 | 5 | Where does it run? | Business Agent HQ as a business in the app | A separate HQ console |
 | 6 | A rep who stops: the rest of their 12 months? | Paid, unless they broke the rules | Stops when they stop |
 | 7 | Who can be a rep? | Anyone who can invoice us (autónomo or company) | Also friends who just pass a code on, for a smaller one-off thank-you |
+
+Julio's code is **JULIO27**: when adding him on the HQ's Sales reps & rewards page, type it as his
+code (a code that's left empty is made from the name with two random digits).
 
 ## 11. Paperwork
 
