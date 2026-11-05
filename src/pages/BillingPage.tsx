@@ -105,6 +105,37 @@ function PayPerUseCard() {
   )
 }
 
+/**
+ * Signed up without the Business Agent rep's code they were given? In the first 30 days it can still be
+ * added: the month free, and the rep gets the business on their list (add_rep_code()).
+ */
+function RepCodeCard({ until, onAdded }: { until: string; onAdded: () => void }) {
+  const { api } = useApp()
+  const run = useAction()
+  const notify = useNotify()
+  const [code, setCode] = useState('')
+  const add = () => void run(async () => {
+    const name = await api.addRepCode(code.trim())
+    notify(t('Thanks: {name} introduced you, and your first month is free.', { name }), 'success')
+    onAdded()
+  })
+  return (
+    <Card variant="outlined">
+      <CardContent>
+        <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 600 }}>{t('Did a Business Agent rep introduce you?')}</Typography>
+        <Typography color="text.secondary" sx={{ mt: 0.5, mb: 2 }}>
+          {t('Add the code on their card by {date}: your first month is free, and they can help you set up.', { date: formatLocal(until, 'd MMMM') })}
+        </Typography>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} component="form" onSubmit={e => { e.preventDefault(); add() }}>
+          <TextField label={t('Their code')} value={code} onChange={e => setCode(e.target.value.toUpperCase())} size="small"
+            slotProps={{ htmlInput: { maxLength: 16, autoCapitalize: 'characters', spellCheck: false } }} />
+          <Button type="submit" variant="outlined" disabled={code.trim().length < 3}>{t('Add the code')}</Button>
+        </Stack>
+      </CardContent>
+    </Card>
+  )
+}
+
 /** Admins: the business's Business Agent plan, what it uses, and changing plan through Stripe. */
 export function BillingPage() {
   const { api } = useApp()
@@ -181,6 +212,11 @@ export function BillingPage() {
                       : t('A friends & family account: every feature of the top plan, free. Nothing to pay and no card needed.')}
                   </Typography>
                 )}
+                {b?.introduced_by && (
+                  <Typography color="text.secondary" sx={{ mt: 0.5 }}>
+                    {t('Introduced by {name}, a Business Agent rep: your first month is free.', { name: b.introduced_by })}
+                  </Typography>
+                )}
                 {b && b.referral_months_applied > 0 && (
                   <Typography color="text.secondary" sx={{ mt: 0.5 }}>
                     {tn(b.referral_months_applied, 'Referral credit: {n} free month added to your bill, taken off your next payments.', 'Referral credit: {n} free months added to your bill, taken off your next payments.')}
@@ -208,6 +244,8 @@ export function BillingPage() {
             )}
           </CardContent>
         </Card>
+
+        {b?.rep_code_until && <RepCodeCard until={b.rep_code_until} onAdded={() => void billing.reload()} />}
 
         {FEATURES.music && <PayPerUseCard />}
 

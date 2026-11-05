@@ -4,8 +4,19 @@ Goal: people who know business owners sell Business Agent for us. Each rep has a
 that signs up with it gets a month free and help setting up; the rep earns commission on what that
 business pays. Each rep covers a category of business: **Julio covers cafés**.
 
-Written 5 Nov 2026 against `main` (`7b1ff57`). **Status: plan only. Nothing is built and the live app
-is unchanged.**
+Written 5 Nov 2026 against `main` (`7b1ff57`).
+
+**Status (5 Nov 2026): Phase 1 is built** (the `hq_reps` migration, `worker/hqReps.ts`,
+`shared/hqReps.ts`), tested in unit, database and browser (demo, `?hq`) tests. What's left to do by hand:
+
+1. **HQ's first owner.** The deploy makes Business Agent HQ with Julio (JULIO27, cafés). `ops/invite.txt`
+   invites its first owner, at a temporary address in the same inbox (`arononeillwork+hq@gmail.com`), when
+   it reaches `main`; if the invite ran before the deploy had made HQ, run **Actions → Send an invite**
+   again with the same email. Change the address later on HQ's Team page.
+2. **Julio's email** is a temporary one (`julio.temp@example.com`): change it on HQ's Sales reps &
+   rewards page once we have his (it stops his own new business counting for him).
+3. **Julio's page**: on HQ's Sales reps & rewards, his card → Their page → share the link with him.
+4. **The Stripe webhook** takes refunds and disputes from the next deploy (its step adds the events).
 
 The app already has three things with similar names. This is none of them:
 
@@ -168,7 +179,7 @@ until it's switched on.
 2. **Rep codes at sign-up:** `/api/referrals/open` (`worker/referrals.ts`) also finds an active HQ
    rep by code and says who and what the offer is; the landing page shows "Julio introduced you" and
    **Add my business** picks the rep's category to start with. `create_business()` puts the business
-   down as the rep's (`business.introduced_by`) and gives it its month (`referred_month`), unless the
+   on HQ's list (`rep_introductions`) and gives it its month (`referred_month`), unless the
    new owner's email is the rep's.
 3. **Stages** from what's already recorded: created, set up (`business_set_up()`), the billing
    status from Stripe.

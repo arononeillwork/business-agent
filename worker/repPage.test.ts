@@ -136,3 +136,14 @@ describe('Reach from Instagram', () => {
     expect(db.table('sales_reps')).toHaveLength(3)
   })
 })
+
+describe('A Business Agent rep’s page (the hq_reps migration)', () => {
+  it('has the businesses they brought and which rewards count by themselves; a café’s rep’s page doesn’t', async () => {
+    answer('rep_page', () => ({ rep: { name: 'Julio' } }))
+    answer('rep_page_businesses', () => ({ businesses: [{ name: 'Café Lola', kind: 'cafe' }], automatic: ['rule-50'] }))
+    expect(await (await call(`/api/rep-page/${TOKEN}`)).json()).toEqual({ rep: { name: 'Julio' },
+      hq: { businesses: [{ name: 'Café Lola', kind: 'cafe' }], automatic: ['rule-50'] } })
+    answer('rep_page_businesses', () => ({ businesses: [], automatic: [] }))
+    expect(await (await call(`/api/rep-page/${TOKEN}`)).json()).toEqual({ rep: { name: 'Julio' } })
+  })
+})

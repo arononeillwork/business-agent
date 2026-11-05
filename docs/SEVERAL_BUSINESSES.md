@@ -70,6 +70,17 @@ names Easy Beans with the header, as the Worker does.
 security definer function would see every business, or a unique key spans businesses; it also runs
 two businesses side by side.
 
+## Business Agent HQ
+
+Business Agent itself is a business in the database, **Business Agent HQ** (`business.is_hq`, one at most;
+nobody changes it from the app), whose reps sell Business Agent (docs/REPS_PLAN.md). Everything HQ reads is
+in its own rows; what crosses businesses is done by functions that stay with postgres, each listed in
+`zzzz_several_businesses.test.sql`: a sign-up reading HQ's reps (`create_business`, `add_rep_code`,
+`rep_by_code`), a business's name, set-up and billing copied onto HQ's list (`rep_introduction_sync`), and
+a payment or a refund writing HQ's ledger (`record_rep_commission`, `reverse_rep_commission`). The
+`hq_reps` migration makes HQ on a database people already use; a brand-new one runs
+`select public.start_hq();` when it wants one (the database tests do, last).
+
 ## A new business signs up
 
 1. **Sign up.** Anyone can create an account on the sign-in page. Someone nobody invited is in no

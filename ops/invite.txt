@@ -1,3 +1,5 @@
-arononeillwork@gmail.com
+arononeillwork+hq@gmail.com
 Aron O'Neill
-# resent 2026-09-26T22:37:20Z
+hq
+# Business Agent HQ's first owner (the hq_reps migration): a temporary address that lands in the same inbox, until HQ
+# has its own. Change it on HQ's Team page (their panel → Change email).

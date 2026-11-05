@@ -39,3 +39,23 @@ describe('Referral links', () => {
     expect(db.table('referral_opens')).toHaveLength(0)
   })
 })
+
+describe('A Business Agent rep’s code (the hq_reps migration)', () => {
+  it('not a business’s code: the rep it is, with what their cards offer; counted as asked', async () => {
+    const asked: unknown[] = []
+    db.rpcs.rep_by_code = args => { asked.push(args); return args.p_code === 'JULIO27' ? { name: 'Julio', categories: ['cafe'], offer: 'Your first month free' } : null }
+    const res = await post('/api/referrals/open', { code: 'julio27' })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ rep: { name: 'Julio', categories: ['cafe'], offer: 'Your first month free' } })
+    await post('/api/referrals/open', { code: 'JULIO27', count: false })
+    expect(asked).toEqual([{ p_code: 'JULIO27', p_count: true }, { p_code: 'JULIO27', p_count: false }])
+    expect(db.table('referral_opens')).toHaveLength(0)
+  })
+
+  it('a business’s code still wins, and a code that’s neither is refused', async () => {
+    db.rpcs.rep_by_code = () => ({ name: 'Someone', categories: [], offer: null })
+    expect(await (await post('/api/referrals/open', { code: 'AB12CD34' })).json()).toEqual({ business: 'Easy Beans' })
+    db.rpcs.rep_by_code = () => null
+    expect((await post('/api/referrals/open', { code: 'NOPE99' })).status).toBe(404)
+  })
+})

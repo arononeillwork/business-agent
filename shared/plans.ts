@@ -297,6 +297,10 @@ export interface Billing {
   referral_months_applied: number
   /** Another business that referred this one (its own month free). */
   referred_by: string | null
+  /** The Business Agent rep whose code it signed up with (its month free too). */
+  introduced_by?: string | null
+  /** Until when the owner can still add a rep's code it forgot (its first 30 days); null once not. */
+  rep_code_until?: string | null
 }
 
 export type Complimentary = 'founder' | 'friends_family'

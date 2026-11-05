@@ -8,6 +8,7 @@
 // earns. Someone an employee adds waits for an admin's OK (the rep_reach_and_crews migration).
 import { msg } from './i18n'
 import type { Mention } from './mentions'
+import type { BusinessKind, RepPageHq } from './hqReps'
 
 export type RepKind = 'team' | 'ambassador' | 'customer'
 export const REP_KINDS: { id: RepKind; label: string; what: string }[] = [
@@ -50,6 +51,8 @@ export interface SalesRep {
   leader_id: string | null
   /** False while they wait for an admin's OK (an employee added them, or a rep to their crew). */
   approved: boolean
+  /** Business Agent HQ's reps: the kinds of business they cover (shared/hqReps.ts). */
+  categories?: BusinessKind[]
   phone: string | null
   email: string | null
   notes: string | null
@@ -83,7 +86,8 @@ export interface RewardRule {
 }
 export type RewardRuleInput = Omit<RewardRule, 'id' | 'sort'> & { id?: string; sort?: number }
 
-export type RewardKind = 'earn' | 'redeem' | 'payout'
+/** clawback: a refund taken back from commission on a payment (Business Agent HQ's reps). */
+export type RewardKind = 'earn' | 'redeem' | 'payout' | 'clawback'
 export type RewardStatus = 'pending' | 'approved' | 'rejected'
 export interface RepReward {
   id: string
@@ -108,6 +112,16 @@ export interface RepReward {
   occurred_on: string
   logged_by: string | null
   created_at: string
+  /** Business Agent HQ: the business whose payment it was (on HQ's list). */
+  introduction_id?: string | null
+  /** Where it came from: stripe:<invoice>, stripe:<invoice>:first, refund:<line>. */
+  source?: string | null
+  /** Of the business's 12 paid months, how many this payment was. */
+  months?: number | null
+  /** It waits until then, in case of a refund, then counts by itself. */
+  counts_from?: string | null
+  /** The line a refund takes back. */
+  reverses?: string | null
 }
 export interface RewardLog {
   rep_id: string
@@ -230,6 +244,8 @@ export interface RepPageData {
   rewards: (Pick<RepReward, 'id' | 'kind' | 'label' | 'amount' | 'status' | 'occurred_on' | 'multiplier'> & { bonus: boolean })[]
   crew: { name: string; reach: number; approved: boolean; instagram: string | null; earned_this_month: number; bonus_this_month: number }[]
   rules: RepPageRule[]
+  /** A Business Agent rep (HQ's): the businesses they brought. */
+  hq?: RepPageHq
 }
 /** What a rep sends from their page: what they shared, with a note or a link. */
 export interface RepClaim { rule_id: string; note?: string | null; proof_url?: string | null; occurred_on?: string | null }

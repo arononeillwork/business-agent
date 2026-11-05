@@ -16,6 +16,10 @@ import {
   DEFAULT_PITCH, SOCIALS, earnsCredit, formatReach, parseCount, reachMultiplier, rewardAmount, type RepPageData, type RepPageRule,
 } from '../../shared/reps'
 import { formatLocal, formatMoney, formatNumber, today } from '../../shared/time'
+import { HOLD_DAYS, PAID_MONTHS, businessKindLabel, introStage, stageInfo, type RepPageHq } from '../../shared/hqReps'
+import { referralLink } from '../../shared/referrals'
+import { plan as planById } from '../../shared/plans'
+import { planName } from '../app/plan'
 import { fonts, tokens } from '../theme'
 import { msg, t } from '../i18n'
 
@@ -59,7 +63,10 @@ export function RepPage() {
   const credit = earnsCredit(rep.kind)
   const first = rep.name.replace(/[“”"«»]/g, '').split(/\s+/)[0]
   const boostX = settings.boost_by_reach ? reachMultiplier(rep.reach) : 1
-  const claimable = p.rules.filter(r => r.basis === 'fixed')
+  // A Business Agent rep (HQ's): businesses instead of customers, and the rewards that count by themselves.
+  const hq = p.hq ?? null
+  const automatic = new Set(hq?.automatic ?? [])
+  const claimable = p.rules.filter(r => r.basis === 'fixed' && !automatic.has(r.id))
   const socials = SOCIALS.filter(s => rep[s.id] || rep[s.followers])
   const crewReach = rep.reach + p.crew.reduce((a, m) => a + m.reach, 0)
 
@@ -98,7 +105,11 @@ export function RepPage() {
         ))}
       </Box>
       {p.waiting > 0 && (
-        <Typography variant="body2" sx={{ color: 'text.secondary', mt: -1.5, mb: 2.5 }}>{t('{amount} more is being checked by the café.', { amount: formatMoney(p.waiting) })}</Typography>
+        <Typography variant="body2" sx={{ color: 'text.secondary', mt: -1.5, mb: 2.5 }}>
+          {hq
+            ? t('{amount} more is waiting: a payment counts {days} days after it’s made, in case of a refund.', { amount: formatMoney(p.waiting), days: HOLD_DAYS })
+            : t('{amount} more is being checked by the café.', { amount: formatMoney(p.waiting) })}
+        </Typography>
       )}
 
       <Card component="section" aria-label={t('Your code')} sx={{ mb: 2.5 }}>
@@ -107,17 +118,24 @@ export function RepPage() {
             <Box sx={{ flex: 1 }}>
               <Typography variant="body2" sx={{ fontWeight: 600 }}>{t('Your code')}</Typography>
               <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                {settings.welcome_offer
-                  ? t('Someone new who shows it at the till gets {offer}, and you earn a reward.', { offer: settings.welcome_offer })
-                  : t('Someone new who shows it at the till brings you a reward.')}
+                {hq
+                  ? t('A business that signs up with it, or with your link, is yours: {offer}.', { offer: settings.welcome_offer || t('its first month is free') })
+                  : settings.welcome_offer
+                    ? t('Someone new who shows it at the till gets {offer}, and you earn a reward.', { offer: settings.welcome_offer })
+                    : t('Someone new who shows it at the till brings you a reward.')}
               </Typography>
+              {hq && (
+                <Typography variant="body2" sx={{ mt: 0.75, fontWeight: 500, overflowWrap: 'anywhere' }}>{referralLink(location.origin, rep.code)}</Typography>
+              )}
             </Box>
             <RepCode code={rep.code} big />
           </Stack>
         </CardContent>
       </Card>
 
-      <Card component="section" aria-label={t('Your reach')} sx={{ mb: 2.5 }}>
+      {hq && <HqBusinesses hq={hq} />}
+
+      {!hq && <Card component="section" aria-label={t('Your reach')} sx={{ mb: 2.5 }}>
         <CardContent>
           <Typography variant="body2" sx={{ fontWeight: 600 }}>{t('You reach {n} people', { n: formatNumber(rep.reach) })}</Typography>
           <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>
@@ -133,7 +151,7 @@ export function RepPage() {
             <ReachLadder reach={rep.reach} />
           </>}
         </CardContent>
-      </Card>
+      </Card>}
 
       <Card component="section" aria-label={t('What earns you a reward')} sx={{ mb: 2.5 }}>
         <CardContent>
@@ -155,13 +173,14 @@ export function RepPage() {
                         <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                           {[r.scales_with_reach && settings.boost_by_reach && boostX > 1 ? t('×{x} for your reach', { x: boostX }) : null,
                             r.monthly_limit !== null ? t('{used} of {limit} this month', { used: r.used_this_month, limit: r.monthly_limit }) : null,
-                            r.basis === 'percent' ? t('The café logs it once it’s booked') : null].filter(Boolean).join(' · ')}
+                            automatic.has(r.id) ? t('Counts by itself when the business pays')
+                              : r.basis === 'percent' ? t('The café logs it once it’s booked') : null].filter(Boolean).join(' · ')}
                         </Typography>
                       </Box>
                       <Typography sx={{ fontFamily: fonts.display, fontWeight: 600, color: tokens.roseDeep, whiteSpace: 'nowrap' }}>
                         {amount !== null ? formatMoney(amount) : worth(r)}
                       </Typography>
-                      {r.basis === 'fixed' && (
+                      {r.basis === 'fixed' && !automatic.has(r.id) && (
                         <Button size="small" disabled={full} onClick={() => setClaiming(r)} aria-label={t('I did this: {name}', { name: r.name })}>{t('I did this')}</Button>
                       )}
                     </Stack>
@@ -169,7 +188,8 @@ export function RepPage() {
                 })}
               </Stack>}
           <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mt: 1.5 }}>
-            {credit ? t('You get it as credit to spend in the café.') : t('You get it as commission, paid by the café.')}
+            {hq ? t('You get it as commission, paid by Business Agent.')
+              : credit ? t('You get it as credit to spend in the café.') : t('You get it as commission, paid by the café.')}
           </Typography>
         </CardContent>
       </Card>
@@ -252,6 +272,51 @@ export function RepPage() {
 }
 
 /** The page around it: the café's name and logo at the top, narrow enough for a phone. */
+const STAGE_TONE = {
+  good: { fg: tokens.goodFg, bg: tokens.goodBg }, info: { fg: tokens.infoFg, bg: tokens.infoBg }, warn: { fg: tokens.warnFg, bg: tokens.warnBg },
+  bad: { fg: tokens.badFg, bg: tokens.badBg }, neutral: { fg: tokens.neutralFg, bg: tokens.neutralBg },
+}
+
+/** A Business Agent rep's businesses: each one's kind, how far along it is, its plan, and what it has earned them. */
+function HqBusinesses({ hq }: { hq: RepPageHq }) {
+  return (
+    <Card component="section" aria-label={t('Your businesses')} sx={{ mb: 2.5 }}>
+      <CardContent>
+        <Typography variant="body2" sx={{ fontWeight: 600 }}>{t('Your businesses')}</Typography>
+        <Typography variant="body2" sx={{ color: 'text.secondary', mb: hq.businesses.length ? 1.5 : 0 }}>
+          {hq.businesses.length
+            ? t('Each earns you commission for its first {n} paid months.', { n: PAID_MONTHS })
+            : t('Businesses that sign up with your code show here, with how each is getting on.')}
+        </Typography>
+        {hq.businesses.length > 0 && (
+          <Stack component="ul" spacing={0} sx={{ listStyle: 'none', p: 0, m: 0 }}>
+            {hq.businesses.map((b, i) => {
+              const stage = stageInfo(introStage(b))
+              return (
+                <Stack key={`${b.name}-${i}`} component="li" direction="row" spacing={1.5}
+                  sx={{ alignItems: 'center', py: 1, borderTop: 1, borderColor: 'divider', '&:first-of-type': { borderTop: 0 } }}>
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 500, overflowWrap: 'anywhere' }}>{b.name}</Typography>
+                    <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                      {[t(businessKindLabel(b.kind)), t('since {date}', { date: formatLocal(b.since, 'd MMM yyyy') }),
+                        b.plan !== 'free' ? planName(planById(b.plan)) : null,
+                        b.months_paid > 0 ? t('{n} of {total} months', { n: b.months_paid, total: PAID_MONTHS }) : null].filter(Boolean).join(' · ')}
+                    </Typography>
+                  </Box>
+                  <Tag {...STAGE_TONE[stage.tone]}>{t(stage.label)}</Tag>
+                  <Typography sx={{ fontFamily: fonts.display, fontWeight: 600, minWidth: 64, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                    {formatMoney(b.earned)}
+                  </Typography>
+                </Stack>
+              )
+            })}
+          </Stack>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 function Shell({ business, children }: { business?: RepPageData['business']; children: ReactNode }) {
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>

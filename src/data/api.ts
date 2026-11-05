@@ -5,6 +5,7 @@ import type { HolidayReminder, PushDevice } from '../../shared/types'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
 import type { InboxConversation, InboxState, InboxThread } from '../../shared/messages'
 import type { ReferralState } from '../../shared/referrals'
+import type { ReferralOpen, RepIntroduction } from '../../shared/hqReps'
 import type { KindInfo } from '../../shared/social'
 import type { InstagramMention } from '../../shared/mentions'
 import type { FilingRecord, Quarter, TaxDocKind, TaxDocument, TaxSettings } from '../../shared/tax'
@@ -545,6 +546,9 @@ export interface Api {
   newRepLink(repId: string): Promise<string>
   /** Followers and photo of an Instagram account, where Instagram shares them (people who've messaged the café). */
   lookupInstagram(handle: string): Promise<SocialLookup>
+  /** Business Agent HQ's admins: the businesses its reps introduced, and how often each rep's link was opened. */
+  repIntroductions(): Promise<RepIntroduction[]>
+  repCodeOpens(): Promise<Record<string, number>>
   // A rep's own page (/rep/<token>): no sign-in, the link is the secret.
   repPage(token: string): Promise<RepPageData>
   /** From their page: what they shared, waiting for an admin. */
@@ -967,8 +971,10 @@ export interface Api {
   setWhatsappRetention(days: number): Promise<{ days: number; deleted: number }>
   // Referrals: admins see the link, how it's doing and the free months banked.
   referrals(): Promise<ReferralState>
-  /** Someone opened a referral link (no sign-in): counted, and who invited them. */
-  openReferral(code: string, count?: boolean): Promise<{ business: string }>
+  /** Someone opened a referral link (no sign-in): counted, and who invited them: another business, or a Business Agent rep. */
+  openReferral(code: string, count?: boolean): Promise<ReferralOpen>
+  /** An owner adds the Business Agent rep's code they forgot (Billing, the first 30 days); returns the rep's name. */
+  addRepCode(code: string): Promise<string>
   uploadPhoto(file: File): Promise<string>
   share(caption: string, imageUrl: string | null, targets: ('instagram' | 'google')[], eventId?: string): Promise<number>
   sendRota(monday: string): Promise<number>

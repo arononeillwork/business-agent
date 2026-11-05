@@ -45,6 +45,10 @@ export interface Business {
   /** Sports page, live scores and big nights on Today. Off until an admin turns it on. */
   sports_enabled: boolean
   updated_at: string
+  /** Business Agent HQ: Business Agent itself, whose reps sell it to businesses (the hq_reps migration). */
+  is_hq?: boolean
+  /** When it was made (the hq_reps migration; businesses before it: then). */
+  created_at?: string
 }
 
 export interface Settings {

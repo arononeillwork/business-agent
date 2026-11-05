@@ -8,11 +8,14 @@
 import { Hono, type Context } from 'hono'
 import { bearer, businessDb, serviceClient, userClient, type Env } from './supabase'
 import { PLANS, TRIAL_DAYS, plan as planById, type Interval, type PlanId } from '../shared/plans'
+import { recordCommission, refundShare, reverseCommission, type StripeCharge, type StripeInvoice } from './hqReps'
 
 // Pinned so the subscription has the shape read below, whatever the account's default version is.
 const STRIPE_VERSION = '2024-06-20'
 export const BILLING_EVENTS = ['checkout.session.completed', 'customer.subscription.created', 'customer.subscription.updated',
-  'customer.subscription.deleted', 'customer.subscription.trial_will_end', 'invoice.paid', 'invoice.payment_failed']
+  'customer.subscription.deleted', 'customer.subscription.trial_will_end', 'invoice.paid', 'invoice.payment_failed',
+  // A refund or a lost dispute takes back a rep's commission on that payment (worker/hqReps.ts).
+  'charge.refunded', 'charge.dispute.closed']
 
 interface Form { [key: string]: string | number | boolean | null | undefined | Form | Form[] | string[] }
 
@@ -219,14 +222,33 @@ const view = (r: Record<string, unknown>, env: Env) => ({
   has_customer: !!r.stripe_customer_id, ready: !!env.STRIPE_SECRET_KEY,
   complimentary: r.complimentary ?? null, complimentary_note: r.complimentary_note ?? null,
   referral_months_applied: Number(r.referral_months_applied ?? 0), referred_by: r.referred_by ?? null,
+  introduced_by: r.introduced_by ?? null,
 })
 
-billing.get('/api/billing', async c => c.json(view(await row(c.env, c.get('businessId')), c.env)))
+/** The 30 days a business has to add a Business Agent rep's code it forgot (add_rep_code()). */
+export const REP_CODE_DAYS = 30
+
+/** Until when the owner can still add a rep's code on Billing; null once they can't (or it came through a code). */
+async function repCodeUntil(env: Env, businessId: number, r: Record<string, unknown>): Promise<string | null> {
+  if (r.introduced_by || r.referred_by) return null
+  const { data } = await businessDb(env, businessId).from('business').select('created_at, is_hq, referred_by').eq('id', businessId).maybeSingle()
+  const b = data as { created_at?: string | null; is_hq?: boolean; referred_by?: number | null } | null
+  if (!b?.created_at || b.is_hq || b.referred_by) return null
+  const until = new Date(Date.parse(b.created_at) + REP_CODE_DAYS * 86_400_000)
+  return until.getTime() > Date.now() ? until.toISOString() : null
+}
+
+const answer = async (env: Env, businessId: number) => {
+  const r = await row(env, businessId)
+  return { ...view(r, env), rep_code_until: await repCodeUntil(env, businessId, r) }
+}
+
+billing.get('/api/billing', async c => c.json(await answer(c.env, c.get('businessId'))))
 
 /** After Checkout (or any time): read Stripe again, then answer like GET. */
 billing.post('/api/billing/sync', async c => {
   await syncBilling(c.env, c.get('businessId'))
-  return c.json(view(await row(c.env, c.get('businessId')), c.env))
+  return c.json(await answer(c.env, c.get('businessId')))
 })
 
 async function customerFor(c: Context<{ Bindings: Env; Variables: { userId: string; email: string; businessId: number } }>, r: BillingRow) {
@@ -317,16 +339,31 @@ billing.post('/api/billing/portal', async c => {
 billing.post('/api/billing/webhook', async c => {
   const { id } = await c.req.json<{ id?: string }>().catch(() => ({ id: undefined }))
   if (!id || !/^evt_\w+$/.test(id)) return c.json({ error: 'Not a Stripe event' }, 400)
-  const event = await stripe<{ type: string; data: { object: { customer?: string } } }>(c.env, 'GET', `/events/${id}`).catch(() => null)
+  const event = await stripe<{ type: string; data: { object: { customer?: string | null; charge?: string; status?: string } } }>(c.env, 'GET', `/events/${id}`).catch(() => null)
   if (!event) return c.json({ error: 'Unknown event' }, 400)
   if (!BILLING_EVENTS.includes(event.type)) return c.json({ ok: true, ignored: event.type })
+  // A refund names its charge; a dispute only names the charge, which names the customer and invoice.
+  let charge: StripeCharge | null = null
+  if (event.type === 'charge.refunded') charge = event.data.object as unknown as StripeCharge
+  if (event.type === 'charge.dispute.closed') {
+    if (event.data.object.status !== 'lost' || !event.data.object.charge) return c.json({ ok: true, ignored: 'a dispute not lost' })
+    charge = await stripe<StripeCharge>(c.env, 'GET', `/charges/${event.data.object.charge}`)
+  }
   // The business whose Stripe customer it is.
-  const customer = event.data.object.customer
+  const customer = charge ? charge.customer : event.data.object.customer
   const { data: b } = customer
     ? await serviceClient(c.env).from('billing').select('business_id').eq('stripe_customer_id', customer).maybeSingle()
     : { data: null }
   if (!b) return c.json({ ok: true, ignored: 'another customer' })
-  await syncBilling(c.env, b.business_id as number)
+  const businessId = b.business_id as number
+  if (charge) {
+    if (charge.invoice) await reverseCommission(c.env, businessId, charge.invoice, event.type === 'charge.dispute.closed' ? 1 : refundShare(charge))
+    return c.json({ ok: true })
+  }
+  await syncBilling(c.env, businessId)
+  // A business a Business Agent rep introduced paid: the rep's commission (once per invoice, so a
+  // retried event is safe).
+  if (event.type === 'invoice.paid') await recordCommission(c.env, businessId, event.data.object as unknown as StripeInvoice)
   return c.json({ ok: true })
 })
 
