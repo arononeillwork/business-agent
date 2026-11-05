@@ -4,7 +4,7 @@
 // checklist and a tick for done; and the Calendar's Routine tab, where admins set the week up.
 import {
   Alert, Box, Button, Card, CardContent, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, ListSubheader,
-  MenuItem, Stack, Switch, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography,
+  ClickAwayListener, MenuItem, Paper, Popper, Stack, Switch, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import StockIcon from '@mui/icons-material/Inventory2Outlined'
@@ -17,6 +17,7 @@ import MarketingIcon from '@mui/icons-material/CampaignOutlined'
 import TeamIcon from '@mui/icons-material/BadgeOutlined'
 import ThemeIcon from '@mui/icons-material/PaletteOutlined'
 import RoutineIcon from '@mui/icons-material/EventRepeatOutlined'
+import MoreIcon from '@mui/icons-material/TuneRounded'
 import EditIcon from '@mui/icons-material/EditOutlined'
 import { useEffect, useMemo, useState, type MouseEvent, type ReactElement, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
@@ -269,8 +270,37 @@ export function RoutineDayDialog({ item, day, done, show, setShow, onClose }: {
   )
 }
 
+/**
+ * The calendar's other filters behind a "More" chip at the end of the category chips: theme days and the routine
+ * on or off, the routine's categories one by one, and what you hid. The chip counts what's hidden.
+ */
+export function CalendarMoreChip({ x }: { x: CalendarExtras }) {
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null)
+  if (!x.staff || (!x.items.length && !x.days?.themes.length)) return null
+  const { show } = x
+  const hidden = (show.themes === false ? 1 : 0) + (show.routine === false ? 1 : 0) + (show.routine === false ? 0
+    : (show.hiddenCategories ?? []).length + (show.hiddenItems ?? []).filter(id => x.items.some(r => r.id === id)).length)
+  return (
+    <>
+      <Chip size="small" icon={<MoreIcon />} variant="outlined" onClick={e => setAnchor(a => (a ? null : e.currentTarget))}
+        label={hidden ? `${t('More')} · ${hidden}` : t('More')} aria-haspopup="dialog" aria-expanded={!!anchor}
+        aria-label={hidden ? tn(hidden, 'More filters, {n} hidden', 'More filters, {n} hidden') : t('More filters')}
+        sx={{ borderColor: tokens.lineStrong, bgcolor: anchor ? tokens.hover : 'transparent', '& .MuiChip-icon': { fontSize: 16 } }} />
+      {/* Not modal: the calendar changes behind it as each filter is switched. Away or Escape closes it. */}
+      <Popper open={!!anchor} anchorEl={anchor} placement="bottom-start" sx={{ zIndex: 1200 }} modifiers={[{ name: 'offset', options: { offset: [0, 6] } }]}>
+        <ClickAwayListener onClickAway={e => { if (!anchor?.contains(e.target as Node)) setAnchor(null) }}>
+          <Paper role="dialog" aria-label={t('More filters')} elevation={6} sx={{ p: 1.5, maxWidth: 380, borderRadius: 3 }}
+            onKeyDown={e => { if (e.key === 'Escape') { setAnchor(null); anchor?.focus() } }}>
+            <CalendarShowBar x={x} inPanel />
+          </Paper>
+        </ClickAwayListener>
+      </Popper>
+    </>
+  )
+}
+
 /** The calendar's filters: theme days and the routine on or off, the routine's categories one by one, and what you hid. */
-export function CalendarShowBar({ x }: { x: CalendarExtras }) {
+export function CalendarShowBar({ x, inPanel }: { x: CalendarExtras; inPanel?: boolean }) {
   const { isAdmin } = useApp()
   if (!x.staff || (!x.items.length && !x.days?.themes.length)) return null
   const { show, setShow } = x
@@ -283,7 +313,8 @@ export function CalendarShowBar({ x }: { x: CalendarExtras }) {
         textDecoration: on ? 'none' : 'line-through', '& .MuiChip-icon': { color: colour ?? 'inherit', fontSize: 16 } }} />
   )
   return (
-    <Stack direction="row" role="group" aria-label={t('Show on the calendar')} spacing={0.5} sx={{ mb: 2, mt: -1, flexWrap: 'wrap', rowGap: 0.5, alignItems: 'center' }}>
+    <Stack direction="row" role="group" aria-label={t('Show on the calendar')} spacing={0.5}
+      sx={{ ...(inPanel ? {} : { mb: 2, mt: -1 }), flexWrap: 'wrap', rowGap: 0.75, alignItems: 'center' }}>
       {!!x.days?.themes.length && toggle(show.themes !== false, t('Theme days'), <ThemeIcon />, () => setShow({ ...show, themes: show.themes === false }))}
       {x.items.length > 0 && x.onCalendar && toggle(show.routine !== false, t('Routine'), <RoutineIcon />, () => setShow({ ...show, routine: show.routine === false }))}
       {x.items.length > 0 && !x.onCalendar && isAdmin && (
