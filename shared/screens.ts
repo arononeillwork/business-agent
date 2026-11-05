@@ -6,9 +6,9 @@ import { msg } from './i18n'
 import type { MenuDesign, MenuItem } from './menu'
 import type { MenuAllergens } from './allergens'
 import type { BrandColour } from './types'
-import type { ScreenOffer } from './offers'
+import type { Offer, ScreenOffer } from './offers'
 
-export type SlideKind = 'image' | 'video' | 'youtube' | 'vimeo' | 'instagram' | 'web' | 'menu'
+export type SlideKind = 'image' | 'video' | 'youtube' | 'vimeo' | 'instagram' | 'web' | 'menu' | 'offers'
 export const SLIDE_KINDS: { id: SlideKind; label: string }[] = [
   { id: 'image', label: msg('Picture') },
   { id: 'video', label: msg('Video') },
@@ -17,6 +17,7 @@ export const SLIDE_KINDS: { id: SlideKind; label: string }[] = [
   { id: 'instagram', label: msg('Instagram post') },
   { id: 'web', label: msg('Web page') },
   { id: 'menu', label: msg('Digital menu') },
+  { id: 'offers', label: msg('Live offers’ pictures') },
 ]
 export const kindLabel = (k: SlideKind) => SLIDE_KINDS.find(x => x.id === k)?.label ?? msg('Web page')
 
@@ -59,6 +60,8 @@ export type PlayedSlide = Slide & { lang: SlideLang; slide_id: string }
 
 /** Whether the slide has something to show in that language. */
 export function hasVersion(s: Pick<Slide, 'kind' | 'url' | 'design_id' | 'url_es' | 'design_id_es'>, lang: SlideLang): boolean {
+  // The live offers' pictures are the offers' own: one version.
+  if (s.kind === 'offers') return lang === 'en'
   if (s.kind === 'menu') return !!(lang === 'en' ? s.design_id : s.design_id_es)
   return !!(lang === 'en' ? s.url : s.url_es)
 }
@@ -83,12 +86,17 @@ export const TRANSITIONS: { id: Transition; label: string }[] = [
   { id: 'none', label: msg('Cut (no effect)') },
 ]
 export type Fit = 'cover' | 'contain'
+/** A screen (a TV or tablet: menus, pictures, videos, pages, music) or a picture slideshow (pictures and the live offers' pictures, kept simple). */
+export type ScreenKind = 'screen' | 'slideshow'
 
 export interface Screen {
   id: string
   name: string
+  kind: ScreenKind
   /** The secret in the screen's link (/display/<token>). */
   token: string
+  /** Its link name, for its short link (/display-menu/<slug>, /slideshow/<slug>); empty: made from its name when saved. */
+  slug: string
   orientation: 'landscape' | 'portrait'
   /** How long each slide shows, unless it says otherwise. */
   seconds: number
@@ -119,10 +127,16 @@ export type ScreenInput = Omit<Screen, 'id' | 'token' | 'last_seen_at' | 'update
 export const MAX_SLIDES = 100
 export const SECONDS_CHOICES = [5, 8, 10, 15, 20, 30, 45, 60, 120]
 
-export const newScreen = (name: string): ScreenInput => ({
-  name, orientation: 'landscape', seconds: 10, transition: 'fade', transition_ms: 800, shuffle: false, fit: 'cover', music_url: null,
-  music_volume: 40, video_sound: false, show_clock: false, ticker: null, slides: [], active: true,
+export const newScreen = (name: string, kind: ScreenKind = 'screen'): ScreenInput => ({
+  name, kind, slug: '', orientation: 'landscape', seconds: kind === 'slideshow' ? 8 : 10, transition: 'fade', transition_ms: 800, shuffle: false,
+  fit: kind === 'slideshow' ? 'contain' : 'cover', music_url: null, music_volume: 40, video_sound: false, show_clock: false, ticker: null,
+  // A picture slideshow starts with the live offers' pictures, so it has something to show straight away.
+  slides: kind === 'slideshow' ? [offersSlide()] : [], active: true,
 })
+
+/** The slide that plays the picture of each offer that's on now (Offers & specials). */
+export const offersSlide = (id: string = crypto.randomUUID()): Slide =>
+  ({ id, kind: 'offers', url: null, design_id: null, title: null, seconds: null, live: false, active: true })
 
 const IMAGE = /\.(jpe?g|png|gif|webp|avif|svg|bmp)$/i
 const VIDEO = /\.(mp4|webm|m4v|mov|ogv|ogg)$/i
@@ -163,7 +177,7 @@ export function instagramCode(url: string): string | null {
 }
 
 /** What an address is, from its look: a picture, a video, YouTube, Vimeo, Instagram, or else a web page. */
-export function kindOf(url: string): Exclude<SlideKind, 'menu'> {
+export function kindOf(url: string): Exclude<SlideKind, 'menu' | 'offers'> {
   if (youtubeId(url) || youtubeList(url)) return 'youtube'
   if (vimeoId(url)) return 'vimeo'
   if (instagramCode(url)) return 'instagram'
@@ -183,14 +197,16 @@ export function cleanUrl(typed: string | null | undefined): string | null {
 
 /** A slide that can't be shown as it is: why (null: fine). It needs at least one version; each it has is checked. */
 export function slideProblem(s: Pick<Slide, 'kind' | 'url' | 'design_id' | 'seconds' | 'url_es' | 'design_id_es'>): string | null {
-  if (s.kind === 'menu') {
+  if (s.kind === 'offers') {
+    // Nothing to fill in: the offers bring their pictures.
+  } else if (s.kind === 'menu') {
     if (!s.design_id && !s.design_id_es) return msg('Pick the digital menu to show')
   } else {
     if (!s.url && !s.url_es) return msg('Paste the address of the picture, video or page')
     for (const url of [s.url, s.url_es]) {
       if (!url) continue
-      // A drawn picture (the demo's own) is let through here; the database takes https only, and says so.
-      const drawn = s.kind === 'image' && url.startsWith('data:image/')
+      // A drawn picture or one picked from the device (the demo's own) is let through here; the database takes https only, and says so.
+      const drawn = s.kind === 'image' && /^(data:image\/|blob:)/.test(url)
       if (!drawn && !/^https:\/\/[^\s/]+\.[^\s]+$/i.test(url)) return msg('The address should start with https:// (screens can’t show plain http pages)')
     }
   }
@@ -198,8 +214,9 @@ export function slideProblem(s: Pick<Slide, 'kind' | 'url' | 'design_id' | 'seco
   return null
 }
 
-export function screenProblem(s: Pick<ScreenInput, 'name' | 'seconds' | 'transition_ms' | 'music_url' | 'music_volume' | 'ticker' | 'slides'>): string | null {
+export function screenProblem(s: Pick<ScreenInput, 'name' | 'seconds' | 'transition_ms' | 'music_url' | 'music_volume' | 'ticker' | 'slides'> & { slug?: string }): string | null {
   if (!s.name.trim()) return msg('Give the screen a name')
+  if (s.slug && !LINK_NAME.test(s.slug)) return msg('A link name is up to 40 small letters, numbers and dashes, starting with a letter')
   if (!(s.seconds >= 3 && s.seconds <= 3600)) return msg('Show each slide for between 3 seconds and an hour')
   if (!(s.transition_ms >= 0 && s.transition_ms <= 5000)) return msg('The change between slides can take up to 5 seconds')
   if (s.music_url && !/^https:\/\/\S+$/i.test(s.music_url)) return msg('The music’s address should start with https://')
@@ -293,4 +310,65 @@ export interface DisplayFeed {
   allergens?: MenuAllergens | null
   /** The offers on its screen that haven't ended (Offers & specials): each shows from its start to its end, by the screen's clock. */
   offers?: ScreenOffer[]
+  /** With a live offers' pictures slide: the other offers with a picture that haven't ended, each shown as its picture while it's on. */
+  offer_pictures?: OfferPicture[]
 }
+
+/** An offer's picture for the live offers' pictures slide. */
+export type OfferPicture = Pick<Offer, 'id' | 'title' | 'starts_at' | 'ends_at'> & { image_url: string }
+
+/**
+ * What plays with the live offers' pictures: each offers slide becomes the picture of each offer on
+ * now, for the slide's own time (else the screen's), in the order they started; none on now, it's
+ * skipped.
+ */
+export function withOfferPictures(slides: PlayedSlide[], pictures: OfferPicture[], now = Date.now()): PlayedSlide[] {
+  const live = pictures.filter(p => Date.parse(p.starts_at) <= now && now < Date.parse(p.ends_at))
+    .sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at))
+  return slides.flatMap(s => (s.kind !== 'offers' ? [s] : live.map(p => ({
+    ...s, kind: 'image' as const, id: `${s.id}:${p.id}`, url: p.image_url, title: p.title, live: false,
+  }))))
+}
+
+// Short links ---------------------------------------------------------------------------------
+
+/**
+ * The business whose short links need no number: Easy Beans, business 1, whose TV opened
+ * …/display-menu before there were screens. Its first screen also opens at the bare /display-menu.
+ */
+export const HOME_BUSINESS = 1
+/** A link name: small letters, numbers and dashes, starting with a letter (a number in a link is a business's). */
+export const LINK_NAME = /^[a-z]([a-z0-9-]{0,38}[a-z0-9])?$/
+/** What a short link starts with, for each kind. */
+export const LINK_PREFIX: Record<ScreenKind, string> = { screen: '/display-menu', slideshow: '/slideshow' }
+
+/** A link name from what's typed or a name, as the database makes it: "Café TV" → "cafe-tv". */
+export function linkName(typed: string): string {
+  const s = typed.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+  return (/^[a-z]/.test(s) ? s : s ? `screen-${s}` : '').slice(0, 40).replace(/-+$/, '')
+}
+
+/**
+ * A screen's short link (the path): /display-menu/cafe-tv, or /slideshow/offers; for another business
+ * /display-menu/2/bar-tv. `main`: the business's first screen, which also opens at /display-menu
+ * (/display-menu/2 for business 2).
+ */
+export function shortLinkPath(s: Pick<Screen, 'slug' | 'kind'>, business: number | undefined, main = false): string {
+  const own = !business || business === HOME_BUSINESS ? '' : `/${business}`
+  if (main && s.kind === 'screen') return `${LINK_PREFIX.screen}${own}`
+  return `${LINK_PREFIX[s.kind]}${own}/${s.slug}`
+}
+
+/**
+ * Which screen a short link is for: its business, and its link name; without one, the business's
+ * first screen (or first slideshow, for /slideshow). Null: not a short link.
+ */
+export function parseShortLink(path: string): { business: number; name: string | null; kind: ScreenKind } | null {
+  const m = path.match(/^\/(display-menu|slideshow)(?:\/([1-9]\d{0,8}))?(?:\/([a-z0-9-]{1,40}))?\/?$/)
+  if (!m) return null
+  if (m[3] && !LINK_NAME.test(m[3])) return null
+  return { business: m[2] ? Number(m[2]) : HOME_BUSINESS, name: m[3] ?? null, kind: m[1] === 'slideshow' ? 'slideshow' : 'screen' }
+}
+
+/** Whether a page's path is a screen's short link (no sign-in). */
+export const isShortLink = (path: string) => /^\/(display-menu|slideshow)(\/|$)/.test(path)

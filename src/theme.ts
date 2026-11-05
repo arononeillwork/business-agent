@@ -113,13 +113,13 @@ export const theme = createTheme({
     h1: display, h2: display, h3: display,
     h4: { ...display, fontSize: '1.95rem', lineHeight: 1.2, letterSpacing: '-0.015em' },
     h5: { ...display, fontSize: '1.4rem', lineHeight: 1.3 },
-    h6: { fontFamily: fonts.text, fontWeight: 500, fontSize: '1.05rem', lineHeight: 1.4, letterSpacing: 0 },
-    subtitle1: { fontWeight: 500 },
-    subtitle2: { fontWeight: 500, fontSize: '0.9rem' },
+    h6: { fontFamily: fonts.text, fontWeight: 500, fontSize: '1.05rem', lineHeight: 1.45, letterSpacing: 0 },
+    subtitle1: { fontWeight: 500, lineHeight: 1.5 },
+    subtitle2: { fontWeight: 500, fontSize: '0.9rem', lineHeight: 1.5 },
     body1: { lineHeight: 1.65 },
     body2: { lineHeight: 1.6 },
     overline: { fontFamily: fonts.text, fontWeight: 500, letterSpacing: '0.08em', fontSize: '0.7rem', lineHeight: 1.6 },
-    caption: { fontSize: '0.8rem', lineHeight: 1.45 },
+    caption: { fontSize: '0.8rem', lineHeight: 1.5 },
     button: { fontFamily: fonts.text, textTransform: 'none', fontWeight: 500, letterSpacing: 0 },
   },
   components: {
@@ -149,6 +149,9 @@ export const theme = createTheme({
           // A soft wash of the brand pink at the top of every page instead of flat beige.
           backgroundImage: tokens.backdrop, backgroundRepeat: 'no-repeat', transition: 'background-color .3s ease' },
         '::selection': { background: 'rgba(247,155,164,0.35)' },
+        // Headings break into even lines, and paragraphs don't end on a word on its own.
+        'h1, h2, h3, h4, h5, h6': { textWrap: 'balance' },
+        'p, li, dd, figcaption': { textWrap: 'pretty' },
         ':focus-visible': { outline: `2px solid ${tokens.roseDeep}`, outlineOffset: 2 },
       },
     },
@@ -175,7 +178,7 @@ export const theme = createTheme({
           boxShadow: `inset 0 1px 0 ${tokens.edge}, 0 1px 2px rgba(120,72,60,0.04), 0 12px 32px -18px ${tokens.shadow}` },
       },
     },
-    MuiCardContent: { styleOverrides: { root: { padding: 22, '&:last-child': { paddingBottom: 22 } } } },
+    MuiCardContent: { styleOverrides: { root: { padding: 24, '&:last-child': { paddingBottom: 24 } } } },
     MuiPaper: { styleOverrides: { root: { backgroundImage: 'none' } } },
     MuiTextField: { defaultProps: { size: 'small', fullWidth: true } },
     MuiOutlinedInput: {
@@ -187,6 +190,10 @@ export const theme = createTheme({
       },
     },
     MuiInputLabel: { styleOverrides: { root: { '&.Mui-focused': { color: tokens.roseDeep } } } },
+    // A field's hint sits a little apart from it and reads as a sentence; a switch's or a box's label lines up with it.
+    MuiFormHelperText: { styleOverrides: { root: { marginTop: 6, marginInline: 4, lineHeight: 1.45, fontSize: '0.78rem' } } },
+    MuiFormControlLabel: { styleOverrides: { root: { marginRight: 20 }, label: { lineHeight: 1.45, paddingBlock: 4 } } },
+    MuiListItemText: { styleOverrides: { secondary: { marginTop: 2, lineHeight: 1.5 } } },
     MuiCheckbox: { styleOverrides: { root: { '&.Mui-checked': { color: tokens.roseDeep } } } },
     MuiRadio: { styleOverrides: { root: { '&.Mui-checked': { color: tokens.roseDeep } } } },
     MuiSwitch: {
@@ -196,7 +203,7 @@ export const theme = createTheme({
     },
     MuiChip: { styleOverrides: { root: { borderRadius: 999, fontWeight: 500, fontSize: '0.78rem' }, sizeSmall: { height: 22 } } },
     MuiAlert: {
-      styleOverrides: { root: { borderRadius: 14, alignItems: 'center' } },
+      styleOverrides: { root: { borderRadius: 14, alignItems: 'center', paddingInline: 18 }, message: { lineHeight: 1.55, paddingBlock: 10 } },
       variants: [
         { props: { variant: 'standard', severity: 'info' }, style: { background: tokens.infoBg, color: tokens.infoFg, border: `1px solid ${tokens.line}` } },
         { props: { variant: 'standard', severity: 'warning' }, style: { background: tokens.warnBg, color: tokens.warnFg, border: `1px solid ${tokens.line}` } },
@@ -216,7 +223,7 @@ export const theme = createTheme({
     MuiDialog: { styleOverrides: { paper: { borderRadius: 24, border: `1px solid ${tokens.line}`, backgroundColor: tokens.surface,
       backgroundImage: tokens.sheen, boxShadow: `inset 0 1px 0 ${tokens.edge}, 0 24px 64px -24px ${tokens.shadow}` } } },
     MuiDialogTitle: { styleOverrides: { root: { ...display, fontSize: '1.2rem', paddingTop: 24 } } },
-    MuiTooltip: { styleOverrides: { tooltip: { background: '#2B2522', fontSize: '0.8rem', borderRadius: 10, padding: '8px 10px' } } },
+    MuiTooltip: { styleOverrides: { tooltip: { background: '#2B2522', fontSize: '0.8rem', lineHeight: 1.45, borderRadius: 10, padding: '8px 12px' } } },
     MuiListItemButton: {
       styleOverrides: {
         root: { borderRadius: 12,

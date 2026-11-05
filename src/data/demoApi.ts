@@ -64,7 +64,7 @@ import {
   MAX_PROMPT, PROMPT_IDEAS, designProblem, menuItemProblem, menuSections, modelOf, sizeOf, type MenuDesign, type MenuImage, type MenuItem,
   type MenuKind, type MenuLanguage,
 } from '../../shared/menu'
-import { screenProblem, type DisplayFeed, type Screen } from '../../shared/screens'
+import { HOME_BUSINESS, LINK_NAME, linkName, parseShortLink, screenProblem, type DisplayFeed, type OfferPicture, type Screen } from '../../shared/screens'
 import { offerProblem, type Offer, type ScreenOffer } from '../../shared/offers'
 import type { LatestPosts } from './api'
 import { closingOn, deliveryUseBy, dueLastDayOffers, lastDayNote, lastDayPrice, lastDayRuleProblem, type LastDayRule } from '../../shared/lastDayOffers'
@@ -997,7 +997,7 @@ export function createDemoApi(): Api {
   // Screens: the counter TV plays the menu board, a photo and the website, with the clock and a running line.
   const newToken = () => crypto.randomUUID().replace(/-/g, '')
   const screenList: Screen[] = [{
-    id: 's-counter', name: 'Counter TV', token: 'c0ffee00beef00c0ffee00beef00cafe', orientation: 'landscape', seconds: 10,
+    id: 's-counter', name: 'Counter TV', kind: 'screen', slug: 'counter-tv', token: 'c0ffee00beef00c0ffee00beef00cafe', orientation: 'landscape', seconds: 10,
     transition: 'fade', transition_ms: 800, shuffle: false, fit: 'cover', music_url: null, music_volume: 40, video_sound: false, show_clock: true,
     ticker: 'Today’s special: pumpkin spice latte · Free Wi-Fi: EasyBeans', active: true, last_seen_at: new Date(Date.now() - 40_000).toISOString(), updated_at: daysAgo(1),
     slides: [
@@ -1006,6 +1006,16 @@ export function createDemoApi(): Api {
       { id: 'sl-photo', kind: 'image', url: demoPhoto('Flat white morning', false), design_id: null, title: 'Flat white', seconds: null, live: false, active: true },
       { id: 'sl-web', kind: 'web', url: 'https://www.easybeanscoffee.com/', design_id: null, title: 'Our website', seconds: 15, live: false, active: true },
       { id: 'sl-yt', kind: 'youtube', url: 'https://www.youtube.com/watch?v=jfKfPfyJRdk', design_id: null, title: 'Lo-fi live', seconds: 60, live: false, active: false },
+    ],
+  }, {
+    // The window's picture slideshow: the live offers' pictures, then two photos.
+    id: 's-window', name: 'Window slideshow', kind: 'slideshow', slug: 'window', token: 'feed00c0ffee00feed00c0ffee00feed', orientation: 'portrait', seconds: 8,
+    transition: 'fade', transition_ms: 800, shuffle: false, fit: 'contain', music_url: null, music_volume: 40, video_sound: false, show_clock: false,
+    ticker: null, active: true, last_seen_at: null, updated_at: daysAgo(2),
+    slides: [
+      { id: 'sl-offers', kind: 'offers', url: null, design_id: null, title: null, seconds: null, live: false, active: true },
+      { id: 'sl-latte', kind: 'image', url: demoPhoto('Iced oat latte', true), design_id: null, title: 'Iced oat latte', seconds: null, live: false, active: true },
+      { id: 'sl-beans', kind: 'image', url: demoPhoto('Fresh beans this week', true), design_id: null, title: 'Fresh beans', seconds: null, live: false, active: true },
     ],
   }]
   // Offers & specials: ube latte week coming up on the counter TV, with its story planned; last week's pumpkin spice latte, ended.
@@ -1053,11 +1063,36 @@ export function createDemoApi(): Api {
     const made = new Set([...lastDayMade].filter(k => k.endsWith(`:${today()}`)).map(k => k.split(':')[0]))
     for (const d of dueLastDayOffers(stock, lastDayRuleList, made, business.opening_hours, Date.now(), business.timezone)) startLastDayOffer(d.item, d.rule, d.starts, d.ends)
   }
+  /** As display_feed(): with a live offers' pictures slide, the other offers with a picture that haven't ended and start within two days. */
+  const offerPictures = (s: Screen): OfferPicture[] => !s.slides.some(x => x.kind === 'offers' && x.active) ? [] : offerList
+    .filter(o => o.active && o.image_url && !o.screen_ids.includes(s.id) && Date.parse(o.ends_at) > Date.now() && Date.parse(o.starts_at) < Date.now() + 2 * 86_400_000)
+    .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
+    .map(({ id, title, image_url, starts_at, ends_at }) => ({ id, title, image_url: image_url!, starts_at, ends_at }))
   /** As display_feed(): a screen's offers that haven't ended and start within two days. */
   const screenOffers = (screenId: string): ScreenOffer[] => offerList
     .filter(o => o.active && o.screen_ids.includes(screenId) && Date.parse(o.ends_at) > Date.now() && Date.parse(o.starts_at) < Date.now() + 2 * 86_400_000)
     .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
     .map(({ id, title, details, price, was_price, image_url, starts_at, ends_at, screen_mode, seconds }) => ({ id, title, details, price, was_price, image_url, starts_at, ends_at, screen_mode, seconds }))
+  /** As display_feed(): what a screen's link plays. */
+  const feedOf = (s: Screen | undefined): DisplayFeed => {
+    if (!s) throw new Error('This screen’s link has changed or the screen was removed. Open the new link from the Screens page.')
+    s.last_seen_at = nowIso()
+    menuImages.forEach(progressImage)
+    const { token: _token, last_seen_at: _seen, ...screen } = clone(s)
+    const menus: DisplayFeed['menus'] = {}
+    if (s.active) {
+      for (const sl of s.slides) {
+        for (const m of sl.kind === 'menu' ? [sl.design_id, sl.design_id_es] : []) {
+          const d = menuDesignList.find(x => x.id === m && x.format === 'digital')
+          if (d) menus[d.id] = { design: { ...clone(d), image_url: menuImages.find(i => i.id === d.image_id && i.status === 'ready')?.url ?? null }, items: menuList() }
+        }
+      }
+    }
+    return { screen, sections: [...(settings.menu_sections ?? [])],
+      business: { name: business.name, logo: brand.logo_mark ?? brand.logo, heading_font: brand.heading_font, body_font: brand.body_font, colours: clone(brand.colours) }, menus,
+      allergens: s.active ? displayAllergens() : null, offers: s.active ? (runLastDayOffers(), screenOffers(s.id)) : [],
+      offer_pictures: s.active ? offerPictures(s) : [] }
+  }
   // Cameras: the counter and the terrace, sending a picture every few seconds, with three days of clips (demoCameras).
   const cameraList = demoCameras(Date.now())
   let cameraClipList = demoClips(Date.now(), business.timezone)
@@ -3474,7 +3509,17 @@ export function createDemoApi(): Api {
       if (s.slides.some(x => x.kind === 'menu' && [x.design_id, x.design_id_es].some(m => m && !menuDesignList.some(d => d.id === m && d.format === 'digital')))) {
         throw new Error('Pick one of the digital menus for a menu slide')
       }
-      const tidy = { ...s, name: s.name.trim(), ticker: s.ticker?.trim() || null, music_url: s.music_url?.trim() || null, updated_at: nowIso() }
+      // As the database: the link name tidied, made from the name when there's none, and each the business's own.
+      const typed = s.slug.trim().toLowerCase()
+      if (typed && !LINK_NAME.test(typed)) throw new Error('A link name is up to 40 small letters, numbers and dashes, starting with a letter')
+      if (typed && screenList.some(x => x.slug === typed && x.id !== id)) throw new Error(`Another screen already has the link name “${typed}”`)
+      let slug = typed
+      if (!slug) {
+        const base = (linkName(s.name) || 'screen').slice(0, 34).replace(/-+$/, '')
+        slug = base
+        for (let n = 2; screenList.some(x => x.slug === slug && x.id !== id); n++) slug = `${base}-${n}`
+      }
+      const tidy = { ...s, slug, name: s.name.trim(), ticker: s.ticker?.trim() || null, music_url: s.music_url?.trim() || null, updated_at: nowIso() }
       const existing = id ? screenList.find(x => x.id === id) : undefined
       if (existing) { Object.assign(existing, tidy); return existing.id }
       const made: Screen = { ...tidy, id: uid(), token: newToken(), last_seen_at: null }
@@ -3494,23 +3539,14 @@ export function createDemoApi(): Api {
       return s.token
     },
     async display(token) {
-      const s = screenList.find(x => x.token === token)
-      if (!s) throw new Error('This screen’s link has changed or the screen was removed. Open the new link from the Screens page.')
-      s.last_seen_at = nowIso()
-      menuImages.forEach(progressImage)
-      const { token: _token, last_seen_at: _seen, ...screen } = clone(s)
-      const menus: DisplayFeed['menus'] = {}
-      if (s.active) {
-        for (const sl of s.slides) {
-          for (const m of sl.kind === 'menu' ? [sl.design_id, sl.design_id_es] : []) {
-            const d = menuDesignList.find(x => x.id === m && x.format === 'digital')
-            if (d) menus[d.id] = { design: { ...clone(d), image_url: menuImages.find(i => i.id === d.image_id && i.status === 'ready')?.url ?? null }, items: menuList() }
-          }
-        }
-      }
-      return { screen, sections: [...(settings.menu_sections ?? [])],
-        business: { name: business.name, logo: brand.logo_mark ?? brand.logo, heading_font: brand.heading_font, body_font: brand.body_font, colours: clone(brand.colours) }, menus,
-        allergens: s.active ? displayAllergens() : null, offers: s.active ? (runLastDayOffers(), screenOffers(s.id)) : [] }
+      return feedOf(screenList.find(x => x.token === token))
+    },
+    async displayLink(path) {
+      // The demo is business 1's: its link names, its first screen (or slideshow) without one.
+      const link = parseShortLink(path)
+      const s = !link || link.business !== HOME_BUSINESS ? undefined
+        : link.name ? screenList.find(x => x.slug === link.name) : screenList.find(x => x.kind === link.kind)
+      return feedOf(s)
     },
     async offers() {
       if (!isAdmin()) return []

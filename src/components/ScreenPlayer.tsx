@@ -4,7 +4,7 @@ import { MenuBoard, boardBrand } from './MenuBoard'
 import { OfferBoard } from './OfferBoard'
 import { useTick } from '../app/hooks'
 import { sizeOf } from '../../shared/menu'
-import { musicEmbedUrl, musicKind, playUrl, playedSlides, slideSeconds, type DisplayFeed, type Slide } from '../../shared/screens'
+import { musicEmbedUrl, musicKind, playUrl, playedSlides, slideSeconds, withOfferPictures, type DisplayFeed, type Slide } from '../../shared/screens'
 import { liveOffers, nextChange, withOffers, type OfferSlide } from '../../shared/offers'
 import { formatLocal } from '../../shared/time'
 import { t } from '../i18n'
@@ -15,6 +15,7 @@ import { t } from '../i18n'
 // previews the changes being made (silently: `preview`). Offers (Offers & specials) join the
 // slides at the minute they start and leave at the minute they end, by the screen's own clock.
 // A slide with a Spanish version plays in English, then in Spanish (each version that's switched on).
+// A live offers' pictures slide plays the picture of each offer on now, and nothing when there's none.
 
 type Phase = 'enter' | 'shown' | 'exit'
 type Item = Slide | OfferSlide
@@ -35,17 +36,20 @@ export function ScreenPlayer({ feed, preview = false, onBlocked }: { feed: Displ
   // The offers on now, looked at again the moment the next one starts or ends (at most an hour
   // apart: a timer can't wait for days, and a TV's clock may have moved).
   const offers = feed.offers ?? []
-  const offersKey = JSON.stringify(offers)
+  // The live offers' pictures, for a slide that shows them: each comes and goes with its offer too.
+  const pictures = feed.offer_pictures ?? []
+  const offersKey = JSON.stringify([offers, pictures])
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
-    const at = nextChange(offers, now)
+    const at = nextChange([...offers, ...pictures], now)
     if (at === null) return
     const id = setTimeout(() => setNow(Date.now()), Math.min(Math.max(at - Date.now(), 0), 3_600_000) + 20)
     return () => clearTimeout(id)
   }, [offersKey, now])
   const live = liveOffers(offers, now)
-  const liveKey = JSON.stringify(live)
-  const order = useMemo<Item[]>(() => withOffers(slides, live), [slides, liveKey])
+  const shown = withOfferPictures(slides, pictures, now)
+  const liveKey = JSON.stringify([live, shown.map(x => x.id)])
+  const order = useMemo<Item[]>(() => withOffers(shown, live), [slides, liveKey])
   const [layers, setLayers] = useState<Layer[]>([])
   const at = useRef(-1)
   const keyRef = useRef(0)

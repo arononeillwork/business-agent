@@ -107,7 +107,7 @@ export function StatTile({ label, value, note }: { label: string; value: ReactNo
 
 export function SectionTitle({ children, action }: { children: ReactNode; action?: ReactNode }) {
   return (
-    <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 1.5, gap: 1 }}>
+    <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 1.75, gap: 1.5 }}>
       <Typography variant="h6" component="h2">{children}</Typography>
       {action}
     </Stack>
@@ -124,7 +124,7 @@ export function ErrorBox({ error }: { error: string | null }) {
 
 export function Empty({ children }: { children: ReactNode }) {
   return (
-    <Box sx={{ py: 3, px: 2, textAlign: 'center', color: 'text.secondary', border: '1px dashed', borderColor: 'divider', borderRadius: 3 }}>
+    <Box sx={{ py: 3.5, px: { xs: 2, sm: 3 }, textAlign: 'center', color: 'text.secondary', border: '1px dashed', borderColor: 'divider', borderRadius: 3, lineHeight: 1.6 }}>
       {children}
     </Box>
   )
@@ -165,7 +165,7 @@ const FLAG_TONE: Record<string, { fg: string; bg: string }> = {
 /** Soft status tag. */
 export function Tag({ children, fg = tokens.neutralFg, bg = tokens.neutralBg }: { children: ReactNode; fg?: string; bg?: string }) {
   return (
-    <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', px: 1, py: 0.25, borderRadius: 1.5,
+    <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', px: 1.1, py: 0.25, borderRadius: 1.5,
       fontSize: '0.72rem', fontWeight: 500, color: fg, bgcolor: bg, whiteSpace: 'nowrap', lineHeight: 1.6 }}>
       {children}
     </Box>

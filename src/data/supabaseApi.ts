@@ -951,6 +951,13 @@ export function createSupabaseApi(url: string, key: string): Api {
       if (!res.ok) throw new Error(json.error ?? `The slides couldn’t be loaded (${res.status})`)
       return json
     },
+    async displayLink(path) {
+      // A short link: the Worker finds the screen by the business and link name in it.
+      const res = await fetch(`/api${path.replace(/[^\w/-]/g, '')}`, { cache: 'no-store' })
+      const json = await res.json().catch(() => ({})) as DisplayFeed & { error?: string }
+      if (!res.ok) throw new Error(json.error ?? `The slides couldn’t be loaded (${res.status})`)
+      return json
+    },
     async offers() {
       return check(await sb.from('offers').select('id, title, details, price, was_price, image_url, starts_at, ends_at, screen_ids, screen_mode, seconds, post_id, active, updated_at, stock_item_id, last_day_rule_id, auto_for')
         .order('starts_at', { ascending: false }).limit(500)) as Offer[]

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { ScreenPlayer } from '../components/ScreenPlayer'
-import type { DisplayFeed } from '../../shared/screens'
+import { isShortLink, type DisplayFeed } from '../../shared/screens'
 import { t } from '../i18n'
 
 const CACHE = (token: string) => `eb-display-${token}`
@@ -14,14 +14,17 @@ function cached(token: string): DisplayFeed | null {
 }
 
 /**
- * A screen's own page (/display/<link>), opened once in the TV's or tablet's browser, with no
- * sign-in: it plays the screen's slides full screen, asks for changes every minute, keeps the
- * screen awake, and carries on with the last slides it had when the network drops.
+ * A screen's own page (/display/<link>, or its short link /display-menu/<name> or /slideshow/<name>),
+ * opened once in the TV's or tablet's browser, with no sign-in: it plays the screen's slides full
+ * screen, asks for changes every minute, keeps the screen awake, and carries on with the last slides
+ * it had when the network drops.
  */
 export function DisplayPage() {
   const { api } = useApp()
   const { pathname } = useLocation()
-  const token = pathname.split('/')[2] ?? ''
+  // /display/<token>, or a short link (/display-menu/cafe-tv, /slideshow/offers): kept under its own path.
+  const short = isShortLink(pathname)
+  const token = short ? pathname.replace(/\/+$/, '') : pathname.split('/')[2] ?? ''
   const [feed, setFeed] = useState<DisplayFeed | null>(() => cached(token))
   const [error, setError] = useState<string | null>(null)
   const [blocked, setBlocked] = useState(false)
@@ -29,7 +32,7 @@ export function DisplayPage() {
 
   useEffect(() => {
     let stopped = false
-    const load = () => api.display(token).then(f => {
+    const load = () => (short ? api.displayLink(token) : api.display(token)).then(f => {
       if (stopped) return
       setFeed(f)
       setError(null)
@@ -38,7 +41,7 @@ export function DisplayPage() {
     void load()
     const id = setInterval(load, 60_000)
     return () => { stopped = true; clearInterval(id) }
-  }, [api, token])
+  }, [api, token, short])
 
   useEffect(() => { if (feed) document.title = feed.screen.name }, [feed])
 

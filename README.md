@@ -241,6 +241,15 @@ built-in **AI connector** so owners can run it by talking to Claude.
   switch still turns both off. A picture shown whole ("Show all of it") sits on a blurred copy of itself
   rather than black borders, so a portrait poster suits a landscape TV (`shared/screens.ts`, the
   `screen_languages` migration).
+- Short links and picture slideshows (Screens, admins): each screen has a short link to type on the TV,
+  `/display-menu/<name>` (Easy Beans' first screen also opens at the bare `/display-menu`, the address its TV
+  had before; another business's links carry its number, `/display-menu/2/<name>`), shown with a QR code and
+  changed from its pencil; the secret `/display/<token>` link keeps working as the private one. **New picture
+  slideshow** makes one kept simple, with its own `/slideshow/<name>` link: pictures from the device or by
+  address, as big tiles, and the **Live offers' pictures**, a slide that plays the picture of each offer on
+  now and takes it off when the offer ends (it can go on any screen too). The slides fold up to one line
+  each, and a bar to save follows down the page while there are changes (`shared/screens.ts`,
+  `worker/screens.ts`, the `screen_links` migration).
 - Offers & specials (Marketing section, admins): a special or an offer for a set time (an hour, until
   the end of the day, 24 hours like a story, a week, or until a time picked), with its price, what it
   usually costs crossed out, details and a photo. It shows on the screens picked from the minute it
