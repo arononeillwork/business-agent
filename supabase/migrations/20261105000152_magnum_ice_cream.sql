@@ -1,10 +1,10 @@
 -- Easy Beans (business 1): The Magnum Ice Cream Company (Frigo, Carte D'Or Professional, Ben & Jerry's,
--- Calippo), from the business card of Oscar Gutiérrez Sánchez, their Sales Developer - IC. Added on
--- Suppliers, with Oscar as the contact, and on Contacts (the `business_contacts` migration), so he's
--- found by his name as well as by the company. When the café has added either already, its empty
--- details are filled in and nothing else changes. Easy Beans is business 1 when it's named so or Aron
--- is on its team (as in the `coffee_suppliers` migration); anywhere else nothing changes, and running it
--- again changes nothing.
+-- Calippo), from the business card of Oscar Gutiérrez Sánchez, their Sales Developer - IC, who answers on
+-- WhatsApp at his mobile. Added on Suppliers, with Oscar as the contact, and on Contacts (the
+-- `business_contacts` migration), so he's found by his name as well as by the company. When the café
+-- has added either already, its empty details are filled in (and WhatsApp ticked when it's his number)
+-- and nothing else changes. Easy Beans is business 1 when it's named so or Aron is on its team (as in
+-- the `coffee_suppliers` migration); anywhere else nothing changes, and running it again changes nothing.
 do $$
 declare
   v_name    constant text := 'Magnum Ice Cream Company';
@@ -32,14 +32,15 @@ begin
    order by s.active desc, s.created_at
    limit 1;
   if v_sup is null then
-    insert into public.suppliers (business_id, name, kind, supplies, contact_name, phone, email, website, notes)
-    values (1, v_name, 'Ice cream', array['food'], v_person, v_phone, v_email, v_website,
+    insert into public.suppliers (business_id, name, kind, supplies, contact_name, phone, whatsapp, email, website, notes)
+    values (1, v_name, 'Ice cream', array['food'], v_person, v_phone, true, v_email, v_website,
             v_brands || ' ' || v_person || ' is their Sales Developer - IC.');
   else
     update public.suppliers
        set kind = coalesce(kind, 'Ice cream'),
            contact_name = coalesce(contact_name, v_person),
            phone = coalesce(phone, v_phone),
+           whatsapp = whatsapp or regexp_replace(coalesce(phone, v_phone), '\D', '', 'g') = '34629710587',
            email = coalesce(email, v_email),
            website = coalesce(website, v_website),
            notes = coalesce(notes, v_brands || ' ' || v_person || ' is their Sales Developer - IC.')
@@ -56,13 +57,14 @@ begin
    order by c.created_at
    limit 1;
   if v_contact is null then
-    insert into public.business_contacts (business_id, name, job, company, phone, email, website, notes)
-    values (1, v_person, 'Sales Developer - IC', v_name, v_phone, v_email, v_website, v_brands || ' Also on Suppliers.');
+    insert into public.business_contacts (business_id, name, job, company, phone, whatsapp, email, website, notes)
+    values (1, v_person, 'Sales Developer - IC', v_name, v_phone, true, v_email, v_website, v_brands || ' Also on Suppliers.');
   else
     update public.business_contacts
        set job = coalesce(job, 'Sales Developer - IC'),
            company = coalesce(company, v_name),
            phone = coalesce(phone, v_phone),
+           whatsapp = whatsapp or regexp_replace(coalesce(phone, v_phone), '\D', '', 'g') = '34629710587',
            email = coalesce(email, v_email),
            website = coalesce(website, v_website)
      where id = v_contact;
