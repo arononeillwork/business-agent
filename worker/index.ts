@@ -32,6 +32,7 @@ import { clearOldCache } from './cache'
 import { website } from './website'
 import { checkWaitingImages, menu, syncSquareMenuIfChosen } from './menu'
 import { screens } from './screens'
+import { site } from './site'
 import { cameras, purgeCameraClips } from './cameras'
 import { competitors, watchCompetitors } from './competitors'
 import { push, pushNotifications } from './push'
@@ -294,6 +295,9 @@ app.route('/', socialAnalytics)
 // Menu page: AI images through Higgsfield, kept in the café's storage; Screens: each screen's link.
 app.route('/', menu)
 app.route('/', screens)
+
+// The business's own website: its menu, read with no sign-in once the business turns it on (worker/site.ts).
+app.route('/', site)
 
 // Cameras: what the camera upload server passes on (video into the business's storage), and the Cameras page.
 app.route('/', cameras)

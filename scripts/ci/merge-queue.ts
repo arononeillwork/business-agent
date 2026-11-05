@@ -55,15 +55,18 @@ const has = (bodies: string[], kind: Kind, head: string, main?: string) => bodie
 const say = (pr: number, text: string, kind?: Kind, head?: string, main?: string) =>
   post(`/issues/${pr}/comments`, { body: kind && head ? `${text}\n\n${marker(kind, head, main)}` : text })
 
-interface CheckRun { name: string; status: string; conclusion: string | null; started_at: string }
+interface CheckRun { name: string; status: string; conclusion: string | null; started_at: string; check_suite?: { id: number } | null }
 
 /** The pull request's own CI on its latest commit: everything finished and nothing red. Per check,
  *  the latest run that wasn't skipped counts (a re-run replaces a failure; the pull_request copy of
- *  CI skips itself for branches here). */
-export function checksState(runs: CheckRun[]): 'green' | 'waiting' | 'red' {
+ *  CI skips itself for branches here). The queue's own jobs (`queueSuites`: their check suites) aren't
+ *  its CI: a round the pull request starts (marked ready, a push, a label) runs them on its commit, and
+ *  while that round looked, its own running job made the pull request look as if CI were still going,
+ *  so one marked ready after its CI had finished waited for the hourly round. */
+export function checksState(runs: CheckRun[], queueSuites: ReadonlySet<number> = new Set()): 'green' | 'waiting' | 'red' {
   const latest = new Map<string, CheckRun>()
   for (const r of runs) {
-    if (r.conclusion === 'skipped') continue
+    if (r.conclusion === 'skipped' || (r.check_suite && queueSuites.has(r.check_suite.id))) continue
     const seen = latest.get(r.name)
     if (!seen || r.started_at > seen.started_at) latest.set(r.name, r)
   }
@@ -71,8 +74,15 @@ export function checksState(runs: CheckRun[]): 'green' | 'waiting' | 'red' {
   if (!counted.length || counted.some(r => r.status !== 'completed')) return 'waiting'
   return counted.every(r => r.conclusion === 'success' || r.conclusion === 'neutral') ? 'green' : 'red'
 }
-const ownChecks = async (sha: string) =>
-  checksState((await api(`/commits/${sha}/check-runs?filter=all&per_page=100`) as { check_runs: CheckRun[] }).check_runs)
+const QUEUE_WORKFLOW = '.github/workflows/merge-queue.yml'
+async function ownChecks(sha: string) {
+  const [checks, runs] = await Promise.all([
+    api(`/commits/${sha}/check-runs?filter=all&per_page=100`) as Promise<{ check_runs: CheckRun[] }>,
+    api(`/actions/runs?head_sha=${sha}&per_page=100`) as Promise<{ workflow_runs: { path: string; check_suite_id: number }[] }>,
+  ])
+  const queue = new Set(runs.workflow_runs.filter(r => r.path === QUEUE_WORKFLOW).map(r => r.check_suite_id))
+  return checksState(checks.check_runs, queue)
+}
 
 const migrationsAt = (rev: string) => { try { return lines(git('ls-tree', '--name-only', `${rev}:${MIGRATIONS}`)) } catch { return [] } }
 const showAt = (rev: string, file: string) => { try { return git('show', `${rev}:${file}`) } catch { return '' } }

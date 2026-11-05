@@ -95,6 +95,8 @@ export interface Settings {
   agent_views?: import('./agents').AgentViews | null
   /** The weekly routine on everyone's Calendar and Today (on unless an admin turns it off on Calendar → Routine). */
   routine_on_calendar?: boolean
+  /** The business's own website reads the menu from the app (/api/site/<business>/menu; off unless an admin turns it on on Website & SEO). */
+  website_menu?: boolean
 }
 
 export interface Expense {
