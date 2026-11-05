@@ -24,6 +24,7 @@ import { files } from './files'
 import { legal } from './legal'
 import { invoices } from './invoices'
 import { email } from './email'
+import { reports } from './reports'
 import { serveVideo } from './video'
 import { loyaltyRoutes } from './loyalty'
 import { assistant } from './assistant'
@@ -280,6 +281,8 @@ app.route('/', legal)
 app.route('/', invoices)
 // The Email page: the connected Gmail or Outlook as a list, with filters (admins).
 app.route('/', email)
+// Dashboards → Reports: a report emailed from the connected Gmail or Outlook (admins).
+app.route('/', reports)
 // Square loyalty (the stamp card) and gift cards, for the Loyalty page.
 app.route('/', loyaltyRoutes)
 // The in-app assistant: questions answered by Claude with the person's own tools.

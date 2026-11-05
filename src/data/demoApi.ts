@@ -52,6 +52,7 @@ import { demoChecklistApi } from './demoChecklists'
 import { demoCompanyValuesApi } from './demoCompanyValues'
 import { demoContactsApi } from './demoContacts'
 import { demoFreshApi } from './demoFreshBatches'
+import { reportSendProblem } from '../../shared/reports'
 import { demoQrCodeApi } from './demoQrCodes'
 import { COUNTED, type Contractor, type OutsourcedJob } from '../../shared/outsourcing'
 import { DEFAULT_CONVENIO, contractProblem, type EmploymentContract } from '../../shared/contracts'
@@ -4460,6 +4461,16 @@ export function createDemoApi(): Api {
       const feed = feeds.get(currentUser!)?.business ?? await this.makeCalendarFeed('business')
       if (integ.integrations.find(i => i.provider === app)!.status !== 'connected') setConnection(app, { status: 'pending', connected_at: null, last_error: null, account_label: null })
       return { url: addToCalendarUrl(app, feed), feed }
+    },
+    async sendReport(report) {
+      requireAdmin()
+      const problem = reportSendProblem(report)
+      if (problem) throw new Error(problem)
+      if (!integ.integrations.some(i => (i.provider === 'gmail' || i.provider === 'outlook') && i.status === 'connected')) {
+        throw new Error('No mailbox connected. Connect Gmail or Outlook on the Connections page.')
+      }
+      // As the Worker: one email each (the demo sends nothing).
+      return { sent: [...new Set(report.to.map(x => x.trim().toLowerCase()))], failed: [] }
     },
     async sendTestEmail(to) {
       requireAdmin()

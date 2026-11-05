@@ -7629,6 +7629,63 @@ test.describe('UI round: dashboards, the business advisor and the landing pages'
     await expect(page.getByRole('region', { name: 'Lowest margins' })).toContainText('Pain au chocolat')
   })
 
+  test('dashboards → reports: pick the reports and who gets them (the team, a contact, any address), see the email, send it from the mailbox', async ({ page }) => {
+    await open(page, '/connections')
+    await page.getByRole('region', { name: 'Payments and sales' }).getByRole('button', { name: 'Connect Square' }).click()
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Dashboards' }).click()
+    await page.getByRole('tab', { name: 'Reports' }).click()
+    await expect(page).toHaveURL(/tab=reports/)
+    // No mailbox yet: it says where to connect one, and nothing goes.
+    const email = page.getByRole('region', { name: 'The email' })
+    await expect(email).toContainText('Reports go from the business’s Gmail or Outlook.')
+    await expect(email.getByRole('button', { name: 'Send the report' })).toBeDisabled()
+
+    // The reports: takings and breakeven, low on stock and jobs to start with; this week.
+    const reports = page.getByRole('group', { name: 'Reports' })
+    await expect(reports.getByRole('checkbox', { name: /^Takings and breakeven/ })).toBeChecked()
+    await reports.getByRole('checkbox', { name: /^Freshly made/ }).check()
+    const body = email.getByRole('document', { name: 'What the email says' })
+    await expect(body).toContainText('TAKINGS AND BREAKEVEN')
+    await expect(body).toContainText(/Breakeven: €[\d.,]+ to run the business over \d+ open days/)
+    await expect(body).toContainText('LOW ON STOCK')
+    await expect(body).toContainText(/Caramel syrup: 1 bottles? left/)
+    await expect(body).toContainText('FRESHLY MADE')
+    await expect(body).toContainText('JOBS TO DO')
+    await expect(body).toContainText("Sent by Aron O'Neill from Business Agent.")
+
+    // Who gets it: Maria from the team, Eduardo from the contacts, and the gestoría typed in.
+    await page.getByRole('group', { name: 'The team' }).getByRole('button', { name: 'Maria' }).click()
+    await page.getByRole('group', { name: 'Contacts' }).getByRole('button', { name: 'Eduardo Torquino' }).click()
+    await page.getByRole('textbox', { name: 'Another email address' }).fill('lola@gestoria.es, not-an-address')
+    await page.getByRole('button', { name: 'Add', exact: true }).click()
+    await toast(page, '“not-an-address” isn’t an email address')
+    await page.getByRole('textbox', { name: 'Another email address' }).fill('lola@gestoria.es')
+    await page.getByRole('button', { name: 'Add', exact: true }).click()
+    await expect(page.getByRole('group', { name: 'Other addresses' })).toContainText('lola@gestoria.es')
+    await expect(email).toContainText('To 3 people, one email each')
+
+    // With Gmail connected, it goes: one email each.
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Connections' }).click()
+    await page.getByRole('region', { name: 'Email' }).getByRole('button', { name: 'Connect Gmail' }).click()
+    await expect(page.getByRole('region', { name: 'Email' }).getByRole('article', { name: 'Gmail' })).toContainText('Connected')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Dashboards' }).click()
+    await page.getByRole('tab', { name: 'Reports' }).click()
+    await expect(page.getByRole('region', { name: 'The email' })).toContainText(/To 3 people, one email each · from /)
+    await page.getByRole('button', { name: 'Send the report' }).click()
+    await toast(page, 'Report sent to 3 people')
+    // Remembered for next time.
+    await page.getByRole('tab', { name: 'Dashboards' }).click()
+    await page.getByRole('tab', { name: 'Reports' }).click()
+    await expect(page.getByRole('group', { name: 'Reports' }).getByRole('checkbox', { name: /^Freshly made/ })).toBeChecked()
+    await expect(page.getByRole('group', { name: 'The team' }).getByRole('button', { name: 'Maria' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  test('dashboards → reports are for admins: the team has no Reports tab', async ({ page }) => {
+    await open(page, '/dashboards?tab=reports', 'maria@example.com')
+    await expect(page.getByRole('tab', { name: 'Reports' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Send the report' })).toHaveCount(0)
+  })
+
   test('dashboards: with a till the takings fill in, against the period before', async ({ page }) => {
     await open(page, '/')
     await connectSquare(page)

@@ -38,6 +38,7 @@ import type { Offer } from '../../shared/offers'
 import type { LatestPosts } from './api'
 import type { LastDayRule } from '../../shared/lastDayOffers'
 import type { FreshBatch } from '../../shared/freshBatches'
+import type { ReportSent } from '../../shared/reports'
 import type { Camera, CameraClip, CameraLive, CameraService } from '../../shared/cameras'
 import type { AdSettings } from '../../shared/ads'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
@@ -1439,6 +1440,7 @@ export function createSupabaseApi(url: string, key: string): Api {
     },
     chooseCalendar: app => worker(`/api/integrations/calendar/${app}/choose`, { method: 'POST' }),
     async sendTestEmail(to) { await worker('/api/integrations/email/test', { method: 'POST', body: JSON.stringify({ to }) }) },
+    async sendReport(report) { return worker<ReportSent>('/api/reports/send', { method: 'POST', body: JSON.stringify(report) }) },
     saveFile: f => worker('/api/integrations/files/save', { method: 'POST', body: JSON.stringify(f) }),
     reviews: () => worker('/api/reviews'),
     async replyReview(id, text) { await worker('/api/reviews/reply', { method: 'PUT', body: JSON.stringify({ id, text }) }) },

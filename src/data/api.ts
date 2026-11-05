@@ -42,6 +42,7 @@ import type { Offer, OfferInput } from '../../shared/offers'
 import type { SourcePost } from '../../shared/offerFromPost'
 import type { LastDayRule, LastDayRuleInput } from '../../shared/lastDayOffers'
 import type { FreshBatch, FreshBatchInput } from '../../shared/freshBatches'
+import type { ReportSend, ReportSent } from '../../shared/reports'
 import type { Camera, CameraClip, CameraInput, CameraLive, CameraService } from '../../shared/cameras'
 import type { AdPlatform, AdSettings, AdsReport, CampaignPatch } from '../../shared/ads'
 import type { ReviewsState } from '../../shared/reviews'
@@ -886,6 +887,8 @@ export interface Api {
   chooseCalendar(app: CalendarApp): Promise<{ url: string; feed: string }>
   /** Send a test email from the connected mailbox. */
   sendTestEmail(to: string): Promise<void>
+  /** Dashboards → Reports (admins): email a report from the connected Gmail or Outlook, one email to each address. */
+  sendReport(report: ReportSend): Promise<ReportSent>
   /** Save a file into "Business Agent/<folder>" in the connected Drive/OneDrive; returns a link to it. */
   saveFile(f: { folder: string; name: string; content: string; type?: string }): Promise<{ link: string; provider: ConnectorProvider }>
   whatsappTest(to: string): Promise<void>

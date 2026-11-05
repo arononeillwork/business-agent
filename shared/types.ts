@@ -213,6 +213,8 @@ export interface Preferences {
   agentView?: string | null
   /** What their calendar shows: the theme days and the weekly routine, and the routine's categories and activities they hid. */
   calendarShow?: import('./routine').CalendarShow
+  /** Dashboards → Reports: the reports, period and people they last sent a report to. */
+  reports?: import('./reports').SavedReports
 }
 
 export interface Position {
