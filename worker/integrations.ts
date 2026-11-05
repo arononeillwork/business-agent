@@ -50,7 +50,7 @@ import { menuSections, type MenuItem } from '../shared/menu'
 
 export { waConfig }
 
-interface ConnectorState { uid: string; kind: 'connector'; provider: Connector; back?: 'setup' | 'connections' | 'invoices' | 'email'; read?: boolean }
+interface ConnectorState { uid: string; kind: 'connector'; provider: Connector; back?: 'setup' | 'connections' | 'invoices' | 'email' | 'content'; read?: boolean }
 
 /** Send an email from the café's connected mailbox (Gmail or Outlook, whichever the business chose). */
 export async function sendEmail(env: Env, db: SupabaseClient, m: { to: string; subject: string; text: string }) {
@@ -413,7 +413,7 @@ integrations.post('/api/integrations/connect/:provider/start', async c => {
  */
 async function finishConnector(c: Ctx, state: ConnectorState) {
   const origin = new URL(c.req.url).origin
-  const back = (q: string) => c.redirect(`${origin}/${state.back === 'setup' ? 'setup' : state.back === 'invoices' ? 'invoices' : state.back === 'email' ? 'email' : 'connections'}?${q}`)
+  const back = (q: string) => c.redirect(`${origin}/${state.back && ['setup', 'invoices', 'email', 'content'].includes(state.back) ? state.back : 'connections'}?${q}`)
   const p = state.provider
   const db = await callbackDb(c.env, state.uid).catch(() => null)
   if (!db) return back(`connect_error=${encodeURIComponent('That connection link expired. Try again.')}`)

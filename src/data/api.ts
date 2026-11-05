@@ -29,6 +29,7 @@ import type { RoutineDone, RoutineItem, RoutineItemInput } from '../../shared/ro
 import type { ChecklistItem, ChecklistItemInput, ChecklistTick } from '../../shared/checklists'
 import type { CompanyValue, CompanyValueInput } from '../../shared/companyValues'
 import type { Contact, ContactInput } from '../../shared/contacts'
+import type { ContentChange, ContentItem, GooglePhotosImport, GooglePhotosPick } from '../../shared/content'
 import type { Contractor, ContractorInput, OutsourcedJob, OutsourcedJobInput } from '../../shared/outsourcing'
 import type { EmploymentContract, EmploymentContractInput } from '../../shared/contracts'
 import type { PnlLine, PnlLineInput, PnlSettings } from '../../shared/pnl'
@@ -322,6 +323,24 @@ export interface Api {
   /** Add one (no id) or change one; returns its id. */
   saveContact(c: ContactInput): Promise<string>
   deleteContact(id: string): Promise<void>
+
+  // Content (Marketing, admins): the business's photos and videos, picked in Google Photos or uploaded,
+  // kept in the café's Drive or OneDrive (Business Agent/Content).
+  contentItems(): Promise<ContentItem[]>
+  /** Keep a photo (JPEG, PNG or WebP) or video (MP4 or MOV) from the device in the café's storage and list it. */
+  uploadContent(file: File, info: { title: string | null; width: number | null; height: number | null }): Promise<ContentItem>
+  /** Its title and tags. */
+  saveContentItem(c: ContentChange): Promise<void>
+  /** Off the page (the file stays in the café's storage). */
+  deleteContentItem(id: string): Promise<void>
+  /** Start picking in Google Photos: the page opens `picker_uri` in a new window. */
+  startGooglePhotosPick(): Promise<GooglePhotosPick>
+  /** Whether the admin has finished picking. */
+  googlePhotosPicked(id: string): Promise<{ picked: boolean; poll_ms: number }>
+  /** Bring in a few of what was picked; ask again while `left` is above 0, passing the ids skipped so far. */
+  importGooglePhotos(id: string, skip: string[]): Promise<GooglePhotosImport>
+  /** Give up on a pick (the window was closed without picking). */
+  cancelGooglePhotosPick(id: string): Promise<void>
 
   // Outsourcing (admins; finance partners read): the jobs done by people and firms outside the team,
   // and the catalogue to choose them from.
@@ -866,7 +885,7 @@ export interface Api {
   googleHours(): Promise<OpeningHours>
   disconnect(provider: string): Promise<void>
   /** Start connecting Gmail, Outlook, Google Drive, OneDrive, YouTube Music or Search Console (goes to Google/Microsoft and back). */
-  connectService(provider: ConnectorProvider, back?: 'setup' | 'connections' | 'invoices' | 'email', opts?: { read?: boolean }): Promise<void>
+  connectService(provider: ConnectorProvider, back?: 'setup' | 'connections' | 'invoices' | 'email' | 'content', opts?: { read?: boolean }): Promise<void>
   /** Prove a connection still works, now (the result is also on its card). */
   checkConnection(provider: IntegrationProvider): Promise<Integration | null>
   /** Check every connection that is (or was) working. */

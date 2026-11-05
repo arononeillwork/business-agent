@@ -180,6 +180,16 @@ built-in **AI connector** so owners can run it by talking to Claude.
   (`shared/contacts.ts`, the `business_contacts` migration).
 - A page's own buttons sit on the right, in a row of their own under the top row; on a computer the page's
   title is in the top row, beside the round buttons (`PageHeader` in `src/components/common.tsx`).
+- Content (Marketing section, admins): the business's own photos and videos in one place, ready for
+  posts, offers, the menu and the screens. **From Google Photos** opens Google Photos' own picker (Google
+  Photos is a connection of its own, on Connections → Photos); what's picked is copied into the café's
+  Google Drive or OneDrive (Business Agent/Content), since Google's links last an hour, and listed with
+  when it was taken. Business Agent sees only what's picked, never the rest of the library, and
+  something picked again isn't added twice. **Upload** adds photos (kept as JPEGs) and MP4 or MOV
+  videos from the device. Each has a title and tags to filter by; a few chosen make a post, a reel or a
+  carousel on the Social planner, and each has a link to paste into an offer, a screen or the menu.
+  Taking one off the page leaves the file where it is. Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md)
+  section 21 (`worker/content.ts`, `shared/content.ts`, the `content_library` migration).
 - Outsourcing (Team section, admins; a gestoría with finances access reads): the jobs done for the business by
   people and firms outside the team (social media, the books, cleaning, the windows, the coffee machine's
   service, pest control…). **Active** shows who does each job, the price agreed and how it's charged (a month,
