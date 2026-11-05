@@ -38,6 +38,24 @@ test('the app opens at the sign-in screen and shows nothing before login', async
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
 })
 
+test('a page whose code an update replaced reloads to the new version, and says so when reloading doesn’t help', async ({ page }) => {
+  await open(page)
+  // Gone the first time it's asked for, as in a tab opened before a deploy: the app reloads and opens it.
+  let asked = 0
+  await page.route(/\/src\/pages\/RotaPage\.tsx/, route => (asked++ ? route.continue() : route.abort()))
+  await page.getByRole('link', { name: 'Rota' }).first().click()
+  await expect(page.getByRole('heading', { name: 'Rota' })).toBeVisible()
+  expect(asked).toBeGreaterThan(1)
+  // Still gone after reloading a few times in a row: it says so, and Reload opens it once it's back.
+  await page.evaluate(() => sessionStorage.setItem('reloaded-for-new-version', JSON.stringify({ n: 4, at: Date.now() })))
+  await page.route(/\/src\/pages\/TimecardsPage\.tsx/, route => route.abort())
+  await page.getByRole('link', { name: 'Timecards' }).first().click()
+  await expect(page.getByRole('alert').filter({ hasText: 'This page didn’t open' })).toBeVisible()
+  await page.unroute(/\/src\/pages\/TimecardsPage\.tsx/)
+  await page.getByRole('button', { name: 'Reload' }).click()
+  await expect(page.getByRole('heading', { name: 'Timecards' })).toBeVisible()
+})
+
 async function signInAs(page: Page, email: string) {
   await page.getByRole('button', { name: 'Sign out' }).first().click()
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()

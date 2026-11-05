@@ -7,7 +7,7 @@
 // Creates @business-agent.test accounts and removes them and their data afterwards.
 import { createHash, randomBytes } from 'node:crypto'
 import { expect as baseExpect, test, type APIRequestContext, type Page } from '@playwright/test'
-import { EMPLOYEE_PIN, HOOK_TIMEOUT, PASSWORD, USERS, cleanUp, hiddenPages, liveConfig, openFromMenu, recordNetwork, service, setUp, signedIn, type LiveConfig, type UserKey } from './live/fixtures'
+import { EMPLOYEE_PIN, FIRST_SCREEN, HOOK_TIMEOUT, PASSWORD, USERS, cleanUp, hiddenPages, liveConfig, openFromMenu, recordNetwork, service, setUp, signedIn, type LiveConfig, type UserKey } from './live/fixtures'
 
 // Every step here waits on the real Supabase. Its own logs show its sign-in service taking 2–3 s
 // (and up to 6 s) while these tests create and delete their accounts, so allow 10 s like the
@@ -56,7 +56,7 @@ test.describe('sign-in and time tracking', () => {
 
   test('employee signs in, clocks in without a shift (flagged), takes a break and clocks out', async ({ page }) => {
     await signInUi(page, 'employee')
-    await expect(page.getByRole('heading', { name: 'Hola, Eva' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Hola, Eva' })).toBeVisible(FIRST_SCREEN)
     await expect(page.getByText('Demo mode')).toHaveCount(0)
 
     await page.getByRole('button', { name: 'Clock in' }).click()
@@ -133,7 +133,7 @@ test.describe('sign-in and time tracking', () => {
     // She's in no business, so the database shows her none: the app must not take that for signed out.
     // (Only looked at: adding one here would put a business in the live database.)
     await signInUi(page, 'newcomer')
-    await expect(page.getByRole('heading', { name: 'Welcome, Nina. Let’s set up your business.' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Welcome, Nina. Let’s set up your business.' })).toBeVisible(FIRST_SCREEN)
     await expect(page.getByRole('button', { name: 'Add my business' })).toBeVisible()
     await expect(page.getByText(USERS.newcomer.email).first()).toBeVisible()
     await page.getByRole('button', { name: 'Sign out' }).click()
@@ -142,7 +142,7 @@ test.describe('sign-in and time tracking', () => {
 
   test('café tablet account only shows the kiosk, and punches with a PIN', async ({ page }) => {
     await signInUi(page, 'kiosk')
-    await expect(page.getByText('Tap your name')).toBeVisible()
+    await expect(page.getByText('Tap your name')).toBeVisible(FIRST_SCREEN)
     await expect(page.getByRole('link', { name: 'Rota' })).toHaveCount(0)
 
     await page.getByRole('button').filter({ hasText: 'Eva' }).first().click()
