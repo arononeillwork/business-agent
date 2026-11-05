@@ -4981,7 +4981,11 @@ test.describe('menu, menu design and screens', () => {
     await open(page, '/screens')
     await expect(page.getByRole('heading', { name: 'Screens', level: 1 })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Counter TV', exact: true })).toContainText('On now')
-    await expect(page.getByRole('textbox', { name: 'The screen’s link' })).toHaveValue(/\/display\/c0ffee00beef00c0ffee00beef00cafe$/)
+    // Its short link: the first screen's opens at /display-menu; its secret link still works, kept private.
+    await expect(page.getByRole('textbox', { name: 'The screen’s link' })).toHaveValue(/\/display-menu$/)
+    await expect(page.getByRole('region', { name: 'The screen and its link' })).toContainText('/display-menu/counter-tv')
+    await page.getByRole('button', { name: 'A private link instead' }).click()
+    await expect(page.getByRole('textbox', { name: 'The screen’s private link' })).toHaveValue(/\/display\/c0ffee00beef00c0ffee00beef00cafe$/)
     const preview = page.getByRole('region', { name: 'Preview of the screen' })
     // Today's last-day offer (the butter croissants) comes first, for 15 seconds.
     await expect(preview).toContainText('Butter croissants')
@@ -5017,6 +5021,8 @@ test.describe('menu, menu design and screens', () => {
   test('a slide in English and Spanish: a tab each, with its own address and its own switch', async ({ page }) => {
     await open(page, '/screens')
     const web = page.getByRole('article', { name: 'Our website' })
+    await expect(web).toContainText('Web page')
+    await web.getByRole('button', { name: 'Edit Our website' }).click()
     await expect(web.getByRole('tab', { name: /^English/ })).toHaveAttribute('aria-selected', 'true')
     await expect(web.getByRole('textbox', { name: 'Address in English' })).toHaveValue('https://www.easybeanscoffee.com/')
     await expect(web).toContainText('Plays in English only')
@@ -5067,6 +5073,71 @@ test.describe('menu, menu design and screens', () => {
     await expect(page.getByRole('navigation', { name: 'Main' })).toHaveCount(0)
     await page.goto('/display/0123456789abcdef0123456789abcdef?demo')
     await expect(page.getByText('This screen’s link has changed or the screen was removed.')).toBeVisible()
+  })
+
+  test('a screen’s short link: /display-menu plays the first screen, a link name the screen it names, with no sign-in', async ({ page }) => {
+    await page.clock.install({ time: WED_0900 })
+    await page.goto('/display-menu?demo')
+    await expect(page.getByText('Butter croissants')).toBeVisible()
+    await page.clock.fastForward('00:00:16')
+    await expect(page.getByText('Iced matcha latte')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Sign in' })).toHaveCount(0)
+    await page.goto('/display-menu/counter-tv?demo')
+    await expect(page.getByText('Today’s special: pumpkin spice latte · Free Wi-Fi: EasyBeans')).toBeVisible()
+    // The window's picture slideshow: the live offers' pictures first (today's croissants), then its photos.
+    await page.goto('/slideshow/window?demo')
+    await expect(page.getByRole('img', { name: 'Butter croissants' })).toBeVisible()
+    await page.clock.fastForward('00:00:09')
+    await expect(page.getByRole('img', { name: 'Iced oat latte' })).toBeVisible()
+    await page.goto('/display-menu/nope?demo')
+    await expect(page.getByText('This screen’s link has changed or the screen was removed.')).toBeVisible()
+  })
+
+  test('a picture slideshow: a link of its own, pictures from the device or an address, and the live offers’ pictures', async ({ page }) => {
+    const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64')
+    await open(page, '/connections')
+    // Storage connected, so pictures from the device can be kept.
+    await page.getByRole('region', { name: 'Files and storage' }).getByRole('button', { name: 'Connect Google Drive' }).click()
+    await expect(page.getByRole('region', { name: 'Files and storage' }).getByRole('article', { name: 'Google Drive' })).toContainText('Connected')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Screens' }).click()
+
+    // The window's: its link, and the live offers' pictures with today's croissants on now.
+    await page.getByRole('region', { name: 'Picture slideshows' }).getByRole('button', { name: 'Window slideshow' }).click()
+    await expect(page.getByRole('textbox', { name: 'The screen’s link' })).toHaveValue(/\/slideshow\/window$/)
+    await expect(page.getByRole('article', { name: 'Live offers’ pictures' })).toContainText('1 offer on now')
+    await expect(page.getByRole('region', { name: 'Preview of the screen' }).getByRole('img', { name: 'Butter croissants' })).toBeVisible()
+
+    // A new one, with its own link.
+    await page.getByRole('button', { name: 'New picture slideshow' }).click()
+    const dialog = page.getByRole('dialog', { name: 'New picture slideshow' })
+    await dialog.getByRole('textbox', { name: 'Name' }).fill('Terrace pictures')
+    await expect(dialog).toContainText('Its link: /slideshow/terrace-pictures')
+    await dialog.getByRole('button', { name: 'Add', exact: true }).click()
+    await toast(page, 'Added Terrace pictures')
+    await expect(page.getByRole('region', { name: 'Picture slideshows' }).getByRole('button', { name: 'Terrace pictures' })).toContainText('/slideshow/terrace-pictures')
+    await expect(page.getByRole('textbox', { name: 'The screen’s link' })).toHaveValue(/\/slideshow\/terrace-pictures$/)
+
+    // A picture from this device, and one by its address.
+    await page.getByLabel('Pictures from this device').setInputFiles({ name: 'terrace.png', mimeType: 'image/png', buffer: PNG })
+    await expect(page.getByRole('article', { name: 'terrace' })).toBeVisible()
+    await page.getByRole('textbox', { name: 'Paste an address' }).fill('cdn.example.com/sunset.jpg')
+    await page.getByRole('button', { name: 'Add picture', exact: true }).click()
+    await expect(page.getByRole('article', { name: 'https://cdn.example.com/sunset.jpg' })).toBeVisible()
+    await page.getByRole('button', { name: 'Save changes' }).click()
+    await toast(page, 'Saved. The screen shows the changes within a minute.')
+    await expect(page.getByRole('button', { name: 'Terrace pictures', exact: true })).toContainText('3 pictures')
+
+    // A shorter link name; one another screen has is refused.
+    await page.getByRole('button', { name: 'Change the link name' }).click()
+    const rename = page.getByRole('dialog', { name: 'Change the link name' })
+    await rename.getByRole('textbox', { name: 'Link name' }).fill('window')
+    await rename.getByRole('button', { name: 'Save' }).click()
+    await toast(page, 'Another screen already has the link name “window”')
+    await rename.getByRole('textbox', { name: 'Link name' }).fill('terrace')
+    await rename.getByRole('button', { name: 'Save' }).click()
+    await toast(page, 'Saved. Open the new link on the screen: the old short link no longer works.')
+    await expect(page.getByRole('textbox', { name: 'The screen’s link' })).toHaveValue(/\/slideshow\/terrace$/)
+    await expect(page.getByText('Unsaved changes')).toHaveCount(0)
   })
 })
 

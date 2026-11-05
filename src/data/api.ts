@@ -655,6 +655,8 @@ export interface Api {
   newScreenLink(id: string): Promise<string>
   /** What a screen's link plays (no sign-in needed). */
   display(token: string): Promise<DisplayFeed>
+  /** What a screen's short link plays (/display-menu/cafe-tv, /slideshow/offers; no sign-in needed). */
+  displayLink(path: string): Promise<DisplayFeed>
 
   // Offers & specials (admins): each for a set time, on the screens picked, with its story or post
   // made on the Social planner (saveSocialPost) and remembered on it.

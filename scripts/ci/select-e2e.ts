@@ -64,6 +64,7 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'menu and screens', files: [/(Menu|MenuPrint|Screens|Display)Page/, /pages\/menu\//, /components\/(MenuBoard|ScreenPlayer|AiImages)/, /lib\/googleFont/,
     /shared\/(menu|screens)/], tests: String.raw`menu|screen|Higgsfield` },
   { name: 'screen languages', files: [/ScreenSlideVersions/, /i18n\/es\/screenLanguages/, /shared\/screenLanguages/], tests: String.raw`screen|slide` },
+  { name: 'screen links', files: [/i18n\/es\/screenLinks/, /worker\/screens/], tests: String.raw`screen|slide|offer` },
   { name: 'google maps menu', files: [/MenuPage/], tests: String.raw`Google Maps` },
   { name: 'ads', files: [/AdsPage/, /shared\/ads/], tests: String.raw`ads|campaign|UTM` },
   { name: 'reviews', files: [/(Reviews|Website)Page/, /shared\/(seo|reviews)/], tests: String.raw`review|SEO|website` },

@@ -250,6 +250,34 @@ describe('A screen’s link', () => {
   })
 })
 
+describe('A screen’s short link', () => {
+  const open = (path: string) => screens.request(`${APP}/api${path}`, {}, env, ctx())
+  const playing = async (path: string) => ((await (await open(path)).json()) as { screen?: { name: string } }).screen?.name
+
+  it('finds the screen by the link name in the business the link names; without a name, its first screen (or slideshow)', async () => {
+    db.tables.screens = [
+      { id: 's1', token: 'a'.repeat(32), slug: 'cafe-tv', kind: 'screen', business_id: 1, created_at: '2026-11-01T10:00:00Z' },
+      { id: 's2', token: 'b'.repeat(32), slug: 'cake-promo', kind: 'screen', business_id: 1, created_at: '2026-11-03T10:00:00Z' },
+      { id: 's3', token: 'c'.repeat(32), slug: 'window', kind: 'slideshow', business_id: 1, created_at: '2026-11-04T10:00:00Z' },
+      { id: 's4', token: 'd'.repeat(32), slug: 'cafe-tv', kind: 'screen', business_id: 2, created_at: '2026-11-02T10:00:00Z' },
+    ]
+    db.rpcs.display_feed = ({ p_token }) => ({ screen: { name: `screen ${String(p_token)[0]}`, slides: [] }, business: { name: 'Easy Beans', logo: null }, menus: {} })
+    expect(await playing('/display-menu')).toBe('screen a')
+    expect(await playing('/display-menu/cafe-tv')).toBe('screen a')
+    expect(await playing('/display-menu/cake-promo')).toBe('screen b')
+    expect(await playing('/slideshow/window')).toBe('screen c')
+    expect(await playing('/slideshow')).toBe('screen c')
+    // Another business's: its number in the link; the same name is its own screen.
+    expect(await playing('/display-menu/2/cafe-tv')).toBe('screen d')
+    expect(await playing('/display-menu/2')).toBe('screen d')
+    const res = await open('/display-menu/cafe-tv')
+    expect(res.headers.get('cache-control')).toBe('no-store')
+    for (const gone of ['/display-menu/nope', '/display-menu/3/cafe-tv', '/display-menu/0/cafe-tv', '/display-menu/Cafe%20TV', '/display-menu/2/cake-promo']) {
+      expect((await open(gone)).status, gone).toBe(404)
+    }
+  })
+})
+
 describe('The menu from Square', () => {
   let sent: unknown = null
   beforeEach(async () => {

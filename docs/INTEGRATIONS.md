@@ -716,6 +716,13 @@ stop working. Browsers only play sound after a tap, so a screen with music asks 
 smart TVs and kiosk browsers can be set to allow autoplay. Some websites don't allow being shown
 inside another page (their own setting): use a picture or video of them instead.
 
+Each screen also has a **short link** made from its name (the `screen_links` migration):
+`/display-menu/<name>`, or `/slideshow/<name>` for a picture slideshow, with the business's number
+after the first part for any business but Easy Beans (`/display-menu/2/<name>`); Easy Beans' first
+screen also opens at the bare `/display-menu`. The page asks `GET /api/display-menu/…` (or
+`/api/slideshow/…`), and the Worker finds the screen by its name within the business the link names
+(`worker/screens.ts`), then answers with `display_feed()` as for the secret link.
+
 ## 20. Cameras (Reolink, video kept in the business's own Drive or OneDrive)
 
 The **Cameras** page (Business section, admins) shows each CCTV camera's picture, refreshed every

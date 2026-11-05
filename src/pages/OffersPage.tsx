@@ -97,7 +97,8 @@ export function OffersPage() {
   const [editing, setEditing] = useState<OfferInput | null>(null)
   const [story, setStory] = useState<{ offer: Offer; post: Partial<SocialPost> } | null>(null)
   const [deleting, setDeleting] = useState<Offer | null>(null)
-  // From Instagram: the latest posts to pick one from, and the screens a new offer from it goes on (all that are on, unless one was picked).
+  // From Instagram: the latest posts to pick one from, and the screens a new offer from it goes on (all that are on, unless one was picked;
+  // picture slideshows show the live offers' pictures by themselves).
   const [picking, setPicking] = useState<{ screenId: string | null } | null>(null)
   useTick(30_000)
   const brand = boardBrand(business?.name ?? '', brandRow.data ? { ...brandRow.data, logo: brandRow.data.logo_mark ?? brandRow.data.logo } : null)
@@ -106,7 +107,7 @@ export function OffersPage() {
   const screenList = screens.data ?? []
 
   const startNew = (screenId?: string | null) => setEditing({ ...newOffer(),
-    screen_ids: screenId ? [screenId] : screenList.filter(s => s.active).map(s => s.id) })
+    screen_ids: screenId ? [screenId] : screenList.filter(s => s.active && s.kind !== 'slideshow').map(s => s.id) })
   // From Screens → New offer: a new offer on that screen.
   useEffect(() => {
     if (!params.get('new') || !screens.data) return
@@ -124,7 +125,7 @@ export function OffersPage() {
     await run(async () => {
       const image_url = p.image_url ? await api.keepPostPhoto(p.image_url) : null
       const { length: _length, found: _found, ...o } = offerFromPost({ ...p, image_url },
-        screenId ? [screenId] : screenList.filter(s => s.active).map(s => s.id), ownTimeZone())
+        screenId ? [screenId] : screenList.filter(s => s.active && s.kind !== 'slideshow').map(s => s.id), ownTimeZone())
       setPicking(null)
       setEditing(o)
     })
@@ -191,7 +192,7 @@ export function OffersPage() {
       ) : groups.filter(g => g.list.length).map(g => (
         <Box key={g.state} component="section" aria-label={g.title} sx={{ mb: 3 }}>
           <SectionTitle>{g.title}</SectionTitle>
-          <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)', xl: 'repeat(3, 1fr)' } }}>
+          <Box sx={{ display: 'grid', gap: 2.5, gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 360px), 1fr))' }}>
             {g.list.map(o => (
               <OfferCard key={o.id} offer={o} screens={screenList} post={posts.data?.find(p => p.id === o.post_id) ?? null}
                 onEdit={() => setEditing(inputOf(o))} onStory={() => void makeStory(o)} onDownload={() => void download(o)}
@@ -238,45 +239,47 @@ function OfferCard({ offer: o, screens, post, onEdit, onStory, onDownload, onEnd
   const tone = STATE[state]
   return (
     <Card component="article" aria-label={o.title} variant="outlined" sx={{ display: 'flex', flexDirection: 'column' }}>
-      <Stack direction="row" spacing={1.5} sx={{ p: 2, pb: 1.5 }}>
-        <Box sx={{ width: 72, height: 72, flexShrink: 0, borderRadius: 2, overflow: 'hidden', bgcolor: tokens.surfaceAlt, display: 'grid', placeItems: 'center', color: tokens.inkSoft }}>
+      <Box sx={{ display: 'flex', gap: 2, p: 2.5, pb: 2 }}>
+        <Box sx={{ width: 88, height: 88, flexShrink: 0, borderRadius: 2.5, overflow: 'hidden', bgcolor: tokens.surfaceAlt, display: 'grid', placeItems: 'center', color: tokens.inkSoft }}>
           {o.image_url ? <Box component="img" src={o.image_url} alt="" sx={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <OfferIcon />}
         </Box>
         <Box sx={{ minWidth: 0, flex: 1 }}>
-          <Stack direction="row" sx={{ gap: 1, alignItems: 'baseline', flexWrap: 'wrap' }}>
-            <Typography component="h3" sx={{ fontWeight: 600 }}>{o.title}</Typography>
-            {o.price && <Typography sx={{ fontWeight: 600, color: tokens.roseDeep }}>{o.price}</Typography>}
-            {o.was_price && <Typography component="s" variant="body2" sx={{ color: 'text.secondary' }}>{o.was_price}</Typography>}
-          </Stack>
-          <Typography variant="body2" sx={{ color: 'text.secondary' }}>{span(o)}</Typography>
-          <Stack direction="row" sx={{ mt: 0.75, gap: 0.75, flexWrap: 'wrap' }}>
+          <Typography component="h3" sx={{ fontWeight: 600, lineHeight: 1.35, textWrap: 'balance', overflowWrap: 'anywhere' }}>{o.title}</Typography>
+          {(o.price || o.was_price) && (
+            <Stack direction="row" sx={{ gap: 1, alignItems: 'baseline', flexWrap: 'wrap', mt: 0.5 }}>
+              {o.price && <Typography sx={{ fontWeight: 600, color: tokens.roseDeep }}>{o.price}</Typography>}
+              {o.was_price && <Typography component="s" variant="body2" sx={{ color: 'text.secondary' }}>{o.was_price}</Typography>}
+            </Stack>
+          )}
+          <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>{span(o)}</Typography>
+          <Stack direction="row" sx={{ mt: 1.25, gap: 0.75, flexWrap: 'wrap' }}>
             <Tag fg={tone.fg} bg={tone.bg}>{t(tone.label)}</Tag>
             {o.auto_for && <Tag fg={tokens.infoFg} bg={tokens.infoBg}><AutoIcon sx={{ fontSize: 14, mr: 0.5, verticalAlign: '-2px' }} />{t('Automatic: last day')}</Tag>}
           </Stack>
         </Box>
-      </Stack>
-      <Stack spacing={0.75} sx={{ px: 2, pb: 1.5, flex: 1 }}>
-        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-          <TvIcon fontSize="small" sx={{ color: tokens.inkSoft }} />
+      </Box>
+      <Stack spacing={1.25} sx={{ mx: 2.5, mb: 2, px: 1.75, py: 1.5, borderRadius: 2.5, bgcolor: tokens.surfaceAlt, flex: 1 }}>
+        <Stack direction="row" spacing={1.25} sx={{ alignItems: 'flex-start' }}>
+          <TvIcon fontSize="small" sx={{ color: tokens.inkSoft, mt: 0.25 }} />
           <Typography variant="body2">
             {on.length ? t('On {screens}: {how}', { screens: on.map(s => s.name).join(', '),
               how: o.screen_mode === 'only' ? t('on its own') : t('in turn, {time} each time', { time: secondsText(o.seconds) }) }) : t('Not on a screen')}
           </Typography>
         </Stack>
-        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-          {post?.kind === 'story' || !post ? <StoryIcon fontSize="small" sx={{ color: tokens.inkSoft }} /> : <PostIcon fontSize="small" sx={{ color: tokens.inkSoft }} />}
+        <Stack direction="row" spacing={1.25} sx={{ alignItems: 'flex-start' }}>
+          {post?.kind === 'story' || !post ? <StoryIcon fontSize="small" sx={{ color: tokens.inkSoft, mt: 0.25 }} /> : <PostIcon fontSize="small" sx={{ color: tokens.inkSoft, mt: 0.25 }} />}
           {post ? (
-            <Typography variant="body2">{postText(post)} <Button size="small" component={RouterLink} to="/social" sx={{ py: 0 }}>{t('Open')}</Button></Typography>
+            <Typography variant="body2">{postText(post)} <Button size="small" component={RouterLink} to="/social" sx={{ py: 0, minHeight: 0 }}>{t('Open')}</Button></Typography>
           ) : <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('No story yet')}</Typography>}
         </Stack>
       </Stack>
-      <Stack direction="row" sx={{ gap: 0.5, flexWrap: 'wrap', px: 1.5, pb: 1.5 }}>
-        {!post && state !== 'ended' && <Button size="small" variant="outlined" startIcon={<StoryIcon />} onClick={onStory}>{t('Make its story')}</Button>}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', px: 2, py: 1.5, borderTop: `1px solid ${tokens.line}` }}>
+        {!post && state !== 'ended' && <Button size="small" variant="outlined" startIcon={<StoryIcon />} onClick={onStory} sx={{ mr: 0.5 }}>{t('Make its story')}</Button>}
         <Button size="small" startIcon={<EditIcon />} onClick={onEdit}>{t('Edit')}</Button>
         {state === 'on' && <Button size="small" startIcon={<StopIcon />} onClick={onEnd}>{t('End now')}</Button>}
         <Button size="small" startIcon={<DownloadIcon />} onClick={onDownload}>{t('Picture')}</Button>
-        <Button size="small" color="error" startIcon={<DeleteIcon />} onClick={onDelete} aria-label={t('Delete {name}', { name: o.title })}>{t('Delete')}</Button>
-      </Stack>
+        <Button size="small" color="error" startIcon={<DeleteIcon />} onClick={onDelete} aria-label={t('Delete {name}', { name: o.title })} sx={{ ml: 'auto' }}>{t('Delete')}</Button>
+      </Box>
     </Card>
   )
 }

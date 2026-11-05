@@ -14,6 +14,7 @@ import { NotActive } from './pages/StatusPages'
 import { PlanGate } from './app/plan'
 import { Fragment, lazy, Suspense, useEffect, type ComponentType, type ReactNode } from 'react'
 import { preferredLanguage, setLanguage, useLanguage } from './i18n'
+import { isShortLink } from '../shared/screens'
 
 // Pages load when first opened, so the first screen is quick on phones.
 const page = <K extends string>(load: () => Promise<Record<K, ComponentType>>, name: K) =>
@@ -122,8 +123,9 @@ function Routed() {
   if (pathname === '/tiktok/privacy') return <TikTokPrivacyPage />
   if (pathname === '/pricing') return <PricingPage />
   if (pathname === '/demos') return <DemosPage />
-  // A café screen's own link: no sign-in, the link itself is the screen's secret (Screens page).
-  if (pathname.startsWith('/display/')) return <DisplayPage />
+  // A café screen's own link: no sign-in, the link itself is the screen's secret (Screens page); or its
+  // short link (/display-menu/<name>, /slideshow/<name>).
+  if (pathname.startsWith('/display/') || isShortLink(pathname)) return <DisplayPage />
   // A sales rep's own page: no sign-in, the link itself is the rep's secret (Sales reps & rewards).
   if (pathname.startsWith('/rep/')) return <RepPage />
   if (loading) return <Loading />

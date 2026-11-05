@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   cleanUrl, instagramCode, isOnline, kindOf, loopSeconds, musicEmbedUrl, musicKind, newScreen, playOrder, playUrl, screenProblem, slideProblem, slideSeconds, vimeoId, youtubeId,
   youtubeList, type Slide,
+  HOME_BUSINESS, isShortLink, linkName, offersSlide, parseShortLink, playedSlides, shortLinkPath, withOfferPictures, type OfferPicture,
 } from './screens'
 
 const slide = (p: Partial<Slide>): Slide => ({ id: 's', kind: 'image', url: 'https://x.es/a.jpg', design_id: null, title: null, seconds: null, live: false, active: true, ...p })
@@ -90,5 +91,86 @@ describe('screens', () => {
     expect(musicEmbedUrl('https://youtu.be/jfKfPfyJRdk')).toBe('https://www.youtube-nocookie.com/embed/jfKfPfyJRdk?autoplay=1&loop=1&controls=0&playsinline=1&playlist=jfKfPfyJRdk')
     expect(musicEmbedUrl('https://www.youtube.com/playlist?list=PL9')).toBe('https://www.youtube-nocookie.com/embed/videoseries?list=PL9&autoplay=1&loop=1&controls=0&playsinline=1')
     expect(musicEmbedUrl('https://stream.radio.es/live.mp3')).toBeNull()
+  })
+})
+
+describe('short links', () => {
+  it('makes a link name from a screen’s name, as the database does', () => {
+    expect(linkName('Café TV')).toBe('cafe-tv')
+    expect(linkName('  Counter TV!! ')).toBe('counter-tv')
+    expect(linkName('Menú del día · Barra')).toBe('menu-del-dia-barra')
+    expect(linkName('2x1 window')).toBe('screen-2x1-window')
+    expect(linkName('€€')).toBe('')
+    expect(linkName('a'.repeat(60))).toHaveLength(40)
+  })
+
+  it('needs no business number for Easy Beans, and its first screen opens at the bare /display-menu', () => {
+    const tv = { slug: 'cafe-tv', kind: 'screen' as const }
+    expect(shortLinkPath(tv, HOME_BUSINESS)).toBe('/display-menu/cafe-tv')
+    expect(shortLinkPath(tv, HOME_BUSINESS, true)).toBe('/display-menu')
+    expect(shortLinkPath(tv, 2)).toBe('/display-menu/2/cafe-tv')
+    expect(shortLinkPath(tv, 2, true)).toBe('/display-menu/2')
+    expect(shortLinkPath({ slug: 'window', kind: 'slideshow' }, HOME_BUSINESS, true)).toBe('/slideshow/window')
+    expect(shortLinkPath({ slug: 'window', kind: 'slideshow' }, 7)).toBe('/slideshow/7/window')
+  })
+
+  it('reads a short link back: the business, the link name, and which kind without one', () => {
+    expect(parseShortLink('/display-menu')).toEqual({ business: 1, name: null, kind: 'screen' })
+    expect(parseShortLink('/display-menu/')).toEqual({ business: 1, name: null, kind: 'screen' })
+    expect(parseShortLink('/display-menu/cafe-tv')).toEqual({ business: 1, name: 'cafe-tv', kind: 'screen' })
+    expect(parseShortLink('/display-menu/2/bar-tv')).toEqual({ business: 2, name: 'bar-tv', kind: 'screen' })
+    expect(parseShortLink('/display-menu/2')).toEqual({ business: 2, name: null, kind: 'screen' })
+    expect(parseShortLink('/slideshow/window')).toEqual({ business: 1, name: 'window', kind: 'slideshow' })
+    expect(parseShortLink('/slideshow')).toEqual({ business: 1, name: null, kind: 'slideshow' })
+    for (const bad of ['/display-menu/0/tv', '/display-menu/2tv', '/display-menu/Cafe', '/display-menu/a/b', '/display-menus', '/display/cafe-tv', '/display-menu/tv-']) {
+      expect(parseShortLink(bad), bad).toBeNull()
+    }
+    expect(isShortLink('/display-menu')).toBe(true)
+    expect(isShortLink('/slideshow/window')).toBe(true)
+    expect(isShortLink('/display/c0ffee00beef00c0ffee00beef00cafe')).toBe(false)
+    expect(isShortLink('/display-menus')).toBe(false)
+  })
+
+  it('checks a typed link name', () => {
+    const s = newScreen('Counter TV')
+    expect(screenProblem({ ...s, slug: '' })).toBeNull()
+    expect(screenProblem({ ...s, slug: 'counter-tv' })).toBeNull()
+    expect(screenProblem({ ...s, slug: 'Counter TV' })).toMatch(/link name/)
+    expect(screenProblem({ ...s, slug: '9-tv' })).toMatch(/link name/)
+  })
+})
+
+describe('picture slideshows and the live offers’ pictures', () => {
+  const at = Date.parse('2026-11-05T12:00:00Z')
+  const pic = (id: string, starts: string, ends: string): OfferPicture => ({ id, title: `Offer ${id}`, image_url: `https://x.es/${id}.jpg`, starts_at: starts, ends_at: ends })
+  const pictures = [
+    pic('b', '2026-11-05T10:00:00Z', '2026-11-05T14:00:00Z'),
+    pic('a', '2026-11-05T09:00:00Z', '2026-11-06T09:00:00Z'),
+    pic('later', '2026-11-05T18:00:00Z', '2026-11-05T20:00:00Z'),
+    pic('ended', '2026-11-04T09:00:00Z', '2026-11-05T11:00:00Z'),
+  ]
+
+  it('starts a new slideshow with the live offers’ pictures, shown whole, eight seconds each', () => {
+    const s = newScreen('Window', 'slideshow')
+    expect(s).toMatchObject({ kind: 'slideshow', slug: '', fit: 'contain', seconds: 8 })
+    expect(s.slides.map(x => x.kind)).toEqual(['offers'])
+    expect(newScreen('Counter TV')).toMatchObject({ kind: 'screen', slides: [] })
+  })
+
+  it('plays the picture of each offer on now, in the order they started, in the slide’s place and for its time', () => {
+    const slides = playedSlides([slide({ id: 'p1' }), { ...offersSlide('o'), seconds: 12 }, slide({ id: 'p2' })], false)
+    const shown = withOfferPictures(slides, pictures, at)
+    expect(shown.map(x => x.id)).toEqual(['p1:en', 'o:en:a', 'o:en:b', 'p2:en'])
+    expect(shown[1]).toMatchObject({ kind: 'image', url: 'https://x.es/a.jpg', title: 'Offer a', seconds: 12 })
+    // None on now: the slide is skipped.
+    expect(withOfferPictures(slides, [], at).map(x => x.id)).toEqual(['p1:en', 'p2:en'])
+    // Switched off, it doesn't play.
+    expect(withOfferPictures(playedSlides([{ ...offersSlide('o'), active: false }], false), pictures, at)).toEqual([])
+  })
+
+  it('needs no address, and plays once (the offers bring their own pictures and languages)', () => {
+    expect(slideProblem(offersSlide())).toBeNull()
+    expect(slideProblem({ ...offersSlide(), seconds: 1 })).toMatch(/between 3 seconds/)
+    expect(playedSlides([offersSlide('o')], false).map(x => x.id)).toEqual(['o:en'])
   })
 })
