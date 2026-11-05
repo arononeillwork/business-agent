@@ -34,7 +34,7 @@ import type { Licence } from '../../shared/licences'
 import { DEFAULT_RULES, draw, newEntries, type Competition, type CompetitionEntry } from '../../shared/competitions'
 import { cleanTags, sortEntries, type KeptDocument, type StorageEntry } from '../../shared/documents'
 import { afterPayment, isMoneyLink, paidSoFar, type MoneyItem, type MoneyPayment } from '../../shared/creditDebit'
-import { inStep } from '../../shared/todo'
+import { inStep, planProblem } from '../../shared/todo'
 import { LEGAL_STORAGES, MAX_PICK, SKIPPED, guessKind, previewOf, storageName, titleOf, type LegalDocument, type LegalStorage, type StorageItem } from '../../shared/legalDocs'
 import { ALREADY_ON_BRAND, brandTitleOf, uploadProblem, type BrandDocument } from '../../shared/brandDocs'
 import type { Benefit, LeaveAllowance } from '../../shared/benefits'
@@ -1160,7 +1160,11 @@ export function createDemoApi(): Api {
     ['Order more oat milk', 'Buying', null, null, true, false, false],
   ] as const).map(([title, c, section, assignee, starred, done, pinned], i) => ({ id: `td-${i + 1}`, title, category_id: cat(c), section,
     assignee_id: assignee, done, status: done ? 'done' as const : DOING_NOW.has(title) ? 'doing' as const : 'todo' as const,
-    done_at: done ? nowIso() : null, starred, pinned, position: i + 1, created_at: nowIso() }))
+    done_at: done ? nowIso() : null, starred, pinned, position: i + 1, created_at: nowIso(), planned_on: null, planned_from: null, planned_to: null }))
+  // A few already on the To Do List's calendar: a cold brew test this afternoon, the licence tomorrow morning, the AC some time in two days.
+  Object.assign(todos.find(x => x.title === 'Test a cold brew recipe')!, { planned_on: today(), planned_from: '15:00', planned_to: '16:30' })
+  Object.assign(todos.find(x => x.title === 'Renew the terrace licence')!, { planned_on: addDays(today(), 1), planned_from: '10:00', planned_to: '11:00' })
+  Object.assign(todos.find(x => x.title === 'Get the AC serviced before summer')!, { planned_on: addDays(today(), 2) })
   // Customers and leads: regulars, people who asked about something, and a few businesses to win over.
   const person = (c: Partial<Customer> & { days: number }): Customer => {
     const { days, ...rest } = c
@@ -4316,6 +4320,9 @@ export function createDemoApi(): Api {
       if (!t) throw new Error('That job has gone')
       if (patch.title !== undefined && !patch.title.trim()) throw new Error('A job needs a name')
       if (ownTasksOnly() && patch.assignee_id !== undefined && patch.assignee_id !== currentUser) throw new Error('new row violates row-level security policy for table "todos"')
+      // Like the database: a plan has a day for its time, and ends after it starts.
+      const plan = planProblem({ planned_on: t.planned_on ?? null, planned_from: t.planned_from ?? null, planned_to: t.planned_to ?? null, ...patch })
+      if (plan) throw new Error('new row for relation "todos" violates check constraint "todos_planned"')
       // Like the database: the column and the tick stay in step.
       patch = inStep(t, patch)
       Object.assign(t, patch, patch.title !== undefined ? { title: patch.title.trim() } : {},

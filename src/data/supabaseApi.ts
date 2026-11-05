@@ -1240,10 +1240,13 @@ export function createSupabaseApi(url: string, key: string): Api {
     async todos() {
       const [categories, todos] = await Promise.all([
         sb.from('todo_categories').select('id, name, hint, colour, sort').order('sort').order('name'),
-        sb.from('todos').select('id, title, category_id, section, assignee_id, done, status, done_at, starred, pinned, position, created_at')
+        sb.from('todos').select('id, title, category_id, section, assignee_id, done, status, done_at, starred, pinned, position, created_at, planned_on, planned_from, planned_to')
           .order('position').order('created_at'),
       ])
-      return { categories: check(categories) as TodoCategory[], todos: check(todos) as Todo[] }
+      // Times come back as "10:00:00"; the calendar works in "10:00".
+      const hm = (v: string | null | undefined) => (v ? v.slice(0, 5) : null)
+      return { categories: check(categories) as TodoCategory[],
+        todos: (check(todos) as Todo[]).map(x => ({ ...x, planned_from: hm(x.planned_from), planned_to: hm(x.planned_to) })) }
     },
     async addTodo(t) {
       return check(await sb.from('todos').insert({ title: t.title.trim(), category_id: t.category_id, position: t.position,

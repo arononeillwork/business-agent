@@ -3157,6 +3157,72 @@ test.describe('To Do List', () => {
     await page.getByRole('button', { name: 'Add', exact: true }).click()
     await expect(page.getByText('Restock napkins')).toBeVisible()
   })
+
+  test('calendar: drag jobs from the list onto a day of the month or a time in the week, move them, stretch them, and back off', async ({ page }) => {
+    // Tall enough for the whole month and the week's hours, so the pointer reaches every day.
+    await page.setViewportSize({ width: 1280, height: 1300 })
+    await open(page, '/todo')
+    await page.getByRole('group', { name: 'Show as' }).getByRole('button', { name: 'Calendar', exact: true }).click()
+    const list = page.getByRole('list', { name: 'Jobs to plan' })
+    const job = (name: string) => page.getByRole('button', { name: `${name}: plan it` })
+    // Drag with the pointer the way a person does: pick it up near its top, move a little, then to where it goes.
+    const drag = async (name: string, cell: string, dy: number) => {
+      const from = (await job(name).boundingBox())!, to = (await page.getByRole('gridcell', { name: cell }).boundingBox())!
+      await page.mouse.move(from.x + 20, from.y + 5)
+      await page.mouse.down()
+      await page.mouse.move(from.x + 30, from.y + 12, { steps: 3 })
+      await page.mouse.move(to.x + 30, to.y + dy, { steps: 12 })
+      await page.mouse.up()
+    }
+    // Already planned in the demo: the cold brew test this afternoon, at its time on today's square.
+    const month = page.getByRole('grid', { name: 'Month' })
+    await expect(month.getByRole('gridcell', { name: 'Wednesday 30 September' })).toContainText('15:00Test a cold brew recipe')
+    await expect(list.getByRole('listitem')).toHaveCount(9)
+
+    // The month: onto Friday, some time that day.
+    await drag('Menu board for the counter', 'Friday 2 October', 40)
+    await expect(month.getByRole('gridcell', { name: 'Friday 2 October' })).toContainText('Menu board for the counter')
+    await expect(list.getByRole('listitem')).toHaveCount(8)
+
+    // The week: onto Thursday at 11:00, an hour long; then its bottom edge pulled down to 12:30.
+    await page.getByRole('button', { name: 'Week', exact: true }).click()
+    await expect(page.getByRole('gridcell', { name: 'Friday 2 October, any time' })).toContainText('Menu board for the counter')
+    await drag('Rubbish bin for outside', 'Thursday 1 October, by the hour', 5 * 44 + 5)
+    const thursday = page.getByRole('gridcell', { name: 'Thursday 1 October, by the hour' })
+    await expect(thursday).toContainText('11:00–12:00Rubbish bin for outside')
+    const end = page.getByRole('slider', { name: 'When Rubbish bin for outside ends' })
+    const edge = (await end.boundingBox())!
+    await page.mouse.move(edge.x + edge.width / 2, edge.y + edge.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(edge.x + edge.width / 2, edge.y + edge.height / 2 + 22, { steps: 4 })
+    await page.mouse.up()
+    await expect(end).toHaveAttribute('aria-valuetext', '12:30')
+    await expect(thursday).toContainText('11:00–12:30Rubbish bin for outside')
+    // The keyboard: a quarter hour less with the arrow.
+    await end.press('ArrowUp')
+    await expect(end).toHaveAttribute('aria-valuetext', '12:15')
+
+    // Moved to Tuesday at 09:00: as long as it was.
+    await drag('Rubbish bin for outside', 'Tuesday 29 September, by the hour', 3 * 44 + 5)
+    await expect(page.getByRole('gridcell', { name: 'Tuesday 29 September, by the hour' })).toContainText('09:00–10:15Rubbish bin for outside')
+    await expect(thursday).not.toContainText('Rubbish bin for outside')
+
+    // By hand (a click, for the keyboard and small screens): another time, then off the calendar.
+    await job('Rubbish bin for outside').click()
+    const dialog = page.getByRole('dialog', { name: 'Rubbish bin for outside' })
+    await dialog.getByLabel('From').fill('14:00')
+    await expect(dialog.getByLabel('To')).toHaveValue('15:15')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await expect(page.getByRole('gridcell', { name: 'Tuesday 29 September, by the hour' })).toContainText('14:00–15:15Rubbish bin for outside')
+    await job('Rubbish bin for outside').click()
+    await page.getByRole('dialog', { name: 'Rubbish bin for outside' }).getByRole('button', { name: 'Take off the calendar' }).click()
+    await expect(list.getByRole('button', { name: 'Rubbish bin for outside: plan it' })).toBeVisible()
+
+    // Remembered: back on the list view and to the calendar, it's all where it was left.
+    await page.getByRole('group', { name: 'Show as' }).getByRole('button', { name: 'List', exact: true }).click()
+    await page.getByRole('group', { name: 'Show as' }).getByRole('button', { name: 'Calendar', exact: true }).click()
+    await expect(page.getByRole('gridcell', { name: 'Friday 2 October, any time' })).toContainText('Menu board for the counter')
+  })
 })
 
 test.describe('messages', () => {
