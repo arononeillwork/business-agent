@@ -41,6 +41,7 @@ const TEMPLATE_ICON = { executive: <ExecIcon />, manager: <ManagerIcon />, blank
  * Shop manager template or a blank one, then add, move, resize and remove widgets. Widgets only
  * show what the person may see. Kept in their preferences, on every device they sign in on.
  * Admins also have Reports: the figures written out and emailed to whoever they pick (ReportsTab).
+ * One row of tabs: Reports pinned first (admins), then each dashboard.
  */
 export function DashboardsPage() {
   const { api, me, refresh, isAdmin, isPartner, canSeePay } = useApp()
@@ -85,6 +86,11 @@ export function DashboardsPage() {
   const [params, setParams] = useSearchParams()
   const tab = reportsOn && params.get('tab') === 'reports' ? 'reports' : 'boards'
   const showTab = (v: 'boards' | 'reports') => setParams(p => { if (v === 'reports') p.set('tab', 'reports'); else p.delete('tab'); return p }, { replace: true })
+  /** A dashboard's tab: that dashboard (and off Reports). */
+  const openBoard = (id: string) => {
+    showTab('boards')
+    if (board && id !== board.id) save({ ...saved, open: id })
+  }
   const canShow = (needs: WidgetNeeds[]) => needs.every(n => (n === 'admin' ? isAdmin && !isPartner : n === 'pay' || n === 'sales' ? canSeePay && !isPartner : !isPartner))
 
   return (
@@ -111,18 +117,15 @@ export function DashboardsPage() {
         </Menu>
       </>} />
 
-      {reportsOn && (
-        <Tabs value={tab} onChange={(_, v: 'boards' | 'reports') => showTab(v)} sx={{ mb: 2.5, borderBottom: `1px solid ${tokens.line}` }}>
-          <Tab value="boards" label={t('Dashboards')} />
-          <Tab value="reports" label={t('Reports')} />
+      {/* One row: Reports pinned first (admins), then each dashboard (or, with none yet, the templates to start from). */}
+      {(reportsOn || saved.boards.length > 1) && (
+        <Tabs value={tab === 'reports' ? 'reports' : board?.id ?? 'boards'} onChange={(_, v: string) => (v === 'reports' ? showTab('reports') : openBoard(v))}
+          variant="scrollable" aria-label={t('Dashboards')} sx={{ mb: 2, borderBottom: `1px solid ${tokens.line}` }}>
+          {reportsOn && <Tab value="reports" label={t('Reports')} />}
+          {saved.boards.length ? saved.boards.map(b => <Tab key={b.id} value={b.id} label={b.name} />) : <Tab value="boards" label={t('Dashboards')} />}
         </Tabs>
       )}
       {tab === 'reports' ? <ReportsTab can={canShow} /> : !board ? <TemplatePicker onPick={create} /> : <>
-        {saved.boards.length > 1 && (
-          <Tabs value={board.id} onChange={(_, v: string) => save({ ...saved, open: v })} variant="scrollable" sx={{ mb: 2, borderBottom: `1px solid ${tokens.line}` }}>
-            {saved.boards.map(b => <Tab key={b.id} value={b.id} label={b.name} />)}
-          </Tabs>
-        )}
         {editing && (
           <Card sx={{ mb: 2, bgcolor: tokens.roseSoft, borderColor: tokens.rose }}>
             <CardContent sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center', py: '12px !important' }}>

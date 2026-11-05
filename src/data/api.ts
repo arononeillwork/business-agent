@@ -20,6 +20,7 @@ import type { CrewSuggestion, LoggedReward, RepClaim, RepPageData, RepReward, Re
 import type { KittyEntry, KittyEntryInput, KittyGoal, KittyGoalInput, KittySettings } from '../../shared/kitty'
 import type { ClockStats, TillBoard } from '../../shared/leaderboard'
 import type { SquareTeam } from '../../shared/squareTeam'
+import type { SquarePins } from '../../shared/squarePins'
 import type { JobRole, JobRoleInput } from '../../shared/roles'
 import type { RoleOwner } from '../../shared/roleOwners'
 import type { TeamRole } from '../../shared/teamRoles'
@@ -44,7 +45,7 @@ import type { DisplayFeed, Screen, ScreenInput } from '../../shared/screens'
 import type { Offer, OfferInput } from '../../shared/offers'
 import type { SourcePost } from '../../shared/offerFromPost'
 import type { LastDayRule, LastDayRuleInput } from '../../shared/lastDayOffers'
-import type { FreshBatch, FreshBatchInput } from '../../shared/freshBatches'
+import type { FreshBatch, FreshBatchInput, FreshItem, FreshItemInput } from '../../shared/freshBatches'
 import type { ReportSchedule, ReportScheduleInput, ReportSend, ReportSent } from '../../shared/reports'
 import type { Camera, CameraClip, CameraInput, CameraLive, CameraService } from '../../shared/cameras'
 import type { AdPlatform, AdSettings, AdsReport, CampaignPatch } from '../../shared/ads'
@@ -577,6 +578,13 @@ export interface Api {
   matchSquareMembers(): Promise<number>
   /** Add someone to Square as a team member (or link the one with their email already there). */
   addToSquare(profileId: string): Promise<{ team_member_id: string; existing: boolean }>
+  // Square PINs (Leaderboard): each person's Square passcode as an owner typed it in. Owners see and change
+  // everyone's; everyone else on the team sees only their own.
+  squarePins(): Promise<SquarePins>
+  /** Someone's PIN, to show (owners: anyone's; anyone else: their own). */
+  showSquarePin(profileId: string): Promise<string>
+  /** Owners: save someone's PIN, or take it away (null). */
+  saveSquarePin(profileId: string, pin: string | null): Promise<void>
 
   // Grants (admins with pay access; finance partners read): the answers that decide which fit, and the applications
   /** The answers given so far (what the app works out by itself isn't saved). */
@@ -617,6 +625,15 @@ export interface Api {
   saveFreshBatch(batch: FreshBatchInput): Promise<string>
   /** Delete a batch recorded by mistake (admins, or whoever recorded it); its offer still to come goes too. */
   deleteFreshBatch(id: string): Promise<void>
+  /**
+   * The menu items with a set shelf life (Freshly made): how long each keeps, and its offer before it has to be
+   * gone. From Square's "Shelf life" custom attribute, or set here (the team and finance partners read).
+   */
+  freshItems(): Promise<FreshItem[]>
+  /** Set an item's shelf life and offer (admins); returns its id. */
+  saveFreshItem(item: FreshItemInput): Promise<string>
+  /** Take an item off the list (admins): its batches stay as they are. */
+  deleteFreshItem(id: string): Promise<void>
   /** Menu items and what goes in them (admins; finance partners read). */
   recipes(): Promise<Recipe[]>
   /** Save a recipe with its variants and lines (they replace the ones there were); returns its id. */

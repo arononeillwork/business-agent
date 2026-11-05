@@ -4531,7 +4531,7 @@ test.describe('stock and suppliers', () => {
     await expect(page.getByRole('list', { name: 'Earlier batches' }).getByRole('listitem', { name: 'Lemon tart' })).toContainText('Sold out')
 
     // Julio records 12 croissants (on the menu at €1.80), keeping 8 hours, 30% off for the last 2.
-    await page.getByRole('button', { name: 'Record a batch' }).click()
+    await page.getByRole('button', { name: 'Record a batch', exact: true }).click()
     const dialog = page.getByRole('dialog', { name: 'Record a batch' })
     await dialog.getByRole('combobox', { name: 'What was made' }).fill('Croissant')
     await dialog.getByRole('spinbutton', { name: 'How many' }).fill('12')
@@ -4567,6 +4567,66 @@ test.describe('stock and suppliers', () => {
     await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Offers & specials' }).click()
     await expect(page.getByRole('article', { name: 'Croissant' })).toHaveCount(0)
     await expect(page.getByRole('region', { name: 'Live now' }).getByRole('article', { name: 'Brownies' })).toContainText('Freshly made')
+  })
+
+  test('freshly made: first on Stock; what’s made here with a set shelf life, read from Square; the cheesecake on offer for its last 2 days of 5, and its batch takes it', async ({ page }) => {
+    test.setTimeout(60_000)
+    await open(page, '/stock')
+    // Freshly made is Stock's first tab.
+    await expect(page.getByRole('main').getByRole('tab').first()).toHaveText('Freshly made')
+    await page.getByRole('tab', { name: 'Freshly made' }).click()
+    // The café's own pastries: each keeps a day, 30% off for its last 4 hours; this morning's pain au chocolat, its offer to come.
+    const made = page.getByRole('list', { name: 'Made here' })
+    await expect(made.getByRole('listitem')).toHaveCount(2)
+    const croissant = made.getByRole('listitem', { name: 'Croissant', exact: true })
+    await expect(croissant).toContainText('Keeps 1 day')
+    await expect(croissant).toContainText('Not made yet')
+    await expect(croissant).toContainText('30% off for its last 4 hours')
+    await expect(made.getByRole('listitem', { name: 'Pain au chocolat' })).toContainText(/Last made \d\d:\d\d by Julio/)
+    await expect(made.getByRole('listitem', { name: 'Pain au chocolat' })).toContainText('Offer from Thu 1 Oct, 03:00')
+
+    // The menu read from Square: what has a "Shelf life" there comes in with it (a chia pudding keeps 3 days, the cheesecakes 5).
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Connections' }).click()
+    await page.getByRole('region', { name: 'Payments and sales' }).getByRole('button', { name: 'Connect Square' }).click()
+    await expect(page.getByRole('region', { name: 'Payments and sales' }).getByRole('article', { name: 'Square' })).toContainText('Connected')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Menu', exact: true }).click()
+    await page.getByRole('group', { name: 'Menu from' }).getByRole('button', { name: 'Square' }).click()
+    await page.getByRole('dialog', { name: 'Read the menu from Square?' }).getByRole('button', { name: 'Read from Square' }).click()
+    await toast(page, 'Read 61 items from Square.')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Current stock' }).click()
+    await page.getByRole('tab', { name: 'Freshly made' }).click()
+    await expect(made.getByRole('listitem', { name: 'Mango Chia Pudding' })).toContainText(/From Square.*Keeps 3 days/)
+    await expect(made.getByRole('listitem', { name: 'Mango Chia Pudding' })).toContainText('No offer')
+    await expect(made.getByRole('listitem', { name: 'Croissant', exact: true })).toContainText('From Square')
+    await expect(made.getByRole('listitem', { name: 'Croissant', exact: true })).toContainText('30% off for its last 4 hours')
+
+    // Aron puts the cheesecake on offer, 25% off for its last 2 days; its shelf life is Square's.
+    const cake = made.getByRole('listitem', { name: 'Biscoff Cheesecake' })
+    await expect(cake).toContainText('Keeps 5 days')
+    await cake.getByRole('button', { name: 'Shelf life and offer of Biscoff Cheesecake' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Biscoff Cheesecake' })
+    await expect(dialog.getByRole('combobox', { name: 'Shelf life' })).toHaveAttribute('aria-disabled', 'true')
+    await expect(dialog).toContainText('Set in Square')
+    await dialog.getByRole('switch', { name: 'Put it on offer before it goes off' }).check()
+    await dialog.getByRole('group', { name: 'On offer for' }).getByRole('button', { name: 'Its last 2 days' }).click()
+    await dialog.getByRole('spinbutton', { name: 'Off the menu price' }).fill('25')
+    await expect(dialog.getByRole('status')).toContainText('25% off for its last 2 days. Made now: on Offers & specials from Sat 3 Oct, 09:00 until Mon 5 Oct, 09:00')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await toast(page, 'Saved Biscoff Cheesecake')
+    await expect(cake).toContainText('25% off for its last 2 days')
+
+    // A batch of it starts from that: 5 days, its offer from 3 days on.
+    await cake.getByRole('button', { name: 'Record a batch of Biscoff Cheesecake' }).click()
+    const record = page.getByRole('dialog', { name: 'Record a batch' })
+    await expect(record.getByRole('combobox', { name: 'What was made' })).toHaveValue('Biscoff Cheesecake')
+    await expect(record).toContainText('Good until Mon 5 Oct, 09:00')
+    await expect(record.getByRole('status')).toContainText('On Offers & specials from Sat 3 Oct, 09:00 until Mon 5 Oct, 09:00')
+    await record.getByRole('spinbutton', { name: 'How many' }).fill('8')
+    await record.getByRole('button', { name: 'Record', exact: true }).click()
+    await toast(page, 'Biscoff Cheesecake recorded, with its offer')
+    await expect(cake).toContainText(/Last made 09:00 by Aron/)
+    await expect(cake).toContainText('Offer from Sat 3 Oct, 09:00')
+    await expect(page.getByRole('list', { name: 'On the counter' }).getByRole('listitem', { name: 'Biscoff Cheesecake' })).toContainText('25% off from Sat 3 Oct, 09:00')
   })
 })
 
@@ -7712,6 +7772,14 @@ test.describe('UI round: dashboards, the business advisor and the landing pages'
     await expect(page.getByRole('tab', { name: 'Shop manager' })).toBeVisible()
     await expect(page.getByRole('tab', { name: 'Executive' })).toHaveAttribute('aria-selected', 'true')
     await expect(page.getByRole('region', { name: 'Lowest margins' })).toContainText('Pain au chocolat')
+    // One row of tabs: Reports pinned first, then each dashboard.
+    await expect(page.getByRole('main').getByRole('tablist')).toHaveCount(1)
+    await expect(page.getByRole('main').getByRole('tab')).toHaveText(['Reports', 'Shop manager', 'Executive'])
+    await page.getByRole('tab', { name: 'Reports' }).click()
+    await expect(page).toHaveURL(/tab=reports/)
+    await page.getByRole('tab', { name: 'Shop manager' }).click()
+    await expect(page).not.toHaveURL(/tab=reports/)
+    await expect(page.getByRole('region', { name: 'Google reviews' })).toBeVisible()
   })
 
   test('dashboards → reports: pick the reports and who gets them (the team, a contact, any address), see the email, send it from the mailbox', async ({ page }) => {
@@ -9811,5 +9879,44 @@ test.describe('content', () => {
     await expect(sure).toContainText('The file stays in your Drive or OneDrive')
     await sure.getByRole('button', { name: 'Take off' }).click()
     await expect(list.getByRole('listitem', { name: 'Ethiopia Guji beans' })).toHaveCount(0)
+  })
+})
+
+test.describe('square pins', () => {
+  test('Square PINs on the Leaderboard: owners see and change everyone’s, everyone else sees only their own', async ({ page }) => {
+    await open(page, '/leaderboard')
+    const pins = page.getByRole('region', { name: 'Square PINs' })
+    const table = pins.getByRole('table', { name: 'Square PINs' })
+    await expect(table.getByRole('row')).toHaveText([/Name.*PIN/, /Aron O'Neill \(you\)••••/, /Mark Murray.*Not saved yet/, /Julio••••/, /Maria••••/, /Cleaner.*Not saved yet/])
+    await expect(pins).toContainText('Square doesn’t let apps read passcodes')
+
+    // Shown when asked, and hidden again.
+    await table.getByRole('button', { name: 'Show the PIN for Julio' }).click()
+    await expect(table.getByRole('row', { name: /Julio/ })).toContainText('5286')
+    await table.getByRole('button', { name: 'Hide the PIN for Julio' }).click()
+    await expect(table.getByRole('row', { name: /Julio/ })).not.toContainText('5286')
+
+    // Mark's, typed in as it is in the Square Dashboard.
+    await table.getByRole('button', { name: 'Add the PIN for Mark Murray' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Square PIN for Mark Murray' })
+    await dialog.getByRole('textbox', { name: 'PIN' }).fill('24')
+    await expect(dialog).toContainText('A Square PIN is 4 digits (up to 6)')
+    await expect(dialog.getByRole('button', { name: 'Save' })).toBeDisabled()
+    await dialog.getByRole('textbox', { name: 'PIN' }).fill('2468')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await toast(page, 'PIN saved')
+    await table.getByRole('button', { name: 'Show the PIN for Mark Murray' }).click()
+    await expect(table.getByRole('row', { name: /Mark Murray/ })).toContainText('2468')
+
+    // Maria, an employee: her own only, nobody else's, and no changes.
+    await signInAs(page, 'maria@example.com')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Leaderboard' }).click()
+    const mine = page.getByRole('region', { name: 'Your Square PIN' })
+    await expect(mine).toContainText('••••')
+    await expect(page.getByRole('region', { name: 'Square PINs' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /PIN for Julio/ })).toHaveCount(0)
+    await mine.getByRole('button', { name: 'Show the PIN for Maria' }).click()
+    await expect(mine).toContainText('7390')
+    await expect(page.getByRole('button', { name: /^(Add|Change) the PIN/ })).toHaveCount(0)
   })
 })
