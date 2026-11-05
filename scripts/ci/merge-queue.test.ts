@@ -19,6 +19,18 @@ describe("whether a pull request's own CI lets it into the merge queue", () => {
     expect(checksState([run('checks', 'failure', '2026-10-24T10:00:00Z'), run('checks', 'skipped', '2026-10-24T10:01:00Z')])).toBe('red')
   })
 
+  it('leaves out the merge queue’s own jobs on the same commit, running or done', () => {
+    const queue = new Set([7])
+    const own = (name: string, conclusion: string | null, status = 'completed') => ({ ...run(name, conclusion, '2026-10-24T10:30:00Z', status), check_suite: { id: 7 } })
+    const ci = [{ ...run('checks', 'success'), check_suite: { id: 3 } }, { ...run('browser (1/3)', 'success'), check_suite: { id: 3 } }]
+    // Marked ready after its CI finished: the round that starts looks while its own prepare job runs.
+    expect(checksState([...ci, own('prepare', null, 'in_progress')], queue)).toBe('green')
+    expect(checksState([...ci, own('prepare', 'success'), own('finish', 'failure')], queue)).toBe('green')
+    expect(checksState([...ci, own('prepare', null, 'in_progress')])).toBe('waiting') // as it was
+    // Nothing but the queue's own: no CI yet.
+    expect(checksState([own('prepare', 'success')], queue)).toBe('waiting')
+  })
+
   it('counts a re-run over the failure before it', () => {
     expect(checksState([run('browser (2/3)', 'failure', '2026-10-24T10:00:00Z'), run('browser (2/3)', 'success', '2026-10-24T10:20:00Z')])).toBe('green')
     expect(checksState([run('checks', 'success'), run('browser (2/3)', 'cancelled')])).toBe('red')
