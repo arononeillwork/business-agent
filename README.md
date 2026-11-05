@@ -228,6 +228,12 @@ built-in **AI connector** so owners can run it by talking to Claude.
   replaces the listing's menu with the app's (its cuisines and menu link are kept), only listings in a
   food and drink category take one, and it's part of the plans with Google Maps. The Menu page says
   when it last went, why Google refused it if it did, and has **Send to Google Maps now**.
+
+  The menu on the business's **own website** follows it too: with **Share the menu with the website** on
+  (Website & SEO, admins), the website reads what's on the menu, by section in the menu's order with each
+  item's prices, photo and allergens, from `/api/site/<business>/menu` (no sign-in, nothing until the
+  business turns it on, customer-facing fields only), so a change here is on the website within a few
+  minutes. Easy Beans' website reads its menu this way ([docs/WEBSITE.md](docs/WEBSITE.md), `worker/site.ts`).
 - Screens (Menu section, admins): the café's TVs and tablets as slideshows. Each has a secret link
   opened once on the screen (no sign-in), and slides added by address: pictures, MP4 videos, YouTube,
   Vimeo, Instagram posts, web pages, live pictures reloaded each time (a webcam), and the digital

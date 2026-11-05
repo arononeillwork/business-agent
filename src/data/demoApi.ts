@@ -1246,6 +1246,8 @@ export function createDemoApi(): Api {
     agent_views: null,
     // The weekly routine on everyone's calendar (an admin can take it off on Calendar → Routine).
     routine_on_calendar: true,
+    // The café's website reads its menu from the app (Website & SEO → The menu on your website).
+    website_menu: true,
   }
 
   const P = { aron: 'p-aron', mark: 'p-mark', julio: 'p-julio', maria: 'p-maria', cleaner: 'p-cleaner' }
