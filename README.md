@@ -127,6 +127,13 @@ built-in **AI connector** so owners can run it by talking to Claude.
   (Staff → Team), and Square then sends them the invitation. Needs Square's `EMPLOYEES_READ` and `EMPLOYEES_WRITE`:
   a business connected before asks to connect Square again (`shared/squareTeam.ts`). The café tablet's clock-in
   PINs are separate, and still switched off.
+- Square PINs (the Leaderboard, under the boards): each person's Square passcode, the PIN they sign in to the till
+  with. Square's API can neither read nor set passcodes, so an owner types each one as it is in the Square Dashboard
+  (Team → their name), and changes it here when it changes there. Owners (admins with pay access) see and change
+  everyone's; everyone else on the team, shop managers included, sees only their own. A PIN stays hidden until
+  **Show**, then hides again after half a minute. Kept encrypted with the Worker's integration key in a table nobody
+  signed in can read (the `square_pins` migration, `worker/squarePins.ts`); each look, change and removal is in the
+  audit log, without the PIN.
 - People (Team section): the team as a hierarchy, the owners at the top, then the shop managers, then the
   employees, each with the roles they hold on Roles & responsibilities (admins open someone on the Team
   page from there). **Show pets** puts everyone's dogs (and cats) under them with their photos. Each person
@@ -374,6 +381,12 @@ built-in **AI connector** so owners can run it by talking to Claude.
   crossed out, on the screens; sold out or thrown away first, its offer ends (one still to come goes). The
   offer is tagged Freshly made and links back. The team records batches; finance partners read
   (`shared/freshBatches.ts`, the `fresh_batches` migration).
+- Stock → Freshly made, first of Stock's tabs, opens on what's made here: the menu items with a set shelf
+  life (pastries, yoghurt pots, chia puddings, cheesecakes), how long each keeps, when it was last made and
+  by whom, its offer ("25% off for its last 2 days") and when the batch on the counter goes on it. The shelf
+  life comes from Square when the item has a "Shelf life" custom attribute there (in days, or "36 hours"),
+  read with the menu, or an admin sets it; a batch recorded of one starts from its shelf life and offer
+  (the `fresh_items` migration, `worker/menu.ts`).
 - Leads & enquiries (Sales section): what someone asked for (a party, the terrace, office coffee), where
   it came in, its value, the day it's for and when to follow it up (a reminder in the bell that day).
   Each belongs to someone on Customers, added there as a lead when they're new; a won enquiry makes

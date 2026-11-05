@@ -14,6 +14,7 @@ import { useAsync } from '../app/hooks'
 import { Empty, ErrorBox, Loading, PageHeader, PageToolbar, PersonAvatar } from '../components/common'
 import { Freshness } from '../components/Freshness'
 import { SquareLoginsDialog } from '../components/SquareLogins'
+import { SquarePinsSection } from '../components/SquarePins'
 import {
   BOARDS, LEADER_PERIODS, currentStreak, isLeaderPeriod, leaders, myPlaces, periodRange, standings,
   type Board, type LeaderPeriod, type Standing, type TillBoard,
@@ -135,6 +136,8 @@ export function LeaderboardPage() {
       {clock.loading && !clock.data ? <Loading /> : (board !== 'sales' || till.data?.status === 'ok') && (
         <BoardTable board={board} rows={standings(board, stats, sales)} name={name} colour={id => person(id)?.colour ?? tokens.inkSoft} me={me?.id} />
       )}
+      {/* Each person's Square passcode: owners see everyone's, anyone else their own. */}
+      <SquarePinsSection />
       {logins && <SquareLoginsDialog onClose={() => setLogins(false)} />}
     </>
   )
