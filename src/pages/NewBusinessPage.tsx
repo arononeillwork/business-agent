@@ -2,6 +2,8 @@ import { Autocomplete, Box, Button, ButtonBase, Divider, Stack, TextField, Typog
 import CafeIcon from '@mui/icons-material/LocalCafeOutlined'
 import RestaurantIcon from '@mui/icons-material/RestaurantOutlined'
 import SalonIcon from '@mui/icons-material/ContentCutOutlined'
+import PubIcon from '@mui/icons-material/SportsBarOutlined'
+import EstateIcon from '@mui/icons-material/RealEstateAgentOutlined'
 import StoreIcon from '@mui/icons-material/StorefrontOutlined'
 import GiftIcon from '@mui/icons-material/CardGiftcardOutlined'
 import CheckIcon from '@mui/icons-material/CheckRounded'
@@ -15,11 +17,13 @@ import { AgentMark, BA, Wordmark, display, glow, outlineBtn, primaryBtn } from '
 import { TRIAL_MONTHS } from './marketing/plans'
 import { msg, t, tr } from '../i18n'
 
-type Kind = 'cafe' | 'restaurant' | 'salon' | 'other'
+type Kind = 'cafe' | 'restaurant' | 'pub' | 'salon' | 'real_estate' | 'other'
 const KINDS: { kind: Kind; name: string; icon: ReactNode }[] = [
   { kind: 'cafe', name: msg('Café & coffee shop'), icon: <CafeIcon /> },
   { kind: 'restaurant', name: msg('Restaurant & bar'), icon: <RestaurantIcon /> },
+  { kind: 'pub', name: msg('Pub'), icon: <PubIcon /> },
   { kind: 'salon', name: msg('Salon & beauty'), icon: <SalonIcon /> },
+  { kind: 'real_estate', name: msg('Real estate agency'), icon: <EstateIcon /> },
   { kind: 'other', name: msg('Something else'), icon: <StoreIcon /> },
 ]
 

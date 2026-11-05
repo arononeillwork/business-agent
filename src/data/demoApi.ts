@@ -2116,7 +2116,7 @@ export function createDemoApi(): Api {
       if (b.referral && cleanCode(b.referral) === referralDemo.code) {
         referralDemo.referrals.unshift({ id: uid(), business_name: name, joined_at: nowIso(), set_up_at: null })
       }
-      Object.assign(business, { name, business_type: ({ cafe: 'Café', restaurant: 'Restaurant & bar', salon: 'Salon & beauty' } as Record<string, string>)[b.kind ?? ''] ?? null,
+      Object.assign(business, { name, business_type: ({ cafe: 'Café', restaurant: 'Restaurant & bar', pub: 'Pub', salon: 'Salon & beauty', real_estate: 'Real estate agency' } as Record<string, string>)[b.kind ?? ''] ?? null,
         timezone: b.timezone || 'Europe/Madrid', setup_completed_at: null })
       notify()
       return 1
