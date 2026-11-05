@@ -423,6 +423,12 @@ built-in **AI connector** so owners can run it by talking to Claude.
   contacts for owners, any address), see the email, and send it from the connected Gmail or Outlook, one
   email to each person (`shared/reports.ts`, `worker/reports.ts`). The choice is remembered. The Calendar's
   theme days and routine filters sit under a "More" chip at the end of the category chips.
+- Scheduled reports (Dashboards → Reports): a report set to go by itself every day, on the days of the week
+  picked or on a day of the month (1–28), at a time, in the business's time zone, covering today, yesterday,
+  this or last week, this or last month or the last 30 days. The Worker sends what's due each minute, once
+  (up to six hours late if it was down), written the same way as the page's (`shared/reportSections.ts`) from
+  what whoever last changed the schedule can see, in their language; the page shows when each goes next,
+  when it last went and why it didn't (`worker/reportSchedules.ts`, the `report_schedules` migration).
 - Brand documents (Brand page): the guidelines PDF, logo packs and templates, uploaded (up to 10 MB,
   kept in the database) or picked where they are in Google Drive or OneDrive like the Legal page's.
   The team and partners read them; admins add, rename and remove them.

@@ -52,7 +52,7 @@ import { demoChecklistApi } from './demoChecklists'
 import { demoCompanyValuesApi } from './demoCompanyValues'
 import { demoContactsApi } from './demoContacts'
 import { demoFreshApi } from './demoFreshBatches'
-import { reportSendProblem } from '../../shared/reports'
+import { reportSendProblem, scheduleProblem, type ReportSchedule } from '../../shared/reports'
 import { demoQrCodeApi } from './demoQrCodes'
 import { COUNTED, type Contractor, type OutsourcedJob } from '../../shared/outsourcing'
 import { DEFAULT_CONVENIO, contractProblem, type EmploymentContract } from '../../shared/contracts'
@@ -1415,6 +1415,12 @@ export function createDemoApi(): Api {
   }, { by: P.julio, at: zonedIso(today(), '08:05') })
   // Company values (Business): as the `company_values` migration.
   const valuesApi = demoCompanyValuesApi({ isStaff: () => isStaff() && !!me()?.active, isAdmin: () => isAdmin() && !!me()?.active, uid })
+  // Scheduled reports (Dashboards → Reports): the owners' Monday takings, set up by Aron.
+  const reportSchedules: ReportSchedule[] = [{
+    id: 'rs-monday', name: 'Monday takings for the owners', kinds: ['takings', 'best_sellers', 'team'], period: 'last_week', team: [P.aron, P.mark], contacts: [], emails: [],
+    frequency: 'weekly', weekdays: [1], month_day: null, send_at: '08:00', language: 'en', active: true, last_sent_at: null, last_error: null,
+    updated_at: daysAgo(10), updated_by: P.aron,
+  }]
   // Freshly made (Stock): as the `fresh_batches` migration; a batch's discount puts its offer on Offers & specials.
   const freshApi = demoFreshApi({
     isStaff: () => isStaff() && !!me()?.active, isAdmin: () => isAdmin() && !!me()?.active, reads: () => partnerCan('finances'), me: () => currentUser, uid,
@@ -4471,6 +4477,25 @@ export function createDemoApi(): Api {
       }
       // As the Worker: one email each (the demo sends nothing).
       return { sent: [...new Set(report.to.map(x => x.trim().toLowerCase()))], failed: [] }
+    },
+    // Scheduled reports (Dashboards → Reports): as the `report_schedules` migration; the demo sends none.
+    async reportSchedules() { return isAdmin() ? clone(reportSchedules) : [] },
+    async saveReportSchedule({ id, ...input }) {
+      requireAdmin()
+      const problem = scheduleProblem(input)
+      if (problem) throw new Error(problem)
+      const was = id ? reportSchedules.find(x => x.id === id) : undefined
+      if (id && !was) throw new Error('That isn’t here any more')
+      const next: ReportSchedule = { ...input, id: was?.id ?? uid(), name: input.name.trim(), emails: [...new Set(input.emails.map(e => e.trim().toLowerCase()))],
+        weekdays: [...new Set(input.weekdays)].sort((a, b) => a - b), last_sent_at: was?.last_sent_at ?? null, last_error: null, updated_at: nowIso(), updated_by: currentUser }
+      if (was) Object.assign(was, next)
+      else reportSchedules.push(next)
+      return next.id
+    },
+    async deleteReportSchedule(id) {
+      requireAdmin()
+      const i = reportSchedules.findIndex(x => x.id === id)
+      if (i >= 0) reportSchedules.splice(i, 1)
     },
     async sendTestEmail(to) {
       requireAdmin()

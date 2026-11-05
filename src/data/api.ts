@@ -42,7 +42,7 @@ import type { Offer, OfferInput } from '../../shared/offers'
 import type { SourcePost } from '../../shared/offerFromPost'
 import type { LastDayRule, LastDayRuleInput } from '../../shared/lastDayOffers'
 import type { FreshBatch, FreshBatchInput } from '../../shared/freshBatches'
-import type { ReportSend, ReportSent } from '../../shared/reports'
+import type { ReportSchedule, ReportScheduleInput, ReportSend, ReportSent } from '../../shared/reports'
 import type { Camera, CameraClip, CameraInput, CameraLive, CameraService } from '../../shared/cameras'
 import type { AdPlatform, AdSettings, AdsReport, CampaignPatch } from '../../shared/ads'
 import type { ReviewsState } from '../../shared/reviews'
@@ -889,6 +889,11 @@ export interface Api {
   sendTestEmail(to: string): Promise<void>
   /** Dashboards → Reports (admins): email a report from the connected Gmail or Outlook, one email to each address. */
   sendReport(report: ReportSend): Promise<ReportSent>
+  /** Reports that go by themselves (admins): every day, on days of the week or a day of the month, at a time. */
+  reportSchedules(): Promise<ReportSchedule[]>
+  /** Add one (no id) or change one; returns its id. Its figures become what the person saving it can see. */
+  saveReportSchedule(schedule: ReportScheduleInput): Promise<string>
+  deleteReportSchedule(id: string): Promise<void>
   /** Save a file into "Business Agent/<folder>" in the connected Drive/OneDrive; returns a link to it. */
   saveFile(f: { folder: string; name: string; content: string; type?: string }): Promise<{ link: string; provider: ConnectorProvider }>
   whatsappTest(to: string): Promise<void>

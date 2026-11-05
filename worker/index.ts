@@ -25,6 +25,7 @@ import { legal } from './legal'
 import { invoices } from './invoices'
 import { email } from './email'
 import { reports } from './reports'
+import { sendDueReports } from './reportSchedules'
 import { serveVideo } from './video'
 import { loyaltyRoutes } from './loyalty'
 import { assistant } from './assistant'
@@ -461,6 +462,8 @@ export default {
       await each('queue_due_social_posts')
       await forEach(async (id, b) => {
         await drainOutbox(env, id).catch(e => console.error('outbox failed', id, e))
+        // Reports set to go by themselves (Dashboards → Reports), when they're due.
+        await sendDueReports(env, id).catch(e => console.error('scheduled reports failed', id, e))
         // Stock on its last day goes on offer by itself, from its rule's time until closing (before the
         // push just below, so admins hear about it the same minute).
         await Promise.resolve(b.rpc('start_last_day_offers')).then(({ error }) => { if (error) console.error('last-day offers failed', id, error.message) })

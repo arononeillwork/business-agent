@@ -7680,6 +7680,52 @@ test.describe('UI round: dashboards, the business advisor and the landing pages'
     await expect(page.getByRole('group', { name: 'The team' }).getByRole('button', { name: 'Maria' })).toHaveAttribute('aria-pressed', 'true')
   })
 
+  test('dashboards → reports on a schedule: the days and time it goes, when it goes next, paused, changed and deleted', async ({ page }) => {
+    await open(page, '/dashboards?tab=reports')
+    const list = page.getByRole('list', { name: 'Scheduled reports' })
+    const owners = list.getByRole('listitem', { name: 'Monday takings for the owners' })
+    await expect(owners).toContainText('Every Monday at 08:00 · Last week · to 2 people')
+    await expect(owners).toContainText('Next: Mon 5 Oct, 08:00')
+    // From the page's own picks (Maria, and its reports), every Tuesday and Thursday at 18:30, covering yesterday.
+    await page.getByRole('group', { name: 'The team' }).getByRole('button', { name: 'Maria' }).click()
+    await page.getByRole('button', { name: 'Send on a schedule…' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Send on a schedule' })
+    await expect(dialog.getByRole('group', { name: 'The team' }).getByRole('button', { name: 'Maria' })).toHaveAttribute('aria-pressed', 'true')
+    await dialog.getByRole('textbox', { name: 'Name' }).fill('Stock for Maria')
+    await dialog.getByRole('combobox', { name: 'Covering' }).click()
+    await page.getByRole('option', { name: 'Yesterday' }).click()
+    const days = dialog.getByRole('group', { name: 'Days of the week' })
+    await days.getByRole('button', { name: 'Monday' }).click()
+    await days.getByRole('button', { name: 'Tuesday' }).click()
+    await days.getByRole('button', { name: 'Thursday' }).click()
+    await dialog.getByRole('textbox', { name: 'Time', exact: true }).fill('18:30')
+    await expect(dialog.getByRole('status')).toHaveText('Every Tuesday and Thursday at 18:30, business time. Next: Thu 1 Oct, 18:30.')
+    await dialog.getByRole('button', { name: 'Schedule it' }).click()
+    await toast(page, 'Stock for Maria is scheduled')
+    const maria = list.getByRole('listitem', { name: 'Stock for Maria' })
+    await expect(maria).toContainText('Every Tuesday and Thursday at 18:30 · Yesterday · to 1 person')
+    await expect(maria).toContainText('Next: Thu 1 Oct, 18:30')
+
+    // Monthly instead: on the 1st.
+    await maria.getByRole('button', { name: 'Edit Stock for Maria' }).click()
+    const edit = page.getByRole('dialog', { name: 'Stock for Maria' })
+    await edit.getByRole('group', { name: 'How often' }).getByRole('button', { name: 'Every month' }).click()
+    await expect(edit.getByRole('status')).toHaveText('On day 1 of every month at 18:30, business time. Next: Thu 1 Oct, 18:30.')
+    await edit.getByRole('button', { name: 'Save' }).click()
+    await toast(page, /^Saved$/)
+    await expect(maria).toContainText('On day 1 of every month at 18:30')
+
+    // Paused, then deleted.
+    await maria.getByRole('switch', { name: 'Stock for Maria on' }).click()
+    await toast(page, 'Stock for Maria is paused')
+    await expect(maria).toContainText('Paused')
+    await maria.getByRole('button', { name: 'Edit Stock for Maria' }).click()
+    await page.getByRole('dialog', { name: 'Stock for Maria' }).getByRole('button', { name: 'Delete' }).click()
+    await page.getByRole('dialog', { name: 'Stock for Maria' }).getByRole('button', { name: 'Delete', exact: true }).last().click()
+    await toast(page, 'Deleted Stock for Maria')
+    await expect(list.getByRole('listitem', { name: 'Stock for Maria' })).toHaveCount(0)
+  })
+
   test('dashboards → reports are for admins: the team has no Reports tab', async ({ page }) => {
     await open(page, '/dashboards?tab=reports', 'maria@example.com')
     await expect(page.getByRole('tab', { name: 'Reports' })).toHaveCount(0)

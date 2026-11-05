@@ -38,7 +38,7 @@ import type { Offer } from '../../shared/offers'
 import type { LatestPosts } from './api'
 import type { LastDayRule } from '../../shared/lastDayOffers'
 import type { FreshBatch } from '../../shared/freshBatches'
-import type { ReportSent } from '../../shared/reports'
+import type { ReportSchedule, ReportSent } from '../../shared/reports'
 import type { Camera, CameraClip, CameraLive, CameraService } from '../../shared/cameras'
 import type { AdSettings } from '../../shared/ads'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
@@ -1441,6 +1441,18 @@ export function createSupabaseApi(url: string, key: string): Api {
     chooseCalendar: app => worker(`/api/integrations/calendar/${app}/choose`, { method: 'POST' }),
     async sendTestEmail(to) { await worker('/api/integrations/email/test', { method: 'POST', body: JSON.stringify({ to }) }) },
     async sendReport(report) { return worker<ReportSent>('/api/reports/send', { method: 'POST', body: JSON.stringify(report) }) },
+    async reportSchedules() {
+      const rows = check(await sb.from('report_schedules')
+        .select('id, name, kinds, period, team, contacts, emails, frequency, weekdays, month_day, send_at, language, active, last_sent_at, last_error, updated_at, updated_by')
+        .order('created_at')) as ReportSchedule[]
+      // Times come back as "08:00:00".
+      return rows.map(r => ({ ...r, send_at: r.send_at.slice(0, 5) }))
+    },
+    async saveReportSchedule({ id, ...s }) {
+      if (id) { check(await sb.from('report_schedules').update(s).eq('id', id)); return id }
+      return (check(await sb.from('report_schedules').insert(s).select('id').single()) as { id: string }).id
+    },
+    async deleteReportSchedule(id) { check(await sb.from('report_schedules').delete().eq('id', id)) },
     saveFile: f => worker('/api/integrations/files/save', { method: 'POST', body: JSON.stringify(f) }),
     reviews: () => worker('/api/reviews'),
     async replyReview(id, text) { await worker('/api/reviews/reply', { method: 'PUT', body: JSON.stringify({ id, text }) }) },
