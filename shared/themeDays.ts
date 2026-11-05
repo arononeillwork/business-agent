@@ -6,6 +6,7 @@
 import { msg } from './i18n'
 import type { OpeningHours } from './types'
 import { dayKey } from './time'
+import { suppliesOf, type Supplier } from './stock'
 
 // ---------------------------------------------------------------------------------------------
 // Coffees
@@ -86,6 +87,41 @@ export function coffeeProblem(c: Partial<CoffeeInput>): string | null {
 /** What a kilo costs, from the bag's price and size; null without both. */
 export const pricePerKg = (c: Pick<Coffee, 'bag_grams' | 'bag_price'>) =>
   c.bag_grams && c.bag_price != null ? Math.round((c.bag_price / c.bag_grams) * 100_000) / 100 : null
+
+// ---------------------------------------------------------------------------------------------
+// Coffee suppliers: the roasters the coffees come from (Suppliers), on the Coffees page
+// ---------------------------------------------------------------------------------------------
+/** A name to compare by: lower case, no accents or punctuation, without the "S.L." or "S.A." of a company. */
+function nameKey(s: string | null | undefined) {
+  const words = (s ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+  return words.replace(/\s(s l u|s l|s a|slu|sl|sa)$/, '')
+}
+const within = (a: string, b: string) => ` ${a} `.includes(` ${b} `)
+
+/** Whether a coffee is roasted by this supplier: its roaster is the supplier's name or company name, or one says the other ("Puchero Coffee"). */
+export function roastedBy(coffee: Pick<Coffee, 'roaster'>, s: Pick<Supplier, 'name' | 'legal_name'>): boolean {
+  const roaster = nameKey(coffee.roaster)
+  if (roaster.length < 3) return false
+  return [s.name, s.legal_name].some(n => {
+    const name = nameKey(n)
+    return name.length >= 3 && (within(roaster, name) || within(name, roaster))
+  })
+}
+
+/** The coffees a supplier roasts, those in use first. */
+export const coffeesFrom = <T extends Pick<Coffee, 'roaster' | 'sort' | 'name' | 'active'>>(s: Pick<Supplier, 'name' | 'legal_name'>, coffees: T[]) =>
+  sortCoffees(coffees.filter(c => roastedBy(c, s)))
+
+/**
+ * The suppliers on the Coffees page: those bought from now that supply coffee (by what's ticked on them,
+ * or their type and name) or roast a coffee on the page; the ones roasting a coffee in use first.
+ */
+export function coffeeSuppliers<S extends Pick<Supplier, 'name' | 'legal_name' | 'kind' | 'supplies' | 'active'>>(suppliers: S[], coffees: Pick<Coffee, 'roaster' | 'active'>[]): S[] {
+  const inUse = (s: S) => coffees.some(c => c.active && roastedBy(c, s))
+  return suppliers
+    .filter(s => s.active && (suppliesOf(s).includes('coffee') || coffees.some(c => roastedBy(c, s))))
+    .sort((a, b) => Number(inUse(b)) - Number(inUse(a)) || a.name.localeCompare(b.name))
+}
 
 // ---------------------------------------------------------------------------------------------
 // Themes

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { closedOn, coffeeProblem, flagOf, inkOn, isoWeekday, playlistFromLink, pricePerKg, sortCoffees, themeOn, themeProblem, weekdaysOf, type DayTheme, type ThemeDays } from './themeDays'
+import { closedOn, coffeeProblem, coffeeSuppliers, coffeesFrom, roastedBy, flagOf, inkOn, isoWeekday, playlistFromLink, pricePerKg, sortCoffees, themeOn, themeProblem, weekdaysOf, type DayTheme, type ThemeDays } from './themeDays'
 import type { OpeningHours } from './types'
 
 const theme = (id: string, name: string): DayTheme => ({ id, name, emoji: null, colour: '#169B62', description: null, coffee_id: null, playlist: null, notes: null, sort: 0 })
@@ -100,5 +100,29 @@ describe('theme days', () => {
     expect(inkOn('#169B62')).toBe('#2B2522') // Irish green: dark reads better than white
     expect(inkOn('#0B6B3A')).toBe('#FFFFFF') // a deeper green: white
     expect(inkOn('#6B4226')).toBe('#FFFFFF') // roast brown: white
+  })
+
+  it('finds the supplier that roasts each coffee: by its name or company name, whatever the capitals, accents or S.L.', () => {
+    const puchero = { name: 'Puchero', legal_name: 'Tostarix S.L.' }
+    expect(roastedBy({ roaster: 'Puchero' }, puchero)).toBe(true)
+    expect(roastedBy({ roaster: 'puchero coffee' }, puchero)).toBe(true)
+    expect(roastedBy({ roaster: 'TOSTARIX' }, puchero)).toBe(true)
+    expect(roastedBy({ roaster: 'Tostarix, S.L.' }, puchero)).toBe(true)
+    expect(roastedBy({ roaster: 'Café Puchero' }, puchero)).toBe(true)
+    expect(roastedBy({ roaster: 'Pucheros' }, puchero)).toBe(false) // a whole word, not part of one
+    expect(roastedBy({ roaster: null }, puchero)).toBe(false)
+    expect(roastedBy({ roaster: 'Easy Beans' }, { name: 'Tostadores del Sur', legal_name: null })).toBe(false)
+  })
+
+  it('lists the coffee suppliers: those supplying coffee or roasting one on the page, the ones roasting a coffee in use first', () => {
+    const s = (name: string, p: Partial<{ legal_name: string | null; kind: string | null; supplies: ('coffee' | 'food')[]; active: boolean }> = {}) =>
+      ({ name, legal_name: null, kind: null, supplies: [], active: true, ...p })
+    const suppliers = [s('Aroma Tostadores', { kind: 'Coffee roaster' }), s('By Eric', { kind: 'Bakery' }), s('Puchero', { legal_name: 'Tostarix S.L.' }),
+      s('Santa Roaster', { kind: 'Coffee roaster', active: false }), s('Leo Foods', { supplies: ['food'] })]
+    const coffees = [{ name: 'Brasil Fazenda Boa Vista', roaster: 'Puchero', active: true, sort: 2 }, { name: 'Old Kenya', roaster: 'Puchero', active: false, sort: 1 },
+      { name: 'House blend', roaster: null, active: true, sort: 0 }]
+    expect(coffeeSuppliers(suppliers, coffees).map(x => x.name)).toEqual(['Puchero', 'Aroma Tostadores'])
+    expect(coffeesFrom(suppliers[2], coffees).map(c => c.name)).toEqual(['Brasil Fazenda Boa Vista', 'Old Kenya'])
+    expect(coffeesFrom(suppliers[0], coffees)).toEqual([])
   })
 })

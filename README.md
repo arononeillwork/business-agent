@@ -455,6 +455,12 @@ built-in **AI connector** so owners can run it by talking to Claude.
   change a day's theme from the day itself, and the rest on the **Themes** tab. Today and Music show
   today's too (`shared/themeDays.ts`, the `theme_days` migration, which starts Easy Beans on Irish, then
   Colombian, then Brazilian roast from Monday).
+- Coffee suppliers (Coffees): under the coffees, the roasters they come from (the active suppliers that supply
+  coffee, or that a coffee names as its roaster, by name or company name): their website, order page, phone,
+  WhatsApp and email, the coffees each roasts, and, for admins, how to pay them by bank transfer (account
+  holder, IBAN with a copy button, BIC, bank). A supplier's bank details are kept on Suppliers too, the IBAN
+  in capitals without spaces and its check digits checked before saving (`shared/stock.ts`, `shared/themeDays.ts`,
+  the `coffee_suppliers` migration, which adds Puchero, Easy Beans' roaster, with its Brasil Fazenda Boa Vista).
 - Weekly routine (Calendar): what's done on set days, every week, every few weeks or one week of the month
   (the stock take and buying list, the wholesale run, the cleaner, the accounts talk with the gestoría, the
   coffee machine's deep clean, the business meeting…), each with its time, who does it (someone or a role)
