@@ -189,6 +189,7 @@ export default {
   'Dairy': 'Lácteos',
   'Cash & carry': 'Cash & carry',
   'Drinks': 'Bebidas',
+  'Ice cream': 'Helados',
   'Stock count': 'Recuento',
   'Used': 'Usado',
   'Waste': 'Desperdicio',

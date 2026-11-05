@@ -60,7 +60,7 @@ export const unitLabel = (u: StockUnit) => UNITS.find(x => x.id === u)?.label ??
 export const CATEGORIES = [msg('Coffee'), msg('Milk & dairy'), msg('Tea & matcha'), msg('Syrups & sauces'), msg('Bakery'), msg('Food'),
   msg('Packaging'), msg('Cleaning'), msg('Shop')]
 export const LOCATIONS = [msg('Bar'), msg('Storeroom'), msg('Fridge'), msg('Shop shelf')]
-export const SUPPLIER_KINDS = [msg('Coffee roaster'), msg('Bakery'), msg('Dairy'), msg('Packaging'), msg('Cash & carry'), msg('Drinks'), msg('Cleaning')]
+export const SUPPLIER_KINDS = [msg('Coffee roaster'), msg('Bakery'), msg('Dairy'), msg('Packaging'), msg('Cash & carry'), msg('Drinks'), msg('Cleaning'), msg('Ice cream')]
 
 /** What a supplier supplies, the filters on Suppliers (saved as the ids; suppliers_supplies in the database). */
 export type SupplyGroup = 'drinks' | 'food' | 'coffee' | 'fruit_veg' | 'groceries'
