@@ -230,7 +230,8 @@ export const REP_CODE_DAYS = 30
 
 /** Until when the owner can still add a rep's code on Billing; null once they can't (or it came through a code). */
 async function repCodeUntil(env: Env, businessId: number, r: Record<string, unknown>): Promise<string | null> {
-  if (r.introduced_by || r.referred_by) return null
+  // Complimentary accounts (Easy Beans, friends and family) have nothing to pay: no month to give.
+  if (r.introduced_by || r.referred_by || r.status === 'comped') return null
   const { data } = await businessDb(env, businessId).from('business').select('created_at, is_hq, referred_by').eq('id', businessId).maybeSingle()
   const b = data as { created_at?: string | null; is_hq?: boolean; referred_by?: number | null } | null
   if (!b?.created_at || b.is_hq || b.referred_by) return null

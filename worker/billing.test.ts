@@ -330,5 +330,9 @@ describe('Business Agent reps’ commission (the hq_reps migration)', () => {
     expect((await get()).rep_code_until).toBe(new Date(Date.parse(made) + 30 * 86_400_000).toISOString())
     Object.assign(db.table('business')[0], { created_at: new Date(Date.now() - 31 * 86_400_000).toISOString() })
     expect((await get()).rep_code_until).toBeNull()
+    // A complimentary account has nothing to pay, so nothing to add.
+    Object.assign(db.table('business')[0], { created_at: made })
+    Object.assign(row(), { status: 'comped', complimentary: 'founder', plan: 'business' })
+    expect((await get()).rep_code_until).toBeNull()
   })
 })
