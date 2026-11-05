@@ -50,6 +50,7 @@ import { PET_LIMITS, petProblem, type Pet } from '../../shared/pets'
 import { DEMO_THEME_TRACKS, demoThemeDayApi } from './demoThemeDays'
 import { demoChecklistApi } from './demoChecklists'
 import { demoCompanyValuesApi } from './demoCompanyValues'
+import { demoContactsApi } from './demoContacts'
 import { demoQrCodeApi } from './demoQrCodes'
 import { COUNTED, type Contractor, type OutsourcedJob } from '../../shared/outsourcing'
 import { DEFAULT_CONVENIO, contractProblem, type EmploymentContract } from '../../shared/contracts'
@@ -2582,6 +2583,8 @@ export function createDemoApi(): Api {
     ...themeDayApi,
     ...checklistApi,
     ...valuesApi,
+    // Contacts (Business, owners only): Easy Beans' lawyer, bank advisor and plumber, as the `business_contacts` migration.
+    ...demoContactsApi({ isOwner: () => isAdmin() && !!me()?.active && !!me()?.can_see_pay, uid }),
     // QR codes: Easy Beans' three, as the `qr_codes` migration, with the demo's Wi-Fi filled in.
     ...demoQrCodeApi({ isStaff: () => isStaff() && !!me()?.active, isAdmin: () => isAdmin() && !!me()?.active, uid, nowIso }),
 

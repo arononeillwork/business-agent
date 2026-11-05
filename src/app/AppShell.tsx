@@ -36,6 +36,7 @@ import RolesIcon from '@mui/icons-material/AssignmentIndOutlined'
 import RulesIcon from '@mui/icons-material/RuleOutlined'
 import ChecklistsIcon from '@mui/icons-material/ChecklistRounded'
 import ValuesIcon from '@mui/icons-material/FavoriteBorderRounded'
+import ContactsIcon from '@mui/icons-material/ContactPhoneOutlined'
 import OutsourcingIcon from '@mui/icons-material/BusinessCenterOutlined'
 import FinanceIcon from '@mui/icons-material/PaymentsOutlined'
 import SalesIcon from '@mui/icons-material/InsightsOutlined'
@@ -124,6 +125,8 @@ export const SECTIONS: NavSection[] = [
     // The team as a hierarchy, each with their roles and pets.
     { key: 'people', to: '/people', label: msg('People'), icon: <PeopleIcon /> },
     { key: 'business', to: '/business', label: msg('Business'), icon: <BusinessIcon />, partner: 'any' },
+    // The people the business calls on (the lawyer, the bank, the plumber): the owners' own.
+    { key: 'contacts', to: '/contacts', label: msg('Contacts'), icon: <ContactsIcon />, who: 'pay' },
     { key: 'todo', to: '/todo', label: msg('To Do List'), short: msg('To do'), icon: <TodoIcon /> },
     // Opening up at the start of the day and closing at the end: the whole team ticks things off.
     { key: 'checklists', to: '/checklists', label: msg('Daily checklists'), short: msg('Checklists'), icon: <ChecklistsIcon /> },
