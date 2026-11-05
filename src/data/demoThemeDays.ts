@@ -42,13 +42,14 @@ const tidy = (s: string | null | undefined) => (s ?? '').trim() || null
 export function demoThemeDayApi(w: Who, cleaner: string): ThemeDayApi {
   const at = w.nowIso()
   const coffee = (id: string, p: Partial<Coffee> & Pick<Coffee, 'name'>): Coffee => ({ id, country: null, region: null, roaster: null, roast: null, process: null,
-    tasting_notes: null, brew: 'both', bag_grams: null, bag_price: null, active: true, photo: null, sort: 0, created_at: at, ...p })
+    tasting_notes: null, brew: 'both', bag_grams: null, bag_price: null, active: true, photo: null, link: null, sort: 0, created_at: at, ...p })
   const coffees: Coffee[] = [
     coffee('coffee-br-dark', { name: 'Brazilian dark roast', country: 'BR', region: 'Cerrado Mineiro', roaster: 'Easy Beans', roast: 'dark', process: 'natural',
       tasting_notes: 'Dark chocolate, roasted nuts, molasses', brew: 'espresso', bag_grams: 1000, bag_price: 24, sort: 1 }),
     coffee('coffee-br-light', { name: 'Brazilian light roast', country: 'BR', region: 'Cerrado Mineiro', roaster: 'Easy Beans', roast: 'light', process: 'natural',
       tasting_notes: 'Milk chocolate, hazelnut, red apple', brew: 'both', bag_grams: 1000, bag_price: 25, sort: 2 }),
     coffee('coffee-colombia', { name: 'Colombian (guest)', country: 'CO', region: 'Huila', roaster: 'Tostadores del Sur', roast: 'medium', process: 'washed',
+      link: 'https://tostadoresdelsur.example/cafe/colombia-huila',
       tasting_notes: 'Caramel, red fruit, panela', bag_grams: 250, bag_price: 11.5, sort: 3 }),
     coffee('coffee-irish', { name: 'Irish blend (guest)', country: 'IE', roast: 'medium', tasting_notes: 'Toffee, cocoa, a little spice', bag_grams: 250, bag_price: 10.9, sort: 4 }),
     coffee('coffee-ethiopia', { name: 'Ethiopia Yirgacheffe', country: 'ET', region: 'Gedeo', roast: 'light', process: 'washed', tasting_notes: 'Jasmine, lemon, bergamot',
@@ -115,7 +116,7 @@ export function demoThemeDayApi(w: Who, cleaner: string): ThemeDayApi {
       // Only what's sent changes (a new photo keeps the rest).
       const next: Coffee = { ...base, ...c, name: (c.name ?? base.name).trim(),
         region: 'region' in c ? tidy(c.region) : base.region, roaster: 'roaster' in c ? tidy(c.roaster) : base.roaster,
-        tasting_notes: 'tasting_notes' in c ? tidy(c.tasting_notes) : base.tasting_notes }
+        tasting_notes: 'tasting_notes' in c ? tidy(c.tasting_notes) : base.tasting_notes, link: 'link' in c ? tidy(c.link) : base.link ?? null }
       const problem = coffeeProblem(next)
       if (problem) throw new Error(problem)
       if (coffees.some(x => x.id !== next.id && x.name.toLowerCase() === next.name.toLowerCase())) {

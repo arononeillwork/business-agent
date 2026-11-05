@@ -81,6 +81,9 @@ describe('theme days', () => {
     expect(coffeeProblem({ name: 'Brazil', bag_price: -1 })).toBe('The price can’t be below zero')
     expect(coffeeProblem({ name: 'Brazil', photo: 'https://example.com/bag.jpg' })).toBe('That photo can’t be used. Try another.')
     expect(coffeeProblem({ name: 'Brazil dark roast', country: 'BR', bag_grams: 1000, bag_price: 24, photo: 'data:image/jpeg;base64,/9j/' })).toBeNull()
+    expect(coffeeProblem({ name: 'Brasil', link: 'somospuchero.com/producto/brasil' })).toBe('The link needs to start with https://')
+    expect(coffeeProblem({ name: 'Brasil', link: `https://somospuchero.com/${'x'.repeat(500)}` })).toBe('Keep the link to 500 characters')
+    expect(coffeeProblem({ name: 'Brasil', link: ' https://somospuchero.com/producto/brasil-fazenda-boa-vista-natural-espresso/ ' })).toBeNull()
     expect(themeProblem({ name: '' })).toBe('Give the theme a name')
     expect(themeProblem({ name: 'Irish day', colour: 'green' })).toBe('Pick a colour')
     expect(themeProblem({ name: 'Irish day', emoji: '🇮🇪🇮🇪🇮🇪🇮🇪🇮🇪🇮🇪🇮🇪🇮🇪🇮🇪' })).toBe('One flag or emoji is enough')
@@ -122,6 +125,7 @@ describe('theme days', () => {
     const coffees = [{ name: 'Brasil Fazenda Boa Vista', roaster: 'Puchero', active: true, sort: 2 }, { name: 'Old Kenya', roaster: 'Puchero', active: false, sort: 1 },
       { name: 'House blend', roaster: null, active: true, sort: 0 }]
     expect(coffeeSuppliers(suppliers, coffees).map(x => x.name)).toEqual(['Puchero', 'Aroma Tostadores'])
+    expect(coffeeSuppliers(suppliers, coffees, false).map(x => x.name)).toEqual(['Santa Roaster']) // the archived ones
     expect(coffeesFrom(suppliers[2], coffees).map(c => c.name)).toEqual(['Brasil Fazenda Boa Vista', 'Old Kenya'])
     expect(coffeesFrom(suppliers[0], coffees)).toEqual([])
   })

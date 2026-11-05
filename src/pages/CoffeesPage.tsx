@@ -2,9 +2,11 @@
 // process, how it tastes, what it's brewed as, what a bag costs, and a photo of the bag. Each theme day
 // on the Calendar serves one of them. Everyone on the team reads it; admins add and change them.
 // Under them, the coffee suppliers (from Suppliers): how to reach and order from each roaster, the
-// coffees it roasts, and, for admins, how to pay it by bank transfer.
+// coffees it roasts, and, for admins, how to pay it by bank transfer. Two tabs: the active coffees and
+// roasters, and the inactive ones (no longer bought, kept for the record); admins switch each between them.
 import {
-  Autocomplete, Box, Button, Card, CardContent, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, InputAdornment, MenuItem, Stack, Switch, TextField, Typography,
+  Autocomplete, Box, Button, Card, CardContent, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, InputAdornment, MenuItem, Stack, Switch, Tab, Tabs,
+  TextField, Typography,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import PhoneIcon from '@mui/icons-material/PhoneOutlined'
@@ -12,6 +14,7 @@ import WhatsAppIcon from '@mui/icons-material/WhatsApp'
 import EmailIcon from '@mui/icons-material/EmailOutlined'
 import WebIcon from '@mui/icons-material/LanguageOutlined'
 import OrderIcon from '@mui/icons-material/ShoppingCartOutlined'
+import LinkIcon from '@mui/icons-material/OpenInNewOutlined'
 import PhotoIcon from '@mui/icons-material/AddAPhotoOutlined'
 import { useRef, useState } from 'react'
 import { useApp } from '../app/AppContext'
@@ -27,7 +30,7 @@ import type { Supplier } from '../../shared/stock'
 import { BankDetails, CopyIban, SupplierDialog } from './SuppliersPage'
 import { currencySymbol, formatMoney } from '../../shared/time'
 import { tokens } from '../theme'
-import { t } from '../i18n'
+import { t, tc } from '../i18n'
 
 /** A photo of the bag from the phone or computer: cut to a bag's shape (4:5) from the middle and made small, as a JPEG data: URL. */
 async function bagPhoto(file: File, width = 600): Promise<string> {
@@ -77,10 +80,13 @@ export function CoffeesPage() {
   const suppliers = useAsync('suppliers', () => api.suppliers(), [])
   const [editing, setEditing] = useState<Coffee | 'new' | null>(null)
   const [supplier, setSupplier] = useState<Supplier | 'new' | null>(null)
+  const [tab, setTab] = useState<'active' | 'inactive'>('active')
   const list = sortCoffees(coffees.data ?? [])
   const roasters = coffeeSuppliers(suppliers.data ?? [], list)
+  const oldRoasters = coffeeSuppliers(suppliers.data ?? [], list, false)
   const inUse = list.filter(c => c.active)
   const retired = list.filter(c => !c.active)
+  const grid = { display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(3, minmax(0, 1fr))' } }
   return (
     <>
       <PageHeader eyebrow={t('Menu')} title={t('Coffees')}
@@ -89,8 +95,29 @@ export function CoffeesPage() {
       <Typography sx={{ mb: 2.5, maxWidth: 760 }}>
         {t('The coffees in use, bag by bag: where each is from, how it’s roasted and how it tastes. Each theme day on the Calendar serves one of them.')}
       </Typography>
+      <Tabs value={tab} onChange={(_, v: 'active' | 'inactive') => setTab(v)} aria-label={t('Active or inactive')}
+        sx={{ mb: 2, borderBottom: `1px solid ${tokens.line}` }}>
+        <Tab value="active" label={tc('coffees', 'Active')} />
+        <Tab value="inactive" label={tc('coffees', 'Inactive')} />
+      </Tabs>
+      {tab === 'inactive' ? (
+        <>
+          {retired.length === 0 && <Empty>{t('No inactive coffees. Switch one off when you stop buying it; it stays here for the record.')}</Empty>}
+          <Box role="list" aria-label={t('Inactive coffees')} sx={grid}>
+            {retired.map(c => <CoffeeCard key={c.id} coffee={c} days={days.data} onEdit={() => setEditing(c)} />)}
+          </Box>
+          {oldRoasters.length > 0 && (
+            <Box component="section" aria-label={t('Coffee suppliers')} sx={{ mt: 4 }}>
+              <SectionTitle>{t('Coffee suppliers')}</SectionTitle>
+              <Box sx={grid}>
+                {oldRoasters.map(s => <CoffeeSupplierCard key={s.id} supplier={s} coffees={list} onEdit={() => setSupplier(s)} />)}
+              </Box>
+            </Box>
+          )}
+        </>
+      ) : <>
       {coffees.data && inUse.length === 0 && <Empty>{isAdmin ? t('No coffees yet. Add the bags you use, with a photo of each.') : t('No coffees yet.')}</Empty>}
-      <Box role="list" aria-label={t('Coffees in use')} sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(3, minmax(0, 1fr))' } }}>
+      <Box role="list" aria-label={t('Coffees in use')} sx={grid}>
         {inUse.map(c => <CoffeeCard key={c.id} coffee={c} days={days.data} onEdit={() => setEditing(c)} />)}
       </Box>
       {(roasters.length > 0 || (isAdmin && suppliers.data)) && (
@@ -99,20 +126,13 @@ export function CoffeesPage() {
             {t('Coffee suppliers')}
           </SectionTitle>
           {roasters.length === 0 ? <Empty>{t('Add the roasters you buy from, with how to order and pay. A coffee whose roaster is one of them shows on its card.')}</Empty> : (
-            <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(3, minmax(0, 1fr))' } }}>
+            <Box sx={grid}>
               {roasters.map(s => <CoffeeSupplierCard key={s.id} supplier={s} coffees={list} onEdit={() => setSupplier(s)} />)}
             </Box>
           )}
         </Box>
       )}
-      {retired.length > 0 && (
-        <Box component="section" aria-label={t('Not in use')} sx={{ mt: 4 }}>
-          <SectionTitle>{t('Not in use')}</SectionTitle>
-          <Box role="list" aria-label={t('Not in use')} sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(3, minmax(0, 1fr))' } }}>
-            {retired.map(c => <CoffeeCard key={c.id} coffee={c} days={days.data} onEdit={() => setEditing(c)} />)}
-          </Box>
-        </Box>
-      )}
+      </>}
       {editing && <CoffeeDialog coffee={editing === 'new' ? undefined : editing} coffees={list} roasters={roasters.map(s => s.name)} onClose={() => setEditing(null)} />}
       {supplier && <SupplierDialog supplier={supplier === 'new' ? null : supplier} start={{ kind: 'Coffee roaster', supplies: ['coffee'] }} onClose={() => setSupplier(null)} />}
     </>
@@ -134,13 +154,18 @@ function CoffeeCard({ coffee: c, days, onEdit }: { coffee: Coffee; days: ThemeDa
           {c.roaster && <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('Roasted by {roaster}', { roaster: c.roaster })}</Typography>}
           <Stack direction="row" sx={{ gap: 0.5, flexWrap: 'wrap', my: 1 }}>
             {tags.map(x => <Tag key={x}>{x}</Tag>)}
-            {!c.active && <Tag fg={tokens.warnFg} bg={tokens.warnBg}>{t('Not in use')}</Tag>}
           </Stack>
           {c.tasting_notes && <Typography variant="body2" sx={{ fontStyle: 'italic' }}>{c.tasting_notes}</Typography>}
           {price && <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>{price}</Typography>}
           <Box sx={{ mt: 1 }}><ServedOn coffee={c} days={days} /></Box>
+          {c.link && (
+            <Button size="small" variant="outlined" startIcon={<LinkIcon />} href={c.link} target="_blank" rel="noopener" sx={{ mt: 1 }}
+              aria-label={t('{name} on the roaster’s website', { name: c.name })}>{t('Product page')}</Button>
+          )}
           {isAdmin && (
-            <Stack direction="row" sx={{ gap: 0.5, mt: 1, flexWrap: 'wrap' }}>
+            <Stack direction="row" sx={{ gap: 0.5, mt: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+              <ActiveSwitch active={c.active} name={c.name} onChange={() => run(() => api.saveCoffee({ id: c.id, name: c.name, active: !c.active }),
+                c.active ? t('{name} is now inactive', { name: c.name }) : tc('coffee', '{name} is active again', { name: c.name }))} />
               <BagPhotoPicker variant="text" label={c.photo ? t('Change photo') : t('Add photo')} inputLabel={t('Photo of {name}', { name: c.name })}
                 onPhoto={photo => run(() => api.saveCoffee({ id: c.id, name: c.name, photo }), t('Photo saved'))} />
               <Button size="small" onClick={onEdit}>{t('Edit')}</Button>
@@ -152,9 +177,18 @@ function CoffeeCard({ coffee: c, days, onEdit }: { coffee: Coffee; days: ThemeDa
   )
 }
 
+/** Active or not, switched in one tap (admins): an inactive coffee or roaster moves to the Inactive tab. */
+function ActiveSwitch({ active, name, onChange }: { active: boolean; name: string; onChange: () => void }) {
+  return (
+    <FormControlLabel sx={{ ml: 0, mr: 0.5 }} label={t('Active')} slotProps={{ typography: { variant: 'body2' } }}
+      control={<Switch size="small" checked={active} onChange={onChange} slotProps={{ input: { 'aria-label': t('{name} is active', { name }) } }} />} />
+  )
+}
+
 /** A roaster the coffees come from: how to reach and order from them, their coffees, and (admins) how to pay them. */
 function CoffeeSupplierCard({ supplier: s, coffees, onEdit }: { supplier: Supplier; coffees: Coffee[]; onEdit: () => void }) {
-  const { isAdmin, canSeeFinances } = useApp()
+  const { api, isAdmin, canSeeFinances } = useApp()
+  const run = useAction()
   const theirs = coffeesFrom(s, coffees)
   return (
     <Card component="article" aria-label={s.name} sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -195,7 +229,13 @@ function CoffeeSupplierCard({ supplier: s, coffees, onEdit }: { supplier: Suppli
         </Box>
       )}
       {s.notes && <Typography variant="body2" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>{s.notes}</Typography>}
-      {isAdmin && <Box sx={{ mt: 'auto' }}><Button size="small" onClick={onEdit} aria-label={t('Edit {name}', { name: s.name })}>{t('Edit')}</Button></Box>}
+      {isAdmin && (
+        <Stack direction="row" sx={{ mt: 'auto', gap: 0.5, alignItems: 'center' }}>
+          <ActiveSwitch active={s.active} name={s.name} onChange={() => run(() => api.saveSupplier({ ...s, active: !s.active }),
+            s.active ? t('Archived {name}', { name: s.name }) : t('{name} is back', { name: s.name }))} />
+          <Button size="small" onClick={onEdit} aria-label={t('Edit {name}', { name: s.name })}>{t('Edit')}</Button>
+        </Stack>
+      )}
     </Card>
   )
 }
@@ -205,12 +245,12 @@ function CoffeeDialog({ coffee, coffees, roasters, onClose }: { coffee?: Coffee;
   const { api } = useApp()
   const run = useAction()
   const [f, setF] = useState<CoffeeInput>(coffee ?? { name: '', country: null, region: '', roaster: '', roast: null, process: null, tasting_notes: '', brew: 'both',
-    bag_grams: null, bag_price: null, active: true, photo: null })
+    bag_grams: null, bag_price: null, active: true, photo: null, link: null })
   const set = (p: Partial<CoffeeInput>) => setF(x => ({ ...x, ...p }))
   const countries = [...COFFEE_COUNTRIES].map(code => ({ code, name: countryName(code) })).sort((a, b) => a.name.localeCompare(b.name))
   const number = (v: string) => (v.trim() === '' ? null : Number(v.replace(',', '.')))
   const save = () => run(async () => {
-    const next = { ...f, name: (f.name ?? '').trim() }
+    const next = { ...f, name: (f.name ?? '').trim(), link: (f.link ?? '').trim() || null }
     const problem = coffeeProblem(next)
     if (problem) throw new Error(t(problem))
     if (coffees.some(x => x.id !== coffee?.id && x.name.toLowerCase() === next.name.toLowerCase())) throw new Error(t('There’s already a coffee called {name}', { name: next.name }))
@@ -263,7 +303,9 @@ function CoffeeDialog({ coffee, coffees, roasters, onClose }: { coffee?: Coffee;
             <TextField label={t('Price a bag (optional)')} type="number" value={f.bag_price ?? ''} onChange={e => set({ bag_price: number(e.target.value) })} sx={{ flex: 1 }}
               slotProps={{ input: { startAdornment: <InputAdornment position="start">{currencySymbol()}</InputAdornment> }, htmlInput: { min: 0, step: 0.01 } }} />
           </Stack>
-          <FormControlLabel control={<Switch checked={f.active !== false} onChange={e => set({ active: e.target.checked })} />} label={t('In use')} />
+          <TextField label={t('Link to it on the roaster’s website (optional)')} type="url" value={f.link ?? ''} onChange={e => set({ link: e.target.value })}
+            placeholder={'https://'} slotProps={{ htmlInput: { maxLength: COFFEE_LIMITS.link } }} />
+          <FormControlLabel control={<Switch checked={f.active !== false} onChange={e => set({ active: e.target.checked })} />} label={t('Active')} />
         </Stack>
       </DialogContent>
       <DialogActions>

@@ -467,6 +467,10 @@ built-in **AI connector** so owners can run it by talking to Claude.
   holder, IBAN with a copy button, BIC, bank). A supplier's bank details are kept on Suppliers too, the IBAN
   in capitals without spaces and its check digits checked before saving (`shared/stock.ts`, `shared/themeDays.ts`,
   the `coffee_suppliers` migration, which adds Puchero, Easy Beans' roaster, with its Brasil Fazenda Boa Vista).
+- Coffees' tabs and links (Coffees): an **Active** and an **Inactive** tab, each with its coffees and coffee
+  suppliers; admins switch a coffee or a roaster between them on its card (a roaster switched off is archived on
+  Suppliers too). Each coffee can link to its page on the roaster's website, a button on its card (the
+  `coffee_links` migration, which gives Easy Beans' Brasil Fazenda Boa Vista its Puchero page and a bag photo).
 - Weekly routine (Calendar): what's done on set days, every week, every few weeks or one week of the month
   (the stock take and buying list, the wholesale run, the cleaner, the accounts talk with the gestoría, the
   coffee machine's deep clean, the business meeting…), each with its time, who does it (someone or a role)

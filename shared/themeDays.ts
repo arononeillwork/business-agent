@@ -61,13 +61,15 @@ export interface Coffee {
   active: boolean
   /** A photo of the bag, made small in the browser, as a data: URL (null: none yet). */
   photo: string | null
+  /** The coffee on its roaster's website, to read about it and order it again (the `coffee_links` migration). */
+  link?: string | null
   sort: number
   created_at: string
 }
 export type CoffeeInput = Partial<Omit<Coffee, 'id' | 'created_at'>> & Pick<Coffee, 'name'> & { id?: string }
 
 /** The same limits as the database's. */
-export const COFFEE_LIMITS = { name: 80, region: 120, roaster: 80, tasting_notes: 300, photo: 1_000_000 }
+export const COFFEE_LIMITS = { name: 80, region: 120, roaster: 80, tasting_notes: 300, photo: 1_000_000, link: 500 }
 
 /** What's wrong with a coffee before it's saved (the database says the same), or null. */
 export function coffeeProblem(c: Partial<CoffeeInput>): string | null {
@@ -81,6 +83,9 @@ export function coffeeProblem(c: Partial<CoffeeInput>): string | null {
   if (c.bag_grams != null && (!Number.isInteger(c.bag_grams) || c.bag_grams < 1 || c.bag_grams > 100_000)) return msg('The bag size is in grams, like 1000')
   if (c.bag_price != null && (!Number.isFinite(c.bag_price) || c.bag_price < 0)) return msg('The price can’t be below zero')
   if (c.photo && (!/^data:image\/(jpeg|png|webp);base64,/.test(c.photo) || c.photo.length > COFFEE_LIMITS.photo)) return msg('That photo can’t be used. Try another.')
+  const link = (c.link ?? '').trim()
+  if (link && !/^https?:\/\/[^\s/]+\S*$/i.test(link)) return msg('The link needs to start with https://')
+  if (link.length > COFFEE_LIMITS.link) return msg('Keep the link to 500 characters')
   return null
 }
 
@@ -113,13 +118,14 @@ export const coffeesFrom = <T extends Pick<Coffee, 'roaster' | 'sort' | 'name' |
   sortCoffees(coffees.filter(c => roastedBy(c, s)))
 
 /**
- * The suppliers on the Coffees page: those bought from now that supply coffee (by what's ticked on them,
- * or their type and name) or roast a coffee on the page; the ones roasting a coffee in use first.
+ * The suppliers on the Coffees page: those that supply coffee (by what's ticked on them, or their type
+ * and name) or roast a coffee on the page; the active ones (bought from now), or with `active` false the
+ * archived ones; those roasting a coffee in use first.
  */
-export function coffeeSuppliers<S extends Pick<Supplier, 'name' | 'legal_name' | 'kind' | 'supplies' | 'active'>>(suppliers: S[], coffees: Pick<Coffee, 'roaster' | 'active'>[]): S[] {
+export function coffeeSuppliers<S extends Pick<Supplier, 'name' | 'legal_name' | 'kind' | 'supplies' | 'active'>>(suppliers: S[], coffees: Pick<Coffee, 'roaster' | 'active'>[], active = true): S[] {
   const inUse = (s: S) => coffees.some(c => c.active && roastedBy(c, s))
   return suppliers
-    .filter(s => s.active && (suppliesOf(s).includes('coffee') || coffees.some(c => roastedBy(c, s))))
+    .filter(s => s.active === active && (suppliesOf(s).includes('coffee') || coffees.some(c => roastedBy(c, s))))
     .sort((a, b) => Number(inUse(b)) - Number(inUse(a)) || a.name.localeCompare(b.name))
 }
 
