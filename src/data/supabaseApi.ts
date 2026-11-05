@@ -39,7 +39,7 @@ import type { DisplayFeed, Screen } from '../../shared/screens'
 import type { Offer } from '../../shared/offers'
 import type { LatestPosts } from './api'
 import type { LastDayRule } from '../../shared/lastDayOffers'
-import type { FreshBatch } from '../../shared/freshBatches'
+import type { FreshBatch, FreshItem } from '../../shared/freshBatches'
 import type { ReportSchedule, ReportSent } from '../../shared/reports'
 import type { Camera, CameraClip, CameraLive, CameraService } from '../../shared/cameras'
 import type { AdSettings } from '../../shared/ads'
@@ -1012,6 +1012,14 @@ export function createSupabaseApi(url: string, key: string): Api {
       return (check(await sb.from('fresh_batches').insert(b).select('id').single()) as { id: string }).id
     },
     async deleteFreshBatch(id) { check(await sb.from('fresh_batches').delete().eq('id', id)) },
+    async freshItems() {
+      return check(await sb.from('fresh_items').select('id, recipe_id, shelf_life_hours, from_square, offer_hours, discount, percent_off, price')) as FreshItem[]
+    },
+    async saveFreshItem({ id, ...i }) {
+      if (id) { check(await sb.from('fresh_items').update(i).eq('id', id)); return id }
+      return (check(await sb.from('fresh_items').insert(i).select('id').single()) as { id: string }).id
+    },
+    async deleteFreshItem(id) { check(await sb.from('fresh_items').delete().eq('id', id)) },
     async lastDayRules() {
       return check(await sb.from('last_day_rules').select('id, name, active, categories, item_ids, discount, percent_off, price, minutes_before_close, screen_ids, screen_mode, story, sort')
         .order('sort').order('created_at')) as LastDayRule[]

@@ -3447,6 +3447,7 @@ export function createDemoApi(): Api {
       }
       const ids = new Set(read.items.map(i => i.square_id))
       for (const r of recipes) if (r.square_id && !ids.has(r.square_id) && r.on_menu) { r.on_menu = false; off++ }
+      freshApi.squareShelfLives(read.items)
       const had = settings.menu_sections ?? []
       settings.menu_sections = [...had.filter(x => read.sections.includes(x)), ...read.sections.filter(x => !had.includes(x))]
       Object.assign(settings, { menu_synced_at: nowIso(), menu_sync_error: null })

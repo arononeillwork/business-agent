@@ -14,7 +14,8 @@ import { storeMedia } from './media'
 import { pushGoogleMenu } from './integrations'
 import * as higgsfield from './providers/higgsfield'
 import * as square from './providers/square'
-import { fromSquareCatalog } from '../shared/menuSquare'
+import { fromSquareCatalog, type SquareMenuItem } from '../shared/menuSquare'
+import { squareShelfChanges } from '../shared/freshBatches'
 import { businessConfig } from '../shared/business.config'
 import {
   MAX_PROMPT, aiRequest, buildPrompt, menuSections, modelOf, photoPrompt, readAiResult, imageShape, type AiModel, type AiResult, type MenuDesign, type MenuImage, type MenuItem,
@@ -158,9 +159,28 @@ export async function syncSquareMenu(env: Env, db: SupabaseClient) {
   const { data, error } = await db.rpc('sync_square_menu', { p: read })
   if (error) throw new Error(error.message)
   const done = data as { added: number; changed: number; off: number }
+  // The items' shelf lives (a "Shelf life" custom attribute in Square), for Stock's Freshly made.
+  await squareShelfLives(db, read.items).catch(e => console.error('square shelf lives failed', message(e)))
   // Something changed: the Google Maps listing's menu follows straight away (a refusal shows on the Menu page).
   if (done.added || done.changed || done.off) await pushGoogleMenu(env, db).catch(e => console.error('google menu failed', message(e)))
   return { ...done, items: read.items.length }
+}
+
+/**
+ * Square's shelf lives into the menu items' (Stock's Freshly made, the `fresh_items` migration): set from
+ * the item's "Shelf life" custom attribute while Square has one, kept as set here once it hasn't.
+ */
+async function squareShelfLives(db: SupabaseClient, read: SquareMenuItem[]) {
+  const [recipes, items] = await Promise.all([
+    db.from('recipes').select('id, square_id').not('square_id', 'is', null),
+    db.from('fresh_items').select('id, recipe_id, shelf_life_hours, offer_hours, from_square'),
+  ])
+  if (recipes.error || items.error) throw new Error((recipes.error ?? items.error)!.message)
+  const { add, change, release } = squareShelfChanges(read, recipes.data ?? [], items.data ?? [])
+  const fail = (r: { error: { message: string } | null }) => { if (r.error) throw new Error(r.error.message) }
+  if (add.length) fail(await db.from('fresh_items').insert(add))
+  for (const c of change) fail(await db.from('fresh_items').update(c.patch).eq('id', c.id))
+  if (release.length) fail(await db.from('fresh_items').update({ from_square: false }).in('id', release))
 }
 
 /** Every hour (the cron), while the menu comes from Square. */
