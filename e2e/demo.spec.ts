@@ -6256,6 +6256,7 @@ test.describe('contacts', () => {
     const miguel = list.getByRole('listitem', { name: 'Miguel' })
     await expect(miguel).toContainText('Plumber & electrician')
     await expect(miguel.getByRole('link', { name: '+34 632 042 132' })).toHaveAttribute('href', 'tel:+34632042132')
+    await expect(miguel.getByRole('link', { name: 'WhatsApp' })).toHaveAttribute('href', 'https://wa.me/34632042132')
     await expect(page.getByRole('button', { name: 'Add a contact' })).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Edit Miguel' })).toHaveCount(0)
 
@@ -6291,10 +6292,10 @@ test.describe('contacts', () => {
     await expect(locksmith.getByRole('link', { name: 'cerrajeria.example' })).toHaveAttribute('href', 'https://cerrajeria.example')
     await expect(list.getByRole('listitem')).toHaveText([/^Daniel/, /^Eduardo/, /^Cerrajería/, /^Miguel/])
 
-    // Change Miguel: he answers on WhatsApp, with a note.
+    // Change Miguel: a note; he still answers on WhatsApp.
     await list.getByRole('button', { name: 'Edit Miguel' }).click()
     const edit = page.getByRole('dialog', { name: 'Miguel' })
-    await edit.getByRole('checkbox', { name: 'They answer on WhatsApp' }).check()
+    await expect(edit.getByRole('checkbox', { name: 'They answer on WhatsApp' })).toBeChecked()
     await edit.getByRole('textbox', { name: 'Notes' }).fill('Comes the same day for leaks.')
     await edit.getByRole('button', { name: 'Save' }).click()
     await toast(page, /^Saved$/)

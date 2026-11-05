@@ -75,7 +75,7 @@ declare
 [
   {"name": "Eduardo Torquino", "job": "Lawyer", "company": null, "phone": "+34 747 758 327", "whatsapp": false, "email": null, "website": null, "notes": null, "seen_by": "admins"},
   {"name": "Daniel Cruz Luna", "job": "Bank advisor", "company": "BBVA", "phone": "+34 955 677 963", "whatsapp": false, "email": "daniel.cruz.luna@bbva.com", "website": "https://www.bbva.es", "notes": null, "seen_by": "owners"},
-  {"name": "Miguel", "job": "Plumber & electrician", "company": null, "phone": "+34 632 042 132", "whatsapp": false, "email": null, "website": null, "notes": null, "seen_by": "team"}
+  {"name": "Miguel", "job": "Plumber & electrician", "company": null, "phone": "+34 632 042 132", "whatsapp": true, "email": null, "website": null, "notes": null, "seen_by": "team"}
 ]
 $json$;
 begin

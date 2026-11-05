@@ -37,8 +37,8 @@ do $$ begin
     = row('Bank advisor', 'BBVA', '+34 955 677 963', 'daniel.cruz.luna@bbva.com', 'https://www.bbva.es', 'owners')::text, 'the bank advisor';
   assert (select row(job, phone, seen_by)::text from public.business_contacts where name = 'Eduardo Torquino')
     = row('Lawyer', '+34 747 758 327', 'admins')::text, 'the lawyer';
-  assert (select row(job, phone, seen_by)::text from public.business_contacts where name = 'Miguel')
-    = row('Plumber & electrician', '+34 632 042 132', 'team')::text, 'the plumber';
+  assert (select row(job, phone, whatsapp, seen_by)::text from public.business_contacts where name = 'Miguel')
+    = row('Plumber & electrician', '+34 632 042 132', true, 'team')::text, 'the plumber, on WhatsApp';
 end $$;
 
 -- 2. Who sees which: a shop manager all but the owners' own; an employee the team's; partners and the tablet none.

@@ -81,10 +81,10 @@ describe('contacts', () => {
       expect(contactProblem(c)).toBeNull()
       expect(tidyContact(c)).toEqual(c)
     }
-    expect(EASY_BEANS_CONTACTS.map(c => [c.name, c.job, c.phone, c.seen_by])).toEqual([
-      ['Eduardo Torquino', 'Lawyer', '+34 747 758 327', 'admins'],
-      ['Daniel Cruz Luna', 'Bank advisor', '+34 955 677 963', 'owners'],
-      ['Miguel', 'Plumber & electrician', '+34 632 042 132', 'team'],
+    expect(EASY_BEANS_CONTACTS.map(c => [c.name, c.job, c.phone, c.whatsapp, c.seen_by])).toEqual([
+      ['Eduardo Torquino', 'Lawyer', '+34 747 758 327', false, 'admins'],
+      ['Daniel Cruz Luna', 'Bank advisor', '+34 955 677 963', false, 'owners'],
+      ['Miguel', 'Plumber & electrician', '+34 632 042 132', true, 'team'],
     ])
   })
 

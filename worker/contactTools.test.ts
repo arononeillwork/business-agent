@@ -57,7 +57,7 @@ describe('contact tools', () => {
   })
 
   it('changes one found by name, leaving the rest as it was; "" clears a field', async () => {
-    const out = await run('save_contact', { contact: 'Miguel', whatsapp: true, notes: 'Comes the same day for leaks.' }) as { updated: Row }
+    const out = await run('save_contact', { contact: 'Miguel', notes: 'Comes the same day for leaks.' }) as { updated: Row }
     expect(out.updated).toMatchObject({ name: 'Miguel', what_they_do: 'Plumber & electrician', phone: '+34 632 042 132', whatsapp: true, notes: 'Comes the same day for leaks.' })
     await run('save_contact', { contact: 'Daniel', website: '' })
     expect(row('Daniel Cruz Luna')).toMatchObject({ website: null, company: 'BBVA', email: 'daniel.cruz.luna@bbva.com' })
