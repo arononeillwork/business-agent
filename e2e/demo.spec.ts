@@ -9825,16 +9825,15 @@ test.describe('content', () => {
 test.describe('square pins', () => {
   test('Square PINs on the Leaderboard: owners see and change everyone’s, everyone else sees only their own', async ({ page }) => {
     await open(page, '/leaderboard')
-    const pins = page.getByRole('region', { name: 'Square PINs' })
+    // Beside Square logins; nothing about PINs on the page itself.
+    const actions = page.getByRole('group', { name: 'Page actions' })
+    await expect(actions.getByRole('button', { name: 'Square logins' })).toBeVisible()
+    await expect(page.getByRole('table', { name: 'Square PINs' })).toHaveCount(0)
+    await actions.getByRole('button', { name: 'Show PINs' }).click()
+    const pins = page.getByRole('dialog', { name: 'Square PINs' })
     const table = pins.getByRole('table', { name: 'Square PINs' })
-    await expect(table.getByRole('row')).toHaveText([/Name.*PIN/, /Aron O'Neill \(you\)••••/, /Mark Murray.*Not saved yet/, /Julio••••/, /Maria••••/, /Cleaner.*Not saved yet/])
+    await expect(table.getByRole('row')).toHaveText([/Name.*PIN/, /Aron O'Neill \(you\)0417/, /Mark Murray.*Not saved yet/, /Julio5286/, /Maria7390/, /Cleaner.*Not saved yet/])
     await expect(pins).toContainText('Square doesn’t let apps read passcodes')
-
-    // Shown when asked, and hidden again.
-    await table.getByRole('button', { name: 'Show the PIN for Julio' }).click()
-    await expect(table.getByRole('row', { name: /Julio/ })).toContainText('5286')
-    await table.getByRole('button', { name: 'Hide the PIN for Julio' }).click()
-    await expect(table.getByRole('row', { name: /Julio/ })).not.toContainText('5286')
 
     // Mark's, typed in as it is in the Square Dashboard.
     await table.getByRole('button', { name: 'Add the PIN for Mark Murray' }).click()
@@ -9845,18 +9844,19 @@ test.describe('square pins', () => {
     await dialog.getByRole('textbox', { name: 'PIN' }).fill('2468')
     await dialog.getByRole('button', { name: 'Save' }).click()
     await toast(page, 'PIN saved')
-    await table.getByRole('button', { name: 'Show the PIN for Mark Murray' }).click()
     await expect(table.getByRole('row', { name: /Mark Murray/ })).toContainText('2468')
+    await pins.getByRole('button', { name: 'Close' }).click()
+    await expect(pins).toHaveCount(0)
 
     // Maria, an employee: her own only, nobody else's, and no changes.
     await signInAs(page, 'maria@example.com')
     await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Leaderboard' }).click()
-    const mine = page.getByRole('region', { name: 'Your Square PIN' })
-    await expect(mine).toContainText('••••')
-    await expect(page.getByRole('region', { name: 'Square PINs' })).toHaveCount(0)
-    await expect(page.getByRole('button', { name: /PIN for Julio/ })).toHaveCount(0)
-    await mine.getByRole('button', { name: 'Show the PIN for Maria' }).click()
-    await expect(mine).toContainText('7390')
-    await expect(page.getByRole('button', { name: /^(Add|Change) the PIN/ })).toHaveCount(0)
+    await expect(actions.getByRole('button', { name: 'Square logins' })).toHaveCount(0)
+    await actions.getByRole('button', { name: 'Show my PIN' }).click()
+    const mine = page.getByRole('dialog', { name: 'Your Square PIN' })
+    await expect(mine.getByRole('status', { name: 'Your Square PIN' })).toHaveText('7390')
+    await expect(mine.getByRole('table')).toHaveCount(0)
+    await expect(mine).not.toContainText('5286')
+    await expect(mine.getByRole('button', { name: /^(Add|Change) the PIN/ })).toHaveCount(0)
   })
 })
