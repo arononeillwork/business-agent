@@ -12,17 +12,20 @@ import DeleteIcon from '@mui/icons-material/DeleteOutlined'
 import StarIcon from '@mui/icons-material/Star'
 import StarOutlineIcon from '@mui/icons-material/StarBorder'
 import InvoiceIcon from '@mui/icons-material/ReceiptLongOutlined'
+import CopyIcon from '@mui/icons-material/ContentCopyOutlined'
 import { Link as RouterLink } from 'react-router-dom'
-import { useState } from 'react'
+import { Fragment, useState, type ReactNode } from 'react'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
-import { useAction } from '../app/Notify'
+import { useAction, useNotify } from '../app/Notify'
 import { DecimalField, Empty, ErrorBox, PageHeader, Tag } from '../components/common'
 import { PhoneField } from '../components/PhoneField'
 import { ExportButton } from '../components/tables'
 import type { ExportTable } from '../lib/export'
 import { EMAIL } from '../../shared/customers'
-import { SUPPLIER_KINDS, SUPPLY_GROUPS, nextOrderDay, sortDays, suppliesOf, type Supplier, type SupplierInput, type SupplyGroup } from '../../shared/stock'
+import {
+  SUPPLIER_KINDS, SUPPLY_GROUPS, bicProblem, cleanBankCode, formatIban, ibanProblem, nextOrderDay, sortDays, suppliesOf, type Supplier, type SupplierInput, type SupplyGroup,
+} from '../../shared/stock'
 import { DAY_KEYS, type DayKey } from '../../shared/types'
 import { formatLocal, formatMoney, today } from '../../shared/time'
 import { tokens } from '../theme'
@@ -52,6 +55,8 @@ export function SuppliersPage() {
   const [open, setOpen] = useState<Supplier | 'new' | null>(null)
   const [filter, setFilter] = useState<Filter>('active')
   const [group, setGroup] = useState<SupplyGroup | null>(null)
+  // Bank details are for whoever pays the suppliers.
+  const canSeeBank = isAdmin || canSeeFinances
 
   const all = data.data ?? []
   const itemsOf = (s: Supplier) => (items.data ?? []).filter(i => i.supplier_id === s.id && i.active)
@@ -67,9 +72,11 @@ export function SuppliersPage() {
     title: t('Suppliers'),
     filename: `suppliers-${today()}`,
     columns: [t('Supplier'), t('Type'), t('Contact'), t('Phone'), t('Email'), t('Website'), t('Order page'), t('Customer number'), t('Order days'),
-      t('Order by'), t('Delivery (days)'), t('Minimum order'), t('Payment terms'), t('Items'), t('Notes')],
+      t('Order by'), t('Delivery (days)'), t('Minimum order'), t('Payment terms'), t('Items'), t('Notes'),
+      ...(canSeeBank ? [t('Account holder'), t('Bank'), t('IBAN'), t('BIC')] : [])],
     rows: shown.map(s => [s.name, s.kind ? t(s.kind) : '', s.contact_name ?? '', s.phone ?? '', s.email ?? '', s.website ?? '', s.order_url ?? '',
-      s.account_number ?? '', days(s), s.cutoff ?? '', s.lead_days, s.minimum_order, s.payment_terms ?? '', itemsOf(s).length, s.notes ?? '']),
+      s.account_number ?? '', days(s), s.cutoff ?? '', s.lead_days, s.minimum_order, s.payment_terms ?? '', itemsOf(s).length, s.notes ?? '',
+      ...(canSeeBank ? [s.legal_name ?? '', s.bank_name ?? '', s.iban ? formatIban(s.iban) : '', s.bic ?? ''] : [])]),
     money: [11],
   })
 
@@ -112,7 +119,7 @@ export function SuppliersPage() {
                 <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
                   <Box sx={{ minWidth: 0 }}>
                     <Typography variant="h6" component="h2" noWrap>{s.name}</Typography>
-                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>{[s.kind && t(s.kind), s.contact_name].filter(Boolean).join(' · ') || '—'}</Typography>
+                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>{[s.kind && t(s.kind), s.contact_name, s.legal_name].filter(Boolean).join(' · ') || '—'}</Typography>
                     {groupsOf(s).length > 0 && (
                       <Stack direction="row" useFlexGap spacing={0.5} sx={{ flexWrap: 'wrap', mt: 0.5 }} aria-label={t('What they supply')}>
                         {groupsOf(s).map(g => <Tag key={g} fg={tokens.matchaDeep} bg={tokens.matchaSoft}>{t(SUPPLY_GROUPS.find(x => x.id === g)!.label)}</Tag>)}
@@ -156,6 +163,7 @@ export function SuppliersPage() {
                     last ? t('Last delivery {date}', { date: formatLocal(last, 'd MMM') }) : null].filter(Boolean).join(' · ')}
                 </Typography>
                 {s.address && <Typography variant="body2" sx={{ color: 'text.secondary' }}>{s.address}</Typography>}
+                {canSeeBank && s.iban && <BankLine supplier={s} />}
                 {s.notes && <Typography variant="body2" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>{s.notes}</Typography>}
                 {isAdmin && <Box sx={{ mt: 'auto' }}><Link component="button" underline="hover" onClick={() => setOpen(s)} aria-label={t('Edit {name}', { name: s.name })}>{t('Edit')}</Link></Box>}
               </Card>
@@ -171,14 +179,65 @@ export function SuppliersPage() {
 const blank = (): SupplierInput => ({ name: '', kind: null, contact_name: null, email: null, phone: null, whatsapp: false, website: null, order_url: null,
   address: null, account_number: null, order_days: [], cutoff: null, lead_days: 1, minimum_order: null, payment_terms: null, notes: null, active: true, supplies: [] })
 
-function SupplierDialog({ supplier, onClose }: { supplier: Supplier | null; onClose: () => void }) {
+/** A button that copies a supplier's IBAN, without spaces, for the bank's app: an icon, or with words (`labelled`). */
+export function CopyIban({ supplier: s, labelled }: { supplier: Supplier; labelled?: boolean }) {
+  const notify = useNotify()
+  const copy = async () => { await navigator.clipboard.writeText(cleanBankCode(s.iban)); notify(t('IBAN copied'), 'success') }
+  if (labelled) {
+    return <Button size="small" startIcon={<CopyIcon />} onClick={() => void copy()} aria-label={t('Copy the IBAN of {name}', { name: s.name })}>{t('Copy IBAN')}</Button>
+  }
+  return (
+    <Tooltip title={t('Copy the IBAN')}>
+      <IconButton size="small" onClick={() => void copy()} aria-label={t('Copy the IBAN of {name}', { name: s.name })} sx={{ p: 0.5 }}><CopyIcon sx={{ fontSize: 16 }} /></IconButton>
+    </Tooltip>
+  )
+}
+const nowrap = { whiteSpace: 'nowrap' } as const
+
+/** "Pay by transfer: ES86 0049 … · BSCHESMMXXX · Banco Santander", with a button to copy the IBAN. */
+export function BankLine({ supplier: s }: { supplier: Supplier }) {
+  if (!s.iban) return null
+  return (
+    <Typography variant="body2">
+      {t('Pay by transfer:')} <Box component="span" sx={nowrap}>{formatIban(s.iban)}</Box>
+      <Box component="span" sx={{ color: 'text.secondary' }}>{[s.bic, s.bank_name].filter(Boolean).map(x => ` · ${x}`).join('')}</Box>
+      {' '}<CopyIban supplier={s} />
+    </Typography>
+  )
+}
+
+/** The bank details in rows (account holder, IBAN, BIC, bank), for paying a supplier by transfer (the IBAN's copy button goes beside them). */
+export function BankDetails({ supplier: s }: { supplier: Supplier }) {
+  const rows: [string, ReactNode][] = [
+    [t('Account holder'), s.legal_name],
+    [t('IBAN'), s.iban && formatIban(s.iban)],
+    [t('BIC'), s.bic],
+    [t('Bank'), s.bank_name],
+  ]
+  return (
+    <Box component="dl" sx={{ display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 1.5, rowGap: 0.25, m: 0, alignItems: 'center' }}>
+      {rows.filter(([, v]) => v).map(([k, v]) => (
+        <Fragment key={k}>
+          <Typography component="dt" variant="body2" sx={{ color: 'text.secondary' }}>{k}</Typography>
+          <Typography component="dd" variant="body2" sx={{ m: 0, minWidth: 0 }}>{v}</Typography>
+        </Fragment>
+      ))}
+    </Box>
+  )
+}
+
+/** Add a supplier or change one. `start`: what a new one starts with (from the Coffees page: a coffee roaster). */
+export function SupplierDialog({ supplier, start, onClose }: { supplier: Supplier | null; start?: Partial<SupplierInput>; onClose: () => void }) {
   const { api } = useApp()
   const run = useAction()
   const phone = useMediaQuery(useTheme().breakpoints.down('sm'))
   const { data: stockItems } = useAsync('stock', () => api.stockItems(), [])
   // What they supply: ticked as worked out until an admin says otherwise (saved as ticked).
-  const [s, setS] = useState<SupplierInput>(() => (supplier ? { ...supplier } : blank()))
-  const [picked, setPicked] = useState<SupplyGroup[] | null>(supplier?.supplies?.length ? supplier.supplies : null)
+  const [s, setS] = useState<SupplierInput>(() => (supplier ? { ...supplier } : { ...blank(), ...start }))
+  const [picked, setPicked] = useState<SupplyGroup[] | null>(() => {
+    const from = supplier ?? start
+    return from?.supplies?.length ? from.supplies : null
+  })
   const supplies = picked ?? (supplier ? suppliesOf(supplier, (stockItems ?? []).filter(i => i.supplier_id === supplier.id)) : [])
   const [deleting, setDeleting] = useState(false)
   // Where its invoices are emailed from, typed as a list: "no-reply@transgourmet.es, transgourmet.es".
@@ -193,12 +252,15 @@ function SupplierDialog({ supplier, onClose }: { supplier: Supplier | null; onCl
     if (email && !EMAIL.test(email)) throw new Error(t('Enter a full email address, like name@example.com'))
     for (const url of [text(s.website), text(s.order_url)]) if (url && !/^https?:\/\/\S+$/i.test(url)) throw new Error(t('The link needs to start with https://'))
     if (s.minimum_order !== null && s.minimum_order !== undefined && !(s.minimum_order >= 0)) throw new Error(t('Enter numbers like 12 or 1,45'))
+    const bankProblem = ibanProblem(s.iban) ?? bicProblem(s.bic)
+    if (bankProblem) throw new Error(t(bankProblem))
     const invoice_from = [...new Set(senders.split(/[\s,;]+/).map(x => x.trim().toLowerCase().replace(/^@/, '')).filter(Boolean))]
     if (invoice_from.some(x => !/^([^@\s]+@)?[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(x))) throw new Error(t('Invoices come from: give email addresses or domains, like facturas@supplier.es or supplier.es'))
     if (invoice_from.length > 10) throw new Error(t('Up to 10 addresses or domains'))
     await api.saveSupplier({ ...s, invoice_from, name: s.name.trim(), email, website: text(s.website), order_url: text(s.order_url), phone: text(s.phone),
       contact_name: text(s.contact_name), kind: text(s.kind), address: text(s.address), account_number: text(s.account_number),
-      payment_terms: text(s.payment_terms), notes: text(s.notes), order_days: sortDays(s.order_days ?? []), whatsapp: !!text(s.phone) && !!s.whatsapp, supplies })
+      payment_terms: text(s.payment_terms), notes: text(s.notes), legal_name: text(s.legal_name), bank_name: text(s.bank_name),
+      iban: cleanBankCode(s.iban) || null, bic: cleanBankCode(s.bic) || null, order_days: sortDays(s.order_days ?? []), whatsapp: !!text(s.phone) && !!s.whatsapp, supplies })
     onClose()
   }, supplier ? t('Saved') : t('Added {name}', { name: s.name.trim() }))
   const archive = () => run(async () => { await api.saveSupplier({ ...supplier!, active: !supplier!.active }); onClose() },
@@ -251,6 +313,23 @@ function SupplierDialog({ supplier, onClose }: { supplier: Supplier | null; onCl
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField fullWidth label={t('Your customer number')} value={field('account_number')} onChange={e => set({ account_number: e.target.value })} slotProps={{ htmlInput: { maxLength: 60 } }} />
             <TextField fullWidth label={t('Payment terms')} value={field('payment_terms')} onChange={e => set({ payment_terms: e.target.value })} placeholder={t('e.g. 30 days')} slotProps={{ htmlInput: { maxLength: 120 } }} />
+          </Stack>
+          <Box>
+            <Typography variant="body2" sx={{ mb: 0.25 }}>{t('Paying them by bank transfer')}</Typography>
+            <Typography variant="caption" sx={{ color: 'text.secondary' }}>{t('As on their order page or invoice.')}</Typography>
+          </Box>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+            <TextField fullWidth label={t('Account holder')} value={field('legal_name')} onChange={e => set({ legal_name: e.target.value })}
+              helperText={t('The company the account is in, when not the name above')} slotProps={{ htmlInput: { maxLength: 120 } }} />
+            <TextField fullWidth label={t('Bank')} value={field('bank_name')} onChange={e => set({ bank_name: e.target.value })} slotProps={{ htmlInput: { maxLength: 80 } }} />
+          </Stack>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+            <TextField fullWidth label={t('IBAN')} value={s.iban ? formatIban(s.iban) : ''} onChange={e => set({ iban: cleanBankCode(e.target.value) })} placeholder={'ES00 0000 0000 0000 0000 0000'}
+              error={!!s.iban && cleanBankCode(s.iban).length >= 15 && !!ibanProblem(s.iban)} sx={{ flex: 2 }}
+              helperText={s.iban && cleanBankCode(s.iban).length >= 15 && ibanProblem(s.iban) ? t(ibanProblem(s.iban)!) : undefined}
+              slotProps={{ htmlInput: { maxLength: 42, autoCapitalize: 'characters', spellCheck: false } }} />
+            <TextField fullWidth label={t('BIC')} value={field('bic')} onChange={e => set({ bic: cleanBankCode(e.target.value) })} placeholder={'BSCHESMMXXX'} sx={{ flex: 1 }}
+              slotProps={{ htmlInput: { maxLength: 11, autoCapitalize: 'characters', spellCheck: false } }} />
           </Stack>
           <TextField label={t('Notes')} value={field('notes')} onChange={e => set({ notes: e.target.value })} multiline minRows={2} slotProps={{ htmlInput: { maxLength: 2000 } }} />
         </Stack>

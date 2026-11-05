@@ -39,6 +39,12 @@ export interface Supplier {
   starred: boolean
   /** What they supply, for the filters on Suppliers (an admin's choice); empty: worked out from their type, name and items. */
   supplies?: SupplyGroup[]
+  /** The company their bank account and invoices are in, when it isn't the name they go by (Puchero: Tostarix S.L.). */
+  legal_name?: string | null
+  /** Where to send a bank transfer: the bank, and the IBAN and BIC (kept in capitals without spaces). */
+  bank_name?: string | null
+  iban?: string | null
+  bic?: string | null
 }
 export type SupplierInput = Partial<Omit<Supplier, 'id'>> & { id?: string; name: string }
 
@@ -100,6 +106,30 @@ export function suppliesOf(s: Pick<Supplier, 'name' | 'kind' | 'supplies'>, item
       return w.item.test(name)
     })
   })
+}
+
+/** An IBAN or BIC as kept: capitals, no spaces or dashes ("es86 0049-6064…" → "ES860049…"). */
+export const cleanBankCode = (s: string | null | undefined) => (s ?? '').replace(/[\s-]+/g, '').toUpperCase()
+
+/** "ES8600496064362216134651" → "ES86 0049 6064 3622 1613 4651", as banks print it. */
+export const formatIban = (iban: string) => cleanBankCode(iban).replace(/(.{4})(?=.)/g, '$1 ')
+
+/** What's wrong with an IBAN (its shape, then its two check digits, which catch a mistyped number), or null when it's right or empty. */
+export function ibanProblem(iban: string | null | undefined): string | null {
+  const s = cleanBankCode(iban)
+  if (!s) return null
+  if (!/^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$/.test(s)) return msg('An IBAN starts with two letters for the country, like ES86 0049 …')
+  // Move the first four to the end, letters to numbers (A = 10 … Z = 35): a right IBAN leaves 1 over 97.
+  const digits = (s.slice(4) + s.slice(0, 4)).replace(/[A-Z]/g, c => String(c.charCodeAt(0) - 55))
+  let rest = 0
+  for (const d of digits) rest = (rest * 10 + Number(d)) % 97
+  return rest === 1 ? null : msg('That IBAN isn’t right: check the numbers against their order or invoice')
+}
+
+/** What's wrong with a BIC (8 or 11 letters and numbers: BSCHESMMXXX), or null when it's right or empty. */
+export function bicProblem(bic: string | null | undefined): string | null {
+  const s = cleanBankCode(bic)
+  return !s || /^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$/.test(s) ? null : msg('A BIC is 8 or 11 letters and numbers, like BSCHESMMXXX')
 }
 
 export interface StockItem {

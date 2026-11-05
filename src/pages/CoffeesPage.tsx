@@ -1,20 +1,30 @@
 // Coffees (Menu section): the coffees in use, bag by bag: where each is from, its roaster, roast and
 // process, how it tastes, what it's brewed as, what a bag costs, and a photo of the bag. Each theme day
 // on the Calendar serves one of them. Everyone on the team reads it; admins add and change them.
+// Under them, the coffee suppliers (from Suppliers): how to reach and order from each roaster, the
+// coffees it roasts, and, for admins, how to pay it by bank transfer.
 import {
-  Box, Button, Card, CardContent, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, InputAdornment, MenuItem, Stack, Switch, TextField, Typography,
+  Autocomplete, Box, Button, Card, CardContent, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, InputAdornment, MenuItem, Stack, Switch, TextField, Typography,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
+import PhoneIcon from '@mui/icons-material/PhoneOutlined'
+import WhatsAppIcon from '@mui/icons-material/WhatsApp'
+import EmailIcon from '@mui/icons-material/EmailOutlined'
+import WebIcon from '@mui/icons-material/LanguageOutlined'
+import OrderIcon from '@mui/icons-material/ShoppingCartOutlined'
 import PhotoIcon from '@mui/icons-material/AddAPhotoOutlined'
 import { useRef, useState } from 'react'
 import { useApp } from '../app/AppContext'
+import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { Empty, ErrorBox, PageHeader, SectionTitle, Tag } from '../components/common'
 import { CoffeePhoto, ServedOn, brewLabel, countryName, originOf, processLabel, roastLabel, useCoffees, useThemeDays } from '../components/ThemeDays'
 import {
-  BREWS, COFFEE_COUNTRIES, COFFEE_LIMITS, PROCESSES, ROASTS, coffeeProblem, flagOf, pricePerKg, sortCoffees,
+  BREWS, COFFEE_COUNTRIES, COFFEE_LIMITS, PROCESSES, ROASTS, coffeeProblem, coffeeSuppliers, coffeesFrom, flagOf, pricePerKg, sortCoffees,
   type BrewUse, type Coffee, type CoffeeInput, type CoffeeProcess, type RoastLevel, type ThemeDays,
 } from '../../shared/themeDays'
+import type { Supplier } from '../../shared/stock'
+import { BankDetails, CopyIban, SupplierDialog } from './SuppliersPage'
 import { currencySymbol, formatMoney } from '../../shared/time'
 import { tokens } from '../theme'
 import { t } from '../i18n'
@@ -61,11 +71,14 @@ function priceLine(c: Coffee) {
 }
 
 export function CoffeesPage() {
-  const { isAdmin } = useApp()
+  const { api, isAdmin } = useApp()
   const coffees = useCoffees()
   const days = useThemeDays()
+  const suppliers = useAsync('suppliers', () => api.suppliers(), [])
   const [editing, setEditing] = useState<Coffee | 'new' | null>(null)
+  const [supplier, setSupplier] = useState<Supplier | 'new' | null>(null)
   const list = sortCoffees(coffees.data ?? [])
+  const roasters = coffeeSuppliers(suppliers.data ?? [], list)
   const inUse = list.filter(c => c.active)
   const retired = list.filter(c => !c.active)
   return (
@@ -80,6 +93,18 @@ export function CoffeesPage() {
       <Box role="list" aria-label={t('Coffees in use')} sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(3, minmax(0, 1fr))' } }}>
         {inUse.map(c => <CoffeeCard key={c.id} coffee={c} days={days.data} onEdit={() => setEditing(c)} />)}
       </Box>
+      {(roasters.length > 0 || (isAdmin && suppliers.data)) && (
+        <Box component="section" aria-label={t('Coffee suppliers')} sx={{ mt: 4 }}>
+          <SectionTitle action={isAdmin && <Button size="small" startIcon={<AddIcon />} onClick={() => setSupplier('new')}>{t('Add a roaster')}</Button>}>
+            {t('Coffee suppliers')}
+          </SectionTitle>
+          {roasters.length === 0 ? <Empty>{t('Add the roasters you buy from, with how to order and pay. A coffee whose roaster is one of them shows on its card.')}</Empty> : (
+            <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(3, minmax(0, 1fr))' } }}>
+              {roasters.map(s => <CoffeeSupplierCard key={s.id} supplier={s} coffees={list} onEdit={() => setSupplier(s)} />)}
+            </Box>
+          )}
+        </Box>
+      )}
       {retired.length > 0 && (
         <Box component="section" aria-label={t('Not in use')} sx={{ mt: 4 }}>
           <SectionTitle>{t('Not in use')}</SectionTitle>
@@ -88,7 +113,8 @@ export function CoffeesPage() {
           </Box>
         </Box>
       )}
-      {editing && <CoffeeDialog coffee={editing === 'new' ? undefined : editing} coffees={list} onClose={() => setEditing(null)} />}
+      {editing && <CoffeeDialog coffee={editing === 'new' ? undefined : editing} coffees={list} roasters={roasters.map(s => s.name)} onClose={() => setEditing(null)} />}
+      {supplier && <SupplierDialog supplier={supplier === 'new' ? null : supplier} start={{ kind: 'Coffee roaster', supplies: ['coffee'] }} onClose={() => setSupplier(null)} />}
     </>
   )
 }
@@ -126,8 +152,56 @@ function CoffeeCard({ coffee: c, days, onEdit }: { coffee: Coffee; days: ThemeDa
   )
 }
 
+/** A roaster the coffees come from: how to reach and order from them, their coffees, and (admins) how to pay them. */
+function CoffeeSupplierCard({ supplier: s, coffees, onEdit }: { supplier: Supplier; coffees: Coffee[]; onEdit: () => void }) {
+  const { isAdmin, canSeeFinances } = useApp()
+  const theirs = coffeesFrom(s, coffees)
+  return (
+    <Card component="article" aria-label={s.name} sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
+      <Box>
+        <Typography variant="h6" component="h3" sx={{ lineHeight: 1.3 }}>{s.name}</Typography>
+        <Typography variant="body2" sx={{ color: 'text.secondary' }}>{[s.kind && t(s.kind), s.legal_name, s.contact_name].filter(Boolean).join(' · ') || t('Coffee')}</Typography>
+        {s.address && <Typography variant="body2" sx={{ color: 'text.secondary' }}>{s.address}</Typography>}
+      </Box>
+      <Stack direction="row" sx={{ gap: 0.75, flexWrap: 'wrap' }}>
+        {s.website && <Button size="small" variant="outlined" startIcon={<WebIcon />} href={s.website} target="_blank" rel="noopener">{t('Website')}</Button>}
+        {s.order_url && <Button size="small" variant="outlined" startIcon={<OrderIcon />} href={s.order_url} target="_blank" rel="noopener">{t('Order page')}</Button>}
+        {s.phone && <Button size="small" variant="outlined" startIcon={<PhoneIcon />} href={`tel:${s.phone.replace(/\s/g, '')}`}>{s.phone}</Button>}
+        {s.phone && s.whatsapp && <Button size="small" variant="outlined" startIcon={<WhatsAppIcon />} href={`https://wa.me/${s.phone.replace(/\D/g, '')}`} target="_blank" rel="noopener">{'WhatsApp'}</Button>}
+        {s.email && <Button size="small" variant="outlined" startIcon={<EmailIcon />} href={`mailto:${s.email}`}>{t('Email')}</Button>}
+      </Stack>
+      <Box>
+        <Typography variant="body2" sx={{ fontWeight: 600 }}>{t('Their coffees')}</Typography>
+        {theirs.length ? (
+          <Stack direction="row" component="ul" aria-label={t('Coffees from {name}', { name: s.name })} sx={{ gap: 0.5, flexWrap: 'wrap', listStyle: 'none', p: 0, m: 0, mt: 0.5 }}>
+            {theirs.map(c => (
+              <Box component="li" key={c.id}>
+                <Tag fg={c.active ? tokens.matchaDeep : undefined} bg={c.active ? tokens.matchaSoft : undefined}>{`${flagOf(c.country)} ${c.name}`.trim()}</Tag>
+              </Box>
+            ))}
+          </Stack>
+        ) : (
+          <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('None yet. Name them as the roaster on a coffee.')}</Typography>
+        )}
+      </Box>
+      {s.payment_terms && <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('Paying: {terms}', { terms: s.payment_terms })}</Typography>}
+      {(isAdmin || canSeeFinances) && (s.iban || s.legal_name) && (
+        <Box role="group" aria-label={t('Bank details of {name}', { name: s.name })} sx={{ p: 1.25, borderRadius: 2, bgcolor: tokens.neutralBg }}>
+          <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 0.5 }}>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>{t('Bank details')}</Typography>
+            {s.iban && <CopyIban supplier={s} labelled />}
+          </Stack>
+          <BankDetails supplier={s} />
+        </Box>
+      )}
+      {s.notes && <Typography variant="body2" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>{s.notes}</Typography>}
+      {isAdmin && <Box sx={{ mt: 'auto' }}><Button size="small" onClick={onEdit} aria-label={t('Edit {name}', { name: s.name })}>{t('Edit')}</Button></Box>}
+    </Card>
+  )
+}
+
 /** Add a coffee or change one. */
-function CoffeeDialog({ coffee, coffees, onClose }: { coffee?: Coffee; coffees: Coffee[]; onClose: () => void }) {
+function CoffeeDialog({ coffee, coffees, roasters, onClose }: { coffee?: Coffee; coffees: Coffee[]; roasters: string[]; onClose: () => void }) {
   const { api } = useApp()
   const run = useAction()
   const [f, setF] = useState<CoffeeInput>(coffee ?? { name: '', country: null, region: '', roaster: '', roast: null, process: null, tasting_notes: '', brew: 'both',
@@ -166,8 +240,8 @@ function CoffeeDialog({ coffee, coffees, onClose }: { coffee?: Coffee; coffees: 
             <TextField label={t('Region or farm (optional)')} value={f.region ?? ''} onChange={e => set({ region: e.target.value })} sx={{ flex: 1 }}
               slotProps={{ htmlInput: { maxLength: COFFEE_LIMITS.region } }} />
           </Stack>
-          <TextField label={t('Roaster (optional)')} value={f.roaster ?? ''} onChange={e => set({ roaster: e.target.value })}
-            slotProps={{ htmlInput: { maxLength: COFFEE_LIMITS.roaster } }} />
+          <Autocomplete freeSolo options={roasters} inputValue={f.roaster ?? ''} onInputChange={(_, v) => set({ roaster: v })}
+            renderInput={p => <TextField {...p} label={t('Roaster (optional)')} slotProps={{ ...p.slotProps, htmlInput: { ...p.slotProps.htmlInput, maxLength: COFFEE_LIMITS.roaster } }} />} />
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
             <TextField select label={t('Roast')} slotProps={{ inputLabel: { shrink: true }, select: { displayEmpty: true } }} value={f.roast ?? ''} onChange={e => set({ roast: (e.target.value || null) as RoastLevel | null })} sx={{ flex: 1 }}>
               <MenuItem value="">{t('Not said')}</MenuItem>

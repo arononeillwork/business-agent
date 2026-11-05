@@ -48,7 +48,7 @@ export function demoThemeDayApi(w: Who, cleaner: string): ThemeDayApi {
       tasting_notes: 'Dark chocolate, roasted nuts, molasses', brew: 'espresso', bag_grams: 1000, bag_price: 24, sort: 1 }),
     coffee('coffee-br-light', { name: 'Brazilian light roast', country: 'BR', region: 'Cerrado Mineiro', roaster: 'Easy Beans', roast: 'light', process: 'natural',
       tasting_notes: 'Milk chocolate, hazelnut, red apple', brew: 'both', bag_grams: 1000, bag_price: 25, sort: 2 }),
-    coffee('coffee-colombia', { name: 'Colombian (guest)', country: 'CO', region: 'Huila', roast: 'medium', process: 'washed',
+    coffee('coffee-colombia', { name: 'Colombian (guest)', country: 'CO', region: 'Huila', roaster: 'Tostadores del Sur', roast: 'medium', process: 'washed',
       tasting_notes: 'Caramel, red fruit, panela', bag_grams: 250, bag_price: 11.5, sort: 3 }),
     coffee('coffee-irish', { name: 'Irish blend (guest)', country: 'IE', roast: 'medium', tasting_notes: 'Toffee, cocoa, a little spice', bag_grams: 250, bag_price: 10.9, sort: 4 }),
     coffee('coffee-ethiopia', { name: 'Ethiopia Yirgacheffe', country: 'ET', region: 'Gedeo', roast: 'light', process: 'washed', tasting_notes: 'Jasmine, lemon, bergamot',

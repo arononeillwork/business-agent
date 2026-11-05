@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  matchPriceList,
+  matchPriceList, bicProblem, cleanBankCode, formatIban, ibanProblem,
   costWithVat, emailLink, isLow, lastPriceChanges, risesSince, nextOrderDay, orderList, orderMessage, readNumber, readStockCsv, retailMargin, stockValue, suggestedOrder, whatsappLink,
   type StockItem, type Supplier,
 } from './stock'
@@ -156,5 +156,28 @@ describe('a price list again', () => {
 
   it('a column the file doesn’t have leaves that alone', () => {
     expect(matchPriceList(file('Item,Cost\nDecaf,26\n'), items, supplierId).updates[0].patch).toEqual({ cost_per_unit: 26 }) // IVA, unit and pack untouched
+  })
+})
+
+describe('paying a supplier by bank transfer', () => {
+  it('keeps an IBAN or BIC in capitals without spaces, and shows the IBAN in fours', () => {
+    expect(cleanBankCode(' es86 0049-6064 3622 1613 4651 ')).toBe('ES8600496064362216134651')
+    expect(formatIban('ES8600496064362216134651')).toBe('ES86 0049 6064 3622 1613 4651')
+    expect(cleanBankCode(null)).toBe('')
+  })
+
+  it('checks an IBAN’s check digits, so a mistyped number is caught', () => {
+    expect(ibanProblem('ES86 0049 6064 3622 1613 4651')).toBeNull() // Puchero's, from their order page
+    expect(ibanProblem('GB82 WEST 1234 5698 7654 32')).toBeNull()
+    expect(ibanProblem('')).toBeNull()
+    expect(ibanProblem('ES86 0049 6064 3622 1613 4652')).toBe('That IBAN isn’t right: check the numbers against their order or invoice')
+    expect(ibanProblem('0049 6064 3622 1613 4651')).toBe('An IBAN starts with two letters for the country, like ES86 0049 …')
+  })
+
+  it('takes a BIC of 8 or 11', () => {
+    expect(bicProblem('BSCHESMMXXX')).toBeNull()
+    expect(bicProblem('bsches mm')).toBeNull()
+    expect(bicProblem(null)).toBeNull()
+    expect(bicProblem('BSCHESM')).toBe('A BIC is 8 or 11 letters and numbers, like BSCHESMMXXX')
   })
 })
