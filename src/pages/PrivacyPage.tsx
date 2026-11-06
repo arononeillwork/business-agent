@@ -9,10 +9,12 @@ import { msg, t, tr } from '../i18n'
 
 const CONNECTIONS: [string, string, string][] = [
   [msg('Google Business Profile (Google Maps)'), msg('Manage the business listing'), msg('Keep opening hours and closures up to date, and publish posts the business writes.')],
-  ['Gmail', msg('Send email (send only)'), msg('Send team alerts and sign-in emails from the business’s own address. The app cannot read, search or delete email.')],
-  ['Google Drive', msg('Files the app creates only'), msg('Save timecard and hours-record exports to a “The Business Agent” folder. The app cannot see any other file.')],
+  ['Gmail', msg('Send email; read email only if an admin allows it'), msg('Send team alerts and sign-in emails from the business’s own address. Only if an admin allows it: read the mailbox, for the Email page and to find supplier invoices. The app never deletes email.')],
+  ['Google Drive', msg('Files the app creates; one chosen folder (read only) if an admin allows it'), msg('Save timecard and hours-record exports to a “The Business Agent” folder. Only if an admin allows it: show the photos and videos of a folder the business picks, on the Content page.')],
+  [msg('Google Photos'), msg('Photos the person picks (read only)'), msg('Bring the photos the person chooses into the Content page.')],
+  ['Google Search Console', msg('Read website statistics (read only)'), msg('Show how people find the business’s website on Google, on the Analytics page.')],
   ['YouTube (YouTube Music)', msg('Read playlists (read only)'), msg('Show a person’s own playlists on the Music page and the café’s approved playlist.')],
-  ['Microsoft Outlook', msg('Send email'), msg('Send team alerts and sign-in emails from the business’s own address.')],
+  ['Microsoft Outlook', msg('Send email; read email only if an admin allows it'), msg('Send team alerts and sign-in emails from the business’s own address. Only if an admin allows it: read the mailbox, for the Email page and to find supplier invoices. The app never deletes email.')],
   ['Microsoft OneDrive', msg('Read and write files'), msg('Save timecard and hours-record exports.')],
   [msg('Instagram, Facebook Page'), msg('Publish posts; read the profile'), msg('Publish posts the business schedules, and show its latest posts.')],
   ['TikTok', msg('Publish photo posts; basic profile'), msg('Publish posts the business schedules.')],
@@ -20,6 +22,8 @@ const CONNECTIONS: [string, string, string][] = [
     msg('Show the business’s admins followers, reach and how each post did, on the Analytics page. Kept up to 3 hours, then read again.')],
   ['Spotify', msg('Read playlists; control playback'), msg('Show playlists and play or pause the approved café playlist.')],
   ['WhatsApp (Meta)', msg('Send messages from the business number'), msg('Shift reminders and changes, only to people who switched WhatsApp messages on.')],
+  [msg('Google Ads, Meta ads'), msg('Read ad results; change budgets and pause ads if allowed'), msg('Show spend and results on the Ads page, and make the changes an admin asks for.')],
+  ['Square, SumUp, Stripe', msg('Read sales; for Square, also the item library, customers and loyalty'), msg('Show takings next to the rota; keep the menu and its prices in step with Square; bring in customers who agreed to marketing.')],
 ]
 
 export function PrivacyPage() {
@@ -90,7 +94,10 @@ export function PrivacyPage() {
         <H>{t('Where data is stored and who processes it')}</H>
         <Ul items={[
           tr('{name}: database and sign-in, hosted in the European Union (Ireland).', { name: <b>{'Supabase'}</b> }),
-          tr('{name}: hosting of the app and of photos for posts.', { name: <b>{'Cloudflare'}</b> }),
+          tr('{name}: hosting of the app and of photos for posts, our email addresses, and the check on the sign-up form.', { name: <b>{'Cloudflare'}</b> }),
+          tr('{name}: payments for subscriptions, and their invoices. We never see full card numbers.', { name: <b>{'Stripe'}</b> }),
+          tr('{name}: the in-app assistant. A question, and what the assistant looks up in the app to answer it, is sent to Anthropic’s API, whose commercial terms don’t allow it to be used to train its models.', { name: <b>{'Anthropic'}</b> }),
+          tr('{name}: AI images for the menu and AI music for posts, only when the business makes one.', { name: <b>{'Higgsfield, ElevenLabs'}</b> }),
           tr('{name}: only when you connect them, to do what the connection is for.', { name: <b>{t('Google, Microsoft, Meta, TikTok and Spotify')}</b> }),
         ]} />
         <P>
