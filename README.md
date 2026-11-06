@@ -757,6 +757,15 @@ assistants** has the steps for each one, with the URL filled in:
 
 Try: *"Who's working on Saturday, and are any shifts still open?"*
 
+Every page from the AI, with no tool to write: `list_pages` (each page in your menu and what it holds),
+`read_page` (its rows, with the columns the page itself uses, and what it reads live), `get_page_file`
+(a photo or file kept on a page, handed to the AI as an image), `save_page_record` and `delete_page_record`
+(only tables the page itself changes, as you, so row security decides). What each page holds is worked out
+from the menu, the routes and the data calls by `scripts/connector/pages.ts` before every build, typecheck,
+dev server and test run (into `shared/connectorPages.generated.ts`, not in git), so a page added to the menu
+reaches the AI on its next deploy. `scripts/connector/pages.test.ts` fails if a menu item's page can't be
+found. Specific tools still come first where a page needs rules the database doesn't hold.
+
 Licences and documents from the AI: `list_licences` (status, when each runs out, its document, the usual
 ones not on file yet), `save_licence` (add one from a preset like `sgae`, point it at its document with a
 link such as the file in Drive, mark it renewed) and `find_documents` (search the kept documents).
