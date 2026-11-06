@@ -1,6 +1,11 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { cloudflare } from '@cloudflare/vite-plugin'
+import { writeConnectorPages } from './scripts/connector/pages'
+
+// What each page holds, for the AI connector, worked out from the app however it's started
+// (dev server, build, browser tests): a new page reaches the AI with no tool to write.
+writeConnectorPages()
 
 // The demo build becomes one self-contained HTML file, so it keeps all pages in one bundle.
 const demoOnly = process.env.VITE_DEMO_ONLY === '1'

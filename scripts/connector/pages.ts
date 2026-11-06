@@ -3,8 +3,8 @@
 // live data from. The connector's page tools (worker/pageTools.ts) use the result, so every page
 // reaches the AI, including pages added later, with no tool to write.
 //
-// Runs before every build, typecheck, dev server and test run (package.json, vitest.config.ts) and
-// writes shared/connectorPages.generated.ts, which is not kept in git.
+// Runs whenever Vite starts (vite.config.ts), before every typecheck (package.json) and test run
+// (vitest.config.ts), and writes shared/connectorPages.generated.ts, which is not kept in git.
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -230,8 +230,14 @@ export const CONNECTOR_PAGES: ConnectorPage[] = ${JSON.stringify(pages, null, 2)
 `
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+/** Write shared/connectorPages.generated.ts, only when it changes (so a watching dev server doesn't reload). */
+export function writeConnectorPages(): number {
   const pages = buildPages()
-  writeFileSync(OUT, render(pages))
-  console.log(`Connector: ${pages.length} pages`)
+  const text = render(pages)
+  if (!existsSync(OUT) || readFileSync(OUT, 'utf8') !== text) writeFileSync(OUT, text)
+  return pages.length
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  console.log(`Connector: ${writeConnectorPages()} pages`)
 }
