@@ -292,6 +292,7 @@ test.describe('admin', () => {
     await expect(page.getByRole('heading', { name: 'Finances', exact: true })).toBeVisible(NET)
     await expect(page.getByText(PARTNER_EXPENSE)).toBeVisible(NET) // list loaded
     // The total is the footer's last row: Owner pay off comes before it when owners are on this month's rota.
+    // The total is the footer's last row: "Owner pay off" sits above it while owners are on this month's rota.
     const total = page.locator('tfoot tr').last()
     const before = (await total.innerText()).trim()
 
