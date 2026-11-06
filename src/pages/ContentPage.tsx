@@ -1,16 +1,12 @@
 import {
-  Alert, Box, Button, Card, Checkbox, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, InputAdornment, LinearProgress,
-  ListItemIcon, Menu, MenuItem, Stack, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography,
+  Alert, Box, Button, Card, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, InputAdornment, LinearProgress,
+  Stack, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography,
 } from '@mui/material'
 import UploadIcon from '@mui/icons-material/FileUploadOutlined'
 import SearchIcon from '@mui/icons-material/Search'
-import MoreIcon from '@mui/icons-material/MoreVert'
-import EditIcon from '@mui/icons-material/EditOutlined'
-import LinkIcon from '@mui/icons-material/LinkRounded'
 import OpenIcon from '@mui/icons-material/OpenInNewRounded'
-import DeleteIcon from '@mui/icons-material/DeleteOutlined'
-import VideoIcon from '@mui/icons-material/PlayCircleOutlineRounded'
-import { useEffect, useRef, useState } from 'react'
+import ClearIcon from '@mui/icons-material/CloseRounded'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
@@ -18,6 +14,7 @@ import { useAction, useNotify } from '../app/Notify'
 import { Empty, ErrorBox, PageHeader } from '../components/common'
 import { Brand } from '../components/Connectors'
 import { Composer } from './SocialPlannerPage'
+import { Gallery, Viewer } from './ContentGallery'
 import { readyPhoto } from '../lib/media'
 import {
   MAX_TAGS, NO_FILTER, SKIP_TEXT, SOURCES, allTags, cleanTags, contentProblem, filterContent, postFor, titleFromFilename,
@@ -26,7 +23,6 @@ import {
 import { MAX_VIDEO_BYTES } from '../../shared/social'
 import type { SocialPost } from '../../shared/types'
 import { siGooglephotos } from 'simple-icons'
-import { tokens } from '../theme'
 import { t, tn, useLanguage } from '../i18n'
 
 /** The longest side a photo from the device is kept at (as from Google Photos). */
@@ -53,7 +49,8 @@ type Pick =
 
 /**
  * Content (Marketing, admins): the business's photos and videos in one place, picked in Google Photos or
- * uploaded from the device, kept in the café's Drive or OneDrive. Each can go on a post (a few make a
+ * uploaded from the device, kept in the café's Drive or OneDrive, and shown as Google Photos shows a
+ * library (./ContentGallery): day by day, opened full screen. Each can go on a post (a few make a
  * carousel), and its link on an offer or a screen.
  */
 export function ContentPage() {
@@ -67,6 +64,9 @@ export function ContentPage() {
   const [chosen, setChosen] = useState<string[]>([])
   const [editing, setEditing] = useState<ContentItem | null>(null)
   const [deleting, setDeleting] = useState<ContentItem | null>(null)
+  // The one open full screen.
+  const [viewing, setViewing] = useState<string | null>(null)
+  const closeViewer = useCallback(() => setViewing(null), [])
   const [pick, setPick] = useState<Pick | null>(null)
   const [post, setPost] = useState<Partial<SocialPost> | null>(null)
   const [uploading, setUploading] = useState<{ done: number; of: number } | null>(null)
@@ -84,7 +84,7 @@ export function ContentPage() {
   const connected = (p: string) => !!integ.data?.integrations.some(i => i.provider === p && i.status === 'connected')
   const chosenItems = all.filter(i => chosen.includes(i.id))
 
-  const toggle = (id: string) => setChosen(c => (c.includes(id) ? c.filter(x => x !== id) : [...c, id]))
+  const choose = (ids: string[], on: boolean) => setChosen(c => (on ? [...c, ...ids.filter(id => !c.includes(id))] : c.filter(x => !ids.includes(x))))
 
   /** Bring in what was picked, a few at a time, until nothing's left. */
   async function bringIn(id: string) {
@@ -156,10 +156,10 @@ export function ContentPage() {
     }
   }, tn(files.length, '{n} added', '{n} added'))
 
-  const makePost = () => {
-    const p = postFor(chosenItems)
+  const makePost = (from: ContentItem[]) => {
+    const p = postFor(from)
     if (!p) {
-      notify(chosenItems.length > 10 ? t('A post takes up to 10 photos and videos.') : t('Posts take JPEG photos and MP4 or MOV videos. Choose one of those.'), 'error')
+      notify(from.length > 10 ? t('A post takes up to 10 photos and videos.') : t('Posts take JPEG photos and MP4 or MOV videos. Choose one of those.'), 'error')
       return
     }
     setPost({ kind: p.kind, media: p.media, image_url: p.media[0].type === 'image' ? p.media[0].url : null })
@@ -227,10 +227,12 @@ export function ContentPage() {
       )}
 
       {chosen.length > 0 && (
-        <Card variant="outlined" sx={{ p: 1.5, mb: 2, display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap', position: 'sticky', top: 8, zIndex: 2, bgcolor: 'background.paper' }}>
+        <Card variant="outlined" sx={{ py: 1, px: 1.5, mb: 2, display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap', position: 'sticky', top: 8, zIndex: 3, bgcolor: 'background.paper' }}>
+          <Tooltip title={t('Clear selection')}>
+            <IconButton aria-label={t('Clear selection')} onClick={() => setChosen([])}><ClearIcon /></IconButton>
+          </Tooltip>
           <Typography sx={{ fontWeight: 600, flexGrow: 1 }}>{tn(chosen.length, '{n} chosen', '{n} chosen')}</Typography>
-          <Button onClick={() => setChosen([])}>{t('Clear')}</Button>
-          <Button variant="contained" onClick={makePost}>{t('Make a post')}</Button>
+          <Button variant="contained" onClick={() => makePost(chosenItems)}>{t('Make a post')}</Button>
         </Card>
       )}
 
@@ -242,15 +244,13 @@ export function ContentPage() {
       ) : items.data && !shown.length ? (
         <Empty>{t('Nothing matches. Try another filter.')}</Empty>
       ) : (
-        <Box role="list" aria-label={t('Photos and videos')}
-          sx={{ display: 'grid', gap: 2, gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 210px), 1fr))' }}>
-          {shown.map(i => (
-            <ContentCard key={i.id} item={i} chosen={chosen.includes(i.id)} onToggle={() => toggle(i.id)}
-              onEdit={() => setEditing(i)} onCopy={() => void copyLink(i)} onDelete={() => setDeleting(i)} />
-          ))}
-        </Box>
+        shown.length > 0 && <Gallery items={shown} chosen={chosen} onChoose={choose} onOpen={setViewing} />
       )}
 
+      {viewing && (
+        <Viewer items={shown} id={viewing} onId={setViewing} onClose={closeViewer} onEdit={setEditing} onCopy={i => void copyLink(i)}
+          onDelete={setDeleting} onPost={i => makePost([i])} />
+      )}
       {pick && <PickDialog pick={pick} onClose={closePick} />}
       {editing && <EditDialog item={editing} onClose={() => setEditing(null)} />}
       {deleting && (
@@ -264,6 +264,11 @@ export function ContentPage() {
             <Button variant="contained" color="error" onClick={() => void run(async () => {
               await api.deleteContentItem(deleting.id)
               setChosen(c => c.filter(x => x !== deleting.id))
+              // Taken off while open full screen: on to the next (or the one before, at the end).
+              if (viewing === deleting.id) {
+                const at = shown.findIndex(i => i.id === deleting.id)
+                setViewing((shown[at + 1] ?? shown[at - 1])?.id ?? null)
+              }
               setDeleting(null)
             })}>{t('Take off')}</Button>
           </DialogActions>
@@ -274,53 +279,6 @@ export function ContentPage() {
           onSaved={async () => { setChosen([]); notify(t('Saved on the Social planner.'), 'success') }} />
       )}
     </>
-  )
-}
-
-function ContentCard({ item: i, chosen, onToggle, onEdit, onCopy, onDelete }: {
-  item: ContentItem; chosen: boolean; onToggle: () => void; onEdit: () => void; onCopy: () => void; onDelete: () => void
-}) {
-  const [menu, setMenu] = useState<HTMLElement | null>(null)
-  const name = i.title ?? t(i.kind === 'video' ? 'Untitled video' : 'Untitled photo')
-  return (
-    <Card role="listitem" aria-label={name} variant="outlined"
-      sx={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', outline: chosen ? `2px solid ${tokens.rose}` : 'none' }}>
-      <Box sx={{ position: 'relative', aspectRatio: '4 / 3', bgcolor: tokens.surfaceAlt, cursor: 'pointer' }} onClick={onToggle}>
-        {i.kind === 'video'
-          ? <Box component="video" src={i.url} muted playsInline preload="metadata" sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-          : <Box component="img" src={i.url} alt={name} loading="lazy" sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />}
-        {i.kind === 'video' && <VideoIcon sx={{ position: 'absolute', right: 8, bottom: 8, color: '#fff', filter: 'drop-shadow(0 1px 2px rgba(0,0,0,.5))' }} />}
-        <Checkbox checked={chosen} onClick={e => e.stopPropagation()} onChange={onToggle} slotProps={{ input: { 'aria-label': t('Choose {name}', { name }) } }}
-          sx={{ position: 'absolute', top: 4, left: 4, bgcolor: 'rgba(255,255,255,.85)', borderRadius: '8px', p: 0.5, '&:hover': { bgcolor: '#fff' } }} />
-      </Box>
-      <Box sx={{ p: 1.25, display: 'flex', gap: 0.5, alignItems: 'flex-start' }}>
-        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-          <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap title={name}>{name}</Typography>
-          <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>
-            {i.source === 'google_photos' ? t('Google Photos') : t('Uploaded')}
-            {i.taken_at ? ` · ${new Date(i.taken_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}
-          </Typography>
-          {i.tags.length > 0 && (
-            <Stack direction="row" sx={{ gap: 0.5, mt: 0.75, flexWrap: 'wrap' }}>
-              {i.tags.map(tag => <Chip key={tag} size="small" label={tag} sx={{ height: 20, fontSize: '0.7rem' }} />)}
-            </Stack>
-          )}
-        </Box>
-        <Tooltip title={t('More')}>
-          <IconButton size="small" aria-label={t('More for {name}', { name })} onClick={e => setMenu(e.currentTarget)}><MoreIcon fontSize="small" /></IconButton>
-        </Tooltip>
-        <Menu anchorEl={menu} open={!!menu} onClose={() => setMenu(null)}>
-          <MenuItem onClick={() => { setMenu(null); onEdit() }}><ListItemIcon><EditIcon fontSize="small" /></ListItemIcon>{t('Title and tags')}</MenuItem>
-          <MenuItem onClick={() => { setMenu(null); onCopy() }}><ListItemIcon><LinkIcon fontSize="small" /></ListItemIcon>{t('Copy link')}</MenuItem>
-          <MenuItem component="a" href={i.url} target="_blank" rel="noreferrer" onClick={() => setMenu(null)}>
-            <ListItemIcon><OpenIcon fontSize="small" /></ListItemIcon>{t('Open')}
-          </MenuItem>
-          <MenuItem onClick={() => { setMenu(null); onDelete() }} sx={{ color: 'error.main' }}>
-            <ListItemIcon><DeleteIcon fontSize="small" color="error" /></ListItemIcon>{t('Take off the page')}
-          </MenuItem>
-        </Menu>
-      </Box>
-    </Card>
   )
 }
 

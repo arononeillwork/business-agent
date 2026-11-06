@@ -234,6 +234,12 @@ built-in **AI connector** so owners can run it by talking to Claude.
   carousel on the Social planner, and each has a link to paste into an offer, a screen or the menu.
   Taking one off the page leaves the file where it is. Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md)
   section 21 (`worker/content.ts`, `shared/content.ts`, the `content_library` migration).
+- Content shows its photos and videos as Google Photos shows a library: day by day, newest first, each day
+  under its date, in rows of photos at their own shape (none cropped to a square) that fill the width
+  (`src/lib/photoLayout.ts`). The circle on one, or beside a day's date, chooses them; while any is chosen a
+  tap chooses rather than opens. Opened, one fills the screen on black, with arrows (a swipe, the arrow keys)
+  to the next and an Info panel with its title, tags, when it was taken, its size and where it came from
+  (`src/pages/ContentGallery.tsx`).
 - Outsourcing (Team section, admins; a gestoría with finances access reads): the jobs done for the business by
   people and firms outside the team (social media, the books, cleaning, the windows, the coffee machine's
   service, pest control…). **Active** shows who does each job, the price agreed and how it's charged (a month,
