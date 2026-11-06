@@ -31,6 +31,7 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'staff benefits', files: [/BenefitsPage/, /shared\/benefits/], tests: String.raw`staff benefits|allocation` },
   { name: 'staff kitty', files: [/KittyPage/, /KittyJar/, /shared\/kitty/, /monthProfit/], tests: String.raw`staff kitty` },
   { name: 'sales reps', files: [/(SalesReps|RepCards)Page/, /shared\/reps/], tests: String.raw`sales reps` },
+  { name: 'business agent reps', files: [/HqReps/, /shared\/hqReps/, /i18n\/es\/hqReps/, /pages\/RepPage/], tests: String.raw`Business Agent rep|sales reps|rep’s own page` },
   { name: 'outsourcing', files: [/OutsourcingPage/, /shared\/outsourcing/], tests: String.raw`outsourcing|menu|pages can be dragged` },
   { name: 'roles and rules', files: [/(Roles|StaffRules)Page/, /components\/Expandable/, /shared\/(roles|staffRules)/], tests: String.raw`roles and rules|menu|pages can be dragged` },
   { name: 'daily checklists', files: [/ChecklistsPage/, /shared\/checklists/, /components\/TwoLanguageList/], tests: String.raw`daily checklists|company values` },

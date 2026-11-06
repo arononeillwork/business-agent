@@ -3471,6 +3471,56 @@ test.describe('referrals', () => {
     await expect(page.getByRole('region', { name: 'How your link is doing' })).toContainText('Link opened47')
   })
 
+  test('a Business Agent rep’s code: Julio introduces a café at sign-up, and Billing says so', async ({ page }) => {
+    await page.goto('/?ref=julio27&demo')
+    const invite = page.getByRole('region', { name: 'You’re invited' })
+    await expect(invite).toContainText('Introduced by Julio, from Business Agent')
+    await expect(invite).toContainText('Julio will help you set it up')
+    await invite.getByRole('button', { name: 'Create my account' }).click()
+    await page.getByLabel('Your name').fill('Lola')
+    await page.getByRole('textbox', { name: 'Email' }).fill('lola@cafejulio.example')
+    await page.getByLabel('Password').fill('cafe-con-leche-7')
+    await page.getByRole('button', { name: 'Create account' }).click()
+    // His code is remembered and shown; he covers cafés, so a café is picked to start with.
+    await expect(page.getByText('Introduced by Julio, from Business Agent: your first month is free')).toBeVisible()
+    await expect(page.getByRole('textbox', { name: /Code from a Business Agent rep/ })).toHaveValue('JULIO27')
+    await expect(page.getByRole('button', { name: 'Café & coffee shop' })).toHaveAttribute('aria-pressed', 'true')
+    await page.getByRole('textbox', { name: 'Business name' }).fill('Café Julio')
+    await page.getByRole('button', { name: 'Add my business' }).click()
+    await page.getByRole('button', { name: 'Skip setup for now' }).click()
+    await fromAccountMenu(page, 'Billing')
+    await expect(page.getByText('Introduced by Julio, a Business Agent rep: your first month is free.')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Did a Business Agent rep introduce you?' })).toHaveCount(0)
+  })
+
+  test('a Business Agent rep’s code typed in, or added on Billing in the first 30 days', async ({ page }) => {
+    await page.goto('/?demo')
+    await page.getByRole('tab', { name: 'Create account' }).click()
+    await page.getByLabel('Your name').fill('Bea')
+    await page.getByRole('textbox', { name: 'Email' }).fill('bea@barbea.example')
+    await page.getByLabel('Password').fill('cafe-con-leche-7')
+    await page.getByRole('button', { name: 'Create account' }).click()
+    const code = page.getByRole('textbox', { name: /Code from a Business Agent rep/ })
+    await code.fill('nope99')
+    await expect(page.getByText('That code isn’t one we know. Check it, or leave it empty.')).toBeVisible()
+    await code.fill('')
+    await page.getByRole('textbox', { name: 'Business name' }).fill('Bar Bea')
+    await page.getByRole('button', { name: 'Add my business' }).click()
+    await page.getByRole('button', { name: 'Skip setup for now' }).click()
+    // She forgot it: Billing takes it for 30 days.
+    await fromAccountMenu(page, 'Billing')
+    const card = page.getByRole('heading', { name: 'Did a Business Agent rep introduce you?' })
+    await expect(card).toBeVisible()
+    await page.getByRole('textbox', { name: 'Their code' }).fill('NOPE99')
+    await page.getByRole('button', { name: 'Add the code' }).click()
+    await toast(page, 'That isn’t a rep’s code. Check it and try again.')
+    await page.getByRole('textbox', { name: 'Their code' }).fill('julio27')
+    await page.getByRole('button', { name: 'Add the code' }).click()
+    await toast(page, 'Thanks: Julio introduced you, and your first month is free.')
+    await expect(page.getByText('Introduced by Julio, a Business Agent rep: your first month is free.')).toBeVisible()
+    await expect(card).toHaveCount(0)
+  })
+
   test('a wrong referral code shows no invite', async ({ page }) => {
     await page.goto('/?ref=NOPE1234&demo')
     await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
@@ -6318,6 +6368,44 @@ test.describe('sales reps and rewards', () => {
     await signInAs(page, 'aron@example.com')
     await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Reps & rewards' }).click()
     await expect(page.getByRole('region', { name: 'Waiting for approval' }).getByRole('group', { name: 'Julio: Brought a new customer with their card' })).toBeVisible()
+  })
+
+  test('Business Agent HQ: its reps lead kinds of business, and the businesses they brought show how each is doing', async ({ page }) => {
+    await open(page, '/sales-reps?hq')
+    const businesses = page.getByRole('region', { name: 'Businesses from your reps' })
+    await expect(businesses).toContainText('Reps’ links opened 12 times.')
+    await expect(businesses.getByRole('listitem', { name: 'Café Lola' })).toContainText('Julio · Café & coffee shop')
+    await expect(businesses.getByRole('listitem', { name: 'Café Lola' })).toContainText('Paying')
+    await expect(businesses.getByRole('listitem', { name: 'Café Lola' })).toContainText('2 of 12 months')
+    await expect(businesses.getByRole('listitem', { name: 'Bar Bea' })).toContainText('All set up')
+    // By kind: Julio leads cafés; nobody leads pubs yet.
+    await expect(businesses).toContainText('1 signed up · 1 set up · 1 paying1 rep leads it')
+    await expect(businesses).toContainText('1 signed up · 1 set up · 0 payingNo rep leads it yet')
+    // A payment waits 30 days, then counts by itself.
+    await expect(page.getByRole('region', { name: 'Waiting for approval' }).getByRole('group', { name: 'Julio: 20% of a payment' })).toContainText('Counts by itself on')
+    // Julio's card: the kinds he leads, changed in his details.
+    // (The sample café has a Julio on its team too: HQ's is the one with JULIO27.)
+    const julio = page.getByRole('article', { name: 'Julio' }).filter({ hasText: 'JULIO27' })
+    await expect(julio).toContainText('Café & coffee shop')
+    await julio.getByRole('button', { name: 'Edit Julio' }).click()
+    const pub = page.getByRole('dialog').getByRole('button', { name: 'Pub' })
+    await pub.click()
+    await expect(pub).toHaveAttribute('aria-pressed', 'true')
+    await page.getByRole('dialog').getByRole('button', { name: 'Save' }).click()
+    await expect(julio).toContainText('Pub')
+
+    // His own page: his businesses, and the €50 and the 20% count by themselves (nothing to send in).
+    await page.goto('/rep/c0ffee00c0ffee00c0ffee00c0ffee00?demo&hq')
+    await expect(page.getByRole('heading', { name: 'Hi, Julio' })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Your code' })).toContainText('/?ref=JULIO27')
+    const his = page.getByRole('region', { name: 'Your businesses' })
+    await expect(his.getByRole('listitem').filter({ hasText: 'Café Lola' })).toContainText('Paying')
+    // €50 and two months of 20% (one still waiting its 30 days).
+    await expect(his.getByRole('listitem').filter({ hasText: 'Café Lola' })).toContainText(/81[.,]60/)
+    await expect(his.getByRole('listitem').filter({ hasText: 'Bar Bea' })).toContainText('All set up')
+    await expect(page.getByRole('region', { name: 'What earns you a reward' })).toContainText('Counts by itself when the business pays')
+    await expect(page.getByRole('button', { name: 'I did this: A business’s first payment' })).toHaveCount(0)
+    await expect(page.getByRole('region', { name: 'Your reach' })).toHaveCount(0)
   })
 
   test('a rep’s own page, with no sign-in: what they earned, their reach, their crew; they send a story and add a fighter', async ({ page }) => {

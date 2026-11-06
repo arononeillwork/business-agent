@@ -12,6 +12,8 @@ import { useNavigate } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAction } from '../app/Notify'
 import { forgetReferral, keptReferral } from '../app/referral'
+import { cleanCode } from '../../shared/referrals'
+import type { ReferralOpen } from '../../shared/hqReps'
 import { startGuide } from './SetupPage'
 import { AgentMark, BA, Wordmark, display, glow, outlineBtn, primaryBtn } from './marketing/site'
 import { TRIAL_MONTHS } from './marketing/plans'
@@ -50,16 +52,33 @@ export function NewBusinessPage() {
   const [kind, setKind] = useState<Kind | null>(null)
   const [zone, setZone] = useState(ownZone)
   const zones = useMemo(() => timeZones(ownZone()), [])
-  const [code] = useState(keptReferral)
-  const [by, setBy] = useState<string | null>(null)
+  // A code from a Business Agent rep or another business: kept from their link, or typed in.
+  const [code, setCode] = useState(() => keptReferral() ?? '')
+  const clean = cleanCode(code)
+  const [by, setBy] = useState<(ReferralOpen & { code: string }) | null>(null)
+  const [unknown, setUnknown] = useState(false)
   useEffect(() => {
-    if (code) void api.openReferral(code, false).then(r => setBy(r.business), () => {})
-  }, [api, code])
+    setUnknown(false)
+    if (!clean) { setBy(null); return }
+    let live = true
+    const wait = setTimeout(() => {
+      void api.openReferral(clean, false).then(r => {
+        if (!live) return
+        setBy({ ...r, code: clean })
+        // A rep for one kind of business: that kind, to start with.
+        if (r.rep?.categories.length === 1) setKind(k => k ?? r.rep!.categories[0])
+      }, () => { if (live) { setBy(null); setUnknown(true) } })
+    }, 350)
+    return () => { live = false; clearTimeout(wait) }
+  }, [api, clean])
+  const known = by && by.code === clean ? by : null
+  const invitedBy = known?.rep ? t('Introduced by {name}, from Business Agent: your first month is free, and they’ll help you set it up', { name: known.rep.name })
+    : known?.business ? t('Invited by {name}: your first month is on us', { name: known.business }) : null
 
   const create = (e: FormEvent) => {
     e.preventDefault()
     void run(async () => {
-      await api.createBusiness({ name: name.trim(), kind, timezone: zone, referral: by ? code : null })
+      await api.createBusiness({ name: name.trim(), kind, timezone: zone, referral: known ? clean : null })
       forgetReferral()
       startGuide(kind)
       navigate('/setup', { replace: true })
@@ -77,10 +96,10 @@ export function NewBusinessPage() {
             <AgentMark />
             <Wordmark size="1.3rem" />
           </Stack>
-          {by && (
+          {invitedBy && (
             <Stack direction="row" spacing={1} sx={{ alignItems: 'center', color: BA.accent }}>
               <GiftIcon fontSize="small" />
-              <Typography sx={{ fontWeight: 500, fontSize: '0.9rem' }}>{t('Invited by {name}: your first month is on us', { name: by })}</Typography>
+              <Typography sx={{ fontWeight: 500, fontSize: '0.9rem' }}>{invitedBy}</Typography>
             </Stack>
           )}
           <Box>
@@ -115,6 +134,11 @@ export function NewBusinessPage() {
 
           <Autocomplete options={zones} value={zone} disableClearable onChange={(_, z) => setZone(z)}
             renderInput={params => <TextField {...params} label={t('Time zone')} helperText={t('Shifts, clock-ins and opening hours use it')} />} />
+
+          <TextField label={t('Code from a Business Agent rep or another business (optional)')} value={code}
+            onChange={e => setCode(e.target.value.toUpperCase())} error={unknown}
+            helperText={unknown ? t('That code isn’t one we know. Check it, or leave it empty.') : known ? null : t('If someone gave you a code, put it here: your first month is free.')}
+            slotProps={{ htmlInput: { maxLength: 16, autoCapitalize: 'characters', spellCheck: false } }} />
 
           <Button type="submit" variant="contained" size="large" disabled={!name.trim()} sx={{ ...primaryBtn, py: 1.4 }}>
             {t('Add my business')}

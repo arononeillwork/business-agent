@@ -104,6 +104,16 @@ built-in **AI connector** so owners can run it by talking to Claude.
   10), each its own line, so monthly limits and approvals work as for one; the assistant's `log_reward` takes
   `times` too. The usual rewards keep customers' credit small (50 cents a story, €1 a post or a friend brought
   in, more for a bigger reach) and give reps commission (€3 a new customer, up to 20 a month).
+- Business Agent's own reps ([docs/REPS_PLAN.md](docs/REPS_PLAN.md)): people who know business owners sell Business
+  Agent for us, run as a business of its own in the app, **Business Agent HQ**, on its Sales reps & rewards page. Each rep has
+  a code (Julio, for cafés: JULIO27) and leads kinds of business (café, restaurant & bar, pub, salon & beauty, real estate,
+  anything else). A business that signs up with a rep's link (`/?ref=JULIO27`) or types the code on Add my business gets its
+  first month free, and an owner who forgot it adds it on Billing in the first 30 days. HQ sees every business its reps
+  brought, by kind and one by one (signed up, set up, on a trial, paying, payment failed, cancelled). What a business pays for
+  its plan, from Stripe, earns its rep €50 at the first payment and 20% (without IVA) for its first 12 paid months, from HQ's
+  own list; each line waits 30 days, then counts by itself, and a refund or a lost dispute takes it back. Each rep's own page
+  shows their businesses. The `hq_reps` migration makes HQ on the live database; its first owner is invited with the third line
+  of `ops/invite.txt` (`hq`).
 - Staff kitty (Team section): a share of each month's profit (5% to start; a month with a loss puts nothing
   in) and anything else put in (the tips jar, a bonus), saved up for goals chosen together, like the
   Christmas party or a pair of Ray-Bans for the café. The goals are jars on a shelf that fill with coffee

@@ -45,6 +45,7 @@ import type { Camera, CameraClip, CameraLive, CameraService } from '../../shared
 import type { AdSettings } from '../../shared/ads'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
 import type { ReferralState } from '../../shared/referrals'
+import type { RepIntroduction } from '../../shared/hqReps'
 import { newEntries, type Competition, type CompetitionEntry } from '../../shared/competitions'
 import { readyPhoto } from '../lib/media'
 import { cleanWebsite } from '../../shared/connections'
@@ -67,9 +68,9 @@ const MENU_IMAGE_COLUMNS = 'id, design_id, item_id, url, source, model, prompt, 
 const TRACK_COLUMNS = 'id, source, title, artist, url, duration_s, bpm, energy, moods, genre, vocals, highlight_s, waveform, licence, saved, hidden, created_at'
 
 const CUSTOMER_COLUMNS = 'id, kind, first_name, last_name, email, phone, company, source, instagram, birthday, tags, notes, marketing_consent, consent_at, last_contacted_at, created_at, updated_at'
-const REP_COLUMNS = 'id, name, kind, profile_id, customer_id, code, instagram, phone, email, notes, active, created_at, created_by'
+const REP_COLUMNS = 'id, name, kind, profile_id, customer_id, code, instagram, phone, email, notes, active, created_at, created_by, categories'
 const REP_REACH_COLUMNS = 'tiktok, youtube, facebook, instagram_followers, tiktok_followers, youtube_followers, facebook_followers, community, reach, picture_url, followers_checked_at, leader_id, approved'
-const REWARD_COLUMNS = 'id, rep_id, kind, rule_id, label, sale_amount, amount, status, proof_url, mention_id, note, occurred_on, logged_by, created_at, bonus_for, multiplier'
+const REWARD_COLUMNS = 'id, rep_id, kind, rule_id, label, sale_amount, amount, status, proof_url, mention_id, note, occurred_on, logged_by, created_at, bonus_for, multiplier, introduction_id, source, months, counts_from, reverses'
 
 
 /** Postgres numeric can come back as text: a number, or null. */
@@ -1221,6 +1222,15 @@ export function createSupabaseApi(url: string, key: string): Api {
       return token
     },
     lookupInstagram: handle => worker('/api/reps/instagram', { method: 'POST', body: JSON.stringify({ handle }) }),
+    async repIntroductions() {
+      // HQ's admins only (row security): every other business has none.
+      return check(await sb.from('rep_introductions').select('id, rep_id, name, kind, code, set_up_at, plan, status, billing_interval, first_paid_at, created_at')
+        .order('created_at', { ascending: false })) as RepIntroduction[]
+    },
+    async repCodeOpens() {
+      const rows = check(await sb.from('rep_code_opens').select('rep_id').limit(10000)) as { rep_id: string }[]
+      return rows.reduce<Record<string, number>>((a, r) => ({ ...a, [r.rep_id]: (a[r.rep_id] ?? 0) + 1 }), {})
+    },
     async repPage(token) {
       // The rep's own link: no sign-in, the Worker answers for it.
       const res = await fetch(`/api/rep-page/${encodeURIComponent(token)}`, { cache: 'no-store' })
@@ -1558,6 +1568,7 @@ export function createSupabaseApi(url: string, key: string): Api {
       return { code: (b as { referral_code: string } | null)?.referral_code ?? '', referrals: check(list) as ReferralState['referrals'], opens: opens.count ?? 0 }
     },
     openReferral: (code, count = true) => worker('/api/referrals/open', { method: 'POST', body: JSON.stringify({ code, count }) }),
+    async addRepCode(code) { return check(await sb.rpc('add_rep_code', { p_code: code })) as string },
     async replyInstagram(id, text) {
       await worker(`/api/integrations/instagram/inbox/${encodeURIComponent(id)}/reply`, { method: 'POST', body: JSON.stringify({ text }) })
     },

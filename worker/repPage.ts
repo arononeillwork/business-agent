@@ -38,10 +38,17 @@ repPage.get('/api/rep-page/:token', async c => {
   const token = c.req.param('token')
   const business = await businessOfLink(c.env, token)
   if (!business) return c.json({ error: GONE }, 404)
-  const { data, error } = await businessDb(c.env, business).rpc('rep_page', { p_token: token })
+  const db = businessDb(c.env, business)
+  const [{ data, error }, { data: hq }] = await Promise.all([
+    db.rpc('rep_page', { p_token: token }),
+    // A Business Agent rep (HQ's): the businesses they brought, and the rewards that count by themselves.
+    db.rpc('rep_page_businesses', { p_token: token }),
+  ])
   if (error) return c.json({ error: 'Your page couldn’t be loaded just now. Try again in a minute.' }, 503)
   if (!data) return c.json({ error: GONE }, 404)
-  return c.json(data, 200, { 'cache-control': 'no-store' })
+  const extra = hq as { businesses?: unknown[]; automatic?: unknown[] } | null
+  const isHq = !!(extra?.businesses?.length || extra?.automatic?.length)
+  return c.json(isHq ? { ...(data as object), hq: extra } : data, 200, { 'cache-control': 'no-store' })
 })
 
 const text = (v: unknown, max: number) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null)

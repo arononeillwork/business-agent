@@ -53,7 +53,9 @@ begin
   select string_agg(p.oid::regprocedure::text, ', ') into v from pg_proc p
    where p.pronamespace = 'public'::regnamespace and p.prosecdef and p.proowner <> 'app_definer'::regrole
      and p.proname not in ('current_business_id', 'my_role', 'is_admin', 'is_staff', 'can_see_pay', 'is_partner',
-                           'partner_can', 'tip_pool_out', 'handle_new_user', 'each_business', 'create_business', 'business_set_up');
+                           'partner_can', 'tip_pool_out', 'handle_new_user', 'each_business', 'create_business', 'business_set_up',
+                           -- Business Agent's own reps: a sign-up or a payment and HQ's list (the hq_reps migration).
+                           'add_rep_code', 'rep_by_code', 'rep_introduction_sync', 'record_rep_commission', 'reverse_rep_commission');
   assert v is null, 'Security definer functions that would see every business. After creating one: alter function ... owner to app_definer; — ' || v;
 
   -- Unique within a business: a unique index takes in business_id, or a column that's unique by itself

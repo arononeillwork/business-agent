@@ -24,6 +24,7 @@ import { SOCIAL_NAMES } from '../../shared/socialAnalytics'
 import { distanceM, instagramHandle, suggestedThreat, type Competitor, type NearbyPlace } from '../../shared/localCompetitors'
 import { DEFAULT_WHATSAPP_RETENTION, isRetention, replyWindow } from '../../shared/messages'
 import { cleanCode } from '../../shared/referrals'
+import type { RepCodeInfo, RepIntroduction } from '../../shared/hqReps'
 import { postProblem } from '../../shared/social'
 import type { SportsFavourite } from '../../shared/sports'
 import { POPULAR_FONTS } from '../../shared/fonts'
@@ -105,7 +106,10 @@ const uid = () => crypto.randomUUID()
 const nowIso = () => new Date().toISOString()
 
 export function createDemoApi(): Api {
+  // ?hq: the sample business is Business Agent HQ, whose reps sell Business Agent (the hq_reps migration).
+  const demoHq = (() => { try { return new URLSearchParams(location.search).has('hq') } catch { return false } })()
   const business: Business = {
+    is_hq: demoHq,
     name: 'Easy Beans Coffee',
     business_type: 'Specialty café, drinks-first, owner-run',
     address: 'C. Pizarro, 8, 29670 San Pedro de Alcántara, Málaga',
@@ -154,6 +158,8 @@ export function createDemoApi(): Api {
     Object.assign(m, { status, decided_at: nowIso(), reposted_url: status === 'reposted' ? 'https://www.instagram.com/stories/easy.beans.coffee/' : null })
     for (const n of notes) if (n.kind === 'instagram_mention' && n.data?.mention === id && !n.read_at) n.read_at = nowIso()
   }
+  // Business Agent's own rep for cafés (the hq_reps migration): his code works at sign-up and on Billing.
+  const DEMO_HQ_REP = { code: 'JULIO27', rep: { name: 'Julio', categories: ['cafe'], offer: 'Your first month free, and I’ll set it up with you' } as RepCodeInfo }
   // Referrals: ten weeks of a café sharing its link; four businesses have gone live.
   const daysAgo = (d: number) => new Date(Date.now() - d * 86_400_000).toISOString()
   const referralDemo = {
@@ -1798,7 +1804,7 @@ export function createDemoApi(): Api {
   const salesRep = (r: Partial<SalesRep> & Pick<SalesRep, 'id' | 'name' | 'kind' | 'code'>): SalesRep => {
     const out: SalesRep = { profile_id: null, customer_id: null, instagram: null, tiktok: null, youtube: null, facebook: null, instagram_followers: null,
       tiktok_followers: null, youtube_followers: null, facebook_followers: null, community: null, reach: 0, picture_url: null, followers_checked_at: null,
-      leader_id: null, approved: true, phone: null, email: null, notes: null, active: true, created_at: daysAgo(60), created_by: P.aron, ...r }
+      leader_id: null, approved: true, phone: null, email: null, notes: null, active: true, created_at: daysAgo(60), created_by: P.aron, categories: [], ...r }
     return { ...out, reach: reachOf(out) }
   }
   const fighter = (id: string, name: string, code: string, instagram: string, followers: number, more: Partial<SalesRep> = {}) =>
@@ -1870,6 +1876,26 @@ export function createDemoApi(): Api {
     repReward('rep-ibra', 'rule-story', 0.5, dayIn(thisMonth, 8), { status: 'pending', note: 'From his own page', logged_by: null }),
     repReward('rep-pablo', 'rule-friend', 1, dayIn(thisMonth, 10), { status: 'pending', note: 'Brought a runner from the club', logged_by: P.julio }),
   ]
+  // HQ (?hq): Julio for cafés, two businesses he brought, and what Café Lola's payments earned him.
+  const hqIntros: RepIntroduction[] = []
+  if (demoHq) {
+    rewardRuleList.push(
+      { id: 'rule-hq-first', name: 'A business’s first payment', who: 'reps', basis: 'fixed', amount: 50, needs_approval: false, monthly_limit: null, scales_with_reach: false, sort: 10, active: true },
+      { id: 'rule-hq-pay', name: '20% of a payment', who: 'reps', basis: 'percent', amount: 20, needs_approval: false, monthly_limit: null, scales_with_reach: false, sort: 11, active: true })
+    repList.push(salesRep({ id: 'rep-julio-hq', name: 'Julio', kind: 'ambassador', code: 'JULIO27', categories: ['cafe'], email: 'julio.temp@example.com',
+      notes: 'Cafés lead, Costa del Sol' }))
+    repLinks.set('rep-julio-hq', 'c0ffee00c0ffee00c0ffee00c0ffee00')
+    hqIntros.push(
+      { id: 'intro-lola', rep_id: 'rep-julio-hq', name: 'Café Lola', kind: 'cafe', code: 'JULIO27', set_up_at: daysAgo(80), plan: 'pro', status: 'active',
+        billing_interval: 'month', first_paid_at: daysAgo(55), created_at: daysAgo(85) },
+      { id: 'intro-bea', rep_id: 'rep-julio-hq', name: 'Bar Bea', kind: 'pub', code: 'JULIO27', set_up_at: daysAgo(4), plan: 'free', status: 'none',
+        billing_interval: null, first_paid_at: null, created_at: daysAgo(6) })
+    const paid = (days: number, more: Partial<RepReward>) => repReward('rep-julio-hq', 'rule-hq-pay', 15.8, daysAgo(days).slice(0, 10),
+      { introduction_id: 'intro-lola', source: `stripe:in_demo${days}`, months: 1, sale_amount: 79, note: 'Café Lola', logged_by: null, ...more })
+    rewardList.push(
+      repReward('rep-julio-hq', 'rule-hq-first', 50, daysAgo(55).slice(0, 10), { introduction_id: 'intro-lola', source: 'stripe:in_demo55:first', note: 'Café Lola', logged_by: null }),
+      paid(55, {}), paid(25, { status: 'pending', counts_from: daysAgo(-5).slice(0, 10) }))
+  }
   const repBalance = (repId: string) => round2(rewardList.filter(r => r.rep_id === repId && r.status === 'approved').reduce((a, r) => a + r.amount, 0))
   /** Mirrors the sales_reps rules in SQL: tidied, a code from the name, a team rep is someone on the team. */
   function tidyRep(r: SalesRep, before?: SalesRep): SalesRep {
@@ -1968,6 +1994,12 @@ export function createDemoApi(): Api {
         .map(u => ({ id: u.id, name: u.name, who: u.who, basis: u.basis, amount: u.amount, scales_with_reach: u.scales_with_reach, needs_approval: u.needs_approval,
           monthly_limit: u.monthly_limit, used_this_month: rewardList.filter(w => w.rep_id === v.id && w.rule_id === u.id && w.kind === 'earn' && w.status !== 'rejected'
             && w.occurred_on.slice(0, 7) === month).length })),
+      ...(demoHq ? { hq: {
+        businesses: hqIntros.filter(i => i.rep_id === v.id).map(i => ({ name: i.name, kind: i.kind, since: i.created_at, set_up_at: i.set_up_at, plan: i.plan,
+          status: i.status, interval: i.billing_interval, first_paid_at: i.first_paid_at,
+          months_paid: rewardList.filter(w => w.introduction_id === i.id && w.kind === 'earn' && w.status !== 'rejected').reduce((a, w) => a + (w.months ?? 0), 0),
+          earned: round2(rewardList.filter(w => w.introduction_id === i.id && w.status !== 'rejected' && !w.bonus_for).reduce((a, w) => a + w.amount, 0)) })),
+        automatic: ['rule-hq-first', 'rule-hq-pay'] } } : {}),
     }
   }
   /** Mirrors rep_rewards_read: admins everything; the team customers' credit and their own. */
@@ -2140,9 +2172,15 @@ export function createDemoApi(): Api {
       const name = b.name.trim()
       if (!name || name.length > 120) throw new Error('Give your business a name (up to 120 characters)')
       Object.assign(p, { business_id: 1, role: 'admin', can_see_pay: true, active: true })
-      // Another business's link: on its list of referrals, joined.
+      // Another business's link: on its list of referrals, joined. A Business Agent rep's code: their name on Billing.
+      // Either way its month is free; without one, a rep's code can still be added on Billing for 30 days.
       if (b.referral && cleanCode(b.referral) === referralDemo.code) {
         referralDemo.referrals.unshift({ id: uid(), business_name: name, joined_at: nowIso(), set_up_at: null })
+        demoBilling.referred_by = business.name
+      } else if (b.referral && cleanCode(b.referral) === DEMO_HQ_REP.code) {
+        demoBilling.introduced_by = DEMO_HQ_REP.rep.name
+      } else {
+        demoBilling.rep_code_until = new Date(Date.now() + 30 * 86_400_000).toISOString()
       }
       Object.assign(business, { name, business_type: ({ cafe: 'Café', restaurant: 'Restaurant & bar', pub: 'Pub', salon: 'Salon & beauty', real_estate: 'Real estate agency' } as Record<string, string>)[b.kind ?? ''] ?? null,
         timezone: b.timezone || 'Europe/Madrid', setup_completed_at: null })
@@ -3918,6 +3956,9 @@ export function createDemoApi(): Api {
     async salesReps() {
       return isStaff() ? clone(repList).sort((a, b) => a.name.localeCompare(b.name)) : []
     },
+    // Only Business Agent HQ (?hq) has businesses its reps introduced.
+    async repIntroductions() { return demoHq && isAdmin() ? clone(hqIntros) : [] },
+    async repCodeOpens(): Promise<Record<string, number>> { return demoHq && isAdmin() ? { 'rep-julio-hq': 12 } : {} },
     async saveSalesRep({ id, ...input }) {
       const { reach: _reach, followers_checked_at: _checked, created_at: _created, created_by: _by, ...r } = input as Partial<SalesRep>
       if (id) {
@@ -4951,9 +4992,18 @@ export function createDemoApi(): Api {
       return { code: referralDemo.code, opens: referralDemo.opens, referrals: [...referralDemo.referrals] }
     },
     async openReferral(code, count = true) {
+      if (cleanCode(code) === DEMO_HQ_REP.code) return { rep: { ...DEMO_HQ_REP.rep } }
       if (cleanCode(code) !== referralDemo.code) throw new Error('That invite link isn’t valid')
       if (count) referralDemo.opens++
       return { business: business.name }
+    },
+    async addRepCode(code) {
+      requireOwner()
+      if (demoBilling.introduced_by || demoBilling.referred_by) throw new Error('Your business already came through someone’s code')
+      if (!demoBilling.rep_code_until) throw new Error('A rep’s code can be added in your first 30 days')
+      if (cleanCode(code) !== DEMO_HQ_REP.code) throw new Error('That isn’t a rep’s code. Check it and try again.')
+      Object.assign(demoBilling, { introduced_by: DEMO_HQ_REP.rep.name, rep_code_until: null })
+      return DEMO_HQ_REP.rep.name
     },
     async instagramInbox() {
       requireAdmin()

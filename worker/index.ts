@@ -435,6 +435,8 @@ export default {
         // Enquiries whose follow-up day has come, and campaigns planned for today (Leads & enquiries, Campaigns).
         await each('enquiry_follow_ups')
         await each('campaign_reminders')
+        // Business Agent's reps: commission held 30 days counts now (the hq_reps migration).
+        await each('release_rep_commission')
         // AI music tracks made while Stripe didn't answer go on the bill now.
         await chargePendingAiMusic(env).catch(e => console.error('ai music charges failed', e))
         await forEach(async (id, b) => {

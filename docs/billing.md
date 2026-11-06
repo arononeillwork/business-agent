@@ -114,6 +114,26 @@ Marking a business as referred (in its Supabase project, when we set it up):
 select public.mark_referred('Easy Beans Coffee');
 ```
 
+## Business Agent reps' commission
+
+Business Agent's own reps (docs/REPS_PLAN.md) are Business Agent HQ's, a business of its own in the app. A
+business that signed up with a rep's code is on HQ's list (`rep_introductions`), and its own Billing page
+says "Introduced by Julio": the month free is the same as a referred business's (`referred_month`).
+
+- **`invoice.paid`**: after the subscription is copied, the Worker passes what the invoice paid for the
+  plan, without IVA, to `record_rep_commission()` (worker/hqReps.ts): 12 months for a yearly invoice,
+  1 otherwise. A €0 invoice (a trial starting, a month the credit covered) and an invoice with no plan on
+  it (pay per use billed alone) earn nothing. The database writes the lines on HQ's ledger from HQ's own
+  list (`reward_rules.hq_role`): the first payment's €50 once, and 20% while the business's 12 paid months
+  last (a yearly payment past them counts in part). Once per invoice: a retried event adds nothing.
+- **Each line waits 30 days** (`counts_from`), then the nightly job counts it (`release_rep_commission`),
+  and a crew's leader gets their share. HQ's admins can approve or turn one down sooner.
+- **`charge.refunded`** and **`charge.dispute.closed`** (lost): `reverse_rep_commission()` with the share
+  given back. A line still waiting is turned down when it's all given back; otherwise a `clawback` line
+  takes that share back (and the crew leader's share of it), kept up to date as more is refunded.
+- The Stripe webhook needs both events: the deploy's "Stripe billing webhook" step adds them
+  (`scripts/ops/stripe-billing.mjs`).
+
 ## Setup (once)
 
 1. **Apply migrations** 36 to 38 (`supabase/migrations/2026101900003*`) to the Supabase project

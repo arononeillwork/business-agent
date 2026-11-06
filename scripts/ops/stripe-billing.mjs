@@ -9,7 +9,8 @@ if (!key) { console.log('::warning::STRIPE_SECRET_KEY not set: paid plans are of
 if (!site) { console.log('No site URL; skipping Stripe webhook'); process.exit(0) }
 
 const EVENTS = ['checkout.session.completed', 'customer.subscription.created', 'customer.subscription.updated',
-  'customer.subscription.deleted', 'customer.subscription.trial_will_end', 'invoice.paid', 'invoice.payment_failed']
+  'customer.subscription.deleted', 'customer.subscription.trial_will_end', 'invoice.paid', 'invoice.payment_failed',
+  'charge.refunded', 'charge.dispute.closed']
 const stripe = async (method, path, params) => {
   const body = params ? new URLSearchParams(params) : undefined
   const res = await fetch(`https://api.stripe.com/v1${path}`, { method, body,

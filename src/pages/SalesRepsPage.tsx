@@ -30,6 +30,7 @@ import { Brand } from '../components/Connectors'
 import { Empty, ErrorBox, PageHeader, PageToolbar, SectionTitle, Tag } from '../components/common'
 import { ExportButton } from '../components/tables'
 import { KIND_TONE, ReachBadge, ReachLadder, RepAvatar, RepCode, worth } from '../components/RepBits'
+import { CategoryTags, HqBusinessesCard, RepCategoriesField } from '../components/HqReps'
 import type { ExportTable } from '../lib/export'
 import {
   DEFAULT_PITCH, REACH_TIERS, REP_KINDS, REWARD_IDEAS, TOP_MULTIPLIER, RULE_WHO, SOCIALS, balanceOf, bonusFrom, cleanInstagram, cleanRepCode, cleanYoutube, crewOf, crewReach, earnsCredit,
@@ -78,7 +79,9 @@ const HOW_KEY = 'eb-reps-how-hidden'
  * has their own page (a private link). The database enforces the same.
  */
 export function SalesRepsPage() {
-  const { api, me, isAdmin, profiles } = useApp()
+  const { api, me, isAdmin, profiles, business } = useApp()
+  // Business Agent HQ: its reps sell Business Agent to businesses (the hq_reps migration).
+  const isHq = !!business?.is_hq
   // Only an owner (an admin who sees pay) says yes to a new rep; any admin approves rewards.
   const isOwner = isAdmin && !!me?.can_see_pay
   const reps = useAsync('sales-reps', () => api.salesReps(), [])
@@ -221,7 +224,8 @@ export function SalesRepsPage() {
                       <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                         {[day(r.occurred_on), r.sale_amount ? t('Sale of {amount}', { amount: formatMoney(r.sale_amount) }) : null,
                           r.multiplier ? t('×{x} for their reach', { x: r.multiplier }) : null, r.note,
-                          r.logged_by ? t('Logged by {name}', { name: personName(r.logged_by) }) : r.bonus_for ? null : t('Sent from their own page')].filter(Boolean).join(' · ')}
+                          r.counts_from ? t('Counts by itself on {date}', { date: day(r.counts_from) }) : null,
+                          r.logged_by ? t('Logged by {name}', { name: personName(r.logged_by) }) : r.bonus_for || r.source ? null : t('Sent from their own page')].filter(Boolean).join(' · ')}
                         {r.proof_url && <> · <Link href={r.proof_url} target="_blank" rel="noopener">{t('See it')}</Link></>}
                       </Typography>
                     </Box>
@@ -255,6 +259,8 @@ export function SalesRepsPage() {
           </CardContent>
         </Card>
       )}
+
+      {isHq && isAdmin && <HqBusinessesCard reps={allReps} ledger={ledger} />}
 
       <Card component="section" aria-label={t('Reps')} sx={{ mb: 3 }}>
         <CardContent>
@@ -555,6 +561,7 @@ function PersonCard({ rep: r, reps, ledger, seesBalance, isAdmin, mine, crewShow
             {!r.approved && <Tag fg={tokens.warnFg} bg={tokens.warnBg}>{t('Waiting for an OK')}</Tag>}
             {!r.active && <Tag>{t('Not a rep now')}</Tag>}
           </Stack>
+          <CategoryTags categories={r.categories} />
         </Box>
         {isAdmin && <IconButton size="small" sx={{ mt: -0.5, mr: -0.75 }} aria-label={t('Edit {name}', { name: r.name })} onClick={onEdit}><EditIcon fontSize="small" /></IconButton>}
       </Stack>
@@ -733,7 +740,7 @@ const asText = (n: number | null | undefined) => (n === null || n === undefined 
  * puts them with their coach or studio.
  */
 function RepDialog({ rep, reps, crewShare, onClose }: { rep: SalesRepInput; reps: SalesRep[]; crewShare: number; onClose: () => void }) {
-  const { api, isAdmin, profiles, me } = useApp()
+  const { api, isAdmin, profiles, me, business } = useApp()
   const isOwner = isAdmin && !!me?.can_see_pay
   const run = useAction()
   const notify = useNotify()
@@ -886,6 +893,7 @@ function RepDialog({ rep, reps, crewShare, onClose }: { rep: SalesRepInput; reps
             <TextField label={t('Code on their cards')} value={r.code ?? ''} onChange={e => set({ code: e.target.value.toUpperCase() })}
               helperText={r.code ? t('3 to 12 letters and numbers') : t('Made from their name if left empty')} />
           )}
+          {isAdmin && business?.is_hq && <RepCategoriesField value={r.categories ?? []} onChange={categories => set({ categories })} />}
           <TextField label={t('Notes')} value={r.notes ?? ''} onChange={e => set({ notes: e.target.value })} multiline minRows={2}
             placeholder={t('Who they are, how they help: “Head coach at the MMA gym, 20 fighters”')} />
           {isAdmin && editing && <FormControlLabel control={<Switch checked={r.active ?? true} onChange={e => set({ active: e.target.checked })} />} label={t('Still a rep')} />}

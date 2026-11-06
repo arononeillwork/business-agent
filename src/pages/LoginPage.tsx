@@ -20,6 +20,7 @@ import ArrowDownIcon from '@mui/icons-material/ArrowDownwardRounded'
 import { useEffect, useState, type ReactNode } from 'react'
 import { useApp } from '../app/AppContext'
 import { cleanCode } from '../../shared/referrals'
+import type { ReferralOpen } from '../../shared/hqReps'
 import { keepReferral } from '../app/referral'
 import { AuthCard } from './marketing/AuthCard'
 import { DayVideo, DemoVideo, watchDemo } from './marketing/DemoVideo'
@@ -259,31 +260,37 @@ export function LoginPage() {
 }
 
 /**
- * Arrived from another business's referral link (/?ref=CODE): who invited you, and on to creating an
- * account. The code is kept until the new business is created (NewBusinessPage), which makes it that
- * business's referral. The link is counted once per visit. A wrong code shows nothing.
+ * Arrived from another business's referral link, or a Business Agent rep's (/?ref=CODE): who invited
+ * you, and on to creating an account. The code is kept until the new business is created
+ * (NewBusinessPage), which makes it that business's referral or the rep's. The link is counted once
+ * per visit. A wrong code shows nothing.
  */
 function Invite({ onSignUp }: { onSignUp: () => void }) {
   const { api } = useApp()
   const [code] = useState(() => cleanCode(new URLSearchParams(location.search).get('ref')))
-  const [by, setBy] = useState<string | null>(null)
+  const [by, setBy] = useState<ReferralOpen | null>(null)
   useEffect(() => {
     if (!code) return
     let seen = false
     try { seen = sessionStorage.getItem(`ref-${code}`) === '1'; sessionStorage.setItem(`ref-${code}`, '1') } catch { /* private mode: count it */ }
-    void api.openReferral(code, !seen).then(r => { setBy(r.business); keepReferral(code) }, () => {})
+    void api.openReferral(code, !seen).then(r => { setBy(r); keepReferral(code) }, () => {})
   }, [api, code])
-  if (!code || !by) return null
+  if (!code || !(by?.business || by?.rep)) return null
+  const rep = by.rep
   return (
     <Box component="section" aria-label={t('You’re invited')} sx={{ mb: 2.5, p: { xs: 2.5, sm: 3.5 }, borderRadius: '24px', bgcolor: BA.card,
       border: `1px solid ${BA.rose}`, boxShadow: '0 24px 60px -30px rgba(168,90,104,0.45)' }}>
       <Stack direction="row" spacing={1} sx={{ alignItems: 'center', color: BA.accent, mb: 1 }}>
         <GiftIcon fontSize="small" />
-        <Typography sx={{ fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase', fontSize: '0.75rem' }}>{t('Invited by {name}', { name: by })}</Typography>
+        <Typography sx={{ fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase', fontSize: '0.75rem' }}>
+          {rep ? t('Introduced by {name}, from Business Agent', { name: rep.name }) : t('Invited by {name}', { name: by.business! })}
+        </Typography>
       </Stack>
       <Typography variant="h5" component="h2" sx={{ fontFamily: display, fontWeight: 500, fontSize: '2rem' }}>{t('Get your first month free')}</Typography>
       <Typography sx={{ color: BA.soft, mt: 1, mb: 2 }}>
-        {t('Create your account, then your business: once it’s set up, you and {name} each get a month free.', { name: by })}
+        {rep
+          ? t('Create your account, then your business: your first month is free, and {name} will help you set it up.', { name: rep.name })
+          : t('Create your account, then your business: once it’s set up, you and {name} each get a month free.', { name: by.business! })}
       </Typography>
       <Button variant="contained" size="large" onClick={onSignUp} sx={primaryBtn}>{t('Create my account')}</Button>
     </Box>

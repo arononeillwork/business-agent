@@ -26,7 +26,9 @@ class FakeStripe {
   products: { id: string; plan: string }[] = []
   checkouts: URLSearchParams[] = []
   subs: Sub[] = []
-  events = new Map<string, { type: string; data: { object: { customer: string } } }>()
+  events = new Map<string, { type: string; data: { object: Record<string, unknown> } }>()
+  /** Charges, for a dispute (which only names its charge). */
+  charges = new Map<string, Record<string, unknown>>()
   /** Customer balance credits, by idempotency key (a repeated key is the same transaction, as on Stripe). */
   credits = new Map<string, { customer: string; amount: number; description: string }>()
   /** Pay-per-use invoice items, by idempotency key (the same: once per key). */
@@ -68,6 +70,8 @@ class FakeStripe {
       }
       return json(s)
     }
+    const ch = /^\/charges\/(\w+)$/.exec(path)
+    if (ch) return this.charges.has(ch[1]) ? json({ id: ch[1], ...this.charges.get(ch[1]) }) : json({ error: { message: 'No such charge' } }, 404)
     const ev = /^\/events\/(\w+)$/.exec(path)
     if (ev) return this.events.has(ev[1]) ? json({ id: ev[1], ...this.events.get(ev[1]) }) : json({ error: { message: 'No such event' } }, 404)
     const bal = /^\/customers\/(\w+)\/balance_transactions$/.exec(path)
@@ -267,4 +271,68 @@ describe('pay per use on the bill', () => {
 it('encodes nested form fields the way Stripe expects', () => {
   expect(encodeForm({ a: 1, line_items: [{ price: 'p', quantity: 1 }], b: { c: { d: 'x' } }, skip: undefined }).toString())
     .toBe('a=1&line_items%5B0%5D%5Bprice%5D=p&line_items%5B0%5D%5Bquantity%5D=1&b%5Bc%5D%5Bd%5D=x')
+})
+
+describe('Business Agent reps’ commission (the hq_reps migration)', () => {
+  const hook = (id: string) => billing.request(`${APP}/api/billing/webhook`, { method: 'POST', body: JSON.stringify({ id }) }, env)
+  let recorded: Record<string, unknown>[]
+  let reversed: Record<string, unknown>[]
+  beforeEach(async () => {
+    await post('/api/billing/checkout', { plan: 'pro', interval: 'month' })
+    stripe.subscribe('business_agent_pro_month', 'active', null)
+    recorded = []
+    reversed = []
+    db.rpcs.record_rep_commission = a => { recorded.push(a); return 2 }
+    db.rpcs.reverse_rep_commission = a => { reversed.push(a); return 1 }
+  })
+  const paid = { customer: 'cus_1', id: 'in_9', amount_paid: 9559, total: 9559, total_excluding_tax: 7900, tax: 1659,
+    status_transitions: { paid_at: 1_790_000_000 }, lines: { data: [{ price: { recurring: { interval: 'month' } } }] } }
+
+  it('a paid invoice: its billing follows Stripe, then what it paid without IVA goes to the rep’s ledger', async () => {
+    stripe.events.set('evt_paid', { type: 'invoice.paid', data: { object: paid } })
+    expect((await hook('evt_paid')).status).toBe(200)
+    expect(row()).toMatchObject({ plan: 'pro', status: 'active' })
+    expect(recorded).toEqual([{ p_invoice: 'in_9', p_amount: 79, p_months: 1, p_paid_at: new Date(1_790_000_000_000).toISOString() }])
+  })
+
+  it('a trial’s €0 invoice earns nothing, and the ledger isn’t asked', async () => {
+    stripe.events.set('evt_trial', { type: 'invoice.paid', data: { object: { ...paid, amount_paid: 0, total: 0 } } })
+    await hook('evt_trial')
+    expect(recorded).toEqual([])
+  })
+
+  it('a refund takes back the share given back; a dispute lost, all of it; a dispute won, nothing', async () => {
+    stripe.events.set('evt_refund', { type: 'charge.refunded', data: { object: { id: 'ch_1', customer: 'cus_1', invoice: 'in_9', amount: 9559, amount_refunded: 4779.5 } } })
+    await hook('evt_refund')
+    expect(reversed).toEqual([{ p_invoice: 'in_9', p_share: 0.5 }])
+    stripe.charges.set('ch_2', { customer: 'cus_1', invoice: 'in_10', amount: 9559, amount_refunded: 0 })
+    stripe.events.set('evt_lost', { type: 'charge.dispute.closed', data: { object: { charge: 'ch_2', status: 'lost' } } })
+    await hook('evt_lost')
+    expect(reversed[1]).toEqual({ p_invoice: 'in_10', p_share: 1 })
+    stripe.events.set('evt_won', { type: 'charge.dispute.closed', data: { object: { charge: 'ch_2', status: 'won' } } })
+    expect(await (await hook('evt_won')).json()).toEqual({ ok: true, ignored: 'a dispute not lost' })
+    expect(reversed).toHaveLength(2)
+  })
+
+  it('a refund for another Stripe customer changes nothing', async () => {
+    stripe.events.set('evt_other', { type: 'charge.refunded', data: { object: { id: 'ch_3', customer: 'cus_else', invoice: 'in_11', amount: 100, amount_refunded: 100 } } })
+    await hook('evt_other')
+    expect(reversed).toEqual([])
+  })
+
+  it('Billing says which rep introduced the business, or until when a forgotten code can be added', async () => {
+    Object.assign(row(), { introduced_by: 'Julio' })
+    const get = async () => (await (await billing.request(`${APP}/api/billing`, { headers: headers('admin') }, env)).json()) as Record<string, unknown>
+    expect(await get()).toMatchObject({ introduced_by: 'Julio', rep_code_until: null })
+    Object.assign(row(), { introduced_by: null })
+    const made = new Date(Date.now() - 5 * 86_400_000).toISOString()
+    Object.assign(db.table('business')[0], { created_at: made, is_hq: false, referred_by: null })
+    expect((await get()).rep_code_until).toBe(new Date(Date.parse(made) + 30 * 86_400_000).toISOString())
+    Object.assign(db.table('business')[0], { created_at: new Date(Date.now() - 31 * 86_400_000).toISOString() })
+    expect((await get()).rep_code_until).toBeNull()
+    // A complimentary account has nothing to pay, so nothing to add.
+    Object.assign(db.table('business')[0], { created_at: made })
+    Object.assign(row(), { status: 'comped', complimentary: 'founder', plan: 'business' })
+    expect((await get()).rep_code_until).toBeNull()
+  })
 })
