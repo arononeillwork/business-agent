@@ -1204,8 +1204,11 @@ test.describe('music', () => {
     await expect(songs.getByRole('listitem', { name: 'Lofi', exact: true })).toHaveAttribute('aria-current', 'true')
     await expect(songs.getByRole('button', { name: 'Pause Lofi', exact: true })).toBeVisible()
 
-    // Another result: it plays at once, and the first goes back to a play button.
-    await songs.getByRole('button', { name: 'Play Lofi (Live) now' }).click()
+    // Another result: it plays at once, and the first goes back to a play button. The pointer is still on the
+    // first's button, so its tooltip shows over the next one's; pressed there, as a person would, it goes through.
+    await expect(page.getByRole('tooltip', { name: 'Pause' })).toBeVisible()
+    const next = (await songs.getByRole('button', { name: 'Play Lofi (Live) now' }).boundingBox())!
+    await page.mouse.click(next.x + next.width / 2, next.y + next.height / 2)
     await expect(now.getByRole('heading', { name: 'Lofi (Live)' })).toBeVisible()
     await expect(songs.getByRole('button', { name: 'Pause Lofi (Live)' })).toBeVisible()
     await expect(songs.getByRole('button', { name: 'Play Lofi now' })).toBeVisible()

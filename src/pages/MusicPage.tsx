@@ -267,7 +267,7 @@ function QueueRow({ id, track, index, current, playing, onPlay, onRemove }: {
         </Box>
       </CardActionArea>
       {onRemove
-        ? <Tooltip title={t('Remove from the queue')}><IconButton size="small" aria-label={t('Remove {title} from the queue', { title: track.title })} onClick={onRemove} sx={{ color: tokens.inkFaint }}><CloseIcon fontSize="small" /></IconButton></Tooltip>
+        ? <Tooltip disableInteractive title={t('Remove from the queue')}><IconButton size="small" aria-label={t('Remove {title} from the queue', { title: track.title })} onClick={onRemove} sx={{ color: tokens.inkFaint }}><CloseIcon fontSize="small" /></IconButton></Tooltip>
         : <Box sx={{ width: 34, flexShrink: 0 }} />}
     </Box>
   )
@@ -313,6 +313,8 @@ function FindMusic() {
       {asked && results.loading && !r && <Typography variant="body2" sx={{ color: 'text.secondary', px: 2, pb: 2 }}>{t('Searching…')}</Typography>}
       {r && r.tracks.length + r.playlists.length === 0 && <Typography variant="body2" sx={{ color: 'text.secondary', px: 2, pb: 2 }}>{t('Nothing found for “{q}”.', { q: asked.q })}</Typography>}
       {r && r.tracks.length > 0 && (
+        // The rows' tooltips let the pointer through (disableInteractive): shown under a button, one would cover the
+        // next row's and take its press, so the next song couldn't be played straight after the last.
         <Box role="list" aria-label={t('Songs found')} sx={{ maxHeight: 360, overflowY: 'auto' }}>
           {r.tracks.map(x => {
             const on = isOn(x), playing = on && !!s?.playing, added = inCafe.has(x.id)
@@ -324,11 +326,11 @@ function FindMusic() {
                   <Typography variant="body2" sx={{ fontWeight: on ? 600 : undefined }} noWrap>{x.title}</Typography>
                   {(x.artist || added) && <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }} noWrap>{[x.artist, added && t('In the café playlist')].filter(Boolean).join(' · ')}</Typography>}
                 </Box>
-                <Tooltip title={playing ? t('Pause') : t('Play now')}>
+                <Tooltip disableInteractive title={playing ? t('Pause') : t('Play now')}>
                   <IconButton size="small" aria-label={playing ? t('Pause {title}', { title: x.title }) : t('Play {title} now', { title: x.title })} onClick={() => press(x)}
                     sx={on ? { color: BRAND.youtube.colour } : undefined}>{playing ? <PauseIcon /> : <PlayIcon />}</IconButton>
                 </Tooltip>
-                <Tooltip title={added ? t('Remove from the café playlist') : t('Add to the café playlist')}>
+                <Tooltip disableInteractive title={added ? t('Remove from the café playlist') : t('Add to the café playlist')}>
                   <IconButton size="small" aria-pressed={added} sx={added ? { color: tokens.matchaDeep } : undefined}
                     aria-label={added ? t('Remove {title} from the café playlist', { title: x.title }) : t('Add {title} to the café playlist', { title: x.title })}
                     onClick={() => (added ? run(() => music.removeFromCafePlaylist(x.id), t('Removed {title} from the café playlist', { title: x.title }))
@@ -336,8 +338,8 @@ function FindMusic() {
                     {added ? <CafeAddedIcon fontSize="small" /> : <CafeAddIcon fontSize="small" />}
                   </IconButton>
                 </Tooltip>
-                <Tooltip title={t('Play next')}><IconButton size="small" aria-label={t('Play {title} next', { title: x.title })} onClick={() => run(() => music.addTracks([x], 'next'), t('{title} plays next', { title: x.title }))}><NextUpIcon fontSize="small" /></IconButton></Tooltip>
-                <Tooltip title={t('Add to the end of the queue')}><IconButton size="small" aria-label={t('Add {title} to the queue', { title: x.title })} onClick={() => run(() => music.addTracks([x], 'end'), t('Added {title}', { title: x.title }))}><QueueAddIcon fontSize="small" /></IconButton></Tooltip>
+                <Tooltip disableInteractive title={t('Play next')}><IconButton size="small" aria-label={t('Play {title} next', { title: x.title })} onClick={() => run(() => music.addTracks([x], 'next'), t('{title} plays next', { title: x.title }))}><NextUpIcon fontSize="small" /></IconButton></Tooltip>
+                <Tooltip disableInteractive title={t('Add to the end of the queue')}><IconButton size="small" aria-label={t('Add {title} to the queue', { title: x.title })} onClick={() => run(() => music.addTracks([x], 'end'), t('Added {title}', { title: x.title }))}><QueueAddIcon fontSize="small" /></IconButton></Tooltip>
               </Stack>
             )
           })}
