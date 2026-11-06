@@ -31,10 +31,10 @@ const HAS: Record<Has, { label: string; icon: ReactNode }> = {
 }
 
 const FAQ = [
-  { q: msg('Can I keep my Square till?'), a: msg('Yes. Business Agent isn’t a till: it works with Square, SumUp or Stripe, reads the takings and shows them next to what the rota costs. Square’s free plan is all you need for payments.') },
-  { q: msg('Aren’t they cheaper paid by the year?'), a: msg('So are we. Business Agent {plan} is {yearly} a year ({monthly} a month) and HighLevel Starter ${ghl} a year. The gap stays, and GoHighLevel still needs a rota app, its add-ons and its usage charges on top.') },
+  { q: msg('Can I keep my Square till?'), a: msg('Yes. The Business Agent isn’t a till: it works with Square, SumUp or Stripe, reads the takings and shows them next to what the rota costs. Square’s free plan is all you need for payments.') },
+  { q: msg('Aren’t they cheaper paid by the year?'), a: msg('So are we. The Business Agent {plan} is {yearly} a year ({monthly} a month) and HighLevel Starter ${ghl} a year. The gap stays, and GoHighLevel still needs a rota app, its add-ons and its usage charges on top.') },
   { q: msg('What if I only need a rota?'), a: msg('Then start on our Free plan: the rota, clock-ins and the registro de jornada for up to 3 people, free for ever. To be fair, Square Shifts is free up to 5 people too; it’s everything else a café needs that adds up.') },
-  { q: msg('How did you work out the learning curve?'), a: msg('It’s our estimate, not a measured study: how many separate apps and logins each route needs, who each product is made for, and how much has to be set up before the first rota goes out. Try Business Agent free and judge for yourself.') },
+  { q: msg('How did you work out the learning curve?'), a: msg('It’s our estimate, not a measured study: how many separate apps and logins each route needs, who each product is made for, and how much has to be set up before the first rota goes out. Try The Business Agent free and judge for yourself.') },
   { q: msg('How old are these prices?'), a: msg('We read every price from each company’s own website on {date}. Prices change, so check theirs before you decide; the links are under “How we worked it out”.') },
 ]
 
@@ -103,7 +103,7 @@ function Receipt({ p, people }: { p: Product; people: number }) {
       {p.usageCharges && <Typography sx={{ color: BA.soft, fontSize: '0.88rem', mt: 1, textAlign: 'right' }}>{t(p.usageCharges)}</Typography>}
       {!ours && (
         <Box sx={{ mt: 1.75, alignSelf: 'flex-start', px: 1.25, py: 0.5, borderRadius: '999px', bgcolor: BA.roseSoft, color: BA.accentDeep, fontSize: '0.86rem', fontWeight: 600 }}>
-          {t('{amount} a month more than Business Agent', { amount: money(more) })}
+          {t('{amount} a month more than The Business Agent', { amount: money(more) })}
         </Box>
       )}
       <Box sx={{ pt: 2.5 }}>
@@ -158,7 +158,7 @@ export function ComparePage() {
   const [people, setPeople] = useState(TEAM_DEFAULT)
   useEffect(() => {
     const before = document.title
-    document.title = t('Compare · Business Agent')
+    document.title = t('Compare · The Business Agent')
     return () => { document.title = before }
   }, [lang])
   const date = new Date(`${CHECKED_ON}T12:00:00`).toLocaleDateString(locale(), { day: 'numeric', month: 'long', year: 'numeric' })
@@ -183,7 +183,7 @@ export function ComparePage() {
         <Box sx={{ backgroundImage: glow('50%', '-200px') }}>
           <Container maxWidth="lg" sx={{ pt: { xs: 5, md: 8 }, pb: { xs: 8, md: 10 } }}>
             <Box sx={{ textAlign: 'center', maxWidth: 800, mx: 'auto' }}>
-              <Eyebrow>{t('Business Agent vs GoHighLevel vs Square')}</Eyebrow>
+              <Eyebrow>{t('The Business Agent vs GoHighLevel vs Square')}</Eyebrow>
               <Typography component="h1" sx={{ fontFamily: display, fontWeight: 500, fontSize: { xs: '2.9rem', md: '4.5rem' }, lineHeight: 0.98, letterSpacing: '-0.02em', mt: 1.75 }}>
                 {tr('One app for the café. {em}', { em: <Box component="em" sx={{ fontStyle: 'italic', color: BA.roseDeep }}>{t('Not three bills.')}</Box> })}
               </Typography>
@@ -213,7 +213,7 @@ export function ComparePage() {
         <Box component="section" aria-label={t('What it costs')} id="cost" sx={{ bgcolor: '#fff', borderTop: `1px solid ${BA.line}`, borderBottom: `1px solid ${BA.line}`, scrollMarginTop: 64 }}>
           <Container maxWidth="lg" sx={{ py: { xs: 9, md: 12 } }}>
             <SectionIntro eyebrow={t('What it costs')} title={tr('The same work, {em}', { em: <em>{t('a much smaller bill.')}</em> })}
-              text={t('What a café of {n} pays each month to cover what Business Agent does, with each company’s own products at list price. VAT not included, and card fees left out: they’re the same on every route.', { n: people })} />
+              text={t('What a café of {n} pays each month to cover what The Business Agent does, with each company’s own products at list price. VAT not included, and card fees left out: they’re the same on every route.', { n: people })} />
             <Box sx={{ display: 'grid', gap: 2.5, gridTemplateColumns: { xs: '1fr', md: 'repeat(3, minmax(0, 1fr))' }, alignItems: 'start' }}>
               {PRODUCTS.map(p => <Receipt key={p.id} p={p} people={people} />)}
             </Box>
@@ -272,7 +272,7 @@ export function ComparePage() {
         <Box component="section" aria-label={t('Feature by feature')} id="features" sx={{ bgcolor: '#fff', borderTop: `1px solid ${BA.line}`, borderBottom: `1px solid ${BA.line}`, scrollMarginTop: 64 }}>
           <Container maxWidth="lg" sx={{ py: { xs: 9, md: 12 } }}>
             <SectionIntro eyebrow={t('Feature by feature')} title={tr('Everything a café runs on, {em}', { em: <em>{t('side by side')}</em> })}
-              text={t('{a} of the {n} jobs are built into Business Agent. Square does {b} on its own and GoHighLevel {c}: the rest take add-ons, other apps, or can’t be done.', { a: covered(OURS), n: total, b: covered('square'), c: covered('gohighlevel') })} />
+              text={t('{a} of the {n} jobs are built into The Business Agent. Square does {b} on its own and GoHighLevel {c}: the rest take add-ons, other apps, or can’t be done.', { a: covered(OURS), n: total, b: covered('square'), c: covered('gohighlevel') })} />
             <Coverage />
             <Stack direction="row" component="ul" aria-label={t('Key')} sx={{ listStyle: 'none', m: 0, p: 0, mb: 2, flexWrap: 'wrap', columnGap: 3, rowGap: 1 }}>
               {(Object.keys(HAS) as Has[]).map(h => (
@@ -329,7 +329,7 @@ export function ComparePage() {
               text={t('Both are good at what they were built for. Neither was built to run a café.')} />
             <Box sx={{ display: 'grid', gap: 2.5, gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' } }}>
               {[
-                { p: square, good: msg('Taking card payments. It’s a good till, and Business Agent works with it rather than replacing it.'),
+                { p: square, good: msg('Taking card payments. It’s a good till, and The Business Agent works with it rather than replacing it.'),
                   short: [
                     t('{n} of the {total} jobs aren’t available from Square at any price, including the social planner, supplier invoices, tax deadlines and food safety logs.', { n: missing('square').length, total }),
                     t('Stock and menu costing is MarketMan, another company’s app with its own login: {price} a month on top.', { price: money(SQUARE.marketman) }),
@@ -346,10 +346,10 @@ export function ComparePage() {
               ].map(({ p, good, short }) => {
                 const more = cost(p.id) - cost(OURS)
                 return (
-                  <Box key={p.id} component="article" aria-label={t('Business Agent vs {name}', { name: p.name })}
+                  <Box key={p.id} component="article" aria-label={t('The Business Agent vs {name}', { name: p.name })}
                     sx={{ p: { xs: 2.75, md: 3.5 }, borderRadius: '24px', bgcolor: '#fff', border: `1px solid ${BA.line}` }}>
                     <Typography component="h3" sx={{ fontFamily: display, fontWeight: 500, fontSize: { xs: '1.6rem', md: '1.9rem' }, lineHeight: 1.1 }}>
-                      {tr('Business Agent {vs} {name}', { vs: <Box component="em" sx={{ fontStyle: 'italic', color: BA.roseDeep }}>{t('vs')}</Box>, name: p.name })}
+                      {tr('The Business Agent {vs} {name}', { vs: <Box component="em" sx={{ fontStyle: 'italic', color: BA.roseDeep }}>{t('vs')}</Box>, name: p.name })}
                     </Typography>
                     <Typography sx={{ fontWeight: 600, mt: 2.25, fontSize: '0.92rem', letterSpacing: '0.04em', textTransform: 'uppercase', color: BA.faint }}>{t('What it’s good at')}</Typography>
                     <Typography sx={{ color: BA.soft, mt: 0.5, lineHeight: 1.6 }}>{t(good)}</Typography>
@@ -364,7 +364,7 @@ export function ComparePage() {
                     </Stack>
                     <Box sx={{ mt: 2.75, p: 2, borderRadius: '16px', bgcolor: BA.roseSoft }}>
                       <Typography sx={{ lineHeight: 1.55 }}>
-                        {tr('{more} a month more than Business Agent for a team of {n}: {total} more over {years} years.', {
+                        {tr('{more} a month more than The Business Agent for a team of {n}: {total} more over {years} years.', {
                           more: <Box component="strong" sx={{ fontWeight: 700 }}>{money(more)}</Box>, n: people, years: YEARS,
                           total: <Box component="strong" sx={{ fontWeight: 700 }}>{money(Math.round(more * MONTHS))}</Box> })}
                       </Typography>
@@ -374,9 +374,9 @@ export function ComparePage() {
               })}
             </Box>
             <Box sx={{ mt: 2.5, p: { xs: 2.75, md: 3.5 }, borderRadius: '24px', bgcolor: BA.tint, border: `1px solid ${BA.line}` }}>
-              <Typography component="h3" sx={{ fontWeight: 600, fontSize: '1.1rem' }}>{t('Where Business Agent fits')}</Typography>
+              <Typography component="h3" sx={{ fontWeight: 600, fontSize: '1.1rem' }}>{t('Where The Business Agent fits')}</Typography>
               <Typography sx={{ color: BA.soft, mt: 0.75, lineHeight: 1.65 }}>
-                {t('Business Agent isn’t a till. Keep Square’s free one (or SumUp or Stripe) for card payments: Business Agent reads the takings and puts them next to the rota, the stock and the month’s profit, with the {plan} plan at {price} a month for the whole team.', { plan: plan.name, price: money(plan.monthly) })}
+                {t('The Business Agent isn’t a till. Keep Square’s free one (or SumUp or Stripe) for card payments: The Business Agent reads the takings and puts them next to the rota, the stock and the month’s profit, with the {plan} plan at {price} a month for the whole team.', { plan: plan.name, price: money(plan.monthly) })}
               </Typography>
             </Box>
           </Container>
@@ -389,7 +389,7 @@ export function ComparePage() {
             <Box component="ul" sx={{ m: 0, mt: 2, pl: 2.5, color: BA.soft, '& li': { mb: 1, lineHeight: 1.65 } }}>
               <li>{t('Prices are each company’s list prices for Spain, read from their own websites on {date}, VAT not included. Prices change: check theirs before you decide.', { date })}</li>
               <li>{t('GoHighLevel bills in US dollars: converted at the European Central Bank’s rate that day, ${rate} to the euro.', { rate: USD_PER_EUR })}</li>
-              <li>{t('Each route covers what Business Agent’s {plan} plan does, for one venue, with that company’s own products. For Square’s team tools we take its cheapest way for the team size you pick; GoHighLevel has none, so that route borrows Square’s.', { plan: plan.name })}</li>
+              <li>{t('Each route covers what The Business Agent’s {plan} plan does, for one venue, with that company’s own products. For Square’s team tools we take its cheapest way for the team size you pick; GoHighLevel has none, so that route borrows Square’s.', { plan: plan.name })}</li>
               <li>{t('Card fees aren’t counted: every route keeps Square’s free till, at {fee} a card payment in person.', { fee: `${SQUARE.cardPercent}% + ${money(SQUARE.cardFixed)}` })}</li>
               <li>{t('Usage charges (GoHighLevel’s texts, emails, calls and AI) aren’t counted either, so its true cost is higher than shown.')}</li>
               <li>{t('The learning curve is our estimate, not a measured study: from the number of apps each route needs, who each is made for, and what has to be set up first.')}</li>
@@ -412,7 +412,7 @@ export function ComparePage() {
               ))}
             </Box>
             <Typography sx={{ color: BA.faint, fontSize: '0.85rem', mt: 3, lineHeight: 1.6 }}>
-              {t('GoHighLevel and HighLevel are trademarks of HighLevel LLC, and Square of Block, Inc. Business Agent isn’t affiliated with either.')}
+              {t('GoHighLevel and HighLevel are trademarks of HighLevel LLC, and Square of Block, Inc. The Business Agent isn’t affiliated with either.')}
             </Typography>
           </Container>
         </Box>

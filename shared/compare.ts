@@ -41,7 +41,7 @@ export interface Product {
 
 export const PRODUCTS: Product[] = [
   {
-    id: 'business_agent', name: 'Business Agent', madeFor: msg('Cafés, shops and small teams in Spain'), apps: 1, weeksTo80: 1,
+    id: 'business_agent', name: 'The Business Agent', madeFor: msg('Cafés, shops and small teams in Spain'), apps: 1, weeksTo80: 1,
     why: [msg('One app for the team, the money and the marketing'), msg('Set up in 10 minutes: your first rota can go out today'), msg('Made for cafés: registro de jornada, IVA and allergens in Spanish')],
     trial: msg('2 months of Business, free'),
   },
@@ -137,7 +137,7 @@ export function routeItems(id: ProductId, people: number): LineItem[] {
   if (id === 'business_agent') {
     const plan = businessAgentPlan(people)
     return [
-      { label: msg('Business Agent {plan}'), vars: { plan: plan.name, price: plan.monthly }, monthly: plan.monthly,
+      { label: msg('The Business Agent {plan}'), vars: { plan: plan.name, price: plan.monthly }, monthly: plan.monthly,
         covers: msg('Rota, clock-ins, social, campaigns, Google, stock, menu costing, P&L, tax and more'), basis: msg('€{price} a month for the whole team'), source: SOURCES.pricing },
       till,
     ]

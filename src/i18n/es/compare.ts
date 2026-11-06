@@ -5,7 +5,7 @@ export default {
   // The links to it
   'Compare': 'Comparar',
   'Compare it with GoHighLevel and Square →': 'Compáralo con GoHighLevel y Square →',
-  'Compare · Business Agent': 'Comparar · Business Agent',
+  'Compare · The Business Agent': 'Comparar · The Business Agent',
   // shared/compare.ts: the products
   'Cafés, shops and small teams in Spain': 'Cafeterías, tiendas y equipos pequeños en España',
   'One app for the team, the money and the marketing': 'Una sola app para el equipo, el dinero y el marketing',
@@ -34,7 +34,7 @@ export default {
   'Square for Restaurants Plus': 'Square para Restaurantes Plus',
   'Rota, clock-ins and timecards (team tools included)': 'Cuadrante, fichajes y hojas de horas (herramientas de equipo incluidas)',
   '€{price} a month a venue': '{price} € al mes por local',
-  'Business Agent {plan}': 'Business Agent {plan}',
+  'The Business Agent {plan}': 'The Business Agent {plan}',
   'Rota, clock-ins, social, campaigns, Google, stock, menu costing, P&L, tax and more': 'Cuadrante, fichajes, redes, campañas, Google, stock, escandallos, cuenta de resultados, impuestos y más',
   '€{price} a month for the whole team': '{price} € al mes para todo el equipo',
   'Square Marketing': 'Marketing Square',
@@ -92,7 +92,7 @@ export default {
   'The till, and Shifts up to 5 people': 'El TPV, y Turnos hasta 5 personas',
   'A 14-day trial': 'Una prueba de 14 días',
   // The page: headline and the figures at a glance
-  'Business Agent vs GoHighLevel vs Square': 'Business Agent frente a GoHighLevel y Square',
+  'The Business Agent vs GoHighLevel vs Square': 'The Business Agent frente a GoHighLevel y Square',
   'One app for the café. {em}': 'Una app para la cafetería. {em}',
   'Not three bills.': 'No tres facturas.',
   'What each costs a café in Spain, how much of the work each one does, and how long each takes to learn. Their list prices, from their own websites on {date}.':
@@ -109,13 +109,13 @@ export default {
   // What it costs
   'The same work, {em}': 'El mismo trabajo, {em}',
   'a much smaller bill.': 'una factura mucho menor.',
-  'What a café of {n} pays each month to cover what Business Agent does, with each company’s own products at list price. VAT not included, and card fees left out: they’re the same on every route.':
-    'Lo que paga al mes una cafetería de {n} personas por cubrir lo que hace Business Agent, con los productos de cada empresa a precio de tarifa. IVA no incluido, y sin las comisiones de tarjeta: son las mismas en todas las opciones.',
+  'What a café of {n} pays each month to cover what The Business Agent does, with each company’s own products at list price. VAT not included, and card fees left out: they’re the same on every route.':
+    'Lo que paga al mes una cafetería de {n} personas por cubrir lo que hace The Business Agent, con los productos de cada empresa a precio de tarifa. IVA no incluido, y sin las comisiones de tarjeta: son las mismas en todas las opciones.',
   'Made for: {who}': 'Hecho para: {who}',
   'What you pay for': 'Lo que pagas',
   '{amount} a month': '{amount} al mes',
   '{amount} over {n} years': '{amount} en {n} años',
-  '{amount} a month more than Business Agent': '{amount} al mes más que Business Agent',
+  '{amount} a month more than The Business Agent': '{amount} al mes más que The Business Agent',
   'Still missing: {n} job no {name} product does': 'Aún falta: {n} tarea que ningún producto de {name} hace',
   'Still missing: {n} jobs no {name} product does': 'Aún faltan: {n} tareas que ningún producto de {name} hace',
   'Nothing else to add': 'Nada más que añadir',
@@ -152,8 +152,8 @@ export default {
   // Feature by feature
   'Feature by feature': 'Función a función',
   'Everything a café runs on, {em}': 'Todo con lo que funciona una cafetería, {em}',
-  '{a} of the {n} jobs are built into Business Agent. Square does {b} on its own and GoHighLevel {c}: the rest take add-ons, other apps, or can’t be done.':
-    '{a} de las {n} tareas vienen en Business Agent. Square hace {b} por sí solo y GoHighLevel {c}: el resto requiere complementos, otras apps o no se puede hacer.',
+  '{a} of the {n} jobs are built into The Business Agent. Square does {b} on its own and GoHighLevel {c}: the rest take add-ons, other apps, or can’t be done.':
+    '{a} de las {n} tareas vienen en The Business Agent. Square hace {b} por sí solo y GoHighLevel {c}: el resto requiere complementos, otras apps o no se puede hacer.',
   'Jobs each one does': 'Tareas que hace cada uno',
   '{name}: {n} of {total} built in': '{name}: {n} de {total} incluidas',
   '{n} of {total} built in': '{n} de {total} incluidas',
@@ -171,7 +171,7 @@ export default {
   'Where the others {em}': 'Donde los demás {em}',
   'fall short for a café': 'se quedan cortos para una cafetería',
   'Both are good at what they were built for. Neither was built to run a café.': 'Los dos son buenos en aquello para lo que se hicieron. Ninguno se hizo para llevar una cafetería.',
-  'Taking card payments. It’s a good till, and Business Agent works with it rather than replacing it.': 'Cobrar con tarjeta. Es un buen TPV, y Business Agent trabaja con él en vez de sustituirlo.',
+  'Taking card payments. It’s a good till, and The Business Agent works with it rather than replacing it.': 'Cobrar con tarjeta. Es un buen TPV, y The Business Agent trabaja con él en vez de sustituirlo.',
   '{n} of the {total} jobs aren’t available from Square at any price, including the social planner, supplier invoices, tax deadlines and food safety logs.':
     '{n} de las {total} tareas no las ofrece Square a ningún precio, entre ellas el planificador de redes, las facturas de proveedores, los plazos de impuestos y los registros de seguridad alimentaria.',
   'Stock and menu costing is MarketMan, another company’s app with its own login: {price} a month on top.': 'El stock y los escandallos son MarketMan, la app de otra empresa con su propio acceso: {price} al mes más.',
@@ -182,22 +182,22 @@ export default {
   'Nothing for the café itself: no till, takings, stock, menu costing, supplier invoices or tax.': 'Nada para la propia cafetería: ni TPV, ni ingresos, ni stock, ni escandallos, ni facturas de proveedores, ni impuestos.',
   'Billed in US dollars, with texts, emails, calls and AI charged on top as you use them.': 'Se factura en dólares, y los SMS, emails, llamadas e IA se cobran aparte según los usas.',
   'Made for agencies: pipelines, funnels and workflows to build before it does anything for you.': 'Hecho para agencias: pipelines, embudos y flujos que montar antes de que haga nada por ti.',
-  'Business Agent vs {name}': 'Business Agent frente a {name}',
-  'Business Agent {vs} {name}': 'Business Agent {vs} {name}',
+  'The Business Agent vs {name}': 'The Business Agent frente a {name}',
+  'The Business Agent {vs} {name}': 'The Business Agent {vs} {name}',
   'vs': 'frente a',
   'What it’s good at': 'En qué es bueno',
   'Where it falls short for a café': 'Dónde se queda corto para una cafetería',
-  '{more} a month more than Business Agent for a team of {n}: {total} more over {years} years.': '{more} al mes más que Business Agent para un equipo de {n} personas: {total} más en {years} años.',
-  'Where Business Agent fits': 'Dónde encaja Business Agent',
-  'Business Agent isn’t a till. Keep Square’s free one (or SumUp or Stripe) for card payments: Business Agent reads the takings and puts them next to the rota, the stock and the month’s profit, with the {plan} plan at {price} a month for the whole team.':
-    'Business Agent no es un TPV. Quédate con el gratuito de Square (o SumUp o Stripe) para cobrar con tarjeta: Business Agent lee los ingresos y los pone junto al cuadrante, el stock y el beneficio del mes, con el plan {plan} a {price} al mes para todo el equipo.',
+  '{more} a month more than The Business Agent for a team of {n}: {total} more over {years} years.': '{more} al mes más que The Business Agent para un equipo de {n} personas: {total} más en {years} años.',
+  'Where The Business Agent fits': 'Dónde encaja The Business Agent',
+  'The Business Agent isn’t a till. Keep Square’s free one (or SumUp or Stripe) for card payments: The Business Agent reads the takings and puts them next to the rota, the stock and the month’s profit, with the {plan} plan at {price} a month for the whole team.':
+    'The Business Agent no es un TPV. Quédate con el gratuito de Square (o SumUp o Stripe) para cobrar con tarjeta: The Business Agent lee los ingresos y los pone junto al cuadrante, el stock y el beneficio del mes, con el plan {plan} a {price} al mes para todo el equipo.',
   // How we worked it out
   'How we worked it out': 'Cómo lo hemos calculado',
   'Prices are each company’s list prices for Spain, read from their own websites on {date}, VAT not included. Prices change: check theirs before you decide.':
     'Los precios son las tarifas de cada empresa para España, tomadas de sus propias webs a {date}, sin IVA. Los precios cambian: consulta los suyos antes de decidir.',
   'GoHighLevel bills in US dollars: converted at the European Central Bank’s rate that day, ${rate} to the euro.': 'GoHighLevel factura en dólares: convertidos al cambio del Banco Central Europeo de ese día, {rate} $ por euro.',
-  'Each route covers what Business Agent’s {plan} plan does, for one venue, with that company’s own products. For Square’s team tools we take its cheapest way for the team size you pick; GoHighLevel has none, so that route borrows Square’s.':
-    'Cada opción cubre lo que hace el plan {plan} de Business Agent, para un local, con los productos de esa empresa. Para las herramientas de equipo de Square tomamos su forma más barata según el tamaño de equipo que elijas; GoHighLevel no tiene, así que esa opción usa las de Square.',
+  'Each route covers what The Business Agent’s {plan} plan does, for one venue, with that company’s own products. For Square’s team tools we take its cheapest way for the team size you pick; GoHighLevel has none, so that route borrows Square’s.':
+    'Cada opción cubre lo que hace el plan {plan} de The Business Agent, para un local, con los productos de esa empresa. Para las herramientas de equipo de Square tomamos su forma más barata según el tamaño de equipo que elijas; GoHighLevel no tiene, así que esa opción usa las de Square.',
   'Card fees aren’t counted: every route keeps Square’s free till, at {fee} a card payment in person.': 'Las comisiones de tarjeta no se cuentan: todas las opciones mantienen el TPV gratuito de Square, a {fee} por cobro presencial.',
   'Usage charges (GoHighLevel’s texts, emails, calls and AI) aren’t counted either, so its true cost is higher than shown.': 'Tampoco se cuentan los cargos por uso (SMS, emails, llamadas e IA de GoHighLevel), así que su coste real es mayor que el que se muestra.',
   'The learning curve is our estimate, not a measured study: from the number of apps each route needs, who each is made for, and what has to be set up first.':
@@ -209,23 +209,23 @@ export default {
   'Square: opening hours on your Google Business Profile': 'Square: el horario en tu Perfil de Empresa de Google',
   'HighLevel MCP server': 'Servidor MCP de HighLevel',
   'European Central Bank: euro reference rates': 'Banco Central Europeo: tipos de cambio de referencia del euro',
-  'GoHighLevel and HighLevel are trademarks of HighLevel LLC, and Square of Block, Inc. Business Agent isn’t affiliated with either.':
-    'GoHighLevel y HighLevel son marcas de HighLevel LLC, y Square de Block, Inc. Business Agent no está vinculado a ninguna de las dos.',
+  'GoHighLevel and HighLevel are trademarks of HighLevel LLC, and Square of Block, Inc. The Business Agent isn’t affiliated with either.':
+    'GoHighLevel y HighLevel son marcas de HighLevel LLC, y Square de Block, Inc. The Business Agent no está vinculado a ninguna de las dos.',
   // FAQ
   'Comparing, {em}': 'Comparar, {em}',
   'answered': 'sin dudas',
   'Can I keep my Square till?': '¿Puedo seguir con mi TPV de Square?',
-  'Yes. Business Agent isn’t a till: it works with Square, SumUp or Stripe, reads the takings and shows them next to what the rota costs. Square’s free plan is all you need for payments.':
-    'Sí. Business Agent no es un TPV: funciona con Square, SumUp o Stripe, lee los ingresos y los muestra junto a lo que cuesta el cuadrante. Para cobrar te basta el plan gratuito de Square.',
+  'Yes. The Business Agent isn’t a till: it works with Square, SumUp or Stripe, reads the takings and shows them next to what the rota costs. Square’s free plan is all you need for payments.':
+    'Sí. The Business Agent no es un TPV: funciona con Square, SumUp o Stripe, lee los ingresos y los muestra junto a lo que cuesta el cuadrante. Para cobrar te basta el plan gratuito de Square.',
   'Aren’t they cheaper paid by the year?': '¿No salen más baratos pagando por año?',
-  'So are we. Business Agent {plan} is {yearly} a year ({monthly} a month) and HighLevel Starter ${ghl} a year. The gap stays, and GoHighLevel still needs a rota app, its add-ons and its usage charges on top.':
-    'Nosotros también. Business Agent {plan} cuesta {yearly} al año ({monthly} al mes) y HighLevel Starter {ghl} $ al año. La diferencia se mantiene, y GoHighLevel sigue necesitando una app de cuadrantes, sus complementos y sus cargos por uso.',
+  'So are we. The Business Agent {plan} is {yearly} a year ({monthly} a month) and HighLevel Starter ${ghl} a year. The gap stays, and GoHighLevel still needs a rota app, its add-ons and its usage charges on top.':
+    'Nosotros también. The Business Agent {plan} cuesta {yearly} al año ({monthly} al mes) y HighLevel Starter {ghl} $ al año. La diferencia se mantiene, y GoHighLevel sigue necesitando una app de cuadrantes, sus complementos y sus cargos por uso.',
   'What if I only need a rota?': '¿Y si solo necesito un cuadrante?',
   'Then start on our Free plan: the rota, clock-ins and the registro de jornada for up to 3 people, free for ever. To be fair, Square Shifts is free up to 5 people too; it’s everything else a café needs that adds up.':
     'Entonces empieza con nuestro plan Gratis: el cuadrante, los fichajes y el registro de jornada para hasta 3 personas, gratis para siempre. Para ser justos, Turnos Square también es gratis hasta 5 personas; lo que se acumula es todo lo demás que necesita una cafetería.',
   'How did you work out the learning curve?': '¿Cómo habéis calculado la curva de aprendizaje?',
-  'It’s our estimate, not a measured study: how many separate apps and logins each route needs, who each product is made for, and how much has to be set up before the first rota goes out. Try Business Agent free and judge for yourself.':
-    'Es una estimación nuestra, no un estudio medido: cuántas apps y accesos distintos necesita cada opción, para quién está hecho cada producto y cuánto hay que configurar antes de que salga el primer cuadrante. Prueba Business Agent gratis y juzga tú.',
+  'It’s our estimate, not a measured study: how many separate apps and logins each route needs, who each product is made for, and how much has to be set up before the first rota goes out. Try The Business Agent free and judge for yourself.':
+    'Es una estimación nuestra, no un estudio medido: cuántas apps y accesos distintos necesita cada opción, para quién está hecho cada producto y cuánto hay que configurar antes de que salga el primer cuadrante. Prueba The Business Agent gratis y juzga tú.',
   'How old are these prices?': '¿De cuándo son estos precios?',
   'We read every price from each company’s own website on {date}. Prices change, so check theirs before you decide; the links are under “How we worked it out”.':
     'Tomamos cada precio de la web de cada empresa a {date}. Los precios cambian, así que consulta los suyos antes de decidir; los enlaces están en «Cómo lo hemos calculado».',
