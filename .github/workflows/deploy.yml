@@ -129,12 +129,6 @@ jobs:
       - name: Photo storage (R2)
         if: steps.gate.outputs.ready == 'true'
         run: node scripts/ops/r2.mjs
-      # Switches the Worker's send_email binding on once businesssagent.com is onboarded for Cloudflare Email
-      # Sending; the sign-in settings step below then sends sign-in emails through it (docs/business-email.md).
-      - name: Sign-in emails (Cloudflare Email Sending)
-        id: email
-        if: steps.gate.outputs.ready == 'true'
-        run: node scripts/ops/email-sending.mjs
       - name: Build
         if: steps.gate.outputs.ready == 'true'
         run: npm run build
@@ -158,7 +152,7 @@ jobs:
         id: domain
         if: steps.gate.outputs.ready == 'true'
         run: node scripts/ops/custom-domain.mjs
-      # hello@, sales@, support@ and privacy@ the domain, forwarded to the Gmail in EMAIL_FORWARD_TO (docs/business-email.md).
+      # hello@, sales@ and support@ the domain, forwarded to the Gmail in EMAIL_FORWARD_TO (docs/business-email.md).
       - name: Business email
         if: steps.gate.outputs.ready == 'true'
         env:
@@ -173,8 +167,6 @@ jobs:
           rm -f "$RUNNER_TEMP/secrets.json"
       - name: Point Supabase sign-in at the live site
         if: steps.gate.outputs.ready == 'true' && steps.deploy.outputs.url != ''
-        env:
-          EMAIL_SENDING: ${{ steps.email.outputs.sending }}
         # The custom domain once it's live; the workers.dev URL goes along so it stays in the
         # sign-in redirect allow list (sign-ins started on workers.dev must come back to it).
         run: |
