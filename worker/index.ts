@@ -38,6 +38,7 @@ import { website } from './website'
 import { checkWaitingImages, menu, syncSquareMenuIfChosen } from './menu'
 import { screens } from './screens'
 import { site } from './site'
+import { newsletter } from './newsletter'
 import { cameras, purgeCameraClips } from './cameras'
 import { competitors, watchCompetitors } from './competitors'
 import { push, pushNotifications } from './push'
@@ -312,6 +313,9 @@ app.route('/', content)
 // Post ideas (Social planner): the team's photos and videos for an idea, kept in the café's storage.
 app.route('/', postIdeas)
 
+// Newsletter sign-ups from the business's own website, into Customers (worker/newsletter.ts). Before the menu's
+// routes, so a sign-up's CORS check is answered here.
+app.route('/', newsletter)
 // The business's own website: its menu, read with no sign-in once the business turns it on (worker/site.ts).
 app.route('/', site)
 
