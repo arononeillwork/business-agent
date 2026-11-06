@@ -115,7 +115,7 @@ function SiteHeader() {
         </Stack>
         <Stack component="nav" aria-label={t('Site')} direction="row" spacing={{ md: 2, lg: 3.5 }} sx={{ display: { xs: 'none', md: 'flex' }, flex: 1, justifyContent: 'center' }}>
           {/* The Demos page, every video (the hero's "View a demo" plays the landing page's first). */}
-          {(FEATURES.demoVideo || FEATURES.dayVideo || FEATURES.ownerVideo) && (
+          {(FEATURES.demoVideo || FEATURES.dayVideo || FEATURES.ownerVideo || FEATURES.sayVideo) && (
             <Link component={RouterLink} to="/demos" sx={navLink}>{t('Demos')}</Link>
           )}
           <Link component={RouterLink} to="/#features" sx={navLink}>{t('Features')}</Link>

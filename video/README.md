@@ -62,6 +62,34 @@ npm run music:owner
 npm run render:owner && npm run web:owner
 ```
 
+## Just say it
+
+The fourth video (`public/video/just-say-it.mp4`, 106 seconds, `SayVideo` in `src/say/`), shown on the Demos
+page while `FEATURES.sayVideo` is on: Business Agent used from the owner's own AI, added once as a custom
+connector, then typed to or talked to, whichever suits; each change lands in the app at once and goes on to
+everywhere it shows. Each of its two changes is made the same way (what's asked, the AI calling Business Agent
+through the connector, its answer, then where it shows), and it ends on the question.
+
+| Time | Scene | What it shows |
+|---|---|---|
+| 0:00 | The title | "Just say it." Type it or say it, the way it comes to you |
+| 0:04 | Connect it once | The AI's settings, Connectors: add a custom connector (Easy Beans Coffee, the app's `/mcp` address), connect, sign in as Aron. Works in Claude, ChatGPT or any AI with connectors; acts as you; every change logged as made via AI |
+| 0:16 | Typed | At the counter: "We're closing at 3 on Sundays from now on." → *Update business details* → Business Agent's opening hours, Google Maps, the website |
+| 0:40 | Said | On the phone, the microphone: "Put two for one on croissants from one o'clock today, on the café TV." → *Save an offer* → Business Agent's Offers & specials, the café TV |
+| 1:04 | Ask it anything | Who's working on Saturday, which licences run out, last week's hours: said or typed, each answered through the connector |
+| 1:20 | The usual way | Six places and fifteen minutes, or one sentence and ten seconds |
+| 1:30 | The close | "How much is your time worth?", and Business Agent coming in under it: it ends on both |
+
+All of it is drawn: the AI's chat (not a picture of any one app; the tools it calls are the connector's own,
+`worker/tools.ts` and `worker/offerTools.ts`), the app's pages, Google Maps, the website and the TV, as the
+other videos' cards are. It needs no recordings. Its music, and the key and microphone sounds, are
+`music/say.py`.
+
+```bash
+npm run music:say
+npm run render:say && npm run web:say
+```
+
 Everything is made here from scratch, so it can be made again whenever the app changes, and in Spanish.
 
 ## How it's made

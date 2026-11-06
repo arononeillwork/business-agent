@@ -361,6 +361,15 @@ export default {
   'Today and the advisor say what to do; each change is made once, and everywhere it shows follows.':
     'Hoy y el asesor te dicen qué hacer; cada cambio se hace una vez y todos los sitios donde aparece se actualizan.',
   'Run your café from one place, video': 'Lleva tu cafetería desde un solo sitio, vídeo',
+  'From your AI': 'Desde tu IA',
+  'Just say it': 'Solo dilo',
+  'Just {em}': 'Solo {em}',
+  'say it.': 'dilo.',
+  'Just say it, video': 'Solo dilo, vídeo',
+  'Business Agent in Claude, ChatGPT or any AI that takes connectors: type it at the counter or say it on the phone, and the app and everywhere it shows follow at once.':
+    'Business Agent en Claude, ChatGPT o cualquier IA que admita conectores: escríbelo en la barra o dilo al móvil, y la app y todos los sitios donde se ve lo siguen al momento.',
+  'Typed or said to your own AI, in a sentence: the app, Google Maps, the website and the café TV follow at once.':
+    'Escrito o dicho a tu propia IA, en una frase: la app, Google Maps, la web y la tele de la cafetería lo siguen al momento.',
   'Run your café {em}': 'Lleva tu cafetería {em}',
   'from one place.': 'desde un solo sitio.',
   'Today and the business advisor say what to do. Each change is made once, and Google Maps, the website, the café’s TV, the printed menu and Instagram follow.':

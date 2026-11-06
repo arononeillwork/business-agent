@@ -636,6 +636,11 @@ owner's morning from Today and the advisor (`public/video/run-your-cafe.mp4`, `F
 video goes on the Demos page only: add it to `DEMOS` in `src/pages/marketing/DemoVideo.tsx`. **Demos** in the
 site menu, the footer and the end of the landing page's videos link to it.
 
+"Just say it" (`public/video/just-say-it.mp4`, `FEATURES.sayVideo`), also on the Demos page, shows Business
+Agent from the owner's own AI: added once as a custom connector, then typed to at the counter or talked to on
+the phone, each change landing in the app and everywhere it shows at once, ending on "How much is your time
+worth?" (`video/README.md`).
+
 ## Deploy (Cloudflare)
 
 Changes reach `main` through pull requests and the **merge queue** (`.github/workflows/merge-queue.yml`,

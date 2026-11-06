@@ -7950,7 +7950,7 @@ test.describe('UI round: dashboards, the business advisor and the landing pages'
     await expect(page.getByText('Easy Beans')).toHaveCount(0)
     // The site menu has no Everything or Compare, and /compare is gone: it's the landing page.
     await expect(page.getByRole('navigation', { name: 'Site' }).getByRole('link'))
-      .toHaveText([...FEATURES.demoVideo || FEATURES.dayVideo || FEATURES.ownerVideo ? ['Demos'] : [], 'Features', 'Pricing', 'Enterprise', 'FAQ'])
+      .toHaveText([...FEATURES.demoVideo || FEATURES.dayVideo || FEATURES.ownerVideo || FEATURES.sayVideo ? ['Demos'] : [], 'Features', 'Pricing', 'Enterprise', 'FAQ'])
     await expect(page.getByText(/GoHighLevel/)).toHaveCount(0)
     await page.goto('/compare?demo')
     await expect(page.getByRole('heading', { level: 1, name: /runs your business/ })).toBeVisible()
@@ -9601,12 +9601,13 @@ test('landing page: the day-in-the-life video, once it is switched on', async ({
 })
 
 test('demos page: every video, the landing page’s two too; a card plays its own; the landing page links to it', async ({ page }) => {
-  for (const file of ['public/video/run-your-cafe.mp4', 'public/video/run-your-cafe.jpg']) {
+  for (const file of ['public/video/run-your-cafe.mp4', 'public/video/run-your-cafe.jpg', 'public/video/just-say-it.mp4', 'public/video/just-say-it.jpg']) {
     expect(readFileSync(file).length).toBeGreaterThan(10_000)
   }
   await page.goto('/?demo')
   // The landing page keeps its two; the owner's morning is on the Demos page only.
   await expect(page.getByLabel('Run your café from one place, video')).toHaveCount(0)
+  await expect(page.getByLabel('Just say it, video')).toHaveCount(0)
   if (FEATURES.demoVideo || FEATURES.dayVideo) {
     await page.getByRole('link', { name: 'More films on the Demos page' }).click()
   } else {
@@ -9615,7 +9616,7 @@ test('demos page: every video, the landing page’s two too; a card plays its ow
   await expect(page).toHaveURL(/\/demos$/)
   await expect(page.getByRole('heading', { name: 'See it from every side.', level: 1 })).toBeVisible()
   await expect(page).toHaveTitle('Demos · Business Agent')
-  const shown = [FEATURES.demoVideo, FEATURES.dayVideo, FEATURES.ownerVideo].filter(Boolean).length
+  const shown = [FEATURES.demoVideo, FEATURES.dayVideo, FEATURES.ownerVideo, FEATURES.sayVideo].filter(Boolean).length
   // Demos in the site menu opens it too, from any page.
   if (shown > 0) {
     await page.goto('/pricing?demo')
@@ -9629,6 +9630,19 @@ test('demos page: every video, the landing page’s two too; a card plays its ow
   await expect(page.getByLabel('Business Agent demo video')).toHaveCount(FEATURES.demoVideo ? 1 : 0)
   await expect(page.getByLabel('A day in the life of a café owner, video')).toHaveCount(FEATURES.dayVideo ? 1 : 0)
   await expect(page.getByRole('link', { name: 'More films on the Demos page' })).toHaveCount(0)
+  // "Just say it": Business Agent from your own AI, typed or said; its card plays it.
+  if (FEATURES.sayVideo) {
+    const say = page.getByLabel('Just say it, video')
+    await expect(say).toHaveAttribute('src', '/video/just-say-it.mp4')
+    await expect(say).toHaveAttribute('poster', '/video/just-say-it.jpg')
+    await expect(page.locator('#say').getByRole('slider', { name: 'Position in the video' })).toHaveAttribute('aria-valuetext', /of 1:46$/)
+    expect((await page.request.get('/video/just-say-it.mp4')).ok()).toBe(true)
+    await films.getByRole('link', { name: 'Watch Just say it' }).click()
+    await expect(say).toBeInViewport()
+    await expect.poll(() => say.evaluate((v: HTMLVideoElement) => !v.paused)).toBe(true)
+    // The sections take turns: after the owner's morning (a white band), it's on the page's colour.
+    if (FEATURES.ownerVideo) expect(await page.locator('#say').evaluate(e => getComputedStyle(e).backgroundColor)).not.toBe('rgb(255, 255, 255)')
+  }
   if (!FEATURES.ownerVideo) return
   const owner = page.getByLabel('Run your café from one place, video')
   await expect(owner).toHaveAttribute('src', '/video/run-your-cafe.mp4')

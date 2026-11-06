@@ -4,6 +4,8 @@ import { DayVideo } from './day/DayVideo'
 import { DAY_TOTAL } from './day/timeline'
 import { OwnerVideo } from './owner/OwnerVideo'
 import { OWNER_TOTAL } from './owner/timeline'
+import { SayVideo } from './say/SayVideo'
+import { SAY_TOTAL } from './say/timeline'
 import { FPS, TOTAL } from './timeline'
 
 export const Root = () => (
@@ -11,5 +13,6 @@ export const Root = () => (
     <Composition id="LandingVideo" component={LandingVideo} durationInFrames={TOTAL} fps={FPS} width={1920} height={1080} />
     <Composition id="DayVideo" component={DayVideo} durationInFrames={DAY_TOTAL} fps={FPS} width={1920} height={1080} />
     <Composition id="OwnerVideo" component={OwnerVideo} durationInFrames={OWNER_TOTAL} fps={FPS} width={1920} height={1080} />
+    <Composition id="SayVideo" component={SayVideo} durationInFrames={SAY_TOTAL} fps={FPS} width={1920} height={1080} />
   </>
 )
