@@ -4,6 +4,10 @@
 // `plan_features`); plans.test.ts checks that migration still matches this file.
 // Display text is marked with msg() and translated where it's shown (t() in the app).
 import { msg } from './i18n.ts'
+import { FEATURES } from '../src/app/features.ts'
+
+/** A part of the app that can be switched off (src/app/features.ts): the plans don't sell it while it is. */
+export type Switch = keyof typeof FEATURES
 
 export type PlanId = 'free' | 'starter' | 'pro' | 'business'
 export type Interval = 'month' | 'year'
@@ -164,7 +168,7 @@ type Cell = boolean | string
  * `perUse`: a pay-per-use extra, where `values` says which plans can use it and the page shows its price.
  * `onlyWith`: the part of the app it belongs to; the page leaves the row out while that's switched off (src/app/features.ts).
  */
-export interface CompareRow { label: string; values: Record<PlanId, Cell>; note?: string; explain?: string; perUse?: PayPerUseId; onlyWith?: 'music' }
+export interface CompareRow { label: string; values: Record<PlanId, Cell>; note?: string; explain?: string; perUse?: PayPerUseId; onlyWith?: Switch }
 const every = (v: Cell = true): Record<PlanId, Cell> => ({ free: v, starter: v, pro: v, business: v })
 const byFeature = (f: Feature): Record<PlanId, Cell> =>
   Object.fromEntries(PLANS.map(p => [p.id, p.features.includes(f)])) as Record<PlanId, Cell>
@@ -187,7 +191,7 @@ export const COMPARE: { group: string; rows: CompareRow[] }[] = [
       explain: msg('Requests, approvals and how many days each person has left.') },
     { label: msg('Shared team calendar and to-do list'), values: every(),
       explain: msg('Events, closures and the jobs to get done, in one place.') },
-    { label: msg('Clock-in tablet with staff PINs'), values: byFeature('kiosk'),
+    { label: msg('Clock-in tablet with staff PINs'), values: byFeature('kiosk'), onlyWith: 'kiosk',
       explain: msg('A tablet by the door where staff clock in with a PIN.') },
   ] },
   { group: msg('Social media'), rows: [
@@ -207,7 +211,7 @@ export const COMPARE: { group: string; rows: CompareRow[] }[] = [
   { group: msg('Messages'), rows: [
     { label: msg('Shift reminders by email'), values: every(),
       explain: msg('Everyone gets their shifts and changes by email.') },
-    { label: msg('WhatsApp and text reminders'), values: byFeature('whatsapp'),
+    { label: msg('WhatsApp and text reminders'), values: byFeature('whatsapp'), onlyWith: 'whatsappForAll',
       explain: msg('Shift reminders and rota changes on WhatsApp or text, from your number.') },
   ] },
   { group: msg('Your business online'), rows: [
@@ -223,7 +227,7 @@ export const COMPARE: { group: string; rows: CompareRow[] }[] = [
       explain: msg('Sales each day beside what the rota costs.') },
     { label: msg('Gmail, Outlook, Google Drive and OneDrive'), values: byFeature('apps'),
       explain: msg('Alerts sent from your own email; exports saved to your own drive.') },
-    { label: msg('Read-only access for your gestoría and partners'), values: byFeature('partners'),
+    { label: msg('Read-only access for your gestoría and partners'), values: byFeature('partners'), onlyWith: 'partners',
       explain: msg('Your gestoría sees hours and pay records, and changes nothing.') },
   ] },
   { group: msg('AI'), rows: [
@@ -259,8 +263,10 @@ export function planHighlights(p: Plan, say: Say = english): string[] {
   const extra: Record<PlanId, string[]> = {
     free: [msg('Rota, clock-ins and timecards'), msg('Registro de jornada'), msg('Email reminders')],
     starter: [msg('Everything in Free'), msg('Opening hours synced to Google Maps'), msg('Gmail, Outlook, Drive and OneDrive')],
-    pro: [msg('Everything in Starter'), msg('WhatsApp and text reminders'), msg('Takings from Square, SumUp or Stripe'), msg('Clock-in tablet, music and match nights')],
-    business: [msg('Everything in Pro'), msg('Gestoría and partner access'), msg('Priority support')],
+    // Only what works for any business today (src/app/features.ts).
+    pro: [msg('Everything in Starter'), ...(FEATURES.whatsappForAll ? [msg('WhatsApp and text reminders')] : []), msg('Takings from Square, SumUp or Stripe'),
+      FEATURES.kiosk ? msg('Clock-in tablet, music and match nights') : msg('Music and match nights')],
+    business: [msg('Everything in Pro'), ...(FEATURES.partners ? [msg('Gestoría and partner access')] : []), msg('Priority support')],
   }
   return [...base, ...extra[p.id].map(x => say(x))]
 }

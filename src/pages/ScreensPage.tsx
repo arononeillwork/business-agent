@@ -459,7 +459,7 @@ function ScreenEditor({ screen, main, designs, items, allergens, brand, offers, 
             <Box>
               <Typography variant="subtitle2" component="h4" sx={{ mb: 0.5 }}>{t('On top')}</Typography>
               <FormControlLabel control={<Switch checked={s.show_clock} onChange={e => set({ show_clock: e.target.checked })} />} label={t('The time, in a corner')} />
-              <TextField fullWidth size="small" label={t('A line running along the bottom (optional)')} placeholder={t('e.g. Today’s special: pumpkin spice latte · Free Wi-Fi: EasyBeans')}
+              <TextField fullWidth size="small" label={t('A line running along the bottom (optional)')} placeholder={t('e.g. Today’s special: pumpkin spice latte · Free Wi-Fi: ask at the counter')}
                 value={s.ticker ?? ''} onChange={e => set({ ticker: e.target.value || null })} slotProps={{ htmlInput: { maxLength: 280 } }} sx={{ mt: 1.25 }} />
             </Box>
           </Stack>

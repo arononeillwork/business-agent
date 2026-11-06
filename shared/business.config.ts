@@ -6,8 +6,13 @@ export const businessConfig = {
   id: 'easy-beans',
   name: 'Easy Beans Coffee',
   shortName: 'Easy Beans',
-  /** Where this business's app is deployed (the demo shows it in the AI set-up steps). */
-  appUrl: 'https://business-agent.arononeillwork.workers.dev',
+  /** Where the app is: businesssagent.com (the demo shows it in the AI set-up steps; menus, images and push use it). */
+  appUrl: 'https://businesssagent.com',
+  /**
+   * The Worker's own address, which the custom domain points at. Square's app has its redirect and
+   * webhook registered here (and signs webhooks with the URL), so those stay on it.
+   */
+  workersUrl: 'https://business-agent.arononeillwork.workers.dev',
   timezone: 'Europe/Madrid',
   /** ISO 3166 country: whose employment law Staff benefits shows (shared/benefits.ts). */
   country: 'ES' as const,

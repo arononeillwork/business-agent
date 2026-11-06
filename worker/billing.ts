@@ -45,6 +45,21 @@ async function stripe<T>(env: Env, method: 'GET' | 'POST', path: string, body?: 
   return json
 }
 
+/**
+ * Whether Stripe Tax is set up on the account (Settings → Tax: the business's registration, origin
+ * address and Stripe Tax switched on). Once it is, Checkout and plan changes add IVA by themselves,
+ * reverse-charged for an EU business with a valid VAT number; until then nothing is added, as before.
+ * Asked once every ten minutes per Worker instance.
+ */
+let taxCache: { active: boolean; at: number } | null = null
+export async function taxActive(env: Env, now = Date.now()): Promise<boolean> {
+  if (taxCache && now - taxCache.at < 10 * 60_000) return taxCache.active
+  const active = await stripe<{ status?: string }>(env, 'GET', '/tax/settings').then(s => s.status === 'active', () => false)
+  taxCache = { active, at: now }
+  return active
+}
+export const forgetTaxSetting = () => { taxCache = null }
+
 interface Price { id: string; unit_amount: number; lookup_key: string | null; recurring: { interval: Interval } | null }
 interface Subscription {
   id: string; status: string; customer: string; trial_end: number | null; current_period_end: number | null; cancel_at_period_end: boolean
@@ -284,6 +299,7 @@ billing.post('/api/billing/checkout', async c => {
     if (['active', 'trialing'].includes(sub.status)) {
       await stripe(c.env, 'POST', `/subscriptions/${sub.id}`, {
         items: [{ id: sub.items.data[0].id, price }], proration_behavior: 'create_prorations', cancel_at_period_end: false,
+        ...(await taxActive(c.env) ? { automatic_tax: { enabled: true } } : {}),
       })
       await syncBilling(c.env, c.get('businessId'))
       return c.json({ changed: true })
@@ -303,6 +319,8 @@ billing.post('/api/billing/checkout', async c => {
     allow_promotion_codes: true,
     billing_address_collection: 'required',
     tax_id_collection: { enabled: true },
+    // IVA, once Stripe Tax is set up (taxActive): prices are without it (tax_behavior exclusive).
+    ...(await taxActive(c.env) ? { automatic_tax: { enabled: true } } : {}),
     customer_update: { name: 'auto', address: 'auto' },
     success_url: `${origin}/account/billing?checkout=done`,
     cancel_url: `${origin}/account/billing?checkout=cancelled`,

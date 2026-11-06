@@ -29,7 +29,7 @@ export default {
   'Fonts': 'Fuentes',
   'Headings': 'Títulos',
   'Body text': 'Texto',
-  'Specialty coffee, matcha and fresh bakes in San Pedro. Open every day from 8.': 'Café de especialidad, matcha y bollería recién hecha en San Pedro. Abierto todos los días desde las 8.',
+  'Fresh, local and made with care. Open every day from 8.': 'Fresco, local y hecho con cariño. Abierto todos los días desde las 8.',
   'Change': 'Cambiar',
   'All free from Google Fonts:': 'Todas gratis, de Google Fonts:',
   'How to use the brand': 'Cómo usar la marca',
