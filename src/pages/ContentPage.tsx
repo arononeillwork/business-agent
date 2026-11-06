@@ -6,6 +6,12 @@ import UploadIcon from '@mui/icons-material/FileUploadOutlined'
 import SearchIcon from '@mui/icons-material/Search'
 import OpenIcon from '@mui/icons-material/OpenInNewRounded'
 import ClearIcon from '@mui/icons-material/CloseRounded'
+import StarIcon from '@mui/icons-material/StarRounded'
+import StarOutlineIcon from '@mui/icons-material/StarOutlineRounded'
+import AlbumIcon from '@mui/icons-material/PhotoAlbumOutlined'
+import DownloadIcon from '@mui/icons-material/FileDownloadOutlined'
+import DeleteIcon from '@mui/icons-material/DeleteOutlined'
+import RemoveIcon from '@mui/icons-material/RemoveCircleOutlineRounded'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
@@ -16,6 +22,9 @@ import { Brand } from '../components/Connectors'
 import { Composer } from './SocialPlannerPage'
 import { Gallery, Viewer } from './ContentGallery'
 import { AddToHighlightDialog, HighlightDialog, HighlightNameDialog, HighlightsRow } from './ContentHighlights'
+import { AddToAlbumDialog, AlbumBar, AlbumNameDialog, AlbumsRow } from './ContentAlbums'
+import { downloadContent } from '../lib/contentDownload'
+import { today } from '../../shared/time'
 import { readyPhoto } from '../lib/media'
 import {
   MAX_TAGS, NO_FILTER, SKIP_TEXT, SOURCES, allTags, cleanTags, contentProblem, filterContent, postFor, titleFromFilename,
@@ -63,6 +72,7 @@ export function ContentPage() {
   const integ = useAsync('integrations', () => api.integrations(), [])
   // Instagram highlights: a story's state changes as the minute job posts it.
   const highlights = useAsync('instagram-highlights', () => api.instagramHighlights(), [], { refetchInterval: 60_000 })
+  const albums = useAsync('content-albums', () => api.contentAlbums(), [])
   const [filter, setFilter] = useState<ContentFilter>(NO_FILTER)
   const [chosen, setChosen] = useState<string[]>([])
   const [editing, setEditing] = useState<ContentItem | null>(null)
@@ -74,6 +84,13 @@ export function ContentPage() {
   const [adding, setAdding] = useState<ContentItem[] | null>(null)
   const [openHighlight, setOpenHighlight] = useState<string | null>(null)
   const [naming, setNaming] = useState(false)
+  // Albums: what's being put in one; one being named (new, or renamed); one being deleted.
+  const [albumFor, setAlbumFor] = useState<ContentItem[] | null>(null)
+  const [albumNaming, setAlbumNaming] = useState<{ id?: string } | null>(null)
+  const [albumDeleting, setAlbumDeleting] = useState(false)
+  // Several being taken off the page; a download being gathered.
+  const [takingOff, setTakingOff] = useState<ContentItem[] | null>(null)
+  const [downloading, setDownloading] = useState<{ done: number; of: number } | null>(null)
   const [pick, setPick] = useState<Pick | null>(null)
   const [post, setPost] = useState<Partial<SocialPost> | null>(null)
   const [uploading, setUploading] = useState<{ done: number; of: number } | null>(null)
@@ -83,7 +100,9 @@ export function ContentPage() {
   useEffect(() => () => { live.current = null }, [])
 
   const all = items.data ?? []
-  const shown = filterContent(all, filter)
+  const albumList = albums.data ?? []
+  const album = filter.album ? albumList.find(a => a.id === filter.album) ?? null : null
+  const shown = filterContent(all, filter, albumList)
   const tags = allTags(all)
   const storage = integ.data?.media_storage ?? null
   const photos = integ.data?.integrations.find(i => i.provider === 'google_photos')
@@ -92,6 +111,23 @@ export function ContentPage() {
   const chosenItems = all.filter(i => chosen.includes(i.id))
   const circles = highlights.data ?? []
   const opened = circles.find(h => h.id === openHighlight)
+
+  // An album deleted (here or elsewhere) while open: back to everything.
+  useEffect(() => { if (filter.album && albums.data && !album) setFilter(f => ({ ...f, album: null })) }, [filter.album, albums.data, album])
+
+  /** Save these: one as itself, several as one ZIP. */
+  const download = (list: ContentItem[]) => run(async () => {
+    setDownloading({ done: 0, of: list.length })
+    try {
+      await downloadContent(list, `${t('Content')} ${today()}.zip`, done => setDownloading({ done, of: list.length }))
+    } finally {
+      setDownloading(null)
+    }
+  }, list.length > 1 ? tn(list.length, '{n} downloaded', '{n} downloaded') : undefined)
+
+  const favourite = (list: ContentItem[], on: boolean) => run(() => api.setContentFavourite(list.map(i => i.id), on),
+    list.length > 1 ? (on ? tn(list.length, '{n} added to favourites', '{n} added to favourites') : tn(list.length, '{n} taken out of favourites', '{n} taken out of favourites')) : undefined)
+  const allFavourite = chosenItems.length > 0 && chosenItems.every(i => i.favourite)
 
   const choose = (ids: string[], on: boolean) => setChosen(c => (on ? [...c, ...ids.filter(id => !c.includes(id))] : c.filter(x => !ids.includes(x))))
 
@@ -210,7 +246,14 @@ export function ContentPage() {
         </Box>
       )}
 
-      {highlights.data && <HighlightsRow highlights={circles} onOpen={setOpenHighlight} onNew={() => setNaming(true)} />}
+      {highlights.data && !album && <HighlightsRow highlights={circles} onOpen={setOpenHighlight} onNew={() => setNaming(true)} />}
+      {albums.data && all.length > 0 && !album && (
+        <AlbumsRow albums={albumList} items={all} onOpen={id => { setChosen([]); setFilter(f => ({ ...f, album: id })) }} onNew={() => setAlbumNaming({})} />
+      )}
+      {album && (
+        <AlbumBar album={album} onBack={() => { setChosen([]); setFilter(f => ({ ...f, album: null })) }} onRename={() => setAlbumNaming({ id: album.id })}
+          onDelete={() => setAlbumDeleting(true)} />
+      )}
 
       {all.length > 0 && (
         <Stack direction="row" sx={{ gap: 1.5, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -223,6 +266,10 @@ export function ContentPage() {
             <ToggleButton value="all">{t('Anywhere')}</ToggleButton>
             {SOURCES.map(s => <ToggleButton key={s.id} value={s.id}>{t(s.label)}</ToggleButton>)}
           </ToggleButtonGroup>
+          <ToggleButton size="small" value="favourites" selected={!!filter.favourites} onChange={() => setFilter(f => ({ ...f, favourites: !f.favourites }))}
+            sx={{ gap: 0.5 }}>
+            <StarIcon fontSize="small" />{t('Favourites')}
+          </ToggleButton>
           <TextField size="small" type="search" value={filter.search} onChange={e => setFilter(f => ({ ...f, search: e.target.value }))} placeholder={t('Title or tag')}
             slotProps={{ htmlInput: { 'aria-label': t('Search content') }, input: { startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> } }}
             sx={{ width: { xs: '100%', sm: 240 } }} />
@@ -243,8 +290,30 @@ export function ContentPage() {
             <IconButton aria-label={t('Clear selection')} onClick={() => setChosen([])}><ClearIcon /></IconButton>
           </Tooltip>
           <Typography sx={{ fontWeight: 600, flexGrow: 1 }}>{tn(chosen.length, '{n} chosen', '{n} chosen')}</Typography>
+          <Tooltip title={allFavourite ? t('Not favourites') : t('Add to favourites')}>
+            <IconButton aria-label={allFavourite ? t('Not favourites') : t('Add to favourites')} onClick={() => void favourite(chosenItems, !allFavourite)}>
+              {allFavourite ? <StarIcon /> : <StarOutlineIcon />}
+            </IconButton>
+          </Tooltip>
+          <Tooltip title={t('Add to album')}><IconButton aria-label={t('Add to album')} onClick={() => setAlbumFor(chosenItems)}><AlbumIcon /></IconButton></Tooltip>
+          {album && (
+            <Tooltip title={t('Take out of this album')}>
+              <IconButton aria-label={t('Take out of this album')} onClick={() => void run(async () => { await api.removeFromAlbum(album.id, chosen); setChosen([]) },
+                tn(chosen.length, '{n} taken out of {name}', '{n} taken out of {name}', { name: album.name }))}><RemoveIcon /></IconButton>
+            </Tooltip>
+          )}
+          <Tooltip title={t('Download')}>
+            <span><IconButton aria-label={t('Download')} disabled={!!downloading} onClick={() => void download(chosenItems)}><DownloadIcon /></IconButton></span>
+          </Tooltip>
+          <Tooltip title={t('Take off the page')}><IconButton aria-label={t('Take off the page')} onClick={() => setTakingOff(chosenItems)}><DeleteIcon /></IconButton></Tooltip>
           <Button variant="outlined" onClick={() => setAdding(chosenItems)}>{t('Add to highlight')}</Button>
           <Button variant="contained" onClick={() => makePost(chosenItems)}>{t('Make a post')}</Button>
+          {downloading && downloading.of > 1 && (
+            <Box sx={{ width: '100%' }} role="status">
+              <Typography variant="caption" sx={{ color: 'text.secondary' }}>{t('Getting {done} of {of} ready…', { done: String(downloading.done), of: String(downloading.of) })}</Typography>
+              <LinearProgress variant="determinate" value={(downloading.done / downloading.of) * 100} />
+            </Box>
+          )}
         </Card>
       )}
 
@@ -261,7 +330,8 @@ export function ContentPage() {
 
       {viewing && (
         <Viewer items={shown} id={viewing} onId={setViewing} onClose={closeViewer} onEdit={setEditing} onCopy={i => void copyLink(i)}
-          onDelete={setDeleting} onPost={i => makePost([i])} onHighlight={i => setAdding([i])} />
+          onDelete={setDeleting} onPost={i => makePost([i])} onHighlight={i => setAdding([i])}
+          onFavourite={(i, on) => void favourite([i], on)} onAlbum={i => setAlbumFor([i])} onDownload={i => void download([i])} />
       )}
       {adding && (
         <AddToHighlightDialog items={adding} highlights={circles} auto={!!storage && connected('instagram')} onClose={() => setAdding(null)}
@@ -271,6 +341,47 @@ export function ContentPage() {
       {naming && (
         <HighlightNameDialog title={t('New highlight')} others={circles} onClose={() => setNaming(false)}
           onSave={name => api.createHighlight(name)} />
+      )}
+      {albumFor && (
+        <AddToAlbumDialog items={albumFor} albums={albumList} all={all} onClose={() => setAlbumFor(null)}
+          onAdded={() => { setAlbumFor(null); setChosen([]) }} />
+      )}
+      {albumNaming && (
+        <AlbumNameDialog title={albumNaming.id ? t('Rename album') : t('New album')} initial={albumList.find(a => a.id === albumNaming.id)?.name ?? ''}
+          others={albumList} id={albumNaming.id} onClose={() => setAlbumNaming(null)}
+          onSave={name => (albumNaming.id ? api.renameAlbum(albumNaming.id, name) : api.createAlbum(name))} />
+      )}
+      {albumDeleting && album && (
+        <Dialog open onClose={() => setAlbumDeleting(false)} maxWidth="xs" fullWidth>
+          <DialogTitle>{t('Delete the album {name}?', { name: album.name })}</DialogTitle>
+          <DialogContent>
+            <Typography variant="body2">{t('Its photos and videos stay on the page.')}</Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setAlbumDeleting(false)}>{t('Keep')}</Button>
+            <Button variant="contained" color="error" onClick={() => void run(async () => {
+              await api.deleteAlbum(album.id)
+              setAlbumDeleting(false)
+              setFilter(f => ({ ...f, album: null }))
+            })}>{t('Delete album')}</Button>
+          </DialogActions>
+        </Dialog>
+      )}
+      {takingOff && (
+        <Dialog open onClose={() => setTakingOff(null)} maxWidth="xs" fullWidth>
+          <DialogTitle>{tn(takingOff.length, 'Take {n} off the page?', 'Take {n} off the page?')}</DialogTitle>
+          <DialogContent>
+            <Typography variant="body2">{t('The files stay in your Drive or OneDrive, so posts, offers and screens that use them keep showing them.')}</Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setTakingOff(null)}>{t('Keep')}</Button>
+            <Button variant="contained" color="error" onClick={() => void run(async () => {
+              await api.deleteContentItems(takingOff.map(i => i.id))
+              setChosen([])
+              setTakingOff(null)
+            }, tn(takingOff.length, '{n} taken off the page', '{n} taken off the page'))}>{t('Take off')}</Button>
+          </DialogActions>
+        </Dialog>
       )}
       {pick && <PickDialog pick={pick} onClose={closePick} />}
       {editing && <EditDialog item={editing} onClose={() => setEditing(null)} />}

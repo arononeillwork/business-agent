@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { NO_FILTER, allTags, autoclose, cleanTags, contentProblem, extensionOf, filterContent, postFor, postable, titleFromFilename, type ContentItem } from './content'
+import {
+  NO_FILTER, albumCover, albumNameProblem, allTags, autoclose, cleanTags, contentProblem, downloadNames, extensionOf, filterContent, postFor, postable,
+  titleFromFilename, type ContentAlbum, type ContentItem,
+} from './content'
 import { CONNECTION_FEATURE } from './plans'
 import { GROUPS, groupOf, optionName } from './connections'
 
 const item = (id: string, over: Partial<ContentItem> = {}): ContentItem => ({
   id, kind: 'photo', url: `https://app.test/media/g/1/${id}/sig.jpg`, title: null, source: 'upload', source_id: null, width: 1440, height: 1080,
-  taken_at: null, tags: [], added_by: null, created_at: '2026-11-01T10:00:00.000Z', ...over,
+  taken_at: null, tags: [], favourite: false, added_by: null, created_at: '2026-11-01T10:00:00.000Z', ...over,
 })
 
 describe('tags', () => {
@@ -86,5 +89,43 @@ describe('Google Photos as a connection', () => {
   it('opens Google’s picker so that it closes itself once the admin is done', () => {
     expect(autoclose('https://photos.google.com/picker/abc')).toBe('https://photos.google.com/picker/abc/autoclose')
     expect(autoclose('https://photos.google.com/picker/abc/')).toBe('https://photos.google.com/picker/abc/autoclose')
+  })
+})
+
+describe('favourites and albums', () => {
+  const items = [item('a', { favourite: true }), item('b'), item('c', { kind: 'video', url: 'https://app.test/media/c.mp4' }), item('d', { favourite: true })]
+  const albums: ContentAlbum[] = [{ id: 'al-1', name: 'Terrace', created_at: '2026-11-01T10:00:00Z', item_ids: ['c', 'b', 'gone'] }]
+
+  it('filter to the starred ones, or to an album’s', () => {
+    expect(filterContent(items, { ...NO_FILTER, favourites: true }).map(i => i.id).sort()).toEqual(['a', 'd'])
+    expect(filterContent(items, { ...NO_FILTER, album: 'al-1' }, albums).map(i => i.id).sort()).toEqual(['b', 'c'])
+    expect(filterContent(items, { ...NO_FILTER, album: 'al-1', favourites: true }, albums)).toEqual([])
+    // An album that isn't there shows nothing rather than everything.
+    expect(filterContent(items, { ...NO_FILTER, album: 'nope' }, albums)).toEqual([])
+  })
+
+  it('an album’s picture is its first photo still on the page, else its first video', () => {
+    expect(albumCover(albums[0], items)?.id).toBe('b')
+    expect(albumCover({ item_ids: ['c'] }, items)?.id).toBe('c')
+    expect(albumCover({ item_ids: ['gone'] }, items)).toBeNull()
+  })
+
+  it('album names: one, up to 60 characters, each once whatever the capitals', () => {
+    expect(albumNameProblem('Latte art', albums)).toBeNull()
+    expect(albumNameProblem(' ', albums)).toBe('Give the album a name')
+    expect(albumNameProblem('x'.repeat(61), albums)).toBe('Keep the name to 60 characters')
+    expect(albumNameProblem(' terrace ', albums)).toBe('There’s an album with that name already')
+    expect(albumNameProblem('TERRACE', albums, 'al-1')).toBeNull()
+  })
+})
+
+describe('downloadNames', () => {
+  it('names each by its title and file type, each once', () => {
+    expect(downloadNames([
+      { title: 'Terrace', kind: 'photo', url: 'https://app.test/media/x.jpg' },
+      { title: 'Terrace', kind: 'photo', url: 'https://app.test/media/y.jpg' },
+      { title: null, kind: 'video', url: 'https://app.test/media/z.mp4' },
+      { title: 'a/b: c?', kind: 'photo', url: 'data:image/svg+xml,…#flat-white.jpg' },
+    ])).toEqual(['Terrace.jpg', 'Terrace (2).jpg', 'video.mp4', 'a-b- c-.jpg'])
   })
 })

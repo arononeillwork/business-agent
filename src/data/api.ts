@@ -35,7 +35,7 @@ import type { CompanyValue, CompanyValueInput } from '../../shared/companyValues
 import type { PostIdea, PostIdeaInput } from '../../shared/postIdeas'
 import type { ListRow, NewsletterEvent, NewsletterSettings } from '../../shared/newsletter'
 import type { Contact, ContactInput } from '../../shared/contacts'
-import type { ContentChange, ContentItem, GooglePhotosImport, GooglePhotosPick } from '../../shared/content'
+import type { ContentAlbum, ContentChange, ContentItem, GooglePhotosImport, GooglePhotosPick } from '../../shared/content'
 import type { InstagramHighlight } from '../../shared/highlights'
 import type { Contractor, ContractorInput, OutsourcedJob, OutsourcedJobInput } from '../../shared/outsourcing'
 import type { EmploymentContract, EmploymentContractInput } from '../../shared/contracts'
@@ -366,6 +366,20 @@ export interface Api {
   importGooglePhotos(id: string, skip: string[]): Promise<GooglePhotosImport>
   /** Give up on a pick (the window was closed without picking). */
   cancelGooglePhotosPick(id: string): Promise<void>
+  // Content, as Google Photos does (the `content_favourites_albums` migration): favourites, several at once, albums.
+  /** Star them as favourites, or not. */
+  setContentFavourite(ids: string[], on: boolean): Promise<void>
+  /** Several off the page at once (the files stay in the café's storage). */
+  deleteContentItems(ids: string[]): Promise<void>
+  /** The business's albums, oldest first, each with what's in it. */
+  contentAlbums(): Promise<ContentAlbum[]>
+  createAlbum(name: string): Promise<string>
+  renameAlbum(id: string, name: string): Promise<void>
+  /** The album goes; its photos and videos stay on the page. */
+  deleteAlbum(id: string): Promise<void>
+  /** Into an album (those in it already stay as they are). */
+  addToAlbum(id: string, itemIds: string[]): Promise<void>
+  removeFromAlbum(id: string, itemIds: string[]): Promise<void>
   // Instagram highlights (Content, admins; shared/highlights.ts): the circles under the Instagram profile, kept
   // here since Instagram lets no app read or change them.
   /** Every highlight, oldest first, each with its stories. */

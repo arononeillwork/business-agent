@@ -264,6 +264,12 @@ built-in **AI connector** so owners can run it by talking to Claude.
   circle); the circle shows how many are still to add, and opening it lists its stories with **Open in
   Instagram** and **Mark added** (`src/pages/ContentHighlights.tsx`, `shared/highlights.ts`, the
   `instagram_highlights` migration).
+- Content's photos and videos take Google Photos' actions too: a star makes one a favourite (and
+  **Favourites** shows just those), **Albums** of the business's own (New album, Add to album for the
+  chosen ones, and inside an album Rename, Delete album and Take out of this album; deleting one leaves
+  its photos), **Download** (one as itself, several as one ZIP made in the browser, up to 1 GB) and
+  **Take off the page** for several at once (`src/pages/ContentAlbums.tsx`, `src/lib/contentDownload.ts`,
+  `src/lib/zip.ts`, the `content_favourites_albums` migration).
 - Outsourcing (Team section, admins; a gestoría with finances access reads): the jobs done for the business by
   people and firms outside the team (social media, the books, cleaning, the windows, the coffee machine's
   service, pest control…). **Active** shows who does each job, the price agreed and how it's charged (a month,

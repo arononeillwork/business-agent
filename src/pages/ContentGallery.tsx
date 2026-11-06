@@ -15,6 +15,10 @@ import NextIcon from '@mui/icons-material/ChevronRightRounded'
 import InfoIcon from '@mui/icons-material/InfoOutlined'
 import PostIcon from '@mui/icons-material/ShareOutlined'
 import HighlightIcon from '@mui/icons-material/AddCircleOutlineRounded'
+import StarIcon from '@mui/icons-material/StarRounded'
+import StarOutlineIcon from '@mui/icons-material/StarOutlineRounded'
+import AlbumIcon from '@mui/icons-material/PhotoAlbumOutlined'
+import DownloadIcon from '@mui/icons-material/FileDownloadOutlined'
 import MoreIcon from '@mui/icons-material/MoreVert'
 import EditIcon from '@mui/icons-material/EditOutlined'
 import LinkIcon from '@mui/icons-material/LinkRounded'
@@ -162,6 +166,10 @@ function Tile({ item: i, width, height, chosen, selecting, onToggle, onOpen }: {
       </ButtonBase>
       <Box className="tile-shade" sx={{ position: 'absolute', inset: 0, pointerEvents: 'none', opacity: selecting && !chosen ? 0.7 : 0, transition: 'opacity .15s',
         background: 'linear-gradient(180deg, rgba(0,0,0,.4), rgba(0,0,0,0) 38%)' }} />
+      {i.favourite && (
+        <StarIcon titleAccess={t('Favourite')} sx={{ position: 'absolute', left: 6, bottom: 6, color: '#fff', fontSize: 20, pointerEvents: 'none',
+          filter: 'drop-shadow(0 1px 2px rgba(0,0,0,.6))' }} />
+      )}
       {i.kind === 'video' && (
         <Box sx={{ position: 'absolute', top: 6, right: 6, display: 'flex', alignItems: 'center', gap: 0.25, color: '#fff', pointerEvents: 'none',
           fontSize: '0.8rem', fontWeight: 500, textShadow: '0 1px 3px rgba(0,0,0,.6)', '& svg': { filter: 'drop-shadow(0 1px 2px rgba(0,0,0,.6))' } }}>
@@ -183,7 +191,7 @@ function Tile({ item: i, width, height, chosen, selecting, onToggle, onOpen }: {
  * One photo or video on the whole screen, as Google Photos opens one: the arrows (or a swipe, or the arrow
  * keys) go through the others as they're shown on the page; Info shows its title, tags and details.
  */
-export function Viewer({ items, id, onId, onClose, onEdit, onCopy, onDelete, onPost, onHighlight }: {
+export function Viewer({ items, id, onId, onClose, onEdit, onCopy, onDelete, onPost, onHighlight, onFavourite, onAlbum, onDownload }: {
   items: ContentItem[]
   id: string
   onId: (id: string) => void
@@ -194,6 +202,11 @@ export function Viewer({ items, id, onId, onClose, onEdit, onCopy, onDelete, onP
   onPost: (i: ContentItem) => void
   /** Into an Instagram highlight (./ContentHighlights). */
   onHighlight: (i: ContentItem) => void
+  /** Starred, or not. */
+  onFavourite: (i: ContentItem, on: boolean) => void
+  /** Into an album (./ContentAlbums). */
+  onAlbum: (i: ContentItem) => void
+  onDownload: (i: ContentItem) => void
 }) {
   const phone = useMediaQuery(useTheme().breakpoints.down('md'))
   const [info, setInfo] = useState(false)
@@ -256,6 +269,11 @@ export function Viewer({ items, id, onId, onClose, onEdit, onCopy, onDelete, onP
               <IconButton color="inherit" aria-label={t('Add to highlight')} onClick={() => onHighlight(item)}><HighlightIcon /></IconButton>
             </Tooltip>
             <Tooltip title={t('Make a post')}><IconButton color="inherit" aria-label={t('Make a post')} onClick={() => onPost(item)}><PostIcon /></IconButton></Tooltip>
+            <Tooltip title={item.favourite ? t('Not a favourite') : t('Favourite')}>
+              <IconButton color="inherit" aria-label={t('Favourite')} aria-pressed={item.favourite} onClick={() => onFavourite(item, !item.favourite)}>
+                {item.favourite ? <StarIcon /> : <StarOutlineIcon />}
+              </IconButton>
+            </Tooltip>
             <Tooltip title={t('Info')}>
               <IconButton color="inherit" aria-label={t('Info')} aria-pressed={info} onClick={() => setInfo(v => !v)}
                 sx={info ? { bgcolor: 'rgba(255,255,255,.18)' } : undefined}><InfoIcon /></IconButton>
@@ -264,6 +282,8 @@ export function Viewer({ items, id, onId, onClose, onEdit, onCopy, onDelete, onP
             <Tooltip title={t('More')}><IconButton color="inherit" aria-label={t('More')} onClick={e => setMenu(e.currentTarget)}><MoreIcon /></IconButton></Tooltip>
             <Menu anchorEl={menu} open={!!menu} onClose={() => setMenu(null)}>
               <MenuItem onClick={() => { setMenu(null); onEdit(item) }}><ListItemIcon><EditIcon fontSize="small" /></ListItemIcon>{t('Title and tags')}</MenuItem>
+              <MenuItem onClick={() => { setMenu(null); onAlbum(item) }}><ListItemIcon><AlbumIcon fontSize="small" /></ListItemIcon>{t('Add to album')}</MenuItem>
+              <MenuItem onClick={() => { setMenu(null); onDownload(item) }}><ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>{t('Download')}</MenuItem>
               <MenuItem onClick={() => { setMenu(null); onCopy(item) }}><ListItemIcon><LinkIcon fontSize="small" /></ListItemIcon>{t('Copy link')}</MenuItem>
               <MenuItem component="a" href={item.url} target="_blank" rel="noreferrer" onClick={() => setMenu(null)}>
                 <ListItemIcon><OpenIcon fontSize="small" /></ListItemIcon>{tc('verb', 'Open')}
