@@ -264,6 +264,10 @@ built-in **AI connector** so owners can run it by talking to Claude.
   circle); the circle shows how many are still to add, and opening it lists its stories with **Open in
   Instagram** and **Mark added** (`src/pages/ContentHighlights.tsx`, `shared/highlights.ts`, the
   `instagram_highlights` migration).
+- A Google Photos pick on Content takes up to 2,000 photos and videos (Google's most), so a whole album or
+  month comes in one go. They come in a page of the pick (100) after another and five at a time side by side;
+  the first round says how many were picked, so the progress bar is true to it, and the list on the page
+  catches up every few seconds (`worker/content.ts`, `pickedPage()` in `worker/providers/googlePhotos.ts`).
 - Outsourcing (Team section, admins; a gestoría with finances access reads): the jobs done for the business by
   people and firms outside the team (social media, the books, cleaning, the windows, the coffee machine's
   service, pest control…). **Active** shows who does each job, the price agreed and how it's charged (a month,

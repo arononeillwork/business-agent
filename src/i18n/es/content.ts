@@ -76,4 +76,9 @@ export default {
   'Previous': 'Anterior',
   'No tags yet': 'Aún sin etiquetas',
   'Added on {date}': 'Añadido el {date}',
+  // Picks of up to 2,000, a page at a time.
+  '{done} brought in so far, {seen} of {total} looked at': '{done} traídos hasta ahora, {seen} de {total} revisados',
+  'Keep this page open until they’re all in. If it stops, pick them again: what’s here already isn’t copied twice.':
+    'Deja esta página abierta hasta que estén todos. Si se para, vuelve a elegirlos: lo que ya está aquí no se copia dos veces.',
+  'You can pick up to 2,000 at a time: a whole album or month.': 'Puedes elegir hasta 2.000 a la vez: un álbum o un mes entero.',
 } satisfies Record<string, string>
