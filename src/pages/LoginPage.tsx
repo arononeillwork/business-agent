@@ -210,6 +210,10 @@ export function LoginPage() {
                 </Box>
               ))}
             </Box>
+            {/* One app instead of ten: what that saves, next to GoHighLevel and Square (the Compare page). */}
+            <Box sx={{ textAlign: 'center', mt: 3 }}>
+              <Button component={RouterLink} to="/compare" sx={{ color: BA.ink, textTransform: 'none', fontWeight: 500 }}>{t('Compare it with GoHighLevel and Square →')}</Button>
+            </Box>
           </Container>
         </Box>
 
