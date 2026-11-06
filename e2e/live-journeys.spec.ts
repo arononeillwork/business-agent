@@ -291,7 +291,8 @@ test.describe('admin', () => {
     await openFromMenu(page, hidden, 'Finances')
     await expect(page.getByRole('heading', { name: 'Finances', exact: true })).toBeVisible(NET)
     await expect(page.getByText(PARTNER_EXPENSE)).toBeVisible(NET) // list loaded
-    const total = page.locator('tfoot tr').first()
+    // The total is the footer's last row: "Owner pay off" sits above it while owners are on this month's rota.
+    const total = page.locator('tfoot tr').last()
     const before = (await total.innerText()).trim()
 
     // One Edit button turns the whole list into fields; Save changes keeps them all.
