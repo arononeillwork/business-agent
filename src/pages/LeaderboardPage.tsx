@@ -2,6 +2,7 @@ import {
   Alert, Box, Button, Card, Chip, Stack, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs, ToggleButton, ToggleButtonGroup, Typography,
 } from '@mui/material'
 import TillIcon from '@mui/icons-material/PointOfSaleOutlined'
+import PinIcon from '@mui/icons-material/PasswordRounded'
 import OnTimeIcon from '@mui/icons-material/AlarmOnOutlined'
 import StreakIcon from '@mui/icons-material/LocalFireDepartmentOutlined'
 import HoursIcon from '@mui/icons-material/AccessTimeOutlined'
@@ -14,7 +15,7 @@ import { useAsync } from '../app/hooks'
 import { Empty, ErrorBox, Loading, PageHeader, PageToolbar, PersonAvatar } from '../components/common'
 import { Freshness } from '../components/Freshness'
 import { SquareLoginsDialog } from '../components/SquareLogins'
-import { SquarePinsSection } from '../components/SquarePins'
+import { SquarePinsDialog } from '../components/SquarePins'
 import {
   BOARDS, LEADER_PERIODS, currentStreak, isLeaderPeriod, leaders, myPlaces, periodRange, standings,
   type Board, type LeaderPeriod, type Standing, type TillBoard,
@@ -69,6 +70,8 @@ export function LeaderboardPage() {
   const till = useAsync('leaderboard-till', () => api.leaderboardTill(from, to), [from, to])
   const [board, setBoard] = useState<Board>('on_time')
   const [logins, setLogins] = useState(false)
+  // Square PINs: owners see everyone's, anyone else their own.
+  const [pins, setPins] = useState(false)
 
   const stats = clock.data ?? []
   const sales = till.data?.status === 'ok' ? till.data.people : []
@@ -82,7 +85,10 @@ export function LeaderboardPage() {
   return (
     <>
       <PageHeader eyebrow={t('Team')} title={t('Leaderboard')}
-        actions={isAdmin && <Button variant="outlined" startIcon={<TillIcon />} onClick={() => setLogins(true)}>{t('Square logins')}</Button>} />
+        actions={<>
+          {isAdmin && <Button variant="outlined" startIcon={<TillIcon />} onClick={() => setLogins(true)}>{t('Square logins')}</Button>}
+          <Button variant="outlined" startIcon={<PinIcon />} onClick={() => setPins(true)}>{isAdmin && canSeePay ? t('Show PINs') : t('Show my PIN')}</Button>
+        </>} />
       <PageToolbar actions={
         <ToggleButtonGroup exclusive size="small" value={period} aria-label={t('Period')}
           onChange={(_, v: LeaderPeriod | null) => v && setParams(v === 'month' ? {} : { period: v }, { replace: true })}>
@@ -136,9 +142,8 @@ export function LeaderboardPage() {
       {clock.loading && !clock.data ? <Loading /> : (board !== 'sales' || till.data?.status === 'ok') && (
         <BoardTable board={board} rows={standings(board, stats, sales)} name={name} colour={id => person(id)?.colour ?? tokens.inkSoft} me={me?.id} />
       )}
-      {/* Each person's Square passcode: owners see everyone's, anyone else their own. */}
-      <SquarePinsSection />
       {logins && <SquareLoginsDialog onClose={() => setLogins(false)} />}
+      {pins && <SquarePinsDialog onClose={() => setPins(false)} />}
     </>
   )
 }
