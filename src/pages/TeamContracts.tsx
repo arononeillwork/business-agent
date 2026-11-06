@@ -85,8 +85,9 @@ export function TeamContracts({ tabs }: { tabs: ReactNode }) {
   const totals = contractTotals(contracts, now)
   const endingSoon = contracts.filter(c => statusOf(c) === 'ending').sort((a, b) => a.ends_on!.localeCompare(b.ends_on!))
   const trialsSoon = contracts.filter(c => trialEndingSoon(c, now))
-  // A new contract starts with the convenio the business used last.
-  const convenio = [...contracts].sort((a, b) => b.created_at.localeCompare(a.created_at)).find(c => c.convenio)?.convenio ?? DEFAULT_CONVENIO
+  // A new contract starts with the convenio the business used last (Easy Beans' first one with its own; another business's blank).
+  const convenio = [...contracts].sort((a, b) => b.created_at.localeCompare(a.created_at)).find(c => c.convenio)?.convenio
+    ?? ((business?.id ?? 1) === 1 ? DEFAULT_CONVENIO : '')
   const add = (profileId = '') => setEditing({ profile_id: profileId, kind: 'indefinido', starts_on: now, convenio })
 
   const table = (): ExportTable => ({
