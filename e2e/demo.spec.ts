@@ -1984,10 +1984,10 @@ test('pages can be dragged into a new order, but only within their own section',
   await expect.poll(names).toEqual(['Time off', 'Staff benefits', 'Staff kitty', 'Leaderboard', 'Team', 'Timecards', 'Hiring', 'Roles & responsibilities', 'Staff rules', 'Outsourcing', 'Rota'])
 })
 
-test('signed out: the Business Agent landing page; someone joining a team signs up, is added by email, then sees the café', async ({ page }) => {
+test('signed out: The Business Agent landing page; someone joining a team signs up, is added by email, then sees the café', async ({ page }) => {
   await page.goto('/?demo')
   await expect(page.getByRole('heading', { level: 1, name: /runs your business/ })).toBeVisible()
-  await expect(page.getByText('Business Agent').first()).toBeVisible()
+  await expect(page.getByText('The Business Agent').first()).toBeVisible()
   await expect(page.getByRole('region', { name: 'Enterprise plan' })).toHaveCount(0) // only on the pricing page
   // None of the café's branding before sign-in.
   await expect(page.getByText('Easy Beans')).toHaveCount(0)
@@ -2036,7 +2036,7 @@ test('self-serve: a new business signs up, creates its business and goes on to t
   await add.click()
   // She runs it now: on to the set-up guide, with a café's apps ready to connect.
   await expect(page).toHaveURL(/\/setup/)
-  await expect(page.getByRole('heading', { name: 'Hi Lola, I’m your Business Agent.' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Hi Lola, I’m The Business Agent.' })).toBeVisible()
   await page.getByRole('button', { name: /^Use a ready-made setup/ }).click()
   await expect(page.getByRole('button', { name: /^Café & coffee shop/ })).toHaveAttribute('aria-pressed', 'true')
   await page.getByRole('button', { name: 'Skip setup for now' }).click()
@@ -2066,7 +2066,7 @@ test('pricing: four plans, a simple feature table, Enterprise at the foot, and "
   // Enterprise, at the foot: by conversation with sales.
   const enterprise = page.getByRole('region', { name: 'Enterprise plan' })
   await expect(enterprise).toContainText('For groups, franchises and multi-site operators.')
-  await expect(enterprise.getByRole('link', { name: 'Contact sales' })).toHaveAttribute('href', /^mailto:sales@businesssagent\.com\?subject=Business%20Agent%20Enterprise/)
+  await expect(enterprise.getByRole('link', { name: 'Contact sales' })).toHaveAttribute('href', /^mailto:sales@businesssagent\.com\?subject=The%20Business%20Agent%20Enterprise/)
   const table = page.getByRole('table', { name: 'Plan comparison' })
   await expect(table.getByRole('row', { name: /Custom MCP connection/ }).getByLabel('Included')).toHaveCount(4)
   await expect(table.getByRole('row', { name: /Scheduled posts per month/ }).getByRole('cell')).toHaveText(['Scheduled posts per month', '1', '12', '60', 'Unlimited'])
@@ -3515,7 +3515,7 @@ test.describe('referrals', () => {
     await expect(page.getByText('Invited by Easy Beans Coffee: your first month is on us')).toBeVisible()
     await page.getByRole('textbox', { name: 'Business name' }).fill('Café Nuevo')
     await page.getByRole('button', { name: 'Add my business' }).click()
-    await expect(page.getByRole('heading', { name: 'Hi Lola, I’m your Business Agent.' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Hi Lola, I’m The Business Agent.' })).toBeVisible()
     await page.getByRole('button', { name: 'Skip setup for now' }).click()
 
     // (The demo has one business: the café that shared the link reads its list as before.)
@@ -3526,10 +3526,10 @@ test.describe('referrals', () => {
     await expect(page.getByRole('region', { name: 'How your link is doing' })).toContainText('Link opened47')
   })
 
-  test('a Business Agent rep’s code: Julio introduces a café at sign-up, and Billing says so', async ({ page }) => {
+  test('the code of a rep for The Business Agent: Julio introduces a café at sign-up, and Billing says so', async ({ page }) => {
     await page.goto('/?ref=julio27&demo')
     const invite = page.getByRole('region', { name: 'You’re invited' })
-    await expect(invite).toContainText('Introduced by Julio, from Business Agent')
+    await expect(invite).toContainText('Introduced by Julio, from The Business Agent')
     await expect(invite).toContainText('Julio will help you set it up')
     await invite.getByRole('button', { name: 'Create my account' }).click()
     await page.getByLabel('Your name').fill('Lola')
@@ -3537,25 +3537,25 @@ test.describe('referrals', () => {
     await page.getByLabel('Password').fill('cafe-con-leche-7')
     await page.getByRole('button', { name: 'Create account' }).click()
     // His code is remembered and shown; he covers cafés, so a café is picked to start with.
-    await expect(page.getByText('Introduced by Julio, from Business Agent: your first month is free')).toBeVisible()
-    await expect(page.getByRole('textbox', { name: /Code from a Business Agent rep/ })).toHaveValue('JULIO27')
+    await expect(page.getByText('Introduced by Julio, from The Business Agent: your first month is free')).toBeVisible()
+    await expect(page.getByRole('textbox', { name: /Code from a rep for The Business Agent/ })).toHaveValue('JULIO27')
     await expect(page.getByRole('button', { name: 'Café & coffee shop' })).toHaveAttribute('aria-pressed', 'true')
     await page.getByRole('textbox', { name: 'Business name' }).fill('Café Julio')
     await page.getByRole('button', { name: 'Add my business' }).click()
     await page.getByRole('button', { name: 'Skip setup for now' }).click()
     await fromAccountMenu(page, 'Billing')
-    await expect(page.getByText('Introduced by Julio, a Business Agent rep: your first month is free.')).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Did a Business Agent rep introduce you?' })).toHaveCount(0)
+    await expect(page.getByText('Introduced by Julio, a rep for The Business Agent: your first month is free.')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Did a rep for The Business Agent introduce you?' })).toHaveCount(0)
   })
 
-  test('a Business Agent rep’s code typed in, or added on Billing in the first 30 days', async ({ page }) => {
+  test('the code of a rep for The Business Agent typed in, or added on Billing in the first 30 days', async ({ page }) => {
     await page.goto('/?demo')
     await page.getByRole('tab', { name: 'Create account' }).click()
     await page.getByLabel('Your name').fill('Bea')
     await page.getByRole('textbox', { name: 'Email' }).fill('bea@barbea.example')
     await page.getByLabel('Password').fill('cafe-con-leche-7')
     await page.getByRole('button', { name: 'Create account' }).click()
-    const code = page.getByRole('textbox', { name: /Code from a Business Agent rep/ })
+    const code = page.getByRole('textbox', { name: /Code from a rep for The Business Agent/ })
     await code.fill('nope99')
     await expect(page.getByText('That code isn’t one we know. Check it, or leave it empty.')).toBeVisible()
     await code.fill('')
@@ -3564,7 +3564,7 @@ test.describe('referrals', () => {
     await page.getByRole('button', { name: 'Skip setup for now' }).click()
     // She forgot it: Billing takes it for 30 days.
     await fromAccountMenu(page, 'Billing')
-    const card = page.getByRole('heading', { name: 'Did a Business Agent rep introduce you?' })
+    const card = page.getByRole('heading', { name: 'Did a rep for The Business Agent introduce you?' })
     await expect(card).toBeVisible()
     await page.getByRole('textbox', { name: 'Their code' }).fill('NOPE99')
     await page.getByRole('button', { name: 'Add the code' }).click()
@@ -3572,7 +3572,7 @@ test.describe('referrals', () => {
     await page.getByRole('textbox', { name: 'Their code' }).fill('julio27')
     await page.getByRole('button', { name: 'Add the code' }).click()
     await toast(page, 'Thanks: Julio introduced you, and your first month is free.')
-    await expect(page.getByText('Introduced by Julio, a Business Agent rep: your first month is free.')).toBeVisible()
+    await expect(page.getByText('Introduced by Julio, a rep for The Business Agent: your first month is free.')).toBeVisible()
     await expect(card).toHaveCount(0)
   })
 
@@ -6553,7 +6553,7 @@ test.describe('sales reps and rewards', () => {
     await expect(page.getByRole('region', { name: 'Waiting for approval' }).getByRole('group', { name: 'Julio: Brought a new customer with their card' })).toBeVisible()
   })
 
-  test('Business Agent HQ: its reps lead kinds of business, and the businesses they brought show how each is doing', async ({ page }) => {
+  test('The Business Agent HQ: its reps lead kinds of business, and the businesses they brought show how each is doing', async ({ page }) => {
     await open(page, '/sales-reps?hq')
     const businesses = page.getByRole('region', { name: 'Businesses from your reps' })
     await expect(businesses).toContainText('Reps’ links opened 12 times.')
@@ -8100,7 +8100,7 @@ test.describe('UI round: dashboards, the business advisor and the landing pages'
     await expect(body).toContainText(/Caramel syrup: 1 bottles? left/)
     await expect(body).toContainText('FRESHLY MADE')
     await expect(body).toContainText('JOBS TO DO')
-    await expect(body).toContainText("Sent by Aron O'Neill from Business Agent.")
+    await expect(body).toContainText("Sent by Aron O'Neill from The Business Agent.")
 
     // Who gets it: Maria from the team, Eduardo from the contacts, and the gestoría typed in.
     await page.getByRole('group', { name: 'The team' }).getByRole('button', { name: 'Maria' }).click()
@@ -8428,7 +8428,7 @@ test.describe('documents hub', () => {
     await expect(here.getByRole('button')).toHaveText(['Documents', 'Exports', 'Tax'])
     await here.getByRole('button', { name: 'Documents', exact: true }).click()
     await here.getByRole('button', { name: 'Contracts', exact: true }).click()
-    await expect(where).toHaveText('Business Agent›Documents›Contracts')
+    await expect(where).toHaveText('The Business Agent›Documents›Contracts')
     const lease = here.getByRole('row').filter({ hasText: 'Contrato alquiler local.pdf' })
     await expect(lease).toContainText('Kept')
     await expect(lease).toContainText('Lease of the premises')
@@ -8441,7 +8441,7 @@ test.describe('documents hub', () => {
     await naming.getByRole('textbox', { name: 'Name' }).fill('Mantenimiento')
     await naming.getByRole('button', { name: 'Make folder' }).click()
     await toast(page, 'Folder made')
-    await expect(where).toHaveText('Business Agent›Documents›Contracts›Mantenimiento')
+    await expect(where).toHaveText('The Business Agent›Documents›Contracts›Mantenimiento')
     await expect(browse).toContainText('Nothing in this folder yet.')
 
     await browse.getByRole('button', { name: 'Upload documents' }).click()
@@ -8528,7 +8528,7 @@ test.describe('AI assistants', () => {
 test.describe('set-up wizard', () => {
   test('set-up wizard: a café ticks its suggested apps and connects them one after another, skipping one', async ({ page }) => {
     await open(page, '/setup')
-    await expect(page.getByRole('heading', { name: 'Hi Aron, I’m your Business Agent.' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Hi Aron, I’m The Business Agent.' })).toBeVisible()
     await page.getByRole('button', { name: /^Use a ready-made setup/ }).click()
     await page.getByRole('button', { name: /^Café & coffee shop/ }).click()
     await page.getByRole('button', { name: 'Next' }).click()
@@ -9747,7 +9747,7 @@ test('landing page: the demo video with its poster and controls, once it is swit
   await page.goto('/?demo')
   await page.waitForLoadState('networkidle')
   expect(videos).toEqual([])
-  const video = page.getByLabel('Business Agent demo video')
+  const video = page.getByLabel('The Business Agent demo video')
   if (!FEATURES.demoVideo) {
     await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
     await expect(video).toHaveCount(0)
@@ -9802,7 +9802,7 @@ test('landing page: a video starts with its sound; while the browser won’t all
     }
   })
   await page.goto('/?demo')
-  const video = page.getByLabel('Business Agent demo video')
+  const video = page.getByLabel('The Business Agent demo video')
   const demo = page.locator('#demo')
   await demo.scrollIntoViewIfNeeded()
   // On screen before any click: on its poster with "Play with sound", not playing, not even muted.
@@ -9911,7 +9911,7 @@ test('demos page: every video, the landing page’s two too; a card plays its ow
   }
   await expect(page).toHaveURL(/\/demos$/)
   await expect(page.getByRole('heading', { name: 'See it from every side.', level: 1 })).toBeVisible()
-  await expect(page).toHaveTitle('Demos · Business Agent')
+  await expect(page).toHaveTitle('Demos · The Business Agent')
   const shown = [FEATURES.demoVideo, FEATURES.dayVideo, FEATURES.ownerVideo, FEATURES.sayVideo].filter(Boolean).length
   // Demos in the site menu opens it too, from any page.
   if (shown > 0) {
@@ -9923,7 +9923,7 @@ test('demos page: every video, the landing page’s two too; a card plays its ow
   const films = page.getByRole('list', { name: 'The films' })
   await expect(films.getByRole('listitem')).toHaveCount(shown)
   // Each in its own section with the landing page's player; no link back to itself.
-  await expect(page.getByLabel('Business Agent demo video')).toHaveCount(FEATURES.demoVideo ? 1 : 0)
+  await expect(page.getByLabel('The Business Agent demo video')).toHaveCount(FEATURES.demoVideo ? 1 : 0)
   await expect(page.getByLabel('A day in the life of a café owner, video')).toHaveCount(FEATURES.dayVideo ? 1 : 0)
   await expect(page.getByRole('link', { name: 'More films on the Demos page' })).toHaveCount(0)
   // "Just say it": Business Agent from your own AI, typed or said; its card plays it.

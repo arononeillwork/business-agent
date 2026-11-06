@@ -252,8 +252,8 @@ function BrandDocuments() {
         <FileViewer id={viewing.id} title={viewing.title} link={viewing.link} where={brandSourceName(viewing.storage)} as={brandPreview(viewing)?.as ?? 'pdf'}
           load={() => api.brandFile(viewing.id)} onClose={() => setViewing(null)}
           caption={brandSourceName(viewing.storage)
-            ? t('Shown straight from {where}. Business Agent doesn’t keep a copy.', { where: brandSourceName(viewing.storage)! })
-            : t('Uploaded to Business Agent {date}.', { date: formatLocal(viewing.added_at, 'd MMM yyyy') })} />
+            ? t('Shown straight from {where}. The Business Agent doesn’t keep a copy.', { where: brandSourceName(viewing.storage)! })
+            : t('Uploaded to The Business Agent {date}.', { date: formatLocal(viewing.added_at, 'd MMM yyyy') })} />
       )}
       {editing && <BrandDocDialog doc={editing} onClose={() => setEditing(null)} />}
     </Card>

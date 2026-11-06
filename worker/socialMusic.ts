@@ -283,9 +283,9 @@ export async function fillStarterPack(env: Env, origin: string, businessId: numb
   const track = await elevenlabs.compose(cfg, { prompt: next.prompt, seconds: STARTER_SECONDS })
   const url = await keep(env, db, origin, track.bytes)
   const { error } = await db.from('music_tracks').insert({
-    source: 'starter', starter_key: next.key, title: next.title, artist: 'Business Agent', url, duration_s: STARTER_SECONDS,
+    source: 'starter', starter_key: next.key, title: next.title, artist: 'The Business Agent', url, duration_s: STARTER_SECONDS,
     moods: next.moods, energy: next.energy, bpm: next.bpm, genre: next.genre, vocals: false, highlight_s: 0,
-    licence: { kind: 'starter', provider: 'elevenlabs', model: track.model, song_id: track.songId, prompt: next.prompt, terms: TERMS, made_by: 'Business Agent', at: new Date().toISOString() },
+    licence: { kind: 'starter', provider: 'elevenlabs', model: track.model, song_id: track.songId, prompt: next.prompt, terms: TERMS, made_by: 'The Business Agent', at: new Date().toISOString() },
     created_by: null,
   })
   if (error) throw new Error(error.message)

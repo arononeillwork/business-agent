@@ -191,7 +191,7 @@ export function ContentPage() {
             {photos?.status === 'error' ? t('Connect again') : t('Connect Google Photos')}
           </Button>}>
           {photos?.status === 'error' && photos.last_error ? photos.last_error
-            : t('Bring in photos and videos from Google Photos: connect it once, then pick the ones you want. Business Agent sees only what you pick.')}
+            : t('Bring in photos and videos from Google Photos: connect it once, then pick the ones you want. The Business Agent sees only what you pick.')}
         </Alert>
       )}
       {uploading && (

@@ -23,8 +23,8 @@ export default {
   'Open in {mailbox}': 'Abrir en {mailbox}',
   'Connect the business’s Gmail or Outlook to see its email here, open each one and reply from the app. Nothing is changed or deleted in the mailbox.':
     'Conecta el Gmail o el Outlook del negocio para ver aquí su correo, abrir cada uno y responder desde la app. No se cambia ni se borra nada del buzón.',
-  '{mailbox} is connected to send email only. Allow Business Agent to read it too, to see the business’s email here. Nothing is changed or deleted in the mailbox.':
-    '{mailbox} está conectado solo para enviar correos. Permite que Business Agent también lo lea para ver aquí el correo del negocio. No se cambia ni se borra nada del buzón.',
+  '{mailbox} is connected to send email only. Allow The Business Agent to read it too, to see the business’s email here. Nothing is changed or deleted in the mailbox.':
+    '{mailbox} está conectado solo para enviar correos. Permite que The Business Agent también lo lea para ver aquí el correo del negocio. No se cambia ni se borra nada del buzón.',
   'Filter emails': 'Filtrar correos',
   'Search {mailbox}': 'Buscar en {mailbox}',
   'Search email': 'Buscar en el correo',

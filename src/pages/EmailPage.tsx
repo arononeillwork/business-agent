@@ -116,7 +116,7 @@ export function EmailPage() {
       )}
       {first && box && !first.can_read && (
         <Alert severity="info" action={<Button color="inherit" onClick={() => void run(() => api.connectService(box, 'email', { read: true }))}>{t('Allow reading')}</Button>}>
-          {t('{mailbox} is connected to send email only. Allow Business Agent to read it too, to see the business’s email here. Nothing is changed or deleted in the mailbox.', { mailbox: boxName })}
+          {t('{mailbox} is connected to send email only. Allow The Business Agent to read it too, to see the business’s email here. Nothing is changed or deleted in the mailbox.', { mailbox: boxName })}
         </Alert>
       )}
 

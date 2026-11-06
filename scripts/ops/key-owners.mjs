@@ -55,7 +55,7 @@ async function stripe() {
   const row = {
     account: 'Stripe: the account every business’s subscription is paid into',
     keys: ['STRIPE_SECRET_KEY', 'STRIPE_CLIENT_ID'], role: 'platform', set: !!key,
-    fix: 'Open a Stripe account for Business Agent (its company and bank account), put its secret key in STRIPE_SECRET_KEY and deploy: the deploy makes the plans’ prices and the billing webhook there. Easy Beans keeps its own Stripe for its takings, connected on Connections.',
+    fix: 'Open a Stripe account for The Business Agent (its company and bank account), put its secret key in STRIPE_SECRET_KEY and deploy: the deploy makes the plans’ prices and the billing webhook there. Easy Beans keeps its own Stripe for its takings, connected on Connections.',
   }
   if (!key) return row
   const headers = { authorization: `Bearer ${key}` }
@@ -65,7 +65,7 @@ async function stripe() {
   const name = a.settings?.dashboard?.display_name || a.business_profile?.name || ''
   const subs = await call('https://api.stripe.com/v1/subscriptions?status=all&limit=100', { headers })
   const ours = subs.ok ? subs.body.data.filter(s => s.items?.data?.some(i => i.price?.lookup_key?.startsWith('business_agent_'))) : null
-  const paying = ours && `${ours.length === 0 ? 'no' : ours.length} Business Agent subscription${ours.length === 1 ? '' : 's'} in it${ours.length === 0 ? ', so nothing has to move' : ''}`
+  const paying = ours && `${ours.length === 0 ? 'no' : ours.length} The Business Agent subscription${ours.length === 1 ? '' : 's'} in it${ours.length === 0 ? ', so nothing has to move' : ''}`
   return {
     ...row,
     owner: ownerOf(name, a.business_profile?.name, a.email),
@@ -78,7 +78,7 @@ async function metaApp() {
   const row = {
     account: 'Meta app: Facebook sign-in, Instagram, Facebook pages, Meta ads',
     keys: ['META_APP_ID', 'META_APP_SECRET'], role: 'platform', set: has('META_APP_ID', 'META_APP_SECRET'),
-    fix: 'Name the app “Business Agent” (App settings → Basic) and give it to a Business Agent business portfolio verified with Business Agent’s company documents, before App Review. The app ID and secret stay the same.',
+    fix: 'Name the app “The Business Agent” (App settings → Basic) and give it to The Business Agent’s own business portfolio verified with The Business Agent’s company documents, before App Review. The app ID and secret stay the same.',
   }
   if (!row.set) return row
   const token = `${id}|${val('META_APP_SECRET')}`
@@ -101,7 +101,7 @@ async function instagramApp() {
   const row = {
     account: 'Instagram app: Instagram sign-in, posting, messages, comments',
     keys: ['INSTAGRAM_APP_ID', 'INSTAGRAM_APP_SECRET'], role: 'platform', set: has('INSTAGRAM_APP_ID', 'INSTAGRAM_APP_SECRET'),
-    fix: 'It is the Instagram part of a Meta app and follows that app’s name and business portfolio: developers.facebook.com → the app → Instagram. Check it is the Business Agent app.',
+    fix: 'It is the Instagram part of a Meta app and follows that app’s name and business portfolio: developers.facebook.com → the app → Instagram. Check it is The Business Agent app.',
   }
   if (!row.set) return row
   if (id === val('META_APP_ID')) return { ...row, owner: 'unknown', detail: 'The same app as the Meta app above' }
@@ -115,7 +115,7 @@ async function google() {
   const row = {
     account: 'Google app: Google sign-in, Gmail, Drive, Calendar, Business Profile, YouTube, Search Console, Photos',
     keys: ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'], role: 'platform', set: has('GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'),
-    fix: 'Keep the app and its keys. Google Cloud → the project → IAM: add the Business Agent Google account as Owner; Branding: a support email on businesssagent.com; then submit verification. Until Google verifies it, sign-in says “continue to” the Supabase address.',
+    fix: 'Keep the app and its keys. Google Cloud → the project → IAM: add The Business Agent Google account as Owner; Branding: a support email on businesssagent.com; then submit verification. Until Google verifies it, sign-in says “continue to” the Supabase address.',
   }
   if (!row.set) return row
   const t = await call('https://oauth2.googleapis.com/token', form({
@@ -145,7 +145,7 @@ async function microsoft() {
   const row = {
     account: 'Microsoft app: Microsoft sign-in, Outlook, OneDrive',
     keys: ['Supabase sign-in settings', 'Worker secrets MS_CLIENT_ID, MS_CLIENT_SECRET'], role: 'platform', set: !!(settings?.external_azure_enabled && id),
-    fix: 'Create it again in a Business Agent Microsoft directory: change APP_NAME in setup-microsoft-login.yml to “Business Agent” and run that workflow with its tenant input, then verify the publisher. Easy Beans reconnects Outlook and OneDrive once.',
+    fix: 'Create it again in The Business Agent’s own Microsoft directory: change APP_NAME in setup-microsoft-login.yml to “The Business Agent” and run that workflow with its tenant input, then verify the publisher. Easy Beans reconnects Outlook and OneDrive once.',
   }
   if (!row.set) return row
   const page = await call(`https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${new URLSearchParams({ client_id: id, response_type: 'code', redirect_uri: CALLBACK, scope: 'openid email' })}`, { headers: BROWSER })
@@ -161,7 +161,7 @@ async function tiktok() {
   const row = {
     account: 'TikTok app: TikTok posting',
     keys: ['TIKTOK_CLIENT_KEY', 'TIKTOK_CLIENT_SECRET'], role: 'platform', set: has('TIKTOK_CLIENT_KEY', 'TIKTOK_CLIENT_SECRET'),
-    fix: 'TikTok doesn’t say whose an app is. developers.tiktok.com → Manage apps: check the app is named Business Agent and sits in Business Agent’s organisation before the app audit.',
+    fix: 'TikTok doesn’t say whose an app is. developers.tiktok.com → Manage apps: check the app is named The Business Agent and sits in The Business Agent’s organisation before the app audit.',
   }
   if (!row.set) return row
   const r = await call('https://open.tiktokapis.com/v2/oauth/token/', form({ client_key: val('TIKTOK_CLIENT_KEY'), client_secret: val('TIKTOK_CLIENT_SECRET'), grant_type: 'client_credentials' }))
@@ -174,7 +174,7 @@ async function square() {
   const row = {
     account: 'Square app: Square takings, menu, customers, loyalty',
     keys: ['SQUARE_APP_ID', 'SQUARE_APP_SECRET', 'SQUARE_WEBHOOK_SIGNATURE_KEY', 'SQUARE_REDIRECT_URL'], role: 'platform', set: has('SQUARE_APP_ID', 'SQUARE_APP_SECRET'),
-    fix: 'Square doesn’t say whose an app is: it sits in the Square login that made it. developer.squareup.com → Apps: if that is Easy Beans’ login, make a Square developer account for Business Agent, create the app there with the same redirect and webhook addresses, put its keys in the SQUARE_* secrets and deploy. Easy Beans reconnects Square once.',
+    fix: 'Square doesn’t say whose an app is: it sits in the Square login that made it. developer.squareup.com → Apps: if that is Easy Beans’ login, make a Square developer account for The Business Agent, create the app there with the same redirect and webhook addresses, put its keys in the SQUARE_* secrets and deploy. Easy Beans reconnects Square once.',
   }
   if (!row.set) return row
   const where = id.startsWith('sandbox-') ? 'sandbox' : 'production'
@@ -191,7 +191,7 @@ async function signInEmail() {
   const row = {
     account: 'Sign-in and sign-up emails',
     keys: ['Supabase sign-in settings'], role: 'platform', set: !!settings,
-    fix: 'Send them from Business Agent: a transactional email service on businesssagent.com as Supabase’s custom SMTP, with Business Agent in the subjects. A business’s own mailbox then writes only to its own people.',
+    fix: 'Send them from The Business Agent: a transactional email service on businesssagent.com as Supabase’s custom SMTP, with The Business Agent in the subjects. A business’s own mailbox then writes only to its own people.',
   }
   if (!settings) return row
   const names = [], parts = []
@@ -220,7 +220,7 @@ async function googleKeys() {
     account: 'Google API keys: Competitors, Legal’s Drive picker, speed scores, fonts',
     keys, role: 'platform', set: set.length > 0, owner: 'unknown',
     detail: set.length ? `Set: ${set.join(', ')}` : '',
-    fix: 'Make them in the Google app’s own Cloud project, once it is Business Agent’s.',
+    fix: 'Make them in the Google app’s own Cloud project, once it is The Business Agent’s.',
   }
 }
 
@@ -231,7 +231,7 @@ async function whatsapp() {
   const row = {
     account: 'WhatsApp number: chats and rota reminders',
     keys: ['META_ACCESS_TOKEN', 'WHATSAPP_PHONE_NUMBER_ID', 'WHATSAPP_VERIFY_TOKEN'], role: 'business', set: has('META_ACCESS_TOKEN', 'WHATSAPP_PHONE_NUMBER_ID'),
-    fix: 'One business’s number kept as a platform key, so only that business has WhatsApp. Each business should connect its own number (Meta’s Embedded Signup, through the Business Agent Meta app); then these three secrets go.',
+    fix: 'One business’s number kept as a platform key, so only that business has WhatsApp. Each business should connect its own number (Meta’s Embedded Signup, through The Business Agent Meta app); then these three secrets go.',
   }
   if (!row.set) return row
   const r = await call(`${GRAPH}/${val('WHATSAPP_PHONE_NUMBER_ID')}?fields=display_phone_number,verified_name&access_token=${enc(token)}`)
@@ -267,7 +267,7 @@ async function cloudflare() {
   const row = {
     account: 'Cloudflare: hosting, businesssagent.com, email routing, photo storage',
     keys: ['CLOUDFLARE_API_TOKEN'], role: 'infra', set: has('CLOUDFLARE_API_TOKEN'),
-    fix: 'Fine for now. Later: add a Business Agent login as a member of this account, or move the Worker and domain to a Business Agent account.',
+    fix: 'Fine for now. Later: add a login for The Business Agent as a member of this account, or move the Worker and domain to an account for The Business Agent.',
   }
   if (!row.set) return row
   const r = await call('https://api.cloudflare.com/client/v4/accounts', { headers: { authorization: `Bearer ${val('CLOUDFLARE_API_TOKEN')}` } })
@@ -280,7 +280,7 @@ async function supabaseOrg() {
   const row = {
     account: 'Supabase: the database and sign-in',
     keys: ['SUPABASE_ACCESS_TOKEN'], role: 'infra', set: has('SUPABASE_ACCESS_TOKEN'),
-    fix: 'Fine for now. Later: rename the organisation “Business Agent” (Organisation settings), and put Business Agent’s card on its billing.',
+    fix: 'Fine for now. Later: rename the organisation “The Business Agent” (Organisation settings), and put The Business Agent’s card on its billing.',
   }
   if (!row.set) return row
   const [orgs, project] = await Promise.all([supabase('/organizations'), supabase(`/projects/${REF}`)])
@@ -293,7 +293,7 @@ async function anthropic() {
   const row = {
     account: 'Anthropic: the assistant',
     keys: ['ANTHROPIC_API_KEY'], role: 'infra', set: has('ANTHROPIC_API_KEY'),
-    fix: 'Anthropic doesn’t give the organisation’s name to a key. console.anthropic.com → Settings → Organization: check it is Business Agent’s, with Business Agent’s card; every business’s assistant use is billed there.',
+    fix: 'Anthropic doesn’t give the organisation’s name to a key. console.anthropic.com → Settings → Organization: check it is The Business Agent’s, with The Business Agent’s card; every business’s assistant use is billed there.',
   }
   if (!row.set) return row
   const r = await call('https://api.anthropic.com/v1/models?limit=1', { headers: { 'x-api-key': val('ANTHROPIC_API_KEY'), 'anthropic-version': '2023-06-01' } })
@@ -311,7 +311,7 @@ async function github() {
     keys: ['the repository'], role: 'infra', set: true,
     owner: type === 'User' ? 'personal' : ownerOf(owner, r.body?.name),
     detail: `${env.GITHUB_REPOSITORY || `${owner}/business-agent`}, under ${type === 'Organization' ? 'the organisation' : 'the personal account'} ${owner}`,
-    fix: 'Fine for now. Later: a Business Agent organisation on GitHub (Settings → Transfer), which keeps the history and secrets.',
+    fix: 'Fine for now. Later: an organisation on GitHub for The Business Agent (Settings → Transfer), which keeps the history and secrets.',
   }
 }
 
@@ -321,14 +321,14 @@ async function forwarding() {
     account: 'Business email: hello@, sales@, support@ forwarded to',
     keys: ['EMAIL_FORWARD_TO'], role: 'infra', set: !!to,
     owner: to ? ownerOf(to) : 'unknown', detail: to ? maskEmail(to) : '',
-    fix: 'Forward to a mailbox Business Agent keeps, not a café’s.',
+    fix: 'Forward to a mailbox The Business Agent keeps, not a café’s.',
   }
 }
 
 const notYet = (account, keys, role = 'platform') => async () => ({
   account, keys, role, set: keys.some(k => val(k)), owner: 'unknown',
   detail: keys.filter(k => val(k)).length ? `Set: ${keys.filter(k => val(k)).join(', ')}` : '',
-  fix: 'Check in the provider’s dashboard that the app or account is Business Agent’s.',
+  fix: 'Check in the provider’s dashboard that the app or account is The Business Agent’s.',
 })
 
 const CHECKS = [

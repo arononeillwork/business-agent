@@ -128,7 +128,7 @@ export function preview(m: InboxMessage | undefined, translate = asIs) {
     share: said ? translate(msg('Shared a post: {text}'), { text: said }) : translate(msg('Shared a post')),
     location: translate(msg('Sent a location')),
     unsupported: translate(msg('Sent a message Instagram doesn’t share with other apps')),
-    other: translate(msg('Sent a message Business Agent can’t show')),
+    other: translate(msg('Sent a message The Business Agent can’t show')),
   }
   const line = what[m.kind] || said
   return m.fromMe ? translate(msg('You: {text}'), { text: line }) : line

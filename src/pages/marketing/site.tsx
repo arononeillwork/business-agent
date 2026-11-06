@@ -108,7 +108,7 @@ function SiteHeader() {
     <Box component="header" sx={{ position: 'sticky', top: 0, zIndex: 10, bgcolor: 'rgba(251,248,244,0.84)', height: HEADER_HEIGHT,
       backdropFilter: 'saturate(160%) blur(14px)', borderBottom: `1px solid ${BA.lineSoft}` }}>
       <Container maxWidth="lg" sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1.5, md: 2, lg: 4 }, height: '100%' }}>
-        <Stack component={RouterLink} to="/" direction="row" spacing={1.25} aria-label={t('Business Agent home')}
+        <Stack component={RouterLink} to="/" direction="row" spacing={1.25} aria-label={t('The Business Agent home')}
           sx={{ alignItems: 'center', color: 'inherit', textDecoration: 'none' }}>
           <AgentMark size={34} />
           <Wordmark size="1.55rem" />
@@ -163,7 +163,7 @@ function SiteFooter() {
         {col(t('Legal'), [[t('Privacy policy'), '/privacy'], [t('Terms of service'), '/terms']])}
       </Container>
       <Container maxWidth="lg" sx={{ py: 2.5, borderTop: `1px solid ${BA.line}` }}>
-        <Typography variant="caption" sx={{ color: BA.faint }}>{t('© {year} Business Agent. All rights reserved.', { year: new Date().getFullYear() })}</Typography>
+        <Typography variant="caption" sx={{ color: BA.faint }}>{t('© {year} The Business Agent. All rights reserved.', { year: new Date().getFullYear() })}</Typography>
       </Container>
     </Box>
   )

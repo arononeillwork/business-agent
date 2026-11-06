@@ -148,7 +148,7 @@ export default {
   'Gross sales are completed payments before tips; net sales take refunds off. Days run midnight to midnight, Madrid time.': 'Las ventas brutas son los pagos completados sin propinas; las netas descuentan las devoluciones. Los días van de medianoche a medianoche, hora de Madrid.',
 
   // Social planner
-  'Business Agent’s photo storage': 'el almacén de fotos de Business Agent',
+  'The Business Agent’s photo storage': 'el almacén de fotos de The Business Agent',
   '{a} and {b}': '{a} y {b}',
   'Kinds of post': 'Tipos de publicación',
   'Photos or videos': 'Fotos o vídeos',
@@ -461,7 +461,7 @@ export default {
   'Waiting for {app} to fetch the team calendar. Add it in the tab that opened; it usually shows as connected within minutes.': 'Esperando a que {app} lea el calendario del equipo. Añádelo en la pestaña que se ha abierto; suele aparecer como conectado en unos minutos.',
   'This Google account has more than one website in Search Console. Pick the one to show below.': 'Esta cuenta de Google tiene más de una web en Search Console. Elige abajo la que quieres ver.',
   'This account manages more than one Page. Pick the one to post to below.': 'Esta cuenta gestiona más de una página. Elige abajo dónde publicar.',
-  'Not set up yet: Business Agent needs {keys} before anyone can connect {app}. They’re added once, for every business; after that, connecting is one click.': 'Aún no está configurado: Business Agent necesita {keys} para que alguien pueda conectar {app}. Se añaden una sola vez, para todos los negocios; después, conectar es un clic.',
+  'Not set up yet: The Business Agent needs {keys} before anyone can connect {app}. They’re added once, for every business; after that, connecting is one click.': 'Aún no está configurado: The Business Agent necesita {keys} para que alguien pueda conectar {app}. Se añaden una sola vez, para todos los negocios; después, conectar es un clic.',
   'What it can do': 'Qué puede hacer',
   'It shows as connected only once it has really worked: {proof}': 'Solo aparece como conectado cuando ha funcionado de verdad: {proof}',
   'Send a test': 'Enviar una prueba',

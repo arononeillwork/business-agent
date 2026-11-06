@@ -48,7 +48,7 @@ export default {
   '{n} done in this period': '{n} hechas en este periodo',
   '{business} report · {period} ({dates})': 'Informe de {business} · {period} ({dates})',
   '{business} · {period}: {dates}': '{business} · {period}: {dates}',
-  'Sent by {name} from Business Agent.': 'Enviado por {name} desde Business Agent.',
+  'Sent by {name} from The Business Agent.': 'Enviado por {name} desde The Business Agent.',
   'Pick at least one report': 'Elige al menos un informe',
   '“{text}” isn’t an email address': '«{text}» no es una dirección de correo',
   'Sent to {n}; not to {who}: {error}': 'Enviado a {n}; no a {who}: {error}',
@@ -56,7 +56,7 @@ export default {
   'Report sent to {n} people': 'Informe enviado a {n} personas',
   'Reports to send': 'Informes para enviar',
   // Scheduled reports (src/pages/ReportSchedules.tsx, shared/reports.ts).
-  'Sent by Business Agent on the schedule “{schedule}”, set up by {name}.': 'Enviado por Business Agent con la programación «{schedule}», creada por {name}.',
+  'Sent by The Business Agent on the schedule “{schedule}”, set up by {name}.': 'Enviado por The Business Agent con la programación «{schedule}», creada por {name}.',
   'Give the schedule a name': 'Ponle un nombre a la programación',
   'Pick the days it goes': 'Elige los días en que se envía',
   'Pick a day of the month from 1 to 28': 'Elige un día del mes del 1 al 28',

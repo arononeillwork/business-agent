@@ -207,7 +207,7 @@ export function explain(p: Provider, e: unknown): string {
     return 'LinkedIn didn’t allow posting there. Check you’re still an admin of the Page (or choose your own profile), then connect again.'
   }
   if (p === 'google_ads' && /DEVELOPER_TOKEN_NOT_APPROVED|DEVELOPER_TOKEN_PROHIBITED|only approved for use with test accounts/i.test(raw)) {
-    return 'Google hasn’t approved Business Agent’s Google Ads access for real ad accounts yet (the developer token is for test accounts only). Once Google approves it, connect again.'
+    return 'Google hasn’t approved The Business Agent’s Google Ads access for real ad accounts yet (the developer token is for test accounts only). Once Google approves it, connect again.'
   }
   // Starting a pick: FAILED_PRECONDITION is an account without Google Photos; RESOURCE_EXHAUSTED, too many picks at once.
   const photosStatus = e instanceof googlePhotos.PhotosError ? e.status : undefined
@@ -598,7 +598,7 @@ export interface Proven {
 const confirmation = (p: 'gmail' | 'outlook', email: string, business: string) => ({
   to: email,
   subject: `${business}: this mailbox is connected`,
-  text: `This is a check from Business Agent: ${optionName(p)} (${email}) is now connected for ${business}.\n\n` +
+  text: `This is a check from The Business Agent: ${optionName(p)} (${email}) is now connected for ${business}.\n\n` +
     'Team alerts for people who prefer email will come from this address. You can disconnect it any time on the Connections page.',
 })
 

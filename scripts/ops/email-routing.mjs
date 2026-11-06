@@ -67,7 +67,7 @@ for (const box of BOXES) {
   const address = `${box}@${DOMAIN}`
   if (have.has(address)) continue
   const made = await cf(`/zones/${zone.id}/email/routing/rules`, { method: 'POST', body: JSON.stringify({
-    name: `Business Agent ${box}`, enabled: true,
+    name: `The Business Agent ${box}`, enabled: true,
     matchers: [{ type: 'literal', field: 'to', value: address }],
     actions: [{ type: 'forward', value: [to] }],
   }) })

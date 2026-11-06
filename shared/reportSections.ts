@@ -166,7 +166,7 @@ export function reportMail(o: { business: string; period: string; dates: string;
     subject: t('{business} report · {period} ({dates})', { business: o.business, period: o.period, dates: o.dates }),
     heading: t('{business} · {period}: {dates}', { business: o.business, period: o.period, dates: o.dates }),
     footer: o.schedule
-      ? t('Sent by Business Agent on the schedule “{schedule}”, set up by {name}.', { schedule: o.schedule, name: o.sender })
-      : t('Sent by {name} from Business Agent.', { name: o.sender }),
+      ? t('Sent by The Business Agent on the schedule “{schedule}”, set up by {name}.', { schedule: o.schedule, name: o.sender })
+      : t('Sent by {name} from The Business Agent.', { name: o.sender }),
   })
 }

@@ -436,7 +436,7 @@ export function ConnectorDialog({ s, back, reload, onClose }: { s: OptionState; 
             : t('This account manages more than one Page. Pick the one to post to below.')}
         </Alert>}
         {row?.last_error && status !== 'connected' && <Alert severity="error" sx={{ mt: 2 }}>{row.last_error}</Alert>}
-        {!s.configured && <Alert severity="warning" sx={{ mt: 2 }}>{t('Not set up yet: Business Agent needs {keys} before anyone can connect {app}. They’re added once, for every business; after that, connecting is one click.', { keys: KEYS_NEEDED[o.id] ? t(KEYS_NEEDED[o.id]!) : '', app: o.name })}</Alert>}
+        {!s.configured && <Alert severity="warning" sx={{ mt: 2 }}>{t('Not set up yet: The Business Agent needs {keys} before anyone can connect {app}. They’re added once, for every business; after that, connecting is one click.', { keys: KEYS_NEEDED[o.id] ? t(KEYS_NEEDED[o.id]!) : '', app: o.name })}</Alert>}
 
         {CAN[o.id] && <>
           <Typography variant="overline" component="h3" sx={{ display: 'block', color: 'text.secondary', mt: 2.5 }}>

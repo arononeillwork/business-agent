@@ -262,7 +262,7 @@ export async function drainOutbox(env: Env, businessId: number) {
       } else if (job.kind === 'email') {
         const p = job.payload as { to: string; template: string; params: string[] }
         const { data: biz } = await db.from('business').select('name').single()
-        externalId = await sendEmail(env, db, { to: p.to, ...alertEmail(p.template, p.params ?? [], biz?.name ?? 'Business Agent') })
+        externalId = await sendEmail(env, db, { to: p.to, ...alertEmail(p.template, p.params ?? [], biz?.name ?? 'The Business Agent') })
       } else if (job.kind === 'instagram_post') {
         // Post, carousel, reel or story, with every photo and video (older jobs: just image_url).
         // A reel with music put in by Business Agent names its sound (migration 86).
@@ -397,7 +397,7 @@ integrations.post('/api/integrations/connect/:provider/start', async c => {
   if (isGoogle(p)) {
     const cfg = googleConfig(c.env, origin)
     if (!cfg) return c.json({ error: `${optionName(p)} needs the Google keys first (GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET; see docs/sign-in-setup.md).` }, 400)
-    if (p === 'google_ads' && !googleAdsConfig(c.env)) return c.json({ error: 'Google Ads needs Business Agent’s Google Ads developer token first (GOOGLE_ADS_DEVELOPER_TOKEN; see docs/INTEGRATIONS.md).' }, 400)
+    if (p === 'google_ads' && !googleAdsConfig(c.env)) return c.json({ error: 'Google Ads needs The Business Agent’s Google Ads developer token first (GOOGLE_ADS_DEVELOPER_TOKEN; see docs/INTEGRATIONS.md).' }, 400)
     return c.json({ url: google.authUrl(cfg, state, scopes) })
   }
   const cfg = msConfig(c.env, origin)
@@ -428,7 +428,7 @@ async function finishConnector(c: Ctx, state: ConnectorState) {
     const t = isGoogle(p) ? await google.exchangeCode(gcfg!, code) : await ms.exchangeCode(mcfg!, code)
     if (!t.refresh_token) throw new Error(`${optionName(p)} did not allow offline access. Remove the app from your account's connected apps and connect again.`)
     const { data: biz } = await db.from('business').select('name, website').maybeSingle()
-    const proven = await proveNew(p, { access_token: t.access_token!, scope: t.scope }, biz?.name ?? 'Business Agent', biz?.website, googleAdsConfig(c.env))
+    const proven = await proveNew(p, { access_token: t.access_token!, scope: t.scope }, biz?.name ?? 'The Business Agent', biz?.website, googleAdsConfig(c.env))
     const { error } = await db.from('integration_secrets').upsert({ provider: p, ciphertext: await seal(c.env.INTEGRATION_KEY!, { refresh_token: t.refresh_token }), updated_at: new Date().toISOString() })
     if (error) throw new Error(error.message)
     const now = new Date().toISOString()
@@ -494,7 +494,7 @@ integrations.post('/api/integrations/email/test', async c => {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(to ?? '')) return c.json({ error: 'Enter a full email address' }, 400)
   const db = businessDb(c.env, c.get('businessId'))
   try {
-    await sendEmail(c.env, db, { to, subject: 'Test email from Business Agent', text: 'It works: team alerts for people who prefer email will come from this mailbox.' })
+    await sendEmail(c.env, db, { to, subject: 'Test email from The Business Agent', text: 'It works: team alerts for people who prefer email will come from this mailbox.' })
     return c.json({ ok: true })
   } catch (e) {
     return c.json({ error: e instanceof Error ? e.message : String(e) }, 400)

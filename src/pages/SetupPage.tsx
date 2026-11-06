@@ -123,7 +123,7 @@ export function SetupPage() {
       {g.step === 'welcome' && (
         <Stack spacing={3} sx={{ maxWidth: 760 }}>
           <Box>
-            <Typography variant="h4" component="h1">{t('Hi {name}, I’m your Business Agent.', { name: me?.full_name.split(' ')[0] ?? '' })}</Typography>
+            <Typography variant="h4" component="h1">{t('Hi {name}, I’m The Business Agent.', { name: me?.full_name.split(' ')[0] ?? '' })}</Typography>
             <Typography sx={{ color: 'text.secondary', mt: 1 }}>
               {t('Let’s connect the apps your business already uses. It takes about three minutes, and every step can be skipped.')}
             </Typography>
@@ -246,7 +246,7 @@ function Frame({ step, agent, onSkip, children }: { step: Step; agent: string; o
       <Box component="aside" sx={{ width: { md: 300 }, flexShrink: 0, bgcolor: tokens.roseSoft, p: { xs: 2, md: 3 }, display: 'flex', flexDirection: 'column',
         gap: { xs: 1.5, md: 4 }, position: { md: 'sticky' }, top: 0, height: { md: '100vh' }, boxSizing: 'border-box' }}>
         <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
-          {/* The product's own mark: the guide is Business Agent setting itself up, before any branding of the business. */}
+          {/* The product's own mark: the guide is The Business Agent setting itself up, before any branding of the business. */}
           <AgentMark size={40} />
           <Box sx={{ flex: 1 }}><Wordmark size="1.4rem" /></Box>
           <Button size="small" onClick={onSkip} sx={{ display: { md: 'none' } }}>{t('Skip')}</Button>
@@ -419,7 +419,7 @@ function Queue({ guide, data, reload, onSkip, onStop }: { guide: Guide; data: In
             </Stack>
           </>}
           {s.row?.last_error && <Alert severity="error" sx={{ mt: 2 }}>{s.row.last_error}</Alert>}
-          {!s.configured && <Alert severity="warning" sx={{ mt: 2 }}>{t('{app} isn’t set up for Business Agent yet. Skip it for now; it stays on the Connections page.', { app: s.o.name })}</Alert>}
+          {!s.configured && <Alert severity="warning" sx={{ mt: 2 }}>{t('{app} isn’t set up for The Business Agent yet. Skip it for now; it stays on the Connections page.', { app: s.o.name })}</Alert>}
           <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', mt: 3, alignItems: 'center' }}>
             {oneClick(s) && <Button variant="contained" onClick={connect}>{t('Continue to {app}', { app: s.o.name })}</Button>}
             {!oneClick(s) && s.configured && <Button variant="contained" onClick={() => setOpen(true)}>{t('Set up {app}', { app: s.o.name })}</Button>}

@@ -91,7 +91,7 @@ describe('Connecting ad platforms: "Connected" once the ad accounts were read', 
   it('Google Ads: a token Google hasn’t approved yet is not connected, in plain words', async () => {
     apis.googleAds.unapproved = true
     const { back } = await connectGoogleAds()
-    expect(back!.searchParams.get('connect_error')).toMatch(/Google hasn’t approved Business Agent’s Google Ads access/)
+    expect(back!.searchParams.get('connect_error')).toMatch(/Google hasn’t approved The Business Agent’s Google Ads access/)
     expect(db.integration('google_ads').status).toBe('disconnected')
     expect(db.secret('google_ads')).toBeFalsy()
   })

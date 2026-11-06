@@ -139,7 +139,7 @@ describe('Connecting an app: "Connected" only once it has really worked', () => 
 
     const test = await post('/api/integrations/email/test', { to: 'aron@example.com' })
     expect(test.status).toBe(200)
-    expect(apis.microsoft.sent.at(-1)).toEqual({ to: 'aron@example.com', subject: 'Test email from Business Agent' })
+    expect(apis.microsoft.sent.at(-1)).toEqual({ to: 'aron@example.com', subject: 'Test email from The Business Agent' })
     expect(apis.google.sent).toHaveLength(1) // only Gmail's own confirmation
   })
 

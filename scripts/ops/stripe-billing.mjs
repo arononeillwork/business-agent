@@ -24,6 +24,6 @@ const events = Object.fromEntries(EVENTS.map((e, i) => [`enabled_events[${i}]`, 
 const { data } = await stripe('GET', '/webhook_endpoints?limit=100')
 const existing = data.find(e => e.url === url)
 if (existing) await stripe('POST', `/webhook_endpoints/${existing.id}`, { ...events, disabled: 'false' })
-else await stripe('POST', '/webhook_endpoints', { url, ...events, api_version: '2024-06-20', description: 'Business Agent subscriptions' })
+else await stripe('POST', '/webhook_endpoints', { url, ...events, api_version: '2024-06-20', description: 'The Business Agent subscriptions' })
 const mode = key.startsWith('sk_live') || key.startsWith('rk_live') ? 'live' : 'test'
 console.log(`Stripe billing: ${existing ? 'updated' : 'created'} webhook ${url} (${mode} mode, ${EVENTS.length} events)`)

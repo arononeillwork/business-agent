@@ -71,7 +71,7 @@ const KIND_TONE: Record<PostKind, { fg: string; bg: string }> = {
   post: { fg: tokens.roseDeep, bg: tokens.roseSoft }, carousel: { fg: tokens.ubeDeep, bg: tokens.ubeSoft },
   reel: { fg: tokens.matchaDeep, bg: tokens.matchaSoft }, story: { fg: tokens.warnFg, bg: tokens.warnBg },
 }
-const STORAGE_NAME = { google_drive: 'Google Drive', onedrive: 'OneDrive', r2: msg('Business Agent’s photo storage') } as const
+const STORAGE_NAME = { google_drive: 'Google Drive', onedrive: 'OneDrive', r2: msg('The Business Agent’s photo storage') } as const
 
 function Mark({ icon, size = 16 }: { icon: Icon; size?: number }) {
   return (

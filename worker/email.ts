@@ -161,7 +161,7 @@ async function readableMailbox(c: Ctx) {
   const db = await requestDb(c)
   const box = await mailbox(db)
   if (!box) return { refused: c.json({ error: 'Connect Gmail or Outlook on Connections first' }, 400) }
-  if (!box.canRead) return { refused: c.json({ error: `Allow Business Agent to read ${box.provider === 'gmail' ? 'Gmail' : 'Outlook'} first, on the Email page.` }, 400) }
+  if (!box.canRead) return { refused: c.json({ error: `Allow The Business Agent to read ${box.provider === 'gmail' ? 'Gmail' : 'Outlook'} first, on the Email page.` }, 400) }
   return { db, box }
 }
 

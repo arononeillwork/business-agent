@@ -52,7 +52,7 @@ describe('Stripe prices follow the plans', () => {
   it('makes a product and a monthly and yearly price for each paid plan, and nothing for Free', async () => {
     const s = fakeStripe()
     await syncPrices(s.call, PLANS)
-    expect(s.products.map(p => p.name)).toEqual(['Business Agent Starter', 'Business Agent Pro', 'Business Agent Business'])
+    expect(s.products.map(p => p.name)).toEqual(['The Business Agent Starter', 'The Business Agent Pro', 'The Business Agent Business'])
     expect(onSale(s)).toEqual(['business_agent_business_month=7900', 'business_agent_business_year=79000', 'business_agent_pro_month=4900',
       'business_agent_pro_year=49000', 'business_agent_starter_month=2500', 'business_agent_starter_year=25000'])
     expect(await syncPrices(s.call, PLANS)).toEqual([]) // already in step: no change
@@ -73,7 +73,7 @@ describe('Stripe prices follow the plans', () => {
     const s = fakeStripe()
     await syncPrices(s.call, PLANS)
     await syncPrices(s.call, [...PLANS.filter(p => p.plan !== 'starter'), { plan: 'enterprise', name: 'Enterprise', monthly: NaN, yearly: NaN }])
-    expect(s.products.filter(p => p.active).map(p => p.name)).toEqual(['Business Agent Pro', 'Business Agent Business'])
+    expect(s.products.filter(p => p.active).map(p => p.name)).toEqual(['The Business Agent Pro', 'The Business Agent Business'])
     expect(onSale(s).some(x => x.includes('starter') || x.includes('enterprise'))).toBe(false)
     expect(onSale(s)).toHaveLength(4)
   })

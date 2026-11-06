@@ -10,11 +10,11 @@ export default {
   'Other documents': 'Otros documentos',
 
   // Picking files
-  'Choosing files from Google Drive isn’t switched on for Business Agent yet (it needs Google’s file picker). OneDrive works meanwhile.':
-    'Elegir archivos de Google Drive aún no está activado en Business Agent (necesita el selector de archivos de Google). Mientras tanto, OneDrive funciona.',
+  'Choosing files from Google Drive isn’t switched on for The Business Agent yet (it needs Google’s file picker). OneDrive works meanwhile.':
+    'Elegir archivos de Google Drive aún no está activado en The Business Agent (necesita el selector de archivos de Google). Mientras tanto, OneDrive funciona.',
   'It’s already on the Legal page': 'Ya está en la página Legal',
   'It’s a folder: choose the files in it': 'Es una carpeta: elige los archivos que contiene',
-  'Google Drive didn’t share it with Business Agent: choose it again in the picker': 'Google Drive no lo compartió con Business Agent: vuelve a elegirlo en el selector',
+  'Google Drive didn’t share it with The Business Agent: choose it again in the picker': 'Google Drive no lo compartió con The Business Agent: vuelve a elegirlo en el selector',
   'It isn’t there any more': 'Ya no está ahí',
   'a file': 'un archivo',
   'Added {n} document from {where}': 'Añadido {n} documento de {where}',
@@ -40,8 +40,8 @@ export default {
   'Legal & licences': 'Legal y licencias',
   'Legal documents': 'Documentos legales',
   'Legal documents are only visible to admins.':'Los documentos legales solo los ven los administradores.',
-  'The café’s legal documents, kept where they already are in its Google Drive or OneDrive. Business Agent only remembers where each one is: it shows them here and opens them there, and copies nothing.':
-    'Los documentos legales de la cafetería, guardados donde ya están, en su Google Drive o OneDrive. Business Agent solo recuerda dónde está cada uno: los muestra aquí y los abre allí, sin copiar nada.',
+  'The café’s legal documents, kept where they already are in its Google Drive or OneDrive. The Business Agent only remembers where each one is: it shows them here and opens them there, and copies nothing.':
+    'Los documentos legales de la cafetería, guardados donde ya están, en su Google Drive o OneDrive. The Business Agent solo recuerda dónde está cada uno: los muestra aquí y los abre allí, sin copiar nada.',
   'Connect Google Drive or OneDrive (or both) to pick the café’s legal documents from them.':
     'Conecta Google Drive u OneDrive (o los dos) para elegir de ahí los documentos legales de la cafetería.',
   'Changed': 'Modificado',
@@ -55,7 +55,7 @@ export default {
     'Aún no hay documentos legales. Añádelos desde Google Drive u OneDrive: se quedan donde están.',
   'View {name}': 'Ver {name}',
   'Open {name} in {where}': 'Abrir {name} en {where}',
-  'Shown straight from {where}. Business Agent doesn’t keep a copy.': 'Se muestra directamente desde {where}. Business Agent no guarda ninguna copia.',
+  'Shown straight from {where}. The Business Agent doesn’t keep a copy.': 'Se muestra directamente desde {where}. The Business Agent no guarda ninguna copia.',
   'Taken off the Legal page. The file is still in {where}.': 'Quitado de la página Legal. El archivo sigue en {where}.',
   'When it ends, who signed it, what to check…': 'Cuándo termina, quién lo firmó, qué revisar…',
   'The file: {name}, in {where}.': 'El archivo: {name}, en {where}.',

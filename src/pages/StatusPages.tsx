@@ -37,7 +37,7 @@ export function NotActive() {
         <Stack spacing={2}>
           <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center' }}>
             <AgentMark />
-            <Typography sx={{ fontFamily: '"Poppins", system-ui, sans-serif', fontWeight: 500 }}>{'Business Agent'}</Typography>
+            <Typography sx={{ fontFamily: '"Poppins", system-ui, sans-serif', fontWeight: 500 }}>{'The Business Agent'}</Typography>
           </Stack>
           <Typography variant="h5" component="h1" sx={{ fontFamily: '"Poppins", system-ui, sans-serif', fontWeight: 500 }}>
             {me?.full_name ? t("You're registered, {name}", { name: me.full_name.split(' ')[0] }) : t("You're registered")}

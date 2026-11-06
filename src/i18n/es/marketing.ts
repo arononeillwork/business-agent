@@ -32,11 +32,11 @@ export default {
   'Change it in one place. It’s changed {em}': 'Cámbialo en un solo sitio. Cambia {em}',
   'everywhere.': 'en todas partes.',
   'A café sets up, closes on Sundays, adds Christmas and puts a price up, each in one place: Google Maps, its website, its till, its TV and its team follow.': 'Una cafetería se configura, cierra los domingos, añade la Navidad y sube un precio, cada cosa en un solo sitio: Google Maps, su web, su caja, su tele y su equipo se ponen al día.',
-  'Business Agent demo video': 'Vídeo de demostración de Business Agent',
+  'The Business Agent demo video': 'Vídeo de demostración de The Business Agent',
   'A day in the life': 'Un día cualquiera',
   'The same day, {em}': 'El mismo día, {em}',
   'without the chaos.': 'sin el caos.',
-  'From opening to closing: the checklists, the messages, the orders, the offers, the bills and the licences, before and with Business Agent.': 'De la apertura al cierre: las listas, los mensajes, los pedidos, las ofertas, las facturas y las licencias, antes y con Business Agent.',
+  'From opening to closing: the checklists, the messages, the orders, the offers, the bills and the licences, before and with The Business Agent.': 'De la apertura al cierre: las listas, los mensajes, los pedidos, las ofertas, las facturas y las licencias, antes y con The Business Agent.',
   'A day in the life of a café owner, video': 'Vídeo: un día en la vida de quien lleva una cafetería',
   // Landing page: FAQ
   'How does the free trial work?': '¿Cómo funciona la prueba gratis?',
@@ -121,7 +121,7 @@ export default {
   'privacy policy': 'política de privacidad',
   // Plan cards and Enterprise
   'Free': 'Gratis',
-  'Hello,\n\nWe’d like to talk about Business Agent Enterprise.\n\nBusiness:\nNumber of venues:\nPeople on the team (roughly):\nBest phone number:\n\nThank you': 'Hola:\n\nNos gustaría hablar sobre Business Agent Enterprise.\n\nNegocio:\nNúmero de locales:\nPersonas en el equipo (aprox.):\nMejor teléfono de contacto:\n\nGracias',
+  'Hello,\n\nWe’d like to talk about The Business Agent Enterprise.\n\nBusiness:\nNumber of venues:\nPeople on the team (roughly):\nBest phone number:\n\nThank you': 'Hola:\n\nNos gustaría hablar sobre The Business Agent Enterprise.\n\nNegocio:\nNúmero de locales:\nPersonas en el equipo (aprox.):\nMejor teléfono de contacto:\n\nGracias',
   'Billing period': 'Periodo de facturación',
   'Monthly': 'Mensual',
   'Yearly': 'Anual',
@@ -139,12 +139,12 @@ export default {
   'Prices in euros, excluding VAT. The {n}-month free trial is for the Business plan: add a card to start, nothing is charged until it ends, cancel any time.': 'Precios en euros, sin IVA. La prueba gratis de {n} meses es para el plan Business: añade una tarjeta para empezar, no se cobra nada hasta que termine y puedes cancelar cuando quieras.',
   'For groups, franchises and {em} operators.': 'Para grupos, franquicias y negocios {em}.',
   'multi-site': 'con varios locales',
-  'Business Agent across every venue, set up and supported by our team, with limits and terms that fit how you work.': 'Business Agent en todos tus locales, configurado y con soporte de nuestro equipo, con límites y condiciones a la medida de cómo trabajas.',
+  'The Business Agent across every venue, set up and supported by our team, with limits and terms that fit how you work.': 'The Business Agent en todos tus locales, configurado y con soporte de nuestro equipo, con límites y condiciones a la medida de cómo trabajas.',
   'Contact sales': 'Contactar con ventas',
   'or write to {email}': 'o escribe a {email}',
   'Included': 'Incluido',
   // Site header and footer
-  'Business Agent home': 'Inicio de Business Agent',
+  'The Business Agent home': 'Inicio de The Business Agent',
   'Site': 'Sitio',
   'Log in': 'Entrar',
   'Start free trial': 'Prueba gratis',
@@ -154,7 +154,7 @@ export default {
   'Legal': 'Legal',
   'Privacy policy': 'Política de privacidad',
   'Terms of service': 'Condiciones del servicio',
-  '© {year} Business Agent. All rights reserved.': '© {year} Business Agent. Todos los derechos reservados.',
+  '© {year} The Business Agent. All rights reserved.': '© {year} The Business Agent. Todos los derechos reservados.',
   // Pricing page
   'The {plan} plan is free for {months} months, with everything switched on. You add a card when you start; nothing is charged until the trial ends, and you can cancel before then in two clicks.': 'El plan {plan} es gratis durante {months} meses, con todo activado. Añades una tarjeta al empezar; no se cobra nada hasta que termina la prueba, y puedes cancelar antes en dos clics.',
   "What if the payment doesn't go through?": '¿Y si el pago no se completa?',
@@ -162,7 +162,7 @@ export default {
   'Is the price per person?': '¿El precio es por persona?',
   'No. Each plan is one price for the whole team, up to the number of people it includes.': 'No. Cada plan tiene un precio para todo el equipo, hasta el número de personas que incluye.',
   'What is the custom MCP connection?': '¿Qué es la conexión MCP personalizada?',
-  'It lets your own AI (Claude, ChatGPT, Cursor, n8n and others) read and run your business through Business Agent: "who is working Saturday?", "move Maria to the late shift". It is on every plan, including Free.': 'Permite que tu propia IA (Claude, ChatGPT, Cursor, n8n y otras) consulte y gestione tu negocio a través de Business Agent: "¿quién trabaja el sábado?", "pasa a María al turno de tarde". Está en todos los planes, también en Gratis.',
+  'It lets your own AI (Claude, ChatGPT, Cursor, n8n and others) read and run your business through The Business Agent: "who is working Saturday?", "move Maria to the late shift". It is on every plan, including Free.': 'Permite que tu propia IA (Claude, ChatGPT, Cursor, n8n y otras) consulte y gestione tu negocio a través de The Business Agent: "¿quién trabaja el sábado?", "pasa a María al turno de tarde". Está en todos los planes, también en Gratis.',
   'What is pay per use?': '¿Qué es el pago por uso?',
   'A few extras are charged only when you use them, instead of being in the monthly price. Today that’s AI music tracks for your stories and reels: {price} each on any paid plan, and {top} includes {free} free every month. You see the price before you make one, and the total is billed monthly with your plan.': 'Algunos extras se cobran solo cuando los usas, en lugar de ir en el precio mensual. Hoy son las pistas de música con IA para tus historias y reels: {price} cada una en cualquier plan de pago, y {top} incluye {free} gratis cada mes. Ves el precio antes de crear una, y el total se cobra cada mes junto con tu plan.',
   'Pay per use is charged only when you use it, billed monthly with your plan. Everything else is in the plan price.': 'El pago por uso solo se cobra cuando lo usas, cada mes junto con tu plan. Todo lo demás está incluido en el precio del plan.',
@@ -171,9 +171,9 @@ export default {
   'Can I switch plans later?': '¿Puedo cambiar de plan más adelante?',
   'Yes, up or down whenever you like. Moving up is prorated; plans are month to month, or yearly with two months free.': 'Sí, a uno superior o inferior cuando quieras. Al subir se prorratea; los planes son mes a mes, o anuales con dos meses gratis.',
   'We run several venues. What does Enterprise include?': 'Tenemos varios locales. ¿Qué incluye Enterprise?',
-  'Business Agent for every venue on one contract, set up and supported by our team: onboarding and data import, single sign-on, custom integrations, a named account manager and annual invoicing. Write to {email} and we’ll put together a plan for your group.': 'Business Agent para todos tus locales con un solo contrato, configurado y con soporte de nuestro equipo: puesta en marcha e importación de datos, inicio de sesión único, integraciones a medida, un gestor de cuenta asignado y facturación anual. Escribe a {email} y prepararemos un plan para tu grupo.',
+  'The Business Agent for every venue on one contract, set up and supported by our team: onboarding and data import, single sign-on, custom integrations, a named account manager and annual invoicing. Write to {email} and we’ll put together a plan for your group.': 'The Business Agent para todos tus locales con un solo contrato, configurado y con soporte de nuestro equipo: puesta en marcha e importación de datos, inicio de sesión único, integraciones a medida, un gestor de cuenta asignado y facturación anual. Escribe a {email} y prepararemos un plan para tu grupo.',
   'Not included': 'No incluido',
-  'Pricing · Business Agent': 'Precios · Business Agent',
+  'Pricing · The Business Agent': 'Precios · The Business Agent',
   'Start free. {em}': 'Empieza gratis. {em}',
   'Grow into it.': 'Crece con él.',
   'A free plan for the basics, and {months} months of {plan}, our top plan, on us. One price for the whole team.': 'Un plan gratis para lo básico, y {months} meses de {plan}, nuestro plan más completo, de regalo. Un precio para todo el equipo.',
@@ -213,7 +213,7 @@ export default {
   'Check your internet connection and try again. ({message})': 'Comprueba tu conexión a internet y vuelve a intentarlo. ({message})',
   // shared/plans.ts: plans
   'Try the basics with a very small team.': 'Prueba lo básico con un equipo muy pequeño.',
-  'A small team trying Business Agent: the rota, clock-ins and the legal hours record, free for ever.': 'Un equipo pequeño que prueba Business Agent: el cuadrante, los fichajes y el registro legal de horas, gratis para siempre.',
+  'A small team trying The Business Agent: the rota, clock-ins and the legal hours record, free for ever.': 'Un equipo pequeño que prueba The Business Agent: el cuadrante, los fichajes y el registro legal de horas, gratis para siempre.',
   'Help centre and email': 'Centro de ayuda y email',
   'For a small team getting organised.': 'Para un equipo pequeño que se organiza.',
   'One venue with a small team that wants its Google listing, email and files to look after themselves.': 'Un local con un equipo pequeño que quiere que su ficha de Google, el email y los archivos se gestionen solos.',
@@ -341,12 +341,12 @@ export default {
   'Sound on': 'Activar el sonido',
   'Sound off': 'Silenciar',
   // The Demos page, and the owner's morning video
-  'Demos · Business Agent': 'Demos · Business Agent',
+  'Demos · The Business Agent': 'Demos · The Business Agent',
   'Demos': 'Demos',
   'See it {em}': 'Míralo {em}',
   'from every side.': 'desde todos los ángulos.',
-  'Short films of a real café, Easy Beans Coffee, on Business Agent. Each shows it a different way: pick one, or watch them all.':
-    'Vídeos cortos de una cafetería real, Easy Beans Coffee, con Business Agent. Cada uno lo muestra de una manera: elige uno o míralos todos.',
+  'Short films of a real café, Easy Beans Coffee, on The Business Agent. Each shows it a different way: pick one, or watch them all.':
+    'Vídeos cortos de una cafetería real, Easy Beans Coffee, con The Business Agent. Cada uno lo muestra de una manera: elige uno o míralos todos.',
   'The films': 'Los vídeos',
   'Watch {title}': 'Ver «{title}»',
   'The idea': 'La idea',
@@ -354,8 +354,8 @@ export default {
   'A café closes on Sundays, adds Christmas and puts a price up, once each: everywhere it shows follows.':
     'Una cafetería cierra los domingos, añade la Navidad y sube un precio, una vez cada cosa: todos los sitios donde aparece se actualizan.',
   'A whole day': 'Un día entero',
-  'A café owner’s day before Business Agent, and the same day with it, from opening to closing.':
-    'El día de quien lleva una cafetería antes de Business Agent, y el mismo día con él, de la apertura al cierre.',
+  'A café owner’s day before The Business Agent, and the same day with it, from opening to closing.':
+    'El día de quien lleva una cafetería antes de The Business Agent, y el mismo día con él, de la apertura al cierre.',
   'An owner’s morning': 'Una mañana al frente del negocio',
   'Run your café from one place': 'Lleva tu cafetería desde un solo sitio',
   'Today and the advisor say what to do; each change is made once, and everywhere it shows follows.':
@@ -366,8 +366,8 @@ export default {
   'Just {em}': 'Solo {em}',
   'say it.': 'dilo.',
   'Just say it, video': 'Solo dilo, vídeo',
-  'Business Agent in Claude, ChatGPT or any AI that takes connectors: type it at the counter or say it on the phone, and the app and everywhere it shows follow at once.':
-    'Business Agent en Claude, ChatGPT o cualquier IA que admita conectores: escríbelo en la barra o dilo al móvil, y la app y todos los sitios donde se ve lo siguen al momento.',
+  'The Business Agent in Claude, ChatGPT or any AI that takes connectors: type it at the counter or say it on the phone, and the app and everywhere it shows follow at once.':
+    'The Business Agent en Claude, ChatGPT o cualquier IA que admita conectores: escríbelo en la barra o dilo al móvil, y la app y todos los sitios donde se ve lo siguen al momento.',
   'Typed or said to your own AI, in a sentence: the app, Google Maps, the website and the café TV follow at once.':
     'Escrito o dicho a tu propia IA, en una frase: la app, Google Maps, la web y la tele de la cafetería lo siguen al momento.',
   'Run your café {em}': 'Lleva tu cafetería {em}',

@@ -16,7 +16,7 @@ describe('the service role over every business is only used to find which busine
     'index.ts': 6,        // accounts (invites, passwords, sign-in emails, someone's account by email) and the jobs that run for each business
     'integrations.ts': 1, // the business whose Square account a webhook is for
     'menu.ts': 1,         // the business of an AI image Higgsfield finished
-    'referrals.ts': 2,    // the business whose referral code it is, or the Business Agent rep whose code it is
+    'referrals.ts': 2,    // the business whose referral code it is, or The Business Agent rep whose code it is
     'repPage.ts': 1,      // a rep's business, by their page's link
     'screens.ts': 1,      // a screen's business, by its link
   }

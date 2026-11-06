@@ -137,7 +137,7 @@ describe('Reach from Instagram', () => {
   })
 })
 
-describe('A Business Agent rep’s page (the hq_reps migration)', () => {
+describe('The page of a rep for The Business Agent (the hq_reps migration)', () => {
   it('has the businesses they brought and which rewards count by themselves; a café’s rep’s page doesn’t', async () => {
     answer('rep_page', () => ({ rep: { name: 'Julio' } }))
     answer('rep_page_businesses', () => ({ businesses: [{ name: 'Café Lola', kind: 'cafe' }], automatic: ['rule-50'] }))

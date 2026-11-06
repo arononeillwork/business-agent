@@ -1537,7 +1537,7 @@ export function createDemoApi(): Api {
   ]
   const DEMO_SECONDS = 20
   const musicLibrary: MusicTrack[] = DEMO_MUSIC.map(([key, title, moods, energy, bpm], i) => ({
-    id: `track-${key}`, source: 'starter', title, artist: 'Business Agent', url: `/demo/music/${key}.mp3`, duration_s: DEMO_SECONDS, bpm, energy, moods,
+    id: `track-${key}`, source: 'starter', title, artist: 'The Business Agent', url: `/demo/music/${key}.mp3`, duration_s: DEMO_SECONDS, bpm, energy, moods,
     genre: null, vocals: false, highlight_s: 0, waveform: null, licence: { kind: 'starter', provider: 'elevenlabs' }, saved: false, hidden: false,
     created_at: new Date(Date.now() - (i + 1) * 86_400_000).toISOString() }))
   const musicUses: MusicGeneration[] = []
@@ -3083,7 +3083,7 @@ export function createDemoApi(): Api {
       if (!previewOf(d)) throw new Error(`This kind of file opens in ${storageName(d.storage)}`)
       legalStorageOn(d.storage)
       return demoPdf(d.title, [`Demo copy: the real file stays in ${storageName(d.storage)}${d.location ? ` (${d.location})` : ''}.`,
-        'Business Agent only keeps where it is, and shows it from there.'])
+        'The Business Agent only keeps where it is, and shows it from there.'])
     },
     async brandDocuments() {
       if (!isStaff() && !isPartner()) return []
@@ -3134,7 +3134,7 @@ export function createDemoApi(): Api {
       if (!d || (!isStaff() && !isPartner())) throw new Error('That document isn’t on the Brand page')
       if (d.blob) return d.blob
       legalStorageOn(d.storage as LegalStorage)
-      return demoPdf(d.title, [`Demo copy: the real file stays in ${storageName(d.storage as LegalStorage)}.`, 'Business Agent shows it from there.'])
+      return demoPdf(d.title, [`Demo copy: the real file stays in ${storageName(d.storage as LegalStorage)}.`, 'The Business Agent shows it from there.'])
     },
     async invoices() {
       if (!readTax()) return []
@@ -3205,7 +3205,7 @@ export function createDemoApi(): Api {
     async emailMessage(id) {
       requireAdmin()
       const row = integ.integrations.find(i => (i.provider === 'gmail' || i.provider === 'outlook') && i.status === 'connected')
-      if (!row || !(row.external as { reads_mail?: boolean }).reads_mail) throw new Error('Allow Business Agent to read the mailbox first, on the Email page.')
+      if (!row || !(row.external as { reads_mail?: boolean }).reads_mail) throw new Error('Allow The Business Agent to read the mailbox first, on the Email page.')
       const m = demoEmails(row.provider as 'gmail' | 'outlook', row.account_label, suppliers, customers).find(x => x.id === id)
       if (!m) throw new Error('That email isn’t in the mailbox any more')
       return demoEmailFull(m, row.account_label)

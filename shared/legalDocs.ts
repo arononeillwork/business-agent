@@ -84,13 +84,13 @@ export interface StorageListing {
 export const MAX_PICK = 50
 
 /** Said on the page when Google Drive is connected but Business Agent has no key for Google's picker (GOOGLE_PICKER_API_KEY). */
-export const NO_GOOGLE_PICKER = msg('Choosing files from Google Drive isn’t switched on for Business Agent yet (it needs Google’s file picker). OneDrive works meanwhile.')
+export const NO_GOOGLE_PICKER = msg('Choosing files from Google Drive isn’t switched on for The Business Agent yet (it needs Google’s file picker). OneDrive works meanwhile.')
 
 /** Why a picked file wasn't added (shown next to its name). */
 export const SKIPPED = {
   already: msg('It’s already on the Legal page'),
   folder: msg('It’s a folder: choose the files in it'),
-  unshared: msg('Google Drive didn’t share it with Business Agent: choose it again in the picker'),
+  unshared: msg('Google Drive didn’t share it with The Business Agent: choose it again in the picker'),
   gone: msg('It isn’t there any more'),
 }
 

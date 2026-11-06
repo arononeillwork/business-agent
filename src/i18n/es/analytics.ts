@@ -36,8 +36,8 @@ export default {
   'Shown': 'Mostrada',
   'search|Position': 'Posición',
   'Connect Search Console to see how people find you on Google': 'Conecta Search Console para ver cómo te encuentra la gente en Google',
-  'Google Search Console is free. It shows what people searched for before they clicked through to your website, how often your site came up, and which pages they landed on. Business Agent only reads it.':
-    'Google Search Console es gratis. Muestra qué buscó la gente antes de entrar en tu web, cuántas veces apareció tu sitio y a qué páginas llegaron. Business Agent solo lo lee.',
+  'Google Search Console is free. It shows what people searched for before they clicked through to your website, how often your site came up, and which pages they landed on. The Business Agent only reads it.':
+    'Google Search Console es gratis. Muestra qué buscó la gente antes de entrar en tu web, cuántas veces apareció tu sitio y a qué páginas llegaron. The Business Agent solo lo lee.',
   'Make sure {site} is added and verified in Search Console (search.google.com/search-console).': 'Comprueba que {site} está añadida y verificada en Search Console (search.google.com/search-console).',
   'Add your website on the Business page, and make sure it is verified in Search Console (search.google.com/search-console).':
     'Añade tu web en la página Negocio y comprueba que está verificada en Search Console (search.google.com/search-console).',

@@ -98,7 +98,7 @@ invoices.post('/api/invoices/import', async c => {
   const type = taxFileType(b.name)
   if (!type) return c.json({ error: 'Use a PDF, a photo (JPEG, PNG, HEIC), a spreadsheet, a document or an e-invoice (XML)' }, 400)
   const box = await mailbox(db)
-  if (!box?.canRead) return c.json({ error: 'Allow Business Agent to read the mailbox first (Invoices → From email).' }, 400)
+  if (!box?.canRead) return c.json({ error: 'Allow The Business Agent to read the mailbox first (Invoices → From email).' }, 400)
   const id = emailId(box.provider, b.message, b.attachment)
   const { data: already } = await asPerson.from('invoices').select('id').eq('email_id', id).maybeSingle()
   if (already) return c.json({ error: 'That invoice is already in' }, 409)

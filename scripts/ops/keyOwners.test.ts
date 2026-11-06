@@ -15,7 +15,7 @@ describe('whose a key is', () => {
     expect(ownerOf(null, '')).toBe('unknown')
   })
 
-  it('says Easy Beans wherever its name appears, even next to Business Agent', () => {
+  it('says Easy Beans wherever its name appears, even next to The Business Agent', () => {
     expect(ownerOf('Business Agent', 'Easy Beans Coffee')).toBe('easy-beans')
   })
 
@@ -45,9 +45,9 @@ describe('what the check prints', () => {
   })
 
   it('reads the app name and support email off Google’s sign-in page', () => {
-    const html = `<script class="ds:5">AF_initDataCallback({key: 'ds:5', hash: '3', data:[null,null,null,[[null,"Business Agent"]]], sideChannel: {}});</script>
+    const html = `<script class="ds:5">AF_initDataCallback({key: 'ds:5', hash: '3', data:[null,null,null,[[null,"The Business Agent"]]], sideChannel: {}});</script>
       to continue to <button data-app-name="abc.supabase.co" data-third-party-email="arononeillwork@gmail.com">abc.supabase.co</button>`
-    expect(googleConsent(html)).toEqual({ name: 'Business Agent', email: 'arononeillwork@gmail.com', shownAs: 'abc.supabase.co' })
+    expect(googleConsent(html)).toEqual({ name: 'The Business Agent', email: 'arononeillwork@gmail.com', shownAs: 'abc.supabase.co' })
     expect(googleConsent('<html></html>')).toEqual({ name: null, email: null, shownAs: null })
   })
 
@@ -64,6 +64,6 @@ describe('what the check prints', () => {
     ])
     expect(md).toContain('**1 of 2**')
     expect(md.indexOf('Stripe')).toBeLessThan(md.indexOf('Cloudflare'))
-    expect(md).toContain('Move to Business Agent')
+    expect(md).toContain('Move to The Business Agent')
   })
 })

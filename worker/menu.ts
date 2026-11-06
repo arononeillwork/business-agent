@@ -68,7 +68,7 @@ menu.post('/api/menu/ai/connect', async c => {
   if (!secret && keyId.includes(':')) [keyId, secret] = [keyId.slice(0, keyId.indexOf(':')), keyId.slice(keyId.indexOf(':') + 1)]
   if (!keyId || !secret) return c.json({ error: 'Paste both the key ID and the secret' }, 400)
   if (keyId.length > 200 || secret.length > 500) return c.json({ error: 'That doesn’t look like a Higgsfield key' }, 400)
-  if (!c.env.INTEGRATION_KEY) return c.json({ error: 'Business Agent can’t keep keys yet: INTEGRATION_KEY isn’t set (see docs/INTEGRATIONS.md).' }, 500)
+  if (!c.env.INTEGRATION_KEY) return c.json({ error: 'The Business Agent can’t keep keys yet: INTEGRATION_KEY isn’t set (see docs/INTEGRATIONS.md).' }, 500)
   const key = { key_id: keyId, key_secret: secret }
   try {
     await higgsfield.prove(key)

@@ -210,7 +210,7 @@ describe('an email opened in the app', () => {
     await connectGmail(false)
     const res = await call('/api/email/messages/m9')
     expect(res.status).toBe(400)
-    expect((await res.json() as { error: string }).error).toBe('Allow Business Agent to read Gmail first, on the Email page.')
+    expect((await res.json() as { error: string }).error).toBe('Allow The Business Agent to read Gmail first, on the Email page.')
   })
 
   it('who it’s from and to, its HTML with the pictures inside it in place, and its files (not those pictures)', async () => {

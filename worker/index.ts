@@ -386,7 +386,7 @@ const provider = (env: Env, origin: string) => new OAuthProvider<Env>({
     const props: GrantProps = { userId: key.userId, name: '', accessToken: key.accessToken, refreshToken: '' }
     return { props, audience: `${origin}/mcp` }
   },
-  resourceMetadata: { resource: `${origin}/mcp`, resource_name: 'Business Agent' },
+  resourceMetadata: { resource: `${origin}/mcp`, resource_name: 'The Business Agent' },
 })
 
 /** A request over plain http from anywhere but this computer (http://localhost is `wrangler dev`). */

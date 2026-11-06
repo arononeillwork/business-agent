@@ -251,7 +251,7 @@ class Session {
   start() {
     this.listen(this.socket)
     this.socket.resume()
-    this.reply(220, this.server.o.greeting ?? 'Business Agent camera uploads')
+    this.reply(220, this.server.o.greeting ?? 'The Business Agent camera uploads')
   }
 
   private listen(s: Socket | TLSSocket) {

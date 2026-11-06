@@ -237,7 +237,7 @@ async function fromStorage(env: Env, db: SupabaseClient, d: Pick<LegalDocument, 
   } catch (e) {
     throw await broken(db, d.storage, e)
   }
-  if (res.status === 404 || res.status === 410) throw new LegalError(`It isn’t in ${storageName(d.storage)} any more (or Business Agent can no longer open it)`, 404)
+  if (res.status === 404 || res.status === 410) throw new LegalError(`It isn’t in ${storageName(d.storage)} any more (or The Business Agent can no longer open it)`, 404)
   if (!res.ok) {
     const said = await res.json().catch(() => ({})) as { error?: { message?: string } | string }
     const why = typeof said.error === 'string' ? said.error : said.error?.message ?? String(res.status)

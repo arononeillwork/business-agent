@@ -160,7 +160,7 @@ describe('Create with AI', () => {
 
 describe('putting music into a story or reel', () => {
   beforeEach(() => {
-    db.tables.music_tracks = [{ id: 't1', title: 'Sunday Morning', artist: 'Business Agent', url: `${APP}/media/music/sunday.mp3` }]
+    db.tables.music_tracks = [{ id: 't1', title: 'Sunday Morning', artist: 'The Business Agent', url: `${APP}/media/music/sunday.mp3` }]
   })
   const render = (patch: Record<string, unknown> = {}, e: Env = env) => post('/api/social/render', {
     kind: 'story', sources: [{ url: `${APP}/media/posts/sun.jpg`, type: 'image' }], track_id: 't1', start: 12, seconds: 15,
@@ -171,7 +171,7 @@ describe('putting music into a story or reel', () => {
     expect(res.status).toBe(200)
     const out = await res.json() as { media: { url: string; type: string }; ms: number }
     expect(apis.render.jobs).toEqual([{ kind: 'story', source: { url: `${APP}/media/posts/sun.jpg`, type: 'image' }, track: { url: `${APP}/media/music/sunday.mp3`, start: 12 },
-      seconds: 15, music_volume: 90, original_volume: 100, fade_in: true, fade_out: true, label: '♫ Sunday Morning · Business Agent' }])
+      seconds: 15, music_volume: 90, original_volume: 100, fade_in: true, fade_out: true, label: '♫ Sunday Morning · The Business Agent' }])
     expect(out).toMatchObject({ media: { type: 'video' }, ms: 8400 })
     expect(out.media.url).toMatch(/^https:\/\/app\.test\/media\/posts\/[\w-]+\.mp4$/)
     expect(r2.get(out.media.url.replace(`${APP}/media/`, ''))?.bytes.length).toBe(4096)
@@ -209,7 +209,7 @@ describe('the starter pack', () => {
     expect(await fillStarterPack(env, APP, 1)).toBe(STARTER[1].key)
     const first = db.table('music_tracks')[0]
     expect(first).toMatchObject({ source: 'starter', starter_key: 'sunday-morning', title: 'Sunday Morning', duration_s: 40, moods: STARTER[0].moods })
-    expect(first.licence).toMatchObject({ kind: 'starter', provider: 'elevenlabs', made_by: 'Business Agent' })
+    expect(first.licence).toMatchObject({ kind: 'starter', provider: 'elevenlabs', made_by: 'The Business Agent' })
     expect(apis.elevenlabs.asked[0]).toMatchObject({ prompt: STARTER[0].prompt, music_length_ms: 40000 })
     for (let i = 2; i < STARTER.length; i++) await fillStarterPack(env, APP, 1)
     expect(await fillStarterPack(env, APP, 1)).toBeNull()
@@ -235,7 +235,7 @@ describe('the AI assistant\'s music tools (MCP and the API)', () => {
   const JAZZ = '00000000-0000-4000-8000-0000000000a3'
   const photo = (x: string) => ({ url: `${APP}/media/posts/${x}.jpg`, type: 'image' })
   const track = (id: string, title: string, moods: string[], patch: Row = {}) => ({
-    id, title, artist: 'Business Agent', url: `${APP}/media/music/${id}.mp3`, source: 'starter', duration_s: 40, moods, energy: 3, bpm: 96,
+    id, title, artist: 'The Business Agent', url: `${APP}/media/music/${id}.mp3`, source: 'starter', duration_s: 40, moods, energy: 3, bpm: 96,
     vocals: false, saved: false, hidden: false, highlight_s: 12, ...patch,
   })
   const thePost = () => db.table('social_posts')[0]
@@ -274,7 +274,7 @@ describe('the AI assistant\'s music tools (MCP and the API)', () => {
 
   it('set_post_music: a track goes into the story now, with the fingerprint the app would make', async () => {
     const out = await call('set_post_music', { post_id: POST, track_id: TRACK, label: true }) as { music: Row }
-    expect(apis.render.jobs[0]).toMatchObject({ kind: 'story', source: photo('sun'), track: { start: 12 }, seconds: 15, original_volume: 0, label: '♫ Sunday Morning · Business Agent' })
+    expect(apis.render.jobs[0]).toMatchObject({ kind: 'story', source: photo('sun'), track: { start: 12 }, seconds: 15, original_volume: 0, label: '♫ Sunday Morning · The Business Agent' })
     const p = thePost()
     const file = (p.media as Row[])[0]
     expect(file).toMatchObject({ type: 'video' })

@@ -18,8 +18,8 @@ export default {
   'Connect Google Drive or OneDrive to keep photos and videos here: they’re kept in its Business Agent folder, in Content.':
     'Conecta Google Drive o OneDrive para guardar aquí fotos y vídeos: se guardan en su carpeta Business Agent, en Content.',
   'Connect Google Photos': 'Conectar Google Fotos',
-  'Bring in photos and videos from Google Photos: connect it once, then pick the ones you want. Business Agent sees only what you pick.':
-    'Trae fotos y vídeos de Google Fotos: conéctalo una vez y elige los que quieras. Business Agent solo ve lo que eliges.',
+  'Bring in photos and videos from Google Photos: connect it once, then pick the ones you want. The Business Agent sees only what you pick.':
+    'Trae fotos y vídeos de Google Fotos: conéctalo una vez y elige los que quieras. The Business Agent solo ve lo que eliges.',
   'Uploading {done} of {of}…': 'Subiendo {done} de {of}…',
   'Photos or videos': 'Fotos o vídeos',
   'Where from': 'De dónde',
