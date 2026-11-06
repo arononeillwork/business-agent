@@ -837,8 +837,8 @@ finds the logo on sites built in the browser. One scrape (`POST /v2/scrape`, for
 from the Worker's cache. When Firecrawl says no (out of credit, a site it can't open) the HTML alone answers.
 
 *firecrawl.dev → Dashboard → API Keys* → copy the key (`fc-…`) → repo secret `FIRECRAWL_API_KEY`. The
-deploy hands it to the Worker (`scripts/ops/worker-secrets.mjs`); until the deploy workflow passes it, set
-it once with `npx wrangler secret put FIRECRAWL_API_KEY`.
+next deploy hands it to the Worker (`scripts/ops/worker-secrets.mjs`; run **Actions → Deploy → Run
+workflow** to send it straight away), and the Feature board shows it as set.
 
 ## Social planner
 
