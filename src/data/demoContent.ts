@@ -4,7 +4,7 @@
 // and Google Photos for a pick; something picked before isn't brought in twice).
 import type { Api } from './api'
 import { FOLDER_DEPTH, NO_DRIVE_FOLDERS, folderFileKind, syncPlan, type ContentFolder, type FolderProvider, type FolderSync } from '../../shared/contentFolders'
-import { IMPORT_BATCH, cleanTags, contentProblem, titleFromFilename, type ContentItem, type GooglePhotosImport, type SkipReason } from '../../shared/content'
+import { IMPORT_BATCH, albumNameProblem, cleanTags, contentProblem, tidyAlbumName, titleFromFilename, type ContentAlbum, type ContentItem, type GooglePhotosImport, type SkipReason } from '../../shared/content'
 
 interface Who {
   isAdmin: () => boolean
@@ -18,7 +18,8 @@ interface Who {
 }
 
 type ContentApi = Pick<Api, 'contentItems' | 'uploadContent' | 'saveContentItem' | 'deleteContentItem' | 'startGooglePhotosPick' | 'googlePhotosPicked'
-  | 'importGooglePhotos' | 'cancelGooglePhotosPick' | 'contentFolders' | 'browseContentFolders' | 'addContentFolder' | 'syncContentFolder' | 'removeContentFolder'>
+  | 'importGooglePhotos' | 'cancelGooglePhotosPick' | 'contentFolders' | 'browseContentFolders' | 'addContentFolder' | 'syncContentFolder' | 'removeContentFolder'
+  | 'setContentFavourite' | 'deleteContentItems' | 'contentAlbums' | 'createAlbum' | 'renameAlbum' | 'deleteAlbum' | 'addToAlbum' | 'removeFromAlbum'>
 
 const RLS = 'new row violates row-level security policy for table "content_items"'
 const NO_STORAGE = 'Connect Google Drive or OneDrive on the Connections page first: the photos and videos are kept in its The Business Agent folder.'
@@ -60,11 +61,11 @@ const DRIVE: { id: string; name: string; parent: string; folder?: boolean; url?:
 export function demoContentApi(w: Who): ContentApi {
   const rows: ContentItem[] = [
     { id: 'content-1', kind: 'photo', url: picture('#F1E4E6', '#A85A68', CUP, 'iced-latte.jpg'), title: 'Iced oat latte', source: 'upload', source_id: null,
-      width: 1440, height: 1080, taken_at: null, tags: ['drinks', 'summer'], added_by: null, created_at: daysAgo(9) },
+      width: 1440, height: 1080, taken_at: null, tags: ['drinks', 'summer'], favourite: false, added_by: null, created_at: daysAgo(9) },
     { id: 'content-2', kind: 'photo', url: picture('#E7EFE4', '#5E7D4F', BEANS, 'ethiopia-beans.jpg'), title: 'Ethiopia Guji beans', source: 'upload', source_id: null,
-      width: 1440, height: 1080, taken_at: null, tags: ['coffee'], added_by: null, created_at: daysAgo(12) },
+      width: 1440, height: 1080, taken_at: null, tags: ['coffee'], favourite: false, added_by: null, created_at: daysAgo(12) },
     { id: 'content-3', kind: 'video', url: '/video/day-in-the-life.mp4', title: 'A day at Easy Beans', source: 'upload', source_id: null,
-      width: 1920, height: 1080, taken_at: null, tags: ['team', 'behind the scenes'], added_by: null, created_at: daysAgo(20) },
+      width: 1920, height: 1080, taken_at: null, tags: ['team', 'behind the scenes'], favourite: false, added_by: null, created_at: daysAgo(20) },
   ]
   // Synced folders: the demo's OneDrive has Pictures › Camera Roll, with a folder for 2025 in it.
   const folders: ContentFolder[] = []
@@ -85,12 +86,14 @@ export function demoContentApi(w: Who): ContentApi {
     for (const f of plan.add) {
       const k = folderFileKind(f.name)!
       rows.push({ id: w.uid(), kind: k.kind, url: f.url!, title: titleFromFilename(f.name), source: 'folder', source_id: f.id, folder_id: folder.id,
-        width: f.width ?? null, height: f.height ?? null, taken_at: daysAgo(f.taken ?? 0), tags: [], added_by: null, created_at: w.nowIso() })
+        width: f.width ?? null, height: f.height ?? null, taken_at: daysAgo(f.taken ?? 0), tags: [], favourite: false, added_by: null, created_at: w.nowIso() })
     }
     for (let j = rows.length - 1; j >= 0; j--) if (rows[j].folder_id === folder.id && plan.remove.includes(rows[j].source_id!)) rows.splice(j, 1)
     folder.last_synced_at = w.nowIso()
     return { added: plan.add.length, removed: plan.remove.length, total: files.length, skipped: all.length - files.length }
   }
+  // Albums: none to start with.
+  const albums: ContentAlbum[] = []
   // Picks under way: whether Google says they're done yet (the demo's admin "picks" straight away).
   const picks = new Map<string, { asked: number }>()
   let next = 1
@@ -113,7 +116,7 @@ export function demoContentApi(w: Who): ContentApi {
       }
       const ext = video ? (file.type === 'video/quicktime' ? 'mov' : 'mp4') : file.type.split('/')[1].replace('jpeg', 'jpg')
       const item: ContentItem = { id: w.uid(), kind: video ? 'video' : 'photo', url: `${URL.createObjectURL(file)}#upload.${ext}`, title: info.title?.trim() || null,
-        source: 'upload', source_id: null, width: info.width, height: info.height, taken_at: null, tags: [], added_by: null, created_at: w.nowIso() }
+        source: 'upload', source_id: null, width: info.width, height: info.height, taken_at: null, tags: [], favourite: false, added_by: null, created_at: w.nowIso() }
       rows.unshift(item)
       return structuredClone(item)
     },
@@ -188,7 +191,7 @@ export function demoContentApi(w: Who): ContentApi {
       for (const p of todo.slice(0, IMPORT_BATCH)) {
         if (!p.ready) { skipped.push({ id: p.id, name: `${p.title}.mp4`, reason: 'processing' satisfies SkipReason }); continue }
         const item: ContentItem = { id: w.uid(), kind: p.type, url: p.url, title: p.title, source: 'google_photos', source_id: p.id,
-          width: p.width, height: p.height, taken_at: daysAgo(p.taken), tags: [], added_by: null, created_at: w.nowIso() }
+          width: p.width, height: p.height, taken_at: daysAgo(p.taken), tags: [], favourite: false, added_by: null, created_at: w.nowIso() }
         rows.unshift(item)
         added.push(structuredClone(item))
       }
@@ -198,5 +201,56 @@ export function demoContentApi(w: Who): ContentApi {
       return { added, skipped, left, next_page: null, already: PICKS.filter(p => have.has(p.id)).length, total: count ? PICKS.length : null }
     },
     async cancelGooglePhotosPick(id) { picks.delete(id) },
+    async setContentFavourite(ids, on) {
+      needAdmin()
+      for (const r of rows) if (ids.includes(r.id)) r.favourite = on
+    },
+    async deleteContentItems(ids) {
+      needAdmin()
+      // As one at a time: a synced folder's are hidden; the rest go.
+      for (let i = rows.length - 1; i >= 0; i--) {
+        if (!ids.includes(rows[i].id)) continue
+        if (rows[i].source === 'folder') hidden.add(rows[i].id)
+        else rows.splice(i, 1)
+      }
+      // As the database: what's taken off leaves its albums.
+      for (const a of albums) a.item_ids = a.item_ids.filter(id => !ids.includes(id))
+    },
+    async contentAlbums() {
+      if (!w.isAdmin()) return []
+      const there = new Set(rows.filter(r => !hidden.has(r.id)).map(r => r.id))
+      return structuredClone(albums.map(a => ({ ...a, item_ids: a.item_ids.filter(id => there.has(id)) })))
+    },
+    async createAlbum(name) {
+      needAdmin()
+      const problem = albumNameProblem(name, albums)
+      if (problem) throw new Error(problem)
+      const a: ContentAlbum = { id: w.uid(), name: tidyAlbumName(name), created_at: w.nowIso(), item_ids: [] }
+      albums.push(a)
+      return a.id
+    },
+    async renameAlbum(id, name) {
+      needAdmin()
+      const problem = albumNameProblem(name, albums, id)
+      if (problem) throw new Error(problem)
+      const a = albums.find(x => x.id === id)
+      if (a) a.name = tidyAlbumName(name)
+    },
+    async deleteAlbum(id) {
+      needAdmin()
+      const i = albums.findIndex(x => x.id === id)
+      if (i >= 0) albums.splice(i, 1)
+    },
+    async addToAlbum(id, itemIds) {
+      needAdmin()
+      const a = albums.find(x => x.id === id)
+      if (!a) throw new Error('That album or photo isn’t here any more')
+      for (const item of itemIds) if (!a.item_ids.includes(item) && rows.some(r => r.id === item)) a.item_ids.push(item)
+    },
+    async removeFromAlbum(id, itemIds) {
+      needAdmin()
+      const a = albums.find(x => x.id === id)
+      if (a) a.item_ids = a.item_ids.filter(item => !itemIds.includes(item))
+    },
   }
 }

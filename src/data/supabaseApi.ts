@@ -29,7 +29,7 @@ import { NEWSLETTER_OFF, type NewsletterEvent, type NewsletterSettings } from '.
 import type { Contact } from '../../shared/contacts'
 import type { ClockStats } from '../../shared/leaderboard'
 import { FOLDER_COLUMNS, type ContentFolder, type FolderListing, type FolderSync } from '../../shared/contentFolders'
-import { CONTENT_COLUMNS, type ContentItem, type GooglePhotosImport, type GooglePhotosPick } from '../../shared/content'
+import { CONTENT_COLUMNS, tidyAlbumName, type ContentAlbum, type ContentItem, type GooglePhotosImport, type GooglePhotosPick } from '../../shared/content'
 import { storyState, tidyHighlightName, type InstagramHighlight } from '../../shared/highlights'
 import type { Contractor, OutsourcedJob } from '../../shared/outsourcing'
 import type { EmploymentContract, SalaryPer } from '../../shared/contracts'
@@ -677,8 +677,10 @@ export function createSupabaseApi(url: string, key: string, captchaKey?: string 
     },
     async saveContentItem({ id, title, tags }) { check(await sb.from('content_items').update({ title, tags }).eq('id', id)) },
     async deleteContentItem(id) {
-      // One from a synced folder is hidden (it's still in the folder, and the next look would bring it back).
+      // One from a synced folder is hidden (it's still in the folder, and the next look would bring it back), and
+      // leaves its albums; anything else goes (and its albums with it).
       check(await sb.from('content_items').update({ hidden: true }).eq('id', id).eq('source', 'folder'))
+      check(await sb.from('content_album_items').delete().eq('item_id', id))
       check(await sb.from('content_items').delete().eq('id', id).neq('source', 'folder'))
     },
     async contentFolders() {
@@ -694,6 +696,43 @@ export function createSupabaseApi(url: string, key: string, captchaKey?: string 
     importGooglePhotos: (id, skip, page, count) => worker<GooglePhotosImport>(`/api/content/google-photos/sessions/${encodeURIComponent(id)}/import`, {
       method: 'POST', body: JSON.stringify({ skip, page, count: !!count }) }),
     async cancelGooglePhotosPick(id) { await worker(`/api/content/google-photos/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' }) },
+    // A hundred ids at a time, so the address stays short.
+    async setContentFavourite(ids, on) {
+      for (let i = 0; i < ids.length; i += 100) check(await sb.from('content_items').update({ favourite: on }).in('id', ids.slice(i, i + 100)))
+    },
+    async deleteContentItems(ids) {
+      // As one at a time: a synced folder's are hidden and leave their albums; the rest go.
+      for (let i = 0; i < ids.length; i += 100) {
+        const some = ids.slice(i, i + 100)
+        check(await sb.from('content_items').update({ hidden: true }).in('id', some).eq('source', 'folder'))
+        check(await sb.from('content_album_items').delete().in('item_id', some))
+        check(await sb.from('content_items').delete().in('id', some).neq('source', 'folder'))
+      }
+    },
+    async contentAlbums() {
+      const [albums, items] = await Promise.all([
+        sb.from('content_albums').select('id, name, created_at').order('created_at'),
+        sb.from('content_album_items').select('album_id, item_id').order('added_at').limit(20000),
+      ])
+      const rows = check(items) as { album_id: string; item_id: string }[]
+      return (check(albums) as Omit<ContentAlbum, 'item_ids'>[]).map(a => ({ ...a, item_ids: rows.filter(r => r.album_id === a.id).map(r => r.item_id) }))
+    },
+    async createAlbum(name) {
+      return (check(await sb.from('content_albums').insert({ name: tidyAlbumName(name) }).select('id').single()) as { id: string }).id
+    },
+    async renameAlbum(id, name) { check(await sb.from('content_albums').update({ name: tidyAlbumName(name) }).eq('id', id)) },
+    async deleteAlbum(id) { check(await sb.from('content_albums').delete().eq('id', id)) },
+    async addToAlbum(id, itemIds) {
+      for (let i = 0; i < itemIds.length; i += 100) {
+        const chunk = itemIds.slice(i, i + 100)
+        const there = new Set((check(await sb.from('content_album_items').select('item_id').eq('album_id', id).in('item_id', chunk)) as { item_id: string }[]).map(r => r.item_id))
+        const rows = chunk.filter(item => !there.has(item)).map(item_id => ({ album_id: id, item_id }))
+        if (rows.length) check(await sb.from('content_album_items').insert(rows))
+      }
+    },
+    async removeFromAlbum(id, itemIds) {
+      for (let i = 0; i < itemIds.length; i += 100) check(await sb.from('content_album_items').delete().eq('album_id', id).in('item_id', itemIds.slice(i, i + 100)))
+    },
     async instagramHighlights() {
       type Story = { id: string; highlight_id: string; post_id: string; added_at: string | null
         social_posts: Pick<SocialPost, 'status' | 'results' | 'media' | 'scheduled_at' | 'published_at'> | null }

@@ -25,12 +25,14 @@ export interface ContentItem {
   /** When the photo was taken or the video made (Google Photos), if known. */
   taken_at: string | null
   tags: string[]
+  /** Starred, as a favourite in Google Photos (the `content_favourites_albums` migration). */
+  favourite: boolean
   added_by: string | null
   created_at: string
 }
 
 /** The columns read for an item (the page and the Worker). */
-export const CONTENT_COLUMNS = 'id, kind, url, title, source, source_id, width, height, taken_at, tags, added_by, created_at'
+export const CONTENT_COLUMNS = 'id, kind, url, title, source, source_id, width, height, taken_at, tags, favourite, added_by, created_at'
 
 /** What an admin changes on one: its title and tags. */
 export interface ContentChange { id: string; title: string | null; tags: string[] }
@@ -87,14 +89,20 @@ export interface ContentFilter {
   tag: string | null
   /** In the title or a tag. */
   search: string
+  /** Only the starred ones. */
+  favourites?: boolean
+  /** Only those in this album (its id). */
+  album?: string | null
 }
-export const NO_FILTER: ContentFilter = { kind: 'all', source: 'all', tag: null, search: '' }
+export const NO_FILTER: ContentFilter = { kind: 'all', source: 'all', tag: null, search: '', favourites: false, album: null }
 
-/** The items that match, newest first (by when they were taken, else when they were added). */
-export function filterContent(items: readonly ContentItem[], f: ContentFilter): ContentItem[] {
+/** The items that match, newest first (by when they were taken, else when they were added). `albums`: to find an album's. */
+export function filterContent(items: readonly ContentItem[], f: ContentFilter, albums: readonly ContentAlbum[] = []): ContentItem[] {
   const words = f.search.trim().toLowerCase().split(/\s+/).filter(Boolean)
+  const inAlbum = f.album ? new Set(albums.find(a => a.id === f.album)?.item_ids ?? []) : null
   return items
     .filter(i => (f.kind === 'all' || i.kind === f.kind) && (f.source === 'all' || i.source === f.source) && (!f.tag || i.tags.includes(f.tag)))
+    .filter(i => (!f.favourites || i.favourite) && (!inAlbum || inAlbum.has(i.id)))
     .filter(i => {
       const text = [i.title ?? '', ...i.tags].join(' ').toLowerCase()
       return words.every(w => text.includes(w))
@@ -160,4 +168,45 @@ export interface GooglePhotosImport {
   already: number
   /** How many were picked in all, when asked to count (the first round); null otherwise. */
   total: number | null
+}
+
+/** An album of the business's own (the `content_favourites_albums` migration): its photos and videos, each once. */
+export interface ContentAlbum {
+  id: string
+  name: string
+  created_at: string
+  /** What's in it, the first added first. */
+  item_ids: string[]
+}
+export const MAX_ALBUM_NAME = 60
+
+/** A name as kept: trimmed, single spaces. */
+export const tidyAlbumName = (name: string) => name.trim().replace(/\s+/g, ' ')
+
+/** What's wrong with an album's name (null: nothing): one, of up to 60 characters, not another album's. */
+export function albumNameProblem(name: string, others: readonly Pick<ContentAlbum, 'id' | 'name'>[], id?: string): string | null {
+  const n = tidyAlbumName(name)
+  if (!n) return msg('Give the album a name')
+  if ([...n].length > MAX_ALBUM_NAME) return msg('Keep the name to 60 characters')
+  if (others.some(o => o.id !== id && o.name.toLowerCase() === n.toLowerCase())) return msg('There’s an album with that name already')
+  return null
+}
+
+/** The album's picture: its first photo still on the page (a video's frame when it has no photo). */
+export function albumCover(a: Pick<ContentAlbum, 'item_ids'>, items: readonly ContentItem[]): ContentItem | null {
+  const there = a.item_ids.map(id => items.find(i => i.id === id)).filter((i): i is ContentItem => !!i)
+  return there.find(i => i.kind === 'photo') ?? there[0] ?? null
+}
+
+/** A file name for one being downloaded: its title (or its kind) and the file type its address ends in, each once. */
+export function downloadNames(items: readonly Pick<ContentItem, 'title' | 'kind' | 'url'>[]): string[] {
+  const used = new Map<string, number>()
+  return items.map(i => {
+    const base = (i.title ?? (i.kind === 'video' ? 'video' : 'photo')).replace(/[\\/:*?"<>|]+/g, '-').trim().slice(0, 80) || 'photo'
+    const ext = extensionOf(i.url) ?? (i.kind === 'video' ? 'mp4' : 'jpg')
+    const key = `${base}.${ext}`.toLowerCase()
+    const n = (used.get(key) ?? 0) + 1
+    used.set(key, n)
+    return n === 1 ? `${base}.${ext}` : `${base} (${n}).${ext}`
+  })
 }
