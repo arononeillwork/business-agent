@@ -87,6 +87,8 @@ do $$ begin
   assert (select supplies = '{fruit_veg,groceries}' from public.suppliers where name = 'Fruit test'), 'supplies kept';
   insert into public.suppliers (name) values ('Plain test');
   assert (select supplies = '{}' from public.suppliers where name = 'Plain test'), 'others start empty';
+  insert into public.suppliers (name, supplies) values ('Bakery test', '{food,bakery}');
+  assert (select supplies = '{food,bakery}' from public.suppliers where name = 'Bakery test'), 'a bakery is one of them';
 end $$;
 select pg_temp.expect_error($q$insert into public.suppliers (name, supplies) values ('Odd', '{furniture}')$q$, 'check constraint');
 reset role;

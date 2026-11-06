@@ -63,9 +63,9 @@ export const LOCATIONS = [msg('Bar'), msg('Storeroom'), msg('Fridge'), msg('Shop
 export const SUPPLIER_KINDS = [msg('Coffee roaster'), msg('Bakery'), msg('Dairy'), msg('Packaging'), msg('Cash & carry'), msg('Drinks'), msg('Cleaning'), msg('Ice cream')]
 
 /** What a supplier supplies, the filters on Suppliers (saved as the ids; suppliers_supplies in the database). */
-export type SupplyGroup = 'drinks' | 'food' | 'coffee' | 'fruit_veg' | 'groceries'
+export type SupplyGroup = 'drinks' | 'food' | 'bakery' | 'coffee' | 'fruit_veg' | 'groceries'
 export const SUPPLY_GROUPS: { id: SupplyGroup; label: string }[] = [
-  { id: 'drinks', label: msg('Drinks') }, { id: 'food', label: msg('Food') }, { id: 'coffee', label: msg('Coffee') },
+  { id: 'drinks', label: msg('Drinks') }, { id: 'food', label: msg('Food') }, { id: 'bakery', label: msg('Bakery') }, { id: 'coffee', label: msg('Coffee') },
   { id: 'fruit_veg', label: msg('Fruit & veg') }, { id: 'groceries', label: msg('Groceries') },
 ]
 export const isSupplyGroup = (g: unknown): g is SupplyGroup => SUPPLY_GROUPS.some(x => x.id === g)
@@ -79,6 +79,10 @@ const SUPPLY_WORDS: Record<SupplyGroup, { supplier: RegExp; item: RegExp; catego
   food: { supplier: /bak|bread|\bpan\b|panader|pasteler|patiss|boulang|food|comida|cake|deli|charcut|queso|cheese/,
     item: /croissant|pain au|cake|tarta|bread|\bpan\b|brownie|cookie|galleta|\btart|bagel|sandwich|bocadillo|toast|muffin|scone|quiche|cheese|queso|ham|jamon|egg|huevo/,
     categories: ['Bakery', 'Food'] },
+  // Bakeries are food too: a bakery shows under both. Their bread and pastries, not a cash & carry's biscuits.
+  bakery: { supplier: /bak|bread|\bpan\b|panader|pasteler|patiss|boulang|bolleria|viennois/,
+    item: /croissant|pain au|napolitana|caracola|ensaimada|baguette|sourdough|masa madre|brownie|\btarts?\b|tarta|muffin|scone|pastr|bolleria|viennois/,
+    categories: ['Bakery'] },
   fruit_veg: { supplier: /fruit|fruta|\bveg|verdur|produce|berry|berries|huerta|hortaliz|organic|ecologic/,
     item: /banana|platano|strawberr|fresa|blueberr|arandano|raspberr|frambuesa|berry|berries|acai|mango|avocado|aguacate|lemon|limon|\blime\b|\blima\b|orange|naranja|apple|manzana|\bmint\b|menta|spinach|espinaca|kale|tomato|tomate|cucumber|pepino|ginger|jengibre|pineapple|pina\b|kiwi|passion fruit|maracuya|coconut|\bcoco\b|lettuce|lechuga|basil|albahaca|carrot|zanahoria|beetroot|remolacha|pomegranate|granada|peach|melocoton|melon|watermelon|sandia|grape|\buva|\bpear\b|\bpera\b|\bfig\b|higo|pitaya|dragon fruit|fruit|fruta/,
     categories: [] },

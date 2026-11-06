@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   matchPriceList, bicProblem, cleanBankCode, formatIban, ibanProblem,
-  costWithVat, emailLink, isLow, lastPriceChanges, risesSince, nextOrderDay, orderList, orderMessage, readNumber, readStockCsv, retailMargin, stockValue, suggestedOrder, whatsappLink,
+  costWithVat, emailLink, isLow, lastPriceChanges, risesSince, nextOrderDay, orderList, orderMessage, readNumber, readStockCsv, retailMargin, stockValue, suggestedOrder, suppliesOf, whatsappLink,
   type StockItem, type Supplier,
 } from './stock'
 
@@ -179,5 +179,22 @@ describe('paying a supplier by bank transfer', () => {
     expect(bicProblem('bsches mm')).toBeNull()
     expect(bicProblem(null)).toBeNull()
     expect(bicProblem('BSCHESM')).toBe('A BIC is 8 or 11 letters and numbers, like BSCHESMMXXX')
+  })
+})
+
+describe('what a supplier supplies', () => {
+  it('finds a bakery from its type, name or items, and keeps it under food too', () => {
+    expect(suppliesOf({ name: 'By Eric', kind: 'Bakery', supplies: [] })).toEqual(['food', 'bakery'])
+    expect(suppliesOf({ name: 'Pan Bendito', kind: null, supplies: [] })).toEqual(['food', 'bakery'])
+    expect(suppliesOf({ name: 'Obrador Sur', kind: null }, [{ name: 'Croissants', category: null }])).toEqual(['food', 'bakery'])
+    expect(suppliesOf({ name: 'Obrador Sur', kind: null }, [{ name: 'Mini rolls', category: 'Bakery' }])).toEqual(['food', 'bakery'])
+  })
+
+  it('doesn’t take a cash & carry’s biscuits for a bakery', () => {
+    expect(suppliesOf({ name: 'Cash & Carry Marbella', kind: 'Cash & carry' }, [{ name: 'Galletas María', category: null }])).not.toContain('bakery')
+  })
+
+  it('keeps the admin’s choice once they tick it', () => {
+    expect(suppliesOf({ name: 'By Eric', kind: 'Bakery', supplies: ['bakery'] })).toEqual(['bakery'])
   })
 })

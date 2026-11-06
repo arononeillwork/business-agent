@@ -7751,6 +7751,10 @@ test.describe('UI round: business page, header, to do list, stock and suppliers'
     await expect(page.getByRole('article', { name: 'Tostadores del Sur' })).toBeVisible()
     await filters.getByRole('button', { name: /^Fruit & veg/ }).click()
     await expect(page.getByText('None of these supply fruit & veg')).toBeVisible()
+    // The bakery has a filter of its own.
+    await filters.getByRole('button', { name: /^Bakery/ }).click()
+    await expect(page.getByRole('article')).toHaveCount(1)
+    await expect(page.getByRole('article', { name: 'By Eric' })).toBeVisible()
     // Tick it on a supplier and it's there.
     await filters.getByRole('button', { name: 'All types' }).click()
     await page.getByRole('button', { name: 'Edit By Eric' }).click()
