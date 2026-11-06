@@ -35,6 +35,8 @@ export interface Offer {
   auto_for?: string | null
   /** Put on by a freshly made batch's discount (shared/freshBatches), until its shelf life ends. */
   fresh_batch_id?: string | null
+  /** Which of the batch's discounts it is: 2 the second, deeper one; the first's is 1 (or none, from before there were two). */
+  fresh_stage?: number | null
 }
 export type OfferInput = Omit<Offer, 'id' | 'updated_at'> & { id?: string }
 
