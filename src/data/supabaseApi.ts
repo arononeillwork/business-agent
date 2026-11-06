@@ -666,8 +666,8 @@ export function createSupabaseApi(url: string, key: string): Api {
     async deleteContentItem(id) { check(await sb.from('content_items').delete().eq('id', id)) },
     startGooglePhotosPick: () => worker<GooglePhotosPick>('/api/content/google-photos/sessions', { method: 'POST' }),
     googlePhotosPicked: id => worker<{ picked: boolean; poll_ms: number }>(`/api/content/google-photos/sessions/${encodeURIComponent(id)}`),
-    importGooglePhotos: (id, skip) => worker<GooglePhotosImport>(`/api/content/google-photos/sessions/${encodeURIComponent(id)}/import`, {
-      method: 'POST', body: JSON.stringify({ skip }) }),
+    importGooglePhotos: (id, skip, page, count) => worker<GooglePhotosImport>(`/api/content/google-photos/sessions/${encodeURIComponent(id)}/import`, {
+      method: 'POST', body: JSON.stringify({ skip, page, count: !!count }) }),
     async cancelGooglePhotosPick(id) { await worker(`/api/content/google-photos/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' }) },
     async instagramHighlights() {
       type Story = { id: string; highlight_id: string; post_id: string; added_at: string | null

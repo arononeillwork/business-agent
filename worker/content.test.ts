@@ -64,17 +64,24 @@ async function picked(picks: FakeProviders['googlePhotos']['picks']) {
   return p
 }
 
-/** Bring a pick in the way the page does: again while some are left, passing what was skipped. */
+/**
+ * Bring a pick in the way the page does: a page at a time, counting on the first round; the same page again
+ * while some are left, passing what was skipped; then the next page.
+ */
 async function bringIn(id: string) {
   const rounds: GooglePhotosImport[] = []
   const skip: string[] = []
+  let page: string | null = null
   for (;;) {
-    const res = await call(`/api/content/google-photos/sessions/${id}/import`, { method: 'POST', body: JSON.stringify({ skip }), headers: { 'content-type': 'application/json' } })
+    const res = await call(`/api/content/google-photos/sessions/${id}/import`, {
+      method: 'POST', body: JSON.stringify({ skip, page, count: !rounds.length }), headers: { 'content-type': 'application/json' } })
     expect(res.status).toBe(200)
     const r = await res.json() as GooglePhotosImport
     rounds.push(r)
     skip.push(...r.skipped.map(s => s.id))
-    if (!r.left) return rounds
+    if (r.left) continue
+    if (!r.next_page) return rounds
+    page = r.next_page
   }
 }
 
@@ -123,7 +130,7 @@ describe('Bringing photos and videos in from Google Photos', () => {
     const start = await call('/api/content/google-photos/sessions', { method: 'POST' })
     const p = await start.json() as GooglePhotosPick
     expect(p).toMatchObject({ picker_uri: `https://photos.google.com/picker/${p.id}/autoclose`, poll_ms: 4000, timeout_ms: 1_800_000 })
-    expect(apis.googlePhotos.sessions.get(p.id)?.max).toBe('100')
+    expect(apis.googlePhotos.sessions.get(p.id)?.max).toBe('2000')
 
     // Not picked yet: the page keeps waiting, and the connection is fine.
     expect(await (await call(`/api/content/google-photos/sessions/${p.id}`)).json()).toEqual({ picked: false, poll_ms: 4000 })
@@ -140,6 +147,7 @@ describe('Bringing photos and videos in from Google Photos', () => {
     const rounds = await bringIn(p.id)
     expect(rounds.map(r => r.added.length)).toEqual([IMPORT_BATCH, 8 - IMPORT_BATCH])
     expect(rounds.map(r => r.left)).toEqual([8 - IMPORT_BATCH, 0])
+    expect(rounds.map(r => r.total)).toEqual([8, null])
     expect(apis.googlePhotos.sessions.get(p.id)?.deleted).toBe(true)
 
     // Each file asked for with Google's token: photos at a size, the video as a video.
@@ -170,6 +178,27 @@ describe('Bringing photos and videos in from Google Photos', () => {
     const [round] = await bringIn(again.id)
     expect(round).toMatchObject({ added: [], skipped: [], left: 0, already: 8 })
     expect(db.table('content_items')).toHaveLength(8)
+  })
+
+  it('brings a big pick in a page (100) after another, says how many on the first round, and asks the library a page at a time', async () => {
+    await connect('google_drive')
+    await connect('google_photos')
+    const p = await picked(Array.from({ length: 230 }, (_, i) => photo(`gp-${i + 1}`, 10 + (i % 50))))
+    const rounds = await bringIn(p.id)
+    expect(rounds[0].total).toBe(230)
+    expect(rounds.slice(1).every(r => r.total === null)).toBe(true)
+    expect(rounds.reduce((n, r) => n + r.added.length, 0)).toBe(230)
+    expect(rounds.every(r => r.added.length <= IMPORT_BATCH)).toBe(true)
+    expect(db.table('content_items')).toHaveLength(230)
+    expect(new Set(db.table('content_items').map(r => r.source_id)).size).toBe(230)
+    expect(apis.googlePhotos.sessions.get(p.id)?.deleted).toBe(true)
+
+    // Picked again with 20 new ones: the 230 count as already there, page by page, once each.
+    const again = await picked([...apis.googlePhotos.picks, ...Array.from({ length: 20 }, (_, i) => photo(`gp-new-${i}`))])
+    const more = await bringIn(again.id)
+    expect(more[0].total).toBe(250)
+    expect(more.reduce((n, r) => n + r.added.length, 0)).toBe(20)
+    expect(db.table('content_items')).toHaveLength(250)
   })
 
   it('says why something wasn’t brought in: a video Google is still making, one too big, a kind it can’t keep', async () => {
