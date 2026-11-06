@@ -49,6 +49,7 @@ import { mergeSales } from '../shared/sales'
 import { LEGAL } from '../shared/legal'
 import { businessConfig } from '../shared/business.config'
 import { menuSections, type MenuItem } from '../shared/menu'
+import { signInCheck, signedInUser } from './signedIn'
 
 export { waConfig }
 
@@ -337,7 +338,7 @@ integrations.use('/api/integrations/*', async (c, next) => {
   const token = bearer(c.req.header('authorization'))
   if (!token) return c.json({ error: 'Not signed in' }, 401)
   const sb = userClient(c.env, token, 'app')
-  const [{ data: user }, { data: isAdmin }, { data: businessId }] = await Promise.all([sb.auth.getUser(token), sb.rpc('is_admin'), sb.rpc('current_business_id')])
+  const [{ data: user }, { data: isAdmin }, { data: businessId }] = await Promise.all([signedInUser(c.env, token), signInCheck(c.env, token, 'is_admin'), signInCheck(c.env, token, 'current_business_id')])
   if (!user.user || !isAdmin || !businessId) return c.json({ error: 'Only an admin can manage connections' }, 403)
   c.set('userId', user.user.id)
   c.set('businessId', businessId as number)
@@ -693,8 +694,7 @@ integrations.post('/api/integrations/music/playlist', async c => {
 integrations.use('/api/music/*', async (c, next) => {
   const token = bearer(c.req.header('authorization'))
   if (!token) return c.json({ error: 'Not signed in' }, 401)
-  const sb = userClient(c.env, token, 'app')
-  const [{ data: role }, { data: businessId }] = await Promise.all([sb.rpc('my_role'), sb.rpc('current_business_id')])
+  const [{ data: role }, { data: businessId }] = await Promise.all([signInCheck(c.env, token, 'my_role'), signInCheck(c.env, token, 'current_business_id')])
   if (!role || !businessId) return c.json({ error: 'Not allowed' }, 403)
   c.set('businessId', businessId as number)
   await next()
@@ -702,7 +702,7 @@ integrations.use('/api/music/*', async (c, next) => {
 
 /** Café music player: the team (not partners or the tablet account) browses the café account's playlists. */
 const isTeam = async (c: { env: Env; req: { header: (n: string) => string | undefined } }) => {
-  const { data: role } = await userClient(c.env, bearer(c.req.header('authorization'))!, 'app').rpc('my_role')
+  const { data: role } = await signInCheck(c.env, bearer(c.req.header('authorization'))!, 'my_role')
   return role === 'admin' || role === 'employee'
 }
 

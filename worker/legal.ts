@@ -15,6 +15,7 @@ import * as google from './providers/google'
 import * as ms from './providers/microsoft'
 import { LEGAL_STORAGES, MAX_PICK, NO_GOOGLE_PICKER, SKIPPED, guessKind, previewOf, storageName, titleOf, type LegalDocument, type LegalSource, type LegalStorage, type StorageItem, type StorageListing } from '../shared/legalDocs'
 import { ALREADY_ON_BRAND, BRAND_COLUMNS, brandTitleOf, type BrandDocument } from '../shared/brandDocs'
+import { signInCheck } from './signedIn'
 
 export const legal = new Hono<{ Bindings: Env; Variables: { token: string } }>()
 
@@ -34,7 +35,7 @@ legal.use('/api/legal/*', signedIn)
 legal.use('/api/brand/*', signedIn)
 
 async function needAdmin(env: Env, token: string, what = 'legal documents') {
-  const { data } = await userClient(env, token, 'app').rpc('is_admin')
+  const { data } = await signInCheck(env, token, 'is_admin')
   if (!data) throw new LegalError(`Only admins add ${what}`, 403)
 }
 

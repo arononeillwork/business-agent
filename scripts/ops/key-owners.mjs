@@ -5,7 +5,7 @@
 // only the names and ids the providers give back, with emails and phone numbers shortened. Also
 // writes key-owners.json for the run's artifact. Always exits 0: a refused key is a finding, not a
 // failed run.
-import { appendFileSync, readFileSync, writeFileSync } from 'node:fs'
+import { appendFileSync, writeFileSync } from 'node:fs'
 import { googleConsent, maskEmail, microsoftDirectory, ownerOf, phoneOf, scrub, summaryMarkdown, verdictOf } from './keyOwners.mjs'
 
 const env = process.env
@@ -141,19 +141,20 @@ async function google() {
 async function microsoft() {
   const settings = await auth()
   const id = settings?.external_azure_client_id || ''
-  const name = /APP_NAME:\s*(.+)/.exec(readFileSync('.github/workflows/setup-microsoft-login.yml', 'utf8'))?.[1]?.trim() ?? ''
   const row = {
     account: 'Microsoft app: Microsoft sign-in, Outlook, OneDrive',
     keys: ['Supabase sign-in settings', 'Worker secrets MS_CLIENT_ID, MS_CLIENT_SECRET'], role: 'platform', set: !!(settings?.external_azure_enabled && id),
-    fix: 'Create it again in The Business Agent’s own Microsoft directory: change APP_NAME in setup-microsoft-login.yml to “The Business Agent” and run that workflow with its tenant input, then verify the publisher. Easy Beans reconnects Outlook and OneDrive once.',
+    fix: 'Run Actions → Set up Microsoft sign-in with The Business Agent’s own Microsoft directory as its tenant input (it makes the app “The Business Agent” there), then verify the publisher. Easy Beans reconnects Outlook and OneDrive once.',
   }
   if (!row.set) return row
   const page = await call(`https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${new URLSearchParams({ client_id: id, response_type: 'code', redirect_uri: CALLBACK, scope: 'openid email' })}`, { headers: BROWSER })
   const directory = microsoftDirectory(page.text)
+  // Whose the app is shows in the directory it lives in. Its name doesn't show before sign-in, and the
+  // workflow's APP_NAME is only what the next run would make.
   return {
     ...row,
-    owner: ownerOf(name, directory),
-    detail: `App “${name}” (named by setup-microsoft-login.yml; ${id}), in the directory “${directory ?? 'not shown'}”${directory === 'Default Directory' ? ', the one a personal Microsoft account gets' : ''}`,
+    owner: directory ? ownerOf(directory) : 'unknown',
+    detail: `App ${id}, in the directory “${directory ?? 'not shown'}”${directory === 'Default Directory' ? ', the one a personal Microsoft account gets' : ''}`,
   }
 }
 

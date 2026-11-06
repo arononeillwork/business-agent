@@ -3,21 +3,21 @@
 // daily budgets change the campaign on the platform itself, straight away (and what's kept is forgotten).
 import { Hono } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { bearer, requestDb, userClient, type Env } from './supabase'
+import { bearer, requestDb, type Env } from './supabase'
 import { explain, googleAdsSession, lasting, markBroken, metaAdsSession, setIntegration, type AdsExternal } from './connections'
 import { cached, forget, oldest } from './cache'
 import * as googleAds from './providers/googleAds'
 import * as metaAds from './providers/metaAds'
 import { AD_PLATFORMS, PLATFORM_NAMES, sumDays, type AdPlatform, type CampaignPatch, type PlatformReport } from '../shared/ads'
 import { minutesFor } from './refresh'
+import { signInCheck, signedInUser } from './signedIn'
 
 export const ads = new Hono<{ Bindings: Env; Variables: { userId: string } }>()
 
 ads.use('/api/ads/*', async (c, next) => {
   const token = bearer(c.req.header('authorization'))
   if (!token) return c.json({ error: 'Not signed in' }, 401)
-  const sb = userClient(c.env, token, 'app')
-  const [{ data: user }, { data: isAdmin }] = await Promise.all([sb.auth.getUser(token), sb.rpc('is_admin')])
+  const [{ data: user }, { data: isAdmin }] = await Promise.all([signedInUser(c.env, token), signInCheck(c.env, token, 'is_admin')])
   if (!user.user || !isAdmin) return c.json({ error: 'Only an admin can see the ads' }, 403)
   const { data: me } = await (await requestDb(c)).from('profiles').select('can_see_pay').eq('id', user.user.id).single()
   if (!me?.can_see_pay) return c.json({ error: 'Ad spend is for admins with pay access' }, 403)

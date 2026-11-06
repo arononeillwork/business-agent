@@ -363,8 +363,11 @@ export interface Api {
   startGooglePhotosPick(): Promise<GooglePhotosPick>
   /** Whether the admin has finished picking. */
   googlePhotosPicked(id: string): Promise<{ picked: boolean; poll_ms: number }>
-  /** Bring in a few of what was picked; ask again while `left` is above 0, passing the ids skipped so far. */
-  importGooglePhotos(id: string, skip: string[]): Promise<GooglePhotosImport>
+  /**
+   * Bring in a few of a page of what was picked (`page` null: the first): ask again with the same page while
+   * `left` is above 0, passing the ids skipped so far, then with `next_page`. `count`: say how many were picked.
+   */
+  importGooglePhotos(id: string, skip: string[], page: string | null, count?: boolean): Promise<GooglePhotosImport>
   /** Give up on a pick (the window was closed without picking). */
   cancelGooglePhotosPick(id: string): Promise<void>
   // Synced folders (Content, admins; shared/contentFolders.ts): a OneDrive or Drive folder shown from where it is.

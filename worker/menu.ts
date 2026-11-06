@@ -9,7 +9,7 @@
 // here sent back to Square (pushSquarePrices()), so the till charges what the menu says.
 import { Hono } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { bearer, businessDb, requestDb, serviceClient, userClient, type Env } from './supabase'
+import { bearer, businessDb, requestDb, serviceClient, type Env } from './supabase'
 import { higgsfieldKey, markBroken, setIntegration, squareSession } from './connections'
 import { hmacHex, safeEqual, seal } from './crypto'
 import { storeMedia } from './media'
@@ -24,6 +24,7 @@ import {
   type PricePush,
 } from '../shared/menu'
 import type { BrandColour } from '../shared/types'
+import { signInCheck, signedInUser } from './signedIn'
 
 export const menu = new Hono<{ Bindings: Env; Variables: { userId: string } }>()
 
@@ -46,8 +47,7 @@ const status = (e: unknown) => (e instanceof MenuError ? e.status : e instanceof
 menu.use('/api/menu/*', async (c, next) => {
   const token = bearer(c.req.header('authorization'))
   if (!token) return c.json({ error: 'Not signed in' }, 401)
-  const sb = userClient(c.env, token, 'app')
-  const [{ data: user }, { data: isAdmin }] = await Promise.all([sb.auth.getUser(token), sb.rpc('is_admin')])
+  const [{ data: user }, { data: isAdmin }] = await Promise.all([signedInUser(c.env, token), signInCheck(c.env, token, 'is_admin')])
   if (!user.user || !isAdmin) return c.json({ error: 'Only admins change the menu and its images' }, 403)
   c.set('userId', user.user.id)
   await next()

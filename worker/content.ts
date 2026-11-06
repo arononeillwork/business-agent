@@ -1,20 +1,22 @@
 // Content page (Marketing, admins): photos and videos brought in from Google Photos. Google's Photos
 // Picker API is the only way in: the page opens Google Photos' own picker in a window of its own
-// (it can't sit inside the page), the admin picks, and the page asks here until Google says they're
-// done. Then it asks here to bring them in, a few at a time (each is a download from Google and an
-// upload to storage, and a Worker run can only make so many requests): each one is copied into the
+// (it can't sit inside the page), the admin picks (up to 2000), and the page asks here until Google
+// says they're done. Then it asks here to bring them in, a page of the pick (100) after another and a
+// few at a time (each is a download from Google and an upload to storage, and a Worker run can only
+// make so many requests): each one is copied into the
 // café's storage (The Business Agent/Content in Google Drive or OneDrive, or R2), since Google's links
 // to what was picked last only an hour, and listed on the page (content_items). Something picked
 // before isn't brought in twice (Google keeps each item's id). Uploads from the device go through
 // /api/integrations/media?folder=Content and the page adds their row itself.
 import { Hono } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { bearer, businessDb, userClient, type Env } from './supabase'
+import { bearer, businessDb, type Env } from './supabase'
 import { connectorGrant, explain, lasting, markBroken, setIntegration } from './connections'
 import * as photos from './providers/googlePhotos'
 import { MediaError, checkFile, mediaStorage, storeMedia } from './media'
 import { folderRoutes } from './contentFolders'
-import { CONTENT_COLUMNS, CONTENT_FOLDER, IMPORT_BATCH, MAX_PICK, autoclose, titleFromFilename, type ContentItem, type SkipReason } from '../shared/content'
+import { CONTENT_COLUMNS, CONTENT_FOLDER, IMPORT_BATCH, MAX_PICK, autoclose, titleFromFilename, type ContentItem, type GooglePhotosImport, type SkipReason } from '../shared/content'
+import { signInCheck, signedInUser } from './signedIn'
 
 type Vars = { userId: string; businessId: number }
 export const content = new Hono<{ Bindings: Env; Variables: Vars }>()
@@ -30,8 +32,7 @@ const NO_STORAGE = 'Connect Google Drive or OneDrive on the Connections page fir
 content.use('/api/content/*', async (c, next) => {
   const token = bearer(c.req.header('authorization'))
   if (!token) return c.json({ error: 'Not signed in' }, 401)
-  const sb = userClient(c.env, token, 'app')
-  const [{ data: user }, { data: isAdmin }, { data: businessId }] = await Promise.all([sb.auth.getUser(token), sb.rpc('is_admin'), sb.rpc('current_business_id')])
+  const [{ data: user }, { data: isAdmin }, { data: businessId }] = await Promise.all([signedInUser(c.env, token), signInCheck(c.env, token, 'is_admin'), signInCheck(c.env, token, 'current_business_id')])
   if (!user.user || !isAdmin || !businessId) return c.json({ error: 'Only an admin can add photos and videos' }, 403)
   c.set('userId', user.user.id)
   c.set('businessId', businessId as number)
@@ -147,35 +148,44 @@ async function bringIn(env: Env, db: SupabaseClient, origin: string, token: stri
   return { item: data as ContentItem }
 }
 
-// Bring in what was picked, a few at a time: the page asks again while `left` is above 0, passing the
-// ids it was told were skipped. Done, Google forgets the pick.
+// Bring in what was picked, a page (100) at a time and a few of it at once: the page asks again with the
+// same `page` while `left` is above 0, passing the ids it was told were skipped, then with `next_page`
+// until there's none. Asked to `count` (the first round), it says how many were picked in all. Done,
+// Google forgets the pick.
 content.post('/api/content/google-photos/sessions/:id/import', async c => {
   const db = businessDb(c.env, c.get('businessId'))
   const id = c.req.param('id')
-  const { skip } = await c.req.json<{ skip?: string[] }>().catch(() => ({ skip: undefined }))
+  const { skip, page, count } = await c.req.json<{ skip?: string[]; page?: string | null; count?: boolean }>()
+    .catch(() => ({ skip: undefined, page: undefined, count: undefined }))
   try {
     if (!await mediaStorage(c.env, db)) throw new ContentError(NO_STORAGE, 409)
     const token = await photosToken(c.env, db)
-    const picked = await ask(db, () => photos.pickedItems(token, id))
-    const ids = picked.map(p => p.id)
+    const [listed, total] = await Promise.all([
+      ask(db, () => photos.pickedPage(token, id, page || undefined)),
+      count ? ask(db, () => photos.pickedCount(token, id)) : Promise.resolve(null),
+    ])
+    const ids = listed.items.map(p => p.id)
     const { data: there } = ids.length
       ? await db.from('content_items').select('source_id').eq('source', 'google_photos').in('source_id', ids)
       : { data: [] as { source_id: string }[] }
     const have = new Set((there ?? []).map(r => r.source_id as string))
     const passed = new Set(skip ?? [])
-    const todo = picked.filter(p => !have.has(p.id) && !passed.has(p.id))
+    const todo = listed.items.filter(p => !have.has(p.id) && !passed.has(p.id))
+    const origin = new URL(c.req.url).origin
+    // A few side by side: each is a wait on Google and then on storage.
+    const outs = await Promise.all(todo.slice(0, IMPORT_BATCH).map(p => bringIn(c.env, db, origin, token, c.get('userId'), p).then(out => ({ p, out }))))
     const added: ContentItem[] = []
-    const skipped: { id: string; name: string | null; reason: SkipReason }[] = []
-    for (const p of todo.slice(0, IMPORT_BATCH)) {
-      const out = await bringIn(c.env, db, new URL(c.req.url).origin, token, c.get('userId'), p)
+    const skipped: GooglePhotosImport['skipped'] = []
+    for (const { p, out } of outs) {
       if ('item' in out) added.push(out.item)
       else skipped.push({ id: p.id, name: p.mediaFile?.filename ?? null, reason: out.skip })
     }
     const left = Math.max(0, todo.length - IMPORT_BATCH)
-    if (!left) await photos.deleteSession(token, id).catch(() => {})
+    if (!left && !listed.next) await photos.deleteSession(token, id).catch(() => {})
     if (added.length) await setIntegration(db, 'google_photos', { last_sync_at: new Date().toISOString(), last_error: null })
-    // `already`: picked, but in the library from before.
-    return c.json({ added, skipped, left, already: picked.filter(p => have.has(p.id)).length })
+    // `already`: of this page, picked but in the library from before.
+    const out: GooglePhotosImport = { added, skipped, left, next_page: listed.next, already: listed.items.filter(p => have.has(p.id)).length, total }
+    return c.json(out)
   } catch (e) {
     return c.json(fail(e), statusOf(e))
   }

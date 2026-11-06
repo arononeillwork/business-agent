@@ -6,19 +6,20 @@
 // nearby (from the weekly look) and about places Google shows as closed.
 import { Hono } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { bearer, requestDb, secretPlaceId, userClient, type Env } from './supabase'
+import { bearer, requestDb, secretPlaceId, type Env } from './supabase'
 import { findPlaces, nearbyCafes, placeDetails, type PlaceDetails, type PlaceSummary } from './providers/places'
 import {
   DEFAULT_RADIUS, GOOGLE_EVERY_DAYS, NEW_PLACE_MAX_REVIEWS, distanceM, featuresFromGoogle, hoursFromGoogle, kindFromGoogle, priceLevelFromGoogle,
   suggestedThreat, type Competitor, type GoogleStatus, type NearbyPlace,
 } from '../shared/localCompetitors'
 import { today } from '../shared/time'
+import { signInCheck } from './signedIn'
 
 export const competitors = new Hono<{ Bindings: Env }>()
 
 competitors.use('/api/competitors/*', async (c, next) => {
   const token = bearer(c.req.header('authorization'))
-  const { data } = token ? await userClient(c.env, token, 'app').rpc('is_admin') : { data: false }
+  const { data } = token ? await signInCheck(c.env, token, 'is_admin') : { data: false }
   if (data !== true) return c.json({ error: 'Only an admin can see competitors' }, 403)
   await next()
 })

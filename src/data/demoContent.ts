@@ -178,7 +178,7 @@ export function demoContentApi(w: Who): ContentApi {
       p.asked++
       return { picked: p.asked >= 1, poll_ms: 600 }
     },
-    async importGooglePhotos(id, skip) {
+    async importGooglePhotos(id, skip, _page, count) {
       needPhotos()
       if (!picks.has(id)) throw new Error('That Google Photos pick has ended. Pick again.')
       const have = new Set(rows.map(r => r.source_id))
@@ -194,7 +194,8 @@ export function demoContentApi(w: Who): ContentApi {
       }
       const left = Math.max(0, todo.length - IMPORT_BATCH)
       if (!left) picks.delete(id)
-      return { added, skipped, left, already: PICKS.filter(p => have.has(p.id)).length }
+      // The demo's pick is one page.
+      return { added, skipped, left, next_page: null, already: PICKS.filter(p => have.has(p.id)).length, total: count ? PICKS.length : null }
     },
     async cancelGooglePhotosPick(id) { picks.delete(id) },
   }

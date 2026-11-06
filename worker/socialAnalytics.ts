@@ -5,7 +5,7 @@
 // `access: 'needs_scope'` instead of an error, and is never marked broken for it: posting still works.
 import { Hono } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { bearer, requestDb, userClient, type Env } from './supabase'
+import { bearer, requestDb, type Env } from './supabase'
 import {
   asksForStats, explain, facebookSession, instagramOAuth, instagramSession, lasting, linkedinOAuth, linkedinSession, markBroken, tiktokSession, type LinkedInExternal,
 } from './connections'
@@ -20,14 +20,14 @@ import {
 } from '../shared/socialAnalytics'
 import { minutesFor } from './refresh'
 import { addDays, today } from '../shared/time'
+import { signInCheck, signedInUser } from './signedIn'
 
 export const socialAnalytics = new Hono<{ Bindings: Env; Variables: { userId: string } }>()
 
 socialAnalytics.use('/api/analytics/*', async (c, next) => {
   const token = bearer(c.req.header('authorization'))
   if (!token) return c.json({ error: 'Not signed in' }, 401)
-  const sb = userClient(c.env, token, 'app')
-  const [{ data: user }, { data: isAdmin }] = await Promise.all([sb.auth.getUser(token), sb.rpc('is_admin')])
+  const [{ data: user }, { data: isAdmin }] = await Promise.all([signedInUser(c.env, token), signInCheck(c.env, token, 'is_admin')])
   if (!user.user || !isAdmin) return c.json({ error: 'Only an admin can see the analytics' }, 403)
   c.set('userId', user.user.id)
   await next()

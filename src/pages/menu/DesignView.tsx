@@ -57,7 +57,7 @@ export function DesignView({ items, allergens, brand }: { items: Item[]; allerge
   const facets = designFacets(ofFormat)
   const list = filterDesigns(ofFormat, { language: facets.languages.includes(language as MenuLanguage) ? language : 'all', kind: facets.kinds.includes(kind as MenuKind) ? kind : 'all' })
   const current = list.find(d => d.id === selected) ?? list[0] ?? null
-  const board = boardBrand(business?.name ?? '', brand)
+  const board = boardBrand(business?.name ?? '', brand, business?.id)
   const order = settings?.menu_sections ?? []
 
   // While images are being made: ask Higgsfield how they're going every few seconds (the webhook

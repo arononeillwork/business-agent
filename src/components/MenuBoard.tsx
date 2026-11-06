@@ -29,6 +29,8 @@ export type BoardDesign = Pick<MenuDesign, 'size' | 'mode' | 'style' | 'categori
 export interface BoardBrand {
   name: string
   logo?: string | null
+  /** No logo of its own yet: Easy Beans (business 1) shows its bundled one; any other business shows none. */
+  bundled?: boolean
   heading_font?: string | null
   body_font?: string | null
   /** The main colour (headings, the line under the title, the boxed menu's pink sections). */
@@ -37,12 +39,19 @@ export interface BoardBrand {
   second?: string | null
 }
 
-/** The board's brand from the Brand page (or a screen's feed): its logo, fonts, main colour and an accent colour. */
-export function boardBrand(name: string, b: { logo?: string | null; heading_font?: string | null; body_font?: string | null; colours?: BrandColour[] } | null | undefined): BoardBrand {
+/**
+ * The board's brand from the Brand page (or a screen's feed): its logo, fonts, main colour and an
+ * accent colour. `businessId`: whose board it is (the demo's, with none, is Easy Beans').
+ */
+export function boardBrand(name: string, b: { logo?: string | null; heading_font?: string | null; body_font?: string | null; colours?: BrandColour[] } | null | undefined,
+  businessId: number | null | undefined): BoardBrand {
   const colours = b?.colours ?? []
-  return { name, logo: b?.logo ?? null, heading_font: b?.heading_font, body_font: b?.body_font, accent: colours.find(c => c.role === 'primary')?.hex ?? null,
-    second: colours.filter(c => c.role === 'accent').at(-1)?.hex ?? null }
+  return { name, logo: b?.logo ?? null, bundled: (businessId ?? 1) === 1, heading_font: b?.heading_font, body_font: b?.body_font,
+    accent: colours.find(c => c.role === 'primary')?.hex ?? null, second: colours.filter(c => c.role === 'accent').at(-1)?.hex ?? null }
 }
+
+/** The logo at the top of a board: its own, else Easy Beans' bundled one for Easy Beans only. */
+export const boardLogo = (brand: BoardBrand) => brand.logo || (brand.bundled ? easyBeansLogoUrl : null)
 
 /** A price as the menu shows it (nothing to pay: "free", like the milks). */
 const priceText = (n: number) => (n === 0 ? t('free') : formatMoney(n))
@@ -282,8 +291,8 @@ function Boxed({ design, sections, markOf, image, brand, look, writing }: BodyPr
   return (
     <Box sx={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', p: portrait ? '5.5cqw 7cqw 3.5cqw' : '3.5cqh 4cqw 2.5cqh' }}>
       <Box sx={{ textAlign: 'center', mb: u(1.3) }}>
-        <Box component="img" src={brand.logo || easyBeansLogoUrl} alt="" sx={{ display: 'block', mx: 'auto', width: `min(${u(9)}, ${portrait ? 13 : 15}cqh)`, aspectRatio: '1',
-          objectFit: 'contain', borderRadius: '50%' }} />
+        {boardLogo(brand) && <Box component="img" src={boardLogo(brand)!} alt="" sx={{ display: 'block', mx: 'auto', width: `min(${u(9)}, ${portrait ? 13 : 15}cqh)`, aspectRatio: '1',
+          objectFit: 'contain', borderRadius: '50%' }} />}
         <Box sx={{ fontFamily: heading, fontWeight: 700, textTransform: 'uppercase', lineHeight: 1, letterSpacing: '0.01em', mt: u(0.7),
           fontSize: `min(${u(4.6)}, ${portrait ? 7.5 : 10}cqh, 14cqw)` }}>{title}</Box>
         {design.subtitle && <Box sx={{ fontSize: u(0.82), opacity: 0.75, mt: u(0.45) }}>{design.subtitle}</Box>}

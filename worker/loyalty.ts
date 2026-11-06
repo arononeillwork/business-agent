@@ -5,7 +5,7 @@
 // `status: 'reconnect'` (reads) or a plain "Reconnect Square…" (changes), never Square's own error.
 import { Hono, type MiddlewareHandler } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { bearer, requestDb, userClient, type Env } from './supabase'
+import { bearer, requestDb, type Env } from './supabase'
 import { connectedOf, explain, lasting, markBroken, squareSession } from './connections'
 import { cached, forget } from './cache'
 import { SquareError } from './providers/square'
@@ -13,6 +13,7 @@ import * as loyalty from './providers/squareLoyalty'
 import { adjustProblem, giftCardAmountProblem, type GiftCards, type LoyaltyState } from '../shared/loyalty'
 import { minutesFor } from './refresh'
 import { addDays, today, zonedIso } from '../shared/time'
+import { signInCheck } from './signedIn'
 
 export const loyaltyRoutes = new Hono<{ Bindings: Env }>()
 
@@ -25,7 +26,7 @@ class LoyaltyError extends Error {}
 const admins: MiddlewareHandler<{ Bindings: Env }> = async (c, next) => {
   const token = bearer(c.req.header('authorization'))
   if (!token) return c.json({ error: 'Not signed in' }, 401)
-  const { data: isAdmin } = await userClient(c.env, token, 'app').rpc('is_admin')
+  const { data: isAdmin } = await signInCheck(c.env, token, 'is_admin')
   if (!isAdmin) return c.json({ error: 'Only an admin can see loyalty and gift cards' }, 403)
   if (await connectedOf(await requestDb(c), ['square'] as const) !== 'square') return c.json({ error: NOT_CONNECTED }, 409)
   await next()

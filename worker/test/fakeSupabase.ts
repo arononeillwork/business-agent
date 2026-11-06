@@ -7,6 +7,7 @@
 // answers like the real one.
 import { PROVIDERS } from '../connections'
 import { CONNECTION_FEATURE } from '../../shared/plans'
+import { forgetSignIns } from '../signedIn'
 
 export type Row = Record<string, unknown>
 
@@ -107,6 +108,8 @@ export class FakeSupabase {
   private nextId = 1
 
   constructor() {
+    // A new Supabase: nothing the Worker remembers about sign-ins (worker/signedIn.ts) carries over.
+    forgetSignIns()
     this.tables.integrations = PROVIDERS.map(provider => ({
       provider, status: 'disconnected', account_label: null, external: {}, connected_by: null, connected_at: null,
       last_sync_at: null, last_error: null, last_checked_at: null, updated_at: null,

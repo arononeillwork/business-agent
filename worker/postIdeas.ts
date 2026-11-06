@@ -4,16 +4,16 @@
 // (/api/integrations/media, admins only). The idea itself is a row the app saves (the `post_ideas` migration).
 //   POST /api/post-ideas/media   a JPEG photo or an MP4/MOV video; { url, type }
 import { Hono } from 'hono'
-import { bearer, businessDb, userClient, type Env } from './supabase'
+import { bearer, businessDb, type Env } from './supabase'
 import { checkFile, MediaError, storeMedia } from './media'
+import { signInCheck, signedInUser } from './signedIn'
 
 export const postIdeas = new Hono<{ Bindings: Env }>()
 
 postIdeas.post('/api/post-ideas/media', async c => {
   const token = bearer(c.req.header('authorization'))
   if (!token) return c.json({ error: 'Not signed in' }, 401)
-  const sb = userClient(c.env, token, 'app')
-  const [{ data: user }, { data: staff }, { data: businessId }] = await Promise.all([sb.auth.getUser(token), sb.rpc('is_staff'), sb.rpc('current_business_id')])
+  const [{ data: user }, { data: staff }, { data: businessId }] = await Promise.all([signedInUser(c.env, token), signInCheck(c.env, token, 'is_staff'), signInCheck(c.env, token, 'current_business_id')])
   if (!user.user || !staff || !businessId) return c.json({ error: 'Only the team adds photos and videos to ideas' }, 403)
   const type = (c.req.header('content-type') ?? '').split(';')[0].trim().toLowerCase()
   const declared = Number(c.req.header('content-length') ?? '') || null

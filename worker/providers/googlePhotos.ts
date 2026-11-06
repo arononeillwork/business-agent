@@ -64,17 +64,24 @@ export async function deleteSession(token: string, id: string) {
   }
 }
 
-/** Everything picked in the session (pages of 100). FAILED_PRECONDITION until the admin has finished picking. */
-export async function pickedItems(token: string, sessionId: string): Promise<PickedMediaItem[]> {
-  const items: PickedMediaItem[] = []
+/** One page of what was picked (up to 100), and the next page's token. FAILED_PRECONDITION until the admin has finished picking. */
+export async function pickedPage(token: string, sessionId: string, pageToken?: string): Promise<{ items: PickedMediaItem[]; next: string | null }> {
+  const q = new URLSearchParams({ sessionId, pageSize: '100', ...(pageToken ? { pageToken } : {}) })
+  const r = await photos<{ mediaItems?: PickedMediaItem[]; nextPageToken?: string }>(token, `/mediaItems?${q}`)
+  return { items: r.mediaItems ?? [], next: r.nextPageToken || null }
+}
+
+/** How many were picked in the session (Google says no other way than listing them; up to 2000, 20 pages). */
+export async function pickedCount(token: string, sessionId: string): Promise<number> {
+  let n = 0
   let page: string | undefined
-  do {
-    const q = new URLSearchParams({ sessionId, pageSize: '100', ...(page ? { pageToken: page } : {}) })
-    const r = await photos<{ mediaItems?: PickedMediaItem[]; nextPageToken?: string }>(token, `/mediaItems?${q}`)
-    items.push(...(r.mediaItems ?? []))
-    page = r.nextPageToken
-  } while (page && items.length < 2000)
-  return items
+  for (let i = 0; i < 25; i++) {
+    const r = await pickedPage(token, sessionId, page)
+    n += r.items.length
+    if (!r.next) break
+    page = r.next
+  }
+  return n
 }
 
 /** "5s", "3.5s" → milliseconds (`fallback` when Google didn't say). */

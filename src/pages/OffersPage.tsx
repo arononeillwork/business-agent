@@ -102,7 +102,7 @@ export function OffersPage() {
   // picture slideshows show the live offers' pictures by themselves).
   const [picking, setPicking] = useState<{ screenId: string | null } | null>(null)
   useTick(30_000)
-  const brand = boardBrand(business?.name ?? '', brandRow.data ? { ...brandRow.data, logo: brandRow.data.logo_mark ?? brandRow.data.logo } : null)
+  const brand = boardBrand(business?.name ?? '', brandRow.data ? { ...brandRow.data, logo: brandRow.data.logo_mark ?? brandRow.data.logo } : null, business?.id)
   const storage = integ.data?.media_storage ?? null
   const connected = (p: string) => !!integ.data?.integrations.some(i => i.provider === p && i.status === 'connected')
   const screenList = screens.data ?? []

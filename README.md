@@ -163,6 +163,12 @@ built-in **AI connector** so owners can run it by talking to Claude.
   Starter goes a step faster, Pro two, and Business picks the fastest or types its own number of minutes, each within
   what the service allows. The Worker keeps to the plan in force, so a business back on Free goes back to the usual
   times by itself (`settings.refresh_minutes`, the `refresh_rates` migration, `shared/refresh.ts`, `worker/refresh.ts`).
+- The minute job's turns (`worker/schedule.ts`): each run may make only 50 outside requests (Cloudflare's limit for
+  a Worker's run, the database's included), and past that every request fails quietly. So the work that reads outside
+  services (Google Maps hours, Instagram mentions, Square customers and menu, reviews, the cameras' clean-up, the music
+  starter pack) has a minute of its own, no two of a business's in the same minute at their usual times, and each
+  business goes a minute or more after the one before. When the hourly ones all sat on the quarter hours with the
+  Google hours sync, they ran out of requests and never ran.
 - People (Team section): the team as a hierarchy, the owners at the top, then the shop managers, then the
   employees, each with the roles they hold on Roles & responsibilities (admins open someone on the Team
   page from there). **Show pets** puts everyone's dogs (and cats) under them with their photos. Each person
@@ -264,6 +270,10 @@ built-in **AI connector** so owners can run it by talking to Claude.
   circle); the circle shows how many are still to add, and opening it lists its stories with **Open in
   Instagram** and **Mark added** (`src/pages/ContentHighlights.tsx`, `shared/highlights.ts`, the
   `instagram_highlights` migration).
+- A Google Photos pick on Content takes up to 2,000 photos and videos (Google's most), so a whole album or
+  month comes in one go. They come in a page of the pick (100) after another and five at a time side by side;
+  the first round says how many were picked, so the progress bar is true to it, and the list on the page
+  catches up every few seconds (`worker/content.ts`, `pickedPage()` in `worker/providers/googlePhotos.ts`).
 - Content shows a OneDrive folder's photos and videos straight from it (**Show a folder**: look through the
   OneDrive folder by folder and choose one; three folders deep, up to 5,000). Nothing is copied: each is
   listed with an address the Worker serves from the folder itself, and the folder is looked at again when the

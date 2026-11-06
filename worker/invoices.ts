@@ -13,13 +13,14 @@ import { keepTaxFile, TaxError } from './tax'
 import { autoFolder, guessPeriod, safeFileName, taxFileType, MAX_TAX_FILE_BYTES, quarterOf } from '../shared/tax'
 import { dueFrom, emailId, matchSupplier, numberFromName, readFacturae, supplierMailQuery, type InboxInvoice, type InboxState } from '../shared/invoices'
 import { minutesFor } from './refresh'
+import { signInCheck } from './signedIn'
 
 export const invoices = new Hono<{ Bindings: Env; Variables: { token: string } }>()
 
 invoices.use('/api/invoices/*', async (c, next) => {
   const token = bearer(c.req.header('authorization'))
   if (!token) return c.json({ error: 'Not signed in' }, 401)
-  const { data: allowed } = await userClient(c.env, token, 'app').rpc('can_see_pay')
+  const { data: allowed } = await signInCheck(c.env, token, 'can_see_pay')
   if (!allowed) return c.json({ error: 'Only admins with pay access manage invoices' }, 403)
   c.set('token', token)
   await next()

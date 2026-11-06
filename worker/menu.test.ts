@@ -260,7 +260,8 @@ describe('A screen’s link', () => {
     const res = await open(token)
     expect(res.status).toBe(200)
     expect(res.headers.get('cache-control')).toBe('no-store')
-    expect(await res.json()).toMatchObject({ screen: { name: 'Counter TV' } })
+    // Whose screen it is goes with it (Easy Beans, business 1, has a bundled logo for its menus).
+    expect(await res.json()).toMatchObject({ screen: { name: 'Counter TV' }, business: { name: 'Easy Beans', id: 1 } })
     expect((await open('0123456789abcdef0123456789abcdef')).status).toBe(404)
     expect((await open('not-a-token')).status).toBe(404)
   })
@@ -286,6 +287,7 @@ describe('A screen’s short link', () => {
     // Another business's: its number in the link; the same name is its own screen.
     expect(await playing('/display-menu/2/cafe-tv')).toBe('screen d')
     expect(await playing('/display-menu/2')).toBe('screen d')
+    expect(((await (await open('/display-menu/2/cafe-tv')).json()) as { business: { id: number } }).business.id).toBe(2)
     const res = await open('/display-menu/cafe-tv')
     expect(res.headers.get('cache-control')).toBe('no-store')
     for (const gone of ['/display-menu/nope', '/display-menu/3/cafe-tv', '/display-menu/0/cafe-tv', '/display-menu/Cafe%20TV', '/display-menu/2/cake-promo']) {
