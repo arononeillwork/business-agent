@@ -379,7 +379,7 @@ What shows where (admins who can see pay only; Pro plan and up):
   No programme yet: the page explains how to make one in Square (the app doesn't create programmes).
 - **Menu → Items → Menu from: Square** (admins; Custom is the default): the menu read from the Square
   item library (Items → Item library) straight away, within seconds of a change there (the webhook above)
-  and every hour at :15 (or at the rate chosen on Connections). Each item's category is its
+  and every hour (or at the rate chosen on Connections). Each item's category is its
   section, its first priced variation its price (Hot and Iced variations become hot and iced prices
   side by side; Sit In and Takeaway at one price are one price), and its description and photo come
   too; the modifier lists the items use (milks, syrups, an extra shot) become an **Extras** section.
