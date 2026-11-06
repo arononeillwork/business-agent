@@ -214,11 +214,11 @@ export const inMenu = (hidden: string[], name: string) => !MENU[name] || !hidden
  */
 export async function openFromMenu(page: Page, hidden: string[], name: string) {
   const nav = page.getByRole('navigation', { name: 'Main' })
+  await expect(nav.getByRole('link', { name: 'Pages', exact: true }).first()).toBeVisible(FIRST_SCREEN)
   if (inMenu(hidden, name)) {
     await nav.getByRole('link', { name, exact: true }).first().click()
     return
   }
-  await expect(nav.getByRole('link', { name: 'Pages', exact: true }).first()).toBeVisible({ timeout: 15_000 })
   await page.evaluate(path => {
     history.pushState({ usr: null, key: 'e2e', idx: ((history.state as { idx?: number } | null)?.idx ?? 0) + 1 }, '', path)
     dispatchEvent(new PopStateEvent('popstate', { state: history.state }))
@@ -226,6 +226,12 @@ export async function openFromMenu(page: Page, hidden: string[], name: string) {
 }
 
 export const HOOK_TIMEOUT = 120_000
+
+/**
+ * The first screen after signing in: Supabase's sign-in and first reads have taken 9 s and 4–7 s each
+ * at busy moments, so a page that waits 10 s timed out on a working app.
+ */
+export const FIRST_SCREEN = { timeout: 30_000 }
 
 export async function setUp(cfg: LiveConfig) {
   const admin = service(cfg)

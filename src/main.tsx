@@ -2,18 +2,14 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './App'
 import { applyPreferences, cachedPreferences } from './app/Appearance'
+import { reloadForNewVersion } from './app/newVersion'
 import { setLanguage, startingLanguage } from './i18n'
 
-// A tab opened before a deploy asks for page code the deploy replaced: reload once to pick up
-// the new version instead of showing a broken page.
+// A tab opened before a deploy asks for page code the deploy replaced: reload to pick up the new
+// version instead of showing a broken page (src/app/newVersion.tsx). Prevented, the failed import
+// gives nothing and the page waits for the reload; not, it fails and the page says so.
 window.addEventListener('vite:preloadError', event => {
-  const key = 'reloaded-for-new-version'
-  try {
-    if (Date.now() - Number(sessionStorage.getItem(key) ?? 0) < 10_000) return
-    sessionStorage.setItem(key, String(Date.now()))
-  } catch { /* storage blocked: still reload */ }
-  event.preventDefault()
-  location.reload()
+  if (reloadForNewVersion()) event.preventDefault()
 })
 
 // Open in the person's text size, contrast and font straight away (their theme follows on mount).

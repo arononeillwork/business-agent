@@ -15,6 +15,7 @@ import {
   PARTNER, PASSWORD, TEST_BUSINESS, TEST_ROW_PREFIX, USERS, addPartner, cleanUp, liveConfig, purgeTestAlerts, service, setUp,
   type LiveConfig, type UserKey,
   HOOK_TIMEOUT, recordNetwork, hiddenPages, inMenu, openFromMenu,
+  FIRST_SCREEN,
 } from './live/fixtures'
 
 // Every test fails on an uncaught error thrown by the app's own page (not Google's or Microsoft's).
@@ -92,7 +93,7 @@ async function signInUi(page: Page, email: string) {
   await page.getByRole('textbox', { name: 'Email' }).fill(email)
   await page.getByLabel('Password').fill(PASSWORD)
   await page.getByRole('button', { name: 'Sign in', exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'Sign in' })).toHaveCount(0, NET)
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toHaveCount(0, FIRST_SCREEN)
 }
 const signIn = (page: Page, who: UserKey) => signInUi(page, USERS[who].email)
 

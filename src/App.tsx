@@ -12,13 +12,18 @@ import { AppearanceSync } from './app/Appearance'
 import { LoginPage } from './pages/LoginPage'
 import { NotActive } from './pages/StatusPages'
 import { PlanGate } from './app/plan'
+import { NewVersionNotice, reloadForNewVersion } from './app/newVersion'
 import { Fragment, lazy, Suspense, useEffect, type ComponentType, type ReactNode } from 'react'
 import { preferredLanguage, setLanguage, useLanguage } from './i18n'
 import { isShortLink } from '../shared/screens'
 
-// Pages load when first opened, so the first screen is quick on phones.
+// Pages load when first opened, so the first screen is quick on phones. A page whose code a deploy
+// replaced waits for the reload that picks up the new version, or says it didn't open when reloading
+// hasn't helped (src/app/newVersion.tsx); without a module, main.tsx has already started the reload.
+const gone = (): Promise<{ default: ComponentType }> =>
+  reloadForNewVersion() ? new Promise(() => { /* the reload replaces the page */ }) : Promise.resolve({ default: NewVersionNotice })
 const page = <K extends string>(load: () => Promise<Record<K, ComponentType>>, name: K) =>
-  lazy(() => load().then(m => ({ default: m[name] })))
+  lazy(() => load().then(m => (m ? { default: m[name] } : gone()), gone))
 const TodayPage = page(() => import('./pages/TodayPage'), 'TodayPage')
 const MessagesPage = page(() => import('./pages/MessagesPage'), 'MessagesPage')
 const EmailPage = page(() => import('./pages/EmailPage'), 'EmailPage')
