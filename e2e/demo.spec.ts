@@ -10258,19 +10258,21 @@ test.describe('the app on a phone’s Home Screen', () => {
 })
 
 test.describe('content', () => {
-  test('content: photos and videos from Google Photos and the device, with titles and tags, made into a post', async ({ page }) => {
+  test('content: photos and videos from Google Photos and the device, laid out as Google Photos does, with titles and tags, made into a post', async ({ page }) => {
     // An employee has no Content in the menu, and the page sends them back to Today.
     await open(page, '/content', 'maria@example.com')
     const nav = page.getByRole('navigation', { name: 'Main' })
     await expect(nav.getByRole('link', { name: 'Content' })).toHaveCount(0)
     await expect(page.getByRole('heading', { name: 'Content', level: 1 })).toHaveCount(0)
 
-    // An admin: the café's own photos and video, and what's needed to bring in more.
+    // An admin: the café's own photos and video, day by day under their dates, and what's needed to bring in more.
     await signInAs(page, 'aron@example.com')
     await nav.getByRole('region', { name: 'Marketing' }).getByRole('link', { name: 'Content' }).click()
     await expect(page.getByRole('heading', { name: 'Content', level: 1 })).toBeVisible()
     const list = page.getByRole('list', { name: 'Photos and videos' })
-    await expect(list.getByRole('listitem')).toHaveText([/^Iced oat latte/, /^Ethiopia Guji beans/, /^A day at Easy Beans/])
+    const names = () => list.getByRole('listitem').evaluateAll(els => els.map(e => e.getAttribute('aria-label')))
+    await expect.poll(names).toEqual(['Iced oat latte', 'Ethiopia Guji beans', 'A day at Easy Beans'])
+    await expect(list.getByRole('heading', { level: 2 })).toHaveCount(3)
     await expect(page.getByRole('alert').filter({ hasText: 'Connect Google Drive or OneDrive to keep photos and videos here' })).toBeVisible()
     await expect(page.getByRole('alert').filter({ hasText: 'Bring in photos and videos from Google Photos' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'From Google Photos' })).toBeDisabled()
@@ -10294,8 +10296,13 @@ test.describe('content', () => {
     await pick.getByRole('button', { name: 'Done' }).click()
     await expect(list.getByRole('listitem')).toHaveCount(6)
     await page.getByRole('group', { name: 'Where from' }).getByRole('button', { name: 'Google Photos' }).click()
-    await expect(list.getByRole('listitem')).toHaveText([/^Terrace in the sun/, /^Flat white/, /^Croissants out of the oven/])
-    await expect(list.getByRole('listitem', { name: 'Terrace in the sun' })).toContainText('Google Photos')
+    await expect.poll(names).toEqual(['Terrace in the sun', 'Flat white', 'Croissants out of the oven'])
+    // Each at its own shape, in a row at one height: the flat white, taken upright, is narrower than the terrace.
+    const terraceBox = (await list.getByRole('listitem', { name: 'Terrace in the sun' }).boundingBox())!
+    const flatBox = (await list.getByRole('listitem', { name: 'Flat white' }).boundingBox())!
+    expect(Math.round(flatBox.height)).toBe(Math.round(terraceBox.height))
+    expect(flatBox.y).toBe(terraceBox.y)
+    expect(flatBox.width).toBeLessThan(terraceBox.width * 0.6)
 
     // Picking again adds nothing twice.
     await page.getByRole('button', { name: 'From Google Photos' }).click()
@@ -10304,44 +10311,84 @@ test.describe('content', () => {
     await pick.getByRole('button', { name: 'Done' }).click()
     await expect(list.getByRole('listitem')).toHaveCount(3)
 
+    // Opened, one fills the screen: the arrows (and the arrow keys) go through the others, and Info says what it is.
+    await list.getByRole('button', { name: 'Open Terrace in the sun' }).click()
+    const viewer = page.getByRole('dialog', { name: 'Terrace in the sun' })
+    await expect(viewer.getByRole('img', { name: 'Terrace in the sun' })).toBeVisible()
+    await expect(viewer.getByRole('button', { name: 'Previous' })).toHaveCount(0)
+    await viewer.getByRole('button', { name: 'Next' }).click()
+    await expect(page.getByRole('dialog', { name: 'Flat white' })).toBeVisible()
+    await page.keyboard.press('ArrowRight')
+    const croissants = page.getByRole('dialog', { name: 'Croissants out of the oven' })
+    await expect(croissants).toBeVisible()
+    await expect(croissants.getByRole('button', { name: 'Next' })).toHaveCount(0)
+    await page.keyboard.press('ArrowLeft')
+    await expect(page.getByRole('dialog', { name: 'Flat white' })).toBeVisible()
+    await page.keyboard.press('ArrowLeft')
+    await expect(viewer).toBeVisible()
+    await viewer.getByRole('button', { name: 'Info' }).click()
+    const info = viewer.getByRole('complementary', { name: 'Info' })
+    await expect(info).toContainText('No tags yet')
+    await expect(info).toContainText('2560 × 1920')
+    await expect(info).toContainText('Google Photos')
+
     // A title and tags, tidied; the tags become filters.
-    await list.getByRole('button', { name: 'More for Terrace in the sun' }).click()
+    await viewer.getByRole('button', { name: 'More' }).click()
     await page.getByRole('menuitem', { name: 'Title and tags' }).click()
     const edit = page.getByRole('dialog', { name: 'Title and tags' })
     await edit.getByRole('textbox', { name: 'Title' }).fill('The terrace at 10')
     await edit.getByRole('textbox', { name: 'Tags' }).fill('Terrace, summer , terrace')
     await edit.getByRole('button', { name: 'Save' }).click()
-    const terrace = list.getByRole('listitem', { name: 'The terrace at 10' })
-    await expect(terrace).toContainText('terrace')
+    const renamed = page.getByRole('dialog', { name: 'The terrace at 10' })
+    await expect(renamed.getByRole('complementary', { name: 'Info' })).toContainText('terrace')
+    await expect(renamed.getByRole('complementary', { name: 'Info' })).toContainText('summer')
+    await renamed.getByRole('button', { name: 'Close' }).click()
+    await expect(renamed).toHaveCount(0)
+    await expect(list.getByRole('listitem', { name: 'The terrace at 10' })).toBeVisible()
     await page.getByRole('group', { name: 'Where from' }).getByRole('button', { name: 'Anywhere' }).click()
     await page.getByRole('group', { name: 'Tags' }).getByRole('button', { name: 'summer · 2' }).click()
-    await expect(list.getByRole('listitem')).toHaveText([/^The terrace at 10/, /^Iced oat latte/])
+    await expect.poll(names).toEqual(['The terrace at 10', 'Iced oat latte'])
     await page.getByRole('group', { name: 'Tags' }).getByRole('button', { name: 'summer · 2' }).click()
     await page.getByRole('searchbox', { name: 'Search content' }).fill('croissants')
-    await expect(list.getByRole('listitem')).toHaveText([/^Croissants out of the oven/])
+    await expect.poll(names).toEqual(['Croissants out of the oven'])
     await page.getByRole('searchbox', { name: 'Search content' }).fill('')
 
-    // Two photos chosen make a carousel on the Social planner.
+    // Choosing: the circle on one, then (while any is chosen) a tap on another chooses it rather than opening it.
+    // Two photos make a carousel on the Social planner.
     await list.getByRole('checkbox', { name: 'Choose The terrace at 10' }).check()
-    await list.getByRole('checkbox', { name: 'Choose Flat white' }).check()
+    await list.getByRole('listitem', { name: 'Flat white' }).click()
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    await expect(list.getByRole('checkbox', { name: 'Choose Flat white' })).toBeChecked()
     await expect(page.getByText('2 chosen')).toBeVisible()
     await page.getByRole('button', { name: 'Make a post' }).click()
     const post = page.getByRole('dialog', { name: 'New post' })
     await expect(post.getByRole('group', { name: 'Photos and videos' })).toContainText('Photos and videos (2 of up to 10)')
     await post.getByRole('button', { name: 'Cancel' }).click()
+    // A day's circle, beside its date, chooses (or stops choosing) all of that day's.
+    const terraceDay = list.getByRole('checkbox', { name: /^Choose all from / }).first()
+    await expect(terraceDay).toBeChecked()
+    await terraceDay.uncheck()
+    await expect(list.getByRole('checkbox', { name: 'Choose The terrace at 10' })).not.toBeChecked()
+    await expect(page.getByText('1 chosen')).toBeVisible()
+    await page.getByRole('button', { name: 'Clear selection' }).click()
+    await expect(page.getByText('1 chosen')).toHaveCount(0)
 
-    // Uploaded from the device: a photo, kept as a JPEG, titled from its file name.
+    // Uploaded from the device: a photo, kept as a JPEG, titled from its file name, first under Today.
     const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64')
     await page.locator('input[type=file]').setInputFiles({ name: 'latte-art.png', mimeType: 'image/png', buffer: png })
     await toast(page, '1 added')
     await expect(list.getByRole('listitem').first()).toHaveAccessibleName('latte art')
+    await expect(list.getByRole('heading', { level: 2 }).first()).toHaveText('Today')
 
-    // Taken off the page (the file stays in the Drive).
-    await list.getByRole('button', { name: 'More for Ethiopia Guji beans' }).click()
-    await page.getByRole('menuitem', { name: 'Take off the page' }).click()
+    // Taken off the page where it's open (the file stays in the Drive): on to the next one.
+    await list.getByRole('button', { name: 'Open Ethiopia Guji beans' }).click()
+    await page.getByRole('dialog', { name: 'Ethiopia Guji beans' }).getByRole('button', { name: 'Take off the page' }).click()
     const sure = page.getByRole('dialog', { name: 'Take Ethiopia Guji beans off the page?' })
     await expect(sure).toContainText('The file stays in your Drive or OneDrive')
     await sure.getByRole('button', { name: 'Take off' }).click()
+    const next = page.getByRole('dialog', { name: 'A day at Easy Beans' })
+    await expect(next).toBeVisible()
+    await next.getByRole('button', { name: 'Close' }).click()
     await expect(list.getByRole('listitem', { name: 'Ethiopia Guji beans' })).toHaveCount(0)
   })
 })

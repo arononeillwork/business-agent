@@ -69,4 +69,11 @@ export default {
   'Too big to keep here (videos up to 100 MB).': 'Es demasiado grande para guardarlo aquí (vídeos de hasta 100 MB).',
   'Google Photos didn’t send this one. Pick it again.': 'Google Fotos no lo envió. Vuelve a elegirlo.',
   'Only photos and videos can be brought in.': 'Solo se pueden traer fotos y vídeos.',
+  // Laid out as Google Photos shows a library (ContentGallery).
+  'Clear selection': 'Quitar la selección',
+  'Choose all from {day}': 'Elegir todos los de {day}',
+  'Info': 'Información',
+  'Previous': 'Anterior',
+  'No tags yet': 'Aún sin etiquetas',
+  'Added on {date}': 'Añadido el {date}',
 } satisfies Record<string, string>

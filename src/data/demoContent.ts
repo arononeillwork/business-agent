@@ -33,12 +33,12 @@ const BEANS = '<ellipse cx="250" cy="240" rx="70" ry="100" fill="FG"/><ellipse c
 
 const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString()
 
-/** What the demo's Google Photos pick holds. */
-const PICKS: { id: string; type: 'photo' | 'video'; title: string; url: string; ready: boolean; taken: number }[] = [
-  { id: 'gp-terrace', type: 'photo', title: 'Terrace in the sun', url: picture('#E9DCC9', '#C9B79C', SUN, 'terrace.jpg'), ready: true, taken: 3 },
-  { id: 'gp-flat-white', type: 'photo', title: 'Flat white', url: picture('#F4E7D7', '#8B5E3C', CUP, 'flat-white.jpg'), ready: true, taken: 4 },
-  { id: 'gp-croissants', type: 'photo', title: 'Croissants out of the oven', url: picture('#FBEFE3', '#D9A35B', PASTRY, 'croissants.jpg'), ready: true, taken: 5 },
-  { id: 'gp-pour', type: 'video', title: 'Pour over', url: '/video/run-your-cafe.mp4', ready: false, taken: 1 },
+/** What the demo's Google Photos pick holds (some taken upright, as phones do: the page shows each at its own shape). */
+const PICKS: { id: string; type: 'photo' | 'video'; title: string; url: string; ready: boolean; taken: number; width: number; height: number }[] = [
+  { id: 'gp-terrace', type: 'photo', title: 'Terrace in the sun', url: picture('#E9DCC9', '#C9B79C', SUN, 'terrace.jpg'), ready: true, taken: 3, width: 2560, height: 1920 },
+  { id: 'gp-flat-white', type: 'photo', title: 'Flat white', url: picture('#F4E7D7', '#8B5E3C', CUP, 'flat-white.jpg'), ready: true, taken: 4, width: 1920, height: 2560 },
+  { id: 'gp-croissants', type: 'photo', title: 'Croissants out of the oven', url: picture('#FBEFE3', '#D9A35B', PASTRY, 'croissants.jpg'), ready: true, taken: 5, width: 2560, height: 1920 },
+  { id: 'gp-pour', type: 'video', title: 'Pour over', url: '/video/run-your-cafe.mp4', ready: false, taken: 1, width: 1080, height: 1920 },
 ]
 
 export function demoContentApi(w: Who): ContentApi {
@@ -113,7 +113,7 @@ export function demoContentApi(w: Who): ContentApi {
       for (const p of todo.slice(0, IMPORT_BATCH)) {
         if (!p.ready) { skipped.push({ id: p.id, name: `${p.title}.mp4`, reason: 'processing' satisfies SkipReason }); continue }
         const item: ContentItem = { id: w.uid(), kind: p.type, url: p.url, title: p.title, source: 'google_photos', source_id: p.id,
-          width: 2560, height: 1920, taken_at: daysAgo(p.taken), tags: [], added_by: null, created_at: w.nowIso() }
+          width: p.width, height: p.height, taken_at: daysAgo(p.taken), tags: [], added_by: null, created_at: w.nowIso() }
         rows.unshift(item)
         added.push(structuredClone(item))
       }
