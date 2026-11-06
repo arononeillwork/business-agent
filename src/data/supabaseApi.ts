@@ -28,6 +28,7 @@ import type { PostIdea } from '../../shared/postIdeas'
 import { NEWSLETTER_OFF, type NewsletterEvent, type NewsletterSettings } from '../../shared/newsletter'
 import type { Contact } from '../../shared/contacts'
 import type { ClockStats } from '../../shared/leaderboard'
+import { FOLDER_COLUMNS, type ContentFolder, type FolderListing, type FolderSync } from '../../shared/contentFolders'
 import { CONTENT_COLUMNS, type ContentItem, type GooglePhotosImport, type GooglePhotosPick } from '../../shared/content'
 import { storyState, tidyHighlightName, type InstagramHighlight } from '../../shared/highlights'
 import type { Contractor, OutsourcedJob } from '../../shared/outsourcing'
@@ -654,7 +655,15 @@ export function createSupabaseApi(url: string, key: string): Api {
     async deleteContact(id) { check(await sb.from('business_contacts').delete().eq('id', id)) },
 
     async contentItems() {
-      return check(await sb.from('content_items').select(CONTENT_COLUMNS).order('created_at', { ascending: false }).limit(2000)) as ContentItem[]
+      // A thousand at a time (a synced folder can hold thousands); the hidden ones (taken off a synced folder's) aren't shown.
+      const out: ContentItem[] = []
+      for (let from = 0; from < 20000; from += 1000) {
+        const page = check(await sb.from('content_items').select(`${CONTENT_COLUMNS}, folder_id`).eq('hidden', false)
+          .order('created_at', { ascending: false }).order('id').range(from, from + 999)) as ContentItem[]
+        out.push(...page)
+        if (page.length < 1000) break
+      }
+      return out
     },
     async uploadContent(file, info) {
       const { url, type } = await worker<{ url: string; type: 'image' | 'video' }>('/api/integrations/media?folder=Content', {
@@ -663,7 +672,19 @@ export function createSupabaseApi(url: string, key: string): Api {
         width: info.width, height: info.height, tags: [] }).select(CONTENT_COLUMNS).single()) as ContentItem
     },
     async saveContentItem({ id, title, tags }) { check(await sb.from('content_items').update({ title, tags }).eq('id', id)) },
-    async deleteContentItem(id) { check(await sb.from('content_items').delete().eq('id', id)) },
+    async deleteContentItem(id) {
+      // One from a synced folder is hidden (it's still in the folder, and the next look would bring it back).
+      check(await sb.from('content_items').update({ hidden: true }).eq('id', id).eq('source', 'folder'))
+      check(await sb.from('content_items').delete().eq('id', id).neq('source', 'folder'))
+    },
+    async contentFolders() {
+      return check(await sb.from('content_folders').select(FOLDER_COLUMNS).order('created_at')) as ContentFolder[]
+    },
+    browseContentFolders: (provider, parent) =>
+      worker<FolderListing>(`/api/content/folders/browse?${new URLSearchParams({ provider, ...(parent ? { parent } : {}) })}`),
+    addContentFolder: f => worker<{ folder: ContentFolder; sync: FolderSync }>('/api/content/folders', { method: 'POST', body: JSON.stringify(f) }),
+    syncContentFolder: id => worker<FolderSync>(`/api/content/folders/${encodeURIComponent(id)}/sync`, { method: 'POST' }),
+    async removeContentFolder(id) { check(await sb.from('content_folders').delete().eq('id', id)) },
     startGooglePhotosPick: () => worker<GooglePhotosPick>('/api/content/google-photos/sessions', { method: 'POST' }),
     googlePhotosPicked: id => worker<{ picked: boolean; poll_ms: number }>(`/api/content/google-photos/sessions/${encodeURIComponent(id)}`),
     importGooglePhotos: (id, skip, page, count) => worker<GooglePhotosImport>(`/api/content/google-photos/sessions/${encodeURIComponent(id)}/import`, {
@@ -1608,7 +1629,7 @@ export function createSupabaseApi(url: string, key: string): Api {
     async googleHours() { return (await worker<{ opening_hours: never }>('/api/integrations/google/hours')).opening_hours },
     async disconnect(provider) { await worker(`/api/integrations/${provider}/disconnect`, { method: 'POST' }) },
     async connectService(provider, back, opts) {
-      const { url } = await worker<{ url: string }>(`/api/integrations/connect/${provider}/start`, { method: 'POST', body: JSON.stringify({ back, read: opts?.read }) })
+      const { url } = await worker<{ url: string }>(`/api/integrations/connect/${provider}/start`, { method: 'POST', body: JSON.stringify({ back, read: opts?.read, folders: opts?.folders }) })
       location.assign(url)
     },
     checkConnection: provider => worker(`/api/integrations/${provider}/check`, { method: 'POST' }),

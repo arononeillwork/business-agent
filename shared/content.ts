@@ -7,7 +7,7 @@ import type { PostKind, PostMedia } from './types'
 import { msg } from './i18n'
 
 export type ContentKind = 'photo' | 'video'
-export type ContentSource = 'google_photos' | 'upload'
+export type ContentSource = 'google_photos' | 'upload' | 'folder'
 
 export interface ContentItem {
   id: string
@@ -18,6 +18,8 @@ export interface ContentItem {
   source: ContentSource
   /** Google Photos' own id for it: picking it again doesn't add it twice. */
   source_id: string | null
+  /** From a synced folder (shared/contentFolders.ts): which one, shown from where it is. */
+  folder_id?: string | null
   width: number | null
   height: number | null
   /** When the photo was taken or the video made (Google Photos), if known. */
@@ -50,6 +52,7 @@ export const MAX_TAG = 30
 export const SOURCES: { id: ContentSource; label: string }[] = [
   { id: 'google_photos', label: msg('Google Photos') },
   { id: 'upload', label: msg('Uploaded') },
+  { id: 'folder', label: msg('Synced folders') },
 ]
 
 /** Tags as typed ("Terrace, latte art,  terrace") → ["terrace", "latte art"]: trimmed, lower case, each once. */

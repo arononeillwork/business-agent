@@ -39,7 +39,7 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'contacts', files: [/ContactsPage/, /shared\/contacts/], tests: String.raw`contacts` },
   { name: 'leaderboard', files: [/LeaderboardPage/, /SquareLogins/, /shared\/(leaderboard|squareTeam)/], tests: String.raw`leaderboard|Square login` },
   { name: 'square pins', files: [/components\/SquarePins/, /shared\/squarePins/, /demoSquarePins/], tests: String.raw`Square PIN` },
-  { name: 'content', files: [/ContentPage/, /shared\/content\b/, /demoContent/, /ContentGallery/, /photoLayout/, /ContentHighlights/, /shared\/highlights/, /demoHighlights/], tests: String.raw`content` },
+  { name: 'content', files: [/ContentPage/, /shared\/content\b/, /demoContent/, /ContentGallery/, /photoLayout/, /ContentHighlights/, /shared\/highlights/, /demoHighlights/, /ContentFolders/, /contentFolders/], tests: String.raw`content` },
   { name: 'post ideas', files: [/pages\/PostIdeas/, /shared\/postIdeas/, /demoPostIdeas/, /i18n\/es\/postIdeas/], tests: String.raw`ideas for posts|social planner|post` },
   { name: 'role permissions', files: [/shared\/roleTemplates/, /RolesPage/], tests: String.raw`role permissions|roles and rules` },
   { name: 'business', files: [/(Business|Brand|OpeningHours)Page/, /shared\/(taxId|brand)/, /lib\/googleFont/], tests: String.raw`business|brand|opening hours|currency|colour|logo` },

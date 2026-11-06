@@ -53,7 +53,7 @@ import { signInCheck, signedInUser } from './signedIn'
 
 export { waConfig }
 
-interface ConnectorState { uid: string; kind: 'connector'; provider: Connector; back?: 'setup' | 'connections' | 'invoices' | 'email' | 'content'; read?: boolean }
+interface ConnectorState { uid: string; kind: 'connector'; provider: Connector; back?: 'setup' | 'connections' | 'invoices' | 'email' | 'content'; read?: boolean; folders?: boolean }
 
 /** Send an email from the café's connected mailbox (Gmail or Outlook, whichever the business chose). */
 export async function sendEmail(env: Env, db: SupabaseClient, m: { to: string; subject: string; text: string }) {
@@ -393,10 +393,14 @@ integrations.post('/api/integrations/connect/:provider/start', async c => {
   if (!CONNECTORS.includes(p)) return c.json({ error: 'Unknown connection' }, 404)
   const origin = new URL(c.req.url).origin
   // `read`: also allow reading the mailbox (Invoices brings in invoices that come by email).
-  const { back, read } = await c.req.json<{ back?: ConnectorState['back']; read?: boolean }>().catch(() => ({ back: undefined, read: undefined }))
+  // `folders`: Google Drive, also allow reading its folders (Content shows a folder's photos from where they are).
+  const { back, read, folders } = await c.req.json<{ back?: ConnectorState['back']; read?: boolean; folders?: boolean }>()
+    .catch(() => ({ back: undefined, read: undefined, folders: undefined }))
   const reading = !!read && !!READ_MAIL[p]
-  const state = await signState(c.env.INTEGRATION_KEY ?? '', { uid: c.get('userId'), kind: 'connector', provider: p, back, ...(reading ? { read: true } : {}) } satisfies ConnectorState)
-  const scopes = [...SCOPES[p], ...(reading ? [READ_MAIL[p]!] : [])]
+  const readingFolders = !!folders && p === 'google_drive'
+  const state = await signState(c.env.INTEGRATION_KEY ?? '', { uid: c.get('userId'), kind: 'connector', provider: p, back,
+    ...(reading ? { read: true } : {}), ...(readingFolders ? { folders: true } : {}) } satisfies ConnectorState)
+  const scopes = [...SCOPES[p], ...(reading ? [READ_MAIL[p]!] : []), ...(readingFolders ? [google.READ_DRIVE_SCOPE] : [])]
   if (isGoogle(p)) {
     const cfg = googleConfig(c.env, origin)
     if (!cfg) return c.json({ error: `${optionName(p)} needs the Google keys first (GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET; see docs/sign-in-setup.md).` }, 400)
@@ -438,7 +442,10 @@ async function finishConnector(c: Ctx, state: ConnectorState) {
     await setIntegration(db, p, { status: proven.pending ? 'pending' : 'connected', connected_by: state.uid, connected_at: now, last_checked_at: proven.pending ? null : now,
       last_error: null, account_label: proven.label,
       // A mailbox: whether it may be read too (Invoices), as allowed on Google's or Microsoft's screen.
-      external: READ_MAIL[p] ? { ...proven.external, reads_mail: !!state.read && canReadMail(p, t.scope) } : proven.external })
+      external: READ_MAIL[p] ? { ...proven.external, reads_mail: !!state.read && canReadMail(p, t.scope) }
+        // Google Drive: whether its folders may be read too (Content's synced folders), as allowed on Google's screen.
+        : p === 'google_drive' ? { ...proven.external, reads_folders: !!state.folders && (t.scope ?? '').split(/\s+/).includes(google.READ_DRIVE_SCOPE) }
+        : proven.external })
     // The mailbox becomes the business's email address, unless one was typed in.
     if ((p === 'gmail' || p === 'outlook') && proven.label) await showMailboxAddress(db, proven.label).catch(() => {})
     return back(`connected=${p}`)
