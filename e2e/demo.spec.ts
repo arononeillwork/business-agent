@@ -2822,11 +2822,58 @@ test.describe('social planner', () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
   })
 
-  test('employees don’t get the planner', async ({ page }) => {
-    await open(page, '/', 'maria@example.com')
-    await expect(page.getByRole('link', { name: 'Social planner' })).toHaveCount(0)
-    await page.goto('/social')
-    await expect(page.getByRole('heading', { name: 'Social planner' })).toHaveCount(0)
+  test('employees get the planner’s ideas for posts only: pick one up, add the photo, hand it in; an admin makes the post from it', async ({ page }) => {
+    await open(page, '/connections')
+    await connectDrive(page)
+    const ideas = page.getByRole('region', { name: 'Ideas for posts' })
+    await expect(ideas.getByRole('article', { name: 'Idea: The coffees we have now' })).toContainText('Puchero, Cocobrew and Santa Roaster’s decaf Colombia')
+
+    // Maria (an employee): the planner is its ideas, nothing else.
+    await signInAs(page, 'maria@example.com')
+    await page.getByRole('link', { name: 'Social planner' }).first().click()
+    await expect(page.getByRole('heading', { level: 1, name: 'Social planner' })).toBeVisible()
+    await expect(ideas).toContainText('an admin posts it')
+    await expect(page.getByRole('main').getByRole('region', { name: 'Accounts' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'New post' })).toHaveCount(0)
+
+    // She adds an idea of her own.
+    await ideas.getByRole('button', { name: 'Add an idea' }).click()
+    const dialog = page.getByRole('dialog', { name: 'New idea for a post' })
+    await dialog.getByLabel('What’s the post about?').fill('Latte art in slow motion')
+    await dialog.getByRole('button', { name: 'A video', exact: true }).click()
+    await dialog.getByRole('button', { name: 'Add idea' }).click()
+    await toast(page, 'Idea added')
+    await expect(ideas.getByRole('article', { name: 'Idea: Latte art in slow motion' })).toContainText('Up for grabs')
+
+    // She picks up the coffees, adds her photo and hands it in.
+    const coffees = ideas.getByRole('article', { name: 'Idea: The coffees we have now' })
+    await coffees.getByRole('button', { name: 'I’ll make it' }).click()
+    await toast(page, 'It’s yours: add the photos or video when you have them')
+    await expect(coffees).toContainText('You’re making it')
+    await coffees.getByLabel('Photo or video file').setInputFiles(photo('coffees.png'))
+    await toast(page, 'Added. Hand it in when it’s all there.')
+    await expect(coffees.getByRole('list', { name: 'Photos and videos' }).getByRole('listitem')).toHaveCount(1)
+    await coffees.getByRole('button', { name: 'Hand it in' }).click()
+    await toast(page, 'Handed in: an admin will make the post')
+    await expect(coffees).toContainText('Ready to post')
+    // One Julio's making isn't hers to take over.
+    const opening = ideas.getByRole('article', { name: 'Idea: Opening up at 8' })
+    await expect(opening).toContainText('Making it: Julio')
+    await expect(opening.getByRole('button', { name: 'I’ll make it' })).toHaveCount(0)
+
+    // Aron makes the post from it: its photo and title in the composer; saved, the idea is done and keeps the post.
+    await signInAs(page, 'aron@example.com')
+    await page.getByRole('link', { name: 'Social planner' }).first().click()
+    await coffees.getByRole('button', { name: 'Make a post' }).click()
+    const composer = page.getByRole('dialog', { name: 'New post' })
+    await expect(composer.getByRole('textbox', { name: 'Caption' })).toHaveValue('The coffees we have now')
+    await expect(composer.getByRole('button', { name: 'Remove photo 1' })).toBeVisible()
+    await composer.getByRole('button', { name: 'Save draft' }).click()
+    await toast(page, 'Draft saved')
+    await expect(page.getByRole('region', { name: 'Drafts' }).getByRole('article', { name: /The coffees we have now/ })).toBeVisible()
+    await expect(coffees).toHaveCount(0)
+    await ideas.getByRole('button', { name: 'Show done (1)' }).click()
+    await expect(coffees).toContainText('A draft on the planner')
   })
 })
 

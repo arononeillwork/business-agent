@@ -32,6 +32,7 @@ import type { Coffee, CoffeeInput, DayThemeInput, ThemeDays } from '../../shared
 import type { RoutineDone, RoutineItem, RoutineItemInput } from '../../shared/routine'
 import type { ChecklistItem, ChecklistItemInput, ChecklistTick } from '../../shared/checklists'
 import type { CompanyValue, CompanyValueInput } from '../../shared/companyValues'
+import type { PostIdea, PostIdeaInput } from '../../shared/postIdeas'
 import type { Contact, ContactInput } from '../../shared/contacts'
 import type { ContentChange, ContentItem, GooglePhotosImport, GooglePhotosPick } from '../../shared/content'
 import type { Contractor, ContractorInput, OutsourcedJob, OutsourcedJobInput } from '../../shared/outsourcing'
@@ -877,6 +878,16 @@ export interface Api {
   deleteSocialPost(id: string): Promise<void>
   /** A reminder you posted yourself: mark it posted. */
   markPosted(id: string): Promise<void>
+
+  // Post ideas (Social planner → Ideas; shared/postIdeas.ts): posts the business wants made. The whole team
+  // reads and adds them, says they'll make one and adds the photos or video; admins make the post from one.
+  /** Every idea, newest first. */
+  postIdeas(): Promise<PostIdea[]>
+  /** Add one (no id) or change one; returns its id. */
+  savePostIdea(idea: PostIdeaInput): Promise<string>
+  deletePostIdea(id: string): Promise<void>
+  /** A photo (JPEG) or video (MP4/MOV) for an idea, kept in the café's storage (Business Agent/Social/Ideas); anyone on the team. */
+  uploadIdeaMedia(file: File): Promise<PostMedia>
 
   // Competitions (admins): giveaways and draws, their entries and the draw. The post goes out
   // through the Social planner (saveSocialPost).

@@ -18,7 +18,8 @@ import { MAX_AUDIO_BYTES } from '../shared/music'
 
 export type MediaStorage = 'google_drive' | 'onedrive' | 'r2'
 /** Music: the business's tracks for stories and reels (docs/SOCIAL_MUSIC_PLAN.md); only audio goes there. Menu: the menu's pictures. */
-export const FOLDERS = ['Posts', 'Carousels', 'Reels', 'Stories', 'Menu', 'Music', 'Content'] as const
+/** Ideas: the photos and videos the team makes for a post idea (Social planner → Ideas), before an admin posts them. */
+export const FOLDERS = ['Posts', 'Carousels', 'Reels', 'Stories', 'Menu', 'Music', 'Content', 'Ideas'] as const
 
 const TYPES: Record<string, { ext: string; type: 'image' | 'video' | 'audio'; max: number }> = {
   'image/jpeg': { ext: 'jpg', type: 'image', max: MAX_PHOTO_BYTES },

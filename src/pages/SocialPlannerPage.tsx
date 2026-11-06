@@ -45,6 +45,8 @@ import { readyPhoto, readyVideo, videoSeconds } from '../lib/media'
 import { MusicStrip, musicLabel, type PostContext } from '../components/MusicPicker'
 import { engagementByTrack, formatTime, photoCuts, recentTracks, renderKey } from '../../shared/music'
 import { tokens } from '../theme'
+import { PostIdeas } from './PostIdeas'
+import { postFromIdea, type PostIdea } from '../../shared/postIdeas'
 import { msg, t, tc } from '../i18n'
 
 type Icon = Pick<SimpleIcon, 'path' | 'hex'>
@@ -103,16 +105,29 @@ const remembered = <T extends string>(key: string, fallback: T): T => {
 }
 const remember = (key: string, value: string) => { try { localStorage.setItem(key, value) } catch { /* private window */ } }
 
+/** Admins get the whole planner; the rest of the team its ideas for posts, to make them (PostIdeas.tsx). */
+export function SocialPlannerPage() {
+  const { isAdmin } = useApp()
+  return isAdmin ? <Planner /> : (
+    <>
+      <PageHeader eyebrow={t('Business')} title={t('Social planner')} />
+      <PostIdeas />
+    </>
+  )
+}
+
 /**
  * Admins: plan posts, carousels, reels and stories for every social account at once. Each goes out
  * by itself at its time (once a storage app holds the photos and videos), or is a reminder to post
  * it yourself. Tabs per kind, photos or videos, and three ways to look: list, calendar, table.
+ * Above them, the team's ideas for posts: one with its photos or video in becomes a post here.
  */
-export function SocialPlannerPage() {
+function Planner() {
   const { api } = useApp()
   const posts = useAsync('social-posts', () => api.socialPosts(), [], { refetchInterval: 30_000 })
   const integ = useAsync('integrations', () => api.integrations(), [])
-  const [editing, setEditing] = useState<(Partial<SocialPost> & { copied?: boolean }) | null>(null)
+  // `fromIdea`: the idea it's made from, which keeps the post once it's saved.
+  const [editing, setEditing] = useState<(Partial<SocialPost> & { copied?: boolean; fromIdea?: string }) | null>(null)
   const [kind, setKind] = useState<'all' | PostKind>(() => remembered<'all' | PostKind>('planner-kind', 'all'))
   const [media, setMedia] = useState<MediaFilter>('all')
   const [view, setView] = useState<View>(() => remembered<View>('planner-view', 'list'))
@@ -128,6 +143,7 @@ export function SocialPlannerPage() {
     targets: p.targets.filter(net => connected(networkOf(net).provider)) })
   const newPost = (date?: string) => setEditing({ kind: kind === 'all' ? 'post' : kind, caption: '', targets: [], media: [],
     ...(date ? { scheduled_at: zonedIso(date, '10:00') } : {}) })
+  const makePost = (idea: PostIdea) => setEditing({ ...postFromIdea(idea), targets: [], fromIdea: idea.id })
 
   return (
     <>
@@ -142,6 +158,8 @@ export function SocialPlannerPage() {
 
       <Stack spacing={2.5}>
         <Accounts integ={integ.data} storage={storage} connected={connected} />
+
+        <PostIdeas posts={all} onMakePost={makePost} />
 
         <Box>
           {/* What to show (kind, photos or videos) on the left; how to look at it on the right. */}
@@ -172,7 +190,8 @@ export function SocialPlannerPage() {
         </Box>
       </Stack>
 
-      {editing && <Composer post={editing} storage={storage} isConnected={p => !!connected(p)} onClose={() => setEditing(null)} onSaved={posts.reload}
+      {editing && <Composer post={editing} storage={storage} isConnected={p => !!connected(p)} onClose={() => setEditing(null)}
+        onSaved={async id => { if (editing.fromIdea) await api.savePostIdea({ id: editing.fromIdea, post_id: id }); await posts.reload() }}
         recent={recentTracks(all)} engagement={engagementByTrack(all)} />}
       {library && <MusicLibraryDialog onClose={() => setLibrary(false)} />}
     </>
