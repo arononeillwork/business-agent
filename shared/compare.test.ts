@@ -6,7 +6,7 @@ import {
 } from './compare'
 
 describe('compare: what each route costs', () => {
-  it('prices Business Agent from the plans, the cheapest with WhatsApp and takings that fits the team', () => {
+  it('prices The Business Agent from the plans, the cheapest with WhatsApp and takings that fits the team', () => {
     expect(businessAgentPlan(10).id).toBe('pro')
     expect(businessAgentPlan(25).id).toBe('pro')
     expect(businessAgentPlan(26).id).toBe('business')
@@ -29,7 +29,7 @@ describe('compare: what each route costs', () => {
     expect(costAfter('business_agent', 10, 36)).toBe(79 * 36)
   })
 
-  it('makes Business Agent the cheapest route at every team size on the page', () => {
+  it('makes The Business Agent the cheapest route at every team size on the page', () => {
     for (const people of TEAM_SIZES) {
       const ours = monthlyCost('business_agent', people)
       for (const p of PRODUCTS.filter(p => p.id !== 'business_agent')) expect(monthlyCost(p.id, people), `${p.id} with ${people}`).toBeGreaterThan(ours)
@@ -55,7 +55,7 @@ describe('compare: feature by feature', () => {
     expect(FEATURE_ROWS.map(r => r.label)).not.toContain('A free plan to start on')
   })
 
-  it('counts every row once, and Business Agent misses none (the till it reads is the café’s own)', () => {
+  it('counts every row once, and The Business Agent misses none (the till it reads is the café’s own)', () => {
     for (const p of PRODUCTS) expect(Object.values(coverage(p.id)).reduce((a, b) => a + b, 0)).toBe(FEATURE_ROWS.length)
     expect(missing('business_agent')).toEqual([])
     expect(coverage('business_agent')).toEqual({ yes: FEATURE_ROWS.length - 1, extra: 0, partial: 1, no: 0 })
