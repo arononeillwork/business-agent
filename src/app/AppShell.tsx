@@ -64,6 +64,7 @@ import TipsIcon from '@mui/icons-material/SavingsOutlined'
 import MessagesIcon from '@mui/icons-material/ChatBubbleOutlineRounded'
 import EmailIcon from '@mui/icons-material/MailOutlineRounded'
 import ReferralsIcon from '@mui/icons-material/CardGiftcardOutlined'
+import BusinessesIcon from '@mui/icons-material/ApartmentOutlined'
 import NotificationsIcon from '@mui/icons-material/NotificationsNoneOutlined'
 import ConnectIcon from '@mui/icons-material/HubOutlined'
 import PagesIcon from '@mui/icons-material/VisibilityOutlined'
@@ -280,6 +281,7 @@ const withChildren = (items: NavItem[]) => items.flatMap(n => [n, ...(n.children
 /** You: the account menu, opened from your name at the bottom left (or the account icon on a phone). */
 function AccountMenu({ children, label, sx }: { children: ReactNode; label?: string; sx?: object }) {
   const { me, isAdmin, isPartner, canSeePay, api, permissions } = useApp()
+  const { business } = useApp()
   const [anchor, setAnchor] = useState<HTMLElement | null>(null)
   const close = () => setAnchor(null)
   // The other businesses on this device, to switch to, and adding one (the phone has no top left for it).
@@ -302,6 +304,7 @@ function AccountMenu({ children, label, sx }: { children: ReactNode; label?: str
         {permissions.ai !== 'none' && item('/ai-assistants', t('AI assistants'), <AiIcon fontSize="small" />)}
         {isAdmin && canSeePay && item('/account/billing', t('Billing'), <BillingIcon fontSize="small" />)}
         {isAdmin && !isPartner && item('/referrals', t('Referrals'), <ReferralsIcon fontSize="small" />)}
+        {isAdmin && business?.is_hq && item('/hq/businesses', t('Businesses'), <BusinessesIcon fontSize="small" />)}
         {item('/appearance', t('Appearance'), <AppearanceIcon fontSize="small" />)}
         <InstallMenuItem onClick={close} />
         <Divider />

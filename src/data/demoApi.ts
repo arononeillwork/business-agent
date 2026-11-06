@@ -5107,6 +5107,8 @@ export function createDemoApi(): Api {
       // The demo has no render service: the picture stays as it is, with the music noted on the post.
       return { media: req.sources.length > 1 ? { url: '/demo/music/reel.mp4', type: 'video' } : req.sources[0], ms: null }
     },
+    // The demo's café isn't HQ: its back-office has nothing to list.
+    async hqBusinesses() { return [] },
     async referrals() {
       requireAdmin()
       return { code: referralDemo.code, opens: referralDemo.opens, referrals: [...referralDemo.referrals] }

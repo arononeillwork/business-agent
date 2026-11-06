@@ -1,5 +1,5 @@
 import { createClient, isAuthRetryableFetchError, type SupabaseClient } from '@supabase/supabase-js'
-import { PromptError, SOCIAL_PROVIDERS, type AiTrackResult, type Api, type BillingInfo, type MusicStatus, type PlanStatus, type SignInMethods, type SocialProvider } from './api'
+import { PromptError, SOCIAL_PROVIDERS, type AiTrackResult, type Api, type BillingInfo, type HqBusiness, type MusicStatus, type PlanStatus, type SignInMethods, type SocialProvider } from './api'
 import type { ApiKey, AppNotification, Brand, Business, Customer, SocialPost, EventAlert, Expense, Integration, MusicPlaylist, OutboxItem, Profile, Settings, TimeEntry, TimeOff, Todo, TodoCategory, CafeTrack, MusicPlayerState } from '../../shared/types'
 import type { HolidayReminder, PushDevice } from '../../shared/types'
 import type { AiMusicQuote, MusicGeneration, MusicTrack } from '../../shared/types'
@@ -1773,6 +1773,9 @@ export function createSupabaseApi(url: string, key: string, captchaKey?: string 
     instagramProfile: () => worker('/api/integrations/instagram/profile'),
     instagramInbox: () => worker('/api/integrations/instagram/inbox'),
     instagramThread: id => worker(`/api/integrations/instagram/inbox/${encodeURIComponent(id)}`),
+    async hqBusinesses() {
+      return check(await sb.rpc('hq_businesses')) as HqBusiness[]
+    },
     async referrals() {
       const [{ data: b }, list, opens] = await Promise.all([
         sb.from('business').select('referral_code').single(),

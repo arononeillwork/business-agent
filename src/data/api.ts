@@ -95,6 +95,23 @@ export interface PlanStatus {
 }
 export type BillingInfo = Billing & { ready: boolean }
 
+/** A business on The Business Agent, as HQ's back-office lists it (public.hq_businesses()). */
+export interface HqBusiness {
+  id: number
+  name: string
+  created_at: string
+  is_hq: boolean
+  plan: PlanId
+  status: string
+  billing_interval: 'month' | 'year' | null
+  trial_ends_at: string | null
+  complimentary: string | null
+  /** Active admins and employees. */
+  people: number
+  set_up_at: string | null
+  last_sign_in: string | null
+}
+
 /** Create with AI turned down (an artist or a song named): ElevenLabs' own rewording, when it gives one. */
 export class PromptError extends Error {
   suggestion?: string
@@ -1073,6 +1090,8 @@ export interface Api {
   setWhatsappRetention(days: number): Promise<{ days: number; deleted: number }>
   // Referrals: admins see the link, how it's doing and the free months banked.
   referrals(): Promise<ReferralState>
+  /** The Business Agent's back-office: every business (HQ's admins only; anyone else gets none). */
+  hqBusinesses(): Promise<HqBusiness[]>
   /** Someone opened a referral link (no sign-in): counted, and who invited them: another business, or a Business Agent rep. */
   openReferral(code: string, count?: boolean): Promise<ReferralOpen>
   /** An owner adds the Business Agent rep's code they forgot (Billing, the first 30 days); returns the rep's name. */

@@ -28,6 +28,7 @@ const TodayPage = page(() => import('./pages/TodayPage'), 'TodayPage')
 const MessagesPage = page(() => import('./pages/MessagesPage'), 'MessagesPage')
 const EmailPage = page(() => import('./pages/EmailPage'), 'EmailPage')
 const ReferralsPage = page(() => import('./pages/ReferralsPage'), 'ReferralsPage')
+const HqBusinessesPage = page(() => import('./pages/HqBusinessesPage'), 'HqBusinessesPage')
 const RotaPage = page(() => import('./pages/RotaPage'), 'RotaPage')
 const TimecardsPage = page(() => import('./pages/TimecardsPage'), 'TimecardsPage')
 const CalendarPage = page(() => import('./pages/CalendarPage'), 'CalendarPage')
@@ -288,6 +289,8 @@ function Routed() {
         <Route path="messages" element={isAdmin ? <MessagesPage /> : <Navigate to="/" />} />
         <Route path="email" element={isAdmin ? <EmailPage /> : <Navigate to="/" />} />
         <Route path="referrals" element={isAdmin ? <ReferralsPage /> : <Navigate to="/" />} />
+        {/* The Business Agent's back-office: the list is only HQ's admins' (public.hq_businesses()). */}
+        <Route path="hq/businesses" element={isAdmin ? <HqBusinessesPage /> : <Navigate to="/" />} />
         <Route path="partners" element={isAdmin && FEATURES.partners ? <PlanGate feature="partners"><PartnersPage /></PlanGate> : <Navigate to="/" />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Route>
