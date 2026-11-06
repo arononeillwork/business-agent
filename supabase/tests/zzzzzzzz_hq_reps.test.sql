@@ -38,6 +38,8 @@ begin
 end $$;
 
 -- 1. HQ, made once ------------------------------------------------------------------------------
+-- Julio's code is looked up at HQ: codes are unique within a business, and a rep made by an earlier test
+-- (a random code from their name) can be JULIO27 in another.
 select pg_temp.as_editor();
 select set_config('test.hq', public.start_hq()::text, false);
 do $$
@@ -84,7 +86,7 @@ do $$ begin
   assert (select kind = 'ambassador' and categories = '{cafe,salon}' from public.sales_reps where code = 'ANA10'), 'an ambassador, categories once each';
 end $$;
 -- Ana is in Julio's crew: he gets his share of what she earns.
-update public.sales_reps set leader_id = (select id from public.sales_reps where code = 'JULIO27') where code = 'ANA10';
+update public.sales_reps set leader_id = (select id from public.sales_reps where business_id = current_setting('test.hq')::int and code = 'JULIO27') where code = 'ANA10';
 select pg_temp.expect_error($q$update public.sales_reps set categories = '{casino}' where code = 'ANA10'$q$, 'sales_reps_categories_check');
 
 -- 2. A café signs up with Julio's code ------------------------------------------------------------
@@ -103,7 +105,7 @@ begin
 end $$;
 select pg_temp.as_editor();
 do $$ begin
-  assert (select count(*) from public.rep_code_opens where rep_id = (select id from public.sales_reps where code = 'JULIO27')) = 1, 'opened once, looked at once';
+  assert (select count(*) from public.rep_code_opens where rep_id = (select id from public.sales_reps where business_id = current_setting('test.hq')::int and code = 'JULIO27')) = 1, 'opened once, looked at once';
 end $$;
 select pg_temp.act_as('hq.lola@test');
 select pg_temp.expect_error($q$select public.rep_by_code('JULIO27')$q$, 'permission denied');
@@ -129,7 +131,7 @@ end $$;
 
 -- Julio's own new business doesn't count for him; Ana's code works for any kind of business.
 select pg_temp.as_editor();
-update public.sales_reps set email = 'hq.julio@test' where code = 'JULIO27';
+update public.sales_reps set email = 'hq.julio@test' where business_id = current_setting('test.hq')::int and code = 'JULIO27';
 select pg_temp.act_as('hq.julio@test');
 do $$ begin
   perform public.create_business('Julio''s Bar', 'pub', null, 'JULIO27');
@@ -167,7 +169,7 @@ select pg_temp.expect_error($q$select public.record_rep_commission('in_x', 79, 1
 
 select pg_temp.act_as('hq.owner@test');
 do $$
-declare v_julio uuid := (select id from public.sales_reps where code = 'JULIO27');
+declare v_julio uuid := (select id from public.sales_reps where business_id = current_setting('test.hq')::int and code = 'JULIO27');
 begin
   assert (select string_agg(label || ' ' || amount || ' ' || status || ' ' || coalesce(months::text, '-') || ' ' || (counts_from - occurred_on), ', ' order by amount)
             from public.rep_rewards where rep_id = v_julio)
@@ -205,7 +207,7 @@ do $$ begin
   assert (select count(*) from public.rep_rewards where status = 'approved' and source like 'stripe:%') = 4, 'those four count now';
   assert (select count(*) from public.rep_rewards where status = 'pending' and source like 'stripe:in_lola%') = 11, 'the rest still wait';
   assert (select count(*) = 2 and sum(amount) = 5.78 and bool_and(status = 'approved' and label = 'Crew bonus · Ana')
-            from public.rep_rewards where rep_id = (select id from public.sales_reps where code = 'JULIO27') and bonus_for is not null),
+            from public.rep_rewards where rep_id = (select id from public.sales_reps where business_id = current_setting('test.hq')::int and code = 'JULIO27') and bonus_for is not null),
     'Julio''s 10% of Ana''s €57.80';
 end $$;
 
@@ -231,8 +233,8 @@ do $$ begin
            where reverses in (select id from public.rep_rewards where source in ('stripe:in_lola1', 'stripe:in_lola1:first')))
     = '-50.00, -15.80', 'all of it taken back, once';
   assert (select count(*) from public.rep_rewards where kind = 'clawback' and status = 'approved'
-           and rep_id = (select id from public.sales_reps where code = 'JULIO27')) = 4, 'Julio''s crew share of Ana''s refunded lines goes back too';
-  assert public.rep_balance((select id from public.sales_reps where code = 'JULIO27')) = 0, 'Julio is owed nothing from those';
+           and rep_id = (select id from public.sales_reps where business_id = current_setting('test.hq')::int and code = 'JULIO27')) = 4, 'Julio''s crew share of Ana''s refunded lines goes back too';
+  assert public.rep_balance((select id from public.sales_reps where business_id = current_setting('test.hq')::int and code = 'JULIO27')) = 0, 'Julio is owed nothing from those';
 end $$;
 -- A line an admin turns down meanwhile takes its refund with it when its 30 days are up.
 update public.rep_rewards set status = 'rejected' where source = 'stripe:in_lola3';
@@ -244,8 +246,8 @@ end $$;
 
 -- 7. Julio's own page: his businesses; the €50 and the 20% aren't for him to send ------------------
 select pg_temp.as_editor();
-insert into public.rep_links (business_id, rep_id) select business_id, id from public.sales_reps where code = 'JULIO27';
-select set_config('test.token', (select token from public.rep_links where rep_id = (select id from public.sales_reps where code = 'JULIO27')), false);
+insert into public.rep_links (business_id, rep_id) select business_id, id from public.sales_reps where business_id = current_setting('test.hq')::int and code = 'JULIO27';
+select set_config('test.token', (select token from public.rep_links where rep_id = (select id from public.sales_reps where business_id = current_setting('test.hq')::int and code = 'JULIO27')), false);
 select pg_temp.as_worker(current_setting('test.hq')::int);
 do $$
 declare v jsonb := public.rep_page_businesses(current_setting('test.token'));
@@ -278,6 +280,6 @@ select pg_temp.act_as('hq.julio@test');
 select pg_temp.expect_error($q$select public.add_rep_code('JULIO27')$q$, 'your own code');
 select pg_temp.as_editor();
 do $$ begin
-  assert (select count(*) from public.rep_introductions where rep_id = (select id from public.sales_reps where code = 'JULIO27')) = 2,
+  assert (select count(*) from public.rep_introductions where rep_id = (select id from public.sales_reps where business_id = current_setting('test.hq')::int and code = 'JULIO27')) = 2,
     'Julio: Café Lola and Colado Shop';
 end $$;
