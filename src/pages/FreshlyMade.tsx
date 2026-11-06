@@ -16,6 +16,7 @@ import { Empty, ErrorBox, SectionTitle, Tag } from '../components/common'
 import {
   DISCOUNT_LEADS, MAX_SHELF_HOURS, OFFER_LEADS, SHELF_LIVES, batchFromItem, batchesOf, defaultDiscountAt, freshItemProblem, freshOfferPrice, freshProblem, freshState,
   goodUntil, likeLastTime, newFreshBatch, newFreshItem, onCounter, shelfShare, type FreshBatch, type FreshBatchInput, type FreshItem, type FreshItemInput, type FreshState,
+  madeHere, menuShelfLife, type MadeHereItem,
 } from '../../shared/freshBatches'
 import type { MenuItem as MenuRow } from '../../shared/menu'
 import { formatLocal, formatNumber, localDate, localTime, today, zonedIso } from '../../shared/time'
@@ -49,6 +50,8 @@ const toField = (iso: string) => formatLocal(iso, "yyyy-MM-dd'T'HH:mm")
 /** What's saved of a batch (the rest the database works out). */
 const inputOf = ({ good_until: _g, cleared_at: _c, made_by: _m, ...b }: FreshBatch): FreshBatchInput => b
 const fromField = (v: string) => (v ? zonedIso(v.slice(0, 10), v.slice(11, 16)) : '')
+/** What's saved of an item made here: one the menu suggested has no row yet, so no id. */
+const itemInput = ({ id, from_square: _f, suggested, ...i }: MadeHereItem): FreshItemInput => (suggested ? i : { id, ...i })
 
 /**
  * Freshly made (Stock → Freshly made): what the team made for the counter, when, how long it keeps and when
@@ -64,11 +67,14 @@ export function FreshlyMade() {
   const menu = useAsync('menu-items', () => api.menuItems(), [])
   const items = useAsync('fresh-items', () => api.freshItems(), [])
   const [editing, setEditing] = useState<FreshBatchInput | null>(null)
-  const [setting, setSetting] = useState<FreshItemInput | null>(null)
+  const [setting, setSetting] = useState<{ item: FreshItemInput; suggested: boolean } | null>(null)
   const list = batches.data ?? []
-  // The items made here with a set shelf life, as on the menu (from Square when that's where it comes from), by section and name.
-  const made = (items.data ?? []).flatMap(i => { const m = menu.data?.find(x => x.id === i.recipe_id); return m ? [{ item: i, menu: m }] : [] })
+  // The items made here with a set shelf life, as on the menu (from Square when that's where it comes from), and the menu's
+  // perishables not set yet (its bakery, cakes, chia puddings), with their usual shelf life; by section and name.
+  const onList = madeHere(menu.data ?? [], items.data ?? [])
+  const made = onList.flatMap(i => { const m = menu.data?.find(x => x.id === i.recipe_id); return m ? [{ item: i, menu: m }] : [] })
     .sort((a, b) => (a.menu.category ?? '').localeCompare(b.menu.category ?? '') || a.menu.name.localeCompare(b.menu.name))
+  const suggested = made.filter(x => x.item.suggested).length
   /** A batch of an item made now: its shelf life and offer, and as many as last time. */
   const recordOf = (i: FreshItem, m: MenuRow) => {
     const fresh = newFreshBatch()
@@ -92,7 +98,7 @@ export function FreshlyMade() {
           {t('What’s been made for the counter today: when, how long it keeps, and when it goes on offer. A discount puts it on Offers & specials by itself until it has to be gone.')}
         </Typography>
         <Stack direction="row" spacing={1} sx={{ flexShrink: 0 }}>
-          {isAdmin && <Button variant="outlined" startIcon={<AddIcon />} onClick={() => setSetting(newFreshItem())}>{t('Add an item')}</Button>}
+          {isAdmin && <Button variant="outlined" startIcon={<AddIcon />} onClick={() => setSetting({ item: newFreshItem(), suggested: false })}>{t('Add an item')}</Button>}
           {canRecord && <Button variant="contained" startIcon={<AddIcon />} onClick={() => setEditing(newFreshBatch())}>{t('Record a batch')}</Button>}
         </Stack>
       </Stack>
@@ -101,6 +107,12 @@ export function FreshlyMade() {
       {/* The items made here with a set shelf life: how long each keeps, when it was last made, and its offer. */}
       <Box component="section" aria-label={t('Made here')} sx={{ mb: 3 }}>
         <SectionTitle>{t('Made here')}</SectionTitle>
+        {isAdmin && suggested > 0 && (
+          <Typography variant="body2" sx={{ color: 'text.secondary', mt: -0.5, mb: 1.5, maxWidth: 760 }}>
+            {tn(suggested, 'One item comes from the menu, with how long it usually keeps: set it to change that or give it an offer, or take it off the list if it isn’t made here.',
+              '{n} items come from the menu, each with how long it usually keeps: set one to change that or give it an offer, or take it off the list if it isn’t made here.')}
+          </Typography>
+        )}
         {items.data && menu.data && !made.length ? (
           <Empty>{isAdmin
             ? t('Nothing with a set shelf life yet. Add what you make (pastries, yoghurt pots, chia puddings) with how long it keeps and its offer, or give the item a Shelf life custom attribute in Square: it comes in with the menu.')
@@ -110,7 +122,7 @@ export function FreshlyMade() {
             <Box component="ul" aria-label={t('Made here')} sx={{ m: 0, p: 0, listStyle: 'none' }}>
               {made.map(({ item, menu: m }) => (
                 <MadeHereRow key={item.id} item={item} menu={m} batches={batchesOf(m, list)} now={now} canRecord={canRecord} canEdit={isAdmin}
-                  onRecord={() => recordOf(item, m)} onEdit={() => setSetting({ ...item })} />
+                  onRecord={() => recordOf(item, m)} onEdit={() => setSetting({ item: itemInput(item), suggested: item.suggested })} />
               ))}
             </Box>
           </Card>
@@ -168,10 +180,10 @@ export function FreshlyMade() {
         </Box>
       )}
 
-      {setting && <ItemDialog item={setting} fromSquare={!!items.data?.find(i => i.id === setting.id)?.from_square} menu={menu.data ?? []}
-        taken={(items.data ?? []).filter(i => i.id !== setting.id).map(i => i.recipe_id)}
+      {setting && <ItemDialog item={setting.item} suggested={setting.suggested} items={items.data ?? []} menu={menu.data ?? []}
+        taken={onList.filter(i => i.recipe_id !== setting.item.recipe_id).map(i => i.recipe_id)}
         onClose={() => setSetting(null)} onSaved={() => { setSetting(null); void items.reload() }} />}
-      {editing && <BatchDialog batch={editing} batches={list} menu={menu.data ?? []} items={items.data ?? []}
+      {editing && <BatchDialog batch={editing} batches={list} menu={menu.data ?? []} items={onList}
         canDelete={!!editing.id && (isAdmin || list.find(b => b.id === editing.id)?.made_by === me?.id)}
         onClose={() => setEditing(null)} onSaved={() => { setEditing(null); void batches.reload() }} />}
     </Box>
@@ -394,7 +406,7 @@ function BatchDialog({ batch, batches, menu, items, canDelete, onClose, onSaved 
 
 /** One item made here: how long it keeps, when it was last made (and by whom), its offer and, for the batch on the counter, when that starts. */
 function MadeHereRow({ item, menu, batches, now, canRecord, canEdit, onRecord, onEdit }: {
-  item: FreshItem; menu: MenuRow; batches: FreshBatch[]; now: number; canRecord: boolean; canEdit: boolean; onRecord: () => void; onEdit: () => void
+  item: MadeHereItem; menu: MenuRow; batches: FreshBatch[]; now: number; canRecord: boolean; canEdit: boolean; onRecord: () => void; onEdit: () => void
 }) {
   const { profiles } = useApp()
   const last = batches[0]
@@ -413,6 +425,7 @@ function MadeHereRow({ item, menu, batches, now, canRecord, canEdit, onRecord, o
         <Stack direction="row" useFlexGap sx={{ gap: 0.75, alignItems: 'center', flexWrap: 'wrap' }}>
           <Typography sx={{ fontWeight: 600 }}>{menu.name}</Typography>
           {item.from_square && <Tag fg={tokens.neutralFg} bg={tokens.neutralBg}>{t('From Square')}</Tag>}
+          {item.suggested && <Tag fg={tokens.infoFg} bg={tokens.infoBg}>{t('From the menu')}</Tag>}
         </Stack>
         <Typography variant="body2" sx={{ color: 'text.secondary' }}>
           {[menu.category ? t(menu.category) : null, t('Keeps {time}', { time: shelfText(item.shelf_life_hours) })].filter(Boolean).join(' · ')}
@@ -439,9 +452,13 @@ function MadeHereRow({ item, menu, batches, now, canRecord, canEdit, onRecord, o
   )
 }
 
-/** An item made here (admins): the menu item, how long it keeps (Square's, when it has it) and its offer before it has to be gone. */
-function ItemDialog({ item, fromSquare, menu, taken, onClose, onSaved }: {
-  item: FreshItemInput; fromSquare: boolean; menu: MenuRow[]; taken: string[]; onClose: () => void; onSaved: () => void
+/**
+ * An item made here (admins): the menu item, how long it keeps (Square's, when it has it) and its offer before it has to be
+ * gone. One the menu suggested is saved the first time it's set; one taken off the list stays off when the menu or Square
+ * would put it back, and picking it again puts it back as it was.
+ */
+function ItemDialog({ item, suggested, items, menu, taken, onClose, onSaved }: {
+  item: FreshItemInput; suggested: boolean; items: FreshItem[]; menu: MenuRow[]; taken: string[]; onClose: () => void; onSaved: () => void
 }) {
   const { api } = useApp()
   const run = useAction()
@@ -452,11 +469,21 @@ function ItemDialog({ item, fromSquare, menu, taken, onClose, onSaved }: {
   const set = (p: Partial<FreshItemInput>) => setI(x => ({ ...x, ...p }))
   const options = menu.filter(m => !taken.includes(m.id)).sort((a, b) => (a.category ?? '').localeCompare(b.category ?? '') || a.name.localeCompare(b.name))
   const picked = menu.find(m => m.id === i.recipe_id) ?? null
+  const fromSquare = !!items.find(x => x.id === i.id)?.from_square
+  const isNew = !item.recipe_id
   const problem = freshItemProblem(i)
   const leads = OFFER_LEADS.filter(l => l.hours < i.shelf_life_hours)
   /** The usual offer for a shelf life: the longest of the leads that's at most a quarter of it, or the shortest. */
   const usualLead = (hours: number) => [...OFFER_LEADS].reverse().find(l => l.hours <= hours / 4)?.hours ?? OFFER_LEADS.find(l => l.hours < hours)?.hours ?? null
   const shelf = (hours: number) => set({ shelf_life_hours: hours, offer_hours: i.offer_hours === null ? null : i.offer_hours < hours ? i.offer_hours : usualLead(hours) })
+  /** A menu item picked to add: as it was when it was taken off the list, or keeping as long as the menu says it usually does. */
+  const pick = (m: MenuRow | null) => {
+    const was = m && items.find(x => x.recipe_id === m.id && !x.made_here)
+    const hours = m && !was ? menuShelfLife(m) : null
+    if (was) { const { from_square: _f, ...rest } = was; setI({ ...rest, made_here: true }); setCustom(!SHELF_LIVES.some(s => s.hours === was.shelf_life_hours)); return }
+    set({ id: undefined, recipe_id: m?.id ?? '', made_here: true })
+    if (hours) { shelf(hours); setCustom(false) }
+  }
   // What a batch made now would do.
   const now = new Date(Math.floor(Date.now() / 60_000) * 60_000).toISOString()
   const preview = batchFromItem(i, now)
@@ -469,15 +496,20 @@ function ItemDialog({ item, fromSquare, menu, taken, onClose, onSaved }: {
     }, t('Saved {name}', { name: picked?.name ?? '' }))
     if (ok) onSaved()
   }
-  const remove = async () => { if (await run(() => api.deleteFreshItem(item.id!), t('{name} taken off the list', { name: picked?.name ?? '' }))) onSaved() }
+  // Taken off the list: kept as not made here when the menu or Square would put it back, else deleted.
+  const keepOff = suggested || fromSquare || (picked ? menuShelfLife(picked) !== null : false)
+  const remove = async () => {
+    if (await run(() => (keepOff ? api.saveFreshItem({ ...item, made_here: false }).then(() => undefined) : api.deleteFreshItem(item.id!)),
+      t('{name} taken off the list', { name: picked?.name ?? '' }))) onSaved()
+  }
 
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="sm" fullScreen={phone} aria-labelledby="fresh-item-title">
-      <DialogTitle id="fresh-item-title">{item.id && picked ? picked.name : t('Add an item')}</DialogTitle>
+      <DialogTitle id="fresh-item-title">{!isNew && picked ? picked.name : t('Add an item')}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ pt: 1 }}>
-          {!item.id && (
-            <Autocomplete options={options} value={picked} onChange={(_, m) => set({ recipe_id: m?.id ?? '' })} getOptionLabel={m => m.name}
+          {isNew && (
+            <Autocomplete options={options} value={picked} onChange={(_, m) => pick(m)} getOptionLabel={m => m.name}
               groupBy={m => (m.category ? t(m.category) : t('Other'))} isOptionEqualToValue={(a, b) => a.id === b.id}
               renderInput={p => <TextField {...p} label={t('Menu item')} placeholder={t('e.g. Mango chia pudding')} autoFocus />} />
           )}
@@ -532,7 +564,7 @@ function ItemDialog({ item, fromSquare, menu, taken, onClose, onSaved }: {
         </Stack>
       </DialogContent>
       <DialogActions sx={{ flexWrap: 'wrap', gap: 1 }}>
-        {item.id && (deleting ? (
+        {!isNew && (deleting ? (
           <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mr: 'auto' }}>
             <Typography variant="body2" sx={{ color: tokens.badFg }}>{t('Take it off the list?')}</Typography>
             <Button size="small" color="error" variant="contained" onClick={() => void remove()}>{t('Take off')}</Button>

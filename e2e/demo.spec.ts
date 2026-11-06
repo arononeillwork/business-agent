@@ -4746,6 +4746,68 @@ test.describe('stock and suppliers', () => {
     await expect(cake).toContainText('Offer from Sat 3 Oct, 09:00')
     await expect(page.getByRole('list', { name: 'On the counter' }).getByRole('listitem', { name: 'Biscoff Cheesecake' })).toContainText('25% off from Sat 3 Oct, 09:00')
   })
+
+  test('freshly made: the menu’s perishables show by themselves, keeping as long as they usually do; one taken off the list stays off, and adding it puts it back', async ({ page }) => {
+    test.setTimeout(60_000)
+    // Aron adds a chia parfait to the menu, under Food.
+    await open(page, '/recipes')
+    await page.getByRole('button', { name: 'Add menu item' }).click()
+    const add = page.getByRole('dialog', { name: 'Add a menu item' })
+    await add.getByRole('textbox', { name: 'Name' }).fill('Chia fruit parfait')
+    await add.getByRole('textbox', { name: 'Menu price, with IVA' }).fill('4,50')
+    await add.getByRole('combobox', { name: 'Category' }).click()
+    await page.getByRole('option', { name: 'Food' }).click()
+    await add.getByRole('button', { name: 'Add', exact: true }).click()
+    await toast(page, 'Added Chia fruit parfait')
+
+    // It's on Made here by itself: from the menu, keeping 2 days, no offer until one's set; next to the pastries set before.
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Current stock' }).click()
+    await page.getByRole('tab', { name: 'Freshly made' }).click()
+    const made = page.getByRole('list', { name: 'Made here' })
+    await expect(made.getByRole('listitem')).toHaveCount(3)
+    const parfait = made.getByRole('listitem', { name: 'Chia fruit parfait' })
+    await expect(parfait).toContainText('From the menu')
+    await expect(parfait).toContainText('Keeps 2 days')
+    await expect(parfait).toContainText('No offer')
+    await expect(page.getByRole('region', { name: 'Made here' })).toContainText('One item comes from the menu')
+    await expect(made.getByRole('listitem', { name: 'Croissant', exact: true })).not.toContainText('From the menu')
+
+    // A batch of it starts from that: good for 2 days, not on offer.
+    await parfait.getByRole('button', { name: 'Record a batch of Chia fruit parfait' }).click()
+    const record = page.getByRole('dialog', { name: 'Record a batch' })
+    await expect(record.getByRole('combobox', { name: 'What was made' })).toHaveValue('Chia fruit parfait')
+    await expect(record).toContainText('Good until Fri 2 Oct, 09:00')
+    await expect(record.getByRole('switch', { name: 'Put it on offer before it goes off' })).not.toBeChecked()
+    await record.getByRole('spinbutton', { name: 'How many' }).fill('6')
+    await record.getByRole('button', { name: 'Record', exact: true }).click()
+    await toast(page, 'Chia fruit parfait recorded')
+    await expect(parfait).toContainText(/Last made 09:00 by Aron/)
+    await expect(page.getByRole('list', { name: 'On the counter' }).getByRole('listitem', { name: 'Chia fruit parfait' })).toContainText('Good until Fri 2 Oct, 09:00')
+
+    // Not made here after all: taken off the list, it stays off (the menu doesn't put it back), and its batch stays.
+    await parfait.getByRole('button', { name: 'Shelf life and offer of Chia fruit parfait' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Chia fruit parfait' })
+    await expect(dialog.getByRole('combobox', { name: 'Shelf life' })).toHaveText('2 days')
+    await dialog.getByRole('button', { name: 'Take off the list' }).click()
+    await dialog.getByRole('button', { name: 'Take off', exact: true }).click()
+    await toast(page, 'Chia fruit parfait taken off the list')
+    await expect(parfait).toHaveCount(0)
+    await page.getByRole('tab', { name: 'Items' }).click()
+    await page.getByRole('tab', { name: 'Freshly made' }).click()
+    await expect(made.getByRole('listitem')).toHaveCount(2)
+    await expect(page.getByRole('list', { name: 'On the counter' }).getByRole('listitem', { name: 'Chia fruit parfait' })).toBeVisible()
+
+    // Added again, it's back as it was, set now (no longer just from the menu).
+    await page.getByRole('button', { name: 'Add an item' }).click()
+    const again = page.getByRole('dialog', { name: 'Add an item' })
+    await again.getByRole('combobox', { name: 'Menu item' }).fill('Chia')
+    await page.getByRole('option', { name: 'Chia fruit parfait' }).click()
+    await expect(again.getByRole('combobox', { name: 'Shelf life' })).toHaveText('2 days')
+    await again.getByRole('button', { name: 'Save' }).click()
+    await toast(page, 'Saved Chia fruit parfait')
+    await expect(parfait).toContainText('Keeps 2 days')
+    await expect(parfait).not.toContainText('From the menu')
+  })
 })
 
 test.describe('recipes and waste', () => {

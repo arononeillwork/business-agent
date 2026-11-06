@@ -106,4 +106,10 @@ export default {
   'Take it off the list?': '¿Quitarlo de la lista?',
   'Pick an item from the menu': 'Elige un producto de la carta',
   'Start the offer before its shelf life ends': 'Empieza la oferta antes de que acabe su vida útil',
+  // The menu's perishables, on Made here by themselves (the `fresh_items_made_here` migration).
+  'From the menu': 'De la carta',
+  'One item comes from the menu, with how long it usually keeps: set it to change that or give it an offer, or take it off the list if it isn’t made here.':
+    'Un producto viene de la carta, con lo que suele durar: fíjalo para cambiarlo o ponerle una oferta, o quítalo de la lista si no se hace aquí.',
+  '{n} items come from the menu, each with how long it usually keeps: set one to change that or give it an offer, or take it off the list if it isn’t made here.':
+    '{n} productos vienen de la carta, cada uno con lo que suele durar: fija uno para cambiarlo o ponerle una oferta, o quítalo de la lista si no se hace aquí.',
 }
