@@ -23,9 +23,12 @@ export interface Env {
   // Integrations (secrets unless noted). Anything missing shows as "needs setup" in the app.
   GOOGLE_FONTS_API_KEY?: string       // optional: official Google Fonts list (brand page)
   ANTHROPIC_API_KEY?: string          // optional: the in-app assistant (worker/assistant.ts); off without it
+  TURNSTILE_SITE_KEY?: string         // optional: the check on the sign-up form (Cloudflare Turnstile; worker/signupCheck.ts)
+  TURNSTILE_SECRET_KEY?: string       // optional: with it, an email sign-up needs a passed check
   GOOGLE_PLACES_API_KEY?: string      // optional: Google reviews from the public listing until Business Profile access is approved; cafés nearby on Competitors
   GOOGLE_PLACE_ID?: string            // the café's Google Maps place id, for the above (where the business is, and its own rating)
   GOOGLE_PAGESPEED_API_KEY?: string   // optional: PageSpeed Insights beyond its small keyless quota (Website & SEO)
+  FIRECRAWL_API_KEY?: string          // optional: the set-up guide reads a website's logo, colours and fonts with Firecrawl (worker/brandLookup.ts); its HTML only without it
   INTEGRATION_KEY?: string            // encrypts stored tokens, signs OAuth state
   VAPID_KEY?: string                  // signs push notifications (a P-256 private key as a JWK; made by the deploy)
   GOOGLE_CLIENT_ID?: string

@@ -376,3 +376,21 @@ export async function deleteOneDriveItem(token: string, id: string) {
   const err = await res.json().catch(() => ({})) as { error?: { message?: string } }
   throw new Error(`Microsoft: ${err.error?.message ?? res.status}`)
 }
+
+// Content page: a OneDrive folder whose photos and videos show from where they are (worker/contentFolders.ts).
+/** A file or folder in such a folder, with what OneDrive knows of a photo or video. */
+export interface MediaItem extends DriveItem {
+  createdDateTime?: string
+  image?: { width?: number; height?: number }
+  video?: { width?: number; height?: number }
+  photo?: { takenDateTime?: string }
+}
+
+/** One page of what's in a folder ('root': the top), and the next page's address (null: that was the last). */
+export async function mediaPage(token: string, id: string, next?: string): Promise<{ items: MediaItem[]; next: string | null }> {
+  const res = await fetch(next ?? `${GRAPH}${itemPath(id)}/children?$select=id,name,size,createdDateTime,folder,file,image,video,photo&$top=200`,
+    { headers: { authorization: `Bearer ${token}` } })
+  const page = await res.json().catch(() => ({})) as { value?: MediaItem[]; '@odata.nextLink'?: string; error?: { message?: string } }
+  if (!res.ok) throw new Error(`Microsoft: ${page.error?.message ?? res.status}`)
+  return { items: page.value ?? [], next: page['@odata.nextLink'] ?? null }
+}

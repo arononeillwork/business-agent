@@ -36,6 +36,7 @@ import type { PostIdea, PostIdeaInput } from '../../shared/postIdeas'
 import type { ListRow, NewsletterEvent, NewsletterSettings } from '../../shared/newsletter'
 import type { Contact, ContactInput } from '../../shared/contacts'
 import type { ContentAlbum, ContentChange, ContentItem, GooglePhotosImport, GooglePhotosPick } from '../../shared/content'
+import type { ContentFolder, FolderListing, FolderProvider, FolderSync } from '../../shared/contentFolders'
 import type { InstagramHighlight } from '../../shared/highlights'
 import type { Contractor, ContractorInput, OutsourcedJob, OutsourcedJobInput } from '../../shared/outsourcing'
 import type { EmploymentContract, EmploymentContractInput } from '../../shared/contracts'
@@ -68,6 +69,7 @@ import type { TipPool, TipPoolInput, TipShare } from '../../shared/tips'
 import type { CompetitorData, CompetitorInput, CompetitorNoteInput, CompetitorPrice, CompetitorSettings, NearbyPlace, PriceItem } from '../../shared/localCompetitors'
 import type { SocialReport, SocialSource } from '../../shared/socialAnalytics'
 import type { DeviceAccount } from './deviceAccounts'
+import type { FoundBrand } from '../../shared/brandLookup'
 
 /** The business's latest posts (Offers & specials → From Instagram). */
 export interface LatestPosts { source: 'instagram' | 'facebook'; account: string | null; posts: SourcePost[] }
@@ -78,14 +80,18 @@ export type EventInput = Omit<CalendarEvent, 'id' | 'source' | 'competition'> & 
 /** Outside accounts people can sign in with (Supabase Auth providers; Microsoft is Supabase's "azure"). */
 export type SocialProvider = 'google' | 'apple' | 'facebook' | 'microsoft'
 export const SOCIAL_PROVIDERS: SocialProvider[] = ['google', 'apple', 'facebook', 'microsoft']
-export type SignInMethods = Record<SocialProvider, boolean> & { signup?: boolean }
+export type SignInMethods = Record<SocialProvider, boolean> & {
+  signup?: boolean
+  /** The Cloudflare Turnstile site key when a sign-up with email needs its check (worker/signupCheck.ts). */
+  captcha?: string
+}
 export type { DeviceAccount }
 
 /** The plan in force for the business, its limits and what's used (public.plan_status()). */
 export interface PlanStatus {
   plan: PlanId
-  limits: { people: number | null; social_accounts: number; posts_per_month: number | null; features: string[] }
-  usage: { people: number; social_accounts: number; posts_this_month: number }
+  limits: { people: number | null; social_accounts: number; posts_per_month: number | null; assistant_per_month?: number | null; features: string[] }
+  usage: { people: number; social_accounts: number; posts_this_month: number; assistant_this_month?: number }
 }
 export type BillingInfo = Billing & { ready: boolean }
 
@@ -164,13 +170,18 @@ export interface Api {
   authError?(): string | null
   /** Which outside sign-in methods are switched on (so a button never leads to an error page). */
   signInMethods(): Promise<SignInMethods>
-  /** Register a new account. `confirmEmail`: they must click the link in their email before signing in. */
-  signUp(fullName: string, email: string, password: string): Promise<{ confirmEmail: boolean }>
+  /**
+   * Register a new account. `confirmEmail`: they must click the link in their email before signing in.
+   * `captcha`: the check's answer, when signInMethods() asks for one.
+   */
+  signUp(fullName: string, email: string, password: string, captcha?: string): Promise<{ confirmEmail: boolean }>
   /**
    * Signed in and in no business yet: create mine and run it (admin, first owner, Free plan). `kind`
    * picks its first positions; `referral` is another business's referral code. Returns its number.
    */
   createBusiness(b: { name: string; kind: 'cafe' | 'restaurant' | 'pub' | 'salon' | 'real_estate' | 'other' | null; timezone: string; referral?: string | null }): Promise<number>
+  /** Set-up guide, "already open" (admins): the logo, colours, fonts and details read from a website. Nothing is saved. */
+  lookUpBrand(website: string): Promise<FoundBrand>
   /**
    * The other businesses kept signed in on this device. An account is in one business, so someone in
    * two signs in to each once; the app keeps both and switches between them (docs/SEVERAL_BUSINESSES.md).
@@ -369,6 +380,17 @@ export interface Api {
   importGooglePhotos(id: string, skip: string[], page: string | null, count?: boolean): Promise<GooglePhotosImport>
   /** Give up on a pick (the window was closed without picking). */
   cancelGooglePhotosPick(id: string): Promise<void>
+  // Synced folders (Content, admins; shared/contentFolders.ts): a OneDrive or Drive folder shown from where it is.
+  /** The folders shown, oldest first. */
+  contentFolders(): Promise<ContentFolder[]>
+  /** Look through the OneDrive or Drive: a folder (null: the top) and the folders in it. */
+  browseContentFolders(provider: FolderProvider, parent: string | null): Promise<FolderListing>
+  /** Show a folder on the page, and look at it straight away. */
+  addContentFolder(f: { provider: FolderProvider; folder_id: string; name: string; path: string | null }): Promise<{ folder: ContentFolder; sync: FolderSync }>
+  /** Look at a folder again: what's new comes in, what's gone goes. */
+  syncContentFolder(id: string): Promise<FolderSync>
+  /** The folder off the page, with its photos and videos (nothing in the OneDrive or Drive changes). */
+  removeContentFolder(id: string): Promise<void>
   // Content, as Google Photos does (the `content_favourites_albums` migration): favourites, several at once, albums.
   /** Star them as favourites, or not. */
   setContentFavourite(ids: string[], on: boolean): Promise<void>
@@ -1012,7 +1034,8 @@ export interface Api {
   googleHours(): Promise<OpeningHours>
   disconnect(provider: string): Promise<void>
   /** Start connecting Gmail, Outlook, Google Drive, OneDrive, YouTube Music or Search Console (goes to Google/Microsoft and back). */
-  connectService(provider: ConnectorProvider, back?: 'setup' | 'connections' | 'invoices' | 'email' | 'content', opts?: { read?: boolean }): Promise<void>
+  /** `read`: a mailbox may be read too (Invoices). `folders`: Google Drive's folders may be read too (Content's synced folders). */
+  connectService(provider: ConnectorProvider, back?: 'setup' | 'connections' | 'invoices' | 'email' | 'content', opts?: { read?: boolean; folders?: boolean }): Promise<void>
   /** Prove a connection still works, now (the result is also on its card). */
   checkConnection(provider: IntegrationProvider): Promise<Integration | null>
   /** Check every connection that is (or was) working. */

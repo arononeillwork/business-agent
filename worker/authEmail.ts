@@ -23,17 +23,18 @@ const b64 = (bytes: ArrayBuffer | Uint8Array) => btoa(String.fromCharCode(...new
 const hmac = async (key: BufferSource, data: string) =>
   crypto.subtle.sign('HMAC', await crypto.subtle.importKey('raw', key, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']), enc.encode(data))
 
-/** The hook secret: 32 bytes from the service key. Supabase gets it as `v1,whsec_<base64>`. */
-export const hookSecret = (serviceKey: string) => hmac(enc.encode(serviceKey), 'business-agent:send-email-hook')
+/** The hook secret: 32 bytes from the service key. Supabase gets it as `v1,whsec_<base64>`. Each hook has its own label. */
+export const SEND_EMAIL_HOOK = 'business-agent:send-email-hook'
+export const hookSecret = (serviceKey: string, label = SEND_EMAIL_HOOK) => hmac(enc.encode(serviceKey), label)
 
 const TOLERANCE_S = 5 * 60
 
 /** Standard Webhooks: base64(HMAC-SHA256(secret, `${id}.${timestamp}.${body}`)) in a `v1,<sig>` list. */
-export async function verifyHook(serviceKey: string, headers: Headers, body: string, now = Date.now()) {
+export async function verifyHook(serviceKey: string, headers: Headers, body: string, now = Date.now(), label = SEND_EMAIL_HOOK) {
   const id = headers.get('webhook-id'), ts = headers.get('webhook-timestamp'), sigs = headers.get('webhook-signature')
   if (!id || !ts || !sigs) return false
   if (!/^\d+$/.test(ts) || Math.abs(now / 1000 - Number(ts)) > TOLERANCE_S) return false
-  const expected = b64(await hmac(await hookSecret(serviceKey), `${id}.${ts}.${body}`))
+  const expected = b64(await hmac(await hookSecret(serviceKey, label), `${id}.${ts}.${body}`))
   return sigs.split(' ').some(s => {
     const [v, sig] = s.split(',')
     if (v !== 'v1' || !sig || sig.length !== expected.length) return false
@@ -116,7 +117,7 @@ export function authMessage(env: Env, business: string | null, p: HookPayload) {
   }
 }
 
-const hookError = (status: number, message: string) =>
+export const hookError = (status: number, message: string) =>
   new Response(JSON.stringify({ error: { http_code: status, message } }), { status, headers: { 'content-type': 'application/json' } })
 
 export const authEmail = new Hono<{ Bindings: Env }>()

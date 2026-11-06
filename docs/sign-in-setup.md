@@ -118,3 +118,20 @@ Steps 1 to 4 must be done before Facebook is on: without step 1, the button open
 5. **Actions → Deploy → Run workflow**. Apple's client secret only lasts 6 months, so every deploy
    signs a fresh one from the key: no reminder needed as long as the app is deployed at least
    twice a year.
+
+## The check on the sign-up form (Cloudflare Turnstile)
+
+Anyone can create an account with an email and a password, so the sign-up form can ask Cloudflare
+Turnstile whether it's a person (usually a tick that passes by itself). Off until both keys are set.
+
+1. Cloudflare dashboard → **Turnstile** → **Add widget**: name *The Business Agent sign-up*, hostnames
+   `businesssagent.com` and `www.businesssagent.com`, mode **Managed** → Create.
+2. GitHub repo secrets: `TURNSTILE_SITE_KEY` (the site key) and `TURNSTILE_SECRET_KEY` (the secret key).
+3. **Actions → Deploy → Run workflow**. The deploy hands both keys to the Worker and switches on
+   Supabase's "before user created" hook, which asks the Worker (`worker/signupCheck.ts`) before any
+   account is made. The deploy log then says `Sign-up check: on`.
+
+What it checks: a sign-up with an email and a password needs a passed check. Sign-ups with Google,
+Microsoft, Apple or Facebook go through (they already check for a person), and so do invites from the
+Team page. Signing in, sign-in codes and password resets never see it. To switch it off again, delete
+the two secrets and deploy.

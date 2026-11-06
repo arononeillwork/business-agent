@@ -28,6 +28,7 @@ import type { PostIdea } from '../../shared/postIdeas'
 import { NEWSLETTER_OFF, type NewsletterEvent, type NewsletterSettings } from '../../shared/newsletter'
 import type { Contact } from '../../shared/contacts'
 import type { ClockStats } from '../../shared/leaderboard'
+import { FOLDER_COLUMNS, type ContentFolder, type FolderListing, type FolderSync } from '../../shared/contentFolders'
 import { CONTENT_COLUMNS, tidyAlbumName, type ContentAlbum, type ContentItem, type GooglePhotosImport, type GooglePhotosPick } from '../../shared/content'
 import { storyState, tidyHighlightName, type InstagramHighlight } from '../../shared/highlights'
 import type { Contractor, OutsourcedJob } from '../../shared/outsourcing'
@@ -61,6 +62,7 @@ import { CV_COLUMNS, cvProblem, type ApplicantCv } from '../../shared/hiring'
 import type { SafetyCheck, SafetyPoint } from '../../shared/foodSafety'
 import type { MenuAllergens } from '../../shared/allergens'
 import type { TipPool } from '../../shared/tips'
+import type { FoundBrand } from '../../shared/brandLookup'
 import { addDays, zonedIso } from '../../shared/time'
 import { forget, keep, opened, readKept, shownAccounts, smallLogo, writeKept, type KeptSession } from './deviceAccounts'
 
@@ -135,7 +137,7 @@ const OAUTH: Record<SocialProvider, { label: string; queryParams?: Record<string
   microsoft: { label: 'Microsoft', queryParams: { prompt: 'select_account' }, scopes: 'openid email profile' },
 }
 
-export function createSupabaseApi(url: string, key: string): Api {
+export function createSupabaseApi(url: string, key: string, captchaKey?: string | null): Api {
   const sb: SupabaseClient = createClient(url, key, {
     // PKCE for Google/Microsoft sign-in (a one-time ?code= comes back). Links in Supabase emails
     // (invites, password resets sent by an admin) carry #access_token instead, which the PKCE
@@ -152,8 +154,9 @@ export function createSupabaseApi(url: string, key: string): Api {
     .then((s: { external?: Record<string, boolean>; disable_signup?: boolean }) => ({
       ...Object.fromEntries(SOCIAL_PROVIDERS.map(p => [p, !!s.external?.[SUPABASE_PROVIDER[p]]])) as Record<SocialProvider, boolean>,
       signup: !s.disable_signup,
+      ...(captchaKey ? { captcha: captchaKey } : {}),
     }))
-    .catch(() => { methods = null; return { google: true, apple: false, facebook: false, microsoft: true, signup: true } }) // unknown: let Supabase decide
+    .catch(() => { methods = null; return { google: true, apple: false, facebook: false, microsoft: true, signup: true, ...(captchaKey ? { captcha: captchaKey } : {}) } }) // unknown: let Supabase decide
 
   /** Sign in through Supabase with an outside account. Supabase handles the whole OAuth flow. */
   const oauth = async (provider: SocialProvider) => {
@@ -235,8 +238,10 @@ export function createSupabaseApi(url: string, key: string): Api {
       })
       return () => data.subscription.unsubscribe()
     },
-    async signUp(fullName, email, password) {
-      const { data, error } = await sb.auth.signUp({ email: email.trim(), password, options: { data: { full_name: fullName.trim() }, emailRedirectTo: location.origin } })
+    async signUp(fullName, email, password, captcha) {
+      // The check's answer rides in the metadata for the sign-up check, which drops it once read (the signup_check migration).
+      const { data, error } = await sb.auth.signUp({ email: email.trim(), password,
+        options: { data: { full_name: fullName.trim(), ...(captcha ? { captcha } : {}) }, emailRedirectTo: location.origin } })
       if (error) throw new Error(/already registered/i.test(error.message) ? 'That email already has an account. Sign in instead.' : error.message)
       return { confirmEmail: !data.session }
     },
@@ -654,7 +659,15 @@ export function createSupabaseApi(url: string, key: string): Api {
     async deleteContact(id) { check(await sb.from('business_contacts').delete().eq('id', id)) },
 
     async contentItems() {
-      return check(await sb.from('content_items').select(CONTENT_COLUMNS).order('created_at', { ascending: false }).limit(2000)) as ContentItem[]
+      // A thousand at a time (a synced folder can hold thousands); the hidden ones (taken off a synced folder's) aren't shown.
+      const out: ContentItem[] = []
+      for (let from = 0; from < 20000; from += 1000) {
+        const page = check(await sb.from('content_items').select(`${CONTENT_COLUMNS}, folder_id`).eq('hidden', false)
+          .order('created_at', { ascending: false }).order('id').range(from, from + 999)) as ContentItem[]
+        out.push(...page)
+        if (page.length < 1000) break
+      }
+      return out
     },
     async uploadContent(file, info) {
       const { url, type } = await worker<{ url: string; type: 'image' | 'video' }>('/api/integrations/media?folder=Content', {
@@ -663,7 +676,21 @@ export function createSupabaseApi(url: string, key: string): Api {
         width: info.width, height: info.height, tags: [] }).select(CONTENT_COLUMNS).single()) as ContentItem
     },
     async saveContentItem({ id, title, tags }) { check(await sb.from('content_items').update({ title, tags }).eq('id', id)) },
-    async deleteContentItem(id) { check(await sb.from('content_items').delete().eq('id', id)) },
+    async deleteContentItem(id) {
+      // One from a synced folder is hidden (it's still in the folder, and the next look would bring it back), and
+      // leaves its albums; anything else goes (and its albums with it).
+      check(await sb.from('content_items').update({ hidden: true }).eq('id', id).eq('source', 'folder'))
+      check(await sb.from('content_album_items').delete().eq('item_id', id))
+      check(await sb.from('content_items').delete().eq('id', id).neq('source', 'folder'))
+    },
+    async contentFolders() {
+      return check(await sb.from('content_folders').select(FOLDER_COLUMNS).order('created_at')) as ContentFolder[]
+    },
+    browseContentFolders: (provider, parent) =>
+      worker<FolderListing>(`/api/content/folders/browse?${new URLSearchParams({ provider, ...(parent ? { parent } : {}) })}`),
+    addContentFolder: f => worker<{ folder: ContentFolder; sync: FolderSync }>('/api/content/folders', { method: 'POST', body: JSON.stringify(f) }),
+    syncContentFolder: id => worker<FolderSync>(`/api/content/folders/${encodeURIComponent(id)}/sync`, { method: 'POST' }),
+    async removeContentFolder(id) { check(await sb.from('content_folders').delete().eq('id', id)) },
     startGooglePhotosPick: () => worker<GooglePhotosPick>('/api/content/google-photos/sessions', { method: 'POST' }),
     googlePhotosPicked: id => worker<{ picked: boolean; poll_ms: number }>(`/api/content/google-photos/sessions/${encodeURIComponent(id)}`),
     importGooglePhotos: (id, skip, page, count) => worker<GooglePhotosImport>(`/api/content/google-photos/sessions/${encodeURIComponent(id)}/import`, {
@@ -674,7 +701,13 @@ export function createSupabaseApi(url: string, key: string): Api {
       for (let i = 0; i < ids.length; i += 100) check(await sb.from('content_items').update({ favourite: on }).in('id', ids.slice(i, i + 100)))
     },
     async deleteContentItems(ids) {
-      for (let i = 0; i < ids.length; i += 100) check(await sb.from('content_items').delete().in('id', ids.slice(i, i + 100)))
+      // As one at a time: a synced folder's are hidden and leave their albums; the rest go.
+      for (let i = 0; i < ids.length; i += 100) {
+        const some = ids.slice(i, i + 100)
+        check(await sb.from('content_items').update({ hidden: true }).in('id', some).eq('source', 'folder'))
+        check(await sb.from('content_album_items').delete().in('item_id', some))
+        check(await sb.from('content_items').delete().in('id', some).neq('source', 'folder'))
+      }
     },
     async contentAlbums() {
       const [albums, items] = await Promise.all([
@@ -1639,7 +1672,7 @@ export function createSupabaseApi(url: string, key: string): Api {
     async googleHours() { return (await worker<{ opening_hours: never }>('/api/integrations/google/hours')).opening_hours },
     async disconnect(provider) { await worker(`/api/integrations/${provider}/disconnect`, { method: 'POST' }) },
     async connectService(provider, back, opts) {
-      const { url } = await worker<{ url: string }>(`/api/integrations/connect/${provider}/start`, { method: 'POST', body: JSON.stringify({ back, read: opts?.read }) })
+      const { url } = await worker<{ url: string }>(`/api/integrations/connect/${provider}/start`, { method: 'POST', body: JSON.stringify({ back, read: opts?.read, folders: opts?.folders }) })
       location.assign(url)
     },
     checkConnection: provider => worker(`/api/integrations/${provider}/check`, { method: 'POST' }),
@@ -1672,6 +1705,7 @@ export function createSupabaseApi(url: string, key: string): Api {
     async deleteReviewReply(id) { await worker('/api/reviews/reply', { method: 'DELETE', body: JSON.stringify({ id }) }) },
     website: () => worker('/api/website'),
     async checkWebsite() { return (await worker<{ report: never }>('/api/website/check', { method: 'POST' })).report },
+    async lookUpBrand(website) { return (await worker<{ found: FoundBrand }>('/api/setup/brand', { method: 'POST', body: JSON.stringify({ website }) })).found },
     async pageSpeed(strategy) { return (await worker<{ pagespeed: never }>('/api/website/pagespeed', { method: 'POST', body: JSON.stringify({ strategy }) })).pagespeed },
     async newsletter() {
       const row = check(await sb.from('newsletter').select('enabled, interests, ask_name, ask_phone, heading, intro, key_hint, key_made_at').maybeSingle()) as Partial<NewsletterSettings> | null

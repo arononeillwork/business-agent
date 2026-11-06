@@ -1,0 +1,30 @@
+// Spanish for Content's synced folders (ContentFolders, shared/contentFolders.ts).
+export default {
+  'Synced folders': 'Carpetas sincronizadas',
+  'Synced folder': 'Carpeta sincronizada',
+  'looked at {when}': 'revisada el {when}',
+  'Sync {name} now': 'Sincronizar {name} ahora',
+  'Sync now': 'Sincronizar ahora',
+  'Show a folder': 'Mostrar una carpeta',
+  'Its photos and videos show here straight from the folder: nothing is copied, and new ones appear by themselves. On your phone, OneDrive’s camera upload can fill it for you.':
+    'Sus fotos y vídeos se muestran aquí directamente desde la carpeta: no se copia nada y los nuevos aparecen solos. En tu móvil, la subida de cámara de OneDrive puede llenarla por ti.',
+  'Connect {name} on the Connections page first.': 'Primero conecta {name} en la página Conexiones.',
+  'Folders': 'Carpetas',
+  'No folders in here.': 'Aquí no hay carpetas.',
+  'Open the folder to show first': 'Abre primero la carpeta que quieres mostrar',
+  'Show this folder': 'Mostrar esta carpeta',
+  'Show {name}': 'Mostrar {name}',
+  'Remove {name}': 'Quitar {name}',
+  'Where you are': 'Dónde estás',
+  '{n} photo or video in {name}': '{n} foto o vídeo en {name}',
+  '{n} photos and videos in {name}': '{n} fotos y vídeos en {name}',
+  '{n} new': '{n} nuevo',
+  '{n} gone': '{n} ya no está',
+  '{n} file can’t be shown here (an iPhone’s HEIC photos, other files)': '{n} archivo no se puede mostrar aquí (fotos HEIC de iPhone, otros archivos)',
+  '{n} files can’t be shown here (an iPhone’s HEIC photos, other files)': '{n} archivos no se pueden mostrar aquí (fotos HEIC de iPhone, otros archivos)',
+  'Stop showing {name}?': '¿Dejar de mostrar {name}?',
+  'Its photos and videos come off this page. Nothing in the folder changes.': 'Sus fotos y vídeos salen de esta página. En la carpeta no cambia nada.',
+  'Stop showing it': 'Dejar de mostrarla',
+  'Google Drive folders need Google to approve The Business Agent reading your Drive. OneDrive folders work now.':
+    'Las carpetas de Google Drive necesitan que Google apruebe que The Business Agent lea tu Drive. Las carpetas de OneDrive ya funcionan.',
+} satisfies Record<string, string>

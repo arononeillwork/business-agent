@@ -6,6 +6,7 @@ import UploadIcon from '@mui/icons-material/FileUploadOutlined'
 import SearchIcon from '@mui/icons-material/Search'
 import OpenIcon from '@mui/icons-material/OpenInNewRounded'
 import ClearIcon from '@mui/icons-material/CloseRounded'
+import FolderIcon from '@mui/icons-material/FolderOutlined'
 import StarIcon from '@mui/icons-material/StarRounded'
 import StarOutlineIcon from '@mui/icons-material/StarOutlineRounded'
 import AlbumIcon from '@mui/icons-material/PhotoAlbumOutlined'
@@ -22,6 +23,8 @@ import { Brand } from '../components/Connectors'
 import { Composer } from './SocialPlannerPage'
 import { Gallery, Viewer } from './ContentGallery'
 import { AddToHighlightDialog, HighlightDialog, HighlightNameDialog, HighlightsRow } from './ContentHighlights'
+import { FolderChooser, FoldersBar, syncWords } from './ContentFolders'
+import { dueForSync, type ContentFolder } from '../../shared/contentFolders'
 import { AddToAlbumDialog, AlbumBar, AlbumNameDialog, AlbumsRow } from './ContentAlbums'
 import { downloadContent } from '../lib/contentDownload'
 import { today } from '../../shared/time'
@@ -72,6 +75,7 @@ export function ContentPage() {
   const integ = useAsync('integrations', () => api.integrations(), [])
   // Instagram highlights: a story's state changes as the minute job posts it.
   const highlights = useAsync('instagram-highlights', () => api.instagramHighlights(), [], { refetchInterval: 60_000 })
+  const folders = useAsync('content-folders', () => api.contentFolders(), [])
   const albums = useAsync('content-albums', () => api.contentAlbums(), [])
   const [filter, setFilter] = useState<ContentFilter>(NO_FILTER)
   const [chosen, setChosen] = useState<string[]>([])
@@ -84,6 +88,10 @@ export function ContentPage() {
   const [adding, setAdding] = useState<ContentItem[] | null>(null)
   const [openHighlight, setOpenHighlight] = useState<string | null>(null)
   const [naming, setNaming] = useState(false)
+  // Synced folders: choosing one; one being taken off; those being looked at now.
+  const [choosingFolder, setChoosingFolder] = useState(false)
+  const [removingFolder, setRemovingFolder] = useState<ContentFolder | null>(null)
+  const [syncing, setSyncing] = useState<string[]>([])
   // Albums: what's being put in one; one being named (new, or renamed); one being deleted.
   const [albumFor, setAlbumFor] = useState<ContentItem[] | null>(null)
   const [albumNaming, setAlbumNaming] = useState<{ id?: string } | null>(null)
@@ -112,6 +120,30 @@ export function ContentPage() {
   const circles = highlights.data ?? []
   const opened = circles.find(h => h.id === openHighlight)
 
+  /** Look at a folder again (`quiet`: when the page opens, without a word unless something changed or it failed). */
+  const syncFolder = async (f: ContentFolder, quiet = false) => {
+    setSyncing(s => [...s, f.id])
+    try {
+      const r = await api.syncContentFolder(f.id)
+      if (!quiet || r.added || r.removed) notify(syncWords(f.name, r), 'success')
+      if (r.added || r.removed) await items.reload()
+    } catch (e) {
+      notify(e instanceof Error ? e.message : String(e), 'error')
+    } finally {
+      setSyncing(s => s.filter(x => x !== f.id))
+      await folders.reload()
+    }
+  }
+  // When the page opens, each folder not looked at for a while is looked at again: new photos show by themselves.
+  const looked = useRef(false)
+  useEffect(() => {
+    if (looked.current || !folders.data) return
+    looked.current = true
+    for (const f of folders.data.filter(x => dueForSync(x))) void syncFolder(f, true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [folders.data])
+  const folderList = folders.data ?? []
+  const driveFolders = !!(integ.data?.integrations.find(i => i.provider === 'google_drive')?.external as { reads_folders?: boolean } | undefined)?.reads_folders
   // An album deleted (here or elsewhere) while open: back to everything.
   useEffect(() => { if (filter.album && albums.data && !album) setFilter(f => ({ ...f, album: null })) }, [filter.album, albums.data, album])
 
@@ -230,6 +262,7 @@ export function ContentPage() {
       <PageHeader eyebrow={t('Marketing')} title={t('Content')} actions={<>
         <input ref={file} type="file" hidden multiple accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime"
           onChange={e => { if (e.target.files?.length) void upload(e.target.files) }} />
+        <Button variant="outlined" startIcon={<FolderIcon />} onClick={() => setChoosingFolder(true)}>{t('Show a folder')}</Button>
         <Button variant="outlined" startIcon={<UploadIcon />} disabled={!storage || !!uploading} onClick={() => file.current?.click()}>{t('Upload')}</Button>
         <Button variant="contained" startIcon={<Box component="span" sx={{ display: 'grid', '& svg': { width: 18, height: 18 } }}><Brand icon={siGooglephotos} /></Box>}
           disabled={!storage || !photosOn || !!pick} onClick={() => void startPick()}>{t('From Google Photos')}</Button>
@@ -258,6 +291,7 @@ export function ContentPage() {
       )}
 
       {highlights.data && !album && <HighlightsRow highlights={circles} onOpen={setOpenHighlight} onNew={() => setNaming(true)} />}
+      {folderList.length > 0 && !album && <FoldersBar folders={folderList} syncing={syncing} onSync={f => void syncFolder(f)} onRemove={setRemovingFolder} />}
       {albums.data && all.length > 0 && !album && (
         <AlbumsRow albums={albumList} items={all} onOpen={id => { setChosen([]); setFilter(f => ({ ...f, album: id })) }} onNew={() => setAlbumNaming({})} />
       )}
@@ -352,6 +386,25 @@ export function ContentPage() {
       {naming && (
         <HighlightNameDialog title={t('New highlight')} others={circles} onClose={() => setNaming(false)}
           onSave={name => api.createHighlight(name)} />
+      )}
+      {choosingFolder && (
+        <FolderChooser connected={p => connected(p)} driveFolders={driveFolders} onClose={() => setChoosingFolder(false)}
+          onAdded={() => { setChoosingFolder(false); void items.reload() }} />
+      )}
+      {removingFolder && (
+        <Dialog open onClose={() => setRemovingFolder(null)} maxWidth="xs" fullWidth>
+          <DialogTitle>{t('Stop showing {name}?', { name: removingFolder.name })}</DialogTitle>
+          <DialogContent>
+            <Typography variant="body2">{t('Its photos and videos come off this page. Nothing in the folder changes.')}</Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setRemovingFolder(null)}>{t('Keep')}</Button>
+            <Button variant="contained" color="error" onClick={() => void run(async () => {
+              await api.removeContentFolder(removingFolder.id)
+              setRemovingFolder(null)
+            })}>{t('Stop showing it')}</Button>
+          </DialogActions>
+        </Dialog>
       )}
       {albumFor && (
         <AddToAlbumDialog items={albumFor} albums={albumList} all={all} onClose={() => setAlbumFor(null)}

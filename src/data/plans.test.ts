@@ -1,14 +1,18 @@
 import sql from '../../supabase/migrations/20261019000036_billing_plans.sql?raw'
 import musicSql from '../../supabase/migrations/20261104000086_social_music.sql?raw'
+// Found by name, so it still matches if the merge queue gives the migration another number.
+const [allowanceSql] = Object.values(import.meta.glob<string>('../../supabase/migrations/*_assistant_allowance.sql', { query: '?raw', import: 'default', eager: true }))
 import { describe, expect, it } from 'vitest'
 import { COMPARE, PAY_PER_USE, PLANS, effectivePlan, mostIncluded, payPerUse, paymentProblem, perUsePrice, type Billing } from '../../shared/plans'
 
 describe('plans', () => {
-  it('match the limits the database enforces (migration 36)', () => {
+  it('match the limits the database enforces (migration 36, and the assistant_allowance migration)', () => {
     const rows = [...sql.matchAll(/\('(\w+)',\s+(null|\d+),\s+(\d+),\s+(null|\d+),\s+'\{([^}]*)\}'\)/g)]
     const num = (s: string) => (s === 'null' ? null : Number(s))
     const db = Object.fromEntries(rows.map(([, plan, people, social, posts, features]) =>
       [plan, { people: num(people), socialAccounts: Number(social), postsPerMonth: num(posts), features: features ? features.split(',') : [] }]))
+    // The assistant's questions a month came later (the assistant_allowance migration).
+    for (const [, plan, n] of allowanceSql.matchAll(/\('(\w+)',\s+(null|\d+)\)/g)) Object.assign(db[plan], { assistantPerMonth: num(n) })
     expect(db).toEqual(Object.fromEntries(PLANS.map(p => [p.id, { ...p.limits, features: p.features }])))
   })
 

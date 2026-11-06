@@ -274,6 +274,15 @@ built-in **AI connector** so owners can run it by talking to Claude.
   month comes in one go. They come in a page of the pick (100) after another and five at a time side by side;
   the first round says how many were picked, so the progress bar is true to it, and the list on the page
   catches up every few seconds (`worker/content.ts`, `pickedPage()` in `worker/providers/googlePhotos.ts`).
+- Content shows a OneDrive folder's photos and videos straight from it (**Show a folder**: look through the
+  OneDrive folder by folder and choose one; three folders deep, up to 5,000). Nothing is copied: each is
+  listed with an address the Worker serves from the folder itself, and the folder is looked at again when the
+  page opens (every five minutes at most) and on **Sync now**, so new ones show by themselves and ones taken
+  out of the folder go. With OneDrive's camera upload on a phone, that's every photo taken. One taken off the
+  page is hidden, not deleted; **Remove** stops showing the folder. Google Drive folders work the same way
+  once Google approves The Business Agent reading a Drive (a restricted permission): switch on
+  `FEATURES.driveFolders`, and connecting Drive from there asks for read-only Drive (`worker/contentFolders.ts`,
+  `src/pages/ContentFolders.tsx`, `shared/contentFolders.ts`, the `content_folders` migration).
 - Content's photos and videos take Google Photos' actions too: a star makes one a favourite (and
   **Favourites** shows just those), **Albums** of the business's own (New album, Add to album for the
   chosen ones, and inside an album Rename, Delete album and Take out of this album; deleting one leaves
@@ -875,6 +884,13 @@ Google, Apple, Facebook or Microsoft), then **Add my business** (its name, what 
 time zone). Its creator runs it (admin and owner) on the Free plan and goes straight on to the set-up
 guide (`/setup`) to connect its apps. Someone joining an existing team signs up the same way and
 asks their manager to add their email on the Team page.
+
+The set-up guide opens on **Your business**: is it new or already open? A new business adds its team
+size, opening day, logo and main colour (each can be skipped). One that's already open gives its website
+and the guide brings in its logo, colours, fonts and contact details, read with Firecrawl when
+`FIRECRAWL_API_KEY` is set and from the page's own HTML either way (`docs/INTEGRATIONS.md` section 22);
+the owner keeps what they tick. All of it lands on the Brand and Business pages (the
+`business_stage_team_size` migration adds the stage, team size and opening day).
 
 Every business shares the one database, Worker and app, each seeing only its own data
 (`docs/SEVERAL_BUSINESSES.md`). Easy Beans is business 1.

@@ -657,3 +657,40 @@ export async function deleteDriveFile(token: string, id: string) {
   const json = await res.json().catch(() => ({})) as { error?: { message?: string } }
   throw new Error(`Google Drive: ${json.error?.message ?? res.status}`)
 }
+
+// Content page: a Drive folder whose photos and videos show from where they are (worker/contentFolders.ts).
+// Needs Drive's read-only permission (READ_DRIVE): drive.file sees only what this app made or was handed.
+export const READ_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.readonly'
+
+/** A file or folder in such a folder, with what Drive knows of a photo or video. */
+export interface DriveMediaItem {
+  id: string; name: string; mimeType: string; createdTime?: string
+  imageMediaMetadata?: { width?: number; height?: number; time?: string }
+  videoMediaMetadata?: { width?: number; height?: number }
+}
+
+/** One page of what's in a folder ('root': My Drive), and the next page's token (null: that was the last). */
+export async function driveFolderPage(token: string, parent: string, pageToken?: string): Promise<{ items: DriveMediaItem[]; next: string | null }> {
+  const q = `'${parent.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}' in parents and trashed = false`
+  const found = await drive<{ files: DriveMediaItem[]; nextPageToken?: string }>(token, `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}` +
+    '&fields=nextPageToken,files(id,name,mimeType,createdTime,imageMediaMetadata(width,height,time),videoMediaMetadata(width,height))&pageSize=1000' +
+    (pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''))
+  return { items: found.files ?? [], next: found.nextPageToken ?? null }
+}
+
+/** A Drive file or folder's name and kind; null when it isn't there (or can't be seen). */
+export async function driveItem(token: string, id: string): Promise<{ id: string; name: string; mimeType: string } | null> {
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?fields=id,name,mimeType`, { headers: { authorization: `Bearer ${token}` } })
+  if (res.status === 404) return null
+  const json = await res.json().catch(() => ({})) as { id: string; name: string; mimeType: string; error?: { message?: string } }
+  if (!res.ok) throw new Error(`Google Drive: ${json.error?.message ?? res.status}`)
+  return json
+}
+
+/** When a camera says a photo was taken ("2026:10:30 09:15:00"), as an instant; null when it can't be read. */
+export function exifTime(time: string | undefined): string | null {
+  const m = /^(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})/.exec(time ?? '')
+  if (!m) return null
+  const d = new Date(`${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}Z`)
+  return Number.isNaN(d.getTime()) ? null : d.toISOString()
+}

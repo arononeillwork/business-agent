@@ -18,6 +18,11 @@ export const FEATURES = {
   ownerVideo: true,
   /** "Just say it": Business Agent from the owner's own AI (its connector), typed or said, on the Demos page (video/). */
   sayVideo: true,
+  /**
+   * Content's synced folders in Google Drive (OneDrive's work already): connecting Drive asks Google for read-only
+   * access to the whole Drive, a restricted permission. Switch on once Google has approved the app for it.
+   */
+  driveFolders: false,
 }
 
 /** Whether something marked as part of one of these (`onlyWith`, e.g. a row of the pricing table) shows: unless that part is switched off. */

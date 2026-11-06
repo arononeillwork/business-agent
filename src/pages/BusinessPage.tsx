@@ -10,6 +10,8 @@ import StoreIcon from '@mui/icons-material/StorefrontOutlined'
 import NameIcon from '@mui/icons-material/BadgeOutlined'
 import BadgeIcon from '@mui/icons-material/ReceiptLongOutlined'
 import CurrencyIcon from '@mui/icons-material/PaymentsOutlined'
+import TeamIcon from '@mui/icons-material/GroupsOutlined'
+import OpensIcon from '@mui/icons-material/EventAvailableOutlined'
 import { useState, type ReactNode } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
@@ -22,6 +24,7 @@ import type { Business } from '../../shared/types'
 import { optionName } from '../../shared/connections'
 import { checkTaxId } from '../../shared/taxId'
 import { formatLocal } from '../../shared/time'
+import { TEAM_SIZES } from '../../shared/brandLookup'
 import { tokens } from '../theme'
 
 const CHANNEL: Record<string, string> = { whatsapp: 'WhatsApp', slack: 'Slack', sms: msg('Text message') }
@@ -64,6 +67,11 @@ const currencyLabel = (code: string) => {
 /** Instagram username: letters, numbers, full stops and underscores (Instagram's own rule), without the @. */
 const cleanHandle = (v: string) => v.replace(/^@+/, '').replace(/[^A-Za-z0-9._]/g, '').slice(0, 30)
 const handleOf = (b: Business) => (b.instagram ?? '').replace(/^@+/, '')
+/** "2–5", or "Just me" in the person's language. */
+const teamSizeLabel = (v: Business['team_size']) => {
+  const s = TEAM_SIZES.find(x => x.value === v)
+  return !s ? null : /^\d/.test(s.label) ? s.label : t(s.label)
+}
 /** A web address as typed ("easybeanscoffee.com") made whole ("https://easybeanscoffee.com"). */
 const cleanWebsite = (v: string) => { const w = v.trim(); return !w ? null : /^https?:\/\//i.test(w) ? w : `https://${w}` }
 /** The address without https:// and the trailing slash, for reading. */
@@ -202,6 +210,10 @@ export function BusinessPage() {
             </InfoRow>
             <InfoRow icon={<CurrencyIcon fontSize="small" />} label={t('Currency')}>{currencyLabel(b.currency ?? 'EUR')}</InfoRow>
             <InfoRow icon={<ChatIcon fontSize="small" />} label={t('Team alerts go to')}>{b.team_channel ? t(CHANNEL[b.team_channel]) : t('Not set yet')}</InfoRow>
+            <InfoRow icon={<TeamIcon fontSize="small" />} label={t('People working there')}>{teamSizeLabel(b.team_size) ?? t('Not set yet')}</InfoRow>
+            {(b.stage === 'new' || b.opens_on) && (
+              <InfoRow icon={<OpensIcon fontSize="small" />} label={t('Opening day')}>{b.opens_on ? formatLocal(`${b.opens_on}T12:00:00Z`, 'd MMM yyyy') : t('Not set yet')}</InfoRow>
+            )}
           </>}
           form={({ d, set }) => {
             const tax = d.tax_id?.trim() ? checkTaxId(d.tax_id) : null
@@ -226,9 +238,16 @@ export function BusinessPage() {
               <option value="slack">{'Slack'}</option>
               <option value="sms">{t('Text message')}</option>
             </TextField>
+            <TextField select label={t('People working there')} value={d.team_size ?? ''} slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
+              helperText={t('You included')} onChange={e => set({ team_size: (e.target.value || null) as Business['team_size'] })}>
+              <option value="">{t('Not set')}</option>
+              {TEAM_SIZES.map(s => <option key={s.value} value={s.value}>{teamSizeLabel(s.value)}</option>)}
+            </TextField>
+            <TextField type="date" label={t('Opening day')} value={d.opens_on ?? ''} helperText={t('For a business that hasn’t opened yet')}
+              slotProps={{ inputLabel: { shrink: true } }} onChange={e => set({ opens_on: e.target.value || null })} />
           </>
           }}
-          onSave={save(['name', 'business_type', 'tax_id', 'currency', 'team_channel'], p => {
+          onSave={save(['name', 'business_type', 'tax_id', 'currency', 'team_channel', 'team_size', 'opens_on'], p => {
             if (!p.name?.trim()) throw new Error(t('The business needs a name'))
             p.name = p.name.trim()
             if (p.tax_id?.trim()) {
