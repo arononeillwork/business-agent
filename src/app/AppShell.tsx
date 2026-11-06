@@ -96,6 +96,7 @@ import type { PartnerArea } from '../../shared/types'
 import { hiddenByRole, roleNamesOf } from '../../shared/roles'
 import { teamRoleLabel } from '../../shared/teamRoles'
 import { BrandLogo } from '../components/Logo'
+import { BusinessSwitchButton, Opening, businessMenuItems, useBusinesses, useSignOutLabel } from '../components/BusinessSwitcher'
 import { Loading, PersonAvatar, TitleSlot } from '../components/common'
 import { KeyboardSensorNow } from '../components/dnd'
 import { NotificationBell } from '../components/NotificationBell'
@@ -281,6 +282,9 @@ function AccountMenu({ children, label, sx }: { children: ReactNode; label?: str
   const { me, isAdmin, isPartner, canSeePay, api, permissions } = useApp()
   const [anchor, setAnchor] = useState<HTMLElement | null>(null)
   const close = () => setAnchor(null)
+  // The other businesses on this device, to switch to, and adding one (the phone has no top left for it).
+  const businesses = useBusinesses()
+  const signOut = useSignOutLabel()
   const item = (to: string, text: string, icon: ReactNode) => (
     <MenuItem component={Link} to={to} onClick={close}><ListItemIcon>{icon}</ListItemIcon><ListItemText primary={text} /></MenuItem>
   )
@@ -301,8 +305,11 @@ function AccountMenu({ children, label, sx }: { children: ReactNode; label?: str
         {item('/appearance', t('Appearance'), <AppearanceIcon fontSize="small" />)}
         <InstallMenuItem onClick={close} />
         <Divider />
-        <MenuItem onClick={() => { close(); void api.signOut() }}><ListItemIcon><LogoutIcon fontSize="small" /></ListItemIcon><ListItemText primary={t('Sign out')} /></MenuItem>
+        {businessMenuItems(businesses, close, false)}
+        <Divider />
+        <MenuItem onClick={() => { close(); void api.signOut() }}><ListItemIcon><LogoutIcon fontSize="small" /></ListItemIcon><ListItemText primary={signOut} /></MenuItem>
       </Menu>
+      <Opening account={businesses.opening} />
     </>
   )
 }
@@ -380,6 +387,7 @@ function DemoBanner() {
  */
 function PhoneNav({ sections, current, badges }: { sections: NavSection[]; current: string | false; badges: NavBadges }) {
   const { api } = useApp()
+  const signOut = useSignOutLabel()
   const [more, setMore] = useState(false)
   const flat = sections.flatMap(s => withChildren(s.items)).filter(n => n.key !== 'account')
   const rank = (n: NavItem) => { const i = PHONE_TABS.indexOf(n.key); return i < 0 ? PHONE_TABS.length : i }
@@ -429,7 +437,7 @@ function PhoneNav({ sections, current, badges }: { sections: NavSection[]; curre
           })}
           <ListItemButton onClick={() => api.signOut()} sx={{ mx: 1, mt: 1 }}>
             <ListItemIcon sx={{ minWidth: 40 }}><LogoutIcon /></ListItemIcon>
-            <ListItemText primary={t('Sign out')} />
+            <ListItemText primary={signOut} />
           </ListItemButton>
         </List>
       </Drawer>
@@ -621,6 +629,7 @@ export function hiddenPages(settings: { hidden_pages?: string[] } | null, me: { 
 
 export function AppShell() {
   const { isAdmin, isPartner, partnerCan, canSeePay, me, api, refresh, business, settings, permissions, jobRoles } = useApp()
+  const signOut = useSignOutLabel()
   const theme = useTheme()
   const desktop = useMediaQuery(theme.breakpoints.up('md'))
   const { pathname } = useLocation()
@@ -690,6 +699,8 @@ export function AppShell() {
                 </Typography>
               )}
             </ButtonBase>
+            {/* Beside the name: switch to another business on this device, or add one. */}
+            {!mini && <BusinessSwitchButton sx={{ flexShrink: 0, color: SIDEBAR.text, '&:hover': { color: SIDEBAR.bright, background: SIDEBAR.hover } }} />}
           </Stack>
           {/* Scrolls only on short screens, without a visible scrollbar. */}
           <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', mx: mini ? -1 : -1.5, px: mini ? 1 : 1.5, pb: 2,
@@ -721,8 +732,8 @@ export function AppShell() {
                 <Typography variant="caption" sx={{ color: SIDEBAR.faint }}>{me?.role === 'partner' ? me.partner_company ?? t('Partner') : personLabel}</Typography>
               </Box>}
             </AccountMenu>
-            <Tooltip title={t('Sign out')}>
-              <IconButton size="small" aria-label={t('Sign out')} onClick={() => api.signOut()} sx={{ color: SIDEBAR.text, '&:hover': { color: SIDEBAR.bright, background: SIDEBAR.hover } }}><LogoutIcon fontSize="small" /></IconButton>
+            <Tooltip title={signOut}>
+              <IconButton size="small" aria-label={signOut} onClick={() => api.signOut()} sx={{ color: SIDEBAR.text, '&:hover': { color: SIDEBAR.bright, background: SIDEBAR.hover } }}><LogoutIcon fontSize="small" /></IconButton>
             </Tooltip>
           </Stack>
         </Box>

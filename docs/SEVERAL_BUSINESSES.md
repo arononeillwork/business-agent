@@ -102,6 +102,29 @@ month free and is put down as referred (`business.referred_by`); the referrer's 
 (`referrals.became`), and the referrer's month counts once the new business finishes the set-up
 guide (`business_set_up()`).
 
+## Someone in more than one business
+
+An account is in one business (`profiles.business_id`): its role, pay access, colour, PIN and rota
+settings are that business's, and everything in the database leans on that. So someone in two
+businesses (an owner with two cafés, Aron with Easy Beans and Business Agent HQ, a barista who works
+at two places) has an account in each, and the app keeps them all signed in on the device and switches
+between them, like Slack's workspaces. Nothing changes in the database.
+
+- **Switch business:** top left on a computer, beside the business's name, and in the account menu (the
+  phone's too). My account lists them as well. Switching starts the app again in the other business.
+- **Add another business** shows sign-in for it, with the businesses already on the device a click away.
+  A new business is a new account with another email (`name+cafe2@gmail.com` reaches the same inbox).
+- **Sign out** signs out of every business on the device, so a shared tablet keeps none of them; one can
+  be taken off on its own from My account.
+- How: Supabase keeps the open business's sign-in under its own key; the others wait in localStorage
+  (`business-agent.accounts`, `src/data/deviceAccounts.ts`) and switching hands one to `setSession()`.
+  Adding one takes the open sign-in off the device without ending it. Other tabs start again too, so
+  none goes on showing one business while it reads and writes as another.
+
+A single sign-in for several businesses would need the per-business parts of `profiles` (role, pay
+access, PIN, rota settings) moved to a table of memberships, and every policy and page that reads them
+changed: worth doing if people in several businesses become common.
+
 ## By hand (SQL editor)
 
 With several businesses, say which one: `select public.grant_complimentary('friends_family', 'Note', 7);`

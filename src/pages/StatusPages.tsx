@@ -1,6 +1,7 @@
 import { Box, Button, Card, CardContent, Stack, Typography } from '@mui/material'
 import { useApp } from '../app/AppContext'
 import { Logo } from '../components/Logo'
+import { BackToBusinesses } from '../components/BusinessSwitcher'
 import { AgentMark } from './marketing/site'
 import { t, tr } from '../i18n'
 
@@ -51,6 +52,7 @@ export function NotActive() {
             <Button variant="contained" onClick={() => location.reload()} sx={{ bgcolor: '#4F46E5', color: '#fff', '&:hover': { bgcolor: '#3730A3' } }}>{t('Check again')}</Button>
             <Button variant="outlined" onClick={() => api.signOut()} sx={{ borderColor: '#E4E7EE', color: '#12141A' }}>{t('Sign out')}</Button>
           </Stack>
+          <BackToBusinesses sx={{ borderColor: '#E4E7EE', color: '#12141A' }} />
         </Stack>
       </Box>
     </Box>

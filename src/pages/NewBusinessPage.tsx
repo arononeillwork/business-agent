@@ -15,6 +15,7 @@ import { forgetReferral, keptReferral } from '../app/referral'
 import { cleanCode } from '../../shared/referrals'
 import type { ReferralOpen } from '../../shared/hqReps'
 import { startGuide } from './SetupPage'
+import { BackToBusinesses } from '../components/BusinessSwitcher'
 import { AgentMark, BA, Wordmark, display, glow, outlineBtn, primaryBtn } from './marketing/site'
 import { TRIAL_MONTHS } from './marketing/plans'
 import { msg, t, tr } from '../i18n'
@@ -154,6 +155,8 @@ export function NewBusinessPage() {
               <Button variant="outlined" onClick={() => location.reload()} sx={outlineBtn}>{t('Check again')}</Button>
               <Button variant="outlined" onClick={() => void api.signOut()} sx={outlineBtn}>{t('Sign out')}</Button>
             </Stack>
+            {/* Came here adding another business: the ones already on this device are a click away. */}
+            <Box sx={{ mt: 1 }}><BackToBusinesses sx={outlineBtn} /></Box>
           </Box>
         </Stack>
       </Box>

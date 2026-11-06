@@ -66,6 +66,7 @@ import type { BrandDocument } from '../../shared/brandDocs'
 import type { TipPool, TipPoolInput, TipShare } from '../../shared/tips'
 import type { CompetitorData, CompetitorInput, CompetitorNoteInput, CompetitorPrice, CompetitorSettings, NearbyPlace, PriceItem } from '../../shared/localCompetitors'
 import type { SocialReport, SocialSource } from '../../shared/socialAnalytics'
+import type { DeviceAccount } from './deviceAccounts'
 
 /** The business's latest posts (Offers & specials → From Instagram). */
 export interface LatestPosts { source: 'instagram' | 'facebook'; account: string | null; posts: SourcePost[] }
@@ -77,6 +78,7 @@ export type EventInput = Omit<CalendarEvent, 'id' | 'source' | 'competition'> & 
 export type SocialProvider = 'google' | 'apple' | 'facebook' | 'microsoft'
 export const SOCIAL_PROVIDERS: SocialProvider[] = ['google', 'apple', 'facebook', 'microsoft']
 export type SignInMethods = Record<SocialProvider, boolean> & { signup?: boolean }
+export type { DeviceAccount }
 
 /** The plan in force for the business, its limits and what's used (public.plan_status()). */
 export interface PlanStatus {
@@ -168,6 +170,20 @@ export interface Api {
    * picks its first positions; `referral` is another business's referral code. Returns its number.
    */
   createBusiness(b: { name: string; kind: 'cafe' | 'restaurant' | 'pub' | 'salon' | 'real_estate' | 'other' | null; timezone: string; referral?: string | null }): Promise<number>
+  /**
+   * The other businesses kept signed in on this device. An account is in one business, so someone in
+   * two signs in to each once; the app keeps both and switches between them (docs/SEVERAL_BUSINESSES.md).
+   */
+  deviceAccounts(): DeviceAccount[]
+  /**
+   * Open another business kept on this device: the app starts again in it. Or it stays where it is:
+   * `'signed-out'` when that business's sign-in has ended, `'unreachable'` with no connection.
+   */
+  switchAccount(userId: string): Promise<'opened' | 'signed-out' | 'unreachable'>
+  /** Keep the business open now signed in on this device, and show sign-in for another. */
+  addAccount(): Promise<void>
+  /** Take a business off this device (it's signed out here). */
+  forgetAccount(userId: string): Promise<void>
   me(): Promise<Profile | null>
   business(): Promise<Business>
   adminNotes(): Promise<string | null>
