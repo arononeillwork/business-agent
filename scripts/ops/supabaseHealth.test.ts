@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 // @ts-expect-error: a plain .mjs ops script, without types
-import { check, deployToRerun, recentRestart, supabaseFrom } from './supabaseHealth.mjs'
+import { check, deployToRerun, recentRestart, supabaseFrom, watch, whatFailed } from './supabaseHealth.mjs'
 
 const supabase = { url: 'https://example.supabase.co', key: 'sb_publishable_x' }
 const answer = (status: number) => async () => new Response(null, { status })
@@ -40,6 +40,49 @@ describe('the Supabase watchdog', () => {
     expect(recentRestart([old], now)).toBeNull()
     expect(recentRestart([{ status: 'completed', created_at: '2026-10-31T17:45:00Z' }, old], now)).not.toBeNull()
     expect(recentRestart([{ status: 'in_progress', created_at: '2026-10-31T16:00:00Z' }], now)).not.toBeNull()
+  })
+})
+
+describe('watching for a while', () => {
+  const up = { ok: true, auth: null, data: null }
+  const down = { ok: false, auth: 'no answer in 20s', data: null }
+  /** Answers in turn (the last one again once they run out), and the minutes waited. */
+  const scripted = (answers: typeof up[]) => {
+    let n = 0
+    const clock = { minutes: 0 }
+    return { clock, look: async () => answers[Math.min(n++, answers.length - 1)], wait: async (ms: number) => { clock.minutes += ms / 60_000 } }
+  }
+
+  it('looks once a minute for as long as it was asked, then stops', async () => {
+    const s = scripted([up])
+    expect(await watch({ ...s, minutes: 300 })).toMatchObject({ frozen: false, stalls: [] })
+    expect(s.clock.minutes).toBe(300)
+  })
+
+  it('one look when not asked to watch: the schedule’s old way', async () => {
+    const s = scripted([up])
+    expect(await watch({ ...s })).toMatchObject({ frozen: false })
+    expect(s.clock.minutes).toBe(0)
+  })
+
+  it('notes a stall that passes and goes on watching', async () => {
+    // Fine, then no answer for two looks, then fine again.
+    const s = scripted([up, down, down, up])
+    const notes: string[] = []
+    expect(await watch({ ...s, minutes: 10, note: n => notes.push(n) })).toMatchObject({ frozen: false, stalls: [2] })
+    expect(s.clock.minutes).toBe(10)
+    expect(notes[0]).toBe('Supabase didn\'t answer (sign-in no answer in 20s); looking again every minute for 5 minutes.')
+  })
+
+  it('stops as soon as Supabase has gone five minutes without answering', async () => {
+    const s = scripted([up, up, down])
+    expect(await watch({ ...s, minutes: 300 })).toEqual({ frozen: true, last: down, stalls: [] })
+    // Two good looks a minute apart, then the first bad one and five more minutes.
+    expect(s.clock.minutes).toBe(7)
+  })
+
+  it('says what didn’t answer', () => {
+    expect(whatFailed({ auth: 'no answer in 20s', data: 'answered 544' })).toBe('sign-in no answer in 20s; data API answered 544')
   })
 })
 

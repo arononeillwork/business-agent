@@ -103,6 +103,20 @@ do $$ begin
   assert (select screen_mode = 'none' from public.fresh_items i join public.recipes r on r.id = i.recipe_id where r.name = 'FO Muffin'), 'still none';
 end $$;
 
+-- 5. Both of a batch's discounts (the `fresh_second_discount` migration) go where its item says.
+select pg_temp.act_as('julio@test');
+insert into public.fresh_batches (name, made_at, shelf_life_hours, discount_at, percent_off, discount2_at, percent_off2, notes)
+values ('FO Cheesecake', now() - interval '10 minutes', 72, now() + interval '24 hours', 30, now() + interval '48 hours', 50, 'two discounts');
+reset role;
+do $$
+declare
+  win uuid := (select id from public.screens where name = 'FO window TV');
+  b uuid := (select id from public.fresh_batches where notes = 'two discounts');
+begin
+  assert (select count(*) from public.offers where fresh_batch_id = b) = 2, 'an offer for each discount';
+  assert (select bool_and(screen_ids = array[win] and screen_mode = 'only') from public.offers where fresh_batch_id = b), 'both on the window TV, on their own';
+end $$;
+
 -- Tidy up.
 reset role;
 delete from public.offers where title like 'FO %';

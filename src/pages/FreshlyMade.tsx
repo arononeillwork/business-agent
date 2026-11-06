@@ -7,8 +7,9 @@ import EditIcon from '@mui/icons-material/EditOutlined'
 import OfferIcon from '@mui/icons-material/LocalOfferOutlined'
 import SoldIcon from '@mui/icons-material/TaskAltOutlined'
 import BinIcon from '@mui/icons-material/DeleteSweepOutlined'
+import RemoveIcon from '@mui/icons-material/Remove'
 import ScreenIcon from '@mui/icons-material/TvOutlined'
-import { useRef, useState } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAsync, useTick } from '../app/hooks'
@@ -17,7 +18,7 @@ import { Empty, ErrorBox, SectionTitle, Tag } from '../components/common'
 import {
   DISCOUNT_LEADS, MAX_SHELF_HOURS, OFFER_LEADS, SHELF_LIVES, batchFromItem, batchesOf, defaultDiscountAt, freshItemProblem, freshOfferPrice, freshProblem, freshState,
   goodUntil, likeLastTime, newFreshBatch, newFreshItem, onCounter, shelfShare, type FreshBatch, type FreshBatchInput, type FreshItem, type FreshItemInput, type FreshState,
-  madeHere, menuShelfLife, type MadeHereItem, batchScreens, type FreshScreenMode, type FreshScreens,
+  madeHere, menuShelfLife, type MadeHereItem, defaultSecondAt, discountNow, secondDiscount, batchScreens, type FreshScreenMode, type FreshScreens,
 } from '../../shared/freshBatches'
 import type { Screen } from '../../shared/screens'
 import type { MenuItem as MenuRow } from '../../shared/menu'
@@ -52,6 +53,19 @@ const toField = (iso: string) => formatLocal(iso, "yyyy-MM-dd'T'HH:mm")
 /** What's saved of a batch (the rest the database works out). */
 const inputOf = ({ good_until: _g, cleared_at: _c, made_by: _m, ...b }: FreshBatch): FreshBatchInput => b
 const fromField = (v: string) => (v ? zonedIso(v.slice(0, 10), v.slice(11, 16)) : '')
+/** Made here's columns, on wide screens: the item, how long it keeps, last made, the batch on the counter, its offer, and what to do. */
+// The buttons' column has a set width, so the header row (which has none) divides the rest the same way.
+const MADE_COLUMNS = 'minmax(0, 1.9fr) minmax(0, 0.65fr) minmax(0, 1.15fr) minmax(0, 1.8fr) minmax(0, 2fr) 150px'
+/** A discount's words for an item: "30% off for its last 2 days", then ", then 50% off for its last day" when it has a second. */
+function offerWords(i: Pick<FreshItem, 'offer_hours' | 'discount' | 'percent_off' | 'price' | 'offer2_hours' | 'discount2' | 'percent_off2' | 'price2'>) {
+  if (i.offer_hours === null) return null
+  const first = t('{discount} for {lead}', { discount: discountWords(i) || '…', lead: leadText(i.offer_hours) })
+  if (i.offer2_hours == null) return first
+  return t('{first}, then {second}', { first, second: t('{discount} for {lead}', { discount: discountWords(secondDiscount(i)) || '…', lead: leadText(i.offer2_hours) }) })
+}
+/** The usual second offer for a first one: the longest lead that's at most half of it, or the shortest below it. */
+const usualSecondLead = (first: number) => [...OFFER_LEADS].reverse().find(l => l.hours <= first / 2)?.hours ?? OFFER_LEADS.find(l => l.hours < first)?.hours ?? null
+
 /** What's saved of an item made here: one the menu suggested has no row yet, so no id. */
 const itemInput = ({ id, from_square: _f, suggested, ...i }: MadeHereItem): FreshItemInput => (suggested ? i : { id, ...i })
 
@@ -123,6 +137,13 @@ export function FreshlyMade() {
             : t('Nothing with a set shelf life yet.')}</Empty>
         ) : (
           <Card sx={{ overflow: 'hidden' }}>
+            {/* The columns' names, on wide screens (on narrow ones each row names its own). */}
+            <Box aria-hidden sx={{ display: { xs: 'none', md: 'grid' }, gridTemplateColumns: MADE_COLUMNS, columnGap: 2, px: 2, py: 1,
+              borderBottom: `1px solid ${tokens.line}`, bgcolor: tokens.surfaceAlt }}>
+              {[t('Item'), t('Keeps'), t('Last made'), t('Good until'), t('Offer'), ''].map((h, n) => (
+                <Typography key={n} variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>{h}</Typography>
+              ))}
+            </Box>
             <Box component="ul" aria-label={t('Made here')} sx={{ m: 0, p: 0, listStyle: 'none' }}>
               {made.map(({ item, menu: m }) => (
                 <MadeHereRow key={item.id} item={item} menu={m} batches={batchesOf(m, list)} now={now} canRecord={canRecord} canEdit={isAdmin}
@@ -202,21 +223,22 @@ function BatchCard({ b, now, sellPrice, offerLink, canRecord, onEdit, onSold, on
   const state = freshState(b, now)
   const share = shelfShare(b, now)
   const span = Date.parse(b.good_until) - Date.parse(b.made_at)
-  const mark = b.discount_at ? (Date.parse(b.discount_at) - Date.parse(b.made_at)) / Math.max(1, span) : null
+  const markAt = (at: string | null) => (at ? (Date.parse(at) - Date.parse(b.made_at)) / Math.max(1, span) : null)
+  const marks = [{ at: b.discount_at, share: markAt(b.discount_at) }, { at: b.discount2_at, share: markAt(b.discount2_at) }]
+    .filter((m): m is { at: string; share: number } => m.share !== null)
   const by = profiles.find(p => p.id === b.made_by)?.full_name.split(' ')[0]
   const left = Math.max(0, Date.parse(b.good_until) - now)
   // Whole days from two days on; hours to the nearest from an hour and a half; minutes in the last of it.
   const leftText = left >= 48 * HOUR ? tn(Math.floor(left / (24 * HOUR)), '{n} day left', '{n} days left')
     : left >= 1.5 * HOUR ? tn(Math.round(left / HOUR), '{n} hour left', '{n} hours left') : tn(Math.ceil(left / 60_000), '{n} minute left', '{n} minutes left')
-  const { price, was_price } = freshOfferPrice(b, sellPrice)
-  const offerText = state === 'on_offer'
-    ? t('On offer now: {price}', { price: discountWords(b) === price ? price : `${discountWords(b)} · ${price}` })
-    : b.discount_at ? t('{discount} from {time}', { discount: discountWords(b), time: when(b.discount_at) }) : null
-  const tag = offerText && (
-    <Tag fg={state === 'on_offer' ? tokens.warnFg : tokens.infoFg} bg={state === 'on_offer' ? tokens.warnBg : tokens.infoBg}>
-      <OfferIcon sx={{ fontSize: 14, mr: 0.5, verticalAlign: '-2px' }} />{offerText}
-    </Tag>
-  )
+  // The discount on now (the second once it has started), and the one still to come.
+  const on = state === 'on_offer' ? discountNow(b, now) : null
+  const next = !on ? (b.discount_at ? { at: b.discount_at, d: b } : null) : on.stage === 1 && b.discount2_at ? { at: b.discount2_at, d: secondDiscount(b) } : null
+  const { price, was_price } = freshOfferPrice(on ?? b, sellPrice)
+  const tags = [
+    on && { text: t('On offer now: {price}', { price: discountWords(on) === price ? price : `${discountWords(on)} · ${price}` }), fg: tokens.warnFg, bg: tokens.warnBg },
+    next && { text: t('{discount} from {time}', { discount: discountWords(next.d), time: when(next.at) }), fg: tokens.infoFg, bg: tokens.infoBg },
+  ].filter((x): x is { text: string; fg: string; bg: string } => !!x)
   const fill = state === 'on_offer' ? tokens.warning : tokens.matcha
   return (
     <Card role="listitem" component="article" aria-label={b.name} sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1.25 }}>
@@ -242,11 +264,11 @@ function BatchCard({ b, now, sellPrice, offerLink, canRecord, onEdit, onSold, on
           aria-valuetext={t('{left}, good until {time}', { left: leftText, time: when(b.good_until) })}
           sx={{ position: 'relative', height: 8, borderRadius: 4, bgcolor: tokens.matchaSoft }}>
           <Box sx={{ position: 'absolute', inset: 0, right: 'auto', width: `${share * 100}%`, borderRadius: 4, bgcolor: fill }} />
-          {mark !== null && (
-            <Tooltip title={t('Discount from {time}', { time: when(b.discount_at!) })}>
-              <Box sx={{ position: 'absolute', top: -4, bottom: -4, width: 3, borderRadius: 1, bgcolor: tokens.ink, left: `calc(${mark * 100}% - 1.5px)` }} />
+          {marks.map(m => (
+            <Tooltip key={m.at} title={t('Discount from {time}', { time: when(m.at) })}>
+              <Box sx={{ position: 'absolute', top: -4, bottom: -4, width: 3, borderRadius: 1, bgcolor: tokens.ink, left: `calc(${m.share * 100}% - 1.5px)` }} />
             </Tooltip>
-          )}
+          ))}
         </Box>
         <Stack direction="row" sx={{ justifyContent: 'space-between', mt: 0.5 }}>
           <Typography variant="caption" sx={{ color: 'text.secondary' }}>{leftText}</Typography>
@@ -256,10 +278,15 @@ function BatchCard({ b, now, sellPrice, offerLink, canRecord, onEdit, onSold, on
 
       <Stack direction="row" useFlexGap sx={{ gap: 0.75, flexWrap: 'wrap', alignItems: 'center' }}>
         {state !== 'on_offer' && <Tag fg={STATE[state].fg} bg={STATE[state].bg}>{t(STATE[state].label)}</Tag>}
-        {tag && offerLink
-          ? <Link component={RouterLink} to="/offers" underline="none" aria-label={t('{offer}, on Offers & specials', { offer: offerText! })}>{tag}</Link>
-          : tag}
-        {state === 'on_offer' && was_price && <Typography variant="caption" component="s" sx={{ color: 'text.secondary' }}>{was_price}</Typography>}
+        {tags.map((x, n) => {
+          const tag = <Tag fg={x.fg} bg={x.bg}><OfferIcon sx={{ fontSize: 14, mr: 0.5, verticalAlign: '-2px' }} />{x.text}</Tag>
+          return (
+            <Box key={x.text} component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75 }}>
+              {offerLink ? <Link component={RouterLink} to="/offers" underline="none" aria-label={t('{offer}, on Offers & specials', { offer: x.text })}>{tag}</Link> : tag}
+              {n === 0 && on && was_price && <Typography variant="caption" component="s" sx={{ color: 'text.secondary' }}>{was_price}</Typography>}
+            </Box>
+          )
+        })}
       </Stack>
       {b.notes && <Typography variant="body2" sx={{ color: 'text.secondary', whiteSpace: 'pre-wrap' }}>{b.notes}</Typography>}
       {canRecord && (
@@ -288,7 +315,15 @@ function BatchDialog({ batch, batches, menu, items, screens, canPickScreens, can
   const until = goodUntil(b.made_at, b.shelf_life_hours || 1)
   const sell = menu.find(m => m.id === b.recipe_id)?.sell_price ?? menu.find(m => m.name.toLowerCase() === b.name.trim().toLowerCase())?.sell_price ?? null
   const preview = freshOfferPrice(b, sell)
+  const preview2 = freshOfferPrice(secondDiscount(b), sell)
   const problem = freshProblem(b)
+  // The lead buttons: so long before the end, inside its shelf life (the second's after the first's start).
+  const leadsFor = (after: string | null) => DISCOUNT_LEADS.filter(l => l.hours < b.shelf_life_hours)
+    .map(l => ({ ...l, at: new Date(Date.parse(until) - l.hours * HOUR).toISOString() }))
+    .filter(l => !after || Date.parse(l.at) > Date.parse(after))
+  /** The first discount moved: a second that no longer comes after it moves to halfway between it and the end. */
+  const setFirst = (at: string) => set({ discount_at: at,
+    ...(b.discount2_at && Date.parse(b.discount2_at) <= Date.parse(at) ? { discount2_at: defaultSecondAt({ ...b, discount_at: at }) } : {}) })
 
   // The name the batch was last set up for, so leaving the field again keeps what's been changed since.
   const picked = useRef(batch.name.trim().toLowerCase())
@@ -306,11 +341,12 @@ function BatchDialog({ batch, batches, menu, items, screens, canPickScreens, can
     if (start.shelf_life_hours) setCustom(!SHELF_LIVES.some(s => s.hours === start.shelf_life_hours))
     set({ name, recipe_id: item?.id ?? null, ...start })
   }
-  /** A new shelf life or time made: the discount keeps its distance from the end. */
+  /** A new shelf life or time made: each discount keeps its distance from the end. */
   const reshape = (p: Pick<FreshBatchInput, 'made_at' | 'shelf_life_hours'>) => {
-    const lead = b.discount_at ? Date.parse(goodUntil(b.made_at, b.shelf_life_hours)) - Date.parse(b.discount_at) : null
-    const end = Date.parse(goodUntil(p.made_at, p.shelf_life_hours))
-    set({ ...p, discount_at: lead === null ? null : new Date(Math.max(Date.parse(p.made_at), Math.min(end - 60_000, end - lead))).toISOString() })
+    const was = Date.parse(goodUntil(b.made_at, b.shelf_life_hours)), end = Date.parse(goodUntil(p.made_at, p.shelf_life_hours))
+    const move = (at: string | null) => (at === null ? null : new Date(Math.max(Date.parse(p.made_at), Math.min(end - 60_000, end - (was - Date.parse(at))))).toISOString())
+    const first = move(b.discount_at), second = move(b.discount2_at)
+    set({ ...p, discount_at: first, discount2_at: first && second && second > first ? second : null })
   }
 
   const save = async () => {
@@ -331,8 +367,7 @@ function BatchDialog({ batch, batches, menu, items, screens, canPickScreens, can
             <Autocomplete freeSolo fullWidth options={names} inputValue={b.name} onInputChange={(_, v, reason) => (reason === 'reset' ? pickName(v) : set({ name: v }))}
               onBlur={() => pickName(b.name)}
               renderInput={p => <TextField {...p} label={t('What was made')} placeholder={t('e.g. Banana bread')} autoFocus={!batch.id} />} />
-            <TextField label={t('How many')} type="number" value={b.quantity ?? ''} sx={{ width: { sm: 140 } }}
-              onChange={e => set({ quantity: e.target.value === '' ? null : Number(e.target.value) })} slotProps={{ htmlInput: { min: 1, step: 1 } }} />
+            <CountField value={b.quantity} onChange={quantity => set({ quantity })} />
           </Stack>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField label={t('Made at')} type="datetime-local" value={toField(b.made_at)} fullWidth
@@ -352,38 +387,43 @@ function BatchDialog({ batch, batches, menu, items, screens, canPickScreens, can
           </Stack>
           <Typography variant="body2" sx={{ color: 'text.secondary', mt: '8px !important' }}>{t('Good until {time}', { time: when(until) })}</Typography>
 
-          <Box sx={{ p: 1.75, borderRadius: 2.5, bgcolor: tokens.surfaceAlt }}>
-            <FormControlLabel label={t('Put it on offer before it goes off')} control={
-              <Switch checked={!!b.discount_at} onChange={e => set({ discount_at: e.target.checked ? defaultDiscountAt(b.made_at, b.shelf_life_hours || 1) : null })} />} />
+          <Box sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2.5, bgcolor: tokens.surfaceAlt }}>
+            <FormControlLabel sx={{ m: 0, gap: 1.25 }} label={t('Put it on offer before it goes off')} control={
+              <Switch checked={!!b.discount_at}
+                onChange={e => set(e.target.checked ? { discount_at: defaultDiscountAt(b.made_at, b.shelf_life_hours || 1) } : { discount_at: null, discount2_at: null })} />} />
             {b.discount_at && (
-              <Stack spacing={1.75} sx={{ mt: 1 }}>
+              <Stack spacing={2} sx={{ mt: 2 }}>
                 <TextField label={t('Discount from')} type="datetime-local" value={toField(b.discount_at)}
-                  onChange={e => e.target.value && set({ discount_at: fromField(e.target.value) })} slotProps={{ inputLabel: { shrink: true } }} />
-                <Stack direction="row" useFlexGap sx={{ gap: 0.75, flexWrap: 'wrap', mt: '8px !important' }} role="group" aria-label={t('Start the discount')}>
-                  {DISCOUNT_LEADS.filter(l => l.hours < b.shelf_life_hours).map(l => {
-                    const at = new Date(Date.parse(until) - l.hours * HOUR).toISOString()
-                    return <Button key={l.hours} size="small" variant={b.discount_at === at ? 'contained' : 'outlined'} onClick={() => set({ discount_at: at })}>{t(l.label)}</Button>
-                  })}
-                </Stack>
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: { sm: 'center' } }}>
-                  <ToggleButtonGroup exclusive size="small" value={b.discount} onChange={(_, v: FreshBatchInput['discount'] | null) => v && set({ discount: v })} aria-label={t('Discount')}>
-                    <ToggleButton value="percent" sx={{ px: 1.5 }}>{t('% off')}</ToggleButton>
-                    <ToggleButton value="price" sx={{ px: 1.5 }}>{t('Set price')}</ToggleButton>
-                  </ToggleButtonGroup>
-                  {b.discount === 'percent' ? (
-                    <TextField size="small" label={t('Off the menu price')} type="number" value={b.percent_off} sx={{ width: 170 }}
-                      onChange={e => set({ percent_off: Math.round(Number(e.target.value)) })}
-                      slotProps={{ htmlInput: { min: 5, max: 90, step: 5 }, input: { endAdornment: <InputAdornment position="end">{'%'}</InputAdornment> } }} />
-                  ) : (
-                    <TextField size="small" label={t('Offer price')} value={b.price ?? ''} placeholder={t('e.g. 2 for €3')} sx={{ width: 200 }}
-                      onChange={e => set({ price: e.target.value })} slotProps={{ htmlInput: { maxLength: 40 } }} />
-                  )}
-                </Stack>
+                  onChange={e => e.target.value && setFirst(fromField(e.target.value))} slotProps={{ inputLabel: { shrink: true } }} />
+                <LeadButtons label={t('Start the discount')} leads={leadsFor(null)} chosen={b.discount_at} onPick={setFirst} />
+                <DiscountValue kind={b.discount} percent={b.percent_off} price={b.price} onChange={p => set(p)} />
+                {b.discount2_at ? (
+                  <Box component="section" aria-label={t('Then a bigger discount')} sx={{ pt: 2, borderTop: `1px solid ${tokens.line}` }}>
+                    <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+                      <Typography sx={{ fontWeight: 600 }}>{t('Then a bigger discount')}</Typography>
+                      <Button size="small" color="error" onClick={() => set({ discount2_at: null })} aria-label={t('Remove the second discount')}>{t('Remove')}</Button>
+                    </Stack>
+                    <Stack spacing={2}>
+                      <TextField label={t('Then from')} type="datetime-local" value={toField(b.discount2_at)}
+                        onChange={e => e.target.value && set({ discount2_at: fromField(e.target.value) })} slotProps={{ inputLabel: { shrink: true } }} />
+                      <LeadButtons label={t('Start the second discount')} leads={leadsFor(b.discount_at)} chosen={b.discount2_at} onPick={at => set({ discount2_at: at })} />
+                      <DiscountValue second kind={b.discount2} percent={b.percent_off2} price={b.price2}
+                        onChange={p => set({ discount2: p.discount, percent_off2: p.percent_off, price2: p.price })} />
+                    </Stack>
+                  </Box>
+                ) : defaultSecondAt(b) && (
+                  <Button size="small" startIcon={<AddIcon />} sx={{ alignSelf: 'flex-start' }} onClick={() => set({ discount2_at: defaultSecondAt(b) })}>
+                    {t('Add another discount')}
+                  </Button>
+                )}
                 <Typography variant="body2" role="status" sx={{ color: 'text.secondary' }}>
                   <OfferIcon sx={{ fontSize: 16, mr: 0.5, verticalAlign: '-3px', color: tokens.roseDeep }} />
                   {preview.was_price
-                    ? t('On Offers & specials from {from} until {until}: {price}, was {was}.', { from: when(b.discount_at), until: when(until), price: preview.price || '…', was: preview.was_price })
-                    : t('On Offers & specials from {from} until {until}: {price}.', { from: when(b.discount_at), until: when(until), price: preview.price || '…' })}
+                    ? t('On Offers & specials from {from} until {until}: {price}, was {was}.', { from: when(b.discount_at), until: when(b.discount2_at ?? until), price: preview.price || '…', was: preview.was_price })
+                    : t('On Offers & specials from {from} until {until}: {price}.', { from: when(b.discount_at), until: when(b.discount2_at ?? until), price: preview.price || '…' })}
+                  {b.discount2_at && ` ${preview2.was_price
+                    ? t('Then from {from} until {until}: {price}, was {was}.', { from: when(b.discount2_at), until: when(until), price: preview2.price || '…', was: preview2.was_price })
+                    : t('Then from {from} until {until}: {price}.', { from: when(b.discount2_at), until: when(until), price: preview2.price || '…' })}`}
                 </Typography>
                 <BatchScreens b={b} items={items} screens={screens} canPick={canPickScreens} onChange={set} />
               </Stack>
@@ -409,43 +449,59 @@ function BatchDialog({ batch, batches, menu, items, screens, canPickScreens, can
   )
 }
 
-/** One item made here: how long it keeps, when it was last made (and by whom), its offer and, for the batch on the counter, when that starts. */
+/** A Made here cell: its value, with its column's name in front on narrow screens (the header row names it on wide ones). */
+function Cell({ label, children }: { label?: string; children: ReactNode }) {
+  return (
+    <Typography variant="body2" component="div" sx={{ minWidth: 0 }}>
+      {label && <Box component="span" sx={{ display: { md: 'none' }, color: 'text.secondary' }}>{label}{' '}</Box>}
+      {children}
+    </Typography>
+  )
+}
+
+/** One item made here: how long it keeps, when it was last made (and by whom), the batch on the counter, its offer, and what to do. */
 function MadeHereRow({ item, menu, batches, now, canRecord, canEdit, onRecord, onEdit }: {
   item: MadeHereItem; menu: MenuRow; batches: FreshBatch[]; now: number; canRecord: boolean; canEdit: boolean; onRecord: () => void; onEdit: () => void
 }) {
   const { profiles } = useApp()
   const last = batches[0]
   const by = last && profiles.find(p => p.id === last.made_by)?.full_name.split(' ')[0]
-  const state = last ? freshState(last, now) : null
-  const offer = item.offer_hours === null ? null : t('{discount} for {lead}', { discount: discountWords(item) || '…', lead: leadText(item.offer_hours) })
-  // The batch on the counter: when its offer starts, or that it's on now.
-  const current = !last || !onCounter(last, now) ? null
-    : state === 'on_offer' ? { text: t('On offer now, until {time}', { time: when(last.good_until) }), fg: tokens.warnFg, bg: tokens.warnBg }
-      : last.discount_at ? { text: t('Offer from {time}', { time: when(last.discount_at) }), fg: tokens.infoFg, bg: tokens.infoBg }
-        : { text: t('Good until {time}', { time: when(last.good_until) }), fg: tokens.goodFg, bg: tokens.goodBg }
+  const offer = offerWords(item)
+  // The batch on the counter: until when, and its offer on now or still to come.
+  const counter = last && onCounter(last, now) ? last : null
+  const on = counter && discountNow(counter, now)
+  const next = counter && !on ? counter.discount_at : null
   return (
-    <Stack component="li" aria-label={menu.name} direction="row"
-      sx={{ px: 2, py: 1.5, gap: 1.5, alignItems: 'center', flexWrap: 'wrap', borderTop: `1px solid ${tokens.line}`, '&:first-of-type': { borderTop: 0 } }}>
-      <Box sx={{ flex: '1 1 220px', minWidth: 0 }}>
+    <Box component="li" aria-label={menu.name} sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: MADE_COLUMNS }, columnGap: 2, rowGap: 0.5,
+      alignItems: 'center', px: 2, py: 1.5, borderTop: `1px solid ${tokens.line}`, '&:first-of-type': { borderTop: 0 } }}>
+      <Box sx={{ minWidth: 0 }}>
         <Stack direction="row" useFlexGap sx={{ gap: 0.75, alignItems: 'center', flexWrap: 'wrap' }}>
           <Typography sx={{ fontWeight: 600 }}>{menu.name}</Typography>
           {item.from_square && <Tag fg={tokens.neutralFg} bg={tokens.neutralBg}>{t('From Square')}</Tag>}
           {item.suggested && <Tag fg={tokens.infoFg} bg={tokens.infoBg}>{t('From the menu')}</Tag>}
         </Stack>
-        <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-          {[menu.category ? t(menu.category) : null, t('Keeps {time}', { time: shelfText(item.shelf_life_hours) })].filter(Boolean).join(' · ')}
-        </Typography>
+        {menu.category && <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t(menu.category)}</Typography>}
       </Box>
-      <Box sx={{ flex: '1 1 200px', minWidth: 0 }}>
-        <Typography variant="body2">
-          {last ? (by ? t('Last made {time} by {name}', { time: when(last.made_at), name: by }) : t('Last made {time}', { time: when(last.made_at) })) : t('Not made yet')}
-        </Typography>
-        <Typography variant="body2" sx={{ color: 'text.secondary' }}>{offer ?? t('No offer')}</Typography>
-      </Box>
-      <Box sx={{ flex: '0 1 auto' }}>
-        {current && <Tag fg={current.fg} bg={current.bg}>{offer && current.bg !== tokens.goodBg && <OfferIcon sx={{ fontSize: 14, mr: 0.5, verticalAlign: '-2px' }} />}{current.text}</Tag>}
-      </Box>
-      <Stack direction="row" spacing={0.5} sx={{ ml: 'auto', alignItems: 'center' }}>
+      <Cell label={t('Keeps')}>{shelfText(item.shelf_life_hours)}</Cell>
+      {last
+        ? <Cell label={t('Last made')}>{by ? t('{time} by {name}', { time: when(last.made_at), name: by }) : when(last.made_at)}</Cell>
+        : <Cell><Box component="span" sx={{ color: 'text.secondary' }}>{t('Not made yet')}</Box></Cell>}
+      <Cell label={counter ? t('Good until') : undefined}>
+        {counter ? (
+          <>
+            {when(counter.good_until)}
+            {/* Its offer under it: on now, or from when. */}
+            {(on || next) && (
+              <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25, fontSize: '0.78rem', fontWeight: 500,
+                color: on ? tokens.warnFg : tokens.infoFg }}>
+                <OfferIcon sx={{ fontSize: 14 }} />{on ? t('On offer now') : t('Offer from {time}', { time: when(next!) })}
+              </Box>
+            )}
+          </>
+        ) : <Box component="span" sx={{ color: 'text.secondary', display: { xs: 'none', md: 'inline' } }}>{'—'}</Box>}
+      </Cell>
+      <Cell label={t('Offer')}><Box component="span" sx={{ color: offer ? 'text.primary' : 'text.secondary' }}>{offer ?? t('No offer')}</Box></Cell>
+      <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', justifySelf: { xs: 'start', md: 'end' }, mt: { xs: 0.5, md: 0 } }}>
         {canRecord && <Button size="small" variant="outlined" startIcon={<AddIcon />} onClick={onRecord} aria-label={t('Record a batch of {name}', { name: menu.name })}>{t('Record')}</Button>}
         {canEdit && (
           <Tooltip title={t('Edit')}>
@@ -453,6 +509,67 @@ function MadeHereRow({ item, menu, batches, now, canRecord, canEdit, onRecord, o
           </Tooltip>
         )}
       </Stack>
+    </Box>
+  )
+}
+
+/** How many were made: a number, with one fewer and one more either side of it. */
+function CountField({ value, onChange }: { value: number | null; onChange: (n: number | null) => void }) {
+  const step = (d: number) => onChange(Math.max(1, Math.min(10_000, (value ?? 0) + d)))
+  return (
+    <TextField label={t('How many')} type="number" value={value ?? ''} onChange={e => onChange(e.target.value === '' ? null : Number(e.target.value))}
+      sx={{ width: { xs: '100%', sm: 176 }, flexShrink: 0, '& input': { textAlign: 'center', MozAppearance: 'textfield' },
+        '& input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button': { WebkitAppearance: 'none', m: 0 } }}
+      slotProps={{
+        inputLabel: { shrink: true },
+        htmlInput: { min: 1, max: 10_000, step: 1, inputMode: 'numeric' },
+        input: {
+          startAdornment: (
+            <InputAdornment position="start">
+              <IconButton size="small" edge="start" aria-label={t('One fewer')} disabled={!value || value <= 1} onClick={() => step(-1)}><RemoveIcon fontSize="small" /></IconButton>
+            </InputAdornment>
+          ),
+          endAdornment: (
+            <InputAdornment position="end">
+              <IconButton size="small" edge="end" aria-label={t('One more')} onClick={() => step(1)}><AddIcon fontSize="small" /></IconButton>
+            </InputAdornment>
+          ),
+        },
+      }} />
+  )
+}
+
+/** When a discount starts, as buttons: so long before it has to be gone. */
+function LeadButtons({ label, leads, chosen, onPick }: { label: string; leads: { hours: number; label: string; at: string }[]; chosen: string | null; onPick: (at: string) => void }) {
+  if (!leads.length) return null
+  return (
+    <Stack direction="row" useFlexGap sx={{ gap: 0.75, flexWrap: 'wrap', mt: '8px !important' }} role="group" aria-label={label}>
+      {leads.map(l => <Button key={l.hours} size="small" variant={chosen === l.at ? 'contained' : 'outlined'} onClick={() => onPick(l.at)}>{t(l.label)}</Button>)}
+    </Stack>
+  )
+}
+
+/** What a discount takes off: a % off the menu price, or a set price ("2 for €3"). The second's fields say "then". */
+function DiscountValue({ second, kind, percent, price, onChange }: {
+  second?: boolean; kind: 'percent' | 'price'; percent: number; price: string | null
+  onChange: (p: { discount: 'percent' | 'price'; percent_off: number; price: string | null }) => void
+}) {
+  const now = { discount: kind, percent_off: percent, price }
+  return (
+    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: { sm: 'center' } }}>
+      <ToggleButtonGroup exclusive size="small" value={kind} onChange={(_, v: 'percent' | 'price' | null) => v && onChange({ ...now, discount: v })}
+        aria-label={second ? t('Second discount') : t('Discount')}>
+        <ToggleButton value="percent" sx={{ px: 1.5 }}>{t('% off')}</ToggleButton>
+        <ToggleButton value="price" sx={{ px: 1.5 }}>{t('Set price')}</ToggleButton>
+      </ToggleButtonGroup>
+      {kind === 'percent' ? (
+        <TextField size="small" label={second ? t('Then off the menu price') : t('Off the menu price')} type="number" value={percent} sx={{ width: 200 }}
+          onChange={e => onChange({ ...now, percent_off: Math.round(Number(e.target.value)) })}
+          slotProps={{ htmlInput: { min: 5, max: 90, step: 5 }, input: { endAdornment: <InputAdornment position="end">{'%'}</InputAdornment> } }} />
+      ) : (
+        <TextField size="small" label={second ? t('Then the offer price') : t('Offer price')} value={price ?? ''} placeholder={t('e.g. 2 for €3')} sx={{ width: 200 }}
+          onChange={e => onChange({ ...now, price: e.target.value })} slotProps={{ htmlInput: { maxLength: 40 } }} />
+      )}
     </Stack>
   )
 }
@@ -480,7 +597,11 @@ function ItemDialog({ item, suggested, items, menu, screens, taken, onClose, onS
   const leads = OFFER_LEADS.filter(l => l.hours < i.shelf_life_hours)
   /** The usual offer for a shelf life: the longest of the leads that's at most a quarter of it, or the shortest. */
   const usualLead = (hours: number) => [...OFFER_LEADS].reverse().find(l => l.hours <= hours / 4)?.hours ?? OFFER_LEADS.find(l => l.hours < hours)?.hours ?? null
-  const shelf = (hours: number) => set({ shelf_life_hours: hours, offer_hours: i.offer_hours === null ? null : i.offer_hours < hours ? i.offer_hours : usualLead(hours) })
+  /** A first offer chosen: a second that no longer fits inside it moves to the usual one for it (none without a first). */
+  const withFirst = (first: number | null) => ({ offer_hours: first,
+    offer2_hours: first === null || i.offer2_hours == null ? null : i.offer2_hours < first ? i.offer2_hours : usualSecondLead(first) })
+  const shelf = (hours: number) => set({ shelf_life_hours: hours, ...withFirst(i.offer_hours === null ? null : i.offer_hours < hours ? i.offer_hours : usualLead(hours)) })
+  const leads2 = i.offer_hours === null ? [] : OFFER_LEADS.filter(l => l.hours < i.offer_hours!)
   /** A menu item picked to add: as it was when it was taken off the list, or keeping as long as the menu says it usually does. */
   const pick = (m: MenuRow | null) => {
     const was = m && items.find(x => x.recipe_id === m.id && !x.made_here)
@@ -493,11 +614,13 @@ function ItemDialog({ item, suggested, items, menu, screens, taken, onClose, onS
   const now = new Date(Math.floor(Date.now() / 60_000) * 60_000).toISOString()
   const preview = batchFromItem(i, now)
   const price = freshOfferPrice(i, picked?.sell_price ?? null)
+  const price2 = freshOfferPrice(secondDiscount(i), picked?.sell_price ?? null)
+  const end = goodUntil(now, i.shelf_life_hours)
 
   const save = async () => {
     const ok = await run(async () => {
       if (problem) throw new Error(t(problem))
-      await api.saveFreshItem({ ...i, price: i.price?.trim() || null })
+      await api.saveFreshItem({ ...i, price: i.price?.trim() || null, price2: i.price2?.trim() || null })
     }, t('Saved {name}', { name: picked?.name ?? '' }))
     if (ok) onSaved()
   }
@@ -532,34 +655,42 @@ function ItemDialog({ item, suggested, items, menu, screens, taken, onClose, onS
             </TextField>
           )}
 
-          <Box sx={{ p: 1.75, borderRadius: 2.5, bgcolor: tokens.surfaceAlt }}>
-            <FormControlLabel label={t('Put it on offer before it goes off')} control={
-              <Switch checked={i.offer_hours !== null} onChange={e => set({ offer_hours: e.target.checked ? usualLead(i.shelf_life_hours) : null })} />} />
+          <Box sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2.5, bgcolor: tokens.surfaceAlt }}>
+            <FormControlLabel sx={{ m: 0, gap: 1.25 }} label={t('Put it on offer before it goes off')} control={
+              <Switch checked={i.offer_hours !== null} onChange={e => set(withFirst(e.target.checked ? usualLead(i.shelf_life_hours) : null))} />} />
             {i.offer_hours !== null && (
-              <Stack spacing={1.75} sx={{ mt: 1 }}>
+              <Stack spacing={2} sx={{ mt: 2 }}>
                 <Stack direction="row" useFlexGap sx={{ gap: 0.75, flexWrap: 'wrap' }} role="group" aria-label={t('On offer for')}>
-                  {leads.map(l => <Button key={l.hours} size="small" variant={i.offer_hours === l.hours ? 'contained' : 'outlined'} onClick={() => set({ offer_hours: l.hours })}>{t(l.label)}</Button>)}
+                  {leads.map(l => <Button key={l.hours} size="small" variant={i.offer_hours === l.hours ? 'contained' : 'outlined'} onClick={() => set(withFirst(l.hours))}>{t(l.label)}</Button>)}
                 </Stack>
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: { sm: 'center' } }}>
-                  <ToggleButtonGroup exclusive size="small" value={i.discount} onChange={(_, v: FreshItemInput['discount'] | null) => v && set({ discount: v })} aria-label={t('Discount')}>
-                    <ToggleButton value="percent" sx={{ px: 1.5 }}>{t('% off')}</ToggleButton>
-                    <ToggleButton value="price" sx={{ px: 1.5 }}>{t('Set price')}</ToggleButton>
-                  </ToggleButtonGroup>
-                  {i.discount === 'percent' ? (
-                    <TextField size="small" label={t('Off the menu price')} type="number" value={i.percent_off} sx={{ width: 170 }}
-                      onChange={e => set({ percent_off: Math.round(Number(e.target.value)) })}
-                      slotProps={{ htmlInput: { min: 5, max: 90, step: 5 }, input: { endAdornment: <InputAdornment position="end">{'%'}</InputAdornment> } }} />
-                  ) : (
-                    <TextField size="small" label={t('Offer price')} value={i.price ?? ''} placeholder={t('e.g. 2 for €3')} sx={{ width: 200 }}
-                      onChange={e => set({ price: e.target.value })} slotProps={{ htmlInput: { maxLength: 40 } }} />
-                  )}
-                </Stack>
+                <DiscountValue kind={i.discount} percent={i.percent_off} price={i.price} onChange={p => set(p)} />
+                {i.offer2_hours != null ? (
+                  <Box component="section" aria-label={t('Then a bigger discount')} sx={{ pt: 2, borderTop: `1px solid ${tokens.line}` }}>
+                    <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+                      <Typography sx={{ fontWeight: 600 }}>{t('Then a bigger discount')}</Typography>
+                      <Button size="small" color="error" onClick={() => set({ offer2_hours: null })} aria-label={t('Remove the second discount')}>{t('Remove')}</Button>
+                    </Stack>
+                    <Stack spacing={2}>
+                      <Stack direction="row" useFlexGap sx={{ gap: 0.75, flexWrap: 'wrap' }} role="group" aria-label={t('Then on offer for')}>
+                        {leads2.map(l => <Button key={l.hours} size="small" variant={i.offer2_hours === l.hours ? 'contained' : 'outlined'} onClick={() => set({ offer2_hours: l.hours })}>{t(l.label)}</Button>)}
+                      </Stack>
+                      <DiscountValue second kind={i.discount2} percent={i.percent_off2} price={i.price2}
+                        onChange={p => set({ discount2: p.discount, percent_off2: p.percent_off, price2: p.price })} />
+                    </Stack>
+                  </Box>
+                ) : leads2.length > 0 && (
+                  <Button size="small" startIcon={<AddIcon />} sx={{ alignSelf: 'flex-start' }} onClick={() => set({ offer2_hours: usualSecondLead(i.offer_hours!) })}>
+                    {t('Add another discount')}
+                  </Button>
+                )}
                 {preview.discount_at && (
                   <Typography variant="body2" role="status" sx={{ color: 'text.secondary' }}>
                     <OfferIcon sx={{ fontSize: 16, mr: 0.5, verticalAlign: '-3px', color: tokens.roseDeep }} />
                     {t('{discount} for {lead}. Made now: on Offers & specials from {from} until {until}, at {price}.', {
-                      discount: discountWords(i) || '…', lead: leadText(i.offer_hours), from: when(preview.discount_at), until: when(goodUntil(now, i.shelf_life_hours)),
+                      discount: discountWords(i) || '…', lead: leadText(i.offer_hours), from: when(preview.discount_at), until: when(preview.discount2_at ?? end),
                       price: price.price || '…' })}
+                    {preview.discount2_at && i.offer2_hours != null && ` ${t('Then {discount} for {lead}: from {from}, at {price}.', {
+                      discount: discountWords(secondDiscount(i)) || '…', lead: leadText(i.offer2_hours), from: when(preview.discount2_at), price: price2.price || '…' })}`}
                   </Typography>
                 )}
                 <Box>
