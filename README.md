@@ -426,6 +426,10 @@ built-in **AI connector** so owners can run it by talking to Claude.
   life comes from Square when the item has a "Shelf life" custom attribute there (in days, or "36 hours"),
   read with the menu, or an admin sets it; a batch recorded of one starts from its shelf life and offer
   (the `fresh_items` migration, `worker/menu.ts`).
+- Stock → Freshly made, the screens an item's offer goes on: every screen that's on (as at first), the
+  screens picked, or none (still on Offers & specials, on no TV); in turn with each screen's other slides or
+  on its own. A batch's offer goes where its item says, unless an admin changes it for that batch, which
+  moves its offer there (the `fresh_offer_screens` migration).
 - Leads & enquiries (Sales section): what someone asked for (a party, the terrace, office coffee), where
   it came in, its value, the day it's for and when to follow it up (a reminder in the bell that day).
   Each belongs to someone on Customers, added there as a lead when they're new; a won enquiry makes

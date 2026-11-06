@@ -1444,7 +1444,7 @@ export function createDemoApi(): Api {
   // Freshly made (Stock): as the `fresh_batches` migration; a batch's discount puts its offer on Offers & specials.
   const freshApi = demoFreshApi({
     isStaff: () => isStaff() && !!me()?.active, isAdmin: () => isAdmin() && !!me()?.active, reads: () => partnerCan('finances'), me: () => currentUser, uid,
-    offers: offerList, screens: () => screenList.filter(x => x.active).map(x => x.id), menu: () => recipes.filter(r => r.active),
+    offers: offerList, screens: () => screenList.map(x => ({ id: x.id, active: x.active })), menu: () => recipes.filter(r => r.active),
   })
   // Post ideas (Social planner → Ideas): as the `post_ideas` migration; the coffees idea, one Julio's making, one Maria handed in.
   const ideasApi = demoPostIdeasApi({

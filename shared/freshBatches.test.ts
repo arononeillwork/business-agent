@@ -2,13 +2,13 @@ import { describe, expect, it } from 'vitest'
 import {
   batchFromItem, batchesOf, defaultDiscountAt, freshItemProblem, freshOfferPrice, freshProblem, freshState, goodUntil, likeLastTime, newFreshBatch, newFreshItem, onCounter, shelfShare,
   squareShelfChanges, type FreshBatch,
-  madeHere, menuShelfLife, type FreshItem, NO_SECOND_DISCOUNT, NO_SECOND_OFFER, discountNow, defaultSecondAt, DISCOUNT_LEADS,
+  madeHere, menuShelfLife, type FreshItem, NO_SECOND_DISCOUNT, NO_SECOND_OFFER, discountNow, defaultSecondAt, DISCOUNT_LEADS, batchScreens, offerScreens,
 } from './freshBatches'
 
 const at = (hhmm: string, day = '2026-09-30') => new Date(`${day}T${hhmm}:00Z`).toISOString()
 const batch = (x: Partial<FreshBatch> = {}): FreshBatch => ({
   id: 'b1', name: 'Banana bread', recipe_id: null, quantity: 12, made_at: at('08:00'), shelf_life_hours: 24, good_until: at('08:00', '2026-10-01'),
-  discount_at: at('02:00', '2026-10-01'), discount: 'percent', percent_off: 30, price: null, ...NO_SECOND_DISCOUNT, cleared: null, cleared_at: null, notes: null, made_by: null, ...x,
+  discount_at: at('02:00', '2026-10-01'), discount: 'percent', percent_off: 30, price: null, ...NO_SECOND_DISCOUNT, cleared: null, cleared_at: null, notes: null, made_by: null, screen_ids: null, screen_mode: null, ...x,
 })
 
 describe('freshly made', () => {
@@ -196,15 +196,33 @@ describe('what the menu says is made here', () => {
     const menu = [{ id: 'r-croissant', ...item('Croissant', 'Bakery') }, { id: 'r-parfait', ...item('Chia Fruit Parfait', 'Food') },
       { id: 'r-cake', ...item('Biscoff cheesecake', 'Sweet things') }, { id: 'r-flat', ...item('Flat white', 'Classics') }, { id: 'r-toastie', ...item('Toastie', 'Kitchen') }]
     const set = (recipe_id: string, x: Partial<FreshItem> = {}): FreshItem => ({ id: `f-${recipe_id}`, recipe_id, shelf_life_hours: 24, from_square: false, offer_hours: 4,
-      discount: 'percent', percent_off: 30, price: null, ...NO_SECOND_OFFER, made_here: true, ...x })
+      discount: 'percent', percent_off: 30, price: null, ...NO_SECOND_OFFER, made_here: true, screen_ids: [], screen_mode: 'turns', ...x })
     const items = [set('r-croissant'), set('r-cake', { made_here: false }), set('r-toastie', { shelf_life_hours: 8, offer_hours: null }), set('r-gone')]
     expect(madeHere(menu, items)).toEqual([
       { ...items[0], suggested: false },
       { ...items[2], suggested: false },
       { id: 'menu-r-parfait', recipe_id: 'r-parfait', shelf_life_hours: 48, from_square: false, offer_hours: null, discount: 'percent', percent_off: 30, price: null,
-        ...NO_SECOND_OFFER, made_here: true, suggested: true },
+        ...NO_SECOND_OFFER, made_here: true, screen_ids: [], screen_mode: 'turns', suggested: true },
     ])
     // Nothing set: the menu's perishables, no offer until one's set.
     expect(madeHere(menu, []).map(i => [i.recipe_id, i.shelf_life_hours, i.offer_hours])).toEqual([['r-croissant', 24, null], ['r-parfait', 48, null], ['r-cake', 120, null]])
+  })
+})
+
+describe('where a batch’s offer shows', () => {
+  const items = [{ recipe_id: 'r-cake', screen_ids: ['s-window'], screen_mode: 'only' as const }, { recipe_id: 'r-muffin', screen_ids: [], screen_mode: 'none' as const }]
+  const screens = [{ id: 's-counter', active: true }, { id: 's-window', active: true }, { id: 's-old', active: false }]
+
+  it('is the batch’s own choice, else its item’s, else every screen that’s on', () => {
+    expect(batchScreens({ recipe_id: 'r-cake', screen_ids: null, screen_mode: null }, items)).toEqual({ screen_ids: ['s-window'], screen_mode: 'only' })
+    expect(batchScreens({ recipe_id: 'r-cake', screen_ids: [], screen_mode: 'turns' }, items)).toEqual({ screen_ids: [], screen_mode: 'turns' })
+    expect(batchScreens({ recipe_id: null, screen_ids: null, screen_mode: null }, items)).toEqual({ screen_ids: [], screen_mode: 'turns' })
+  })
+
+  it('goes on the screens picked that are still there; none picked, or none left, is every screen that’s on; or on none', () => {
+    expect(offerScreens({ screen_ids: ['s-window', 's-gone'], screen_mode: 'only' }, screens)).toEqual({ screen_ids: ['s-window'], screen_mode: 'only' })
+    expect(offerScreens({ screen_ids: [], screen_mode: 'turns' }, screens)).toEqual({ screen_ids: ['s-counter', 's-window'], screen_mode: 'turns' })
+    expect(offerScreens({ screen_ids: ['s-gone'], screen_mode: 'turns' }, screens)).toEqual({ screen_ids: ['s-counter', 's-window'], screen_mode: 'turns' })
+    expect(offerScreens({ screen_ids: ['s-window'], screen_mode: 'none' }, screens)).toEqual({ screen_ids: [], screen_mode: 'turns' })
   })
 })

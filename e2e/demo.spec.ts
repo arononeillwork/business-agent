@@ -4747,6 +4747,51 @@ test.describe('stock and suppliers', () => {
     await expect(page.getByRole('list', { name: 'On the counter' }).getByRole('listitem', { name: 'Biscoff Cheesecake' })).toContainText('25% off from Sat 3 Oct, 09:00')
   })
 
+  test('freshly made: an item’s offer goes on the screens picked for it, and a batch can show its own somewhere else', async ({ page }) => {
+    test.setTimeout(60_000)
+    await open(page, '/stock')
+    await page.getByRole('tab', { name: 'Freshly made' }).click()
+    const made = page.getByRole('list', { name: 'Made here' })
+    const croissant = made.getByRole('listitem', { name: 'Croissant', exact: true })
+
+    // The croissants' offer only on the window slideshow, on its own.
+    await croissant.getByRole('button', { name: 'Shelf life and offer of Croissant' }).click()
+    const item = page.getByRole('dialog', { name: 'Croissant' })
+    await item.getByRole('radio', { name: 'On its own: the screen shows only this offer until it ends' }).check()
+    await item.getByRole('checkbox', { name: 'Every screen that’s on' }).uncheck()
+    const picked = item.getByRole('group', { name: 'Screens' })
+    await picked.getByRole('checkbox', { name: 'Window slideshow' }).check()
+    await picked.getByRole('checkbox', { name: 'Counter TV' }).uncheck()
+    await item.getByRole('button', { name: 'Save' }).click()
+    await toast(page, 'Saved Croissant')
+
+    // A batch says where its offer will show, and takes it.
+    await croissant.getByRole('button', { name: 'Record a batch of Croissant' }).click()
+    let record = page.getByRole('dialog', { name: 'Record a batch' })
+    await expect(record).toContainText('On the screens: Window slideshow, on its own')
+    await record.getByRole('button', { name: 'Record', exact: true }).click()
+    await toast(page, 'Croissant recorded, with its offer')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Offers & specials' }).click()
+    await expect(page.getByRole('region', { name: 'Coming up' }).getByRole('article', { name: 'Croissant' })).toContainText('On Window slideshow: on its own')
+
+    // Another batch, this one on every screen that’s on, in turn: changed for the batch only.
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Current stock' }).click()
+    await page.getByRole('tab', { name: 'Freshly made' }).click()
+    await croissant.getByRole('button', { name: 'Record a batch of Croissant' }).click()
+    record = page.getByRole('dialog', { name: 'Record a batch' })
+    await record.getByRole('button', { name: 'Change for this batch' }).click()
+    await record.getByRole('radio', { name: 'In turn with the screen’s other slides' }).check()
+    await record.getByRole('checkbox', { name: 'Every screen that’s on' }).check()
+    await expect(record).toContainText('On the screens: Every screen that’s on')
+    await record.getByRole('button', { name: 'Record', exact: true }).click()
+    await toast(page, 'Croissant recorded, with its offer')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Offers & specials' }).click()
+    const offers = page.getByRole('region', { name: 'Coming up' }).getByRole('article', { name: 'Croissant' })
+    await expect(offers).toHaveCount(2)
+    await expect(offers.filter({ hasText: 'On Counter TV, Window slideshow: in turn' })).toHaveCount(1)
+    await expect(offers.filter({ hasText: 'On Window slideshow: on its own' })).toHaveCount(1)
+  })
+
   test('freshly made: the menu’s perishables show by themselves, keeping as long as they usually do; one taken off the list stays off, and adding it puts it back', async ({ page }) => {
     test.setTimeout(60_000)
     // Aron adds a chia parfait to the menu, under Food.
