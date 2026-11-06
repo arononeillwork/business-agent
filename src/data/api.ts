@@ -68,6 +68,7 @@ import type { TipPool, TipPoolInput, TipShare } from '../../shared/tips'
 import type { CompetitorData, CompetitorInput, CompetitorNoteInput, CompetitorPrice, CompetitorSettings, NearbyPlace, PriceItem } from '../../shared/localCompetitors'
 import type { SocialReport, SocialSource } from '../../shared/socialAnalytics'
 import type { DeviceAccount } from './deviceAccounts'
+import type { FoundBrand } from '../../shared/brandLookup'
 
 /** The business's latest posts (Offers & specials → From Instagram). */
 export interface LatestPosts { source: 'instagram' | 'facebook'; account: string | null; posts: SourcePost[] }
@@ -171,6 +172,8 @@ export interface Api {
    * picks its first positions; `referral` is another business's referral code. Returns its number.
    */
   createBusiness(b: { name: string; kind: 'cafe' | 'restaurant' | 'pub' | 'salon' | 'real_estate' | 'other' | null; timezone: string; referral?: string | null }): Promise<number>
+  /** Set-up guide, "already open" (admins): the logo, colours, fonts and details read from a website. Nothing is saved. */
+  lookUpBrand(website: string): Promise<FoundBrand>
   /**
    * The other businesses kept signed in on this device. An account is in one business, so someone in
    * two signs in to each once; the app keeps both and switches between them (docs/SEVERAL_BUSINESSES.md).

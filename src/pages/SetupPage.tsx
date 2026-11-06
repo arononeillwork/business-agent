@@ -24,8 +24,10 @@ import type { ConnectionGroup, ConnectionGroupInfo } from '../../shared/connecti
 import type { IntegrationsState } from '../../shared/types'
 import { fonts, tokens } from '../theme'
 import { t, tn } from '../i18n'
+import { BusinessSteps, type BusinessStep } from './SetupBusiness'
 
-type Step = 'welcome' | 'kind' | 'review' | 'categories' | 'apps' | 'connect' | 'done'
+type Step = BusinessStep | 'welcome' | 'kind' | 'review' | 'categories' | 'apps' | 'connect' | 'done'
+const BUSINESS_STEPS: Step[] = ['business', 'details', 'website']
 
 /** Where the guide is. Kept for the tab's session: each sign-in leaves the page and comes back to /setup. */
 interface Guide {
@@ -41,6 +43,8 @@ interface Guide {
   total: number
   /** Where to go once the queue is empty. */
   after: Step
+  /** Began with "Your business" (a business just made): the apps' first screen can go back to it. */
+  intro?: boolean
 }
 
 const START: Guide = { step: 'welcome', kind: null, picked: [], groups: [], at: 0, queue: [], total: 0, after: 'done' }
@@ -50,10 +54,13 @@ function load(): Guide {
   try { return { ...START, ...JSON.parse(sessionStorage.getItem(KEY) ?? '{}') } } catch { return START }
 }
 
-/** A business just created: the guide opens with its kind chosen and that kind's apps ticked (Use a ready-made setup). */
+/**
+ * A business just created: the guide opens on "Your business" (new or already open), then its apps
+ * with its kind chosen and that kind's apps ticked (Use a ready-made setup).
+ */
 export function startGuide(kind: BusinessKind | 'other' | null) {
   const preset = PRESETS.find(p => p.kind === kind)
-  const guide: Guide = { ...START, kind: preset?.kind ?? null, picked: preset ? preset.apps.filter(a => a.on && findApp(a.id)).map(a => a.id) : [] }
+  const guide: Guide = { ...START, step: 'business', intro: true, kind: preset?.kind ?? null, picked: preset ? preset.apps.filter(a => a.on && findApp(a.id)).map(a => a.id) : [] }
   try { sessionStorage.setItem(KEY, JSON.stringify(guide)) } catch { /* storage unavailable: the guide starts from the top */ }
 }
 
@@ -61,8 +68,8 @@ export function startGuide(kind: BusinessKind | 'other' | null) {
 const settled = (data: IntegrationsState | null, id: string) =>
   data?.integrations.some(i => i.provider === id && (i.status === 'connected' || i.status === 'pending')) ?? false
 
-const STEPS = ['Start', 'Choose apps', 'Connect', 'Done'] as const
-const stepIndex: Record<Step, number> = { welcome: 0, kind: 1, review: 1, categories: 1, apps: 2, connect: 2, done: 3 }
+const STEPS = ['Your business', 'Choose apps', 'Connect', 'Done'] as const
+const stepIndex: Record<Step, number> = { business: 0, details: 0, website: 0, welcome: 1, kind: 1, review: 1, categories: 1, apps: 2, connect: 2, done: 3 }
 const KIND_ICON: Record<BusinessKind, ReactNode> = {
   cafe: <CafeIcon />, restaurant: <RestaurantIcon />, pub: <PubIcon />, salon: <SalonIcon />, real_estate: <EstateIcon />,
 }
@@ -109,6 +116,9 @@ export function SetupPage() {
   const nextCategory = () => (g.at + 1 < g.groups.length ? set({ at: g.at + 1, picked: [] }) : set({ step: 'done' }))
 
   const agent = {
+    business: t('Tell me a little about the business and I’ll set things up to match: your logo on menus and screens, your colours, your team.'),
+    details: t('Only the name is needed, and you’ve given it. Everything else can wait, and it’s all on the Business and Brand pages later.'),
+    website: t('I’ll read your website for your logo, colours, fonts and contact details. Nothing is saved until you choose what to keep.'),
     welcome: t('I’ll help with posts, reviews, emails and paperwork once I can reach the apps you already use.'),
     kind: t('Tell me what you do and I’ll suggest the apps to connect. You can change everything on the next screen.'),
     review: preset ? t(preset.agent) : '',
@@ -120,6 +130,10 @@ export function SetupPage() {
 
   return (
     <Frame step={g.step} agent={agent} onSkip={() => finish('/')}>
+      {BUSINESS_STEPS.includes(g.step) && (
+        <BusinessSteps step={g.step as BusinessStep} go={step => set({ step })} onDone={() => set({ step: 'welcome' })} />
+      )}
+
       {g.step === 'welcome' && (
         <Stack spacing={3} sx={{ maxWidth: 760 }}>
           <Box>
@@ -141,6 +155,7 @@ export function SetupPage() {
               </Stack>
             ))}
           </Stack>
+          {g.intro && <Box><Button onClick={() => set({ step: 'business' })}>{t('Back')}</Button></Box>}
         </Stack>
       )}
 
@@ -284,7 +299,7 @@ function Frame({ step, agent, onSkip, children }: { step: Step; agent: string; o
 }
 
 /** A step with a title and its buttons along the bottom. */
-function Screen({ eyebrow, title, sub, footer, children }: { eyebrow?: string; title: string; sub?: string; footer: ReactNode; children: ReactNode }) {
+export function Screen({ eyebrow, title, sub, footer, children }: { eyebrow?: string; title: string; sub?: string; footer: ReactNode; children: ReactNode }) {
   return (
     <Stack spacing={3} sx={{ maxWidth: 1040 }}>
       <Box>
@@ -301,7 +316,7 @@ function Screen({ eyebrow, title, sub, footer, children }: { eyebrow?: string; t
 }
 
 /** A big choice card (a way to start, a kind of business, a category). */
-function Choice({ icon, tint, title, text, note, badge, selected, pressed, compact, onClick }: {
+export function Choice({ icon, tint, title, text, note, badge, selected, pressed, compact, onClick }: {
   icon: ReactNode; tint: string; title: string; text: string; note?: string; badge?: string; selected?: boolean; pressed?: boolean; compact?: boolean; onClick: () => void
 }) {
   return (
