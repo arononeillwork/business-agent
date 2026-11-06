@@ -39,7 +39,7 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'contacts', files: [/ContactsPage/, /shared\/contacts/], tests: String.raw`contacts` },
   { name: 'leaderboard', files: [/LeaderboardPage/, /SquareLogins/, /shared\/(leaderboard|squareTeam)/], tests: String.raw`leaderboard|Square login` },
   { name: 'square pins', files: [/components\/SquarePins/, /shared\/squarePins/, /demoSquarePins/], tests: String.raw`Square PIN` },
-  { name: 'content', files: [/ContentPage/, /shared\/content\b/, /demoContent/], tests: String.raw`content` },
+  { name: 'content', files: [/ContentPage/, /shared\/content\b/, /demoContent/, /ContentGallery/, /photoLayout/], tests: String.raw`content` },
   { name: 'post ideas', files: [/pages\/PostIdeas/, /shared\/postIdeas/, /demoPostIdeas/, /i18n\/es\/postIdeas/], tests: String.raw`ideas for posts|social planner|post` },
   { name: 'role permissions', files: [/shared\/roleTemplates/, /RolesPage/], tests: String.raw`role permissions|roles and rules` },
   { name: 'business', files: [/(Business|Brand|OpeningHours)Page/, /shared\/(taxId|brand)/, /lib\/googleFont/], tests: String.raw`business|brand|opening hours|currency|colour|logo` },
@@ -118,6 +118,8 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'calendar filters', files: [/i18n\/es\/calendarMore/], tests: String.raw`routine|theme|calendar` },
   { name: 'reports', files: [/ReportsTab/, /shared\/reports/, /i18n\/es\/reports/], tests: String.raw`reports|dashboards` },
   { name: 'scheduled reports', files: [/ReportSchedules/, /shared\/reportSections/], tests: String.raw`reports|dashboards` },
+  { name: 'refresh rates', files: [/components\/Freshness/, /shared\/refresh\.ts$/, /i18n\/es\/(refresh|refreshRates)\.ts$/], tests: String.raw`how often|Sales page|Square` },
+  { name: 'square prices', files: [/shared\/menuSquare/, /i18n\/es\/squarePrices/], tests: String.raw`menu|Square` },
 ]
 
 /** The --grep pattern for these changed files, or 'all'. */

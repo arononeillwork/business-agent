@@ -244,6 +244,11 @@ export class FakeProviders {
       { id: 'SQC2', given_name: 'Tom', email_address: 'tom@example.co.uk', note: 'Oat flat white', updated_at: '2026-09-02T10:00:00Z' },
       { id: 'SQC3', company_name: 'No way to reach them', updated_at: '2026-09-03T10:00:00Z' },
     ] as { id: string; updated_at: string; [k: string]: string }[],
+    /** The item library (the Menu page's menu from Square), and how often it was read. */
+    catalog: [
+      { type: 'ITEM', id: 'i-fw', item_data: { name: 'Flat White', variations: [{ id: 'a', item_variation_data: { name: 'Regular', price_money: { amount: 380 } } }] } },
+    ] as { type: string; id: string; [k: string]: unknown }[],
+    catalogReads: 0,
     /** Team members (each person's own Square login). `teamScope: false` is a connection made before EMPLOYEES_READ and EMPLOYEES_WRITE were asked for. */
     teamScope: true,
     teamMembers: [
@@ -986,6 +991,7 @@ export class FakeProviders {
       if (this.square.revoked) return json({ errors: [{ category: 'AUTHENTICATION_ERROR', code: 'ACCESS_TOKEN_REVOKED', detail: 'The access token has been revoked.' }] }, 401)
       if (url.pathname === '/v2/merchants/me') return json({ merchant: { id: 'M1', business_name: 'Easy Beans Coffee', country: 'ES', currency: 'EUR' } })
       if (url.pathname === '/v2/locations') return json({ locations: this.square.locations })
+      if (url.pathname === '/v2/catalog/list') { this.square.catalogReads++; return json({ objects: this.square.catalog }) }
       if (url.pathname === '/v2/payments') {
         const from = url.searchParams.get('begin_time')!, to = url.searchParams.get('end_time')!
         return json({ payments: this.square.payments.filter(p => p.created_at >= from && p.created_at < to) })

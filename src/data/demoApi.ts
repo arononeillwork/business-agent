@@ -71,7 +71,7 @@ import { isSupplyGroup, type MovementInput, type StockItem, type StockMovement, 
 import type { Recipe } from '../../shared/recipes'
 import {
   MAX_PROMPT, PROMPT_IDEAS, designProblem, menuItemProblem, menuSections, modelOf, sizeOf, type MenuDesign, type MenuImage, type MenuItem,
-  type MenuKind, type MenuLanguage,
+  type MenuKind, type MenuLanguage, type SquarePriceNote,
 } from '../../shared/menu'
 import { HOME_BUSINESS, LINK_NAME, linkName, parseShortLink, screenProblem, type DisplayFeed, type OfferPicture, type Screen } from '../../shared/screens'
 import { offerProblem, type Offer, type ScreenOffer } from '../../shared/offers'
@@ -911,6 +911,16 @@ export function createDemoApi(): Api {
   /** As menu_list(): with Square as the source, only what's in Square (the rest waits for Custom again). */
   const menuList = () => recipes.filter(r => r.active && (settings.menu_source !== 'square' || r.square_id)).map(menuItemOf)
     .sort((a, b) => a.menu_sort - b.menu_sort || a.name.localeCompare(b.name))
+  // Menu prices back to Square (the `square_price_write_back` migration and worker/menu.ts): a price changed
+  // here waits, then the demo's Square keeps it (so the next read gives it back); extras are refused.
+  const squarePriceNotes: SquarePriceNote[] = []
+  const squareKept = new Map<string, number>()
+  const queueSquarePrice = (r: { id: string; square_id?: string | null; sell_price: number | null }) => {
+    if (settings.menu_source !== 'square' || !r.square_id) return
+    const at = squarePriceNotes.findIndex(n => n.recipe_id === r.id)
+    if (at >= 0) squarePriceNotes.splice(at, 1)
+    squarePriceNotes.push({ recipe_id: r.id, price: r.sell_price, queued_at: nowIso(), error: null, failed_at: null })
+  }
   /**
    * The menu onto the Google Maps listing, as the Worker does within a minute of a change (and after a
    * Square read that changed something): items on the menu with a price go; returns how many.
@@ -1261,6 +1271,7 @@ export function createDemoApi(): Api {
     // The menu is kept here (Custom), its sections not arranged yet. "Add what's on your printed menus"
     // (Menu page) adds the café's printed menus beside the costed recipes, in their order of sections.
     menu_source: 'custom', menu_sections: [], menu_synced_at: null, menu_sync_error: null,
+    refresh_minutes: {},
     // The usual agents (shared/agents.ts) until an owner changes them on Roles & responsibilities → Agents.
     agent_views: null,
     // The weekly routine on everyone's calendar (an admin can take it off on Calendar → Routine).
@@ -1443,7 +1454,7 @@ export function createDemoApi(): Api {
   // Freshly made (Stock): as the `fresh_batches` migration; a batch's discount puts its offer on Offers & specials.
   const freshApi = demoFreshApi({
     isStaff: () => isStaff() && !!me()?.active, isAdmin: () => isAdmin() && !!me()?.active, reads: () => partnerCan('finances'), me: () => currentUser, uid,
-    offers: offerList, screens: () => screenList.filter(x => x.active).map(x => x.id), menu: () => recipes.filter(r => r.active),
+    offers: offerList, screens: () => screenList.map(x => ({ id: x.id, active: x.active })), menu: () => recipes.filter(r => r.active),
   })
   // Post ideas (Social planner → Ideas): as the `post_ideas` migration; the coffees idea, one Julio's making, one Maria handed in.
   const ideasApi = demoPostIdeasApi({
@@ -3478,7 +3489,13 @@ export function createDemoApi(): Api {
       if (problem) throw new Error(problem)
       const patch = { ...item, name: item.name.trim(), description: item.description?.trim() || null, photo_url: item.photo_url?.trim() || null }
       const existing = id ? recipes.find(r => r.id === id) : undefined
-      if (existing) { Object.assign(existing, patch); menuToGoogle(); return existing.id }
+      if (existing) {
+        const was = existing.sell_price
+        Object.assign(existing, patch)
+        if (was !== existing.sell_price) queueSquarePrice(existing)
+        menuToGoogle()
+        return existing.id
+      }
       const made = recipe({ ...patch, menu_sort: lastInSection(patch.category) })
       recipes.push(made)
       menuToGoogle()
@@ -3512,15 +3529,20 @@ export function createDemoApi(): Api {
         throw new Error('Connect Square on the Connections page first: the menu is read from its item library.')
       }
       // Mirrors sync_square_menu() (migration 93): taken over by Square id, or by name the first time.
+      // Prices changed here and sent are Square's now; one still waiting keeps the price here.
       const read = fromSquareCatalog(demoSquareCatalog())
+      const waiting = new Set(squarePriceNotes.filter(n => !n.error).map(n => recipes.find(r => r.id === n.recipe_id)?.square_id))
+      read.items = read.items.map(i => (squareKept.has(i.square_id) ? { ...i, sell_price: squareKept.get(i.square_id)! } : i))
       let added = 0, changed = 0, off = 0
       for (const it of read.items) {
         let r = recipes.find(x => x.square_id === it.square_id) ?? recipes.find(x => !x.square_id && x.name.toLowerCase() === it.name.toLowerCase())
         if (r) changed++
         else { r = recipe({ name: it.name, square_id: it.square_id, category: it.category, menu_sort: it.menu_sort }); recipes.push(r); added++ }
         const was = r.variants
-        Object.assign(r, { name: it.name, square_id: it.square_id, category: it.category, sell_price: it.sell_price, price_label: it.price_label, description: it.description,
-          photo_url: it.photo_url ?? r.photo_url, active: true, variants: it.variants.map(v => ({ ...v, id: was.find(x => x.name === v.name)?.id ?? uid() })) })
+        const keep = waiting.has(it.square_id)
+        Object.assign(r, { name: it.name, square_id: it.square_id, category: it.category, sell_price: keep ? r.sell_price : it.sell_price, price_label: it.price_label,
+          description: it.description, photo_url: it.photo_url ?? r.photo_url, active: true,
+          variants: keep ? r.variants : it.variants.map(v => ({ ...v, id: was.find(x => x.name === v.name)?.id ?? uid() })) })
         r.lines = r.lines.filter(l => !l.variant_id || r!.variants.some(v => v.id === l.variant_id))
       }
       const ids = new Set(read.items.map(i => i.square_id))
@@ -3531,6 +3553,29 @@ export function createDemoApi(): Api {
       Object.assign(settings, { menu_synced_at: nowIso(), menu_sync_error: null })
       if (added || changed || off) menuToGoogle()
       return { added, changed, off, items: read.items.length }
+    },
+    async squarePrices() { return isAdmin() ? clone(squarePriceNotes) : [] },
+    async sendPricesToSquare() {
+      requireAdmin()
+      const done = { sent: 0, refused: [] as { id: string; name: string; error: string }[], waiting: 0 }
+      for (const n of squarePriceNotes.filter(x => !x.error)) {
+        const r = recipes.find(x => x.id === n.recipe_id)
+        if (!r?.square_id || settings.menu_source !== 'square') { squarePriceNotes.splice(squarePriceNotes.indexOf(n), 1); continue }
+        if (r.square_id.startsWith('mod-')) {
+          Object.assign(n, { error: 'Extras (milks, syrups) are priced in Square: change them there.', failed_at: nowIso() })
+          done.refused.push({ id: r.id, name: r.name, error: n.error! })
+          continue
+        }
+        squareKept.set(r.square_id, r.sell_price ?? 0)
+        squarePriceNotes.splice(squarePriceNotes.indexOf(n), 1)
+        done.sent++
+      }
+      return done
+    },
+    async clearSquarePrice(recipeId) {
+      requireAdmin()
+      const at = squarePriceNotes.findIndex(n => n.recipe_id === recipeId)
+      if (at >= 0) squarePriceNotes.splice(at, 1)
     },
     async uploadMenuPicture(file) {
       requireAdmin()

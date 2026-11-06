@@ -5,14 +5,15 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 /**
  * The answer kept under `key` if it's under `minutes` old (or as long as `minutes(kept)` says, when
- * that depends on the answer), else `read()` asked again and kept. `fetched_at` is when the service
- * was last asked, for the pages' "Updated 5 min ago".
+ * that depends on the answer; or the business's own rate, minutesFor() in worker/refresh.ts), else
+ * `read()` asked again and kept. `fetched_at` is when the service was last asked, for the pages'
+ * "Updated 5 min ago".
  */
-export async function cached<T>(db: SupabaseClient, key: string, minutes: number | ((kept: T) => number | Promise<number>), read: () => Promise<T>):
+export async function cached<T>(db: SupabaseClient, key: string, minutes: number | Promise<number> | ((kept: T) => number | Promise<number>), read: () => Promise<T>):
   Promise<{ data: T; fetched_at: string }> {
   const { data: kept } = await db.from('provider_cache').select('data, fetched_at').eq('key', key).maybeSingle()
   if (kept) {
-    const keep = typeof minutes === 'number' ? minutes : await minutes(kept.data as T)
+    const keep = typeof minutes === 'function' ? await minutes(kept.data as T) : await minutes
     if (Date.now() - Date.parse(kept.fetched_at as string) < keep * 60_000) return { data: kept.data as T, fetched_at: kept.fetched_at as string }
   }
   const data = await read()

@@ -17,6 +17,7 @@ import * as square from './providers/square'
 import { emptyTill, type TillBoard } from '../shared/leaderboard'
 import { RECONNECT_TEAM, addProblem, splitName, squarePhone, suggestLinks, type SquareLink, type SquareMember, type SquareTeam } from '../shared/squareTeam'
 import { takingsMinutes } from '../shared/refresh'
+import { minutesFor } from './refresh'
 import { addDays, zonedIso } from '../shared/time'
 
 type Vars = { admin: boolean; pay: boolean; userId: string }
@@ -82,7 +83,7 @@ leaderboard.get('/api/leaderboard/till', async c => {
   const fromIso = zonedIso(from, '00:00'), toIso = zonedIso(addDays(to, 1), '00:00')
   try {
     // Under sales:square:, so it's forgotten with the rest of Square's figures when Square is connected again.
-    const { data, fetched_at } = await cached(db, `sales:square:team:${fromIso}:${toIso}`, takingsMinutes(toIso), async () => {
+    const { data, fetched_at } = await cached(db, `sales:square:team:${fromIso}:${toIso}`, minutesFor(db, 'takings').then(m => takingsMinutes(toIso, Date.now(), m)), async () => {
       const s = await squareSession(c.env, db)
       // Team members first: a connection without EMPLOYEES_READ asks to connect again rather than counting sales for nobody.
       await square.teamMembers(s.sandbox, s.token)

@@ -819,7 +819,7 @@ describe('Facebook, TikTok and Square: one click, connected once they really wor
   it('Square: best sellers from completed orders, added up by item; an older connection is asked to connect again', async () => {
     await connectOwn('square')
     const auth = new URL((await (await post('/api/integrations/square/start')).json() as { url: string }).url)
-    expect(auth.searchParams.get('scope')).toBe('MERCHANT_PROFILE_READ PAYMENTS_READ ORDERS_READ CUSTOMERS_READ LOYALTY_READ LOYALTY_WRITE GIFTCARDS_READ GIFTCARDS_WRITE ITEMS_READ EMPLOYEES_READ EMPLOYEES_WRITE')
+    expect(auth.searchParams.get('scope')).toBe('MERCHANT_PROFILE_READ PAYMENTS_READ ORDERS_READ CUSTOMERS_READ LOYALTY_READ LOYALTY_WRITE GIFTCARDS_READ GIFTCARDS_WRITE ITEMS_READ EMPLOYEES_READ EMPLOYEES_WRITE ITEMS_WRITE')
     const res = await get('/api/integrations/payments/items?from=2026-09-28&to=2026-09-29')
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ items: [
@@ -892,6 +892,34 @@ describe('Facebook, TikTok and Square: one click, connected once they really wor
     const raw = JSON.stringify(created('M1', 'SQC11', 'Forged'))
     expect((await integrations.request(`${APP}/api/webhooks/square`, { method: 'POST', headers: { 'x-square-hmacsha256-signature': await hmacBase64('wrong', URL + raw) }, body: raw }, env, ctx())).status).toBe(401)
     expect(db.table('customers')).toHaveLength(before + 1)
+  })
+
+  it('Square: a change to the item library is read into the menu straight away by webhook, while the menu comes from Square', async () => {
+    await connectOwn('square')
+    await Promise.all(background)
+    let read: unknown = null
+    db.rpcs.sync_square_menu = ({ p }) => { read = p; return { added: 0, changed: 1, off: 0 } }
+    const URL = 'https://business-agent.arononeillwork.workers.dev/api/webhooks/square'
+    const hook = async (merchant: string) => {
+      const raw = JSON.stringify({ merchant_id: merchant, type: 'catalog.version.updated', event_id: 'e1',
+        data: { type: 'catalog', id: '', object: { catalog_version: { updated_at: new Date().toISOString() } } } })
+      background = []
+      const res = await integrations.request(`${APP}/api/webhooks/square`, { method: 'POST', headers: { 'x-square-hmacsha256-signature': await hmacBase64('sq-hook-key', URL + raw) }, body: raw }, env, ctx())
+      await Promise.all(background)
+      return res.status
+    }
+    // The menu kept here: nothing read.
+    db.tables.settings = [{ id: 1, menu_source: 'custom' }]
+    expect(await hook('M1')).toBe(200)
+    expect(apis.square.catalogReads).toBe(0)
+    // From Square: read now, so the website, the screens and Google Maps follow.
+    db.table('settings')[0].menu_source = 'square'
+    expect(await hook('M1')).toBe(200)
+    expect(apis.square.catalogReads).toBe(1)
+    expect(read).toMatchObject({ items: [{ square_id: 'i-fw', name: 'Flat White', sell_price: 3.8 }] })
+    // Another seller's change: not this business's.
+    expect(await hook('M2')).toBe(200)
+    expect(apis.square.catalogReads).toBe(1)
   })
 
   it('Square: comes back to the workers.dev address, then back to where they started (the domain too)', async () => {

@@ -20,8 +20,8 @@ GET https://businesssagent.com/api/site/<business>/menu
   SEO (`settings.website_menu`). Off, or a number that's no business, it's `404` with the same answer,
   so the numbers can't be used to list who's here.
 - Any site may read it from a browser (CORS is open). It may be kept for a minute
-  (`Cache-Control: public, max-age=60`); a change on the Menu page is on a website within a few minutes (Easy Beans'
-  keeps it five).
+  (`Cache-Control: public, max-age=60`); a change on the Menu page, or in Square when the menu comes from
+  it, is on a website within a few minutes (Easy Beans' keeps it five).
 - `503` when the database can't be read just then: keep showing the last menu you had.
 
 What comes back (`SiteMenuFeed` in `shared/websiteFeed.ts`):
@@ -67,11 +67,13 @@ What comes back (`SiteMenuFeed` in `shared/websiteFeed.ts`):
 
 A website that takes orders through Square (Easy Beans' does) joins each item to Square by
 `square_id` and still lets Square charge: the app decides what's listed, Square takes the money.
-With the menu read from Square, the app's price is Square's (read every hour, and straight away
-with **Read from Square now** on the Menu page). With the menu kept in the app (custom), the app
-doesn't change Square's prices, so the till and an online order would charge Square's. A website
-should show the price it will actually charge: Easy Beans' shows Square's when the two differ (for
-the hour until the app reads Square again) and notes the difference in its logs.
+With the menu read from Square, the app's price and Square's are kept the same both ways: a change in
+Square is read within seconds (Square's catalog webhook; at the business's refresh rate if one is
+missed, and straight away with **Read from Square now** on the Menu page), and a price changed in the
+app is changed in Square within a minute. With the menu kept in the app (custom), the app doesn't change
+Square's prices, so the till and an online order would charge Square's. A website should show the price
+it will actually charge: Easy Beans' shows Square's when the two differ (for the moment until they're
+the same again) and notes the difference in its logs.
 
 ## Newsletter sign-ups
 

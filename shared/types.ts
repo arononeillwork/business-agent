@@ -101,6 +101,8 @@ export interface Settings {
   routine_on_calendar?: boolean
   /** The business's own website reads the menu from the app (/api/site/<business>/menu; off unless an admin turns it on on Website & SEO). */
   website_menu?: boolean
+  /** How often each outside service is read, in minutes, as an admin chose on Connections (shared/refresh.ts); kept to what the plan allows. */
+  refresh_minutes?: import('./refresh').RefreshChoices
 }
 
 export interface Expense {

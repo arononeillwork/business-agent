@@ -35,7 +35,7 @@ import { DEFAULT_VAT_RATE, type PnlLine, type PnlSettings } from '../../shared/p
 import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
 import type { StockItem, StockMovement, Supplier, StockPrice } from '../../shared/stock'
 import type { Recipe } from '../../shared/recipes'
-import type { MenuDesign, MenuImage, MenuItem } from '../../shared/menu'
+import type { MenuDesign, MenuImage, MenuItem, SquarePriceNote } from '../../shared/menu'
 import { missingFrom, templateDesigns, templateSections } from '../../shared/menuTemplate'
 import type { DisplayFeed, Screen } from '../../shared/screens'
 import type { Offer } from '../../shared/offers'
@@ -1022,6 +1022,12 @@ export function createSupabaseApi(url: string, key: string): Api {
       return { added: add.length, designs: designs.length }
     },
     syncMenuFromSquare: () => worker('/api/menu/square/sync', { method: 'POST' }),
+    async squarePrices() {
+      const rows = check(await sb.from('square_price_pushes').select('recipe_id, price, queued_at, error, failed_at').order('queued_at')) as SquarePriceNote[]
+      return rows.map(r => ({ ...r, price: num(r.price) }))
+    },
+    sendPricesToSquare: () => worker('/api/menu/square/prices', { method: 'POST' }),
+    async clearSquarePrice(recipeId) { check(await sb.from('square_price_pushes').delete().eq('recipe_id', recipeId)) },
     sendMenuToGoogle: () => worker('/api/integrations/google/menu', { method: 'POST' }),
     async uploadMenuPicture(file) {
       return (await worker<{ url: string }>('/api/integrations/media?folder=Menu', { method: 'POST', body: file, headers: { 'content-type': file.type } })).url
@@ -1084,7 +1090,7 @@ export function createSupabaseApi(url: string, key: string): Api {
     async freshBatches() {
       const since = new Date(Date.now() - 14 * 86_400_000).toISOString()
       const rows = check(await sb.from('fresh_batches')
-        .select('id, name, recipe_id, quantity, made_at, shelf_life_hours, good_until, discount_at, discount, percent_off, price, cleared, cleared_at, notes, made_by')
+        .select('id, name, recipe_id, quantity, made_at, shelf_life_hours, good_until, discount_at, discount, percent_off, price, discount2_at, discount2, percent_off2, price2, cleared, cleared_at, notes, made_by, screen_ids, screen_mode')
         .or(`made_at.gte.${since},good_until.gte.${since}`).order('made_at', { ascending: false }).limit(300)) as FreshBatch[]
       return rows.map(b => ({ ...b, quantity: num(b.quantity) }))
     },
@@ -1094,7 +1100,7 @@ export function createSupabaseApi(url: string, key: string): Api {
     },
     async deleteFreshBatch(id) { check(await sb.from('fresh_batches').delete().eq('id', id)) },
     async freshItems() {
-      return check(await sb.from('fresh_items').select('id, recipe_id, shelf_life_hours, from_square, offer_hours, discount, percent_off, price, made_here')) as FreshItem[]
+      return check(await sb.from('fresh_items').select('id, recipe_id, shelf_life_hours, from_square, offer_hours, discount, percent_off, price, offer2_hours, discount2, percent_off2, price2, made_here, screen_ids, screen_mode')) as FreshItem[]
     },
     async saveFreshItem({ id, ...i }) {
       if (id) { check(await sb.from('fresh_items').update(i).eq('id', id)); return id }

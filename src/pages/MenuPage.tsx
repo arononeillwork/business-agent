@@ -33,6 +33,7 @@ import {
   MAX_DESCRIPTION, MENU_SOURCES, allergenNumber, categoryOrder, marksOf, menuItemProblem, menuSections, moveInSection, moveSection, pricesOf, type ItemMarks,
   type MenuImage, type MenuItem as Item, type MenuItemInput, type MenuSource,
 } from '../../shared/menu'
+import { EXTRAS_SECTION } from '../../shared/menuSquare'
 import { ALLERGENS, MENU_FILTERS, type Allergen, type MenuAllergens } from '../../shared/allergens'
 import { missingFrom } from '../../shared/menuTemplate'
 import { RECIPE_CATEGORIES } from '../../shared/recipes'
@@ -150,6 +151,7 @@ function Items({ items, allergens, admin, source, order, onOpen }: {
       </StatGrid>
 
       {admin && items && <MenuFrom source={source} items={all} onTemplate={loadTemplate} />}
+      {admin && items && source === 'square' && <SquarePriceNotes items={all} />}
       {admin && items && <GoogleMenu />}
 
       {items && !all.length ? (
@@ -237,6 +239,41 @@ function GoogleMenu() {
 }
 
 /**
+ * Prices changed here that Square refused (admins, while the menu comes from Square): which, why (most
+ * often a connection made before the app could change items: connect Square again), and that Square's
+ * price is back on the menu. Put away once read; one still on its way says so.
+ */
+function SquarePriceNotes({ items }: { items: Item[] }) {
+  const { api } = useApp()
+  const run = useAction()
+  const notes = useAsync('square-prices', () => api.squarePrices(), [], { refetchInterval: 60_000 })
+  const name = (id: string) => items.find(i => i.id === id)?.name ?? t('An item')
+  const refused = (notes.data ?? []).filter(n => n.error)
+  const waiting = (notes.data ?? []).filter(n => !n.error)
+  if (!refused.length && !waiting.length) return null
+  return (
+    <Stack spacing={1} sx={{ mb: 2.5 }}>
+      {refused.map(n => (
+        <Alert key={n.recipe_id} severity="warning" aria-label={t('Price not changed in Square')}
+          action={<Stack direction="row" sx={{ gap: 0.5 }}>
+            {/permission|connect/i.test(n.error!) && <Button component={RouterLink} to="/connections" color="inherit" size="small">{t('Connections')}</Button>}
+            <Button color="inherit" size="small" onClick={() => void run(async () => { await api.clearSquarePrice(n.recipe_id); await notes.reload() })}>{t('Got it')}</Button>
+          </Stack>}>
+          {t('{name}: Square didn’t take the new price{price}, so the menu shows Square’s.', { name: name(n.recipe_id), price: n.price === null ? '' : ` (${formatMoney(n.price)})` })}
+          <Box component="span" sx={{ display: 'block', mt: 0.5 }}>{t(n.error!)}</Box>
+        </Alert>
+      ))}
+      {waiting.length > 0 && (
+        <Alert severity="info" icon={<SyncIcon />} aria-label={t('Prices on their way to Square')}>
+          {tn(waiting.length, 'A new price is on its way to Square ({list}): it goes within a minute.', 'New prices are on their way to Square ({list}): they go within a minute.',
+            { list: waiting.map(n => name(n.recipe_id)).join(', ') })}
+        </Alert>
+      )}
+    </Stack>
+  )
+}
+
+/**
  * Where the menu comes from (admins): kept here (Custom, the default) or read from Square's item
  * library. Custom offers the café's printed menus to start from; Square shows when it was last read.
  */
@@ -298,10 +335,13 @@ function MenuFrom({ source, items, onTemplate }: { source: MenuSource; items: It
           <DialogContent>
             <Stack spacing={1.5}>
               <Typography variant="body2">
-                {t('Names, sections, prices (hot and iced as Square has them), descriptions and photos come from your Square item library, now and every hour. The milks, syrups and other modifiers go in an Extras section.')}
+                {t('Names, sections, prices (hot and iced as Square has them), descriptions and photos come from your Square item library, now and as soon as they change there. The milks, syrups and other modifiers go in an Extras section.')}
               </Typography>
               <Typography variant="body2">
                 {t('Items already here are matched by name and keep their photos and what goes into them on Menu costing. Items that aren’t in Square are hidden while the menu comes from Square, and come back if you switch to Custom.')}
+              </Typography>
+              <Typography variant="body2">
+                {t('Prices work both ways: change one here (or ask your AI to) and it’s changed in Square too, so the till, online orders, your website and Google Maps all charge the same.')}
               </Typography>
               {integ.data && !squareOn && (
                 <Alert severity="warning" action={<Button component={RouterLink} to="/connections" color="inherit" size="small">{t('Connections')}</Button>}>
@@ -386,6 +426,10 @@ const blank = (): MenuItemInput => ({ name: '', category: 'Coffee', sell_price: 
 function ItemDialog({ item, items, marks, fromSquare, onClose }: { item: Item | null; items: Item[]; marks: ItemMarks | null; fromSquare: boolean; onClose: () => void }) {
   const { api } = useApp()
   const run = useAction()
+  const notify = useNotify()
+  // An item of Square's has its price changed here and in Square; extras (Square's modifier lists) are priced in Square.
+  const extras = fromSquare && item?.category === EXTRAS_SECTION
+  const priceHere = !fromSquare || !extras
   const phone = useMediaQuery(useTheme().breakpoints.down('sm'))
   const [m, setM] = useState<MenuItemInput>(() => (item ? (({ variants: _v, menu_sort: _s, square_id: _q, ...rest }) => structuredClone(rest))(item) : blank()))
   const [price, setPrice] = useState(item?.sell_price == null ? '' : String(item.sell_price).replace('.', ','))
@@ -393,15 +437,28 @@ function ItemDialog({ item, items, marks, fromSquare, onClose }: { item: Item | 
   const [linking, setLinking] = useState(false)
   const set = (patch: Partial<MenuItemInput>) => setM(x => ({ ...x, ...patch }))
   const categories = [...new Set([...RECIPE_CATEGORIES, ...items.map(i => i.category).filter((c): c is string => !!c), ...(m.category ? [m.category] : [])])]
-  const save = () => run(async () => {
+  const save = async () => {
     const typed = price.trim().replace(',', '.')
     // Not a number: the check below says how to write it.
     const ready = { ...m, sell_price: typed === '' ? null : Number(typed), price_label: m.price_label?.trim() || null }
-    const problem = menuItemProblem(ready)
-    if (problem) throw new Error(t(problem))
-    await api.saveMenuItem({ ...ready, name: ready.name.trim() })
-    onClose()
-  }, item ? t('Saved') : t('Added {name}', { name: m.name.trim() }))
+    const toSquare = fromSquare && !!item && ready.sell_price !== item.sell_price
+    let said = item ? t('Saved') : t('Added {name}', { name: m.name.trim() })
+    let kind: 'success' | 'warning' = 'success'
+    const ok = await run(async () => {
+      const problem = menuItemProblem(ready)
+      if (problem) throw new Error(t(problem))
+      if (toSquare && ready.sell_price === null) throw new Error(t('Give it a price: Square needs one to sell it.'))
+      await api.saveMenuItem({ ...ready, name: ready.name.trim() })
+      if (!toSquare) return
+      // The new price to Square straight away (the Worker sends it within a minute anyway).
+      const sent = await api.sendPricesToSquare().catch(() => null)
+      const refused = sent?.refused.find(r => r.id === item!.id)
+      if (refused) { said = t('Saved here, but Square didn’t take the new price: {why}', { why: t(refused.error) }); kind = 'warning' }
+      else if (sent?.sent) said = t('Saved, and changed in Square')
+      else said = t('Saved. The new price goes to Square within a minute.')
+    })
+    if (ok) { notify(said, kind); onClose() }
+  }
   const remove = () => run(async () => { await api.deleteRecipe(item!.id); onClose() }, t('Deleted {name}', { name: item!.name }))
 
   return (
@@ -411,7 +468,9 @@ function ItemDialog({ item, items, marks, fromSquare, onClose }: { item: Item | 
         <Stack spacing={2.25} sx={{ pt: 1 }}>
           {fromSquare && (
             <Alert severity="info" icon={<SyncIcon />}>
-              {t('Its name, section, price and description come from Square: change them there and the menu follows within the hour. Its photo and whether it’s on the menu are kept here, and what goes in it on Menu costing.')}
+              {t('Its name, section and description come from Square: change them there and the menu follows straight away.')}{' '}
+              {extras ? t('Extras are priced in Square too.') : t('Change its price here and it’s changed in Square too, so the till and online orders charge the same.')}{' '}
+              {t('Its photo and whether it’s on the menu are kept here, and what goes in it on Menu costing.')}
             </Alert>
           )}
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
@@ -422,7 +481,8 @@ function ItemDialog({ item, items, marks, fromSquare, onClose }: { item: Item | 
               renderInput={p => <TextField {...p} label={tc('menu', 'Section')} />} />
           </Stack>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-            <TextField fullWidth label={t('Price, with IVA')} value={price} inputMode="decimal" onChange={e => setPrice(e.target.value)} disabled={fromSquare}
+            <TextField fullWidth label={t('Price, with IVA')} value={price} inputMode="decimal" onChange={e => setPrice(e.target.value)} disabled={!priceHere}
+              helperText={fromSquare && priceHere ? t('Changed in Square too') : undefined}
               slotProps={{ input: { startAdornment: <InputAdornment position="start">{'€'}</InputAdornment> } }} />
             <TextField fullWidth label={t('Price is for')} placeholder={t('e.g. Hot (optional)')} value={m.price_label ?? ''} disabled={fromSquare}
               onChange={e => set({ price_label: e.target.value || null })} slotProps={{ htmlInput: { maxLength: 40 } }}
@@ -476,7 +536,8 @@ function ItemDialog({ item, items, marks, fromSquare, onClose }: { item: Item | 
           </Stack>
           {item && item.variants.length > 0 && (
             <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-              {fromSquare ? t('Other ways it’s sold, from Square: {list}.', { list: item.variants.map(v => v.name).join(', ') })
+              {fromSquare ? t('Other ways it’s sold, from Square: {list}. Each keeps its difference when the price changes.', {
+                list: item.variants.map(v => `${v.name} ${v.price_change < 0 ? '−' : '+'}${formatMoney(Math.abs(v.price_change))}`).join(', ') })
                 : t('Variants: {list}. Change them, and what goes in each, on Menu costing.', { list: item.variants.map(v => v.name).join(', ') })}
             </Typography>
           )}

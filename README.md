@@ -148,6 +148,21 @@ built-in **AI connector** so owners can run it by talking to Claude.
   only their own. The PINs are read when the dialog opens and gone when it closes. Kept encrypted with the Worker's integration key in a table nobody
   signed in can read (the `square_pins` migration, `worker/squarePins.ts`); each look, change and removal is in the
   audit log, without the PIN.
+- Menu prices both ways with Square (Menu page, while the menu comes from Square): change an item's price here, on
+  Menu costing or by asking your AI, and it's changed in the Square item library too (its Hot and Iced, Sit In and
+  Takeaway variations with it, each keeping its difference), so the till, online orders, the website, the screens
+  and Google Maps charge the same. A change made in Square comes the other way straight away by Square's catalog
+  webhook (`catalog.version.updated`), with the regular read as a safety net. The change waits in a queue the
+  Worker sends within a minute (straight away from the Menu page); one Square refuses (a connection made before
+  `ITEMS_WRITE` was asked for, extras that are priced in Square) shows on the Menu page with why, and Square's price
+  comes back. A price waiting to go isn't undone by a read from Square meanwhile (the `square_price_write_back`
+  migration, `pushSquarePrices()` in `worker/menu.ts`, `squarePriceChanges()` in `shared/menuSquare.ts`).
+- Refresh rates (Connections → How often things update): admins choose how often each outside service is read
+  (takings, loyalty, Square customers and menu, Google Maps hours, Instagram mentions, Search Console, ads, email,
+  social statistics); the pages' "Updated 5 min ago · every …" follow it. Free keeps the usual times or slower,
+  Starter goes a step faster, Pro two, and Business picks the fastest or types its own number of minutes, each within
+  what the service allows. The Worker keeps to the plan in force, so a business back on Free goes back to the usual
+  times by itself (`settings.refresh_minutes`, the `refresh_rates` migration, `shared/refresh.ts`, `worker/refresh.ts`).
 - People (Team section): the team as a hierarchy, the owners at the top, then the shop managers, then the
   employees, each with the roles they hold on Roles & responsibilities (admins open someone on the Team
   page from there). **Show pets** puts everyone's dogs (and cats) under them with their photos. Each person
@@ -234,6 +249,12 @@ built-in **AI connector** so owners can run it by talking to Claude.
   carousel on the Social planner, and each has a link to paste into an offer, a screen or the menu.
   Taking one off the page leaves the file where it is. Setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md)
   section 21 (`worker/content.ts`, `shared/content.ts`, the `content_library` migration).
+- Content shows its photos and videos as Google Photos shows a library: day by day, newest first, each day
+  under its date, in rows of photos at their own shape (none cropped to a square) that fill the width
+  (`src/lib/photoLayout.ts`). The circle on one, or beside a day's date, chooses them; while any is chosen a
+  tap chooses rather than opens. Opened, one fills the screen on black, with arrows (a swipe, the arrow keys)
+  to the next and an Info panel with its title, tags, when it was taken, its size and where it came from
+  (`src/pages/ContentGallery.tsx`).
 - Outsourcing (Team section, admins; a gestoría with finances access reads): the jobs done for the business by
   people and firms outside the team (social media, the books, cleaning, the windows, the coffee machine's
   service, pest control…). **Active** shows who does each job, the price agreed and how it's charged (a month,
@@ -411,6 +432,10 @@ built-in **AI connector** so owners can run it by talking to Claude.
   life comes from Square when the item has a "Shelf life" custom attribute there (in days, or "36 hours"),
   read with the menu, or an admin sets it; a batch recorded of one starts from its shelf life and offer
   (the `fresh_items` migration, `worker/menu.ts`).
+- Stock → Freshly made, the screens an item's offer goes on: every screen that's on (as at first), the
+  screens picked, or none (still on Offers & specials, on no TV); in turn with each screen's other slides or
+  on its own. A batch's offer goes where its item says, unless an admin changes it for that batch, which
+  moves its offer there (the `fresh_offer_screens` migration).
 - Leads & enquiries (Sales section): what someone asked for (a party, the terrace, office coffee), where
   it came in, its value, the day it's for and when to follow it up (a reminder in the bell that day).
   Each belongs to someone on Customers, added there as a lead when they're new; a won enquiry makes
