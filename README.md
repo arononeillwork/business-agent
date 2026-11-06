@@ -698,6 +698,15 @@ the Worker. Nothing is deployed twice; each deploy shows on it straight away. Si
 there come back there (`scripts/ops/supabase-auth.mjs`). Links the Worker builds (invite emails,
 connection and billing returns) still use the workers.dev address.
 
+### Who owns each key
+
+**Actions → Key owners → Run workflow** asks each provider whose account or app every key opens
+(Stripe, Google, Meta, Microsoft, TikTok, Square, Cloudflare, Supabase, Anthropic…) and puts a table
+in the run's summary: Business Agent's, Easy Beans', personal, or not shown. The apps every business
+connects or pays through should be Business Agent's; one business's own account (Easy Beans' WhatsApp
+number) should be its connection, not a key. Read-only, and it prints no key
+(`scripts/ops/key-owners.mjs`). Run it again after moving a key to see that it took.
+
 ## Push notifications and bank holiday reminders
 
 Each person can get their notifications on their phone or computer, even with the app closed:
