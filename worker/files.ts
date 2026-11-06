@@ -11,6 +11,7 @@ import * as ms from './providers/microsoft'
 import { broken, fail, keepTaxFile, keptStorage, pathParam, readUpload, status, TaxError } from './tax'
 import { cleanFolderName, cleanFolderPath } from '../shared/tax'
 import { cleanTags, sortEntries, type StorageEntry, type StorageFolder } from '../shared/documents'
+import { signInCheck } from './signedIn'
 
 export const files = new Hono<{ Bindings: Env; Variables: { token: string } }>()
 
@@ -19,7 +20,7 @@ const MISSING = 'Connect Google Drive or OneDrive on the Connections page to kee
 files.use('/api/files/*', async (c, next) => {
   const token = bearer(c.req.header('authorization'))
   if (!token) return c.json({ error: 'Not signed in' }, 401)
-  const { data: allowed } = await userClient(c.env, token, 'app').rpc('can_see_pay')
+  const { data: allowed } = await signInCheck(c.env, token, 'can_see_pay')
   if (!allowed) return c.json({ error: 'Only admins with pay access manage documents' }, 403)
   c.set('token', token)
   await next()

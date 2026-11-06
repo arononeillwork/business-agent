@@ -39,10 +39,12 @@ export interface ContentUpload { kind: ContentKind; url: string; title: string |
 
 /** Where photos and videos are kept: The Business Agent/Content in the café's storage (worker/media.ts). */
 export const CONTENT_FOLDER = 'Content'
-/** How many picked items one request copies (each is a download and an upload; a Worker run can only ask so much). */
+/** How many picked items one request copies, side by side (each is a download and an upload; a Worker run can only ask so much). */
 export const IMPORT_BATCH = 5
-/** How many items one Google Photos pick takes. */
-export const MAX_PICK = 100
+/** How many items one Google Photos pick takes: Google's most, so a whole album or month comes in one go. */
+export const MAX_PICK = 2000
+/** How many picked items Google lists at a time; a pick is brought in one such page after another. */
+export const PICK_PAGE = 100
 export const MAX_TITLE = 200
 export const MAX_TAGS = 12
 export const MAX_TAG = 30
@@ -148,14 +150,21 @@ export const SKIP_TEXT: Record<SkipReason, string> = {
 
 /** A Google Photos pick under way: open `picker_uri` in a new window, then ask whether it's done every `poll_ms`. */
 export interface GooglePhotosPick { id: string; picker_uri: string; poll_ms: number; timeout_ms: number; expires_at: string | null }
-/** One round of bringing a pick in: what was added, what wasn't and why, and how many are still to come. */
+/**
+ * One round of bringing a pick in, a page of it (up to 100) at a time: what was added, what wasn't and why,
+ * how many of the page are still to come (ask again with the same page), and the next page once it's done.
+ */
 export interface GooglePhotosImport {
   added: ContentItem[]
   skipped: { id: string; name: string | null; reason: SkipReason }[]
-  /** Still to bring in: ask again. */
+  /** Still to bring in from this page: ask again with the same page. */
   left: number
-  /** Picked, but in the library from before. */
+  /** The next page to ask for once this one's done; null: this was the last. */
+  next_page: string | null
+  /** Of this page, picked but in the library from before. */
   already: number
+  /** How many were picked in all, when asked to count (the first round); null otherwise. */
+  total: number | null
 }
 
 /** An album of the business's own (the `content_favourites_albums` migration): its photos and videos, each once. */

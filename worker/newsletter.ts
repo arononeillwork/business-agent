@@ -15,9 +15,10 @@
 //   POST/DELETE /api/newsletter/key         make (or replace) the website key, shown once; or remove it
 //   POST /api/newsletter/import             people from a list brought in (up to 100 at a time)
 import { Hono, type Context } from 'hono'
-import { bearer, businessDb, requestDb, userClient, type Env } from './supabase'
+import { bearer, businessDb, requestDb, type Env } from './supabase'
 import { FORM_TEXT, formLanguage, readSignup, type ListRow, type NewsletterInterest, type NewsletterSettings, type Signup, type SignupProblem } from '../shared/newsletter'
 import { formPage, offPage } from '../shared/newsletterForm'
+import { signInCheck } from './signedIn'
 
 export const newsletter = new Hono<{ Bindings: Env }>()
 
@@ -173,7 +174,7 @@ newsletter.post('/api/site/:business/unsubscribe', async c => {
 for (const path of ['/api/newsletter', '/api/newsletter/*']) {
   newsletter.use(path, async (c, next) => {
     const token = bearer(c.req.header('authorization'))
-    const { data } = token ? await userClient(c.env, token, 'app').rpc('is_admin') : { data: false }
+    const { data } = token ? await signInCheck(c.env, token, 'is_admin') : { data: false }
     if (data !== true) return c.json({ error: 'Only an admin can set up the newsletter' }, 403)
     await next()
   })

@@ -54,7 +54,7 @@ function videoSize(file: File): Promise<{ width: number | null; height: number |
 /** Where a Google Photos pick is: waiting for the admin to pick, bringing it in, or done (with what wasn't). */
 type Pick =
   | { stage: 'waiting'; id: string; uri: string; blocked: boolean }
-  | { stage: 'bringing'; id: string; done: number; left: number }
+  | { stage: 'bringing'; id: string; done: number; seen: number; total: number | null }
   | { stage: 'done'; added: number; already: number; skipped: GooglePhotosImport['skipped'] }
 
 /**
@@ -131,21 +131,32 @@ export function ContentPage() {
 
   const choose = (ids: string[], on: boolean) => setChosen(c => (on ? [...c, ...ids.filter(id => !c.includes(id))] : c.filter(x => !ids.includes(x))))
 
-  /** Bring in what was picked, a few at a time, until nothing's left. */
+  /**
+   * Bring in what was picked, a page of it (100) after another and a few at a time, until nothing's left.
+   * The list on the page catches up every few seconds, not after every few photos (a pick can be 2000).
+   */
   async function bringIn(id: string) {
-    let done = 0, already = 0
+    let done = 0, already = 0, total: number | null = null
+    let page: string | null = null, first = true, newPage = true, shown = Date.now()
     const skipped: GooglePhotosImport['skipped'] = []
-    setPick({ stage: 'bringing', id, done: 0, left: 0 })
+    setPick({ stage: 'bringing', id, done: 0, seen: 0, total: null })
     for (;;) {
-      const r = await api.importGooglePhotos(id, skipped.map(s => s.id))
+      const r = await api.importGooglePhotos(id, skipped.map(s => s.id), page, first)
+      first = false
+      total = r.total ?? total
       done += r.added.length
-      already = r.already
+      // A page asked again reports the same ones that were already there: count them once.
+      if (newPage) already += r.already
       skipped.push(...r.skipped)
       if (live.current !== id) return
-      setPick({ stage: 'bringing', id, done, left: r.left })
-      await items.reload()
-      if (!r.left) break
+      setPick({ stage: 'bringing', id, done, seen: done + already + skipped.length, total })
+      if (Date.now() - shown > 5000) { shown = Date.now(); await items.reload() }
+      newPage = !r.left
+      if (r.left) continue
+      if (!r.next_page) break
+      page = r.next_page
     }
+    await items.reload()
     live.current = null
     setPick({ stage: 'done', added: done, already, skipped })
   }
@@ -426,6 +437,7 @@ function PickDialog({ pick, onClose }: { pick: Pick; onClose: () => void }) {
               {pick.blocked ? t('Your browser kept Google Photos from opening. Open it here, pick the photos and videos, then press Done there.')
                 : t('Google Photos has opened in a new window. Pick the photos and videos, then press Done there.')}
             </Typography>
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('You can pick up to 2,000 at a time: a whole album or month.')}</Typography>
             {pick.uri && (
               <Button variant={pick.blocked ? 'contained' : 'outlined'} href={pick.uri} target="google-photos-picker" rel="noreferrer" startIcon={<OpenIcon />}>
                 {t('Open Google Photos')}
@@ -440,9 +452,14 @@ function PickDialog({ pick, onClose }: { pick: Pick; onClose: () => void }) {
         {pick.stage === 'bringing' && (
           <Stack spacing={1.5} role="status">
             <Typography variant="body2">{t('Copying them to your Drive or OneDrive…')}</Typography>
-            <LinearProgress variant={pick.left || pick.done ? 'determinate' : 'indeterminate'}
-              value={pick.done + pick.left ? (pick.done / (pick.done + pick.left)) * 100 : 0} />
-            <Typography variant="caption" sx={{ color: 'text.secondary' }}>{tn(pick.done, '{n} brought in so far', '{n} brought in so far')}</Typography>
+            <LinearProgress variant={pick.total ? 'determinate' : 'indeterminate'} value={pick.total ? Math.min(100, (pick.seen / pick.total) * 100) : 0} />
+            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+              {pick.total ? t('{done} brought in so far, {seen} of {total} looked at', { done: String(pick.done), seen: String(pick.seen), total: String(pick.total) })
+                : tn(pick.done, '{n} brought in so far', '{n} brought in so far')}
+            </Typography>
+            {(pick.total ?? 0) > 50 && (
+              <Typography variant="caption" sx={{ color: 'text.secondary' }}>{t('Keep this page open until they’re all in. If it stops, pick them again: what’s here already isn’t copied twice.')}</Typography>
+            )}
           </Stack>
         )}
         {pick.stage === 'done' && (

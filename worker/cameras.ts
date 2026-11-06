@@ -18,6 +18,7 @@ import * as google from './providers/google'
 import * as ms from './providers/microsoft'
 import { MAX_CLIP_BYTES, clipPlace, clipStart, type CameraLive } from '../shared/cameras'
 import { TZ } from '../shared/time'
+import { signInCheck } from './signedIn'
 
 export const cameras = new Hono<{ Bindings: Env; Variables: { token: string } }>()
 
@@ -143,7 +144,7 @@ cameras.post('/api/camera-uploads/clip', async c => {
 cameras.use('/api/cameras/*', async (c, next) => {
   const token = bearer(c.req.header('authorization'))
   if (!token) return c.json({ error: 'Not signed in' }, 401)
-  const { data: admin } = await userClient(c.env, token, 'app').rpc('is_admin')
+  const { data: admin } = await signInCheck(c.env, token, 'is_admin')
   if (!admin) return c.json({ error: 'Only admins see the cameras' }, 403)
   c.set('token', token)
   await next()

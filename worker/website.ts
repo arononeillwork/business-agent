@@ -5,19 +5,20 @@
 // when an admin asks, and not twice within a couple of minutes.
 import { Hono } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { bearer, requestDb, userClient, type Env } from './supabase'
+import { bearer, requestDb, type Env } from './supabase'
 import { googleSession } from './connections'
 import * as google from './providers/google'
 import { cleanWebsite } from '../shared/connections'
 import { checkSite, pageSpeedOf, parsePage, scoreOf, sitemapUrls, type Expected, type ListingFacts, type PageFacts, type Strategy, type WebsiteReport } from '../shared/seo'
 import type { OpeningHours } from '../shared/types'
+import { signInCheck } from './signedIn'
 
 export const website = new Hono<{ Bindings: Env }>()
 
 for (const path of ['/api/website', '/api/website/*']) {
   website.use(path, async (c, next) => {
     const token = bearer(c.req.header('authorization'))
-    const { data } = token ? await userClient(c.env, token, 'app').rpc('is_admin') : { data: false }
+    const { data } = token ? await signInCheck(c.env, token, 'is_admin') : { data: false }
     if (data !== true) return c.json({ error: 'Only an admin can check the website' }, 403)
     await next()
   })

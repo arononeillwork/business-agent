@@ -7,11 +7,12 @@
 // the team can look someone up by their handle when adding them.
 import { Hono } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { bearer, businessDb, requestDb, serviceClient, userClient, type Env } from './supabase'
+import { bearer, businessDb, requestDb, serviceClient, type Env } from './supabase'
 import * as instagram from './providers/instagram'
 import { instagramSession } from './connections'
 import { cleanInstagram, type CrewSuggestion, type SocialLookup } from '../shared/reps'
 import type { InboxConversation } from '../shared/messages'
+import { signInCheck } from './signedIn'
 
 export const repPage = new Hono<{ Bindings: Env }>()
 
@@ -100,7 +101,7 @@ export async function lookupInstagram(env: Env, db: SupabaseClient, handle: stri
 
 repPage.post('/api/reps/instagram', async c => {
   const auth = bearer(c.req.header('authorization'))
-  const { data: staff } = auth ? await userClient(c.env, auth, 'app').rpc('is_staff') : { data: false }
+  const { data: staff } = auth ? await signInCheck(c.env, auth, 'is_staff') : { data: false }
   if (staff !== true) return c.json({ error: 'Only the team can look people up' }, 403)
   const body = await c.req.json().catch(() => ({})) as { handle?: unknown }
   const handle = cleanInstagram(typeof body.handle === 'string' ? body.handle : '')

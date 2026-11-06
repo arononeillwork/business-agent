@@ -46,7 +46,9 @@ do $$
 declare v_hq int := current_setting('test.hq')::int;
 begin
   assert public.start_hq() = v_hq, 'made once';
-  assert (select is_hq and name = 'Business Agent HQ' from public.business where id = v_hq), 'Business Agent HQ';
+  assert (select is_hq and name = 'The Business Agent HQ' from public.business where id = v_hq), 'The Business Agent HQ';
+  assert (select pitch like 'Thank you for bringing businesses to The Business Agent.%' from public.rep_settings where business_id = v_hq), 'the reps'' pitch names The Business Agent';
+  assert (select complimentary_note = 'The Business Agent HQ: The Business Agent itself' from public.billing where business_id = v_hq), 'its note too';
   assert (select status = 'comped' and plan = 'business' from public.billing where business_id = v_hq), 'complimentary';
   assert (select kind = 'ambassador' and categories = '{cafe}' and email = 'julio.temp@example.com' and active and approved
             from public.sales_reps where business_id = v_hq and code = 'JULIO27'), 'Julio, for cafés, with a temporary email';

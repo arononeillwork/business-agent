@@ -6,20 +6,21 @@
 // the page shows what's kept; it only asks Google when that's due.
 import { Hono } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { bearer, requestDb, secretPlaceId, userClient, type Env } from './supabase'
+import { bearer, requestDb, secretPlaceId, type Env } from './supabase'
 import { explain, googleSession, lasting, markBroken } from './connections'
 import { cached } from './cache'
 import * as google from './providers/google'
 import { placeReviews } from './providers/places'
 import { CONNECT_MAPS, guessLanguage, isLow, starsOf, MAX_REPLY, type Review, type ReviewFeed, type ReviewsState } from '../shared/reviews'
 import { MINUTES } from '../shared/refresh'
+import { signInCheck } from './signedIn'
 
 export const reviews = new Hono<{ Bindings: Env }>()
 
 const admin = async (c: { env: Env; req: { header: (n: string) => string | undefined } }) => {
   const token = bearer(c.req.header('authorization'))
   if (!token) return false
-  const { data } = await userClient(c.env, token, 'app').rpc('is_admin')
+  const { data } = await signInCheck(c.env, token, 'is_admin')
   return data === true
 }
 for (const path of ['/api/reviews', '/api/reviews/*']) {

@@ -37,8 +37,8 @@ import { refreshReviews, reviews, reviewsConfigured } from './reviews'
 import { clearOldCache } from './cache'
 import { website } from './website'
 import { checkWaitingImages, menu, pushSquarePrices, syncSquareMenuIfChosen } from './menu'
-import { minutesFor } from './refresh'
-import { due } from '../shared/refresh'
+import { menuFromSquare } from './refresh'
+import { dueJobs, everyFor } from './schedule'
 import { screens } from './screens'
 import { site } from './site'
 import { newsletter } from './newsletter'
@@ -50,6 +50,7 @@ import { postIdeas } from './postIdeas'
 import { socialAnalytics } from './socialAnalytics'
 import { EMAIL_ADDRESS, accessOf, emailBlock, teamRoleOf } from '../shared/teamRoles'
 import type { Profile } from '../shared/types'
+import { signInCheck } from './signedIn'
 
 const NIGHTLY = '15 1 * * *' // 03:15 Madrid in summer, 02:15 in winter
 // Every minute from 02:00 to 03:59 UTC: the night's connection checks, a few a run (checkDue), each
@@ -116,8 +117,7 @@ app.get('/api/health', async c => {
 app.post('/api/admin/invite', async c => {
   const token = bearer(c.req.header('authorization'))
   if (!token) return c.json({ error: 'Not signed in' }, 401)
-  const sb = userClient(c.env, token, 'app')
-  const [{ data: isAdmin, error }, { data: businessId }] = await Promise.all([sb.rpc('is_admin'), sb.rpc('current_business_id')])
+  const [{ data: isAdmin, error }, { data: businessId }] = await Promise.all([signInCheck(c.env, token, 'is_admin'), signInCheck(c.env, token, 'current_business_id')])
   if (error || !isAdmin || !businessId) return c.json({ error: 'Only an admin can invite people' }, 403)
 
   const body = await c.req.json<{ email?: string; full_name?: string; role?: string; partner_company?: string; partner_access?: string[]; password?: string; phone?: string | null; contact_method?: string | null }>()
@@ -127,7 +127,7 @@ app.post('/api/admin/invite', async c => {
   const member = teamRoleOf(body.role === 'admin' ? 'manager' : body.role)
   const role = member ? accessOf(member).role : body.role === 'kiosk' || body.role === 'partner' ? body.role : 'employee'
   const owner = member === 'owner'
-  if (owner && !(await sb.rpc('can_see_pay')).data) {
+  if (owner && !(await signInCheck(c.env, token, 'can_see_pay')).data) {
     return c.json({ error: 'Only an owner can invite another owner' }, 403)
   }
   if (!email || !body.full_name?.trim()) return c.json({ error: 'Name and email are required' }, 400)
@@ -204,7 +204,7 @@ app.post('/api/admin/set-password', async c => {
   const token = bearer(c.req.header('authorization'))
   if (!token) return c.json({ error: 'Not signed in' }, 401)
   const sb = userClient(c.env, token, 'app')
-  const { data: isAdmin, error } = await sb.rpc('is_admin')
+  const { data: isAdmin, error } = await signInCheck(c.env, token, 'is_admin')
   if (error || !isAdmin) return c.json({ error: 'Only an admin can do that' }, 403)
   const body = await c.req.json<{ user_id?: string; password?: string }>()
   if (!body.user_id || !body.password || body.password.length < 8) {
@@ -225,7 +225,7 @@ app.post('/api/admin/set-email', async c => {
   if (!token) return c.json({ error: 'Not signed in' }, 401)
   const sb = userClient(c.env, token, 'app')
   const [{ data: isAdmin, error }, { data: businessId }, { data: isOwner }] =
-    await Promise.all([sb.rpc('is_admin'), sb.rpc('current_business_id'), sb.rpc('can_see_pay')])
+    await Promise.all([signInCheck(c.env, token, 'is_admin'), signInCheck(c.env, token, 'current_business_id'), signInCheck(c.env, token, 'can_see_pay')])
   if (error || !isAdmin || !businessId) return c.json({ error: 'Only an owner or shop manager can change someone’s email' }, 403)
   const body = await c.req.json<{ user_id?: string; email?: string }>()
   const email = body.email?.trim().toLowerCase()
@@ -251,8 +251,7 @@ app.post('/api/admin/set-email', async c => {
 app.post('/api/admin/sports/refresh', async c => {
   const token = bearer(c.req.header('authorization'))
   if (!token) return c.json({ error: 'Not signed in' }, 401)
-  const sb = userClient(c.env, token, 'app')
-  const [{ data: isAdmin, error }, { data: businessId }] = await Promise.all([sb.rpc('is_admin'), sb.rpc('current_business_id')])
+  const [{ data: isAdmin, error }, { data: businessId }] = await Promise.all([signInCheck(c.env, token, 'is_admin'), signInCheck(c.env, token, 'current_business_id')])
   if (error || !isAdmin || !businessId) return c.json({ error: 'Only an admin can do that' }, 403)
   const db = businessDb(c.env, businessId)
   if (!await sportsEnabled(db)) return c.json({ error: 'Sports is off. Turn it on on the Sports page first.' }, 409)
@@ -410,8 +409,8 @@ export default {
   // Every minute: close forgotten timecards, queue shift alerts, remind admins about events,
   // send planned social posts, deliver the outbox, refresh sports, send menu prices to Square; every
   // 15 minutes, opening hours with Google Maps and Instagram mentions; every hour, new Square customers,
-  // the menu from Square and new Google reviews (every 3 hours from Places). How often each service is
-  // read, and which a business can change: shared/refresh.ts.
+  // the menu from Square and new Google reviews (every 3 hours from Places), each in its own minute
+  // (worker/schedule.ts). How often each service is read, and which a business can change: shared/refresh.ts.
   // Nightly: fill yesterday's missing timecards from the rota, check every connection still works,
   // and look at the competitors due their weekly check on Google.
   async scheduled(event, env, ctx) {
@@ -495,38 +494,37 @@ export default {
         await pushNotifications(env, b).catch(e => console.error('push failed', id, e))
         // Menu images whose webhook from Higgsfield hasn't come (asked about, or given up on after 3 hours).
         await checkWaitingImages(env, b).catch(e => console.error('menu images failed', id, e))
+        // The jobs that read outside services, each in its own minute (worker/schedule.ts): a run may make
+        // only 50 outside requests, so they're spread out rather than all landing on the quarter hours.
+        const now = new Set(dueJobs(minute, id, await everyFor(b)))
         // Every 15 minutes (or as the business chose): opening hours both ways with Google Maps (after
         // the outbox, so a change made in the app has already gone to Google).
-        if (due(minute, await minutesFor(b, 'hours')) && await googleConnected(b)) {
+        if (now.has('hours') && await googleConnected(b)) {
           await syncGoogleBothWays(env, b).catch(e => console.error('google hours sync failed', id, e))
         }
-        // Every minute: menu prices changed here (the AI connector's too) to Square, while the menu comes from it.
-        await pushSquarePrices(env, b).catch(e => console.error('square prices failed', id, e))
+        // Every minute, while the menu comes from Square: menu prices changed here (the AI connector's too) to Square.
+        if (await menuFromSquare(b)) await pushSquarePrices(env, b).catch(e => console.error('square prices failed', id, e))
         // Every minute: the menu onto the Google Maps listing, when it changed since it was last sent
         // (only a fingerprint is compared; Google is called only for a new menu).
         await pushGoogleMenu(env, b).catch(e => console.error('google menu failed', id, e))
         // Every 15 minutes (or as the business chose): new Instagram tags and story mentions, for admins to repost or ignore.
-        if (due(minute, await minutesFor(b, 'mentions'))) {
-          await checkMentions(env, b).catch(e => console.error('instagram mentions failed', id, e))
-        }
+        if (now.has('mentions')) await checkMentions(env, b).catch(e => console.error('instagram mentions failed', id, e))
         // Every hour (or as the business chose): Square customers added or changed since the last look, into Customers.
-        if (due(minute, await minutesFor(b, 'customers'))) {
-          await syncSquareCustomers(env, b).catch(e => console.error('square customers failed', id, e))
-        }
-        // Every hour at a quarter past (or as the business chose): the menu from the Square item library,
-        // when that's where it comes from, in case a webhook from Square was missed.
-        if (due(minute, await minutesFor(b, 'menu'), 15)) await syncSquareMenuIfChosen(env, b)
-        // Every hour (on the half hour, away from Square's): new Google reviews, for admins to read and reply to;
-        // from Places only every third hour (refreshReviews knows which).
-        if (minute % 60 === 30 && await reviewsConfigured(env, b)) {
+        if (now.has('customers')) await syncSquareCustomers(env, b).catch(e => console.error('square customers failed', id, e))
+        // Every hour (or as the business chose): the menu from the Square item library, when that's where it
+        // comes from, in case a webhook from Square was missed.
+        if (now.has('menu')) await syncSquareMenuIfChosen(env, b)
+        // Every hour: new Google reviews, for admins to read and reply to; from Places only every third hour
+        // (refreshReviews knows which).
+        if (now.has('reviews') && await reviewsConfigured(env, b)) {
           await refreshReviews(env, b, 5).catch(e => console.error('reviews failed', id, e))
         }
         // Sports only while it's switched on (Sports page).
         if (await sportsOn(b)) await refreshStaleSports(b).catch(e => console.error('sports failed', id, e))
         // Every hour: the cameras' clips whose days are up, out of the business's storage (Cameras page).
-        if (minute % 60 === 45) await purgeCameraClips(env, b).catch(e => console.error('camera clips purge failed', id, e))
+        if (now.has('cameras')) await purgeCameraClips(env, b).catch(e => console.error('camera clips purge failed', id, e))
         // Every 5 minutes: the next track of the music starter pack, until the business has them all.
-        if (minute % 5 === 2) {
+        if (now.has('music')) {
           await fillStarterPack(env, new URL(businessConfig.appUrl).origin, id).catch(e => console.error('music starter pack failed', id, e))
         }
       })
