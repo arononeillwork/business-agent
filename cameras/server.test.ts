@@ -106,7 +106,9 @@ describe.skipIf(!hasCurl)('the camera upload server, with curl as the camera', (
     })
     await new Promise<void>(ok => app.listen(0, () => ok()))
     const appUrl = `http://127.0.0.1:${(app.address() as AddressInfo).port}`
-    const base = 42000 + Math.floor(Math.random() * 2000) * 4
+    // Below Linux's ephemeral range (32768–60999): there the other test files' listen(0) servers and
+    // outgoing connections take ports, and one could already hold a passive port picked at random.
+    const base = 20000 + Math.floor(Math.random() * 3000) * 4
     s = start({ appUrl, key: KEY, ftpPort: 0, httpPort: 0, passivePorts: [base, base + 1], publicIp: '127.0.0.1', retryMs: 50, aroundMs: 300, log: () => {} })
     await s.ready
     ftpPort = (s.ftp.control.address() as AddressInfo).port
