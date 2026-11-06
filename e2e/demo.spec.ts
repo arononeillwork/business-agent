@@ -10291,6 +10291,90 @@ test.describe('content', () => {
     await next.getByRole('button', { name: 'Close' }).click()
     await expect(list.getByRole('listitem', { name: 'Ethiopia Guji beans' })).toHaveCount(0)
   })
+
+  test('content: Instagram highlights: chosen photos and videos go up as stories, and you’re told to add them in Instagram', async ({ page }) => {
+    // Google Drive keeps the photos and videos, so the stories post themselves (the demo's Instagram is connected).
+    await open(page, '/connections')
+    const files = page.getByRole('region', { name: 'Files and storage' })
+    await files.getByRole('button', { name: 'Connect Google Drive' }).click()
+    await expect(files.getByRole('article', { name: 'Google Drive' })).toContainText('Connected')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('region', { name: 'Marketing' }).getByRole('link', { name: 'Content' }).click()
+
+    // A highlight that's on Instagram already is made here by its name (Instagram lets no app read them), each name once.
+    const row = page.getByRole('region', { name: 'Instagram highlights' })
+    await row.getByRole('button', { name: 'New highlight' }).click()
+    const naming = page.getByRole('dialog', { name: 'New highlight' })
+    await naming.getByRole('textbox', { name: 'Name' }).fill('  Reviews  ⭐ ')
+    await naming.getByRole('button', { name: 'Save' }).click()
+    await expect(row.getByRole('button', { name: 'Reviews ⭐', exact: true })).toBeVisible()
+    await row.getByRole('button', { name: 'New highlight' }).click()
+    await naming.getByRole('textbox', { name: 'Name' }).fill('reviews ⭐')
+    await expect(naming).toContainText('There’s a highlight with that name already')
+    await expect(naming.getByRole('button', { name: 'Save' })).toBeDisabled()
+    await naming.getByRole('button', { name: 'Cancel' }).click()
+
+    // Two photos and a video chosen go into it: a story each, one after another, now.
+    const list = page.getByRole('list', { name: 'Photos and videos' })
+    await list.getByRole('checkbox', { name: 'Choose Iced oat latte' }).check()
+    await list.getByRole('checkbox', { name: 'Choose Ethiopia Guji beans' }).check()
+    await list.getByRole('checkbox', { name: 'Choose A day at Easy Beans' }).check()
+    await page.getByRole('button', { name: 'Add to highlight' }).click()
+    const add = page.getByRole('dialog', { name: 'Add to a highlight' })
+    await expect(add).toContainText('3 stories on Instagram, one after another')
+    await expect(add.getByRole('button', { name: 'Post 3 stories' })).toBeDisabled()
+    await add.getByRole('radio', { name: 'Reviews ⭐' }).click()
+    await expect(add).toContainText('Instagram doesn’t let apps add to highlights, so once each story is up you’ll get a reminder to add it to Reviews ⭐')
+    await add.getByRole('button', { name: 'Post 3 stories' }).click()
+    await toast(page, 'Posting 3 stories for Reviews ⭐')
+    await expect(page.getByText('3 chosen')).toHaveCount(0)
+
+    // They're up: the circle says how many are still to add in Instagram, and the admin is told how (once).
+    const reviews = row.getByRole('button', { name: 'Reviews ⭐: 3 stories to add in Instagram' })
+    await expect(reviews).toBeVisible()
+    await page.getByRole('button', { name: /Notifications, \d+ new/ }).first().click()
+    await expect(page.getByRole('region', { name: 'Notifications' }).getByText('Add your story to Reviews ⭐')).toHaveCount(1)
+    await page.keyboard.press('Escape')
+
+    // Opened: its stories and what to do in Instagram; one marked added.
+    await reviews.click()
+    const opened = page.getByRole('dialog', { name: 'Reviews ⭐' })
+    await expect(opened).toContainText('3 stories are up: add them to Reviews ⭐ in Instagram')
+    const stories = opened.getByRole('list', { name: 'Stories' }).getByRole('listitem')
+    await expect(stories).toHaveCount(3)
+    await stories.first().getByRole('button', { name: 'Mark added' }).click()
+    await toast(page, 'Marked added to Reviews ⭐')
+    await expect(stories.first()).toContainText('Added to the highlight')
+    await expect(opened).toContainText('2 stories are up: add them to Reviews ⭐ in Instagram')
+    await opened.getByRole('button', { name: 'Done' }).click()
+    await expect(row.getByRole('button', { name: 'Reviews ⭐: 2 stories to add in Instagram' })).toBeVisible()
+
+    // From a photo open on the whole screen, into a new highlight, for later.
+    await list.getByRole('button', { name: 'Open Ethiopia Guji beans' }).click()
+    const viewer = page.getByRole('dialog', { name: 'Ethiopia Guji beans' })
+    await viewer.getByRole('button', { name: 'Add to highlight' }).click()
+    await add.getByRole('radio', { name: 'New highlight' }).click()
+    await add.getByRole('textbox', { name: 'Name' }).fill('Doggos')
+    await add.getByRole('group', { name: 'When' }).getByRole('button', { name: 'Later' }).click()
+    await add.getByLabel('Date').fill('2026-10-02')
+    await add.getByRole('button', { name: 'Schedule 1 story' }).click()
+    await toast(page, '1 story scheduled for Doggos')
+    await viewer.getByRole('button', { name: 'Close' }).click()
+    await row.getByRole('button', { name: 'Doggos', exact: true }).click()
+    const doggos = page.getByRole('dialog', { name: 'Doggos' })
+    await expect(doggos.getByRole('listitem')).toContainText('Goes up Fri 2 Oct, 10:00')
+
+    // Renamed, then deleted here: its story stays on the Social planner (and the highlight on Instagram).
+    await doggos.getByRole('button', { name: 'Rename' }).click()
+    const rename = page.getByRole('dialog', { name: 'Rename Doggos' })
+    await rename.getByRole('textbox', { name: 'Name' }).fill('Doggos 🐶')
+    await rename.getByRole('button', { name: 'Save' }).click()
+    const renamed = page.getByRole('dialog', { name: 'Doggos 🐶' })
+    await renamed.getByRole('button', { name: 'Delete' }).click()
+    await expect(renamed).toContainText('Its stories stay on Instagram and on the Social planner')
+    await renamed.getByRole('button', { name: 'Delete' }).click()
+    await expect(row.getByRole('button', { name: /^Doggos/ })).toHaveCount(0)
+    await expect(row.getByRole('button', { name: /^Reviews ⭐/ })).toBeVisible()
+  })
 })
 
 test.describe('square pins', () => {

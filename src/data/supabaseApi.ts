@@ -29,6 +29,7 @@ import { NEWSLETTER_OFF, type NewsletterEvent, type NewsletterSettings } from '.
 import type { Contact } from '../../shared/contacts'
 import type { ClockStats } from '../../shared/leaderboard'
 import { CONTENT_COLUMNS, type ContentItem, type GooglePhotosImport, type GooglePhotosPick } from '../../shared/content'
+import { storyState, tidyHighlightName, type InstagramHighlight } from '../../shared/highlights'
 import type { Contractor, OutsourcedJob } from '../../shared/outsourcing'
 import type { EmploymentContract, SalaryPer } from '../../shared/contracts'
 import { DEFAULT_VAT_RATE, type PnlLine, type PnlSettings } from '../../shared/pnl'
@@ -668,6 +669,32 @@ export function createSupabaseApi(url: string, key: string): Api {
     importGooglePhotos: (id, skip) => worker<GooglePhotosImport>(`/api/content/google-photos/sessions/${encodeURIComponent(id)}/import`, {
       method: 'POST', body: JSON.stringify({ skip }) }),
     async cancelGooglePhotosPick(id) { await worker(`/api/content/google-photos/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' }) },
+    async instagramHighlights() {
+      type Story = { id: string; highlight_id: string; post_id: string; added_at: string | null
+        social_posts: Pick<SocialPost, 'status' | 'results' | 'media' | 'scheduled_at' | 'published_at'> | null }
+      const [highlights, stories] = await Promise.all([
+        sb.from('instagram_highlights').select('id, name, cover_url, created_at').order('created_at'),
+        sb.from('highlight_stories').select('id, highlight_id, post_id, added_at, social_posts(status, results, media, scheduled_at, published_at)'),
+      ])
+      const rows = check(stories) as unknown as Story[]
+      return (check(highlights) as Omit<InstagramHighlight, 'stories'>[]).map(h => ({
+        ...h,
+        stories: rows.filter(s => s.highlight_id === h.id && s.social_posts?.media[0])
+          .map(({ social_posts: p, ...s }) => ({ id: s.id, post_id: s.post_id, media: p!.media[0], state: storyState(p!, s.added_at),
+            scheduled_at: p!.scheduled_at, published_at: p!.published_at, url: p!.results.instagram?.url ?? null, added_at: s.added_at }))
+          .sort((a, b) => (a.scheduled_at ?? '').localeCompare(b.scheduled_at ?? '')),
+      }))
+    },
+    async createHighlight(name) {
+      return (check(await sb.from('instagram_highlights').insert({ name: tidyHighlightName(name) }).select('id').single()) as { id: string }).id
+    },
+    async addToHighlight({ highlight, media, at, auto }) {
+      return check(await sb.rpc('add_to_highlight', { p_highlight: 'id' in highlight ? highlight.id : null, p_name: 'name' in highlight ? tidyHighlightName(highlight.name) : null,
+        p_media: media, p_at: at, p_auto: auto })) as string
+    },
+    async renameHighlight(id, name) { check(await sb.from('instagram_highlights').update({ name: tidyHighlightName(name) }).eq('id', id)) },
+    async deleteHighlight(id) { check(await sb.from('instagram_highlights').delete().eq('id', id)) },
+    async markStoryAdded(id, added) { check(await sb.from('highlight_stories').update({ added_at: added ? new Date().toISOString() : null }).eq('id', id)) },
 
     async contractors() {
       const rows = check(await sb.from('contractors').select('*').order('name')) as Contractor[]

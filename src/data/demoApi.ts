@@ -55,6 +55,7 @@ import { demoContactsApi } from './demoContacts'
 import { demoLeaderboardApi } from './demoLeaderboard'
 import { demoSquarePinsApi } from './demoSquarePins'
 import { demoContentApi } from './demoContent'
+import { demoHighlights } from './demoHighlights'
 import { demoFreshApi } from './demoFreshBatches'
 import { demoPostIdeasApi } from './demoPostIdeas'
 import { demoNewsletterApi } from './demoNewsletter'
@@ -2156,6 +2157,15 @@ export function createDemoApi(): Api {
   const sports = demoSports(today())
   const visibleProfile = ({ pin: _pin, ...p }: Profile & { pin?: string }) => p
 
+  // Instagram highlights (Content): stories on the demo's Social planner; the admins are told when one's up.
+  const highlights = demoHighlights({ isAdmin: () => isAdmin() && !!me()?.active, uid, nowIso, saveStory: p => api.saveSocialPost(p),
+    posts: () => { publishDue(); return posts },
+    tellAdmins: (title, body, link) => {
+      for (const a of profiles.filter(x => x.role === 'admin' && x.active)) {
+        if (!notes.some(n => n.profile_id === a.id && !n.read_at && n.title === title)) notes.push({ id: notes.length + 1, profile_id: a.id, title, body, link, created_at: nowIso(), read_at: null })
+      }
+    } })
+
   const api: Api = {
     mode: 'demo',
     async currentUserId() { return currentUser },
@@ -2701,6 +2711,7 @@ export function createDemoApi(): Api {
     // Content (Marketing): a few of Easy Beans' photos and a video; a Google Photos pick brings in more.
     ...demoContentApi({ isAdmin: () => isAdmin() && !!me()?.active, uid, nowIso, storage: () => mediaStorage(),
       photosConnected: () => integ.integrations.some(i => i.provider === 'google_photos' && i.status === 'connected') }),
+    ...highlights.api,
     // QR codes: Easy Beans' three, as the `qr_codes` migration, with the demo's Wi-Fi filled in.
     ...demoQrCodeApi({ isStaff: () => isStaff() && !!me()?.active, isAdmin: () => isAdmin() && !!me()?.active, uid, nowIso }),
 
@@ -5132,6 +5143,7 @@ export function createDemoApi(): Api {
     async notifications() {
       demoMentions()
       runLastDayOffers()
+      highlights.news()
       return clone(notes.filter(n => n.profile_id === currentUser).map(({ profile_id: _p, ...n }) => n).reverse())
     },
     async markNotificationsRead() {

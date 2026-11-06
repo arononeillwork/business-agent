@@ -36,6 +36,7 @@ import type { PostIdea, PostIdeaInput } from '../../shared/postIdeas'
 import type { ListRow, NewsletterEvent, NewsletterSettings } from '../../shared/newsletter'
 import type { Contact, ContactInput } from '../../shared/contacts'
 import type { ContentChange, ContentItem, GooglePhotosImport, GooglePhotosPick } from '../../shared/content'
+import type { InstagramHighlight } from '../../shared/highlights'
 import type { Contractor, ContractorInput, OutsourcedJob, OutsourcedJobInput } from '../../shared/outsourcing'
 import type { EmploymentContract, EmploymentContractInput } from '../../shared/contracts'
 import type { PnlLine, PnlLineInput, PnlSettings } from '../../shared/pnl'
@@ -365,6 +366,22 @@ export interface Api {
   importGooglePhotos(id: string, skip: string[]): Promise<GooglePhotosImport>
   /** Give up on a pick (the window was closed without picking). */
   cancelGooglePhotosPick(id: string): Promise<void>
+  // Instagram highlights (Content, admins; shared/highlights.ts): the circles under the Instagram profile, kept
+  // here since Instagram lets no app read or change them.
+  /** Every highlight, oldest first, each with its stories. */
+  instagramHighlights(): Promise<InstagramHighlight[]>
+  /** A highlight with nothing in it yet (one that's on Instagram already, say). Returns its id. */
+  createHighlight(name: string): Promise<string>
+  /**
+   * Photos and videos into a highlight (its id, or a new one's name): one story each on the Social planner,
+   * in order, from `at`, posting themselves (`auto`) or as reminders. Returns the highlight's id.
+   */
+  addToHighlight(a: { highlight: { id: string } | { name: string }; media: PostMedia[]; at: string; auto: boolean }): Promise<string>
+  renameHighlight(id: string, name: string): Promise<void>
+  /** The highlight goes; its stories stay on Instagram and the Social planner. */
+  deleteHighlight(id: string): Promise<void>
+  /** A story marked added to its highlight in Instagram (or not after all). */
+  markStoryAdded(storyId: string, added: boolean): Promise<void>
 
   // Outsourcing (admins; finance partners read): the jobs done by people and firms outside the team,
   // and the catalogue to choose them from.

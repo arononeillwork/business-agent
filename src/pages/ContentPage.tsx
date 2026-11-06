@@ -15,6 +15,7 @@ import { Empty, ErrorBox, PageHeader } from '../components/common'
 import { Brand } from '../components/Connectors'
 import { Composer } from './SocialPlannerPage'
 import { Gallery, Viewer } from './ContentGallery'
+import { AddToHighlightDialog, HighlightDialog, HighlightNameDialog, HighlightsRow } from './ContentHighlights'
 import { readyPhoto } from '../lib/media'
 import {
   MAX_TAGS, NO_FILTER, SKIP_TEXT, SOURCES, allTags, cleanTags, contentProblem, filterContent, postFor, titleFromFilename,
@@ -60,6 +61,8 @@ export function ContentPage() {
   const notify = useNotify()
   const items = useAsync('content', () => api.contentItems(), [])
   const integ = useAsync('integrations', () => api.integrations(), [])
+  // Instagram highlights: a story's state changes as the minute job posts it.
+  const highlights = useAsync('instagram-highlights', () => api.instagramHighlights(), [], { refetchInterval: 60_000 })
   const [filter, setFilter] = useState<ContentFilter>(NO_FILTER)
   const [chosen, setChosen] = useState<string[]>([])
   const [editing, setEditing] = useState<ContentItem | null>(null)
@@ -67,6 +70,10 @@ export function ContentPage() {
   // The one open full screen.
   const [viewing, setViewing] = useState<string | null>(null)
   const closeViewer = useCallback(() => setViewing(null), [])
+  // Into a highlight: what's being put in; the highlight open; a new one being named.
+  const [adding, setAdding] = useState<ContentItem[] | null>(null)
+  const [openHighlight, setOpenHighlight] = useState<string | null>(null)
+  const [naming, setNaming] = useState(false)
   const [pick, setPick] = useState<Pick | null>(null)
   const [post, setPost] = useState<Partial<SocialPost> | null>(null)
   const [uploading, setUploading] = useState<{ done: number; of: number } | null>(null)
@@ -83,6 +90,8 @@ export function ContentPage() {
   const photosOn = photos?.status === 'connected'
   const connected = (p: string) => !!integ.data?.integrations.some(i => i.provider === p && i.status === 'connected')
   const chosenItems = all.filter(i => chosen.includes(i.id))
+  const circles = highlights.data ?? []
+  const opened = circles.find(h => h.id === openHighlight)
 
   const choose = (ids: string[], on: boolean) => setChosen(c => (on ? [...c, ...ids.filter(id => !c.includes(id))] : c.filter(x => !ids.includes(x))))
 
@@ -201,6 +210,8 @@ export function ContentPage() {
         </Box>
       )}
 
+      {highlights.data && <HighlightsRow highlights={circles} onOpen={setOpenHighlight} onNew={() => setNaming(true)} />}
+
       {all.length > 0 && (
         <Stack direction="row" sx={{ gap: 1.5, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
           <ToggleButtonGroup size="small" exclusive value={filter.kind} onChange={(_, v) => v && setFilter(f => ({ ...f, kind: v }))} aria-label={t('Photos or videos')}>
@@ -232,6 +243,7 @@ export function ContentPage() {
             <IconButton aria-label={t('Clear selection')} onClick={() => setChosen([])}><ClearIcon /></IconButton>
           </Tooltip>
           <Typography sx={{ fontWeight: 600, flexGrow: 1 }}>{tn(chosen.length, '{n} chosen', '{n} chosen')}</Typography>
+          <Button variant="outlined" onClick={() => setAdding(chosenItems)}>{t('Add to highlight')}</Button>
           <Button variant="contained" onClick={() => makePost(chosenItems)}>{t('Make a post')}</Button>
         </Card>
       )}
@@ -249,7 +261,16 @@ export function ContentPage() {
 
       {viewing && (
         <Viewer items={shown} id={viewing} onId={setViewing} onClose={closeViewer} onEdit={setEditing} onCopy={i => void copyLink(i)}
-          onDelete={setDeleting} onPost={i => makePost([i])} />
+          onDelete={setDeleting} onPost={i => makePost([i])} onHighlight={i => setAdding([i])} />
+      )}
+      {adding && (
+        <AddToHighlightDialog items={adding} highlights={circles} auto={!!storage && connected('instagram')} onClose={() => setAdding(null)}
+          onAdded={() => { setAdding(null); setChosen([]) }} />
+      )}
+      {opened && <HighlightDialog highlight={opened} others={circles} onClose={() => setOpenHighlight(null)} />}
+      {naming && (
+        <HighlightNameDialog title={t('New highlight')} others={circles} onClose={() => setNaming(false)}
+          onSave={name => api.createHighlight(name)} />
       )}
       {pick && <PickDialog pick={pick} onClose={closePick} />}
       {editing && <EditDialog item={editing} onClose={() => setEditing(null)} />}
