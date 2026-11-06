@@ -255,6 +255,15 @@ built-in **AI connector** so owners can run it by talking to Claude.
   tap chooses rather than opens. Opened, one fills the screen on black, with arrows (a swipe, the arrow keys)
   to the next and an Info panel with its title, tags, when it was taken, its size and where it came from
   (`src/pages/ContentGallery.tsx`).
+- Instagram highlights on Content: the circles under the business's Instagram profile ("Reviews ⭐",
+  "Doggos") sit above the photos, with **New** to add one by its name. Instagram lets no app read highlights
+  or add to them, so Business Agent keeps the circles itself, and **Add to highlight** (for the photos and
+  videos chosen, or the one open) puts each up as an Instagram story of its own on the Social planner, now
+  or later (reminders to post yourself when Instagram or the storage isn't connected). Once a story is up,
+  the admins get a notification to add it in the Instagram app (open the story, tap Highlight, choose the
+  circle); the circle shows how many are still to add, and opening it lists its stories with **Open in
+  Instagram** and **Mark added** (`src/pages/ContentHighlights.tsx`, `shared/highlights.ts`, the
+  `instagram_highlights` migration).
 - Outsourcing (Team section, admins; a gestoría with finances access reads): the jobs done for the business by
   people and firms outside the team (social media, the books, cleaning, the windows, the coffee machine's
   service, pest control…). **Active** shows who does each job, the price agreed and how it's charged (a month,

@@ -14,6 +14,7 @@ import PrevIcon from '@mui/icons-material/ChevronLeftRounded'
 import NextIcon from '@mui/icons-material/ChevronRightRounded'
 import InfoIcon from '@mui/icons-material/InfoOutlined'
 import PostIcon from '@mui/icons-material/ShareOutlined'
+import HighlightIcon from '@mui/icons-material/AddCircleOutlineRounded'
 import MoreIcon from '@mui/icons-material/MoreVert'
 import EditIcon from '@mui/icons-material/EditOutlined'
 import LinkIcon from '@mui/icons-material/LinkRounded'
@@ -182,7 +183,7 @@ function Tile({ item: i, width, height, chosen, selecting, onToggle, onOpen }: {
  * One photo or video on the whole screen, as Google Photos opens one: the arrows (or a swipe, or the arrow
  * keys) go through the others as they're shown on the page; Info shows its title, tags and details.
  */
-export function Viewer({ items, id, onId, onClose, onEdit, onCopy, onDelete, onPost }: {
+export function Viewer({ items, id, onId, onClose, onEdit, onCopy, onDelete, onPost, onHighlight }: {
   items: ContentItem[]
   id: string
   onId: (id: string) => void
@@ -191,6 +192,8 @@ export function Viewer({ items, id, onId, onClose, onEdit, onCopy, onDelete, onP
   onCopy: (i: ContentItem) => void
   onDelete: (i: ContentItem) => void
   onPost: (i: ContentItem) => void
+  /** Into an Instagram highlight (./ContentHighlights). */
+  onHighlight: (i: ContentItem) => void
 }) {
   const phone = useMediaQuery(useTheme().breakpoints.down('md'))
   const [info, setInfo] = useState(false)
@@ -249,6 +252,9 @@ export function Viewer({ items, id, onId, onClose, onEdit, onCopy, onDelete, onP
             background: 'linear-gradient(180deg, rgba(0,0,0,.65), rgba(0,0,0,0))' }}>
             <Tooltip title={t('Close')}><IconButton color="inherit" aria-label={t('Close')} onClick={onClose}><BackIcon /></IconButton></Tooltip>
             <Typography id="viewer-title" noWrap sx={{ flexGrow: 1, minWidth: 0, fontWeight: 500, px: 0.5 }}>{name}</Typography>
+            <Tooltip title={t('Add to highlight')}>
+              <IconButton color="inherit" aria-label={t('Add to highlight')} onClick={() => onHighlight(item)}><HighlightIcon /></IconButton>
+            </Tooltip>
             <Tooltip title={t('Make a post')}><IconButton color="inherit" aria-label={t('Make a post')} onClick={() => onPost(item)}><PostIcon /></IconButton></Tooltip>
             <Tooltip title={t('Info')}>
               <IconButton color="inherit" aria-label={t('Info')} aria-pressed={info} onClick={() => setInfo(v => !v)}
