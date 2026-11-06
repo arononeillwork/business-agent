@@ -84,6 +84,8 @@ if (AZURE_CLIENT_ID && AZURE_CLIENT_SECRET) Object.assign(patch, {
 // one is connected; with neither, Supabase sends them itself. The hook's secret is derived from the
 // service key, which the Worker has too.
 const sending = process.env.EMAIL_SENDING === 'true'
+// The sign-up check needs both Turnstile keys (the site key for the form, the secret for the Worker).
+const captcha = !!(process.env.TURNSTILE_SITE_KEY?.trim() && process.env.TURNSTILE_SECRET_KEY?.trim())
 let mailbox = null
 if (site) {
   const keys = await fetch(`https://api.supabase.com/v1/projects/${REF}/api-keys?reveal=true`, { headers: { authorization: `Bearer ${token}` } })
@@ -99,6 +101,11 @@ if (site) {
     Object.assign(patch, sending || mailbox
       ? { hook_send_email_enabled: true, hook_send_email_uri: `${site}/api/auth/send-email`, hook_send_email_secrets: secret }
       : { hook_send_email_enabled: false })
+    // The sign-up form's check (worker/signupCheck.ts): on once the Turnstile keys are set, with its own secret.
+    const signupSecret = `v1,whsec_${createHmac('sha256', serviceKey).update('business-agent:before-user-created-hook').digest('base64')}`
+    Object.assign(patch, captcha
+      ? { hook_before_user_created_enabled: true, hook_before_user_created_uri: `${site}/api/auth/before-user-created`, hook_before_user_created_secrets: signupSecret }
+      : { hook_before_user_created_enabled: false })
   }
 }
 const after = Object.keys(patch).length ? await api('PATCH', patch) : current
@@ -107,6 +114,9 @@ console.log(after.hook_send_email_enabled && sending
   : after.hook_send_email_enabled
   ? `Sign-in emails: sent from the business's ${mailbox?.provider === 'outlook' ? 'Outlook' : 'Gmail'} (${mailbox?.account_label ?? 'connected mailbox'})`
   : "Sign-in emails: sent by Supabase (connect Gmail or Outlook on the Connections page, then deploy, to send them from the business's own mailbox)")
+console.log(after.hook_before_user_created_enabled
+  ? 'Sign-up check: on (Cloudflare Turnstile on the sign-up form)'
+  : 'Sign-up check: off (add the TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY repo secrets, then deploy, to switch it on)')
 console.log(`Supabase Auth: site ${after.site_url}`)
 console.log(`Redirects allowed: ${after.uri_allow_list}`)
 console.log(`Sign-in methods on: email=${!!after.external_email_enabled} google=${!!after.external_google_enabled} microsoft=${!!after.external_azure_enabled} facebook=${!!after.external_facebook_enabled} apple=${!!after.external_apple_enabled}`)

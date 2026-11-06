@@ -236,10 +236,13 @@ export function BillingPage() {
               )}
             </Stack>
             {s && (
-              <Box sx={{ mt: 3, display: 'grid', gap: 2.5, gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' } }}>
+              <Box sx={{ mt: 3, display: 'grid', gap: 2.5, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' } }}>
                 <Meter label={t('People on the team')} used={s.usage.people} max={s.limits.people} />
                 <Meter label={t('Social accounts')} used={s.usage.social_accounts} max={s.limits.social_accounts} />
                 <Meter label={t('Posts scheduled this month')} used={s.usage.posts_this_month} max={s.limits.posts_per_month} />
+                {s.limits.assistant_per_month !== undefined && (
+                  <Meter label={t('Assistant questions this month')} used={s.usage.assistant_this_month ?? 0} max={s.limits.assistant_per_month} />
+                )}
               </Box>
             )}
           </CardContent>

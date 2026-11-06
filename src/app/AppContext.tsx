@@ -71,9 +71,9 @@ async function resolveApi(): Promise<Api> {
     if (demoFlag(params.has('demo') ? true : params.has('live') ? false : undefined)) return createDemoApi()
   }
   const res = await fetch('/api/config')
-  const cfg = await res.json().catch(() => ({})) as { supabaseUrl?: string; supabaseKey?: string }
+  const cfg = await res.json().catch(() => ({})) as { supabaseUrl?: string; supabaseKey?: string; turnstileSiteKey?: string | null }
   if (!res.ok || !cfg.supabaseUrl || !cfg.supabaseKey) throw new Error('The app is not configured')
-  return createSupabaseApi(cfg.supabaseUrl, cfg.supabaseKey)
+  return createSupabaseApi(cfg.supabaseUrl, cfg.supabaseKey, cfg.turnstileSiteKey)
 }
 
 type Shared = Omit<AppData, 'api' | 'refresh' | 'rates' | 'isAdmin' | 'isPartner' | 'partnerCan' | 'canSeePay' | 'canSeeFinances' | 'permissions' | 'can' | 'loading'>

@@ -16,6 +16,7 @@ import { ads } from './ads'
 import { authorizeGet, authorizePost, mcpApiHandler, tokenExchangeCallback, type GrantProps, type OAuthEnv } from './mcp'
 import { apiKeys, isAccessKey, resolveKey } from './apiKeys'
 import { authEmail } from './authEmail'
+import { inviteMark, signupCheck } from './signupCheck'
 import { billing, chargePendingAiMusic, planBlocksInvite, syncBilling } from './billing'
 import { fillStarterPack, socialMusic, syncMusicInsights } from './socialMusic'
 import { businessConfig } from '../shared/business.config'
@@ -92,6 +93,8 @@ app.get('/api/config', c => c.json({
   businessId: c.env.BUSINESS_ID,
   supabaseUrl: c.env.SUPABASE_URL,
   supabaseKey: c.env.SUPABASE_PUBLISHABLE_KEY,
+  // The sign-up form's check (Cloudflare Turnstile), once its keys are set: worker/signupCheck.ts.
+  turnstileSiteKey: c.env.TURNSTILE_SECRET_KEY && c.env.TURNSTILE_SITE_KEY || null,
 }))
 
 // ?deep=1 also checks that Supabase answers and which sign-in methods it has switched on
@@ -191,7 +194,8 @@ app.post('/api/admin/invite', async c => {
   const origin = new URL(c.req.url).origin
   const svc = serviceClient(c.env)
   const { data: invited, error: inviteError } = await svc.auth.admin.inviteUserByEmail(email, {
-    data: { full_name: body.full_name.trim(), role, business_id: businessId, ...partner },
+    // invite: the Worker's mark, so the sign-up check (worker/signupCheck.ts) lets an invite through.
+    data: { full_name: body.full_name.trim(), role, business_id: businessId, ...partner, invite: await inviteMark(c.env.SUPABASE_SERVICE_ROLE_KEY!, email) },
     redirectTo: `${origin}/account`,
   })
   if (inviteError) return c.json({ error: inviteError.message }, 400)
@@ -279,6 +283,7 @@ app.route('/', apiKeys)
 
 // Sign-in emails from the business's own Gmail/Outlook (Supabase Auth's send-email hook).
 app.route('/', authEmail)
+app.route('/', signupCheck)
 // Referral links: count opens (no sign-in).
 app.route('/', referrals)
 

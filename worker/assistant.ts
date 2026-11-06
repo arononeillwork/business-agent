@@ -2,10 +2,13 @@
 // same tools as the AI connector (worker/tools.ts), run as the person asking through Supabase, so it can
 // see and do only what they could in the app. A role that hides AI assistants (Roles & responsibilities)
 // gets no assistant. Off until the Worker has an Anthropic API key (ANTHROPIC_API_KEY).
+// It runs on The Business Agent's own key, so each plan includes a number of questions a month for the
+// whole business (assistantPerMonth in shared/plans.ts, counted by the database: the
+// assistant_allowance migration).
 import Anthropic from '@anthropic-ai/sdk'
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { bearer, userClient, type Env } from './supabase'
+import { bearer, businessDb, userClient, type BusinessDb, type Env } from './supabase'
 import { loadMe, runTool, toolsFor, type ToolContext, type ToolDef } from './tools'
 import { permissionsOf, type JobRole } from '../shared/roles'
 import { businessConfig } from '../shared/business.config'
@@ -74,6 +77,27 @@ export function readHistory(body: unknown): ChatTurn[] | null {
   return ok && turns[turns.length - 1].role === 'user' ? turns.map(t => ({ role: t.role, text: t.text })) : null
 }
 
+/** The business's questions this month: whether there was room for this one, and how many are used of how many (null: no limit). */
+export interface Allowance { allowed: boolean; used: number; limit: number | null }
+
+/**
+ * Counts a question against the plan's allowance (1), or gives one back (-1) when Claude couldn't answer.
+ * If the count can't be read, the question goes ahead: the allowance guards the bill, it shouldn't stop
+ * the assistant working.
+ */
+export async function countQuestion(db: Pick<BusinessDb, 'rpc'>, change: 1 | -1 = 1): Promise<Allowance> {
+  const { data, error } = await db.rpc('assistant_question', { p_change: change })
+  if (error || !data) {
+    console.warn(`The assistant's allowance couldn't be counted: ${error?.message ?? 'no answer'}`)
+    return { allowed: true, used: 0, limit: null }
+  }
+  return data as Allowance
+}
+
+/** What someone is told once the business has used the month's questions. */
+export const outOfQuestions = (a: Allowance) =>
+  `Your business has used all ${a.limit} of this month’s questions to the assistant. They start again on the 1st, or an owner can upgrade on the Billing page for more.`
+
 export const assistant = new Hono<{ Bindings: Env }>()
 
 /** Whether the assistant is set up (the app shows its button only then, or tells admins what it needs). */
@@ -95,6 +119,10 @@ assistant.post('/api/assistant', async c => {
   if (permissionsOf(me, (roles ?? []) as JobRole[]).ai === 'none') return c.json({ error: 'Your role doesn’t include the assistant' }, 403)
   const history = readHistory(await c.req.json().catch(() => null))
   if (!history) return c.json({ error: `Send up to ${LIMITS.messages} messages of up to ${LIMITS.chars} characters, the last one yours` }, 400)
+  // The plan's questions this month, counted for the person's business by the Worker (nobody can change the count from the app).
+  const db = me.business_id && c.env.SUPABASE_SERVICE_ROLE_KEY ? businessDb(c.env, me.business_id) : null
+  const allowance = db ? await countQuestion(db) : null
+  if (allowance && !allowance.allowed) return c.json({ error: outOfQuestions(allowance), allowance }, 429)
   const { data: business } = await sb.from('business').select('name').maybeSingle()
   const claude = new Anthropic({ apiKey: c.env.ANTHROPIC_API_KEY }).beta.messages
   try {
@@ -102,6 +130,8 @@ assistant.post('/api/assistant', async c => {
       (business as { name?: string } | null)?.name ?? businessConfig.name)
     return c.json({ reply })
   } catch (e) {
+    // Not answered: the question doesn't count.
+    if (db) await countQuestion(db, -1)
     if (e instanceof Anthropic.RateLimitError) return c.json({ error: 'The assistant is busy. Try again in a minute.' }, 429)
     if (e instanceof Anthropic.AuthenticationError) return c.json({ error: 'The assistant’s API key isn’t working. An admin needs to check it.' }, 503)
     if (e instanceof Anthropic.APIError) return c.json({ error: 'The assistant couldn’t answer just now. Try again.' }, 502)

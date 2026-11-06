@@ -18,6 +18,8 @@ export interface PlanLimits {
   socialAccounts: number
   /** Social posts scheduled per calendar month. null: no limit. */
   postsPerMonth: number | null
+  /** Questions to the in-app assistant per calendar month, for the whole business (it runs on our Anthropic key). null: no limit. */
+  assistantPerMonth: number | null
 }
 
 export interface Plan {
@@ -48,28 +50,28 @@ export const PLANS: Plan[] = [
     id: 'free', name: msg('Free'), blurb: msg('Try the basics with a very small team.'), monthly: 0, yearly: 0,
     bestFor: msg('A small team trying The Business Agent: the rota, clock-ins and the legal hours record, free for ever.'),
     support: msg('Help centre and email'),
-    limits: { people: 3, socialAccounts: 1, postsPerMonth: 1 },
+    limits: { people: 3, socialAccounts: 1, postsPerMonth: 1, assistantPerMonth: 10 },
     features: [],
   },
   {
     id: 'starter', name: 'Starter', blurb: msg('For a small team getting organised.'), monthly: 39, yearly: 390,
     bestFor: msg('One venue with a small team that wants its Google listing, email and files to look after themselves.'),
     support: msg('Email, reply within 2 working days'),
-    limits: { people: 10, socialAccounts: 1, postsPerMonth: 12 },
+    limits: { people: 10, socialAccounts: 1, postsPerMonth: 12, assistantPerMonth: 50 },
     features: ['google_maps', 'apps'],
   },
   {
     id: 'pro', name: 'Pro', blurb: msg('For busy venues that want it all in sync.'), monthly: 79, yearly: 790, popular: true,
     bestFor: msg('A busy café, bar or shop: WhatsApp reminders, takings next to the rota, the clock-in tablet and social every week.'),
     support: msg('Email, reply within 1 working day'),
-    limits: { people: 25, socialAccounts: 3, postsPerMonth: 60 },
+    limits: { people: 25, socialAccounts: 3, postsPerMonth: 60, assistantPerMonth: 200 },
     features: ['google_maps', 'apps', 'whatsapp', 'takings', 'sports', 'music', 'kiosk'],
   },
   {
     id: 'business', name: 'Business', blurb: msg('Everything, for larger teams and their advisers.'), monthly: 129, yearly: 1290, trial: true,
     bestFor: msg('A larger team, or a business that works with a gestoría or partners: everything switched on, no limits on people or posts.'),
     support: msg('Priority email and phone, same working day'),
-    limits: { people: null, socialAccounts: 3, postsPerMonth: null },
+    limits: { people: null, socialAccounts: 3, postsPerMonth: null, assistantPerMonth: 500 },
     features: ['google_maps', 'apps', 'whatsapp', 'takings', 'sports', 'music', 'kiosk', 'partners'],
   },
 ]
@@ -225,6 +227,8 @@ export const COMPARE: { group: string; rows: CompareRow[] }[] = [
       explain: msg('Your gestoría sees hours and pay records, and changes nothing.') },
   ] },
   { group: msg('AI'), rows: [
+    { label: msg('Questions to the in-app assistant each month'), values: byLimit(l => lim(l.assistantPerMonth)),
+      explain: msg('Ask the assistant in the app about the rota, hours, stock and more: it answers from your data.') },
     { label: msg('Custom MCP connection (Claude, ChatGPT, Cursor, n8n…)'), values: every(),
       explain: msg('Ask your own AI “who is working Saturday?” and it answers from your data.') },
     { label: msg('REST API and personal access keys'), values: every(),

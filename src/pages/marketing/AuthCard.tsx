@@ -7,6 +7,7 @@ import { SOCIAL_PROVIDERS, type SignInMethods, type SocialProvider } from '../..
 import { BA, display, outlineBtn, primaryBtn } from './site'
 import { TRIAL_MONTHS } from './plans'
 import { t, tr } from '../../i18n'
+import { Turnstile } from '../../components/Turnstile'
 
 /** Google's four-colour "G", as Google asks sign-in buttons to show it. */
 function GoogleIcon() {
@@ -147,14 +148,19 @@ function SignUpForm({ onSignIn }: { onSignIn: () => void }) {
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [sent, setSent] = useState<string | null>(null)
+  // The check that they're a person (Cloudflare Turnstile), once it's set up: one answer per try.
+  const [captcha, setCaptcha] = useState<string | null>(null)
+  const [round, setRound] = useState(0)
   const open = methods?.signup !== false
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (password.length < 8) return run(async () => { throw new Error(t('Use at least 8 characters for your password')) })
+    if (methods?.captcha && !captcha) return run(async () => { throw new Error(t('Tick the box that shows you’re a person first')) })
     setBusy(true)
     let confirm = false
-    await run(async () => { confirm = (await api.signUp(name, email, password)).confirmEmail })
+    const ok = await run(async () => { confirm = (await api.signUp(name, email, password, captcha ?? undefined)).confirmEmail })
     setBusy(false)
+    if (!ok && methods?.captcha) setRound(r => r + 1)
     if (confirm) setSent(email.trim())
   }
   if (sent) return (
@@ -180,6 +186,7 @@ function SignUpForm({ onSignIn }: { onSignIn: () => void }) {
         <TextField label={t('Email')} type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} required disabled={!open} />
         <TextField label={t('Password')} type="password" autoComplete="new-password" value={password} onChange={e => setPassword(e.target.value)}
           required disabled={!open} helperText={t('At least 8 characters')} />
+        {open && methods?.captcha && <Turnstile siteKey={methods.captcha} onAnswer={setCaptcha} round={round} />}
         <Button type="submit" variant="contained" size="large" disabled={busy || !open} sx={primaryBtn}>{t('Create account')}</Button>
         <Typography variant="caption" sx={{ color: BA.faint, textAlign: 'center' }}>
           {tr('By creating an account you agree to the {terms} and {privacy}.', {
