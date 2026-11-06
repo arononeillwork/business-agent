@@ -34,6 +34,10 @@ built-in **AI connector** so owners can run it by talking to Claude.
   each followed competition every 6 hours from free sources (fixturedownload.com, TheSportsDB,
   Wikipedia's UFC schedule); no keys of our own (TheSportsDB's free test key "123"). Admins pick
   competitions on the Sports page.
+- Ideas for posts (Social planner): posts the business wants made ("the coffees we have now"), saying
+  whether each wants photos or a video. The whole team sees them, so employees open the planner too and
+  get only its ideas: anyone adds one, says they'll make it, uploads the photos or video and hands it in
+  (the admins get a notification); an admin makes the post from it in one press.
 - Grants (Accounts section): which grants for Andalucía fit the business, from a few adaptive questions
   (most answers come from the business details), using Solicita's hand-checked list with each
   grant's official source and check date; then each application tracked stage by stage, with its

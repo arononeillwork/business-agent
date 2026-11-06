@@ -42,6 +42,7 @@ import { cameras, purgeCameraClips } from './cameras'
 import { competitors, watchCompetitors } from './competitors'
 import { push, pushNotifications } from './push'
 import { repPage } from './repPage'
+import { postIdeas } from './postIdeas'
 import { socialAnalytics } from './socialAnalytics'
 import { EMAIL_ADDRESS, accessOf, emailBlock, teamRoleOf } from '../shared/teamRoles'
 import type { Profile } from '../shared/types'
@@ -308,6 +309,8 @@ app.route('/', menu)
 app.route('/', screens)
 // Content page: photos and videos picked in Google Photos, copied into the café's storage.
 app.route('/', content)
+// Post ideas (Social planner): the team's photos and videos for an idea, kept in the café's storage.
+app.route('/', postIdeas)
 
 // The business's own website: its menu, read with no sign-in once the business turns it on (worker/site.ts).
 app.route('/', site)

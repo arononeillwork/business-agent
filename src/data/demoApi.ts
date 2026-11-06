@@ -56,6 +56,7 @@ import { demoLeaderboardApi } from './demoLeaderboard'
 import { demoSquarePinsApi } from './demoSquarePins'
 import { demoContentApi } from './demoContent'
 import { demoFreshApi } from './demoFreshBatches'
+import { demoPostIdeasApi } from './demoPostIdeas'
 import { reportSendProblem, scheduleProblem, type ReportSchedule } from '../../shared/reports'
 import { demoQrCodeApi } from './demoQrCodes'
 import { COUNTED, type Contractor, type OutsourcedJob } from '../../shared/outsourcing'
@@ -1443,6 +1444,12 @@ export function createDemoApi(): Api {
     isStaff: () => isStaff() && !!me()?.active, isAdmin: () => isAdmin() && !!me()?.active, reads: () => partnerCan('finances'), me: () => currentUser, uid,
     offers: offerList, screens: () => screenList.filter(x => x.active).map(x => x.id), menu: () => recipes.filter(r => r.active),
   })
+  // Post ideas (Social planner → Ideas): as the `post_ideas` migration; the coffees idea, one Julio's making, one Maria handed in.
+  const ideasApi = demoPostIdeasApi({
+    isStaff: () => isStaff() && !!me()?.active, isAdmin: () => isAdmin() && !!me()?.active, me: () => currentUser,
+    onTeam: id => profiles.some(p => p.id === id && p.active && (p.role === 'admin' || p.role === 'employee')),
+    hasPost: id => posts.some(p => p.id === id), storage: () => !!mediaStorage(), uid, nowIso,
+  }, { aron: P.aron, julio: P.julio, maria: P.maria, photo: UBE, hoursAgo: h => hoursFromNow(-h) })
   /** That person's shifts in the period become open shifts (approved time off). */
   const openUpShifts = (t: TimeOff) => {
     const name = profiles.find(p => p.id === t.profile_id)?.full_name
@@ -2650,6 +2657,7 @@ export function createDemoApi(): Api {
     ...checklistApi,
     ...valuesApi,
     ...freshApi,
+    ...ideasApi,
     // Contacts (Business, owners only): Easy Beans' lawyer, bank advisor and plumber, as the `business_contacts` migration.
     ...demoContactsApi({ isOwner: () => isAdmin() && !!me()?.active && !!me()?.can_see_pay, uid }),
     // Leaderboard (Team) and each person's Square login: the demo's timecards and till, as the `team_leaderboard` migration and worker/leaderboard.ts.

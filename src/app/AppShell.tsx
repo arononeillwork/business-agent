@@ -184,7 +184,8 @@ export const SECTIONS: NavSection[] = [
     { key: 'grants', to: '/grants', label: msg('Grants'), icon: <GrantsIcon />, who: 'pay', partner: ['finances'] },
   ] },
   { key: 'marketing', label: msg('Marketing'), items: [
-    { key: 'social', to: '/social', label: msg('Social planner'), icon: <SocialIcon />, who: 'admin' },
+    // Everyone: admins plan the posts; the rest of the team gets its ideas for posts, to make them.
+    { key: 'social', to: '/social', label: msg('Social planner'), icon: <SocialIcon /> },
     // The business's photos and videos, from Google Photos or the device, ready for posts, offers and screens.
     { key: 'content', to: '/content', label: msg('Content'), icon: <ContentIcon />, who: 'admin' },
     { key: 'offers', to: '/offers', label: msg('Offers & specials'), short: msg('Offers'), icon: <OffersIcon />, who: 'admin' },

@@ -24,6 +24,7 @@ import type { Coffee, DayTheme, ThemeDate } from '../../shared/themeDays'
 import type { RoutineDone, RoutineItem } from '../../shared/routine'
 import type { ChecklistItem, ChecklistTick } from '../../shared/checklists'
 import type { CompanyValue } from '../../shared/companyValues'
+import type { PostIdea } from '../../shared/postIdeas'
 import type { Contact } from '../../shared/contacts'
 import type { ClockStats } from '../../shared/leaderboard'
 import { CONTENT_COLUMNS, type ContentItem, type GooglePhotosImport, type GooglePhotosPick } from '../../shared/content'
@@ -1384,6 +1385,20 @@ export function createSupabaseApi(url: string, key: string): Api {
     },
     async deleteSocialPost(id) { check(await sb.from('social_posts').delete().eq('id', id)) },
     async markPosted(id) { check(await sb.from('social_posts').update({ status: 'published' }).eq('id', id)) },
+    async postIdeas() {
+      return check(await sb.from('post_ideas').select('id, title, details, wants, status, taken_by, media, post_id, created_by, created_at, updated_at')
+        .order('created_at', { ascending: false }).limit(500)) as PostIdea[]
+    },
+    async savePostIdea({ id, ...v }) {
+      if (id) { check(await sb.from('post_ideas').update(v).eq('id', id)); return id }
+      return (check(await sb.from('post_ideas').insert(v).select('id').single()) as { id: string }).id
+    },
+    async deletePostIdea(id) { check(await sb.from('post_ideas').delete().eq('id', id)) },
+    async uploadIdeaMedia(file) {
+      const { url, type } = await worker<{ url: string; type: 'image' | 'video' }>('/api/post-ideas/media', {
+        method: 'POST', body: file, headers: { 'content-type': file.type } })
+      return { url, type }
+    },
     async competitions() {
       type Row = Competition & { competition_entries: { count: number }[] }
       const rows = check(await sb.from('competitions').select('*, competition_entries(count)').order('created_at', { ascending: false })) as Row[]

@@ -272,7 +272,8 @@ function Routed() {
         {/* Billing used to be under Settings: old links (and Stripe's way back) still land on it. */}
         <Route path="billing" element={<ToBilling />} />
         <Route path="connections" element={isAdmin ? <ConnectionsPage /> : <Navigate to="/" />} />
-        <Route path="social" element={isAdmin ? <SocialPlannerPage /> : <Navigate to="/" />} />
+        {/* Admins plan the posts; the rest of the team sees its ideas for posts, to make them. */}
+        <Route path="social" element={<SocialPlannerPage />} />
         <Route path="content" element={isAdmin ? <ContentPage /> : <Navigate to="/" />} />
         <Route path="offers" element={isAdmin ? <OffersPage /> : <Navigate to="/" />} />
         <Route path="competitions" element={isAdmin ? <CompetitionsPage /> : <Navigate to="/" />} />
