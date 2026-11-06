@@ -95,7 +95,7 @@ export function ScreenPlayer({ feed, preview = false, onBlocked }: { feed: Displ
         <Box key={l.key} data-slide={l.slide.id} aria-hidden={l.phase === 'exit'}
           sx={{ position: 'absolute', inset: 0, transition: `opacity ${ms}ms ease, transform ${ms}ms ease`, ...looks[s.transition][l.phase] }}>
           {l.slide.kind === 'offer'
-            ? <OfferBoard offer={l.slide.offer} brand={boardBrand(feed.business.name, feed.business)} now={now} />
+            ? <OfferBoard offer={l.slide.offer} brand={boardBrand(feed.business.name, feed.business, feed.business.id)} now={now} />
             : <SlideView slide={l.slide} feed={feed} sound={s.video_sound && !preview} onEnded={l.phase === 'shown' && order.length > 1 ? next : undefined} />}
         </Box>
       ))}
@@ -131,7 +131,7 @@ function SlideView({ slide, feed, sound, onEnded }: { slide: Slide; feed: Displa
     return (
       <Box sx={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center' }}>
         <Box sx={{ width: `min(100cqw, calc(100cqh * ${z.width / z.height}))` }}>
-          <MenuBoard design={m.design} items={m.items} allergens={feed.allergens} image={m.design.image_url} brand={boardBrand(feed.business.name, feed.business)} order={feed.sections} />
+          <MenuBoard design={m.design} items={m.items} allergens={feed.allergens} image={m.design.image_url} brand={boardBrand(feed.business.name, feed.business, feed.business.id)} order={feed.sections} />
         </Box>
       </Box>
     )

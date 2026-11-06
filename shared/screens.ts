@@ -303,7 +303,8 @@ export interface DisplayFeed {
   /** The menu's sections in order (Settings: menu_sections). */
   sections: string[]
   /** The business's name, and its brand (Brand page) for the menus: logo, fonts and colours. */
-  business: { name: string; logo: string | null; heading_font?: string; body_font?: string; colours?: BrandColour[] }
+  /** id: the business's number (the Worker adds it; 1 is Easy Beans). */
+  business: { id?: number; name: string; logo: string | null; heading_font?: string; body_font?: string; colours?: BrandColour[] }
   /** The digital menus on its slides, by design id. */
   menus: Record<string, { design: Omit<MenuDesign, 'images'> & { image_url: string | null }; items: MenuItem[] }>
   /** What goes into each menu item and its ingredients' allergens (as the Allergens page has them, without the ingredients' names), for its allergens and diets. */

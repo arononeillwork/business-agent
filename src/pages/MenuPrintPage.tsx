@@ -40,7 +40,7 @@ export function MenuPrintPage() {
       </Stack>
       <Box sx={{ width: `${z.width}mm`, maxWidth: '100%', mx: 'auto', my: 3, boxShadow: '0 12px 34px rgba(60,40,30,0.22)', printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact',
         '@media print': { my: 0, maxWidth: 'none', boxShadow: 'none' } }}>
-        <MenuBoard design={d} items={items.data} allergens={allergens.data} image={imageOf(d)?.url ?? null} brand={boardBrand(business?.name ?? '', brand.data)} order={settings?.menu_sections} />
+        <MenuBoard design={d} items={items.data} allergens={allergens.data} image={imageOf(d)?.url ?? null} brand={boardBrand(business?.name ?? '', brand.data, business?.id)} order={settings?.menu_sections} />
       </Box>
     </Box>
   )

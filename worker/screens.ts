@@ -17,7 +17,9 @@ async function feed(c: Context<{ Bindings: Env }>, business: number, token: stri
   const { data, error } = await businessDb(c.env, business).rpc('display_feed', { p_token: token })
   if (error) return c.json({ error: 'The slides couldn’t be loaded just now. The screen tries again in a minute.' }, 503)
   if (!data) return c.json(GONE, 404)
-  return c.json(data, 200, { 'cache-control': 'no-store' })
+  // Whose screen it is: Easy Beans (business 1) has a bundled logo for when it hasn't uploaded one (MenuBoard).
+  const fed = data as { business?: Record<string, unknown> }
+  return c.json({ ...fed, business: { ...fed.business, id: business } }, 200, { 'cache-control': 'no-store' })
 }
 
 screens.get('/api/display/:token', async c => {
