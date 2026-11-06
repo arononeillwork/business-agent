@@ -210,15 +210,18 @@ export const inMenu = (hidden: string[], name: string) => !MENU[name] || !hidden
  * Opens a page from the menu, or by its address when the business has hidden it from the menu. Any
  * other page missing from the menu still fails here. A hidden page opens inside the app, as a link to
  * it does: no page load, so it's as quick as the menu (a reload starts the app again, about 12 s on
- * the live site) and keeps the sign-in. It waits for the menu first (Pages is never hidden).
+ * the live site) and keeps the sign-in. Either way it waits for the menu first, as long as a first
+ * screen can take: for the page's own link, or else for Pages (never hidden; admins only).
  */
 export async function openFromMenu(page: Page, hidden: string[], name: string) {
   const nav = page.getByRole('navigation', { name: 'Main' })
-  await expect(nav.getByRole('link', { name: 'Pages', exact: true }).first()).toBeVisible(FIRST_SCREEN)
   if (inMenu(hidden, name)) {
-    await nav.getByRole('link', { name, exact: true }).first().click()
+    const link = nav.getByRole('link', { name, exact: true }).first()
+    await expect(link).toBeVisible(FIRST_SCREEN)
+    await link.click()
     return
   }
+  await expect(nav.getByRole('link', { name: 'Pages', exact: true }).first()).toBeVisible(FIRST_SCREEN)
   await page.evaluate(path => {
     history.pushState({ usr: null, key: 'e2e', idx: ((history.state as { idx?: number } | null)?.idx ?? 0) + 1 }, '', path)
     dispatchEvent(new PopStateEvent('popstate', { state: history.state }))
