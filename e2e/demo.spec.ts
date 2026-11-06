@@ -8428,7 +8428,7 @@ test.describe('documents hub', () => {
     await expect(here.getByRole('button')).toHaveText(['Documents', 'Exports', 'Tax'])
     await here.getByRole('button', { name: 'Documents', exact: true }).click()
     await here.getByRole('button', { name: 'Contracts', exact: true }).click()
-    await expect(where).toHaveText('The Business Agent›Documents›Contracts')
+    await expect(where).toHaveText('Business Agent›Documents›Contracts')
     const lease = here.getByRole('row').filter({ hasText: 'Contrato alquiler local.pdf' })
     await expect(lease).toContainText('Kept')
     await expect(lease).toContainText('Lease of the premises')
@@ -8441,7 +8441,7 @@ test.describe('documents hub', () => {
     await naming.getByRole('textbox', { name: 'Name' }).fill('Mantenimiento')
     await naming.getByRole('button', { name: 'Make folder' }).click()
     await toast(page, 'Folder made')
-    await expect(where).toHaveText('The Business Agent›Documents›Contracts›Mantenimiento')
+    await expect(where).toHaveText('Business Agent›Documents›Contracts›Mantenimiento')
     await expect(browse).toContainText('Nothing in this folder yet.')
 
     await browse.getByRole('button', { name: 'Upload documents' }).click()
