@@ -87,6 +87,7 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'plans', files: [/(Billing|Pricing|Login)Page/, /pages\/marketing\//, /shared\/plans/, /app\/plan/],
     tests: String.raw`pricing|billing|plan|landing|one-tap|founding` },
   { name: 'partners', files: [/PartnersPage/], tests: String.raw`partner` },
+  { name: 'compare', files: [/ComparePage/, /marketing\/compareCharts/, /shared\/compare/, /i18n\/es\/compare/], tests: String.raw`compare|landing` },
   { name: 'leads', files: [/LeadsPage/, /shared\/leads/], tests: String.raw`leads and enquiries|enquir` },
   { name: 'expenses', files: [/ExpensesPage/, /shared\/claims/], tests: String.raw`expenses and mileage|trip` },
   { name: 'campaigns', files: [/CampaignsPage/, /shared\/campaigns/], tests: String.raw`campaigns|marketing` },

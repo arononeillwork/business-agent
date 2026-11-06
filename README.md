@@ -690,6 +690,15 @@ Agent from the owner's own AI: added once as a custom connector, then typed to a
 the phone, each change landing in the app and everywhere it shows at once, ending on "How much is your time
 worth?" (`video/README.md`).
 
+The **Compare page** (`/compare`, `src/pages/ComparePage.tsx`) sets Business Agent next to GoHighLevel and
+Square for a café in Spain, for the team size the visitor picks: what each route costs a month and over three
+years (each company's own products at list price, VAT and card fees left out), a learning-curve chart (our
+estimate, and the page says so), every job feature by feature, where each falls short, and the sources. All the
+figures live in `shared/compare.ts` with `CHECKED_ON`, the day they were read from each company's own pricing
+page: when a price changes, update it there and the page and its tests follow. **Compare** in the site menu (on
+a laptop or wider), the footer, "One app instead of ten" on the landing page and the foot of the plan table on
+Pricing link to it.
+
 ## Deploy (Cloudflare)
 
 Changes reach `main` through pull requests and the **merge queue** (`.github/workflows/merge-queue.yml`,

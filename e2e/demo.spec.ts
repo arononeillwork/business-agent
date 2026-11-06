@@ -2086,6 +2086,63 @@ test('pricing: four plans, a simple feature table, Enterprise at the foot, and "
   await expect(page.getByRole('tab', { name: 'Create account' })).toHaveAttribute('aria-selected', 'true')
 })
 
+test('compare: GoHighLevel and Square next to us by team size, what each costs, the learning curve, every feature and where the prices come from', async ({ page }) => {
+  await page.goto('/pricing?demo')
+  await page.getByRole('link', { name: 'Compare it with GoHighLevel and Square →' }).click()
+  await expect(page).toHaveURL(/\/compare$/)
+  await expect(page).toHaveTitle('Compare · Business Agent')
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('One app for the café. Not three bills.')
+  // A team of 10 to start: our Pro plan against each company's own products at list price, VAT not included.
+  const ours = page.getByRole('article', { name: 'Business Agent', exact: true })
+  const square = page.getByRole('article', { name: 'Square', exact: true })
+  const ghl = page.getByRole('article', { name: 'GoHighLevel', exact: true })
+  await expect(ours.getByLabel('€79 a month')).toBeVisible()
+  await expect(square.getByLabel('€139 a month')).toBeVisible()
+  await expect(ghl.getByLabel('€157.71 a month')).toBeVisible()
+  await expect(ghl).toContainText('Plus usage: texts, emails, calls and AI are charged as you use them')
+  await expect(ours).toContainText('Nothing else to add')
+  await expect(square).toContainText('Still missing: 8 jobs no Square product does')
+  const glance = page.getByLabel('At a glance')
+  await expect(glance).toContainText('€2,160')
+  await expect(glance).toContainText('19 of 20')
+  // Bigger teams: Square's team tools move to Restaurants Plus, and over 25 people we're on Business.
+  await page.getByRole('button', { name: '25', exact: true }).click()
+  await expect(square).toContainText('Square for Restaurants Plus')
+  await expect(square.getByLabel('€163 a month')).toBeVisible()
+  await page.getByRole('button', { name: '40', exact: true }).click()
+  await expect(ours).toContainText('Business Agent Business')
+  await expect(ours.getByLabel('€129 a month')).toBeVisible()
+  // What each will have cost, as a chart and as figures.
+  const cost = page.getByRole('figure', { name: 'What you’ll have paid, month by month' })
+  await expect(cost.getByRole('img', { name: 'What each route has cost after each month, over 3 years' })).toBeVisible()
+  await cost.getByText('See the figures').click()
+  await expect(cost.getByRole('row', { name: /^Business Agent/ }).getByRole('cell')).toHaveText(['€129', '€1,548', '€3,096', '€4,644'])
+  // The learning curve: an estimate, said so, with each line's figure by the arrow keys.
+  const curve = page.getByRole('figure', { name: 'Everyday jobs you can do without help' })
+  await expect(curve).toContainText('Our estimate, not a measured study.')
+  await curve.getByRole('img').focus()
+  await page.keyboard.press('ArrowRight')
+  await page.keyboard.press('ArrowRight')
+  await expect(curve.getByRole('status')).toContainText('After 1 week')
+  await expect(curve.getByRole('status')).toContainText('Business Agent80%')
+  // Every job, side by side.
+  const table = page.getByRole('table', { name: 'Feature comparison' })
+  const rota = table.getByRole('row', { name: /Shift rota on everyone’s phone/ })
+  await expect(rota.getByRole('img', { name: 'Built in' })).toHaveCount(2)
+  await expect(rota.getByRole('img', { name: 'Not available' })).toHaveCount(1)
+  await expect(rota).toContainText('Its calendars book customers, not staff shifts')
+  await expect(page.getByRole('article', { name: 'Business Agent vs GoHighLevel' })).toContainText('No rota, clock-ins, timecards or registro de jornada')
+  // Where the prices come from.
+  await expect(page.getByRole('link', { name: /^HighLevel pricing/ })).toHaveAttribute('href', 'https://www.gohighlevel.com/pricing')
+  await expect(page.getByRole('link', { name: 'Square Shifts pricing, Spain' })).toHaveAttribute('href', 'https://squareup.com/es/es/staff/shifts/pricing')
+})
+
+test('compare on a phone: nothing wider than the screen @phone', async ({ page }) => {
+  await page.goto('/compare?demo')
+  await expect(page.getByRole('table', { name: 'Feature comparison' })).toBeAttached()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+})
+
 test.describe('team export', () => {
   test('team: admins export the list, sorted and filtered as shown', async ({ page }) => {
     await open(page, '/team')
@@ -8398,12 +8455,12 @@ test.describe('UI round: dashboards, the business advisor and the landing pages'
     }
     await expect(page.getByRole('heading', { name: /Know your numbers/ })).toBeVisible()
     await expect(page.getByText('Easy Beans')).toHaveCount(0)
-    // The site menu has no Everything or Compare, and /compare is gone: it's the landing page.
+    // The site menu has Compare (not Everything); "One app instead of ten" links to it too.
     await expect(page.getByRole('navigation', { name: 'Site' }).getByRole('link'))
-      .toHaveText([...FEATURES.demoVideo || FEATURES.dayVideo || FEATURES.ownerVideo || FEATURES.sayVideo ? ['Demos'] : [], 'Features', 'Pricing', 'Enterprise', 'FAQ'])
-    await expect(page.getByText(/GoHighLevel/)).toHaveCount(0)
-    await page.goto('/compare?demo')
-    await expect(page.getByRole('heading', { level: 1, name: /runs your business/ })).toBeVisible()
+      .toHaveText([...FEATURES.demoVideo || FEATURES.dayVideo || FEATURES.ownerVideo || FEATURES.sayVideo ? ['Demos'] : [], 'Features', 'Pricing', 'Compare', 'Enterprise', 'FAQ'])
+    await page.locator('#everything').getByRole('link', { name: 'Compare it with GoHighLevel and Square →' }).click()
+    await expect(page).toHaveURL(/\/compare$/)
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('One app for the café. Not three bills.')
   })
 })
 

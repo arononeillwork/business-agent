@@ -1,5 +1,5 @@
-import { Box, Container, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material'
-import { useLocation } from 'react-router-dom'
+import { Box, Button, Container, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material'
+import { Link as RouterLink, useLocation } from 'react-router-dom'
 import CheckIcon from '@mui/icons-material/CheckRounded'
 import { useEffect } from 'react'
 import { msg, t, tr, useLanguage } from '../i18n'
@@ -106,6 +106,9 @@ export function PricingPage() {
                 {t('Pay per use is charged only when you use it, billed monthly with your plan. Everything else is in the plan price.')}
               </Typography>
             )}
+            <Box sx={{ textAlign: 'center', mt: 3 }}>
+              <Button component={RouterLink} to="/compare" sx={{ color: BA.ink, textTransform: 'none', fontWeight: 500 }}>{t('Compare it with GoHighLevel and Square →')}</Button>
+            </Box>
           </Container>
         </Box>
 
