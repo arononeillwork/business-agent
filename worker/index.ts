@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { OAuthProvider } from '@cloudflare/workers-oauth-provider'
+import { setAppFetch } from './appFetch'
 import { bearer, businessDb, businessIds, joinBusiness, serviceClient, userClient, type Env } from './supabase'
 import { rest } from './rest'
 import { drainOutbox, integrations, pushGoogleMenu, syncGoogle, syncGoogleBothWays } from './integrations'
@@ -63,6 +64,8 @@ const sportsOn = async (db: ReturnType<typeof businessDb>) =>
   await sportsEnabled(db) && (await db.rpc('plan_allows', { p_feature: 'sports' })).data === true
 
 const app = new Hono<{ Bindings: OAuthEnv }>()
+// The page tools read what a page reads live through this app, in-process (worker/appFetch.ts).
+setAppFetch((request, env, ctx) => app.fetch(request, env as OAuthEnv, ctx as ExecutionContext))
 
 // A self-destructing service worker at the usual service-worker addresses. The app has none, but
 // a browser that kept one from an earlier site on this domain serves that old site from its cache

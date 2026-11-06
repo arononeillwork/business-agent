@@ -35,6 +35,7 @@ import { MusicError, makeAiMusic, renderMusic } from './socialMusic'
 import { LICENCE_TOOLS } from './licenceTools'
 import { OFFER_TOOLS } from './offerTools'
 import { CONTACT_TOOLS } from './contactTools'
+import { PAGE_TOOLS } from './pageTools'
 import type { Env } from './supabase'
 import { shows, type FEATURES as APP_PARTS } from '../src/app/features'
 
@@ -44,6 +45,8 @@ export interface ToolContext {
   /** The Worker's settings and its address, for tools that use a service (music: ElevenLabs, the render service). */
   env?: Env
   origin?: string
+  /** The person's session token, for reading what a page reads live through the Worker (worker/pageTools.ts). */
+  accessToken?: string
 }
 
 export interface ToolDef<S extends z.ZodType = z.ZodType> {
@@ -1699,6 +1702,8 @@ export const ALL_TOOLS: ToolDef[] = [
   ...OFFER_TOOLS,
   // Contacts: the people the business calls on (worker/contactTools.ts).
   ...CONTACT_TOOLS,
+  // Every page in the menu, worked out from the app's code (worker/pageTools.ts).
+  ...PAGE_TOOLS,
 ]
 
 /** The tools on offer (MCP, the REST API and its OpenAPI): not those of a part of the app that's switched off (src/app/features.ts), which stay built and tested. */
