@@ -62,6 +62,7 @@ import { CV_COLUMNS, cvProblem, type ApplicantCv } from '../../shared/hiring'
 import type { SafetyCheck, SafetyPoint } from '../../shared/foodSafety'
 import type { MenuAllergens } from '../../shared/allergens'
 import type { TipPool } from '../../shared/tips'
+import type { FoundBrand } from '../../shared/brandLookup'
 import { addDays, zonedIso } from '../../shared/time'
 import { forget, keep, opened, readKept, shownAccounts, smallLogo, writeKept, type KeptSession } from './deviceAccounts'
 
@@ -1662,6 +1663,7 @@ export function createSupabaseApi(url: string, key: string): Api {
     async deleteReviewReply(id) { await worker('/api/reviews/reply', { method: 'DELETE', body: JSON.stringify({ id }) }) },
     website: () => worker('/api/website'),
     async checkWebsite() { return (await worker<{ report: never }>('/api/website/check', { method: 'POST' })).report },
+    async lookUpBrand(website) { return (await worker<{ found: FoundBrand }>('/api/setup/brand', { method: 'POST', body: JSON.stringify({ website }) })).found },
     async pageSpeed(strategy) { return (await worker<{ pagespeed: never }>('/api/website/pagespeed', { method: 'POST', body: JSON.stringify({ strategy }) })).pagespeed },
     async newsletter() {
       const row = check(await sb.from('newsletter').select('enabled, interests, ask_name, ask_phone, heading, intro, key_hint, key_made_at').maybeSingle()) as Partial<NewsletterSettings> | null

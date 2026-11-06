@@ -36,6 +36,7 @@ import { assistant } from './assistant'
 import { refreshReviews, reviews, reviewsConfigured } from './reviews'
 import { clearOldCache } from './cache'
 import { website } from './website'
+import { brandLookup } from './brandLookup'
 import { checkWaitingImages, menu, pushSquarePrices, syncSquareMenuIfChosen } from './menu'
 import { menuFromSquare } from './refresh'
 import { dueJobs, everyFor } from './schedule'
@@ -304,6 +305,8 @@ app.route('/', assistant)
 // Reviews (Google) and Website & SEO (Marketing).
 app.route('/', reviews)
 app.route('/', website)
+// Set-up guide, "already open": the brand and details read from the business's website (Firecrawl).
+app.route('/', brandLookup)
 // Competitors: cafés nearby and the ones followed, from Google (Marketing).
 app.route('/', competitors)
 // Analytics beyond the website: Instagram, TikTok, LinkedIn and Facebook statistics (Marketing).

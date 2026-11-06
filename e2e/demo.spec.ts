@@ -2039,6 +2039,9 @@ test('self-serve: a new business signs up, creates its business and goes on to t
   await add.click()
   // She runs it now: on to the set-up guide, with a café's apps ready to connect.
   await expect(page).toHaveURL(/\/setup/)
+  // First, new or already open (skipped here: the set-up wizard tests answer it both ways).
+  await expect(page.getByRole('heading', { name: 'Is Café Lola new, or already open?' })).toBeVisible()
+  await page.getByRole('button', { name: 'Skip this step' }).click()
   await expect(page.getByRole('heading', { name: 'Hi Lola, I’m The Business Agent.' })).toBeVisible()
   await page.getByRole('button', { name: /^Use a ready-made setup/ }).click()
   await expect(page.getByRole('button', { name: /^Café & coffee shop/ })).toHaveAttribute('aria-pressed', 'true')
@@ -3612,7 +3615,7 @@ test.describe('referrals', () => {
     await expect(page.getByText('Invited by Easy Beans Coffee: your first month is on us')).toBeVisible()
     await page.getByRole('textbox', { name: 'Business name' }).fill('Café Nuevo')
     await page.getByRole('button', { name: 'Add my business' }).click()
-    await expect(page.getByRole('heading', { name: 'Hi Lola, I’m The Business Agent.' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Is Café Nuevo new, or already open?' })).toBeVisible()
     await page.getByRole('button', { name: 'Skip setup for now' }).click()
 
     // (The demo has one business: the café that shared the link reads its list as before.)
@@ -8820,6 +8823,90 @@ test.describe('set-up wizard', () => {
     await expect(page.getByRole('checkbox', { name: 'Choose LinkedIn' })).not.toBeChecked()
     await expect(page.getByRole('checkbox', { name: 'Choose Google Ads' })).not.toBeChecked()
     await expect(page.getByRole('article', { name: 'Square' })).toHaveCount(0)
+  })
+
+  /** Sign up and create a business: the guide opens on "Your business". */
+  async function signUp(page: Page, person: string, email: string, business: string) {
+    await page.goto('/?demo')
+    await page.getByRole('tab', { name: 'Create account' }).click()
+    await page.getByLabel('Your name').fill(person)
+    await page.getByRole('textbox', { name: 'Email' }).fill(email)
+    await page.getByLabel('Password').fill('cafe-con-leche-7')
+    await page.getByRole('button', { name: 'Create account' }).click()
+    await page.getByRole('textbox', { name: 'Business name' }).fill(business)
+    await page.getByRole('button', { name: 'Add my business' }).click()
+    await expect(page.getByRole('heading', { name: `Is ${business} new, or already open?` })).toBeVisible()
+  }
+
+  test('set-up wizard: a new business gives its team size, opening day, logo and main colour, and they’re on Business and Brand', async ({ page }) => {
+    await signUp(page, 'Lola Martín', 'lola@cafelola.example', 'Café Lola')
+    await page.getByRole('button', { name: /^It’s new/ }).click()
+    await expect(page.getByRole('heading', { name: 'Tell me about it' })).toBeVisible()
+    await expect(page.getByRole('textbox', { name: 'Business name' })).toHaveValue('Café Lola')
+    const size = page.getByRole('button', { name: '2–5', exact: true })
+    await size.click()
+    await expect(size).toHaveAttribute('aria-pressed', 'true')
+    await page.getByLabel('When do you open?').fill('2027-03-01')
+    await page.locator('input[type=file]').setInputFiles({ name: 'logo.png', mimeType: 'image/png',
+      buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64') })
+    await expect(page.getByRole('img', { name: 'Your logo' })).toBeVisible()
+    await page.getByRole('button', { name: '#2F5D50' }).click()
+    await page.getByRole('button', { name: 'Save and continue' }).click()
+    await toast(page, 'Saved')
+    // On to the apps, with a way back.
+    await expect(page.getByRole('heading', { name: 'Hi Lola, I’m The Business Agent.' })).toBeVisible()
+    await page.getByRole('button', { name: 'Skip setup for now' }).click()
+
+    await page.getByRole('link', { name: 'Business', exact: true }).first().click()
+    const company = page.getByRole('region', { name: 'Company' })
+    await expect(company).toContainText('2–5')
+    await expect(company).toContainText('1 Mar 2027')
+    await page.getByRole('link', { name: 'Brand' }).first().click()
+    const colours = page.getByRole('region', { name: 'Colours' })
+    await expect(colours).toContainText('#2F5D50')
+    await expect(colours).not.toContainText('#F79BA4')
+  })
+
+  test('set-up wizard: a business that’s already open brings in its brand from its website and keeps what it ticks', async ({ page }) => {
+    await signUp(page, 'Bea Ruiz', 'bea@barbea.example', 'Bar Bea')
+    await page.getByRole('button', { name: /^It’s already open/ }).click()
+    await expect(page.getByRole('heading', { name: 'Bring in your brand from your website' })).toBeVisible()
+    await page.getByRole('textbox', { name: 'Website' }).fill('cafe-lola.es')
+    await page.getByRole('button', { name: 'Find my brand' }).click()
+
+    await expect(page.getByRole('heading', { name: 'Here’s what I found' })).toBeVisible()
+    await expect(page.getByRole('img', { name: 'The logo on your website' })).toBeVisible()
+    await expect(page.getByRole('checkbox', { name: 'Logo' })).toBeChecked()
+    await expect(page.getByRole('checkbox', { name: 'App icon' })).toBeChecked()
+    await expect(page.getByText('Headings: Playfair Display')).toBeVisible()
+    // Every colour starts kept; tapping one leaves it out.
+    await expect(page.getByRole('button', { name: 'Primary #2F5D50' })).toHaveAttribute('aria-pressed', 'true')
+    await page.getByRole('button', { name: 'Accent #C8553D' }).click()
+    await expect(page.getByRole('button', { name: 'Accent #C8553D' })).toHaveAttribute('aria-pressed', 'false')
+    // The name she typed stays unless she ticks the website's.
+    await expect(page.getByRole('checkbox', { name: 'Use the name on your website' })).not.toBeChecked()
+    await page.getByRole('checkbox', { name: 'Address' }).uncheck()
+    await page.getByRole('button', { name: 'Just me' }).click()
+    await page.getByRole('button', { name: 'Use these' }).click()
+    await toast(page, 'Saved')
+    await expect(page.getByRole('heading', { name: 'Hi Bea, I’m The Business Agent.' })).toBeVisible()
+    await page.getByRole('button', { name: 'Skip setup for now' }).click()
+
+    await page.getByRole('link', { name: 'Business', exact: true }).first().click()
+    await expect(page.getByRole('heading', { name: 'Bar Bea' })).toBeVisible()
+    const contact = page.getByRole('region', { name: 'Contact' })
+    await expect(contact).toContainText('+34 952 78 12 34')
+    await expect(contact).toContainText('hola@cafe-lola.es')
+    await expect(contact).toContainText('cafe-lola.es')
+    await expect(contact).toContainText('@cafelola')
+    await expect(contact).not.toContainText('Marqués del Duero')
+    await expect(page.getByRole('region', { name: 'Company' })).toContainText('Just me')
+    await page.getByRole('link', { name: 'Brand' }).first().click()
+    const colours = page.getByRole('region', { name: 'Colours' })
+    await expect(colours).toContainText('#2F5D50')
+    await expect(colours).toContainText('#E8C07D')
+    await expect(colours).not.toContainText('#C8553D')
+    await expect(page.getByRole('region', { name: 'Fonts' })).toContainText('Playfair Display')
   })
 
   test('set-up wizard is for admins only', async ({ page }) => {

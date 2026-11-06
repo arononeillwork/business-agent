@@ -821,6 +821,25 @@ It shows as connected once Google has opened a picker for that account (an accou
 Photos says so). Google Drive or OneDrive must be connected too, for somewhere to keep the copies.
 Checked every night; on the plans with Gmail and Google Drive (the apps feature).
 
+## 22. Firecrawl (the set-up guide reads a business's website)
+
+Right after a business is made, the set-up guide asks whether it's **new** or **already open**. A new one
+adds its team size, opening day, logo and main colour; one that's open gives its website, and the Worker
+reads it (`worker/brandLookup.ts`, `shared/brandLookup.ts`) for the logo, app icon, colours, fonts, phone,
+email, address, Instagram and opening hours. The owner sees what was found, unticks what they don't want,
+and the rest goes on the Brand and Business pages. Nothing is saved until they press **Use these**.
+
+It works without a key: the Worker reads the page's own HTML (its structured data, links, theme colour,
+icons and Google Fonts). With a key, [Firecrawl](https://www.firecrawl.dev)'s **branding** format is used
+as well: it opens the page in a real browser, so it sees the colours and fonts the page actually shows and
+finds the logo on sites built in the browser. One scrape (`POST /v2/scrape`, formats `branding` and
+`links`) per look-up, which costs a Firecrawl credit; the same site asked again within the hour is answered
+from the Worker's cache. When Firecrawl says no (out of credit, a site it can't open) the HTML alone answers.
+
+*firecrawl.dev → Dashboard → API Keys* → copy the key (`fc-…`) → repo secret `FIRECRAWL_API_KEY`. The
+deploy hands it to the Worker (`scripts/ops/worker-secrets.mjs`); until the deploy workflow passes it, set
+it once with `npx wrangler secret put FIRECRAWL_API_KEY`.
+
 ## Social planner
 
 Admins plan posts on **Social planner** (left menu): write once, pick Instagram, Facebook,

@@ -49,7 +49,16 @@ export interface Business {
   is_hq?: boolean
   /** When it was made (the hq_reps migration; businesses before it: then). */
   created_at?: string
+  /** New (just starting out) or open (already trading), as said in the set-up guide; null until asked. */
+  stage?: 'new' | 'open' | null
+  /** How many people work there, the owner included (shared/brandLookup.ts TEAM_SIZES). */
+  team_size?: TeamSize | null
+  /** A new business: the day it opens (YYYY-MM-DD). */
+  opens_on?: string | null
 }
+
+/** How many people work at a business, the owner included. */
+export type TeamSize = '1' | '2-5' | '6-15' | '16-50' | '50+'
 
 export interface Settings {
   early_clock_in_minutes: number

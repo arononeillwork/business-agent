@@ -879,5 +879,12 @@ time zone). Its creator runs it (admin and owner) on the Free plan and goes stra
 guide (`/setup`) to connect its apps. Someone joining an existing team signs up the same way and
 asks their manager to add their email on the Team page.
 
+The set-up guide opens on **Your business**: is it new or already open? A new business adds its team
+size, opening day, logo and main colour (each can be skipped). One that's already open gives its website
+and the guide brings in its logo, colours, fonts and contact details, read with Firecrawl when
+`FIRECRAWL_API_KEY` is set and from the page's own HTML either way (`docs/INTEGRATIONS.md` section 22);
+the owner keeps what they tick. All of it lands on the Brand and Business pages (the
+`business_stage_team_size` migration adds the stage, team size and opening day).
+
 Every business shares the one database, Worker and app, each seeing only its own data
 (`docs/SEVERAL_BUSINESSES.md`). Easy Beans is business 1.

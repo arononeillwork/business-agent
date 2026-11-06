@@ -81,6 +81,16 @@
       ]
     },
     {
+      "id": "setup-business",
+      "name": "Set-up guide: your business",
+      "area": "Business",
+      "page": "/setup",
+      "does": "New or already open: team, logo and colours, or the brand read from the website",
+      "needs": [
+        { "label": "Firecrawl key", "secret": "FIRECRAWL_API_KEY", "optional": true }
+      ]
+    },
+    {
       "id": "messages",
       "name": "Messages",
       "area": "Business",

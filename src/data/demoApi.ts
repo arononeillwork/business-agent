@@ -97,6 +97,7 @@ import { CAFE_POINTS, inRange as inLimits, type SafetyCheck, type SafetyPoint } 
 import { dietsFor, type Allergen, type MenuAllergens } from '../../shared/allergens'
 import { minutesWorked, splitTips, type TipPool } from '../../shared/tips'
 import { EMAIL_ADDRESS, accessOf, emailBlock } from '../../shared/teamRoles'
+import { siteAddress, type FoundBrand } from '../../shared/brandLookup'
 
 interface RawEntry {
   id: string; profile_id: string; position_id: number | null; shift_id: string | null
@@ -2241,6 +2242,31 @@ export function createDemoApi(): Api {
         timezone: b.timezone || 'Europe/Madrid', setup_completed_at: null })
       notify()
       return 1
+    },
+    async lookUpBrand(website) {
+      requireAdmin()
+      const address = siteAddress(website)
+      if (!address) throw new Error('Enter your website’s address, like www.yourbusiness.com')
+      // Demo: what Firecrawl finds on a small café's website, named after the address typed.
+      const host = new URL(address).hostname.replace(/^www\./, '')
+      const slug = host.split('.')[0]
+      const name = slug.split(/[-_]+/).filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join(' ')
+      const initials = name.split(' ').map(w => w[0]).join('').slice(0, 2)
+      const svg = (w: number, h: number, inner: string) => `data:image/svg+xml;base64,${btoa(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}">${inner}</svg>`)}`
+      const found: FoundBrand = {
+        website: address, source: 'firecrawl', name, description: `${name}: specialty coffee, fresh bakes and brunch.`,
+        logo: svg(320, 120, `<rect width="320" height="120" rx="24" fill="#FBF7F0"/><circle cx="60" cy="60" r="40" fill="#2F5D50"/><text x="60" y="72" font-family="Georgia" font-size="34" fill="#FBF7F0" text-anchor="middle">${initials}</text><text x="118" y="72" font-family="Georgia" font-size="30" fill="#2F5D50">${name.slice(0, 12)}</text>`),
+        icon: svg(64, 64, `<rect width="64" height="64" rx="14" fill="#2F5D50"/><text x="32" y="42" font-family="Georgia" font-size="28" fill="#FBF7F0" text-anchor="middle">${initials}</text>`),
+        colours: [
+          { name: 'Primary', hex: '#2F5D50', role: 'primary' }, { name: 'Secondary', hex: '#E8C07D', role: 'secondary' },
+          { name: 'Accent', hex: '#C8553D', role: 'accent' }, { name: 'Background', hex: '#FBF7F0', role: 'base' },
+        ],
+        heading_font: 'Playfair Display', body_font: 'Lato',
+        phone: '+34 952 78 12 34', email: `hola@${host}`, address: 'Calle Marqués del Duero, 12, 29670 San Pedro de Alcántara', instagram: slug.replace(/[^a-z0-9._]/gi, ''),
+        hours: { mon: { open: '08:00', close: '18:00' }, tue: { open: '08:00', close: '18:00' }, wed: { open: '08:00', close: '18:00' }, thu: { open: '08:00', close: '18:00' },
+          fri: { open: '08:00', close: '18:00' }, sat: { open: '09:00', close: '14:00' }, sun: null },
+      }
+      return clone(found)
     },
     async sendSignInCode(email) {
       if (!profiles.some(p => p.email === email.trim().toLowerCase())) throw new Error('No invited account uses this email. Ask an admin to invite you.')
