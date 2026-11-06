@@ -113,6 +113,7 @@ const AllergensPage = page(() => import('./pages/AllergensPage'), 'AllergensPage
 const TipsPage = page(() => import('./pages/TipsPage'), 'TipsPage')
 const SetupPage = page(() => import('./pages/SetupPage'), 'SetupPage')
 const NewBusinessPage = page(() => import('./pages/NewBusinessPage'), 'NewBusinessPage')
+const AddBusinessPage = page(() => import('./pages/AddBusinessPage'), 'AddBusinessPage')
 
 /** /billing → /account/billing, keeping ?checkout=… from Stripe. */
 function ToBilling() {
@@ -122,6 +123,7 @@ function ToBilling() {
 
 function Routed() {
   const { me, loading, isAdmin, isPartner, partnerCan, canSeePay } = useApp()
+  const { api } = useApp()
   const { pathname } = useLocation()
   // Public, signed in or not (Google and others check it before approving the app).
   if (pathname === '/privacy') return <PrivacyPage />
@@ -137,6 +139,8 @@ function Routed() {
   // A sales rep's own page: no sign-in, the link itself is the rep's secret (Sales reps & rewards).
   if (pathname.startsWith('/rep/')) return <RepPage />
   if (loading) return <Loading />
+  // Adding another business while others stay signed in on this device: sign in to it (or go back).
+  if (!me && api.deviceAccounts().some(a => !a.signedOut)) return <AddBusinessPage />
   if (!me) return <LoginPage />
   // Signed up on their own and in no business yet: create theirs. Switched off in one: wait to be let back in.
   if (!me.active) return me.business_id === null ? <NewBusinessPage /> : <NotActive />

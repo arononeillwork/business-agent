@@ -1583,6 +1583,14 @@ export function createDemoApi(): Api {
   })()
   const listeners = new Set<(userId: string | null) => void>()
   const notify = () => { remember(currentUser); listeners.forEach(l => l(currentUser)) }
+  // Accounts kept signed in in this tab, to switch between (the live app keeps them on the device). The
+  // demo has one business, so they're the people in it.
+  let kept: string[] = (() => { try { return JSON.parse(sessionStorage.getItem('demo-accounts') ?? '[]') as string[] } catch { return [] } })()
+  const keepAccounts = (ids: string[]) => {
+    kept = ids
+    try { sessionStorage.setItem('demo-accounts', JSON.stringify(ids)) } catch { /* storage unavailable */ }
+  }
+  const keepOpen = () => { if (currentUser && !kept.includes(currentUser)) keepAccounts([...kept, currentUser]) }
 
   const me = () => profiles.find(p => p.id === currentUser)
   const favourites: (SportsFavourite & { profile_id: string })[] = [{ profile_id: P.aron, kind: 'team', ref: 'Real Betis' }]
@@ -2158,7 +2166,23 @@ export function createDemoApi(): Api {
       currentUser = p.id
       notify()
     },
-    async signOut() { currentUser = null; notify() },
+    async signOut() { keepAccounts([]); currentUser = null; notify() },
+    deviceAccounts() {
+      return kept.flatMap(id => {
+        const p = profiles.find(x => x.id === id)
+        return p ? [{ userId: p.id, name: p.full_name, email: p.email, businessId: p.business_id === null ? null : 1, business: p.business_id === null ? null : business.name,
+          logo: null, signedOut: false }] : []
+      })
+    },
+    async switchAccount(id) {
+      if (!kept.includes(id) || !profiles.some(p => p.id === id)) return 'signed-out'
+      keepOpen()
+      currentUser = id
+      notify()
+      return 'opened'
+    },
+    async addAccount() { keepOpen(); currentUser = null; notify() },
+    async forgetAccount(id) { keepAccounts(kept.filter(x => x !== id)) },
     async signInMethods() { return { google: true, apple: true, facebook: true, microsoft: true, signup: true } },
     async signUp(fullName, email, password) {
       const e = email.trim().toLowerCase()

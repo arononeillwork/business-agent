@@ -1,4 +1,4 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { createClient, isAuthRetryableFetchError, type SupabaseClient } from '@supabase/supabase-js'
 import { PromptError, SOCIAL_PROVIDERS, type AiTrackResult, type Api, type BillingInfo, type MusicStatus, type PlanStatus, type SignInMethods, type SocialProvider } from './api'
 import type { ApiKey, AppNotification, Brand, Business, Customer, SocialPost, EventAlert, Expense, Integration, MusicPlaylist, OutboxItem, Profile, Settings, TimeEntry, TimeOff, Todo, TodoCategory, CafeTrack, MusicPlayerState } from '../../shared/types'
 import type { HolidayReminder, PushDevice } from '../../shared/types'
@@ -61,6 +61,7 @@ import type { SafetyCheck, SafetyPoint } from '../../shared/foodSafety'
 import type { MenuAllergens } from '../../shared/allergens'
 import type { TipPool } from '../../shared/tips'
 import { addDays, zonedIso } from '../../shared/time'
+import { forget, keep, opened, readKept, shownAccounts, smallLogo, writeKept, type KeptSession } from './deviceAccounts'
 
 const PROFILE_COLUMNS = 'id, business_id, full_name, email, role, can_see_pay, colour, active, phone, birth_date, whatsapp_opt_in, partner_company, partner_access, preferences, on_rota, on_people'
 
@@ -179,6 +180,45 @@ export function createSupabaseApi(url: string, key: string): Api {
     return json
   }
 
+  // Other businesses kept signed in on this device (deviceAccounts.ts). Supabase keeps the open one's
+  // sign-in under its own key; the others wait in the kept list until switched to.
+  const storageKey = (sb.auth as unknown as { storageKey?: string }).storageKey ?? `sb-${new URL(url).hostname.split('.')[0]}-auth-token`
+  // Other tabs start again too when this one changes business, so none goes on showing one business's
+  // pages while it reads and writes as another.
+  const tabs = typeof BroadcastChannel === 'function' ? new BroadcastChannel('business-agent-account') : null
+  if (tabs) tabs.onmessage = () => location.reload()
+  const startAgain = () => { tabs?.postMessage('switched'); location.assign('/') }
+
+  /** Keep the business open now on the list, with its sign-in and what the switcher shows of it. */
+  const keepOpen = async (): Promise<string | null> => {
+    await fromUrl
+    const session = (await sb.auth.getSession()).data.session
+    if (!session) return null
+    // Not swapped for a new one after it's copied: the copy is what signs back in.
+    await sb.auth.stopAutoRefresh()
+    const id = session.user.id
+    const [profile, business, brand] = await Promise.all([
+      sb.from('profiles').select('full_name, email').eq('id', id).maybeSingle(),
+      sb.from('business').select('id, name').maybeSingle(),
+      sb.from('brand').select('logo').eq('id', 1).maybeSingle(),
+    ])
+    const before = readKept().find(a => a.userId === id)
+    writeKept(keep(readKept(), {
+      userId: id,
+      name: profile.data?.full_name ?? before?.name ?? '',
+      email: profile.data?.email ?? session.user.email ?? null,
+      businessId: business.data?.id ?? null,
+      business: business.data?.name ?? null,
+      logo: brand.error ? before?.logo ?? null : smallLogo(brand.data?.logo),
+      session: { access_token: session.access_token, refresh_token: session.refresh_token },
+    }))
+    return id
+  }
+
+  /** End a kept sign-in (best effort: one that has run out ends by itself). */
+  const endKept = (s: KeptSession) =>
+    fetch(`${url}/auth/v1/logout?scope=local`, { method: 'POST', headers: { apikey: key, authorization: `Bearer ${s.access_token}` } }).catch(() => undefined)
+
   const api: Api = {
     mode: 'live',
 
@@ -206,7 +246,45 @@ export function createSupabaseApi(url: string, key: string): Api {
       checkAuth(await sb.auth.signInWithPassword({ email, password }))
     },
     async signOut() {
+      // Every business on this device, not just the one open: a shared tablet keeps none of them.
+      const kept = readKept()
+      writeKept([])
+      await Promise.all(kept.flatMap(a => (a.session ? [endKept(a.session)] : [])))
       await sb.auth.signOut()
+    },
+    deviceAccounts() {
+      return shownAccounts(readKept())
+    },
+    async switchAccount(userId) {
+      const target = readKept().find(a => a.userId === userId)
+      if (!target?.session) return 'signed-out'
+      const from = await keepOpen()
+      const { data, error } = await sb.auth.setSession(target.session)
+      if (error || !data.session) {
+        // Stay in the business that was open. Its sign-in has ended (not just no connection): keep it to sign in again.
+        const unreachable = !!error && isAuthRetryableFetchError(error)
+        if (!unreachable) writeKept(readKept().map(a => (a.userId === userId ? { ...a, session: null } : a)))
+        const back = readKept().find(a => a.userId === from)?.session
+        if (back) await sb.auth.setSession(back)
+        if (from) writeKept(opened(readKept(), from))
+        await sb.auth.startAutoRefresh()
+        return unreachable ? 'unreachable' : 'signed-out'
+      }
+      writeKept(opened(readKept(), userId))
+      startAgain()
+      return 'opened'
+    },
+    async addAccount() {
+      await keepOpen()
+      // Off this device's sign-in without ending it (Supabase's signOut would end it everywhere): the
+      // app starts again at sign-in, and the business stays on the list to come back to.
+      try { localStorage.removeItem(storageKey) } catch { /* storage unavailable */ }
+      startAgain()
+    },
+    async forgetAccount(userId) {
+      const gone = readKept().find(a => a.userId === userId)
+      writeKept(forget(readKept(), userId))
+      if (gone?.session) await endKept(gone.session)
     },
     async sendSignInCode(email) {
       const { error } = await sb.auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: false } })

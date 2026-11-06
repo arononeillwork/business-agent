@@ -10160,3 +10160,44 @@ test.describe('square pins', () => {
     await expect(mine.getByRole('button', { name: /^(Add|Change) the PIN/ })).toHaveCount(0)
   })
 })
+
+test('someone in two businesses adds the second, switches between them from the top left, and signing out ends both', async ({ page }) => {
+  await open(page)
+  // Top left, beside the business's name: the business open now, and adding another.
+  await page.getByRole('button', { name: 'Switch business' }).click()
+  await expect(page.getByRole('menuitem', { name: /Open now/ })).toBeVisible()
+  await page.getByRole('menuitem', { name: 'Add another business' }).click()
+  // Sign-in for the other one, with the business already here a click away.
+  await expect(page.getByRole('heading', { name: 'Add another business' })).toBeVisible()
+  await expect(page.getByRole('button', { name: /aron@example\.com/ })).toBeVisible()
+  await page.getByRole('textbox', { name: 'Email' }).fill('maria@example.com')
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Add another business' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /^Account menu: Maria/ })).toBeVisible()
+
+  // Back to the first, without signing in again.
+  await page.getByRole('button', { name: 'Switch business' }).click()
+  await page.getByRole('menuitem', { name: /aron@example\.com/ }).click()
+  await expect(page.getByRole('button', { name: /^Account menu: Aron/ })).toBeVisible()
+
+  // My account lists the other one; signing out says it's all of them, and is.
+  await fromAccountMenu(page, 'My account')
+  await expect(page.getByRole('region', { name: 'Your businesses' })).toContainText('maria@example.com')
+  await page.getByRole('button', { name: 'Sign out of all businesses' }).first().click()
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Add another business' })).toHaveCount(0)
+})
+
+test('@phone the account menu adds another business and switches back to the first', async ({ page }) => {
+  await open(page)
+  await page.getByRole('button', { name: /^Account menu/ }).click()
+  await page.getByRole('menuitem', { name: 'Add another business' }).click()
+  await expect(page.getByRole('heading', { name: 'Add another business' })).toBeVisible()
+  await page.getByRole('textbox', { name: 'Email' }).fill('maria@example.com')
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Add another business' })).toHaveCount(0)
+  await page.getByRole('button', { name: /^Account menu/ }).click()
+  await page.getByRole('menuitem', { name: /aron@example\.com/ }).click()
+  await page.getByRole('button', { name: /^Account menu/ }).click()
+  await expect(page.getByRole('menuitem', { name: /maria@example\.com/ })).toBeVisible()
+})

@@ -11,6 +11,7 @@ import { LanguagePicker, TeamLanguages } from '../components/Language'
 import { PhoneField } from '../components/PhoneField'
 import { MyPets } from '../components/Pets'
 import { TimeZoneField } from '../components/TimeZoneField'
+import { DeviceBusinesses, useSignOutLabel } from '../components/BusinessSwitcher'
 import { t, tc, tn } from '../i18n'
 import { roleNamesOf } from '../../shared/roles'
 import { teamRoleLabel } from '../../shared/teamRoles'
@@ -27,6 +28,7 @@ export function AccountPage() {
   // Typed twice, so a slip of the finger can't lock them out.
   const [again, setAgain] = useState('')
   const [pin, setPin] = useState(false)
+  const signOut = useSignOutLabel()
   if (!me) return null
   // Said while typing the second one only once it can't be the start of the first.
   const mismatch = !!again && !password.startsWith(again)
@@ -36,7 +38,7 @@ export function AccountPage() {
   return (
     <>
       <PageHeader eyebrow={t('You')} title={t('My account')}
-        actions={<Button variant="outlined" onClick={() => api.signOut()}>{t('Sign out')}</Button>} />
+        actions={<Button variant="outlined" onClick={() => api.signOut()}>{signOut}</Button>} />
       <Stack spacing={2.5}>
         <Card component="section" aria-label={t('Personal details')}>
           <CardContent>
@@ -133,6 +135,9 @@ export function AccountPage() {
         </Box>
 
         {isAdmin && !isPartner && <DataRetention />}
+
+        {/* Other businesses on this device: open, add or take one off (also top left, and in the account menu). */}
+        <DeviceBusinesses />
       </Stack>
       {pin && <PinDialog onClose={() => setPin(false)} />}
     </>
