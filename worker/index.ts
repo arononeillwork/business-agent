@@ -53,6 +53,7 @@ import { socialAnalytics } from './socialAnalytics'
 import { EMAIL_ADDRESS, accessOf, emailBlock, teamRoleOf } from '../shared/teamRoles'
 import type { Profile } from '../shared/types'
 import { signInCheck } from './signedIn'
+import { addNationalHolidays } from './holidays'
 
 const NIGHTLY = '15 1 * * *' // 03:15 Madrid in summer, 02:15 in winter
 // Every minute from 02:00 to 03:59 UTC: the night's connection checks, a few a run (checkDue), each
@@ -479,6 +480,8 @@ export default {
           await watchCompetitors(env, b).catch(e => console.error('competitors failed', id, e))
           // Outside services' answers kept over two days (provider_cache).
           await clearOldCache(b).catch(e => console.error('cache clear failed', id, e))
+          // Spain's national holidays for this year and next, for a business that has none of them yet.
+          await addNationalHolidays(b).catch(e => console.error('national holidays failed', id, e))
         })
       })())
       return
