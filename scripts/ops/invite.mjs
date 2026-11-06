@@ -5,6 +5,7 @@
 // [business]: the business to join, by its number or "hq" (Business Agent HQ, the hq_reps migration);
 // the first person in a business with no admin runs it. Without it, the third line of
 // ops/invite.txt is used when the email is the one on its first line.
+import { createHmac } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 const REF = process.env.SUPABASE_PROJECT_REF ?? 'lhakrmmoxaareykglmtx'
 const [email, name, site, given] = process.argv.slice(2)
@@ -43,7 +44,9 @@ const joins = await businessId()
 const res = await fetch(`https://${REF}.supabase.co/auth/v1/invite?redirect_to=${encodeURIComponent(`${site.replace(/\/$/, '')}/account`)}`, {
   method: 'POST',
   headers: { apikey: key, authorization: `Bearer ${key}`, 'content-type': 'application/json' },
-  body: JSON.stringify({ email, data: { full_name: name || email.split('@')[0], ...(joins ? { business_id: joins } : {}) } }),
+  // invite: the Worker's mark (inviteMark in worker/signupCheck.ts), so the sign-up check lets an invite through.
+  body: JSON.stringify({ email, data: { full_name: name || email.split('@')[0], ...(joins ? { business_id: joins } : {}),
+    invite: createHmac('sha256', key).update(`business-agent:invite:${email.trim().toLowerCase()}`).digest('base64url') } }),
 })
 const body = await res.json().catch(() => ({}))
 const already = !res.ok && /already.*(registered|exists)|email_exists/i.test(JSON.stringify(body))

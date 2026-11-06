@@ -135,7 +135,7 @@ const OAUTH: Record<SocialProvider, { label: string; queryParams?: Record<string
   microsoft: { label: 'Microsoft', queryParams: { prompt: 'select_account' }, scopes: 'openid email profile' },
 }
 
-export function createSupabaseApi(url: string, key: string): Api {
+export function createSupabaseApi(url: string, key: string, captchaKey?: string | null): Api {
   const sb: SupabaseClient = createClient(url, key, {
     // PKCE for Google/Microsoft sign-in (a one-time ?code= comes back). Links in Supabase emails
     // (invites, password resets sent by an admin) carry #access_token instead, which the PKCE
@@ -152,8 +152,9 @@ export function createSupabaseApi(url: string, key: string): Api {
     .then((s: { external?: Record<string, boolean>; disable_signup?: boolean }) => ({
       ...Object.fromEntries(SOCIAL_PROVIDERS.map(p => [p, !!s.external?.[SUPABASE_PROVIDER[p]]])) as Record<SocialProvider, boolean>,
       signup: !s.disable_signup,
+      ...(captchaKey ? { captcha: captchaKey } : {}),
     }))
-    .catch(() => { methods = null; return { google: true, apple: false, facebook: false, microsoft: true, signup: true } }) // unknown: let Supabase decide
+    .catch(() => { methods = null; return { google: true, apple: false, facebook: false, microsoft: true, signup: true, ...(captchaKey ? { captcha: captchaKey } : {}) } }) // unknown: let Supabase decide
 
   /** Sign in through Supabase with an outside account. Supabase handles the whole OAuth flow. */
   const oauth = async (provider: SocialProvider) => {
@@ -235,8 +236,10 @@ export function createSupabaseApi(url: string, key: string): Api {
       })
       return () => data.subscription.unsubscribe()
     },
-    async signUp(fullName, email, password) {
-      const { data, error } = await sb.auth.signUp({ email: email.trim(), password, options: { data: { full_name: fullName.trim() }, emailRedirectTo: location.origin } })
+    async signUp(fullName, email, password, captcha) {
+      // The check's answer rides in the metadata for the sign-up check, which drops it once read (the signup_check migration).
+      const { data, error } = await sb.auth.signUp({ email: email.trim(), password,
+        options: { data: { full_name: fullName.trim(), ...(captcha ? { captcha } : {}) }, emailRedirectTo: location.origin } })
       if (error) throw new Error(/already registered/i.test(error.message) ? 'That email already has an account. Sign in instead.' : error.message)
       return { confirmEmail: !data.session }
     },

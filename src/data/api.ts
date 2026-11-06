@@ -78,14 +78,18 @@ export type EventInput = Omit<CalendarEvent, 'id' | 'source' | 'competition'> & 
 /** Outside accounts people can sign in with (Supabase Auth providers; Microsoft is Supabase's "azure"). */
 export type SocialProvider = 'google' | 'apple' | 'facebook' | 'microsoft'
 export const SOCIAL_PROVIDERS: SocialProvider[] = ['google', 'apple', 'facebook', 'microsoft']
-export type SignInMethods = Record<SocialProvider, boolean> & { signup?: boolean }
+export type SignInMethods = Record<SocialProvider, boolean> & {
+  signup?: boolean
+  /** The Cloudflare Turnstile site key when a sign-up with email needs its check (worker/signupCheck.ts). */
+  captcha?: string
+}
 export type { DeviceAccount }
 
 /** The plan in force for the business, its limits and what's used (public.plan_status()). */
 export interface PlanStatus {
   plan: PlanId
-  limits: { people: number | null; social_accounts: number; posts_per_month: number | null; features: string[] }
-  usage: { people: number; social_accounts: number; posts_this_month: number }
+  limits: { people: number | null; social_accounts: number; posts_per_month: number | null; assistant_per_month?: number | null; features: string[] }
+  usage: { people: number; social_accounts: number; posts_this_month: number; assistant_this_month?: number }
 }
 export type BillingInfo = Billing & { ready: boolean }
 
@@ -164,8 +168,11 @@ export interface Api {
   authError?(): string | null
   /** Which outside sign-in methods are switched on (so a button never leads to an error page). */
   signInMethods(): Promise<SignInMethods>
-  /** Register a new account. `confirmEmail`: they must click the link in their email before signing in. */
-  signUp(fullName: string, email: string, password: string): Promise<{ confirmEmail: boolean }>
+  /**
+   * Register a new account. `confirmEmail`: they must click the link in their email before signing in.
+   * `captcha`: the check's answer, when signInMethods() asks for one.
+   */
+  signUp(fullName: string, email: string, password: string, captcha?: string): Promise<{ confirmEmail: boolean }>
   /**
    * Signed in and in no business yet: create mine and run it (admin, first owner, Free plan). `kind`
    * picks its first positions; `referral` is another business's referral code. Returns its number.

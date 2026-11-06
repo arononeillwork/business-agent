@@ -3,7 +3,7 @@
 // checked, and without an API key the assistant says it isn't set up.
 import { describe, expect, it, vi } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { answer, assistant, readHistory, type Claude } from './assistant'
+import { answer, assistant, countQuestion, outOfQuestions, readHistory, type Claude } from './assistant'
 import { TOOLS, toolsFor } from './tools'
 import type { Env } from './supabase'
 import type { Profile } from '../shared/types'
@@ -75,5 +75,18 @@ describe('the assistant', () => {
     expect(res.status).toBe(503)
     const unsigned = await assistant.request('/api/assistant', { method: 'POST', body: '{}' }, { ...env, ANTHROPIC_API_KEY: 'sk-test' })
     expect(unsigned.status).toBe(401)
+  })
+
+  it('counts each question against the plan’s month, gives it back if unanswered, and goes ahead if the count can’t be read', async () => {
+    const rpc = vi.fn(async (_fn: string, _args: object) => ({ data: { allowed: true, used: 3, limit: 50 }, error: null }))
+    expect(await countQuestion({ rpc } as never)).toEqual({ allowed: true, used: 3, limit: 50 })
+    expect(rpc).toHaveBeenLastCalledWith('assistant_question', { p_change: 1 })
+    await countQuestion({ rpc } as never, -1)
+    expect(rpc).toHaveBeenLastCalledWith('assistant_question', { p_change: -1 })
+    const broken = vi.fn(async () => ({ data: null, error: { message: 'no such function' } }))
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect(await countQuestion({ rpc: broken } as never)).toEqual({ allowed: true, used: 0, limit: null })
+    warn.mockRestore()
+    expect(outOfQuestions({ allowed: false, used: 50, limit: 50 })).toMatch(/all 50 of this month’s questions.*Billing page/)
   })
 })

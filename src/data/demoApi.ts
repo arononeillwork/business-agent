@@ -2816,11 +2816,12 @@ export function createDemoApi(): Api {
       const month = new Date().toISOString().slice(0, 7)
       return {
         plan: p.id,
-        limits: { people: p.limits.people, social_accounts: p.limits.socialAccounts, posts_per_month: p.limits.postsPerMonth, features: p.features },
+        limits: { people: p.limits.people, social_accounts: p.limits.socialAccounts, posts_per_month: p.limits.postsPerMonth, assistant_per_month: p.limits.assistantPerMonth, features: p.features },
         usage: {
           people: profiles.filter(x => x.active && (x.role === 'admin' || x.role === 'employee')).length,
           social_accounts: integ.integrations.filter(i => SOCIAL_CONNECTIONS.includes(i.provider) && i.status === 'connected').length,
           posts_this_month: posts.filter(x => x.status !== 'draft' && x.scheduled_at?.startsWith(month)).length,
+          assistant_this_month: 0,
         },
       }
     },

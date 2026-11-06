@@ -2070,6 +2070,7 @@ test('pricing: four plans, a simple feature table, Enterprise at the foot, and "
   const table = page.getByRole('table', { name: 'Plan comparison' })
   await expect(table.getByRole('row', { name: /Custom MCP connection/ }).getByLabel('Included')).toHaveCount(4)
   await expect(table.getByRole('row', { name: /Scheduled posts per month/ }).getByRole('cell')).toHaveText(['Scheduled posts per month', '1', '12', '60', 'Unlimited'])
+  await expect(table.getByRole('row', { name: /in-app assistant/ }).getByRole('cell')).toHaveText(['Questions to the in-app assistant each month', '10', '50', '200', '500'])
   // Pay per use: its own section of the table, on each paid plan's card, and spelled out under the cards.
   // It's only AI music so far: none of it while Music is switched off.
   if (FEATURES.music) {
