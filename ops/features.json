@@ -509,7 +509,6 @@
       "does": "Shares out tips by hours worked",
       "switch": "tips",
       "needs": [
-        { "label": "Database change", "manual": true, "done": false },
         { "label": "Till or Stripe", "anyOf": ["square", "sumup", "stripe"], "optional": true }
       ]
     },

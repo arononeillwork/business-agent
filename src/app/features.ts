@@ -6,8 +6,8 @@ export const FEATURES = {
   kiosk: false,
   /** Square as a payment system (next to Stripe): takings on Finances, next to the team's cost. */
   square: true,
-  /** Tips (Team): shares of the tips by hours worked. Waits for its database change, held in supabase/pending until then (see the README there). */
-  tips: false,
+  /** Tips (Team): shares of the tips by hours worked. */
+  tips: true,
   /** Music on stories and reels (Social planner), AI tracks paid per use, the brand's sound and the assistant's music tools. Waits for the ElevenLabs key and the render service (docs/SOCIAL_MUSIC_PLAN.md). */
   music: false,
   /** The demo video on the landing page (video/). */
