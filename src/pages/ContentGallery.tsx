@@ -24,6 +24,7 @@ import DateIcon from '@mui/icons-material/EventOutlined'
 import PhotoIcon from '@mui/icons-material/PhotoOutlined'
 import VideoIcon from '@mui/icons-material/VideocamOutlined'
 import UploadIcon from '@mui/icons-material/FileUploadOutlined'
+import FolderIcon from '@mui/icons-material/FolderOutlined'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { siGooglephotos } from 'simple-icons'
 import { Brand } from '../components/Connectors'
@@ -313,8 +314,9 @@ function InfoPanel({ item, phone, onEdit }: { item: ContentItem; phone: boolean;
         <Detail icon={<DateIcon />} primary={formatLocal(when, 'EEE, d MMM yyyy')} secondary={formatLocal(when, 'HH:mm')} />
         <Detail icon={item.kind === 'video' ? <VideoIcon /> : <PhotoIcon />} primary={t(item.kind === 'video' ? 'Video' : 'Photo')}
           secondary={item.width && item.height ? `${item.width} × ${item.height}` : null} />
-        <Detail icon={item.source === 'google_photos' ? <Box sx={{ display: 'grid', '& svg': { width: 22, height: 22 } }}><Brand icon={siGooglephotos} /></Box> : <UploadIcon />}
-          primary={item.source === 'google_photos' ? t('Google Photos') : t('Uploaded')}
+        <Detail icon={item.source === 'google_photos' ? <Box sx={{ display: 'grid', '& svg': { width: 22, height: 22 } }}><Brand icon={siGooglephotos} /></Box>
+          : item.source === 'folder' ? <FolderIcon /> : <UploadIcon />}
+          primary={item.source === 'google_photos' ? t('Google Photos') : item.source === 'folder' ? t('Synced folder') : t('Uploaded')}
           secondary={t('Added on {date}', { date: formatLocal(item.created_at, 'd MMM yyyy') })} />
       </Stack>
     </Box>

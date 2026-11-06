@@ -10540,6 +10540,57 @@ test.describe('content', () => {
     await expect(row.getByRole('button', { name: /^Doggos/ })).toHaveCount(0)
     await expect(row.getByRole('button', { name: /^Reviews ⭐/ })).toBeVisible()
   })
+
+  test('content: a OneDrive folder shown from where it is, and kept in step with it', async ({ page }) => {
+    await open(page, '/connections')
+    const files = page.getByRole('region', { name: 'Files and storage' })
+    await files.getByRole('button', { name: 'Connect OneDrive' }).click()
+    await expect(files.getByRole('article', { name: 'OneDrive' })).toContainText('Connected')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('region', { name: 'Marketing' }).getByRole('link', { name: 'Content' }).click()
+    const list = page.getByRole('list', { name: 'Photos and videos' })
+    const names = () => list.getByRole('listitem').evaluateAll(els => els.map(e => e.getAttribute('aria-label')).sort())
+
+    // Looked through folder by folder; Google Drive's wait for Google's approval.
+    await page.getByRole('button', { name: 'Show a folder' }).click()
+    const chooser = page.getByRole('dialog', { name: 'Show a folder' })
+    await chooser.getByRole('button', { name: 'Google Drive' }).click()
+    await expect(chooser).toContainText('Google Drive folders need Google to approve')
+    await chooser.getByRole('button', { name: 'OneDrive' }).click()
+    const folders = chooser.getByRole('list', { name: 'Folders' })
+    await expect(folders.getByRole('button')).toHaveText(['Pictures', 'Documents'])
+    await folders.getByRole('button', { name: 'Pictures' }).click()
+    await folders.getByRole('button', { name: 'Camera Roll' }).click()
+    await chooser.getByRole('button', { name: 'Show Camera Roll' }).click()
+    await toast(page, '4 photos and videos in Camera Roll · 4 new · 1 file can’t be shown here (an iPhone’s HEIC photos, other files)')
+    await expect(page.getByRole('region', { name: 'Synced folders' }).getByRole('group', { name: 'Camera Roll' })).toContainText('OneDrive · Pictures › Camera Roll')
+
+    // Its photos and video show with the rest; Where from: Synced folders shows just those.
+    await page.getByRole('group', { name: 'Where from' }).getByRole('button', { name: 'Synced folders' }).click()
+    await expect.poll(names).toEqual(['Banana bread', 'IMG_0412', 'Morning rush', 'Opening day'])
+    await list.getByRole('button', { name: 'Open Banana bread' }).click()
+    const viewer = page.getByRole('dialog', { name: 'Banana bread' })
+    await viewer.getByRole('button', { name: 'Info' }).click()
+    await expect(viewer.getByRole('complementary', { name: 'Info' })).toContainText('Synced folder')
+
+    // Taken off the page: it stays in the folder, and looking at the folder again doesn't bring it back.
+    await viewer.getByRole('button', { name: 'Take off the page' }).click()
+    await page.getByRole('dialog', { name: 'Take Banana bread off the page?' }).getByRole('button', { name: 'Take off' }).click()
+    await page.getByRole('dialog', { name: 'IMG_0412' }).or(page.getByRole('dialog', { name: 'Morning rush' })).or(page.getByRole('dialog', { name: 'Opening day' }))
+      .getByRole('button', { name: 'Close' }).click()
+    await expect.poll(names).toEqual(['IMG_0412', 'Morning rush', 'Opening day'])
+    await page.getByRole('button', { name: 'Sync Camera Roll now' }).click()
+    await toast(page, '4 photos and videos in Camera Roll · 1 file can’t be shown here (an iPhone’s HEIC photos, other files)')
+    await expect.poll(names).toEqual(['IMG_0412', 'Morning rush', 'Opening day'])
+
+    // No longer shown: its photos and videos come off the page; nothing in the folder changes.
+    await page.getByRole('button', { name: 'Remove Camera Roll' }).click()
+    const stop = page.getByRole('dialog', { name: 'Stop showing Camera Roll?' })
+    await expect(stop).toContainText('Nothing in the folder changes.')
+    await stop.getByRole('button', { name: 'Stop showing it' }).click()
+    await expect(page.getByRole('region', { name: 'Synced folders' })).toHaveCount(0)
+    await page.getByRole('group', { name: 'Where from' }).getByRole('button', { name: 'Anywhere' }).click()
+    await expect.poll(names).toEqual(['A day at Easy Beans', 'Ethiopia Guji beans', 'Iced oat latte'])
+  })
 })
 
 test.describe('square pins', () => {

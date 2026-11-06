@@ -264,6 +264,15 @@ built-in **AI connector** so owners can run it by talking to Claude.
   circle); the circle shows how many are still to add, and opening it lists its stories with **Open in
   Instagram** and **Mark added** (`src/pages/ContentHighlights.tsx`, `shared/highlights.ts`, the
   `instagram_highlights` migration).
+- Content shows a OneDrive folder's photos and videos straight from it (**Show a folder**: look through the
+  OneDrive folder by folder and choose one; three folders deep, up to 5,000). Nothing is copied: each is
+  listed with an address the Worker serves from the folder itself, and the folder is looked at again when the
+  page opens (every five minutes at most) and on **Sync now**, so new ones show by themselves and ones taken
+  out of the folder go. With OneDrive's camera upload on a phone, that's every photo taken. One taken off the
+  page is hidden, not deleted; **Remove** stops showing the folder. Google Drive folders work the same way
+  once Google approves The Business Agent reading a Drive (a restricted permission): switch on
+  `FEATURES.driveFolders`, and connecting Drive from there asks for read-only Drive (`worker/contentFolders.ts`,
+  `src/pages/ContentFolders.tsx`, `shared/contentFolders.ts`, the `content_folders` migration).
 - Outsourcing (Team section, admins; a gestoría with finances access reads): the jobs done for the business by
   people and firms outside the team (social media, the books, cleaning, the windows, the coffee machine's
   service, pest control…). **Active** shows who does each job, the price agreed and how it's charged (a month,

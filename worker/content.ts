@@ -13,6 +13,7 @@ import { bearer, businessDb, userClient, type Env } from './supabase'
 import { connectorGrant, explain, lasting, markBroken, setIntegration } from './connections'
 import * as photos from './providers/googlePhotos'
 import { MediaError, checkFile, mediaStorage, storeMedia } from './media'
+import { folderRoutes } from './contentFolders'
 import { CONTENT_COLUMNS, CONTENT_FOLDER, IMPORT_BATCH, MAX_PICK, autoclose, titleFromFilename, type ContentItem, type SkipReason } from '../shared/content'
 
 type Vars = { userId: string; businessId: number }
@@ -191,3 +192,6 @@ content.delete('/api/content/google-photos/sessions/:id', async c => {
     return c.json(fail(e), statusOf(e))
   }
 })
+
+// Synced folders: a OneDrive or Drive folder's photos and videos, shown from where they are (worker/contentFolders.ts).
+folderRoutes(content)

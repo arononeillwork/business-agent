@@ -2721,7 +2721,8 @@ export function createDemoApi(): Api {
       me: () => me()?.id ?? null, team: () => profiles, nowIso }, P),
     // Content (Marketing): a few of Easy Beans' photos and a video; a Google Photos pick brings in more.
     ...demoContentApi({ isAdmin: () => isAdmin() && !!me()?.active, uid, nowIso, storage: () => mediaStorage(),
-      photosConnected: () => integ.integrations.some(i => i.provider === 'google_photos' && i.status === 'connected') }),
+      photosConnected: () => integ.integrations.some(i => i.provider === 'google_photos' && i.status === 'connected'),
+      connected: p => integ.integrations.some(i => i.provider === p && i.status === 'connected') }),
     ...highlights.api,
     // QR codes: Easy Beans' three, as the `qr_codes` migration, with the demo's Wi-Fi filled in.
     ...demoQrCodeApi({ isStaff: () => isStaff() && !!me()?.active, isAdmin: () => isAdmin() && !!me()?.active, uid, nowIso }),

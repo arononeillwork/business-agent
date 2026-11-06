@@ -36,6 +36,7 @@ import type { PostIdea, PostIdeaInput } from '../../shared/postIdeas'
 import type { ListRow, NewsletterEvent, NewsletterSettings } from '../../shared/newsletter'
 import type { Contact, ContactInput } from '../../shared/contacts'
 import type { ContentChange, ContentItem, GooglePhotosImport, GooglePhotosPick } from '../../shared/content'
+import type { ContentFolder, FolderListing, FolderProvider, FolderSync } from '../../shared/contentFolders'
 import type { InstagramHighlight } from '../../shared/highlights'
 import type { Contractor, ContractorInput, OutsourcedJob, OutsourcedJobInput } from '../../shared/outsourcing'
 import type { EmploymentContract, EmploymentContractInput } from '../../shared/contracts'
@@ -366,6 +367,17 @@ export interface Api {
   importGooglePhotos(id: string, skip: string[]): Promise<GooglePhotosImport>
   /** Give up on a pick (the window was closed without picking). */
   cancelGooglePhotosPick(id: string): Promise<void>
+  // Synced folders (Content, admins; shared/contentFolders.ts): a OneDrive or Drive folder shown from where it is.
+  /** The folders shown, oldest first. */
+  contentFolders(): Promise<ContentFolder[]>
+  /** Look through the OneDrive or Drive: a folder (null: the top) and the folders in it. */
+  browseContentFolders(provider: FolderProvider, parent: string | null): Promise<FolderListing>
+  /** Show a folder on the page, and look at it straight away. */
+  addContentFolder(f: { provider: FolderProvider; folder_id: string; name: string; path: string | null }): Promise<{ folder: ContentFolder; sync: FolderSync }>
+  /** Look at a folder again: what's new comes in, what's gone goes. */
+  syncContentFolder(id: string): Promise<FolderSync>
+  /** The folder off the page, with its photos and videos (nothing in the OneDrive or Drive changes). */
+  removeContentFolder(id: string): Promise<void>
   // Instagram highlights (Content, admins; shared/highlights.ts): the circles under the Instagram profile, kept
   // here since Instagram lets no app read or change them.
   /** Every highlight, oldest first, each with its stories. */
@@ -995,7 +1007,8 @@ export interface Api {
   googleHours(): Promise<OpeningHours>
   disconnect(provider: string): Promise<void>
   /** Start connecting Gmail, Outlook, Google Drive, OneDrive, YouTube Music or Search Console (goes to Google/Microsoft and back). */
-  connectService(provider: ConnectorProvider, back?: 'setup' | 'connections' | 'invoices' | 'email' | 'content', opts?: { read?: boolean }): Promise<void>
+  /** `read`: a mailbox may be read too (Invoices). `folders`: Google Drive's folders may be read too (Content's synced folders). */
+  connectService(provider: ConnectorProvider, back?: 'setup' | 'connections' | 'invoices' | 'email' | 'content', opts?: { read?: boolean; folders?: boolean }): Promise<void>
   /** Prove a connection still works, now (the result is also on its card). */
   checkConnection(provider: IntegrationProvider): Promise<Integration | null>
   /** Check every connection that is (or was) working. */

@@ -77,6 +77,15 @@ async function sign(env: Env, what: string) {
 
 export interface StoredMedia { url: string; type: 'image' | 'video' | 'audio'; storage: MediaStorage }
 
+/**
+ * The public address of a file in a business's Drive or OneDrive, signed for that file only: one the app
+ * stored, or one in a folder the Content page shows from where it is (worker/contentFolders.ts).
+ */
+export async function mediaAddress(env: Env, origin: string, storage: 'google_drive' | 'onedrive', business: number, id: string, ext: string) {
+  const p = storage === 'google_drive' ? 'g' : 'o'
+  return `${origin}/media/${p}/${business}/${encodeURIComponent(id)}/${await sign(env, `${p}:${business}:${id}`)}.${ext}`
+}
+
 /** Store a photo, video or track in the folder for its kind; returns the public address. */
 export async function storeMedia(env: Env, db: SupabaseClient, origin: string,
   f: { type: string; size: number; body: ReadableStream | ArrayBuffer; folder: string }): Promise<StoredMedia> {
@@ -101,8 +110,7 @@ export async function storeMedia(env: Env, db: SupabaseClient, origin: string,
     const id = storage === 'google_drive'
       ? await google.uploadToDrive(token, await google.folderPath(token, path), name, f.type, f.size, f.body)
       : await ms.uploadToOneDrive(token, path, name, f.size, f.body)
-    const p = storage === 'google_drive' ? 'g' : 'o'
-    return { url: `${origin}/media/${p}/${business}/${encodeURIComponent(id)}/${await sign(env, `${p}:${business}:${id}`)}.${t.ext}`, type: t.type, storage }
+    return { url: await mediaAddress(env, origin, storage, business, id, t.ext), type: t.type, storage }
   } catch (e) {
     if (lasting(storage, e)) await markBroken(db, storage, explain(storage, e))
     throw new Error(explain(storage, e))
