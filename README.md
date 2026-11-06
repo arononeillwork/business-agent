@@ -148,6 +148,21 @@ built-in **AI connector** so owners can run it by talking to Claude.
   only their own. The PINs are read when the dialog opens and gone when it closes. Kept encrypted with the Worker's integration key in a table nobody
   signed in can read (the `square_pins` migration, `worker/squarePins.ts`); each look, change and removal is in the
   audit log, without the PIN.
+- Menu prices both ways with Square (Menu page, while the menu comes from Square): change an item's price here, on
+  Menu costing or by asking your AI, and it's changed in the Square item library too (its Hot and Iced, Sit In and
+  Takeaway variations with it, each keeping its difference), so the till, online orders, the website, the screens
+  and Google Maps charge the same. A change made in Square comes the other way straight away by Square's catalog
+  webhook (`catalog.version.updated`), with the regular read as a safety net. The change waits in a queue the
+  Worker sends within a minute (straight away from the Menu page); one Square refuses (a connection made before
+  `ITEMS_WRITE` was asked for, extras that are priced in Square) shows on the Menu page with why, and Square's price
+  comes back. A price waiting to go isn't undone by a read from Square meanwhile (the `square_price_write_back`
+  migration, `pushSquarePrices()` in `worker/menu.ts`, `squarePriceChanges()` in `shared/menuSquare.ts`).
+- Refresh rates (Connections → How often things update): admins choose how often each outside service is read
+  (takings, loyalty, Square customers and menu, Google Maps hours, Instagram mentions, Search Console, ads, email,
+  social statistics); the pages' "Updated 5 min ago · every …" follow it. Free keeps the usual times or slower,
+  Starter goes a step faster, Pro two, and Business picks the fastest or types its own number of minutes, each within
+  what the service allows. The Worker keeps to the plan in force, so a business back on Free goes back to the usual
+  times by itself (`settings.refresh_minutes`, the `refresh_rates` migration, `shared/refresh.ts`, `worker/refresh.ts`).
 - People (Team section): the team as a hierarchy, the owners at the top, then the shop managers, then the
   employees, each with the roles they hold on Roles & responsibilities (admins open someone on the Team
   page from there). **Show pets** puts everyone's dogs (and cats) under them with their photos. Each person

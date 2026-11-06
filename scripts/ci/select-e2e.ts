@@ -118,6 +118,8 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'calendar filters', files: [/i18n\/es\/calendarMore/], tests: String.raw`routine|theme|calendar` },
   { name: 'reports', files: [/ReportsTab/, /shared\/reports/, /i18n\/es\/reports/], tests: String.raw`reports|dashboards` },
   { name: 'scheduled reports', files: [/ReportSchedules/, /shared\/reportSections/], tests: String.raw`reports|dashboards` },
+  { name: 'refresh rates', files: [/components\/Freshness/, /shared\/refresh\.ts$/, /i18n\/es\/(refresh|refreshRates)\.ts$/], tests: String.raw`how often|Sales page|Square` },
+  { name: 'square prices', files: [/shared\/menuSquare/, /i18n\/es\/squarePrices/], tests: String.raw`menu|Square` },
 ]
 
 /** The --grep pattern for these changed files, or 'all'. */

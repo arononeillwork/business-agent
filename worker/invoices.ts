@@ -12,7 +12,7 @@ import * as ms from './providers/microsoft'
 import { keepTaxFile, TaxError } from './tax'
 import { autoFolder, guessPeriod, safeFileName, taxFileType, MAX_TAX_FILE_BYTES, quarterOf } from '../shared/tax'
 import { dueFrom, emailId, matchSupplier, numberFromName, readFacturae, supplierMailQuery, type InboxInvoice, type InboxState } from '../shared/invoices'
-import { MINUTES } from '../shared/refresh'
+import { minutesFor } from './refresh'
 
 export const invoices = new Hono<{ Bindings: Env; Variables: { token: string } }>()
 
@@ -63,7 +63,7 @@ invoices.get('/api/invoices/inbox', async c => {
     const one = only ? (suppliers ?? []).find(s => (s as { id: string }).id === only) as { id: string; name: string; email: string | null; invoice_from: string[] | null } | undefined : undefined
     if (only && !one) return c.json({ error: 'That supplier isn’t on file' }, 404)
     const also = one ? supplierMailQuery(one) : ''
-    const { data: found, fetched_at } = await cached(db, `mail:${box.provider}:${days}${also ? `:${also}` : ''}`, MINUTES.mailInvoices, async () => {
+    const { data: found, fetched_at } = await cached(db, `mail:${box.provider}:${days}${also ? `:${also}` : ''}`, minutesFor(db, 'mail'), async () => {
       const { token } = await connectorGrant(c.env, db, box.provider)
       return box.provider === 'gmail' ? await google.gmailWithAttachments(token, days, 40, also) : await ms.outlookWithAttachments(token, days)
     })

@@ -43,7 +43,7 @@ import type { GrantApplication, GrantApplicationInput, GrantProfile } from '../.
 import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
 import type { MovementInput, StockItem, StockItemInput, StockMovement, Supplier, SupplierInput, StockPrice, WasteEdit } from '../../shared/stock'
 import type { Recipe, RecipeInput } from '../../shared/recipes'
-import type { MenuDesign, MenuDesignInput, MenuImage, MenuImageRequest, MenuItem, MenuItemInput } from '../../shared/menu'
+import type { MenuDesign, MenuDesignInput, MenuImage, MenuImageRequest, MenuItem, MenuItemInput, PricePush, SquarePriceNote } from '../../shared/menu'
 import type { DisplayFeed, Screen, ScreenInput } from '../../shared/screens'
 import type { Offer, OfferInput } from '../../shared/offers'
 import type { SourcePost } from '../../shared/offerFromPost'
@@ -719,6 +719,12 @@ export interface Api {
   loadMenuTemplate(): Promise<{ added: number; designs: number }>
   /** Read the Square item library into the menu now (when the menu comes from Square). */
   syncMenuFromSquare(): Promise<{ added: number; changed: number; off: number; items: number }>
+  /** Prices changed here on their way to Square, and the ones Square refused (admins; while the menu comes from Square). */
+  squarePrices(): Promise<SquarePriceNote[]>
+  /** Send the prices changed here to Square now (they also go by themselves within a minute). */
+  sendPricesToSquare(): Promise<PricePush>
+  /** Put away a refusal from Square once it's been read. */
+  clearSquarePrice(recipeId: string): Promise<void>
   /** Send the menu to the Google Maps listing now (it also goes by itself within a minute of a change); how many items went. */
   sendMenuToGoogle(): Promise<{ status: 'sent' | 'same' | 'empty' | 'paused' | 'not_connected'; items: number }>
   /** Keep a picture for the menu (a photo, a design) in the café's storage, Business Agent/Menu; returns its address. */

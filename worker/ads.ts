@@ -9,7 +9,7 @@ import { cached, forget, oldest } from './cache'
 import * as googleAds from './providers/googleAds'
 import * as metaAds from './providers/metaAds'
 import { AD_PLATFORMS, PLATFORM_NAMES, sumDays, type AdPlatform, type CampaignPatch, type PlatformReport } from '../shared/ads'
-import { MINUTES } from '../shared/refresh'
+import { minutesFor } from './refresh'
 
 export const ads = new Hono<{ Bindings: Env; Variables: { userId: string } }>()
 
@@ -60,7 +60,7 @@ ads.get('/api/ads/report', async c => {
   const on = AD_PLATFORMS.filter(p => rows?.some(r => r.provider === p && (r.status === 'connected' || r.status === 'error')))
   if (!on.length) return c.json({ error: 'Connect Meta Ads or Google Ads on the Connections page to see your ads' }, 400)
   const origin = new URL(c.req.url).origin
-  const read = await Promise.all(on.map(p => cached(db, `ads:${p}:${from}:${to}`, MINUTES.ads, async () => {
+  const read = await Promise.all(on.map(p => cached(db, `ads:${p}:${from}:${to}`, minutesFor(db, 'ads'), async () => {
     const report = await platformReport(c.env, db, p, from, to, origin)
     await setIntegration(db, p, { last_sync_at: new Date().toISOString() })
     return report

@@ -7,13 +7,14 @@
 // permissions and ITEMS_READ (the item library, for the Menu page) came later: a connection made
 // before them still works, without those parts. So did EMPLOYEES_READ and EMPLOYEES_WRITE: the team
 // members (each person's own Square login, linked on the Team page) and who took each payment
-// (the Leaderboard's sales).
-import type { SquareObject } from '../../shared/menuSquare'
+// (the Leaderboard's sales). And ITEMS_WRITE: a menu price changed in the app is changed in the item
+// library too (only the prices of the items' variations; nothing is added or deleted there).
+import type { SquareObject, SquareVariation } from '../../shared/menuSquare'
 import type { PayMethod, SalesDay, SalesItem } from '../../shared/types'
 import { hmacBase64, safeEqual } from '../crypto'
 
 export const SQUARE_SCOPES = ['MERCHANT_PROFILE_READ', 'PAYMENTS_READ', 'ORDERS_READ', 'CUSTOMERS_READ',
-  'LOYALTY_READ', 'LOYALTY_WRITE', 'GIFTCARDS_READ', 'GIFTCARDS_WRITE', 'ITEMS_READ', 'EMPLOYEES_READ', 'EMPLOYEES_WRITE']
+  'LOYALTY_READ', 'LOYALTY_WRITE', 'GIFTCARDS_READ', 'GIFTCARDS_WRITE', 'ITEMS_READ', 'EMPLOYEES_READ', 'EMPLOYEES_WRITE', 'ITEMS_WRITE']
 const VERSION = '2025-01-23'
 
 export interface SquareOAuthConfig { appId: string; appSecret: string; redirectUri: string; sandbox: boolean }
@@ -42,8 +43,8 @@ async function token(cfg: SquareOAuthConfig, body: Record<string, string>) {
 export const exchangeCode = (cfg: SquareOAuthConfig, code: string) => token(cfg, { code, grant_type: 'authorization_code', redirect_uri: cfg.redirectUri })
 export const refreshAccess = (cfg: SquareOAuthConfig, refreshToken: string) => token(cfg, { grant_type: 'refresh_token', refresh_token: refreshToken })
 
-/** A Square API error; `code` is Square's (e.g. INSUFFICIENT_SCOPES). */
-export class SquareError extends Error { constructor(message: string, readonly code?: string) { super(message) } }
+/** A Square API error; `code` is Square's (e.g. INSUFFICIENT_SCOPES), `status` the HTTP status. */
+export class SquareError extends Error { constructor(message: string, readonly code?: string, readonly status?: number) { super(message) } }
 
 async function api<T>(sandbox: boolean, accessToken: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${base(sandbox)}${path}`, {
@@ -54,7 +55,7 @@ async function api<T>(sandbox: boolean, accessToken: string, path: string, body?
   const json = await res.json().catch(() => ({})) as T & { errors?: { code?: string; detail?: string }[] }
   if (!res.ok) {
     const e = json.errors?.[0]
-    throw new SquareError(/ACCESS_TOKEN_(REVOKED|EXPIRED)|UNAUTHORIZED/.test(e?.code ?? '') ? `invalid_grant: ${e?.detail ?? e?.code}` : `Square: ${e?.detail ?? e?.code ?? res.status}`, e?.code)
+    throw new SquareError(/ACCESS_TOKEN_(REVOKED|EXPIRED)|UNAUTHORIZED/.test(e?.code ?? '') ? `invalid_grant: ${e?.detail ?? e?.code}` : `Square: ${e?.detail ?? e?.code ?? res.status}`, e?.code, res.status)
   }
   return json
 }
@@ -168,6 +169,25 @@ export async function catalog(sandbox: boolean, accessToken: string): Promise<Sq
   return objects
 }
 
+/** Items (or modifier lists) by their ids, each with its variations as Square has them now (versions included). */
+export async function catalogObjects(sandbox: boolean, accessToken: string, ids: string[]): Promise<SquareObject[]> {
+  if (!ids.length) return []
+  const r = await api<{ objects?: SquareObject[] }>(sandbox, accessToken, '/v2/catalog/batch-retrieve', { object_ids: ids, include_related_objects: false })
+  return r.objects ?? []
+}
+
+/**
+ * Item variations with their new prices, in one go (all or none). Each is sent as Square gave it, with
+ * its version, so a change made in Square meanwhile is refused (VERSION_MISMATCH) rather than overwritten.
+ * Needs ITEMS_WRITE: without it Square answers INSUFFICIENT_SCOPES. The idempotency key makes a retry
+ * of the same change harmless.
+ */
+export async function upsertVariations(sandbox: boolean, accessToken: string, idempotencyKey: string, variations: SquareVariation[]) {
+  await api<{ objects?: unknown[] }>(sandbox, accessToken, '/v2/catalog/batch-upsert', {
+    idempotency_key: idempotencyKey, batches: [{ objects: variations.map(v => ({ ...v, type: 'ITEM_VARIATION' })) }],
+  })
+}
+
 /** A customer in the seller's Square directory (what we read of it). */
 export interface SquareCustomer {
   id: string
@@ -213,6 +233,8 @@ export async function verifyWebhook(signatureKey: string, notificationUrl: strin
 
 /** What a customer.created / customer.updated webhook carries (the customer as it is now). */
 export interface SquareCustomerEvent { merchant_id?: string; type?: string; data?: { id?: string; object?: { customer?: SquareCustomer } } }
+/** catalog.version.updated: something in the seller's item library changed (it doesn't say what). */
+export const CATALOG_UPDATED = 'catalog.version.updated'
 
 /** A team member as Square gives one (what we read of it). */
 export interface SquareTeamMember {

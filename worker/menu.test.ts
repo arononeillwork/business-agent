@@ -7,7 +7,7 @@
 //   - a screen's link loads only its own slides, and never with a wrong link
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { seal, unseal } from './crypto'
-import { checkWaitingImages, menu, syncSquareMenuIfChosen } from './menu'
+import { RECONNECT_FOR_PRICES, checkWaitingImages, menu, pushSquarePrices, syncSquareMenuIfChosen } from './menu'
 import { screens } from './screens'
 import { businessDb, type Env } from './supabase'
 import { FakeSupabase, type Row } from './test/fakeSupabase'
@@ -24,8 +24,12 @@ let sent: { method: string; url: URL; headers: Headers; body: Record<string, unk
 /** Higgsfield's answers: the status of each request, and whether it takes the key. */
 let hf: { keyOk: boolean; status: Record<string, Row>; submit: (url: URL) => Response | null }
 let waits: Promise<unknown>[]
-/** Square's item library: its pages, whether the token may read it, and how often it was asked. */
-let sq: { pages: Row[][]; scopes: boolean; asked: number }
+/**
+ * Square's item library: its pages, whether the token may read it, and how often it was asked; whether it
+ * may change items (ITEMS_WRITE), the changes sent (each batch-upsert's body), and answers to give them
+ * instead (a version mismatch, Square being down).
+ */
+let sq: { pages: Row[][]; scopes: boolean; asked: number; writeScope: boolean; upserts: Row[]; refuse: Response[] }
 const ctx = () => ({ waitUntil(p: Promise<unknown>) { waits.push(p) }, passThroughOnException() {}, props: {} }) as unknown as ExecutionContext
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
@@ -46,7 +50,7 @@ beforeEach(() => {
     },
   } as unknown as Env
   hf = { keyOk: true, status: {}, submit: () => null }
-  sq = { pages: [], scopes: true, asked: 0 }
+  sq = { pages: [], scopes: true, asked: 0, writeScope: true, upserts: [], refuse: [] }
   db.tables.brand = [{ id: 1, colours: [{ name: 'Rose', hex: '#F79BA4', role: 'primary' }] }]
   db.tables.menu_designs = [{ id: 'd1', name: 'Counter menu', format: 'physical', size: 'a4_portrait', mode: 'background', categories: [], title: null, subtitle: null,
     footer: 'Prices include IVA', image_id: null }]
@@ -66,6 +70,18 @@ beforeEach(() => {
       expect(url.searchParams.get('types')).toBe('ITEM,CATEGORY,MODIFIER_LIST,IMAGE')
       const page = Number(url.searchParams.get('cursor') ?? 0)
       return json({ objects: sq.pages[page], ...(page + 1 < sq.pages.length ? { cursor: String(page + 1) } : {}) })
+    }
+    if (url.origin === 'https://connect.squareup.com' && url.pathname === '/v2/catalog/batch-retrieve') {
+      const { object_ids } = JSON.parse(String(init.body)) as { object_ids: string[] }
+      return json({ objects: sq.pages.flat().filter(o => object_ids.includes(o.id as string)) })
+    }
+    if (url.origin === 'https://connect.squareup.com' && url.pathname === '/v2/catalog/batch-upsert') {
+      if (!sq.writeScope) return json({ errors: [{ code: 'INSUFFICIENT_SCOPES', detail: 'The merchant has not granted ITEMS_WRITE' }] }, 403)
+      const refused = sq.refuse.shift()
+      if (refused) return refused
+      const body = JSON.parse(String(init.body)) as Row & { batches: { objects: Row[] }[] }
+      sq.upserts.push(body)
+      return json({ objects: body.batches[0].objects })
     }
     if (url.origin !== HF) throw new Error(`Unexpected request: ${init.method ?? 'GET'} ${url}`)
     const headers = new Headers(init.headers)
@@ -335,5 +351,106 @@ describe('The menu from Square', () => {
     await syncSquareMenuIfChosen(env, businessDb(env, 1))
     expect(sq.asked).toBe(2)
     expect(sent).not.toBeNull()
+  })
+})
+
+describe('Menu prices back to Square', () => {
+  beforeEach(async () => {
+    env = { ...env, SQUARE_APP_ID: 'sq-app', SQUARE_APP_SECRET: 'sq-secret' } as Env
+    db.tables.settings = [{ id: 1, menu_source: 'square' }]
+    const v = (id: string, name: string, cents: number, ordinal: number) =>
+      ({ id, type: 'ITEM_VARIATION', version: 11, item_variation_data: { item_id: 'i-fw', name, ordinal, pricing_type: 'FIXED_PRICING', price_money: { amount: cents, currency: 'EUR' } } })
+    sq.pages = [[
+      { type: 'ITEM', id: 'i-fw', version: 11, item_data: { name: 'Flat White', variations: [v('a', 'Hot', 380, 0), v('b', 'Iced', 480, 1)] } },
+      { type: 'MODIFIER_LIST', id: 'm-syrup', modifier_list_data: { name: 'Syrup', modifiers: [] } },
+    ]]
+    db.tables.recipes = [
+      { id: 'r-fw', name: 'Flat White', square_id: 'i-fw', sell_price: 4 },
+      { id: 'r-syrup', name: 'Syrup', square_id: 'm-syrup', sell_price: 0.6 },
+    ]
+    db.tables.recipe_variants = [{ id: 'v1', recipe_id: 'r-fw', name: 'Iced', price_change: 1 }]
+    db.tables.square_price_pushes = [{ recipe_id: 'r-fw', price: 4, queued_at: '2026-11-06T10:00:00.000Z', tries: 0, error: null, failed_at: null }]
+    Object.assign(db.integration('square'), { status: 'connected', external: { locations: [{ id: 'L1', name: 'Easy Beans' }] } })
+    db.table('integration_secrets').push({ provider: 'square', ciphertext: await seal(env.INTEGRATION_KEY!, { access_token: 'sq-token', refresh_token: 'r', expires_at: '2099-01-01T00:00:00Z' }) })
+  })
+  const push = () => post('/api/menu/square/prices', {})
+  const waiting = () => db.table('square_price_pushes')
+
+  it('sends a changed price to Square, each variation with its version, and it’s off the list', async () => {
+    const res = await push()
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ sent: 1, refused: [], waiting: 0 })
+    expect(sq.upserts).toHaveLength(1)
+    const [up] = sq.upserts as { idempotency_key: string; batches: { objects: Row[] }[] }[]
+    expect(up.idempotency_key).toBe(`price:r-fw:${Date.parse('2026-11-06T10:00:00.000Z')}`)
+    expect(up.batches[0].objects).toEqual([
+      expect.objectContaining({ id: 'a', type: 'ITEM_VARIATION', version: 11, item_variation_data: expect.objectContaining({ price_money: { amount: 400, currency: 'EUR' } }) }),
+      expect.objectContaining({ id: 'b', version: 11, item_variation_data: expect.objectContaining({ price_money: { amount: 500, currency: 'EUR' } }) }),
+    ])
+    expect(waiting()).toEqual([])
+    // Nothing left: Square isn't asked again.
+    expect(await (await push()).json()).toEqual({ sent: 0, refused: [], waiting: 0 })
+    expect(sq.upserts).toHaveLength(1)
+  })
+
+  it('a price already Square’s needs nothing sent', async () => {
+    db.table('recipes')[0].sell_price = 3.8
+    expect(await (await push()).json()).toMatchObject({ sent: 0, refused: [] })
+    expect(sq.upserts).toEqual([])
+    expect(waiting()).toEqual([])
+  })
+
+  it('a connection made before it could change items is asked to connect again; Square’s price stays', async () => {
+    sq.writeScope = false
+    const body = await (await push()).json() as { refused: { name: string; error: string }[] }
+    expect(body.refused).toEqual([{ id: 'r-fw', name: 'Flat White', error: RECONNECT_FOR_PRICES }])
+    expect(waiting()[0]).toMatchObject({ error: RECONNECT_FOR_PRICES })
+    expect(waiting()[0].failed_at).toBeTruthy()
+    // Refused: not tried again every minute.
+    await pushSquarePrices(env, businessDb(env, 1))
+    expect(sq.upserts).toEqual([])
+  })
+
+  it('extras are priced in Square, and say so', async () => {
+    db.table('square_price_pushes').push({ recipe_id: 'r-syrup', price: 0.6, queued_at: '2026-11-06T10:01:00.000Z', tries: 0, error: null })
+    const body = await (await push()).json() as { sent: number; refused: { name: string; error: string }[] }
+    expect(body.sent).toBe(1)
+    expect(body.refused).toEqual([{ id: 'r-syrup', name: 'Syrup', error: expect.stringMatching(/Extras/) }])
+  })
+
+  it('Square busy or changed meanwhile: tried again next minute, a few times, then given up on with why', async () => {
+    const busy = () => json({ errors: [{ code: 'VERSION_MISMATCH', detail: 'Object version does not match' }] }, 400)
+    sq.refuse = [busy(), json({ errors: [{ code: 'INTERNAL_SERVER_ERROR', detail: 'Down' }] }, 500)]
+    expect(await (await push()).json()).toEqual({ sent: 0, refused: [], waiting: 1 })
+    expect(waiting()[0]).toMatchObject({ tries: 1, error: null })
+    await pushSquarePrices(env, businessDb(env, 1))
+    expect(waiting()[0]).toMatchObject({ tries: 2, error: null })
+    // Then it goes.
+    await pushSquarePrices(env, businessDb(env, 1))
+    expect(waiting()).toEqual([])
+    expect(sq.upserts).toHaveLength(1)
+    // Five times in a row, and it's given up on.
+    db.table('square_price_pushes').push({ recipe_id: 'r-fw', price: 4.5, queued_at: '2026-11-06T11:00:00.000Z', tries: 4, error: null })
+    db.table('recipes')[0].sell_price = 4.5
+    sq.refuse = [busy()]
+    await pushSquarePrices(env, businessDb(env, 1))
+    expect(waiting()[0].error).toMatch(/version does not match/)
+  })
+
+  it('with the menu kept here again, nothing goes to Square', async () => {
+    db.table('settings')[0].menu_source = 'custom'
+    expect(await (await push()).json()).toEqual({ sent: 0, refused: [], waiting: 0 })
+    expect(sq.upserts).toEqual([])
+    expect(waiting()).toEqual([])
+  })
+
+  it('Square not connected: refused with why', async () => {
+    db.integration('square').status = 'disconnected'
+    const body = await (await push()).json() as { refused: { error: string }[] }
+    expect(body.refused[0].error).toMatch(/isn’t connected/)
+  })
+
+  it('only admins send prices', async () => {
+    expect((await post('/api/menu/square/prices', {}, { authorization: 'Bearer staff-token', 'content-type': 'application/json' })).status).toBe(403)
   })
 })

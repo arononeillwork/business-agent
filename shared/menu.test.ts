@@ -6,7 +6,7 @@ import {
 } from './menu'
 import type { ItemAllergens, MenuAllergens } from './allergens'
 import { missingFrom, templateDesigns, templateItems, templateSections } from './menuTemplate'
-import { EXTRAS_SECTION, fromSquareCatalog, shelfLifeOf, type SquareObject } from './menuSquare'
+import { EXTRAS_SECTION, fromSquareCatalog, shelfLifeOf, squarePriceChanges, type SquareObject } from './menuSquare'
 
 const item = (p: Partial<MenuItem> & { name: string }): MenuItem => ({ id: p.name, category: 'Coffee', sell_price: 3, price_label: null, vat_rate: 10, description: null,
   photo_url: null, featured: false, on_menu: true, menu_sort: 0, variants: [], square_id: null, ...p })
@@ -188,6 +188,73 @@ describe('the menu from Square', () => {
     expect(byId('m-syrup')).toMatchObject({ name: 'Syrup', sell_price: 0.5, description: 'Vanilla, Caramel' })
     expect(menu.items.find(i => i.square_id === 'm-done' || i.square_id === 'm-unused')).toBeUndefined()
     expect(menu.sections).toEqual(['Classics', 'Smoothies', 'Cold Drinks', EXTRAS_SECTION])
+  })
+})
+
+describe('prices changed here, back to Square', () => {
+  const v = (id: string, name: string, cents: number | undefined, ordinal = 0, extra: Record<string, unknown> = {}) =>
+    ({ id, version: 7, type: 'ITEM_VARIATION', item_variation_data: { item_id: 'x', name, ordinal, ...(cents === undefined ? { pricing_type: 'VARIABLE_PRICING' } : { pricing_type: 'FIXED_PRICING', price_money: { amount: cents, currency: 'EUR' } }), ...extra } })
+  const item = (id: string, name: string, variations: ReturnType<typeof v>[]): SquareObject => ({ type: 'ITEM', id, item_data: { name, variations } })
+  const fw = item('i-fw', 'Flat White', [v('a', 'Hot', 380, 0), v('b', 'Iced', 480, 1)])
+  const to = (r: ReturnType<typeof squarePriceChanges>) => Object.fromEntries(r.changes.map(c => [c.variation.id, c.variation.item_variation_data?.price_money?.amount]))
+  /** The item with its changes made, as Square would then give it. */
+  const applied = (o: SquareObject, r: ReturnType<typeof squarePriceChanges>): SquareObject =>
+    ({ ...o, item_data: { ...o.item_data, variations: o.item_data!.variations!.map(x => r.changes.find(c => c.variation.id === x.id)?.variation ?? x) } })
+
+  it('changes the price, and each variant by the price plus its difference', () => {
+    const r = squarePriceChanges(fw, { sell_price: 4, variants: [{ name: 'Iced', price_change: 1 }] })
+    expect(r.problem).toBeUndefined()
+    expect(to(r)).toEqual({ a: 400, b: 500 })
+    expect(r.changes.map(c => [c.name, c.from, c.to])).toEqual([['Hot', 3.8, 4], ['Iced', 4.8, 5]])
+    // The rest of the variation goes back as it was, with its version (Square refuses a change made on top of a newer one).
+    expect(r.changes[0].variation).toMatchObject({ id: 'a', version: 7, item_variation_data: { item_id: 'x', name: 'Hot', pricing_type: 'FIXED_PRICING' } })
+    expect(to(squarePriceChanges(fw, { sell_price: 3.8, variants: [{ name: 'iced', price_change: 1.2 }] }))).toEqual({ b: 500 })
+  })
+
+  it('reads back from Square as the menu has it', () => {
+    for (const [o, want] of [
+      [fw, { sell_price: 4.2, variants: [{ name: 'Iced', price_change: 0.8 }] }],
+      [item('i-gym', 'Gym Nut', [v('e', 'Sit In', 650, 0), v('f', 'Takeaway', 650, 1)]), { sell_price: 7, variants: [] }],
+      [item('i-soft', 'Soft Drinks', [v('g', 'Coca Cola', 250, 0), v('h', 'Fanta', 250, 1)]), { sell_price: 2.7, variants: [{ name: 'Fanta', price_change: 0.1 }] }],
+    ] as const) {
+      const read = fromSquareCatalog([applied(o, squarePriceChanges(o, want))]).items[0]
+      expect({ sell_price: read.sell_price, variants: read.variants }).toEqual({ sell_price: want.sell_price, variants: want.variants })
+    }
+  })
+
+  it('sit in and takeaway at one price both take it; a variation the menu has no variant for keeps its difference', () => {
+    expect(to(squarePriceChanges(item('i-gym', 'Gym Nut', [v('e', 'Sit In', 650, 0), v('f', 'Takeaway', 650, 1)]), { sell_price: 7, variants: [] })))
+      .toEqual({ e: 700, f: 700 })
+    expect(to(squarePriceChanges(item('i-x', 'Juice', [v('s', 'Small', 300, 0), v('l', 'Large', 400, 1)]), { sell_price: 3.5, variants: [] })))
+      .toEqual({ s: 350, l: 450 })
+  })
+
+  it('nothing to change when the prices are already Square’s; an item with no price in Square gets one', () => {
+    expect(squarePriceChanges(fw, { sell_price: 3.8, variants: [{ name: 'Iced', price_change: 1 }] }).changes).toEqual([])
+    const beans = squarePriceChanges(item('i-promo', 'Coffee Beans 1kg', [v('k', 'Regular', undefined)]), { sell_price: 12, variants: [] })
+    expect(beans.changes[0].variation.item_variation_data).toMatchObject({ pricing_type: 'FIXED_PRICING', price_money: { amount: 1200, currency: 'EUR' } })
+    expect(beans.changes[0].from).toBeNull()
+  })
+
+  it('a location’s copy of the price moves with it; a price set differently at a location stays', () => {
+    const o = item('i-l', 'Latte', [v('m', 'Regular', 350, 0, { location_overrides: [
+      { location_id: 'L1', pricing_type: 'FIXED_PRICING', price_money: { amount: 350, currency: 'EUR' } },
+      { location_id: 'L2', pricing_type: 'FIXED_PRICING', price_money: { amount: 390, currency: 'EUR' } },
+      { location_id: 'L3', track_inventory: true },
+    ] })])
+    const d = squarePriceChanges(o, { sell_price: 3.6, variants: [] }).changes[0].variation.item_variation_data!
+    expect(d.location_overrides).toEqual([
+      { location_id: 'L1', pricing_type: 'FIXED_PRICING', price_money: { amount: 360, currency: 'EUR' } },
+      { location_id: 'L2', pricing_type: 'FIXED_PRICING', price_money: { amount: 390, currency: 'EUR' } },
+      { location_id: 'L3', track_inventory: true },
+    ])
+  })
+
+  it('says why when it can’t: extras, no price, gone from Square', () => {
+    expect(squarePriceChanges({ type: 'MODIFIER_LIST', id: 'm', modifier_list_data: { name: 'Syrup' } }, { sell_price: 0.6, variants: [] }).problem).toMatch(/Extras/)
+    expect(squarePriceChanges(fw, { sell_price: null, variants: [] }).problem).toMatch(/price/)
+    expect(squarePriceChanges(undefined, { sell_price: 4, variants: [] }).problem).toMatch(/isn’t in Square/)
+    expect(squarePriceChanges({ ...fw, is_deleted: true }, { sell_price: 4, variants: [] }).problem).toMatch(/isn’t in Square/)
   })
 })
 
