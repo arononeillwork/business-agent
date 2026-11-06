@@ -349,7 +349,7 @@ export interface Api {
   deleteContact(id: string): Promise<void>
 
   // Content (Marketing, admins): the business's photos and videos, picked in Google Photos or uploaded,
-  // kept in the café's Drive or OneDrive (Business Agent/Content).
+  // kept in the café's Drive or OneDrive (The Business Agent/Content).
   contentItems(): Promise<ContentItem[]>
   /** Keep a photo (JPEG, PNG or WebP) or video (MP4 or MOV) from the device in the café's storage and list it. */
   uploadContent(file: File, info: { title: string | null; width: number | null; height: number | null }): Promise<ContentItem>
@@ -487,16 +487,16 @@ export interface Api {
   updateTaxDocument(id: string, patch: Partial<Pick<TaxDocument, 'kind' | 'year' | 'quarter' | 'notes' | 'title' | 'tags' | 'expires_on'>>): Promise<void>
   /** Take a document off the list (the file stays in Drive or OneDrive). */
   removeTaxDocument(id: string): Promise<void>
-  /** The folders inside one under Business Agent (["Tax", "2026"]), and a link to open it there. */
+  /** The folders inside one under The Business Agent (["Tax", "2026"]), and a link to open it there. */
   taxFolders(path: string[]): Promise<{ storage: 'google_drive' | 'onedrive'; path: string[]; folders: string[]; link: string | null }>
   /** Make a folder inside one; returns its path. */
   makeTaxFolder(path: string[], name: string): Promise<string[]>
-  /** Upload one document into a folder under Business Agent/Tax; refused when the same file (sha256) is already kept. */
+  /** Upload one document into a folder under The Business Agent/Tax; refused when the same file (sha256) is already kept. */
   uploadTaxDocument(file: Blob, meta: { name: string; kind: TaxDocKind; year: number; quarter: Quarter | null; folder: string[]; sha256: string }): Promise<TaxDocument>
-  // Documents hub (admins with pay access; finance partners read the list): every kept file, and the café's Business Agent folder.
+  // Documents hub (admins with pay access; finance partners read the list): every kept file, and the café's The Business Agent folder.
   /** Every kept document (all years, Tax and Documents), newest first, with the invoices and licences that point at it. */
   documents(): Promise<KeptDocument[]>
-  /** What's inside a folder under Business Agent ([] is Business Agent itself); nothing is made. */
+  /** What's inside a folder under The Business Agent ([] is Business Agent itself); nothing is made. */
   browseFiles(path: string[]): Promise<StorageFolder>
   /** Make a folder inside Documents; returns its path. */
   makeDocumentsFolder(path: string[], name: string): Promise<string[]>
@@ -721,7 +721,7 @@ export interface Api {
   syncMenuFromSquare(): Promise<{ added: number; changed: number; off: number; items: number }>
   /** Send the menu to the Google Maps listing now (it also goes by itself within a minute of a change); how many items went. */
   sendMenuToGoogle(): Promise<{ status: 'sent' | 'same' | 'empty' | 'paused' | 'not_connected'; items: number }>
-  /** Keep a picture for the menu (a photo, a design) in the café's storage, Business Agent/Menu; returns its address. */
+  /** Keep a picture for the menu (a photo, a design) in the café's storage, The Business Agent/Menu; returns its address. */
   uploadMenuPicture(file: File): Promise<string>
   // Menu designs (admins): printed (physical) and on screens (digital), each with its images.
   menuDesigns(): Promise<MenuDesign[]>
@@ -914,7 +914,7 @@ export interface Api {
   /** Add one (no id) or change one; returns its id. */
   savePostIdea(idea: PostIdeaInput): Promise<string>
   deletePostIdea(id: string): Promise<void>
-  /** A photo (JPEG) or video (MP4/MOV) for an idea, kept in the café's storage (Business Agent/Social/Ideas); anyone on the team. */
+  /** A photo (JPEG) or video (MP4/MOV) for an idea, kept in the café's storage (The Business Agent/Social/Ideas); anyone on the team. */
   uploadIdeaMedia(file: File): Promise<PostMedia>
 
   // Competitions (admins): giveaways and draws, their entries and the draw. The post goes out
@@ -935,7 +935,7 @@ export interface Api {
   givePrize(id: string): Promise<void>
   /**
    * Keep a photo (JPEG) or video (MP4/MOV) for a post in the connected Google Drive or OneDrive,
-   * in Business Agent/Social/<folder>; returns its public address and type.
+   * in The Business Agent/Social/<folder>; returns its public address and type.
    */
   uploadMedia(file: File, folder: KindInfo['folder']): Promise<PostMedia>
 
@@ -988,7 +988,7 @@ export interface Api {
   /** Add one (no id) or change one; returns its id. Its figures become what the person saving it can see. */
   saveReportSchedule(schedule: ReportScheduleInput): Promise<string>
   deleteReportSchedule(id: string): Promise<void>
-  /** Save a file into "Business Agent/<folder>" in the connected Drive/OneDrive; returns a link to it. */
+  /** Save a file into "The Business Agent/<folder>" in the connected Drive/OneDrive; returns a link to it. */
   saveFile(f: { folder: string; name: string; content: string; type?: string }): Promise<{ link: string; provider: ConnectorProvider }>
   whatsappTest(to: string): Promise<void>
   instagramProfile(): Promise<InstagramProfile>

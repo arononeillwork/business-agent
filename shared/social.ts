@@ -11,7 +11,7 @@ export interface KindInfo {
   plural: string
   /** One line for the composer. */
   hint: string
-  /** The folder its photos and videos go in (Business Agent/Social/<folder>). */
+  /** The folder its photos and videos go in (The Business Agent/Social/<folder>). */
   folder: 'Posts' | 'Carousels' | 'Reels' | 'Stories'
   accepts: PostMedia['type'][]
   min: number

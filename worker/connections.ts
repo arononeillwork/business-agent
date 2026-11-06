@@ -1,6 +1,6 @@
 // Connections that really work. An app shows "Connected" only after the Worker has used it:
 //   Gmail, Outlook            a confirmation email went from the mailbox to itself
-//   Google Drive, OneDrive    the "Business Agent" folder is there
+//   Google Drive, OneDrive    the "The Business Agent" folder is there
 //   Spotify, YouTube Music    the account signed in and its playlists could be read
 //   Search Console            the account can read the website's search data (the business's website is picked)
 //   Google Ads, Meta Ads      the ad accounts could be read (the admin picks one when there are several)
@@ -716,9 +716,10 @@ async function stillWorks(env: Env, db: SupabaseClient, row: Row): Promise<Parti
       return {}
     }
     if (p === 'google_drive') {
-      const id = row.external.folder_id as string | undefined
-      // Someone deleted the folder: make it again (exports keep working), still a pass.
-      if (!id || !(await google.driveFolderAlive(token, id))) return { external: { ...row.external, folder_id: await google.ensureDriveFolder(token) } }
+      // Someone deleted the folder: make it again (exports keep working), still a pass. One still under
+      // its old name ("Business Agent") is renamed "The Business Agent" here: the same folder.
+      const id = await google.ensureDriveFolder(token)
+      if (id !== row.external.folder_id) return { external: { ...row.external, folder_id: id } }
     }
     if (p === 'onedrive') {
       const id = await ms.ensureFolder(token)

@@ -182,7 +182,7 @@ export function ContentPage() {
 
       {integ.data && !storage && (
         <Alert severity="warning" sx={{ mb: 2 }} action={<Button color="inherit" component={RouterLink} to="/connections">{t('Connections')}</Button>}>
-          {t('Connect Google Drive or OneDrive to keep photos and videos here: they’re kept in its Business Agent folder, in Content.')}
+          {t('Connect Google Drive or OneDrive to keep photos and videos here: they’re kept in its The Business Agent folder, in Content.')}
         </Alert>
       )}
       {integ.data && !photosOn && (

@@ -9,7 +9,7 @@ import { t } from '../i18n'
 /**
  * Adding another business on this device: the business(es) already here stay signed in, and this asks
  * for the sign-in of another one, or a new account to set one up. Each business has its own sign-in
- * (docs/SEVERAL_BUSINESSES.md). Shown in Business Agent's own look, like the sign-in page.
+ * (docs/SEVERAL_BUSINESSES.md). Shown in The Business Agent's own look, like the sign-in page.
  */
 export function AddBusinessPage() {
   const [tab, setTab] = useState<'signin' | 'signup'>('signin')

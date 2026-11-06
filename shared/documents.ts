@@ -1,6 +1,6 @@
 // Documents hub: every file the business keeps in its own Google Drive or OneDrive, wherever it came
 // from (the Tax page, an invoice brought in by email, a licence's document, the hub's own uploads),
-// with what each one belongs to, and a browser of the whole "Business Agent" folder there.
+// with what each one belongs to, and a browser of the whole "The Business Agent" folder there.
 import { msg } from './i18n'
 import type { TaxDocument } from './tax'
 
@@ -72,7 +72,7 @@ export interface StorageEntry {
 }
 export interface StorageFolder {
   storage: 'google_drive' | 'onedrive'
-  /** Under Business Agent ([] = the Business Agent folder itself). */
+  /** Under The Business Agent ([] = that folder itself). */
   path: string[]
   link: string | null
   entries: StorageEntry[]

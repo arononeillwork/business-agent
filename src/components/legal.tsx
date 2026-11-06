@@ -20,7 +20,7 @@ export const Ul = ({ items }: { items: ReactNode[] }) => (
 )
 export const Mail = ({ to }: { to: string }) => <Link href={`mailto:${to}`}>{to}</Link>
 
-/** Who runs the service, as it should read in a sentence ("Business Agent, Calle …"). */
+/** Who runs the service, as it should read in a sentence ("The Business Agent, Calle …"). */
 export const operatorLine = () => [LEGAL.operator || LEGAL.service, LEGAL.address].filter(Boolean).join(', ')
 
 export function LegalPage({ title, updated, children }: { title: string; updated: string; children: ReactNode }) {

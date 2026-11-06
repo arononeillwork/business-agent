@@ -1,5 +1,6 @@
 // Google Business Profile: keep opening hours, holiday closures and phone in sync with the app,
 // and publish posts. OAuth 2.0 with offline access (refresh token) for the listing owner.
+import { APP_FOLDER, OLD_APP_FOLDER } from '../../shared/appFolder'
 import type { CalendarEvent, OpeningHours } from '../../shared/types'
 import { DAY_KEYS } from '../../shared/types'
 
@@ -286,7 +287,7 @@ export async function listingFacts(token: string, location: string) {
 // Gmail and Google Drive: the café's mailbox sends alerts; exports are saved to its Drive.
 // ---------------------------------------------------------------------------------------------
 export const GMAIL_SCOPES = ['https://www.googleapis.com/auth/gmail.send', 'openid', 'email']
-// drive.file: only files this app creates (a "Business Agent" folder), never the rest of the Drive.
+// drive.file: only files this app creates (a "The Business Agent" folder), never the rest of the Drive.
 export const DRIVE_SCOPES = ['https://www.googleapis.com/auth/drive.file', 'openid', 'email']
 
 /** The Google account's email address. */
@@ -319,10 +320,8 @@ async function findFolder(token: string, name: string, parent: string) {
   return found.files[0]?.id ?? null
 }
 
-/** The folder with this name under `parent` (made by this app), created if missing. */
-async function folder(token: string, name: string, parent = 'root') {
-  const found = await findFolder(token, name, parent)
-  if (found) return found
+/** A new folder with this name under `parent`; its id. */
+async function makeFolder(token: string, name: string, parent: string) {
   const made = await drive<{ id: string }>(token, 'https://www.googleapis.com/drive/v3/files?fields=id', {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ name, mimeType: 'application/vnd.google-apps.folder', parents: [parent] }),
@@ -330,8 +329,25 @@ async function folder(token: string, name: string, parent = 'root') {
   return made.id
 }
 
-/** The app's "Business Agent" folder in the café's Drive (created if missing); returns its id. */
-export const ensureDriveFolder = (token: string) => folder(token, 'Business Agent')
+/** The folder with this name under `parent` (made by this app), created if missing. */
+async function folder(token: string, name: string, parent = 'root') {
+  return await findFolder(token, name, parent) ?? makeFolder(token, name, parent)
+}
+
+/**
+ * The app's "The Business Agent" folder in the café's Drive; returns its id. One made under the old
+ * name ("The Business Agent") is renamed, so everything in it stays where it is; else one is made.
+ */
+export async function ensureDriveFolder(token: string) {
+  const found = await findFolder(token, APP_FOLDER, 'root')
+  if (found) return found
+  const old = await findFolder(token, OLD_APP_FOLDER, 'root')
+  if (!old) return makeFolder(token, APP_FOLDER, 'root')
+  await drive(token, `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(old)}?fields=id`, {
+    method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: APP_FOLDER }),
+  })
+  return old
+}
 
 /** Is the folder still there (not deleted or in the bin)? */
 export async function driveFolderAlive(token: string, id: string) {
@@ -342,10 +358,10 @@ export async function driveFolderAlive(token: string, id: string) {
   return !json.trashed
 }
 
-/** "Business Agent/<path…>" in the café's Drive (each folder made if missing); returns the last one's id. */
+/** "The Business Agent/<path…>" in the café's Drive (each folder made if missing); returns the last one's id. */
 export async function folderPath(token: string, path: string[]) {
-  let parent = 'root'
-  for (const name of ['Business Agent', ...path]) parent = await folder(token, name, parent)
+  let parent = await ensureDriveFolder(token)
+  for (const name of path) parent = await folder(token, name, parent)
   return parent
 }
 
@@ -371,10 +387,11 @@ export async function uploadToDrive(token: string, parent: string, name: string,
   return json.id
 }
 
-/** "Business Agent/<path…>" in the café's Drive if it's there (nothing is made); its id, or null. */
+/** "The Business Agent/<path…>" in the café's Drive if it's there (nothing is made; the folder under its old name counts); its id, or null. */
 export async function findFolderPath(token: string, path: string[]) {
-  let parent: string | null = 'root'
-  for (const name of ['Business Agent', ...path]) if (!(parent = await findFolder(token, name, parent))) return null
+  let parent: string | null = await findFolder(token, APP_FOLDER, 'root') ?? await findFolder(token, OLD_APP_FOLDER, 'root')
+  if (!parent) return null
+  for (const name of path) if (!(parent = await findFolder(token, name, parent))) return null
   return parent
 }
 
@@ -618,7 +635,7 @@ export async function gmailMessage(token: string, id: string, o: { pictures?: bo
   }
 }
 
-/** Save a file into "Business Agent/<sub>" in the café's Drive; returns its web link. */
+/** Save a file into "The Business Agent/<sub>" in the café's Drive; returns its web link. */
 export async function saveToDrive(token: string, sub: string, name: string, content: string, type: string) {
   // "Marketing/Competitions": a folder in a folder.
   const parent = await folderPath(token, sub.split('/').map(x => x.trim()).filter(x => x && x !== '.' && x !== '..'))

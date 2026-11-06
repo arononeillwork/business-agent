@@ -24,7 +24,7 @@ function Panel({ title, children, action }: { title: string; children: React.Rea
 
 /**
  * Signed in, but switched off by an admin of their business (someone in no business yet creates
- * theirs instead: NewBusinessPage). Shown in Business Agent's own look: until an admin lets them back
+ * theirs instead: NewBusinessPage). Shown in The Business Agent's own look: until an admin lets them back
  * in, they aren't in any business's app.
  */
 export function NotActive() {

@@ -1,5 +1,5 @@
 // Tax for a Spanish SL: which returns are due when (Agencia Tributaria's calendar), and the
-// documents kept for them in the café's own Google Drive or OneDrive ("Business Agent/Tax/…").
+// documents kept for them in the café's own Google Drive or OneDrive ("The Business Agent/Tax/…").
 // The app doesn't file anything (AEAT has no filing API for this; the gestoría or the owner files
 // with a digital certificate): it shows what's coming, records what was filed, and keeps the papers.
 import { msg } from './i18n'
@@ -165,7 +165,7 @@ export interface TaxDocument {
   sha256: string | null
   storage: 'google_drive' | 'onedrive'
   file_id: string
-  /** Where it is under Business Agent, e.g. ["Tax", "2026", "Q4", "Purchase invoices"] or ["Documents", "Contracts"]. */
+  /** Where it is under The Business Agent, e.g. ["Tax", "2026", "Q4", "Purchase invoices"] or ["Documents", "Contracts"]. */
   folder: string[]
   link: string | null
   notes: string | null
@@ -257,7 +257,7 @@ export function cleanFolderName(name: string): string | null {
 }
 
 /**
- * A folder path from the app (under Business Agent): each part tidied, starting with one of `roots`
+ * A folder path from the app (under The Business Agent): each part tidied, starting with one of `roots`
  * (Tax unless said: the Documents hub also keeps files under Documents). Null when any part can't be used.
  */
 export function cleanFolderPath(parts: unknown, roots: readonly string[] = ['Tax']): string[] | null {

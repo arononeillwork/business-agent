@@ -7,8 +7,8 @@ export default {
   'Add a camera': 'Añadir una cámara',
   'Camera uploads aren’t switched on yet, so cameras have nowhere to send to. Once they are, each camera’s address and login show here.':
     'La subida de las cámaras aún no está activada, así que no tienen adónde enviar. Cuando lo esté, aquí verás la dirección y el acceso de cada cámara.',
-  'Connect Google Drive or OneDrive to keep the cameras’ video. It goes in its Business Agent/Cameras folder, so it uses your own storage, not a subscription.':
-    'Conecta Google Drive o OneDrive para guardar el vídeo de las cámaras. Va a su carpeta Business Agent/Cameras, así que usa tu propio almacenamiento, sin suscripción.',
+  'Connect Google Drive or OneDrive to keep the cameras’ video. It goes in its The Business Agent/Cameras folder, so it uses your own storage, not a subscription.':
+    'Conecta Google Drive o OneDrive para guardar el vídeo de las cámaras. Va a su carpeta The Business Agent/Cameras, así que usa tu propio almacenamiento, sin suscripción.',
   'Your cameras, with their video in your own storage': 'Tus cámaras, con su vídeo en tu propio almacenamiento',
   'Add a camera, type its address and login into the Reolink app, and its picture shows here every few seconds. Video is kept in your Google Drive or OneDrive for the days you choose. No subscription.':
     'Añade una cámara, escribe su dirección y su acceso en la app de Reolink y su imagen aparece aquí cada pocos segundos. El vídeo se guarda en tu Google Drive o OneDrive los días que elijas. Sin suscripción.',
@@ -32,8 +32,8 @@ export default {
   'kept {n} day, then deleted': 'se guarda {n} día y luego se borra',
   'kept {n} days, then deleted': 'se guardan {n} días y luego se borran',
   '{n} kept for an incident': '{n} guardados por un incidente',
-  'No clips yet. Once the camera sends video, it shows here by day, and goes in your storage under Business Agent/Cameras/{name}.':
-    'Aún no hay clips. Cuando la cámara envíe vídeo, aparecerá aquí por días y se guardará en tu almacenamiento en Business Agent/Cameras/{name}.',
+  'No clips yet. Once the camera sends video, it shows here by day, and goes in your storage under The Business Agent/Cameras/{name}.':
+    'Aún no hay clips. Cuando la cámara envíe vídeo, aparecerá aquí por días y se guardará en tu almacenamiento en The Business Agent/Cameras/{name}.',
   'Days': 'Días',
   'Play the clip from {time}': 'Reproducir el clip de las {time}',
   'something moved': 'hubo movimiento',

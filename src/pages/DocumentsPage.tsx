@@ -30,7 +30,7 @@ const STORAGE_NAME: Record<Storage, string> = { google_drive: 'Google Drive', on
 const day = (d: string) => formatLocal(d.length === 10 ? `${d}T12:00:00Z` : d, 'd MMM yyyy')
 const sizeLabel = (n: number) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`)
 const daysTo = (from: string, to: string) => Math.round((Date.parse(`${to}T12:00:00Z`) - Date.parse(`${from}T12:00:00Z`)) / 86_400_000)
-const where = (folder: string[]) => ['Business Agent', ...folder].join(' › ')
+const where = (folder: string[]) => ['The Business Agent', ...folder].join(' › ')
 
 async function fingerprint(file: File) {
   const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', await file.arrayBuffer()))
@@ -41,7 +41,7 @@ async function fingerprint(file: File) {
  * Documents: every file the business keeps in its own Google Drive or OneDrive (the Tax page's,
  * invoices brought in by email, licences' documents, and contracts, insurance and certificates
  * kept here), with what each one belongs to and when it runs out; and a look inside the café's
- * Business Agent folder there, to open what's in it and upload into its Documents folder.
+ * The Business Agent folder there, to open what's in it and upload into its Documents folder.
  * Admins with pay access; a gestoría with finances access reads the list (the database enforces it too).
  */
 export function DocumentsPage() {
@@ -81,7 +81,7 @@ export function DocumentsPage() {
 
       {canEdit && links.data && !storage && (
         <Alert severity="info" sx={{ mb: 3 }} action={<Button component={RouterLink} to="/connections" color="inherit">{t('Connections')}</Button>}>
-          {t('Connect Google Drive or OneDrive to look inside it and upload documents. They’re kept in your own storage, in its Business Agent folder.')}
+          {t('Connect Google Drive or OneDrive to look inside it and upload documents. They’re kept in your own storage, in its The Business Agent folder.')}
         </Alert>
       )}
 
@@ -254,7 +254,7 @@ function EditDialog({ doc, onClose }: { doc: KeptDocument; onClose: () => void }
   )
 }
 
-/** Inside the café's Business Agent folder: its folders and files, opened in Drive or OneDrive; uploads and new folders go in Documents. */
+/** Inside the café's The Business Agent folder: its folders and files, opened in Drive or OneDrive; uploads and new folders go in Documents. */
 function BrowseStorage({ known }: { known: KeptDocument[] }) {
   const { api } = useApp()
   const [path, setPath] = useState<string[]>([])
@@ -276,7 +276,7 @@ function BrowseStorage({ known }: { known: KeptDocument[] }) {
         </Stack>}>{t('Browse storage')}</SectionTitle>
 
         <Breadcrumbs aria-label={t('Where you are')} separator="›" sx={{ mb: 1 }}>
-          {['Business Agent', ...path].map((name, i) => (i === path.length
+          {['The Business Agent', ...path].map((name, i) => (i === path.length
             ? <Typography key={i} sx={{ color: 'text.primary', fontWeight: 500 }} aria-current="page">{name}</Typography>
             : <Link key={i} component="button" onClick={() => setPath(path.slice(0, i))}>{name}</Link>))}
         </Breadcrumbs>

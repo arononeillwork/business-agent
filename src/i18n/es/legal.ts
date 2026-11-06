@@ -61,8 +61,8 @@ export default {
   'Send team alerts and sign-in emails from the business’s own address. The app cannot read, search or delete email.':
     'Enviar avisos al equipo y correos de inicio de sesión desde la dirección del propio negocio. La aplicación no puede leer, buscar ni eliminar correos.',
   'Files the app creates only': 'Solo los archivos que crea la aplicación',
-  'Save timecard and hours-record exports to a “Business Agent” folder. The app cannot see any other file.':
-    'Guardar las exportaciones de fichajes y del registro horario en una carpeta “Business Agent”. La aplicación no puede ver ningún otro archivo.',
+  'Save timecard and hours-record exports to a “The Business Agent” folder. The app cannot see any other file.':
+    'Guardar las exportaciones de fichajes y del registro horario en una carpeta “The Business Agent”. La aplicación no puede ver ningún otro archivo.',
   'Read playlists (read only)': 'Leer listas de reproducción (solo lectura)',
   'Show a person’s own playlists on the Music page and the café’s approved playlist.':
     'Mostrar las listas de reproducción de cada persona en la página Música y la lista aprobada del café.',

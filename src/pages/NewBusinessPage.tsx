@@ -43,7 +43,7 @@ const ownZone = () => {
 /**
  * Signed up on their own and in no business yet: create theirs (they run it: admin and owner, on the
  * Free plan), then on to the set-up guide. Or ask a manager to add them to an existing team. Shown
- * in Business Agent's own look, like the sign-up card they came from.
+ * in The Business Agent's own look, like the sign-up card they came from.
  */
 export function NewBusinessPage() {
   const { api, me, refresh } = useApp()

@@ -185,13 +185,13 @@ describe('Connecting an app: "Connected" only once it has really worked', () => 
     expect(status('outlook')).toBe('disconnected')
   })
 
-  it('Google Drive: makes the “Business Agent” folder, then exports save into it', async () => {
+  it('Google Drive: makes the “The Business Agent” folder, then exports save into it', async () => {
     const back = await connect('google_drive', 'setup')
     expect(back.pathname).toBe('/setup')
     const row = db.integration('google_drive')
     expect(row.status).toBe('connected')
     const folderId = (row.external as { folder_id: string }).folder_id
-    expect(apis.google.folders.get(folderId)).toEqual({ name: 'Business Agent', parent: 'root', trashed: false })
+    expect(apis.google.folders.get(folderId)).toEqual({ name: 'The Business Agent', parent: 'root', trashed: false })
 
     const saved = await post('/api/integrations/files/save', { folder: 'Timecards', name: 'week 40.csv', content: 'a;b', type: 'text/csv' })
     expect(await saved.json()).toMatchObject({ provider: 'google_drive', link: expect.stringContaining('drive.google.com') })
@@ -212,7 +212,7 @@ describe('Connecting an app: "Connected" only once it has really worked', () => 
 
     await post('/api/integrations/google_drive/disconnect')
     await post('/api/integrations/files/save', { folder: 'Timecards', name: 'week 2.csv', content: 'x' })
-    expect(apis.microsoft.files).toEqual(['Business Agent/Timecards/week 2.csv'])
+    expect(apis.microsoft.files).toEqual(['The Business Agent/Timecards/week 2.csv'])
   })
 
   it('a cancelled sign-in changes nothing and isn’t shown as a problem', async () => {
@@ -542,7 +542,7 @@ describe('Checks: a connection that stops working turns red and admins hear abou
     await nightly()
     const after = (db.integration('google_drive').external as { folder_id: string }).folder_id
     expect(after).not.toBe(before)
-    expect(apis.google.folders.get(after)).toMatchObject({ name: 'Business Agent', trashed: false })
+    expect(apis.google.folders.get(after)).toMatchObject({ name: 'The Business Agent', trashed: false })
     expect(status('google_drive')).toBe('connected')
   })
 

@@ -1,6 +1,6 @@
 // Tax documents, end to end through the Worker's routes against stand-ins for Supabase, Google
 // Drive and OneDrive. What must never break:
-//   - documents go into the café's own Drive/OneDrive under Business Agent/Tax, in the folder chosen
+//   - documents go into the café's own Drive/OneDrive under The Business Agent/Tax, in the folder chosen
 //   - nothing goes outside the Tax folder, and nobody without pay access can upload or browse
 //   - the database keeps where each file is, and the same file isn't kept twice
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -53,7 +53,7 @@ async function connectStorage(provider: 'google_drive' | 'onedrive') {
 /** Where a Drive file or folder is, by folder names. */
 const drivePath = (id: string): string[] => { const f = apis.google.folders.get(id); return f ? [...drivePath(f.parent), f.name] : [] }
 
-describe('Tax documents: kept in the café’s Drive or OneDrive, under Business Agent/Tax', () => {
+describe('Tax documents: kept in the café’s Drive or OneDrive, under The Business Agent/Tax', () => {
   it('only admins with pay access browse or upload', async () => {
     await connectStorage('google_drive')
     expect((await call('/api/tax/folders')).status).toBe(401)
@@ -84,7 +84,7 @@ describe('Tax documents: kept in the café’s Drive or OneDrive, under Business
     expect(document).toMatchObject({ name: 'Factura Makro.pdf', kind: 'purchase_invoice', year: 2026, quarter: 4, storage: 'google_drive',
       folder: ['Tax', '2026', 'Q4', 'Purchase invoices'], sha256: SHA, size: pdf.length })
     const [file] = [...apis.google.blobs.values()]
-    expect(drivePath(file.parent)).toEqual(['Business Agent', 'Tax', '2026', 'Q4', 'Purchase invoices'])
+    expect(drivePath(file.parent)).toEqual(['The Business Agent', 'Tax', '2026', 'Q4', 'Purchase invoices'])
     expect(file).toMatchObject({ name: 'Factura Makro.pdf', type: 'application/pdf' })
     expect(document.link).toBe(`https://drive.google.com/file/d/${document.file_id}/view`)
     expect(db.table('tax_documents')).toHaveLength(1)
@@ -108,7 +108,7 @@ describe('Tax documents: kept in the café’s Drive or OneDrive, under Business
     const { document } = await (await upload({ name: 'Nómina Julio.pdf', kind: 'payslip', folder: 'Tax/2026' })).json() as { document: Record<string, unknown> }
     expect(document).toMatchObject({ storage: 'onedrive', kind: 'payslip', folder: ['Tax', '2026'] })
     expect(String(document.link)).toMatch(/^https:\/\/onedrive\.live\.com\//)
-    expect([...apis.microsoft.blobs.values()][0].path).toBe('Business Agent/Tax/2026/Nómina Julio.pdf')
+    expect([...apis.microsoft.blobs.values()][0].path).toBe('The Business Agent/Tax/2026/Nómina Julio.pdf')
   })
 
   it('refuses anything outside the Tax folder, files it doesn’t take, and missing details', async () => {

@@ -4,7 +4,7 @@
 // (CAMERA_UPLOADS_KEY). Here:
 //   - the upload server's routes: is this username and password a camera, and whose; a camera was
 //     seen; keep this piece of video, in the business's Google Drive or OneDrive
-//     (Business Agent/Cameras/<camera>/<day>/HH.MM.SS.mp4) with a camera_clips row;
+//     (The Business Agent/Cameras/<camera>/<day>/HH.MM.SS.mp4) with a camera_clips row;
 //   - the Cameras page's (admins): where cameras send to, each camera's latest picture and what the
 //     upload server has from it, a clip to play (a signed address for the video player), deleting a
 //     clip or a camera with its clips;
@@ -22,7 +22,7 @@ import { TZ } from '../shared/time'
 export const cameras = new Hono<{ Bindings: Env; Variables: { token: string } }>()
 
 type Storage = 'google_drive' | 'onedrive'
-const MISSING = 'Connect Google Drive or OneDrive on the Connections page to keep the cameras’ video. It goes in its Business Agent/Cameras folder.'
+const MISSING = 'Connect Google Drive or OneDrive on the Connections page to keep the cameras’ video. It goes in its The Business Agent/Cameras folder.'
 /** How long a clip's address for the video player works. */
 const PLAY_MS = 2 * 3600_000
 

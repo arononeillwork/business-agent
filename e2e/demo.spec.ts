@@ -2236,7 +2236,7 @@ test.describe('connections for email, files and music', () => {
     const popup = page.waitForEvent('popup')
     await page.getByRole('button', { name: 'Export' }).click()
     await page.getByRole('menuitem', { name: /Save to Drive/ }).click()
-    await toast(page, 'Saved to Google Drive › Business Agent › Timecards')
+    await toast(page, 'Saved to Google Drive › The Business Agent › Timecards')
     await popup // the saved file opens in a new tab
 
     await page.getByRole('link', { name: 'Connections' }).first().click()
@@ -2652,11 +2652,11 @@ test.describe('social planner', () => {
     await open(page, '/connections')
     await connectDrive(page)
 
-    // A reel: one video, Instagram only, saved in Drive › Business Agent › Social › Reels.
+    // A reel: one video, Instagram only, saved in Drive › The Business Agent › Social › Reels.
     await page.getByRole('button', { name: 'New post' }).click()
     let dialog = page.getByRole('dialog', { name: 'New post' })
     await dialog.getByRole('button', { name: 'Reel' }).click()
-    await expect(dialog).toContainText('Saved in Google Drive › Business Agent › Social › Reels')
+    await expect(dialog).toContainText('Saved in Google Drive › The Business Agent › Social › Reels')
     await expect(dialog.getByRole('alert')).toContainText('Add the reel’s video')
     await dialog.getByLabel('Photo or video file').setInputFiles(video('pour.mp4'))
     await expect(dialog.getByRole('button', { name: 'Remove video 1' })).toBeVisible()
@@ -4038,7 +4038,7 @@ test.describe('tax', () => {
     await picker.getByRole('listitem').filter({ hasText: 'Gestoría' }).click()
     await picker.getByRole('textbox', { name: 'New folder' }).fill('Octubre')
     await picker.getByRole('button', { name: 'Make folder' }).click()
-    await expect(picker).toContainText('Files go into: Business Agent › Tax › 2026 › Gestoría › Octubre')
+    await expect(picker).toContainText('Files go into: The Business Agent › Tax › 2026 › Gestoría › Octubre')
     const chooser = page.waitForEvent('filechooser')
     await dialog.getByRole('button', { name: 'Choose files' }).click()
     await (await chooser).setFiles([pdf('ticket gasolina.pdf')])
@@ -8428,12 +8428,12 @@ test.describe('documents hub', () => {
     await expect(here.getByRole('button')).toHaveText(['Documents', 'Exports', 'Tax'])
     await here.getByRole('button', { name: 'Documents', exact: true }).click()
     await here.getByRole('button', { name: 'Contracts', exact: true }).click()
-    await expect(where).toHaveText('Business Agent›Documents›Contracts')
+    await expect(where).toHaveText('The Business Agent›Documents›Contracts')
     const lease = here.getByRole('row').filter({ hasText: 'Contrato alquiler local.pdf' })
     await expect(lease).toContainText('Kept')
     await expect(lease).toContainText('Lease of the premises')
     await expect(lease.getByRole('link', { name: 'Open Contrato alquiler local.pdf' }))
-      .toHaveAttribute('href', 'https://drive.google.com/demo/Business Agent/Documents/Contracts/Contrato alquiler local.pdf')
+      .toHaveAttribute('href', 'https://drive.google.com/demo/The Business Agent/Documents/Contracts/Contrato alquiler local.pdf')
     await expect(here.getByRole('row').filter({ hasText: 'Plano del local.pdf' })).not.toContainText('Kept') // in the folder, not on the list
 
     await browse.getByRole('button', { name: 'New folder' }).click()
@@ -8441,12 +8441,12 @@ test.describe('documents hub', () => {
     await naming.getByRole('textbox', { name: 'Name' }).fill('Mantenimiento')
     await naming.getByRole('button', { name: 'Make folder' }).click()
     await toast(page, 'Folder made')
-    await expect(where).toHaveText('Business Agent›Documents›Contracts›Mantenimiento')
+    await expect(where).toHaveText('The Business Agent›Documents›Contracts›Mantenimiento')
     await expect(browse).toContainText('Nothing in this folder yet.')
 
     await browse.getByRole('button', { name: 'Upload documents' }).click()
     const dialog = page.getByRole('dialog', { name: 'Upload documents' })
-    await expect(dialog).toContainText('Files go into: Business Agent › Documents › Contracts › Mantenimiento')
+    await expect(dialog).toContainText('Files go into: The Business Agent › Documents › Contracts › Mantenimiento')
     const chooser = page.waitForEvent('filechooser')
     await dialog.getByRole('button', { name: 'Choose files' }).click()
     await (await chooser).setFiles([pdf('Contrato mantenimiento cafetera.pdf')])
@@ -8604,7 +8604,7 @@ test.describe('set-up wizard', () => {
     await open(page)
     await signInAs(page, 'maria@example.com')
     await page.goto('/setup')
-    await expect(page.getByRole('heading', { name: /I’m your Business Agent/ })).toHaveCount(0)
+    await expect(page.getByRole('heading', { name: /I’m your The Business Agent/ })).toHaveCount(0)
   })
 })
 

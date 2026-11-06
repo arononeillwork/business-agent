@@ -1,5 +1,6 @@
 // Microsoft 365 / Outlook.com: send email from the café's mailbox (Outlook) and save files to its
 // OneDrive (personal or work). OAuth 2.0 with offline access through the Microsoft identity platform.
+import { APP_FOLDER, OLD_APP_FOLDER } from '../../shared/appFolder'
 export interface MicrosoftOAuthConfig { clientId: string; clientSecret: string; redirectUri: string }
 
 export const MS_SCOPES = {
@@ -172,17 +173,35 @@ export async function outlookReply(token: string, id: string, html: string, all:
   })
 }
 
-/** The app's "Business Agent" folder in OneDrive (created if missing); returns its id. */
-export async function ensureFolder(token: string) {
-  const res = await fetch(`${GRAPH}/me/drive/root:/Business%20Agent`, { headers: { authorization: `Bearer ${token}` } })
+/** A folder at the top of the OneDrive by name: its id, or null when it isn't there. */
+async function topFolder(token: string, name: string) {
+  const res = await fetch(`${GRAPH}/me/drive/root:/${encodeURIComponent(name)}`, { headers: { authorization: `Bearer ${token}` } })
   if (res.ok) return ((await res.json()) as { id: string }).id
-  if (res.status !== 404) {
-    const err = await res.json().catch(() => ({})) as { error?: { message?: string; code?: string } }
-    throw new Error(`Microsoft: ${err.error?.message ?? err.error?.code ?? res.status}`)
-  }
+  if (res.status === 404) return null
+  const err = await res.json().catch(() => ({})) as { error?: { message?: string; code?: string } }
+  throw new Error(`Microsoft: ${err.error?.message ?? err.error?.code ?? res.status}`)
+}
+
+/**
+ * The folder the app made under its old name ("Business Agent"), renamed "The Business Agent", so
+ * everything in it stays where it is. False when there's none to rename.
+ */
+async function renameOldFolder(token: string) {
+  const old = await topFolder(token, OLD_APP_FOLDER)
+  if (!old) return null
+  await graph(token, `/me/drive/items/${encodeURIComponent(old)}`, {
+    method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: APP_FOLDER }),
+  })
+  return old
+}
+
+/** The app's "The Business Agent" folder in OneDrive (the old one renamed, else made); returns its id. */
+export async function ensureFolder(token: string) {
+  const found = await topFolder(token, APP_FOLDER) ?? await renameOldFolder(token)
+  if (found) return found
   const made = await graph<{ id: string }>(token, '/me/drive/root/children', {
     method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ name: 'Business Agent', folder: {}, '@microsoft.graph.conflictBehavior': 'replace' }),
+    body: JSON.stringify({ name: APP_FOLDER, folder: {}, '@microsoft.graph.conflictBehavior': 'replace' }),
   })
   return made.id
 }
@@ -212,10 +231,10 @@ export async function* pieces(body: ReadableStream<Uint8Array> | ArrayBuffer, si
   if (buf.length) yield buf
 }
 
-/** "Business Agent/<path…>" in OneDrive, each folder made if missing; returns the last one's id. */
+/** "The Business Agent/<path…>" in OneDrive, each folder made if missing; returns the last one's id. */
 export async function ensurePath(token: string, path: string[]) {
   let parent = await ensureFolder(token)
-  let at = 'Business Agent'
+  let at = APP_FOLDER
   for (const name of path) {
     at = `${at}/${name}`
     const res = await fetch(`${GRAPH}/me/drive/root:/${at.split('/').map(encodeURIComponent).join('/')}`, { headers: { authorization: `Bearer ${token}` } })
@@ -228,9 +247,9 @@ export async function ensurePath(token: string, path: string[]) {
   return parent
 }
 
-const pathOf = (path: string[]) => ['Business Agent', ...path].map(encodeURIComponent).join('/')
+const pathOf = (path: string[]) => [APP_FOLDER, ...path].map(encodeURIComponent).join('/')
 
-/** The folders inside "Business Agent/<path…>" (made if missing), by name, and OneDrive's page for it. */
+/** The folders inside "The Business Agent/<path…>" (made if missing), by name, and OneDrive's page for it. */
 export async function listFolders(token: string, path: string[]) {
   await ensurePath(token, path)
   const [children, self] = await Promise.all([
@@ -242,11 +261,12 @@ export async function listFolders(token: string, path: string[]) {
 
 export interface OneDriveItem { id: string; name: string; folder?: unknown; file?: { mimeType?: string }; size?: number; lastModifiedDateTime?: string; webUrl?: string }
 
-/** Everything inside "Business Agent/<path…>" (nothing is made), and OneDrive's page for it; null when it isn't there. */
-export async function listChildren(token: string, path: string[]) {
+/** Everything inside "The Business Agent/<path…>" (nothing is made), and OneDrive's page for it; null when it isn't there. */
+export async function listChildren(token: string, path: string[]): Promise<{ items: OneDriveItem[]; link: string | null } | null> {
   const res = await fetch(`${GRAPH}/me/drive/root:/${pathOf(path)}:/children?$select=id,name,folder,file,size,lastModifiedDateTime,webUrl&$top=500`,
     { headers: { authorization: `Bearer ${token}` } })
-  if (res.status === 404) return null
+  // Not there: perhaps still under the folder's old name. Renamed, it is.
+  if (res.status === 404) return await renameOldFolder(token) ? listChildren(token, path) : null
   if (!res.ok) {
     const err = await res.json().catch(() => ({})) as { error?: { message?: string } }
     throw new Error(`Microsoft: ${err.error?.message ?? res.status}`)
@@ -255,14 +275,14 @@ export async function listChildren(token: string, path: string[]) {
   return { items: ((await res.json()) as { value: OneDriveItem[] }).value, link: self.webUrl ?? null }
 }
 
-/** Upload a photo or video into "Business Agent/<path…>" in OneDrive (any size, in pieces); returns its id. */
+/** Upload a photo or video into "The Business Agent/<path…>" in OneDrive (any size, in pieces); returns its id. */
 export const uploadToOneDrive = async (token: string, path: string[], name: string, size: number, body: ReadableStream | ArrayBuffer) =>
   (await uploadItem(token, path, name, size, body)).id
 
 /** The same, returning OneDrive's page for the file too. */
 export async function uploadItem(token: string, path: string[], name: string, size: number, body: ReadableStream | ArrayBuffer) {
   await ensurePath(token, path)
-  const at = ['Business Agent', ...path, name].map(encodeURIComponent).join('/')
+  const at = [APP_FOLDER, ...path, name].map(encodeURIComponent).join('/')
   const { uploadUrl } = await graph<{ uploadUrl: string }>(token, `/me/drive/root:/${at}:/createUploadSession`, {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ item: { '@microsoft.graph.conflictBehavior': 'rename' } }),
@@ -337,10 +357,12 @@ export async function oneDrivePdf(token: string, id: string) {
   return res.status >= 300 && res.status < 400 && to ? fetch(to) : res
 }
 
-/** Save a small file (under 4 MB) into "Business Agent/<folder>" in OneDrive; returns its web link. */
+/** Save a small file (under 4 MB) into "The Business Agent/<folder>" in OneDrive; returns its web link. */
 export async function saveFile(token: string, folder: string, name: string, content: string, type: string) {
+  // OneDrive makes missing folders on the way, so the app's own goes first: renamed if it still has its old name.
+  await ensureFolder(token)
   // "Marketing/Competitions": a folder in a folder.
-  const path = ['Business Agent', ...folder.split('/').map(x => x.trim()).filter(x => x && x !== '.' && x !== '..'), name].filter(Boolean).map(encodeURIComponent).join('/')
+  const path = [APP_FOLDER, ...folder.split('/').map(x => x.trim()).filter(x => x && x !== '.' && x !== '..'), name].filter(Boolean).map(encodeURIComponent).join('/')
   const item = await graph<{ webUrl: string }>(token, `/me/drive/root:/${path}:/content`, {
     method: 'PUT', headers: { 'content-type': type }, body: content,
   })

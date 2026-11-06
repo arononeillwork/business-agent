@@ -1,7 +1,7 @@
 // Content (Marketing, admins): the business's own photos and videos in one place, ready for posts,
 // offers, the menu and the screens. They come from Google Photos (picked in Google's own picker and
 // copied into the café's storage, since Google's links last only an hour) or are uploaded from the
-// device; each is kept in the connected Google Drive or OneDrive, in Business Agent/Content (or R2),
+// device; each is kept in the connected Google Drive or OneDrive, in The Business Agent/Content (or R2),
 // and handed out at its own /media address. The `content_library` migration has the table.
 import type { PostKind, PostMedia } from './types'
 import { msg } from './i18n'
@@ -35,7 +35,7 @@ export interface ContentChange { id: string; title: string | null; tags: string[
 /** One uploaded from the device, once it's in storage. */
 export interface ContentUpload { kind: ContentKind; url: string; title: string | null; width: number | null; height: number | null; tags: string[] }
 
-/** Where photos and videos are kept: Business Agent/Content in the café's storage (worker/media.ts). */
+/** Where photos and videos are kept: The Business Agent/Content in the café's storage (worker/media.ts). */
 export const CONTENT_FOLDER = 'Content'
 /** How many picked items one request copies (each is a download and an upload; a Worker run can only ask so much). */
 export const IMPORT_BATCH = 5

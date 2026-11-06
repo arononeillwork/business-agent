@@ -278,7 +278,7 @@ export default {
   'Copied: paste it into a spreadsheet': 'Copiado: pégalo en una hoja de cálculo',
   'Save to {where}': 'Guardar en {where}',
   'As a CSV file': 'Como archivo CSV',
-  'Saved to {where} › Business Agent › {folder}': 'Guardado en {where} › Business Agent › {folder}',
+  'Saved to {where} › The Business Agent › {folder}': 'Guardado en {where} › The Business Agent › {folder}',
   'Rota': 'Cuadrante',
   'Published shifts and approved time off': 'Turnos publicados y ausencias aprobadas',
   'Payroll': 'Nóminas',

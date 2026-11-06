@@ -18,7 +18,7 @@ type ContentApi = Pick<Api, 'contentItems' | 'uploadContent' | 'saveContentItem'
   | 'importGooglePhotos' | 'cancelGooglePhotosPick'>
 
 const RLS = 'new row violates row-level security policy for table "content_items"'
-const NO_STORAGE = 'Connect Google Drive or OneDrive on the Connections page first: the photos and videos are kept in its Business Agent folder.'
+const NO_STORAGE = 'Connect Google Drive or OneDrive on the Connections page first: the photos and videos are kept in its The Business Agent folder.'
 
 /**
  * A picture drawn for the demo. Its address ends in the file type the real one would have (the part after

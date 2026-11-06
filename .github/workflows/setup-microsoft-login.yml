@@ -1,5 +1,5 @@
 name: Set up Microsoft sign-in
-# One-off: creates the "The Business Agent" app in Microsoft Entra ID (personal Outlook/Hotmail and
+# One-off: creates the "Easy Beans Team" app in Microsoft Entra ID (personal Outlook/Hotmail and
 # work accounts) and switches on Microsoft sign-in in Supabase with it. The client secret goes
 # straight from Microsoft to Supabase; it is masked and never printed.
 # Sign-in uses a device code: the log prints a code, the owner enters it at
@@ -28,9 +28,7 @@ jobs:
       SITE_REDIRECT: https://businesssagent.com/api/integrations/microsoft/callback
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      # The app is found by this name: the first run after a rename makes a new app (new keys; Easy Beans connects
-      # Outlook and OneDrive again once). The app made before it ("Easy Beans Team") can then be deleted in Entra.
-      APP_NAME: The Business Agent
+      APP_NAME: Easy Beans Team
     steps:
       - uses: actions/checkout@v4
       - name: Needs the Supabase token

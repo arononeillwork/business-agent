@@ -3,7 +3,7 @@
 // (it can't sit inside the page), the admin picks, and the page asks here until Google says they're
 // done. Then it asks here to bring them in, a few at a time (each is a download from Google and an
 // upload to storage, and a Worker run can only make so many requests): each one is copied into the
-// café's storage (Business Agent/Content in Google Drive or OneDrive, or R2), since Google's links
+// café's storage (The Business Agent/Content in Google Drive or OneDrive, or R2), since Google's links
 // to what was picked last only an hour, and listed on the page (content_items). Something picked
 // before isn't brought in twice (Google keeps each item's id). Uploads from the device go through
 // /api/integrations/media?folder=Content and the page adds their row itself.
@@ -23,7 +23,7 @@ class ContentError extends Error {
   constructor(message: string, readonly status: 400 | 404 | 409 = 400) { super(message) }
 }
 
-const NO_STORAGE = 'Connect Google Drive or OneDrive on the Connections page first: the photos and videos are kept in its Business Agent folder.'
+const NO_STORAGE = 'Connect Google Drive or OneDrive on the Connections page first: the photos and videos are kept in its The Business Agent folder.'
 
 /** Admins only: the caller's token, role and business. */
 content.use('/api/content/*', async (c, next) => {

@@ -4,7 +4,7 @@
 export const LEGAL = {
   service: 'The Business Agent',
   domain: 'businesssagent.com',
-  /** Legal name of the company that runs Business Agent, e.g. "Business Agent SL". */
+  /** Legal name of the company that runs Business Agent, e.g. "The Business Agent SL". */
   operator: '',
   /** Registered address of that company. */
   address: '',

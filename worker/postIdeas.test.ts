@@ -1,5 +1,5 @@
 // Post ideas: anyone on the team keeps the photos and videos they make for an idea in the café's Drive
-// (Business Agent/Social/Ideas); nobody else can, and only photos and videos go there.
+// (The Business Agent/Social/Ideas); nobody else can, and only photos and videos go there.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { integrations } from './integrations'
 import { forgetMediaTokens } from './media'
@@ -46,7 +46,7 @@ async function connectDrive() {
 }
 
 describe('Post ideas: the team’s photos and videos', () => {
-  it('an employee’s video goes into Business Agent/Social/Ideas, and its address plays it', async () => {
+  it('an employee’s video goes into The Business Agent/Social/Ideas, and its address plays it', async () => {
     await connectDrive()
     const video = new Uint8Array([1, 2, 3, 4, 5])
     const res = await upload(staff, video, 'video/mp4')
@@ -56,7 +56,7 @@ describe('Post ideas: the team’s photos and videos', () => {
     expect(stored.url).toMatch(/^https:\/\/app\.test\/media\/g\/1\/file-\d+\/[\w-]{24}\.mp4$/)
     const [file] = [...apis.google.blobs.values()]
     const path = (id: string): string[] => { const f = apis.google.folders.get(id); return f ? [...path(f.parent), f.name] : [] }
-    expect(path(file.parent)).toEqual(['Business Agent', 'Social', 'Ideas'])
+    expect(path(file.parent)).toEqual(['The Business Agent', 'Social', 'Ideas'])
     const got = await call(new URL(stored.url).pathname)
     expect(new Uint8Array(await got.arrayBuffer())).toEqual(video)
   })

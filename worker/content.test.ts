@@ -2,7 +2,7 @@
 // Supabase, Google Drive and Google's Photos Picker API. What must never break:
 //   - Google Photos only connects when Google opened a picker for the account (and nothing's left behind)
 //   - a pick is read only once the admin pressed Done, and a "not yet" doesn't mark the connection broken
-//   - what was picked is copied into the café's own Drive (Business Agent/Content), a few per request,
+//   - what was picked is copied into the café's own Drive (The Business Agent/Content), a few per request,
 //     each with Google's token and a size, and listed once (picking it again adds nothing)
 //   - what can't be brought in says why; only admins, with storage and Google Photos connected
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -116,7 +116,7 @@ describe('Bringing photos and videos in from Google Photos', () => {
     expect((await noPhotos.json() as { error: string }).error).toBe('Connect Google Photos on the Connections page first.')
   })
 
-  it('waits for Done, then copies what was picked into Business Agent/Content, a few at a time, and lists each once', async () => {
+  it('waits for Done, then copies what was picked into The Business Agent/Content, a few at a time, and lists each once', async () => {
     await connect('google_drive')
     await connect('google_photos')
     apis.googlePhotos.picks = [photo('gp-1'), photo('gp-2')]
@@ -147,10 +147,10 @@ describe('Bringing photos and videos in from Google Photos', () => {
     expect(apis.googlePhotos.downloads.map(d => d.url)).toContain('https://lh3.googleusercontent.com/pp/gp-1=w2560-h2560')
     expect(apis.googlePhotos.downloads.map(d => d.url)).toContain('https://lh3.googleusercontent.com/pp/gp-video=dv')
 
-    // In the café's Drive, Business Agent/Content, and listed with where they came from.
+    // In the café's Drive, The Business Agent/Content, and listed with where they came from.
     const files = [...apis.google.blobs.values()]
     expect(files).toHaveLength(8)
-    expect(files.every(f => path(f.parent).join('/') === 'Business Agent/Content')).toBe(true)
+    expect(files.every(f => path(f.parent).join('/') === 'The Business Agent/Content')).toBe(true)
     const rows = db.table('content_items')
     expect(rows).toHaveLength(8)
     const first = rows.find(r => r.source_id === 'gp-1')!

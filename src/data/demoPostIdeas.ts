@@ -76,7 +76,7 @@ export function demoPostIdeasApi(w: Who, seed: { aron: string; julio: string; ma
     },
     async uploadIdeaMedia(file): Promise<PostMedia> {
       if (!w.isStaff()) refuse('Only the team adds photos and videos to ideas')
-      if (!w.storage()) refuse('Connect Google Drive or OneDrive on the Connections page to add photos and videos. They’re kept in its Business Agent folder.')
+      if (!w.storage()) refuse('Connect Google Drive or OneDrive on the Connections page to add photos and videos. They’re kept in its The Business Agent folder.')
       if (!/^(image\/jpeg|video\/(mp4|quicktime))$/.test(file.type)) refuse('Use a JPEG photo, an MP4 or MOV video, or an MP3 or M4A track')
       return { url: URL.createObjectURL(file), type: file.type.startsWith('video/') ? 'video' : 'image' }
     },

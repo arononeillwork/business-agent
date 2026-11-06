@@ -226,7 +226,7 @@ function Accounts({ integ, storage, connected }: { integ: IntegrationsState | nu
             : <><Typography variant="body2" sx={{ color: 'text.secondary' }} noWrap>{n.name}</Typography>{connect}</>}
         </Box>
       ))}
-      <Box sx={pill} aria-label={t('Photos and videos')} title={storage ? (storage === 'r2' ? t('Kept for posting automatically') : t('Business Agent › Social, a folder for each kind')) : t('Connect storage to add photos and videos and post automatically')}>
+      <Box sx={pill} aria-label={t('Photos and videos')} title={storage ? (storage === 'r2' ? t('Kept for posting automatically') : t('The Business Agent › Social, a folder for each kind')) : t('Connect storage to add photos and videos and post automatically')}>
         <Box sx={{ color: tokens.inkSoft, display: 'flex' }}><FolderIcon sx={{ fontSize: 16 }} /></Box>
         {storage
           ? <Typography variant="body2" noWrap>{storage === 'r2' ? t('Photos and videos: ready') : `${t(STORAGE_NAME[storage])}${row(storage)?.account_label ? ` · ${row(storage)!.account_label}` : ''}`}</Typography>
@@ -792,7 +792,7 @@ export function Composer({ post, storage, isConnected, onClose, onSaved, recent,
     : when === 'now' ? t('Posting now') : t('Scheduled for {when}', { when: formatLocal(zonedIso(date, time), 'EEE d MMM, HH:mm') }))
 
   // Where the photos and videos are kept (the folder names are the real ones in the storage app).
-  const where = storage ? `${t(STORAGE_NAME[storage])}${storage === 'r2' ? '' : ` › Business Agent › Social › ${info.folder}`}` : ''
+  const where = storage ? `${t(STORAGE_NAME[storage])}${storage === 'r2' ? '' : ` › The Business Agent › Social › ${info.folder}`}` : ''
   const accepts = photoReel ? ['image'] : kind === 'reel' && canRender ? ['video', 'image'] : info.accepts
   const accept = accepts.map(a => (a === 'image' ? 'image/jpeg,image/png,image/webp' : 'video/mp4,video/quicktime')).join(',')
   return (
@@ -825,7 +825,7 @@ export function Composer({ post, storage, isConnected, onClose, onSaved, recent,
             </Typography>
             {!storage ? (
               <Alert severity="info" action={<Button size="small" component={RouterLink} to="/connections">{t('Connect')}</Button>}>
-                {t('Connect Google Drive or OneDrive to add photos and videos, and to post automatically. They’re kept in its Business Agent › Social folder.')}
+                {t('Connect Google Drive or OneDrive to add photos and videos, and to post automatically. They’re kept in its The Business Agent › Social folder.')}
               </Alert>
             ) : (
               <>

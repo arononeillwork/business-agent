@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { alertEmail, base64url, mimeMessage } from '../shared/alertText'
-import { saveToDrive, sendGmail } from './providers/google'
-import { authUrl, saveFile, MS_SCOPES } from './providers/microsoft'
+import { ensureDriveFolder, saveToDrive, sendGmail } from './providers/google'
+import { authUrl, ensureFolder, saveFile, MS_SCOPES } from './providers/microsoft'
 
 afterEach(() => vi.unstubAllGlobals())
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
@@ -32,7 +32,7 @@ describe('Gmail and Google Drive', () => {
     expect(JSON.parse(String((f.mock.calls[0] as unknown as [string, RequestInit])[1].body))).toEqual({ raw: 'abc' })
   })
 
-  it('saves into Business Agent/<folder>, making the folders the first time', async () => {
+  it('saves into The Business Agent/<folder>, making the folders the first time', async () => {
     const calls: string[] = []
     vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
       calls.push(`${init?.method ?? 'GET'} ${url.split('?')[0]}`)
@@ -42,10 +42,32 @@ describe('Gmail and Google Drive', () => {
     }))
     expect(await saveToDrive('tok', 'Timecards', 'week.csv', 'a;b', 'text/csv')).toBe('https://drive.google.com/file/x')
     expect(calls).toEqual([
-      'GET https://www.googleapis.com/drive/v3/files', 'POST https://www.googleapis.com/drive/v3/files',
+      // The app's folder: not there, nor under its old name, so made.
+      'GET https://www.googleapis.com/drive/v3/files', 'GET https://www.googleapis.com/drive/v3/files', 'POST https://www.googleapis.com/drive/v3/files',
       'GET https://www.googleapis.com/drive/v3/files', 'POST https://www.googleapis.com/drive/v3/files',
       'POST https://www.googleapis.com/upload/drive/v3/files',
     ])
+  })
+
+  it('the folder made under the old name ("Business Agent") is renamed, not made again', async () => {
+    const calls: { method: string; url: string; body?: unknown }[] = []
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      calls.push({ method: init?.method ?? 'GET', url, body: init?.body ? JSON.parse(String(init.body)) : undefined })
+      const q = new URL(url).searchParams.get('q') ?? ''
+      if (q.includes("name = 'The Business Agent'")) return json({ files: [] })
+      if (q.includes("name = 'Business Agent'")) return json({ files: [{ id: 'old-folder' }] })
+      return json({ id: 'old-folder' })
+    }))
+    expect(await ensureDriveFolder('tok')).toBe('old-folder')
+    expect(calls.map(c => c.method)).toEqual(['GET', 'GET', 'PATCH'])
+    expect(calls[2]).toMatchObject({ url: 'https://www.googleapis.com/drive/v3/files/old-folder?fields=id', body: { name: 'The Business Agent' } })
+  })
+
+  it('a folder already called The Business Agent is used as it is', async () => {
+    const f = vi.fn(async () => json({ files: [{ id: 'new-folder' }] }))
+    vi.stubGlobal('fetch', f)
+    expect(await ensureDriveFolder('tok')).toBe('new-folder')
+    expect(f).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -56,23 +78,39 @@ describe('Outlook and OneDrive', () => {
     expect(url.searchParams.get('scope')).not.toContain('Mail')
   })
 
-  it('saves into Business Agent/<folder> in OneDrive', async () => {
-    const f = vi.fn(async () => json({ webUrl: 'https://onedrive.live.com/x' }))
+  /** The PUTs a stubbed fetch saw: saving first makes sure of the app's folder (a GET). */
+  const puts = (f: ReturnType<typeof vi.fn>) => (f.mock.calls as unknown as [string, RequestInit?][]).filter(c => c[1]?.method === 'PUT').map(c => c[0])
+
+  it('saves into The Business Agent/<folder> in OneDrive', async () => {
+    const f = vi.fn(async () => json({ id: 'folder', webUrl: 'https://onedrive.live.com/x' }))
     vi.stubGlobal('fetch', f)
     expect(await saveFile('tok', 'Timecards', 'week 40.csv', 'a;b', 'text/csv')).toBe('https://onedrive.live.com/x')
-    const [url, init] = f.mock.calls[0] as unknown as [string, RequestInit]
-    expect(url).toBe('https://graph.microsoft.com/v1.0/me/drive/root:/Business%20Agent/Timecards/week%2040.csv:/content')
-    expect(init.method).toBe('PUT')
+    expect((f.mock.calls[0] as unknown as [string])[0]).toBe('https://graph.microsoft.com/v1.0/me/drive/root:/The%20Business%20Agent')
+    expect(puts(f)).toEqual(['https://graph.microsoft.com/v1.0/me/drive/root:/The%20Business%20Agent/Timecards/week%2040.csv:/content'])
   })
 
-  it('a folder in a folder ("Marketing/Competitions"), never above Business Agent', async () => {
+  it('the OneDrive folder made under the old name ("Business Agent") is renamed, keeping what is in it', async () => {
+    const calls: { method: string; url: string; body?: unknown }[] = []
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      calls.push({ method: init?.method ?? 'GET', url, body: init?.body ? JSON.parse(String(init.body)) : undefined })
+      if (url.endsWith('/root:/The%20Business%20Agent')) return json({ error: { code: 'itemNotFound' } }, 404)
+      return json({ id: 'old-folder', name: 'Business Agent' })
+    }))
+    expect(await ensureFolder('tok')).toBe('old-folder')
+    expect(calls.map(c => `${c.method} ${c.url.replace('https://graph.microsoft.com/v1.0', '')}`)).toEqual([
+      'GET /me/drive/root:/The%20Business%20Agent', 'GET /me/drive/root:/Business%20Agent', 'PATCH /me/drive/items/old-folder',
+    ])
+    expect(calls[2].body).toEqual({ name: 'The Business Agent' })
+  })
+
+  it('a folder in a folder ("Marketing/Competitions"), never above The Business Agent', async () => {
     const f = vi.fn(async () => json({ webUrl: 'https://onedrive.live.com/x' }))
     vi.stubGlobal('fetch', f)
     await saveFile('tok', 'Marketing/Competitions', 'bases.txt', 'x', 'text/plain')
     await saveFile('tok', '../Marketing', 'bases.txt', 'x', 'text/plain')
-    expect((f.mock.calls as unknown as [string][]).map(c => c[0])).toEqual([
-      'https://graph.microsoft.com/v1.0/me/drive/root:/Business%20Agent/Marketing/Competitions/bases.txt:/content',
-      'https://graph.microsoft.com/v1.0/me/drive/root:/Business%20Agent/Marketing/bases.txt:/content',
+    expect(puts(f)).toEqual([
+      'https://graph.microsoft.com/v1.0/me/drive/root:/The%20Business%20Agent/Marketing/Competitions/bases.txt:/content',
+      'https://graph.microsoft.com/v1.0/me/drive/root:/The%20Business%20Agent/Marketing/bases.txt:/content',
     ])
   })
 })
@@ -86,6 +124,6 @@ describe('Google Drive folders', () => {
       return json({ webViewLink: 'https://drive.google.com/file/x' })
     }))
     await saveToDrive('tok', 'Marketing/Competitions', 'bases.txt', 'x', 'text/plain')
-    expect(made.map(m => [m.name, m.parents[0]])).toEqual([['Business Agent', 'root'], ['Marketing', 'id-1'], ['Competitions', 'id-2']])
+    expect(made.map(m => [m.name, m.parents[0]])).toEqual([['The Business Agent', 'root'], ['Marketing', 'id-1'], ['Competitions', 'id-2']])
   })
 })

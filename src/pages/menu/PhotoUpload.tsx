@@ -6,7 +6,7 @@ import { useAction } from '../../app/Notify'
 import { readyPhoto } from '../../lib/media'
 import { t } from '../../i18n'
 
-/** Pick a photo: made a JPEG here, then kept in the café's storage (Business Agent/Menu). */
+/** Pick a photo: made a JPEG here, then kept in the café's storage (The Business Agent/Menu). */
 export function PhotoUpload({ onDone, label, maxWidth = 1440 }: { onDone: (url: string) => void | Promise<void>; label?: string; maxWidth?: number }) {
   const { api } = useApp()
   const run = useAction()

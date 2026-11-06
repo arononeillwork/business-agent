@@ -1,13 +1,13 @@
 // Photos and videos for social posts. Instagram, Facebook, TikTok and Google don't take files from
 // apps: each fetches the file from a public address when it posts. So the files live in the café's
-// own storage, the connected Google Drive or OneDrive ("Business Agent/Social/<Posts|Carousels|
+// own storage, the connected Google Drive or OneDrive ("The Business Agent/Social/<Posts|Carousels|
 // Reels|Stories>"), or in R2 when the deploy has it, and /media/… hands them out. Drive and OneDrive
 // addresses are signed and name the business whose storage the file is in (/media/<g|o>/<business>/
 // <id>/<signature>.<ext>): only ones Business Agent made open anything, never another file there.
 // Addresses from before there were several businesses have no business in them: those are the first's.
-// The Menu page keeps its pictures the same way ("Business Agent/Menu"): menu photos, uploaded
+// The Menu page keeps its pictures the same way ("The Business Agent/Menu"): menu photos, uploaded
 // designs, and AI images copied from Higgsfield (which keeps them only a week). The Content page keeps the
-// business's photos and videos in "Business Agent/Content" (from Google Photos or the device).
+// business's photos and videos in "The Business Agent/Content" (from Google Photos or the device).
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { businessDb, businessIdOf, type Env } from './supabase'
 import { connectorGrant, explain, lasting, markBroken } from './connections'
@@ -86,7 +86,7 @@ export async function storeMedia(env: Env, db: SupabaseClient, origin: string,
   // Social posts and the music library under Social/<kind>; the menu's pictures in a folder of their own.
   const path = folder === 'Menu' || folder === 'Content' ? [folder] : ['Social', folder]
   const storage = await mediaStorage(env, db)
-  if (!storage) throw new MediaError('Connect Google Drive or OneDrive on the Connections page to add photos and videos. They’re kept in its Business Agent folder.')
+  if (!storage) throw new MediaError('Connect Google Drive or OneDrive on the Connections page to add photos and videos. They’re kept in its The Business Agent folder.')
   if (storage === 'r2') {
     const key = `${folder === 'Menu' ? 'menu' : folder === 'Content' ? 'content' : t.type === 'audio' ? 'music' : 'posts'}/${crypto.randomUUID()}.${t.ext}`
     await env.MEDIA!.put(key, f.body, { httpMetadata: { contentType: f.type } })

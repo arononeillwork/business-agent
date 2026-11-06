@@ -278,7 +278,7 @@ function CompetitionDialog({ draft, stock, onClose, onSaved }: {
   const toDrive = () => run(async () => {
     const r = await api.saveFile({ folder: FOLDER, name: termsFile, content: d.terms ?? '', type: 'text/plain;charset=utf-8' })
     window.open(r.link, '_blank', 'noopener')
-  }, t('Saved to {where} › Business Agent › {folder}', { where: storage?.provider === 'onedrive' ? 'OneDrive' : 'Drive', folder: FOLDER.replace('/', ' › ') }))
+  }, t('Saved to {where} › The Business Agent › {folder}', { where: storage?.provider === 'onedrive' ? 'OneDrive' : 'Drive', folder: FOLDER.replace('/', ' › ') }))
   const toPlanner = () => run(async () => {
     const caption = [d.caption_es, d.caption].map(x => x?.trim()).filter(Boolean).join('\n\n')
     if (!caption) throw new Error(t('Write a caption first'))
