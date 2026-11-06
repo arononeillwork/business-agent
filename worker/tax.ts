@@ -10,6 +10,7 @@ import { connectedOf, connectorGrant, explain, lasting, markBroken, setIntegrati
 import * as google from './providers/google'
 import * as ms from './providers/microsoft'
 import { cleanFolderName, cleanFolderPath, isDocKind, safeFileName, taxFileProblem, taxFileType, MAX_TAX_FILE_BYTES } from '../shared/tax'
+import { signInCheck } from './signedIn'
 
 type Storage = 'google_drive' | 'onedrive'
 
@@ -23,7 +24,7 @@ class AlreadyKept extends TaxError {}
 tax.use('/api/tax/*', async (c, next) => {
   const token = bearer(c.req.header('authorization'))
   if (!token) return c.json({ error: 'Not signed in' }, 401)
-  const { data: allowed } = await userClient(c.env, token, 'app').rpc('can_see_pay')
+  const { data: allowed } = await signInCheck(c.env, token, 'can_see_pay')
   if (!allowed) return c.json({ error: 'Only admins with pay access manage tax documents' }, 403)
   c.set('token', token)
   await next()

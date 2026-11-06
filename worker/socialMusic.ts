@@ -17,6 +17,7 @@ import * as instagram from './providers/instagram'
 import { AI_MAX_SECONDS, AI_MIN_SECONDS, STARTER, STARTER_SECONDS, isMood, namesArtist } from '../shared/music'
 import type { RenderJob } from '../render/ffmpeg'
 import type { AiMusicQuote, MusicTrack, PostMedia, SocialPost } from '../shared/types'
+import { signInCheck, signedInUser } from './signedIn'
 
 /** ElevenLabs' terms, kept on each AI track's licence record (checked 23 Oct 2026). */
 const TERMS = 'https://elevenlabs.io/terms-of-use'
@@ -28,8 +29,7 @@ export const socialMusic = new Hono<{ Bindings: Env; Variables: Vars }>()
 socialMusic.use('/api/social/*', async (c, next) => {
   const token = bearer(c.req.header('authorization'))
   if (!token) return c.json({ error: 'Not signed in' }, 401)
-  const sb = userClient(c.env, token, 'app')
-  const [{ data: user }, { data: isAdmin }, { data: businessId }] = await Promise.all([sb.auth.getUser(token), sb.rpc('is_admin'), sb.rpc('current_business_id')])
+  const [{ data: user }, { data: isAdmin }, { data: businessId }] = await Promise.all([signedInUser(c.env, token), signInCheck(c.env, token, 'is_admin'), signInCheck(c.env, token, 'current_business_id')])
   if (!user.user || !isAdmin || !businessId) return c.json({ error: 'Only an admin can do that' }, 403)
   c.set('userId', user.user.id)
   c.set('token', token)
