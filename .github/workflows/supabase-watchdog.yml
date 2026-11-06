@@ -1,14 +1,18 @@
 name: Supabase watchdog
-# Every five minutes: do sign-in and the data API answer? When either stays unanswered for five
-# minutes, the Restart Supabase workflow starts by itself and this run fails, so GitHub emails the
-# owner (scripts/ops/supabase-watchdog.mjs, docs/supabase-freezes.md). A run that finds Supabase
-# answering takes a few seconds.
+# Always watching: each run asks sign-in and the data API once a minute for five hours, then starts the
+# next run itself. When either stays unanswered for five minutes, the Restart Supabase workflow starts by
+# itself and this run fails, so GitHub emails the owner; the next run carries on watching
+# (scripts/ops/supabase-watchdog.mjs, docs/supabase-freezes.md).
+# The schedule alone wasn't enough: GitHub starts an every-five-minutes schedule only when it has room,
+# which in practice was every four to eight hours. It stays to start the watch again if it ever stops.
+# To stop watching: Actions → Supabase watchdog → Disable workflow.
 on:
   schedule:
     - cron: '*/5 * * * *'
   workflow_dispatch:
 
-# A run still watching a stall keeps going; the next one waits for it.
+# One watch at a time: a run started meanwhile (by the schedule, or by hand) waits for this one; the
+# newest waiting one replaces any other.
 concurrency:
   group: supabase-watchdog
   cancel-in-progress: false
@@ -20,7 +24,8 @@ permissions:
 jobs:
   watch:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    # Five hours of watching, the five minutes that tell a freeze, and room to spare (GitHub's limit is six hours).
+    timeout-minutes: 330
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -29,3 +34,12 @@ jobs:
       - run: node scripts/ops/supabase-watchdog.mjs
         env:
           GH_TOKEN: ${{ github.token }}
+          WATCH_MINUTES: 300
+      # The next run takes over (it starts once this one has finished), whether this one found Supabase
+      # answering, started a restart, or ran out of time.
+      - name: Keep watching
+        if: always()
+        run: gh workflow run supabase-watchdog.yml --ref main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}

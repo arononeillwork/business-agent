@@ -32,6 +32,40 @@ export async function check({ url, key }, fetchImpl = fetch, timeoutMs = 20_000)
   return { ok: !auth && !data, auth, data }
 }
 
+/** What didn't answer, in words: "sign-in no answer in 20s; data API answered 544". */
+export const whatFailed = c => [c.auth && `sign-in ${c.auth}`, c.data && `data API ${c.data}`].filter(Boolean).join('; ')
+
+/**
+ * Watches Supabase for `minutes`, a look a minute (0: one look). When a look finds it not answering, it
+ * looks again every minute for `confirm` minutes: one good answer means a stall that passed, which is
+ * noted and the watch goes on; none means it's frozen, and the watch stops there. Returns whether it
+ * froze (with the last look), and how long each stall that passed lasted, in minutes.
+ * `look` is check() bound to the project; `wait` waits that many milliseconds.
+ */
+export async function watch({ look, wait, minutes = 0, confirm = 5, note = () => {} }) {
+  const stalls = []
+  let waited = 0
+  for (;;) {
+    let last = await look()
+    if (!last.ok) {
+      note(`Supabase didn't answer (${whatFailed(last)}); looking again every minute for ${confirm} minutes.`)
+      let passed = 0
+      for (let minute = 1; minute <= confirm; minute++) {
+        await wait(60_000)
+        waited++
+        last = await look()
+        if (last.ok) { passed = minute; break }
+        note(`…still no answer after ${minute} minute${minute === 1 ? '' : 's'} (${whatFailed(last)})`)
+      }
+      if (!passed) return { frozen: true, last, stalls }
+      stalls.push(passed)
+    }
+    if (waited >= minutes) return { frozen: false, last, stalls }
+    await wait(60_000)
+    waited++
+  }
+}
+
 /** A Restart Supabase run that's still going, or started within the last half hour: don't start another. */
 export function recentRestart(runs, now = Date.now(), withinMs = 30 * 60_000) {
   return runs.find(r => r.status !== 'completed' || now - Date.parse(r.created_at) < withinMs) ?? null
