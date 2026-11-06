@@ -69,6 +69,23 @@ delete from public.fresh_items f using public.recipes r where r.id = f.recipe_id
 reset role;
 do $$ begin assert (select count(*) from public.fresh_items f join public.recipes r on r.id = f.recipe_id where r.name like 'FI %') = 1, 'an admin deletes one'; end $$;
 
+-- 3b. An admin takes one off the list: it stays, not made here (so the menu doesn't put it back), and
+--     adding it again puts it back. Everything's on the list to start with.
+select pg_temp.act_as('maria@test');
+insert into public.fresh_items (recipe_id, shelf_life_hours) select id, 72 from public.recipes where name = 'FI Mango chia pudding';
+do $$ begin assert (select bool_and(made_here) from public.fresh_items f join public.recipes r on r.id = f.recipe_id where r.name like 'FI %'), 'on the list'; end $$;
+update public.fresh_items f set made_here = false from public.recipes r where r.id = f.recipe_id and r.name = 'FI Mango chia pudding';
+select pg_temp.act_as('julio@test');
+update public.fresh_items set made_here = true;
+reset role;
+do $$ begin
+  assert (select not made_here from public.fresh_items f join public.recipes r on r.id = f.recipe_id where r.name = 'FI Mango chia pudding'), 'taken off, and the team doesn''t put it back';
+end $$;
+select pg_temp.act_as('maria@test');
+update public.fresh_items f set made_here = true from public.recipes r where r.id = f.recipe_id and r.name = 'FI Mango chia pudding';
+delete from public.fresh_items f using public.recipes r where r.id = f.recipe_id and r.name = 'FI Mango chia pudding';
+reset role;
+
 -- 4. The menu item gone, its shelf life goes with it.
 delete from public.recipes where name = 'FI Biscoff cheesecake';
 do $$ begin assert not exists (select 1 from public.fresh_items f where not exists (select 1 from public.recipes r where r.id = f.recipe_id)), 'gone with its item'; end $$;

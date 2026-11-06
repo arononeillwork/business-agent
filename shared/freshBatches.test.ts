@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   batchFromItem, batchesOf, defaultDiscountAt, freshItemProblem, freshOfferPrice, freshProblem, freshState, goodUntil, likeLastTime, newFreshBatch, newFreshItem, onCounter, shelfShare,
   squareShelfChanges, type FreshBatch,
+  madeHere, menuShelfLife, type FreshItem,
 } from './freshBatches'
 
 const at = (hhmm: string, day = '2026-09-30') => new Date(`${day}T${hhmm}:00Z`).toISOString()
@@ -115,5 +116,57 @@ describe('items made here, with a set shelf life', () => {
     })
     // Already in step: nothing to do.
     expect(squareShelfChanges([{ square_id: 'sq-swirl', shelf_life_hours: 24 }], recipes, items.slice(1, 2))).toEqual({ add: [], change: [], release: [] })
+  })
+})
+
+describe('what the menu says is made here', () => {
+  const item = (name: string, category: string | null, on_menu = true) => ({ name, category, on_menu })
+
+  it('finds the menu’s perishables, keeping as long as they usually do', () => {
+    // Pastries keep a day; parfaits and fresh fruit two; chia puddings and yoghurt pots three; cakes three; cheesecakes and brownies five.
+    expect(menuShelfLife(item('Croissant', 'Bakery'))).toBe(24)
+    expect(menuShelfLife(item('Pain au Chocolat', 'Bakery'))).toBe(24)
+    expect(menuShelfLife(item('Roasted ham & cheese croissant', 'Kitchen'))).toBe(24)
+    expect(menuShelfLife(item('Raisin Butter Swirl', 'Bakery'))).toBe(24)
+    expect(menuShelfLife(item('Chia Fruit Parfait', 'Food'))).toBe(48)
+    expect(menuShelfLife(item('Fruit can', 'Sweet/Savoury'))).toBe(48)
+    expect(menuShelfLife(item('Mango chia pudding', 'Sweet/Savoury'))).toBe(72)
+    expect(menuShelfLife(item('Promotional Postre Chia (Yoghurt)', null))).toBe(72)
+    expect(menuShelfLife(item('Banana bread', null))).toBe(72)
+    expect(menuShelfLife(item('Pistachio Cheesecake', 'Bakery'))).toBe(120)
+    expect(menuShelfLife(item('Gluten Free Brownie', 'Bakery'))).toBe(120)
+    // In Spanish, accents or not; and whatever else is in the bakery keeps a day.
+    expect(menuShelfLife(item('Bollería del día', null))).toBe(24)
+    expect(menuShelfLife(item('Tarta de queso', 'Postres'))).toBe(120)
+    expect(menuShelfLife(item('Pan de plátano', 'Panadería'))).toBe(24)
+    // Wherever it's filed: a croissant left in Coffee, a muffin in a section that's drinks and cakes.
+    expect(menuShelfLife(item('Croissant', 'Coffee'))).toBe(24)
+    expect(menuShelfLife(item('Blueberry muffin', 'Smoothies & cakes'))).toBe(72)
+  })
+
+  it('leaves out drinks, extras, deals, what’s made to order and what’s off the menu', () => {
+    for (const [name, section] of [['Flat White', 'Classics'], ['Biscoff latte', 'Speciality'], ['Chocolate cake shake', 'Smoothies'], ['Matcha Latte', 'Speciality'],
+      ['Granola', 'Extras'], ['Topping Sauce', 'Extras'], ['Cake And Coffee Promo', 'deals'], ['PROMO ( Croissant + Cafe)', 'Classics'], ['Croissant combo', null],
+      ['Eggs on toast', 'Kitchen'], ['Bacon sandwich', 'Kitchen'], ['Acai Bowl', 'Food'], ['Coco Brew 1kg', null], ['Brownie', 'Cold drinks'],
+      ['Cookie monster', 'Shakes'], ['Affogato', 'Coffee']] as const) {
+      expect(menuShelfLife(item(name, section)), name).toBeNull()
+    }
+    expect(menuShelfLife(item('Chocolate Cake', 'Food', false))).toBeNull()
+  })
+
+  it('lists what’s set and on the list, and the menu’s perishables not set yet (taken off the list counts as set)', () => {
+    const menu = [{ id: 'r-croissant', ...item('Croissant', 'Bakery') }, { id: 'r-parfait', ...item('Chia Fruit Parfait', 'Food') },
+      { id: 'r-cake', ...item('Biscoff cheesecake', 'Sweet things') }, { id: 'r-flat', ...item('Flat white', 'Classics') }, { id: 'r-toastie', ...item('Toastie', 'Kitchen') }]
+    const set = (recipe_id: string, x: Partial<FreshItem> = {}): FreshItem => ({ id: `f-${recipe_id}`, recipe_id, shelf_life_hours: 24, from_square: false, offer_hours: 4,
+      discount: 'percent', percent_off: 30, price: null, made_here: true, ...x })
+    const items = [set('r-croissant'), set('r-cake', { made_here: false }), set('r-toastie', { shelf_life_hours: 8, offer_hours: null }), set('r-gone')]
+    expect(madeHere(menu, items)).toEqual([
+      { ...items[0], suggested: false },
+      { ...items[2], suggested: false },
+      { id: 'menu-r-parfait', recipe_id: 'r-parfait', shelf_life_hours: 48, from_square: false, offer_hours: null, discount: 'percent', percent_off: 30, price: null,
+        made_here: true, suggested: true },
+    ])
+    // Nothing set: the menu's perishables, no offer until one's set.
+    expect(madeHere(menu, []).map(i => [i.recipe_id, i.shelf_life_hours, i.offer_hours])).toEqual([['r-croissant', 24, null], ['r-parfait', 48, null], ['r-cake', 120, null]])
   })
 })

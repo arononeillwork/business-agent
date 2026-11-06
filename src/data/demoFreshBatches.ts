@@ -77,7 +77,7 @@ export function demoFreshApi(w: Who): FreshApi {
     seeded = true
     for (const name of ['Croissant', 'Pain au chocolat']) {
       const r = w.menu().find(m => m.name === name)
-      if (r) items.push({ id: `fresh-item-${r.id}`, recipe_id: r.id, shelf_life_hours: 24, from_square: false, offer_hours: 4, discount: 'percent', percent_off: 30, price: null })
+      if (r) items.push({ id: `fresh-item-${r.id}`, recipe_id: r.id, shelf_life_hours: 24, from_square: false, offer_hours: 4, discount: 'percent', percent_off: 30, price: null, made_here: true })
     }
     for (const b of rows) {
       b.recipe_id = w.menu().find(m => m.name.toLowerCase() === b.name.toLowerCase())?.id ?? null
@@ -146,7 +146,7 @@ export function demoFreshApi(w: Who): FreshApi {
     squareShelfLives(read) {
       seed()
       const { add, change, release } = squareShelfChanges(read, w.menu().map(m => ({ id: m.id, square_id: m.square_id ?? null })), items)
-      for (const a of add) items.push({ ...a, id: w.uid(), offer_hours: null, discount: 'percent', percent_off: 30, price: null })
+      for (const a of add) items.push({ ...a, id: w.uid(), offer_hours: null, discount: 'percent', percent_off: 30, price: null, made_here: true })
       for (const c of change) Object.assign(items.find(i => i.id === c.id)!, c.patch)
       for (const i of items) if (release.includes(i.id)) i.from_square = false
     },

@@ -154,6 +154,11 @@ export interface FreshItem {
   discount: 'percent' | 'price'
   percent_off: number
   price: string | null
+  /**
+   * On the list (false: an admin took it off, so the menu doesn't put it back and Square's shelf life only
+   * keeps it up to date; the `fresh_items_made_here` migration).
+   */
+  made_here: boolean
 }
 export type FreshItemInput = Omit<FreshItem, 'id' | 'from_square'> & { id?: string }
 
@@ -165,7 +170,7 @@ export const OFFER_LEADS: { hours: number; label: string }[] = [
 
 /** A new one: keeps a day, 30% off for its last 4 hours. */
 export const newFreshItem = (recipeId = ''): FreshItemInput =>
-  ({ recipe_id: recipeId, shelf_life_hours: 24, offer_hours: 4, discount: 'percent', percent_off: 30, price: null })
+  ({ recipe_id: recipeId, shelf_life_hours: 24, offer_hours: 4, discount: 'percent', percent_off: 30, price: null, made_here: true })
 
 /** What stops it being saved (null: fine). The database checks the same. */
 export function freshItemProblem(i: Pick<FreshItemInput, 'recipe_id' | 'shelf_life_hours' | 'offer_hours' | 'discount' | 'percent_off' | 'price'>): string | null {
@@ -220,4 +225,65 @@ export function squareShelfChanges(read: { square_id: string; shelf_life_hours?:
   }
   const release = items.filter(i => i.from_square && !inSquare.has(i.recipe_id)).map(i => i.id)
   return { add, change, release }
+}
+
+// ---------------------------------------------------------------------------------------------
+// What the menu says is made here: its perishables, by name and section
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * How long the menu's perishables usually keep once made, by what they are (the first that fits): an item
+ * on the menu that's one of these shows on Made here by itself, keeping this long, with no offer, until an
+ * admin sets its own or takes it off. Names in English or Spanish, as on the till, without accents.
+ */
+const PERISHABLES: { match: RegExp; hours: number }[] = [
+  // Parfaits (fruit and granola on yoghurt or chia) and fresh fruit: two days.
+  { match: /parfait|fruit (cup|can|pot|salad|bowl)|macedonia|fruta (fresca|cortada)/, hours: 48 },
+  // Chia puddings, yoghurt pots, overnight oats, puddings and mousses: three days in the fridge.
+  { match: /chia|yogh?urt|yogur|overnight oats|pudding|postre|mousse|natillas|arroz con leche/, hours: 72 },
+  // Cheesecakes, brownies, blondies, flapjacks and cookies keep the longest.
+  { match: /cheesecake|tarta de queso|brownie|blondie|flapjack|cookie|galleta/, hours: 120 },
+  // Cakes, tarts, loaves and muffins.
+  { match: /cake|\btarts?\b|\btarta|loaf|banana bread|muffin|magdalena|bizcocho|pastel/, hours: 72 },
+  // Pastries and the day's bakes: a day.
+  { match: /croissant|cruasan|pain au|napolitana|swirl|danish|palmera|ensaimada|scone|donut|doughnut|\bbuns?\b|cinnamon roll|sausage roll|pastry|pastries|bolleria|empanada|quiche|focaccia/, hours: 24 },
+]
+/** The menu's sections that are all made here (bakery, cakes, desserts): an item in one keeps a day unless it's one of the above. */
+const PERISHABLE_SECTIONS = /bakery|bakes|pastr|patisserie|cake|dessert|sweet|postres?\b|bolleria|panaderia|pasteleria|chia|parfait/
+/** Never made here: drinks, extras and combo deals ("Croissant + coffee"), whatever their name says. */
+const NOT_PERISHABLE = /latte|coffee|\bcafe\b|espresso|cappuccino|cortado|americano|mocha|frapp|shake|smoothie|juice|zumo|\btea\b|chai|matcha|cold brew|syrup|sirope|sauce|topping|\bextras?\b|\badd\b|\bpromo\b|\bdeal\b|\bcombo\b/
+/** Sections that are never made here (unless they say they're food too: "Smoothies & cakes"); coffees are told by their names. */
+const NOT_PERISHABLE_SECTIONS = /drink|bebida|smoothie|shake|juice|zumo|alcohol|beer|cerveza|wine|vino|extra|syrup|milk|make it yours|deal|promo|combo|shop|tienda|retail/
+const plain = (s: string | null) => (s ?? '').toLowerCase().normalize('NFD').replace(/\p{M}/gu, '')
+
+/**
+ * How long a menu item usually keeps once made, in hours, when the menu says it's made here (a pastry, a
+ * cheesecake, a chia pudding or parfait); null when it isn't (a drink, an extra, a deal, something made to
+ * order, or off the menu).
+ */
+export function menuShelfLife(m: { name: string; category: string | null; on_menu: boolean }): number | null {
+  if (!m.on_menu) return null
+  const name = plain(m.name), section = plain(m.category)
+  const food = PERISHABLE_SECTIONS.test(section)
+  if (NOT_PERISHABLE.test(name) || (NOT_PERISHABLE_SECTIONS.test(section) && !food)) return null
+  return PERISHABLES.find(p => p.match.test(name))?.hours ?? (food ? 24 : null)
+}
+
+/** An item on Made here: one set (`fresh_items`), or one the menu says is made here and isn't set yet (`suggested`: not saved). */
+export type MadeHereItem = FreshItem & { suggested: boolean }
+
+/**
+ * What's on Made here: the items set and on the list, and each perishable on the menu that isn't set yet
+ * (taken off the list counts as set), with its usual shelf life and no offer.
+ */
+export function madeHere(menu: { id: string; name: string; category: string | null; on_menu: boolean }[], items: FreshItem[]): MadeHereItem[] {
+  const ids = new Set(menu.map(m => m.id))
+  const set = new Set(items.map(i => i.recipe_id))
+  const kept = items.filter(i => i.made_here && ids.has(i.recipe_id)).map(i => ({ ...i, suggested: false }))
+  const found = menu.flatMap(m => {
+    const hours = set.has(m.id) ? null : menuShelfLife(m)
+    return hours ? [{ id: `menu-${m.id}`, recipe_id: m.id, shelf_life_hours: hours, from_square: false, offer_hours: null, discount: 'percent' as const,
+      percent_off: 30, price: null, made_here: true, suggested: true }] : []
+  })
+  return [...kept, ...found]
 }

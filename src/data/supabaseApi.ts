@@ -1016,7 +1016,7 @@ export function createSupabaseApi(url: string, key: string): Api {
     },
     async deleteFreshBatch(id) { check(await sb.from('fresh_batches').delete().eq('id', id)) },
     async freshItems() {
-      return check(await sb.from('fresh_items').select('id, recipe_id, shelf_life_hours, from_square, offer_hours, discount, percent_off, price')) as FreshItem[]
+      return check(await sb.from('fresh_items').select('id, recipe_id, shelf_life_hours, from_square, offer_hours, discount, percent_off, price, made_here')) as FreshItem[]
     },
     async saveFreshItem({ id, ...i }) {
       if (id) { check(await sb.from('fresh_items').update(i).eq('id', id)); return id }
