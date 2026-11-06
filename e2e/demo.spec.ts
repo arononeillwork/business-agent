@@ -1480,6 +1480,14 @@ test.describe('opening hours', () => {
 })
 
 test.describe('brand', () => {
+  test('the app icon sits under the logo: Easy Beans’ coffee cup until it uploads its own', async ({ page }) => {
+    await open(page, '/brand')
+    const icon = page.getByRole('region', { name: 'App icon' })
+    await expect(icon.getByText('Your small square logo, like a favicon. QR codes, screens and offers use it.')).toBeVisible()
+    await expect(icon.getByRole('img', { name: 'App icon' })).toBeVisible()
+    await expect(icon.getByRole('button', { name: 'Replace app icon' })).toBeVisible()
+  })
+
   test('admin edits a colour and picks a font by searching; staff can only look', async ({ page }) => {
     await open(page, '/brand')
     await page.getByRole('button', { name: 'Edit Rose Pink' }).click()

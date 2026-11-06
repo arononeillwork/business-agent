@@ -1,7 +1,7 @@
 import { Link as RouterLink } from 'react-router-dom'
 import { Box, Button, Container, Link, Stack, Typography } from '@mui/material'
 import type { ReactNode } from 'react'
-import iconUrl from '../../assets/icon.png'
+import agentMarkUrl from '../../assets/business-agent-mark.png'
 import { ENTERPRISE } from '../../../shared/plans'
 import { t } from '../../i18n'
 import { LanguageToggle } from '../../components/Language'
@@ -33,21 +33,21 @@ export const glow = (x = '80%', y = '-160px', floor = true) =>
   'radial-gradient(760px 420px at -10% 10%, rgba(183,163,216,0.18), transparent 70%)' +
   (floor ? ', radial-gradient(700px 380px at 50% 110%, rgba(198,194,187,0.30), transparent 70%)' : '')
 
-/** The Business Agent mark: the coffee-cup icon the site uses as its favicon. */
+/** The Business Agent's mark: the robot, as in the browser tab. */
 export function AgentMark({ size = 32 }: { size?: number }) {
   return (
-    <Box component="img" src={iconUrl} alt="" width={size} height={size}
+    <Box component="img" src={agentMarkUrl} alt="" width={size} height={size}
       sx={{ display: 'block', flexShrink: 0, borderRadius: `${Math.round(size * 0.3)}px`, bgcolor: '#fff',
         border: `1px solid ${BA.line}`, p: `${Math.max(2, Math.round(size * 0.1))}px` }} />
   )
 }
 
-/** "Business Agent", set in the serif, Agent in italic. */
+/** "The Business Agent", set in the serif, Agent in italic. */
 export function Wordmark({ size = '1.6rem', light }: { size?: string; light?: boolean }) {
   return (
     <Typography component="span" sx={{ fontFamily: display, fontWeight: 500, fontSize: size, letterSpacing: '-0.01em', lineHeight: 1,
       color: light ? '#fff' : BA.ink, whiteSpace: 'nowrap' }}>
-      {'Business '}<Box component="em" sx={{ fontStyle: 'italic', color: light ? BA.rose : BA.roseDeep }}>{'Agent'}</Box>
+      {'The Business '}<Box component="em" sx={{ fontStyle: 'italic', color: light ? BA.rose : BA.roseDeep }}>{'Agent'}</Box>
     </Typography>
   )
 }

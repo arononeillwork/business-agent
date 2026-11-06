@@ -47,3 +47,21 @@ the three addresses is delivered from then on.
 
 Test: send an email to hello@businesssagent.com from another account; reply from Gmail and check
 the reply shows hello@businesssagent.com as the sender.
+
+## Sign-in emails from noreply@businesssagent.com (Cloudflare Email Sending)
+
+Invites, sign-up confirmations, sign-in codes and password resets come from **The Business Agent
+<noreply@businesssagent.com>**, with replies going to support@. Cloudflare Email Sending sends them
+straight from the Worker, signed for the domain (SPF and DKIM), with The Business Agent's robot at
+the top. Until it's set up, they go out as before, from a business's own Gmail or Outlook.
+
+1. **Workers Paid plan** (US$5 a month): Cloudflare → Workers & Pages → Plans. Sending to anyone
+   needs it; 3,000 emails a month are included.
+2. **Onboard the domain** (2 minutes): Cloudflare → Compute → Email Service → **Email Sending** →
+   Onboard Domain → businesssagent.com → Done. Cloudflare adds the `cf-bounce` and DKIM records.
+3. **Deploy** (Actions → Deploy → Run workflow). The "Sign-in emails" step finds those records,
+   switches the Worker's `send_email` binding on (`scripts/ops/email-sending.mjs`), and the sign-in
+   settings step sends sign-in emails through it. The deploy summary says which it did.
+
+If Cloudflare refuses an email (the plan lapsed, a sending limit), that one still goes, from the
+mailbox, and the Worker's log says why. Sent emails show in Cloudflare → Email Sending → Activity.

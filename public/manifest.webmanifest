@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "Easy Beans Team",
-  "short_name": "Easy Beans",
+  "name": "The Business Agent",
+  "short_name": "Business Agent",
   "description": "The team's app: rota, hours, messages and the rest of the business.",
   "start_url": "/",
   "scope": "/",

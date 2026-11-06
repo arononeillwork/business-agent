@@ -1,5 +1,13 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
+/** The part of Cloudflare's send_email binding the app uses (developers.cloudflare.com/email-service). */
+export interface EmailSender {
+  send(message: {
+    from: string | { email: string; name?: string }; to: string; subject: string
+    text?: string; html?: string; replyTo?: string
+  }): Promise<{ messageId: string }>
+}
+
 export interface Env {
   SUPABASE_URL: string
   SUPABASE_PUBLISHABLE_KEY: string
@@ -9,6 +17,8 @@ export interface Env {
   GIT_SHA?: string                    // set by the deploy: the commit that's live
   DEPLOYED_AT?: string                // set by the deploy: when it went live (ISO time)
   MEDIA?: R2Bucket
+  /** Cloudflare Email Sending (the send_email binding the deploy switches on: scripts/ops/email-sending.mjs). */
+  EMAIL?: EmailSender
   // Integrations (secrets unless noted). Anything missing shows as "needs setup" in the app.
   GOOGLE_FONTS_API_KEY?: string       // optional: official Google Fonts list (brand page)
   ANTHROPIC_API_KEY?: string          // optional: the in-app assistant (worker/assistant.ts); off without it

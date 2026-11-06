@@ -16,7 +16,7 @@ const STALE_HOURS = 6
 const ROUNDS_AHEAD = 4
 const FIGHT_DAYS = 8
 const TSDB_GAP_MS = 2100
-const UA = { 'user-agent': 'EasyBeansCafe/1.0 (team app; fixtures for the cafe TV)' }
+const UA = { 'user-agent': 'TheBusinessAgent/1.0 (+https://businesssagent.com; fixtures for the cafe TV)' }
 
 /**
  * How long a source has to answer, headers and body. They usually take a second or two; one that's down
