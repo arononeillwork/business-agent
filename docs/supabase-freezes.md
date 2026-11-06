@@ -31,8 +31,11 @@ restarted by hand four times (Actions → Restart Supabase).
 
 ## What happens now
 
-- **Supabase watchdog** (`.github/workflows/supabase-watchdog.yml`, every five minutes): asks
-  sign-in and the data API directly. When either stays unanswered for five minutes, it starts
+- **Supabase watchdog** (`.github/workflows/supabase-watchdog.yml`, always on): asks sign-in and
+  the data API directly, once a minute. Each run watches for five hours and then starts the next one
+  itself, because GitHub ran its every-five-minutes schedule only every four to eight hours (until
+  6 November 2026 a freeze could go unnoticed that long); the schedule stays, to start the watch
+  again if it ever stops. When either stays unanswered for five minutes, it starts
   **Restart Supabase** and fails, so GitHub emails the owner. A stall that passes within those five
   minutes is left alone, and it never starts a second restart within half an hour of the last.
 - **Restart Supabase** then waits until sign-in and the data API answer, and runs again the failed
