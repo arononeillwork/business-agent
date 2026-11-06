@@ -11,7 +11,8 @@
 //   - the form page speaks the visitor's language, asks what the business wants, and escapes its words
 //   - only an admin makes the key (shown once; only its hash is kept) and brings in a list
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { newsletter, formPage, inkOn, IMPORT_BATCH } from './newsletter'
+import { newsletter, IMPORT_BATCH } from './newsletter'
+import { formPage, inkOn } from '../shared/newsletterForm'
 import type { Env } from './supabase'
 import { FakeSupabase, type Row } from './test/fakeSupabase'
 import type { NewsletterInterest } from '../shared/newsletter'
@@ -227,8 +228,8 @@ describe('the form page', () => {
   it('writes on a colour in whichever reads better', () => {
     expect(inkOn('#F79BA4')).toBe('#1f1f1f')
     expect(inkOn('#6B8E4E')).toBe('#ffffff')
-    expect(formPage({ business: 1, name: 'X', colour: null, lang: 'en', place: null, settings: { enabled: true, interests: [], ask_name: false, ask_phone: false,
-      heading: null, intro: null, key_hash: null }, said: 'done' })).toContain('You’re on the list. Thank you!')
+    expect(formPage({ business: 1, name: 'X', colour: null, lang: 'en', place: null, settings: { interests: [], ask_name: false, ask_phone: false,
+      heading: null, intro: null }, said: 'done' })).toContain('You’re on the list. Thank you!')
   })
 })
 

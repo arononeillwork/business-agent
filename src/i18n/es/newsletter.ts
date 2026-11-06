@@ -1,0 +1,83 @@
+// Spanish for newsletter sign-ups (Website & SEO → Newsletter sign-ups). The form visitors see has its own
+// words in shared/newsletter.ts (FORM_TEXT), in the visitor's language rather than the app's.
+export default {
+  'Newsletter sign-ups': 'Suscripciones a la newsletter',
+  'People who sign up for the newsletter on your website go straight onto Customers, as leads from the website who said yes to marketing, with the topics they picked as tags. Campaigns can then send to just the people interested in each topic.':
+    'Quien se suscribe a la newsletter en tu web pasa directamente a Clientes, como contacto potencial de la web que aceptó recibir marketing, con los temas que eligió como etiquetas. Así Campañas puede enviar solo a quien le interesa cada tema.',
+  'The website can take sign-ups': 'La web ya puede recibir suscripciones',
+  'The website no longer takes sign-ups': 'La web ya no recibe suscripciones',
+  'Take newsletter sign-ups': 'Recibir suscripciones a la newsletter',
+  'Who’s signed up': 'Quién se ha suscrito',
+  '{n} person subscribed': '{n} persona suscrita',
+  '{n} people subscribed': '{n} personas suscritas',
+  'No sign-ups yet. Put the form on your website below, or bring in your list.': 'Aún no hay suscripciones. Pon el formulario en tu web (abajo) o trae tu lista.',
+  'Latest sign-ups': 'Últimas suscripciones',
+  'Topics': 'Temas',
+  'Unsubscribed': 'Dado de baja',
+  'The form here': 'El formulario de aquí',
+  'Your website': 'Tu web',
+  'A list brought in': 'Una lista importada',
+
+  'What the form asks': 'Qué pregunta el formulario',
+  'Everyone gives an email. The topics are your own: each becomes a tag on Customers, and the form shows it in Spanish or English, whichever the visitor reads.':
+    'Todos dan un email. Los temas los eliges tú: cada uno se convierte en una etiqueta en Clientes, y el formulario lo muestra en español o en inglés, según el idioma del visitante.',
+  'New topic': 'Tema nuevo',
+  'Topic {n}': 'Tema {n}',
+  'Topic (the tag)': 'Tema (la etiqueta)',
+  'Websites send it as “{key}”': 'Las webs lo envían como «{key}»',
+  'this topic': 'este tema',
+  'Add a topic': 'Añadir un tema',
+  'Heading (optional)': 'Título (opcional)',
+  'A line under it (optional)': 'Una frase debajo (opcional)',
+  'Ask for their name': 'Pedir el nombre',
+  'Ask for a phone number (optional for them)': 'Pedir un teléfono (opcional para ellos)',
+  'Save the form': 'Guardar el formulario',
+  'Newsletter form saved': 'Formulario de la newsletter guardado',
+  'Preview in': 'Vista previa en',
+  'Preview of the newsletter form': 'Vista previa del formulario de la newsletter',
+  'Up to 12 topics': 'Hasta 12 temas',
+  'Each topic needs a name': 'Cada tema necesita un nombre',
+  'A topic’s name is up to 40 characters': 'El nombre de un tema tiene hasta 40 caracteres',
+  'Two topics have the same name': 'Hay dos temas con el mismo nombre',
+  'Two topics have the same key': 'Hay dos temas con la misma clave',
+
+  'Put the form on your website': 'Pon el formulario en tu web',
+  'A link': 'Un enlace',
+  'For your Instagram bio, a QR code on the counter or an email: the form on a page of its own.':
+    'Para la bio de Instagram, un código QR en el mostrador o un email: el formulario en una página propia.',
+  'Link to the newsletter form': 'Enlace al formulario de la newsletter',
+  'Open the form': 'Abrir el formulario',
+  'On your website’s pages': 'En las páginas de tu web',
+  'Paste this where the form should go (Wix, Squarespace and WordPress all take a piece of HTML: an “Embed” or “Custom HTML” block). It speaks Spanish or English, whichever the visitor reads.':
+    'Pega esto donde quieras el formulario (Wix, Squarespace y WordPress admiten un trozo de HTML: un bloque «Insertar» o «HTML personalizado»). Habla español o inglés, según el idioma del visitante.',
+  'Code to paste into your website': 'Código para pegar en tu web',
+  'Copy the code': 'Copiar el código',
+  'Your website’s own form': 'El formulario propio de tu web',
+  'A website with a form of its own sends each sign-up here: the email, the topics ticked (each topic’s key, or its words), and a phone, name and language when it has them. From its server, with the website key, it can also send people who signed up before and tell us when someone unsubscribes, so they get no more marketing.':
+    'Una web con formulario propio envía aquí cada suscripción: el email, los temas marcados (la clave de cada tema, o sus palabras) y un teléfono, nombre e idioma si los tiene. Desde su servidor, con la clave de la web, también puede enviar a quien se suscribió antes y avisar cuando alguien se da de baja, para que no reciba más marketing.',
+  'Address for sign-ups': 'Dirección para las suscripciones',
+  'Website key ending {hint}, made {when}': 'Clave de la web terminada en {hint}, creada el {when}',
+  'Replace the key': 'Cambiar la clave',
+  'Remove the key': 'Quitar la clave',
+  'Key made': 'Clave creada',
+  'Key removed': 'Clave quitada',
+  'No website key yet.': 'Aún no hay clave de la web.',
+  'Make a website key': 'Crear una clave de la web',
+  'Copy it now and give it to whoever runs the website: it won’t be shown again. It goes on the website’s server only (Authorization: Bearer …), never in its pages.':
+    'Cópiala ahora y dásela a quien lleve la web: no se volverá a mostrar. Va solo en el servidor de la web (Authorization: Bearer …), nunca en sus páginas.',
+  'The new website key': 'La nueva clave de la web',
+
+  'Bring in your list': 'Trae tu lista',
+  'Signed people up before, on your website or another newsletter service (Mailchimp, Brevo…)? Bring in its export (CSV). Only people still subscribed come in, each with their topics and the day they signed up; someone already on Customers keeps everything they have.':
+    '¿Ya tenías suscriptores, en tu web o en otro servicio de newsletter (Mailchimp, Brevo…)? Trae su exportación (CSV). Solo entran quienes siguen suscritos, cada uno con sus temas y el día en que se suscribió; quien ya está en Clientes conserva todo lo que tiene.',
+  'That file has no email column.': 'Ese archivo no tiene columna de email.',
+  'Bring them in': 'Traerlos',
+  '{n} person to bring in': '{n} persona para traer',
+  '{n} people to bring in': '{n} personas para traer',
+  '{n} unsubscribed: left out': '{n} dados de baja: no entran',
+  '{n} without an email (or twice): left out': '{n} sin email (o repetidos): no entran',
+  '{n} person brought in': '{n} persona importada',
+  '{n} people brought in': '{n} personas importadas',
+  '{added} brought in. These topics aren’t on your form, so they were left out: {topics}':
+    '{added} importados. Estos temas no están en tu formulario, así que no se han incluido: {topics}',
+}

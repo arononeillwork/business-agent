@@ -4,6 +4,7 @@
 // to paste into a website and reading a list brought in from a CSV. The newsletter migration has the
 // same rules; the Worker's routes are in worker/newsletter.ts and the contract in docs/WEBSITE.md.
 import { EMAIL, cleanDate, cleanPhone, parseCsv } from './customers'
+import { msg } from './i18n'
 
 /** The languages the form speaks. */
 export type FormLanguage = 'en' | 'es'
@@ -70,14 +71,14 @@ export const interestText = (i: NewsletterInterest, lang: FormLanguage) => i.lab
  * no name or key twice. Returns the problem, in English, for the app to translate.
  */
 export function interestsProblem(list: NewsletterInterest[]): string | null {
-  if (list.length > MAX_INTERESTS) return 'Up to 12 topics'
+  if (list.length > MAX_INTERESTS) return msg('Up to 12 topics')
   const names = new Set<string>(), keys = new Set<string>()
   for (const i of list) {
     const name = i.label.trim().toLowerCase()
-    if (!name) return 'Each topic needs a name'
-    if (name.length > MAX_LABEL) return 'A topic’s name is up to 40 characters'
-    if (names.has(name)) return 'Two topics have the same name'
-    if (keys.has(i.key)) return 'Two topics have the same key'
+    if (!name) return msg('Each topic needs a name')
+    if (name.length > MAX_LABEL) return msg('A topic’s name is up to 40 characters')
+    if (names.has(name)) return msg('Two topics have the same name')
+    if (keys.has(i.key)) return msg('Two topics have the same key')
     names.add(name)
     keys.add(i.key)
   }

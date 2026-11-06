@@ -5918,6 +5918,72 @@ test.describe('reviews and website', () => {
   })
 })
 
+test.describe('newsletter sign-ups', () => {
+  test('the website’s newsletter: who signed up for what, the owner’s own topics, the form for any website, a key and a list brought in', async ({ page }) => {
+    await open(page, '/website')
+    const card = page.getByRole('region', { name: 'Newsletter sign-ups' })
+    await expect(card.getByRole('switch', { name: 'Take newsletter sign-ups' })).toBeChecked()
+    // Easy Beans' website asks for six topics; three people have signed up, each with theirs.
+    const who = card.getByRole('region', { name: 'Who’s signed up' })
+    await expect(who).toContainText('3 people subscribed')
+    await expect(who).toContainText('Learning Spanish · 2')
+    await expect(who).toContainText('Learning English · 0')
+    const latest = who.getByRole('table', { name: 'Latest sign-ups' })
+    await expect(latest.getByRole('row').nth(1)).toContainText('hannah.becker@example.de')
+    await expect(latest.getByRole('row').nth(1)).toContainText('Learning Spanish, Events')
+
+    // The owner's own topic, worded in Spanish for the form; the preview shows it as visitors will.
+    const asks = card.getByRole('region', { name: 'What the form asks' })
+    await asks.getByRole('button', { name: 'Add a topic' }).click()
+    const yoga = asks.getByRole('group', { name: 'Topic 7' })
+    await yoga.getByRole('textbox', { name: 'Topic (the tag)' }).fill('Yoga mornings')
+    await expect(yoga).toContainText('Websites send it as “yoga-mornings”')
+    await yoga.getByRole('textbox', { name: 'In Spanish' }).fill('Yoga por la mañana')
+    await asks.getByRole('switch', { name: 'Ask for their name' }).check()
+    const preview = page.frameLocator('iframe[title="Preview of the newsletter form"]')
+    await expect(preview.getByText('Yoga por la mañana')).toBeVisible()
+    await expect(preview.getByText('Tu nombre')).toBeVisible()
+    await asks.getByRole('button', { name: 'English', exact: true }).click()
+    await expect(preview.getByText('Yoga mornings')).toBeVisible()
+    // Two topics with one name can't be saved: each is a tag.
+    await yoga.getByRole('textbox', { name: 'Topic (the tag)' }).fill('offers')
+    await expect(asks.getByRole('alert')).toContainText('Two topics have the same name')
+    await expect(asks.getByRole('button', { name: 'Save the form' })).toBeDisabled()
+    await yoga.getByRole('textbox', { name: 'Topic (the tag)' }).fill('Yoga mornings')
+    await asks.getByRole('button', { name: 'Save the form' }).click()
+    await toast(page, 'Newsletter form saved')
+
+    // On any website: a link, or the code to paste; a website's own form uses the key, shown once.
+    const web = card.getByRole('region', { name: 'Put the form on your website' })
+    await expect(web.getByLabel('Link to the newsletter form')).toHaveText(/\/api\/site\/1\/newsletter$/)
+    await expect(web.getByLabel('Code to paste into your website')).toContainText('<iframe id="business-agent-newsletter-1"')
+    await web.getByRole('button', { name: 'Make a website key' }).click()
+    await expect(web.getByLabel('The new website key')).toHaveText(/^nl_\w{40}$/)
+    await expect(web).toContainText(/Website key ending \w{4}, made/)
+
+    // The website's sign-ups from before, from its export: the unsubscribed one stays out, a topic the form hasn't is said.
+    const list = card.getByRole('region', { name: 'Bring in your list' })
+    await list.getByLabel('CSV file').setInputFiles({ name: 'easy-beans-leads.csv', mimeType: 'text/csv', buffer: Buffer.from([
+      'email,phone,source,lang,offer_optin,events_optin,interests,unsubscribed_at,created_at',
+      '"ana@example.com","","first_visit_popup","es","true","true","offers,english","","2026-09-01T09:00:00Z"',
+      '"gone@example.com","","first_visit_popup","es","true","true","","2026-09-10T09:00:00Z","2026-09-01T09:00:00Z"',
+      '"ben@example.com","","newsletter_section","en","false","true","yoga-mornings,surf","","2026-09-02T09:00:00Z"',
+    ].join('\n')) })
+    await expect(list).toContainText('2 people to bring in')
+    await expect(list).toContainText('1 unsubscribed: left out')
+    await list.getByRole('button', { name: 'Bring them in' }).click()
+    await toast(page, '2 brought in. These topics aren’t on your form, so they were left out: surf')
+    await expect(who).toContainText('5 people subscribed')
+    await expect(who).toContainText('Learning English · 1')
+    await expect(who).toContainText('Yoga mornings · 1')
+    await expect(latest.getByRole('row').filter({ hasText: 'ana@example.com' })).toContainText('A list brought in')
+
+    // On Customers: a lead from the website, with a yes to marketing and the topics as tags.
+    await page.getByRole('link', { name: 'Customers' }).first().click()
+    await expect(page.getByRole('main')).toContainText('ana@example.com')
+  })
+})
+
 test.describe('licences and renewals', () => {
   test('what runs out soon or ran out, renewed in one press, and exported', async ({ page }) => {
     await open(page, '/licences')

@@ -73,6 +73,63 @@ doesn't change Square's prices, so the till and an online order would charge Squ
 should show the price it will actually charge: Easy Beans' shows Square's when the two differ (for
 the hour until the app reads Square again) and notes the difference in its logs.
 
+## Newsletter sign-ups
+
+Someone who signs up for the newsletter on the website goes onto Customers in the app straight away: a
+lead from the website (or the customer they already were) with a yes to marketing, and the topics they
+ticked as tags, so the business's campaigns can go to just the people interested in each one. Each
+business turns it on and sets it up on Website & SEO → **Newsletter sign-ups**: its own topics (each with
+a key that stays put, and its words in Spanish and English), and whether the form asks for a name or a
+phone. Off, or a number that's no business, every address below is `404` with the same answer.
+
+A website takes sign-ups in one of three ways:
+
+1. **The app's form, as a link** (`GET https://businesssagent.com/api/site/<business>/newsletter`), for an
+   Instagram bio or a QR code. `?lang=es|en` picks its language; without it, the visitor's browser does.
+   `?place=…` says where the link was (it's kept with each sign-up).
+2. **The app's form inside the website**: the snippet on Website & SEO, pasted into any website builder's
+   HTML block. It's that page in a frame that fits itself to the form (the page tells the website its
+   height with `postMessage({ type: "business-agent:newsletter-height", height })`).
+3. **The website's own form**, sending each sign-up here:
+
+```
+POST https://businesssagent.com/api/site/<business>/signup
+Content-Type: application/json
+
+{
+  "email": "lucia@example.com",          // the only one needed
+  "interests": ["english", "offers"],    // topics' keys, or their words ("Aprender inglés"); others are said back, not kept
+  "phone": "+34 600 111 222",            // optional; a phone that isn't one is refused
+  "name": "Lucía García",                // optional (or "first_name" and "last_name")
+  "lang": "es",                          // optional: the language they signed up in
+  "place": "first_visit_popup"           // optional: where on the website ("source" works too)
+}
+```
+
+- `200 { "ok": true, "interests": ["english", "offers"], "ignored": [] }`: they're on Customers.
+  Signing up again adds the new topics and is a new yes after an unsubscribe.
+- `400 { "error", "problem": "invalidEmail" | "invalidPhone" }`, `429 { "problem": "tooMany" }`
+  (five an hour from one address without the key), `503` when it can't be saved just then: try again.
+- Any site may call it from a browser (CORS is open). A field called `website` must stay empty: it's
+  the form's trap for robots, which are told it worked while nothing is saved.
+
+**From the website's server**, with the business's **website key** (made on Website & SEO, shown once;
+only its hash is kept) as `Authorization: Bearer nl_…`. Never put it in the website's pages.
+
+- Sign-ups skip the limit on one address (they all come from the server's), and may carry
+  `"signed_up_at"` (a date or a time), for people who signed up before: they're kept as from a list.
+- `POST /api/site/<business>/unsubscribe` with `{ "email": "…" }` takes back someone's yes when they
+  unsubscribe on the website, so the business's campaigns leave them out:
+  `200 { "ok": true, "found": true }` (`false`: they weren't on Customers).
+- A wrong key is `401`.
+
+Easy Beans' topics here have its website's keys (`coffee`, `spanish`, `english`, `menu`, `events`,
+`offers`), so its `/api/signup` can send each sign-up on from its server with the key, before it copies
+the person to Square (so they're on Customers as from the website, not from Square), and its unsubscribe
+link can send unsubscribes (a change in the website's own repository). A list from before also comes in
+on Website & SEO from a CSV (another newsletter service's export, or the website's own: only people
+still subscribed).
+
 ## Next
 
 The same way, as they're needed: opening hours, the business's details, today's offers (Last day

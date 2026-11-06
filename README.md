@@ -299,6 +299,16 @@ built-in **AI connector** so owners can run it by talking to Claude.
   item's prices, photo and allergens, from `/api/site/<business>/menu` (no sign-in, nothing until the
   business turns it on, customer-facing fields only), so a change here is on the website within a few
   minutes. Easy Beans' website reads its menu this way ([docs/WEBSITE.md](docs/WEBSITE.md), `worker/site.ts`).
+
+  **Newsletter sign-ups** from the business's website go straight onto Customers (Website & SEO, admins):
+  each person is a lead from the website with a yes to marketing, and the topics they ticked are tags
+  ("Learning English"), so Campaigns can send to just them. Each business sets its own topics (worded in
+  Spanish and English) and whether the form asks for a name or a phone, and puts the form on its website
+  as a link, as a snippet any website builder takes (it fits itself to the page and speaks the visitor's
+  language), or from its own form (`POST /api/site/<business>/signup`; its server, with a website key made
+  on the page, also sends earlier sign-ups and unsubscribes). A list from before (another newsletter
+  service's export, or the website's) comes in from a CSV with only those still subscribed. Every
+  sign-up and unsubscribe is kept as the record of each yes ([docs/WEBSITE.md](docs/WEBSITE.md), `worker/newsletter.ts`).
 - Screens (Menu section, admins): the café's TVs and tablets as slideshows. Each has a secret link
   opened once on the screen (no sign-in), and slides added by address: pictures, MP4 videos, YouTube,
   Vimeo, Instagram posts, web pages, live pictures reloaded each time (a webcam), and the digital

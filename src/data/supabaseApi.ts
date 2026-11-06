@@ -25,6 +25,7 @@ import type { RoutineDone, RoutineItem } from '../../shared/routine'
 import type { ChecklistItem, ChecklistTick } from '../../shared/checklists'
 import type { CompanyValue } from '../../shared/companyValues'
 import type { PostIdea } from '../../shared/postIdeas'
+import { NEWSLETTER_OFF, type NewsletterEvent, type NewsletterSettings } from '../../shared/newsletter'
 import type { Contact } from '../../shared/contacts'
 import type { ClockStats } from '../../shared/leaderboard'
 import { CONTENT_COLUMNS, type ContentItem, type GooglePhotosImport, type GooglePhotosPick } from '../../shared/content'
@@ -1530,6 +1531,28 @@ export function createSupabaseApi(url: string, key: string): Api {
     website: () => worker('/api/website'),
     async checkWebsite() { return (await worker<{ report: never }>('/api/website/check', { method: 'POST' })).report },
     async pageSpeed(strategy) { return (await worker<{ pagespeed: never }>('/api/website/pagespeed', { method: 'POST', body: JSON.stringify({ strategy }) })).pagespeed },
+    async newsletter() {
+      const row = check(await sb.from('newsletter').select('enabled, interests, ask_name, ask_phone, heading, intro, key_hint, key_made_at').maybeSingle()) as Partial<NewsletterSettings> | null
+      return { ...NEWSLETTER_OFF, ...row }
+    },
+    // The business's row is made the first time it's saved (business_id is the caller's).
+    async saveNewsletter(patch) { check(await sb.from('newsletter').upsert(patch, { onConflict: 'business_id' })) },
+    async newsletterEvents() {
+      return check(await sb.from('newsletter_events').select('id, customer_id, action, email, interests, lang, place, via, at').order('at', { ascending: false }).limit(200)) as NewsletterEvent[]
+    },
+    async makeNewsletterKey() { return worker<{ key: string; key_hint: string; key_made_at: string }>('/api/newsletter/key', { method: 'POST' }) },
+    async dropNewsletterKey() { await worker('/api/newsletter/key', { method: 'DELETE' }) },
+    async importNewsletterList(rows) {
+      // A hundred at a time: each is a sign-up of its own.
+      const out = { added: 0, skipped: 0, unknown: [] as string[] }
+      for (let i = 0; i < rows.length; i += 100) {
+        const r = await worker<typeof out>('/api/newsletter/import', { method: 'POST', body: JSON.stringify({ rows: rows.slice(i, i + 100) }) })
+        out.added += r.added
+        out.skipped += r.skipped
+        out.unknown = [...new Set([...out.unknown, ...r.unknown])]
+      }
+      return out
+    },
 
     async competitors() {
       const [competitors, items, prices, notes, snapshots, nearby, settings] = await Promise.all([

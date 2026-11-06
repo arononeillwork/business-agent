@@ -33,6 +33,7 @@ import type { RoutineDone, RoutineItem, RoutineItemInput } from '../../shared/ro
 import type { ChecklistItem, ChecklistItemInput, ChecklistTick } from '../../shared/checklists'
 import type { CompanyValue, CompanyValueInput } from '../../shared/companyValues'
 import type { PostIdea, PostIdeaInput } from '../../shared/postIdeas'
+import type { ListRow, NewsletterEvent, NewsletterSettings } from '../../shared/newsletter'
 import type { Contact, ContactInput } from '../../shared/contacts'
 import type { ContentChange, ContentItem, GooglePhotosImport, GooglePhotosPick } from '../../shared/content'
 import type { Contractor, ContractorInput, OutsourcedJob, OutsourcedJobInput } from '../../shared/outsourcing'
@@ -821,6 +822,17 @@ export interface Api {
   website(): Promise<WebsiteState>
   checkWebsite(): Promise<WebsiteReport>
   pageSpeed(strategy: Strategy): Promise<PageSpeed>
+  // Newsletter sign-ups (admins, Website & SEO; shared/newsletter.ts): the business's set-up, the latest sign-ups and
+  // unsubscribes, the key for its website's server and lists brought in. Sign-ups land on Customers.
+  newsletter(): Promise<NewsletterSettings>
+  saveNewsletter(patch: Partial<Pick<NewsletterSettings, 'enabled' | 'interests' | 'ask_name' | 'ask_phone' | 'heading' | 'intro'>>): Promise<void>
+  /** The latest 200 sign-ups and unsubscribes, newest first. */
+  newsletterEvents(): Promise<NewsletterEvent[]>
+  /** A new key for the website's server, shown this once (the one before stops working). */
+  makeNewsletterKey(): Promise<{ key: string; key_hint: string; key_made_at: string }>
+  dropNewsletterKey(): Promise<void>
+  /** People from a list brought in (still subscribed): how many were added, how many left out, and topics the business doesn't have. */
+  importNewsletterList(rows: ListRow[]): Promise<{ added: number; skipped: number; unknown: string[] }>
   // Competitors (admins): the cafés around, what they charge and offer, followed over time (shared/localCompetitors).
   competitors(): Promise<CompetitorData>
   /** Add a competitor by hand (no id) or change one, the business's own row included; returns its id. */
