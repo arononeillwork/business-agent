@@ -73,7 +73,7 @@ export function CamerasPage() {
       )}
       {noStorage && (
         <Alert severity="warning" sx={{ mb: 2 }} action={<Button color="inherit" size="small" component={RouterLink} to="/connections">{t('Connections')}</Button>}>
-          {t('Connect Google Drive or OneDrive to keep the cameras’ video. It goes in its Business Agent/Cameras folder, so it uses your own storage, not a subscription.')}
+          {t('Connect Google Drive or OneDrive to keep the cameras’ video. It goes in its The Business Agent/Cameras folder, so it uses your own storage, not a subscription.')}
         </Alert>
       )}
       {cams.data && !list.length ? (
@@ -221,7 +221,7 @@ function Recordings({ camera, tz }: { camera: Camera; tz: string }) {
         {kept.length ? ` · ${tn(kept.length, '{n} kept for an incident', '{n} kept for an incident')}` : ''}
       </Typography>
       {clips.data && !all.length ? (
-        <Empty>{t('No clips yet. Once the camera sends video, it shows here by day, and goes in your storage under Business Agent/Cameras/{name}.', { name: camera.name })}</Empty>
+        <Empty>{t('No clips yet. Once the camera sends video, it shows here by day, and goes in your storage under The Business Agent/Cameras/{name}.', { name: camera.name })}</Empty>
       ) : (
         <>
           <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', mb: 1.5 }} role="tablist" aria-label={t('Days')}>

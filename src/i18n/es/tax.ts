@@ -24,8 +24,8 @@ export default {
   'Not connected': 'Sin conectar',
   'Past their last day and not marked filed: {list}. Mark them filed (or not needed) once done.':
     'Pasado el último día y sin marcar como presentados: {list}. Márcalos como presentados (o no necesarios) cuando estén.',
-  'Connect Google Drive or OneDrive to upload documents. They’re kept in your own storage, in its Business Agent › Tax folder.':
-    'Conecta Google Drive o OneDrive para subir documentos. Se guardan en tu propio almacenamiento, en su carpeta Business Agent › Tax.',
+  'Connect Google Drive or OneDrive to upload documents. They’re kept in your own storage, in its The Business Agent › Tax folder.':
+    'Conecta Google Drive o OneDrive para subir documentos. Se guardan en tu propio almacenamiento, en su carpeta The Business Agent › Tax.',
   '{model} {period}: {status}': '{model} {period}: {status}',
   'Tax returns {year}': 'Modelos {year}',
   'Modelo': 'Modelo',

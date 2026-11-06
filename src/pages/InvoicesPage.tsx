@@ -293,7 +293,7 @@ function FromEmail({ suppliers, only, onAll }: { suppliers: Supplier[]; only: Su
         )}
         {inbox.data && box && !inbox.data.can_read && (
           <Alert severity="info" action={<Button color="inherit" onClick={() => void run(() => api.connectService(box, 'invoices', { read: true }))}>{t('Allow reading')}</Button>}>
-            {t('{mailbox} is connected to send email only. Allow Business Agent to read it too, to find invoices from your suppliers. Nothing is changed or deleted in the mailbox.', { mailbox: boxName })}
+            {t('{mailbox} is connected to send email only. Allow The Business Agent to read it too, to find invoices from your suppliers. Nothing is changed or deleted in the mailbox.', { mailbox: boxName })}
           </Alert>
         )}
         {inbox.data?.can_read && (waiting.length === 0

@@ -40,7 +40,7 @@ export function ReferralsPage() {
             </Stack>
             <Typography variant="h5" component="h2" sx={{ mb: 1 }}>{t('Invite a business. You both get a month free.')}</Typography>
             <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2.5 }}>
-              {t('Share your link with another café, shop or small team. When they finish setting up Business Agent, you each get a month free. It stacks: up to {max} months for you.', { max: MAX_FREE_MONTHS })}
+              {t('Share your link with another café, shop or small team. When they finish setting up The Business Agent, you each get a month free. It stacks: up to {max} months for you.', { max: MAX_FREE_MONTHS })}
             </Typography>
             {data.data && <ShareLink link={link} from={business?.name ?? t('us')} />}
           </CardContent>
@@ -63,7 +63,7 @@ export function ReferralsPage() {
           <SectionTitle>{t('How it works')}</SectionTitle>
           <Box component="ol" sx={{ m: 0, p: 0, listStyle: 'none', display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' }, gap: 2 }}>
             {[
-              { icon: <ShareIcon />, title: t('Share your link'), text: t('By WhatsApp, email or anywhere. It opens Business Agent with your invite.') },
+              { icon: <ShareIcon />, title: t('Share your link'), text: t('By WhatsApp, email or anywhere. It opens The Business Agent with your invite.') },
               { icon: <GoIcon />, title: t('They set up'), text: t('They join, then finish setting up their business. Opening the link or joining doesn’t count yet.') },
               { icon: <GiftIcon />, title: t('You both get a month'), text: t('A free month each, every time. Up to {max} months for you.', { max: MAX_FREE_MONTHS }) },
             ].map((s, i) => (
@@ -98,7 +98,7 @@ export function ReferralsPage() {
 /** The link, with copy and the two ways cafés actually share things. */
 function ShareLink({ link, from }: { link: string; from: string }) {
   const notify = useNotify()
-  const text = t('I use Business Agent for our rota, hours and team messages. Join with my link and we both get a month free: {link}', { link })
+  const text = t('I use The Business Agent for our rota, hours and team messages. Join with my link and we both get a month free: {link}', { link })
   const copy = async () => {
     try { await navigator.clipboard.writeText(link); notify(t('Link copied'), 'success') } catch { notify(t('Couldn’t copy: select the link and copy it'), 'error') }
   }
@@ -110,7 +110,7 @@ function ShareLink({ link, from }: { link: string; from: string }) {
         <Button variant="outlined" startIcon={<Box component="svg" viewBox="0 0 24 24" aria-hidden sx={{ width: 18, height: 18 }}><path d={siWhatsapp.path} fill={`#${siWhatsapp.hex}`} /></Box>}
           href={`https://wa.me/?text=${encodeURIComponent(text)}`} target="_blank" rel="noreferrer">{'WhatsApp'}</Button>
         <Button variant="outlined" startIcon={<MailIcon />}
-          href={`mailto:?subject=${encodeURIComponent(t('A month of Business Agent free, from {from}', { from }))}&body=${encodeURIComponent(text)}`}>{t('Email')}</Button>
+          href={`mailto:?subject=${encodeURIComponent(t('A month of The Business Agent free, from {from}', { from }))}&body=${encodeURIComponent(text)}`}>{t('Email')}</Button>
       </Stack>
     </>
   )

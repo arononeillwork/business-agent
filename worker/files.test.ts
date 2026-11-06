@@ -1,7 +1,7 @@
 // The Documents hub, end to end through the Worker's routes against stand-ins for Supabase, Google
 // Drive and OneDrive. What must never break:
-//   - browsing shows what's in the café's Business Agent folder, marks the kept documents, and makes nothing
-//   - uploads and new folders go under Business Agent/Documents only, with the row saved as the person
+//   - browsing shows what's in the café's The Business Agent folder, marks the kept documents, and makes nothing
+//   - uploads and new folders go under The Business Agent/Documents only, with the row saved as the person
 //   - nobody without pay access browses, uploads or makes folders
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { integrations } from './integrations'
@@ -58,10 +58,10 @@ async function connectStorage(provider: 'google_drive' | 'onedrive') {
 /** Where a Drive file or folder is, by folder names. */
 const drivePath = (id: string): string[] => { const f = apis.google.folders.get(id); return f ? [...drivePath(f.parent), f.name] : [] }
 
-describe('Documents hub: the café’s Business Agent folder in its Drive or OneDrive', () => {
+describe('Documents hub: the café’s The Business Agent folder in its Drive or OneDrive', () => {
   it('only admins with pay access browse, upload or make folders', async () => {
     await connectStorage('google_drive')
-    const folders = apis.google.folders.size // Business Agent, made on connecting
+    const folders = apis.google.folders.size // The Business Agent, made on connecting
     expect((await call('/api/files/browse')).status).toBe(401)
     expect((await browse('', { authorization: 'Bearer staff-token' })).status).toBe(403)
     db.people.set('maria-token', { id: 'admin-2', role: 'admin' }) // an admin without pay access
@@ -75,7 +75,7 @@ describe('Documents hub: the café’s Business Agent folder in its Drive or One
   it('with no storage connected, the page is told to connect Google Drive or OneDrive', async () => {
     for (const res of [await browse(), await upload({})]) {
       expect(res.status).toBe(400)
-      expect((await res.json() as { error: string }).error).toMatch(/^Connect Google Drive or OneDrive.*Business Agent\/Documents/)
+      expect((await res.json() as { error: string }).error).toMatch(/^Connect Google Drive or OneDrive.*The Business Agent\/Documents/)
     }
   })
 
@@ -93,7 +93,7 @@ describe('Documents hub: the café’s Business Agent folder in its Drive or One
     expect(document).toMatchObject({ name: 'Contrato alquiler.pdf', kind: 'contract', year: 2026, quarter: null, storage: 'google_drive',
       folder: ['Documents', 'Contracts'], sha256: SHA, title: 'Lease of the premises', tags: ['local', 'lease'], expires_on: '2031-03-31' })
     const [[fileId, file]] = [...apis.google.blobs]
-    expect(drivePath(file.parent)).toEqual(['Business Agent', 'Documents', 'Contracts'])
+    expect(drivePath(file.parent)).toEqual(['The Business Agent', 'Documents', 'Contracts'])
     // A file the café put there itself (not kept on the list).
     apis.google.blobs.set('loose-1', { name: 'Plano local.png', parent: file.parent, type: 'image/png', bytes: new Uint8Array(3) })
 
@@ -114,7 +114,7 @@ describe('Documents hub: the café’s Business Agent folder in its Drive or One
     expect(await listed('Documents')).toEqual({ storage: 'onedrive', path: ['Documents'], link: null, entries: [] })
     await makeFolder(['Documents'], 'Licencias')
     const { document } = await (await upload({ name: 'Licencia apertura.pdf', kind: 'other', folder: 'Documents/Licencias' })).json() as { document: Record<string, unknown> }
-    expect([...apis.microsoft.blobs.values()][0].path).toBe('Business Agent/Documents/Licencias/Licencia apertura.pdf')
+    expect([...apis.microsoft.blobs.values()][0].path).toBe('The Business Agent/Documents/Licencias/Licencia apertura.pdf')
     const top = await listed()
     expect(top.entries.map(e => e.name)).toEqual(['Documents'])
     expect(top.link).toMatch(/^https:\/\/onedrive\.live\.com\//)
@@ -129,8 +129,8 @@ describe('Documents hub: the café’s Business Agent folder in its Drive or One
     expect(await error(await upload({ folder: 'Tax/2026/Q4' }))).toBe('That folder isn’t in the Documents folder')
     expect(await error(await upload({ folder: 'Documents/../Tax' }))).toBe('That folder isn’t in the Documents folder')
     expect(await error(await makeFolder(['Social'], 'Posts'))).toBe('That folder isn’t in the Documents folder')
-    expect(await error(await browse('Documents/../..'))).toBe('That folder isn’t in Business Agent')
-    expect(await error(await browse('Documents/a\\b'))).toBe('That folder isn’t in Business Agent')
+    expect(await error(await browse('Documents/../..'))).toBe('That folder isn’t in The Business Agent')
+    expect(await error(await browse('Documents/a\\b'))).toBe('That folder isn’t in The Business Agent')
     expect(await listed("Documents/x' or name != 'y")).toMatchObject({ link: null, entries: [] }) // a name, quote and all
     expect(await error(await upload({ expires_on: '31/03/2031' }))).toBe('That date isn’t right')
     expect(await error(await upload({ name: 'run-me.exe' }))).toMatch(/^Use a PDF/)
@@ -138,5 +138,34 @@ describe('Documents hub: the café’s Business Agent folder in its Drive or One
     expect((await upload({ sha256: SHA })).status).toBe(200)
     expect(await error(await upload({ sha256: SHA, name: 'Copy.pdf' }), 409)).toBe('Already kept as “Contrato alquiler.pdf”')
     expect(apis.google.blobs.size).toBe(1)
+  })
+})
+
+describe('the folder made before the rename ("Business Agent")', () => {
+  it('Google Drive: its documents still show, and the first upload renames it: the same folder, with everything still in it', async () => {
+    await connectStorage('google_drive')
+    // As a business that connected before November 2026 has it: the app's folder under its old name, the lease in it.
+    const root = [...apis.google.folders].find(([, f]) => f.name === 'The Business Agent' && f.parent === 'root')![0]
+    apis.google.folders.get(root)!.name = 'Business Agent'
+    apis.google.folders.set('docs', { name: 'Documents', parent: root, trashed: false })
+    apis.google.blobs.set('lease', { name: 'Arrendamiento.pdf', parent: 'docs', type: 'application/pdf', bytes: pdf })
+
+    expect((await listed('Documents')).entries.map(e => e.name)).toEqual(['Arrendamiento.pdf'])
+    expect(apis.google.folders.get(root)!.name).toBe('Business Agent') // looking renames nothing
+
+    expect((await upload({ sha256: SHA })).status).toBe(200)
+    expect(apis.google.folders.get(root)!.name).toBe('The Business Agent')
+    expect([...apis.google.folders.values()].filter(f => f.parent === 'root')).toHaveLength(1) // no second folder
+    expect(drivePath(apis.google.blobs.get('lease')!.parent)).toEqual(['The Business Agent', 'Documents'])
+    expect((await listed('Documents')).entries.map(e => e.name)).toEqual(['Contracts', 'Arrendamiento.pdf']) // folders first
+  })
+
+  it('OneDrive: browsing finds it by renaming it, and what was inside moves with it', async () => {
+    await connectStorage('onedrive')
+    apis.microsoft.folderName = 'Business Agent'
+    apis.microsoft.paths.set('ms-docs', 'Business Agent/Documents')
+    expect((await listed('')).entries.map(e => e.name)).toEqual(['Documents'])
+    expect(apis.microsoft.folderName).toBe('The Business Agent')
+    expect(apis.microsoft.paths.get('ms-docs')).toBe('The Business Agent/Documents')
   })
 })

@@ -294,13 +294,13 @@ export function createDemoApi(): Api {
     const folder = ['Tax', '2026', `Q${quarter}`, ({ purchase_invoice: 'Purchase invoices', sales_invoice: 'Sales invoices', receipt: 'Receipts', payslip: 'Payslips',
       bank_statement: 'Bank statements', tax_return: 'Tax returns', contract: 'Contracts', other: 'Other' } as const)[kind]]
     return { id: uid(), name, kind, year: 2026, quarter, size, sha256: null, storage: 'google_drive', file_id: uid(), folder,
-      link: `https://drive.google.com/demo/Business Agent/${folder.join('/')}/${name}`, notes: null, uploaded_by: null, uploaded_at: `${day}T10:00:00Z` }
+      link: `https://drive.google.com/demo/The Business Agent/${folder.join('/')}/${name}`, notes: null, uploaded_by: null, uploaded_at: `${day}T10:00:00Z` }
   }
   const byEricAugust = taxDoc('Factura By Eric agosto.pdf', 'purchase_invoice', 3, '2026-09-02', 184_220)
-  // The Documents hub's own, under Business Agent/Documents: the lease, the insurance policy (the licence's document), a certificate.
+  // The Documents hub's own, under The Business Agent/Documents: the lease, the insurance policy (the licence's document), a certificate.
   const hubDoc = (name: string, kind: TaxDocument['kind'], year: number, folder: string, day: string, size: number, more: Partial<TaxDocument> = {}): TaxDocument => ({
     id: uid(), name, kind, year, quarter: null, size, sha256: null, storage: 'google_drive', file_id: uid(), folder: ['Documents', folder],
-    link: `https://drive.google.com/demo/Business Agent/Documents/${folder}/${name}`, notes: null, title: null, tags: [], expires_on: null,
+    link: `https://drive.google.com/demo/The Business Agent/Documents/${folder}/${name}`, notes: null, title: null, tags: [], expires_on: null,
     uploaded_by: null, uploaded_at: `${day}T10:00:00Z`, ...more })
   const insurancePolicy = hubDoc('Póliza RC Mapfre 2025-2026.pdf', 'contract', 2025, 'Insurance', '2025-10-10', 512_330, { tags: ['seguro'] })
   const taxDocuments: TaxDocument[] = [
@@ -314,24 +314,24 @@ export function createDemoApi(): Api {
     insurancePolicy,
     hubDoc('Certificado manipulador alimentos Julio.pdf', 'other', 2026, 'Certificates', '2026-04-02', 98_114, { tags: ['staff'], expires_on: '2026-11-20' }),
   ]
-  // Files in the demo Drive's Business Agent folder that aren't kept on any list (exports, a plan of the premises).
+  // Files in the demo Drive's The Business Agent folder that aren't kept on any list (exports, a plan of the premises).
   const looseFiles = [
     { path: 'Documents/Contracts/Plano del local.pdf', size: 2_048_000, type: 'application/pdf', modified: '2026-03-15T10:05:00Z' },
     { path: 'Exports/Rota 2026-09-28.xlsx', size: 18_220, type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', modified: '2026-09-28T18:00:00Z' },
   ].map(f => ({ ...f, id: uid() }))
-  // Folders made in the demo Drive under Business Agent (the sorted ones exist once a document is in them).
+  // Folders made in the demo Drive under The Business Agent (the sorted ones exist once a document is in them).
   const taxFolderPaths = new Set<string>(['Tax/2026/Gestoría', 'Documents/Seguros'])
   const canTax = () => me()?.role === 'admin' && !!me()?.can_see_pay
   const readTax = () => canTax() || partnerCan('finances')
   const needTax = () => { if (!canTax()) throw new Error('Only admins with pay access manage tax documents') }
   const docStorage = () => {
     const store = (['google_drive', 'onedrive'] as const).find(p => integ.integrations.some(i => i.provider === p && i.status === 'connected'))
-    if (!store) throw new Error('Connect Google Drive or OneDrive on the Connections page to keep documents. They go in its Business Agent/Documents folder.')
+    if (!store) throw new Error('Connect Google Drive or OneDrive on the Connections page to keep documents. They go in its The Business Agent/Documents folder.')
     return store
   }
   const taxStorage = () => {
     const store = (['google_drive', 'onedrive'] as const).find(p => integ.integrations.some(i => i.provider === p && i.status === 'connected'))
-    if (!store) throw new Error('Connect Google Drive or OneDrive on the Connections page to keep tax documents. They go in its Business Agent/Tax folder.')
+    if (!store) throw new Error('Connect Google Drive or OneDrive on the Connections page to keep tax documents. They go in its The Business Agent/Tax folder.')
     return store
   }
   // Square loyalty (Easy Beans Club: a stamp a visit, the 10th coffee free) and gift cards, once Square is connected.
@@ -1549,7 +1549,7 @@ export function createDemoApi(): Api {
   ]
   const DEMO_SECONDS = 20
   const musicLibrary: MusicTrack[] = DEMO_MUSIC.map(([key, title, moods, energy, bpm], i) => ({
-    id: `track-${key}`, source: 'starter', title, artist: 'Business Agent', url: `/demo/music/${key}.mp3`, duration_s: DEMO_SECONDS, bpm, energy, moods,
+    id: `track-${key}`, source: 'starter', title, artist: 'The Business Agent', url: `/demo/music/${key}.mp3`, duration_s: DEMO_SECONDS, bpm, energy, moods,
     genre: null, vocals: false, highlight_s: 0, waveform: null, licence: { kind: 'starter', provider: 'elevenlabs' }, saved: false, hidden: false,
     created_at: new Date(Date.now() - (i + 1) * 86_400_000).toISOString() }))
   const musicUses: MusicGeneration[] = []
@@ -3105,7 +3105,7 @@ export function createDemoApi(): Api {
       if (!previewOf(d)) throw new Error(`This kind of file opens in ${storageName(d.storage)}`)
       legalStorageOn(d.storage)
       return demoPdf(d.title, [`Demo copy: the real file stays in ${storageName(d.storage)}${d.location ? ` (${d.location})` : ''}.`,
-        'Business Agent only keeps where it is, and shows it from there.'])
+        'The Business Agent only keeps where it is, and shows it from there.'])
     },
     async brandDocuments() {
       if (!isStaff() && !isPartner()) return []
@@ -3156,7 +3156,7 @@ export function createDemoApi(): Api {
       if (!d || (!isStaff() && !isPartner())) throw new Error('That document isn’t on the Brand page')
       if (d.blob) return d.blob
       legalStorageOn(d.storage as LegalStorage)
-      return demoPdf(d.title, [`Demo copy: the real file stays in ${storageName(d.storage as LegalStorage)}.`, 'Business Agent shows it from there.'])
+      return demoPdf(d.title, [`Demo copy: the real file stays in ${storageName(d.storage as LegalStorage)}.`, 'The Business Agent shows it from there.'])
     },
     async invoices() {
       if (!readTax()) return []
@@ -3205,7 +3205,7 @@ export function createDemoApi(): Api {
       const quarter = (Math.floor((Number(at.slice(5, 7)) - 1) / 3) + 1) as 1 | 2 | 3 | 4
       const folder = ['Tax', at.slice(0, 4), `Q${quarter}`, 'Purchase invoices']
       const doc: TaxDocument = { id: uid(), name: a.name, kind: 'purchase_invoice', year: Number(at.slice(0, 4)), quarter, size: a.size, sha256: null, storage, file_id: uid(), folder,
-        link: `https://${storage === 'google_drive' ? 'drive.google.com' : 'onedrive.live.com'}/demo/Business Agent/${folder.join('/')}/${a.name}`, notes: null, uploaded_by: me()?.id ?? null, uploaded_at: nowIso() }
+        link: `https://${storage === 'google_drive' ? 'drive.google.com' : 'onedrive.live.com'}/demo/The Business Agent/${folder.join('/')}/${a.name}`, notes: null, uploaded_by: me()?.id ?? null, uploaded_at: nowIso() }
       taxDocuments.push(doc)
       const sup = supplierId ?? matchSupplier(suppliers, { email: m.from })
       const made = invoice({ supplier_id: sup, party_name: m.from_name, party_email: m.from, number: numberFromName(a.name), issued_on: null,
@@ -3227,7 +3227,7 @@ export function createDemoApi(): Api {
     async emailMessage(id) {
       requireAdmin()
       const row = integ.integrations.find(i => (i.provider === 'gmail' || i.provider === 'outlook') && i.status === 'connected')
-      if (!row || !(row.external as { reads_mail?: boolean }).reads_mail) throw new Error('Allow Business Agent to read the mailbox first, on the Email page.')
+      if (!row || !(row.external as { reads_mail?: boolean }).reads_mail) throw new Error('Allow The Business Agent to read the mailbox first, on the Email page.')
       const m = demoEmails(row.provider as 'gmail' | 'outlook', row.account_label, suppliers, customers).find(x => x.id === id)
       if (!m) throw new Error('That email isn’t in the mailbox any more')
       return demoEmailFull(m, row.account_label)
@@ -3279,7 +3279,7 @@ export function createDemoApi(): Api {
       const at = path.join('/')
       const known = [...taxFolderPaths, ...taxDocuments.map(d => d.folder.join('/'))]
       const folders = [...new Set(known.flatMap(p => (p.startsWith(`${at}/`) ? [p.slice(at.length + 1).split('/')[0]] : [])))].sort((a, b) => a.localeCompare(b))
-      return { storage, path, folders, link: `https://${storage === 'google_drive' ? 'drive.google.com' : 'onedrive.live.com'}/demo/Business Agent/${at}` }
+      return { storage, path, folders, link: `https://${storage === 'google_drive' ? 'drive.google.com' : 'onedrive.live.com'}/demo/The Business Agent/${at}` }
     },
     async makeTaxFolder(path, name) {
       needTax()
@@ -3299,7 +3299,7 @@ export function createDemoApi(): Api {
       const kept = taxDocuments.find(d => d.sha256 === m.sha256)
       if (kept) throw new Error(`Already kept as “${kept.name}”`)
       const doc: TaxDocument = { id: uid(), name: m.name, kind: m.kind, year: m.year, quarter: m.quarter, size: file.size, sha256: m.sha256, storage,
-        file_id: uid(), folder: m.folder, link: `https://${storage === 'google_drive' ? 'drive.google.com' : 'onedrive.live.com'}/demo/Business Agent/${m.folder.join('/')}/${m.name}`,
+        file_id: uid(), folder: m.folder, link: `https://${storage === 'google_drive' ? 'drive.google.com' : 'onedrive.live.com'}/demo/The Business Agent/${m.folder.join('/')}/${m.name}`,
         notes: null, uploaded_by: me()?.id ?? null, uploaded_at: nowIso() }
       taxDocuments.push(doc)
       return clone(doc)
@@ -3318,7 +3318,7 @@ export function createDemoApi(): Api {
       const at = path.join('/')
       const kept = taxDocuments.filter(d => d.storage === storage)
       const folders = [...taxFolderPaths, ...kept.map(d => d.folder.join('/')), ...looseFiles.map(f => f.path.split('/').slice(0, -1).join('/'))]
-      const link = (p: string) => `https://${storage === 'google_drive' ? 'drive.google.com' : 'onedrive.live.com'}/demo/Business Agent/${p}`
+      const link = (p: string) => `https://${storage === 'google_drive' ? 'drive.google.com' : 'onedrive.live.com'}/demo/The Business Agent/${p}`
       if (at && !folders.some(f => f === at || f.startsWith(`${at}/`))) return { storage, path, link: null, entries: [] }
       const inside = (p: string) => (at ? p.startsWith(`${at}/`) : true)
       const names = [...new Set(folders.filter(f => f && inside(f)).map(f => f.slice(at ? at.length + 1 : 0).split('/')[0]))].filter(Boolean)
@@ -3350,7 +3350,7 @@ export function createDemoApi(): Api {
       const kept = taxDocuments.find(d => d.sha256 === m.sha256)
       if (kept) throw new Error(`Already kept as “${kept.name}”`)
       const doc: TaxDocument = { id: uid(), name: m.name, kind: m.kind, year: m.year, quarter: null, size: file.size, sha256: m.sha256, storage,
-        file_id: uid(), folder: m.folder, link: `https://${storage === 'google_drive' ? 'drive.google.com' : 'onedrive.live.com'}/demo/Business Agent/${m.folder.join('/')}/${m.name}`,
+        file_id: uid(), folder: m.folder, link: `https://${storage === 'google_drive' ? 'drive.google.com' : 'onedrive.live.com'}/demo/The Business Agent/${m.folder.join('/')}/${m.name}`,
         notes: null, title: m.title?.trim() || null, tags: cleanTags(m.tags ?? []), expires_on: m.expires_on || null, uploaded_by: me()?.id ?? null, uploaded_at: nowIso() }
       taxDocuments.push(doc)
       return { ...clone(doc), invoices: [], licences: [] }
@@ -3590,7 +3590,7 @@ export function createDemoApi(): Api {
     },
     async uploadMenuPicture(file) {
       requireAdmin()
-      if (!mediaStorage()) throw new Error('Connect Google Drive or OneDrive on the Connections page to add pictures. They’re kept in its Business Agent folder.')
+      if (!mediaStorage()) throw new Error('Connect Google Drive or OneDrive on the Connections page to add pictures. They’re kept in its The Business Agent folder.')
       if (!file.type.startsWith('image/')) throw new Error('Use a JPEG, PNG or WebP picture')
       return URL.createObjectURL(file)
     },
@@ -4670,7 +4670,7 @@ export function createDemoApi(): Api {
     async saveFile(f) {
       const store = (['google_drive', 'onedrive'] as const).find(p => integ.integrations.some(i => i.provider === p && i.status === 'connected'))
       if (!store) throw new Error('No file storage connected. Connect Google Drive or OneDrive on the Connections page.')
-      return { provider: store, link: `https://${store === 'google_drive' ? 'drive.google.com' : 'onedrive.live.com'}/demo/Business Agent/${f.folder}/${f.name}` }
+      return { provider: store, link: `https://${store === 'google_drive' ? 'drive.google.com' : 'onedrive.live.com'}/demo/The Business Agent/${f.folder}/${f.name}` }
     },
     async whatsappTest(to) {
       requireAdmin()
@@ -4992,7 +4992,7 @@ export function createDemoApi(): Api {
     },
     async uploadMedia(file, folder) {
       requireAdmin()
-      if (!mediaStorage()) throw new Error('Connect Google Drive or OneDrive on the Connections page to add photos and videos. They’re kept in its Business Agent folder.')
+      if (!mediaStorage()) throw new Error('Connect Google Drive or OneDrive on the Connections page to add photos and videos. They’re kept in its The Business Agent folder.')
       void folder
       return { url: URL.createObjectURL(file), type: file.type.startsWith('video/') ? 'video' : 'image' }
     },
@@ -5013,7 +5013,7 @@ export function createDemoApi(): Api {
     },
     async uploadTrack(file, t) {
       requireAdmin()
-      if (!mediaStorage()) throw new Error('Connect Google Drive or OneDrive on the Connections page to add photos and videos. They’re kept in its Business Agent folder.')
+      if (!mediaStorage()) throw new Error('Connect Google Drive or OneDrive on the Connections page to add photos and videos. They’re kept in its The Business Agent folder.')
       if (!t.confirmed) throw new Error('Tick that you have the right to use this music on social media')
       const track: MusicTrack = { id: uid(), source: 'upload', title: t.title.trim().slice(0, 80) || file.name, artist: t.artist ?? null, url: URL.createObjectURL(file),
         duration_s: t.duration_s, bpm: t.bpm, energy: null, moods: t.moods, genre: null, vocals: false, highlight_s: t.highlight_s, waveform: t.waveform,
@@ -5155,7 +5155,7 @@ export function createDemoApi(): Api {
       }
     },
     async uploadPhoto(file) {
-      if (!mediaStorage()) throw new Error('Connect Google Drive or OneDrive on the Connections page to add photos and videos. They’re kept in its Business Agent folder.')
+      if (!mediaStorage()) throw new Error('Connect Google Drive or OneDrive on the Connections page to add photos and videos. They’re kept in its The Business Agent folder.')
       return URL.createObjectURL(file)
     },
     async share(caption, imageUrl, targets) {

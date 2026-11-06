@@ -32,10 +32,10 @@ async function businessId() {
     const res = await fetch(`https://${REF}.supabase.co/rest/v1/business?is_hq=eq.true&select=id`, { headers: { apikey: key, authorization: `Bearer ${key}` } })
     const rows = res.ok ? await res.json() : []
     if (rows[0]?.id) return String(rows[0].id)
-    console.log('Business Agent HQ isn\'t there yet (its migration goes out with the deploy); looking again in 15 seconds.')
+    console.log('The Business Agent HQ isn\'t there yet (its migration goes out with the deploy); looking again in 15 seconds.')
     await new Promise(r => setTimeout(r, 15_000))
   }
-  console.log('::error::Business Agent HQ isn\'t in the database yet. Once the deploy has finished, run Actions → Send an invite again with the same email.')
+  console.log('::error::The Business Agent HQ isn\'t in the database yet. Once the deploy has finished, run Actions → Send an invite again with the same email.')
   process.exit(1)
 }
 const joins = await businessId()

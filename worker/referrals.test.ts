@@ -40,7 +40,7 @@ describe('Referral links', () => {
   })
 })
 
-describe('A Business Agent rep’s code (the hq_reps migration)', () => {
+describe('The code of a rep for The Business Agent (the hq_reps migration)', () => {
   it('not a business’s code: the rep it is, with what their cards offer; counted as asked', async () => {
     const asked: unknown[] = []
     db.rpcs.rep_by_code = args => { asked.push(args); return args.p_code === 'JULIO27' ? { name: 'Julio', categories: ['cafe'], offer: 'Your first month free' } : null }

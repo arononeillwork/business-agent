@@ -1,7 +1,7 @@
 // Cameras: the business's CCTV cameras (Reolink plug-in Wi-Fi and PoE ones, which upload by FTP).
 // Each logs in to Business Agent's upload server (cameras/) with its own username and password and
 // sends a picture every few seconds (the Cameras page's picture, kept only on that server) and
-// video, kept in the business's Google Drive or OneDrive (Business Agent/Cameras/<camera>/<day>/)
+// video, kept in the business's Google Drive or OneDrive (The Business Agent/Cameras/<camera>/<day>/)
 // for the camera's days, then deleted. Shared by the app and the Worker.
 import { msg } from './i18n'
 import { addDays, formatLocal, zonedIso } from './time'

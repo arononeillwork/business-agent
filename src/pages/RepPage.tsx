@@ -188,7 +188,7 @@ export function RepPage() {
                 })}
               </Stack>}
           <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mt: 1.5 }}>
-            {hq ? t('You get it as commission, paid by Business Agent.')
+            {hq ? t('You get it as commission, paid by The Business Agent.')
               : credit ? t('You get it as credit to spend in the café.') : t('You get it as commission, paid by the café.')}
           </Typography>
         </CardContent>

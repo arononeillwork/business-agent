@@ -44,7 +44,7 @@ export function SignInSetupFields({ value, onChange }: { value: SignInSetup; onC
 export function PasswordToShare({ email, password }: { email: string; password: string }) {
   const { business } = useApp()
   const [copied, setCopied] = useState(false)
-  const text = t('{business} team app: {url}\nEmail: {email}\nTemporary password: {password}', { business: business?.name ?? 'Business Agent', url: location.origin, email, password })
+  const text = t('{business} team app: {url}\nEmail: {email}\nTemporary password: {password}', { business: business?.name ?? 'The Business Agent', url: location.origin, email, password })
   return (
     <Alert severity="success" action={<Button size="small" onClick={() => navigator.clipboard?.writeText(text).then(() => setCopied(true), () => {})}>
       {copied ? t('Copied') : t('Copy')}</Button>}>

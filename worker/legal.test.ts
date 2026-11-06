@@ -119,7 +119,7 @@ describe('Legal page: documents picked where they are in the café’s Google Dr
 
     const again = await added('google_drive', ['g-lease', [...apis.google.folders.keys()][0]])
     expect(again.added).toEqual([])
-    expect(again.skipped.map(s => [s.name, s.why])).toEqual([['Contrato arrendamiento', SKIPPED.already], ['Business Agent', SKIPPED.folder]])
+    expect(again.skipped.map(s => [s.name, s.why])).toEqual([['Contrato arrendamiento', SKIPPED.already], ['The Business Agent', SKIPPED.folder]])
     expect(uploads()).toEqual([])
     expect(db.table('legal_documents')).toHaveLength(2)
   })

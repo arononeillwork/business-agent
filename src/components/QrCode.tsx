@@ -3,7 +3,7 @@
 import { Box, Typography } from '@mui/material'
 import QrIcon from '@mui/icons-material/QrCode2Outlined'
 import { useMemo } from 'react'
-import iconUrl from '../assets/icon.png'
+import easyBeansCupUrl from '../assets/easy-beans-cup.png'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { qrColours, qrSvg, type QrCode } from '../../shared/qrCodes'
@@ -14,7 +14,7 @@ import { t } from '../i18n'
 export function useQrLogo(): string | null {
   const { api, business } = useApp()
   const brand = useAsync('brand', () => api.brand(), [])
-  return brand.data?.logo_mark ?? brand.data?.logo ?? ((business?.id ?? 1) === 1 ? iconUrl : null)
+  return brand.data?.logo_mark ?? brand.data?.logo ?? ((business?.id ?? 1) === 1 ? easyBeansCupUrl : null)
 }
 
 /** How a code is drawn: its colours (the brand's dark one unless it has its own) and the logo when it's wanted. */

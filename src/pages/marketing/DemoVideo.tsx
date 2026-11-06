@@ -204,7 +204,7 @@ export function DemoVideo() {
   if (!FEATURES.demoVideo) return null
   return (
     <VideoSection id="demo" labelledBy="demo-video" eyebrow={t('See it in action')} src={DEMO_VIDEO.src} poster={DEMO_VIDEO.poster}
-      label={t('Business Agent demo video')} seconds={DEMO_VIDEO.seconds} sx={whiteBand} more={!FEATURES.dayVideo && <MoreDemos />}
+      label={t('The Business Agent demo video')} seconds={DEMO_VIDEO.seconds} sx={whiteBand} more={!FEATURES.dayVideo && <MoreDemos />}
       title={tr('Change it in one place. It’s changed {em}', { em: <em>{t('everywhere.')}</em> })}
       text={t('A café sets up, closes on Sundays, adds Christmas and puts a price up, each in one place: Google Maps, its website, its till, its TV and its team follow.')} />
   )
@@ -216,7 +216,7 @@ export function DayVideo() {
     <VideoSection id="day" labelledBy="day-video" eyebrow={t('A day in the life')} src={DAY_VIDEO.src} poster={DAY_VIDEO.poster}
       label={t('A day in the life of a café owner, video')} seconds={DAY_VIDEO.seconds} sx={FEATURES.demoVideo ? { pt: { xs: 8, md: 4 } } : whiteBand} more={<MoreDemos />}
       title={tr('The same day, {em}', { em: <em>{t('without the chaos.')}</em> })}
-      text={t('From opening to closing: the checklists, the messages, the orders, the offers, the bills and the licences, before and with Business Agent.')} />
+      text={t('From opening to closing: the checklists, the messages, the orders, the offers, the bills and the licences, before and with The Business Agent.')} />
   )
 }
 
@@ -242,7 +242,7 @@ export function SayVideo({ white = true }: { white?: boolean }) {
     <VideoSection id="say" labelledBy="say-video" eyebrow={t('From your AI')} src={SAY_VIDEO.src} poster={SAY_VIDEO.poster}
       label={t('Just say it, video')} seconds={SAY_VIDEO.seconds} sx={white ? whiteBand : { pt: { xs: 8, md: 4 } }}
       title={tr('Just {em}', { em: <em>{t('say it.')}</em> })}
-      text={t('Business Agent in Claude, ChatGPT or any AI that takes connectors: type it at the counter or say it on the phone, and the app and everywhere it shows follow at once.')} />
+      text={t('The Business Agent in Claude, ChatGPT or any AI that takes connectors: type it at the counter or say it on the phone, and the app and everywhere it shows follow at once.')} />
   )
 }
 
@@ -255,7 +255,7 @@ export const DEMOS = [
   { id: 'demo', on: FEATURES.demoVideo, video: DEMO_VIDEO, perspective: msg('The idea'), title: msg('Change it in one place'),
     about: msg('A café closes on Sundays, adds Christmas and puts a price up, once each: everywhere it shows follows.') },
   { id: 'day', on: FEATURES.dayVideo, video: DAY_VIDEO, perspective: msg('A whole day'), title: msg('A day in the life'),
-    about: msg('A café owner’s day before Business Agent, and the same day with it, from opening to closing.') },
+    about: msg('A café owner’s day before The Business Agent, and the same day with it, from opening to closing.') },
   { id: 'owner', on: FEATURES.ownerVideo, video: OWNER_VIDEO, perspective: msg('An owner’s morning'), title: msg('Run your café from one place'),
     about: msg('Today and the advisor say what to do; each change is made once, and everywhere it shows follows.') },
   { id: 'say', on: FEATURES.sayVideo, video: SAY_VIDEO, perspective: msg('From your AI'), title: msg('Just say it'),

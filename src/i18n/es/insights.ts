@@ -86,7 +86,7 @@ export default {
   'added {date}': 'añadido el {date}',
   'Download {name}': 'Descargar {name}',
   'Upload brand documents': 'Subir documentos de la marca',
-  'Uploaded to Business Agent {date}.': 'Subido a Business Agent el {date}.',
+  'Uploaded to The Business Agent {date}.': 'Subido a The Business Agent el {date}.',
   'Take it off the Brand page? The file stays in {where}.': '¿Quitarlo de la página de Marca? El archivo se queda en {where}.',
   'Delete it? The uploaded file goes with it.': '¿Eliminarlo? El archivo subido se elimina con él.',
   'Take it off': 'Quitarlo',

@@ -19,8 +19,8 @@ const euro = (n: number) => `€${Number.isInteger(n) ? n.toLocaleString(locale(
 /** An amount in euros as the reader writes it: €94, €1,088.28 (€1.088,28 in Spanish). */
 export const money = (n: number) => `€${n.toLocaleString(locale(), { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 })}`
 const perMonth = (p: Plan, interval: Interval) => (interval === 'month' ? p.monthly : Math.round(p.yearly / 12 * 100) / 100)
-const contactSales = () => `mailto:${ENTERPRISE.email}?subject=${encodeURIComponent('Business Agent Enterprise')}&body=${encodeURIComponent(
-  t('Hello,\n\nWe’d like to talk about Business Agent Enterprise.\n\nBusiness:\nNumber of venues:\nPeople on the team (roughly):\nBest phone number:\n\nThank you'))}`
+const contactSales = () => `mailto:${ENTERPRISE.email}?subject=${encodeURIComponent('The Business Agent Enterprise')}&body=${encodeURIComponent(
+  t('Hello,\n\nWe’d like to talk about The Business Agent Enterprise.\n\nBusiness:\nNumber of venues:\nPeople on the team (roughly):\nBest phone number:\n\nThank you'))}`
 
 /** The four plan cards with a monthly / yearly switch. */
 export function PricingCards() {
@@ -147,7 +147,7 @@ export function EnterprisePlan() {
           {tr('For groups, franchises and {em} operators.', { em: <Box component="em" sx={{ color: BA.rose }}>{t('multi-site')}</Box> })}
         </Typography>
         <Typography sx={{ color: 'rgba(255,255,255,0.72)', mt: 2.5, fontSize: '1.08rem', lineHeight: 1.65, maxWidth: 480 }}>
-          {t('Business Agent across every venue, set up and supported by our team, with limits and terms that fit how you work.')}
+          {t('The Business Agent across every venue, set up and supported by our team, with limits and terms that fit how you work.')}
         </Typography>
         <Typography sx={{ ...figures, fontWeight: 500, fontSize: '1.4rem', mt: 3 }}>{t(ENTERPRISE.price)}</Typography>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mt: 3, alignItems: { sm: 'center' } }}>

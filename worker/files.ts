@@ -1,6 +1,6 @@
-// Documents hub: a look inside the café's own "Business Agent" folder in Google Drive or OneDrive
+// Documents hub: a look inside the café's own "The Business Agent" folder in Google Drive or OneDrive
 // (its folders and files, each file marked when it's a kept document), and uploads and new folders
-// under "Business Agent/Documents/…" (contracts, insurance, the lease, certificates). Browsing makes
+// under "The Business Agent/Documents/…" (contracts, insurance, the lease, certificates). Browsing makes
 // nothing. Admins with pay access only, as the Tax page; files are kept as tax_documents rows.
 import { Hono } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -14,7 +14,7 @@ import { cleanTags, sortEntries, type StorageEntry, type StorageFolder } from '.
 
 export const files = new Hono<{ Bindings: Env; Variables: { token: string } }>()
 
-const MISSING = 'Connect Google Drive or OneDrive on the Connections page to keep documents. They go in its Business Agent/Documents folder.'
+const MISSING = 'Connect Google Drive or OneDrive on the Connections page to keep documents. They go in its The Business Agent/Documents folder.'
 
 files.use('/api/files/*', async (c, next) => {
   const token = bearer(c.req.header('authorization'))
@@ -25,12 +25,12 @@ files.use('/api/files/*', async (c, next) => {
   await next()
 })
 
-/** ?path=Documents/Contracts: any folder under Business Agent ('' is Business Agent itself), as it's named there. */
+/** ?path=Documents/Contracts: any folder under The Business Agent ('' is Business Agent itself), as it's named there. */
 function browsePath(raw: string | undefined) {
   const path = (raw ?? '').split('/').filter(Boolean)
   // Nothing that climbs out, or that Drive's search can't take (a quote is escaped there; a backslash isn't).
   if (path.length > 8 || path.some(p => p === '.' || p === '..' || p.length > 255 || /[\\\u0000-\u001f]/.test(p))) {
-    throw new TaxError('That folder isn’t in Business Agent')
+    throw new TaxError('That folder isn’t in The Business Agent')
   }
   return path
 }
@@ -71,7 +71,7 @@ async function keptAmong(asPerson: SupabaseClient, storage: string, ids: string[
   return kept
 }
 
-// What's inside a folder under Business Agent: its folders and files (none when it isn't there yet).
+// What's inside a folder under The Business Agent: its folders and files (none when it isn't there yet).
 files.get('/api/files/browse', async c => {
   const db = await requestDb(c)
   try {

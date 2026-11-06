@@ -23,7 +23,8 @@ import type { BrandColour } from '../../shared/types'
 import { brandPreview, brandSourceName, brandTitleOf, type BrandDocument } from '../../shared/brandDocs'
 import type { LegalStorage } from '../../shared/legalDocs'
 import { MOODS, MOOD_IDS } from '../../shared/music'
-import logoUrl from '../assets/logo.png'
+import easyBeansLogoUrl from '../assets/easy-beans-logo.png'
+import easyBeansCupUrl from '../assets/easy-beans-cup.png'
 import { formatLocal, formatNumber } from '../../shared/time'
 import { tokens } from '../theme'
 import { msg, t, tn } from '../i18n'
@@ -43,8 +44,8 @@ const inkOn = (hex: string) => {
   return (0.299 * r + 0.587 * g + 0.114 * b) > 150 ? '#2B2522' : '#FFFFFF'
 }
 
-/** Images up to 800px, re-encoded as PNG (SVGs are kept as they are). */
-async function readLogo(file: File): Promise<string> {
+/** Images up to `max` px (800 for a logo, 256 for the app icon), re-encoded as PNG (SVGs are kept as they are). */
+async function readLogo(file: File, max = 800): Promise<string> {
   if (file.size > 5_000_000) throw new Error(t('That file is over 5 MB. Use a smaller logo file.'))
   const raw = await new Promise<string>((resolve, reject) => {
     const r = new FileReader(); r.onload = () => resolve(String(r.result)); r.onerror = () => reject(new Error(t('Could not read that file'))); r.readAsDataURL(file)
@@ -56,7 +57,7 @@ async function readLogo(file: File): Promise<string> {
   const img = await new Promise<HTMLImageElement>((resolve, reject) => {
     const i = new Image(); i.onload = () => resolve(i); i.onerror = () => reject(new Error(t('That file is not an image we can read'))); i.src = raw
   })
-  const scale = Math.min(1, 800 / Math.max(img.width, img.height))
+  const scale = Math.min(1, max / Math.max(img.width, img.height))
   const canvas = Object.assign(document.createElement('canvas'), { width: Math.round(img.width * scale), height: Math.round(img.height * scale) })
   canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height)
   return canvas.toDataURL('image/png')
@@ -71,6 +72,7 @@ export function BrandPage() {
   const [picking, setPicking] = useState<'heading_font' | 'body_font' | null>(null)
   const [notes, setNotes] = useState<string | null>(null)
   const b = brand.data
+  const first = (business?.id ?? 1) === 1
   useGoogleFont(b?.heading_font)
   useGoogleFont(b?.body_font)
   const save = (patch: Parameters<typeof api.saveBrand>[0], note: string) => run(async () => { await api.saveBrand(patch); await brand.reload() }, note)
@@ -81,10 +83,16 @@ export function BrandPage() {
       <ErrorBox error={brand.error} />
       {b && (
         <Grid container spacing={2.5}>
-          {/* The logo on the left, its colours beside it (stacked on phones). */}
+          {/* The logo and the app icon on the left, the colours beside them (stacked on phones). Easy Beans, the
+              first business, has its bundled logo and cup until it uploads its own; other businesses start empty. */}
           <Grid size={{ xs: 12, md: 5 }}>
-            <LogoCard title={t('Logo')} value={b.logo} fallback={logoUrl} canEdit={isAdmin}
-              onChange={logo => save({ logo }, logo ? t('Logo updated') : t('Logo removed'))} />
+            <Stack spacing={2.5} sx={{ height: '100%' }}>
+              <LogoCard title={t('Logo')} value={b.logo} fallback={first ? easyBeansLogoUrl : undefined} canEdit={isAdmin}
+                onChange={logo => save({ logo }, logo ? t('Logo updated') : t('Logo removed'))} />
+              <LogoCard icon title={t('App icon')} hint={t('Your small square logo, like a favicon. QR codes, screens and offers use it.')}
+                value={b.logo_mark} fallback={first ? easyBeansCupUrl : undefined} canEdit={isAdmin}
+                onChange={logo_mark => save({ logo_mark }, logo_mark ? t('App icon updated') : t('App icon removed'))} />
+            </Stack>
           </Grid>
           <Grid size={{ xs: 12, md: 7 }}>
             <Card component="section" aria-label={t('Colours')} sx={{ height: '100%' }}>
@@ -244,8 +252,8 @@ function BrandDocuments() {
         <FileViewer id={viewing.id} title={viewing.title} link={viewing.link} where={brandSourceName(viewing.storage)} as={brandPreview(viewing)?.as ?? 'pdf'}
           load={() => api.brandFile(viewing.id)} onClose={() => setViewing(null)}
           caption={brandSourceName(viewing.storage)
-            ? t('Shown straight from {where}. Business Agent doesn’t keep a copy.', { where: brandSourceName(viewing.storage)! })
-            : t('Uploaded to Business Agent {date}.', { date: formatLocal(viewing.added_at, 'd MMM yyyy') })} />
+            ? t('Shown straight from {where}. The Business Agent doesn’t keep a copy.', { where: brandSourceName(viewing.storage)! })
+            : t('Uploaded to The Business Agent {date}.', { date: formatLocal(viewing.added_at, 'd MMM yyyy') })} />
       )}
       {editing && <BrandDocDialog doc={editing} onClose={() => setEditing(null)} />}
     </Card>
@@ -336,22 +344,30 @@ function BrandDocDialog({ doc, onClose }: { doc: BrandDocument; onClose: () => v
  * The one logo, on white. Admins click it to upload a new one ("Replace" shows faintly at the
  * bottom right on hover, and always on touch screens, which can't hover).
  */
-function LogoCard({ title, hint, value, fallback, canEdit, onChange }: {
+function LogoCard({ title, hint, value, fallback, canEdit, onChange, icon }: {
   title: string; hint?: string; value: string | null; fallback?: string; canEdit: boolean; onChange: (v: string | null) => unknown
+  /** The app icon: a small square, shown at the sizes it's used at. */
+  icon?: boolean
 }) {
   const notify = useNotify()
+  const { business } = useApp()
   const input = useRef<HTMLInputElement>(null)
   const src = value ?? fallback ?? null
-  // Fills the card beside the colours on a computer; a fixed height on phones.
-  const frame = { width: '100%', height: { xs: 200, md: 'auto' }, minHeight: { md: 240 }, flex: { md: 1 }, borderRadius: '14px', bgcolor: '#FFFFFF', border: 1, borderColor: 'divider',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', p: 2.5, overflow: 'hidden' }
+  const fileName = `${(business?.name ?? 'brand').toLowerCase().replace(/\W+/g, '-').replace(/^-|-$/g, '')}-${title.toLowerCase().replace(/\W+/g, '-')}.png`
+  // The logo fills the card beside the colours on a computer (a fixed height on phones); the icon is a small square.
+  const frame = { width: '100%', height: icon ? 132 : { xs: 200, md: 'auto' }, minHeight: icon ? undefined : { md: 240 }, flex: icon ? undefined : { md: 1 },
+    borderRadius: '14px', bgcolor: '#FFFFFF', border: 1, borderColor: 'divider', display: 'flex', alignItems: 'center', justifyContent: 'center',
+    gap: 3, p: 2.5, overflow: 'hidden' }
   const preview = src
-    ? <Box component="img" src={src} alt={title} sx={{ display: 'block', maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
-    : <Typography variant="body2" sx={{ color: '#8E877F' }}>{canEdit ? t('Click to upload your logo') : t('No file yet')}</Typography>
+    ? icon
+      // The icon at the sizes it appears at: a QR code's centre, a screen's corner, a browser tab.
+      ? [64, 32, 16].map(px => <Box key={px} component="img" src={src} alt={px === 64 ? title : ''} sx={{ display: 'block', width: px, height: px, objectFit: 'contain', borderRadius: px > 16 ? '8px' : '3px' }} />)
+      : <Box component="img" src={src} alt={title} sx={{ display: 'block', maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+    : <Typography variant="body2" sx={{ color: '#8E877F' }}>{canEdit ? (icon ? t('Click to upload your app icon') : t('Click to upload your logo')) : t('No file yet')}</Typography>
   return (
-    <Card component="section" aria-label={title} sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Card component="section" aria-label={title} sx={{ flex: icon ? 'none' : 1, display: 'flex', flexDirection: 'column' }}>
       <CardContent sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        <SectionTitle action={src && <Button size="small" startIcon={<DownloadIcon fontSize="small" />} component="a" href={src} download={`easy-beans-${title.toLowerCase().replace(/\W+/g, '-')}.png`}>{t('Download')}</Button>}>{title}</SectionTitle>
+        <SectionTitle action={src && <Button size="small" startIcon={<DownloadIcon fontSize="small" />} component="a" href={src} download={fileName}>{t('Download')}</Button>}>{title}</SectionTitle>
         {hint && <Typography variant="body2" sx={{ color: 'text.secondary', mt: -1, mb: 1.5 }}>{hint}</Typography>}
         {canEdit ? (
           <ButtonBase disableRipple onClick={() => input.current?.click()} aria-label={src ? t('Replace {name}', { name: title.toLowerCase() }) : t('Upload {name}', { name: title.toLowerCase() })}
@@ -369,7 +385,7 @@ function LogoCard({ title, hint, value, fallback, canEdit, onChange }: {
               onChange={async e => {
                 const f = e.target.files?.[0]; e.target.value = ''
                 if (!f) return
-                try { await onChange(await readLogo(f)) } catch (err) { notify(err instanceof Error ? err.message : String(err), 'error') }
+                try { await onChange(await readLogo(f, icon ? 256 : 800)) } catch (err) { notify(err instanceof Error ? err.message : String(err), 'error') }
               }} />
             {value && <Button size="small" color="error" sx={{ mt: 1, alignSelf: 'flex-start' }} onClick={() => onChange(null)}>{t('Remove')}</Button>}
           </>

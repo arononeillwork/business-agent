@@ -1,8 +1,8 @@
-// Tax page: documents go into the café's own Google Drive or OneDrive, under "Business Agent/Tax/…"
+// Tax page: documents go into the café's own Google Drive or OneDrive, under "The Business Agent/Tax/…"
 // (sorted by year, quarter and kind, or into a folder the admin picks or makes there), and the
 // database keeps where each one is (tax_documents). Admins with pay access only, as Finances.
 // With Drive's drive.file permission the app sees only folders it made, so folders are found by
-// their path under "Business Agent" on both Drive and OneDrive.
+// their path under "The Business Agent" on both Drive and OneDrive.
 import { Hono, type Context } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { bearer, requestDb, userClient, type Env } from './supabase'
@@ -31,7 +31,7 @@ tax.use('/api/tax/*', async (c, next) => {
 
 /** The connected Drive or OneDrive, with a fresh access token (`missing`: what to say when neither is). */
 export async function keptStorage(env: Env, db: SupabaseClient,
-  missing = 'Connect Google Drive or OneDrive on the Connections page to keep tax documents. They go in its Business Agent/Tax folder.'): Promise<{ storage: Storage; token: string }> {
+  missing = 'Connect Google Drive or OneDrive on the Connections page to keep tax documents. They go in its The Business Agent/Tax folder.'): Promise<{ storage: Storage; token: string }> {
   const p = await connectedOf(db, ['google_drive', 'onedrive'] as const)
   if (!p) throw new TaxError(missing)
   try {
@@ -51,7 +51,7 @@ export async function broken(db: SupabaseClient, p: Storage, e: unknown) {
 export const fail = (e: unknown) => ({ error: e instanceof Error ? e.message : String(e) })
 export const status = (e: unknown) => (e instanceof AlreadyKept ? 409 : e instanceof TaxError ? 400 : 502)
 
-/** ?path=Tax/2026/Q4: a folder under Business Agent (the root when none is given; Tax unless said). */
+/** ?path=Tax/2026/Q4: a folder under The Business Agent (the root when none is given; Tax unless said). */
 export function pathParam(raw: string | undefined, root: 'Tax' | 'Documents' = 'Tax') {
   const path = cleanFolderPath((raw || root).split('/'), [root])
   if (!path) throw new TaxError(`That folder isn’t in the ${root} folder`)
@@ -150,7 +150,7 @@ export async function readUpload(c: Context<{ Bindings: Env; Variables: { token:
 }
 
 /**
- * Put a file in the connected Drive or OneDrive under Business Agent/<folder…> and save its
+ * Put a file in the connected Drive or OneDrive under The Business Agent/<folder…> and save its
  * tax_documents row as the person (so the database's rules and the audit log apply). Also used by
  * Invoices for invoices that come by email.
  */

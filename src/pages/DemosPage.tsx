@@ -24,7 +24,7 @@ export function DemosPage() {
   }, [hash])
   useEffect(() => {
     const before = document.title
-    document.title = t('Demos · Business Agent')
+    document.title = t('Demos · The Business Agent')
     return () => { document.title = before }
   }, [lang])
   const shown = DEMOS.filter(d => d.on)
@@ -41,7 +41,7 @@ export function DemosPage() {
                 {tr('See it {em}', { em: <Box component="em" sx={{ fontStyle: 'italic', color: BA.roseDeep }}>{t('from every side.')}</Box> })}
               </Typography>
               <Typography sx={{ color: BA.soft, fontSize: { xs: '1.08rem', md: '1.2rem' }, mt: 2.5, lineHeight: 1.6 }}>
-                {t('Short films of a real café, Easy Beans Coffee, on Business Agent. Each shows it a different way: pick one, or watch them all.')}
+                {t('Short films of a real café, Easy Beans Coffee, on The Business Agent. Each shows it a different way: pick one, or watch them all.')}
               </Typography>
             </Box>
             <Box component="ul" aria-label={t('The films')} sx={{ listStyle: 'none', p: 0, m: 0, display: 'grid', gap: { xs: 2.5, md: 3 },

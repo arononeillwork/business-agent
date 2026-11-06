@@ -31,7 +31,7 @@ function explain(status: number, body: ErrorBody): Error {
     return new PromptRefused('ElevenLabs can’t make that: describe the feel instead of naming an artist or a song.', suggestion)
   }
   if (status === 401) return new Error('ElevenLabs: the key is missing or wrong (ELEVENLABS_API_KEY)')
-  if (status === 402 || /quota|credit|payment/i.test(message)) return new Error('ElevenLabs: Business Agent’s music account is out of credit. Try again later.')
+  if (status === 402 || /quota|credit|payment/i.test(message)) return new Error('ElevenLabs: The Business Agent’s music account is out of credit. Try again later.')
   if (status === 429) return new Error('ElevenLabs is busy. Try again in a minute.')
   return new Error(`ElevenLabs: ${message || `error ${status}`}`)
 }

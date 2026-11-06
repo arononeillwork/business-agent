@@ -24,7 +24,7 @@ function Panel({ title, children, action }: { title: string; children: React.Rea
 
 /**
  * Signed in, but switched off by an admin of their business (someone in no business yet creates
- * theirs instead: NewBusinessPage). Shown in Business Agent's own look: until an admin lets them back
+ * theirs instead: NewBusinessPage). Shown in The Business Agent's own look: until an admin lets them back
  * in, they aren't in any business's app.
  */
 export function NotActive() {
@@ -37,7 +37,7 @@ export function NotActive() {
         <Stack spacing={2}>
           <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center' }}>
             <AgentMark />
-            <Typography sx={{ fontFamily: '"Poppins", system-ui, sans-serif', fontWeight: 500 }}>{'Business Agent'}</Typography>
+            <Typography sx={{ fontFamily: '"Poppins", system-ui, sans-serif', fontWeight: 500 }}>{'The Business Agent'}</Typography>
           </Stack>
           <Typography variant="h5" component="h1" sx={{ fontFamily: '"Poppins", system-ui, sans-serif', fontWeight: 500 }}>
             {me?.full_name ? t("You're registered, {name}", { name: me.full_name.split(' ')[0] }) : t("You're registered")}

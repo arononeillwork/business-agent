@@ -39,8 +39,8 @@ export const GROUPS: ConnectionGroupInfo[] = [
     { id: 'outlook_calendar', name: 'Outlook Calendar', by: 'Microsoft', proves: msg('Outlook has fetched the team calendar.') },
   ] },
   { key: 'files', title: msg('Files and storage'), pickOne: false, options: [
-    { id: 'google_drive', name: 'Google Drive', by: 'Google', proves: msg('The “Business Agent” folder was created in this Drive.') },
-    { id: 'onedrive', name: 'OneDrive', by: 'Microsoft', proves: msg('The “Business Agent” folder was created in this OneDrive.') },
+    { id: 'google_drive', name: 'Google Drive', by: 'Google', proves: msg('The “The Business Agent” folder was created in this Drive.') },
+    { id: 'onedrive', name: 'OneDrive', by: 'Microsoft', proves: msg('The “The Business Agent” folder was created in this OneDrive.') },
     { id: 'sharepoint', name: 'SharePoint', by: 'Microsoft', soon: true },
     { id: 'dropbox', name: 'Dropbox', by: 'Dropbox', soon: true },
   ] },

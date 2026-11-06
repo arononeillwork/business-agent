@@ -1,6 +1,6 @@
 // Connections that really work. An app shows "Connected" only after the Worker has used it:
 //   Gmail, Outlook            a confirmation email went from the mailbox to itself
-//   Google Drive, OneDrive    the "Business Agent" folder is there
+//   Google Drive, OneDrive    the "The Business Agent" folder is there
 //   Spotify, YouTube Music    the account signed in and its playlists could be read
 //   Search Console            the account can read the website's search data (the business's website is picked)
 //   Google Ads, Meta Ads      the ad accounts could be read (the admin picks one when there are several)
@@ -207,7 +207,7 @@ export function explain(p: Provider, e: unknown): string {
     return 'LinkedIn didn’t allow posting there. Check you’re still an admin of the Page (or choose your own profile), then connect again.'
   }
   if (p === 'google_ads' && /DEVELOPER_TOKEN_NOT_APPROVED|DEVELOPER_TOKEN_PROHIBITED|only approved for use with test accounts/i.test(raw)) {
-    return 'Google hasn’t approved Business Agent’s Google Ads access for real ad accounts yet (the developer token is for test accounts only). Once Google approves it, connect again.'
+    return 'Google hasn’t approved The Business Agent’s Google Ads access for real ad accounts yet (the developer token is for test accounts only). Once Google approves it, connect again.'
   }
   // Starting a pick: FAILED_PRECONDITION is an account without Google Photos; RESOURCE_EXHAUSTED, too many picks at once.
   const photosStatus = e instanceof googlePhotos.PhotosError ? e.status : undefined
@@ -598,7 +598,7 @@ export interface Proven {
 const confirmation = (p: 'gmail' | 'outlook', email: string, business: string) => ({
   to: email,
   subject: `${business}: this mailbox is connected`,
-  text: `This is a check from Business Agent: ${optionName(p)} (${email}) is now connected for ${business}.\n\n` +
+  text: `This is a check from The Business Agent: ${optionName(p)} (${email}) is now connected for ${business}.\n\n` +
     'Team alerts for people who prefer email will come from this address. You can disconnect it any time on the Connections page.',
 })
 
@@ -716,9 +716,10 @@ async function stillWorks(env: Env, db: SupabaseClient, row: Row): Promise<Parti
       return {}
     }
     if (p === 'google_drive') {
-      const id = row.external.folder_id as string | undefined
-      // Someone deleted the folder: make it again (exports keep working), still a pass.
-      if (!id || !(await google.driveFolderAlive(token, id))) return { external: { ...row.external, folder_id: await google.ensureDriveFolder(token) } }
+      // Someone deleted the folder: make it again (exports keep working), still a pass. One still under
+      // its old name ("Business Agent") is renamed "The Business Agent" here: the same folder.
+      const id = await google.ensureDriveFolder(token)
+      if (id !== row.external.folder_id) return { external: { ...row.external, folder_id: id } }
     }
     if (p === 'onedrive') {
       const id = await ms.ensureFolder(token)

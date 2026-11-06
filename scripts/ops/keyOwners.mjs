@@ -18,14 +18,14 @@ export function ownerOf(...names) {
   const text = names.filter(Boolean).join(' ')
   if (!text.trim()) return 'unknown'
   if (/easy\s*beans/i.test(text)) return 'easy-beans'
-  if (/business\s*s?agent/i.test(text)) return 'business-agent' // "Business Agent", "BusinessAgent", businesssagent.com
+  if (/business\s*s?agent/i.test(text)) return 'business-agent' // "The Business Agent", "BusinessAgent", businesssagent.com
   if (/\baron|o'?neill|default directory|@gmail\.|@hotmail\.|@outlook\./i.test(text)) return 'personal'
   return 'other'
 }
 
 export const OWNER_LABEL = {
   'easy-beans': 'Easy Beans',
-  'business-agent': 'Business Agent',
+  'business-agent': 'The Business Agent',
   personal: 'Personal',
   other: 'Someone else',
   unknown: 'Couldn’t tell',
@@ -50,7 +50,7 @@ export function verdictOf({ role, set, owner, error }) {
 export const VERDICT_LABEL = {
   ready: '✅ Ready',
   personal: '🟡 Works, personal account',
-  move: '🔴 Move to Business Agent',
+  move: '🔴 Move to The Business Agent',
   connection: '🔴 Make it that business’s connection',
   check: '⚪ Check by hand',
   missing: '⚪ Not set',
@@ -106,7 +106,7 @@ export function summaryMarkdown(rows) {
     '## Who owns each key',
     '',
     `**${ready} of ${counted.length}** accounts in use are where they should be for selling to other businesses.`,
-    'Platform keys (the apps every business connects or pays through) should be Business Agent’s; one business’s own account should be its connection, not a key; hosting and tools can stay on a personal account for now.',
+    'Platform keys (the apps every business connects or pays through) should be The Business Agent’s; one business’s own account should be its connection, not a key; hosting and tools can stay on a personal account for now.',
     '',
     '| Account | Kind | Belongs to | What the provider says | Status | What to do |',
     '|---|---|---|---|---|---|',

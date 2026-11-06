@@ -75,7 +75,7 @@ describe('Photos and videos for posts: kept in the café’s Drive or OneDrive',
     expect(apis.google.blobs.size).toBe(0)
   })
 
-  it('Google Drive: a reel’s video goes into Business Agent/Social/Reels, and its signed address plays it', async () => {
+  it('Google Drive: a reel’s video goes into The Business Agent/Social/Reels, and its signed address plays it', async () => {
     await connectStorage('google_drive')
     expect((await (await call('/api/integrations', { headers: admin })).json() as { media_storage: string }).media_storage).toBe('google_drive')
     const video = fileOf(5000)
@@ -88,7 +88,7 @@ describe('Photos and videos for posts: kept in the café’s Drive or OneDrive',
     // In the café's Drive: Business Agent / Social / Reels.
     const [file] = [...apis.google.blobs.values()]
     const path = (id: string): string[] => { const f = apis.google.folders.get(id); return f ? [...path(f.parent), f.name] : [] }
-    expect(path(file.parent)).toEqual(['Business Agent', 'Social', 'Reels'])
+    expect(path(file.parent)).toEqual(['The Business Agent', 'Social', 'Reels'])
     expect(file).toMatchObject({ type: 'video/mp4' })
     expect(file.name).toMatch(/^\d{4}-\d{2}-\d{2} \w{8}\.mp4$/)
 
@@ -110,7 +110,7 @@ describe('Photos and videos for posts: kept in the café’s Drive or OneDrive',
     expect((await call(`/media/g/${id}/${sig}`)).status).toBe(404)
   })
 
-  it('OneDrive: a big video goes up in pieces into Business Agent/Social/Stories, and comes back whole', async () => {
+  it('OneDrive: a big video goes up in pieces into The Business Agent/Social/Stories, and comes back whole', async () => {
     await connectStorage('onedrive')
     const video = fileOf(21 * 1024 * 1024 + 123, 7)
     const res = await upload(video, 'video/quicktime', 'Stories')
@@ -118,7 +118,7 @@ describe('Photos and videos for posts: kept in the café’s Drive or OneDrive',
     const stored = await res.json() as { url: string }
     expect(stored.url).toMatch(/\/media\/o\/1\/item-\d+\/[\w-]{24}\.mov$/)
     expect(apis.calls.filter(c => c.startsWith('PUT upload.onedrive.test')).length).toBe(3) // 10 MiB + 10 MiB + the rest
-    expect([...apis.microsoft.blobs.values()][0].path).toMatch(/^Business Agent\/Social\/Stories\/.+\.mov$/)
+    expect([...apis.microsoft.blobs.values()][0].path).toMatch(/^The Business Agent\/Social\/Stories\/.+\.mov$/)
     const got = await call(new URL(stored.url).pathname)
     expect(got.status).toBe(200)
     expect(got.headers.get('content-type')).toBe('video/quicktime')

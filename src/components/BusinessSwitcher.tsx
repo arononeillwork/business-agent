@@ -7,7 +7,7 @@ import AddIcon from '@mui/icons-material/AddBusinessOutlined'
 import CheckIcon from '@mui/icons-material/CheckRounded'
 import SwitchIcon from '@mui/icons-material/UnfoldMoreRounded'
 import { useState, type ReactNode } from 'react'
-import logoUrl from '../assets/logo.png'
+import easyBeansLogoUrl from '../assets/easy-beans-logo.png'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction, useNotify } from '../app/Notify'
@@ -17,7 +17,7 @@ import { t, tc } from '../i18n'
 
 /** A business's mark: its logo, or its initials (Easy Beans, business 1, has the bundled one). */
 export function BusinessAvatar({ name, logo, businessId, size = 32 }: { name: string | null; logo: string | null; businessId: number | null; size?: number }) {
-  const src = logo ?? (businessId === 1 ? logoUrl : null)
+  const src = logo ?? (businessId === 1 ? easyBeansLogoUrl : null)
   const initials = (name ?? '?').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]?.toUpperCase()).join('') || '?'
   return (
     <Box aria-hidden sx={{ width: size, height: size, flexShrink: 0, borderRadius: `${Math.round(size * 0.28)}px`, overflow: 'hidden',

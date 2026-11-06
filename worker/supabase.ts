@@ -1,5 +1,13 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
+/** The part of Cloudflare's send_email binding the app uses (developers.cloudflare.com/email-service). */
+export interface EmailSender {
+  send(message: {
+    from: string | { email: string; name?: string }; to: string; subject: string
+    text?: string; html?: string; replyTo?: string
+  }): Promise<{ messageId: string }>
+}
+
 export interface Env {
   SUPABASE_URL: string
   SUPABASE_PUBLISHABLE_KEY: string
@@ -9,6 +17,8 @@ export interface Env {
   GIT_SHA?: string                    // set by the deploy: the commit that's live
   DEPLOYED_AT?: string                // set by the deploy: when it went live (ISO time)
   MEDIA?: R2Bucket
+  /** Cloudflare Email Sending (the send_email binding the deploy switches on: scripts/ops/email-sending.mjs). */
+  EMAIL?: EmailSender
   // Integrations (secrets unless noted). Anything missing shows as "needs setup" in the app.
   GOOGLE_FONTS_API_KEY?: string       // optional: official Google Fonts list (brand page)
   ANTHROPIC_API_KEY?: string          // optional: the in-app assistant (worker/assistant.ts); off without it
@@ -53,7 +63,7 @@ export interface Env {
   MS_CLIENT_ID?: string               // Microsoft app (Outlook email, OneDrive files); set by the Microsoft setup workflow
   MS_CLIENT_SECRET?: string
   // Music on social posts (docs/SOCIAL_MUSIC_PLAN.md).
-  ELEVENLABS_API_KEY?: string         // Business Agent's ElevenLabs account: AI tracks (paid per use) and the starter pack
+  ELEVENLABS_API_KEY?: string         // The Business Agent's ElevenLabs account: AI tracks (paid per use) and the starter pack
   ELEVENLABS_MUSIC_MODEL?: string     // var: music_v1 (default), music_v2 or music_v2_5 (Actions → Music check compares them)
   RENDER_URL?: string                 // the render service (render/), set by Actions → Deploy render service
   RENDER_KEY?: string                 // its key, set by the same workflow

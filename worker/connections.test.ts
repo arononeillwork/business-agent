@@ -139,7 +139,7 @@ describe('Connecting an app: "Connected" only once it has really worked', () => 
 
     const test = await post('/api/integrations/email/test', { to: 'aron@example.com' })
     expect(test.status).toBe(200)
-    expect(apis.microsoft.sent.at(-1)).toEqual({ to: 'aron@example.com', subject: 'Test email from Business Agent' })
+    expect(apis.microsoft.sent.at(-1)).toEqual({ to: 'aron@example.com', subject: 'Test email from The Business Agent' })
     expect(apis.google.sent).toHaveLength(1) // only Gmail's own confirmation
   })
 
@@ -185,13 +185,13 @@ describe('Connecting an app: "Connected" only once it has really worked', () => 
     expect(status('outlook')).toBe('disconnected')
   })
 
-  it('Google Drive: makes the “Business Agent” folder, then exports save into it', async () => {
+  it('Google Drive: makes the “The Business Agent” folder, then exports save into it', async () => {
     const back = await connect('google_drive', 'setup')
     expect(back.pathname).toBe('/setup')
     const row = db.integration('google_drive')
     expect(row.status).toBe('connected')
     const folderId = (row.external as { folder_id: string }).folder_id
-    expect(apis.google.folders.get(folderId)).toEqual({ name: 'Business Agent', parent: 'root', trashed: false })
+    expect(apis.google.folders.get(folderId)).toEqual({ name: 'The Business Agent', parent: 'root', trashed: false })
 
     const saved = await post('/api/integrations/files/save', { folder: 'Timecards', name: 'week 40.csv', content: 'a;b', type: 'text/csv' })
     expect(await saved.json()).toMatchObject({ provider: 'google_drive', link: expect.stringContaining('drive.google.com') })
@@ -212,7 +212,7 @@ describe('Connecting an app: "Connected" only once it has really worked', () => 
 
     await post('/api/integrations/google_drive/disconnect')
     await post('/api/integrations/files/save', { folder: 'Timecards', name: 'week 2.csv', content: 'x' })
-    expect(apis.microsoft.files).toEqual(['Business Agent/Timecards/week 2.csv'])
+    expect(apis.microsoft.files).toEqual(['The Business Agent/Timecards/week 2.csv'])
   })
 
   it('a cancelled sign-in changes nothing and isn’t shown as a problem', async () => {
@@ -542,7 +542,7 @@ describe('Checks: a connection that stops working turns red and admins hear abou
     await nightly()
     const after = (db.integration('google_drive').external as { folder_id: string }).folder_id
     expect(after).not.toBe(before)
-    expect(apis.google.folders.get(after)).toMatchObject({ name: 'Business Agent', trashed: false })
+    expect(apis.google.folders.get(after)).toMatchObject({ name: 'The Business Agent', trashed: false })
     expect(status('google_drive')).toBe('connected')
   })
 
@@ -1248,7 +1248,7 @@ describe('SumUp, LinkedIn and Search Console: connected once they really work', 
   })
 })
 
-describe('Sign-in emails come from the business’s own Gmail or Outlook (Supabase send-email hook)', () => {
+describe('Sign-in emails from The Business Agent (Supabase send-email hook)', () => {
   const b64 = (b: ArrayBuffer) => btoa(String.fromCharCode(...new Uint8Array(b)))
   /** A call signed the way Supabase signs it (Standard Webhooks). */
   async function hook(payload: unknown, { key = env.SUPABASE_SERVICE_ROLE_KEY!, at = Date.now() } = {}) {
@@ -1270,8 +1270,9 @@ describe('Sign-in emails come from the business’s own Gmail or Outlook (Supaba
     expect(res.status).toBe(200)
     const sent = readGmail(apis.google.sent.at(-1)!)
     expect(sent.to).toBe('eva@example.com')
-    expect(sent.subject).toBe('Reset your Easy Beans password')
+    expect(sent.subject).toBe('Reset your password for The Business Agent')
     expect(sent.text).toContain('Hola Eva,')
+    expect(sent.text).toContain('Choose a new password for Easy Beans on The Business Agent')
     expect(sent.text).toContain('https://db.test/auth/v1/verify?token=hash-abc&type=recovery&redirect_to=https%3A%2F%2Fapp.test%2Faccount')
   })
 
@@ -1280,8 +1281,8 @@ describe('Sign-in emails come from the business’s own Gmail or Outlook (Supaba
     expect((await hook(email('invite'))).status).toBe(200)
     expect((await hook(email('magiclink'))).status).toBe(200)
     expect(apis.microsoft.sent.slice(-2)).toEqual([
-      { to: 'eva@example.com', subject: "You're invited to the Easy Beans team app" },
-      { to: 'eva@example.com', subject: 'Your Easy Beans sign-in code' },
+      { to: 'eva@example.com', subject: 'Easy Beans invited you to The Business Agent' },
+      { to: 'eva@example.com', subject: 'Your sign-in code for The Business Agent' },
     ])
   })
 
@@ -1289,6 +1290,59 @@ describe('Sign-in emails come from the business’s own Gmail or Outlook (Supaba
     const res = await hook(email('recovery'))
     expect(res.status).toBe(503)
     expect((await res.json() as { error: { message: string } }).error.message).toMatch(/Connect Gmail or Outlook/)
+  })
+
+  /** Cloudflare's send_email binding, keeping what it was asked to send (or refusing, like an account not set up yet). */
+  const cloudflare = (refuse = false) => {
+    const sent: { from: unknown; to: string; replyTo?: string; subject: string; text?: string; html?: string }[] = []
+    return { sent, EMAIL: { send: async (m: (typeof sent)[number]) => { if (refuse) throw new Error('E_SENDER_DOMAIN_NOT_AVAILABLE'); sent.push(m); return { messageId: 'm1' } } } }
+  }
+  async function hookWith(EMAIL: unknown, payload: unknown) {
+    const body = JSON.stringify(payload), id = 'msg_1', ts = String(Math.floor(Date.now() / 1000))
+    const k = await crypto.subtle.importKey('raw', await hookSecret(env.SUPABASE_SERVICE_ROLE_KEY!), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+    const sig = b64(await crypto.subtle.sign('HMAC', k, new TextEncoder().encode(`${id}.${ts}.${body}`)))
+    return authEmail.request(`${APP}/api/auth/send-email`, {
+      method: 'POST', body, headers: { 'webhook-id': id, 'webhook-timestamp': ts, 'webhook-signature': `v1,${sig}`, 'content-type': 'application/json' },
+    }, { ...env, EMAIL }, ctx())
+  }
+
+  it('with Cloudflare Email Sending on, sends from noreply@businesssagent.com, not the business’s mailbox', async () => {
+    await connect('gmail')
+    const before = apis.google.sent.length
+    const cf = cloudflare()
+    expect((await hookWith(cf.EMAIL, email('magiclink'))).status).toBe(200)
+    expect(apis.google.sent).toHaveLength(before)
+    expect(cf.sent).toHaveLength(1)
+    const m = cf.sent[0]
+    expect(m).toMatchObject({ from: { email: 'noreply@businesssagent.com', name: 'The Business Agent' }, to: 'eva@example.com',
+      replyTo: 'support@businesssagent.com', subject: 'Your sign-in code for The Business Agent' })
+    expect(m.text).toContain('123456')
+    expect(m.text).toContain('Easy Beans on The Business Agent')
+    expect(m.html).toContain('https://app.test/icon-192.png')
+    expect(m.html).toContain('123456')
+    expect(m.html).not.toContain('<script')
+  })
+
+  it('someone in no business yet gets theirs from The Business Agent too, with nothing about Easy Beans', async () => {
+    const cf = cloudflare()
+    const res = await hookWith(cf.EMAIL, { ...email('signup'), user: { email: 'new@example.com', user_metadata: { full_name: 'Ana Gil' } } })
+    expect(res.status).toBe(200)
+    expect(cf.sent[0]).toMatchObject({ to: 'new@example.com', subject: 'Confirm your email for The Business Agent' })
+    expect(cf.sent[0].text).not.toMatch(/easy beans/i)
+    expect(cf.sent[0].html).toContain('Confirm my email')
+  })
+
+  it('if Cloudflare refuses (not set up yet), the email still goes, from the mailbox', async () => {
+    await connect('gmail')
+    const cf = cloudflare(true)
+    expect((await hookWith(cf.EMAIL, email('recovery'))).status).toBe(200)
+    expect(readGmail(apis.google.sent.at(-1)!).subject).toBe('Reset your password for The Business Agent')
+  })
+
+  it('names and links in the HTML are escaped', async () => {
+    const cf = cloudflare()
+    await hookWith(cf.EMAIL, { ...email('recovery'), user: { email: 'x@example.com', user_metadata: { full_name: '<b>Eve</b> X' } } })
+    expect(cf.sent[0].html).toContain('Hola &lt;b&gt;Eve&lt;/b&gt;,')
   })
 
   it('rejects calls not signed with the service key, and stale ones', async () => {

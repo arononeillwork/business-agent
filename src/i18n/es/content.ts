@@ -15,11 +15,11 @@ export default {
   'Posts take JPEG photos and MP4 or MOV videos. Choose one of those.': 'Las publicaciones admiten fotos JPEG y vídeos MP4 o MOV. Elige alguno de esos.',
   'Link copied. Paste it into an offer, a screen or the menu.': 'Enlace copiado. Pégalo en una oferta, una pantalla o la carta.',
   'From Google Photos': 'Desde Google Fotos',
-  'Connect Google Drive or OneDrive to keep photos and videos here: they’re kept in its Business Agent folder, in Content.':
-    'Conecta Google Drive o OneDrive para guardar aquí fotos y vídeos: se guardan en su carpeta Business Agent, en Content.',
+  'Connect Google Drive or OneDrive to keep photos and videos here: they’re kept in its The Business Agent folder, in Content.':
+    'Conecta Google Drive o OneDrive para guardar aquí fotos y vídeos: se guardan en su carpeta The Business Agent, en Content.',
   'Connect Google Photos': 'Conectar Google Fotos',
-  'Bring in photos and videos from Google Photos: connect it once, then pick the ones you want. Business Agent sees only what you pick.':
-    'Trae fotos y vídeos de Google Fotos: conéctalo una vez y elige los que quieras. Business Agent solo ve lo que eliges.',
+  'Bring in photos and videos from Google Photos: connect it once, then pick the ones you want. The Business Agent sees only what you pick.':
+    'Trae fotos y vídeos de Google Fotos: conéctalo una vez y elige los que quieras. The Business Agent solo ve lo que eliges.',
   'Uploading {done} of {of}…': 'Subiendo {done} de {of}…',
   'Photos or videos': 'Fotos o vídeos',
   'Where from': 'De dónde',

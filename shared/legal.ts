@@ -2,9 +2,9 @@
 // with the company's legal name and registered address before submitting Google's app
 // verification: GDPR requires the data controller to be identified.
 export const LEGAL = {
-  service: 'Business Agent',
+  service: 'The Business Agent',
   domain: 'businesssagent.com',
-  /** Legal name of the company that runs Business Agent, e.g. "Business Agent SL". */
+  /** Legal name of the company that runs Business Agent, e.g. "The Business Agent SL". */
   operator: '',
   /** Registered address of that company. */
   address: '',

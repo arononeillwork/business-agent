@@ -52,7 +52,7 @@ button { font: inherit; font-weight: 600; border: 0; border-radius: 999px; paddi
 self.addEventListener('push', event => {
   let n = {}
   try { n = event.data ? event.data.json() : {} } catch { n = { title: event.data ? event.data.text() : '' } }
-  event.waitUntil(self.registration.showNotification(n.title || 'Business Agent', {
+  event.waitUntil(self.registration.showNotification(n.title || 'The Business Agent', {
     body: n.body || undefined,
     icon: '/icon-192.png',
     badge: '/icon-192.png',

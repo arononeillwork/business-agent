@@ -79,7 +79,7 @@ describe('businessDb: the Worker acting for one business', () => {
     expect([...last().url.searchParams.keys()]).toEqual(['select'])
   })
 
-  it('says which business it acts for; only one is given Business Agent’s own accounts', () => {
+  it('says which business it acts for; only one is given The Business Agent’s own accounts', () => {
     expect(businessIdOf(businessDb(serviceEnv, 7))).toBe(7)
     expect(businessIdOf(serviceClient(serviceEnv))).toBeNull()
     expect(ownsSecretAccounts(businessDb(serviceEnv, 1))).toBe(true)

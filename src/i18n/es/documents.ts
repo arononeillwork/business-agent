@@ -4,8 +4,8 @@ export default {
   '{n} with an invoice or licence': '{n} con una factura o licencia',
   'Run out soon': 'Caducan pronto',
   'Within 60 days': 'En los próximos 60 días',
-  'Connect Google Drive or OneDrive to look inside it and upload documents. They’re kept in your own storage, in its Business Agent folder.':
-    'Conecta Google Drive o OneDrive para ver lo que hay y subir documentos. Se guardan en tu propio almacenamiento, en su carpeta Business Agent.',
+  'Connect Google Drive or OneDrive to look inside it and upload documents. They’re kept in your own storage, in its The Business Agent folder.':
+    'Conecta Google Drive o OneDrive para ver lo que hay y subir documentos. Se guardan en tu propio almacenamiento, en su carpeta The Business Agent.',
   'All documents': 'Todos los documentos',
   'Search documents': 'Buscar documentos',
   'Belongs to': 'De qué es',

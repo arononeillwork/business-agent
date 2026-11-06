@@ -122,7 +122,7 @@ function RepCodeCard({ until, onAdded }: { until: string; onAdded: () => void })
   return (
     <Card variant="outlined">
       <CardContent>
-        <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 600 }}>{t('Did a Business Agent rep introduce you?')}</Typography>
+        <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 600 }}>{t('Did a rep for The Business Agent introduce you?')}</Typography>
         <Typography color="text.secondary" sx={{ mt: 0.5, mb: 2 }}>
           {t('Add the code on their card by {date}: your first month is free, and they can help you set up.', { date: formatLocal(until, 'd MMMM') })}
         </Typography>
@@ -208,13 +208,13 @@ export function BillingPage() {
                 {b?.status === 'comped' && (
                   <Typography color="text.secondary" sx={{ mt: 0.5 }}>
                     {b.complimentary === 'founder'
-                      ? t('The founding business of Business Agent: every feature of the top plan, free for good.')
+                      ? t('The founding business of The Business Agent: every feature of the top plan, free for good.')
                       : t('A friends & family account: every feature of the top plan, free. Nothing to pay and no card needed.')}
                   </Typography>
                 )}
                 {b?.introduced_by && (
                   <Typography color="text.secondary" sx={{ mt: 0.5 }}>
-                    {t('Introduced by {name}, a Business Agent rep: your first month is free.', { name: b.introduced_by })}
+                    {t('Introduced by {name}, a rep for The Business Agent: your first month is free.', { name: b.introduced_by })}
                   </Typography>
                 )}
                 {b && b.referral_months_applied > 0 && (
@@ -306,7 +306,7 @@ export function BillingPage() {
                 <Typography variant="h6" component="h3">{ENTERPRISE.name}</Typography>
                 <Typography variant="body2" color="text.secondary">{t(ENTERPRISE.blurb)} {t('Every venue on one contract, set up and supported by our team.')}</Typography>
               </Box>
-              <Button variant="outlined" href={`mailto:${ENTERPRISE.email}?subject=${encodeURIComponent('Business Agent Enterprise')}`}>{t('Contact sales')}</Button>
+              <Button variant="outlined" href={`mailto:${ENTERPRISE.email}?subject=${encodeURIComponent('The Business Agent Enterprise')}`}>{t('Contact sales')}</Button>
             </CardContent>
           </Card>
         </Box>

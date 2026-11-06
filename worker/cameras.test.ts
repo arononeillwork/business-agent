@@ -2,7 +2,7 @@
 // OneDrive and the camera upload server. What must never break:
 //   - only the upload server (its key) asks about logins and hands over video; a wrong password or a
 //     switched-off camera is turned away
-//   - video goes into the business's own storage, Business Agent/Cameras/<camera>/<day>/, named by
+//   - video goes into the business's own storage, The Business Agent/Cameras/<camera>/<day>/, named by
 //     the local time it started, with its row; with no storage it's refused (the server tries again)
 //   - admins only: the latest picture, what the upload server has, a clip to play by a signed address
 //     that runs out, deleting a clip or a camera (its clips out of storage first), and the clips
@@ -105,7 +105,7 @@ describe('Cameras: what the camera upload server passes on', () => {
     const [file] = [...apis.google.blobs]
     expect(file[1]).toMatchObject({ name: '10.15.00.mp4', type: 'video/mp4' })
     expect(new TextDecoder().decode(file[1].bytes)).toBe('an mp4 from the counter camera')
-    expect(drivePath(file[1].parent)).toEqual(['Business Agent', 'Cameras', 'Counter', '2026-10-30'])
+    expect(drivePath(file[1].parent)).toEqual(['The Business Agent', 'Cameras', 'Counter', '2026-10-30'])
     expect(db.tables.camera_clips).toEqual([expect.objectContaining({ camera_id: 'cam-1', business_id: 1, started_at: '2026-10-30T09:15:00.000Z', seconds: 30,
       bytes: video.length, storage: 'google_drive', file_id: file[0], file_name: '10.15.00.mp4', link: `https://drive.google.com/file/d/${file[0]}/view`, motion: true })])
     expect(db.tables.camera_status[0]).toMatchObject({ camera_id: 'cam-1', last_error: null })
@@ -118,7 +118,7 @@ describe('Cameras: what the camera upload server passes on', () => {
     expect(res.status).toBe(200)
     expect(await res.json()).toMatchObject({ folder: 'Cameras/Counter/2026-10-30', name: '10.15.00.mp4' })
     const [[, f]] = [...apis.microsoft.blobs]
-    expect(f.path).toBe('Business Agent/Cameras/Counter/2026-10-30/10.15.00.mp4')
+    expect(f.path).toBe('The Business Agent/Cameras/Counter/2026-10-30/10.15.00.mp4')
     expect(db.tables.camera_clips[0]).toMatchObject({ storage: 'onedrive', motion: false })
   })
 

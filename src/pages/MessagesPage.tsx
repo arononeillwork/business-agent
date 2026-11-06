@@ -123,7 +123,7 @@ function ConnectCard({ provider, row, configured }: { provider: Source; row?: In
           </Box>
         </Stack>
         {row?.last_error && <Alert severity="error" sx={{ mt: 1.5 }}>{row.last_error}</Alert>}
-        {!configured && <Alert severity="warning" sx={{ mt: 1.5 }}>{t('Not set up yet: Business Agent needs {keys} before anyone can connect {app}. They’re added once, for every business; after that, connecting is one click.', { keys: t(KEYS_NEEDED[provider] ?? ''), app: name })}</Alert>}
+        {!configured && <Alert severity="warning" sx={{ mt: 1.5 }}>{t('Not set up yet: The Business Agent needs {keys} before anyone can connect {app}. They’re added once, for every business; after that, connecting is one click.', { keys: t(KEYS_NEEDED[provider] ?? ''), app: name })}</Alert>}
         <Typography variant="overline" component="h3" sx={{ display: 'block', color: 'text.secondary', mt: 2 }}>{t('When you connect, it can')}</Typography>
         <Stack component="ul" spacing={0.5} sx={{ m: 0, p: 0, pl: 2.5 }}>
           {CAN[provider]!.map(c => <Typography key={c} component="li" variant="body2">{t(c)}</Typography>)}
@@ -241,7 +241,7 @@ function Inbox({ ig, fb, wa, app }: { ig?: Integration; fb?: Integration; wa?: I
         <InfoIcon sx={{ fontSize: 16, mt: '2px' }} />
         <Typography variant="caption">
           {app === 'whatsapp' || (showsWhatsApp && !showsInstagram && !showsMessenger)
-            ? t('WhatsApp doesn’t let apps read chats back, so these are the messages Business Agent saved as they came and went, kept for as long as Data retention on My account says. You can reply for 24 hours after someone’s last message.')
+            ? t('WhatsApp doesn’t let apps read chats back, so these are the messages The Business Agent saved as they came and went, kept for as long as Data retention on My account says. You can reply for 24 hours after someone’s last message.')
             : showsInstagram
               ? t('Instagram doesn’t share its Primary, General and Requests folders with other apps, so every chat is here. You can reply for 24 hours after someone’s last message, and for up to 7 days as a personal reply you write yourself.')
               : t('Your Facebook Page’s Messenger chats. You can reply for 24 hours after someone’s last message, and for up to 7 days as a personal reply you write yourself.')}
@@ -449,7 +449,7 @@ function Bubble({ m, who, showAvatar, platform }: { m: InboxMessage; who?: Inbox
           {m.kind === 'unsupported'
             ? <Typography variant="body2" sx={{ fontStyle: 'italic' }}>{t('A message Instagram doesn’t share with other apps. Open Instagram to see it.')}</Typography>
             : m.kind === 'other'
-              ? <Typography variant="body2" sx={{ fontStyle: 'italic' }}>{t('A kind of message Business Agent can’t show yet (a poll or an order, for example).')}</Typography>
+              ? <Typography variant="body2" sx={{ fontStyle: 'italic' }}>{t('A kind of message The Business Agent can’t show yet (a poll or an order, for example).')}</Typography>
               : m.text && <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{m.text}</Typography>}
           {m.link && <MuiLink href={m.link} target="_blank" rel="noreferrer" variant="caption">{m.kind === 'location' ? t('Open map') : t('Open on Instagram')}</MuiLink>}
         </Box>

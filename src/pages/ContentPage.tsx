@@ -191,7 +191,7 @@ export function ContentPage() {
 
       {integ.data && !storage && (
         <Alert severity="warning" sx={{ mb: 2 }} action={<Button color="inherit" component={RouterLink} to="/connections">{t('Connections')}</Button>}>
-          {t('Connect Google Drive or OneDrive to keep photos and videos here: they’re kept in its Business Agent folder, in Content.')}
+          {t('Connect Google Drive or OneDrive to keep photos and videos here: they’re kept in its The Business Agent folder, in Content.')}
         </Alert>
       )}
       {integ.data && !photosOn && (
@@ -200,7 +200,7 @@ export function ContentPage() {
             {photos?.status === 'error' ? t('Connect again') : t('Connect Google Photos')}
           </Button>}>
           {photos?.status === 'error' && photos.last_error ? photos.last_error
-            : t('Bring in photos and videos from Google Photos: connect it once, then pick the ones you want. Business Agent sees only what you pick.')}
+            : t('Bring in photos and videos from Google Photos: connect it once, then pick the ones you want. The Business Agent sees only what you pick.')}
         </Alert>
       )}
       {uploading && (

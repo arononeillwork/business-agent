@@ -10,7 +10,7 @@ import { msg, t, tr } from '../i18n'
 const CONNECTIONS: [string, string, string][] = [
   [msg('Google Business Profile (Google Maps)'), msg('Manage the business listing'), msg('Keep opening hours and closures up to date, and publish posts the business writes.')],
   ['Gmail', msg('Send email (send only)'), msg('Send team alerts and sign-in emails from the business’s own address. The app cannot read, search or delete email.')],
-  ['Google Drive', msg('Files the app creates only'), msg('Save timecard and hours-record exports to a “Business Agent” folder. The app cannot see any other file.')],
+  ['Google Drive', msg('Files the app creates only'), msg('Save timecard and hours-record exports to a “The Business Agent” folder. The app cannot see any other file.')],
   ['YouTube (YouTube Music)', msg('Read playlists (read only)'), msg('Show a person’s own playlists on the Music page and the café’s approved playlist.')],
   ['Microsoft Outlook', msg('Send email'), msg('Send team alerts and sign-in emails from the business’s own address.')],
   ['Microsoft OneDrive', msg('Read and write files'), msg('Save timecard and hours-record exports.')],

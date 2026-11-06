@@ -51,7 +51,7 @@ export async function sendDueReports(env: Env, businessId: number, now = Date.no
     const { data: claimed } = await (row.last_sent_at === null ? claim.is('last_sent_at', null) : claim.eq('last_sent_at', row.last_sent_at)).select('id')
     if (!claimed?.length) continue
     try {
-      const failed = await sendSchedule(env, db, businessId, s, { name: biz?.name ?? 'Business Agent', tz, openingHours: biz?.opening_hours ?? null }, now)
+      const failed = await sendSchedule(env, db, businessId, s, { name: biz?.name ?? 'The Business Agent', tz, openingHours: biz?.opening_hours ?? null }, now)
       await db.from('report_schedules').update({ last_error: failed }).eq('id', s.id)
       sent++
     } catch (e) {

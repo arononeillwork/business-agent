@@ -24,7 +24,7 @@ export function openApi(origin: string) {
   return {
     openapi: '3.1.0',
     info: {
-      title: 'Business Agent',
+      title: 'The Business Agent',
       version: '1.0.0',
       description: 'The team app for a café: rota, clock-ins (registro de jornada), time off, calendar and business details. ' +
         'Every call acts as the person whose access key is used, with exactly their permissions; changes are logged. ' +

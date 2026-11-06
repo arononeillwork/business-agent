@@ -3,21 +3,21 @@
 // "comercial", as on Sales reps & rewards.
 export default {
   // Sign-up and Billing
-  'Introduced by {name}, from Business Agent': 'Te presenta {name}, de Business Agent',
+  'Introduced by {name}, from The Business Agent': 'Te presenta {name}, de The Business Agent',
   'Create your account, then your business: your first month is free, and {name} will help you set it up.':
     'Crea tu cuenta y después tu negocio: tu primer mes es gratis y {name} te ayudará a configurarlo.',
-  'Introduced by {name}, from Business Agent: your first month is free, and they’ll help you set it up':
-    'Te presenta {name}, de Business Agent: tu primer mes es gratis y te ayudará a configurarlo',
-  'Code from a Business Agent rep or another business (optional)': 'Código de un comercial de Business Agent o de otro negocio (opcional)',
+  'Introduced by {name}, from The Business Agent: your first month is free, and they’ll help you set it up':
+    'Te presenta {name}, de The Business Agent: tu primer mes es gratis y te ayudará a configurarlo',
+  'Code from a rep for The Business Agent or another business (optional)': 'Código de un comercial de The Business Agent o de otro negocio (opcional)',
   'That code isn’t one we know. Check it, or leave it empty.': 'No conocemos ese código. Revísalo o déjalo vacío.',
   'If someone gave you a code, put it here: your first month is free.': 'Si alguien te dio un código, ponlo aquí: tu primer mes es gratis.',
   'Thanks: {name} introduced you, and your first month is free.': 'Gracias: te presentó {name} y tu primer mes es gratis.',
-  'Did a Business Agent rep introduce you?': '¿Te presentó un comercial de Business Agent?',
+  'Did a rep for The Business Agent introduce you?': '¿Te presentó un comercial de The Business Agent?',
   'Add the code on their card by {date}: your first month is free, and they can help you set up.':
     'Añade el código de su tarjeta antes del {date}: tu primer mes es gratis y puede ayudarte a configurarlo todo.',
   'Their code': 'Su código',
   'Add the code': 'Añadir el código',
-  'Introduced by {name}, a Business Agent rep: your first month is free.': 'Te presentó {name}, comercial de Business Agent: tu primer mes es gratis.',
+  'Introduced by {name}, a rep for The Business Agent: your first month is free.': 'Te presentó {name}, comercial de The Business Agent: tu primer mes es gratis.',
 
   // A rep's own page
   '{amount} more is waiting: a payment counts {days} days after it’s made, in case of a refund.':
@@ -25,7 +25,7 @@ export default {
   'A business that signs up with it, or with your link, is yours: {offer}.': 'Un negocio que se da de alta con él, o con tu enlace, es tuyo: {offer}.',
   'its first month is free': 'su primer mes es gratis',
   'Counts by itself when the business pays': 'Cuenta solo cuando el negocio paga',
-  'You get it as commission, paid by Business Agent.': 'Lo recibes como comisión, que te paga Business Agent.',
+  'You get it as commission, paid by The Business Agent.': 'Lo recibes como comisión, que te paga The Business Agent.',
   'Your businesses': 'Tus negocios',
   'Each earns you commission for its first {n} paid months.': 'Cada uno te da comisión durante sus {n} primeros meses pagados.',
   'Businesses that sign up with your code show here, with how each is getting on.':

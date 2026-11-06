@@ -46,7 +46,7 @@ export const TRIAL_MONTHS = 2
 export const PLANS: Plan[] = [
   {
     id: 'free', name: msg('Free'), blurb: msg('Try the basics with a very small team.'), monthly: 0, yearly: 0,
-    bestFor: msg('A small team trying Business Agent: the rota, clock-ins and the legal hours record, free for ever.'),
+    bestFor: msg('A small team trying The Business Agent: the rota, clock-ins and the legal hours record, free for ever.'),
     support: msg('Help centre and email'),
     limits: { people: 3, socialAccounts: 1, postsPerMonth: 1 },
     features: [],

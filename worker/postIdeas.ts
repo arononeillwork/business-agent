@@ -1,6 +1,6 @@
 // Post ideas (Social planner → Ideas): the photos and videos the team makes for an idea. Anyone on the
 // team (owners, shop managers, employees; not partners or the café tablet) keeps them in the business's
-// Drive or OneDrive, in Business Agent/Social/Ideas, the same way an admin's go for a post
+// Drive or OneDrive, in The Business Agent/Social/Ideas, the same way an admin's go for a post
 // (/api/integrations/media, admins only). The idea itself is a row the app saves (the `post_ideas` migration).
 //   POST /api/post-ideas/media   a JPEG photo or an MP4/MOV video; { url, type }
 import { Hono } from 'hono'

@@ -51,7 +51,7 @@ export function ReportsTab({ can }: { can: (needs: WidgetNeeds[]) => boolean }) 
   const sections = useReportSections(kinds, range)
   const to = useRecipientEmails(s)
 
-  const name = business?.name ?? 'Business Agent'
+  const name = business?.name ?? 'The Business Agent'
   const mail = reportMail({ business: name, period: periodLabel(s.period), dates: datesText(range, formatLocal), sender: me?.full_name ?? '', sections: sections.list }, { t, tn })
   const problem = !kinds.length ? t('Pick at least one report') : reportSendProblem({ to, subject: mail.subject, text: mail.text })
 

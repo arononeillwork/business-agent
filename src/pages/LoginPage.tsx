@@ -287,7 +287,7 @@ function Invite({ onSignUp }: { onSignUp: () => void }) {
       <Stack direction="row" spacing={1} sx={{ alignItems: 'center', color: BA.accent, mb: 1 }}>
         <GiftIcon fontSize="small" />
         <Typography sx={{ fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase', fontSize: '0.75rem' }}>
-          {rep ? t('Introduced by {name}, from Business Agent', { name: rep.name }) : t('Invited by {name}', { name: by.business! })}
+          {rep ? t('Introduced by {name}, from The Business Agent', { name: rep.name }) : t('Invited by {name}', { name: by.business! })}
         </Typography>
       </Stack>
       <Typography variant="h5" component="h2" sx={{ fontFamily: display, fontWeight: 500, fontSize: '2rem' }}>{t('Get your first month free')}</Typography>

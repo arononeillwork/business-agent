@@ -1,15 +1,22 @@
-// Sign-in emails (invites, sign-up confirmations, sign-in codes, password resets) sent from the
-// business's own connected mailbox, Gmail or Outlook, instead of from Supabase. Supabase Auth calls
-// this through its "send email" hook (switched on by the deploy once a mailbox is connected:
-// scripts/ops/supabase-auth.mjs) and sends nothing itself. Someone in a business hears from that
-// business's mailbox; someone in none yet (just signed up), or whose business has no mailbox, from
-// Business Agent, through the founding business's mailbox.
+// Sign-in emails (invites, sign-up confirmations, sign-in codes, password resets), from The Business
+// Agent instead of from Supabase. Supabase Auth calls this through its "send email" hook (switched on by
+// the deploy: scripts/ops/supabase-auth.mjs) and sends nothing itself.
+// - With Cloudflare Email Sending on (the EMAIL binding; scripts/ops/email-sending.mjs), everyone gets
+//   them from noreply@businesssagent.com, with replies going to support@.
+// - Without it, or if it fails, they go out as before: from the person's business's own Gmail or
+//   Outlook, or, for someone in no business yet or whose business has no mailbox, through the founding
+//   business's mailbox.
 //
 // Supabase signs each call (Standard Webhooks). The shared secret is derived from the service key,
 // which both the Worker and the deploy already have, so there is no extra secret to manage.
 import { Hono } from 'hono'
 import { SECRETS_BUSINESS_ID, businessDb, serviceClient, type Env } from './supabase'
 import { sendEmail } from './integrations'
+
+/** Who the emails come from, and where replies go (Cloudflare Email Sending; docs/business-email.md). */
+export const SENDER = { email: 'noreply@businesssagent.com', name: 'The Business Agent' }
+export const REPLY_TO = 'support@businesssagent.com'
+const PRODUCT = 'The Business Agent'
 
 const enc = new TextEncoder()
 const b64 = (bytes: ArrayBuffer | Uint8Array) => btoa(String.fromCharCode(...new Uint8Array(bytes)))
@@ -41,25 +48,69 @@ interface HookPayload {
   email_data: { token: string; token_hash: string; redirect_to: string; email_action_type: string; site_url: string }
 }
 
-/** The email for each kind of sign-in message. Links go through Supabase, exactly like its own emails. */
-export function authMessage(env: Env, business: string, p: HookPayload) {
+const esc = (v: string) => v.replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]!)
+
+/** One sign-in email: a greeting, what happened, a code or a button, and what to do if it wasn't you. */
+interface Parts { subject: string; lines: string[]; code?: string; button?: { label: string; url: string }; after?: string[] }
+
+/** Plain text and a simple HTML version of the same email, The Business Agent's robot at the top. */
+function render(site: string, hi: string, p: Parts) {
+  const text = [hi, '', ...p.lines.flatMap(l => [l, '']),
+    ...(p.code ? [p.code, ''] : []),
+    ...(p.button ? [`${p.button.label}:`, p.button.url, ''] : []),
+    ...(p.after ?? []).flatMap(l => [l, '']), `${PRODUCT} · businesssagent.com`].join('\n')
+  const para = (l: string) => `<p style="margin:0 0 14px">${esc(l)}</p>`
+  const html = `<div style="font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.5;color:#22272E;max-width:480px;margin:0 auto;padding:24px">
+<img src="${esc(site)}/icon-192.png" width="56" height="56" alt="${PRODUCT}" style="display:block;margin:0 0 18px">
+${para(hi)}${p.lines.map(para).join('')}${p.code ? `<p style="margin:4px 0 18px;font-size:30px;font-weight:700;letter-spacing:6px">${esc(p.code)}</p>` : ''}${p.button
+    ? `<p style="margin:4px 0 18px"><a href="${esc(p.button.url)}" style="display:inline-block;background:#22C55E;color:#FFFFFF;text-decoration:none;font-weight:600;padding:11px 20px;border-radius:999px">${esc(p.button.label)}</a></p>` : ''}${(p.after ?? []).map(l => `<p style="margin:0 0 14px;color:#6B7280;font-size:13px">${esc(l)}</p>`).join('')}
+<p style="margin:22px 0 0;color:#9CA3AF;font-size:12px">${PRODUCT} · businesssagent.com</p>
+</div>`
+  return { subject: p.subject, text, html }
+}
+
+/**
+ * The email for each kind of sign-in message, as The Business Agent. `business` is the person's
+ * business when they're in one (an invite names who invited them). Links go through Supabase,
+ * exactly like its own emails.
+ */
+export function authMessage(env: Env, business: string | null, p: HookPayload) {
   const d = p.email_data
   const name = p.user.user_metadata?.full_name?.split(' ')[0]
   const hi = name ? `Hola ${name},` : 'Hola,'
+  const site = (d.site_url || 'https://businesssagent.com').replace(/\/+$/, '')
   const link = (type: string) =>
     `${env.SUPABASE_URL}/auth/v1/verify?token=${encodeURIComponent(d.token_hash)}&type=${type}&redirect_to=${encodeURIComponent(d.redirect_to || d.site_url)}`
   const ignore = "If you didn't ask for this, you can ignore this email."
+  const where = business ? `${business} on ${PRODUCT}` : PRODUCT
   switch (d.email_action_type) {
     case 'invite':
-      return { subject: `You're invited to the ${business} team app`, text: `${hi}\n\n${business} has invited you to its team app. Open this link to accept and choose a password:\n\n${link('invite')}\n\nIf the link has expired, open ${d.site_url}, type this email address and tap "Forgot password?" to set one.` }
+      return render(site, hi, {
+        subject: business ? `${business} invited you to ${PRODUCT}` : `You're invited to ${PRODUCT}`,
+        lines: [`${business ?? 'A business'} has invited you to its team on ${PRODUCT}: the rota, your hours and the rest of the business in one app. Accept and choose a password:`],
+        button: { label: 'Accept the invite', url: link('invite') },
+        after: [`If the link has expired, open ${d.site_url}, type this email address and tap "Forgot password?" to set one.`],
+      })
     case 'signup':
-      return { subject: `Confirm your email for ${business}`, text: `${hi}\n\nOpen this link to confirm your email address:\n\n${link('signup')}\n\n${ignore}` }
+      return render(site, hi, {
+        subject: `Confirm your email for ${PRODUCT}`,
+        lines: [`Welcome to ${PRODUCT}. Confirm this is your email address:`],
+        button: { label: 'Confirm my email', url: link('signup') }, after: [ignore],
+      })
     case 'magiclink':
-      return { subject: `Your ${business} sign-in code`, text: `${hi}\n\nYour sign-in code is ${d.token}\n\nType it into the ${business} team app. It works once, for one hour. You can also open this link:\n\n${link('magiclink')}\n\n${ignore}` }
+      return render(site, hi, {
+        subject: `Your sign-in code for ${PRODUCT}`,
+        lines: [`Your code to sign in to ${where}:`], code: d.token,
+        after: ['Type it into the app. It works once, for one hour.', `Or sign in with this link: ${link('magiclink')}`, ignore],
+      })
     case 'recovery':
-      return { subject: `Reset your ${business} password`, text: `${hi}\n\nOpen this link to choose a new password:\n\n${link('recovery')}\n\n${ignore}` }
+      return render(site, hi, {
+        subject: `Reset your password for ${PRODUCT}`,
+        lines: [`Choose a new password for ${where}:`],
+        button: { label: 'Choose a new password', url: link('recovery') }, after: [ignore],
+      })
     case 'reauthentication':
-      return { subject: `Your ${business} confirmation code`, text: `${hi}\n\nYour confirmation code is ${d.token}\n\n${ignore}` }
+      return render(site, hi, { subject: `Your confirmation code for ${PRODUCT}`, lines: ['Your confirmation code:'], code: d.token, after: [ignore] })
     default:
       return null
   }
@@ -86,10 +137,20 @@ authEmail.post('/api/auth/send-email', async c => {
     ? await ownDb.from('integrations').select('provider').in('provider', ['gmail', 'outlook']).eq('status', 'connected').limit(1)
     : { data: [] }
   const db = ownDb && box?.length ? ownDb : businessDb(c.env, SECRETS_BUSINESS_ID)
-  const message = authMessage(c.env, (biz?.name as string | undefined) ?? 'Business Agent', payload)
+  const message = authMessage(c.env, (biz?.name as string | undefined) ?? null, payload)
   if (!message) return hookError(400, `This kind of email isn't supported: ${payload.email_data.email_action_type}`)
+  // From The Business Agent's own address when Cloudflare Email Sending is on.
+  if (c.env.EMAIL) {
+    try {
+      await c.env.EMAIL.send({ from: SENDER, to: payload.user.email, replyTo: REPLY_TO, subject: message.subject, text: message.text, html: message.html })
+      return c.json({})
+    } catch (e) {
+      // Not set up yet (the plan, the domain) or refused: say so in the logs and send it the old way.
+      console.warn(`Cloudflare Email Sending refused a sign-in email, so it goes from a mailbox instead: ${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
   try {
-    await sendEmail(c.env, db, { to: payload.user.email, ...message })
+    await sendEmail(c.env, db, { to: payload.user.email, subject: message.subject, text: message.text })
   } catch (e) {
     // Shown to the person who asked (invite, reset…): say what's wrong, not "error sending email".
     return hookError(503, `The email couldn't be sent from the business's mailbox: ${e instanceof Error ? e.message : String(e)}`)

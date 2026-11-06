@@ -24,7 +24,7 @@ export interface PostIdea {
   status: IdeaStatus
   /** Who's making it. */
   taken_by: string | null
-  /** The photos and videos made for it, in Business Agent/Social/Ideas. */
+  /** The photos and videos made for it, in The Business Agent/Social/Ideas. */
   media: PostMedia[]
   /** The post made from it (the Social planner). */
   post_id: string | null

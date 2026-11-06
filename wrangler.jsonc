@@ -26,6 +26,10 @@
   // Photos for Instagram / Google posts (served publicly at /media/*). Enable R2 in the
   // Cloudflare dashboard, create the bucket "business-agent-media", then uncomment:
   // "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "business-agent-media" }],
+  // Sign-in emails from noreply@businesssagent.com (Cloudflare Email Sending). Needs the Workers Paid plan and the
+  // domain onboarded in Email Sending first, or the Worker won't deploy: the deploy uncomments it once that's done
+  // (scripts/ops/email-sending.mjs).
+  // "send_email": [{ "name": "EMAIL" }],
   "vars": {
     "BUSINESS_ID": "easy-beans",
     // Public by design (row-level security protects the data). Service key is a secret:

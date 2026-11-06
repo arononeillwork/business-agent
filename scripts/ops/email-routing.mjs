@@ -1,5 +1,5 @@
-// Business Agent's own email addresses (GitHub Actions only): hello@, sales@ and support@ the
-// domain forward to one Gmail inbox, with Cloudflare Email Routing (free). Replies go out from the
+// Business Agent's own email addresses (GitHub Actions only): hello@, sales@, support@ and privacy@ (the
+// privacy policy's) the domain forward to one Gmail inbox, with Cloudflare Email Routing (free). Replies go out from the
 // same addresses through Gmail's "Send mail as", so this also lets Google send for the domain (SPF)
 // and adds a DMARC policy. Each part says what's missing and the deploy carries on without it.
 //
@@ -11,7 +11,7 @@
 import { appendFileSync } from 'node:fs'
 
 const DOMAIN = process.env.APP_DOMAIN ?? 'businesssagent.com'
-const BOXES = ['hello', 'sales', 'support']
+const BOXES = ['hello', 'sales', 'support', 'privacy']
 const to = (process.env.EMAIL_FORWARD_TO ?? '').trim().toLowerCase()
 const { CLOUDFLARE_API_TOKEN: token, CLOUDFLARE_ACCOUNT_ID: account } = process.env
 const summary = msg => { console.log(msg); if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${msg}\n`) }
@@ -60,14 +60,14 @@ if (!dest) {
   dest = made.body.result
 }
 
-// 3. hello@, sales@ and support@ forward there.
+// 3. hello@, sales@, support@ and privacy@ forward there.
 const rules = await cf(`/zones/${zone.id}/email/routing/rules?per_page=50`)
 const have = new Set((rules.body?.result ?? []).flatMap(r => (r.matchers ?? []).map(m => String(m.value ?? '').toLowerCase())))
 for (const box of BOXES) {
   const address = `${box}@${DOMAIN}`
   if (have.has(address)) continue
   const made = await cf(`/zones/${zone.id}/email/routing/rules`, { method: 'POST', body: JSON.stringify({
-    name: `Business Agent ${box}`, enabled: true,
+    name: `The Business Agent ${box}`, enabled: true,
     matchers: [{ type: 'literal', field: 'to', value: address }],
     actions: [{ type: 'forward', value: [to] }],
   }) })

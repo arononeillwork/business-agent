@@ -51,8 +51,8 @@ export default {
   'Upload invoices': 'Subir facturas',
   'What it’s for, a query with the supplier, how it was paid…': 'Para qué es, una consulta con el proveedor, cómo se pagó…',
   '{date} from the supplier’s terms': '{date} según las condiciones del proveedor',
-  '{mailbox} is connected to send email only. Allow Business Agent to read it too, to find invoices from your suppliers. Nothing is changed or deleted in the mailbox.':
-    '{mailbox} está conectado solo para enviar emails. Permite que Business Agent también lo lea para encontrar las facturas de tus proveedores. No se cambia ni se borra nada del buzón.',
+  '{mailbox} is connected to send email only. Allow The Business Agent to read it too, to find invoices from your suppliers. Nothing is changed or deleted in the mailbox.':
+    '{mailbox} está conectado solo para enviar emails. Permite que The Business Agent también lo lea para encontrar las facturas de tus proveedores. No se cambia ni se borra nada del buzón.',
   '{n} invoice': '{n} factura',
   '{n} invoices': '{n} facturas',
 }

@@ -43,13 +43,13 @@ if (site) {
 // Sign-in emails carry a 6-digit code (typed into the app), not just a link: links expire, get
 // opened by mail scanners, or get clicked in an older email of the same thread.
 Object.assign(patch, {
-  mailer_subjects_magic_link: 'Your Easy Beans sign-in code',
+  mailer_subjects_magic_link: 'Your sign-in code for The Business Agent',
   mailer_templates_magic_link_content: `<h2>Your sign-in code</h2>
-<p>Type this code into the Easy Beans team app:</p>
+<p>Type this code into The Business Agent:</p>
 <p style="font-size:28px;font-weight:700;letter-spacing:6px">{{ .Token }}</p>
 <p>It works once, for one hour. If you didn't ask for it, ignore this email.</p>`,
-  mailer_subjects_invite: "You're invited to the Easy Beans team app",
-  mailer_templates_invite_content: `<h2>Welcome to the Easy Beans team app</h2>
+  mailer_subjects_invite: "You're invited to The Business Agent",
+  mailer_templates_invite_content: `<h2>Welcome to The Business Agent</h2>
 <p><a href="{{ .ConfirmationURL }}">Accept the invite</a> to sign in and choose a password.</p>
 <p>If the link says it has expired, open {{ .SiteURL }}, type this email address and tap
 <b>Forgot password?</b> to set one.</p>`,
@@ -78,9 +78,12 @@ if (AZURE_CLIENT_ID && AZURE_CLIENT_SECRET) Object.assign(patch, {
   external_azure_enabled: true, external_azure_client_id: AZURE_CLIENT_ID, external_azure_secret: AZURE_CLIENT_SECRET,
   external_azure_url: 'https://login.microsoftonline.com/common',
 })
-// Sign-in emails (invites, codes, resets) from the business's own Gmail/Outlook (worker/authEmail.ts)
-// once one is connected and working; until then Supabase sends them itself. The hook's secret is
-// derived from the service key, which the Worker has too.
+// Sign-in emails (invites, codes, resets) through the Worker (worker/authEmail.ts): from
+// noreply@businesssagent.com once Cloudflare Email Sending is on (EMAIL_SENDING=true, from the
+// "Email sending" step: scripts/ops/email-sending.mjs), else from a business's own Gmail/Outlook once
+// one is connected; with neither, Supabase sends them itself. The hook's secret is derived from the
+// service key, which the Worker has too.
+const sending = process.env.EMAIL_SENDING === 'true'
 let mailbox = null
 if (site) {
   const keys = await fetch(`https://api.supabase.com/v1/projects/${REF}/api-keys?reveal=true`, { headers: { authorization: `Bearer ${token}` } })
@@ -93,13 +96,15 @@ if (site) {
     mailbox = rows[0] ?? null
     const { createHmac } = await import('node:crypto')
     const secret = `v1,whsec_${createHmac('sha256', serviceKey).update('business-agent:send-email-hook').digest('base64')}`
-    Object.assign(patch, mailbox
+    Object.assign(patch, sending || mailbox
       ? { hook_send_email_enabled: true, hook_send_email_uri: `${site}/api/auth/send-email`, hook_send_email_secrets: secret }
       : { hook_send_email_enabled: false })
   }
 }
 const after = Object.keys(patch).length ? await api('PATCH', patch) : current
-console.log(after.hook_send_email_enabled
+console.log(after.hook_send_email_enabled && sending
+  ? `Sign-in emails: sent from noreply@businesssagent.com (Cloudflare Email Sending)${mailbox ? `; if that fails, from ${mailbox.account_label ?? 'a connected mailbox'}` : ''}`
+  : after.hook_send_email_enabled
   ? `Sign-in emails: sent from the business's ${mailbox?.provider === 'outlook' ? 'Outlook' : 'Gmail'} (${mailbox?.account_label ?? 'connected mailbox'})`
   : "Sign-in emails: sent by Supabase (connect Gmail or Outlook on the Connections page, then deploy, to send them from the business's own mailbox)")
 console.log(`Supabase Auth: site ${after.site_url}`)

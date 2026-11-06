@@ -266,7 +266,7 @@ function ConnectFirst({ website }: { website: string | null }) {
       <CardContent>
         <SectionTitle>{t('Connect Search Console to see how people find you on Google')}</SectionTitle>
         <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>
-          {t('Google Search Console is free. It shows what people searched for before they clicked through to your website, how often your site came up, and which pages they landed on. Business Agent only reads it.')}
+          {t('Google Search Console is free. It shows what people searched for before they clicked through to your website, how often your site came up, and which pages they landed on. The Business Agent only reads it.')}
         </Typography>
         <Box component="ol" sx={{ pl: 2.5, my: 0, '& li': { mb: 0.5 } }}>
           <li>{website

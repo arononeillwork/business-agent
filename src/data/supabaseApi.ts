@@ -889,7 +889,7 @@ export function createSupabaseApi(url: string, key: string): Api {
       check(await sb.from('tax_filings').upsert(r, { onConflict: 'business_id,model,year,period' }))
     },
     async taxDocuments(year) {
-      // The Tax page's own: those under Business Agent/Tax (the Documents hub's are on its page).
+      // The Tax page's own: those under The Business Agent/Tax (the Documents hub's are on its page).
       return (check(await sb.from('tax_documents').select('*').eq('year', year).order('uploaded_at', { ascending: false })) as TaxDocument[])
         .filter(d => d.folder[0] === 'Tax')
     },

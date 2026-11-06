@@ -1,6 +1,6 @@
 import { Box, type SxProps, type Theme } from '@mui/material'
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
-import logoUrl from '../assets/logo.png'
+import easyBeansLogoUrl from '../assets/easy-beans-logo.png'
 import {
   ALLERGEN_MARKS, MENU_TAGS, allergenNumber, marksOf, menuSections, otherVariants, priceColumns, priceIn, shownAllergens, sizeOf, type ItemMarks, type MenuDesign,
   type MenuItem, type MenuSection,
@@ -282,7 +282,7 @@ function Boxed({ design, sections, markOf, image, brand, look, writing }: BodyPr
   return (
     <Box sx={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', p: portrait ? '5.5cqw 7cqw 3.5cqw' : '3.5cqh 4cqw 2.5cqh' }}>
       <Box sx={{ textAlign: 'center', mb: u(1.3) }}>
-        <Box component="img" src={brand.logo || logoUrl} alt="" sx={{ display: 'block', mx: 'auto', width: `min(${u(9)}, ${portrait ? 13 : 15}cqh)`, aspectRatio: '1',
+        <Box component="img" src={brand.logo || easyBeansLogoUrl} alt="" sx={{ display: 'block', mx: 'auto', width: `min(${u(9)}, ${portrait ? 13 : 15}cqh)`, aspectRatio: '1',
           objectFit: 'contain', borderRadius: '50%' }} />
         <Box sx={{ fontFamily: heading, fontWeight: 700, textTransform: 'uppercase', lineHeight: 1, letterSpacing: '0.01em', mt: u(0.7),
           fontSize: `min(${u(4.6)}, ${portrait ? 7.5 : 10}cqh, 14cqw)` }}>{title}</Box>

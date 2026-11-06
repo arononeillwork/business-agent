@@ -43,7 +43,7 @@ const ownZone = () => {
 /**
  * Signed up on their own and in no business yet: create theirs (they run it: admin and owner, on the
  * Free plan), then on to the set-up guide. Or ask a manager to add them to an existing team. Shown
- * in Business Agent's own look, like the sign-up card they came from.
+ * in The Business Agent's own look, like the sign-up card they came from.
  */
 export function NewBusinessPage() {
   const { api, me, refresh } = useApp()
@@ -73,7 +73,7 @@ export function NewBusinessPage() {
     return () => { live = false; clearTimeout(wait) }
   }, [api, clean])
   const known = by && by.code === clean ? by : null
-  const invitedBy = known?.rep ? t('Introduced by {name}, from Business Agent: your first month is free, and they’ll help you set it up', { name: known.rep.name })
+  const invitedBy = known?.rep ? t('Introduced by {name}, from The Business Agent: your first month is free, and they’ll help you set it up', { name: known.rep.name })
     : known?.business ? t('Invited by {name}: your first month is on us', { name: known.business }) : null
 
   const create = (e: FormEvent) => {
@@ -136,7 +136,7 @@ export function NewBusinessPage() {
           <Autocomplete options={zones} value={zone} disableClearable onChange={(_, z) => setZone(z)}
             renderInput={params => <TextField {...params} label={t('Time zone')} helperText={t('Shifts, clock-ins and opening hours use it')} />} />
 
-          <TextField label={t('Code from a Business Agent rep or another business (optional)')} value={code}
+          <TextField label={t('Code from a rep for The Business Agent or another business (optional)')} value={code}
             onChange={e => setCode(e.target.value.toUpperCase())} error={unknown}
             helperText={unknown ? t('That code isn’t one we know. Check it, or leave it empty.') : known ? null : t('If someone gave you a code, put it here: your first month is free.')}
             slotProps={{ htmlInput: { maxLength: 16, autoCapitalize: 'characters', spellCheck: false } }} />

@@ -91,7 +91,7 @@ export function LegalDocumentsPage({ tabs }: { tabs?: ReactNode }) {
       </>} />
       {tabs}
       <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2.5, maxWidth: 760 }}>
-        {t('The café’s legal documents, kept where they already are in its Google Drive or OneDrive. Business Agent only remembers where each one is: it shows them here and opens them there, and copies nothing.')}
+        {t('The café’s legal documents, kept where they already are in its Google Drive or OneDrive. The Business Agent only remembers where each one is: it shows them here and opens them there, and copies nothing.')}
       </Typography>
       <ErrorBox error={docs.error ?? sources.error} />
       {canEdit && sources.data && connected.length === 0 && (
@@ -313,7 +313,7 @@ export function StorageBrowser({ storage, onClose, page = 'legal' }: { storage: 
 function Viewer({ doc, onClose }: { doc: LegalDocument; onClose: () => void }) {
   const { api } = useApp()
   return <FileViewer id={doc.id} title={doc.title} link={doc.link} where={storageName(doc.storage)} as={previewOf(doc)?.as ?? 'pdf'}
-    load={() => api.legalFile(doc.id)} caption={t('Shown straight from {where}. Business Agent doesn’t keep a copy.', { where: storageName(doc.storage) })} onClose={onClose} />
+    load={() => api.legalFile(doc.id)} caption={t('Shown straight from {where}. The Business Agent doesn’t keep a copy.', { where: storageName(doc.storage) })} onClose={onClose} />
 }
 
 /** A file shown in the page (a PDF or a picture), with a link to open it where it's kept when there is one. */

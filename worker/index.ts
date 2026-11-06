@@ -284,7 +284,7 @@ app.route('/', referrals)
 
 // Tax documents into the café's Drive or OneDrive (Tax page).
 app.route('/', tax)
-// The Documents hub: what's in the café's Business Agent folder, and uploads into its Documents folder.
+// The Documents hub: what's in the café's The Business Agent folder, and uploads into its Documents folder.
 app.route('/', files)
 // Legal documents picked where they are in the café's Drive or OneDrive, and shown from there (Legal page).
 app.route('/', legal)
@@ -388,7 +388,7 @@ const provider = (env: Env, origin: string) => new OAuthProvider<Env>({
     const props: GrantProps = { userId: key.userId, name: '', accessToken: key.accessToken, refreshToken: '' }
     return { props, audience: `${origin}/mcp` }
   },
-  resourceMetadata: { resource: `${origin}/mcp`, resource_name: 'Business Agent' },
+  resourceMetadata: { resource: `${origin}/mcp`, resource_name: 'The Business Agent' },
 })
 
 /** A request over plain http from anywhere but this computer (http://localhost is `wrangler dev`). */

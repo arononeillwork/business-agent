@@ -193,8 +193,10 @@ export class FakeProviders {
     valid: new Set<string>(),
     sent: [] as { to: string; subject: string }[],
     folderId: null as string | null,
+    /** The app's folder's name: "The Business Agent", or "Business Agent" for one made before the rename. */
+    folderName: 'The Business Agent',
     files: [] as string[],
-    /** Folders below Business Agent, by path ("Business Agent/Social"), and by id. */
+    /** Folders below the app's folder, by path ("The Business Agent/Social"), and by id. */
     paths: new Map<string, string>(),
     /** Upload sessions in progress, and the stored photos and videos by item id. */
     sessions: new Map<string, { path: string; got: Uint8Array[]; size: number }>(),
@@ -477,6 +479,13 @@ export class FakeProviders {
       if (byId && url.searchParams.get('alt') === 'media') {
         const f = seen(decodeURIComponent(byId[1]))
         return f ? bytesResponse(f.bytes, f.type, new Headers(init.headers).get('range')) : googleError(404, `File not found: ${byId[1]}.`, 'notFound')
+      }
+      // A folder renamed (the app's own, from "Business Agent" to "The Business Agent").
+      if (byId && method === 'PATCH') {
+        const f = this.google.folders.get(decodeURIComponent(byId[1]))
+        if (!f) return googleError(404, `File not found: ${byId[1]}.`, 'notFound')
+        f.name = (body() as { name: string }).name
+        return json({ id: decodeURIComponent(byId[1]) })
       }
       if (byId) {
         const id = decodeURIComponent(byId[1])
@@ -774,15 +783,27 @@ export class FakeProviders {
         return oneItem[2] ? kids(decodeURIComponent(oneItem[1])) : json(msItem(decodeURIComponent(oneItem[1])))
       }
       if (oneItem && method === 'GET' && !this.microsoft.blobs.has(oneItem[1])) return json({ error: { code: 'itemNotFound', message: 'The resource could not be found.' } }, 404)
-      if (path === '/me/drive/root:/Business%20Agent' || path === '/me/drive/root:/Business Agent') {
-        return this.microsoft.folderId ? json({ id: this.microsoft.folderId, name: 'Business Agent', folder: {}, webUrl: `https://onedrive.live.com/?id=${this.microsoft.folderId}` })
+      const top = path.match(/^\/me\/drive\/root:\/([^/:]+)$/)
+      if (top && method === 'GET') {
+        return this.microsoft.folderId && decodeURIComponent(top[1]) === this.microsoft.folderName
+          ? json({ id: this.microsoft.folderId, name: this.microsoft.folderName, folder: {}, webUrl: `https://onedrive.live.com/?id=${this.microsoft.folderId}` })
           : json({ error: { code: 'itemNotFound', message: 'The resource could not be found.' } }, 404)
+      }
+      // The app's folder renamed: everything inside moves with it.
+      if (oneItem && !oneItem[2] && method === 'PATCH' && decodeURIComponent(oneItem[1]) === this.microsoft.folderId) {
+        const was = this.microsoft.folderName, now = (body() as { name: string }).name
+        const moved = (p: string) => p === was || p.startsWith(`${was}/`) ? now + p.slice(was.length) : p
+        for (const [id, p] of this.microsoft.paths) this.microsoft.paths.set(id, moved(p))
+        for (const b of this.microsoft.blobs.values()) b.path = moved(b.path)
+        this.microsoft.folderName = now
+        return json({ id: this.microsoft.folderId, name: now, folder: {} })
       }
       if (path === '/me/drive/root/children' && method === 'POST') {
         this.microsoft.folderId = `ms-folder-${this.nextId++}`
-        return json({ id: this.microsoft.folderId, name: 'Business Agent', folder: {} }, 201)
+        this.microsoft.folderName = (body() as { name: string }).name
+        return json({ id: this.microsoft.folderId, name: this.microsoft.folderName, folder: {} }, 201)
       }
-      if (path.startsWith('/me/drive/root:/Business%20Agent/') && method === 'GET' && !path.includes(':/', '/me/drive/root:/'.length)) {
+      if (path.startsWith(`/me/drive/root:/${encodeURIComponent(this.microsoft.folderName)}/`) && method === 'GET' && !path.includes(':/', '/me/drive/root:/'.length)) {
         const at = decodeURIComponent(path.slice('/me/drive/root:/'.length))
         const id = [...this.microsoft.paths].find(([, p]) => p === at)?.[0]
         return id ? json({ id, name: at.split('/').pop(), folder: {}, webUrl: `https://onedrive.live.com/?id=${id}` }) : json({ error: { code: 'itemNotFound', message: 'The resource could not be found.' } }, 404)
@@ -790,7 +811,7 @@ export class FakeProviders {
       // A folder's children by path (the Tax page's folder list, the Documents hub's browser): the folders made inside it and the files put there.
       if (path.startsWith('/me/drive/root:/') && path.endsWith(':/children') && method === 'GET') {
         const at = decodeURIComponent(path.slice('/me/drive/root:/'.length, -':/children'.length))
-        const there = at === 'Business Agent' ? !!this.microsoft.folderId : [...this.microsoft.paths.values()].includes(at)
+        const there = at === this.microsoft.folderName ? !!this.microsoft.folderId : [...this.microsoft.paths.values()].includes(at)
         if (!there) return json({ error: { code: 'itemNotFound', message: 'The resource could not be found.' } }, 404)
         const inside = (p: string) => p.startsWith(`${at}/`) && !p.slice(at.length + 1).includes('/')
         const value = [
@@ -802,7 +823,7 @@ export class FakeProviders {
       }
       const children = path.match(/^\/me\/drive\/items\/([^/]+)\/children$/)
       if (children && method === 'POST') {
-        const parent = children[1] === this.microsoft.folderId ? 'Business Agent' : this.microsoft.paths.get(children[1])!
+        const parent = children[1] === this.microsoft.folderId ? this.microsoft.folderName : this.microsoft.paths.get(children[1])!
         const id = `ms-folder-${this.nextId++}`
         this.microsoft.paths.set(id, `${parent}/${(body() as { name: string }).name}`)
         return json({ id, folder: {} }, 201)

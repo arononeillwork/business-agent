@@ -220,8 +220,8 @@ describe('referral months as Stripe credit', () => {
     stripe.subscribe('business_agent_pro_month', 'trialing', new Date(Date.now() + 86400_000))
     await syncBilling(env, 1)
     expect([...stripe.credits.values()]).toEqual([
-      { customer: 'cus_1', amount: -7900, description: 'Referral: a month of Business Agent Pro free (1)' },
-      { customer: 'cus_1', amount: -7900, description: 'Referral: a month of Business Agent Pro free (2)' },
+      { customer: 'cus_1', amount: -7900, description: 'Referral: a month of The Business Agent Pro free (1)' },
+      { customer: 'cus_1', amount: -7900, description: 'Referral: a month of The Business Agent Pro free (2)' },
     ])
     expect(row().referral_months_applied).toBe(2)
     await syncBilling(env, 1)
@@ -273,7 +273,7 @@ it('encodes nested form fields the way Stripe expects', () => {
     .toBe('a=1&line_items%5B0%5D%5Bprice%5D=p&line_items%5B0%5D%5Bquantity%5D=1&b%5Bc%5D%5Bd%5D=x')
 })
 
-describe('Business Agent reps’ commission (the hq_reps migration)', () => {
+describe('The Business Agent reps’ commission (the hq_reps migration)', () => {
   const hook = (id: string) => billing.request(`${APP}/api/billing/webhook`, { method: 'POST', body: JSON.stringify({ id }) }, env)
   let recorded: Record<string, unknown>[]
   let reversed: Record<string, unknown>[]

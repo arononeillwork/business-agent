@@ -72,7 +72,7 @@ async function priceFor(env: Env, id: PlanId, interval: Interval): Promise<strin
   if (found.data[0]?.unit_amount === cents) return found.data[0].id
   const products = await stripe<{ data: { id: string }[] }>(env, 'GET', `/products/search?query=${encodeURIComponent(`metadata['business_agent_plan']:'${id}'`)}`)
   const product = products.data[0]?.id ?? (await stripe<{ id: string }>(env, 'POST', '/products', {
-    name: `Business Agent ${p.name}`, metadata: { business_agent_plan: id },
+    name: `The Business Agent ${p.name}`, metadata: { business_agent_plan: id },
   })).id
   const price = await stripe<Price>(env, 'POST', '/prices', {
     product, currency: 'eur', unit_amount: cents, recurring: { interval }, tax_behavior: 'exclusive',
@@ -181,7 +181,7 @@ async function creditReferralMonths(env: Env, businessId: number, customer: stri
   const amount = monthCents(id, interval)
   for (let n = applied + 1; n <= owed; n++) {
     await stripe(env, 'POST', `/customers/${customer}/balance_transactions`, {
-      amount: -amount, currency: 'eur', description: `Referral: a month of Business Agent ${planById(id).name} free (${n})`,
+      amount: -amount, currency: 'eur', description: `Referral: a month of The Business Agent ${planById(id).name} free (${n})`,
       metadata: { business_agent_referral_month: n },
     }, `business-agent-referral-${customer}-${n}`)
     applied = n
@@ -322,7 +322,7 @@ billing.post('/api/billing/portal', async c => {
     if (!/configuration/i.test(String(e))) throw e
     // First use on this Stripe account: save a portal set-up (card, invoices, cancel at period end).
     await stripe(c.env, 'POST', '/billing_portal/configurations', {
-      business_profile: { headline: 'Business Agent: manage your subscription' },
+      business_profile: { headline: 'The Business Agent: manage your subscription' },
       features: {
         payment_method_update: { enabled: true }, invoice_history: { enabled: true },
         customer_update: { enabled: true, allowed_updates: ['name', 'email', 'address', 'tax_id'] },

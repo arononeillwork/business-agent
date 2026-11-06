@@ -97,7 +97,7 @@ export function TaxPage() {
       )}
       {canEdit && links.data && !storage && (
         <Alert severity="info" sx={{ mb: 3 }} action={<Button component={RouterLink} to="/connections" color="inherit">{t('Connections')}</Button>}>
-          {t('Connect Google Drive or OneDrive to upload documents. They’re kept in your own storage, in its Business Agent › Tax folder.')}
+          {t('Connect Google Drive or OneDrive to upload documents. They’re kept in your own storage, in its The Business Agent › Tax folder.')}
         </Alert>
       )}
 
@@ -585,7 +585,7 @@ export function UploadDialog({ year, known, onClose, kind, onKept, title = t('Up
   )
 }
 
-/** Browse the folders under Business Agent › Tax in the café's Drive or OneDrive, and make new ones. */
+/** Browse the folders under The Business Agent › Tax in the café's Drive or OneDrive, and make new ones. */
 function FolderPicker({ path, onChange, disabled }: { path: string[]; onChange: (p: string[]) => void; disabled?: boolean }) {
   const { api } = useApp()
   const run = useAction()
@@ -600,7 +600,7 @@ function FolderPicker({ path, onChange, disabled }: { path: string[]; onChange: 
     <Box component="section" aria-label={t('Choose a folder')} sx={{ border: 1, borderColor: 'divider', borderRadius: 2, p: 2, mt: 1 }}>
       <ErrorBox error={list.error} />
       <Stack direction="row" spacing={0.5} useFlexGap sx={{ flexWrap: 'wrap', alignItems: 'center', mb: 1 }} aria-label={t('Folder')}>
-        <Typography variant="body2" sx={{ color: 'text.secondary' }}>{list.data ? `${where} ›` : ''} {'Business Agent'} ›</Typography>
+        <Typography variant="body2" sx={{ color: 'text.secondary' }}>{list.data ? `${where} ›` : ''} {'The Business Agent'} ›</Typography>
         {path.map((p, i) => (
           <Stack key={i} direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
             {i > 0 && <Typography variant="body2" sx={{ color: 'text.secondary' }}>›</Typography>}
@@ -625,7 +625,7 @@ function FolderPicker({ path, onChange, disabled }: { path: string[]; onChange: 
         <Button startIcon={<NewFolderIcon />} disabled={disabled || !name.trim()} onClick={() => void make()}>{t('Make folder')}</Button>
       </Stack>
       <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mt: 1 }}>
-        {t('Files go into: {path}', { path: ['Business Agent', ...path].join(' › ') })}
+        {t('Files go into: {path}', { path: ['The Business Agent', ...path].join(' › ') })}
       </Typography>
     </Box>
   )

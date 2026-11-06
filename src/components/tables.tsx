@@ -102,7 +102,7 @@ export function ExportButton({ table, disabled, folder }: { table: () => ExportT
           const data = table()
           const r = await api.saveFile({ folder: folder!, name: `${data.filename}.csv`, content: csvContent(data), type: 'text/csv;charset=utf-8' })
           window.open(r.link, '_blank', 'noopener')
-        }, t('Saved to {where} › Business Agent › {folder}', { where, folder: folder! })))}
+        }, t('Saved to {where} › The Business Agent › {folder}', { where, folder: folder! })))}
       </Menu>
     </>
   )

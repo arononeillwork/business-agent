@@ -37,7 +37,7 @@ export async function syncPrices(stripe: StripeCall, plans: PlanPrice[]): Promis
   const products = await ours(stripe, 'products')
   for (const p of paid) {
     let product = products.find(x => x.metadata.business_agent_plan === p.plan)
-    const name = `Business Agent ${p.name}`
+    const name = `The Business Agent ${p.name}`
     if (!product) {
       product = await stripe('POST', '/products', { name, 'metadata[business_agent_plan]': p.plan })
       done.push(`created product ${name}`)

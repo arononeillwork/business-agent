@@ -24,14 +24,14 @@ describe('reports', () => {
   it('writes the email: each report under its heading, its lines as bullets, then who sent it', () => {
     const mail = reportEmail({
       business: 'Easy Beans Coffee', period: 'This week', dates: '28 Sep – 30 Sep', from: 'Aron', subject: 'Easy Beans Coffee: report for this week',
-      heading: 'Easy Beans Coffee: this week (28 Sep – 30 Sep)', footer: 'Sent by Aron from Business Agent.',
+      heading: 'Easy Beans Coffee: this week (28 Sep – 30 Sep)', footer: 'Sent by Aron from The Business Agent.',
       sections: [{ title: 'Takings and breakeven', lines: ['Takings: €1,200.00', 'Breakeven: €900.00'] }, { title: 'Jobs to do', lines: ['3 open'] }],
     })
     expect(mail.subject).toBe('Easy Beans Coffee: report for this week')
     expect(mail.text).toBe([
       'Easy Beans Coffee: this week (28 Sep – 30 Sep)', '',
       'TAKINGS AND BREAKEVEN', '• Takings: €1,200.00', '• Breakeven: €900.00', '',
-      'JOBS TO DO', '• 3 open', '', '—', 'Sent by Aron from Business Agent.',
+      'JOBS TO DO', '• 3 open', '', '—', 'Sent by Aron from The Business Agent.',
     ].join('\n'))
   })
 
