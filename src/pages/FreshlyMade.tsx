@@ -1,6 +1,6 @@
 import {
-  Autocomplete, Box, Button, Card, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, InputAdornment, Link, MenuItem,
-  Stack, Switch, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography, useMediaQuery, useTheme,
+  Autocomplete, Box, Button, Card, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, InputAdornment, Link, MenuItem,
+  Radio, RadioGroup, Stack, Switch, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography, useMediaQuery, useTheme,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import EditIcon from '@mui/icons-material/EditOutlined'
@@ -8,6 +8,7 @@ import OfferIcon from '@mui/icons-material/LocalOfferOutlined'
 import SoldIcon from '@mui/icons-material/TaskAltOutlined'
 import BinIcon from '@mui/icons-material/DeleteSweepOutlined'
 import RemoveIcon from '@mui/icons-material/Remove'
+import ScreenIcon from '@mui/icons-material/TvOutlined'
 import { useRef, useState, type ReactNode } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
@@ -17,8 +18,9 @@ import { Empty, ErrorBox, SectionTitle, Tag } from '../components/common'
 import {
   DISCOUNT_LEADS, MAX_SHELF_HOURS, OFFER_LEADS, SHELF_LIVES, batchFromItem, batchesOf, defaultDiscountAt, freshItemProblem, freshOfferPrice, freshProblem, freshState,
   goodUntil, likeLastTime, newFreshBatch, newFreshItem, onCounter, shelfShare, type FreshBatch, type FreshBatchInput, type FreshItem, type FreshItemInput, type FreshState,
-  madeHere, menuShelfLife, type MadeHereItem, defaultSecondAt, discountNow, secondDiscount,
+  madeHere, menuShelfLife, type MadeHereItem, defaultSecondAt, discountNow, secondDiscount, batchScreens, type FreshScreenMode, type FreshScreens,
 } from '../../shared/freshBatches'
+import type { Screen } from '../../shared/screens'
 import type { MenuItem as MenuRow } from '../../shared/menu'
 import { formatLocal, formatNumber, localDate, localTime, today, zonedIso } from '../../shared/time'
 import { tokens } from '../theme'
@@ -80,6 +82,8 @@ export function FreshlyMade() {
   const batches = useAsync('fresh-batches', () => api.freshBatches(), [])
   const menu = useAsync('menu-items', () => api.menuItems(), [])
   const items = useAsync('fresh-items', () => api.freshItems(), [])
+  // Where an offer can show: the screens (admins'; the team gets each item's choice as it is).
+  const screens = useAsync('screens', () => (isAdmin ? api.screens() : Promise.resolve([] as Screen[])), [isAdmin])
   const [editing, setEditing] = useState<FreshBatchInput | null>(null)
   const [setting, setSetting] = useState<{ item: FreshItemInput; suggested: boolean } | null>(null)
   const list = batches.data ?? []
@@ -201,10 +205,10 @@ export function FreshlyMade() {
         </Box>
       )}
 
-      {setting && <ItemDialog item={setting.item} suggested={setting.suggested} items={items.data ?? []} menu={menu.data ?? []}
+      {setting && <ItemDialog item={setting.item} suggested={setting.suggested} items={items.data ?? []} menu={menu.data ?? []} screens={screens.data ?? []}
         taken={onList.filter(i => i.recipe_id !== setting.item.recipe_id).map(i => i.recipe_id)}
         onClose={() => setSetting(null)} onSaved={() => { setSetting(null); void items.reload() }} />}
-      {editing && <BatchDialog batch={editing} batches={list} menu={menu.data ?? []} items={onList}
+      {editing && <BatchDialog batch={editing} batches={list} menu={menu.data ?? []} items={onList} screens={screens.data ?? []} canPickScreens={isAdmin}
         canDelete={!!editing.id && (isAdmin || list.find(b => b.id === editing.id)?.made_by === me?.id)}
         onClose={() => setEditing(null)} onSaved={() => { setEditing(null); void batches.reload() }} />}
     </Box>
@@ -296,9 +300,9 @@ function BatchCard({ b, now, sellPrice, offerLink, canRecord, onEdit, onSold, on
 }
 
 /** Record a batch, or change one: what, how many, when it was made, how long it keeps, and its discount. */
-function BatchDialog({ batch, batches, menu, items, canDelete, onClose, onSaved }: {
+function BatchDialog({ batch, batches, menu, items, screens, canPickScreens, canDelete, onClose, onSaved }: {
   batch: FreshBatchInput; batches: FreshBatch[]; menu: { id: string; name: string; sell_price: number | null }[]; items: FreshItem[]
-  canDelete: boolean; onClose: () => void; onSaved: () => void
+  screens: Screen[]; canPickScreens: boolean; canDelete: boolean; onClose: () => void; onSaved: () => void
 }) {
   const { api } = useApp()
   const run = useAction()
@@ -421,6 +425,7 @@ function BatchDialog({ batch, batches, menu, items, canDelete, onClose, onSaved 
                     ? t('Then from {from} until {until}: {price}, was {was}.', { from: when(b.discount2_at), until: when(until), price: preview2.price || '…', was: preview2.was_price })
                     : t('Then from {from} until {until}: {price}.', { from: when(b.discount2_at), until: when(until), price: preview2.price || '…' })}`}
                 </Typography>
+                <BatchScreens b={b} items={items} screens={screens} canPick={canPickScreens} onChange={set} />
               </Stack>
             )}
           </Box>
@@ -574,8 +579,8 @@ function DiscountValue({ second, kind, percent, price, onChange }: {
  * gone. One the menu suggested is saved the first time it's set; one taken off the list stays off when the menu or Square
  * would put it back, and picking it again puts it back as it was.
  */
-function ItemDialog({ item, suggested, items, menu, taken, onClose, onSaved }: {
-  item: FreshItemInput; suggested: boolean; items: FreshItem[]; menu: MenuRow[]; taken: string[]; onClose: () => void; onSaved: () => void
+function ItemDialog({ item, suggested, items, menu, screens, taken, onClose, onSaved }: {
+  item: FreshItemInput; suggested: boolean; items: FreshItem[]; menu: MenuRow[]; screens: Screen[]; taken: string[]; onClose: () => void; onSaved: () => void
 }) {
   const { api } = useApp()
   const run = useAction()
@@ -688,6 +693,10 @@ function ItemDialog({ item, suggested, items, menu, taken, onClose, onSaved }: {
                       discount: discountWords(secondDiscount(i)) || '…', lead: leadText(i.offer2_hours), from: when(preview.discount2_at), price: price2.price || '…' })}`}
                   </Typography>
                 )}
+                <Box>
+                  <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>{t('On the screens')}</Typography>
+                  <OfferScreens value={{ screen_ids: i.screen_ids, screen_mode: i.screen_mode }} screens={screens} onChange={set} />
+                </Box>
               </Stack>
             )}
           </Box>
@@ -706,5 +715,64 @@ function ItemDialog({ item, suggested, items, menu, taken, onClose, onSaved }: {
         <Button variant="contained" disabled={!!problem} onClick={() => void save()}>{t('Save')}</Button>
       </DialogActions>
     </Dialog>
+  )
+}
+
+/** Where an offer shows, in words: "Every screen that’s on", "Window TV, on its own", "Not on a screen". */
+function whereText(c: FreshScreens, screens: Screen[]) {
+  if (c.screen_mode === 'none') return t('Not on a screen')
+  const names = c.screen_ids.flatMap(id => screens.find(s => s.id === id)?.name ?? [])
+  // Picked screens that are all gone show it on every screen that's on (as the database does); the team can't see their names.
+  const where = !c.screen_ids.length || (screens.length && !names.length) ? t('Every screen that’s on') : names.length ? names.join(', ') : t('The screens picked for it')
+  return c.screen_mode === 'only' ? t('{screens}, on its own', { screens: where }) : where
+}
+
+/** Which screens an offer shows on, and how: in turn with each screen's slides, on its own, or on none (it's still on Offers & specials). */
+function OfferScreens({ value, screens, onChange }: { value: FreshScreens; screens: Screen[]; onChange: (v: FreshScreens) => void }) {
+  return (
+    <Stack spacing={0.5}>
+      <RadioGroup value={value.screen_mode} onChange={e => onChange({ ...value, screen_mode: e.target.value as FreshScreenMode })} aria-label={t('How it shows')}>
+        <FormControlLabel value="turns" control={<Radio size="small" />} label={t('In turn with the screen’s other slides')} />
+        <FormControlLabel value="only" control={<Radio size="small" />} label={t('On its own: the screen shows only this offer until it ends')} />
+        <FormControlLabel value="none" control={<Radio size="small" />} label={t('Not on the screens (it’s still on Offers & specials)')} />
+      </RadioGroup>
+      {value.screen_mode !== 'none' && (screens.length ? <>
+        <FormControlLabel label={t('Every screen that’s on')} control={<Checkbox size="small" checked={!value.screen_ids.length}
+          onChange={e => onChange({ ...value, screen_ids: e.target.checked ? [] : [(screens.find(x => x.active) ?? screens[0]).id] })} />} />
+        {!!value.screen_ids.length && (
+          <Stack direction="row" useFlexGap sx={{ flexWrap: 'wrap', columnGap: 1, pl: 3 }} role="group" aria-label={t('Screens')}>
+            {screens.map(x => (
+              <FormControlLabel key={x.id} label={x.name} control={<Checkbox size="small" checked={value.screen_ids.includes(x.id)}
+                onChange={e => onChange({ ...value, screen_ids: e.target.checked ? [...value.screen_ids, x.id] : value.screen_ids.filter(id => id !== x.id) })} />} />
+            ))}
+          </Stack>
+        )}
+      </> : (
+        <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+          {t('No screens yet.')} <Button size="small" component={RouterLink} to="/screens">{t('Add one on Screens')}</Button>
+        </Typography>
+      ))}
+    </Stack>
+  )
+}
+
+/** Where a batch's offer shows: as its item says, unless an admin changes it for this batch. */
+function BatchScreens({ b, items, screens, canPick, onChange }: {
+  b: FreshBatchInput; items: FreshItem[]; screens: Screen[]; canPick: boolean; onChange: (p: Pick<FreshBatchInput, 'screen_ids' | 'screen_mode'>) => void
+}) {
+  const own = b.screen_mode !== null
+  const choice = batchScreens(b, items)
+  return (
+    <Box>
+      <Stack direction="row" useFlexGap sx={{ alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+        <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+          <ScreenIcon sx={{ fontSize: 16, mr: 0.5, verticalAlign: '-3px' }} />{t('On the screens: {where}', { where: whereText(choice, screens) })}
+        </Typography>
+        {canPick && (own
+          ? <Button size="small" onClick={() => onChange({ screen_ids: null, screen_mode: null })}>{t('As usual for it')}</Button>
+          : <Button size="small" onClick={() => onChange({ ...choice })}>{t('Change for this batch')}</Button>)}
+      </Stack>
+      {canPick && own && <OfferScreens value={choice} screens={screens} onChange={onChange} />}
+    </Box>
   )
 }

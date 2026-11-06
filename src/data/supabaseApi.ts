@@ -1084,7 +1084,7 @@ export function createSupabaseApi(url: string, key: string): Api {
     async freshBatches() {
       const since = new Date(Date.now() - 14 * 86_400_000).toISOString()
       const rows = check(await sb.from('fresh_batches')
-        .select('id, name, recipe_id, quantity, made_at, shelf_life_hours, good_until, discount_at, discount, percent_off, price, discount2_at, discount2, percent_off2, price2, cleared, cleared_at, notes, made_by')
+        .select('id, name, recipe_id, quantity, made_at, shelf_life_hours, good_until, discount_at, discount, percent_off, price, discount2_at, discount2, percent_off2, price2, cleared, cleared_at, notes, made_by, screen_ids, screen_mode')
         .or(`made_at.gte.${since},good_until.gte.${since}`).order('made_at', { ascending: false }).limit(300)) as FreshBatch[]
       return rows.map(b => ({ ...b, quantity: num(b.quantity) }))
     },
@@ -1094,7 +1094,7 @@ export function createSupabaseApi(url: string, key: string): Api {
     },
     async deleteFreshBatch(id) { check(await sb.from('fresh_batches').delete().eq('id', id)) },
     async freshItems() {
-      return check(await sb.from('fresh_items').select('id, recipe_id, shelf_life_hours, from_square, offer_hours, discount, percent_off, price, offer2_hours, discount2, percent_off2, price2, made_here')) as FreshItem[]
+      return check(await sb.from('fresh_items').select('id, recipe_id, shelf_life_hours, from_square, offer_hours, discount, percent_off, price, offer2_hours, discount2, percent_off2, price2, made_here, screen_ids, screen_mode')) as FreshItem[]
     },
     async saveFreshItem({ id, ...i }) {
       if (id) { check(await sb.from('fresh_items').update(i).eq('id', id)); return id }
