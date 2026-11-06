@@ -9,6 +9,16 @@ import { lastDayPrice } from './lastDayOffers'
 
 export type FreshCleared = 'sold' | 'binned'
 
+/**
+ * How an offer from a batch shows on the screens (the `fresh_offer_screens` migration): in turn with each
+ * screen's other slides, on its own until it ends, or on no screen (it's still on Offers & specials).
+ */
+export type FreshScreenMode = 'turns' | 'only' | 'none'
+/** Where it shows: the screens picked (none picked: every screen that's on), and how. */
+export interface FreshScreens { screen_ids: string[]; screen_mode: FreshScreenMode }
+/** As before there was a choice: every screen that's on, in turn with its other slides. */
+export const EVERY_SCREEN: FreshScreens = { screen_ids: [], screen_mode: 'turns' }
+
 export interface FreshBatch {
   id: string
   /** What was made, as on the menu or in the team's own words. */
@@ -33,6 +43,9 @@ export interface FreshBatch {
   notes: string | null
   /** Who recorded it. */
   made_by: string | null
+  /** Where its offer shows, when it's not as its item says (null: as its item, or every screen that's on). */
+  screen_ids: string[] | null
+  screen_mode: FreshScreenMode | null
 }
 export type FreshBatchInput = Omit<FreshBatch, 'id' | 'good_until' | 'cleared_at' | 'made_by'> & { id?: string }
 
@@ -123,13 +136,31 @@ export function likeLastTime(name: string, batches: FreshBatch[], madeAt: string
   }
 }
 
-/** A new batch: made now, keeps a day, 30% off for its last 6 hours. */
+/** A new batch: made now, keeps a day, 30% off for its last 6 hours, its offer where its item says. */
 export function newFreshBatch(now = new Date()): FreshBatchInput {
   const made = new Date(Math.floor(now.getTime() / 60_000) * 60_000).toISOString()
   return {
     name: '', recipe_id: null, quantity: null, made_at: made, shelf_life_hours: 24, discount_at: defaultDiscountAt(made, 24),
-    discount: 'percent', percent_off: 30, price: null, cleared: null, notes: null,
+    discount: 'percent', percent_off: 30, price: null, cleared: null, notes: null, screen_ids: null, screen_mode: null,
   }
+}
+
+/** Where a batch's offer shows: its own choice, else its item's, else every screen that's on (as fresh_batch_offer()). */
+export function batchScreens(b: Pick<FreshBatch, 'screen_ids' | 'screen_mode' | 'recipe_id'>, items: Pick<FreshItem, 'recipe_id' | 'screen_ids' | 'screen_mode'>[]): FreshScreens {
+  if (b.screen_mode) return { screen_ids: b.screen_ids ?? [], screen_mode: b.screen_mode }
+  const item = b.recipe_id ? items.find(i => i.recipe_id === b.recipe_id) : undefined
+  return item ? { screen_ids: item.screen_ids, screen_mode: item.screen_mode } : EVERY_SCREEN
+}
+
+/**
+ * The screens an offer goes on and how, from a choice: none for "not on the screens"; the screens picked
+ * that are still there; or (none picked, or none of them left) every screen that's on.
+ */
+export function offerScreens(choice: FreshScreens, screens: { id: string; active: boolean }[]): { screen_ids: string[]; screen_mode: 'turns' | 'only' } {
+  const mode = choice.screen_mode === 'only' ? 'only' : 'turns'
+  if (choice.screen_mode === 'none') return { screen_ids: [], screen_mode: mode }
+  const picked = choice.screen_ids.filter(id => screens.some(s => s.id === id))
+  return { screen_ids: picked.length ? picked : screens.filter(s => s.active).map(s => s.id), screen_mode: mode }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -159,6 +190,9 @@ export interface FreshItem {
    * keeps it up to date; the `fresh_items_made_here` migration).
    */
   made_here: boolean
+  /** Where its batches' offers show (the `fresh_offer_screens` migration). */
+  screen_ids: string[]
+  screen_mode: FreshScreenMode
 }
 export type FreshItemInput = Omit<FreshItem, 'id' | 'from_square'> & { id?: string }
 
@@ -170,7 +204,7 @@ export const OFFER_LEADS: { hours: number; label: string }[] = [
 
 /** A new one: keeps a day, 30% off for its last 4 hours. */
 export const newFreshItem = (recipeId = ''): FreshItemInput =>
-  ({ recipe_id: recipeId, shelf_life_hours: 24, offer_hours: 4, discount: 'percent', percent_off: 30, price: null, made_here: true })
+  ({ recipe_id: recipeId, shelf_life_hours: 24, offer_hours: 4, discount: 'percent', percent_off: 30, price: null, made_here: true, ...EVERY_SCREEN })
 
 /** What stops it being saved (null: fine). The database checks the same. */
 export function freshItemProblem(i: Pick<FreshItemInput, 'recipe_id' | 'shelf_life_hours' | 'offer_hours' | 'discount' | 'percent_off' | 'price'>): string | null {
@@ -283,7 +317,7 @@ export function madeHere(menu: { id: string; name: string; category: string | nu
   const found = menu.flatMap(m => {
     const hours = set.has(m.id) ? null : menuShelfLife(m)
     return hours ? [{ id: `menu-${m.id}`, recipe_id: m.id, shelf_life_hours: hours, from_square: false, offer_hours: null, discount: 'percent' as const,
-      percent_off: 30, price: null, made_here: true, suggested: true }] : []
+      percent_off: 30, price: null, made_here: true, ...EVERY_SCREEN, suggested: true }] : []
   })
   return [...kept, ...found]
 }
