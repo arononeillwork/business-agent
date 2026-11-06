@@ -8,6 +8,7 @@ name: Deploy
 #   SUPABASE_ACCESS_TOKEN  Supabase personal access token (service key + Auth settings)
 #   GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET, META_*, APPLE_*, SPOTIFY_*  optional integrations
 #   ANTHROPIC_API_KEY      optional: the in-app assistant (Claude)
+#   FIRECRAWL_API_KEY      optional: the set-up guide reads a business's website with Firecrawl
 # "Log in with Facebook" is on; repo variable FACEBOOK_SIGN_IN=off switches it off (docs/sign-in-setup.md).
 on:
   push:
@@ -95,6 +96,8 @@ jobs:
       ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
       # The in-app assistant (worker/assistant.ts): Claude, billed to this Anthropic account. Off without it.
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      # The set-up guide reads a business's website for its brand (worker/brandLookup.ts): with Firecrawl when set, its HTML only without it.
+      FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
       # Optional repo variables: the model (after Actions → Music check), and "off" to stop the starter pack.
       ELEVENLABS_MUSIC_MODEL: ${{ vars.ELEVENLABS_MUSIC_MODEL }}
       MUSIC_STARTER: ${{ vars.MUSIC_STARTER }}
