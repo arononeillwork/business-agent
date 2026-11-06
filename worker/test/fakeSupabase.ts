@@ -190,6 +190,7 @@ export class FakeSupabase {
         const setUp = this.table('referrals').filter(r => r.set_up_at).length
         return json(Math.min(12, setUp) + (this.table('billing')[0]?.referred_month ? 1 : 0))
       }
+      if (rpc[1] === 'current_plan') return json(this.plan.plan)
       if (rpc[1] === 'plan_allows') return json(this.plan.features.includes((JSON.parse(String(init.body)) as { p_feature: string }).p_feature))
       if (rpc[1] === 'plan_check_connect') {
         const { p_provider } = JSON.parse(String(init.body)) as { p_provider: string }

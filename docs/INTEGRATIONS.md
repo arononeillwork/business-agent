@@ -317,13 +317,15 @@ own Square account with one click):
 5. Redeploy (push to `main`, or re-run the Deploy workflow). The deploy passes the secrets to the
    Worker; until it has them, "Connect Square" says the keys are missing.
 
-**Customers straight away (optional, once):** without this, new Square customers come in within
-the hour; with it, within seconds.
+**Customers and menu changes straight away (optional, once):** without this, new Square customers and
+changes to the item library come in at the business's refresh rate (hourly unless it chose otherwise on
+Connections); with it, within seconds.
 
 - Square Developer Console → your app → **Webhooks → Subscriptions** → **Add subscription**
   (pick the same Production or Sandbox as above). Name it "Customers", URL
   `https://business-agent.arononeillwork.workers.dev/api/webhooks/square`, events
-  **customer.created** and **customer.updated** → Save.
+  **customer.created**, **customer.updated** and **catalog.version.updated** → Save. (A subscription made
+  before the menu was read this way: open it and tick **catalog.version.updated** too.)
 - Open the subscription and copy its **Signature key** → GitHub repo secret
   `SQUARE_WEBHOOK_SIGNATURE_KEY` → redeploy. Use **Send test event** to check: the subscription's
   log should show `200`. (A different URL in Square needs `SQUARE_WEBHOOK_URL` set to exactly that
@@ -340,9 +342,10 @@ Permissions asked for: `MERCHANT_PROFILE_READ` (business name and locations), `P
 `CUSTOMERS_READ` (the customer directory, for Customers), `ITEMS_READ` (the item library, for a menu
 read from Square), `LOYALTY_READ` and `GIFTCARDS_READ` (the
 loyalty programme and gift cards, for Loyalty & gift cards) and `LOYALTY_WRITE` and
-`GIFTCARDS_WRITE` for the only two changes the app makes in Square: goodwill points for a member
-(with a reason Square keeps) and selling a digital gift card an admin confirms. Both send an
-idempotency key, so trying again never gives twice. The app can't take, move or refund money.
+`GIFTCARDS_WRITE` for goodwill points for a member (with a reason Square keeps) and selling a digital
+gift card an admin confirms, and `ITEMS_WRITE` for a menu price changed in the app (only the prices of
+an item's variations; nothing is added to or deleted from the item library). Each sends an
+idempotency key, so trying again never does it twice. The app can't take, move or refund money.
 
 Testing with Sandbox: in the Developer Console open **Sandbox test accounts → Default Test Account →
 Open in Square Dashboard** first (Square only lets a sandbox seller authorise while that dashboard is
@@ -375,15 +378,19 @@ What shows where (admins who can see pay only; Pro plan and up):
   the first location for an amount taken at the till). Card numbers only ever show their last 4 digits.
   No programme yet: the page explains how to make one in Square (the app doesn't create programmes).
 - **Menu → Items → Menu from: Square** (admins; Custom is the default): the menu read from the Square
-  item library (Items → Item library) straight away and every hour at :15. Each item's category is its
+  item library (Items → Item library) straight away, within seconds of a change there (the webhook above)
+  and every hour at :15 (or at the rate chosen on Connections). Each item's category is its
   section, its first priced variation its price (Hot and Iced variations become hot and iced prices
   side by side; Sit In and Takeaway at one price are one price), and its description and photo come
   too; the modifier lists the items use (milks, syrups, an extra shot) become an **Extras** section.
   Items already on the menu are matched by name the first time, so their photos, featured, off-the-menu
   and what goes into them on Menu costing (and so their allergens) stay; deleted or archived items come
   off the menu. While Square is chosen, items
-  that aren't in Square are hidden (Custom brings them back) and an item's name, section, price and
-  description can only be changed in Square. "Read from Square now" reads it on demand.
+  that aren't in Square are hidden (Custom brings them back) and an item's name, section and
+  description can only be changed in Square. Its price can be changed in the app too (the Menu page, Menu
+  costing, the AI connector): the app changes it in Square within a minute (straight away from the Menu
+  page), its other variations keeping their difference; extras are priced in Square. One Square refuses
+  shows on the Menu page with why, and Square's price comes back. "Read from Square now" reads it on demand.
 
 Access lasts 30 days and is renewed a week before it runs out; if it stops working, admins get a
 notification. A business connected **before best sellers were added** keeps its takings, and the
@@ -393,7 +400,9 @@ reconnect to allow `CUSTOMERS_READ`; until then takings carry on and no customer
 loyalty and gift cards: until a reconnect allows the four `LOYALTY_*`/`GIFTCARDS_*` permissions, that
 page says "Reconnect Square to allow loyalty and gift cards" with the button to do it. And for the
 menu: a connection made before it could be read from Square needs one reconnect to allow `ITEMS_READ`;
-until then the Menu page says so and the menu stays as it is.
+until then the Menu page says so and the menu stays as it is. A connection made before prices went back
+to Square needs one reconnect to allow `ITEMS_WRITE`; until then a price changed in the app says so on the
+Menu page and Square's price stays.
 
 Each person's own Square login (the Team page and the Leaderboard) asks for `EMPLOYEES_READ` (the team
 members, and who took each payment, for **Most sales** on the Leaderboard) and `EMPLOYEES_WRITE` (**Add to

@@ -1,7 +1,7 @@
 // The Analytics page beyond the website (admins): the business's Instagram, TikTok, LinkedIn Page and
 // Facebook Page, each read with the connection the Social planner posts with. Each answer is kept
-// for MINUTES.social (provider_cache). A connection that wasn't allowed to read statistics (made
-// before they were asked for, a box unticked, the app not approved for them yet) gets
+// for the business's social refresh rate (provider_cache, worker/refresh.ts). A connection that wasn't
+// allowed to read statistics (made before they were asked for, a box unticked, the app not approved for them yet) gets
 // `access: 'needs_scope'` instead of an error, and is never marked broken for it: posting still works.
 import { Hono } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -18,7 +18,7 @@ import {
   FACEBOOK_METRICS, SOCIAL_NAMES, chunks, facebookReport, insightDays, insightTotals, instagramReport, isSocialSource, linkedinReport, noReport,
   statsRefused, tiktokReport, unixDay, type SocialAccess, type SocialReport, type SocialSource,
 } from '../shared/socialAnalytics'
-import { MINUTES } from '../shared/refresh'
+import { minutesFor } from './refresh'
 import { addDays, today } from '../shared/time'
 
 export const socialAnalytics = new Hono<{ Bindings: Env; Variables: { userId: string } }>()
@@ -156,7 +156,7 @@ socialAnalytics.get('/api/analytics/:source', async c => {
   const gap = knownGap(c.env, source, row.external ?? {})
   if (gap) return missing(gap)
   try {
-    const { data: report, fetched_at } = await cached(db, `social:${source}:${from}:${to}`, MINUTES.social, () => readSource(c.env, db, source, row, from, to))
+    const { data: report, fetched_at } = await cached(db, `social:${source}:${from}:${to}`, minutesFor(db, 'social'), () => readSource(c.env, db, source, row, from, to))
     return c.json({ ...report, fetched_at })
   } catch (e) {
     // Not allowed to read statistics: ask to connect again; the connection itself is fine.

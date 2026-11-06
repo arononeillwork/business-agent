@@ -11,7 +11,7 @@ import { cached, forget } from './cache'
 import { SquareError } from './providers/square'
 import * as loyalty from './providers/squareLoyalty'
 import { adjustProblem, giftCardAmountProblem, type GiftCards, type LoyaltyState } from '../shared/loyalty'
-import { MINUTES } from '../shared/refresh'
+import { minutesFor } from './refresh'
 import { addDays, today, zonedIso } from '../shared/time'
 
 export const loyaltyRoutes = new Hono<{ Bindings: Env }>()
@@ -67,7 +67,7 @@ loyaltyRoutes.get('/api/loyalty', async c => {
   const db = await requestDb(c)
   try {
     const { fromIso, toIso } = range(k => c.req.query(k))
-    const { data, fetched_at } = await cached(db, `loyalty:${fromIso}:${toIso}`, MINUTES.loyalty, async (): Promise<LoyaltyState> => {
+    const { data, fetched_at } = await cached(db, `loyalty:${fromIso}:${toIso}`, minutesFor(db, 'loyalty'), async (): Promise<LoyaltyState> => {
       const s = await squareSession(c.env, db)
       const program = await loyalty.program(s.sandbox, s.token)
       if (!program) return { status: 'no_program', program: null, members: [], events: [] }
@@ -115,7 +115,7 @@ loyaltyRoutes.get('/api/giftcards', async c => {
   const db = await requestDb(c)
   try {
     const { fromIso, toIso } = range(k => c.req.query(k))
-    const { data, fetched_at } = await cached(db, `giftcards:book:${fromIso}:${toIso}`, MINUTES.loyalty, async (): Promise<GiftCards> => {
+    const { data, fetched_at } = await cached(db, `giftcards:book:${fromIso}:${toIso}`, minutesFor(db, 'loyalty'), async (): Promise<GiftCards> => {
       const s = await squareSession(c.env, db)
       const { currency, cards, activities } = await loyalty.giftCardBook(s.sandbox, s.token, fromIso, toIso)
       const who = await names(db, cards.map(g => g.customer_id).filter((x): x is string => !!x))

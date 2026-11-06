@@ -4,6 +4,8 @@
 // items use (Milk, Syrup, Extra shot) as extras in a section of their own, the way the café's printed
 // menus list them. Choices without prices (how a steak is done) aren't extras. Shared by the Worker
 // (which reads the catalogue) and the demo.
+// And the other way (squarePriceChanges): a price changed here, as the changes to the item's
+// variations in Square, read the same way round, so the next read from Square gives the same menu.
 
 /** The parts of Square's catalogue objects that are read (GET /v2/catalog/list?types=ITEM,CATEGORY,MODIFIER_LIST,IMAGE). */
 export interface SquareObject {
@@ -13,7 +15,7 @@ export interface SquareObject {
   item_data?: {
     name?: string; description?: string; description_plaintext?: string; is_archived?: boolean; image_ids?: string[]
     categories?: { id: string; ordinal?: number }[]; category_id?: string
-    variations?: { id: string; item_variation_data?: { name?: string; ordinal?: number; price_money?: { amount?: number } } }[]
+    variations?: SquareVariation[]
     modifier_list_info?: { modifier_list_id: string; enabled?: boolean }[]
   }
   category_data?: { name?: string }
@@ -21,6 +23,19 @@ export interface SquareObject {
   custom_attribute_values?: Record<string, { name?: string; type?: string; number_value?: string; string_value?: string }>
   modifier_list_data?: { name?: string; modifiers?: { modifier_data?: { name?: string; price_money?: { amount?: number }; ordinal?: number } }[] }
   image_data?: { url?: string }
+}
+
+/** An item's variation as Square gives it: what's read, and the rest kept as it is when it's sent back. */
+export interface SquareVariation {
+  id: string
+  type?: string
+  version?: number
+  item_variation_data?: {
+    name?: string; ordinal?: number; pricing_type?: string; price_money?: { amount?: number; currency?: string }
+    location_overrides?: { location_id?: string; pricing_type?: string; price_money?: { amount?: number; currency?: string } }[]
+    [more: string]: unknown
+  }
+  [more: string]: unknown
 }
 
 export interface SquareMenuItem {
@@ -127,4 +142,57 @@ export function fromSquareCatalog(objects: SquareObject[]): SquareMenu {
   }
   if (n && !sections.includes(EXTRAS_SECTION)) sections.push(EXTRAS_SECTION)
   return { items, sections }
+}
+
+/** What the menu says an item costs: its price and its variants' differences (as the menu keeps them). */
+export interface MenuPrices { sell_price: number | null; variants: readonly { name: string; price_change: number }[] }
+
+/** One variation whose price changes in Square: the variation as it'll be sent, and what it was and will be. */
+export interface PriceChange { variation: SquareVariation; name: string; from: number | null; to: number }
+
+const cents = (euros: number) => Math.max(0, Math.round(euros * 100))
+
+/**
+ * A menu item's prices as changes to its Square item's variations, the way fromSquareCatalog reads them:
+ * the first priced variation is the price; sit in and takeaway at one price all take it; any other
+ * variation is the price plus its variant's difference (matched by name), or keeps the difference it had
+ * in Square when the menu has no variant of that name. A location's own price that was the same as the
+ * variation's moves with it; one set differently on purpose stays. Only variations whose price changes
+ * are returned. `problem` when it can't be done here: extras (a modifier list), an item with no price.
+ */
+export function squarePriceChanges(object: SquareObject | undefined, want: MenuPrices, currency = 'EUR'): { changes: PriceChange[]; problem?: string } {
+  if (!object || object.is_deleted) return { changes: [], problem: 'It isn’t in Square any more. Read the menu from Square again.' }
+  if (object.type === 'MODIFIER_LIST') return { changes: [], problem: 'Extras (milks, syrups) are priced in Square: change them there.' }
+  if (object.type !== 'ITEM') return { changes: [], problem: 'That isn’t an item in Square.' }
+  if (want.sell_price === null || !Number.isFinite(want.sell_price)) return { changes: [], problem: 'Give it a price: Square needs one to sell it.' }
+  const all = [...(object.item_data?.variations ?? [])].sort((a, b) => (a.item_variation_data?.ordinal ?? 0) - (b.item_variation_data?.ordinal ?? 0))
+  if (!all.length) return { changes: [], problem: 'It has no variation in Square to put a price on.' }
+  const amountOf = (v: SquareVariation) => (typeof v.item_variation_data?.price_money?.amount === 'number' ? v.item_variation_data.price_money.amount : null)
+  // With no price in Square at all, the first variation takes it (Square then sells it at that price).
+  const priced = all.filter(v => amountOf(v) !== null)
+  const sold = priced.length ? priced : all.slice(0, 1)
+  const base = sold[0]
+  const oldBase = amountOf(base)
+  const names = sold.map(v => tidy(v.item_variation_data?.name))
+  const oneService = priced.length > 0 && names.every(n => SERVICE.test(n)) && new Set(priced.map(amountOf)).size === 1
+  const byName = new Map(want.variants.map(v => [tidy(v.name).toLowerCase(), v.price_change]))
+  const price = cents(want.sell_price)
+  const changes: PriceChange[] = []
+  for (const v of sold) {
+    const was = amountOf(v)
+    const diff = byName.get(tidy(v.item_variation_data?.name).toLowerCase())
+    const to = v === base || oneService ? price
+      : diff !== undefined ? cents(want.sell_price + diff)
+      : Math.max(0, price + (was ?? 0) - (oldBase ?? 0))
+    if (to === was) continue
+    const d = v.item_variation_data ?? {}
+    const money = { amount: to, currency: d.price_money?.currency ?? currency }
+    const overrides = d.location_overrides?.map(o => (o.price_money?.amount === was || (was === null && !o.price_money)
+      ? { ...o, pricing_type: 'FIXED_PRICING', price_money: { ...money, currency: o.price_money?.currency ?? money.currency } } : o))
+    changes.push({
+      variation: { ...v, item_variation_data: { ...d, pricing_type: 'FIXED_PRICING', price_money: money, ...(overrides ? { location_overrides: overrides } : {}) } },
+      name: tidy(d.name), from: was === null ? null : was / 100, to: to / 100,
+    })
+  }
+  return { changes }
 }

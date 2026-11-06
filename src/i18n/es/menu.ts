@@ -188,8 +188,6 @@ export default {
   'Custom': 'Propia',
   'Square': 'Square',
   'Kept here: add and change items on this page.': 'Se lleva aquí: añade y cambia los productos en esta página.',
-  'Read from your Square item library every hour: names, sections, prices, descriptions and photos follow the till.':
-    'Se lee de tu biblioteca de artículos de Square cada hora: nombres, secciones, precios, descripciones y fotos siguen a la caja.',
   'Read from Square now': 'Leer de Square ahora',
   'Read from Square': 'Leer de Square',
   'Read {n} item from Square.': 'Leído {n} producto de Square.',
@@ -199,17 +197,12 @@ export default {
   'Photos and what’s featured are set here; allergens come from Menu costing.': 'Las fotos y lo destacado se ponen aquí; los alérgenos salen de Escandallos.',
   'The menu is kept here again. Items read from Square stay on it.': 'La carta vuelve a llevarse aquí. Los productos leídos de Square se quedan en ella.',
   'Read the menu from Square?': '¿Leer la carta de Square?',
-  'Names, sections, prices (hot and iced as Square has them), descriptions and photos come from your Square item library, now and every hour. The milks, syrups and other modifiers go in an Extras section.':
-    'Los nombres, secciones, precios (caliente y con hielo, como los tenga Square), descripciones y fotos salen de tu biblioteca de artículos de Square, ahora y cada hora. Las leches, siropes y demás modificadores van en una sección de extras.',
   'Items already here are matched by name and keep their photos and what goes into them on Menu costing. Items that aren’t in Square are hidden while the menu comes from Square, and come back if you switch to Custom.':
     'Los productos que ya están aquí se emparejan por nombre y conservan sus fotos y lo que llevan en Escandallos. Los que no están en Square se ocultan mientras la carta salga de Square, y vuelven si cambias a Propia.',
   'Connect Square on the Connections page first.': 'Conecta Square primero en Conexiones.',
   'Nothing read from Square yet': 'Aún no se ha leído nada de Square',
   'Read your item library with the button above. Items without a price in Square aren’t on the menu.':
     'Lee tu biblioteca de artículos con el botón de arriba. Los artículos sin precio en Square no salen en la carta.',
-  'Its name, section, price and description come from Square: change them there and the menu follows within the hour. Its photo and whether it’s on the menu are kept here, and what goes in it on Menu costing.':
-    'Su nombre, sección, precio y descripción salen de Square: cámbialos allí y la carta se actualiza en menos de una hora. Su foto y si está en la carta se guardan aquí, y lo que lleva en Escandallos.',
-  'Other ways it’s sold, from Square: {list}.': 'Otras formas de venderlo, de Square: {list}.',
   'Start from your printed menus': 'Empieza con tus cartas impresas',
   'Add what’s on your printed menus': 'Añade lo de tus cartas impresas',
   '{n} item on your printed menus isn’t on this menu.': '{n} producto de tus cartas impresas no está en esta carta.',

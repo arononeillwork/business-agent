@@ -21,7 +21,7 @@ import {
   MAX_REPLY_LENGTH, htmlToText, placePictures, quotedReply, replyHtml, replyMime, replyRecipients, sniffType, toBase64Url, type EmailFull, type EmailReply,
 } from '../shared/email'
 import type { Supplier } from '../shared/stock'
-import { MINUTES } from '../shared/refresh'
+import { minutesFor } from './refresh'
 
 export const email = new Hono<{ Bindings: Env; Variables: { token: string } }>()
 
@@ -96,11 +96,11 @@ email.get('/api/email/messages', async c => {
       })
       const wanted = search(filter)
       const [list, chips] = await Promise.all([
-        cached(db, `${key}:${filter}:${page ?? ''}`, MINUTES.email, async () =>
+        cached(db, `${key}:${filter}:${page ?? ''}`, minutesFor(db, 'email'), async () =>
           wanted === null ? { messages: [], next_page: null } : await google.gmailMessages(await token(), { q: wanted, max: EMAIL_PAGE_SIZE, pageToken: page })),
         // The chips' counts come with the first page only ("Show more" keeps them), a few at a time so
         // Gmail isn't asked too much at once. They're extra: if Gmail won't count, the list still shows.
-        page ? null : cached(db, `${key}:counts`, MINUTES.email, async () => {
+        page ? null : cached(db, `${key}:counts`, minutesFor(db, 'email'), async () => {
           const out: Partial<Record<EmailFilter, number>> = {}
           for (let i = 0; i < EMAIL_FILTERS.length; i += 4) {
             await Promise.all(EMAIL_FILTERS.slice(i, i + 4).map(async f => {
@@ -121,7 +121,7 @@ email.get('/api/email/messages', async c => {
     } else {
       // Outlook narrows by date and flags; the words, suppliers and customers are sorted here.
       const since = new Date(Date.now() - days * 86_400_000).toISOString()
-      const list = await cached(db, `${key}:${OUTLOOK_ONLY[filter] ?? 'all'}:${page ?? ''}`, MINUTES.email, async () =>
+      const list = await cached(db, `${key}:${OUTLOOK_ONLY[filter] ?? 'all'}:${page ?? ''}`, minutesFor(db, 'email'), async () =>
         await ms.outlookMessages(await token(), { since, only: OUTLOOK_ONLY[filter], search: q || undefined, top: EMAIL_PAGE_SIZE, skip: Number(page ?? 0) }))
       listed = list.data
       fetchedAt = list.fetched_at

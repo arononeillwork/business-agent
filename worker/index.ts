@@ -36,7 +36,9 @@ import { assistant } from './assistant'
 import { refreshReviews, reviews, reviewsConfigured } from './reviews'
 import { clearOldCache } from './cache'
 import { website } from './website'
-import { checkWaitingImages, menu, syncSquareMenuIfChosen } from './menu'
+import { checkWaitingImages, menu, pushSquarePrices, syncSquareMenuIfChosen } from './menu'
+import { minutesFor } from './refresh'
+import { due } from '../shared/refresh'
 import { screens } from './screens'
 import { site } from './site'
 import { newsletter } from './newsletter'
@@ -406,9 +408,10 @@ export default {
     return provider(env, url.origin).fetch(request, env, ctx)
   },
   // Every minute: close forgotten timecards, queue shift alerts, remind admins about events,
-  // send planned social posts, deliver the outbox, refresh sports; every 15 minutes, opening hours
-  // with Google Maps and Instagram mentions; every hour, new Square customers and new Google reviews
-  // (every 3 hours from Places). How often each service is read: shared/refresh.ts.
+  // send planned social posts, deliver the outbox, refresh sports, send menu prices to Square; every
+  // 15 minutes, opening hours with Google Maps and Instagram mentions; every hour, new Square customers,
+  // the menu from Square and new Google reviews (every 3 hours from Places). How often each service is
+  // read, and which a business can change: shared/refresh.ts.
   // Nightly: fill yesterday's missing timecards from the rota, check every connection still works,
   // and look at the competitors due their weekly check on Google.
   async scheduled(event, env, ctx) {
@@ -492,24 +495,27 @@ export default {
         await pushNotifications(env, b).catch(e => console.error('push failed', id, e))
         // Menu images whose webhook from Higgsfield hasn't come (asked about, or given up on after 3 hours).
         await checkWaitingImages(env, b).catch(e => console.error('menu images failed', id, e))
-        // Every 15 minutes: opening hours both ways with Google Maps (after the outbox, so a change
-        // made in the app has already gone to Google).
-        if (minute % 15 === 0 && await googleConnected(b)) {
+        // Every 15 minutes (or as the business chose): opening hours both ways with Google Maps (after
+        // the outbox, so a change made in the app has already gone to Google).
+        if (due(minute, await minutesFor(b, 'hours')) && await googleConnected(b)) {
           await syncGoogleBothWays(env, b).catch(e => console.error('google hours sync failed', id, e))
         }
+        // Every minute: menu prices changed here (the AI connector's too) to Square, while the menu comes from it.
+        await pushSquarePrices(env, b).catch(e => console.error('square prices failed', id, e))
         // Every minute: the menu onto the Google Maps listing, when it changed since it was last sent
         // (only a fingerprint is compared; Google is called only for a new menu).
         await pushGoogleMenu(env, b).catch(e => console.error('google menu failed', id, e))
-        // Every 15 minutes: new Instagram tags and story mentions, for admins to repost or ignore.
-        if (minute % 15 === 0) {
+        // Every 15 minutes (or as the business chose): new Instagram tags and story mentions, for admins to repost or ignore.
+        if (due(minute, await minutesFor(b, 'mentions'))) {
           await checkMentions(env, b).catch(e => console.error('instagram mentions failed', id, e))
         }
-        // Every hour: Square customers added or changed since the last look, into Customers.
-        if (minute % 60 === 0) {
+        // Every hour (or as the business chose): Square customers added or changed since the last look, into Customers.
+        if (due(minute, await minutesFor(b, 'customers'))) {
           await syncSquareCustomers(env, b).catch(e => console.error('square customers failed', id, e))
         }
-        // Every hour (a quarter past): the menu from the Square item library, when that's where it comes from.
-        if (minute % 60 === 15) await syncSquareMenuIfChosen(env, b)
+        // Every hour at a quarter past (or as the business chose): the menu from the Square item library,
+        // when that's where it comes from, in case a webhook from Square was missed.
+        if (due(minute, await minutesFor(b, 'menu'), 15)) await syncSquareMenuIfChosen(env, b)
         // Every hour (on the half hour, away from Square's): new Google reviews, for admins to read and reply to;
         // from Places only every third hour (refreshReviews knows which).
         if (minute % 60 === 30 && await reviewsConfigured(env, b)) {

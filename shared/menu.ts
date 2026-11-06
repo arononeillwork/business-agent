@@ -90,6 +90,14 @@ export interface MenuItem {
 export type MenuItemInput = Omit<MenuItem, 'id' | 'variants' | 'menu_sort' | 'square_id'> & { id?: string }
 
 /**
+ * A price changed here on its way to Square, while the menu comes from Square (the `square_price_write_back`
+ * migration): waiting (error null), or refused by Square and why (Square's price is back on the menu).
+ */
+export interface SquarePriceNote { recipe_id: string; price: number | null; queued_at: string; error: string | null; failed_at: string | null }
+/** What sending the waiting prices to Square did: how many items changed there, which Square refused, how many wait for another go. */
+export interface PricePush { sent: number; refused: { id: string; name: string; error: string }[]; waiting: number }
+
+/**
  * Where the menu's items come from. custom (the default): kept here, on this page. square: read from
  * the Square item library (names, sections, prices and how each is sold, descriptions, photos, and the
  * modifiers as extras), every hour and on demand; what Square doesn't have (featured, off the menu) is
@@ -98,7 +106,7 @@ export type MenuItemInput = Omit<MenuItem, 'id' | 'variants' | 'menu_sort' | 'sq
 export type MenuSource = 'custom' | 'square'
 export const MENU_SOURCES: { id: MenuSource; label: string; does: string }[] = [
   { id: 'custom', label: msg('Custom'), does: msg('Kept here: add and change items on this page.') },
-  { id: 'square', label: msg('Square'), does: msg('Read from your Square item library every hour: names, sections, prices, descriptions and photos follow the till.') },
+  { id: 'square', label: msg('Square'), does: msg('Kept the same as your Square item library: a change there shows here straight away, and a price changed here is changed in Square too.') },
 ]
 
 /** Every price an item has, by what it's for: its own (its label, or '' when it has none) and each variant's. */

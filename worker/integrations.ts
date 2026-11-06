@@ -17,6 +17,7 @@ import * as facebook from './providers/facebook'
 import * as tiktok from './providers/tiktok'
 import * as square from './providers/square'
 import { squareCustomerEvent, syncSquareCustomers } from './squareCustomers'
+import { syncSquareMenuIfChosen } from './menu'
 import { cached, oldest } from './cache'
 import * as stripe from './providers/stripe'
 import * as sumup from './providers/sumup'
@@ -26,7 +27,8 @@ import * as metaAds from './providers/metaAds'
 import { alertEmail, base64url, mimeMessage } from '../shared/alertText'
 import { addToCalendarUrl, optionName } from '../shared/connections'
 import { replyWindow } from '../shared/messages'
-import { MINUTES, takingsMinutes } from '../shared/refresh'
+import { takingsMinutes } from '../shared/refresh'
+import { minutesFor } from './refresh'
 import { finishMusicConnect, type MusicState } from './music'
 import { ensureFeed } from './calendarFeed'
 import { checkMentions, decide, repostMention } from './mentions'
@@ -1055,7 +1057,7 @@ integrations.get('/api/integrations/search_console/report', async c => {
   if (data?.status !== 'connected' && data?.status !== 'error') return c.json({ error: 'Connect Search Console on the Connections page to see how the website does on Google' }, 400)
   if (!site) return c.json({ error: 'Choose which website to read on the Connections page' }, 400)
   try {
-    const { data: report, fetched_at } = await cached(db, `search:${site}:${from}:${to}`, MINUTES.search, async () => {
+    const { data: report, fetched_at } = await cached(db, `search:${site}:${from}:${to}`, minutesFor(db, 'search'), async () => {
       const { token } = await connectorGrant(c.env, db, 'search_console', new URL(c.req.url).origin)
       const read = await searchConsole.report(token, site, from, to)
       await setIntegration(db, 'search_console', { last_sync_at: new Date().toISOString() })
@@ -1156,7 +1158,7 @@ export async function readTakings(env: Env, db: SupabaseClient, from: string, to
   const ps = PAYMENT_SYSTEMS.filter(p => rows?.some(r => r.provider === p && r.status === 'connected'))
   if (!ps.length) return null
   const fromIso = zonedIso(from, '00:00', tz), toIso = zonedIso(addDays(to, 1), '00:00', tz)
-  const read = await Promise.all(ps.map(p => cached(db, `sales:${p}:${fromIso}:${toIso}`, takingsMinutes(toIso), () => salesOf(env, db, p, fromIso, toIso))
+  const read = await Promise.all(ps.map(p => cached(db, `sales:${p}:${fromIso}:${toIso}`, minutesFor(db, 'takings').then(m => takingsMinutes(toIso, Date.now(), m)), () => salesOf(env, db, p, fromIso, toIso))
     .then(({ data: sales }) => ({ provider: p, sales }), (e: unknown) => ({ provider: p, error: explain(p, e) }))))
   const ok = read.filter((x): x is { provider: SalesProvider; sales: Awaited<ReturnType<typeof salesOf>> } => 'sales' in x)
   if (!ok.length) return { error: (read[0] as { error: string }).error }
@@ -1171,7 +1173,7 @@ export async function readBestSellers(env: Env, db: SupabaseClient, from: string
   if (!ps.includes('square')) return { items: null, reason: ps[0] as 'stripe' | 'sumup' }
   const fromIso = zonedIso(from, '00:00', tz), toIso = zonedIso(addDays(to, 1), '00:00', tz)
   try {
-    const { data: items } = await cached(db, `items:${fromIso}:${toIso}`, takingsMinutes(toIso), async () => {
+    const { data: items } = await cached(db, `items:${fromIso}:${toIso}`, minutesFor(db, 'takings').then(m => takingsMinutes(toIso, Date.now(), m)), async () => {
       const s = await squareSession(env, db)
       return square.topItems(s.sandbox, s.token, s.locationIds, fromIso, toIso)
     })
@@ -1201,7 +1203,7 @@ integrations.get('/api/integrations/payments/sales', async c => {
   const r = await takingsRequest(c)
   if ('error' in r) return r.error
   const { db, ps, fromIso, toIso } = r
-  const read = await Promise.all(ps.map(p => cached(db, `sales:${p}:${fromIso}:${toIso}`, takingsMinutes(toIso), () => salesOf(c.env, db, p, fromIso, toIso))
+  const read = await Promise.all(ps.map(p => cached(db, `sales:${p}:${fromIso}:${toIso}`, minutesFor(db, 'takings').then(m => takingsMinutes(toIso, Date.now(), m)), () => salesOf(c.env, db, p, fromIso, toIso))
     .then(({ data: sales, fetched_at }) => ({ provider: p, sales, fetched_at }), async (e: unknown) => {
       const why = explain(p, e)
       if (lasting(p, e)) await markBroken(db, p, why)
@@ -1225,7 +1227,7 @@ integrations.get('/api/integrations/payments/items', async c => {
   if (!ps.includes('square')) return c.json({ items: null, reason: ps[0] })
   const partial = ps.includes('stripe') ? { partial: 'stripe' } : {}
   try {
-    const { data: items, fetched_at } = await cached(db, `items:${fromIso}:${toIso}`, takingsMinutes(toIso), async () => {
+    const { data: items, fetched_at } = await cached(db, `items:${fromIso}:${toIso}`, minutesFor(db, 'takings').then(m => takingsMinutes(toIso, Date.now(), m)), async () => {
       const s = await squareSession(c.env, db)
       return square.topItems(s.sandbox, s.token, s.locationIds, fromIso, toIso)
     })
@@ -1525,7 +1527,9 @@ integrations.get('/media/*', async c => {
   return new Response(obj.body, { headers: { 'content-type': obj.httpMetadata?.contentType ?? 'image/jpeg', 'cache-control': 'public, max-age=31536000, immutable' } })
 })
 
-// Square webhook: a customer added or changed in Square comes into Customers straight away.
+// Square webhook: a customer added or changed in Square comes into Customers straight away, and a
+// change to the item library (catalog.version.updated) is read into the menu straight away, so the
+// website, the screens and Google Maps follow it (for a business whose menu comes from Square).
 // Signed with the subscription's signature key over the notification URL as registered in Square.
 integrations.post('/api/webhooks/square', async c => {
   const raw = await c.req.text()
@@ -1534,13 +1538,17 @@ integrations.post('/api/webhooks/square', async c => {
     return c.text('Invalid signature', 401)
   }
   const event = JSON.parse(raw) as square.SquareCustomerEvent
-  // Answer Square at once (it retries anything slow); the customer is saved just after.
-  // Into the Customers of the business whose Square account it is.
+  // Answer Square at once (it retries anything slow); the change is saved just after,
+  // for the business whose Square account it is.
   c.executionCtx.waitUntil((async () => {
     const { data: rows } = await serviceClient(c.env).from('integrations').select('business_id')
       .eq('provider', 'square').eq('status', 'connected').eq('external->>merchant_id', event.merchant_id ?? '')
-    for (const r of rows ?? []) await squareCustomerEvent(businessDb(c.env, r.business_id as number), event)
-  })().catch(e => console.error('square customer webhook failed', e)))
+    for (const r of rows ?? []) {
+      const db = businessDb(c.env, r.business_id as number)
+      if (event.type === square.CATALOG_UPDATED) await syncSquareMenuIfChosen(c.env, db)
+      else await squareCustomerEvent(db, event)
+    }
+  })().catch(e => console.error('square webhook failed', event.type, e)))
   return c.text('ok')
 })
 

@@ -2947,6 +2947,43 @@ test('connections: how often each outside service is read, and why, all in one l
   await expect(list.getByRole('row').filter({ hasText: 'Sports fixtures' })).toContainText('every 6 hours')
 })
 
+test('connections: an owner chooses how often each service is read; the pages say it, and the top plan types its own minutes', async ({ page }) => {
+  await open(page, '/connections')
+  const list = page.getByRole('table', { name: 'How often things update' })
+  const takings = list.getByRole('row').filter({ hasText: 'Takings and best sellers' })
+  await expect(page.getByRole('region', { name: 'How often things update' })).toContainText('Business: the fastest, or your own number of minutes.')
+  await takings.getByRole('combobox', { name: 'How often: Takings and best sellers' }).click()
+  await page.getByRole('option', { name: 'every 5 minutes', exact: true }).click()
+  await toast(page, 'Takings and best sellers: every 5 minutes')
+  await expect(takings).toContainText('today’s every 5 minutes, earlier days once a day')
+  // Its own number of minutes, kept within what the service allows.
+  const menu = list.getByRole('row').filter({ hasText: 'The menu from Square' })
+  await menu.getByRole('combobox', { name: 'How often: The menu from Square' }).click()
+  await page.getByRole('option', { name: 'Your own…' }).click()
+  await menu.getByRole('spinbutton', { name: 'Every' }).fill('7')
+  await menu.getByRole('button', { name: 'Set' }).click()
+  await expect(menu).toContainText('Your own: every 7 minutes')
+  await expect(menu).toContainText('as soon as Square sends a change, and every 7 minutes')
+  // Back to the usual.
+  await takings.getByRole('combobox', { name: 'How often: Takings and best sellers' }).click()
+  await page.getByRole('option', { name: 'every 15 minutes (usual)' }).click()
+  await expect(takings).toContainText('today’s every 15 minutes, earlier days once a day')
+})
+
+test('connections: on Free the usual times or slower; the faster ones say which plan has them', async ({ page }) => {
+  await open(page, '/connections?plan=free')
+  const region = page.getByRole('region', { name: 'How often things update' })
+  await expect(region).toContainText('Free: the usual times, or slower.')
+  await expect(region.getByRole('link', { name: 'Faster with a bigger plan' })).toBeVisible()
+  const mentions = region.getByRole('row').filter({ hasText: 'Instagram mentions' })
+  await mentions.getByRole('combobox', { name: 'How often: Instagram mentions' }).click()
+  await expect(page.getByRole('option', { name: 'every 10 minutes · Starter' })).toHaveAttribute('aria-disabled', 'true')
+  await expect(page.getByRole('option', { name: 'every 5 minutes · Pro' })).toHaveAttribute('aria-disabled', 'true')
+  await expect(page.getByRole('option', { name: 'Your own… · Business' })).toHaveAttribute('aria-disabled', 'true')
+  await page.getByRole('option', { name: 'every 30 minutes', exact: true }).click()
+  await expect(mentions).toContainText('every 30 minutes')
+})
+
 test('Sales page: employees don’t get it', async ({ page }) => {
   await open(page, '/', 'maria@example.com')
   await expect(page.getByRole('link', { name: 'Sales' })).toHaveCount(0)
@@ -5147,12 +5184,30 @@ test.describe('menu, menu design and screens', () => {
     await expect(dialog).toContainText('come from Square')
     await expect(dialog).toContainText('7 · Milk')
     await expect(dialog.getByRole('textbox', { name: 'Name' })).toBeDisabled()
-    await expect(dialog.getByRole('textbox', { name: 'Price, with IVA' })).toBeDisabled()
     await expect(dialog.getByRole('button', { name: 'Delete' })).toHaveCount(0)
     await dialog.getByRole('switch', { name: 'Featured (a house favourite)' }).check()
     await dialog.getByRole('button', { name: 'Save' }).click()
     await toast(page, /^Saved$/)
     await expect(card(page, 'Croissant').getByRole('img', { name: 'Featured' })).toBeVisible()
+
+    // A price changed here is changed in Square too, and stays when Square is read again; the variants keep their difference.
+    await page.getByRole('button', { name: 'Edit Flat White' }).click()
+    const fw = page.getByRole('dialog', { name: 'Flat White' })
+    await expect(fw).toContainText('Change its price here and it’s changed in Square too')
+    await expect(fw).toContainText('Other ways it’s sold, from Square: Iced +€1,00')
+    await fw.getByRole('textbox', { name: 'Price, with IVA' }).fill('4,00')
+    await fw.getByRole('button', { name: 'Save' }).click()
+    await toast(page, 'Saved, and changed in Square')
+    await expect(card(page, 'Flat White')).toContainText('Hot €4,00 · Iced €5,00')
+    await page.getByRole('button', { name: 'Read from Square now' }).click()
+    await toast(page, 'Read 61 items from Square.')
+    await expect(card(page, 'Flat White')).toContainText('Hot €4,00 · Iced €5,00')
+    // Extras are priced in Square.
+    await page.getByRole('region', { name: 'Extras' }).getByRole('button', { name: 'Edit Syrup' }).click()
+    const syrup = page.getByRole('dialog', { name: 'Syrup' })
+    await expect(syrup).toContainText('Extras are priced in Square too.')
+    await expect(syrup.getByRole('textbox', { name: 'Price, with IVA' })).toBeDisabled()
+    await syrup.getByRole('button', { name: 'Cancel' }).click()
 
     // Back to Custom: everything is kept here again, the Square items with it.
     await from.getByRole('button', { name: 'Custom' }).click()

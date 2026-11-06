@@ -4,7 +4,9 @@
 // any whose webhook was lost). Each finished image is copied into the café's own storage ("Business
 // Agent/Menu" in Drive or OneDrive, or R2), since Higgsfield keeps it only a week. Admins only.
 // And the menu itself from Square, when that's where it comes from (settings.menu_source): its item
-// library read on demand and every hour, into the menu items (sync_square_menu()).
+// library read on demand, as soon as Square says it changed (its catalog webhook) and at the business's
+// chosen refresh rate as a safety net, into the menu items (sync_square_menu()); and a price changed
+// here sent back to Square (pushSquarePrices()), so the till charges what the menu says.
 import { Hono } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { bearer, businessDb, requestDb, serviceClient, userClient, type Env } from './supabase'
@@ -14,11 +16,12 @@ import { storeMedia } from './media'
 import { pushGoogleMenu } from './integrations'
 import * as higgsfield from './providers/higgsfield'
 import * as square from './providers/square'
-import { fromSquareCatalog, type SquareMenuItem } from '../shared/menuSquare'
+import { fromSquareCatalog, squarePriceChanges, type SquareMenuItem } from '../shared/menuSquare'
 import { squareShelfChanges } from '../shared/freshBatches'
 import { businessConfig } from '../shared/business.config'
 import {
   MAX_PROMPT, aiRequest, buildPrompt, menuSections, modelOf, photoPrompt, readAiResult, imageShape, type AiModel, type AiResult, type MenuDesign, type MenuImage, type MenuItem,
+  type PricePush,
 } from '../shared/menu'
 import type { BrandColour } from '../shared/types'
 
@@ -183,11 +186,114 @@ async function squareShelfLives(db: SupabaseClient, read: SquareMenuItem[]) {
   if (release.length) fail(await db.from('fresh_items').update({ from_square: false }).in('id', release))
 }
 
-/** Every hour (the cron), while the menu comes from Square. */
+/** At the business's refresh rate (the cron), and when Square says its item library changed, while the menu comes from Square. */
 export async function syncSquareMenuIfChosen(env: Env, db: SupabaseClient) {
   const { data } = await db.from('settings').select('menu_source').eq('id', 1).maybeSingle()
   if (data?.menu_source !== 'square') return
   await syncSquareMenu(env, db).catch(e => console.error('square menu failed', message(e)))
+}
+
+// Prices changed here, to Square now (the Menu page, straight after saving one; the cron catches the
+// rest every minute, such as a change made through the AI connector).
+menu.post('/api/menu/square/prices', async c => {
+  try {
+    return c.json(await pushSquarePrices(c.env, await requestDb(c)))
+  } catch (e) {
+    return c.json({ error: message(e) }, status(e))
+  }
+})
+
+/** Tries before a change Square keeps not answering is given up on (one a minute). */
+const PRICE_TRIES = 5
+/** What the Menu page says when the connection can't change items yet. */
+export const RECONNECT_FOR_PRICES = 'Connect Square again on the Connections page so the app can change prices in Square (it asks for that permission now). Until then, Square’s price stays.'
+
+interface Waiting { recipe_id: string; price: number | null; queued_at: string; tries: number }
+interface Priced { id: string; name: string; square_id: string | null; sell_price: number | null }
+
+/**
+ * Menu prices changed here, while the menu comes from Square, into the Square item library (the
+ * `square_price_write_back` migration queues them). Each item's variations are read from Square first and
+ * only the prices that differ are sent, with their versions. Sent: off the list. Refused (no permission
+ * to change items, gone from Square, no price): kept with why for the Menu page, and Square's price comes
+ * back with the next read. Square not answering: tried again next minute, a few times.
+ */
+export async function pushSquarePrices(env: Env, db: SupabaseClient): Promise<PricePush> {
+  const done: PricePush = { sent: 0, refused: [], waiting: 0 }
+  const { data: waiting, error } = await db.from('square_price_pushes').select('recipe_id, price, queued_at, tries').is('error', null).order('queued_at').limit(25)
+  if (error) throw new Error(error.message)
+  if (!waiting?.length) return done
+  const ids = (waiting as Waiting[]).map(w => w.recipe_id)
+  const [{ data: settings }, { data: integration }] = await Promise.all([
+    db.from('settings').select('menu_source').eq('id', 1).maybeSingle(),
+    db.from('integrations').select('status').eq('provider', 'square').maybeSingle(),
+  ])
+  // Kept here again (Custom): nothing goes to Square.
+  if (settings?.menu_source !== 'square') {
+    await db.from('square_price_pushes').delete().in('recipe_id', ids).is('error', null)
+    return done
+  }
+  const [{ data: rows, error: e2 }, { data: variants, error: e3 }] = await Promise.all([
+    db.from('recipes').select('id, name, square_id, sell_price').in('id', ids),
+    db.from('recipe_variants').select('recipe_id, name, price_change').in('recipe_id', ids),
+  ])
+  if (e2 || e3) throw new Error((e2 ?? e3)!.message)
+  const items = new Map(((rows ?? []) as Priced[]).map(r => [r.id, r]))
+  const variantsOf = (id: string) => ((variants ?? []) as { recipe_id: string; name: string; price_change: number }[])
+    .filter(v => v.recipe_id === id).map(v => ({ name: v.name, price_change: Number(v.price_change) }))
+  const refuse = async (w: Waiting, why: string) => {
+    await db.from('square_price_pushes').update({ error: why.slice(0, 500), failed_at: new Date().toISOString() }).eq('recipe_id', w.recipe_id).eq('queued_at', w.queued_at)
+    done.refused.push({ id: w.recipe_id, name: items.get(w.recipe_id)?.name ?? '', error: why })
+  }
+  if (integration?.status !== 'connected') {
+    for (const w of waiting as Waiting[]) await refuse(w, 'Square isn’t connected, so the price couldn’t be changed there. Connect it on the Connections page.')
+    return done
+  }
+  let s
+  try {
+    s = await squareSession(env, db)
+  } catch (e) {
+    // Its sign-in has gone (Connections shows it), or Square isn't set up: nothing will send until that's fixed.
+    if (!/^invalid_grant|not set up/.test(message(e))) throw e
+    for (const w of waiting as Waiting[]) await refuse(w, 'Square needs connecting again (Connections), so the price couldn’t be changed there.')
+    return done
+  }
+  let objects
+  try {
+    objects = new Map((await square.catalogObjects(s.sandbox, s.token, [...new Set([...items.values()].map(r => r.square_id).filter((x): x is string => !!x))]))
+      .map(o => [o.id, o]))
+  } catch (e) {
+    if (e instanceof square.SquareError && e.code === 'INSUFFICIENT_SCOPES') {
+      for (const w of waiting as Waiting[]) await refuse(w, RECONNECT_FOR_PRICES)
+      return done
+    }
+    throw e
+  }
+  for (const w of waiting as Waiting[]) {
+    const item = items.get(w.recipe_id)
+    // The item went (deleted here): nothing to send. Its row went with it.
+    if (!item?.square_id) { await db.from('square_price_pushes').delete().eq('recipe_id', w.recipe_id).eq('queued_at', w.queued_at); continue }
+    const { changes, problem } = squarePriceChanges(objects.get(item.square_id),
+      { sell_price: item.sell_price === null ? null : Number(item.sell_price), variants: variantsOf(item.id) })
+    if (problem) { await refuse(w, problem); continue }
+    try {
+      if (changes.length) await square.upsertVariations(s.sandbox, s.token, `price:${w.recipe_id}:${Date.parse(w.queued_at)}`, changes.map(c => c.variation))
+      // Sent (or already Square's): off the list, unless it changed again meanwhile (then it goes next).
+      await db.from('square_price_pushes').delete().eq('recipe_id', w.recipe_id).eq('queued_at', w.queued_at)
+      if (changes.length) done.sent += 1
+    } catch (e) {
+      const code = e instanceof square.SquareError ? e.code : undefined
+      const status = e instanceof square.SquareError ? e.status : undefined
+      if (code === 'INSUFFICIENT_SCOPES') { await refuse(w, RECONNECT_FOR_PRICES); continue }
+      // Square changed the item meanwhile, didn't answer or was busy: again next minute, a few times.
+      const again = code === 'VERSION_MISMATCH' || status === undefined || status >= 500 || status === 429
+      if (again && w.tries + 1 < PRICE_TRIES) {
+        await db.from('square_price_pushes').update({ tries: w.tries + 1 }).eq('recipe_id', w.recipe_id).eq('queued_at', w.queued_at)
+        done.waiting += 1
+      } else await refuse(w, message(e).replace(/^invalid_grant: /, 'Square: '))
+    }
+  }
+  return done
 }
 
 interface GenerateInput { design_id?: string; item_id?: string; prompt?: string; model?: AiModel; edit_of?: string }
