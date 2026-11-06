@@ -57,6 +57,7 @@ import { demoSquarePinsApi } from './demoSquarePins'
 import { demoContentApi } from './demoContent'
 import { demoFreshApi } from './demoFreshBatches'
 import { demoPostIdeasApi } from './demoPostIdeas'
+import { demoNewsletterApi } from './demoNewsletter'
 import { reportSendProblem, scheduleProblem, type ReportSchedule } from '../../shared/reports'
 import { demoQrCodeApi } from './demoQrCodes'
 import { COUNTED, type Contractor, type OutsourcedJob } from '../../shared/outsourcing'
@@ -1450,6 +1451,8 @@ export function createDemoApi(): Api {
     onTeam: id => profiles.some(p => p.id === id && p.active && (p.role === 'admin' || p.role === 'employee')),
     hasPost: id => posts.some(p => p.id === id), storage: () => !!mediaStorage(), uid, nowIso,
   }, { aron: P.aron, julio: P.julio, maria: P.maria, photo: UBE, hoursAgo: h => hoursFromNow(-h) })
+  // Newsletter sign-ups (Website & SEO): as the `newsletter` migration; Easy Beans' website topics and three sign-ups.
+  const newsletterApi = demoNewsletterApi({ isAdmin: () => isAdmin() && !!me()?.active, uid, nowIso, daysAgo }, customers)
   /** That person's shifts in the period become open shifts (approved time off). */
   const openUpShifts = (t: TimeOff) => {
     const name = profiles.find(p => p.id === t.profile_id)?.full_name
@@ -2658,6 +2661,7 @@ export function createDemoApi(): Api {
     ...valuesApi,
     ...freshApi,
     ...ideasApi,
+    ...newsletterApi,
     // Contacts (Business, owners only): Easy Beans' lawyer, bank advisor and plumber, as the `business_contacts` migration.
     ...demoContactsApi({ isOwner: () => isAdmin() && !!me()?.active && !!me()?.can_see_pay, uid }),
     // Leaderboard (Team) and each person's Square login: the demo's timecards and till, as the `team_leaderboard` migration and worker/leaderboard.ts.
