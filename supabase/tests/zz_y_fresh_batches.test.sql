@@ -148,6 +148,59 @@ do $$ begin
   assert exists (select 1 from public.offers o where o.title = 'fb banana BREAD' and o.fresh_batch_id is not null), 'the ended one stays linked';
 end $$;
 
+-- 7. A second, deeper discount: 30% off from 30 hours on, then 50% off from 38 hours, gone at 48. Each
+--    is its own offer, the first until the second starts. The second comes after the first, and a set
+--    price needs the price. Taken off, its offer still to come goes and the first runs to the end again;
+--    sold out, the one that's on ends.
+select pg_temp.act_as('julio@test');
+select pg_temp.expect_error($q$insert into public.fresh_batches (name, shelf_life_hours, discount_at, discount2_at)
+  values ('FB tarts', 48, now() + interval '30 hours', now() + interval '20 hours')$q$, 'Start the second discount after the first');
+select pg_temp.expect_error($q$insert into public.fresh_batches (name, shelf_life_hours, discount2_at) values ('FB tarts', 48, now() + interval '20 hours')$q$,
+  'Start the second discount after the first');
+select pg_temp.expect_error($q$insert into public.fresh_batches (name, shelf_life_hours, discount_at, discount2_at, discount2)
+  values ('FB tarts', 48, now() + interval '30 hours', now() + interval '38 hours', 'price')$q$, 'Say the second offer price');
+insert into public.fresh_batches (name, shelf_life_hours, discount_at, percent_off, discount2_at, percent_off2)
+values ('FB Banana bread', 48, now() + interval '30 hours', 30, now() + interval '38 hours', 50);
+reset role;
+do $$
+declare b  public.fresh_batches := (select b from public.fresh_batches b where name = 'FB Banana bread');
+        o1 public.offers := (select o from public.offers o where fresh_batch_id = b.id and coalesce(fresh_stage, 1) = 1);
+        o2 public.offers := (select o from public.offers o where fresh_batch_id = b.id and fresh_stage = 2);
+begin
+  assert o1.price = '€2.45' and o1.starts_at = b.discount_at and o1.ends_at = b.discount2_at, format('30%% off until the second: %s', to_jsonb(o1));
+  assert o2.price = '€1.75' and o2.was_price = '€3.50' and o2.starts_at = b.discount2_at and o2.ends_at = b.good_until,
+    format('then 50%% off until the end: %s', to_jsonb(o2));
+end $$;
+select pg_temp.act_as('julio@test');
+update public.fresh_batches set discount2 = 'price', price2 = ' 3 for €5 ' where name = 'FB Banana bread';
+reset role;
+do $$ begin
+  assert (select o.price = '3 for €5' from public.offers o join public.fresh_batches b on b.id = o.fresh_batch_id
+           where b.name = 'FB Banana bread' and o.fresh_stage = 2), 'the second at a set price';
+end $$;
+select pg_temp.act_as('julio@test');
+update public.fresh_batches set discount2_at = null where name = 'FB Banana bread';
+reset role;
+do $$ declare b public.fresh_batches := (select b from public.fresh_batches b where name = 'FB Banana bread'); begin
+  assert not exists (select 1 from public.offers where fresh_batch_id = b.id and fresh_stage = 2), 'the second, still to come, goes';
+  assert (select o.ends_at = b.good_until from public.offers o where o.fresh_batch_id = b.id and coalesce(o.fresh_stage, 1) = 1), 'the first runs to the end again';
+end $$;
+-- Made 40 hours ago: its first discount is over, its second on now, so only the second has an offer; sold out, it ends.
+select pg_temp.act_as('julio@test');
+insert into public.fresh_batches (name, made_at, shelf_life_hours, discount_at, discount2_at)
+values ('FB scones', now() - interval '40 hours', 48, now() - interval '10 hours', now() - interval '1 hour');
+reset role;
+do $$ declare b public.fresh_batches := (select b from public.fresh_batches b where name = 'FB scones'); begin
+  assert not exists (select 1 from public.offers where fresh_batch_id = b.id and coalesce(fresh_stage, 1) = 1), 'the first is over';
+  assert (select o.ends_at = b.good_until and o.starts_at <= now() from public.offers o where o.fresh_batch_id = b.id and o.fresh_stage = 2), 'the second is on';
+end $$;
+select pg_temp.act_as('julio@test');
+update public.fresh_batches set cleared = 'sold' where name = 'FB scones';
+reset role;
+do $$ begin
+  assert (select o.ends_at <= now() from public.offers o join public.fresh_batches b on b.id = o.fresh_batch_id where b.name = 'FB scones'), 'sold out: it ends';
+end $$;
+
 -- Tidy up.
 reset role;
 delete from public.offers where title like 'FB%' or title like 'fb%';

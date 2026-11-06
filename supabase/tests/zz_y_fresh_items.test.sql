@@ -45,6 +45,14 @@ select pg_temp.expect_error($q$update public.fresh_items set discount = 'price' 
 select pg_temp.expect_error($q$insert into public.fresh_items (recipe_id, shelf_life_hours) select id, 24 from public.recipes where name = 'FI Biscoff cheesecake'$q$, 'duplicate key');
 select pg_temp.expect_error($q$update public.fresh_items set shelf_life_hours = 721 where shelf_life_hours = 72$q$, 'check constraint');
 
+-- 2b. A second offer: 50% off for its last day, after 25% off for its last 2; it comes after the first.
+select pg_temp.act_as('maria@test');
+update public.fresh_items set offer2_hours = 24, percent_off2 = 50 where shelf_life_hours = 120 and percent_off = 25;
+do $$ begin assert (select offer2_hours = 24 and percent_off2 = 50 from public.fresh_items where shelf_life_hours = 120 and percent_off = 25), 'the second offer'; end $$;
+select pg_temp.expect_error($q$update public.fresh_items set offer2_hours = 48 where shelf_life_hours = 120 and percent_off = 25$q$, 'fresh_items_offer2');
+select pg_temp.expect_error($q$update public.fresh_items set discount2 = 'price' where shelf_life_hours = 120 and percent_off = 25$q$, 'second offer price');
+select pg_temp.expect_error($q$update public.fresh_items set offer2_hours = 24 where shelf_life_hours = 72$q$, 'fresh_items_offer2');
+
 -- 3. Who sees and changes them: the team and a finance partner read, a payroll partner doesn't; only
 --    admins add, change and delete.
 reset role;

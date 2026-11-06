@@ -4808,6 +4808,68 @@ test.describe('stock and suppliers', () => {
     await expect(parfait).toContainText('Keeps 2 days')
     await expect(parfait).not.toContainText('From the menu')
   })
+
+  test('freshly made: 30% off, then 50% off: two discounts, each its own offer on Offers & specials; how many with − and +; discounts from 2 hours to 4 days before', async ({ page }) => {
+    test.setTimeout(60_000)
+    await open(page, '/stock')
+    await page.getByRole('tab', { name: 'Freshly made' }).click()
+
+    // A carrot cake keeping 5 days, three of them, counted with + .
+    await page.getByRole('button', { name: 'Record a batch', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'Record a batch' })
+    await dialog.getByRole('combobox', { name: 'What was made' }).fill('Carrot cake')
+    const count = dialog.getByRole('spinbutton', { name: 'How many' })
+    for (let n = 0; n < 3; n++) await dialog.getByRole('button', { name: 'One more' }).click()
+    await expect(count).toHaveValue('3')
+    await dialog.getByRole('button', { name: 'One fewer' }).click()
+    await dialog.getByRole('button', { name: 'One more' }).click()
+    await expect(count).toHaveValue('3')
+    await dialog.getByRole('combobox', { name: 'Shelf life' }).click()
+    await page.getByRole('option', { name: '5 days' }).click()
+    await expect(dialog).toContainText('Good until Mon 5 Oct, 09:00')
+
+    // The discount from 2 hours to 4 days before the end; no hour (too short to sell anything).
+    const leads = dialog.getByRole('group', { name: 'Start the discount' })
+    await expect(leads.getByRole('button')).toHaveText(['2 hours before', '4 hours before', '8 hours before', '1 day before', '2 days before', '3 days before', '4 days before'])
+    await leads.getByRole('button', { name: '2 days before' }).click()
+
+    // Then 50% off for its last day.
+    await dialog.getByRole('button', { name: 'Add another discount' }).click()
+    const then = dialog.getByRole('region', { name: 'Then a bigger discount' })
+    await then.getByRole('group', { name: 'Start the second discount' }).getByRole('button', { name: '1 day before' }).click()
+    await expect(then.getByRole('group', { name: 'Start the second discount' }).getByRole('button', { name: '2 days before' })).toHaveCount(0)
+    await then.getByRole('spinbutton', { name: 'Then off the menu price' }).fill('50')
+    await expect(dialog.getByRole('status')).toHaveText(
+      'On Offers & specials from Sat 3 Oct, 09:00 until Sun 4 Oct, 09:00: -30%. Then from Sun 4 Oct, 09:00 until Mon 5 Oct, 09:00: -50%.')
+    await dialog.getByRole('button', { name: 'Record', exact: true }).click()
+    await toast(page, 'Carrot cake recorded, with its offer')
+    const cake = page.getByRole('list', { name: 'On the counter' }).getByRole('listitem', { name: 'Carrot cake' })
+    await expect(cake).toContainText('Carrot cake × 3')
+    await expect(cake).toContainText('30% off from Sat 3 Oct, 09:00')
+
+    // On Offers & specials: one offer for each, the first until the second starts.
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Offers & specials' }).click()
+    const offers = page.getByRole('region', { name: 'Coming up' }).getByRole('article', { name: 'Carrot cake' })
+    await expect(offers).toHaveCount(2)
+    await expect(offers.filter({ hasText: '-30%' })).toHaveCount(1)
+    await expect(offers.filter({ hasText: '-50%' })).toHaveCount(1)
+
+    // Pain au chocolat, made here: 30% off for its last 4 hours, then 50% off for its last 2; a batch of it starts from both.
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Current stock' }).click()
+    await page.getByRole('tab', { name: 'Freshly made' }).click()
+    const pain = page.getByRole('list', { name: 'Made here' }).getByRole('listitem', { name: 'Pain au chocolat' })
+    await pain.getByRole('button', { name: 'Shelf life and offer of Pain au chocolat' }).click()
+    const item = page.getByRole('dialog', { name: 'Pain au chocolat' })
+    await item.getByRole('button', { name: 'Add another discount' }).click()
+    await expect(item.getByRole('group', { name: 'Then on offer for' }).getByRole('button', { name: 'Its last 2 hours' })).toHaveAttribute('class', /contained/)
+    await item.getByRole('spinbutton', { name: 'Then off the menu price' }).fill('50')
+    await item.getByRole('button', { name: 'Save' }).click()
+    await toast(page, 'Saved Pain au chocolat')
+    await expect(pain).toContainText('30% off for its last 4 hours, then 50% off for its last 2 hours')
+    await pain.getByRole('button', { name: 'Record a batch of Pain au chocolat' }).click()
+    await expect(page.getByRole('dialog', { name: 'Record a batch' }).getByRole('status')).toHaveText(
+      'On Offers & specials from Thu 1 Oct, 05:00 until Thu 1 Oct, 07:00: €1.40, was €2.00. Then from Thu 1 Oct, 07:00 until Thu 1 Oct, 09:00: €1.00, was €2.00.')
+  })
 })
 
 test.describe('recipes and waste', () => {
