@@ -6,9 +6,10 @@
 // the database then decides what the business can use (public.current_plan(): a trial that ended
 // unpaid or a failed renewal means Free until the payment goes through).
 import { Hono, type Context } from 'hono'
-import { bearer, businessDb, serviceClient, userClient, type Env } from './supabase'
+import { bearer, businessDb, serviceClient, type Env } from './supabase'
 import { PLANS, TRIAL_DAYS, plan as planById, type Interval, type PlanId } from '../shared/plans'
 import { recordCommission, refundShare, reverseCommission, type StripeCharge, type StripeInvoice } from './hqReps'
+import { signInCheck, signedInUser } from './signedIn'
 
 // Pinned so the subscription has the shape read below, whatever the account's default version is.
 const STRIPE_VERSION = '2024-06-20'
@@ -200,9 +201,8 @@ billing.use('/api/billing/*', async (c, next) => {
   if (c.req.path === '/api/billing/webhook') return next()
   const token = bearer(c.req.header('authorization'))
   if (!token) return c.json({ error: 'Not signed in' }, 401)
-  const sb = userClient(c.env, token, 'app')
   const [{ data: user }, { data: isOwner }, { data: businessId }] = await Promise.all([
-    sb.auth.getUser(token), sb.rpc('can_see_pay'), sb.rpc('current_business_id')])
+    signedInUser(c.env, token), signInCheck(c.env, token, 'can_see_pay'), signInCheck(c.env, token, 'current_business_id')])
   if (!user.user || !isOwner || !businessId) return c.json({ error: 'Only an owner can manage billing' }, 403)
   c.set('userId', user.user.id)
   c.set('email', user.user.email ?? '')

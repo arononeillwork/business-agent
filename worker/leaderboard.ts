@@ -9,7 +9,7 @@
 //   doesn't let apps set a passcode: the owner sets it in the Square Dashboard (shared/squareTeam.ts).
 import { Hono, type Context } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { bearer, requestDb, userClient, type Env } from './supabase'
+import { bearer, requestDb, type Env } from './supabase'
 import { connectedOf, explain, lasting, markBroken, squareSession } from './connections'
 import { cached, forget } from './cache'
 import { planFeatures } from './billing'
@@ -19,6 +19,7 @@ import { RECONNECT_TEAM, addProblem, splitName, squarePhone, suggestLinks, type 
 import { takingsMinutes } from '../shared/refresh'
 import { minutesFor } from './refresh'
 import { addDays, zonedIso } from '../shared/time'
+import { signInCheck, signedInUser } from './signedIn'
 
 type Vars = { admin: boolean; pay: boolean; userId: string }
 type Ctx = Context<{ Bindings: Env; Variables: Vars }>
@@ -33,9 +34,8 @@ const missingScope = (e: unknown) => e instanceof square.SquareError && e.code =
 async function signedIn(c: Ctx, admins: boolean) {
   const token = bearer(c.req.header('authorization'))
   if (!token) return c.json({ error: 'Not signed in' }, 401)
-  const sb = userClient(c.env, token, 'app')
   const [{ data: user }, { data: staff }, { data: admin }, { data: pay }] = await Promise.all([
-    sb.auth.getUser(token), sb.rpc('is_staff'), sb.rpc('is_admin'), sb.rpc('can_see_pay')])
+    signedInUser(c.env, token), signInCheck(c.env, token, 'is_staff'), signInCheck(c.env, token, 'is_admin'), signInCheck(c.env, token, 'can_see_pay')])
   if (!user.user || !staff) return c.json({ error: 'Only the team sees the leaderboard' }, 403)
   if (admins && !admin) return c.json({ error: 'Only an admin can link Square logins' }, 403)
   c.set('userId', user.user.id)

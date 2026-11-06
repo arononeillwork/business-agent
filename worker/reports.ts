@@ -3,17 +3,17 @@
 // to each person picked (someone on the team, a contact, any address), so nobody sees who else got it.
 // Admins only, who can already email from that mailbox on the Email page; 20 people at most at once.
 import { Hono } from 'hono'
-import { bearer, businessDb, userClient, type Env } from './supabase'
+import { bearer, businessDb, type Env } from './supabase'
 import { sendEmail } from './integrations'
 import { reportSendProblem, type ReportSend, type ReportSent } from '../shared/reports'
+import { signInCheck } from './signedIn'
 
 export const reports = new Hono<{ Bindings: Env }>()
 
 reports.post('/api/reports/send', async c => {
   const token = bearer(c.req.header('authorization'))
   if (!token) return c.json({ error: 'Not signed in' }, 401)
-  const sb = userClient(c.env, token, 'app')
-  const [{ data: isAdmin }, { data: businessId }] = await Promise.all([sb.rpc('is_admin'), sb.rpc('current_business_id')])
+  const [{ data: isAdmin }, { data: businessId }] = await Promise.all([signInCheck(c.env, token, 'is_admin'), signInCheck(c.env, token, 'current_business_id')])
   if (!isAdmin || !businessId) return c.json({ error: 'Only an admin can send reports' }, 403)
   const body = await c.req.json<Partial<ReportSend>>().catch(() => ({}) as Partial<ReportSend>)
   const problem = reportSendProblem(body)

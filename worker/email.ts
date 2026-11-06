@@ -22,13 +22,14 @@ import {
 } from '../shared/email'
 import type { Supplier } from '../shared/stock'
 import { minutesFor } from './refresh'
+import { signInCheck } from './signedIn'
 
 export const email = new Hono<{ Bindings: Env; Variables: { token: string } }>()
 
 email.use('/api/email/*', async (c, next) => {
   const token = bearer(c.req.header('authorization'))
   if (!token) return c.json({ error: 'Not signed in' }, 401)
-  const { data: isAdmin } = await userClient(c.env, token, 'app').rpc('is_admin')
+  const { data: isAdmin } = await signInCheck(c.env, token, 'is_admin')
   if (!isAdmin) return c.json({ error: 'Only an admin can read the business’s email' }, 403)
   c.set('token', token)
   await next()

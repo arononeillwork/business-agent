@@ -9,11 +9,12 @@
 // /api/integrations/media?folder=Content and the page adds their row itself.
 import { Hono } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { bearer, businessDb, userClient, type Env } from './supabase'
+import { bearer, businessDb, type Env } from './supabase'
 import { connectorGrant, explain, lasting, markBroken, setIntegration } from './connections'
 import * as photos from './providers/googlePhotos'
 import { MediaError, checkFile, mediaStorage, storeMedia } from './media'
 import { CONTENT_COLUMNS, CONTENT_FOLDER, IMPORT_BATCH, MAX_PICK, autoclose, titleFromFilename, type ContentItem, type SkipReason } from '../shared/content'
+import { signInCheck, signedInUser } from './signedIn'
 
 type Vars = { userId: string; businessId: number }
 export const content = new Hono<{ Bindings: Env; Variables: Vars }>()
@@ -29,8 +30,7 @@ const NO_STORAGE = 'Connect Google Drive or OneDrive on the Connections page fir
 content.use('/api/content/*', async (c, next) => {
   const token = bearer(c.req.header('authorization'))
   if (!token) return c.json({ error: 'Not signed in' }, 401)
-  const sb = userClient(c.env, token, 'app')
-  const [{ data: user }, { data: isAdmin }, { data: businessId }] = await Promise.all([sb.auth.getUser(token), sb.rpc('is_admin'), sb.rpc('current_business_id')])
+  const [{ data: user }, { data: isAdmin }, { data: businessId }] = await Promise.all([signedInUser(c.env, token), signInCheck(c.env, token, 'is_admin'), signInCheck(c.env, token, 'current_business_id')])
   if (!user.user || !isAdmin || !businessId) return c.json({ error: 'Only an admin can add photos and videos' }, 403)
   c.set('userId', user.user.id)
   c.set('businessId', businessId as number)

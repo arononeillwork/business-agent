@@ -3,12 +3,13 @@
 // admin connections, told apart by the signed state ({ kind: 'music' }), so no extra setup.
 import { Hono, type MiddlewareHandler } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { bearer, businessDb, businessOf, requestDb, userClient, type Env } from './supabase'
+import { bearer, businessDb, businessOf, requestDb, type Env } from './supabase'
 import { seal, signState, unseal } from './crypto'
 import * as google from './providers/google'
 import * as spotify from './providers/spotify'
 import * as youtube from './providers/youtube'
 import type { MusicProvider } from '../shared/types'
+import { signInCheck, signedInUser } from './signedIn'
 
 export interface MusicState { uid: string; kind: 'music'; provider: MusicProvider }
 
@@ -80,8 +81,7 @@ export const music = new Hono<{ Bindings: Env; Variables: { userId: string } }>(
 const teamOnly: MiddlewareHandler<{ Bindings: Env; Variables: { userId: string } }> = async (c, next) => {
   const token = bearer(c.req.header('authorization'))
   if (!token) return c.json({ error: 'Not signed in' }, 401)
-  const sb = userClient(c.env, token, 'app')
-  const [{ data: user }, { data: role }] = await Promise.all([sb.auth.getUser(token), sb.rpc('my_role')])
+  const [{ data: user }, { data: role }] = await Promise.all([signedInUser(c.env, token), signInCheck(c.env, token, 'my_role')])
   if (!user.user || !['admin', 'employee'].includes(role as string)) return c.json({ error: 'Music is for the team' }, 403)
   c.set('userId', user.user.id)
   await next()

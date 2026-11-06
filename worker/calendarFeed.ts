@@ -3,13 +3,14 @@
 // big sports nights. Calendar apps poll the URL, so updates show up without any sign-in.
 import { Hono, type MiddlewareHandler } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { bearer, businessDb, requestDb, serviceClient, userClient, type Env } from './supabase'
+import { bearer, businessDb, requestDb, serviceClient, type Env } from './supabase'
 import { seal, unseal } from './crypto'
 import { calendarFetched } from './connections'
 import { calendarAppFromAgent } from '../shared/connections'
 import { buildIcs, type IcsEvent } from '../shared/ics'
 import { addDays, today } from '../shared/time'
 import { businessConfig } from '../shared/business.config'
+import { signInCheck, signedInUser } from './signedIn'
 
 export type FeedScope = 'me' | 'business'
 
@@ -107,8 +108,7 @@ export const calendarFeeds = new Hono<{ Bindings: Env; Variables: { userId: stri
 const signedIn: MiddlewareHandler<{ Bindings: Env; Variables: { userId: string; role: string } }> = async (c, next) => {
   const token = bearer(c.req.header('authorization'))
   if (!token) return c.json({ error: 'Not signed in' }, 401)
-  const sb = userClient(c.env, token, 'app')
-  const [{ data: user }, { data: role }] = await Promise.all([sb.auth.getUser(token), sb.rpc('my_role')])
+  const [{ data: user }, { data: role }] = await Promise.all([signedInUser(c.env, token), signInCheck(c.env, token, 'my_role')])
   if (!user.user || !['admin', 'employee'].includes(role as string)) return c.json({ error: 'Calendar feeds are for the team' }, 403)
   c.set('userId', user.user.id)
   c.set('role', role as string)

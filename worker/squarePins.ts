@@ -8,9 +8,10 @@
 // removal goes in the audit log, without the PIN.
 import { Hono, type Context, type Next } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { bearer, requestDb, userClient, type Env } from './supabase'
+import { bearer, requestDb, type Env } from './supabase'
 import { seal, unseal } from './crypto'
 import { cleanPin, pinProblem, type SquarePins } from '../shared/squarePins'
+import { signInCheck, signedInUser } from './signedIn'
 
 type Vars = { userId: string; owner: boolean }
 type Ctx = Context<{ Bindings: Env; Variables: Vars }>
@@ -19,9 +20,8 @@ export const squarePins = new Hono<{ Bindings: Env; Variables: Vars }>()
 async function signedIn(c: Ctx, next: Next) {
   const token = bearer(c.req.header('authorization'))
   if (!token) return c.json({ error: 'Not signed in' }, 401)
-  const sb = userClient(c.env, token, 'app')
   const [{ data: user }, { data: staff }, { data: admin }, { data: pay }] = await Promise.all([
-    sb.auth.getUser(token), sb.rpc('is_staff'), sb.rpc('is_admin'), sb.rpc('can_see_pay')])
+    signedInUser(c.env, token), signInCheck(c.env, token, 'is_staff'), signInCheck(c.env, token, 'is_admin'), signInCheck(c.env, token, 'can_see_pay')])
   if (!user.user || !staff) return c.json({ error: 'Only the team has Square PINs' }, 403)
   if (!c.env.INTEGRATION_KEY) return c.json({ error: 'Square PINs are being set up' }, 503)
   c.set('userId', user.user.id)

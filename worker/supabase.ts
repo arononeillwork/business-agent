@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { signInCheck } from './signedIn'
 
 /** The part of Cloudflare's send_email binding the app uses (developers.cloudflare.com/email-service). */
 export interface EmailSender {
@@ -180,7 +181,7 @@ export function businessOfRequest(c: { env: Env; req: { raw: Request; header: (n
   if (!found) {
     const token = bearer(c.req.header('authorization'))
     found = token
-      ? Promise.resolve(userClient(c.env, token, 'app').rpc('current_business_id')).then(({ data }) => (data as number | null) ?? null)
+      ? Promise.resolve(signInCheck(c.env, token, 'current_business_id')).then(({ data }) => (data as number | null) ?? null)
       : Promise.resolve(null)
     requestBusiness.set(c.req.raw, found)
   }

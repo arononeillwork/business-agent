@@ -50,6 +50,7 @@ import { postIdeas } from './postIdeas'
 import { socialAnalytics } from './socialAnalytics'
 import { EMAIL_ADDRESS, accessOf, emailBlock, teamRoleOf } from '../shared/teamRoles'
 import type { Profile } from '../shared/types'
+import { signInCheck } from './signedIn'
 
 const NIGHTLY = '15 1 * * *' // 03:15 Madrid in summer, 02:15 in winter
 // Every minute from 02:00 to 03:59 UTC: the night's connection checks, a few a run (checkDue), each
@@ -116,8 +117,7 @@ app.get('/api/health', async c => {
 app.post('/api/admin/invite', async c => {
   const token = bearer(c.req.header('authorization'))
   if (!token) return c.json({ error: 'Not signed in' }, 401)
-  const sb = userClient(c.env, token, 'app')
-  const [{ data: isAdmin, error }, { data: businessId }] = await Promise.all([sb.rpc('is_admin'), sb.rpc('current_business_id')])
+  const [{ data: isAdmin, error }, { data: businessId }] = await Promise.all([signInCheck(c.env, token, 'is_admin'), signInCheck(c.env, token, 'current_business_id')])
   if (error || !isAdmin || !businessId) return c.json({ error: 'Only an admin can invite people' }, 403)
 
   const body = await c.req.json<{ email?: string; full_name?: string; role?: string; partner_company?: string; partner_access?: string[]; password?: string; phone?: string | null; contact_method?: string | null }>()
@@ -127,7 +127,7 @@ app.post('/api/admin/invite', async c => {
   const member = teamRoleOf(body.role === 'admin' ? 'manager' : body.role)
   const role = member ? accessOf(member).role : body.role === 'kiosk' || body.role === 'partner' ? body.role : 'employee'
   const owner = member === 'owner'
-  if (owner && !(await sb.rpc('can_see_pay')).data) {
+  if (owner && !(await signInCheck(c.env, token, 'can_see_pay')).data) {
     return c.json({ error: 'Only an owner can invite another owner' }, 403)
   }
   if (!email || !body.full_name?.trim()) return c.json({ error: 'Name and email are required' }, 400)
@@ -204,7 +204,7 @@ app.post('/api/admin/set-password', async c => {
   const token = bearer(c.req.header('authorization'))
   if (!token) return c.json({ error: 'Not signed in' }, 401)
   const sb = userClient(c.env, token, 'app')
-  const { data: isAdmin, error } = await sb.rpc('is_admin')
+  const { data: isAdmin, error } = await signInCheck(c.env, token, 'is_admin')
   if (error || !isAdmin) return c.json({ error: 'Only an admin can do that' }, 403)
   const body = await c.req.json<{ user_id?: string; password?: string }>()
   if (!body.user_id || !body.password || body.password.length < 8) {
@@ -225,7 +225,7 @@ app.post('/api/admin/set-email', async c => {
   if (!token) return c.json({ error: 'Not signed in' }, 401)
   const sb = userClient(c.env, token, 'app')
   const [{ data: isAdmin, error }, { data: businessId }, { data: isOwner }] =
-    await Promise.all([sb.rpc('is_admin'), sb.rpc('current_business_id'), sb.rpc('can_see_pay')])
+    await Promise.all([signInCheck(c.env, token, 'is_admin'), signInCheck(c.env, token, 'current_business_id'), signInCheck(c.env, token, 'can_see_pay')])
   if (error || !isAdmin || !businessId) return c.json({ error: 'Only an owner or shop manager can change someone’s email' }, 403)
   const body = await c.req.json<{ user_id?: string; email?: string }>()
   const email = body.email?.trim().toLowerCase()
@@ -251,8 +251,7 @@ app.post('/api/admin/set-email', async c => {
 app.post('/api/admin/sports/refresh', async c => {
   const token = bearer(c.req.header('authorization'))
   if (!token) return c.json({ error: 'Not signed in' }, 401)
-  const sb = userClient(c.env, token, 'app')
-  const [{ data: isAdmin, error }, { data: businessId }] = await Promise.all([sb.rpc('is_admin'), sb.rpc('current_business_id')])
+  const [{ data: isAdmin, error }, { data: businessId }] = await Promise.all([signInCheck(c.env, token, 'is_admin'), signInCheck(c.env, token, 'current_business_id')])
   if (error || !isAdmin || !businessId) return c.json({ error: 'Only an admin can do that' }, 403)
   const db = businessDb(c.env, businessId)
   if (!await sportsEnabled(db)) return c.json({ error: 'Sports is off. Turn it on on the Sports page first.' }, 409)
