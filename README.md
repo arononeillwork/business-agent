@@ -163,6 +163,12 @@ built-in **AI connector** so owners can run it by talking to Claude.
   Starter goes a step faster, Pro two, and Business picks the fastest or types its own number of minutes, each within
   what the service allows. The Worker keeps to the plan in force, so a business back on Free goes back to the usual
   times by itself (`settings.refresh_minutes`, the `refresh_rates` migration, `shared/refresh.ts`, `worker/refresh.ts`).
+- The minute job's turns (`worker/schedule.ts`): each run may make only 50 outside requests (Cloudflare's limit for
+  a Worker's run, the database's included), and past that every request fails quietly. So the work that reads outside
+  services (Google Maps hours, Instagram mentions, Square customers and menu, reviews, the cameras' clean-up, the music
+  starter pack) has a minute of its own, no two of a business's in the same minute at their usual times, and each
+  business goes a minute or more after the one before. When the hourly ones all sat on the quarter hours with the
+  Google hours sync, they ran out of requests and never ran.
 - People (Team section): the team as a hierarchy, the owners at the top, then the shop managers, then the
   employees, each with the roles they hold on Roles & responsibilities (admins open someone on the Team
   page from there). **Show pets** puts everyone's dogs (and cats) under them with their photos. Each person
