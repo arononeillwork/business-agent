@@ -173,7 +173,7 @@ export function buildPnl(input: PnlInput): Pnl {
     gross[i] += d.gross - (d.refunds ?? 0)
     takings[i] += (d.gross - (d.refunds ?? 0)) / vat
   }
-  line('takings', msg('Takings, without IVA'), 'income', takings, msg('From the till, less refunds'))
+  line('takings', msg('Takings, without VAT'), 'income', takings, msg('From the till, less refunds'))
   let income = takings
   const oneOff = (kind: 'income' | 'cost', where: (l: PnlInput['lines'][number]) => boolean) => {
     const by = new Map<string, number[]>()

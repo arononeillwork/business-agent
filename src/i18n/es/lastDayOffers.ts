@@ -70,7 +70,7 @@ export default {
   'It keeps': 'Se conserva',
   '1 day: the day it comes in': '1 día: el día que llega',
   'What’s in now: use by': 'Lo que hay ahora: consumir antes de',
-  'Usual price, with IVA': 'Precio de siempre, con IVA',
+  'Usual price, with VAT': 'Precio de siempre, con IVA',
   'Each delivery sets the use-by. On its last day, a last-day rule (Offers & specials) can put it on offer until closing, its usual price crossed out.':
     'Cada entrega fija la fecha de consumo. En su último día, una regla de último día (Ofertas y especiales) puede ponerlo en oferta hasta el cierre, con el precio de siempre tachado.',
 } satisfies Record<string, string>

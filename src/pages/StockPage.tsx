@@ -95,7 +95,7 @@ export function StockPage() {
     title: lowOnly ? t('Current stock: low only') : t('Current stock'),
     filename: `current-stock-${today()}`,
     columns: [t('Item'), t('Category'), t('Supplier'), t('Reference'), t('On hand'), t('Unit'), t('Reorder at'), t('Par level'), t('Cost per unit'),
-      t('IVA %'), t('Stock value'), t('Shop price'), t('Location'), t('Link')],
+      t('VAT %'), t('Stock value'), t('Shop price'), t('Location'), t('Link')],
     rows: rows.map(i => [i.name, i.category ? t(i.category) : '', supplierOf(i)?.name ?? '', i.supplier_sku ?? '', i.on_hand, t(unitLabel(i.unit)),
       i.reorder_at, i.par_level, i.cost_per_unit, i.vat_rate, i.cost_per_unit === null ? null : Math.round(Math.max(0, i.on_hand) * i.cost_per_unit * 100) / 100,
       i.sell_price, i.location ? t(i.location) : '', i.product_url ?? '']),
@@ -118,7 +118,7 @@ export function StockPage() {
       <StatGrid>
         <StatTile label={t('Items')} value={items.data ? all.length : '–'} note={tn(all.filter(i => i.retail).length, '{n} sold in the shop', '{n} sold in the shop')} />
         <StatTile label={t('Low on stock')} value={items.data ? low.length : '–'} note={low.length ? low.slice(0, 2).map(i => i.name).join(', ') : t('Nothing to order')} />
-        <StatTile label={t('Stock value')} value={items.data ? formatMoney(stockValue(all)) : '–'} note={t('at cost, without IVA')} />
+        <StatTile label={t('Stock value')} value={items.data ? formatMoney(stockValue(all)) : '–'} note={t('at cost, without VAT')} />
         <StatTile label={t('To order this week')} value={items.data ? formatMoney(thisWeek.reduce((s, o) => s + o.net, 0)) : '–'}
           note={tn(thisWeek.length, '{n} supplier', '{n} suppliers')} />
       </StatGrid>
@@ -373,7 +373,7 @@ function OrderList({ orders }: { orders: SupplierOrder[] }) {
   const table = (): ExportTable => ({
     title: t('Order list'),
     filename: `order-list-${today()}`,
-    columns: [t('Supplier'), t('Item'), t('Reference'), t('Quantity'), t('Unit'), t('Cost per unit'), t('Without IVA'), t('With IVA')],
+    columns: [t('Supplier'), t('Item'), t('Reference'), t('Quantity'), t('Unit'), t('Cost per unit'), t('Without VAT'), t('With VAT')],
     rows: orders.flatMap(o => o.lines.map(l => [o.supplier?.name ?? t('No supplier'), l.item.name, l.item.supplier_sku ?? '', l.qty, t(unitLabel(l.item.unit)),
       l.item.cost_per_unit, l.net, l.gross])),
     footer: [t('Total'), '', '', '', '', '', Math.round(orders.reduce((s, o) => s + o.net, 0) * 100) / 100, Math.round(orders.reduce((s, o) => s + o.gross, 0) * 100) / 100],
@@ -403,7 +403,7 @@ function OrderList({ orders }: { orders: SupplierOrder[] }) {
               </Box>
               <Box sx={{ textAlign: { sm: 'right' } }}>
                 <Typography sx={{ fontWeight: 500 }}>{formatMoney(o.net)}</Typography>
-                <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('{amount} with IVA', { amount: formatMoney(o.gross) })}</Typography>
+                <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('{amount} with VAT', { amount: formatMoney(o.gross) })}</Typography>
               </Box>
             </Stack>
             {o.short !== null && <Alert severity="warning" sx={{ mb: 1 }}>{t('{amount} under their minimum order of {minimum}', { amount: formatMoney(o.short), minimum: formatMoney(s!.minimum_order!) })}</Alert>}
@@ -562,9 +562,9 @@ export function ItemDialog({ item, suppliers, categories, locations, readOnly, o
             <DecimalField fullWidth label={t('Order in multiples of')} value={d.order_multiple} blank={1} disabled={readOnly} onNumber={n => set({ order_multiple: n ?? 1 })} />
           </Stack>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-            <DecimalField fullWidth label={t('Cost per unit, without IVA')} value={d.cost_per_unit} disabled={readOnly} onNumber={n => set({ cost_per_unit: n })}
+            <DecimalField fullWidth label={t('Cost per unit, without VAT')} value={d.cost_per_unit} disabled={readOnly} onNumber={n => set({ cost_per_unit: n })}
               slotProps={{ input: { startAdornment: <InputAdornment position="start">{'€'}</InputAdornment> } }} />
-            <TextField select fullWidth label={t('IVA')} value={d.vat_rate ?? countryProfile().defaultVat} disabled={readOnly} onChange={e => set({ vat_rate: Number(e.target.value) })}>
+            <TextField select fullWidth label={t('VAT')} value={d.vat_rate ?? countryProfile().defaultVat} disabled={readOnly} onChange={e => set({ vat_rate: Number(e.target.value) })}>
               {vatChoices(d.vat_rate).map(r => <MenuItem key={r} value={r}>{`${r}%`}</MenuItem>)}
             </TextField>
           </Stack>
@@ -579,7 +579,7 @@ export function ItemDialog({ item, suppliers, categories, locations, readOnly, o
             <FormControlLabel label={t('Sold in the shop')} disabled={readOnly} control={<Checkbox checked={!!d.retail} onChange={e => set({ retail: e.target.checked })} />} />
             {d.retail && (
               <Stack direction="row" spacing={2} sx={{ alignItems: 'center', mt: 1, mb: 0.5 }}>
-                <DecimalField size="small" label={t('Shop price, with IVA')} value={d.sell_price} disabled={readOnly} onNumber={n => set({ sell_price: n })}
+                <DecimalField size="small" label={t('Shop price, with VAT')} value={d.sell_price} disabled={readOnly} onNumber={n => set({ sell_price: n })}
                   slotProps={{ input: { startAdornment: <InputAdornment position="start">{'€'}</InputAdornment> } }} />
                 {margin !== null && <Typography variant="body2" sx={{ color: margin < 50 ? tokens.badFg : 'text.secondary' }}>{t('Margin {pct}%', { pct: formatNumber(margin) })}</Typography>}
               </Stack>
@@ -598,7 +598,7 @@ export function ItemDialog({ item, suppliers, categories, locations, readOnly, o
                 onChange={e => set({ use_by: e.target.value || null })} slotProps={{ inputLabel: { shrink: true } }} />
             </Stack>
             {!d.retail && (d.sell_within_days || d.use_by) && (
-              <DecimalField size="small" label={t('Usual price, with IVA')} value={d.sell_price} disabled={readOnly} onNumber={n => set({ sell_price: n })}
+              <DecimalField size="small" label={t('Usual price, with VAT')} value={d.sell_price} disabled={readOnly} onNumber={n => set({ sell_price: n })}
                 sx={{ mt: 2 }} slotProps={{ input: { startAdornment: <InputAdornment position="start">{'€'}</InputAdornment> } }} />
             )}
             <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 1 }}>
@@ -632,7 +632,7 @@ export function ItemDialog({ item, suppliers, categories, locations, readOnly, o
 
 const FIELD_LABELS: Record<string, string> = {
   name: msg('Name'), category: msg('Category'), supplier: msg('Supplier'), sku: msg('Reference'), url: msg('Link'), unit: msg('Unit'), pack: msg('How it comes'),
-  multiple: msg('Order in multiples of'), cost: msg('Cost per unit'), vat: msg('IVA'), price: msg('Shop price'), on_hand: msg('On hand'), par: msg('Par level'),
+  multiple: msg('Order in multiples of'), cost: msg('Cost per unit'), vat: msg('VAT'), price: msg('Shop price'), on_hand: msg('On hand'), par: msg('Par level'),
   reorder: msg('Reorder at'), location: msg('Location'), notes: msg('Notes'),
 }
 
@@ -673,7 +673,7 @@ export function ImportDialog({ suppliers, items, onClose }: { suppliers: Supplie
       <DialogContent>
         <Stack spacing={2} sx={{ pt: 1 }}>
           <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-            {t('Save your stock sheet or a supplier’s price list as CSV. The first line names the columns, e.g. Item, Supplier, Reference, Unit, Cost, IVA, Stock, Reorder at, Par (in English or Spanish).')}
+            {t('Save your stock sheet or a supplier’s price list as CSV. The first line names the columns, e.g. Item, Supplier, Reference, Unit, Cost, VAT, Stock, Reorder at, Par (in English or Spanish).')}
           </Typography>
           <Box>
             <input ref={input} type="file" hidden accept=".csv,text/csv" aria-label={t('CSV file')} onChange={e => { void pick(e.target.files?.[0]); e.target.value = '' }} />

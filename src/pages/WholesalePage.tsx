@@ -85,7 +85,7 @@ export function WholesalePage() {
     title: t('Wholesale'),
     filename: `wholesale-${today()}`,
     columns: [t('Supplier'), t('Item'), t('Category'), t('Reference'), t('How it comes'), t('Unit'), t('Order in multiples of'), t('Cost per unit'),
-      t('IVA %'), t('Cost with IVA'), t('Last price change %'), t('Changed on'), t('Shop price'), t('Margin %'), t('Link')],
+      t('VAT %'), t('Cost with VAT'), t('Last price change %'), t('Changed on'), t('Shop price'), t('Margin %'), t('Link')],
     rows: groups.flatMap(g => g.items.map(i => {
       const c = changeOf(i)
       return [g.supplier?.name ?? '', i.name, i.category ? t(i.category) : '', i.supplier_sku ?? '', i.pack_size ?? '', t(unitLabel(i.unit)), i.order_multiple,
@@ -206,7 +206,7 @@ function SupplierItems({ supplier: s, items, changeOf, isAdmin, onOpen, onHistor
             <TableRow>
               <TableCell>{t('Item')}</TableCell>
               <TableCell align="right">{t('Cost')}</TableCell>
-              <TableCell align="right" sx={hide('sm')}>{t('With IVA')}</TableCell>
+              <TableCell align="right" sx={hide('sm')}>{t('With VAT')}</TableCell>
               <TableCell sx={hide('md')}>{t('Last price change')}</TableCell>
               <TableCell align="right" sx={hide('lg')}>{t('Shop price')}</TableCell>
             </TableRow>

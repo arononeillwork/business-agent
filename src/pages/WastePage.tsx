@@ -68,7 +68,7 @@ export function WastePage() {
       </Stack>
       <StatGrid>
         <StatTile label={t('Times logged')} value={moves.data ? waste.length : '–'} note={label} />
-        {showCost && <StatTile label={t('Cost of waste')} value={moves.data ? formatMoney(summary.cost) : '–'} note={t('at cost, without IVA')} />}
+        {showCost && <StatTile label={t('Cost of waste')} value={moves.data ? formatMoney(summary.cost) : '–'} note={t('at cost, without VAT')} />}
         {showCost && <StatTile label={t('Of what was delivered')} value={summary.ofPurchases === null ? '—' : `${formatNumber(summary.ofPurchases)}%`}
           note={summary.ofPurchases === null ? t('No deliveries recorded') : t('waste ÷ deliveries, at cost')} />}
         <StatTile label={t('Wasted most')} value={summary.top[0]?.name ?? '—'}

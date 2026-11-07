@@ -5,7 +5,7 @@ export default {
   // The page
   'Outsourcing': 'Servicios externos',
   'Outsourcing is only visible to admins.': 'Los servicios externos solo los ven los administradores.',
-  'The jobs done for {business} by people and firms outside the team, and who to choose from for each. Prices are without IVA.':
+  'The jobs done for {business} by people and firms outside the team, and who to choose from for each. Prices are without VAT.':
     'Los servicios que hacen para {business} personas y empresas de fuera del equipo, y entre quién elegir para cada uno. Los precios son sin IVA.',
   'Add to the catalogue': 'Añadir al catálogo',
   'Outsource a job': 'Externalizar un servicio',
@@ -110,7 +110,7 @@ export default {
   'They answer on WhatsApp': 'Responden por WhatsApp',
   'Their work: Instagram or portfolio': 'Sus trabajos: Instagram o portfolio',
   'e.g. Marbella, or Remote': 'p. ej. Marbella, o En remoto',
-  'Usual rate without IVA': 'Tarifa habitual sin IVA',
+  'Usual rate without VAT': 'Tarifa habitual sin IVA',
   'Your rating': 'Tu valoración',
   'e.g. a quote, who recommended them, how it went': 'p. ej. un presupuesto, quién te lo recomendó, cómo fue',
   'Delete {name} from the catalogue?': '¿Eliminar a {name} del catálogo?',

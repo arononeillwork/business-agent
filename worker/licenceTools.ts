@@ -7,7 +7,7 @@
 import { z } from 'zod'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ToolDef } from './tools'
-import { CAFE_PRESETS, LICENCE_CATEGORIES, daysUntil, renewedUntil, statusOf, yearlyCost, type Licence, type LicenceCategory } from '../shared/licences'
+import { ALL_PRESETS, licencePresets, LICENCE_CATEGORIES, daysUntil, renewedUntil, statusOf, yearlyCost, type Licence, type LicenceCategory } from '../shared/licences'
 import { expiryOf, filterDocuments, linkedTo, type KeptDocument } from '../shared/documents'
 import { today } from '../shared/time'
 
@@ -20,7 +20,7 @@ function check<T>(res: { data: T; error: { message: string } | null }): NonNulla
 
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD')
 const CATEGORY_IDS = LICENCE_CATEGORIES.map(c => c.id) as [LicenceCategory, ...LicenceCategory[]]
-const PRESET_KEYS = CAFE_PRESETS.map(p => p.key) as [string, ...string[]]
+const PRESET_KEYS = ALL_PRESETS.map(p => p.key) as [string, ...string[]]
 const STATUS_TEXT = { expired: 'ran out', due: 'renew soon', valid: 'up to date', permanent: 'doesn’t run out' } as const
 
 type DocRow = Pick<KeptDocument, 'id' | 'name' | 'link'>
@@ -73,11 +73,13 @@ export const LICENCE_TOOLS: ToolDef[] = [
       const order = { expired: 0, due: 1, valid: 2, permanent: 3 }
       shown.sort((x, y) => order[statusOf(x, now)] - order[statusOf(y, now)] || (x.expires_on ?? '9').localeCompare(y.expires_on ?? '9'))
       const have = rows.map(l => l.name.toLowerCase())
+      const { data: where } = await sb.from('business').select('country').maybeSingle()
+      const usual = licencePresets((where as { country?: string } | null)?.country === 'IE' ? 'IE' : 'ES')
       return {
         today: now,
         licences: shown.map(l => describe(l, now)),
         cost_eur_a_year: Math.round(yearlyCost(rows.map(l => ({ ...l, cost: cost(l.cost) }))) * 100) / 100,
-        usual_ones_not_on_file: CAFE_PRESETS.filter(p => !have.some(n => n.includes(p.name.toLowerCase().split(' (')[0].split(' /')[0])))
+        usual_ones_not_on_file: usual.filter(p => !have.some(n => n.includes(p.name.toLowerCase().split(' (')[0].split(' /')[0])))
           .map(p => ({ preset: p.key, name: p.name, issuer: p.issuer || null, renews_every_months: p.renew_every_months, what: p.what })),
       }
     },
@@ -111,7 +113,7 @@ export const LICENCE_TOOLS: ToolDef[] = [
       const now = today()
       const rows = check(await sb.from('licences').select('*').order('name')) as Licence[]
       const current = a.licence ? resolveLicence(rows, a.licence) : null
-      const preset = a.preset ? CAFE_PRESETS.find(p => p.key === a.preset)! : null
+      const preset = a.preset ? ALL_PRESETS.find(p => p.key === a.preset)! : null
       const row: Record<string, unknown> = {}
       if (preset && !current) {
         Object.assign(row, { name: preset.name, category: preset.category, issuer: preset.issuer || null, renew_every_months: preset.renew_every_months,

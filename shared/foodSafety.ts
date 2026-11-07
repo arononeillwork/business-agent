@@ -2,7 +2,9 @@
 // cleaning and checks done, each by whom and when, with what was done when something was out of
 // range. Inspectors ask for these records; nothing is changed or deleted once written.
 // Limits from Spain's rules for prepared food (Real Decreto 3484/2000): chilled at 4 °C or below
-// (8 °C when eaten within 24 hours), frozen at −18 °C or below, kept hot at 65 °C or above.
+// (8 °C when eaten within 24 hours), frozen at −18 °C or below, kept hot at 65 °C or above. In Ireland,
+// the FSAI's guidance (HACCP): chilled at 5 °C or below, frozen at −18 °C, hot at 63 °C or above, and
+// food reheated to 70 °C (cafePoints, by the business's country).
 import { msg } from './i18n'
 import { addDays, weekStart } from './time'
 
@@ -113,3 +115,15 @@ export const CAFE_POINTS: PointPreset[] = [
   { key: 'pests', name: msg('Pest check (traps and signs)'), kind: 'task', min_temp: null, max_temp: null, frequency: 'monthly', area: msg('Storeroom'),
     instructions: msg('Look at the traps and for droppings or gnawing; anything found goes to the pest control company.') },
 ]
+
+/** Ireland's temperatures for the same points (FSAI): chilled at 5 °C or below, hot at 63 °C or above. */
+const IRISH_LIMITS: Partial<Record<string, Pick<PointPreset, 'min_temp' | 'max_temp' | 'instructions'>>> = {
+  fridge: { min_temp: 0, max_temp: 5, instructions: msg('Above 5 °C: move the food to another fridge, check the door seal, and ask the person in charge what can be kept.') },
+  milk: { min_temp: 0, max_temp: 5, instructions: msg('Above 5 °C: move the milk to the kitchen fridge and check the door is closing.') },
+  display: { min_temp: 0, max_temp: 5, instructions: msg('Cakes in the display are sold the same day. Above 5 °C: move them to the fridge.') },
+  hot: { min_temp: 63, max_temp: null, instructions: msg('Below 63 °C: reheat it to 70 °C or above once, or throw it away.') },
+}
+
+/** The usual points for a café in the business's country. */
+export const cafePoints = (country: 'ES' | 'IE' = 'ES'): PointPreset[] =>
+  country === 'IE' ? CAFE_POINTS.map(p => ({ ...p, ...(IRISH_LIMITS[p.key] ?? {}) })) : CAFE_POINTS

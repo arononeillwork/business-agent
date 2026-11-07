@@ -277,7 +277,7 @@ export default {
   'Late starts': 'Llegadas tarde',
   'Clocked in over 5 minutes after the shift started': 'Fichó más de 5 minutos después de empezar el turno',
   'At or below the reorder level': 'En el nivel de pedido o por debajo',
-  'At cost, without IVA': 'A coste, sin IVA',
+  'At cost, without VAT': 'A coste, sin IVA',
   'What was thrown away': 'Lo que se ha tirado',
   'Lowest margins': 'Los márgenes más bajos',
   'Menu items that make the least': 'Los productos de la carta que menos dejan',

@@ -84,7 +84,7 @@ export function InvoicesPage() {
   const table = (): ExportTable => ({
     title: direction === 'in' ? t('Invoices received') : t('Invoices sent'),
     filename: `invoices-${direction === 'in' ? 'received' : 'sent'}-${now}`,
-    columns: [t('Date'), direction === 'in' ? t('Supplier') : t('Customer'), t('Number'), t('Category'), t('Net'), t('IVA'), t('Total'), t('Due'), t('Status'), t('Paid on'), t('Notes'), t('File')],
+    columns: [t('Date'), direction === 'in' ? t('Supplier') : t('Customer'), t('Number'), t('Category'), t('Net'), t('VAT'), t('Total'), t('Due'), t('Status'), t('Paid on'), t('Notes'), t('File')],
     rows: shown.map(i => [i.issued_on ?? '', nameOf(i), i.number ?? '', i.category ? t(i.category) : '', i.net, i.vat, i.total, i.due_on ?? '', statusLabel(i.status), i.paid_on ?? '', i.notes ?? '', i.document?.link ?? '']),
     footer: [t('Total'), '', '', '', null, null, sum(shown), '', '', '', '', ''],
     money: [4, 5, 6],
@@ -371,9 +371,9 @@ function InvoiceDialog({ invoice, suppliers, onClose }: { invoice: InvoiceInput;
           </Stack>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField label={t('Net')} type="number" value={i.net ?? ''} onChange={e => set({ net: num(e.target.value) })} sx={{ flex: 1 }} />
-            <TextField label={t('IVA')} type="number" value={i.vat ?? ''} onChange={e => set({ vat: num(e.target.value) })} sx={{ flex: 1 }} />
+            <TextField label={t('VAT')} type="number" value={i.vat ?? ''} onChange={e => set({ vat: num(e.target.value) })} sx={{ flex: 1 }} />
             <TextField label={t('Total')} type="number" value={i.total ?? ''} onChange={e => set({ total: num(e.target.value) })} sx={{ flex: 1 }}
-              helperText={i.total == null && i.net != null ? t('Net plus IVA when left empty') : undefined} />
+              helperText={i.total == null && i.net != null ? t('Net plus VAT when left empty') : undefined} />
           </Stack>
           <TextField select label={t('Status')} value={i.status ?? 'to_check'} onChange={e => set({ status: e.target.value as InvoiceStatus })}>
             {INVOICE_STATUSES.filter(s => s.for.includes(i.direction ?? 'in')).map(s => <MenuItem key={s.id} value={s.id}>{t(s.label)}</MenuItem>)}

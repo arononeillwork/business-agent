@@ -45,7 +45,7 @@ export default {
   'Kept each time its cost changes, here or from a price list.': 'Se guarda cada vez que cambia su coste, aquí o desde una lista de precios.',
 
   // Export
-  'Cost with IVA': 'Coste con IVA',
+  'Cost with VAT': 'Coste con IVA',
   'Last price change %': '% último cambio de precio',
   'Changed on': 'Cambiado el',
 

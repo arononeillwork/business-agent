@@ -141,7 +141,7 @@ export function OutsourcingPage() {
         </Button>}
       </>} />
       <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2, maxWidth: 760 }}>
-        {t('The jobs done for {business} by people and firms outside the team, and who to choose from for each. Prices are without IVA.',
+        {t('The jobs done for {business} by people and firms outside the team, and who to choose from for each. Prices are without VAT.',
           { business: business?.name ?? '' })}
       </Typography>
       <ErrorBox error={people.error ?? list.error} />
@@ -150,7 +150,7 @@ export function OutsourcingPage() {
         <StatTile label={t('Jobs outsourced')} value={list.data ? totals.jobs : '–'}
           note={ending.length ? tn(ending.length, '{n} contract to look at', '{n} contracts to look at') : t('No contracts ending soon')} />
         <StatTile label={t('A month')} value={list.data ? formatMoney(totals.monthly) : '–'}
-          note={totals.unknown ? tn(totals.unknown, '{n} job not counted: add its price or hours', '{n} jobs not counted: add their price or hours') : t('Without IVA')} />
+          note={totals.unknown ? tn(totals.unknown, '{n} job not counted: add its price or hours', '{n} jobs not counted: add their price or hours') : t('Without VAT')} />
         <StatTile label={t('A year')} value={list.data ? formatMoney(totals.monthly * 12) : '–'}
           note={totals.oneOff ? t('Plus {amount} in one-off projects', { amount: formatMoney(totals.oneOff) }) : t('At today’s monthly cost')} />
         <StatTile label={t('In the catalogue')} value={people.data ? current.length : '–'}
@@ -516,7 +516,7 @@ function JobDialog({ job, contractors, jobs, onClose }: { job: OutsourcedJobInpu
           <TextField label={t('What’s included')} value={j.scope ?? ''} onChange={e => set({ scope: e.target.value })} multiline minRows={2}
             placeholder={t('e.g. 3 posts and 5 stories a week, replies to messages, a report each month')} slotProps={{ htmlInput: { maxLength: 1000 } }} />
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-            <TextField fullWidth label={t('Price without IVA')} value={price} inputMode="decimal" onChange={e => setPrice(e.target.value)}
+            <TextField fullWidth label={t('Price without VAT')} value={price} inputMode="decimal" onChange={e => setPrice(e.target.value)}
               slotProps={{ input: { startAdornment: <InputAdornment position="start">{'€'}</InputAdornment> } }} />
             <TextField select fullWidth label={t('How it’s charged')} value={j.price_unit ?? 'month'} onChange={e => set({ price_unit: e.target.value as RateUnit })}>
               {RATE_UNITS.map(u => <MenuItem key={u.id} value={u.id}>{t(u.label)}</MenuItem>)}
@@ -616,7 +616,7 @@ function ContractorDialog({ contractor, hasJobs, onClose }: { contractor: Contra
           <TextField label={t('Location')} value={c.location ?? ''} onChange={e => set({ location: e.target.value })} placeholder={t('e.g. Marbella, or Remote')}
             slotProps={{ htmlInput: { maxLength: 120 } }} />
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-            <TextField fullWidth label={t('Usual rate without IVA')} value={rate} inputMode="decimal" onChange={e => setRate(e.target.value)}
+            <TextField fullWidth label={t('Usual rate without VAT')} value={rate} inputMode="decimal" onChange={e => setRate(e.target.value)}
               slotProps={{ input: { startAdornment: <InputAdornment position="start">{'€'}</InputAdornment> } }} />
             <TextField select fullWidth label={t('How it’s charged')} value={c.rate_unit ?? 'month'} onChange={e => set({ rate_unit: e.target.value as RateUnit })}>
               {RATE_UNITS.map(u => <MenuItem key={u.id} value={u.id}>{t(u.label)}</MenuItem>)}
