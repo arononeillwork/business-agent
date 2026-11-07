@@ -2,6 +2,7 @@
 // documents kept for them in the café's own Google Drive or OneDrive ("The Business Agent/Tax/…").
 // The app doesn't file anything (AEAT has no filing API for this; the gestoría or the owner files
 // with a digital certificate): it shows what's coming, records what was filed, and keeps the papers.
+// A business in Ireland gets Revenue's returns instead (taxIreland.ts), with the same records and papers.
 import { msg } from './i18n'
 
 export type Quarter = 1 | 2 | 3 | 4
@@ -18,10 +19,14 @@ export interface TaxSettings {
   instalments: boolean
   /** The gestoría or accountant, to send them the quarter's documents. */
   gestor_email: string | null
+  /** Ireland: a sole trader (income tax on Form 11) rather than a company (Corporation Tax on the CT1). Spain doesn't use it. */
+  sole_trader: boolean
 }
-export const DEFAULT_TAX_SETTINGS: TaxSettings = { withholding: true, rent: true, intra_eu: false, instalments: false, gestor_email: null }
+export const DEFAULT_TAX_SETTINGS: TaxSettings = { withholding: true, rent: true, intra_eu: false, instalments: false, gestor_email: null, sole_trader: false }
 
+/** Quarters (1T…), the year (0A) and instalments (1P…); Ireland's two-month VAT periods (1B = January and February…) and months (1M…). */
 export type FilingPeriod = '1T' | '2T' | '3T' | '4T' | '0A' | '1P' | '2P' | '3P'
+  | `${1 | 2 | 3 | 4 | 5 | 6}B` | `${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12}M`
 export type FilingStatus = 'to_do' | 'with_gestor' | 'filed' | 'not_needed'
 export const FILING_STATUSES: { id: FilingStatus; label: string }[] = [
   { id: 'to_do', label: msg('To do') },
@@ -37,9 +42,11 @@ export interface Filing {
   period: FilingPeriod
   name: string
   what: string
-  /** First and last day to file (YYYY-MM-DD). A last day on a weekend moves to the Monday. */
+  /** First and last day to file (YYYY-MM-DD). In Spain a last day on a weekend moves to the Monday; Ireland's stay as Revenue sets them. */
   opens: string
   due: string
+  /** Where the dates come from (Ireland's returns: Revenue's page for each). */
+  source?: string
 }
 
 /** What's been done about a return (tax_filings). */

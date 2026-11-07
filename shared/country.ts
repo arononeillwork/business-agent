@@ -47,8 +47,11 @@ export const COUNTRIES: Record<Country, CountryProfile> = {
   },
 }
 
-/** Pages a new business there starts with hidden: Spain's own Grants and Tax pages, in Ireland. Keep in step with seed_new_business() (the country migration). */
-export const COUNTRY_HIDDEN_PAGES: Record<Country, string[]> = { ES: [], IE: ['grants', 'tax'] }
+/**
+ * Pages a new business there starts with hidden: none, now that Grants and Tax have Ireland's own (Revenue's
+ * returns, the LEO's and SEAI's grants). Keep in step with seed_new_business() (the Irish tax and grants migration).
+ */
+export const COUNTRY_HIDDEN_PAGES: Record<Country, string[]> = { ES: [], IE: [] }
 
 export const isCountry = (c: unknown): c is Country => c === 'ES' || c === 'IE'
 /** The country of a time zone: Dublin's is Ireland, the rest Spain (the two the app knows). */

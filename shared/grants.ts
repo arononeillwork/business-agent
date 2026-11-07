@@ -3,17 +3,27 @@
 // conditions come out as pass, fail or unknown, and evaluate() turns them into one status. The
 // official call always decides; this says what can be checked from the answers, and nothing more.
 // Dates are ISO strings ('2026-10-20'), compared as text, and `today` is always passed in.
+// A business in Ireland gets Ireland's grants instead (grantCatalogueIreland.ts, grantsIreland.ts):
+// the same cards and statuses, its own questions and rules.
 import { msg } from './i18n'
 import { checkTaxId } from './taxId'
 import type { Business } from './types'
-import { GRANTS } from './grantCatalogue'
+import type { Country } from './country'
+import { GRANTS, DOCUMENTS as SPAIN_DOCUMENTS } from './grantCatalogue'
+import { IE_DOCUMENTS, IE_GRANTS } from './grantCatalogueIreland'
+import { IE_BUSINESS_QUESTIONS, IE_QUESTIONS, IE_RULES, irishKnownAnswers } from './grantsIreland'
 
-export { GRANTS, DOCUMENTS } from './grantCatalogue'
+export { GRANTS, IE_GRANTS }
+/** What each grant document is and how to get it: Spain's and Ireland's (Ireland's ids start ie_). */
+export const DOCUMENTS: Record<string, GrantDocument> = { ...SPAIN_DOCUMENTS, ...IE_DOCUMENTS }
+/** The grants for a business in this country. */
+export const grantsFor = (country: Country = 'ES'): Grant[] => (country === 'IE' ? IE_GRANTS : GRANTS)
 
 export type Answer = 'yes' | 'no' | 'unsure'
 
 /** What the rules need to know. Unknown answers stay 'unsure' (or null): the grant shows "Confirm first". */
 export interface GrantProfile {
+  /** Self-employed (in Ireland, a sole trader), a limited company (an SL, or an Irish LTD), or another kind. */
   entity: 'autonomo' | 'sl' | 'other' | null
   sector: 'hospitality' | 'retail' | 'services' | 'industry' | 'other' | null
   province: 'malaga' | 'andalucia' | 'outside' | null
@@ -40,15 +50,34 @@ export interface GrantProfile {
   candidate: 'youth' | '45plus' | 'other' | 'unsure'
   replaceEquip: Answer
   rta: Answer
+  // Ireland's (grantsIreland.ts). `debts` there is tax owed to Revenue, which blocks tax clearance.
+  /** Sells beyond the local area: products made for shops or online, or services to customers elsewhere. */
+  ieTrades: Answer
+  /** Exports, or plans to (Enterprise Ireland). */
+  ieExports: Answer
+  /** Last year's turnover, excluding VAT. */
+  ieTurnover: 'under30k' | 'to2m' | 'over2m' | 'unsure'
+  /** Had the LEO's Digital for Business review in the last two years (the Grow Digital Voucher follows it). */
+  ieDigitalReport: Answer
+  /** Had a Green for Business report, a GreenStart report or an SEAI energy audit (the Energy Efficiency Grant follows one). */
+  ieGreenReport: Answer
+  /** Premises that pay commercial rates. */
+  ieRates: Answer
+  /** Spends €10,000 or more a year on energy (SEAI's energy audit voucher). */
+  ieEnergySpend: Answer
+  /** Solar panels could go on the building. */
+  ieSolar: Answer
 }
 
 export const BLANK_PROFILE: GrantProfile = {
   entity: null, sector: null, province: null, town: 'unsure', startY: null, startM: null, employees: null, debts: 'unsure',
   alta: 'unsure', altaY: null, altaM: null, tarifaPlana: 'unsure', empadronado: 'unsure', age: null, gender: 'na',
   education: 'unsure', turnover: 'unsure', hiring: 'unsure', candidate: 'unsure', replaceEquip: 'unsure', rta: 'unsure',
+  ieTrades: 'unsure', ieExports: 'unsure', ieTurnover: 'unsure', ieDigitalReport: 'unsure', ieGreenReport: 'unsure', ieRates: 'unsure',
+  ieEnergySpend: 'unsure', ieSolar: 'unsure',
 }
 
-export type GrantCategory = 'energy' | 'autonomo' | 'hiring' | 'modernisation' | 'digital' | 'startup' | 'training' | 'innovation'
+export type GrantCategory = 'energy' | 'autonomo' | 'hiring' | 'modernisation' | 'digital' | 'startup' | 'training' | 'innovation' | 'growth'
 
 export interface GrantDocument { name: string; how: string | null; stage: 'apply' | 'after'; url?: string }
 
@@ -57,7 +86,7 @@ export interface Grant {
   /** Which rule checks it (RULES below). */
   rule: string
   category: GrantCategory
-  level: 'national' | 'regional' | 'provincial' | 'chamber'
+  level: 'national' | 'regional' | 'provincial' | 'chamber' | 'local'
   name: string
   /** Who gives it. */
   body: string
@@ -128,7 +157,7 @@ const debtCond = (p: GrantProfile) => C(msg('Up to date with Hacienda and Social
   p.debts === 'yes' ? msg('Debts block almost every grant. Clearing them (or a payment plan) can fix this.') : null)
 const NEED_DATE = msg('Add the registration date to check.')
 
-type Rule = (p: GrantProfile, g: Grant, today: string) => RuleResult
+export type Rule = (p: GrantProfile, g: Grant, today: string) => RuleResult
 
 export const RULES: Record<string, Rule> = {
   equipos_hosteleria: p => ({ conds: [
@@ -267,7 +296,7 @@ export interface Evaluation { grant: Grant; result: RuleResult; status: GrantSta
 
 /** One grant against the answers, on `today`. */
 export function evaluate(grant: Grant, p: GrantProfile, today: string): Evaluation {
-  const result = (RULES[grant.rule] ?? (() => ({ conds: [] })))(p, grant, today)
+  const result = (RULES[grant.rule] ?? IE_RULES[grant.rule] ?? (() => ({ conds: [] })))(p, grant, today)
   let status: GrantStatus
   if (result.active) status = 'active'
   else if (result.conds.some(c => c.state === 'fail')) status = 'no'
@@ -281,8 +310,8 @@ export function evaluate(grant: Grant, p: GrantProfile, today: string): Evaluati
 // Results in this order: what can be applied for now first, then to confirm, the next calls,
 // what's already theirs, and last what doesn't fit.
 const ORDER: GrantStatus[] = ['yes', 'check', 'next', 'active', 'no']
-export const evaluateAll = (p: GrantProfile, today: string) =>
-  GRANTS.map(g => evaluate(g, p, today)).sort((a, b) => ORDER.indexOf(a.status) - ORDER.indexOf(b.status))
+export const evaluateAll = (p: GrantProfile, today: string, country: Country = 'ES') =>
+  grantsFor(country).map(g => evaluate(g, p, today)).sort((a, b) => ORDER.indexOf(a.status) - ORDER.indexOf(b.status))
 
 /** When to apply, for the card: a date (and how many days are left), or why there's none. */
 export type Deadline = { kind: 'date'; date: string; days: number } | { kind: 'not_open' | 'later' | 'closed' | 'all_year' | 'until_funds' }
@@ -296,14 +325,15 @@ export function deadlineOf({ grant, result, status }: Evaluation, today: string)
 export const daysBetween = (from: string, to: string) => Math.round((Date.parse(`${to}T12:00:00Z`) - Date.parse(`${from}T12:00:00Z`)) / 86_400_000)
 
 /** The quick filters on the results (Solicita's), and which filter each category falls under. */
-export type GrantFilter = 'all' | 'staff' | 'equipment' | 'digital' | 'startup' | 'premises'
+export type GrantFilter = 'all' | 'staff' | 'equipment' | 'digital' | 'startup' | 'premises' | 'growth'
 export const FILTER_OF: Record<GrantCategory, Exclude<GrantFilter, 'all'>> = {
   hiring: 'staff', training: 'staff', energy: 'equipment', digital: 'digital', innovation: 'digital',
-  autonomo: 'startup', startup: 'startup', modernisation: 'premises',
+  autonomo: 'startup', startup: 'startup', modernisation: 'premises', growth: 'growth',
 }
 export const FILTERS: { key: GrantFilter; label: string }[] = [
   { key: 'all', label: msg('All') }, { key: 'staff', label: msg('Staff & training') }, { key: 'equipment', label: msg('Equipment & energy') },
   { key: 'digital', label: msg('Digital & innovation') }, { key: 'startup', label: msg('Starting up') }, { key: 'premises', label: msg('Premises & tourism') },
+  { key: 'growth', label: msg('Growth & loans') },
 ]
 
 // ---------------------------------------------------------------------------------------------
@@ -368,12 +398,16 @@ export const QUESTIONS: Question[] = [
 ]
 
 /** Does this question still matter: is there a grant it could change that isn't ruled out already? */
-export function questionMatters(q: Question, p: GrantProfile, today: string) {
+export function questionMatters(q: Question, p: GrantProfile, today: string, country: Country = 'ES') {
   if (q.show && !q.show(p)) return false
   if (q.rules === '*') return true
   const probe = { ...p, [q.key]: q.unknown }
-  return GRANTS.filter(g => (q.rules as string[]).includes(g.rule)).some(g => evaluate(g, probe, today).status !== 'no')
+  return grantsFor(country).filter(g => (q.rules as string[]).includes(g.rule)).some(g => evaluate(g, probe, today).status !== 'no')
 }
+
+/** The questions for a business in this country: about the business, then the ones asked while they matter. */
+export const questionsFor = (country: Country = 'ES') =>
+  country === 'IE' ? { business: IE_BUSINESS_QUESTIONS, questions: IE_QUESTIONS } : { business: BUSINESS_QUESTIONS, questions: QUESTIONS }
 
 // ---------------------------------------------------------------------------------------------
 // What the app already knows
@@ -387,7 +421,8 @@ const LARGE_TOWNS = /\b(m[aá]laga capital|marbella|san pedro de alc[aá]ntara|n
  * Answers the app can work out from the business details and the team: the business type from its
  * tax number, where it is from its address, what it does from its description, and the employees.
  */
-export function knownAnswers(business: Pick<Business, 'tax_id' | 'address' | 'business_type'>, employees: number | null): Partial<GrantProfile> {
+export function knownAnswers(business: Pick<Business, 'tax_id' | 'address' | 'business_type'>, employees: number | null, country: Country = 'ES'): Partial<GrantProfile> {
+  if (country === 'IE') return irishKnownAnswers(business, employees)
   const out: Partial<GrantProfile> = {}
   const tax = business.tax_id ? checkTaxId(business.tax_id) : null
   if (tax?.ok) out.entity = tax.kind !== 'CIF' ? 'autonomo' : tax.value.startsWith('B') ? 'sl' : 'other'

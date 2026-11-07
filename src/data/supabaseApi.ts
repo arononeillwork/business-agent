@@ -943,7 +943,7 @@ export function createSupabaseApi(url: string, key: string, captchaKey?: string 
       await worker(`/api/email/messages/${encodeURIComponent(id)}/reply`, { method: 'POST', body: JSON.stringify({ text, all: !!all }) })
     },
     async taxSettings() {
-      return check(await sb.from('tax_settings').select('withholding, rent, intra_eu, instalments, gestor_email').eq('id', 1).single()) as TaxSettings
+      return check(await sb.from('tax_settings').select('withholding, rent, intra_eu, instalments, gestor_email, sole_trader').eq('id', 1).single()) as TaxSettings
     },
     async saveTaxSettings(patch) { check(await sb.from('tax_settings').update(patch).eq('id', 1)) },
     async taxFilings(year) {
