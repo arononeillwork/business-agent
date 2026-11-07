@@ -243,7 +243,7 @@ export function checkSite(home: PageFacts, others: PageFacts[], extra: { robots:
     : item('https', 'fail', msg('The site isn’t served over HTTPS'), msg('Ask your web host to switch on HTTPS (a free certificate) and send http:// to https://.')))
 
   const tl = home.title?.length ?? 0
-  if (!home.title) out.push(item('title', 'fail', msg('The homepage has no title'), msg('Add a <title> of 30 to 60 characters: the business, what it is and where, e.g. “Easy Beans Coffee · Specialty café in San Pedro”.')))
+  if (!home.title) out.push(item('title', 'fail', msg('The homepage has no title'), msg('Add a <title> of 30 to 60 characters: the business, what it is and where, e.g. “Sol Café · Specialty coffee and brunch in Seville”.')))
   else if (tl < 30 || tl > 60) out.push(item('title', 'warn', msg('The title is {n} characters long'), msg('Aim for 30 to 60 characters, so Google shows it whole and it says what and where.'), { n: tl, text: home.title }))
   else out.push(item('title', 'pass', msg('The title is a good length ({n} characters)'), undefined, { n: tl, text: home.title }))
 

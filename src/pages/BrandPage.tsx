@@ -95,7 +95,7 @@ export function BrandPage() {
                 <CardContent>
                   <SectionTitle>{t('Fonts')}</SectionTitle>
                   <Stack spacing={1.5}>
-                    {([['heading_font', t('Headings'), business?.name ?? 'Easy Beans Coffee', 600, '2rem'], ['body_font', t('Body text'), t('Fresh, local and made with care. Open every day from 8.'), 400, '1.05rem']] as const)
+                    {([['heading_font', t('Headings'), business?.name ?? 'The Business Agent', 600, '2rem'], ['body_font', t('Body text'), t('Fresh, local and made with care. Open every day from 8.'), 400, '1.05rem']] as const)
                       .map(([key, label, sample, weight, size]) => (
                         <Box key={key} sx={{ p: 2, borderRadius: '14px', bgcolor: tokens.surfaceAlt }}>
                           <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
