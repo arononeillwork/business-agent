@@ -9,6 +9,7 @@ name: Deploy
 #   GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET, META_*, APPLE_*, SPOTIFY_*  optional integrations
 #   ANTHROPIC_API_KEY      optional: the in-app assistant (Claude)
 #   FIRECRAWL_API_KEY      optional: the set-up guide reads a business's website with Firecrawl
+#   TURNSTILE_SITE_KEY / TURNSTILE_SECRET_KEY  optional: the check on the sign-up form (docs/sign-in-setup.md)
 # "Log in with Facebook" is on; repo variable FACEBOOK_SIGN_IN=off switches it off (docs/sign-in-setup.md).
 on:
   push:
@@ -98,6 +99,9 @@ jobs:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       # The set-up guide reads a business's website for its brand (worker/brandLookup.ts): with Firecrawl when set, its HTML only without it.
       FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
+      # The check on the sign-up form (worker/signupCheck.ts): Cloudflare Turnstile. Off without both.
+      TURNSTILE_SITE_KEY: ${{ secrets.TURNSTILE_SITE_KEY }}
+      TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
       # Optional repo variables: the model (after Actions → Music check), and "off" to stop the starter pack.
       ELEVENLABS_MUSIC_MODEL: ${{ vars.ELEVENLABS_MUSIC_MODEL }}
       MUSIC_STARTER: ${{ vars.MUSIC_STARTER }}
@@ -132,6 +136,12 @@ jobs:
       - name: Photo storage (R2)
         if: steps.gate.outputs.ready == 'true'
         run: node scripts/ops/r2.mjs
+      # Switches the Worker's send_email binding on once businesssagent.com is onboarded for Cloudflare Email
+      # Sending; the sign-in settings step below then sends sign-in emails through it (docs/business-email.md).
+      - name: Sign-in emails (Cloudflare Email Sending)
+        id: email
+        if: steps.gate.outputs.ready == 'true'
+        run: node scripts/ops/email-sending.mjs
       - name: Build
         if: steps.gate.outputs.ready == 'true'
         run: npm run build
@@ -155,7 +165,7 @@ jobs:
         id: domain
         if: steps.gate.outputs.ready == 'true'
         run: node scripts/ops/custom-domain.mjs
-      # hello@, sales@ and support@ the domain, forwarded to the Gmail in EMAIL_FORWARD_TO (docs/business-email.md).
+      # hello@, sales@, support@ and privacy@ the domain, forwarded to the Gmail in EMAIL_FORWARD_TO (docs/business-email.md).
       - name: Business email
         if: steps.gate.outputs.ready == 'true'
         env:
@@ -170,6 +180,8 @@ jobs:
           rm -f "$RUNNER_TEMP/secrets.json"
       - name: Point Supabase sign-in at the live site
         if: steps.gate.outputs.ready == 'true' && steps.deploy.outputs.url != ''
+        env:
+          EMAIL_SENDING: ${{ steps.email.outputs.sending }}
         # The custom domain once it's live; the workers.dev URL goes along so it stays in the
         # sign-in redirect allow list (sign-ins started on workers.dev must come back to it).
         run: |
