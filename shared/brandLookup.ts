@@ -274,6 +274,8 @@ export interface FirecrawlScrape {
     fonts?: { family?: string | null }[] | null
     typography?: { fontFamilies?: { primary?: string | null; heading?: string | null } | null } | null
     images?: { logo?: string | null; favicon?: string | null; ogImage?: string | null } | null
+    /** Firecrawl's own guess at the brand's name. */
+    brandName?: string | null
   } | null
   links?: string[] | null
   metadata?: {
@@ -308,7 +310,7 @@ export function readFirecrawl(data: FirecrawlScrape, base: string): SiteRead {
   return {
     ...EMPTY_READ,
     ...detailsFromLinks(links),
-    name: m.ogSiteName?.trim() || nameFromTitle(first(m.title)),
+    name: m.ogSiteName?.trim() || b.brandName?.trim() || nameFromTitle(first(m.title)),
     description: first(m.description) ?? m.ogDescription ?? null,
     logo_url: absolute(b.images?.logo ?? b.logo, base),
     icon_url: icon,

@@ -8918,6 +8918,18 @@ test.describe('set-up wizard', () => {
     await expect(page.getByRole('region', { name: 'Fonts' })).toContainText('Playfair Display')
   })
 
+  test('set-up wizard: a business already set up goes back to “Your business” from Connections, to bring in its brand', async ({ page }) => {
+    await open(page, '/connections')
+    await page.getByRole('link', { name: 'Set-up guide' }).click()
+    await page.getByRole('button', { name: 'Back' }).click()
+    await expect(page.getByRole('heading', { name: 'Is Easy Beans Coffee new, or already open?' })).toBeVisible()
+    await page.getByRole('button', { name: /^It’s already open/ }).click()
+    // Its website is filled in from the Business page.
+    await expect(page.getByRole('textbox', { name: 'Website' })).toHaveValue('https://www.easybeanscoffee.com/')
+    await page.getByRole('button', { name: 'Find my brand' }).click()
+    await expect(page.getByRole('heading', { name: 'Here’s what I found' })).toBeVisible()
+  })
+
   test('set-up wizard is for admins only', async ({ page }) => {
     await open(page)
     await signInAs(page, 'maria@example.com')
