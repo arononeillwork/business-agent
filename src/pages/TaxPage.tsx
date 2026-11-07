@@ -20,15 +20,21 @@ import { ExportButton } from '../components/tables'
 import type { ExportTable } from '../lib/export'
 import { formatLocal, formatMoney, today } from '../../shared/time'
 import { savingStorage } from '../../shared/connections'
+import { countryProfile, type Country } from '../../shared/country'
+import { IRELAND_TAX_CHECKED, REVENUE, filingsIn, irishModelLabel } from '../../shared/taxIreland'
 import {
-  DEFAULT_TAX_SETTINGS, DOC_KINDS, FILING_STATUSES, autoFolder, daysBetween, filingKey, filingsFor, guessKind, guessPeriod, kindInfo, overdue,
+  DEFAULT_TAX_SETTINGS, DOC_KINDS, FILING_STATUSES, autoFolder, daysBetween, filingKey, guessKind, guessPeriod, kindInfo, overdue,
   quarterOf, taxFileProblem, upcoming, type Filing, type FilingRecord, type FilingStatus, type Quarter, type TaxDocKind, type TaxDocument, type TaxSettings,
 } from '../../shared/tax'
 import { tokens } from '../theme'
-import { t, tn } from '../i18n'
+import { t, tn, tr } from '../i18n'
 
 const day = (d: string) => formatLocal(`${d}T12:00:00Z`, 'd MMM yyyy')
-const periodLabel = (p: string) => (p === '0A' ? t('Year') : p.endsWith('T') ? t('Q{n}', { n: p[0] }) : t('Instalment {n}', { n: p[0] }))
+const month = (m: number, f: string) => formatLocal(`2026-${String(m).padStart(2, '0')}-15T12:00:00Z`, f)
+/** 3T: a quarter; 0A: the year; 2P: an instalment; Ireland's 2B: two months (Mar–Apr) and 4M: a month (April). */
+const periodLabel = (p: string) => (p === '0A' ? t('Year') : p.endsWith('T') ? t('Q{n}', { n: p[0] })
+  : p.endsWith('B') ? `${month(Number(p[0]) * 2 - 1, 'MMM')}–${month(Number(p[0]) * 2, 'MMM')}`
+  : p.endsWith('M') ? month(Number(p.slice(0, -1)), 'MMMM') : t('Instalment {n}', { n: p[0] }))
 const quarterLabel = (q: Quarter | null) => (q ? t('Q{n}', { n: q }) : t('Whole year'))
 const STATUS_TONE: Record<FilingStatus, { fg: string; bg: string }> = {
   to_do: { fg: tokens.warnFg, bg: tokens.warnBg }, with_gestor: { fg: tokens.infoFg, bg: tokens.infoBg },
@@ -37,12 +43,26 @@ const STATUS_TONE: Record<FilingStatus, { fg: string; bg: string }> = {
 const sizeLabel = (n: number) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`)
 
 /**
+ * What follows the business's country: in Ireland, Revenue's returns and the accountant (countryProfile's
+ * adviser); in Spain, the Agencia Tributaria's modelos and the gestoría, as they always were.
+ */
+function useCountryWords() {
+  const { business } = useApp()
+  const country: Country = business?.country === 'IE' ? 'IE' : 'ES'
+  const ie = country === 'IE'
+  const adviser = t(countryProfile(country).adviser)
+  const status = (id: FilingStatus) => (ie && id === 'with_gestor' ? t('With your {adviser}', { adviser }) : t(FILING_STATUSES.find(x => x.id === id)!.label))
+  return { country, ie, adviser, status }
+}
+
+/**
  * Tax: the returns due this year (worked out from what the business files), what's been done about
  * each, and the documents for them, uploaded in bulk into the café's own Google Drive or OneDrive.
  * Admins with pay access; a gestoría with finances access reads (the database enforces it too).
  */
 export function TaxPage() {
   const { canSeeFinances, isPartner, api } = useApp()
+  const { country } = useCountryWords()
   const canEdit = canSeeFinances && !isPartner
   const [year, setYear] = useState(Number(today().slice(0, 4)))
   const [uploading, setUploading] = useState(false)
@@ -59,7 +79,7 @@ export function TaxPage() {
   }
 
   const s = settings.data ?? DEFAULT_TAX_SETTINGS
-  const filings = filingsFor(year, s)
+  const filings = filingsIn(country, year, s)
   const done = records.data ?? []
   const now = today()
   const next = upcoming(filings, done, now)[0]
@@ -82,7 +102,7 @@ export function TaxPage() {
       <ErrorBox error={settings.error ?? records.error ?? docs.error} />
 
       <StatGrid>
-        <StatTile label={t('Next return')} value={next ? `${next.model} · ${periodLabel(next.period)}` : '–'}
+        <StatTile label={t('Next return')} value={next ? `${irishModelLabel(next.model)} · ${periodLabel(next.period)}` : '–'}
           note={next ? t('By {date} · {days}', { date: day(next.due), days: tn(daysBetween(now, next.due), 'in {n} day', 'in {n} days') }) : t('Nothing due')} />
         <StatTile label={t('Overdue')} value={late.length} note={late.length ? t('Not marked filed') : t('All up to date')} />
         <StatTile label={t('Documents')} value={docs.data ? all.length : '–'}
@@ -92,7 +112,7 @@ export function TaxPage() {
 
       {late.length > 0 && (
         <Alert severity="warning" sx={{ mb: 3 }}>
-          {t('Past their last day and not marked filed: {list}. Mark them filed (or not needed) once done.', { list: late.map(f => `${f.model} ${periodLabel(f.period)}`).join(', ') })}
+          {t('Past their last day and not marked filed: {list}. Mark them filed (or not needed) once done.', { list: late.map(f => `${irishModelLabel(f.model)} ${periodLabel(f.period)}`).join(', ') })}
         </Alert>
       )}
       {canEdit && links.data && !storage && (
@@ -112,20 +132,23 @@ export function TaxPage() {
 /** The returns for the year, soonest first, with what's been done about each. */
 function Calendar({ year, filings, records, canEdit }: { year: number; filings: Filing[]; records: FilingRecord[]; canEdit: boolean }) {
   const { api } = useApp()
+  const { ie, adviser, status } = useCountryWords()
   const run = useAction()
   const [editing, setEditing] = useState<FilingRecord | null>(null)
   const byKey = new Map(records.map(r => [filingKey(r), r]))
   const now = today()
   const recordOf = (f: Filing): FilingRecord => byKey.get(filingKey(f)) ?? { model: f.model, year: f.year, period: f.period, status: 'to_do', amount: null, filed_on: null, reference: null, notes: null }
-  const setStatus = (f: Filing, status: FilingStatus) => run(() => api.saveTaxFiling({ ...recordOf(f), status }), t('{model} {period}: {status}', { model: f.model, period: periodLabel(f.period), status: t(FILING_STATUSES.find(x => x.id === status)!.label) }))
+  const label = (f: Filing) => irishModelLabel(f.model)
+  const setStatus = (f: Filing, to: FilingStatus) => run(() => api.saveTaxFiling({ ...recordOf(f), status: to }),
+    t('{model} {period}: {status}', { model: label(f), period: periodLabel(f.period), status: status(to) }))
 
   const table = (): ExportTable => ({
     title: t('Tax returns {year}', { year }),
     filename: `tax-returns-${year}`,
-    columns: [t('Modelo'), t('Return'), t('Period'), t('Last day'), t('Status'), t('Amount'), t('Filed on'), t('Receipt number'), t('Notes')],
+    columns: [ie ? t('Form') : t('Modelo'), t('Return'), t('Period'), t('Last day'), t('Status'), t('Amount'), t('Filed on'), t('Receipt number'), t('Notes')],
     rows: filings.map(f => {
       const r = recordOf(f)
-      return [f.model, t(f.name), periodLabel(f.period), f.due, t(FILING_STATUSES.find(x => x.id === r.status)!.label), r.amount, r.filed_on ?? '', r.reference ?? '', r.notes ?? '']
+      return [label(f), t(f.name), periodLabel(f.period), f.due, status(r.status), r.amount, r.filed_on ?? '', r.reference ?? '', r.notes ?? '']
     }),
     money: [5],
   })
@@ -134,13 +157,26 @@ function Calendar({ year, filings, records, canEdit }: { year: number; filings: 
     <Card component="section" aria-label={t('Tax returns')} sx={{ mb: 3 }}>
       <CardContent>
         <SectionTitle action={<ExportButton table={table} disabled={!filings.length} folder="Tax" />}>{t('Tax returns')}</SectionTitle>
-        <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
-          {t('What an SL files with the Agencia Tributaria, from what the business does (change it under What you file). A last day on a weekend moves to the Monday; paying by direct debit closes 5 days earlier.')}
-        </Typography>
+        {ie ? (
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+              {t('What the business files with Revenue, from what it does (change it under What you file). The last days are the 23rd, Revenue’s day for filing and paying on ROS (otherwise the 19th, or the 14th for payroll), for accounts that run to 31 December.')}
+            </Typography>
+            <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 0.5 }}>
+              {tr('From Revenue’s own pages, checked on {date}: each return links to its page, and Revenue’s {calendar} has every date. Your {adviser} confirms what applies to you.', {
+                date: day(IRELAND_TAX_CHECKED), adviser,
+                calendar: <Link href={REVENUE.calendar} target="_blank" rel="noopener">{t('calendar of key dates')}</Link> })}
+            </Typography>
+          </Box>
+        ) : (
+          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
+            {t('What an SL files with the Agencia Tributaria, from what the business does (change it under What you file). A last day on a weekend moves to the Monday; paying by direct debit closes 5 days earlier.')}
+          </Typography>
+        )}
         <Box sx={{ overflowX: 'auto' }}>
           <Table size="small">
             <TableHead><TableRow>
-              <TableCell>{t('Modelo')}</TableCell><TableCell>{t('Return')}</TableCell><TableCell>{t('Period')}</TableCell>
+              <TableCell>{ie ? t('Form') : t('Modelo')}</TableCell><TableCell>{t('Return')}</TableCell><TableCell>{t('Period')}</TableCell>
               <TableCell>{t('Last day')}</TableCell><TableCell>{t('Status')}</TableCell><TableCell align="right">{t('Amount')}</TableCell><TableCell />
             </TableRow></TableHead>
             <TableBody>
@@ -150,10 +186,15 @@ function Calendar({ year, filings, records, canEdit }: { year: number; filings: 
                 const days = daysBetween(now, f.due)
                 return (
                   <TableRow key={filingKey(f)} hover>
-                    <TableCell sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{f.model === 'CCAA' ? t('Accounts') : f.model}</TableCell>
+                    <TableCell sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{f.model === 'CCAA' ? t('Accounts') : label(f)}</TableCell>
                     <TableCell>
                       <Typography variant="body2">{t(f.name)}</Typography>
                       <Typography variant="caption" sx={{ color: 'text.secondary' }}>{t(f.what)}</Typography>
+                      {f.source && (
+                        <Typography variant="caption" sx={{ display: 'block' }}>
+                          <Link href={f.source} target="_blank" rel="noopener" aria-label={t('{model} on revenue.ie', { model: label(f) })}>{'revenue.ie'}</Link>
+                        </Typography>
+                      )}
                     </TableCell>
                     <TableCell sx={{ whiteSpace: 'nowrap' }}>{periodLabel(f.period)}</TableCell>
                     <TableCell sx={{ whiteSpace: 'nowrap' }}>
@@ -164,15 +205,15 @@ function Calendar({ year, filings, records, canEdit }: { year: number; filings: 
                     <TableCell>
                       {canEdit
                         ? <TextField select size="small" value={r.status} onChange={e => void setStatus(f, e.target.value as FilingStatus)}
-                            slotProps={{ htmlInput: { 'aria-label': t('Status of {model} {period}', { model: f.model, period: periodLabel(f.period) }) } }} sx={{ minWidth: 170 }}>
-                            {FILING_STATUSES.map(x => <MenuItem key={x.id} value={x.id}>{t(x.label)}</MenuItem>)}
+                            slotProps={{ htmlInput: { 'aria-label': t('Status of {model} {period}', { model: label(f), period: periodLabel(f.period) }) } }} sx={{ minWidth: 170 }}>
+                            {FILING_STATUSES.map(x => <MenuItem key={x.id} value={x.id}>{status(x.id)}</MenuItem>)}
                           </TextField>
-                        : <Tag {...STATUS_TONE[r.status]}>{t(FILING_STATUSES.find(x => x.id === r.status)!.label)}</Tag>}
+                        : <Tag {...STATUS_TONE[r.status]}>{status(r.status)}</Tag>}
                       {r.status === 'filed' && r.filed_on && <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>{t('Filed {date}', { date: day(r.filed_on) })}</Typography>}
                     </TableCell>
                     <TableCell align="right" sx={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{r.amount === null ? '' : formatMoney(r.amount)}</TableCell>
                     <TableCell align="right">
-                      {canEdit && <IconButton size="small" aria-label={t('Edit {model} {period}', { model: f.model, period: periodLabel(f.period) })} onClick={() => setEditing(r)}><EditIcon fontSize="small" /></IconButton>}
+                      {canEdit && <IconButton size="small" aria-label={t('Edit {model} {period}', { model: label(f), period: periodLabel(f.period) })} onClick={() => setEditing(r)}><EditIcon fontSize="small" /></IconButton>}
                     </TableCell>
                   </TableRow>
                 )
@@ -186,9 +227,10 @@ function Calendar({ year, filings, records, canEdit }: { year: number; filings: 
   )
 }
 
-/** A return's details: status, the amount filed, the day and AEAT's receipt number. */
+/** A return's details: status, the amount filed, the day and AEAT's (or Revenue's) receipt number. */
 function FilingDialog({ record, onClose }: { record: FilingRecord; onClose: () => void }) {
   const { api } = useApp()
+  const { ie, status } = useCountryWords()
   const run = useAction()
   const [r, setR] = useState(record)
   const save = async () => {
@@ -197,17 +239,19 @@ function FilingDialog({ record, onClose }: { record: FilingRecord; onClose: () =
   }
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="xs" aria-labelledby="filing-title">
-      <DialogTitle id="filing-title">{t('Modelo {model} · {period}', { model: record.model, period: periodLabel(record.period) })}</DialogTitle>
+      <DialogTitle id="filing-title">
+        {ie ? `${irishModelLabel(record.model)} · ${periodLabel(record.period)}` : t('Modelo {model} · {period}', { model: record.model, period: periodLabel(record.period) })}
+      </DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ pt: 1 }}>
           <TextField select label={t('Status')} value={r.status} onChange={e => setR({ ...r, status: e.target.value as FilingStatus })}>
-            {FILING_STATUSES.map(x => <MenuItem key={x.id} value={x.id}>{t(x.label)}</MenuItem>)}
+            {FILING_STATUSES.map(x => <MenuItem key={x.id} value={x.id}>{status(x.id)}</MenuItem>)}
           </TextField>
           <TextField label={t('Amount')} type="number" value={r.amount ?? ''} helperText={t('To pay, or with a minus to get back')}
             onChange={e => setR({ ...r, amount: e.target.value === '' ? null : Number(e.target.value) })} />
           <TextField label={t('Filed on')} type="date" value={r.filed_on ?? ''} onChange={e => setR({ ...r, filed_on: e.target.value || null })}
             slotProps={{ inputLabel: { shrink: true } }} />
-          <TextField label={t('Receipt number')} value={r.reference ?? ''} helperText={t('The número de justificante or CSV on AEAT’s receipt')}
+          <TextField label={t('Receipt number')} value={r.reference ?? ''} helperText={ie ? t('The reference on Revenue’s acknowledgement, in your ROS inbox') : t('The número de justificante or CSV on AEAT’s receipt')}
             onChange={e => setR({ ...r, reference: e.target.value })} />
           <TextField label={t('Notes')} value={r.notes ?? ''} multiline minRows={2} onChange={e => setR({ ...r, notes: e.target.value })} />
         </Stack>
@@ -223,6 +267,7 @@ function FilingDialog({ record, onClose }: { record: FilingRecord; onClose: () =
 /** The documents kept for the year, by quarter and kind, with links to them in Drive or OneDrive. */
 function Documents({ year, docs, canEdit, gestor, onUpload }: { year: number; docs: TaxDocument[]; canEdit: boolean; gestor: string | null; onUpload: () => void }) {
   const { api } = useApp()
+  const { ie, adviser } = useCountryWords()
   const run = useAction()
   const [quarter, setQuarter] = useState<'all' | Quarter | 0>('all')
   const [kind, setKind] = useState<'all' | TaxDocKind>('all')
@@ -254,7 +299,7 @@ function Documents({ year, docs, canEdit, gestor, onUpload }: { year: number; do
       <CardContent>
         <SectionTitle action={<Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           {canEdit && <Button startIcon={<FolderIcon />} onClick={() => void openFolder()}>{t('Open folder')}</Button>}
-          {gestor && shown.length > 0 && <Button startIcon={<MailIcon />} href={mailto()}>{t('Email the gestoría')}</Button>}
+          {gestor && shown.length > 0 && <Button startIcon={<MailIcon />} href={mailto()}>{ie ? t('Email your {adviser}', { adviser }) : t('Email the gestoría')}</Button>}
           <ExportButton table={table} disabled={!shown.length} folder="Tax" />
         </Stack>}>{t('Documents')}</SectionTitle>
 
@@ -356,6 +401,7 @@ function PeriodField({ year, value, onChange, label = t('Period'), size }: { yea
 /** The switches that decide which returns are listed, and the gestoría's email. */
 function WhatYouFile({ settings }: { settings: TaxSettings }) {
   const { api } = useApp()
+  const { ie, adviser } = useCountryWords()
   const run = useAction()
   const [email, setEmail] = useState(settings.gestor_email ?? '')
   const toggle = (k: keyof Omit<TaxSettings, 'gestor_email'>, on: boolean) => run(() => api.saveTaxSettings({ [k]: on }))
@@ -369,13 +415,20 @@ function WhatYouFile({ settings }: { settings: TaxSettings }) {
       <CardContent>
         <SectionTitle>{t('What you file')}</SectionTitle>
         <Stack spacing={2}>
-          {row('withholding', t('Staff or freelancers'), t('Income tax held back from payslips or invoices: modelos 111 and 190.'))}
-          {row('rent', t('Rented premises'), t('Income tax held back from the rent: modelos 115 and 180.'))}
-          {row('intra_eu', t('Trade with EU businesses'), t('Buying from or selling to businesses elsewhere in the EU: modelo 349.'))}
-          {row('instalments', t('Corporate tax instalments'), t('From the second year, when the last corporate tax return had tax to pay: modelo 202.'))}
+          {ie ? <>
+            {row('withholding', t('Staff on the payroll'), t('PAYE, PRSI and USC: each payroll sent to Revenue by pay day, and the monthly statement paid.'))}
+            {row('sole_trader', t('A sole trader, not a company'), t('Income tax on Form 11, instead of Corporation Tax on the CT1.'))}
+            {!settings.sole_trader && row('instalments', t('Preliminary Corporation Tax'), t('Paid ahead each year from the second year (a new company with a small tax bill pays none in its first).'))}
+            {row('intra_eu', t('Sales to EU businesses'), t('Goods or services sold to VAT-registered businesses elsewhere in the EU: the VIES listing.'))}
+          </> : <>
+            {row('withholding', t('Staff or freelancers'), t('Income tax held back from payslips or invoices: modelos 111 and 190.'))}
+            {row('rent', t('Rented premises'), t('Income tax held back from the rent: modelos 115 and 180.'))}
+            {row('intra_eu', t('Trade with EU businesses'), t('Buying from or selling to businesses elsewhere in the EU: modelo 349.'))}
+            {row('instalments', t('Corporate tax instalments'), t('From the second year, when the last corporate tax return had tax to pay: modelo 202.'))}
+          </>}
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ alignItems: { sm: 'center' } }}>
-            <TextField label={t('Gestoría’s email')} type="email" value={email} onChange={e => setEmail(e.target.value)} sx={{ flex: 1, maxWidth: 420 }}
-              helperText={t('For “Email the gestoría” on the documents list.')} />
+            <TextField label={ie ? t('Your {adviser}’s email', { adviser }) : t('Gestoría’s email')} type="email" value={email} onChange={e => setEmail(e.target.value)}
+              sx={{ flex: 1, maxWidth: 420 }} helperText={ie ? t('For “Email your {adviser}” on the documents list.', { adviser }) : t('For “Email the gestoría” on the documents list.')} />
             <Button disabled={(settings.gestor_email ?? '') === email.trim().toLowerCase()}
               onClick={() => void run(() => api.saveTaxSettings({ gestor_email: email.trim() || null }), t('Saved'))}>{t('Save')}</Button>
           </Stack>

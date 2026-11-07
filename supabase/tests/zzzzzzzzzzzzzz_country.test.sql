@@ -1,6 +1,7 @@
 -- Spain and Ireland (the country migration): a business made in Ireland starts on Irish time and rules,
--- with Grants and Tax hidden and unpaid breaks; one made by an older app (no country) is in Spain unless
--- its time zone is Dublin's; any other country is refused. Irish VAT (23%) fits where VAT rates are kept.
+-- with Grants and Tax shown (Ireland's own: the Irish tax and grants migration) and unpaid breaks; one
+-- made by an older app (no country) is in Spain unless its time zone is Dublin's; any other country is
+-- refused. Irish VAT (23%) fits where VAT rates are kept.
 
 create function pg_temp.act_as(p_email text) returns void language plpgsql as $$
 begin
@@ -22,7 +23,12 @@ begin
   assert (select country = 'IE' and timezone = 'Europe/Dublin' and locale = 'en-IE' from public.business where id = v_id), 'an Irish café, on Dublin time';
   assert (select break_after_hours = 4.5 and min_break_minutes = 15 and min_rest_hours = 11 and max_weekly_hours = 48 and vacation_days_per_year = 28
             from public.settings), 'Irish working-time rules and 4 weeks'' leave';
-  assert (select hidden_pages = array['grants', 'tax'] from public.settings), 'Grants and Tax hidden (Spain''s for now)';
+  assert (select hidden_pages = '{}' from public.settings), 'Grants and Tax shown: Ireland''s own';
+  -- Revenue's returns are kept like Spain's modelos: a VAT3 for two months, a month's payroll, Form 11.
+  insert into public.tax_filings (model, year, period, status) values ('VAT3', 2026, '5B', 'filed'), ('PAYE', 2026, '10M', 'to_do'), ('F11', 2025, '0A', 'with_gestor');
+  assert (select count(*) from public.tax_filings) = 3, 'Irish returns kept';
+  update public.tax_settings set sole_trader = true;
+  assert (select sole_trader from public.tax_settings), 'a sole trader';
   assert (select string_agg(name || ':' || paid, ', ' order by minutes) from public.break_types) = 'Break 15 min (unpaid):false, Break 30 min (unpaid):false', 'unpaid breaks';
   assert (select vat_rate = 13.5 from public.pnl_settings), 'café food and drink at 13.5%';
   insert into public.stock_items (name, unit, vat_rate) values ('Bottled water', 'bottle', 23);

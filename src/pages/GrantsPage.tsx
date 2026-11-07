@@ -20,11 +20,12 @@ import { ExportButton } from '../components/tables'
 import type { ExportTable } from '../lib/export'
 import { formatLocal, formatMoney, today } from '../../shared/time'
 import {
-  BUSINESS_QUESTIONS, DOCUMENTS, FILTERS, GRANTS, FILTER_OF, QUESTIONS, STAGES, STATUS_LABEL, daysBetween, deadlineOf, documentsFor, evaluateAll,
-  isDone, knownAnswers, nextStage, profileOf, questionMatters, stageLabel,
+  DOCUMENTS, FILTERS, GRANTS, FILTER_OF, IE_GRANTS, STAGES, STATUS_LABEL, daysBetween, deadlineOf, documentsFor, evaluateAll,
+  isDone, knownAnswers, nextStage, profileOf, questionMatters, questionsFor, stageLabel,
   type Condition, type Deadline, type Evaluation, type Grant, type GrantApplication, type GrantFilter, type GrantProfile, type GrantStatus,
   type Question, type Text,
 } from '../../shared/grants'
+import type { Country } from '../../shared/country'
 import { tokens } from '../theme'
 import { msg, t, tn, tr } from '../i18n'
 
@@ -34,6 +35,12 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 /** A rule's text in the person's language, with its dates and amounts written out. */
 const say = (x: Text) => t(x.text, Object.fromEntries(Object.entries(x.vars ?? {}).map(([k, v]) =>
   [k, typeof v === 'string' && ISO_DATE.test(v) ? fmtDate(v) : k === 'amount' && typeof v === 'number' ? formatMoney(v) : v])))
+
+/** The business's country: Ireland's grants and words there, Spain's (Solicita's list) otherwise. */
+function useCountry(): Country {
+  const { business } = useApp()
+  return business?.country === 'IE' ? 'IE' : 'ES'
+}
 
 const TONE: Record<GrantStatus, { fg: string; bg: string }> = {
   yes: { fg: tokens.goodFg, bg: tokens.goodBg }, active: { fg: tokens.goodFg, bg: tokens.goodBg },
@@ -69,6 +76,7 @@ function verdict({ grant, result, status }: Evaluation) {
 /** Grants that fit, the questions that decide them, and the applications under way. Finance partners read only. */
 export function GrantsPage() {
   const { api, business, profiles, canSeeFinances, isPartner } = useApp()
+  const country = useCountry()
   const canEdit = canSeeFinances && !isPartner
   const saved = useAsync('grant-profile', () => api.grantProfile(), [])
   const apps = useAsync('grant-applications', () => api.grantApplications(), [])
@@ -92,9 +100,9 @@ export function GrantsPage() {
 
   const day = today()
   const employees = profiles.filter(p => p.active && p.role === 'employee').length
-  const known = business ? knownAnswers(business, profiles.length ? employees : null) : {}
+  const known = business ? knownAnswers(business, profiles.length ? employees : null, country) : {}
   const profile = profileOf(known, answers ?? saved.data ?? {})
-  const results = evaluateAll(profile, day)
+  const results = evaluateAll(profile, day, country)
   const list = apps.data ?? []
   const open = list.filter(a => !isDone(a.stage))
   const count = (s: GrantStatus) => results.filter(x => x.status === s).length
@@ -116,7 +124,9 @@ export function GrantsPage() {
       <PageHeader eyebrow={t('Accounts')} title={t('Grants')} actions={!canEdit && <Tag>{t('Read-only')}</Tag>} />
       <ErrorBox error={saved.error ?? apps.error} />
       <Typography sx={{ color: 'text.secondary', mb: 2.5, maxWidth: 760 }}>
-        {t('From Solicita’s list of grants for Andalucía, each checked by hand against its official source (BOE, BOJA, BOP or the body’s own e-office). The official call always decides.')}
+        {country === 'IE'
+          ? t('Grants and supports for small businesses in Ireland, from the Local Enterprise Office, Microfinance Ireland, Enterprise Ireland and SEAI. Each is written from its official page, which it links to, with the day it was checked. Amounts and rules change: the body itself always decides.')
+          : t('From Solicita’s list of grants for Andalucía, each checked by hand against its official source (BOE, BOJA, BOP or the body’s own e-office). The official call always decides.')}
       </Typography>
 
       <StatGrid>
@@ -191,8 +201,10 @@ function Answers({ profile, known, answers, onAnswer, canEdit, owners, day }: {
   profile: GrantProfile; known: Partial<GrantProfile>; answers: Partial<GrantProfile>; onAnswer: (p: Partial<GrantProfile>) => void
   canEdit: boolean; owners: string[]; day: string
 }) {
+  const country = useCountry()
+  const qs = questionsFor(country)
   const company = profile.entity === 'sl' || profile.entity === 'other'
-  const asked = QUESTIONS.filter(q => questionMatters(q, profile, day))
+  const asked = qs.questions.filter(q => questionMatters(q, profile, day, country))
   const open = asked.filter(q => profile[q.key] === q.unknown).length
 
   const row = (q: Question) => {
@@ -247,7 +259,7 @@ function Answers({ profile, known, answers, onAnswer, canEdit, owners, day }: {
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, columnGap: 4 }}>
           <Box>
             <Typography variant="overline" sx={{ color: 'text.secondary' }}>{t('Your business')}</Typography>
-            {BUSINESS_QUESTIONS.map(row)}
+            {qs.business.map(row)}
           </Box>
           <Box>
             <Typography variant="overline" sx={{ color: 'text.secondary' }}>{t('A few questions')}</Typography>
@@ -378,12 +390,13 @@ function GrantCard({ x, day, entity, tracked, canEdit, onTrack }: {
 
 /** The applications under way: their stage, dates, amounts and checklists. */
 function Applications({ list, profile, canEdit, loaded, day }: { list: GrantApplication[]; profile: GrantProfile; canEdit: boolean; loaded: boolean; day: string }) {
+  const ie = useCountry() === 'IE'
   const ordered = [...list].sort((a, b) => Number(isDone(a.stage)) - Number(isDone(b.stage)) || a.created_at.localeCompare(b.created_at))
   const money = (n: number | null) => (n == null ? '' : n)
   const table = (): ExportTable => ({
     title: t('My applications'),
     filename: `grant-applications-${day}`,
-    columns: [t('Grant'), t('Stage'), t('Submitted'), t('Expediente'), t('Requested'), t('Awarded'), t('Received'), t('Next deadline')],
+    columns: [t('Grant'), t('Stage'), t('Submitted'), ie ? t('Reference') : t('Expediente'), t('Requested'), t('Awarded'), t('Received'), t('Next deadline')],
     rows: ordered.map(a => [t(a.grant_name), t(stageLabel(a.stage)), a.submitted_on ? fmtDate(a.submitted_on) : '', a.expediente ?? '',
       money(a.amount_requested), money(a.amount_awarded), money(a.amount_received),
       a.deadline ? `${fmtDate(a.deadline)}${a.deadline_label ? ` · ${t(a.deadline_label)}` : ''}` : '']),
@@ -401,7 +414,7 @@ function Applications({ list, profile, canEdit, loaded, day }: { list: GrantAppl
           </Typography>
         )}
         <Stack spacing={1.5}>
-          {ordered.map(a => <ApplicationCard key={a.id} a={a} grant={GRANTS.find(g => g.id === a.grant_id)} entity={profile.entity} canEdit={canEdit} />)}
+          {ordered.map(a => <ApplicationCard key={a.id} a={a} grant={[...GRANTS, ...IE_GRANTS].find(g => g.id === a.grant_id)} entity={profile.entity} canEdit={canEdit} />)}
         </Stack>
       </CardContent>
     </Card>
@@ -410,6 +423,7 @@ function Applications({ list, profile, canEdit, loaded, day }: { list: GrantAppl
 
 function ApplicationCard({ a, grant, entity, canEdit }: { a: GrantApplication; grant?: Grant; entity: GrantProfile['entity']; canEdit: boolean }) {
   const { api } = useApp()
+  const ie = useCountry() === 'IE'
   const run = useAction()
   const [editing, setEditing] = useState(false)
   const next = nextStage(a.stage)
@@ -427,7 +441,7 @@ function ApplicationCard({ a, grant, entity, canEdit }: { a: GrantApplication; g
           <Box sx={{ minWidth: 0 }}>
             <Typography component="h3" sx={{ fontWeight: 600 }}>{t(a.grant_name)}</Typography>
             <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-              {[a.submitted_on && t('Submitted {date}', { date: fmtDate(a.submitted_on) }), a.expediente && t('Expediente {ref}', { ref: a.expediente }),
+              {[a.submitted_on && t('Submitted {date}', { date: fmtDate(a.submitted_on) }), a.expediente && (ie ? t('Ref. {ref}', { ref: a.expediente }) : t('Expediente {ref}', { ref: a.expediente })),
                 a.deadline && t('Next: {date}', { date: fmtDate(a.deadline) }) + (a.deadline_label ? ` · ${t(a.deadline_label)}` : '')].filter(Boolean).join(' · ')}
             </Typography>
           </Box>
@@ -492,6 +506,7 @@ function ApplicationCard({ a, grant, entity, canEdit }: { a: GrantApplication; g
 /** The details of one application, and stopping tracking it. */
 function EditApplication({ a, onClose }: { a: GrantApplication; onClose: () => void }) {
   const { api } = useApp()
+  const ie = useCountry() === 'IE'
   const run = useAction()
   const [d, setD] = useState({ ...a })
   const [removing, setRemoving] = useState(false)
@@ -517,7 +532,7 @@ function EditApplication({ a, onClose }: { a: GrantApplication; onClose: () => v
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
               <TextField label={t('Submitted on')} type="date" size="small" value={d.submitted_on ?? ''} slotProps={{ inputLabel: { shrink: true } }}
                 onChange={e => setD({ ...d, submitted_on: e.target.value || null })} />
-              <TextField label={t('Expediente (file number)')} size="small" value={d.expediente ?? ''} sx={{ flex: 1 }}
+              <TextField label={ie ? t('Reference number') : t('Expediente (file number)')} size="small" value={d.expediente ?? ''} sx={{ flex: 1 }}
                 onChange={e => setD({ ...d, expediente: e.target.value })} slotProps={{ htmlInput: { maxLength: 80 } }} />
             </Stack>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>

@@ -2050,6 +2050,8 @@ test('self-serve: a new business signs up, creates its business and goes on to t
 })
 
 test('a business in Ireland: asked at sign-up, then Irish labels, VAT rates, phone numbers and pages', async ({ page }) => {
+  // The dates the Tax and Grants pages work out are the same whenever the test runs.
+  await page.clock.install({ time: WED_0900 })
   await page.goto('/?demo')
   await page.getByRole('tab', { name: 'Create account' }).click()
   await page.getByLabel('Your name').fill('Aoife Byrne')
@@ -2068,11 +2070,8 @@ test('a business in Ireland: asked at sign-up, then Irish labels, VAT rates, pho
   await page.getByRole('button', { name: 'Skip this step' }).click()
   await page.getByRole('button', { name: /^Use a ready-made setup/ }).click()
   await page.getByRole('button', { name: 'Skip setup for now' }).click()
-  // Spain's own Grants and Tax pages start hidden.
   const nav = page.getByRole('navigation', { name: 'Main' })
   await expect(nav).toContainText('The Daily Grind')
-  await expect(nav.getByRole('link', { name: 'Grants' })).toHaveCount(0)
-  await expect(nav.getByRole('link', { name: 'Tax', exact: true })).toHaveCount(0)
   // Business: the country, and an Irish VAT number checked as one.
   await nav.getByRole('link', { name: 'Business', exact: true }).click()
   const company = page.getByRole('region', { name: 'Company' })
@@ -2088,6 +2087,51 @@ test('a business in Ireland: asked at sign-up, then Irish labels, VAT rates, pho
   // Timecards: Ireland's working time records.
   await nav.getByRole('link', { name: 'Timecards' }).click()
   await expect(page.getByText('Working time records').first()).toBeVisible()
+
+  // Tax, shown from the start: Revenue's returns, by the 23rd on ROS, each linked to its page.
+  await nav.getByRole('link', { name: 'Tax', exact: true }).click()
+  const returns = page.getByRole('region', { name: 'Tax returns' })
+  await expect(returns).toContainText('What the business files with Revenue')
+  await expect(returns).not.toContainText('Agencia Tributaria')
+  await expect(returns.getByRole('columnheader', { name: 'Form' })).toBeVisible()
+  const vat = returns.getByRole('row').filter({ hasText: 'VAT return' }).filter({ hasText: 'Sep–Oct' })
+  await expect(vat).toContainText('23 Nov 2026')
+  await expect(vat.getByRole('link', { name: 'VAT3 on revenue.ie' })).toHaveAttribute('href', /^https:\/\/www\.revenue\.ie\//)
+  await expect(returns.getByRole('row').filter({ hasText: 'Payroll taxes (PAYE, PRSI and USC)' })).toHaveCount(12)
+  await expect(returns.getByRole('row').filter({ hasText: 'Corporation Tax return (CT1)' })).toContainText('23 Sep 2027')
+  await expect(page.getByRole('list', { name: 'At a glance' })).toContainText('PAYE · September')
+  // Statuses in the accountant's words; a sole trader files Form 11 instead of the CT1.
+  await returns.getByRole('combobox', { name: 'Status of PAYE September' }).click()
+  await expect(page.getByRole('option', { name: 'With your accountant' })).toBeVisible()
+  await page.getByRole('option', { name: 'Filed' }).click()
+  await toast(page, 'PAYE September: Filed')
+  const file = page.getByRole('region', { name: 'What you file' })
+  await expect(file.getByRole('switch', { name: /Rented premises/ })).toHaveCount(0)
+  await file.getByRole('switch', { name: /A sole trader, not a company/ }).check()
+  await expect(returns.getByRole('row').filter({ hasText: 'Income tax return (Form 11)' })).toContainText('31 Oct 2027')
+  await expect(returns.getByRole('row').filter({ hasText: 'Corporation Tax return (CT1)' })).toHaveCount(0)
+  await expect(file.getByRole('textbox', { name: 'Your accountant’s email' })).toBeVisible()
+
+  // Grants, shown from the start: Ireland's, from the LEO, Microfinance Ireland, Enterprise Ireland and SEAI.
+  await nav.getByRole('link', { name: 'Grants' }).click()
+  await expect(page.getByText(/^Grants and supports for small businesses in Ireland/)).toBeVisible()
+  const answers = page.getByRole('region', { name: 'Your answers' })
+  await expect(answers.getByRole('group', { name: 'Business type' }).getByRole('button', { name: 'Sole trader' })).toBeVisible()
+  await expect(answers.getByRole('group', { name: 'Where is it based?' })).toHaveCount(0)
+  const results = page.getByRole('region', { name: 'Grants for you' })
+  await expect(results).not.toContainText('Andalucía')
+  // A café is a local service: no Priming Grant, but mentoring is open to it.
+  await expect(results.getByRole('button', { name: 'Priming Grant (starting up)' })).toContainText('Not eligible')
+  await expect(results.getByRole('button', { name: 'Mentoring', exact: true })).toContainText('Eligible')
+  // Open since April: the Grow Digital Voucher comes after six months' trading.
+  await expect(results.getByRole('button', { name: 'Grow Digital Voucher' })).toContainText('Later for you')
+  const audit = results.getByRole('button', { name: 'SEAI energy audit voucher' })
+  await expect(audit).toContainText('Confirm first')
+  await answers.getByRole('group', { name: 'Does the business spend €10,000 or more a year on energy?' }).getByRole('button', { name: 'Yes', exact: true }).click()
+  await expect(audit).toContainText('Eligible')
+  await audit.click()
+  await expect(results.getByRole('link', { name: 'Official page' }).first()).toHaveAttribute('href', /seai\.ie/)
+  await expect(results.getByText(/^Checked on 7 Nov 2026/).first()).toBeVisible()
 })
 
 test('signed out: one-tap Google, Apple, Facebook and Microsoft sign-in next to email', async ({ page }) => {
