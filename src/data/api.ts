@@ -7,6 +7,7 @@ import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shar
 import type { InboxConversation, InboxState, InboxThread } from '../../shared/messages'
 import type { ReferralState } from '../../shared/referrals'
 import type { ReferralOpen, RepIntroduction } from '../../shared/hqReps'
+import type { HqFunnelRow } from '../../shared/hqFunnel'
 import type { KindInfo } from '../../shared/social'
 import type { InstagramMention } from '../../shared/mentions'
 import type { FilingRecord, Quarter, TaxDocKind, TaxDocument, TaxSettings } from '../../shared/tax'
@@ -1109,6 +1110,8 @@ export interface Api {
   hqExtendTrial(businessId: number, days: number): Promise<string>
   /** HQ's admins: the businesses whose owners asked to close them (anyone else gets none). */
   hqClosures(): Promise<HqClosure[]>
+  /** HQ's admins: each business's week two and whether and when it cancelled, for the funnel (anyone else gets none). */
+  hqFunnel(): Promise<HqFunnelRow[]>
   /** Owners: everything the business keeps, one CSV file per table in a zip, to save. */
   exportData(): Promise<{ filename: string; blob: Blob }>
   /** Owners: close the account; it closes in 30 days (returns when) and the subscription stops renewing. */

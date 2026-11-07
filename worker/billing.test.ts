@@ -240,6 +240,23 @@ describe('following Stripe', () => {
   it('the portal opens for a business with a Stripe customer', async () => {
     expect(await (await post('/api/billing/portal')).json()).toEqual({ url: 'https://billing.stripe.com/p/session/1' })
   })
+
+  it('when it was cancelled, from Stripe, while it is cancelled or set to end (HQ’s funnel counts them by month)', async () => {
+    const at = Math.floor(Date.parse('2026-10-03T09:00:00Z') / 1000)
+    stripe.subscribe('business_agent_business_month', 'active', null)
+    await syncBilling(env, 1)
+    expect(row().canceled_at).toBeNull()
+    Object.assign(stripe.subs[0], { cancel_at_period_end: true, canceled_at: at })
+    await syncBilling(env, 1)
+    expect(row()).toMatchObject({ status: 'active', cancel_at_period_end: true, canceled_at: '2026-10-03T09:00:00.000Z' })
+    Object.assign(stripe.subs[0], { status: 'canceled', cancel_at_period_end: false, ended_at: at + 86400 * 20 })
+    await syncBilling(env, 1)
+    expect(row()).toMatchObject({ status: 'canceled', canceled_at: '2026-10-03T09:00:00.000Z' })
+    // Taken back before the end of the period: not cancelled after all.
+    Object.assign(stripe.subs[0], { status: 'active', canceled_at: null, ended_at: null })
+    await syncBilling(env, 1)
+    expect(row().canceled_at).toBeNull()
+  })
 })
 
 describe('referral months as Stripe credit', () => {

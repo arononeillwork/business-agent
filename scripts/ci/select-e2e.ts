@@ -90,6 +90,7 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'partners', files: [/PartnersPage/], tests: String.raw`partner` },
   { name: 'hq-businesses', files: [/HqBusinessesPage/, /i18n\/es\/hqBusinesses/], tests: String.raw`back-office` },
   { name: 'hq actions', files: [/HqBusinessActions/, /i18n\/es\/hqActions/, /shared\/hqActions/], tests: String.raw`back-office` },
+  { name: 'hq funnel', files: [/HqFunnel/, /i18n\/es\/hqFunnel/, /shared\/hqFunnel/, /demoBackOffice/], tests: String.raw`back-office` },
   { name: 'closing the account', files: [/AccountDataCard/, /app\/ClosingBanner/, /i18n\/es\/closeAccount/, /shared\/(accountClosing|dataExport)/],
     tests: String.raw`closes the account|billing` },
   { name: 'compare', files: [/ComparePage/, /marketing\/compareCharts/, /shared\/compare/, /i18n\/es\/compare/], tests: String.raw`compare|landing` },

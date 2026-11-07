@@ -66,6 +66,9 @@ interface Subscription {
   created: number; items: { data: { id: string; price: Price }[] }
   /** How often pending invoice items (pay per use) are billed; null: with the next renewal. */
   pending_invoice_item_interval?: { interval: Interval } | null
+  /** When it was cancelled (set to end with the period, or ended) and when it ended, if it has. */
+  canceled_at?: number | null
+  ended_at?: number | null
 }
 interface BillingRow { plan: PlanId; status: string; stripe_customer_id: string | null; stripe_subscription_id: string | null; trial_used: boolean; complimentary?: string | null }
 
@@ -127,6 +130,8 @@ export async function syncBilling(env: Env, businessId: number): Promise<void> {
     current_period_end: iso(sub.current_period_end),
     cancel_at_period_end: sub.cancel_at_period_end,
     trial_used: row.trial_used || !!sub.trial_end,
+    // When it was cancelled, while it is or is set to end (HQ's funnel counts cancellations by month).
+    canceled_at: sub.status === 'canceled' || sub.cancel_at_period_end ? iso(sub.canceled_at ?? sub.ended_at) : null,
     updated_at: new Date().toISOString(),
   }).eq('id', 1)
   if (error) throw new Error(error.message)

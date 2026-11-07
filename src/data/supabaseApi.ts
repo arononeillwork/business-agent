@@ -3,6 +3,7 @@ import { PromptError, SOCIAL_PROVIDERS, type AiTrackResult, type Api, type Billi
 import type { ApiKey, AppNotification, Brand, Business, Customer, SocialPost, EventAlert, Expense, Integration, MusicPlaylist, OutboxItem, Profile, Settings, TimeEntry, TimeOff, Todo, TodoCategory, CafeTrack, MusicPlayerState } from '../../shared/types'
 import type { HolidayReminder, PushDevice } from '../../shared/types'
 import type { HqClosure } from './api'
+import type { HqFunnelRow } from '../../shared/hqFunnel'
 import type { AiMusicQuote, MusicGeneration, MusicTrack } from '../../shared/types'
 import type { InstagramMention } from '../../shared/mentions'
 import type { FilingRecord, TaxDocument, TaxSettings } from '../../shared/tax'
@@ -1789,6 +1790,9 @@ export function createSupabaseApi(url: string, key: string, captchaKey?: string 
     },
     async hqClosures() {
       return check(await sb.rpc('hq_closures')) as HqClosure[]
+    },
+    async hqFunnel() {
+      return check(await sb.rpc('hq_funnel')) as HqFunnelRow[]
     },
     // An owner's own data and account (the Worker: worker/account.ts).
     async exportData() {
