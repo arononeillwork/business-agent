@@ -25,6 +25,7 @@ import { distanceM, instagramHandle, suggestedThreat, type Competitor, type Near
 import { DEFAULT_WHATSAPP_RETENTION, isRetention, replyWindow } from '../../shared/messages'
 import { cleanCode } from '../../shared/referrals'
 import type { RepCodeInfo, RepIntroduction } from '../../shared/hqReps'
+import { KIND_HIDDEN_PAGES, type BusinessKind } from '../../shared/hqReps'
 import { postProblem } from '../../shared/social'
 import type { SportsFavourite } from '../../shared/sports'
 import { POPULAR_FONTS } from '../../shared/fonts'
@@ -2240,6 +2241,8 @@ export function createDemoApi(): Api {
       }
       Object.assign(business, { name, business_type: ({ cafe: 'Café', restaurant: 'Restaurant & bar', pub: 'Pub', salon: 'Salon & beauty', real_estate: 'Real estate agency' } as Record<string, string>)[b.kind ?? ''] ?? null,
         timezone: b.timezone || 'Europe/Madrid', setup_completed_at: null })
+      // As the database does (the pages_by_kind migration): pages that don't fit its kind start hidden.
+      settings.hidden_pages = [...(KIND_HIDDEN_PAGES[(b.kind ?? 'other') as BusinessKind] ?? [])]
       notify()
       return 1
     },

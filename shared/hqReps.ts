@@ -15,6 +15,19 @@ export const BUSINESS_KINDS: { id: BusinessKind; label: string }[] = [
 ]
 export const businessKindLabel = (k: string) => (BUSINESS_KINDS.find(x => x.id === k) ?? BUSINESS_KINDS[5]).label
 
+/**
+ * Pages a new business of each kind starts with hidden (Pages: an admin shows any of them again). Set in
+ * the database by seed_new_business() (the pages_by_kind migration; pagesByKind.test.ts checks they match).
+ */
+export const KIND_HIDDEN_PAGES: Record<BusinessKind, string[]> = {
+  cafe: [],
+  restaurant: [],
+  pub: ['coffees'],
+  salon: ['coffees', 'menu', 'recipes', 'allergens', 'foodsafety', 'waste', 'sports'],
+  real_estate: ['coffees', 'menu', 'recipes', 'allergens', 'foodsafety', 'waste', 'stock', 'wholesale', 'screens', 'loyalty', 'music', 'sports', 'tips'],
+  other: [],
+}
+
 /** Who a rep's code is, for the landing page and Add my business. */
 export interface RepCodeInfo {
   name: string
