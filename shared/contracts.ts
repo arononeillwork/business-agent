@@ -35,7 +35,7 @@ export const SALARY_PERS: { id: SalaryPer; label: string; amount: string }[] = [
   { id: 'year', label: msg('A year'), amount: msg('{price} a year') },
 ]
 
-/** The convenio a new contract starts with: hostelería in Málaga, where Easy Beans is. */
+/** Easy Beans' convenio (hostelería in Málaga): its first contract starts with it. Another business starts blank and fills in its own. */
 export const DEFAULT_CONVENIO = 'Hostelería de Málaga'
 
 export interface EmploymentContract {

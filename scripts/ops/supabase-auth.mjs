@@ -54,6 +54,9 @@ Object.assign(patch, {
 <p>If the link says it has expired, open {{ .SiteURL }}, type this email address and tap
 <b>Forgot password?</b> to set one.</p>`,
 })
+// New and changed passwords that have turned up in a data breach (Have I Been Pwned) are refused,
+// as Supabase's security advisor asks. Existing passwords still sign in.
+patch.password_hibp_enabled = true
 const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, META_APP_ID, META_APP_SECRET, FACEBOOK_SIGN_IN,
   APPLE_CLIENT_ID, APPLE_TEAM_ID, APPLE_KEY_ID, APPLE_PRIVATE_KEY } = process.env
 // Facebook waits for FACEBOOK_SIGN_IN=on: until Supabase's callback is added to the Meta app's
@@ -117,6 +120,7 @@ console.log(after.hook_send_email_enabled && sending
 console.log(after.hook_before_user_created_enabled
   ? 'Sign-up check: on (Cloudflare Turnstile on the sign-up form)'
   : 'Sign-up check: off (add the TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY repo secrets, then deploy, to switch it on)')
+console.log(`Leaked-password protection: ${after.password_hibp_enabled ? 'on' : 'off (Supabase refused it: it needs the Pro plan)'}`)
 console.log(`Supabase Auth: site ${after.site_url}`)
 console.log(`Redirects allowed: ${after.uri_allow_list}`)
 console.log(`Sign-in methods on: email=${!!after.external_email_enabled} google=${!!after.external_google_enabled} microsoft=${!!after.external_azure_enabled} facebook=${!!after.external_facebook_enabled} apple=${!!after.external_apple_enabled}`)

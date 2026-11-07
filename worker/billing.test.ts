@@ -4,7 +4,7 @@
 //   - Stripe's state is copied faithfully, so an unpaid trial or failed renewal loses the paid plan
 //   - webhooks are only believed after fetching the event back from Stripe
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { billing, encodeForm, syncBilling } from './billing'
+import { billing, encodeForm, forgetTaxSetting, syncBilling } from './billing'
 import type { Env } from './supabase'
 import { FakeSupabase } from './test/fakeSupabase'
 import { TRIAL_DAYS } from '../shared/plans'
@@ -37,6 +37,8 @@ class FakeStripe {
   updates: URLSearchParams[] = []
   /** Stripe not answering (pay per use waits for the nightly retry). */
   down = false
+  /** Stripe Tax: 'pending' until the account's registration and address are in, then 'active'. */
+  tax = 'pending'
   handle(url: string, init?: RequestInit): Response | null {
     const u = new URL(url)
     if (u.host !== 'api.stripe.com') return null
@@ -54,6 +56,7 @@ class FakeStripe {
       this.prices.push(p)
       return json(p)
     }
+    if (path === '/tax/settings') return json({ object: 'tax.settings', status: this.tax })
     if (path === '/customers') return json({ id: 'cus_1' })
     if (path === '/checkout/sessions') { this.checkouts.push(body); return json({ url: 'https://checkout.stripe.com/c/pay/cs_1' }) }
     if (path === '/subscriptions') return json({ data: this.subs.filter(s => s.customer === u.searchParams.get('customer')) })
@@ -106,6 +109,7 @@ beforeEach(() => {
   db = new FakeSupabase()
   db.tables.billing = [{ id: 1, plan: 'free', status: 'none', stripe_customer_id: null, stripe_subscription_id: null, trial_used: false, cancel_at_period_end: false }]
   stripe = new FakeStripe()
+  forgetTaxSetting()
   vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
     const res = db.handle(url, init) ?? stripe.handle(url, init)
@@ -134,6 +138,16 @@ describe('choosing a plan', () => {
     expect(row().stripe_customer_id).toBe('cus_1')
     await post('/api/billing/checkout', { plan: 'business', interval: 'month' })
     expect(stripe.prices).toHaveLength(1)
+  })
+
+  it('adds IVA (Stripe Tax) once it is set up on the account, and not before', async () => {
+    await post('/api/billing/checkout', { plan: 'pro', interval: 'month' })
+    expect(stripe.checkouts[0].has('automatic_tax[enabled]')).toBe(false)
+    expect(stripe.checkouts[0].get('tax_id_collection[enabled]')).toBe('true')
+    stripe.tax = 'active'
+    forgetTaxSetting()
+    await post('/api/billing/checkout', { plan: 'pro', interval: 'month' })
+    expect(stripe.checkouts[1].get('automatic_tax[enabled]')).toBe('true')
   })
 
   it('no second trial, and no trial on the other plans', async () => {

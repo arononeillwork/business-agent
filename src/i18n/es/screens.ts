@@ -61,7 +61,7 @@ export default {
   'On top': 'Encima',
   'The time, in a corner': 'La hora, en una esquina',
   'A line running along the bottom (optional)': 'Una línea que pasa por abajo (opcional)',
-  'e.g. Today’s special: pumpkin spice latte · Free Wi-Fi: EasyBeans': 'p. ej. Hoy: latte de calabaza especiado · Wi-Fi gratis: EasyBeans',
+  'e.g. Today’s special: pumpkin spice latte · Free Wi-Fi: ask at the counter': 'p. ej. Hoy: latte de calabaza especiado · Wi-Fi gratis: pregunta en la barra',
   'Switched off: the screen shows your name and logo': 'Apagada: la pantalla muestra tu nombre y logo',
   'Saved. The screen shows the changes within a minute.': 'Guardado. La pantalla muestra los cambios en un minuto.',
   'New link made. Open it on the screen: the old one no longer works.': 'Enlace nuevo hecho. Ábrelo en la pantalla: el anterior ya no funciona.',

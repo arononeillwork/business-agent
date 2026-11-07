@@ -3,6 +3,7 @@ import { Link as RouterLink } from 'react-router-dom'
 import { LEGAL } from '../../shared/legal'
 import { H, LegalPage, Mail, P, Ul, operatorLine } from '../components/legal'
 import { t, tr } from '../i18n'
+import { TRIAL_MONTHS } from '../../shared/plans'
 
 // The public terms of service (no sign-in needed). Google's consent screen links here, next to
 // the privacy policy. Written for businesses (the app is a business-to-business service).
@@ -24,7 +25,15 @@ export function TermsPage() {
         {t('{service} is a team app for small businesses: the rota, clock-ins and timecards, time off, opening hours, a shared calendar and to-do list, finances, and connections to apps the business already uses (for example Google Maps, Gmail, Google Drive, Outlook, Instagram, Facebook, TikTok, WhatsApp and Spotify).', { service })}
       </P>
       <P>
-        {t('{service} is free while it is in early access. If we introduce paid plans, we will tell account owners at least 30 days before, and nothing is charged unless the business agrees to a plan.', { service })}
+        {tr('{service} has a Free plan and paid plans, each with the limits and features shown on the {pricing}. Paid plans are paid in advance, monthly or yearly, in euros, through our payment provider Stripe, with VAT added where it applies. A few extras are charged each time they are used; the price is shown before you use one, and the total is billed with the plan.', {
+          service, pricing: <Link component={RouterLink} to="/pricing">{t('pricing page')}</Link>,
+        })}
+      </P>
+      <P>
+        {t('The Business plan can be tried free for {months} months, once per business. A card is taken at the start and nothing is charged until the trial ends; cancel before then and nothing is charged at all.', { months: TRIAL_MONTHS })}
+      </P>
+      <P>
+        {t('An owner can change plan or cancel at any time on the Billing page. A move to a higher plan applies straight away, with the difference for the rest of the period charged then. When a paid plan is cancelled it stays until the end of the period already paid, and the business then moves to the Free plan with its data kept. What has been paid for a period is not refunded, except where the law requires it.')}
       </P>
 
       <H>{t('3. Accounts')}</H>

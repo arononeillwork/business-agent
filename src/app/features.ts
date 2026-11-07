@@ -4,6 +4,11 @@ export const FEATURES = {
   partners: false,
   /** The café tablet: a shared clock-in screen where staff tap their name and enter a PIN. */
   kiosk: false,
+  /**
+   * WhatsApp for every business: each connects its own number (Embedded Signup, after Meta's review).
+   * Until then WhatsApp runs on the founding business's number only, so the plans don't sell it.
+   */
+  whatsappForAll: false,
   /** Square as a payment system (next to Stripe): takings on Finances, next to the team's cost. */
   square: true,
   /** Tips (Team): shares of the tips by hours worked. */
