@@ -2393,6 +2393,26 @@ test.describe('connections for email, files and music', () => {
     expect(Math.abs(colours.y - logo.y)).toBeLessThan(4)
   })
 
+  test('the app takes the business’s main colour as its accent, in light and dark mode', async ({ page }) => {
+    await open(page, '/brand')
+    const accent = () => page.evaluate(() => {
+      const cs = getComputedStyle(document.documentElement)
+      return [cs.getPropertyValue('--eb-rose').trim(), cs.getPropertyValue('--mui-palette-primary-main').trim()]
+    })
+    // The sample café's own rose pink.
+    await expect.poll(accent).toEqual(['#F79BA4', '#F79BA4'])
+    await page.getByRole('button', { name: 'Edit Rose Pink' }).click()
+    const dialog = page.getByRole('dialog')
+    await dialog.getByRole('textbox', { name: 'Hex code' }).fill('#2F5D50')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await expect.poll(accent).toEqual(['#2F5D50', '#2F5D50'])
+    // Dark mode (the system's, as the app follows it) lifts the deep green so it shows on the dark background.
+    await page.emulateMedia({ colorScheme: 'dark' })
+    await expect(page.locator('html')).toHaveAttribute('data-eb-theme', 'dark')
+    await expect.poll(async () => (await accent())[0]).not.toBe('#2F5D50')
+    expect((await accent())[0]).toMatch(/^#[0-9A-F]{6}$/)
+  })
+
   test('our sound: the moods the brand’s music has, and never has; staff see them', async ({ page }) => {
     test.skip(!FEATURES.music, 'Music is switched off for now')
     await open(page, '/brand')

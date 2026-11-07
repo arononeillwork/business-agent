@@ -9,6 +9,7 @@ import { FEATURES } from './app/features'
 import { Loading } from './components/common'
 import { theme } from './theme'
 import { AppearanceSync } from './app/Appearance'
+import { BrandAccentSync } from './app/BrandAccent'
 import { LoginPage } from './pages/LoginPage'
 import { NotActive } from './pages/StatusPages'
 import { PlanGate } from './app/plan'
@@ -322,6 +323,7 @@ export function App() {
       <NotifyProvider>
         <AppProvider>
           <AppearanceSync />
+          <BrandAccentSync />
           <Router>
             <InLanguage><Suspense fallback={<Loading />}><Routed /></Suspense></InLanguage>
           </Router>
