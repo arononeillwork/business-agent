@@ -2233,6 +2233,14 @@ test.describe('billing', () => {
     await open(page, '/billing', 'maria@example.com')
     await expect(page.getByRole('heading', { name: 'Billing' })).toHaveCount(0)
   })
+
+  test('the back-office of businesses is The Business Agent HQ’s only: a café’s admin finds nothing there and no menu entry', async ({ page }) => {
+    await open(page, '/hq/businesses')
+    await expect(page.getByRole('heading', { level: 1, name: 'Businesses' })).toBeVisible()
+    await expect(page.getByText('No businesses to show. Only admins of The Business Agent HQ see this list.')).toBeVisible()
+    await page.getByRole('button', { name: /Account menu/ }).first().click()
+    await expect(page.getByRole('menuitem', { name: 'Businesses' })).toHaveCount(0)
+  })
 })
 
 test('guest link: opens already signed in as a Guest admin, no sign-in page', async ({ page }) => {
