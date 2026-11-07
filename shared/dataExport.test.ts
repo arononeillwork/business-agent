@@ -10,6 +10,11 @@ describe('CSV', () => {
     expect(csvField('say "hola"')).toBe('"say ""hola"""')
     expect(csvField('two\nlines')).toBe('"two\nlines"')
     expect(csvField(' padded')).toBe('" padded"')
+    // Text a spreadsheet would run as a formula is kept as text; numbers stay numbers.
+    expect(csvField('=HYPERLINK("http://x","click")')).toBe('"\'=HYPERLINK(""http://x"",""click"")"')
+    expect(csvField('+34 600 000 000')).toBe("'+34 600 000 000")
+    expect(csvField('@sum')).toBe("'@sum")
+    expect(csvField(-5)).toBe('-5')
     expect(csvField(['a', 'b'])).toBe('"[""a"",""b""]"')
     expect(csvField({ open: '08:00' })).toBe('"{""open"":""08:00""}"')
   })

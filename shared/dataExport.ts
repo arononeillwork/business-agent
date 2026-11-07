@@ -7,10 +7,15 @@ export function csvLine(values: readonly unknown[]): string {
   return values.map(csvField).join(',')
 }
 
-/** A value as one CSV field: nothing for null, lists and objects as JSON, text quoted when it must be. */
+/**
+ * A value as one CSV field: nothing for null, lists and objects as JSON, text quoted when it must be.
+ * Text a spreadsheet would run as a formula (starting with =, +, -, @, a tab or a return: a customer's
+ * name, a note, a phone number) gets a ' in front, so opening the export never runs anything.
+ */
 export function csvField(v: unknown): string {
   if (v === null || v === undefined) return ''
-  const text = typeof v === 'object' ? JSON.stringify(v) : String(v)
+  const raw = typeof v === 'object' ? JSON.stringify(v) : String(v)
+  const text = typeof v === 'string' && /^[=+\-@\t\r]/.test(v) ? `'${raw}` : raw
   return /[",\r\n]/.test(text) || /^\s|\s$/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
 }
 
