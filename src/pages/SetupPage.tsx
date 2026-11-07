@@ -155,7 +155,8 @@ export function SetupPage() {
               </Stack>
             ))}
           </Stack>
-          {g.intro && <Box><Button onClick={() => set({ step: 'business' })}>{t('Back')}</Button></Box>}
+          {/* Back to "Your business", for a business that opened the guide from Connections too (its brand from its website). */}
+          <Box><Button onClick={() => set({ step: 'business' })}>{t('Back')}</Button></Box>
         </Stack>
       )}
 

@@ -114,6 +114,49 @@ describe('reading a website for its brand', () => {
     expect(mergeReads(null, null)).toEqual(EMPTY_READ)
   })
 
+  it('reads Firecrawl’s real answer (Monmouth Coffee, 7 November 2026: one credit)', () => {
+    // Trimmed to what's read here, as Firecrawl's /v2/scrape sent it (formats branding and links).
+    const real = {
+      branding: {
+        colorScheme: 'light',
+        fonts: [{ family: 'Fresco Sans Std', role: 'heading' }, { family: 'Fresco Sans Pro', role: 'body' }],
+        colors: { primary: '#958E09', accent: '#7F54B3', background: '#FFFFFF', textPrimary: '#1A1A1A', link: '#7F54B3' },
+        images: {
+          logo: 'https://www.monmouthcoffee.co.uk/wp-content/themes/monmouth-coffee/assets/images/logo.svg',
+          favicon: 'https://www.monmouthcoffee.co.uk/wp-content/uploads/2025/10/favicon-32.png',
+          ogImage: 'https://www.monmouthcoffee.co.uk/wp-content/uploads/2026/09/Santa-Ines-New-Trees.jpg',
+          logoHref: 'https://www.monmouthcoffee.co.uk/', logoAlt: 'Monmouth Coffee Company',
+        },
+        brandName: 'Monmouth Coffee Company',
+        logo: 'https://www.monmouthcoffee.co.uk/wp-content/themes/monmouth-coffee/assets/images/logo.svg',
+        typography: { fontFamilies: { primary: 'Fresco Sans Pro', heading: 'Fresco Sans Std' } },
+      },
+      links: ['tel:+442072323010', 'mailto:beans@monmouthcoffee.co.uk', 'https://instagram.com/monmouthcoffee', 'https://www.monmouthcoffee.co.uk/'],
+      metadata: { title: 'Home - Monmouth Coffee Company', ogSiteName: 'Monmouth Coffee Company', url: 'https://www.monmouthcoffee.co.uk/',
+        sourceURL: 'https://www.monmouthcoffee.co.uk/', statusCode: 200, creditsUsed: 1 },
+    }
+    expect(readFirecrawl(real, real.metadata.url)).toEqual({
+      name: 'Monmouth Coffee Company',
+      description: null,
+      logo_url: 'https://www.monmouthcoffee.co.uk/wp-content/themes/monmouth-coffee/assets/images/logo.svg',
+      icon_url: 'https://www.monmouthcoffee.co.uk/wp-content/uploads/2025/10/favicon-32.png',
+      colours: [
+        { name: 'Primary', hex: '#958E09', role: 'primary' }, { name: 'Accent', hex: '#7F54B3', role: 'accent' },
+        { name: 'Background', hex: '#FFFFFF', role: 'base' }, { name: 'Text', hex: '#1A1A1A', role: 'base', use: 'Text' },
+      ],
+      // Not Google Fonts: the guide leaves them out.
+      heading_font: 'Fresco Sans Std',
+      body_font: 'Fresco Sans Pro',
+      phone: '+442072323010',
+      email: 'beans@monmouthcoffee.co.uk',
+      address: null,
+      instagram: 'monmouthcoffee',
+      hours: null,
+    })
+    // No site name or title in the metadata: Firecrawl's own brand name.
+    expect(readFirecrawl({ ...real, metadata: { ...real.metadata, ogSiteName: undefined, title: undefined } }, real.metadata.url).name).toBe('Monmouth Coffee Company')
+  })
+
   it('knows when a site told nothing', () => {
     const none = { logo: null, icon: null, colours: [], heading_font: null, name: null, phone: null, email: null, address: null, instagram: null }
     expect(foundAnything(none)).toBe(false)
