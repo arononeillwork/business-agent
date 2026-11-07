@@ -1,5 +1,6 @@
 import { msg } from './i18n'
 import type { SavedDashboards } from './dashboards'
+import type { SpanishRegion } from './regions'
 
 export type Role = 'admin' | 'employee' | 'kiosk' | 'partner'
 
@@ -31,6 +32,8 @@ export interface Business {
   timezone: string
   /** Where it is: Spain or Ireland (the country migration). Its rules, labels and holidays follow it. */
   country?: 'ES' | 'IE'
+  /** In Spain, its autonomous community or Ceuta or Melilla (shared/regions.ts; the business_region migration): its public holidays go on the calendar too. */
+  region?: SpanishRegion | null
   /** ISO 4217 code, e.g. EUR. Money everywhere is shown in it. */
   currency: string
   /** Its tax ID, upper case, no spaces: in Spain a CIF (company) or NIF/NIE (self-employed); in Ireland a VAT or CRO number. */
@@ -453,7 +456,7 @@ export interface InstagramProfile {
 
 export const CATEGORY_META: Record<EventCategory, { label: string; colour: string }> = {
   national: { label: msg('National holiday'), colour: '#c62828' },
-  regional: { label: msg('Andalucía holiday'), colour: '#2e7d32' },
+  regional: { label: msg('Regional holiday'), colour: '#2e7d32' },
   local:    { label: msg('Local holiday'), colour: '#6a1b9a' },
   area:     { label: msg('Nearby town holiday'), colour: '#8d6e63' },
   event:    { label: msg('Local event / feria'), colour: '#ef6c00' },

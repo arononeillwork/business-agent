@@ -1642,6 +1642,32 @@ test('admins pick the café\'s currency on the Business page; euro until they do
   await expect(maria).toContainText('£8,80/h')
 })
 
+test('the Business page: a Spanish business’s region, next to its country, for its own public holidays', async ({ page }) => {
+  await open(page, '/business')
+  const company = page.getByRole('region', { name: 'Company' })
+  // Easy Beans is in Marbella.
+  await expect(company).toContainText('Region: Andalusia')
+  await company.getByRole('button', { name: 'Edit' }).click()
+  const region = company.getByRole('combobox', { name: 'Region' })
+  await expect(region).toHaveValue('AN')
+  await expect(company).toContainText('Its own public holidays go on your calendar too, with Spain’s.')
+  await region.selectOption({ label: 'Catalonia' })
+  await company.getByRole('button', { name: 'Save' }).click()
+  await toast(page, /^Saved$/)
+  await expect(company).toContainText('Region: Catalonia')
+  // Ireland has none: the region goes with the move.
+  await company.getByRole('button', { name: 'Edit' }).click()
+  await company.getByRole('combobox', { name: 'Country' }).selectOption({ label: 'Ireland' })
+  await expect(company.getByRole('combobox', { name: 'Region' })).toHaveCount(0)
+  await company.getByRole('textbox', { name: 'VAT or CRO number' }).fill('')
+  await company.getByRole('button', { name: 'Save' }).click()
+  await toast(page, /^Saved$/)
+  await expect(company).not.toContainText('Region')
+  await company.getByRole('button', { name: 'Edit' }).click()
+  await company.getByRole('combobox', { name: 'Country' }).selectOption({ label: 'Spain' })
+  await expect(company.getByRole('combobox', { name: 'Region' })).toHaveValue('')
+})
+
 test('people choose how they like to be contacted; admins see it on the team list', async ({ page }) => {
   await open(page, '/account', 'maria@example.com')
   await page.getByLabel('Preferred contact').click()
@@ -2036,6 +2062,9 @@ test('self-serve: a new business signs up, creates its business and goes on to t
   await page.getByRole('button', { name: 'Café & coffee shop' }).click()
   await expect(page.getByRole('button', { name: 'Café & coffee shop' })).toHaveAttribute('aria-pressed', 'true')
   await expect(page.getByRole('combobox', { name: 'Time zone' })).not.toHaveValue('')
+  // In Spain, its region too (it can be left for later): Madrid's own public holidays.
+  await expect(page.getByRole('combobox', { name: 'Region' })).toHaveValue('')
+  await page.getByRole('combobox', { name: 'Region' }).selectOption({ label: 'Madrid' })
   await add.click()
   // She runs it now: on to the set-up guide, with a café's apps ready to connect.
   await expect(page).toHaveURL(/\/setup/)
@@ -2047,6 +2076,9 @@ test('self-serve: a new business signs up, creates its business and goes on to t
   await expect(page.getByRole('button', { name: /^Café & coffee shop/ })).toHaveAttribute('aria-pressed', 'true')
   await page.getByRole('button', { name: 'Skip setup for now' }).click()
   await expect(page.getByRole('navigation', { name: 'Main' })).toContainText('Café Lola')
+  // The region is on the Business page, next to the country.
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Business', exact: true }).click()
+  await expect(page.getByRole('region', { name: 'Company' })).toContainText('Region: Madrid')
 })
 
 test('a business in Ireland: asked at sign-up, then Irish labels, VAT rates, phone numbers and pages', async ({ page }) => {
@@ -2063,6 +2095,8 @@ test('a business in Ireland: asked at sign-up, then Irish labels, VAT rates, pho
   await expect(where.getByRole('button', { name: 'Ireland' })).toHaveAttribute('aria-pressed', 'true')
   await expect(where).toContainText('Irish working-time rules, bank holidays and VAT rates')
   await expect(page.getByRole('combobox', { name: 'Time zone' })).toHaveValue('Europe/Dublin')
+  // Regions are Spain's.
+  await expect(page.getByRole('combobox', { name: 'Region' })).toHaveCount(0)
   await page.getByRole('button', { name: 'Café & coffee shop' }).click()
   await page.getByRole('button', { name: 'Add my business' }).click()
   await page.getByRole('button', { name: 'Skip this step' }).click()
@@ -2077,6 +2111,7 @@ test('a business in Ireland: asked at sign-up, then Irish labels, VAT rates, pho
   await nav.getByRole('link', { name: 'Business', exact: true }).click()
   const company = page.getByRole('region', { name: 'Company' })
   await expect(company).toContainText('Ireland')
+  await expect(company).not.toContainText('Region')
   await company.getByRole('button', { name: 'Edit' }).click()
   const tax = company.getByRole('textbox', { name: 'VAT or CRO number' })
   await tax.fill('B12345674')

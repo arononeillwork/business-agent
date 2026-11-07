@@ -801,6 +801,13 @@ every minute in each person's language (`worker/push.ts`, `shared/pushText.ts`, 
 Admins are reminded about each public holiday on the calendar a week ahead and again the day before,
 at 09:00 (on for every business; Notifications → Bank holiday reminders sets how far ahead, which kinds, and leaves any one out).
 
+The public holidays come onto each business's calendar by themselves each night, this year's and next
+(`worker/holidays.ts`): its country's national ones and, for a business in Spain with a region (its
+autonomous community, or Ceuta or Melilla: asked when the business is added, and on Business), that
+region's, as the Ministry of Labour's yearly resolution in the BOE lists them (`worker/regionalHolidays.ts`,
+2026 and 2027 for now; each October's resolution for the next year is one more table there). A national
+day the region replaced isn't added. The town's two local days the owner adds on the Calendar.
+
 ## Gift cards
 
 Loyalty & gift cards has two tabs: **Loyalty** (the stamp card and its members) and **Gift cards**

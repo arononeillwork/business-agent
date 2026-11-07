@@ -125,6 +125,8 @@ export function createDemoApi(): Api {
     instagram: '@easy.beans.coffee',
     website: 'https://www.easybeanscoffee.com/',
     timezone: 'Europe/Madrid',
+    // San Pedro de Alcántara, Marbella: Andalucía's public holidays too.
+    region: 'AN',
     currency: 'EUR',
     tax_id: 'B12345674',
     opening_hours: {
@@ -1496,8 +1498,8 @@ export function createDemoApi(): Api {
     ['2026-04-03', 'Viernes Santo', 'national'], ['2026-05-01', 'Fiesta del Trabajo', 'national'],
     ['2026-08-15', 'Asunción de la Virgen', 'national'], ['2026-10-12', 'Fiesta Nacional de España', 'national'],
     ['2026-12-08', 'Inmaculada Concepción', 'national'], ['2026-12-25', 'Natividad del Señor', 'national'],
-    ['2026-02-28', 'Día de Andalucía', 'regional'], ['2026-04-02', 'Jueves Santo', 'regional'],
-    ['2026-11-02', 'Todos los Santos (trasladado)', 'regional'], ['2026-12-07', 'Día de la Constitución (trasladado)', 'regional'],
+    ['2026-02-28', 'Día de Andalucía', 'regional', 'Andalucía'], ['2026-04-02', 'Jueves Santo', 'regional', 'Andalucía'],
+    ['2026-11-02', 'Todos los Santos (trasladado)', 'regional', 'Andalucía'], ['2026-12-07', 'Día de la Constitución (trasladado)', 'regional', 'Andalucía'],
     ['2026-06-11', 'San Bernabé', 'local', 'Marbella'], ['2026-10-19', 'San Pedro de Alcántara', 'local', 'Marbella'],
     ['2026-05-15', 'San Isidro Labrador', 'area', 'Estepona', false], ['2026-07-16', 'Virgen del Carmen', 'area', 'Estepona', false],
     ['2026-08-17', 'Fiesta local', 'area', 'Benahavís', false], ['2026-08-19', 'Toma de Málaga', 'area', 'Málaga', false],
@@ -2243,6 +2245,8 @@ export function createDemoApi(): Api {
       }
       Object.assign(business, { name, business_type: ({ cafe: 'Café', restaurant: 'Restaurant & bar', pub: 'Pub', salon: 'Salon & beauty', real_estate: 'Real estate agency' } as Record<string, string>)[b.kind ?? ''] ?? null,
         timezone: b.timezone || 'Europe/Madrid', country: b.country ?? 'ES', setup_completed_at: null })
+      // Its region, in Spain: picked, or none yet.
+      business.region = b.country === 'IE' ? null : b.region ?? null
       // As the database does (the pages_by_kind migration): pages that don't fit its kind start hidden.
       settings.hidden_pages = [...(KIND_HIDDEN_PAGES[(b.kind ?? 'other') as BusinessKind] ?? []), ...COUNTRY_HIDDEN_PAGES[b.country ?? 'ES']]
       // And Ireland's working-time rules (the country migration).

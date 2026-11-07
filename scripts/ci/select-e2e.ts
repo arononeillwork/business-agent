@@ -127,6 +127,7 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'scheduled reports', files: [/ReportSchedules/, /shared\/reportSections/], tests: String.raw`reports|dashboards` },
   { name: 'refresh rates', files: [/components\/Freshness/, /shared\/refresh\.ts$/, /i18n\/es\/(refresh|refreshRates)\.ts$/], tests: String.raw`how often|Sales page|Square` },
   { name: 'square prices', files: [/shared\/menuSquare/, /i18n\/es\/squarePrices/], tests: String.raw`menu|Square` },
+  { name: 'regions', files: [/shared\/regions/, /components\/RegionField/, /i18n\/es\/regions/], tests: String.raw`signs up|Business page|business in Ireland|holiday` },
 ]
 
 /** The --grep pattern for these changed files, or 'all'. */
