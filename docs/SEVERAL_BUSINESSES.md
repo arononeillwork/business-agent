@@ -130,3 +130,8 @@ changed: worth doing if people in several businesses become common.
 With several businesses, say which one: `select public.grant_complimentary('friends_family', 'Note', 7);`
 (the business number last), `select public.end_complimentary(7);`. For anything else, inside a
 transaction: `select set_config('app.business_id', '7', true);` first.
+
+HQ's admins do the usual ones from the app instead: on the Businesses page each business's menu makes it
+complimentary (founding account, or friends & family, with a note) or ends that (`hq_set_complimentary()`,
+`hq_end_complimentary()`, the `hq_actions` migration; not while a Stripe subscription runs, so that is
+cancelled in Stripe first), and gives a free trial 7, 14 or 30 days more (`worker/hq.ts`, through Stripe).

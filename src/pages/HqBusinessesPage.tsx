@@ -1,6 +1,7 @@
 // The Business Agent's back-office, for HQ's admins: every business on the service, with its plan,
 // trial, team, set-up and last sign-in, and the totals that matter (paying, trialing, monthly revenue).
-// Read only; complimentary access is still given in the SQL editor (grant_complimentary()).
+// Each business's acts (HqBusinessActions.tsx): make it complimentary or end that (hq_set_complimentary()),
+// give a free trial longer (the Worker, through Stripe).
 import { Box, Chip, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography } from '@mui/material'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
@@ -8,6 +9,7 @@ import { Empty, ErrorBox, PageHeader, StatGrid, StatTile } from '../components/c
 import { PLANS, plan as planById } from '../../shared/plans'
 import type { HqBusiness } from '../data/api'
 import { t } from '../i18n'
+import { HqBusinessActions } from './HqBusinessActions'
 
 const PAYING = new Set(['active', 'past_due'])
 const day = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '—')
@@ -30,7 +32,7 @@ function statusLabel(b: HqBusiness): { label: string; color: 'default' | 'succes
 
 export function HqBusinessesPage() {
   const { api } = useApp()
-  const { data, error } = useAsync('hq-businesses', () => api.hqBusinesses(), [])
+  const { data, error, reload } = useAsync('hq-businesses', () => api.hqBusinesses(), [])
   const list = data ?? []
   const mrr = list.reduce((sum, b) => sum + monthlyRevenue(b), 0)
   const euro = (n: number) => n.toLocaleString(undefined, { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
@@ -57,6 +59,7 @@ export function HqBusinessesPage() {
                 <TableCell>{t('Set up')}</TableCell>
                 <TableCell>{t('Last sign-in')}</TableCell>
                 <TableCell>{t('Joined')}</TableCell>
+                <TableCell align="right"><Box component="span" sx={visuallyHidden}>{t('Actions')}</Box></TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -79,6 +82,7 @@ export function HqBusinessesPage() {
                     <TableCell>{b.set_up_at ? day(b.set_up_at) : t('Not yet')}</TableCell>
                     <TableCell>{day(b.last_sign_in)}</TableCell>
                     <TableCell>{day(b.created_at)}</TableCell>
+                    <TableCell align="right"><HqBusinessActions business={b} onDone={() => void reload()} /></TableCell>
                   </TableRow>
                 )
               })}
@@ -89,3 +93,5 @@ export function HqBusinessesPage() {
     </>
   )
 }
+
+const visuallyHidden = { position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' } as const

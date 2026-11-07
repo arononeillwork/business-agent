@@ -62,6 +62,7 @@ import { demoPostIdeasApi } from './demoPostIdeas'
 import { demoNewsletterApi } from './demoNewsletter'
 import { reportSendProblem, scheduleProblem, type ReportSchedule } from '../../shared/reports'
 import { demoQrCodeApi } from './demoQrCodes'
+import { demoBackOfficeApi } from './demoBackOffice'
 import { COUNTED, type Contractor, type OutsourcedJob } from '../../shared/outsourcing'
 import { DEFAULT_CONVENIO, contractProblem, type EmploymentContract } from '../../shared/contracts'
 import { EASY_BEANS_ROLES, EASY_BEANS_RULES, handbookDuties } from './easyBeansHandbook'
@@ -5110,8 +5111,8 @@ export function createDemoApi(): Api {
       // The demo has no render service: the picture stays as it is, with the music noted on the post.
       return { media: req.sources.length > 1 ? { url: '/demo/music/reel.mp4', type: 'video' } : req.sources[0], ms: null }
     },
-    // The demo's café isn't HQ: its back-office has nothing to list.
-    async hqBusinesses() { return [] },
+    // The back-office (HQ's admins, ?hq; the café isn't HQ, so it has nothing to list): src/data/demoBackOffice.ts.
+    ...demoBackOfficeApi({ hqAdmin: () => demoHq && isAdmin() && !!me()?.active, business, daysAgo }),
     async referrals() {
       requireAdmin()
       return { code: referralDemo.code, opens: referralDemo.opens, referrals: [...referralDemo.referrals] }

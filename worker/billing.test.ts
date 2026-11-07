@@ -8,6 +8,7 @@ import { billing, encodeForm, forgetTaxSetting, syncBilling } from './billing'
 import type { Env } from './supabase'
 import { FakeSupabase } from './test/fakeSupabase'
 import { TRIAL_DAYS } from '../shared/plans'
+import { hq } from './hq'
 
 const APP = 'https://app.test'
 const env = {
@@ -39,6 +40,8 @@ class FakeStripe {
   down = false
   /** Stripe Tax: 'pending' until the account's registration and address are in, then 'active'. */
   tax = 'pending'
+  /** Subscription changes with an idempotency key, by key: a repeated key is the same change, made once (as on Stripe). */
+  done = new Map<string, URLSearchParams>()
   handle(url: string, init?: RequestInit): Response | null {
     const u = new URL(url)
     if (u.host !== 'api.stripe.com') return null
@@ -63,6 +66,13 @@ class FakeStripe {
     const sub = /^\/subscriptions\/(\w+)$/.exec(path)
     if (sub) {
       const s = this.subs.find(x => x.id === sub[1])!
+      const key = new Headers(init?.headers).get('idempotency-key')
+      if (method === 'POST' && key) {
+        if (this.done.has(key)) return json(s)
+        this.done.set(key, body)
+      }
+      // A longer trial (HQ).
+      if (method === 'POST' && body.has('trial_end')) s.trial_end = Number(body.get('trial_end'))
       if (method === 'POST' && body.has('items[0][price]')) {
         const price = this.prices.find(p => p.id === body.get('items[0][price]'))!
         s.items.data[0].price = { id: price.id, unit_amount: price.unit_amount, lookup_key: price.lookup_key, recurring: price.recurring }
@@ -348,5 +358,62 @@ describe('The Business Agent reps’ commission (the hq_reps migration)', () => 
     Object.assign(db.table('business')[0], { created_at: made })
     Object.assign(row(), { status: 'comped', complimentary: 'founder', plan: 'business' })
     expect((await get()).rep_code_until).toBeNull()
+  })
+})
+
+describe('The Business Agent’s back-office: a longer free trial (HQ’s admins only)', () => {
+  const extend = (body: unknown, who = 'hq-token', business = 1) =>
+    hq.request(`${APP}/api/hq/businesses/${business}/extend-trial`, { method: 'POST', headers: { authorization: `Bearer ${who}`, 'content-type': 'application/json' }, body: JSON.stringify(body) }, env)
+  const trialEnd = new Date(Date.now() + 20 * 86_400_000)
+  const ends = () => Math.floor(+trialEnd / 1000)
+  beforeEach(async () => {
+    db.tables.business.push({ id: 7, name: 'The Business Agent HQ', is_hq: true })
+    db.tables.profiles.push({ id: 'hq-admin', full_name: 'Aron at HQ', role: 'admin', active: true, can_see_pay: true, business_id: 7 },
+      { id: 'hq-gone', full_name: 'Gone', role: 'admin', active: false, business_id: 7 })
+    db.people.set('hq-token', { id: 'hq-admin', role: 'admin' })
+    db.people.set('hq-gone-token', { id: 'hq-gone', role: 'admin' })
+    await post('/api/billing/checkout', { plan: 'business', interval: 'month' })
+    stripe.subscribe('business_agent_business_month', 'trialing', trialEnd)
+    await syncBilling(env, 1)
+  })
+
+  it('moves the Stripe trial’s end later, nothing charged for the days, and billing follows', async () => {
+    const res = await extend({ days: 14 })
+    expect(res.status).toBe(200)
+    const later = new Date((ends() + 14 * 86_400) * 1000).toISOString()
+    expect(await res.json()).toEqual({ trial_ends_at: later })
+    expect(stripe.subs[0].trial_end).toBe(ends() + 14 * 86_400)
+    const change = [...stripe.done.values()][0]
+    expect(change.get('proration_behavior')).toBe('none')
+    expect(row()).toMatchObject({ status: 'trialing', trial_ends_at: later })
+    // Once more is a week more again.
+    expect(await (await extend({ days: 7 })).json()).toEqual({ trial_ends_at: new Date((ends() + 21 * 86_400) * 1000).toISOString() })
+  })
+
+  it('a retry of the same change (its answer lost on the way) is made once', async () => {
+    stripe.done.set(`business-agent-trial-sub_1-${ends()}-30`, new URLSearchParams())
+    await extend({ days: 30 })
+    expect(stripe.subs[0].trial_end).toBe(ends())
+  })
+
+  it('only HQ’s active admins: not a café’s owner, nor an HQ admin switched off', async () => {
+    for (const who of ['admin-token', 'staff-token', 'hq-gone-token', 'nobody']) {
+      const res = await extend({ days: 14 }, who)
+      expect(res.status).toBe(403)
+      expect(await res.json()).toEqual({ error: 'Only The Business Agent HQ’s admins can do that' })
+    }
+    expect(stripe.subs[0].trial_end).toBe(ends())
+  })
+
+  it('7, 14 or 30 days, for a business on a trial', async () => {
+    expect((await extend({ days: 10 })).status).toBe(400)
+    expect((await extend({ days: '14' })).status).toBe(400)
+    expect((await extend({ days: 14 }, 'hq-token', 99)).status).toBe(404)
+    stripe.subscribe('business_agent_business_month', 'active', null)
+    await syncBilling(env, 1)
+    const res = await extend({ days: 14 })
+    expect(res.status).toBe(409)
+    expect(await res.json()).toEqual({ error: 'It isn’t on a free trial' })
+    expect(stripe.done.size).toBe(0)
   })
 })

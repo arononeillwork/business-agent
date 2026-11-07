@@ -1776,6 +1776,16 @@ export function createSupabaseApi(url: string, key: string, captchaKey?: string 
     async hqBusinesses() {
       return check(await sb.rpc('hq_businesses')) as HqBusiness[]
     },
+    // The back-office's acts: complimentary in the database (HQ's admins only), a longer trial through Stripe (the Worker).
+    async hqSetComplimentary(businessId, kind, note) {
+      check(await sb.rpc('hq_set_complimentary', { p_business: businessId, p_kind: kind, p_note: note }))
+    },
+    async hqEndComplimentary(businessId) {
+      check(await sb.rpc('hq_end_complimentary', { p_business: businessId }))
+    },
+    async hqExtendTrial(businessId, days) {
+      return (await worker<{ trial_ends_at: string }>(`/api/hq/businesses/${businessId}/extend-trial`, { method: 'POST', body: JSON.stringify({ days }) })).trial_ends_at
+    },
     async referrals() {
       const [{ data: b }, list, opens] = await Promise.all([
         sb.from('business').select('referral_code').single(),

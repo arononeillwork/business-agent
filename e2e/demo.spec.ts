@@ -2241,6 +2241,43 @@ test.describe('billing', () => {
     await page.getByRole('button', { name: /Account menu/ }).first().click()
     await expect(page.getByRole('menuitem', { name: 'Businesses' })).toHaveCount(0)
   })
+
+  test('the back-office for The Business Agent HQ’s admins: friends & family with a note, and a longer free trial', async ({ page }) => {
+    await open(page, '/hq/businesses?hq')
+    await expect(page.getByRole('heading', { level: 1, name: 'Businesses' })).toBeVisible()
+    const table = page.getByRole('table', { name: 'Businesses' })
+    const row = (name: string) => table.getByRole('row').filter({ hasText: name })
+
+    // Bar Bea, on Free: friends & family, with a note saying who it's for.
+    await row('Bar Bea').getByRole('button', { name: 'Actions for Bar Bea' }).click()
+    await page.getByRole('menuitem', { name: 'Make complimentary…' }).click()
+    const comp = page.getByRole('dialog', { name: 'Make Bar Bea complimentary' })
+    await comp.getByRole('radio', { name: 'Friends & family' }).check()
+    await expect(comp.getByRole('button', { name: 'Make complimentary' })).toBeDisabled()
+    await comp.getByRole('textbox', { name: 'Note' }).fill('Bea, a friend from the gym')
+    await comp.getByRole('button', { name: 'Make complimentary' }).click()
+    await toast(page, 'Bar Bea is complimentary now')
+    await expect(row('Bar Bea').getByText('Complimentary')).toBeVisible()
+
+    // Café Lola pays through Stripe: its subscription is cancelled there first, so the card isn't charged.
+    await row('Café Lola').getByRole('button', { name: 'Actions for Café Lola' }).click()
+    await expect(page.getByRole('menuitem', { name: /Make complimentary/ })).toBeDisabled()
+    await expect(page.getByRole('menuitem', { name: /Make complimentary/ })).toContainText('Cancel it in Stripe first')
+    await page.keyboard.press('Escape')
+
+    // Peluquería Sol's free trial: two weeks more.
+    await row('Peluquería Sol').getByRole('button', { name: 'Actions for Peluquería Sol' }).click()
+    await page.getByRole('menuitem', { name: 'Extend free trial…' }).click()
+    const trial = page.getByRole('dialog', { name: 'Extend Peluquería Sol’s free trial' })
+    await expect(trial.getByText('Ends now on 17 November 2026.')).toBeVisible()
+    await trial.getByRole('button', { name: '30 days' }).click()
+    await expect(trial.getByText('Will end on 17 December 2026.')).toBeVisible()
+    await trial.getByRole('button', { name: '14 days' }).click()
+    await expect(trial.getByText('Will end on 1 December 2026.')).toBeVisible()
+    await trial.getByRole('button', { name: 'Extend trial' }).click()
+    await toast(page, 'Peluquería Sol’s trial now ends on 1 December 2026')
+    await expect(trial).toHaveCount(0)
+  })
 })
 
 test('guest link: opens already signed in as a Guest admin, no sign-in page', async ({ page }) => {
