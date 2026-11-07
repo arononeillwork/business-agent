@@ -115,3 +115,34 @@ export const CAFE_PRESETS: LicencePreset[] = [
   { key: 'reclamaciones', name: 'Hojas de reclamaciones y cartel', category: 'permit', issuer: 'Junta de Andalucía', renew_every_months: null,
     what: msg('Complaint forms must be available, with the sign that says so on show.') },
 ]
+/** What a café or bar in Ireland usually needs. */
+export const IRISH_PRESETS: LicencePreset[] = [
+  { key: 'ie_food_registration', name: 'Food business registration (HSE)', category: 'health', issuer: 'HSE Environmental Health Service', renew_every_months: null,
+    what: msg('Food businesses register with the HSE’s Environmental Health Service before they open. Keep the confirmation with the HACCP plan.') },
+  { key: 'ie_imro', name: 'IMRO music licence', category: 'music', issuer: 'IMRO', renew_every_months: 12,
+    what: msg('Playing music in the café: the songwriters’ and publishers’ licence, paid each year.'), link: 'https://www.imro.ie' },
+  { key: 'ie_ppi', name: 'PPI music licence', category: 'music', issuer: 'PPI', renew_every_months: 12,
+    what: msg('Recorded music also needs Phonographic Performance Ireland’s licence, apart from IMRO.'), link: 'https://www.ppiltd.com' },
+  { key: 'ie_liquor', name: 'Liquor licence', category: 'permit', issuer: 'Revenue', renew_every_months: 12,
+    what: msg('Only when it sells alcohol: renewed each year by 30 September, with a court certificate where one is needed.') },
+  { key: 'ie_section254', name: 'Section 254 licence (tables and chairs outside)', category: 'permit', issuer: 'Local council', renew_every_months: 12,
+    what: msg('Tables and chairs on the footpath: the council’s licence and its fee.') },
+  { key: 'ie_fire_cert', name: 'Fire safety certificate', category: 'safety', issuer: 'Local council (Building Control)', renew_every_months: null,
+    what: msg('For the premises’ use as a café or restaurant, from the council before the work is done. It doesn’t run out, but a change of use or layout can need a new one.') },
+  { key: 'ie_food_training', name: 'Food safety training', category: 'certificate', issuer: '', renew_every_months: 36,
+    what: msg('Everyone who handles food is trained for what they do (the FSAI’s guide sets the levels). Add one per person.') },
+  { key: 'ie_public_liability', name: 'Public liability insurance', category: 'insurance', issuer: '', renew_every_months: 12,
+    what: msg('Cover for customers and the public, usually required by the lease.') },
+  { key: 'ie_employers_liability', name: 'Employer’s liability insurance', category: 'insurance', issuer: '', renew_every_months: 12,
+    what: msg('Cover for the team, expected of every employer.') },
+  { key: 'ie_extinguishers', name: 'Fire extinguishers serviced', category: 'safety', issuer: '', renew_every_months: 12,
+    what: msg('Fire extinguishers and alarms are serviced by a competent company each year.') },
+  { key: 'ie_pests', name: 'Pest control', category: 'health', issuer: '', renew_every_months: 12,
+    what: msg('Pest control contract and its reports, part of the HACCP plan.') },
+]
+
+/** The usual licences for a café in the business's country. */
+export const licencePresets = (country: 'ES' | 'IE' = 'ES'): LicencePreset[] => (country === 'IE' ? IRISH_PRESETS : CAFE_PRESETS)
+/** Every preset, both countries' (the AI tool can name any of them). */
+export const ALL_PRESETS: LicencePreset[] = [...CAFE_PRESETS, ...IRISH_PRESETS]
+

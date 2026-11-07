@@ -244,7 +244,7 @@ function ClaimDialog({ claim, rate, decides, onClose }: { claim: ClaimInput; rat
             </Stack>
             <Typography variant="body2">{t('{km} km at {rate} a km: {amount}', { km: formatNumber((c.km ?? 0) * (c.return_trip ? 2 : 1)), rate: formatMoney(perKm), amount: formatMoney(amount) })}</Typography>
           </> : (
-            <TextField label={t('Amount (with IVA)')} type="number" value={c.amount ?? ''} onChange={e => set({ amount: e.target.value === '' ? undefined : Number(e.target.value) })} />
+            <TextField label={t('Amount (with VAT)')} type="number" value={c.amount ?? ''} onChange={e => set({ amount: e.target.value === '' ? undefined : Number(e.target.value) })} />
           )}
           {decides && <>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>

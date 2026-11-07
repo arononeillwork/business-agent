@@ -4239,7 +4239,7 @@ test.describe('profit and loss', () => {
     await expect(page.getByRole('heading', { name: 'Profit & loss', exact: true })).toBeVisible()
   }
 
-  test('the statement shows the months since the café opened: takings without IVA, costs and profit', async ({ page }) => {
+  test('the statement shows the months since the café opened: takings without VAT, costs and profit', async ({ page }) => {
     test.skip(!FEATURES.square, 'Square is switched off for now')
     await withSquare(page)
     const statement = page.getByRole('table', { name: 'Profit & loss statement' })
@@ -4247,7 +4247,7 @@ test.describe('profit and loss', () => {
     await expect(statement.getByRole('columnheader', { name: /^Apr 26/ })).toBeVisible()
     await expect(statement.getByRole('columnheader', { name: /^Sep 26/ })).toBeVisible()
     await expect(statement.getByRole('columnheader', { name: /^Mar 26/ })).toHaveCount(0)
-    for (const line of ['Takings, without IVA', 'Total cost of sales', 'Gross profit', 'Total team', 'Total running costs', 'Operating profit']) {
+    for (const line of ['Takings, without VAT', 'Total cost of sales', 'Gross profit', 'Total team', 'Total running costs', 'Operating profit']) {
       await expect(statement.getByRole('rowheader', { name: new RegExp(`^${line}`) })).toBeVisible()
     }
     // Finances' wages estimate fills the months before there are timecards; expenses are grouped by category.
@@ -4255,7 +4255,7 @@ test.describe('profit and loss', () => {
     await expect(statement.getByRole('rowheader', { name: /^Premises/ })).toBeVisible()
     await expect(statement.getByRole('rowheader', { name: /^Rent/ })).toHaveCount(0)
     const tiles = page.getByRole('list', { name: 'At a glance' }).getByRole('listitem')
-    await expect(tiles.filter({ hasText: 'Income' })).toContainText('with IVA from the till')
+    await expect(tiles.filter({ hasText: 'Income' })).toContainText('with VAT from the till')
     await expect(page.getByText(/An estimate from the app’s own figures/)).toBeVisible()
   })
 
@@ -4295,7 +4295,7 @@ test.describe('profit and loss', () => {
     expect(file.suggestedFilename()).toBe('profit-and-loss-2026-04-2026-09.csv')
     const text = readFileSync((await file.path())!, 'utf8')
     expect(text).toContain('"Operating profit"')
-    expect(text).toContain('"Takings, without IVA"')
+    expect(text).toContain('"Takings, without VAT"')
   })
 
   test('employees cannot open profit and loss', async ({ page }) => {
@@ -4303,7 +4303,7 @@ test.describe('profit and loss', () => {
     await expect(page.getByRole('heading', { name: /Hola/ })).toBeVisible()
     await expect(page.getByRole('link', { name: 'Profit & loss' })).toHaveCount(0)
     await page.goto('/profit-and-loss?demo')
-    await expect(page.getByText('Takings, without IVA')).toHaveCount(0)
+    await expect(page.getByText('Takings, without VAT')).toHaveCount(0)
   })
 })
 
@@ -4751,7 +4751,7 @@ test.describe('stock and suppliers', () => {
     await item.getByRole('combobox', { name: 'Supplier' }).click()
     await page.getByRole('option', { name: 'Frutas Paqui' }).click()
     await item.getByRole('textbox', { name: 'Link to the item on their website' }).fill('https://frutas.example/naranjas')
-    await item.getByRole('textbox', { name: 'Cost per unit, without IVA' }).fill('1,20')
+    await item.getByRole('textbox', { name: 'Cost per unit, without VAT' }).fill('1,20')
     await item.getByRole('textbox', { name: 'In stock now' }).fill('5')
     await item.getByRole('textbox', { name: 'Reorder at' }).fill('10')
     await item.getByRole('button', { name: 'Add' }).click()
@@ -4808,7 +4808,7 @@ test.describe('stock and suppliers', () => {
     // The item opens read-only: no prices to change.
     await row.getByRole('button', { name: 'Napkins', exact: true }).click()
     const details = page.getByRole('dialog', { name: 'Napkins' })
-    await expect(details.getByRole('textbox', { name: 'Cost per unit, without IVA' })).toBeDisabled()
+    await expect(details.getByRole('textbox', { name: 'Cost per unit, without VAT' })).toBeDisabled()
     await expect(details.getByRole('button', { name: 'Save' })).toHaveCount(0)
     await details.getByRole('button', { name: 'Close' }).click()
   })
@@ -4977,7 +4977,7 @@ test.describe('stock and suppliers', () => {
     await page.getByRole('button', { name: 'Add menu item' }).click()
     const add = page.getByRole('dialog', { name: 'Add a menu item' })
     await add.getByRole('textbox', { name: 'Name' }).fill('Chia fruit parfait')
-    await add.getByRole('textbox', { name: 'Menu price, with IVA' }).fill('4,50')
+    await add.getByRole('textbox', { name: 'Menu price, with VAT' }).fill('4,50')
     await add.getByRole('combobox', { name: 'Category' }).click()
     await page.getByRole('option', { name: 'Food' }).click()
     await add.getByRole('button', { name: 'Add', exact: true }).click()
@@ -5111,8 +5111,8 @@ test.describe('recipes and waste', () => {
 
     await table.getByRole('row', { name: 'Croissant' }).click()
     const dialog = page.getByRole('dialog', { name: 'Croissant' })
-    await expect(dialog).toContainText('Below the 60% aimed for. At €2,60 with IVA it would be on target.')
-    await dialog.getByRole('textbox', { name: 'Menu price, with IVA' }).fill('2,60')
+    await expect(dialog).toContainText('Below the 60% aimed for. At €2,60 with VAT it would be on target.')
+    await dialog.getByRole('textbox', { name: 'Menu price, with VAT' }).fill('2,60')
     await expect(dialog.getByRole('alert')).toHaveCount(0)
     await dialog.getByRole('button', { name: 'Save' }).click()
     await toast(page, /^Saved$/)
@@ -5128,7 +5128,7 @@ test.describe('recipes and waste', () => {
     const table = page.getByRole('table', { name: 'Menu costing' })
     await table.getByRole('row', { name: 'Pain au chocolat' }).click()
     const dialog = page.getByRole('dialog', { name: 'Pain au chocolat' })
-    const price = dialog.getByRole('textbox', { name: 'Menu price, with IVA' })
+    const price = dialog.getByRole('textbox', { name: 'Menu price, with VAT' })
     await price.press('ControlOrMeta+a')
     await price.pressSequentially('2.90', { delay: 30 })
     await expect(price).toHaveValue('2.90')
@@ -5152,18 +5152,18 @@ test.describe('recipes and waste', () => {
     await page.getByRole('button', { name: 'Add item' }).first().click()
     const item = page.getByRole('dialog', { name: 'Add an item' })
     await item.getByRole('textbox', { name: 'Name' }).fill('Lemons')
-    await type(item.getByRole('textbox', { name: 'Cost per unit, without IVA' }), '0.45')
+    await type(item.getByRole('textbox', { name: 'Cost per unit, without VAT' }), '0.45')
     await type(item.getByRole('textbox', { name: 'In stock now' }), '1.5')
     await type(item.getByRole('textbox', { name: 'Reorder at' }), '2,5')
     await item.getByRole('checkbox', { name: 'Sold in the shop' }).check()
-    await type(item.getByRole('textbox', { name: 'Shop price, with IVA' }), '1.20')
+    await type(item.getByRole('textbox', { name: 'Shop price, with VAT' }), '1.20')
     await item.getByRole('button', { name: 'Add' }).click()
     await toast(page, 'Added Lemons')
     await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Current stock' }).click()
     await page.getByRole('table', { name: 'Stock items' }).getByRole('row', { name: 'Lemons' }).getByRole('button', { name: 'Lemons', exact: true }).click()
     const saved = page.getByRole('dialog', { name: 'Lemons' })
-    await expect(saved.getByRole('textbox', { name: 'Cost per unit, without IVA' })).toHaveValue('0.45')
-    await expect(saved.getByRole('textbox', { name: 'Shop price, with IVA' })).toHaveValue('1.2')
+    await expect(saved.getByRole('textbox', { name: 'Cost per unit, without VAT' })).toHaveValue('0.45')
+    await expect(saved.getByRole('textbox', { name: 'Shop price, with VAT' })).toHaveValue('1.2')
     await saved.press('Escape')
 
     await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Suppliers' }).click()
@@ -5183,12 +5183,12 @@ test.describe('recipes and waste', () => {
     await page.getByRole('button', { name: 'Add menu item' }).click()
     const dialog = page.getByRole('dialog', { name: 'Add a menu item' })
     await dialog.getByRole('textbox', { name: 'Name' }).fill('Cortado')
-    await dialog.getByRole('textbox', { name: 'Menu price, with IVA' }).fill('2,20')
+    await dialog.getByRole('textbox', { name: 'Menu price, with VAT' }).fill('2,20')
     await dialog.getByRole('button', { name: 'Add ingredient' }).click()
     await dialog.getByRole('combobox', { name: 'Ingredient' }).fill('House espresso')
     await page.getByRole('option', { name: 'House espresso blend' }).click()
     await dialog.getByRole('textbox', { name: 'Amount' }).fill('18')
-    await expect(dialog).toContainText('Cost €0,33 · €2,00 without IVA · margin €1,67 (83,4%)')
+    await expect(dialog).toContainText('Cost €0,33 · €2,00 without VAT · margin €1,67 (83,4%)')
     await dialog.getByRole('button', { name: 'Add a variant' }).click()
     await dialog.getByRole('textbox', { name: 'Variant' }).fill('Extra shot')
     await dialog.getByRole('textbox', { name: 'Price change' }).fill('0,5')
@@ -5196,7 +5196,7 @@ test.describe('recipes and waste', () => {
     await dialog.getByRole('combobox', { name: 'Ingredient' }).nth(1).fill('House espresso')
     await page.getByRole('option', { name: 'House espresso blend' }).click()
     await dialog.getByRole('textbox', { name: 'Amount' }).nth(1).fill('9')
-    await expect(dialog).toContainText('Cost €0,50 · €2,45 without IVA')
+    await expect(dialog).toContainText('Cost €0,50 · €2,45 without VAT')
     await dialog.getByRole('button', { name: 'Add', exact: true }).click()
     await toast(page, 'Added Cortado')
     await expect(page.getByRole('table', { name: 'Menu costing' }).getByRole('row', { name: 'Cortado' })).toContainText('Extra shot')
@@ -5210,7 +5210,7 @@ test.describe('recipes and waste', () => {
     await page.getByRole('button', { name: 'Add menu item' }).click()
     const dialog = page.getByRole('dialog', { name: 'Add a menu item' })
     await dialog.getByRole('textbox', { name: 'Name' }).fill('Bacon sandwich')
-    await dialog.getByRole('textbox', { name: 'Menu price, with IVA' }).fill('5,50')
+    await dialog.getByRole('textbox', { name: 'Menu price, with VAT' }).fill('5,50')
     await dialog.getByRole('button', { name: 'Add', exact: true }).click()
     await toast(page, 'Added Bacon sandwich')
     const row = page.getByRole('table', { name: 'Menu costing' }).getByRole('row', { name: 'Bacon sandwich' })
@@ -5332,7 +5332,7 @@ test.describe('menu, menu design and screens', () => {
     const dialog = page.getByRole('dialog', { name: 'Add a menu item' })
     await dialog.getByRole('textbox', { name: 'Name' }).fill('Oat cortado')
     await dialog.getByRole('combobox', { name: 'Section' }).fill('Coffee')
-    await dialog.getByRole('textbox', { name: 'Price, with IVA' }).fill('3,00')
+    await dialog.getByRole('textbox', { name: 'Price, with VAT' }).fill('3,00')
     await dialog.getByRole('textbox', { name: 'Description' }).fill('Espresso cut with steamed oat milk')
     await expect(dialog).toContainText('Once it’s added, put what goes into it on Menu costing')
     await dialog.getByRole('button', { name: 'Add', exact: true }).click()
@@ -5443,7 +5443,7 @@ test.describe('menu, menu design and screens', () => {
     const fw = page.getByRole('dialog', { name: 'Flat White' })
     await expect(fw).toContainText('Change its price here and it’s changed in Square too')
     await expect(fw).toContainText('Other ways it’s sold, from Square: Iced +€1,00')
-    await fw.getByRole('textbox', { name: 'Price, with IVA' }).fill('4,00')
+    await fw.getByRole('textbox', { name: 'Price, with VAT' }).fill('4,00')
     await fw.getByRole('button', { name: 'Save' }).click()
     await toast(page, 'Saved, and changed in Square')
     await expect(card(page, 'Flat White')).toContainText('Hot €4,00 · Iced €5,00')
@@ -5454,7 +5454,7 @@ test.describe('menu, menu design and screens', () => {
     await page.getByRole('region', { name: 'Extras' }).getByRole('button', { name: 'Edit Syrup' }).click()
     const syrup = page.getByRole('dialog', { name: 'Syrup' })
     await expect(syrup).toContainText('Extras are priced in Square too.')
-    await expect(syrup.getByRole('textbox', { name: 'Price, with IVA' })).toBeDisabled()
+    await expect(syrup.getByRole('textbox', { name: 'Price, with VAT' })).toBeDisabled()
     await syrup.getByRole('button', { name: 'Cancel' }).click()
 
     // Back to Custom: everything is kept here again, the Square items with it.
@@ -5990,7 +5990,7 @@ test.describe('offers and specials', () => {
 })
 
 test.describe('wholesale', () => {
-  test('wholesale shows every item by supplier with its price with and without IVA, what went up and the shop margin', async ({ page }) => {
+  test('wholesale shows every item by supplier with its price with and without VAT, what went up and the shop margin', async ({ page }) => {
     await open(page, '/wholesale')
     await expect(page.getByRole('heading', { name: 'Wholesale', level: 1 })).toBeVisible()
     const tiles = page.getByRole('list', { name: 'At a glance' })
@@ -6002,7 +6002,7 @@ test.describe('wholesale', () => {
     await expect(roaster.getByRole('link', { name: 'Order page' })).toHaveAttribute('href', 'https://tostadoresdelsur.example/trade')
     const beans = roaster.getByRole('table', { name: 'Items from Tostadores del Sur' }).getByRole('row', { name: 'House espresso blend' })
     await expect(beans).toContainText('18,50')
-    await expect(beans).toContainText('20,35') // with 10% IVA
+    await expect(beans).toContainText('20,35') // with 10% VAT
     await expect(beans).toContainText('+7,6% on 15 Sep')
     await expect(roaster.getByRole('row', { name: 'Easy Beans house blend 250 g' })).toContainText('Margin 54,2%')
 
@@ -7708,7 +7708,7 @@ test.describe('outsourcing', () => {
 
     await options.getByRole('button', { name: 'Choose Nacho Vega for Social media management' }).click()
     const dialog = page.getByRole('dialog', { name: 'Outsource a job' })
-    await expect(dialog.getByRole('textbox', { name: 'Price without IVA' })).toHaveValue('240')
+    await expect(dialog.getByRole('textbox', { name: 'Price without VAT' })).toHaveValue('240')
     await expect(dialog.getByRole('checkbox', { name: 'End the job with Lucía Marín today' })).toBeChecked()
     await dialog.getByRole('textbox', { name: 'What’s included' }).fill('2 posts and 3 stories a week')
     await dialog.getByRole('button', { name: 'Give them the job' }).click()
@@ -7739,7 +7739,7 @@ test.describe('outsourcing', () => {
     await page.getByRole('option', { name: 'Company' }).click()
     await add.getByRole('combobox', { name: 'Jobs they do' }).fill('Pest')
     await page.getByRole('option', { name: 'Pest control' }).click()
-    await add.getByRole('textbox', { name: 'Usual rate without IVA' }).fill('60')
+    await add.getByRole('textbox', { name: 'Usual rate without VAT' }).fill('60')
     await add.getByRole('combobox', { name: 'How it’s charged' }).click()
     await page.getByRole('option', { name: 'A visit' }).click()
     await add.locator('label', { hasText: '4 stars' }).click()
@@ -7826,7 +7826,7 @@ test.describe('leads and enquiries', () => {
     await dialog.getByRole('textbox', { name: 'Last name' }).fill('Paredes')
     await dialog.getByRole('textbox', { name: 'Phone' }).fill('644 221 908')
     await dialog.getByRole('textbox', { name: 'What they asked for' }).fill('Coffee cart for a wedding, 80 guests')
-    await dialog.getByRole('spinbutton', { name: 'Worth about (with IVA)' }).fill('900')
+    await dialog.getByRole('spinbutton', { name: 'Worth about (with VAT)' }).fill('900')
     await dialog.getByRole('button', { name: 'Save' }).click()
     await toast(page, /^Saved$/)
     const list = page.getByRole('region', { name: 'Enquiries' })
@@ -8585,7 +8585,7 @@ test.describe('competitions', () => {
     await dialog.getByRole('textbox', { name: 'Step 1' }).fill('Comment who you’d bring')
     await expect(warnings).not.toContainText('Don’t ask for a review')
     await expect(warnings).not.toContainText('modelos 111')
-    await dialog.getByLabel('Worth (each, IVA included)').fill('450')
+    await dialog.getByLabel('Worth (each, VAT included)').fill('450')
     await expect(warnings).toContainText('modelos 111 and 190')
     await dialog.getByRole('button', { name: 'Write the terms from the details' }).click()
     await expect(dialog.getByRole('textbox', { name: 'Terms' })).toHaveValue(/9\. Fiscalidad/)

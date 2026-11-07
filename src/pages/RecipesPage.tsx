@@ -57,7 +57,7 @@ export function RecipesPage() {
   const table = (): ExportTable => ({
     title: t('Menu costing'),
     filename: `menu-costing-${today()}`,
-    columns: [t('Item'), t('Variant'), t('Category'), t('Price with IVA'), t('Price without IVA'), t('Cost'), t('Margin'), t('Margin %'), t('Target %')],
+    columns: [t('Item'), t('Variant'), t('Category'), t('Price with VAT'), t('Price without VAT'), t('Cost'), t('Margin'), t('Margin %'), t('Target %')],
     rows: rows.flatMap(r => [
       [r.name, '', r.category ? t(r.category) : '', r.c.price, r.c.net === null ? null : Math.round(r.c.net * 100) / 100, r.empty ? null : Math.round(r.c.cost * 100) / 100,
         r.c.margin === null ? null : Math.round(r.c.margin * 100) / 100, r.c.marginPct, r.target_margin],
@@ -83,7 +83,7 @@ export function RecipesPage() {
       <ErrorBox error={data.error ?? stock.error} />
       <StatGrid>
         <StatTile label={t('Menu items')} value={data.data ? all.length : '–'} note={tn(all.reduce((s, r) => s + r.variants.length, 0), '{n} variant', '{n} variants')} />
-        <StatTile label={t('Average margin')} value={pct(average)} note={t('on the price without IVA')} />
+        <StatTile label={t('Average margin')} value={pct(average)} note={t('on the price without VAT')} />
         <StatTile label={t('Below target')} value={data.data ? below.length : '–'} note={below.length ? below.slice(0, 2).map(r => r.name).join(', ') : t('All on target')} />
         <StatTile label={t('Lowest margin')} value={priced.length ? pct(Math.min(...priced.map(r => r.c.marginPct!))) : '–'}
           note={priced.length ? [...priced].sort((a, b) => a.c.marginPct! - b.c.marginPct!)[0].name : undefined} />
@@ -155,7 +155,7 @@ export function RecipesPage() {
           </Typography>
         </Stack>
         <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1 }}>
-          {t('Margin: the menu price without IVA, less what goes in (with its waste allowance), as a share of that price. Costs come from Stock: change a supplier’s price there and every recipe follows.')}
+          {t('Margin: the menu price without VAT, less what goes in (with its waste allowance), as a share of that price. Costs come from Stock: change a supplier’s price there and every recipe follows.')}
         </Typography>
       </>}
       {open && <RecipeDialog recipe={open === 'new' ? null : open} items={items} readOnly={isPartner} onClose={() => setOpen(null)} />}
@@ -228,7 +228,7 @@ function RecipeDialog({ recipe, items, readOnly, onClose }: { recipe: Recipe | n
     <Typography variant="body2" sx={{ color: c.below ? tokens.badFg : 'text.secondary' }}>
       {c.marginPct === null
         ? t('Cost {cost}', { cost: formatMoney(c.cost) })
-        : t('Cost {cost} · {price} without IVA · margin {margin} ({pct})', { cost: formatMoney(c.cost), price: formatMoney(c.net!), margin: formatMoney(c.margin!), pct: pct(c.marginPct) })}
+        : t('Cost {cost} · {price} without VAT · margin {margin} ({pct})', { cost: formatMoney(c.cost), price: formatMoney(c.net!), margin: formatMoney(c.margin!), pct: pct(c.marginPct) })}
     </Typography>
   )
   const target = priceForTarget(base.cost, r.target_margin, r.vat_rate)
@@ -246,9 +246,9 @@ function RecipeDialog({ recipe, items, readOnly, onClose }: { recipe: Recipe | n
             </TextField>
           </Stack>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-            <DecimalField fullWidth label={t('Menu price, with IVA')} value={r.sell_price} disabled={readOnly} onNumber={n => set({ sell_price: n })}
+            <DecimalField fullWidth label={t('Menu price, with VAT')} value={r.sell_price} disabled={readOnly} onNumber={n => set({ sell_price: n })}
               slotProps={{ input: { startAdornment: <InputAdornment position="start">{'€'}</InputAdornment> } }} />
-            <TextField select fullWidth label={t('IVA')} value={r.vat_rate} disabled={readOnly} onChange={e => set({ vat_rate: Number(e.target.value) })}>
+            <TextField select fullWidth label={t('VAT')} value={r.vat_rate} disabled={readOnly} onChange={e => set({ vat_rate: Number(e.target.value) })}>
               {vatChoices(r.vat_rate).map(v => <MenuItem key={v} value={v}>{`${v}%`}</MenuItem>)}
             </TextField>
             <DecimalField fullWidth label={t('Target margin')} value={r.target_margin} blank={0} disabled={readOnly} onNumber={n => set({ target_margin: Math.min(99, n ?? 0) })}
@@ -262,7 +262,7 @@ function RecipeDialog({ recipe, items, readOnly, onClose }: { recipe: Recipe | n
             {lines(null)}
             <Box sx={{ mt: 1 }}>{summary(base)}</Box>
             {base.below && target !== null && (
-              <Alert severity="warning" sx={{ mt: 1 }}>{t('Below the {target}% aimed for. At {price} with IVA it would be on target.', { target: formatNumber(r.target_margin), price: formatMoney(target) })}</Alert>
+              <Alert severity="warning" sx={{ mt: 1 }}>{t('Below the {target}% aimed for. At {price} with VAT it would be on target.', { target: formatNumber(r.target_margin), price: formatMoney(target) })}</Alert>
             )}
             {base.missing.length > 0 && <Alert severity="info" sx={{ mt: 1 }}>{t('No cost for: {items}. Add their cost on the Stock page.', { items: base.missing.join(', ') })}</Alert>}
           </Box>

@@ -15,11 +15,12 @@ import { ExportButton } from '../components/tables'
 import type { ExportTable } from '../lib/export'
 import { addDays, formatLocal, localDate, today } from '../../shared/time'
 import {
-  CAFE_POINTS, FREQUENCIES, dueToday, frequencyLabel, inRange, limitsText,
+  cafePoints, FREQUENCIES, dueToday, frequencyLabel, inRange, limitsText,
   type Due, type PointInput, type PointPreset, type SafetyPoint,
 } from '../../shared/foodSafety'
 import { tokens } from '../theme'
 import { t, tn } from '../i18n'
+import { currentCountry } from '../../shared/country'
 
 /** How many days of checks are counted and exported, and how many the page lists. */
 const LOG_DAYS = 7
@@ -56,7 +57,7 @@ export function FoodSafetyPage() {
   const nameOf = (id: string | null) => profiles.find(p => p.id === id)?.full_name ?? ''
   const pointOf = (id: string) => allPoints.find(p => p.id === id)
   const added = new Set(allPoints.map(p => p.name.toLowerCase()))
-  const missing = CAFE_POINTS.filter(p => !added.has(t(p.name).toLowerCase()) && !added.has(p.name.toLowerCase()))
+  const missing = cafePoints(currentCountry()).filter(p => !added.has(t(p.name).toLowerCase()) && !added.has(p.name.toLowerCase()))
   const fromPreset = (p: PointPreset): PointInput => ({ name: t(p.name), kind: p.kind, min_temp: p.min_temp, max_temp: p.max_temp, frequency: p.frequency,
     area: t(p.area), instructions: t(p.instructions), active: true, sort: allPoints.length + 1 })
 
@@ -157,7 +158,9 @@ export function FoodSafetyPage() {
             {missing.length > 0 && <>
               <Typography variant="subtitle2" sx={{ mb: 0.5 }}>{t('Usual for a café')}</Typography>
               <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1 }}>
-                {t('A starting point: your APPCC (food safety plan) says what applies. Chilled food at 4 °C or below (8 °C when eaten within a day), frozen at −18 °C or below, kept hot at 65 °C or above.')}
+                {currentCountry() === 'IE'
+                  ? t('A starting point: your HACCP plan says what applies. The FSAI’s guidance: chilled food at 5 °C or below, frozen at −18 °C or below, kept hot at 63 °C or above, reheated to 70 °C.')
+                  : t('A starting point: your APPCC (food safety plan) says what applies. Chilled food at 4 °C or below (8 °C when eaten within a day), frozen at −18 °C or below, kept hot at 65 °C or above.')}
               </Typography>
               <Stack spacing={1}>
                 {missing.map(p => (

@@ -39,7 +39,7 @@ export default {
   'Win rate': 'Tasa de éxito',
   'Won': 'Ganada',
   'Won this month': 'Ganadas este mes',
-  'Worth about (with IVA)': 'Vale unos (con IVA)',
+  'Worth about (with VAT)': 'Vale unos (con IVA)',
   'Worth {amount}': 'Valen {amount}',
   '{channel}, {date}': '{channel}, {date}',
 }

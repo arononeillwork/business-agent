@@ -5,7 +5,7 @@ export default {
   'Add a trip': 'Añadir un viaje',
   'Add an expense': 'Añadir un gasto',
   'Add the receipt': 'Añadir el tique',
-  'Amount (with IVA)': 'Importe (con IVA)',
+  'Amount (with VAT)': 'Importe (con IVA)',
   'Approve {name}': 'Aprobar {name}',
   'Approved, not paid yet': 'Aprobado, aún sin pagar',
   'Claim removed': 'Gasto quitado',

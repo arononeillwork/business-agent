@@ -147,7 +147,7 @@ function Items({ items, allergens, admin, source, order, onOpen }: {
       <StatGrid>
         <StatTile label={t('On the menu')} value={items ? on.length : '–'} note={tn(off.length, '{n} off the menu', '{n} off the menu')} />
         <StatTile label={t('Sections')} value={items ? categories.length : '–'} note={categories.slice(0, 3).map(c => t(c)).join(', ')} />
-        <StatTile label={t('Average price')} value={priced.length ? formatMoney(priced.reduce((s, i) => s + i.sell_price!, 0) / priced.length) : '–'} note={t('with IVA')} />
+        <StatTile label={t('Average price')} value={priced.length ? formatMoney(priced.reduce((s, i) => s + i.sell_price!, 0) / priced.length) : '–'} note={t('with VAT')} />
         <StatTile label={t('Without a photo')} value={items ? noPhoto.length : '–'} note={noPhoto.length ? noPhoto.slice(0, 2).map(i => i.name).join(', ') : t('Every item has one')} />
       </StatGrid>
 
@@ -482,13 +482,13 @@ function ItemDialog({ item, items, marks, fromSquare, onClose }: { item: Item | 
               renderInput={p => <TextField {...p} label={tc('menu', 'Section')} />} />
           </Stack>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-            <TextField fullWidth label={t('Price, with IVA')} value={price} inputMode="decimal" onChange={e => setPrice(e.target.value)} disabled={!priceHere}
+            <TextField fullWidth label={t('Price, with VAT')} value={price} inputMode="decimal" onChange={e => setPrice(e.target.value)} disabled={!priceHere}
               helperText={fromSquare && priceHere ? t('Changed in Square too') : undefined}
               slotProps={{ input: { startAdornment: <InputAdornment position="start">{'€'}</InputAdornment> } }} />
             <TextField fullWidth label={t('Price is for')} placeholder={t('e.g. Hot (optional)')} value={m.price_label ?? ''} disabled={fromSquare}
               onChange={e => set({ price_label: e.target.value || null })} slotProps={{ htmlInput: { maxLength: 40 } }}
               helperText={t('With Iced as a variant, menus show hot and iced prices side by side.')} />
-            <TextField select fullWidth label={t('IVA')} value={m.vat_rate} onChange={e => set({ vat_rate: Number(e.target.value) })}>
+            <TextField select fullWidth label={t('VAT')} value={m.vat_rate} onChange={e => set({ vat_rate: Number(e.target.value) })}>
               {vatChoices(m.vat_rate).map(v => <MenuItem key={v} value={v}>{`${v}%`}</MenuItem>)}
             </TextField>
           </Stack>

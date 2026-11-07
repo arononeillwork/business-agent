@@ -322,7 +322,7 @@ function CompetitionDialog({ draft, stock, onClose, onSaved }: {
           </Stack>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField label={t('Prize')} value={d.prize ?? ''} onChange={e => set({ prize: e.target.value })} sx={{ flex: 2 }} />
-            <TextField label={t('Worth (each, IVA included)')} type="number" value={d.prize_value ?? ''} onChange={e => set({ prize_value: e.target.value === '' ? null : Math.max(0, Number(e.target.value)) })} sx={{ flex: 1 }} />
+            <TextField label={t('Worth (each, VAT included)')} type="number" value={d.prize_value ?? ''} onChange={e => set({ prize_value: e.target.value === '' ? null : Math.max(0, Number(e.target.value)) })} sx={{ flex: 1 }} />
           </Stack>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField select label={t('From the stock')} value={d.prize_item_id ?? ''} onChange={e => {

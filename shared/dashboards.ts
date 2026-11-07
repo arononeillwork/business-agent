@@ -38,7 +38,7 @@ export const WIDGETS: WidgetInfo[] = [
   { kind: 'on_today', group: 'team', label: msg('On today'), hint: msg('Who’s on the rota today'), size: 'medium', needs: ['team'] },
   { kind: 'late_starts', group: 'team', label: msg('Late starts'), hint: msg('Clocked in over 5 minutes after the shift started'), size: 'medium', needs: ['admin'] },
   { kind: 'low_stock', group: 'stock', label: msg('Low on stock'), hint: msg('At or below the reorder level'), size: 'medium', needs: ['team'] },
-  { kind: 'stock_value', group: 'stock', label: msg('Stock value'), hint: msg('At cost, without IVA'), size: 'small', needs: ['pay'] },
+  { kind: 'stock_value', group: 'stock', label: msg('Stock value'), hint: msg('At cost, without VAT'), size: 'small', needs: ['pay'] },
   { kind: 'waste', group: 'stock', label: msg('Waste'), hint: msg('What was thrown away'), size: 'small', needs: ['team'] },
   { kind: 'margins', group: 'stock', label: msg('Lowest margins'), hint: msg('Menu items that make the least'), size: 'medium', needs: ['admin'] },
   { kind: 'reviews', group: 'customers', label: msg('Google reviews'), hint: msg('The rating and new reviews'), size: 'small', needs: ['admin'] },
