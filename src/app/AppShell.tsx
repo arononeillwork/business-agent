@@ -103,6 +103,7 @@ import { KeyboardSensorNow } from '../components/dnd'
 import { NotificationBell } from '../components/NotificationBell'
 import { CafeSpeakerProvider } from './CafeSpeaker'
 import { BillingBanner } from './plan'
+import { ClosingBanner } from './ClosingBanner'
 import { SearchButton, ThemeToggle, roundButton } from './QuickActions'
 import { fonts, tokens } from '../theme'
 import { msg, t, tc, tr } from '../i18n'
@@ -762,6 +763,7 @@ export function AppShell() {
         )}
         <DemoBanner />
         <BillingBanner />
+        <ClosingBanner />
         <AgentBanner />
         <Box component="main" sx={{ px: { xs: 2, md: 4 }, pt: { xs: 2.5, md: 1.75 }, pb: { xs: 2.5, md: 4 }, maxWidth: 1360, mx: 'auto',
           // A big monitor: the page uses more of the screen, so it isn't a narrow strip in the middle.

@@ -1,6 +1,7 @@
 // Spanish for The Business Agent's back-office acts (the Businesses page, HQ's admins only): complimentary
-// accounts and longer free trials.
+// accounts, longer free trials and the businesses that asked to close.
 export default {
+  'Closed {date}: delete its data': 'Cerrada el {date}: borra sus datos',
   'Actions for {name}': 'Acciones para {name}',
   'End complimentary…': 'Terminar la cuenta gratuita…',
   'Make complimentary…': 'Hacer gratuita…',
@@ -24,6 +25,10 @@ export default {
   'Stripe moves the first payment to then. Nothing is charged for the extra days.': 'Stripe pasa el primer cobro a esa fecha. Los días de más no se cobran.',
   '{name}’s trial now ends on {date}': 'La prueba de {name} termina ahora el {date}',
   'Extend trial': 'Alargar la prueba',
+  '{n} business asked to close its account.': '{n} negocio ha pedido cerrar su cuenta.',
+  '{n} businesses asked to close their accounts.': '{n} negocios han pedido cerrar sus cuentas.',
+  'Once one has closed, delete its data by hand, except its working-hours records (registro de jornada), which the law keeps for four years. Cancel its Stripe subscription then if it still has one.':
+    'Cuando uno haya cerrado, borra sus datos a mano, salvo el registro de jornada, que la ley obliga a guardar cuatro años. Cancela entonces su suscripción en Stripe si aún la tiene.',
   'The Business Agent HQ is complimentary already': 'The Business Agent HQ ya tiene la cuenta gratuita',
   'It has a Stripe subscription running. Cancel it in Stripe first, so its card isn’t charged, then make it complimentary.':
     'Tiene una suscripción activa en Stripe. Cancélala primero en Stripe, para que no se cobre su tarjeta, y luego hazla gratuita.',

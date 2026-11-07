@@ -11,6 +11,7 @@ import { PageHeader, SectionTitle } from '../components/common'
 import { COMPLIMENTARY_LABEL, ENTERPRISE, PAY_PER_USE, PLANS, TRIAL_MONTHS, effectivePlan, payPerUse, paymentProblem, perUsePrice, plan as planById, planHighlights, type Billing, type Interval, type PlanId } from '../../shared/plans'
 import { formatLocal } from '../../shared/time'
 import { t, tn, tr } from '../i18n'
+import { AccountDataCard } from './AccountDataCard'
 
 const daysLeft = (iso: string) => Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / 86400_000))
 
@@ -313,6 +314,8 @@ export function BillingPage() {
             </CardContent>
           </Card>
         </Box>
+
+        <AccountDataCard billing={b} />
       </Stack>
     </Box>
   )

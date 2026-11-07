@@ -9,6 +9,7 @@ import type { Env } from './supabase'
 import { FakeSupabase } from './test/fakeSupabase'
 import { TRIAL_DAYS } from '../shared/plans'
 import { hq } from './hq'
+import { account } from './account'
 
 const APP = 'https://app.test'
 const env = {
@@ -19,7 +20,7 @@ const env = {
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 type Sub = { id: string; status: string; customer: string; trial_end: number | null; current_period_end: number; cancel_at_period_end: boolean; created: number;
   items: { data: { id: string; price: { id: string; unit_amount: number; lookup_key: string; recurring: { interval: string } } }[] }
-  pending_invoice_item_interval?: { interval: string } | null }
+  pending_invoice_item_interval?: { interval: string } | null; metadata?: Record<string, string> }
 
 /** Just enough of Stripe: prices by lookup key, products, customers, Checkout, subscriptions, events. */
 class FakeStripe {
@@ -42,6 +43,8 @@ class FakeStripe {
   tax = 'pending'
   /** Subscription changes with an idempotency key, by key: a repeated key is the same change, made once (as on Stripe). */
   done = new Map<string, URLSearchParams>()
+  /** Subscriptions can't be changed for now. */
+  subsDown = false
   handle(url: string, init?: RequestInit): Response | null {
     const u = new URL(url)
     if (u.host !== 'api.stripe.com') return null
@@ -66,13 +69,19 @@ class FakeStripe {
     const sub = /^\/subscriptions\/(\w+)$/.exec(path)
     if (sub) {
       const s = this.subs.find(x => x.id === sub[1])!
+      if (this.subsDown && method === 'POST') return json({ error: { message: 'Stripe is having a moment' } }, 500)
       const key = new Headers(init?.headers).get('idempotency-key')
       if (method === 'POST' && key) {
         if (this.done.has(key)) return json(s)
         this.done.set(key, body)
       }
-      // A longer trial (HQ).
+      // A longer trial (HQ), and closing the account: no more renewals, marked as ours, or renewing again.
       if (method === 'POST' && body.has('trial_end')) s.trial_end = Number(body.get('trial_end'))
+      if (method === 'POST' && body.has('cancel_at_period_end') && !body.has('items[0][price]')) s.cancel_at_period_end = body.get('cancel_at_period_end') === 'true'
+      for (const [k, v] of method === 'POST' ? body : []) {
+        const m = /^metadata\[(\w+)\]$/.exec(k)
+        if (m) { s.metadata ??= {}; if (v) s.metadata[m[1]] = v; else delete s.metadata[m[1]] }
+      }
       if (method === 'POST' && body.has('items[0][price]')) {
         const price = this.prices.find(p => p.id === body.get('items[0][price]'))!
         s.items.data[0].price = { id: price.id, unit_amount: price.unit_amount, lookup_key: price.lookup_key, recurring: price.recurring }
@@ -415,5 +424,88 @@ describe('The Business Agent’s back-office: a longer free trial (HQ’s admins
     expect(res.status).toBe(409)
     expect(await res.json()).toEqual({ error: 'It isn’t on a free trial' })
     expect(stripe.done.size).toBe(0)
+  })
+})
+
+describe('closing the account: the subscription stops renewing, and starts again if it’s kept', () => {
+  const call = (path: string, who = 'admin-token', e: Env = env) =>
+    account.request(`${APP}${path}`, { method: 'POST', headers: { authorization: `Bearer ${who}` } }, e)
+  let asked = 0
+  beforeEach(async () => {
+    asked = 0
+    const biz = () => db.table('business')[0]
+    db.rpcs.request_account_closure = a => {
+      asked++
+      Object.assign(biz(), { closing_requested_at: '2026-11-07T10:00:00.000Z', closing_requested_by: a.p_by })
+      return '2026-12-07T10:00:00.000Z'
+    }
+    db.rpcs.keep_account = () => { Object.assign(biz(), { closing_requested_at: null, closing_requested_by: null }); return null }
+    await post('/api/billing/checkout', { plan: 'pro', interval: 'month' })
+    stripe.subscribe('business_agent_pro_month', 'active', null)
+    await syncBilling(env, 1)
+  })
+
+  it('closing: no more renewals (nothing refunded), marked as ours; keeping: renewing again', async () => {
+    const res = await call('/api/account/close')
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ closes_at: '2026-12-07T10:00:00.000Z' })
+    expect(db.table('business')[0]).toMatchObject({ closing_requested_by: 'admin-1' })
+    expect(stripe.subs[0]).toMatchObject({ status: 'active', cancel_at_period_end: true, metadata: { business_agent_closing: 'yes' } })
+    expect(row().cancel_at_period_end).toBe(true)
+    // Asking again: when it closes, nothing more.
+    expect(await (await call('/api/account/close')).json()).toEqual({ closes_at: '2026-12-07T10:00:00.000Z' })
+    expect(asked).toBe(1)
+
+    expect(await (await call('/api/account/keep')).json()).toEqual({ ok: true, renewal_failed: false })
+    expect(db.table('business')[0].closing_requested_at).toBeNull()
+    expect(stripe.subs[0]).toMatchObject({ cancel_at_period_end: false, metadata: {} })
+    expect(row().cancel_at_period_end).toBe(false)
+  })
+
+  it('a subscription the owner had already cancelled stays cancelled when the account is kept', async () => {
+    stripe.subs[0].cancel_at_period_end = true
+    await call('/api/account/close')
+    expect(stripe.subs[0].metadata).toBeUndefined()
+    await call('/api/account/keep')
+    expect(stripe.subs[0].cancel_at_period_end).toBe(true)
+  })
+
+  it('Stripe not answering: the account isn’t closing, rather than closing with the card still charged', async () => {
+    stripe.subsDown = true
+    const res = await call('/api/account/close')
+    expect(res.status).toBe(502)
+    expect(((await res.json()) as { error: string }).error).toMatch(/^The subscription couldn’t be stopped, so nothing has changed/)
+    expect(db.table('business')[0].closing_requested_at).toBeNull()
+  })
+
+  it('a complimentary account or one on Free has no subscription to stop', async () => {
+    Object.assign(row(), { status: 'comped', complimentary: 'friends_family', plan: 'business' })
+    expect((await call('/api/account/close')).status).toBe(200)
+    expect(stripe.subs[0].cancel_at_period_end).toBe(false)
+  })
+
+  it('The Business Agent’s support inbox hears about it, when email sending is on', async () => {
+    const send = vi.fn(async () => ({ messageId: 'm1' }))
+    const withEmail = { ...env, EMAIL: { send } } as unknown as Env
+    await call('/api/account/close', 'admin-token', withEmail)
+    expect(send).toHaveBeenCalledWith(expect.objectContaining({
+      from: { email: 'noreply@businesssagent.com', name: 'The Business Agent' }, to: 'support@businesssagent.com',
+      subject: 'Account closing: Easy Beans (#1)', replyTo: 'aron@example.com' }))
+    expect((send.mock.calls[0] as unknown as [{ text: string }])[0].text).toMatch(/^Aron asked to close Easy Beans \(#1\) on The Business Agent\. It closes on 2026-12-07/)
+    await call('/api/account/keep', 'admin-token', withEmail)
+    expect(send).toHaveBeenLastCalledWith(expect.objectContaining({ subject: 'Account kept: Easy Beans (#1)' }))
+  })
+
+  it('owners only: not a shop manager, not an employee', async () => {
+    db.people.set('manager-token', { id: 'admin-2', role: 'admin' })
+    for (const who of ['manager-token', 'staff-token']) {
+      for (const path of ['/api/account/close', '/api/account/keep']) {
+        const res = await call(path, who)
+        expect(res.status).toBe(403)
+        expect(await res.json()).toEqual({ error: 'Only an owner can do that' })
+      }
+    }
+    expect(asked).toBe(0)
+    expect(stripe.subs[0].cancel_at_period_end).toBe(false)
   })
 })

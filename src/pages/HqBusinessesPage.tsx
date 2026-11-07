@@ -1,15 +1,15 @@
 // The Business Agent's back-office, for HQ's admins: every business on the service, with its plan,
 // trial, team, set-up and last sign-in, and the totals that matter (paying, trialing, monthly revenue).
 // Each business's acts (HqBusinessActions.tsx): make it complimentary or end that (hq_set_complimentary()),
-// give a free trial longer (the Worker, through Stripe).
-import { Box, Chip, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography } from '@mui/material'
+// give a free trial longer (the Worker, through Stripe), and which ones asked to close.
+import { Alert, Box, Chip, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography } from '@mui/material'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { Empty, ErrorBox, PageHeader, StatGrid, StatTile } from '../components/common'
 import { PLANS, plan as planById } from '../../shared/plans'
 import type { HqBusiness } from '../data/api'
-import { t } from '../i18n'
-import { HqBusinessActions } from './HqBusinessActions'
+import { t, tn } from '../i18n'
+import { HqBusinessActions, closingLabel } from './HqBusinessActions'
 
 const PAYING = new Set(['active', 'past_due'])
 const day = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '—')
@@ -33,7 +33,9 @@ function statusLabel(b: HqBusiness): { label: string; color: 'default' | 'succes
 export function HqBusinessesPage() {
   const { api } = useApp()
   const { data, error, reload } = useAsync('hq-businesses', () => api.hqBusinesses(), [])
+  const closures = useAsync('hq-closures', () => api.hqClosures(), [])
   const list = data ?? []
+  const closing = new Map((closures.data ?? []).map(c => [c.id, c]))
   const mrr = list.reduce((sum, b) => sum + monthlyRevenue(b), 0)
   const euro = (n: number) => n.toLocaleString(undefined, { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
   return (
@@ -46,6 +48,12 @@ export function HqBusinessesPage() {
         <StatTile label={t('On a trial')} value={list.filter(b => b.status === 'trialing').length} />
         <StatTile label={t('Paying')} value={list.filter(b => PAYING.has(b.status)).length} note={t('{amount} a month, without VAT', { amount: euro(mrr) })} />
       </StatGrid>
+      {closing.size > 0 && (
+        <Alert severity="warning" sx={{ mt: 3 }}>
+          {tn(closing.size, '{n} business asked to close its account.', '{n} businesses asked to close their accounts.')}{' '}
+          {t('Once one has closed, delete its data by hand, except its working-hours records (registro de jornada), which the law keeps for four years. Cancel its Stripe subscription then if it still has one.')}
+        </Alert>
+      )}
       {data && !list.length && <Empty>{t('No businesses to show. Only admins of The Business Agent HQ see this list.')}</Empty>}
       {!!list.length && (
         <TableContainer sx={{ mt: 3 }}>
@@ -65,11 +73,14 @@ export function HqBusinessesPage() {
             <TableBody>
               {list.map(b => {
                 const s = statusLabel(b)
+                const c = closing.get(b.id)
+                const closes = c && closingLabel(c)
                 return (
                   <TableRow key={b.id}>
                     <TableCell>
                       <Typography variant="body2" sx={{ fontWeight: 500 }}>{b.name}</Typography>
                       <Typography variant="caption" color="text.secondary">#{b.id}{b.is_hq ? ` · ${t('HQ')}` : ''}</Typography>
+                      {closes && <Box sx={{ mt: 0.5 }}><Chip size="small" color={closes.closed ? 'error' : 'warning'} label={closes.label} /></Box>}
                     </TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', gap: 0.75, alignItems: 'center', flexWrap: 'wrap' }}>

@@ -5111,8 +5111,13 @@ export function createDemoApi(): Api {
       // The demo has no render service: the picture stays as it is, with the music noted on the post.
       return { media: req.sources.length > 1 ? { url: '/demo/music/reel.mp4', type: 'video' } : req.sources[0], ms: null }
     },
-    // The back-office (HQ's admins, ?hq; the café isn't HQ, so it has nothing to list): src/data/demoBackOffice.ts.
-    ...demoBackOfficeApi({ hqAdmin: () => demoHq && isAdmin() && !!me()?.active, business, daysAgo }),
+    // The back-office (HQ's admins, ?hq; the café isn't HQ, so it has nothing to list) and an owner's own
+    // data and account (export, closing): src/data/demoBackOffice.ts.
+    ...demoBackOfficeApi({
+      hqAdmin: () => demoHq && isAdmin() && !!me()?.active, isOwner: () => paysAdmin() && !!me()?.active, me: () => me()?.id ?? null,
+      business, billing: demoBilling, team: () => profiles.filter(p => p.role !== 'partner'), shifts: () => shifts,
+      timecards: () => entries.map(e => ({ ...e })), daysAgo,
+    }),
     async referrals() {
       requireAdmin()
       return { code: referralDemo.code, opens: referralDemo.opens, referrals: [...referralDemo.referrals] }

@@ -12,11 +12,19 @@ import { useApp } from '../app/AppContext'
 import { useAction } from '../app/Notify'
 import { COMPLIMENTARY_LABEL, type Complimentary } from '../../shared/plans'
 import { TRIAL_EXTENSIONS, complimentaryBlock, type TrialExtension } from '../../shared/hqActions'
+import { canStillKeep } from '../../shared/accountClosing'
 import { formatLocal } from '../../shared/time'
-import type { HqBusiness } from '../data/api'
+import type { HqBusiness, HqClosure } from '../data/api'
 import { t } from '../i18n'
 
 const date = (iso: string) => formatLocal(iso, 'd MMMM yyyy')
+
+/** A closing business's chip: when it closes, or that it has and its data is to be deleted. */
+export function closingLabel(c: HqClosure, now = Date.now()): { label: string; closed: boolean } {
+  const closed = !canStillKeep(c.closing_requested_at, now)
+  return closed ? { label: t('Closed {date}: delete its data', { date: date(c.closes_at) }), closed }
+    : { label: t('Closes {date}', { date: date(c.closes_at) }), closed }
+}
 
 type Open = 'complimentary' | 'end' | 'trial' | null
 

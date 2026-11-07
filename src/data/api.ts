@@ -113,6 +113,14 @@ export interface HqBusiness {
   last_sign_in: string | null
 }
 
+/** A business whose owner asked to close it, on HQ's back-office (public.hq_closures(), the close_account migration). */
+export interface HqClosure {
+  id: number
+  closing_requested_at: string
+  closes_at: string
+  requested_by: string | null
+}
+
 /** Create with AI turned down (an artist or a song named): ElevenLabs' own rewording, when it gives one. */
 export class PromptError extends Error {
   suggestion?: string
@@ -1099,6 +1107,14 @@ export interface Api {
   hqEndComplimentary(businessId: number): Promise<void>
   /** HQ's admins: a business's Stripe free trial, `days` longer; returns when it now ends. */
   hqExtendTrial(businessId: number, days: number): Promise<string>
+  /** HQ's admins: the businesses whose owners asked to close them (anyone else gets none). */
+  hqClosures(): Promise<HqClosure[]>
+  /** Owners: everything the business keeps, one CSV file per table in a zip, to save. */
+  exportData(): Promise<{ filename: string; blob: Blob }>
+  /** Owners: close the account; it closes in 30 days (returns when) and the subscription stops renewing. */
+  closeAccount(): Promise<string>
+  /** Owners: keep the account, within the 30 days; `renewalFailed` when Stripe didn't start the subscription renewing again. */
+  keepAccount(): Promise<{ renewalFailed: boolean }>
   /** Someone opened a referral link (no sign-in): counted, and who invited them: another business, or a Business Agent rep. */
   openReferral(code: string, count?: boolean): Promise<ReferralOpen>
   /** An owner adds the Business Agent rep's code they forgot (Billing, the first 30 days); returns the rep's name. */
