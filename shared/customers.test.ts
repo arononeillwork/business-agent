@@ -93,4 +93,13 @@ describe('customers', () => {
     expect(matchesSearch(person(), 'hotel')).toBe(false)
     expect(matchesSearch(person(), '  ')).toBe(true)
   })
+
+  it('reads a number without a country code as the business’s country’s: Spain’s, or Ireland’s', async () => {
+    const { cleanPhone } = await import('./customers')
+    expect(cleanPhone('600 123 456', 'ES')).toBe('+34 600 123 456')
+    expect(cleanPhone('087 123 4567', 'IE')).toBe('+353 87 123 4567')
+    expect(cleanPhone('01 234 5678', 'IE')).toBe('+353 12345678')
+    expect(cleanPhone('+353 87 123 4567', 'IE')).toBe('+353 87 123 4567')
+    expect(cleanPhone('600 123 456', 'IE')).toBeNull()
+  })
 })

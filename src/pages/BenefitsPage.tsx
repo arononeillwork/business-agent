@@ -22,10 +22,12 @@ import {
 } from '../../shared/benefits'
 import { tokens } from '../theme'
 import { t, tc, tn, tr } from '../i18n'
+import { currentCountry } from '../../shared/country'
 
 const PAYER_TONE: Record<Payer, { fg: string; bg: string }> = {
   business: { fg: tokens.goodFg, bg: tokens.goodBg }, social_security: { fg: tokens.infoFg, bg: tokens.infoBg },
   shared: { fg: tokens.infoFg, bg: tokens.infoBg }, unpaid: { fg: tokens.neutralFg, bg: tokens.neutralBg },
+  state: { fg: tokens.infoFg, bg: tokens.infoBg }, business_then_state: { fg: tokens.infoFg, bg: tokens.infoBg },
 }
 const leaveLabel = (k: TimeOffKind) => tc('leave', TIME_OFF_LABELS[k])
 const day = (d: string) => formatLocal(`${d}T12:00:00Z`, 'd MMM yyyy')
@@ -57,7 +59,8 @@ export function BenefitsPage() {
     return { benefits, allowances, off, events }
   }, [year])
 
-  const country = businessConfig.country
+  // The law of the business's own country (Spain or Ireland).
+  const country = business?.country ?? 'ES'
   const law = ENTITLEMENTS[country]
   const checked = LAW_CHECKED[country]
   const businessName = business?.name ?? businessConfig.name
@@ -366,7 +369,7 @@ function RecordDialog({ team, onClose }: { team: Profile[]; onClose: () => void 
   const [from, setFrom] = useState(today())
   const [to, setTo] = useState(today())
   const [note, setNote] = useState('')
-  const birthWeeks = ENTITLEMENTS[businessConfig.country].find(e => e.key === 'birth')?.amount ?? 0
+  const birthWeeks = ENTITLEMENTS[currentCountry()].find(e => e.key === 'birth')?.amount ?? 0
   const save = async () => {
     let opened = 0
     if (!await run(async () => { opened = await api.recordTimeOff(person, from, to, kind, note) })) return

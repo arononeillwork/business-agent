@@ -185,7 +185,7 @@ export const COMPARE: { group: string; rows: CompareRow[] }[] = [
       explain: msg('Plan the week by dragging shifts; everyone sees their hours on their phone.') },
     { label: msg('Clock-ins, breaks and timecards'), values: every(),
       explain: msg('Staff clock in and out on their phone; hours and breaks add up by themselves.') },
-    { label: msg('Registro de jornada (monthly record)'), values: every(), note: msg('Required by law in Spain, so it is on every plan.'),
+    { label: msg('Working-time record (registro de jornada)'), values: every(), note: msg('Required by law in Spain and Ireland, so it is on every plan.'),
       explain: msg('The monthly working-time record, ready to sign and share.') },
     { label: msg('Time off and holiday allowance'), values: every(),
       explain: msg('Requests, approvals and how many days each person has left.') },

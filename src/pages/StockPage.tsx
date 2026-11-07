@@ -34,6 +34,7 @@ import { deliveryUseBy, isLastDay, isPastUseBy } from '../../shared/lastDayOffer
 import { FreshlyMade } from './FreshlyMade'
 import { tokens } from '../theme'
 import { msg, t, tn } from '../i18n'
+import { countryProfile, vatChoices } from '../../shared/country'
 
 type View = 'items' | 'fresh' | 'order' | 'history'
 const LOW_TAG = { fg: tokens.badFg, bg: tokens.badBg }
@@ -490,7 +491,7 @@ function MovementTable({ moves, itemOf, nameOf }: { moves: StockMovement[]; item
 
 const ADD = '\u0000add'
 const blank = (): StockItemInput => ({ name: '', category: null, supplier_id: null, supplier_sku: null, product_url: null, unit: 'unit', pack_size: null,
-  order_multiple: 1, cost_per_unit: null, vat_rate: 10, sell_price: null, on_hand: 0, par_level: null, reorder_at: null, location: 'Storeroom',
+  order_multiple: 1, cost_per_unit: null, vat_rate: countryProfile().defaultVat, sell_price: null, on_hand: 0, par_level: null, reorder_at: null, location: 'Storeroom',
   retail: false, notes: null, active: true })
 
 /** Add or edit an item (admins), or look at one and its history (everyone else). */
@@ -506,7 +507,7 @@ export function ItemDialog({ item, suppliers, categories, locations, readOnly, o
   const moves = useAsync('stock-movements', () => (item ? api.stockMovements(item.id) : Promise.resolve([])), [item?.id])
   const set = (patch: Partial<StockItemInput>) => setD(x => ({ ...x, ...patch }))
   const field = (k: keyof StockItemInput) => (d[k] === null || d[k] === undefined ? '' : String(d[k]))
-  const margin = retailMargin({ sell_price: d.sell_price ?? null, cost_per_unit: d.cost_per_unit ?? null, vat_rate: d.vat_rate ?? 10 })
+  const margin = retailMargin({ sell_price: d.sell_price ?? null, cost_per_unit: d.cost_per_unit ?? null, vat_rate: d.vat_rate ?? countryProfile().defaultVat })
 
   const save = () => run(async () => {
     if (!d.name.trim()) throw new Error(t('Give the item a name'))
@@ -563,8 +564,8 @@ export function ItemDialog({ item, suppliers, categories, locations, readOnly, o
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <DecimalField fullWidth label={t('Cost per unit, without IVA')} value={d.cost_per_unit} disabled={readOnly} onNumber={n => set({ cost_per_unit: n })}
               slotProps={{ input: { startAdornment: <InputAdornment position="start">{'€'}</InputAdornment> } }} />
-            <TextField select fullWidth label={t('IVA')} value={d.vat_rate ?? 10} disabled={readOnly} onChange={e => set({ vat_rate: Number(e.target.value) })}>
-              {[0, 4, 10, 21].map(r => <MenuItem key={r} value={r}>{`${r}%`}</MenuItem>)}
+            <TextField select fullWidth label={t('IVA')} value={d.vat_rate ?? countryProfile().defaultVat} disabled={readOnly} onChange={e => set({ vat_rate: Number(e.target.value) })}>
+              {vatChoices(d.vat_rate).map(r => <MenuItem key={r} value={r}>{`${r}%`}</MenuItem>)}
             </TextField>
           </Stack>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>

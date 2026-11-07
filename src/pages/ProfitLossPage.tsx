@@ -21,6 +21,7 @@ import { buildPnl, COST_OF_SALES, monthsBetween, PEOPLE, yearBefore, type Pnl, t
 import { addDays, currencySymbol, formatLocal, formatMoney, today, zonedIso } from '../../shared/time'
 import { msg, t, tc } from '../i18n'
 import { tokens } from '../theme'
+import { countryProfile } from '../../shared/country'
 
 type Period = 'year' | '12' | 'quarter' | 'lastquarter' | 'custom'
 const PERIODS: { id: Period; label: string }[] = [
@@ -105,7 +106,7 @@ export function ProfitLossPage() {
   // The business opened on the first day the till took money (running costs count from then).
   const opened = days.find(d => d.gross > 0)?.date ?? null
   const input = (months: string[]) => ({
-    months, today: now, opened, vatRate: pnlSettings.data?.vat_rate ?? 10, employerMultiplier: settings?.employer_cost_multiplier ?? 1,
+    months, today: now, opened, vatRate: pnlSettings.data?.vat_rate ?? countryProfile().defaultVat, employerMultiplier: settings?.employer_cost_multiplier ?? 1,
     takings: days, expenses: expenses.data ?? [], entries: team.data?.entries ?? [], shifts: team.data?.shifts ?? [], rates, lines: lines.data ?? [],
   })
   // Months before the business opened are left out (unless that leaves nothing to show).

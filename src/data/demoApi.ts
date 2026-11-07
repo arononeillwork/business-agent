@@ -26,6 +26,7 @@ import { DEFAULT_WHATSAPP_RETENTION, isRetention, replyWindow } from '../../shar
 import { cleanCode } from '../../shared/referrals'
 import type { RepCodeInfo, RepIntroduction } from '../../shared/hqReps'
 import { KIND_HIDDEN_PAGES, type BusinessKind } from '../../shared/hqReps'
+import { COUNTRY_HIDDEN_PAGES } from '../../shared/country'
 import { postProblem } from '../../shared/social'
 import type { SportsFavourite } from '../../shared/sports'
 import { POPULAR_FONTS } from '../../shared/fonts'
@@ -2240,9 +2241,11 @@ export function createDemoApi(): Api {
         demoBilling.rep_code_until = new Date(Date.now() + 30 * 86_400_000).toISOString()
       }
       Object.assign(business, { name, business_type: ({ cafe: 'Café', restaurant: 'Restaurant & bar', pub: 'Pub', salon: 'Salon & beauty', real_estate: 'Real estate agency' } as Record<string, string>)[b.kind ?? ''] ?? null,
-        timezone: b.timezone || 'Europe/Madrid', setup_completed_at: null })
+        timezone: b.timezone || 'Europe/Madrid', country: b.country ?? 'ES', setup_completed_at: null })
       // As the database does (the pages_by_kind migration): pages that don't fit its kind start hidden.
-      settings.hidden_pages = [...(KIND_HIDDEN_PAGES[(b.kind ?? 'other') as BusinessKind] ?? [])]
+      settings.hidden_pages = [...(KIND_HIDDEN_PAGES[(b.kind ?? 'other') as BusinessKind] ?? []), ...COUNTRY_HIDDEN_PAGES[b.country ?? 'ES']]
+      // And Ireland's working-time rules (the country migration).
+      if (b.country === 'IE') Object.assign(settings, { break_after_hours: 4.5, min_break_minutes: 15, max_daily_hours: 13, max_weekly_hours: 48, min_rest_hours: 11, vacation_days_per_year: 28 })
       notify()
       return 1
     },

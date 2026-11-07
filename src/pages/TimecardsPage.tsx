@@ -19,6 +19,7 @@ import { ErrorBox, Flags, Loading, PageHeader, PageToolbar, PersonAvatar, Sectio
 import { addDays, currencySymbol, formatDuration, formatLocal, formatMoney, localDate, localTime, today, weekStart, zonedIso } from '../../shared/time'
 import type { CorrectionRequest, Shift, TimeEntry } from '../../shared/types'
 import { t, tn } from '../i18n'
+import { countryProfile } from '../../shared/country'
 
 /**
  * Automatic tracking (on to start with): anyone on the published rota who didn't clock in gets their
@@ -106,7 +107,7 @@ export function TimecardsPage() {
 
   return (
     <>
-      <PageHeader eyebrow={'Registro de jornada'} title={t('Timecards')} actions={isPartner && <Tag>{t('Read-only')}</Tag>} />
+      <PageHeader eyebrow={t(countryProfile().hoursRecord.name)} title={t('Timecards')} actions={isPartner && <Tag>{t('Read-only')}</Tag>} />
       {/* Under the title: the week and the person on the left, the page's buttons on the right. */}
       <PageToolbar actions={<>
           <ExportButton table={table} disabled={!entries.length} folder="Timecards" />

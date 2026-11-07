@@ -45,7 +45,7 @@ const FEATURES: { icon: ReactNode; title: string; text: string }[] = [
 
 // Everything the app does, by area: the informative overview under the headline features.
 const AREAS: { icon: ReactNode; title: string; items: string[] }[] = [
-  { icon: <RotaIcon />, title: msg('Team'), items: [msg('Rota, open shifts and swaps'), msg('Clock-ins, breaks and timecards'), msg('Time off and staff benefits by Spanish law'),
+  { icon: <RotaIcon />, title: msg('Team'), items: [msg('Rota, open shifts and swaps'), msg('Clock-ins, breaks and timecards'), msg('Time off and staff benefits by Spanish or Irish law'),
     msg('Hiring, roles and house rules'), msg('Tips and the staff kitty')] },
   { icon: <EuroIcon />, title: msg('Sales and money'), items: [msg('Takings from Square, SumUp or Stripe'), msg('Profit & loss, month by month'), msg('Invoices from Gmail or Outlook'),
     msg('Tax returns and their deadlines'), msg('Expenses, mileage and grants for Andalucía')] },
@@ -62,7 +62,7 @@ const AREAS: { icon: ReactNode; title: string; items: string[] }[] = [
 // Facts worth knowing before signing up (under How it works).
 const FACTS: { value: string; label: string }[] = [
   { value: msg('One price'), label: msg('for the whole team, not per person') },
-  { value: msg('Spain-ready'), label: msg('registro de jornada, IVA, holidays and allergens') },
+  { value: msg('Spain and Ireland'), label: msg('working-time records, VAT, public holidays and allergens') },
   { value: msg('EU'), label: msg('where your data is kept') },
   { value: msg('10 min'), label: msg('to set up, with your own brand') },
 ]
@@ -78,7 +78,7 @@ const FAQ: { q: string; a: string }[] = [
   { q: msg('How does the free trial work?'), a: msg('The Business plan, with everything switched on, is free for {months} months. You add a card to start and nothing is charged until the trial ends; cancel before then and you pay nothing. If the first payment doesn\'t go through, you move to the Free plan until it does.') },
   { q: msg('Do my staff need to pay or download anything?'), a: msg('No. Your team is included in your plan. They open the app in their phone\'s browser and add it to their home screen: no app store needed.') },
   { q: msg('Do I need yet another password?'), a: msg('No. Log in with your Google, Apple, Facebook or Microsoft account in one tap. If you prefer, use your email and a password.') },
-  { q: msg('Does it follow the Spanish working-time rules?'), a: msg('Yes. Clock-ins, breaks and the monthly registro de jornada follow the rules for Spain, and you can share them with your gestoría as read-only.') },
+  { q: msg('Does it follow the working-time rules in Spain and Ireland?'), a: msg('Yes. Clock-ins, breaks and the monthly working-time record follow the rules of the business’s country: the registro de jornada in Spain, the Organisation of Working Time Act in Ireland. You can share them read-only with your gestoría or accountant.') },
   { q: msg('Can I change plan or cancel?'), a: msg('Any time. Plans are month to month (or yearly if you prefer), with no contract and no set-up fee.') },
   { q: msg('Where is my data kept?'), a: msg('In the EU, protected so each person only sees what they should. Pay and personal details stay with the people who need them.') },
 ]

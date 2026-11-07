@@ -389,7 +389,7 @@ export function readStockCsv(bytes: Uint8Array): StockCsvImport {
       name: name.slice(0, 120), category: get('category') ?? null, supplier: get('supplier') ?? null, supplier_sku: get('sku') ?? null,
       product_url: url && /^https?:\/\/\S+$/i.test(url) ? url : null, unit, pack_size: get('pack') ?? null,
       order_multiple: Math.max(1, readNumber(get('multiple')) ?? 1), cost_per_unit: readNumber(get('cost')),
-      vat_rate: Math.min(21, Math.max(0, readNumber(get('vat')) ?? 10)), sell_price: readNumber(get('price')),
+      vat_rate: Math.min(25, Math.max(0, readNumber(get('vat')) ?? 10)), sell_price: readNumber(get('price')),
       on_hand: readNumber(get('on_hand')) ?? 0, par_level: readNumber(get('par')), reorder_at: readNumber(get('reorder')),
       location: get('location') ?? null, notes: get('notes') ?? null, retail: readNumber(get('price')) !== null,
     })

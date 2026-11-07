@@ -42,6 +42,7 @@ import { DesignView } from './menu/DesignView'
 import { PhotoUpload } from './menu/PhotoUpload'
 import { tokens } from '../theme'
 import { t, tc, tn } from '../i18n'
+import { countryProfile, vatChoices } from '../../shared/country'
 
 const ICONS: Record<string, ReactNode> = {
   Coffee: <CoffeeIcon />, 'Tea & matcha': <TeaIcon />, 'Cold drinks': <ColdIcon />, Bakery: <BakeryIcon />, Food: <FoodIcon />, Shop: <ShopIcon />,
@@ -419,7 +420,7 @@ function MarkTags({ marks }: { marks: ItemMarks }) {
   </>
 }
 
-const blank = (): MenuItemInput => ({ name: '', category: 'Coffee', sell_price: null, price_label: null, vat_rate: 10, description: null, photo_url: null,
+const blank = (): MenuItemInput => ({ name: '', category: 'Coffee', sell_price: null, price_label: null, vat_rate: countryProfile().defaultVat, description: null, photo_url: null,
   featured: false, on_menu: true })
 
 /** Add or change a menu item: what customers read, its photo, and what's in it. */
@@ -488,7 +489,7 @@ function ItemDialog({ item, items, marks, fromSquare, onClose }: { item: Item | 
               onChange={e => set({ price_label: e.target.value || null })} slotProps={{ htmlInput: { maxLength: 40 } }}
               helperText={t('With Iced as a variant, menus show hot and iced prices side by side.')} />
             <TextField select fullWidth label={t('IVA')} value={m.vat_rate} onChange={e => set({ vat_rate: Number(e.target.value) })}>
-              {[0, 4, 10, 21].map(v => <MenuItem key={v} value={v}>{`${v}%`}</MenuItem>)}
+              {vatChoices(m.vat_rate).map(v => <MenuItem key={v} value={v}>{`${v}%`}</MenuItem>)}
             </TextField>
           </Stack>
           <TextField label={t('Description')} placeholder={t('One line customers read, e.g. Double ristretto with silky steamed milk')} value={m.description ?? ''} multiline minRows={2}

@@ -16,7 +16,7 @@ const PRICING_FAQ = [
   { q: msg('Is the price per person?'), a: msg('No. Each plan is one price for the whole team, up to the number of people it includes.') },
   { q: msg('What is the custom MCP connection?'), a: msg('It lets your own AI (Claude, ChatGPT, Cursor, n8n and others) read and run your business through The Business Agent: "who is working Saturday?", "move Maria to the late shift". It is on every plan, including Free.') },
   { q: msg('What is pay per use?'), a: msg('A few extras are charged only when you use them, instead of being in the monthly price. Today that’s AI music tracks for your stories and reels: {price} each on any paid plan, and {top} includes {free} free every month. You see the price before you make one, and the total is billed monthly with your plan.'), onlyWith: 'music' as const },
-  { q: msg('Do prices include VAT?'), a: msg('Prices are shown without VAT. Spanish VAT (IVA) is added on your invoice where it applies.') },
+  { q: msg('Do prices include VAT?'), a: msg('Prices are shown without VAT, which is added on your invoice where it applies (IVA in Spain, VAT in Ireland).') },
   { q: msg('Can I switch plans later?'), a: msg('Yes, up or down whenever you like. Moving up is prorated; plans are month to month, or yearly with two months free.') },
   { q: msg('We run several venues. What does Enterprise include?'), a: msg('The Business Agent for every venue on one contract, set up and supported by our team: onboarding and data import, single sign-on, custom integrations, a named account manager and annual invoicing. Write to {email} and we’ll put together a plan for your group.') },
 ]
