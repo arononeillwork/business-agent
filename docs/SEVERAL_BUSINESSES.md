@@ -136,6 +136,14 @@ complimentary (founding account, or friends & family, with a note) or ends that 
 `hq_end_complimentary()`, the `hq_actions` migration; not while a Stripe subscription runs, so that is
 cancelled in Stripe first), and gives a free trial 7, 14 or 30 days more (`worker/hq.ts`, through Stripe).
 
+Under the totals, the page's funnel (`hq_funnel()`, the `hq_funnel` migration; `shared/hqFunnel.ts`) counts the
+businesses that signed up, finished set-up, were active in week two, are on a trial, pay, and cancelled, each
+with its share of the sign-ups. Active in week two: someone in the business clocked in, added a shift or made
+a change the audit log keeps with who made it, from day 7 to day 14 after it was created; one younger than 14
+days is "not yet" and left out of that share. Cancelled: an owner asked to close the account, or its Stripe
+subscription was cancelled (ended or set to end; not a complimentary one), in the month of the earlier of the
+two. Stripe's date is kept in `billing.canceled_at`, copied by the Worker's sync.
+
 ## Closing an account
 
 An owner closes the account on Billing (`worker/account.ts`, the `close_account` migration). It closes 30

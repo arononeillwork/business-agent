@@ -2,6 +2,7 @@
 // trial, team, set-up and last sign-in, and the totals that matter (paying, trialing, monthly revenue).
 // Each business's acts (HqBusinessActions.tsx): make it complimentary or end that (hq_set_complimentary()),
 // give a free trial longer (the Worker, through Stripe), and which ones asked to close.
+// Under the totals, the funnel and cancellations by month (HqFunnel.tsx, the hq_funnel migration).
 import { Alert, Box, Chip, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography } from '@mui/material'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
@@ -10,6 +11,7 @@ import { PLANS, plan as planById } from '../../shared/plans'
 import type { HqBusiness } from '../data/api'
 import { t, tn } from '../i18n'
 import { HqBusinessActions, closingLabel } from './HqBusinessActions'
+import { HqFunnel } from '../components/HqFunnel'
 
 const PAYING = new Set(['active', 'past_due'])
 const day = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '—')
@@ -48,6 +50,7 @@ export function HqBusinessesPage() {
         <StatTile label={t('On a trial')} value={list.filter(b => b.status === 'trialing').length} />
         <StatTile label={t('Paying')} value={list.filter(b => PAYING.has(b.status)).length} note={t('{amount} a month, without VAT', { amount: euro(mrr) })} />
       </StatGrid>
+      {!!list.length && <HqFunnel businesses={list} />}
       {closing.size > 0 && (
         <Alert severity="warning" sx={{ mt: 3 }}>
           {tn(closing.size, '{n} business asked to close its account.', '{n} businesses asked to close their accounts.')}{' '}

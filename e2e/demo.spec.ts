@@ -2322,6 +2322,40 @@ test.describe('billing', () => {
     await expect(trial).toHaveCount(0)
   })
 
+  test('the back-office’s funnel: sign-ups to paying, week two out of those old enough to tell, and cancellations month by month', async ({ page }) => {
+    await open(page, '/hq/businesses?hq')
+    const funnel = page.getByRole('region', { name: 'Funnel' })
+    for (const name of ['Signed up: 6, 100%', 'Finished set-up: 6, 100%', 'Active in week two: 3, 75%', 'On a trial: 1, 17%', 'Paying: 1, 17%', 'Cancelled: 3, 50%']) {
+      await expect(funnel.getByRole('listitem', { name })).toBeVisible()
+    }
+    // Peluquería Sol (12 days) and Bar Bea (6 days) haven't had their second week yet.
+    await expect(funnel.getByText('Share of those at least two weeks old (4) · 2 are younger: not yet')).toBeVisible()
+
+    // Bar El Puerto in June, Panadería Rosa in July, and La Taberna de Juan's owner asking to close in September.
+    const months = page.getByRole('region', { name: 'Cancellations by month' })
+    await expect(months.getByText('3 in the last 12 months: subscriptions cancelled, or owners asking to close the account.')).toBeVisible()
+    const chart = months.getByRole('img', { name: 'Cancellations in each of the last 12 months' })
+    await chart.focus()
+    await page.keyboard.press('ArrowLeft')
+    await expect(months.getByRole('status')).toContainText('September 2026')
+    await expect(months.getByRole('status')).toContainText('1 cancellation')
+    await page.keyboard.press('ArrowLeft')
+    await expect(months.getByRole('status')).toContainText('August 2026')
+    await expect(months.getByRole('status')).toContainText('0 cancellations')
+
+    // Panadería Rosa comes back as friends & family: no longer one that cancelled.
+    const row = page.getByRole('table', { name: 'Businesses' }).getByRole('row').filter({ hasText: 'Panadería Rosa' })
+    await row.getByRole('button', { name: 'Actions for Panadería Rosa' }).click()
+    await page.getByRole('menuitem', { name: 'Make complimentary…' }).click()
+    const comp = page.getByRole('dialog', { name: 'Make Panadería Rosa complimentary' })
+    await comp.getByRole('radio', { name: 'Friends & family' }).check()
+    await comp.getByRole('textbox', { name: 'Note' }).fill('Rosa, back as a friend')
+    await comp.getByRole('button', { name: 'Make complimentary' }).click()
+    await toast(page, 'Panadería Rosa is complimentary now')
+    await expect(funnel.getByRole('listitem', { name: 'Cancelled: 2, 33%' })).toBeVisible()
+    await expect(months.getByText('2 in the last 12 months: subscriptions cancelled, or owners asking to close the account.')).toBeVisible()
+  })
+
   test('an owner downloads all its data as CSV files in a zip, then closes the account: closing across the app until an owner keeps it', async ({ page }) => {
     await open(page, '/account/billing')
     const card = page.getByRole('region', { name: 'Your data and closing the account' })

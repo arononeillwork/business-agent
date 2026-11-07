@@ -8,6 +8,7 @@ import type { Api, BillingInfo, HqBusiness, HqClosure } from './api'
 import type { Business, Profile, Shift } from '../../shared/types'
 import { closesAt, canStillKeep } from '../../shared/accountClosing'
 import { complimentaryBlock, isTrialExtension } from '../../shared/hqActions'
+import type { HqFunnelRow } from '../../shared/hqFunnel'
 import { exportFileName, exportReadme, toCsvFile, zipFiles } from '../../shared/dataExport'
 
 interface Who {
@@ -23,7 +24,7 @@ interface Who {
   daysAgo: (d: number) => string
 }
 
-type BackOfficeApi = Pick<Api, 'hqBusinesses' | 'hqSetComplimentary' | 'hqEndComplimentary' | 'hqExtendTrial' | 'hqClosures'
+type BackOfficeApi = Pick<Api, 'hqBusinesses' | 'hqSetComplimentary' | 'hqEndComplimentary' | 'hqExtendTrial' | 'hqClosures' | 'hqFunnel'
   | 'exportData' | 'closeAccount' | 'keepAccount'>
 
 export function demoBackOfficeApi(w: Who): BackOfficeApi {
@@ -38,9 +39,18 @@ export function demoBackOfficeApi(w: Who): BackOfficeApi {
     row({ id: 11, name: 'Bar Bea', created_at: w.daysAgo(6), people: 2, set_up_at: w.daysAgo(4), last_sign_in: w.daysAgo(2) }),
     row({ id: 9, name: 'Café Lola', created_at: w.daysAgo(85), plan: 'pro', status: 'active', billing_interval: 'month', people: 6,
       set_up_at: w.daysAgo(80), last_sign_in: w.daysAgo(0) }),
+    // Two that left, for the funnel's cancellations by month.
+    row({ id: 7, name: 'Panadería Rosa', created_at: w.daysAgo(160), plan: 'starter', status: 'canceled', billing_interval: 'month', people: 3,
+      set_up_at: w.daysAgo(158), last_sign_in: w.daysAgo(66) }),
+    row({ id: 5, name: 'Bar El Puerto', created_at: w.daysAgo(260), plan: 'pro', status: 'canceled', billing_interval: 'month', people: 5,
+      set_up_at: w.daysAgo(255), last_sign_in: w.daysAgo(121) }),
     row({ id: 1, name: w.business.name, created_at: w.daysAgo(400), is_hq: true, plan: 'business', status: 'comped', complimentary: 'founder',
       people: 3, set_up_at: w.daysAgo(399), last_sign_in: w.daysAgo(0) }),
   ]
+  // The funnel (the hq_funnel migration): whether someone in each did something in its second week (null:
+  // younger than two weeks), and when the two that left cancelled their subscriptions.
+  const weekTwo: Record<number, boolean> = { 13: false, 9: true, 1: true, 7: true, 5: true }
+  const ended: Record<number, string> = { 7: w.daysAgo(65), 5: w.daysAgo(120) }
   const closures: HqClosure[] = [{ id: 13, closing_requested_at: w.daysAgo(5), closes_at: closesAt(w.daysAgo(5)), requested_by: 'Juan Pérez' }]
   const needHq = () => { if (!w.hqAdmin()) throw new Error('Only The Business Agent HQ’s admins can do that') }
   const find = (id: number) => {
@@ -55,6 +65,15 @@ export function demoBackOfficeApi(w: Who): BackOfficeApi {
   return {
     async hqBusinesses() { return w.hqAdmin() ? list.map(b => ({ ...b })) : [] },
     async hqClosures() { return w.hqAdmin() ? closures.map(c => ({ ...c })) : [] },
+    async hqFunnel(): Promise<HqFunnelRow[]> {
+      if (!w.hqAdmin()) return []
+      return list.map(b => {
+        const asked = closures.find(c => c.id === b.id)?.closing_requested_at
+        const at = [b.status === 'canceled' ? ended[b.id] : undefined, asked].filter((d): d is string => !!d).sort()[0] ?? null
+        const old = Date.now() - Date.parse(b.created_at) >= 14 * day
+        return { id: b.id, active_week_two: old ? (weekTwo[b.id] ?? false) : null, cancelled: b.status === 'canceled' || !!asked, cancelled_at: at }
+      })
+    },
     async hqSetComplimentary(id, kind, note) {
       needHq()
       const b = find(id)
